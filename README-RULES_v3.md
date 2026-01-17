@@ -2,13 +2,13 @@
 
 **Version 3.1 — Executive Summary für KI-gestützte Entwicklung**
 
-Dieses Dokument ist die kompakte Zusammenfassung aller verbindlichen Regeln.
+Dieses Dokument ist die **kompakte Übersicht** über alle verbindlichen Regeln.
 Die vollständigen technischen Vorgaben stehen in **rules.md**.
 Das operative Verhalten der KI (Phasen, Hybridmodus, Prioritäten, Session-State) wird im **Master Prompt** definiert.
 
-Dieses Dokument enthält keine eigenständigen Regeln.
+Dieses Dokument enthält **keine eigenständigen Regeln**.
 Es fasst ausschließlich die in rules.md definierten Vorgaben zusammen.
-Im Zweifel gilt immer rules.md.
+Im Zweifel gilt immer **rules.md** bzw. der **Master Prompt**.
 
 ---
 
@@ -56,45 +56,20 @@ Alle gelieferten Archiv-Artefakte werden von der KI **immer real und vollständi
 
 ---
 
-## 4. Workflow (Kurzfassung)
+## 4. Workflow (Collapsed View)
 
-Der Standardprozess besteht aus vier Phasen:
+Der vollständige Workflow besteht aus **6 Phasen** (inkl. Sub-Phasen und Gates) gemäß **Master Prompt**.
+Dieses Dokument zeigt eine **reduzierte 4-Phasen-Sicht** zur schnellen Orientierung.
 
-### Phase 1 – Regeln laden
+| Collapsed Phase         | Entspricht Master Prompt           |
+| ----------------------- | ---------------------------------- |
+| Phase A – Analyse       | Phase 1 + 2                        |
+| Phase B – Lösungsdesign | Phase 3A + Phase 3B-1              |
+| Phase C – Validierung   | Phase 3B-2 + Phase 4               |
+| Phase D – Umsetzung     | Phase 5 (+ optional 5.5) + Phase 6 |
 
-* rules.md
-* README-RULES.md
-
-### Phase 2 – Repository-Discovery
-
-* Modulbaum
-* Schlüsselpakete
-* relevante Klassen
-* Testinventar
-* DB-/Config-Übersicht
-
-**Ausschließlich auf extrahierten Archiv-Inhalten.**
-**Keine Interpretation oder Implementierung.**
-
-### Phase 3 – API-Discovery
-
-* Extraktion aller Endpunkte
-* Methoden
-* Pfade
-* DTOs / Schemas
-* API-Versionen
-
-**Keine Logikinterpretation, kein Mapping, keine Validierung.**
-
-### Phase 4 – Ticketbearbeitung
-
-* Plan
-* komplette Diffs
-* neue Dateien
-* Tests
-* Evidenz
-* Traceability
-* Session-State-Update
+**Wichtig:**
+Alle **Gates, Sub-Phasen (z. B. 3B-1 / 3B-2) und Einschränkungen** gelten vollumfänglich, auch wenn sie hier nicht einzeln dargestellt sind.
 
 ---
 
@@ -104,16 +79,16 @@ Die KI kann flexibel zwischen Phasen wechseln.
 
 ### Implizite Aktivierung
 
-* Ticket ohne vorherige Artefakte → direkt Phase 4
-* Repository-Upload → Phase 2
-* API-Upload → Phase 3
+* Ticket ohne vorherige Artefakte → direkt Phase D
+* Repository-Upload → Phase A
+* API-Upload → Phase A
 
 ### Explizite Overrides
 
 Die folgenden Kommandos überschreiben alle Standardregeln:
 
-* „Starte direkt in Phase 4.“
-* „Überspringe Phase 2.“
+* „Starte direkt in Phase D.“
+* „Überspringe Phase A.“
 * „Arbeite nur mit Backend und ignoriere APIs.“
 * „Nutze aktuellen Session-State für erneute Discovery.“
 
@@ -166,7 +141,7 @@ Bei größeren Änderungen zusätzlich:
 
 ---
 
-## 9. Discovery (Phase 2 & 3)
+## 9. Discovery (Phase A)
 
 Die KI extrahiert ausschließlich:
 
@@ -182,36 +157,59 @@ Die KI extrahiert ausschließlich:
 
 ## 10. Session-State
 
-Ab Phase 2 führt der Assistent einen persistenten `SESSION_STATE`-Block.
+Der Assistent führt **ab Phase A** einen persistenten **Canonical `[SESSION_STATE]`** gemäß **Master Prompt**.
 
-Jede Antwort ab Phase 2 endet mit:
-```
+Dieses README zeigt zusätzlich eine **verkürzte, nicht-normative Lesesicht**.
+
+### 10.1 Canonical Session State (Normativ)
+
+```text
 [SESSION_STATE]
-Phase: [Nummer]
-Repositories:
-- Repository A (extrahiert)
-- Repository B (Status)
-APIs:
-- API-Artefakt A (analysiert)
-Aktiver Fokusbereich:
-- [Beschreibung der relevanten Bereiche]
-Offene Entscheidungen:
-  - [D1] [Beschreibung]
-  - [D2] [Beschreibung]
-Blockierende Issues: [Beschreibung] oder "keine"
-Nächster Schritt: [Beschreibung]
+CONFIDENCE_LEVEL: <0–100%>
+DEGRADED_MODE: <true|false>
+FACTS:
+- …
+DECISIONS:
+- …
+ASSUMPTIONS:
+- …
+RISKS:
+- …
+GATE_STATUS:
+- Phase X: <OPEN|PASSED|BLOCKED>
+NEXT_STEP:
+- …
 [/SESSION_STATE]
 ```
 
-### Regeln
+### 10.2 README View (Collapsed, nicht normativ)
 
+```text
+[SESSION_STATE – SUMMARY]
+Context:
+- Repository / Module:
+- Ticket / Goal:
+
+Current Phase:
+- Phase: <A|B|C|D>
+- Gate Status: <OPEN|PASSED|BLOCKED>
+
+Key Decisions:
+- …
+
+Open Questions / Blockers:
+- …
+
+Next Step:
+- …
+```
+
+**Regeln:**
+
+* Der Canonical Session State ist **immer maßgeblich**
+* Die Summary-Ansicht dient ausschließlich der Lesbarkeit
 * Nur Inhalte aus gelieferten Artefakten dürfen eingetragen werden
-* Repositories/APIs werden als A, B, C, ... durchnummeriert in Reihenfolge des Uploads
-* Status kann sein: extrahiert, analysiert, partiell, pending, fehlerhaft
-* Aktiver Fokusbereich beschreibt die gerade relevanten Schichten/Module/Bereiche
-* Offene Entscheidungen werden mit [D1], [D2], ... nummeriert
-* Annahmen müssen explizit markiert sein und
-  unter „Offene Entscheidungen“ oder einem expliziten Unterpunkt „Annahmen“ geführt werden
+* Annahmen müssen explizit gekennzeichnet sein
 * Der Block wird bei jeder Antwort aktualisiert
 
 ---
