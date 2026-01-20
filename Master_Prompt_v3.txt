@@ -1,6 +1,19 @@
+---
+description: Aktiviert den Master-Workflow (Phasen 1-6)
+priority: highest
+---
+
 MASTER PROMPT
 Version 3.4 — konsolidiert, KI-stabil, hybridfähig, pragmatisch,
 mit Architektur-, Contract-, Debt- & QA-Gates
+
+### Datenquellen & Priorität
+- Die operativen Regeln (Technik, Architektur) stammen aus der 'rules.md'.
+- Bevorzugte Quelle für 'rules.md': 
+  1. Globaler Konfigurationspfad (~/.config/opencode/commands/)
+  2. Lokales Projektverzeichnis (.opencode/)
+  3. Manuell im Chat bereitgestellter Kontext
+
 
 ZWECK
 
@@ -46,8 +59,16 @@ Wenn Regeln kollidieren, gilt folgende Reihenfolge:
 * Phase 5.5: Technical Debt Proposal Gate (optional)
 * Phase 6: Implementation QA (Self-Review Gate)
 
-Code-Generierung erfolgt erst nach expliziter Benutzerfreigabe
-(Phase 5 → ready-for-implementation).
+Code-Generierung (produktiver Code, Diffs) ist ausschließlich erlaubt,
+wenn im SESSION_STATE gilt:
+
+GATE STATUS:
+- Phase 5: ready-for-implementation
+
+Vor Phase 5 darf KEIN Code erzeugt werden.
+Nach Phase 5 erfolgt Code-Generierung ohne weitere Rückfrage,
+sofern kein neuer Blocker entsteht.
+
 
 2.2 Hybridmodus (erweitert)
 
@@ -66,6 +87,27 @@ Explizite Overrides (höchste Priorität):
 * „Nutze aktuelle Session-State-Daten und führe Phase 3 erneut aus.“
 
 Phase 5 darf NIEMALS übersprungen werden, sofern Code generiert werden soll.
+
+2.3 Phasenübergang – Default-Verhalten (Auto-Advance)
+
+Sofern nicht explizit anders angegeben gilt:
+
+- Der Assistent schreitet automatisch zur nächsten Phase fort,
+  sobald die aktuelle Phase erfolgreich abgeschlossen ist.
+- Es erfolgt KEINE Rückfrage zur Fortsetzung,
+  sofern:
+  - keine Blocker vorliegen
+  - CONFIDENCE LEVEL ≥ 70 %
+  - kein explizites Gate (Phase 5 / 5.5) erreicht ist
+
+Rückfragen sind ausschließlich zulässig bei:
+- fehlenden oder unvollständigen Artefakten
+- NOT MAPPABLE Ergebnissen
+- widersprüchlichen Spezifikationen
+- CONFIDENCE LEVEL < 70 %
+- Erreichen eines expliziten Gates (Phase 5, 5.5)
+
+Alle anderen Phasenübergänge erfolgen implizit.
 
 ---
 
@@ -172,6 +214,10 @@ DEGRADED MODE: active | inactive
 
 ## NEXT STEP
 
+NEXT STEP ist eine verbindliche Handlungsanweisung.
+Der Assistent folgt dieser Aktion ohne erneute Rückfrage,
+sofern keine neuen Blocker entstehen.
+
 * konkrete nächste Aktion
 
 [/SESSION_STATE]
@@ -270,11 +316,13 @@ Erstellt:
 * Teststrategie
 * Risiken & Annahmen
 
-Bei unklarem Ticket:
+Eine Rückfrage in Phase 4 ist NUR zulässig, wenn:
+- mehrere fachlich gleich plausible, aber inkompatible Interpretationen existieren
+- eine Entscheidung Architektur oder Datenmodell fundamental beeinflusst
 
-* 2–3 plausible Interpretationen
-* Rückfrage
-* KEIN Code
+Fehlt diese Bedingung, ist eine best-effort Planung zu erstellen,
+inkl. explizit markierter Annahmen.
+
 
 ---
 
@@ -363,7 +411,8 @@ Output:
 
 7. INITIALER SESSIONSTART
 
-„Workflow initialisiert, bereit für Phase 1.“
+„Workflow initialisiert, bereit für Phase 1.
+Der Assistent beginnt automatisch mit Phase 1.“
 
 ---
 
