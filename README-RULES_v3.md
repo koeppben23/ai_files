@@ -165,20 +165,13 @@ Dieses README zeigt zusätzlich eine **verkürzte, nicht-normative Lesesicht**.
 
 ```text
 [SESSION_STATE]
-CONFIDENCE_LEVEL: <0–100%>
-DEGRADED_MODE: <true|false>
-FACTS:
-- …
-DECISIONS:
-- …
-ASSUMPTIONS:
-- …
-RISKS:
-- …
-GATE_STATUS:
-- Phase X: <OPEN|PASSED|BLOCKED>
-NEXT_STEP:
-- …
+Phase=<...> | Confidence=<...> | Degraded=<...>
+Facts=[...]
+Decisions=[...]
+Assumptions=[...]
+Risks=[...]
+Gates=[P5:<...>; P5.5:<...>; P6:<...>]
+Next=<...>
 [/SESSION_STATE]
 ```
 
