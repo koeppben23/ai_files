@@ -259,7 +259,17 @@ Facts=[...]
 Decisions=[...]
 Assumptions=[...]
 Risks=[...]
-Gates=[P5:<pending|ready-for-implementation|revision-required>; P5.5:<not-requested|approved|rejected>; P6:<ready-for-pr|fix-required>]
+Gates=[
+  P5:<pending|ready-for-implementation|revision-required>; 
+  P5.3:<test-quality-pass|test-revision-required>;
+  P5.5:<not-requested|approved|rejected>; 
+  P6:<ready-for-pr|fix-required>
+]
+TestQuality=[
+  CoverageMatrix:15/20 methods complete (75%),
+  PatternViolations:[missing-rollback-test@PersonService.delete],
+  AntiPatterns:[assertNotNull-only@PersonServiceTest:L42]
+]
 Next=<konkrete nächste Aktion>
 [/SESSION_STATE]
 
@@ -450,6 +460,54 @@ Geprüft wird (strukturell):
 
 Output:
 - [PERF-WARN-01] ... (keine Blocker, nur Warnings)
+
+Phase 5.3 — Test-Quality Review (KRITISCH)
+
+Verpflichtende Prüfung der generierten Tests gegen rules.md Kapitel 7.3.
+
+A) Coverage-Matrix-Check
+
+Für jede öffentliche Methode prüfen:
+- HAPPY_PATH vorhanden?
+- NULL_INPUT getestet?
+- NOT_FOUND getestet?
+- CONSTRAINT_VIOLATION getestet (bei Persistenz-Operationen)?
+- STATE_INVALID getestet (bei State-Transitions)?
+- AUTHORIZATION getestet (bei schützenswerten Ressourcen)?
+
+B) Pattern-Compliance-Check
+
+- Exception-Tests prüfen konkrete Exception-Typen + Error-Codes?
+- State-Tests verifizieren Persistenz + Side-Effects?
+- Transaktionale Tests prüfen Rollback-Verhalten?
+- Mock-Tests verifizieren Call-Order + verifyNoMoreInteractions?
+
+C) Test-Data-Quality-Check
+
+- Keine Hardcoded IDs/Emails (außer bei expliziten Constraint-Tests)?
+- Test-Data-Builder verwendet?
+- Eindeutige Test-Daten pro Test (UUID/AtomicLong)?
+
+D) Anti-Pattern-Detection
+
+Automatischer BLOCKER bei:
+- assertNotNull() als einzige Assertion
+- assertThrows(Exception.class) statt konkreter Exception
+- verify() ohne verifyNoMoreInteractions() bei Mocks
+- @Test ohne Given/When/Then Kommentare bei komplexer Logik
+
+Output:
+
+[TEST-QUALITY-REPORT]
+  - Coverage-Matrix: X von Y Methoden vollständig getestet
+  - Pattern-Violations: Liste fehlender Test-Patterns
+  - Anti-Patterns: Liste gefundener Anti-Patterns
+  - Gate-Entscheidung: ready-for-implementation | test-revision-required
+
+Gate-Regel:
+- Wenn >20% der Coverage-Matrix fehlt → test-revision-required
+- Wenn Anti-Patterns gefunden → test-revision-required
+- Sonst → ready-for-implementation (mit Warnings)
 
 PHASE 5.5 – Technical Debt Proposal Gate (optional)
 
