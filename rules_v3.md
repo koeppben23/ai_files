@@ -139,10 +139,323 @@ Fehlerfall (Artefakte nicht extrahierbar/fehlend):
 - Contract Tests (ArchUnit).
 
 ## 7.3 Struktur & Pflichten
-- Given / When / Then Struktur.
-- sprechende Testnamen.
-- Mindestens eine neue Testklasse pro neuer produktiver Klasse.
-- Abdeckung von Good Case, Bad Case und Edge Cases ist verpflichtend.
+
+### 7.3.1 Test-Architektur
+- Given / When / Then Struktur (verpflichtend)
+- Sprechende Testnamen nach Pattern: `methodName_shouldBehavior_whenCondition`
+- Ein Test = ein Assertion-Fokus (keine Multi-Assertions für verschiedene Aspekte)
+- Mindestens eine neue Testklasse pro neuer produktiver Klasse
+
+### 7.3.2 Verpflichtende Test-Coverage-Matrix
+
+Für JEDE öffentliche Methode in Service/Repository/Controller MÜSSEN folgende Testfälle existieren:
+
+| Test-Kategorie | Beschreibung | Beispiel |
+|----------------|--------------|----------|
+| HAPPY_PATH | Standardfall, alle Inputs valide | findById_shouldReturnPerson_whenIdExists |
+| NULL_INPUT | Alle Parameter einzeln mit null testen | findById_shouldThrowException_whenIdIsNull |
+| EMPTY_INPUT | Listen/Collections leer | findAll_shouldReturnEmptyList_whenNoDataExists |
+| NOT_FOUND | Ressource existiert nicht | findById_shouldThrowNotFoundException_whenIdDoesNotExist |
+| BOUNDARY | Grenzwerte (0, -1, MAX_VALUE) | createPerson_shouldReject_whenAgeIsNegative |
+| CONSTRAINT_VIOLATION | DB-Constraints, Bean-Validation | createPerson_shouldThrowException_whenEmailDuplicate |
+| STATE_INVALID | Geschäftsregel verletzt | deletePerson_shouldThrowException_whenContractsActive |
+| AUTHORIZATION | Zugriff ohne Berechtigung | findById_shouldThrowAccessDenied_whenUserNotOwner |
+
+### 7.3.3 Spezielle Test-Anforderungen nach Methoden-Typ
+
+A) Query-Methoden (SELECT)
+
+Verpflichtend:
+- findById_shouldReturnPerson_whenExists
+- findById_shouldThrowNotFoundException_whenNotExists
+- findById_shouldNotReturnDeletedEntities (KRITISCH)
+- findById_shouldNotLeakSensitiveData_whenUnauthorized (KRITISCH)
+
+B) Command-Methoden (INSERT/UPDATE/DELETE)
+
+Verpflichtend:
+- createPerson_shouldSaveAndReturnEntity_whenValid
+- createPerson_shouldThrowValidationException_whenEmailInvalid
+- createPerson_shouldThrowException_whenEmailDuplicate (KRITISCH)
+- createPerson_shouldRollbackTransaction_whenSaveFails (KRITISCH)
+
+C) State-Transition-Methoden (Status-Änderungen)
+
+Verpflichtend:
+- approve_shouldChangeStatus_whenAllConditionsMet
+- approve_shouldThrowException_whenAlreadyApproved (KRITISCH)
+- approve_shouldThrowException_whenPreconditionsFail (KRITISCH)
+- approve_shouldNotAffectOtherEntities (KRITISCH - Isolation)
+
+D) Methoden mit externen Calls (APIs, Events)
+
+Verpflichtend:
+- syncPerson_shouldCallExternalApi_whenValid
+- syncPerson_shouldRetry_whenApiTemporarilyDown (KRITISCH)
+- syncPerson_shouldNotCorruptData_whenApiReturnsError (KRITISCH)
+- syncPerson_shouldLogError_whenMaxRetriesExceeded (KRITISCH)
+
+### 7.3.4 Konkrete Test-Patterns (Mandatory)
+
+Pattern 1: Exception-Testing
+
+FALSCH (zu allgemein):
+@Test void shouldThrowException() {
+    assertThrows(Exception.class, () -> service.delete(1L));
+}
+
+RICHTIG (spezifisch + Message-Check):
+@Test void deletePerson_shouldThrowBusinessException_whenContractsActive() {
+    // Given
+    Person person = createPersonWithActiveContracts();
+    
+    // When/Then
+    BusinessException ex = assertThrows(
+        BusinessException.class, 
+        () -> service.deletePerson(person.getId())
+    );
+    assertThat(ex.getCode()).isEqualTo("ACTIVE_CONTRACTS_EXIST");
+    assertThat(ex.getMessage()).contains("Person has 3 active contracts");
+}
+
+Pattern 2: State-Verification
+
+FALSCH (nur Rückgabewert testen):
+@Test void shouldUpdatePerson() {
+    Person result = service.update(person);
+    assertNotNull(result);
+}
+
+RICHTIG (State + Side-Effects):
+@Test void updatePerson_shouldPersistChanges_andSendEvent() {
+    // Given
+    Person existing = repository.save(createPerson("John", "Doe"));
+    PersonUpdateRequest request = new PersonUpdateRequest("Jane", "Doe");
+    
+    // When
+    Person result = service.update(existing.getId(), request);
+    
+    // Then
+    assertThat(result.getFirstName()).isEqualTo("Jane");
+    
+    // Verify persistence
+    Person persisted = repository.findById(existing.getId()).orElseThrow();
+    assertThat(persisted.getFirstName()).isEqualTo("Jane");
+    
+    // Verify side effects
+    verify(eventPublisher).publish(argThat(event -> 
+        event.getType().equals("PERSON_UPDATED") &&
+        event.getPersonId().equals(existing.getId())
+    ));
+}
+
+Pattern 3: Isolation-Testing (für Transaktionen)
+
+@Test void createPerson_shouldRollbackTransaction_whenSubsequentOperationFails() {
+    // Given
+    PersonCreateRequest request = validRequest();
+    doThrow(new RuntimeException("Simulated failure"))
+        .when(auditService).logCreation(any());
+    
+    // When
+    assertThrows(RuntimeException.class, () -> service.createPerson(request));
+    
+    // Then - verify nothing was persisted
+    assertThat(repository.findAll()).isEmpty();
+}
+
+### 7.3.5 Test-Daten-Management
+
+VERBOTEN:
+
+// Hardcoded Magic Values:
+Person person = new Person();
+person.setId(1L);  // Was wenn Test parallel läuft?
+person.setEmail("test@test.com");  // Was bei 2. Durchlauf?
+
+VERPFLICHTEND:
+
+// Test-Data-Builder Pattern:
+public class PersonTestDataBuilder {
+    private static final AtomicLong ID_GENERATOR = new AtomicLong(1);
+    
+    public static Person.PersonBuilder aPerson() {
+        return Person.builder()
+            .id(ID_GENERATOR.getAndIncrement())
+            .email("person-" + UUID.randomUUID() + "@test.com")
+            .firstName("Test")
+            .lastName("Person")
+            .createdAt(Instant.now());
+    }
+    
+    public static Person aPersonWithActiveContracts() {
+        return aPerson()
+            .contracts(List.of(
+                aContract().status(ContractStatus.ACTIVE).build()
+            ))
+            .build();
+    }
+}
+
+// Usage in Tests:
+@Test void test() {
+    Person person = aPerson().firstName("John").build();
+    // ...
+}
+
+### 7.3.6 Mock-Verifikation (verpflichtend)
+
+Bei JEDEM Mock MUSS verifiziert werden:
+
+@Test void createPerson_shouldCallDependencies_inCorrectOrder() {
+    // Given
+    PersonCreateRequest request = validRequest();
+    
+    // When
+    service.createPerson(request);
+    
+    // Then - verify call order
+    InOrder inOrder = inOrder(validator, repository, eventPublisher);
+    inOrder.verify(validator).validate(request);
+    inOrder.verify(repository).save(any(Person.class));
+    inOrder.verify(eventPublisher).publish(any(PersonCreatedEvent.class));
+    
+    // Then - verify no unexpected interactions
+    verifyNoMoreInteractions(validator, repository, eventPublisher);
+}
+
+### 7.3.7 Test-Kategorien (JUnit Tags)
+
+Alle Tests MÜSSEN getaggt werden:
+
+@Tag("unit")  // Isoliert, < 100ms
+@Tag("slice")  // Mit DB/Web-Slice, < 1s
+@Tag("integration")  // Mit Testcontainers, < 10s
+@Tag("contract")  // API-Contract-Tests
+
+### 7.3.8 Coverage-Enforcement
+
+Mindestanforderungen (automatisch geprüft in Phase 6):
+- Line Coverage: >= 80%
+- Branch Coverage: >= 75%
+- Mutation Coverage: >= 70% (PITest)
+
+Ausnahmen (explizit dokumentieren):
+- Getter/Setter (nur wenn keine Logik)
+- equals/hashCode (wenn über Lombok generiert)
+- toString (wenn über Lombok generiert)
+
+### 7.4 Test-Generierungs-Algorithmus (für KI)
+
+Schritt 1: Methoden-Klassifikation
+
+Für jede zu testende Methode:
+1. Identifiziere Typ: Query | Command | State-Transition | External-Call
+2. Extrahiere Parameter-Typen
+3. Identifiziere mögliche Exceptions (throws-Clause + @Valid-Annotations)
+4. Identifiziere Side-Effects (Aufrufe an andere Services/Repositories)
+
+Schritt 2: Test-Matrix-Generierung
+
+Für jeden Methoden-Typ gemäß Kapitel 7.3.3:
+1. Generiere HAPPY_PATH-Test
+2. Generiere NULL_INPUT-Tests für jeden Parameter
+3. Wenn Query: Generiere NOT_FOUND-Test
+4. Wenn Command: Generiere CONSTRAINT_VIOLATION-Tests
+5. Wenn State-Transition: Generiere STATE_INVALID-Tests
+6. Wenn @PreAuthorize vorhanden: Generiere AUTHORIZATION-Test
+
+Schritt 3: Pattern-Anwendung
+
+Für jeden generierten Test:
+1. Verwende Exception-Pattern (konkrete Exception + Error-Code-Check)
+2. Verwende State-Verification-Pattern (Persistenz + Side-Effects)
+3. Verwende Test-Data-Builder (keine Hardcoded-Values)
+4. Füge Given/When/Then-Kommentare ein
+
+Schritt 4: Self-Review
+
+Vor Abschluss:
+1. Prüfe Coverage-Matrix gegen Checkliste
+2. Suche nach Anti-Patterns
+3. Markiere fehlende Tests als [INFERENCE-ZONE: Test-Gap]
+
+Beispiel-Ausgabe für PersonService.deletePerson(Long id):
+
+// Method-Type: Command (DELETE)
+// Expected Tests: HAPPY_PATH, NULL_INPUT, NOT_FOUND, STATE_INVALID, AUTHORIZATION
+
+@Test
+@Tag("unit")
+void deletePerson_shouldMarkAsDeleted_whenPersonExistsAndNoActiveContracts() {
+    // HAPPY_PATH
+    // Given
+    Person person = aPerson().contracts(emptyList()).build();
+    when(repository.findById(person.getId())).thenReturn(Optional.of(person));
+    
+    // When
+    service.deletePerson(person.getId());
+    
+    // Then
+    verify(repository).save(argThat(p -> 
+        p.getId().equals(person.getId()) && 
+        p.isDeleted()
+    ));
+    verify(eventPublisher).publish(any(PersonDeletedEvent.class));
+    verifyNoMoreInteractions(repository, eventPublisher);
+}
+
+@Test
+@Tag("unit")
+void deletePerson_shouldThrowException_whenIdIsNull() {
+    // NULL_INPUT
+    assertThrows(IllegalArgumentException.class, 
+        () -> service.deletePerson(null));
+}
+
+@Test
+@Tag("unit")
+void deletePerson_shouldThrowNotFoundException_whenPersonDoesNotExist() {
+    // NOT_FOUND
+    when(repository.findById(999L)).thenReturn(Optional.empty());
+    
+    PersonNotFoundException ex = assertThrows(
+        PersonNotFoundException.class,
+        () -> service.deletePerson(999L)
+    );
+    assertThat(ex.getCode()).isEqualTo("PERSON_NOT_FOUND");
+}
+
+@Test
+@Tag("unit")
+void deletePerson_shouldThrowBusinessException_whenPersonHasActiveContracts() {
+    // STATE_INVALID (KRITISCH!)
+    Person person = aPersonWithActiveContracts();
+    when(repository.findById(person.getId())).thenReturn(Optional.of(person));
+    
+    BusinessException ex = assertThrows(
+        BusinessException.class,
+        () -> service.deletePerson(person.getId())
+    );
+    assertThat(ex.getCode()).isEqualTo("ACTIVE_CONTRACTS_EXIST");
+    
+    // Verify no changes persisted
+    verify(repository, never()).save(any());
+    verify(eventPublisher, never()).publish(any());
+}
+
+@Test
+@Tag("unit")
+@WithMockUser(roles = "USER")
+void deletePerson_shouldThrowAccessDenied_whenUserNotAuthorized() {
+    // AUTHORIZATION (wenn @PreAuthorize vorhanden)
+    Person person = aPerson().ownerId(999L).build();
+    when(repository.findById(person.getId())).thenReturn(Optional.of(person));
+    when(securityService.isOwner(person.getId())).thenReturn(false);
+    
+    assertThrows(AccessDeniedException.class,
+        () -> service.deletePerson(person.getId()));
+}
 
 ----------------------------------------------------------------
 
@@ -187,4 +500,5 @@ Ohne explizite Zustimmung des Users („Go für Code-DRAFT“) darf kein funktio
 ### 10.2.2 Kennzeichnung von Annahmen im Code
 Wenn außerhalb des NORMAL-Modus Code entsteht, müssen Annahmen direkt im Code markiert werden:
 ```java
+
 // ASSUMPTION [A1]: Beschreibung der Annahme (z.B. Feldtyp oder Schema)
