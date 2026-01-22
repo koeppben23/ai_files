@@ -84,7 +84,8 @@ Code-Generierung (produktiver Code, Diffs) ist ausschließlich erlaubt,
 wenn im SESSION_STATE gilt:
 
 GATE STATUS:
-- Phase 5: ready-for-implementation
+- P5: architecture-approved
+- P5.3: test-quality-pass
 
 Vor Phase 5 darf KEIN Code erzeugt werden.
 Nach Phase 5 erfolgt Code-Generierung ohne weitere Rückfrage,
@@ -119,14 +120,14 @@ Sofern nicht explizit anders angegeben gilt:
   sofern:
   - keine Blocker vorliegen
   - CONFIDENCE LEVEL ≥ 70 %
-  - kein explizites Gate (Phase 5 / 5.5 / 6) erreicht ist
+  - kein explizites Gate (Phase 5 / 5.3 / 5.5 / 6) erreicht ist
 
 Rückfragen sind ausschließlich zulässig bei:
 - fehlenden oder unvollständigen Artefakten
 - NOT MAPPABLE Ergebnissen
 - widersprüchlichen Spezifikationen
-- CONFIDENCE LEVEL < 70 %
-- Erreichen eines expliziten Gates (Phase 5, 5.5, 6)
+- CONFIDENCE LEVEL < 70 % (DRAFT oder BLOCKED gemäß rules.md 10.2)
+- Erreichen eines expliziten Gates (Phase 5, 5.3, 5.5, 6)
 
 Alle anderen Phasenübergänge erfolgen implizit.
 Hinweis: Phasen-spezifische Rückfrage-Regeln (z. B. Phase 4) dürfen die in 2.3 definierten Blocker-Regeln nicht einschränken; sie präzisieren nur zusätzliche, phasenbezogene Rückfragen bei CONFIDENCE LEVEL ≥ 70 %.
@@ -139,14 +140,16 @@ den SESSION_STATE aktualisiert und NEXT STEP setzt.
 
 Explizite Gates:
 - Phase 5 (Lead-Architekt Review): immer ein Gate
-  Gate-Status (P5): pending | ready-for-implementation | revision-required
+  Gate-Status (P5): pending | architecture-approved | revision-required
+- Phase 5.3 (Test-Quality Review): immer ein Gate (KRITISCH)
+  Gate-Status (P5.3): test-quality-pass | test-revision-required
 - Phase 5.5 (Technical Debt Proposal Gate): nur wenn Technical Debt explizit vorgeschlagen wurde
   Gate-Status (P5.5): not-requested | approved | rejected
 - Phase 6 (Implementation QA): immer ein Gate
   Gate-Status (P6): ready-for-pr | fix-required
 
 Auto-Advance-Regel:
-- Der Assistent führt Phase 5 (und ggf. Phase 5.5) sowie Phase 6 aus, liefert das Gate-Ergebnis und stoppt danach.
+- Der Assistent führt Gate-Phasen (5, 5.3, ggf. 5.5, 6) aus, liefert das Gate-Ergebnis und stoppt danach.
 - Ein Übergang in eine weitere Phase erfolgt nur gemäß NEXT STEP (oder explizitem User-Override).
 
 2.4 Stille Phasenübergänge (No-Confirmation Rule)
@@ -164,7 +167,7 @@ Der Assistent MUSS:
 - den SESSION_STATE aktualisieren
 
 Die einzige zulässige Unterbrechung ist:
-- ein explizites Gate (Phase 5, 5.5)
+- ein explizites Gate (Phase 5, 5.3, 5.5, 6)
 - ein Blocker gemäß Scope-Lock oder Confidence-Regeln
 
 CLARIFICATION MODE (OPTIONAL, USER-GESTEUERT)
@@ -194,7 +197,7 @@ Der User kann den Clarification Mode jederzeit beenden, z. B. durch:
 
 Nach Deaktivierung:
 - Es gilt wieder das Standardverhalten
-- Rückfragen erfolgen ausschließlich an expliziten Gates (Phase 5 / 5.5)
+- Rückfragen erfolgen ausschließlich an expliziten Gates (Phase 5 / 5.3 / 5.5 / 6)
   oder bei Blockern gemäß Scope- und Confidence-Regeln
 
 ---
@@ -260,9 +263,9 @@ Decisions=[...]
 Assumptions=[...]
 Risks=[...]
 Gates=[
-  P5:<pending|ready-for-implementation|revision-required>; 
+  P5:<pending|architecture-approved|revision-required>;
   P5.3:<test-quality-pass|test-revision-required>;
-  P5.5:<not-requested|approved|rejected>; 
+  P5.5:<not-requested|approved|rejected>;
   P6:<ready-for-pr|fix-required>
 ]
 TestQuality=[
@@ -398,7 +401,12 @@ Erstellt:
 
 Rückfragen in Phase 4 – Priorität & Bedingungen
 
-A) CONFIDENCE LEVEL < 70 % (DRAFT MODE)
+A0) CONFIDENCE LEVEL < 50 % (BLOCKED MODE gemäß rules.md 10.2)
+- Es wird nur eine Plan-Skizze geliefert.
+- Blocker werden explizit gemeldet.
+- Keine inferenzbasierte Rekonstruktion fehlender Informationen.
+
+A) CONFIDENCE LEVEL 50–69 % (DRAFT MODE gemäß rules.md 10.2)
 - Es wird ausschließlich ein Plan geliefert (keine Implementierung).
 - Rückfragen sind nur zulässig, wenn sie unter die globalen Blocker-Regeln aus Abschnitt 2.3 fallen
   (fehlende/unvollständige Artefakte, NOT MAPPABLE, widersprüchliche Spezifikationen).
@@ -502,12 +510,12 @@ Output:
   - Coverage-Matrix: X von Y Methoden vollständig getestet
   - Pattern-Violations: Liste fehlender Test-Patterns
   - Anti-Patterns: Liste gefundener Anti-Patterns
-  - Gate-Entscheidung: ready-for-implementation | test-revision-required
+  - Gate-Entscheidung: test-quality-pass | test-revision-required
 
 Gate-Regel:
 - Wenn >20% der Coverage-Matrix fehlt → test-revision-required
 - Wenn Anti-Patterns gefunden → test-revision-required
-- Sonst → ready-for-implementation (mit Warnings)
+- Sonst → test-quality-pass (mit Warnings)
 
 PHASE 5.5 – Technical Debt Proposal Gate (optional)
 
