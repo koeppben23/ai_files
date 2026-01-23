@@ -120,7 +120,7 @@ Die folgenden Kommandos überschreiben alle Standardregeln:
 * strukturiertes Logging, Validierung, Fehlerbehandlung
 * Architekturlayer strikt einhalten
 * Testabdeckung ≥ 80 % der geänderten Logik
-* Für neu erstellte produktive Klassen sind zugehörige Unit-Testklassen (Good/Bad/Edge Cases) verpflichtend (Details in rules_v3.md, Kapitel 7.3 (Test Quality Rules), insbesondere 7.3.2 (Coverage Matrix per public method)
+* Für neu erstellte produktive Klassen sind zugehörige Unit-Testklassen (Good/Bad/Edge Cases) verpflichtend (Details in rules.md, Kapitel 7.3 (Test Quality Rules), insbesondere 7.3.2 (Coverage Matrix per public method)
 )
 
 **Build-Anforderung:**
@@ -243,6 +243,7 @@ Falls Artefakte fehlen oder defekt sind:
 ---
 
 **Ende der Datei — README-RULES.md v3.1**
+
 
 
 
