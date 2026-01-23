@@ -128,14 +128,14 @@ Sofern nicht explizit anders angegeben gilt:
   sofern:
   - keine Blocker vorliegen
   - CONFIDENCE LEVEL ≥ 70 %
-  - kein explizites Gate (Phase 5 / 5.3 / 5.5 / 6) erreicht ist
+  - kein explizites Gate (Phase 5 / 5.3 / 5.4 / 5.5 / 6) erreicht ist
 
 Rückfragen sind ausschließlich zulässig bei:
 - fehlenden oder unvollständigen Artefakten
 - NOT MAPPABLE Ergebnissen
 - widersprüchlichen Spezifikationen
 - CONFIDENCE LEVEL < 70 % (DRAFT oder BLOCKED gemäß rules.md 10.2)
-- Erreichen eines expliziten Gates (Phase 5, 5.3, 5.5, 6)
+- Erreichen eines expliziten Gates (Phase 5, 5.3, 5.4, 5.5, 6)
 
 Alle anderen Phasenübergänge erfolgen implizit.
 Hinweis: Phasen-spezifische Rückfrage-Regeln (z. B. Phase 4) dürfen die in 2.3 definierten Blocker-Regeln nicht einschränken; sie präzisieren nur zusätzliche, phasenbezogene Rückfragen bei CONFIDENCE LEVEL ≥ 70 %.
@@ -177,8 +177,7 @@ Der Assistent MUSS:
 - den SESSION_STATE aktualisieren
 
 Die einzige zulässige Unterbrechung ist:
-- ein explizites Gate (Phase 5, 5.3, 5.5, 6)
-- ein Blocker gemäß Scope-Lock oder Confidence-Regeln
+- ein explizites Gate (Phase 5, 5.3, 5.4, 5.5, 6)
 
 CLARIFICATION MODE (OPTIONAL, USER-GESTEUERT)
 
@@ -207,7 +206,7 @@ Der User kann den Clarification Mode jederzeit beenden, z. B. durch:
 
 Nach Deaktivierung:
 - Es gilt wieder das Standardverhalten
-- Rückfragen erfolgen ausschließlich an expliziten Gates (Phase 5 / 5.3 / 5.5 / 6)
+- Rückfragen erfolgen ausschließlich an expliziten Gates (Phase 5 / 5.3 / 5.4 / 5.5 / 6)
   oder bei Blockern gemäß Scope- und Confidence-Regeln
 
 ---
