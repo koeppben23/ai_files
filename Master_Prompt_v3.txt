@@ -742,6 +742,81 @@ Wenn Gate = business-rules-gap-detected:
   2. „Markiere BR-XXX als nicht relevant für dieses Ticket" → Gate wird zu „compliant-with-exceptions"
   3. „Stoppe Workflow" → BLOCKED
 
+## Domain-Modell-Quality-Check (Phase 5.5.1 NEU)
+
+### Anemic Domain Model Detection (Anti-Pattern)
+
+**Erkannt als Problem:**
+```java
+@Entity
+public class Person {
+    private Long id;
+    private String name;
+    private List<Contract> contracts;
+    // Nur Getter/Setter, KEINE Logik
+}
+
+@Service
+public class PersonService {
+    public void deletePerson(Long id) {
+        Person person = repository.findById(id).orElseThrow();
+        if (!person.getContracts().isEmpty()) {  // ← Logik SOLLTE in Entity sein
+            throw new BusinessException("CONTRACTS_ACTIVE");
+        }
+        repository.delete(person);
+    }
+}
+```
+
+**Besser: Rich Domain Model**
+```java
+@Entity
+public class Person {
+    private Long id;
+    private String name;
+    private List<Contract> contracts;
+    
+    // Domain-Logik IN der Entity
+    public void delete() {
+        if (!this.contracts.isEmpty()) {
+            throw new BusinessException("CONTRACTS_ACTIVE");
+        }
+        this.deleted = true;  // Soft-Delete
+    }
+    
+    public boolean canBeDeleted() {
+        return contracts.isEmpty();
+    }
+}
+
+@Service
+public class PersonService {
+    @Transactional
+    public void deletePerson(Long id) {
+        Person person = repository.findById(id).orElseThrow();
+        person.delete();  // ← Domain-Logik delegiert
+        repository.save(person);
+    }
+}
+```
+
+**Phase 5.5.1 Check:**
+- Zähle Entities mit >80% Getter/Setter (Anemic)
+- Wenn >50% der Entities anemic → Warning (kein Blocker)
+- Empfehlung: "Consider moving business logic to domain entities"
+
+**Output:**
+```
+[DOMAIN-MODEL-QUALITY]
+Total-Entities: 12
+Anemic-Entities: 8 (67%)
+Warning: High percentage of anemic domain models
+Recommendation: Move validation/business logic to Person, Contract entities
+Examples:
+  - Person.delete() validation should be in entity
+  - Contract.approve() preconditions should be in entity
+[/DOMAIN-MODEL-QUALITY]
+```
 ---
 
 PHASE 5.5 – Technical Debt Proposal Gate (optional)
@@ -751,6 +826,69 @@ PHASE 5.5 – Technical Debt Proposal Gate (optional)
 * Separate Freigabe
 * Keine stillen Refactorings
 
+---
+
+## Code-Complexity-Gates (Phase 5.6 NEU)
+
+### Cyclomatic Complexity Check
+
+**Schwellwerte:**
+- Methode: ≤ 10 (WARNING bei >10, BLOCKER bei >15)
+- Klasse: ≤ 50 (WARNING bei >50)
+- Package: ≤ 200
+
+**Beispiel (zu komplex):**
+```java
+public void processOrder(Order order) {  // Complexity: 18 ← BLOCKER
+    if (order == null) return;
+    if (order.getStatus() == null) throw ...;
+    if (order.getCustomer() == null) throw ...;
+    
+    if (order.isPriority()) {
+        if (order.getAmount() > 1000) {
+            if (order.hasDiscount()) {
+                // 3 nested levels ← zu tief
+            } else {
+                // ...
+            }
+        } else {
+            // ...
+        }
+    } else {
+        // ...
+    }
+}
+```
+
+**Refactoring-Hinweis:**
+```
+[COMPLEXITY-WARNING: PersonService.processOrder]
+Cyclomatic Complexity: 18 (threshold: 10)
+Recommendation: Extract methods
+  - extractPriorityOrderProcessing()
+  - extractStandardOrderProcessing()
+  - extractValidation()
+```
+
+### Cognitive Complexity Check
+
+**Schwellwerte:**
+- Methode: ≤ 15 (WARNING)
+- Nested levels: ≤ 3 (BLOCKER bei >3)
+
+**Output:**
+```
+[CODE-COMPLEXITY-REPORT]
+High-Complexity-Methods: 3
+  - PersonService.processOrder: Cyclomatic=18, Cognitive=22
+  - ContractService.approve: Cyclomatic=12, Cognitive=15
+  
+Deep-Nesting: 2
+  - OrderService.calculate: 4 levels (BLOCKER)
+  
+Gate: complexity-warning (no blocker, but requires review attention)
+[/CODE-COMPLEXITY-REPORT]
+```
 ---
 
 PHASE 6 – Implementation QA (Self-Review Gate)
