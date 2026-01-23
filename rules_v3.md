@@ -857,19 +857,57 @@ Jede Umsetzung muss in einer Tabelle dokumentiert werden:
 
 ## 10.2 Confidence Level & Verhaltensmatrix
 
-| Confidence | Modus    | Plan | Code             | Verhalten |
-|-----------|----------|------|------------------|----------|
-| 90–100 %  | NORMAL   | ja   | ja               | Full Production-Code |
-| 70–89 %   | DEGRADED | ja   | ja               | Warnhinweise + Annahmen im Output |
-| 50–69 %   | DRAFT    | ja   | nur nach Freigabe| Nur Plan; Code erst nach "Go" |
-| < 50 %    | BLOCKED  | ja   | nein             | Nur Plan-Skizze + Blocker-Meldung |
+| Confidence | Modus    | Plan | Code             | Business-Rules-Check | Verhalten |
+|-----------|----------|------|------------------|---------------------|----------|
+| 90–100 %  | NORMAL   | ja   | ja               | Phase 1.5 empfohlen | Full Production-Code |
+| 70–89 %   | DEGRADED | ja   | ja               | Phase 1.5 empfohlen | Warnhinweise + Annahmen im Output |
+| 50–69 %   | DRAFT    | ja   | nur nach Freigabe| Phase 1.5 optional  | Nur Plan; Code erst nach "Go" |
+| < 50 %    | BLOCKED  | ja   | nein             | Phase 1.5 übersprungen | Nur Plan-Skizze + Blocker-Meldung |
+
+**Business-Rules-Impact auf Confidence:**
+
+Die Anzahl extrahierter Business Rules beeinflusst das Confidence Level:
+
+- **0-2 BRs bei >50 Klassen:** Confidence -20% (kritische Lücke)
+- **3-5 BRs bei >50 Klassen:** Confidence -10% (Lücke wahrscheinlich)
+- **6-10 BRs bei >50 Klassen:** Confidence +0% (akzeptabel)
+- **10+ BRs bei >50 Klassen:** Confidence +10% (gut dokumentiert)
+- **Beliebig bei <30 Klassen:** Confidence +0% (CRUD-Projekt)
+
+**Beispiel:**
+```
+Base-Confidence: 85% (DEGRADED)
+Business-Rules gefunden: 3 bei 67 Klassen
+Adjustment: -10%
+Final-Confidence: 75% (DEGRADED mit erhöhtem Risiko)
+```
 
 ### 10.2.1 DRAFT MODE (50–69 %)
-Ohne explizite Zustimmung des Users („Go für Code-DRAFT“) darf kein funktionaler Code erzeugt werden. Es erfolgt lediglich die Darstellung des Plans und der Risiken.
+Ohne explizite Zustimmung des Users („Go für Code-DRAFT") darf kein funktionaler Code erzeugt werden. Es erfolgt lediglich die Darstellung des Plans und der Risiken.
+
+**DRAFT MODE mit Business-Rules:**
+- Phase 1.5 ist optional
+- Wenn ausgeführt: Extrahierte BRs werden im Plan referenziert
+- Code-Generierung nur nach expliziter Freigabe
+- Phase 5.4 wird übersprungen (da kein Code generiert wird)
 
 ### 10.2.2 Kennzeichnung von Annahmen im Code
 Wenn außerhalb des NORMAL-Modus Code entsteht, müssen Annahmen direkt im Code markiert werden:
 ```java
-
 // ASSUMPTION [A1]: Beschreibung der Annahme (z.B. Feldtyp oder Schema)
+```
+
+**Kennzeichnung fehlender Business-Rules:**
+Wenn Business Rules im Inventory existieren, aber im Code fehlen:
+```java
+public void deletePerson(Long id) {
+    Person person = findById(id);
+    
+    // INFERENCE-ZONE [BR-001]: Missing check for active contracts
+    // Expected: if (!person.getContracts().isEmpty()) throw BusinessException(...)
+    // Reason: BR-001 found in inventory but not implemented here
+    
+    repository.delete(person);
+}
+```
 
