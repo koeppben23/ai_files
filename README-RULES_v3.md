@@ -193,7 +193,7 @@ BusinessRules=[
   Gaps:[BR-ID:Beschreibung, ...],
   NewRules:[Beschreibung, ...] | none
 ]
-Gates=[P5:<...>; P5.3:<...>; P5.5:<...>; P6:<...>]
+Gates=[P5:<...>; P5.3:<...>; P5.4:<...>; P5.5:<...>; P6:<...>]
 TestQuality=[...]   # nur wenn Phase 5.3 aktiv/ausgeführt
 Next=<...>
 [/SESSION_STATE]
@@ -242,5 +242,6 @@ Falls Artefakte fehlen oder defekt sind:
 ---
 
 **Ende der Datei — README-RULES.md v3.1**
+
 
 
