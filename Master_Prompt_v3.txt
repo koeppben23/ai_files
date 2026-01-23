@@ -78,6 +78,7 @@ Konsequenz:
 * Phase 3B-2: Contract Validation (Spec ↔ Code)
 * Phase 4: Ticketbearbeitung (Planerstellung)
 * Phase 5: Lead-Architekt Review (Gatekeeper)
+* Phase 5.3: Test-Quality Review (KRITISCH)
 * Phase 5.4: Business-Rules-Compliance (nur wenn Phase 1.5 ausgeführt)
 * Phase 5.5: Technical Debt Proposal Gate (optional)
 * Phase 6: Implementation QA (Self-Review Gate)
@@ -86,7 +87,8 @@ Code-Generierung (produktiver Code, Diffs) ist ausschließlich erlaubt,
 wenn im SESSION_STATE gilt:
 
 GATE STATUS:
-- P5.4: business-rules-compliant ODER compliant-with-exceptions (falls Phase 1.5 aktiv)
+- P5: architecture-approved
+- P5.3: test-quality-pass
 
 Vor Phase 5 darf KEIN Code erzeugt werden.
 Nach Phase 5 erfolgt Code-Generierung ohne weitere Rückfrage,
