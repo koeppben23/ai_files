@@ -1,6 +1,6 @@
 # README-RULES.md
 
-**Version 3.1 — Executive Summary für KI-gestützte Entwicklung**
+**Executive Summary für KI-gestützte Entwicklung**
 
 Dieses Dokument ist die **kompakte Übersicht** über alle verbindlichen Regeln.
 Die vollständigen technischen Vorgaben stehen in **rules.md**.
@@ -121,7 +121,6 @@ Die folgenden Kommandos überschreiben alle Standardregeln:
 * Architekturlayer strikt einhalten
 * Testabdeckung ≥ 80 % der geänderten Logik
 * Für neu erstellte produktive Klassen sind zugehörige Unit-Testklassen (Good/Bad/Edge Cases) verpflichtend (Details in rules.md, Kapitel 7.3 (Test Quality Rules), insbesondere 7.3.2 (Coverage Matrix per public method)
-)
 
 **Build-Anforderung:**
 
@@ -181,22 +180,51 @@ Dieses README zeigt zusätzlich eine **verkürzte, nicht-normative Lesesicht**.
 
 ```text
 [SESSION_STATE]
-Phase=<...> | Confidence=<...> | Degraded=<...>
-Facts=[...]
-Decisions=[...]
-Assumptions=[...]
-Risks=[...]
-BusinessRules=[
-  Inventory:<Anzahl> rules | not-extracted,
-  InPlan:<X>/<Total> (<Prozent>%),
-  InCode:<X>/<Total> (<Prozent>%),
-  InTests:<X>/<Total> (<Prozent>%),
-  Gaps:[BR-ID:Beschreibung, ...],
-  NewRules:[Beschreibung, ...] | none
-]
-Gates=[P5:<...>; P5.3:<...>; P5.4:<...>; P5.5:<...>; P6:<...>]
-TestQuality=[...]   # nur wenn Phase 5.3 aktiv/ausgeführt
-Next=<...>
+Phase=<1|2|3A|3B-1|3B-2|4|5|5.5|6> | Confidence=<0-100>% | Degraded=<active|inactive>
+
+Facts:
+- ...
+
+Decisions:
+- ...
+
+Assumptions:
+- ...
+
+Risks:
+- ...
+
+BusinessRules:
+  Inventory: <Anzahl> rules | not-extracted
+  Coverage:
+    InPlan:  <X>/<Total> (<Prozent>%)
+    InCode:  <X>/<Total> (<Prozent>%)
+    InTests: <X>/<Total> (<Prozent>%)
+  Gaps:
+  - BR-ID: Beschreibung
+  - ...
+  NewRules:
+  - Beschreibung
+  - ...     # oder: none
+
+Gates:
+  P5:   <pending|architecture-approved|revision-required>
+  P5.3: <test-quality-pass|test-revision-required>
+  P5.4: <not-applicable|business-rules-compliant|business-rules-gap-detected|compliant-with-exceptions>
+  P5.5: <not-requested|approved|rejected>
+  P6:   <ready-for-pr|fix-required>
+
+TestQuality:        # nur wenn Phase 5.3 aktiv / ausgeführt
+  CoverageMatrix: <X>/<Y> methods complete (<Prozent>%)
+  PatternViolations:
+  - missing-rollback-test@PersonService.delete
+  - ...
+  AntiPatterns:
+  - assertNotNull-only@PersonServiceTest:L42
+  - ...      # oder: none
+
+Next:
+- <konkrete nächste Aktion>
 [/SESSION_STATE]
 ```
 
@@ -242,9 +270,4 @@ Falls Artefakte fehlen oder defekt sind:
 
 ---
 
-**Ende der Datei — README-RULES.md v3.1**
-
-
-
-
-
+**Ende der Datei — README-RULES.md**
