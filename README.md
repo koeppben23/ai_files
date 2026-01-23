@@ -1,8 +1,15 @@
 # Governance & Prompt System – Übersicht
 
-Dieses Repository enthält ein **mehrschichtiges Governance- und Prompt-System** für KI-gestützte Softwareentwicklung mit Fokus auf **Lead-/Staff-Qualität**, Nachvollziehbarkeit und Review-Festigkeit.
+Dieses Repository enthält ein **mehrschichtiges Governance- und Prompt-System**
+für KI-gestützte Softwareentwicklung mit Fokus auf **Lead-/Staff-Qualität**,
+Nachvollziehbarkeit und Review-Festigkeit.
 
-Das System ist so aufgebaut, dass es **sowohl im reinen Chat-Betrieb** als auch **repo-aware mit OpenCode** effizient und token-schonend eingesetzt werden kann.
+Das System ist so aufgebaut, dass es **sowohl im reinen Chat-Betrieb**
+als auch **repo-aware mit OpenCode** effizient und token-schonend eingesetzt
+werden kann.
+
+Dieses README ist **beschreibend**, nicht normativ.
+Es erklärt Zweck, Aufbau und Nutzung – es steuert **nicht** das Verhalten der KI.
 
 ---
 
@@ -10,40 +17,43 @@ Das System ist so aufgebaut, dass es **sowohl im reinen Chat-Betrieb** als auch 
 
 Das System adressiert ein zentrales Problem moderner KI-gestützter Entwicklung:
 
-> Wie erreicht man reproduzierbar **hohe Business- und Testqualität**, ohne implizites Wissen, Abkürzungen oder Halluzinationen?
+> Wie erreicht man reproduzierbar **hohe Business- und Testqualität**,
+> ohne implizites Wissen, Abkürzungen oder Halluzinationen?
 
-Die Antwort ist eine **klare Trennung von Verantwortung**, ein **phasenbasierter Workflow** und **harte Gates** für Architektur, Tests und Businesslogik.
+Die Antwort ist eine **klare Trennung von Verantwortung**, ein
+**phasenbasierter Workflow** und **harte Gates** für Architektur,
+Businesslogik und Tests.
 
 ---
 
 ## 2. Logische Schichtung (Token-optimiert)
 
-Das System ist bewusst in **drei logische Schichten** aufgebaut. Diese Schichten sind **keine zusätzlichen Regeln**, sondern eine **Nutzungs- und Aktivierungsempfehlung**, um Tokenverbrauch und kognitive Last zu optimieren.
+Das System ist bewusst in **drei logische Schichten** aufgebaut.
+Diese Schichten sind **keine zusätzlichen Regeln**, sondern eine
+**Nutzungs- und Aktivierungsempfehlung**, um Tokenverbrauch und kognitive
+Last zu optimieren.
 
 ### Layer 1 – Core Governance (Always-On)
 
-**Zweck:**
-Stellt sicher, dass die KI sich korrekt verhält – unabhängig vom Kontext.
+**Zweck:**  
+Stellt sicher, dass sich die KI korrekt verhält – unabhängig vom Kontext.
 
 **Charakteristik:**
-
-* klein
-* immer aktiv
-* bestimmt *ob* gearbeitet wird, nicht *wie*
+- klein
+- immer aktiv
+- bestimmt *ob* gearbeitet wird, nicht *wie*
 
 **Inhaltlich umfasst Layer 1:**
-
-* Prioritätenordnung
-* Scope-Lock / Repo-First
-* Phasenübersicht (1–6)
-* Gate-Regeln (wann Code erlaubt ist)
-* Session-State-Mechanismus
-* Confidence / Degraded / Blocked-Verhalten
+- Prioritätenordnung
+- Scope-Lock / Repo-First
+- Phasenübersicht (1–6)
+- Gate-Regeln (wann Code erlaubt ist)
+- Session-State-Mechanismus
+- Confidence / Degraded / Blocked-Verhalten
 
 **Primäre Dateien:**
-
-* `master.md`
-* `SCOPE-AND-CONTEXT.md`
+- `master.md`
+- `SCOPE-AND-CONTEXT.md`
 
 Dieser Layer sollte **immer geladen** sein – sowohl im Chat als auch mit OpenCode.
 
@@ -51,53 +61,43 @@ Dieser Layer sollte **immer geladen** sein – sowohl im Chat als auch mit OpenC
 
 ### Layer 2 – Quality & Logic Enforcement (Phase-Scoped)
 
-**Zweck:**
+**Zweck:**  
 Erzwingt **Lead-Qualität** für Architektur, Businesslogik und Tests.
 
 **Charakteristik:**
-
-* inhaltlich stark
-* nur aktiv, wenn entsprechende Phasen erreicht werden
-* größter Qualitätshebel
+- inhaltlich stark
+- nur aktiv, wenn entsprechende Phasen erreicht werden
+- größter Qualitätshebel
 
 **Inhaltlich umfasst Layer 2:**
-
-* Business-Rules Discovery (Phase 1.5)
-* Test-Quality-Regeln (Coverage-Matrix, Anti-Patterns)
-* Business-Rules-Compliance (Phase 5.4)
-* Architektur- und Coding-Guidelines
+- Business-Rules Discovery (Phase 1.5)
+- Test-Quality-Regeln (Coverage-Matrix, Anti-Patterns)
+- Business-Rules-Compliance (Phase 5.4)
+- Architektur- und Coding-Guidelines
 
 **Primäre Datei:**
+- `rules.md`
 
-* `rules.md`
-
-Dieser Layer wird **phasenabhängig aktiviert** (z. B. 1.5, 5.3, 5.4) und muss **nicht permanent im Kontext sein**.
+Dieser Layer wird **phasenabhängig aktiviert**
+(z. B. 1.5, 5.3, 5.4) und muss **nicht permanent im Kontext sein**.
 
 ---
 
 ### Layer 3 – Reference & Examples (Lazy-Loaded)
 
-**Zweck:**
+**Zweck:**  
 Dient als **Nachschlagewerk** und zur Absicherung korrekter Interpretation.
 
 **Charakteristik:**
-
-* umfangreich
-* viele Beispiele
-* nicht entscheidungsrelevant
-
-**Inhaltlich umfasst Layer 3:**
-
-* Codebeispiele
-* Musterkataloge
-* ausführliche Testbeispiele
-* Illustrationen für Business Rules
+- umfangreich
+- viele Beispiele
+- nicht entscheidungsrelevant
 
 **Quelle:**
+- Beispiel- und Referenzabschnitte innerhalb von `rules.md`
 
-* Beispielabschnitte innerhalb von `rules.md`
-
-Dieser Layer sollte **nur bei Bedarf** (Unklarheit, Review, Audit) herangezogen werden.
+Dieser Layer sollte **nur bei Bedarf**
+(Unklarheit, Review, Audit) herangezogen werden.
 
 ---
 
@@ -106,97 +106,109 @@ Dieser Layer sollte **nur bei Bedarf** (Unklarheit, Review, Audit) herangezogen 
 ### Empfohlene Nutzung
 
 1. **Initial:**
-
-   * Master Prompt (Layer 1)
-   * ggf. README-RULES (Überblick)
+   - `master.md`
+   - `SCOPE-AND-CONTEXT.md`
 
 2. **Arbeiten im Ticket:**
+   - Phasen laufen implizit
+   - `rules.md` wird erst bei relevanten Gates zugeschaltet
 
-   * Phasen laufen implizit
-   * Layer 2 wird nur bei relevanten Gates aktiviert
-
-3. **Vorteile im Chat-Betrieb:**
-
-   * Hohe Qualität ohne Repo-Zugriff
-   * Deterministisches Verhalten
-   * Keine Halluzinationen außerhalb des Scopes
-
-### Einschränkung
-
-Im Chat-Betrieb basiert Businesslogik **ausschließlich auf gelieferten Artefakten und Beschreibungen**. Externe fachliche Wahrheit kann nicht automatisch erkannt werden.
+3. **Wichtig:**
+   - Businesslogik basiert im Chat ausschließlich auf
+     gelieferten Artefakten und expliziten Beschreibungen
+   - Externe fachliche Wahrheit kann nicht automatisch erkannt werden
 
 ---
 
-## 4. Einsatz mit OpenCode (Repo-aware)
+## 4. Einsatz mit OpenCode (repo-aware)
 
 ### Empfohlene Nutzung
 
 1. **Initial:**
+   - OpenCode auf das Repository richten (Repo-Scan)
+   - `/master` ausführen
 
-   * Master Prompt (Layer 1)
-   * rules.md verfügbar im Projekt oder global
+2. **Governance:**
+   - `master.md`
+   - `rules.md`
+   - `SCOPE-AND-CONTEXT.md`
+   sind dauerhaft aktiv
 
-2. **Automatisch:**
-
-   * Repo-Scan ersetzt große Teile manueller Discovery
-   * Business-Rules Discovery (Phase 1.5) wird deutlich präziser
-
-3. **Qualitätsgewinn:**
-
-   * Real existierende Businesslogik wird extrahiert
-   * Tests und Architektur passen sich dem Repo-Stil an
-   * Weniger Fehlannahmen
-
-### Wichtig
+3. **Vorteile:**
+   - Präzise Business-Rules Discovery aus realem Code
+   - Tests und Architektur passen sich dem Repo-Stil an
+   - Weniger Fehlannahmen, weniger Review-Reibung
 
 OpenCode ist ein **Qualitätsverstärker**, kein Qualitätsgarant.
-
-Erst die Kombination aus:
-
-* Repo-Kontext **und**
-* Gates aus diesem Governance-System
-
-liefert reproduzierbar hohe Ergebnisse.
+Die Qualität entsteht durch die Kombination aus Repo-Kontext **und**
+den Gates dieses Systems.
 
 ---
 
-## 5. Rolle der einzelnen Dateien
+## 5. Kommandos & Session-Steuerung (OpenCode)
 
-| Datei                  | Zweck                                                          |
-| ---------------------- | -------------------------------------------------------------- |
-| `Mmaster.md`           | Zentrale Steuerung: Phasen, Gates, Prioritäten, Session-State  |
-| `rules.md`             | Technische, architektonische, testbezogene und Business-Regeln |
-| `README-RULES.md`      | Executive Summary, Onboarding, reduzierte Sicht                |
-| `SCOPE-AND-CONTEXT.md` | Klare Abgrenzung: was das System kann – und was nicht          |
-| `ResumePrompt.txt`     | Kontrollierte Wiederaufnahme laufender Sessions                |
+Dieses Repository definiert drei zentrale Kommandos:
+
+### `/master`
+Startet ein neues Vorhaben.
+- Lädt die komplette Governance
+- Initialisiert den Workflow
+- Setzt einen neuen `[SESSION_STATE]`
+
+### `/resume`
+Setzt eine bestehende Session **deterministisch** fort.
+- Erwartet den letzten `[SESSION_STATE]`
+- Keine Re-Discovery
+- Keine Neuinterpretation
+- Keine neuen Annahmen
+
+### `/continue`
+Einheitliche Zustimmung zum Weitermachen.
+- Führt **ausschließlich** den Schritt aus,
+  der in `SESSION_STATE.Next` definiert ist
+- Umgeht keine Gates
+- Startet keine neuen Phasen
 
 ---
 
-## 6. Für wen ist dieses System gedacht?
+## 6. Rolle der einzelnen Dateien
+
+| Datei                  | Zweck |
+|------------------------|-------|
+| `master.md`            | Zentrale Steuerung: Phasen, Gates, Session-State |
+| `rules.md`             | Technische, architektonische, Test- und Business-Regeln |
+| `README-RULES.md`      | Executive Summary (nicht normativ) |
+| `SCOPE-AND-CONTEXT.md` | Normative Abgrenzung von Verantwortung & Scope |
+| `resume.md`            | OpenCode-Command für kontrollierte Fortsetzung |
+| `continue.md`          | OpenCode-Command für einheitliches „Weitermachen“ |
+| `ResumePrompt.md`      | Manuelle/Fallback-Variante für Resume ohne Commands |
+
+---
+
+## 7. Für wen ist dieses System gedacht?
 
 **Geeignet für:**
-
-* Senior / Lead / Staff Engineers
-* Review-intensive Codebases
-* Regulatorische oder audit-kritische Umgebungen
-* Teams mit klaren Architektur- und Qualitätsstandards
+- Senior / Lead / Staff Engineers
+- Review-intensive Codebases
+- Regulatorische oder audit-kritische Umgebungen
+- Teams mit expliziten Architektur- und Qualitätsstandards
 
 **Nicht geeignet für:**
-
-* Prototyping
-* exploratives Domain Modeling
-* schnelle MVPs ohne Artefakte
+- Prototyping
+- exploratives Domain Modeling
+- schnelle MVPs ohne Artefakte
 
 ---
 
-## 7. Leitprinzip
+## 8. Leitprinzip
 
-> Lieber blockieren als raten.
-> Lieber explizit als implizit.
+> Lieber blockieren als raten.  
+> Lieber explizit als implizit.  
 > Lieber Governance als Geschwindigkeit.
 
-Dieses System ist bewusst konservativ – und genau deshalb skalierbar.
+Dieses System ist bewusst konservativ –
+und genau deshalb skalierbar und review-fest.
 
 ---
 
-*Ende der Übersicht*
+_Ende der Datei_
