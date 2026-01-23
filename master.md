@@ -847,7 +847,7 @@ PHASE 5.5 – Technical Debt Proposal Gate (optional)
 
 ---
 
-## Code-Complexity-Gates (Phase 5.6 NEU)
+## Code-Complexity-Gates (Phase 5.6)
 
 ### Cyclomatic Complexity Check
 
