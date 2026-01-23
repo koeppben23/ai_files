@@ -1,6 +1,6 @@
 # rules.md
 
-Version 3.2 — Technisches Regelwerk für KI-gestützte Entwicklung
+Technisches Regelwerk für KI-gestützte Entwicklung
 
 Dieses Dokument enthält alle technischen, architektonischen, testbezogenen und formatbezogenen Regeln.
 Das operative Verhalten (Phasen, Session-State, Hybridmodus, Prioritäten) wird im Master Prompt definiert.
@@ -29,16 +29,19 @@ Verantwortlich für:
 # 2. Eingabeartefakte (Inputs)
 
 Pflicht:
-- bo-pvo-personmanagement-be (als Archiv-Artefakt geliefert)
+- Ein Repository als Archiv-Artefakt (ZIP/TAR/Working Copy) ODER ein durch OpenCode indexiertes Repository
+- Optional: zusätzliche Artefakte (z. B. OpenAPI Specs, DB Dumps, CSV/Excel), sofern im Ticket geliefert
 
 Optional:
 - apis (OpenAPI-Spezifikationen)
-- bo-pvo-sync-transformer
-- bo-pvo-personmanagement-fe
-- Excel/CSV-Dateien
 - weitere Projektartefakte
 
 Die KI darf ausschließlich auf tatsächlich gelieferte Artefakte zugreifen (Scope-Lock).
+
+Beispiele (nicht normativ):
+- bo-pvo-personmanagement-be
+- bo-pvo-sync-transformer
+- bo-pvo-personmanagement-fe
 
 ----------------------------------------------------------------
 
@@ -537,6 +540,29 @@ Consistency: CONSISTENT (alle 3 Ebenen prüfen die Regel)
 - Integrationstests (Testcontainers).
 - Contract Tests (ArchUnit).
 
+## 7.2.1 Heavy Integration Tests (Conditional)
+
+Definition:
+"Heavy integration tests" sind Tests mit typischerweise hohem Laufzeit-/Setup-Overhead,
+z. B. Cucumber, Testcontainers, Embedded Kafka, externe Systemadapter.
+
+Regel (Repo-First):
+1) Default-Strategie:
+   - Bevorzuge unit/slice Tests für die Mehrzahl der Tickets.
+   - Heavy integration tests werden NICHT automatisch ergänzt oder erweitert,
+     wenn der Change nur interne Businesslogik betrifft.
+
+2) Pflichtauslösung:
+   Heavy integration tests sind verpflichtend (neu oder erweitert), wenn mindestens eines gilt:
+   A) Änderung betrifft externe Integrationsoberflächen (REST Contract, Events, Kafka, externe Adapter), ODER
+   B) Änderung betrifft Konfiguration/Mapping, das nur integrativ validierbar ist, ODER
+   C) Ticket fordert explizit Integration/E2E-Nachweis.
+
+3) Nachweis:
+   - Wenn Heavy integration tests nicht ausgeführt/erweitert werden, muss der Plan (Phase 4)
+     eine kurze Begründung enthalten ("Not needed because ...") und welche unit/slice Tests stattdessen
+     das Risiko abdecken.
+
 ## 7.3 Struktur & Pflichten
 
 ### 7.3.1 Test-Architektur
@@ -723,14 +749,29 @@ Bei JEDEM Mock MUSS verifiziert werden:
     verifyNoMoreInteractions(validator, repository, eventPublisher);
 }
 
-### 7.3.7 Test-Kategorien (JUnit Tags)
+### 7.3.7 Test-Kategorien (JUnit Tags) — Conditional Enforcement
 
-Alle Tests MÜSSEN getaggt werden:
+Ziel: Tags verbessern Selektivität (unit/slice/integration/contract) und CI-Steuerung.
+Die Enforcement-Stärke ist repo-abhängig (Repo-First).
 
-@Tag("unit")  // Isoliert, < 100ms
-@Tag("slice")  // Mit DB/Web-Slice, < 1s
-@Tag("integration")  // Mit Testcontainers, < 10s
-@Tag("contract")  // API-Contract-Tests
+Definitions:
+- "Tagging established" ist erfüllt, wenn mindestens eines gilt:
+  A) Es existieren bereits @Tag(...) Verwendungen im Repository (mehr als einzelne Ausnahmen), ODER
+  B) Das Repository hat CI/Build-Mechanismen, die Tags nutzen (z. B. Maven Surefire/Failsafe includes/excludes), ODER
+  C) Es gibt eine Repo-Dokumentation, die Tagging als Standard benennt.
+
+Regel:
+1) Wenn Tagging established:
+   - Alle neuen UND geänderten Tests müssen getaggt sein.
+   - Bei Touch eines bestehenden Tests ohne Tag muss Tag ergänzt werden.
+
+2) Wenn Tagging NOT established:
+   - Alle neu erstellten Tests müssen getaggt werden.
+   - Bestehende, unberührte Tests werden NICHT rein zum Tagging refactored.
+   - Bei geänderten Tests: Tag nachziehen, sofern der Test ohnehin angepasst wird.
+
+Tag-Schema (empfohlen):
+@Tag("unit") | @Tag("slice") | @Tag("integration") | @Tag("contract")
 
 ### 7.3.8 Coverage-Enforcement
 
@@ -780,6 +821,12 @@ Vor Abschluss:
 3. Markiere fehlende Tests als [INFERENCE-ZONE: Test-Gap]
 
 Beispiel-Ausgabe für PersonService.deletePerson(Long id):
+
+Hinweis (Conditional Tagging):
+- Wenn Tagging im Repository etabliert ist (oder neue/geänderte Tests betroffen sind), sind @Tag(...) verpflichtend.
+- Wenn Tagging NICHT etabliert ist, gilt Tagging mindestens für neu erstellte Tests; bestehende unberührte Tests
+  werden nicht rein zum Tagging refactored.
+  (Siehe Kapitel 7.3.7 „Conditional Enforcement“.)
 
 // Method-Type: Command (DELETE)
 // Expected Tests: HAPPY_PATH, NULL_INPUT, NOT_FOUND, STATE_INVALID, AUTHORIZATION
@@ -893,6 +940,11 @@ Jede Umsetzung muss in einer Tabelle dokumentiert werden:
 | 50–69 %   | DRAFT    | ja   | nur nach Freigabe| Phase 1.5 optional  | Nur Plan; Code erst nach "Go" |
 | < 50 %    | BLOCKED  | ja   | nein             | Phase 1.5 übersprungen | Nur Plan-Skizze + Blocker-Meldung |
 
+WICHTIG (Gates bleiben übergeordnet):
+- Unabhängig vom Confidence-Level gilt: Funktionaler/produktiver Code darf nur erzeugt werden,
+  wenn die Gates aus master.md erfüllt sind (P5=architecture-approved und P5.3=test-quality-pass).
+- Eine User-Freigabe ("Go") ersetzt keine Gates, sie ergänzt sie höchstens im DRAFT-Mode.
+
 **Business-Rules-Impact auf Confidence:**
 
 Die Anzahl extrahierter Business Rules beeinflusst das Confidence Level:
@@ -912,7 +964,10 @@ Final-Confidence: 75% (DEGRADED mit erhöhtem Risiko)
 ```
 
 ### 10.2.1 DRAFT MODE (50–69 %)
-Ohne explizite Zustimmung des Users („Go für Code-DRAFT") darf kein funktionaler Code erzeugt werden. Es erfolgt lediglich die Darstellung des Plans und der Risiken.
+Ohne explizite Zustimmung des Users („Go für Code-DRAFT") darf kein funktionaler Code erzeugt werden.
+Zusätzlich gilt immer: Code-Generierung ist ausschließlich erlaubt, wenn die Gates aus master.md erfüllt sind
+(P5=architecture-approved und P5.3=test-quality-pass).
+Es erfolgt ansonsten lediglich die Darstellung des Plans und der Risiken.
 
 **DRAFT MODE mit Business-Rules:**
 - Phase 1.5 ist optional
@@ -939,5 +994,3 @@ public void deletePerson(Long id) {
     repository.delete(person);
 }
 ```
-
-
