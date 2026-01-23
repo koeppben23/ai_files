@@ -42,7 +42,7 @@ Stellt sicher, dass die KI sich korrekt verhält – unabhängig vom Kontext.
 
 **Primäre Dateien:**
 
-* `Master_Prompt_v3.txt`
+* `master.md`
 * `SCOPE-AND-CONTEXT.md`
 
 Dieser Layer sollte **immer geladen** sein – sowohl im Chat als auch mit OpenCode.
@@ -69,7 +69,7 @@ Erzwingt **Lead-Qualität** für Architektur, Businesslogik und Tests.
 
 **Primäre Datei:**
 
-* `rules_v3.md`
+* `rules.md`
 
 Dieser Layer wird **phasenabhängig aktiviert** (z. B. 1.5, 5.3, 5.4) und muss **nicht permanent im Kontext sein**.
 
@@ -95,7 +95,7 @@ Dient als **Nachschlagewerk** und zur Absicherung korrekter Interpretation.
 
 **Quelle:**
 
-* Beispielabschnitte innerhalb von `rules_v3.md`
+* Beispielabschnitte innerhalb von `rules.md`
 
 Dieser Layer sollte **nur bei Bedarf** (Unklarheit, Review, Audit) herangezogen werden.
 
@@ -134,7 +134,7 @@ Im Chat-Betrieb basiert Businesslogik **ausschließlich auf gelieferten Artefakt
 1. **Initial:**
 
    * Master Prompt (Layer 1)
-   * rules_v3.md verfügbar im Projekt oder global
+   * rules.md verfügbar im Projekt oder global
 
 2. **Automatisch:**
 
@@ -164,8 +164,8 @@ liefert reproduzierbar hohe Ergebnisse.
 
 | Datei                  | Zweck                                                          |
 | ---------------------- | -------------------------------------------------------------- |
-| `Master_Prompt_v3.txt` | Zentrale Steuerung: Phasen, Gates, Prioritäten, Session-State  |
-| `rules_v3.md`          | Technische, architektonische, testbezogene und Business-Regeln |
+| `Mmaster.md`           | Zentrale Steuerung: Phasen, Gates, Prioritäten, Session-State  |
+| `rules.md`             | Technische, architektonische, testbezogene und Business-Regeln |
 | `README-RULES.md`      | Executive Summary, Onboarding, reduzierte Sicht                |
 | `SCOPE-AND-CONTEXT.md` | Klare Abgrenzung: was das System kann – und was nicht          |
 | `ResumePrompt.txt`     | Kontrollierte Wiederaufnahme laufender Sessions                |
