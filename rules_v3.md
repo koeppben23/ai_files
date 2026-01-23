@@ -86,6 +86,35 @@ Fehlerfall (Artefakte nicht extrahierbar/fehlend):
 - zentrales Exception Handling (@ControllerAdvice)
 - keine God-Objects
 
+## Architektur-Patterns (Ergänzung für Phase 5)
+
+### Pattern-Katalog (erkennbar im Repository)
+
+A) Layered Architecture (Standard)
+- Controller → Service → Repository
+- DTOs im Controller, Entities in Repository
+- Mapper zwischen Layern verpflichtend
+
+B) Hexagonal Architecture (Ports & Adapters)
+- Domain-Core isoliert
+- Ports (Interfaces) definieren Abhängigkeiten
+- Adapters implementieren Ports
+
+C) CQRS (Command Query Responsibility Segregation)
+- Commands ändern State (void oder Event)
+- Queries liefern Daten (ReadModels)
+- Keine gemischten Methoden
+
+**Gate-Check in Phase 5:**
+- Welches Pattern liegt vor? (Auto-Detect aus Paketstruktur)
+- Ist das Pattern konsistent eingehalten?
+- Gibt es Layer-Violations? (z.B. Controller → Repository direkt)
+
+**Blocker:**
+- Controller mit Business-Logik (>10 Zeilen in Methode)
+- Repository mit fachlichen Queries (sollte in Service sein)
+- Service mit DB-spezifischem Code (sollte in Repository sein)
+
 ## 4.4 API-Verträge
 - OpenAPI steht über Code (Contract-First)
 - generierter Code wird niemals manuell editiert
@@ -910,4 +939,5 @@ public void deletePerson(Long id) {
     repository.delete(person);
 }
 ```
+
 
