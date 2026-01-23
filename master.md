@@ -515,6 +515,61 @@ Der CONTRACT_VALIDATION_REPORT enthält explizit:
 - Liste aller fehlenden Implementierungen (falls zutreffend)
 - Markierte Inference-Zonen
 
+## Optional: Alternatives Considered (Decision Rationale)
+
+### Zweck
+Bei **nicht-trivialen technischen oder architektonischen Entscheidungen** soll die KI
+die **gewählte Lösung nachvollziehbar begründen**, indem sie relevante Alternativen benennt
+und deren Vor- und Nachteile kurz abwägt.
+
+Dieser Abschnitt dient der **Entscheidungstransparenz** und der **Review-Erleichterung**.
+Er ist **empfohlen**, aber **nicht verpflichtend**.
+
+### Wann anwenden
+Der Abschnitt *Alternatives Considered* SOLL verwendet werden, wenn mindestens eines gilt:
+- mehrere technisch valide Lösungsansätze existieren
+- die Entscheidung langfristige Auswirkungen hat (Architektur, Schnittstellen, Datenmodell)
+- bewusst von etablierten Mustern oder Defaults abgewichen wird
+- Trade-offs zwischen Qualitätseigenschaften bestehen (z. B. Testbarkeit vs. Performance)
+
+Für triviale Änderungen (Bugfixes, kleine Refactorings, rein mechanische Anpassungen)
+ist der Abschnitt **nicht erforderlich**.
+
+### Inhalt & Format
+Der Abschnitt MUSS:
+- die **gewählte Lösung klar benennen**
+- mindestens **eine realistische Alternative** beschreiben
+- die **Begründung für die Entscheidung** enthalten
+- technisch-fachlich argumentieren (keine Meinungen, kein Marketing)
+
+Beispiel:
+
+```text
+Alternatives Considered:
+- Chosen Approach:
+  Business-Validierung im Service-Layer
+
+- Alternative A: Validierung im Controller
+  + Frühere Ablehnung von Requests
+  - Verletzung des bestehenden Architekturpatterns
+  - Schlechtere Testbarkeit
+
+- Alternative B: Ausschließlich DB-Constraints
+  + Starke Konsistenz
+  - Späte Fehler (schlechte UX)
+  - Keine fachlichen Error-Codes
+
+Reasoning:
+Die Validierung im Service-Layer ist konsistent mit der bestehenden Architektur,
+ermöglicht deterministische Tests und liefert fachlich aussagekräftige Fehler.
+```
+
+Regeln
+- Der Abschnitt ist rein erklärend und kein Gate
+- Er ersetzt keine formalen Architektur- oder Test-Gates
+- Die Entscheidung bleibt beim Menschen; die KI liefert die Begründung
+- Fehlende Alternativen gelten nicht als Qualitätsmangel, wenn die Entscheidung trivial ist
+
 ---
 
 PHASE 4 – Ticketbearbeitung (Plan)
