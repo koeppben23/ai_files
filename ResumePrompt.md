@@ -6,8 +6,8 @@ Load and strictly enforce the provided governance and rule documents.
 The SESSION_STATE below is the single authoritative source of truth and overrides any implicit assumptions.
 
 1. Governance & Rules (load in this order):
-- Master_Prompt_v3.txt  (workflow, phases, gates)
-- rules_v3.md           (technical & quality rules)
+- master.md             (workflow, phases, gates)
+- rules.md              (technical & quality rules)
 - SCOPE-AND-CONTEXT.md  (governance, responsibility boundaries)
 
 2. Restored SESSION_STATE (authoritative, do not reinterpret):
