@@ -71,12 +71,14 @@ Konsequenz:
 2.1 Standardmodus (Phasen 1–6)
 
 * Phase 1: Regeln laden
+* Phase 1.5: Business-Rules Discovery (optional)
 * Phase 2: Repository-Discovery
 * Phase 3A: API-Inventar (externe Artefakte)
 * Phase 3B-1: API-Logical Validation (Spec-Level)
 * Phase 3B-2: Contract Validation (Spec ↔ Code)
 * Phase 4: Ticketbearbeitung (Planerstellung)
 * Phase 5: Lead-Architekt Review (Gatekeeper)
+* Phase 5.4: Business-Rules-Compliance (nur wenn Phase 1.5 ausgeführt)
 * Phase 5.5: Technical Debt Proposal Gate (optional)
 * Phase 6: Implementation QA (Self-Review Gate)
 
@@ -84,8 +86,7 @@ Code-Generierung (produktiver Code, Diffs) ist ausschließlich erlaubt,
 wenn im SESSION_STATE gilt:
 
 GATE STATUS:
-- P5: architecture-approved
-- P5.3: test-quality-pass
+- P5.4: business-rules-compliant ODER compliant-with-exceptions (falls Phase 1.5 aktiv)
 
 Vor Phase 5 darf KEIN Code erzeugt werden.
 Nach Phase 5 erfolgt Code-Generierung ohne weitere Rückfrage,
@@ -107,8 +108,13 @@ Explizite Overrides (höchste Priorität):
 * „Überspringe Phase Y.“
 * „Arbeite nur mit Backend, ignoriere APIs.“
 * „Nutze aktuelle Session-State-Daten und führe Phase 3 erneut aus.“
+* „Extrahiere Business Rules zuerst." → aktiviert Phase 1.5
+* „Überspringe Business-Rules-Discovery." → Phase 1.5 wird nicht ausgeführt
+* „Dies ist ein reines CRUD-Projekt." → Phase 1.5 wird nicht ausgeführt, P5.4 = not-applicable
+
 
 Phase 5 darf NIEMALS übersprungen werden, sofern Code generiert werden soll.
+Phase 5.4 darf NIEMALS übersprungen werden, sofern Phase 1.5 ausgeführt wurde UND Code generiert werden soll.
 
 2.3 Phasenübergang – Default-Verhalten (Auto-Advance)
 
@@ -143,13 +149,15 @@ Explizite Gates:
   Gate-Status (P5): pending | architecture-approved | revision-required
 - Phase 5.3 (Test-Quality Review): immer ein Gate (KRITISCH)
   Gate-Status (P5.3): test-quality-pass | test-revision-required
+- Phase 5.4 (Business-Rules-Compliance): nur wenn Phase 1.5 ausgeführt wurde
+  Gate-Status (P5.4): not-applicable | business-rules-compliant | business-rules-gap-detected | compliant-with-exceptions
 - Phase 5.5 (Technical Debt Proposal Gate): nur wenn Technical Debt explizit vorgeschlagen wurde
   Gate-Status (P5.5): not-requested | approved | rejected
 - Phase 6 (Implementation QA): immer ein Gate
   Gate-Status (P6): ready-for-pr | fix-required
 
 Auto-Advance-Regel:
-- Der Assistent führt Gate-Phasen (5, 5.3, ggf. 5.5, 6) aus, liefert das Gate-Ergebnis und stoppt danach.
+- Der Assistent führt Gate-Phasen (5, 5.3, ggf. 5.4, ggf. 5.5, 6) aus, liefert das Gate-Ergebnis und stoppt danach.
 - Ein Übergang in eine weitere Phase erfolgt nur gemäß NEXT STEP (oder explizitem User-Override).
 
 2.4 Stille Phasenübergänge (No-Confirmation Rule)
@@ -262,9 +270,18 @@ Facts=[...]
 Decisions=[...]
 Assumptions=[...]
 Risks=[...]
+BusinessRules=[
+  Inventory:<Anzahl> rules | not-extracted,
+  InPlan:<X>/<Total> (<Prozent>%),
+  InCode:<X>/<Total> (<Prozent>%),
+  InTests:<X>/<Total> (<Prozent>%),
+  Gaps:[BR-ID:Beschreibung, ...],
+  NewRules:[Beschreibung, ...] | none
+]
 Gates=[
   P5:<pending|architecture-approved|revision-required>;
   P5.3:<test-quality-pass|test-revision-required>;
+  P5.4:<not-applicable|business-rules-compliant|business-rules-gap-detected|compliant-with-exceptions>;
   P5.5:<not-requested|approved|rejected>;
   P6:<ready-for-pr|fix-required>
 ]
@@ -291,6 +308,97 @@ sondern delegiert die Ausführung vollständig an die dort definierte Verhaltens
 PHASE 1 – Regeln laden
 Bestätigung:
 „Regeln geladen, bereit für Phase 2.“
+
+---
+
+PHASE 1.5 – Business-Rules Discovery (optional aktivierbar)
+
+Zweck:
+Extrahiere ALLE fachlichen Regeln aus dem Repository, bevor Code generiert wird.
+Dies reduziert Business-Logik-Lücken von ~50% auf <15%.
+
+Aktivierung:
+- Automatisch: wenn Repository >30 Klassen hat UND Domain-Layer existiert
+- Explizit: User sagt „Extrahiere Business Rules zuerst"
+- Skip: User sagt „Überspringe Business-Rules-Discovery" ODER Repository als „pure CRUD" deklariert
+
+Quellen (in Prioritätsreihenfolge):
+1. Domain-Code (Entities, Value Objects, Domain Services)
+2. Validatoren (@AssertTrue, Custom Validators)
+3. Service-Layer-Logik (if-Guards, throw BusinessException)
+4. Flyway-Constraints (CHECK, UNIQUE, FK mit ON DELETE RESTRICT)
+5. Tests (shouldThrowException_when... Pattern)
+6. Exception-Messages (BusinessException-Texte)
+7. OpenAPI-Spec (x-business-rules Extensions, falls vorhanden)
+8. README/ARCHITECTURE.md (falls vorhanden)
+
+Erkennungslogik:
+
+1. Scanne @Entity-Klassen nach:
+   - @AssertTrue/@AssertFalse (fachliche Validierung)
+   - Custom Validators
+   - Kommentare mit „must", „should", „only if"
+
+2. Scanne Service-Layer nach:
+   - if (!condition) throw BusinessException(...) → Business Rule
+   - Objects.requireNonNull(...) → technische Validierung (KEIN BR)
+
+3. Scanne Flyway-Skripte nach:
+   - CHECK constraints
+   - UNIQUE constraints
+   - Foreign Keys mit ON DELETE RESTRICT
+
+4. Scanne Tests nach:
+   - shouldThrowException_when... → Business Rule im Test dokumentiert
+
+5. Scanne OpenAPI nach:
+   - x-business-rules: [...] (Custom Extension)
+
+Output:
+BUSINESS_RULES_INVENTORY (verpflichtend bei Aktivierung)
+
+Format:
+[BUSINESS_RULES_INVENTORY]
+Total-Rules: 12
+By-Source: [Code:4, DB:3, Tests:5, Validation:2]
+By-Entity: [Person:6, Contract:4, Address:2]
+
+Rules:
+| Rule-ID | Entity | Rule | Source | Enforcement |
+|---------|--------|------|--------|-------------|
+| BR-001 | Person | Person.contracts must be empty to delete | PersonService.java:42 | Code (Guard) |
+| BR-002 | Person | Person.age must be >= 18 | Person.java:@AssertTrue | Bean Validation |
+| BR-003 | Person | Person.email must be unique | V001__schema.sql:UNIQUE | DB Constraint |
+| BR-004 | Contract | Contract.status only DRAFT→ACTIVE→CANCELLED | ContractService.java:67 | Code (State-Check) |
+| BR-005 | Person | Deleted persons invisible in queries | PersonRepository.java:15 | Query Filter |
+
+Critical-Gaps: [
+  „Contract.approve() has no explicit precondition checks (inferred from test, not in code)",
+  „Person.merge() has no conflict resolution rules"
+]
+[/BUSINESS_RULES_INVENTORY]
+
+Confidence-Regeln:
+
+| Business Rules gefunden | Repository-Größe | Confidence-Adjustment |
+|------------------------|------------------|----------------------|
+| 0-2 | >50 Klassen | -20% (kritische Lücke) |
+| 3-5 | >50 Klassen | -10% (Lücke wahrscheinlich) |
+| 6-10 | >50 Klassen | +0% (akzeptabel) |
+| 10+ | >50 Klassen | +10% (gut dokumentiert) |
+| Beliebig | <30 Klassen | +0% (CRUD-Projekt, BRs optional) |
+
+Integration in SESSION_STATE:
+
+BusinessRules=[
+  Inventory:12 rules,
+  Sources:[Code:4, DB:3, Tests:5],
+  Confidence-Impact:+10%,
+  Critical-Gaps:2
+]
+
+Hinweis:
+Wenn Phase 1.5 ausgeführt wurde, ist Phase 5.4 (Business-Rules-Compliance) VERPFLICHTEND.
 
 ---
 
@@ -516,6 +624,124 @@ Gate-Regel:
 - Wenn >20% der Coverage-Matrix fehlt → test-revision-required
 - Wenn Anti-Patterns gefunden → test-revision-required
 - Sonst → test-quality-pass (mit Warnings)
+
+---
+
+Phase 5.4 – Business-Rules-Compliance (KRITISCH, nur wenn Phase 1.5 ausgeführt wurde)
+
+Verpflichtende Prüfung: Sind alle Business Rules aus dem Inventory abgedeckt?
+
+Voraussetzung:
+- Phase 1.5 muss ausgeführt worden sein UND
+- BUSINESS_RULES_INVENTORY muss existieren
+
+Wenn Phase 1.5 NICHT ausgeführt wurde:
+- Phase 5.4 wird übersprungen
+- Gate-Status (P5.4): not-applicable
+
+A) BR-Coverage-Check
+
+Für jede extrahierte Business Rule aus dem Inventory:
+
+1. Ist die Regel im Plan (Phase 4) erwähnt?
+   - Suche nach Rule-ID (z.B. BR-001) ODER
+   - Semantische Suche (z.B. „contracts must be empty")
+   
+2. Ist die Regel im generierten Code implementiert?
+   - Guard-Clause vorhanden? (if (...) throw ...)
+   - Validation vorhanden? (@AssertTrue, Custom Validator)
+   - DB-Constraint vorhanden? (falls neu erstellt)
+   
+3. Ist die Regel in Tests geprüft?
+   - Exception-Test vorhanden? (shouldThrowException_when...)
+   - Edge-Case-Test vorhanden?
+
+B) BR-Gap-Detection
+
+Automatische Erkennung fehlender Checks:
+
+Beispiel:
+BR-001: „Person darf nur gelöscht werden, wenn contracts.isEmpty()"
+
+Prüfung:
+✓ Im Plan erwähnt? → JA (Schritt 3: „Check contracts before delete")
+✓ Im Code implementiert? → [PRÜFEN]
+  - PersonService.deletePerson() enthält if (!contracts.isEmpty())?
+  - Wenn NEIN → Gap: [MISSING-BR-CHECK: BR-001 not enforced in code]
+✓ Im Test geprüft? → [PRÜFEN]
+  - Test „deletePerson_shouldThrowException_whenContractsActive" existiert?
+  - Wenn NEIN → Gap: [MISSING-BR-TEST: BR-001 not tested]
+
+C) Implicit-Rule-Detection
+
+Wenn Plan neue Geschäftslogik einführt, die NICHT im Inventory ist:
+→ Warning: „Plan introduces new business rule not found in repository"
+→ Beispiel: „Person.email can be changed only once per 30 days"
+→ User muss bestätigen: „Ist das eine NEUE Regel oder wurde sie im Inventory übersehen?"
+
+D) Consistency-Check
+
+Wenn Regel in mehreren Quellen gefunden wurde, prüfe Konsistenz:
+
+Beispiel:
+BR-001 in Code: „if (contracts.size() > 0) throw ..."
+BR-001 in Test: „deletePerson_shouldThrowException_whenContractsActive"
+BR-001 in DB: [NICHT vorhanden]
+
+→ Warning: „BR-001 not enforced at DB level (keine FK-Constraint mit ON DELETE RESTRICT)"
+→ Empfehlung: „Add FK constraint OR document why DB-level check is not needed"
+
+Output:
+
+[BUSINESS-RULES-COMPLIANCE-REPORT]
+Total-Rules-in-Inventory: 12
+Rules-in-Plan: 11/12 (92%)
+Rules-in-Code: 10/12 (83%)
+Rules-in-Tests: 9/12 (75%)
+
+Coverage-Details:
+✓ BR-001 (Person.contracts.empty): Plan ✓ | Code ✓ | Test ✓ | DB ✗
+✓ BR-002 (Person.age >= 18): Plan ✓ | Code ✓ | Test ✓ | DB ✗
+✓ BR-003 (Person.email unique): Plan ✓ | Code ✗ | Test ✓ | DB ✓
+✗ BR-007 (Contract.approve preconditions): Plan ✗ | Code ✗ | Test ✗ | DB ✗
+
+Gaps (Critical):
+- BR-007 (Contract.approve preconditions): NOT in plan, NOT in code, NOT in tests
+  → Impact: HIGH (State-Transition ohne Validierung)
+  
+Gaps (Warnings):
+- BR-003 (Person.email unique): NOT in code (only DB constraint)
+  → Impact: MEDIUM (Race-Condition möglich bei parallel inserts)
+
+New-Rules-Introduced: 1
+- „Person.email can be changed only once per 30 days" (not in inventory)
+  → Requires-Confirmation: Is this a NEW rule or was it missed in discovery?
+
+Consistency-Issues: 1
+- BR-001: Code ✓, Test ✓, but no DB-level enforcement
+  → Recommendation: Add FK constraint with ON DELETE RESTRICT
+
+Gate-Entscheidung: business-rules-compliant | business-rules-gap-detected
+[/BUSINESS-RULES-COMPLIANCE-REPORT]
+
+Gate-Regel:
+
+- Wenn >30% der BR nicht abgedeckt (Plan ODER Code ODER Test fehlt) → business-rules-gap-detected
+- Wenn neue BR ohne User-Bestätigung → business-rules-gap-detected
+- Wenn Critical Gap existiert (BR komplett fehlt in Plan+Code+Test) → business-rules-gap-detected
+- Sonst → business-rules-compliant (mit Warnings bei <90% Coverage)
+
+User-Interaction bei Gap:
+
+Wenn Gate = business-rules-gap-detected:
+- Zeige Report
+- Frage: „Sollen fehlende BRs ergänzt werden ODER als bewusst ausgelassen markiert werden?"
+- Optionen:
+  1. „Ergänze fehlende BRs im Plan" → zurück zu Phase 4
+  2. „Markiere BR-XXX als nicht relevant für dieses Ticket" → Gate wird zu „compliant-with-exceptions"
+  3. „Stoppe Workflow" → BLOCKED
+
+---
 
 PHASE 5.5 – Technical Debt Proposal Gate (optional)
 
