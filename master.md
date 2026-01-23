@@ -4,7 +4,7 @@ priority: highest
 ---
 
 MASTER PROMPT
-Version 3.4 — konsolidiert, KI-stabil, hybridfähig, pragmatisch,
+konsolidiert, KI-stabil, hybridfähig, pragmatisch,
 mit Architektur-, Contract-, Debt- & QA-Gates
 
 ### Datenquellen & Priorität
