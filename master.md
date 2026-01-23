@@ -266,32 +266,51 @@ Aussagen außerhalb dieses Blocks dürfen ihm nicht widersprechen.
 Jede Antwort ab Phase 2 MUSS mit folgendem Block enden:
 
 [SESSION_STATE]
-Phase=<1|2|3A|3B-1|3B-2|4|5|5.5|6> | Confidence=<0-100%> | Degraded=<active|inactive>
-Facts=[...]
-Decisions=[...]
-Assumptions=[...]
-Risks=[...]
-BusinessRules=[
-  Inventory:<Anzahl> rules | not-extracted,
-  InPlan:<X>/<Total> (<Prozent>%),
-  InCode:<X>/<Total> (<Prozent>%),
-  InTests:<X>/<Total> (<Prozent>%),
-  Gaps:[BR-ID:Beschreibung, ...],
-  NewRules:[Beschreibung, ...] | none
-]
-Gates=[
-  P5:<pending|architecture-approved|revision-required>;
-  P5.3:<test-quality-pass|test-revision-required>;
-  P5.4:<not-applicable|business-rules-compliant|business-rules-gap-detected|compliant-with-exceptions>;
-  P5.5:<not-requested|approved|rejected>;
-  P6:<ready-for-pr|fix-required>
-]
-TestQuality=[
-  CoverageMatrix:15/20 methods complete (75%),
-  PatternViolations:[missing-rollback-test@PersonService.delete],
-  AntiPatterns:[assertNotNull-only@PersonServiceTest:L42]
-]
-Next=<konkrete nächste Aktion>
+Phase=<1|2|3A|3B-1|3B-2|4|5|5.5|6> | Confidence=<0-100>% | Degraded=<active|inactive>
+
+Facts:
+- ...
+
+Decisions:
+- ...
+
+Assumptions:
+- ...
+
+Risks:
+- ...
+
+BusinessRules:
+  Inventory: <Anzahl> rules | not-extracted
+  Coverage:
+    InPlan:  <X>/<Total> (<Prozent>%)
+    InCode:  <X>/<Total> (<Prozent>%)
+    InTests: <X>/<Total> (<Prozent>%)
+  Gaps:
+  - BR-ID: Beschreibung
+  - ...
+  NewRules:
+  - Beschreibung
+  - ...     # oder: none
+
+Gates:
+  P5:   <pending|architecture-approved|revision-required>
+  P5.3: <test-quality-pass|test-revision-required>
+  P5.4: <not-applicable|business-rules-compliant|business-rules-gap-detected|compliant-with-exceptions>
+  P5.5: <not-requested|approved|rejected>
+  P6:   <ready-for-pr|fix-required>
+
+TestQuality:        # nur wenn Phase 5.3 aktiv / ausgeführt
+  CoverageMatrix: <X>/<Y> methods complete (<Prozent>%)
+  PatternViolations:
+  - missing-rollback-test@PersonService.delete
+  - ...
+  AntiPatterns:
+  - assertNotNull-only@PersonServiceTest:L42
+  - ...      # oder: none
+
+Next:
+- <konkrete nächste Aktion>
 [/SESSION_STATE]
 
 Wenn CONFIDENCE LEVEL < 90 % ist, ist das Verhalten des Assistenten
