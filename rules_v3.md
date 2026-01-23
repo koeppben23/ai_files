@@ -103,6 +103,376 @@ Fehlerfall (Artefakte nicht extrahierbar/fehlend):
 - Erfassung von Endpunkten, Methoden, Pfaden, Schemas und Versionen.
 - Keine Validierung oder Mapping-Logik in dieser Phase.
 
+# 5.3 Business-Rules Discovery (Phase 1.5)
+
+## 5.3.1 Zweck
+Fachliche Regeln sind oft nicht dokumentiert, sondern nur im Code/DB/Tests vorhanden.
+Phase 1.5 extrahiert diese Regeln BEVOR Implementierungen geplant werden.
+
+Dies reduziert Business-Logik-Lücken von ~50% auf <15%.
+
+## 5.3.2 Erkennungsmuster
+
+### Pattern 1: Guard-Clauses in Services
+
+**Erkannt als Business Rule:**
+```java
+public void deletePerson(Long id) {
+    Person person = findById(id);
+    if (!person.getContracts().isEmpty()) {  // ← BR: Person mit Verträgen nicht löschbar
+        throw new BusinessException("CONTRACTS_ACTIVE", "Person has active contracts");
+    }
+    repository.delete(person);
+}
+```
+
+**Regel extrahiert:**
+```
+BR-001: Person
+Rule: Person darf nur gelöscht werden, wenn contracts.isEmpty()
+Source: PersonService.java:42 (if-Guard)
+Enforcement: Code (Guard-Clause)
+```
+
+### Pattern 2: Bean Validation
+
+**Erkannt als Business Rule:**
+```java
+@Entity
+public class Person {
+    @AssertTrue(message = "Person must be adult")
+    public boolean isAdult() {  // ← BR: Nur Erwachsene erlaubt
+        return age >= 18;
+    }
+}
+```
+
+**Regel extrahiert:**
+```
+BR-002: Person
+Rule: Person.age muss >= 18 sein
+Source: Person.java:@AssertTrue (isAdult)
+Enforcement: Bean Validation
+```
+
+### Pattern 3: DB-Constraints
+
+**Erkannt als Business Rule:**
+```sql
+-- V001__schema.sql
+ALTER TABLE person ADD CONSTRAINT email_unique UNIQUE (email);  -- ← BR: Email eindeutig
+
+ALTER TABLE contract ADD CONSTRAINT valid_status 
+  CHECK (status IN ('DRAFT', 'ACTIVE', 'CANCELLED'));  -- ← BR: Nur definierte Status
+  
+ALTER TABLE contract ADD CONSTRAINT fk_person_contract
+  FOREIGN KEY (person_id) REFERENCES person(id) ON DELETE RESTRICT;  -- ← BR: Löschsperre
+```
+
+**Regeln extrahiert:**
+```
+BR-003: Person
+Rule: Person.email muss unique sein
+Source: V001__schema.sql:UNIQUE (email_unique)
+Enforcement: DB Constraint
+
+BR-004: Contract
+Rule: Contract.status nur DRAFT|ACTIVE|CANCELLED
+Source: V001__schema.sql:CHECK (valid_status)
+Enforcement: DB Constraint
+
+BR-005: Contract
+Rule: Person mit Contracts kann nicht gelöscht werden
+Source: V001__schema.sql:FK ON DELETE RESTRICT
+Enforcement: DB Constraint
+```
+
+### Pattern 4: Test-Namen (Implizite Regeln)
+
+**Erkannt als Business Rule:**
+```java
+@Test
+void deletePerson_shouldThrowException_whenContractsActive() {  // ← BR im Test dokumentiert
+    // Given
+    Person person = aPersonWithActiveContracts();
+    
+    // When/Then
+    assertThrows(BusinessException.class, () -> service.deletePerson(person.getId()));
+}
+
+@Test
+void approvePerson_shouldThrowException_whenUnder18() {  // ← BR: Mindestalter
+    // ...
+}
+```
+
+**Regeln extrahiert:**
+```
+BR-006: Person
+Rule: Person mit aktiven Verträgen nicht löschbar (impliziert aus Test)
+Source: PersonServiceTest.java:deletePerson_shouldThrowException_whenContractsActive
+Enforcement: Tested (Code-Implementierung prüfen!)
+
+BR-007: Person
+Rule: Person muss >= 18 Jahre alt sein für Approval
+Source: PersonServiceTest.java:approvePerson_shouldThrowException_whenUnder18
+Enforcement: Tested (Code-Implementierung prüfen!)
+```
+
+### Pattern 5: Exception-Messages
+
+**Erkannt als Business Rule:**
+```java
+if (person.getAge() < 18) {
+    throw new BusinessException(
+        "PERSON_UNDERAGE",  // ← Error-Code
+        "Person must be at least 18 years old"  // ← BR-Beschreibung
+    );
+}
+
+if (!contract.canBeApproved()) {
+    throw new BusinessException(
+        "APPROVAL_PRECONDITIONS_NOT_MET",
+        String.format("Contract %s cannot be approved: missing signatures", contract.getId())
+    );
+}
+```
+
+**Regeln extrahiert:**
+```
+BR-008: Person
+Rule: Person muss mindestens 18 Jahre alt sein
+Source: PersonService.java:exception-message (PERSON_UNDERAGE)
+Enforcement: Code (Exception)
+
+BR-009: Contract
+Rule: Contract benötigt alle Signaturen für Approval
+Source: ContractService.java:exception-message (APPROVAL_PRECONDITIONS_NOT_MET)
+Enforcement: Code (Exception)
+```
+
+### Pattern 6: State-Transition-Logik
+
+**Erkannt als Business Rule:**
+```java
+public void transitionStatus(ContractStatus newStatus) {
+    if (this.status == ContractStatus.CANCELLED) {
+        throw new BusinessException("INVALID_STATE_TRANSITION", 
+            "Cannot transition from CANCELLED state");
+    }
+    
+    if (this.status == ContractStatus.ACTIVE && newStatus == ContractStatus.DRAFT) {
+        throw new BusinessException("INVALID_STATE_TRANSITION", 
+            "Cannot revert from ACTIVE to DRAFT");
+    }
+    
+    this.status = newStatus;
+}
+```
+
+**Regel extrahiert:**
+```
+BR-010: Contract
+Rule: Status-Übergang CANCELLED → * nicht erlaubt
+Source: Contract.java:transitionStatus (State-Guard)
+Enforcement: Code (State-Machine)
+
+BR-011: Contract
+Rule: Status-Übergang ACTIVE → DRAFT nicht erlaubt
+Source: Contract.java:transitionStatus (State-Guard)
+Enforcement: Code (State-Machine)
+```
+
+### Pattern 7: Query-Filter (Soft-Delete)
+
+**Erkannt als Business Rule:**
+```java
+@Repository
+public interface PersonRepository extends JpaRepository {
+    
+    @Query("SELECT p FROM Person p WHERE p.deleted = false")
+    List findAllActive();  // ← BR: Gelöschte Personen unsichtbar
+    
+    @Query("SELECT p FROM Person p WHERE p.id = :id AND p.deleted = false")
+    Optional findByIdActive(@Param("id") Long id);
+}
+```
+
+**Regel extrahiert:**
+```
+BR-012: Person
+Rule: Gelöschte Personen (deleted=true) sind in Standard-Queries unsichtbar
+Source: PersonRepository.java:findAllActive (Query-Filter)
+Enforcement: Query-Filter (manuell)
+```
+
+## 5.3.3 Anti-Patterns (NICHT als Business Rule)
+
+### ❌ Technische Validierung (kein BR)
+```java
+// KEIN Business Rule:
+if (id == null) throw new IllegalArgumentException("ID required");  // ← Technisch
+Objects.requireNonNull(person, "Person must not be null");  // ← Technisch
+```
+
+### ❌ Framework-Constraints (kein BR)
+```java
+// KEIN Business Rule:
+@NotNull  // ← Technisch (darf nicht null sein)
+@Size(max=255)  // ← Technisch (DB-Länge)
+@Email  // ← Technisch (Format-Validierung)
+private String email;
+```
+
+### ❌ Logging/Debugging (kein BR)
+```java
+// KEIN Business Rule:
+log.info("Deleting person {}", id);  // ← Technisch
+log.debug("Contract status changed from {} to {}", oldStatus, newStatus);  // ← Technisch
+```
+
+### ❌ Performance-Optimierungen (kein BR)
+```java
+// KEIN Business Rule:
+@Cacheable("persons")  // ← Technisch
+@Transactional(readOnly = true)  // ← Technisch
+```
+
+## 5.3.4 Confidence-Regeln
+
+Die Anzahl gefundener Business Rules beeinflusst das Confidence Level:
+
+| Business Rules gefunden | Repository-Größe | Confidence-Adjustment | Interpretation |
+|------------------------|------------------|----------------------|----------------|
+| 0-2 | >50 Klassen | -20% | Kritische Lücke: Fast keine BR dokumentiert |
+| 3-5 | >50 Klassen | -10% | Lücke wahrscheinlich: Wenige BR für große Codebase |
+| 6-10 | >50 Klassen | +0% | Akzeptabel: Grundlegende BR vorhanden |
+| 10+ | >50 Klassen | +10% | Gut dokumentiert: Umfangreiche BR-Coverage |
+| Beliebig | <30 Klassen | +0% | CRUD-Projekt: BRs optional |
+
+**Beispiel:**
+```
+Repository: 67 Klassen
+Business Rules gefunden: 3 (Code:1, DB:1, Tests:1)
+
+Confidence-Adjustment: -10%
+Begründung: Große Codebase mit nur 3 dokumentierten Regeln deutet auf fehlende BR-Dokumentation hin.
+```
+
+## 5.3.5 Critical Gaps
+
+Ein Critical Gap liegt vor, wenn:
+
+1. **Test ohne Code-Implementierung:**
+   - Test dokumentiert BR (z.B. shouldThrowException_whenContractsActive)
+   - Aber: Keine entsprechende Guard-Clause im Service-Code
+
+2. **Code ohne Test:**
+   - Service hat Guard-Clause für BR
+   - Aber: Kein entsprechender Exception-Test
+
+3. **DB-Constraint ohne Code-Check:**
+   - DB hat ON DELETE RESTRICT
+   - Aber: Service versucht nicht, Löschung zu verhindern (Race Condition möglich)
+
+**Output-Format für Critical Gaps:**
+```
+Critical-Gaps: [
+  "Contract.approve() has explicit test (approvePerson_shouldThrowException_whenPreconditionsFail) 
+   but no precondition checks in code → Test will ALWAYS fail",
+   
+  "Person.delete() has DB constraint ON DELETE RESTRICT 
+   but no code-level check → User gets DB error instead of BusinessException"
+]
+```
+
+## 5.3.6 Output-Format
+
+**Vollständiges Beispiel:**
+```
+[BUSINESS_RULES_INVENTORY]
+Total-Rules: 15
+By-Source: [Code:6, DB:4, Tests:5, Validation:3]
+By-Entity: [Person:8, Contract:5, Address:2]
+
+Rules:
+| Rule-ID | Entity | Rule | Source | Enforcement |
+|---------|--------|------|--------|-------------|
+| BR-001 | Person | contracts.isEmpty() required for delete | PersonService.java:42 | Code (Guard) |
+| BR-002 | Person | age >= 18 | Person.java:@AssertTrue | Bean Validation |
+| BR-003 | Person | email unique | V001__schema.sql:UNIQUE | DB Constraint |
+| BR-004 | Person | deleted=true persons invisible in queries | PersonRepository.java:15 | Query-Filter |
+| BR-005 | Contract | status only DRAFT→ACTIVE→CANCELLED | ContractService.java:67 | Code (State-Machine) |
+| BR-006 | Contract | No transition from CANCELLED | Contract.java:transitionStatus | Code (State-Guard) |
+| BR-007 | Contract | person_id FK ON DELETE RESTRICT | V002__contracts.sql:FK | DB Constraint |
+| BR-008 | Contract | All signatures required for approval | ContractService.java:approve | Code (Precondition) |
+| BR-009 | Contract | approve() preconditions tested | ContractServiceTest.java:L87 | Test ONLY |
+| ... | ... | ... | ... | ... |
+
+Critical-Gaps: [
+  "BR-009 (Contract.approve preconditions): Tested but NOT implemented in code",
+  "BR-007 (FK ON DELETE RESTRICT): DB constraint exists but no code-level check → poor UX"
+]
+
+Confidence-Impact: -10% (15 rules for 67 classes is below expected threshold)
+[/BUSINESS_RULES_INVENTORY]
+```
+
+## 5.3.7 Integration in nachfolgende Phasen
+
+### Phase 4 (Planung)
+- Plan MUSS alle relevanten BRs aus dem Inventory referenzieren
+- Fehlende BR-Checks werden als [INFERENCE-ZONE: Missing BR-Check] markiert
+- Neue BR (nicht im Inventory) müssen als [NEW-RULE] gekennzeichnet werden
+
+### Phase 5.4 (Business-Rules-Compliance)
+- Prüfung: Sind alle BRs aus dem Inventory im Plan/Code/Tests?
+- Wenn >50% der BRs fehlen → revision-required
+
+### Phase 6 (Implementation QA)
+- Jeder BR muss in Code ODER Tests nachweisbar sein
+- Fehlende BR-Enforcement → Warning (nicht Blocker)
+
+## 5.3.8 Beispiel: Vollständiger Erkennungs-Workflow
+
+**Gegeben: PersonService.deletePerson()**
+
+**Schritt 1: Code scannen**
+```java
+public void deletePerson(Long id) {
+    Person person = repository.findById(id).orElseThrow();
+    if (!person.getContracts().isEmpty()) {  // ← Gefunden: BR-001
+        throw new BusinessException("CONTRACTS_ACTIVE");
+    }
+    repository.delete(person);
+}
+```
+→ Extrahiert: BR-001 (Code-Guard)
+
+**Schritt 2: Tests scannen**
+```java
+@Test
+void deletePerson_shouldThrowException_whenContractsActive() {  // ← Bestätigt: BR-001
+    // ...
+}
+```
+→ Bestätigt: BR-001 (Test vorhanden)
+
+**Schritt 3: DB scannen**
+```sql
+ALTER TABLE contract ADD CONSTRAINT fk_person_contract
+  FOREIGN KEY (person_id) REFERENCES person(id) ON DELETE RESTRICT;  -- ← Gefunden: BR-001
+```
+→ Bestätigt: BR-001 (DB-Constraint vorhanden)
+
+**Ergebnis:**
+```
+BR-001: Person
+Rule: Person mit Contracts kann nicht gelöscht werden
+Sources: [PersonService.java:42, PersonServiceTest.java:L87, V002__contracts.sql:FK]
+Enforcement: Code ✓ | Test ✓ | DB ✓
+Consistency: CONSISTENT (alle 3 Ebenen prüfen die Regel)
+```
 ----------------------------------------------------------------
 
 # 6. Implementierungsregeln (Phase 4)
@@ -502,3 +872,4 @@ Wenn außerhalb des NORMAL-Modus Code entsteht, müssen Annahmen direkt im Code 
 ```java
 
 // ASSUMPTION [A1]: Beschreibung der Annahme (z.B. Feldtyp oder Schema)
+
