@@ -68,8 +68,23 @@ Dieses Dokument zeigt eine **reduzierte 4-Phasen-Sicht** zur schnellen Orientier
 | Phase C – Validierung   | Phase 3B-2 + Phase 4               |
 | Phase D – Umsetzung     | Phase 5 (+ optional 5.5) + Phase 6 |
 
+**Erweitert (mit Business-Rules Discovery):**
+
+| Collapsed Phase         | Entspricht Master Prompt                    |
+| ----------------------- | ------------------------------------------- |
+| Phase A – Analyse       | Phase 1 + *1.5 (optional)* + Phase 2       |
+| Phase B – Lösungsdesign | Phase 3A + Phase 3B-1                      |
+| Phase C – Validierung   | Phase 3B-2 + Phase 4                       |
+| Phase D – Umsetzung     | Phase 5 + *5.4 (falls 1.5 aktiv)* + 5.5 (optional) + 6 |
+
 **Wichtig:**
 Alle **Gates, Sub-Phasen (z. B. 3B-1 / 3B-2) und Einschränkungen** gelten vollumfänglich, auch wenn sie hier nicht einzeln dargestellt sind.
+
+**Business-Rules Discovery (Phase 1.5):**
+- Automatisch aktiviert bei >30 Klassen + Domain-Layer
+- Extrahiert fachliche Regeln aus Code/DB/Tests
+- Reduziert Business-Logik-Lücken von ~50% auf <15%
+- Details siehe Master Prompt Phase 1.5
 
 ---
 
@@ -170,6 +185,14 @@ Facts=[...]
 Decisions=[...]
 Assumptions=[...]
 Risks=[...]
+BusinessRules=[
+  Inventory:<Anzahl> rules | not-extracted,
+  InPlan:<X>/<Total> (<Prozent>%),
+  InCode:<X>/<Total> (<Prozent>%),
+  InTests:<X>/<Total> (<Prozent>%),
+  Gaps:[BR-ID:Beschreibung, ...],
+  NewRules:[Beschreibung, ...] | none
+]
 Gates=[P5:<...>; P5.3:<...>; P5.5:<...>; P6:<...>]
 TestQuality=[...]   # nur wenn Phase 5.3 aktiv/ausgeführt
 Next=<...>
@@ -219,4 +242,5 @@ Falls Artefakte fehlen oder defekt sind:
 ---
 
 **Ende der Datei — README-RULES.md v3.1**
+
 
