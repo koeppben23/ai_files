@@ -925,4 +925,4 @@ Der Assistent beginnt automatisch mit Phase 1.“
 
 ---
 
-ENDE DER DATEI — MASTER_PROMPT_v3_4.txt
+ENDE DER DATEI — master.md
