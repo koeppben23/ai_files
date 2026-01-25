@@ -17,7 +17,7 @@ Rules:
 - Do NOT change phases
 - Do NOT introduce new domain/architecture assumptions; only record administrative assumptions (e.g., missing metadata) if explicitly marked as such.
 - Do NOT reinterpret past decisions
-- Do NOT introduce new assumptions
+- Do NOT introduce new assumptions beyond the allowed administrative ones stated above.
 - Do NOT generate code unless explicitly allowed by the current gate state
 
 Continue execution strictly according to:
