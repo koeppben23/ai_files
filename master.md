@@ -390,7 +390,8 @@ Next:
 
 Binding:
 - If ActiveProfile is missing/ambiguous, stop and request it. Do not assume a default profile.
-- If Overrides.ScopeShift.status != none, all outputs must stay within the override target and the override must remain visible in SESSION_STATE.
+- Exception (planning-only): If the user provided no repository artifacts and explicitly requests planning/analysis only (no code, no file edits),
+  you may proceed in Phase 4 without an ActiveProfile, must remain stack-neutral, and must request the intended profile before any code-producing phase.
 
 If CONFIDENCE LEVEL < 90%, assistant behavior (e.g., code generation, plan-only, clarifications)
 MUST follow `rules.md`, Chapter 10 (“Error, Gaps & Confidence Handling”).
