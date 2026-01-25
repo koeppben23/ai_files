@@ -9,6 +9,7 @@ The system is built to work efficiently and token-aware in both:
 - **repo-aware mode with OpenCode**
 
 This README is **descriptive**, not normative.
+**If anything in this README conflicts with `master.md` or `rules.md`, treat the README as wrong and follow the rulebooks.**
 It explains purpose, structure, and usage — it does **not** control the AI’s behavior.
 
 ---
