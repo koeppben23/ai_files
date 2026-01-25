@@ -2,8 +2,8 @@
 
 **Executive Summary for AI-Assisted Development**
 
-This document is the **compact overview** of all binding rules.
-The full technical requirements are defined in **rules.md**.
+This document is a **compact, non-normative overview** of the binding rules defined in **rules.md** and the **Master Prompt**.
+The full technical requirements are defined in **rules.md** (plus the active profile rulebook, if any).
 Operational AI behavior (phases, hybrid mode, priorities, session state) is defined in the **Master Prompt**.
 
 This document contains **no standalone rules**.
@@ -83,7 +83,7 @@ even if not listed individually in this collapsed view.
 
 **Business Rules Discovery (Phase 1.5):**
 
-* Automatically enabled when >30 classes + domain layer present
+* Automatically enabled when >30 classes + domain layer present (based on Phase 2 discovery evidence).
 * Extracts business rules from code / database / tests
 * Reduces business-logic gaps from ~50% to <15%
 * See Master Prompt Phase 1.5 for details
@@ -137,7 +137,7 @@ mvn -B -DskipITs=false clean verify
 
 ## 7. Output Requirements
 
-Each ticket produces:
+Typical outputs (summary; authoritative details in master.md / rules.md):
 
 1. **Plan** (numbered, executable)
 2. **Diffs** (max 300 lines per block, max 5 files per response)
@@ -184,9 +184,9 @@ Starting with **Phase A**, the assistant maintains a persistent canonical
 
 This README additionally provides a **shortened, non-normative reading view**.
 
-### 10.1 Canonical Session State (Verbatim excerpt; authoritative source: master.md)
- 
-Note: This block is a readability excerpt only. If it diverges from master.md, master.md is authoritative.
+### 10.1 Canonical Session State (Excerpt, partial; authoritative source: master.md)
+
+Note: This block is a partial readability excerpt only. If it diverges from master.md, master.md is authoritative.
 
 ```text
 [SESSION_STATE]
