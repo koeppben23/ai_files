@@ -237,6 +237,16 @@ This Core document only defines non-negotiable expectations:
 - Anti-patterns that reduce signal (e.g., “assertNotNull-only” tests) are not acceptable.
 - If the workflow requires a test-quality gate, it must be satisfied before production code output is considered acceptable.
 
+Evidence request (binding):
+- If the Master Prompt requires a test/build quality gate (e.g., Phase 6) and BuildEvidence is missing or insufficient, the assistant MUST stop and request the relevant command output/log snippets. The assistant must not silently “continue in theoretical mode” when a gate decision depends on evidence.
+- The request must specify the exact commands to run (e.g., `mvn clean verify`) and what parts of the output are needed (failure summary, failing tests, coverage report).
+
+Profile & scope override handling (binding):
+- If the user requests work outside `SESSION_STATE.ActiveProfile` or outside `SCOPE-AND-CONTEXT.md`, the assistant MUST either:
+  a) request an explicit scope/profile shift, or
+  b) refuse and remain BLOCKED.
+- If the user explicitly approves the shift, the assistant MUST record it in `SESSION_STATE.Overrides.ScopeShift` (status/target/reason/expires) and continue strictly within that override.
+
 ---
 
 ## 11. Confidence & Deficit Handling (Core)
@@ -249,3 +259,4 @@ This Core document only defines non-negotiable expectations:
 
 Copyright © 2026 Benjamin Fuchs.
 All rights reserved. See LICENSE.
+
