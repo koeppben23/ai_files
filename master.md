@@ -1,8 +1,7 @@
 ---
-
-description: Activates the master workflow (phases 1–6)
+description: "Activates the master workflow (phases 1-6)"
 priority: highest
------------------
+---
 
 MASTER PROMPT
 consolidated, model-stable, hybrid-capable, pragmatic,
