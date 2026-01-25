@@ -31,22 +31,19 @@ Responsible for:
 # 2. Input Artifacts (Inputs)
 
 Required:
-
-* A repository as an archive artifact (ZIP/TAR/working copy) OR a repository indexed by OpenCode
-* Optional: additional artifacts (e.g., OpenAPI specs, DB dumps, CSV/Excel) if provided in the ticket
+- A repository as an archive artifact (e.g., ZIP/TAR/working copy) OR a repository indexed by OpenCode
+- Optional: additional artifacts (e.g., OpenAPI specs, DB dumps, CSV/Excel) if provided in the ticket/session
 
 Optional:
-
-* `apis` (OpenAPI specifications)
-* other project artifacts
+- API specifications (OpenAPI)
+- additional project artifacts (e.g., documentation, diagrams, sample payloads)
 
 The AI may only access artifacts that were actually provided (scope lock).
 
 Examples (non-normative):
-
-* `bo-pvo-personmanagement-be`
-* `bo-pvo-sync-transformer`
-* `bo-pvo-personmanagement-fe`
+- backend-service repository
+- integration/adapter repository
+- frontend repository (if explicitly in scope)
 
 ---
 
@@ -1202,3 +1199,4 @@ public void deletePerson(Long id) {
 
 Copyright © 2026 Benjamin Fuchs.
 All rights reserved. See LICENSE.
+
