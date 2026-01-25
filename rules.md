@@ -997,6 +997,28 @@ WICHTIG (Gates bleiben übergeordnet):
   wenn die Gates aus master.md erfüllt sind (P5=architecture-approved und P5.3=test-quality-pass).
 - Eine User-Freigabe ("Go") ersetzt keine Gates, sie ergänzt sie höchstens im DRAFT-Mode.
 
+----------------------------------------------------------------
+### BuildEvidence-Impact (verbindlich)
+
+BuildEvidence ist die normative Unterscheidung zwischen:
+- **theoretisch korrekt** (nicht ausgeführt / nicht belegt)
+- **verifiziert** (durch User-Ausgabe/Logs belegbar)
+
+Regeln:
+1) Wenn `BuildEvidence.status = not-provided`:
+   - Aussagen wie „Build ist grün“, „Tests laufen“, „Coverage erfüllt“ sind **verboten**.
+   - Es darf nur formuliert werden: **„theoretisch“ / „nicht verifiziert“**.
+   - CONFIDENCE ist automatisch auf **maximal 85%** zu begrenzen (kein NORMAL 90–100 möglich).
+
+2) Wenn `BuildEvidence.status = partially-provided`:
+   - Nur die explizit belegten Teile dürfen als verifiziert gelten.
+   - Alles andere ist als **theoretisch** zu kennzeichnen.
+   - CONFIDENCE ist automatisch auf **maximal 90%** zu begrenzen.
+
+3) Wenn `BuildEvidence.status = provided-by-user`:
+   - Build-/Test-Aussagen dürfen als **verifiziert** bezeichnet werden,
+     jedoch nur im Umfang der gelieferten Evidenz (Command + Output/Log-Ausschnitt).
+
 **Business-Rules-Impact auf Confidence:**
 
 Die Anzahl extrahierter Business Rules beeinflusst das Confidence Level:
@@ -1046,4 +1068,3 @@ public void deletePerson(Long id) {
     repository.delete(person);
 }
 ```
-
