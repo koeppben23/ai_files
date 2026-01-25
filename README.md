@@ -214,4 +214,7 @@ und genau deshalb skalierbar und review-fest.
 Copyright © 2026 Benjamin Fuchs. All rights reserved.
 Unauthorized use, copying, modification, or distribution is prohibited without explicit permission.
 
+Note: The restrictions above do not apply to the copyright holder (Benjamin Fuchs),
+who may use this Work without limitation.
+
 _Ende der Datei_
