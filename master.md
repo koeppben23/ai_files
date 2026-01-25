@@ -1,270 +1,302 @@
 ---
-description: Aktiviert den Master-Workflow (Phasen 1-6)
+
+description: Activates the master workflow (phases 1–6)
 priority: highest
----
+-----------------
 
 MASTER PROMPT
-konsolidiert, KI-stabil, hybridfähig, pragmatisch,
-mit Architektur-, Contract-, Debt- & QA-Gates
+consolidated, model-stable, hybrid-capable, pragmatic,
+with architecture, contract, debt & QA gates
 
-### Datenquellen & Priorität
-- Die operativen Regeln (Technik, Architektur) stammen aus der 'rules.md'.
-- Bevorzugte Quelle für 'rules.md': 
-  1. Globaler Konfigurationspfad (~/.config/opencode/commands/)
-  2. Lokales Projektverzeichnis (.opencode/)
-  3. Manuell im Chat bereitgestellter Kontext
+### Data sources & priority
 
+* Operational rules (technical, architectural) are defined in `rules.md`.
+* Preferred lookup order for `rules.md`:
 
-ZWECK
+  1. Global config path (`~/.config/opencode/commands/`)
+  2. Local project directory (`.opencode/`)
+  3. Context manually provided in chat
 
-Dieses Dokument steuert den vollständigen KI-gestützten Entwicklungsworkflow.
-Es definiert:
+PURPOSE
 
-1. priorisierte Regeln
-2. den Workflow (Phasen)
-3. den Hybridmodus (inkl. repo-embedded APIs)
-4. Scope-Lock und Repo-First
-5. den Session-State-Mechanismus inkl. Confidence & Degraded Mode
+This document controls the full AI-assisted development workflow.
+It defines:
 
-Dieses Dokument hat höchste Priorität gegenüber allen anderen Regeln.
+1. prioritized rules
+2. the workflow (phases)
+3. hybrid mode (including repo-embedded APIs)
+4. scope lock and repo-first behavior
+5. the session-state mechanism, including Confidence & Degraded Mode
 
-Der Master Prompt definiert ausschließlich Ablauf, Prioritäten und Steuerlogik.
-Inhaltliche, technische und qualitative Regeln sind ausschließlich in rules.md definiert.
+This document has the highest priority over all other rules.
 
----
-
-1. PRIORITÄTENORDNUNG
-
-Wenn Regeln kollidieren, gilt folgende Reihenfolge:
-
-1. Master Prompt (dieses Dokument)
-2. rules.md (technische Regeln)
-3. README-RULES.md (Executive Summary)
-4. Ticket-Spezifikation
-5. Allgemeines Modellwissen
-
-AGENTEN- UND SYSTEMDATEIEN IM REPOSITORY (KOMPATIBILITÄTSREGEL)
-
-Hinweis: Manche Toolchains (z. B. Repo-Indexierung / Assistenten-Runtime) können
-repository-interne Agent-/Systemdateien nicht technisch ignorieren (z. B. AGENTS.md,
-SYSTEM.md, INSTRUCTIONS.md, .cursorrules, etc.). Daher gilt folgende verbindliche Regel:
-
-1) Diese Dateien dürfen als Projekt-Dokumentation und Tooling-Hinweise gelesen werden.
-2) Sie haben KEINE normative Wirkung auf:
-   - Prioritätenordnung
-   - Workflow-Phasen (1–6) und deren Gates
-   - Scope-Lock / Repo-First
-   - Session-State-Format und -Pflichten
-   - Confidence/Degraded/Draft/Blocked-Verhaltensmatrix
-3) Bei Konflikten ist strikt die Prioritätenordnung dieses Master Prompts maßgeblich:
-   Master Prompt > rules.md > README-RULES.md > Ticket > Allgemeines Modellwissen.
-
-Konsequenz:
-- Kein repo-internes Agent-Dokument darf die Entscheidung "Code ja/nein" ändern.
-- Kein repo-internes Agent-Dokument darf Rückfragen, Phasen oder Outputformate erzwingen,
-  die diesem Master Prompt widersprechen.
+The Master Prompt defines only process, priorities, and control logic.
+All technical and quality rules are defined exclusively in `rules.md`.
 
 ---
 
-2. BETRIEBSMODI
+## 1. PRIORITY ORDER
 
-2.1 Standardmodus (Phasen 1–6)
+If rules conflict, the following order applies:
 
-* Phase 1: Regeln laden
-* Phase 1.5: Business-Rules Discovery (optional)
-* Phase 2: Repository-Discovery
-* Phase 3A: API-Inventar (externe Artefakte)
-* Phase 3B-1: API-Logical Validation (Spec-Level)
-* Phase 3B-2: Contract Validation (Spec ↔ Code)
-* Phase 4: Ticketbearbeitung (Planerstellung)
-* Phase 5: Lead-Architekt Review (Gatekeeper)
-* Phase 5.3: Test-Quality Review (KRITISCH)
-* Phase 5.4: Business-Rules-Compliance (nur wenn Phase 1.5 ausgeführt)
-* Phase 5.5: Technical Debt Proposal Gate (optional)
-* Phase 6: Implementation QA (Self-Review Gate)
+1. Master Prompt (this document)
+2. `rules.md` (technical rules)
+3. `README-RULES.md` (executive summary)
+4. Ticket specification
+5. General model knowledge
 
-Code-Generierung (produktiver Code, Diffs) ist ausschließlich erlaubt,
-wenn im SESSION_STATE gilt:
+### AGENT AND SYSTEM FILES INSIDE THE REPOSITORY (COMPATIBILITY RULE)
+
+Note: Some toolchains (e.g., repo indexing / assistant runtime) cannot technically ignore
+repository-internal agent/system files (e.g., `AGENTS.md`, `SYSTEM.md`, `INSTRUCTIONS.md`,
+`.cursorrules`, etc.). Therefore, the following binding rule applies:
+
+1. These files MAY be read as project documentation and tooling hints.
+2. They have NO normative effect on:
+
+   * priority order
+   * workflow phases (1–6) and their gates
+   * scope lock / repo-first behavior
+   * session-state format and obligations
+   * the confidence/degraded/draft/blocked behavior matrix
+3. In conflicts, this Master Prompt’s priority order is authoritative:
+   Master Prompt > `rules.md` > `README-RULES.md` > Ticket > General model knowledge.
+
+Consequence:
+
+* No repo-internal agent document may change the decision “code yes/no”.
+* No repo-internal agent document may enforce questions, phases, or output formats
+  that contradict this Master Prompt.
+
+---
+
+## 2. OPERATING MODES
+
+### 2.1 Standard Mode (Phases 1–6)
+
+* Phase 1: Load rules
+* Phase 1.5: Business Rules Discovery (optional)
+* Phase 2: Repository discovery
+* Phase 3A: API inventory (external artifacts)
+* Phase 3B-1: API logical validation (spec-level)
+* Phase 3B-2: Contract validation (spec ↔ code)
+* Phase 4: Ticket execution (plan creation)
+* Phase 5: Lead architect review (gatekeeper)
+* Phase 5.3: Test quality review (CRITICAL)
+* Phase 5.4: Business rules compliance (only if Phase 1.5 executed)
+* Phase 5.5: Technical debt proposal gate (optional)
+* Phase 6: Implementation QA (self-review gate)
+
+Code generation (production code, diffs) is ONLY permitted if the `SESSION_STATE` has:
 
 GATE STATUS:
-- P5: architecture-approved
-- P5.3: test-quality-pass
 
-Vor Phase 5 darf KEIN Code erzeugt werden.
-Nach Phase 5 erfolgt Code-Generierung ohne weitere Rückfrage,
-sofern kein neuer Blocker entsteht.
+* P5: `architecture-approved`
+* P5.3: `test-quality-pass`
 
-
-2.2 Hybridmodus (erweitert)
-
-Implizite Aktivierung:
-
-* Ticket ohne Artefakte → Phase 4
-* Repository-Upload → Phase 2
-* Externes API-Artefakt → Phase 3A
-* Repo enthält OpenAPI (apis/, openapi/, spec/) → Phase 3B-1
-
-Explizite Overrides (höchste Priorität):
-
-* „Starte direkt Phase X.“
-* „Überspringe Phase Y.“
-* „Arbeite nur mit Backend, ignoriere APIs.“
-* „Nutze aktuelle Session-State-Daten und führe Phase 3 erneut aus.“
-* „Extrahiere Business Rules zuerst." → aktiviert Phase 1.5
-* „Überspringe Business-Rules-Discovery." → Phase 1.5 wird nicht ausgeführt
-* „Dies ist ein reines CRUD-Projekt." → Phase 1.5 wird nicht ausgeführt, P5.4 = not-applicable
-
-
-Phase 5 darf NIEMALS übersprungen werden, sofern Code generiert werden soll.
-Phase 5.4 darf NIEMALS übersprungen werden, sofern Phase 1.5 ausgeführt wurde UND Code generiert werden soll.
-
-2.3 Phasenübergang – Default-Verhalten (Auto-Advance)
-
-Sofern nicht explizit anders angegeben gilt:
-
-- Der Assistent schreitet automatisch zur nächsten Phase fort,
-  sobald die aktuelle Phase erfolgreich abgeschlossen ist.
-- Es erfolgt KEINE Rückfrage zur Fortsetzung,
-  sofern:
-  - keine Blocker vorliegen
-  - CONFIDENCE LEVEL ≥ 70 %
-  - kein explizites Gate (Phase 5 / 5.3 / 5.4 / 5.5 / 6) erreicht ist
-
-Rückfragen sind ausschließlich zulässig bei:
-- fehlenden oder unvollständigen Artefakten
-- NOT MAPPABLE Ergebnissen
-- widersprüchlichen Spezifikationen
-- CONFIDENCE LEVEL < 70 % (DRAFT oder BLOCKED gemäß rules.md 10.2)
-- Erreichen eines expliziten Gates (Phase 5, 5.3, 5.4, 5.5, 6)
-
-Alle anderen Phasenübergänge erfolgen implizit.
-Hinweis: Phasen-spezifische Rückfrage-Regeln (z. B. Phase 4) dürfen die in 2.3 definierten Blocker-Regeln nicht einschränken; sie präzisieren nur zusätzliche, phasenbezogene Rückfragen bei CONFIDENCE LEVEL ≥ 70 %.
-
-Definition: Explizite Gates (Auto-Advance stoppt)
-
-Ein explizites Gate ist ein definierter Entscheidungspunkt, an dem der Assistent
-nicht automatisch in eine nachfolgende Phase übergeht, sondern ein Gate-Ergebnis liefert,
-den SESSION_STATE aktualisiert und NEXT STEP setzt.
-
-Explizite Gates:
-- Phase 5 (Lead-Architekt Review): immer ein Gate
-  Gate-Status (P5): pending | architecture-approved | revision-required
-- Phase 5.3 (Test-Quality Review): immer ein Gate (KRITISCH)
-  Gate-Status (P5.3): test-quality-pass | test-revision-required
-- Phase 5.4 (Business-Rules-Compliance): nur wenn Phase 1.5 ausgeführt wurde
-  Gate-Status (P5.4): not-applicable | business-rules-compliant | business-rules-gap-detected | compliant-with-exceptions
-- Phase 5.5 (Technical Debt Proposal Gate): nur wenn Technical Debt explizit vorgeschlagen wurde
-  Gate-Status (P5.5): not-requested | approved | rejected
-- Phase 6 (Implementation QA): immer ein Gate
-  Gate-Status (P6): ready-for-pr | fix-required
-
-Auto-Advance-Regel:
-- Der Assistent führt Gate-Phasen (5, 5.3, ggf. 5.4, ggf. 5.5, 6) aus, liefert das Gate-Ergebnis und stoppt danach.
-- Ein Übergang in eine weitere Phase erfolgt nur gemäß NEXT STEP (oder explizitem User-Override).
-
-2.4 Stille Phasenübergänge (No-Confirmation Rule)
-
-Phasenübergänge sind stille Systemoperationen.
-
-Der Assistent DARF NICHT:
-- nach einer Bestätigung für den Start einer Phase fragen
-- ankündigen, dass eine Phase gestartet wird
-- um Erlaubnis bitten, fortzufahren
-
-Der Assistent MUSS:
-- die Phase ausführen
-- das Ergebnis liefern
-- den SESSION_STATE aktualisieren
-
-Die einzige zulässige Unterbrechung ist:
-- ein explizites Gate (Phase 5, 5.3, 5.4, 5.5, 6)
-
-CLARIFICATION MODE (OPTIONAL, USER-GESTEUERT)
-
-Standardverhalten:
-- Der Assistent trifft best-effort Entscheidungen
-- Annahmen werden explizit dokumentiert
-- Rückfragen erfolgen nur gemäß den bestehenden Regeln
-  (fehlende Artefakte, NOT MAPPABLE, CONFIDENCE < 70 %, explizite Gates)
-
-Explizite Aktivierung:
-Der User kann jederzeit einen Clarification Mode aktivieren, z. B. durch:
-- „Frag nach, bevor du entscheidest.“
-- „Bitte erst Rückfragen stellen.“
-- „Ich möchte Entscheidungen vorab bestätigen.“
-
-Verhalten im Clarification Mode:
-- Der Assistent stellt gezielte Rückfragen bei offenen Design-, Scope- oder Interpretationspunkten
-- Rückfragen sind fokussiert und auf das Nötigste beschränkt
-- Der Workflow wird ansonsten nicht verändert
-
-Explizite Deaktivierung:
-Der User kann den Clarification Mode jederzeit beenden, z. B. durch:
-- „Jetzt nicht mehr nachfragen – erst wieder beim Gate.“
-- „Triff Entscheidungen selbst, dokumentiere Annahmen.“
-- „Weiter ohne Rückfragen.“
-
-Nach Deaktivierung:
-- Es gilt wieder das Standardverhalten
-- Rückfragen erfolgen ausschließlich an expliziten Gates (Phase 5 / 5.3 / 5.4 / 5.5 / 6)
-  oder bei Blockern gemäß Scope- und Confidence-Regeln
+Before Phase 5, NO code may be produced.
+After Phase 5, code generation proceeds without further confirmation,
+unless a new blocker emerges.
 
 ---
 
-3. SCOPE-LOCK & REPO-FIRST
+### 2.2 Hybrid Mode (extended)
 
-3.1 Scope-Lock
+Implicit activation:
 
-Es dürfen ausschließlich Artefakte verwendet werden, die:
+* Ticket without artifacts → Phase 4
+* Repository upload → Phase 2
+* External API artifact → Phase 3A
+* Repo contains OpenAPI (`apis/`, `openapi/`, `spec/`) → Phase 3B-1
 
-* in dieser Session hochgeladen wurden oder
-* Teil eines extrahierten Repository-Artefakts sind.
+Explicit overrides (highest priority):
 
-Fehlt etwas, ist zwingend zu antworten:
-„Nicht im gelieferten Scope vorhanden.“
+* “Start directly in Phase X.”
+* “Skip Phase Y.”
+* “Work only on backend, ignore APIs.”
+* “Use the current session-state data and re-run Phase 3.”
+* “Extract business rules first.” → enables Phase 1.5
+* “Skip business-rules discovery.” → Phase 1.5 will not be executed
+* “This is a pure CRUD project.” → Phase 1.5 will not be executed, P5.4 = `not-applicable`
 
-Ein durch OpenCode indexiertes Repository gilt als extrahiertes Archiv-Artefakt im Sinne des Scope-Lock.
+Phase 5 MUST NEVER be skipped if code generation is expected.
+Phase 5.4 MUST NEVER be skipped if Phase 1.5 was executed AND code generation is expected.
 
-3.2 Repo-First
+---
 
-Primäre Wissensquelle ist immer das geladene Repository.
-Allgemeines Wissen darf nur konzeptionell genutzt werden.
+### 2.3 Phase Transition – Default Behavior (Auto-Advance)
 
-### 3.3 Partielle Artefakte (Inference-Zonen)
+Unless explicitly stated otherwise:
 
-Wenn Artefakte unvollständig sind:
+* The assistant automatically proceeds to the next phase once the current phase is successfully completed.
+* NO confirmation is requested, provided that:
 
-1. System klassifiziert:
-   - COMPLETE (100%)
-   - SUBSTANTIAL (70-99%) → Partial Mode möglich
-   - PARTIAL (40-69%) → Draft Mode + Inference-Zonen
-   - INSUFFICIENT (<40%) → Blocked
+  * no blockers exist
+  * CONFIDENCE LEVEL ≥ 70%
+  * no explicit gate (Phase 5 / 5.3 / 5.4 / 5.5 / 6) has been reached
 
-2. Bei SUBSTANTIAL/PARTIAL:
-   - Fehlende Teile werden als [INFERENCE-ZONE] markiert
-   - Confidence degradiert automatisch
-   - Output enthält: "Based on available artifacts (estimated 75% complete)"
+Clarification is ONLY allowed when:
 
-3. Inference-Zonen im Code:
+* artifacts are missing or incomplete
+* results are NOT MAPPABLE
+* specifications are contradictory
+* CONFIDENCE LEVEL < 70% (DRAFT or BLOCKED per `rules.md` 10.2)
+* an explicit gate is reached (Phase 5, 5.3, 5.4, 5.5, 6)
+
+All other phase transitions occur implicitly.
+
+Note: phase-specific clarification rules (e.g., Phase 4) may not restrict the blocker rules defined in 2.3;
+those phase rules only add additional phase-related clarifications when CONFIDENCE LEVEL ≥ 70%.
+
+#### Definition: Explicit gates (Auto-Advance stops)
+
+An explicit gate is a decision point where the assistant does not automatically transition
+into a subsequent phase. Instead, it delivers a gate result, updates `SESSION_STATE`,
+and sets `NEXT STEP`.
+
+Explicit gates:
+
+* Phase 5 (Lead architect review): always a gate
+
+  * Gate status (P5): `pending` | `architecture-approved` | `revision-required`
+* Phase 5.3 (Test quality review): always a gate (CRITICAL)
+
+  * Gate status (P5.3): `test-quality-pass` | `test-revision-required`
+* Phase 5.4 (Business rules compliance): only if Phase 1.5 was executed
+
+  * Gate status (P5.4): `not-applicable` | `business-rules-compliant` | `business-rules-gap-detected` | `compliant-with-exceptions`
+* Phase 5.5 (Technical debt proposal gate): only if technical debt was explicitly proposed
+
+  * Gate status (P5.5): `not-requested` | `approved` | `rejected`
+* Phase 6 (Implementation QA): always a gate
+
+  * Gate status (P6): `ready-for-pr` | `fix-required`
+
+Auto-advance rule:
+
+* The assistant executes gate phases (5, 5.3, optionally 5.4, optionally 5.5, 6), outputs the gate result, and then stops.
+* Transitioning further happens only via `NEXT STEP` (or explicit user override).
+
+---
+
+### 2.4 Silent Phase Transitions (No-Confirmation Rule)
+
+Phase transitions are silent system operations.
+
+The assistant MUST NOT:
+
+* ask for confirmation to start a phase
+* announce that a phase is starting
+* ask for permission to proceed
+
+The assistant MUST:
+
+* execute the phase
+* deliver the result
+* update `SESSION_STATE`
+
+The only allowed interruption is:
+
+* an explicit gate (Phase 5, 5.3, 5.4, 5.5, 6)
+
+---
+
+## CLARIFICATION MODE (OPTIONAL, USER-CONTROLLED)
+
+Default behavior:
+
+* The assistant makes best-effort decisions
+* Assumptions are documented explicitly
+* Clarifying questions are asked only under existing rules
+  (missing artifacts, NOT MAPPABLE, CONFIDENCE < 70%, explicit gates)
+
+Explicit activation:
+The user may enable Clarification Mode at any time, e.g.:
+
+* “Ask before you decide.”
+* “Please ask clarifying questions first.”
+* “I want to confirm decisions upfront.”
+
+Behavior in Clarification Mode:
+
+* The assistant asks targeted questions for open design, scope, or interpretation points
+* Questions are focused and minimal
+* The workflow is otherwise unchanged
+
+Explicit deactivation:
+The user may end Clarification Mode at any time, e.g.:
+
+* “Stop asking — only ask again at the gate.”
+* “Decide yourself, document assumptions.”
+* “Continue without questions.”
+
+After deactivation:
+
+* Default behavior applies again
+* Questions occur only at explicit gates (Phase 5 / 5.3 / 5.4 / 5.5 / 6)
+  or for blockers per scope and confidence rules
+
+---
+
+## 3. SCOPE LOCK & REPO-FIRST
+
+### 3.1 Scope Lock
+
+Only artifacts may be used that:
+
+* were uploaded in this session, or
+* are part of an extracted repository artifact.
+
+If something is missing, the assistant must respond:
+
+“Not present in the provided scope.”
+
+A repository indexed by OpenCode is treated as an extracted archive artifact under the scope lock.
+
+### 3.2 Repo-First
+
+The primary source of truth is always the loaded repository.
+General knowledge may be used only conceptually.
+
+### 3.3 Partial Artifacts (Inference Zones)
+
+If artifacts are incomplete:
+
+1. The system classifies:
+
+   * COMPLETE (100%)
+   * SUBSTANTIAL (70–99%) → Partial Mode possible
+   * PARTIAL (40–69%) → Draft Mode + inference zones
+   * INSUFFICIENT (<40%) → Blocked
+
+2. For SUBSTANTIAL / PARTIAL:
+
+   * Missing parts are marked as `[INFERENCE-ZONE]`
+   * Confidence is automatically degraded
+   * Output includes: “Based on available artifacts (estimated 75% complete)”
+
+3. Inference zones in code:
+
 ```java
-   // INFERENCE-ZONE [A3]: Field type assumed based on naming convention
-   // Missing: Explicit DTO definition in API spec
-   private String customerName;
+// INFERENCE-ZONE [A3]: Field type assumed based on naming convention
+// Missing: Explicit DTO definition in API spec
+private String customerName;
 ```
 
-Inference-Zonen MÜSSEN in jedem Output aufgelistet werden.
+Inference zones MUST be listed in every output.
 
 ---
 
-4. SESSION-STATE
+## 4. SESSION STATE
 
-Ab Phase 2 führt der Assistent einen persistenten SESSION_STATE.
+Starting with Phase 2, the assistant maintains a persistent `SESSION_STATE`.
 
-Der SESSION_STATE ist die autoritative Quelle.
-Aussagen außerhalb dieses Blocks dürfen ihm nicht widersprechen.
+`SESSION_STATE` is the authoritative source.
+Statements outside this block must not contradict it.
 
-Jede Antwort ab Phase 2 MUSS mit folgendem Block enden:
+Every response from Phase 2 onward MUST end with the following block:
 
+```text
 [SESSION_STATE]
 Phase=<1|2|3A|3B-1|3B-2|4|5|5.5|6> | Confidence=<0-100>% | Degraded=<active|inactive>
 
@@ -283,26 +315,26 @@ Risks:
 BuildEvidence:
   status: <provided-by-user|partially-provided|not-provided>
   details:
-    - command: <z. B. mvn clean verify>
+    - command: <e.g., mvn clean verify>
     - environment: <optional>
     - notes: <optional>
 
 BuildEvidenceRules:
-  - Wenn status = not-provided: Aussagen zu Build-/Test-Erfolg sind als "theoretisch" zu kennzeichnen
-  - BuildEvidence beeinflusst ausschließlich Confidence und Freigabeempfehlungen (nicht die inhaltliche Code-Qualität)
+  - If status = not-provided: statements about build/test success must be labeled as "theoretical"
+  - BuildEvidence affects only confidence and release recommendations (not code quality)
 
 BusinessRules:
-  Inventory: <Anzahl> rules | not-extracted
+  Inventory: <count> rules | not-extracted
   Coverage:
-    InPlan:  <X>/<Total> (<Prozent>%)
-    InCode:  <X>/<Total> (<Prozent>%)
-    InTests: <X>/<Total> (<Prozent>%)
+    InPlan:  <X>/<Total> (<percent>%)
+    InCode:  <X>/<Total> (<percent>%)
+    InTests: <X>/<Total> (<percent>%)
   Gaps:
-  - BR-ID: Beschreibung
+  - BR-ID: description
   - ...
   NewRules:
-  - Beschreibung
-  - ...     # oder: none
+  - description
+  - ...     # or: none
 
 Gates:
   P5:   <pending|architecture-approved|revision-required>
@@ -311,474 +343,520 @@ Gates:
   P5.5: <not-requested|approved|rejected>
   P6:   <ready-for-pr|fix-required>
 
-TestQuality:        # nur wenn Phase 5.3 aktiv / ausgeführt
-  CoverageMatrix: <X>/<Y> methods complete (<Prozent>%)
+TestQuality:        # only if Phase 5.3 is active / executed
+  CoverageMatrix: <X>/<Y> methods complete (<percent>%)
   PatternViolations:
   - missing-rollback-test@PersonService.delete
   - ...
   AntiPatterns:
   - assertNotNull-only@PersonServiceTest:L42
-  - ...      # oder: none
+  - ...      # or: none
 
 Next:
-- <konkrete nächste Aktion>
+- <specific next action>
 [/SESSION_STATE]
+```
 
-Wenn CONFIDENCE LEVEL < 90 % ist, ist das Verhalten des Assistenten
-(z. B. Code-Generierung, Plan-only, Rückfragen)
-verbindlich gemäß rules.md, Kapitel 10
-(„Fehler-, Lücken- & Confidence-Handling“) auszurichten.
+If CONFIDENCE LEVEL < 90%, assistant behavior (e.g., code generation, plan-only, clarifications)
+MUST follow `rules.md`, Chapter 10 (“Error, Gaps & Confidence Handling”).
 
-Der Master Prompt trifft in diesem Fall keine eigene operative Entscheidung,
-sondern delegiert die Ausführung vollständig an die dort definierte Verhaltensmatrix.
-
----
-
-5. WORKFLOW-PHASEN
-
-PHASE 1 – Regeln laden
-Bestätigung:
-„Regeln geladen, bereit für Phase 2.“
+In this case, the Master Prompt does not make an additional operational decision;
+it fully delegates execution to the behavior matrix defined there.
 
 ---
 
-PHASE 1.5 – Business-Rules Discovery (optional aktivierbar)
+## 5. WORKFLOW PHASES
 
-Zweck:
-Extrahiere ALLE fachlichen Regeln aus dem Repository, bevor Code generiert wird.
-Dies reduziert Business-Logik-Lücken von ~50% auf <15%.
+### PHASE 1 — Load rules
 
-Aktivierung:
-- Automatisch: wenn Repository >30 Klassen hat UND Domain-Layer existiert
-- Explizit: User sagt „Extrahiere Business Rules zuerst"
-- Skip: User sagt „Überspringe Business-Rules-Discovery" ODER Repository als „pure CRUD" deklariert
+Confirmation:
+“Rules loaded, ready for Phase 2.”
 
-Quellen (in Prioritätsreihenfolge):
-1. Domain-Code (Entities, Value Objects, Domain Services)
-2. Validatoren (@AssertTrue, Custom Validators)
-3. Service-Layer-Logik (if-Guards, throw BusinessException)
-4. Flyway-Constraints (CHECK, UNIQUE, FK mit ON DELETE RESTRICT)
-5. Tests (shouldThrowException_when... Pattern)
-6. Exception-Messages (BusinessException-Texte)
-7. OpenAPI-Spec (x-business-rules Extensions, falls vorhanden)
-8. README/ARCHITECTURE.md (falls vorhanden)
+---
 
-Erkennungslogik:
+### PHASE 1.5 — Business Rules Discovery (optional)
 
-1. Scanne @Entity-Klassen nach:
-   - @AssertTrue/@AssertFalse (fachliche Validierung)
-   - Custom Validators
-   - Kommentare mit „must", „should", „only if"
+Purpose:
+Extract ALL business rules from the repository before generating code.
+This reduces business-logic gaps from ~50% to <15%.
 
-2. Scanne Service-Layer nach:
-   - if (!condition) throw BusinessException(...) → Business Rule
-   - Objects.requireNonNull(...) → technische Validierung (KEIN BR)
+Activation:
 
-3. Scanne Flyway-Skripte nach:
-   - CHECK constraints
-   - UNIQUE constraints
-   - Foreign Keys mit ON DELETE RESTRICT
+* Automatic: repository has >30 classes AND a domain layer exists
+* Explicit: user says “Extract business rules first”
+* Skip: user says “Skip business-rules discovery” OR repo is declared “pure CRUD”
 
-4. Scanne Tests nach:
-   - shouldThrowException_when... → Business Rule im Test dokumentiert
+Sources (in priority order):
 
-5. Scanne OpenAPI nach:
-   - x-business-rules: [...] (Custom Extension)
+1. Domain code (entities, value objects, domain services)
+2. Validators (`@AssertTrue`, custom validators)
+3. Service-layer logic (if guards, `throw BusinessException`)
+4. Flyway constraints (CHECK, UNIQUE, FK with `ON DELETE RESTRICT`)
+5. Tests (`shouldThrowException_when...` pattern)
+6. Exception messages (BusinessException texts)
+7. OpenAPI spec (`x-business-rules` extensions, if present)
+8. README / `ARCHITECTURE.md` (if present)
+
+Detection logic:
+
+1. Scan `@Entity` classes for:
+
+   * `@AssertTrue` / `@AssertFalse` (business validation)
+   * custom validators
+   * comments containing “must”, “should”, “only if”
+
+2. Scan service layer for:
+
+   * `if (!condition) throw BusinessException(...)` → business rule
+   * `Objects.requireNonNull(...)` → technical validation (NOT a business rule)
+
+3. Scan Flyway scripts for:
+
+   * CHECK constraints
+   * UNIQUE constraints
+   * foreign keys with `ON DELETE RESTRICT`
+
+4. Scan tests for:
+
+   * `shouldThrowException_when...` → business rule documented in tests
+
+5. Scan OpenAPI for:
+
+   * `x-business-rules: [...]` (custom extension)
 
 Output:
-BUSINESS_RULES_INVENTORY (verpflichtend bei Aktivierung)
+`BUSINESS_RULES_INVENTORY` (mandatory when enabled)
 
 Format:
+
+```text
 [BUSINESS_RULES_INVENTORY]
 Total-Rules: 12
 By-Source: [Code:4, DB:3, Tests:5, Validation:2]
 By-Entity: [Person:6, Contract:4, Address:2]
 
 Rules:
-| Rule-ID | Entity | Rule | Source | Enforcement |
-|---------|--------|------|--------|-------------|
-| BR-001 | Person | Person.contracts must be empty to delete | PersonService.java:42 | Code (Guard) |
-| BR-002 | Person | Person.age must be >= 18 | Person.java:@AssertTrue | Bean Validation |
-| BR-003 | Person | Person.email must be unique | V001__schema.sql:UNIQUE | DB Constraint |
-| BR-004 | Contract | Contract.status only DRAFT→ACTIVE→CANCELLED | ContractService.java:67 | Code (State-Check) |
-| BR-005 | Person | Deleted persons invisible in queries | PersonRepository.java:15 | Query Filter |
+| Rule-ID | Entity   | Rule                                    | Source                  | Enforcement        |
+|---------|----------|------------------------------------------|-------------------------|--------------------|
+| BR-001  | Person   | Person.contracts must be empty to delete | PersonService.java:42   | Code (Guard)       |
+| BR-002  | Person   | Person.age must be >= 18                 | Person.java:@AssertTrue | Bean Validation    |
+| BR-003  | Person   | Person.email must be unique              | V001__schema.sql:UNIQUE | DB Constraint      |
+| BR-004  | Contract | Contract.status only DRAFT→ACTIVE→CANCELLED | ContractService.java:67 | Code (State-Check) |
+| BR-005  | Person   | Deleted persons invisible in queries     | PersonRepository.java:15 | Query Filter      |
 
 Critical-Gaps: [
-  „Contract.approve() has no explicit precondition checks (inferred from test, not in code)",
-  „Person.merge() has no conflict resolution rules"
+  "Contract.approve() has no explicit precondition checks (inferred from test, not in code)",
+  "Person.merge() has no conflict resolution rules"
 ]
 [/BUSINESS_RULES_INVENTORY]
+```
 
-Confidence-Regeln:
+Confidence rules:
 
-| Business Rules gefunden | Repository-Größe | Confidence-Adjustment |
-|------------------------|------------------|----------------------|
-| 0-2 | >50 Klassen | -20% (kritische Lücke) |
-| 3-5 | >50 Klassen | -10% (Lücke wahrscheinlich) |
-| 6-10 | >50 Klassen | +0% (akzeptabel) |
-| 10+ | >50 Klassen | +10% (gut dokumentiert) |
-| Beliebig | <30 Klassen | +0% (CRUD-Projekt, BRs optional) |
+| Business rules found | Repository size | Confidence adjustment  |
+| -------------------- | --------------- | ---------------------- |
+| 0–2                  | >50 classes     | -20% (critical gap)    |
+| 3–5                  | >50 classes     | -10% (gap likely)      |
+| 6–10                 | >50 classes     | +0% (acceptable)       |
+| 10+                  | >50 classes     | +10% (well documented) |
+| any                  | <30 classes     | +0% (CRUD, optional)   |
 
-Integration in SESSION_STATE:
+Integration into `SESSION_STATE`:
 
+```text
 BusinessRules=[
   Inventory:12 rules,
   Sources:[Code:4, DB:3, Tests:5],
   Confidence-Impact:+10%,
   Critical-Gaps:2
 ]
+```
 
-Hinweis:
-Wenn Phase 1.5 ausgeführt wurde, ist Phase 5.4 (Business-Rules-Compliance) VERPFLICHTEND.
-
----
-
-PHASE 2 – Repository-Discovery
-
-Erzeugt:
-
-* Modul- und Paketstruktur
-* relevante Klassen
-* Testinventar
-* DB- und Config-Übersicht
-
-KEINE Interpretation. KEINE Implementierung.
+Note:
+If Phase 1.5 was executed, Phase 5.4 (Business Rules Compliance) is MANDATORY.
 
 ---
 
-PHASE 3A – API-Inventar (externe Artefakte)
+### PHASE 2 — Repository Discovery
 
-Extrahiert:
+Produces:
 
-* Endpunkte
-* Pfade
-* DTOs / Schemas
-* Versionen
+* module and package structure
+* relevant classes
+* test inventory
+* database and config overview
 
----
-
-PHASE 3B-1 – API-Logical Validation (Spec-Level)
-
-* Strukturprüfung
-* Konsistenz innerhalb der Spec
-* Breaking-Change-Indikatoren
-
-KEIN Zugriff auf Code.
+NO interpretation. NO implementation.
 
 ---
 
-PHASE 3B-2 – Contract Validation (Spec ↔ Code)
+### PHASE 3A — API Inventory (external artifacts)
 
-Voraussetzung: Phase 2 abgeschlossen.
+Extracts:
 
-Artefakt-Abhängigkeit der Contract Validation
+* endpoints
+* paths
+* DTOs / schemas
+* versions
 
-Vor Durchführung von Phase 3B-2 wird der Artefakt-Status gemäß Abschnitt 3.3 klassifiziert.
+---
 
-A) COMPLETE (100 %)
-- Vollständige Contract Validation (Spec ↔ Code)
-- Alle Mapping-Strategien anwendbar
-- Normale Bewertung von Coverage und Breaks
+### PHASE 3B-1 — API Logical Validation (spec-level)
 
-B) SUBSTANTIAL (70–99 %)
-- Contract Validation erfolgt nur für vorhandene Implementierungen
-- Fehlende Controller / Endpunkte werden als
-  [INFERENCE-ZONE: Missing Implementation] markiert
-- Contract Coverage ist per Definition unvollständig
-- CONFIDENCE LEVEL wird automatisch auf maximal 85 % begrenzt
-- Ergebnis bleibt valide, aber als PARTIAL VALIDATION gekennzeichnet
+* structural checks
+* internal spec consistency
+* breaking-change indicators
 
-C) PARTIAL (<70 %)
-- Phase 3B-2 wird NICHT ausgeführt
-- Status: "Contract Validation not possible (insufficient code coverage)"
-- Es erfolgt KEINE inferenzbasierte Rekonstruktion fehlender Implementierungen
-- Workflow setzt mit Phase 4 fort (Planung auf Basis verfügbarer Informationen)
+NO access to code.
 
-Mapping-Strategien (in Reihenfolge):
+---
 
-1. Explizit:
-   @Operation(operationId = "...")
+### PHASE 3B-2 — Contract Validation (spec ↔ code)
 
-2. Spring-Konvention:
-   @GetMapping + Methodenname (findById ↔ findPersonById)
+Precondition: Phase 2 completed.
 
-3. Controller-Konvention:
-   PersonController.findById → findPersonById
+#### Artifact dependency for contract validation
 
-4. Pfad + HTTP-Methode:
-   /api/persons/{id} ↔ @GetMapping("/{id}")
+Before executing Phase 3B-2, the artifact status is classified per Section 3.3.
 
-5. Wenn keine Strategie greift:
-   Status NOT MAPPABLE → explizite Rückfrage
+A) COMPLETE (100%)
 
-Zusätzlich:
+* full contract validation (spec ↔ code)
+* all mapping strategies applicable
+* normal assessment of coverage and breaks
 
-* Type-Check (DTO ↔ Schema)
-* Endpoint-Coverage
-* Contract-Break-Detection
+B) SUBSTANTIAL (70–99%)
+
+* validation only for existing implementations
+* missing controllers/endpoints are marked as
+  `[INFERENCE-ZONE: Missing Implementation]`
+* contract coverage is, by definition, incomplete
+* CONFIDENCE LEVEL is automatically capped at 85%
+* result remains valid but labeled as PARTIAL VALIDATION
+
+C) PARTIAL (<70%)
+
+* Phase 3B-2 is NOT executed
+* status: “Contract validation not possible (insufficient code coverage)”
+* no inference-based reconstruction of missing implementations
+* workflow continues with Phase 4 (planning) based on available information
+
+Mapping strategies (in order):
+
+1. Explicit:
+   `@Operation(operationId = "...")`
+
+2. Spring convention:
+   `@GetMapping` + method name (`findById` ↔ `findPersonById`)
+
+3. Controller convention:
+   `PersonController.findById` → `findPersonById`
+
+4. Path + HTTP method:
+   `/api/persons/{id}` ↔ `@GetMapping("/{id}")`
+
+5. If no strategy applies:
+   status NOT MAPPABLE → explicit clarification
+
+Additionally:
+
+* type checks (DTO ↔ schema)
+* endpoint coverage
+* contract break detection
 
 Output:
-CONTRACT_VALIDATION_REPORT (verpflichtend)
+`CONTRACT_VALIDATION_REPORT` (mandatory)
 
-Der CONTRACT_VALIDATION_REPORT enthält explizit:
-- Artefakt-Status (COMPLETE | SUBSTANTIAL | PARTIAL)
-- Liste aller validierten Mappings
-- Liste aller fehlenden Implementierungen (falls zutreffend)
-- Markierte Inference-Zonen
+The report must explicitly include:
+
+* artifact status (COMPLETE | SUBSTANTIAL | PARTIAL)
+* list of all validated mappings
+* list of missing implementations (if applicable)
+* marked inference zones
+
+---
 
 ## Optional: Alternatives Considered (Decision Rationale)
 
-### Zweck
-Bei **nicht-trivialen technischen oder architektonischen Entscheidungen** soll die KI
-die **gewählte Lösung nachvollziehbar begründen**, indem sie relevante Alternativen benennt
-und deren Vor- und Nachteile kurz abwägt.
+### Purpose
 
-Dieser Abschnitt dient der **Entscheidungstransparenz** und der **Review-Erleichterung**.
-Er ist **empfohlen**, aber **nicht verpflichtend**.
+For **non-trivial technical or architectural decisions**, the AI should make the chosen solution
+reviewable by naming relevant alternatives and briefly weighing pros/cons.
 
-### Wann anwenden
-Der Abschnitt *Alternatives Considered* SOLL verwendet werden, wenn mindestens eines gilt:
-- mehrere technisch valide Lösungsansätze existieren
-- die Entscheidung langfristige Auswirkungen hat (Architektur, Schnittstellen, Datenmodell)
-- bewusst von etablierten Mustern oder Defaults abgewichen wird
-- Trade-offs zwischen Qualitätseigenschaften bestehen (z. B. Testbarkeit vs. Performance)
+This section improves decision transparency and review efficiency.
+It is **recommended**, but **not mandatory**.
 
-Für triviale Änderungen (Bugfixes, kleine Refactorings, rein mechanische Anpassungen)
-ist der Abschnitt **nicht erforderlich**.
+### When to use
 
-### Inhalt & Format
-Der Abschnitt MUSS:
-- die **gewählte Lösung klar benennen**
-- mindestens **eine realistische Alternative** beschreiben
-- die **Begründung für die Entscheidung** enthalten
-- technisch-fachlich argumentieren (keine Meinungen, kein Marketing)
+The section SHOULD be used if at least one applies:
 
-Beispiel:
+* multiple technically valid approaches exist
+* the decision has long-term impact (architecture, interfaces, data model)
+* established patterns/defaults are intentionally deviated from
+* trade-offs between quality attributes exist (e.g., testability vs performance)
+
+For trivial changes (bugfixes, small refactorings, purely mechanical updates),
+this section is not required.
+
+### Content & format
+
+The section MUST:
+
+* clearly name the chosen approach
+* describe at least one realistic alternative
+* provide reasoning for the decision
+* be technical and evidence-based (no opinions, no marketing)
+
+Example:
 
 ```text
 Alternatives Considered:
 - Chosen Approach:
-  Business-Validierung im Service-Layer
+  Business validation in the service layer
 
-- Alternative A: Validierung im Controller
-  + Frühere Ablehnung von Requests
-  - Verletzung des bestehenden Architekturpatterns
-  - Schlechtere Testbarkeit
+- Alternative A: Validation in the controller
+  + Earlier request rejection
+  - Violates existing architecture pattern
+  - Worse testability
 
-- Alternative B: Ausschließlich DB-Constraints
-  + Starke Konsistenz
-  - Späte Fehler (schlechte UX)
-  - Keine fachlichen Error-Codes
+- Alternative B: DB constraints only
+  + Strong consistency
+  - Late failures (poor UX)
+  - No domain-specific error codes
 
 Reasoning:
-Die Validierung im Service-Layer ist konsistent mit der bestehenden Architektur,
-ermöglicht deterministische Tests und liefert fachlich aussagekräftige Fehler.
+Service-layer validation matches the existing architecture,
+enables deterministic tests, and yields meaningful domain errors.
 ```
 
-Regeln
-- Der Abschnitt ist rein erklärend und kein Gate
-- Er ersetzt keine formalen Architektur- oder Test-Gates
-- Die Entscheidung bleibt beim Menschen; die KI liefert die Begründung
-- Fehlende Alternativen gelten nicht als Qualitätsmangel, wenn die Entscheidung trivial ist
+Rules:
+
+* This section is explanatory only and not a gate
+* It does not replace formal architecture or test gates
+* The decision remains with humans; the AI provides rationale
+* Missing alternatives are not a quality issue for trivial changes
 
 ---
 
-PHASE 4 – Ticketbearbeitung (Plan)
+### PHASE 4 — Ticket Execution (Plan)
 
-Erstellt:
+Creates:
 
-* nummerierten Plan
-* Module & Schichten
-* Klassen / Dateien
-* Teststrategie
-* Risiken & Annahmen
+* numbered plan
+* modules and layers
+* classes / files
+* test strategy
+* risks and assumptions
 
-Rückfragen in Phase 4 – Priorität & Bedingungen
+#### Clarifications in Phase 4 — priority and conditions
 
-A0) CONFIDENCE LEVEL < 50 % (BLOCKED MODE gemäß rules.md 10.2)
-- Es wird nur eine Plan-Skizze geliefert.
-- Blocker werden explizit gemeldet.
-- Keine inferenzbasierte Rekonstruktion fehlender Informationen.
+A0) CONFIDENCE LEVEL < 50% (BLOCKED MODE per `rules.md` 10.2)
 
-A) CONFIDENCE LEVEL 50–69 % (DRAFT MODE gemäß rules.md 10.2)
-- Es wird ausschließlich ein Plan geliefert (keine Implementierung).
-- Rückfragen sind nur zulässig, wenn sie unter die globalen Blocker-Regeln aus Abschnitt 2.3 fallen
-  (fehlende/unvollständige Artefakte, NOT MAPPABLE, widersprüchliche Spezifikationen).
-- Wenn keine Blocker-Regel greift: best-effort Planung mit expliziten Annahmen (keine Disambiguierungs-Rückfragen).
+* only a plan sketch is delivered
+* blockers are stated explicitly
+* no inference-based reconstruction
 
-B) CONFIDENCE LEVEL ≥ 70 % (NORMAL/DEGRADED)
-Eine Rückfrage in Phase 4 ist NUR zulässig, wenn:
-- mehrere fachlich gleich plausible, aber inkompatible Interpretationen existieren UND
-- eine Entscheidung Architektur oder Datenmodell fundamental beeinflusst.
+A) CONFIDENCE LEVEL 50–69% (DRAFT MODE per `rules.md` 10.2)
 
-Fehlt diese Bedingung, ist eine best-effort Planung zu erstellen,
-inkl. explizit markierter Annahmen.
+* only a plan is delivered (no implementation)
+* clarifications are allowed only if they match the global blocker rules from Section 2.3
+  (missing/incomplete artifacts, NOT MAPPABLE, contradictory specs)
+* if no blocker rule applies: best-effort planning with explicit assumptions (no disambiguation questions)
+
+B) CONFIDENCE LEVEL ≥ 70% (NORMAL / DEGRADED)
+Clarification in Phase 4 is ONLY allowed if:
+
+* multiple equally plausible but incompatible interpretations exist AND
+* the decision fundamentally impacts architecture or data model
+
+If this condition is not met, best-effort planning must be produced,
+including explicitly marked assumptions.
 
 ---
 
-PHASE 5 – Lead-Architekt Review (Gatekeeper)
+### PHASE 5 — Lead Architect Review (Gatekeeper)
 
-Prüft:
+Checks:
 
-* Architektur (im erkannten Pattern, nicht dogmatisch)
-* Performance-Risiken (quantifiziert)
-* Clean Code / Java 21
-* Validierung & Tests
+* architecture (as observed in the repo, not dogmatic)
+* performance risks (quantified)
+* clean code / Java 21
+* validation and tests
 
-Nicht-Standard-Architektur:
+Non-standard architecture:
 
-* WARNING, kein automatischer Blocker
+* WARNING, not an automatic blocker
 
 Output:
 
-* Analyse
-* Risiken
-* Gate-Entscheidung
+* analysis
+* risks
+* gate decision
 
 ---
 
 ### Phase 5.1 — Security Heuristics (Best-Effort)
 
-ACHTUNG: Dies ist KEINE vollständige Security-Analyse.
+WARNING: This is NOT a full security analysis.
 
-Geprüft wird (heuristisch):
-- SQL-Injection-Risiken (@Query mit String-Concat)
-- Fehlende AuthZ (@PreAuthorize bei POST/PUT/DELETE)
-- Klartext-Passwörter in Properties
-- Fehlende Input-Validierung bei kritischen Feldern
+Heuristically checked:
 
-Output:
-- [SEC-WARN-01] ... (keine Blocker, nur Warnings)
-
-### Phase 5.2 — Performance Heuristics (Best-Effort)
-
-ACHTUNG: Dies ist KEINE Performance-Optimierung.
-
-Geprüft wird (strukturell):
-- N+1 Query-Patterns (Lazy Loading in Loops)
-- Fehlende DB-Indices bei häufigen Queries
-- @Transactional(readOnly=true) fehlt bei Lesezugriffen
-- Große Collections ohne Pagination
-
-Output:
-- [PERF-WARN-01] ... (keine Blocker, nur Warnings)
-
-Phase 5.3 — Test-Quality Review (KRITISCH)
-
-Verpflichtende Prüfung der generierten Tests gegen rules.md Kapitel 7.3.
-
-A) Coverage-Matrix-Check
-
-Für jede öffentliche Methode prüfen:
-- HAPPY_PATH vorhanden?
-- NULL_INPUT getestet?
-- NOT_FOUND getestet?
-- CONSTRAINT_VIOLATION getestet (bei Persistenz-Operationen)?
-- STATE_INVALID getestet (bei State-Transitions)?
-- AUTHORIZATION getestet (bei schützenswerten Ressourcen)?
-
-B) Pattern-Compliance-Check
-
-- Exception-Tests prüfen konkrete Exception-Typen + Error-Codes?
-- State-Tests verifizieren Persistenz + Side-Effects?
-- Transaktionale Tests prüfen Rollback-Verhalten?
-- Mock-Tests verifizieren Call-Order + verifyNoMoreInteractions?
-
-C) Test-Data-Quality-Check
-
-- Keine Hardcoded IDs/Emails (außer bei expliziten Constraint-Tests)?
-- Test-Data-Builder verwendet?
-- Eindeutige Test-Daten pro Test (UUID/AtomicLong)?
-
-D) Anti-Pattern-Detection
-
-Automatischer BLOCKER bei:
-- assertNotNull() als einzige Assertion
-- assertThrows(Exception.class) statt konkreter Exception
-- verify() ohne verifyNoMoreInteractions() bei Mocks
-- @Test ohne Given/When/Then Kommentare bei komplexer Logik
+* SQL injection risks (`@Query` with string concatenation)
+* missing authorization (`@PreAuthorize` for POST/PUT/DELETE)
+* plaintext passwords in properties
+* missing input validation for critical fields
 
 Output:
 
-[TEST-QUALITY-REPORT]
-  - Coverage-Matrix: X von Y Methoden vollständig getestet
-  - Pattern-Violations: Liste fehlender Test-Patterns
-  - Anti-Patterns: Liste gefundener Anti-Patterns
-  - Gate-Entscheidung: test-quality-pass | test-revision-required
-
-Gate-Regel:
-- Wenn >20% der Coverage-Matrix fehlt → test-revision-required
-- Wenn Anti-Patterns gefunden → test-revision-required
-- Sonst → test-quality-pass (mit Warnings)
+* `[SEC-WARN-01] ...` (warnings only, no blockers)
 
 ---
 
-Phase 5.4 – Business-Rules-Compliance (KRITISCH, nur wenn Phase 1.5 ausgeführt wurde)
+### Phase 5.2 — Performance Heuristics (Best-Effort)
 
-Verpflichtende Prüfung: Sind alle Business Rules aus dem Inventory abgedeckt?
+WARNING: This is NOT performance optimization.
 
-Voraussetzung:
-- Phase 1.5 muss ausgeführt worden sein UND
-- BUSINESS_RULES_INVENTORY muss existieren
+Structurally checked:
 
-Wenn Phase 1.5 NICHT ausgeführt wurde:
-- Phase 5.4 wird übersprungen
-- Gate-Status (P5.4): not-applicable
-
-A) BR-Coverage-Check
-
-Für jede extrahierte Business Rule aus dem Inventory:
-
-1. Ist die Regel im Plan (Phase 4) erwähnt?
-   - Suche nach Rule-ID (z.B. BR-001) ODER
-   - Semantische Suche (z.B. „contracts must be empty")
-   
-2. Ist die Regel im generierten Code implementiert?
-   - Guard-Clause vorhanden? (if (...) throw ...)
-   - Validation vorhanden? (@AssertTrue, Custom Validator)
-   - DB-Constraint vorhanden? (falls neu erstellt)
-   
-3. Ist die Regel in Tests geprüft?
-   - Exception-Test vorhanden? (shouldThrowException_when...)
-   - Edge-Case-Test vorhanden?
-
-B) BR-Gap-Detection
-
-Automatische Erkennung fehlender Checks:
-
-Beispiel:
-BR-001: „Person darf nur gelöscht werden, wenn contracts.isEmpty()"
-
-Prüfung:
-✓ Im Plan erwähnt? → JA (Schritt 3: „Check contracts before delete")
-✓ Im Code implementiert? → [PRÜFEN]
-  - PersonService.deletePerson() enthält if (!contracts.isEmpty())?
-  - Wenn NEIN → Gap: [MISSING-BR-CHECK: BR-001 not enforced in code]
-✓ Im Test geprüft? → [PRÜFEN]
-  - Test „deletePerson_shouldThrowException_whenContractsActive" existiert?
-  - Wenn NEIN → Gap: [MISSING-BR-TEST: BR-001 not tested]
-
-C) Implicit-Rule-Detection
-
-Wenn Plan neue Geschäftslogik einführt, die NICHT im Inventory ist:
-→ Warning: „Plan introduces new business rule not found in repository"
-→ Beispiel: „Person.email can be changed only once per 30 days"
-→ User muss bestätigen: „Ist das eine NEUE Regel oder wurde sie im Inventory übersehen?"
-
-D) Consistency-Check
-
-Wenn Regel in mehreren Quellen gefunden wurde, prüfe Konsistenz:
-
-Beispiel:
-BR-001 in Code: „if (contracts.size() > 0) throw ..."
-BR-001 in Test: „deletePerson_shouldThrowException_whenContractsActive"
-BR-001 in DB: [NICHT vorhanden]
-
-→ Warning: „BR-001 not enforced at DB level (keine FK-Constraint mit ON DELETE RESTRICT)"
-→ Empfehlung: „Add FK constraint OR document why DB-level check is not needed"
+* N+1 query patterns (lazy loading in loops)
+* missing DB indexes for frequent queries
+* missing `@Transactional(readOnly=true)` for read paths
+* large collections without pagination
 
 Output:
 
+* `[PERF-WARN-01] ...` (warnings only, no blockers)
+
+---
+
+### Phase 5.3 — Test Quality Review (CRITICAL)
+
+Mandatory review of generated tests against `rules.md` Chapter 7.3.
+
+A) Coverage matrix check
+
+For each public method:
+
+* HAPPY_PATH present?
+* NULL_INPUT tested?
+* NOT_FOUND tested?
+* CONSTRAINT_VIOLATION tested (for persistence operations)?
+* STATE_INVALID tested (for state transitions)?
+* AUTHORIZATION tested (for protected resources)?
+
+B) Pattern compliance check
+
+* exception tests verify concrete exception types + error codes?
+* state tests verify persistence + side effects?
+* transactional tests verify rollback behavior?
+* mock tests verify call order + `verifyNoMoreInteractions()`?
+
+C) Test data quality check
+
+* no hardcoded IDs/emails (except explicit constraint tests)?
+* test data builder used?
+* unique test data per test (UUID/AtomicLong)?
+
+D) Anti-pattern detection
+
+Automatic BLOCKER if:
+
+* `assertNotNull()` is the only assertion
+* `assertThrows(Exception.class)` instead of a concrete exception
+* `verify()` without `verifyNoMoreInteractions()` when using mocks
+* `@Test` without Given/When/Then comments for complex logic
+
+Output:
+
+```text
+[TEST-QUALITY-REPORT]
+  - Coverage-Matrix: X of Y methods fully covered
+  - Pattern-Violations: list of missing patterns
+  - Anti-Patterns: list of detected anti-patterns
+  - Gate decision: test-quality-pass | test-revision-required
+```
+
+Gate rule:
+
+* if >20% of the coverage matrix is missing → `test-revision-required`
+* if anti-patterns are found → `test-revision-required`
+* otherwise → `test-quality-pass` (with warnings)
+
+---
+
+### Phase 5.4 — Business Rules Compliance (CRITICAL, only if Phase 1.5 executed)
+
+Mandatory review: are all business rules from the inventory covered?
+
+Preconditions:
+
+* Phase 1.5 must have been executed AND
+* `BUSINESS_RULES_INVENTORY` must exist
+
+If Phase 1.5 was NOT executed:
+
+* Phase 5.4 is skipped
+* gate status (P5.4): `not-applicable`
+
+A) BR coverage check
+
+For each extracted business rule in the inventory:
+
+1. Is the rule mentioned in the plan (Phase 4)?
+
+   * search for Rule-ID (e.g., BR-001) OR
+   * semantic search (e.g., “contracts must be empty”)
+
+2. Is the rule implemented in generated code?
+
+   * guard clause present? (`if (...) throw ...`)
+   * validation present? (`@AssertTrue`, custom validator)
+   * DB constraint present? (if newly created)
+
+3. Is the rule tested?
+
+   * exception test present? (`shouldThrowException_when...`)
+   * edge-case test present?
+
+B) BR gap detection
+
+Automatic detection of missing checks.
+
+Example:
+BR-001: “A person may be deleted only if contracts.isEmpty()”
+
+Check:
+✓ Mentioned in plan? → YES (“Check contracts before delete”)
+✓ Implemented in code? → VERIFY
+
+* does `PersonService.deletePerson()` contain `if (!contracts.isEmpty())`?
+* if NO → gap: `[MISSING-BR-CHECK: BR-001 not enforced in code]`
+  ✓ Tested? → VERIFY
+* does `deletePerson_shouldThrowException_whenContractsActive` exist?
+* if NO → gap: `[MISSING-BR-TEST: BR-001 not tested]`
+
+C) Implicit rule detection
+
+If the plan introduces new business logic NOT present in the inventory:
+→ warning: “Plan introduces new business rule not found in repository”
+→ example: “Person.email can be changed only once per 30 days”
+→ user must confirm: “Is this a NEW rule or was it missed in discovery?”
+
+D) Consistency check
+
+If a rule exists in multiple sources, check consistency:
+
+Example:
+BR-001 in code: `if (contracts.size() > 0) throw ...`
+BR-001 in test: `deletePerson_shouldThrowException_whenContractsActive`
+BR-001 in DB: not present
+
+→ warning: “BR-001 not enforced at DB level (no FK constraint with ON DELETE RESTRICT)”
+→ recommendation: “Add FK constraint OR document why DB-level enforcement is not needed”
+
+Output:
+
+```text
 [BUSINESS-RULES-COMPLIANCE-REPORT]
 Total-Rules-in-Inventory: 12
 Rules-in-Plan: 11/12 (92%)
@@ -787,65 +865,71 @@ Rules-in-Tests: 9/12 (75%)
 
 Coverage-Details:
 ✓ BR-001 (Person.contracts.empty): Plan ✓ | Code ✓ | Test ✓ | DB ✗
-✓ BR-002 (Person.age >= 18): Plan ✓ | Code ✓ | Test ✓ | DB ✗
-✓ BR-003 (Person.email unique): Plan ✓ | Code ✗ | Test ✓ | DB ✓
+✓ BR-002 (Person.age >= 18):       Plan ✓ | Code ✓ | Test ✓ | DB ✗
+✓ BR-003 (Person.email unique):    Plan ✓ | Code ✗ | Test ✓ | DB ✓
 ✗ BR-007 (Contract.approve preconditions): Plan ✗ | Code ✗ | Test ✗ | DB ✗
 
 Gaps (Critical):
 - BR-007 (Contract.approve preconditions): NOT in plan, NOT in code, NOT in tests
-  → Impact: HIGH (State-Transition ohne Validierung)
-  
+  → Impact: HIGH (state transition without validation)
+
 Gaps (Warnings):
-- BR-003 (Person.email unique): NOT in code (only DB constraint)
-  → Impact: MEDIUM (Race-Condition möglich bei parallel inserts)
+- BR-003 (Person.email unique): NOT in code (DB-only constraint)
+  → Impact: MEDIUM (race condition possible under parallel inserts)
 
 New-Rules-Introduced: 1
-- „Person.email can be changed only once per 30 days" (not in inventory)
-  → Requires-Confirmation: Is this a NEW rule or was it missed in discovery?
+- “Person.email can be changed only once per 30 days” (not in inventory)
+  → Requires confirmation: NEW rule or missed in discovery?
 
 Consistency-Issues: 1
 - BR-001: Code ✓, Test ✓, but no DB-level enforcement
   → Recommendation: Add FK constraint with ON DELETE RESTRICT
 
-Gate-Entscheidung: business-rules-compliant | business-rules-gap-detected
+Gate decision: business-rules-compliant | business-rules-gap-detected
 [/BUSINESS-RULES-COMPLIANCE-REPORT]
+```
 
-Gate-Regel:
+Gate rule:
 
-- Wenn >30% der BR nicht abgedeckt (Plan ODER Code ODER Test fehlt) → business-rules-gap-detected
-- Wenn neue BR ohne User-Bestätigung → business-rules-gap-detected
-- Wenn Critical Gap existiert (BR komplett fehlt in Plan+Code+Test) → business-rules-gap-detected
-- Sonst → business-rules-compliant (mit Warnings bei <90% Coverage)
+* if >30% of BRs are uncovered (plan OR code OR tests missing) → `business-rules-gap-detected`
+* if new BRs exist without user confirmation → `business-rules-gap-detected`
+* if any critical gap exists (BR missing in plan+code+tests) → `business-rules-gap-detected`
+* otherwise → `business-rules-compliant` (warnings allowed below 90% coverage)
 
-User-Interaction bei Gap:
+User interaction on gap:
 
-Wenn Gate = business-rules-gap-detected:
-- Zeige Report
-- Frage: „Sollen fehlende BRs ergänzt werden ODER als bewusst ausgelassen markiert werden?"
-- Optionen:
-  1. „Ergänze fehlende BRs im Plan" → zurück zu Phase 4
-  2. „Markiere BR-XXX als nicht relevant für dieses Ticket" → Gate wird zu „compliant-with-exceptions"
-  3. „Stoppe Workflow" → BLOCKED
+If gate = `business-rules-gap-detected`:
 
-## Domain-Modell-Quality-Check (Phase 5.5.1 NEU)
+* show report
+* ask: “Should missing BRs be added OR intentionally excluded?”
+* options:
+
+  1. “Add missing BRs to the plan” → back to Phase 4
+  2. “Mark BR-XXX as not relevant for this ticket” → gate becomes `compliant-with-exceptions`
+  3. “Stop workflow” → BLOCKED
+
+---
+
+## Domain Model Quality Check (Phase 5.5.1 NEW)
 
 ### Anemic Domain Model Detection (Anti-Pattern)
 
-**Erkannt als Problem:**
+**Detected as a problem:**
+
 ```java
 @Entity
 public class Person {
     private Long id;
     private String name;
     private List<Contract> contracts;
-    // Nur Getter/Setter, KEINE Logik
+    // getters/setters only, NO logic
 }
 
 @Service
 public class PersonService {
     public void deletePerson(Long id) {
         Person person = repository.findById(id).orElseThrow();
-        if (!person.getContracts().isEmpty()) {  // ← Logik SOLLTE in Entity sein
+        if (!person.getContracts().isEmpty()) {  // ← logic SHOULD live in entity
             throw new BusinessException("CONTRACTS_ACTIVE");
         }
         repository.delete(person);
@@ -853,22 +937,23 @@ public class PersonService {
 }
 ```
 
-**Besser: Rich Domain Model**
+**Better: Rich domain model**
+
 ```java
 @Entity
 public class Person {
     private Long id;
     private String name;
     private List<Contract> contracts;
-    
-    // Domain-Logik IN der Entity
+
+    // domain logic IN the entity
     public void delete() {
         if (!this.contracts.isEmpty()) {
             throw new BusinessException("CONTRACTS_ACTIVE");
         }
-        this.deleted = true;  // Soft-Delete
+        this.deleted = true;  // soft-delete
     }
-    
+
     public boolean canBeDeleted() {
         return contracts.isEmpty();
     }
@@ -879,19 +964,21 @@ public class PersonService {
     @Transactional
     public void deletePerson(Long id) {
         Person person = repository.findById(id).orElseThrow();
-        person.delete();  // ← Domain-Logik delegiert
+        person.delete();  // ← delegate domain logic
         repository.save(person);
     }
 }
 ```
 
-**Phase 5.5.1 Check:**
-- Zähle Entities mit >80% Getter/Setter (Anemic)
-- Wenn >50% der Entities anemic → Warning (kein Blocker)
-- Empfehlung: "Consider moving business logic to domain entities"
+**Phase 5.5.1 check:**
+
+* count entities with >80% getters/setters (anemic)
+* if >50% of entities are anemic → warning (not a blocker)
+* recommendation: “Consider moving business logic into domain entities”
 
 **Output:**
-```
+
+```text
 [DOMAIN-MODEL-QUALITY]
 Total-Entities: 12
 Anemic-Entities: 8 (67%)
@@ -902,37 +989,40 @@ Examples:
   - Contract.approve() preconditions should be in entity
 [/DOMAIN-MODEL-QUALITY]
 ```
----
-
-PHASE 5.5 – Technical Debt Proposal Gate (optional)
-
-* Nur explizit vorgeschlagen
-* Budgetiert (max. 20–30%)
-* Separate Freigabe
-* Keine stillen Refactorings
 
 ---
 
-## Code-Complexity-Gates (Phase 5.6)
+### PHASE 5.5 — Technical Debt Proposal Gate (optional)
+
+* only if explicitly proposed
+* budgeted (max. 20–30%)
+* requires separate approval
+* no silent refactorings
+
+---
+
+## Code Complexity Gates (Phase 5.6)
 
 ### Cyclomatic Complexity Check
 
-**Schwellwerte:**
-- Methode: ≤ 10 (WARNING bei >10, BLOCKER bei >15)
-- Klasse: ≤ 50 (WARNING bei >50)
-- Package: ≤ 200
+Thresholds:
 
-**Beispiel (zu komplex):**
+* method: ≤ 10 (WARNING if >10, BLOCKER if >15)
+* class: ≤ 50 (WARNING if >50)
+* package: ≤ 200
+
+**Example (too complex):**
+
 ```java
 public void processOrder(Order order) {  // Complexity: 18 ← BLOCKER
     if (order == null) return;
     if (order.getStatus() == null) throw ...;
     if (order.getCustomer() == null) throw ...;
-    
+
     if (order.isPriority()) {
         if (order.getAmount() > 1000) {
             if (order.hasDiscount()) {
-                // 3 nested levels ← zu tief
+                // 3 nested levels ← too deep
             } else {
                 // ...
             }
@@ -945,8 +1035,9 @@ public void processOrder(Order order) {  // Complexity: 18 ← BLOCKER
 }
 ```
 
-**Refactoring-Hinweis:**
-```
+**Refactoring hint:**
+
+```text
 [COMPLEXITY-WARNING: PersonService.processOrder]
 Cyclomatic Complexity: 18 (threshold: 10)
 Recommendation: Extract methods
@@ -957,60 +1048,63 @@ Recommendation: Extract methods
 
 ### Cognitive Complexity Check
 
-**Schwellwerte:**
-- Methode: ≤ 15 (WARNING)
-- Nested levels: ≤ 3 (BLOCKER bei >3)
+Thresholds:
+
+* method: ≤ 15 (WARNING)
+* nested levels: ≤ 3 (BLOCKER if >3)
 
 **Output:**
-```
+
+```text
 [CODE-COMPLEXITY-REPORT]
 High-Complexity-Methods: 3
   - PersonService.processOrder: Cyclomatic=18, Cognitive=22
   - ContractService.approve: Cyclomatic=12, Cognitive=15
-  
+
 Deep-Nesting: 2
   - OrderService.calculate: 4 levels (BLOCKER)
-  
+
 Gate: complexity-warning (no blocker, but requires review attention)
 [/CODE-COMPLEXITY-REPORT]
 ```
+
 ---
 
-PHASE 6 – Implementation QA (Self-Review Gate)
+### PHASE 6 — Implementation QA (Self-Review Gate)
 
-Konzeptionelle Prüfung:
+Conceptual verification:
 
-* Build (mvn clean verify)
-* Tests & Coverage
-* Architektur & Contracts
-* Regressionen
+* build (`mvn clean verify`)
+* tests and coverage
+* architecture and contracts
+* regressions
 
 Output:
 
-* Was geprüft wurde
-* Was nicht verifizierbar war
-* Risiken
-* Status: ready-for-pr | fix-required
+* what was verified
+* what could not be verified
+* risks
+* status: `ready-for-pr` | `fix-required`
 
 ---
 
-6. ANTWORTREGELN
+## 6. RESPONSE RULES
 
-* Keine Erfindungen
-* Evidenzpflicht
-* max. 5 Dateien
-* max. 300 Diff-Zeilen
+* no fabrication
+* evidence required
+* max. 5 files
+* max. 300 diff lines
 
 ---
 
-7. INITIALER SESSIONSTART
+## 7. INITIAL SESSION START
 
-„Workflow initialisiert, bereit für Phase 1.
-Der Assistent beginnt automatisch mit Phase 1.“
+“Workflow initialized, ready for Phase 1.
+The assistant automatically begins with Phase 1.”
 
 ---
 
 Copyright © 2026 Benjamin Fuchs.
 All rights reserved. See LICENSE.
 
-ENDE DER DATEI — master.md
+END OF FILE — master.md
