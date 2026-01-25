@@ -4,3 +4,6 @@ Continue the current session strictly according to the canonical SESSION_STATE.
 - Do NOT change phases
 - Do NOT bypass gates
 - Execute ONLY the step defined in SESSION_STATE.Next
+
+Copyright © 2026 Benjamin Fuchs.
+All rights reserved. See LICENSE.
