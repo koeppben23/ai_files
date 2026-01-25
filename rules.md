@@ -97,6 +97,8 @@ If the user specifies a profile, it is authoritative for the session until expli
 ### 4.3 Fallback: Repo-Based Detection (Only if No Explicit Profile)
 
 If no explicit profile is given, the assistant may infer a profile **only** from repository indicators.
+If neither an explicit profile nor repository indicators are available, the assistant MUST NOT guess a profile.
+In that case, proceed only in planning/analysis mode (Phase 4) or switch to BLOCKED and request the profile before any code-producing work.
 The detected profile must be recorded as an **assumption** in the session state, including evidence (files/paths) used.
 
 **Deterministic detection hints (examples):**
@@ -259,4 +261,5 @@ Profile & scope override handling (binding):
 
 Copyright © 2026 Benjamin Fuchs.
 All rights reserved. See LICENSE.
+
 
