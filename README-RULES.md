@@ -1,38 +1,38 @@
 # README-RULES.md
 
-**Executive Summary für KI-gestützte Entwicklung**
+**Executive Summary for AI-Assisted Development**
 
-Dieses Dokument ist die **kompakte Übersicht** über alle verbindlichen Regeln.
-Die vollständigen technischen Vorgaben stehen in **rules.md**.
-Das operative Verhalten der KI (Phasen, Hybridmodus, Prioritäten, Session-State) wird im **Master Prompt** definiert.
+This document is the **compact overview** of all binding rules.
+The full technical requirements are defined in **rules.md**.
+Operational AI behavior (phases, hybrid mode, priorities, session state) is defined in the **Master Prompt**.
 
-Dieses Dokument enthält **keine eigenständigen Regeln**.
-Es fasst ausschließlich die in rules.md definierten Vorgaben zusammen.
-Im Zweifel gilt immer **rules.md** bzw. der **Master Prompt**.
-
----
-
-## 1. Zielsetzung
-
-### Dieser Prozess ermöglicht KI-gestützte Erstellung von:
-
-* technischen Designs
-* Backend-Implementierungen
-* API-basierten Integrationen
-* Unit-/Slice-/Integrationstests
-* Traceability- und Qualitätsnachweisen
-
-Alle Arbeitsschritte folgen einem klar strukturierten, kontrollierten Workflow.
+This document contains **no standalone rules**.
+It only summarizes the requirements defined in **rules.md**.
+When in doubt, **rules.md** and the **Master Prompt** always take precedence.
 
 ---
 
-## 2. Verbindliche Artefakte
+## 1. Purpose
 
-### Archiv-Artefakte
+### This process enables AI-assisted creation of:
 
-Alle Repositories, APIs oder Sammlungen mehrerer Dateien werden als **Archiv-Artefakte** geliefert.
+* technical designs
+* backend implementations
+* API-based integrations
+* unit / slice / integration tests
+* traceability and quality evidence
 
-Beispiele (nicht abschließend):
+All work follows a clearly structured, controlled workflow.
+
+---
+
+## 2. Mandatory Artifacts
+
+### Archive Artifacts
+
+All repositories, APIs, or collections of multiple files must be delivered as **archive artifacts**.
+
+Examples (non-exhaustive):
 
 * ZIP
 * TAR
@@ -41,142 +41,150 @@ Beispiele (nicht abschließend):
 * 7Z
 * RAR
 
-**Scope-Lock:**
-Die KI darf ausschließlich auf Artefakte zugreifen, die im Ticket bzw. in der aktuellen Session geliefert wurden.
+**Scope Lock:**
+The AI may only access artifacts that were provided in the ticket or the current session.
 
 ---
 
-## 3. Archiv-Artefakte – verpflichtende Extraktion
+## 3. Archive Artifacts – Mandatory Extraction
 
-Alle gelieferten Archiv-Artefakte werden von der KI **immer real und vollständig extrahiert**.
+All provided archive artifacts must **always be extracted fully and for real** by the AI.
 
-* Ohne erfolgreiche Extraktion erfolgen **keine** Aussagen über Inhalte, Strukturen oder Klassen.
-* Heuristische, erfahrungsbasierte oder rekonstruierte Ableitungen sind unzulässig.
-* Ein nicht extrahierbares Archiv gilt als **nicht vorhanden im Sinne des Scope-Lock**.
+* Without successful extraction, **no** statements about contents, structures, or classes may be made.
+* Heuristic, experience-based, or reconstructed inferences are not allowed.
+* An archive that cannot be extracted is treated as **non-existent under the scope lock**.
 
 ---
 
 ## 4. Workflow (Collapsed View)
 
-Der vollständige Workflow besteht aus **6 Phasen** (inkl. Sub-Phasen und Gates) gemäß **Master Prompt**.
-Dieses Dokument zeigt eine **reduzierte 4-Phasen-Sicht** zur schnellen Orientierung.
+The full workflow consists of **6 phases** (including sub-phases and gates) as defined in the **Master Prompt**.
+This document provides a **reduced 4-phase view** for quick orientation.
 
-| Collapsed Phase         | Entspricht Master Prompt           |
-| ----------------------- | ---------------------------------- |
-| Phase A – Analyse       | Phase 1 + 2                        |
-| Phase B – Lösungsdesign | Phase 3A + Phase 3B-1              |
-| Phase C – Validierung   | Phase 3B-2 + Phase 4               |
-| Phase D – Umsetzung     | Phase 5 (+ optional 5.5) + Phase 6 |
+| Collapsed Phase           | Master Prompt Equivalent           |
+| ------------------------- | ---------------------------------- |
+| Phase A – Analysis        | Phase 1 + 2                        |
+| Phase B – Solution Design | Phase 3A + Phase 3B-1              |
+| Phase C – Validation      | Phase 3B-2 + Phase 4               |
+| Phase D – Implementation  | Phase 5 (+ optional 5.5) + Phase 6 |
 
-**Erweitert (mit Business-Rules Discovery):**
+**Extended (with Business Rules Discovery):**
 
-| Collapsed Phase         | Entspricht Master Prompt                    |
-| ----------------------- | ------------------------------------------- |
-| Phase A – Analyse       | Phase 1 + *1.5 (optional)* + Phase 2       |
-| Phase B – Lösungsdesign | Phase 3A + Phase 3B-1                      |
-| Phase C – Validierung   | Phase 3B-2 + Phase 4                       |
-| Phase D – Umsetzung     | Phase 5 + *5.4 (falls 1.5 aktiv)* + 5.5 (optional) + 6 |
+| Collapsed Phase           | Master Prompt Equivalent                                 |
+| ------------------------- | -------------------------------------------------------- |
+| Phase A – Analysis        | Phase 1 + *1.5 (optional)* + Phase 2                     |
+| Phase B – Solution Design | Phase 3A + Phase 3B-1                                    |
+| Phase C – Validation      | Phase 3B-2 + Phase 4                                     |
+| Phase D – Implementation  | Phase 5 + *5.4 (if 1.5 was active)* + 5.5 (optional) + 6 |
 
-**Wichtig:**
-Alle **Gates, Sub-Phasen (z. B. 3B-1 / 3B-2) und Einschränkungen** gelten vollumfänglich, auch wenn sie hier nicht einzeln dargestellt sind.
+**Important:**
+All **gates, sub-phases (e.g., 3B-1 / 3B-2), and constraints** apply in full,
+even if not listed individually in this collapsed view.
 
-**Business-Rules Discovery (Phase 1.5):**
-- Automatisch aktiviert bei >30 Klassen + Domain-Layer
-- Extrahiert fachliche Regeln aus Code/DB/Tests
-- Reduziert Business-Logik-Lücken von ~50% auf <15%
-- Details siehe Master Prompt Phase 1.5
+**Business Rules Discovery (Phase 1.5):**
 
----
-
-## 5. Hybridmodus
-
-Die KI kann flexibel zwischen Phasen wechseln.
-
-### Implizite Aktivierung
-
-* Ticket ohne vorherige Artefakte → direkt Phase D
-* Repository-Upload → Phase A
-* API-Upload → Phase A
-
-### Explizite Overrides
-
-Die folgenden Kommandos überschreiben alle Standardregeln:
-
-* „Starte direkt in Phase D.“
-* „Überspringe Phase A.“
-* „Arbeite nur mit Backend und ignoriere APIs.“
-* „Nutze aktuellen Session-State für erneute Discovery.“
-
-**Explizite Overrides haben stets Vorrang.**
+* Automatically enabled when >30 classes + domain layer present
+* Extracts business rules from code / database / tests
+* Reduces business-logic gaps from ~50% to <15%
+* See Master Prompt Phase 1.5 for details
 
 ---
 
-## 6. Qualitätsanforderungen (High-Level)
+## 5. Hybrid Mode
+
+The AI may switch flexibly between phases.
+
+### Implicit Activation
+
+* Ticket without prior artifacts → start directly in Phase D
+* Repository upload → start in Phase A
+* API upload → start in Phase A
+
+### Explicit Overrides
+
+The following commands override all default rules:
+
+* “Start directly in Phase D.”
+* “Skip Phase A.”
+* “Work only on backend and ignore APIs.”
+* “Use the current session state to re-run discovery.”
+
+**Explicit overrides always take precedence.**
+
+---
+
+## 6. Quality Requirements (High-Level)
 
 * Java 21, Spring Boot
 * Google Java Style
-* keine Wildcard-Imports
-* Einrückung: 4 Spaces
-* strukturiertes Logging, Validierung, Fehlerbehandlung
-* Architekturlayer strikt einhalten
-* Testabdeckung ≥ 80 % der geänderten Logik
-* Für neu erstellte produktive Klassen sind zugehörige Unit-Testklassen (Good/Bad/Edge Cases) verpflichtend (Details in rules.md, Kapitel 7.3 (Test Quality Rules), insbesondere 7.3.2 (Coverage Matrix per public method)
+* no wildcard imports
+* indentation: 4 spaces
+* structured logging, validation, error handling
+* strict adherence to architectural layers
+* test coverage ≥ 80% of changed logic
+* for newly created production classes, corresponding unit test classes
+  (good / bad / edge cases) are mandatory
+  (see rules.md, Chapter 7.3 (Test Quality Rules),
+  especially 7.3.2 (Coverage Matrix per public method))
 
-**Build-Anforderung:**
+**Build requirement:**
 
+```bash
 mvn -B -DskipITs=false clean verify
+```
 
 ---
 
-## 7. Output-Anforderungen
+## 7. Output Requirements
 
-Jedes Ticket erzeugt:
+Each ticket produces:
 
-1. **Plan** (nummeriert, ausführbar)
-2. **Diffs** (max. 300 Zeilen pro Block, max. 5 Dateien pro Antwort)
-3. **Neue Dateien** (vollständig)
-4. **Unit-/Slice-/Integrationstests**
-5. **How-to-Run / Testhinweise**
-6. **Traceability-Matrix**
-7. **Evidenzliste**
-8. **Offene Punkte & Annahmen**
+1. **Plan** (numbered, executable)
+2. **Diffs** (max 300 lines per block, max 5 files per response)
+3. **New files** (complete)
+4. **Unit / slice / integration tests**
+5. **How-to-run / test instructions**
+6. **Traceability matrix**
+7. **Evidence list**
+8. **Open issues & assumptions**
 
-Bei größeren Änderungen zusätzlich:
+For larger changes, additionally:
 
 * changes.patch
 * README-CHANGES.md
 
 ---
 
-## 8. Scope-Lock & Nicht-Erfinden
+## 8. Scope Lock & No Fabrication
 
-* Keine Klassen, Dateien, Endpunkte oder Felder erfinden
-* Wenn etwas nicht im gelieferten Material enthalten ist → explizite Meldung
-* Allgemeines Wissen darf nur zur Erklärung dienen, nicht zur Projektspezialisierung
+* Do not invent classes, files, endpoints, or fields
+* If something is not present in the provided material → state so explicitly
+* General knowledge may be used for explanation only, never for project-specific fabrication
 
 ---
 
 ## 9. Discovery (Phase A)
 
-Die KI extrahiert ausschließlich:
+The AI extracts only:
 
-* Datei- und Ordnerstrukturen
-* relevante Pakete und Klassen
-* Testübersichten
-* API-Endpunkte und DTOs
-* Konfigurationen und Flyway-Skripte
+* file and folder structures
+* relevant packages and classes
+* test overviews
+* API endpoints and DTOs
+* configurations and Flyway scripts
 
-**Keine Interpretation, kein Design, keine Implementierung.**
+**No interpretation, no design, no implementation.**
 
 ---
 
-## 10. Session-State
+## 10. Session State
 
-Der Assistent führt **ab Phase A** einen persistenten **Canonical `[SESSION_STATE]`** gemäß **Master Prompt**.
+Starting with **Phase A**, the assistant maintains a persistent canonical
+**`[SESSION_STATE]`** as defined in the **Master Prompt**.
 
-Dieses README zeigt zusätzlich eine **verkürzte, nicht-normative Lesesicht**.
+This README additionally provides a **shortened, non-normative reading view**.
 
-### 10.1 Canonical Session State (Normativ)
+### 10.1 Canonical Session State (Normative)
 
 ```text
 [SESSION_STATE]
@@ -195,17 +203,17 @@ Risks:
 - ...
 
 BusinessRules:
-  Inventory: <Anzahl> rules | not-extracted
+  Inventory: <count> rules | not-extracted
   Coverage:
-    InPlan:  <X>/<Total> (<Prozent>%)
-    InCode:  <X>/<Total> (<Prozent>%)
-    InTests: <X>/<Total> (<Prozent>%)
+    InPlan:  <X>/<Total> (<percent>%)
+    InCode:  <X>/<Total> (<percent>%)
+    InTests: <X>/<Total> (<percent>%)
   Gaps:
-  - BR-ID: Beschreibung
+  - BR-ID: description
   - ...
   NewRules:
-  - Beschreibung
-  - ...     # oder: none
+  - description
+  - ...     # or: none
 
 Gates:
   P5:   <pending|architecture-approved|revision-required>
@@ -214,21 +222,21 @@ Gates:
   P5.5: <not-requested|approved|rejected>
   P6:   <ready-for-pr|fix-required>
 
-TestQuality:        # nur wenn Phase 5.3 aktiv / ausgeführt
-  CoverageMatrix: <X>/<Y> methods complete (<Prozent>%)
+TestQuality:        # only if Phase 5.3 is active / executed
+  CoverageMatrix: <X>/<Y> methods complete (<percent>%)
   PatternViolations:
   - missing-rollback-test@PersonService.delete
   - ...
   AntiPatterns:
   - assertNotNull-only@PersonServiceTest:L42
-  - ...      # oder: none
+  - ...      # or: none
 
 Next:
-- <konkrete nächste Aktion>
+- <specific next action>
 [/SESSION_STATE]
 ```
 
-### 10.2 README View (Collapsed, nicht normativ)
+### 10.2 README View (Collapsed, Non-Normative)
 
 ```text
 [SESSION_STATE – SUMMARY]
@@ -250,28 +258,27 @@ Next Step:
 - …
 ```
 
-**Regeln:**
+**Rules:**
 
-* Der Canonical Session State ist **immer maßgeblich**
-* Die Summary-Ansicht dient ausschließlich der Lesbarkeit
-* Nur Inhalte aus gelieferten Artefakten dürfen eingetragen werden
-* Annahmen müssen explizit gekennzeichnet sein
-* Der Block wird bei jeder Antwort aktualisiert
+* The canonical session state is **always authoritative**
+* The summary view is for readability only
+* Only content from provided artifacts may be recorded
+* Assumptions must be explicitly labeled
+* The block is updated with every response
 
 ---
 
-## 11. Fehlerfälle
+## 11. Failure Cases
 
-Falls Artefakte fehlen oder defekt sind:
+If artifacts are missing or corrupted:
 
-* Die KI listet die fehlenden Dateien explizit auf
-* Die KI liefert **nur einen Plan**, keine Implementierung
-* Es werden **keine** Strukturen, Klassen oder Inhalte erfunden
+* The AI explicitly lists the missing files
+* The AI provides **only a plan**, not an implementation
+* No structures, classes, or contents may be fabricated
 
 ---
 
 Copyright © 2026 Benjamin Fuchs.
 All rights reserved. See LICENSE.
 
-**Ende der Datei — README-RULES.md**
-
+**End of file — README-RULES.md**
