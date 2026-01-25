@@ -184,7 +184,9 @@ Starting with **Phase A**, the assistant maintains a persistent canonical
 
 This README additionally provides a **shortened, non-normative reading view**.
 
-### 10.1 Canonical Session State (Normative)
+### 10.1 Canonical Session State (Verbatim excerpt; authoritative source: master.md)
+ 
+Note: This block is a readability excerpt only. If it diverges from master.md, master.md is authoritative.
 
 ```text
 [SESSION_STATE]
@@ -282,4 +284,5 @@ Copyright © 2026 Benjamin Fuchs.
 All rights reserved. See LICENSE.
 
 **End of file — README-RULES.md**
+
 
