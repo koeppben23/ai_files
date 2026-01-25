@@ -10,21 +10,21 @@ with architecture, contract, debt & QA gates
 ### Data sources & priority
 
 * Operational rules (technical, architectural) are defined in:
-  - `rules.md` (core technical rules)
-  - the active profile rulebook referenced by `SESSION_STATE.ActiveProfile` (e.g., `rules.backend-java.md`)
+  - `rules.md` (core technical rulebook)
+  - the active profile rulebook referenced by `SESSION_STATE.ActiveProfile`
 
-* Preferred lookup order for `rules.md` (core rulebook):
+* Preferred lookup order for `rules.md` (core):
   1. Global config path (`~/.config/opencode/rules/` or equivalent)
   2. Local project directory (`.opencode/`)
   3. Context manually provided in chat
  
 * Preferred lookup order for the active profile rulebook:
-  1. Global config path (`~/.config/opencode/commands/profiles/` or equivalent)
+  1. Global config path (`~/.config/opencode/rules/profiles/` or equivalent)
   2. Local project directory (`.opencode/profiles/` or equivalent)
   3. Context manually provided in chat
 
 Binding:
-* If `SESSION_STATE.ActiveProfile` is missing or ambiguous, the assistant must stop (BLOCKED) and request it.
+* If `SESSION_STATE.ActiveProfile` is missing or ambiguous, the assistant MUST stop (BLOCKED) and request it.
 
 PURPOSE
 
@@ -127,6 +127,10 @@ Explicit overrides (highest priority):
 * “Extract business rules first.” → enables Phase 1.5
 * “Skip business-rules discovery.” → Phase 1.5 will not be executed
 * “This is a pure CRUD project.” → Phase 1.5 will not be executed, P5.4 = `not-applicable`
+
+Override constraints (binding):
+* "Skip Phase Y" is only valid if all artifacts/evidence required by downstream phases already exist in SESSION_STATE.
+* If skipping would cause missing discovery or verification evidence, the assistant MUST switch to BLOCKED and request the missing inputs.
 
 Phase 5 MUST NEVER be skipped if code generation is expected.
 Phase 5.4 MUST NEVER be skipped if Phase 1.5 was executed AND code generation is expected.
@@ -335,7 +339,7 @@ Risks:
 BuildEvidence:
   status: <provided-by-user|partially-provided|not-provided>
   details:
-    - command: <e.g., mvn clean verify>
+    - command: <e.g., mvn -B -DskipITs=false clean verify>
     - environment: <optional>
     - notes: <optional>
 
@@ -409,6 +413,11 @@ Activation:
 * Automatic: repository has >30 classes AND a domain layer exists
 * Explicit: user says “Extract business rules first”
 * Skip: user says “Skip business-rules discovery” OR repo is declared “pure CRUD”
+
+Binding (auto-enable evidence):
+* Automatic enablement MUST be based on Phase 2 discovery evidence
+  (module map, class count, domain-layer identification).
+* If Phase 2 evidence is not present, Phase 1.5 MUST NOT be auto-enabled.
 
 Sources (in priority order):
 
@@ -934,7 +943,9 @@ If gate = `business-rules-gap-detected`:
 
 ---
 
-## Domain Model Quality Check (Phase 5.5.1 NEW)
+## Phase 5 — Additional Quality Checks
+
+### Domain Model Quality Check (Phase 5 — internal check)
 
 ### Anemic Domain Model Detection (Anti-Pattern)
 
@@ -994,7 +1005,7 @@ public class PersonService {
 }
 ```
 
-**Phase 5.5.1 check:**
+**Phase 5 internal check criteria:**
 
 * count entities with >80% getters/setters (anemic)
 * if >50% of entities are anemic → warning (not a blocker)
@@ -1025,7 +1036,7 @@ Examples:
 
 ---
 
-## Code Complexity Gates (Phase 5.6)
+### Code Complexity Gates (Phase 5 — internal gate)
 
 ### Cyclomatic Complexity Check
 
@@ -1096,9 +1107,16 @@ Gate: complexity-warning (no blocker, but requires review attention)
 
 ### PHASE 6 — Implementation QA (Self-Review Gate)
 
+Canonical build command (default for Maven repositories):
+* mvn -B -DskipITs=false clean verify
+
+Note:
+* If the repository uses Gradle or a wrapper, replace with the equivalent
+  canonical command (e.g., `./gradlew test`).
+
 Conceptual verification (evidence-aware):
 
-* build (`mvn clean verify`)
+* build (`mvn -B -DskipITs=false clean verify`)
 * tests and coverage
 * architecture and contracts
 * regressions
