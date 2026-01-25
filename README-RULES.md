@@ -284,5 +284,3 @@ Copyright © 2026 Benjamin Fuchs.
 All rights reserved. See LICENSE.
 
 **End of file — README-RULES.md**
-
-
