@@ -1,173 +1,174 @@
 # Scope & Context
 
-Dieses Dokument beschreibt **explizit**, wofür das KI-gestützte Entwicklungs- und Review-System gedacht ist –
-und wofür **nicht**. Ziel ist es, Fehlannahmen zu vermeiden, Erwartungen zu kalibrieren
-und Governance-Entscheidungen transparent zu machen.
+This document explicitly defines what this AI-assisted development and review system is designed for —
+and what it is **not** designed for. The goal is to avoid false assumptions, calibrate expectations,
+and make governance decisions transparent.
 
-Dieses Dokument ist **normativ**: Abweichungen davon müssen bewusst, explizit und nachvollziehbar erfolgen
-(z. B. über Degraded Mode, Overrides oder separate Tickets).
+This document is **normative**: deviations must be deliberate, explicit, and traceable
+(e.g., via Degraded Mode, explicit overrides, or separate tickets).
 
 ---
 
 ## 1. Intended Use (IN SCOPE)
 
-Das System ist **konzipiert und optimiert** für folgende Kontexte:
+This system is **designed and optimized** for the following contexts:
 
-### 1.1 Technologischer Scope
+### 1.1 Technology Scope
 
 * ✅ Enterprise Java
 * ✅ Spring Boot
-* ✅ Maven-basierte Builds
-* ✅ Contract-First API Development (OpenAPI)
-* ✅ Klassische Backend-Systeme (REST / ggf. GraphQL)
+* ✅ Maven-based builds
+* ✅ Contract-first API development (OpenAPI)
+* ✅ Classic backend systems (REST / optionally GraphQL)
 
-### 1.2 Organisatorischer & Prozess-Scope
+### 1.2 Organizational & Process Scope
 
-* ✅ Strukturierte Ticket-basierte Entwicklung (z. B. Jira)
-* ✅ Review-intensive Codebases
-* ✅ Mehrstufige Freigabeprozesse (Gates)
-* ✅ Regulatorische / audit-kritische Umgebungen
-* ✅ Teams mit expliziten Architektur- und Qualitätsstandards
+* ✅ Structured ticket-based development (e.g., Jira)
+* ✅ Review-intensive codebases
+* ✅ Multi-stage approval processes (gates)
+* ✅ Regulated / audit-critical environments
+* ✅ Teams with explicit architecture and quality standards
 
-### 1.3 Primäre Systemziele
+### 1.3 Primary System Goals
 
-Das System optimiert **nicht** auf Geschwindigkeit oder Kreativität,
-sondern auf:
+This system does **not** optimize for speed or creativity.
+It optimizes for:
 
-* Nachvollziehbarkeit
-* Determinismus
-* Review-Festigkeit
-* Contract-Treue
-* Reproduzierbarkeit
-* Reduktion mechanischer Fehler
+* traceability
+* determinism
+* review robustness
+* contract fidelity
+* reproducibility
+* reduction of mechanical errors
 
 ---
 
-## 2. Anti-Patterns (EXPLIZIT OUT OF SCOPE)
+## 2. Anti-Patterns (EXPLICITLY OUT OF SCOPE)
 
-Das System ist **nicht** dafür ausgelegt und liefert hier bewusst
-keine optimalen Ergebnisse:
+This system is **not** designed for the following scenarios and will intentionally
+not deliver optimal results there:
 
-### 2.1 Entwicklungsstile
+### 2.1 Development Styles
 
-* ❌ Prototyping / MVP-Entwicklung
-* ❌ Exploratives Domain Modeling
-* ❌ "Figure it out as we go"-Tickets
-* ❌ Kreative / experimentelle Code-Experimente
-* ❌ Rapid Iteration ohne klare Artefakte
+* ❌ Prototyping / MVP development
+* ❌ Exploratory domain modeling
+* ❌ “Figure it out as we go” tickets
+* ❌ Creative / experimental coding exercises
+* ❌ Rapid iteration without clear artifacts
 
-### 2.2 Technologischer Scope
+### 2.2 Technology Scope
 
-* ❌ Non-Java Stacks
-* ❌ Frontend-lastige Anwendungen
-* ❌ Skript- oder Notebook-basierte Entwicklung
-* ❌ Unstrukturierte Monorepos ohne klare Ownership
+* ❌ Non-Java stacks
+* ❌ Frontend-heavy applications
+* ❌ Script- or notebook-based development
+* ❌ Unstructured monorepos without clear ownership
 
-### 2.3 Erwartungs-Anti-Patterns
+### 2.3 Expectation Anti-Patterns
 
-* ❌ "Die KI versteht automatisch die Fachdomäne"
-* ❌ "Die KI macht Performance-Optimierung"
-* ❌ "Die KI erkennt Security-Lücken vollständig"
-* ❌ "Die KI ersetzt menschliche Architektur- oder Security-Reviews"
+* ❌ “The AI automatically understands the business domain”
+* ❌ “The AI performs performance optimization”
+* ❌ “The AI fully detects security vulnerabilities”
+* ❌ “The AI replaces human architecture or security reviews”
 
 ---
 
 ## 3. Responsibility Boundaries
 
-Dieses System ist **kein autonomer Entwickler**, sondern ein
-hochstrukturierter **Engineering-Assistant mit Governance-Fokus**.
+This system is **not** an autonomous developer.
+It is a highly structured **engineering assistant with a governance focus**.
 
-### 3.1 In Scope (Systemverantwortung)
+### 3.1 In Scope (System Responsibility)
 
-Das System übernimmt Verantwortung für:
+The system takes responsibility for:
 
-* Architektur-Compliance (gemäß Repository-Realität)
-* Code-Style & Formatierung
-* Contract-Adhärenz (OpenAPI ↔ Code)
-* Testpflichten & Coverage-Ziele
-* Traceability (Ticket ↔ Code ↔ Tests)
-* Evidenzbasierte Aussagen (Scope-Lock)
-* Gate-basierte Freigaben (Plan → Review → QA)
+* architecture compliance (based on repository reality)
+* code style and formatting
+* contract adherence (OpenAPI ↔ code)
+* testing obligations and coverage targets
+* traceability (ticket ↔ code ↔ tests)
+* evidence-based statements (scope lock)
+* gate-based approvals (plan → review → QA)
 
-### 3.2 Out of Scope (Menschliche Verantwortung)
+### 3.2 Out of Scope (Human Responsibility)
 
-Folgende Aspekte **müssen** explizit durch Menschen verantwortet werden:
+The following areas **must** be explicitly owned by humans:
 
-* Fachliche / business-semantische Korrektheit
-* Security-Vulnerability-Analyse (OWASP, AuthZ, Threat Modeling)
-* Performance-Optimierung & Lasttests
-* Algorithmus-Auswahl & Komplexitätsoptimierung
-* Domänenspezifische Entscheidungen
+* business and semantic correctness
+* security vulnerability analysis (OWASP, AuthZ, threat modeling)
+* performance optimization and load testing
+* algorithm selection and complexity optimization
+* domain-specific decisions
 
-Das System kann hier **Hinweise oder Heuristiken liefern**,
-übernimmt jedoch **keine Garantie oder Verantwortung**.
+The system may provide **hints or heuristics** here,
+but provides **no warranty or responsibility**.
 
-## 3.3 Partielle Verantwortung (Heuristiken, keine Garantien)
+### 3.3 Partial Responsibility (Heuristics, No Guarantees)
 
-Das System liefert **Best-Effort-Hinweise** für:
+The system provides **best-effort signals** for:
 
 **Security:**
-- ⚠️ Offensichtliche Patterns (SQL-Injection-Risiken, Passwörter im Klartext)
-- ⚠️ Fehlende Annotationen (@PreAuthorize bei sensiblen Endpunkten)
-- ❌ KEINE vollständige OWASP-Analyse
-- ❌ KEINE Threat-Modeling-Garantie
+
+* ⚠️ obvious patterns (SQL injection risks, plaintext passwords)
+* ⚠️ missing annotations (e.g., @PreAuthorize on sensitive endpoints)
+* ❌ NO full OWASP analysis
+* ❌ NO threat-modeling guarantee
 
 **Performance:**
-- ⚠️ Strukturelle Risiken (N+1 Queries, fehlende Indices, Nested Loops)
-- ⚠️ Transaktions-Boundaries (@Transactional fehlt/falsch)
-- ❌ KEINE Lasttest-Validierung
-- ❌ KEINE Speicher- oder Latenz-Optimierung
 
-**Status:** HEURISTIC - requires human validation
+* ⚠️ structural risks (N+1 queries, missing indexes, nested loops)
+* ⚠️ transactional boundaries (@Transactional missing/incorrect)
+* ❌ NO load-test validation
+* ❌ NO memory or latency optimization
 
----
-
-## 4. Konsequenzen für Nutzung & Reviews
-
-### 4.1 Erwartungsklarheit
-
-Wenn das System in einem Kontext eingesetzt wird,
-der **außerhalb dieses Scopes** liegt, gelten folgende Regeln:
-
-* Ergebnisse sind als **Best-Effort** zu betrachten
-* Degraded / Draft / Blocked Modes sind wahrscheinlicher
-* Review-Aufwand verlagert sich bewusst auf Menschen
-
-### 4.2 Kein stillschweigender Scope-Shift
-
-Ein Scope-Wechsel (z. B. Richtung Prototyping oder Exploration)
-
-* ❌ darf **nicht implizit** erfolgen
-* ✅ muss explizit gemacht werden (Overrides, Audit-Trail, separate Tickets)
+**Status:** HEURISTIC — requires human validation
 
 ---
 
-## 5. Design-Philosophie (Zusammenfassung)
+## 4. Consequences for Usage & Reviews
 
-Leitprinzipien dieses Systems:
+### 4.1 Expectation Clarity
 
-* Lieber blockieren als raten
-* Lieber explizite Annahmen als implizite Fehler
-* Lieber Governance als Geschwindigkeit
-* Lieber Review-Festigkeit als Kreativität
+If the system is used in a context that is **outside this scope**, the following applies:
 
-Dieses System ist **bewusst konservativ**.
-Das ist kein Mangel, sondern eine **Design-Entscheidung**.
+* results must be treated as **best-effort**
+* Degraded / Draft / Blocked modes are more likely
+* review effort is intentionally shifted to humans
+
+### 4.2 No Implicit Scope Shift
+
+A scope shift (e.g., towards prototyping or exploration)
+
+* ❌ must **not** happen implicitly
+* ✅ must be made explicit (overrides, audit trail, or separate tickets)
 
 ---
 
-## 6. Zielbild
+## 5. Design Philosophy (Summary)
 
-Wenn dieses System korrekt eingesetzt wird:
+Guiding principles of this system:
 
-* Reviewer prüfen Fachlichkeit statt Formalien
-* Architektur- und Contract-Fehler werden früh eliminiert
-* Diskussionen verschieben sich von "Format" zu "Inhalt"
-* Code Reviews werden kürzer, fokussierter und reproduzierbar
+* better to block than to guess
+* better explicit assumptions than implicit errors
+* better governance than speed
+* better review robustness than creativity
+
+This system is intentionally conservative.
+This is not a weakness, but a **design decision**.
+
+---
+
+## 6. Target Outcome
+
+If this system is used correctly:
+
+* reviewers validate business correctness instead of formalities
+* architecture and contract errors are eliminated early
+* discussions shift from “format” to “substance”
+* code reviews become shorter, more focused, and reproducible
 
 ---
 
 Copyright © 2026 Benjamin Fuchs.
 All rights reserved. See LICENSE.
 
-# Ende der Datei — SCOPE-AND-CONTEXT.md
+# End of file — SCOPE-AND-CONTEXT.md
