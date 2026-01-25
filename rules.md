@@ -1,264 +1,295 @@
 # rules.md
 
-Technisches Regelwerk für KI-gestützte Entwicklung
+Technical Rulebook for AI-Assisted Development
 
-Dieses Dokument enthält alle technischen, architektonischen, testbezogenen und formatbezogenen Regeln.
-Das operative Verhalten (Phasen, Session-State, Hybridmodus, Prioritäten) wird im Master Prompt definiert.
-Dieses Dokument ist zweitrangig hinter dem Master Prompt, aber vorrangig vor Ticket-Texten.
+This document contains all technical, architectural, testing, and formatting rules.
+Operational behavior (phases, session state, hybrid mode, priorities) is defined in the Master Prompt.
+This document is secondary to the Master Prompt, but takes precedence over ticket text.
 
-----------------------------------------------------------------
+---
 
-# 1. Rolle & Verantwortlichkeiten
+# 1. Role & Responsibilities
 
-Die KI agiert als:
-- Senior Expert Java Engineer (20+ Jahre Erfahrung)
-- Lead Backend Engineer mit Verantwortung für produktive Enterprise-Systeme
-- Experte für Spring Boot, Architektur, Clean Code
-- Fokus auf deterministische Implementierungen, Reproduzierbarkeit und Review-Fähigkeit
-- Null-Toleranz gegenüber Annahmen ohne Evidenz
+The AI acts as:
 
-Verantwortlich für:
-- korrekte technische Planung
-- umsetzbare, konsistente Implementierungen
-- vollständige Tests
-- stabile, deterministische Ergebnisse
-- strikte Einhaltung von Scope-Lock & Nicht-Erfinden
+* Senior Expert Java Engineer (20+ years of experience)
+* Lead backend engineer responsible for production-grade enterprise systems
+* Expert in Spring Boot, architecture, and clean code
+* Focused on deterministic implementations, reproducibility, and review robustness
+* Zero tolerance for assumptions without evidence
 
-----------------------------------------------------------------
+Responsible for:
 
-# 2. Eingabeartefakte (Inputs)
+* correct technical planning
+* implementable, consistent solutions
+* complete tests
+* stable, deterministic outcomes
+* strict adherence to scope lock and no fabrication
 
-Pflicht:
-- Ein Repository als Archiv-Artefakt (ZIP/TAR/Working Copy) ODER ein durch OpenCode indexiertes Repository
-- Optional: zusätzliche Artefakte (z. B. OpenAPI Specs, DB Dumps, CSV/Excel), sofern im Ticket geliefert
+---
+
+# 2. Input Artifacts (Inputs)
+
+Required:
+
+* A repository as an archive artifact (ZIP/TAR/working copy) OR a repository indexed by OpenCode
+* Optional: additional artifacts (e.g., OpenAPI specs, DB dumps, CSV/Excel) if provided in the ticket
 
 Optional:
-- apis (OpenAPI-Spezifikationen)
-- weitere Projektartefakte
 
-Die KI darf ausschließlich auf tatsächlich gelieferte Artefakte zugreifen (Scope-Lock).
+* `apis` (OpenAPI specifications)
+* other project artifacts
 
-Beispiele (nicht normativ):
-- bo-pvo-personmanagement-be
-- bo-pvo-sync-transformer
-- bo-pvo-personmanagement-fe
+The AI may only access artifacts that were actually provided (scope lock).
 
-----------------------------------------------------------------
+Examples (non-normative):
 
-# 3. Archiv-Artefakte & Technischer Zugriff
+* `bo-pvo-personmanagement-be`
+* `bo-pvo-sync-transformer`
+* `bo-pvo-personmanagement-fe`
 
-## 3.1 Definition: Archiv-Artefakte
-Ein lokal verfügbares Repository (Working Copy) gilt als extrahiertes Archiv-Artefakt. Archiv-Artefakte enthalten mehrere Dateien oder Verzeichnisse und müssen real extrahiert werden.
+---
 
-## 3.2 Verbindlicher technischer Zugriff
-Alle gelieferten Archiv-Artefakte müssen vor jeder Analyse real und vollständig extrahiert werden.
+# 3. Archive Artifacts & Technical Access
 
-Verbindlich:
-- keine heuristischen Annahmen
-- keine simulierten Inhalte
-- keine Rekonstruktion aus Erfahrung
+## 3.1 Definition: Archive Artifacts
 
-Fehlerfall (Artefakte nicht extrahierbar/fehlend):
-- Analyse im NORMAL-Modus abbrechen.
-- Sofortiger Wechsel in den Modus gemäß Kapitel 10 (DEGRADED/BLOCKED).
-- Fehler explizit melden und keine inhaltlichen Aussagen als gesichert kennzeichnen.
+A locally available repository (working copy) is treated as an extracted archive artifact.
+Archive artifacts contain multiple files/directories and must be extracted for real.
 
-----------------------------------------------------------------
+## 3.2 Binding technical access
 
-# 4. Architektur- & Coding-Guidelines
+All provided archive artifacts must be fully and actually extracted before any analysis.
 
-## 4.1 Technologie-Stack
-- Java 21
-- Spring Boot
-- Maven
-- OpenAPI Generator
+Binding rules:
 
-## 4.2 Code-Stil
-- Google Java Style
-- 4 Spaces Einrückung
-- keine Wildcard-Imports
-- alphabetische Imports
-- kein ToDo/FixMe im Produktivcode
+* no heuristic assumptions
+* no simulated content
+* no reconstruction from experience
 
-## 4.3 Architektur
-- Domain / Application / Infrastructure strikt getrennt
-- keine Logik in Controllern
-- Services fachlich kohärent
-- Repositories nur für Persistenz
-- Mapper explizit (MapStruct oder manuell)
-- zentrales Exception Handling (@ControllerAdvice)
-- keine God-Objects
+Failure case (artifacts not extractable/missing):
 
-## Architektur-Patterns (Ergänzung für Phase 5)
+* abort analysis in NORMAL mode
+* immediately switch to the mode defined in Chapter 10 (DEGRADED/BLOCKED)
+* explicitly report the error and do not mark any content statements as confirmed
 
-### Pattern-Katalog (erkennbar im Repository)
+---
 
-A) Layered Architecture (Standard)
-- Controller → Service → Repository
-- DTOs im Controller, Entities in Repository
-- Mapper zwischen Layern verpflichtend
+# 4. Architecture & Coding Guidelines
 
-B) Hexagonal Architecture (Ports & Adapters)
-- Domain-Core isoliert
-- Ports (Interfaces) definieren Abhängigkeiten
-- Adapters implementieren Ports
+## 4.1 Technology Stack
+
+* Java 21
+* Spring Boot
+* Maven
+* OpenAPI Generator
+
+## 4.2 Code Style
+
+* Google Java Style
+* 4-space indentation
+* no wildcard imports
+* alphabetical imports
+* no TODO/FIXME in production code
+
+## 4.3 Architecture
+
+* strict separation of Domain / Application / Infrastructure
+* no business logic in controllers
+* services must be domain-cohesive
+* repositories are persistence-only
+* mappers explicit (MapStruct or manual)
+* central exception handling (`@ControllerAdvice`)
+* no god objects
+
+## Architecture Patterns (Phase 5 supplement)
+
+### Pattern catalog (detectable in the repository)
+
+A) Layered architecture (default)
+
+* Controller → Service → Repository
+* DTOs in controller layer, entities in repository layer
+* mapper between layers is mandatory
+
+B) Hexagonal architecture (ports & adapters)
+
+* isolated domain core
+* ports (interfaces) define dependencies
+* adapters implement ports
 
 C) CQRS (Command Query Responsibility Segregation)
-- Commands ändern State (void oder Event)
-- Queries liefern Daten (ReadModels)
-- Keine gemischten Methoden
 
-**Gate-Check in Phase 5:**
-- Welches Pattern liegt vor? (Auto-Detect aus Paketstruktur)
-- Ist das Pattern konsistent eingehalten?
-- Gibt es Layer-Violations? (z.B. Controller → Repository direkt)
+* commands mutate state (void or event)
+* queries return data (read models)
+* no mixed methods
 
-**Blocker:**
-- Controller mit Business-Logik (>10 Zeilen in Methode)
-- Repository mit fachlichen Queries (sollte in Service sein)
-- Service mit DB-spezifischem Code (sollte in Repository sein)
+**Gate check in Phase 5:**
 
-## 4.4 API-Verträge
-- OpenAPI steht über Code (Contract-First)
-- generierter Code wird niemals manuell editiert
-- Breaking Changes nur über Versionierung oder Spec-Anpassung
+* Which pattern is present? (auto-detect via package structure)
+* Is the pattern applied consistently?
+* Are there layer violations? (e.g., Controller → Repository directly)
 
-----------------------------------------------------------------
+**Blockers:**
 
-# 5. Discovery-Regeln (Phase 2 & 3)
+* controller contains business logic (>10 lines in a method)
+* repository contains domain/business queries (should live in service layer)
+* service contains DB-specific code (should live in repository layer)
 
-## 5.1 Repository-Analyse
-- Analyse von Modulbaum, Klasseninventar, Tests, Konfiguration und Flyway-Skripten.
-- Keine Interpretation ohne Quellcode-Basis.
+## 4.4 API Contracts
 
-## 5.2 API-Analyse
-- Erfassung von Endpunkten, Methoden, Pfaden, Schemas und Versionen.
-- Keine Validierung oder Mapping-Logik in dieser Phase.
+* OpenAPI is authoritative over code (contract-first)
+* generated code must never be edited manually
+* breaking changes only via versioning or spec changes
 
-# 5.3 Business-Rules Discovery (Phase 1.5)
+---
 
-## 5.3.1 Zweck
-Fachliche Regeln sind oft nicht dokumentiert, sondern nur im Code/DB/Tests vorhanden.
-Phase 1.5 extrahiert diese Regeln BEVOR Implementierungen geplant werden.
+# 5. Discovery Rules (Phase 2 & 3)
 
-Dies reduziert Business-Logik-Lücken von ~50% auf <15%.
+## 5.1 Repository analysis
 
-## 5.3.2 Erkennungsmuster
+* analyze module tree, class inventory, tests, configuration, and Flyway scripts
+* no interpretation without source evidence
 
-### Pattern 1: Guard-Clauses in Services
+## 5.2 API analysis
 
-**Erkannt als Business Rule:**
+* capture endpoints, methods, paths, schemas, and versions
+* no validation or mapping logic in this phase
+
+# 5.3 Business Rules Discovery (Phase 1.5)
+
+## 5.3.1 Purpose
+
+Business rules are often undocumented and exist only in code/DB/tests.
+Phase 1.5 extracts these rules BEFORE implementation planning.
+
+This reduces business-logic gaps from ~50% to <15%.
+
+## 5.3.2 Detection patterns
+
+### Pattern 1: Guard clauses in services
+
+**Detected as a business rule:**
+
 ```java
 public void deletePerson(Long id) {
     Person person = findById(id);
-    if (!person.getContracts().isEmpty()) {  // ← BR: Person mit Verträgen nicht löschbar
+    if (!person.getContracts().isEmpty()) {  // ← BR: person with contracts cannot be deleted
         throw new BusinessException("CONTRACTS_ACTIVE", "Person has active contracts");
     }
     repository.delete(person);
 }
 ```
 
-**Regel extrahiert:**
-```
+**Extracted rule:**
+
+```text
 BR-001: Person
-Rule: Person darf nur gelöscht werden, wenn contracts.isEmpty()
-Source: PersonService.java:42 (if-Guard)
-Enforcement: Code (Guard-Clause)
+Rule: A person may be deleted only if contracts.isEmpty()
+Source: PersonService.java:42 (if-guard)
+Enforcement: Code (Guard Clause)
 ```
 
 ### Pattern 2: Bean Validation
 
-**Erkannt als Business Rule:**
+**Detected as a business rule:**
+
 ```java
 @Entity
 public class Person {
     @AssertTrue(message = "Person must be adult")
-    public boolean isAdult() {  // ← BR: Nur Erwachsene erlaubt
+    public boolean isAdult() {  // ← BR: only adults allowed
         return age >= 18;
     }
 }
 ```
 
-**Regel extrahiert:**
-```
+**Extracted rule:**
+
+```text
 BR-002: Person
-Rule: Person.age muss >= 18 sein
+Rule: Person.age must be >= 18
 Source: Person.java:@AssertTrue (isAdult)
 Enforcement: Bean Validation
 ```
 
-### Pattern 3: DB-Constraints
+### Pattern 3: DB constraints
 
-**Erkannt als Business Rule:**
+**Detected as a business rule:**
+
 ```sql
 -- V001__schema.sql
-ALTER TABLE person ADD CONSTRAINT email_unique UNIQUE (email);  -- ← BR: Email eindeutig
+ALTER TABLE person ADD CONSTRAINT email_unique UNIQUE (email);  -- ← BR: email must be unique
 
-ALTER TABLE contract ADD CONSTRAINT valid_status 
-  CHECK (status IN ('DRAFT', 'ACTIVE', 'CANCELLED'));  -- ← BR: Nur definierte Status
-  
+ALTER TABLE contract ADD CONSTRAINT valid_status
+  CHECK (status IN ('DRAFT', 'ACTIVE', 'CANCELLED'));  -- ← BR: only defined statuses
+
 ALTER TABLE contract ADD CONSTRAINT fk_person_contract
-  FOREIGN KEY (person_id) REFERENCES person(id) ON DELETE RESTRICT;  -- ← BR: Löschsperre
+  FOREIGN KEY (person_id) REFERENCES person(id) ON DELETE RESTRICT;  -- ← BR: delete restriction
 ```
 
-**Regeln extrahiert:**
-```
+**Extracted rules:**
+
+```text
 BR-003: Person
-Rule: Person.email muss unique sein
+Rule: Person.email must be unique
 Source: V001__schema.sql:UNIQUE (email_unique)
 Enforcement: DB Constraint
 
 BR-004: Contract
-Rule: Contract.status nur DRAFT|ACTIVE|CANCELLED
+Rule: Contract.status only DRAFT|ACTIVE|CANCELLED
 Source: V001__schema.sql:CHECK (valid_status)
 Enforcement: DB Constraint
 
 BR-005: Contract
-Rule: Person mit Contracts kann nicht gelöscht werden
+Rule: A person with contracts cannot be deleted
 Source: V001__schema.sql:FK ON DELETE RESTRICT
 Enforcement: DB Constraint
 ```
 
-### Pattern 4: Test-Namen (Implizite Regeln)
+### Pattern 4: Test names (implicit rules)
 
-**Erkannt als Business Rule:**
+**Detected as a business rule:**
+
 ```java
 @Test
-void deletePerson_shouldThrowException_whenContractsActive() {  // ← BR im Test dokumentiert
+void deletePerson_shouldThrowException_whenContractsActive() {  // ← BR documented in test
     // Given
     Person person = aPersonWithActiveContracts();
-    
+
     // When/Then
     assertThrows(BusinessException.class, () -> service.deletePerson(person.getId()));
 }
 
 @Test
-void approvePerson_shouldThrowException_whenUnder18() {  // ← BR: Mindestalter
+void approvePerson_shouldThrowException_whenUnder18() {  // ← BR: minimum age
     // ...
 }
 ```
 
-**Regeln extrahiert:**
-```
+**Extracted rules:**
+
+```text
 BR-006: Person
-Rule: Person mit aktiven Verträgen nicht löschbar (impliziert aus Test)
+Rule: person with active contracts cannot be deleted (implied from test)
 Source: PersonServiceTest.java:deletePerson_shouldThrowException_whenContractsActive
-Enforcement: Tested (Code-Implementierung prüfen!)
+Enforcement: Tested (must verify code enforcement!)
 
 BR-007: Person
-Rule: Person muss >= 18 Jahre alt sein für Approval
+Rule: person must be >= 18 years old for approval
 Source: PersonServiceTest.java:approvePerson_shouldThrowException_whenUnder18
-Enforcement: Tested (Code-Implementierung prüfen!)
+Enforcement: Tested (must verify code enforcement!)
 ```
 
-### Pattern 5: Exception-Messages
+### Pattern 5: Exception messages
 
-**Erkannt als Business Rule:**
+**Detected as a business rule:**
+
 ```java
 if (person.getAge() < 18) {
     throw new BusinessException(
-        "PERSON_UNDERAGE",  // ← Error-Code
-        "Person must be at least 18 years old"  // ← BR-Beschreibung
+        "PERSON_UNDERAGE",  // ← error code
+        "Person must be at least 18 years old"  // ← BR description
     );
 }
 
@@ -270,176 +301,191 @@ if (!contract.canBeApproved()) {
 }
 ```
 
-**Regeln extrahiert:**
-```
+**Extracted rules:**
+
+```text
 BR-008: Person
-Rule: Person muss mindestens 18 Jahre alt sein
+Rule: person must be at least 18 years old
 Source: PersonService.java:exception-message (PERSON_UNDERAGE)
 Enforcement: Code (Exception)
 
 BR-009: Contract
-Rule: Contract benötigt alle Signaturen für Approval
+Rule: contract requires all signatures for approval
 Source: ContractService.java:exception-message (APPROVAL_PRECONDITIONS_NOT_MET)
 Enforcement: Code (Exception)
 ```
 
-### Pattern 6: State-Transition-Logik
+### Pattern 6: State transition logic
 
-**Erkannt als Business Rule:**
+**Detected as a business rule:**
+
 ```java
 public void transitionStatus(ContractStatus newStatus) {
     if (this.status == ContractStatus.CANCELLED) {
-        throw new BusinessException("INVALID_STATE_TRANSITION", 
+        throw new BusinessException("INVALID_STATE_TRANSITION",
             "Cannot transition from CANCELLED state");
     }
-    
+
     if (this.status == ContractStatus.ACTIVE && newStatus == ContractStatus.DRAFT) {
-        throw new BusinessException("INVALID_STATE_TRANSITION", 
+        throw new BusinessException("INVALID_STATE_TRANSITION",
             "Cannot revert from ACTIVE to DRAFT");
     }
-    
+
     this.status = newStatus;
 }
 ```
 
-**Regel extrahiert:**
-```
+**Extracted rule:**
+
+```text
 BR-010: Contract
-Rule: Status-Übergang CANCELLED → * nicht erlaubt
-Source: Contract.java:transitionStatus (State-Guard)
-Enforcement: Code (State-Machine)
+Rule: transition CANCELLED → * is not allowed
+Source: Contract.java:transitionStatus (state guard)
+Enforcement: Code (State Machine)
 
 BR-011: Contract
-Rule: Status-Übergang ACTIVE → DRAFT nicht erlaubt
-Source: Contract.java:transitionStatus (State-Guard)
-Enforcement: Code (State-Machine)
+Rule: transition ACTIVE → DRAFT is not allowed
+Source: Contract.java:transitionStatus (state guard)
+Enforcement: Code (State Machine)
 ```
 
-### Pattern 7: Query-Filter (Soft-Delete)
+### Pattern 7: Query filter (soft delete)
 
-**Erkannt als Business Rule:**
+**Detected as a business rule:**
+
 ```java
 @Repository
 public interface PersonRepository extends JpaRepository {
-    
+
     @Query("SELECT p FROM Person p WHERE p.deleted = false")
-    List findAllActive();  // ← BR: Gelöschte Personen unsichtbar
-    
+    List findAllActive();  // ← BR: deleted persons are invisible
+
     @Query("SELECT p FROM Person p WHERE p.id = :id AND p.deleted = false")
     Optional findByIdActive(@Param("id") Long id);
 }
 ```
 
-**Regel extrahiert:**
-```
+**Extracted rule:**
+
+```text
 BR-012: Person
-Rule: Gelöschte Personen (deleted=true) sind in Standard-Queries unsichtbar
-Source: PersonRepository.java:findAllActive (Query-Filter)
-Enforcement: Query-Filter (manuell)
+Rule: deleted=true persons are invisible in default queries
+Source: PersonRepository.java:findAllActive (query filter)
+Enforcement: Query Filter (manual)
 ```
 
-## 5.3.3 Anti-Patterns (NICHT als Business Rule)
+## 5.3.3 Anti-patterns (NOT a business rule)
 
-### ❌ Technische Validierung (kein BR)
+### ❌ Technical validation (not a BR)
+
 ```java
-// KEIN Business Rule:
-if (id == null) throw new IllegalArgumentException("ID required");  // ← Technisch
-Objects.requireNonNull(person, "Person must not be null");  // ← Technisch
+// NOT a business rule:
+if (id == null) throw new IllegalArgumentException("ID required");  // technical
+Objects.requireNonNull(person, "Person must not be null");           // technical
 ```
 
-### ❌ Framework-Constraints (kein BR)
+### ❌ Framework constraints (not a BR)
+
 ```java
-// KEIN Business Rule:
-@NotNull  // ← Technisch (darf nicht null sein)
-@Size(max=255)  // ← Technisch (DB-Länge)
-@Email  // ← Technisch (Format-Validierung)
+// NOT a business rule:
+@NotNull        // technical (non-null)
+@Size(max=255)  // technical (DB length)
+@Email          // technical (format validation)
 private String email;
 ```
 
-### ❌ Logging/Debugging (kein BR)
+### ❌ Logging/debugging (not a BR)
+
 ```java
-// KEIN Business Rule:
-log.info("Deleting person {}", id);  // ← Technisch
-log.debug("Contract status changed from {} to {}", oldStatus, newStatus);  // ← Technisch
+// NOT a business rule:
+log.info("Deleting person {}", id);
+log.debug("Contract status changed from {} to {}", oldStatus, newStatus);
 ```
 
-### ❌ Performance-Optimierungen (kein BR)
+### ❌ Performance optimizations (not a BR)
+
 ```java
-// KEIN Business Rule:
-@Cacheable("persons")  // ← Technisch
-@Transactional(readOnly = true)  // ← Technisch
+// NOT a business rule:
+@Cacheable("persons")
+@Transactional(readOnly = true)
 ```
 
-## 5.3.4 Confidence-Regeln
+## 5.3.4 Confidence rules
 
-Die Anzahl gefundener Business Rules beeinflusst das Confidence Level:
+The number of business rules found affects the confidence level:
 
-| Business Rules gefunden | Repository-Größe | Confidence-Adjustment | Interpretation |
-|------------------------|------------------|----------------------|----------------|
-| 0-2 | >50 Klassen | -20% | Kritische Lücke: Fast keine BR dokumentiert |
-| 3-5 | >50 Klassen | -10% | Lücke wahrscheinlich: Wenige BR für große Codebase |
-| 6-10 | >50 Klassen | +0% | Akzeptabel: Grundlegende BR vorhanden |
-| 10+ | >50 Klassen | +10% | Gut dokumentiert: Umfangreiche BR-Coverage |
-| Beliebig | <30 Klassen | +0% | CRUD-Projekt: BRs optional |
+| Business rules found | Repository size | Confidence adjustment | Interpretation                           |
+| -------------------- | --------------- | --------------------- | ---------------------------------------- |
+| 0–2                  | >50 classes     | -20%                  | Critical gap: almost no BRs documented   |
+| 3–5                  | >50 classes     | -10%                  | Gap likely: few BRs for a large codebase |
+| 6–10                 | >50 classes     | +0%                   | Acceptable: baseline BRs exist           |
+| 10+                  | >50 classes     | +10%                  | Well documented: extensive BR coverage   |
+| any                  | <30 classes     | +0%                   | CRUD project: BRs optional               |
 
-**Beispiel:**
+**Example:**
+
+```text
+Repository: 67 classes
+Business rules found: 3 (Code:1, DB:1, Tests:1)
+
+Confidence adjustment: -10%
+Reasoning: A large codebase with only 3 documented rules suggests missing BR documentation.
 ```
-Repository: 67 Klassen
-Business Rules gefunden: 3 (Code:1, DB:1, Tests:1)
 
-Confidence-Adjustment: -10%
-Begründung: Große Codebase mit nur 3 dokumentierten Regeln deutet auf fehlende BR-Dokumentation hin.
-```
+## 5.3.5 Critical gaps
 
-## 5.3.5 Critical Gaps
+A critical gap exists if:
 
-Ein Critical Gap liegt vor, wenn:
+1. **Test without code enforcement:**
 
-1. **Test ohne Code-Implementierung:**
-   - Test dokumentiert BR (z.B. shouldThrowException_whenContractsActive)
-   - Aber: Keine entsprechende Guard-Clause im Service-Code
+   * a test documents a BR (e.g., `shouldThrowException_whenContractsActive`)
+   * but there is no corresponding guard clause in service code
 
-2. **Code ohne Test:**
-   - Service hat Guard-Clause für BR
-   - Aber: Kein entsprechender Exception-Test
+2. **Code without test:**
 
-3. **DB-Constraint ohne Code-Check:**
-   - DB hat ON DELETE RESTRICT
-   - Aber: Service versucht nicht, Löschung zu verhindern (Race Condition möglich)
+   * service contains a BR guard clause
+   * but there is no corresponding exception test
 
-**Output-Format für Critical Gaps:**
-```
+3. **DB constraint without code check:**
+
+   * DB has `ON DELETE RESTRICT`
+   * but service does not prevent deletion (race condition / poor UX)
+
+**Output format for critical gaps:**
+
+```text
 Critical-Gaps: [
-  "Contract.approve() has explicit test (approvePerson_shouldThrowException_whenPreconditionsFail) 
+  "Contract.approve() has explicit test (approvePerson_shouldThrowException_whenPreconditionsFail)
    but no precondition checks in code → Test will ALWAYS fail",
-   
-  "Person.delete() has DB constraint ON DELETE RESTRICT 
-   but no code-level check → User gets DB error instead of BusinessException"
+
+  "Person.delete() has DB constraint ON DELETE RESTRICT
+   but no code-level check → user receives DB error instead of BusinessException"
 ]
 ```
 
-## 5.3.6 Output-Format
+## 5.3.6 Output format
 
-**Vollständiges Beispiel:**
-```
+**Full example:**
+
+```text
 [BUSINESS_RULES_INVENTORY]
 Total-Rules: 15
 By-Source: [Code:6, DB:4, Tests:5, Validation:3]
 By-Entity: [Person:8, Contract:5, Address:2]
 
 Rules:
-| Rule-ID | Entity | Rule | Source | Enforcement |
-|---------|--------|------|--------|-------------|
-| BR-001 | Person | contracts.isEmpty() required for delete | PersonService.java:42 | Code (Guard) |
-| BR-002 | Person | age >= 18 | Person.java:@AssertTrue | Bean Validation |
-| BR-003 | Person | email unique | V001__schema.sql:UNIQUE | DB Constraint |
-| BR-004 | Person | deleted=true persons invisible in queries | PersonRepository.java:15 | Query-Filter |
-| BR-005 | Contract | status only DRAFT→ACTIVE→CANCELLED | ContractService.java:67 | Code (State-Machine) |
-| BR-006 | Contract | No transition from CANCELLED | Contract.java:transitionStatus | Code (State-Guard) |
-| BR-007 | Contract | person_id FK ON DELETE RESTRICT | V002__contracts.sql:FK | DB Constraint |
-| BR-008 | Contract | All signatures required for approval | ContractService.java:approve | Code (Precondition) |
-| BR-009 | Contract | approve() preconditions tested | ContractServiceTest.java:L87 | Test ONLY |
-| ... | ... | ... | ... | ... |
+| Rule-ID | Entity   | Rule                                     | Source                    | Enforcement           |
+|---------|----------|-------------------------------------------|---------------------------|-----------------------|
+| BR-001  | Person   | contracts.isEmpty() required for delete   | PersonService.java:42     | Code (Guard)          |
+| BR-002  | Person   | age >= 18                                 | Person.java:@AssertTrue   | Bean Validation       |
+| BR-003  | Person   | email unique                              | V001__schema.sql:UNIQUE   | DB Constraint         |
+| BR-004  | Person   | deleted=true persons invisible in queries | PersonRepository.java:15  | Query Filter          |
+| BR-005  | Contract | status only DRAFT→ACTIVE→CANCELLED        | ContractService.java:67   | Code (State Machine)  |
+| BR-006  | Contract | no transition from CANCELLED              | Contract.java:transitionStatus | Code (State Guard) |
+| BR-007  | Contract | person_id FK ON DELETE RESTRICT           | V002__contracts.sql:FK    | DB Constraint         |
+| BR-008  | Contract | all signatures required for approval      | ContractService.java:approve | Code (Precondition) |
+| BR-009  | Contract | approve() preconditions tested            | ContractServiceTest.java:L87 | Test ONLY           |
+| ...     | ...      | ...                                       | ...                       | ...                   |
 
 Critical-Gaps: [
   "BR-009 (Contract.approve preconditions): Tested but NOT implemented in code",
@@ -450,279 +496,327 @@ Confidence-Impact: -10% (15 rules for 67 classes is below expected threshold)
 [/BUSINESS_RULES_INVENTORY]
 ```
 
-## 5.3.7 Integration in nachfolgende Phasen
+## 5.3.7 Integration into subsequent phases
 
-### Phase 4 (Planung)
-- Plan MUSS alle relevanten BRs aus dem Inventory referenzieren
-- Fehlende BR-Checks werden als [INFERENCE-ZONE: Missing BR-Check] markiert
-- Neue BR (nicht im Inventory) müssen als [NEW-RULE] gekennzeichnet werden
+### Phase 4 (planning)
 
-### Phase 5.4 (Business-Rules-Compliance)
-- Prüfung: Sind alle BRs aus dem Inventory im Plan/Code/Tests nachweisbar?
+* the plan MUST reference all relevant BRs from the inventory
+* missing BR checks must be marked as `[INFERENCE-ZONE: Missing BR-Check]`
+* new BRs (not in inventory) must be labeled as `[NEW-RULE]`
 
-#### Definition of Done – Business Rules (verbindlich)
-- ≥ 80 % der identifizierten BRs sind **mindestens** in Plan ODER Code ODER Tests referenziert
-- 0 **kritische** BRs ohne jegliche Abdeckung (Plan/Code/Tests)
+### Phase 5.4 (business rules compliance)
 
-#### Harte Gate-Regeln (verbindlich)
-Folgende Situationen erzwingen automatisch einen Gate-Status:
+* verify: are all inventory BRs traceable in plan/code/tests?
 
-1) business-rules-gap-detected
-   - > 20 % der BRs sind weder in Plan noch in Code noch in Tests referenziert
+#### Definition of Done — Business Rules (binding)
 
-2) enforcement-missing
-   - BR existiert **nur in Tests**, aber nicht in Implementierung (Code/DB-Constraint) auffindbar
+* ≥ 80% of identified BRs are referenced in at least plan OR code OR tests
+* 0 critical BRs with zero coverage (plan/code/tests)
 
-3) implicit-business-logic
-   - Fachliches Verhalten erkennbar, aber keiner expliziten BR-ID im Inventory zugeordnet
+#### Hard gate rules (binding)
 
-In diesen Fällen:
-- Phase 5.4 MUSS ausgelöst werden
-- Die KI darf **nicht** zur nächsten Phase übergehen
+The following situations automatically enforce a gate status:
 
-### Phase 6 (Implementation QA)
-- Jede BR MUSS mindestens in Code ODER DB-Constraint ODER Tests nachweisbar sein
-- enforcement-missing ist **Blocker**, wenn die BR als kritisch klassifiziert ist
+1. `business-rules-gap-detected`
 
-## 5.3.8 Beispiel: Vollständiger Erkennungs-Workflow
+   * > 20% of BRs are referenced in neither plan nor code nor tests
 
-**Gegeben: PersonService.deletePerson()**
+2. `enforcement-missing`
 
-**Schritt 1: Code scannen**
+   * BR exists ONLY in tests, but cannot be found in implementation (code/DB constraint)
+
+3. `implicit-business-logic`
+
+   * business behavior exists but cannot be mapped to an explicit BR-ID in the inventory
+
+In these cases:
+
+* Phase 5.4 MUST be executed
+* the assistant may NOT advance to the next phase
+
+### Phase 6 (implementation QA)
+
+* every BR MUST be traceable in at least code OR DB constraint OR tests
+* `enforcement-missing` is a blocker if the BR is classified as critical
+
+## 5.3.8 Example: full detection workflow
+
+**Given: `PersonService.deletePerson()`**
+
+**Step 1: scan code**
+
 ```java
 public void deletePerson(Long id) {
     Person person = repository.findById(id).orElseThrow();
-    if (!person.getContracts().isEmpty()) {  // ← Gefunden: BR-001
+    if (!person.getContracts().isEmpty()) {  // ← found: BR-001
         throw new BusinessException("CONTRACTS_ACTIVE");
     }
     repository.delete(person);
 }
 ```
-→ Extrahiert: BR-001 (Code-Guard)
 
-**Schritt 2: Tests scannen**
+→ extracted: BR-001 (code guard)
+
+**Step 2: scan tests**
+
 ```java
 @Test
-void deletePerson_shouldThrowException_whenContractsActive() {  // ← Bestätigt: BR-001
+void deletePerson_shouldThrowException_whenContractsActive() {  // ← confirms: BR-001
     // ...
 }
 ```
-→ Bestätigt: BR-001 (Test vorhanden)
 
-**Schritt 3: DB scannen**
+→ confirms: BR-001 (test exists)
+
+**Step 3: scan DB**
+
 ```sql
 ALTER TABLE contract ADD CONSTRAINT fk_person_contract
-  FOREIGN KEY (person_id) REFERENCES person(id) ON DELETE RESTRICT;  -- ← Gefunden: BR-001
+  FOREIGN KEY (person_id) REFERENCES person(id) ON DELETE RESTRICT;  -- ← found: BR-001
 ```
-→ Bestätigt: BR-001 (DB-Constraint vorhanden)
 
-**Ergebnis:**
-```
+→ confirms: BR-001 (DB constraint exists)
+
+**Result:**
+
+```text
 BR-001: Person
-Rule: Person mit Contracts kann nicht gelöscht werden
+Rule: A person with contracts cannot be deleted
 Sources: [PersonService.java:42, PersonServiceTest.java:L87, V002__contracts.sql:FK]
 Enforcement: Code ✓ | Test ✓ | DB ✓
-Consistency: CONSISTENT (alle 3 Ebenen prüfen die Regel)
+Consistency: CONSISTENT (all 3 layers enforce the rule)
 ```
-----------------------------------------------------------------
 
-# 6. Implementierungsregeln (Phase 4)
+---
+
+# 6. Implementation Rules (Phase 4)
 
 ## 6.1 Plan
-- nummeriert, vollständig und technisch umsetzbar.
 
-## 6.2 Codeänderungen
-- Ausgabe als Unified Diffs.
-- maximal 300 Zeilen pro Block.
-- maximal 5 Dateien pro Antwort.
+* numbered, complete, and technically executable.
 
-## 6.3 Qualität
-- keine doppelten Codepfade.
-- keine stillen Refactorings (nur Scope-relevante Änderungen).
-- Validierung aller Eingaben (Bean Validation / Fachlich).
-- sauberes Logging (SLF4J).
-- Transaktionen (@Transactional) nur wo fachlich notwendig.
+## 6.2 Code changes
+
+* output as unified diffs
+* max 300 lines per block
+* max 5 files per response
+
+## 6.3 Quality
+
+* no duplicate code paths
+* no silent refactorings (only scope-relevant changes)
+* validate all inputs (Bean Validation / domain)
+* clean logging (SLF4J)
+* transactions (`@Transactional`) only where domain-relevant
 
 ## 6.4 DB / Flyway
-- Skripte müssen idempotent, nachvollziehbar und getestet sein.
 
-----------------------------------------------------------------
+* scripts must be idempotent, traceable, and tested
 
-# 7. Testregeln
+---
 
-## 7.1 Abdeckung
-- ≥80 % Abdeckung der geänderten oder neuen Logik.
+# 7. Test Rules
 
-## 7.2 Testarten
-- Unit-Tests (JUnit 5, Mockito).
-- Slice-Tests (@DataJpaTest, @WebMvcTest).
-- Integrationstests (Testcontainers).
-- Contract Tests (ArchUnit).
+## 7.1 Coverage
 
-## 7.2.1 Heavy Integration Tests (Conditional)
+* ≥80% coverage for changed or new logic
+
+## 7.2 Test types
+
+* unit tests (JUnit 5, Mockito)
+* slice tests (`@DataJpaTest`, `@WebMvcTest`)
+* integration tests (Testcontainers)
+* contract tests (ArchUnit)
+
+## 7.2.1 Heavy integration tests (conditional)
 
 Definition:
-"Heavy integration tests" sind Tests mit typischerweise hohem Laufzeit-/Setup-Overhead,
-z. B. Cucumber, Testcontainers, Embedded Kafka, externe Systemadapter.
+“Heavy integration tests” are tests with typically high runtime/setup overhead,
+e.g., Cucumber, Testcontainers, Embedded Kafka, external system adapters.
 
-Regel (Repo-First):
-1) Default-Strategie:
-   - Bevorzuge unit/slice Tests für die Mehrzahl der Tickets.
-   - Heavy integration tests werden NICHT automatisch ergänzt oder erweitert,
-     wenn der Change nur interne Businesslogik betrifft.
+Rule (repo-first):
 
-2) Pflichtauslösung:
-   Heavy integration tests sind verpflichtend (neu oder erweitert), wenn mindestens eines gilt:
-   A) Änderung betrifft externe Integrationsoberflächen (REST Contract, Events, Kafka, externe Adapter), ODER
-   B) Änderung betrifft Konfiguration/Mapping, das nur integrativ validierbar ist, ODER
-   C) Ticket fordert explizit Integration/E2E-Nachweis.
+1. Default strategy:
 
-3) Nachweis:
-   - Wenn Heavy integration tests nicht ausgeführt/erweitert werden, muss der Plan (Phase 4)
-     eine kurze Begründung enthalten ("Not needed because ...") und welche unit/slice Tests stattdessen
-     das Risiko abdecken.
+   * prefer unit/slice tests for the majority of tickets
+   * heavy integration tests are NOT added/expanded automatically
+     when the change only affects internal business logic
 
-## 7.3 Struktur & Pflichten
+2. Mandatory trigger:
+   Heavy integration tests MUST be added/expanded if at least one applies:
+   A) change affects external integration surfaces (REST contract, events, Kafka, external adapters), OR
+   B) change affects configuration/mapping that can only be validated integratively, OR
+   C) the ticket explicitly requests integration/E2E evidence
 
-### 7.3.1 Test-Architektur
-- Given / When / Then Struktur (verpflichtend)
-- Sprechende Testnamen nach Pattern: `methodName_shouldBehavior_whenCondition`
-- Ein Test = ein Assertion-Fokus (keine Multi-Assertions für verschiedene Aspekte)
-- Mindestens eine neue Testklasse pro neuer produktiver Klasse
+3. Evidence:
 
-### 7.3.2 Verpflichtende Test-Coverage-Matrix
+   * if heavy integration tests are not executed/expanded, the plan (Phase 4)
+     must include a brief justification (“Not needed because ...”) and which unit/slice tests
+     cover the risk instead
 
-Für JEDE öffentliche Methode in Service/Repository/Controller MÜSSEN folgende Testfälle existieren:
+## 7.3 Structure & obligations
 
-| Test-Kategorie | Beschreibung | Beispiel |
-|----------------|--------------|----------|
-| HAPPY_PATH | Standardfall, alle Inputs valide | findById_shouldReturnPerson_whenIdExists |
-| NULL_INPUT | Alle Parameter einzeln mit null testen | findById_shouldThrowException_whenIdIsNull |
-| EMPTY_INPUT | Listen/Collections leer | findAll_shouldReturnEmptyList_whenNoDataExists |
-| NOT_FOUND | Ressource existiert nicht | findById_shouldThrowNotFoundException_whenIdDoesNotExist |
-| BOUNDARY | Grenzwerte (0, -1, MAX_VALUE) | createPerson_shouldReject_whenAgeIsNegative |
-| CONSTRAINT_VIOLATION | DB-Constraints, Bean-Validation | createPerson_shouldThrowException_whenEmailDuplicate |
-| STATE_INVALID | Geschäftsregel verletzt | deletePerson_shouldThrowException_whenContractsActive |
-| AUTHORIZATION | Zugriff ohne Berechtigung | findById_shouldThrowAccessDenied_whenUserNotOwner |
+### 7.3.1 Test architecture
 
-### 7.3.3 Spezielle Test-Anforderungen nach Methoden-Typ
+* Given / When / Then structure (mandatory)
+* expressive test names following: `methodName_shouldBehavior_whenCondition`
+* one test = one assertion focus (no multi-assertions for unrelated aspects)
+* at least one new test class per new production class
 
-A) Query-Methoden (SELECT)
+### 7.3.2 Mandatory test coverage matrix
 
-Verpflichtend:
-- findById_shouldReturnPerson_whenExists
-- findById_shouldThrowNotFoundException_whenNotExists
-- findById_shouldNotReturnDeletedEntities (KRITISCH)
-- findById_shouldNotLeakSensitiveData_whenUnauthorized (KRITISCH)
+For EVERY public method in Service/Repository/Controller, the following test cases MUST exist:
 
-B) Command-Methoden (INSERT/UPDATE/DELETE)
+| Test category        | Description                              | Example                                                  |
+| -------------------- | ---------------------------------------- | -------------------------------------------------------- |
+| HAPPY_PATH           | standard case, all inputs valid          | findById_shouldReturnPerson_whenIdExists                 |
+| NULL_INPUT           | test each parameter individually as null | findById_shouldThrowException_whenIdIsNull               |
+| EMPTY_INPUT          | empty lists/collections                  | findAll_shouldReturnEmptyList_whenNoDataExists           |
+| NOT_FOUND            | resource does not exist                  | findById_shouldThrowNotFoundException_whenIdDoesNotExist |
+| BOUNDARY             | boundary values (0, -1, MAX_VALUE)       | createPerson_shouldReject_whenAgeIsNegative              |
+| CONSTRAINT_VIOLATION | DB constraints, Bean Validation          | createPerson_shouldThrowException_whenEmailDuplicate     |
+| STATE_INVALID        | business rule violated                   | deletePerson_shouldThrowException_whenContractsActive    |
+| AUTHORIZATION        | access without permission                | findById_shouldThrowAccessDenied_whenUserNotOwner        |
 
-Verpflichtend:
-- createPerson_shouldSaveAndReturnEntity_whenValid
-- createPerson_shouldThrowValidationException_whenEmailInvalid
-- createPerson_shouldThrowException_whenEmailDuplicate (KRITISCH)
-- createPerson_shouldRollbackTransaction_whenSaveFails (KRITISCH)
+### 7.3.3 Special test requirements by method type
 
-C) State-Transition-Methoden (Status-Änderungen)
+A) Query methods (SELECT)
 
-Verpflichtend:
-- approve_shouldChangeStatus_whenAllConditionsMet
-- approve_shouldThrowException_whenAlreadyApproved (KRITISCH)
-- approve_shouldThrowException_whenPreconditionsFail (KRITISCH)
-- approve_shouldNotAffectOtherEntities (KRITISCH - Isolation)
+Mandatory:
 
-D) Methoden mit externen Calls (APIs, Events)
+* findById_shouldReturnPerson_whenExists
+* findById_shouldThrowNotFoundException_whenNotExists
+* findById_shouldNotReturnDeletedEntities (CRITICAL)
+* findById_shouldNotLeakSensitiveData_whenUnauthorized (CRITICAL)
 
-Verpflichtend:
-- syncPerson_shouldCallExternalApi_whenValid
-- syncPerson_shouldRetry_whenApiTemporarilyDown (KRITISCH)
-- syncPerson_shouldNotCorruptData_whenApiReturnsError (KRITISCH)
-- syncPerson_shouldLogError_whenMaxRetriesExceeded (KRITISCH)
+B) Command methods (INSERT/UPDATE/DELETE)
 
-### 7.3.4 Konkrete Test-Patterns (Mandatory)
+Mandatory:
 
-Pattern 1: Exception-Testing
+* createPerson_shouldSaveAndReturnEntity_whenValid
+* createPerson_shouldThrowValidationException_whenEmailInvalid
+* createPerson_shouldThrowException_whenEmailDuplicate (CRITICAL)
+* createPerson_shouldRollbackTransaction_whenSaveFails (CRITICAL)
 
-FALSCH (zu allgemein):
+C) State transition methods (status changes)
+
+Mandatory:
+
+* approve_shouldChangeStatus_whenAllConditionsMet
+* approve_shouldThrowException_whenAlreadyApproved (CRITICAL)
+* approve_shouldThrowException_whenPreconditionsFail (CRITICAL)
+* approve_shouldNotAffectOtherEntities (CRITICAL — isolation)
+
+D) Methods with external calls (APIs, events)
+
+Mandatory:
+
+* syncPerson_shouldCallExternalApi_whenValid
+* syncPerson_shouldRetry_whenApiTemporarilyDown (CRITICAL)
+* syncPerson_shouldNotCorruptData_whenApiReturnsError (CRITICAL)
+* syncPerson_shouldLogError_whenMaxRetriesExceeded (CRITICAL)
+
+### 7.3.4 Concrete test patterns (mandatory)
+
+Pattern 1: Exception testing
+
+WRONG (too generic):
+
+```java
 @Test void shouldThrowException() {
     assertThrows(Exception.class, () -> service.delete(1L));
 }
+```
 
-RICHTIG (spezifisch + Message-Check):
+RIGHT (specific + message/code checks):
+
+```java
 @Test void deletePerson_shouldThrowBusinessException_whenContractsActive() {
     // Given
     Person person = createPersonWithActiveContracts();
-    
+
     // When/Then
     BusinessException ex = assertThrows(
-        BusinessException.class, 
+        BusinessException.class,
         () -> service.deletePerson(person.getId())
     );
     assertThat(ex.getCode()).isEqualTo("ACTIVE_CONTRACTS_EXIST");
     assertThat(ex.getMessage()).contains("Person has 3 active contracts");
 }
+```
 
-Pattern 2: State-Verification
+Pattern 2: State verification
 
-FALSCH (nur Rückgabewert testen):
+WRONG (only return value tested):
+
+```java
 @Test void shouldUpdatePerson() {
     Person result = service.update(person);
     assertNotNull(result);
 }
+```
 
-RICHTIG (State + Side-Effects):
+RIGHT (state + side effects):
+
+```java
 @Test void updatePerson_shouldPersistChanges_andSendEvent() {
     // Given
     Person existing = repository.save(createPerson("John", "Doe"));
     PersonUpdateRequest request = new PersonUpdateRequest("Jane", "Doe");
-    
+
     // When
     Person result = service.update(existing.getId(), request);
-    
+
     // Then
     assertThat(result.getFirstName()).isEqualTo("Jane");
-    
+
     // Verify persistence
     Person persisted = repository.findById(existing.getId()).orElseThrow();
     assertThat(persisted.getFirstName()).isEqualTo("Jane");
-    
+
     // Verify side effects
-    verify(eventPublisher).publish(argThat(event -> 
+    verify(eventPublisher).publish(argThat(event ->
         event.getType().equals("PERSON_UPDATED") &&
         event.getPersonId().equals(existing.getId())
     ));
 }
+```
 
-Pattern 3: Isolation-Testing (für Transaktionen)
+Pattern 3: Isolation testing (transactions)
 
+```java
 @Test void createPerson_shouldRollbackTransaction_whenSubsequentOperationFails() {
     // Given
     PersonCreateRequest request = validRequest();
     doThrow(new RuntimeException("Simulated failure"))
         .when(auditService).logCreation(any());
-    
+
     // When
     assertThrows(RuntimeException.class, () -> service.createPerson(request));
-    
+
     // Then - verify nothing was persisted
     assertThat(repository.findAll()).isEmpty();
 }
+```
 
-### 7.3.5 Test-Daten-Management
+### 7.3.5 Test data management
 
-VERBOTEN:
+FORBIDDEN:
 
-// Hardcoded Magic Values:
+```java
+// Hardcoded magic values:
 Person person = new Person();
-person.setId(1L);  // Was wenn Test parallel läuft?
-person.setEmail("test@test.com");  // Was bei 2. Durchlauf?
+person.setId(1L);               // What if tests run in parallel?
+person.setEmail("test@test.com"); // What about a second run?
+```
 
-VERPFLICHTEND:
+MANDATORY:
 
-// Test-Data-Builder Pattern:
+```java
+// Test data builder pattern:
 public class PersonTestDataBuilder {
     private static final AtomicLong ID_GENERATOR = new AtomicLong(1);
-    
+
     public static Person.PersonBuilder aPerson() {
         return Person.builder()
             .id(ID_GENERATOR.getAndIncrement())
@@ -731,7 +825,7 @@ public class PersonTestDataBuilder {
             .lastName("Person")
             .createdAt(Instant.now());
     }
-    
+
     public static Person aPersonWithActiveContracts() {
         return aPerson()
             .contracts(List.of(
@@ -741,112 +835,127 @@ public class PersonTestDataBuilder {
     }
 }
 
-// Usage in Tests:
+// Usage in tests:
 @Test void test() {
     Person person = aPerson().firstName("John").build();
     // ...
 }
+```
 
-### 7.3.6 Mock-Verifikation (verpflichtend)
+### 7.3.6 Mock verification (mandatory)
 
-Bei JEDEM Mock MUSS verifiziert werden:
+For EVERY mock, verification is mandatory:
 
+```java
 @Test void createPerson_shouldCallDependencies_inCorrectOrder() {
     // Given
     PersonCreateRequest request = validRequest();
-    
+
     // When
     service.createPerson(request);
-    
+
     // Then - verify call order
     InOrder inOrder = inOrder(validator, repository, eventPublisher);
     inOrder.verify(validator).validate(request);
     inOrder.verify(repository).save(any(Person.class));
     inOrder.verify(eventPublisher).publish(any(PersonCreatedEvent.class));
-    
+
     // Then - verify no unexpected interactions
     verifyNoMoreInteractions(validator, repository, eventPublisher);
 }
+```
 
-### 7.3.7 Test-Kategorien (JUnit Tags) — Conditional Enforcement
+### 7.3.7 Test categories (JUnit tags) — conditional enforcement
 
-Ziel: Tags verbessern Selektivität (unit/slice/integration/contract) und CI-Steuerung.
-Die Enforcement-Stärke ist repo-abhängig (Repo-First).
+Goal: tags improve selectivity (unit/slice/integration/contract) and CI control.
+Enforcement strength is repo-dependent (repo-first).
 
 Definitions:
-- "Tagging established" ist erfüllt, wenn mindestens eines gilt:
-  A) Es existieren bereits @Tag(...) Verwendungen im Repository (mehr als einzelne Ausnahmen), ODER
-  B) Das Repository hat CI/Build-Mechanismen, die Tags nutzen (z. B. Maven Surefire/Failsafe includes/excludes), ODER
-  C) Es gibt eine Repo-Dokumentation, die Tagging als Standard benennt.
 
-Regel:
-1) Wenn Tagging established:
-   - Alle neuen UND geänderten Tests müssen getaggt sein.
-   - Bei Touch eines bestehenden Tests ohne Tag muss Tag ergänzt werden.
+* “Tagging established” is true if at least one applies:
+  A) there are existing `@Tag(...)` usages in the repository (more than rare exceptions), OR
+  B) the repository’s CI/build uses tags (e.g., Maven Surefire/Failsafe includes/excludes), OR
+  C) repository documentation defines tagging as the standard
 
-2) Wenn Tagging NOT established:
-   - Alle neu erstellten Tests müssen getaggt werden.
-   - Bestehende, unberührte Tests werden NICHT rein zum Tagging refactored.
-   - Bei geänderten Tests: Tag nachziehen, sofern der Test ohnehin angepasst wird.
+Rule:
 
-Tag-Schema (empfohlen):
-@Tag("unit") | @Tag("slice") | @Tag("integration") | @Tag("contract")
+1. If tagging is established:
 
-### 7.3.8 Coverage-Enforcement
+   * all new AND modified tests must be tagged
+   * when touching an existing untagged test, add the tag
 
-Mindestanforderungen (automatisch geprüft in Phase 6):
-- Line Coverage: >= 80%
-- Branch Coverage: >= 75%
-- Mutation Coverage: >= 70% (PITest)
+2. If tagging is NOT established:
 
-Ausnahmen (explizit dokumentieren):
-- Getter/Setter (nur wenn keine Logik)
-- equals/hashCode (wenn über Lombok generiert)
-- toString (wenn über Lombok generiert)
+   * all newly created tests must be tagged
+   * existing untouched tests must NOT be refactored solely for tagging
+   * for modified tests: add the tag if the test is changed anyway
 
-### 7.4 Test-Generierungs-Algorithmus (für KI)
+Recommended tag scheme:
+`@Tag("unit")` | `@Tag("slice")` | `@Tag("integration")` | `@Tag("contract")`
 
-Schritt 1: Methoden-Klassifikation
+### 7.3.8 Coverage enforcement
 
-Für jede zu testende Methode:
-1. Identifiziere Typ: Query | Command | State-Transition | External-Call
-2. Extrahiere Parameter-Typen
-3. Identifiziere mögliche Exceptions (throws-Clause + @Valid-Annotations)
-4. Identifiziere Side-Effects (Aufrufe an andere Services/Repositories)
+Minimum requirements (automatically verified in Phase 6):
 
-Schritt 2: Test-Matrix-Generierung
+* line coverage: >= 80%
+* branch coverage: >= 75%
+* mutation coverage: >= 70% (PITest)
 
-Für jeden Methoden-Typ gemäß Kapitel 7.3.3:
-1. Generiere HAPPY_PATH-Test
-2. Generiere NULL_INPUT-Tests für jeden Parameter
-3. Wenn Query: Generiere NOT_FOUND-Test
-4. Wenn Command: Generiere CONSTRAINT_VIOLATION-Tests
-5. Wenn State-Transition: Generiere STATE_INVALID-Tests
-6. Wenn @PreAuthorize vorhanden: Generiere AUTHORIZATION-Test
+Exceptions (must be documented explicitly):
 
-Schritt 3: Pattern-Anwendung
+* getters/setters (only if no logic)
+* equals/hashCode (if generated by Lombok)
+* toString (if generated by Lombok)
 
-Für jeden generierten Test:
-1. Verwende Exception-Pattern (konkrete Exception + Error-Code-Check)
-2. Verwende State-Verification-Pattern (Persistenz + Side-Effects)
-3. Verwende Test-Data-Builder (keine Hardcoded-Values)
-4. Füge Given/When/Then-Kommentare ein
+### 7.4 Test generation algorithm (for AI)
 
-Schritt 4: Self-Review
+Step 1: method classification
 
-Vor Abschluss:
-1. Prüfe Coverage-Matrix gegen Checkliste
-2. Suche nach Anti-Patterns
-3. Markiere fehlende Tests als [INFERENCE-ZONE: Test-Gap]
+For each method to test:
 
-Beispiel-Ausgabe für PersonService.deletePerson(Long id):
+1. identify type: Query | Command | State-Transition | External-Call
+2. extract parameter types
+3. identify possible exceptions (throws clause + `@Valid` annotations)
+4. identify side effects (calls to other services/repositories)
 
-Hinweis (Conditional Tagging):
-- Wenn Tagging im Repository etabliert ist (oder neue/geänderte Tests betroffen sind), sind @Tag(...) verpflichtend.
-- Wenn Tagging NICHT etabliert ist, gilt Tagging mindestens für neu erstellte Tests; bestehende unberührte Tests
-  werden nicht rein zum Tagging refactored.
-  (Siehe Kapitel 7.3.7 „Conditional Enforcement“.)
+Step 2: test matrix generation
 
+For each method type per Chapter 7.3.3:
+
+1. generate HAPPY_PATH test
+2. generate NULL_INPUT tests for each parameter
+3. if Query: generate NOT_FOUND test
+4. if Command: generate CONSTRAINT_VIOLATION tests
+5. if State-Transition: generate STATE_INVALID tests
+6. if `@PreAuthorize` exists: generate AUTHORIZATION test
+
+Step 3: apply patterns
+
+For each generated test:
+
+1. apply exception pattern (concrete exception + error-code check)
+2. apply state-verification pattern (persistence + side effects)
+3. use test-data builder (no hardcoded values)
+4. add Given/When/Then comments
+
+Step 4: self-review
+
+Before finalizing:
+
+1. verify coverage matrix against checklist
+2. scan for anti-patterns
+3. mark missing tests as `[INFERENCE-ZONE: Test-Gap]`
+
+Example output for `PersonService.deletePerson(Long id)`:
+
+Note (conditional tagging):
+
+* if tagging is established (or new/modified tests are affected), `@Tag(...)` is mandatory.
+* if tagging is NOT established, tagging applies at least to newly created tests; untouched existing tests
+  must not be refactored solely for tagging.
+  (see Chapter 7.3.7 “Conditional enforcement”.)
+
+```java
 // Method-Type: Command (DELETE)
 // Expected Tests: HAPPY_PATH, NULL_INPUT, NOT_FOUND, STATE_INVALID, AUTHORIZATION
 
@@ -857,13 +966,13 @@ void deletePerson_shouldMarkAsDeleted_whenPersonExistsAndNoActiveContracts() {
     // Given
     Person person = aPerson().contracts(emptyList()).build();
     when(repository.findById(person.getId())).thenReturn(Optional.of(person));
-    
+
     // When
     service.deletePerson(person.getId());
-    
+
     // Then
-    verify(repository).save(argThat(p -> 
-        p.getId().equals(person.getId()) && 
+    verify(repository).save(argThat(p ->
+        p.getId().equals(person.getId()) &&
         p.isDeleted()
     ));
     verify(eventPublisher).publish(any(PersonDeletedEvent.class));
@@ -874,7 +983,7 @@ void deletePerson_shouldMarkAsDeleted_whenPersonExistsAndNoActiveContracts() {
 @Tag("unit")
 void deletePerson_shouldThrowException_whenIdIsNull() {
     // NULL_INPUT
-    assertThrows(IllegalArgumentException.class, 
+    assertThrows(IllegalArgumentException.class,
         () -> service.deletePerson(null));
 }
 
@@ -883,7 +992,7 @@ void deletePerson_shouldThrowException_whenIdIsNull() {
 void deletePerson_shouldThrowNotFoundException_whenPersonDoesNotExist() {
     // NOT_FOUND
     when(repository.findById(999L)).thenReturn(Optional.empty());
-    
+
     PersonNotFoundException ex = assertThrows(
         PersonNotFoundException.class,
         () -> service.deletePerson(999L)
@@ -894,16 +1003,16 @@ void deletePerson_shouldThrowNotFoundException_whenPersonDoesNotExist() {
 @Test
 @Tag("unit")
 void deletePerson_shouldThrowBusinessException_whenPersonHasActiveContracts() {
-    // STATE_INVALID (KRITISCH!)
+    // STATE_INVALID (CRITICAL!)
     Person person = aPersonWithActiveContracts();
     when(repository.findById(person.getId())).thenReturn(Optional.of(person));
-    
+
     BusinessException ex = assertThrows(
         BusinessException.class,
         () -> service.deletePerson(person.getId())
     );
     assertThat(ex.getCode()).isEqualTo("ACTIVE_CONTRACTS_EXIST");
-    
+
     // Verify no changes persisted
     verify(repository, never()).save(any());
     verify(eventPublisher, never()).publish(any());
@@ -913,162 +1022,183 @@ void deletePerson_shouldThrowBusinessException_whenPersonHasActiveContracts() {
 @Tag("unit")
 @WithMockUser(roles = "USER")
 void deletePerson_shouldThrowAccessDenied_whenUserNotAuthorized() {
-    // AUTHORIZATION (wenn @PreAuthorize vorhanden)
+    // AUTHORIZATION (if @PreAuthorize exists)
     Person person = aPerson().ownerId(999L).build();
     when(repository.findById(person.getId())).thenReturn(Optional.of(person));
     when(securityService.isOwner(person.getId())).thenReturn(false);
-    
+
     assertThrows(AccessDeniedException.class,
         () -> service.deletePerson(person.getId()));
 }
+```
 
-----------------------------------------------------------------
+---
 
-# 8. Evidenz- und Nachweispflicht
+# 8. Evidence & Proof Obligations
 
-Alle fachlichen, architektonischen und technischen Aussagen der KI
-unterliegen einer **verpflichtenden Evidenzregel**.
+All business, architectural, and technical statements by the AI
+are subject to a mandatory evidence rule.
 
-Es existieren **zwei explizite Evidence Modes**:
+There are two explicit evidence modes:
 
 ## 8.1 Strict Evidence Mode (Default)
 
-Der Strict Evidence Mode ist **Standard** für alle Sessions,
-sofern nicht explizit anders festgelegt.
+Strict Evidence Mode is the default for all sessions unless explicitly overridden.
 
-Pflichten:
-- Jede nicht-triviale Aussage MUSS belegt sein durch mindestens eines von:
-  - `path:line` Referenz
-  - konkreten Code- oder Konfigurationsausschnitt
-- Aussagen ohne belegbare Evidenz sind **nicht zulässig**
-- Wenn keine Evidenz möglich ist, MUSS die KI explizit sagen:
-  `Nicht belegbar mit gelieferten Artefakten`
+Obligations:
 
-Typische Einsatzfälle:
-- Architektur-Reviews
-- Implementierungs- und Testphasen
-- Audit-/Compliance-nahe Kontexte
+* every non-trivial statement MUST be backed by at least one of:
 
-## 8.2 Light Evidence Mode (Explizite Ausnahme)
+  * `path:line` reference
+  * concrete code/config excerpt
+* statements without verifiable evidence are NOT allowed
+* if evidence is not possible, the AI MUST explicitly say:
+  `Not provable with the provided artifacts`
 
-Der Light Evidence Mode darf **nur nach expliziter Festlegung**
-verwendet werden (z. B. explorative Analyse, frühe Orientierung).
+Typical use cases:
 
-Pflichten:
-- Jede Aussage MUSS mindestens eines enthalten:
-  - Dateipfad ODER
-  - kurzen relevanten Code-/Strukturausschnitt
-- Reine Vermutungen sind weiterhin **verboten**
-- Halluzinationen bleiben unzulässig
+* architecture reviews
+* implementation and testing phases
+* audit/compliance-adjacent contexts
 
-## 8.3 Regelpriorität
+## 8.2 Light Evidence Mode (Explicit exception)
 
-- Evidence Mode überschreibt **keine** Gates, Phasen oder Scope-Regeln
-- Confidence Levels dürfen Evidence-Pflichten **niemals** lockern
+Light Evidence Mode may be used only after explicit approval
+(e.g., exploratory analysis, early orientation).
 
-----------------------------------------------------------------
+Obligations:
+
+* every statement MUST include at least one:
+
+  * file path OR
+  * short relevant code/structure excerpt
+* pure speculation remains forbidden
+* hallucinations remain disallowed
+
+## 8.3 Rule priority
+
+* evidence mode does not override gates, phases, or scope rules
+* confidence levels may never relax evidence obligations
+
+---
 
 # 9. Traceability
 
-Jede Umsetzung muss in einer Tabelle dokumentiert werden:
-| Ticket | Klassen | Endpunkte | Tests | Risiken |
-|------|---------|-----------|-------|---------|
+Every implementation must be documented in a table:
 
-----------------------------------------------------------------
+| Ticket | Classes | Endpoints | Tests | Risks |
+| ------ | ------- | --------- | ----- | ----- |
 
-# 10. Fehler-, Lücken- & Confidence-Handling
+---
 
-## 10.1 Umgang mit Defiziten
-- Fehlende Artefakte explizit melden (keine Erfindungen).
-- Ambiguitäten als Annahmen markieren und im Session-State dokumentieren.
-- Wenn Annahmen das Ticket wesentlich beeinflussen: Rückfrage stellen.
+# 10. Error, Gaps & Confidence Handling
 
-## 10.2 Confidence Level & Verhaltensmatrix
+## 10.1 Handling deficits
 
-| Confidence | Modus    | Plan | Code             | Business-Rules-Check | Verhalten |
-|-----------|----------|------|------------------|---------------------|----------|
-| 90–100 %  | NORMAL   | ja   | ja               | Phase 1.5 empfohlen | Full Production-Code |
-| 70–89 %   | DEGRADED | ja   | ja               | Phase 1.5 empfohlen | Warnhinweise + Annahmen im Output |
-| 50–69 %   | DRAFT    | ja   | nur nach Freigabe| Phase 1.5 optional  | Nur Plan; Code erst nach "Go" |
-| < 50 %    | BLOCKED  | ja   | nein             | Phase 1.5 übersprungen | Nur Plan-Skizze + Blocker-Meldung |
+* explicitly report missing artifacts (no fabrication)
+* mark ambiguities as assumptions and document in session state
+* if assumptions materially impact the ticket: ask a clarification
 
-WICHTIG (Gates bleiben übergeordnet):
-- Unabhängig vom Confidence-Level gilt: Funktionaler/produktiver Code darf nur erzeugt werden,
-  wenn die Gates aus master.md erfüllt sind (P5=architecture-approved und P5.3=test-quality-pass).
-- Eine User-Freigabe ("Go") ersetzt keine Gates, sie ergänzt sie höchstens im DRAFT-Mode.
+## 10.2 Confidence level & behavior matrix
 
-----------------------------------------------------------------
-### BuildEvidence-Impact (verbindlich)
+| Confidence | Mode     | Plan | Code                | Business-rules check  | Behavior                         |
+| ---------: | -------- | ---- | ------------------- | --------------------- | -------------------------------- |
+|    90–100% | NORMAL   | yes  | yes                 | Phase 1.5 recommended | Full production code             |
+|     70–89% | DEGRADED | yes  | yes                 | Phase 1.5 recommended | Warnings + assumptions in output |
+|     50–69% | DRAFT    | yes  | only after approval | Phase 1.5 optional    | Plan-only; code only after “Go”  |
+|      < 50% | BLOCKED  | yes  | no                  | Phase 1.5 skipped     | Plan sketch + explicit blockers  |
 
-BuildEvidence ist die normative Unterscheidung zwischen:
-- **theoretisch korrekt** (nicht ausgeführt / nicht belegt)
-- **verifiziert** (durch User-Ausgabe/Logs belegbar)
+IMPORTANT (gates remain superior):
 
-Regeln:
-1) Wenn `BuildEvidence.status = not-provided`:
-   - Aussagen wie „Build ist grün“, „Tests laufen“, „Coverage erfüllt“ sind **verboten**.
-   - Es darf nur formuliert werden: **„theoretisch“ / „nicht verifiziert“**.
-   - CONFIDENCE ist automatisch auf **maximal 85%** zu begrenzen (kein NORMAL 90–100 möglich).
+* regardless of confidence level: production/functional code may only be generated
+  if the gates in `master.md` are satisfied (P5=architecture-approved and P5.3=test-quality-pass).
+* user approval (“Go”) does not replace gates; at most it complements DRAFT mode.
 
-2) Wenn `BuildEvidence.status = partially-provided`:
-   - Nur die explizit belegten Teile dürfen als verifiziert gelten.
-   - Alles andere ist als **theoretisch** zu kennzeichnen.
-   - CONFIDENCE ist automatisch auf **maximal 90%** zu begrenzen.
+---
 
-3) Wenn `BuildEvidence.status = provided-by-user`:
-   - Build-/Test-Aussagen dürfen als **verifiziert** bezeichnet werden,
-     jedoch nur im Umfang der gelieferten Evidenz (Command + Output/Log-Ausschnitt).
+### BuildEvidence impact (binding)
 
-**Business-Rules-Impact auf Confidence:**
+BuildEvidence is the normative distinction between:
 
-Die Anzahl extrahierter Business Rules beeinflusst das Confidence Level:
+* **theoretically correct** (not executed / not proven)
+* **verified** (proven by user-provided output/logs)
 
-- **0-2 BRs bei >50 Klassen:** Confidence -20% (kritische Lücke)
-- **3-5 BRs bei >50 Klassen:** Confidence -10% (Lücke wahrscheinlich)
-- **6-10 BRs bei >50 Klassen:** Confidence +0% (akzeptabel)
-- **10+ BRs bei >50 Klassen:** Confidence +10% (gut dokumentiert)
-- **Beliebig bei <30 Klassen:** Confidence +0% (CRUD-Projekt)
+Rules:
 
-**Beispiel:**
-```
-Base-Confidence: 85% (DEGRADED)
-Business-Rules gefunden: 3 bei 67 Klassen
+1. If `BuildEvidence.status = not-provided`:
+
+   * statements such as “Build is green”, “Tests pass”, “Coverage is met” are forbidden.
+   * the assistant may only state: **“theoretical” / “not verified”**.
+   * CONFIDENCE is automatically capped at **85%** (no NORMAL 90–100 possible).
+
+2. If `BuildEvidence.status = partially-provided`:
+
+   * only explicitly proven parts may be considered verified.
+   * everything else must be labeled as **theoretical**.
+   * CONFIDENCE is automatically capped at **90%**.
+
+3. If `BuildEvidence.status = provided-by-user`:
+
+   * build/test statements may be considered **verified**,
+     but only within the scope of provided evidence (command + output/log excerpt).
+
+**Business rules impact on confidence:**
+
+The number of extracted business rules affects the confidence level:
+
+* **0–2 BRs with >50 classes:** confidence -20% (critical gap)
+* **3–5 BRs with >50 classes:** confidence -10% (gap likely)
+* **6–10 BRs with >50 classes:** confidence +0% (acceptable)
+* **10+ BRs with >50 classes:** confidence +10% (well documented)
+* **any with <30 classes:** confidence +0% (CRUD project)
+
+**Example:**
+
+```text
+Base confidence: 85% (DEGRADED)
+Business rules found: 3 for 67 classes
 Adjustment: -10%
-Final-Confidence: 75% (DEGRADED mit erhöhtem Risiko)
+Final confidence: 75% (DEGRADED with increased risk)
 ```
 
-### 10.2.1 DRAFT MODE (50–69 %)
-Ohne explizite Zustimmung des Users („Go für Code-DRAFT") darf kein funktionaler Code erzeugt werden.
-Zusätzlich gilt immer: Code-Generierung ist ausschließlich erlaubt, wenn die Gates aus master.md erfüllt sind
-(P5=architecture-approved und P5.3=test-quality-pass).
-Es erfolgt ansonsten lediglich die Darstellung des Plans und der Risiken.
+### 10.2.1 DRAFT MODE (50–69%)
 
-**DRAFT MODE mit Business-Rules:**
-- Phase 1.5 ist optional
-- Wenn ausgeführt: Extrahierte BRs werden im Plan referenziert
-- Code-Generierung nur nach expliziter Freigabe
-- Phase 5.4 wird übersprungen (da kein Code generiert wird)
+Without explicit user consent (“Go for DRAFT code”), no functional production code may be produced.
+Additionally: code generation is only allowed if the gates in `master.md` are satisfied
+(P5=architecture-approved and P5.3=test-quality-pass).
+Otherwise, only the plan and risks are shown.
 
-### 10.2.2 Kennzeichnung von Annahmen im Code
-Wenn außerhalb des NORMAL-Modus Code entsteht, müssen Annahmen direkt im Code markiert werden:
+**DRAFT mode with business rules:**
+
+* Phase 1.5 is optional
+* if executed: extracted BRs are referenced in the plan
+* code generation only after explicit approval
+* Phase 5.4 is skipped (because no code is generated)
+
+### 10.2.2 Marking assumptions in code
+
+If code is produced outside NORMAL mode, assumptions must be marked directly in code:
+
 ```java
-// ASSUMPTION [A1]: Beschreibung der Annahme (z.B. Feldtyp oder Schema)
+// ASSUMPTION [A1]: description of the assumption (e.g., field type or schema)
 ```
 
-**Kennzeichnung fehlender Business-Rules:**
-Wenn Business Rules im Inventory existieren, aber im Code fehlen:
+**Marking missing business rules:**
+If business rules exist in the inventory but are missing in code:
+
 ```java
 public void deletePerson(Long id) {
     Person person = findById(id);
-    
+
     // INFERENCE-ZONE [BR-001]: Missing check for active contracts
     // Expected: if (!person.getContracts().isEmpty()) throw BusinessException(...)
     // Reason: BR-001 found in inventory but not implemented here
-    
+
     repository.delete(person);
 }
 ```
 
+---
+
 Copyright © 2026 Benjamin Fuchs.
 All rights reserved. See LICENSE.
-
