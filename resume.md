@@ -4,8 +4,12 @@ Load and strictly enforce:
 - master.md
 - rules.md
 - SCOPE-AND-CONTEXT.md
+- the active profile rulebook referenced by SESSION_STATE.ActiveProfile (e.g., rules.backend-java.md)
 
 The SESSION_STATE provided by the user is the single authoritative source of truth.
+
+Profile rule:
+- If SESSION_STATE.ActiveProfile is missing or ambiguous: switch to BLOCKED mode and request it; do not assume a default profile.
 
 Rules:
 - Do NOT re-run discovery
