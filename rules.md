@@ -458,12 +458,31 @@ Confidence-Impact: -10% (15 rules for 67 classes is below expected threshold)
 - Neue BR (nicht im Inventory) müssen als [NEW-RULE] gekennzeichnet werden
 
 ### Phase 5.4 (Business-Rules-Compliance)
-- Prüfung: Sind alle BRs aus dem Inventory im Plan/Code/Tests?
-- Wenn >50% der BRs fehlen → revision-required
+- Prüfung: Sind alle BRs aus dem Inventory im Plan/Code/Tests nachweisbar?
+
+#### Definition of Done – Business Rules (verbindlich)
+- ≥ 80 % der identifizierten BRs sind **mindestens** in Plan ODER Code ODER Tests referenziert
+- 0 **kritische** BRs ohne jegliche Abdeckung (Plan/Code/Tests)
+
+#### Harte Gate-Regeln (verbindlich)
+Folgende Situationen erzwingen automatisch einen Gate-Status:
+
+1) business-rules-gap-detected
+   - > 20 % der BRs sind weder in Plan noch in Code noch in Tests referenziert
+
+2) enforcement-missing
+   - BR existiert **nur in Tests**, aber nicht in Implementierung (Code/DB-Constraint) auffindbar
+
+3) implicit-business-logic
+   - Fachliches Verhalten erkennbar, aber keiner expliziten BR-ID im Inventory zugeordnet
+
+In diesen Fällen:
+- Phase 5.4 MUSS ausgelöst werden
+- Die KI darf **nicht** zur nächsten Phase übergehen
 
 ### Phase 6 (Implementation QA)
-- Jeder BR muss in Code ODER Tests nachweisbar sein
-- Fehlende BR-Enforcement → Warning (nicht Blocker)
+- Jede BR MUSS mindestens in Code ODER DB-Constraint ODER Tests nachweisbar sein
+- enforcement-missing ist **Blocker**, wenn die BR als kritisch klassifiziert ist
 
 ## 5.3.8 Beispiel: Vollständiger Erkennungs-Workflow
 
@@ -907,12 +926,45 @@ void deletePerson_shouldThrowAccessDenied_whenUserNotAuthorized() {
 
 # 8. Evidenz- und Nachweispflicht
 
-Jede fachliche oder technische Aussage benötigt:
-- Dateipfad und Zeilenangabe (pfad:zeile)
-ODER
-- Dateipfad und den entsprechenden Codeausschnitt.
+Alle fachlichen, architektonischen und technischen Aussagen der KI
+unterliegen einer **verpflichtenden Evidenzregel**.
 
-Keine Annahmen ohne explizite Kennzeichnung als solche.
+Es existieren **zwei explizite Evidence Modes**:
+
+## 8.1 Strict Evidence Mode (Default)
+
+Der Strict Evidence Mode ist **Standard** für alle Sessions,
+sofern nicht explizit anders festgelegt.
+
+Pflichten:
+- Jede nicht-triviale Aussage MUSS belegt sein durch mindestens eines von:
+  - `path:line` Referenz
+  - konkreten Code- oder Konfigurationsausschnitt
+- Aussagen ohne belegbare Evidenz sind **nicht zulässig**
+- Wenn keine Evidenz möglich ist, MUSS die KI explizit sagen:
+  `Nicht belegbar mit gelieferten Artefakten`
+
+Typische Einsatzfälle:
+- Architektur-Reviews
+- Implementierungs- und Testphasen
+- Audit-/Compliance-nahe Kontexte
+
+## 8.2 Light Evidence Mode (Explizite Ausnahme)
+
+Der Light Evidence Mode darf **nur nach expliziter Festlegung**
+verwendet werden (z. B. explorative Analyse, frühe Orientierung).
+
+Pflichten:
+- Jede Aussage MUSS mindestens eines enthalten:
+  - Dateipfad ODER
+  - kurzen relevanten Code-/Strukturausschnitt
+- Reine Vermutungen sind weiterhin **verboten**
+- Halluzinationen bleiben unzulässig
+
+## 8.3 Regelpriorität
+
+- Evidence Mode überschreibt **keine** Gates, Phasen oder Scope-Regeln
+- Confidence Levels dürfen Evidence-Pflichten **niemals** lockern
 
 ----------------------------------------------------------------
 
@@ -994,3 +1046,4 @@ public void deletePerson(Long id) {
     repository.delete(person);
 }
 ```
+
