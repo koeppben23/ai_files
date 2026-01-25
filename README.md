@@ -1,8 +1,5 @@
 # Governance & Prompt System – Übersicht
 
-Copyright © 2026 Benjamin Fuchs. All rights reserved.
-Unauthorized use, copying, modification, or distribution is prohibited without explicit permission.
-
 Dieses Repository enthält ein **mehrschichtiges Governance- und Prompt-System**
 für KI-gestützte Softwareentwicklung mit Fokus auf **Lead-/Staff-Qualität**,
 Nachvollziehbarkeit und Review-Festigkeit.
@@ -213,5 +210,8 @@ Dieses System ist bewusst konservativ –
 und genau deshalb skalierbar und review-fest.
 
 ---
+
+Copyright © 2026 Benjamin Fuchs. All rights reserved.
+Unauthorized use, copying, modification, or distribution is prohibited without explicit permission.
 
 _Ende der Datei_
