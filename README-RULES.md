@@ -270,4 +270,8 @@ Falls Artefakte fehlen oder defekt sind:
 
 ---
 
+Copyright © 2026 Benjamin Fuchs.
+All rights reserved. See LICENSE.
+
 **Ende der Datei — README-RULES.md**
+
