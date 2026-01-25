@@ -1068,3 +1068,7 @@ public void deletePerson(Long id) {
     repository.delete(person);
 }
 ```
+
+Copyright © 2026 Benjamin Fuchs.
+All rights reserved. See LICENSE.
+
