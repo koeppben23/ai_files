@@ -34,5 +34,7 @@ The SESSION_STATE below is the single authoritative source of truth and override
 - No repetition of rules or governance text.
 - No creative extrapolation.
 
-END OF RESUME-PROMPT
+Copyright © 2026 Benjamin Fuchs.
+All rights reserved. See LICENSE.
 
+END OF RESUME-PROMPT
