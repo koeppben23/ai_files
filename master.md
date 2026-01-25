@@ -280,6 +280,17 @@ Assumptions:
 Risks:
 - ...
 
+BuildEvidence:
+  status: <provided-by-user|partially-provided|not-provided>
+  details:
+    - command: <z. B. mvn clean verify>
+    - environment: <optional>
+    - notes: <optional>
+
+BuildEvidenceRules:
+  - Wenn status = not-provided: Aussagen zu Build-/Test-Erfolg sind als "theoretisch" zu kennzeichnen
+  - BuildEvidence beeinflusst ausschließlich Confidence und Freigabeempfehlungen (nicht die inhaltliche Code-Qualität)
+
 BusinessRules:
   Inventory: <Anzahl> rules | not-extracted
   Coverage:
