@@ -9,8 +9,12 @@ The SESSION_STATE below is the single authoritative source of truth and override
 - master.md             (workflow, phases, gates)
 - rules.md              (technical & quality rules)
 - SCOPE-AND-CONTEXT.md  (governance, responsibility boundaries)
+- the active profile rulebook referenced by SESSION_STATE.ActiveProfile (e.g., rules.backend-java.md)
 
 2. Restored SESSION_STATE (authoritative, do not reinterpret):
+
+Profile rule:
+- If SESSION_STATE.ActiveProfile is missing or ambiguous: stop and ask the user to provide the correct ActiveProfile (and, if needed, the rulebook filename). Do not assume a default.
 
 <<< PASTE LAST [SESSION_STATE] BLOCK HERE — UNCHANGED >>>
 
