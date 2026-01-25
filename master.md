@@ -299,6 +299,17 @@ Every response from Phase 2 onward MUST end with the following block:
 [SESSION_STATE]
 Phase=<1|2|3A|3B-1|3B-2|4|5|5.5|6> | Confidence=<0-100>% | Degraded=<active|inactive>
 
+ActiveProfile:
+  name: <backend-java|...>
+  source: <explicit|inferred>
+
+Overrides:
+  ScopeShift:
+    status: <none|temporary|explicit>
+    target: <e.g., python-prototyping>
+    reason: <why>
+    expires: <next-turn|phase-end|manual>
+
 Facts:
 - ...
 
@@ -355,6 +366,10 @@ Next:
 - <specific next action>
 [/SESSION_STATE]
 ```
+
+Binding:
+- If ActiveProfile is missing/ambiguous, stop and request it. Do not assume a default profile.
+- If Overrides.ScopeShift.status != none, all outputs must stay within the override target and the override must remain visible in SESSION_STATE.
 
 If CONFIDENCE LEVEL < 90%, assistant behavior (e.g., code generation, plan-only, clarifications)
 MUST follow `rules.md`, Chapter 10 (“Error, Gaps & Confidence Handling”).
@@ -1071,17 +1086,23 @@ Gate: complexity-warning (no blocker, but requires review attention)
 
 ### PHASE 6 — Implementation QA (Self-Review Gate)
 
-Conceptual verification:
+Conceptual verification (evidence-aware):
 
 * build (`mvn clean verify`)
 * tests and coverage
 * architecture and contracts
 * regressions
 
+Evidence rule (binding):
+- If `SESSION_STATE.BuildEvidence.status = not-provided`: you MUST request the required command output/log snippets and set status to `fix-required` (not `ready-for-pr`). You may only provide a theoretical assessment.
+- If `SESSION_STATE.BuildEvidence.status = partially-provided`: mark only the evidenced subset as verified; everything else remains theoretical. Status may be `ready-for-pr` only if the critical gates are evidenced.
+- If `SESSION_STATE.BuildEvidence.status = provided-by-user`: verified statements are allowed strictly within the evidence scope.
+
 Output:
 
-* what was verified
-* what could not be verified
+* what was verified (evidence scope)
+* what could not be verified (missing evidence)
+* explicit evidence request (if applicable)
 * risks
 * status: `ready-for-pr` | `fix-required`
 
