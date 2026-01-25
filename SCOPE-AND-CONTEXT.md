@@ -167,4 +167,7 @@ Wenn dieses System korrekt eingesetzt wird:
 
 ---
 
+Copyright © 2026 Benjamin Fuchs.
+All rights reserved. See LICENSE.
+
 # Ende der Datei — SCOPE-AND-CONTEXT.md
