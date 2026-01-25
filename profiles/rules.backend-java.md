@@ -1,8 +1,9 @@
-# profiles/rules.backend-java.md
+# Backend Java Profile Rulebook
 Backend Java Profile Rulebook
 
 This document defines **backend Java** (Spring Boot) specific rules.
 It is applied **in addition** to the Core Rulebook (`rules.md`) and the Master Prompt (`master.md`).
+It defines staff-level defaults for reliability, observability, and review robustness in production backends.
 
 If this profile conflicts with the Core Rulebook or Master Prompt, the priority order applies:
 `master.md` > `rules.md` (Core) > this profile.
@@ -19,6 +20,11 @@ Unless the repository provides a different stack explicitly (and it is allowed b
 - OpenAPI Generator (if OpenAPI contract-first is used)
 - Flyway or Liquibase for DB migrations (repo-driven)
 
+Tooling defaults (repo-first):
+- Checkstyle (Google Java Style) / SpotBugs / Error Prone (if present)
+- Formatter via build plugin (if present)
+- Dependency vulnerability scanning (OWASP Dependency-Check / equivalent) if already established
+ 
 ---
 
 ## 2. Code Style (Backend Java)
@@ -29,6 +35,8 @@ Unless the repository provides a different stack explicitly (and it is allowed b
 - alphabetical imports
 - no `TODO` / `FIXME` in production code
 - prefer explicitness over cleverness (review robustness)
+- avoid “magic strings” for business codes; centralize as constants/enums
+- nullability must be explicit: prefer non-null defaults; use `Optional` only for return values, not fields/params
 
 ---
 
@@ -44,6 +52,12 @@ Unless the repository provides a different stack explicitly (and it is allowed b
 - central exception handling via `@ControllerAdvice`
 - avoid “god objects” (single class owning many unrelated responsibilities)
 
+Additional staff-level constraints:
+- Controllers must be thin orchestration: validation + mapping + delegation + HTTP concerns only.
+- Domain/Application code must not depend on Spring-specific APIs unless the repo pattern explicitly allows it.
+- Transaction boundaries must be explicit and reviewed (`@Transactional` placement and propagation).
+- Side effects (events, emails, external calls) must be isolated behind ports/adapters (or explicit infrastructure services).
+ 
 ### 3.2 Architecture Pattern Catalog (Detectable)
 
 A) **Layered architecture (default)**
@@ -71,6 +85,16 @@ C) **CQRS**
 - repository contains business/business-domain queries that belong to the service layer
 - service contains DB-specific code that belongs in persistence/infrastructure
 
+### 3.3 Reliability & Consistency (Backend Java) (Binding)
+
+- Idempotency: any externally triggered state change (REST command endpoints, event handlers) must be idempotent or explicitly documented as non-idempotent.
+- Retries: do not implement blind retries in application logic; if retries exist, they must be bounded, observable, and safe (idempotent).
+- Transactions:
+  - Prefer one transactional boundary per use-case.
+  - Avoid mixing DB transaction + external network calls in the same transaction; if required, document compensation strategy.
+  - If optimistic locking/versioning exists in the repo, honor it and test conflict behavior.
+- Time: use `Clock` injection for time-dependent logic; avoid `Instant.now()` directly in business logic. 
+
 ---
 
 ## 4. API Contracts (Backend Java)
@@ -80,6 +104,16 @@ C) **CQRS**
 - Breaking changes only via versioning or spec changes.
 
 If the repository is code-first (no authoritative OpenAPI present), document the mode explicitly and treat code as authoritative, but do not fabricate missing contracts.
+
+### 4.1 Error Contract (Backend Java) (Binding)
+
+- Error responses must be consistent and centrally defined (via `@ControllerAdvice`).
+- Prefer RFC 7807 "Problem Details" style responses if the repo already uses it; otherwise define a stable error shape:
+  - `code` (stable, machine-readable)
+  - `message` (human-readable, safe)
+  - `correlationId` / `traceId` (if tracing is established)
+  - `details` (optional, non-sensitive)
+- Do not leak internal exception messages, SQL, stack traces, or identifiers that should be confidential. 
 
 ---
 
@@ -177,7 +211,7 @@ If business rules extraction is executed, produce a structured inventory:
 
 - Given / When / Then structure is mandatory
 - expressive names: `methodName_shouldBehavior_whenCondition`
-- one test = one assertion focus (avoid unrelated multi-asserts)
+- one test = one **behavior** focus (multiple assertions allowed if they verify the same behavior/output)
 - add tests for changed/new behavior; no cosmetic-only tests
 
 ### 6.3 Coverage (Repo-First; Default Target)
@@ -187,6 +221,10 @@ Unless repo defines stricter standards:
 - ≥ 75% branch coverage for changed/new logic
 
 If mutation testing (e.g., PIT) is established in the repo, follow repo standards.
+
+Coverage interpretation (binding):
+- Coverage targets are a proxy, not the goal. If high coverage is achieved via low-signal tests, fail P5.3.
+- Prefer fewer high-signal tests over many shallow tests.
 
 ### 6.4 Mandatory Coverage Matrix (For Public Methods)
 
@@ -325,8 +363,12 @@ public final class TestData {
 
 ### 6.8 Mock Verification (Mandatory When Mocks Are Used)
 
-- Every mock interaction must be verified.
-- Ensure no unexpected interactions occur.
+Mocking policy (binding):
+- Do not overspecify implementation details. Verify only interactions that are part of the **contract** of the unit under test
+  (e.g., “publishes event”, “persists entity”, “calls external port”).
+- Prefer Mockito strict stubs (repo-driven) over blanket `verifyNoMoreInteractions` if it causes brittle tests.
+- Avoid mocking value objects / pure functions; mock boundaries (ports/adapters, repositories, external clients).
+- If verifying order, justify it (order must be behaviorally relevant). 
 
 ```java
 @Test
@@ -371,6 +413,14 @@ If tagging is not established:
 - Claims like “coverage is met” are only allowed if BuildEvidence is provided (command + output snippet).
 - Otherwise label as “theoretical / not verified”.
 
+### 6.11 Test Pyramid Defaults (Backend Java) (Binding)
+
+- Default mix per change (unless repo evidence suggests otherwise):
+  - Unit tests for business logic (primary)
+  - Slice tests for web/persistence boundaries when mapping/config is touched
+  - Integration tests only when required by risk (DB constraints, migrations, transactions, external adapters)
+- Any “heavy” test added must have a clear ROI statement (what risk it covers that unit/slice cannot).
+ 
 ---
 
 ## 7. Database / Migrations (Backend Java)
@@ -378,6 +428,36 @@ If tagging is not established:
 - prefer migrations (Flyway/Liquibase) over manual SQL changes
 - scripts must be traceable and reviewable
 - if repo uses Flyway, follow naming/version conventions and idempotency rules established in the repository
+
+Additional DB rules (binding):
+- Schema changes must include rollback/forward strategy as supported by the migration tool and repo practice.
+- For new constraints (unique/check/fk), add tests that demonstrate the behavior (happy path + violation).
+- Avoid long-running migrations in peak paths; if unavoidable, document operational impact.
+
+---
+
+## 8. Observability & Operations (Backend Java) (Binding)
+
+- Logging:
+  - Use structured logging if the repo supports it; otherwise keep logs consistent and searchable.
+  - Do not log secrets, tokens, passwords, raw personal data.
+  - Log at boundaries: request start/end (if established), external calls, state changes, and error handling.
+- Metrics/Tracing (repo-first):
+  - If Micrometer/tracing exists, add/extend metrics for new critical paths and include correlation IDs.
+- Configuration:
+  - No hard-coded environment URLs/credentials.
+  - Validate required configuration at startup where possible.
+
+## 9. Security-by-Default (Backend Java) (Binding)
+
+- Authorization must be explicit for externally reachable endpoints:
+  - if Spring Security is present, prefer annotation-based or centralized policy (repo-driven).
+- Input validation:
+  - For external inputs, use Bean Validation and fail fast with stable error codes.
+- Data handling:
+  - Avoid returning internal identifiers unless required; follow existing repo policy.
+- Dependency security:
+  - If the repo has dependency scanning gates, changes must not introduce new high/critical vulnerabilities without documented exception.
 
 ---
 
