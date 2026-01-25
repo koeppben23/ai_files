@@ -9,12 +9,22 @@ with architecture, contract, debt & QA gates
 
 ### Data sources & priority
 
-* Operational rules (technical, architectural) are defined in `rules.md`.
-* Preferred lookup order for `rules.md`:
+* Operational rules (technical, architectural) are defined in:
+  - `rules.md` (core technical rules)
+  - the active profile rulebook referenced by `SESSION_STATE.ActiveProfile` (e.g., `rules.backend-java.md`)
 
-  1. Global config path (`~/.config/opencode/commands/`)
+* Preferred lookup order for `rules.md` (core rulebook):
+  1. Global config path (`~/.config/opencode/rules/` or equivalent)
   2. Local project directory (`.opencode/`)
   3. Context manually provided in chat
+ 
+* Preferred lookup order for the active profile rulebook:
+  1. Global config path (`~/.config/opencode/commands/profiles/` or equivalent)
+  2. Local project directory (`.opencode/profiles/` or equivalent)
+  3. Context manually provided in chat
+
+Binding:
+* If `SESSION_STATE.ActiveProfile` is missing or ambiguous, the assistant must stop (BLOCKED) and request it.
 
 PURPOSE
 
@@ -30,7 +40,7 @@ It defines:
 This document has the highest priority over all other rules.
 
 The Master Prompt defines only process, priorities, and control logic.
-All technical and quality rules are defined exclusively in `rules.md`.
+All technical and quality rules are defined in `rules.md` plus the active profile rulebook (if any).
 
 ---
 
