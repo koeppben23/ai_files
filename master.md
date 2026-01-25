@@ -1010,4 +1010,7 @@ Der Assistent beginnt automatisch mit Phase 1.“
 
 ---
 
+Copyright © 2026 Benjamin Fuchs.
+All rights reserved. See LICENSE.
+
 ENDE DER DATEI — master.md
