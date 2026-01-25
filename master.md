@@ -25,7 +25,10 @@ with architecture, contract, debt & QA gates
 
 Binding:
 * If `SESSION_STATE.ActiveProfile` is missing or ambiguous, the assistant MUST stop (BLOCKED) and request it.
-
+* Exception (planning-only): If the user provided **no repository artifacts** and requested **planning/analysis only** (no code, no file edits), the assistant MAY proceed in Phase 4 without an ActiveProfile.
+  - In this exception, the assistant MUST remain in plan-only mode and MUST NOT generate code or make stack-specific claims.
+  - The assistant SHOULD ask for the intended profile before transitioning to any code-producing phase.
+ 
 PURPOSE
 
 This document controls the full AI-assisted development workflow.
@@ -113,7 +116,7 @@ unless a new blocker emerges.
 
 Implicit activation:
 
-* Ticket without artifacts → Phase 4
+* Ticket without artifacts → Phase 4 (planning-only unless ActiveProfile is explicit or repo-based detection is possible)
 * Repository upload → Phase 2
 * External API artifact → Phase 3A
 * Repo contains OpenAPI (`apis/`, `openapi/`, `spec/`) → Phase 3B-1
@@ -312,6 +315,7 @@ Every response from Phase 2 onward MUST end with the following block:
 ```text
 [SESSION_STATE]
 Phase=<1|2|3A|3B-1|3B-2|4|5|5.5|6> | Confidence=<0-100>% | Degraded=<active|inactive>
+# Note: Sub-gates (P5.3/P5.4/P5.5) are tracked via Gates/Next; Phase remains coarse-grained (do not set Phase=5.3 etc.).
 
 ActiveProfile:
   name: <backend-java|...>
@@ -344,8 +348,11 @@ BuildEvidence:
     - notes: <optional>
 
 BuildEvidenceRules:
-  - If status = not-provided: statements about build/test success must be labeled as "theoretical"
-  - BuildEvidence affects only confidence and release recommendations (not code quality)
+  - If status = not-provided: statements about build/test success must be labeled as "theoretical".
+  - BuildEvidence does not change code quality standards, but it **does** constrain which gates can be concluded.
+  - Gate requirements:
+    - P5 / P5.3 / P5.4 / P5.5: may be evaluated via static review; BuildEvidence is optional.
+    - P6 (ready-for-pr): requires BuildEvidence **unless** explicitly waived by the user in Overrides ("Static review only").
 
 BusinessRules:
   Inventory: <count> rules | not-extracted
