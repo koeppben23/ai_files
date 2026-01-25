@@ -25,3 +25,6 @@ If the SESSION_STATE is missing, incomplete, or inconsistent:
 - Do NOT proceed
 
 Acknowledge the loaded SESSION_STATE and wait for further instruction.
+
+Copyright © 2026 Benjamin Fuchs.
+All rights reserved. See LICENSE.
