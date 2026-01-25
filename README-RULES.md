@@ -96,7 +96,7 @@ The AI may switch flexibly between phases.
 
 ### Implicit Activation
 
-* Ticket without prior artifacts → start directly in Phase D
+* Ticket without prior artifacts → start directly in Phase 4
 * Repository upload → start in Phase A
 * API upload → start in Phase A
 
@@ -104,7 +104,7 @@ The AI may switch flexibly between phases.
 
 The following commands override all default rules:
 
-* “Start directly in Phase D.”
+* “Start directly in Phase 4.”
 * “Skip Phase A.”
 * “Work only on backend and ignore APIs.”
 * “Use the current session state to re-run discovery.”
@@ -282,3 +282,4 @@ Copyright © 2026 Benjamin Fuchs.
 All rights reserved. See LICENSE.
 
 **End of file — README-RULES.md**
+
