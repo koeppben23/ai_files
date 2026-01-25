@@ -1,213 +1,210 @@
-# Governance & Prompt System – Übersicht
+# Governance & Prompt System – Overview
 
-Dieses Repository enthält ein **mehrschichtiges Governance- und Prompt-System**
-für KI-gestützte Softwareentwicklung mit Fokus auf **Lead-/Staff-Qualität**,
-Nachvollziehbarkeit und Review-Festigkeit.
+This repository contains a **multi-layer governance and prompt system** for
+AI-assisted software development, designed for **Lead/Staff-level quality**,
+traceability, and review robustness.
 
-Das System ist so aufgebaut, dass es **sowohl im reinen Chat-Betrieb**
-als auch **repo-aware mit OpenCode** effizient und token-schonend eingesetzt
-werden kann.
+The system is built to work efficiently and token-aware in both:
+- **pure chat mode**, and
+- **repo-aware mode with OpenCode**
 
-Dieses README ist **beschreibend**, nicht normativ.
-Es erklärt Zweck, Aufbau und Nutzung – es steuert **nicht** das Verhalten der KI.
-
----
-
-## 1. Zielsetzung
-
-Das System adressiert ein zentrales Problem moderner KI-gestützter Entwicklung:
-
-> Wie erreicht man reproduzierbar **hohe Business- und Testqualität**,
-> ohne implizites Wissen, Abkürzungen oder Halluzinationen?
-
-Die Antwort ist eine **klare Trennung von Verantwortung**, ein
-**phasenbasierter Workflow** und **harte Gates** für Architektur,
-Businesslogik und Tests.
+This README is **descriptive**, not normative.
+It explains purpose, structure, and usage — it does **not** control the AI’s behavior.
 
 ---
 
-## 2. Logische Schichtung (Token-optimiert)
+## 1. Purpose
 
-Das System ist bewusst in **drei logische Schichten** aufgebaut.
-Diese Schichten sind **keine zusätzlichen Regeln**, sondern eine
-**Nutzungs- und Aktivierungsempfehlung**, um Tokenverbrauch und kognitive
-Last zu optimieren.
+This system addresses a central problem of modern AI-assisted development:
+
+> How do you achieve reproducibly **high business-logic and test quality**
+> without implicit assumptions, shortcuts, or hallucinations?
+
+The answer is a **clear separation of responsibilities**, a
+**phase-based workflow**, and **hard gates** for architecture,
+business logic, and tests.
+
+---
+
+## 2. Logical Layering (Token-Optimized)
+
+The system is intentionally organized into **three logical layers**.
+These layers are **not additional rules**, but a **usage and activation recommendation**
+to optimize token consumption and cognitive load.
 
 ### Layer 1 – Core Governance (Always-On)
 
-**Zweck:**  
-Stellt sicher, dass sich die KI korrekt verhält – unabhängig vom Kontext.
+**Purpose:**
+Ensures the AI behaves correctly — regardless of context.
 
-**Charakteristik:**
-- klein
-- immer aktiv
-- bestimmt *ob* gearbeitet wird, nicht *wie*
+**Characteristics:**
+- small
+- always active
+- determines *whether* work proceeds, not *how* it is performed
 
-**Inhaltlich umfasst Layer 1:**
-- Prioritätenordnung
-- Scope-Lock / Repo-First
-- Phasenübersicht (1–6)
-- Gate-Regeln (wann Code erlaubt ist)
-- Session-State-Mechanismus
-- Confidence / Degraded / Blocked-Verhalten
+**Layer 1 includes:**
+- priority ordering
+- scope lock / repo-first behavior
+- phase overview (1–6)
+- gate rules (when code is allowed)
+- session-state mechanism
+- confidence / degraded / blocked behavior
 
-**Primäre Dateien:**
+**Primary files:**
 - `master.md`
 - `SCOPE-AND-CONTEXT.md`
 
-Dieser Layer sollte **immer geladen** sein – sowohl im Chat als auch mit OpenCode.
+This layer should **always be loaded** — both in chat and with OpenCode.
 
 ---
 
 ### Layer 2 – Quality & Logic Enforcement (Phase-Scoped)
 
-**Zweck:**  
-Erzwingt **Lead-Qualität** für Architektur, Businesslogik und Tests.
+**Purpose:**
+Enforces **Lead-level quality** for architecture, business logic, and tests.
 
-**Charakteristik:**
-- inhaltlich stark
-- nur aktiv, wenn entsprechende Phasen erreicht werden
-- größter Qualitätshebel
+**Characteristics:**
+- content-heavy
+- only active when the corresponding phases are reached
+- the strongest quality lever
 
-**Inhaltlich umfasst Layer 2:**
-- Business-Rules Discovery (Phase 1.5)
-- Test-Quality-Regeln (Coverage-Matrix, Anti-Patterns)
-- Business-Rules-Compliance (Phase 5.4)
-- Architektur- und Coding-Guidelines
+**Layer 2 includes:**
+- Business Rules Discovery (Phase 1.5)
+- test quality rules (coverage matrix, anti-pattern detection)
+- business-rules compliance (Phase 5.4)
+- architecture and coding guidelines
 
-**Primäre Datei:**
+**Primary file:**
 - `rules.md`
 
-Dieser Layer wird **phasenabhängig aktiviert**
-(z. B. 1.5, 5.3, 5.4) und muss **nicht permanent im Kontext sein**.
+This layer is **activated phase-dependently**
+(e.g., 1.5, 5.3, 5.4) and does **not** need to be permanently in context.
 
 ---
 
 ### Layer 3 – Reference & Examples (Lazy-Loaded)
 
-**Zweck:**  
-Dient als **Nachschlagewerk** und zur Absicherung korrekter Interpretation.
+**Purpose:**
+Serves as a **reference** and ensures correct interpretation where needed.
 
-**Charakteristik:**
-- umfangreich
-- viele Beispiele
-- nicht entscheidungsrelevant
+**Characteristics:**
+- extensive
+- many examples
+- not decision-critical
 
-**Quelle:**
-- Beispiel- und Referenzabschnitte innerhalb von `rules.md`
+**Source:**
+- example and reference sections inside `rules.md`
 
-Dieser Layer sollte **nur bei Bedarf**
-(Unklarheit, Review, Audit) herangezogen werden.
+This layer should be consulted **only when needed**
+(ambiguity, review, audit).
 
 ---
 
-## 3. Einsatz im Chat (ChatGPT, Claude, etc.)
+## 3. Usage in Chat (ChatGPT, Claude, etc.)
 
-### Empfohlene Nutzung
+### Recommended workflow
 
-1. **Initial:**
+1. **Initial context:**
    - `master.md`
    - `SCOPE-AND-CONTEXT.md`
 
-2. **Arbeiten im Ticket:**
-   - Phasen laufen implizit
-   - `rules.md` wird erst bei relevanten Gates zugeschaltet
+2. **Working a ticket:**
+   - phases proceed implicitly
+   - `rules.md` is added only when relevant gates require it
 
-3. **Wichtig:**
-   - Businesslogik basiert im Chat ausschließlich auf
-     gelieferten Artefakten und expliziten Beschreibungen
-   - Externe fachliche Wahrheit kann nicht automatisch erkannt werden
+3. **Important:**
+   - in chat mode, business logic can only be derived from
+     provided artifacts and explicit descriptions
+   - external domain truth cannot be inferred automatically
 
 ---
 
-## 4. Einsatz mit OpenCode (repo-aware)
+## 4. Usage with OpenCode (Repo-Aware)
 
-### Empfohlene Nutzung
+### Recommended workflow
 
 1. **Initial:**
-   - OpenCode auf das Repository richten (Repo-Scan)
-   - `/master` ausführen
+   - point OpenCode to the repository (repo scan)
+   - run `/master`
 
 2. **Governance:**
    - `master.md`
    - `rules.md`
    - `SCOPE-AND-CONTEXT.md`
-   sind dauerhaft aktiv
+   stay permanently active
 
-3. **Vorteile:**
-   - Präzise Business-Rules Discovery aus realem Code
-   - Tests und Architektur passen sich dem Repo-Stil an
-   - Weniger Fehlannahmen, weniger Review-Reibung
+3. **Benefits:**
+   - precise business-rules discovery from real code
+   - tests and architecture align with repo conventions
+   - fewer wrong assumptions, less review friction
 
-OpenCode ist ein **Qualitätsverstärker**, kein Qualitätsgarant.
-Die Qualität entsteht durch die Kombination aus Repo-Kontext **und**
-den Gates dieses Systems.
+OpenCode is a **quality amplifier**, not a quality guarantee.
+Quality emerges from combining repo context **and** the gates in this system.
 
 ---
 
-## 5. Kommandos & Session-Steuerung (OpenCode)
+## 5. Commands & Session Control (OpenCode)
 
-Dieses Repository definiert drei zentrale Kommandos:
+This repository defines three core commands:
 
 ### `/master`
-Startet ein neues Vorhaben.
-- Lädt die komplette Governance
-- Initialisiert den Workflow
-- Setzt einen neuen `[SESSION_STATE]`
+Starts a new task.
+- loads full governance
+- initializes the workflow
+- sets a new `[SESSION_STATE]`
 
 ### `/resume`
-Setzt eine bestehende Session **deterministisch** fort.
-- Erwartet den letzten `[SESSION_STATE]`
-- Keine Re-Discovery
-- Keine Neuinterpretation
-- Keine neuen Annahmen
+Continues an existing session **deterministically**.
+- expects the last `[SESSION_STATE]`
+- no re-discovery
+- no reinterpretation
+- no new assumptions
 
 ### `/continue`
-Einheitliche Zustimmung zum Weitermachen.
-- Führt **ausschließlich** den Schritt aus,
-  der in `SESSION_STATE.Next` definiert ist
-- Umgeht keine Gates
-- Startet keine neuen Phasen
+Uniform consent to proceed.
+- performs **only** the step defined in `SESSION_STATE.Next`
+- does not bypass gates
+- does not start new phases
 
 ---
 
-## 6. Rolle der einzelnen Dateien
+## 6. Role of Each File
 
-| Datei                  | Zweck |
-|------------------------|-------|
-| `master.md`            | Zentrale Steuerung: Phasen, Gates, Session-State |
-| `rules.md`             | Technische, architektonische, Test- und Business-Regeln |
-| `README-RULES.md`      | Executive Summary (nicht normativ) |
-| `SCOPE-AND-CONTEXT.md` | Normative Abgrenzung von Verantwortung & Scope |
-| `resume.md`            | OpenCode-Command für kontrollierte Fortsetzung |
-| `continue.md`          | OpenCode-Command für einheitliches „Weitermachen“ |
-| `ResumePrompt.md`      | Manuelle/Fallback-Variante für Resume ohne Commands |
-
----
-
-## 7. Für wen ist dieses System gedacht?
-
-**Geeignet für:**
-- Senior / Lead / Staff Engineers
-- Review-intensive Codebases
-- Regulatorische oder audit-kritische Umgebungen
-- Teams mit expliziten Architektur- und Qualitätsstandards
-
-**Nicht geeignet für:**
-- Prototyping
-- exploratives Domain Modeling
-- schnelle MVPs ohne Artefakte
+| File | Purpose |
+|------|---------|
+| `master.md` | Central orchestration: phases, gates, session-state |
+| `rules.md` | Technical, architectural, test, and business rules |
+| `README-RULES.md` | Executive summary (not normative) |
+| `SCOPE-AND-CONTEXT.md` | Normative responsibility and scope boundary |
+| `resume.md` | OpenCode command for controlled continuation |
+| `continue.md` | OpenCode command for uniform “continue” execution |
+| `ResumePrompt.md` | Manual/fallback resume variant without commands |
 
 ---
 
-## 8. Leitprinzip
+## 7. Who Is This System For?
 
-> Lieber blockieren als raten.  
-> Lieber explizit als implizit.  
-> Lieber Governance als Geschwindigkeit.
+**Suitable for:**
+- Senior / Lead / Staff engineers
+- review-intensive codebases
+- regulated or audit-critical environments
+- teams with explicit architecture and quality standards
 
-Dieses System ist bewusst konservativ –
-und genau deshalb skalierbar und review-fest.
+**Not suitable for:**
+- prototyping
+- exploratory domain modeling
+- fast MVPs without artifacts
+
+---
+
+## 8. Guiding Principle
+
+> Better to block than to guess.
+> Better explicit than implicit.
+> Better governance than speed.
+
+This system is intentionally conservative —
+and that is precisely why it scales and remains review-robust.
 
 ---
 
@@ -217,4 +214,4 @@ Unauthorized use, copying, modification, or distribution is prohibited without e
 Note: The restrictions above do not apply to the copyright holder (Benjamin Fuchs),
 who may use this Work without limitation.
 
-_Ende der Datei_
+_End of file_
