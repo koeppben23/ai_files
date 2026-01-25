@@ -217,6 +217,160 @@ Rules:
 
 If heavy tests are not used, document the justification and how risks are covered.
 
+
+### 6.6 Concrete Test Patterns (Mandatory)
+
+**Pattern 1: Exception testing**
+
+Avoid overly generic assertions:
+
+```java
+@Test
+void shouldThrowException() {
+    assertThrows(Exception.class, () -> service.delete(1L));
+}
+```
+
+Prefer specific exceptions and verifiable attributes (code/message):
+
+```java
+@Test
+void deleteEntity_shouldThrowBusinessException_whenPreconditionsNotMet() {
+    // Given
+    var entity = aDomainEntityWithViolatingState();
+    when(repository.findById(entity.getId())).thenReturn(Optional.of(entity));
+
+    // When/Then
+    BusinessException ex = assertThrows(
+        BusinessException.class,
+        () -> service.delete(entity.getId())
+    );
+    assertThat(ex.getCode()).isEqualTo("PRECONDITION_FAILED");
+    assertThat(ex.getMessage()).contains("cannot be deleted");
+
+    verify(repository, never()).save(any());
+    verifyNoMoreInteractions(repository);
+}
+```
+
+**Pattern 2: State verification (persistence + side effects)**
+
+```java
+@Test
+void updateEntity_shouldPersistChanges_andPublishEvent() {
+    // Given
+    var existing = repository.save(aDomainEntity().build());
+    var request = validUpdateRequest();
+
+    // When
+    var result = service.update(existing.getId(), request);
+
+    // Then
+    assertThat(result.getName()).isEqualTo(request.name());
+
+    var persisted = repository.findById(existing.getId()).orElseThrow();
+    assertThat(persisted.getName()).isEqualTo(request.name());
+
+    verify(eventPublisher).publish(any(DomainEvent.class));
+    verifyNoMoreInteractions(eventPublisher);
+}
+```
+
+**Pattern 3: Isolation testing (transactions)**
+
+If a method is transactional and performs multiple steps, verify rollback behavior when a later step fails:
+
+```java
+@Test
+void createEntity_shouldRollback_whenSubsequentOperationFails() {
+    // Given
+    var request = validCreateRequest();
+    doThrow(new RuntimeException("Simulated failure"))
+        .when(auditService).logCreation(any());
+
+    // When
+    assertThrows(RuntimeException.class, () -> service.create(request));
+
+    // Then
+    assertThat(repository.findAll()).isEmpty();
+}
+```
+
+### 6.7 Test Data Management (Mandatory)
+
+Forbidden:
+- hard-coded IDs
+- hard-coded globally reused unique fields (e.g., email)
+- shared mutable fixtures across tests
+
+Mandatory: builder/factory helpers for deterministic and low-friction setup:
+
+```java
+public final class TestData {
+    private TestData() {}
+
+    public static DomainEntityBuilder aDomainEntity() {
+        return DomainEntity.builder()
+            .name("Test")
+            .externalId(UUID.randomUUID().toString());
+    }
+
+    public static DomainEntity aDomainEntityWithViolatingState() {
+        return aDomainEntity()
+            .status(Status.LOCKED)
+            .build();
+    }
+}
+```
+
+### 6.8 Mock Verification (Mandatory When Mocks Are Used)
+
+- Every mock interaction must be verified.
+- Ensure no unexpected interactions occur.
+
+```java
+@Test
+void createEntity_shouldCallDependencies_inOrder() {
+    // Given
+    var request = validCreateRequest();
+
+    // When
+    service.create(request);
+
+    // Then
+    InOrder inOrder = inOrder(validator, repository, eventPublisher);
+    inOrder.verify(validator).validate(request);
+    inOrder.verify(repository).save(any());
+    inOrder.verify(eventPublisher).publish(any());
+
+    verifyNoMoreInteractions(validator, repository, eventPublisher);
+}
+```
+
+### 6.9 JUnit Tagging (Conditional, Repo-First)
+
+Tagging is **required** if any of the following is true:
+- the repository already uses `@Tag(...)` in a non-trivial way, or
+- CI/build config (Surefire/Failsafe) selects tests via tags, or
+- repository documentation defines tagging as standard
+
+Recommended tags:
+`@Tag("unit")` | `@Tag("slice")` | `@Tag("integration")` | `@Tag("contract")`
+
+If tagging is established:
+- all new and modified tests must be tagged
+- when editing an existing untagged test, add an appropriate tag
+
+If tagging is not established:
+- tag newly created tests
+- do not refactor untouched tests solely to add tags
+
+### 6.10 Coverage Evidence (BuildEvidence Coupling)
+
+- Coverage targets apply to **changed/new logic**.
+- Claims like “coverage is met” are only allowed if BuildEvidence is provided (command + output snippet).
+- Otherwise label as “theoretical / not verified”.
+
 ---
 
 ## 7. Database / Migrations (Backend Java)
