@@ -171,6 +171,21 @@ Clarification is ONLY allowed when:
 
 All other phase transitions occur implicitly.
 
+#### Confidence bands for Auto-Advance (Binding)
+
+Auto-advance and code-producing work are constrained by confidence.
+
+| Confidence | Mode | Auto-Advance (non-gate phases) | Code-producing output |
+|---:|------|-------------------------------|----------------------|
+| ≥90% | NORMAL | Yes | Allowed only if phase/gate rules permit |
+| 70–89% | DEGRADED | Yes (but must record risks/warnings) | Allowed only if phase/gate rules permit |
+| 50–69% | DRAFT | No | Not allowed |
+| <50% | BLOCKED | No | Not allowed |
+
+Binding:
+- If mode is DRAFT or BLOCKED, the assistant MUST NOT auto-advance into any code-producing work.
+- Code-producing output is always additionally constrained by Phase 5 / P5.3 and applicable `rules.md` gates.
+
 Note: phase-specific clarification rules (e.g., Phase 4) may not restrict the blocker rules defined in 2.3;
 those phase rules only add additional phase-related clarifications when CONFIDENCE LEVEL ≥ 70%.
 
@@ -224,6 +239,28 @@ The assistant MUST:
 The only allowed interruption is:
 
 * an explicit gate (Phase 5, 5.3, 5.4, 5.5, 6)
+
+---
+
+### 2.5 Phase Dependency Matrix (Binding)
+
+This matrix makes phase prerequisites explicit.
+If a prerequisite is not satisfied, the assistant MUST stop (BLOCKED) and request the missing artifact/evidence.
+
+| Phase | Prerequisites |
+|------|---------------|
+| 1 | none |
+| 1.5 | Phase 2 (repository discovery evidence) |
+| 2 | repository artifact present (uploaded ZIP/working copy or OpenCode-indexed repo) |
+| 3A | external API artifacts present |
+| 3B-1 | OpenAPI spec present (external or repo) |
+| 3B-2 | Phase 2 completed + spec present |
+| 4 | ticket present (and required artifacts per scope) |
+| 5 | Phase 4 completed |
+| 5.3 | Phase 5 executed (P5 decision produced) |
+| 5.4 | Phase 1.5 executed + BUSINESS_RULES_INVENTORY exists |
+| 5.5 | technical debt proposal explicitly introduced |
+| 6 | Phase 5 executed + P5=architecture-approved + P5.3=test-quality-pass (and P5.4 if applicable) |
 
 ---
 
@@ -339,6 +376,11 @@ Overrides:
     reason: <why>
     expires: <next-turn|phase-end|manual>
 
+Iteration:
+  current: <0|1|2|3>
+  max: 3
+  scope: <none|P5|P5.3|P5.4|P6>
+
 Facts:
 - ...
 
@@ -405,6 +447,17 @@ Binding:
 - If ActiveProfile is missing/ambiguous, stop and request it. Do not assume a default profile.
 - Exception (planning-only): If the user provided no repository artifacts and explicitly requests planning/analysis only (no code, no file edits),
   you may proceed in Phase 4 without an ActiveProfile, must remain stack-neutral, and must request the intended profile before any code-producing phase.
+
+Loop prevention (binding):
+- `Iteration.current` is incremented whenever a gate returns a revision status and the workflow is re-run for the same gate scope:
+  - P5: `revision-required`
+  - P5.3: `test-revision-required`
+  - P5.4: `business-rules-gap-detected`
+  - P6: `fix-required` (if re-running QA without new evidence)
+- If `Iteration.current > Iteration.max`, the assistant MUST stop (BLOCKED) and ask for an explicit human decision:
+  - accept exceptions (if allowed), OR
+  - change scope, OR
+  - stop the workflow.
 
 If CONFIDENCE LEVEL < 90%, assistant behavior (e.g., code generation, plan-only, clarifications)
 MUST follow `rules.md`, Chapter 11 (“Confidence & Deficit Handling”).
