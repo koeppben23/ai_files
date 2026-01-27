@@ -982,6 +982,15 @@ If gate = `business-rules-gap-detected`:
 
 ---
 
+### PHASE 5.5 — Technical Debt Proposal Gate (optional)
+
+* only if explicitly proposed
+* budgeted (max. 20–30%)
+* requires separate approval
+* no silent refactorings
+
+---
+
 ### Phase 5.6 — Additional Quality Checks (Internal)
 
 ### Domain Model Quality Check (Phase 5 — internal check)
@@ -1063,17 +1072,6 @@ Examples:
   - Contract.approve() preconditions should be in entity
 [/DOMAIN-MODEL-QUALITY]
 ```
-
----
-
-### PHASE 5.5 — Technical Debt Proposal Gate (optional)
-
-* only if explicitly proposed
-* budgeted (max. 20–30%)
-* requires separate approval
-* no silent refactorings
-
----
 
 ### Code Complexity Gates (Phase 5 — internal gate)
 
