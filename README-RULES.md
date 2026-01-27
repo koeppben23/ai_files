@@ -121,11 +121,12 @@ The following commands override all default rules:
 * indentation: 4 spaces
 * structured logging, validation, error handling
 * strict adherence to architectural layers
+* Contract & Schema Evolution Gate is mandatory for DB, Kafka/event schemas, OpenAPI/external contracts, and contract/persisted enums
+* Change Matrix is mandatory for cross-cutting changes and MUST be verified before final output (STOP on inconsistencies)
 * test coverage ≥ 80% of changed logic
 * for newly created production classes, corresponding unit test classes
   (good / bad / edge cases) are mandatory
-  (see rules.md, Chapter 7.3 (Test Quality Rules),
-  especially 7.3.2 (Coverage Matrix per public method))
+  (see `rules.md`, Chapter 10 (Test Quality))
 
 **Build requirement:**
 
@@ -284,3 +285,4 @@ Copyright © 2026 Benjamin Fuchs.
 All rights reserved. See LICENSE.
 
 **End of file — README-RULES.md**
+
