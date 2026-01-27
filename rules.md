@@ -15,6 +15,38 @@ This file intentionally avoids stack-specific prescriptions.
 
 ---
 
+## 0. Governance Scope Model
+
+This system is structured into:
+
+### Core-Lite (Always Active)
+The Core-Lite defines non-negotiable governance rules.
+It is always active and MUST NOT be removed or weakened.
+
+Core-Lite includes:
+- Evidence-based reasoning
+- No fabrication / no guessing
+- Mandatory gates and STOP conditions
+- Change Matrix requirement
+- Contract & Schema Evolution Gate
+
+### Profiles (Context-Dependent)
+Profiles define domain-, stack-, or repository-specific rules.
+Profiles are loaded explicitly as needed.
+
+Examples:
+- backend-java
+- openapi-contracts
+- kafka-events
+- database-migrations
+- security-gdpr
+- repo-specific workflows
+
+Profiles MUST NOT override Core-Lite rules.
+Profiles MAY introduce additional gates.
+
+---
+
 ## 1. Role & Responsibilities (Core)
 
 The AI acts as:
@@ -176,7 +208,54 @@ Obligations:
 
 ### 6.3 Evidence Rules Never Relax Gates
 
-Evidence mode and confidence levels may **never** weaken gate requirements defined in `master.md`.
+Evidence mode and confidence levels may never weaken gate requirements
+defined in master.md or this rulebook.
+
+## 6.5 Contract & Schema Evolution Gate (MANDATORY)
+
+The gate MUST be explicitly passed before any code-producing output,
+including final output.
+
+This gate applies to any change that affects one or more of the following:
+- Database schema or migrations
+- Kafka event schemas
+- OpenAPI / external API contracts
+- Enums used in contracts or persisted data
+
+### Database
+- A forward-compatible migration is defined (Flyway/Liquibase or equivalent).
+- Nullability, defaults, and index impact are explicitly documented.
+- Rollback strategy is either:
+  - implemented, or
+  - explicitly declared as "no rollback" with justification.
+- Audit requirements (created/updated timestamps, history, traceability) are preserved.
+
+### Kafka / Event Schemas
+- Compatibility is evaluated:
+  - Backward compatible changes preferred.
+  - Field removal requires deprecation + transition phase.
+- Deprecated fields MUST remain until consumers are migrated.
+- Schema files are updated consistently with code changes.
+
+### OpenAPI / External APIs
+- Additive changes preferred.
+- Breaking changes require:
+  - explicit marking,
+  - versioning strategy, or
+  - documented consumer coordination.
+- Deprecated elements are annotated and documented.
+
+### Deprecation Policy
+- Deprecated elements MUST include:
+  - reason for deprecation,
+  - expected removal phase (release or condition),
+  - reference to successor (if any).
+
+### Evidence Requirement
+- The output MUST list all modified schema/contract files with paths.
+- Any intentional breaking change MUST be explicitly declared.
+
+Failure to satisfy this gate results in STOP.
 
 ---
 
@@ -201,6 +280,37 @@ When producing code changes:
 - Changes must be minimal, coherent, and review-friendly.
 - Avoid broad rewrites unless required by the ticket and justified with evidence.
 - Prefer explicitness over cleverness.
+
+## 7.5 Change Matrix (MANDATORY)
+
+The following matrix MUST be produced during planning for cross-cutting changes.
+
+| Layer / Artifact            | Change Required | File / Location | Notes |
+|----------------------------|-----------------|-----------------|-------|
+| Domain / Entity             | ☐ Yes ☐ No      |                 |       |
+| Database Migration          | ☐ Yes ☐ No      |                 |       |
+| Sync Transformer            | ☐ Yes ☐ No      |                 |       |
+| Mapper(s)                   | ☐ Yes ☐ No      |                 |       |
+| Enums                       | ☐ Yes ☐ No      |                 |       |
+| Kafka Event Schema          | ☐ Yes ☐ No      |                 |       |
+| OpenAPI / API Objects       | ☐ Yes ☐ No      |                 |       |
+| Test Data / Imports         | ☐ Yes ☐ No      |                 |       |
+| Unit / Integration Tests   | ☐ Yes ☐ No      |                 |       |
+
+The Change Matrix MUST be verified before final output.
+
+- All planned changes are implemented.
+- All affected files are listed with paths.
+- No layer marked as "Yes" is left unimplemented.
+
+Missing or inconsistent changes result in STOP.
+
+All relevant layers MUST be considered.
+Unchecked layers MUST be explicitly justified.
+
+If any layer involves schemas, contracts, persisted data, or enums,
+the Contract & Schema Evolution Gate (Section 6.5) MUST be evaluated
+and explicitly passed.
 
 ---
 
@@ -274,6 +384,3 @@ Profile & scope override handling (binding):
 
 Copyright © 2026 Benjamin Fuchs.
 All rights reserved. See LICENSE.
-
-
-
