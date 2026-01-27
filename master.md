@@ -99,7 +99,8 @@ Consequence:
 * Phase 3B-2: Contract validation (spec ↔ code)
 * Phase 4: Ticket execution (plan creation)
 * Phase 5: Lead architect review (gatekeeper)
-* Phase 5.3: Test quality review (CRITICAL)
+  - includes non-gating internal checks (e.g., Security/Performance/Concurrency heuristics)
+* Phase 5.3: Test quality review (CRITICAL gate within Phase 5)
 * Phase 5.4: Business rules compliance (only if Phase 1.5 executed)
 * Phase 5.5: Technical debt proposal gate (optional)
 * Phase 6: Implementation QA (self-review gate)
@@ -109,7 +110,7 @@ Code generation (production code, diffs) is ONLY permitted if the `SESSION_STATE
 GATE STATUS:
 
 * P5: `architecture-approved`
-* P5.3: `test-quality-pass`
+* P5.3: `test-quality-pass` OR `test-quality-pass-with-exceptions`
 
 Additionally, any mandatory gates defined in `rules.md` (e.g., Contract & Schema Evolution Gate, Change Matrix Verification)
 MUST be explicitly passed when applicable.
@@ -202,7 +203,7 @@ Explicit gates:
   * Gate status (P5): `pending` | `architecture-approved` | `revision-required`
 * Phase 5.3 (Test quality review): always a gate (CRITICAL)
 
-  * Gate status (P5.3): `test-quality-pass` | `test-revision-required`
+  * Gate status (P5.3): `test-quality-pass` | `test-quality-pass-with-exceptions` | `test-revision-required`
 * Phase 5.4 (Business rules compliance): only if Phase 1.5 was executed
 
   * Gate status (P5.4): `not-applicable` | `business-rules-compliant` | `business-rules-gap-detected` | `compliant-with-exceptions`
@@ -260,7 +261,7 @@ If a prerequisite is not satisfied, the assistant MUST stop (BLOCKED) and reques
 | 5.3 | Phase 5 executed (P5 decision produced) |
 | 5.4 | Phase 1.5 executed + BUSINESS_RULES_INVENTORY exists |
 | 5.5 | technical debt proposal explicitly introduced |
-| 6 | Phase 5 executed + P5=architecture-approved + P5.3=test-quality-pass (and P5.4 if applicable) |
+| 6 | Phase 5 executed + P5=architecture-approved + P5.3=(test-quality-pass OR test-quality-pass-with-exceptions) (and P5.4 if applicable) |
 
 ---
 
@@ -422,7 +423,7 @@ BusinessRules:
 
 Gates:
   P5:   <pending|architecture-approved|revision-required>
-  P5.3: <test-quality-pass|test-revision-required>
+  P5.3: <test-quality-pass|test-quality-pass-with-exceptions|test-revision-required>
   P5.4: <not-applicable|business-rules-compliant|business-rules-gap-detected|compliant-with-exceptions>
   P5.5: <not-requested|approved|rejected>
   P6:   <ready-for-pr|fix-required>
@@ -454,6 +455,16 @@ Loop prevention (binding):
   - P5.3: `test-revision-required`
   - P5.4: `business-rules-gap-detected`
   - P6: `fix-required` (if re-running QA without new evidence)
+
+Clarification:
+- `test-quality-pass-with-exceptions` is an ACCEPTED terminal outcome for P5.3.
+- It does NOT represent a revision request.
+- Therefore, `Iteration.current` MUST NOT be incremented when P5.3 =
+  `test-quality-pass-with-exceptions`.
+  Only explicit revision states trigger loop counting.
+
+“New evidence” means newly provided command output or logs added to
+`BuildEvidence.details`.
 - If `Iteration.current > Iteration.max`, the assistant MUST stop (BLOCKED) and ask for an explicit human decision:
   - accept exceptions (if allowed), OR
   - change scope, OR
@@ -803,6 +814,11 @@ Output:
 
 ---
 
+## Phase 5 — Internal Quality Checks (Non-gating)
+
+These checks are executed during Phase 5 as best-effort heuristics.
+They produce warnings only and MUST NOT block the workflow.
+
 ### Phase 5.1 — Security Heuristics (Best-Effort)
 
 WARNING: This is NOT a full security analysis.
@@ -834,6 +850,72 @@ Structurally checked:
 Output:
 
 * `[PERF-WARN-01] ...` (warnings only, no blockers)
+
+---
+
+### Phase 5.2b — Concurrency Safety Heuristics (Best-Effort)
+
+> WARNING: This is **not** a full concurrency analysis.
+> The purpose of this phase is to surface **high-risk concurrency patterns** early,
+> not to enforce refactorings or act as a hard gate.
+
+#### Scope
+
+This heuristic applies to:
+- write paths
+- state transitions
+- shared mutable data
+
+It is executed as part of **Phase 5 (Lead Architect Review)**.
+
+#### Heuristically Checked Patterns
+
+The assistant performs **best-effort, evidence-backed checks** for the following:
+
+- **[CONC-WARN-01] Non-atomic read–modify–write sequences**
+  - Example: entity is read, modified, and persisted without locking or versioning
+
+- **[CONC-WARN-02] Missing optimistic locking on mutable aggregates**
+  - Example: JPA entity without `@Version` that is updated concurrently
+
+- **[CONC-WARN-03] Non-idempotent operations without concurrency guards**
+  - Example: repeated requests may create duplicate side effects
+
+- **[CONC-WARN-04] Cache and database update inconsistency**
+  - Example: cache updated outside the same transactional boundary as the database
+
+- **[CONC-WARN-05] Missing transactional boundaries on write operations**
+  - Example: write methods without `@Transactional` or equivalent
+
+#### Output Format (Mandatory)
+
+All findings MUST be evidence-backed and reported as:
+
+```
+[CONCURRENCY-WARNINGS]
+- [CONC-WARN-01] PersonService.update(): read–modify–write without lock (PersonService.java:42)
+- [CONC-WARN-02] Order entity missing @Version field (Order.java:17)
+[/CONCURRENCY-WARNINGS]
+```
+
+#### Rules (Binding)
+
+- Findings are **warnings only** — they MUST NOT block the workflow
+- No automatic refactoring is implied or required
+- Each warning MUST reference concrete evidence (`file:line`)
+- Absence of warnings does **not** imply concurrency safety
+
+#### Intended Outcome
+
+This heuristic is designed to:
+- highlight potential production race conditions
+- improve review focus for high-risk areas
+- reduce late-discovered concurrency bugs
+
+It does **not** replace:
+- load testing
+- formal concurrency analysis
+- production observability
 
 ---
 
@@ -906,6 +988,39 @@ Gate rule:
 * if >20% of the coverage matrix is missing → `test-revision-required`
 * if anti-patterns are found → `test-revision-required`
 * otherwise → `test-quality-pass` (with warnings)
+
+#### Legacy Exception Path (Binding, Controlled)
+
+If test bootstrapping is **technically infeasible** within the given constraints
+(e.g., missing build tooling, forbidden dependencies, unresolvable environment gaps),
+P5.3 MUST NOT become a permanent blocker.
+
+In this case, the assistant MUST:
+
+1) Set:
+   - `Degraded=active`
+   - Gate decision: `test-quality-pass-with-exceptions`
+
+2) Record a mandatory risk:
+   - `Risk: [TEST-BOOTSTRAP-BLOCKED] <concrete reason>`
+
+3) Provide a **concrete enablement plan**, including:
+   - required tools or dependencies
+   - commands to initialize the test harness
+   - files or directories to be created
+   - estimated effort (rough order of magnitude)
+
+4) Explicitly state:
+   - which quality guarantees are reduced
+   - which risks remain unmitigated without tests
+
+This exception:
+- does NOT relax other gates (architecture, contracts, business rules)
+- does NOT allow silent progression to Phase 6 without user awareness
+- MUST be visible in the final `SESSION_STATE`
+
+This path exists to handle legacy or constrained environments,
+not to bypass test quality intentionally.
 
 ---
 
