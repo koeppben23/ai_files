@@ -257,6 +257,9 @@ This gate applies to any change that affects one or more of the following:
 
 Failure to satisfy this gate results in STOP.
 
+If a listed contract type (e.g., Kafka, OpenAPI) is not present in the repository,
+that subsection is treated as N/A and does not block the gate.
+
 ---
 
 ## 7. Output Rules (Core)
@@ -287,15 +290,24 @@ The following matrix MUST be produced during planning for cross-cutting changes.
 
 | Layer / Artifact            | Change Required | File / Location | Notes |
 |----------------------------|-----------------|-----------------|-------|
-| Domain / Entity             | ☐ Yes ☐ No      |                 |       |
-| Database Migration          | ☐ Yes ☐ No      |                 |       |
-| Sync Transformer            | ☐ Yes ☐ No      |                 |       |
-| Mapper(s)                   | ☐ Yes ☐ No      |                 |       |
-| Enums                       | ☐ Yes ☐ No      |                 |       |
-| Kafka Event Schema          | ☐ Yes ☐ No      |                 |       |
-| OpenAPI / API Objects       | ☐ Yes ☐ No      |                 |       |
-| Test Data / Imports         | ☐ Yes ☐ No      |                 |       |
-| Unit / Integration Tests   | ☐ Yes ☐ No      |                 |       |
+| Internal API / Ports          | ☐ Yes ☐ No ☐ N/A |              |       |
+| Domain / Entity               | ☐ Yes ☐ No ☐ N/A |              |       |
+| Database Migration            | ☐ Yes ☐ No ☐ N/A |              |       |
+| Sync Transformer              | ☐ Yes ☐ No ☐ N/A |              |       |
+| Mapper(s)                     | ☐ Yes ☐ No ☐ N/A |              |       |
+| Enums                         | ☐ Yes ☐ No ☐ N/A |              |       |
+| Kafka Event Schema            | ☐ Yes ☐ No ☐ N/A |              |       |
+| OpenAPI / API Objects         | ☐ Yes ☐ No ☐ N/A |              |       |
+| Test Data / Imports           | ☐ Yes ☐ No ☐ N/A |              |       |
+| Unit / Integration Tests      | ☐ Yes ☐ No ☐ N/A |              |       |
+| Configuration / Feature Flags | ☐ Yes ☐ No ☐ N/A |              |       |
+| Rollout / Migration Strategy  | ☐ Yes ☐ No ☐ N/A |              |       |
+| Observability / Monitoring    | ☐ Yes ☐ No ☐ N/A |              |       |
+
+Definitions:
+- Yes = Artifact exists in the repository and is impacted by this ticket
+- No  = Artifact exists but is not impacted by this ticket
+- N/A = Artifact does not exist in this repository or is out of scope
 
 The Change Matrix MUST be verified before final output.
 
