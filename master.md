@@ -28,6 +28,10 @@ Binding:
 * Exception (planning-only): If the user provided **no repository artifacts** and requested **planning/analysis only** (no code, no file edits), the assistant MAY proceed in Phase 4 without an ActiveProfile.
   - In this exception, the assistant MUST remain in plan-only mode and MUST NOT generate code or make stack-specific claims.
   - The assistant SHOULD ask for the intended profile before transitioning to any code-producing phase.
+
+Note:
+Planning-only mode corresponds to DRAFT behavior in `rules.md` Chapter 11,
+with the additional constraint of stack neutrality.
  
 PURPOSE
 
@@ -92,8 +96,8 @@ Consequence:
 ### 2.1 Standard Mode (Phases 1–6)
 
 * Phase 1: Load rules
-* Phase 1.5: Business Rules Discovery (optional)
 * Phase 2: Repository discovery
+* Phase 1.5: Business Rules Discovery (optional, requires Phase 2 evidence)
 * Phase 3A: API inventory (external artifacts)
 * Phase 3B-1: API logical validation (spec-level)
 * Phase 3B-2: Contract validation (spec ↔ code)
@@ -120,6 +124,10 @@ In Phase 5, code generation may proceed without further confirmation
 unless a new blocker emerges.
 P5.3 is a CRITICAL quality gate that must be satisfied before concluding readiness for PR (P6),
 but it does not forbid drafting/iterating on tests and implementation during Phase 5.
+Clarification:
+* During Phase 5, drafting code/tests is allowed (subject to P5 being executed).
+* "Ready-for-PR" conclusions (Phase 6) are only allowed after required gates (P5, P5.3, and P5.4 if applicable)
+  and evidence rules are satisfied.
  
 ---
 
@@ -170,6 +178,10 @@ Clarification is ONLY allowed when:
 * CONFIDENCE LEVEL < 70% (DRAFT or BLOCKED per `rules.md` Chapter 11)
 * an explicit gate is reached (Phase 5, 5.3, 5.4, 5.5, 6)
 
+Note:
+This section constrains *when* clarifications may interrupt auto-advance.
+It does not override the behavior matrix defined in `rules.md` Chapter 11.
+
 All other phase transitions occur implicitly.
 
 #### Confidence bands for Auto-Advance (Binding)
@@ -211,8 +223,12 @@ Explicit gates:
 
   * Gate status (P5.5): `not-requested` | `approved` | `rejected`
 * Phase 6 (Implementation QA): always a gate
-
+  
   * Gate status (P6): `ready-for-pr` | `fix-required`
+
+Additional mandatory gates (defined in `rules.md`, evaluated when applicable):
+* Contract & Schema Evolution Gate
+* Change Matrix Verification Gate
 
 Auto-advance rule:
 
@@ -230,6 +246,10 @@ The assistant MUST NOT:
 * ask for confirmation to start a phase
 * announce that a phase is starting
 * ask for permission to proceed
+
+Clarification:
+* Gate results (Phase 5 / 5.3 / 5.4 / 5.5 / 6) are explicit outputs and are permitted.
+* Only "phase-start announcements" and permission-seeking are forbidden by this section. 
 
 The assistant MUST:
 
@@ -484,7 +504,7 @@ it fully delegates execution to the behavior matrix defined there.
 
 Output:
 - none (silent)
-- auto-advance to Phase 2
+- auto-advance to Phase 2 (and optionally Phase 1.5 if enabled)
 
 ---
 
@@ -814,7 +834,7 @@ Output:
 
 ---
 
-## Phase 5 — Internal Quality Checks (Non-gating)
+### Phase 5 — Internal Quality Checks (Non-gating)
 
 These checks are executed during Phase 5 as best-effort heuristics.
 They produce warnings only and MUST NOT block the workflow.
@@ -966,7 +986,7 @@ C) Test data quality check
 
 D) Anti-pattern detection
 
-Automatic BLOCKER if:
+Automatic gate failure (test-revision-required) if:
 
 * `assertNotNull()` is the only assertion
 * `assertThrows(Exception.class)` instead of a concrete exception
@@ -1241,20 +1261,20 @@ Examples:
 [/DOMAIN-MODEL-QUALITY]
 ```
 
-### Code Complexity Gates (Phase 5 — internal gate)
+### Code Complexity Checks (Phase 5 — internal check)
 
 ### Cyclomatic Complexity Check
 
 Thresholds:
 
-* method: ≤ 10 (WARNING if >10, BLOCKER if >15)
+* method: ≤ 10 (WARNING if >10, HIGH-RISK WARNING if >15)
 * class: ≤ 50 (WARNING if >50)
 * package: ≤ 200
 
 **Example (too complex):**
 
 ```java
-public void processOrder(Order order) {  // Complexity: 18 ← BLOCKER
+public void processOrder(Order order) {  // Complexity: 18 ← HIGH-RISK WARNING
     if (order == null) return;
     if (order.getStatus() == null) throw ...;
     if (order.getCustomer() == null) throw ...;
@@ -1291,7 +1311,7 @@ Recommendation: Extract methods
 Thresholds:
 
 * method: ≤ 15 (WARNING)
-* nested levels: ≤ 3 (BLOCKER if >3)
+* nested levels: ≤ 3 (HIGH-RISK WARNING if >3)
 
 **Output:**
 
@@ -1302,9 +1322,9 @@ High-Complexity-Methods: 3
   - ContractService.approve: Cyclomatic=12, Cognitive=15
 
 Deep-Nesting: 2
-  - OrderService.calculate: 4 levels (BLOCKER)
+  - OrderService.calculate: 4 levels (HIGH-RISK WARNING)
 
-Gate: complexity-warning (no blocker, but requires review attention)
+Result: complexity-warning (warnings only; requires review attention)
 [/CODE-COMPLEXITY-REPORT]
 ```
 
