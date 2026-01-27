@@ -163,7 +163,7 @@ Clarification is ONLY allowed when:
 * artifacts are missing or incomplete
 * results are NOT MAPPABLE
 * specifications are contradictory
-* CONFIDENCE LEVEL < 70% (DRAFT or BLOCKED per `rules.md` 10.2)
+* CONFIDENCE LEVEL < 70% (DRAFT or BLOCKED per `rules.md` Chapter 11)
 * an explicit gate is reached (Phase 5, 5.3, 5.4, 5.5, 6)
 
 All other phase transitions occur implicitly.
@@ -401,7 +401,7 @@ Binding:
   you may proceed in Phase 4 without an ActiveProfile, must remain stack-neutral, and must request the intended profile before any code-producing phase.
 
 If CONFIDENCE LEVEL < 90%, assistant behavior (e.g., code generation, plan-only, clarifications)
-MUST follow `rules.md`, Chapter 10 (“Error, Gaps & Confidence Handling”).
+MUST follow `rules.md`, Chapter 11 (“Confidence & Deficit Handling”).
 
 In this case, the Master Prompt does not make an additional operational decision;
 it fully delegates execution to the behavior matrix defined there.
@@ -698,13 +698,13 @@ Creates:
 
 #### Clarifications in Phase 4 — priority and conditions
 
-A0) CONFIDENCE LEVEL < 50% (BLOCKED MODE per `rules.md` 10.2)
+A0) CONFIDENCE LEVEL < 50% (BLOCKED MODE per `rules.md` Chapter 11)
 
 * only a plan sketch is delivered
 * blockers are stated explicitly
 * no inference-based reconstruction
 
-A) CONFIDENCE LEVEL 50–69% (DRAFT MODE per `rules.md` 10.2)
+A)  CONFIDENCE LEVEL 50–69% (DRAFT MODE per `rules.md` Chapter 11)
 
 * only a plan is delivered (no implementation)
 * clarifications are allowed only if they match the global blocker rules from Section 2.3
@@ -779,7 +779,7 @@ Output:
 
 ### Phase 5.3 — Test Quality Review (CRITICAL)
 
-Mandatory review of generated tests against `rules.md` Chapter 7.3.
+Mandatory review of generated tests against `rules.md` Chapter 10 (Test Quality).
 
 #### Legacy / Testless Repositories — Test Bootstrap Rule (Binding)
 
@@ -975,7 +975,7 @@ If gate = `business-rules-gap-detected`:
 
 ---
 
-## Phase 5 — Additional Quality Checks
+### Phase 5.6 — Additional Quality Checks (Internal)
 
 ### Domain Model Quality Check (Phase 5 — internal check)
 
@@ -1169,11 +1169,7 @@ Output:
 ---
 
 ## 6. RESPONSE RULES
-
-* no fabrication
-* evidence required
-* max. 5 files
-* max. 300 diff lines
+Response and output constraints are defined in `rules.md` (Core Rulebook).
 
 ---
 
