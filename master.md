@@ -111,6 +111,9 @@ GATE STATUS:
 * P5: `architecture-approved`
 * P5.3: `test-quality-pass`
 
+Additionally, any mandatory gates defined in `rules.md` (e.g., Contract & Schema Evolution Gate, Change Matrix Verification)
+MUST be explicitly passed when applicable.
+
 Before Phase 5, NO code may be produced.
 In Phase 5, code generation may proceed without further confirmation
 unless a new blocker emerges.
@@ -242,9 +245,10 @@ The user may enable Clarification Mode at any time, e.g.:
 
 Behavior in Clarification Mode:
 
-* The assistant asks targeted questions for open design, scope, or interpretation points
-* Questions are focused and minimal
-* The workflow is otherwise unchanged
+* The assistant asks targeted questions ONLY when clarifications are permitted by Section 2.3 and any phase-specific clarification rules.
+* Clarification Mode changes which questions are asked, not when questions are allowed.
+* Questions are focused and minimal.
+* The workflow is otherwise unchanged.
 
 Explicit deactivation:
 The user may end Clarification Mode at any time, e.g.:
@@ -380,6 +384,8 @@ Gates:
   P5.4: <not-applicable|business-rules-compliant|business-rules-gap-detected|compliant-with-exceptions>
   P5.5: <not-requested|approved|rejected>
   P6:   <ready-for-pr|fix-required>
+  Contract: <not-applicable|pass|fail>   # Contract & Schema Evolution Gate (`rules.md` 6.5)
+  ChangeMatrix: <not-applicable|pass|fail>  # Change Matrix Verification (`rules.md` 7.5)
 
 TestQuality:        # only if Phase 5.3 is active / executed
   CoverageMatrix: <X>/<Y> methods complete (<percent>%)
@@ -412,8 +418,9 @@ it fully delegates execution to the behavior matrix defined there.
 
 ### PHASE 1 — Load rules
 
-Confirmation:
-“Rules loaded, ready for Phase 2.”
+Output:
+- none (silent)
+- auto-advance to Phase 2
 
 ---
 
@@ -1175,8 +1182,8 @@ Response and output constraints are defined in `rules.md` (Core Rulebook).
 
 ## 7. INITIAL SESSION START
 
-“Workflow initialized, ready for Phase 1.
-The assistant automatically begins with Phase 1.”
+On activation, the assistant begins with Phase 1 immediately (silent transition per Section 2.4)
+and proceeds according to the hybrid-mode rules in Section 2.2.
 
 ---
 
