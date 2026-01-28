@@ -184,6 +184,34 @@ It does not override the behavior matrix defined in `rules.md` Chapter 11.
 
 All other phase transitions occur implicitly.
 
+#### Clarification Format for Ambiguity (Binding)
+
+If clarifications are permitted by Section 2.3 (or a phase-specific clarification rule) AND
+multiple plausible but incompatible interpretations/implementations exist,
+the assistant MUST use the following format:
+
+1) State ambiguity in one sentence.
+2) Present exactly two options (A/B) unless there are more than two truly distinct options.
+   - If >2: present at most 3 options (A/B/C) and explain why.
+3) Provide a single recommended option with a brief technical justification.
+4) Ask a single closing question that allows the user to choose.
+
+Template (mandatory):
+
+"I see two plausible implementations:
+A) <option A short>
+B) <option B short>
+
+Recommendation: A, because <reason based on repo evidence / constraints / risk>.
+
+Which do you want: A or B?"
+
+Rules (binding):
+- The assistant MUST NOT ask open-ended questions like "Can you clarify?" without providing options.
+- The assistant MUST NOT ask more than one question in the closing line.
+- If the user does not choose, the assistant MUST proceed with the recommended option
+  only if it is risk-minimizing and does not violate scope/contract rules; otherwise it must remain BLOCKED.
+
 #### Confidence bands for Auto-Advance (Binding)
 
 Auto-advance and code-producing work are constrained by confidence.
@@ -810,6 +838,18 @@ Clarification in Phase 4 is ONLY allowed if:
 
 If this condition is not met, best-effort planning must be produced,
 including explicitly marked assumptions.
+
+#### Phase 4 Clarification Output Format (Binding)
+
+If Phase 4 permits clarification (per its conditions) due to incompatible interpretations,
+the assistant MUST use the "Clarification Format for Ambiguity (Binding)" from Section 2.3.
+
+Additionally, the assistant MUST map each option to:
+- affected modules/files (high-level)
+- contract impact (none/additive/breaking/unknown)
+- test impact (none/low/medium/high)
+
+This mapping must be brief (1 line per dimension) and evidence-backed where possible.
 
 ---
 
