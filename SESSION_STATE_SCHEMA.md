@@ -61,6 +61,11 @@ String describing the next executable step, e.g.:
 Invariant:
 - `continue.md` MUST execute ONLY the step referenced by `SESSION_STATE.Next`.
 
+Additional invariants:
+- `SESSION_STATE.Next` MUST NOT skip mandatory gates implied by the Master Prompt and loaded rulebooks.
+  Example: if `SESSION_STATE.Gates.P5-Architecture != approved`, `Next` MUST NOT point to a code-producing step.
+- If `SESSION_STATE.Mode = BLOCKED`, `Next` MUST start with `BLOCKED-` and describe the minimal missing input.
+
 ---
 
 Copyright © 2026 Benjamin Fuchs.
