@@ -140,6 +140,28 @@ SESSION_STATE.ProfileEvidence = "/path/to/rulebook" | "pom.xml, src/main/java"
 - Exactly ONE profile rulebook exists → use it (with logging)
 - User explicitly specified profile → use it
 
+---
+
+## OPENAPI CODEGEN (GENERATED DTOs) — CONTRACT VALIDATION SUPPORT (BINDING)
+
+This repository uses OpenAPI code generation (DTOs/interfaces may be generated).
+
+Binding:
+1) The assistant MUST NOT broadly scan `target/` or `build/` by default.
+2) Generated-source lookup is enabled ONLY if at least one trigger is present:
+   - Build config indicates codegen (e.g., openapi-generator / swagger-codegen plugin), OR
+   - a generated-sources directory already exists, OR
+   - user provides BuildEvidence that generation ran, OR
+   - user explicitly requests generated-source inclusion.
+3) If enabled, the assistant MAY check ONLY these default locations:
+   - Maven: `target/generated-sources/**`
+   - Gradle: `build/generated/**`
+   - plus generator-configured output dirs ONLY if discovered in build files.
+4) A build is NOT required to proceed with the workflow.
+   If contract validation depends on generated classes that are not present yet:
+   - Phase 3B-2 is `not-executable` (NOT BLOCKED)
+   - Continue to Phase 4 with an explicit risk recorded.
+
 ### PURPOSE
 
 This document controls the full AI-assisted development workflow.
@@ -856,6 +878,22 @@ BLOCKED: API spec validation failed. Please fix the broken reference in order-se
    * Field in code but not in spec (extra field)
    * Type mismatch (spec says String, code uses Integer)
 
+#### Phase 3B-2 Execution Rules (Binding) — Prevent false BLOCKED
+
+Phase 3B-2 MUST NOT go BLOCKED simply because controllers/DTOs/models cannot be found.
+
+Status classification:
+- executable:
+  - Spec exists AND repository code exists AND at least one mapping can be established.
+- not-executable (non-blocking):
+  - Spec exists, but required code artifacts are missing OR DTOs/interfaces appear to be generated and generated outputs are not present.
+  - In this case:
+    - Record `Risk: [CONTRACT-VALIDATION-NOT-EXECUTABLE] <reason>`
+    - Continue to Phase 4 (planning) using available evidence
+    - Do NOT BLOCK
+- blocked:
+  - Spec is invalid (broken `$ref`, schema errors), OR truly NOT MAPPABLE contradictions require user choice.
+
 **Output format:**
 
 ```
@@ -894,8 +932,9 @@ Proceeding to Phase 4 (Ticket Execution)...
 ```
 
 **Phase 3B-2 exit conditions:**
-* Success: All contracts validated → Proceed to Phase 4
-* Critical mismatches: Mode: BLOCKED, request fixes
+* Executable + no critical issues: Proceed to Phase 4
+* Executable + critical mismatches: Mode: BLOCKED, request fixes
+* Not-executable (missing code artifacts / generated outputs not present): Proceed to Phase 4 WITH `Risk: [CONTRACT-VALIDATION-NOT-EXECUTABLE] ...`
 * Warnings only: Proceed to Phase 4 with warnings recorded
 
 ---
