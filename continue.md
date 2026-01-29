@@ -1,4 +1,4 @@
-Continue the current session strictly according to the canonical SESSION_STATE.
+Continue the current session strictly according to the canonical SESSION_STATE (see `SESSION_STATE_SCHEMA.md`).
 
 - Do NOT re-run discovery
 - Do NOT change phases
