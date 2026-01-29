@@ -182,6 +182,10 @@ OpenCode enables **repo-first governance**.
    - fewer wrong assumptions
    - lower review friction
 
+4. **Optional: ADR decision memory**
+   - If you keep an `ADR.md` in the repo, the system can reuse past architecture decisions
+   - This reduces repeated discussions and prevents silent architecture drift
+
 > OpenCode is a **quality amplifier**, not a quality guarantee.  
 > Quality emerges from **repo context + enforced gates**.
 
