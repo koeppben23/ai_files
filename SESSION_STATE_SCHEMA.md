@@ -61,6 +61,8 @@ String describing the next executable step, e.g.:
 Invariant:
 - `continue.md` MUST execute ONLY the step referenced by `SESSION_STATE.Next`.
 
+---
+
 Copyright © 2026 Benjamin Fuchs.
 All rights reserved. See LICENSE.
 
