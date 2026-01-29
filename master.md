@@ -1012,7 +1012,19 @@ Proceeding to Phase 4 (Ticket Execution)...
    * Identify affected APIs (based on Phase 3 analysis)
    * Identify affected business rules (based on Phase 1.5, if executed)
 
-2. **Create implementation plan:**
+2. **Produce Ticket Record (Mini-ADR + NFR Checklist) — REQUIRED:**
+   The goal is to reduce user cognitive load and make the ticket’s key trade-offs explicit.
+
+   **Mini-ADR constraints (binding):**
+   - 5–10 lines max.
+   - Must include: Context, Decision, Rationale, Consequences, Rollback/Feature-Flag (or explicit “no rollback needed”), and optional Open Questions.
+
+   **NFR checklist constraints (binding):**
+   - Cover at least: Security/Privacy, Observability, Performance, Migration/Compatibility, Rollback/Release safety.
+   - Each item must be one short line: `OK | N/A | Risk | Needs decision` + one sentence.
+   - If anything is `Risk` or `Needs decision`, record it in `SESSION_STATE.Risks` or `SESSION_STATE.Blockers`.
+
+3. **Create implementation plan:**
    * List all files to be created/modified
    * List all tests to be created/modified
    * List all migrations to be created (if database changes)
@@ -1025,13 +1037,13 @@ Binding: Update `SESSION_STATE.TouchedSurface` with:
    - SchemaPlanned (migration paths, if any)
    - SecuritySensitive (true/false, with one-line reason)
 
-3. **Identify risks:**
+4. **Identify risks:**
    * Breaking changes (API, database, etc.)
    * Performance implications
    * Security implications
    * Concurrency issues
 
-4. **Check for ambiguities:**
+5. **Check for ambiguities:**
    * If multiple implementations are plausible → Use Clarification Format (Section 2.3)
    * If requirements are contradictory → Mode: BLOCKED, request clarification
 
@@ -1046,6 +1058,20 @@ Affected Components:
   - UserService (new method)
   - User entity (new field: `active`)
   - UserRepository (query method)
+
+Ticket Record (Mini-ADR):
+  Context: Provide “deactivate” without deleting user data (auditability retained).
+  Decision: Soft-deactivate via `active` flag + `POST /users/{id}/deactivate` endpoint.
+  Rationale: Aligns with semantics, preserves history, supports potential reactivation.
+  Consequences: Queries must filter `active=true`; consider index if table is large.
+  Rollback/Release safety: Feature flag (`user.deactivation.enabled`) + keep schema additive.
+
+NFR Checklist:
+  - Security/Privacy: OK — ensure authz enforced; avoid logging PII.
+  - Observability: OK — structured log + optional metric on deactivations.
+  - Performance: Risk — may need index on `users.active`; validate with DB stats.
+  - Migration/Compatibility: OK — additive column with default; backward compatible.
+  - Rollback: OK — disable flag; schema remains safe.
 
 Implementation Plan:
 
@@ -1101,6 +1127,13 @@ SESSION_STATE:
     ContractsPlanned: []
     SchemaPlanned: []
     SecuritySensitive: false
+  TicketRecordDigest: "Soft-deactivate via `active` flag + endpoint; rollback via feature flag; perf: index if needed"
+  NFRChecklist:
+    SecurityPrivacy: "OK — authz enforced; no PII logging"
+    Observability: "OK — structured log + optional metric"
+    Performance: "Risk — index `users.active` if needed"
+    MigrationCompatibility: "OK — additive schema change"
+    RollbackReleaseSafety: "OK — disable flag" 
   Risks: ["RISK-001: Existing queries may need active filter", "RISK-002: Index on active column recommended"]
   
 Proceeding to Phase 5 (Lead Architect Review)...
@@ -1157,6 +1190,12 @@ Which do you want: A or B?
    * Are layers respected (e.g., no Controller → Repository direct calls)?
    * Are dependencies clean (no circular dependencies)?
    * Is the plan consistent with existing conventions?
+   
+1.5 **Ticket Record & NFR sanity check (REQUIRED):**
+   * Confirm Phase 4 produced a Ticket Record (Mini-ADR + NFR Checklist).
+   * Verify the plan addresses each NFR item or records an explicit exception.
+   * Ensure Rollback/Release safety is concrete (feature flag, backout, or reversible steps).
+   * If missing or inconsistent: record a blocker and return to Phase 4 (do not approve P5).
 
 2. **API contract review (if API changes):**
    * Are API changes backward-compatible?
