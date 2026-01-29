@@ -149,6 +149,17 @@ All technical and quality rules are defined in `rules.md` plus the active profil
 
 ---
 
+## ADR (Architecture Decision Records) — Optional Decision Memory (Binding)
+
+If the repository contains an `ADR.md`, treat it as a constraint source (per `rules.md`).
+
+When the assistant proposes or confirms a **non-trivial architectural decision** (examples: boundaries, persistence, API contract approach, major dependency/tooling change, migration strategy):
+- The assistant MUST explicitly offer to record the decision as an ADR entry.
+- If the user agrees, the assistant MUST output a unified diff that appends a complete ADR entry to `ADR.md`.
+- If the user declines, proceed without recording, but keep the decision explicit in the response.
+
+---
+
 ## 1. PRIORITY ORDER
 
 If rules conflict, the following order applies:
