@@ -570,9 +570,10 @@ Binding:
    * Update `SESSION_STATE.Scope.Repository`
    * Update `SESSION_STATE.Scope.RepositoryType`
    * Update `SESSION_STATE.DiscoveryResults`
-   * Create a **RepoMapDigest** (compact system model) and store it in session state
-   * Establish a **WorkingSet** (top files/dirs likely touched) and store it in session state
-   * Initialize **DecisionDrivers** (constraints/NFRs inferred from repo evidence) and store it in session state
+   * Populate `SESSION_STATE.RepoModel` (compact system model; binding)
+   * Establish `SESSION_STATE.WorkingSet` (top files/dirs likely touched)
+   * Initialize `SESSION_STATE.DecisionDrivers` (constraints/NFRs inferred from repo evidence)
+   * Initialize `SESSION_STATE.TouchedSurface` (planned surface area; starts empty)
  
 4. **Verify against profile:**
    * Does the detected stack match the active profile?
@@ -619,6 +620,42 @@ SESSION_STATE:
     ArchitecturePattern: "Layered"
     TechStack: ["Spring Boot 3.2", "Java 21", "Maven", "JUnit 5", "Mockito", "Flyway"]
     APIContracts: ["/apis/user-service.yaml", "/apis/order-service.yaml"]
+  RepoModel:
+    Modules:
+      - name: "user"
+        paths: ["src/main/java/.../user/**"]
+        responsibility: "User domain + service layer"
+        owners: []
+    EntryPoints:
+      - kind: "http"
+        location: "src/main/java/.../Application.java"
+        notes: "Spring Boot entrypoint"
+    DataStores:
+      - kind: "postgres"
+        evidence: "src/main/resources/application.yml, db/migration/**"
+        ownership: "user"
+    BuildAndTooling:
+      buildSystem: "maven"
+      codegen: []
+      ci: []
+    Testing:
+      frameworks: ["junit5", "mockito"]
+      notes: ""
+    ArchitecturalInvariants:
+      - "Controller → Service → Repository (no layer skipping)"
+    Hotspots: []
+  DecisionDrivers:
+    - "Backward compatibility for public APIs (evidence: apis/*.yaml)"
+    - "Schema evolution via Flyway (evidence: db/migration/**)"
+  WorkingSet:
+    - "src/main/java/.../user/** (likely domain/service changes)"
+    - "src/test/java/.../user/** (tests for touched logic)"
+    - "db/migration/** (only if schema change)"
+  TouchedSurface:
+    FilesPlanned: []
+    ContractsPlanned: []
+    SchemaPlanned: []
+    SecuritySensitive: false
   ...
   
 Proceeding to Phase 4 (Ticket Execution)...  # or Phase 3A depending on artifacts
@@ -636,6 +673,11 @@ Proceeding to Phase 4 (Ticket Execution)...  # or Phase 3A depending on artifact
 **When to execute:**
 * Explicit user request: "Extract business rules first"
 * Default: Skip unless requested
+* **Recommendation trigger (non-blocking):** Recommend executing Phase 1.5 if Phase 2 evidence indicates any of:
+  - domain-heavy services/policies/specifications/state machines
+  - validation rules beyond simple CRUD (multi-entity invariants)
+  - non-trivial authorization/entitlement logic embedded in services
+  - frequent “magic constants” / hard-coded rule branches in core workflows
 
 **When NOT to execute:**
 * "Skip business-rules discovery"
@@ -644,6 +686,15 @@ Proceeding to Phase 4 (Ticket Execution)...  # or Phase 3A depending on artifact
 **Objective:** Extract and document business rules from the repository.
 
 **Actions:**
+
+0. **Fast Path eligibility check (efficiency, non-breaking):**
+   Set `SESSION_STATE.FastPath = true` only if ALL are true:
+   - Small change surface (≈ ≤3 files; no new module/boundary)
+   - No contract changes (OpenAPI/GraphQL/etc.)
+   - No schema/migration changes
+   - Not security-sensitive surface (authn/authz/crypto/secrets/PII/logging)
+   Otherwise set `SESSION_STATE.FastPath = false`.
+   Always set `SESSION_STATE.FastPathReason` (short, evidence-backed).
 
 1. **Scan for business logic:**
    * Service layer methods
@@ -978,6 +1029,12 @@ Proceeding to Phase 4 (Ticket Execution)...
    * List all API changes (if contract changes)
    * Estimate complexity (simple, medium, complex)
 
+Binding: Update `SESSION_STATE.TouchedSurface` with:
+   - FilesPlanned (all concrete file paths)
+   - ContractsPlanned (OpenAPI/GraphQL/proto/asyncapi paths, if any)
+   - SchemaPlanned (migration paths, if any)
+   - SecuritySensitive (true/false, with one-line reason)
+
 3. **Identify risks:**
    * Breaking changes (API, database, etc.)
    * Performance implications
@@ -1047,6 +1104,13 @@ SESSION_STATE:
   Mode: NORMAL
   ConfidenceLevel: 85
   ...
+  FastPath: false
+  FastPathReason: ""
+  TouchedSurface:
+    FilesPlanned: ["<paths...>"]
+    ContractsPlanned: []
+    SchemaPlanned: []
+    SecuritySensitive: false
   Risks: ["RISK-001: Existing queries may need active filter", "RISK-002: Index on active column recommended"]
   
 Proceeding to Phase 5 (Lead Architect Review)...
@@ -1089,6 +1153,14 @@ Which do you want: A or B?
 **Gate type:** EXPLICIT (requires user confirmation to proceed)
 
 **Actions:**
+
+0. **Fast Path handling (if `SESSION_STATE.FastPath = true`):**
+   Phase 5 remains an explicit gate, but review scope is reduced to:
+   - Architecture fit (no boundary/layer violations vs RepoModel invariants)
+   - Change Matrix completeness (must exist)
+   - Test plan adequacy for touched surface
+   - Security sanity check limited to touched surface
+   Skip deep dives unless the ticket or evidence indicates higher risk.
 
 1. **Architectural review:**
    * Does the plan follow the repository's architecture pattern?
