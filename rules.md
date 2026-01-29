@@ -451,6 +451,47 @@ This is required whenever implementation planning or changes are produced.
 
 ---
 
+### 8.0 Ticket Record (Mini-ADR + NFR Checklist) — REQUIRED in Phase 4 planning
+
+Purpose:
+- Reduce cognitive load by making the ticket’s key trade-offs explicit.
+- Provide a PR-ready mini design note that survives beyond chat history.
+
+Binding rules:
+1) Whenever Phase 4 planning is produced, the assistant MUST include a **Ticket Record** consisting of:
+   - **Mini-ADR** (5–10 lines max): Context, Decision, Rationale, Consequences, Rollback/Release safety, and optional Open Questions.
+   - **NFR Checklist** (one short line per item): `OK | N/A | Risk | Needs decision` + one sentence.
+2) The NFR Checklist MUST cover at least:
+   - Security/Privacy
+   - Observability
+   - Performance
+   - Migration/Compatibility
+   - Rollback/Release safety
+3) Any `Risk` MUST be added to `SESSION_STATE.Risks`.
+   Any `Needs decision` MUST be added to `SESSION_STATE.Blockers` (Mode may remain NORMAL if non-blocking, but the decision must be surfaced).
+4) The assistant MUST set:
+   - `SESSION_STATE.TicketRecordDigest` (one-line summary)
+   - `SESSION_STATE.NFRChecklist` (object; MAY be elided in MIN output if the digest already captures exceptions)
+
+Recommended output template:
+
+```
+Ticket Record (Mini-ADR):
+  Context: <1 line>
+  Decision: <1 line>
+  Rationale: <1 line>
+  Consequences: <1 line>
+  Rollback/Release safety: <1 line>
+  Open questions: <optional>
+
+NFR Checklist:
+  - Security/Privacy: <OK|N/A|Risk|Needs decision> — <1 sentence>
+  - Observability: <OK|N/A|Risk|Needs decision> — <1 sentence>
+  - Performance: <OK|N/A|Risk|Needs decision> — <1 sentence>
+  - Migration/Compatibility: <OK|N/A|Risk|Needs decision> — <1 sentence>
+  - Rollback/Release safety: <OK|N/A|Risk|Needs decision> — <1 sentence>
+```
+
 ## 8.1 Business Rules Traceability (Binding when Phase 1.5 executed)
 
 If Phase 1.5 (Business Rules Discovery) was executed (i.e., `SESSION_STATE.Scope.BusinessRules = extracted`),
@@ -542,6 +583,7 @@ Profile & scope override handling (binding):
 
 Copyright © 2026 Benjamin Fuchs.
 All rights reserved. See LICENSE.
+
 
 
 
