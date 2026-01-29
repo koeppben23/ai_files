@@ -196,6 +196,9 @@ There is no implicit session memory.
 - Accept blocking as a quality feature
 - Use chat mode for **thinking**, not bulk editing
 
+If you want architectural decisions to persist across sessions, provide or maintain an `ADR.md`
+and paste it into the chat when resuming. This acts as long-term decision memory.
+
 If full repo context is required, consider switching to
 **OpenCode repo-aware mode**.
 
