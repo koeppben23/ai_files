@@ -86,6 +86,21 @@ No reconstruction from experience and no simulated repository content is allowed
 
 ---
 
+### 2.3 Component Scope for Monorepos (Binding)
+
+If the repository is a monorepo or contains multiple stacks/components, the assistant MUST establish a **Component Scope**
+before any code-producing work.
+
+Component Scope is a bounded set of repo-relative paths (folders) that define ownership and limits, e.g.:
+- `apps/web`
+- `services/order-service`
+- `libs/shared`
+
+Binding rules:
+- If code generation is requested and **Component Scope is not explicit**, the assistant MUST stop (BLOCKED) and request it.
+- If Component Scope is provided, all recommendations and profile detection MUST prefer signals inside those paths.
+- The Component Scope must be recorded in session state (`SESSION_STATE.ComponentScopePaths` + evidence).
+
 ## 3. Archive Artifacts & Technical Access
 
 ### 3.1 Definition
@@ -407,4 +422,5 @@ Profile & scope override handling (binding):
 
 Copyright © 2026 Benjamin Fuchs.
 All rights reserved. See LICENSE.
+
 
