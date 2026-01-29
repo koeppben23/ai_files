@@ -218,6 +218,61 @@ If produced:
 
 ---
 
+## 11. Ticket Record (Phase 4+; cognitive-load reducer)
+
+After a successful Phase 4 plan (`SESSION_STATE.Phase = 4` and `Mode != BLOCKED`), the session MUST include:
+
+- `SESSION_STATE.TicketRecordDigest` (string; one-line summary)
+
+Recommended (especially in FULL output):
+
+- `SESSION_STATE.NFRChecklist` (object; short per-item notes)
+- `SESSION_STATE.TicketRecord` (object; expanded record if needed)
+
+### 11.1 TicketRecordDigest (required)
+
+A one-liner that captures:
+- the chosen implementation approach
+- the rollback/release-safety mechanism
+- any NFR exceptions (Risk / Needs decision)
+
+Example:
+- `"Soft-deactivate via active flag; rollback via feature flag; perf risk: index needed"`
+
+### 11.2 NFRChecklist (recommended)
+
+Minimal keys (strings, keep short):
+
+- `SecurityPrivacy`
+- `Observability`
+- `Performance`
+- `MigrationCompatibility`
+- `RollbackReleaseSafety`
+
+Recommended convention:
+- Each value begins with `OK | N/A | Risk | Needs decision`.
+
+### 11.3 TicketRecord (optional; FULL-mode detail)
+
+If included, a compact object such as:
+
+```
+TicketRecord:
+  MiniADR:
+    Context: "..."
+    Decision: "..."
+    Rationale: "..."
+    Consequences: "..."
+    RollbackReleaseSafety: "..."
+    OpenQuestions: ["..."]
+  NFRChecklist:
+    SecurityPrivacy: "OK — ..."
+    Observability: "OK — ..."
+    Performance: "Risk — ..."
+    MigrationCompatibility: "OK — ..."
+    RollbackReleaseSafety: "OK — ..."
+```
+
 Copyright © 2026 Benjamin Fuchs.
 All rights reserved. See LICENSE.
 
