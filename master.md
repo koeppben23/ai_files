@@ -570,7 +570,10 @@ Binding:
    * Update `SESSION_STATE.Scope.Repository`
    * Update `SESSION_STATE.Scope.RepositoryType`
    * Update `SESSION_STATE.DiscoveryResults`
-
+   * Create a **RepoMapDigest** (compact system model) and store it in session state
+   * Establish a **WorkingSet** (top files/dirs likely touched) and store it in session state
+   * Initialize **DecisionDrivers** (constraints/NFRs inferred from repo evidence) and store it in session state
+ 
 4. **Verify against profile:**
    * Does the detected stack match the active profile?
    * If mismatch detected → Risk: [PROFILE-MISMATCH], consider asking for clarification
