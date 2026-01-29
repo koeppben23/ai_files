@@ -111,6 +111,12 @@ Rules:
 1) All planning and reviews MUST be grounded in the Working Set unless evidence requires expansion.
 2) If the plan expands beyond the Working Set, the assistant MUST update `TouchedSurface` accordingly.
 
+Additional binding:
+3) `SESSION_STATE.TouchedSurface` is the authoritative source for:
+   - determining review depth,
+   - triggering security sanity checks,
+   - evaluating Fast Path eligibility (see below).
+
 ## 3. Archive Artifacts & Technical Access
 
 ### 3.1 Definition
@@ -324,6 +330,21 @@ that subsection is treated as N/A and does not block the gate.
 
 ## 7. Output Rules (Core)
 
+### 7.x Fast Path Awareness (Binding, Non-Bypass)
+
+If `SESSION_STATE.FastPath = true` (as determined in Phase 4 per Master Prompt):
+
+Rules:
+1) Fast Path MAY reduce review depth and verbosity.
+2) Fast Path MUST NOT:
+   - bypass explicit gates (Phase 5, 5.3, 5.4, 5.5, 6),
+   - weaken evidence requirements,
+   - bypass Contract & Schema Evolution Gate,
+   - bypass scope lock or component scope rules.
+3) Change Matrix, Security Sanity Checks (if applicable), and Test Quality expectations remain mandatory.
+
+Fast Path is an efficiency optimization, not a correctness shortcut.
+
 ### 7.1 No Fabrication (Binding)
 
 - No invented files, APIs, classes, endpoints, or behavior.
@@ -387,6 +408,10 @@ The Change Matrix MUST be verified before final output.
 
 These checks are **mandatory** whenever the touched surface includes auth, data access, configuration, logging, or external I/O.
 They are **not** a replacement for a full security review.
+
+Binding trigger:
+- If `SESSION_STATE.TouchedSurface.SecuritySensitive = true`,
+  Security Sanity Checks MUST be explicitly evaluated and reported.
 
 Minimum checks:
 1) **Secrets:** no new hard-coded secrets/keys/tokens; no credentials in config committed by default.
@@ -483,6 +508,7 @@ Profile & scope override handling (binding):
 
 Copyright © 2026 Benjamin Fuchs.
 All rights reserved. See LICENSE.
+
 
 
 
