@@ -21,6 +21,15 @@ This system is **designed and optimized** for the following contexts:
 * ✅ Contract-first API development (OpenAPI)
 * ✅ Classic backend systems (REST / optionally GraphQL)
 
+#### 1.1.1 Secondary Supported Scope (Not Primary Optimization Target)
+
+The system can also be used for **focused frontend work** when the scope is clearly bounded and ownership is clear:
+
+* ✅ Angular / Nx (when explicitly scoped to frontend-owned folders and an appropriate profile is active)
+* ✅ Monorepos **with explicit component ownership** (see “Component Scope” / bounded scope expectations)
+
+This secondary scope is **supported**, but the system is not optimized for “frontend-first” or UI-heavy product development.
+
 ### 1.2 Organizational & Process Scope
 
 * ✅ Structured ticket-based development (e.g., Jira)
@@ -59,9 +68,9 @@ not deliver optimal results there:
 ### 2.2 Technology Scope
 
 * ❌ Non-Java stacks
-* ❌ Frontend-heavy applications
+* ❌ Frontend-heavy applications as the primary focus (UI-first, rapid iteration without stable artifacts/contracts)
 * ❌ Script- or notebook-based development
-* ❌ Unstructured monorepos without clear ownership
+* ❌ Unstructured monorepos without clear ownership or bounded component scope
 
 ### 2.3 Expectation Anti-Patterns
 
