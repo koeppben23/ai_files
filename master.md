@@ -35,15 +35,19 @@ with architecture, contract, debt & QA gates
 2. **Auto-detection from available rulebooks** (NEW!)
    - If ONLY ONE profile rulebook exists → use it automatically
    - Search paths:
-     a. `~/.config/opencode/commands/rules_*.md`
-     b. `~/.config/opencode/commands/rules.*.md`
-     c. `~/.config/opencode/rules/rules_*.md`
-     d. `~/.config/opencode/rules/profiles/rules_*.md`
+     a. `~/.config/opencode/commands/rules*.md`
+     b. `~/.config/opencode/commands/rules*.md`
+     c. `~/.config/opencode/rules/rules*.md`
+     d. `~/.config/opencode/rules/profiles/rules*.md`
+     e. `.opencode/commands/rules*.md`
+     f. `.opencode/rules/profiles/rules*.md`
+     g. `profiles/rules.*.md` (repo-local)
+     h. `profiles/rules*.md` (repo-local)
    
    **Auto-selection logic:**
    ```
    IF user did NOT specify profile explicitly:
-     found_profiles = scan_all_search_paths_for("rules_*.md")
+     found_profiles = scan_all_search_paths_for(["rules_*.md","rules.*.md","rules-*.md"])
      
      IF found_profiles.count == 1:
        ActiveProfile = extract_profile_name(found_profiles[0])
@@ -200,6 +204,7 @@ If two rules conflict at the same priority level or the conflict is ambiguous:
 
 * Phase 1: Load rules (with AUTO-DETECTION)
 * Phase 2: Repository discovery
+* Phase 2.1: Decision Pack (default, non-gate; reduces cognitive load)
 * Phase 1.5: Business Rules Discovery (optional, requires Phase 2 evidence)
 * Phase 3A: API inventory (external artifacts)
 * Phase 3B-1: API logical validation (spec-level)
@@ -396,10 +401,21 @@ This default behavior may be overridden by explicit commands (e.g., "Start direc
 
 ## 3. SESSION STATE (REQUIRED)
 
-Every response MUST include updated `SESSION_STATE` (except during conversational interactions
-where no phase-relevant processing occurs).
+`SESSION_STATE_SCHEMA.md` is the **canonical contract**. This section defines the **output policy** and a compact template.
+If anything here conflicts with the schema, the schema wins.
 
-Required format:
+### 3.1 Output Policy (Binding)
+
+- Default: output `SESSION_STATE` in **MIN** mode (compact, continuation-critical keys only).
+- Output **FULL** mode is REQUIRED when:
+  1) the current step is an explicit gate (Phase 5 / 5.3 / 5.4 / 5.5 / 6), OR
+  2) `SESSION_STATE.Mode = BLOCKED`, OR
+  3) Phase 2 just completed and this is the first time `RepoMapDigest` is produced, OR
+  4) the user explicitly requests FULL state.
+
+MIN mode SHOULD remain below ~40 lines. FULL mode should remain a digest (no large enumerations).
+
+### 3.2 MIN Template (Binding)
 
 ```yaml
 SESSION_STATE:
@@ -410,50 +426,11 @@ SESSION_STATE:
 
   LoadedRulebooks:
     core: "<path/to/rules.md>"
-    profile: "<path/to/rules_<profile>.md>"
+    profile: "<path/to/profile-rulebook.md>"  # empty string allowed only for planning-only mode
   
   ActiveProfile: "<profile-name>"
   ProfileSource: "user-explicit" | "auto-detected-single" | "repo-fallback" | "component-scope-inferred" | "ambiguous"
   ProfileEvidence: "<path-or-indicators>"
-  
-  Scope:
-    Repository: <name/path or "not provided">
-    RepositoryType: <detected stack, e.g., "Spring Boot (Maven)" | "Next.js" | "unknown">
-    ExternalAPIs: [<list of provided API specs/files>]
-    BusinessRules: extracted | not-applicable | pending
-  
-  DiscoveryResults:
-    ArchitecturePattern: <e.g., "Layered" | "Hexagonal" | "CQRS" | "unknown">
-    TechStack: [<list of detected technologies>]
-    APIContracts: [<list of discovered APIs>]
-
-  # Canonical repo understanding artifact (Binding). Phase 2 MUST populate this.
-  RepoModel:
-    Modules:
-      - name: "<module>"
-        paths: ["<repo-relative/path>"]
-        responsibility: "<one-line>"
-        owners: ["<team/person>"]
-    EntryPoints:
-      - kind: "http" | "cli" | "job" | "messaging" | "other"
-        location: "<path>"
-        notes: "<one-line>"
-    DataStores:
-      - kind: "postgres" | "mysql" | "mongodb" | "redis" | "other"
-        evidence: "<path(s)>"
-        ownership: "<module/team>"
-    BuildAndTooling:
-      buildSystem: "<maven|gradle|nx|npm|...>"
-      codegen: ["<openapi-generator|swagger-codegen|...>"]
-      ci: ["<github-actions|gitlab-ci|...>"]
-    Testing:
-      frameworks: ["<junit5|jest|...>"]
-      notes: "<gaps/hotspots>"
-    ArchitecturalInvariants:
-      - "<rule that should not be violated>"
-    Hotspots:
-      - path: "<path>"
-        reason: "<churn|complexity|bugs|...>"
   
   Gates:
     P5-Architecture: pending | approved | rejected
@@ -462,32 +439,24 @@ SESSION_STATE:
     P5.5-TechnicalDebt: pending | approved | rejected | not-applicable
     P6-ImplementationQA: pending | ready-for-pr | fix-required
   
-  BuildEvidence:
-    status: not-provided | partially-provided | provided-by-user
-    details: <description of provided evidence, if any>
-  
-  Risks: [<list of risk IDs with brief descriptions>]
-  Blockers: [<list of blocker IDs with brief descriptions>]
-  
-  Warnings: [<list of non-blocking warnings>]
+  Risks: []
+  Blockers: []
+  Warnings: []
 ```
 
-**Field descriptions:**
+Binding:
+- `SESSION_STATE.Next` MUST be set at the end of every phase output.
+- `continue.md` MUST execute ONLY the step referenced by `SESSION_STATE.Next`.
 
-* **Phase**: Current phase of the workflow
-* **Mode**: Confidence-based operation mode (per Section 2.3)
-* **ConfidenceLevel**: 0-100 percentage reflecting the assistant's confidence in its understanding/analysis
-* **LoadedRulebooks**: Paths to the loaded core and profile rulebooks
-* **ActiveProfile**: Name of the active profile (e.g., "backend-java")
-* **ProfileSource**: How the profile was determined
-* **ProfileEvidence**: Evidence used to determine the profile (file path or repo indicators)
-* **Scope**: What artifacts are available in the current session
-* **DiscoveryResults**: Findings from Phase 2 (Repository discovery)
-* **Gates**: Status of all workflow gates
-* **BuildEvidence**: Status of build/test evidence provided by the user
-* **Risks**: Non-blocking issues that require attention
-* **Blockers**: Critical issues that prevent proceeding
-* **Warnings**: Informational notices
+### 3.3 FULL Mode Additions (Binding when FULL required)
+
+When FULL mode is required, the assistant MUST additionally include, when available:
+
+- `Scope` (repo name/type, external APIs, business rules status)
+- `RepoMapDigest` (canonical repo understanding artifact; Phase 2 SHOULD populate it)
+- `DecisionDrivers`, `WorkingSet`, `TouchedSurface`
+- `DecisionPack` (if produced; recommended after Phase 2)
+- `BuildEvidence` (if relevant)
 
 ---
 
@@ -570,7 +539,7 @@ Binding:
    * Update `SESSION_STATE.Scope.Repository`
    * Update `SESSION_STATE.Scope.RepositoryType`
    * Update `SESSION_STATE.DiscoveryResults`
-   * Populate `SESSION_STATE.RepoModel` (compact system model; binding)
+   * Populate `SESSION_STATE.RepoMapDigest` (compact system digest; binding)
    * Establish `SESSION_STATE.WorkingSet` (top files/dirs likely touched)
    * Initialize `SESSION_STATE.DecisionDrivers` (constraints/NFRs inferred from repo evidence)
    * Initialize `SESSION_STATE.TouchedSurface` (planned surface area; starts empty)
@@ -620,7 +589,7 @@ SESSION_STATE:
     ArchitecturePattern: "Layered"
     TechStack: ["Spring Boot 3.2", "Java 21", "Maven", "JUnit 5", "Mockito", "Flyway"]
     APIContracts: ["/apis/user-service.yaml", "/apis/order-service.yaml"]
-  RepoModel:
+  RepoMapDigest:
     Modules:
       - name: "user"
         paths: ["src/main/java/.../user/**"]
@@ -657,13 +626,34 @@ SESSION_STATE:
     SchemaPlanned: []
     SecuritySensitive: false
   ...
+
+[PHASE-2.1-DECISION-PACK]  # DEFAULT (recommended)
+
+After Phase 2, produce a compact Decision Pack to reduce user cognitive load.
+This is not a gate; it is a deterministic *decision distillation* step.
+
+Rules (binding):
+- 3–7 decisions max.
+- Each decision MUST include: Options (A/B), Recommendation, Evidence, What would change it.
+- If there are no meaningful decisions yet, output: "Decision Pack: none (no material choices identified)".
+
+Example:
+
+D-001: <decision one-liner>
+  A) <option A>
+  B) <option B>
+  Recommendation: <A or B> (why, evidence-backed)
+  Evidence: <paths/configs/symbols>
+  What would change it: <minimal missing evidence>
+
+[/PHASE-2.1-DECISION-PACK]
   
 Proceeding to Phase 4 (Ticket Execution)...  # or Phase 3A depending on artifacts
 (Phase 1.5 is skipped unless explicitly requested.)
 ```
 
 **Phase 2 exit conditions:**
-* Success: Repository scanned, findings documented → Proceed to Phase 4 by default; Phase 1.5 only if explicitly requested; Phase 3A if external API artifacts exist.
+* Success: Repository scanned, findings documented → Proceed to **Phase 2.1 (Decision Pack)** by default, then Phase 4; Phase 1.5 only if explicitly requested; Phase 3A if external API artifacts exist.
 * Failure: Repository not accessible, extraction failed → Mode: BLOCKED
 
 ---
@@ -1156,7 +1146,7 @@ Which do you want: A or B?
 
 0. **Fast Path handling (if `SESSION_STATE.FastPath = true`):**
    Phase 5 remains an explicit gate, but review scope is reduced to:
-   - Architecture fit (no boundary/layer violations vs RepoModel invariants)
+   - Architecture fit (no boundary/layer violations vs RepoMapDigest invariants)
    - Change Matrix completeness (must exist)
    - Test plan adequacy for touched surface
    - Security sanity check limited to touched surface
