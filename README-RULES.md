@@ -141,13 +141,14 @@ mvn -B -DskipITs=false clean verify
 Typical outputs (summary; authoritative details in master.md / rules.md):
 
 1. **Plan** (numbered, executable)
-2. **Diffs** (max 300 lines per block, max 5 files per response)
-3. **New files** (complete)
-4. **Unit / slice / integration tests**
-5. **How-to-run / test instructions**
-6. **Traceability matrix**
-7. **Evidence list**
-8. **Open issues & assumptions**
+2. **Ticket Record (Mini-ADR + NFR checklist)** (5–10 lines + NFR statuses)
+3. **Diffs** (max 300 lines per block, max 5 files per response)
+4. **New files** (complete)
+5. **Unit / slice / integration tests**
+6. **How-to-run / test instructions**
+7. **Traceability matrix**
+8. **Evidence list**
+9. **Open issues & assumptions**
 
 For larger changes, additionally:
 
@@ -285,4 +286,5 @@ Copyright © 2026 Benjamin Fuchs.
 All rights reserved. See LICENSE.
 
 **End of file — README-RULES.md**
+
 
