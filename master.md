@@ -35,10 +35,10 @@ with architecture, contract, debt & QA gates
 2. **Auto-detection from available rulebooks** (NEW!)
    - If ONLY ONE profile rulebook exists → use it automatically
    - Search paths:
-     a. `~/.config/opencode/rules/rules_*.md`
-     b. `~/.config/opencode/rules/profiles/rules_*.md`
-     c. `.opencode/rules_*.md`
-     d. `.opencode/profiles/rules_*.md`
+     a. `~/.config/opencode/commands/rules_*.md`
+     b. `~/.config/opencode/commands/rules.*.md`
+     c. `~/.config/opencode/rules/rules_*.md`
+     d. `~/.config/opencode/rules/profiles/rules_*.md`
    
    **Auto-selection logic:**
    ```
@@ -223,12 +223,17 @@ Additionally, any mandatory gates defined in `rules.md` (e.g., Contract & Schema
 MUST be explicitly passed when applicable.
 
 Before Phase 5, NO code may be produced.
-In Phase 5, code generation may proceed without further confirmation
-unless a new blocker emerges.
+Phase 5 is an explicit gate.
+After the gate report, the assistant MUST wait for explicit user confirmation
+before proceeding to any code-producing activities.
+If a new blocker emerges, switch to BLOCKED and request the minimal missing input.
 P5.3 is a CRITICAL quality gate that must be satisfied before concluding readiness for PR (P6),
 but it does not forbid drafting/iterating on tests and implementation during Phase 5.
 Clarification:
-* During Phase 5, drafting code/tests is allowed (subject to P5 being executed).
+* During Phase 5, drafting is allowed only as **plan-level pseudocode** or **test-case outlines**.
+  Producing actual unified diffs / production code changes remains forbidden until:
+  - P5-Architecture = approved AND user confirmed proceeding, and
+  - P5.3-TestQuality = pass|pass-with-exceptions.
 * "Ready-for-PR" conclusions (Phase 6) are only allowed after required gates (P5, P5.3, and P5.4 if applicable)
   and evidence rules are satisfied.
  
@@ -408,7 +413,7 @@ SESSION_STATE:
     profile: "<path/to/rules_<profile>.md>"
   
   ActiveProfile: "<profile-name>"
-  ProfileSource: "user-explicit" | "auto-detected-single" | "repo-fallback" | "ambiguous"
+  ProfileSource: "user-explicit" | "auto-detected-single" | "repo-fallback" | "component-scope-inferred" | "ambiguous"
   ProfileEvidence: "<path-or-indicators>"
   
   Scope:
@@ -423,32 +428,32 @@ SESSION_STATE:
     APIContracts: [<list of discovered APIs>]
 
   # Canonical repo understanding artifact (Binding). Phase 2 MUST populate this.
-    RepoModel:
-      Modules:
-        - name: "<module>"
-          paths: ["<repo-relative/path>"]
-          responsibility: "<one-line>"
-          owners: ["<team/person>"]
-      EntryPoints:
-        - kind: "http" | "cli" | "job" | "messaging" | "other"
-          location: "<path>"
-          notes: "<one-line>"
-      DataStores:
-        - kind: "postgres" | "mysql" | "mongodb" | "redis" | "other"
-          evidence: "<path(s)>"
-          ownership: "<module/team>"
-      BuildAndTooling:
-        buildSystem: "<maven|gradle|nx|npm|...>"
-        codegen: ["<openapi-generator|swagger-codegen|...>"]
-        ci: ["<github-actions|gitlab-ci|...>"]
-      Testing:
-        frameworks: ["<junit5|jest|...>"]
-        notes: "<gaps/hotspots>"
-      ArchitecturalInvariants:
-        - "<rule that should not be violated>"
-      Hotspots:
-        - path: "<path>"
-          reason: "<churn|complexity|bugs|...>"
+  RepoModel:
+    Modules:
+      - name: "<module>"
+        paths: ["<repo-relative/path>"]
+        responsibility: "<one-line>"
+        owners: ["<team/person>"]
+    EntryPoints:
+      - kind: "http" | "cli" | "job" | "messaging" | "other"
+        location: "<path>"
+        notes: "<one-line>"
+    DataStores:
+      - kind: "postgres" | "mysql" | "mongodb" | "redis" | "other"
+        evidence: "<path(s)>"
+        ownership: "<module/team>"
+    BuildAndTooling:
+      buildSystem: "<maven|gradle|nx|npm|...>"
+      codegen: ["<openapi-generator|swagger-codegen|...>"]
+      ci: ["<github-actions|gitlab-ci|...>"]
+    Testing:
+      frameworks: ["<junit5|jest|...>"]
+      notes: "<gaps/hotspots>"
+    ArchitecturalInvariants:
+      - "<rule that should not be violated>"
+    Hotspots:
+      - path: "<path>"
+        reason: "<churn|complexity|bugs|...>"
   
   Gates:
     P5-Architecture: pending | approved | rejected
@@ -497,7 +502,7 @@ Loaded Rulebooks:
   Profile: <path/to/rules_<profile>.md>
 
 Active Profile: <profile-name>
-Profile Source: auto-detected-single | user-explicit | repo-fallback | ambiguous
+Profile Source: auto-detected-single | user-explicit | repo-fallback | component-scope-inferred | ambiguous
 Profile Evidence: <path-or-indicators>
 Rationale: <brief explanation of how profile was determined>
 
@@ -613,11 +618,12 @@ SESSION_STATE:
     APIContracts: ["/apis/user-service.yaml", "/apis/order-service.yaml"]
   ...
   
-Proceeding to Phase 1.5 (Business Rules Discovery)...
+Proceeding to Phase 4 (Ticket Execution)...  # or Phase 3A depending on artifacts
+(Phase 1.5 is skipped unless explicitly requested.)
 ```
 
 **Phase 2 exit conditions:**
-* Success: Repository scanned, findings documented → Proceed to Phase 1.5 or Phase 3A (depending on user instructions)
+* Success: Repository scanned, findings documented → Proceed to Phase 4 by default; Phase 1.5 only if explicitly requested; Phase 3A if external API artifacts exist.
 * Failure: Repository not accessible, extraction failed → Mode: BLOCKED
 
 ---
@@ -847,7 +853,8 @@ BLOCKED: API spec validation failed. Please fix the broken reference in order-se
 
 **Phase 3B-1 exit conditions:**
 * Success: All specs valid → Proceed to Phase 3B-2
-* Errors: Critical issues found → Mode: BLOCKED, request fixes
+* Errors: Critical issues found in in-scope specs (Scope.APIContracts or user-provided ExternalAPIs) → Mode: BLOCKED
+* Errors in out-of-scope specs → record Risk and continue
 * Warnings only: Proceed to Phase 3B-2 with warnings recorded
 
 ---
