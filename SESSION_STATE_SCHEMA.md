@@ -137,23 +137,6 @@ After Phase 2 completes, the session SHOULD include the following (required unle
 - `SESSION_STATE.DecisionDrivers` (array; each SHOULD include evidence)
 - `SESSION_STATE.WorkingSet` (array; repo-relative paths + rationale)
 - `SESSION_STATE.TouchedSurface` (object; planned/actual surface area)
-  
-
-## 5. ConfidenceLevel
-
-Integer 0–100.
-
-Invariant:
-- If `ConfidenceLevel < 70`, the system MUST not proceed past gates that require approvals.
-
-## 6. Next (Phase Pointer)
-
-String describing the next executable step, e.g.:
-- `"Phase2-RepoDiscovery"`
-- `"Phase4-TicketExecution"`
-- `"Phase5-ArchitectureGate"`
-
-Invariant:
 
 ### 7.1 RepoMapDigest (canonical)
 
