@@ -36,13 +36,12 @@ with architecture, contract, debt & QA gates
    - If ONLY ONE profile rulebook exists → use it automatically
    - Search paths:
      a. `~/.config/opencode/commands/rules*.md`
-     b. `~/.config/opencode/commands/rules*.md`
-     c. `~/.config/opencode/rules/rules*.md`
-     d. `~/.config/opencode/rules/profiles/rules*.md`
-     e. `.opencode/commands/rules*.md`
-     f. `.opencode/rules/profiles/rules*.md`
-     g. `profiles/rules.*.md` (repo-local)
-     h. `profiles/rules*.md` (repo-local)
+     b. `~/.config/opencode/rules/rules*.md`
+     c. `~/.config/opencode/rules/profiles/rules*.md`
+     d. `.opencode/commands/rules*.md`
+     e. `.opencode/rules/profiles/rules*.md`
+     f. `profiles/rules.*.md` (repo-local)
+     g. `profiles/rules*.md` (repo-local)
    
    **Auto-selection logic:**
    ```
@@ -412,6 +411,7 @@ If anything here conflicts with the schema, the schema wins.
   2) `SESSION_STATE.Mode = BLOCKED`, OR
   3) Phase 2 just completed and this is the first time `RepoMapDigest` is produced, OR
   4) the user explicitly requests FULL state.
+  5) `SESSION_STATE.ConfidenceLevel < 70` (DRAFT/BLOCKED debugging requires expanded state).
 
 MIN mode SHOULD remain below ~40 lines. FULL mode should remain a digest (no large enumerations).
 
