@@ -1,27 +1,32 @@
 # Architecture Decision Records (ADR)
 
-This document stores **explicit architecture decisions** made jointly
-by the human and the AI system.
+This file stores **explicit architecture decisions** made during work with this governance system.
 
-Purpose:
-- Reduce cognitive load
-- Preserve architectural intent
-- Make decisions reproducible and reviewable
+Goals:
+- Reduce cognitive load (decisions don’t live only in chat history)
+- Preserve architectural intent over time
+- Enable conflict detection (new proposals vs. existing decisions)
+
+Rules of thumb:
+- Record only **non-trivial** decisions (things that affect architecture, contracts, boundaries, persistence, deployment, security posture, or major dependencies).
+- Keep entries short, structured, and evidence-linked when possible.
 
 ---
 
-## ADR-0001
+## ADR-0001: <Title>
 
-- **Date:**
-- **Context:**
-- **Decision:**
-- **Considered Options:**
-  - Option A:
-  - Option B:
-- **Rationale:**
-- **Trade-offs:**
-- **Confidence:** 0.00 – 1.00
-- **Re-evaluation Trigger:** (e.g. change in requirements, scale, constraints)
+- **Date:** YYYY-MM-DD
+- **Status:** accepted | superseded | deprecated
+- **Context:** (what problem are we solving; constraints)
+- **Decision:** (what we chose)
+- **Options considered:**
+  - A)
+  - B)
+- **Rationale:** (why this choice)
+- **Trade-offs:** (what we give up)
+- **Evidence:** (repo paths, tickets, diagrams; if available)
+- **ConfidenceLevel:** 0-100 (aligns with master.md session state)
+- **Re-evaluation trigger:** (what would make us revisit this)
 
 ---
 
