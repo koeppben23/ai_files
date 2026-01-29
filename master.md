@@ -84,6 +84,9 @@ with architecture, contract, debt & QA gates
 #### Step 3: Validation
 
 After loading:
+
+See SESSION_STATE_SCHEMA.md for the canonical contract (required keys, enums, invariants).
+
 ```
 SESSION_STATE.LoadedRulebooks = {
   core: "~/.config/opencode/rules.md",
@@ -92,6 +95,9 @@ SESSION_STATE.LoadedRulebooks = {
 SESSION_STATE.ActiveProfile = "backend-java"
 SESSION_STATE.ProfileSource = "auto-detected-single" | "user-explicit" | "repo-fallback"
 SESSION_STATE.ProfileEvidence = "/path/to/rulebook" | "pom.xml, src/main/java"
+SESSION_STATE.ComponentScopePaths = ["<repo-relative/path>", "..."] // optional (recommended for monorepos)
+SESSION_STATE.ComponentScopeSource = "user-explicit" | "assistant-proposed"
+SESSION_STATE.ComponentScopeEvidence = "<ticket text or repo paths>"
 ```
 
 ### Binding Rules
