@@ -213,6 +213,19 @@ If `ADR.md` does not exist, the assistant MAY propose creating it when non-trivi
 
 All architectural, technical, and business-impacting statements must be evidence-backed.
 
+### 6.0 Evidence Ladder (Binding)
+
+When resolving contradictions, prefer evidence in this order (highest → lowest):
+1) Build files / configs / lockfiles (e.g., `pom.xml`, `build.gradle`, `package.json`, `nx.json`)
+2) Actual code usage (imports, wiring, runtime configuration, dependency injection graph)
+3) Tests and test fixtures
+4) CI definitions and scripts (e.g., `.github/workflows/...`)
+5) Repository documentation (READMEs, guidelines, ADRs)
+6) Ticket text / PR description / conversational notes
+
+If a lower rung contradicts a higher rung, document a risk:
+`Risk: [EVIDENCE-CONFLICT] <lower> contradicts <higher> — using higher-rung evidence.`
+
 ### 6.1 Strict Evidence Mode (Default)
 
 Obligations:
@@ -309,6 +322,18 @@ When producing code changes:
 - Changes must be minimal, coherent, and review-friendly.
 - Avoid broad rewrites unless required by the ticket and justified with evidence.
 - Prefer explicitness over cleverness.
+
+### 7.4 Architecture Decision Output Template (Binding when proposing non-trivial architecture)
+
+When the assistant proposes a non-trivial architectural decision (boundaries, persistence approach, contract strategy, major dependency/tooling change, migration/rollout strategy), it MUST output a structured proposal:
+
+1) **Decision to make** (one line)
+2) **Options (A/B/C)** (each includes a short description)
+3) **Trade-offs** (perf, complexity, operability, risk)
+4) **Recommendation** (one option) + **confidence (0–100)**
+5) **What would change the decision** (the minimal missing evidence)
+
+If an `ADR.md` exists, the assistant MUST additionally state whether the recommendation conflicts with any existing ADR entry.
 
 ## 7.5 Change Matrix (MANDATORY)
 
@@ -422,5 +447,6 @@ Profile & scope override handling (binding):
 
 Copyright © 2026 Benjamin Fuchs.
 All rights reserved. See LICENSE.
+
 
 
