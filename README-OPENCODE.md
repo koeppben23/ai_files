@@ -45,6 +45,15 @@ This system addresses those issues by enforcing:
 - hard quality and logic gates
 - deterministic continuation via session state
 
+### Component Scope (Recommended for Monorepos)
+
+If your repo is a monorepo or contains multiple stacks, provide a bounded scope in the ticket, e.g.:
+- `ComponentScope: services/order-service, libs/shared`
+or
+- `Work only in: apps/web`
+
+This reduces profile ambiguity and prevents unintended cross-component changes.
+
 The goal is **not speed**, but **reviewable, production-grade output**.
 
 > Better to block than to guess.  
