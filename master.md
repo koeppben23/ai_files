@@ -184,6 +184,14 @@ If rules conflict, the following order applies:
 5. Ticket specification
 6. General model knowledge
 
+### 1.1 Conflict Resolution Policy (Binding)
+
+If two rules conflict at the same priority level or the conflict is ambiguous:
+
+1) **Most restrictive wins** for anything that impacts safety, determinism, evidence, scope lock, or gates.
+2) **Repo conventions win** for style/tooling choices **only if** they do not weaken gates/evidence/scope lock.
+3) If the conflict still cannot be resolved deterministically, record a risk and stop (BLOCKED) with a targeted question.
+
 ---
 
 ## 2. OPERATING MODES
@@ -362,6 +370,16 @@ This means:
 * Phase 3A/3B are executed immediately if API artifacts are provided
 * Phase 4 (Ticket execution) is executed immediately if a ticket is provided
 
+### 2.5 Default Decision Policies (DDP) — Reduce Cognitive Load (Binding)
+
+When multiple reasonable implementation/architecture options exist and no explicit preference is given, the assistant MUST apply these defaults (unless they conflict with higher-priority rules):
+
+1) **Prefer existing repo conventions** (frameworks, patterns, libs, naming, folder layout) if evidence-backed.
+2) **Prefer additive over breaking changes** in any contract/schema surface.
+3) **Prefer minimal coherent change sets** that keep diffs reviewable.
+4) **Prefer the narrowest safe scope** (smallest component/module) when a repo is large; record the assumed scope in `SESSION_STATE.ComponentScopePaths` only if the user explicitly approved it.
+5) If required evidence is missing for a gate decision, stop and request the minimal command output/artifact (no speculative gate passes).
+
 Auto-advance continues until:
 * an explicit gate is reached (Phase 5, 5.3, 5.4, 5.5, or 6)
 * a blocker emerges (missing artifacts, contradictory specs, CONFIDENCE LEVEL < 70%)
@@ -383,7 +401,8 @@ SESSION_STATE:
   Phase: 1 | 2 | 1.5 | 3A | 3B-1 | 3B-2 | 4 | 5 | 5.3 | 5.4 | 5.5 | 6
   Mode: NORMAL | DEGRADED | DRAFT | BLOCKED
   ConfidenceLevel: <0-100>
-  
+  Next: "<next-step-identifier>"  # REQUIRED. Canonical continuation pointer (see SESSION_STATE_SCHEMA.md)
+
   LoadedRulebooks:
     core: "<path/to/rules.md>"
     profile: "<path/to/rules_<profile>.md>"
@@ -402,7 +421,35 @@ SESSION_STATE:
     ArchitecturePattern: <e.g., "Layered" | "Hexagonal" | "CQRS" | "unknown">
     TechStack: [<list of detected technologies>]
     APIContracts: [<list of discovered APIs>]
-    
+
+  # Canonical repo understanding artifact (Binding). Phase 2 MUST populate this.
+    RepoModel:
+      Modules:
+        - name: "<module>"
+          paths: ["<repo-relative/path>"]
+          responsibility: "<one-line>"
+          owners: ["<team/person>"]
+      EntryPoints:
+        - kind: "http" | "cli" | "job" | "messaging" | "other"
+          location: "<path>"
+          notes: "<one-line>"
+      DataStores:
+        - kind: "postgres" | "mysql" | "mongodb" | "redis" | "other"
+          evidence: "<path(s)>"
+          ownership: "<module/team>"
+      BuildAndTooling:
+        buildSystem: "<maven|gradle|nx|npm|...>"
+        codegen: ["<openapi-generator|swagger-codegen|...>"]
+        ci: ["<github-actions|gitlab-ci|...>"]
+      Testing:
+        frameworks: ["<junit5|jest|...>"]
+        notes: "<gaps/hotspots>"
+      ArchitecturalInvariants:
+        - "<rule that should not be violated>"
+      Hotspots:
+        - path: "<path>"
+          reason: "<churn|complexity|bugs|...>"
+  
   Gates:
     P5-Architecture: pending | approved | rejected
     P5.3-TestQuality: pending | pass | pass-with-exceptions | fail
@@ -460,6 +507,7 @@ SESSION_STATE:
   Phase: 1
   Mode: NORMAL | DEGRADED | BLOCKED
   ConfidenceLevel: <0-100>
+  Next: "Phase2-RepoDiscovery" | "Phase3A-APIInventory" | "Phase4-TicketExecution" | "BLOCKED"
   LoadedRulebooks:
     core: "<path>"
     profile: "<path>"
@@ -481,6 +529,10 @@ SESSION_STATE:
   
 <Next action: Proceeding to Phase 2... | Waiting for repository... | etc.>
 ```
+
+Binding:
+- `SESSION_STATE.Next` MUST be set at the end of every phase output.
+- `continue.md` MUST execute ONLY the step referenced by `SESSION_STATE.Next`.
 
 **Binding rules for Phase 1:**
 * If profile is ambiguous (multiple found, no user selection) → Mode: BLOCKED
