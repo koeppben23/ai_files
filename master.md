@@ -103,9 +103,16 @@ SESSION_STATE.ComponentScopeEvidence = "<ticket text or repo paths>"
 ### Binding Rules
 
 **MUST STOP (BLOCKED) if:**
-- Profile is ambiguous (multiple rulebooks found, no user selection)
+- Profile is ambiguous (multiple rulebooks found, no user selection) AND no Component Scope is available to disambiguate
 - No profile can be determined AND code generation is requested
 - Core rulebook (rules.md) cannot be loaded
+
+If multiple profiles exist but `SESSION_STATE.ComponentScopePaths` is present:
+- attempt profile inference **within the Component Scope only**
+- record the result as:
+  - `SESSION_STATE.ProfileSource = "component-scope-inferred"`
+  - `SESSION_STATE.ProfileEvidence = "<signals inside ComponentScopePaths>"`
+- if still ambiguous, stop (BLOCKED) and request explicit profile selection
 
 **MAY PROCEED (planning-only) if:**
 - User requested planning/analysis only (no repo, no code)
