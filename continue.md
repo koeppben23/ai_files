@@ -7,7 +7,8 @@ Execute ONLY the step referenced by `SESSION_STATE.Next`.
 Binding preflight:
 1) If `SESSION_STATE.Phase` is at least Phase 2 AND BOTH `SESSION_STATE.RepoMapDigest` and `SESSION_STATE.RepoModel` are missing:
    - set `Mode=BLOCKED`
-   - set `Next="Phase2-RepoDiscovery"`
+   - set `Next="BLOCKED-Phase2-RepoDiscovery"`
+   - record blocker `REPO-DIGEST-MISSING`
    - request minimal action: rerun Phase 2 (repo discovery) in the current repo scope
 2) If `SESSION_STATE.Phase` is at least Phase 2 AND `SESSION_STATE.WorkingSet` is missing:
    - set `Mode=DEGRADED`
