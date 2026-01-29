@@ -18,7 +18,12 @@ Binding preflight:
    - set `Mode=DEGRADED`
    - record warning `TOUCHED-SURFACE-MISSING`
    - continue, but require `TouchedSurface` to be populated in the next Phase 4 output
-4) If `SESSION_STATE.FastPath=true`:
+4) If `SESSION_STATE.Phase` is at least Phase 4 AND `SESSION_STATE.TicketRecordDigest` is missing:
+   - set `Mode=DEGRADED`
+   - record warning `TICKET-RECORD-DIGEST-MISSING`
+   - continue, but require `TicketRecordDigest` (and ideally `NFRChecklist`) to be populated in the next Phase 4 output
+
+5) If `SESSION_STATE.FastPath=true`:
    - in Phase 5, apply reduced review scope as defined in `master.md`
 
 Profile rule:
