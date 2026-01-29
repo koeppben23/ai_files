@@ -27,6 +27,7 @@ The assistant MUST output **FULL** if any of these apply:
 2) `SESSION_STATE.Mode = BLOCKED`.
 3) A reviewer/audit request requires it (e.g., “show full session state”).
 4) Phase 2 just completed (repo discovery) and this is the first time `RepoMapDigest` is produced.
+5) `SESSION_STATE.ConfidenceLevel < 70` (DRAFT/BLOCKED; expanded state required to resolve ambiguity safely).
 
 ### 1.3 Size constraint (recommended)
 
@@ -89,6 +90,16 @@ Allowed values:
 Invariant:
 - If `ConfidenceLevel < 70`, auto-advance is forbidden and code-producing output is forbidden.
 
+Recommended calibration (rubric; clamp 0–100):
+- +25 if `ActiveProfile` is unambiguous and evidenced
+- +25 if `RepoMapDigest` exists and is evidence-backed (paths/files)
+- +15 if `WorkingSet` exists and matches the plan
+- +15 if `TouchedSurface` exists and matches planned/actual changes
+- +10 if `BuildEvidence.status` is `partially-provided` or `provided-by-user` for relevant claims
+- -20 if monorepo component scope is unclear or profile selection is ambiguous
+- -15 if required artifacts for the current phase are missing (e.g., gates, digest)
+- -15 if repository signals conflict (e.g., mixed build systems) and not resolved
+
 ---
 
 ## 5. Profile Fields
@@ -110,7 +121,8 @@ String identifier, e.g.:
 ### 5.3 ProfileEvidence
 
 Human-readable evidence string (paths/files), e.g.:
-- `~/.config/opencode/rules/profiles/rules.backend-java.md`
+- `profiles/rules.backend-java.md`
+- `~/.config/opencode/rules/profiles/rules.backend-java.md` (if installed globally)
 - `pom.xml, src/main/java`
 - `apps/web, nx.json`
 
