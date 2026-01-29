@@ -44,14 +44,34 @@ Optional but strongly recommended for monorepos:
 Invariant:
 - If `ComponentScopePaths` is set, profile detection and recommendations MUST prefer signals inside those paths.
 
-## 4. ConfidenceLevel
+## 4. Repository Model (Phase 2+)
+
+Once Phase 2 (Repository Discovery) completes, the following keys SHOULD exist and are strongly recommended for efficiency and determinism:
+
+- `SESSION_STATE.RepoMapDigest` (object; compact system model)
+  - recommended subkeys: `EntryPoints`, `Modules`/`Boundaries`, `DataStores`, `IntegrationPoints`, `CrossCutting`
+- `SESSION_STATE.DecisionDrivers` (array of strings or structured entries; each SHOULD include evidence)
+- `SESSION_STATE.WorkingSet` (array; repo-relative paths with rationale)
+- `SESSION_STATE.TouchedSurface` (object; planned/actual surface area)
+  - recommended subkeys:
+    - `FilesPlanned` (array)
+    - `ContractsPlanned` (array)
+    - `SchemaPlanned` (array)
+    - `SecuritySensitive` (boolean)
+- `SESSION_STATE.FastPath` (boolean; optional)
+- `SESSION_STATE.FastPathReason` (string; optional)
+
+Invariant:
+- If `WorkingSet` exists, subsequent phases SHOULD ground planning/review in it unless evidence requires expansion.
+
+## 5. ConfidenceLevel
 
 Integer 0–100.
 
 Invariant:
 - If `ConfidenceLevel < 70`, the system MUST not proceed past gates that require approvals.
 
-## 5. Next (Phase Pointer)
+## 6. Next (Phase Pointer)
 
 String describing the next executable step, e.g.:
 - `"Phase2-RepoDiscovery"`
