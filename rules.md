@@ -423,18 +423,20 @@ Minimum checks:
 Output requirement:
 - If any check is relevant, include a brief “Security sanity check” line item in the Phase 5 report and in the Change Matrix risks column.
 
+### 7.7 Change Matrix Verification (Binding STOP)
+
+The Change Matrix is not just a checklist; it is a **completeness contract**.
+
+Binding verification rules:
 - All planned changes are implemented.
 - All affected files are listed with paths.
 - No layer marked as "Yes" is left unimplemented.
+- Unchecked or "No" layers that are non-obvious MUST be justified (one sentence).
 
-Missing or inconsistent changes result in STOP.
+If any of the above fails: **STOP** (Mode=BLOCKED) and request the minimal missing change(s)/information.
 
-All relevant layers MUST be considered.
-Unchecked layers MUST be explicitly justified.
-
-If any layer involves schemas, contracts, persisted data, or enums,
-the Contract & Schema Evolution Gate (Section 6.5) MUST be evaluated
-and explicitly passed.
+If any impacted layer involves schemas, contracts, persisted data, or enums,
+the Contract & Schema Evolution Gate (Section 6.5) MUST be evaluated and explicitly passed.
 
 ---
 
@@ -448,6 +450,38 @@ Every implementation must be documented in a table:
 This is required whenever implementation planning or changes are produced.
 
 ---
+
+## 8.1 Business Rules Traceability (Binding when Phase 1.5 executed)
+
+If Phase 1.5 (Business Rules Discovery) was executed (i.e., `SESSION_STATE.Scope.BusinessRules = extracted`),
+the assistant MUST maintain an explicit mapping:
+
+**BR-ID → Plan Items → Code Touch Points → Tests (→ DB/Contract enforcement where relevant)**
+
+Minimum required output (whenever Phase 4 planning is produced and at Gate Phase 5.4):
+
+1) **Business Rules Register** (BR-001..BR-xxx), each entry includes:
+   - `Rule`: one-line statement
+   - `Code`: primary implementation location(s) (paths/symbols)
+   - `Tests`: validating test(s) (paths/test names) or `MISSING`
+   - `Enforcement`: `code-only | db | contract | mixed` (if applicable)
+2) **Coverage summary** (counts + %):
+   - Code coverage (rules mapped to code)
+   - Test coverage (rules mapped to tests)
+   - DB/contract enforcement coverage (only if applicable to the domain)
+3) **Gaps**: list every BR with missing tests or missing enforcement.
+
+Binding:
+- Any BR with missing tests MUST be surfaced as either:
+  - a planned test in the Change Matrix / plan, OR
+  - an explicit exception with rationale (must be reviewed at Phase 5.4).
+- Phase 5.4 MUST NOT be marked `compliant` if unresolved gaps exist without explicit exceptions.
+
+Recommended session-state key (FULL mode):
+- `SESSION_STATE.BusinessRules`:
+  - `Register`: [...]
+  - `Coverage`: {...}
+  - `Gaps`: [...]
 
 ## 9. BuildEvidence (Core)
 
@@ -508,6 +542,7 @@ Profile & scope override handling (binding):
 
 Copyright © 2026 Benjamin Fuchs.
 All rights reserved. See LICENSE.
+
 
 
 
