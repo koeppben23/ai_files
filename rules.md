@@ -564,6 +564,12 @@ Rules:
 3) If `BuildEvidence.status = provided-by-user`:
    - verified statements are allowed **only within** the provided evidence scope
 
+Evidence format (recommended, aligns with strict profiles):
+ - Prefer `SESSION_STATE.BuildEvidence.items[]` with:
+   tool + exact command + pass/fail + short output snippet + (optional) report paths.
+ - If only free-text is available, keep it in `notes`, but do NOT mark claims as verified unless
+   the pasted output snippet unambiguously supports the claim.
+
 ---
 
 ## 10. Test Quality (Core, Stack-Neutral)
@@ -606,6 +612,7 @@ Profile & scope override handling (binding):
 
 Copyright © 2026 Benjamin Fuchs.
 All rights reserved. See LICENSE.
+
 
 
 
