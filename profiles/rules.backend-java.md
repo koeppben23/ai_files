@@ -61,6 +61,18 @@ Unless repository evidence says otherwise, assume:
 **Binding rule:**  
 If a tool exists in the repo, it is **not optional**. Its results are gating.
 
+## 2.1 Repo Conventions Lock (Binding)
+Before producing code, the system MUST explicitly detect and record (in SESSION_STATE) the repo’s concrete conventions:
+- Build tool + module selection strategy (mvnw/gradlew, multi-module flags)
+- Web stack (Spring MVC vs WebFlux), serialization (Jackson settings if discoverable)
+- Error contract (problem+json / custom envelope / codes) and mapping location
+- Validation approach (jakarta validation + @Validated usage, custom validators)
+- Test stack (JUnit5/JUnit4, AssertJ/Hamcrest, Mockito, Testcontainers, WireMock, RestAssured, etc.)
+- Formatting/lint gates (Spotless/Checkstyle/PMD/SpotBugs/ErrorProne/Sonar)
+
+Rule: once detected, these conventions become constraints for the task.
+If not detectable, the assistant MUST mark the convention as "unknown" and avoid introducing new patterns.
+
 ---
 
 ## 3. Code Style & Determinism (Binding)
@@ -78,6 +90,21 @@ If a tool exists in the repo, it is **not optional**. Its results are gating.
 - Inject `Clock`
 - Seed randomness in tests
 - No sleeps; use Awaitility if async
+
+### 3.4 Dependency Injection & Immutability (Binding)
+- Constructor injection only (no field injection)
+- Prefer immutable objects: `final` fields, no setter-based mutation unless repo pattern requires it
+- DTOs: prefer `record` if repo already uses records; otherwise follow repo DTO pattern
+- Lombok (if present): avoid `@Data` on domain/entities; prefer explicit methods or focused Lombok annotations
+- No `Optional` as parameter/field; `Optional` only for return values (already stated) and enforce it strictly
+
+### 3.5 Forbidden Patterns (Binding)
+The following are NOT allowed in generated production code unless the repo already uses them and it is consistent:
+- Business branching inside controllers/adapters
+- Returning JPA entities from controllers
+- Catching `Exception` / swallowing exceptions / logging-only error handling
+- Introducing new framework patterns (e.g., reactive stack) without repo evidence
+- Commented-out code or TODO/FIXME in production without explicit approval
 
 ---
 
@@ -118,6 +145,13 @@ Controllers or API adapters must:
 - Retries bounded and observable
 - Contract-driven event schemas respected
 
+### 4.6 Persistence Hygiene (Binding if JPA present)
+- Prevent lazy-loading leaks across boundary: controllers must not trigger lazy graph loading
+- Avoid N+1: prefer fetch joins/entity graphs where repo conventionally does
+- Use `@Transactional(readOnly = true)` for read use cases when appropriate
+- Consider optimistic locking (`@Version`) for aggregate updates with concurrent writers
+- Map persistence models to boundary DTOs explicitly (no entity exposure)
+
 ---
 
 ## 5. Contracts & Code Generation (Binding)
@@ -157,6 +191,11 @@ If drift detection exists:
 - No internal leakage
 - Prefer RFC7807 if repo uses it
 
+### 6.1 Error Contract Tests (Binding)
+For any changed public endpoint behavior:
+- Assert HTTP status + stable error code (and optionally correlationId propagation if part of contract)
+- Do NOT assert full error messages unless the repo treats messages as contract
+
 ---
 
 ## 7. Testing Rules (Top-Tier)
@@ -183,6 +222,13 @@ For changed public behavior, consider:
 - Behavior-focused
 - No overspecification
 - No flakiness
+
+### 7.3.1 Test Design Contract (Binding)
+- Use Given/When/Then (or Arrange/Act/Assert) consistently
+- Prefer asserting outputs/state transitions over verifying internal interactions
+- Use parameterized tests for boundary sets (validation ranges, edge cases)
+- Use test data builders/object mothers to keep tests readable and reduce duplication
+- Each extracted business rule must map to at least one named test that proves it
 
 ### 7.4 Architecture Tests (Binding if ArchUnit present)
 - New boundaries → new ArchUnit rules
@@ -265,6 +311,13 @@ The following claims are **forbidden** without evidence:
 | “No contract drift” | OpenAPI/Pact validation output |
 | “Architecture is clean” | ArchUnit output |
 | “Static analysis is clean” | tool summary |
+
+### 12.2.1 Minimal Evidence by Change Type (Binding)
+The assistant MUST request/expect evidence appropriate to the change:
+- API/Controller change: tests covering HTTP contract + error contract + security semantics (if security present)
+- Persistence/migration change: migration validation + happy + violation tests for constraints
+- Messaging change: consumer idempotency/retry behavior tests (as applicable) + schema validation (if exists)
+- Pure service change: unit tests proving rules + relevant slice/integration only if boundary behavior changed
 
 ### 12.3 Enforcement Rule
 If evidence is missing:
