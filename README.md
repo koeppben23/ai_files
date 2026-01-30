@@ -101,6 +101,101 @@ This layer should be consulted **only when needed**
 
 ---
 
+## Repository Structure & File Placement
+
+This system is **repo-bound**.
+All governance-relevant files must live **inside the repository root**
+to ensure correct repo awareness, architectural reasoning,
+and deterministic behavior.
+
+The README is descriptive.
+If anything here conflicts with `master.md` or `rules.md`,
+the rulebooks take precedence.
+
+---
+
+### Required Root-Level Files
+
+The following files **must exist in the repository root**:
+
+```
+repo-root/
+├── master.md
+├── rules.md
+├── SCOPE-AND-CONTEXT.md
+├── SESSION_STATE_SCHEMA.md
+├── continue.md
+```
+
+If any of these files are missing,
+the system is considered **incomplete**
+and must block or ask for correction.
+
+---
+
+### Optional but Recommended Files
+
+These files improve traceability, review quality,
+and long-term maintainability,
+but are not required to start a session:
+
+```
+repo-root/
+├── README.md
+├── ADR.md
+├── TICKET_RECORD_TEMPLATE.md
+├── README-RULES.md
+├── ResumePrompt.md
+```
+
+---
+
+### Profiles Directory (Intentional Exception)
+
+Stack- or technology-specific rule profiles must live
+in a dedicated subdirectory:
+
+```
+repo-root/
+├── profiles/
+│   ├── rules.backend-java.md
+│   ├── rules.frontend-angular-nx.md
+│   └── rules.<stack>.md
+```
+
+Profiles:
+- are discovered automatically
+- are activated conditionally
+- extend `rules.md`
+- must not replace or override it
+
+---
+
+### OpenCode Commands vs Repository Files
+
+This system distinguishes clearly between:
+
+- **Repository files** (governance, rules, context)
+- **OpenCode commands** (entry points only)
+
+The full system **must not** be placed in:
+
+```
+~/.config/opencode/commands/
+```
+
+That directory is intended only for lightweight command stubs.
+
+A minimal global `/master` command may exist,
+but it must delegate to the repository-local `master.md`.
+
+---
+
+> Governance lives with the code.
+> Commands only point to it.
+
+---
+
 ## 3. Usage in Chat (ChatGPT, Claude, etc.)
 
 ### Recommended workflow
