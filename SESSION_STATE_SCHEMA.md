@@ -229,6 +229,32 @@ Invariant:
 
 ---
  
+ ## 11. Cross-Repository / Consumer Impact (Microservices)
+ 
+ If the ticket changes an externally-consumed contract (OpenAPI, events, shared schema), the session SHOULD include:
+ 
+ - `SESSION_STATE.CrossRepoImpact`
+ 
+ Recommended structure:
+ 
+ ```yaml
+ SESSION_STATE:
+   CrossRepoImpact:
+     AffectedServices:
+       - name: "<service>"
+         repository: "<repo identifier>"
+         impactType: contract-change | api-version | event-schema
+         breakingChange: true | false
+     RequiredSyncPRs:
+       - repository: "<repo identifier>"
+         notes: "<what must be updated>"
+ ```
+ 
+ Binding rules:
+ - If `TouchedSurface.ContractsPlanned` is non-empty and the system cannot establish consumer impact, the assistant MUST set `Mode = BLOCKED` and request the minimal missing consumer inventory (or confirm “single-repo, no external consumers”).
+
+---
+ 
  ## 10. Rollback & Migration Strategy (Phase 4+)
  
  For any change that impacts schema, contracts, or externally-visible behavior, the session SHOULD include:
