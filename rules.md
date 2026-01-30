@@ -353,6 +353,7 @@ Rules:
 1) Fast Path MAY reduce review depth and verbosity.
 2) Fast Path MUST NOT:
    - bypass explicit gates (Phase 5, 5.3, 5.4, 5.5, 6),
+   - bypass explicit gates (Phase 5.6 Rollback Safety),
    - weaken evidence requirements,
    - bypass Contract & Schema Evolution Gate,
    - bypass scope lock or component scope rules.
@@ -605,6 +606,7 @@ Profile & scope override handling (binding):
 
 Copyright © 2026 Benjamin Fuchs.
 All rights reserved. See LICENSE.
+
 
 
 
