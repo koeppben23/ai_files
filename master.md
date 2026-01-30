@@ -447,7 +447,7 @@ SESSION_STATE:
   ConfidenceLevel: <0-100>
   Next: "<next-step-identifier>"  # REQUIRED. Canonical continuation pointer (see SESSION_STATE_SCHEMA.md)
   OutputMode: normal | architect-only
-  DecisionSurface: {}  # required when OutputMode=architect-only
+  DecisionSurface: {}  # REQUIRED when OutputMode=architect-only (see SESSION_STATE_SCHEMA.md)
   LoadedRulebooks:
     core: "<path/to/rules.md>"
     profile: "<path/to/profile-rulebook.md>"  # empty string allowed only for planning-only mode
