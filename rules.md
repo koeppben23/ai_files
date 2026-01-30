@@ -318,6 +318,7 @@ This gate applies to any change that affects one or more of the following:
   - explicit marking,
   - versioning strategy, or
   - documented consumer coordination.
+- If consumers exist outside this repo, record them in `SESSION_STATE.CrossRepoImpact`.
 - Deprecated elements are annotated and documented.
 
 ### Deprecation Policy
@@ -594,6 +595,7 @@ Profile & scope override handling (binding):
 
 Copyright © 2026 Benjamin Fuchs.
 All rights reserved. See LICENSE.
+
 
 
 
