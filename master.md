@@ -20,13 +20,11 @@ with architecture, contract, debt & QA gates
 #### Step 1: Load Core Rulebook (rules.md)
 
 **Search order:**
-1. Global config: `~/.config/opencode/rules.md`
-2. Global commands: `~/.config/opencode/commands/rules.md`
-3. Global rules folder: `~/.config/opencode/rules/rules.md`
-4. Project: `.opencode/rules.md`
-5. Project commands: `.opencode/commands/rules.md`
-6. Repo root: `./rules.md`
-7. Context: manually provided
+1. Global commands: `~/.config/opencode/commands/rules.md`
+2. Global config: `~/.config/opencode/rules.md` (fallback)
+3. Global rules folder: `~/.config/opencode/rules/rules.md` (fallback)
+4. Project governance: `.opencode-governance/rules.md` (fallback)
+5. Context: manually provided (planning-only) 
 
 #### Step 2: Load Profile Rulebook (AUTO-DETECTION ADDED)
 
@@ -40,6 +38,7 @@ with architecture, contract, debt & QA gates
    - If ONLY ONE profile rulebook exists → use it automatically
    - Search paths:
      a. `~/.config/opencode/commands/rules*.md`
+     a2. `~/.config/opencode/commands/profiles/rules*.md`
      b. `~/.config/opencode/rules/rules*.md`
      c. `~/.config/opencode/rules/profiles/rules*.md`
      d. `.opencode/commands/rules*.md`
@@ -113,8 +112,8 @@ See SESSION_STATE_SCHEMA.md for the canonical contract (required keys, enums, in
 
 ```
 SESSION_STATE.LoadedRulebooks = {
-  core: "~/.config/opencode/rules.md",
-  profile: "~/.config/opencode/rules_backend-java.md"
+  core: "~/.config/opencode/commands/rules.md",
+  profile: "~/.config/opencode/commands/profiles/rules.backend-java.md"
 }
 SESSION_STATE.ActiveProfile = "backend-java"
 SESSION_STATE.ProfileSource = "auto-detected-single" | "user-explicit" | "repo-fallback"
