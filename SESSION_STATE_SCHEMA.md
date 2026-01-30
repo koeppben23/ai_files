@@ -227,6 +227,29 @@ Invariant:
 Invariant:
 - `Next` MUST NOT point to any code-producing step unless the relevant upstream gates are in an allowed state per `master.md` and `rules.md`.
 
+---
+ 
+ ## 10. Rollback & Migration Strategy (Phase 4+)
+ 
+ For any change that impacts schema, contracts, or externally-visible behavior, the session SHOULD include:
+ 
+ - `SESSION_STATE.RollbackStrategy`
+ 
+ Recommended structure:
+ 
+ ```yaml
+ SESSION_STATE:
+   RollbackStrategy:
+     Type: feature-flag | blue-green | canary | hotfix | none
+     Steps: ["<how to rollback/revert safely>"]
+     DataMigrationReversible: true | false
+     Risk: low | medium | high
+ ```
+ 
+ Binding rules:
+ - If `TouchedSurface.SchemaPlanned` is non-empty OR `TouchedSurface.ContractsPlanned` is non-empty, `RollbackStrategy` MUST be present in FULL mode for Phases 4–6.
+ - If `DataMigrationReversible = false`, the plan MUST include explicit safety steps (backups, dual-write, shadow reads, etc.) and the gate MUST NOT be marked as low risk.
+
 ### 8.1 Gate Artifacts (Enforcement Contract)
  
  To make gates **objectively checkable** (not just narrative), the session SHOULD track required artifacts per gate.
