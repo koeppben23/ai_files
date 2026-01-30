@@ -22,7 +22,8 @@ with architecture, contract, debt & QA gates
 **Search order:**
 1. Global config: `~/.config/opencode/rules.md`
 2. Project: `.opencode/rules.md`
-3. Context: manually provided
+3. Repo root: `./rules.md`
+4. Context: manually provided
 
 #### Step 2: Load Profile Rulebook (AUTO-DETECTION ADDED)
 
@@ -442,6 +443,8 @@ SESSION_STATE:
   Risks: []
   Blockers: []
   Warnings: []
+  TicketRecordDigest: ""   # REQUIRED for Phase >= 4
+  NFRChecklist: {}         # optional in MIN; recommended for Phase >= 4
 ```
 
 Binding:
@@ -685,6 +688,9 @@ Proceeding to Phase 4 (Ticket Execution)...  # or Phase 3A depending on artifact
    - Not security-sensitive surface (authn/authz/crypto/secrets/PII/logging)
    Otherwise set `SESSION_STATE.FastPath = false`.
    Always set `SESSION_STATE.FastPathReason` (short, evidence-backed).
+
+If Phase 1.5 is skipped, the assistant MUST compute FastPath eligibility in Phase 4
+based on `TouchedSurface`, Contract/Schema changes, and SecuritySensitive.
 
 1. **Scan for business logic:**
    * Service layer methods
@@ -1071,7 +1077,7 @@ NFR Checklist:
   - Observability: OK — structured log + optional metric on deactivations.
   - Performance: Risk — may need index on `users.active`; validate with DB stats.
   - Migration/Compatibility: OK — additive column with default; backward compatible.
-  - Rollback: OK — disable flag; schema remains safe.
+  - Rollback/Release safety: OK — disable flag; schema remains safe.
 
 Implementation Plan:
 
