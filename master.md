@@ -711,7 +711,14 @@ Proceeding to Phase 4 (Ticket Execution)...  # or Phase 3A depending on artifact
 ```
 
 **Phase 2 exit conditions:**
-* Success: Repository scanned, findings documented → Proceed to **Phase 2.1 (Decision Pack)** by default, then Phase 4; Phase 1.5 only if explicitly requested; Phase 3A if external API artifacts exist.
+* Success: Repository scanned, findings documented → Proceed to **Phase 2.1 (Decision Pack)** by default, then:
+  - If external API artifacts exist → Phase 3A
+  - Else:
+    - If Phase 1.5 is explicitly requested → run Phase 1.5
+    - Else if Phase 2 evidence hits any Phase 1.5 recommendation trigger:
+      - Decision Pack MUST include: "Run Phase 1.5 now? (A=Yes, B=No)"
+      - Run Phase 1.5 ONLY if the user approves
+    - Otherwise → proceed to Phase 4
 * Failure: Repository not accessible, extraction failed → Mode: BLOCKED
 
 ---
@@ -720,7 +727,10 @@ Proceeding to Phase 4 (Ticket Execution)...  # or Phase 3A depending on artifact
 
 **When to execute:**
 * Explicit user request: "Extract business rules first"
-* Default: Skip unless requested
+* Default: Do not auto-run.
+  - If Phase 2 evidence matches any recommendation trigger below, Phase 2.1 MUST present an A/B decision:
+    "Run Phase 1.5 (Business Rules Discovery) now?"
+  - Execute Phase 1.5 ONLY if the user approves that decision.
 * **Recommendation trigger (non-blocking):** Recommend executing Phase 1.5 if Phase 2 evidence indicates any of:
   - domain-heavy services/policies/specifications/state machines
   - validation rules beyond simple CRUD (multi-entity invariants)
