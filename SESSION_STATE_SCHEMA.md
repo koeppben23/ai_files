@@ -232,6 +232,32 @@ Invariant:
  - If any `Provided` item is `missing`, the gate MUST NOT be marked as passing/approved; the assistant MUST set `Mode = BLOCKED` and set `Next` to a `BLOCKED-...` pointer describing the minimal missing artifact(s).
 
 ---
+ 
+ ## 9. Architecture Decisions (Phase 5+)
+ 
+ To keep architecture reasoning **first-class and comparable across tickets**, the session SHOULD include:
+ 
+ - `SESSION_STATE.ArchitectureDecisions` (array)
+ 
+ Recommended structure:
+ 
+ ```yaml
+ SESSION_STATE:
+   ArchitectureDecisions:
+     - ID: "AD-2026-001"
+       Context: ["<what changed + why>"]
+       Decision: ["<chosen approach>"]
+       AlternativesRejected: ["<rejected option + brief why>"]
+       Consequences: ["+ <benefit>", "- <cost/risk>"]
+       EvidenceRefs: ["<paths or artifacts used>"]
+       Status: proposed | approved
+ ```
+ 
+ Binding rules:
+ - When `SESSION_STATE.Phase = 5` and `Gates.P5-Architecture = approved`, `ArchitectureDecisions` MUST be non-empty.
+ - If the assistant cannot produce an architecture decision due to missing evidence, it MUST set `Mode = BLOCKED` and request the missing inputs.
+
+---
 
 ## 9. Next (Phase Pointer)
 
