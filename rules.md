@@ -351,6 +351,32 @@ They MUST NOT introduce friction for purely technical or refactoring changes.
 
 ---
 
+### 0. Domain Model & Invariants (Conditional)
+
+This gate is REQUIRED if and only if:
+- a Business Rules Ledger is required (see Section 1), OR
+- domain decisions are encoded beyond simple data transformation.
+
+The Domain Model & Invariants output MUST:
+- identify the core domain concepts affected by the change,
+- list relevant invariants in precise, testable language,
+- describe any state transitions introduced or modified,
+- classify changed logic as exactly one of:
+  - pure domain logic (business rules, invariants, decisions),
+  - orchestration (use-case coordination / workflow sequencing),
+  - infrastructure adaptation (IO, persistence, external systems).
+
+Binding constraints:
+- Domain invariants MUST NOT primarily live in controllers or orchestration services.
+- Domain rules MUST be unit-testable without infrastructure.
+- Orchestration MUST NOT encode business rules beyond sequencing.
+
+If this gate is triggered and missing or incomplete:
+- the system MUST block progress
+- the system MUST describe the minimal output required to unblock
+
+---
+
 ### 1. Business Rules Ledger (Conditional)
 
 A Business Rules Ledger is REQUIRED if and only if:
@@ -384,6 +410,13 @@ The Test Coverage Matrix MUST:
 - list all affected business rules
 - indicate coverage for unit, integration, and negative/error cases
 - make gaps explicit (gaps are allowed but MUST be justified)
+
+Additionally (Test Signal Requirements, Binding):
+- for EACH affected business rule, there MUST be at least:
+  - one invariant-based test (explicitly asserting the rule),
+  - one negative / failure-mode test (rejecting invalid inputs or states),
+  - one test designed to fail a naive-but-plausible implementation
+    (e.g., boundary condition, ordering, idempotency, concurrency edge, rounding, timezone, etc. as applicable).
 
 The absence of tests is NOT allowed.
 Partial coverage is allowed ONLY with explicit justification.
@@ -714,3 +747,4 @@ Profile & scope override handling (binding):
 
 Copyright © 2026 Benjamin Fuchs.
 All rights reserved. See LICENSE.
+
