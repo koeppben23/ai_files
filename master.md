@@ -481,6 +481,7 @@ When FULL mode is required, the assistant MUST additionally include, when availa
 - `RepoMapDigest` (canonical repo understanding artifact; Phase 2 SHOULD populate it)
 - `DecisionDrivers`, `WorkingSet`, `TouchedSurface`
 - `DecisionPack` (if produced; recommended after Phase 2)
+- `ArchitectureDecisions` (required when P5-Architecture is approved)
 - `BuildEvidence` (if relevant)
 - `GateArtifacts` (required at explicit gates; maps gate → required/provided artifacts)
 
@@ -1224,6 +1225,7 @@ Which do you want: A or B?
    * Confirm Phase 4 produced a Ticket Record (Mini-ADR + NFR Checklist).
    * Verify the plan addresses each NFR item or records an explicit exception.
    * Ensure Rollback/Release safety is concrete (feature flag, backout, or reversible steps).
+   * Record at least one Architecture Decision (see `SESSION_STATE.ArchitectureDecisions`) and mark it `approved` before approving P5.
    * If missing or inconsistent: record a blocker and return to Phase 4 (do not approve P5).
 
 2. **API contract review (if API changes):**
