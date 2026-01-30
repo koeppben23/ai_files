@@ -453,7 +453,7 @@ SESSION_STATE:
     profile: "<path/to/profile-rulebook.md>"  # empty string allowed only for planning-only mode
   
   ActiveProfile: "<profile-name>"
-  ProfileSource: "user-explicit" | "auto-detected-single" | "repo-fallback" | "component-scope-inferred" | "ambiguous"
+  ProfileSource: "user-explicit" | "auto-detected-single" | "repo-fallback" | "component-scope-inferred" | "component-scope-filtered" | "ambiguous"
   ProfileEvidence: "<path-or-indicators>"
   
   Gates:
