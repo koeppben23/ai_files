@@ -229,6 +229,32 @@ Invariant:
 
 ---
  
+ ## 12. OutputMode & Decision Surface (Cognitive Load Control)
+ 
+ To reduce user cognitive load, the session MAY include:
+ 
+ - `SESSION_STATE.OutputMode` (enum: `normal` | `architect-only`)
+ - `SESSION_STATE.DecisionSurface` (object)
+ 
+ Recommended structure:
+ 
+ ```yaml
+ SESSION_STATE:
+   OutputMode: architect-only
+   DecisionSurface:
+     MustDecideNow:
+       - "<decision>"
+     CanDefer:
+       - "<decision>"
+     AutoDecidedBySystem:
+       - "<decision>"
+ ```
+ 
+ Binding rules:
+ - If `OutputMode = architect-only`, assistant responses MUST prioritize `DecisionSurface` and limit narrative analysis to what is necessary to justify the decisions (with evidence pointers).
+
+---
+ 
  ## 11. Cross-Repository / Consumer Impact (Microservices)
  
  If the ticket changes an externally-consumed contract (OpenAPI, events, shared schema), the session SHOULD include:
