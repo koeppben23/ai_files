@@ -186,14 +186,27 @@ All technical and quality rules are defined in `rules.md` plus the active profil
 
 ---
 
-## ADR (Architecture Decision Records) — Optional Decision Memory (Binding)
+## ADR (Architecture Decision Records) — Decision Memory (Binding)
 
 If the repository contains an `ADR.md`, treat it as a constraint source (per `rules.md`).
 
-When the assistant proposes or confirms a **non-trivial architectural decision** (examples: boundaries, persistence, API contract approach, major dependency/tooling change, migration strategy):
-- The assistant MUST explicitly offer to record the decision as an ADR entry.
-- If the user agrees, the assistant MUST output a unified diff that appends a complete ADR entry to `ADR.md`.
-- If the user declines, proceed without recording, but keep the decision explicit in the response.
+When the assistant proposes or confirms a **non-trivial architectural decision**
+(examples: boundaries, persistence, API contract approach, major dependency/tooling change, migration strategy):
+- The assistant MUST record the decision as an ADR entry by default.
+- The assistant MUST output a unified diff that appends a complete ADR entry to `ADR.md`.
+
+An ADR entry is mandatory if any of the following are introduced or materially changed:
+- a new abstraction or architectural boundary
+- a new domain concept with behavior/invariants
+- a new persistence, communication, or contract strategy
+- a non-trivial dependency/framework/tooling change
+- a migration/rollout strategy that affects operability or data correctness
+
+Exception (Explicit Opt-Out):
+- The user MAY explicitly opt out of ADR recording for the current change.
+- If the user opts out, the assistant MUST:
+  - keep the decision explicit in the response, and
+  - record a risk in session state (per the Master Prompt’s confidence/risk mechanisms).
 
 ---
 
@@ -243,7 +256,7 @@ GATE STATUS:
 
 * P5: `architecture-approved`
 * P5.3: `test-quality-pass` OR `test-quality-pass-with-exceptions`
-* P5.6: `approved` OR `not-applicable` (when rollback safety applies)
+* P5.6-RollbackSafety: `approved` OR `not-applicable` (when rollback safety applies)
 
 Additionally, any mandatory gates defined in `rules.md` (e.g., Contract & Schema Evolution Gate, Change Matrix Verification)
 MUST be explicitly passed when applicable.
