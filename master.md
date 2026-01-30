@@ -302,7 +302,7 @@ Unless explicitly stated otherwise:
 
   * no blockers exist
   * CONFIDENCE LEVEL ≥ 70%
-  * no explicit gate (Phase 5 / 5.3 / 5.4 / 5.5 / 6) has been reached
+  * no explicit gate (Phase 5 / 5.3 / 5.4 / 5.5 / 5.6 / 6) has been reached
 
 Clarification is ONLY allowed when:
 
@@ -310,7 +310,7 @@ Clarification is ONLY allowed when:
 * results are NOT MAPPABLE
 * specifications are contradictory
 * CONFIDENCE LEVEL < 70% (DRAFT or BLOCKED per `rules.md` Chapter 11)
-* an explicit gate is reached (Phase 5, 5.3, 5.4, 5.5, 6)
+* an explicit gate is reached (Phase 5, 5.3, 5.4, 5.5, 5.6, 6)
 
 Note:
 This section constrains *when* clarifications may interrupt auto-advance.
@@ -430,7 +430,7 @@ If anything here conflicts with the schema, the schema wins.
 
 - Default: output `SESSION_STATE` in **MIN** mode (compact, continuation-critical keys only).
 - Output **FULL** mode is REQUIRED when:
-  1) the current step is an explicit gate (Phase 5 / 5.3 / 5.4 / 5.5 / 6), OR
+  1) the current step is an explicit gate (Phase 5 / 5.3 / 5.4 / 5.5 / 5.6 / 6), OR
   2) `SESSION_STATE.Mode = BLOCKED`, OR
   3) Phase 2 just completed and this is the first time `RepoMapDigest` is produced, OR
   4) the user explicitly requests FULL state.
@@ -1381,7 +1381,7 @@ Gate passed. Awaiting confirmation to proceed to Phase 5.3 (Test Quality Review)
 * User requests changes: "Add the index to the migration" → Revise plan, re-run Phase 5
 * User aborts: "Stop here" → Mode: BLOCKED
 
-**Note:** Phase 5 also includes internal checks (Section 5.6: Domain Model Quality, Code Complexity).
+**Note:** Phase 5 also includes internal checks (Section 5.7: Domain Model Quality, Code Complexity).
 These are NON-GATING but their results are included in the gate report as warnings/recommendations.
 
 ---
@@ -1622,7 +1622,7 @@ If gate = `business-rules-gap-detected`:
 
 ---
 
-### Phase 5.6 — Additional Quality Checks (Internal)
+### Phase 5.7 — Additional Quality Checks (Internal)
 
 ### Domain Model Quality Check (Phase 5 — internal check)
 
@@ -1684,7 +1684,7 @@ public class PersonService {
 }
 ```
 
-**Phase 5 internal check criteria:**
+**Phase 5.7 internal check criteria:**
 
 * count entities with >80% getters/setters (anemic)
 * if >50% of entities are anemic → warning (not a blocker)
@@ -1704,7 +1704,7 @@ Examples:
 [/DOMAIN-MODEL-QUALITY]
 ```
 
-### Code Complexity Checks (Phase 5 — internal check)
+### Code Complexity Checks (Phase 5.7 — internal check)
 
 ### Cyclomatic Complexity Check
 
