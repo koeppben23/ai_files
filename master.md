@@ -467,6 +467,7 @@ SESSION_STATE:
   Warnings: []
   TicketRecordDigest: ""   # REQUIRED for Phase >= 4
   NFRChecklist: {}         # optional in MIN; recommended for Phase >= 4
+  RollbackStrategy: {}    # optional in MIN; REQUIRED in FULL if schema/contracts change
   DependencyChanges: {}   # optional in MIN; REQUIRED in FULL if deps change
 ```
 
@@ -485,6 +486,7 @@ When FULL mode is required, the assistant MUST additionally include, when availa
 - `DecisionPack` (if produced; recommended after Phase 2)
 - `ArchitectureDecisions` (required when P5-Architecture is approved)
 - `BuildEvidence` (if relevant)
+- `RollbackStrategy` (required when schema/contracts change)
 - `GateArtifacts` (required at explicit gates; maps gate → required/provided artifacts)
 
 ---
@@ -1227,6 +1229,7 @@ Which do you want: A or B?
    * Confirm Phase 4 produced a Ticket Record (Mini-ADR + NFR Checklist).
    * Verify the plan addresses each NFR item or records an explicit exception.
    * Ensure Rollback/Release safety is concrete (feature flag, backout, or reversible steps).
+   - If `TouchedSurface.SchemaPlanned` or `TouchedSurface.ContractsPlanned` is non-empty and `RollbackStrategy` is missing: BLOCK (do not approve P5).
    * Record at least one Architecture Decision (see `SESSION_STATE.ArchitectureDecisions`) and mark it `approved` before approving P5.
    * If missing or inconsistent: record a blocker and return to Phase 4 (do not approve P5).
 
