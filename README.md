@@ -191,6 +191,69 @@ but it must delegate to the repository-local `master.md`.
 
 ---
 
+### OpenCode Desktop: Repo-Aware Without Accidental Commits
+
+When using **OpenCode Desktop**, the workspace is set to the repository.
+For full repo-aware governance, files must therefore be **visible inside the repo tree**.
+
+At the same time, it is often undesirable to accidentally commit
+governance or prompt files into a foreign or shared repository.
+
+The recommended setup balances both concerns.
+
+#### Recommended Pattern
+
+Place all governance and prompt files in a dedicated,
+repo-local directory:
+
+```
+repo-root/
+└── .opencode-governance/
+    ├── master.md
+    ├── rules.md
+    ├── SCOPE-AND-CONTEXT.md
+    ├── SESSION_STATE_SCHEMA.md
+    ├── continue.md
+    └── resume.md
+```
+
+This directory is visible to OpenCode Desktop,
+but should not be committed.
+
+#### Local Git Exclusion (No Repository Changes)
+
+To prevent accidental commits without modifying the repository,
+add the following entry to:
+
+```
+repo-root/.git/info/exclude
+```
+
+```
+.opencode-governance/
+```
+
+This exclusion:
+- applies only to the local clone
+- does not affect other developers
+- does not modify `.gitignore`
+
+#### Canonical Entry Point
+
+If OpenCode expects `master.md` at the repository root,
+a minimal stub may exist there which delegates to:
+
+```
+.opencode-governance/master.md
+```
+
+This preserves repo discovery while keeping the full system isolated.
+
+> Governance must be repo-visible for OpenCode,
+> but not necessarily repo-versioned.
+
+---
+
 > Governance lives with the code.
 > Commands only point to it.
 
