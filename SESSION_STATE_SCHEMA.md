@@ -168,8 +168,33 @@ Recommended subkeys:
 - `IntegrationPoints`
 - `BuildAndTooling`
 - `Testing`
+- `ConventionsDigest`
 - `ArchitecturalInvariants`
 - `Hotspots`
+
+#### 7.1.a ConventionsDigest (recommended)
+
+`ConventionsDigest` captures repo-native engineering conventions that materially impact code review outcomes.
+It SHOULD be a short list (5–10 bullets), and each bullet SHOULD include evidence pointers (paths/symbols),
+so subsequent planning/code generation can stay repo-consistent.
+
+Recommended content (repo-driven):
+- error handling & exception mapping conventions
+- logging / correlation-id patterns
+- transaction boundaries / retries / idempotency patterns (if applicable)
+- DTO/mapping strategy (MapStruct/manual) and package placement
+- testing conventions (naming, assertions, mocking policy, test-data builders)
+- time/randomness determinism conventions (Clock injection, seeding)
+
+Recommended structure:
+
+```yaml
+SESSION_STATE:
+  RepoMapDigest:
+    ConventionsDigest:
+      - "<convention> (evidence: path/to/file or symbol)"
+      - "<convention> (evidence: ...)"
+```
 
 ### 7.2 Legacy alias (allowed)
 
