@@ -384,6 +384,7 @@ When the assistant proposes a non-trivial architectural decision (boundaries, pe
 5) **What would change the decision** (the minimal missing evidence)
 
 If an `ADR.md` exists, the assistant MUST additionally state whether the recommendation conflicts with any existing ADR entry.
+Additionally, for Phase 5 approval, the assistant MUST record the final choice in `SESSION_STATE.ArchitectureDecisions` (at least one entry).
 
 ## 7.5 Change Matrix (MANDATORY)
 
@@ -427,6 +428,7 @@ Minimum checks:
 3) **AuthZ/AuthN:** if endpoints/handlers change, verify authorization is still enforced at the correct layer.
 4) **Input validation:** validate/normalize external inputs at boundaries; avoid trust of client-provided identifiers.
 5) **Dependency risk (light):** avoid adding unnecessary new dependencies; if added, state why.
+   - If any dependency is added/updated/removed, record it in `SESSION_STATE.DependencyChanges` (name, version, justification).
 
 Output requirement:
 - If any check is relevant, include a brief “Security sanity check” line item in the Phase 5 report and in the Change Matrix risks column.
@@ -591,6 +593,7 @@ Profile & scope override handling (binding):
 
 Copyright © 2026 Benjamin Fuchs.
 All rights reserved. See LICENSE.
+
 
 
 
