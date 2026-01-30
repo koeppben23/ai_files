@@ -198,6 +198,39 @@ Invariant:
 Invariant:
 - `Next` MUST NOT point to any code-producing step unless the relevant upstream gates are in an allowed state per `master.md` and `rules.md`.
 
+### 8.1 Gate Artifacts (Enforcement Contract)
+ 
+ To make gates **objectively checkable** (not just narrative), the session SHOULD track required artifacts per gate.
+ 
+ Recommended structure:
+ 
+ ```yaml
+ SESSION_STATE:
+   GateArtifacts:
+     P5-Architecture:
+       Required:
+         - ArchitectureDecisions
+         - DecisionDrivers
+         - TouchedSurface
+       Provided:
+         ArchitectureDecisions: present | missing
+         DecisionDrivers: present | missing
+         TouchedSurface: present | missing
+     P5.3-TestQuality:
+       Required:
+         - TestPlan
+         - TestResultsEvidence
+       Provided:
+         TestPlan: present | missing
+         TestResultsEvidence: present | missing
+ ```
+ 
+ Binding rules:
+ - When evaluating any explicit gate (Phase 5 / 5.3 / 5.4 / 5.5 / 6) and FULL output is required, `GateArtifacts` MUST include the current gate key with:
+   - `Required` (list), and
+   - `Provided` (status per required artifact).
+ - If any `Provided` item is `missing`, the gate MUST NOT be marked as passing/approved; the assistant MUST set `Mode = BLOCKED` and set `Next` to a `BLOCKED-...` pointer describing the minimal missing artifact(s).
+
 ---
 
 ## 9. Next (Phase Pointer)
