@@ -459,7 +459,9 @@ SESSION_STATE:
     P5.4-BusinessRules: pending | compliant | compliant-with-exceptions | gap-detected | not-applicable
     P5.5-TechnicalDebt: pending | approved | rejected | not-applicable
     P6-ImplementationQA: pending | ready-for-pr | fix-required
-  
+
+  GateArtifacts: {}   # optional in MIN; REQUIRED in FULL when evaluating an explicit gate
+
   Risks: []
   Blockers: []
   Warnings: []
@@ -480,6 +482,7 @@ When FULL mode is required, the assistant MUST additionally include, when availa
 - `DecisionDrivers`, `WorkingSet`, `TouchedSurface`
 - `DecisionPack` (if produced; recommended after Phase 2)
 - `BuildEvidence` (if relevant)
+- `GateArtifacts` (required at explicit gates; maps gate → required/provided artifacts)
 
 ---
 
