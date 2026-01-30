@@ -1,6 +1,6 @@
 # Governance & Prompt System – Overview
 
-This repository contains a **multi-layer governance and prompt system** for
+This repository documents a **multi-layer governance and prompt system** for
 AI-assisted software development, designed for **Lead/Staff-level quality**,
 traceability, and review robustness.
 
@@ -103,10 +103,11 @@ This layer should be consulted **only when needed**
 
 ## Repository Structure & File Placement
 
-This system is **repo-bound**.
-All governance-relevant files must live **inside the repository root**
-to ensure correct repo awareness, architectural reasoning,
-and deterministic behavior.
+This system is designed for **single-user, global installation**.
+All authoritative governance files are installed **once**, globally,
+and reused across repositories.
+
+Working repositories contain **no versioned governance files by default**.
 
 The README is descriptive.
 If anything here conflicts with `master.md` or `rules.md`,
@@ -114,17 +115,21 @@ the rulebooks take precedence.
 
 ---
 
-### Required Root-Level Files
+### Global Install Layout (Authoritative)
 
-The following files **must exist in the repository root**:
+The complete governance system is installed in:
 
 ```
-repo-root/
-├── master.md
-├── rules.md
-├── SCOPE-AND-CONTEXT.md
-├── SESSION_STATE_SCHEMA.md
-├── continue.md
+~/.config/opencode/commands/
++├── master.md
++├── rules.md
++├── SCOPE-AND-CONTEXT.md
++├── SESSION_STATE_SCHEMA.md
++├── continue.md
++├── resume.md
++└── profiles/
++    ├── rules.backend-java.md
++    └── rules.<stack>.md
 ```
 
 If any of these files are missing,
@@ -135,9 +140,8 @@ and must block or ask for correction.
 
 ### Optional but Recommended Files
 
-These files improve traceability, review quality,
-and long-term maintainability,
-but are not required to start a session:
+`master.md` is the single authoritative entry point and performs
+all rulebook discovery and loading.
 
 ```
 repo-root/
@@ -150,27 +154,6 @@ repo-root/
 
 ---
 
-### Profiles Directory (Intentional Exception)
-
-Stack- or technology-specific rule profiles must live
-in a dedicated subdirectory:
-
-```
-repo-root/
-├── profiles/
-│   ├── rules.backend-java.md
-│   ├── rules.frontend-angular-nx.md
-│   └── rules.<stack>.md
-```
-
-Profiles:
-- are discovered automatically
-- are activated conditionally
-- extend `rules.md`
-- must not replace or override it
-
----
-
 ### OpenCode Commands vs Repository Files
 
 This system distinguishes clearly between:
@@ -178,16 +161,8 @@ This system distinguishes clearly between:
 - **Repository files** (governance, rules, context)
 - **OpenCode commands** (entry points only)
 
-The full system **must not** be placed in:
-
-```
-~/.config/opencode/commands/
-```
-
-That directory is intended only for lightweight command stubs.
-
-A minimal global `/master` command may exist,
-but it must delegate to the repository-local `master.md`.
+All governance lives in the global OpenCode command directory.
+Repositories provide **only application code and artifacts**.
 
 ---
 
@@ -254,8 +229,8 @@ This preserves repo discovery while keeping the full system isolated.
 
 ---
 
-> Governance lives with the code.
-> Commands only point to it.
+> Governance is global and deterministic.
+> Repositories contain no prompt logic.
 
 ---
 
@@ -264,12 +239,12 @@ This preserves repo discovery while keeping the full system isolated.
 ### Recommended workflow
 
 1. **Initial context:**
-   - `master.md`
-   - `SCOPE-AND-CONTEXT.md`
+   - global `master.md`
+   - global `SCOPE-AND-CONTEXT.md`
 
 2. **Working a ticket:**
    - phases proceed implicitly
-   - `rules.md` is added only when relevant gates require it
+   - `rules.md` is loaded automatically when required by gates
 
 3. **Important:**
    - in chat mode, business logic can only be derived from
@@ -283,13 +258,11 @@ This preserves repo discovery while keeping the full system isolated.
 ### Recommended workflow
 
 1. **Initial:**
-   - point OpenCode to the repository (repo scan)
+   - point OpenCode Desktop to the repository (repo scan)
    - run `/master`
 
 2. **Governance:**
-   - `master.md`
-   - `rules.md`
-   - `SCOPE-AND-CONTEXT.md`
+   - loaded from global installation
    stay permanently active
 
 3. **Benefits:**
@@ -367,7 +340,7 @@ and that is precisely why it scales and remains review-robust.
 
 ---
 
-Copyright © 2026 Benjamin Fuchs. All rights reserved.
+Copyright © 2026 Benjamin Fuchs.
 Unauthorized use, copying, modification, or distribution is prohibited without explicit permission.
 
 Note: The restrictions above do not apply to the copyright holder (Benjamin Fuchs),
