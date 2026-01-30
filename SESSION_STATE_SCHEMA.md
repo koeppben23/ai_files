@@ -186,6 +186,35 @@ Recommended subkeys:
 **Invariant**
 - If `WorkingSet` exists, subsequent planning/review MUST be grounded in it unless evidence requires expansion.
 
+#### 7.3.a Fast Path Evaluation (optional, efficiency-only)
+
+Fast Path is an efficiency optimization, not a correctness shortcut.
+
+If the assistant evaluates Fast Path, it SHOULD populate:
+- `SESSION_STATE.FastPathEvaluation` (object)
+
+Legacy compatibility:
+- `SESSION_STATE.FastPath` (boolean) and `SESSION_STATE.FastPathReason` MAY exist.
+- If `FastPathEvaluation.Eligible` exists, it is the canonical source of truth.
+
+Recommended structure:
+
+```yaml
+SESSION_STATE:
+  FastPathEvaluation:
+    Score: 0            # integer
+    Eligible: false     # boolean
+    Threshold: 10       # integer, default 10
+    Breakdown:
+      ComponentsTouched: 0   # 0..3
+      SchemaChange: 3        # 0 or 3
+      ContractChange: 3      # 0 or 3
+      TestCoverage: 0        # 0..2
+      TestsPassing: 0        # 0 or 2
+      Complexity: 0          # 0 or 1
+    Reason: "<short, evidence-backed>"
+```
+
 ### 7.4 Dependency Changes (Supply Chain)
 
 If the plan or implementation adds/updates/removes dependencies, the session SHOULD include:
@@ -202,12 +231,14 @@ SESSION_STATE:
         version: "<version>"
         justification: "<why needed>"
         securityNotes: "<CVE/licensing notes or 'none'>"
+        risk: low | medium | high
     Updated:
       - name: "<package>"
         from: "<old>"
         to: "<new>"
         reason: "<why>"
         securityNotes: "<CVE/licensing notes or 'none'>"
+        risk: low | medium | high
     Removed:
       - name: "<package>"
         version: "<version or old>"
@@ -228,6 +259,7 @@ SESSION_STATE:
 - `P5.3-TestQuality`: `pending | pass | pass-with-exceptions | fail`
 - `P5.4-BusinessRules`: `pending | compliant | compliant-with-exceptions | gap-detected | not-applicable`
 - `P5.5-TechnicalDebt`: `pending | approved | rejected | not-applicable`
+- `P5.6-RollbackSafety`: `pending | approved | rejected | not-applicable`
 - `P6-ImplementationQA`: `pending | ready-for-pr | fix-required`
 
 **Invariant**
@@ -337,6 +369,23 @@ SESSION_STATE:
 ---
 
 ## 12. OutputMode & Decision Surface (Cognitive Load Control)
+
+### 12.x State Compression (token control for long sessions)
+
+If a session becomes long (large RepoMapDigest / many iterations), the assistant MAY compress earlier discovery
+details into a short summary while preserving decision-critical state.
+
+Recommended structure:
+
+```yaml
+SESSION_STATE:
+  StateCompression:
+    Applied: true | false
+    Compressed:
+      - Phases: ["1", "2", "3A", "3B-1", "3B-2"]
+        Summary: "<short summary of what was discovered>"
+        Preserved: ["DecisionPack", "WorkingSet", "TouchedSurface", "Gates", "RollbackStrategy"]
+```
 
 To reduce user cognitive load, the session MAY include:
 
