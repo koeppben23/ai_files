@@ -343,6 +343,108 @@ that subsection is treated as N/A and does not block the gate.
 
 ---
 
+## Governance Gates for Business-Critical Code
+
+The following rules are CONDITIONAL governance gates.
+They MUST be enforced strictly, but ONLY when their trigger conditions apply.
+They MUST NOT introduce friction for purely technical or refactoring changes.
+
+---
+
+### 1. Business Rules Ledger (Conditional)
+
+A Business Rules Ledger is REQUIRED if and only if:
+- new business behavior is introduced, OR
+- existing business behavior is modified, OR
+- domain decisions are encoded in logic beyond simple data transformation
+
+The Business Rules Ledger MUST:
+- assign a stable identifier to each business rule (e.g. BR-001)
+- describe the rule in precise, testable language
+- reference the source of the rule (code, ADR, ticket, or requirement)
+- reference at least one enforcing code location
+- reference at least one validating test
+
+If the change is purely technical (refactoring, performance, tooling, infrastructure),
+the Business Rules Ledger MUST NOT be required.
+
+If this rule is triggered and the ledger is missing or incomplete:
+- the system MUST block progress
+- the system MUST explain exactly which rule is missing
+- the system MUST describe the minimal change required to unblock
+
+---
+
+### 2. Test Coverage Matrix (Conditional)
+
+A Test Coverage Matrix is REQUIRED if and only if:
+- a Business Rules Ledger is required for the change
+
+The Test Coverage Matrix MUST:
+- list all affected business rules
+- indicate coverage for unit, integration, and negative/error cases
+- make gaps explicit (gaps are allowed but MUST be justified)
+
+The absence of tests is NOT allowed.
+Partial coverage is allowed ONLY with explicit justification.
+
+If this rule is triggered and the matrix is missing or inconsistent:
+- the system MUST block progress
+- the system MUST describe the smallest acceptable matrix to unblock
+
+---
+
+### 3. Reviewer Attack Simulation (Quality Amplifier)
+
+For business-critical changes, the system MUST perform a reviewer attack simulation.
+
+The simulation MUST:
+- identify implicit assumptions
+- identify potential missing business rules
+- identify weak or ambiguous tests
+- identify design decisions that could be challenged
+
+The output MUST be a short, explicit critique.
+
+This rule SHOULD surface risks and trade-offs.
+It MUST NOT block progress by default.
+
+Blocking is allowed ONLY if:
+- a critical flaw is identified AND
+- no reasonable mitigation or clarification is provided
+
+---
+
+### 4. Fast Lane (Explicit Escape Hatch)
+
+A Fast Lane path is explicitly allowed.
+
+Fast Lane MAY be used ONLY if ALL of the following are true:
+- no new business behavior is introduced
+- no existing business behavior is modified
+- no external contract or schema is changed
+- the change is reversible without data migration
+
+If Fast Lane is used:
+- the system MUST explicitly state that Fast Lane is applied
+- governance gates in sections 1 and 2 MUST be skipped
+
+Fast Lane MUST NOT be applied implicitly.
+
+---
+
+### 5. Blocking Transparency (Mandatory)
+
+If progress is blocked for any reason:
+- the system MUST clearly state that it is BLOCKED
+- the system MUST explain WHY it is blocked
+- the system MUST specify the MINIMAL action required to unblock
+- the system MUST avoid vague or generic explanations
+
+A block without a clear unblock path is NOT allowed.
+
+---
+
 ## 7. Output Rules (Core)
 
 ### 7.x Fast Path Awareness (Binding, Non-Bypass)
@@ -612,18 +714,3 @@ Profile & scope override handling (binding):
 
 Copyright © 2026 Benjamin Fuchs.
 All rights reserved. See LICENSE.
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
