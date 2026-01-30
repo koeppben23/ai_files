@@ -450,6 +450,15 @@ This is further specified as binding in `rules.md` (Ticket Record section).
 BuildEvidence:
   status: not-provided | partially-provided | provided-by-user
   notes: "<what exists or is missing>"
+  items:                # optional but strongly recommended; enables reviewer-proof verification
+    - tool: "<maven|gradle|npm|spotbugs|checkstyle|archunit|openapi|pact|...>"
+      command: "<exact command executed>"
+      result: pass | fail | unknown
+      scope: "<what this evidence covers (unit tests, integration tests, contract validation, etc.)>"
+      summary: "<1-3 lines: key pass/fail + counts>"
+      snippet: "<short pasted output excerpt>"
+      artifacts:
+        - "<path/to/report-or-log>"   # e.g. target/surefire-reports, jacoco report, spotbugs xml/html
 ```
 
 ---
