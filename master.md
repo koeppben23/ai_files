@@ -467,6 +467,7 @@ SESSION_STATE:
   Warnings: []
   TicketRecordDigest: ""   # REQUIRED for Phase >= 4
   NFRChecklist: {}         # optional in MIN; recommended for Phase >= 4
+  DependencyChanges: {}   # optional in MIN; REQUIRED in FULL if deps change
 ```
 
 Binding:
@@ -480,6 +481,7 @@ When FULL mode is required, the assistant MUST additionally include, when availa
 - `Scope` (repo name/type, external APIs, business rules status)
 - `RepoMapDigest` (canonical repo understanding artifact; Phase 2 SHOULD populate it)
 - `DecisionDrivers`, `WorkingSet`, `TouchedSurface`
+- `DependencyChanges` (if dependencies are added/updated/removed)
 - `DecisionPack` (if produced; recommended after Phase 2)
 - `ArchitectureDecisions` (required when P5-Architecture is approved)
 - `BuildEvidence` (if relevant)
