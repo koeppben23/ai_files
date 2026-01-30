@@ -574,12 +574,23 @@ Binding:
    * Locate API contracts (OpenAPI specs, GraphQL schemas, etc.)
    * Locate database migrations (Flyway, Liquibase, etc.)
    * Identify testing frameworks (JUnit, Mockito, etc.)
+   * Extract **ConventionsDigest** (repo-native engineering defaults; evidence-backed):
+     - error handling / exception mapping conventions (e.g., ControllerAdvice, error codes)
+     - logging + correlation-id patterns (MDC keys, structured logging)
+     - transaction boundaries + retries/idempotency patterns (where relevant)
+     - DTO/mapping strategy (MapStruct/manual, package placement)
+     - nullability & Optional conventions
+     - testing stack & style (naming, AssertJ/Hamcrest, Mockito policy, test-data builders)
+     - time/randomness handling (Clock injection, determinism)
+     - package/module naming and boundary conventions
+     - formatting/linting/static analysis expectations (checkstyle/spotbugs/etc.)
 
 3. **Document findings:**
    * Update `SESSION_STATE.Scope.Repository`
    * Update `SESSION_STATE.Scope.RepositoryType`
    * Update `SESSION_STATE.DiscoveryResults`
    * Populate `SESSION_STATE.RepoMapDigest` (compact system digest; binding)
+   * Populate `SESSION_STATE.RepoMapDigest.ConventionsDigest` (5–10 bullets; each with evidence paths)
    * Establish `SESSION_STATE.WorkingSet` (top files/dirs likely touched)
    * Initialize `SESSION_STATE.DecisionDrivers` (constraints/NFRs inferred from repo evidence)
    * Initialize `SESSION_STATE.TouchedSurface` (planned surface area; starts empty)
@@ -650,6 +661,11 @@ SESSION_STATE:
     Testing:
       frameworks: ["junit5", "mockito"]
       notes: ""
+    ConventionsDigest:
+      - "Error mapping via @ControllerAdvice + stable error codes (evidence: src/main/java/**/error/**)"
+      - "DTO mapping via MapStruct (evidence: src/main/java/**/mapper/**)"
+      - "Tests use Given/When/Then + AssertJ (evidence: src/test/java/**/*.java)"
+      - "Clock injection for time-dependent logic (evidence: src/main/java/**/config/**)"
     ArchitecturalInvariants:
       - "Controller → Service → Repository (no layer skipping)"
     Hotspots: []
@@ -675,6 +691,8 @@ This is not a gate; it is a deterministic *decision distillation* step.
 Rules (binding):
 - 3–7 decisions max.
 - Each decision MUST include: Options (A/B), Recommendation, Evidence, What would change it.
+- If Phase 2 evidence matches any Phase 1.5 recommendation trigger, include a decision:
+  "Run Phase 1.5 (Business Rules Discovery) now?" (A=Yes, B=No) with evidence-backed recommendation.
 - If there are no meaningful decisions yet, output: "Decision Pack: none (no material choices identified)".
 
 Example:
@@ -689,7 +707,7 @@ D-001: <decision one-liner>
 [/PHASE-2.1-DECISION-PACK]
   
 Proceeding to Phase 4 (Ticket Execution)...  # or Phase 3A depending on artifacts
-(Phase 1.5 is skipped unless explicitly requested.)
+(Phase 1.5 runs only if the user approves; if triggers are detected, it MUST appear as a Decision Pack item.)
 ```
 
 **Phase 2 exit conditions:**
