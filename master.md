@@ -721,6 +721,23 @@ Proceeding to Phase 4 (Ticket Execution)...  # or Phase 3A depending on artifact
    - Not security-sensitive surface (authn/authz/crypto/secrets/PII/logging)
    Otherwise set `SESSION_STATE.FastPath = false`.
    Always set `SESSION_STATE.FastPathReason` (short, evidence-backed).
+   Compute `SESSION_STATE.FastPathEvaluation` using a score model (efficiency-only; never bypass gates).
+   Also set legacy fields for compatibility:
+   - `SESSION_STATE.FastPath = FastPathEvaluation.Eligible`
+   - `SESSION_STATE.FastPathReason = FastPathEvaluation.Reason`
+
+   Scoring (max 14, threshold default 10):
+   - ComponentsTouched: 0..3 (3 = single component, 0 = many/unknown)
+   - SchemaChange: 3 if no schema/migration changes else 0
+   - ContractChange: 3 if no externally-consumed contract change else 0
+   - TestCoverage: 0..2 (based on evidence/plan)
+   - TestsPassing: 2 if evidence indicates tests pass else 0
+   - Complexity: 1 if low complexity/limited scope else 0
+
+   Set:
+   - `FastPathEvaluation.Score` (sum)
+   - `FastPathEvaluation.Eligible` (Score >= Threshold)
+   - `FastPathEvaluation.Reason` (short, evidence-backed)
 
 If Phase 1.5 is skipped, the assistant MUST compute FastPath eligibility in Phase 4
 based on `TouchedSurface`, Contract/Schema changes, and SecuritySensitive.
@@ -1208,6 +1225,12 @@ Which do you want: A or B?
 
 ---
 
+### Session size control (long sessions)
+
+If the session becomes long (large discovery outputs / many iterations), compress earlier discovery detail:
+- Preserve: DecisionPack, WorkingSet, TouchedSurface, Gates, RollbackStrategy
+- Summarize Phase 1–3 detail into `SESSION_STATE.StateCompression`
+
 ### PHASE 5 — Lead Architect Review (Gatekeeper)
 
 **Objective:** Evaluate the implementation plan against architectural, security, performance, and quality standards.
@@ -1216,13 +1239,22 @@ Which do you want: A or B?
 
 **Actions:**
 
-0. **Fast Path handling (if `SESSION_STATE.FastPath = true`):**
+0. **Fast Path handling (if `SESSION_STATE.FastPath = true` or `FastPathEvaluation.Eligible = true`):**
    Phase 5 remains an explicit gate, but review scope is reduced to:
    - Architecture fit (no boundary/layer violations vs RepoMapDigest invariants)
    - Change Matrix completeness (must exist)
    - Test plan adequacy for touched surface
    - Security sanity check limited to touched surface
    Skip deep dives unless the ticket or evidence indicates higher risk.
+
+0.1 **P5.6 Rollback Safety Gate (new):**
+   Evaluate rollback/reversibility using `SESSION_STATE.RollbackStrategy`:
+   - If `TouchedSurface.SchemaPlanned` is non-empty OR ContractsPlanned suggests consumer impact,
+     ensure RollbackStrategy is present and actionable.
+   - If `RollbackStrategy.DataMigrationReversible = false`, require explicit safety steps (backups/dual-write/etc.)
+   Set `SESSION_STATE.Gates.P5.6-RollbackSafety` to:
+   - `approved` when rollback is credible and reversible (or `not-applicable` when clearly N/A)
+   - `rejected` when rollback is missing/unsafe and must be addressed
 
 1. **Architectural review:**
    * Does the plan follow the repository's architecture pattern?
