@@ -285,6 +285,11 @@ defined in master.md or this rulebook.
  - `SESSION_STATE.Mode` MUST be set to `BLOCKED`
  - `SESSION_STATE.Next` MUST point to a `BLOCKED-...` step naming the minimal missing artifact(s)  
 
+Allowed values for `GateArtifacts.<gate>.Provided[*]` are:
+ - `present`
+ - `missing`
+ - `not-applicable`
+
 ## 6.5 Contract & Schema Evolution Gate (MANDATORY)
 
 The gate MUST be explicitly passed before any code-producing output,
@@ -600,6 +605,7 @@ Profile & scope override handling (binding):
 
 Copyright © 2026 Benjamin Fuchs.
 All rights reserved. See LICENSE.
+
 
 
 
