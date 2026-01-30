@@ -116,6 +116,7 @@ String identifier, e.g.:
 - `auto-detected-single`
 - `repo-fallback`
 - `component-scope-inferred`
+- `component-scope-filtered`
 - `ambiguous` (only allowed when `Mode = BLOCKED`)
 
 ### 5.3 ProfileEvidence
@@ -125,6 +126,10 @@ Human-readable evidence string (paths/files), e.g.:
 - `~/.config/opencode/rules/profiles/rules.backend-java.md` (if installed globally)
 - `pom.xml, src/main/java`
 - `apps/web, nx.json`
+
+Invariant:
+- After Phase 1 completes, `ActiveProfile` MUST remain stable unless the user explicitly changes it.
+  If it changes, the workflow MUST return to Phase 1 to re-load rulebooks and re-evaluate gates.
 
 ---
 
