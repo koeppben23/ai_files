@@ -243,6 +243,7 @@ GATE STATUS:
 
 * P5: `architecture-approved`
 * P5.3: `test-quality-pass` OR `test-quality-pass-with-exceptions`
+* P5.6: `approved` OR `not-applicable` (when rollback safety applies)
 
 Additionally, any mandatory gates defined in `rules.md` (e.g., Contract & Schema Evolution Gate, Change Matrix Verification)
 MUST be explicitly passed when applicable.
@@ -374,6 +375,7 @@ Explicit gates in this workflow:
 * Phase 5.3 (Test quality review) → Gate result: `test-quality-pass` | `test-quality-pass-with-exceptions` | `test-quality-fail`
 * Phase 5.4 (Business rules compliance) → Gate result: `business-rules-compliant` | `business-rules-compliant-with-exceptions` | `business-rules-gap-detected`
 * Phase 5.5 (Technical debt proposal) → Gate result: `debt-approved` | `debt-rejected`
+* Phase 5.6 (Rollback safety) → Gate result: `approved` | `rejected` | `not-applicable`
 * Phase 6 (Implementation QA) → Gate result: `ready-for-pr` | `fix-required`
 
 At an explicit gate, the assistant MUST:
@@ -461,6 +463,7 @@ SESSION_STATE:
     P5.3-TestQuality: pending | pass | pass-with-exceptions | fail
     P5.4-BusinessRules: pending | compliant | compliant-with-exceptions | gap-detected | not-applicable
     P5.5-TechnicalDebt: pending | approved | rejected | not-applicable
+    P5.6-RollbackSafety: pending | approved | rejected | not-applicable
     P6-ImplementationQA: pending | ready-for-pr | fix-required
 
   GateArtifacts: {}   # optional in MIN; REQUIRED in FULL when evaluating an explicit gate
@@ -533,6 +536,7 @@ SESSION_STATE:
     P5.3-TestQuality: pending
     P5.4-BusinessRules: pending
     P5.5-TechnicalDebt: pending
+    P5.6-RollbackSafety: pending
     P6-ImplementationQA: pending
   Risks: []
   Blockers: []
@@ -712,29 +716,6 @@ Proceeding to Phase 4 (Ticket Execution)...  # or Phase 3A depending on artifact
 **Objective:** Extract and document business rules from the repository.
 
 **Actions:**
-
-0. **Fast Path eligibility check (efficiency, non-breaking):**
-   Compute `SESSION_STATE.FastPathEvaluation` using a score model (efficiency-only; never bypass gates).
-   Set legacy fields for compatibility:
-   - `SESSION_STATE.FastPath = FastPathEvaluation.Eligible`
-   - `SESSION_STATE.FastPathReason = FastPathEvaluation.Reason`
-
-   Scoring (max 14, threshold default 10):
-   - ComponentsTouched: 0..3 (3 = single component, 0 = many/unknown)
-   - SchemaChange: 3 if no schema/migration changes else 0
-   - ContractChange: 3 if no externally-consumed contract change else 0
-   - TestCoverage: 0..2 (based on evidence/plan)
-   - TestsPassing: 2 if evidence indicates tests pass else 0
-   - Complexity: 1 if low complexity/limited scope else 0
-
-   Set:
-   - `FastPathEvaluation.Score` (sum)
-   - `FastPathEvaluation.Eligible` (Score >= Threshold)
-   - `FastPathEvaluation.Reason` (short, evidence-backed)
-   
-   Note: Fast Path MAY reduce review depth/verbosity but MUST NOT bypass any gates.
-If Phase 1.5 is skipped, the assistant MUST compute FastPath eligibility in Phase 4
-based on `TouchedSurface`, Contract/Schema changes, and SecuritySensitive.
 
 1. **Scan for business logic:**
    * Service layer methods
@@ -1086,6 +1067,27 @@ Binding: Update `SESSION_STATE.TouchedSurface` with:
    - ContractsPlanned (OpenAPI/GraphQL/proto/asyncapi paths, if any)
    - SchemaPlanned (migration paths, if any)
    - SecuritySensitive (true/false, with one-line reason)
+
+Fast Path eligibility check (efficiency, non-breaking):
+- Compute `SESSION_STATE.FastPathEvaluation` using a score model (efficiency-only; never bypass gates).
+- Set legacy fields for compatibility:
+  - `SESSION_STATE.FastPath = FastPathEvaluation.Eligible`
+  - `SESSION_STATE.FastPathReason = FastPathEvaluation.Reason`
+
+Scoring (max 14, threshold default 10):
+- ComponentsTouched: 0..3 (3 = single component, 0 = many/unknown)
+- SchemaChange: 3 if no schema/migration changes else 0
+- ContractChange: 3 if no externally-consumed contract change else 0
+- TestCoverage: 0..2 (based on evidence/plan)
+- TestsPassing: 2 if evidence indicates tests pass else 0
+- Complexity: 1 if low complexity/limited scope else 0
+
+Set:
+- `FastPathEvaluation.Score` (sum)
+- `FastPathEvaluation.Eligible` (Score >= Threshold)
+- `FastPathEvaluation.Reason` (short, evidence-backed)
+
+Note: Fast Path MAY reduce review depth/verbosity but MUST NOT bypass any gates.
 
 4. **Identify risks:**
    * Breaking changes (API, database, etc.)
