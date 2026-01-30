@@ -375,6 +375,11 @@ When producing code changes:
 - Avoid broad rewrites unless required by the ticket and justified with evidence.
 - Prefer explicitness over cleverness.
 
+Additional output mode:
+ - If `SESSION_STATE.OutputMode = architect-only`, the assistant MUST present a `DecisionSurface` (what you must decide now vs can defer)
+   and MUST NOT hide required decisions inside long narrative text.
+ - Evidence obligations and gate rules remain unchanged in architect-only mode.
+
 ### 7.4 Architecture Decision Output Template (Binding when proposing non-trivial architecture)
 
 When the assistant proposes a non-trivial architectural decision (boundaries, persistence approach, contract strategy, major dependency/tooling change, migration/rollout strategy), it MUST output a structured proposal:
@@ -595,6 +600,7 @@ Profile & scope override handling (binding):
 
 Copyright © 2026 Benjamin Fuchs.
 All rights reserved. See LICENSE.
+
 
 
 
