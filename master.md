@@ -714,15 +714,8 @@ Proceeding to Phase 4 (Ticket Execution)...  # or Phase 3A depending on artifact
 **Actions:**
 
 0. **Fast Path eligibility check (efficiency, non-breaking):**
-   Set `SESSION_STATE.FastPath = true` only if ALL are true:
-   - Small change surface (≈ ≤3 files; no new module/boundary)
-   - No contract changes (OpenAPI/GraphQL/etc.)
-   - No schema/migration changes
-   - Not security-sensitive surface (authn/authz/crypto/secrets/PII/logging)
-   Otherwise set `SESSION_STATE.FastPath = false`.
-   Always set `SESSION_STATE.FastPathReason` (short, evidence-backed).
    Compute `SESSION_STATE.FastPathEvaluation` using a score model (efficiency-only; never bypass gates).
-   Also set legacy fields for compatibility:
+   Set legacy fields for compatibility:
    - `SESSION_STATE.FastPath = FastPathEvaluation.Eligible`
    - `SESSION_STATE.FastPathReason = FastPathEvaluation.Reason`
 
@@ -738,7 +731,8 @@ Proceeding to Phase 4 (Ticket Execution)...  # or Phase 3A depending on artifact
    - `FastPathEvaluation.Score` (sum)
    - `FastPathEvaluation.Eligible` (Score >= Threshold)
    - `FastPathEvaluation.Reason` (short, evidence-backed)
-
+   
+   Note: Fast Path MAY reduce review depth/verbosity but MUST NOT bypass any gates.
 If Phase 1.5 is skipped, the assistant MUST compute FastPath eligibility in Phase 4
 based on `TouchedSurface`, Contract/Schema changes, and SecuritySensitive.
 
