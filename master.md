@@ -413,7 +413,7 @@ When multiple reasonable implementation/architecture options exist and no explic
 5) If required evidence is missing for a gate decision, stop and request the minimal command output/artifact (no speculative gate passes).
 
 Auto-advance continues until:
-* an explicit gate is reached (Phase 5, 5.3, 5.4, 5.5, or 6)
+* an explicit gate is reached (Phase 5, 5.3, 5.4, 5.5, 5.6, or 6)
 * a blocker emerges (missing artifacts, contradictory specs, CONFIDENCE LEVEL < 70%)
 * the user explicitly interrupts
 
