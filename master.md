@@ -467,6 +467,7 @@ SESSION_STATE:
   Warnings: []
   TicketRecordDigest: ""   # REQUIRED for Phase >= 4
   NFRChecklist: {}         # optional in MIN; recommended for Phase >= 4
+  CrossRepoImpact: {}     # optional in MIN; REQUIRED in FULL if contracts are consumed cross-repo
   RollbackStrategy: {}    # optional in MIN; REQUIRED in FULL if schema/contracts change
   DependencyChanges: {}   # optional in MIN; REQUIRED in FULL if deps change
 ```
@@ -486,6 +487,7 @@ When FULL mode is required, the assistant MUST additionally include, when availa
 - `DecisionPack` (if produced; recommended after Phase 2)
 - `ArchitectureDecisions` (required when P5-Architecture is approved)
 - `BuildEvidence` (if relevant)
+- `CrossRepoImpact` (required if contracts are consumed cross-repo)
 - `RollbackStrategy` (required when schema/contracts change)
 - `GateArtifacts` (required at explicit gates; maps gate → required/provided artifacts)
 
@@ -1236,6 +1238,7 @@ Which do you want: A or B?
 2. **API contract review (if API changes):**
    * Are API changes backward-compatible?
    * Are breaking changes documented and justified?
+   * If consumers exist outside this repo, record `SESSION_STATE.CrossRepoImpact` (affected services + required sync PRs).
    * Are error responses standardized (RFC 9457)?
    * Are rate limits considered?
 
