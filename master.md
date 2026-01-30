@@ -13,7 +13,7 @@ with architecture, contract, debt & QA gates
 
 * Operational rules (technical, architectural) are defined in:
   - `rules.md` (core technical rulebook)
-  - the active profile rulebook referenced by `SESSION_STATE.ActiveProfile`
+  - the active profile rulebook referenced by `SESSION_STATE.LoadedRulebooks.profile`
 
 ### Lookup Strategy (ENHANCED)
 
@@ -43,6 +43,7 @@ with architecture, contract, debt & QA gates
      c. `~/.config/opencode/rules/profiles/rules*.md`
      d. `.opencode/commands/rules*.md`
      e. `.opencode/rules/profiles/rules*.md`
+     e2. `.opencode-governance/profiles/rules*.md` (repo-local)
      f. `profiles/rules.*.md` (repo-local)
      g. `profiles/rules*.md` (repo-local)
    
