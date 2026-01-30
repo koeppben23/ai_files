@@ -21,9 +21,12 @@ with architecture, contract, debt & QA gates
 
 **Search order:**
 1. Global config: `~/.config/opencode/rules.md`
-2. Project: `.opencode/rules.md`
-3. Repo root: `./rules.md`
-4. Context: manually provided
+2. Global commands: `~/.config/opencode/commands/rules.md`
+3. Global rules folder: `~/.config/opencode/rules/rules.md`
+4. Project: `.opencode/rules.md`
+5. Project commands: `.opencode/commands/rules.md`
+6. Repo root: `./rules.md`
+7. Context: manually provided
 
 #### Step 2: Load Profile Rulebook (AUTO-DETECTION ADDED)
 
@@ -57,10 +60,27 @@ with architecture, contract, debt & QA gates
        LOAD: found_profiles[0]
        
      ELSIF found_profiles.count > 1:
-       SESSION_STATE.ProfileSource = "ambiguous"
-       LIST: all found profiles with paths
-       REQUEST: user clarification
-       BLOCKED until profile specified
+       # Monorepo-safe refinement (assistive only):
+       # If ComponentScopePaths is set, prefer profiles closest to that scope.
+       IF SESSION_STATE.ComponentScopePaths is set:
+         scoped_profiles = filter_profiles_by_scope_proximity(found_profiles, SESSION_STATE.ComponentScopePaths)
+         
+         IF scoped_profiles.count == 1:
+           ActiveProfile = extract_profile_name(scoped_profiles[0])
+           SESSION_STATE.ProfileSource = "component-scope-filtered"
+           SESSION_STATE.ProfileEvidence = scoped_profiles[0].path + " | scope=" + join(SESSION_STATE.ComponentScopePaths, ",")
+           LOG: "Scope-filtered profile: {ActiveProfile}"
+           LOAD: scoped_profiles[0]
+         ELSE:
+           SESSION_STATE.ProfileSource = "ambiguous"
+           LIST: scoped_profiles with paths + scope note
+           REQUEST: user clarification
+           BLOCKED until profile specified
+       ELSE:
+         SESSION_STATE.ProfileSource = "ambiguous"
+         LIST: all found profiles with paths
+         REQUEST: user clarification
+         BLOCKED until profile specified
        
      ELSE:
        # No profile rulebooks found
