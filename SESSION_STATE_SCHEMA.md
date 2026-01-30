@@ -183,6 +183,35 @@ Recommended subkeys:
 Invariant:
 - If `WorkingSet` exists, subsequent planning/review MUST be grounded in it unless evidence requires expansion.
 
+### 7.4 Dependency Changes (Supply Chain)
+ 
+ If the plan or implementation adds/updates/removes dependencies, the session SHOULD include:
+ 
+ - `SESSION_STATE.DependencyChanges` (object)
+ 
+ Recommended structure:
+ 
+ ```yaml
+ SESSION_STATE:
+   DependencyChanges:
+     Added:
+       - name: "<package>"
+         version: "<version>"
+         justification: "<why needed>"
+         securityNotes: "<CVE/licensing notes or 'none'>"
+     Updated:
+       - name: "<package>"
+         from: "<old>"
+         to: "<new>"
+         reason: "<why>"
+         securityNotes: "<CVE/licensing notes or 'none'>"
+     Removed: []
+ ```
+ 
+ Binding rules:
+ - If any dependency change is planned or observed, `DependencyChanges` MUST be present in FULL mode for Phases 4–6.
+ - If `DependencyChanges.Added` or `Updated` is non-empty, the Phase 5 security sanity check MUST explicitly include a dependency-risk line item (see `rules.md`).
+
 ---
 
 ## 8. Gates (Phase 1+)
