@@ -823,6 +823,48 @@ Proceeding to Phase 3A (API Inventory)...
 
 **Note:** If Phase 1.5 is executed, Phase 5.4 (Business rules compliance) becomes MANDATORY.
 
+#### OpenCode-only: Persist Business Rules Inventory (Binding when applicable)
+
+If Phase 1.5 was executed AND the workflow is running under OpenCode
+(repository provided or indexed via OpenCode),
+the assistant MUST additionally produce a Business Rules inventory file
+output suitable for writing to the user's OpenCode configuration directory.
+
+Cross-platform configuration root resolution (Binding):
+* Windows:
+  * Primary: %APPDATA%/opencode
+  * Fallback: %USERPROFILE%/.config/opencode
+* macOS / Linux:
+  * ${XDG_CONFIG_HOME:-~/.config}/opencode
+
+Target folder and file (Binding):
+* ${CONFIG_ROOT}/${REPO_NAME}/business-rules.md
+  * REPO_NAME MUST be derived from the Phase 2 repository identity
+    and sanitized as follows:
+    * lowercased
+    * spaces replaced with "-"
+    * path separators and unsafe characters removed
+
+Output requirements (Binding):
+1) Emit a single structured block:
+   [BR-INVENTORY-FILE]
+   TargetPath: <resolved path expression>
+   RepoName: <sanitized repo name>
+   LastUpdated: <YYYY-MM-DD>
+   Content:
+   <complete Markdown file content>
+   [/BR-INVENTORY-FILE]
+
+2) Update SESSION_STATE:
+   * SESSION_STATE.BusinessRules.InventoryFilePath
+   * SESSION_STATE.BusinessRules.InventoryFileStatus =
+     written | write-requested | not-applicable
+
+If file writing is not possible in the current environment:
+* set InventoryFileStatus = write-requested
+* still output the full content and target path so OpenCode or the user
+  can persist it manually.
+
 ---
 
 ### PHASE 3A — API Inventory (External Artifacts)

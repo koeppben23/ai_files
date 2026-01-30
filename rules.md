@@ -682,6 +682,76 @@ Recommended session-state key (FULL mode):
   - `Coverage`: {...}
   - `Gaps`: [...]
 
+### 8.x Business Rules Inventory File (OpenCode-only, Conditional, Binding)
+
+Purpose:
+- Persist Phase 1.5 outputs beyond the current session to reduce cognitive load
+  and make Phase 5.4 verifiable without re-discovery.
+
+This rule is REQUIRED if and only if:
+- Phase 1.5 (Business Rules Discovery) was executed AND
+- the workflow is running under OpenCode (repository is provided/indexed via OpenCode).
+
+If the workflow is NOT running under OpenCode:
+- This rule is NOT applicable (do not block; proceed with in-chat BR register only).
+
+#### Location (cross-platform)
+
+The BR inventory MUST be stored outside the repository in the OpenCode config directory:
+
+Config root:
+- Windows: `%APPDATA%/opencode` (fallback: `%USERPROFILE%/.config/opencode`)
+- macOS/Linux: `${XDG_CONFIG_HOME:-~/.config}/opencode`
+
+Repository namespace folder:
+- `${CONFIG_ROOT}/${REPO_NAME}/`
+  - `REPO_NAME` MUST be derived from Phase 2 repository identity and sanitized:
+    - lowercased
+    - spaces → `-`
+    - remove path separators and unsafe characters
+
+File name (fixed):
+- `business-rules.md`
+
+Resulting path example:
+- `${CONFIG_ROOT}/${REPO_NAME}/business-rules.md`
+
+#### File format (Binding)
+
+The file MUST be Markdown with a stable, machine-readable structure:
+
+1) Header section with:
+   - Repo name
+   - Source: "Phase 1.5 Business Rules Discovery"
+   - Last Updated (ISO date)
+   - Scope (component scope if set)
+
+2) One rule per section:
+   - `## BR-XXX — <short title>`
+   - `Rule:` (precise, testable language)
+   - `Scope:` (domain/module, context qualifiers)
+   - `Trigger:` (what changes activate it)
+   - `Enforcement:` Code/Test/DB/Contract with evidence paths
+   - `Last Reviewed:` date
+
+3) Gaps MUST be explicitly marked as `MISSING` under Tests/Enforcement.
+
+#### Update behavior (Binding)
+
+When this rule is triggered:
+- The assistant MUST output the complete file content (not a diff), in a single fenced block,
+  and MUST state the exact target path.
+- The assistant MUST update session state with:
+  - `SESSION_STATE.BusinessRules.InventoryFilePath`
+  - `SESSION_STATE.BusinessRules.InventoryFileStatus = written | write-requested | not-applicable`
+
+The assistant MUST NOT attempt to write into the repository for this purpose.
+
+This rule MUST NOT block progress if the environment cannot write files;
+in that case:
+- set `InventoryFileStatus = write-requested`
+- provide the content and path so the user/OpenCode can persist it.
+
 ## 9. BuildEvidence (Core)
 
 BuildEvidence distinguishes:
