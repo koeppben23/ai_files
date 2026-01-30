@@ -121,15 +121,15 @@ The complete governance system is installed in:
 
 ```
 ~/.config/opencode/commands/
-+├── master.md
-+├── rules.md
-+├── SCOPE-AND-CONTEXT.md
-+├── SESSION_STATE_SCHEMA.md
-+├── continue.md
-+├── resume.md
-+└── profiles/
-+    ├── rules.backend-java.md
-+    └── rules.<stack>.md
+├── master.md
+├── rules.md
+├── SCOPE-AND-CONTEXT.md
+├── SESSION_STATE_SCHEMA.md
+├── continue.md
+├── resume.md
+└── profiles/
+    ├── rules.backend-java.md
+    └── rules.<stack>.md
 ```
 
 If any of these files are missing,
