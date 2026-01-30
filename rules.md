@@ -277,6 +277,14 @@ Obligations:
 Evidence mode and confidence levels may never weaken gate requirements
 defined in master.md or this rulebook.
 
+### 6.4 Gate Artifact Completeness (Binding)
+ 
+ If the workflow defines required artifacts for a gate (see `SESSION_STATE.GateArtifacts`),
+ the assistant MUST treat missing required artifacts as **blocking**:
+ - the gate result MUST NOT be marked as passing/approved
+ - `SESSION_STATE.Mode` MUST be set to `BLOCKED`
+ - `SESSION_STATE.Next` MUST point to a `BLOCKED-...` step naming the minimal missing artifact(s)  
+
 ## 6.5 Contract & Schema Evolution Gate (MANDATORY)
 
 The gate MUST be explicitly passed before any code-producing output,
@@ -583,6 +591,7 @@ Profile & scope override handling (binding):
 
 Copyright © 2026 Benjamin Fuchs.
 All rights reserved. See LICENSE.
+
 
 
 
