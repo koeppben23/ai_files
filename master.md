@@ -698,6 +698,52 @@ SESSION_STATE:
 
 [PHASE-2.1-DECISION-PACK]  # DEFAULT (recommended)
 
+#### OpenCode-only: Load existing Decision Pack (Read-before-write, Binding when applicable)
+
+Before producing a new Decision Pack, if the workflow is running under OpenCode
+(repository provided or indexed via OpenCode), the assistant MUST check whether a
+persisted Decision Pack file exists and load it as context.
+
+Cross-platform configuration root resolution (Binding):
+* Windows:
+  * Primary: %APPDATA%/opencode
+  * Fallback: %USERPROFILE%/.config/opencode
+* macOS / Linux:
+  * ${XDG_CONFIG_HOME:-~/.config}/opencode
+
+Expected file location (Binding):
+* ${CONFIG_ROOT}/${REPO_NAME}/decision-pack.md
+  * REPO_NAME MUST be derived from the Phase 2 repository identity
+    and sanitized as follows:
+    * lowercased
+    * spaces replaced with "-"
+    * path separators and unsafe characters removed
+
+Read behavior (Binding):
+* If the file exists:
+  1) Load it and extract the most recent Decision Pack section(s).
+  2) Produce a short digest ("HistoryDigest") of repo-specific defaults/decisions.
+  3) Use the loaded decisions as the default starting point for new A/B decisions,
+     unless contradicted by higher-rung evidence (repo configs/code).
+* If the file does not exist: proceed normally (no penalty).
+
+Output requirements (Binding when file exists):
+* Emit a short structured block:
+  [DECISION-PACK-LOADED]
+  SourcePath: <resolved path expression>
+  LastSection: <YYYY-MM-DD or identifier>
+  HistoryDigest:
+  - <3-8 bullets of the most relevant defaults/decisions>
+  Conflicts:
+  - <none | list any repo-evidence conflicts and which evidence wins>
+  [/DECISION-PACK-LOADED]
+
+SESSION_STATE updates (Binding when OpenCode applies):
+* SESSION_STATE.DecisionPack.SourcePath
+* SESSION_STATE.DecisionPack.Loaded = true | false
+* SESSION_STATE.DecisionPack.HistoryDigest = "<short text>"
+* If conflicts exist: record a Risk item per Evidence Ladder rules.
+
 After Phase 2, produce a compact Decision Pack to reduce user cognitive load.
 This is not a gate; it is a deterministic *decision distillation* step.
 
