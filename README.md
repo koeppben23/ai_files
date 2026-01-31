@@ -123,12 +123,15 @@ The complete governance system is installed in:
 ~/.config/opencode/commands/
 ├── master.md
 ├── rules.md
+├── QUALITY_INDEX.md
+├── CONFLICT_RESOLUTION.md
 ├── SCOPE-AND-CONTEXT.md
 ├── SESSION_STATE_SCHEMA.md
 ├── continue.md
 ├── resume.md
 └── profiles/
     ├── rules.backend-java.md
+    └── rules.fallback-minimum.md
     └── rules.<stack>.md
 ```
 
