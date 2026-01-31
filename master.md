@@ -29,6 +29,17 @@ with architecture, contract, debt & QA gates
 4. Project governance: `.opencode-governance/rules.md` (fallback)
 5. Context: manually provided (planning-only) 
 
+#### Step 1b: Load Top-Tier Index & Conflict Model (QUALITY_INDEX.md, CONFLICT_RESOLUTION.md)
+
+These files are normative and MUST be available in the same governance installation scope as `master.md`.
+
+**Search order (per file):**
+1. Global commands: `~/.config/opencode/commands/<FILE>.md`
+2. Global config: `~/.config/opencode/<FILE>.md` (fallback)
+3. Global rules folder: `~/.config/opencode/rules/<FILE>.md` (fallback)
+4. Project governance: `.opencode-governance/<FILE>.md` (fallback)
+5. Context: manually provided (planning-only)
+
 #### Step 2: Load Profile Rulebook (AUTO-DETECTION ADDED)
 
 **Profile Selection Priority:**

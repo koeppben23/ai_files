@@ -268,6 +268,8 @@ Use this to:
 | `rules.md` | Technical, architectural, test, and business rules |
 | `README-RULES.md` | Executive summary (not normative) |
 | `SCOPE-AND-CONTEXT.md` | Normative scope and responsibility boundaries |
+| `QUALITY_INDEX.md` | Canonical index for “top-tier” quality (no new rules; pointers only) |
+| `CONFLICT_RESOLUTION.md` | Deterministic precedence model for conflicting instructions |
 | `resume.md` | OpenCode command for controlled continuation |
 | `continue.md` | OpenCode command for uniform continuation |
 | `ResumePrompt.md` | Manual fallback resume variant |
