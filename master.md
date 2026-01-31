@@ -255,8 +255,12 @@ Code generation (production code, diffs) is ONLY permitted if the `SESSION_STATE
 GATE STATUS:
 
 * P5: `architecture-approved`
-* P5.3: `test-quality-pass` OR `test-quality-pass-with-exceptions`
+* P5.3-TestQuality: `pass` OR `pass-with-exceptions`
 * P5.6-RollbackSafety: `approved` OR `not-applicable` (when rollback safety applies)
+
+Rendering note (Binding):
+- Human-readable gate labels (e.g., "test-quality-pass") are presentation only.
+- The canonical machine state MUST be `SESSION_STATE.Gates.*` values as defined in the SESSION_STATE schema/template.
 
 Additionally, any mandatory gates defined in `rules.md` (e.g., Contract & Schema Evolution Gate, Change Matrix Verification)
 MUST be explicitly passed when applicable.
@@ -811,7 +815,7 @@ Expected file location (Binding):
 Read behavior (Binding):
 * If the file exists:
   1) Load it and extract the most recent Decision Pack section(s).
-  2) Produce a short digest ("HistoryDigest") of repo-specific defaults/decisions.
+  2) Produce a short digest ("ActiveDecisionDigest") of active (accepted + not superseded) defaults.
   3) Use the loaded decisions as the default starting point for new A/B decisions,
      unless contradicted by higher-rung evidence (repo configs/code).
 * If the file does not exist: proceed normally (no penalty).
@@ -822,7 +826,8 @@ Output requirements (Binding when file exists):
   SourcePath: <resolved path expression>
   LastSection: <YYYY-MM-DD or identifier>
   HistoryDigest:
-  - <3-8 bullets of the most relevant defaults/decisions>
+  ActiveDecisionDigest:
+  - <3-8 bullets derived from accepted + not-superseded decisions>
   Conflicts:
   - <none | list any repo-evidence conflicts and which evidence wins>
   [/DECISION-PACK-LOADED]
@@ -830,7 +835,7 @@ Output requirements (Binding when file exists):
 SESSION_STATE updates (Binding when OpenCode applies):
 * SESSION_STATE.DecisionPack.SourcePath
 * SESSION_STATE.DecisionPack.Loaded = true | false
-* SESSION_STATE.DecisionPack.HistoryDigest = "<short text>"
+* SESSION_STATE.DecisionPack.ActiveDecisionDigest = "<short text>"
 * If conflicts exist: record a Risk item per Evidence Ladder rules.
 
 After Phase 2, produce a compact Decision Pack to reduce user cognitive load.
@@ -839,6 +844,15 @@ This is not a gate; it is a deterministic *decision distillation* step.
 Rules (binding):
 - 3–7 decisions max.
 - Each decision MUST include: Options (A/B), Recommendation, Evidence, What would change it.
+
+OpenCode persistence lifecycle (Binding when OpenCode DecisionPack file is used):
+- If the workflow is running under OpenCode AND decision-pack persistence is applicable,
+  each decision MUST additionally include:
+  - a stable `ID:` (e.g., `DP-YYYYMMDD-NNN`)
+  - a `Status:` (`accepted | proposed | rejected | superseded`)
+  - optional lifecycle links: `Supersedes:` / `SupersededBy:`
+  as defined in `rules.md` (Decision Pack File rule).
+
 - If Phase 2 evidence matches any Phase 1.5 recommendation trigger, include a decision:
   "Run Phase 1.5 (Business Rules Discovery) now?" (A=Yes, B=No) with evidence-backed recommendation.
 - If there are no meaningful decisions yet, output: "Decision Pack: none (no material choices identified)".
@@ -936,6 +950,49 @@ If file writing is not possible in the current environment:
 **When NOT to execute:**
 * "Skip business-rules discovery"
 * "This is a pure CRUD project"
+
+#### OpenCode-only: Load existing Business Rules Inventory (Read-before-write, Binding when applicable)
+
+Before executing Phase 1.5 extraction, if the workflow is running under OpenCode
+(repository provided or indexed via OpenCode), the assistant MUST check whether a
+persisted Business Rules inventory file exists and load it as context.
+
+Cross-platform configuration root resolution (Binding):
+* Windows:
+  * Primary: %APPDATA%/opencode
+  * Fallback: %USERPROFILE%/.config/opencode
+* macOS / Linux:
+  * ${XDG_CONFIG_HOME:-~/.config}/opencode
+
+Expected file location (Binding):
+* ${CONFIG_ROOT}/${REPO_NAME}/business-rules.md
+  * REPO_NAME MUST be derived from the Phase 2 repository identity
+    and sanitized as follows:
+    * lowercased
+    * spaces replaced with "-"
+    * path separators and unsafe characters removed
+
+Read behavior (Binding):
+* If the file exists:
+  1) Load it and treat it as the current BR inventory baseline.
+  2) Preserve BR-IDs where the rule is semantically the same.
+  3) Prefer updating existing BR entries in-place rather than allocating new IDs.
+  4) If a rule was removed or is no longer evidenced in the repo, mark it as DEPRECATED
+     rather than deleting it.
+* If the file does not exist: proceed normally (new BR inventory).
+
+Output requirements (Binding when file exists):
+* Emit a short structured block:
+  [BR-INVENTORY-LOADED]
+  SourcePath: <resolved path expression>
+  BaselineDetected: true
+  Notes:
+  - <1-3 bullets on how the baseline will be reused (e.g., ID preservation)>
+  [/BR-INVENTORY-LOADED]
+
+SESSION_STATE updates (Binding when OpenCode applies):
+* SESSION_STATE.BusinessRules.InventoryFilePath
+* SESSION_STATE.BusinessRules.InventoryLoaded = true | false
 
 **Objective:** Extract and document business rules from the repository.
 

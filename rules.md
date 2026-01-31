@@ -478,6 +478,28 @@ A block without a clear unblock path is NOT allowed.
 
 ---
 
+## 6.x Phase Semantics (Binding)
+
+`SESSION_STATE.Phase` is an ENUM (e.g., `1`, `2`, `1.5`, `3A`, `3B-1`, `3B-2`, `4`, `5`, `5.3`, `5.4`, `5.5`, `6`).
+
+Binding:
+- The assistant MUST NOT interpret `SESSION_STATE.Phase` as numerically comparable.
+  Do not use rules such as "Phase >= 4" or similar numeric range checks.
+- Any rule that needs "planning-or-later" semantics MUST use an explicit set:
+  - `PlanningOrLaterPhases = {4, 5, 5.3, 5.4, 5.5, 6}`
+- Any rule that needs "code-producing allowed" semantics MUST use gate states (not phase numbers):
+  - `Gates.P5-Architecture == approved`
+  - `Gates.P5.3-TestQuality in {pass, pass-with-exceptions}`
+  - and any additional mandatory gates (Contract/Schema Evolution, Change Matrix, etc.)
+
+If a legacy text fragment in this rulebook uses a numeric range phrase (e.g., "Phase >= 4"):
+- Treat it as NON-DETERMINISTIC guidance only.
+- Apply the explicit phase set and/or gate-state checks above.
+- Record a warning:
+  `Warning: [PHASE-RANGE-NONDETERMINISTIC] replaced numeric range with explicit phase set/gates.`
+
+---
+
 ## 7. Output Rules (Core)
 
 ### 7.x Fast Path Awareness (Binding, Non-Bypass)
@@ -725,32 +747,119 @@ The file MUST be Markdown with a stable, machine-readable structure:
    - Source: "Phase 1.5 Business Rules Discovery"
    - Last Updated (ISO date)
    - Scope (component scope if set)
+   - SchemaVersion (fixed string, see below)
+
+SchemaVersion (Binding):
+- The header MUST include:
+  - `SchemaVersion: BRINV-1`
+
+Lifecycle fields (Binding):
+- Each BR entry MUST include the following fields (exact keys):
+  - `Status:` one of `ACTIVE | DEPRECATED | CANDIDATE`
+  - `Source:` one of:
+      - `repo-derived`
+      - `user-specified`
+      - `inferred`
+  - `Confidence:` integer 0–100 (evidence-backed)
+  - `Last Verified:` ISO date (when repo evidence last confirmed)
+  - `Owners:` optional comma-separated list (or `Owners: none`)
+  - `Evidence:` one or more bullet paths/symbols OR `Evidence: MISSING`
+  - `Conflicts:` either `none` OR bullet list of conflicts (see Conflict handling below)
+
+Interpretation (Binding):
+- `ACTIVE`: currently evidenced in repo and expected to hold.
+- `CANDIDATE`: suspected rule with incomplete evidence; MUST NOT be treated as binding for gates without confirmation.
+- `DEPRECATED`: no longer evidenced or intentionally retired; kept for audit trail and ID stability. 
 
 2) One rule per section:
    - `## BR-XXX — <short title>`
+   - `Status:` (see Lifecycle fields)
    - `Rule:` (precise, testable language)
    - `Scope:` (domain/module, context qualifiers)
    - `Trigger:` (what changes activate it)
    - `Enforcement:` Code/Test/DB/Contract with evidence paths
-   - `Last Reviewed:` date
+   - `Source:` (see Lifecycle fields)
+   - `Confidence:` (0–100)
+   - `Last Verified:` ISO date
+   - `Owners:` (optional)
+   - `Evidence:` bullet list of repo paths/symbols OR `MISSING`
+   - `Tests:` bullet list of tests OR `MISSING`
+   - `Conflicts:` `none` OR bullet list
 
 3) Gaps MUST be explicitly marked as `MISSING` under Tests/Enforcement.
+
+#### Read-before-write behavior (Binding)
+
+If this rule is applicable (OpenCode context) and `${CONFIG_ROOT}/${REPO_NAME}/business-rules.md` exists:
+- The assistant MUST load and consult it BEFORE producing a new Phase 1.5 BR register.
+- Loaded content is treated as the current baseline to preserve BR identifiers across sessions.
+- It MUST NOT override higher-rung evidence (see Evidence Ladder):
+  - If repository configs/code contradict an existing BR entry, repository evidence wins.
+  - Any such contradiction MUST be recorded as:
+    `Risk: [EVIDENCE-CONFLICT] persisted business-rules.md contradicts <repo evidence> — using repo evidence.`
+
+Conflict handling (Binding, auditability):
+- Conflicts MUST be recorded BOTH:
+  1) in `SESSION_STATE.Risks` (as above), AND
+  2) in the affected BR entry under `Conflicts:` with a bullet:
+     - `- repo-wins: <brief> | file-claimed: <...> | repo-evidence: <paths/symbols>`
+- When a conflict invalidates an `ACTIVE` BR (no longer evidenced), the assistant MUST:
+  - set `Status: DEPRECATED`
+  - set `Last Verified:` to the current run date
+  - set `Evidence: MISSING` (or update to new evidence)
+  - keep the BR-ID stable (do not delete)
+
+Canonical update rules (Binding):
+- Preserve BR-ID for semantic equivalence.
+- If a rule’s semantics change materially:
+  - create a NEW BR-ID entry and set the old one to `DEPRECATED`
+  - add in old entry `Conflicts:` a bullet: `- superseded-by: BR-NEW`
+  - add in new entry `Conflicts:` a bullet: `- supersedes: BR-OLD`
+
+Minimum required use:
+- The assistant MUST:
+  1) reuse existing BR-IDs for semantically equivalent rules,
+  2) update existing BR entries in-place when details/evidence changed,
+  3) allocate new BR-IDs only for genuinely new rules,
+  4) mark rules no longer evidenced as `Status: DEPRECATED` (do not delete).
+
+Session-state keys (Binding when OpenCode applies):
+- `SESSION_STATE.BusinessRules.InventoryFilePath`
+- `SESSION_STATE.BusinessRules.InventoryLoaded = true | false`
+
+If the file does not exist:
+- set `InventoryLoaded = false`
+- do not block progress
 
 #### Update behavior (Binding)
 
 When this rule is triggered:
+- The BR inventory file is CANONICAL and SHOULD represent the current known ruleset
+  (not an append-only history).
+- If the file exists, the assistant MUST produce the FULL updated file content:
+  - preserving BR-IDs where semantically equivalent,
+  - updating entries in-place,
+  - appending new BRs at the end,
+  - marking removed rules as `Status: DEPRECATED` (do not delete).
+- If the file does not exist, the assistant MUST produce the full initial file content.
+
+Output requirements (Binding):
 - The assistant MUST output the complete file content (not a diff), in a single fenced block,
   and MUST state the exact target path.
+
+Session-state (Binding):
 - The assistant MUST update session state with:
   - `SESSION_STATE.BusinessRules.InventoryFilePath`
   - `SESSION_STATE.BusinessRules.InventoryFileStatus = written | write-requested | not-applicable`
 
-The assistant MUST NOT attempt to write into the repository for this purpose.
+Repository safety:
+- The assistant MUST NOT attempt to write into the repository for this purpose.
 
-This rule MUST NOT block progress if the environment cannot write files;
-in that case:
-- set `InventoryFileStatus = write-requested`
-- provide the content and path so the user/OpenCode can persist it.
+Non-blocking behavior:
+- This rule MUST NOT block progress if the environment cannot write files;
+  in that case:
+  - set `InventoryFileStatus = write-requested`
+  - provide the content and path so the user/OpenCode can persist it manually.
 
 ### 8.y Decision Pack File (OpenCode-only, Conditional, Binding)
 
@@ -790,12 +899,57 @@ The file MUST be Markdown and append-only:
 - A short header (repo name, last updated)
 - One section per run, labeled with ISO date and optional ticket/ref:
   - `## Decision Pack — YYYY-MM-DD`
-  - then the decisions in the exact Phase 2.1 format (D-001, Options A/B, Recommendation, Evidence, What would change it).
 
+Decision identity & lifecycle (Binding):
+- Each decision MUST have a stable ID that is referencable across sessions:
+  - `ID: DP-YYYYMMDD-NNN` (NNN = 001..999 within that section)
+- Each decision MUST include a lifecycle status:
+  - `Status: accepted | proposed | rejected | superseded`
+- If a decision replaces an earlier decision:
+  - new decision MUST include: `Supersedes: <DP-...>` (one or more)
+  - old decision MUST be marked (in a later section) with: `Status: superseded`
+    and: `SupersededBy: <DP-...>`
+
+Deterministic "active decisions" (Binding):
+- "Active decisions" are those with `Status: accepted` that are NOT superseded by a later decision.
+- When loading history for defaults, the assistant MUST derive defaults from the active decision set,
+  not from raw "most recent section" alone.
+
+Decision content (Binding):
+- A decision MUST be expressed in the Phase 2.1 format, extended with lifecycle fields:
+  - `D-XXX: <decision one-liner>`
+    - `ID: DP-YYYYMMDD-NNN`
+    - `Status: ...`
+    - `A) ...`
+    - `B) ...`
+    - `Recommendation: ...`
+    - `Evidence: ...`
+    - `What would change it: ...`
+    - `Supersedes: ...` (optional)
+    - `SupersededBy: ...` (optional)  
+    
 #### Read-before-write behavior (Binding)
 
 If this rule is applicable (OpenCode context) and `${CONFIG_ROOT}/${REPO_NAME}/decision-pack.md` exists:
 - The assistant MUST load and consult the most recent Decision Pack section(s) BEFORE producing a new Decision Pack.
+
+Deterministic "most recent" selection (Binding):
+- Sections MUST be labeled with headings in the form:
+  `## Decision Pack — YYYY-MM-DD`
+- "Most recent" MUST be selected as the section with the maximum ISO date (lexicographic max).
+- If the format is inconsistent or dates are missing, the assistant MUST:
+  - record a Risk: `[PERSISTED-ARTIFACT-NONDETERMINISTIC] decision-pack.md section dating inconsistent`
+  - fall back to using the last section in file order.
+
+Deterministic lifecycle resolution (Binding):
+- When multiple entries exist for the same conceptual decision:
+  - Prefer the most recent decision entry that:
+    1) has an explicit `ID:`
+    2) has an explicit `Status:`
+  - If an older decision is superseded (directly or indirectly), it MUST NOT be treated as active default.
+- If the file contains accepted decisions without IDs/status, record:
+  `Risk: [DECISION-PACK-LEGACY-FORMAT] missing ID/Status; defaults may be noisy until next run rewrites decisions with lifecycle metadata.`
+ 
 - Loaded Decision Pack content is treated as a repo-specific default decision memory.
 - It MUST NOT override higher-rung evidence (see Evidence Ladder):
   - If repository configs/code contradict persisted decisions, repository evidence wins.
@@ -804,14 +958,14 @@ If this rule is applicable (OpenCode context) and `${CONFIG_ROOT}/${REPO_NAME}/d
 
 Minimum required use:
 - The assistant MUST:
-  1) extract a short "HistoryDigest" (3–8 bullets) of the most relevant defaults/decisions, and
+  1) extract a short "ActiveDecisionDigest" (3–8 bullets) from the ACTIVE decisions set, and
   2) apply it as the default baseline when forming new A/B options in Phase 2.1,
      unless the current repo evidence makes it invalid.
 
 Session-state keys (Binding when OpenCode applies):
 - `SESSION_STATE.DecisionPack.SourcePath` (resolved path expression)
 - `SESSION_STATE.DecisionPack.Loaded = true | false`
-- `SESSION_STATE.DecisionPack.HistoryDigest` (short text)
+- `SESSION_STATE.DecisionPack.ActiveDecisionDigest` (short text)
 
 If the file does not exist:
 - set `Loaded = false`
@@ -888,6 +1042,14 @@ If the file exists:
 - The assistant MUST load and consult the most recent digest section BEFORE performing Phase 2 discovery outputs.
 - Loaded content is supportive memory only and MUST NOT override repo evidence.
 - If contradictions exist, repository evidence wins and a Risk MUST be recorded per Evidence Ladder.
+
+Deterministic "most recent" selection (Binding):
+- Sections MUST be labeled with headings in the form:
+  `## Repo Map Digest — YYYY-MM-DD`
+- "Most recent" MUST be selected as the section with the maximum ISO date (lexicographic max).
+- If the format is inconsistent or dates are missing, the assistant MUST:
+  - record a Risk: `[PERSISTED-ARTIFACT-NONDETERMINISTIC] repo-map-digest.md section dating inconsistent`
+  - fall back to using the last section in file order.
 
 Session-state keys (Binding when OpenCode applies):
 - `SESSION_STATE.RepoMapDigestFile.SourcePath`
