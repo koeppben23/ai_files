@@ -25,16 +25,16 @@ with architecture, contract, debt & QA gates
 This governance system is single-user and MUST NOT require repository-local governance or persistent artifacts.
 - DO NOT read rulebooks from the repository (no `.opencode*`, no `profiles/` in repo).
 - ALL persistent artifacts (repo cache, decision log, resume state) MUST be stored outside the repo, under:
-  - GovernanceHome: `~/.config/opencode/` (rulebooks + indices)
-  - WorkspaceHome: `~/.config/opencode/workspaces/<repo_fingerprint>/` (state + caches)
+  - GovernanceHome: `~/.opencode/governance/` (rulebooks + indices)
+  - WorkspaceHome: `~/.opencode/workspaces/<repo_fingerprint>/` (state + caches)
 
 #### Step 1: Load Core Rulebook (rules.md)
 
 **Search order:**
-1. Per-repo override (optional): `~/.config/opencode/workspaces/<repo_fingerprint>/governance/rules.md`
-2. Global commands: `~/.config/opencode/commands/rules.md`
-3. Global config: `~/.config/opencode/rules.md` (fallback)
-4. Global rules folder: `~/.config/opencode/rules/rules.md` (fallback)
+1. Per-repo override (optional): `~/.opencode/workspaces/<repo_fingerprint>/governance/rules.md`
+2. Global commands: `~/.opencode/governance/commands/rules.md`
+3. Global config: `~/.opencode/governance/rules.md` (fallback)
+4. Global rules folder: `~/.opencode/governance/rules/rules.md` (fallback)
 5. Context: manually provided (planning-only)
 
 #### Step 1b: Load Top-Tier Index & Conflict Model (QUALITY_INDEX.md, CONFLICT_RESOLUTION.md)
@@ -42,10 +42,10 @@ This governance system is single-user and MUST NOT require repository-local gove
 These files are normative and MUST be available in the same governance installation scope as `master.md`.
 
 **Search order (per file):**
-1. Per-repo override (optional): `~/.config/opencode/workspaces/<repo_fingerprint>/governance/<FILE>.md`
-2. Global commands: `~/.config/opencode/commands/<FILE>.md`
-3. Global config: `~/.config/opencode/<FILE>.md` (fallback)
-4. Global rules folder: `~/.config/opencode/rules/<FILE>.md` (fallback)
+1. Per-repo override (optional): `~/.opencode/workspaces/<repo_fingerprint>/governance/<FILE>.md`
+2. Global commands: `~/.opencode/governance/commands/<FILE>.md`
+3. Global config: `~/.opencode/governance/<FILE>.md` (fallback)
+4. Global rules folder: `~/.opencode/governance/rules/<FILE>.md` (fallback)
 5. Context: manually provided (planning-only)
 
 #### Step 2: Load Profile Rulebook (AUTO-DETECTION ADDED)
@@ -59,11 +59,11 @@ These files are normative and MUST be available in the same governance installat
 2. **Auto-detection from available rulebooks** (NEW!)
    - If ONLY ONE profile rulebook exists → use it automatically
    - Search paths:
-     a. `~/.config/opencode/workspaces/<repo_fingerprint>/governance/profiles/rules*.md` (optional)
-     b. `~/.config/opencode/commands/rules*.md`
-     b2. `~/.config/opencode/commands/profiles/rules*.md`
-     c. `~/.config/opencode/rules/rules*.md`
-     d. `~/.config/opencode/rules/profiles/rules*.md`
+     a. `~/.opencode/workspaces/<repo_fingerprint>/governance/profiles/rules*.md` (optional)
+     b. `~/.opencode/governance/commands/rules*.md`
+     b2. `~/.opencode/governance/commands/profiles/rules*.md`
+     c. `~/.opencode/governance/rules/rules*.md`
+     d. `~/.opencode/governance/rules/profiles/rules*.md`
    
    **Auto-selection logic:**
    ```
@@ -131,8 +131,8 @@ See SESSION_STATE_SCHEMA.md for the canonical contract (required keys, enums, in
 
 ```
 SESSION_STATE.LoadedRulebooks = {
-  core: "~/.config/opencode/commands/rules.md",
-  profile: "~/.config/opencode/commands/profiles/rules.backend-java.md"
+  core: "~/.opencode/governance/commands/rules.md",
+  profile: "~/.opencode/governance/commands/profiles/rules.backend-java.md"
 }
 SESSION_STATE.ActiveProfile = "backend-java"
 SESSION_STATE.ProfileSource = "auto-detected-single" | "user-explicit" | "repo-fallback"
@@ -214,7 +214,7 @@ However, repo-local governance artifacts MUST NOT be created or modified unless 
 When the assistant proposes or confirms a **non-trivial architectural decision**
 (examples: boundaries, persistence, API contract approach, major dependency/tooling change, migration strategy):
 - The assistant MUST record the decision as an ADR entry in the local workspace by default:
-  `~/.config/opencode/workspaces/<repo_fingerprint>/decisions/ADR.md`
+  `~/.opencode/workspaces/<repo_fingerprint>/decisions/ADR.md`
 - If the environment supports editing that file directly, the assistant MUST output a unified diff that appends the entry there.
 - Otherwise, the assistant MUST print the complete ADR entry block and the target path so the user can paste it.
 
@@ -608,10 +608,10 @@ persisted RepoMapDigest file exists and load it as context.
 
 Cross-platform configuration root resolution (Binding):
 * Windows:
-  * Primary: %APPDATA%/opencode
-  * Fallback: %USERPROFILE%/.config/opencode
+  * Primary: %USERPROFILE%\.opencode\
+  * Fallback: %USERPROFILE%\.opencode\
 * macOS / Linux:
-  * ${XDG_CONFIG_HOME:-~/.config}/opencode
+  * ~/.opencode
 
 Expected file location (Binding):
 * ${CONFIG_ROOT}/${REPO_NAME}/repo-map-digest.md
@@ -809,10 +809,10 @@ to the user's OpenCode configuration directory.
 
 Cross-platform configuration root resolution (Binding):
 * Windows:
-  * Primary: %APPDATA%/opencode
-  * Fallback: %USERPROFILE%/.config/opencode
+  * Primary: %USERPROFILE%\.opencode\
+  * Fallback: %USERPROFILE%\.opencode\
 * macOS / Linux:
-  * ${XDG_CONFIG_HOME:-~/.config}/opencode
+  * ~/.opencode
 
 Target folder and file (Binding):
 * ${CONFIG_ROOT}/${REPO_NAME}/repo-map-digest.md
@@ -864,10 +864,10 @@ persisted Decision Pack file exists and load it as context.
 
 Cross-platform configuration root resolution (Binding):
 * Windows:
-  * Primary: %APPDATA%/opencode
-  * Fallback: %USERPROFILE%/.config/opencode
+  * Primary: %USERPROFILE%\.opencode\
+  * Fallback: %USERPROFILE%\.opencode\
 * macOS / Linux:
-  * ${XDG_CONFIG_HOME:-~/.config}/opencode
+  * ~/.opencode
 
 Expected file location (Binding):
 * ${CONFIG_ROOT}/${REPO_NAME}/decision-pack.md
@@ -946,10 +946,10 @@ to the user's OpenCode configuration directory.
 
 Cross-platform configuration root resolution (Binding):
 * Windows:
-  * Primary: %APPDATA%/opencode
-  * Fallback: %USERPROFILE%/.config/opencode
+  * Primary: %USERPROFILE%\.opencode\
+  * Fallback: %USERPROFILE%\.opencode\
 * macOS / Linux:
-  * ${XDG_CONFIG_HOME:-~/.config}/opencode
+  * ~/.opencode
 
 Target folder and file (Binding):
 * ${CONFIG_ROOT}/${REPO_NAME}/decision-pack.md
@@ -1024,10 +1024,10 @@ persisted Business Rules inventory file exists and load it as context.
 
 Cross-platform configuration root resolution (Binding):
 * Windows:
-  * Primary: %APPDATA%/opencode
-  * Fallback: %USERPROFILE%/.config/opencode
+  * Primary: %USERPROFILE%\.opencode\
+  * Fallback: %USERPROFILE%\.opencode\
 * macOS / Linux:
-  * ${XDG_CONFIG_HOME:-~/.config}/opencode
+  * ~/.opencode
 
 Expected file location (Binding):
 * ${CONFIG_ROOT}/${REPO_NAME}/business-rules.md
@@ -1137,10 +1137,10 @@ output suitable for writing to the user's OpenCode configuration directory.
 
 Cross-platform configuration root resolution (Binding):
 * Windows:
-  * Primary: %APPDATA%/opencode
-  * Fallback: %USERPROFILE%/.config/opencode
+  * Primary: %USERPROFILE%\.opencode\
+  * Fallback: %USERPROFILE%\.opencode\
 * macOS / Linux:
-  * ${XDG_CONFIG_HOME:-~/.config}/opencode
+  * ~/.opencode
 
 Target folder and file (Binding):
 * ${CONFIG_ROOT}/${REPO_NAME}/business-rules.md
@@ -2191,7 +2191,7 @@ Steps (BINDING):
 
 5) Persistence (BINDING, NO REPO WRITES):
    - Append a snapshot of BuildEvidence (RequiredForGate + EvidenceItems + decision) to:
-     `~/.config/opencode/workspaces/<repo_fingerprint>/evidence/evidence-log.yaml`
+     `~/.opencode/workspaces/<repo_fingerprint>/evidence/evidence-log.yaml`
    - This file is outside the repo and is the audit trail for your own workflow.
 
 Canonical build command (default for Maven repositories):

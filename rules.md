@@ -9,7 +9,8 @@ This Core Rulebook is:
 - **authoritative over tickets and repository documentation**, except where explicitly allowed (see “Repository Guidelines as Constraints”).
 
 Stack-/environment-specific rules (e.g., Java backend vs. frontend) are defined in **profile rulebooks**:
-- `profiles/rules.<profile>.md` (e.g., `profiles/rules.backend-java.md`, `profiles/rules.frontend.md`)
+- Loaded from the governance installation scope outside the repository (see `master.md` search order),
+  e.g. `rules.backend-java.md`, `rules.frontend.md` (exact path depends on CONFIG_ROOT/workspace overrides).
 
 This file intentionally avoids stack-specific prescriptions.
 
@@ -719,14 +720,23 @@ If the workflow is NOT running under OpenCode:
 
 #### Location (cross-platform)
 
-The BR inventory MUST be stored outside the repository in the OpenCode config directory:
-
 Config root:
-- Windows: `%APPDATA%/opencode` (fallback: `%USERPROFILE%/.config/opencode`)
-- macOS/Linux: `${XDG_CONFIG_HOME:-~/.config}/opencode`
+- Windows: `%USERPROFILE%\.opencode\` (fallback: `%USERPROFILE%\.opencode\`)
+- macOS/Linux: `~/.opencode`
 
-Repository namespace folder:
-- `${CONFIG_ROOT}/${REPO_NAME}/`
+Repo fingerprint (Binding):
+- `<repo_fingerprint>` MUST be computed deterministically.
+- Preferred algorithm:
+  1) If git is available and a remote URL is present, normalize the remote (strip credentials/query),
+     then compute `sha256(remote_url + "|" + absolute_repo_root_path)`.
+  2) Otherwise compute `sha256(absolute_repo_root_path)`.
+  3) Use the first 16 hex characters as the folder name (e.g., `rf-<16hex>`).
+
+Workspace folder (preferred, Binding):
+- `${CONFIG_ROOT}/workspaces/<repo_fingerprint>/`
+
+Legacy fallback folder (allowed for reads only):
+- `${CONFIG_ROOT}/${REPO_NAME}/` (deprecated)
   - `REPO_NAME` MUST be derived from Phase 2 repository identity and sanitized:
     - lowercased
     - spaces → `-`
@@ -736,7 +746,7 @@ File name (fixed):
 - `business-rules.md`
 
 Resulting path example:
-- `${CONFIG_ROOT}/${REPO_NAME}/business-rules.md`
+- `${CONFIG_ROOT}/workspaces/<repo_fingerprint>/business-rules.md`
 
 #### File format (Binding)
 
@@ -790,46 +800,17 @@ Interpretation (Binding):
 
 #### Read-before-write behavior (Binding)
 
-If this rule is applicable (OpenCode context) and `${CONFIG_ROOT}/${REPO_NAME}/business-rules.md` exists:
-- The assistant MUST load and consult it BEFORE producing a new Phase 1.5 BR register.
+If this rule is applicable (OpenCode context):
+- The assistant MUST check the preferred location first:
+  - `${CONFIG_ROOT}/workspaces/<repo_fingerprint>/business-rules.md`
+- If not present, it MAY check the legacy fallback (read-only):
+  - `${CONFIG_ROOT}/${REPO_NAME}/business-rules.md`
+- If a file exists, the assistant MUST load and consult it BEFORE producing a new Phase 1.5 BR register.
 - Loaded content is treated as the current baseline to preserve BR identifiers across sessions.
 - It MUST NOT override higher-rung evidence (see Evidence Ladder):
   - If repository configs/code contradict an existing BR entry, repository evidence wins.
   - Any such contradiction MUST be recorded as:
     `Risk: [EVIDENCE-CONFLICT] persisted business-rules.md contradicts <repo evidence> — using repo evidence.`
-
-Conflict handling (Binding, auditability):
-- Conflicts MUST be recorded BOTH:
-  1) in `SESSION_STATE.Risks` (as above), AND
-  2) in the affected BR entry under `Conflicts:` with a bullet:
-     - `- repo-wins: <brief> | file-claimed: <...> | repo-evidence: <paths/symbols>`
-- When a conflict invalidates an `ACTIVE` BR (no longer evidenced), the assistant MUST:
-  - set `Status: DEPRECATED`
-  - set `Last Verified:` to the current run date
-  - set `Evidence: MISSING` (or update to new evidence)
-  - keep the BR-ID stable (do not delete)
-
-Canonical update rules (Binding):
-- Preserve BR-ID for semantic equivalence.
-- If a rule’s semantics change materially:
-  - create a NEW BR-ID entry and set the old one to `DEPRECATED`
-  - add in old entry `Conflicts:` a bullet: `- superseded-by: BR-NEW`
-  - add in new entry `Conflicts:` a bullet: `- supersedes: BR-OLD`
-
-Minimum required use:
-- The assistant MUST:
-  1) reuse existing BR-IDs for semantically equivalent rules,
-  2) update existing BR entries in-place when details/evidence changed,
-  3) allocate new BR-IDs only for genuinely new rules,
-  4) mark rules no longer evidenced as `Status: DEPRECATED` (do not delete).
-
-Session-state keys (Binding when OpenCode applies):
-- `SESSION_STATE.BusinessRules.InventoryFilePath`
-- `SESSION_STATE.BusinessRules.InventoryLoaded = true | false`
-
-If the file does not exist:
-- set `InventoryLoaded = false`
-- do not block progress
 
 #### Update behavior (Binding)
 
@@ -877,11 +858,22 @@ If the workflow is NOT running under OpenCode:
 #### Location (cross-platform)
 
 Config root:
-- Windows: `%APPDATA%/opencode` (fallback: `%USERPROFILE%/.config/opencode`)
-- macOS/Linux: `${XDG_CONFIG_HOME:-~/.config}/opencode`
+- Windows: `%USERPROFILE%\.opencode\` (fallback: `%USERPROFILE%\.opencode\`)
+- macOS/Linux: `~/.opencode`
 
-Repository namespace folder:
-- `${CONFIG_ROOT}/${REPO_NAME}/`
+Repo fingerprint (Binding):
+- `<repo_fingerprint>` MUST be computed deterministically.
+- Preferred algorithm:
+  1) If git is available and a remote URL is present, normalize the remote (strip credentials/query),
+     then compute `sha256(remote_url + "|" + absolute_repo_root_path)`.
+  2) Otherwise compute `sha256(absolute_repo_root_path)`.
+  3) Use the first 16 hex characters as the folder name (e.g., `rf-<16hex>`).
+
+Workspace folder (preferred, Binding):
+- `${CONFIG_ROOT}/workspaces/<repo_fingerprint>/`
+
+Legacy fallback folder (allowed for reads only):
+- `${CONFIG_ROOT}/${REPO_NAME}/` (deprecated)
   - `REPO_NAME` MUST be derived from Phase 2 repository identity and sanitized:
     - lowercased
     - spaces → `-`
@@ -891,7 +883,7 @@ File name (fixed):
 - `decision-pack.md`
 
 Resulting path example:
-- `${CONFIG_ROOT}/${REPO_NAME}/decision-pack.md`
+- `${CONFIG_ROOT}/workspaces/<repo_fingerprint>/decision-pack.md`
 
 #### File format (Binding)
 
@@ -930,8 +922,12 @@ Decision content (Binding):
     
 #### Read-before-write behavior (Binding)
 
-If this rule is applicable (OpenCode context) and `${CONFIG_ROOT}/${REPO_NAME}/decision-pack.md` exists:
-- The assistant MUST load and consult the most recent Decision Pack section(s) BEFORE producing a new Decision Pack.
+If this rule is applicable (OpenCode context):
+- The assistant MUST check the preferred location first:
+  - `${CONFIG_ROOT}/workspaces/<repo_fingerprint>/decision-pack.md`
+- If not present, it MAY check the legacy fallback (read-only):
+  - `${CONFIG_ROOT}/${REPO_NAME}/decision-pack.md`
+- If a file exists, the assistant MUST load and consult the most recent Decision Pack section(s) BEFORE producing a new Decision Pack.
 
 Deterministic "most recent" selection (Binding):
 - Sections MUST be labeled with headings in the form:
@@ -947,29 +943,6 @@ Deterministic lifecycle resolution (Binding):
     1) has an explicit `ID:`
     2) has an explicit `Status:`
   - If an older decision is superseded (directly or indirectly), it MUST NOT be treated as active default.
-- If the file contains accepted decisions without IDs/status, record:
-  `Risk: [DECISION-PACK-LEGACY-FORMAT] missing ID/Status; defaults may be noisy until next run rewrites decisions with lifecycle metadata.`
- 
-- Loaded Decision Pack content is treated as a repo-specific default decision memory.
-- It MUST NOT override higher-rung evidence (see Evidence Ladder):
-  - If repository configs/code contradict persisted decisions, repository evidence wins.
-  - Any such contradiction MUST be recorded as:
-    `Risk: [EVIDENCE-CONFLICT] persisted decision-pack.md contradicts <repo evidence> — using repo evidence.`
-
-Minimum required use:
-- The assistant MUST:
-  1) extract a short "ActiveDecisionDigest" (3–8 bullets) from the ACTIVE decisions set, and
-  2) apply it as the default baseline when forming new A/B options in Phase 2.1,
-     unless the current repo evidence makes it invalid.
-
-Session-state keys (Binding when OpenCode applies):
-- `SESSION_STATE.DecisionPack.SourcePath` (resolved path expression)
-- `SESSION_STATE.DecisionPack.Loaded = true | false`
-- `SESSION_STATE.DecisionPack.ActiveDecisionDigest` (short text)
-
-If the file does not exist:
-- set `Loaded = false`
-- do not block progress
 
 #### Update behavior (Binding)
 
@@ -1003,11 +976,22 @@ If the workflow is NOT running under OpenCode:
 #### Location (cross-platform)
 
 Config root:
-- Windows: `%APPDATA%/opencode` (fallback: `%USERPROFILE%/.config/opencode`)
-- macOS/Linux: `${XDG_CONFIG_HOME:-~/.config}/opencode`
+- Windows: `%USERPROFILE%\.opencode\` (fallback: `%USERPROFILE%\.opencode\`)
+- macOS/Linux: `~/.opencode`
 
-Repository namespace folder:
-- `${CONFIG_ROOT}/${REPO_NAME}/`
+Repo fingerprint (Binding):
+- `<repo_fingerprint>` MUST be computed deterministically.
+- Preferred algorithm:
+  1) If git is available and a remote URL is present, normalize the remote (strip credentials/query),
+     then compute `sha256(remote_url + "|" + absolute_repo_root_path)`.
+  2) Otherwise compute `sha256(absolute_repo_root_path)`.
+  3) Use the first 16 hex characters as the folder name (e.g., `rf-<16hex>`).
+
+Workspace folder (preferred, Binding):
+- `${CONFIG_ROOT}/workspaces/<repo_fingerprint>/`
+
+Legacy fallback folder (allowed for reads only):
+- `${CONFIG_ROOT}/${REPO_NAME}/` (deprecated)
   - `REPO_NAME` MUST be derived from repository identity and sanitized:
     - lowercased
     - spaces → `-`
@@ -1017,7 +1001,7 @@ File name (fixed):
 - `repo-map-digest.md`
 
 Resulting path example:
-- `${CONFIG_ROOT}/${REPO_NAME}/repo-map-digest.md`
+- `${CONFIG_ROOT}/workspaces/<repo_fingerprint>/repo-map-digest.md`
 
 #### File format (Binding)
 
@@ -1040,6 +1024,10 @@ It MUST be structured so both humans and tools can consume it:
 
 If the file exists:
 - The assistant MUST load and consult the most recent digest section BEFORE performing Phase 2 discovery outputs.
+- The assistant MUST check the preferred location first:
+  - `${CONFIG_ROOT}/workspaces/<repo_fingerprint>/repo-map-digest.md`
+- If not present, it MAY check the legacy fallback (read-only):
+  - `${CONFIG_ROOT}/${REPO_NAME}/repo-map-digest.md`
 - Loaded content is supportive memory only and MUST NOT override repo evidence.
 - If contradictions exist, repository evidence wins and a Risk MUST be recorded per Evidence Ladder.
 
@@ -1128,3 +1116,4 @@ Profile & scope override handling (binding):
 
 Copyright © 2026 Benjamin Fuchs.
 All rights reserved. See LICENSE.
+
