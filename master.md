@@ -20,24 +20,32 @@ with architecture, contract, debt & QA gates
 
 ### Lookup Strategy (ENHANCED)
 
+### Local-Only Governance & State (BINDING)
+
+This governance system is single-user and MUST NOT require repository-local governance or persistent artifacts.
+- DO NOT read rulebooks from the repository (no `.opencode*`, no `profiles/` in repo).
+- ALL persistent artifacts (repo cache, decision log, resume state) MUST be stored outside the repo, under:
+  - GovernanceHome: `~/.config/opencode/` (rulebooks + indices)
+  - WorkspaceHome: `~/.config/opencode/workspaces/<repo_fingerprint>/` (state + caches)
+
 #### Step 1: Load Core Rulebook (rules.md)
 
 **Search order:**
-1. Global commands: `~/.config/opencode/commands/rules.md`
-2. Global config: `~/.config/opencode/rules.md` (fallback)
-3. Global rules folder: `~/.config/opencode/rules/rules.md` (fallback)
-4. Project governance: `.opencode-governance/rules.md` (fallback)
-5. Context: manually provided (planning-only) 
+1. Per-repo override (optional): `~/.config/opencode/workspaces/<repo_fingerprint>/governance/rules.md`
+2. Global commands: `~/.config/opencode/commands/rules.md`
+3. Global config: `~/.config/opencode/rules.md` (fallback)
+4. Global rules folder: `~/.config/opencode/rules/rules.md` (fallback)
+5. Context: manually provided (planning-only)
 
 #### Step 1b: Load Top-Tier Index & Conflict Model (QUALITY_INDEX.md, CONFLICT_RESOLUTION.md)
 
 These files are normative and MUST be available in the same governance installation scope as `master.md`.
 
 **Search order (per file):**
-1. Global commands: `~/.config/opencode/commands/<FILE>.md`
-2. Global config: `~/.config/opencode/<FILE>.md` (fallback)
-3. Global rules folder: `~/.config/opencode/rules/<FILE>.md` (fallback)
-4. Project governance: `.opencode-governance/<FILE>.md` (fallback)
+1. Per-repo override (optional): `~/.config/opencode/workspaces/<repo_fingerprint>/governance/<FILE>.md`
+2. Global commands: `~/.config/opencode/commands/<FILE>.md`
+3. Global config: `~/.config/opencode/<FILE>.md` (fallback)
+4. Global rules folder: `~/.config/opencode/rules/<FILE>.md` (fallback)
 5. Context: manually provided (planning-only)
 
 #### Step 2: Load Profile Rulebook (AUTO-DETECTION ADDED)
@@ -51,15 +59,11 @@ These files are normative and MUST be available in the same governance installat
 2. **Auto-detection from available rulebooks** (NEW!)
    - If ONLY ONE profile rulebook exists → use it automatically
    - Search paths:
-     a. `~/.config/opencode/commands/rules*.md`
-     a2. `~/.config/opencode/commands/profiles/rules*.md`
-     b. `~/.config/opencode/rules/rules*.md`
-     c. `~/.config/opencode/rules/profiles/rules*.md`
-     d. `.opencode/commands/rules*.md`
-     e. `.opencode/rules/profiles/rules*.md`
-     e2. `.opencode-governance/profiles/rules*.md` (repo-local)
-     f. `profiles/rules.*.md` (repo-local)
-     g. `profiles/rules*.md` (repo-local)
+     a. `~/.config/opencode/workspaces/<repo_fingerprint>/governance/profiles/rules*.md` (optional)
+     b. `~/.config/opencode/commands/rules*.md`
+     b2. `~/.config/opencode/commands/profiles/rules*.md`
+     c. `~/.config/opencode/rules/rules*.md`
+     d. `~/.config/opencode/rules/profiles/rules*.md`
    
    **Auto-selection logic:**
    ```
@@ -200,14 +204,19 @@ All technical and quality rules are defined in `rules.md` plus the active profil
 
 ---
 
-## ADR (Architecture Decision Records) — Decision Memory (Binding)
+## ADR (Architecture Decision Records) — Decision Memory (BINDING)
 
-If the repository contains an `ADR.md`, treat it as a constraint source (per `rules.md`).
+Repository ADRs (e.g., `ADR.md` inside the repo) MAY exist and MUST be treated as a constraint source (per `rules.md`).
+However, repo-local governance artifacts MUST NOT be created or modified unless the ticket explicitly requires it.
+
+### Default recording target (local workspace)
 
 When the assistant proposes or confirms a **non-trivial architectural decision**
 (examples: boundaries, persistence, API contract approach, major dependency/tooling change, migration strategy):
-- The assistant MUST record the decision as an ADR entry by default.
-- The assistant MUST output a unified diff that appends a complete ADR entry to `ADR.md`.
+- The assistant MUST record the decision as an ADR entry in the local workspace by default:
+  `~/.config/opencode/workspaces/<repo_fingerprint>/decisions/ADR.md`
+- If the environment supports editing that file directly, the assistant MUST output a unified diff that appends the entry there.
+- Otherwise, the assistant MUST print the complete ADR entry block and the target path so the user can paste it.
 
 An ADR entry is mandatory if any of the following are introduced or materially changed:
 - a new abstraction or architectural boundary
