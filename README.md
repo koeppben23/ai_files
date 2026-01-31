@@ -129,9 +129,17 @@ The complete governance system is installed in:
 ├── SESSION_STATE_SCHEMA.md
 ├── continue.md
 ├── resume.md
+├── ResumePrompt.md
+├── ADR.md
+├── TICKET_RECORD_TEMPLATE.md
+├── README.md
+├── README-RULES.md
+├── README-OPENCODE.md
+├── README-CHAT.md
 └── profiles/
     ├── rules.backend-java.md
     └── rules.fallback-minimum.md
+    ├── rules.frontend-angular-nx.md
     └── rules.<stack>.md
 ```
 
