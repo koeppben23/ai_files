@@ -1128,4 +1128,3 @@ Profile & scope override handling (binding):
 
 Copyright © 2026 Benjamin Fuchs.
 All rights reserved. See LICENSE.
-
