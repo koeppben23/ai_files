@@ -752,6 +752,63 @@ in that case:
 - set `InventoryFileStatus = write-requested`
 - provide the content and path so the user/OpenCode can persist it.
 
+### 8.y Decision Pack File (OpenCode-only, Conditional, Binding)
+
+Purpose:
+- Persist Phase 2.1 outputs beyond the current session to reduce repeated decision work
+  and stabilize repo-specific defaults over multiple tickets.
+
+This rule is REQUIRED if and only if:
+- Phase 2.1 (Decision Pack) produced at least one decision AND
+- the workflow is running under OpenCode (repository is provided/indexed via OpenCode).
+
+If the workflow is NOT running under OpenCode:
+- This rule is NOT applicable (do not block; Decision Pack remains in-chat only).
+
+#### Location (cross-platform)
+
+Config root:
+- Windows: `%APPDATA%/opencode` (fallback: `%USERPROFILE%/.config/opencode`)
+- macOS/Linux: `${XDG_CONFIG_HOME:-~/.config}/opencode`
+
+Repository namespace folder:
+- `${CONFIG_ROOT}/${REPO_NAME}/`
+  - `REPO_NAME` MUST be derived from Phase 2 repository identity and sanitized:
+    - lowercased
+    - spaces → `-`
+    - remove path separators and unsafe characters
+
+File name (fixed):
+- `decision-pack.md`
+
+Resulting path example:
+- `${CONFIG_ROOT}/${REPO_NAME}/decision-pack.md`
+
+#### File format (Binding)
+
+The file MUST be Markdown and append-only:
+- A short header (repo name, last updated)
+- One section per run, labeled with ISO date and optional ticket/ref:
+  - `## Decision Pack — YYYY-MM-DD`
+  - then the decisions in the exact Phase 2.1 format (D-001, Options A/B, Recommendation, Evidence, What would change it).
+
+#### Update behavior (Binding)
+
+When this rule is triggered:
+- If the file exists: append a new dated section (do not overwrite history).
+- If missing: output full file content (header + current section).
+- The assistant MUST state the exact target path and whether the output is create vs append.
+
+The assistant MUST update session state with:
+- `SESSION_STATE.DecisionPack.FilePath`
+- `SESSION_STATE.DecisionPack.FileStatus = written | write-requested | not-applicable`
+
+This rule MUST NOT block progress if the environment cannot write files;
+in that case:
+- set `FileStatus = write-requested`
+- provide the content and path so the user/OpenCode can persist it manually.
+
+
 ## 9. BuildEvidence (Core)
 
 BuildEvidence distinguishes:
