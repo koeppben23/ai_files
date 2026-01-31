@@ -723,6 +723,54 @@ Proceeding to Phase 4 (Ticket Execution)...  # or Phase 3A depending on artifact
 (Phase 1.5 runs only if the user approves; if triggers are detected, it MUST appear as a Decision Pack item.)
 ```
 
+#### OpenCode-only: Persist Decision Pack (Binding when applicable)
+
+If Phase 2.1 (Decision Pack) produced at least one decision AND the workflow is running under OpenCode
+(repository provided or indexed via OpenCode),
+the assistant MUST additionally produce a Decision Pack file output suitable for writing
+to the user's OpenCode configuration directory.
+
+Cross-platform configuration root resolution (Binding):
+* Windows:
+  * Primary: %APPDATA%/opencode
+  * Fallback: %USERPROFILE%/.config/opencode
+* macOS / Linux:
+  * ${XDG_CONFIG_HOME:-~/.config}/opencode
+
+Target folder and file (Binding):
+* ${CONFIG_ROOT}/${REPO_NAME}/decision-pack.md
+  * REPO_NAME MUST be derived from the Phase 2 repository identity
+    and sanitized as follows:
+    * lowercased
+    * spaces replaced with "-"
+    * path separators and unsafe characters removed
+
+Update behavior (Binding):
+* If the file already exists, the assistant MUST append a new section
+  (do not overwrite the full history).
+* If the file does not exist, the assistant MUST create it with a short header and the current Decision Pack.
+
+Output requirements (Binding):
+1) Emit a single structured block:
+   [DECISION-PACK-FILE]
+   TargetPath: <resolved path expression>
+   RepoName: <sanitized repo name>
+   LastUpdated: <YYYY-MM-DD>
+   Mode: create | append
+   Content:
+   <complete Markdown content for create OR the appended section for append>
+   [/DECISION-PACK-FILE]
+
+2) Update SESSION_STATE:
+   * SESSION_STATE.DecisionPack.FilePath
+   * SESSION_STATE.DecisionPack.FileStatus =
+     written | write-requested | not-applicable
+
+If file writing is not possible in the current environment:
+* set FileStatus = write-requested
+* still output the full content and target path so OpenCode or the user
+  can persist it manually.
+
 **Phase 2 exit conditions:**
 * Success: Repository scanned, findings documented → Proceed to **Phase 2.1 (Decision Pack)** by default, then:
   - If external API artifacts exist → Phase 3A
