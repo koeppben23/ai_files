@@ -10,6 +10,9 @@ This document contains **no standalone rules**.
 It only summarizes the requirements defined in **rules.md**.
 When in doubt, **rules.md** and the **Master Prompt** always take precedence.
 
+Conflicts between sources are resolved deterministically via `CONFLICT_RESOLUTION.md`
+(located next to `master.md`).
+
 ---
 
 ## 1. Purpose

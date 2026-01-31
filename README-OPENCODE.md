@@ -181,6 +181,8 @@ OpenCode enables **repo-first governance**.
    - `master.md`
    - `rules.md`
    - `SCOPE-AND-CONTEXT.md`
+   - `QUALITY_INDEX.md`
+   - `CONFLICT_RESOLUTION.md`
 
    remain available during the session
 
@@ -191,7 +193,12 @@ OpenCode enables **repo-first governance**.
    - fewer wrong assumptions
    - lower review friction
 
-4. **Optional: ADR decision memory**
+4. **Weak or missing repo standards**
+   - If the repository lacks explicit build/test/quality standards, activate:
+     - `profiles/rules.fallback-minimum.md`
+   - This establishes a non-negotiable baseline for verification and documentation.
+
+5. **Optional: ADR decision memory**
    - If you keep an `ADR.md` in the repo, the system can reuse past architecture decisions
    - This reduces repeated discussions and prevents silent architecture drift
 

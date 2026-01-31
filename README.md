@@ -306,8 +306,11 @@ Uniform consent to proceed.
 |------|---------|
 | `master.md` | Central orchestration: phases, gates, session-state |
 | `rules.md` | Technical, architectural, test, and business rules |
+| `profiles/*` | Context-specific rulebooks; includes repo-agnostic fallback baseline |
 | `README-RULES.md` | Executive summary (not normative) |
 | `SCOPE-AND-CONTEXT.md` | Normative responsibility and scope boundary |
+| `QUALITY_INDEX.md` | Canonical index for “top-tier” quality (no new rules; pointers only) |
+| `CONFLICT_RESOLUTION.md` | Deterministic precedence model for conflicting instructions |
 | `resume.md` | OpenCode command for controlled continuation |
 | `continue.md` | OpenCode command for uniform “continue” execution |
 | `ResumePrompt.md` | Manual/fallback resume variant without commands |

@@ -14,6 +14,9 @@ with architecture, contract, debt & QA gates
 * Operational rules (technical, architectural) are defined in:
   - `rules.md` (core technical rulebook)
   - the active profile rulebook referenced by `SESSION_STATE.LoadedRulebooks.profile`
+* Top-tier quality definition and deterministic conflict handling are defined in:
+  - `QUALITY_INDEX.md` (canonical top-tier index; no new rules)
+  - `CONFLICT_RESOLUTION.md` (priority model for contradictions)
 
 ### Lookup Strategy (ENHANCED)
 
