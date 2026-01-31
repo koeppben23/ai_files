@@ -833,6 +833,73 @@ in that case:
 - set `FileStatus = write-requested`
 - provide the content and path so the user/OpenCode can persist it manually.
 
+### 8.z RepoMapDigest File (OpenCode-only, Conditional, Binding)
+
+Purpose:
+- Persist Phase 2 repo understanding (RepoMapDigest + ConventionsDigest) beyond the current session
+  to reduce re-discovery and stabilize repo-specific conventions/invariants across tickets.
+
+This rule is REQUIRED if and only if:
+- Phase 2 completed AND
+- the workflow is running under OpenCode (repository is provided/indexed via OpenCode).
+
+If the workflow is NOT running under OpenCode:
+- This rule is NOT applicable (do not block; RepoMapDigest remains session-only).
+
+#### Location (cross-platform)
+
+Config root:
+- Windows: `%APPDATA%/opencode` (fallback: `%USERPROFILE%/.config/opencode`)
+- macOS/Linux: `${XDG_CONFIG_HOME:-~/.config}/opencode`
+
+Repository namespace folder:
+- `${CONFIG_ROOT}/${REPO_NAME}/`
+  - `REPO_NAME` MUST be derived from repository identity and sanitized:
+    - lowercased
+    - spaces → `-`
+    - remove path separators and unsafe characters
+
+File name (fixed):
+- `repo-map-digest.md`
+
+Resulting path example:
+- `${CONFIG_ROOT}/${REPO_NAME}/repo-map-digest.md`
+
+#### File format (Binding)
+
+The file MUST be Markdown and append-only.
+It MUST be structured so both humans and tools can consume it:
+- Header (repo name, last updated)
+- One section per run:
+  - `## Repo Map Digest — YYYY-MM-DD`
+  - `RepositoryType:` (if known)
+  - `Architecture:` (if known)
+  - `Modules:` (name, paths, responsibility)
+  - `EntryPoints:` (kind, location)
+  - `DataStores:` (kind, evidence)
+  - `BuildAndTooling:` (build system, codegen hints if any)
+  - `Testing:` (frameworks)
+  - `ConventionsDigest:` (5–10 evidence-backed bullets)
+  - `ArchitecturalInvariants:` (key invariants)
+
+#### Read-before-write behavior (Binding)
+
+If the file exists:
+- The assistant MUST load and consult the most recent digest section BEFORE performing Phase 2 discovery outputs.
+- Loaded content is supportive memory only and MUST NOT override repo evidence.
+- If contradictions exist, repository evidence wins and a Risk MUST be recorded per Evidence Ladder.
+
+Session-state keys (Binding when OpenCode applies):
+- `SESSION_STATE.RepoMapDigestFile.SourcePath`
+- `SESSION_STATE.RepoMapDigestFile.Loaded = true | false`
+- `SESSION_STATE.RepoMapDigestFile.Summary` (short text)
+- `SESSION_STATE.RepoMapDigestFile.FilePath`
+- `SESSION_STATE.RepoMapDigestFile.FileStatus = written | write-requested | not-applicable`
+
+This rule MUST NOT block progress if the environment cannot write files;
+in that case:
+- set `FileStatus = write-requested`
+- provide the content and path so the user/OpenCode can persist it manually.
 
 ## 9. BuildEvidence (Core)
 

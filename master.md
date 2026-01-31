@@ -573,6 +573,51 @@ Binding:
 
 **Objective:** Understand the repository structure, tech stack, architecture pattern, and existing contracts.
 
+#### OpenCode-only: Load existing RepoMapDigest (Read-before-write, Binding when applicable)
+
+Before performing repository discovery, if the workflow is running under OpenCode
+(repository provided or indexed via OpenCode), the assistant MUST check whether a
+persisted RepoMapDigest file exists and load it as context.
+
+Cross-platform configuration root resolution (Binding):
+* Windows:
+  * Primary: %APPDATA%/opencode
+  * Fallback: %USERPROFILE%/.config/opencode
+* macOS / Linux:
+  * ${XDG_CONFIG_HOME:-~/.config}/opencode
+
+Expected file location (Binding):
+* ${CONFIG_ROOT}/${REPO_NAME}/repo-map-digest.md
+  * REPO_NAME MUST be derived from the repository identity and sanitized:
+    * lowercased
+    * spaces replaced with "-"
+    * path separators and unsafe characters removed
+
+Read behavior (Binding):
+* If the file exists:
+  1) Load it and extract the most recent digest section.
+  2) Use it to reduce re-discovery and stabilize conventions/invariants.
+  3) Treat it as supportive memory only:
+     - If repository evidence (code/config) contradicts the file, repository evidence wins.
+     - Record conflicts as Risks.
+* If the file does not exist: proceed normally (no penalty).
+
+Output requirements (Binding when file exists):
+* Emit a short structured block:
+  [REPO-MAP-DIGEST-LOADED]
+  SourcePath: <resolved path expression>
+  LastUpdated: <YYYY-MM-DD or identifier>
+  Summary:
+  - <3-8 bullets of key conventions/invariants/modules>
+  Conflicts:
+  - <none | list conflicts and which evidence wins>
+  [/REPO-MAP-DIGEST-LOADED]
+
+SESSION_STATE updates (Binding when OpenCode applies):
+* SESSION_STATE.RepoMapDigestFile.SourcePath
+* SESSION_STATE.RepoMapDigestFile.Loaded = true | false
+* SESSION_STATE.RepoMapDigestFile.Summary = "<short text>"
+
 **Actions:**
 
 1. **Extract archive** (if provided as archive):
@@ -695,6 +740,50 @@ SESSION_STATE:
     SchemaPlanned: []
     SecuritySensitive: false
   ...
+
+#### OpenCode-only: Persist RepoMapDigest (Binding when applicable)
+
+If Phase 2 completed AND the workflow is running under OpenCode (repository provided or indexed via OpenCode),
+the assistant MUST additionally produce a RepoMapDigest file output suitable for writing
+to the user's OpenCode configuration directory.
+
+Cross-platform configuration root resolution (Binding):
+* Windows:
+  * Primary: %APPDATA%/opencode
+  * Fallback: %USERPROFILE%/.config/opencode
+* macOS / Linux:
+  * ${XDG_CONFIG_HOME:-~/.config}/opencode
+
+Target folder and file (Binding):
+* ${CONFIG_ROOT}/${REPO_NAME}/repo-map-digest.md
+  * REPO_NAME MUST be derived from the repository identity and sanitized:
+    * lowercased
+    * spaces replaced with "-"
+    * path separators and unsafe characters removed
+
+Update behavior (Binding):
+* If the file already exists, the assistant MUST append a new section (do not overwrite history).
+* If the file does not exist, the assistant MUST create it with a short header and the current digest section.
+
+Output requirements (Binding):
+1) Emit a single structured block:
+   [REPO-MAP-DIGEST-FILE]
+   TargetPath: <resolved path expression>
+   RepoName: <sanitized repo name>
+   LastUpdated: <YYYY-MM-DD>
+   Mode: create | append
+   Content:
+   <complete Markdown content for create OR the appended section for append>
+   [/REPO-MAP-DIGEST-FILE]
+
+2) Update SESSION_STATE:
+   * SESSION_STATE.RepoMapDigestFile.FilePath
+   * SESSION_STATE.RepoMapDigestFile.FileStatus =
+     written | write-requested | not-applicable
+
+If file writing is not possible in the current environment:
+* set FileStatus = write-requested
+* still output the full content and target path so OpenCode or the user can persist it manually.
 
 [PHASE-2.1-DECISION-PACK]  # DEFAULT (recommended)
 
