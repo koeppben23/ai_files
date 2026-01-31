@@ -792,6 +792,31 @@ The file MUST be Markdown and append-only:
   - `## Decision Pack — YYYY-MM-DD`
   - then the decisions in the exact Phase 2.1 format (D-001, Options A/B, Recommendation, Evidence, What would change it).
 
+#### Read-before-write behavior (Binding)
+
+If this rule is applicable (OpenCode context) and `${CONFIG_ROOT}/${REPO_NAME}/decision-pack.md` exists:
+- The assistant MUST load and consult the most recent Decision Pack section(s) BEFORE producing a new Decision Pack.
+- Loaded Decision Pack content is treated as a repo-specific default decision memory.
+- It MUST NOT override higher-rung evidence (see Evidence Ladder):
+  - If repository configs/code contradict persisted decisions, repository evidence wins.
+  - Any such contradiction MUST be recorded as:
+    `Risk: [EVIDENCE-CONFLICT] persisted decision-pack.md contradicts <repo evidence> — using repo evidence.`
+
+Minimum required use:
+- The assistant MUST:
+  1) extract a short "HistoryDigest" (3–8 bullets) of the most relevant defaults/decisions, and
+  2) apply it as the default baseline when forming new A/B options in Phase 2.1,
+     unless the current repo evidence makes it invalid.
+
+Session-state keys (Binding when OpenCode applies):
+- `SESSION_STATE.DecisionPack.SourcePath` (resolved path expression)
+- `SESSION_STATE.DecisionPack.Loaded = true | false`
+- `SESSION_STATE.DecisionPack.HistoryDigest` (short text)
+
+If the file does not exist:
+- set `Loaded = false`
+- do not block progress
+
 #### Update behavior (Binding)
 
 When this rule is triggered:
