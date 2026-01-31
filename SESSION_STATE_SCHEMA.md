@@ -226,18 +226,31 @@ Recommended structure:
 
 ```yaml
 SESSION_STATE:
+  FastPath: false            # boolean; true only if Applied=true
+  FastPathReason: ""         # legacy optional; keep short
   FastPathEvaluation:
-    Score: 0            # integer
-    Eligible: false     # boolean
-    Threshold: 10       # integer, default 10
-    Breakdown:
-      ComponentsTouched: 0   # 0..3
-      SchemaChange: 3        # 0 or 3
-      ContractChange: 3      # 0 or 3
-      TestCoverage: 0        # 0..2
-      TestsPassing: 0        # 0 or 2
-      Complexity: 0          # 0 or 1
+    Evaluated: true               # boolean
+    Eligible: false               # boolean (safe-to-apply)
+    Applied: false                # boolean (actually used)
     Reason: "<short, evidence-backed>"
+    Preconditions:
+      RepoMapDigestLoaded: true | false
+      PersistedGitHead: "<sha|unknown>"
+      CurrentGitHead: "<sha|unknown>"
+      GitHeadMatch: true | false | unknown
+      PersistedRepoSignature: "<sha|unknown>"
+      CurrentRepoSignature: "<sha|unknown>"
+      RepoSignatureMatch: true | false | unknown
+      TicketRiskClass: low | medium | high | unknown
+    DenyReasons:                  # list, empty if Eligible=true
+      - "<why fast path is not safe>"
+    ReducedDiscoveryScope:        # only when Applied=true
+      PathsScanned:
+        - "<repo-relative path>"
+      Skipped:
+        - "<what was intentionally skipped>"
+    EvidenceRefs:
+      - "<paths/commands used to compute signatures>"
 ```
 
 ### 7.4 Dependency Changes (Supply Chain)

@@ -645,6 +645,39 @@ SESSION_STATE updates (Binding when OpenCode applies):
 * SESSION_STATE.RepoMapDigestFile.Loaded = true | false
 * SESSION_STATE.RepoMapDigestFile.Summary = "<short text>"
 
+#### Fast Path (optional, conservative, Binding when applicable)
+
+Purpose:
+- Reduce repeated discovery across ticket sessions.
+- Apply ONLY when safety is provable (signature/head match).
+
+Fast Path eligibility (Binding):
+- Eligible ONLY if ALL are true:
+  1) RepoMapDigest file was loaded (`RepoMapDigestFile.Loaded=true`), AND
+  2) Either Git HEAD matches OR RepoSignature matches (see below), AND
+  3) Ticket does NOT mention contract/schema changes, AND
+  4) Component scope is either not set or is narrow (<= 2 top-level modules).
+
+RepoSignature (Binding, quick computation):
+- Compute `CurrentRepoSignature` as SHA256 over the concatenation of the contents of
+  the first N=10 existing files from this ordered list:
+  `pom.xml`, `build.gradle`, `build.gradle.kts`, `settings.gradle`, `settings.gradle.kts`,
+  `package.json`, `pnpm-lock.yaml`, `package-lock.json`, `yarn.lock`, `nx.json`.
+- If none exist or hashing is not possible: set signature to `unknown`.
+
+GitHead (Binding, preferred if available):
+- If git is available, `CurrentGitHead = git rev-parse HEAD`, else `unknown`.
+
+Application (Binding):
+- If Eligible=true, set:
+  - `SESSION_STATE.FastPath=true`
+  - `SESSION_STATE.FastPathEvaluation.Applied=true`
+  and perform Reduced Discovery:
+    - scan only: ComponentScopePaths (if set) OR WorkingSet paths derived from persisted digest
+    - verify only: build toolchain files + touched areas relevant to ticket keywords
+    - DO NOT re-enumerate full repo structure
+- If not eligible: `FastPath=false` and run normal discovery.
+
 **Actions:**
 
 1. **Extract archive** (if provided as archive):
@@ -802,6 +835,15 @@ Output requirements (Binding):
    Content:
    <complete Markdown content for create OR the appended section for append>
    [/REPO-MAP-DIGEST-FILE]
+   
+RepoMapDigest section format (Binding):
+- Each appended/created digest section MUST start with:
+  `## Repo Map Digest — YYYY-MM-DD`
+  followed by a `Meta:` block containing at least:
+  - `GitHead: <sha|unknown>`
+  - `RepoSignature: <sha|unknown>`
+  - `ComponentScope: <paths|none>`
+  - `Provenance: Phase2`
 
 2) Update SESSION_STATE:
    * SESSION_STATE.RepoMapDigestFile.FilePath
