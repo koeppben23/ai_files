@@ -511,8 +511,8 @@ SESSION_STATE:
   Risks: []
   Blockers: []
   Warnings: []
-  TicketRecordDigest: ""   # REQUIRED for Phase >= 4
-  NFRChecklist: {}         # optional in MIN; recommended for Phase >= 4
+  TicketRecordDigest: ""   # REQUIRED for Phase in {4, 5, 5.3, 5.4, 5.5, 6}
+  NFRChecklist: {}         # optional in MIN; recommended for Phase in {4, 5, 5.3, 5.4, 5.5, 6}
   CrossRepoImpact: {}     # optional in MIN; REQUIRED in FULL if contracts are consumed cross-repo
   RollbackStrategy: {}    # optional in MIN; REQUIRED in FULL if schema/contracts change
   DependencyChanges: {}   # optional in MIN; REQUIRED in FULL if deps change
@@ -2162,6 +2162,37 @@ Result: complexity-warning (warnings only; requires review attention)
 ---
 
 ### PHASE 6 — Implementation QA (Self-Review Gate)
+
+### BuildEvidence Evaluation (BINDING)
+
+Goal:
+- Decide P6 gate deterministically using SESSION_STATE.BuildEvidence.RequiredForGate + EvidenceItems.
+
+Steps (BINDING):
+1) Ensure `SESSION_STATE.BuildEvidence.RequiredForGate.P6-ImplementationQA` exists.
+   - If missing, populate from active profile defaults (e.g., backend-java),
+     otherwise fall back to the minimal core defaults (unit-tests + build-success mandatory).
+
+2) Collect EvidenceItems for each Mandatory requirement:
+   - Preferred: run the declared `command` if execution is available.
+   - Otherwise: ask user to provide proof (paste command output).
+   - NEVER mark `pass` without evidence.
+   - Record for each item: result, observedAt, evidenceType, evidenceSummary, evidenceRefs.
+
+3) Optional requirements:
+   - Attempt if cheap/available.
+   - If not executed, keep result=unknown unless explicitly waived.
+   - Waiver MUST include reason + explicit riskAccepted statement.
+
+4) Gate Decision (BINDING):
+   - Apply SESSION_STATE.BuildEvidence.GateApprovalLogic exactly.
+   - If blocked, state the smallest missing Mandatory evidence set.
+   - If approved, state which evidence satisfied each Mandatory item.
+
+5) Persistence (BINDING, NO REPO WRITES):
+   - Append a snapshot of BuildEvidence (RequiredForGate + EvidenceItems + decision) to:
+     `~/.config/opencode/workspaces/<repo_fingerprint>/evidence/evidence-log.yaml`
+   - This file is outside the repo and is the audit trail for your own workflow.
 
 Canonical build command (default for Maven repositories):
 * mvn -B -DskipITs=false clean verify

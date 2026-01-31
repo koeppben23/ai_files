@@ -487,7 +487,64 @@ This is further specified as binding in `rules.md` (Ticket Record section).
 ```yaml
 BuildEvidence:
   status: not-provided | partially-provided | provided-by-user
-  notes: "<what exists or is missing>"
+  notes: "<short: what exists/missing>"
+
+  # NEW: Required Scopes (per Gate)
+  # Canonical requirement set used to decide gate approval deterministically.
+  RequiredForGate:
+    # Example gate id:
+    P6-ImplementationQA:
+      Mandatory:
+        - id: "unit-tests"
+          scope: "unit-tests"
+          tool: "maven-surefire"
+          command: "mvn test"
+          requiredResult: "pass"
+          reason: "Core functionality verification"
+        - id: "build-success"
+          scope: "build-success"
+          tool: "maven"
+          command: "mvn clean verify"
+          requiredResult: "pass"
+          reason: "Compilation and packaging"
+      Optional:
+        - id: "integration-tests"
+          scope: "integration-tests"
+          tool: "maven-failsafe"
+          command: "mvn verify -DskipITs=false"
+          requiredResult: "pass"
+          reason: "End-to-end verification"
+        - id: "static-analysis"
+          scope: "static-analysis"
+          tool: "spotbugs"
+          command: "mvn spotbugs:check"
+          requiredResult: "pass"
+          reason: "Code quality checks"
+
+  # Evidence capture for THIS ticket run
+  EvidenceItems:
+    # each item corresponds to one required scope execution or user-provided proof
+    - gateId: "P6-ImplementationQA"
+      itemId: "unit-tests"
+      result: pass | fail | unknown | waived
+      observedAt: "<ISO-8601>"
+      evidenceType: command-output | ci-link | user-assertion
+      evidenceSummary: "<1-2 lines>"
+      evidenceRefs:
+        - "<path:line or log pointer>"
+      waiver:
+        applied: false
+        reason: "<required if waived=true>"
+        riskAccepted: "<explicit risk statement>"
+
+  # Decision Rule (BINDING, deterministic)
+  GateApprovalLogic: |
+    A gate with RequiredForGate.<gateId> is APPROVED IFF:
+      - ALL Mandatory items have EvidenceItems.result = pass
+      - AND (OptionalPassRate >= 75%) OR all non-pass Optional items are explicitly waived
+    BLOCKED IFF:
+      - ANY Mandatory item has result = fail OR unknown OR missing
+      - OR user has not provided required evidence and execution is not possible
   items:                # optional but strongly recommended; enables reviewer-proof verification
     - tool: "<maven|gradle|npm|spotbugs|checkstyle|archunit|openapi|pact|...>"
       command: "<exact command executed>"
