@@ -101,6 +101,7 @@ SESSION_STATE bootstrap (binding):
     core: ""     # DEFERRED until Phase 4
     profile: ""  # DEFERRED until post-Phase-2
     templates: ""
+    addons: {}
   ActiveProfile: ""          # DEFERRED until post-Phase-2
   ProfileSource: "deferred"
   ProfileEvidence: "deferred-until-phase-2"
@@ -248,7 +249,9 @@ See SESSION_STATE_SCHEMA.md for the canonical contract (required keys, enums, in
 ```
 SESSION_STATE.LoadedRulebooks = {
   core: "${COMMANDS_HOME}/rules.md",
-  profile: "${COMMANDS_HOME}/profiles/rules.backend-java.md"
+  profile: "${COMMANDS_HOME}/profiles/rules.backend-java.md",
+  templates: "",
+  addons: {}
 }
 SESSION_STATE.ActiveProfile = "backend-java"
 SESSION_STATE.ProfileSource = "auto-detected-single" | "user-explicit" | "repo-fallback"
@@ -610,6 +613,7 @@ SESSION_STATE:
     core: "<path/to/rules.md>"
     profile: "<path/to/profile-rulebook.md>"  # empty string allowed only for planning-only mode
     templates: ""
+    addons: {}
   
   ActiveProfile: "<profile-name>"
   ProfileSource: "user-explicit" | "auto-detected-single" | "repo-fallback" | "component-scope-inferred" | "component-scope-filtered" | "ambiguous"
@@ -665,6 +669,7 @@ Loaded Rulebooks:
   Core: <path/to/rules.md>
   Profile: <path/to/rules_<profile>.md>
   Templates: <path/to/rules.backend-java-templates.md> | deferred | not-applicable
+  Addons: {} | (e.g., kafka -> <path>) 
 
 Active Profile: <profile-name>
 Profile Source: auto-detected-single | user-explicit | repo-fallback | component-scope-inferred | ambiguous
@@ -682,6 +687,7 @@ SESSION_STATE:
     core: "<path>"
     profile: "<path>"
     templates: ""
+    addons: {}
   ActiveProfile: "<profile-name>"
   ProfileSource: "<source>"
   ProfileEvidence: "<evidence>"
