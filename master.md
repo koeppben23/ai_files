@@ -1039,12 +1039,8 @@ the assistant MUST additionally produce a Decision Pack file output suitable for
 to the user's OpenCode configuration directory.
 
 Cross-platform configuration root resolution (Binding):
-* See `GLOBAL PATH VARIABLES (BINDING)` → `${CONFIG_ROOT}`
-  * Primary: %APPDATA%/opencode
-  * Fallback: %USERPROFILE%/.config/opencode
-* macOS / Linux:
-  * ${XDG_CONFIG_HOME:-~/.config}/opencode
-
+* Use `${CONFIG_ROOT}` as defined in `GLOBAL PATH VARIABLES (BINDING)`.
+* Do not redefine OS-specific paths here; the environment is responsible for resolving `${CONFIG_ROOT}`.
 Target folder and file (Binding):
 * ${REPO_DECISION_PACK_FILE}
   * REPO_NAME MUST be derived from the Phase 2 repository identity
