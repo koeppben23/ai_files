@@ -179,3 +179,6 @@ class {Consumer}IntegrationTest {
 ---
 
 **END OF KAFKA TEMPLATE ADDON**
+
+Copyright © 2026 Benjamin Fuchs.
+All rights reserved. See LICENSE.
