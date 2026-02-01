@@ -101,6 +101,7 @@ SESSION_STATE bootstrap (binding):
     core: ""     # DEFERRED until Phase 4
     profile: ""  # DEFERRED until post-Phase-2
     templates: ""
+    addons: {}
   ActiveProfile: ""          # DEFERRED until post-Phase-2
   ProfileSource: "deferred"
   ProfileEvidence: "deferred-until-phase-2"
@@ -610,6 +611,7 @@ SESSION_STATE:
     core: "<path/to/rules.md>"
     profile: "<path/to/profile-rulebook.md>"  # empty string allowed only for planning-only mode
     templates: ""
+    addons: {}
   
   ActiveProfile: "<profile-name>"
   ProfileSource: "user-explicit" | "auto-detected-single" | "repo-fallback" | "component-scope-inferred" | "component-scope-filtered" | "ambiguous"
@@ -682,6 +684,7 @@ SESSION_STATE:
     core: "<path>"
     profile: "<path>"
     templates: ""
+    addons: {}
   ActiveProfile: "<profile-name>"
   ProfileSource: "<source>"
   ProfileEvidence: "<evidence>"
