@@ -710,10 +710,6 @@ persisted RepoMapDigest file exists and load it as context.
 
 Cross-platform configuration root resolution (Binding):
 * See `GLOBAL PATH VARIABLES (BINDING)` → `${CONFIG_ROOT}`
-  * Primary: %APPDATA%/opencode
-  * Fallback: %USERPROFILE%/.config/opencode
-* macOS / Linux:
-  * ${XDG_CONFIG_HOME:-~/.config}/opencode
 
 Expected file location (Binding):
 * ${REPO_DIGEST_FILE}
