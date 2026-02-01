@@ -48,6 +48,7 @@ Once Phase 1.1 (bootstrap) completes successfully, these keys MUST exist:
 - `SESSION_STATE.Next` (string; canonical continuation pointer)
 - `SESSION_STATE.LoadedRulebooks.core` (string path OR `""` if deferred until Phase 4)
 - `SESSION_STATE.LoadedRulebooks.profile` (string path OR `""` if deferred/planning-only)
+- `SESSION_STATE.LoadedRulebooks.templates` (string path OR `""` if deferred until Phase 4 or not applicable)
 - `SESSION_STATE.ActiveProfile` (string OR `""` if deferred until post-Phase-2)
 - `SESSION_STATE.ProfileSource` (enum; see Section 5)
 - `SESSION_STATE.ProfileEvidence` (string)
@@ -62,9 +63,13 @@ Once Phase 1.1 (bootstrap) completes successfully, these keys MUST exist:
 
 - Until Phase 4 begins:
   - LoadedRulebooks.core MAY be ""
+  - LoadedRulebooks.templates MAY be ""
 
 - If Phase 4 begins and LoadedRulebooks.core is still "":
   → WORKFLOW MUST BE BLOCKED
+  
+- If Phase 4 begins and the ActiveProfile mandates templates, and LoadedRulebooks.templates is still "":
+   → WORKFLOW MUST BE BLOCKED
 
 **Invariant**
 - If `Mode = BLOCKED`, `Next` MUST start with `BLOCKED-` and describe the minimal missing input.
