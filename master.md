@@ -56,7 +56,7 @@ Use `${REPO_NAME}` for repo identity (sanitized: lowercased, spaces→`-`, unsaf
 Use `<repo_fingerprint>` only where the existing workflow already uses it.
 
 - `${REPO_HOME}` = `${WORKSPACES_HOME}/<repo_fingerprint>`  (workspace bucket)
-- `${REPO_DECISIONS_FILE}` = `${REPO_DECISIONS_FILE}`
+- `${REPO_DECISIONS_FILE}` = `${REPO_HOME}/decisions/ADR.md`
 
 OpenCode-only persisted knowledge (stable across sessions for the same repo identity):
 - `${REPO_DIGEST_FILE}` = `${REPO_DIGEST_FILE}`
