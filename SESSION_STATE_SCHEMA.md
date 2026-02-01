@@ -528,5 +528,6 @@ All rights reserved. See LICENSE.
 END OF FILE - SESSION_STATE_SCHEMA.md
 
 
-# Added by Lazy Loading change
-ProfileSource: add value 'deferred'
+### ProfileSource: `deferred`
+
+The `deferred` enum value for `ProfileSource` indicates that the profile is not yet loaded and is expected to be populated by a later step in the workflow (for example, after lazy-loading or an external lookup). When `ProfileSource` is `deferred`, downstream steps MUST NOT assume that profile-backed inferences are final.
