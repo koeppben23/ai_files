@@ -140,7 +140,7 @@ String identifier, e.g.:
 
 Human-readable evidence string (paths/files), e.g.:
 - `profiles/rules.backend-java.md`
-- `~/.config/opencode/rules/profiles/rules.backend-java.md` (if installed globally)
+- `${OPENCODE_HOME}/rules/profiles/rules.backend-java.md` (if installed globally)
 - `pom.xml, src/main/java`
 - `apps/web, nx.json`
 

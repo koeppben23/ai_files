@@ -122,7 +122,7 @@ the rulebooks take precedence.
 The rulebooks define a single canonical configuration root and derive all other paths from it.
 
 - `${CONFIG_ROOT}` is the OpenCode configuration root (OS-specific):
-  - Windows: `%APPDATA%/opencode` (fallback: `%USERPROFILE%/.config/opencode`)
+  - Windows: `${CONFIG_ROOT}` (fallback: `${CONFIG_ROOT}`)
   - macOS/Linux: `${XDG_CONFIG_HOME:-~/.config}/opencode`
 
 All governance file lookups and all persisted artifacts MUST use `${CONFIG_ROOT}` or a derived path variable
@@ -135,7 +135,7 @@ The authoritative global install layout remains under `${COMMANDS_HOME}`:
 The complete governance system is installed in:
 
 ```
-~/.config/opencode/commands/
+${COMMANDS_HOME}/
 ├── master.md
 ├── rules.md
 ├── QUALITY_INDEX.md
