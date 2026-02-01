@@ -1218,11 +1218,8 @@ the assistant MUST additionally produce a Business Rules inventory file
 output suitable for writing to the user's OpenCode configuration directory.
 
 Cross-platform configuration root resolution (Binding):
-* See `GLOBAL PATH VARIABLES (BINDING)` → `${CONFIG_ROOT}`
-  * Primary: %APPDATA%/opencode
-  * Fallback: %USERPROFILE%/.config/opencode
-* macOS / Linux:
-  * ${XDG_CONFIG_HOME:-~/.config}/opencode
+* Use `${CONFIG_ROOT}` as defined in `GLOBAL PATH VARIABLES (BINDING)`.
+* No additional OS-specific paths may be introduced here; `${CONFIG_ROOT}` is the canonical definition.
 
 Target folder and file (Binding):
 * ${REPO_BUSINESS_RULES_FILE}
