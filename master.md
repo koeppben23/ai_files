@@ -100,10 +100,10 @@ SESSION_STATE bootstrap (binding):
   LoadedRulebooks:
     core: ""     # DEFERRED until Phase 4
     profile: ""  # DEFERRED until post-Phase-2
+    templates: ""
   ActiveProfile: ""          # DEFERRED until post-Phase-2
   ProfileSource: "deferred"
   ProfileEvidence: "deferred-until-phase-2"
-
 ### Phase 1.2: Profile Detection (DEFERRED TO POST-PHASE-2)
 
 TRIGGER: After Phase 2 (Repo Discovery) completes
@@ -609,6 +609,7 @@ SESSION_STATE:
   LoadedRulebooks:
     core: "<path/to/rules.md>"
     profile: "<path/to/profile-rulebook.md>"  # empty string allowed only for planning-only mode
+    templates: ""
   
   ActiveProfile: "<profile-name>"
   ProfileSource: "user-explicit" | "auto-detected-single" | "repo-fallback" | "component-scope-inferred" | "component-scope-filtered" | "ambiguous"
@@ -621,7 +622,6 @@ SESSION_STATE:
     P5.5-TechnicalDebt: pending | approved | rejected | not-applicable
     P5.6-RollbackSafety: pending | approved | rejected | not-applicable
     P6-ImplementationQA: pending | ready-for-pr | fix-required
-
   GateArtifacts: {}   # optional in MIN; REQUIRED in FULL when evaluating an explicit gate
 
   Risks: []
@@ -664,6 +664,7 @@ After loading rules (Phase 1), the assistant MUST output:
 Loaded Rulebooks:
   Core: <path/to/rules.md>
   Profile: <path/to/rules_<profile>.md>
+  Templates: <path/to/rules.backend-java-templates.md> | deferred | not-applicable
 
 Active Profile: <profile-name>
 Profile Source: auto-detected-single | user-explicit | repo-fallback | component-scope-inferred | ambiguous
@@ -680,6 +681,7 @@ SESSION_STATE:
   LoadedRulebooks:
     core: "<path>"
     profile: "<path>"
+    templates: ""
   ActiveProfile: "<profile-name>"
   ProfileSource: "<source>"
   ProfileEvidence: "<evidence>"
@@ -696,8 +698,7 @@ SESSION_STATE:
     P6-ImplementationQA: pending
   Risks: []
   Blockers: []
-  
-<Next action: Proceeding to Phase 2... | Waiting for repository... | etc.>
+  <Next action: Proceeding to Phase 2... | Waiting for repository... | etc.>
 ```
 
 Binding:

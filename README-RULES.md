@@ -114,6 +114,18 @@ The following commands override all default rules:
 
 **Explicit overrides always take precedence.**
 
+## 5.1 Profile Rulebooks & Templates Addons (Overview)
+
+The workflow may activate a **profile rulebook** (e.g., backend Java, frontend Angular) based on repo signals.
+Profiles are loaded after Phase 2 (Repo Discovery).
+
+Some profiles additionally mandate a **templates addon** to ensure deterministic, copy-paste generation of code and tests.
+
+Key constraints:
+* Templates addons MUST NOT be loaded during discovery (Phase 1–3).
+* If mandated by the active profile, templates addons MUST be loaded at code-phase (Phase 4+).
+* When a templates addon is loaded, its templates are followed **verbatim** with placeholders-only substitution.
+
 ---
 
 ## 6. Quality Requirements (High-Level)

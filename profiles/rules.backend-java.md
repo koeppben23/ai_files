@@ -11,6 +11,17 @@ Priority order on conflict:
 `master.md` > `rules.md` (Core) > this profile.
 
 ---
+# Templates Addon (Binding)
+
+For the `backend-java` profile, deterministic generation requires the templates addon:
+`rules.backend-java-templates.md`.
+
+Binding:
+- At **code-phase** (Phase 4+), the workflow MUST load the templates addon and record it in:
+  - `SESSION_STATE.LoadedRulebooks.templates`
+- When loaded, templates MUST be followed **verbatim** (placeholders-only substitution).
+
+---
 
 ## 0. Core Principle (Binding, Non-Negotiable)
 
