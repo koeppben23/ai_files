@@ -121,6 +121,9 @@ Profiles are loaded after Phase 2 (Repo Discovery).
 
 Some profiles additionally mandate a **templates addon** to ensure deterministic, copy-paste generation of code and tests.
 
+Feature-specific addons (e.g., Kafka templates) MAY be loaded at code-phase when required.
+When loaded, they MUST be recorded under `SESSION_STATE.LoadedRulebooks.addons` (addon_key -> path).
+
 Key constraints:
 * Templates addons MUST NOT be loaded during discovery (Phase 1–3).
 * If mandated by the active profile, templates addons MUST be loaded at code-phase (Phase 4+).
@@ -301,5 +304,6 @@ Copyright © 2026 Benjamin Fuchs.
 All rights reserved. See LICENSE.
 
 **End of file — README-RULES.md**
+
 
 
