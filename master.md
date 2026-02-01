@@ -1109,11 +1109,7 @@ Before executing Phase 1.5 extraction, if the workflow is running under OpenCode
 persisted Business Rules inventory file exists and load it as context.
 
 Cross-platform configuration root resolution (Binding):
-* See `GLOBAL PATH VARIABLES (BINDING)` → `${CONFIG_ROOT}`
-  * Primary: %APPDATA%/opencode
-  * Fallback: %USERPROFILE%/.config/opencode
-* macOS / Linux:
-  * ${XDG_CONFIG_HOME:-~/.config}/opencode
+* Use `${CONFIG_ROOT}` as defined in `GLOBAL PATH VARIABLES (BINDING)`.
 
 Expected file location (Binding):
 * ${REPO_BUSINESS_RULES_FILE}
