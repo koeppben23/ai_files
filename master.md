@@ -906,11 +906,7 @@ the assistant MUST additionally produce a RepoMapDigest file output suitable for
 to the user's OpenCode configuration directory.
 
 Cross-platform configuration root resolution (Binding):
-* See `GLOBAL PATH VARIABLES (BINDING)` → `${CONFIG_ROOT}`
-  * Primary: %APPDATA%/opencode
-  * Fallback: %USERPROFILE%/.config/opencode
-* macOS / Linux:
-  * ${XDG_CONFIG_HOME:-~/.config}/opencode
+* Use `${CONFIG_ROOT}` as defined in `GLOBAL PATH VARIABLES (BINDING)` as the base configuration directory for RepoMapDigest.
 
 Target folder and file (Binding):
 * ${REPO_DIGEST_FILE}
