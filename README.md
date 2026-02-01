@@ -117,10 +117,25 @@ the rulebooks take precedence.
 
 ### Global Install Layout (Authoritative)
 
+## Canonical Path Variables
+
+The rulebooks define a single canonical configuration root and derive all other paths from it.
+
+- `${CONFIG_ROOT}` is the OpenCode configuration root (OS-specific):
+  - Windows: `%APPDATA%/opencode` (fallback: `%USERPROFILE%/.config/opencode`)
+  - macOS/Linux: `${XDG_CONFIG_HOME:-~/.config}/opencode`
+
+All governance file lookups and all persisted artifacts MUST use `${CONFIG_ROOT}` or a derived path variable
+(e.g., `${COMMANDS_HOME}`, `${WORKSPACES_HOME}`), to avoid hard-coded paths and OS-specific duplication.
+
+The authoritative global install layout remains under `${COMMANDS_HOME}`:
+`${CONFIG_ROOT}/commands/…`
+
+
 The complete governance system is installed in:
 
 ```
-~/.config/opencode/commands/
+${COMMANDS_HOME}/
 ├── master.md
 ├── rules.md
 ├── QUALITY_INDEX.md
@@ -292,7 +307,7 @@ This repository defines three core commands:
 
 ### `/master`
 Starts a new task.
-- loads full governance
+- loads bootstrap governance (workflow + quality + conflict model) and defers profile/core rules
 - initializes the workflow
 - sets a new `[SESSION_STATE]`
 

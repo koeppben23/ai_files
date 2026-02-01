@@ -40,21 +40,31 @@ The assistant MUST output **FULL** if any of these apply:
 
 ## 2. Required Keys (Phase 1+)
 
-Once Phase 1 (rules loading) completes successfully, these keys MUST exist:
+Once Phase 1.1 (bootstrap) completes successfully, these keys MUST exist:
 
 - `SESSION_STATE.Phase` (enum; see Section 3)
 - `SESSION_STATE.Mode` (enum; see Section 4)
 - `SESSION_STATE.ConfidenceLevel` (integer 0–100)
 - `SESSION_STATE.Next` (string; canonical continuation pointer)
-- `SESSION_STATE.LoadedRulebooks.core` (string path)
-- `SESSION_STATE.LoadedRulebooks.profile` (string path or `""` if planning-only)
-- `SESSION_STATE.ActiveProfile` (string)
+- `SESSION_STATE.LoadedRulebooks.core` (string path OR `""` if deferred until Phase 4)
+- `SESSION_STATE.LoadedRulebooks.profile` (string path OR `""` if deferred/planning-only)
+- `SESSION_STATE.ActiveProfile` (string OR `""` if deferred until post-Phase-2)
 - `SESSION_STATE.ProfileSource` (enum; see Section 5)
 - `SESSION_STATE.ProfileEvidence` (string)
 - `SESSION_STATE.Gates` (object; see Section 8)
-- `SESSION_STATE.Risks` (array)
-- `SESSION_STATE.Blockers` (array)
-- `SESSION_STATE.Warnings` (array)
+
+### Lazy-loading invariants (binding)
+
+- Until Phase 2 completes:
+  - ActiveProfile MAY be ""
+  - ProfileSource MUST be "deferred"
+  - LoadedRulebooks.profile MAY be ""
+
+- Until Phase 4 begins:
+  - LoadedRulebooks.core MAY be ""
+
+- If Phase 4 begins and LoadedRulebooks.core is still "":
+  → WORKFLOW MUST BE BLOCKED
 
 **Invariant**
 - If `Mode = BLOCKED`, `Next` MUST start with `BLOCKED-` and describe the minimal missing input.
@@ -118,6 +128,7 @@ String identifier, e.g.:
 - `user-explicit`
 - `auto-detected-single`
 - `repo-fallback`
+- `deferred`
 - `component-scope-inferred`
 - `component-scope-filtered`
 - `ambiguous` (**only allowed when `Mode = BLOCKED`**)
@@ -126,12 +137,12 @@ String identifier, e.g.:
 
 Human-readable evidence string (paths/files), e.g.:
 - `profiles/rules.backend-java.md`
-- `~/.config/opencode/rules/profiles/rules.backend-java.md` (if installed globally)
+- `${OPENCODE_HOME}/rules/profiles/rules.backend-java.md` (if installed globally)
 - `pom.xml, src/main/java`
 - `apps/web, nx.json`
 
 **Invariant**
-- After Phase 1 completes, `ActiveProfile` MUST remain stable unless the user explicitly changes it.
+- After `ActiveProfile` is first set (post Phase 2 / Phase 1.2), it MUST remain stable unless the user explicitly changes it.
   If it changes, the workflow MUST return to Phase 1 to re-load rulebooks and re-evaluate gates.
 
 ---

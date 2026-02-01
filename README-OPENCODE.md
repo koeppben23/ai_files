@@ -220,7 +220,7 @@ and do **not** apply to pure chat environments.
 
 Starts a new task.
 
-- loads full governance
+- loads bootstrap governance (workflow + quality + conflict model); defers profile/core rules
 - initializes the workflow
 - creates a fresh `[SESSION_STATE]`
 

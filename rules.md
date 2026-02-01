@@ -722,7 +722,7 @@ If the workflow is NOT running under OpenCode:
 The BR inventory MUST be stored outside the repository in the OpenCode config directory:
 
 Config root:
-- Windows: `%APPDATA%/opencode` (fallback: `%USERPROFILE%/.config/opencode`)
+- Windows: `${CONFIG_ROOT}` (fallback: `${CONFIG_ROOT}`)
 - macOS/Linux: `${XDG_CONFIG_HOME:-~/.config}/opencode`
 
 Repository namespace folder:
@@ -877,7 +877,7 @@ If the workflow is NOT running under OpenCode:
 #### Location (cross-platform)
 
 Config root:
-- Windows: `%APPDATA%/opencode` (fallback: `%USERPROFILE%/.config/opencode`)
+- Windows: `${CONFIG_ROOT}` (fallback: `${CONFIG_ROOT}`)
 - macOS/Linux: `${XDG_CONFIG_HOME:-~/.config}/opencode`
 
 Repository namespace folder:
@@ -1003,7 +1003,7 @@ If the workflow is NOT running under OpenCode:
 #### Location (cross-platform)
 
 Config root:
-- Windows: `%APPDATA%/opencode` (fallback: `%USERPROFILE%/.config/opencode`)
+- Windows: `${CONFIG_ROOT}` (fallback: `${CONFIG_ROOT}`)
 - macOS/Linux: `${XDG_CONFIG_HOME:-~/.config}/opencode`
 
 Repository namespace folder:
