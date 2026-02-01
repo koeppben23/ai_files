@@ -76,6 +76,9 @@ Once Phase 1.1 (bootstrap) completes successfully, these keys MUST exist:
 Allowed values:
 
 - `1` (rules loading)
+- `1.1-Bootstrap` (minimal bootstrap / initial rule loading)
+- `1.2-ProfileDetection` (profile detection after repo discovery)
+- `1.3-CoreRulesActivation` (core rules activation at Phase 4 entry)
 - `2` (repository discovery)
 - `1.5` (business rules discovery)
 - `3A` (API inventory)
@@ -168,6 +171,36 @@ After Phase 2 completes, the session SHOULD include the following (required unle
 - `SESSION_STATE.DecisionDrivers` (array; each SHOULD include evidence)
 - `SESSION_STATE.WorkingSet` (array; repo-relative paths + rationale)
 - `SESSION_STATE.TouchedSurface` (object; planned/actual surface area)
+
+### 7.x Repo Cache File (OpenCode-only, recommended)
+
+To speed up repeated `/master` sessions on the same repository, the workflow MAY use a structured repo cache file.
+If used, the assistant SHOULD populate:
+
+- `SESSION_STATE.RepoCacheFile` (object)
+
+Recommended structure:
+
+```yaml
+SESSION_STATE:
+  RepoCacheFile:
+    SourcePath: "<path expression>"      # e.g., ${REPO_HOME}/repo-cache.yaml
+    TargetPath: "<path expression>"      # same as SourcePath when writing
+    Loaded: true | false
+    Valid: true | false
+    InvalidationReason: "<short text>"  # empty when Valid=true
+    GitHead: "<sha|unknown>"
+    RepoSignature: "<sha|unknown>"
+    GitHeadMatch: true | false | unknown
+    RepoSignatureMatch: true | false | unknown
+    LastUpdated: "<YYYY-MM-DD|unknown>"
+    FileStatus: written | write-requested | not-applicable
+```
+
+Binding rules:
+- `RepoCacheFile.Valid = true` ONLY if cache validation rules in `master.md` are satisfied.
+- If `RepoCacheFile.Valid = true`, Phase 2 discovery MAY be reduced or skipped (Fast Path), but gates MUST NOT be bypassed.
+- If `RepoCacheFile.Valid = false`, the assistant MUST proceed with normal discovery and MUST regenerate the cache after Phase 2.
 
 ### 7.1 RepoMapDigest (canonical)
 
@@ -332,7 +365,7 @@ SESSION_STATE:
 ```
 
 **Binding rules**
-- When evaluating any explicit gate (Phase 5 / 5.3 / 5.4 / 5.5 / 6) and FULL output is required, `GateArtifacts` MUST include the current gate key with:
+- When evaluating any explicit gate (Phase 5 / 5.3 / 5.4 / 5.5 / 5.6 / 6) and FULL output is required, `GateArtifacts` MUST include the current gate key with:
   - `Required` (list), and
   - `Provided` (status per required artifact).
 - Allowed values for `Provided[*]` are: `present` | `missing` | `not-applicable`.

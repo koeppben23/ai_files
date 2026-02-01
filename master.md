@@ -54,6 +54,12 @@ BINDING:
 Use `${REPO_NAME}` for repo identity (sanitized: lowercased, spaces→`-`, unsafe chars removed).
 Use `<repo_fingerprint>` only where the existing workflow already uses it.
 
+Binding:
+- `<repo_fingerprint>` is the canonical workspace key used by OpenCode.
+- `${REPO_NAME}` is a human-readable alias derived from the same repository identity.
+- Both MUST resolve to the same logical repository.
+- Cache, digest, and decision artifacts MUST NOT diverge between them.
+
 - `${REPO_HOME}` = `${WORKSPACES_HOME}/<repo_fingerprint>`  (workspace bucket)
 - `${REPO_DECISIONS_FILE}` = `${REPO_HOME}/decisions/ADR.md`
 
@@ -701,7 +707,89 @@ Binding:
 
 **Objective:** Understand the repository structure, tech stack, architecture pattern, and existing contracts.
 
-#### OpenCode-only: Load existing RepoMapDigest (Read-before-write, Binding when applicable)
+#### OpenCode-only: Load existing Repo Cache (Cache-first, Binding when applicable)
+
+Goal:
+- Skip full Phase 2 discovery for repeated `/master` sessions on the same repo.
+- Use a deterministic, structured cache that is faster than parsing long digest markdown.
+
+Order of precedence (Binding):
+1. Repo Cache (`repo-cache.yaml`) — authoritative if VALID
+2. RepoMapDigest file — supportive memory only (may be contradicted by repo evidence)
+3. Live repository evidence — highest priority
+
+If contradictions occur, repository evidence ALWAYS wins and MUST be recorded as Risks.
+
+Cross-platform configuration root resolution (Binding):
+* Use `${CONFIG_ROOT}` exactly as defined in `GLOBAL PATH VARIABLES (BINDING)`.
+* This section MUST NOT redefine or specialize OS-specific config paths.
+
+Expected file location (Binding):
+* `${REPO_HOME}/repo-cache.yaml`
+  * `REPO_NAME` MUST be derived from the repository identity and sanitized:
+    * lowercased
+    * spaces replaced with "-"
+    * path separators and unsafe characters removed
+
+Cache format (Binding, minimal required fields):
+```yaml
+RepoCache:
+  Version: "1.0"
+  LastUpdated: "<YYYY-MM-DD>"
+  RepoName: "<sanitized-repo-name>"
+  GitHead: "<sha|unknown>"
+  RepoSignature: "<sha|unknown>"
+  ComponentScope: "<paths|none>"
+  RepoMapDigest: <compact object or digest>
+  ConventionsDigest: <5-10 bullets with evidence refs>
+  BuildAndTooling: <compact>
+  ProfileDetected: "<profile>"
+  ProfileEvidence: "<evidence>"
+  CacheHashChecks:
+    - path: "<repo-relative file>"
+      sha256: "<sha|unknown>"
+  InvalidateOn:
+    - "<rule string>"
+```
+
+Validation (Binding, conservative):
+Cache is VALID ONLY IF ALL are true:
+1) Cache file parses and contains `RepoCache.Version` and `RepoCache.RepoMapDigest`
+2) If git is available:
+   - `CurrentGitHead = git rev-parse HEAD`
+   - `GitHeadMatch = (CurrentGitHead == RepoCache.GitHead)` must be true
+   ELSE:
+   - Compute `CurrentRepoSignature` (as defined in Fast Path section)
+   - `RepoSignatureMatch = (CurrentRepoSignature == RepoCache.RepoSignature)` must be true
+3) If `SESSION_STATE.ComponentScopePaths` is set:
+   - Cache ComponentScope must match (same set), else INVALID
+
+If VALID:
+- Treat cache as authoritative for Phase 2 output (supportive memory; repo evidence wins if later contradictions appear).
+- Set `SESSION_STATE.RepoCacheFile` fields and SKIP full Phase 2 discovery.
+
+If INVALID:
+- Record invalidation reason and proceed with full discovery.
+- Overwrite cache at end of Phase 2.
+
+Output requirements (Binding):
+Emit a short structured block:
+[REPO-CACHE]
+Status: loaded-valid | loaded-invalid | not-found
+SourcePath: <resolved path expression>
+Reason: <empty if valid | invalidation reason>
+GitHeadMatch: true | false | unknown
+RepoSignatureMatch: true | false | unknown
+LastUpdated: <from cache or "unknown">
+[/REPO-CACHE]
+
+SESSION_STATE updates (Binding when OpenCode applies):
+- `SESSION_STATE.RepoCacheFile.SourcePath`
+- `SESSION_STATE.RepoCacheFile.Loaded = true | false`
+- `SESSION_STATE.RepoCacheFile.Valid = true | false`
+- `SESSION_STATE.RepoCacheFile.InvalidationReason = "<short>"`
+- `SESSION_STATE.RepoCacheFile.GitHead = "<sha|unknown>"`
+- `SESSION_STATE.RepoCacheFile.RepoSignature = "<sha|unknown>"`
 
 Before performing repository discovery, if the workflow is running under OpenCode
 (repository provided or indexed via OpenCode), the assistant MUST check whether a
@@ -898,7 +986,51 @@ SESSION_STATE:
     SecuritySensitive: false
   ...
 
-#### OpenCode-only: Persist RepoMapDigest (Binding when applicable)
+#### OpenCode-only: Persist Repo Cache (Binding when applicable)
+
+If Phase 2 completed AND the workflow is running under OpenCode (repository provided or indexed via OpenCode),
+the assistant MUST additionally produce a Repo Cache file output suitable for writing to the user's OpenCode configuration directory.
+
+Cross-platform configuration root resolution (Binding):
+* Use `${CONFIG_ROOT}` as defined in `GLOBAL PATH VARIABLES (BINDING)`.
+
+Target folder and file (Binding):
+* `${REPO_HOME}/repo-cache.yaml`
+
+Update behavior (Binding):
+* The file MUST be overwritten (single-source, not append-only).
+  Rationale: This is a structured cache, not a historical log.
+
+Cache content (Binding):
+* MUST include:
+  - RepoCache.Version = "1.0"
+  - RepoCache.LastUpdated = "<YYYY-MM-DD>"
+  - RepoCache.RepoName = "<sanitized repo name>"
+  - RepoCache.GitHead / RepoCache.RepoSignature (use `unknown` when not available)
+  - RepoCache.ProfileDetected / ProfileEvidence
+  - RepoCache.RepoMapDigest (compact, canonical)
+  - RepoCache.ConventionsDigest (5-10 bullets; evidence-backed)
+  - RepoCache.BuildAndTooling (compact)
+  - RepoCache.CacheHashChecks (the files used for RepoSignature computation + their sha256)
+  - RepoCache.InvalidateOn (rules list)
+
+Output requirements (Binding):
+1) Emit a single structured block:
+   [REPO-CACHE-FILE]
+   TargetPath: <resolved path expression>
+   RepoName: <sanitized repo name>
+   LastUpdated: <YYYY-MM-DD>
+   Content:
+   <complete YAML file content>
+   [/REPO-CACHE-FILE]
+
+2) Update SESSION_STATE:
+   - `SESSION_STATE.RepoCacheFile.TargetPath`
+   - `SESSION_STATE.RepoCacheFile.FileStatus = written | write-requested | not-applicable`
+
+If file writing is not possible in the current environment:
+* set FileStatus = write-requested
+* still output the full content and target path so OpenCode or the user can persist it manually.
 
 If Phase 2 completed AND the workflow is running under OpenCode (repository provided or indexed via OpenCode),
 the assistant MUST additionally produce a RepoMapDigest file output suitable for writing
