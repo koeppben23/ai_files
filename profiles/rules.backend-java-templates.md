@@ -3,7 +3,7 @@
 **Purpose (binding):** Provide concrete copy-paste templates so the assistant generates deterministic, reviewable backend-java code and tests.
 
 **Activation (binding):** MUST be loaded at code-phase (Phase 4+) when `SESSION_STATE.ActiveProfile = "backend-java"`.
-- If SESSION_STATE.Phase is in code-phase set (Phase 4+) and this addon is not loaded: Mode = BLOCKED (template-missing).
+- If SESSION_STATE.Phase is in code-phase set (Phase 4+) and this addon is not loaded: Mode = BLOCKED, Next = BLOCKED-TEMPLATES-MISSING.
 
 **Precedence (binding):** `master.md` > `rules.md` (core) > this addon > `rules.backend-java.md` (profile).
 - In conflicts, this addon’s templates override abstract style/principles.
