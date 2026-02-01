@@ -59,9 +59,9 @@ Use `<repo_fingerprint>` only where the existing workflow already uses it.
 - `${REPO_DECISIONS_FILE}` = `${REPO_HOME}/decisions/ADR.md`
 
 OpenCode-only persisted knowledge (stable across sessions for the same repo identity):
-- `${REPO_DIGEST_FILE}` = `${REPO_DIGEST_FILE}`
-- `${REPO_DECISION_PACK_FILE}` = `${REPO_DECISION_PACK_FILE}`
-- `${REPO_BUSINESS_RULES_FILE}` = `${REPO_BUSINESS_RULES_FILE}`
+- `${REPO_DIGEST_FILE}` = `${REPO_HOME}/repo-map-digest.md`
+- `${REPO_DECISION_PACK_FILE}` = `${REPO_HOME}/decision-pack.md`
+- `${REPO_BUSINESS_RULES_FILE}` = `${REPO_HOME}/business-rules.md`
 
 BINDING:
 - No repository-local governance or persistence MUST be required.
