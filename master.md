@@ -4,6 +4,61 @@ priority: highest
 ---
 
 MASTER PROMPT
+
+## GLOBAL PATH VARIABLES (BINDING)
+
+This system MUST define canonical path variables once and reuse them everywhere.
+All path expressions in this rulebook MUST use the variables below.
+
+### Variable Syntax
+
+- Variables are written as: `${VAR_NAME}`
+- Path joins are conceptual; the runtime/environment must resolve separators appropriately.
+
+### OS-specific Root Resolution
+
+Define `${USER_HOME}` as the OS-resolved user home directory.
+
+Define `${CONFIG_ROOT}` (OpenCode configuration root) as:
+
+- Windows:
+  - Primary: `%APPDATA%/opencode`
+  - Fallback: `%USERPROFILE%/.config/opencode`
+- macOS / Linux:
+  - `${XDG_CONFIG_HOME:-~/.config}/opencode`
+
+`CONFIG_ROOT` is the single source of truth for all global file locations.
+
+### Canonical Derived Paths
+
+- `${OPENCODE_HOME}` = `${CONFIG_ROOT}`   (alias; use for readability)
+- `${COMMANDS_HOME}` = `${OPENCODE_HOME}/commands`
+- `${PROFILES_HOME}` = `${COMMANDS_HOME}/profiles`
+- `${WORKSPACES_HOME}` = `${OPENCODE_HOME}/workspaces`
+
+### Canonical State / Persistence Targets
+
+- `${SESSION_STATE_FILE}` = `${OPENCODE_HOME}/SESSION_STATE.json`
+- `${RESUME_FILE}` = `${OPENCODE_HOME}/resume.json`
+
+### Repo-scoped Persistent Files (outside the repo)
+
+Use `${REPO_NAME}` for repo identity (sanitized: lowercased, spaces→`-`, unsafe chars removed).
+Use `<repo_fingerprint>` only where the existing workflow already uses it.
+
+- `${REPO_HOME}` = `${WORKSPACES_HOME}/<repo_fingerprint>`  (workspace bucket)
+- `${REPO_DECISIONS_FILE}` = `${REPO_DECISIONS_FILE}`
+
+OpenCode-only persisted knowledge (stable across sessions for the same repo identity):
+- `${REPO_DIGEST_FILE}` = `${REPO_DIGEST_FILE}`
+- `${REPO_DECISION_PACK_FILE}` = `${REPO_DECISION_PACK_FILE}`
+- `${REPO_BUSINESS_RULES_FILE}` = `${REPO_BUSINESS_RULES_FILE}`
+
+BINDING:
+- No repository-local governance or persistence MUST be required.
+- All persistence MUST target `${CONFIG_ROOT}` (or derived variables above).
+
+
 consolidated, model-stable, hybrid-capable, pragmatic,
 with architecture, contract, debt & QA gates
 
@@ -63,16 +118,16 @@ BINDING:
 This governance system is single-user and MUST NOT require repository-local governance or persistent artifacts.
 - DO NOT read rulebooks from the repository (no `.opencode*`, no `profiles/` in repo).
 - ALL persistent artifacts (repo cache, decision log, resume state) MUST be stored outside the repo, under:
-  - GovernanceHome: `~/.config/opencode/` (rulebooks + indices)
-  - WorkspaceHome: `~/.config/opencode/workspaces/<repo_fingerprint>/` (state + caches)
+  - GovernanceHome: `${COMMANDS_HOME}/` (installed governance rulebooks + indices)
+  - WorkspaceHome: `${WORKSPACES_HOME}/<repo_fingerprint>/` (state + caches)
 
 #### Step 1: Load Core Rulebook (rules.md)
 
 **Search order:**
-1. Per-repo override (optional): `~/.config/opencode/workspaces/<repo_fingerprint>/governance/rules.md`
-2. Global commands: `~/.config/opencode/commands/rules.md`
-3. Global config: `~/.config/opencode/rules.md` (fallback)
-4. Global rules folder: `~/.config/opencode/rules/rules.md` (fallback)
+1. Per-repo override (optional): `${REPO_HOME}/governance/rules.md`
+2. Global commands: `${COMMANDS_HOME}/rules.md`
+3. Global config: `${OPENCODE_HOME}/rules.md` (fallback)
+4. Global rules folder: `${OPENCODE_HOME}/rules/rules.md` (fallback)
 5. Context: manually provided (planning-only)
 
 #### Step 1b: Load Top-Tier Index & Conflict Model (QUALITY_INDEX.md, CONFLICT_RESOLUTION.md)
@@ -80,10 +135,10 @@ This governance system is single-user and MUST NOT require repository-local gove
 These files are normative and MUST be available in the same governance installation scope as `master.md`.
 
 **Search order (per file):**
-1. Per-repo override (optional): `~/.config/opencode/workspaces/<repo_fingerprint>/governance/<FILE>.md`
-2. Global commands: `~/.config/opencode/commands/<FILE>.md`
-3. Global config: `~/.config/opencode/<FILE>.md` (fallback)
-4. Global rules folder: `~/.config/opencode/rules/<FILE>.md` (fallback)
+1. Per-repo override (optional): `${REPO_HOME}/governance/<FILE>.md`
+2. Global commands: `${COMMANDS_HOME}/<FILE>.md`
+3. Global config: `${OPENCODE_HOME}/<FILE>.md` (fallback)
+4. Global rules folder: `${OPENCODE_HOME}/rules/<FILE>.md` (fallback)
 5. Context: manually provided (planning-only)
 
 #### Step 2: Load Profile Rulebook (AUTO-DETECTION ADDED)
@@ -97,11 +152,11 @@ These files are normative and MUST be available in the same governance installat
 2. **Auto-detection from available rulebooks** (NEW!)
    - If ONLY ONE profile rulebook exists → use it automatically
    - Search paths:
-     a. `~/.config/opencode/workspaces/<repo_fingerprint>/governance/profiles/rules*.md` (optional)
-     b. `~/.config/opencode/commands/rules*.md`
-     b2. `~/.config/opencode/commands/profiles/rules*.md`
-     c. `~/.config/opencode/rules/rules*.md`
-     d. `~/.config/opencode/rules/profiles/rules*.md`
+     a. `${REPO_HOME}/governance/profiles/rules*.md` (optional)
+     b. `${COMMANDS_HOME}/rules*.md`
+     b2. `${PROFILES_HOME}/rules*.md`
+     c. `${OPENCODE_HOME}/rules/rules*.md`
+     d. `${OPENCODE_HOME}/rules/profiles/rules*.md`
    
    **Auto-selection logic:**
    ```
@@ -169,8 +224,8 @@ See SESSION_STATE_SCHEMA.md for the canonical contract (required keys, enums, in
 
 ```
 SESSION_STATE.LoadedRulebooks = {
-  core: "~/.config/opencode/commands/rules.md",
-  profile: "~/.config/opencode/commands/profiles/rules.backend-java.md"
+  core: "${COMMANDS_HOME}/rules.md",
+  profile: "${COMMANDS_HOME}/profiles/rules.backend-java.md"
 }
 SESSION_STATE.ActiveProfile = "backend-java"
 SESSION_STATE.ProfileSource = "auto-detected-single" | "user-explicit" | "repo-fallback"
@@ -252,7 +307,7 @@ However, repo-local governance artifacts MUST NOT be created or modified unless 
 When the assistant proposes or confirms a **non-trivial architectural decision**
 (examples: boundaries, persistence, API contract approach, major dependency/tooling change, migration strategy):
 - The assistant MUST record the decision as an ADR entry in the local workspace by default:
-  `~/.config/opencode/workspaces/<repo_fingerprint>/decisions/ADR.md`
+  `${REPO_DECISIONS_FILE}`
 - If the environment supports editing that file directly, the assistant MUST output a unified diff that appends the entry there.
 - Otherwise, the assistant MUST print the complete ADR entry block and the target path so the user can paste it.
 
@@ -645,14 +700,14 @@ Before performing repository discovery, if the workflow is running under OpenCod
 persisted RepoMapDigest file exists and load it as context.
 
 Cross-platform configuration root resolution (Binding):
-* Windows:
+* See `GLOBAL PATH VARIABLES (BINDING)` → `${CONFIG_ROOT}`
   * Primary: %APPDATA%/opencode
   * Fallback: %USERPROFILE%/.config/opencode
 * macOS / Linux:
   * ${XDG_CONFIG_HOME:-~/.config}/opencode
 
 Expected file location (Binding):
-* ${CONFIG_ROOT}/${REPO_NAME}/repo-map-digest.md
+* ${REPO_DIGEST_FILE}
   * REPO_NAME MUST be derived from the repository identity and sanitized:
     * lowercased
     * spaces replaced with "-"
@@ -846,14 +901,14 @@ the assistant MUST additionally produce a RepoMapDigest file output suitable for
 to the user's OpenCode configuration directory.
 
 Cross-platform configuration root resolution (Binding):
-* Windows:
+* See `GLOBAL PATH VARIABLES (BINDING)` → `${CONFIG_ROOT}`
   * Primary: %APPDATA%/opencode
   * Fallback: %USERPROFILE%/.config/opencode
 * macOS / Linux:
   * ${XDG_CONFIG_HOME:-~/.config}/opencode
 
 Target folder and file (Binding):
-* ${CONFIG_ROOT}/${REPO_NAME}/repo-map-digest.md
+* ${REPO_DIGEST_FILE}
   * REPO_NAME MUST be derived from the repository identity and sanitized:
     * lowercased
     * spaces replaced with "-"
@@ -901,14 +956,14 @@ Before producing a new Decision Pack, if the workflow is running under OpenCode
 persisted Decision Pack file exists and load it as context.
 
 Cross-platform configuration root resolution (Binding):
-* Windows:
+* See `GLOBAL PATH VARIABLES (BINDING)` → `${CONFIG_ROOT}`
   * Primary: %APPDATA%/opencode
   * Fallback: %USERPROFILE%/.config/opencode
 * macOS / Linux:
   * ${XDG_CONFIG_HOME:-~/.config}/opencode
 
 Expected file location (Binding):
-* ${CONFIG_ROOT}/${REPO_NAME}/decision-pack.md
+* ${REPO_DECISION_PACK_FILE}
   * REPO_NAME MUST be derived from the Phase 2 repository identity
     and sanitized as follows:
     * lowercased
@@ -983,14 +1038,14 @@ the assistant MUST additionally produce a Decision Pack file output suitable for
 to the user's OpenCode configuration directory.
 
 Cross-platform configuration root resolution (Binding):
-* Windows:
+* See `GLOBAL PATH VARIABLES (BINDING)` → `${CONFIG_ROOT}`
   * Primary: %APPDATA%/opencode
   * Fallback: %USERPROFILE%/.config/opencode
 * macOS / Linux:
   * ${XDG_CONFIG_HOME:-~/.config}/opencode
 
 Target folder and file (Binding):
-* ${CONFIG_ROOT}/${REPO_NAME}/decision-pack.md
+* ${REPO_DECISION_PACK_FILE}
   * REPO_NAME MUST be derived from the Phase 2 repository identity
     and sanitized as follows:
     * lowercased
@@ -1061,14 +1116,14 @@ Before executing Phase 1.5 extraction, if the workflow is running under OpenCode
 persisted Business Rules inventory file exists and load it as context.
 
 Cross-platform configuration root resolution (Binding):
-* Windows:
+* See `GLOBAL PATH VARIABLES (BINDING)` → `${CONFIG_ROOT}`
   * Primary: %APPDATA%/opencode
   * Fallback: %USERPROFILE%/.config/opencode
 * macOS / Linux:
   * ${XDG_CONFIG_HOME:-~/.config}/opencode
 
 Expected file location (Binding):
-* ${CONFIG_ROOT}/${REPO_NAME}/business-rules.md
+* ${REPO_BUSINESS_RULES_FILE}
   * REPO_NAME MUST be derived from the Phase 2 repository identity
     and sanitized as follows:
     * lowercased
@@ -1174,14 +1229,14 @@ the assistant MUST additionally produce a Business Rules inventory file
 output suitable for writing to the user's OpenCode configuration directory.
 
 Cross-platform configuration root resolution (Binding):
-* Windows:
+* See `GLOBAL PATH VARIABLES (BINDING)` → `${CONFIG_ROOT}`
   * Primary: %APPDATA%/opencode
   * Fallback: %USERPROFILE%/.config/opencode
 * macOS / Linux:
   * ${XDG_CONFIG_HOME:-~/.config}/opencode
 
 Target folder and file (Binding):
-* ${CONFIG_ROOT}/${REPO_NAME}/business-rules.md
+* ${REPO_BUSINESS_RULES_FILE}
   * REPO_NAME MUST be derived from the Phase 2 repository identity
     and sanitized as follows:
     * lowercased
