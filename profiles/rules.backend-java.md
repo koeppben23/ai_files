@@ -23,6 +23,23 @@ Binding:
 
 ---
 
+# Kafka Templates Addon (Binding)
+
+For the `backend-java` profile, Kafka-related code and tests MUST follow the Kafka templates addon:
+`rules.backend-java-kafka-templates.md`.
+
+Activation (binding):
+- At **code-phase** (Phase 4+), the workflow MUST load this addon and record it in:
+  - `SESSION_STATE.LoadedRulebooks.addons.kafka`
+- The addon is REQUIRED if ANY of the following is true (evidence-based):
+  - Repo Discovery finds Kafka usage signals (e.g., `@KafkaListener`, `spring-kafka` dependency, or `spring.kafka` config keys), OR
+  - The ticket/request explicitly requires Kafka producer/consumer changes.
+
+If required but missing at code-phase:
+- `Mode = BLOCKED`
+- `Next = BLOCKED-KAFKA-TEMPLATES-MISSING`
+
+---
 ## 0. Core Principle (Binding, Non-Negotiable)
 
 > **No claim without evidence. No evidence, no acceptance.**
