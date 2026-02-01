@@ -36,14 +36,13 @@ Define `${CONFIG_ROOT}` (OpenCode configuration root) as:
 - `${PROFILES_HOME}` = `${COMMANDS_HOME}/profiles`
 - `${WORKSPACES_HOME}` = `${OPENCODE_HOME}/workspaces`
 
-
-
 ### Binding Rule: No Hard-Coded Paths
 
 BINDING:
 - All path strings MUST be expressed using the canonical variables defined above (e.g., `${CONFIG_ROOT}`, `${COMMANDS_HOME}`, `${OPENCODE_HOME}`, `${REPO_HOME}`, `${SESSION_STATE_FILE}`).
-- Hard-coded OS-specific paths (e.g., `C:\Users\...`, `/Users/...`, `/home/...`, `%APPDATA%/opencode`, `~/.config/...`) MUST NOT appear anywhere in governance texts, prompts, or persisted artifacts.
+- Hard-coded OS-specific paths (e.g., `<windows-home>/...`, `<mac-home>/...`, `<linux-home>/...`, `%APPDATA%/...`, `~/.config/...`) MUST NOT appear anywhere in governance texts, prompts, or persisted artifacts.
 - The ONLY OS-specific logic permitted is the definition of `${CONFIG_ROOT}` in this section.
+- Circular variable references are forbidden (a variable MUST NOT be defined in terms of itself).
 
 ### Canonical State / Persistence Targets
 
