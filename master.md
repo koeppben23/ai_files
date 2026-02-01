@@ -48,6 +48,7 @@ BINDING:
 
 - `${SESSION_STATE_FILE}` = `${OPENCODE_HOME}/SESSION_STATE.json`
 - `${RESUME_FILE}` = `${OPENCODE_HOME}/resume.json`
+- `${REPO_IDENTITY_MAP_FILE}` = `${OPENCODE_HOME}/repo-identity-map.yaml`
 
 ### Repo-scoped Persistent Files (outside the repo)
 
@@ -59,6 +60,14 @@ Binding:
 - `${REPO_NAME}` is a human-readable alias derived from the same repository identity.
 - Both MUST resolve to the same logical repository.
 - Cache, digest, and decision artifacts MUST NOT diverge between them.
+- On workflow initialization for a repository, the runtime MUST derive `<repo_fingerprint>` and `${REPO_NAME}`
+  from the same source of truth for repository identity (e.g., VCS remote URL and/or absolute repo root path).
+- The runtime MUST maintain a single persistent mapping record `<repo_fingerprint> ↔ ${REPO_NAME}` at:
+  `${REPO_IDENTITY_MAP_FILE}`
+  and, on each run, validate that the newly computed identifiers match any existing mapping.
+- If a mismatch is detected between the computed identifiers and the persisted mapping, the workflow MUST treat
+  this as a configuration error: it MUST NOT create or use a second, divergent state tree, and MUST surface a
+  clear reconciliation instruction to the user.
 
 - `${REPO_HOME}` = `${WORKSPACES_HOME}/<repo_fingerprint>`  (workspace bucket)
 - `${REPO_DECISIONS_FILE}` = `${REPO_HOME}/decisions/ADR.md`
@@ -759,7 +768,7 @@ Cache is VALID ONLY IF ALL are true:
    - `CurrentGitHead = git rev-parse HEAD`
    - `GitHeadMatch = (CurrentGitHead == RepoCache.GitHead)` must be true
    ELSE:
-   - Compute `CurrentRepoSignature` (as defined in Fast Path section)
+   - Compute `CurrentRepoSignature` as specified in [Fast Path: RepoSignature computation](#fast-path-reposignature-computation)
    - `RepoSignatureMatch = (CurrentRepoSignature == RepoCache.RepoSignature)` must be true
 3) If `SESSION_STATE.ComponentScopePaths` is set:
    - Cache ComponentScope must match (same set), else INVALID
@@ -843,6 +852,7 @@ Fast Path eligibility (Binding):
   3) Ticket does NOT mention contract/schema changes, AND
   4) Component scope is either not set or is narrow (<= 2 top-level modules).
 
+#### Fast Path: RepoSignature computation
 RepoSignature (Binding, quick computation):
 - Compute `CurrentRepoSignature` as SHA256 over the concatenation of the contents of
   the first N=10 existing files from this ordered list:

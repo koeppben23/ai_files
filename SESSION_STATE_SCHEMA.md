@@ -80,7 +80,7 @@ Allowed values:
 - `1.2-ProfileDetection` (profile detection after repo discovery)
 - `1.3-CoreRulesActivation` (core rules activation at Phase 4 entry)
 - `2` (repository discovery)
-- `1.5` (business rules discovery)
+- `1.5-BusinessRulesDiscovery` (optional business rules discovery between Phase 2 and downstream phases)
 - `3A` (API inventory)
 - `3B-1` (API logical validation)
 - `3B-2` (contract validation spec ↔ code)
