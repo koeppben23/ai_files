@@ -957,12 +957,8 @@ Before producing a new Decision Pack, if the workflow is running under OpenCode
 persisted Decision Pack file exists and load it as context.
 
 Cross-platform configuration root resolution (Binding):
-* See `GLOBAL PATH VARIABLES (BINDING)` → `${CONFIG_ROOT}`
-  * Primary: %APPDATA%/opencode
-  * Fallback: %USERPROFILE%/.config/opencode
-* macOS / Linux:
-  * ${XDG_CONFIG_HOME:-~/.config}/opencode
-
+* Use `${CONFIG_ROOT}` exactly as defined in `GLOBAL PATH VARIABLES (BINDING)`.
+* This section MUST NOT redefine or specialize OS-specific config paths.
 Expected file location (Binding):
 * ${REPO_DECISION_PACK_FILE}
   * REPO_NAME MUST be derived from the Phase 2 repository identity
