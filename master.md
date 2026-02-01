@@ -664,6 +664,7 @@ After loading rules (Phase 1), the assistant MUST output:
 Loaded Rulebooks:
   Core: <path/to/rules.md>
   Profile: <path/to/rules_<profile>.md>
+  Templates: <path/to/rules.backend-java-templates.md> | deferred | not-applicable
 
 Active Profile: <profile-name>
 Profile Source: auto-detected-single | user-explicit | repo-fallback | component-scope-inferred | ambiguous
