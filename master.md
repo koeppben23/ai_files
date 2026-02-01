@@ -249,8 +249,8 @@ See SESSION_STATE_SCHEMA.md for the canonical contract (required keys, enums, in
 ```
 SESSION_STATE.LoadedRulebooks = {
   core: "${COMMANDS_HOME}/rules.md",
-  profile: "${COMMANDS_HOME}/profiles/rules.backend-java.md"
-  templates: ""
+  profile: "${COMMANDS_HOME}/profiles/rules.backend-java.md",
+  templates: "",
   addons: {}
 }
 SESSION_STATE.ActiveProfile = "backend-java"
@@ -669,6 +669,7 @@ Loaded Rulebooks:
   Core: <path/to/rules.md>
   Profile: <path/to/rules_<profile>.md>
   Templates: <path/to/rules.backend-java-templates.md> | deferred | not-applicable
+  Addons: {} | (e.g., kafka -> <path>) 
 
 Active Profile: <profile-name>
 Profile Source: auto-detected-single | user-explicit | repo-fallback | component-scope-inferred | ambiguous
