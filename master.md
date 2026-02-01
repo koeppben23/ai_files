@@ -250,6 +250,8 @@ See SESSION_STATE_SCHEMA.md for the canonical contract (required keys, enums, in
 SESSION_STATE.LoadedRulebooks = {
   core: "${COMMANDS_HOME}/rules.md",
   profile: "${COMMANDS_HOME}/profiles/rules.backend-java.md"
+  templates: ""
+  addons: {}
 }
 SESSION_STATE.ActiveProfile = "backend-java"
 SESSION_STATE.ProfileSource = "auto-detected-single" | "user-explicit" | "repo-fallback"
