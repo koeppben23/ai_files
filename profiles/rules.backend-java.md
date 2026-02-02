@@ -258,6 +258,16 @@ For changed public behavior, consider:
 - Use test data builders/object mothers to keep tests readable and reduce duplication
 - Each extracted business rule must map to at least one named test that proves it
 
+Additional determinism requirements (binding):
+- If time is involved, use an injectable `Clock` (or existing repo time abstraction); tests MUST use a fixed clock.
+- Avoid randomly generated identifiers in assertions; use fixed IDs or an injectable ID generator if present.
+- Avoid order-dependent assertions unless order is part of the contract; otherwise sort deterministically.
+- Prefer high-signal assertions (domain outcome, error contract) over snapshot-style full JSON/body comparisons,
+  unless the repo already uses contract snapshots for that boundary.
+
+Templates (binding when loaded):
+- If `rules.backend-java-templates.md` is loaded, its patterns for builders and test classes MUST be followed.
+
 ### 7.4 Architecture Tests (Binding if ArchUnit present)
 - New boundaries → new ArchUnit rules
 - Violations → hard failure

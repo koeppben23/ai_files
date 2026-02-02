@@ -1826,12 +1826,28 @@ Proceeding to Phase 4 (Ticket Execution)...
    - Each item must be one short line: `OK | N/A | Risk | Needs decision` + one sentence.
    - If anything is `Risk` or `Needs decision`, record it in `SESSION_STATE.Risks` or `SESSION_STATE.Blockers`.
 
+   **Architecture Options (A/B/C) constraints (binding):**
+   - REQUIRED whenever the plan involves any non-trivial decision surface (examples: boundaries, persistence approach,
+     contract strategy, significant dependency/tooling changes, migrations/rollout strategy).
+   - MUST list at least **Option A** and **Option B** (Option C optional).
+   - Each option MUST include: one-line description, key trade-offs (perf/complexity/operability/risk), and test impact.
+   - MUST end with an explicit **Recommendation** (one option) + confidence (0–100) + what evidence could change the decision.
+   - The final choice MUST be recorded in `SESSION_STATE.ArchitectureDecisions` (at least one entry).
+
 3. **Create implementation plan:**
    * List all files to be created/modified
    * List all tests to be created/modified
    * List all migrations to be created (if database changes)
    * List all API changes (if contract changes)
    * Estimate complexity (simple, medium, complex)
+
+   **Test strategy constraints (binding):**
+   - The plan MUST include a short **Test Strategy** section stating:
+     - test levels to be used (unit / slice / integration / contract as applicable in this repo)
+     - deterministic seams required (e.g., time, randomness, IDs, external I/O)
+     - any required test fixtures/builders and where they live
+     - the minimum set of edge cases to cover (boundary + negative case at least)
+   - Tests MUST prove behavior (rules, state transitions, contracts) rather than implementation details.
 
 Binding: Update `SESSION_STATE.TouchedSurface` with:
    - FilesPlanned (all concrete file paths)
@@ -1895,6 +1911,22 @@ NFR Checklist:
   - Performance: Risk — may need index on `users.active`; validate with DB stats.
   - Migration/Compatibility: OK — additive column with default; backward compatible.
   - Rollback/Release safety: OK — disable flag; schema remains safe.
+
+Architecture Options (A/B/C):
+  Option A: Additive `active` flag + service method + controller endpoint.
+    Trade-offs: Low risk; minimal migration; simple queries; requires consistent filtering.
+    Test impact: Unit tests for rule checks; controller integration test; migration constraint tests.
+  Option B: Separate “account state” table + state transitions + join.
+    Trade-offs: Better extensibility; higher complexity; more migration risk; join cost.
+    Test impact: More integration coverage; additional repository tests; migration/backfill tests.
+  Recommendation: Option A (confidence 85) — aligns with existing patterns and keeps change surface small.
+  Would change decision: evidence that future state expansion is imminent or current user-table query patterns make filtering unsafe.
+
+Test Strategy:
+  - Levels: Unit (service rule tests), Integration (controller endpoint), Migration validation (Flyway + constraint tests)
+  - Determinism: fixed clock/time; deterministic IDs; no network calls
+  - Fixtures: test data builder for User + Contract fixtures (if applicable)
+  - Edge cases: boundary (already inactive), negative (active contracts), not found
 
 Implementation Plan:
 
