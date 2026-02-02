@@ -130,6 +130,7 @@ SESSION_STATE bootstrap (binding):
   ActiveProfile: ""          # DEFERRED until post-Phase-2
   ProfileSource: "deferred"
   ProfileEvidence: "deferred-until-phase-2"
+  
 ### Phase 1.2: Profile Detection (DEFERRED TO POST-PHASE-2)
 
 TRIGGER: After Phase 2 (Repo Discovery) completes
@@ -453,6 +454,30 @@ If two rules conflict at the same priority level or the conflict is ambiguous:
 1) **Most restrictive wins** for anything that impacts safety, determinism, evidence, scope lock, or gates.
 2) **Repo conventions win** for style/tooling choices **only if** they do not weaken gates/evidence/scope lock.
 3) If the conflict still cannot be resolved deterministically, record a risk and stop (BLOCKED) with a targeted question.
+
+### Rulebook Load Evidence (BINDING)
+
+The assistant MUST NOT mark any rulebook as loaded unless there is
+explicit load evidence.
+
+Binding rules:
+- If any of the following fields is non-empty:
+  - `SESSION_STATE.LoadedRulebooks.core`
+  - `SESSION_STATE.LoadedRulebooks.profile`
+  - `SESSION_STATE.LoadedRulebooks.templates`
+  - `SESSION_STATE.LoadedRulebooks.addons.*`
+  then `SESSION_STATE.RulebookLoadEvidence` MUST be present and non-empty.
+
+- RulebookLoadEvidence MUST contain at least one of:
+  - resolved canonical path (using `${COMMANDS_HOME}` / `${PROFILES_HOME}`)
+  - tool output confirming read/load
+  - hash/digest reference
+  - explicit user-provided content
+
+- If rulebook load evidence cannot be produced due to host/tool limitations:
+  - `Mode = BLOCKED`
+  - Canonical pointer: `Next = BLOCKED-RULEBOOK-EVIDENCE-MISSING`
+  - No phase completion may be claimed.
 
 ---
 
