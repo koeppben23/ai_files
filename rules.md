@@ -628,7 +628,12 @@ Binding:
 - Business rules / invariants MUST be expressed as **named units** (functions/methods) rather than anonymous, scattered conditionals.
 - State transitions MUST be explicit (e.g., `transitionTo(...)`, command handler methods) and validated by the domain layer.
 - Pure decision logic MUST be separable from I/O (DB/network/clock/randomness) via seams (ports, adapters, injected dependencies, or equivalent).
-- Avoid primitive obsession where it materially improves correctness/reviewability (e.g., identifiers, money/amounts, time ranges) — use domain types/value objects when present in the repo.
+ Avoid primitive obsession by introducing domain types/value objects when **any** of the following holds:
+  - the value has domain-specific validation rules or behavior (formatting, normalization, arithmetic, comparison semantics)
+  - the value participates in invariants or state transitions (e.g., money/amounts, time ranges, statuses)
+  - the value appears in multiple contexts/boundaries (API, DB, events) where consistency and mapping correctness matter
+  - the value acts as an identifier/key and mixing it with other primitives is a plausible defect
+  If the repo already defines an appropriate domain type/value object for the value, you MUST use it.
 - External boundary layers (controllers/handlers/adapters) MUST NOT contain business rules; they MAY validate input shape and map to domain models.
 
 Output obligation (planning + Phase 5):
