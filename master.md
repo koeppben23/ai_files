@@ -76,6 +76,7 @@ OpenCode-only persisted knowledge (stable across sessions for the same repo iden
 - `${REPO_DIGEST_FILE}` = `${REPO_HOME}/repo-map-digest.md`
 - `${REPO_DECISION_PACK_FILE}` = `${REPO_HOME}/decision-pack.md`
 - `${REPO_BUSINESS_RULES_FILE}` = `${REPO_HOME}/business-rules.md`
+- `${WORKSPACE_MEMORY_FILE}` = `${REPO_HOME}/workspace-memory.yaml`
 
 BINDING:
 - No repository-local governance or persistence MUST be required.
@@ -125,63 +126,6 @@ BINDING:
   - Phase 1–3 MUST NOT require rules.md
   - If Phase 4 begins and rules.md cannot be loaded → BLOCKED
   - Phase 3 MUST NOT generate code
-
-## Phase 1.4: Templates & Addons Activation
-(Defined in Phase 1, executed at Phase 4 entry)
-
-TRIGGER: When Phase 4 (Ticket Execution / Plan Creation) begins
-
-OBJECTIVE (binding):
-- Eliminate interpretation: the workflow MUST execute the deterministic load algorithm below
-  at Phase-4 entry and reflect the results in `SESSION_STATE.LoadedRulebooks`.
-
-ALGORITHM (binding, deterministic):
-
-1) **Load mandatory templates if required by the active profile**
-   - Determine `TemplatesRequired` from the active profile rulebook.
-     - If no active profile is set yet → BLOCKED (profile detection must run first).
-   - If `TemplatesRequired = true`:
-     - Load the template rulebook from the active profile’s declared template reference.
-     - Set `SESSION_STATE.LoadedRulebooks.templates = <resolved_path>`.
-     - If the template rulebook cannot be resolved/loaded → BLOCKED.
-   - If `TemplatesRequired = false`:
-     - Set `SESSION_STATE.LoadedRulebooks.templates = "not-applicable"`.
-
-2) **Load conditional addons using explicit mandate rules**
-   - Start with `SESSION_STATE.LoadedRulebooks.addons = {}`.
-   - For each addon supported by the active profile, evaluate its mandate rule:
-
-     **Kafka Addon mandate (IMPORTANT, binding):**
-     - The Kafka templates addon is required ONLY if:
-       a) the ticket explicitly includes Kafka scope (producer/consumer/topic/schema/offset/partition/rebalance), OR
-       b) the user provides an explicit Kafka scope confirmation using one of the following
-          canonical forms (case-insensitive, exact match required):
-
-          - "Kafka scope: YES"
-          - "Kafka Addon: REQUIRED"
-          - "Include Kafka changes"
-          - "Kafka changes confirmed"
-
-     - Anything else (e.g. "maybe", "probably", "Kafka is in the repo", "consider Kafka")
-       is NOT sufficient.
-     - If uncertain, the system MUST NOT load the Kafka addon and MUST ask for a canonical
-       confirmation line.
-     - Presence of Kafka in the repo (dependencies/config) does NOT mandate the addon.
-
-   - If an addon is mandated:
-     - Load its rulebook and record it in `SESSION_STATE.LoadedRulebooks.addons[addon_key] = <resolved_path>`.
-     - If the addon rulebook cannot be resolved/loaded → BLOCKED.
-   - If an addon is not mandated:
-     - It MUST NOT be loaded.
-
-3) **Persist evidence + invariants**
-   - Update `SESSION_STATE`:
-     - `Mode` remains unchanged unless BLOCKED
-     - `Next` MUST point to the Phase 4 continuation pointer
-   - Invariants:
-     - If Phase 4 begins and `LoadedRulebooks.core == ""` → BLOCKED
-     - If templates are required and `LoadedRulebooks.templates` is empty → BLOCKED
-     - If an addon is mandated and not present in `LoadedRulebooks.addons` → BLOCKED
 
 ### Data sources & priority
 
@@ -596,7 +540,7 @@ Required input:
 Recovery steps:
   1) <do X>
   2) <do Y>
-Resume pointer: <exact Next pointer, e.g., "Phase 4 — Step 0 (Rulebooks load)" >
+Resume pointer: <exact Next pointer, e.g., "Phase 4 — Step 0 (Initialization)" >
 ```
 
 **Standard BLOCKED reasons + required input (binding):**
@@ -616,6 +560,10 @@ Resume pointer: <exact Next pointer, e.g., "Phase 4 — Step 0 (Rulebooks load)"
 - `BLOCKED-MISSING-ADDON:<addon_key>`:
   - Trigger: an addon is mandated (per explicit mandate rules) but cannot be resolved/loaded.
   - Required input: provide the addon rulebook path OR install it under `${PROFILES_HOME}/` as declared by the profile.
+
+- `BLOCKED-WORKSPACE-MEMORY-INVALID`:
+  - Trigger: `${WORKSPACE_MEMORY_FILE}` exists but cannot be parsed/validated.
+  - Required input: fix the YAML file OR remove it to proceed (memory is optional, invalid memory is not).
 
 Rules:
 - The assistant MUST ask for the minimal viable input only (single artifact/command), not broad clarifications.
@@ -942,7 +890,46 @@ Output requirements (Binding when file exists):
 
 SESSION_STATE updates (Binding when OpenCode applies):
 * SESSION_STATE.RepoMapDigestFile.SourcePath
-* SESSION_STATE.RepoMapDigestFile.Loaded = true | false
+* SESSION_STATE.RepoMapDigestFile.Loaded = true #### OpenCode-only: Load existing Workspace Memory (Read-before-use, Binding when applicable)
+
+Purpose:
+- Stabilize repo-specific conventions and reduce drift across ticket sessions.
+- Workspace Memory is supportive defaults only; repository evidence always wins.
+
+Cross-platform configuration root resolution (Binding):
+* Use `${CONFIG_ROOT}` as defined in `GLOBAL PATH VARIABLES (BINDING)`.
+
+Expected file location (Binding):
+* `${WORKSPACE_MEMORY_FILE}`
+
+Read behavior (Binding):
+* If the file exists:
+  1) Load it and treat it as the current default convention baseline for Phase 4 planning.
+  2) Enforce evidence-first: if repository evidence contradicts Workspace Memory, evidence wins and a Risk MUST be recorded.
+* If the file does not exist: proceed normally (no penalty).
+
+Validation (Binding):
+* The file MUST be valid YAML and MUST contain `WorkspaceMemory.Version = "1.0"`.
+* If the file exists but cannot be parsed/validated → Mode: BLOCKED (configuration error).
+
+Output requirements (Binding when file exists):
+* Emit a short structured block:
+  [WORKSPACE-MEMORY-LOADED]
+  SourcePath: <resolved path expression>
+  Version: "1.0"
+  Summary:
+  - <3-8 bullets of active defaults (evidence-backed)>
+  Conflicts:
+  - <none | list conflicts and which evidence wins>
+  [/WORKSPACE-MEMORY-LOADED]
+
+SESSION_STATE updates (Binding when OpenCode applies):
+* `SESSION_STATE.WorkspaceMemoryFile.SourcePath`
+* `SESSION_STATE.WorkspaceMemoryFile.Loaded = true | false`
+* `SESSION_STATE.WorkspaceMemoryFile.Valid = true | false`
+* `SESSION_STATE.WorkspaceMemoryFile.InvalidationReason = "<short>"`
+
+| false
 * SESSION_STATE.RepoMapDigestFile.Summary = "<short text>"
 
 #### Fast Path (optional, conservative, Binding when applicable)
@@ -1190,6 +1177,66 @@ RepoMapDigest section format (Binding):
    * SESSION_STATE.RepoMapDigestFile.FilePath
    * SESSION_STATE.RepoMapDigestFile.FileStatus =
      written | write-requested | not-applicable
+
+If file writing is not possible in the current environment:
+* set FileStatus = write-requested
+* still output the full content and target path so OpenCode or the user can persist it manually.
+
+#### OpenCode-only: Persist Workspace Memory v1 (Binding when applicable)
+
+Workspace Memory captures stable, repo-specific defaults (conventions + patterns) across sessions.
+
+Cross-platform configuration root resolution (Binding):
+* Use `${CONFIG_ROOT}` as defined in `GLOBAL PATH VARIABLES (BINDING)`.
+
+Target folder and file (Binding):
+* `${WORKSPACE_MEMORY_FILE}`
+
+Write policy (Binding, strict):
+- Workspace Memory has two content classes:
+  1) **Observations** (descriptive, evidence-backed): MAY be written automatically after Phase 2.
+  2) **Decisions / Defaults** (prescriptive): MUST NOT be written unless Phase 5 is approved AND the user explicitly confirms persistence.
+
+- User confirmation (canonical, deterministic):
+  - To allow persisting Decisions/Defaults, the user MUST write exactly:
+    "Persist to workspace memory: YES"
+
+Update behavior (Binding):
+- Overwrite the file (single source of truth; not append-only).
+- The assistant MUST preserve existing `Decisions` and `Deviations` sections unless explicitly instructed to reset memory.
+
+Minimum required content (Binding):
+```yaml
+WorkspaceMemory:
+  Version: "1.0"
+  Repo:
+    RepoName: "<sanitized-repo-name>"
+    RepoFingerprint: "<repo_fingerprint>"
+  UpdatedAt: "<YYYY-MM-DD>"
+  Provenance:
+    Source: "Phase2+Phase5"
+    EvidenceMode: "evidence-required"
+  Conventions: {}
+  Patterns: {}
+  Decisions:
+    Defaults: []
+  Deviations: []
+```
+
+Output requirements (Binding when persistence is applicable):
+1) Emit a single structured block:
+   [WORKSPACE-MEMORY-FILE]
+   TargetPath: <resolved path expression>
+   RepoName: <sanitized repo name>
+   UpdatedAt: <YYYY-MM-DD>
+   Mode: create | overwrite
+   Content:
+   <complete YAML file content>
+   [/WORKSPACE-MEMORY-FILE]
+
+2) Update SESSION_STATE:
+   - `SESSION_STATE.WorkspaceMemoryFile.TargetPath`
+   - `SESSION_STATE.WorkspaceMemoryFile.FileStatus = written | write-requested | not-applicable`
 
 If file writing is not possible in the current environment:
 * set FileStatus = write-requested
@@ -1751,13 +1798,15 @@ Proceeding to Phase 4 (Ticket Execution)...
 
 **Actions:**
 
-0. **Phase-4 Entry: Deterministic rulebooks load (BINDING)**
+
+0. **Phase-4 Entry: Deterministic initialization (BINDING)**
    - Ensure Phase 1.3 executed: load `rules.md` and set `SESSION_STATE.LoadedRulebooks.core`.
    - Execute Phase 1.4 deterministic algorithm: load mandatory templates + mandated addons.
-   - If any required rulebook cannot be resolved/loaded:
-     - Set `Mode = BLOCKED` and emit the **BLOCKED — Recovery Playbook** block.
-     - Stop (do not proceed with planning).
-   - Only after successful loads: continue with Phase 4 steps 1..
+   - Load Workspace Memory (if present):
+     - If `${WORKSPACE_MEMORY_FILE}` exists and is valid → apply as repo-specific defaults for planning.
+     - If it exists but is invalid/unparseable → BLOCKED (configuration error; fix or remove file).
+   - If any required rulebook cannot be resolved/loaded → BLOCKED (use Recovery Playbook) and STOP.
+   - Only after successful initialization: continue with Phase 4 steps 1..
 
 1. **Understand the requirement:**
    * Parse ticket description
@@ -2107,6 +2156,27 @@ Gate passed. Awaiting confirmation to proceed to Phase 5.3 (Test Quality Review)
 These are NON-GATING but their results are included in the gate report as warnings/recommendations.
 
 ---
+
+#### Workspace Memory writeback (Decisions/Defaults) — Binding
+
+Purpose:
+- Persist repo-specific *prescriptive* defaults (e.g., "Kafka idempotency strategy", "error code contract") only when explicitly approved.
+
+Eligibility (Binding):
+- Allowed ONLY if:
+  1) `SESSION_STATE.Gates.P5-Architecture = approved`, AND
+  2) the user explicitly confirms by writing exactly: "Persist to workspace memory: YES"
+
+Write behavior (Binding):
+- Load existing `${WORKSPACE_MEMORY_FILE}` (must be valid; otherwise BLOCKED).
+- Update ONLY:
+  - `WorkspaceMemory.Decisions.Defaults` (append new accepted decisions), and/or
+  - `WorkspaceMemory.Deviations` (append approved deviations),
+  leaving `Conventions` / `Patterns` intact unless the ticket explicitly changes them.
+- Overwrite the file as a whole (single source of truth).
+
+Output requirements (Binding when writeback happens):
+- Emit `[WORKSPACE-MEMORY-FILE]` (same format as Phase 2 persistence section) and update `SESSION_STATE.WorkspaceMemoryFile.FileStatus`.
 
 ### PHASE 5.3 — Test Quality Review (CRITICAL Gate)
 
