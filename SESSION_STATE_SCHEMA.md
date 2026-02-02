@@ -613,6 +613,7 @@ SESSION_STATE:
     InventoryFilePath: "<path expression>"
     InventoryLoaded: true | false
     InventoryFileStatus: written | write-requested | not-applicable
+    InventoryFileMode: create | update | unknown
     ExtractedCount: <integer>
     Coverage:
       Code: "<n>/<total>"

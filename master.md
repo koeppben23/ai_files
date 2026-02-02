@@ -1513,7 +1513,7 @@ If file writing is not possible in the current environment:
 * "Skip business-rules discovery"
 * "This is a pure CRUD project"
 
-#### OpenCode-only: Load existing Business Rules Inventory (Read-before-write, Binding when applicable)
+#### Load existing Business Rules Inventory (when available; Binding when applicable)
 
 Before executing Phase 1.5 extraction, if the workflow is running under OpenCode
 (repository provided or indexed via OpenCode), the assistant MUST check whether a
@@ -1621,12 +1621,17 @@ Proceeding to Phase 3A (API Inventory)...
 
 **Note:** If Phase 1.5 is executed, Phase 5.4 (Business rules compliance) becomes MANDATORY.
 
-#### OpenCode-only: Persist Business Rules Inventory (Binding when applicable)
+#### Persist Business Rules Inventory (Policy A, Binding)
 
-If Phase 1.5 was executed AND the workflow is running under OpenCode
-(repository provided or indexed via OpenCode),
-the assistant MUST additionally produce a Business Rules inventory file
-output suitable for writing to the user's OpenCode configuration directory.
+Policy A:
+- If Phase 1.5 is executed, persistence of the Business Rules inventory is **automatic**.
+- The assistant MUST always produce a `${REPO_BUSINESS_RULES_FILE}` output block.
+- If the inventory file already exists, the assistant MUST update it (preserve stable BR-IDs; mark removed rules as DEPRECATED).
+
+If the workflow is running under OpenCode (repository provided or indexed via OpenCode),
+the target path is expected to be writable via the OpenCode workspace.
+If file writing is not possible in the current environment, the assistant MUST still emit the full file content
+and set `InventoryFileStatus = write-requested`.
 
 Cross-platform configuration root resolution (Binding):
 * Use `${CONFIG_ROOT}` as defined in `GLOBAL PATH VARIABLES (BINDING)`.
@@ -1646,6 +1651,7 @@ Output requirements (Binding):
    TargetPath: <resolved path expression>
    RepoName: <sanitized repo name>
    LastUpdated: <YYYY-MM-DD>
+   Mode: create | update
    Content:
    <complete Markdown file content>
    [/BR-INVENTORY-FILE]
@@ -1656,9 +1662,14 @@ Output requirements (Binding):
      written | write-requested | not-applicable
 
 If file writing is not possible in the current environment:
-* set InventoryFileStatus = write-requested
-* still output the full content and target path so OpenCode or the user
-  can persist it manually.
+ - set `InventoryFileStatus = write-requested`
+ - set `InventoryFileMode = unknown`
+ - still output the full content and target path so OpenCode or the user can persist it manually.
+
+Update behavior (Binding):
+- If `${REPO_BUSINESS_RULES_FILE}` does not exist: `Mode = create`.
+- If `${REPO_BUSINESS_RULES_FILE}` exists: `Mode = update` and overwrite the file content as a whole
+  (single source of truth), while preserving BR identifiers and marking removed rules as DEPRECATED.
 
 ---
 
