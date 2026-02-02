@@ -85,13 +85,35 @@ Binding:
 - Both MUST resolve to the same logical repository.
 - Cache, digest, and decision artifacts MUST NOT diverge between them.
 - On workflow initialization for a repository, the runtime MUST derive `<repo_fingerprint>` and `${REPO_NAME}`
-  from the same source of truth for repository identity (e.g., VCS remote URL and/or absolute repo root path).
+  from the same source of truth for repository identity (git metadata: remote URL + default branch).
 - The runtime MUST maintain a single persistent mapping record `<repo_fingerprint> ↔ ${REPO_NAME}` at:
   `${REPO_IDENTITY_MAP_FILE}`
   and, on each run, validate that the newly computed identifiers match any existing mapping.
 - If a mismatch is detected between the computed identifiers and the persisted mapping, the workflow MUST treat
   this as a configuration error: it MUST NOT create or use a second, divergent state tree, and MUST surface a
   clear reconciliation instruction to the user.
+
+### Repo Identity Evidence Policy (Binding)
+
+The system MUST NOT require direct access to git or any VCS tooling.
+
+Git-based identity means:
+  - the identity is derived from git metadata (remote URL + default branch),
+  - NOT that the system executes git commands itself.
+
+The system MUST:
+  - explicitly request the required evidence,
+  - provide the exact commands the operator MAY run to obtain it,
+  - accept pasted command output as valid evidence,
+  - validate the evidence syntactically and semantically,
+  - derive the repo fingerprint deterministically from the provided evidence.
+
+The system MUST remain fail-closed if evidence is missing or inconsistent.
+
+The following are FORBIDDEN:
+  - executing git implicitly,
+  - path-based or heuristic repo fingerprints,
+  - provisional or fallback identity trees.
 
 - `${REPO_HOME}` = `${WORKSPACES_HOME}/<repo_fingerprint>`  (workspace bucket)
 - `${REPO_DECISIONS_FILE}` = `${REPO_HOME}/decisions/ADR.md`
@@ -935,14 +957,18 @@ RepoCache:
 Validation (Binding, conservative):
 Cache is VALID ONLY IF ALL are true:
 1) Cache file parses and contains `RepoCache.Version` and `RepoCache.RepoMapDigest`
-2) If git is available:
-   - `CurrentGitHead = git rev-parse HEAD`
+2) If operator-provided git metadata evidence includes a GitHead (optional):
+   - `CurrentGitHead = <operator-provided GitHead>`
    - `GitHeadMatch = (CurrentGitHead == RepoCache.GitHead)` must be true
    ELSE:
    - Compute `CurrentRepoSignature` as specified in [Fast Path: RepoSignature computation](#fast-path-reposignature-computation)
    - `RepoSignatureMatch = (CurrentRepoSignature == RepoCache.RepoSignature)` must be true
 3) If `SESSION_STATE.ComponentScopePaths` is set:
    - Cache ComponentScope must match (same set), else INVALID
+
+Binding note:
+- The system MUST NOT probe for git availability or execute git commands.
+- GitHead comparisons are allowed ONLY when GitHead is provided as operator evidence.
 
 If VALID:
 - Treat cache as authoritative for Phase 2 output (supportive memory; repo evidence wins if later contradictions appear).
@@ -1071,7 +1097,8 @@ RepoSignature (Binding, quick computation):
 - If none exist or hashing is not possible: set signature to `unknown`.
 
 GitHead (Binding, preferred if available):
-- If git is available, `CurrentGitHead = git rev-parse HEAD`, else `unknown`.
+- If operator-provided evidence includes GitHead, set `CurrentGitHead = <operator-provided GitHead>`,
+  else set `CurrentGitHead = unknown`.
 
 Application (Binding):
 - If Eligible=true, set:
