@@ -38,7 +38,42 @@ The assistant MUST output **FULL** if any of these apply:
 
 ---
 
+## 1.4 Bootstrap State (Phase 1.1)
+
+The bootstrap phase establishes whether the governance system is
+**explicitly activated** for the current session.
+
+This prevents implicit or accidental execution of the workflow.
+
+### Required Bootstrap Fields
+
+During Phase `1.1-Bootstrap`, the session MUST include:
+
+- `SESSION_STATE.Bootstrap.Present` (boolean)
+- `SESSION_STATE.Bootstrap.Satisfied` (boolean)
+- `SESSION_STATE.Bootstrap.Evidence` (string)
+
+### Semantics
+
+- `Present = true` means an explicit bootstrap declaration was provided by the operator.
+- `Satisfied = true` means the declaration is semantically sufficient to activate the governance system.
+- `Evidence` MUST briefly describe how the bootstrap was established (e.g. "explicit bootstrap declaration in session header").
+
+### Invariants
+
+- If `Bootstrap.Present = false` OR `Bootstrap.Satisfied = false`:
+  - `SESSION_STATE.Mode` MUST be `BLOCKED`
+  - `SESSION_STATE.Next` MUST be `BLOCKED-BOOTSTRAP-NOT-SATISFIED`
+- No phase > `1.1-Bootstrap` may execute unless `Bootstrap.Satisfied = true`.
+- After Phase `1.1-Bootstrap` completes, `SESSION_STATE.Bootstrap.*` MUST remain present and MUST NOT change for the remainder of the session.
+
+---
+
 ## 2. Required Keys (Phase 1+)
+
+NOTE:
+Phase 1.1 (Bootstrap) is the only phase allowed to emit a partial SESSION_STATE
+without all required keys listed below.
 
 Once Phase 1.1 (bootstrap) completes successfully, these keys MUST exist:
 
@@ -355,7 +390,8 @@ SESSION_STATE:
 
 **Invariant**
 - `Next` MUST NOT point to any code-producing step unless the relevant upstream gates are in an allowed state per `master.md` and `rules.md`.
-### 7.y Workspace Memory File (OpenCode-only, recommended)
+
+### 8.y Workspace Memory File (OpenCode-only, recommended)
 
 Workspace Memory stores stable, repo-specific defaults (conventions + patterns) across sessions to reduce drift.
 

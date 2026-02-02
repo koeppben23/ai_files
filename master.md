@@ -5,6 +5,30 @@ priority: highest
 
 MASTER PROMPT
 
+## PHASE 0 — BOOTSTRAP (CONDITIONAL)
+
+This governance system operates in **fail-closed mode**.
+
+### Bootstrap Activation Condition
+
+This master workflow is considered **ACTIVE** only if the session input
+contains an explicit bootstrap declaration equivalent in intent to:
+
+- Governance-OS enabled
+- Phases 1–6 enforced
+- Plan-Gates ≠ Evidence-Gates
+- Missing evidence → BLOCKED
+- Profile ambiguity → BLOCKED
+- Host tools (e.g. OpenCode) are best-effort only
+
+If this condition is **not met**, the system MUST enter state:
+
+> **BLOCKED — Bootstrap not satisfied**
+
+### Recovery
+- Operator must restate the bootstrap declaration explicitly.
+- No phase execution, planning, or evaluation is permitted before recovery.
+
 ## GLOBAL PATH VARIABLES (BINDING)
 
 This system MUST define canonical path variables once and reuse them everywhere.
