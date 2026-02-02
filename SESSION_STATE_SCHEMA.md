@@ -355,6 +355,34 @@ SESSION_STATE:
 
 **Invariant**
 - `Next` MUST NOT point to any code-producing step unless the relevant upstream gates are in an allowed state per `master.md` and `rules.md`.
+### 7.y Workspace Memory File (OpenCode-only, recommended)
+
+Workspace Memory stores stable, repo-specific defaults (conventions + patterns) across sessions to reduce drift.
+
+If used, the assistant SHOULD populate:
+
+- `SESSION_STATE.WorkspaceMemoryFile` (object)
+
+Recommended structure:
+
+```yaml
+SESSION_STATE:
+  WorkspaceMemoryFile:
+    SourcePath: "<path expression>"        # e.g., ${REPO_HOME}/workspace-memory.yaml
+    TargetPath: "<path expression>"        # same as SourcePath when writing
+    Loaded: true | false
+    Valid: true | false
+    InvalidationReason: "<short text>"     # empty when Valid=true
+    FileStatus: "written" | "write-requested" | "not-applicable"
+    Summary: "<short digest>"              # optional; 3-8 bullets serialized
+```
+
+Validation rules (Binding when the file exists):
+- YAML must parse.
+- Root key `WorkspaceMemory` must exist.
+- `WorkspaceMemory.Version` must equal `"1.0"`.
+- If invalid, the workflow MUST enter `Mode=BLOCKED` with reason `BLOCKED-WORKSPACE-MEMORY-INVALID`.
+
 
 ### 8.1 Gate Artifacts (Enforcement Contract)
 
