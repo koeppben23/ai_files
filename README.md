@@ -33,6 +33,8 @@ The system is intentionally organized into **three logical layers**.
 These layers are **not additional rules**, but a **usage and activation recommendation**
 to optimize token consumption and cognitive load.
 
+The exact loading behavior and activation timing are defined exclusively in `master.md`.
+
 ### Layer 1 – Core Governance (Always-On)
 
 **Purpose:**
@@ -55,7 +57,8 @@ Ensures the AI behaves correctly — regardless of context.
 - `master.md`
 - `SCOPE-AND-CONTEXT.md`
 
-This layer should **always be loaded** — both in chat and with OpenCode.
+This layer is **installed globally** and made available to the workflow.
+Actual loading order and timing are controlled by `master.md`.
 
 ---
 
@@ -106,6 +109,25 @@ This layer should be consulted **only when needed**
 This system is designed for **single-user, global installation**.
 All authoritative governance files are installed **once**, globally,
 and reused across repositories.
+
+### Persistent State & Storage Locations (Descriptive)
+
+All persisted workflow state and derived artifacts live **outside the repository**
+under the OpenCode configuration root.
+
+Canonical locations (see `master.md` for binding definitions):
+
+- `${SESSION_STATE_FILE}` – active session state
+- `${RESUME_FILE}` – deterministic resume pointer
+- `${REPO_IDENTITY_MAP_FILE}` – stable repo identity mapping
+- `${WORKSPACES_HOME}/<repo_fingerprint>/` – repo-scoped workspace bucket
+  - `decisions/ADR.md`
+  - `repo-map-digest.md`
+  - `decision-pack.md`
+  - `business-rules.md`
+  - `workspace-memory.yaml`
+
+Repositories themselves remain free of governance state and memory artifacts.
 
 Working repositories contain **no versioned governance files by default**.
 
@@ -159,8 +181,8 @@ ${COMMANDS_HOME}/
 ```
 
 If any of these files are missing,
-the system is considered **incomplete**
-and must block or ask for correction.
+the workflow behavior is determined by the blocking rules
+defined in `master.md`.
 
 ---
 
@@ -168,15 +190,6 @@ and must block or ask for correction.
 
 `master.md` is the single authoritative entry point and performs
 all rulebook discovery and loading.
-
-```
-repo-root/
-├── README.md
-├── ADR.md
-├── TICKET_RECORD_TEMPLATE.md
-├── README-RULES.md
-├── ResumePrompt.md
-```
 
 ---
 
@@ -192,66 +205,16 @@ Repositories provide **only application code and artifacts**.
 
 ---
 
-### OpenCode Desktop: Repo-Aware Without Accidental Commits
+### OpenCode Desktop: Repo-Aware Execution Model
 
-When using **OpenCode Desktop**, the workspace is set to the repository.
-For full repo-aware governance, files must therefore be **visible inside the repo tree**.
+OpenCode operates on a repository working directory, but **governance resolution
+and persistence are strictly external to the repository**.
 
-At the same time, it is often undesirable to accidentally commit
-governance or prompt files into a foreign or shared repository.
+All rulebooks, prompts, and persisted state are resolved from the global
+OpenCode configuration root (`${CONFIG_ROOT}`) and its derived paths,
+as defined in `master.md`.
 
-The recommended setup balances both concerns.
-
-#### Recommended Pattern
-
-Place all governance and prompt files in a dedicated,
-repo-local directory:
-
-```
-repo-root/
-└── .opencode-governance/
-    ├── master.md
-    ├── rules.md
-    ├── SCOPE-AND-CONTEXT.md
-    ├── SESSION_STATE_SCHEMA.md
-    ├── continue.md
-    └── resume.md
-```
-
-This directory is visible to OpenCode Desktop,
-but should not be committed.
-
-#### Local Git Exclusion (No Repository Changes)
-
-To prevent accidental commits without modifying the repository,
-add the following entry to:
-
-```
-repo-root/.git/info/exclude
-```
-
-```
-.opencode-governance/
-```
-
-This exclusion:
-- applies only to the local clone
-- does not affect other developers
-- does not modify `.gitignore`
-
-#### Canonical Entry Point
-
-If OpenCode expects `master.md` at the repository root,
-a minimal stub may exist there which delegates to:
-
-```
-.opencode-governance/master.md
-```
-
-This preserves repo discovery while keeping the full system isolated.
-
-> Governance must be repo-visible for OpenCode,
-> but not necessarily repo-versioned.
+Repositories MUST NOT contain authoritative governance or prompt logic.
 
 ---
 
