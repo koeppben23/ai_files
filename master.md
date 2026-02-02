@@ -2067,6 +2067,9 @@ If the session becomes long (large discovery outputs / many iterations), compres
    * Ensure Rollback/Release safety is concrete (feature flag, backout, or reversible steps).
    - If `TouchedSurface.SchemaPlanned` or `TouchedSurface.ContractsPlanned` is non-empty and `RollbackStrategy` is missing: BLOCK (do not approve P5).
    * Record at least one Architecture Decision (see `SESSION_STATE.ArchitectureDecisions`) and mark it `approved` before approving P5.
+   * Verify the Phase 4 Ticket Record includes an **Architecture Options (A/B[...])** block with trade-offs and test impact.
+   * Verify the Phase 4 plan includes a **Test Strategy** subsection (levels, determinism seams, fixtures/builders, edge cases).
+   * Record `SESSION_STATE.DecisionDrivers` (max 5, one line each) matching the recommendation rationale.
    * If missing or inconsistent: record a blocker and return to Phase 4 (do not approve P5).
 
 2. **API contract review (if API changes):**
@@ -2212,6 +2215,8 @@ Output requirements (Binding when writeback happens):
 
 ### PHASE 5.3 — Test Quality Review (CRITICAL Gate)
 
+**Binding prerequisite:** The Phase 4 plan MUST include a **Test Strategy** subsection. If missing → BLOCK and return to Phase 4.
+
 **Objective:** Ensure test coverage and quality are sufficient before code generation.
 
 **Gate type:** EXPLICIT and CRITICAL (must pass before Phase 6)
@@ -2223,6 +2228,13 @@ Output requirements (Binding when writeback happens):
    * Are all business rules tested?
    * Are edge cases covered?
    * Are error paths tested?
+
+**Determinism checks (binding):**
+- If time is relevant: require a controllable clock seam and tests use a fixed clock.
+- If IDs/randomness are relevant: require deterministic values or injectable generators.
+- Avoid order-dependent assertions unless order is part of the contract; otherwise sort deterministically.
+- Prefer high-signal assertions (domain outcomes / error contracts) over incidental details.
+- For each non-trivial rule change: require at least one boundary test + one negative test.
 
 2. **Check test quality:**
    * Are tests independent (no shared state)?
@@ -2598,6 +2610,17 @@ Result: complexity-warning (warnings only; requires review attention)
 ---
 
 ### PHASE 6 — Implementation QA (Self-Review Gate)
+
+**Binding prerequisites:**
+- `SESSION_STATE.Gates.P5-Architecture` MUST be `approved`.
+- `SESSION_STATE.Gates.P5.3-TestQuality` MUST be `pass` or `pass-with-exceptions`.
+- If Phase 1.5 executed: `SESSION_STATE.Gates.P5.4-BusinessRules` MUST be `compliant` or `compliant-with-exceptions`.
+If any prerequisite is not met → BLOCK and return to the relevant phase.
+
+**Verification obligations (binding):**
+- Confirm the implemented solution matches the chosen Architecture Decision; if it diverged, update `SESSION_STATE.ArchitectureDecisions` with an amended decision and rationale.
+- Confirm tests implemented match the Phase 4 Test Strategy and that determinism seams are actually used.
+- Update Change Matrix to map decisions → code → tests.
 
 Canonical build command (default for Maven repositories):
 * mvn -B -DskipITs=false clean verify
