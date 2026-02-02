@@ -126,7 +126,8 @@ BINDING:
   - If Phase 4 begins and rules.md cannot be loaded → BLOCKED
   - Phase 3 MUST NOT generate code
 
-### Phase 1.4: Templates & Addons Activation (DEFERRED TO PHASE 4)
+## Phase 1.4: Templates & Addons Activation
+(Defined in Phase 1, executed at Phase 4 entry)
 
 TRIGGER: When Phase 4 (Ticket Execution / Plan Creation) begins
 
@@ -153,7 +154,15 @@ ALGORITHM (binding, deterministic):
      **Kafka Addon mandate (IMPORTANT, binding):**
      - The Kafka templates addon is required ONLY if:
        a) the ticket explicitly includes Kafka scope (producer/consumer/topic/schema/offset/partition/rebalance), OR
-       b) the user explicitly confirms Kafka changes.
+       b) the user provides an explicit Kafka scope confirmation using one of the following canonical forms:
+
+     - "Kafka scope: YES"
+     - "Kafka Addon: REQUIRED"
+     - "Include Kafka changes"
+     - "Kafka changes confirmed"
+
+     - Anything else (e.g. "maybe", "probably", "Kafka is in the repo", "consider Kafka") is NOT sufficient.
+     - If uncertain, the system MUST NOT load the Kafka addon and MUST ask for a canonical confirmation line.
      - Presence of Kafka in the repo (dependencies/config) does NOT mandate the addon.
 
    - If an addon is mandated:
