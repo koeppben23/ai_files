@@ -154,15 +154,18 @@ ALGORITHM (binding, deterministic):
      **Kafka Addon mandate (IMPORTANT, binding):**
      - The Kafka templates addon is required ONLY if:
        a) the ticket explicitly includes Kafka scope (producer/consumer/topic/schema/offset/partition/rebalance), OR
-       b) the user provides an explicit Kafka scope confirmation using one of the following canonical forms:
+       b) the user provides an explicit Kafka scope confirmation using one of the following
+          canonical forms (case-insensitive, exact match required):
 
-     - "Kafka scope: YES"
-     - "Kafka Addon: REQUIRED"
-     - "Include Kafka changes"
-     - "Kafka changes confirmed"
+          - "Kafka scope: YES"
+          - "Kafka Addon: REQUIRED"
+          - "Include Kafka changes"
+          - "Kafka changes confirmed"
 
-     - Anything else (e.g. "maybe", "probably", "Kafka is in the repo", "consider Kafka") is NOT sufficient.
-     - If uncertain, the system MUST NOT load the Kafka addon and MUST ask for a canonical confirmation line.
+     - Anything else (e.g. "maybe", "probably", "Kafka is in the repo", "consider Kafka")
+       is NOT sufficient.
+     - If uncertain, the system MUST NOT load the Kafka addon and MUST ask for a canonical
+       confirmation line.
      - Presence of Kafka in the repo (dependencies/config) does NOT mandate the addon.
 
    - If an addon is mandated:
