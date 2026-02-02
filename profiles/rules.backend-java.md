@@ -259,7 +259,7 @@ For changed public behavior, consider:
 - Each extracted business rule must map to at least one named test that proves it
 
 Additional determinism requirements (binding):
-- If time is involved, use an injectable `Clock` (or existing repo time abstraction); tests MUST use a fixed clock.
+- If time is involved, use an injectable `java.time.Clock` (or, if already present, the existing repo time abstraction); tests MUST use a fixed clock.
 - Avoid randomly generated identifiers in assertions; use fixed IDs or an injectable ID generator if present.
 - Avoid order-dependent assertions unless order is part of the contract; otherwise sort deterministically.
 - Prefer high-signal assertions (domain outcome, error contract) over snapshot-style full JSON/body comparisons,
