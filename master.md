@@ -890,7 +890,10 @@ Output requirements (Binding when file exists):
 
 SESSION_STATE updates (Binding when OpenCode applies):
 * SESSION_STATE.RepoMapDigestFile.SourcePath
-* SESSION_STATE.RepoMapDigestFile.Loaded = true #### OpenCode-only: Load existing Workspace Memory (Read-before-use, Binding when applicable)
+* SESSION_STATE.RepoMapDigestFile.Loaded = true | false
+* SESSION_STATE.RepoMapDigestFile.Summary = "<short text>"
+
+#### OpenCode-only: Load existing Workspace Memory (Read-before-use, Binding when applicable)
 
 Purpose:
 - Stabilize repo-specific conventions and reduce drift across ticket sessions.
