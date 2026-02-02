@@ -618,6 +618,45 @@ If any of the above fails: **STOP** (Mode=BLOCKED) and request the minimal missi
 If any impacted layer involves schemas, contracts, persisted data, or enums,
 the Contract & Schema Evolution Gate (Section 6.5) MUST be evaluated and explicitly passed.
 
+## 7.8 Business Logic & Testability Design Contract (Core, Binding)
+
+Purpose:
+- Make business-critical behavior machine-verifiable and reduce cognitive load.
+- Enable deterministic, reviewable changes by constraining where rules live and how they are expressed.
+
+Binding:
+- Business rules / invariants MUST be expressed as **named units** (functions/methods) rather than anonymous, scattered conditionals.
+- State transitions MUST be explicit (e.g., `transitionTo(...)`, command handler methods) and validated by the domain layer.
+- Pure decision logic MUST be separable from I/O (DB/network/clock/randomness) via seams (ports, adapters, injected dependencies, or equivalent).
+ Avoid primitive obsession by introducing domain types/value objects when **any** of the following holds:
+  - the value has domain-specific validation rules or behavior (formatting, normalization, arithmetic, comparison semantics)
+  - the value participates in invariants or state transitions (e.g., money/amounts, time ranges, statuses)
+  - the value appears in multiple contexts/boundaries (API, DB, events) where consistency and mapping correctness matter
+  - the value acts as an identifier/key and mixing it with other primitives is a plausible defect
+  If the repo already defines an appropriate domain type/value object for the value, you MUST use it.
+- External boundary layers (controllers/handlers/adapters) MUST NOT contain business rules; they MAY validate input shape and map to domain models.
+
+Output obligation (planning + Phase 5):
+- For each extracted/changed business rule, the plan MUST state:
+  - where the rule is implemented (path/symbol)
+  - how it is invoked (use-case/orchestrator)
+  - how it is proven (test path/name)
+
+## 7.9 Test Design Contract (Core, Binding)
+
+Binding:
+- Tests MUST prove behavior (rules, state transitions, and contracts) rather than implementation details (internal call order, private fields, incidental logs).
+- Tests MUST be deterministic:
+  - no reliance on real time; if time is relevant, introduce a controllable clock seam
+  - no reliance on randomness; if randomness is relevant, introduce a controllable RNG seam
+  - stable identifiers and ordering assumptions (no flaky order-dependent assertions)
+- Test data MUST be produced via existing builders/fixtures if present; otherwise introduce a minimal builder/object-mother pattern when repeated construction is required.
+- Each non-trivial business rule change MUST have at least:
+  - one boundary test (edge of allowed domain)
+  - one negative test (invalid/forbidden state or input)
+
+If a profile rulebook provides stricter test rules or templates, those rules take precedence.
+
 ---
 
 ## 8. Traceability (Core)

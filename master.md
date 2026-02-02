@@ -1826,12 +1826,28 @@ Proceeding to Phase 4 (Ticket Execution)...
    - Each item must be one short line: `OK | N/A | Risk | Needs decision` + one sentence.
    - If anything is `Risk` or `Needs decision`, record it in `SESSION_STATE.Risks` or `SESSION_STATE.Blockers`.
 
+   **Architecture Options (A/B/C) constraints (binding):**
+   - REQUIRED whenever the plan involves any non-trivial decision surface (examples: boundaries, persistence approach,
+     contract strategy, significant dependency/tooling changes, migrations/rollout strategy).
+   - MUST list at least **Option A** and **Option B** (Option C optional).
+   - Each option MUST include: one-line description, key trade-offs (perf/complexity/operability/risk), and test impact.
+   - MUST end with an explicit **Recommendation** (one option) + confidence (0–100) + what evidence could change the decision.
+   - The final choice MUST be recorded in `SESSION_STATE.ArchitectureDecisions` (at least one entry).
+
 3. **Create implementation plan:**
    * List all files to be created/modified
    * List all tests to be created/modified
    * List all migrations to be created (if database changes)
    * List all API changes (if contract changes)
    * Estimate complexity (simple, medium, complex)
+
+   **Test strategy constraints (binding):**
+   - The plan MUST include a short **Test Strategy** section stating:
+     - test levels to be used (unit / slice / integration / contract as applicable in this repo)
+     - deterministic seams required (e.g., time, randomness, IDs, external I/O)
+     - any required test fixtures/builders and where they live
+     - the minimum set of edge cases to cover (boundary + negative case at least)
+   - Tests MUST prove behavior (rules, state transitions, contracts) rather than implementation details.
 
 Binding: Update `SESSION_STATE.TouchedSurface` with:
    - FilesPlanned (all concrete file paths)
@@ -1895,6 +1911,22 @@ NFR Checklist:
   - Performance: Risk — may need index on `users.active`; validate with DB stats.
   - Migration/Compatibility: OK — additive column with default; backward compatible.
   - Rollback/Release safety: OK — disable flag; schema remains safe.
+
+Architecture Options (A/B/C):
+  Option A: Additive `active` flag + service method + controller endpoint.
+    Trade-offs: Low risk; minimal migration; simple queries; requires consistent filtering.
+    Test impact: Unit tests for rule checks; controller integration test; migration constraint tests.
+  Option B: Separate “account state” table + state transitions + join.
+    Trade-offs: Better extensibility; higher complexity; more migration risk; join cost.
+    Test impact: More integration coverage; additional repository tests; migration/backfill tests.
+  Recommendation: Option A (confidence 85) — aligns with existing patterns and keeps change surface small.
+  Would change decision: evidence that future state expansion is imminent or current user-table query patterns make filtering unsafe.
+
+Test Strategy:
+  - Levels: Unit (service rule tests), Integration (controller endpoint), Migration validation (Flyway + constraint tests)
+  - Determinism: fixed clock/time; deterministic IDs; no network calls
+  - Fixtures: test data builder for User + Contract fixtures (if applicable)
+  - Edge cases: boundary (already inactive), negative (active contracts), not found
 
 Implementation Plan:
 
@@ -2035,6 +2067,9 @@ If the session becomes long (large discovery outputs / many iterations), compres
    * Ensure Rollback/Release safety is concrete (feature flag, backout, or reversible steps).
    - If `TouchedSurface.SchemaPlanned` or `TouchedSurface.ContractsPlanned` is non-empty and `RollbackStrategy` is missing: BLOCK (do not approve P5).
    * Record at least one Architecture Decision (see `SESSION_STATE.ArchitectureDecisions`) and mark it `approved` before approving P5.
+   * Verify the Phase 4 Ticket Record includes an **Architecture Options (A/B[...])** block with trade-offs and test impact.
+   * Verify the Phase 4 plan includes a **Test Strategy** subsection (levels, determinism seams, fixtures/builders, edge cases).
+   * Record `SESSION_STATE.DecisionDrivers` (max 5, one line each) matching the recommendation rationale.
    * If missing or inconsistent: record a blocker and return to Phase 4 (do not approve P5).
 
 2. **API contract review (if API changes):**
@@ -2180,6 +2215,8 @@ Output requirements (Binding when writeback happens):
 
 ### PHASE 5.3 — Test Quality Review (CRITICAL Gate)
 
+**Binding prerequisite:** The Phase 4 plan MUST include a **Test Strategy** subsection. If missing → BLOCK and return to Phase 4.
+
 **Objective:** Ensure test coverage and quality are sufficient before code generation.
 
 **Gate type:** EXPLICIT and CRITICAL (must pass before Phase 6)
@@ -2191,6 +2228,13 @@ Output requirements (Binding when writeback happens):
    * Are all business rules tested?
    * Are edge cases covered?
    * Are error paths tested?
+
+**Determinism checks (binding):**
+- If time is relevant: require a controllable clock seam and tests use a fixed clock.
+- If IDs/randomness are relevant: require deterministic values or injectable generators.
+- Avoid order-dependent assertions unless order is part of the contract; otherwise sort deterministically.
+- Prefer high-signal assertions (domain outcomes / error contracts) over incidental details.
+- For each non-trivial rule change: require at least one boundary test + one negative test.
 
 2. **Check test quality:**
    * Are tests independent (no shared state)?
@@ -2566,6 +2610,17 @@ Result: complexity-warning (warnings only; requires review attention)
 ---
 
 ### PHASE 6 — Implementation QA (Self-Review Gate)
+
+**Binding prerequisites:**
+- `SESSION_STATE.Gates.P5-Architecture` MUST be `approved`.
+- `SESSION_STATE.Gates.P5.3-TestQuality` MUST be `pass` or `pass-with-exceptions`.
+- If Phase 1.5 executed: `SESSION_STATE.Gates.P5.4-BusinessRules` MUST be `compliant` or `compliant-with-exceptions`.
+If any prerequisite is not met → BLOCK and return to the relevant phase.
+
+**Verification obligations (binding):**
+- Confirm the implemented solution matches the chosen Architecture Decision; if it diverged, update `SESSION_STATE.ArchitectureDecisions` with an amended decision and rationale.
+- Confirm tests implemented match the Phase 4 Test Strategy and that determinism seams are actually used.
+- Update Change Matrix to map decisions → code → tests.
 
 Canonical build command (default for Maven repositories):
 * mvn -B -DskipITs=false clean verify
