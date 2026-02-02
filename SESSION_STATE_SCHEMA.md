@@ -505,6 +505,24 @@ SESSION_STATE:
   - set `Mode = BLOCKED`, and
   - set `Next` to a `BLOCKED-...` pointer describing the minimal missing artifact(s).
 
+### 8.2 Phase 5.6 – Rollback Safety Gate
+
+Validates that the planned change is rollback-safe and that reversibility is explicitly addressed when needed.
+
+Applicable when any of the following is planned/observed:
+- schema or data migrations (`TouchedSurface.SchemaPlanned` non-empty)
+- externally-consumed contract changes (`TouchedSurface.ContractsPlanned` non-empty)
+- irreversible state transitions
+
+Requirements (FULL mode at explicit gate):
+- `SESSION_STATE.RollbackStrategy` MUST be present and actionable when applicable.
+- If `RollbackStrategy.DataMigrationReversible = false`, explicit safety steps MUST be documented (backups, dual-write, shadow reads, etc.).
+
+Gate result mapping:
+- `approved`: rollback strategy is credible
+- `rejected`: rollback strategy missing/unsafe
+- `not-applicable`: no schema/contract/irreversible impact
+
 ---
 
 ## 9. Architecture Decisions (Phase 5+)
