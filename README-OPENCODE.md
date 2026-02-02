@@ -15,6 +15,45 @@ The system is optimized to work reliably in two environments:
 
 This document is **descriptive, not normative**.
 
+## Cold Start vs Warm Start (Repo-aware mode)
+
+The workflow behaves differently depending on whether prior repo discovery artifacts exist.
+
+### Cold Start (first run on a repo)
+Use when:
+- the repo has never been analyzed in this workspace, or
+- repo structure/contracts changed materially and caches must be rebuilt.
+
+What happens:
+- Phase 2 performs full repo discovery and generates/refreshes repo map/cache artifacts.
+- Templates/Addons activation in Phase 4 uses discovery evidence from Phase 2.
+
+### Warm Start (new ticket, same repo)
+Use when:
+- you start a new session for a new ticket on the same repo, and
+- repo caches/digests are still valid (git head / repo signature matches as defined in `master.md`).
+
+What happens:
+- Phase 2 can take a fast-path using existing cache/digest/memory.
+- The system still re-evaluates Templates/Addons at Phase 4 entry using the recorded evidence signals.
+
+If Warm Start eligibility is not met, the system MUST fall back to Cold Start automatically.
+
+---
+
+## Installation Layout (Descriptive; follow `master.md` if in doubt)
+
+`master.md` defines canonical path variables. Typical layout:
+
+- `${CONFIG_ROOT}`: `${XDG_CONFIG_HOME:-~/.config}/opencode`
+- On Windows, `${CONFIG_ROOT}` is `%APPDATA%/opencode` (fallback: `%USERPROFILE%/.config/opencode`) — see `master.md`.
+- `${COMMANDS_HOME} = ${CONFIG_ROOT}/commands` (global rulebooks)
+- `${PROFILES_HOME} = ${COMMANDS_HOME}/profiles` (profiles + templates/addons)
+- `${WORKSPACES_HOME} = ${CONFIG_ROOT}/workspaces` (per-repo caches + session state)
+
+Profiles can mandate templates/addons (e.g., `backend-java` requires `rules.backend-java-templates.md` and may require `rules.backend-java-kafka-templates.md` based on evidence).
+
+
 If anything in this README conflicts with:
 - `master.md`
 - `rules.md`
