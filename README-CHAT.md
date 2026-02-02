@@ -22,6 +22,18 @@ This document explains **usage**, not **behavioral rules**.
 
 ---
 
+## Chat Mode Workflow (Operational)
+
+In pure chat mode, you do not get repo-aware discovery. To stay deterministic:
+
+- Start with `/master` and provide the ticket + any required contract snippets (API schemas, DB schema, event schema) directly in chat.
+- Treat any claim as **“not verified”** unless you can paste BuildEvidence output.
+- If a profile is required (e.g., backend Java), state it explicitly (e.g., `Profile=backend-java`) so templates/addons constraints apply.
+
+If you later switch to OpenCode repo-aware mode, run `/master` again so Phase 2 can build discovery artifacts and enable Warm Start behavior.
+
+---
+
 ## 1. What “Chat-Only Usage” Means
 
 Chat-only usage means:

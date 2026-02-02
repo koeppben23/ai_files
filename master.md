@@ -127,6 +127,64 @@ BINDING:
   - If Phase 4 begins and rules.md cannot be loaded → BLOCKED
   - Phase 3 MUST NOT generate code
 
+### Phase 1.4: Templates & Addons Activation (DEFERRED TO PHASE 4)
+
+TRIGGER: When Phase 4 (Implementation Planning) begins, immediately after Phase 1.3.
+
+PURPOSE:
+- Make rulebook loading deterministic across models and sessions.
+- Ensure profile-mandated templates and evidence-mandated addons are activated before any planning.
+
+ALGORITHM (BINDING, NORMATIVE):
+
+0) Preconditions
+   - `SESSION_STATE.ActiveProfile` MUST be set (from Phase 2 profile detection), unless `rules.fallback-minimum.md` is active.
+   - If `SESSION_STATE.ActiveProfile == ""` and a profile is required → `Mode = BLOCKED` with `BLOCKED-MISSING-PROFILE`.
+
+1) Load profile rulebook
+   - Resolve and load the active profile rulebook under `${PROFILES_HOME}` using the recognized naming patterns:
+     - Preferred: `rules_<active_profile>.md`
+     - Legacy: `rules.<active_profile>.md`
+     - Alternative: `rules-<active_profile>.md`
+   - Record: `SESSION_STATE.LoadedRulebooks.profile = "<resolved path>"`
+   - If it cannot be resolved/loaded → `Mode = BLOCKED` with `BLOCKED-MISSING-PROFILE`.
+
+2) Load templates addon (if mandated by the active profile)
+   - If the active profile declares templates as REQUIRED:
+     - Resolve and load the declared templates rulebook (e.g., `rules.backend-java-templates.md`).
+     - Record: `SESSION_STATE.LoadedRulebooks.templates = "<resolved path>"`
+     - If required but cannot be resolved/loaded → `Mode = BLOCKED` with `BLOCKED-MISSING-TEMPLATES`.
+
+3) Evaluate and load addons (evidence-based)
+   Evidence sources (BINDING):
+   - Repo Discovery signals (Phase 2 artifacts): dependencies, annotations, configuration keys, file presence.
+   - Ticket/request text (explicit requirements).
+
+   Rules (BINDING):
+   - An addon is REQUIRED if ANY of its required signals are present.
+   - For each evaluated addon, record:
+     - `SESSION_STATE.AddonsEvidence.<addon_key>.signals = [<signal strings>]`
+     - `SESSION_STATE.AddonsEvidence.<addon_key>.required = true|false`
+
+   Kafka addon example (when the profile declares it):
+   - Required signals include (evidence-based):
+     - `@KafkaListener` usage
+     - `spring-kafka` dependency
+     - `spring.kafka` config keys
+   - If required:
+     - Resolve and load `rules.backend-java-kafka-templates.md`
+     - Record: `SESSION_STATE.LoadedRulebooks.addons.kafka = "<resolved path>"`
+     - If required but cannot be resolved/loaded → `Mode = BLOCKED` with `BLOCKED-MISSING-ADDON:kafka`.
+
+4) Precedence and merge
+   - `master.md` remains highest priority.
+   - `rules.md` (core) > active profile > templates/addons refinements.
+   - Templates/addons MUST be followed when loaded; they refine generation and test structure but MUST NOT override master/core constraints.
+
+Output obligation (BINDING):
+- At Phase 4 entry, the assistant MUST output a short activation summary:
+  - ActiveProfile, TemplatesLoaded, AddonsLoaded, EvidenceSignals (by addon), and Status.
+ 
 ### Data sources & priority
 
 * Operational rules (technical, architectural) are defined in:
@@ -547,23 +605,33 @@ Resume pointer: <exact Next pointer, e.g., "Phase 4 — Step 0 (Initialization)"
 
 - `BLOCKED-MISSING-CORE-RULES`:
   - Trigger: Phase 4 begins and `rules.md` could not be resolved/loaded.
+  - Resume pointer (canonical): Phase 1.3 — Core Rules Activation.
   - Required input: provide the location of `rules.md` OR install it under `${COMMANDS_HOME}/rules.md`.
 
 - `BLOCKED-MISSING-PROFILE`:
   - Trigger: Phase 4 requires templates/addons evaluation but `SESSION_STATE.ActiveProfile == ""`.
-  - Required input: user specifies profile explicitly (e.g., `Profile: backend-java`) OR provide repo signals to re-run Phase 2 detection.
+  - Resume pointer (canonical): Phase 1.2 — Profile Detection.
+  - Required input: user specifies profile explicitly (e.g., `Profile=backend-java`) OR provide repo signals to re-run Phase 2 detection.
 
 - `BLOCKED-MISSING-TEMPLATES`:
   - Trigger: active profile mandates templates but template rulebook cannot be resolved/loaded.
+  - Resume pointer (canonical): Phase 4 — Step 0 (Phase-4 Entry initialization).
   - Required input: provide the template rulebook path OR install under `${PROFILES_HOME}/` as declared by the profile.
 
 - `BLOCKED-MISSING-ADDON:<addon_key>`:
   - Trigger: an addon is mandated (per explicit mandate rules) but cannot be resolved/loaded.
+  - Resume pointer (canonical): Phase 4 — Step 0 (Phase-4 Entry initialization).
   - Required input: provide the addon rulebook path OR install it under `${PROFILES_HOME}/` as declared by the profile.
 
 - `BLOCKED-WORKSPACE-MEMORY-INVALID`:
   - Trigger: `${WORKSPACE_MEMORY_FILE}` exists but cannot be parsed/validated.
+  - Resume pointer (canonical): Phase 4 — Step 0 (Phase-4 Entry initialization).
   - Required input: fix the YAML file OR remove it to proceed (memory is optional, invalid memory is not).
+
+- `BLOCKED-MISSING-EVIDENCE`:
+  - Trigger: an evidence-based addon decision is REQUIRED but the relevant repo discovery signals are missing/unknown.
+  - Resume pointer (canonical): Phase 2 — Repo Discovery (signals collection) OR Phase 1.4 — Templates & Addons Activation (re-evaluate).
+  - Required input: provide the missing repo evidence (dependency/config/annotation signals) OR allow re-run of Phase 2 discovery.
 
 Rules:
 - The assistant MUST ask for the minimal viable input only (single artifact/command), not broad clarifications.
@@ -1801,7 +1869,8 @@ Proceeding to Phase 4 (Ticket Execution)...
 
 0. **Phase-4 Entry: Deterministic initialization (BINDING)**
    - Ensure Phase 1.3 executed: load `rules.md` and set `SESSION_STATE.LoadedRulebooks.core`.
-   - Execute the deterministic Templates/Addons activation algorithm (defined conceptually in Phase 1).
+   - Execute the deterministic Templates/Addons activation algorithm (Phase 1.4, normative).
+   - Output activation summary (binding): ActiveProfile, TemplatesLoaded, AddonsLoaded, AddonsEvidence signals, Status.
    - Load Workspace Memory (if present):
      - If `${WORKSPACE_MEMORY_FILE}` exists and is valid → apply as repo-specific defaults for planning.
      - If it exists but is invalid/unparseable → BLOCKED (configuration error; fix or remove file).

@@ -14,6 +14,36 @@ It explains purpose, structure, and usage — it does **not** control the AI’s
 
 ---
 
+## Quick Start Matrix (Operational)
+
+Choose the workflow entry based on what you are doing:
+
+- **New repo / first time:** run `/master` and let Phase 1–2 build discovery artifacts; do not skip Phase 2.
+- **New ticket on a known repo:** run `/master` (Warm Start). The system will reuse cache/digest/memory if valid.
+- **Resume an interrupted ticket/session:** follow `continue.md` / `resume.md` using the existing `SESSION_STATE.json`.
+- **Audit a completed change:** run `/master` and jump to the relevant explicit gates (Contract Gate, Test Quality Gate, Phase 6 QA).
+
+---
+
+## Installation & Paths (Descriptive; Source of truth is `master.md`)
+
+`master.md` defines canonical path variables and derived paths. At a high level:
+
+- `${CONFIG_ROOT}` defaults to `${XDG_CONFIG_HOME:-~/.config}/opencode`
+- On Windows, `${CONFIG_ROOT}` defaults to `%APPDATA%/opencode` (fallback: `%USERPROFILE%/.config/opencode`) — see `master.md`.
+- `${COMMANDS_HOME} = ${CONFIG_ROOT}/commands`
+- `${PROFILES_HOME} = ${COMMANDS_HOME}/profiles`
+- `${WORKSPACES_HOME} = ${CONFIG_ROOT}/workspaces`
+
+**Where files live:**
+- Global rulebooks (`master.md`, `rules.md`) are installed under `${COMMANDS_HOME}`.
+- Profile rulebooks are installed under `${PROFILES_HOME}`.
+- Repo-specific persistent artifacts live under `${WORKSPACES_HOME}/<repo_fingerprint>/...` (cache, digest, workspace memory, session state).
+
+If your environment uses different locations, follow `master.md` and update the variable resolution, not the docs.
+
+---
+
 ## 1. Purpose
 
 This system addresses a central problem of modern AI-assisted development:
