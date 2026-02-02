@@ -80,8 +80,8 @@ OpenCode-only persisted knowledge (stable across sessions for the same repo iden
 
 BINDING:
 - No repository-local governance or persistence MUST be required.
-- All persistence MUST target `${CONFIG_ROOT}` (or derived variables above).
-
+- All persistence MUST target `${CONFIG_ROOT}` or its derived workspace paths
+  (e.g., `${WORKSPACES_HOME}/<repo_fingerprint>`).
 
 consolidated, model-stable, hybrid-capable, pragmatic,
 with architecture, contract, debt & QA gates
@@ -931,8 +931,6 @@ SESSION_STATE updates (Binding when OpenCode applies):
 * `SESSION_STATE.WorkspaceMemoryFile.Loaded = true | false`
 * `SESSION_STATE.WorkspaceMemoryFile.Valid = true | false`
 * `SESSION_STATE.WorkspaceMemoryFile.InvalidationReason = "<short>"`
-
-* SESSION_STATE.RepoMapDigestFile.Summary = "<short text>"
 
 #### Fast Path (optional, conservative, Binding when applicable)
 
@@ -1803,7 +1801,7 @@ Proceeding to Phase 4 (Ticket Execution)...
 
 0. **Phase-4 Entry: Deterministic initialization (BINDING)**
    - Ensure Phase 1.3 executed: load `rules.md` and set `SESSION_STATE.LoadedRulebooks.core`.
-   - Execute Phase 1.4 deterministic algorithm: load mandatory templates + mandated addons.
+   - Execute the deterministic Templates/Addons activation algorithm (defined conceptually in Phase 1).
    - Load Workspace Memory (if present):
      - If `${WORKSPACE_MEMORY_FILE}` exists and is valid → apply as repo-specific defaults for planning.
      - If it exists but is invalid/unparseable → BLOCKED (configuration error; fix or remove file).
