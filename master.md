@@ -929,7 +929,6 @@ SESSION_STATE updates (Binding when OpenCode applies):
 * `SESSION_STATE.WorkspaceMemoryFile.Valid = true | false`
 * `SESSION_STATE.WorkspaceMemoryFile.InvalidationReason = "<short>"`
 
-| false
 * SESSION_STATE.RepoMapDigestFile.Summary = "<short text>"
 
 #### Fast Path (optional, conservative, Binding when applicable)
