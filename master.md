@@ -126,6 +126,51 @@ BINDING:
   - If Phase 4 begins and rules.md cannot be loaded → BLOCKED
   - Phase 3 MUST NOT generate code
 
+### Phase 1.4: Templates & Addons Activation (DEFERRED TO PHASE 4)
+
+TRIGGER: When Phase 4 (Ticket Execution / Plan Creation) begins
+
+OBJECTIVE (binding):
+- Eliminate interpretation: the workflow MUST execute the deterministic load algorithm below
+  at Phase-4 entry and reflect the results in `SESSION_STATE.LoadedRulebooks`.
+
+ALGORITHM (binding, deterministic):
+
+1) **Load mandatory templates if required by the active profile**
+   - Determine `TemplatesRequired` from the active profile rulebook.
+     - If no active profile is set yet → BLOCKED (profile detection must run first).
+   - If `TemplatesRequired = true`:
+     - Load the template rulebook from the active profile’s declared template reference.
+     - Set `SESSION_STATE.LoadedRulebooks.templates = <resolved_path>`.
+     - If the template rulebook cannot be resolved/loaded → BLOCKED.
+   - If `TemplatesRequired = false`:
+     - Set `SESSION_STATE.LoadedRulebooks.templates = "not-applicable"`.
+
+2) **Load conditional addons using explicit mandate rules**
+   - Start with `SESSION_STATE.LoadedRulebooks.addons = {}`.
+   - For each addon supported by the active profile, evaluate its mandate rule:
+
+     **Kafka Addon mandate (IMPORTANT, binding):**
+     - The Kafka templates addon is required ONLY if:
+       a) the ticket explicitly includes Kafka scope (producer/consumer/topic/schema/offset/partition/rebalance), OR
+       b) the user explicitly confirms Kafka changes.
+     - Presence of Kafka in the repo (dependencies/config) does NOT mandate the addon.
+
+   - If an addon is mandated:
+     - Load its rulebook and record it in `SESSION_STATE.LoadedRulebooks.addons[addon_key] = <resolved_path>`.
+     - If the addon rulebook cannot be resolved/loaded → BLOCKED.
+   - If an addon is not mandated:
+     - It MUST NOT be loaded.
+
+3) **Persist evidence + invariants**
+   - Update `SESSION_STATE`:
+     - `Mode` remains unchanged unless BLOCKED
+     - `Next` MUST point to the Phase 4 continuation pointer
+   - Invariants:
+     - If Phase 4 begins and `LoadedRulebooks.core == ""` → BLOCKED
+     - If templates are required and `LoadedRulebooks.templates` is empty → BLOCKED
+     - If an addon is mandated and not present in `LoadedRulebooks.addons` → BLOCKED
+
 ### Data sources & priority
 
 * Operational rules (technical, architectural) are defined in:
@@ -522,6 +567,48 @@ Binding:
 
 Note: phase-specific clarification rules (e.g., Phase 4) may not restrict the blocker rules defined in 2.3;
 those phase rules only add additional phase-related clarifications when CONFIDENCE LEVEL ≥ 70%.
+
+#### BLOCKED — Recovery Playbook (Binding)
+
+If the workflow enters `Mode = BLOCKED`, the assistant MUST output a deterministic recovery block and MUST NOT
+continue into any code-producing work.
+
+**Output format (mandatory):**
+
+```
+[BLOCKED]
+Reason: <one sentence>
+Evidence: <what was attempted / what is missing>
+Required input:
+  - <exact artifact/command/output needed>
+Recovery steps:
+  1) <do X>
+  2) <do Y>
+Resume pointer: <exact Next pointer, e.g., "Phase 4 — Step 0 (Rulebooks load)" >
+```
+
+**Standard BLOCKED reasons + required input (binding):**
+
+- `BLOCKED-MISSING-CORE-RULES`:
+  - Trigger: Phase 4 begins and `rules.md` could not be resolved/loaded.
+  - Required input: provide the location of `rules.md` OR install it under `${COMMANDS_HOME}/rules.md`.
+
+- `BLOCKED-MISSING-PROFILE`:
+  - Trigger: Phase 4 requires templates/addons evaluation but `SESSION_STATE.ActiveProfile == ""`.
+  - Required input: user specifies profile explicitly (e.g., `Profile: backend-java`) OR provide repo signals to re-run Phase 2 detection.
+
+- `BLOCKED-MISSING-TEMPLATES`:
+  - Trigger: active profile mandates templates but template rulebook cannot be resolved/loaded.
+  - Required input: provide the template rulebook path OR install under `${PROFILES_HOME}/` as declared by the profile.
+
+- `BLOCKED-MISSING-ADDON:<addon_key>`:
+  - Trigger: an addon is mandated (per explicit mandate rules) but cannot be resolved/loaded.
+  - Required input: provide the addon rulebook path OR install it under `${PROFILES_HOME}/` as declared by the profile.
+
+Rules:
+- The assistant MUST ask for the minimal viable input only (single artifact/command), not broad clarifications.
+- The assistant MUST NOT propose alternative architectures while BLOCKED.
+- Once the required input is provided, the assistant MUST re-run only the minimal necessary step (e.g., Phase 1.3/1.4 load) and then resume.
 
 #### Definition: Explicit gates (Auto-Advance stops)
 
@@ -1651,6 +1738,14 @@ Proceeding to Phase 4 (Ticket Execution)...
 **Objective:** Create a detailed implementation plan.
 
 **Actions:**
+
+0. **Phase-4 Entry: Deterministic rulebooks load (BINDING)**
+   - Ensure Phase 1.3 executed: load `rules.md` and set `SESSION_STATE.LoadedRulebooks.core`.
+   - Execute Phase 1.4 deterministic algorithm: load mandatory templates + mandated addons.
+   - If any required rulebook cannot be resolved/loaded:
+     - Set `Mode = BLOCKED` and emit the **BLOCKED — Recovery Playbook** block.
+     - Stop (do not proceed with planning).
+   - Only after successful loads: continue with Phase 4 steps 1..
 
 1. **Understand the requirement:**
    * Parse ticket description
