@@ -25,7 +25,7 @@ Two output modes are allowed:
 
 The assistant MUST output **FULL** if any of these apply:
 
-1) The current step is an **explicit gate** (Phase 5 / 5.3 / 5.4 / 5.5 / 6).
+1) The current step is an **explicit gate** (Phase 5 / 5.3 / 5.4 / 5.5 / 5.6 / 6).
 2) `SESSION_STATE.Mode = BLOCKED`.
 3) A reviewer/audit request requires it (e.g., “show full session state”).
 4) Phase 2 just completed (repo discovery) and this is the first time `RepoMapDigest` is produced.
@@ -38,7 +38,40 @@ The assistant MUST output **FULL** if any of these apply:
 
 ---
 
+## 1.4 Bootstrap State (Phase 1.1)
+
+The bootstrap phase establishes whether the governance system is **explicitly activated** for the current session.
+This prevents implicit or accidental execution of the workflow.
+
+### Required Bootstrap Fields
+
+During Phase `1.1-Bootstrap`, the session MUST include:
+
+- `SESSION_STATE.Bootstrap.Present` (boolean)
+- `SESSION_STATE.Bootstrap.Satisfied` (boolean)
+- `SESSION_STATE.Bootstrap.Evidence` (string)
+
+### Semantics
+
+- `Present = true` means an explicit bootstrap declaration was provided by the operator.
+- `Satisfied = true` means the declaration is semantically sufficient to activate the governance system.
+- `Evidence` MUST briefly describe how the bootstrap was established (e.g., "explicit bootstrap declaration in session header").
+
+### Invariants
+
+- If `Bootstrap.Present = false` OR `Bootstrap.Satisfied = false`:
+  - `SESSION_STATE.Mode` MUST be `BLOCKED`
+  - `SESSION_STATE.Next` MUST be `BLOCKED-BOOTSTRAP-NOT-SATISFIED`
+- No phase > `1.1-Bootstrap` may execute unless `Bootstrap.Satisfied = true`.
+- After Phase `1.1-Bootstrap` completes, `SESSION_STATE.Bootstrap.*` MUST remain present and MUST NOT change for the remainder of the session.
+- If `SESSION_STATE.Bootstrap` exists at all, it MUST include `Present`, `Satisfied`, and `Evidence`.
+
+---
+
 ## 2. Required Keys (Phase 1+)
+
+NOTE:
+Phase 1.1 (Bootstrap) is the only phase allowed to emit a partial SESSION_STATE without all required keys listed below.
 
 Once Phase 1.1 (bootstrap) completes successfully, these keys MUST exist:
 
@@ -46,10 +79,15 @@ Once Phase 1.1 (bootstrap) completes successfully, these keys MUST exist:
 - `SESSION_STATE.Mode` (enum; see Section 4)
 - `SESSION_STATE.ConfidenceLevel` (integer 0–100)
 - `SESSION_STATE.Next` (string; canonical continuation pointer)
+- `SESSION_STATE.Bootstrap.Present` (boolean)
+- `SESSION_STATE.Bootstrap.Satisfied` (boolean)
+- `SESSION_STATE.Bootstrap.Evidence` (string)
+- `SESSION_STATE.Scope` (object; see Section 6.5)
 - `SESSION_STATE.LoadedRulebooks.core` (string path OR `""` if deferred until Phase 4)
 - `SESSION_STATE.LoadedRulebooks.profile` (string path OR `""` if deferred/planning-only)
 - `SESSION_STATE.LoadedRulebooks.templates` (string path OR `""` if deferred until Phase 4 or not applicable)
 - `SESSION_STATE.LoadedRulebooks.addons` (object map addon_key -> string path; default `{}`)
+- `SESSION_STATE.RulebookLoadEvidence` (object; see Section 6.4)
 - `SESSION_STATE.ActiveProfile` (string OR `""` if deferred until post-Phase-2)
 - `SESSION_STATE.ProfileSource` (enum; see Section 5)
 - `SESSION_STATE.ProfileEvidence` (string)
@@ -58,19 +96,19 @@ Once Phase 1.1 (bootstrap) completes successfully, these keys MUST exist:
 ### Lazy-loading invariants (binding)
 
 - Until Phase 2 completes:
-  - ActiveProfile MAY be ""
-  - ProfileSource MUST be "deferred"
-  - LoadedRulebooks.profile MAY be ""
+  - `ActiveProfile` MAY be `""`
+  - `ProfileSource` MUST be `"deferred"`
+  - `LoadedRulebooks.profile` MAY be `""`
 
 - Until Phase 4 begins:
-  - LoadedRulebooks.core MAY be ""
-  - LoadedRulebooks.templates MAY be ""
+  - `LoadedRulebooks.core` MAY be `""`
+  - `LoadedRulebooks.templates` MAY be `""`
 
-- If Phase 4 begins and LoadedRulebooks.core is still "":
+- If Phase 4 begins and `LoadedRulebooks.core` is still `""`:
   → WORKFLOW MUST BE BLOCKED
-  
-- If Phase 4 begins and the ActiveProfile mandates templates, and LoadedRulebooks.templates is still "":
-   → WORKFLOW MUST BE BLOCKED
+
+- If Phase 4 begins and the `ActiveProfile` mandates templates, and `LoadedRulebooks.templates` is still `""`:
+  → WORKFLOW MUST BE BLOCKED
 
 - If Phase 4 begins and the workflow mandates an addon (e.g., kafka templates), and `LoadedRulebooks.addons` does not contain the required addon key or its value is empty:
   → WORKFLOW MUST BE BLOCKED
@@ -89,7 +127,8 @@ Allowed values:
 - `1.2-ProfileDetection` (profile detection after repo discovery)
 - `1.3-CoreRulesActivation` (core rules activation at Phase 4 entry)
 - `2` (repository discovery)
-- `1.5` (business rules discovery)
+- `2.1-DecisionPack` (decision pack distillation)
+- `1.5-BusinessRules` (business rules discovery)
 - `3A` (API inventory)
 - `3B-1` (API logical validation)
 - `3B-2` (contract validation spec ↔ code)
@@ -98,6 +137,7 @@ Allowed values:
 - `5.3` (test quality gate)
 - `5.4` (business rules compliance gate)
 - `5.5` (technical debt gate)
+- `5.6` (rollback safety gate)
 - `6` (implementation QA gate)
 
 ---
@@ -113,6 +153,7 @@ Allowed values:
 
 **Invariants**
 - If `ConfidenceLevel < 70`, auto-advance is forbidden and code-producing output is forbidden.
+- If `ConfidenceLevel < 70`, `Mode` MUST be `DRAFT` or `BLOCKED` (MUST NOT be `NORMAL` or `DEGRADED`).
 - If `Mode = BLOCKED`, `Next` MUST start with `BLOCKED-` and the session MUST name the minimal unblock requirement.
 
 Recommended calibration (rubric; clamp 0–100):
@@ -159,7 +200,9 @@ Human-readable evidence string (paths/files), e.g.:
 
 ---
 
-## 6. Component Scope (Monorepos / Bounded Ownership)
+## 6. Workflow Supporting State
+
+### 6.1 Component Scope (Monorepos / Bounded Ownership)
 
 Optional but strongly recommended for monorepos:
 
@@ -169,6 +212,85 @@ Optional but strongly recommended for monorepos:
 
 **Invariant**
 - If `ComponentScopePaths` is set, profile detection, discovery summaries, and recommendations MUST prefer signals inside those paths.
+
+### 6.2 Next (Phase Pointer)
+
+`SESSION_STATE.Next` is a string describing the next executable step, e.g.:
+- `Phase2-RepoDiscovery`
+- `Phase2.1-DecisionPack`
+- `Phase4-TicketExecution`
+- `Phase5-ArchitectureGate`
+- `BLOCKED-<reason>`
+
+**Invariant**
+- `Next` MUST NOT skip mandatory gates.
+
+### 6.3 Canonical BLOCKED Next Pointers (recommended)
+
+The following BLOCKED pointers are canonical and SHOULD be used when applicable:
+
+- `BLOCKED-BOOTSTRAP-NOT-SATISFIED`
+- `BLOCKED-MISSING-CORE-RULES`
+- `BLOCKED-MISSING-PROFILE`
+- `BLOCKED-AMBIGUOUS-PROFILE`
+- `BLOCKED-MISSING-TEMPLATES`
+- `BLOCKED-MISSING-ADDON:<addon_key>`
+- `BLOCKED-RULEBOOK-EVIDENCE-MISSING`
+- `BLOCKED-WORKSPACE-MEMORY-INVALID`
+- `BLOCKED-MISSING-EVIDENCE`
+- `BLOCKED-RESUME-STATE-VIOLATION`
+
+### 6.4 Rulebook Load Evidence (canonical)
+
+To prevent implicit/fictional rulebook loading, the session MUST track load evidence.
+
+#### Field
+
+- `SESSION_STATE.RulebookLoadEvidence` (object)
+
+Recommended shape (minimal):
+
+```yaml
+SESSION_STATE:
+  RulebookLoadEvidence:
+    core: "<path | hash | tool-output | user-provided | deferred>"
+    profile: "<path | hash | tool-output | user-provided | deferred>"
+    templates: "<path | hash | tool-output | user-provided | not-applicable>"
+    addons:
+      kafka: "<path | hash | tool-output | user-provided>"
+```
+
+#### Binding invariants
+
+- If any of the following fields is non-empty:
+  - `LoadedRulebooks.core`
+  - `LoadedRulebooks.profile`
+  - `LoadedRulebooks.templates`
+  - `LoadedRulebooks.addons.*`
+  then `RulebookLoadEvidence` MUST be present and MUST include corresponding keys (including addon keys).
+- If rulebook load evidence cannot be produced due to host/tool limitations:
+  - `Mode = BLOCKED`
+  - `Next = BLOCKED-RULEBOOK-EVIDENCE-MISSING`
+  - No phase completion may be claimed.
+
+### 6.5 Scope (canonical)
+
+`SESSION_STATE.Scope` captures the current problem space.
+
+Recommended structure:
+
+```yaml
+SESSION_STATE:
+  Scope:
+    Repository: "<repo name or identifier>"
+    RepositoryType: "<e.g., Spring Boot (Maven, Java 21) | Nx monorepo>"
+    ExternalAPIs: []
+    BusinessRules: not-applicable | pending | extracted
+```
+
+Binding:
+- After Phase 2, `Scope.Repository` and `Scope.RepositoryType` SHOULD be set unless repo access is impossible.
+- If Phase 1.5 is executed, `Scope.BusinessRules` MUST NOT be `not-applicable`.
 
 ---
 
@@ -355,34 +477,6 @@ SESSION_STATE:
 
 **Invariant**
 - `Next` MUST NOT point to any code-producing step unless the relevant upstream gates are in an allowed state per `master.md` and `rules.md`.
-### 7.y Workspace Memory File (OpenCode-only, recommended)
-
-Workspace Memory stores stable, repo-specific defaults (conventions + patterns) across sessions to reduce drift.
-
-If used, the assistant SHOULD populate:
-
-- `SESSION_STATE.WorkspaceMemoryFile` (object)
-
-Recommended structure:
-
-```yaml
-SESSION_STATE:
-  WorkspaceMemoryFile:
-    SourcePath: "<path expression>"        # e.g., ${REPO_HOME}/workspace-memory.yaml
-    TargetPath: "<path expression>"        # same as SourcePath when writing
-    Loaded: true | false
-    Valid: true | false
-    InvalidationReason: "<short text>"     # empty when Valid=true
-    FileStatus: "written" | "write-requested" | "not-applicable"
-    Summary: "<short digest>"              # optional; 3-8 bullets serialized
-```
-
-Validation rules (Binding when the file exists):
-- YAML must parse.
-- Root key `WorkspaceMemory` must exist.
-- `WorkspaceMemory.Version` must equal `"1.0"`.
-- If invalid, the workflow MUST enter `Mode=BLOCKED` with reason `BLOCKED-WORKSPACE-MEMORY-INVALID`.
-
 
 ### 8.1 Gate Artifacts (Enforcement Contract)
 
@@ -394,10 +488,11 @@ Recommended structure:
 SESSION_STATE:
   GateArtifacts:
     P5-Architecture:
-      Required: ["ArchitectureDecisions", "DecisionDrivers", "TouchedSurface"]
+      Required: ["ArchitectureDecisions", "DecisionDrivers", "DecisionPack", "TouchedSurface"]
       Provided:
         ArchitectureDecisions: present | missing | not-applicable
         DecisionDrivers: present | missing | not-applicable
+        DecisionPack: present | missing | not-applicable
         TouchedSurface: present | missing | not-applicable
 ```
 
@@ -487,73 +582,18 @@ SESSION_STATE:
 
 ---
 
-## 12. OutputMode & Decision Surface (Cognitive Load Control)
-
-### 12.x State Compression (token control for long sessions)
-
-If a session becomes long (large RepoMapDigest / many iterations), the assistant MAY compress earlier discovery
-details into a short summary while preserving decision-critical state.
-
-Recommended structure:
-
-```yaml
-SESSION_STATE:
-  StateCompression:
-    Applied: true | false
-    Compressed:
-      - Phases: ["1", "2", "3A", "3B-1", "3B-2"]
-        Summary: "<short summary of what was discovered>"
-        Preserved: ["DecisionPack", "WorkingSet", "TouchedSurface", "Gates", "RollbackStrategy"]
-```
-
-To reduce user cognitive load, the session MAY include:
-
-- `SESSION_STATE.OutputMode` (enum: `normal` | `architect-only`)
-- `SESSION_STATE.DecisionSurface` (object)
-
-Recommended structure:
-
-```yaml
-SESSION_STATE:
-  OutputMode: architect-only
-  DecisionSurface:
-    MustDecideNow: ["<decision>"]
-    CanDefer: ["<decision>"]
-    AutoDecidedBySystem: ["<decision>"]
-```
-
-**Binding rules**
-- If `OutputMode = architect-only`, `DecisionSurface` MUST be present and MUST contain the keys:
-  - `MustDecideNow`, `CanDefer`, `AutoDecidedBySystem` (lists may be empty).
-- In `architect-only` mode, responses MUST surface the DecisionSurface first; narrative text must be limited to rationale + evidence pointers.
-
----
-
-## 13. Next (Phase Pointer)
-
-`SESSION_STATE.Next` is a string describing the next executable step, e.g.:
-- `Phase2-RepoDiscovery`
-- `Phase2.1-DecisionPack`
-- `Phase4-TicketExecution`
-- `Phase5-ArchitectureGate`
-- `BLOCKED-<reason>`
-
-**Invariant**
-- `Next` MUST NOT skip mandatory gates.
-
----
-
-## 14. Decision Pack (Phase 2+; recommended)
+## 12. Decision Pack (Phase 2.1; recommended)
 
 To reduce cognitive load, Phase 2 SHOULD produce a compact **Decision Pack**.
 If produced:
 
 - `SESSION_STATE.DecisionPack` (array)
   - each entry SHOULD include: `id`, `decision`, `options`, `recommendation`, `evidence`, `what_changes_it`
+  - optional lifecycle fields: `status`, `supersedes`, `supersededBy`
 
 ---
 
-## 15. Ticket Record (Phase 4+; required by rules)
+## 13. Ticket Record (Phase 4+; required by rules)
 
 When Phase 4 planning is produced, the workflow may include:
 - `SESSION_STATE.TicketRecordDigest` (one-line summary)
@@ -563,7 +603,31 @@ This is further specified as binding in `rules.md` (Ticket Record section).
 
 ---
 
-## 16. Build Evidence
+## 14. Business Rules State (Phase 1.5+)
+
+If Phase 1.5 is executed, the session MUST include `SESSION_STATE.BusinessRules`:
+
+```yaml
+SESSION_STATE:
+  BusinessRules:
+    InventoryFilePath: "<path expression>"
+    InventoryLoaded: true | false
+    InventoryFileStatus: written | write-requested | not-applicable
+    InventoryFileMode: create | update | unknown
+    ExtractedCount: <integer>
+    Coverage:
+      Code: "<n>/<total>"
+      Tests: "<n>/<total>"
+      DB: "<n>/<total>"
+    Notes: "<short text>"
+```
+
+Binding:
+- If `Gates.P5.4-BusinessRules` is evaluated, `BusinessRules` MUST be present.
+
+---
+
+## 15. Build Evidence
 
 ```yaml
 BuildEvidence:
@@ -582,7 +646,62 @@ BuildEvidence:
 
 ---
 
-## 17. Global Invariants (Summary)
+## 16. Workspace Memory File (OpenCode-only, recommended)
+
+Workspace Memory stores stable, repo-specific defaults (conventions + patterns) across sessions to reduce drift.
+
+If used, the assistant SHOULD populate:
+
+- `SESSION_STATE.WorkspaceMemoryFile` (object)
+
+Recommended structure:
+
+```yaml
+SESSION_STATE:
+  WorkspaceMemoryFile:
+    SourcePath: "<path expression>"        # e.g., ${REPO_HOME}/workspace-memory.yaml
+    TargetPath: "<path expression>"        # same as SourcePath when writing
+    Loaded: true | false
+    Valid: true | false
+    InvalidationReason: "<short text>"     # empty when Valid=true
+    FileStatus: written | write-requested | not-applicable
+    Summary: "<short digest>"              # optional; 3-8 bullets serialized
+```
+
+Validation rules (Binding when the file exists):
+- YAML must parse.
+- Root key `WorkspaceMemory` must exist.
+- `WorkspaceMemory.Version` must equal `"1.0"`.
+- If invalid, the workflow MUST enter `Mode=BLOCKED` with reason `BLOCKED-WORKSPACE-MEMORY-INVALID`.
+
+---
+
+## 17. Resume Integrity (Canonical)
+
+Resume MUST NOT reinterpret or mutate past decisions.
+
+Recommended structure:
+
+```yaml
+SESSION_STATE:
+  Resume:
+    Source: initial | continue | resume
+    LockedFields:
+      - ActiveProfile
+      - ArchitectureDecisions
+      - DecisionPack
+      - Gates
+```
+
+Binding:
+- If `Resume.Source = resume`, then fields in `LockedFields` MUST NOT change.
+- If a locked field change is detected, the workflow MUST enter:
+  - `Mode = BLOCKED`
+  - `Next = BLOCKED-RESUME-STATE-VIOLATION`
+
+---
+
+## 18. Global Invariants (Summary)
 
 - No gate may pass with missing required artifacts.
 - No code-producing step may execute unless upstream gates allow it.

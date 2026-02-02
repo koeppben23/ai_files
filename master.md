@@ -5,6 +5,30 @@ priority: highest
 
 MASTER PROMPT
 
+## PHASE 0 — BOOTSTRAP (CONDITIONAL)
+
+This governance system operates in **fail-closed mode**.
+
+### Bootstrap Activation Condition
+
+This master workflow is considered **ACTIVE** only if the session input
+contains an explicit bootstrap declaration equivalent in intent to:
+
+- Governance-OS enabled
+- Phases 1–6 enforced
+- Plan-Gates ≠ Evidence-Gates
+- Missing evidence → BLOCKED
+- Profile ambiguity → BLOCKED
+- Host tools (e.g. OpenCode) are best-effort only
+
+If this condition is **not met**, the system MUST enter state:
+
+> **BLOCKED — Bootstrap not satisfied**
+
+### Recovery
+- Operator must restate the bootstrap declaration explicitly.
+- No phase execution, planning, or evaluation is permitted before recovery.
+
 ## GLOBAL PATH VARIABLES (BINDING)
 
 This system MUST define canonical path variables once and reuse them everywhere.
@@ -61,13 +85,35 @@ Binding:
 - Both MUST resolve to the same logical repository.
 - Cache, digest, and decision artifacts MUST NOT diverge between them.
 - On workflow initialization for a repository, the runtime MUST derive `<repo_fingerprint>` and `${REPO_NAME}`
-  from the same source of truth for repository identity (e.g., VCS remote URL and/or absolute repo root path).
+  from the same source of truth for repository identity (git metadata: remote URL + default branch).
 - The runtime MUST maintain a single persistent mapping record `<repo_fingerprint> ↔ ${REPO_NAME}` at:
   `${REPO_IDENTITY_MAP_FILE}`
   and, on each run, validate that the newly computed identifiers match any existing mapping.
 - If a mismatch is detected between the computed identifiers and the persisted mapping, the workflow MUST treat
   this as a configuration error: it MUST NOT create or use a second, divergent state tree, and MUST surface a
   clear reconciliation instruction to the user.
+
+### Repo Identity Evidence Policy (Binding)
+
+The system MUST NOT require direct access to git or any VCS tooling.
+
+Git-based identity means:
+  - the identity is derived from git metadata (remote URL + default branch),
+  - NOT that the system executes git commands itself.
+
+The system MUST:
+  - explicitly request the required evidence,
+  - provide the exact commands the operator MAY run to obtain it,
+  - accept pasted command output as valid evidence,
+  - validate the evidence syntactically and semantically,
+  - derive the repo fingerprint deterministically from the provided evidence.
+
+The system MUST remain fail-closed if evidence is missing or inconsistent.
+
+The following are FORBIDDEN:
+  - executing git implicitly,
+  - path-based or heuristic repo fingerprints,
+  - provisional or fallback identity trees.
 
 - `${REPO_HOME}` = `${WORKSPACES_HOME}/<repo_fingerprint>`  (workspace bucket)
 - `${REPO_DECISIONS_FILE}` = `${REPO_HOME}/decisions/ADR.md`
@@ -106,6 +152,7 @@ SESSION_STATE bootstrap (binding):
   ActiveProfile: ""          # DEFERRED until post-Phase-2
   ProfileSource: "deferred"
   ProfileEvidence: "deferred-until-phase-2"
+  
 ### Phase 1.2: Profile Detection (DEFERRED TO POST-PHASE-2)
 
 TRIGGER: After Phase 2 (Repo Discovery) completes
@@ -429,6 +476,30 @@ If two rules conflict at the same priority level or the conflict is ambiguous:
 1) **Most restrictive wins** for anything that impacts safety, determinism, evidence, scope lock, or gates.
 2) **Repo conventions win** for style/tooling choices **only if** they do not weaken gates/evidence/scope lock.
 3) If the conflict still cannot be resolved deterministically, record a risk and stop (BLOCKED) with a targeted question.
+
+### Rulebook Load Evidence (BINDING)
+
+The assistant MUST NOT mark any rulebook as loaded unless there is
+explicit load evidence.
+
+Binding rules:
+- If any of the following fields is non-empty:
+  - `SESSION_STATE.LoadedRulebooks.core`
+  - `SESSION_STATE.LoadedRulebooks.profile`
+  - `SESSION_STATE.LoadedRulebooks.templates`
+  - `SESSION_STATE.LoadedRulebooks.addons.*`
+  then `SESSION_STATE.RulebookLoadEvidence` MUST be present and non-empty.
+
+- RulebookLoadEvidence MUST contain at least one of:
+  - resolved canonical path (using `${COMMANDS_HOME}` / `${PROFILES_HOME}`)
+  - tool output confirming read/load
+  - hash/digest reference
+  - explicit user-provided content
+
+- If rulebook load evidence cannot be produced due to host/tool limitations:
+  - `Mode = BLOCKED`
+  - Canonical pointer: `Next = BLOCKED-RULEBOOK-EVIDENCE-MISSING`
+  - No phase completion may be claimed.
 
 ---
 
@@ -886,14 +957,18 @@ RepoCache:
 Validation (Binding, conservative):
 Cache is VALID ONLY IF ALL are true:
 1) Cache file parses and contains `RepoCache.Version` and `RepoCache.RepoMapDigest`
-2) If git is available:
-   - `CurrentGitHead = git rev-parse HEAD`
+2) If operator-provided git metadata evidence includes a GitHead (optional):
+   - `CurrentGitHead = <operator-provided GitHead>`
    - `GitHeadMatch = (CurrentGitHead == RepoCache.GitHead)` must be true
    ELSE:
    - Compute `CurrentRepoSignature` as specified in [Fast Path: RepoSignature computation](#fast-path-reposignature-computation)
    - `RepoSignatureMatch = (CurrentRepoSignature == RepoCache.RepoSignature)` must be true
 3) If `SESSION_STATE.ComponentScopePaths` is set:
    - Cache ComponentScope must match (same set), else INVALID
+
+Binding note:
+- The system MUST NOT probe for git availability or execute git commands.
+- GitHead comparisons are allowed ONLY when GitHead is provided as operator evidence.
 
 If VALID:
 - Treat cache as authoritative for Phase 2 output (supportive memory; repo evidence wins if later contradictions appear).
@@ -1022,7 +1097,8 @@ RepoSignature (Binding, quick computation):
 - If none exist or hashing is not possible: set signature to `unknown`.
 
 GitHead (Binding, preferred if available):
-- If git is available, `CurrentGitHead = git rev-parse HEAD`, else `unknown`.
+- If operator-provided evidence includes GitHead, set `CurrentGitHead = <operator-provided GitHead>`,
+  else set `CurrentGitHead = unknown`.
 
 Application (Binding):
 - If Eligible=true, set:
@@ -1464,7 +1540,7 @@ If file writing is not possible in the current environment:
 * "Skip business-rules discovery"
 * "This is a pure CRUD project"
 
-#### OpenCode-only: Load existing Business Rules Inventory (Read-before-write, Binding when applicable)
+#### Load existing Business Rules Inventory (when available; Binding when applicable)
 
 Before executing Phase 1.5 extraction, if the workflow is running under OpenCode
 (repository provided or indexed via OpenCode), the assistant MUST check whether a
@@ -1572,12 +1648,17 @@ Proceeding to Phase 3A (API Inventory)...
 
 **Note:** If Phase 1.5 is executed, Phase 5.4 (Business rules compliance) becomes MANDATORY.
 
-#### OpenCode-only: Persist Business Rules Inventory (Binding when applicable)
+#### Persist Business Rules Inventory (Policy A, Binding)
 
-If Phase 1.5 was executed AND the workflow is running under OpenCode
-(repository provided or indexed via OpenCode),
-the assistant MUST additionally produce a Business Rules inventory file
-output suitable for writing to the user's OpenCode configuration directory.
+Policy A:
+- If Phase 1.5 is executed, persistence of the Business Rules inventory is **automatic**.
+- The assistant MUST always produce a `${REPO_BUSINESS_RULES_FILE}` output block.
+- If the inventory file already exists, the assistant MUST update it (preserve stable BR-IDs; mark removed rules as DEPRECATED).
+
+If the workflow is running under OpenCode (repository provided or indexed via OpenCode),
+the target path is expected to be writable via the OpenCode workspace.
+If file writing is not possible in the current environment, the assistant MUST still emit the full file content
+and set `InventoryFileStatus = write-requested`.
 
 Cross-platform configuration root resolution (Binding):
 * Use `${CONFIG_ROOT}` as defined in `GLOBAL PATH VARIABLES (BINDING)`.
@@ -1597,6 +1678,7 @@ Output requirements (Binding):
    TargetPath: <resolved path expression>
    RepoName: <sanitized repo name>
    LastUpdated: <YYYY-MM-DD>
+   Mode: create | update
    Content:
    <complete Markdown file content>
    [/BR-INVENTORY-FILE]
@@ -1607,9 +1689,14 @@ Output requirements (Binding):
      written | write-requested | not-applicable
 
 If file writing is not possible in the current environment:
-* set InventoryFileStatus = write-requested
-* still output the full content and target path so OpenCode or the user
-  can persist it manually.
+ - set `InventoryFileStatus = write-requested`
+ - set `InventoryFileMode = unknown`
+ - still output the full content and target path so OpenCode or the user can persist it manually.
+
+Update behavior (Binding):
+- If `${REPO_BUSINESS_RULES_FILE}` does not exist: `Mode = create`.
+- If `${REPO_BUSINESS_RULES_FILE}` exists: `Mode = update` and overwrite the file content as a whole
+  (single source of truth), while preserving BR identifiers and marking removed rules as DEPRECATED.
 
 ---
 
