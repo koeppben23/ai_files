@@ -74,19 +74,39 @@ Canonical path fields in `SESSION_STATE` are any fields whose semantic purpose i
 (Excludes evidence-only fields such as `RulebookLoadEvidence.*`.)
 
 BINDING:
-- Canonical values MUST be variable-based path expressions (e.g., `${REPO_HOME}/decision-pack.md`), not OS-specific absolute paths.
-- Forbidden in canonical values:
-  - Windows drive prefixes (`^[A-Za-z]:\\` or `^[A-Za-z]:/`)
-  - backslashes (`\`)
-  - parent traversal (`..`)
+- Forbidden patterns in canonical path fields (aligned with master.md persistence rules):
+
+  1) OS-specific patterns (→ BLOCKED-PERSISTENCE-PATH-VIOLATION):
+     - Windows drive prefixes: `^[A-Za-z]:\\` or `^[A-Za-z]:/`
+     - Backslashes: `\`
+     - Parent traversal: `..`
+
+  2) Degenerate patterns (→ BLOCKED-PERSISTENCE-TARGET-DEGENERATE):
+     - Single drive letter: `^[A-Za-z]$` (example: `C`)
+     - Drive root token: `^[A-Za-z]:$` (example: `C:`)
+     - Drive-relative path: `^[A-Za-z]:[^\\/].*`
+     - Single-segment relative path WITHOUT `${...}`:
+       - Pattern: `^[^\\/]+$` AND NOT starting with `${`
+       - Examples: `rules.md`, `tmp`, `config`
+
 - Exception (evidence-only): absolute paths (including backslashes) MAY appear inside evidence fields
   (e.g., `RulebookLoadEvidence.*`) if pasted from host output, but canonical variable-based expressions MUST still be used for canonical path fields.
 
 FAIL-CLOSED:
 - If any canonical path field violates the forbidden patterns:
   - `SESSION_STATE.Mode` MUST be `BLOCKED`
-  - `SESSION_STATE.Next` MUST be `BLOCKED-PATH-NONCANONICAL`
+  - `SESSION_STATE.Next` MUST be one of:
+    - `BLOCKED-PERSISTENCE-PATH-VIOLATION`
+    - `BLOCKED-PERSISTENCE-TARGET-DEGENERATE`
   - Output MUST name the violating field(s) and provide the corrected variable-based form.
+
+Mapping of violations to BLOCKED-Reasons:
+- Backslash (`\`) → BLOCKED-PERSISTENCE-PATH-VIOLATION
+- Drive prefix (`C:\`, `C:/`) → BLOCKED-PERSISTENCE-PATH-VIOLATION
+- Parent traversal (`..`) → BLOCKED-PERSISTENCE-PATH-VIOLATION
+- Single drive letter (`C`) → BLOCKED-PERSISTENCE-TARGET-DEGENERATE
+- Drive root token (`C:`) → BLOCKED-PERSISTENCE-TARGET-DEGENERATE
+- Single segment without `${...}` → BLOCKED-PERSISTENCE-TARGET-DEGENERATE
 
 ---
 
