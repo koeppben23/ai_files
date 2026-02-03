@@ -87,10 +87,10 @@ Example (Windows):
 ```json
 {
   "paths": {
-    "configRoot": "C:/Users/TF81447/.config/opencode",
-    "commandsHome": "C:/Users/TF81447/.config/opencode/commands",
-    "profilesHome": "C:/Users/TF81447/.config/opencode/commands/profiles",
-    "workspacesHome": "C:/Users/TF81447/.config/opencode/workspaces"
+    "configRoot": "C:/Users/<USER>/.config/opencode",
+    "commandsHome": "C:/Users/<USER>/.config/opencode/commands",
+    "profilesHome": "C:/Users/<USER>/.config/opencode/commands/profiles",
+    "workspacesHome": "C:/Users/<USER>/.config/opencode/workspaces"
   }
 }
 ```
