@@ -44,6 +44,65 @@ If your environment uses different locations, follow `master.md` and update the 
 
 ---
 
+## OpenCode Local Configuration (Required for Repo-Aware Mode)
+
+When using this governance system with **OpenCode (repo-aware execution)**,
+a **local machine configuration file is REQUIRED** to avoid interactive
+path binding and non-deterministic startup behavior.
+
+This repository provides a **template**, not a machine-specific configuration.
+
+### Template (checked in)
+
+```
+opencode/opencode.template.json
+```
+
+### Local instance (NOT checked in)
+
+Each user must create a local configuration file at:
+
+- **Linux / macOS**
+  ```
+  ~/.config/opencode/opencode.json
+  ```
+
+- **Windows**
+  ```
+  %USERPROFILE%\.config\opencode\opencode.json
+  ```
+
+This file is **machine-specific** and MUST NOT be committed.
+
+### Setup (one-time)
+
+1. Copy the template:
+   - From: `opencode/opencode.template.json`
+   - To:   `${CONFIG_ROOT}/opencode.json`
+
+2. Replace the placeholders with absolute paths on your machine.
+
+Example (Windows):
+
+```json
+{
+  "paths": {
+    "configRoot": "C:/Users/TF81447/.config/opencode",
+    "commandsHome": "C:/Users/TF81447/.config/opencode/commands",
+    "profilesHome": "C:/Users/TF81447/.config/opencode/commands/profiles",
+    "workspacesHome": "C:/Users/TF81447/.config/opencode/workspaces"
+  }
+}
+```
+
+After this, OpenCode will start without any interactive path questions.
+
+**Important:**
+Interactive path binding is intentionally avoided.
+If OpenCode prompts for individual path variables, the local configuration is incomplete or missing.
+
+---
+
 ## 1. Purpose
 
 This system addresses a central problem of modern AI-assisted development:
