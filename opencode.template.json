@@ -1,0 +1,10 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+
+  "paths": {
+    "configRoot": "<ABSOLUTE PATH TO ~/.config/opencode>",
+    "commandsHome": "<configRoot>/commands",
+    "profilesHome": "<commandsHome>/profiles",
+    "workspacesHome": "<configRoot>/workspaces"
+  }
+}
