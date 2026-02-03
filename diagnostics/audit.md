@@ -24,32 +24,43 @@ If `[SESSION_STATE]` is missing, the command MUST stop with `BLOCKED` and reques
 
 ## OUTPUT FORMAT (Mandatory)
 
-Return exactly these sections, in this order:
+Primary output MUST be a single JSON object conforming to:
+- `diagnostics/AUDIT_REPORT_SCHEMA.json`
 
-1. `[AUDIT_REPORT]` header line
-2. Phase & Gate Trace
-3. Rule Resolution Trace
-4. Evidence Coverage Audit
-5. Scope & Inputs Audit
-6. Config / Paths Audit (repo-aware only; otherwise "NOT APPLICABLE")
-7. Confidence Ceiling
-8. Allowed Next Actions (minimal, safe)
-9. `[END_AUDIT_REPORT]`
-
-No extra sections.
+Rules:
+- Output MUST start with the JSON (no text before it).
+- Optional: after the JSON, a short human-readable summary MAY be printed.
 
 ---
 
-## 1) AUDIT HEADER
+## SESSION_STATE UPDATE (A2 — allowed mutation scope)
 
-Print:
+If `[SESSION_STATE]` exists, update ONLY:
 
-[AUDIT_REPORT]
-Timestamp=<ISO8601>
-Mode=<chat-only|repo-aware>
-SessionPhase=<...>
-Degraded=<active|inactive>
-Confidence=<0-100%>
+Audit:
+  LastRun:
+    Timestamp: <ISO8601>
+    Mode: <chat-only|repo-aware>
+    ReportRef: <variable-based path expression OR "not-persisted">
+    ReportHash: <sha256:<hex> OR "none">
+    Status: <ok|blocked>
+    ReasonKeys:
+    - <reasonKey>
+    - ...
+
+No other SESSION_STATE fields may be modified.
+
+## REPORT PERSISTENCE (Repo-aware only; descriptive)
+
+If repo-aware mode and a workspace bucket exists:
+- Write the audit report under:
+  `${WORKSPACES_HOME}/<repo_fingerprint>/audits/audit-<timestamp>.json`
+- `ReportRef` SHOULD be variable-based (no absolute OS paths; no backslashes).
+- `ReportHash` SHOULD be sha256 over the written JSON.
+
+If chat-only mode:
+- `ReportRef = "not-persisted"`
+- `ReportHash = "none"`
 
 ---
 
@@ -182,10 +193,8 @@ Do NOT propose implementation steps if any gate is blocked for implementation.
 
 ---
 
-## 9) AUDIT FOOTER
-
-Print:
-[END_AUDIT_REPORT]
+## NOTE
+This command is diagnostic only. It does not override `master.md` or `rules.md`.
 
 ---
 

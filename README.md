@@ -400,6 +400,18 @@ Uniform consent to proceed.
 
 ---
 
+### `/audit`
+
+Read-only diagnostics command.
+Outputs an `AUDIT_REPORT` JSON (see schema) and may update only:
+`SESSION_STATE.Audit.LastRun.*` (pointer + hash), without touching workflow control fields.
+
+See:
+- `diagnostics/audit.md`
+- `diagnostics/AUDIT_REPORT_SCHEMA.json`
+
+---
+
 ## 6. Role of Each File
 
 | File | Purpose |

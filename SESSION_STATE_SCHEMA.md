@@ -115,6 +115,46 @@ Once Phase 1.1 (bootstrap) completes successfully, these keys MUST exist:
 - `SESSION_STATE.ProfileEvidence` (string)
 - `SESSION_STATE.Gates` (object; see Section 8)
 
+---
+
+## 2.1 Optional Diagnostics Keys (Self-Audit)
+
+The session state MAY include a diagnostics pointer block for the most recent `/audit` run.
+This block is **descriptive only** and MUST NOT be interpreted as normative authority.
+
+### 2.1.1 `SESSION_STATE.Audit.LastRun` (optional)
+
+If present, it MUST follow this shape:
+
+- `SESSION_STATE.Audit.LastRun.Timestamp` (string; ISO8601 date-time)
+- `SESSION_STATE.Audit.LastRun.Mode` (enum: `chat-only|repo-aware`)
+- `SESSION_STATE.Audit.LastRun.ReportRef` (string)
+- `SESSION_STATE.Audit.LastRun.ReportHash` (string; `sha256:<hex>` OR `none`)
+- `SESSION_STATE.Audit.LastRun.Status` (enum: `ok|blocked`)
+- `SESSION_STATE.Audit.LastRun.ReasonKeys` (list of strings; may be empty)
+
+### 2.1.2 Mutation constraints (binding)
+
+`/audit` MUST be read-only with respect to workflow control fields.
+It MUST NOT modify any of:
+- `SESSION_STATE.Phase`
+- `SESSION_STATE.Mode`
+- `SESSION_STATE.ConfidenceLevel`
+- `SESSION_STATE.Next`
+- `SESSION_STATE.Gates`
+- any discovery, plan, or evidence fields
+
+If `/audit` writes to `SESSION_STATE`, it MAY update **only** `SESSION_STATE.Audit.LastRun.*`.
+
+### 2.1.3 Path invariants for `ReportRef` (binding)
+
+If `ReportRef` is a file path (repo-aware mode), it MUST follow canonical path invariants:
+- MUST be variable-based (e.g., `${WORKSPACES_HOME}/...`)
+- MUST NOT be an absolute OS path
+- MUST NOT contain backslashes, drive prefixes, or `..`
+
+If chat-only mode (no persistence), `ReportRef` MUST be `not-persisted`.
+
 ### Lazy-loading invariants (binding)
 
 - Until Phase 2 completes:
