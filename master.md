@@ -5,6 +5,8 @@ priority: highest
 
 MASTER PROMPT
 
+<!-- NOTE: This diff adds fail-closed TargetPath validation to prevent degenerate paths like "C" being written into the repo. -->
+
 ## PHASE 0 — BOOTSTRAP (CONDITIONAL)
 
 This governance system operates in **fail-closed mode**.
@@ -57,8 +59,8 @@ Define `${USER_HOME}` as the OS-resolved user home directory.
 Define `${CONFIG_ROOT}` (OpenCode configuration root) as:
 
 - Windows:
-  - Primary: `%APPDATA%/opencode`
-  - Fallback: `%USERPROFILE%/.config/opencode`
+  - Primary: `%USERPROFILE%/.config/opencode`
+  - Fallback: `%APPDATA%/opencode`
 - macOS / Linux:
   - `${XDG_CONFIG_HOME:-~/.config}/opencode`
 
@@ -70,6 +72,19 @@ Define `${CONFIG_ROOT}` (OpenCode configuration root) as:
 - `${COMMANDS_HOME}` = `${OPENCODE_HOME}/commands`
 - `${PROFILES_HOME}` = `${COMMANDS_HOME}/profiles`
 - `${WORKSPACES_HOME}` = `${OPENCODE_HOME}/workspaces`
+
+Variable resolution UX (BINDING):
+- If `${CONFIG_ROOT}` is resolved, the runtime MUST derive:
+  `${OPENCODE_HOME}`, `${COMMANDS_HOME}`, `${PROFILES_HOME}`, `${WORKSPACES_HOME}` automatically.
+- The runtime MUST NOT ask for derived variables individually.
+- If prompting is unavoidable, it MUST request a single binding block and accept both `\` and `/` separators.
+
+Operator binding template:
+${CONFIG_ROOT} = <absolute path>
+${OPENCODE_HOME} = ${CONFIG_ROOT}
+${COMMANDS_HOME} = ${OPENCODE_HOME}/commands
+${PROFILES_HOME} = ${COMMANDS_HOME}/profiles
+${WORKSPACES_HOME} = ${OPENCODE_HOME}/workspaces
 
 ### Binding Rule: No Hard-Coded Paths
 
@@ -93,6 +108,54 @@ BINDING:
   - `[...-FILE]` / `[...-LOADED]` blocks’ `TargetPath`/`SourcePath`,
   - or any persisted artifact content headers.
 - Exception (evidence-only): absolute paths MAY appear inside an evidence field (e.g., `RulebookLoadEvidence`) when the operator pasted host output, but the canonical variable-based path MUST still be present alongside it.
+
+BINDING — Persisted Artifact TargetPath Validation (FAIL-CLOSED)
+Resolution semantics (BINDING):
+- Degenerate-path validation MUST be applied:
+  a) to the raw emitted TargetPath string, AND
+  b) to the fully resolved path after variable substitution.
+- If EITHER form matches a degenerate pattern, the workflow MUST BLOCK.
+
+Purpose:
+- Prevent host/path parsing defects (e.g., Windows drive token "C" / "C:" degenerating into a repo-local file).
+- Ensure persisted artifacts never accidentally write into the repository root due to malformed targets.
+
+Applies to:
+- ANY persisted artifact output block that contains `TargetPath:` or `SourcePath:` headers, including:
+  - `[REPO-CACHE-FILE]`, `[REPO-MAP-DIGEST-FILE]`, `[DECISION-PACK-FILE]`,
+  - `[WORKSPACE-MEMORY-FILE]`, `[BR-INVENTORY-FILE]`,
+  - and any future `*-FILE` blocks.
+
+Rules (MUST, fail-closed):
+1) Canonical form REQUIRED in outputs:
+   - `TargetPath` and `SourcePath` in output blocks MUST be variable-based using the canonical variables
+     defined in "GLOBAL PATH VARIABLES (BINDING)" (e.g., `${REPO_BUSINESS_RULES_FILE}`).
+   - Absolute OS paths MUST NOT appear in `TargetPath`/`SourcePath` headers.
+
+2) Degenerate-path guard (BLOCKED):
+   The workflow MUST enter `Mode = BLOCKED` if any `TargetPath`/`SourcePath` resolves (or is emitted) as:
+   - A single drive letter:        `^[A-Za-z]$`            (example: `C`)
+   - A drive root token only:      `^[A-Za-z]:$`           (example: `C:`)
+   - A drive-relative path token:  `^[A-Za-z]:[^\\/].*`    (example: `C:tmp\file`)
+   - A single-segment relative path WITHOUT `${...}`:
+       - `^[^\\/]+$` AND NOT starting with `${`
+     (examples: `tmp`, `rules.md`, `business-rules.md`, `C`)
+
+3) Repo-local write prevention (BLOCKED):
+   - If a persisted artifact is about to be written to any repository-local path (e.g., `./business-rules.md`
+     or `<repo>/business-rules.md`), the workflow MUST BLOCK with:
+       `Next = "BLOCKED-PERSISTENCE-PATH-VIOLATION"`
+   - The recovery MUST require the canonical variable-based target path (e.g., `${REPO_BUSINESS_RULES_FILE}`).
+
+Required BLOCKED reason keys:
+- `BLOCKED-PERSISTENCE-TARGET-DEGENERATE`
+- `BLOCKED-PERSISTENCE-PATH-VIOLATION`
+
+Recovery (mandatory output via Recovery Playbook):
+- The assistant MUST print:
+  - the attempted `TargetPath`,
+  - the expected canonical `TargetPath` using `${...}`,
+  - and the minimal correction (use canonical variable target).
 
 ### Canonical State / Persistence Targets
 
@@ -1732,6 +1795,21 @@ Update behavior (Binding):
 - If `${REPO_BUSINESS_RULES_FILE}` does not exist: `Mode = create`.
 - If `${REPO_BUSINESS_RULES_FILE}` exists: `Mode = update` and overwrite the file content as a whole
   (single source of truth), while preserving BR identifiers and marking removed rules as DEPRECATED.
+
+Path enforcement (BINDING):
+- The Business Rules inventory MUST be persisted ONLY to `${REPO_BUSINESS_RULES_FILE}`.
+- If the runtime writes to a repository-local path (e.g., `./business-rules.md` or `<repo>/business-rules.md`),
+  the system MUST enter:
+  - `SESSION_STATE.Mode = BLOCKED`
+  - `SESSION_STATE.Next = "BLOCKED-PERSISTENCE-PATH-VIOLATION:business-rules"`
+  and request the resolved target path + the artifact header as proof.
+
+Additional enforcement (BINDING):
+- If the assistant observes that the `TargetPath` for business rules became any degenerate form (examples: `C`, `C:`,
+  `C:tmp\file`, or any single-segment path not starting with `${`), it MUST enter:
+  - `SESSION_STATE.Mode = BLOCKED`
+  - `SESSION_STATE.Next = "BLOCKED-PERSISTENCE-TARGET-DEGENERATE:business-rules"`
+  and request the exact artifact header lines containing `TargetPath:` as proof.
 
 ---
 
