@@ -1,5 +1,24 @@
 # README-RULES.md
 
+## 📌 README Index
+
+This document explains the intent and structure of the rules.
+It does not override or redefine them.
+
+- **Normative system authority and phase gates**  
+  → See `master.md`
+
+- **Actual enforceable rules**  
+  → See `rules.md`
+
+- **Context- and stack-specific extensions**  
+  → See `profiles/*`
+
+- **Operational usage and configuration**  
+  → See `README-OPENCODE.md`
+
+This README is explanatory only.
+
 **Executive Summary for AI-Assisted Development**
 
 This document is a **compact, non-normative overview** of the binding rules defined in **rules.md** and the **Master Prompt**.

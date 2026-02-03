@@ -1,5 +1,25 @@
 # OpenCode Governance & Prompt System — Usage Guide
 
+## 📌 README Index
+
+This document explains OpenCode-specific configuration and persistence.
+It does not define system behavior.
+
+- **Normative system rules and gates**  
+  → See `master.md`
+
+- **Quality and technical constraints**  
+  → See `rules.md`
+
+- **Profiles and stack-specific rules**  
+  → See `profiles/*`
+
+- **Session lifecycle (start / continue / resume)**  
+  → See `start.md`, `continue.md`, `resume.md`
+
+This README is descriptive and subordinate to all normative files.
+
+
 This repository contains a **multi-layer governance and prompt system**
 for **AI-assisted software development** with **Lead / Staff-level quality**,
 designed for **determinism, traceability, and review robustness**.

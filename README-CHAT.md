@@ -1,5 +1,24 @@
 # Governance & Prompt System — Chat-Only Usage Guide
 
+## 📌 README Index
+
+This document describes how to use the governance system in **pure chat environments**.
+It does **not** define system behavior or rules.
+
+- **Looking for mandatory workflow, phases, and gates?**  
+  → See `master.md` (normative, highest priority)
+
+- **Looking for technical, test, and business rules?**  
+  → See `rules.md`
+
+- **Looking for stack- or context-specific constraints?**  
+  → See `profiles/*`
+
+- **Looking for repo-aware usage and OpenCode configuration?**  
+  → See `README-OPENCODE.md`
+
+This README is **descriptive only** and applies **only to chat-only usage**.
+
 This document explains how to use the **Governance & Prompt System**
 in **pure chat environments** (ChatGPT, Claude, etc.),
 **without OpenCode or repo indexing**.
