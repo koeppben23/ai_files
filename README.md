@@ -1,5 +1,27 @@
 # Governance & Prompt System – Overview
 
+## 📌 README Index
+
+This document is part of a multi-layer AI governance system.
+Use the following guide to navigate responsibilities and authority:
+
+- **Looking for mandatory rules and system behavior?**  
+  → See `master.md` (normative, highest priority)
+
+- **Looking for technical and quality constraints?**  
+  → See `rules.md`
+
+- **Looking for stack- or context-specific rules?**  
+  → See `profiles/*`
+
+- **Looking for OpenCode configuration and persistence details?**  
+  → See `README-OPENCODE.md`
+
+- **Looking for how to start or resume a session?**  
+  → See `start.md`, `continue.md`, `resume.md`
+
+This README is **descriptive only** and must not be interpreted as normative.
+
 This repository documents a **multi-layer governance and prompt system** for
 AI-assisted software development, designed for **Lead/Staff-level quality**,
 traceability, and review robustness.
