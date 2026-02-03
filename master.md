@@ -25,6 +25,17 @@ If this condition is **not met**, the system MUST enter state:
 
 > **BLOCKED — Bootstrap not satisfied**
 
+Terminology:
+- **Plan-Gates** are explicit decision gates (e.g., Phase 5 / 5.3 / 5.4 / 5.6 / 6) that control whether
+  code-producing output is permitted.
+- **Evidence-Gates** are the evidence prerequisites that must be satisfied to claim a phase/gate outcome
+  (e.g., rulebook load evidence, repo discovery evidence). A Plan-Gate MAY be logically satisfied but
+  still **blocked** if required evidence is missing.
+
+When entering this state, set:
+- `SESSION_STATE.Mode = BLOCKED`
+- `SESSION_STATE.Next = "BLOCKED-BOOTSTRAP-NOT-SATISFIED"`
+
 ### Recovery
 - Operator must restate the bootstrap declaration explicitly.
 - No phase execution, planning, or evaluation is permitted before recovery.
@@ -68,18 +79,20 @@ BINDING:
   - any canonical `SESSION_STATE` path field (including `*Path`, `FilePath`, `TargetPath`, `SourcePath`),
   - any persisted-artifact output block headers (`TargetPath` / `SourcePath`),
   - or any required/authoritative file location definition outside this section’s `${CONFIG_ROOT}` resolution.
-- Exception (evidence-only): OS-specific absolute paths MAY appear inside evidence fields (e.g., `SESSION_STATE.RulebookLoadEvidence.*`) when the operator pasted host output, but the canonical `${...}` path MUST be included in the same evidence entry/block.
 - The ONLY OS-specific logic permitted is the definition of `${CONFIG_ROOT}` in this section.
 - Circular variable references are forbidden (a variable MUST NOT be defined in terms of itself).
 
-### Path Expression Hygiene (Non-normative clarification)
+### Path Expression Hygiene (Binding)
 
-This section restates and explains the binding rule above for clarity only.
-It introduces no additional requirements.
+To keep governance portable and avoid host/path parsing defects:
 
-Non-normative summary:
-- Canonical path fields are variable-based (`${...}`) only.
-- Absolute OS paths are allowed exclusively inside evidence fields.
+BINDING:
+- Canonical paths in governance outputs and persisted artifact targets MUST use the variables defined in this section (e.g., `${COMMANDS_HOME}/rules.md`, `${REPO_HOME}/decision-pack.md`).
+- OS-specific absolute paths (e.g., `C:\...`, `/Users/...`, `~/.config/...`) MUST NOT appear in:
+  - `SESSION_STATE.*Path` fields,
+  - `[...-FILE]` / `[...-LOADED]` blocks’ `TargetPath`/`SourcePath`,
+  - or any persisted artifact content headers.
+- Exception (evidence-only): absolute paths MAY appear inside an evidence field (e.g., `RulebookLoadEvidence`) when the operator pasted host output, but the canonical variable-based path MUST still be present alongside it.
 
 ### Canonical State / Persistence Targets
 
@@ -329,11 +342,15 @@ These files are normative and MUST be available in the same governance installat
            SESSION_STATE.ProfileSource = "ambiguous"
            LIST: scoped_profiles with paths + scope note
            REQUEST: user clarification
+           Mode = BLOCKED
+           Next = "BLOCKED-AMBIGUOUS-PROFILE"
            BLOCKED until profile specified
        ELSE:
          SESSION_STATE.ProfileSource = "ambiguous"
          LIST: all found profiles with paths
          REQUEST: user clarification
+         Mode = BLOCKED
+         Next = "BLOCKED-AMBIGUOUS-PROFILE"
          BLOCKED until profile specified
        
      ELSE:
@@ -696,6 +713,11 @@ Resume pointer: <exact Next pointer, e.g., "Phase 4 — Step 0 (Initialization)"
   - Trigger: Phase 4 requires templates/addons evaluation but `SESSION_STATE.ActiveProfile == ""`.
   - Resume pointer (canonical): Phase 1.2 — Profile Detection.
   - Required input: user specifies profile explicitly (e.g., `Profile=backend-java`) OR provide repo signals to re-run Phase 2 detection.
+
+- `BLOCKED-AMBIGUOUS-PROFILE`:
+  - Trigger: more than one profile rulebook is available and no deterministic selection is possible (no explicit user choice, and scope filtering did not yield a single profile).
+  - Resume pointer (canonical): Phase 1.2 — Profile Detection.
+  - Required input: specify the profile explicitly (e.g., `Profile=backend-java` or `Use rules_backend-java.md`).
 
 - `BLOCKED-MISSING-TEMPLATES`:
   - Trigger: active profile mandates templates but template rulebook cannot be resolved/loaded.
