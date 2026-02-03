@@ -146,9 +146,10 @@
       "required": ["state", "reasonKeys"],
       "properties": {
         "state": { "type": "string", "enum": ["ok", "blocked"] },
-        "reasonKeys": {
-          "type": "array",
-          "items": { "type": "string", "minLength": 1 }
+        "reasonKeys": { 
+          "type": "array", 
+          "minItems": 0, 
+          "items": { "type": "string", "minLength": 1 } 
         }
       }
     }
