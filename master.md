@@ -802,6 +802,23 @@ Resume pointer: <exact Next pointer, e.g., "Phase 4 — Step 0 (Initialization)"
   - Resume pointer (canonical): Phase 2 — Repo Discovery (signals collection) OR Phase 1.4 — Templates & Addons Activation (re-evaluate).
   - Required input: provide the missing repo evidence (dependency/config/annotation signals) OR allow re-run of Phase 2 discovery.
 
+- `BLOCKED-VARIABLE-RESOLUTION`:
+  - Trigger: Runtime cannot resolve path variables (${COMMANDS_HOME}, ${CONFIG_ROOT})
+  - Evidence: start.md referenced undefined variable; variable resolution failed
+  - Context: Pre-Phase-1 bootstrap issue during start.md execution
+  - Resume pointer: Phase 0 — Bootstrap (Variable Resolution)
+  - Required input (one of):
+    A) Resolved absolute path for ${COMMANDS_HOME} + evidence (directory listing)
+    B) Full file contents (paste master.md, rules.md, profile)
+  - Recovery steps:
+    1) Determine OS-specific config root (see Global Path Variables):
+       - Windows: %APPDATA%/opencode or %USERPROFILE%/.config/opencode
+       - macOS/Linux: ${XDG_CONFIG_HOME:-~/.config}/opencode
+    2) Verify ${COMMANDS_HOME} exists at: <config_root>/commands
+    3) Verify master.md and rules.md present
+    4) Provide evidence OR paste contents
+  - Note: No full SESSION_STATE yet; output minimal BLOCKED state
+
 Rules:
 - The assistant MUST ask for the minimal viable input only (single artifact/command), not broad clarifications.
 - The assistant MUST NOT propose alternative architectures while BLOCKED.
