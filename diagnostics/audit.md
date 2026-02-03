@@ -50,6 +50,33 @@ Audit:
 
 No other SESSION_STATE fields may be modified.
 
+---
+
+## ABUSE-RESISTANCE (Binding; Read-Only Diagnostics)
+
+The `/audit` command MUST NOT be used as a governance override.
+It is diagnostic only.
+
+### AR-1 — No gate bypass
+- If any implementation-relevant gate is `blocked` or `pending`, `allowedNextActions` MUST NOT include any implementation or code-generation actions.
+- `allowedNextActions` MUST be limited to evidence-producing or clarification actions (as per schema action types).
+
+### AR-2 — No invented evidence
+- Evidence items MUST be marked `present` ONLY if directly supported by provided artifacts or recorded workspace references.
+- If evidence is not explicitly present, mark as `absent`, `unknown`, or `theoretical-only` (never upgrade by inference).
+
+### AR-3 — No workflow control mutation
+- `/audit` MUST NOT modify `Phase`, `Gates`, or `Next`.
+- If `[SESSION_STATE]` is ambiguous or incomplete, `/audit` MUST return `status.state=blocked` and request missing state, without creating or repairing it.
+
+### AR-4 — No repo-local writes
+- Audit report persistence MUST write only to workspace paths under `${WORKSPACES_HOME}` (never the repository).
+- If a valid workspace bucket is not available, set `ReportRef="not-persisted"` and `ReportHash="none"`.
+
+### AR-5 — Non-normative disclaimer
+- The audit report MUST NOT be interpreted as normative authority.
+- If report content conflicts with `master.md` or `rules.md`, the rulebooks win.
+
 ## REPORT PERSISTENCE (Repo-aware only; descriptive)
 
 If repo-aware mode and a workspace bucket exists:

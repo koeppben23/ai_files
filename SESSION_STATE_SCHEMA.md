@@ -145,6 +145,7 @@ It MUST NOT modify any of:
 - any discovery, plan, or evidence fields
 
 If `/audit` writes to `SESSION_STATE`, it MAY update **only** `SESSION_STATE.Audit.LastRun.*`.
+`/audit` MUST NOT influence or change gate statuses; it may only report them.
 
 ### 2.1.3 Path invariants for `ReportRef` (binding)
 
