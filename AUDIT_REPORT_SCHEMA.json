@@ -1,5 +1,5 @@
 {
-  "description": "Descriptive, non-normative schema for /audit diagnostics output. This schema does not define or override any governance rules."
+  "description": "Descriptive, non-normative schema for /audit diagnostics output. This schema does not define or override any governance rules.",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "diagnostics/AUDIT_REPORT_SCHEMA",
   "title": "AUDIT_REPORT",
