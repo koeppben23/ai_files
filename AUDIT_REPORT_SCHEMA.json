@@ -1,0 +1,301 @@
+{
+  "description": "Descriptive, non-normative schema for /audit diagnostics output. This schema does not define or override any governance rules."
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "AUDIT_REPORT_SCHEMA",
+  "title": "AUDIT_REPORT",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "meta",
+    "phase",
+    "gateTrace",
+    "ruleResolution",
+    "evidence",
+    "scopeInputs",
+    "configPaths",
+    "confidence",
+    "allowedNextActions",
+    "status"
+  ],
+  "properties": {
+    "meta": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["timestamp", "mode", "generator", "schemaVersion"],
+      "properties": {
+        "timestamp": { "type": "string", "format": "date-time" },
+        "mode": { "type": "string", "enum": ["chat-only", "repo-aware"] },
+        "generator": { "type": "string", "minLength": 1 },
+        "schemaVersion": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+$" }
+      }
+    },
+    "phase": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["current", "degraded", "confidence"],
+      "properties": {
+        "current": { "type": "string", "minLength": 1 },
+        "degraded": { "type": "string", "enum": ["active", "inactive"] },
+        "confidence": { "type": "integer", "minimum": 0, "maximum": 100 }
+      }
+    },
+    "gateTrace": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["activeGates", "blockingGates"],
+      "properties": {
+        "activeGates": {
+          "type": "array",
+          "minItems": 0,
+          "items": { "$ref": "#/$defs/gate" }
+        },
+        "blockingGates": {
+          "type": "array",
+          "minItems": 0,
+          "items": { "$ref": "#/$defs/blockingGate" }
+        }
+      }
+    },
+    "ruleResolution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sources", "errors"],
+      "properties": {
+        "sources": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/ruleSource" }
+        },
+        "errors": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/auditError" }
+        }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["items", "missingRequired"],
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/evidenceItem" }
+        },
+        "missingRequired": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/missingRequirement" }
+        }
+      }
+    },
+    "scopeInputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["items", "missingRequired"],
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/scopeInputItem" }
+        },
+        "missingRequired": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/missingRequirement" }
+        }
+      }
+    },
+    "configPaths": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["applicability", "checks", "violations"],
+      "properties": {
+        "applicability": {
+          "type": "string",
+          "enum": ["not-applicable", "evaluated"]
+        },
+        "checks": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/configCheck" }
+        },
+        "violations": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/configViolation" }
+        }
+      }
+    },
+    "confidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ceiling", "reasons", "blockedConfidence"],
+      "properties": {
+        "ceiling": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "reasons": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "blockedConfidence": { "type": "boolean" }
+      }
+    },
+    "allowedNextActions": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 5,
+      "items": { "$ref": "#/$defs/nextAction" }
+    },
+    "status": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state", "reasonKeys"],
+      "properties": {
+        "state": { "type": "string", "enum": ["ok", "blocked"] },
+        "reasonKeys": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "gate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["gateKey", "status"],
+      "properties": {
+        "gateKey": { "type": "string", "minLength": 1 },
+        "status": {
+          "type": "string",
+          "enum": ["pending", "passed", "blocked", "not-applicable", "not-evaluated"]
+        }
+      }
+    },
+    "blockingGate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["gateKey", "status", "blockingReasonKey", "required"],
+      "properties": {
+        "gateKey": { "type": "string", "minLength": 1 },
+        "status": { "type": "string", "enum": ["blocked"] },
+        "blockingReasonKey": { "type": "string", "minLength": 1 },
+        "required": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "sourceRef": { "type": "string" }
+      }
+    },
+    "ruleSource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sourceType", "path", "status", "activationReason"],
+      "properties": {
+        "sourceType": { "type": "string", "enum": ["master", "rules", "profile", "addon"] },
+        "path": { "type": "string", "minLength": 1 },
+        "status": { "type": "string", "enum": ["loaded", "not-loaded", "not-applicable", "unknown"] },
+        "activationReason": {
+          "type": "string",
+          "enum": ["always", "phase", "evidence", "explicit", "fallback", "unknown"]
+        }
+      }
+    },
+    "evidenceItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "status", "notes"],
+      "properties": {
+        "key": {
+          "type": "string",
+          "enum": [
+            "repoDiscovery",
+            "businessRulesExtraction",
+            "changeMatrix",
+            "contractGateEvidence",
+            "testExecutionEvidence",
+            "diffEvidence"
+          ]
+        },
+        "status": {
+          "type": "string",
+          "enum": ["present", "absent", "partial", "theoretical-only", "not-applicable", "unknown"]
+        },
+        "notes": { "type": "string" }
+      }
+    },
+    "scopeInputItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "status", "notes"],
+      "properties": {
+        "key": {
+          "type": "string",
+          "enum": [
+            "ticketGoal",
+            "componentScope",
+            "apiContracts",
+            "eventSchemas",
+            "dbSchemaOrMigrations",
+            "nfrConstraints"
+          ]
+        },
+        "status": {
+          "type": "string",
+          "enum": ["present", "absent", "not-applicable", "unknown"]
+        },
+        "notes": { "type": "string" }
+      }
+    },
+    "missingRequirement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "requiredBy", "reasonKey"],
+      "properties": {
+        "key": { "type": "string", "minLength": 1 },
+        "requiredBy": { "type": "string", "minLength": 1 },
+        "reasonKey": { "type": "string", "minLength": 1 }
+      }
+    },
+    "configCheck": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "status", "observed"],
+      "properties": {
+        "key": {
+          "type": "string",
+          "enum": ["configRootSet", "derivedPathsConsistent", "degeneratePathCheck", "repoLocalWritesCheck"]
+        },
+        "status": { "type": "string", "enum": ["pass", "fail", "not-applicable", "unknown"] },
+        "observed": { "type": "string" }
+      }
+    },
+    "configViolation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reasonKey", "observedValue", "expectedConstraint"],
+      "properties": {
+        "reasonKey": { "type": "string", "minLength": 1 },
+        "observedValue": { "type": "string" },
+        "expectedConstraint": { "type": "string" },
+        "sourceRef": { "type": "string" }
+      }
+    },
+    "nextAction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["action", "type", "unblocks"],
+      "properties": {
+        "action": { "type": "string", "minLength": 1 },
+        "type": { "type": "string", "enum": ["provide-evidence", "clarify-scope", "run-command", "supply-artifact"] },
+        "unblocks": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "auditError": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["errorKey", "message"],
+      "properties": {
+        "errorKey": { "type": "string", "minLength": 1 },
+        "message": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}
