@@ -51,7 +51,7 @@ Define `${CONFIG_ROOT}` (OpenCode configuration root) as:
 - macOS / Linux:
   - `${XDG_CONFIG_HOME:-~/.config}/opencode`
 
-`CONFIG_ROOT` is the single source of truth for all global file locations.
+`${CONFIG_ROOT}` is the single source of truth for all global file locations.
 
 ### Canonical Derived Paths
 
@@ -64,9 +64,22 @@ Define `${CONFIG_ROOT}` (OpenCode configuration root) as:
 
 BINDING:
 - All path strings MUST be expressed using the canonical variables defined above (e.g., `${CONFIG_ROOT}`, `${COMMANDS_HOME}`, `${OPENCODE_HOME}`, `${REPO_HOME}`, `${SESSION_STATE_FILE}`).
-- Hard-coded OS-specific paths (e.g., `<windows-home>/...`, `<mac-home>/...`, `<linux-home>/...`, `%APPDATA%/...`, `~/.config/...`) MUST NOT appear anywhere in governance texts, prompts, or persisted artifacts.
+- Hard-coded OS-specific paths (e.g., `<windows-home>/...`, `<mac-home>/...`, `<linux-home>/...`, `%APPDATA%/...`, `~/.config/...`, `C:\...`) MUST NOT appear as canonical paths in:
+  - any canonical `SESSION_STATE` path field (including `*Path`, `FilePath`, `TargetPath`, `SourcePath`),
+  - any persisted-artifact output block headers (`TargetPath` / `SourcePath`),
+  - or any required/authoritative file location definition outside this section’s `${CONFIG_ROOT}` resolution.
+- Exception (evidence-only): OS-specific absolute paths MAY appear inside evidence fields (e.g., `SESSION_STATE.RulebookLoadEvidence.*`) when the operator pasted host output, but the canonical `${...}` path MUST be included in the same evidence entry/block.
 - The ONLY OS-specific logic permitted is the definition of `${CONFIG_ROOT}` in this section.
 - Circular variable references are forbidden (a variable MUST NOT be defined in terms of itself).
+
+### Path Expression Hygiene (Non-normative clarification)
+
+This section restates and explains the binding rule above for clarity only.
+It introduces no additional requirements.
+
+Non-normative summary:
+- Canonical path fields are variable-based (`${...}`) only.
+- Absolute OS paths are allowed exclusively inside evidence fields.
 
 ### Canonical State / Persistence Targets
 
@@ -254,7 +267,7 @@ This governance system is single-user and MUST NOT require repository-local gove
 #### Step 1: Load Core Rulebook (rules.md)
 
 **Search order:**
-1. Per-repo override (optional): `${REPO_HOME}/governance/rules.md`
+1. Workspace-local override (optional, outside the repo): `${REPO_HOME}/governance/rules.md`
 2. Global commands: `${COMMANDS_HOME}/rules.md`
 3. Global config: `${OPENCODE_HOME}/rules.md` (fallback)
 4. Global rules folder: `${OPENCODE_HOME}/rules/rules.md` (fallback)
@@ -265,7 +278,7 @@ This governance system is single-user and MUST NOT require repository-local gove
 These files are normative and MUST be available in the same governance installation scope as `master.md`.
 
 **Search order (per file):**
-1. Per-repo override (optional): `${REPO_HOME}/governance/<FILE>.md`
+1. Workspace-local override (optional, outside the repo): `${REPO_HOME}/governance/<FILE>.md`
 2. Global commands: `${COMMANDS_HOME}/<FILE>.md`
 3. Global config: `${OPENCODE_HOME}/<FILE>.md` (fallback)
 4. Global rules folder: `${OPENCODE_HOME}/rules/<FILE>.md` (fallback)
@@ -282,7 +295,7 @@ These files are normative and MUST be available in the same governance installat
 2. **Auto-detection from available rulebooks** (NEW!)
    - If ONLY ONE profile rulebook exists → use it automatically
    - Search paths:
-     a. `${REPO_HOME}/governance/profiles/rules*.md` (optional)
+     a. Workspace-local override (optional, outside the repo): `${REPO_HOME}/governance/profiles/rules*.md`
      b. `${COMMANDS_HOME}/rules*.md`
      b2. `${PROFILES_HOME}/rules*.md`
      c. `${OPENCODE_HOME}/rules/rules*.md`
@@ -361,7 +374,7 @@ SESSION_STATE.LoadedRulebooks = {
 }
 SESSION_STATE.ActiveProfile = "backend-java"
 SESSION_STATE.ProfileSource = "auto-detected-single" | "user-explicit" | "repo-fallback"
-SESSION_STATE.ProfileEvidence = "/path/to/rulebook" | "pom.xml, src/main/java"
+SESSION_STATE.ProfileEvidence = "<absolute-os-path (evidence-only)>" | "pom.xml, src/main/java"
 SESSION_STATE.ComponentScopePaths = ["<repo-relative/path>", "..."] // optional (recommended for monorepos)
 SESSION_STATE.ComponentScopeSource = "user-explicit" | "assistant-proposed"
 SESSION_STATE.ComponentScopeEvidence = "<ticket text or repo paths>"
@@ -803,7 +816,7 @@ SESSION_STATE:
   
   ActiveProfile: "<profile-name>"
   ProfileSource: "user-explicit" | "auto-detected-single" | "repo-fallback" | "component-scope-inferred" | "component-scope-filtered" | "ambiguous"
-  ProfileEvidence: "<path-or-indicators>"
+  ProfileEvidence: "<evidence-path-or-indicators>"  # may contain absolute OS paths (evidence-only)
   
   Gates:
     P5-Architecture: pending | approved | rejected

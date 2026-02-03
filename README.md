@@ -29,8 +29,8 @@ Choose the workflow entry based on what you are doing:
 
 `master.md` defines canonical path variables and derived paths. At a high level:
 
-- `${CONFIG_ROOT}` defaults to `${XDG_CONFIG_HOME:-~/.config}/opencode`
-- On Windows, `${CONFIG_ROOT}` defaults to `%APPDATA%/opencode` (fallback: `%USERPROFILE%/.config/opencode`) — see `master.md`.
+- `${CONFIG_ROOT}` is resolved by the runtime (see `master.md`).
+- On Windows/macOS/Linux, `${CONFIG_ROOT}` is resolved per `master.md` (do not hard-code OS paths).
 - `${COMMANDS_HOME} = ${CONFIG_ROOT}/commands`
 - `${PROFILES_HOME} = ${COMMANDS_HOME}/profiles`
 - `${WORKSPACES_HOME} = ${CONFIG_ROOT}/workspaces`
@@ -174,8 +174,8 @@ the rulebooks take precedence.
 The rulebooks define a single canonical configuration root and derive all other paths from it.
 
 - `${CONFIG_ROOT}` is the OpenCode configuration root (OS-specific):
-  - Windows: `%APPDATA%/opencode` (fallback: `%USERPROFILE%/.config/opencode`)
-  - macOS/Linux: `${XDG_CONFIG_HOME:-~/.config}/opencode`
+  - `${CONFIG_ROOT}` is resolved per `master.md` (do not hard-code OS paths).
+  - (OS-specific resolution is described in `master.md`.)
 
 All governance file lookups and all persisted artifacts MUST use `${CONFIG_ROOT}` or a derived path variable
 (e.g., `${COMMANDS_HOME}`, `${WORKSPACES_HOME}`), to avoid hard-coded paths and OS-specific duplication.

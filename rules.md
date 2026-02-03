@@ -138,6 +138,19 @@ Failure case (artifacts not extractable/missing):
 - immediately switch to the mode defined by the Master Prompt’s confidence/degraded rules
 - explicitly report the error and do not mark any content statements as confirmed
 
+### 3.3 Path Expression Hygiene (Binding)
+
+To prevent accidental path truncation (e.g., `C:\` becoming a file named `C`) and to keep governance portable:
+
+BINDING:
+- All persisted-artifact paths MUST be expressed as variable-based path expressions (e.g., `${REPO_HOME}/decision-pack.md`), never as OS-specific absolute paths.
+- Forbidden in any `*Path` field or “TargetPath” output:
+  - Windows drive prefixes (`^[A-Za-z]:\\` or `^[A-Za-z]:/`)
+  - backslashes (`\`)
+  - parent traversal (`..`)
+- If the host/tool requires an absolute path, it MUST be derived by the host/runtime from the variables; the assistant must keep the canonical variable-based path in outputs and session state.
+- If only an absolute path is available as operator evidence, record it under evidence only (e.g., `RulebookLoadEvidence`), but keep canonical locations as variables.
+
 ---
 
 ## 4. Profile Selection (Explicit Preferred; Repo-Detection Fallback)
@@ -745,37 +758,14 @@ Recommended session-state key (FULL mode):
 
 ### 8.x Business Rules Inventory File (OpenCode-only, Conditional, Binding)
 
-Purpose:
-- Persist Phase 1.5 outputs beyond the current session to reduce cognitive load
-  and make Phase 5.4 verifiable without re-discovery.
+The BR inventory MUST be stored outside the repository in the OpenCode workspace namespace:
 
-This rule is REQUIRED if and only if:
-- Phase 1.5 (Business Rules Discovery) was executed AND
-- the workflow is running under OpenCode (repository is provided/indexed via OpenCode).
+- `${REPO_HOME}` is the canonical per-repo workspace folder (outside the repo) as defined in `master.md`.
+- Target file (fixed name): `${REPO_BUSINESS_RULES_FILE}`
 
-If the workflow is NOT running under OpenCode:
-- This rule is NOT applicable (do not block; proceed with in-chat BR register only).
-
-#### Location (cross-platform)
-
-The BR inventory MUST be stored outside the repository in the OpenCode config directory:
-
-Config root:
-- Windows: `${CONFIG_ROOT}` (fallback: `${CONFIG_ROOT}`)
-- macOS/Linux: `${XDG_CONFIG_HOME:-~/.config}/opencode`
-
-Repository namespace folder:
-- `${CONFIG_ROOT}/${REPO_NAME}/`
-  - `REPO_NAME` MUST be derived from Phase 2 repository identity and sanitized:
-    - lowercased
-    - spaces → `-`
-    - remove path separators and unsafe characters
-
-File name (fixed):
-- `business-rules.md`
-
-Resulting path example:
-- `${CONFIG_ROOT}/${REPO_NAME}/business-rules.md`
+BINDING:
+- The assistant MUST NOT write the Business Rules inventory into the repository working copy.
+- All output paths MUST be expressed as variable-based path expressions (e.g., `${REPO_BUSINESS_RULES_FILE}`), not OS-specific absolute paths.
 
 #### File format (Binding)
 
@@ -915,19 +905,14 @@ If the workflow is NOT running under OpenCode:
 
 #### Location (cross-platform)
 
-Config root:
-- Windows: `${CONFIG_ROOT}` (fallback: `${CONFIG_ROOT}`)
-- macOS/Linux: `${XDG_CONFIG_HOME:-~/.config}/opencode`
+The Decision Pack MUST be stored outside the repository in the OpenCode workspace namespace:
 
-Repository namespace folder:
-- `${CONFIG_ROOT}/${REPO_NAME}/`
-  - `REPO_NAME` MUST be derived from Phase 2 repository identity and sanitized:
-    - lowercased
-    - spaces → `-`
-    - remove path separators and unsafe characters
+- `${REPO_HOME}` is the canonical per-repo workspace folder (outside the repo) as defined in `master.md`.
+- Target file (fixed name): `${REPO_DECISION_PACK_FILE}`
 
-File name (fixed):
-- `decision-pack.md`
+BINDING:
+- The assistant MUST NOT write the Decision Pack into the repository working copy.
+- All output paths MUST be expressed as variable-based path expressions (e.g., `${REPO_DECISION_PACK_FILE}`), not OS-specific absolute paths.
 
 Resulting path example:
 - `${CONFIG_ROOT}/${REPO_NAME}/decision-pack.md`
@@ -1041,19 +1026,14 @@ If the workflow is NOT running under OpenCode:
 
 #### Location (cross-platform)
 
-Config root:
-- Windows: `${CONFIG_ROOT}` (fallback: `${CONFIG_ROOT}`)
-- macOS/Linux: `${XDG_CONFIG_HOME:-~/.config}/opencode`
+The Repo Map Digest MUST be stored outside the repository in the OpenCode workspace namespace:
 
-Repository namespace folder:
-- `${CONFIG_ROOT}/${REPO_NAME}/`
-  - `REPO_NAME` MUST be derived from repository identity and sanitized:
-    - lowercased
-    - spaces → `-`
-    - remove path separators and unsafe characters
+- `${REPO_HOME}` is the canonical per-repo workspace folder (outside the repo) as defined in `master.md`.
+- Target file (fixed name): `${REPO_DIGEST_FILE}`
 
-File name (fixed):
-- `repo-map-digest.md`
+BINDING:
+- The assistant MUST NOT write the Repo Map Digest into the repository working copy.
+- All output paths MUST be expressed as variable-based path expressions (e.g., `${REPO_DIGEST_FILE}`), not OS-specific absolute paths.
 
 Resulting path example:
 - `${CONFIG_ROOT}/${REPO_NAME}/repo-map-digest.md`
