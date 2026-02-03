@@ -59,12 +59,34 @@ During Phase `1.1-Bootstrap`, the session MUST include:
 
 ### Invariants
 
-- If `Bootstrap.Present = false` OR `Bootstrap.Satisfied = false`:
+- `SESSION_STATE.Next` MUST be set at the end of every phase output.
+- `continue.md` MUST execute ONLY the step referenced by `SESSION_STATE.Next`.
+
+### Path invariants (binding)
+
+Canonical path fields in `SESSION_STATE` are any fields whose semantic purpose is to point to a file location to be read/written by the workflow, including (non-exhaustive):
+- `LoadedRulebooks.*`
+- `BusinessRules.InventoryFilePath`
+- `RepoCacheFile.SourcePath` / `RepoCacheFile.TargetPath`
+- `RepoMapDigestFile.*Path`
+- `WorkspaceMemoryFile.*Path`
+- any field ending in `Path`, `FilePath`, or named `TargetPath` / `SourcePath`
+(Excludes evidence-only fields such as `RulebookLoadEvidence.*`.)
+
+BINDING:
+- Canonical values MUST be variable-based path expressions (e.g., `${REPO_HOME}/decision-pack.md`), not OS-specific absolute paths.
+- Forbidden in canonical values:
+  - Windows drive prefixes (`^[A-Za-z]:\\` or `^[A-Za-z]:/`)
+  - backslashes (`\`)
+  - parent traversal (`..`)
+- Exception (evidence-only): absolute paths (including backslashes) MAY appear inside evidence fields
+  (e.g., `RulebookLoadEvidence.*`) if pasted from host output, but canonical variable-based expressions MUST still be used for canonical path fields.
+
+FAIL-CLOSED:
+- If any canonical path field violates the forbidden patterns:
   - `SESSION_STATE.Mode` MUST be `BLOCKED`
-  - `SESSION_STATE.Next` MUST be `BLOCKED-BOOTSTRAP-NOT-SATISFIED`
-- No phase > `1.1-Bootstrap` may execute unless `Bootstrap.Satisfied = true`.
-- After Phase `1.1-Bootstrap` completes, `SESSION_STATE.Bootstrap.*` MUST remain present and MUST NOT change for the remainder of the session.
-- If `SESSION_STATE.Bootstrap` exists at all, it MUST include `Present`, `Satisfied`, and `Evidence`.
+  - `SESSION_STATE.Next` MUST be `BLOCKED-PATH-NONCANONICAL`
+  - Output MUST name the violating field(s) and provide the corrected variable-based form.
 
 ---
 
