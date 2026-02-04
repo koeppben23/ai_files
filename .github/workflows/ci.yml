@@ -218,12 +218,23 @@ jobs:
                 h.update(chunk)
             return h.hexdigest()
 
+          def rel_key(p: Path) -> str:
+            return p.resolve().relative_to(commands.resolve()).as_posix()
+
           obj = json.loads(manifest.read_text(encoding="utf-8"))
           files = obj.get("files")
           if not isinstance(files, list):
             raise SystemExit(f"Expected manifest['files'] to be list, got: {type(files).__name__}")
 
+          # Files that are expected to vary per run/machine and should NOT be hashed for idempotency.
+          # They are still semantically validated elsewhere (Verify Files).
+          IGNORE = {
+            "governance.paths.json",
+            "INSTALL_MANIFEST.json",
+          }
+
           hashes = {}
+          skipped = []
           for e in files:
             if isinstance(e, dict) and isinstance(e.get("dst"), str):
               dst = Path(e["dst"])
@@ -233,14 +244,22 @@ jobs:
             else:
               raise SystemExit(f"Unexpected manifest entry: {e!r}")
 
-            key = p.resolve().relative_to(commands.resolve()).as_posix()
             if not p.exists():
               raise SystemExit(f"Missing file on disk: {p}")
 
-            hashes[key] = sha256_file(p)
+            k = rel_key(p)
+            if Path(k).name in IGNORE:
+              skipped.append(k)
+              continue
+
+            hashes[k] = sha256_file(p)
 
           out.write_text(json.dumps(hashes, sort_keys=True, indent=2), encoding="utf-8")
           print(f"📌 Captured {len(hashes)} file hashes to {out}")
+          if skipped:
+            print("📎 Skipped (expected variable):")
+            for s in skipped:
+              print("  -", s)
           PY
 
       - name: Reinstall (Idempotency)
@@ -316,12 +335,20 @@ jobs:
                 h.update(chunk)
             return h.hexdigest()
 
+          def rel_key(p: Path) -> str:
+            return p.resolve().relative_to(commands.resolve()).as_posix()
+
           before = json.loads(before_path.read_text(encoding="utf-8"))
 
           obj = json.loads(manifest.read_text(encoding="utf-8"))
           files = obj.get("files")
           if not isinstance(files, list):
             raise SystemExit(f"Expected manifest['files'] to be list, got: {type(files).__name__}")
+
+          IGNORE = {
+            "governance.paths.json",
+            "INSTALL_MANIFEST.json",
+          }
 
           after = {}
           for e in files:
@@ -333,11 +360,14 @@ jobs:
             else:
               raise SystemExit(f"Unexpected manifest entry: {e!r}")
 
-            key = p.resolve().relative_to(commands.resolve()).as_posix()
             if not p.exists():
               raise SystemExit(f"Missing file on disk after reinstall: {p}")
 
-            after[key] = sha256_file(p)
+            k = rel_key(p)
+            if Path(k).name in IGNORE:
+              continue
+
+            after[k] = sha256_file(p)
 
           before_keys = set(before.keys())
           after_keys = set(after.keys())
@@ -351,7 +381,7 @@ jobs:
               changed.append((k, before[k], after[k]))
 
           if missing or added or changed:
-            print("❌ Reinstall is NOT idempotent.")
+            print("❌ Reinstall is NOT idempotent (excluding expected-variable files).")
             if missing:
               print("  Missing after reinstall:")
               for k in missing[:50]:
@@ -366,7 +396,7 @@ jobs:
                 print(f"   * {k}\n      before={b}\n      after ={a}")
             raise SystemExit("Idempotency check failed: file content drift detected.")
 
-          print(f"✅ Idempotency OK: {len(after)} files identical after reinstall")
+          print(f"✅ Idempotency OK: {len(after)} files identical after reinstall (excluding expected-variable files)")
           PY
 
       - name: Uninstall
