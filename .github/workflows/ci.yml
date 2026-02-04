@@ -50,22 +50,25 @@ jobs:
 
           root = Path(os.environ["CONFIG_ROOT"])
 
+          manifest = root / "commands" / "INSTALL_MANIFEST.json"
+
           critical = [
               root / "commands" / "master.md",
               root / "commands" / "rules.md",
               root / "commands" / "start.md",
-              root / "INSTALL_MANIFEST.json",
+              manifest,
           ]
 
           for f in critical:
               assert f.exists(), f"Missing: {f}"
 
-          with open(root / "INSTALL_MANIFEST.json") as fh:
+          with open(manifest, encoding="utf-8") as fh:
               data = json.load(fh)
-              assert "files" in data
+              assert "files" in data, "Manifest missing 'files' key"
 
           print("✅ Verification OK")
           PY
+
 
       - name: Uninstall
         run: |
