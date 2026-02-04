@@ -227,6 +227,7 @@ jobs:
 
           def manifest_fingerprint_sha256(path: Path) -> str:
             obj = json.loads(path.read_text(encoding="utf-8"))
+            base = path.parent.resolve()  # .../commands
             files = obj.get("files")
             if not isinstance(files, list):
               raise AssertionError(f"Expected manifest['files'] as list, got: {type(files).__name__}")
@@ -235,19 +236,26 @@ jobs:
             rows = []
             for e in files:
               if isinstance(e, dict) and isinstance(e.get("dst"), str):
-                dst = e["dst"]
+                dst_raw = e["dst"]
+                dst_path = Path(dst_raw)
+                # normalize to stable relative identity when possible
+                try:
+                  dst_norm = dst_path.resolve().relative_to(base).as_posix()
+                except Exception:
+                  # fallback: best-effort normalize slashes
+                  dst_norm = str(dst_raw).replace("\\", "/")
                 sha = e.get("sha256") if isinstance(e.get("sha256"), str) else ""
 
                 # Ignore SHA for self-referential / run-variant artifacts
                 # Keep dst in fingerprint so drift is still detected.
-                dst_name = Path(dst).name
+                dst_name = Path(dst_raw).name
                 if dst_name == "INSTALL_MANIFEST.json":
                   sha = ""
 
-                rows.append((dst, sha))
+                rows.append((dst_norm, sha))
               elif isinstance(e, str):
                 # legacy form: treat string as dst-ish
-                rows.append((e, ""))
+                rows.append((str(e).replace("\\", "/"), ""))
               else:
                 raise AssertionError(f"Unexpected manifest entry: {e!r}")
 
@@ -346,6 +354,7 @@ jobs:
 
           def manifest_fingerprint_sha256(path: Path) -> str:
             obj = json.loads(path.read_text(encoding="utf-8"))
+            base = path.parent.resolve()
             files = obj.get("files")
             if not isinstance(files, list):
               raise AssertionError(f"Expected manifest['files'] as list, got: {type(files).__name__}")
@@ -353,16 +362,21 @@ jobs:
             rows = []
             for e in files:
               if isinstance(e, dict) and isinstance(e.get("dst"), str):
-                dst = e["dst"]
+                dst_raw = e["dst"]
+                dst_path = Path(dst_raw)
+                try:
+                  dst_norm = dst_path.resolve().relative_to(base).as_posix()
+                except Exception:
+                  dst_norm = str(dst_raw).replace("\\", "/")
                 sha = e.get("sha256") if isinstance(e.get("sha256"), str) else ""
 
-                dst_name = Path(dst).name
+                dst_name = Path(dst_raw).name
                 if dst_name == "INSTALL_MANIFEST.json":
                   sha = ""
 
-                rows.append((dst, sha))
+                rows.append((dst_norm, sha))
               elif isinstance(e, str):
-                rows.append((e, ""))
+                rows.append((str(e).replace("\\", "/"), ""))
               else:
                 raise AssertionError(f"Unexpected manifest entry: {e!r}")
 
