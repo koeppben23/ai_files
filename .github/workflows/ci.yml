@@ -64,35 +64,76 @@ jobs:
           assert "files" in data, "Manifest missing 'files' key"
 
           files = data["files"]
-          # Support either list[str] or dict[str, ...]
-          if isinstance(files, dict):
-            items = list(files.keys())
-          elif isinstance(files, list):
-            items = files
-          else:
-            raise AssertionError(f"Manifest 'files' must be list or dict, got: {type(files).__name__}")
-
-          assert items, "Manifest 'files' is empty"
+          assert isinstance(files, (list, dict)), f"Manifest 'files' must be list or dict, got: {type(files).__name__}"
 
           base = commands.resolve()
           seen = set()
-          for rel in items:
-            assert isinstance(rel, str) and rel.strip(), f"Invalid manifest entry: {rel!r}"
-            # Prevent traversal / absolute paths
-            p = Path(rel)
-            assert not p.is_absolute(), f"Absolute path in manifest: {rel}"
-            assert ".." not in p.parts, f"Path traversal in manifest: {rel}"
-            assert rel not in seen, f"Duplicate manifest entry: {rel}"
-            seen.add(rel)
+          count = 0
 
-            target = (commands / p).resolve()
+          def assert_under_base(p: Path, label: str) -> None:
+            p = p.resolve()
             try:
-              target.relative_to(base)
+              p.relative_to(base)
             except ValueError:
-              raise AssertionError(f"Manifest path escapes commands dir: {rel} -> {target}")
-            assert target.exists(), f"Manifest listed file missing: {rel} -> {target}"
+              raise AssertionError(f"{label} escapes commands dir: {p} (base={base})")
+            assert p.exists(), f"{label} missing on disk: {p}"
 
-          print(f"✅ Manifest roundtrip OK ({len(items)} entries)")
+          # Case A: files is dict[str, ...] where keys are paths (relative or absolute)
+          if isinstance(files, dict):
+            items = list(files.keys())
+            assert items, "Manifest 'files' is empty"
+            for entry in items:
+              assert isinstance(entry, str) and entry.strip(), f"Invalid manifest key: {entry!r}"
+              assert entry not in seen, f"Duplicate manifest entry: {entry}"
+              seen.add(entry)
+
+              p = Path(entry)
+              target = p if p.is_absolute() else (commands / p)
+              assert_under_base(target, "Manifest file")
+              count += 1
+
+          # Case B: files is list[...] — either list[str] or list[dict]
+          else:
+            assert files, "Manifest 'files' is empty"
+            for entry in files:
+              # list[str]
+              if isinstance(entry, str):
+                rel = entry
+                assert rel.strip(), f"Invalid manifest entry: {rel!r}"
+                assert rel not in seen, f"Duplicate manifest entry: {rel}"
+                seen.add(rel)
+
+                p = Path(rel)
+                # Prevent traversal for relative form
+                assert not p.is_absolute(), f"Absolute path in string manifest entry: {rel}"
+                assert ".." not in p.parts, f"Path traversal in manifest entry: {rel}"
+
+                target = (commands / p)
+                assert_under_base(target, "Manifest file")
+                count += 1
+                continue
+
+              # list[dict] with at least dst
+              if isinstance(entry, dict):
+                assert "dst" in entry, f"Manifest dict entry missing 'dst': {entry}"
+                dst = entry["dst"]
+                assert isinstance(dst, str) and dst.strip(), f"Invalid dst in manifest entry: {dst!r}"
+
+                # Use dst as unique key (stable)
+                if dst in seen:
+                  raise AssertionError(f"Duplicate manifest dst: {dst}")
+                seen.add(dst)
+
+                target = Path(dst)
+                # dst may be absolute (your current case). If relative, interpret as under commands.
+                target = target if target.is_absolute() else (commands / target)
+                assert_under_base(target, "Manifest dst")
+                count += 1
+                continue
+
+              raise AssertionError(f"Invalid manifest list entry type: {type(entry).__name__}: {entry!r}")
+
+          print(f"✅ Manifest roundtrip OK ({count} entries)")
           PY
 
       - name: Verify Files
