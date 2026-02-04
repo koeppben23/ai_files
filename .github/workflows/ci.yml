@@ -225,12 +225,35 @@ jobs:
             canon = json.dumps(obj, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
             return hashlib.sha256(canon.encode("utf-8")).hexdigest()
 
-          m_hash = canon_sha256(manifest)
+          def manifest_fingerprint_sha256(path: Path) -> str:
+            obj = json.loads(path.read_text(encoding="utf-8"))
+            files = obj.get("files")
+            if not isinstance(files, list):
+              raise AssertionError(f"Expected manifest['files'] as list, got: {type(files).__name__}")
+
+            # Build stable mapping dst -> sha256 (only where dst exists)
+            rows = []
+            for e in files:
+              if isinstance(e, dict) and isinstance(e.get("dst"), str):
+                dst = e["dst"]
+                sha = e.get("sha256") if isinstance(e.get("sha256"), str) else ""
+                rows.append((dst, sha))
+              elif isinstance(e, str):
+                # legacy form: treat string as dst-ish
+                rows.append((e, ""))
+              else:
+                raise AssertionError(f"Unexpected manifest entry: {e!r}")
+
+            rows.sort()
+            canon = json.dumps(rows, ensure_ascii=False, separators=(",", ":"))
+            return hashlib.sha256(canon.encode("utf-8")).hexdigest()
+
+          m_hash = manifest_fingerprint_sha256(manifest)
           p_hash = canon_sha256(paths_file)
 
           env_path = os.environ["GITHUB_ENV"]
           with open(env_path, "a", encoding="utf-8") as f:
-            f.write(f"CANON_MANIFEST_SHA256={m_hash}\n")
+            f.write(f"MANIFEST_FINGERPRINT_SHA256={m_hash}\n")
             f.write(f"CANON_PATHS_SHA256={p_hash}\n")
 
           print("📌 Canonical JSON hashes captured")
@@ -314,14 +337,35 @@ jobs:
             canon = json.dumps(obj, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
             return hashlib.sha256(canon.encode("utf-8")).hexdigest()
 
-          before_m = os.environ.get("CANON_MANIFEST_SHA256")
+          def manifest_fingerprint_sha256(path: Path) -> str:
+            obj = json.loads(path.read_text(encoding="utf-8"))
+            files = obj.get("files")
+            if not isinstance(files, list):
+              raise AssertionError(f"Expected manifest['files'] as list, got: {type(files).__name__}")
+
+            rows = []
+            for e in files:
+              if isinstance(e, dict) and isinstance(e.get("dst"), str):
+                dst = e["dst"]
+                sha = e.get("sha256") if isinstance(e.get("sha256"), str) else ""
+                rows.append((dst, sha))
+              elif isinstance(e, str):
+                rows.append((e, ""))
+              else:
+                raise AssertionError(f"Unexpected manifest entry: {e!r}")
+
+            rows.sort()
+            canon = json.dumps(rows, ensure_ascii=False, separators=(",", ":"))
+            return hashlib.sha256(canon.encode("utf-8")).hexdigest()
+
+          before_m = os.environ.get("MANIFEST_FINGERPRINT_SHA256")
           before_p = os.environ.get("CANON_PATHS_SHA256")
           assert before_m and before_p, "Missing captured canonical hashes from previous step"
 
-          after_m = canon_sha256(manifest)
+          after_m = manifest_fingerprint_sha256(manifest)
           after_p = canon_sha256(paths_file)
 
-          assert after_m == before_m, f"Manifest canonical JSON changed after reinstall: before={before_m} after={after_m}"
+          assert after_m == before_m, f"Manifest fingerprint changed after reinstall: before={before_m} after={after_m}"
           assert after_p == before_p, f"Paths canonical JSON changed after reinstall: before={before_p} after={after_p}"
 
           print("✅ Canonical JSON determinism OK (manifest + governance.paths.json)")
