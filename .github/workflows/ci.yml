@@ -236,7 +236,7 @@ jobs:
           print("📌 Canonical JSON hashes captured")
           print("  manifest:", m_hash)
           print("  paths:   ", p_hash)
-          PY    
+          PY
 
       - name: Reinstall (Idempotency)
         shell: bash
@@ -397,7 +397,6 @@ jobs:
           print("✅ Required files OK")
           PY
 
-
       - name: BLOCKED Consistency
         shell: bash
         run: |
@@ -418,7 +417,6 @@ jobs:
 
           print("✅ BLOCKED consistency OK")
           PY
-
 
   # ----------------------------------
   # Job 3: Release Gate
