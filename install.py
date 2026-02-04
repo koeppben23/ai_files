@@ -9,8 +9,10 @@ Features:
 - backup-on-overwrite (timestamped) with --no-backup to disable
 - uninstall (manifest-based; deletes only what was installed)
 - manifest tracking (INSTALL_MANIFEST.json)
-- optional OpenCode config bootstrap: opencode/opencode.template.json -> <config_root>/opencode.json
-  (optional removal on uninstall via --remove-opencode-json)
+
+NOTE:
+- This installer does NOT generate opencode.json (to avoid schema validation errors).
+- Instead it generates an installer-owned sidecar: commands/governance.paths.json for /start.
 """
 
 from __future__ import annotations
@@ -32,7 +34,7 @@ VERSION = "1.1.0"
 # Files copied into <config_root>/commands
 # Strategy: copy (almost) all repo-root governance artifacts that are relevant at runtime.
 # - Include: *.md, *.json, LICENSE (if present)
-# - Exclude: installer scripts themselves + opencode template (handled separately)
+# - Exclude: installer scripts themselves
 EXCLUDE_ROOT_FILES = {
     "install.py",
     "install.corrected.py",
@@ -51,7 +53,6 @@ MANIFEST_SCHEMA = "1.0"
 # Governance paths bootstrap (used by /start)
 GOVERNANCE_PATHS_NAME = "governance.paths.json"
 GOVERNANCE_PATHS_SCHEMA = "opencode-governance.paths.v1"
-LEGACY_OPENCODE_TEMPLATE_NAME = "opencode.template.json"
 
 def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
@@ -188,7 +189,7 @@ def collect_command_root_files(source_dir: Path) -> list[Path]:
       - LICENSE (if present)
     Excludes:
       - installer scripts (EXCLUDE_ROOT_FILES)
-      - opencode template (handled separately via opencode.json bootstrap)
+      - (no opencode.json template handling; we never generate opencode.json)
     """
     files: list[Path] = []
     for p in source_dir.iterdir():
@@ -197,10 +198,6 @@ def collect_command_root_files(source_dir: Path) -> list[Path]:
 
         name = p.name
         if name in EXCLUDE_ROOT_FILES:
-            continue
-
-        # opencode/opencode.template.json is handled separately
-        if name == LEGACY_OPENCODE_TEMPLATE_NAME:
             continue
 
         if name.lower() == "license":
@@ -232,7 +229,7 @@ def build_governance_paths_payload(config_root: Path) -> dict:
     /start loads this file via shell output injection to avoid interactive path binding.
     """
     def norm(p: Path) -> str:
-        return p.as_posix()
+        return str(p)
 
     commands_home = config_root / "commands"
     profiles_home = commands_home / "profiles"
@@ -522,19 +519,6 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
         for m in missing_critical:
             eprint(f"  - {m}")
         return 3
-        
-    # validate opencode.json if it exists (even if not written by us)
-    if plan.opencode_json_path.exists() and not dry_run:
-        try:
-            doc = json.loads(plan.opencode_json_path.read_text(encoding="utf-8"))
-            ok_cfg, errs_cfg = validate_opencode_config(doc, plan.config_root)
-            if not ok_cfg:
-                eprint("⚠️  opencode.json exists but does not match expected paths:")
-                for err in errs_cfg:
-                    eprint(f"  - {err}")
-                eprint("    This may cause OpenCode path prompts or incorrect behavior.")
-        except Exception as e:
-            eprint(f"⚠️  Could not validate existing opencode.json: {e}")
 
     # manifest: store only entries that were actually copied/planned
     installed_files = [
@@ -576,41 +560,8 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
 def uninstall(plan: InstallPlan, dry_run: bool, force: bool) -> int:
     print(f"🧹 Uninstall from: {plan.commands_dir}")
 
-    # Optional: remove opencode.json (lives at <config_root>/opencode.json, outside commands dir)
-    if plan.remove_opencode_json:
-        target = plan.opencode_json_path
-        # Safety: only allow deletion if it is exactly under the selected config_root
-        safe_parent = plan.config_root.resolve()
-        try:
-            target_parent = target.parent.resolve()
-        except Exception:
-            target_parent = None
-
-        if target_parent != safe_parent:
-            eprint(f"  ❌ Refusing to delete opencode.json outside configRoot: {target}")
-        else:
-            if not target.exists():
-                print(f"  ℹ️  opencode.json not found: {target}")
-            else:
-                if dry_run:
-                    print(f"  [DRY-RUN] rm {target}")
-                else:
-                    if not force and is_interactive():
-                        resp = input("Remove opencode.json too? [y/N] ").strip().lower()
-                        if resp not in ("y", "yes"):
-                            print("  ⏭️  Keeping opencode.json")
-                        else:
-                            try:
-                                target.unlink()
-                                print("  ✅ Removed: opencode.json")
-                            except Exception as e:
-                                eprint(f"  ❌ Failed removing opencode.json: {e}")
-                    else:
-                        try:
-                            target.unlink()
-                            print("  ✅ Removed: opencode.json")
-                        except Exception as e:
-                            eprint(f"  ❌ Failed removing opencode.json: {e}")
+    # We never manage opencode.json. Uninstall only removes installer-owned files under commands/,
+    # based on the manifest (or conservative fallback).
 
     manifest = load_manifest(plan.manifest_path)
     if not manifest:
@@ -624,9 +575,11 @@ def uninstall(plan: InstallPlan, dry_run: bool, force: bool) -> int:
 
         # Conservative fallback: delete only known filenames (MAIN_FILES) + profiles/*.md
         targets: list[Path] = [plan.commands_dir / p.name for p in collect_command_root_files(plan.source_dir)]
+        # Also remove the installer-owned governance paths sidecar (not present in source_dir).
+        targets.append(plan.governance_paths_path)
         targets.extend(list((plan.commands_dir / "profiles").glob("*.md")))
         targets.extend([p for p in (plan.commands_dir / "diagnostics").rglob("*") if p.is_file()])
-        # intentionally NOT deleting opencode.json in fallback mode
+        # intentionally NOT deleting opencode.json (never managed by this installer)
 
         if not dry_run:
             resp = input("Proceed with conservative uninstall (known filenames only)? [y/N] ").strip().lower()
@@ -751,7 +704,6 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     p.add_argument("--uninstall", action="store_true", help="Uninstall previously installed governance files (manifest-based).")
     p.add_argument("--skip-paths-file", action="store_true", help="Do not create/overwrite commands/governance.paths.json.")
     p.add_argument("--skip-opencode-json", action="store_true", help="[DEPRECATED] Alias for --skip-paths-file.",)
-    
     return p.parse_args(argv)
 
 
