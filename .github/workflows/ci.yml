@@ -48,6 +48,53 @@ jobs:
         run: |
           python -X utf8 install.py --force --no-backup --config-root "$CONFIG_ROOT"
 
+      - name: Manifest Roundtrip (listed files exist + no traversal)
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import json, os
+
+          root = Path(os.environ["CONFIG_ROOT"])
+          commands = root / "commands"
+          manifest_path = commands / "INSTALL_MANIFEST.json"
+
+          assert manifest_path.exists(), f"Missing manifest: {manifest_path}"
+          data = json.loads(manifest_path.read_text(encoding="utf-8"))
+          assert "files" in data, "Manifest missing 'files' key"
+
+          files = data["files"]
+          # Support either list[str] or dict[str, ...]
+          if isinstance(files, dict):
+            items = list(files.keys())
+          elif isinstance(files, list):
+            items = files
+          else:
+            raise AssertionError(f"Manifest 'files' must be list or dict, got: {type(files).__name__}")
+
+          assert items, "Manifest 'files' is empty"
+
+          base = commands.resolve()
+          seen = set()
+          for rel in items:
+            assert isinstance(rel, str) and rel.strip(), f"Invalid manifest entry: {rel!r}"
+            # Prevent traversal / absolute paths
+            p = Path(rel)
+            assert not p.is_absolute(), f"Absolute path in manifest: {rel}"
+            assert ".." not in p.parts, f"Path traversal in manifest: {rel}"
+            assert rel not in seen, f"Duplicate manifest entry: {rel}"
+            seen.add(rel)
+
+            target = (commands / p).resolve()
+            try:
+              target.relative_to(base)
+            except ValueError:
+              raise AssertionError(f"Manifest path escapes commands dir: {rel} -> {target}")
+            assert target.exists(), f"Manifest listed file missing: {rel} -> {target}"
+
+          print(f"✅ Manifest roundtrip OK ({len(items)} entries)")
+          PY
+
       - name: Verify Files
         shell: bash
         run: |
@@ -82,6 +129,17 @@ jobs:
           required_paths = ["configRoot", "commandsHome", "profilesHome", "diagnosticsHome"]
           missing = [k for k in required_paths if k not in p["paths"]]
           assert not missing, f"governance.paths.json missing keys: {missing}"
+          
+          commands_home = p["paths"]["commandsHome"]
+          diagnostics_home = p["paths"]["diagnosticsHome"]
+
+          # tolerate slash style on Windows
+          dh = diagnostics_home.replace("\\", "/")
+          ch = commands_home.replace("\\", "/")
+
+          assert dh == f"{ch}/diagnostics" or dh.endswith("/diagnostics"), (
+              f"diagnosticsHome unexpected: {diagnostics_home} (commandsHome={commands_home})"
+          )
 
           for k in required_paths:
               v = p["paths"][k]
@@ -90,10 +148,98 @@ jobs:
           print("✅ Verification OK (files + manifest + governance.paths.json)")
           PY
 
+      - name: Reinstall (Idempotency)
+        shell: bash
+        run: |
+          python -X utf8 install.py --force --no-backup --config-root "$CONFIG_ROOT"
+
+      - name: Verify Files (after Reinstall)
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import json, os
+
+          root = Path(os.environ["CONFIG_ROOT"])
+          manifest = root / "commands" / "INSTALL_MANIFEST.json"
+          paths_file = root / "commands" / "governance.paths.json"
+
+          critical = [
+              root / "commands" / "master.md",
+              root / "commands" / "rules.md",
+              root / "commands" / "start.md",
+              manifest,
+              paths_file,
+          ]
+
+          for f in critical:
+              assert f.exists(), f"Missing: {f}"
+
+          with open(manifest, encoding="utf-8") as fh:
+              data = json.load(fh)
+              assert "files" in data, "Manifest missing 'files' key"
+
+          with open(paths_file, encoding="utf-8") as fh:
+              p = json.load(fh)
+
+          assert "paths" in p and isinstance(p["paths"], dict), "governance.paths.json missing 'paths' object"
+
+          required_paths = ["configRoot", "commandsHome", "profilesHome", "diagnosticsHome"]
+          missing = [k for k in required_paths if k not in p["paths"]]
+          assert not missing, f"governance.paths.json missing keys: {missing}"
+
+          commands_home = p["paths"]["commandsHome"]
+          diagnostics_home = p["paths"]["diagnosticsHome"]
+
+          # tolerate slash style on Windows
+          dh = diagnostics_home.replace("\\", "/")
+          ch = commands_home.replace("\\", "/")
+
+          assert dh == f"{ch}/diagnostics" or dh.endswith("/diagnostics"), (
+              f"diagnosticsHome unexpected: {diagnostics_home} (commandsHome={commands_home})"
+          )
+
+          for k in required_paths:
+              v = p["paths"][k]
+              assert isinstance(v, str) and v.strip(), f"Invalid path value for {k}: {v!r}"
+
+          print("✅ Verification OK after reinstall")
+          PY
+
       - name: Uninstall
         shell: bash
         run: |
           python -X utf8 install.py --uninstall --force --config-root "$CONFIG_ROOT"
+
+      - name: Verify Uninstall Cleanliness
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import os
+
+          root = Path(os.environ["CONFIG_ROOT"])
+          commands = root / "commands"
+
+          # These MUST be gone after uninstall
+          must_be_gone = [
+              commands / "master.md",
+              commands / "rules.md",
+              commands / "start.md",
+              commands / "INSTALL_MANIFEST.json",
+              commands / "governance.paths.json",
+          ]
+
+          still_there = [str(p) for p in must_be_gone if p.exists()]
+          assert not still_there, f"Uninstall left artifacts behind: {still_there}"
+
+          # Optional: tolerate config root existing, but ensure commands dir is gone or empty
+          if commands.exists():
+              leftovers = [p.name for p in commands.rglob("*") if p.is_file()]
+              assert not leftovers, f"Commands dir not empty after uninstall: {leftovers[:25]}"
+
+          print("✅ Uninstall cleanliness OK")
+          PY
 
   # ----------------------------------
   # Job 2: Governance Validation
