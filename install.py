@@ -48,10 +48,10 @@ DIAGNOSTICS_DIR_NAME = "diagnostics"
 MANIFEST_NAME = "INSTALL_MANIFEST.json"
 MANIFEST_SCHEMA = "1.0"
 
-# OpenCode config bootstrap
-OPENCODE_DIR_NAME = "opencode"
-OPENCODE_TEMPLATE_NAME = "opencode.template.json"
-OPENCODE_CONFIG_NAME = "opencode.json"
+# Governance paths bootstrap (used by /start)
+GOVERNANCE_PATHS_NAME = "governance.paths.json"
+GOVERNANCE_PATHS_SCHEMA = "opencode-governance.paths.v1"
+LEGACY_OPENCODE_TEMPLATE_NAME = "opencode.template.json"
 
 def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
@@ -147,25 +147,23 @@ class InstallPlan:
     commands_dir: Path
     profiles_dst_dir: Path
     manifest_path: Path
-    opencode_json_path: Path
-    skip_opencode_json: bool
-    remove_opencode_json: bool
+    governance_paths_path: Path
+    skip_paths_file: bool
 
 
-def build_plan(source_dir: Path, config_root: Path, *, skip_opencode_json: bool, remove_opencode_json: bool) -> InstallPlan:
+def build_plan(source_dir: Path, config_root: Path, *, skip_paths_file: bool) -> InstallPlan:
     commands_dir = config_root / "commands"
     profiles_dst_dir = commands_dir / "profiles"
     manifest_path = commands_dir / MANIFEST_NAME
-    opencode_json_path = config_root / OPENCODE_CONFIG_NAME
+    governance_paths_path = commands_dir / GOVERNANCE_PATHS_NAME
     return InstallPlan(
         source_dir=source_dir,
         config_root=config_root,
         commands_dir=commands_dir,
         profiles_dst_dir=profiles_dst_dir,
         manifest_path=manifest_path,
-        opencode_json_path=opencode_json_path,
-        skip_opencode_json=skip_opencode_json,
-        remove_opencode_json=remove_opencode_json,
+        governance_paths_path=governance_paths_path,
+        skip_paths_file=skip_paths_file,
     )
 
 
@@ -202,7 +200,7 @@ def collect_command_root_files(source_dir: Path) -> list[Path]:
             continue
 
         # opencode/opencode.template.json is handled separately
-        if name == OPENCODE_TEMPLATE_NAME:
+        if name == LEGACY_OPENCODE_TEMPLATE_NAME:
             continue
 
         if name.lower() == "license":
@@ -224,21 +222,16 @@ def collect_diagnostics_files(source_dir: Path) -> list[Path]:
         return []
     return sorted([p for p in diag_dir.rglob("*") if p.is_file()])
 
-def find_opencode_template(source_dir: Path) -> Path | None:
-    """
-    Resolve template path relative to the installer source_dir:
-      <source_dir>/opencode/opencode.template.json
-    """
-    p = source_dir / OPENCODE_DIR_NAME / OPENCODE_TEMPLATE_NAME
-    return p if p.exists() and p.is_file() else None
 
-def build_opencode_config_payload(config_root: Path) -> dict:
+def build_governance_paths_payload(config_root: Path) -> dict:
     """
-    Create the minimal OpenCode config payload consistent with README and master.md derived paths.
-    Uses forward slashes in JSON for Windows friendliness.
+    Create a small, installer-owned JSON document that records the canonical absolute paths
+    derived from config_root. This is *not* an OpenCode config file and is therefore not
+    validated against the OpenCode config schema.
+
+    /start loads this file via shell output injection to avoid interactive path binding.
     """
     def norm(p: Path) -> str:
-        # JSON examples in README use forward slashes; OpenCode accepts them on Windows.
         return p.as_posix()
 
     commands_home = config_root / "commands"
@@ -246,7 +239,8 @@ def build_opencode_config_payload(config_root: Path) -> dict:
     workspaces_home = config_root / "workspaces"
 
     return {
-        "$schema": "https://opencode.ai/config.json",
+        "schema": GOVERNANCE_PATHS_SCHEMA,
+        "generatedAt": datetime.now().isoformat(timespec="seconds"),
         "paths": {
             "configRoot": norm(config_root),
             "commandsHome": norm(commands_home),
@@ -255,129 +249,57 @@ def build_opencode_config_payload(config_root: Path) -> dict:
         },
     }
 
-def validate_opencode_config(doc: dict, expected_config_root: Path) -> tuple[bool, list[str]]:
-    """
-    Validate opencode.json shape and ensure derived paths match expected locations.
-    This is a *safety* check to avoid writing inconsistent configs.
-    """
-    errors: list[str] = []
 
-    if not isinstance(doc, dict):
-        return False, ["opencode.json is not a JSON object"]
-
-    paths = doc.get("paths")
-    if not isinstance(paths, dict):
-        return False, ["Missing or invalid 'paths' object"]
-
-    required = ["configRoot", "commandsHome", "profilesHome", "workspacesHome"]
-    for k in required:
-        if k not in paths or not isinstance(paths.get(k), str) or not paths.get(k).strip():
-            errors.append(f"Missing/invalid paths.{k}")
-
-    if errors:
-        return False, errors
-
-    # Normalize comparison: accept both slash styles but compare as Paths.
-    def p(v: str) -> Path:
-        # Do not resolve symlinks; keep semantic path.
-        return Path(v)
-
-    expected = build_opencode_config_payload(expected_config_root)["paths"]
-    # compare the semantic ends (avoid strict absolute equivalence on Windows casing quirks)
-    for k in required:
-        got = p(paths[k])
-        exp = p(expected[k])
-        # We require exact string match would be too strict; compare normalized posix.
-        if got.as_posix().rstrip("/") != exp.as_posix().rstrip("/"):
-            errors.append(f"paths.{k} mismatch (got '{paths[k]}', expected '{expected[k]}')")
-
-    return (len(errors) == 0), errors
-
-def merge_template_with_payload(template_doc: dict, payload: dict) -> dict:
-    """
-    Keep any non-conflicting template keys but enforce payload.$schema and payload.paths.
-    """
-    out = dict(template_doc) if isinstance(template_doc, dict) else {}
-    out["$schema"] = payload.get("$schema")
-    out["paths"] = payload.get("paths", {})
-    return out
-
-def install_opencode_json(
+def install_governance_paths_file(
     plan: InstallPlan,
     dry_run: bool,
     force: bool,
     backup_enabled: bool,
     backup_root: Path,
-    allow_create: bool,
-    allow_overwrite: bool,
 ) -> dict:
     """
-    Create/update <config_root>/opencode.json based on template if present, otherwise payload-only.
-    Manifest entry semantics:
-      - Only return status planned-copy/copied when we actually write/plan to write the file.
-      - If skipped (existing + no overwrite), return status skipped-exists (not in manifest).
+    Create/update <config_root>/commands/governance.paths.json.
+
+    Semantics:
+    - create if missing
+    - overwrite only when --force
+    - backup on overwrite when enabled
+    - recorded in the manifest (installer-owned)
     """
-    dst = plan.opencode_json_path
+    dst = plan.governance_paths_path
     dst_exists = dst.exists()
 
-    if dst_exists and not allow_overwrite:
-        return {"status": "skipped-exists", "src": "n/a", "dst": str(dst)}
-    if (not dst_exists) and not allow_create:
-        return {"status": "skipped-create-disabled", "src": "n/a", "dst": str(dst)}
+    if dst_exists and not force:
+        return {"status": "skipped-exists", "src": "generated", "dst": str(dst)}
 
-    template_path = find_opencode_template(plan.source_dir)
-    payload = build_opencode_config_payload(plan.config_root)
+    doc = build_governance_paths_payload(plan.config_root)
 
-    # Load template if present (optional)
-    template_doc: dict = {}
-    if template_path:
-        try:
-            template_doc = json.loads(template_path.read_text(encoding="utf-8"))
-        except Exception as e:
-            return {
-                "status": "template-invalid",
-                "src": str(template_path),
-                "dst": str(dst),
-                "error": f"Template JSON parse failed: {e}",
-            }
-
-    final_doc = merge_template_with_payload(template_doc, payload) if template_path else payload
-
-    # Validate final_doc strictly against expected paths (safety)
-    ok, errors = validate_opencode_config(final_doc, plan.config_root)
-    if not ok:
-        return {
-            "status": "opencode-config-invalid",
-            "src": str(template_path) if template_path else "generated",
-            "dst": str(dst),
-            "error": "; ".join(errors),
-        }
-
-    # backup if overwriting
     backup_path = None
     if dst_exists and backup_enabled:
         backup_path = str(backup_file(dst, backup_root, dry_run))
 
+    sha_pred = hashlib.sha256(json.dumps(doc, sort_keys=True).encode("utf-8")).hexdigest()
+
     if dry_run:
-        print(f"  [DRY-RUN] write {dst} (opencode.json)")
+        print(f"  [DRY-RUN] write {dst} (governance paths)")
         return {
             "status": "planned-copy",
-            "src": str(template_path) if template_path else "generated",
+            "src": "generated",
             "dst": str(dst),
             "backup": backup_path,
-            "sha256": hashlib.sha256(json.dumps(final_doc, sort_keys=True).encode("utf-8")).hexdigest(),
-            "note": "opencode.json bootstrap",
+            "sha256": sha_pred,
+            "note": "governance paths bootstrap",
         }
 
     dst.parent.mkdir(parents=True, exist_ok=True)
-    dst.write_text(json.dumps(final_doc, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    dst.write_text(json.dumps(doc, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     return {
         "status": "copied",
-        "src": str(template_path) if template_path else "generated",
+        "src": "generated",
         "dst": str(dst),
         "backup": backup_path,
         "sha256": sha256_file(dst),
-        "note": "opencode.json bootstrap",
+        "note": "governance paths bootstrap",
     }
 
 
@@ -498,35 +420,23 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
 
     copied_entries: list[dict] = []
 
-    # opencode.json bootstrap (optional but recommended)
-    if plan.skip_opencode_json:
-        print("\n⚙️  OpenCode config bootstrap skipped (--skip-opencode-json).")
+    # governance paths bootstrap (optional but recommended)
+    if plan.skip_paths_file:
+        print("\n⚙️  Governance paths bootstrap skipped (--skip-paths-file).")
     else:
-        print("\n⚙️  OpenCode config (opencode.json) bootstrap ...")
-        # create if missing, overwrite only when --force
-        opencode_entry = install_opencode_json(
+        print("\n⚙️  Governance paths (governance.paths.json) bootstrap ...")
+        paths_entry = install_governance_paths_file(
             plan=plan,
             dry_run=dry_run,
             force=force,
             backup_enabled=backup_enabled,
             backup_root=backup_root,
-            allow_create=True,
-            allow_overwrite=force,
         )
-        if opencode_entry["status"] in ("template-invalid", "opencode-config-invalid"):
-            eprint(f"❌ opencode.json bootstrap failed: {opencode_entry.get('error','unknown error')}")
-            eprint("   Fix the template or disable bootstrap via --skip-opencode-json.")
-            return 6
-        if opencode_entry["status"] == "skipped-exists":
-            print("  ⏭️  opencode.json exists (use --force to overwrite)")
-        elif opencode_entry["status"] == "skipped-create-disabled":
-            print("  ⏭️  opencode.json creation disabled")
+        if paths_entry["status"] == "skipped-exists":
+            print("  ⏭️  governance.paths.json exists (use --force to overwrite)")
         else:
-            print(f"  ✅ opencode.json ({opencode_entry['status']})")
-            # NOTE: opencode.json is intentionally NOT added to INSTALL_MANIFEST.json,
-            # because uninstall is manifest-based + commands-dir scoped.
-            # Removal (if desired) is handled explicitly via --remove-opencode-json.
-            pass
+            print(f"  ✅ governance.paths.json ({paths_entry['status']})")
+            copied_entries.append(paths_entry)
 
     # copy main files
     print("\n📋 Copying governance files to commands/ ...")
@@ -839,8 +749,9 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     p.add_argument("--force", action="store_true", help="Overwrite without prompting / uninstall without prompt.")
     p.add_argument("--no-backup", action="store_true", help="Disable backup on overwrite (install only).")
     p.add_argument("--uninstall", action="store_true", help="Uninstall previously installed governance files (manifest-based).")
-    p.add_argument("--skip-opencode-json", action="store_true", help="Do not create/overwrite opencode.json bootstrap.")
-    p.add_argument("--remove-opencode-json", action="store_true", help="Also remove <config_root>/opencode.json during uninstall.")
+    p.add_argument("--skip-paths-file", action="store_true", help="Do not create/overwrite commands/governance.paths.json.")
+    p.add_argument("--skip-opencode-json", action="store_true", help="[DEPRECATED] Alias for --skip-paths-file.",)
+    
     return p.parse_args(argv)
 
 
@@ -851,8 +762,7 @@ def main(argv: list[str]) -> int:
     plan = build_plan(
         args.source_dir,
         config_root,
-        skip_opencode_json=args.skip_opencode_json,
-        remove_opencode_json=args.remove_opencode_json,
+        skip_paths_file=(args.skip_paths_file or args.skip_opencode_json),
     )
 
     print("=" * 60)

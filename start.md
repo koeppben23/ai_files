@@ -3,6 +3,42 @@
 This project uses a formal LLM Governance System
 defined in `master.md`, `rules.md`, and profile rulebooks.
 
+
+## Auto-Binding Evidence (OpenCode)
+
+When executed as an OpenCode command (`/start`), this prompt injects the installer-owned path binding file
+`${COMMANDS_HOME}/governance.paths.json` into the model context.
+
+!`python -c "import os,platform,json;from pathlib import Path
+
+def config_root():
+    sys=platform.system()
+    if sys=='Windows':
+        up=os.getenv('USERPROFILE')
+        if up: return Path(up)/'.config'/'opencode'
+        ad=os.getenv('APPDATA')
+        if ad: return Path(ad)/'opencode'
+        raise SystemExit('Windows: USERPROFILE/APPDATA not set')
+    xdg=os.getenv('XDG_CONFIG_HOME')
+    return (Path(xdg) if xdg else Path.home()/'.config')/'opencode'
+
+root=config_root(); f=root/'commands'/'governance.paths.json'
+if f.exists():
+    print(f.read_text(encoding='utf-8'))
+else:
+    # last resort: compute the same payload that the installer would write
+    def norm(p): return p.as_posix()
+    doc={'schema':'opencode-governance.paths.v1','generatedAt':'missing-file','paths':{
+        'configRoot': norm(root),
+        'commandsHome': norm(root/'commands'),
+        'profilesHome': norm(root/'commands'/'profiles'),
+        'workspacesHome': norm(root/'workspaces'),
+    }}
+    print(json.dumps(doc,indent=2))"`
+
+The injected JSON is the canonical binding for `${CONFIG_ROOT}`, `${COMMANDS_HOME}`, `${PROFILES_HOME}`, `${WORKSPACES_HOME}`.
+Treat it as **evidence**.
+
 ---
 
 ## Governance Evidence — Variable Resolution (Binding)
