@@ -1,0 +1,163 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+
+  # ----------------------------------
+  # Job 1: Installer Tests (Cross-OS)
+  # ----------------------------------
+  test-installer:
+    name: Test Installer on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python-version: ['3.9', '3.10', '3.11', '3.12']
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Prepare temp config root
+        run: |
+          echo "CONFIG_ROOT=$RUNNER_TEMP/opencode-config" >> $GITHUB_ENV
+
+      - name: Dry Run
+        run: |
+          python install.py --dry-run --config-root "$CONFIG_ROOT"
+
+      - name: Fresh Install
+        run: |
+          python install.py --force --no-backup --config-root "$CONFIG_ROOT"
+
+      - name: Verify Files
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import json
+          import os
+
+          root = Path(os.environ["CONFIG_ROOT"])
+
+          critical = [
+              root / "commands" / "master.md",
+              root / "commands" / "rules.md",
+              root / "commands" / "start.md",
+              root / "INSTALL_MANIFEST.json",
+          ]
+
+          for f in critical:
+              assert f.exists(), f"Missing: {f}"
+
+          with open(root / "INSTALL_MANIFEST.json") as fh:
+              data = json.load(fh)
+              assert "files" in data
+
+          print("✅ Verification OK")
+          PY
+
+      - name: Uninstall
+        run: |
+          python install.py --uninstall --force --config-root "$CONFIG_ROOT"
+
+
+  # ----------------------------------
+  # Job 2: Governance Validation
+  # ----------------------------------
+  validate-governance:
+    name: Validate Governance Files
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Required Files
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          required = [
+              "master.md",
+              "rules.md",
+              "start.md",
+              "SESSION_STATE_SCHEMA.md",
+          ]
+
+          missing = [f for f in required if not Path(f).exists()]
+
+          if missing:
+              raise SystemExit(f"Missing: {missing}")
+
+          print("✅ Required files OK")
+          PY
+
+
+      - name: BLOCKED Consistency
+        run: |
+          python - <<'PY'
+          import re
+          from pathlib import Path
+
+          schema = Path("SESSION_STATE_SCHEMA.md").read_text()
+          master = Path("master.md").read_text()
+
+          s = set(re.findall(r'BLOCKED-[A-Z-]+', schema))
+          m = set(re.findall(r'BLOCKED-[A-Z-]+', master))
+
+          diff = s - m
+
+          if diff:
+              raise SystemExit(f"Missing in master: {diff}")
+
+          print("✅ BLOCKED consistency OK")
+          PY
+
+
+  # ----------------------------------
+  # Job 3: Release Gate
+  # ----------------------------------
+  release-readiness:
+    name: Release Readiness
+    needs: [test-installer, validate-governance]
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check Version
+        run: |
+          python - <<'PY'
+          import re
+          from pathlib import Path
+
+          text = Path("install.py").read_text()
+
+          m = re.search(r'VERSION\s*=\s*"([^"]+)"', text)
+
+          if not m:
+              raise SystemExit("No VERSION found")
+
+          print("VERSION:", m.group(1))
+          PY
+
+      - name: Summary
+        run: |
+          echo "## Release Check" >> $GITHUB_STEP_SUMMARY
+          echo "- Installer OK" >> $GITHUB_STEP_SUMMARY
+          echo "- Governance OK" >> $GITHUB_STEP_SUMMARY
+          echo "**Status: READY 🚀**" >> $GITHUB_STEP_SUMMARY
