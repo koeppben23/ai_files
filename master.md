@@ -819,6 +819,25 @@ Resume pointer: <exact Next pointer, e.g., "Phase 4 — Step 0 (Initialization)"
     4) Provide evidence OR paste contents
   - Note: No full SESSION_STATE yet; output minimal BLOCKED state
 
+- `BLOCKED-R`:
+  - Trigger: A recovery routine is required to proceed (explicit recovery gate).
+  - Resume pointer (canonical): Phase 4 — Step 0 (Phase-4 Entry initialization) OR the last known valid step.
+  - Required input: confirmation to run recovery (e.g. `/resume`) or provide the missing recovery artifact.
+  - Recovery steps:
+    1) Run `/resume` (or the defined recovery routine "R") using current evidence.
+    2) Re-validate SESSION_STATE against `SESSION_STATE_SCHEMA.md`.
+    3) If recovery cannot be made deterministic: capture diagnostics and stay BLOCKED with a targeted question.
+
+- `BLOCKED-RESUME-STATE-VIOLATION`:
+  - Trigger: Persisted `SESSION_STATE` violates `SESSION_STATE_SCHEMA.md` (invalid/contradictory state).
+  - Resume pointer (canonical): Phase 0 — Bootstrap (State Repair) then Phase 1 — Bootstrap.
+  - Required input: permission to reset/repair invalid state OR provide corrected state content.
+  - Recovery steps:
+    1) Print/collect the current persisted state as evidence.
+    2) Repair to a minimal valid state (per schema defaults) OR delete invalid state file.
+    3) Re-run `/start` to re-initialize deterministically.
+    4) If repeated: open a regression issue with manifest + state snapshot.
+
 Rules:
 - The assistant MUST ask for the minimal viable input only (single artifact/command), not broad clarifications.
 - The assistant MUST NOT propose alternative architectures while BLOCKED.
