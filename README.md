@@ -66,6 +66,138 @@ If your environment uses different locations, follow `master.md` and update the 
 
 ---
 
+## Installer (Optional, recommended for deterministic setups)
+
+This repo ships an `install.py` (LLM Governance System Installer) that installs the governance files to the **OpenCode config root** and creates the expected directory layout. It is intended to avoid interactive path binding and reduce “works on my machine” drift.
+
+### Target paths (descriptive)
+
+- **Windows (primary):** `%USERPROFILE%\.config\opencode`  
+- **Windows (fallback):** `%APPDATA%\opencode` (only if `USERPROFILE` is unavailable)
+- **Linux/macOS:** `${XDG_CONFIG_HOME:-~/.config}/opencode`
+
+Installed layout:
+
+- `${CONFIG_ROOT}/commands/` (rulebooks + commands)
+- `${CONFIG_ROOT}/commands/profiles/` (profile rulebooks)
+- `${CONFIG_ROOT}/workspaces/` (repo-scoped persistence: cache/digest/memory/etc.)
+
+### What gets installed
+
+- `commands/` (examples):
+  - `master.md`, `rules.md`, `start.md`, `continue.md`, `resume.md`
+  - `SESSION_STATE_SCHEMA.md`, `QUALITY_INDEX.md`, `CONFLICT_RESOLUTION.md`
+  - `SCOPE-AND-CONTEXT.md`, `TICKET_RECORD_TEMPLATE.md`, `ADR.md`, `ResumePrompt.md`, …
+- `commands/profiles/`:
+  - `profiles/*.md` (all profile rulebooks)
+
+### Safety & operational behavior
+
+- **Fail-closed precheck:** Install fails if critical files are missing (`master.md`, `rules.md`, `start.md`).
+- **Backup on overwrite:** With `--force`, the installer writes a timestamped backup under `commands/_backup/<timestamp>/...` before overwriting (disable via `--no-backup`).
+- **Manifest-based uninstall:** Uninstall removes **only** what the installer recorded in the manifest (does not blindly delete `commands/`).
+
+### Usage
+
+Show help / options:
+
+```bash
+python install.py --help
+```
+
+Dry-run (recommended):
+
+```bash
+python install.py --dry-run
+```
+
+Install (interactive):
+
+```bash
+python install.py
+```
+
+Install (non-interactive overwrite, with backup):
+
+```bash
+python install.py --force
+```
+
+Install (overwrite, no backup):
+
+```bash
+python install.py --force --no-backup
+```
+
+Custom source directory (if files are not next to `install.py`):
+
+```bash
+python install.py --source-dir /path/to/governance-files
+```
+
+Override config root (useful for CI/tests):
+
+```bash
+python install.py --config-root /tmp/opencode-test --dry-run
+python install.py --config-root /tmp/opencode-test --force
+```
+
+### Uninstall (manifest-based)
+
+Uninstall (interactive):
+
+```bash
+python install.py --uninstall
+```
+
+Uninstall (non-interactive):
+
+```bash
+python install.py --uninstall --force
+```
+
+Uninstall dry-run:
+
+```bash
+python install.py --uninstall --dry-run
+```
+
+### Manifest & version tracking
+
+The installer writes a manifest file:
+
+- `${CONFIG_ROOT}/commands/INSTALL_MANIFEST.json`
+
+Typical content (high level):
+- `installerVersion`
+- optional `governanceVersion` (if `master.md` contains a header like `# Governance-Version: 11.0.0`)
+- installed file list + checksums + backup metadata
+
+### Recommended test matrix before release
+
+**Windows 10/11**
+- primary: `%USERPROFILE%\.config\opencode`
+- fallback: `%APPDATA%\opencode`
+
+**macOS**
+- `~/.config/opencode` or `$XDG_CONFIG_HOME/opencode`
+
+**Linux**
+- `~/.config/opencode` or `$XDG_CONFIG_HOME/opencode`
+
+Suggested test sequence:
+
+```bash
+python install.py --dry-run
+python install.py
+python install.py --force
+python install.py --force --no-backup
+python install.py --uninstall --dry-run
+python install.py --uninstall
+```
+
+---
+
 ## OpenCode Local Configuration (Required for Repo-Aware Mode)
 
 When using this governance system with **OpenCode (repo-aware execution)**,
@@ -164,7 +296,7 @@ Ensures the AI behaves correctly — regardless of context.
 - session-state mechanism
 - confidence / degraded / blocked behavior
 
-**Primary files:**
+**Layer 1 files:**
 - `master.md`
 - `SCOPE-AND-CONTEXT.md`
 
@@ -264,7 +396,6 @@ All governance file lookups and all persisted artifacts MUST use `${CONFIG_ROOT}
 The authoritative global install layout remains under `${COMMANDS_HOME}`:
 `${CONFIG_ROOT}/commands/…`
 
-
 The complete governance system is installed in:
 
 ```
@@ -363,7 +494,7 @@ Repositories MUST NOT contain authoritative governance or prompt logic.
 
 2. **Governance:**
    - loaded from global installation
-   stay permanently active
+   - stays permanently active
 
 3. **Benefits:**
    - precise business-rules discovery from real code
@@ -446,8 +577,8 @@ See:
 
 ## 8. Guiding Principle
 
-> Better to block than to guess.
-> Better explicit than implicit.
+> Better to block than to guess.  
+> Better explicit than implicit.  
 > Better governance than speed.
 
 This system is intentionally conservative —
