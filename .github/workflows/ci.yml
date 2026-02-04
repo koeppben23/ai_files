@@ -237,6 +237,13 @@ jobs:
               if isinstance(e, dict) and isinstance(e.get("dst"), str):
                 dst = e["dst"]
                 sha = e.get("sha256") if isinstance(e.get("sha256"), str) else ""
+
+                # Ignore SHA for self-referential / run-variant artifacts
+                # Keep dst in fingerprint so drift is still detected.
+                dst_name = Path(dst).name
+                if dst_name == "INSTALL_MANIFEST.json":
+                  sha = ""
+
                 rows.append((dst, sha))
               elif isinstance(e, str):
                 # legacy form: treat string as dst-ish
@@ -348,6 +355,11 @@ jobs:
               if isinstance(e, dict) and isinstance(e.get("dst"), str):
                 dst = e["dst"]
                 sha = e.get("sha256") if isinstance(e.get("sha256"), str) else ""
+
+                dst_name = Path(dst).name
+                if dst_name == "INSTALL_MANIFEST.json":
+                  sha = ""
+
                 rows.append((dst, sha))
               elif isinstance(e, str):
                 rows.append((e, ""))
@@ -365,7 +377,30 @@ jobs:
           after_m = manifest_fingerprint_sha256(manifest)
           after_p = canon_sha256(paths_file)
 
-          assert after_m == before_m, f"Manifest fingerprint changed after reinstall: before={before_m} after={after_m}"
+          if after_m != before_m:
+            # Debug: show which (dst, sha) pairs differ (top 25)
+            def rows_for_debug(path: Path):
+              obj = json.loads(path.read_text(encoding="utf-8"))
+              rows = []
+              for e in obj.get("files", []):
+                if isinstance(e, dict) and isinstance(e.get("dst"), str):
+                  dst = e["dst"]
+                  sha = e.get("sha256") if isinstance(e.get("sha256"), str) else ""
+                  if Path(dst).name == "INSTALL_MANIFEST.json":
+                    sha = ""
+                  rows.append((dst, sha))
+                elif isinstance(e, str):
+                  rows.append((e, ""))
+              return sorted(rows)
+
+            after_rows = rows_for_debug(manifest)  # manifest is already "after"
+            # We can't reconstruct before_rows from disk (it was overwritten),
+            # but we can at least print the after rows to help identify run-variant entries.
+            print("⚠️ Manifest fingerprint mismatch. Showing AFTER rows (first 25):")
+            for r in after_rows[:25]:
+              print("  ", r)
+            raise AssertionError(f"Manifest fingerprint changed after reinstall: before={before_m} after={after_m}")
+
           assert after_p == before_p, f"Paths canonical JSON changed after reinstall: before={before_p} after={after_p}"
 
           print("✅ Canonical JSON determinism OK (manifest + governance.paths.json)")
