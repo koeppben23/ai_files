@@ -69,7 +69,7 @@ jobs:
           base = commands.resolve()
           seen = set()
           count = 0
-          
+
           def sha256_file(p: Path) -> str:
             h = hashlib.sha256()
             with p.open("rb") as f:
@@ -135,17 +135,17 @@ jobs:
                 seen.add(dst)
 
                 target = Path(dst)
-                # dst may be absolute (your current case). If relative, interpret as under commands.
+                # dst may be absolute. If relative, interpret as under commands.
                 target = target if target.is_absolute() else (commands / target)
                 assert_under_base(target, "Manifest dst")
-                
+
                 # Optional but recommended: verify sha256 when present
                 expected = entry.get("sha256")
                 if looks_like_sha256(expected):
                   got = sha256_file(target)
                   if got.lower() != expected.lower():
                     raise AssertionError(f"SHA256 mismatch for {target}: expected={expected} got={got}")
-                
+
                 count += 1
                 continue
 
@@ -159,7 +159,7 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
-          import json, os, hashlib, re
+          import json, os
 
           root = Path(os.environ["CONFIG_ROOT"])
           manifest = root / "commands" / "INSTALL_MANIFEST.json"
@@ -188,15 +188,13 @@ jobs:
           required_paths = ["configRoot", "commandsHome", "profilesHome", "diagnosticsHome"]
           missing = [k for k in required_paths if k not in p["paths"]]
           assert not missing, f"governance.paths.json missing keys: {missing}"
-          
+
           commands_home = p["paths"]["commandsHome"]
           diagnostics_home = p["paths"]["diagnosticsHome"]
 
           # tolerate slash style on Windows
-          dh = diagnostics_home.replace("\\", "/")
-          ch = commands_home.replace("\\", "/")
-          dh = dh.rstrip("/")
-          ch = ch.rstrip("/")
+          dh = diagnostics_home.replace("\\", "/").rstrip("/")
+          ch = commands_home.replace("\\", "/").rstrip("/")
 
           assert dh == f"{ch}/diagnostics" or dh.endswith("/diagnostics"), (
               f"diagnosticsHome unexpected: {diagnostics_home} (commandsHome={commands_home})"
@@ -208,7 +206,7 @@ jobs:
 
           print("✅ Verification OK (files + manifest + governance.paths.json)")
           PY
-          
+
       - name: Capture canonical JSON hashes (before reinstall)
         shell: bash
         run: |
@@ -232,29 +230,26 @@ jobs:
             if not isinstance(files, list):
               raise AssertionError(f"Expected manifest['files'] as list, got: {type(files).__name__}")
 
-            # Build stable mapping dst -> sha256 (only where dst exists)
             rows = []
             for e in files:
               if isinstance(e, dict) and isinstance(e.get("dst"), str):
                 dst_raw = e["dst"]
                 dst_path = Path(dst_raw)
-                # normalize to stable relative identity when possible
+
+                # Normalize to a stable identity if possible (relative to commands dir)
                 try:
                   dst_norm = dst_path.resolve().relative_to(base).as_posix()
                 except Exception:
-                  # fallback: best-effort normalize slashes
                   dst_norm = str(dst_raw).replace("\\", "/")
+
                 sha = e.get("sha256") if isinstance(e.get("sha256"), str) else ""
 
-                # Ignore SHA for self-referential / run-variant artifacts
-                # Keep dst in fingerprint so drift is still detected.
-                dst_name = Path(dst_raw).name
-                if dst_name == "INSTALL_MANIFEST.json":
+                # Avoid self-referential SHA churn (manifest typically rewrites itself)
+                if Path(dst_raw).name == "INSTALL_MANIFEST.json":
                   sha = ""
 
                 rows.append((dst_norm, sha))
               elif isinstance(e, str):
-                # legacy form: treat string as dst-ish
                 rows.append((str(e).replace("\\", "/"), ""))
               else:
                 raise AssertionError(f"Unexpected manifest entry: {e!r}")
@@ -286,7 +281,7 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
-          import json, os, hashlib, re
+          import json, os
 
           root = Path(os.environ["CONFIG_ROOT"])
           manifest = root / "commands" / "INSTALL_MANIFEST.json"
@@ -319,11 +314,8 @@ jobs:
           commands_home = p["paths"]["commandsHome"]
           diagnostics_home = p["paths"]["diagnosticsHome"]
 
-          # tolerate slash style on Windows
-          dh = diagnostics_home.replace("\\", "/")
-          ch = commands_home.replace("\\", "/")
-          dh = dh.rstrip("/")
-          ch = ch.rstrip("/")
+          dh = diagnostics_home.replace("\\", "/").rstrip("/")
+          ch = commands_home.replace("\\", "/").rstrip("/")
 
           assert dh == f"{ch}/diagnostics" or dh.endswith("/diagnostics"), (
               f"diagnosticsHome unexpected: {diagnostics_home} (commandsHome={commands_home})"
@@ -368,10 +360,10 @@ jobs:
                   dst_norm = dst_path.resolve().relative_to(base).as_posix()
                 except Exception:
                   dst_norm = str(dst_raw).replace("\\", "/")
+
                 sha = e.get("sha256") if isinstance(e.get("sha256"), str) else ""
 
-                dst_name = Path(dst_raw).name
-                if dst_name == "INSTALL_MANIFEST.json":
+                if Path(dst_raw).name == "INSTALL_MANIFEST.json":
                   sha = ""
 
                 rows.append((dst_norm, sha))
@@ -392,26 +384,31 @@ jobs:
           after_p = canon_sha256(paths_file)
 
           if after_m != before_m:
-            # Debug: show which (dst, sha) pairs differ (top 25)
+            # Debug dump uses SAME normalization as the fingerprint
             def rows_for_debug(path: Path):
               obj = json.loads(path.read_text(encoding="utf-8"))
+              base = path.parent.resolve()
               rows = []
               for e in obj.get("files", []):
                 if isinstance(e, dict) and isinstance(e.get("dst"), str):
-                  dst = e["dst"]
+                  dst_raw = e["dst"]
+                  dst_path = Path(dst_raw)
+                  try:
+                    dst_norm = dst_path.resolve().relative_to(base).as_posix()
+                  except Exception:
+                    dst_norm = str(dst_raw).replace("\\", "/")
+
                   sha = e.get("sha256") if isinstance(e.get("sha256"), str) else ""
-                  if Path(dst).name == "INSTALL_MANIFEST.json":
+                  if Path(dst_raw).name == "INSTALL_MANIFEST.json":
                     sha = ""
-                  rows.append((dst, sha))
+                  rows.append((dst_norm, sha))
                 elif isinstance(e, str):
-                  rows.append((e, ""))
+                  rows.append((str(e).replace("\\", "/"), ""))
               return sorted(rows)
 
-            after_rows = rows_for_debug(manifest)  # manifest is already "after"
-            # We can't reconstruct before_rows from disk (it was overwritten),
-            # but we can at least print the after rows to help identify run-variant entries.
-            print("⚠️ Manifest fingerprint mismatch. Showing AFTER rows (first 25):")
-            for r in after_rows[:25]:
+            after_rows = rows_for_debug(manifest)
+            print("⚠️ Manifest fingerprint mismatch. Showing AFTER rows (first 50):")
+            for r in after_rows[:50]:
               print("  ", r)
             raise AssertionError(f"Manifest fingerprint changed after reinstall: before={before_m} after={after_m}")
 
@@ -435,7 +432,6 @@ jobs:
           root = Path(os.environ["CONFIG_ROOT"])
           commands = root / "commands"
 
-          # These MUST be gone after uninstall
           must_be_gone = [
               commands / "master.md",
               commands / "rules.md",
@@ -447,7 +443,6 @@ jobs:
           still_there = [str(p) for p in must_be_gone if p.exists()]
           assert not still_there, f"Uninstall left artifacts behind: {still_there}"
 
-          # Optional: tolerate config root existing, but ensure commands dir is gone or empty
           if commands.exists():
               leftovers = [p.name for p in commands.rglob("*") if p.is_file()]
               assert not leftovers, f"Commands dir not empty after uninstall: {leftovers[:25]}"
@@ -483,7 +478,6 @@ jobs:
           ]
 
           missing = [f for f in required if not Path(f).exists()]
-
           if missing:
               raise SystemExit(f"Missing: {missing}")
 
@@ -504,7 +498,6 @@ jobs:
           m = set(re.findall(r'BLOCKED-[A-Z-]+', master))
 
           diff = s - m
-
           if diff:
               raise SystemExit(f"Missing in master: {diff}")
 
@@ -530,9 +523,7 @@ jobs:
           from pathlib import Path
 
           text = Path("install.py").read_text()
-
           m = re.search(r'VERSION\s*=\s*"([^"]+)"', text)
-
           if not m:
               raise SystemExit("No VERSION found")
 
