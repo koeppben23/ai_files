@@ -15,6 +15,10 @@ jobs:
     name: Test Installer on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
 
+    env:
+      PYTHONIOENCODING: utf-8
+      PYTHONUTF8: "1"
+
     strategy:
       fail-fast: false
       matrix:
@@ -30,33 +34,37 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Prepare temp config root
+        shell: bash
         run: |
           echo "CONFIG_ROOT=$RUNNER_TEMP/opencode-config" >> $GITHUB_ENV
 
       - name: Dry Run
+        shell: bash
         run: |
-          python install.py --dry-run --config-root "$CONFIG_ROOT"
+          python -X utf8 install.py --dry-run --config-root "$CONFIG_ROOT"
 
       - name: Fresh Install
+        shell: bash
         run: |
-          python install.py --force --no-backup --config-root "$CONFIG_ROOT"
+          python -X utf8 install.py --force --no-backup --config-root "$CONFIG_ROOT"
 
       - name: Verify Files
+        shell: bash
         run: |
           python - <<'PY'
           from pathlib import Path
-          import json
-          import os
+          import json, os
 
           root = Path(os.environ["CONFIG_ROOT"])
-
           manifest = root / "commands" / "INSTALL_MANIFEST.json"
+          paths_file = root / "commands" / "governance.paths.json"
 
           critical = [
               root / "commands" / "master.md",
               root / "commands" / "rules.md",
               root / "commands" / "start.md",
               manifest,
+              paths_file,
           ]
 
           for f in critical:
@@ -66,14 +74,26 @@ jobs:
               data = json.load(fh)
               assert "files" in data, "Manifest missing 'files' key"
 
-          print("✅ Verification OK")
+          with open(paths_file, encoding="utf-8") as fh:
+              p = json.load(fh)
+
+          assert "paths" in p and isinstance(p["paths"], dict), "governance.paths.json missing 'paths' object"
+
+          required_paths = ["configRoot", "commandsHome", "profilesHome", "diagnosticsHome"]
+          missing = [k for k in required_paths if k not in p["paths"]]
+          assert not missing, f"governance.paths.json missing keys: {missing}"
+
+          for k in required_paths:
+              v = p["paths"][k]
+              assert isinstance(v, str) and v.strip(), f"Invalid path value for {k}: {v!r}"
+
+          print("✅ Verification OK (files + manifest + governance.paths.json)")
           PY
 
-
       - name: Uninstall
+        shell: bash
         run: |
-          python install.py --uninstall --force --config-root "$CONFIG_ROOT"
-
+          python -X utf8 install.py --uninstall --force --config-root "$CONFIG_ROOT"
 
   # ----------------------------------
   # Job 2: Governance Validation
@@ -90,6 +110,7 @@ jobs:
           python-version: '3.11'
 
       - name: Required Files
+        shell: bash
         run: |
           python - <<'PY'
           from pathlib import Path
@@ -111,13 +132,14 @@ jobs:
 
 
       - name: BLOCKED Consistency
+        shell: bash
         run: |
           python - <<'PY'
           import re
           from pathlib import Path
 
-          schema = Path("SESSION_STATE_SCHEMA.md").read_text()
-          master = Path("master.md").read_text()
+          schema = Path("SESSION_STATE_SCHEMA.md").read_text(encoding="utf-8")
+          master = Path("master.md").read_text(encoding="utf-8")
 
           s = set(re.findall(r'BLOCKED-[A-Z-]+', schema))
           m = set(re.findall(r'BLOCKED-[A-Z-]+', master))
@@ -143,6 +165,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Check Version
+        shell: bash
         run: |
           python - <<'PY'
           import re
