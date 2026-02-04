@@ -114,7 +114,6 @@ jobs:
                 seen.add(rel)
 
                 p = Path(rel)
-                # Prevent traversal for relative form
                 assert not p.is_absolute(), f"Absolute path in string manifest entry: {rel}"
                 assert ".." not in p.parts, f"Path traversal in manifest entry: {rel}"
 
@@ -129,17 +128,14 @@ jobs:
                 dst = entry["dst"]
                 assert isinstance(dst, str) and dst.strip(), f"Invalid dst in manifest entry: {dst!r}"
 
-                # Use dst as unique key (stable)
                 if dst in seen:
                   raise AssertionError(f"Duplicate manifest dst: {dst}")
                 seen.add(dst)
 
                 target = Path(dst)
-                # dst may be absolute. If relative, interpret as under commands.
                 target = target if target.is_absolute() else (commands / target)
                 assert_under_base(target, "Manifest dst")
 
-                # Optional but recommended: verify sha256 when present
                 expected = entry.get("sha256")
                 if looks_like_sha256(expected):
                   got = sha256_file(target)
@@ -176,13 +172,10 @@ jobs:
           for f in critical:
               assert f.exists(), f"Missing: {f}"
 
-          with open(manifest, encoding="utf-8") as fh:
-              data = json.load(fh)
-              assert "files" in data, "Manifest missing 'files' key"
+          data = json.loads(manifest.read_text(encoding="utf-8"))
+          assert "files" in data, "Manifest missing 'files' key"
 
-          with open(paths_file, encoding="utf-8") as fh:
-              p = json.load(fh)
-
+          p = json.loads(paths_file.read_text(encoding="utf-8"))
           assert "paths" in p and isinstance(p["paths"], dict), "governance.paths.json missing 'paths' object"
 
           required_paths = ["configRoot", "commandsHome", "profilesHome", "diagnosticsHome"]
@@ -192,7 +185,6 @@ jobs:
           commands_home = p["paths"]["commandsHome"]
           diagnostics_home = p["paths"]["diagnosticsHome"]
 
-          # tolerate slash style on Windows
           dh = diagnostics_home.replace("\\", "/").rstrip("/")
           ch = commands_home.replace("\\", "/").rstrip("/")
 
@@ -207,7 +199,7 @@ jobs:
           print("✅ Verification OK (files + manifest + governance.paths.json)")
           PY
 
-      - name: Capture canonical JSON hashes (before reinstall)
+      - name: Capture installed file hashes (before reinstall)
         shell: bash
         run: |
           python - <<'PY'
@@ -215,60 +207,40 @@ jobs:
           import json, os, hashlib
 
           root = Path(os.environ["CONFIG_ROOT"])
-          manifest = root / "commands" / "INSTALL_MANIFEST.json"
-          paths_file = root / "commands" / "governance.paths.json"
+          commands = root / "commands"
+          manifest = commands / "INSTALL_MANIFEST.json"
+          out = Path(os.environ["RUNNER_TEMP"]) / "before_hashes.json"
 
-          def canon_sha256(path: Path) -> str:
-            obj = json.loads(path.read_text(encoding="utf-8"))
-            canon = json.dumps(obj, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
-            return hashlib.sha256(canon.encode("utf-8")).hexdigest()
+          def sha256_file(p: Path) -> str:
+            h = hashlib.sha256()
+            with p.open("rb") as f:
+              for chunk in iter(lambda: f.read(1024 * 1024), b""):
+                h.update(chunk)
+            return h.hexdigest()
 
-          def manifest_fingerprint_sha256(path: Path) -> str:
-            obj = json.loads(path.read_text(encoding="utf-8"))
-            base = path.parent.resolve()  # .../commands
-            files = obj.get("files")
-            if not isinstance(files, list):
-              raise AssertionError(f"Expected manifest['files'] as list, got: {type(files).__name__}")
+          obj = json.loads(manifest.read_text(encoding="utf-8"))
+          files = obj.get("files")
+          if not isinstance(files, list):
+            raise SystemExit(f"Expected manifest['files'] to be list, got: {type(files).__name__}")
 
-            rows = []
-            for e in files:
-              if isinstance(e, dict) and isinstance(e.get("dst"), str):
-                dst_raw = e["dst"]
-                dst_path = Path(dst_raw)
+          hashes = {}
+          for e in files:
+            if isinstance(e, dict) and isinstance(e.get("dst"), str):
+              dst = Path(e["dst"])
+              p = dst if dst.is_absolute() else (commands / dst)
+            elif isinstance(e, str):
+              p = commands / Path(e)
+            else:
+              raise SystemExit(f"Unexpected manifest entry: {e!r}")
 
-                # Normalize to a stable identity if possible (relative to commands dir)
-                try:
-                  dst_norm = dst_path.resolve().relative_to(base).as_posix()
-                except Exception:
-                  dst_norm = str(dst_raw).replace("\\", "/")
+            key = p.resolve().relative_to(commands.resolve()).as_posix()
+            if not p.exists():
+              raise SystemExit(f"Missing file on disk: {p}")
 
-                sha = e.get("sha256") if isinstance(e.get("sha256"), str) else ""
+            hashes[key] = sha256_file(p)
 
-                # Avoid self-referential SHA churn (manifest typically rewrites itself)
-                if Path(dst_raw).name == "INSTALL_MANIFEST.json":
-                  sha = ""
-
-                rows.append((dst_norm, sha))
-              elif isinstance(e, str):
-                rows.append((str(e).replace("\\", "/"), ""))
-              else:
-                raise AssertionError(f"Unexpected manifest entry: {e!r}")
-
-            rows.sort()
-            canon = json.dumps(rows, ensure_ascii=False, separators=(",", ":"))
-            return hashlib.sha256(canon.encode("utf-8")).hexdigest()
-
-          m_hash = manifest_fingerprint_sha256(manifest)
-          p_hash = canon_sha256(paths_file)
-
-          env_path = os.environ["GITHUB_ENV"]
-          with open(env_path, "a", encoding="utf-8") as f:
-            f.write(f"MANIFEST_FINGERPRINT_SHA256={m_hash}\n")
-            f.write(f"CANON_PATHS_SHA256={p_hash}\n")
-
-          print("📌 Canonical JSON hashes captured")
-          print("  manifest:", m_hash)
-          print("  paths:   ", p_hash)
+          out.write_text(json.dumps(hashes, sort_keys=True, indent=2), encoding="utf-8")
+          print(f"📌 Captured {len(hashes)} file hashes to {out}")
           PY
 
       - name: Reinstall (Idempotency)
@@ -298,13 +270,10 @@ jobs:
           for f in critical:
               assert f.exists(), f"Missing: {f}"
 
-          with open(manifest, encoding="utf-8") as fh:
-              data = json.load(fh)
-              assert "files" in data, "Manifest missing 'files' key"
+          data = json.loads(manifest.read_text(encoding="utf-8"))
+          assert "files" in data, "Manifest missing 'files' key"
 
-          with open(paths_file, encoding="utf-8") as fh:
-              p = json.load(fh)
-
+          p = json.loads(paths_file.read_text(encoding="utf-8"))
           assert "paths" in p and isinstance(p["paths"], dict), "governance.paths.json missing 'paths' object"
 
           required_paths = ["configRoot", "commandsHome", "profilesHome", "diagnosticsHome"]
@@ -328,7 +297,7 @@ jobs:
           print("✅ Verification OK after reinstall")
           PY
 
-      - name: Verify canonical JSON hashes (after reinstall)
+      - name: Verify installed file hashes (after reinstall)
         shell: bash
         run: |
           python - <<'PY'
@@ -336,85 +305,68 @@ jobs:
           import json, os, hashlib
 
           root = Path(os.environ["CONFIG_ROOT"])
-          manifest = root / "commands" / "INSTALL_MANIFEST.json"
-          paths_file = root / "commands" / "governance.paths.json"
+          commands = root / "commands"
+          manifest = commands / "INSTALL_MANIFEST.json"
+          before_path = Path(os.environ["RUNNER_TEMP"]) / "before_hashes.json"
 
-          def canon_sha256(path: Path) -> str:
-            obj = json.loads(path.read_text(encoding="utf-8"))
-            canon = json.dumps(obj, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
-            return hashlib.sha256(canon.encode("utf-8")).hexdigest()
+          def sha256_file(p: Path) -> str:
+            h = hashlib.sha256()
+            with p.open("rb") as f:
+              for chunk in iter(lambda: f.read(1024 * 1024), b""):
+                h.update(chunk)
+            return h.hexdigest()
 
-          def manifest_fingerprint_sha256(path: Path) -> str:
-            obj = json.loads(path.read_text(encoding="utf-8"))
-            base = path.parent.resolve()
-            files = obj.get("files")
-            if not isinstance(files, list):
-              raise AssertionError(f"Expected manifest['files'] as list, got: {type(files).__name__}")
+          before = json.loads(before_path.read_text(encoding="utf-8"))
 
-            rows = []
-            for e in files:
-              if isinstance(e, dict) and isinstance(e.get("dst"), str):
-                dst_raw = e["dst"]
-                dst_path = Path(dst_raw)
-                try:
-                  dst_norm = dst_path.resolve().relative_to(base).as_posix()
-                except Exception:
-                  dst_norm = str(dst_raw).replace("\\", "/")
+          obj = json.loads(manifest.read_text(encoding="utf-8"))
+          files = obj.get("files")
+          if not isinstance(files, list):
+            raise SystemExit(f"Expected manifest['files'] to be list, got: {type(files).__name__}")
 
-                sha = e.get("sha256") if isinstance(e.get("sha256"), str) else ""
+          after = {}
+          for e in files:
+            if isinstance(e, dict) and isinstance(e.get("dst"), str):
+              dst = Path(e["dst"])
+              p = dst if dst.is_absolute() else (commands / dst)
+            elif isinstance(e, str):
+              p = commands / Path(e)
+            else:
+              raise SystemExit(f"Unexpected manifest entry: {e!r}")
 
-                if Path(dst_raw).name == "INSTALL_MANIFEST.json":
-                  sha = ""
+            key = p.resolve().relative_to(commands.resolve()).as_posix()
+            if not p.exists():
+              raise SystemExit(f"Missing file on disk after reinstall: {p}")
 
-                rows.append((dst_norm, sha))
-              elif isinstance(e, str):
-                rows.append((str(e).replace("\\", "/"), ""))
-              else:
-                raise AssertionError(f"Unexpected manifest entry: {e!r}")
+            after[key] = sha256_file(p)
 
-            rows.sort()
-            canon = json.dumps(rows, ensure_ascii=False, separators=(",", ":"))
-            return hashlib.sha256(canon.encode("utf-8")).hexdigest()
+          before_keys = set(before.keys())
+          after_keys = set(after.keys())
 
-          before_m = os.environ.get("MANIFEST_FINGERPRINT_SHA256")
-          before_p = os.environ.get("CANON_PATHS_SHA256")
-          assert before_m and before_p, "Missing captured canonical hashes from previous step"
+          missing = sorted(before_keys - after_keys)
+          added = sorted(after_keys - before_keys)
 
-          after_m = manifest_fingerprint_sha256(manifest)
-          after_p = canon_sha256(paths_file)
+          changed = []
+          for k in sorted(before_keys & after_keys):
+            if before[k] != after[k]:
+              changed.append((k, before[k], after[k]))
 
-          if after_m != before_m:
-            # Debug dump uses SAME normalization as the fingerprint
-            def rows_for_debug(path: Path):
-              obj = json.loads(path.read_text(encoding="utf-8"))
-              base = path.parent.resolve()
-              rows = []
-              for e in obj.get("files", []):
-                if isinstance(e, dict) and isinstance(e.get("dst"), str):
-                  dst_raw = e["dst"]
-                  dst_path = Path(dst_raw)
-                  try:
-                    dst_norm = dst_path.resolve().relative_to(base).as_posix()
-                  except Exception:
-                    dst_norm = str(dst_raw).replace("\\", "/")
+          if missing or added or changed:
+            print("❌ Reinstall is NOT idempotent.")
+            if missing:
+              print("  Missing after reinstall:")
+              for k in missing[:50]:
+                print("   -", k)
+            if added:
+              print("  Added after reinstall:")
+              for k in added[:50]:
+                print("   +", k)
+            if changed:
+              print("  Changed content (sha256 differs):")
+              for k, b, a in changed[:50]:
+                print(f"   * {k}\n      before={b}\n      after ={a}")
+            raise SystemExit("Idempotency check failed: file content drift detected.")
 
-                  sha = e.get("sha256") if isinstance(e.get("sha256"), str) else ""
-                  if Path(dst_raw).name == "INSTALL_MANIFEST.json":
-                    sha = ""
-                  rows.append((dst_norm, sha))
-                elif isinstance(e, str):
-                  rows.append((str(e).replace("\\", "/"), ""))
-              return sorted(rows)
-
-            after_rows = rows_for_debug(manifest)
-            print("⚠️ Manifest fingerprint mismatch. Showing AFTER rows (first 50):")
-            for r in after_rows[:50]:
-              print("  ", r)
-            raise AssertionError(f"Manifest fingerprint changed after reinstall: before={before_m} after={after_m}")
-
-          assert after_p == before_p, f"Paths canonical JSON changed after reinstall: before={before_p} after={after_p}"
-
-          print("✅ Canonical JSON determinism OK (manifest + governance.paths.json)")
+          print(f"✅ Idempotency OK: {len(after)} files identical after reinstall")
           PY
 
       - name: Uninstall
@@ -522,7 +474,7 @@ jobs:
           import re
           from pathlib import Path
 
-          text = Path("install.py").read_text()
+          text = Path("install.py").read_text(encoding="utf-8")
           m = re.search(r'VERSION\s*=\s*"([^"]+)"', text)
           if not m:
               raise SystemExit("No VERSION found")
