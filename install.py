@@ -10,6 +10,7 @@ Features:
 - uninstall (manifest-based; deletes only what was installed)
 - manifest tracking (INSTALL_MANIFEST.json)
 - optional OpenCode config bootstrap: opencode/opencode.template.json -> <config_root>/opencode.json
+  (optional removal on uninstall via --remove-opencode-json)
 """
 
 from __future__ import annotations
@@ -29,23 +30,20 @@ from typing import Iterable
 VERSION = "1.1.0"
 
 # Files copied into <config_root>/commands
-MAIN_FILES = [
-    "master.md",
-    "rules.md",
-    "start.md",
-    "resume.md",
-    "continue.md",
-    "ADR.md",
-    "CONFLICT_RESOLUTION.md",
-    "QUALITY_INDEX.md",
-    "SESSION_STATE_SCHEMA.md",
-    "TICKET_RECORD_TEMPLATE.md",
-    "SCOPE-AND-CONTEXT.md",
-    "ResumePrompt.md",
-]
+# Strategy: copy (almost) all repo-root governance artifacts that are relevant at runtime.
+# - Include: *.md, *.json, LICENSE (if present)
+# - Exclude: installer scripts themselves + opencode template (handled separately)
+EXCLUDE_ROOT_FILES = {
+    "install.py",
+    "install.corrected.py",
+    "install.updated.py",
+}
 
 # Profiles copied into <config_root>/commands/profiles/*.md
 PROFILES_DIR_NAME = "profiles"
+
+# Diagnostics copied into <config_root>/commands/diagnostics/** (includes audit tooling + schemas)
+DIAGNOSTICS_DIR_NAME = "diagnostics"
 
 MANIFEST_NAME = "INSTALL_MANIFEST.json"
 MANIFEST_SCHEMA = "1.0"
@@ -151,9 +149,10 @@ class InstallPlan:
     manifest_path: Path
     opencode_json_path: Path
     skip_opencode_json: bool
+    remove_opencode_json: bool
 
 
-def build_plan(source_dir: Path, config_root: Path, *, skip_opencode_json: bool) -> InstallPlan:
+def build_plan(source_dir: Path, config_root: Path, *, skip_opencode_json: bool, remove_opencode_json: bool) -> InstallPlan:
     commands_dir = config_root / "commands"
     profiles_dst_dir = commands_dir / "profiles"
     manifest_path = commands_dir / MANIFEST_NAME
@@ -166,6 +165,7 @@ def build_plan(source_dir: Path, config_root: Path, *, skip_opencode_json: bool)
         manifest_path=manifest_path,
         opencode_json_path=opencode_json_path,
         skip_opencode_json=skip_opencode_json,
+        remove_opencode_json=remove_opencode_json,
     )
 
 
@@ -180,6 +180,49 @@ def precheck_source(source_dir: Path) -> tuple[bool, list[str]]:
         if not (source_dir / name).exists():
             missing.append(name)
     return (len(missing) == 0, missing)
+
+def collect_command_root_files(source_dir: Path) -> list[Path]:
+    """
+    Collect root-level governance files to copy into <config_root>/commands/.
+    Includes:
+      - *.md
+      - *.json
+      - LICENSE (if present)
+    Excludes:
+      - installer scripts (EXCLUDE_ROOT_FILES)
+      - opencode template (handled separately via opencode.json bootstrap)
+    """
+    files: list[Path] = []
+    for p in source_dir.iterdir():
+        if not p.is_file():
+            continue
+
+        name = p.name
+        if name in EXCLUDE_ROOT_FILES:
+            continue
+
+        # opencode/opencode.template.json is handled separately
+        if name == OPENCODE_TEMPLATE_NAME:
+            continue
+
+        if name.lower() == "license":
+            files.append(p)
+            continue
+
+        if p.suffix.lower() in (".md", ".json"):
+            files.append(p)
+
+    return sorted(files)
+
+def collect_diagnostics_files(source_dir: Path) -> list[Path]:
+    """
+    Collect diagnostics files to copy into <config_root>/commands/diagnostics/**.
+    Includes everything under ./diagnostics (schemas, audit docs, etc.).
+    """
+    diag_dir = source_dir / DIAGNOSTICS_DIR_NAME
+    if not diag_dir.exists() or not diag_dir.is_dir():
+        return []
+    return sorted([p for p in diag_dir.rglob("*") if p.is_file()])
 
 def find_opencode_template(source_dir: Path) -> Path | None:
     """
@@ -480,13 +523,15 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
             print("  ⏭️  opencode.json creation disabled")
         else:
             print(f"  ✅ opencode.json ({opencode_entry['status']})")
-            copied_entries.append(opencode_entry)
+            # NOTE: opencode.json is intentionally NOT added to INSTALL_MANIFEST.json,
+            # because uninstall is manifest-based + commands-dir scoped.
+            # Removal (if desired) is handled explicitly via --remove-opencode-json.
+            pass
 
     # copy main files
     print("\n📋 Copying governance files to commands/ ...")
-    for name in MAIN_FILES:
-        src = plan.source_dir / name
-        dst = plan.commands_dir / name
+    for src in collect_command_root_files(plan.source_dir):
+        dst = plan.commands_dir / src.name
         entry = copy_with_optional_backup(
             src=src,
             dst=dst,
@@ -497,6 +542,7 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
         )
         copied_entries.append(entry)
         status = entry["status"]
+        name = src.name
         if status == "missing-source":
             print(f"  ⚠️  {name} not found (skipping)")
         elif status == "skipped-exists":
@@ -528,6 +574,34 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
                 print(f"  ⚠️  profiles/{pf.name} missing (skipping)")
     else:
         print("\nℹ️  No profiles directory found or no *.md profiles to copy.")
+
+    # copy diagnostics (audit tooling, schemas, etc.)
+    diag_files = collect_diagnostics_files(plan.source_dir)
+    if diag_files:
+        print("\n📋 Copying diagnostics to commands/diagnostics/ ...")
+        for df in diag_files:
+            rel = df.relative_to(plan.source_dir)
+            dst = plan.commands_dir / rel
+
+            entry = copy_with_optional_backup(
+                src=df,
+                dst=dst,
+                backup_enabled=backup_enabled,
+                backup_root=backup_root,
+                dry_run=dry_run,
+                overwrite=force,
+            )
+            copied_entries.append(entry)
+
+            status = entry["status"]
+            if status in ("planned-copy", "copied"):
+                print(f"  ✅ {rel} ({status})")
+            elif status == "skipped-exists":
+                print(f"  ⏭️  {rel} exists (use --force to overwrite)")
+            else:
+                print(f"  ⚠️  {rel} missing (skipping)")
+    else:
+        print("\nℹ️  No diagnostics directory found (skipping).")
 
     # validation (critical installed files)
     print("\n🔍 Validating installation...")
@@ -592,6 +666,42 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
 def uninstall(plan: InstallPlan, dry_run: bool, force: bool) -> int:
     print(f"🧹 Uninstall from: {plan.commands_dir}")
 
+    # Optional: remove opencode.json (lives at <config_root>/opencode.json, outside commands dir)
+    if plan.remove_opencode_json:
+        target = plan.opencode_json_path
+        # Safety: only allow deletion if it is exactly under the selected config_root
+        safe_parent = plan.config_root.resolve()
+        try:
+            target_parent = target.parent.resolve()
+        except Exception:
+            target_parent = None
+
+        if target_parent != safe_parent:
+            eprint(f"  ❌ Refusing to delete opencode.json outside configRoot: {target}")
+        else:
+            if not target.exists():
+                print(f"  ℹ️  opencode.json not found: {target}")
+            else:
+                if dry_run:
+                    print(f"  [DRY-RUN] rm {target}")
+                else:
+                    if not force and is_interactive():
+                        resp = input("Remove opencode.json too? [y/N] ").strip().lower()
+                        if resp not in ("y", "yes"):
+                            print("  ⏭️  Keeping opencode.json")
+                        else:
+                            try:
+                                target.unlink()
+                                print("  ✅ Removed: opencode.json")
+                            except Exception as e:
+                                eprint(f"  ❌ Failed removing opencode.json: {e}")
+                    else:
+                        try:
+                            target.unlink()
+                            print("  ✅ Removed: opencode.json")
+                        except Exception as e:
+                            eprint(f"  ❌ Failed removing opencode.json: {e}")
+
     manifest = load_manifest(plan.manifest_path)
     if not manifest:
         print(f"⚠️  Manifest not found or invalid: {plan.manifest_path}")
@@ -603,8 +713,9 @@ def uninstall(plan: InstallPlan, dry_run: bool, force: bool) -> int:
             return 4
 
         # Conservative fallback: delete only known filenames (MAIN_FILES) + profiles/*.md
-        targets: list[Path] = [plan.commands_dir / f for f in MAIN_FILES]
+        targets: list[Path] = [plan.commands_dir / p.name for p in collect_command_root_files(plan.source_dir)]
         targets.extend(list((plan.commands_dir / "profiles").glob("*.md")))
+        targets.extend([p for p in (plan.commands_dir / "diagnostics").rglob("*") if p.is_file()])
         # intentionally NOT deleting opencode.json in fallback mode
 
         if not dry_run:
@@ -729,6 +840,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     p.add_argument("--no-backup", action="store_true", help="Disable backup on overwrite (install only).")
     p.add_argument("--uninstall", action="store_true", help="Uninstall previously installed governance files (manifest-based).")
     p.add_argument("--skip-opencode-json", action="store_true", help="Do not create/overwrite opencode.json bootstrap.")
+    p.add_argument("--remove-opencode-json", action="store_true", help="Also remove <config_root>/opencode.json during uninstall.")
     return p.parse_args(argv)
 
 
@@ -736,7 +848,12 @@ def main(argv: list[str]) -> int:
     args = parse_args(argv)
 
     config_root = args.config_root if args.config_root is not None else get_config_root()
-    plan = build_plan(args.source_dir, config_root, skip_opencode_json=args.skip_opencode_json)
+    plan = build_plan(
+        args.source_dir,
+        config_root,
+        skip_opencode_json=args.skip_opencode_json,
+        remove_opencode_json=args.remove_opencode_json,
+    )
 
     print("=" * 60)
     print("LLM Governance System Installer")
