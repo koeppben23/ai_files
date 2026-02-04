@@ -233,6 +233,7 @@ def build_governance_paths_payload(config_root: Path) -> dict:
 
     commands_home = config_root / "commands"
     profiles_home = commands_home / "profiles"
+    diagnostics_home = commands_home / "diagnostics"
     workspaces_home = config_root / "workspaces"
 
     return {
@@ -242,6 +243,7 @@ def build_governance_paths_payload(config_root: Path) -> dict:
             "configRoot": norm(config_root),
             "commandsHome": norm(commands_home),
             "profilesHome": norm(profiles_home),
+            "diagnosticsHome": norm(diagnostics_home),
             "workspacesHome": norm(workspaces_home),
         },
     }
