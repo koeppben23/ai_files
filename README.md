@@ -96,6 +96,9 @@ Installed layout:
 - **Fail-closed precheck:** Install fails if critical files are missing (`master.md`, `rules.md`, `start.md`).
 - **Backup on overwrite:** With `--force`, the installer writes a timestamped backup under `commands/_backup/<timestamp>/...` before overwriting (disable via `--no-backup`).
 - **Manifest-based uninstall:** Uninstall removes **only** what the installer recorded in the manifest (does not blindly delete `commands/`).
+- **OpenCode config bootstrap:** By default, the installer also creates `${CONFIG_ROOT}/opencode.json` from `opencode/opencode.template.json` and fills in the resolved paths (`configRoot`, `commandsHome`, `profilesHome`, `workspacesHome`).
+  - It **will not overwrite** an existing `opencode.json` unless you use `--force`.
+  - To disable this step entirely: use `--skip-opencode-json`.
 
 ### Usage
 
@@ -133,6 +136,12 @@ Custom source directory (if files are not next to `install.py`):
 
 ```bash
 python install.py --source-dir /path/to/governance-files
+```
+
+Skip writing `opencode.json` (if you manage it manually):
+
+```bash
+python install.py --skip-opencode-json
 ```
 
 Override config root (useful for CI/tests):
@@ -214,7 +223,7 @@ opencode/opencode.template.json
 
 ### Local instance (NOT checked in)
 
-Each user must create a local configuration file at:
+Each user must have a local configuration file at:
 
 - **Linux / macOS**
   ```
@@ -229,6 +238,14 @@ Each user must create a local configuration file at:
 This file is **machine-specific** and MUST NOT be committed.
 
 ### Setup (one-time)
+
+If you use the provided installer (`install.py`), it can create `opencode.json` automatically from the template (recommended):
+
+```bash
+python install.py
+```
+
+Manual setup (if you prefer):
 
 1. Copy the template:
    - From: `opencode/opencode.template.json`
