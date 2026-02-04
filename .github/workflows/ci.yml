@@ -53,7 +53,7 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
-          import json, os
+          import json, os, hashlib, re
 
           root = Path(os.environ["CONFIG_ROOT"])
           commands = root / "commands"
@@ -69,6 +69,16 @@ jobs:
           base = commands.resolve()
           seen = set()
           count = 0
+          
+          def sha256_file(p: Path) -> str:
+            h = hashlib.sha256()
+            with p.open("rb") as f:
+              for chunk in iter(lambda: f.read(1024 * 1024), b""):
+                h.update(chunk)
+            return h.hexdigest()
+
+          def looks_like_sha256(s: object) -> bool:
+            return isinstance(s, str) and bool(re.fullmatch(r"[0-9a-fA-F]{64}", s))
 
           def assert_under_base(p: Path, label: str) -> None:
             p = p.resolve()
@@ -128,6 +138,14 @@ jobs:
                 # dst may be absolute (your current case). If relative, interpret as under commands.
                 target = target if target.is_absolute() else (commands / target)
                 assert_under_base(target, "Manifest dst")
+                
+                # Optional but recommended: verify sha256 when present
+                expected = entry.get("sha256")
+                if looks_like_sha256(expected):
+                  got = sha256_file(target)
+                  if got.lower() != expected.lower():
+                    raise AssertionError(f"SHA256 mismatch for {target}: expected={expected} got={got}")
+                
                 count += 1
                 continue
 
@@ -141,7 +159,7 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
-          import json, os
+          import json, os, hashlib, re
 
           root = Path(os.environ["CONFIG_ROOT"])
           manifest = root / "commands" / "INSTALL_MANIFEST.json"
@@ -177,6 +195,8 @@ jobs:
           # tolerate slash style on Windows
           dh = diagnostics_home.replace("\\", "/")
           ch = commands_home.replace("\\", "/")
+          dh = dh.rstrip("/")
+          ch = ch.rstrip("/")
 
           assert dh == f"{ch}/diagnostics" or dh.endswith("/diagnostics"), (
               f"diagnosticsHome unexpected: {diagnostics_home} (commandsHome={commands_home})"
@@ -188,6 +208,35 @@ jobs:
 
           print("✅ Verification OK (files + manifest + governance.paths.json)")
           PY
+          
+      - name: Capture canonical JSON hashes (before reinstall)
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import json, os, hashlib
+
+          root = Path(os.environ["CONFIG_ROOT"])
+          manifest = root / "commands" / "INSTALL_MANIFEST.json"
+          paths_file = root / "commands" / "governance.paths.json"
+
+          def canon_sha256(path: Path) -> str:
+            obj = json.loads(path.read_text(encoding="utf-8"))
+            canon = json.dumps(obj, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+            return hashlib.sha256(canon.encode("utf-8")).hexdigest()
+
+          m_hash = canon_sha256(manifest)
+          p_hash = canon_sha256(paths_file)
+
+          env_path = os.environ["GITHUB_ENV"]
+          with open(env_path, "a", encoding="utf-8") as f:
+            f.write(f"CANON_MANIFEST_SHA256={m_hash}\n")
+            f.write(f"CANON_PATHS_SHA256={p_hash}\n")
+
+          print("📌 Canonical JSON hashes captured")
+          print("  manifest:", m_hash)
+          print("  paths:   ", p_hash)
+          PY    
 
       - name: Reinstall (Idempotency)
         shell: bash
@@ -199,7 +248,7 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
-          import json, os
+          import json, os, hashlib, re
 
           root = Path(os.environ["CONFIG_ROOT"])
           manifest = root / "commands" / "INSTALL_MANIFEST.json"
@@ -235,6 +284,8 @@ jobs:
           # tolerate slash style on Windows
           dh = diagnostics_home.replace("\\", "/")
           ch = commands_home.replace("\\", "/")
+          dh = dh.rstrip("/")
+          ch = ch.rstrip("/")
 
           assert dh == f"{ch}/diagnostics" or dh.endswith("/diagnostics"), (
               f"diagnosticsHome unexpected: {diagnostics_home} (commandsHome={commands_home})"
@@ -245,6 +296,35 @@ jobs:
               assert isinstance(v, str) and v.strip(), f"Invalid path value for {k}: {v!r}"
 
           print("✅ Verification OK after reinstall")
+          PY
+
+      - name: Verify canonical JSON hashes (after reinstall)
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import json, os, hashlib
+
+          root = Path(os.environ["CONFIG_ROOT"])
+          manifest = root / "commands" / "INSTALL_MANIFEST.json"
+          paths_file = root / "commands" / "governance.paths.json"
+
+          def canon_sha256(path: Path) -> str:
+            obj = json.loads(path.read_text(encoding="utf-8"))
+            canon = json.dumps(obj, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+            return hashlib.sha256(canon.encode("utf-8")).hexdigest()
+
+          before_m = os.environ.get("CANON_MANIFEST_SHA256")
+          before_p = os.environ.get("CANON_PATHS_SHA256")
+          assert before_m and before_p, "Missing captured canonical hashes from previous step"
+
+          after_m = canon_sha256(manifest)
+          after_p = canon_sha256(paths_file)
+
+          assert after_m == before_m, f"Manifest canonical JSON changed after reinstall: before={before_m} after={after_m}"
+          assert after_p == before_p, f"Paths canonical JSON changed after reinstall: before={before_p} after={after_p}"
+
+          print("✅ Canonical JSON determinism OK (manifest + governance.paths.json)")
           PY
 
       - name: Uninstall
