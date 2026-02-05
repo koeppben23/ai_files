@@ -14,13 +14,13 @@ jobs:
   # Job 0: Spec Guards (Fail-fast)
   # ----------------------------------
   spec-guards:
-    name: Spec Guards (no resolved path expressions)
+    name: Spec Guards (no resolved-path placeholders)
     runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: "Guard: master.md has no <resolved path expression> and all SourcePath/TargetPath are variable-based"
+      - name: "Guard: master.md has no resolved-path placeholder and all SourcePath/TargetPath are variable-based"
         shell: bash
         run: |
           python - <<'PY'
@@ -34,12 +34,13 @@ jobs:
           lines = p.read_text(encoding='utf-8').splitlines()
 
           # 1) Hard ban: placeholder must never appear
-          bad_placeholder = [i for i,l in enumerate(lines, start=1) if '<resolved path expression>' in l]
+          placeholder = "<" + "resolved path expression" + ">"
+          bad_placeholder = [i for i,l in enumerate(lines, start=1) if placeholder in l]
           if bad_placeholder:
-            print('❌ Found <resolved path expression> in master.md at:')
+            print(f'❌ Found {placeholder} in master.md at:')
             for i in bad_placeholder[:50]:
               print(f'  - line {i}: {lines[i-1].rstrip()}')
-            raise SystemExit('Spec guard failed: unresolved path placeholder present')
+            raise SystemExit('Spec guard failed: unresolved path placeholder present (resolved-path placeholder)')
 
           # 2) Enforce variable-based SourcePath/TargetPath headers
           pat = re.compile(r'^\s*(SourcePath|TargetPath):\s*(.+?)\s*$')

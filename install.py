@@ -730,7 +730,6 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     p.add_argument("--no-backup", action="store_true", help="Disable backup on overwrite (install only).")
     p.add_argument("--uninstall", action="store_true", help="Uninstall previously installed governance files (manifest-based).")
     p.add_argument("--skip-paths-file", action="store_true", help="Do not create/overwrite commands/governance.paths.json.")
-    p.add_argument("--skip-opencode-json", action="store_true", help="[DEPRECATED] Alias for --skip-paths-file.",)
     return p.parse_args(argv)
 
 
@@ -741,7 +740,7 @@ def main(argv: list[str]) -> int:
     plan = build_plan(
         args.source_dir,
         config_root,
-        skip_paths_file=(args.skip_paths_file or args.skip_opencode_json),
+        skip_paths_file=args.skip_paths_file,
     )
 
     print("=" * 60)

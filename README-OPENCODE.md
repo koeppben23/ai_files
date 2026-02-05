@@ -343,7 +343,7 @@ See:
 | `CONFLICT_RESOLUTION.md` | Deterministic precedence model for conflicting instructions |
 | `resume.md` | OpenCode command for controlled continuation |
 | `continue.md` | OpenCode command for uniform continuation |
-| `ResumePrompt.md` | Manual fallback resume variant |
+| `resume_prompt.md` | Manual fallback resume variant |
 
 ---
 
