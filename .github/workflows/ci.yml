@@ -1,6 +1,6 @@
 name: CI
 
-on:
+"on":
   push:
     branches: [ main, develop ]
   pull_request:
@@ -18,7 +18,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Guard: master.md has no <resolved path expression> and all SourcePath/TargetPath are variable-based
+      - name: "Guard: master.md has no <resolved path expression> and all SourcePath/TargetPath are variable-based"
         shell: bash
         run: |
           python - <<'PY'
