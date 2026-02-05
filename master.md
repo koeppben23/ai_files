@@ -3,6 +3,8 @@ description: "Activates the master workflow (phases 1-6)"
 priority: highest
 ---
 
+# Governance-Version: 1.0.0-BETA
+
 MASTER PROMPT
 
 <!-- NOTE: This diff adds fail-closed TargetPath validation to prevent degenerate paths like "C" being written into the repo. -->

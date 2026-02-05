@@ -144,7 +144,6 @@ Skip writing `governance.paths.json` (if you manage it manually):
 
 ```bash
 python install.py --skip-paths-file
-
 ```
 
 Override config root (useful for CI/tests):
@@ -165,6 +164,7 @@ python install.py --uninstall
 **Note:**  
 By default, `governance.paths.json` is preserved because it is machine-specific.  
 If you want to remove it, delete `${COMMANDS_HOME}/governance.paths.json` manually.
+
 Uninstall (non-interactive):
 
 ```bash
@@ -186,7 +186,7 @@ The installer writes a manifest file:
 Typical content (high level):
 
 - `installerVersion`
-- optional `governanceVersion` (if `master.md` contains a header like `# Governance-Version: 11.0.0`)
+- optional `governanceVersion` (if `master.md` contains a header like `# Governance-Version: <semver>`)
 - installed file list + checksums + backup metadata
 
 ### Recommended test matrix before release

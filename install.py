@@ -20,6 +20,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 import os
 import platform
 import shutil
@@ -118,24 +119,48 @@ def ensure_dirs(config_root: Path, dry_run: bool) -> None:
 
 def read_governance_version_from_master(master_md: Path) -> str | None:
     """
-    Optional: read version from master.md if present.
-    Looks for a line containing 'Governance-Version:' or 'Version:' in first 20 lines.
+    Optional: read governance version from master.md if present.
 
-    Recommended convention:
-      # Governance-Version: 11.0.0
+    Supported conventions (must appear near the top of the file, within first ~40 lines):
+      - Markdown header:   # Governance-Version: 1.0.0-BETA
+      - Markdown header:   # Version: 1.0.0-BETA              (fallback)
+      - Frontmatter key:   governanceVersion: 1.0.0
+      - Frontmatter key:   governance_version: 1.0.0
+
+    Returns:
+      The raw version string (e.g. "1.0.0") or None if not found/parsable.
     """
     if not master_md.exists():
         return None
+        
+    # Keep permissive parsing, but require a reasonable "semver-ish" token.
+    semverish = re.compile(r"\b\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?\b")
+        
     try:
         with master_md.open("r", encoding="utf-8") as f:
-            for _ in range(20):
+            for _ in range(40):
                 line = f.readline()
                 if not line:
                     break
+                    
+                # Frontmatter variants
+                m = re.search(
+                    r"^\s*(governanceVersion|governance_version|governance-version)\s*:\s*(.+?)\s*$",
+                    line,
+                    flags=re.IGNORECASE,
+                )
+                if m:
+                    mm = semverish.search(m.group(2))
+                    return mm.group(0) if mm else m.group(2).strip()    
+                    
                 if "Governance-Version:" in line:
-                    return line.split("Governance-Version:", 1)[1].strip()
+                    val = line.split("Governance-Version:", 1)[1].strip()
+                    mm = semverish.search(val)
+                    return mm.group(0) if mm else val
                 if line.lstrip().startswith("#") and "Version:" in line:
-                    return line.split("Version:", 1)[1].strip()
+                    val = line.split("Version:", 1)[1].strip()
+                    mm = semverish.search(val)
+                    return mm.group(0) if mm else val
     except Exception:
         return None
     return None
