@@ -35,6 +35,67 @@ jobs:
         run: |
           pytest -q -m spec
 
+  build-artifacts:
+    needs: spec-guards
+    name: Build Release Artifacts (zip + tar.gz)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Build
+        run: |
+          python scripts/build.py
+      - name: Smoke test from artifacts
+        shell: bash
+        run: |
+          python - <<'PY'
+          import os, tempfile, zipfile, tarfile, subprocess, sys
+          from pathlib import Path
+
+          repo = Path.cwd()
+          dist = repo / "dist"
+          zips = sorted(dist.glob("governance-*.zip"))
+          tgzs = sorted(dist.glob("governance-*.tar.gz"))
+          assert zips and tgzs, "Expected both zip and tar.gz in dist/"
+
+          def smoke(extracted: Path):
+            cfg = extracted / "_cfg"
+            r = subprocess.run([sys.executable, "-X", "utf8", "install.py", "--dry-run", "--config-root", str(cfg)],
+                               cwd=str(extracted), text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            assert r.returncode == 0, f"dry-run failed:\n{r.stderr}\n{r.stdout}"
+            r = subprocess.run([sys.executable, "-X", "utf8", "install.py", "--force", "--no-backup", "--config-root", str(cfg)],
+                               cwd=str(extracted), text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            assert r.returncode == 0, f"install failed:\n{r.stderr}\n{r.stdout}"
+            r = subprocess.run([sys.executable, "-X", "utf8", "install.py", "--uninstall", "--force", "--config-root", str(cfg)],
+                               cwd=str(extracted), text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            assert r.returncode == 0, f"uninstall failed:\n{r.stderr}\n{r.stdout}"
+
+          with tempfile.TemporaryDirectory() as td:
+            td = Path(td)
+            # ZIP
+            with zipfile.ZipFile(zips[-1], "r") as z:
+              z.extractall(td)
+            root = next(td.glob("governance-*"))
+            smoke(root)
+
+          with tempfile.TemporaryDirectory() as td:
+            td = Path(td)
+            # TAR.GZ
+            with tarfile.open(tgzs[-1], "r:gz") as t:
+              t.extractall(td)
+            root = next(td.glob("governance-*"))
+            smoke(root)
+
+          print("✅ Artifact smoke test OK")
+          PY
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: governance-dist
+          path: dist/*
+
   # ----------------------------------
   # Job 1: Installer Tests (Cross-OS)
   # ----------------------------------
