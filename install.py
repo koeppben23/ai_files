@@ -460,7 +460,14 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
     backup_root = plan.commands_dir / "_backup" / now_ts()
 
     # determine governance version from *source* master.md
-    gov_ver = read_governance_version_from_master(plan.source_dir / "master.md") or "unknown"
+    gov_ver = read_governance_version_from_master(plan.source_dir / "master.md")
+
+    if not gov_ver:
+        eprint("❌ Governance-Version not found in master.md.")
+        eprint("   Expected a header like:")
+        eprint("     # Governance-Version: <semver>")
+        eprint("   Installation aborted to prevent unversioned deployments.")
+        return 2
 
     copied_entries: list[dict] = []
 
