@@ -58,6 +58,67 @@ jobs:
 
           print('✅ Spec guards OK')
           PY
+          
+      - name: "Guard: README consistency (no obsolete OpenCode references)"
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          p = Path("README.md")
+          if not p.exists():
+              raise SystemExit("README.md not found")
+
+          text = p.read_text(encoding="utf-8")
+
+          # -----------------------------
+          # Hard bans (must never appear)
+          # -----------------------------
+          FORBIDDEN = [
+              r"opencode\.template\.json",
+              r"`opencode\.json`",
+              r"--remove-opencode-json",
+              r"--skip-opencode-json",
+              r"Template \(checked in\)",
+          ]
+
+          violations = []
+
+          for pat in FORBIDDEN:
+              if re.search(pat, text, flags=re.IGNORECASE):
+                  violations.append(pat)
+
+          # -----------------------------
+          # Required references
+          # -----------------------------
+          REQUIRED = [
+              r"governance\.paths\.json",
+          ]
+
+          missing = []
+          for pat in REQUIRED:
+              if not re.search(pat, text, flags=re.IGNORECASE):
+                  missing.append(pat)
+
+          # -----------------------------
+          # Report
+          # -----------------------------
+          if violations:
+              print("❌ README contains obsolete references:")
+              for v in violations:
+                  print("  -", v)
+              raise SystemExit("README consistency check failed (forbidden refs)")
+
+          if missing:
+              print("❌ README is missing required references:")
+              for m in missing:
+                  print("  -", m)
+              raise SystemExit("README consistency check failed (missing refs)")
+
+          print("✅ README consistency OK")
+          PY
+
 
   # ----------------------------------
   # Job 1: Installer Tests (Cross-OS)
