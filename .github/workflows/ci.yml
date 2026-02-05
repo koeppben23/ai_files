@@ -40,14 +40,14 @@ jobs:
             raise SystemExit('Spec guard failed: unresolved path placeholder present')
 
           # 2) Enforce variable-based SourcePath/TargetPath headers
-          pat = re.compile(r'^\s*(SourcePath|TargetPath):\s*(.)\s*$')
+          pat = re.compile(r'^\s*(SourcePath|TargetPath):\s*(.+?)\s*$')
           violations = []
           for i, l in enumerate(lines, start=1):
             m = pat.match(l)
             if not m:
               continue
-            val = m.group(2)
-            if '${' not in val:
+            val = m.group(2).strip()
+            if not val or '${' not in val:
               violations.append((i, l))
 
           if violations:
