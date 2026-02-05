@@ -249,7 +249,7 @@ def collect_command_root_files(source_dir: Path) -> list[Path]:
         if name in EXCLUDE_ROOT_FILES:
             continue
 
-        if name.lower() == "license":
+        if name.lower().startswith("license"):
             files.append(p)
             continue
 

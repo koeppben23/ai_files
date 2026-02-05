@@ -20,6 +20,34 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: "Guard: no case-only filename collisions (Windows-safe)"
+        shell: bash
+        run: |
+          python - <<'PY'
+          import subprocess
+          from collections import defaultdict
+          from pathlib import PurePosixPath
+
+          files = subprocess.check_output(["git", "ls-files"], text=True).splitlines()
+          buckets = defaultdict(list)
+
+          for f in files:
+              # Normalize to posix path semantics for repo paths
+              p = PurePosixPath(f)
+              buckets[str(p).lower()].append(str(p))
+
+          collisions = {k: v for k, v in buckets.items() if len(v) > 1}
+          if collisions:
+              print("❌ Case-only filename/path collisions detected (breaks Windows/macOS default FS):")
+              for k, v in sorted(collisions.items()):
+                  print(f"  - {k}:")
+                  for item in sorted(v):
+                      print(f"      * {item}")
+              raise SystemExit("Spec guard failed: case-only collisions")
+
+          print("✅ No case-only collisions found")
+          PY
+
       - name: "Guard: master.md has no resolved-path placeholder and all SourcePath/TargetPath are variable-based"
         shell: bash
         run: |
