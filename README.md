@@ -140,12 +140,11 @@ Custom source directory (if files are not next to `install.py`):
 python install.py --source-dir /path/to/governance-files
 ```
 
-Skip writing `opencode.json` (if you manage it manually):
+Skip writing `governance.paths.json` (if you manage it manually):
 
 ```bash
 python install.py --skip-paths-file
 
-(Deprecated alias still works: `python install.py --skip-opencode-json`)
 ```
 
 Override config root (useful for CI/tests):
@@ -164,9 +163,8 @@ python install.py --uninstall
 ```
 
 **Note:**  
-By default, `opencode.json` is preserved.  
-It is only removed when `--remove-opencode-json` is explicitly provided.
-
+By default, `governance.paths.json` is preserved because it is machine-specific.  
+If you want to remove it, delete `${COMMANDS_HOME}/governance.paths.json` manually.
 Uninstall (non-interactive):
 
 ```bash
@@ -215,8 +213,6 @@ python install.py --force
 python install.py --force --no-backup
 python install.py --uninstall --dry-run
 python install.py --uninstall
-python install.py --uninstall --remove-opencode-json --dry-run
-python install.py --uninstall --remove-opencode-json --force
 ```
 
 ---
@@ -225,13 +221,7 @@ python install.py --uninstall --remove-opencode-json --force
 
 When using this governance system with **OpenCode (repo-aware execution)**, a **local machine configuration file is REQUIRED** to avoid interactive path binding and non-deterministic startup behavior.
 
-This repository provides a **template**, not a machine-specific configuration.
-
-### Template (checked in)
-
-```
-opencode/opencode.template.json
-```
+This repository does not ship a machine-specific OpenCode configuration file. Each machine must provide its own `${COMMANDS_HOME}/governance.paths.json`.
 
 ### Local instance (NOT checked in)
 

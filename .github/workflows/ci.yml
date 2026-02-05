@@ -1,6 +1,6 @@
 name: CI
 
-on:
+"on":
   push:
     branches: [ main, develop ]
   pull_request:
@@ -9,9 +9,122 @@ on:
 jobs:
 
   # ----------------------------------
+  # Job 0: Spec Guards (Fail-fast)
+  # ----------------------------------
+  spec-guards:
+    name: Spec Guards (no resolved path expressions)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: "Guard: master.md has no <resolved path expression> and all SourcePath/TargetPath are variable-based"
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          p = Path('master.md')
+          if not p.exists():
+            raise SystemExit('master.md not found at repo root')
+
+          lines = p.read_text(encoding='utf-8').splitlines()
+
+          # 1) Hard ban: placeholder must never appear
+          bad_placeholder = [i for i,l in enumerate(lines, start=1) if '<resolved path expression>' in l]
+          if bad_placeholder:
+            print('❌ Found <resolved path expression> in master.md at:')
+            for i in bad_placeholder[:50]:
+              print(f'  - line {i}: {lines[i-1].rstrip()}')
+            raise SystemExit('Spec guard failed: unresolved path placeholder present')
+
+          # 2) Enforce variable-based SourcePath/TargetPath headers
+          pat = re.compile(r'^\s*(SourcePath|TargetPath):\s*(.+?)\s*$')
+          violations = []
+          for i, l in enumerate(lines, start=1):
+            m = pat.match(l)
+            if not m:
+              continue
+            val = m.group(2).strip()
+            if not val or '${' not in val:
+              violations.append((i, l))
+
+          if violations:
+            print('❌ Non-variable SourcePath/TargetPath entries found (must use ${...}):')
+            for i, l in violations[:50]:
+              print(f'  - line {i}: {l}')
+            raise SystemExit('Spec guard failed: non-variable SourcePath/TargetPath')
+
+          print('✅ Spec guards OK')
+          PY
+          
+      - name: "Guard: README consistency (no obsolete OpenCode references)"
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          p = Path("README.md")
+          if not p.exists():
+              raise SystemExit("README.md not found")
+
+          text = p.read_text(encoding="utf-8")
+
+          # -----------------------------
+          # Hard bans (must never appear)
+          # -----------------------------
+          FORBIDDEN = [
+              r"opencode\.template\.json",
+              r"`opencode\.json`",
+              r"--remove-opencode-json",
+              r"--skip-opencode-json",
+              r"Template \(checked in\)",
+          ]
+
+          violations = []
+
+          for pat in FORBIDDEN:
+              if re.search(pat, text, flags=re.IGNORECASE):
+                  violations.append(pat)
+
+          # -----------------------------
+          # Required references
+          # -----------------------------
+          REQUIRED = [
+              r"governance\.paths\.json",
+          ]
+
+          missing = []
+          for pat in REQUIRED:
+              if not re.search(pat, text, flags=re.IGNORECASE):
+                  missing.append(pat)
+
+          # -----------------------------
+          # Report
+          # -----------------------------
+          if violations:
+              print("❌ README contains obsolete references:")
+              for v in violations:
+                  print("  -", v)
+              raise SystemExit("README consistency check failed (forbidden refs)")
+
+          if missing:
+              print("❌ README is missing required references:")
+              for m in missing:
+                  print("  -", m)
+              raise SystemExit("README consistency check failed (missing refs)")
+
+          print("✅ README consistency OK")
+          PY
+
+
+  # ----------------------------------
   # Job 1: Installer Tests (Cross-OS)
   # ----------------------------------
   test-installer:
+    needs: spec-guards
     name: Test Installer on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
 
