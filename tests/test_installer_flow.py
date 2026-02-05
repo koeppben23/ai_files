@@ -1,0 +1,260 @@
+from __future__ import annotations
+
+import json
+import re
+from pathlib import Path
+
+import pytest
+
+from .util import REPO_ROOT, run_install, read_text, sha256_file, is_flag_supported
+
+
+MANIFEST_NAME = "INSTALL_MANIFEST.json"
+
+
+def _commands_dir(config_root: Path) -> Path:
+    return config_root / "commands"
+
+
+def _manifest_path(config_root: Path) -> Path:
+    return _commands_dir(config_root) / MANIFEST_NAME
+
+
+def _paths_file(config_root: Path) -> Path:
+    return _commands_dir(config_root) / "governance.paths.json"
+
+
+def _load_manifest(config_root: Path) -> dict:
+    mp = _manifest_path(config_root)
+    assert mp.exists(), f"Missing manifest: {mp}"
+    return json.loads(read_text(mp))
+
+
+def _iter_manifest_entries(files_obj, commands: Path):
+    """
+    Supports your current CI semantics:
+      - files: dict[...] where keys are paths
+      - files: list[str]
+      - files: list[dict] with at least dst
+    Yields (target_path, expected_sha256_or_none).
+    """
+    base = commands.resolve()
+
+    def assert_under_base(p: Path, label: str) -> None:
+        p = p.resolve()
+        try:
+            p.relative_to(base)
+        except ValueError:
+            raise AssertionError(f"{label} escapes commands dir: {p} (base={base})")
+        assert p.exists(), f"{label} missing on disk: {p}"
+
+    def looks_like_sha256(s: object) -> bool:
+        return isinstance(s, str) and bool(re.fullmatch(r"[0-9a-fA-F]{64}", s))
+
+    seen = set()
+
+    if isinstance(files_obj, dict):
+        items = list(files_obj.keys())
+        assert items, "Manifest 'files' is empty"
+        for entry in items:
+            assert isinstance(entry, str) and entry.strip(), f"Invalid manifest key: {entry!r}"
+            assert entry not in seen, f"Duplicate manifest entry: {entry}"
+            seen.add(entry)
+            p = Path(entry)
+            target = p if p.is_absolute() else (commands / p)
+            assert_under_base(target, "Manifest file")
+            yield (target, None)
+        return
+
+    assert isinstance(files_obj, list), f"Manifest 'files' must be list or dict, got: {type(files_obj).__name__}"
+    assert files_obj, "Manifest 'files' is empty"
+
+    for entry in files_obj:
+        if isinstance(entry, str):
+            rel = entry.strip()
+            assert rel, f"Invalid manifest entry: {entry!r}"
+            assert rel not in seen, f"Duplicate manifest entry: {rel}"
+            seen.add(rel)
+            p = Path(rel)
+            assert not p.is_absolute(), f"Absolute path in string manifest entry: {rel}"
+            assert ".." not in p.parts, f"Path traversal in manifest entry: {rel}"
+            target = commands / p
+            assert_under_base(target, "Manifest file")
+            yield (target, None)
+            continue
+
+        if isinstance(entry, dict):
+            assert "dst" in entry, f"Manifest dict entry missing 'dst': {entry}"
+            dst = entry["dst"]
+            assert isinstance(dst, str) and dst.strip(), f"Invalid dst in manifest entry: {dst!r}"
+            if dst in seen:
+                raise AssertionError(f"Duplicate manifest dst: {dst}")
+            seen.add(dst)
+            target = Path(dst)
+            target = target if target.is_absolute() else (commands / target)
+            assert_under_base(target, "Manifest dst")
+            expected = entry.get("sha256")
+            yield (target, expected if looks_like_sha256(expected) else None)
+            continue
+
+        raise AssertionError(f"Invalid manifest list entry type: {type(entry).__name__}: {entry!r}")
+
+
+@pytest.mark.installer
+def test_full_install_reinstall_uninstall_flow(tmp_path: Path):
+    config_root = tmp_path / "opencode-config"
+
+    # Dry run
+    r = run_install(["--dry-run", "--config-root", str(config_root)])
+    assert r.returncode == 0, f"dry-run failed:\n{r.stderr}\n{r.stdout}"
+
+    # Fresh install
+    r = run_install(["--force", "--no-backup", "--config-root", str(config_root)])
+    assert r.returncode == 0, f"install failed:\n{r.stderr}\n{r.stdout}"
+
+    commands = _commands_dir(config_root)
+    manifest = _manifest_path(config_root)
+    paths_file = _paths_file(config_root)
+
+    # Verify critical files
+    critical = [
+        commands / "master.md",
+        commands / "rules.md",
+        commands / "start.md",
+        manifest,
+        paths_file,
+    ]
+    for f in critical:
+        assert f.exists(), f"Missing: {f}"
+
+    # Manifest roundtrip + (optional) sha validation
+    data = _load_manifest(config_root)
+    assert "files" in data, "Manifest missing 'files' key"
+
+    entries = list(_iter_manifest_entries(data["files"], commands))
+    assert entries, "Manifest has no file entries"
+
+    for target, expected_sha in entries:
+        if expected_sha:
+            got = sha256_file(target)
+            assert got.lower() == expected_sha.lower(), f"SHA256 mismatch for {target}: expected={expected_sha} got={got}"
+
+    # Verify governance.paths.json semantics
+    p = json.loads(read_text(paths_file))
+    assert "paths" in p and isinstance(p["paths"], dict), "governance.paths.json missing 'paths' object"
+    required_paths = ["configRoot", "commandsHome", "profilesHome", "diagnosticsHome"]
+    missing = [k for k in required_paths if k not in p["paths"]]
+    assert not missing, f"governance.paths.json missing keys: {missing}"
+
+    commands_home = p["paths"]["commandsHome"]
+    diagnostics_home = p["paths"]["diagnosticsHome"]
+    dh = diagnostics_home.replace("\\", "/").rstrip("/")
+    ch = commands_home.replace("\\", "/").rstrip("/")
+    assert dh == f"{ch}/diagnostics" or dh.endswith("/diagnostics"), (
+        f"diagnosticsHome unexpected: {diagnostics_home} (commandsHome={commands_home})"
+    )
+
+    # Capture hashes before reinstall (ignore variable files)
+    ignore_names = {"governance.paths.json", MANIFEST_NAME}
+    before = {}
+    for target, _ in entries:
+        if target.name in ignore_names:
+            continue
+        rel = target.resolve().relative_to(commands.resolve()).as_posix()
+        before[rel] = sha256_file(target)
+
+    # Reinstall (idempotency)
+    r = run_install(["--force", "--no-backup", "--config-root", str(config_root)])
+    assert r.returncode == 0, f"reinstall failed:\n{r.stderr}\n{r.stdout}"
+
+    data2 = _load_manifest(config_root)
+    assert "files" in data2
+    entries2 = list(_iter_manifest_entries(data2["files"], commands))
+    assert entries2
+
+    after = {}
+    for target, _ in entries2:
+        if target.name in ignore_names:
+            continue
+        rel = target.resolve().relative_to(commands.resolve()).as_posix()
+        after[rel] = sha256_file(target)
+
+    assert set(before.keys()) == set(after.keys()), f"Installed file set changed on reinstall. missing={set(before)-set(after)} added={set(after)-set(before)}"
+    changed = [k for k in before.keys() if before[k] != after[k]]
+    assert not changed, f"Reinstall drift detected (content changed): {changed[:25]}"
+
+    # Uninstall (manifest-based)
+    r = run_install(["--uninstall", "--force", "--config-root", str(config_root)])
+    assert r.returncode == 0, f"uninstall failed:\n{r.stderr}\n{r.stdout}"
+
+    # Verify uninstall cleanliness (installer-owned artifacts removed)
+    must_be_gone = [
+        commands / "master.md",
+        commands / "rules.md",
+        commands / "start.md",
+        manifest,
+        paths_file,  # this should be removed for a normal install-owned paths file
+    ]
+    still = [str(p) for p in must_be_gone if p.exists()]
+    assert not still, f"Uninstall left artifacts behind: {still}"
+
+    if commands.exists():
+        leftovers = [p for p in commands.rglob("*") if p.is_file()]
+        assert not leftovers, f"Commands dir not empty after uninstall: {[p.name for p in leftovers[:25]]}"
+
+
+@pytest.mark.installer
+def test_uninstall_fallback_manifest_missing(tmp_path: Path):
+    """
+    Simulates missing/removed manifest. Uninstall should not crash/hang in CI.
+    If --purge-paths-file is supported, we use it to guarantee full cleanup.
+    """
+    config_root = tmp_path / "opencode-config-fallback"
+    r = run_install(["--force", "--no-backup", "--config-root", str(config_root)])
+    assert r.returncode == 0, f"install failed:\n{r.stderr}\n{r.stdout}"
+
+    mp = _manifest_path(config_root)
+    assert mp.exists()
+    mp.unlink()  # force fallback
+
+    args = ["--uninstall", "--force", "--config-root", str(config_root)]
+    if is_flag_supported("--purge-paths-file"):
+        args.insert(2, "--purge-paths-file")
+
+    r = run_install(args)
+    assert r.returncode == 0, f"fallback uninstall failed:\n{r.stderr}\n{r.stdout}"
+
+    commands = _commands_dir(config_root)
+    if commands.exists():
+        leftovers = [p for p in commands.rglob("*") if p.is_file()]
+        assert not leftovers, f"Fallback uninstall left files behind: {[p.as_posix() for p in leftovers[:25]]}"
+
+
+@pytest.mark.installer
+def test_preexisting_paths_file_preserved_when_skipped(tmp_path: Path):
+    """
+    Ownership semantics:
+      - if governance.paths.json pre-exists and install uses --skip-paths-file
+      - uninstall must not delete that pre-existing file
+    """
+    config_root = tmp_path / "opencode-config-preexisting"
+    commands = _commands_dir(config_root)
+    commands.mkdir(parents=True, exist_ok=True)
+
+    paths = _paths_file(config_root)
+    paths.write_text('{"preexisting": true}\n', encoding="utf-8")
+    assert paths.exists()
+
+    r = run_install(["--force", "--no-backup", "--skip-paths-file", "--config-root", str(config_root)])
+    assert r.returncode == 0, f"install (skip paths) failed:\n{r.stderr}\n{r.stdout}"
+    assert paths.exists(), "preexisting governance.paths.json should remain after install --skip-paths-file"
+
+    r = run_install(["--uninstall", "--force", "--config-root", str(config_root)])
+    assert r.returncode == 0, f"uninstall failed:\n{r.stderr}\n{r.stdout}"
+    assert paths.exists(), "preexisting governance.paths.json must be preserved on uninstall"
+
+    # If supported, purge must remove it.
+    if is_flag_supported("--purge-paths-file"):
+        r = run_install(["--uninstall", "--force", "--purge-paths-file", "--config-root", str(config_root)])
+        assert r.returncode == 0
+        assert not paths.exists(), "--purge-paths-file should remove governance.paths.json"
