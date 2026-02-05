@@ -144,6 +144,7 @@ jobs:
               r"--remove-opencode-json",
               r"--skip-opencode-json",
               r"Template \(checked in\)",
+              r"optional\s+`?governanceVersion`?",
           ]
 
           violations = []
@@ -182,6 +183,26 @@ jobs:
           print("✅ README consistency OK")
           PY
 
+      - name: "Guard: start.md fallback paths JSON includes required keys"
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          p = Path('start.md')
+          if not p.exists():
+              raise SystemExit('start.md not found at repo root')
+
+          text = p.read_text(encoding='utf-8')
+
+          # Ensure the embedded fallback JSON payload defines all required keys
+          required = ['configRoot', 'commandsHome', 'profilesHome', 'diagnosticsHome', 'workspacesHome']
+          missing = [k for k in required if f"'{k}'" not in text]
+          if missing:
+              raise SystemExit(f'start.md fallback payload missing keys: {missing}')
+
+          print('✅ start.md fallback payload contains required keys')
+          PY
 
   # ----------------------------------
   # Job 1: Installer Tests (Cross-OS)

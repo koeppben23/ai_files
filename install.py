@@ -30,8 +30,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Iterable
 
-VERSION = "1.1.0"
-
+VERSION = "1.1.1"
 # Files copied into <config_root>/commands
 # Strategy: copy (almost) all repo-root governance artifacts that are relevant at runtime.
 # - Include: *.md, *.json, LICENSE (if present)
@@ -143,7 +142,10 @@ def ensure_dirs(config_root: Path, dry_run: bool) -> None:
 
 def read_governance_version_from_master(master_md: Path) -> str | None:
     """
-    Optional: read governance version from master.md if present.
+    Read the governance version from master.md.
+
+    The installer requires a governance version (fail-closed). If no version is found,
+    the install step aborts to prevent unversioned deployments.
 
     Supported conventions (must appear near the top of the file, within first ~40 lines):
       - Markdown header:   # Governance-Version: 1.0.0-BETA
@@ -619,7 +621,7 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
     return 0
 
 
-def uninstall(plan: InstallPlan, dry_run: bool, force: bool) -> int:
+def uninstall(plan: InstallPlan, dry_run: bool, force: bool, purge_paths_file: bool) -> int:
     print(f"🧹 Uninstall from: {plan.commands_dir}")
 
     # We never manage opencode.json. Uninstall only removes installer-owned files under commands/,
@@ -641,17 +643,12 @@ def uninstall(plan: InstallPlan, dry_run: bool, force: bool) -> int:
             plan.commands_dir / name
             for name in CORE_COMMAND_FILES
         ]
-        # Also remove the installer-owned governance paths sidecar (not present in source_dir).
-        targets.append(plan.governance_paths_path)
+        # Remove governance.paths.json only when explicitly requested.
+        if purge_paths_file:
+            targets.append(plan.governance_paths_path)
         targets.extend(list((plan.commands_dir / "profiles").glob("*.md")))
         targets.extend([p for p in (plan.commands_dir / "diagnostics").rglob("*") if p.is_file()])
         # intentionally NOT deleting opencode.json (never managed by this installer)
-
-        if not dry_run:
-            resp = input("Proceed with conservative uninstall (known filenames only)? [y/N] ").strip().lower()
-            if resp not in ("y", "yes"):
-                print("Uninstall cancelled.")
-                return 0
 
         return delete_targets(targets, plan, dry_run=dry_run)
 
@@ -666,6 +663,10 @@ def uninstall(plan: InstallPlan, dry_run: bool, force: bool) -> int:
             targets.append(plan.commands_dir / rel)
         elif dst:
             targets.append(Path(dst))
+            
+    if purge_paths_file:
+        # Explicit operator request: remove machine-specific binding even if it pre-existed.
+        targets.append(plan.governance_paths_path)
 
     if not targets:
         print("ℹ️  Manifest contains no installed files. Nothing to uninstall.")
@@ -676,7 +677,14 @@ def uninstall(plan: InstallPlan, dry_run: bool, force: bool) -> int:
         print(f"  - {t}")
 
     if not force and not dry_run:
-        resp = input("Really uninstall? [y/N] ").strip().lower()
+        if not is_interactive():
+            eprint("❌ Refusing to prompt in non-interactive mode. Re-run with --force or use --dry-run.")
+            return 4
+        try:
+            resp = input("Really uninstall? [y/N] ").strip().lower()
+        except EOFError:
+            eprint("❌ Refusing to prompt (stdin closed). Re-run with --force or use --dry-run.")
+            return 4
         if resp not in ("y", "yes"):
             print("Uninstall cancelled.")
             return 0
@@ -777,6 +785,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     p.add_argument("--no-backup", action="store_true", help="Disable backup on overwrite (install only).")
     p.add_argument("--uninstall", action="store_true", help="Uninstall previously installed governance files (manifest-based).")
     p.add_argument("--skip-paths-file", action="store_true", help="Do not create/overwrite commands/governance.paths.json.")
+    p.add_argument("--purge-paths-file", action="store_true", help="On uninstall: also remove commands/governance.paths.json even if it pre-existed or the manifest is missing.")
     return p.parse_args(argv)
 
 
@@ -797,7 +806,7 @@ def main(argv: list[str]) -> int:
     print("=" * 60)
 
     if args.uninstall:
-        return uninstall(plan, dry_run=args.dry_run, force=args.force)
+        return uninstall(plan, dry_run=args.dry_run, force=args.force, purge_paths_file=args.purge_paths_file)
 
     # install flow
     print(f"Source dir:  {plan.source_dir}")

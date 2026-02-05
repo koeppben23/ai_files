@@ -169,7 +169,7 @@ It is removed on uninstall only if it was created or overwritten by the installe
 If the file pre-existed and was skipped, the installer does not take ownership
 and it will be preserved.
 
-To remove a preserved file, delete `${COMMANDS_HOME}/governance.paths.json` manually.
+To remove a preserved file, delete `${COMMANDS_HOME}/governance.paths.json` manually (or run `python install.py --uninstall --force --purge-paths-file`).
 
 Uninstall (non-interactive):
 
@@ -192,7 +192,7 @@ The installer writes a manifest file:
 Typical content (high level):
 
 - `installerVersion`
-- optional `governanceVersion` (if `master.md` contains a header like `# Governance-Version: <semver>`)
+- `governanceVersion` (required; extracted from `master.md`, e.g. `# Governance-Version: <semver>`)
 - installed file list + checksums + backup metadata
 
 ### Recommended test matrix before release
