@@ -55,6 +55,26 @@ MANIFEST_SCHEMA = "1.0"
 GOVERNANCE_PATHS_NAME = "governance.paths.json"
 GOVERNANCE_PATHS_SCHEMA = "opencode-governance.paths.v1"
 
+# Core governance files (static allowlist for conservative uninstall fallback)
+CORE_COMMAND_FILES = {
+    "master.md",
+    "rules.md",
+    "start.md",
+    "continue.md",
+    "resume.md",
+    "resume_prompt.md",
+    "QUALITY_INDEX.md",
+    "CONFLICT_RESOLUTION.md",
+    "SCOPE-AND-CONTEXT.md",
+    "SESSION_STATE_SCHEMA.md",
+    "ADR.md",
+    "TICKET_RECORD_TEMPLATE.md",
+    "README.md",
+    "README-RULES.md",
+    "README-OPENCODE.md",
+    "README-CHAT.md",
+}
+
 def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
 
@@ -601,7 +621,11 @@ def uninstall(plan: InstallPlan, dry_run: bool, force: bool) -> int:
             return 4
 
         # Conservative fallback: delete only known filenames (MAIN_FILES) + profiles/*.md
-        targets: list[Path] = [plan.commands_dir / p.name for p in collect_command_root_files(plan.source_dir)]
+        # Conservative fallback: static allowlist (independent of source-dir)
+        targets: list[Path] = [
+            plan.commands_dir / name
+            for name in CORE_COMMAND_FILES
+        ]
         # Also remove the installer-owned governance paths sidecar (not present in source_dir).
         targets.append(plan.governance_paths_path)
         targets.extend(list((plan.commands_dir / "profiles").glob("*.md")))

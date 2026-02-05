@@ -270,6 +270,7 @@ Example (Windows):
     "configRoot": "C:/Users/<USER>/.config/opencode",
     "commandsHome": "C:/Users/<USER>/.config/opencode/commands",
     "profilesHome": "C:/Users/<USER>/.config/opencode/commands/profiles",
+    "diagnosticsHome": "C:/Users/<USER>/.config/opencode/commands/diagnostics",
     "workspacesHome": "C:/Users/<USER>/.config/opencode/workspaces"
   }
 }
