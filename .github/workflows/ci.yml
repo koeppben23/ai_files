@@ -19,190 +19,89 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+      
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
 
-      - name: "Guard: no case-only filename collisions (Windows-safe)"
+      - name: Install test deps
+        shell: bash
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pytest
+
+      - name: Run spec guards (pytest)
+        shell: bash
+        run: |
+          pytest -q -m spec
+
+  build-artifacts:
+    needs: spec-guards
+    name: Build Release Artifacts (zip + tar.gz)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install test deps
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pytest
+      - name: Run build artifact tests (pytest)
+        run: |
+          pytest -q -m build
+      - name: Build
+        run: |
+          python scripts/build.py
+      - name: Smoke test from artifacts
         shell: bash
         run: |
           python - <<'PY'
-          import subprocess
-          from collections import defaultdict
-          from pathlib import PurePosixPath
-
-          files = subprocess.check_output(["git", "ls-files"], text=True).splitlines()
-          buckets = defaultdict(list)
-
-          for f in files:
-              # Normalize to posix path semantics for repo paths
-              p = PurePosixPath(f)
-              buckets[str(p).lower()].append(str(p))
-
-          collisions = {k: v for k, v in buckets.items() if len(v) > 1}
-          if collisions:
-              print("❌ Case-only filename/path collisions detected (breaks Windows/macOS default FS):")
-              for k, v in sorted(collisions.items()):
-                  print(f"  - {k}:")
-                  for item in sorted(v):
-                      print(f"      * {item}")
-              raise SystemExit("Spec guard failed: case-only collisions")
-
-          print("✅ No case-only collisions found")
-          PY
-
-      - name: "Guard: master.md has no resolved-path placeholder and all SourcePath/TargetPath are variable-based"
-        shell: bash
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-          import re
-
-          p = Path('master.md')
-          if not p.exists():
-            raise SystemExit('master.md not found at repo root')
-
-          lines = p.read_text(encoding='utf-8').splitlines()
-
-          # 1) Hard ban: placeholder must never appear
-          placeholder = "<" + "resolved path expression" + ">"
-          bad_placeholder = [i for i,l in enumerate(lines, start=1) if placeholder in l]
-          if bad_placeholder:
-            print(f'❌ Found {placeholder} in master.md at:')
-            for i in bad_placeholder[:50]:
-              print(f'  - line {i}: {lines[i-1].rstrip()}')
-            raise SystemExit('Spec guard failed: unresolved path placeholder present (resolved-path placeholder)')
-
-          # 2) Enforce variable-based SourcePath/TargetPath headers
-          pat = re.compile(r'^\s*(SourcePath|TargetPath):\s*(.+?)\s*$')
-          violations = []
-          for i, l in enumerate(lines, start=1):
-            m = pat.match(l)
-            if not m:
-              continue
-            val = m.group(2).strip()
-            if not val or '${' not in val:
-              violations.append((i, l))
-
-          if violations:
-            print('❌ Non-variable SourcePath/TargetPath entries found (must use ${...}):')
-            for i, l in violations[:50]:
-              print(f'  - line {i}: {l}')
-            raise SystemExit('Spec guard failed: non-variable SourcePath/TargetPath')
-
-          print('✅ Spec guards OK')
-          PY
-          
-      - name: "Guard: governance version present (master.md)"
-        shell: bash
-        run: |
-          python - <<'PY'
-          import re
+          import os, tempfile, zipfile, tarfile, subprocess, sys
           from pathlib import Path
 
-          p = Path("master.md")
-          if not p.exists():
-              raise SystemExit("master.md not found")
+          repo = Path.cwd()
+          dist = repo / "dist"
+          zips = sorted(dist.glob("governance-*.zip"))
+          tgzs = sorted(dist.glob("governance-*.tar.gz"))
+          assert zips and tgzs, "Expected both zip and tar.gz in dist/"
 
-          head = "\n".join(p.read_text(encoding="utf-8").splitlines()[:60])
+          def smoke(extracted: Path):
+            cfg = extracted / "_cfg"
+            r = subprocess.run([sys.executable, "-X", "utf8", "install.py", "--dry-run", "--config-root", str(cfg)],
+                               cwd=str(extracted), text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            assert r.returncode == 0, f"dry-run failed:\n{r.stderr}\n{r.stdout}"
+            r = subprocess.run([sys.executable, "-X", "utf8", "install.py", "--force", "--no-backup", "--config-root", str(cfg)],
+                               cwd=str(extracted), text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            assert r.returncode == 0, f"install failed:\n{r.stderr}\n{r.stdout}"
+            r = subprocess.run([sys.executable, "-X", "utf8", "install.py", "--uninstall", "--force", "--config-root", str(cfg)],
+                               cwd=str(extracted), text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            assert r.returncode == 0, f"uninstall failed:\n{r.stderr}\n{r.stdout}"
 
-          patterns = [
-              r"Governance-Version:\s*([0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?)",
-              r"^\s*governanceVersion:\s*([0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?)\s*$",
-              r"^\s*governance_version:\s*([0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?)\s*$",
-          ]
+          with tempfile.TemporaryDirectory() as td:
+            td = Path(td)
+            # ZIP
+            with zipfile.ZipFile(zips[-1], "r") as z:
+              z.extractall(td)
+            root = next(td.glob("governance-*"))
+            smoke(root)
 
-          ver = None
-          for pat in patterns:
-              m = re.search(pat, head, flags=re.IGNORECASE | re.MULTILINE)
-              if m:
-                  ver = m.group(1)
-                  break
+          with tempfile.TemporaryDirectory() as td:
+            td = Path(td)
+            # TAR.GZ
+            with tarfile.open(tgzs[-1], "r:gz") as t:
+              t.extractall(td)
+            root = next(td.glob("governance-*"))
+            smoke(root)
 
-          if not ver:
-              raise SystemExit("Missing governance version in master.md. Add e.g. '# Governance-Version: 11.0.0' near the top.")
-
-          print("✅ Governance version:", ver)
+          print("✅ Artifact smoke test OK")
           PY
-          
-      - name: "Guard: README consistency (no obsolete OpenCode references)"
-        shell: bash
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-          import re
-
-          p = Path("README.md")
-          if not p.exists():
-              raise SystemExit("README.md not found")
-
-          text = p.read_text(encoding="utf-8")
-
-          # -----------------------------
-          # Hard bans (must never appear)
-          # -----------------------------
-          FORBIDDEN = [
-              r"opencode\.template\.json",
-              r"`opencode\.json`",
-              r"--remove-opencode-json",
-              r"--skip-opencode-json",
-              r"Template \(checked in\)",
-              r"optional\s+`?governanceVersion`?",
-          ]
-
-          violations = []
-
-          for pat in FORBIDDEN:
-              if re.search(pat, text, flags=re.IGNORECASE):
-                  violations.append(pat)
-
-          # -----------------------------
-          # Required references
-          # -----------------------------
-          REQUIRED = [
-              r"governance\.paths\.json",
-          ]
-
-          missing = []
-          for pat in REQUIRED:
-              if not re.search(pat, text, flags=re.IGNORECASE):
-                  missing.append(pat)
-
-          # -----------------------------
-          # Report
-          # -----------------------------
-          if violations:
-              print("❌ README contains obsolete references:")
-              for v in violations:
-                  print("  -", v)
-              raise SystemExit("README consistency check failed (forbidden refs)")
-
-          if missing:
-              print("❌ README is missing required references:")
-              for m in missing:
-                  print("  -", m)
-              raise SystemExit("README consistency check failed (missing refs)")
-
-          print("✅ README consistency OK")
-          PY
-
-      - name: "Guard: start.md fallback paths JSON includes required keys"
-        shell: bash
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-
-          p = Path('start.md')
-          if not p.exists():
-              raise SystemExit('start.md not found at repo root')
-
-          text = p.read_text(encoding='utf-8')
-
-          # Ensure the embedded fallback JSON payload defines all required keys
-          required = ['configRoot', 'commandsHome', 'profilesHome', 'diagnosticsHome', 'workspacesHome']
-          missing = [k for k in required if f"'{k}'" not in text]
-          if missing:
-              raise SystemExit(f'start.md fallback payload missing keys: {missing}')
-
-          print('✅ start.md fallback payload contains required keys')
-          PY
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: governance-dist
+          path: dist/*
 
   # ----------------------------------
   # Job 1: Installer Tests (Cross-OS)
@@ -230,404 +129,16 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
-      - name: Prepare temp config root
+      - name: Install test deps
         shell: bash
         run: |
-          echo "CONFIG_ROOT=$RUNNER_TEMP/opencode-config" >> $GITHUB_ENV
+          python -m pip install --upgrade pip
+          python -m pip install pytest
 
-      - name: Dry Run
+      - name: Run installer flow tests (pytest)
         shell: bash
         run: |
-          python -X utf8 install.py --dry-run --config-root "$CONFIG_ROOT"
-
-      - name: Fresh Install
-        shell: bash
-        run: |
-          python -X utf8 install.py --force --no-backup --config-root "$CONFIG_ROOT"
-
-      - name: Manifest Roundtrip (listed files exist + no traversal)
-        shell: bash
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-          import json, os, hashlib, re
-
-          root = Path(os.environ["CONFIG_ROOT"])
-          commands = root / "commands"
-          manifest_path = commands / "INSTALL_MANIFEST.json"
-
-          assert manifest_path.exists(), f"Missing manifest: {manifest_path}"
-          data = json.loads(manifest_path.read_text(encoding="utf-8"))
-          assert "files" in data, "Manifest missing 'files' key"
-
-          files = data["files"]
-          assert isinstance(files, (list, dict)), f"Manifest 'files' must be list or dict, got: {type(files).__name__}"
-
-          base = commands.resolve()
-          seen = set()
-          count = 0
-
-          def sha256_file(p: Path) -> str:
-            h = hashlib.sha256()
-            with p.open("rb") as f:
-              for chunk in iter(lambda: f.read(1024 * 1024), b""):
-                h.update(chunk)
-            return h.hexdigest()
-
-          def looks_like_sha256(s: object) -> bool:
-            return isinstance(s, str) and bool(re.fullmatch(r"[0-9a-fA-F]{64}", s))
-
-          def assert_under_base(p: Path, label: str) -> None:
-            p = p.resolve()
-            try:
-              p.relative_to(base)
-            except ValueError:
-              raise AssertionError(f"{label} escapes commands dir: {p} (base={base})")
-            assert p.exists(), f"{label} missing on disk: {p}"
-
-          # Case A: files is dict[str, ...] where keys are paths (relative or absolute)
-          if isinstance(files, dict):
-            items = list(files.keys())
-            assert items, "Manifest 'files' is empty"
-            for entry in items:
-              assert isinstance(entry, str) and entry.strip(), f"Invalid manifest key: {entry!r}"
-              assert entry not in seen, f"Duplicate manifest entry: {entry}"
-              seen.add(entry)
-
-              p = Path(entry)
-              target = p if p.is_absolute() else (commands / p)
-              assert_under_base(target, "Manifest file")
-              count += 1
-
-          # Case B: files is list[...] — either list[str] or list[dict]
-          else:
-            assert files, "Manifest 'files' is empty"
-            for entry in files:
-              # list[str]
-              if isinstance(entry, str):
-                rel = entry
-                assert rel.strip(), f"Invalid manifest entry: {rel!r}"
-                assert rel not in seen, f"Duplicate manifest entry: {rel}"
-                seen.add(rel)
-
-                p = Path(rel)
-                assert not p.is_absolute(), f"Absolute path in string manifest entry: {rel}"
-                assert ".." not in p.parts, f"Path traversal in manifest entry: {rel}"
-
-                target = (commands / p)
-                assert_under_base(target, "Manifest file")
-                count += 1
-                continue
-
-              # list[dict] with at least dst
-              if isinstance(entry, dict):
-                assert "dst" in entry, f"Manifest dict entry missing 'dst': {entry}"
-                dst = entry["dst"]
-                assert isinstance(dst, str) and dst.strip(), f"Invalid dst in manifest entry: {dst!r}"
-
-                if dst in seen:
-                  raise AssertionError(f"Duplicate manifest dst: {dst}")
-                seen.add(dst)
-
-                target = Path(dst)
-                target = target if target.is_absolute() else (commands / target)
-                assert_under_base(target, "Manifest dst")
-
-                expected = entry.get("sha256")
-                if looks_like_sha256(expected):
-                  got = sha256_file(target)
-                  if got.lower() != expected.lower():
-                    raise AssertionError(f"SHA256 mismatch for {target}: expected={expected} got={got}")
-
-                count += 1
-                continue
-
-              raise AssertionError(f"Invalid manifest list entry type: {type(entry).__name__}: {entry!r}")
-
-          print(f"✅ Manifest roundtrip OK ({count} entries)")
-          PY
-
-      - name: Verify Files
-        shell: bash
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-          import json, os
-
-          root = Path(os.environ["CONFIG_ROOT"])
-          manifest = root / "commands" / "INSTALL_MANIFEST.json"
-          paths_file = root / "commands" / "governance.paths.json"
-
-          critical = [
-              root / "commands" / "master.md",
-              root / "commands" / "rules.md",
-              root / "commands" / "start.md",
-              manifest,
-              paths_file,
-          ]
-
-          for f in critical:
-              assert f.exists(), f"Missing: {f}"
-
-          data = json.loads(manifest.read_text(encoding="utf-8"))
-          assert "files" in data, "Manifest missing 'files' key"
-
-          p = json.loads(paths_file.read_text(encoding="utf-8"))
-          assert "paths" in p and isinstance(p["paths"], dict), "governance.paths.json missing 'paths' object"
-
-          required_paths = ["configRoot", "commandsHome", "profilesHome", "diagnosticsHome"]
-          missing = [k for k in required_paths if k not in p["paths"]]
-          assert not missing, f"governance.paths.json missing keys: {missing}"
-
-          commands_home = p["paths"]["commandsHome"]
-          diagnostics_home = p["paths"]["diagnosticsHome"]
-
-          dh = diagnostics_home.replace("\\", "/").rstrip("/")
-          ch = commands_home.replace("\\", "/").rstrip("/")
-
-          assert dh == f"{ch}/diagnostics" or dh.endswith("/diagnostics"), (
-              f"diagnosticsHome unexpected: {diagnostics_home} (commandsHome={commands_home})"
-          )
-
-          for k in required_paths:
-              v = p["paths"][k]
-              assert isinstance(v, str) and v.strip(), f"Invalid path value for {k}: {v!r}"
-
-          print("✅ Verification OK (files + manifest + governance.paths.json)")
-          PY
-
-      - name: Capture installed file hashes (before reinstall)
-        shell: bash
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-          import json, os, hashlib
-
-          root = Path(os.environ["CONFIG_ROOT"])
-          commands = root / "commands"
-          manifest = commands / "INSTALL_MANIFEST.json"
-          out = Path(os.environ["RUNNER_TEMP"]) / "before_hashes.json"
-
-          def sha256_file(p: Path) -> str:
-            h = hashlib.sha256()
-            with p.open("rb") as f:
-              for chunk in iter(lambda: f.read(1024 * 1024), b""):
-                h.update(chunk)
-            return h.hexdigest()
-
-          def rel_key(p: Path) -> str:
-            return p.resolve().relative_to(commands.resolve()).as_posix()
-
-          obj = json.loads(manifest.read_text(encoding="utf-8"))
-          files = obj.get("files")
-          if not isinstance(files, list):
-            raise SystemExit(f"Expected manifest['files'] to be list, got: {type(files).__name__}")
-
-          # Files that are expected to vary per run/machine and should NOT be hashed for idempotency.
-          # They are still semantically validated elsewhere (Verify Files).
-          IGNORE = {
-            "governance.paths.json",
-            "INSTALL_MANIFEST.json",
-          }
-
-          hashes = {}
-          skipped = []
-          for e in files:
-            if isinstance(e, dict) and isinstance(e.get("dst"), str):
-              dst = Path(e["dst"])
-              p = dst if dst.is_absolute() else (commands / dst)
-            elif isinstance(e, str):
-              p = commands / Path(e)
-            else:
-              raise SystemExit(f"Unexpected manifest entry: {e!r}")
-
-            if not p.exists():
-              raise SystemExit(f"Missing file on disk: {p}")
-
-            k = rel_key(p)
-            if Path(k).name in IGNORE:
-              skipped.append(k)
-              continue
-
-            hashes[k] = sha256_file(p)
-
-          out.write_text(json.dumps(hashes, sort_keys=True, indent=2), encoding="utf-8")
-          print(f"📌 Captured {len(hashes)} file hashes to {out}")
-          if skipped:
-            print("📎 Skipped (expected variable):")
-            for s in skipped:
-              print("  -", s)
-          PY
-
-      - name: Reinstall (Idempotency)
-        shell: bash
-        run: |
-          python -X utf8 install.py --force --no-backup --config-root "$CONFIG_ROOT"
-
-      - name: Verify Files (after Reinstall)
-        shell: bash
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-          import json, os
-
-          root = Path(os.environ["CONFIG_ROOT"])
-          manifest = root / "commands" / "INSTALL_MANIFEST.json"
-          paths_file = root / "commands" / "governance.paths.json"
-
-          critical = [
-              root / "commands" / "master.md",
-              root / "commands" / "rules.md",
-              root / "commands" / "start.md",
-              manifest,
-              paths_file,
-          ]
-
-          for f in critical:
-              assert f.exists(), f"Missing: {f}"
-
-          data = json.loads(manifest.read_text(encoding="utf-8"))
-          assert "files" in data, "Manifest missing 'files' key"
-
-          p = json.loads(paths_file.read_text(encoding="utf-8"))
-          assert "paths" in p and isinstance(p["paths"], dict), "governance.paths.json missing 'paths' object"
-
-          required_paths = ["configRoot", "commandsHome", "profilesHome", "diagnosticsHome"]
-          missing = [k for k in required_paths if k not in p["paths"]]
-          assert not missing, f"governance.paths.json missing keys: {missing}"
-
-          commands_home = p["paths"]["commandsHome"]
-          diagnostics_home = p["paths"]["diagnosticsHome"]
-
-          dh = diagnostics_home.replace("\\", "/").rstrip("/")
-          ch = commands_home.replace("\\", "/").rstrip("/")
-
-          assert dh == f"{ch}/diagnostics" or dh.endswith("/diagnostics"), (
-              f"diagnosticsHome unexpected: {diagnostics_home} (commandsHome={commands_home})"
-          )
-
-          for k in required_paths:
-              v = p["paths"][k]
-              assert isinstance(v, str) and v.strip(), f"Invalid path value for {k}: {v!r}"
-
-          print("✅ Verification OK after reinstall")
-          PY
-
-      - name: Verify installed file hashes (after reinstall)
-        shell: bash
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-          import json, os, hashlib
-
-          root = Path(os.environ["CONFIG_ROOT"])
-          commands = root / "commands"
-          manifest = commands / "INSTALL_MANIFEST.json"
-          before_path = Path(os.environ["RUNNER_TEMP"]) / "before_hashes.json"
-
-          def sha256_file(p: Path) -> str:
-            h = hashlib.sha256()
-            with p.open("rb") as f:
-              for chunk in iter(lambda: f.read(1024 * 1024), b""):
-                h.update(chunk)
-            return h.hexdigest()
-
-          def rel_key(p: Path) -> str:
-            return p.resolve().relative_to(commands.resolve()).as_posix()
-
-          before = json.loads(before_path.read_text(encoding="utf-8"))
-
-          obj = json.loads(manifest.read_text(encoding="utf-8"))
-          files = obj.get("files")
-          if not isinstance(files, list):
-            raise SystemExit(f"Expected manifest['files'] to be list, got: {type(files).__name__}")
-
-          IGNORE = {
-            "governance.paths.json",
-            "INSTALL_MANIFEST.json",
-          }
-
-          after = {}
-          for e in files:
-            if isinstance(e, dict) and isinstance(e.get("dst"), str):
-              dst = Path(e["dst"])
-              p = dst if dst.is_absolute() else (commands / dst)
-            elif isinstance(e, str):
-              p = commands / Path(e)
-            else:
-              raise SystemExit(f"Unexpected manifest entry: {e!r}")
-
-            if not p.exists():
-              raise SystemExit(f"Missing file on disk after reinstall: {p}")
-
-            k = rel_key(p)
-            if Path(k).name in IGNORE:
-              continue
-
-            after[k] = sha256_file(p)
-
-          before_keys = set(before.keys())
-          after_keys = set(after.keys())
-
-          missing = sorted(before_keys - after_keys)
-          added = sorted(after_keys - before_keys)
-
-          changed = []
-          for k in sorted(before_keys & after_keys):
-            if before[k] != after[k]:
-              changed.append((k, before[k], after[k]))
-
-          if missing or added or changed:
-            print("❌ Reinstall is NOT idempotent (excluding expected-variable files).")
-            if missing:
-              print("  Missing after reinstall:")
-              for k in missing[:50]:
-                print("   -", k)
-            if added:
-              print("  Added after reinstall:")
-              for k in added[:50]:
-                print("   +", k)
-            if changed:
-              print("  Changed content (sha256 differs):")
-              for k, b, a in changed[:50]:
-                print(f"   * {k}\n      before={b}\n      after ={a}")
-            raise SystemExit("Idempotency check failed: file content drift detected.")
-
-          print(f"✅ Idempotency OK: {len(after)} files identical after reinstall (excluding expected-variable files)")
-          PY
-
-      - name: Uninstall
-        shell: bash
-        run: |
-          python -X utf8 install.py --uninstall --force --config-root "$CONFIG_ROOT"
-
-      - name: Verify Uninstall Cleanliness
-        shell: bash
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-          import os
-
-          root = Path(os.environ["CONFIG_ROOT"])
-          commands = root / "commands"
-
-          must_be_gone = [
-              commands / "master.md",
-              commands / "rules.md",
-              commands / "start.md",
-              commands / "INSTALL_MANIFEST.json",
-              commands / "governance.paths.json",
-          ]
-
-          still_there = [str(p) for p in must_be_gone if p.exists()]
-          assert not still_there, f"Uninstall left artifacts behind: {still_there}"
-
-          if commands.exists():
-              leftovers = [p.name for p in commands.rglob("*") if p.is_file()]
-              assert not leftovers, f"Commands dir not empty after uninstall: {leftovers[:25]}"
-
-          print("✅ Uninstall cleanliness OK")
-          PY
+          pytest -q -m installer
 
   # ----------------------------------
   # Job 2: Governance Validation
@@ -635,93 +146,60 @@ jobs:
   validate-governance:
     name: Validate Governance Files
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-
-      - name: Required Files
-        shell: bash
+      - name: Install test deps
         run: |
-          python - <<'PY'
-          from pathlib import Path
-
-          required = [
-              "master.md",
-              "rules.md",
-              "start.md",
-              "SESSION_STATE_SCHEMA.md",
-          ]
-
-          missing = [f for f in required if not Path(f).exists()]
-          if missing:
-              raise SystemExit(f"Missing: {missing}")
-
-          print("✅ Required files OK")
-          PY
-
-      - name: BLOCKED Consistency
-        shell: bash
+          python -m pip install --upgrade pip
+          python -m pip install pytest
+      - name: Run governance validation (pytest)
         run: |
-          python - <<'PY'
-          import re
-          from pathlib import Path
-
-          schema = Path("SESSION_STATE_SCHEMA.md").read_text(encoding="utf-8")
-          master = Path("master.md").read_text(encoding="utf-8")
-
-          s = set(re.findall(r'BLOCKED-[A-Z-]+', schema))
-          m = set(re.findall(r'BLOCKED-[A-Z-]+', master))
-
-          diff = s - m
-          if diff:
-              raise SystemExit(f"Missing in master: {diff}")
-
-          print("✅ BLOCKED consistency OK")
-          PY
+          pytest -q -m governance
 
   # ----------------------------------
   # Job 3: Release Gate
   # ----------------------------------
   release-readiness:
     name: Release Readiness
-    needs: [test-installer, validate-governance]
+    needs: [test-installer, validate-governance, build-artifacts]
+    if: ${{ always() }}
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Check Version
-        shell: bash
+    
+      - name: Fail if any dependency failed/cancelled
+        env:
+          NEEDS_JSON: ${{ toJson(needs) }}
         run: |
           python - <<'PY'
-          import re
-          from pathlib import Path
-
-          text = Path("install.py").read_text(encoding="utf-8")
-          m = re.search(r'VERSION\s*=\s*"([^"]+)"', text)
-          if not m:
-              raise SystemExit("No VERSION found")
-
-          print("VERSION:", m.group(1))
+          import json, os, sys
+          needs = json.loads(os.environ["NEEDS_JSON"])
+          bad = [k for k,v in needs.items() if v.get("result") != "success"]
+          if bad:
+            print("❌ Dependencies not successful:", bad)
+            sys.exit(1)
+          print("✅ All dependencies successful")
           PY
     
-      - name: Check Governance Version
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install test deps
         shell: bash
         run: |
-          python - <<'PY'
-          import re
-          from pathlib import Path
+          python -m pip install --upgrade pip
+          python -m pip install pytest
 
-          head = "\n".join(Path("master.md").read_text(encoding="utf-8").splitlines()[:60])
-          m = re.search(r"Governance-Version:\s*([0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?)", head)
-          if not m:
-              raise SystemExit("No Governance-Version header found in master.md")
-          print("GOVERNANCE_VERSION:", m.group(1))
-          PY
+      - name: Run release readiness gates (pytest)
+        shell: bash
+        run: |
+          pytest -q -m release
 
       - name: Summary
         run: |

@@ -72,6 +72,12 @@ CORE_COMMAND_FILES = {
     "README-RULES.md",
     "README-OPENCODE.md",
     "README-CHAT.md",
+    "LICENSE",
+    "LICENSE.md",
+    "LICENSE.txt",
+    "LICENCE",
+    "LICENCE.md",
+    "LICENCE.txt",
 }
 
 def eprint(*args, **kwargs):
