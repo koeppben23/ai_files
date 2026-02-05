@@ -190,7 +190,6 @@ Typical outputs (summary; authoritative details in master.md / rules.md):
 For larger changes, additionally:
 
 * changes.patch
-* README-CHANGES.md
 
 ---
 

@@ -87,7 +87,7 @@ Installed layout:
 - `commands/` (examples):
   - `master.md`, `rules.md`, `start.md`, `continue.md`, `resume.md`
   - `SESSION_STATE_SCHEMA.md`, `QUALITY_INDEX.md`, `CONFLICT_RESOLUTION.md`
-  - `SCOPE-AND-CONTEXT.md`, `TICKET_RECORD_TEMPLATE.md`, `ADR.md`, `ResumePrompt.md`, …
+  - `SCOPE-AND-CONTEXT.md`, `TICKET_RECORD_TEMPLATE.md`, `ADR.md`, `resume_prompt.md`, …
 - `commands/profiles/`:
   - `profiles/*.md` (all profile rulebooks)
 - `commands/diagnostics/`:
@@ -161,9 +161,15 @@ Uninstall (interactive):
 python install.py --uninstall
 ```
 
-**Note:**  
-By default, `governance.paths.json` is preserved because it is machine-specific.  
-If you want to remove it, delete `${COMMANDS_HOME}/governance.paths.json` manually.
+**Note:**
+`governance.paths.json` is machine-specific.
+It is removed on uninstall only if it was created or overwritten by the installer
+(i.e. if it is listed in the install manifest).
+
+If the file pre-existed and was skipped, the installer does not take ownership
+and it will be preserved.
+
+To remove a preserved file, delete `${COMMANDS_HOME}/governance.paths.json` manually.
 
 Uninstall (non-interactive):
 
@@ -264,6 +270,7 @@ Example (Windows):
     "configRoot": "C:/Users/<USER>/.config/opencode",
     "commandsHome": "C:/Users/<USER>/.config/opencode/commands",
     "profilesHome": "C:/Users/<USER>/.config/opencode/commands/profiles",
+    "diagnosticsHome": "C:/Users/<USER>/.config/opencode/commands/diagnostics",
     "workspacesHome": "C:/Users/<USER>/.config/opencode/workspaces"
   }
 }
@@ -427,7 +434,7 @@ ${COMMANDS_HOME}/
 ├── SESSION_STATE_SCHEMA.md
 ├── continue.md
 ├── resume.md
-├── ResumePrompt.md
+├── resume_prompt.md
 ├── ADR.md
 ├── TICKET_RECORD_TEMPLATE.md
 ├── README.md
@@ -573,7 +580,7 @@ See:
 | `CONFLICT_RESOLUTION.md` | Deterministic precedence model for conflicting instructions |
 | `resume.md` | OpenCode command for controlled continuation |
 | `continue.md` | OpenCode command for uniform “continue” execution |
-| `ResumePrompt.md` | Manual/fallback resume variant without commands |
+| `resume_prompt.md` | Manual/fallback resume variant without commands |
 
 ---
 

@@ -66,7 +66,7 @@ If Warm Start eligibility is not met, the system MUST fall back to Cold Start au
 `master.md` defines canonical path variables. Typical layout:
 
 - `${CONFIG_ROOT}`: `${XDG_CONFIG_HOME:-~/.config}/opencode`
-- On Windows, `${CONFIG_ROOT}` is `%APPDATA%/opencode` (fallback: `%USERPROFILE%/.config/opencode`) — see `master.md`.
+- On Windows, `${CONFIG_ROOT}` is `%USERPROFILE%\.config\opencode` (fallback: `%APPDATA%\opencode`) — see `master.md`.
 - `${COMMANDS_HOME} = ${CONFIG_ROOT}/commands` (global rulebooks)
 - `${PROFILES_HOME} = ${COMMANDS_HOME}/profiles` (profiles + templates/addons)
 - `${WORKSPACES_HOME} = ${CONFIG_ROOT}/workspaces` (per-repo caches + session state)
@@ -343,7 +343,7 @@ See:
 | `CONFLICT_RESOLUTION.md` | Deterministic precedence model for conflicting instructions |
 | `resume.md` | OpenCode command for controlled continuation |
 | `continue.md` | OpenCode command for uniform continuation |
-| `ResumePrompt.md` | Manual fallback resume variant |
+| `resume_prompt.md` | Manual fallback resume variant |
 
 ---
 

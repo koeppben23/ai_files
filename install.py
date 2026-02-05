@@ -55,6 +55,26 @@ MANIFEST_SCHEMA = "1.0"
 GOVERNANCE_PATHS_NAME = "governance.paths.json"
 GOVERNANCE_PATHS_SCHEMA = "opencode-governance.paths.v1"
 
+# Core governance files (static allowlist for conservative uninstall fallback)
+CORE_COMMAND_FILES = {
+    "master.md",
+    "rules.md",
+    "start.md",
+    "continue.md",
+    "resume.md",
+    "resume_prompt.md",
+    "QUALITY_INDEX.md",
+    "CONFLICT_RESOLUTION.md",
+    "SCOPE-AND-CONTEXT.md",
+    "SESSION_STATE_SCHEMA.md",
+    "ADR.md",
+    "TICKET_RECORD_TEMPLATE.md",
+    "README.md",
+    "README-RULES.md",
+    "README-OPENCODE.md",
+    "README-CHAT.md",
+}
+
 def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
 
@@ -70,6 +90,10 @@ def sha256_file(path: Path) -> str:
 def now_ts() -> str:
     # ISO-ish, filesystem friendly
     return datetime.now().strftime("%Y%m%d-%H%M%S")
+
+def json_bytes(doc: dict) -> bytes:
+    # Canonical bytes for both predicted (dry-run) and live write.
+    return (json.dumps(doc, indent=2, ensure_ascii=False) + "\n").encode("utf-8")
 
 def is_interactive() -> bool:
     # conservative: require both stdin and stdout to be TTY
@@ -225,7 +249,7 @@ def collect_command_root_files(source_dir: Path) -> list[Path]:
         if name in EXCLUDE_ROOT_FILES:
             continue
 
-        if name.lower() == "license":
+        if name.lower().startswith("license"):
             files.append(p)
             continue
 
@@ -302,7 +326,7 @@ def install_governance_paths_file(
     if dst_exists and backup_enabled:
         backup_path = str(backup_file(dst, backup_root, dry_run))
 
-    sha_pred = hashlib.sha256(json.dumps(doc, sort_keys=True).encode("utf-8")).hexdigest()
+    sha_pred = hashlib.sha256(json_bytes(doc)).hexdigest()
 
     if dry_run:
         print(f"  [DRY-RUN] write {dst} (governance paths)")
@@ -316,7 +340,7 @@ def install_governance_paths_file(
         }
 
     dst.parent.mkdir(parents=True, exist_ok=True)
-    dst.write_text(json.dumps(doc, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    dst.write_bytes(json_bytes(doc))
     return {
         "status": "copied",
         "src": "generated",
@@ -403,7 +427,7 @@ def collect_profile_files(source_dir: Path) -> list[Path]:
     profiles_src_dir = source_dir / PROFILES_DIR_NAME
     if not profiles_src_dir.exists():
         return []
-    return sorted([p for p in profiles_src_dir.glob("*.md") if p.is_file()])
+    return sorted([p for p in profiles_src_dir.rglob("*.md") if p.is_file()])
 
 
 def write_manifest(manifest_path: Path, manifest: dict, dry_run: bool) -> None:
@@ -440,7 +464,14 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
     backup_root = plan.commands_dir / "_backup" / now_ts()
 
     # determine governance version from *source* master.md
-    gov_ver = read_governance_version_from_master(plan.source_dir / "master.md") or "unknown"
+    gov_ver = read_governance_version_from_master(plan.source_dir / "master.md")
+
+    if not gov_ver:
+        eprint("❌ Governance-Version not found in master.md.")
+        eprint("   Expected a header like:")
+        eprint("     # Governance-Version: <semver>")
+        eprint("   Installation aborted to prevent unversioned deployments.")
+        return 2
 
     copied_entries: list[dict] = []
 
@@ -490,6 +521,9 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
         print("\n📋 Copying profile rulebooks to commands/profiles/ ...")
         for pf in profile_files:
             dst = plan.profiles_dst_dir / pf.name
+            # Preserve relative structure under profiles/
+            rel = pf.relative_to(plan.source_dir)  # profiles/**.md
+            dst = plan.commands_dir / rel
             entry = copy_with_optional_backup(
                 src=pf,
                 dst=dst,
@@ -501,11 +535,11 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
             copied_entries.append(entry)
             status = entry["status"]
             if status in ("planned-copy", "copied"):
-                print(f"  ✅ profiles/{pf.name} ({status})")
+                print(f"  ✅ {rel} ({status})")
             elif status == "skipped-exists":
-                print(f"  ⏭️  profiles/{pf.name} exists (use --force to overwrite)")
+                print(f"  ⏭️  {rel} exists (use --force to overwrite)")
             else:
-                print(f"  ⚠️  profiles/{pf.name} missing (skipping)")
+                print(f"  ⚠️  {rel} missing (skipping)")
     else:
         print("\nℹ️  No profiles directory found or no *.md profiles to copy.")
 
@@ -551,6 +585,7 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
     installed_files = [
         {
             "dst": e["dst"],
+            "rel": str(Path(e["dst"]).resolve().relative_to(plan.commands_dir.resolve())) if "dst" in e else None,
             "src": e["src"],
             "sha256": e.get("sha256", "unknown"),
             "backup": e.get("backup"),
@@ -601,7 +636,11 @@ def uninstall(plan: InstallPlan, dry_run: bool, force: bool) -> int:
             return 4
 
         # Conservative fallback: delete only known filenames (MAIN_FILES) + profiles/*.md
-        targets: list[Path] = [plan.commands_dir / p.name for p in collect_command_root_files(plan.source_dir)]
+        # Conservative fallback: static allowlist (independent of source-dir)
+        targets: list[Path] = [
+            plan.commands_dir / name
+            for name in CORE_COMMAND_FILES
+        ]
         # Also remove the installer-owned governance paths sidecar (not present in source_dir).
         targets.append(plan.governance_paths_path)
         targets.extend(list((plan.commands_dir / "profiles").glob("*.md")))
@@ -618,7 +657,15 @@ def uninstall(plan: InstallPlan, dry_run: bool, force: bool) -> int:
 
     # manifest-based targets
     files = manifest.get("files", [])
-    targets = [Path(entry["dst"]) for entry in files if "dst" in entry]
+    targets: list[Path] = []
+    for entry in files:
+        rel = entry.get("rel")
+        dst = entry.get("dst")
+        if rel:
+            # Prefer relative paths to make uninstall resilient after moving configRoot.
+            targets.append(plan.commands_dir / rel)
+        elif dst:
+            targets.append(Path(dst))
 
     if not targets:
         print("ℹ️  Manifest contains no installed files. Nothing to uninstall.")
@@ -648,7 +695,7 @@ def uninstall(plan: InstallPlan, dry_run: bool, force: bool) -> int:
                 eprint(f"  ⚠️  Could not remove manifest: {e}")
 
     # cleanup empty dirs
-    cleanup_dirs = [plan.commands_dir / "profiles", plan.commands_dir / "_backup"]
+    cleanup_dirs = [plan.commands_dir / "profiles", plan.commands_dir / "diagnostics", plan.commands_dir / "_backup"]
     for d in cleanup_dirs:
         try_remove_empty_dir(d, dry_run=dry_run)
     try_remove_empty_dir(plan.commands_dir, dry_run=dry_run)
@@ -730,7 +777,6 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     p.add_argument("--no-backup", action="store_true", help="Disable backup on overwrite (install only).")
     p.add_argument("--uninstall", action="store_true", help="Uninstall previously installed governance files (manifest-based).")
     p.add_argument("--skip-paths-file", action="store_true", help="Do not create/overwrite commands/governance.paths.json.")
-    p.add_argument("--skip-opencode-json", action="store_true", help="[DEPRECATED] Alias for --skip-paths-file.",)
     return p.parse_args(argv)
 
 
@@ -741,7 +787,7 @@ def main(argv: list[str]) -> int:
     plan = build_plan(
         args.source_dir,
         config_root,
-        skip_paths_file=(args.skip_paths_file or args.skip_opencode_json),
+        skip_paths_file=args.skip_paths_file,
     )
 
     print("=" * 60)
