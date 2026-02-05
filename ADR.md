@@ -33,4 +33,4 @@ Rules of thumb:
 Copyright © 2026 Benjamin Fuchs.
 All rights reserved. See LICENSE.
 
-END OF FILE — ADR.mdd
+END OF FILE — ADR.md
