@@ -211,6 +211,7 @@ OpenCode-only persisted knowledge (stable across sessions for the same repo iden
 - `${REPO_DIGEST_FILE}` = `${REPO_HOME}/repo-map-digest.md`
 - `${REPO_DECISION_PACK_FILE}` = `${REPO_HOME}/decision-pack.md`
 - `${REPO_BUSINESS_RULES_FILE}` = `${REPO_HOME}/business-rules.md`
+- `${REPO_CACHE_FILE}` = `${REPO_HOME}/repo-cache.yaml`
 - `${WORKSPACE_MEMORY_FILE}` = `${REPO_HOME}/workspace-memory.yaml`
 
 BINDING:
@@ -1116,7 +1117,7 @@ Output requirements (Binding):
 Emit a short structured block:
 [REPO-CACHE]
 Status: loaded-valid | loaded-invalid | not-found
-SourcePath: <resolved path expression>
+SourcePath: ${REPO_CACHE_FILE}
 Reason: <empty if valid | invalidation reason>
 GitHeadMatch: true | false | unknown
 RepoSignatureMatch: true | false | unknown
@@ -1157,7 +1158,7 @@ Read behavior (Binding):
 Output requirements (Binding when file exists):
 * Emit a short structured block:
   [REPO-MAP-DIGEST-LOADED]
-  SourcePath: <resolved path expression>
+  SourcePath: ${REPO_DIGEST_FILE}
   LastUpdated: <YYYY-MM-DD or identifier>
   Summary:
   - <3-8 bullets of key conventions/invariants/modules>
@@ -1195,7 +1196,7 @@ Validation (Binding):
 Output requirements (Binding when file exists):
 * Emit a short structured block:
   [WORKSPACE-MEMORY-LOADED]
-  SourcePath: <resolved path expression>
+  SourcePath: ${WORKSPACE_MEMORY_FILE}
   Version: "1.0"
   Summary:
   - <3-8 bullets of active defaults (evidence-backed)>
@@ -1398,7 +1399,7 @@ Cache content (Binding):
 Output requirements (Binding):
 1) Emit a single structured block:
    [REPO-CACHE-FILE]
-   TargetPath: <resolved path expression>
+   TargetPath: ${REPO_CACHE_FILE}
    RepoName: <sanitized repo name>
    LastUpdated: <YYYY-MM-DD>
    Content:
@@ -1434,7 +1435,7 @@ Update behavior (Binding):
 Output requirements (Binding):
 1) Emit a single structured block:
    [REPO-MAP-DIGEST-FILE]
-   TargetPath: <resolved path expression>
+   TargetPath: ${REPO_DIGEST_FILE}
    RepoName: <sanitized repo name>
    LastUpdated: <YYYY-MM-DD>
    Mode: create | append
@@ -1504,7 +1505,7 @@ WorkspaceMemory:
 Output requirements (Binding when persistence is applicable):
 1) Emit a single structured block:
    [WORKSPACE-MEMORY-FILE]
-   TargetPath: <resolved path expression>
+   TargetPath: ${WORKSPACE_MEMORY_FILE}
    RepoName: <sanitized repo name>
    UpdatedAt: <YYYY-MM-DD>
    Mode: create | overwrite
@@ -1550,7 +1551,7 @@ Read behavior (Binding):
 Output requirements (Binding when file exists):
 * Emit a short structured block:
   [DECISION-PACK-LOADED]
-  SourcePath: <resolved path expression>
+  SourcePath: ${REPO_DECISION_PACK_FILE}
   LastSection: <YYYY-MM-DD or identifier>
   HistoryDigest:
   ActiveDecisionDigest:
@@ -1625,7 +1626,7 @@ Update behavior (Binding):
 Output requirements (Binding):
 1) Emit a single structured block:
    [DECISION-PACK-FILE]
-   TargetPath: <resolved path expression>
+   TargetPath: ${REPO_DECISION_PACK_FILE}
    RepoName: <sanitized repo name>
    LastUpdated: <YYYY-MM-DD>
    Mode: create | append
@@ -1703,7 +1704,7 @@ Read behavior (Binding):
 Output requirements (Binding when file exists):
 * Emit a short structured block:
   [BR-INVENTORY-LOADED]
-  SourcePath: <resolved path expression>
+  SourcePath: ${REPO_BUSINESS_RULES_FILE}
   BaselineDetected: true
   Notes:
   - <1-3 bullets on how the baseline will be reused (e.g., ID preservation)>
@@ -1809,7 +1810,7 @@ Target folder and file (Binding):
 Output requirements (Binding):
 1) Emit a single structured block:
    [BR-INVENTORY-FILE]
-   TargetPath: <resolved path expression>
+   TargetPath: ${REPO_BUSINESS_RULES_FILE}
    RepoName: <sanitized repo name>
    LastUpdated: <YYYY-MM-DD>
    Mode: create | update
