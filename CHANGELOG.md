@@ -5,10 +5,29 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
 
 ## [Unreleased]
 ### Added
+- Initialize post-1.0.1-BETA development baseline.
+
 ### Changed
 ### Fixed
 ### Removed
 ### Security
+
+## [1.0.1-BETA] - 2026-02-06
+### Added
+- PR-gated “Release Readiness” workflow to enforce branch protection on `main`.
+
+### Changed
+- Release automation now enforces LF newlines across platforms.
+- Pre-release handling extended for `-BETA`, `beta.x`, and `rc.x` identifiers.
+
+### Fixed
+- Release dry-run no longer introduces newline drift on Windows systems.
+- Version propagation is now fully consistent across governance files.
+
+### Removed
+
+### Security
+- Release pipeline blocks execution on dirty git working trees.
 
 ## [1.0.0-BETA] - 2026-02-06
 ### Added
