@@ -184,6 +184,13 @@ def main(argv: list[str]) -> int:
         artifacts.append(out_tgz)
 
     sums = write_sha256sums(bp.dist_dir, artifacts)
+    
+    def _pretty(p: Path) -> str:
+        """Pretty-print artifact paths without assuming they live under repo_root."""
+        try:
+            return str(p.relative_to(bp.repo_root))
+        except ValueError:
+            return str(p)
 
     print("✅ Built artifacts:")
     def _pretty(p: Path) -> str:
