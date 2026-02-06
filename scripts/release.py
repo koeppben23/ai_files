@@ -39,7 +39,7 @@ def read_text(path: Path) -> str:
 
 
 def write_text(path: Path, content: str) -> None:
-    path.write_text(content, encoding="utf-8", newline="\n")
+    path.write_text(content, encoding="utf-8")
 
 
 def run(cmd: list[str], *, check: bool = True) -> subprocess.CompletedProcess[str]:
@@ -236,7 +236,7 @@ def main(argv: list[str]) -> int:
             # Perform the real rewrite against a temp copy to catch the same failures as live mode.
             with tempfile.TemporaryDirectory() as td:
                 tmp_changelog = Path(td) / "CHANGELOG.md"
-                tmp_changelog.write_text(orig_changelog, encoding="utf-8", newline="\n")
+                tmp_changelog.write_text(orig_changelog, encoding="utf-8")
                 cut_changelog_unreleased(
                     tmp_changelog,
                     version,
