@@ -30,7 +30,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Iterable
 
-VERSION = "1.1.1"
+VERSION = "1.0.0-BETA"
 # Files copied into <config_root>/commands
 # Strategy: copy (almost) all repo-root governance artifacts that are relevant at runtime.
 # - Include: *.md, *.json, LICENSE (if present)
@@ -39,6 +39,14 @@ EXCLUDE_ROOT_FILES = {
     "install.py",
     "install.corrected.py",
     "install.updated.py",
+    # Dev tooling (must not be installed into commands/)
+    "package.json",
+    "package-lock.json",
+    "pnpm-lock.yaml",
+    "yarn.lock",
+    ".commitlintrc",
+    ".commitlintrc.js",
+    ".commitlintrc.cjs",
 }
 
 # Profiles copied into <config_root>/commands/profiles/*.md
