@@ -168,6 +168,7 @@ If runner/tooling is unknown:
 
 ---
 
+
 ## 7. Quick checks (recommended)
 
 Before finishing a ticket:
@@ -175,6 +176,78 @@ Before finishing a ticket:
 - Ensure tags are applied consistently.
 - Ensure step definitions avoid duplication (prefer reuse).
 - Ensure assertions validate domain outcomes, not incidental formatting.
+
+### 7.1 Suggested commands (copy/paste)
+
+Prefer repo-native commands if they exist. If not, propose minimal equivalents:
+
+**Run all Cucumber tests (Maven, JUnit Platform engine)**
+```bash
+mvn -q test
+```
+
+**Run only tagged tests**
+```bash
+mvn -q test -Dcucumber.filter.tags="@smoke and not @wip"
+```
+
+**Run a single feature**
+```bash
+mvn -q test -Dcucumber.features="src/test/resources/features/person.feature"
+```
+
+If your repo uses Gradle, mirror the same intent with `./gradlew test` and the repo’s Cucumber filtering configuration.
+
+### 7.2 Example GitHub Actions job (reference)
+
+If the repo uses GitHub Actions but has no dedicated Cucumber job, propose a minimal job like:
+
+```yaml
+name: cucumber
+on:
+  pull_request:
+jobs:
+  cucumber:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "21"
+      - run: mvn -q test
+```
+
+### 7.3 Minimal structural linting for feature files (example)
+
+If you need a light-weight guardrail (non-blocking), propose a tiny script:
+
+```python
+# lint_features_minimal.py (example)
+import re, sys
+from pathlib import Path
+
+root = Path(sys.argv[1]) if len(sys.argv) > 1 else Path("src/test/resources")
+features = list(root.rglob("*.feature"))
+
+if not features:
+    print("WARN: no .feature files found under", root)
+    sys.exit(0)
+
+bad = 0
+for f in features:
+    s = f.read_text(encoding="utf-8")
+    if "	" in s:
+        print(f"ERROR: tab character found: {f}")
+        bad += 1
+    if re.search(r"Scenario.*Scenario", s):
+        print(f"WARN: suspicious duplicate 'Scenario' token: {f}")
+    if "Given " not in s and "When " not in s and "Then " not in s:
+        print(f"WARN: no Gherkin steps found: {f}")
+
+sys.exit(1 if bad else 0)
+```
+
 
 ---
 
@@ -187,3 +260,22 @@ If you hit unclear repo conventions:
    - `WARN-CUCUMBER-CONVENTIONS-UNKNOWN`
    - plus a short note describing what was assumed.
 
+
+
+## 9. Troubleshooting (non-blocking)
+
+### Symptom: Tags/filters don’t work in CI
+- **Likely cause:** repo uses a different runner (JUnit4 vs JUnit Platform) or a custom property name.
+- **Action:** search for existing Cucumber configuration (`cucumber.properties`, `@CucumberOptions`, surefire config) and mirror that. If still unclear, emit `WARN-CUCUMBER-RUNNER-UNKNOWN` and run the full suite as a safe fallback.
+
+### Symptom: Steps are flaky due to async processing (Kafka, DB eventual consistency)
+- **Likely cause:** fixed sleeps, non-idempotent setup, or missing correlation IDs.
+- **Action:** replace sleeps with bounded polling; make setup idempotent; add correlation IDs and assert eventual outcomes with timeouts. Record `WARN-CUCUMBER-FLAKINESS-RISK` and the mitigation.
+
+### Symptom: Feature language diverges from domain vocabulary
+- **Likely cause:** steps encode implementation details.
+- **Action:** refactor steps to domain terms and push mechanics into helpers; keep feature files readable for business stakeholders.
+
+### Symptom: No clear test-data cleanup strategy
+- **Likely cause:** mixed integration scope or shared DB.
+- **Action:** adopt per-scenario namespaces/unique prefixes; clean with hooks; if a transactional rollback is available, prefer it. If still unclear, emit `WARN-CUCUMBER-CONVENTIONS-UNKNOWN` and choose the safest default.
