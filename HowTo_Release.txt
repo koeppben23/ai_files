@@ -1,0 +1,43 @@
+Release How-To (Repository Flow)
+
+Goal: create a reproducible release artifact (zip + tar.gz) and publish a Git tag (and optionally a GitHub Release).
+
+0) Preconditions
+   - Work from a clean working tree: `git status` should show no local changes.
+   - CI must be green on your release branch.
+
+1) Update version(s)
+   - In `master.md`, set a concrete `Governance-Version: X.Y.Z[...]` near the top.
+   - In `install.py`, set `VERSION = "X.Y.Z[...]"` (keep it aligned with `master.md`).
+   - Update `CHANGELOG.md`:
+       - Move relevant items from [Unreleased] into a new `## [X.Y.Z...] - YYYY-MM-DD` section.
+       - Keep an [Unreleased] section for future work.
+
+2) Run local quality gates
+   - `pytest -q` (or run per marker: `pytest -q -m spec`, `-m installer`, `-m governance`, `-m build`, `-m release`)
+
+3) Build release artifacts
+   - `python scripts/build.py`
+   - Verify output in `dist/`:
+       - `governance-X.Y.Z....zip`
+       - `governance-X.Y.Z....tar.gz`
+       - `SHA256SUMS.txt`
+
+4) Create and push an annotated tag
+   - `git tag -a vX.Y.Z... -m "Governance vX.Y.Z..."`
+   - `git push origin vX.Y.Z...`
+
+5) Publish a GitHub Release (recommended)
+   - In the repository UI: Releases → Draft a new release.
+   - Select the tag `vX.Y.Z...`.
+   - Upload the artifacts from `dist/`:
+       - zip + tar.gz + SHA256SUMS.txt
+   - Publish the release.
+
+6) Post-release sanity check
+   - Download the release artifact.
+   - Extract into a fresh folder.
+   - Run:
+       - `python -X utf8 install.py --dry-run --config-root <temp>`
+       - `python -X utf8 install.py --force --no-backup --config-root <temp>`
+       - `python -X utf8 install.py --uninstall --force --config-root <temp>`
