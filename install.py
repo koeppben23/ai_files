@@ -39,6 +39,14 @@ EXCLUDE_ROOT_FILES = {
     "install.py",
     "install.corrected.py",
     "install.updated.py",
+    # Dev tooling (must not be installed into commands/)
+    "package.json",
+    "package-lock.json",
+    "pnpm-lock.yaml",
+    "yarn.lock",
+    ".commitlintrc",
+    ".commitlintrc.js",
+    ".commitlintrc.cjs",
 }
 
 # Profiles copied into <config_root>/commands/profiles/*.md
