@@ -404,9 +404,6 @@ Repositories themselves remain free of governance state and memory artifacts.
 
 Working repositories contain **no versioned governance files by default**.
 
-The README is descriptive.  
-If anything here conflicts with `master.md` or `rules.md`, the rulebooks take precedence.
-
 ---
 
 ### Global Install Layout (Authoritative)

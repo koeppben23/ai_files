@@ -317,7 +317,7 @@ Next Step:
 
 **Rules:**
 
-* The canonical session state is **always authoritative**
+* `master.md` / `SESSION_STATE_SCHEMA.md` are authoritative for canonical session-state semantics
 * The summary view is for readability only
 * Only content from provided artifacts may be recorded
 * Assumptions must be explicitly labeled
