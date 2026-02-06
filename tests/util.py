@@ -29,7 +29,6 @@ def run_install(args: list[str], *, env: dict[str, str] | None = None) -> subpro
 
 
 def run_build(args: list[str], *, env: dict[str, str] | None = None) -> subprocess.CompletedProcess:
-    # Build artifacts deterministically via scripts/build.py
     return run([sys.executable, "scripts/build.py", *args], env=env)
 
 
