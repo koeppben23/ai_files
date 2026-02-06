@@ -2,6 +2,8 @@
 
 **Purpose (binding):** Provide concrete copy-paste templates so the assistant generates deterministic, reviewable backend-java code and tests.
 
+**Addon class (binding):** required addon.
+
 **Activation (binding):** MUST be loaded at code-phase (Phase 4+) when `SESSION_STATE.ActiveProfile = "backend-java"`.
 - If SESSION_STATE.Phase is in code-phase set (Phase 4+) and this addon is not loaded: Mode = BLOCKED, Next = BLOCKED-TEMPLATES-MISSING.
 
@@ -23,7 +25,12 @@ LLMs are **pattern matchers**, not abstract reasoners.
   → LLM copies exact structure (consistent, correct)
 
 **Rule (Binding):**
-When generating code, the assistant MUST follow the templates in this section **verbatim**, substituting only the placeholders marked with `{...}`.
+When generating code, the assistant MUST follow the templates in this section as the default structure, substituting placeholders marked with `{...}`.
+
+If a template conflicts with repository-established conventions (locked in `SESSION_STATE`), the assistant MUST:
+- keep the same architectural intent,
+- apply the minimal convention-aligned adaptation,
+- and record the deviation briefly in the plan/evidence.
 
 ---
 
@@ -79,9 +86,8 @@ public ResponseEntity<{Resource}Response> update(
     @Valid @RequestBody {Resource}UpdateRequest request
 ) {
     {Resource} domain = mapper.toDomain(request);
-    domain.setId(id);
-    
-    {Resource} result = service.update(domain);
+
+    {Resource} result = service.update(id, domain);
     
     return ResponseEntity.ok(mapper.toResponse(result));
 }
@@ -136,10 +142,10 @@ public class {Resource}Service {
         return repository.findById(id);
     }
     
-    public {Resource} update({Resource} {resource}) {
+    public {Resource} update(Long id, {Resource} {resource}) {
         // 1. Check exists
-        {Resource} existing = repository.findById({resource}.getId())
-            .orElseThrow(() -> new {Resource}NotFoundException({resource}.getId()));
+        {Resource} existing = repository.findById(id)
+            .orElseThrow(() -> new {Resource}NotFoundException(id));
         
         // 2. Business logic (prefer entity methods)
         existing.update({resource}, clock.instant());
@@ -224,8 +230,8 @@ public class {Resource} {
 ```
 
 **Binding Rules:**
-- Entities MUST have `@Version` (optimistic locking)
-- Entities MUST have business logic methods (validate, update, etc.)
+- Entities SHOULD use `@Version` (optimistic locking); if repo conventions intentionally avoid it, preserve repo style and document concurrency handling explicitly.
+- Entities MUST enforce invariants in domain methods OR in an explicit domain service (repo pattern), but never in controllers.
 - Entities MUST NOT have setters for business-critical fields (use methods)
 - Timestamps MUST be `Instant` (not LocalDateTime)
 - Use Lombok: `@Getter`, `@Builder(toBuilder = true)`, `@NoArgsConstructor(protected)`

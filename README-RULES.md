@@ -145,13 +145,23 @@ Profiles are loaded after Phase 2 (Repo Discovery).
 
 Some profiles additionally mandate a **templates addon** to ensure deterministic, copy-paste generation of code and tests.
 
-Feature-specific addons (e.g., Kafka templates) MAY be loaded at code-phase when required.
-When loaded, they MUST be recorded under `SESSION_STATE.LoadedRulebooks.addons` (addon_key -> path).
+Addons are manifest-driven (`profiles/addons/*.addon.yml`) and carry an explicit class:
+- `addon_class: required` -> if triggered and missing: `BLOCKED-MISSING-ADDON:<addon_key>`
+- `addon_class: advisory` -> if triggered and missing: WARN + recovery steps (non-blocking)
+
+When loaded, addons MUST be recorded under `SESSION_STATE.LoadedRulebooks.addons` (addon_key -> path).
+
+Current frontend-related addon examples:
+- `angularNxTemplates` (required) -> `rules.frontend-angular-nx-templates.md`
+- `frontendCypress` (advisory) -> `rules.frontend-cypress-testing.md`
+- `frontendOpenApiTsClient` (advisory) -> `rules.frontend-openapi-ts-client.md`
 
 Key constraints:
 * Templates addons MUST NOT be loaded during discovery (Phase 1–3).
 * If mandated by the active profile, templates addons MUST be loaded at code-phase (Phase 4+).
-* When a templates addon is loaded, its templates are followed **verbatim** with placeholders-only substitution.
+* If a required addon is triggered and present, it MUST be loaded.
+* Addons MAY be re-evaluated and loaded later at Phase-4 re-entry/resume when new evidence appears or rulebooks are installed (supports deterministic "nachladen").
+* When a templates addon is loaded, templates are binding defaults; minimal convention-aligned adaptation is allowed and must be documented.
 
 ---
 

@@ -302,28 +302,37 @@ ALGORITHM (BINDING, NORMATIVE):
    - Addons are discovered **dynamically** by scanning addon manifests located at:
      - `${PROFILES_HOME}/addons/*.addon.yml`
    - Each manifest MUST define:
-     - `addon_key` (string)
-     - `rulebook` (path under `${PROFILES_HOME}`)
-     - `signals` (one or more evidence patterns; see manifests)
+      - `addon_key` (string)
+      - `addon_class` (`required` | `advisory`)
+      - `rulebook` (path under `${PROFILES_HOME}`)
+      - `signals` (one or more evidence patterns; see manifests)
 
    Rules (BINDING):
-   - An addon is REQUIRED if ANY of its required signals match.
+   - For each addon, evaluate evidence signals from Phase 2 artifacts + ticket text.
+   - If ANY signal matches, the addon becomes `required = true`; otherwise `required = false`.
+   - Missing/unknown evidence for a required decision path MUST trigger `BLOCKED-MISSING-EVIDENCE`.
+   - If `required = true` and the addon rulebook is missing:
+     - `addon_class = required`  -> `Mode = BLOCKED` with `BLOCKED-MISSING-ADDON:<addon_key>`.
+     - `addon_class = advisory` -> continue non-blocking with WARN + recovery steps, and set status `missing-rulebook`.
    - For each evaluated addon, record:
-     - `SESSION_STATE.AddonsEvidence.<addon_key>.signals = [<signal strings>]`
-     - `SESSION_STATE.AddonsEvidence.<addon_key>.required = true|false`
-     - `SESSION_STATE.AddonsEvidence.<addon_key>.status = loaded|skipped|missing-rulebook`
+      - `SESSION_STATE.AddonsEvidence.<addon_key>.signals = [<signal strings>]`
+      - `SESSION_STATE.AddonsEvidence.<addon_key>.required = true|false`
+      - `SESSION_STATE.AddonsEvidence.<addon_key>.status = loaded|skipped|missing-rulebook`
+   - If `required = true` and the rulebook is present, it MUST be loaded.
+   - Addons MAY be re-evaluated and loaded later at any Phase-4 re-entry/resume if new evidence appears or a missing rulebook is installed.
 
    Kafka addon example (when the profile declares it):
    - Required signals include (evidence-based):
      - `@KafkaListener` usage
      - `spring-kafka` dependency
      - `spring.kafka` config keys
-   - If required:
-     - Resolve and load `rules.backend-java-kafka-templates.md`
-     - Record: `SESSION_STATE.LoadedRulebooks.addons.kafka = "<resolved path>"`
-     - If required but cannot be resolved/loaded:
-       - Set `SESSION_STATE.AddonsEvidence.kafka.status = missing-rulebook`
-       - Continue without blocking, but explicitly scope output to analysis/planning only for Kafka-related changes.
+    - If required:
+      - Resolve and load `rules.backend-java-kafka-templates.md`
+      - Record: `SESSION_STATE.LoadedRulebooks.addons.kafka = "<resolved path>"`
+      - If required but cannot be resolved/loaded:
+        - Set `SESSION_STATE.AddonsEvidence.kafka.status = missing-rulebook`
+        - If kafka addon manifest sets `addon_class: required` -> BLOCK with `BLOCKED-MISSING-ADDON:kafka`
+        - If kafka addon manifest sets `addon_class: advisory` -> continue non-blocking with explicit Kafka scope limitation.
 
 4) Precedence and merge
    - `master.md` remains highest priority.
@@ -816,9 +825,10 @@ Resume pointer: <exact Next pointer, e.g., "Phase 4 — Step 0 (Initialization)"
   - Required input: provide the template rulebook path OR install under `${PROFILES_HOME}/` as declared by the profile.
 
 - `BLOCKED-MISSING-ADDON:<addon_key>`:
-  - Trigger: an addon is mandated (per explicit mandate rules) but cannot be resolved/loaded.
+  - Trigger: an addon is mandated (`required = true`) with `addon_class = required`, but cannot be resolved/loaded.
   - Resume pointer (canonical): Phase 4 — Step 0 (Phase-4 Entry initialization).
   - Required input: provide the addon rulebook path OR install it under `${PROFILES_HOME}/` as declared by the profile.
+  - Note: advisory addons (`addon_class = advisory`) MUST NOT use this BLOCKED state; they use WARN + recovery + re-evaluation.
 
 - `BLOCKED-WORKSPACE-MEMORY-INVALID`:
   - Trigger: `${WORKSPACE_MEMORY_FILE}` exists but cannot be parsed/validated.

@@ -1,0 +1,7 @@
+addon_key: angularNxTemplates
+addon_class: required
+rulebook: rules.frontend-angular-nx-templates.md
+signals:
+  any:
+    - file_glob: "**/nx.json"
+    - code_regex: "@angular/core"

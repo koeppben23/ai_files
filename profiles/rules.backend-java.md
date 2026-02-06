@@ -19,7 +19,7 @@ For the `backend-java` profile, deterministic generation requires the templates 
 Binding:
 - At **code-phase** (Phase 4+), the workflow MUST load the templates addon and record it in:
   - `SESSION_STATE.LoadedRulebooks.templates`
-- When loaded, templates MUST be followed **verbatim** (placeholders-only substitution).
+- When loaded, templates are binding defaults; if a template conflicts with locked repo conventions, apply the minimal convention-aligned adaptation and document the deviation.
 
 ---
 
@@ -41,6 +41,11 @@ If required but missing at code-phase:
   - `SESSION_STATE.LoadedRulebooks.addons.kafka = ""`
 - The assistant MUST explicitly warn that Kafka-related changes cannot be produced safely without the addon rulebook,
   and MUST limit output to analysis/planning until the operator provides or adds the addon rulebook.
+
+Addon policy classes (binding):
+- **Required addons** (code-generation-critical): may hard-block in code-phase if missing.
+- **Advisory addons** (quality amplifiers): should emit WARN status + recovery steps and continue conservatively.
+- Addon manifests/rulebooks MUST explicitly declare which class they belong to.
 
 ---
 ## 0. Core Principle (Binding, Non-Negotiable)
@@ -281,6 +286,12 @@ Templates (binding when loaded):
 - Security semantics
 - No volatile assertions
 
+### 7.6 Advanced Test Excellence (Binding when applicable)
+- Mutation testing (if tooling exists, e.g., PIT): changed business logic SHOULD maintain a non-regressing mutation score; if score drops materially, record risk and remediation.
+- Property/invariant tests (if generators exist): for non-trivial domain calculations/transformations, add at least one property-style test.
+- Concurrency tests: for changes touching locking/versioning/retries/idempotency, include at least one deterministic concurrent scenario.
+- Contract-negative tests: for API changes, include at least one malformed/invalid request test proving stable error contract.
+
 ---
 
 ## 8. Database & Migrations (Binding)
@@ -328,6 +339,8 @@ A change **fails** if any is true:
 ### QG-4 Test Quality Gate
 - Missing behavioral coverage
 - Flaky or low-signal tests
+- Missing required determinism seams for changed logic (time/random/order)
+- Missing concurrency/idempotency evidence where applicable
 
 ### QG-5 Operational Gate
 - Logging/metrics/tracing/security regression

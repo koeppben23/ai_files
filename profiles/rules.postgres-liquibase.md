@@ -5,6 +5,7 @@
 **Type:** Database Migration Governance  
 **Maturity:** Production  
 **Scope:** Schema migrations, data migrations, rollback safety
+**Addon class (binding):** required addon
 
 ---
 
@@ -1110,7 +1111,7 @@ Exceptions must be:
 
 ### Related Profiles
 - `rules.backend-java.md` — Application layer
-- `rules.testing.md` — Test requirements
+- `rules.md` — Test and quality requirements
 
 ---
 

@@ -1,4 +1,5 @@
 addon_key: kafka
+addon_class: required
 rulebook: rules.backend-java-kafka-templates.md
 signals:
   any:

@@ -1,0 +1,8 @@
+addon_key: frontendCypress
+addon_class: advisory
+rulebook: rules.frontend-cypress-testing.md
+signals:
+  any:
+    - file_glob: "**/cypress.config.ts"
+    - file_glob: "**/cypress.config.js"
+    - file_glob: "**/*.cy.ts"

@@ -1,4 +1,5 @@
 addon_key: openapi
+addon_class: advisory
 rulebook: rules.openapi-contracts.md
 signals:
   any:

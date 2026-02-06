@@ -6,6 +6,7 @@ It is applied **in addition** to the Core Rulebook (`rules.md`), the Master Prom
 Priority order on conflict:
 `master.md` > `rules.md` (Core) > active profile > this addon.
 
+**Addon class (binding):** advisory addon.
 **Non-blocking policy (binding):** This addon MUST NOT hard-block delivery. If critical prerequisites are missing (spec root unclear, version unknown, no contract checks), the assistant MUST surface a **status code** (Section 8), record it in `SESSION_STATE.AddonsEvidence.openapi.status`, provide **recovery steps**, and proceed with conservative, repo-driven defaults.
 
 **Separation of concerns (binding):** Activation signals belong in the addon manifest (`profiles/addons/openapi.addon.yml`). This rulebook defines behavior once the addon is active.
@@ -29,14 +30,14 @@ If the spec is ambiguous or incomplete, the assistant MUST say so explicitly and
 
 This addon integrates with the governance phases defined by `master.md`:
 
-- **Phase 1.4–1.5 (Addon activation & planning):**
-  - Confirm spec roots + authoritative spec set (Section 3).
-  - Infer spec version & tooling (Section 2).
-  - Produce a contract-driven implementation plan (Section 5) and record key decisions.
-
 - **Phase 2 (Repository discovery):**
   - Collect evidence signals in `SESSION_STATE.AddonsEvidence.openapi.signals`.
   - Record any high-risk status codes (Section 8) and the chosen recovery action.
+
+- **Phase 2.1 (Decision Pack):**
+  - Confirm spec roots + authoritative spec set (Section 3).
+  - Infer spec version & tooling (Section 2).
+  - Produce a contract-driven implementation plan (Section 5) and record key decisions.
 
 - **Phase 4 (Implementation):**
   - Implement changes to match the contract and keep server annotations/config aligned (Section 6).

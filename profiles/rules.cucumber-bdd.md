@@ -6,6 +6,7 @@ It is applied **in addition** to the Core Rulebook (`rules.md`), the Master Prom
 Priority order on conflict:
 `master.md` > `rules.md` (Core) > active profile > this addon.
 
+**Addon class (binding):** advisory addon.
 **Non-blocking policy:** This addon never hard-blocks progress. If required context, conventions, or tooling are missing/unclear, emit a **status code** with a concrete recovery action and continue with conservative defaults.
 
 ---
@@ -240,7 +241,7 @@ for f in features:
     if "	" in s:
         print(f"ERROR: tab character found: {f}")
         bad += 1
-    if re.search(r"Scenario.*Scenario", s):
+    if re.search(r"\bScenario\b.*\bScenario\b", s):
         print(f"WARN: suspicious duplicate 'Scenario' token: {f}")
     if "Given " not in s and "When " not in s and "Then " not in s:
         print(f"WARN: no Gherkin steps found: {f}")

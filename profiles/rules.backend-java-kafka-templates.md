@@ -2,6 +2,8 @@
 
 **Purpose (binding):** Provide concrete copy-paste templates so the assistant generates deterministic, reviewable Kafka producers/consumers and tests in backend-java repos.
 
+**Addon class (binding):** required addon.
+
 **Activation (binding):** MUST be loaded at code-phase (Phase 4+) when Kafka is required (see `rules.backend-java.md`).
 - If Kafka is required and this addon is not loaded: `Mode = BLOCKED`, `Next = BLOCKED-KAFKA-TEMPLATES-MISSING`.
 
@@ -13,7 +15,8 @@
 ## K1. LLM KAFKA CODE GENERATION PATTERNS (Binding)
 
 **Rule (Binding):**
-When generating Kafka code, the assistant MUST follow the templates in this file **verbatim**, substituting only the placeholders marked with `{...}`.
+When generating Kafka code, the assistant MUST follow the templates in this file as the default structure, substituting placeholders marked with `{...}`.
+If a template conflicts with locked repo conventions, apply the minimal convention-aligned adaptation and record the deviation.
 
 ### K1.1 Placeholder Substitution Rules (Binding)
 
