@@ -187,11 +187,31 @@ jobs:
           pytest -q -m governance
 
   # ----------------------------------
+  # Job 2b: Governance E2E Flow
+  # ----------------------------------
+  governance-e2e:
+    name: Governance E2E Flow
+    needs: spec-guards
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install test deps
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pytest
+      - name: Run governance end-to-end flow tests (pytest)
+        run: |
+          pytest -q -m e2e_governance
+
+  # ----------------------------------
   # Job 3: Release Gate
   # ----------------------------------
   release-readiness:
     name: Release Readiness
-    needs: [conventional-pr-title, spec-guards, test-installer, validate-governance, build-artifacts]
+    needs: [conventional-pr-title, spec-guards, test-installer, validate-governance, governance-e2e, build-artifacts]
     if: ${{ always() }}
     runs-on: ubuntu-latest
 
