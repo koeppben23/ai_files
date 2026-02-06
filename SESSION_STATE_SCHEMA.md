@@ -624,6 +624,32 @@ SESSION_STATE:
   - set `Mode = BLOCKED`, and
   - set `Next` to a `BLOCKED-...` pointer describing the minimal missing artifact(s).
 
+### 8.1b Gate Scorecards (Objective Review Contract)
+
+Each explicit gate SHOULD emit a machine-checkable scorecard.
+
+Recommended structure:
+
+```yaml
+SESSION_STATE:
+  GateScorecards:
+    P5-Architecture:
+      Score: 8
+      MaxScore: 10
+      Criteria:
+        - id: ARCH-BOUNDARIES
+          weight: 3
+          critical: true
+          result: pass | fail | partial | not-applicable
+          evidenceRef: EV-001
+      Decision: approved | rejected
+```
+
+Binding rules:
+- In FULL mode at explicit gates, `GateScorecards.<gate>` MUST be present.
+- If a criterion has `critical: true` and `result = fail`, that gate MUST NOT pass.
+- `Decision` MUST be consistent with criteria results and gate status.
+
 ### 8.2 Phase 5.6 – Rollback Safety Gate
 
 Validates that the planned change is rollback-safe and that reversibility is explicitly addressed when needed.
@@ -695,7 +721,7 @@ SESSION_STATE:
 
 ## 11. Cross-Repository / Consumer Impact (Microservices)
 
-If the ticket changes an externally-consumed contract (OpenAPI, events, shared schema), the session SHOULD include:
+If the ticket changes an externally-consumed contract (OpenAPI, events, shared schema), the session MUST include:
 
 - `SESSION_STATE.CrossRepoImpact`
 
@@ -735,7 +761,7 @@ If produced:
 When Phase 4 planning is produced, the workflow may include:
 - `SESSION_STATE.TicketRecordDigest` (one-line summary)
 - `SESSION_STATE.NFRChecklist` (object; may be elided in MIN if digest captures exceptions)
-- `SESSION_STATE.MandatoryReviewMatrix` (object; strongly recommended)
+- `SESSION_STATE.MandatoryReviewMatrix` (object; required by `rules.md`/`master.md` for PR readiness)
 
 Recommended `MandatoryReviewMatrix` shape:
 
@@ -785,7 +811,8 @@ BuildEvidence:
   status: not-provided | partially-provided | provided-by-user
   notes: "<what exists or is missing>"
   items:                # optional but strongly recommended; enables reviewer-proof verification
-    - tool: "<maven|gradle|npm|spotbugs|checkstyle|archunit|openapi|pact|...>"
+    - id: "EV-001"
+      tool: "<maven|gradle|npm|spotbugs|checkstyle|archunit|openapi|pact|...>"
       command: "<exact command executed>"
       result: pass | fail | unknown
       scope: "<what this evidence covers (unit tests, integration tests, contract validation, etc.)>"

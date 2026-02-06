@@ -992,6 +992,7 @@ SESSION_STATE:
     P5.6-RollbackSafety: pending | approved | rejected | not-applicable
     P6-ImplementationQA: pending | ready-for-pr | fix-required
   GateArtifacts: {}   # optional in MIN; REQUIRED in FULL when evaluating an explicit gate
+  GateScorecards: {}  # optional in MIN; REQUIRED in FULL at explicit gates
 
   Risks: []
   Blockers: []
@@ -1021,6 +1022,7 @@ When FULL mode is required, the assistant MUST additionally include, when availa
 - `CrossRepoImpact` (required if contracts are consumed cross-repo)
 - `RollbackStrategy` (required when schema/contracts change)
 - `GateArtifacts` (required at explicit gates; maps gate → required/provided artifacts)
+- `GateScorecards` (required at explicit gates in FULL; maps gate → criteria/score/decision)
 
 ---
 
@@ -2203,6 +2205,9 @@ Proceeding to Phase 4 (Ticket Execution)...
      - `RiskTier` (`LOW | MEDIUM | HIGH`)
    - The MRM MUST list all required artifacts for the selected class/tier according to `rules.md` Section 7.7.1.
    - Any MRM artifact without evidence MUST be marked `not-verified` and cannot justify `ready-for-pr`.
+   - If `TicketClass` implies external consumers (e.g., `api-change`, `schema-migration`, `mixed` with contracts/events),
+     the plan MUST include `CrossRepoImpact` (affected consumers + required sync actions),
+     or an explicit statement: `single-repo, no external consumers`.
 
 Binding: Update `SESSION_STATE.TouchedSurface` with:
    - FilesPlanned (all concrete file paths)
@@ -2378,6 +2383,13 @@ If the session becomes long (large discovery outputs / many iterations), compres
    Set `SESSION_STATE.Gates.P5.6-RollbackSafety` to:
    - `approved` when rollback is credible and reversible (or `not-applicable` when clearly N/A)
    - `rejected` when rollback is missing/unsafe and must be addressed
+
+0.2 **Gate Review Scorecard (binding):**
+   For each explicit gate evaluation in Phase 5 family, produce a compact scorecard with:
+   - criteria IDs, weights, result (`pass|fail|partial|not-applicable`), and `evidenceRef`
+   - aggregate `Score` / `MaxScore`
+   - gate decision consistent with criteria outcomes
+   Any failed `critical` criterion MUST prevent gate approval.
 
 1. **Architectural review:**
    * Does the plan follow the repository's architecture pattern?
@@ -2949,6 +2961,10 @@ If any prerequisite is not met → BLOCK and return to the relevant phase.
 - Confirm tests implemented match the Phase 4 Test Strategy and that determinism seams are actually used.
 - Confirm all **Mandatory Review Matrix (MRM)** required artifacts are evidenced (or explicitly marked `not-verified` with follow-up actions).
 - Update Change Matrix to map decisions → code → tests.
+- Execute a final **review-of-review** consistency pass:
+  - every passing gate criterion has valid `evidenceRef`
+  - no `ready-for-pr` claim contradicts GateArtifacts / MRM / BuildEvidence
+  - unresolved inconsistencies force `fix-required`
 
 Canonical build command (default for Maven repositories):
 * mvn -B -DskipITs=false clean verify
