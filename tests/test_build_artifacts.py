@@ -83,6 +83,7 @@ def test_artifacts_contents_follow_policy(tmp_path: Path):
             f"{prefix}/master.md",
             f"{prefix}/rules.md",
             f"{prefix}/start.md",
+            f"{prefix}/CHANGELOG.md",
         }
         missing = [x for x in required if x not in names]
         assert not missing, f"ZIP missing required files: {missing}"
@@ -118,6 +119,7 @@ def test_artifacts_contents_follow_policy(tmp_path: Path):
             f"{prefix}/master.md",
             f"{prefix}/rules.md",
             f"{prefix}/start.md",
+            f"{prefix}/CHANGELOG.md",
         }
         missing = [x for x in required if x not in names]
         assert not missing, f"TAR missing required files: {missing}"

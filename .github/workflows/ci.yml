@@ -11,6 +11,39 @@ on:
 jobs:
 
   # ----------------------------------
+  # Job -1: Conventional Commits (PR title)
+  # ----------------------------------
+  conventional-pr-title:
+    name: Conventional PR Title
+    runs-on: ubuntu-latest
+    if: ${{ always() }}
+    steps:
+      - name: Validate PR title (Conventional Commits)
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          python - <<'PY'
+          import os, re, sys
+          event = os.environ.get("EVENT_NAME", "")
+          if event != "pull_request":
+              print("Not a pull_request event -> skipping lint (success).")
+              sys.exit(0)
+
+          title = os.environ.get("PR_TITLE") or ""
+          pattern = r'^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([^)]+\))?!?: .+'
+          if not re.match(pattern, title):
+              print("❌ PR title is not Conventional Commits compliant.")
+              print("Title:", title)
+              print("Expected pattern:", pattern)
+              print("Examples: feat(installer): add manifest gate | fix: handle unicode paths | chore: cleanup")
+              sys.exit(1)
+
+          print("✅ PR title is Conventional Commits compliant:", title)
+          PY
+
+
+  # ----------------------------------
   # Job 0: Spec Guards (Fail-fast)
   # ----------------------------------
   spec-guards:
@@ -164,7 +197,7 @@ jobs:
   # ----------------------------------
   release-readiness:
     name: Release Readiness
-    needs: [test-installer, validate-governance, build-artifacts]
+    needs: [conventional-pr-title, test-installer, validate-governance, build-artifacts]
     if: ${{ always() }}
     runs-on: ubuntu-latest
 
