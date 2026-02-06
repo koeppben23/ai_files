@@ -686,18 +686,36 @@ def uninstall(plan: InstallPlan, dry_run: bool, force: bool, purge_paths_file: b
         if not force and not dry_run:
             return 4
 
-        # Conservative fallback: delete only known filenames + installer-owned profiles payload
-        # Conservative fallback: static allowlist (independent of source-dir)
-        targets: list[Path] = [
-            plan.commands_dir / name
-            for name in CORE_COMMAND_FILES
-        ]
+        # Conservative fallback: delete only installer-owned files resolvable from this source tree.
+        targets: list[Path] = []
+
+        # Root command files from current source snapshot
+        for src in collect_command_root_files(plan.source_dir):
+            targets.append(plan.commands_dir / src.name)
+
+        # Static core allowlist as additional safety net for legacy installs
+        for name in CORE_COMMAND_FILES:
+            targets.append(plan.commands_dir / name)
+
+        # Profiles and addon manifests from current source snapshot
+        for src in collect_profile_files(plan.source_dir):
+            rel = src.relative_to(plan.source_dir)
+            targets.append(plan.commands_dir / rel)
+        for src in collect_profile_addon_manifests(plan.source_dir):
+            rel = src.relative_to(plan.source_dir)
+            targets.append(plan.commands_dir / rel)
+
+        # Diagnostics from current source snapshot
+        for src in collect_diagnostics_files(plan.source_dir):
+            rel = src.relative_to(plan.source_dir)
+            targets.append(plan.commands_dir / rel)
+
         # Remove governance.paths.json only when explicitly requested.
         if purge_paths_file:
             targets.append(plan.governance_paths_path)
-        targets.extend([p for p in (plan.commands_dir / "profiles").rglob("*.md") if p.is_file()])
-        targets.extend([p for p in (plan.commands_dir / "profiles" / "addons").glob("*.addon.yml") if p.is_file()])
-        targets.extend([p for p in (plan.commands_dir / "diagnostics").rglob("*") if p.is_file()])
+
+        # Deduplicate while preserving order
+        targets = list(dict.fromkeys(targets))
         # intentionally NOT deleting opencode.json (never managed by this installer)
 
         return delete_targets(targets, plan, dry_run=dry_run)

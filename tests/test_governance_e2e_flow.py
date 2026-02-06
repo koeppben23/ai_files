@@ -15,7 +15,7 @@ class AddonManifest:
     addon_key: str
     addon_class: str
     rulebook: str
-    file_globs: tuple[str, ...]
+    signals: tuple[tuple[str, str], ...]
 
 
 def _commands_dir(config_root: Path) -> Path:
@@ -33,12 +33,15 @@ def _parse_addon_manifest(path: Path) -> AddonManifest:
     addon_key = get_scalar("addon_key")
     addon_class = get_scalar("addon_class")
     rulebook = get_scalar("rulebook")
-    file_globs = tuple(m.group(1).strip() for m in re.finditer(r"^\s*-\s*file_glob:\s*\"?([^\"\n]+)\"?\s*$", text, flags=re.MULTILINE))
+    signals = tuple(
+        (m.group(1).strip(), m.group(2).strip().strip('"').strip("'"))
+        for m in re.finditer(r"^\s*-\s*([a-z_]+):\s*(.*?)\s*$", text, flags=re.MULTILINE)
+    )
     return AddonManifest(
         addon_key=addon_key,
         addon_class=addon_class,
         rulebook=rulebook,
-        file_globs=file_globs,
+        signals=signals,
     )
 
 
@@ -50,19 +53,85 @@ def _repo_relpaths(repo_root: Path) -> list[str]:
     return rels
 
 
-def _matches_file_globs(globs: tuple[str, ...], repo_relpaths: list[str]) -> bool:
-    if not globs:
-        return False
+def _matches_file_glob(glob_pattern: str, repo_relpaths: list[str]) -> bool:
     for rel in repo_relpaths:
-        for g in globs:
-            candidates = [g]
-            if g.startswith("**/"):
-                # Pathlib/fnmatch treat this as requiring at least one directory segment;
-                # signals like "**/nx.json" should also match repo-root files.
-                candidates.append(g[3:])
+        candidates = [glob_pattern]
+        if glob_pattern.startswith("**/"):
+            # fnmatch treats this as requiring at least one segment;
+            # allow root match too (e.g. **/nx.json -> nx.json)
+            candidates.append(glob_pattern[3:])
+        if any(fnmatch(rel, c) for c in candidates):
+            return True
+    return False
 
-            if any(fnmatch(rel, c) for c in candidates):
-                return True
+
+def _has_maven_dep(repo_root: Path, dep: str) -> bool:
+    if ":" not in dep:
+        return False
+    group_id, artifact_id = dep.split(":", 1)
+    target = f"{group_id}:{artifact_id}"
+    for coord in _iter_maven_coords(repo_root):
+        if coord == target:
+            return True
+    return False
+
+
+def _has_maven_dep_prefix(repo_root: Path, dep_prefix: str) -> bool:
+    for coord in _iter_maven_coords(repo_root):
+        if coord.startswith(dep_prefix):
+            return True
+    return False
+
+
+def _iter_maven_coords(repo_root: Path):
+    pattern = re.compile(
+        r"<dependency>.*?<groupId>\s*([^<\s]+)\s*</groupId>.*?<artifactId>\s*([^<\s]+)\s*</artifactId>.*?</dependency>",
+        flags=re.DOTALL,
+    )
+    for pom in repo_root.rglob("pom.xml"):
+        text = pom.read_text(encoding="utf-8", errors="ignore")
+        for m in pattern.finditer(text):
+            yield f"{m.group(1)}:{m.group(2)}"
+
+
+def _has_code_regex(repo_root: Path, pattern: str) -> bool:
+    rx = re.compile(pattern)
+    for p in repo_root.rglob("*"):
+        if not p.is_file():
+            continue
+        if p.suffix.lower() in {".png", ".jpg", ".jpeg", ".gif", ".pdf", ".jar", ".class"}:
+            continue
+        text = p.read_text(encoding="utf-8", errors="ignore")
+        if rx.search(text):
+            return True
+    return False
+
+
+def _has_config_key_prefix(repo_root: Path, prefix: str) -> bool:
+    for p in repo_root.rglob("*"):
+        if not p.is_file():
+            continue
+        if p.suffix.lower() not in {".yml", ".yaml", ".properties", ".conf", ".toml"}:
+            continue
+        text = p.read_text(encoding="utf-8", errors="ignore")
+        if prefix in text:
+            return True
+    return False
+
+
+def _signal_matches(signal_key: str, signal_value: str, repo_root: Path, repo_relpaths: list[str]) -> bool:
+    if signal_key == "file_glob":
+        return _matches_file_glob(signal_value, repo_relpaths)
+    if signal_key == "workflow_file":
+        return signal_value in repo_relpaths
+    if signal_key == "maven_dep":
+        return _has_maven_dep(repo_root, signal_value)
+    if signal_key == "maven_dep_prefix":
+        return _has_maven_dep_prefix(repo_root, signal_value)
+    if signal_key == "code_regex":
+        return _has_code_regex(repo_root, signal_value)
+    if signal_key == "config_key_prefix":
+        return _has_config_key_prefix(repo_root, signal_value)
     return False
 
 
@@ -79,7 +148,7 @@ def _evaluate_addons(commands_dir: Path, repo_root: Path) -> tuple[dict[str, str
     relpaths = _repo_relpaths(repo_root)
     for mf in manifests:
         addon = _parse_addon_manifest(mf)
-        required = _matches_file_globs(addon.file_globs, relpaths)
+        required = any(_signal_matches(k, v, repo_root, relpaths) for k, v in addon.signals)
         if not required:
             statuses[addon.addon_key] = "skipped"
             continue
@@ -150,3 +219,30 @@ def test_e2e_governance_flow_required_block_then_reload_and_advisory_warn(tmp_pa
         assert "BLOCKED-MISSING-ADDON:frontendCypress" not in blocked
     finally:
         advisory_backup.rename(advisory_rb)
+
+    # Step 4: maven_dep signal (kafka) -> required missing rulebook must BLOCK
+    (repo / "pom.xml").write_text(
+        """
+<project>
+  <dependencies>
+    <dependency>
+      <groupId>org.springframework.kafka</groupId>
+      <artifactId>spring-kafka</artifactId>
+    </dependency>
+  </dependencies>
+</project>
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+    kafka_rb = commands / "profiles" / "rules.backend-java-kafka-templates.md"
+    assert kafka_rb.exists(), f"Missing installed kafka rulebook: {kafka_rb}"
+    kafka_backup = kafka_rb.with_suffix(kafka_rb.suffix + ".bak")
+    kafka_rb.rename(kafka_backup)
+    try:
+        statuses, blocked, warnings = _evaluate_addons(commands, repo)
+        assert statuses.get("kafka") == "missing-rulebook"
+        assert "BLOCKED-MISSING-ADDON:kafka" in blocked
+        assert not any(w.endswith(":kafka") for w in warnings)
+    finally:
+        kafka_backup.rename(kafka_rb)

@@ -20,7 +20,7 @@ For `frontend-angular-nx`, deterministic generation requires:
 Binding:
 - At code-phase (Phase 4+), the workflow MUST load the templates addon and record it in:
   - `SESSION_STATE.LoadedRulebooks.templates`
-- If required and missing at code-phase: `Mode = BLOCKED`, `Next = BLOCKED-TEMPLATES-MISSING`.
+- If required and missing at code-phase: `Mode = BLOCKED`, `Next = BLOCKED-MISSING-TEMPLATES`.
 
 When loaded, templates are binding defaults. If a template conflicts with locked repo conventions, apply the minimal convention-aligned adaptation and record the deviation.
 

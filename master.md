@@ -235,6 +235,10 @@ LOAD IMMEDIATELY (workflow control only):
 SESSION_STATE bootstrap (binding):
   Phase: "1.1-Bootstrap"
   Mode: "NORMAL"
+  Bootstrap:
+    Present: true
+    Satisfied: true
+    Evidence: "explicit bootstrap declaration in session header"
   LoadedRulebooks:
     core: ""     # DEFERRED until Phase 4
     profile: ""  # DEFERRED until post-Phase-2
@@ -302,6 +306,12 @@ ALGORITHM (BINDING, NORMATIVE):
    Evidence sources (BINDING):
    - Repo Discovery signals (Phase 2 artifacts): dependencies, annotations, configuration keys, file presence.
    - Ticket/request text (explicit requirements).
+   - If `SESSION_STATE.ComponentScopePaths` is set, signal evaluation MUST be constrained to those paths.
+
+   Scope-safety (BINDING):
+   - In monorepos/multi-component repositories, if `ComponentScopePaths` is missing at code-phase,
+     repo-wide addon activation is non-deterministic and MUST trigger `BLOCKED-MISSING-EVIDENCE`
+     until component scope is explicit.
 
    Addon catalog (BINDING):
    - Addons are discovered **dynamically** by scanning addon manifests located at:
@@ -361,6 +371,11 @@ Output obligation (BINDING):
 
 ### Lookup Strategy (ENHANCED)
 
+Binding clarification:
+- The lookup orders below define **resolution precedence** when deferred activations execute
+  (Phase 1.2 / 1.3 / 1.4 at Phase-4 entry or re-entry).
+- They MUST NOT be interpreted as eager loading requirements for Phases 1-3.
+
 ### Local-Only Governance & State (BINDING)
 
 This governance system is single-user and MUST NOT require repository-local governance or persistent artifacts.
@@ -369,7 +384,7 @@ This governance system is single-user and MUST NOT require repository-local gove
   - GovernanceHome: `${COMMANDS_HOME}/` (installed governance rulebooks + indices)
   - WorkspaceHome: `${WORKSPACES_HOME}/<repo_fingerprint>/` (state + caches)
 
-#### Step 1: Load Core Rulebook (rules.md)
+#### Step 1 (Phase 1.3): Resolve Core Rulebook (rules.md)
 
 **Search order:**
 1. Workspace-local override (optional, outside the repo): `${REPO_HOME}/governance/rules.md`
@@ -378,7 +393,7 @@ This governance system is single-user and MUST NOT require repository-local gove
 4. Global rules folder: `${OPENCODE_HOME}/rules/rules.md` (fallback)
 5. Context: manually provided (planning-only)
 
-#### Step 1b: Load Top-Tier Index & Conflict Model (QUALITY_INDEX.md, CONFLICT_RESOLUTION.md)
+#### Step 1b (Phase 1.1): Resolve Top-Tier Index & Conflict Model (QUALITY_INDEX.md, CONFLICT_RESOLUTION.md)
 
 These files are normative and MUST be available in the same governance installation scope as `master.md`.
 
@@ -968,7 +983,7 @@ If `SESSION_STATE.OutputMode = architect-only`, the assistant MUST output a `Dec
 
 ```yaml
 SESSION_STATE:
-  Phase: 1 | 2 | 1.5 | 3A | 3B-1 | 3B-2 | 4 | 5 | 5.3 | 5.4 | 5.5 | 6
+  Phase: 1 | 1.1-Bootstrap | 1.2-ProfileDetection | 1.3-CoreRulesActivation | 2 | 2.1-DecisionPack | 1.5-BusinessRules | 3A | 3B-1 | 3B-2 | 4 | 5 | 5.3 | 5.4 | 5.5 | 5.6 | 6
   Mode: NORMAL | DEGRADED | DRAFT | BLOCKED
   ConfidenceLevel: <0-100>
   Next: "<next-step-identifier>"  # REQUIRED. Canonical continuation pointer (see SESSION_STATE_SCHEMA.md)
@@ -997,8 +1012,8 @@ SESSION_STATE:
   Risks: []
   Blockers: []
   Warnings: []
-  TicketRecordDigest: ""   # REQUIRED for Phase >= 4
-  NFRChecklist: {}         # optional in MIN; recommended for Phase >= 4
+  TicketRecordDigest: ""   # REQUIRED for planning-or-later phases (4 | 5 | 5.3 | 5.4 | 5.5 | 5.6 | 6)
+  NFRChecklist: {}         # optional in MIN; recommended for planning-or-later phases
   CrossRepoImpact: {}     # optional in MIN; REQUIRED in FULL if contracts are consumed cross-repo
   RollbackStrategy: {}    # optional in MIN; REQUIRED in FULL if schema/contracts change
   DependencyChanges: {}   # optional in MIN; REQUIRED in FULL if deps change

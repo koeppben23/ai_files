@@ -758,7 +758,7 @@ If produced:
 
 ## 13. Ticket Record (Phase 4+; required by rules)
 
-When Phase 4 planning is produced, the workflow may include:
+When Phase 4 planning is produced, the workflow MUST include:
 - `SESSION_STATE.TicketRecordDigest` (one-line summary)
 - `SESSION_STATE.NFRChecklist` (object; may be elided in MIN if digest captures exceptions)
 - `SESSION_STATE.MandatoryReviewMatrix` (object; required by `rules.md`/`master.md` for PR readiness)
