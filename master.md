@@ -293,16 +293,25 @@ ALGORITHM (BINDING, NORMATIVE):
      - Record: `SESSION_STATE.LoadedRulebooks.templates = "<resolved path>"`
      - If required but cannot be resolved/loaded → `Mode = BLOCKED` with `BLOCKED-MISSING-TEMPLATES`.
 
-3) Evaluate and load addons (evidence-based)
+3) Evaluate and load addons (evidence-based, manifest-driven)
    Evidence sources (BINDING):
    - Repo Discovery signals (Phase 2 artifacts): dependencies, annotations, configuration keys, file presence.
    - Ticket/request text (explicit requirements).
 
+   Addon catalog (BINDING):
+   - Addons are discovered **dynamically** by scanning addon manifests located at:
+     - `${PROFILES_HOME}/addons/*.addon.yml`
+   - Each manifest MUST define:
+     - `addon_key` (string)
+     - `rulebook` (path under `${PROFILES_HOME}`)
+     - `signals` (one or more evidence patterns; see manifests)
+
    Rules (BINDING):
-   - An addon is REQUIRED if ANY of its required signals are present.
+   - An addon is REQUIRED if ANY of its required signals match.
    - For each evaluated addon, record:
      - `SESSION_STATE.AddonsEvidence.<addon_key>.signals = [<signal strings>]`
      - `SESSION_STATE.AddonsEvidence.<addon_key>.required = true|false`
+     - `SESSION_STATE.AddonsEvidence.<addon_key>.status = loaded|skipped|missing-rulebook`
 
    Kafka addon example (when the profile declares it):
    - Required signals include (evidence-based):
@@ -312,7 +321,9 @@ ALGORITHM (BINDING, NORMATIVE):
    - If required:
      - Resolve and load `rules.backend-java-kafka-templates.md`
      - Record: `SESSION_STATE.LoadedRulebooks.addons.kafka = "<resolved path>"`
-     - If required but cannot be resolved/loaded → `Mode = BLOCKED` with `BLOCKED-MISSING-ADDON:kafka`.
+     - If required but cannot be resolved/loaded:
+       - Set `SESSION_STATE.AddonsEvidence.kafka.status = missing-rulebook`
+       - Continue without blocking, but explicitly scope output to analysis/planning only for Kafka-related changes.
 
 4) Precedence and merge
    - `master.md` remains highest priority.

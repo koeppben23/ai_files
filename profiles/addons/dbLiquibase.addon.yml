@@ -1,0 +1,8 @@
+addon_key: dbLiquibase
+rulebook: rules.postgres-liquibase.md
+signals:
+  any:
+    - maven_dep: org.liquibase:liquibase-core
+    - file_glob: "**/liquibase.properties"
+    - file_glob: "**/db/changelog/**"
+    - config_key_prefix: "spring.liquibase."

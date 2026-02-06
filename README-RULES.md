@@ -14,6 +14,9 @@ It does not override or redefine them.
 - **Context- and stack-specific extensions**  
   → See `profiles/*`
 
+  Addons are discovered declaratively via addon manifests:
+  → See `profiles/addons/*.addon.yml`
+
 - **Operational usage and configuration**  
   → See `README-OPENCODE.md`
 
