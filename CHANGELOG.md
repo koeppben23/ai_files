@@ -6,6 +6,7 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
 ## [Unreleased]
 ### Added
 - Initialize post-1.0.1-BETA development baseline.
+- Add PostgreSQL + Liquibase governance profile (`rules.postgres-liquibase`).
 
 ### Changed
 ### Fixed
