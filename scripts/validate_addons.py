@@ -9,48 +9,101 @@ from pathlib import Path
 
 
 ALLOWED_CLASSES = {"required", "advisory"}
+ALLOWED_SIGNAL_KEYS = {
+    "file_glob",
+    "maven_dep",
+    "maven_dep_prefix",
+    "code_regex",
+    "config_key_prefix",
+    "workflow_file",
+}
 
 
 def read_text(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
-def _extract_scalar(text: str, key: str) -> str | None:
-    m = re.search(rf"^{re.escape(key)}:\s*(.+?)\s*$", text, flags=re.MULTILINE)
-    if not m:
-        return None
-    value = m.group(1).strip().strip('"').strip("'")
-    return value or None
+def _unquote(value: str) -> str:
+    value = value.strip()
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
+        return value[1:-1].strip()
+    return value
 
 
-def _extract_signals_block(text: str) -> str | None:
-    lines = text.splitlines()
-    start = None
-    for i, line in enumerate(lines):
-        if re.match(r"^signals:\s*$", line):
-            start = i + 1
-            break
-    if start is None:
-        return None
+def parse_manifest(path: Path) -> tuple[dict[str, str], str | None, list[tuple[str, str]], list[str]]:
+    """Parse constrained addon-manifest YAML shape without external dependencies."""
+    text = read_text(path)
+    scalars: dict[str, str] = {}
+    signals_mode: str | None = None
+    signals: list[tuple[str, str]] = []
+    errors: list[str] = []
 
-    block: list[str] = []
-    for line in lines[start:]:
-        if line.strip() == "":
-            block.append(line)
+    in_signals = False
+    line_no = 0
+    for raw in text.splitlines():
+        line_no += 1
+        stripped = raw.strip()
+        if not stripped or stripped.startswith("#"):
             continue
-        if re.match(r"^\S", line):
-            break
-        block.append(line)
-    return "\n".join(block)
+
+        # top-level key
+        if not raw.startswith(" "):
+            m = re.match(r"^([A-Za-z_][A-Za-z0-9_-]*):\s*(.*?)\s*$", raw)
+            if not m:
+                errors.append(f"line {line_no}: malformed top-level entry")
+                continue
+            key, val = m.group(1), m.group(2)
+            if key == "signals":
+                in_signals = True
+                continue
+            in_signals = False
+            val = _unquote(val)
+            if not val:
+                errors.append(f"line {line_no}: empty scalar for '{key}'")
+                continue
+            scalars[key] = val
+            continue
+
+        # nested signals block
+        if in_signals:
+            mode_match = re.match(r"^\s{2}(any|all):\s*$", raw)
+            if mode_match:
+                mode = mode_match.group(1)
+                if signals_mode and signals_mode != mode:
+                    errors.append(f"line {line_no}: mixed signals mode ('{signals_mode}' and '{mode}')")
+                signals_mode = mode
+                continue
+
+            sig_match = re.match(r"^\s{4}-\s*([a-z_]+):\s*(.*?)\s*$", raw)
+            if sig_match:
+                if not signals_mode:
+                    errors.append(f"line {line_no}: signal listed before any/all mode")
+                    continue
+                s_key = sig_match.group(1)
+                s_val = _unquote(sig_match.group(2))
+                if not s_val:
+                    errors.append(f"line {line_no}: empty signal value for '{s_key}'")
+                    continue
+                signals.append((s_key, s_val))
+                continue
+
+            errors.append(f"line {line_no}: malformed signals entry")
+            continue
+
+        # any other indented block outside known structures
+        errors.append(f"line {line_no}: unexpected indentation outside 'signals' block")
+
+    return scalars, signals_mode, signals, errors
 
 
 def validate_manifest(path: Path, repo_root: Path) -> list[str]:
-    text = read_text(path)
     errors: list[str] = []
+    scalars, signals_mode, signals, parse_errors = parse_manifest(path)
+    errors.extend(parse_errors)
 
-    addon_key = _extract_scalar(text, "addon_key")
-    addon_class = _extract_scalar(text, "addon_class")
-    rulebook = _extract_scalar(text, "rulebook")
+    addon_key = scalars.get("addon_key")
+    addon_class = scalars.get("addon_class")
+    rulebook = scalars.get("rulebook")
 
     if not addon_key:
         errors.append("missing addon_key")
@@ -67,14 +120,16 @@ def validate_manifest(path: Path, repo_root: Path) -> list[str]:
         if not rb_path.exists():
             errors.append(f"rulebook does not exist: {rulebook}")
 
-    block = _extract_signals_block(text)
-    if block is None:
+    if signals_mode is None:
         errors.append("missing signals block")
     else:
-        if re.search(r"^\s+(any|all):\s*$", block, flags=re.MULTILINE) is None:
+        if signals_mode not in {"any", "all"}:
             errors.append("signals block must define 'any:' or 'all:'")
-        if re.search(r"^\s+-\s+", block, flags=re.MULTILINE) is None:
+        if not signals:
             errors.append("signals block must include at least one list entry")
+        for s_key, _s_val in signals:
+            if s_key not in ALLOWED_SIGNAL_KEYS:
+                errors.append(f"unsupported signal key: {s_key}")
 
     return errors
 
@@ -97,8 +152,8 @@ def main(argv: list[str]) -> int:
         rel = manifest.resolve().relative_to(repo_root).as_posix()
         errors = validate_manifest(manifest, repo_root)
 
-        text = read_text(manifest)
-        addon_key = _extract_scalar(text, "addon_key")
+        scalars, _signals_mode, _signals, _parse_errors = parse_manifest(manifest)
+        addon_key = scalars.get("addon_key")
         if addon_key:
             if addon_key in seen_keys:
                 errors.append(

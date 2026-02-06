@@ -320,7 +320,8 @@ This gate applies to any change that affects one or more of the following:
 - Rollback strategy is either:
   - implemented, or
   - explicitly declared as "no rollback" with justification.
-- Rollback strategy MUST be recorded in `SESSION_STATE.RollbackStrategy` when Phase >= 4.
+- Rollback strategy MUST be recorded in `SESSION_STATE.RollbackStrategy` in planning-or-later phases
+  (`4 | 5 | 5.3 | 5.4 | 5.5 | 5.6 | 6`).
 - Audit requirements (created/updated timestamps, history, traceability) are preserved.
 
 ### Kafka / Event Schemas

@@ -5,7 +5,7 @@
 **Addon class (binding):** required addon.
 
 **Activation (binding):** MUST be loaded at code-phase (Phase 4+) when Kafka is required (see `rules.backend-java.md`).
-- If Kafka is required and this addon is not loaded: `Mode = BLOCKED`, `Next = BLOCKED-KAFKA-TEMPLATES-MISSING`.
+- If Kafka is required and this addon is not loaded: `Mode = BLOCKED`, `Next = BLOCKED-MISSING-ADDON:kafka`.
 
 **Precedence (binding):** `master.md` > `rules.md` (core) > this Kafka addon > `rules.backend-java-templates.md` (base templates) > `rules.backend-java.md` (profile).
 - In conflicts for Kafka-related code, this addon overrides abstract style/principles.
