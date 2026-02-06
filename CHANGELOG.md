@@ -9,11 +9,37 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
 ### Added
 - Initialize post-1.0.1-BETA development baseline.
 - Add PostgreSQL + Liquibase governance profile (`rules.postgres-liquibase`).
+- Add frontend Angular/Nx governance expansion:
+  - `rules.frontend-angular-nx.md`
+  - `rules.frontend-angular-nx-templates.md` (required addon)
+  - `rules.frontend-cypress-testing.md` (advisory addon)
+  - `rules.frontend-openapi-ts-client.md` (advisory addon)
+- Add addon manifest classes (`addon_class: required|advisory`) and frontend addon manifests under `profiles/addons/`.
+- Add governance diagnostics script `scripts/validate_addons.py` (manifest structure + class/signal validation).
+- Add CI-governed end-to-end flow coverage for addon activation/reload (`tests/test_governance_e2e_flow.py`, `governance-e2e` job).
+- Add Mandatory Review Matrix (MRM) and Gate Scorecard governance contracts for reviewer-proof PR readiness.
 
 ### Changed
+- Align full phase-flow semantics across `master.md`, `rules.md`, `SESSION_STATE_SCHEMA.md`, and README docs (including 2.1/1.5/5.3/5.4/5.6 behavior).
+- Normalize persistence/path documentation and install layout diagrams to match actual installer behavior.
+- Installer now copies addon manifests to `commands/profiles/addons/` and includes them in `INSTALL_MANIFEST.json`.
+- Uninstall fallback safety hardened to resolve installer-owned targets from source/manifests instead of broad recursive deletion.
+- Token-efficiency improved via deferred/lazy rulebook activation clarifications, reuse/delta-reload guidance, and compacted phase output templates.
+- Governance release/readiness rules tightened with claim-to-evidence mapping and cross-repo impact requirements for contract/schema changes.
+
 ### Fixed
+- Resolve addon blocking-policy inconsistencies (`required` blocks, `advisory` warns) across master/schema/profiles.
+- Fix stale/incorrect profile references (`rules.frontend.md` -> `rules.frontend-angular-nx.md`).
+- Fix path ownership docs for global session files vs repo-scoped workspace artifacts.
+- Fix cucumber lint example regex/control-character issue in profile documentation.
+- Fix missing canonical BLOCKED code coverage (`BLOCKED-VARIABLE-RESOLUTION`) in schema consistency.
+- Fix E2E addon trigger matching edge cases and extend signal handling (`file_glob`, `workflow_file`, `maven_dep`, `maven_dep_prefix`, `code_regex`, `config_key_prefix`).
+
 ### Removed
+
 ### Security
+- Strengthen fail-closed behavior for required addon/rulebook absence and missing evidence scenarios.
+- Increase review hardening via mandatory gate artifacts/scorecards and final review-of-review consistency checks.
 ## [1.0.1-BETA] - 2026-02-06
 ### Added
 - PR-gated “Release Readiness” workflow to enforce branch protection on `main`.
