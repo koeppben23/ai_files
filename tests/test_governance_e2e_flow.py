@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import re
+from fnmatch import fnmatch
 from dataclasses import dataclass
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 
 import pytest
 
@@ -53,9 +54,14 @@ def _matches_file_globs(globs: tuple[str, ...], repo_relpaths: list[str]) -> boo
     if not globs:
         return False
     for rel in repo_relpaths:
-        pp = PurePosixPath(rel)
         for g in globs:
-            if pp.match(g):
+            candidates = [g]
+            if g.startswith("**/"):
+                # Pathlib/fnmatch treat this as requiring at least one directory segment;
+                # signals like "**/nx.json" should also match repo-root files.
+                candidates.append(g[3:])
+
+            if any(fnmatch(rel, c) for c in candidates):
                 return True
     return False
 
