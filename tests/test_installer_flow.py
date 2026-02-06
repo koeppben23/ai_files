@@ -258,3 +258,41 @@ def test_preexisting_paths_file_preserved_when_skipped(tmp_path: Path):
         r = run_install(["--uninstall", "--force", "--purge-paths-file", "--config-root", str(config_root)])
         assert r.returncode == 0
         assert not paths.exists(), "--purge-paths-file should remove governance.paths.json"
+
+
+@pytest.mark.installer
+def test_installer_copies_addon_manifests_for_dynamic_activation(tmp_path: Path):
+    """Ensure profiles/addons/*.addon.yml are installed so Phase 1.4 can trigger/reload addons."""
+    config_root = tmp_path / "opencode-config-addons"
+    commands = _commands_dir(config_root)
+
+    r = run_install(["--force", "--no-backup", "--config-root", str(config_root)])
+    assert r.returncode == 0, f"install failed:\n{r.stderr}\n{r.stdout}"
+
+    expected = [
+        commands / "profiles" / "addons" / "angularNxTemplates.addon.yml",
+        commands / "profiles" / "addons" / "frontendCypress.addon.yml",
+        commands / "profiles" / "addons" / "frontendOpenApiTsClient.addon.yml",
+        commands / "profiles" / "addons" / "kafka.addon.yml",
+        commands / "profiles" / "addons" / "openapi.addon.yml",
+        commands / "profiles" / "addons" / "cucumber.addon.yml",
+        commands / "profiles" / "addons" / "dbLiquibase.addon.yml",
+    ]
+
+    missing = [str(p) for p in expected if not p.exists()]
+    assert not missing, "Installer did not copy addon manifests:\n" + "\n".join([f"- {m}" for m in missing])
+
+    manifest = _load_manifest(config_root)
+    entries = list(_iter_manifest_entries(manifest["files"], commands))
+    installed = {t.resolve().relative_to(commands.resolve()).as_posix() for t, _ in entries}
+
+    required_rel = {
+        "profiles/addons/angularNxTemplates.addon.yml",
+        "profiles/addons/frontendCypress.addon.yml",
+        "profiles/addons/frontendOpenApiTsClient.addon.yml",
+    }
+    missing_in_manifest = sorted(required_rel - installed)
+    assert not missing_in_manifest, (
+        "Addon manifests missing from INSTALL_MANIFEST.json:\n"
+        + "\n".join([f"- {m}" for m in missing_in_manifest])
+    )

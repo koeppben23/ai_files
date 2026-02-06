@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import re
+import sys
 from pathlib import Path
 
 import pytest
 
-from .util import REPO_ROOT, git_ls_files, read_text
+from .util import REPO_ROOT, git_ls_files, read_text, run
 
 
 @pytest.mark.governance
@@ -107,3 +108,12 @@ def test_frontend_addons_exist_and_classification_matches_policy():
             problems.append(f"{rel}: expected addon_class={expected_class}, got {value}")
 
     assert not problems, "Frontend addon policy mismatch:\n" + "\n".join([f"- {p}" for p in problems])
+
+
+@pytest.mark.governance
+def test_validate_addons_script_passes():
+    script = REPO_ROOT / "scripts" / "validate_addons.py"
+    assert script.exists(), f"Missing script: {script}"
+
+    r = run([sys.executable, str(script), "--repo-root", str(REPO_ROOT)])
+    assert r.returncode == 0, f"validate_addons.py failed:\nSTDERR:\n{r.stderr}\nSTDOUT:\n{r.stdout}"
