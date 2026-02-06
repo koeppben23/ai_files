@@ -735,6 +735,20 @@ If produced:
 When Phase 4 planning is produced, the workflow may include:
 - `SESSION_STATE.TicketRecordDigest` (one-line summary)
 - `SESSION_STATE.NFRChecklist` (object; may be elided in MIN if digest captures exceptions)
+- `SESSION_STATE.MandatoryReviewMatrix` (object; strongly recommended)
+
+Recommended `MandatoryReviewMatrix` shape:
+
+```yaml
+SESSION_STATE:
+  MandatoryReviewMatrix:
+    TicketClass: api-change | schema-migration | business-rule-change | security-change | performance-change | ui-change | mixed
+    RiskTier: LOW | MEDIUM | HIGH
+    RequiredArtifacts:
+      - name: "<artifact-name>"
+        required: true
+        evidenceRef: "<BuildEvidence item id/scope or not-verified>"
+```
 
 This is further specified as binding in `rules.md` (Ticket Record section).
 
