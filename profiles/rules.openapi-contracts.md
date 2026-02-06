@@ -100,6 +100,50 @@ Minimum hygiene when editing specs:
 - Avoid copy/paste schema drift; reuse components.
 - Provide at least one example for new operations or new response bodies (version-appropriate: `example` vs `examples`).
 
+
+### 4.1 Quick tooling commands (recommended)
+
+If the repo does not already provide a contract/lint command, the assistant SHOULD propose one of the following **copy/paste** options (choose what fits the repo tooling):
+
+**Option A: Spectral (Node)**
+```bash
+# one-time: add tooling (repo decides whether to commit package-lock)
+npm i -D @stoplight/spectral-cli
+npx spectral lint openapi.yaml
+```
+
+**Option B: swagger-cli validate (Node)**
+```bash
+npm i -D swagger-cli
+npx swagger-cli validate openapi.yaml
+```
+
+**Option C: Python structural check (minimal example)**
+```python
+# lint_openapi_minimal.py (example)
+import sys, json
+from pathlib import Path
+
+p = Path(sys.argv[1])
+raw = p.read_text(encoding="utf-8")
+
+# Minimal JSON-only structural check. If your repo uses YAML, prefer repo-native tooling.
+if not raw.lstrip().startswith("{"):
+    print("WARN: minimal linter example only supports JSON; use repo-native YAML tooling.", file=sys.stderr)
+    sys.exit(0)
+
+doc = json.loads(raw)
+
+if "openapi" not in doc and doc.get("swagger") != "2.0":
+    raise SystemExit("ERROR: missing 'openapi' (3.x) or 'swagger: 2.0' header")
+
+paths = doc.get("paths") or {}
+if not isinstance(paths, dict) or not paths:
+    raise SystemExit("ERROR: no paths found")
+
+print("OK: basic OpenAPI structure present")
+```
+
 ---
 
 ## 5. Change rules (binding)
@@ -157,6 +201,46 @@ Tests MUST cover:
 **If no automated contract check exists:** the assistant MUST recommend adding one (non-blocking). Prefer:
 - spec linting (Spectral or equivalent)
 - breaking-change detection (oasdiff or equivalent)
+
+### 7.1 Suggested commands (copy/paste)
+
+Pick the lightest option that matches repo constraints.
+
+**Spectral lint**
+```bash
+npx spectral lint <spec-file-or-glob>
+```
+
+**Breaking-change detection with oasdiff**
+```bash
+# Compare "base" vs "revision" (paths can be local files or URLs)
+oasdiff breaking <base-spec> <revision-spec>
+```
+
+**openapi-generator validate (if generator is already used)**
+```bash
+openapi-generator validate -i <spec-file>
+```
+
+### 7.2 Example GitHub Actions job (reference)
+
+If the repo uses GitHub Actions but has no contract job yet, propose a minimal job like:
+
+```yaml
+name: openapi-contract
+on:
+  pull_request:
+jobs:
+  openapi:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: npm i -D @stoplight/spectral-cli
+      - run: npx spectral lint apis/**/*.y*ml
+```
 
 ---
 
@@ -222,3 +306,55 @@ These status codes replace hard blocking. They MUST be:
 ### 9.3 Error contract alignment
 - Spec declares `401` with `{ code, message }`.
 - Ensure your exception handler returns that shape; cover with at least one integration/controller test.
+
+### 9.4 GOOD/BAD examples
+
+**GOOD (additive, backward compatible):**
+- Add new optional field with clear semantics and an example.
+- Keep existing fields untouched.
+
+```yaml
+components:
+  schemas:
+    Person:
+      type: object
+      required: [personId]
+      properties:
+        personId:
+          type: string
+        middleName:
+          type: string
+          nullable: true
+          example: "Alex"
+```
+
+**BAD (silent breaking change):**
+- Make an existing field required or change its type without versioning.
+
+```yaml
+# BAD: personId was string, now integer (breaks clients)
+personId:
+  type: integer
+```
+
+---
+
+## 10. Troubleshooting (non-blocking)
+
+Use this section when a contract workflow is unclear.
+
+### Symptom: Multiple OpenAPI specs, unclear which is authoritative
+- **Likely cause:** monorepo/submodules or legacy specs.
+- **Action:** choose a deterministic authority rule (directory root, service name mapping, or CI workflow target) and record it in `SESSION_STATE.Scope.ExternalAPIs`. If still unclear, emit `WARN-OPENAPI-MISSING-SPEC` (or a custom warn-code) and ask the operator to pick.
+
+### Symptom: Contract check fails in CI but local changes seem correct
+- **Likely cause:** CI uses a different spec root/glob, or compares against a baseline spec.
+- **Action:** locate the CI job/script, mirror the same command locally, and update either (a) spec, (b) implementation, or (c) baseline reference with explicit intent.
+
+### Symptom: Spec declares response fields that are missing in JSON
+- **Likely cause:** serialization config, mapping layer, or nullability mismatch.
+- **Action:** verify DTO mapping and Jackson configuration; add controller/integration test covering the missing field; decide whether spec or implementation is wrong and correct with explicit contract intent.
+
+### Symptom: Breaking-change detection flags changes you think are additive
+- **Likely cause:** required-array changed, enum narrowed, or response code removed.
+- **Action:** ensure changes are additive: only add optional fields, add enum values (not remove), add response codes (not remove). If breaking change is intended, document versioning/migration.
