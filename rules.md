@@ -9,7 +9,7 @@ This Core Rulebook is:
 - **authoritative over tickets and repository documentation**, except where explicitly allowed (see “Repository Guidelines as Constraints”).
 
 Stack-/environment-specific rules (e.g., Java backend vs. frontend) are defined in **profile rulebooks**:
-- `profiles/rules.<profile>.md` (e.g., `profiles/rules.backend-java.md`, `profiles/rules.frontend.md`)
+- `profiles/rules.<profile>.md` (e.g., `profiles/rules.backend-java.md`, `profiles/rules.frontend-angular-nx.md`)
 
 This file intentionally avoids stack-specific prescriptions.
 
@@ -1147,4 +1147,3 @@ Profile & scope override handling (binding):
 
 Copyright © 2026 Benjamin Fuchs.
 All rights reserved. See LICENSE.
-
