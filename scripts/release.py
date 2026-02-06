@@ -19,6 +19,7 @@ import argparse
 import datetime as _dt
 import re
 import subprocess
+import tempfile
 import sys
 from pathlib import Path
 
@@ -57,7 +58,7 @@ def replace_master_version(master_path: Path, version: str) -> bool:
     m = pat.search(text)
     if not m:
         return False
-    new_text = pat.sub(rf"\g<1>{version}", text, count=1)
+    new_text = pat.sub(lambda m: f"{m.group(1)}{version}", text, count=1)
     if new_text != text:
         write_text(master_path, new_text)
     return True
@@ -69,7 +70,7 @@ def replace_install_version(install_path: Path, version: str) -> bool:
     m = pat.search(text)
     if not m:
         return False
-    new_text = pat.sub(rf'\1{version}\3', text, count=1)
+    new_text = pat.sub(lambda m: f'{m.group(1)}{version}{m.group(3)}', text, count=1)
     if new_text != text:
         write_text(install_path, new_text)
     return True
@@ -216,7 +217,7 @@ def main(argv: list[str]) -> int:
         # 1) master
         new_master = re.sub(
             r"^(.*Governance-Version:\s*)(.+?)\s*$",
-            rf"\g<1>{version}",
+            lambda m: f"{m.group(1)}{version}",
             orig_master,
             count=1,
             flags=re.IGNORECASE | re.MULTILINE,
@@ -224,19 +225,24 @@ def main(argv: list[str]) -> int:
         # 2) install
         new_install = re.sub(
             r'^(VERSION\s*=\s*")([^"]+)(")\s*$',
-            rf'\1{version}\3',
+            lambda m: f'{m.group(1)}{version}{m.group(3)}',
             orig_install,
             count=1,
             flags=re.MULTILINE,
         )
 
-        # 3) changelog (use real function but on strings is complex; do on disk when not dry-run)
+        # 3) changelog
         if args.dry_run:
-            # lightweight sanity checks; full rewrite happens in non-dry-run
-            if "## [Unreleased]" not in orig_changelog:
-                raise RuntimeError("CHANGELOG.md: Missing '## [Unreleased]' heading.")
-            if re.search(rf"^##\s+\[{re.escape(version)}\]\b", orig_changelog, flags=re.MULTILINE):
-                raise RuntimeError(f"CHANGELOG.md: Section for [{version}] already exists.")
+            # Perform the real rewrite against a temp copy to catch the same failures as live mode.
+            with tempfile.TemporaryDirectory() as td:
+                tmp_changelog = Path(td) / "CHANGELOG.md"
+                tmp_changelog.write_text(orig_changelog, encoding="utf-8", newline="\n")
+                cut_changelog_unreleased(
+                    tmp_changelog,
+                    version,
+                    date_str,
+                    allow_empty=args.allow_empty_changelog,
+                )
         else:
             # write master/install first, then cut changelog using file-based function
             ok_m = replace_master_version(master_path, version)
