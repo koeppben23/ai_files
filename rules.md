@@ -659,6 +659,37 @@ Claim-to-evidence rule (binding):
 - Every PR-critical claim (e.g., "no contract drift", "tests green", "rollback safe") MUST map to at least one concrete evidence item in `SESSION_STATE.BuildEvidence.items[]`.
 - If a claim has no evidence mapping, it MUST be reported as `not-verified` and cannot support `ready-for-pr`.
 
+### 7.7.2 Gate Review Scorecard (Core, Binding)
+
+To reduce reviewer subjectivity, each explicit gate review MUST emit a compact, machine-checkable scorecard.
+
+Binding:
+- For each explicit gate (`P5-Architecture`, `P5.3-TestQuality`, `P5.4-BusinessRules`, `P5.5-TechnicalDebt`, `P5.6-RollbackSafety`, `P6-ImplementationQA`), provide:
+  - `Criteria[]` with `id`, `weight`, `result(pass|fail|partial|not-applicable)`, and `evidenceRef`.
+  - `Score` and `MaxScore`.
+  - `Decision` aligned with gate status.
+- A gate MUST NOT pass if any criterion marked `critical=true` is `fail`.
+- Narrative-only gate decisions are insufficient; scorecard + evidence refs are required in FULL mode.
+
+### 7.7.3 Cross-Repository Impact Enforcement (Core, Binding)
+
+If a ticket changes externally-consumed contracts/events/shared schemas, cross-repo impact is mandatory.
+
+Binding:
+- The plan/review MUST include `CrossRepoImpact` with affected consumers and required sync actions.
+- If consumer inventory is unknown, the assistant MUST block with a minimal request:
+  - either consumer inventory, or
+  - explicit confirmation: `single-repo, no external consumers`.
+
+### 7.7.4 Review-of-Review Consistency Check (Core, Binding)
+
+Before final `ready-for-pr`, the assistant MUST execute a consistency pass:
+- every passing gate criterion has a valid `evidenceRef`
+- every PR-critical claim maps to BuildEvidence
+- no gate decision contradicts GateArtifacts / MRM status
+
+If inconsistency exists: status MUST be `fix-required`.
+
 ## 7.8 Business Logic & Testability Design Contract (Core, Binding)
 
 Purpose:
@@ -1128,10 +1159,12 @@ Rules:
    - verified statements are allowed **only within** the provided evidence scope
 
 Evidence format (recommended, aligns with strict profiles):
- - Prefer `SESSION_STATE.BuildEvidence.items[]` with:
-   tool + exact command + pass/fail + short output snippet + (optional) report paths.
- - If only free-text is available, keep it in `notes`, but do NOT mark claims as verified unless
-   the pasted output snippet unambiguously supports the claim.
+  - Prefer `SESSION_STATE.BuildEvidence.items[]` with:
+    id + tool + exact command + pass/fail + short output snippet + (optional) report paths.
+  - `id` MUST be stable and unique within a session (`EV-001`, `EV-002`, ...).
+    MRM artifacts and gate scorecards SHOULD reference these IDs via `evidenceRef`.
+  - If only free-text is available, keep it in `notes`, but do NOT mark claims as verified unless
+    the pasted output snippet unambiguously supports the claim.
 
 ---
 
