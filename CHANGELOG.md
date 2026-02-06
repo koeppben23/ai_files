@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 This project follows **Keep a Changelog** and **Semantic Versioning**.
 
 ## [Unreleased]
+
+## [1.0.1-BETA] - 2026-02-06
 ### Added
 - Initialize post-1.0.1-BETA development baseline.
 
@@ -11,7 +13,6 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
 ### Fixed
 ### Removed
 ### Security
-
 ## [1.0.1-BETA] - 2026-02-06
 ### Added
 - PR-gated “Release Readiness” workflow to enforce branch protection on `main`.
