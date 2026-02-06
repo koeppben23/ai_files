@@ -264,6 +264,9 @@ BINDING:
   - Phase 1–3 MUST NOT require rules.md
   - If Phase 4 begins and rules.md cannot be loaded → BLOCKED
   - Phase 3 MUST NOT generate code
+  - Token-efficiency: if `SESSION_STATE.LoadedRulebooks.core` already points to the same resolved path
+    and `SESSION_STATE.RulebookLoadEvidence.core` has unchanged content evidence (hash/mtime/tool output),
+    the workflow MUST reuse the already-loaded core rulebook and MUST NOT reload full contents.
 
 ### Phase 1.4: Templates & Addons Activation (DEFERRED TO PHASE 4)
 
@@ -284,8 +287,10 @@ ALGORITHM (BINDING, NORMATIVE):
      - Preferred: `rules_<active_profile>.md`
      - Legacy: `rules.<active_profile>.md`
      - Alternative: `rules-<active_profile>.md`
-   - Record: `SESSION_STATE.LoadedRulebooks.profile = "<resolved path>"`
-   - If it cannot be resolved/loaded → `Mode = BLOCKED` with `BLOCKED-MISSING-PROFILE`.
+    - Record: `SESSION_STATE.LoadedRulebooks.profile = "<resolved path>"`
+    - If it cannot be resolved/loaded → `Mode = BLOCKED` with `BLOCKED-MISSING-PROFILE`.
+    - Token-efficiency: if the resolved profile path and load evidence are unchanged from the current session,
+      the workflow MUST reuse the loaded profile and MUST NOT reload full contents.
 
 2) Load templates addon (if mandated by the active profile)
    - If the active profile declares templates as REQUIRED:
@@ -338,6 +343,8 @@ ALGORITHM (BINDING, NORMATIVE):
    - `master.md` remains highest priority.
    - `rules.md` (core) > active profile > templates/addons refinements.
    - Templates/addons MUST be followed when loaded; they refine generation and test structure but MUST NOT override master/core constraints.
+   - Re-entry optimization: Phase-4 re-entry MUST perform delta evaluation (what changed since last activation)
+     and reload only changed rulebooks/addons.
 
 Output obligation (BINDING):
 - At Phase 4 entry, the assistant MUST output a short activation summary:
@@ -2101,24 +2108,13 @@ Status classification:
 [PHASE-3B-2-COMPLETE]
 API: user-service-api.yaml
 
-Endpoint Mapping: 8/8 endpoints found in code
-  - GET /users → UserController.getUsers() ✓
-  - GET /users/{id} → UserController.getUserById() ✓
-  - POST /users → UserController.createUser() ✓
-  - PUT /users/{id} → UserController.updateUser() ✓
-  - DELETE /users/{id} → UserController.deleteUser() ✓
-  - ...
+Endpoint Mapping: <covered>/<total>
+Model Mapping: <covered>/<total>
 
-Model Mapping: 12/12 models found in code
-  - UserResponse → UserResponseDTO ✓
-  - UserRequest → UserRequestDTO ✓
-  - ...
+Mismatches: <count>
+  - [WARNING|CRITICAL] <short mismatch description>
 
-Mismatches: 2
-  - [WARNING] UserResponse.createdAt: spec says "string (date-time)", code uses "LocalDateTime" (compatible but different representation)
-  - [WARNING] UserRequest: spec allows null for "phone", code requires non-null (stricter than spec)
-
-Contract Compliance: ✓ All endpoints and models implemented
+Contract Compliance: <pass|warning|blocked>
 
 [/PHASE-3B-2-COMPLETE]
 
@@ -2249,83 +2245,52 @@ Note: Fast Path MAY reduce review depth/verbosity but MUST NOT bypass any gates.
 
 ```
 [PHASE-4-COMPLETE]
-Ticket: Add user deactivation endpoint
+Ticket: <short title>
 
 Affected Components:
-  - UserController (new endpoint)
-  - UserService (new method)
-  - User entity (new field: `active`)
-  - UserRepository (query method)
+  - <component/symbol> ...
 
 Ticket Record (Mini-ADR):
-  Context: Provide “deactivate” without deleting user data (auditability retained).
-  Decision: Soft-deactivate via `active` flag + `POST /users/{id}/deactivate` endpoint.
-  Rationale: Aligns with semantics, preserves history, supports potential reactivation.
-  Consequences: Queries must filter `active=true`; consider index if table is large.
-  Rollback/Release safety: Feature flag (`user.deactivation.enabled`) + keep schema additive.
+  Context: <1 line>
+  Decision: <1 line>
+  Rationale: <1 line>
+  Consequences: <1 line>
+  Rollback/Release safety: <1 line>
 
 NFR Checklist:
-  - Security/Privacy: OK — ensure authz enforced; avoid logging PII.
-  - Observability: OK — structured log + optional metric on deactivations.
-  - Performance: Risk — may need index on `users.active`; validate with DB stats.
-  - Migration/Compatibility: OK — additive column with default; backward compatible.
-  - Rollback/Release safety: OK — disable flag; schema remains safe.
+  - Security/Privacy: OK | N/A | Risk | Needs decision — <1 line>
+  - Observability: OK | N/A | Risk | Needs decision — <1 line>
+  - Performance: OK | N/A | Risk | Needs decision — <1 line>
+  - Migration/Compatibility: OK | N/A | Risk | Needs decision — <1 line>
+  - Rollback/Release safety: OK | N/A | Risk | Needs decision — <1 line>
 
 Architecture Options (A/B/C):
-  Option A: Additive `active` flag + service method + controller endpoint.
-    Trade-offs: Low risk; minimal migration; simple queries; requires consistent filtering.
-    Test impact: Unit tests for rule checks; controller integration test; migration constraint tests.
-  Option B: Separate “account state” table + state transitions + join.
-    Trade-offs: Better extensibility; higher complexity; more migration risk; join cost.
-    Test impact: More integration coverage; additional repository tests; migration/backfill tests.
-  Recommendation: Option A (confidence 85) — aligns with existing patterns and keeps change surface small.
-  Would change decision: evidence that future state expansion is imminent or current user-table query patterns make filtering unsafe.
+  Option A: <description + trade-offs + test impact>
+  Option B: <description + trade-offs + test impact>
+  Recommendation: <A|B|C> (confidence <0-100>)
+  Would change decision: <minimal missing evidence>
+
+Mandatory Review Matrix (MRM):
+  TicketClass: <api-change|schema-migration|business-rule-change|security-change|performance-change|ui-change|mixed>
+  RiskTier: <LOW|MEDIUM|HIGH>
+  RequiredArtifacts:
+    - <artifact> : <evidence-ref | not-verified>
 
 Test Strategy:
-  - Levels: Unit (service rule tests), Integration (controller endpoint), Migration validation (Flyway + constraint tests)
-  - Determinism: fixed clock/time; deterministic IDs; no network calls
-  - Fixtures: test data builder for User + Contract fixtures (if applicable)
-  - Edge cases: boundary (already inactive), negative (active contracts), not found
+  - Levels: <unit/slice/integration/contract>
+  - Determinism: <time/random/id/io seams>
+  - Fixtures/Builders: <paths>
+  - Edge cases: <boundary + negative minimum>
 
 Implementation Plan:
-
-1. Database Migration
-   - Add column `users.active` (BOOLEAN, DEFAULT true, NOT NULL)
-   - Flyway: V013__add_user_active_flag.sql
-
-2. Entity Changes
-   - User.java: Add `private boolean active = true;` field
-   - Add getter/setter
-
-3. Service Layer
-   - UserService.java: Add `deactivateUser(Long id)` method
-   - Business logic: Check if user has active contracts → if yes, throw exception
-   - Mark user as inactive (do not delete)
-
-4. Controller Layer
-   - UserController.java: Add `POST /users/{id}/deactivate` endpoint
-   - Map to UserService.deactivateUser()
-
-5. API Contract
-   - user-service-api.yaml: Add POST /users/{id}/deactivate endpoint
-   - Document response codes: 200 (success), 400 (active contracts), 404 (user not found)
-
-6. Tests
-   - UserServiceTest.java: Add test for deactivateUser()
-     * Happy path: user without contracts
-     * Error path: user with active contracts
-     * Error path: user not found
-   - UserControllerTest.java: Add integration test for POST /users/{id}/deactivate
-
-Affected Business Rules:
-  - BR-001: User cannot be deleted if active contracts exist
-  - Extended: User cannot be deactivated if active contracts exist
+  1. <step>
+  2. <step>
+  3. <step>
 
 Risks:
-  - [RISK-001] Breaking change: Existing queries may need to filter by `active = true`
-  - [RISK-002] Performance: Large user tables may require index on `active` column
+  - [RISK-XXX] <description>
 
-Complexity: Medium
+Complexity: <simple|medium|complex>
 
 [/PHASE-4-COMPLETE]
 
