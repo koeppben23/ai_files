@@ -69,7 +69,8 @@ If Warm Start eligibility is not met, the system MUST fall back to Cold Start au
 - On Windows, `${CONFIG_ROOT}` is `%USERPROFILE%\.config\opencode` (fallback: `%APPDATA%\opencode`) — see `master.md`.
 - `${COMMANDS_HOME} = ${CONFIG_ROOT}/commands` (global rulebooks)
 - `${PROFILES_HOME} = ${COMMANDS_HOME}/profiles` (profiles + templates/addons)
-- `${WORKSPACES_HOME} = ${CONFIG_ROOT}/workspaces` (per-repo caches + session state)
+- `${WORKSPACES_HOME} = ${CONFIG_ROOT}/workspaces` (per-repo caches/digests/memory artifacts)
+- `${SESSION_STATE_FILE}` and `${RESUME_FILE}` stay global under `${CONFIG_ROOT}`/`${OPENCODE_HOME}`.
 
 Profiles can mandate templates/addons (e.g., `backend-java` requires `rules.backend-java-templates.md` and may require `rules.backend-java-kafka-templates.md` based on evidence).
 

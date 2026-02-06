@@ -626,7 +626,19 @@ Binding rules:
 * Phase 5.3: Test quality review (CRITICAL gate within Phase 5)
 * Phase 5.4: Business rules compliance (only if Phase 1.5 executed)
 * Phase 5.5: Technical debt proposal gate (optional)
+* Phase 5.6: Rollback safety gate (evaluated within Phase 5 review)
 * Phase 6: Implementation QA (self-review gate)
+
+Canonical flow (binding, compact):
+- `0 -> 1 -> 2 -> 2.1`
+- After `2.1`: first resolve the Phase 1.5 decision (explicit request/explicit skip/A-B decision).
+- Once 1.5 is resolved: if APIs are in scope, run `3A -> 3B-1 -> 3B-2`; otherwise go to `4`.
+- `1.5` is optional and user-approved; when executed, it runs after `2.1` and before `4`.
+- If `1.5` executes and APIs are in scope, continue `1.5 -> 3A`; if no APIs are in scope, continue `1.5 -> 4`.
+- Main execution path is `4 -> 5 -> 5.3 -> 6`.
+- `5.4` is mandatory only if `1.5` executed.
+- `5.5` is optional and only when explicitly proposed.
+- `5.6` is evaluated inside `5` and MUST be satisfied when rollback safety applies.
 
 Code generation (production code, diffs) is ONLY permitted if the `SESSION_STATE` has:
 
@@ -634,6 +646,7 @@ GATE STATUS:
 
 * P5: `architecture-approved`
 * P5.3-TestQuality: `pass` OR `pass-with-exceptions`
+* P5.4-BusinessRules: `compliant` OR `compliant-with-exceptions` (only if Phase 1.5 executed)
 * P5.6-RollbackSafety: `approved` OR `not-applicable` (when rollback safety applies)
 
 Rendering note (Binding):
@@ -654,7 +667,9 @@ Clarification:
 * During Phase 5, drafting is allowed only as **plan-level pseudocode** or **test-case outlines**.
   Producing actual unified diffs / production code changes remains forbidden until:
   - P5-Architecture = approved AND user confirmed proceeding, and
-  - P5.3-TestQuality = pass|pass-with-exceptions.
+  - P5.3-TestQuality = pass|pass-with-exceptions,
+  - P5.4-BusinessRules = compliant|compliant-with-exceptions (if Phase 1.5 executed), and
+  - P5.6-RollbackSafety = approved|not-applicable (when rollback safety applies).
 * "Ready-for-PR" conclusions (Phase 6) are only allowed after required gates (P5, P5.3, and P5.4 if applicable)
   and evidence rules are satisfied.
  
@@ -867,7 +882,7 @@ Explicit gates in this workflow:
 * Phase 5.3 (Test quality review) → Gate result: `test-quality-pass` | `test-quality-pass-with-exceptions` | `test-quality-fail`
 * Phase 5.4 (Business rules compliance) → Gate result: `business-rules-compliant` | `business-rules-compliant-with-exceptions` | `business-rules-gap-detected`
 * Phase 5.5 (Technical debt proposal) → Gate result: `debt-approved` | `debt-rejected`
-* Phase 5.6 (Rollback safety) → Gate result: `approved` | `rejected` | `not-applicable`
+* Phase 5.6 (Rollback safety, evaluated in Phase 5) → Gate result: `approved` | `rejected` | `not-applicable`
 * Phase 6 (Implementation QA) → Gate result: `ready-for-pr` | `fix-required`
 
 At an explicit gate, the assistant MUST:
@@ -1593,8 +1608,9 @@ OpenCode persistence lifecycle (Binding when OpenCode DecisionPack file is used)
   - optional lifecycle links: `Supersedes:` / `SupersededBy:`
   as defined in `rules.md` (Decision Pack File rule).
 
-- If Phase 2 evidence matches any Phase 1.5 recommendation trigger, include a decision:
-  "Run Phase 1.5 (Business Rules Discovery) now?" (A=Yes, B=No) with evidence-backed recommendation.
+- Unless Phase 1.5 was already explicitly requested or explicitly skipped, include a decision:
+  "Run Phase 1.5 (Business Rules Discovery) now?" (A=Yes, B=No).
+- Recommendation for that decision MUST be evidence-backed; use the recommendation triggers from Phase 1.5.
 - If there are no meaningful decisions yet, output: "Decision Pack: none (no material choices identified)".
 
 Example:
@@ -1608,8 +1624,8 @@ D-001: <decision one-liner>
 
 [/PHASE-2.1-DECISION-PACK]
   
-Proceeding to Phase 4 (Ticket Execution)...  # or Phase 3A depending on artifacts
-(Phase 1.5 runs only if the user approves; if triggers are detected, it MUST appear as a Decision Pack item.)
+Proceeding to next phase per Phase 2.1 exit rules (resolve Phase 1.5 first, then API-scope routing).
+(Phase 1.5 runs only if explicitly requested or user-approved via the Phase 2.1 A/B decision.)
 ```
 
 #### OpenCode-only: Persist Decision Pack (Binding when applicable)
@@ -1658,13 +1674,16 @@ If file writing is not possible in the current environment:
 
 **Phase 2 exit conditions:**
 * Success: Repository scanned, findings documented → Proceed to **Phase 2.1 (Decision Pack)** by default, then:
-  - If external API artifacts exist → Phase 3A
+  - If Phase 1.5 is explicitly requested → run Phase 1.5
+  - Else if Phase 1.5 is explicitly skipped (`"Skip business-rules discovery"` or `"This is a pure CRUD project"`) → continue by API scope:
+    - external API artifacts exist → Phase 3A
+    - otherwise → Phase 4
   - Else:
-    - If Phase 1.5 is explicitly requested → run Phase 1.5
-    - Else if Phase 2 evidence hits any Phase 1.5 recommendation trigger:
-      - Decision Pack MUST include: "Run Phase 1.5 now? (A=Yes, B=No)"
-      - Run Phase 1.5 ONLY if the user approves
-    - Otherwise → proceed to Phase 4
+    - Decision Pack MUST include: "Run Phase 1.5 now? (A=Yes, B=No)"
+    - Run Phase 1.5 ONLY if the user approves
+    - If user declines, continue by API scope:
+      - external API artifacts exist → Phase 3A
+      - otherwise → Phase 4
 * Failure: Repository not accessible, extraction failed → Mode: BLOCKED
 
 ---
@@ -1674,7 +1693,7 @@ If file writing is not possible in the current environment:
 **When to execute:**
 * Explicit user request: "Extract business rules first"
 * Default: Do not auto-run.
-  - If Phase 2 evidence matches any recommendation trigger below, Phase 2.1 MUST present an A/B decision:
+  - Unless explicitly requested or explicitly skipped, Phase 2.1 MUST present an A/B decision:
     "Run Phase 1.5 (Business Rules Discovery) now?"
   - Execute Phase 1.5 ONLY if the user approves that decision.
 * **Recommendation trigger (non-blocking):** Recommend executing Phase 1.5 if Phase 2 evidence indicates any of:
@@ -1786,12 +1805,16 @@ SESSION_STATE:
     BusinessRules: extracted
   ...
   
-Proceeding to Phase 3A (API Inventory)...
+Proceeding to Phase 3A (API Inventory) if APIs are in scope; otherwise Phase 4 (Ticket Execution)...
 ```
 
 **Phase 1.5 exit conditions:**
-* Success: Business rules extracted and documented → Proceed to Phase 3A
-* Skip: Not requested or pure CRUD → Proceed to Phase 3A
+* Success: Business rules extracted and documented
+  - If APIs are in scope (external artifacts or repo-embedded specs): Proceed to Phase 3A
+  - Otherwise: Proceed to Phase 4
+* Skip: Not requested or pure CRUD
+  - If APIs are in scope: Proceed to Phase 3A
+  - Otherwise: Proceed to Phase 4
 
 **Note:** If Phase 1.5 is executed, Phase 5.4 (Business rules compliance) becomes MANDATORY.
 
@@ -2618,7 +2641,7 @@ SESSION_STATE:
     P5-Architecture: approved
     P5.3-TestQuality: pass
   
-Test quality gate passed. Awaiting confirmation to proceed to Phase 5.4 (Business Rules Compliance).
+Test quality gate passed. Awaiting confirmation to proceed to Phase 5.4 (if Phase 1.5 executed), otherwise to Phase 6.
 ```
 
 **Phase 5.3 gate results:**
@@ -2933,6 +2956,7 @@ Result: complexity-warning (warnings only; requires review attention)
 - `SESSION_STATE.Gates.P5-Architecture` MUST be `approved`.
 - `SESSION_STATE.Gates.P5.3-TestQuality` MUST be `pass` or `pass-with-exceptions`.
 - If Phase 1.5 executed: `SESSION_STATE.Gates.P5.4-BusinessRules` MUST be `compliant` or `compliant-with-exceptions`.
+- If rollback safety applies: `SESSION_STATE.Gates.P5.6-RollbackSafety` MUST be `approved` or `not-applicable`.
 If any prerequisite is not met → BLOCK and return to the relevant phase.
 
 **Verification obligations (binding):**

@@ -88,19 +88,19 @@ This document provides a **reduced 4-phase view** for quick orientation.
 
 | Collapsed Phase           | Master Prompt Equivalent           |
 | ------------------------- | ---------------------------------- |
-| Phase A – Analysis        | Phase 1 + 2                        |
+| Phase A – Analysis        | Phase 1 + 2 + 2.1                  |
 | Phase B – Solution Design | Phase 3A + Phase 3B-1              |
 | Phase C – Validation      | Phase 3B-2 + Phase 4               |
-| Phase D – Implementation  | Phase 5 (+ optional 5.5) + Phase 6 |
+| Phase D – Implementation  | Phase 5 (+ 5.6 in-gate) + 5.3 + optional (5.4/5.5) + 6 |
 
 **Extended (with Business Rules Discovery):**
 
 | Collapsed Phase           | Master Prompt Equivalent                                 |
 | ------------------------- | -------------------------------------------------------- |
-| Phase A – Analysis        | Phase 1 + *1.5 (optional)* + Phase 2                     |
+| Phase A – Analysis        | Phase 1 + Phase 2 + Phase 2.1 + *1.5 (optional)*         |
 | Phase B – Solution Design | Phase 3A + Phase 3B-1                                    |
 | Phase C – Validation      | Phase 3B-2 + Phase 4                                     |
-| Phase D – Implementation  | Phase 5 + *5.4 (if 1.5 was active)* + 5.5 (optional) + 6 |
+| Phase D – Implementation  | Phase 5 (+ 5.6 in-gate) + *5.4 (if 1.5 was active)* + 5.5 (optional) + 6 |
 
 **Important:**
 All **gates, sub-phases (e.g., 3B-1 / 3B-2), and constraints** apply in full,
@@ -108,7 +108,9 @@ even if not listed individually in this collapsed view.
 
 **Business Rules Discovery (Phase 1.5):**
 
-* Automatically enabled when >30 classes + domain layer present (based on Phase 2 discovery evidence).
+* Executed when explicitly requested by the user, or after the Phase 2.1 A/B decision if not explicitly requested/skipped.
+* Explicit skip signals include: "Skip business-rules discovery" and "This is a pure CRUD project".
+* Recommendation for the A/B decision is evidence-based (Phase 2 signals), but execution still requires user approval.
 * Extracts business rules from code / database / tests
 * Reduces business-logic gaps from ~50% to <15%
 * See Master Prompt Phase 1.5 for details
@@ -231,7 +233,7 @@ Note: This block is a partial readability excerpt only. If it diverges from mast
 
 ```text
 [SESSION_STATE]
-Phase=<1|2|3A|3B-1|3B-2|4|5|5.5|6> | Confidence=<0-100>% | Degraded=<active|inactive>
+Phase=<1|1.1-Bootstrap|1.2-ProfileDetection|1.3-CoreRulesActivation|2|2.1-DecisionPack|1.5-BusinessRules|3A|3B-1|3B-2|4|5|5.3|5.4|5.5|5.6|6> | Confidence=<0-100>% | Degraded=<active|inactive>
 
 Facts:
 - ...
@@ -259,11 +261,12 @@ BusinessRules:
   - ...     # or: none
 
 Gates:
-  P5:   <pending|architecture-approved|revision-required>
-  P5.3: <test-quality-pass|test-revision-required>
-  P5.4: <not-applicable|business-rules-compliant|business-rules-gap-detected|compliant-with-exceptions>
-  P5.5: <not-requested|approved|rejected>
-  P6:   <ready-for-pr|fix-required>
+  P5-Architecture: <pending|approved|rejected>
+  P5.3-TestQuality: <pending|pass|pass-with-exceptions|fail>
+  P5.4-BusinessRules: <pending|not-applicable|compliant|gap-detected|compliant-with-exceptions>
+  P5.5-TechnicalDebt: <pending|approved|rejected|not-applicable>
+  P5.6-RollbackSafety: <pending|approved|rejected|not-applicable>
+  P6-ImplementationQA: <pending|ready-for-pr|fix-required>
 
 TestQuality:        # only if Phase 5.3 is active / executed
   CoverageMatrix: <X>/<Y> methods complete (<percent>%)
@@ -325,6 +328,3 @@ Copyright © 2026 Benjamin Fuchs.
 All rights reserved. See LICENSE.
 
 **End of file — README-RULES.md**
-
-
-

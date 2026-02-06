@@ -60,7 +60,8 @@ Choose the workflow entry based on what you are doing:
 
 - Global rulebooks (`master.md`, `rules.md`) are installed under `${COMMANDS_HOME}`.
 - Profile rulebooks are installed under `${PROFILES_HOME}`.
-- Repo-specific persistent artifacts live under `${WORKSPACES_HOME}/<repo_fingerprint>/...` (cache, digest, workspace memory, session state).
+- Repo-specific persistent artifacts live under `${WORKSPACES_HOME}/<repo_fingerprint>/...` (cache, digest, decision pack, business rules, workspace memory).
+- Session lifecycle files remain global: `${SESSION_STATE_FILE}` and `${RESUME_FILE}`.
 
 If your environment uses different locations, follow `master.md` and update the variable resolution, not the docs.
 
