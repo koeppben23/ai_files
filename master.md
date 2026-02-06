@@ -458,7 +458,7 @@ These files are normative and MUST be available in the same governance installat
 
 **Examples:**
 - `rules_backend-java.md` → Profile: "backend-java"
-- `rules.frontend.md` → Profile: "frontend"
+- `rules.frontend-angular-nx.md` → Profile: "frontend-angular-nx"
 - `rules_data-platform.md` → Profile: "data-platform"
 
 #### Step 3: Validation

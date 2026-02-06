@@ -199,7 +199,8 @@ If chat-only mode (no persistence), `ReportRef` MUST be `not-persisted`.
   - `SESSION_STATE.AddonsEvidence.<addon_key>.status` MUST be `missing-rulebook`.
   - The plan MUST include an explicit operator action to add/write the addon rulebook.
   - The assistant MUST clearly scope its output to what can be guaranteed without the missing addon rulebook.
-  - Blocking is OPTIONAL; use only if the operator explicitly requests strict gating.
+  - If addon manifest declares `addon_class = required`: WORKFLOW MUST BE BLOCKED (`BLOCKED-MISSING-ADDON:<addon_key>`).
+  - If addon manifest declares `addon_class = advisory`: continue non-blocking with WARN + recovery action.
 
 **Invariant**
 - If `Mode = BLOCKED`, `Next` MUST start with `BLOCKED-` and describe the minimal missing input.
@@ -322,7 +323,7 @@ The following BLOCKED pointers are canonical and SHOULD be used when applicable:
 - `BLOCKED-MISSING-PROFILE`
 - `BLOCKED-AMBIGUOUS-PROFILE`
 - `BLOCKED-MISSING-TEMPLATES`
-- `BLOCKED-MISSING-ADDON:<addon_key>` (optional; only when strict gating is explicitly requested)
+- `BLOCKED-MISSING-ADDON:<addon_key>` (required when `addon_class = required` and the triggered rulebook is missing)
 - `BLOCKED-RULEBOOK-EVIDENCE-MISSING`
 - `BLOCKED-WORKSPACE-MEMORY-INVALID`
 - `BLOCKED-MISSING-EVIDENCE`
@@ -389,6 +390,7 @@ SESSION_STATE:
   with `required` and at least one signal when evidence is available.
 - If an addon is required by signals but the rulebook is unavailable, `AddonsEvidence.<addon_key>.status` MUST be
   `missing-rulebook` and the plan MUST include the operator action (write/add the addon rulebook).
+- If that addon is `addon_class = required`, `Mode` MUST be `BLOCKED` with `Next = BLOCKED-MISSING-ADDON:<addon_key>`.
 
 ### 6.5 Scope (canonical)
 
