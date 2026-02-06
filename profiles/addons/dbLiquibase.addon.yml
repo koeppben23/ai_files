@@ -1,8 +1,12 @@
 addon_key: dbLiquibase
+addon_class: required
 rulebook: rules.postgres-liquibase.md
 signals:
   any:
     - maven_dep: org.liquibase:liquibase-core
     - file_glob: "**/liquibase.properties"
     - file_glob: "**/db/changelog/**"
+    - file_glob: "**/db/changelog.xml"
+    - file_glob: "**/db/changelog.yaml"
+    - file_glob: "**/db/changelog.yml"
     - config_key_prefix: "spring.liquibase."

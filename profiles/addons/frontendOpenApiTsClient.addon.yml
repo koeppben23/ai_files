@@ -1,0 +1,10 @@
+addon_key: frontendOpenApiTsClient
+addon_class: advisory
+rulebook: rules.frontend-openapi-ts-client.md
+signals:
+  any:
+    - file_glob: "**/openapi*.yaml"
+    - file_glob: "**/openapi*.yml"
+    - file_glob: "**/swagger*.yaml"
+    - file_glob: "**/swagger*.yml"
+    - code_regex: "openapi-generator|orval|ng-openapi-gen"

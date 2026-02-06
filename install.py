@@ -49,7 +49,7 @@ EXCLUDE_ROOT_FILES = {
     ".commitlintrc.cjs",
 }
 
-# Profiles copied into <config_root>/commands/profiles/*.md
+# Profiles copied into <config_root>/commands/profiles/**
 PROFILES_DIR_NAME = "profiles"
 
 # Diagnostics copied into <config_root>/commands/diagnostics/** (includes audit tooling + schemas)
@@ -145,6 +145,7 @@ def ensure_dirs(config_root: Path, dry_run: bool) -> None:
         config_root,
         config_root / "commands",
         config_root / "commands" / "profiles",
+        config_root / "commands" / "profiles" / "addons",
         config_root / "workspaces",
     ]
     for d in dirs:
@@ -447,6 +448,13 @@ def collect_profile_files(source_dir: Path) -> list[Path]:
     return sorted([p for p in profiles_src_dir.rglob("*.md") if p.is_file()])
 
 
+def collect_profile_addon_manifests(source_dir: Path) -> list[Path]:
+    profiles_src_dir = source_dir / PROFILES_DIR_NAME
+    if not profiles_src_dir.exists():
+        return []
+    return sorted([p for p in profiles_src_dir.rglob("*.addon.yml") if p.is_file()])
+
+
 def write_manifest(manifest_path: Path, manifest: dict, dry_run: bool) -> None:
     if dry_run:
         print(f"  [DRY-RUN] write manifest -> {manifest_path}")
@@ -560,6 +568,32 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
     else:
         print("\nℹ️  No profiles directory found or no *.md profiles to copy.")
 
+    # copy addon manifests (required for dynamic addon activation/reload)
+    addon_manifests = collect_profile_addon_manifests(plan.source_dir)
+    if addon_manifests:
+        print("\n📋 Copying addon manifests to commands/profiles/addons/ ...")
+        for af in addon_manifests:
+            rel = af.relative_to(plan.source_dir)  # profiles/addons/*.addon.yml
+            dst = plan.commands_dir / rel
+            entry = copy_with_optional_backup(
+                src=af,
+                dst=dst,
+                backup_enabled=backup_enabled,
+                backup_root=backup_root,
+                dry_run=dry_run,
+                overwrite=force,
+            )
+            copied_entries.append(entry)
+            status = entry["status"]
+            if status in ("planned-copy", "copied"):
+                print(f"  ✅ {rel} ({status})")
+            elif status == "skipped-exists":
+                print(f"  ⏭️  {rel} exists (use --force to overwrite)")
+            else:
+                print(f"  ⚠️  {rel} missing (skipping)")
+    else:
+        print("\nℹ️  No addon manifests found under profiles/addons/*.addon.yml.")
+
     # copy diagnostics (audit tooling, schemas, etc.)
     diag_files = collect_diagnostics_files(plan.source_dir)
     if diag_files:
@@ -652,7 +686,7 @@ def uninstall(plan: InstallPlan, dry_run: bool, force: bool, purge_paths_file: b
         if not force and not dry_run:
             return 4
 
-        # Conservative fallback: delete only known filenames (MAIN_FILES) + profiles/*.md
+        # Conservative fallback: delete only known filenames + installer-owned profiles payload
         # Conservative fallback: static allowlist (independent of source-dir)
         targets: list[Path] = [
             plan.commands_dir / name
@@ -661,7 +695,8 @@ def uninstall(plan: InstallPlan, dry_run: bool, force: bool, purge_paths_file: b
         # Remove governance.paths.json only when explicitly requested.
         if purge_paths_file:
             targets.append(plan.governance_paths_path)
-        targets.extend(list((plan.commands_dir / "profiles").glob("*.md")))
+        targets.extend([p for p in (plan.commands_dir / "profiles").rglob("*.md") if p.is_file()])
+        targets.extend([p for p in (plan.commands_dir / "profiles" / "addons").glob("*.addon.yml") if p.is_file()])
         targets.extend([p for p in (plan.commands_dir / "diagnostics").rglob("*") if p.is_file()])
         # intentionally NOT deleting opencode.json (never managed by this installer)
 

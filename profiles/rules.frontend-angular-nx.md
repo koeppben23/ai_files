@@ -1,183 +1,204 @@
-# rules.frontend-angular-nx.md
-Frontend Profile Rulebook — Angular + Nx (Monorepo)
+# Frontend Angular + Nx Profile Rulebook (v2.0)
 
-This profile defines **stack-specific** rules for Angular frontends in an Nx monorepo.
-It must be used together with:
-- `master.md` (process / phases / gates)
-- `rules.md` (core technical governance)
+This profile defines stack-specific governance for Angular frontends in an Nx monorepo.
+It is applied in addition to:
+- `master.md` (phases, gates, activation)
+- `rules.md` (core engineering governance)
 
-If this profile conflicts with `master.md` or `rules.md`, this profile is subordinate.
+Priority order on conflict:
+`master.md` > `rules.md` (core) > this profile.
+
+Intent (binding): produce top-tier frontend business behavior and tests by deterministic patterns and evidence, not by style preference.
+
+---
+
+## Templates Addon (Binding)
+
+For `frontend-angular-nx`, deterministic generation requires:
+- `rules.frontend-angular-nx-templates.md`
+
+Binding:
+- At code-phase (Phase 4+), the workflow MUST load the templates addon and record it in:
+  - `SESSION_STATE.LoadedRulebooks.templates`
+- If required and missing at code-phase: `Mode = BLOCKED`, `Next = BLOCKED-TEMPLATES-MISSING`.
+
+When loaded, templates are binding defaults. If a template conflicts with locked repo conventions, apply the minimal convention-aligned adaptation and record the deviation.
+
+---
+
+## Addon Policy Classes (Binding)
+
+- Required addons (code-generation-critical) may hard-block in code-phase when missing.
+- Advisory addons (quality amplifiers) MUST emit WARN + recovery steps and continue conservatively.
+- Addon manifests/rulebooks MUST declare `addon_class` explicitly.
 
 ---
 
 ## 1. Stack Identification (Applicability)
 
-This profile applies if the repository shows most of:
-- `nx.json` present (Nx workspace)
-- `apps/` and `libs/` structure
-- Angular dependencies (e.g. `@angular/core`, `@angular/cli`)
-- TypeScript configs with Angular compiler options and `strict` mode
+This profile applies when repository evidence indicates Angular + Nx, typically:
+- `nx.json` present
+- Angular workspace signals (`angular.json`, Angular builders, or Angular source imports)
+- `apps/` + `libs/` monorepo structure
 
-If the stack does not match, stop and request a profile switch.
-
----
-
-## 2. Tooling & Canonical Commands (Evidence-Aware)
-
-### 2.1 Install
-Preferred:
-- `npm ci`
-
-### 2.2 Lint / Format
-Preferred (Nx):
-- `npx nx affected -t lint`
-Or per project:
-- `npx nx lint <project>`
-
-Formatting must follow repository configuration (Prettier).
-Do not introduce a new formatter or style tool unless explicitly requested.
-
-### 2.3 Unit / Integration Tests
-Preferred (Nx + Jest):
-- `npx nx affected -t test`
-Or per project:
-- `npx nx test <project>`
-
-### 2.4 Build
-Preferred:
-- `npx nx affected -t build`
-Or:
-- `npx nx build <project>`
-
-### 2.5 E2E
-Preferred:
-- `npx nx affected -t e2e`
-Or:
-- `npx nx e2e <project>`
-
-Build/test success claims require BuildEvidence (per `rules.md`).
+If stack does not match, switch profile; do not force Angular patterns into another stack.
 
 ---
 
-## 3. Architecture & Project Boundaries (Nx)
+## 2. Repo Conventions Lock (Binding)
 
-- Respect `apps/*` vs `libs/*` layering.
-- Shared code belongs in `libs/*` (shared/core, shared/ui, shared/utils, etc.).
-- Do not create cross-layer imports that bypass library boundaries.
-- Prefer path aliases (from `tsconfig.base.json`) over deep relative paths.
+Before code changes, detect and lock in `SESSION_STATE`:
+- Angular major version and standalone vs NgModule convention
+- State pattern (signals/store/component-store/ngrx) and selector style
+- HTTP/data-access pattern (direct HttpClient vs generated API client)
+- Form strategy (typed reactive forms, validators, error rendering)
+- Testing stack (Jest/Karma, Testing Library, Cypress/Playwright)
+- Styling pattern (SCSS/CSS/Tailwind/design-system primitives)
+- Nx project boundaries and tag constraints
 
-When adding new features:
-- prefer a new `libs/<scope>/feature/<feature-name>` library rather than bloating apps.
-
----
-
-## 4. TypeScript & Angular Strictness (Binding)
-
-- TypeScript must remain strict (no weakening of strict flags).
-- Angular compiler strictness must not be reduced:
-  - `strictTemplates`, `strictInjectionParameters`, etc.
-
-Disallowed:
-- `any` unless justified and narrowly scoped
-- disabling strict mode to “make it compile”
-
-Prefer:
-- precise types
-- typed wrappers for external/legacy data
-- exhaustive handling for unions/enums
+Rule: once detected, these become constraints. If unknown, mark unknown and avoid introducing a new architecture pattern.
 
 ---
 
-## 5. Angular Coding Standards
+## 3. Canonical Commands (Evidence-Aware)
+
+Use repo-native Nx targets when present; otherwise nearest equivalent:
+- Install: `npm ci`
+- Lint: `npx nx affected -t lint`
+- Unit/integration tests: `npx nx affected -t test`
+- Build: `npx nx affected -t build`
+- E2E: `npx nx affected -t e2e`
+
+Build/test success claims are invalid without BuildEvidence captured in `SESSION_STATE`.
+
+---
+
+## 4. Architecture and Boundaries (Binding)
+
+- Respect `apps/*` vs `libs/*` layering and tag constraints.
+- Shared code belongs in `libs/*`; avoid app-to-app leakage.
+- Use workspace aliases; avoid deep relative imports that bypass boundaries.
+- New domain capability SHOULD be implemented as feature/data-access/ui libraries, not as app-local sprawl.
+
+Hard fail conditions:
+- boundary rule violations
+- cross-layer imports that circumvent Nx constraints
+- introducing a second state architecture without repo evidence
+
+---
+
+## 5. Angular Implementation Standards (Binding)
 
 ### 5.1 Components
-- Follow existing repository patterns (standalone vs. NgModule).
-- Keep components small and focused:
-  - presentational components: inputs/outputs, no data fetching
-  - container components: orchestration, route/data wiring
+- Keep components focused: presentational vs container responsibilities.
+- Avoid heavy computations and imperative orchestration in templates.
+- Prefer explicit inputs/outputs and typed view models.
 
-### 5.2 Dependency Injection
-- Prefer constructor injection / `inject()` as per repo style.
-- Avoid service locators and manual global singletons.
+### 5.2 Change detection and reactivity
+- Preserve repo default strategy.
+- Use deterministic reactive composition; avoid nested subscriptions.
+- Prefer `async` pipe, signals, or repo-standard teardown strategy.
 
-### 5.3 Change Detection & Performance
-- Follow repo defaults.
-- Use performance-oriented patterns where applicable:
-  - avoid heavy computations in templates
-  - prefer memoized selectors / computed values
-  - avoid nested subscriptions in components
+### 5.3 Forms and validation
+- Use repo form pattern (typed reactive forms if present).
+- Validation messages and error states MUST be predictable and testable.
 
-### 5.4 RxJS
-- Avoid subscription leaks:
-  - prefer `async` pipe, `takeUntilDestroyed`, or equivalent repo pattern
-- Avoid nested `subscribe` anti-patterns.
-- Handle error paths explicitly (do not swallow errors).
+### 5.4 API boundaries
+- Keep transport DTOs at boundaries; map to view/domain models.
+- Do not leak raw backend payload shapes through UI layers.
 
----
-
-## 6. Routing, Forms, i18n, and UI Consistency
-
-- Routing: align with existing route structure and guards/resolvers.
-- Forms: use the existing forms library/patterns from the repo (typed forms if present).
-- i18n: follow repo conventions (e.g., translation keys, namespaces, loader).
-- UI: reuse shared UI libraries (`libs/shared/ui`, etc.) rather than duplicating components.
+### 5.5 Security and privacy
+- No secrets/PII in logs.
+- Safe HTML binding and DOM operations (XSS-aware).
+- Preserve existing CSP/security posture.
 
 ---
 
-## 7. API / Contract / Codegen (If Present)
+## 6. Contract and Codegen Alignment (Binding if present)
 
-If OpenAPI code generation scripts exist in the repo:
-- Prefer using the existing generators (do not handwrite generated clients/models).
-- Any change affecting generated artifacts must include:
-  - updated generator inputs (specs)
-  - a reproducible generation step documented in the plan
-  - updated snapshots if the repo uses snapshot generation
+If repo uses OpenAPI/TS client generation:
+- treat spec/generator output as boundary contract
+- do not hand-edit generated artifacts
+- regenerate via repo-native scripts and include evidence
 
-If the repo does not contain OpenAPI/codegen:
-- mark as N/A (do not invent).
+If no generator exists, do not invent one unless requested.
 
 ---
 
-## 8. Testing Standards (Jest + Cypress)
+## 7. Test Rules (Top-Tier, Binding)
 
-### 8.1 Unit/Integration Tests (Jest)
-- Tests must be deterministic.
-- Prefer:
-  - clear arrange/act/assert structure
-  - testing public behavior rather than implementation details
-- Avoid brittle DOM tests; prefer Angular testing utilities aligned with the repo.
+### 7.1 Unit/component tests
+- Deterministic and behavior-focused.
+- Prefer user-visible outcomes over implementation internals.
+- Avoid low-signal assertions (`truthy`/snapshot spam).
 
-Anti-patterns (examples):
-- snapshot spam without intent
-- tests that only assert “is truthy” / “not null”
-- disabling strict typing in tests to “get it working”
+### 7.2 Integration tests
+- Cover state transitions, async boundaries, and form/validation behavior.
+- Mock only external edges; keep core behavior realistic.
 
-### 8.2 E2E (Cypress)
-- E2E tests should cover user flows, not internal implementation.
-- Avoid flaky selectors:
-  - prefer stable `data-testid` (if repo uses it) or robust semantic selectors.
+### 7.3 E2E tests (if established)
+- Cover critical user journeys.
+- Use stable selectors (`data-testid` or repo standard).
+- No fixed sleeps; bounded polling/waits only.
 
----
-
-## 9. Security & Privacy (Frontend)
-
-- Do not log secrets or PII.
-- Do not persist sensitive tokens in insecure storage unless the repo explicitly does so and the change is ticket-approved.
-- Ensure external links, HTML bindings, and dynamic DOM operations are safe (XSS-aware).
-- Follow repo’s CSP/security headers configuration if present.
+### 7.4 Advanced test excellence (binding when applicable)
+- Concurrency/async determinism: for retries/debounced flows/cache invalidation, include at least one deterministic async scenario.
+- Contract-negative tests: for API-driven UI, include at least one malformed/error-path assertion at UI boundary.
+- Property/invariant tests: for non-trivial transforms/selectors, include at least one invariant-style test when tooling supports it.
 
 ---
 
-## 10. Output Expectations (Profile-Specific)
+## 8. Frontend Quality Gates (Hard Fail)
 
-When proposing changes:
-- list impacted apps/libs and where changes will live
-- ensure the Change Matrix includes:
-  - Internal API / Ports
-  - Configuration / Feature Flags (if used)
-  - Rollout/Migration Strategy (for breaking UI changes or feature flags)
-  - Observability/Monitoring (if relevant)
+Change fails if any applies:
 
-This profile must not override output limits from `rules.md`.
+### FQG-1 Build/Lint Gate
+- affected build/lint fails
+
+### FQG-2 Boundary Gate
+- Nx/project boundary violations
+
+### FQG-3 Test Quality Gate
+- missing deterministic tests for changed behavior
+- flaky async behavior or unbounded waits
+- missing required negative-path coverage
+
+### FQG-4 Contract Gate (if contracts exist)
+- contract/client drift without explicit approval
+- edited generated client code
+
+### FQG-5 Accessibility/UX Safety Gate
+- obvious a11y regressions in changed flows (roles/labels/focus/keyboard)
+
+### FQG-6 Performance Safety Gate (if tooling exists)
+- material regression in bundle/perf budget without approval and mitigation
 
 ---
+
+## 9. BuildEvidence Requirements (Binding)
+
+Claims like these require evidence snippets in `SESSION_STATE.BuildEvidence`:
+- "tests are green"
+- "no boundary violations"
+- "no contract drift"
+- "a11y/perf unchanged"
+
+If evidence is missing, status is "not verified" and the change cannot be considered done.
+
+---
+
+## 10. Definition of Done (Binding)
+
+Frontend Angular + Nx change is DONE only if:
+- quality gates pass
+- changed behavior is covered by deterministic tests
+- boundaries and conventions remain intact
+- contract/codegen rules are respected when applicable
+- BuildEvidence exists for all quality claims
+
+If any item is missing -> NOT DONE.
+
+---
+
+Copyright (c) 2026 Benjamin Fuchs.
+All rights reserved. See LICENSE.
