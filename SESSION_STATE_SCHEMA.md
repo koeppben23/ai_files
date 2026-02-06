@@ -327,6 +327,7 @@ The following BLOCKED pointers are canonical and SHOULD be used when applicable:
 - `BLOCKED-RULEBOOK-EVIDENCE-MISSING`
 - `BLOCKED-WORKSPACE-MEMORY-INVALID`
 - `BLOCKED-MISSING-EVIDENCE`
+- `BLOCKED-VARIABLE-RESOLUTION`
 - `BLOCKED-RESUME-STATE-VIOLATION`
 
 ### 6.4 Rulebook Load Evidence (canonical)
