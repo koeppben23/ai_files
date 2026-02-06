@@ -2200,6 +2200,14 @@ Proceeding to Phase 4 (Ticket Execution)...
      - the minimum set of edge cases to cover (boundary + negative case at least)
    - Tests MUST prove behavior (rules, state transitions, contracts) rather than implementation details.
 
+   **Mandatory Review Matrix constraints (binding):**
+   - The plan MUST include a **Mandatory Review Matrix (MRM)** section.
+   - The MRM MUST declare:
+     - `TicketClass` (one of: `api-change | schema-migration | business-rule-change | security-change | performance-change | ui-change | mixed`)
+     - `RiskTier` (`LOW | MEDIUM | HIGH`)
+   - The MRM MUST list all required artifacts for the selected class/tier according to `rules.md` Section 7.7.1.
+   - Any MRM artifact without evidence MUST be marked `not-verified` and cannot justify `ready-for-pr`.
+
 Binding: Update `SESSION_STATE.TouchedSurface` with:
    - FilesPlanned (all concrete file paths)
    - ContractsPlanned (OpenAPI/GraphQL/proto/asyncapi paths, if any)
@@ -2419,9 +2427,11 @@ If the session becomes long (large discovery outputs / many iterations), compres
    - If `TouchedSurface.SchemaPlanned` or `TouchedSurface.ContractsPlanned` is non-empty and `RollbackStrategy` is missing: BLOCK (do not approve P5).
    * Record at least one Architecture Decision (see `SESSION_STATE.ArchitectureDecisions`) and mark it `approved` before approving P5.
    * Verify the Phase 4 Ticket Record includes an **Architecture Options (A/B[...])** block with trade-offs and test impact.
-   * Verify the Phase 4 plan includes a **Test Strategy** subsection (levels, determinism seams, fixtures/builders, edge cases).
-   * Record `SESSION_STATE.DecisionDrivers` (max 5, one line each) matching the recommendation rationale.
-   * If missing or inconsistent: record a blocker and return to Phase 4 (do not approve P5).
+    * Verify the Phase 4 plan includes a **Test Strategy** subsection (levels, determinism seams, fixtures/builders, edge cases).
+    * Verify the Phase 4 plan includes a **Mandatory Review Matrix (MRM)** with TicketClass, RiskTier, and required artifacts.
+    * If required MRM artifacts are missing or not evidencable, record blockers and return to Phase 4 (do not approve P5).
+    * Record `SESSION_STATE.DecisionDrivers` (max 5, one line each) matching the recommendation rationale.
+    * If missing or inconsistent: record a blocker and return to Phase 4 (do not approve P5).
 
 2. **API contract review (if API changes):**
    * Are API changes backward-compatible?
@@ -2972,6 +2982,7 @@ If any prerequisite is not met → BLOCK and return to the relevant phase.
 **Verification obligations (binding):**
 - Confirm the implemented solution matches the chosen Architecture Decision; if it diverged, update `SESSION_STATE.ArchitectureDecisions` with an amended decision and rationale.
 - Confirm tests implemented match the Phase 4 Test Strategy and that determinism seams are actually used.
+- Confirm all **Mandatory Review Matrix (MRM)** required artifacts are evidenced (or explicitly marked `not-verified` with follow-up actions).
 - Update Change Matrix to map decisions → code → tests.
 
 Canonical build command (default for Maven repositories):

@@ -631,6 +631,34 @@ If any of the above fails: **STOP** (Mode=BLOCKED) and request the minimal missi
 If any impacted layer involves schemas, contracts, persisted data, or enums,
 the Contract & Schema Evolution Gate (Section 6.5) MUST be evaluated and explicitly passed.
 
+### 7.7.1 Mandatory Review Matrix (MRM) (Core, Binding)
+
+Purpose:
+- Maximize PR review resilience by requiring risk-appropriate, explicit proof before "ready-for-pr".
+
+Binding requirements:
+- In Phase 4, every ticket MUST declare:
+  - `TicketClass` (one): `api-change | schema-migration | business-rule-change | security-change | performance-change | ui-change | mixed`
+  - `RiskTier` (one): `LOW | MEDIUM | HIGH`
+- The plan MUST include a `Mandatory Review Matrix` section listing required artifacts for that class/tier.
+- In Phase 5/6, the matrix MUST be verified against evidence; missing required artifacts => `fix-required` (never `ready-for-pr`).
+
+Minimum required artifacts by risk tier:
+- `LOW`: changed behavior tests (happy + one negative or boundary), Change Matrix complete, security sanity check if touched surface is security-sensitive.
+- `MEDIUM`: LOW + contract assertions when boundary touched + rollback note + observability impact note.
+- `HIGH`: MEDIUM + concurrency/idempotency proof (if applicable) + migration/compatibility proof (if applicable) + explicit rollback safety evidence.
+
+Class-specific mandatory add-ons (apply when relevant):
+- `api-change`: contract-positive + contract-negative test evidence.
+- `schema-migration`: forward migration validation + constraint violation test + rollback/backout evidence.
+- `business-rule-change`: each changed rule mapped to at least one named proving test.
+- `security-change`: explicit authz/authn/input-validation proof and no-secrets/no-PII logging check.
+- `performance-change`: baseline-vs-change measurement or explicit rationale why measurement is not feasible.
+
+Claim-to-evidence rule (binding):
+- Every PR-critical claim (e.g., "no contract drift", "tests green", "rollback safe") MUST map to at least one concrete evidence item in `SESSION_STATE.BuildEvidence.items[]`.
+- If a claim has no evidence mapping, it MUST be reported as `not-verified` and cannot support `ready-for-pr`.
+
 ## 7.8 Business Logic & Testability Design Contract (Core, Binding)
 
 Purpose:

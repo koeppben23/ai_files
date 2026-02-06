@@ -175,6 +175,7 @@ Key constraints:
 * strict adherence to architectural layers
 * Contract & Schema Evolution Gate is mandatory for DB, Kafka/event schemas, OpenAPI/external contracts, and contract/persisted enums
 * Change Matrix is mandatory for cross-cutting changes and MUST be verified before final output (STOP on inconsistencies)
+* Mandatory Review Matrix (MRM) is mandatory in Phase 4/5/6: TicketClass + RiskTier + required artifacts must be evidenced before `ready-for-pr`
 * test coverage ≥ 80% of changed logic
 * for newly created production classes, corresponding unit test classes
   (good / bad / edge cases) are mandatory
