@@ -36,8 +36,11 @@ Activation (binding):
   - The ticket/request explicitly requires Kafka producer/consumer changes.
 
 If required but missing at code-phase:
-- `Mode = BLOCKED`
-- `Next = BLOCKED-KAFKA-TEMPLATES-MISSING`
+- The workflow MUST record:
+  - `SESSION_STATE.AddonsEvidence.kafka.status = missing-rulebook`
+  - `SESSION_STATE.LoadedRulebooks.addons.kafka = ""`
+- The assistant MUST explicitly warn that Kafka-related changes cannot be produced safely without the addon rulebook,
+  and MUST limit output to analysis/planning until the operator provides or adds the addon rulebook.
 
 ---
 ## 0. Core Principle (Binding, Non-Negotiable)

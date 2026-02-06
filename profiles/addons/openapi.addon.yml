@@ -1,0 +1,13 @@
+addon_key: openapi
+rulebook: rules.openapi-contracts.md
+signals:
+  any:
+    - file_glob: "**/openapi*.yml"
+    - file_glob: "**/openapi*.yaml"
+    - file_glob: "**/openapi*.json"
+    - file_glob: "**/swagger*.yml"
+    - file_glob: "**/swagger*.yaml"
+    - file_glob: "**/swagger*.json"
+    - maven_dep: org.springdoc:springdoc-openapi-ui
+    - maven_dep: org.springdoc:springdoc-openapi-starter-webmvc-ui
+    - workflow_file: ".github/workflows/openspec-pr-check.yaml"

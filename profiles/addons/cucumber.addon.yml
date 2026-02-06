@@ -1,0 +1,6 @@
+addon_key: cucumber
+rulebook: rules.cucumber-bdd.md
+signals:
+  any:
+    - file_glob: "**/*.feature"
+    - maven_dep_prefix: io.cucumber:

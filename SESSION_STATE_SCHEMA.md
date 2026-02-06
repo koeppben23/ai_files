@@ -129,6 +129,7 @@ Once Phase 1.1 (bootstrap) completes successfully, these keys MUST exist:
 - `SESSION_STATE.LoadedRulebooks.profile` (string path OR `""` if deferred/planning-only)
 - `SESSION_STATE.LoadedRulebooks.templates` (string path OR `""` if deferred until Phase 4 or not applicable)
 - `SESSION_STATE.LoadedRulebooks.addons` (object map addon_key -> string path; default `{}`)
+- `SESSION_STATE.AddonsEvidence` (object map addon_key -> evidence object; default `{}`)
 - `SESSION_STATE.RulebookLoadEvidence` (object; see Section 6.4)
 - `SESSION_STATE.ActiveProfile` (string OR `""` if deferred until post-Phase-2)
 - `SESSION_STATE.ProfileSource` (enum; see Section 5)
@@ -193,8 +194,12 @@ If chat-only mode (no persistence), `ReportRef` MUST be `not-persisted`.
 - If Phase 4 begins and the `ActiveProfile` mandates templates, and `LoadedRulebooks.templates` is still `""`:
   → WORKFLOW MUST BE BLOCKED
 
-- If Phase 4 begins and the workflow mandates an addon (e.g., kafka templates), and `LoadedRulebooks.addons` does not contain the required addon key or its value is empty:
-  → WORKFLOW MUST BE BLOCKED
+- If Phase 4 begins and the workflow determines an addon is required (evidence-based), but the addon rulebook is not available:
+  - The workflow MUST NOT silently ignore it.
+  - `SESSION_STATE.AddonsEvidence.<addon_key>.status` MUST be `missing-rulebook`.
+  - The plan MUST include an explicit operator action to add/write the addon rulebook.
+  - The assistant MUST clearly scope its output to what can be guaranteed without the missing addon rulebook.
+  - Blocking is OPTIONAL; use only if the operator explicitly requests strict gating.
 
 **Invariant**
 - If `Mode = BLOCKED`, `Next` MUST start with `BLOCKED-` and describe the minimal missing input.
@@ -317,7 +322,7 @@ The following BLOCKED pointers are canonical and SHOULD be used when applicable:
 - `BLOCKED-MISSING-PROFILE`
 - `BLOCKED-AMBIGUOUS-PROFILE`
 - `BLOCKED-MISSING-TEMPLATES`
-- `BLOCKED-MISSING-ADDON:<addon_key>`
+- `BLOCKED-MISSING-ADDON:<addon_key>` (optional; only when strict gating is explicitly requested)
 - `BLOCKED-RULEBOOK-EVIDENCE-MISSING`
 - `BLOCKED-WORKSPACE-MEMORY-INVALID`
 - `BLOCKED-MISSING-EVIDENCE`
@@ -355,6 +360,35 @@ SESSION_STATE:
   - `Mode = BLOCKED`
   - `Next = BLOCKED-RULEBOOK-EVIDENCE-MISSING`
   - No phase completion may be claimed.
+
+### 6.4.1 Addons Evidence (canonical)
+
+To prevent implicit/fictional addon activation and to make addon loading auditable, the session MUST track
+evidence for each evaluated addon key.
+
+#### Field
+
+- `SESSION_STATE.AddonsEvidence` (object map addon_key -> object)
+
+Recommended minimal shape:
+
+```yaml
+SESSION_STATE:
+  AddonsEvidence:
+    kafka:
+      signals: ["pom.xml: org.springframework.kafka:spring-kafka", "code: @KafkaListener"]
+      required: true
+      status: loaded | skipped | missing-rulebook
+```
+
+#### Binding invariants
+
+- `AddonsEvidence` MUST exist after bootstrap completes (default `{}`).
+- If an addon key is present in `LoadedRulebooks.addons`, the corresponding `AddonsEvidence.<addon_key>` MUST exist.
+- If an addon key is evaluated during discovery/planning (required or not), `AddonsEvidence.<addon_key>` SHOULD exist
+  with `required` and at least one signal when evidence is available.
+- If an addon is required by signals but the rulebook is unavailable, `AddonsEvidence.<addon_key>.status` MUST be
+  `missing-rulebook` and the plan MUST include the operator action (write/add the addon rulebook).
 
 ### 6.5 Scope (canonical)
 
