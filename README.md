@@ -91,6 +91,7 @@ Installed layout:
   - `SCOPE-AND-CONTEXT.md`, `TICKET_RECORD_TEMPLATE.md`, `ADR.md`, `resume_prompt.md`, …
 - `commands/profiles/`:
   - `profiles/*.md` (all profile rulebooks)
+  - `profiles/addons/*.addon.yml` (addon manifests for required/advisory activation)
 - `commands/diagnostics/`:
   - `diagnostics/**` (audit tooling, schemas, documentation)
 
@@ -429,10 +430,13 @@ The complete governance system is installed in:
 ${COMMANDS_HOME}/
 ├── master.md
 ├── rules.md
+├── start.md
 ├── QUALITY_INDEX.md
 ├── CONFLICT_RESOLUTION.md
 ├── SCOPE-AND-CONTEXT.md
 ├── SESSION_STATE_SCHEMA.md
+├── governance.paths.json
+├── INSTALL_MANIFEST.json
 ├── continue.md
 ├── resume.md
 ├── resume_prompt.md
@@ -442,11 +446,17 @@ ${COMMANDS_HOME}/
 ├── README-RULES.md
 ├── README-OPENCODE.md
 ├── README-CHAT.md
-└── profiles/
-    ├── rules.backend-java.md
-    └── rules.fallback-minimum.md
-    ├── rules.frontend-angular-nx.md
-    └── rules.<stack>.md
+├── profiles/
+│   ├── rules.backend-java.md
+│   ├── rules.frontend-angular-nx.md
+│   ├── rules.fallback-minimum.md
+│   ├── rules.<stack>.md
+│   └── addons/
+│       ├── angularNxTemplates.addon.yml
+│       └── <addon>.addon.yml
+└── diagnostics/
+    ├── AUDIT_REPORT_SCHEMA.json
+    └── audit.md
 ```
 
 If any of these files are missing, the workflow behavior is determined by the blocking rules defined in `master.md`.
