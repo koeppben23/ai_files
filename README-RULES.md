@@ -159,6 +159,27 @@ Current frontend-related addon examples:
 Cross-cutting governance addon example:
 - `docsGovernance` (advisory) -> `rules.docs-governance.md`
 
+## 5.2 Factory Extension Path (Profiles/Addons)
+
+When required governance capability is missing for a new repo/ticket, use the factory path:
+
+- `new_profile.md` to generate `profiles/rules.<profile>.md`
+- `new_addon.md` to generate:
+  - `profiles/rules.<addon-rulebook>.md`
+  - `profiles/addons/<addon_key>.addon.yml`
+
+Factory outputs must be principal-grade at creation time and include:
+
+- `Principal Excellence Contract (Binding)`
+- `Principal Hardening v2.1 - Standard Risk Tiering (Binding)`
+- `Principal Hardening v2.1.1 - Scorecard Calibration (Binding)`
+
+Conformance reference:
+
+- `diagnostics/PROFILE_ADDON_FACTORY_CONTRACT.json`
+
+If mandatory generation input is missing, creation should be treated as blocked and completed only after required fields are provided.
+
 Key constraints:
 * Templates addons MUST NOT be loaded during discovery (Phase 1–3).
 * If mandated by the active profile, templates addons MUST be loaded at code-phase (Phase 4+).

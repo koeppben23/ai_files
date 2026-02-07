@@ -61,6 +61,32 @@ If Warm Start eligibility is not met, the system MUST fall back to Cold Start au
 
 ---
 
+## Factory Workflow for New Profiles/Addons (Operational)
+
+Use this when a new repository/ticket needs governance coverage that does not exist yet.
+
+- Create a new profile rulebook with `new_profile.md`.
+- Create a new addon pair with `new_addon.md` (rulebook + manifest).
+- Enforce principal-grade baseline in generated artifacts:
+  - `Principal Excellence Contract (Binding)`
+  - `Principal Hardening v2.1 - Standard Risk Tiering (Binding)`
+  - `Principal Hardening v2.1.1 - Scorecard Calibration (Binding)`
+- Validate output against `diagnostics/PROFILE_ADDON_FACTORY_CONTRACT.json`.
+
+Minimum operator input for generation:
+
+- profile/addon key and target scope
+- activation signals
+- addon class (`required` or `advisory`) for addons
+- quality focus and blocking policy
+
+Recommended commit messages:
+
+- `feat(governance): add <profile_key> principal profile rulebook`
+- `feat(governance): add <addon_key> principal addon and manifest`
+
+---
+
 ## Installation Layout (Descriptive; follow `master.md` if in doubt)
 
 `master.md` defines canonical path variables. Typical layout:

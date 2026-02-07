@@ -53,6 +53,31 @@ If you later switch to OpenCode repo-aware mode, run `/master` again so Phase 2 
 
 ---
 
+## Factory Workflow in Chat Mode (Profiles/Addons)
+
+If you discover missing governance capability while working tickets, you can still extend the system in chat mode.
+
+- Use `new_profile.md` to define a new principal-grade profile rulebook.
+- Use `new_addon.md` to define a new principal-grade addon pair (rulebook + manifest).
+- Provide explicit input in chat (no implicit repo discovery in chat mode):
+  - key/name
+  - scope
+  - activation signals
+  - addon class (`required` or `advisory`) for addons
+  - quality focus and blocking policy
+
+Generated artifacts should be checked against:
+
+- `diagnostics/PROFILE_ADDON_FACTORY_CONTRACT.json`
+
+Required principal baseline sections in generated rulebooks:
+
+- `Principal Excellence Contract (Binding)`
+- `Principal Hardening v2.1 - Standard Risk Tiering (Binding)`
+- `Principal Hardening v2.1.1 - Scorecard Calibration (Binding)`
+
+---
+
 ## 1. What “Chat-Only Usage” Means
 
 Chat-only usage means:
