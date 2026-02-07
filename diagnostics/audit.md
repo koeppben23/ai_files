@@ -18,6 +18,10 @@ If any instruction here conflicts with `master.md` or `rules.md`, treat this fil
 - Any current ticket / scope context already in session
 - Any repo discovery artifacts already recorded in session (if repo-aware mode)
 
+Session resolution note (repo-aware):
+- Runtime SHOULD resolve current session through `${SESSION_STATE_POINTER_FILE}` and then load repo-scoped `${SESSION_STATE_FILE}`.
+- If pointer exists but target repo session cannot be resolved, treat as missing session state and return `BLOCKED`.
+
 If `[SESSION_STATE]` is missing, the command MUST stop with `BLOCKED` and request it.
 
 ---

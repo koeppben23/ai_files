@@ -160,9 +160,16 @@ Recovery (mandatory output via Recovery Playbook):
 
 ### Canonical State / Persistence Targets
 
-- `${SESSION_STATE_FILE}` = `${OPENCODE_HOME}/SESSION_STATE.json`
+- `${SESSION_STATE_POINTER_FILE}` = `${OPENCODE_HOME}/SESSION_STATE.json`  (global active-session pointer)
+- `${SESSION_STATE_FILE}` = `${REPO_HOME}/SESSION_STATE.json`              (repo-scoped canonical session state)
 - `${RESUME_FILE}` = `${OPENCODE_HOME}/resume.json`
 - `${REPO_IDENTITY_MAP_FILE}` = `${OPENCODE_HOME}/repo-identity-map.yaml`
+
+Binding (session topology):
+- `SESSION_STATE` content MUST be persisted per repository at `${SESSION_STATE_FILE}`.
+- The global file at `${SESSION_STATE_POINTER_FILE}` MUST be treated as a pointer/locator for the currently active repo session.
+- The global pointer MUST NOT be used as a shared multi-repo session payload store.
+- If pointer and repo session disagree, the workflow MUST fail-closed and request explicit reconciliation.
 
 ### Repo-scoped Persistent Files (outside the repo)
 

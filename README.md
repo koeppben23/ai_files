@@ -41,7 +41,7 @@ Choose the workflow entry based on what you are doing:
 
 - **New repo / first time:** run `/master` and let Phase 1–2 build discovery artifacts; do not skip Phase 2.
 - **New ticket on a known repo:** run `/master` (Warm Start). The system will reuse cache/digest/memory if valid.
-- **Resume an interrupted ticket/session:** follow `continue.md` / `resume.md` using the existing `SESSION_STATE.json`.
+- **Resume an interrupted ticket/session:** follow `continue.md` / `resume.md` using the active session pointer (`${SESSION_STATE_POINTER_FILE}`) and repo session file (`${SESSION_STATE_FILE}`).
 - **Audit a completed change:** run `/master` and jump to the relevant explicit gates (Contract Gate, Test Quality Gate, Phase 6 QA).
 
 ---
@@ -61,7 +61,9 @@ Choose the workflow entry based on what you are doing:
 - Global rulebooks (`master.md`, `rules.md`) are installed under `${COMMANDS_HOME}`.
 - Profile rulebooks are installed under `${PROFILES_HOME}`.
 - Repo-specific persistent artifacts live under `${WORKSPACES_HOME}/<repo_fingerprint>/...` (cache, digest, decision pack, business rules, workspace memory).
-- Session lifecycle files remain global: `${SESSION_STATE_FILE}` and `${RESUME_FILE}`.
+- Session payload is repo-scoped: `${SESSION_STATE_FILE}` under `${WORKSPACES_HOME}/<repo_fingerprint>/...`.
+- Global `${SESSION_STATE_POINTER_FILE}` is the active-session pointer used to select the repo-scoped session state.
+- `${RESUME_FILE}` remains global unless a repo-scoped resume strategy is explicitly enabled.
 
 If your environment uses different locations, follow `master.md` and update the variable resolution, not the docs.
 
@@ -94,7 +96,7 @@ Installed layout:
   - `profiles/*.md` (all profile rulebooks)
   - `profiles/addons/*.addon.yml` (addon manifests for required/advisory activation)
 - `commands/diagnostics/`:
-  - `diagnostics/**` (audit tooling, schemas, documentation, factory contracts such as `PROFILE_ADDON_FACTORY_CONTRACT.json`)
+  - `diagnostics/**` (audit tooling, schemas, documentation, factory contracts such as `PROFILE_ADDON_FACTORY_CONTRACT.json`, and recovery helpers such as `bootstrap_session_state.py`)
 
 ### Safety & operational behavior
 
@@ -391,7 +393,8 @@ All persisted workflow state and derived artifacts live **outside the repository
 
 Canonical locations (see `master.md` for binding definitions):
 
-- `${SESSION_STATE_FILE}` – active session state
+- `${SESSION_STATE_POINTER_FILE}` – active session pointer (global)
+- `${SESSION_STATE_FILE}` – repo-scoped canonical session state
 - `${RESUME_FILE}` – deterministic resume pointer
 - `${REPO_IDENTITY_MAP_FILE}` – stable repo identity mapping
 - `${WORKSPACES_HOME}/<repo_fingerprint>/` – repo-scoped workspace bucket
