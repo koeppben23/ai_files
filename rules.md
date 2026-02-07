@@ -763,6 +763,21 @@ Binding:
 
 If a profile rulebook provides stricter test rules or templates, those rules take precedence.
 
+## 7.10 Conventional Branch/Commit Contract (Core, Binding)
+
+When branch creation or commit creation is requested, naming MUST be Conventional.
+
+Branch names (binding):
+- Pattern: `^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)/[a-z0-9][a-z0-9._/-]*$`
+
+Commit subjects (binding):
+- Pattern: `^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([^)]+\))?!?: .+`
+
+Enforcement rules:
+- Non-conforming user-provided commit subject proposals MUST be normalized before commit creation.
+- Non-conforming branch names MUST be replaced by a conforming equivalent before branch creation.
+- CI SHOULD enforce title/branch/commit conformance on pull requests.
+
 ---
 
 ## 8. Traceability (Core)

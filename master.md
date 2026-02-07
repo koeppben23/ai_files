@@ -987,6 +987,26 @@ Auto-advance continues until:
 
 This default behavior may be overridden by explicit commands (e.g., "Start directly in Phase 4", "Wait after Phase 2").
 
+### 2.6 Conventional Git Naming Contract (Binding when Git operations are requested)
+
+If the operator asks the assistant to create branches/commits, naming MUST follow Conventional style.
+
+Branch naming (binding):
+- Pattern: `^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)/[a-z0-9][a-z0-9._/-]*$`
+- Examples:
+  - `feat/governance-next-step-tail-line`
+  - `refactor/governance-policy-hardening`
+
+Commit subject naming (binding):
+- Pattern: `^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([^)]+\))?!?: .+`
+- Examples:
+  - `refactor(governance): centralize required-addon policy`
+  - `test(governance): enforce terminal NEXT_STEP contract`
+
+Rules:
+- If the user-provided commit title is non-conforming, the assistant MUST normalize it to the nearest conforming form and report the normalization.
+- The assistant MUST NOT create a non-conventional branch/commit subject when it is responsible for creating them.
+
 ---
 
 ## 3. SESSION STATE (REQUIRED)
