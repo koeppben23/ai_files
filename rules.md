@@ -197,6 +197,23 @@ If repo signals are ambiguous (e.g., monorepo with multiple stacks) and no expli
 
 Once determined (explicitly or via fallback), the assistant must keep the active profile consistent and reference it when making stack-specific decisions.
 
+### 4.6 Canonical Rulebook Precedence (Binding)
+
+To prevent profile/addon/template drift, precedence is defined once here and must be referenced (not redefined) by profile and addon rulebooks.
+
+Canonical order on conflict:
+1) `master.md`
+2) `rules.md` (core)
+3) active profile rulebook
+4) activated addon rulebooks (including templates and shared governance add-ons)
+
+Binding implications:
+- Addons/templates refine implementation behavior and evidence expectations for their scope, but MUST NOT weaken or override master/core/profile constraints.
+- Activation remains manifest-owned for addons (`profiles/addons/*.addon.yml`); addon rulebooks define behavior after activation.
+- Missing-addon policy is canonical and MUST NOT be redefined locally:
+  - `addon_class = required`: missing required rulebook at code-phase -> `BLOCKED-MISSING-ADDON:<addon_key>`.
+  - `addon_class = advisory`: non-blocking WARN + recovery; continue conservatively.
+
 ---
 
 ## 5. Repository Guidelines as Constraints (Allowed, but Non-Normative)

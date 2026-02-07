@@ -315,6 +315,10 @@ def test_installer_copies_addon_manifests_for_dynamic_activation(tmp_path: Path)
         commands / "profiles" / "addons" / "openapi.addon.yml",
         commands / "profiles" / "addons" / "cucumber.addon.yml",
         commands / "profiles" / "addons" / "dbLiquibase.addon.yml",
+        commands / "profiles" / "addons" / "docsGovernance.addon.yml",
+        commands / "profiles" / "addons" / "principalExcellence.addon.yml",
+        commands / "profiles" / "addons" / "riskTiering.addon.yml",
+        commands / "profiles" / "addons" / "scorecardCalibration.addon.yml",
     ]
 
     missing = [str(p) for p in expected if not p.exists()]
@@ -328,6 +332,14 @@ def test_installer_copies_addon_manifests_for_dynamic_activation(tmp_path: Path)
         "profiles/addons/angularNxTemplates.addon.yml",
         "profiles/addons/frontendCypress.addon.yml",
         "profiles/addons/frontendOpenApiTsClient.addon.yml",
+        "profiles/addons/kafka.addon.yml",
+        "profiles/addons/openapi.addon.yml",
+        "profiles/addons/cucumber.addon.yml",
+        "profiles/addons/dbLiquibase.addon.yml",
+        "profiles/addons/docsGovernance.addon.yml",
+        "profiles/addons/principalExcellence.addon.yml",
+        "profiles/addons/riskTiering.addon.yml",
+        "profiles/addons/scorecardCalibration.addon.yml",
     }
     missing_in_manifest = sorted(required_rel - installed)
     assert not missing_in_manifest, (

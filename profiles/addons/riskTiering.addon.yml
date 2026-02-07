@@ -1,0 +1,9 @@
+addon_key: riskTiering
+addon_class: advisory
+rulebook: rules.risk-tiering.md
+manifest_version: 1
+path_roots:
+  - "."
+signals:
+  any:
+    - file_glob: "**/*"

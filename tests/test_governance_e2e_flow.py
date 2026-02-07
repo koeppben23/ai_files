@@ -208,6 +208,9 @@ def test_e2e_governance_flow_required_block_then_reload_and_advisory_warn(tmp_pa
     statuses, blocked, _warnings = _evaluate_addons(commands, repo)
     assert statuses.get("angularNxTemplates") == "loaded"
     assert "BLOCKED-MISSING-ADDON:angularNxTemplates" not in blocked
+    assert statuses.get("principalExcellence") == "loaded"
+    assert statuses.get("riskTiering") == "loaded"
+    assert statuses.get("scorecardCalibration") == "loaded"
 
     # Step 3: advisory missing -> WARN (non-blocking)
     advisory_backup = advisory_rb.with_suffix(advisory_rb.suffix + ".bak")
@@ -219,6 +222,19 @@ def test_e2e_governance_flow_required_block_then_reload_and_advisory_warn(tmp_pa
         assert "BLOCKED-MISSING-ADDON:frontendCypress" not in blocked
     finally:
         advisory_backup.rename(advisory_rb)
+
+    # Step 3b: shared advisory contract missing -> WARN (non-blocking)
+    shared_rb = commands / "profiles" / "rules.principal-excellence.md"
+    assert shared_rb.exists(), f"Missing installed shared rulebook: {shared_rb}"
+    shared_backup = shared_rb.with_suffix(shared_rb.suffix + ".bak")
+    shared_rb.rename(shared_backup)
+    try:
+        statuses, blocked, warnings = _evaluate_addons(commands, repo)
+        assert statuses.get("principalExcellence") == "missing-rulebook"
+        assert "WARN-MISSING-ADDON:principalExcellence" in warnings
+        assert "BLOCKED-MISSING-ADDON:principalExcellence" not in blocked
+    finally:
+        shared_backup.rename(shared_rb)
 
     # Step 4: maven_dep signal (kafka) -> required missing rulebook must BLOCK
     (repo / "pom.xml").write_text(

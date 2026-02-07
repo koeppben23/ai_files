@@ -324,10 +324,13 @@ ALGORITHM (BINDING, NORMATIVE):
    - Addons are discovered **dynamically** by scanning addon manifests located at:
      - `${PROFILES_HOME}/addons/*.addon.yml`
    - Each manifest MUST define:
-      - `addon_key` (string)
-      - `addon_class` (`required` | `advisory`)
-      - `rulebook` (path under `${PROFILES_HOME}`)
-      - `signals` (one or more evidence patterns; see manifests)
+       - `addon_key` (string)
+       - `addon_class` (`required` | `advisory`)
+       - `rulebook` (path under `${PROFILES_HOME}`)
+       - `manifest_version` (currently `1`)
+       - `signals` (one or more evidence patterns; see manifests)
+    - Optional manifest ops fields:
+       - `path_roots` (relative repo paths to scope signal evaluation in monorepos)
 
    Rules (BINDING):
    - For each addon, evaluate evidence signals from Phase 2 artifacts + ticket text.
@@ -420,7 +423,7 @@ These files are normative and MUST be available in the same governance installat
    - SESSION_STATE.ActiveProfile if already set
 
 2. **Auto-detection from available rulebooks** (NEW!)
-   - If ONLY ONE profile rulebook exists → use it automatically
+   - If ONLY ONE profile rulebook exists (after filtering addon/shared rulebooks) → use it automatically
    - Search paths:
      a. Workspace-local override (optional, outside the repo): `${REPO_HOME}/governance/profiles/rules*.md`
      b. `${COMMANDS_HOME}/rules*.md`
@@ -431,7 +434,14 @@ These files are normative and MUST be available in the same governance installat
    **Auto-selection logic:**
    ```
    IF user did NOT specify profile explicitly:
-     found_profiles = scan_all_search_paths_for(["rules_*.md","rules.*.md","rules-*.md"])
+      candidate_rulebooks = scan_all_search_paths_for(["rules_*.md","rules.*.md","rules-*.md"])
+
+      # Exclude non-profile rulebooks (binding):
+      # 1) any rulebook referenced by addon manifests under ${PROFILES_HOME}/addons/*.addon.yml
+      # 2) known shared governance rulebooks:
+      #    rules.principal-excellence.md, rules.risk-tiering.md, rules.scorecard-calibration.md
+      addon_rulebooks = collect_rulebooks_from_addon_manifests(${PROFILES_HOME}/addons/*.addon.yml)
+      found_profiles = candidate_rulebooks - addon_rulebooks - shared_governance_rulebooks
      
      IF found_profiles.count == 1:
        ActiveProfile = extract_profile_name(found_profiles[0])
@@ -517,6 +527,10 @@ SESSION_STATE.ComponentScopeEvidence = "<ticket text or repo paths>"
 - Profile is ambiguous (multiple rulebooks found, no user selection) AND no Component Scope is available to disambiguate
 - No profile can be determined AND code generation is requested
 - Core rulebook (rules.md) cannot be loaded WHEN Phase 4 begins
+
+Profile candidate filtering (binding):
+- Rulebooks referenced by addon manifests MUST NOT be treated as profile candidates during profile auto-detection.
+- Shared governance rulebooks (`rules.principal-excellence.md`, `rules.risk-tiering.md`, `rules.scorecard-calibration.md`) MUST NOT be treated as profile candidates.
 
 If multiple profiles exist but `SESSION_STATE.ComponentScopePaths` is present:
 - attempt profile inference **within the Component Scope only**

@@ -5,8 +5,8 @@ It is applied in addition to:
 - `master.md` (phases, gates, activation)
 - `rules.md` (core engineering governance)
 
-Priority order on conflict:
-`master.md` > `rules.md` (core) > this profile.
+Precedence (binding): use the canonical order from `rules.md` Section 4.6.
+For Angular+Nx behavior, this profile governs stack-specific rules and activated addons/templates may refine within profile constraints.
 
 Intent (binding): produce top-tier frontend business behavior and tests by deterministic patterns and evidence, not by style preference.
 
@@ -20,6 +20,8 @@ For `frontend-angular-nx`, deterministic generation requires:
 Binding:
 - At code-phase (Phase 4+), the workflow MUST load the templates addon and record it in:
   - `SESSION_STATE.LoadedRulebooks.templates`
+- The load evidence MUST include resolved path plus version/digest evidence when available:
+  - `SESSION_STATE.RulebookLoadEvidence.templates`
 - If required and missing at code-phase: `Mode = BLOCKED`, `Next = BLOCKED-MISSING-TEMPLATES`.
 
 When loaded, templates are binding defaults. If a template conflicts with locked repo conventions, apply the minimal convention-aligned adaptation and record the deviation.
@@ -28,9 +30,9 @@ When loaded, templates are binding defaults. If a template conflicts with locked
 
 ## Addon Policy Classes (Binding)
 
-- Required addons (code-generation-critical) may hard-block in code-phase when missing.
-- Advisory addons (quality amplifiers) MUST emit WARN + recovery steps and continue conservatively.
+- Addon class semantics are canonical in `rules.md` Section 4.6 and `master.md`; this profile MUST reference, not redefine, those semantics.
 - Addon manifests/rulebooks MUST declare `addon_class` explicitly.
+- This profile may define frontend-specific required-signal logic, but missing-rulebook handling MUST follow canonical policy.
 
 ---
 
@@ -198,163 +200,59 @@ Frontend Angular + Nx change is DONE only if:
 
 If any item is missing -> NOT DONE.
 
+## 11. Examples (GOOD/BAD)
+
+GOOD:
+- Feature flow implemented across `libs/<domain>/feature`, `libs/<domain>/data-access`, and `libs/<domain>/ui` with valid Nx boundaries.
+
+BAD:
+- App-level component imports deep files from another app, bypassing Nx/tag constraints.
+
+GOOD:
+- Existing repo state pattern is preserved (for example signals store) and new selectors remain deterministic.
+
+BAD:
+- Mixed state architecture introduced ad hoc (signals + ngrx reducers) without repo evidence.
+
+GOOD:
+- Changed async UI path has one deterministic negative-path test and uses stable `data-testid` selectors.
+
+BAD:
+- E2E relies on fixed waits and brittle CSS-chain selectors for changed critical journey.
+
+## 12. Troubleshooting
+
+1) Symptom: Nx boundary errors on lint/test
+- Cause: cross-layer imports or missing library split
+- Fix: move code into proper `feature/data-access/ui` libs and restore tag-safe imports.
+
+2) Symptom: Store/signals behavior regresses after change
+- Cause: new state pattern introduced instead of reusing repo convention
+- Fix: refactor to existing pattern and add deterministic state-transition tests.
+
+3) Symptom: Frontend tests flaky in CI
+- Cause: unbounded waits or missing deterministic network control
+- Fix: use retryable assertions/intercepts, remove fixed sleeps, and verify stable selectors.
+
+## Shared Principal Governance Contracts (Binding)
+
+This rulebook uses shared advisory governance contracts:
+
+- `rules.principal-excellence.md`
+- `rules.risk-tiering.md`
+- `rules.scorecard-calibration.md`
+
+Binding behavior:
+
+- When this rulebook is active in execution/review phases, load these as advisory governance contracts.
+- Record when loaded:
+  - `SESSION_STATE.LoadedRulebooks.addons.principalExcellence`
+  - `SESSION_STATE.LoadedRulebooks.addons.riskTiering`
+  - `SESSION_STATE.LoadedRulebooks.addons.scorecardCalibration`
+- If one of these shared rulebooks is unavailable, emit WARN + recovery, mark affected claims as
+  `not-verified`, and continue conservatively.
+
 ---
 
-Copyright (c) 2026 Benjamin Fuchs.
+Copyright © 2026 Benjamin Fuchs.
 All rights reserved. See LICENSE.
-
----
-
-## Principal Excellence Contract (Binding)
-
-This rulebook is considered principal-grade only when the contract below is satisfied.
-
-### Gate Review Scorecard (binding)
-
-When this rulebook is active and touches changed scope, the workflow MUST maintain a scorecard entry with weighted criteria, critical flags, and evidence references.
-
-```yaml
-SESSION_STATE:
-  GateScorecards:
-    principal_excellence:
-      Score: 0
-      MaxScore: 0
-      Criteria:
-        - id: PRINCIPAL-QUALITY-CLAIMS-EVIDENCED
-          weight: 3
-          critical: true
-          result: pass | fail | partial | not-applicable
-          evidenceRef: EV-001 | not-verified
-        - id: PRINCIPAL-DETERMINISM-AND-TEST-RIGOR
-          weight: 3
-          critical: true
-          result: pass | fail | partial | not-applicable
-          evidenceRef: EV-002 | not-verified
-        - id: PRINCIPAL-ROLLBACK-OR-RECOVERY-READY
-          weight: 3
-          critical: true
-          result: pass | fail | partial | not-applicable
-          evidenceRef: EV-003 | not-verified
-```
-
-### Claim-to-evidence (binding)
-
-Any non-trivial claim (for example: contract-safe, tests green, architecture clean, deterministic) MUST map to an `evidenceRef`.
-If evidence is missing, the claim MUST be marked `not-verified`.
-
-### Exit criteria (binding)
-
-- All criteria with `critical: true` MUST be `pass` before declaring principal-grade completion.
-- Advisory add-ons MUST remain non-blocking, but MUST emit WARN status code + recovery when critical criteria are not pass.
-- Required templates/add-ons MAY block code-phase according to master/core/profile policy when critical criteria cannot be satisfied safely.
-
-### Recovery when evidence is missing (binding)
-
-Emit a warning code plus concrete recovery commands/steps and keep completion status as `not-verified`.
-Recommended code: `WARN-PRINCIPAL-EVIDENCE-MISSING`.
-
----
-
-## Principal Hardening v2.1 - Standard Risk Tiering (Binding)
-
-### RTN-1 Canonical tiers (binding)
-
-All addon/template assessments MUST use this canonical tier syntax:
-
-- `TIER-LOW`: local/internal changes with low blast radius and no external contract or persistence risk.
-- `TIER-MEDIUM`: behavior changes with user-facing, API-facing, or multi-module impact.
-- `TIER-HIGH`: contract, persistence/migration, messaging/async, security, or rollback-sensitive changes.
-
-If uncertain, choose the higher tier.
-
-### RTN-2 Tier evidence minimums (binding)
-
-- `TIER-LOW`: build/lint (if present) + targeted changed-scope tests.
-- `TIER-MEDIUM`: `TIER-LOW` evidence + at least one negative-path assertion for changed behavior.
-- `TIER-HIGH`: `TIER-MEDIUM` evidence + one deterministic resilience/rollback-oriented proof (retry/idempotency/recovery/concurrency as applicable).
-
-### RTN-3 Tier-based gate decisions (binding)
-
-- A gate result cannot be `pass` when mandatory tier evidence is missing.
-- For advisory addons, missing tier evidence remains non-blocking but MUST emit WARN + recovery and result `partial` or `fail`.
-- For required addons/templates, missing `TIER-HIGH` evidence MAY block code-phase per master/core/profile policy.
-
-### RTN-4 Required SESSION_STATE shape (binding)
-
-```yaml
-SESSION_STATE:
-  RiskTiering:
-    ActiveTier: TIER-LOW | TIER-MEDIUM | TIER-HIGH
-    Rationale: "short evidence-based reason"
-    MandatoryEvidence:
-      - EV-001
-      - EV-002
-    MissingEvidence: []
-```
-
-### RTN-5 Unresolved tier handling (binding)
-
-If tier cannot be determined from available evidence, set status code `WARN-RISK-TIER-UNRESOLVED`, provide a conservative default (`TIER-HIGH`), and include recovery steps to refine classification.
-
----
-
-## Principal Hardening v2.1.1 - Scorecard Calibration (Binding)
-
-### CAL-1 Standard criterion weights by tier (binding)
-
-For principal scorecards in addon/template rulebooks, criteria weights MUST use this standard model:
-
-- `TIER-LOW`: each active criterion weight = `2`
-- `TIER-MEDIUM`: each active criterion weight = `3`
-- `TIER-HIGH`: each active criterion weight = `5`
-
-No custom weights are allowed unless explicitly documented as repo-specific exception with rationale and risk note.
-
-### CAL-2 Critical-flag normalization (binding)
-
-The following criteria classes MUST be marked `critical: true` when applicable:
-
-- contract/integration correctness
-- determinism and anti-flakiness
-- rollback/recovery safety
-- security semantics and authorization behavior
-
-Non-critical criteria MAY exist, but cannot compensate for a failed critical criterion.
-
-### CAL-3 Tier score thresholds (binding)
-
-A principal-grade gate result MAY be `pass` only if all conditions are true:
-
-- all applicable critical criteria are `pass`
-- total score ratio meets threshold:
-  - `TIER-LOW`: >= `0.80`
-  - `TIER-MEDIUM`: >= `0.85`
-  - `TIER-HIGH`: >= `0.90`
-
-If threshold is missed, result MUST be `partial` or `fail` with recovery actions.
-
-### CAL-4 Cross-addon comparability (binding)
-
-When multiple addons are active in one ticket, scorecards MUST be directly comparable by using:
-
-- canonical tier labels (`TIER-LOW|MEDIUM|HIGH`)
-- standardized weight model from CAL-1
-- identical pass thresholds from CAL-3
-
-### CAL-5 Required SESSION_STATE calibration evidence (binding)
-
-```yaml
-SESSION_STATE:
-  GateScorecards:
-    principal_excellence:
-      ActiveTier: TIER-LOW | TIER-MEDIUM | TIER-HIGH
-      Score: 0
-      MaxScore: 0
-      ScoreRatio: 0.00
-      Threshold: 0.80 | 0.85 | 0.90
-      CalibrationVersion: v2.1.1
-```
-
-### CAL-6 Calibration warning code (binding)
-
-If scorecard data is incomplete or non-comparable, emit `WARN-SCORECARD-CALIBRATION-INCOMPLETE` and block principal-grade declaration (`not-verified`).
