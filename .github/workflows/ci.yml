@@ -12,7 +12,7 @@ jobs:
   # Job -1: Conventional Commits (PR title)
   # ----------------------------------
   conventional-pr-title:
-    name: Conventional PR Title
+    name: Conventional VCS Contract
     runs-on: ubuntu-latest
     if: ${{ github.event_name == 'pull_request' }}
     steps:
@@ -33,6 +33,64 @@ jobs:
               sys.exit(1)
 
           print("✅ PR title is Conventional Commits compliant:", title)
+          PY
+
+      - name: Validate branch name (Conventional)
+        env:
+          BRANCH_NAME: ${{ github.head_ref }}
+        run: |
+          python - <<'PY'
+          import os, re, sys
+          branch = os.environ.get("BRANCH_NAME") or ""
+          pattern = r'^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)/[a-z0-9][a-z0-9._/-]*$'
+          if not re.match(pattern, branch):
+              print("❌ Branch name is not Conventional compliant.")
+              print("Branch:", branch)
+              print("Expected pattern:", pattern)
+              print("Examples: feat/governance-next-step | refactor/governance-policy-hardening")
+              sys.exit(1)
+
+          print("✅ Branch name is Conventional compliant:", branch)
+          PY
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate commit subjects (Conventional Commits)
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          python - <<'PY'
+          import os, re, subprocess, sys
+          base = os.environ.get("BASE_SHA") or ""
+          head = os.environ.get("HEAD_SHA") or ""
+          if not base or not head:
+              print("❌ Missing BASE_SHA/HEAD_SHA for commit validation")
+              sys.exit(1)
+
+          r = subprocess.run(["git", "log", "--format=%s", f"{base}..{head}"], text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+          if r.returncode != 0:
+              print("❌ Could not list commit subjects")
+              print(r.stderr)
+              sys.exit(1)
+
+          subjects = [line.strip() for line in r.stdout.splitlines() if line.strip()]
+          if not subjects:
+              print("❌ No commits found between base and head")
+              sys.exit(1)
+
+          pattern = r'^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([^)]+\))?!?: .+'
+          bad = [s for s in subjects if not re.match(pattern, s)]
+          if bad:
+              print("❌ Non-conventional commit subjects found:")
+              for s in bad:
+                  print("-", s)
+              print("Expected pattern:", pattern)
+              sys.exit(1)
+
+          print(f"✅ All {len(subjects)} commit subject(s) are Conventional compliant")
           PY
 
 

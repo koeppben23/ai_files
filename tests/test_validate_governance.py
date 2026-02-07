@@ -106,6 +106,44 @@ def test_session_state_outputs_require_terminal_next_step_line():
 
 
 @pytest.mark.governance
+def test_conventional_branch_and_commit_contract_is_documented_and_ci_enforced():
+    master = read_text(REPO_ROOT / "master.md")
+    rules = read_text(REPO_ROOT / "rules.md")
+    ci = read_text(REPO_ROOT / ".github" / "workflows" / "ci.yml")
+
+    master_required = [
+        "### 2.6 Conventional Git Naming Contract (Binding when Git operations are requested)",
+        "Branch naming (binding):",
+        "Commit subject naming (binding):",
+    ]
+    rules_required = [
+        "## 7.10 Conventional Branch/Commit Contract (Core, Binding)",
+        "Branch names (binding):",
+        "Commit subjects (binding):",
+    ]
+    ci_required = [
+        "Validate branch name (Conventional)",
+        "Validate commit subjects (Conventional Commits)",
+        "github.event.pull_request.base.sha",
+        "github.event.pull_request.head.sha",
+    ]
+
+    missing_master = [token for token in master_required if token not in master]
+    missing_rules = [token for token in rules_required if token not in rules]
+    missing_ci = [token for token in ci_required if token not in ci]
+
+    assert not missing_master, "master.md missing conventional git naming contract tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_master]
+    )
+    assert not missing_rules, "rules.md missing conventional branch/commit contract tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_rules]
+    )
+    assert not missing_ci, ".github/workflows/ci.yml missing conventional enforcement tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_ci]
+    )
+
+
+@pytest.mark.governance
 def test_schema_phase4_ticket_record_declares_must_include():
     schema = read_text(REPO_ROOT / "SESSION_STATE_SCHEMA.md")
     assert "When Phase 4 planning is produced, the workflow MUST include:" in schema
