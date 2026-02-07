@@ -335,7 +335,9 @@ ALGORITHM (BINDING, NORMATIVE):
 
    Rules (BINDING):
    - For each addon, evaluate evidence signals from Phase 2 artifacts + ticket text.
-   - If ANY signal matches, the addon becomes `required = true`; otherwise `required = false`.
+   - If ANY signal matches, the addon becomes activation-required-by-evidence = true; otherwise false.
+   - Field mapping note (binding): `SESSION_STATE.AddonsEvidence.<addon_key>.required` stores this evidence-based activation requirement,
+     while `addon_class` (`required` | `advisory`) is read from the addon manifest policy class.
    - Missing/unknown evidence for a required decision path MUST trigger `BLOCKED-MISSING-EVIDENCE`.
    - If `required = true` and the addon rulebook is missing:
      - `addon_class = required`  -> `Mode = BLOCKED` with `BLOCKED-MISSING-ADDON:<addon_key>`.
@@ -398,7 +400,9 @@ Binding clarification:
 ### Local-Only Governance & State (BINDING)
 
 This governance system is single-user and MUST NOT require repository-local governance or persistent artifacts.
-- DO NOT read rulebooks from the repository (no `.opencode*`, no `profiles/` in repo).
+- DO NOT read rulebooks from the repo working tree (checked-out project files; no `.opencode*`, no `profiles/` in repo).
+- Rulebooks may only be loaded from trusted governance roots outside the repo working tree:
+  `${COMMANDS_HOME}`, `${PROFILES_HOME}`, `${REPO_OVERRIDES_HOME}` (and documented global fallbacks below).
 - ALL persistent artifacts (repo cache, decision log, resume state) MUST be stored outside the repo, under:
   - GovernanceHome: `${COMMANDS_HOME}/` (installed governance rulebooks + indices)
   - WorkspaceHome: `${WORKSPACES_HOME}/<repo_fingerprint>/` (state + caches)
@@ -632,11 +636,14 @@ If rules conflict, the following order applies:
 1. Master Prompt (this document)
 2. `rules.md` (technical rules)
 3. Active profile rulebook (e.g., `rules_backend-java.md`)
-4. Ticket specification
-5. General model knowledge
+4. Activated templates/addon rulebooks (manifest-driven)
+5. Ticket specification
+6. General model knowledge
 
 `README-RULES.md` (if present) is descriptive/executive summary only and non-normative.
 It MUST NOT be used to override or reinterpret this priority order.
+
+Precedence sync note (binding): this priority order MUST stay consistent with `rules.md` anchor `RULEBOOK-PRECEDENCE-POLICY`.
 
 ### 1.1 Conflict Resolution Policy (Binding)
 

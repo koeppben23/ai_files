@@ -151,13 +151,19 @@ def test_control_plane_precision_contracts_for_overrides_reload_and_priority_ord
     master_required = [
         "${REPO_OVERRIDES_HOME}",
         "workspace-only override bucket; never repo-local",
+        "DO NOT read rulebooks from the repo working tree",
+        "Rulebooks may only be loaded from trusted governance roots outside the repo working tree",
         "Workspace-local override (optional, outside the repo): `${REPO_OVERRIDES_HOME}/rules.md`",
         "Workspace-local override (optional, outside the repo): `${REPO_OVERRIDES_HOME}/profiles/rules*.md`",
+        "4. Activated templates/addon rulebooks (manifest-driven)",
         "`README-RULES.md` (if present) is descriptive/executive summary only and non-normative.",
+        "Precedence sync note (binding): this priority order MUST stay consistent with `rules.md` anchor `RULEBOOK-PRECEDENCE-POLICY`.",
         "### 2.2.1 Operator Reload Contract (Binding)",
         "`/reload-addons`",
         "Run only Phase 1.3 + Phase 1.4 logic",
         "Auto-advance to implementation/gates is forbidden from reload output",
+        "activation-required-by-evidence = true; otherwise false.",
+        "`SESSION_STATE.AddonsEvidence.<addon_key>.required` stores this evidence-based activation requirement",
     ]
     rules_required = [
         "## 7.11 Operator Reload Contract (Core, Binding)",
