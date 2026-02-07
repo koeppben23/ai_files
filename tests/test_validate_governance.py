@@ -132,7 +132,18 @@ def test_all_profile_rulebooks_define_principal_excellence_contract():
     offenders: list[str] = []
     for path in profile_files:
         text = read_text(path)
-        missing = [snippet for snippet in required_snippets if snippet not in text]
+        if path.name in {"rules.risk-tiering.md", "rules.scorecard-calibration.md"}:
+            continue
+        if path.name == "rules.backend-java.md":
+            delegated = [
+                "Shared contract note:",
+                "rules.principal-excellence.md",
+                "rules.risk-tiering.md",
+                "rules.scorecard-calibration.md",
+            ]
+            missing = [snippet for snippet in delegated if snippet not in text]
+        else:
+            missing = [snippet for snippet in required_snippets if snippet not in text]
         if missing:
             offenders.append(f"{path.relative_to(REPO_ROOT)} -> missing {missing}")
 
@@ -158,7 +169,13 @@ def test_all_profile_rulebooks_define_standard_risk_tiering_v21():
     offenders: list[str] = []
     for path in profile_files:
         text = read_text(path)
-        missing = [token for token in required_tokens if token not in text]
+        if path.name in {"rules.principal-excellence.md", "rules.scorecard-calibration.md"}:
+            continue
+        if path.name == "rules.backend-java.md":
+            delegated = ["rules.risk-tiering.md", "See shared governance rulebooks for canonical RTN/CAL contracts"]
+            missing = [token for token in delegated if token not in text]
+        else:
+            missing = [token for token in required_tokens if token not in text]
         if missing:
             offenders.append(f"{path.relative_to(REPO_ROOT)} -> missing {missing}")
 
@@ -185,7 +202,13 @@ def test_all_profile_rulebooks_define_scorecard_calibration_v211():
     offenders: list[str] = []
     for path in profile_files:
         text = read_text(path)
-        missing = [token for token in required_tokens if token not in text]
+        if path.name in {"rules.principal-excellence.md", "rules.risk-tiering.md"}:
+            continue
+        if path.name == "rules.backend-java.md":
+            delegated = ["rules.scorecard-calibration.md", "See shared governance rulebooks for canonical RTN/CAL contracts"]
+            missing = [token for token in delegated if token not in text]
+        else:
+            missing = [token for token in required_tokens if token not in text]
         if missing:
             offenders.append(f"{path.relative_to(REPO_ROOT)} -> missing {missing}")
 
@@ -195,14 +218,24 @@ def test_all_profile_rulebooks_define_scorecard_calibration_v211():
 
 
 @pytest.mark.governance
-def test_java_profile_and_templates_include_principal_scorecard_artifact_shape():
-    targets = [
-        REPO_ROOT / "profiles" / "rules.backend-java.md",
-        REPO_ROOT / "profiles" / "rules.backend-java-templates.md",
-        REPO_ROOT / "profiles" / "rules.backend-java-kafka-templates.md",
+def test_java_profile_delegates_shared_principal_contract_and_shared_file_contains_shape():
+    backend_java = read_text(REPO_ROOT / "profiles" / "rules.backend-java.md")
+    delegation_tokens = [
+        "Shared contract note:",
+        "rules.principal-excellence.md",
+        "rules.risk-tiering.md",
+        "rules.scorecard-calibration.md",
+        "SESSION_STATE.LoadedRulebooks.addons.principalExcellence",
+        "SESSION_STATE.LoadedRulebooks.addons.riskTiering",
+        "SESSION_STATE.LoadedRulebooks.addons.scorecardCalibration",
     ]
+    missing_delegation = [token for token in delegation_tokens if token not in backend_java]
+    assert not missing_delegation, "rules.backend-java.md missing shared principal contract delegation:\n" + "\n".join(
+        [f"- {line}" for line in missing_delegation]
+    )
 
-    required = [
+    shared = read_text(REPO_ROOT / "profiles" / "rules.principal-excellence.md")
+    required_shape = [
         "SESSION_STATE:",
         "GateScorecards:",
         "principal_excellence:",
@@ -211,15 +244,9 @@ def test_java_profile_and_templates_include_principal_scorecard_artifact_shape()
         "PRINCIPAL-ROLLBACK-OR-RECOVERY-READY",
     ]
 
-    problems: list[str] = []
-    for path in targets:
-        text = read_text(path)
-        missing = [token for token in required if token not in text]
-        if missing:
-            problems.append(f"{path.relative_to(REPO_ROOT)} -> missing {missing}")
-
-    assert not problems, "Java principal scorecard contract incomplete:\n" + "\n".join(
-        [f"- {line}" for line in problems]
+    missing_shape = [token for token in required_shape if token not in shared]
+    assert not missing_shape, "Shared principal scorecard contract incomplete:\n" + "\n".join(
+        [f"- {line}" for line in missing_shape]
     )
 
 
@@ -240,6 +267,60 @@ def test_java_profile_contains_principal_hardening_v2_controls():
     missing = [token for token in required if token not in text]
     assert not missing, "rules.backend-java.md missing Java-first principal hardening controls:\n" + "\n".join(
         [f"- {m}" for m in missing]
+    )
+
+
+@pytest.mark.governance
+def test_backend_java_kafka_addon_activation_is_conditional_and_phase_split():
+    text = read_text(REPO_ROOT / "profiles" / "rules.backend-java.md")
+    required = [
+        "In **Phase 1/2**, the workflow MUST evaluate whether Kafka addon is required",
+        "SESSION_STATE.AddonsEvidence.kafka.required = true | false",
+        "In **code-phase** (Phase 4+), load and record this addon ONLY when `required = true`",
+        "If `required = false`, keep:",
+        "SESSION_STATE.LoadedRulebooks.addons.kafka = \"\"",
+    ]
+    missing = [token for token in required if token not in text]
+    assert not missing, "rules.backend-java.md missing conditional Kafka activation semantics:\n" + "\n".join(
+        [f"- {m}" for m in missing]
+    )
+
+
+@pytest.mark.governance
+def test_backend_java_tool_gating_handles_non_runnable_tools_conservatively():
+    text = read_text(REPO_ROOT / "profiles" / "rules.backend-java.md")
+    required = [
+        "and is runnable in the current environment",
+        "If a tool exists but is not runnable in the current environment",
+        "mark claims as `not-verified`",
+        "emit recovery commands",
+    ]
+    missing = [token for token in required if token not in text]
+    assert not missing, "rules.backend-java.md missing non-runnable tool handling semantics:\n" + "\n".join(
+        [f"- {m}" for m in missing]
+    )
+
+
+@pytest.mark.governance
+def test_backend_java_uses_shared_tiering_and_avoids_parallel_tier_taxonomy():
+    text = read_text(REPO_ROOT / "profiles" / "rules.backend-java.md")
+    required = [
+        "using the canonical tiering contract from `rules.risk-tiering.md`",
+        "does not define a parallel tier system",
+    ]
+    missing = [token for token in required if token not in text]
+    assert not missing, "rules.backend-java.md missing shared-tiering delegation semantics:\n" + "\n".join(
+        [f"- {m}" for m in missing]
+    )
+
+    forbidden_old_parallel_defs = [
+        "internal refactor without contract/persistence/async changes",
+        "service/business logic or controller behavior change",
+        "persistence/migration, security semantics, async messaging, or externally visible contract change",
+    ]
+    offenders = [token for token in forbidden_old_parallel_defs if token in text]
+    assert not offenders, "rules.backend-java.md still contains old parallel tier definitions:\n" + "\n".join(
+        [f"- {m}" for m in offenders]
     )
 
 
@@ -345,6 +426,7 @@ def test_addon_rulebooks_use_standard_risk_tiering_v21():
         "profiles/rules.backend-java-kafka-templates.md",
         "profiles/rules.openapi-contracts.md",
         "profiles/rules.backend-java-templates.md",
+        "profiles/rules.risk-tiering.md",
     ]
     required_tokens = [
         "## Principal Hardening v2.1 - Standard Risk Tiering (Binding)",
@@ -381,6 +463,7 @@ def test_addon_rulebooks_use_scorecard_calibration_v211():
         "profiles/rules.backend-java-kafka-templates.md",
         "profiles/rules.openapi-contracts.md",
         "profiles/rules.backend-java-templates.md",
+        "profiles/rules.scorecard-calibration.md",
     ]
     required_tokens = [
         "## Principal Hardening v2.1.1 - Scorecard Calibration (Binding)",
@@ -476,6 +559,21 @@ def test_master_defines_repo_scoped_session_state_with_global_pointer():
     ]
     missing = [token for token in required_tokens if token not in text]
     assert not missing, "master.md missing repo-scoped session state topology tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing]
+    )
+
+
+@pytest.mark.governance
+def test_session_state_schema_includes_risk_tiering_contract_shape():
+    text = read_text(REPO_ROOT / "SESSION_STATE_SCHEMA.md")
+    required_tokens = [
+        "## 8.2a Risk Tiering Contract",
+        "RiskTiering:",
+        "ActiveTier: TIER-LOW | TIER-MEDIUM | TIER-HIGH",
+        "MissingEvidence",
+    ]
+    missing = [token for token in required_tokens if token not in text]
+    assert not missing, "SESSION_STATE_SCHEMA.md missing risk tiering contract shape:\n" + "\n".join(
         [f"- {m}" for m in missing]
     )
 

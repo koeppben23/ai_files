@@ -1,0 +1,6 @@
+addon_key: scorecardCalibration
+addon_class: advisory
+rulebook: rules.scorecard-calibration.md
+signals:
+  any:
+    - maven_dep_prefix: org.springframework.boot

@@ -26,6 +26,11 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
 - Add diagnostics helper `diagnostics/persist_workspace_artifacts.py` to backfill missing repo-scoped persistence artifacts (`repo-cache.yaml`, `repo-map-digest.md`, `decision-pack.md`, `workspace-memory.yaml`).
 - Add structured runtime error logging helper `diagnostics/error_logs.py` (`opencode.error-log.v1`) with repo-scoped and global JSONL targets.
 - Add runtime error index summaries (`errors-index.json`) and automatic retention pruning for old `errors-*.jsonl` files (default 30 days).
+- Add shared advisory governance rulebooks and manifests for cross-profile contracts:
+  - `rules.principal-excellence.md`
+  - `rules.risk-tiering.md`
+  - `rules.scorecard-calibration.md`
+  - manifests: `principalExcellence`, `riskTiering`, `scorecardCalibration`
 
 ### Changed
 - Normalize governance evaluation semantics across add-ons/templates with canonical tier labels (`TIER-LOW|TIER-MEDIUM|TIER-HIGH`), fixed score thresholds, and a unified calibration version (`v2.1.1`).
@@ -38,10 +43,12 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
 - Add governance guardrails/tests to enforce that Phase 2.1 always surfaces the Phase 1.5 A/B decision prompt when Phase 1.5 was neither explicitly requested nor skipped.
 - Extend `/start` + diagnostics helpers to emit automatic structured error logs, and expose error-log paths in `governance.paths.json` (`globalErrorLogsHome`, `workspaceErrorLogsHomeTemplate`).
 - Installer now patches installer-owned legacy `governance.paths.json` files with missing error-log path keys even without `--force`.
+- Refine `rules.backend-java.md` to remove Kafka activation ambiguity, use canonical shared tiering semantics, and delegate shared principal contracts to modular advisory rulebooks.
 
 ### Fixed
 - Remove duplicate local `_pretty` function definition in `scripts/build.py` to keep release artifact logging implementation clean and deterministic.
 - Uninstall now purges installer/runtime-owned `errors-*.jsonl` logs by default (with `--keep-error-logs` opt-out), while preserving non-matching user files.
+- Fix backend-java evidence gate wording to block pass at Phase 5.3/6 when required evidence is missing.
 
 ### Security
 - Tighten principal-grade declaration rules: incomplete or non-comparable scorecard data must emit `WARN-SCORECARD-CALIBRATION-INCOMPLETE` and remain `not-verified`.

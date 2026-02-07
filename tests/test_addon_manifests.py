@@ -131,6 +131,49 @@ def test_docs_governance_addon_exists_and_is_advisory():
 
 
 @pytest.mark.governance
+def test_shared_principal_governance_addons_exist_and_are_advisory():
+    expected = {
+        "profiles/addons/principalExcellence.addon.yml": "rules.principal-excellence.md",
+        "profiles/addons/riskTiering.addon.yml": "rules.risk-tiering.md",
+        "profiles/addons/scorecardCalibration.addon.yml": "rules.scorecard-calibration.md",
+    }
+
+    problems = []
+    for rel, expected_rulebook in expected.items():
+        p = REPO_ROOT / rel
+        if not p.exists():
+            problems.append(f"missing: {rel}")
+            continue
+
+        text = read_text(p)
+        m_class = re.search(r"^addon_class:\s*(\S+)\s*$", text, flags=re.MULTILINE)
+        m_rulebook = re.search(r"^rulebook:\s*([^\s#]+)\s*$", text, flags=re.MULTILINE)
+        if not m_class:
+            problems.append(f"missing addon_class: {rel}")
+            continue
+        if not m_rulebook:
+            problems.append(f"missing rulebook: {rel}")
+            continue
+
+        value = m_class.group(1).strip().strip('"').strip("'")
+        if value != "advisory":
+            problems.append(f"{rel}: expected addon_class=advisory, got {value}")
+
+        rb = m_rulebook.group(1).strip()
+        if rb != expected_rulebook:
+            problems.append(f"{rel}: expected rulebook={expected_rulebook}, got {rb}")
+            continue
+
+        rb_path = (REPO_ROOT / "profiles" / rb) if not rb.startswith("profiles/") else (REPO_ROOT / rb)
+        if not rb_path.exists():
+            problems.append(f"{rel}: missing rulebook file {rb}")
+
+    assert not problems, "Shared principal governance addon validation failed:\n" + "\n".join(
+        [f"- {p}" for p in problems]
+    )
+
+
+@pytest.mark.governance
 def test_validate_addons_script_passes():
     script = REPO_ROOT / "scripts" / "validate_addons.py"
     assert script.exists(), f"Missing script: {script}"

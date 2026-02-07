@@ -1,5 +1,4 @@
-# Backend Java Profile Rulebook (v2.1)
-Backend Java Profile Rulebook (v2.1)
+# Backend Java Profile Rulebook (v2.2)
 
 This document defines **backend Java (Spring Boot)** profile rules.
 It is applied **in addition** to the Core Rulebook (`rules.md`) and the Master Prompt (`master.md`).
@@ -29,23 +28,50 @@ For the `backend-java` profile, Kafka-related code and tests MUST follow the Kaf
 `rules.backend-java-kafka-templates.md`.
 
 Activation (binding):
-- At **code-phase** (Phase 4+), the workflow MUST load this addon and record it in:
-  - `SESSION_STATE.LoadedRulebooks.addons.kafka`
-- The addon is REQUIRED if ANY of the following is true (evidence-based):
+- In **Phase 1/2**, the workflow MUST evaluate whether Kafka addon is required and record evidence in:
+  - `SESSION_STATE.AddonsEvidence.kafka.required = true | false`
+  - `SESSION_STATE.AddonsEvidence.kafka.evidence = <short evidence-based rationale>`
+- Kafka addon is REQUIRED if ANY of the following is true (evidence-based):
   - Repo Discovery finds Kafka usage signals (e.g., `@KafkaListener`, `spring-kafka` dependency, or `spring.kafka` config keys), OR
   - The ticket/request explicitly requires Kafka producer/consumer changes.
+- In **code-phase** (Phase 4+), load and record this addon ONLY when `required = true`:
+  - `SESSION_STATE.LoadedRulebooks.addons.kafka = rules.backend-java-kafka-templates.md`
+- If `required = false`, keep:
+  - `SESSION_STATE.LoadedRulebooks.addons.kafka = ""`
 
-If required but missing at code-phase:
+If `required = true` but addon rulebook is missing at code-phase:
 - The workflow MUST record:
   - `SESSION_STATE.AddonsEvidence.kafka.status = missing-rulebook`
   - `SESSION_STATE.LoadedRulebooks.addons.kafka = ""`
-- The assistant MUST explicitly warn that Kafka-related changes cannot be produced safely without the addon rulebook,
-  and MUST limit output to analysis/planning until the operator provides or adds the addon rulebook.
+- The assistant MUST explicitly warn that Kafka-related changes cannot be produced safely without the addon rulebook.
+- The assistant MUST restrict output to analysis/planning + recovery steps and MUST NOT generate unsafe Kafka code/tests.
+- In fail-closed runs that enforce required addon policy from `master.md`, this condition maps to
+  `BLOCKED-MISSING-ADDON:kafka`.
 
 Addon policy classes (binding):
-- **Required addons** (code-generation-critical): may hard-block in code-phase if missing.
+- **Required addons** (code-generation-critical): enforce safe generation constraints and follow required-addon policy from `master.md`.
 - **Advisory addons** (quality amplifiers): should emit WARN status + recovery steps and continue conservatively.
 - Addon manifests/rulebooks MUST explicitly declare which class they belong to.
+
+---
+
+## Shared Principal Governance Contracts (Binding)
+
+To keep this profile focused on Java-specific engineering behavior, shared principal governance contracts are modularized into advisory rulebooks:
+
+- `rules.principal-excellence.md`
+- `rules.risk-tiering.md`
+- `rules.scorecard-calibration.md`
+
+Binding behavior for `backend-java` profile:
+
+- At code/review phases (Phase 4+), these shared contracts MUST be loaded as advisory governance contracts.
+- When loaded, record in:
+  - `SESSION_STATE.LoadedRulebooks.addons.principalExcellence`
+  - `SESSION_STATE.LoadedRulebooks.addons.riskTiering`
+  - `SESSION_STATE.LoadedRulebooks.addons.scorecardCalibration`
+- If one of these shared rulebooks is unavailable, the assistant MUST emit a warning, mark affected claims as
+  `not-verified`, and continue conservatively without inventing evidence.
 
 ---
 ## 0. Core Principle (Binding, Non-Negotiable)
@@ -94,8 +120,10 @@ Unless repository evidence says otherwise, assume:
 - Spring Security (if present)
 - Kafka (if present)
 
-**Binding rule:**  
-If a tool exists in the repo, it is **not optional**. Its results are gating.
+**Binding rule:**
+- If a tool exists in the repo **and is runnable in the current environment**, it is not optional; execute it and capture evidence.
+- If a tool exists but is not runnable in the current environment, mark claims as `not-verified`, emit recovery commands,
+  and continue conservatively without fabricating gate success.
 
 ## 2.1 Repo Conventions Lock (Binding)
 Before producing code, the system MUST explicitly detect and record (in SESSION_STATE) the repo’s concrete conventions:
@@ -376,7 +404,7 @@ The assistant MUST request/expect evidence appropriate to the change:
 ### 12.3 Enforcement Rule
 If evidence is missing:
 - the system must say **“not verified”**
-- the change cannot pass Phase 5.5 / 6
+- the change cannot pass Phase 5.3 / 6
 
 No exceptions.
 
@@ -396,60 +424,12 @@ A backend Java change is **DONE** only if:
 
 If any item is missing → **NOT DONE**.
 
----
-
-Copyright © 2026 Benjamin Fuchs.
-All rights reserved. See LICENSE.
-
----
-
-## Principal Excellence Contract (Binding)
-
-This rulebook is considered principal-grade only when the contract below is satisfied.
-
-### Gate Review Scorecard (binding)
-
-When this rulebook is active and touches changed scope, the workflow MUST maintain a scorecard entry with weighted criteria, critical flags, and evidence references.
-
-```yaml
-SESSION_STATE:
-  GateScorecards:
-    principal_excellence:
-      Score: 0
-      MaxScore: 0
-      Criteria:
-        - id: PRINCIPAL-QUALITY-CLAIMS-EVIDENCED
-          weight: 3
-          critical: true
-          result: pass | fail | partial | not-applicable
-          evidenceRef: EV-001 | not-verified
-        - id: PRINCIPAL-DETERMINISM-AND-TEST-RIGOR
-          weight: 3
-          critical: true
-          result: pass | fail | partial | not-applicable
-          evidenceRef: EV-002 | not-verified
-        - id: PRINCIPAL-ROLLBACK-OR-RECOVERY-READY
-          weight: 3
-          critical: true
-          result: pass | fail | partial | not-applicable
-          evidenceRef: EV-003 | not-verified
-```
-
-### Claim-to-evidence (binding)
-
-Any non-trivial claim (for example: contract-safe, tests green, architecture clean, deterministic) MUST map to an `evidenceRef`.
-If evidence is missing, the claim MUST be marked `not-verified`.
-
-### Exit criteria (binding)
-
-- All criteria with `critical: true` MUST be `pass` before declaring principal-grade completion.
-- Advisory add-ons MUST remain non-blocking, but MUST emit WARN status code + recovery when critical criteria are not pass.
-- Required templates/add-ons MAY block code-phase according to master/core/profile policy when critical criteria cannot be satisfied safely.
-
-### Recovery when evidence is missing (binding)
-
-Emit a warning code plus concrete recovery commands/steps and keep completion status as `not-verified`.
-Recommended code: `WARN-PRINCIPAL-EVIDENCE-MISSING`.
+Shared contract note:
+- Principal scorecard/claim-to-evidence/exit-calibration rules are defined in:
+  - `rules.principal-excellence.md`
+  - `rules.risk-tiering.md`
+  - `rules.scorecard-calibration.md`
+and apply as advisory governance contracts for this profile.
 
 ---
 
@@ -459,26 +439,23 @@ This section defines Java-specific, measurable hardening rules for business and 
 
 ### JPH2-1 Risk tiering by touched surface (binding)
 
-The workflow MUST classify changed scope before implementation and gate reviews:
+The workflow MUST classify changed scope before implementation and gate reviews
+using the canonical tiering contract from `rules.risk-tiering.md` (`TIER-LOW|TIER-MEDIUM|TIER-HIGH`).
 
-- `TIER-LOW`: internal refactor without contract/persistence/async changes
-- `TIER-MEDIUM`: service/business logic or controller behavior change
-- `TIER-HIGH`: persistence/migration, security semantics, async messaging, or externally visible contract change
-
-If classification is uncertain, default to the higher tier.
+`JPH2` adds Java-specific obligations per canonical tier; it does not define a parallel tier system.
 
 ### JPH2-2 Mandatory evidence pack per tier (binding)
 
-`TIER-LOW` requires evidence for:
+For `TIER-LOW` (per canonical tiering), evidence requires:
 - build
 - changed-module tests
 
-`TIER-MEDIUM` requires evidence for:
+For `TIER-MEDIUM`, evidence requires:
 - build
 - changed-module tests
 - at least one negative-path test for changed behavior
 
-`TIER-HIGH` requires evidence for:
+For `TIER-HIGH`, evidence requires:
 - build
 - changed-module tests
 - contract or schema checks (if repo tooling exists)
@@ -515,106 +492,11 @@ If any of the above is violated, status MUST include `WARN-JAVA-DETERMINISM-RISK
 
 ---
 
-## Principal Hardening v2.1 - Standard Risk Tiering (Binding)
-
-### RTN-1 Canonical tiers (binding)
-
-All addon/template assessments MUST use this canonical tier syntax:
-
-- `TIER-LOW`: local/internal changes with low blast radius and no external contract or persistence risk.
-- `TIER-MEDIUM`: behavior changes with user-facing, API-facing, or multi-module impact.
-- `TIER-HIGH`: contract, persistence/migration, messaging/async, security, or rollback-sensitive changes.
-
-If uncertain, choose the higher tier.
-
-### RTN-2 Tier evidence minimums (binding)
-
-- `TIER-LOW`: build/lint (if present) + targeted changed-scope tests.
-- `TIER-MEDIUM`: `TIER-LOW` evidence + at least one negative-path assertion for changed behavior.
-- `TIER-HIGH`: `TIER-MEDIUM` evidence + one deterministic resilience/rollback-oriented proof (retry/idempotency/recovery/concurrency as applicable).
-
-### RTN-3 Tier-based gate decisions (binding)
-
-- A gate result cannot be `pass` when mandatory tier evidence is missing.
-- For advisory addons, missing tier evidence remains non-blocking but MUST emit WARN + recovery and result `partial` or `fail`.
-- For required addons/templates, missing `TIER-HIGH` evidence MAY block code-phase per master/core/profile policy.
-
-### RTN-4 Required SESSION_STATE shape (binding)
-
-```yaml
-SESSION_STATE:
-  RiskTiering:
-    ActiveTier: TIER-LOW | TIER-MEDIUM | TIER-HIGH
-    Rationale: "short evidence-based reason"
-    MandatoryEvidence:
-      - EV-001
-      - EV-002
-    MissingEvidence: []
-```
-
-### RTN-5 Unresolved tier handling (binding)
-
-If tier cannot be determined from available evidence, set status code `WARN-RISK-TIER-UNRESOLVED`, provide a conservative default (`TIER-HIGH`), and include recovery steps to refine classification.
+See shared governance rulebooks for canonical RTN/CAL contracts:
+- `rules.risk-tiering.md`
+- `rules.scorecard-calibration.md`
 
 ---
 
-## Principal Hardening v2.1.1 - Scorecard Calibration (Binding)
-
-### CAL-1 Standard criterion weights by tier (binding)
-
-For principal scorecards in addon/template rulebooks, criteria weights MUST use this standard model:
-
-- `TIER-LOW`: each active criterion weight = `2`
-- `TIER-MEDIUM`: each active criterion weight = `3`
-- `TIER-HIGH`: each active criterion weight = `5`
-
-No custom weights are allowed unless explicitly documented as repo-specific exception with rationale and risk note.
-
-### CAL-2 Critical-flag normalization (binding)
-
-The following criteria classes MUST be marked `critical: true` when applicable:
-
-- contract/integration correctness
-- determinism and anti-flakiness
-- rollback/recovery safety
-- security semantics and authorization behavior
-
-Non-critical criteria MAY exist, but cannot compensate for a failed critical criterion.
-
-### CAL-3 Tier score thresholds (binding)
-
-A principal-grade gate result MAY be `pass` only if all conditions are true:
-
-- all applicable critical criteria are `pass`
-- total score ratio meets threshold:
-  - `TIER-LOW`: >= `0.80`
-  - `TIER-MEDIUM`: >= `0.85`
-  - `TIER-HIGH`: >= `0.90`
-
-If threshold is missed, result MUST be `partial` or `fail` with recovery actions.
-
-### CAL-4 Cross-addon comparability (binding)
-
-When multiple addons are active in one ticket, scorecards MUST be directly comparable by using:
-
-- canonical tier labels (`TIER-LOW|MEDIUM|HIGH`)
-- standardized weight model from CAL-1
-- identical pass thresholds from CAL-3
-
-### CAL-5 Required SESSION_STATE calibration evidence (binding)
-
-```yaml
-SESSION_STATE:
-  GateScorecards:
-    principal_excellence:
-      ActiveTier: TIER-LOW | TIER-MEDIUM | TIER-HIGH
-      Score: 0
-      MaxScore: 0
-      ScoreRatio: 0.00
-      Threshold: 0.80 | 0.85 | 0.90
-      CalibrationVersion: v2.1.1
-```
-
-### CAL-6 Calibration warning code (binding)
-
-If scorecard data is incomplete or non-comparable, emit `WARN-SCORECARD-CALIBRATION-INCOMPLETE` and block principal-grade declaration (`not-verified`).
+Copyright © 2026 Benjamin Fuchs.
+All rights reserved. See LICENSE.

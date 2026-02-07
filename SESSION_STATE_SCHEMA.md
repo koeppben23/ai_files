@@ -674,6 +674,25 @@ Gate result mapping:
 - `rejected`: rollback strategy missing/unsafe
 - `not-applicable`: no schema/contract/irreversible impact
 
+### 8.2a Risk Tiering Contract (for shared tiering rulebooks)
+
+If canonical risk-tiering is used by active profile/addons, the session SHOULD include:
+
+```yaml
+SESSION_STATE:
+  RiskTiering:
+    ActiveTier: TIER-LOW | TIER-MEDIUM | TIER-HIGH
+    Rationale: "short evidence-based reason"
+    MandatoryEvidence:
+      - EV-001
+      - EV-002
+    MissingEvidence: []
+```
+
+Binding when the field is present:
+- `ActiveTier` must be one of `TIER-LOW|TIER-MEDIUM|TIER-HIGH`.
+- If `MissingEvidence` is non-empty, any gate depending on this tiering MUST NOT be marked as pass.
+
 ---
 
 ## 9. Architecture Decisions (Phase 5+)
