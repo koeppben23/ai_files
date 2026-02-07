@@ -18,6 +18,10 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
 - Add cross-addon normalization contracts:
   - `Principal Hardening v2.1 - Standard Risk Tiering`
   - `Principal Hardening v2.1.1 - Scorecard Calibration`
+- Add governance factory commands for principal-grade extension work:
+  - `new_profile.md` for generating new profile rulebooks
+  - `new_addon.md` for generating addon rulebook + manifest pairs
+- Add diagnostics contract `diagnostics/PROFILE_ADDON_FACTORY_CONTRACT.json` to standardize factory output requirements.
 
 ### Changed
 - Normalize governance evaluation semantics across add-ons/templates with canonical tier labels (`TIER-LOW|TIER-MEDIUM|TIER-HIGH`), fixed score thresholds, and a unified calibration version (`v2.1.1`).
