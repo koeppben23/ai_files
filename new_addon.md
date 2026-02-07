@@ -31,6 +31,8 @@ Generated manifest MUST include:
 - `addon_key`
 - `addon_class`
 - `rulebook`
+- `manifest_version` (currently `1`)
+- `path_roots` (relative repo paths; use `.` when repo-wide)
 - `signals.any` with at least one signal item
 
 The `rulebook` value MUST resolve to an existing profile rulebook path after generation.
@@ -41,10 +43,15 @@ The `rulebook` value MUST resolve to an existing profile rulebook path after gen
 
 Generated addon rulebook MUST include:
 
-1. addon class declaration (`required` or `advisory`)
-2. activation/blocking semantics consistent with addon class
-3. domain-specific hardening section for changed scope
-4. shared principal-governance delegation block:
+1. canonical precedence reference to `rules.md` Section 4.6 (do not redefine local precedence order)
+2. addon class declaration (`required` or `advisory`)
+3. activation semantics (manifest-owned) + blocking behavior consistent with addon class
+4. phase integration section (minimum: Phase 2/2.1/4/5.3/6 expectations)
+5. evidence contract section (SESSION_STATE paths, lifecycle status, WARN handling)
+6. domain-specific hardening section for changed scope
+7. Examples (GOOD/BAD)
+8. Troubleshooting with at least 3 concrete symptom->cause->fix entries
+9. shared principal-governance delegation block:
    - `## Shared Principal Governance Contracts (Binding)`
    - `rules.principal-excellence.md`
    - `rules.risk-tiering.md`
@@ -56,6 +63,27 @@ Exception for shared contract addons:
   the target rulebook itself defines the corresponding shared contract section directly.
 
 For advisory addons, non-blocking behavior MUST still emit WARN + recovery when critical evidence is missing.
+
+Canonical addon semantics (binding):
+- Addon class behavior is defined by core/master policy and MUST be referenced, not redefined.
+- `required`: missing rulebook at code-phase maps to `BLOCKED-MISSING-ADDON:<addon_key>`.
+- `advisory`: continue non-blocking with WARN + recovery.
+
+---
+
+## Shared Principal Governance Contracts (Binding)
+
+Every generated non-shared addon rulebook MUST include delegation references to:
+
+- `rules.principal-excellence.md`
+- `rules.risk-tiering.md`
+- `rules.scorecard-calibration.md`
+
+And tracking keys:
+
+- `SESSION_STATE.LoadedRulebooks.addons.principalExcellence`
+- `SESSION_STATE.LoadedRulebooks.addons.riskTiering`
+- `SESSION_STATE.LoadedRulebooks.addons.scorecardCalibration`
 
 ---
 

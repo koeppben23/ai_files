@@ -72,5 +72,29 @@ Recommended code: `WARN-PRINCIPAL-EVIDENCE-MISSING`.
 
 ---
 
+## Examples (GOOD/BAD)
+
+GOOD:
+- Claim "tests green" is linked to `evidenceRef: EV-023` with command and pass summary in BuildEvidence.
+
+BAD:
+- Claim "architecture is clean" appears in narrative text without any evidence mapping.
+
+## Troubleshooting
+
+1) Symptom: Critical criterion fails with `not-verified`
+- Cause: missing or stale evidenceRef
+- Fix: attach fresh command/output evidence and rerun scorecard evaluation.
+
+2) Symptom: Advisory addon emits repeated WARNs across phases
+- Cause: recovery action is documented but not executed
+- Fix: execute listed recovery commands and update scorecard results/evidence refs.
+
+3) Symptom: Principal-grade declaration blocked at final QA
+- Cause: one or more `critical: true` criteria not `pass`
+- Fix: resolve failed criterion and re-evaluate before declaring completion.
+
+---
+
 Copyright © 2026 Benjamin Fuchs.
 All rights reserved. See LICENSE.

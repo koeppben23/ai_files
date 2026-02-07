@@ -492,6 +492,11 @@ def test_factory_commands_exist_and_define_principal_generation_contracts():
             "rules.principal-excellence.md",
             "rules.risk-tiering.md",
             "rules.scorecard-calibration.md",
+            "rules.md` Section 4.6",
+            "phase integration section (minimum: Phase 2/2.1/4/5/6 expectations)",
+            "evidence contract section (SESSION_STATE paths, status/warning handling)",
+            "Examples (GOOD/BAD)",
+            "Troubleshooting with at least 3 concrete symptom->cause->fix entries",
         ],
         "new_addon.md": [
             "# Governance Factory - New Addon",
@@ -503,6 +508,14 @@ def test_factory_commands_exist_and_define_principal_generation_contracts():
             "rules.principal-excellence.md",
             "rules.risk-tiering.md",
             "rules.scorecard-calibration.md",
+            "manifest_version",
+            "path_roots",
+            "rules.md` Section 4.6",
+            "phase integration section (minimum: Phase 2/2.1/4/5.3/6 expectations)",
+            "evidence contract section (SESSION_STATE paths, lifecycle status, WARN handling)",
+            "Examples (GOOD/BAD)",
+            "Troubleshooting with at least 3 concrete symptom->cause->fix entries",
+            "BLOCKED-MISSING-ADDON:<addon_key>",
         ],
     }
 
@@ -518,6 +531,26 @@ def test_factory_commands_exist_and_define_principal_generation_contracts():
             missing.append(f"{rel} missing {absent}")
 
     assert not missing, "Factory command contract violations:\n" + "\n".join([f"- {m}" for m in missing])
+
+
+@pytest.mark.governance
+def test_reviewed_rulebooks_include_examples_and_troubleshooting_sections():
+    required = {
+        "profiles/rules.backend-java.md": ["Examples (GOOD/BAD)", "Troubleshooting"],
+        "profiles/rules.frontend-angular-nx.md": ["Examples (GOOD/BAD)", "Troubleshooting"],
+        "profiles/rules.principal-excellence.md": ["Examples (GOOD/BAD)", "Troubleshooting"],
+        "profiles/rules.risk-tiering.md": ["Examples (GOOD/BAD)", "Troubleshooting"],
+        "profiles/rules.scorecard-calibration.md": ["Examples (GOOD/BAD)", "Troubleshooting"],
+    }
+
+    missing: list[str] = []
+    for rel, tokens in required.items():
+        text = read_text(REPO_ROOT / rel)
+        absent = [token for token in tokens if token not in text]
+        if absent:
+            missing.append(f"{rel} missing {absent}")
+
+    assert not missing, "Rulebooks missing examples/troubleshooting sections:\n" + "\n".join([f"- {m}" for m in missing])
 
 
 @pytest.mark.governance

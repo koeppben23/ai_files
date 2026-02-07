@@ -494,6 +494,36 @@ If any of the above is violated, status MUST include `WARN-JAVA-DETERMINISM-RISK
 
 ---
 
+## Examples (GOOD/BAD)
+
+GOOD:
+- Controller validates input, maps DTO, and delegates to a use-case service with no business branching.
+
+BAD:
+- Controller directly writes repository state and branches on domain rules.
+
+GOOD:
+- Tests use injected `Clock` with fixed instant and assert behavior-oriented outcomes.
+
+BAD:
+- Tests rely on `Instant.now()` and `Thread.sleep(...)` for async synchronization.
+
+## Troubleshooting
+
+1) Symptom: Contract gate fails after endpoint change
+- Cause: implementation changed without matching contract or regeneration
+- Fix: align contract first, regenerate boundary artifacts, and rerun repo-native contract checks.
+
+2) Symptom: Async tests are flaky in CI
+- Cause: timing-based synchronization (`sleep`) or uncontrolled clock/randomness
+- Fix: replace sleeps with Awaitility/retryable assertions and use deterministic seams (`Clock`, fixed IDs/order).
+
+3) Symptom: Architecture gate reports boundary violations
+- Cause: business logic leaked into controllers/adapters or cross-module import drift
+- Fix: move branching into use-case/service layer and restore module/layer boundaries.
+
+---
+
 See shared governance rulebooks for canonical RTN/CAL contracts:
 - `rules.risk-tiering.md`
 - `rules.scorecard-calibration.md`

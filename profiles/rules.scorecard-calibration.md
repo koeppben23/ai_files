@@ -84,5 +84,29 @@ and block principal-grade declaration (`not-verified`).
 
 ---
 
+## Examples (GOOD/BAD)
+
+GOOD:
+- Two active addons both use `TIER-MEDIUM` with weight `3` per active criterion and threshold `0.85`, enabling direct comparison.
+
+BAD:
+- One addon uses custom weight `7` without documented exception, making scorecards non-comparable.
+
+## Troubleshooting
+
+1) Symptom: Scorecards cannot be compared across addons
+- Cause: non-canonical weights/thresholds or missing `ActiveTier`
+- Fix: reapply CAL-1/CAL-3 defaults and include calibration fields in SESSION_STATE.
+
+2) Symptom: Gate marked pass despite failed critical criterion
+- Cause: non-critical points incorrectly compensated the critical failure
+- Fix: enforce CAL-2 and downgrade result to `partial` or `fail` with recovery.
+
+3) Symptom: Principal-grade declaration blocked with calibration warning
+- Cause: incomplete scorecard metadata (`ScoreRatio`, `Threshold`, or `CalibrationVersion` missing)
+- Fix: populate required CAL-5 fields and rerun gate evaluation.
+
+---
+
 Copyright © 2026 Benjamin Fuchs.
 All rights reserved. See LICENSE.

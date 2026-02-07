@@ -200,6 +200,40 @@ Frontend Angular + Nx change is DONE only if:
 
 If any item is missing -> NOT DONE.
 
+## 11. Examples (GOOD/BAD)
+
+GOOD:
+- Feature flow implemented across `libs/<domain>/feature`, `libs/<domain>/data-access`, and `libs/<domain>/ui` with valid Nx boundaries.
+
+BAD:
+- App-level component imports deep files from another app, bypassing Nx/tag constraints.
+
+GOOD:
+- Existing repo state pattern is preserved (for example signals store) and new selectors remain deterministic.
+
+BAD:
+- Mixed state architecture introduced ad hoc (signals + ngrx reducers) without repo evidence.
+
+GOOD:
+- Changed async UI path has one deterministic negative-path test and uses stable `data-testid` selectors.
+
+BAD:
+- E2E relies on fixed waits and brittle CSS-chain selectors for changed critical journey.
+
+## 12. Troubleshooting
+
+1) Symptom: Nx boundary errors on lint/test
+- Cause: cross-layer imports or missing library split
+- Fix: move code into proper `feature/data-access/ui` libs and restore tag-safe imports.
+
+2) Symptom: Store/signals behavior regresses after change
+- Cause: new state pattern introduced instead of reusing repo convention
+- Fix: refactor to existing pattern and add deterministic state-transition tests.
+
+3) Symptom: Frontend tests flaky in CI
+- Cause: unbounded waits or missing deterministic network control
+- Fix: use retryable assertions/intercepts, remove fixed sleeps, and verify stable selectors.
+
 ## Shared Principal Governance Contracts (Binding)
 
 This rulebook uses shared advisory governance contracts:

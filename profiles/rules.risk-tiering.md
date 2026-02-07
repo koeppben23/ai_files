@@ -65,5 +65,32 @@ provide a conservative default (`TIER-HIGH`), and include recovery steps to refi
 
 ---
 
+## Examples (GOOD/BAD)
+
+GOOD:
+- Change touches Kafka consumer idempotency + retry semantics -> classify `TIER-HIGH` with resilience evidence.
+
+BAD:
+- Messaging/contract-impacting change labeled `TIER-LOW` to avoid additional verification.
+
+GOOD:
+- Pure internal refactor with unchanged behavior and no external contract impact -> `TIER-LOW` with targeted tests.
+
+## Troubleshooting
+
+1) Symptom: Tier cannot be resolved during planning
+- Cause: touched surface or impact is under-specified
+- Fix: default to `TIER-HIGH`, record `WARN-RISK-TIER-UNRESOLVED`, and request missing scope evidence.
+
+2) Symptom: Gate remains partial despite green tests
+- Cause: mandatory tier evidence set is incomplete
+- Fix: add missing negative-path/resilience proof required for active tier.
+
+3) Symptom: Tiering differs between addons
+- Cause: inconsistent rationale or non-canonical tier labels
+- Fix: normalize to `TIER-LOW|TIER-MEDIUM|TIER-HIGH` and document one shared rationale in SESSION_STATE.
+
+---
+
 Copyright © 2026 Benjamin Fuchs.
 All rights reserved. See LICENSE.

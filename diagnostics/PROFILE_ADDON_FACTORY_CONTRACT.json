@@ -21,6 +21,8 @@
     "addon_key",
     "addon_class",
     "rulebook",
+    "manifest_version",
+    "path_roots",
     "signals.any"
   ],
   "requiredWarningCodes": [
