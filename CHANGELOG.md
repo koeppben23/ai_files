@@ -5,6 +5,27 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
 
 ## [Unreleased]
 
+### Added
+- Add a shared `Principal Excellence Contract` baseline across all governance profile rulebooks under `profiles/rules*.md`.
+- Add Java-first principal hardening v2 contracts for backend quality gates:
+  - `rules.backend-java.md` (risk tiering, mandatory evidence packs, hard-fail criteria, determinism budget)
+  - `rules.backend-java-templates.md` (template conformance + evidence artifact contract)
+  - `rules.backend-java-kafka-templates.md` (Kafka critical gate + idempotency/retry/async test requirements)
+- Add hardening v2 contracts for previously lightweight rulebooks:
+  - `rules.frontend-cypress-testing.md`
+  - `rules.frontend-openapi-ts-client.md`
+  - `rules.fallback-minimum.md`
+- Add cross-addon normalization contracts:
+  - `Principal Hardening v2.1 - Standard Risk Tiering`
+  - `Principal Hardening v2.1.1 - Scorecard Calibration`
+
+### Changed
+- Normalize governance evaluation semantics across add-ons/templates with canonical tier labels (`TIER-LOW|TIER-MEDIUM|TIER-HIGH`), fixed score thresholds, and a unified calibration version (`v2.1.1`).
+- Strengthen scorecard comparability and claim-to-evidence expectations so multi-addon reviews use the same pass/fail interpretation.
+
+### Security
+- Tighten principal-grade declaration rules: incomplete or non-comparable scorecard data must emit `WARN-SCORECARD-CALIBRATION-INCOMPLETE` and remain `not-verified`.
+
 ## [1.1.0-BETA] - 2026-02-06
 ### Added
 - Initialize post-1.0.1-BETA development baseline.
