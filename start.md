@@ -37,6 +37,41 @@ else:
     }}
     print(json.dumps(doc,indent=2))"`
 
+## Auto-Persistence Hook (OpenCode)
+
+When available, `/start` triggers a non-destructive workspace persistence backfill helper
+to ensure repo-scoped artifacts exist (`repo-cache.yaml`, `repo-map-digest.md`,
+`decision-pack.md`, `workspace-memory.yaml`) under `${WORKSPACES_HOME}/<repo_fingerprint>/`.
+Fingerprint resolution in the helper prefers current repo git metadata (`--repo-root`) and uses
+global pointer fallback only when repo metadata is unavailable.
+
+!`python -c "import os,platform,subprocess,sys,json;from pathlib import Path
+
+def config_root():
+    sysname=platform.system()
+    if sysname=='Windows':
+        up=os.getenv('USERPROFILE')
+        if up: return Path(up)/'.config'/'opencode'
+        ad=os.getenv('APPDATA')
+        if ad: return Path(ad)/'opencode'
+        raise SystemExit('Windows: USERPROFILE/APPDATA not set')
+    xdg=os.getenv('XDG_CONFIG_HOME')
+    return (Path(xdg) if xdg else Path.home()/'.config')/'opencode'
+
+root=config_root(); helper=root/'commands'/'diagnostics'/'persist_workspace_artifacts.py'
+if helper.exists():
+    run=subprocess.run([sys.executable,str(helper),'--repo-root',str(Path.cwd()),'--quiet'], text=True, capture_output=True, check=False)
+    out=(run.stdout or '').strip()
+    err=(run.stderr or '').strip()
+    if out:
+        print(out)
+    elif run.returncode==0:
+        print(json.dumps({'workspacePersistenceHook':'ok'}))
+    else:
+        print(json.dumps({'workspacePersistenceHook':'blocked','code':run.returncode,'error':err[:240]}))
+else:
+    print(json.dumps({'workspacePersistenceHook':'skipped','reason':'helper-missing'}))"`
+
 The injected JSON is the canonical binding for `${CONFIG_ROOT}`, `${COMMANDS_HOME}`, `${PROFILES_HOME}`, `${DIAGNOSTICS_HOME}`, `${WORKSPACES_HOME}`.
 Treat it as **evidence**.
 

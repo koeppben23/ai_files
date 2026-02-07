@@ -5,6 +5,8 @@ import argparse
 import json
 import os
 import re
+import subprocess
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -151,6 +153,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--config-root", type=Path, default=None, help="Override OpenCode config root.")
     parser.add_argument("--force", action="store_true", help="Overwrite existing repo SESSION_STATE file and migrate legacy global payload if needed.")
     parser.add_argument("--dry-run", action="store_true", help="Print planned actions without writing files.")
+    parser.add_argument(
+        "--skip-artifact-backfill",
+        action="store_true",
+        help="Skip invoking diagnostics/persist_workspace_artifacts.py after bootstrap.",
+    )
     return parser.parse_args()
 
 
@@ -213,6 +220,30 @@ def main() -> int:
     pointer_file.parent.mkdir(parents=True, exist_ok=True)
     pointer_file.write_text(json.dumps(pointer, indent=2, ensure_ascii=True) + "\n", encoding="utf-8")
     print("Global SESSION_STATE pointer written.")
+
+    if not args.skip_artifact_backfill:
+        helper = Path(__file__).resolve().parent / "persist_workspace_artifacts.py"
+        if helper.exists():
+            cmd = [
+                sys.executable,
+                str(helper),
+                "--repo-fingerprint",
+                repo_fingerprint,
+                "--config-root",
+                str(config_root),
+                "--quiet",
+            ]
+            run = subprocess.run(cmd, text=True, capture_output=True, check=False)
+            if run.returncode == 0:
+                print("Workspace artifact backfill hook completed.")
+            else:
+                print("WARNING: workspace artifact backfill hook failed; bootstrap state was still written.")
+                if run.stdout.strip():
+                    print(run.stdout.strip())
+                if run.stderr.strip():
+                    print(run.stderr.strip())
+        else:
+            print("WARNING: persist_workspace_artifacts.py not found; skipping artifact backfill hook.")
 
     return 0
 

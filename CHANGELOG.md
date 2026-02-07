@@ -23,6 +23,7 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
   - `new_addon.md` for generating addon rulebook + manifest pairs
 - Add diagnostics contract `diagnostics/PROFILE_ADDON_FACTORY_CONTRACT.json` to standardize factory output requirements.
 - Add diagnostics recovery helper `diagnostics/bootstrap_session_state.py` to initialize repo-scoped `${SESSION_STATE_FILE}` plus global `${SESSION_STATE_POINTER_FILE}` when session state is missing.
+- Add diagnostics helper `diagnostics/persist_workspace_artifacts.py` to backfill missing repo-scoped persistence artifacts (`repo-cache.yaml`, `repo-map-digest.md`, `decision-pack.md`, `workspace-memory.yaml`).
 
 ### Changed
 - Normalize governance evaluation semantics across add-ons/templates with canonical tier labels (`TIER-LOW|TIER-MEDIUM|TIER-HIGH`), fixed score thresholds, and a unified calibration version (`v2.1.1`).
@@ -30,6 +31,8 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
 - Extend v2.1 and v2.1.1 calibration blocks to all remaining profile rulebooks (`rules.backend-java.md`, `rules.frontend-angular-nx.md`, `rules.fallback-minimum.md`) for complete cross-profile consistency.
 - Clarify installer docs with explicit diagnostics contract reference (`PROFILE_ADDON_FACTORY_CONTRACT.json`).
 - Shift canonical session storage topology to repo-scoped `${SESSION_STATE_FILE}` with global `${SESSION_STATE_POINTER_FILE}` as active pointer for multi-repo safety.
+- `/start` now includes an auto-persistence hook that calls the workspace artifact backfill helper when available.
+- Improve workspace artifact routing safety: backfill helper now resolves repo fingerprint from current repo git metadata before using global pointer fallback, reducing stale-pointer cross-repo writes.
 
 ### Fixed
 - Remove duplicate local `_pretty` function definition in `scripts/build.py` to keep release artifact logging implementation clean and deterministic.

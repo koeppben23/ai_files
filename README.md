@@ -43,6 +43,7 @@ Choose the workflow entry based on what you are doing:
 - **New ticket on a known repo:** run `/master` (Warm Start). The system will reuse cache/digest/memory if valid.
 - **Resume an interrupted ticket/session:** follow `continue.md` / `resume.md` using the active session pointer (`${SESSION_STATE_POINTER_FILE}`) and repo session file (`${SESSION_STATE_FILE}`).
 - **Audit a completed change:** run `/master` and jump to the relevant explicit gates (Contract Gate, Test Quality Gate, Phase 6 QA).
+- **Workspace artifacts missing after bootstrap:** run `/start` (auto-hook) or `python diagnostics/persist_workspace_artifacts.py --repo-root <repo_path>` (optionally `--repo-fingerprint <repo_fingerprint>`).
 
 ---
 
@@ -106,6 +107,8 @@ Installed layout:
 - **Governance paths bootstrap:** By default, the installer creates `${COMMANDS_HOME}/governance.paths.json` and fills in the resolved paths (`configRoot`, `commandsHome`, `profilesHome`, `workspacesHome`). This file is **installer-owned** and is used by `/start` to auto-bind canonical paths without interactive input.
   - It **will not overwrite** an existing `governance.paths.json` unless you use `--force`.
   - To disable this step entirely: use `--skip-paths-file`.
+- **Workspace persistence backfill:** `/start` triggers `diagnostics/persist_workspace_artifacts.py` (when installed) to ensure repo-scoped persistence files exist in `${WORKSPACES_HOME}/<repo_fingerprint>/`.
+  - Fingerprint resolution order in the helper: explicit `--repo-fingerprint` -> git metadata from `--repo-root`/current directory -> global session pointer fallback.
 
 ### Usage
 
@@ -493,7 +496,9 @@ ${COMMANDS_HOME}/
 │       └── <addon>.addon.yml
 └── diagnostics/
     ├── AUDIT_REPORT_SCHEMA.json
-    └── audit.md
+    ├── audit.md
+    ├── bootstrap_session_state.py
+    └── persist_workspace_artifacts.py
 ```
 
 If any of these files are missing, the workflow behavior is determined by the blocking rules defined in `master.md`.

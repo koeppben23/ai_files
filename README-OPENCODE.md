@@ -113,6 +113,29 @@ This creates:
 
 so governance can resume deterministically across multiple repositories.
 
+To backfill missing repo-scoped persistence artifacts (cache/digest/decision-pack/workspace-memory):
+
+```bash
+python diagnostics/persist_workspace_artifacts.py --repo-root <repo_path>
+```
+
+Useful options:
+
+```bash
+python diagnostics/persist_workspace_artifacts.py --repo-root <repo_path> --dry-run
+python diagnostics/persist_workspace_artifacts.py --repo-root <repo_path> --repo-fingerprint <repo_fingerprint>
+python diagnostics/persist_workspace_artifacts.py --repo-fingerprint <repo_fingerprint> --force
+python diagnostics/persist_workspace_artifacts.py --repo-fingerprint <repo_fingerprint> --no-session-update
+```
+
+Fingerprint resolution order in the helper:
+
+1. explicit `--repo-fingerprint`
+2. deterministic git metadata from `--repo-root` (or current working directory)
+3. global `${SESSION_STATE_POINTER_FILE}` fallback
+
+`/start` also invokes this helper automatically when the installer-provided command exists.
+
 ---
 
 ## Installation Layout (Descriptive; follow `master.md` if in doubt)
