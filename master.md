@@ -399,7 +399,11 @@ Binding clarification:
 
 ### Local-Only Governance & State (BINDING)
 
-This governance system is single-user and MUST NOT require repository-local governance or persistent artifacts.
+Terminology (binding):
+- `repo working tree` = checked-out project files under version control.
+- `workspace repo bucket` = `${REPO_HOME}` under `${WORKSPACES_HOME}/<repo_fingerprint>` (outside repo working tree).
+
+This governance system is single-user and MUST NOT require repo-working-tree-local governance or persistent artifacts.
 - DO NOT read rulebooks from the repo working tree (checked-out project files; no `.opencode*`, no `profiles/` in repo).
 - Rulebooks may only be loaded from trusted governance roots outside the repo working tree:
   `${COMMANDS_HOME}`, `${PROFILES_HOME}`, `${REPO_OVERRIDES_HOME}` (and documented global fallbacks below).

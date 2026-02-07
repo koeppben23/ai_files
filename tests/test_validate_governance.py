@@ -151,6 +151,8 @@ def test_control_plane_precision_contracts_for_overrides_reload_and_priority_ord
     master_required = [
         "${REPO_OVERRIDES_HOME}",
         "workspace-only override bucket; never repo-local",
+        "`repo working tree` = checked-out project files under version control.",
+        "`workspace repo bucket` = `${REPO_HOME}` under `${WORKSPACES_HOME}/<repo_fingerprint>`",
         "DO NOT read rulebooks from the repo working tree",
         "Rulebooks may only be loaded from trusted governance roots outside the repo working tree",
         "Workspace-local override (optional, outside the repo): `${REPO_OVERRIDES_HOME}/rules.md`",
@@ -179,6 +181,11 @@ def test_control_plane_precision_contracts_for_overrides_reload_and_priority_ord
     )
     assert not missing_rules, "rules.md missing reload control-plane contract tokens:\n" + "\n".join(
         [f"- {m}" for m in missing_rules]
+    )
+
+    assert master.count("## 1. PRIORITY ORDER") == 1, "master.md must define exactly one canonical priority order section"
+    assert "DO NOT read rulebooks from the repository" not in master, (
+        "master.md contains legacy ambiguous phrase; use 'repo working tree' terminology instead"
     )
 
 
