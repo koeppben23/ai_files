@@ -3,13 +3,36 @@
 This document defines the **OpenAPI contracts** addon rules.
 It is applied **in addition** to the Core Rulebook (`rules.md`), the Master Prompt (`master.md`), and any active profile.
 
-Precedence (binding): use the canonical order from `rules.md` Section 4.6.
+## Intent (binding)
+
+Treat OpenAPI artifacts as authoritative contract surfaces and keep implementation changes contract-consistent and evidence-backed.
+
+## Scope (binding)
+
+OpenAPI spec authority, version/tool inference, contract drift detection, and contract-aligned implementation evidence.
+
+Precedence (binding): use the canonical order from `rules.md` anchor `RULEBOOK-PRECEDENCE-POLICY`.
 This addon refines OpenAPI-specific behavior after activation and MUST NOT override master/core/profile constraints.
 
-**Addon class (binding):** advisory addon.
-**Non-blocking policy (binding):** This addon MUST NOT hard-block delivery. If critical prerequisites are missing (spec root unclear, version unknown, no contract checks), the assistant MUST surface a **status code** (Section 8), record it in `SESSION_STATE.AddonsEvidence.openapi.status`, provide **recovery steps**, and proceed with conservative, repo-driven defaults.
+## Activation (binding)
 
-**Separation of concerns (binding):** Activation signals belong in the addon manifest (`profiles/addons/openapi.addon.yml`). This rulebook defines behavior once the addon is active.
+Addon class: `advisory`.
+
+Non-blocking policy (binding): This addon MUST NOT hard-block delivery. If critical prerequisites are missing (spec root unclear, version unknown, no contract checks), the assistant MUST surface a status code (Section 8), record it in `SESSION_STATE.AddonsEvidence.openapi.status`, provide recovery steps, and proceed with conservative, repo-driven defaults.
+
+Separation of concerns (binding): Activation signals belong in the addon manifest (`profiles/addons/openapi.addon.yml`). This rulebook defines behavior once the addon is active.
+
+## Evidence contract (binding)
+
+When active, maintain:
+- `SESSION_STATE.AddonsEvidence.openapi.required`
+- `SESSION_STATE.AddonsEvidence.openapi.signals`
+- `SESSION_STATE.AddonsEvidence.openapi.status` (`loaded|skipped|missing-rulebook` or WARN status codes)
+- mismatch diff evidence entries when contract drift is detected.
+
+## Tooling (recommended)
+
+Prefer repo-native contract tooling first (Spectral/swagger-cli/oasdiff/generator checks). If unavailable, use conservative structural validation and emit recovery commands.
 
 ---
 

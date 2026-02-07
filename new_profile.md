@@ -27,7 +27,7 @@ If required input is missing, return `BLOCKED` with missing fields.
 
 Generated profile rulebooks MUST include:
 
-1. canonical precedence reference to `rules.md` Section 4.6 (do not redefine local precedence order)
+1. canonical precedence reference to `rules.md` anchor `RULEBOOK-PRECEDENCE-POLICY` (do not redefine local precedence order)
 2. deterministic applicability section
 3. architecture and test-quality expectations
 4. BuildEvidence requirement language

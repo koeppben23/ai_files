@@ -43,7 +43,7 @@ The `rulebook` value MUST resolve to an existing profile rulebook path after gen
 
 Generated addon rulebook MUST include:
 
-1. canonical precedence reference to `rules.md` Section 4.6 (do not redefine local precedence order)
+1. canonical precedence reference to `rules.md` anchor `RULEBOOK-PRECEDENCE-POLICY` (do not redefine local precedence order)
 2. addon class declaration (`required` or `advisory`)
 3. activation semantics (manifest-owned) + blocking behavior consistent with addon class
 4. phase integration section (minimum: Phase 2/2.1/4/5.3/6 expectations)

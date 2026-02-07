@@ -1,10 +1,14 @@
 # Fallback Minimum Profile
 
-Purpose:
-Provide a mandatory baseline when a target repository lacks explicit
-standards (no CI, no test conventions, no documented build steps).
+## Intent (binding)
 
-Precedence (binding): use the canonical order from `rules.md` Section 4.6.
+Provide a mandatory baseline when a target repository lacks explicit standards (no CI, no test conventions, no documented build steps).
+
+## Scope (binding)
+
+Applies to repos where no deterministic stack profile can be selected and minimum safe build/test/docs governance is required.
+
+Precedence (binding): use the canonical order from `rules.md` anchor `RULEBOOK-PRECEDENCE-POLICY`.
 This fallback profile applies only when no stack profile can be selected deterministically.
 
 ## Activation condition
@@ -100,6 +104,28 @@ Use status codes below with concrete recovery steps:
 - `WARN-FALLBACK-BASELINE-UNKNOWN`
 - `WARN-FALLBACK-TESTING-INSUFFICIENT`
 - `WARN-FALLBACK-RECOVERY-UNSPECIFIED`
+
+## Examples (GOOD/BAD)
+
+GOOD:
+- Unknown repo receives a minimal deterministic verification plan (build + targeted test or smoke check) with explicit evidence capture.
+
+BAD:
+- Declaring completion without any executable verification or recovery guidance.
+
+## Troubleshooting
+
+1) Symptom: No runnable test tool is available
+- Cause: repo has no test harness or missing dependencies in host
+- Fix: document `not-verified`, provide minimal bootstrap command, and run smoke validation.
+
+2) Symptom: Build command unclear in legacy repository
+- Cause: missing docs/CI conventions
+- Fix: infer from repo files, record assumption, and provide conservative fallback commands.
+
+3) Symptom: Gate cannot pass due missing evidence
+- Cause: claims made without BuildEvidence links
+- Fix: execute minimal checks and map each claim to explicit evidence refs.
 
 ---
 

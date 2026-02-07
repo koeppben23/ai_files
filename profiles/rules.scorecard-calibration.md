@@ -3,20 +3,37 @@
 This document defines shared scorecard calibration for cross-addon comparability.
 It is designed as an advisory addon rulebook.
 
-Precedence (binding): use the canonical order from `rules.md` Section 4.6.
+## Intent (binding)
+
+Keep multi-addon scorecards comparable by enforcing common weights, thresholds, and calibration evidence.
+
+## Scope (binding)
+
+Scorecard weighting/threshold normalization, critical-criterion behavior, and comparability evidence requirements.
+
+Precedence (binding): use the canonical order from `rules.md` anchor `RULEBOOK-PRECEDENCE-POLICY`.
 As a shared advisory addon, this rulebook refines scorecard comparability and MUST NOT override master/core/profile constraints.
 
-Activation (binding): manifest-owned via `profiles/addons/scorecardCalibration.addon.yml`.
+## Activation (binding)
+
+Activation is manifest-owned via `profiles/addons/scorecardCalibration.addon.yml`.
 This rulebook defines behavior after activation and MUST NOT redefine activation signals.
 
-Phase integration (binding):
+## Phase integration (binding)
+
 - Phase 4: apply calibration defaults to planned scorecards.
 - Phase 5: verify comparability/threshold contracts across active addons.
 - Phase 6: block principal-grade declaration if calibration evidence is incomplete.
 
-Evidence contract (binding):
+## Evidence contract (binding)
+
 - Maintain `SESSION_STATE.AddonsEvidence.scorecardCalibration.status` (`loaded|skipped|missing-rulebook`).
 - Advisory warnings use `WARN-*` codes and recovery actions, not addon-only hard blocks.
+
+## Tooling (recommended)
+
+- Use gate scorecard outputs and repo-native checks to populate calibration fields consistently.
+- If calibration data is incomplete, emit WARN and keep principal-grade claims `not-verified`.
 
 ---
 

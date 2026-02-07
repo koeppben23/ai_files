@@ -1,32 +1,52 @@
 # Frontend Angular + Nx Templates (ADDON)
 
-Purpose (binding): provide deterministic, high-signal templates for Angular business code and tests so LLM output is consistent and reviewable.
+## Intent (binding)
 
-Addon class (binding): required addon.
+Provide deterministic, high-signal templates for Angular business code and tests so LLM output is consistent and reviewable.
 
-Activation (binding): MUST be loaded at code-phase (Phase 4+) when `SESSION_STATE.ActiveProfile = "frontend-angular-nx"`.
-- Missing-addon handling MUST follow canonical required-addon policy from `rules.md` Section 4.6 and `master.md`.
+## Scope (binding)
+
+Angular+Nx template structures for components, facades, API boundaries, and deterministic frontend test scaffolding.
+
+## Activation (binding)
+
+Addon class: `required`.
+
+This addon MUST be loaded at code-phase (Phase 4+) when `SESSION_STATE.ActiveProfile = "frontend-angular-nx"`.
+- Missing-addon handling MUST follow canonical required-addon policy from `rules.md` anchor `RULEBOOK-PRECEDENCE-POLICY` and `master.md`.
 - This rulebook MUST NOT redefine blocking semantics.
 
-Precedence (binding): use the canonical order from `rules.md` Section 4.6.
+Precedence (binding): use the canonical order from `rules.md` anchor `RULEBOOK-PRECEDENCE-POLICY`.
 This required addon refines template defaults and MUST NOT override `master.md`, `rules.md`, or `rules.frontend-angular-nx.md` constraints.
 
 Rule (binding): templates are default structures. If a template conflicts with locked repo conventions, apply minimal adaptation and record the deviation.
 
-Phase integration (binding):
+## Phase integration (binding)
+
 - Phase 2: capture template-relevant repo conventions (signals/store/testing style, Nx boundaries).
 - Phase 4: use these templates for changed scope and record deviations explicitly.
 - Phase 5.3: verify template-derived behavior via repo-native lint/test targets or mark `not-verified`.
 
-Evidence contract (binding):
+## Evidence contract (binding)
+
 - Record loaded template path in `SESSION_STATE.LoadedRulebooks.templates`.
 - Record major deviations under `SESSION_STATE.DecisionDrivers` with evidence refs.
 
-Tooling guidance (recommended):
+## Tooling (recommended)
+
 - Prefer repo-native Nx targets (for example `npx nx affected -t lint,test,build`).
 - If target names differ, document the resolved equivalent commands in BuildEvidence.
 
-Troubleshooting (quick):
+## Examples (GOOD/BAD)
+
+GOOD:
+- Templates are adapted minimally to the repo state pattern (signals/ngrx/component-store) with deviation evidence.
+
+BAD:
+- Introducing a second ad-hoc state architecture while applying templates to changed scope.
+
+## Troubleshooting
+
 - Signal/store mismatch: adapt template state layer to repo pattern (signals/ngrx/component-store) and document deviation.
 - Boundary violations: split feature/data-access/ui libs to satisfy Nx constraints before wiring component templates.
 

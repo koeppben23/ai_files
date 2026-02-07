@@ -1,16 +1,40 @@
 # Backend Java - LLM Code & Test Templates (ADDON)
 
-**Purpose (binding):** Provide concrete copy-paste templates so the assistant generates deterministic, reviewable backend-java code and tests.
+## Intent (binding)
 
-**Addon class (binding):** required addon.
+Provide concrete copy-paste templates so the assistant generates deterministic, reviewable backend-java code and tests.
 
-**Activation (binding):** MUST be loaded at code-phase (Phase 4+) when `SESSION_STATE.ActiveProfile = "backend-java"`.
-- Missing-addon handling MUST follow canonical required-addon policy from `rules.md` Section 4.6 and `master.md`.
+## Scope (binding)
+
+Backend-java template patterns for controllers, services, entities, error handling, and deterministic test generation.
+
+## Activation (binding)
+
+Addon class: `required`.
+
+This addon MUST be loaded at code-phase (Phase 4+) when `SESSION_STATE.ActiveProfile = "backend-java"`.
+- Missing-addon handling MUST follow canonical required-addon policy from `rules.md` anchor `RULEBOOK-PRECEDENCE-POLICY` and `master.md`.
 - This rulebook MUST NOT redefine blocking semantics.
 
-**Precedence (binding):** use the canonical order from `rules.md` Section 4.6.
+**Precedence (binding):** use the canonical order from `rules.md` anchor `RULEBOOK-PRECEDENCE-POLICY`.
 This required addon refines template defaults and MUST NOT override `master.md`, `rules.md`, or `rules.backend-java.md` constraints.
 - In conflicts, this addon’s templates override abstract style/principles.
+
+## Phase integration (binding)
+
+- Phase 2: capture backend conventions and deterministic seams before template application.
+- Phase 4: apply templates for changed scope with minimal convention-aligned adaptation.
+- Phase 5.3: verify template conformance and deterministic test evidence.
+
+## Evidence contract (binding)
+
+- Record template load and evidence in `SESSION_STATE.LoadedRulebooks.templates` and `SESSION_STATE.RulebookLoadEvidence.templates`.
+- Record deviations and compensating tests with evidence refs (`EV-TPL-CODE`, `EV-TPL-TEST`, `EV-TPL-GATE`).
+
+## Tooling (recommended)
+
+- Use repo-native Java build/test/lint commands and preserve existing framework/tooling conventions.
+- If tooling is unavailable in-host, mark claims `not-verified` and emit recovery commands.
 
 ---
 

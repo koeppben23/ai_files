@@ -3,20 +3,37 @@
 This document defines canonical risk-tiering semantics used by multiple profiles/addons.
 It is designed as an advisory addon rulebook.
 
-Precedence (binding): use the canonical order from `rules.md` Section 4.6.
+## Intent (binding)
+
+Standardize risk-tier classification so evidence depth and gate strictness remain deterministic across rulebooks.
+
+## Scope (binding)
+
+Tier classification (`TIER-LOW|TIER-MEDIUM|TIER-HIGH`), tier evidence minimums, and unresolved-tier handling.
+
+Precedence (binding): use the canonical order from `rules.md` anchor `RULEBOOK-PRECEDENCE-POLICY`.
 As a shared advisory addon, this rulebook refines risk evidence behavior and MUST NOT override master/core/profile constraints.
 
-Activation (binding): manifest-owned via `profiles/addons/riskTiering.addon.yml`.
+## Activation (binding)
+
+Activation is manifest-owned via `profiles/addons/riskTiering.addon.yml`.
 This rulebook defines behavior after activation and MUST NOT redefine activation signals.
 
-Phase integration (binding):
+## Phase integration (binding)
+
 - Phase 2/2.1: determine and justify active risk tier.
 - Phase 5: enforce tier-specific evidence minimums in gate decisions.
 - Phase 6: ensure unresolved tier gaps are reported as `not-verified` with recovery.
 
-Evidence contract (binding):
+## Evidence contract (binding)
+
 - Maintain `SESSION_STATE.AddonsEvidence.riskTiering.status` (`loaded|skipped|missing-rulebook`).
 - Advisory warnings use `WARN-*` codes and recovery actions, not addon-only hard blocks.
+
+## Tooling (recommended)
+
+- Use repo-native verification commands appropriate to the selected tier and record evidence refs.
+- If tier evidence commands cannot run, emit WARN + recovery and keep affected claims `not-verified`.
 
 ---
 

@@ -556,7 +556,7 @@ def test_factory_commands_exist_and_define_principal_generation_contracts():
             "rules.principal-excellence.md",
             "rules.risk-tiering.md",
             "rules.scorecard-calibration.md",
-            "rules.md` Section 4.6",
+            "rules.md` anchor `RULEBOOK-PRECEDENCE-POLICY`",
             "phase integration section (minimum: Phase 2/2.1/4/5/6 expectations)",
             "evidence contract section (SESSION_STATE paths, status/warning handling)",
             "Examples (GOOD/BAD)",
@@ -574,7 +574,7 @@ def test_factory_commands_exist_and_define_principal_generation_contracts():
             "rules.scorecard-calibration.md",
             "manifest_version",
             "path_roots",
-            "rules.md` Section 4.6",
+            "rules.md` anchor `RULEBOOK-PRECEDENCE-POLICY`",
             "phase integration section (minimum: Phase 2/2.1/4/5.3/6 expectations)",
             "evidence contract section (SESSION_STATE paths, lifecycle status, WARN handling)",
             "Examples (GOOD/BAD)",
@@ -1037,6 +1037,8 @@ def test_rules_define_canonical_rulebook_precedence_contract():
     text = read_text(REPO_ROOT / "rules.md")
     required_tokens = [
         "### 4.6 Canonical Rulebook Precedence (Binding)",
+        "RULEBOOK-PRECEDENCE-POLICY",
+        "ADDON-CLASS-BEHAVIOR-POLICY",
         "master.md",
         "rules.md",
         "active profile rulebook",
@@ -1066,9 +1068,63 @@ def test_selected_rulebooks_reference_core_precedence_contract():
     missing_refs = []
     for rel in expected:
         text = read_text(REPO_ROOT / rel)
-        if "Section 4.6" not in text:
+        if "RULEBOOK-PRECEDENCE-POLICY" not in text:
             missing_refs.append(rel)
 
     assert not missing_refs, "Rulebooks missing core precedence reference:\n" + "\n".join(
         [f"- {r}" for r in missing_refs]
+    )
+
+
+@pytest.mark.governance
+def test_profile_rulebooks_use_stable_precedence_anchor_not_section_numbers():
+    profile_files = sorted((REPO_ROOT / "profiles").glob("rules*.md"))
+    assert profile_files, "No profile rulebooks found under profiles/rules*.md"
+
+    missing_anchor: list[str] = []
+    legacy_section_ref: list[str] = []
+    for p in profile_files:
+        text = read_text(p)
+        if "RULEBOOK-PRECEDENCE-POLICY" not in text:
+            missing_anchor.append(str(p.relative_to(REPO_ROOT)))
+        if "Section 4.6" in text:
+            legacy_section_ref.append(str(p.relative_to(REPO_ROOT)))
+
+    assert not missing_anchor, "Profile rulebooks missing stable precedence anchor reference:\n" + "\n".join(
+        [f"- {r}" for r in missing_anchor]
+    )
+    assert not legacy_section_ref, "Profile rulebooks still reference fragile section numbering:\n" + "\n".join(
+        [f"- {r}" for r in legacy_section_ref]
+    )
+
+
+@pytest.mark.governance
+def test_profile_rulebooks_include_standard_operational_wrapper_headings():
+    profile_files = sorted((REPO_ROOT / "profiles").glob("rules*.md"))
+    assert profile_files, "No profile rulebooks found under profiles/rules*.md"
+
+    required_headings = [
+        "Intent",
+        "Scope",
+        "Activation",
+        "Phase integration",
+        "Evidence contract",
+        "Tooling",
+        "Examples",
+        "Troubleshooting",
+    ]
+
+    offenders: list[str] = []
+    for p in profile_files:
+        text = read_text(p)
+        missing = [
+            h
+            for h in required_headings
+            if not re.search(rf"^##\s+.*{re.escape(h)}", text, flags=re.MULTILINE | re.IGNORECASE)
+        ]
+        if missing:
+            offenders.append(f"{p.relative_to(REPO_ROOT)} -> missing {missing}")
+
+    assert not offenders, "Profile rulebooks missing standard operational headings:\n" + "\n".join(
+        [f"- {r}" for r in offenders]
     )

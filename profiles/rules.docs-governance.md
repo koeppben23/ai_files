@@ -1,13 +1,20 @@
 # Docs Governance Addon
 
-Purpose (binding): keep governance markdown and addon manifests consistent, reviewable, and machine-checkable without introducing hard delivery blockers.
+## Intent (binding)
+
+Keep governance markdown and addon manifests consistent, reviewable, and machine-checkable without introducing hard delivery blockers.
 
 Addon class (binding): advisory addon.
 
 Non-blocking policy (binding): this addon MUST NOT set BLOCKED by itself. Drift/lint findings are surfaced as WARN status codes plus concrete recovery actions.
 
-Precedence (binding): use the canonical order from `rules.md` Section 4.6.
+Precedence (binding): use the canonical order from `rules.md` anchor `RULEBOOK-PRECEDENCE-POLICY`.
 This advisory addon refines docs-quality behavior and MUST NOT override `master.md`, `rules.md`, or active profile constraints.
+
+## Activation (binding)
+
+Activation signals are manifest-owned via `profiles/addons/docsGovernance.addon.yml`.
+This rulebook defines behavior once activated and MUST NOT redefine activation signals.
 
 ---
 
@@ -20,10 +27,6 @@ This addon applies to governance-oriented documentation and manifests in the act
 - `profiles/rules.*.md`
 - `profiles/addons/*.addon.yml`
 - `README*.md`
-
-Activation signals are manifest-owned (`profiles/addons/docsGovernance.addon.yml`).
-
----
 
 ## Phase Integration
 

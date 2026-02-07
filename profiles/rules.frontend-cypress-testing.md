@@ -2,14 +2,22 @@
 
 Addon class (binding): advisory addon.
 
-Purpose: strengthen frontend E2E quality and reduce flakiness when Cypress is present.
+## Intent (binding)
+
+Strengthen frontend E2E quality and reduce flakiness when Cypress is present.
+
+## Scope (binding)
+
+Changed user-facing journeys, Cypress selector/network synchronization strategy, and E2E evidence quality.
 
 Non-blocking policy: if context/tooling is incomplete, emit WARN with recovery steps and continue conservatively.
 
-Precedence (binding): use the canonical order from `rules.md` Section 4.6.
+Precedence (binding): use the canonical order from `rules.md` anchor `RULEBOOK-PRECEDENCE-POLICY`.
 This advisory addon refines E2E-quality behavior and MUST NOT override `master.md`, `rules.md`, or active profile constraints.
 
-Activation (binding): manifest-owned via `profiles/addons/frontendCypress.addon.yml`.
+## Activation (binding)
+
+Activation is manifest-owned via `profiles/addons/frontendCypress.addon.yml`.
 This rulebook defines behavior once activated; it MUST NOT redefine activation signals.
 
 ## Phase integration (binding)
@@ -46,7 +54,9 @@ When active, maintain:
 2. Add/adjust intercept fixtures for critical path.
 3. Replace fixed waits with retryable assertions.
 
-Repo-native command hints (recommended):
+## Tooling (recommended)
+
+Repo-native command hints:
 - Nx workspace: `npx nx affected -t e2e`
 - Cypress package script: `npm run cypress:run`
 - Direct runner fallback: `npx cypress run`
