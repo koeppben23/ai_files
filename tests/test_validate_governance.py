@@ -144,6 +144,39 @@ def test_conventional_branch_and_commit_contract_is_documented_and_ci_enforced()
 
 
 @pytest.mark.governance
+def test_control_plane_precision_contracts_for_overrides_reload_and_priority_order():
+    master = read_text(REPO_ROOT / "master.md")
+    rules = read_text(REPO_ROOT / "rules.md")
+
+    master_required = [
+        "${REPO_OVERRIDES_HOME}",
+        "workspace-only override bucket; never repo-local",
+        "Workspace-local override (optional, outside the repo): `${REPO_OVERRIDES_HOME}/rules.md`",
+        "Workspace-local override (optional, outside the repo): `${REPO_OVERRIDES_HOME}/profiles/rules*.md`",
+        "`README-RULES.md` (if present) is descriptive/executive summary only and non-normative.",
+        "### 2.2.1 Operator Reload Contract (Binding)",
+        "`/reload-addons`",
+        "Run only Phase 1.3 + Phase 1.4 logic",
+        "Auto-advance to implementation/gates is forbidden from reload output",
+    ]
+    rules_required = [
+        "## 7.11 Operator Reload Contract (Core, Binding)",
+        "Execute only Phase 1.3 + Phase 1.4 reload logic.",
+        "Reload is a control-plane operation, not an implementation permission.",
+    ]
+
+    missing_master = [token for token in master_required if token not in master]
+    missing_rules = [token for token in rules_required if token not in rules]
+
+    assert not missing_master, "master.md missing control-plane precision contract tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_master]
+    )
+    assert not missing_rules, "rules.md missing reload control-plane contract tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_rules]
+    )
+
+
+@pytest.mark.governance
 def test_schema_phase4_ticket_record_declares_must_include():
     schema = read_text(REPO_ROOT / "SESSION_STATE_SCHEMA.md")
     assert "When Phase 4 planning is produced, the workflow MUST include:" in schema

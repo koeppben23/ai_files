@@ -781,6 +781,19 @@ Enforcement rules:
 - Non-conforming branch names MUST be replaced by a conforming equivalent before branch creation.
 - CI SHOULD enforce title/branch/commit conformance on pull requests.
 
+## 7.11 Operator Reload Contract (Core, Binding)
+
+When operator intent is explicit reload (for example `/reload-addons`), execution MUST be deterministic and narrow:
+
+- Execute only Phase 1.3 + Phase 1.4 reload logic.
+- Re-evaluate addon manifests and activation evidence; refresh loaded-rulebook pointers/evidence.
+- Do not auto-run downstream phases/gates as part of reload.
+- Set `SESSION_STATE.Next` to canonical continuation after reload:
+  - `Phase 4 - Step 0 (Phase-4 Entry initialization)` by default
+  - or a `BLOCKED-*` pointer if reload detects missing required artifacts/evidence.
+
+Reload is a control-plane operation, not an implementation permission.
+
 ---
 
 ## 8. Traceability (Core)
