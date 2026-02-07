@@ -224,8 +224,6 @@ Docs Governance Summary
 Reviewability requirement (binding):
 - Summary MUST be concise and reviewer-ready (auditable without re-reading all docs).
 
-END OF ADDON
-
 ---
 
 ## Shared Principal Governance Contracts (Binding)

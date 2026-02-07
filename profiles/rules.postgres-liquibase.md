@@ -1129,10 +1129,6 @@ Approvers who merge migrations without meeting these criteria accept accountabil
 
 ---
 
-**END OF RULESET**
-
----
-
 ## Shared Principal Governance Contracts (Binding)
 
 This rulebook uses shared advisory governance contracts:
@@ -1153,4 +1149,3 @@ Binding behavior:
 
 Copyright © 2026 Benjamin Fuchs.
 All rights reserved. See LICENSE.
-

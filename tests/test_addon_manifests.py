@@ -133,13 +133,24 @@ def test_docs_governance_addon_exists_and_is_advisory():
 @pytest.mark.governance
 def test_shared_principal_governance_addons_exist_and_are_advisory():
     expected = {
-        "profiles/addons/principalExcellence.addon.yml": "rules.principal-excellence.md",
-        "profiles/addons/riskTiering.addon.yml": "rules.risk-tiering.md",
-        "profiles/addons/scorecardCalibration.addon.yml": "rules.scorecard-calibration.md",
+        "profiles/addons/principalExcellence.addon.yml": {
+            "rulebook": "rules.principal-excellence.md",
+            "signal": "file_glob: \"**/*\"",
+        },
+        "profiles/addons/riskTiering.addon.yml": {
+            "rulebook": "rules.risk-tiering.md",
+            "signal": "file_glob: \"**/*\"",
+        },
+        "profiles/addons/scorecardCalibration.addon.yml": {
+            "rulebook": "rules.scorecard-calibration.md",
+            "signal": "file_glob: \"**/*\"",
+        },
     }
 
     problems = []
-    for rel, expected_rulebook in expected.items():
+    for rel, cfg in expected.items():
+        expected_rulebook = cfg["rulebook"]
+        expected_signal = cfg["signal"]
         p = REPO_ROOT / rel
         if not p.exists():
             problems.append(f"missing: {rel}")
@@ -163,6 +174,9 @@ def test_shared_principal_governance_addons_exist_and_are_advisory():
         if rb != expected_rulebook:
             problems.append(f"{rel}: expected rulebook={expected_rulebook}, got {rb}")
             continue
+
+        if expected_signal not in text:
+            problems.append(f"{rel}: expected shared-activation signal '{expected_signal}'")
 
         rb_path = (REPO_ROOT / "profiles" / rb) if not rb.startswith("profiles/") else (REPO_ROOT / rb)
         if not rb_path.exists():

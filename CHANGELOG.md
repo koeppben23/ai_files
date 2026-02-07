@@ -46,6 +46,8 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
 - Installer now patches installer-owned legacy `governance.paths.json` files with missing error-log path keys even without `--force`.
 - Refine `rules.backend-java.md` to remove Kafka activation ambiguity, use canonical shared tiering semantics, and delegate shared principal contracts to modular advisory rulebooks.
 - Migrate all remaining `rules*.md` rulebooks to shared principal-governance modularization (delegation to shared advisory rulebooks).
+- Normalize remaining profile-rulebook polish details after shared modularization (remove mid-file end markers, keep copyright/footer ordering consistent).
+- Set shared governance addon activation signals to cross-stack `file_glob: "**/*"` for deterministic loading across non-Java repositories.
 
 ### Fixed
 - Remove duplicate local `_pretty` function definition in `scripts/build.py` to keep release artifact logging implementation clean and deterministic.

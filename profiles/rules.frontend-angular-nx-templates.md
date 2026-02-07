@@ -165,10 +165,6 @@ Binding rules:
 
 ---
 
-END OF ADDON
-
----
-
 ## Shared Principal Governance Contracts (Binding)
 
 This rulebook uses shared advisory governance contracts:

@@ -3,4 +3,4 @@ addon_class: advisory
 rulebook: rules.principal-excellence.md
 signals:
   any:
-    - maven_dep_prefix: org.springframework.boot
+    - file_glob: "**/*"

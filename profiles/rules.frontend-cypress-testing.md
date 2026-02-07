@@ -25,8 +25,6 @@ Non-blocking policy: if context/tooling is incomplete, emit WARN with recovery s
 2. Add/adjust intercept fixtures for critical path.
 3. Replace fixed waits with retryable assertions.
 
-END OF ADDON
-
 ## Principal Hardening v2 - Cypress Critical Quality (Binding)
 
 ### CPH2-1 Required scorecard criteria (binding)

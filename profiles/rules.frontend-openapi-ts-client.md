@@ -24,8 +24,6 @@ Non-blocking policy: if generator setup is unclear, emit WARN + recovery steps a
 2. Regenerate client deterministically.
 3. Add/update contract-aligned frontend tests.
 
-END OF ADDON
-
 ## Principal Hardening v2 - Frontend OpenAPI TS Client (Binding)
 
 ### FOPH2-1 Required scorecard criteria (binding)
