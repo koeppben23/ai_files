@@ -87,3 +87,61 @@ def test_uninstall_removes_empty_profiles_addons_and_workspaces_dirs(tmp_path: P
 
     assert not profiles_addons.exists(), "empty commands/profiles/addons should be removed on uninstall"
     assert not workspaces.exists(), "empty workspaces dir should be removed on uninstall"
+
+
+@pytest.mark.installer
+def test_uninstall_purges_runtime_error_logs_but_preserves_non_matching_user_logs(tmp_path: Path):
+    config_root = tmp_path / "opencode-config-error-logs"
+
+    r = run_install(["--force", "--no-backup", "--config-root", str(config_root)])
+    assert r.returncode == 0, f"install failed:\n{r.stderr}\n{r.stdout}"
+
+    global_logs = config_root / "logs"
+    workspace_logs = config_root / "workspaces" / "demo-repo-logs" / "logs"
+    global_logs.mkdir(parents=True, exist_ok=True)
+    workspace_logs.mkdir(parents=True, exist_ok=True)
+
+    global_error = global_logs / "errors-global-2026-02-07.jsonl"
+    global_index = global_logs / "errors-index.json"
+    workspace_error = workspace_logs / "errors-2026-02-07.jsonl"
+    workspace_index = workspace_logs / "errors-index.json"
+    user_note = global_logs / "user-note.txt"
+
+    global_error.write_text('{"level":"error"}\n', encoding="utf-8")
+    global_index.write_text('{"schema":"opencode.error-index.v1"}\n', encoding="utf-8")
+    workspace_error.write_text('{"level":"error"}\n', encoding="utf-8")
+    workspace_index.write_text('{"schema":"opencode.error-index.v1"}\n', encoding="utf-8")
+    user_note.write_text("keep me\n", encoding="utf-8")
+
+    r = run_install(["--uninstall", "--force", "--config-root", str(config_root)])
+    assert r.returncode == 0, f"uninstall failed:\n{r.stderr}\n{r.stdout}"
+
+    assert not global_error.exists(), "global runtime error log should be purged on uninstall"
+    assert not global_index.exists(), "global runtime error index should be purged on uninstall"
+    assert not workspace_error.exists(), "workspace runtime error log should be purged on uninstall"
+    assert not workspace_index.exists(), "workspace runtime error index should be purged on uninstall"
+    assert user_note.exists(), "non-matching user log file must be preserved"
+
+
+@pytest.mark.installer
+def test_uninstall_with_keep_error_logs_flag_preserves_runtime_error_logs(tmp_path: Path):
+    config_root = tmp_path / "opencode-config-error-logs-keep"
+
+    r = run_install(["--force", "--no-backup", "--config-root", str(config_root)])
+    assert r.returncode == 0, f"install failed:\n{r.stderr}\n{r.stdout}"
+
+    global_logs = config_root / "logs"
+    global_logs.mkdir(parents=True, exist_ok=True)
+    global_error = global_logs / "errors-global-2026-02-07.jsonl"
+    global_error.write_text('{"level":"error"}\n', encoding="utf-8")
+
+    r = run_install([
+        "--uninstall",
+        "--force",
+        "--keep-error-logs",
+        "--config-root",
+        str(config_root),
+    ])
+    assert r.returncode == 0, f"uninstall failed:\n{r.stderr}\n{r.stdout}"
+
+    assert global_error.exists(), "runtime error log should be preserved when --keep-error-logs is set"

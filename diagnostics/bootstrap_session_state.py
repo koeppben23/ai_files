@@ -10,6 +10,16 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+SCRIPT_DIR = Path(__file__).resolve().parent
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
+
+try:
+    from error_logs import safe_log_error
+except Exception:  # pragma: no cover
+    def safe_log_error(**kwargs):  # type: ignore[no-redef]
+        return {"status": "log-disabled"}
+
 
 def default_config_root() -> Path:
     if os.name == "nt":
@@ -163,14 +173,28 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
+    config_root = resolve_config_root(args.config_root)
 
     try:
         repo_fingerprint = _validate_repo_fingerprint(args.repo_fingerprint)
     except ValueError as exc:
+        safe_log_error(
+            reason_key="ERR-REPO-FINGERPRINT-INVALID",
+            message=str(exc),
+            config_root=config_root,
+            phase="1.1-Bootstrap",
+            gate="BOOTSTRAP",
+            mode="repo-aware",
+            repo_fingerprint=None,
+            command="bootstrap_session_state.py",
+            component="session-bootstrap",
+            observed_value={"repoFingerprintArg": args.repo_fingerprint},
+            expected_constraint="repo fingerprint must match [A-Za-z0-9._-]{6,128}",
+            remediation="Provide a valid --repo-fingerprint value.",
+        )
         print(f"ERROR: {exc}")
         return 2
 
-    config_root = resolve_config_root(args.config_root)
     repo_state_file = repo_session_state_path(config_root, repo_fingerprint)
     pointer_file = session_pointer_path(config_root)
 
@@ -183,6 +207,20 @@ def main() -> int:
     pointer_has_legacy_payload = isinstance(pointer_existing, dict) and "SESSION_STATE" in pointer_existing
 
     if pointer_has_legacy_payload and not args.force and not args.dry_run:
+        safe_log_error(
+            reason_key="ERR-LEGACY-SESSION-POINTER-MIGRATION-REQUIRED",
+            message="Legacy global SESSION_STATE payload detected in pointer file.",
+            config_root=config_root,
+            phase="1.1-Bootstrap",
+            gate="BOOTSTRAP",
+            mode="repo-aware",
+            repo_fingerprint=repo_fingerprint,
+            command="bootstrap_session_state.py",
+            component="session-pointer",
+            observed_value={"pointerFile": str(pointer_file)},
+            expected_constraint="Global pointer must use schema opencode-session-pointer.v1",
+            remediation="Re-run with --force to migrate legacy payload to repo-scoped SESSION_STATE.",
+        )
         print("ERROR: legacy global SESSION_STATE payload detected in pointer file.")
         print("Use --force to migrate to pointer mode.")
         return 4
@@ -237,6 +275,24 @@ def main() -> int:
             if run.returncode == 0:
                 print("Workspace artifact backfill hook completed.")
             else:
+                safe_log_error(
+                    reason_key="ERR-WORKSPACE-PERSISTENCE-HOOK-FAILED",
+                    message="Workspace artifact backfill hook returned non-zero.",
+                    config_root=config_root,
+                    phase="1.1-Bootstrap",
+                    gate="PERSISTENCE",
+                    mode="repo-aware",
+                    repo_fingerprint=repo_fingerprint,
+                    command="bootstrap_session_state.py",
+                    component="workspace-persistence-hook",
+                    observed_value={
+                        "returncode": run.returncode,
+                        "stdout": run.stdout.strip()[:400],
+                        "stderr": run.stderr.strip()[:400],
+                    },
+                    expected_constraint="persist_workspace_artifacts.py must return code 0",
+                    remediation="Inspect helper output and rerun bootstrap or backfill manually.",
+                )
                 print("WARNING: workspace artifact backfill hook failed; bootstrap state was still written.")
                 if run.stdout.strip():
                     print(run.stdout.strip())

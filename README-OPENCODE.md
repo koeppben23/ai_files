@@ -136,6 +136,15 @@ Fingerprint resolution order in the helper:
 
 `/start` also invokes this helper automatically when the installer-provided command exists.
 
+Runtime error logging:
+
+- Repo-aware errors are appended to `${WORKSPACES_HOME}/<repo_fingerprint>/logs/errors-YYYY-MM-DD.jsonl`.
+- Global fallback errors are appended to `${CONFIG_ROOT}/logs/errors-global-YYYY-MM-DD.jsonl`.
+- The log shape is JSONL (`schema: opencode.error-log.v1`) for deterministic machine parsing.
+- A per-directory summary index is maintained at `errors-index.json`.
+- Old `errors-*.jsonl` files are pruned automatically (default retention: 30 days).
+- Installer uninstall purges matching runtime error logs by default (`--keep-error-logs` to preserve them).
+
 ---
 
 ## Installation Layout (Descriptive; follow `master.md` if in doubt)

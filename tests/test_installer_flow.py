@@ -142,7 +142,15 @@ def test_full_install_reinstall_uninstall_flow(tmp_path: Path):
     # Verify governance.paths.json semantics
     p = json.loads(read_text(paths_file))
     assert "paths" in p and isinstance(p["paths"], dict), "governance.paths.json missing 'paths' object"
-    required_paths = ["configRoot", "commandsHome", "profilesHome", "diagnosticsHome"]
+    required_paths = [
+        "configRoot",
+        "commandsHome",
+        "profilesHome",
+        "diagnosticsHome",
+        "workspacesHome",
+        "globalErrorLogsHome",
+        "workspaceErrorLogsHomeTemplate",
+    ]
     missing = [k for k in required_paths if k not in p["paths"]]
     assert not missing, f"governance.paths.json missing keys: {missing}"
 
@@ -258,6 +266,36 @@ def test_preexisting_paths_file_preserved_when_skipped(tmp_path: Path):
         r = run_install(["--uninstall", "--force", "--purge-paths-file", "--config-root", str(config_root)])
         assert r.returncode == 0
         assert not paths.exists(), "--purge-paths-file should remove governance.paths.json"
+
+
+@pytest.mark.installer
+def test_install_patches_existing_installer_owned_paths_with_missing_keys_without_force(tmp_path: Path):
+    config_root = tmp_path / "opencode-config-paths-patch"
+    commands = _commands_dir(config_root)
+    commands.mkdir(parents=True, exist_ok=True)
+
+    legacy = {
+        "schema": "opencode-governance.paths.v1",
+        "generatedAt": "legacy",
+        "paths": {
+            "configRoot": str(config_root),
+            "commandsHome": str(commands),
+            "profilesHome": str(commands / "profiles"),
+            "diagnosticsHome": str(commands / "diagnostics"),
+            "workspacesHome": str(config_root / "workspaces"),
+        },
+    }
+    paths = _paths_file(config_root)
+    paths.write_text(json.dumps(legacy, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+
+    r = run_install(["--no-backup", "--config-root", str(config_root)])
+    assert r.returncode == 0, f"install failed:\n{r.stderr}\n{r.stdout}"
+
+    data = json.loads(read_text(paths))
+    p = data.get("paths", {})
+    assert isinstance(p, dict)
+    assert "globalErrorLogsHome" in p, "Expected installer to patch missing globalErrorLogsHome key"
+    assert "workspaceErrorLogsHomeTemplate" in p, "Expected installer to patch missing workspaceErrorLogsHomeTemplate key"
 
 
 @pytest.mark.installer

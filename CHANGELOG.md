@@ -24,6 +24,8 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
 - Add diagnostics contract `diagnostics/PROFILE_ADDON_FACTORY_CONTRACT.json` to standardize factory output requirements.
 - Add diagnostics recovery helper `diagnostics/bootstrap_session_state.py` to initialize repo-scoped `${SESSION_STATE_FILE}` plus global `${SESSION_STATE_POINTER_FILE}` when session state is missing.
 - Add diagnostics helper `diagnostics/persist_workspace_artifacts.py` to backfill missing repo-scoped persistence artifacts (`repo-cache.yaml`, `repo-map-digest.md`, `decision-pack.md`, `workspace-memory.yaml`).
+- Add structured runtime error logging helper `diagnostics/error_logs.py` (`opencode.error-log.v1`) with repo-scoped and global JSONL targets.
+- Add runtime error index summaries (`errors-index.json`) and automatic retention pruning for old `errors-*.jsonl` files (default 30 days).
 
 ### Changed
 - Normalize governance evaluation semantics across add-ons/templates with canonical tier labels (`TIER-LOW|TIER-MEDIUM|TIER-HIGH`), fixed score thresholds, and a unified calibration version (`v2.1.1`).
@@ -34,9 +36,12 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
 - `/start` now includes an auto-persistence hook that calls the workspace artifact backfill helper when available.
 - Improve workspace artifact routing safety: backfill helper now resolves repo fingerprint from current repo git metadata before using global pointer fallback, reducing stale-pointer cross-repo writes.
 - Add governance guardrails/tests to enforce that Phase 2.1 always surfaces the Phase 1.5 A/B decision prompt when Phase 1.5 was neither explicitly requested nor skipped.
+- Extend `/start` + diagnostics helpers to emit automatic structured error logs, and expose error-log paths in `governance.paths.json` (`globalErrorLogsHome`, `workspaceErrorLogsHomeTemplate`).
+- Installer now patches installer-owned legacy `governance.paths.json` files with missing error-log path keys even without `--force`.
 
 ### Fixed
 - Remove duplicate local `_pretty` function definition in `scripts/build.py` to keep release artifact logging implementation clean and deterministic.
+- Uninstall now purges installer/runtime-owned `errors-*.jsonl` logs by default (with `--keep-error-logs` opt-out), while preserving non-matching user files.
 
 ### Security
 - Tighten principal-grade declaration rules: incomplete or non-comparable scorecard data must emit `WARN-SCORECARD-CALIBRATION-INCOMPLETE` and remain `not-verified`.
