@@ -62,6 +62,9 @@ MANIFEST_SCHEMA = "1.0"
 GOVERNANCE_PATHS_NAME = "governance.paths.json"
 GOVERNANCE_PATHS_SCHEMA = "opencode-governance.paths.v1"
 
+# Runtime error logs (written by diagnostics helpers; outside repository)
+ERROR_LOGS_DIR_NAME = "logs"
+
 # Core governance files (static allowlist for conservative uninstall fallback)
 CORE_COMMAND_FILES = {
     "master.md",
@@ -302,6 +305,7 @@ def build_governance_paths_payload(config_root: Path) -> dict:
     profiles_home = commands_home / "profiles"
     diagnostics_home = commands_home / "diagnostics"
     workspaces_home = config_root / "workspaces"
+    global_error_logs_home = config_root / ERROR_LOGS_DIR_NAME
 
     return {
         "schema": GOVERNANCE_PATHS_SCHEMA,
@@ -312,6 +316,8 @@ def build_governance_paths_payload(config_root: Path) -> dict:
             "profilesHome": norm(profiles_home),
             "diagnosticsHome": norm(diagnostics_home),
             "workspacesHome": norm(workspaces_home),
+            "globalErrorLogsHome": norm(global_error_logs_home),
+            "workspaceErrorLogsHomeTemplate": norm(workspaces_home / "<repo_fingerprint>" / "logs"),
         },
     }
 
@@ -670,7 +676,13 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
     return 0
 
 
-def uninstall(plan: InstallPlan, dry_run: bool, force: bool, purge_paths_file: bool) -> int:
+def uninstall(
+    plan: InstallPlan,
+    dry_run: bool,
+    force: bool,
+    purge_paths_file: bool,
+    keep_error_logs: bool,
+) -> int:
     print(f"🧹 Uninstall from: {plan.commands_dir}")
 
     # We never manage opencode.json. Uninstall only removes installer-owned files under commands/,
@@ -718,7 +730,10 @@ def uninstall(plan: InstallPlan, dry_run: bool, force: bool, purge_paths_file: b
         targets = list(dict.fromkeys(targets))
         # intentionally NOT deleting opencode.json (never managed by this installer)
 
-        return delete_targets(targets, plan, dry_run=dry_run)
+        rc = delete_targets(targets, plan, dry_run=dry_run)
+        if not keep_error_logs:
+            rc = max(rc, purge_runtime_error_logs(plan.config_root, dry_run=dry_run))
+        return rc
 
     # manifest-based targets
     files = manifest.get("files", [])
@@ -758,6 +773,9 @@ def uninstall(plan: InstallPlan, dry_run: bool, force: bool, purge_paths_file: b
             return 0
 
     rc = delete_targets(targets, plan, dry_run=dry_run)
+
+    if not keep_error_logs:
+        rc = max(rc, purge_runtime_error_logs(plan.config_root, dry_run=dry_run))
 
     # remove manifest last (if everything went OK-ish)
     if dry_run:
@@ -824,6 +842,57 @@ def delete_targets(targets: Iterable[Path], plan: InstallPlan, dry_run: bool) ->
     return 0 if errors == 0 else 5
 
 
+def purge_runtime_error_logs(config_root: Path, dry_run: bool) -> int:
+    """
+    Remove installer/runtime-owned error log files:
+      - <config_root>/logs/errors-*.jsonl
+      - <config_root>/workspaces/*/logs/errors-*.jsonl
+
+    Safety:
+      - only matching files are removed
+      - non-matching user files are preserved
+    """
+    print("\n🧾 Purging runtime error logs ...")
+
+    targets = sorted(
+        set(
+            [
+                *list((config_root / ERROR_LOGS_DIR_NAME).glob("errors-*.jsonl")),
+                *list((config_root / "workspaces").glob("*/logs/errors-*.jsonl")),
+            ]
+        )
+    )
+
+    if not targets:
+        print("  ℹ️  No runtime error log files found.")
+        return 0
+
+    errors = 0
+    touched_dirs: set[Path] = set()
+    for t in targets:
+        if dry_run:
+            print(f"  [DRY-RUN] rm {t}")
+        else:
+            try:
+                t.unlink()
+                print(f"  ✅ Removed runtime log: {t}")
+            except Exception as e:
+                eprint(f"  ❌ Failed removing runtime log {t}: {e}")
+                errors += 1
+        touched_dirs.add(t.parent)
+
+    # Remove empty log dirs when possible.
+    for d in sorted(touched_dirs, key=lambda p: len(p.parts), reverse=True):
+        try_remove_empty_dir(d, dry_run=dry_run)
+
+    # Also try common parents if now empty.
+    try_remove_empty_dir(config_root / ERROR_LOGS_DIR_NAME, dry_run=dry_run)
+    for repo_logs in (config_root / "workspaces").glob("*/logs"):
+        try_remove_empty_dir(repo_logs, dry_run=dry_run)
+
+    return 0 if errors == 0 else 6
+
+
 def try_remove_empty_dir(d: Path, dry_run: bool) -> None:
     if not d.exists() or not d.is_dir():
         return
@@ -860,6 +929,11 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     p.add_argument("--uninstall", action="store_true", help="Uninstall previously installed governance files (manifest-based).")
     p.add_argument("--skip-paths-file", action="store_true", help="Do not create/overwrite commands/governance.paths.json.")
     p.add_argument("--purge-paths-file", action="store_true", help="On uninstall: also remove commands/governance.paths.json even if it pre-existed or the manifest is missing.")
+    p.add_argument(
+        "--keep-error-logs",
+        action="store_true",
+        help="On uninstall: preserve runtime error logs under <config_root>/logs and <config_root>/workspaces/*/logs.",
+    )
     return p.parse_args(argv)
 
 
@@ -880,7 +954,13 @@ def main(argv: list[str]) -> int:
     print("=" * 60)
 
     if args.uninstall:
-        return uninstall(plan, dry_run=args.dry_run, force=args.force, purge_paths_file=args.purge_paths_file)
+        return uninstall(
+            plan,
+            dry_run=args.dry_run,
+            force=args.force,
+            purge_paths_file=args.purge_paths_file,
+            keep_error_logs=args.keep_error_logs,
+        )
 
     # install flow
     print(f"Source dir:  {plan.source_dir}")

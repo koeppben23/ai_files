@@ -142,7 +142,15 @@ def test_full_install_reinstall_uninstall_flow(tmp_path: Path):
     # Verify governance.paths.json semantics
     p = json.loads(read_text(paths_file))
     assert "paths" in p and isinstance(p["paths"], dict), "governance.paths.json missing 'paths' object"
-    required_paths = ["configRoot", "commandsHome", "profilesHome", "diagnosticsHome"]
+    required_paths = [
+        "configRoot",
+        "commandsHome",
+        "profilesHome",
+        "diagnosticsHome",
+        "workspacesHome",
+        "globalErrorLogsHome",
+        "workspaceErrorLogsHomeTemplate",
+    ]
     missing = [k for k in required_paths if k not in p["paths"]]
     assert not missing, f"governance.paths.json missing keys: {missing}"
 

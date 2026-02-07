@@ -696,3 +696,25 @@ def test_backfill_decision_pack_includes_phase_15_prompt_decision():
     assert not missing, "persist_workspace_artifacts.py missing Phase 1.5 decision-pack baseline tokens:\n" + "\n".join(
         [f"- {m}" for m in missing]
     )
+
+
+@pytest.mark.governance
+def test_error_logger_helper_exists_and_defines_required_log_shape():
+    p = REPO_ROOT / "diagnostics" / "error_logs.py"
+    assert p.exists(), "Missing diagnostics/error_logs.py"
+
+    text = read_text(p)
+    required_tokens = [
+        "opencode.error-log.v1",
+        "reasonKey",
+        "phase",
+        "gate",
+        "repoFingerprint",
+        "errors-",
+        "errors-global-",
+        "safe_log_error",
+    ]
+    missing = [token for token in required_tokens if token not in text]
+    assert not missing, "error_logs.py missing required log shape tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing]
+    )

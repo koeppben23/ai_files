@@ -6,9 +6,20 @@ import hashlib
 import json
 import os
 import re
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
+
+try:
+    from error_logs import safe_log_error
+except Exception:  # pragma: no cover
+    def safe_log_error(**kwargs):  # type: ignore[no-redef]
+        return {"status": "log-disabled"}
 
 
 def default_config_root() -> Path:
@@ -430,6 +441,25 @@ def main() -> int:
             repo_root,
         )
     except ValueError as exc:
+        safe_log_error(
+            reason_key="ERR-REPO-FINGERPRINT-RESOLUTION",
+            message=str(exc),
+            config_root=config_root,
+            phase="2",
+            gate="PERSISTENCE",
+            mode="repo-aware",
+            repo_fingerprint=None,
+            command="persist_workspace_artifacts.py",
+            component="workspace-persistence",
+            observed_value={
+                "repoFingerprintArg": args.repo_fingerprint,
+                "repoRoot": str(repo_root),
+            },
+            expected_constraint=(
+                "Provide --repo-fingerprint or run from a git repo root or have a valid global SESSION_STATE pointer"
+            ),
+            remediation="Provide --repo-fingerprint explicitly or invoke from the target repository root.",
+        )
         if args.quiet:
             print(json.dumps({"status": "blocked", "reason": str(exc)}, ensure_ascii=True))
         else:
@@ -446,7 +476,11 @@ def main() -> int:
     repository_from_state = scope.get("Repository", "") if isinstance(scope, dict) else ""
     repository_type = scope.get("RepositoryType", "") if isinstance(scope, dict) else ""
 
-    repo_name_raw = args.repo_name or (repository_from_state if isinstance(repository_from_state, str) else "")
+    repo_name_raw = (
+        args.repo_name
+        or (repository_from_state if isinstance(repository_from_state, str) else "")
+        or repo_root.name
+    )
     repo_name = _sanitize_repo_name(repo_name_raw, repo_fingerprint)
     profile = active_profile if isinstance(active_profile, str) and active_profile else "unknown"
     profile_evidence_text = (
@@ -517,6 +551,21 @@ def main() -> int:
     session_update = "skipped"
     if not args.no_session_update:
         session_update = _update_session_state(session_path=session_path, dry_run=args.dry_run)
+        if session_update == "invalid-session-shape":
+            safe_log_error(
+                reason_key="ERR-SESSION-STATE-INVALID-SHAPE",
+                message="Repo SESSION_STATE file exists but has invalid shape.",
+                config_root=config_root,
+                phase="2",
+                gate="PERSISTENCE",
+                mode="repo-aware",
+                repo_fingerprint=repo_fingerprint,
+                command="persist_workspace_artifacts.py",
+                component="session-state-update",
+                observed_value={"sessionPath": str(session_path), "sessionUpdate": session_update},
+                expected_constraint="SESSION_STATE root object must contain SESSION_STATE dict",
+                remediation="Repair repo-scoped SESSION_STATE and rerun backfill helper.",
+            )
 
     summary = {
         "status": "ok",
