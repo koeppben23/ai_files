@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib.util
 import json
 import re
 import os
@@ -28,7 +29,31 @@ import sys
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+from collections.abc import Callable
 from typing import Iterable
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+DIAGNOSTICS_SOURCE_DIR = SCRIPT_DIR / "diagnostics"
+
+
+def _load_error_logger() -> Callable[..., object]:
+    helper = DIAGNOSTICS_SOURCE_DIR / "error_logs.py"
+    if not helper.exists():
+        return lambda **kwargs: {"status": "log-disabled"}
+
+    try:
+        spec = importlib.util.spec_from_file_location("opencode_error_logs", helper)
+        if spec is None or spec.loader is None:
+            return lambda **kwargs: {"status": "log-disabled"}
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        fn = getattr(mod, "safe_log_error", None)
+        return fn if callable(fn) else (lambda **kwargs: {"status": "log-disabled"})
+    except Exception:
+        return lambda **kwargs: {"status": "log-disabled"}
+
+
+safe_log_error = _load_error_logger()
 
 VERSION = "1.1.0-BETA"
 # Files copied into <config_root>/commands
@@ -341,16 +366,53 @@ def install_governance_paths_file(
     dst = plan.governance_paths_path
     dst_exists = dst.exists()
 
-    if dst_exists and not force:
-        return {"status": "skipped-exists", "src": "generated", "dst": str(dst)}
+    desired_doc = build_governance_paths_payload(plan.config_root)
 
-    doc = build_governance_paths_payload(plan.config_root)
+    if dst_exists and not force:
+        existing = _load_json(dst)
+        if existing and existing.get("schema") == GOVERNANCE_PATHS_SCHEMA and isinstance(existing.get("paths"), dict):
+            existing_paths = existing["paths"]
+            assert isinstance(existing_paths, dict)
+
+            missing_keys: list[str] = []
+            for k, v in desired_doc["paths"].items():
+                if k not in existing_paths:
+                    existing_paths[k] = v
+                    missing_keys.append(k)
+
+            if missing_keys:
+                backup_path = None
+                if backup_enabled:
+                    backup_path = str(backup_file(dst, backup_root, dry_run))
+
+                if dry_run:
+                    print(f"  [DRY-RUN] patch {dst} (missing governance path keys: {missing_keys})")
+                    return {
+                        "status": "planned-patch",
+                        "src": "generated",
+                        "dst": str(dst),
+                        "backup": backup_path,
+                        "sha256": hashlib.sha256(json_bytes(existing)).hexdigest(),
+                        "note": f"patched missing keys: {','.join(missing_keys)}",
+                    }
+
+                dst.write_bytes(json_bytes(existing))
+                return {
+                    "status": "patched",
+                    "src": "generated",
+                    "dst": str(dst),
+                    "backup": backup_path,
+                    "sha256": sha256_file(dst),
+                    "note": f"patched missing keys: {','.join(missing_keys)}",
+                }
+
+        return {"status": "skipped-exists", "src": "generated", "dst": str(dst)}
 
     backup_path = None
     if dst_exists and backup_enabled:
         backup_path = str(backup_file(dst, backup_root, dry_run))
 
-    sha_pred = hashlib.sha256(json_bytes(doc)).hexdigest()
+    sha_pred = hashlib.sha256(json_bytes(desired_doc)).hexdigest()
 
     if dry_run:
         print(f"  [DRY-RUN] write {dst} (governance paths)")
@@ -364,7 +426,7 @@ def install_governance_paths_file(
         }
 
     dst.parent.mkdir(parents=True, exist_ok=True)
-    dst.write_bytes(json_bytes(doc))
+    dst.write_bytes(json_bytes(desired_doc))
     return {
         "status": "copied",
         "src": "generated",
@@ -470,6 +532,16 @@ def write_manifest(manifest_path: Path, manifest: dict, dry_run: bool) -> None:
     manifest_path.write_text(json.dumps(manifest, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 
 
+def _load_json(path: Path) -> dict | None:
+    if not path.exists():
+        return None
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    return data if isinstance(data, dict) else None
+
+
 def load_manifest(manifest_path: Path) -> dict | None:
     if not manifest_path.exists():
         return None
@@ -482,6 +554,22 @@ def load_manifest(manifest_path: Path) -> dict | None:
 def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool) -> int:
     ok, missing = precheck_source(plan.source_dir)
     if not ok:
+        safe_log_error(
+            reason_key="ERR-INSTALL-PRECHECK-MISSING-SOURCE",
+            message="Installer precheck failed: required source files are missing.",
+            config_root=plan.config_root,
+            phase="installer",
+            gate="precheck",
+            mode="repo-aware",
+            repo_fingerprint=None,
+            command="install.py",
+            component="installer-precheck",
+            observed_value={"missing": missing},
+            expected_constraint="Required source files present: master.md, rules.md, start.md",
+            remediation="Restore missing governance source files and rerun install.",
+            action="abort",
+            result="failed",
+        )
         eprint("❌ Precheck failed. Missing required source files:")
         for m in missing:
             eprint(f"  - {m}")
@@ -498,6 +586,22 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
     gov_ver = read_governance_version_from_master(plan.source_dir / "master.md")
 
     if not gov_ver:
+        safe_log_error(
+            reason_key="ERR-INSTALL-GOVERNANCE-VERSION-MISSING",
+            message="Governance version not found in master.md.",
+            config_root=plan.config_root,
+            phase="installer",
+            gate="version-check",
+            mode="repo-aware",
+            repo_fingerprint=None,
+            command="install.py",
+            component="installer-version",
+            observed_value={"masterPath": str(plan.source_dir / "master.md")},
+            expected_constraint="# Governance-Version: <semver>",
+            remediation="Add Governance-Version header to master.md and rerun install.",
+            action="abort",
+            result="failed",
+        )
         eprint("❌ Governance-Version not found in master.md.")
         eprint("   Expected a header like:")
         eprint("     # Governance-Version: <semver>")
@@ -649,7 +753,7 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
             "status": e["status"],
         }
         for e in copied_entries
-        if e["status"] in ("copied", "planned-copy")
+        if e["status"] in ("copied", "planned-copy", "patched", "planned-patch")
     ]
 
     manifest = {
@@ -696,6 +800,22 @@ def uninstall(
         print("      - Re-run install once (will recreate manifest), then --uninstall")
         print("      - Or use --force to perform a conservative best-effort delete of known filenames only")
         if not force and not dry_run:
+            safe_log_error(
+                reason_key="ERR-UNINSTALL-MANIFEST-MISSING",
+                message="Uninstall blocked: manifest missing and --force not provided.",
+                config_root=plan.config_root,
+                phase="installer",
+                gate="uninstall",
+                mode="repo-aware",
+                repo_fingerprint=None,
+                command="install.py",
+                component="installer-uninstall",
+                observed_value={"manifestPath": str(plan.manifest_path)},
+                expected_constraint="Valid INSTALL_MANIFEST.json or --force fallback",
+                remediation="Re-run install once to recreate manifest, or rerun uninstall with --force.",
+                action="block",
+                result="blocked",
+            )
             return 4
 
         # Conservative fallback: delete only installer-owned files resolvable from this source tree.
@@ -812,11 +932,43 @@ def delete_targets(targets: Iterable[Path], plan: InstallPlan, dry_run: bool) ->
             t_resolved = t.resolve()
             base_resolved = plan.commands_dir.resolve()
             if base_resolved not in t_resolved.parents and t_resolved != base_resolved:
+                safe_log_error(
+                    reason_key="ERR-UNINSTALL-PATH-ESCAPE-REFUSED",
+                    message="Refused deletion outside commands directory.",
+                    config_root=plan.config_root,
+                    phase="installer",
+                    gate="uninstall-safety",
+                    mode="repo-aware",
+                    repo_fingerprint=None,
+                    command="install.py",
+                    component="installer-delete-guard",
+                    observed_value={"target": str(t), "resolvedTarget": str(t_resolved)},
+                    expected_constraint=f"Target must be under {base_resolved}",
+                    remediation="Inspect manifest/targets and rerun uninstall.",
+                    action="block",
+                    result="blocked",
+                )
                 eprint(f"  ❌ Refusing to delete outside commands dir: {t}")
                 errors += 1
                 continue
         except Exception:
             # If resolution fails, refuse deletion
+            safe_log_error(
+                reason_key="ERR-UNINSTALL-PATH-RESOLUTION-FAILED",
+                message="Refused deletion because target path could not be resolved safely.",
+                config_root=plan.config_root,
+                phase="installer",
+                gate="uninstall-safety",
+                mode="repo-aware",
+                repo_fingerprint=None,
+                command="install.py",
+                component="installer-delete-guard",
+                observed_value={"target": str(t)},
+                expected_constraint="Target path must resolve safely under commands dir",
+                remediation="Inspect uninstall targets and rerun.",
+                action="block",
+                result="blocked",
+            )
             eprint(f"  ❌ Refusing to delete (cannot resolve path safely): {t}")
             errors += 1
             continue
@@ -837,6 +989,22 @@ def delete_targets(targets: Iterable[Path], plan: InstallPlan, dry_run: bool) ->
                 t.unlink()
                 print(f"  ✅ Removed: {t.name}")
             except Exception as e:
+                safe_log_error(
+                    reason_key="ERR-UNINSTALL-DELETE-FAILED",
+                    message="Failed to delete uninstall target.",
+                    config_root=plan.config_root,
+                    phase="installer",
+                    gate="uninstall",
+                    mode="repo-aware",
+                    repo_fingerprint=None,
+                    command="install.py",
+                    component="installer-delete",
+                    observed_value={"target": str(t), "error": str(e)},
+                    expected_constraint="Installer-owned targets should be deletable",
+                    remediation="Check file permissions/locks and rerun uninstall.",
+                    action="abort",
+                    result="failed",
+                )
                 eprint(f"  ❌ Failed removing {t}: {e}")
                 errors += 1
     return 0 if errors == 0 else 5
@@ -846,7 +1014,9 @@ def purge_runtime_error_logs(config_root: Path, dry_run: bool) -> int:
     """
     Remove installer/runtime-owned error log files:
       - <config_root>/logs/errors-*.jsonl
+      - <config_root>/logs/errors-index.json
       - <config_root>/workspaces/*/logs/errors-*.jsonl
+      - <config_root>/workspaces/*/logs/errors-index.json
 
     Safety:
       - only matching files are removed
@@ -858,7 +1028,9 @@ def purge_runtime_error_logs(config_root: Path, dry_run: bool) -> int:
         set(
             [
                 *list((config_root / ERROR_LOGS_DIR_NAME).glob("errors-*.jsonl")),
+                *list((config_root / ERROR_LOGS_DIR_NAME).glob("errors-index.json")),
                 *list((config_root / "workspaces").glob("*/logs/errors-*.jsonl")),
+                *list((config_root / "workspaces").glob("*/logs/errors-index.json")),
             ]
         )
     )
@@ -877,6 +1049,22 @@ def purge_runtime_error_logs(config_root: Path, dry_run: bool) -> int:
                 t.unlink()
                 print(f"  ✅ Removed runtime log: {t}")
             except Exception as e:
+                safe_log_error(
+                    reason_key="ERR-UNINSTALL-ERROR-LOG-PURGE-FAILED",
+                    message="Failed to remove runtime error log file during uninstall purge.",
+                    config_root=config_root,
+                    phase="installer",
+                    gate="uninstall-log-purge",
+                    mode="repo-aware",
+                    repo_fingerprint=None,
+                    command="install.py",
+                    component="installer-log-purge",
+                    observed_value={"target": str(t), "error": str(e)},
+                    expected_constraint="Runtime error log file should be removable",
+                    remediation="Check permissions/locks and retry uninstall.",
+                    action="abort",
+                    result="failed",
+                )
                 eprint(f"  ❌ Failed removing runtime log {t}: {e}")
                 errors += 1
         touched_dirs.add(t.parent)

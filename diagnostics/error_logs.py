@@ -5,9 +5,13 @@ import json
 import os
 import re
 import uuid
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
+
+
+DEFAULT_RETENTION_DAYS = 30
+ERROR_INDEX_FILE_NAME = "errors-index.json"
 
 
 def default_config_root() -> Path:
@@ -105,6 +109,95 @@ def _target_log_file(config_root: Path, repo_fingerprint: str | None) -> Path:
     return config_root / "logs" / f"errors-global-{_today_iso()}.jsonl"
 
 
+def _extract_log_date(name: str) -> date | None:
+    patterns = [
+        r"^errors-(\d{4}-\d{2}-\d{2})\.jsonl$",
+        r"^errors-global-(\d{4}-\d{2}-\d{2})\.jsonl$",
+    ]
+    for pat in patterns:
+        m = re.match(pat, name)
+        if not m:
+            continue
+        try:
+            return datetime.strptime(m.group(1), "%Y-%m-%d").date()
+        except ValueError:
+            return None
+    return None
+
+
+def _prune_old_logs(log_dir: Path, keep_days: int) -> int:
+    if keep_days <= 0:
+        return 0
+    cutoff = datetime.now(timezone.utc).date() - timedelta(days=keep_days)
+    removed = 0
+    for p in log_dir.glob("*.jsonl"):
+        d = _extract_log_date(p.name)
+        if d is None:
+            continue
+        if d < cutoff:
+            try:
+                p.unlink()
+                removed += 1
+            except Exception:
+                continue
+    return removed
+
+
+def _load_error_index(index_path: Path) -> dict[str, Any]:
+    existing = _load_json(index_path)
+    if not existing:
+        return {
+            "schema": "opencode.error-index.v1",
+            "updatedAt": _utc_now(),
+            "totalEvents": 0,
+            "byReason": {},
+            "lastEvent": {},
+            "latestLogFile": "",
+        }
+
+    if existing.get("schema") != "opencode.error-index.v1":
+        existing["schema"] = "opencode.error-index.v1"
+
+    if not isinstance(existing.get("byReason"), dict):
+        existing["byReason"] = {}
+
+    if not isinstance(existing.get("totalEvents"), int):
+        existing["totalEvents"] = 0
+
+    if not isinstance(existing.get("lastEvent"), dict):
+        existing["lastEvent"] = {}
+
+    if not isinstance(existing.get("latestLogFile"), str):
+        existing["latestLogFile"] = ""
+
+    return existing
+
+
+def _update_error_index(index_path: Path, log_file: Path, record: dict[str, Any]) -> None:
+    idx = _load_error_index(index_path)
+    by_reason = idx.get("byReason", {})
+    assert isinstance(by_reason, dict)
+    reason = str(record.get("reasonKey", "unknown"))
+    prev = by_reason.get(reason, 0)
+    by_reason[reason] = int(prev) + 1
+
+    idx["byReason"] = by_reason
+    idx["totalEvents"] = int(idx.get("totalEvents", 0)) + 1
+    idx["updatedAt"] = _utc_now()
+    idx["latestLogFile"] = log_file.name
+    idx["lastEvent"] = {
+        "timestamp": record.get("timestamp"),
+        "reasonKey": reason,
+        "phase": record.get("phase"),
+        "gate": record.get("gate"),
+        "result": record.get("result"),
+        "command": record.get("command"),
+        "repoFingerprint": record.get("repoFingerprint"),
+    }
+
+    index_path.write_text(json.dumps(idx, indent=2, ensure_ascii=True) + "\n", encoding="utf-8")
+
+
 def write_error_event(
     *,
     reason_key: str,
@@ -122,6 +215,7 @@ def write_error_event(
     action: str = "block",
     result: str = "blocked",
     details: Any = None,
+    retention_days: int = DEFAULT_RETENTION_DAYS,
 ) -> Path:
     cfg = resolve_config_root(config_root)
     target = _target_log_file(cfg, repo_fingerprint)
@@ -150,6 +244,13 @@ def write_error_event(
 
     with target.open("a", encoding="utf-8") as f:
         f.write(json.dumps(record, ensure_ascii=True) + "\n")
+
+    # Keep same-directory index for fast diagnostics summarization.
+    index_path = target.parent / ERROR_INDEX_FILE_NAME
+    _update_error_index(index_path, target, record)
+
+    # Best-effort retention cleanup (never block caller).
+    _prune_old_logs(target.parent, retention_days)
 
     return target
 

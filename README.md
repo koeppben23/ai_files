@@ -112,6 +112,8 @@ Installed layout:
 - **Automatic runtime error logs:** diagnostics helpers write structured JSONL error events automatically.
   - Repo-aware path: `${WORKSPACES_HOME}/<repo_fingerprint>/logs/errors-YYYY-MM-DD.jsonl`
   - Global fallback path: `${CONFIG_ROOT}/logs/errors-global-YYYY-MM-DD.jsonl`
+  - Per-directory summary index: `errors-index.json`
+  - Automatic retention cleanup: old `errors-*.jsonl` files are pruned (default 30 days)
   - `governance.paths.json` now includes `globalErrorLogsHome` and `workspaceErrorLogsHomeTemplate`.
   - Uninstall purges matching runtime error logs by default; use `--keep-error-logs` to preserve them.
 
@@ -443,6 +445,8 @@ Canonical locations (see `master.md` for binding definitions):
 - `${REPO_IDENTITY_MAP_FILE}` – stable repo identity mapping
 - `${WORKSPACES_HOME}/<repo_fingerprint>/logs/errors-YYYY-MM-DD.jsonl` – repo-scoped runtime error logs
 - `${CONFIG_ROOT}/logs/errors-global-YYYY-MM-DD.jsonl` – global fallback runtime error logs
+- `${WORKSPACES_HOME}/<repo_fingerprint>/logs/errors-index.json` – repo-scoped error index
+- `${CONFIG_ROOT}/logs/errors-index.json` – global fallback error index
 - `${WORKSPACES_HOME}/<repo_fingerprint>/` – repo-scoped workspace bucket
   - `decisions/ADR.md`
   - `repo-map-digest.md`

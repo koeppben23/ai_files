@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import hashlib
+import importlib.util
 import re
 import sys
 from pathlib import Path
@@ -712,9 +713,51 @@ def test_error_logger_helper_exists_and_defines_required_log_shape():
         "repoFingerprint",
         "errors-",
         "errors-global-",
+        "opencode.error-index.v1",
+        "DEFAULT_RETENTION_DAYS",
+        "errors-index.json",
         "safe_log_error",
     ]
     missing = [token for token in required_tokens if token not in text]
     assert not missing, "error_logs.py missing required log shape tokens:\n" + "\n".join(
         [f"- {m}" for m in missing]
     )
+
+
+@pytest.mark.governance
+def test_error_logger_updates_index_and_prunes_old_global_logs(tmp_path: Path):
+    module_path = REPO_ROOT / "diagnostics" / "error_logs.py"
+    spec = importlib.util.spec_from_file_location("error_logs_mod", module_path)
+    assert spec and spec.loader, "Failed to load diagnostics/error_logs.py module spec"
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    cfg = tmp_path / "opencode-config"
+    logs_dir = cfg / "logs"
+    logs_dir.mkdir(parents=True, exist_ok=True)
+    old_file = logs_dir / "errors-global-2000-01-01.jsonl"
+    old_file.write_text('{"legacy":true}\n', encoding="utf-8")
+
+    out = mod.safe_log_error(
+        reason_key="ERR-TEST-INDEX",
+        message="test event",
+        config_root=cfg,
+        phase="test",
+        gate="test",
+        mode="repo-aware",
+        command="pytest",
+        component="test-suite",
+    )
+    assert out.get("status") == "logged"
+
+    # retention should prune the very old synthetic file
+    assert not old_file.exists(), "Expected old global error log file to be pruned by retention"
+
+    index_file = logs_dir / "errors-index.json"
+    assert index_file.exists(), "Expected global error index file"
+
+    idx = json.loads(read_text(index_file))
+    assert idx.get("schema") == "opencode.error-index.v1"
+    assert isinstance(idx.get("totalEvents"), int) and idx["totalEvents"] >= 1
+    assert isinstance(idx.get("byReason"), dict)
+    assert idx["byReason"].get("ERR-TEST-INDEX", 0) >= 1
