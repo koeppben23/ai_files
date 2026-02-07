@@ -5,7 +5,8 @@
 **Addon class (binding):** required addon.
 
 **Activation (binding):** MUST be loaded at code-phase (Phase 4+) when `SESSION_STATE.ActiveProfile = "backend-java"`.
-- If SESSION_STATE.Phase is in code-phase set (Phase 4+) and this addon is not loaded: Mode = BLOCKED, Next = BLOCKED-MISSING-TEMPLATES.
+- Missing-addon handling MUST follow canonical required-addon policy from `rules.md` Section 4.6 and `master.md`.
+- This rulebook MUST NOT redefine blocking semantics.
 
 **Precedence (binding):** use the canonical order from `rules.md` Section 4.6.
 This required addon refines template defaults and MUST NOT override `master.md`, `rules.md`, or `rules.backend-java.md` constraints.
@@ -968,6 +969,36 @@ If repo conventions require deviation from templates, record:
 - compensating test added
 
 Without deviation record, gate result cannot be `pass`.
+
+---
+
+## Examples (GOOD/BAD)
+
+GOOD:
+- Service orchestrates use case, injects `Clock`, and delegates state mutation to domain methods (`update`, `initializeTimestamps`).
+
+BAD:
+- Controller performs business branching and directly mutates persistence entities.
+
+GOOD:
+- Tests use builders + fixed instants and assert behavior/contract outcomes.
+
+BAD:
+- Tests depend on `Instant.now()` and brittle implementation-level verifications.
+
+## Troubleshooting
+
+1) Symptom: Generated code violates repo style or framework conventions
+- Cause: template applied without adapting to locked repo conventions
+- Fix: apply minimal convention-aligned adaptation and record deviation evidence.
+
+2) Symptom: Gate shows determinism risk for changed tests
+- Cause: uncontrolled time/randomness/order assumptions in tests
+- Fix: inject deterministic seams (`Clock`, fixed IDs/order) and remove timing sleeps.
+
+3) Symptom: Review flags entity mutation/setter drift
+- Cause: template adaptation reintroduced setter-based domain writes
+- Fix: restore domain-method mutation pattern and keep critical fields setter-free.
 
 ---
 

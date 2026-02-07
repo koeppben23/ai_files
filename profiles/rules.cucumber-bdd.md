@@ -279,6 +279,22 @@ If you hit unclear repo conventions:
 
 ---
 
+## 10. Examples (GOOD/BAD)
+
+GOOD:
+- Feature step states observable domain behavior (`Then the person status is "ACTIVE"`) and leaves transport/mechanics to glue code.
+
+BAD:
+- Feature step calls internal method names or implementation pipelines (`Given I call activateAndPublishKafkaEvent`).
+
+GOOD:
+- Async scenario uses bounded polling/retryable assertions and deterministic test data.
+
+BAD:
+- Scenario relies on fixed `sleep` timing or shared mutable test records across runs.
+
+---
+
 ## Shared Principal Governance Contracts (Binding)
 
 This rulebook uses shared advisory governance contracts:

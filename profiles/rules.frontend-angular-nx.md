@@ -22,7 +22,8 @@ Binding:
   - `SESSION_STATE.LoadedRulebooks.templates`
 - The load evidence MUST include resolved path plus version/digest evidence when available:
   - `SESSION_STATE.RulebookLoadEvidence.templates`
-- If required and missing at code-phase: `Mode = BLOCKED`, `Next = BLOCKED-MISSING-TEMPLATES`.
+- If required and missing at code-phase, apply canonical required-addon policy from `rules.md` Section 4.6 and `master.md`.
+- This profile MUST NOT redefine blocking semantics.
 
 When loaded, templates are binding defaults. If a template conflicts with locked repo conventions, apply the minimal convention-aligned adaptation and record the deviation.
 

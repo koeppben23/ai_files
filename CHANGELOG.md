@@ -34,6 +34,24 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
 - Update factory contracts (`new_profile.md`, `new_addon.md`, `PROFILE_ADDON_FACTORY_CONTRACT.json`) for shared-contract modularization defaults.
 
 ### Changed
+- Canonicalize required-vs-advisory addon behavior as a single fail-closed policy source in `rules.md` Section 4.6 plus `master.md` addon catalog (local rulebooks now reference, not redefine, blocking semantics).
+- Add a governed emergency override contract for missing required addons (ticket/incident id, reason, approver, expiry/remediation, and mandatory `not-verified` status for affected claims).
+- Normalize template/profile rulebooks to remove local `Mode = BLOCKED` policy definitions in favor of canonical required-addon handling references:
+  - `rules.backend-java-templates.md`
+  - `rules.backend-java-kafka-templates.md`
+  - `rules.frontend-angular-nx-templates.md`
+  - `rules.frontend-angular-nx.md`
+- Strengthen operational actionability with explicit examples/troubleshooting expansions in:
+  - `rules.backend-java-templates.md`
+  - `rules.backend-java-kafka-templates.md`
+  - `rules.cucumber-bdd.md`
+- Make fallback governance evidence contract explicit in `rules.fallback-minimum.md` (`BuildEvidence`, `warnings[]`, `not-verified` enforcement).
+- Tighten docs-governance terminology safety: BLOCKED aliases are now explicitly marked as legacy vocabulary that advisory addons must not emit.
+- Extend governance regression guards to enforce:
+  - canonical policy centralization (no local blocking-policy redefinition)
+  - examples/troubleshooting presence in reviewed rulebooks
+  - explicit fallback evidence-contract tokens
+  - docs-governance legacy BLOCKED alias safeguards
 - Normalize governance evaluation semantics across add-ons/templates with canonical tier labels (`TIER-LOW|TIER-MEDIUM|TIER-HIGH`), fixed score thresholds, and a unified calibration version (`v2.1.1`).
 - Strengthen scorecard comparability and claim-to-evidence expectations so multi-addon reviews use the same pass/fail interpretation.
 - Extend v2.1 and v2.1.1 calibration blocks to all remaining profile rulebooks (`rules.backend-java.md`, `rules.frontend-angular-nx.md`, `rules.fallback-minimum.md`) for complete cross-profile consistency.

@@ -537,6 +537,9 @@ def test_factory_commands_exist_and_define_principal_generation_contracts():
 def test_reviewed_rulebooks_include_examples_and_troubleshooting_sections():
     required = {
         "profiles/rules.backend-java.md": ["Examples (GOOD/BAD)", "Troubleshooting"],
+        "profiles/rules.backend-java-templates.md": ["Examples (GOOD/BAD)", "Troubleshooting"],
+        "profiles/rules.backend-java-kafka-templates.md": ["Examples (GOOD/BAD)", "Troubleshooting"],
+        "profiles/rules.cucumber-bdd.md": ["Examples (GOOD/BAD)", "Troubleshooting"],
         "profiles/rules.frontend-angular-nx.md": ["Examples (GOOD/BAD)", "Troubleshooting"],
         "profiles/rules.principal-excellence.md": ["Examples (GOOD/BAD)", "Troubleshooting"],
         "profiles/rules.risk-tiering.md": ["Examples (GOOD/BAD)", "Troubleshooting"],
@@ -551,6 +554,82 @@ def test_reviewed_rulebooks_include_examples_and_troubleshooting_sections():
             missing.append(f"{rel} missing {absent}")
 
     assert not missing, "Rulebooks missing examples/troubleshooting sections:\n" + "\n".join([f"- {m}" for m in missing])
+
+
+@pytest.mark.governance
+def test_required_addon_blocking_policy_is_centralized_and_not_redefined_locally():
+    core = read_text(REPO_ROOT / "rules.md")
+    core_required = [
+        "Missing-addon policy is canonical and MUST NOT be redefined locally",
+        "addon_class = required",
+        "BLOCKED-MISSING-ADDON:<addon_key>",
+        "addon_class = advisory",
+    ]
+    missing_core = [token for token in core_required if token not in core]
+    assert not missing_core, "rules.md missing canonical required/advisory policy tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_core]
+    )
+
+    must_reference_not_redefine = {
+        "profiles/rules.backend-java-templates.md": [
+            "Missing-addon handling MUST follow canonical required-addon policy",
+            "MUST NOT redefine blocking semantics",
+        ],
+        "profiles/rules.backend-java-kafka-templates.md": [
+            "Missing-addon handling MUST follow canonical required-addon policy",
+            "MUST NOT redefine blocking semantics",
+        ],
+        "profiles/rules.frontend-angular-nx-templates.md": [
+            "Missing-addon handling MUST follow canonical required-addon policy",
+            "MUST NOT redefine blocking semantics",
+        ],
+        "profiles/rules.frontend-angular-nx.md": [
+            "apply canonical required-addon policy",
+            "MUST NOT redefine blocking semantics",
+        ],
+    }
+
+    problems: list[str] = []
+    for rel, required_tokens in must_reference_not_redefine.items():
+        text = read_text(REPO_ROOT / rel)
+        missing = [token for token in required_tokens if token not in text]
+        if missing:
+            problems.append(f"{rel} missing {missing}")
+        if "Mode = BLOCKED" in text:
+            problems.append(f"{rel} still contains local Mode = BLOCKED definition")
+
+    assert not problems, "Local rulebooks redefine canonical blocking policy:\n" + "\n".join(
+        [f"- {m}" for m in problems]
+    )
+
+
+@pytest.mark.governance
+def test_fallback_profile_has_explicit_evidence_contract_section():
+    text = read_text(REPO_ROOT / "profiles/rules.fallback-minimum.md")
+    required = [
+        "## Evidence contract (binding)",
+        "SESSION_STATE.BuildEvidence",
+        "warnings[]",
+        "claims MUST be marked `not-verified`",
+    ]
+    missing = [token for token in required if token not in text]
+    assert not missing, "rules.fallback-minimum.md missing explicit evidence contract tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing]
+    )
+
+
+@pytest.mark.governance
+def test_docs_governance_marks_blocked_aliases_as_legacy_non_emitting():
+    text = read_text(REPO_ROOT / "profiles/rules.docs-governance.md")
+    required = [
+        "MUST NOT set BLOCKED",
+        "reference only, do not emit from this addon",
+        "legacy vocabulary and MUST NOT be emitted by any advisory addon",
+    ]
+    missing = [token for token in required if token not in text]
+    assert not missing, "rules.docs-governance.md missing legacy BLOCKED alias safeguards:\n" + "\n".join(
+        [f"- {m}" for m in missing]
+    )
 
 
 @pytest.mark.governance

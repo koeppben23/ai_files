@@ -211,8 +211,24 @@ Binding implications:
 - Addons/templates refine implementation behavior and evidence expectations for their scope, but MUST NOT weaken or override master/core/profile constraints.
 - Activation remains manifest-owned for addons (`profiles/addons/*.addon.yml`); addon rulebooks define behavior after activation.
 - Missing-addon policy is canonical and MUST NOT be redefined locally:
-  - `addon_class = required`: missing required rulebook at code-phase -> `BLOCKED-MISSING-ADDON:<addon_key>`.
+  - `addon_class = required`: missing required rulebook at code-phase (`Phase 4/5/6`) -> `BLOCKED-MISSING-ADDON:<addon_key>`.
   - `addon_class = advisory`: non-blocking WARN + recovery; continue conservatively.
+- This section and the addon catalog contract in `master.md` are the single source of truth for required vs advisory behavior.
+  Profile/addon/template rulebooks MUST reference these semantics and MUST NOT define parallel blocking policies.
+
+### 4.7 Required-Addon Emergency Override (Binding)
+
+This override exists for exceptional continuity only; default behavior remains fail-closed.
+
+Rules:
+- Override is allowed only with explicit operator request and all required fields recorded in evidence:
+  - ticket/incident id
+  - business reason
+  - approver identity
+  - expiry or follow-up remediation item
+- During override, status MUST remain `not-verified` for claims covered by the missing required addon.
+- Gates depending on that addon MUST NOT be marked as fully passing.
+- Output MUST include concrete recovery steps to restore canonical required-addon loading.
 
 ---
 

@@ -345,6 +345,14 @@ ALGORITHM (BINDING, NORMATIVE):
       - `SESSION_STATE.AddonsEvidence.<addon_key>.status = loaded|skipped|missing-rulebook`
    - If `required = true` and the rulebook is present, it MUST be loaded.
    - Addons MAY be re-evaluated and loaded later at any Phase-4 re-entry/resume if new evidence appears or a missing rulebook is installed.
+   - Required/advisory blocking semantics are canonical from `rules.md` Section 4.6.
+     Profile/addon/template rulebooks MUST reference and MUST NOT redefine parallel policies.
+   - Emergency override of missing required addon is exceptional and MUST carry evidence:
+       - ticket/incident id
+       - business reason
+       - approver identity
+       - expiry/remediation item
+     and affected claims MUST remain `not-verified`.
 
    Kafka addon example (when the profile declares it):
    - Required signals include (evidence-based):

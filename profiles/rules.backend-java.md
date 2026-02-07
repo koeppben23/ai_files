@@ -47,8 +47,8 @@ If `required = true` but addon rulebook is missing at code-phase:
   - `SESSION_STATE.LoadedRulebooks.addons.kafka = ""`
 - The assistant MUST explicitly warn that Kafka-related changes cannot be produced safely without the addon rulebook.
 - The assistant MUST restrict output to analysis/planning + recovery steps and MUST NOT generate unsafe Kafka code/tests.
-- In fail-closed runs that enforce required addon policy from `master.md`, this condition maps to
-  `BLOCKED-MISSING-ADDON:kafka`.
+- In fail-closed code-phase handling, apply canonical required-addon policy from `rules.md` Section 4.6 / `master.md`
+  (this profile references but does not redefine that policy).
 
 Addon policy classes (binding):
 - Addon class semantics are canonical in `rules.md` Section 4.6 and `master.md`; this profile MUST reference, not redefine, those semantics.

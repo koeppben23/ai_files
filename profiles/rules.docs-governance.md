@@ -152,6 +152,7 @@ Canonical terms lint (binding):
   - `rules.frontend-angular-nx.md` (not `rules.frontend.md`)
   - `BLOCKED-MISSING-TEMPLATES` (do not use legacy templates-missing variant; reference only, do not emit from this addon)
   - `BLOCKED-MISSING-ADDON:<addon_key>` (not ad-hoc addon-specific BLOCKED names; reference only, do not emit from this addon)
+- These BLOCKED aliases are legacy vocabulary and MUST NOT be emitted by any advisory addon.
 
 ---
 
