@@ -143,7 +143,7 @@ MUST NOT:
 Canonical terms lint (binding):
 - Avoid deprecated/confusing aliases in governance docs. Prefer canonical forms:
   - `rules.frontend-angular-nx.md` (not `rules.frontend.md`)
-  - `BLOCKED-MISSING-TEMPLATES` (not `BLOCKED-TEMPLATES-MISSING`)
+  - `BLOCKED-MISSING-TEMPLATES` (do not use legacy templates-missing variant)
   - `BLOCKED-MISSING-ADDON:<addon_key>` (not ad-hoc addon-specific BLOCKED names)
 
 ---
