@@ -31,10 +31,16 @@ Generated profile rulebooks MUST include:
 2. deterministic applicability section
 3. architecture and test-quality expectations
 4. BuildEvidence requirement language
-5. principal baseline sections:
-   - `## Principal Excellence Contract (Binding)`
-   - `## Principal Hardening v2.1 - Standard Risk Tiering (Binding)`
-   - `## Principal Hardening v2.1.1 - Scorecard Calibration (Binding)`
+5. shared principal-governance delegation block:
+   - `## Shared Principal Governance Contracts (Binding)`
+   - `rules.principal-excellence.md`
+   - `rules.risk-tiering.md`
+   - `rules.scorecard-calibration.md`
+   - loaded-addon tracking keys under `SESSION_STATE.LoadedRulebooks.addons.*`
+
+Exception for shared contract rulebooks themselves:
+- If `profile_key` is one of `principal-excellence`, `risk-tiering`, `scorecard-calibration`,
+  generate the corresponding canonical shared contract section directly instead of delegation.
 
 Claims without evidence mapping MUST be marked `not-verified`.
 
@@ -56,11 +62,14 @@ Optional:
 
 Before finalizing, verify generated profile contains:
 
-- canonical risk tiers (`TIER-LOW|TIER-MEDIUM|TIER-HIGH`)
-- score thresholds (`0.80`, `0.85`, `0.90`)
-- calibration warning code (`WARN-SCORECARD-CALIBRATION-INCOMPLETE`)
-- missing-evidence warning (`WARN-PRINCIPAL-EVIDENCE-MISSING`)
-- required `SESSION_STATE` scorecard and `RiskTiering` shape snippets
+- shared contract delegation block + references to all three shared rulebooks
+- loaded-addon tracking keys for shared contracts:
+  - `SESSION_STATE.LoadedRulebooks.addons.principalExcellence`
+  - `SESSION_STATE.LoadedRulebooks.addons.riskTiering`
+  - `SESSION_STATE.LoadedRulebooks.addons.scorecardCalibration`
+
+For shared contract rulebooks (`principal-excellence`, `risk-tiering`, `scorecard-calibration`):
+- ensure the generated shared rulebook includes its canonical contract section and required warnings/thresholds.
 
 If any checklist item fails, completion status MUST be `not-verified`.
 

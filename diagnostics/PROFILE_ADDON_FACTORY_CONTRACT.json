@@ -1,10 +1,21 @@
 {
   "schema": "governance.factory.contract.v1",
-  "purpose": "Principal-grade generation contract for new profiles and addons.",
+  "purpose": "Principal-grade generation contract for new profiles and addons (shared-contract modularized).",
   "requiredProfileSections": [
-    "## Principal Excellence Contract (Binding)",
-    "## Principal Hardening v2.1 - Standard Risk Tiering (Binding)",
-    "## Principal Hardening v2.1.1 - Scorecard Calibration (Binding)"
+    "## Shared Principal Governance Contracts (Binding)",
+    "rules.principal-excellence.md",
+    "rules.risk-tiering.md",
+    "rules.scorecard-calibration.md"
+  ],
+  "sharedContractRulebooks": [
+    "rules.principal-excellence.md",
+    "rules.risk-tiering.md",
+    "rules.scorecard-calibration.md"
+  ],
+  "requiredLoadedRulebookAddonKeys": [
+    "SESSION_STATE.LoadedRulebooks.addons.principalExcellence",
+    "SESSION_STATE.LoadedRulebooks.addons.riskTiering",
+    "SESSION_STATE.LoadedRulebooks.addons.scorecardCalibration"
   ],
   "requiredAddonManifestFields": [
     "addon_key",

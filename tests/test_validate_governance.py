@@ -117,7 +117,8 @@ def test_docs_governance_addon_has_principal_reviewability_contract():
 
 @pytest.mark.governance
 def test_all_profile_rulebooks_define_principal_excellence_contract():
-    required_snippets = [
+    principal_shared = read_text(REPO_ROOT / "profiles" / "rules.principal-excellence.md")
+    required_shared_tokens = [
         "## Principal Excellence Contract (Binding)",
         "### Gate Review Scorecard (binding)",
         "### Claim-to-evidence (binding)",
@@ -125,38 +126,42 @@ def test_all_profile_rulebooks_define_principal_excellence_contract():
         "### Recovery when evidence is missing (binding)",
         "WARN-PRINCIPAL-EVIDENCE-MISSING",
     ]
+    missing_shared = [s for s in required_shared_tokens if s not in principal_shared]
+    assert not missing_shared, "rules.principal-excellence.md missing required principal contract sections:\n" + "\n".join(
+        [f"- {m}" for m in missing_shared]
+    )
+
+    delegation_tokens = [
+        "## Shared Principal Governance Contracts (Binding)",
+        "rules.principal-excellence.md",
+        "rules.risk-tiering.md",
+        "rules.scorecard-calibration.md",
+    ]
 
     profile_files = sorted((REPO_ROOT / "profiles").glob("rules*.md"))
     assert profile_files, "No profile rulebooks found under profiles/rules*.md"
 
     offenders: list[str] = []
     for path in profile_files:
-        text = read_text(path)
-        if path.name in {"rules.risk-tiering.md", "rules.scorecard-calibration.md"}:
+        if path.name in {
+            "rules.principal-excellence.md",
+            "rules.risk-tiering.md",
+            "rules.scorecard-calibration.md",
+        }:
             continue
-        if path.name == "rules.backend-java.md":
-            delegated = [
-                "Shared contract note:",
-                "rules.principal-excellence.md",
-                "rules.risk-tiering.md",
-                "rules.scorecard-calibration.md",
-            ]
-            missing = [snippet for snippet in delegated if snippet not in text]
-        else:
-            missing = [snippet for snippet in required_snippets if snippet not in text]
+        text = read_text(path)
+        missing = [token for token in delegation_tokens if token not in text]
         if missing:
             offenders.append(f"{path.relative_to(REPO_ROOT)} -> missing {missing}")
 
-    assert not offenders, "Missing principal excellence contract in profile rulebooks:\n" + "\n".join(
+    assert not offenders, "Profile rulebooks missing shared principal contract delegation:\n" + "\n".join(
         [f"- {line}" for line in offenders]
     )
 
 
 @pytest.mark.governance
 def test_all_profile_rulebooks_define_standard_risk_tiering_v21():
-    profile_files = sorted((REPO_ROOT / "profiles").glob("rules*.md"))
-    assert profile_files, "No profile rulebooks found under profiles/rules*.md"
-
+    risk_tiering = read_text(REPO_ROOT / "profiles" / "rules.risk-tiering.md")
     required_tokens = [
         "## Principal Hardening v2.1 - Standard Risk Tiering (Binding)",
         "### RTN-1 Canonical tiers (binding)",
@@ -165,30 +170,15 @@ def test_all_profile_rulebooks_define_standard_risk_tiering_v21():
         "`TIER-HIGH`",
         "WARN-RISK-TIER-UNRESOLVED",
     ]
-
-    offenders: list[str] = []
-    for path in profile_files:
-        text = read_text(path)
-        if path.name in {"rules.principal-excellence.md", "rules.scorecard-calibration.md"}:
-            continue
-        if path.name == "rules.backend-java.md":
-            delegated = ["rules.risk-tiering.md", "See shared governance rulebooks for canonical RTN/CAL contracts"]
-            missing = [token for token in delegated if token not in text]
-        else:
-            missing = [token for token in required_tokens if token not in text]
-        if missing:
-            offenders.append(f"{path.relative_to(REPO_ROOT)} -> missing {missing}")
-
-    assert not offenders, "Missing v2.1 risk tiering contract in profile rulebooks:\n" + "\n".join(
-        [f"- {line}" for line in offenders]
+    missing = [token for token in required_tokens if token not in risk_tiering]
+    assert not missing, "rules.risk-tiering.md missing v2.1 risk tiering contract sections:\n" + "\n".join(
+        [f"- {line}" for line in missing]
     )
 
 
 @pytest.mark.governance
 def test_all_profile_rulebooks_define_scorecard_calibration_v211():
-    profile_files = sorted((REPO_ROOT / "profiles").glob("rules*.md"))
-    assert profile_files, "No profile rulebooks found under profiles/rules*.md"
-
+    calibration = read_text(REPO_ROOT / "profiles" / "rules.scorecard-calibration.md")
     required_tokens = [
         "## Principal Hardening v2.1.1 - Scorecard Calibration (Binding)",
         "### CAL-1 Standard criterion weights by tier (binding)",
@@ -198,22 +188,9 @@ def test_all_profile_rulebooks_define_scorecard_calibration_v211():
         "CalibrationVersion: v2.1.1",
         "WARN-SCORECARD-CALIBRATION-INCOMPLETE",
     ]
-
-    offenders: list[str] = []
-    for path in profile_files:
-        text = read_text(path)
-        if path.name in {"rules.principal-excellence.md", "rules.risk-tiering.md"}:
-            continue
-        if path.name == "rules.backend-java.md":
-            delegated = ["rules.scorecard-calibration.md", "See shared governance rulebooks for canonical RTN/CAL contracts"]
-            missing = [token for token in delegated if token not in text]
-        else:
-            missing = [token for token in required_tokens if token not in text]
-        if missing:
-            offenders.append(f"{path.relative_to(REPO_ROOT)} -> missing {missing}")
-
-    assert not offenders, "Missing v2.1.1 scorecard calibration in profile rulebooks:\n" + "\n".join(
-        [f"- {line}" for line in offenders]
+    missing = [token for token in required_tokens if token not in calibration]
+    assert not missing, "rules.scorecard-calibration.md missing v2.1.1 calibration sections:\n" + "\n".join(
+        [f"- {line}" for line in missing]
     )
 
 
@@ -416,19 +393,8 @@ def test_fallback_profile_contains_principal_hardening_v2_controls():
 
 @pytest.mark.governance
 def test_addon_rulebooks_use_standard_risk_tiering_v21():
-    addon_rulebooks = [
-        "profiles/rules.frontend-angular-nx-templates.md",
-        "profiles/rules.cucumber-bdd.md",
-        "profiles/rules.postgres-liquibase.md",
-        "profiles/rules.docs-governance.md",
-        "profiles/rules.frontend-cypress-testing.md",
-        "profiles/rules.frontend-openapi-ts-client.md",
-        "profiles/rules.backend-java-kafka-templates.md",
-        "profiles/rules.openapi-contracts.md",
-        "profiles/rules.backend-java-templates.md",
-        "profiles/rules.risk-tiering.md",
-    ]
-    required_tokens = [
+    shared = read_text(REPO_ROOT / "profiles" / "rules.risk-tiering.md")
+    required_shared_tokens = [
         "## Principal Hardening v2.1 - Standard Risk Tiering (Binding)",
         "### RTN-1 Canonical tiers (binding)",
         "`TIER-LOW`",
@@ -438,34 +404,41 @@ def test_addon_rulebooks_use_standard_risk_tiering_v21():
         "RiskTiering:",
         "WARN-RISK-TIER-UNRESOLVED",
     ]
+    missing_shared = [token for token in required_shared_tokens if token not in shared]
+    assert not missing_shared, "rules.risk-tiering.md missing v2.1 shared contract tokens:\n" + "\n".join(
+        [f"- {line}" for line in missing_shared]
+    )
+
+    addon_rulebooks = sorted((REPO_ROOT / "profiles").glob("rules*.md"))
+    assert addon_rulebooks, "No profile rulebooks found under profiles/rules*.md"
+
+    required_delegation = [
+        "## Shared Principal Governance Contracts (Binding)",
+        "rules.risk-tiering.md",
+    ]
 
     problems: list[str] = []
-    for rel in addon_rulebooks:
-        text = read_text(REPO_ROOT / Path(rel))
-        missing = [token for token in required_tokens if token not in text]
+    for path in addon_rulebooks:
+        if path.name in {
+            "rules.principal-excellence.md",
+            "rules.risk-tiering.md",
+            "rules.scorecard-calibration.md",
+        }:
+            continue
+        text = read_text(path)
+        missing = [token for token in required_delegation if token not in text]
         if missing:
-            problems.append(f"{rel} -> missing {missing}")
+            problems.append(f"{path.relative_to(REPO_ROOT)} -> missing {missing}")
 
-    assert not problems, "Addon rulebooks missing v2.1 risk tiering normalization:\n" + "\n".join(
+    assert not problems, "Rulebooks missing shared v2.1 delegation:\n" + "\n".join(
         [f"- {line}" for line in problems]
     )
 
 
 @pytest.mark.governance
 def test_addon_rulebooks_use_scorecard_calibration_v211():
-    addon_rulebooks = [
-        "profiles/rules.frontend-angular-nx-templates.md",
-        "profiles/rules.cucumber-bdd.md",
-        "profiles/rules.postgres-liquibase.md",
-        "profiles/rules.docs-governance.md",
-        "profiles/rules.frontend-cypress-testing.md",
-        "profiles/rules.frontend-openapi-ts-client.md",
-        "profiles/rules.backend-java-kafka-templates.md",
-        "profiles/rules.openapi-contracts.md",
-        "profiles/rules.backend-java-templates.md",
-        "profiles/rules.scorecard-calibration.md",
-    ]
-    required_tokens = [
+    shared = read_text(REPO_ROOT / "profiles" / "rules.scorecard-calibration.md")
+    required_shared_tokens = [
         "## Principal Hardening v2.1.1 - Scorecard Calibration (Binding)",
         "### CAL-1 Standard criterion weights by tier (binding)",
         "`TIER-LOW`: each active criterion weight = `2`",
@@ -476,15 +449,33 @@ def test_addon_rulebooks_use_scorecard_calibration_v211():
         "CalibrationVersion: v2.1.1",
         "WARN-SCORECARD-CALIBRATION-INCOMPLETE",
     ]
+    missing_shared = [token for token in required_shared_tokens if token not in shared]
+    assert not missing_shared, "rules.scorecard-calibration.md missing v2.1.1 shared contract tokens:\n" + "\n".join(
+        [f"- {line}" for line in missing_shared]
+    )
+
+    addon_rulebooks = sorted((REPO_ROOT / "profiles").glob("rules*.md"))
+    assert addon_rulebooks, "No profile rulebooks found under profiles/rules*.md"
+
+    required_delegation = [
+        "## Shared Principal Governance Contracts (Binding)",
+        "rules.scorecard-calibration.md",
+    ]
 
     problems: list[str] = []
-    for rel in addon_rulebooks:
-        text = read_text(REPO_ROOT / Path(rel))
-        missing = [token for token in required_tokens if token not in text]
+    for path in addon_rulebooks:
+        if path.name in {
+            "rules.principal-excellence.md",
+            "rules.risk-tiering.md",
+            "rules.scorecard-calibration.md",
+        }:
+            continue
+        text = read_text(path)
+        missing = [token for token in required_delegation if token not in text]
         if missing:
-            problems.append(f"{rel} -> missing {missing}")
+            problems.append(f"{path.relative_to(REPO_ROOT)} -> missing {missing}")
 
-    assert not problems, "Addon rulebooks missing v2.1.1 scorecard calibration:\n" + "\n".join(
+    assert not problems, "Rulebooks missing shared v2.1.1 calibration delegation:\n" + "\n".join(
         [f"- {line}" for line in problems]
     )
 
@@ -497,9 +488,10 @@ def test_factory_commands_exist_and_define_principal_generation_contracts():
             "## Required Input (Binding)",
             "## Generation Contract (Binding)",
             "## Principal Conformance Checklist (Binding)",
-            "## Principal Excellence Contract (Binding)",
-            "## Principal Hardening v2.1 - Standard Risk Tiering (Binding)",
-            "## Principal Hardening v2.1.1 - Scorecard Calibration (Binding)",
+            "## Shared Principal Governance Contracts (Binding)",
+            "rules.principal-excellence.md",
+            "rules.risk-tiering.md",
+            "rules.scorecard-calibration.md",
         ],
         "new_addon.md": [
             "# Governance Factory - New Addon",
@@ -507,9 +499,10 @@ def test_factory_commands_exist_and_define_principal_generation_contracts():
             "## Manifest Contract (Binding)",
             "## Rulebook Contract (Binding)",
             "## Principal Conformance Checklist (Binding)",
-            "## Principal Excellence Contract (Binding)",
-            "## Principal Hardening v2.1 - Standard Risk Tiering (Binding)",
-            "## Principal Hardening v2.1.1 - Scorecard Calibration (Binding)",
+            "## Shared Principal Governance Contracts (Binding)",
+            "rules.principal-excellence.md",
+            "rules.risk-tiering.md",
+            "rules.scorecard-calibration.md",
         ],
     }
 
@@ -536,6 +529,8 @@ def test_factory_contract_diagnostic_exists_and_is_calibrated():
     required_tokens = [
         '"schema": "governance.factory.contract.v1"',
         '"requiredProfileSections"',
+        '"sharedContractRulebooks"',
+        '"requiredLoadedRulebookAddonKeys"',
         '"requiredAddonManifestFields"',
         '"requiredWarningCodes"',
         '"canonicalRiskTiers"',

@@ -8,7 +8,7 @@ Priority order on conflict:
 
 ---
 
-## Principal Hardening v2.1 - Standard Risk Tiering (Binding when loaded)
+## Principal Hardening v2.1 - Standard Risk Tiering (Binding)
 
 ### RTN-1 Canonical tiers (binding)
 

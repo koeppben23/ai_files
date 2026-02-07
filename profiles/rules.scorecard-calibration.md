@@ -8,7 +8,7 @@ Priority order on conflict:
 
 ---
 
-## Principal Hardening v2.1.1 - Scorecard Calibration (Binding when loaded)
+## Principal Hardening v2.1.1 - Scorecard Calibration (Binding)
 
 ### CAL-1 Standard criterion weights by tier (binding)
 

@@ -31,6 +31,7 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
   - `rules.risk-tiering.md`
   - `rules.scorecard-calibration.md`
   - manifests: `principalExcellence`, `riskTiering`, `scorecardCalibration`
+- Update factory contracts (`new_profile.md`, `new_addon.md`, `PROFILE_ADDON_FACTORY_CONTRACT.json`) for shared-contract modularization defaults.
 
 ### Changed
 - Normalize governance evaluation semantics across add-ons/templates with canonical tier labels (`TIER-LOW|TIER-MEDIUM|TIER-HIGH`), fixed score thresholds, and a unified calibration version (`v2.1.1`).
@@ -44,6 +45,7 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
 - Extend `/start` + diagnostics helpers to emit automatic structured error logs, and expose error-log paths in `governance.paths.json` (`globalErrorLogsHome`, `workspaceErrorLogsHomeTemplate`).
 - Installer now patches installer-owned legacy `governance.paths.json` files with missing error-log path keys even without `--force`.
 - Refine `rules.backend-java.md` to remove Kafka activation ambiguity, use canonical shared tiering semantics, and delegate shared principal contracts to modular advisory rulebooks.
+- Migrate all remaining `rules*.md` rulebooks to shared principal-governance modularization (delegation to shared advisory rulebooks).
 
 ### Fixed
 - Remove duplicate local `_pretty` function definition in `scripts/build.py` to keep release artifact logging implementation clean and deterministic.

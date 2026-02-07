@@ -8,7 +8,7 @@ Priority order on conflict:
 
 ---
 
-## Principal Excellence Contract (Binding when loaded)
+## Principal Excellence Contract (Binding)
 
 This contract is active only when this rulebook is loaded.
 
