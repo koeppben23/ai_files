@@ -1051,6 +1051,9 @@ SESSION_STATE:
 Binding:
 - `SESSION_STATE.Next` MUST be set at the end of every phase output.
 - `continue.md` MUST execute ONLY the step referenced by `SESSION_STATE.Next`.
+- After every `SESSION_STATE` block, the assistant MUST emit one terminal summary line:
+  - `NEXT_STEP: <value of SESSION_STATE.Next>`
+  - This line MUST be the final line of the response (except when host tooling appends its own metadata outside assistant output).
 
 ### 3.3 FULL Mode Additions (Binding when FULL required)
 

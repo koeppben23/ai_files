@@ -80,6 +80,32 @@ def test_master_bootstrap_fields_match_schema_contract():
 
 
 @pytest.mark.governance
+def test_session_state_outputs_require_terminal_next_step_line():
+    master = read_text(REPO_ROOT / "master.md")
+    schema = read_text(REPO_ROOT / "SESSION_STATE_SCHEMA.md")
+
+    master_required = [
+        "After every `SESSION_STATE` block",
+        "NEXT_STEP: <value of SESSION_STATE.Next>",
+    ]
+    schema_required = [
+        "Every response containing `SESSION_STATE` MUST end with a terminal summary line",
+        "NEXT_STEP: <value of SESSION_STATE.Next>",
+        "output `NEXT_STEP: <SESSION_STATE.Next>` as the terminal line",
+    ]
+
+    missing_master = [token for token in master_required if token not in master]
+    missing_schema = [token for token in schema_required if token not in schema]
+
+    assert not missing_master, "master.md missing NEXT_STEP terminal-line contract tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_master]
+    )
+    assert not missing_schema, "SESSION_STATE_SCHEMA.md missing NEXT_STEP terminal-line contract tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_schema]
+    )
+
+
+@pytest.mark.governance
 def test_schema_phase4_ticket_record_declares_must_include():
     schema = read_text(REPO_ROOT / "SESSION_STATE_SCHEMA.md")
     assert "When Phase 4 planning is produced, the workflow MUST include:" in schema
