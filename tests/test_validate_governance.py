@@ -92,3 +92,20 @@ def test_gate_scorecard_and_review_of_review_contract_present():
     assert "Gate Review Scorecard (binding):" in master
     assert "review-of-review" in master
     assert "GateScorecards" in schema
+
+
+@pytest.mark.governance
+def test_docs_governance_addon_has_principal_reviewability_contract():
+    docs_addon = read_text(REPO_ROOT / "profiles" / "rules.docs-governance.md")
+
+    required_snippets = [
+        "Gate review scorecard for docs checks",
+        "Claim-to-evidence (binding):",
+        "Canonical terms lint (binding):",
+        "## Cross-file Consistency Matrix (Binding)",
+        "Docs Governance Summary",
+    ]
+    missing = [s for s in required_snippets if s not in docs_addon]
+    assert not missing, "rules.docs-governance.md missing required reviewability sections:\n" + "\n".join(
+        [f"- {m}" for m in missing]
+    )

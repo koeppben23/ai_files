@@ -111,6 +111,26 @@ def test_frontend_addons_exist_and_classification_matches_policy():
 
 
 @pytest.mark.governance
+def test_docs_governance_addon_exists_and_is_advisory():
+    rel = "profiles/addons/docsGovernance.addon.yml"
+    p = REPO_ROOT / rel
+    assert p.exists(), f"missing: {rel}"
+
+    text = read_text(p)
+    m_class = re.search(r"^addon_class:\s*(\S+)\s*$", text, flags=re.MULTILINE)
+    m_rulebook = re.search(r"^rulebook:\s*([^\s#]+)\s*$", text, flags=re.MULTILINE)
+    assert m_class, f"missing addon_class: {rel}"
+    assert m_rulebook, f"missing rulebook: {rel}"
+
+    value = m_class.group(1).strip().strip('"').strip("'")
+    assert value == "advisory", f"{rel}: expected addon_class=advisory, got {value}"
+
+    rb = m_rulebook.group(1).strip()
+    rb_path = (REPO_ROOT / "profiles" / rb) if not rb.startswith("profiles/") else (REPO_ROOT / rb)
+    assert rb_path.exists(), f"rulebook does not exist: {rb}"
+
+
+@pytest.mark.governance
 def test_validate_addons_script_passes():
     script = REPO_ROOT / "scripts" / "validate_addons.py"
     assert script.exists(), f"Missing script: {script}"
