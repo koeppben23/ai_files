@@ -3,11 +3,36 @@
 This document defines **backend Java (Spring Boot)** profile rules.
 It is applied **in addition** to the Core Rulebook (`rules.md`) and the Master Prompt (`master.md`).
 
-**Intent:** enforce *provable* best-practice engineering defaults so the system reliably produces  
-**top-tier business code and tests** — not by intention, but by **verified evidence**.
+## Intent (binding)
 
-Precedence (binding): use the canonical order from `rules.md` Section 4.6.
+Enforce provable best-practice engineering defaults so the system reliably produces top-tier business code and tests by verified evidence.
+
+## Scope (binding)
+
+Backend-java business logic, architecture boundaries, contract alignment, deterministic tests, and backend operational quality gates.
+
+## Activation (binding)
+
+This profile applies when backend-java stack evidence is selected by governance profile detection (explicit user choice or deterministic discovery).
+
+Precedence (binding): use the canonical order from `rules.md` anchor `RULEBOOK-PRECEDENCE-POLICY`.
 For backend-java behavior, this profile governs stack-specific rules and activated addons/templates may refine within profile constraints.
+
+## Phase integration (binding)
+
+- Phase 2: discover stack/tooling conventions and addon requirements.
+- Phase 4: apply profile + required templates/addons for implementation planning/execution.
+- Phase 5/6: verify evidence-backed architecture/test/business/rollback quality gates.
+
+## Evidence contract (binding)
+
+- Every non-trivial quality claim MUST map to BuildEvidence.
+- Missing evidence MUST be reported as `not-verified` and cannot support gate pass claims.
+
+## Tooling (binding)
+
+- Use repo-native Java commands (Maven/Gradle/tests/lint/static analysis) when available.
+- Non-runnable tooling in current host MUST be reported with recovery commands and `not-verified` claims.
 
 ---
 # Templates Addon (Binding)
@@ -47,11 +72,11 @@ If `required = true` but addon rulebook is missing at code-phase:
   - `SESSION_STATE.LoadedRulebooks.addons.kafka = ""`
 - The assistant MUST explicitly warn that Kafka-related changes cannot be produced safely without the addon rulebook.
 - The assistant MUST restrict output to analysis/planning + recovery steps and MUST NOT generate unsafe Kafka code/tests.
-- In fail-closed code-phase handling, apply canonical required-addon policy from `rules.md` Section 4.6 / `master.md`
+- In fail-closed code-phase handling, apply canonical required-addon policy from `rules.md` anchor `RULEBOOK-PRECEDENCE-POLICY` / `master.md`
   (this profile references but does not redefine that policy).
 
 Addon policy classes (binding):
-- Addon class semantics are canonical in `rules.md` Section 4.6 and `master.md`; this profile MUST reference, not redefine, those semantics.
+- Addon class semantics are canonical in `rules.md` anchor `RULEBOOK-PRECEDENCE-POLICY` and `master.md`; this profile MUST reference, not redefine, those semantics.
 - Addon manifests/rulebooks MUST explicitly declare class (`required` | `advisory`).
 - This profile may define backend-java-specific required-signal logic, but missing-rulebook handling MUST follow canonical policy.
 

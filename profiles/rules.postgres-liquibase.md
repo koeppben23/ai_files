@@ -7,6 +7,14 @@
 **Scope:** Schema migrations, data migrations, rollback safety
 **Addon class (binding):** required addon
 
+## Intent (binding)
+
+Enforce deterministic, operationally safe Liquibase migration behavior with explicit rollback/recovery and version-aware safety rules.
+
+## Scope (binding)
+
+Liquibase changelogs, migration safety checks, database compatibility declarations, and migration-related quality gates.
+
 ---
 
 ## Addon Activation (Manifest-Owned)
@@ -18,7 +26,7 @@ or when explicitly requested by ticket/operator scope.
 
 This rulebook defines behavior after activation and MUST NOT redefine profile selection logic.
 
-Precedence (binding): use the canonical order from `rules.md` Section 4.6.
+Precedence (binding): use the canonical order from `rules.md` anchor `RULEBOOK-PRECEDENCE-POLICY`.
 This required addon refines migration safety behavior and MUST NOT override `master.md`, `rules.md`, or active profile constraints.
 
 **Applies to:**
@@ -28,6 +36,14 @@ This required addon refines migration safety behavior and MUST NOT override `mas
 
 **Non-goals:**
 - This addon does not prescribe application-level ORM practices
+
+## Evidence contract (binding)
+
+When active, maintain:
+- `SESSION_STATE.AddonsEvidence.dbLiquibase.required`
+- `SESSION_STATE.AddonsEvidence.dbLiquibase.signals`
+- `SESSION_STATE.AddonsEvidence.dbLiquibase.status` (`loaded|skipped|missing-rulebook`)
+- migration-quality evidence refs for validate/updateSQL/safety-rule checks and rollback strategy.
 
 ---
 
@@ -78,7 +94,7 @@ LIQUIBASE_FORMAT: XML  # Or: YAML, HYBRID
 
 ---
 
-## Integration with Governance Phases
+## Phase integration (binding)
 
 **Note:** This section maps to the governance workflow defined in `master.md`. If your project does not use this workflow, treat this section as optional guidance.
 

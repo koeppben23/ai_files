@@ -3,20 +3,37 @@
 This document defines shared principal-grade review contracts.
 It is designed as an advisory addon rulebook that can be reused across profiles.
 
-Precedence (binding): use the canonical order from `rules.md` Section 4.6.
+## Intent (binding)
+
+Provide a reusable principal-grade scorecard contract so gate decisions remain evidence-based and reviewer-consistent.
+
+## Scope (binding)
+
+Cross-profile gate scorecard criteria, claim-to-evidence mapping, and principal exit conditions.
+
+Precedence (binding): use the canonical order from `rules.md` anchor `RULEBOOK-PRECEDENCE-POLICY`.
 As a shared advisory addon, this rulebook refines review behavior and MUST NOT override master/core/profile constraints.
 
-Activation (binding): manifest-owned via `profiles/addons/principalExcellence.addon.yml`.
+## Activation (binding)
+
+Activation is manifest-owned via `profiles/addons/principalExcellence.addon.yml`.
 This rulebook defines behavior after activation and MUST NOT redefine activation signals.
 
-Phase integration (binding):
+## Phase integration (binding)
+
 - Phase 4: initialize scorecard criteria for touched scope.
 - Phase 5: evaluate criteria with evidence refs.
 - Phase 6: verify unresolved critical failures remain `not-verified` with recovery steps.
 
-Evidence contract (binding):
+## Evidence contract (binding)
+
 - Maintain `SESSION_STATE.AddonsEvidence.principalExcellence.status` (`loaded|skipped|missing-rulebook`).
 - Advisory findings are represented via WARN codes in `warnings[]`; do not hard-block solely from this addon.
+
+## Tooling (recommended)
+
+- Use repo-native build/test/contract commands and persist evidence refs for each principal criterion.
+- If tooling is unavailable in host, keep affected claims `not-verified` and emit recovery commands.
 
 ---
 

@@ -5,10 +5,36 @@ It is applied in addition to:
 - `master.md` (phases, gates, activation)
 - `rules.md` (core engineering governance)
 
-Precedence (binding): use the canonical order from `rules.md` Section 4.6.
+## Intent (binding)
+
+Produce top-tier frontend business behavior and tests by deterministic patterns and evidence, not by style preference.
+
+## Scope (binding)
+
+Angular+Nx architecture boundaries, state patterns, contract-driven UI integration, and deterministic frontend test quality.
+
+## Activation (binding)
+
+This profile applies when Angular+Nx stack evidence is selected by governance profile detection (explicit user choice or deterministic discovery).
+
+Precedence (binding): use the canonical order from `rules.md` anchor `RULEBOOK-PRECEDENCE-POLICY`.
 For Angular+Nx behavior, this profile governs stack-specific rules and activated addons/templates may refine within profile constraints.
 
-Intent (binding): produce top-tier frontend business behavior and tests by deterministic patterns and evidence, not by style preference.
+## Phase integration (binding)
+
+- Phase 2: lock repo conventions, state patterns, and addon requirements.
+- Phase 4: apply profile constraints and required templates/addons to changed scope.
+- Phase 5/6: verify evidence-backed quality gates, including deterministic frontend tests.
+
+## Evidence contract (binding)
+
+- Every non-trivial quality claim MUST map to BuildEvidence.
+- Missing evidence MUST be reported as `not-verified` and cannot support gate pass claims.
+
+## Tooling (binding)
+
+- Use repo-native Nx commands for lint/test/build/e2e where available.
+- Non-runnable tooling in current host MUST be reported with recovery commands and `not-verified` claims.
 
 ---
 
@@ -22,7 +48,7 @@ Binding:
   - `SESSION_STATE.LoadedRulebooks.templates`
 - The load evidence MUST include resolved path plus version/digest evidence when available:
   - `SESSION_STATE.RulebookLoadEvidence.templates`
-- If required and missing at code-phase, apply canonical required-addon policy from `rules.md` Section 4.6 and `master.md`.
+- If required and missing at code-phase, apply canonical required-addon policy from `rules.md` anchor `RULEBOOK-PRECEDENCE-POLICY` and `master.md`.
 - This profile MUST NOT redefine blocking semantics.
 
 When loaded, templates are binding defaults. If a template conflicts with locked repo conventions, apply the minimal convention-aligned adaptation and record the deviation.
@@ -31,7 +57,7 @@ When loaded, templates are binding defaults. If a template conflicts with locked
 
 ## Addon Policy Classes (Binding)
 
-- Addon class semantics are canonical in `rules.md` Section 4.6 and `master.md`; this profile MUST reference, not redefine, those semantics.
+- Addon class semantics are canonical in `rules.md` anchor `RULEBOOK-PRECEDENCE-POLICY` and `master.md`; this profile MUST reference, not redefine, those semantics.
 - Addon manifests/rulebooks MUST declare `addon_class` explicitly.
 - This profile may define frontend-specific required-signal logic, but missing-rulebook handling MUST follow canonical policy.
 

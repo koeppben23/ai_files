@@ -3,11 +3,19 @@
 This document defines the **Cucumber/BDD** addon rules.
 It is applied **in addition** to the Core Rulebook (`rules.md`), the Master Prompt (`master.md`), and the active profile.
 
-Precedence (binding): use the canonical order from `rules.md` Section 4.6.
+Precedence (binding): use the canonical order from `rules.md` anchor `RULEBOOK-PRECEDENCE-POLICY`.
 This addon refines behavior after activation and MUST NOT override master/core/profile constraints.
 
 **Addon class (binding):** advisory addon.
 **Non-blocking policy:** This addon never hard-blocks progress. If required context, conventions, or tooling are missing/unclear, emit a **status code** with a concrete recovery action and continue with conservative defaults.
+
+## Intent (binding)
+
+Ensure BDD artifacts remain executable, deterministic, and domain-readable while preserving conservative non-blocking behavior for missing context.
+
+## Scope (binding)
+
+Feature files, step definitions, test-data lifecycle, runner conventions, and Cucumber verification evidence for changed behavior.
 
 ---
 
@@ -23,11 +31,13 @@ This addon refines behavior after activation and MUST NOT override master/core/p
 
 ---
 
-## 1. Activation and evidence (binding)
+## Activation (binding)
 
 **Separation of concerns:**
 - **Activation signals** (how to detect Cucumber usage) belong to the addon manifest (`profiles/addons/cucumber.addon.yml`).
 - This rulebook defines **behavior**, structure, and quality gates.
+
+## Evidence contract (binding)
 
 When this addon is active, the system MUST record evidence in Session State:
 
@@ -178,6 +188,10 @@ Before finishing a ticket:
 - Ensure assertions validate domain outcomes, not incidental formatting.
 
 ### 7.1 Suggested commands (copy/paste)
+
+## Tooling (recommended)
+
+Prefer repo-native runner commands and tags. If runner tooling is unknown/unavailable, emit WARN + recovery and keep claims `not-verified`.
 
 Prefer repo-native commands if they exist. If not, propose minimal equivalents:
 

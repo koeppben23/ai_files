@@ -1,32 +1,45 @@
 # Backend Java - Kafka Code & Test Templates (ADDON)
 
-**Purpose (binding):** Provide concrete copy-paste templates so the assistant generates deterministic, reviewable Kafka producers/consumers and tests in backend-java repos.
+## Intent (binding)
 
-**Addon class (binding):** required addon.
+Provide concrete copy-paste templates so the assistant generates deterministic, reviewable Kafka producers/consumers and tests in backend-java repos.
 
-**Activation (binding):** MUST be loaded at code-phase (Phase 4+) when Kafka is required (see `rules.backend-java.md`).
-- Missing-addon handling MUST follow canonical required-addon policy from `rules.md` Section 4.6 and `master.md`.
+## Scope (binding)
+
+Kafka producer/consumer code paths, idempotency/retry behavior, and Kafka-related test evidence for backend-java repositories.
+
+## Activation (binding)
+
+Addon class: `required`.
+
+This addon MUST be loaded at code-phase (Phase 4+) when Kafka is required (see `rules.backend-java.md`).
+- Missing-addon handling MUST follow canonical required-addon policy from `rules.md` anchor `RULEBOOK-PRECEDENCE-POLICY` and `master.md`.
 - This rulebook MUST NOT redefine blocking semantics.
 
-**Precedence (binding):** use the canonical order from `rules.md` Section 4.6.
+Precedence (binding): use the canonical order from `rules.md` anchor `RULEBOOK-PRECEDENCE-POLICY`.
 This required addon refines Kafka-specific templates and MUST NOT override `master.md`, `rules.md`, `rules.backend-java.md`, or base template constraints.
 
-Tooling and versioning intent (binding):
-- Use repository-pinned Kafka/Spring tooling when present; do not invent alternate client stacks.
-- Preserve repo serializer/deserializer strategy unless ticket explicitly changes it.
-- Test tooling should follow repo standard (`spring-kafka-test`, Testcontainers, or existing equivalent).
+## Phase integration (binding)
 
-Phase integration (binding):
 - Phase 2: capture Kafka evidence (deps/annotations/config) and required scope.
 - Phase 4: apply these templates only for Kafka-touched changes.
 - Phase 5.3: verify idempotency/retry/error-path behavior with deterministic evidence.
 
-Troubleshooting (quick):
-- Schema registry mismatch: align serializer config and test fixtures with repo convention before changing listeners.
-- Retry/DLT ambiguity: prefer existing retry topology; if unknown, mark `not-verified` and emit recovery command.
-- Async flake in tests: replace sleeps with Awaitility/Testcontainers-ready checks.
+## Evidence contract (binding)
 
-Examples (GOOD/BAD):
+When active, maintain:
+- `SESSION_STATE.AddonsEvidence.kafka.required`
+- `SESSION_STATE.AddonsEvidence.kafka.signals`
+- `SESSION_STATE.AddonsEvidence.kafka.status` (`loaded|skipped|missing-rulebook`)
+- tier/gate evidence refs for idempotency, retry/DLT behavior, and async test stability.
+
+## Tooling (binding)
+
+- Use repository-pinned Kafka/Spring tooling when present; do not invent alternate client stacks.
+- Preserve repo serializer/deserializer strategy unless ticket explicitly changes it.
+- Test tooling should follow repo standard (`spring-kafka-test`, Testcontainers, or existing equivalent).
+
+## Examples (GOOD/BAD)
 
 GOOD:
 - Listener performs minimal validation and delegates in one line to service; idempotency check is proven by test evidence.
@@ -39,6 +52,12 @@ GOOD:
 
 BAD:
 - Kafka test uses `Thread.sleep` and random keys while asserting internal implementation calls.
+
+## Troubleshooting
+
+- Schema registry mismatch: align serializer config and test fixtures with repo convention before changing listeners.
+- Retry/DLT ambiguity: prefer existing retry topology; if unknown, mark `not-verified` and emit recovery command.
+- Async flake in tests: replace sleeps with Awaitility/Testcontainers-ready checks.
 
 ---
 

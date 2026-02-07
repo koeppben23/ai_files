@@ -2,14 +2,22 @@
 
 Addon class (binding): advisory addon.
 
-Purpose: align frontend API usage with OpenAPI-driven TypeScript client generation when present.
+## Intent (binding)
+
+Align frontend API usage with OpenAPI-driven TypeScript client generation when present.
+
+## Scope (binding)
+
+Frontend API client generation, DTO-to-UI mapping boundaries, and contract-oriented frontend evidence quality.
 
 Non-blocking policy: if generator setup is unclear, emit WARN + recovery steps and keep behavior conservative.
 
-Precedence (binding): use the canonical order from `rules.md` Section 4.6.
+Precedence (binding): use the canonical order from `rules.md` anchor `RULEBOOK-PRECEDENCE-POLICY`.
 This advisory addon refines API-client behavior and MUST NOT override `master.md`, `rules.md`, or active profile constraints.
 
-Activation (binding): manifest-owned via `profiles/addons/frontendOpenApiTsClient.addon.yml`.
+## Activation (binding)
+
+Activation is manifest-owned via `profiles/addons/frontendOpenApiTsClient.addon.yml`.
 This rulebook defines behavior once activated; it MUST NOT redefine activation signals.
 
 ## Phase integration (binding)
@@ -45,7 +53,9 @@ When active, maintain:
 2. Regenerate client deterministically.
 3. Add/update contract-aligned frontend tests.
 
-Repo-native command hints (recommended):
+## Tooling (recommended)
+
+Repo-native command hints:
 - Generator script: `npm run generate:api` (if defined by repo)
 - Nx target variant: `npx nx run <project>:generate-api` (if configured)
 - Validation fallback: repo OpenAPI validation command before frontend tests

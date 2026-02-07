@@ -199,6 +199,9 @@ Once determined (explicitly or via fallback), the assistant must keep the active
 
 ### 4.6 Canonical Rulebook Precedence (Binding)
 
+Stable anchor ID (binding): `RULEBOOK-PRECEDENCE-POLICY`
+Stable anchor ID (binding): `ADDON-CLASS-BEHAVIOR-POLICY`
+
 To prevent profile/addon/template drift, precedence is defined once here and must be referenced (not redefined) by profile and addon rulebooks.
 
 Canonical order on conflict:
