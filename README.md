@@ -94,7 +94,7 @@ Installed layout:
   - `profiles/*.md` (all profile rulebooks)
   - `profiles/addons/*.addon.yml` (addon manifests for required/advisory activation)
 - `commands/diagnostics/`:
-  - `diagnostics/**` (audit tooling, schemas, documentation, factory contracts)
+  - `diagnostics/**` (audit tooling, schemas, documentation, factory contracts such as `PROFILE_ADDON_FACTORY_CONTRACT.json`)
 
 ### Safety & operational behavior
 

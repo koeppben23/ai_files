@@ -138,6 +138,59 @@ def test_all_profile_rulebooks_define_principal_excellence_contract():
 
 
 @pytest.mark.governance
+def test_all_profile_rulebooks_define_standard_risk_tiering_v21():
+    profile_files = sorted((REPO_ROOT / "profiles").glob("rules*.md"))
+    assert profile_files, "No profile rulebooks found under profiles/rules*.md"
+
+    required_tokens = [
+        "## Principal Hardening v2.1 - Standard Risk Tiering (Binding)",
+        "### RTN-1 Canonical tiers (binding)",
+        "`TIER-LOW`",
+        "`TIER-MEDIUM`",
+        "`TIER-HIGH`",
+        "WARN-RISK-TIER-UNRESOLVED",
+    ]
+
+    offenders: list[str] = []
+    for path in profile_files:
+        text = read_text(path)
+        missing = [token for token in required_tokens if token not in text]
+        if missing:
+            offenders.append(f"{path.relative_to(REPO_ROOT)} -> missing {missing}")
+
+    assert not offenders, "Missing v2.1 risk tiering contract in profile rulebooks:\n" + "\n".join(
+        [f"- {line}" for line in offenders]
+    )
+
+
+@pytest.mark.governance
+def test_all_profile_rulebooks_define_scorecard_calibration_v211():
+    profile_files = sorted((REPO_ROOT / "profiles").glob("rules*.md"))
+    assert profile_files, "No profile rulebooks found under profiles/rules*.md"
+
+    required_tokens = [
+        "## Principal Hardening v2.1.1 - Scorecard Calibration (Binding)",
+        "### CAL-1 Standard criterion weights by tier (binding)",
+        "`TIER-LOW`: each active criterion weight = `2`",
+        "`TIER-MEDIUM`: each active criterion weight = `3`",
+        "`TIER-HIGH`: each active criterion weight = `5`",
+        "CalibrationVersion: v2.1.1",
+        "WARN-SCORECARD-CALIBRATION-INCOMPLETE",
+    ]
+
+    offenders: list[str] = []
+    for path in profile_files:
+        text = read_text(path)
+        missing = [token for token in required_tokens if token not in text]
+        if missing:
+            offenders.append(f"{path.relative_to(REPO_ROOT)} -> missing {missing}")
+
+    assert not offenders, "Missing v2.1.1 scorecard calibration in profile rulebooks:\n" + "\n".join(
+        [f"- {line}" for line in offenders]
+    )
+
+
+@pytest.mark.governance
 def test_java_profile_and_templates_include_principal_scorecard_artifact_shape():
     targets = [
         REPO_ROOT / "profiles" / "rules.backend-java.md",
