@@ -5,7 +5,8 @@ Purpose (binding): provide deterministic, high-signal templates for Angular busi
 Addon class (binding): required addon.
 
 Activation (binding): MUST be loaded at code-phase (Phase 4+) when `SESSION_STATE.ActiveProfile = "frontend-angular-nx"`.
-- If missing at code-phase: `Mode = BLOCKED`, `Next = BLOCKED-MISSING-TEMPLATES`.
+- Missing-addon handling MUST follow canonical required-addon policy from `rules.md` Section 4.6 and `master.md`.
+- This rulebook MUST NOT redefine blocking semantics.
 
 Precedence (binding): use the canonical order from `rules.md` Section 4.6.
 This required addon refines template defaults and MUST NOT override `master.md`, `rules.md`, or `rules.frontend-angular-nx.md` constraints.

@@ -17,6 +17,15 @@ This profile applies ONLY when no repo-local standards are discoverable.
 - Phase 4: implement the smallest safe baseline for build/test/docs in changed scope.
 - Phase 5/6: verify executed evidence or mark `not-verified` with copy/paste recovery commands.
 
+## Evidence contract (binding)
+
+When fallback is active, maintain:
+- `SESSION_STATE.BuildEvidence` entries for every verification claim.
+- `SESSION_STATE.RiskTiering` rationale or explicit fallback rationale when canonical tiering data is unavailable.
+- `warnings[]` with recovery actions when checks cannot be executed in the current environment.
+
+If evidence is missing, claims MUST be marked `not-verified` and completion MUST remain non-final.
+
 ## Mandatory baseline (MUST)
 - Identify how to build and verify the project.
   If not present, propose and establish a minimal runnable baseline.

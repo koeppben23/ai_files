@@ -5,7 +5,8 @@
 **Addon class (binding):** required addon.
 
 **Activation (binding):** MUST be loaded at code-phase (Phase 4+) when Kafka is required (see `rules.backend-java.md`).
-- If Kafka is required and this addon is not loaded: `Mode = BLOCKED`, `Next = BLOCKED-MISSING-ADDON:kafka`.
+- Missing-addon handling MUST follow canonical required-addon policy from `rules.md` Section 4.6 and `master.md`.
+- This rulebook MUST NOT redefine blocking semantics.
 
 **Precedence (binding):** use the canonical order from `rules.md` Section 4.6.
 This required addon refines Kafka-specific templates and MUST NOT override `master.md`, `rules.md`, `rules.backend-java.md`, or base template constraints.
@@ -24,6 +25,20 @@ Troubleshooting (quick):
 - Schema registry mismatch: align serializer config and test fixtures with repo convention before changing listeners.
 - Retry/DLT ambiguity: prefer existing retry topology; if unknown, mark `not-verified` and emit recovery command.
 - Async flake in tests: replace sleeps with Awaitility/Testcontainers-ready checks.
+
+Examples (GOOD/BAD):
+
+GOOD:
+- Listener performs minimal validation and delegates in one line to service; idempotency check is proven by test evidence.
+
+BAD:
+- Listener contains business branching with side effects and no replay/idempotency proof.
+
+GOOD:
+- Kafka test uses stable keys, deterministic event data, and Awaitility-based async assertions.
+
+BAD:
+- Kafka test uses `Thread.sleep` and random keys while asserting internal implementation calls.
 
 ---
 
