@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import re
 import sys
 from pathlib import Path
@@ -544,3 +545,124 @@ def test_session_state_bootstrap_recovery_script_creates_state_file(tmp_path: Pa
     assert ss["Phase"] == "1.1-Bootstrap"
     assert ss["Mode"] == "BLOCKED"
     assert ss["Next"] == "BLOCKED-BOOTSTRAP-NOT-SATISFIED"
+
+
+@pytest.mark.governance
+def test_workspace_persistence_backfill_script_exists_and_defines_required_targets():
+    p = REPO_ROOT / "diagnostics" / "persist_workspace_artifacts.py"
+    assert p.exists(), "Missing diagnostics/persist_workspace_artifacts.py"
+
+    text = read_text(p)
+    required_tokens = [
+        "repo-cache.yaml",
+        "repo-map-digest.md",
+        "decision-pack.md",
+        "workspace-memory.yaml",
+        "${REPO_CACHE_FILE}",
+        "${REPO_DIGEST_FILE}",
+        "${REPO_DECISION_PACK_FILE}",
+        "${WORKSPACE_MEMORY_FILE}",
+        "--repo-fingerprint",
+        "--repo-root",
+    ]
+    missing = [token for token in required_tokens if token not in text]
+    assert not missing, "persist_workspace_artifacts.py missing required tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing]
+    )
+
+
+@pytest.mark.governance
+def test_workspace_persistence_backfill_script_creates_missing_artifacts(tmp_path: Path):
+    script = REPO_ROOT / "diagnostics" / "persist_workspace_artifacts.py"
+    cfg = tmp_path / "opencode-config"
+    repo_fp = "demo-repo-654321"
+
+    workspace = cfg / "workspaces" / repo_fp
+    workspace.mkdir(parents=True, exist_ok=True)
+    session_file = workspace / "SESSION_STATE.json"
+    session_payload = {
+        "SESSION_STATE": {
+            "Phase": "2",
+            "Mode": "NORMAL",
+            "ConfidenceLevel": 80,
+            "Next": "Phase2.1-DecisionPack",
+            "Scope": {"Repository": "Demo Repo", "RepositoryType": "governance-rulebook-repo"},
+            "ActiveProfile": "docs-governance",
+            "ProfileEvidence": "user-explicit",
+        }
+    }
+    session_file.write_text(json.dumps(session_payload, indent=2, ensure_ascii=True) + "\n", encoding="utf-8")
+
+    r = run([sys.executable, str(script), "--repo-fingerprint", repo_fp, "--config-root", str(cfg)])
+    assert r.returncode == 0, f"persist_workspace_artifacts.py failed:\nSTDERR:\n{r.stderr}\nSTDOUT:\n{r.stdout}"
+
+    expected = [
+        workspace / "repo-cache.yaml",
+        workspace / "repo-map-digest.md",
+        workspace / "decision-pack.md",
+        workspace / "workspace-memory.yaml",
+    ]
+    missing_files = [str(p) for p in expected if not p.exists()]
+    assert not missing_files, "Workspace artifact backfill missing files:\n" + "\n".join(
+        [f"- {m}" for m in missing_files]
+    )
+
+
+@pytest.mark.governance
+def test_workspace_persistence_backfill_derives_fingerprint_from_repo_root(tmp_path: Path):
+    script = REPO_ROOT / "diagnostics" / "persist_workspace_artifacts.py"
+    cfg = tmp_path / "opencode-config"
+    repo_root = tmp_path / "repo"
+
+    git_dir = repo_root / ".git"
+    (git_dir / "refs" / "remotes" / "origin").mkdir(parents=True, exist_ok=True)
+    (git_dir / "config").write_text(
+        """[remote \"origin\"]
+    url = git@github.com:example/derived-repo.git
+""",
+        encoding="utf-8",
+    )
+    (git_dir / "refs" / "remotes" / "origin" / "HEAD").write_text(
+        "ref: refs/remotes/origin/main\n",
+        encoding="utf-8",
+    )
+
+    expected_fp = hashlib.sha256(
+        "git@github.com:example/derived-repo.git|main".encode("utf-8")
+    ).hexdigest()[:16]
+
+    r = run([
+        sys.executable,
+        str(script),
+        "--repo-root",
+        str(repo_root),
+        "--config-root",
+        str(cfg),
+        "--quiet",
+    ])
+    assert r.returncode == 0, f"persist_workspace_artifacts.py failed:\nSTDERR:\n{r.stderr}\nSTDOUT:\n{r.stdout}"
+
+    payload = json.loads(r.stdout)
+    assert payload.get("repoFingerprint") == expected_fp
+    assert payload.get("fingerprintSource") == "git-metadata"
+
+    workspace = cfg / "workspaces" / expected_fp
+    assert (workspace / "repo-cache.yaml").exists()
+    assert (workspace / "repo-map-digest.md").exists()
+    assert (workspace / "decision-pack.md").exists()
+    assert (workspace / "workspace-memory.yaml").exists()
+
+
+@pytest.mark.governance
+def test_start_md_includes_workspace_persistence_autohook():
+    text = read_text(REPO_ROOT / "start.md")
+    required_tokens = [
+        "Auto-Persistence Hook (OpenCode)",
+        "persist_workspace_artifacts.py",
+        "--repo-root",
+        "workspacePersistenceHook",
+    ]
+    missing = [token for token in required_tokens if token not in text]
+    assert not missing, "start.md missing workspace persistence auto-hook tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing]
+    )
