@@ -33,6 +33,7 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
 - Shift canonical session storage topology to repo-scoped `${SESSION_STATE_FILE}` with global `${SESSION_STATE_POINTER_FILE}` as active pointer for multi-repo safety.
 - `/start` now includes an auto-persistence hook that calls the workspace artifact backfill helper when available.
 - Improve workspace artifact routing safety: backfill helper now resolves repo fingerprint from current repo git metadata before using global pointer fallback, reducing stale-pointer cross-repo writes.
+- Add governance guardrails/tests to enforce that Phase 2.1 always surfaces the Phase 1.5 A/B decision prompt when Phase 1.5 was neither explicitly requested nor skipped.
 
 ### Fixed
 - Remove duplicate local `_pretty` function definition in `scripts/build.py` to keep release artifact logging implementation clean and deterministic.
