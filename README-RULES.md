@@ -156,6 +156,9 @@ Current frontend-related addon examples:
 - `frontendCypress` (advisory) -> `rules.frontend-cypress-testing.md`
 - `frontendOpenApiTsClient` (advisory) -> `rules.frontend-openapi-ts-client.md`
 
+Cross-cutting governance addon example:
+- `docsGovernance` (advisory) -> `rules.docs-governance.md`
+
 Key constraints:
 * Templates addons MUST NOT be loaded during discovery (Phase 1–3).
 * If mandated by the active profile, templates addons MUST be loaded at code-phase (Phase 4+).
