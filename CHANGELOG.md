@@ -49,6 +49,8 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
 - Normalize remaining profile-rulebook polish details after shared modularization (remove mid-file end markers, keep copyright/footer ordering consistent).
 - Set shared governance addon activation signals to cross-stack `file_glob: "**/*"` for deterministic loading across non-Java repositories.
 - Strengthen workflow guarantees for shared modularization in installer/e2e tests (shared addons copied, manifest-listed, and advisory-missing behavior verified as non-blocking).
+- Harden profile auto-detection semantics: profile candidate selection now explicitly excludes addon-referenced and shared governance rulebooks.
+- Normalize footer/marker consistency across `profiles/rules*.md` after modularization (remove mid-file end markers, align copyright placement/style).
 
 ### Fixed
 - Remove duplicate local `_pretty` function definition in `scripts/build.py` to keep release artifact logging implementation clean and deterministic.

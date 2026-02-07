@@ -82,6 +82,21 @@ def test_master_addon_policy_includes_required_advisory_and_reload():
 
 
 @pytest.mark.governance
+def test_master_profile_detection_excludes_addon_and_shared_rulebooks_from_profile_candidates():
+    master = read_text(REPO_ROOT / "master.md")
+    required_snippets = [
+        "Rulebooks referenced by addon manifests MUST NOT be treated as profile candidates",
+        "Shared governance rulebooks (`rules.principal-excellence.md`, `rules.risk-tiering.md`, `rules.scorecard-calibration.md`) MUST NOT be treated as profile candidates",
+        "collect_rulebooks_from_addon_manifests",
+        "found_profiles = candidate_rulebooks - addon_rulebooks - shared_governance_rulebooks",
+    ]
+    missing = [s for s in required_snippets if s not in master]
+    assert not missing, "master.md missing profile-candidate filtering guarantees:\n" + "\n".join(
+        [f"- {s}" for s in missing]
+    )
+
+
+@pytest.mark.governance
 def test_frontend_addons_exist_and_classification_matches_policy():
     """Pipeline guard: frontend addon set supports required templates + advisory quality addons."""
     expected = {

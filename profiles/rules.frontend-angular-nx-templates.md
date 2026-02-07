@@ -182,3 +182,8 @@ Binding behavior:
   - `SESSION_STATE.LoadedRulebooks.addons.scorecardCalibration`
 - If one of these shared rulebooks is unavailable, emit WARN + recovery, mark affected claims as
   `not-verified`, and continue conservatively.
+
+---
+
+Copyright © 2026 Benjamin Fuchs.
+All rights reserved. See LICENSE.

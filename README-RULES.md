@@ -164,6 +164,9 @@ Shared principal-governance advisory addons:
 - `riskTiering` -> `rules.risk-tiering.md`
 - `scorecardCalibration` -> `rules.scorecard-calibration.md`
 
+Important: these shared governance rulebooks are addon rulebooks, not profile candidates.
+Profile auto-detection must exclude addon-referenced/shared rulebooks from profile selection.
+
 ## 5.2 Factory Extension Path (Profiles/Addons)
 
 When required governance capability is missing for a new repo/ticket, use the factory path:
