@@ -67,3 +67,23 @@ def test_force_uninstall_without_manifest_preserves_user_profile_files(tmp_path:
 
     assert user_profile.exists(), "fallback uninstall must preserve user-owned profile files"
     assert user_diag.exists(), "fallback uninstall must preserve user-owned diagnostics files"
+
+
+@pytest.mark.installer
+def test_uninstall_removes_empty_profiles_addons_and_workspaces_dirs(tmp_path: Path):
+    config_root = tmp_path / "opencode-config-empty-dirs"
+    commands = config_root / "commands"
+
+    r = run_install(["--force", "--no-backup", "--config-root", str(config_root)])
+    assert r.returncode == 0, f"install failed:\n{r.stderr}\n{r.stdout}"
+
+    profiles_addons = commands / "profiles" / "addons"
+    workspaces = config_root / "workspaces"
+    assert profiles_addons.exists() and profiles_addons.is_dir()
+    assert workspaces.exists() and workspaces.is_dir()
+
+    r = run_install(["--uninstall", "--force", "--config-root", str(config_root)])
+    assert r.returncode == 0, f"uninstall failed:\n{r.stderr}\n{r.stdout}"
+
+    assert not profiles_addons.exists(), "empty commands/profiles/addons should be removed on uninstall"
+    assert not workspaces.exists(), "empty workspaces dir should be removed on uninstall"

@@ -770,8 +770,14 @@ def uninstall(plan: InstallPlan, dry_run: bool, force: bool, purge_paths_file: b
             except Exception as e:
                 eprint(f"  ⚠️  Could not remove manifest: {e}")
 
-    # cleanup empty dirs
-    cleanup_dirs = [plan.commands_dir / "profiles", plan.commands_dir / "diagnostics", plan.commands_dir / "_backup"]
+    # cleanup empty dirs (leaf -> parent)
+    cleanup_dirs = [
+        plan.commands_dir / "profiles" / "addons",
+        plan.commands_dir / "profiles",
+        plan.commands_dir / "diagnostics",
+        plan.commands_dir / "_backup",
+        plan.config_root / "workspaces",
+    ]
     for d in cleanup_dirs:
         try_remove_empty_dir(d, dry_run=dry_run)
     try_remove_empty_dir(plan.commands_dir, dry_run=dry_run)
