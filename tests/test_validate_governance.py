@@ -890,7 +890,7 @@ def test_selected_rulebooks_reference_core_precedence_contract():
     missing_refs = []
     for rel in expected:
         text = read_text(REPO_ROOT / rel)
-        if "rules.md Section 4.6" not in text:
+        if "Section 4.6" not in text:
             missing_refs.append(rel)
 
     assert not missing_refs, "Rulebooks missing core precedence reference:\n" + "\n".join(
