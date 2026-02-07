@@ -138,6 +138,59 @@ def test_all_profile_rulebooks_define_principal_excellence_contract():
 
 
 @pytest.mark.governance
+def test_all_profile_rulebooks_define_standard_risk_tiering_v21():
+    profile_files = sorted((REPO_ROOT / "profiles").glob("rules*.md"))
+    assert profile_files, "No profile rulebooks found under profiles/rules*.md"
+
+    required_tokens = [
+        "## Principal Hardening v2.1 - Standard Risk Tiering (Binding)",
+        "### RTN-1 Canonical tiers (binding)",
+        "`TIER-LOW`",
+        "`TIER-MEDIUM`",
+        "`TIER-HIGH`",
+        "WARN-RISK-TIER-UNRESOLVED",
+    ]
+
+    offenders: list[str] = []
+    for path in profile_files:
+        text = read_text(path)
+        missing = [token for token in required_tokens if token not in text]
+        if missing:
+            offenders.append(f"{path.relative_to(REPO_ROOT)} -> missing {missing}")
+
+    assert not offenders, "Missing v2.1 risk tiering contract in profile rulebooks:\n" + "\n".join(
+        [f"- {line}" for line in offenders]
+    )
+
+
+@pytest.mark.governance
+def test_all_profile_rulebooks_define_scorecard_calibration_v211():
+    profile_files = sorted((REPO_ROOT / "profiles").glob("rules*.md"))
+    assert profile_files, "No profile rulebooks found under profiles/rules*.md"
+
+    required_tokens = [
+        "## Principal Hardening v2.1.1 - Scorecard Calibration (Binding)",
+        "### CAL-1 Standard criterion weights by tier (binding)",
+        "`TIER-LOW`: each active criterion weight = `2`",
+        "`TIER-MEDIUM`: each active criterion weight = `3`",
+        "`TIER-HIGH`: each active criterion weight = `5`",
+        "CalibrationVersion: v2.1.1",
+        "WARN-SCORECARD-CALIBRATION-INCOMPLETE",
+    ]
+
+    offenders: list[str] = []
+    for path in profile_files:
+        text = read_text(path)
+        missing = [token for token in required_tokens if token not in text]
+        if missing:
+            offenders.append(f"{path.relative_to(REPO_ROOT)} -> missing {missing}")
+
+    assert not offenders, "Missing v2.1.1 scorecard calibration in profile rulebooks:\n" + "\n".join(
+        [f"- {line}" for line in offenders]
+    )
+
+
+@pytest.mark.governance
 def test_java_profile_and_templates_include_principal_scorecard_artifact_shape():
     targets = [
         REPO_ROOT / "profiles" / "rules.backend-java.md",
@@ -347,3 +400,60 @@ def test_addon_rulebooks_use_scorecard_calibration_v211():
     assert not problems, "Addon rulebooks missing v2.1.1 scorecard calibration:\n" + "\n".join(
         [f"- {line}" for line in problems]
     )
+
+
+@pytest.mark.governance
+def test_factory_commands_exist_and_define_principal_generation_contracts():
+    targets = {
+        "new_profile.md": [
+            "# Governance Factory - New Profile",
+            "## Required Input (Binding)",
+            "## Generation Contract (Binding)",
+            "## Principal Conformance Checklist (Binding)",
+            "## Principal Excellence Contract (Binding)",
+            "## Principal Hardening v2.1 - Standard Risk Tiering (Binding)",
+            "## Principal Hardening v2.1.1 - Scorecard Calibration (Binding)",
+        ],
+        "new_addon.md": [
+            "# Governance Factory - New Addon",
+            "## Required Input (Binding)",
+            "## Manifest Contract (Binding)",
+            "## Rulebook Contract (Binding)",
+            "## Principal Conformance Checklist (Binding)",
+            "## Principal Excellence Contract (Binding)",
+            "## Principal Hardening v2.1 - Standard Risk Tiering (Binding)",
+            "## Principal Hardening v2.1.1 - Scorecard Calibration (Binding)",
+        ],
+    }
+
+    missing: list[str] = []
+    for rel, required in targets.items():
+        p = REPO_ROOT / rel
+        if not p.exists():
+            missing.append(f"missing file: {rel}")
+            continue
+        text = read_text(p)
+        absent = [token for token in required if token not in text]
+        if absent:
+            missing.append(f"{rel} missing {absent}")
+
+    assert not missing, "Factory command contract violations:\n" + "\n".join([f"- {m}" for m in missing])
+
+
+@pytest.mark.governance
+def test_factory_contract_diagnostic_exists_and_is_calibrated():
+    p = REPO_ROOT / "diagnostics" / "PROFILE_ADDON_FACTORY_CONTRACT.json"
+    assert p.exists(), "Missing diagnostics/PROFILE_ADDON_FACTORY_CONTRACT.json"
+
+    text = read_text(p)
+    required_tokens = [
+        '"schema": "governance.factory.contract.v1"',
+        '"requiredProfileSections"',
+        '"requiredAddonManifestFields"',
+        '"requiredWarningCodes"',
+        '"canonicalRiskTiers"',
+        '"scoreThresholds"',
+        '"TIER-HIGH": 0.9',
+    ]
+    missing = [token for token in required_tokens if token not in text]
+    assert not missing, "Factory diagnostics contract incomplete:\n" + "\n".join([f"- {m}" for m in missing])

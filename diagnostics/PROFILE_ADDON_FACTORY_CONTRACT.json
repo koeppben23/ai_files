@@ -1,0 +1,29 @@
+{
+  "schema": "governance.factory.contract.v1",
+  "purpose": "Principal-grade generation contract for new profiles and addons.",
+  "requiredProfileSections": [
+    "## Principal Excellence Contract (Binding)",
+    "## Principal Hardening v2.1 - Standard Risk Tiering (Binding)",
+    "## Principal Hardening v2.1.1 - Scorecard Calibration (Binding)"
+  ],
+  "requiredAddonManifestFields": [
+    "addon_key",
+    "addon_class",
+    "rulebook",
+    "signals.any"
+  ],
+  "requiredWarningCodes": [
+    "WARN-PRINCIPAL-EVIDENCE-MISSING",
+    "WARN-SCORECARD-CALIBRATION-INCOMPLETE"
+  ],
+  "canonicalRiskTiers": [
+    "TIER-LOW",
+    "TIER-MEDIUM",
+    "TIER-HIGH"
+  ],
+  "scoreThresholds": {
+    "TIER-LOW": 0.8,
+    "TIER-MEDIUM": 0.85,
+    "TIER-HIGH": 0.9
+  }
+}

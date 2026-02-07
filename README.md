@@ -87,13 +87,14 @@ Installed layout:
 
 - `commands/` (examples):
   - `master.md`, `rules.md`, `start.md`, `continue.md`, `resume.md`
+  - `new_profile.md`, `new_addon.md` (factory commands for principal-grade profile/addon creation)
   - `SESSION_STATE_SCHEMA.md`, `QUALITY_INDEX.md`, `CONFLICT_RESOLUTION.md`
   - `SCOPE-AND-CONTEXT.md`, `TICKET_RECORD_TEMPLATE.md`, `ADR.md`, `resume_prompt.md`, …
 - `commands/profiles/`:
   - `profiles/*.md` (all profile rulebooks)
   - `profiles/addons/*.addon.yml` (addon manifests for required/advisory activation)
 - `commands/diagnostics/`:
-  - `diagnostics/**` (audit tooling, schemas, documentation)
+  - `diagnostics/**` (audit tooling, schemas, documentation, factory contracts such as `PROFILE_ADDON_FACTORY_CONTRACT.json`)
 
 ### Safety & operational behavior
 

@@ -193,11 +193,6 @@ def main(argv: list[str]) -> int:
             return str(p)
 
     print("✅ Built artifacts:")
-    def _pretty(p: Path) -> str:
-        try:
-            return str(p.relative_to(bp.repo_root))
-        except ValueError:
-            return str(p)
     for a in artifacts:
         print(f"  - {_pretty(a)}")
     print(f"  - {_pretty(sums)}")
