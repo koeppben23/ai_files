@@ -30,15 +30,28 @@ def _unquote(value: str) -> str:
     return value
 
 
-def parse_manifest(path: Path) -> tuple[dict[str, str], str | None, list[tuple[str, str]], list[str]]:
+def _parse_inline_list(value: str) -> list[str] | None:
+    value = value.strip()
+    if not (value.startswith("[") and value.endswith("]")):
+        return None
+    inner = value[1:-1].strip()
+    if not inner:
+        return []
+    parts = [_unquote(p.strip()) for p in inner.split(",")]
+    return [p for p in parts if p]
+
+
+def parse_manifest(path: Path) -> tuple[dict[str, str], str | None, list[tuple[str, str]], list[str], list[str]]:
     """Parse constrained addon-manifest YAML shape without external dependencies."""
     text = read_text(path)
     scalars: dict[str, str] = {}
     signals_mode: str | None = None
     signals: list[tuple[str, str]] = []
+    path_roots: list[str] = []
     errors: list[str] = []
 
     in_signals = False
+    in_path_roots = False
     line_no = 0
     for raw in text.splitlines():
         line_no += 1
@@ -55,8 +68,22 @@ def parse_manifest(path: Path) -> tuple[dict[str, str], str | None, list[tuple[s
             key, val = m.group(1), m.group(2)
             if key == "signals":
                 in_signals = True
+                in_path_roots = False
+                continue
+            if key == "path_roots":
+                in_signals = False
+                if val:
+                    parsed = _parse_inline_list(val)
+                    if parsed is None:
+                        errors.append(f"line {line_no}: path_roots must be a YAML list")
+                    else:
+                        path_roots.extend(parsed)
+                    in_path_roots = False
+                else:
+                    in_path_roots = True
                 continue
             in_signals = False
+            in_path_roots = False
             val = _unquote(val)
             if not val:
                 errors.append(f"line {line_no}: empty scalar for '{key}'")
@@ -90,20 +117,34 @@ def parse_manifest(path: Path) -> tuple[dict[str, str], str | None, list[tuple[s
             errors.append(f"line {line_no}: malformed signals entry")
             continue
 
-        # any other indented block outside known structures
-        errors.append(f"line {line_no}: unexpected indentation outside 'signals' block")
+        if in_path_roots:
+            root_match = re.match(r"^\s{2}-\s*(.*?)\s*$", raw)
+            if root_match:
+                root = _unquote(root_match.group(1))
+                if not root:
+                    errors.append(f"line {line_no}: empty path_roots entry")
+                else:
+                    path_roots.append(root)
+                continue
 
-    return scalars, signals_mode, signals, errors
+            errors.append(f"line {line_no}: malformed path_roots entry")
+            continue
+
+        # any other indented block outside known structures
+        errors.append(f"line {line_no}: unexpected indentation outside 'signals'/'path_roots' block")
+
+    return scalars, signals_mode, signals, path_roots, errors
 
 
 def validate_manifest(path: Path, repo_root: Path) -> list[str]:
     errors: list[str] = []
-    scalars, signals_mode, signals, parse_errors = parse_manifest(path)
+    scalars, signals_mode, signals, path_roots, parse_errors = parse_manifest(path)
     errors.extend(parse_errors)
 
     addon_key = scalars.get("addon_key")
     addon_class = scalars.get("addon_class")
     rulebook = scalars.get("rulebook")
+    manifest_version = scalars.get("manifest_version")
 
     if not addon_key:
         errors.append("missing addon_key")
@@ -119,6 +160,20 @@ def validate_manifest(path: Path, repo_root: Path) -> list[str]:
         rb_path = (repo_root / "profiles" / rulebook) if not rulebook.startswith("profiles/") else (repo_root / rulebook)
         if not rb_path.exists():
             errors.append(f"rulebook does not exist: {rulebook}")
+
+    if not manifest_version:
+        errors.append("missing manifest_version")
+    elif not re.fullmatch(r"\d+", manifest_version):
+        errors.append(f"invalid manifest_version={manifest_version} (expected integer)")
+    elif int(manifest_version) != 1:
+        errors.append(f"unsupported manifest_version={manifest_version} (expected 1)")
+
+    for root in path_roots:
+        p = Path(root)
+        if p.is_absolute():
+            errors.append(f"path_roots entry must be relative: {root}")
+        if ".." in p.parts:
+            errors.append(f"path_roots entry must not contain traversal: {root}")
 
     if signals_mode is None:
         errors.append("missing signals block")
@@ -152,7 +207,7 @@ def main(argv: list[str]) -> int:
         rel = manifest.resolve().relative_to(repo_root).as_posix()
         errors = validate_manifest(manifest, repo_root)
 
-        scalars, _signals_mode, _signals, _parse_errors = parse_manifest(manifest)
+        scalars, _signals_mode, _signals, _path_roots, _parse_errors = parse_manifest(manifest)
         addon_key = scalars.get("addon_key")
         if addon_key:
             if addon_key in seen_keys:

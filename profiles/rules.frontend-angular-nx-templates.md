@@ -7,9 +7,27 @@ Addon class (binding): required addon.
 Activation (binding): MUST be loaded at code-phase (Phase 4+) when `SESSION_STATE.ActiveProfile = "frontend-angular-nx"`.
 - If missing at code-phase: `Mode = BLOCKED`, `Next = BLOCKED-MISSING-TEMPLATES`.
 
-Precedence (binding): `master.md` > `rules.md` > this addon > `rules.frontend-angular-nx.md`.
+Precedence (binding): use the canonical order from `rules.md` Section 4.6.
+This required addon refines template defaults and MUST NOT override `master.md`, `rules.md`, or `rules.frontend-angular-nx.md` constraints.
 
 Rule (binding): templates are default structures. If a template conflicts with locked repo conventions, apply minimal adaptation and record the deviation.
+
+Phase integration (binding):
+- Phase 2: capture template-relevant repo conventions (signals/store/testing style, Nx boundaries).
+- Phase 4: use these templates for changed scope and record deviations explicitly.
+- Phase 5.3: verify template-derived behavior via repo-native lint/test targets or mark `not-verified`.
+
+Evidence contract (binding):
+- Record loaded template path in `SESSION_STATE.LoadedRulebooks.templates`.
+- Record major deviations under `SESSION_STATE.DecisionDrivers` with evidence refs.
+
+Tooling guidance (recommended):
+- Prefer repo-native Nx targets (for example `npx nx affected -t lint,test,build`).
+- If target names differ, document the resolved equivalent commands in BuildEvidence.
+
+Troubleshooting (quick):
+- Signal/store mismatch: adapt template state layer to repo pattern (signals/ngrx/component-store) and document deviation.
+- Boundary violations: split feature/data-access/ui libs to satisfy Nx constraints before wiring component templates.
 
 ---
 

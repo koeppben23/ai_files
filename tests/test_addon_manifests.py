@@ -66,6 +66,71 @@ def test_addon_manifests_have_valid_addon_class():
 
 
 @pytest.mark.governance
+def test_addon_manifests_have_manifest_version_v1():
+    manifests = list(git_ls_files("profiles/addons/*.addon.yml"))
+    assert manifests, "No addon manifests found under profiles/addons/*.addon.yml"
+
+    bad = []
+    for rel in manifests:
+        t = read_text(REPO_ROOT / rel)
+        m = re.search(r"^manifest_version:\s*(\S+)\s*$", t, flags=re.MULTILINE)
+        if not m:
+            bad.append(f"{rel}: missing manifest_version")
+            continue
+
+        value = m.group(1).strip().strip('"').strip("'")
+        if value != "1":
+            bad.append(f"{rel}: expected manifest_version=1, got {value}")
+
+    assert not bad, "Addon manifests with invalid manifest_version:\n" + "\n".join([f"- {r}" for r in bad])
+
+
+@pytest.mark.governance
+def test_addon_manifests_define_relative_path_roots():
+    manifests = list(git_ls_files("profiles/addons/*.addon.yml"))
+    assert manifests, "No addon manifests found under profiles/addons/*.addon.yml"
+
+    bad = []
+    for rel in manifests:
+        lines = read_text(REPO_ROOT / rel).splitlines()
+
+        root_idx = None
+        for i, line in enumerate(lines):
+            if re.match(r"^path_roots:\s*$", line):
+                root_idx = i
+                break
+
+        if root_idx is None:
+            bad.append(f"{rel}: missing path_roots")
+            continue
+
+        roots: list[str] = []
+        for line in lines[root_idx + 1 :]:
+            m = re.match(r"^\s{2}-\s*(.*?)\s*$", line)
+            if m:
+                val = m.group(1).strip().strip('"').strip("'")
+                if val:
+                    roots.append(val)
+                continue
+            if line.startswith("  ") and not line.strip():
+                continue
+            break
+
+        if not roots:
+            bad.append(f"{rel}: path_roots has no entries")
+            continue
+
+        for root in roots:
+            p = Path(root)
+            if p.is_absolute():
+                bad.append(f"{rel}: path_roots must be relative, got {root}")
+            if ".." in p.parts:
+                bad.append(f"{rel}: path_roots must not contain traversal, got {root}")
+
+    assert not bad, "Addon manifests with invalid path_roots:\n" + "\n".join([f"- {r}" for r in bad])
+
+
+@pytest.mark.governance
 def test_master_addon_policy_includes_required_advisory_and_reload():
     """Pipeline guard: master must define required/advisory semantics and re-evaluation support."""
     master = read_text(REPO_ROOT / "master.md")

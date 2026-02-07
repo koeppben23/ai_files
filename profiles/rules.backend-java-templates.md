@@ -7,7 +7,8 @@
 **Activation (binding):** MUST be loaded at code-phase (Phase 4+) when `SESSION_STATE.ActiveProfile = "backend-java"`.
 - If SESSION_STATE.Phase is in code-phase set (Phase 4+) and this addon is not loaded: Mode = BLOCKED, Next = BLOCKED-MISSING-TEMPLATES.
 
-**Precedence (binding):** `master.md` > `rules.md` (core) > this addon > `rules.backend-java.md` (profile).
+**Precedence (binding):** use the canonical order from `rules.md` Section 4.6.
+This required addon refines template defaults and MUST NOT override `master.md`, `rules.md`, or `rules.backend-java.md` constraints.
 - In conflicts, this addon’s templates override abstract style/principles.
 
 ---
@@ -128,10 +129,9 @@ public class {Resource}Service {
         // 1. Validate (delegate to entity if possible)
         {resource}.validate();
         
-        // 2. Set timestamps
+        // 2. Set timestamps via domain method
         Instant now = clock.instant();
-        {resource}.setCreatedAt(now);
-        {resource}.setUpdatedAt(now);
+        {resource}.initializeTimestamps(now);
         
         // 3. Persist
         return repository.save({resource});
@@ -217,6 +217,11 @@ public class {Resource} {
     
     public void update({Resource} updated, Instant now) {
         this.name = updated.getName();
+        this.updatedAt = now;
+    }
+
+    public void initializeTimestamps(Instant now) {
+        this.createdAt = now;
         this.updatedAt = now;
     }
     

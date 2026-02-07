@@ -6,6 +6,27 @@ Purpose: strengthen frontend E2E quality and reduce flakiness when Cypress is pr
 
 Non-blocking policy: if context/tooling is incomplete, emit WARN with recovery steps and continue conservatively.
 
+Precedence (binding): use the canonical order from `rules.md` Section 4.6.
+This advisory addon refines E2E-quality behavior and MUST NOT override `master.md`, `rules.md`, or active profile constraints.
+
+Activation (binding): manifest-owned via `profiles/addons/frontendCypress.addon.yml`.
+This rulebook defines behavior once activated; it MUST NOT redefine activation signals.
+
+## Phase integration (binding)
+
+- Phase 2: record Cypress signals and runner evidence in `SESSION_STATE.AddonsEvidence.frontendCypress.signals`.
+- Phase 2.1: decide critical journeys and flake controls for changed scope.
+- Phase 4: implement/adjust deterministic Cypress coverage for changed behavior.
+- Phase 5.3: execute repo-native e2e command or emit `not-verified` with recovery commands.
+
+## Evidence contract (binding)
+
+When active, maintain:
+- `SESSION_STATE.AddonsEvidence.frontendCypress.required`
+- `SESSION_STATE.AddonsEvidence.frontendCypress.signals`
+- `SESSION_STATE.AddonsEvidence.frontendCypress.status` (`loaded|skipped|missing-rulebook`)
+- warning codes in `warnings[]` for advisory flake/tooling uncertainty.
+
 ## Binding guidance
 
 - Prefer deterministic network control (`cy.intercept`) for changed critical flows.
@@ -24,6 +45,29 @@ Non-blocking policy: if context/tooling is incomplete, emit WARN with recovery s
 1. Stabilize selectors in changed screens.
 2. Add/adjust intercept fixtures for critical path.
 3. Replace fixed waits with retryable assertions.
+
+Repo-native command hints (recommended):
+- Nx workspace: `npx nx affected -t e2e`
+- Cypress package script: `npm run cypress:run`
+- Direct runner fallback: `npx cypress run`
+
+## Examples (GOOD/BAD)
+
+GOOD:
+- `cy.intercept` controls changed API call and assertions verify user-visible outcomes with stable selectors.
+
+BAD:
+- `cy.wait(5000)` used as primary synchronization for changed critical flow.
+
+## Troubleshooting
+
+1) Symptom: tests pass locally but fail in CI intermittently
+- Cause: missing deterministic network control
+- Fix: add intercept fixtures and replace time-based waits with retryable assertions.
+
+2) Symptom: selectors break after style refactor
+- Cause: CSS-chain selectors coupled to layout
+- Fix: switch to `data-testid` or repo-standard stable selector convention.
 
 ## Principal Hardening v2 - Cypress Critical Quality (Binding)
 

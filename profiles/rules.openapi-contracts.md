@@ -3,8 +3,8 @@
 This document defines the **OpenAPI contracts** addon rules.
 It is applied **in addition** to the Core Rulebook (`rules.md`), the Master Prompt (`master.md`), and any active profile.
 
-Priority order on conflict:
-`master.md` > `rules.md` (Core) > active profile > this addon.
+Precedence (binding): use the canonical order from `rules.md` Section 4.6.
+This addon refines OpenAPI-specific behavior after activation and MUST NOT override master/core/profile constraints.
 
 **Addon class (binding):** advisory addon.
 **Non-blocking policy (binding):** This addon MUST NOT hard-block delivery. If critical prerequisites are missing (spec root unclear, version unknown, no contract checks), the assistant MUST surface a **status code** (Section 8), record it in `SESSION_STATE.AddonsEvidence.openapi.status`, provide **recovery steps**, and proceed with conservative, repo-driven defaults.
@@ -45,6 +45,23 @@ This addon integrates with the governance phases defined by `master.md`:
 - **Phase 5.3 (Quality gate):**
   - Run repo-native contract checks if available (Section 7).
   - If mismatch is detected, surface `WARN-OPENAPI-SPEC-IMPLEMENTATION-MISMATCH` and propose concrete diffs/remediations.
+
+### 1.1 Mismatch evidence template (binding)
+
+When mismatch is detected, record compact diff evidence in session state:
+
+```yaml
+SESSION_STATE:
+  AddonsEvidence:
+    openapi:
+      status: WARN-OPENAPI-SPEC-IMPLEMENTATION-MISMATCH
+      diffEvidence:
+        - path: "<spec path>"
+          operation: "<METHOD /path or operationId>"
+          expected: "<contract excerpt>"
+          observed: "<implementation/test excerpt>"
+          recovery: "<minimal corrective action>"
+```
 
 ---
 

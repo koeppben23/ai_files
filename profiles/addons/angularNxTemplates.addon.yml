@@ -1,6 +1,9 @@
 addon_key: angularNxTemplates
 addon_class: required
 rulebook: rules.frontend-angular-nx-templates.md
+manifest_version: 1
+path_roots:
+  - "."
 signals:
   any:
     - file_glob: "**/nx.json"

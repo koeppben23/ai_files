@@ -1,6 +1,9 @@
 addon_key: dbLiquibase
 addon_class: required
 rulebook: rules.postgres-liquibase.md
+manifest_version: 1
+path_roots:
+  - "."
 signals:
   any:
     - maven_dep: org.liquibase:liquibase-core

@@ -1,20 +1,25 @@
 # Rules: PostgreSQL + Liquibase
 
-**Profile Key:** `rules.postgres-liquibase`  
+**Rulebook Key:** `rules.postgres-liquibase`  
 **Stack:** PostgreSQL + Liquibase (4.x+)  
-**Type:** Database Migration Governance  
+**Type:** Database Migration Governance Addon  
 **Maturity:** Production  
 **Scope:** Schema migrations, data migrations, rollback safety
 **Addon class (binding):** required addon
 
 ---
 
-## Profile Activation
+## Addon Activation (Manifest-Owned)
 
-**This profile is activated when:**
-- Repository contains `db/changelog.xml` or `db/changelog.yaml`, OR
-- Repository contains `liquibase.properties`, OR
-- Explicitly requested via `SESSION_STATE.Profile=rules.postgres-liquibase`
+Activation signals are defined in `profiles/addons/dbLiquibase.addon.yml`.
+
+This addon is required when manifest signals match (for example Liquibase dependency/config/changelog paths)
+or when explicitly requested by ticket/operator scope.
+
+This rulebook defines behavior after activation and MUST NOT redefine profile selection logic.
+
+Precedence (binding): use the canonical order from `rules.md` Section 4.6.
+This required addon refines migration safety behavior and MUST NOT override `master.md`, `rules.md`, or active profile constraints.
 
 **Applies to:**
 - All changes executed via Liquibase: schema (DDL), data (DML), permissions, extensions, functions/procedures, indexes, constraints
@@ -22,7 +27,7 @@
 - All PRs that touch `db/`, Liquibase changelogs, or migration SQL
 
 **Non-goals:**
-- This profile does not prescribe application-level ORM practices
+- This addon does not prescribe application-level ORM practices
 
 ---
 
@@ -79,7 +84,7 @@ LIQUIBASE_FORMAT: XML  # Or: YAML, HYBRID
 
 ### Phase 1.5: Business Rules Discovery
 
-When this profile is active, the following DB-specific business rules are extracted:
+When this addon is active, the following DB-specific business rules are extracted:
 - Data consistency constraints (from existing migrations)
 - Schema invariants (NOT NULL, UNIQUE, CHECK constraints)
 - Enum definitions and their usage patterns
@@ -88,7 +93,7 @@ When this profile is active, the following DB-specific business rules are extrac
 
 ### Phase 2: Repository Discovery
 
-**Profile detection triggers:**
+**Addon activation signals:**
 1. Scan for `db/changelog.xml` or `db/changelog.yaml`
 2. Scan for `liquibase.properties`
 3. Scan for changesets in `db/changesets/`
@@ -1109,13 +1114,13 @@ Exceptions must be:
 - See `master.md` for governance workflow (if applicable)
 - See `rules.md` for code quality standards (if applicable)
 
-### Related Profiles
+### Related Rulebooks
 - `rules.backend-java.md` — Application layer
 - `rules.md` — Test and quality requirements
 
 ---
 
-## Profile Compliance Statement
+## Addon Compliance Statement
 
 By merging a PR that touches DB migrations, approvers accept operational responsibility for:
 - Migration safety for declared PostgreSQL version

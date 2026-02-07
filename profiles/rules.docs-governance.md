@@ -6,6 +6,9 @@ Addon class (binding): advisory addon.
 
 Non-blocking policy (binding): this addon MUST NOT set BLOCKED by itself. Drift/lint findings are surfaced as WARN status codes plus concrete recovery actions.
 
+Precedence (binding): use the canonical order from `rules.md` Section 4.6.
+This advisory addon refines docs-quality behavior and MUST NOT override `master.md`, `rules.md`, or active profile constraints.
+
 ---
 
 ## Scope
@@ -54,6 +57,10 @@ When active, this addon SHOULD maintain:
 - `SESSION_STATE.AddonsEvidence.docsGovernance.signals` (array)
 - `SESSION_STATE.AddonsEvidence.docsGovernance.required` (bool)
 - `SESSION_STATE.AddonsEvidence.docsGovernance.status` (`loaded|skipped|missing-rulebook`)
+
+Binding clarification:
+- Drift findings are expressed via `warnings[]` with `WARN-*` codes.
+- `status` remains lifecycle-oriented (`loaded|skipped|missing-rulebook`) and MUST NOT be replaced by ad-hoc `warn` status strings.
 
 Docs drift result (recommended object):
 
@@ -143,8 +150,8 @@ MUST NOT:
 Canonical terms lint (binding):
 - Avoid deprecated/confusing aliases in governance docs. Prefer canonical forms:
   - `rules.frontend-angular-nx.md` (not `rules.frontend.md`)
-  - `BLOCKED-MISSING-TEMPLATES` (do not use legacy templates-missing variant)
-  - `BLOCKED-MISSING-ADDON:<addon_key>` (not ad-hoc addon-specific BLOCKED names)
+  - `BLOCKED-MISSING-TEMPLATES` (do not use legacy templates-missing variant; reference only, do not emit from this addon)
+  - `BLOCKED-MISSING-ADDON:<addon_key>` (not ad-hoc addon-specific BLOCKED names; reference only, do not emit from this addon)
 
 ---
 

@@ -3,8 +3,20 @@
 This document defines shared scorecard calibration for cross-addon comparability.
 It is designed as an advisory addon rulebook.
 
-Priority order on conflict:
-`master.md` > `rules.md` (Core) > profile rulebook > this shared advisory rulebook.
+Precedence (binding): use the canonical order from `rules.md` Section 4.6.
+As a shared advisory addon, this rulebook refines scorecard comparability and MUST NOT override master/core/profile constraints.
+
+Activation (binding): manifest-owned via `profiles/addons/scorecardCalibration.addon.yml`.
+This rulebook defines behavior after activation and MUST NOT redefine activation signals.
+
+Phase integration (binding):
+- Phase 4: apply calibration defaults to planned scorecards.
+- Phase 5: verify comparability/threshold contracts across active addons.
+- Phase 6: block principal-grade declaration if calibration evidence is incomplete.
+
+Evidence contract (binding):
+- Maintain `SESSION_STATE.AddonsEvidence.scorecardCalibration.status` (`loaded|skipped|missing-rulebook`).
+- Advisory warnings use `WARN-*` codes and recovery actions, not addon-only hard blocks.
 
 ---
 

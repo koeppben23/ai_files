@@ -324,10 +324,13 @@ ALGORITHM (BINDING, NORMATIVE):
    - Addons are discovered **dynamically** by scanning addon manifests located at:
      - `${PROFILES_HOME}/addons/*.addon.yml`
    - Each manifest MUST define:
-      - `addon_key` (string)
-      - `addon_class` (`required` | `advisory`)
-      - `rulebook` (path under `${PROFILES_HOME}`)
-      - `signals` (one or more evidence patterns; see manifests)
+       - `addon_key` (string)
+       - `addon_class` (`required` | `advisory`)
+       - `rulebook` (path under `${PROFILES_HOME}`)
+       - `manifest_version` (currently `1`)
+       - `signals` (one or more evidence patterns; see manifests)
+    - Optional manifest ops fields:
+       - `path_roots` (relative repo paths to scope signal evaluation in monorepos)
 
    Rules (BINDING):
    - For each addon, evaluate evidence signals from Phase 2 artifacts + ticket text.

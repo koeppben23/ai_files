@@ -5,8 +5,8 @@ It is applied in addition to:
 - `master.md` (phases, gates, activation)
 - `rules.md` (core engineering governance)
 
-Priority order on conflict:
-`master.md` > `rules.md` (core) > this profile.
+Precedence (binding): use the canonical order from `rules.md` Section 4.6.
+For Angular+Nx behavior, this profile governs stack-specific rules and activated addons/templates may refine within profile constraints.
 
 Intent (binding): produce top-tier frontend business behavior and tests by deterministic patterns and evidence, not by style preference.
 
@@ -20,6 +20,8 @@ For `frontend-angular-nx`, deterministic generation requires:
 Binding:
 - At code-phase (Phase 4+), the workflow MUST load the templates addon and record it in:
   - `SESSION_STATE.LoadedRulebooks.templates`
+- The load evidence MUST include resolved path plus version/digest evidence when available:
+  - `SESSION_STATE.RulebookLoadEvidence.templates`
 - If required and missing at code-phase: `Mode = BLOCKED`, `Next = BLOCKED-MISSING-TEMPLATES`.
 
 When loaded, templates are binding defaults. If a template conflicts with locked repo conventions, apply the minimal convention-aligned adaptation and record the deviation.
@@ -28,9 +30,9 @@ When loaded, templates are binding defaults. If a template conflicts with locked
 
 ## Addon Policy Classes (Binding)
 
-- Required addons (code-generation-critical) may hard-block in code-phase when missing.
-- Advisory addons (quality amplifiers) MUST emit WARN + recovery steps and continue conservatively.
+- Addon class semantics are canonical in `rules.md` Section 4.6 and `master.md`; this profile MUST reference, not redefine, those semantics.
 - Addon manifests/rulebooks MUST declare `addon_class` explicitly.
+- This profile may define frontend-specific required-signal logic, but missing-rulebook handling MUST follow canonical policy.
 
 ---
 

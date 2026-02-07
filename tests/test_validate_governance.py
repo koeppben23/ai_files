@@ -854,3 +854,45 @@ def test_error_logger_updates_index_and_prunes_old_global_logs(tmp_path: Path):
     assert isinstance(idx.get("totalEvents"), int) and idx["totalEvents"] >= 1
     assert isinstance(idx.get("byReason"), dict)
     assert idx["byReason"].get("ERR-TEST-INDEX", 0) >= 1
+
+
+@pytest.mark.governance
+def test_rules_define_canonical_rulebook_precedence_contract():
+    text = read_text(REPO_ROOT / "rules.md")
+    required_tokens = [
+        "### 4.6 Canonical Rulebook Precedence (Binding)",
+        "master.md",
+        "rules.md",
+        "active profile rulebook",
+        "activated addon rulebooks (including templates and shared governance add-ons)",
+        "Activation remains manifest-owned for addons",
+    ]
+    missing = [token for token in required_tokens if token not in text]
+    assert not missing, "rules.md missing canonical precedence contract tokens:\n" + "\n".join([f"- {m}" for m in missing])
+
+
+@pytest.mark.governance
+def test_selected_rulebooks_reference_core_precedence_contract():
+    expected = [
+        "profiles/rules.backend-java.md",
+        "profiles/rules.frontend-angular-nx.md",
+        "profiles/rules.openapi-contracts.md",
+        "profiles/rules.cucumber-bdd.md",
+        "profiles/rules.backend-java-templates.md",
+        "profiles/rules.backend-java-kafka-templates.md",
+        "profiles/rules.frontend-angular-nx-templates.md",
+        "profiles/rules.docs-governance.md",
+        "profiles/rules.postgres-liquibase.md",
+        "profiles/rules.principal-excellence.md",
+        "profiles/rules.risk-tiering.md",
+        "profiles/rules.scorecard-calibration.md",
+    ]
+    missing_refs = []
+    for rel in expected:
+        text = read_text(REPO_ROOT / rel)
+        if "rules.md Section 4.6" not in text:
+            missing_refs.append(rel)
+
+    assert not missing_refs, "Rulebooks missing core precedence reference:\n" + "\n".join(
+        [f"- {r}" for r in missing_refs]
+    )

@@ -4,8 +4,18 @@ Purpose:
 Provide a mandatory baseline when a target repository lacks explicit
 standards (no CI, no test conventions, no documented build steps).
 
+Precedence (binding): use the canonical order from `rules.md` Section 4.6.
+This fallback profile applies only when no stack profile can be selected deterministically.
+
 ## Activation condition
 This profile applies ONLY when no repo-local standards are discoverable.
+
+## Phase integration (binding)
+
+- Phase 2: document missing standards and the minimum runnable baseline proposal.
+- Phase 2.1: include explicit decision for minimal verification path (unit/integration/smoke).
+- Phase 4: implement the smallest safe baseline for build/test/docs in changed scope.
+- Phase 5/6: verify executed evidence or mark `not-verified` with copy/paste recovery commands.
 
 ## Mandatory baseline (MUST)
 - Identify how to build and verify the project.
@@ -18,6 +28,15 @@ At least one of:
 - Unit tests for core logic changes
 - Integration test for boundary changes when feasible
 - Smoke verification (build + basic run) if tests are absent
+
+## Minimal tooling commands (recommended)
+
+Use repo-native commands when available; otherwise propose minimal equivalents:
+- Python: `python3 -m pytest -q`
+- Node: `npm test`
+- Maven: `mvn -q test`
+- Gradle: `./gradlew test`
+- Build smoke: repo-native build command + one startup/check command
 
 ## Documentation (MUST)
 - Ensure build/test instructions exist (create minimal documentation if missing).

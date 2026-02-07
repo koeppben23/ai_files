@@ -7,8 +7,23 @@
 **Activation (binding):** MUST be loaded at code-phase (Phase 4+) when Kafka is required (see `rules.backend-java.md`).
 - If Kafka is required and this addon is not loaded: `Mode = BLOCKED`, `Next = BLOCKED-MISSING-ADDON:kafka`.
 
-**Precedence (binding):** `master.md` > `rules.md` (core) > this Kafka addon > `rules.backend-java-templates.md` (base templates) > `rules.backend-java.md` (profile).
-- In conflicts for Kafka-related code, this addon overrides abstract style/principles.
+**Precedence (binding):** use the canonical order from `rules.md` Section 4.6.
+This required addon refines Kafka-specific templates and MUST NOT override `master.md`, `rules.md`, `rules.backend-java.md`, or base template constraints.
+
+Tooling and versioning intent (binding):
+- Use repository-pinned Kafka/Spring tooling when present; do not invent alternate client stacks.
+- Preserve repo serializer/deserializer strategy unless ticket explicitly changes it.
+- Test tooling should follow repo standard (`spring-kafka-test`, Testcontainers, or existing equivalent).
+
+Phase integration (binding):
+- Phase 2: capture Kafka evidence (deps/annotations/config) and required scope.
+- Phase 4: apply these templates only for Kafka-touched changes.
+- Phase 5.3: verify idempotency/retry/error-path behavior with deterministic evidence.
+
+Troubleshooting (quick):
+- Schema registry mismatch: align serializer config and test fixtures with repo convention before changing listeners.
+- Retry/DLT ambiguity: prefer existing retry topology; if unknown, mark `not-verified` and emit recovery command.
+- Async flake in tests: replace sleeps with Awaitility/Testcontainers-ready checks.
 
 ---
 

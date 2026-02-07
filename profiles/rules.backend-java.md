@@ -6,8 +6,8 @@ It is applied **in addition** to the Core Rulebook (`rules.md`) and the Master P
 **Intent:** enforce *provable* best-practice engineering defaults so the system reliably produces  
 **top-tier business code and tests** — not by intention, but by **verified evidence**.
 
-Priority order on conflict:
-`master.md` > `rules.md` (Core) > this profile.
+Precedence (binding): use the canonical order from `rules.md` Section 4.6.
+For backend-java behavior, this profile governs stack-specific rules and activated addons/templates may refine within profile constraints.
 
 ---
 # Templates Addon (Binding)
@@ -18,6 +18,8 @@ For the `backend-java` profile, deterministic generation requires the templates 
 Binding:
 - At **code-phase** (Phase 4+), the workflow MUST load the templates addon and record it in:
   - `SESSION_STATE.LoadedRulebooks.templates`
+- The load evidence MUST include resolved path plus version/digest evidence when available:
+  - `SESSION_STATE.RulebookLoadEvidence.templates`
 - When loaded, templates are binding defaults; if a template conflicts with locked repo conventions, apply the minimal convention-aligned adaptation and document the deviation.
 
 ---
@@ -49,9 +51,9 @@ If `required = true` but addon rulebook is missing at code-phase:
   `BLOCKED-MISSING-ADDON:kafka`.
 
 Addon policy classes (binding):
-- **Required addons** (code-generation-critical): enforce safe generation constraints and follow required-addon policy from `master.md`.
-- **Advisory addons** (quality amplifiers): should emit WARN status + recovery steps and continue conservatively.
-- Addon manifests/rulebooks MUST explicitly declare which class they belong to.
+- Addon class semantics are canonical in `rules.md` Section 4.6 and `master.md`; this profile MUST reference, not redefine, those semantics.
+- Addon manifests/rulebooks MUST explicitly declare class (`required` | `advisory`).
+- This profile may define backend-java-specific required-signal logic, but missing-rulebook handling MUST follow canonical policy.
 
 ---
 

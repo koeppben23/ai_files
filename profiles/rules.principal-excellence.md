@@ -3,8 +3,20 @@
 This document defines shared principal-grade review contracts.
 It is designed as an advisory addon rulebook that can be reused across profiles.
 
-Priority order on conflict:
-`master.md` > `rules.md` (Core) > profile rulebook > this shared advisory rulebook.
+Precedence (binding): use the canonical order from `rules.md` Section 4.6.
+As a shared advisory addon, this rulebook refines review behavior and MUST NOT override master/core/profile constraints.
+
+Activation (binding): manifest-owned via `profiles/addons/principalExcellence.addon.yml`.
+This rulebook defines behavior after activation and MUST NOT redefine activation signals.
+
+Phase integration (binding):
+- Phase 4: initialize scorecard criteria for touched scope.
+- Phase 5: evaluate criteria with evidence refs.
+- Phase 6: verify unresolved critical failures remain `not-verified` with recovery steps.
+
+Evidence contract (binding):
+- Maintain `SESSION_STATE.AddonsEvidence.principalExcellence.status` (`loaded|skipped|missing-rulebook`).
+- Advisory findings are represented via WARN codes in `warnings[]`; do not hard-block solely from this addon.
 
 ---
 

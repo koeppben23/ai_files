@@ -3,8 +3,8 @@
 This document defines the **Cucumber/BDD** addon rules.
 It is applied **in addition** to the Core Rulebook (`rules.md`), the Master Prompt (`master.md`), and the active profile.
 
-Priority order on conflict:
-`master.md` > `rules.md` (Core) > active profile > this addon.
+Precedence (binding): use the canonical order from `rules.md` Section 4.6.
+This addon refines behavior after activation and MUST NOT override master/core/profile constraints.
 
 **Addon class (binding):** advisory addon.
 **Non-blocking policy:** This addon never hard-blocks progress. If required context, conventions, or tooling are missing/unclear, emit a **status code** with a concrete recovery action and continue with conservative defaults.
