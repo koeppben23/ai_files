@@ -400,3 +400,115 @@ If any item is missing → **NOT DONE**.
 
 Copyright © 2026 Benjamin Fuchs.
 All rights reserved. See LICENSE.
+
+---
+
+## Principal Excellence Contract (Binding)
+
+This rulebook is considered principal-grade only when the contract below is satisfied.
+
+### Gate Review Scorecard (binding)
+
+When this rulebook is active and touches changed scope, the workflow MUST maintain a scorecard entry with weighted criteria, critical flags, and evidence references.
+
+```yaml
+SESSION_STATE:
+  GateScorecards:
+    principal_excellence:
+      Score: 0
+      MaxScore: 0
+      Criteria:
+        - id: PRINCIPAL-QUALITY-CLAIMS-EVIDENCED
+          weight: 3
+          critical: true
+          result: pass | fail | partial | not-applicable
+          evidenceRef: EV-001 | not-verified
+        - id: PRINCIPAL-DETERMINISM-AND-TEST-RIGOR
+          weight: 3
+          critical: true
+          result: pass | fail | partial | not-applicable
+          evidenceRef: EV-002 | not-verified
+        - id: PRINCIPAL-ROLLBACK-OR-RECOVERY-READY
+          weight: 3
+          critical: true
+          result: pass | fail | partial | not-applicable
+          evidenceRef: EV-003 | not-verified
+```
+
+### Claim-to-evidence (binding)
+
+Any non-trivial claim (for example: contract-safe, tests green, architecture clean, deterministic) MUST map to an `evidenceRef`.
+If evidence is missing, the claim MUST be marked `not-verified`.
+
+### Exit criteria (binding)
+
+- All criteria with `critical: true` MUST be `pass` before declaring principal-grade completion.
+- Advisory add-ons MUST remain non-blocking, but MUST emit WARN status code + recovery when critical criteria are not pass.
+- Required templates/add-ons MAY block code-phase according to master/core/profile policy when critical criteria cannot be satisfied safely.
+
+### Recovery when evidence is missing (binding)
+
+Emit a warning code plus concrete recovery commands/steps and keep completion status as `not-verified`.
+Recommended code: `WARN-PRINCIPAL-EVIDENCE-MISSING`.
+
+---
+
+## Java-first Principal Hardening v2 (Binding)
+
+This section defines Java-specific, measurable hardening rules for business and test code.
+
+### JPH2-1 Risk tiering by touched surface (binding)
+
+The workflow MUST classify changed scope before implementation and gate reviews:
+
+- `TIER-LOW`: internal refactor without contract/persistence/async changes
+- `TIER-MEDIUM`: service/business logic or controller behavior change
+- `TIER-HIGH`: persistence/migration, security semantics, async messaging, or externally visible contract change
+
+If classification is uncertain, default to the higher tier.
+
+### JPH2-2 Mandatory evidence pack per tier (binding)
+
+`TIER-LOW` requires evidence for:
+- build
+- changed-module tests
+
+`TIER-MEDIUM` requires evidence for:
+- build
+- changed-module tests
+- at least one negative-path test for changed behavior
+
+`TIER-HIGH` requires evidence for:
+- build
+- changed-module tests
+- contract or schema checks (if repo tooling exists)
+- one deterministic negative-path test and one deterministic resilience test (retry/idempotency/concurrency as applicable)
+
+### JPH2-3 Hard fail criteria for principal acceptance (binding)
+
+A Java change MUST be marked `fail` in P5.3/P6 if any applies:
+
+- `JPH2-FAIL-01`: no evidenceRef for a critical claim
+- `JPH2-FAIL-02`: contract-facing change without negative-path proof
+- `JPH2-FAIL-03`: async/persistence risk change without deterministic resilience proof
+- `JPH2-FAIL-04`: generated code modified by hand
+- `JPH2-FAIL-05`: flaky test behavior detected (fixed sleeps or nondeterministic timing)
+
+### JPH2-4 Required test matrix mapping (binding)
+
+For changed behavior, at least the following matrix entries MUST be represented:
+
+- API/controller changes -> happy path + validation/error path
+- business-rule changes -> rule happy path + rule violation path
+- persistence changes -> constraint happy path + constraint violation path
+- async messaging changes -> consume/publish happy path + duplicate/retry/idempotency path
+
+If a row is not applicable, record explicit rationale in evidence.
+
+### JPH2-5 Determinism and flakiness budget (binding)
+
+- `Thread.sleep` in new/changed tests is forbidden when Awaitility or equivalent exists.
+- New/changed tests MUST control time via injected seam (`Clock` or repo equivalent).
+- New/changed assertions MUST avoid order dependence unless order is contractually required.
+
+If any of the above is violated, status MUST include `WARN-JAVA-DETERMINISM-RISK` and gate result cannot be `pass`.
