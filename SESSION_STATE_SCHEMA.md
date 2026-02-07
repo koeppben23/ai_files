@@ -61,6 +61,9 @@ During Phase `1.1-Bootstrap`, the session MUST include:
 
 - `SESSION_STATE.Next` MUST be set at the end of every phase output.
 - `continue.md` MUST execute ONLY the step referenced by `SESSION_STATE.Next`.
+- Every response containing `SESSION_STATE` MUST end with a terminal summary line:
+  - `NEXT_STEP: <value of SESSION_STATE.Next>`
+  - This line MUST appear after the `SESSION_STATE` block and be the last assistant-authored line.
 
 ### Path invariants (binding)
 
@@ -318,6 +321,7 @@ Optional but strongly recommended for monorepos:
 
 **Invariant**
 - `Next` MUST NOT skip mandatory gates.
+- Render contract: after emitting `SESSION_STATE`, output `NEXT_STEP: <SESSION_STATE.Next>` as the terminal line.
 
 ### 6.3 Canonical BLOCKED Next Pointers (recommended)
 

@@ -34,6 +34,7 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
 - Update factory contracts (`new_profile.md`, `new_addon.md`, `PROFILE_ADDON_FACTORY_CONTRACT.json`) for shared-contract modularization defaults.
 
 ### Changed
+- Require a terminal `NEXT_STEP: <SESSION_STATE.Next>` line after every `SESSION_STATE` output, and codify this in `master.md` + `SESSION_STATE_SCHEMA.md` with governance tests.
 - Canonicalize required-vs-advisory addon behavior as a single fail-closed policy source in `rules.md` Section 4.6 plus `master.md` addon catalog (local rulebooks now reference, not redefine, blocking semantics).
 - Add a governed emergency override contract for missing required addons (ticket/incident id, reason, approver, expiry/remediation, and mandatory `not-verified` status for affected claims).
 - Normalize template/profile rulebooks to remove local `Mode = BLOCKED` policy definitions in favor of canonical required-addon handling references:
