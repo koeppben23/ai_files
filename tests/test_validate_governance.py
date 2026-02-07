@@ -666,3 +666,33 @@ def test_start_md_includes_workspace_persistence_autohook():
     assert not missing, "start.md missing workspace persistence auto-hook tokens:\n" + "\n".join(
         [f"- {m}" for m in missing]
     )
+
+
+@pytest.mark.governance
+def test_master_requires_phase_21_to_prompt_for_phase_15_decision_when_not_explicitly_set():
+    text = read_text(REPO_ROOT / "master.md")
+    required_tokens = [
+        'Decision Pack MUST include: "Run Phase 1.5 now? (A=Yes, B=No)"',
+        "Run Phase 1.5 ONLY if the user approves",
+        '"Run Phase 1.5 (Business Rules Discovery) now?"',
+        "Execute Phase 1.5 ONLY if the user approves that decision.",
+    ]
+    missing = [token for token in required_tokens if token not in text]
+    assert not missing, "master.md missing mandatory Phase 2.1 -> Phase 1.5 decision prompts:\n" + "\n".join(
+        [f"- {m}" for m in missing]
+    )
+
+
+@pytest.mark.governance
+def test_backfill_decision_pack_includes_phase_15_prompt_decision():
+    text = read_text(REPO_ROOT / "diagnostics" / "persist_workspace_artifacts.py")
+    required_tokens = [
+        "D-001: Run Phase 1.5 (Business Rules Discovery) now?",
+        "A) Yes",
+        "B) No",
+        "Recommendation:",
+    ]
+    missing = [token for token in required_tokens if token not in text]
+    assert not missing, "persist_workspace_artifacts.py missing Phase 1.5 decision-pack baseline tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing]
+    )
