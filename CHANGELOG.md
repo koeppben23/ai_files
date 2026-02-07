@@ -34,6 +34,12 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
 - Update factory contracts (`new_profile.md`, `new_addon.md`, `PROFILE_ADDON_FACTORY_CONTRACT.json`) for shared-contract modularization defaults.
 
 ### Changed
+- Clarify control-plane terminology: "repo working tree" vs workspace bucket paths, and restrict rulebook loading to trusted outside-repo governance roots.
+- Align Master priority order with canonical precedence by explicitly inserting activated templates/addons between active profile and ticket specification.
+- Clarify addon activation semantics by separating evidence-based activation requirement (`AddonsEvidence.*.required`) from manifest policy class (`addon_class`).
+- Clarify workspace override pathing by introducing `${REPO_OVERRIDES_HOME}` and replacing `${REPO_HOME}/governance/...` search examples with explicit outside-repo override paths.
+- Add a first-class operator reload contract (`/reload-addons`) that deterministically executes only Phase 1.3 + 1.4, refreshes load/evidence pointers, and forbids auto-advance.
+- Remove `README-RULES.md` from normative priority order and mark it explicitly as non-normative executive summary.
 - Require a terminal `NEXT_STEP: <SESSION_STATE.Next>` line after every `SESSION_STATE` output, and codify this in `master.md` + `SESSION_STATE_SCHEMA.md` with governance tests.
 - Enforce Conventional naming for assistant-created branches/commits in governance contracts and CI (`master.md`, `rules.md`, `.github/workflows/ci.yml`) including PR branch-name and commit-subject validation.
 - Standardize `profiles/rules*.md` operational wrappers with consistent headings (`Intent`, `Scope`, `Activation`, `Phase integration`, `Evidence contract`, `Tooling`, `Examples`, `Troubleshooting`) and normalize quick-block variants to canonical section headings.

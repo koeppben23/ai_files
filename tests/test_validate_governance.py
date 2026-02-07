@@ -144,6 +144,52 @@ def test_conventional_branch_and_commit_contract_is_documented_and_ci_enforced()
 
 
 @pytest.mark.governance
+def test_control_plane_precision_contracts_for_overrides_reload_and_priority_order():
+    master = read_text(REPO_ROOT / "master.md")
+    rules = read_text(REPO_ROOT / "rules.md")
+
+    master_required = [
+        "${REPO_OVERRIDES_HOME}",
+        "workspace-only override bucket; never repo-local",
+        "`repo working tree` = checked-out project files under version control.",
+        "`workspace repo bucket` = `${REPO_HOME}` under `${WORKSPACES_HOME}/<repo_fingerprint>`",
+        "DO NOT read rulebooks from the repo working tree",
+        "Rulebooks may only be loaded from trusted governance roots outside the repo working tree",
+        "Workspace-local override (optional, outside the repo): `${REPO_OVERRIDES_HOME}/rules.md`",
+        "Workspace-local override (optional, outside the repo): `${REPO_OVERRIDES_HOME}/profiles/rules*.md`",
+        "4. Activated templates/addon rulebooks (manifest-driven)",
+        "`README-RULES.md` (if present) is descriptive/executive summary only and non-normative.",
+        "Precedence sync note (binding): this priority order MUST stay consistent with `rules.md` anchor `RULEBOOK-PRECEDENCE-POLICY`.",
+        "### 2.2.1 Operator Reload Contract (Binding)",
+        "`/reload-addons`",
+        "Run only Phase 1.3 + Phase 1.4 logic",
+        "Auto-advance to implementation/gates is forbidden from reload output",
+        "activation-required-by-evidence = true; otherwise false.",
+        "`SESSION_STATE.AddonsEvidence.<addon_key>.required` stores this evidence-based activation requirement",
+    ]
+    rules_required = [
+        "## 7.11 Operator Reload Contract (Core, Binding)",
+        "Execute only Phase 1.3 + Phase 1.4 reload logic.",
+        "Reload is a control-plane operation, not an implementation permission.",
+    ]
+
+    missing_master = [token for token in master_required if token not in master]
+    missing_rules = [token for token in rules_required if token not in rules]
+
+    assert not missing_master, "master.md missing control-plane precision contract tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_master]
+    )
+    assert not missing_rules, "rules.md missing reload control-plane contract tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_rules]
+    )
+
+    assert master.count("## 1. PRIORITY ORDER") == 1, "master.md must define exactly one canonical priority order section"
+    assert "DO NOT read rulebooks from the repository" not in master, (
+        "master.md contains legacy ambiguous phrase; use 'repo working tree' terminology instead"
+    )
+
+
+@pytest.mark.governance
 def test_schema_phase4_ticket_record_declares_must_include():
     schema = read_text(REPO_ROOT / "SESSION_STATE_SCHEMA.md")
     assert "When Phase 4 planning is produced, the workflow MUST include:" in schema

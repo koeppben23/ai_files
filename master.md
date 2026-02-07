@@ -213,6 +213,7 @@ The following are FORBIDDEN:
   - provisional or fallback identity trees.
 
 - `${REPO_HOME}` = `${WORKSPACES_HOME}/<repo_fingerprint>`  (workspace bucket)
+- `${REPO_OVERRIDES_HOME}` = `${REPO_HOME}/governance-overrides`  (workspace-only override bucket; never repo-local)
 - `${REPO_DECISIONS_FILE}` = `${REPO_HOME}/decisions/ADR.md`
 
 OpenCode-only persisted knowledge (stable across sessions for the same repo identity):
@@ -334,7 +335,9 @@ ALGORITHM (BINDING, NORMATIVE):
 
    Rules (BINDING):
    - For each addon, evaluate evidence signals from Phase 2 artifacts + ticket text.
-   - If ANY signal matches, the addon becomes `required = true`; otherwise `required = false`.
+   - If ANY signal matches, the addon becomes activation-required-by-evidence = true; otherwise false.
+   - Field mapping note (binding): `SESSION_STATE.AddonsEvidence.<addon_key>.required` stores this evidence-based activation requirement,
+     while `addon_class` (`required` | `advisory`) is read from the addon manifest policy class.
    - Missing/unknown evidence for a required decision path MUST trigger `BLOCKED-MISSING-EVIDENCE`.
    - If `required = true` and the addon rulebook is missing:
      - `addon_class = required`  -> `Mode = BLOCKED` with `BLOCKED-MISSING-ADDON:<addon_key>`.
@@ -396,8 +399,14 @@ Binding clarification:
 
 ### Local-Only Governance & State (BINDING)
 
-This governance system is single-user and MUST NOT require repository-local governance or persistent artifacts.
-- DO NOT read rulebooks from the repository (no `.opencode*`, no `profiles/` in repo).
+Terminology (binding):
+- `repo working tree` = checked-out project files under version control.
+- `workspace repo bucket` = `${REPO_HOME}` under `${WORKSPACES_HOME}/<repo_fingerprint>` (outside repo working tree).
+
+This governance system is single-user and MUST NOT require repo-working-tree-local governance or persistent artifacts.
+- DO NOT read rulebooks from the repo working tree (checked-out project files; no `.opencode*`, no `profiles/` in repo).
+- Rulebooks may only be loaded from trusted governance roots outside the repo working tree:
+  `${COMMANDS_HOME}`, `${PROFILES_HOME}`, `${REPO_OVERRIDES_HOME}` (and documented global fallbacks below).
 - ALL persistent artifacts (repo cache, decision log, resume state) MUST be stored outside the repo, under:
   - GovernanceHome: `${COMMANDS_HOME}/` (installed governance rulebooks + indices)
   - WorkspaceHome: `${WORKSPACES_HOME}/<repo_fingerprint>/` (state + caches)
@@ -405,7 +414,7 @@ This governance system is single-user and MUST NOT require repository-local gove
 #### Step 1 (Phase 1.3): Resolve Core Rulebook (rules.md)
 
 **Search order:**
-1. Workspace-local override (optional, outside the repo): `${REPO_HOME}/governance/rules.md`
+1. Workspace-local override (optional, outside the repo): `${REPO_OVERRIDES_HOME}/rules.md`
 2. Global commands: `${COMMANDS_HOME}/rules.md`
 3. Global config: `${OPENCODE_HOME}/rules.md` (fallback)
 4. Global rules folder: `${OPENCODE_HOME}/rules/rules.md` (fallback)
@@ -416,7 +425,7 @@ This governance system is single-user and MUST NOT require repository-local gove
 These files are normative and MUST be available in the same governance installation scope as `master.md`.
 
 **Search order (per file):**
-1. Workspace-local override (optional, outside the repo): `${REPO_HOME}/governance/<FILE>.md`
+1. Workspace-local override (optional, outside the repo): `${REPO_OVERRIDES_HOME}/<FILE>.md`
 2. Global commands: `${COMMANDS_HOME}/<FILE>.md`
 3. Global config: `${OPENCODE_HOME}/<FILE>.md` (fallback)
 4. Global rules folder: `${OPENCODE_HOME}/rules/<FILE>.md` (fallback)
@@ -432,12 +441,12 @@ These files are normative and MUST be available in the same governance installat
 
 2. **Auto-detection from available rulebooks** (NEW!)
    - If ONLY ONE profile rulebook exists (after filtering addon/shared rulebooks) → use it automatically
-   - Search paths:
-     a. Workspace-local override (optional, outside the repo): `${REPO_HOME}/governance/profiles/rules*.md`
-     b. `${COMMANDS_HOME}/rules*.md`
-     b2. `${PROFILES_HOME}/rules*.md`
-     c. `${OPENCODE_HOME}/rules/rules*.md`
-     d. `${OPENCODE_HOME}/rules/profiles/rules*.md`
+    - Search paths:
+      a. Workspace-local override (optional, outside the repo): `${REPO_OVERRIDES_HOME}/profiles/rules*.md`
+      b. `${COMMANDS_HOME}/rules*.md`
+      b2. `${PROFILES_HOME}/rules*.md`
+      c. `${OPENCODE_HOME}/rules/rules*.md`
+      d. `${OPENCODE_HOME}/rules/profiles/rules*.md`
    
    **Auto-selection logic:**
    ```
@@ -631,9 +640,14 @@ If rules conflict, the following order applies:
 1. Master Prompt (this document)
 2. `rules.md` (technical rules)
 3. Active profile rulebook (e.g., `rules_backend-java.md`)
-4. `README-RULES.md` (executive summary)
+4. Activated templates/addon rulebooks (manifest-driven)
 5. Ticket specification
 6. General model knowledge
+
+`README-RULES.md` (if present) is descriptive/executive summary only and non-normative.
+It MUST NOT be used to override or reinterpret this priority order.
+
+Precedence sync note (binding): this priority order MUST stay consistent with `rules.md` anchor `RULEBOOK-PRECEDENCE-POLICY`.
 
 ### 1.1 Conflict Resolution Policy (Binding)
 
@@ -753,6 +767,7 @@ Explicit overrides (highest priority):
 * "Extract business rules first." → enables Phase 1.5
 * "Skip business-rules discovery." → Phase 1.5 will not be executed
 * "This is a pure CRUD project." → Phase 1.5 will not be executed, P5.4 = `not-applicable`
+* "/reload-addons" (or explicit equivalent wording) → execute reload contract in Section 2.2.1
 
 Override constraints (binding):
 * "Skip Phase Y" is only valid if all artifacts/evidence required by downstream phases already exist in SESSION_STATE.
@@ -760,6 +775,22 @@ Override constraints (binding):
 
 Phase 5 MUST NEVER be skipped if code generation is expected.
 Phase 5.4 MUST NEVER be skipped if Phase 1.5 was executed AND code generation is expected.
+
+### 2.2.1 Operator Reload Contract (Binding)
+
+Command intent:
+- `/reload-addons` (or explicit operator wording with same intent) performs deterministic rulebook/addon refresh.
+
+Execution scope:
+- Run only Phase 1.3 + Phase 1.4 logic (core load + templates/addons activation re-evaluation).
+- Do NOT run Phase 2+ discovery/gates as part of this command.
+
+Output and state requirements:
+- Update `SESSION_STATE.LoadedRulebooks.*`, `SESSION_STATE.RulebookLoadEvidence`, and `SESSION_STATE.AddonsEvidence.*`.
+- Set `SESSION_STATE.Next` to the canonical continuation point after reload:
+  - default: `Phase 4 - Step 0 (Phase-4 Entry initialization)`
+  - if reload detects blocking conditions: corresponding `BLOCKED-*` pointer.
+- Auto-advance to implementation/gates is forbidden from reload output; normal continuation requires explicit operator proceed/resume.
 
 ---
 
