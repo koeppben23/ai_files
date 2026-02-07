@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import json
 import re
+import sys
 from pathlib import Path
 
 import pytest
 
-from .util import REPO_ROOT, read_text
+from .util import REPO_ROOT, read_text, run
 
 
 @pytest.mark.governance
@@ -457,3 +459,88 @@ def test_factory_contract_diagnostic_exists_and_is_calibrated():
     ]
     missing = [token for token in required_tokens if token not in text]
     assert not missing, "Factory diagnostics contract incomplete:\n" + "\n".join([f"- {m}" for m in missing])
+
+
+@pytest.mark.governance
+def test_master_defines_repo_scoped_session_state_with_global_pointer():
+    text = read_text(REPO_ROOT / "master.md")
+    required_tokens = [
+        "${SESSION_STATE_POINTER_FILE}",
+        "${SESSION_STATE_FILE}",
+        "${SESSION_STATE_POINTER_FILE}` = `${OPENCODE_HOME}/SESSION_STATE.json",
+        "${SESSION_STATE_FILE}` = `${REPO_HOME}/SESSION_STATE.json",
+        "global active-session pointer",
+        "repo-scoped canonical session state",
+    ]
+    missing = [token for token in required_tokens if token not in text]
+    assert not missing, "master.md missing repo-scoped session state topology tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing]
+    )
+
+
+@pytest.mark.governance
+def test_session_state_bootstrap_recovery_script_exists():
+    p = REPO_ROOT / "diagnostics" / "bootstrap_session_state.py"
+    assert p.exists(), "Missing diagnostics/bootstrap_session_state.py"
+
+    text = read_text(p)
+    required_tokens = [
+        "SESSION_STATE.json",
+        "opencode-session-pointer.v1",
+        "activeSessionStateFile",
+        "workspaces",
+        "1.1-Bootstrap",
+        "BLOCKED-BOOTSTRAP-NOT-SATISFIED",
+        "--repo-fingerprint",
+        "--config-root",
+        "--force",
+        "--dry-run",
+    ]
+    missing = [token for token in required_tokens if token not in text]
+    assert not missing, "bootstrap_session_state.py missing required behavior tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing]
+    )
+
+
+@pytest.mark.governance
+def test_session_state_bootstrap_recovery_script_creates_state_file(tmp_path: Path):
+    script = REPO_ROOT / "diagnostics" / "bootstrap_session_state.py"
+    cfg = tmp_path / "opencode-config"
+    repo_fp = "demo-repo-123456"
+
+    r = run([sys.executable, str(script), "--repo-fingerprint", repo_fp, "--config-root", str(cfg)])
+    assert r.returncode == 0, f"bootstrap_session_state.py failed:\nSTDERR:\n{r.stderr}\nSTDOUT:\n{r.stdout}"
+
+    pointer_file = cfg / "SESSION_STATE.json"
+    assert pointer_file.exists(), "Expected global SESSION_STATE pointer to be created"
+
+    pointer = json.loads(read_text(pointer_file))
+    assert pointer.get("schema") == "opencode-session-pointer.v1"
+    assert pointer.get("activeRepoFingerprint") == repo_fp
+    expected_pointer_target = f"${{WORKSPACES_HOME}}/{repo_fp}/SESSION_STATE.json"
+    assert pointer.get("activeSessionStateFile") == expected_pointer_target
+
+    state_file = cfg / "workspaces" / repo_fp / "SESSION_STATE.json"
+    assert state_file.exists(), "Expected repo-scoped SESSION_STATE.json to be created"
+
+    data = json.loads(read_text(state_file))
+    assert "SESSION_STATE" in data and isinstance(data["SESSION_STATE"], dict)
+    ss = data["SESSION_STATE"]
+
+    required_keys = [
+        "Phase",
+        "Mode",
+        "ConfidenceLevel",
+        "Next",
+        "Bootstrap",
+        "Scope",
+        "LoadedRulebooks",
+        "RulebookLoadEvidence",
+        "Gates",
+    ]
+    missing = [k for k in required_keys if k not in ss]
+    assert not missing, "SESSION_STATE bootstrap missing required keys:\n" + "\n".join([f"- {m}" for m in missing])
+
+    assert ss["Phase"] == "1.1-Bootstrap"
+    assert ss["Mode"] == "BLOCKED"
+    assert ss["Next"] == "BLOCKED-BOOTSTRAP-NOT-SATISFIED"

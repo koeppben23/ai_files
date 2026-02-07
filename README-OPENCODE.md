@@ -87,6 +87,34 @@ Recommended commit messages:
 
 ---
 
+## Session State Bootstrap Recovery (Operational)
+
+If `/audit` or continuation commands fail because `SESSION_STATE` is missing, initialize canonical repo-scoped session state and the active pointer:
+
+```bash
+python diagnostics/bootstrap_session_state.py --repo-fingerprint <repo_fingerprint>
+```
+
+Use the same deterministic repo fingerprint your governance flow already uses for `${REPO_HOME}`.
+If needed, derive it from repo identity evidence (`remote URL | default branch`) and reuse that value consistently.
+
+Useful options:
+
+```bash
+python diagnostics/bootstrap_session_state.py --repo-fingerprint <repo_fingerprint> --dry-run
+python diagnostics/bootstrap_session_state.py --repo-fingerprint <repo_fingerprint> --force
+python diagnostics/bootstrap_session_state.py --repo-fingerprint <repo_fingerprint> --config-root /tmp/opencode-test
+```
+
+This creates:
+
+- `${SESSION_STATE_FILE}` (`${WORKSPACES_HOME}/<repo_fingerprint>/SESSION_STATE.json`) with a safe `1.1-Bootstrap` blocked baseline
+- `${SESSION_STATE_POINTER_FILE}` (`${OPENCODE_HOME}/SESSION_STATE.json`) as active pointer to the repo-scoped session
+
+so governance can resume deterministically across multiple repositories.
+
+---
+
 ## Installation Layout (Descriptive; follow `master.md` if in doubt)
 
 `master.md` defines canonical path variables. Typical layout:
@@ -96,7 +124,9 @@ Recommended commit messages:
 - `${COMMANDS_HOME} = ${CONFIG_ROOT}/commands` (global rulebooks)
 - `${PROFILES_HOME} = ${COMMANDS_HOME}/profiles` (profiles + templates/addons)
 - `${WORKSPACES_HOME} = ${CONFIG_ROOT}/workspaces` (per-repo caches/digests/memory artifacts)
-- `${SESSION_STATE_FILE}` and `${RESUME_FILE}` stay global under `${CONFIG_ROOT}`/`${OPENCODE_HOME}`.
+- `${SESSION_STATE_FILE} = ${WORKSPACES_HOME}/<repo_fingerprint>/SESSION_STATE.json` (repo-scoped session payload)
+- `${SESSION_STATE_POINTER_FILE} = ${OPENCODE_HOME}/SESSION_STATE.json` (global active-session pointer)
+- `${RESUME_FILE}` stays global under `${CONFIG_ROOT}`/`${OPENCODE_HOME}` unless repo-scoped resume is enabled.
 
 Profiles can mandate templates/addons (e.g., `backend-java` requires `rules.backend-java-templates.md` and may require `rules.backend-java-kafka-templates.md` based on evidence).
 

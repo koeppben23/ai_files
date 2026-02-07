@@ -100,6 +100,11 @@ FAIL-CLOSED:
     - `BLOCKED-PERSISTENCE-TARGET-DEGENERATE`
   - Output MUST name the violating field(s) and provide the corrected variable-based form.
 
+Session-state storage topology (binding):
+- Canonical session payload location is repo-scoped: `${SESSION_STATE_FILE}` = `${REPO_HOME}/SESSION_STATE.json`.
+- Global `${SESSION_STATE_POINTER_FILE}` is a pointer/locator for the active repo session and MUST NOT hold multi-repo session payload as canonical state.
+- When both are present, runtime operations MUST resolve through `${SESSION_STATE_POINTER_FILE}` to `${SESSION_STATE_FILE}` for the active repo.
+
 Mapping of violations to BLOCKED-Reasons:
 - Backslash (`\`) → BLOCKED-PERSISTENCE-PATH-VIOLATION
 - Drive prefix (`C:\`, `C:/`) → BLOCKED-PERSISTENCE-PATH-VIOLATION
