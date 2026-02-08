@@ -290,6 +290,70 @@ def check_template_quality_gate(issues: list[str]) -> None:
             issues.append(f"{tpl}: contains 'verified' claims but no 'evidence' wording")
 
 
+def check_stability_sla_contract(issues: list[str]) -> None:
+    sla_path = ROOT / "STABILITY_SLA.md"
+    if not sla_path.exists():
+        issues.append("STABILITY_SLA.md: missing required stability SLA document")
+        return
+
+    sla = read_text(sla_path)
+    master = read_text(ROOT / "master.md")
+    rules = read_text(ROOT / "rules.md")
+    ci = read_text(ROOT / ".github" / "workflows" / "ci.yml")
+
+    sla_required_tokens = [
+        "# Stability-SLA: AI Governance System (Go/No-Go)",
+        "## 1) Single Canonical Precedence",
+        "master > core rules > active profile > activated addons/templates > ticket",
+        "## 2) Deterministic Activation",
+        "## 3) Fail-Closed for Required",
+        "## 4) Surface Ownership and Conflict Safety",
+        "BLOCKED-ADDON-CONFLICT:<surface>",
+        "## 7) SESSION_STATE Versioning and Isolation",
+        "BLOCKED-STATE-OUTDATED",
+        "## 10) Regression Gates (CI Required)",
+        "governance-lint",
+        "pytest -m governance",
+        "template quality gate",
+        "PASS: all 10 criteria are satisfied and enforced by required CI checks.",
+    ]
+    missing_sla = [token for token in sla_required_tokens if token not in sla]
+    if missing_sla:
+        issues.append(f"STABILITY_SLA.md: missing required tokens {missing_sla}")
+
+    master_required_tokens = [
+        "`STABILITY_SLA.md`",
+        "normative Go/No-Go contract",
+        "Stability sync note (binding): governance release/readiness decisions MUST also satisfy `STABILITY_SLA.md`.",
+        "4. Activated templates/addon rulebooks (manifest-driven)",
+    ]
+    missing_master = [token for token in master_required_tokens if token not in master]
+    if missing_master:
+        issues.append(f"master.md: missing stability SLA integration tokens {missing_master}")
+
+    rules_required_tokens = [
+        "Governance release stability is normatively defined by `STABILITY_SLA.md`",
+        "Release/readiness decisions MUST satisfy `STABILITY_SLA.md` invariants; conflicts are resolved fail-closed.",
+        "4) activated addon rulebooks (including templates and shared governance add-ons)",
+    ]
+    missing_rules = [token for token in rules_required_tokens if token not in rules]
+    if missing_rules:
+        issues.append(f"rules.md: missing stability SLA integration tokens {missing_rules}")
+
+    ci_required_tokens = [
+        "governance-lint:",
+        "validate-governance:",
+        "governance-e2e:",
+        "pytest -q -m governance",
+        "pytest -q -m e2e_governance",
+        "release-readiness:",
+        "needs: [conventional-pr-title, governance-lint, spec-guards, test-installer, validate-governance, governance-e2e, build-artifacts]",
+    ]
+    missing_ci = [token for token in ci_required_tokens if token not in ci]
+    if missing_ci:
+        issues.append(f".github/workflows/ci.yml: missing SLA-aligned required gate tokens {missing_ci}")
+
+
 def main() -> int:
     issues: list[str] = []
     check_master_priority_uniqueness(issues)
@@ -297,6 +361,7 @@ def main() -> int:
     check_manifest_contract(issues)
     check_required_addon_references(issues)
     check_template_quality_gate(issues)
+    check_stability_sla_contract(issues)
 
     if issues:
         print("Governance lint FAILED:")

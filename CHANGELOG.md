@@ -6,6 +6,7 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
 ## [Unreleased]
 
 ### Added
+- Add `STABILITY_SLA.md` as a normative 10-point governance stability Go/No-Go contract with explicit operational PASS/FAIL criteria.
 - Add a shared `Principal Excellence Contract` baseline across all governance profile rulebooks under `profiles/rules*.md`.
 - Add Java-first principal hardening v2 contracts for backend quality gates:
   - `rules.backend-java.md` (risk tiering, mandatory evidence packs, hard-fail criteria, determinism budget)
@@ -34,6 +35,9 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
 - Update factory contracts (`new_profile.md`, `new_addon.md`, `PROFILE_ADDON_FACTORY_CONTRACT.json`) for shared-contract modularization defaults.
 
 ### Changed
+- Wire Stability-SLA into normative governance docs (`master.md`, `rules.md`) as a release/readiness gate.
+- Extend governance lint + governance tests to enforce Stability-SLA presence, canonical section tokens, and CI gate alignment.
+- Clarify SLA regression gates to explicitly require both governance validation (`pytest -m governance`) and governance e2e flow coverage (`pytest -m e2e_governance`).
 - Add high-ROI governance hardening invariants: capability catalog completeness checks, template evidence-kind gating, and activation delta bit-identity coverage.
 - Add proof-carrying explain output requirements (`/why-blocked`, `/explain-activation`) with mandatory trigger facts and decision trace.
 - Add evidence leakage guards for scoped/ticketed verification (`ticket_id`, `session_run_id`, scope leak constraints under ComponentScopePaths).

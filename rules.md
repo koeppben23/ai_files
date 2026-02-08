@@ -3,6 +3,7 @@ Technical Rulebook (Core) for AI-Assisted Development
 
 This document defines **stack-agnostic, non-negotiable** technical, quality, evidence, and output rules.
 Operational behavior (phases, session state, hybrid mode, priorities, gates) is defined in the **Master Prompt** (`master.md`).
+Governance release stability is normatively defined by `STABILITY_SLA.md` and is release-blocking when unmet.
 
 This Core Rulebook is:
 - **secondary to the Master Prompt**
@@ -218,6 +219,7 @@ Binding implications:
   - `addon_class = advisory`: non-blocking WARN + recovery; continue conservatively.
 - This section and the addon catalog contract in `master.md` are the single source of truth for required vs advisory behavior.
   Profile/addon/template rulebooks MUST reference these semantics and MUST NOT define parallel blocking policies.
+- Release/readiness decisions MUST satisfy `STABILITY_SLA.md` invariants; conflicts are resolved fail-closed.
 
 Deterministic addon conflict resolution (binding):
 - If multiple activated addons constrain the same touched surface and requirements differ:
