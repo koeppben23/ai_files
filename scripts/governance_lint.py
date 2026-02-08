@@ -531,6 +531,29 @@ def check_diagnostics_reason_contract_alignment(issues: list[str]) -> None:
         issues.append(f"diagnostics/persist_workspace_artifacts.py: missing quiet blocked payload tokens {missing_persist}")
 
 
+def check_start_evidence_boundaries(issues: list[str]) -> None:
+    start = read_text(ROOT / "start.md")
+
+    required_tokens = [
+        "'reason_code':'BLOCKED-MISSING-BINDING-FILE'",
+        "'nonEvidence':'debug-only'",
+        "Fallback computed payloads are debug output only (`nonEvidence`) and MUST NOT be treated as binding evidence.",
+        "Helper output is operational convenience status only and MUST NOT be treated as canonical repo identity evidence.",
+        "Repo identity remains governed by `master.md` evidence contracts",
+    ]
+    missing_required = [token for token in required_tokens if token not in start]
+    if missing_required:
+        issues.append(f"start.md: missing evidence-boundary tokens {missing_required}")
+
+    forbidden_tokens = [
+        "Treat it as **evidence**.",
+        "# last resort: compute the same payload that the installer would write",
+    ]
+    found_forbidden = [token for token in forbidden_tokens if token in start]
+    if found_forbidden:
+        issues.append(f"start.md: contains forbidden fallback-evidence tokens {found_forbidden}")
+
+
 def main() -> int:
     issues: list[str] = []
     check_master_priority_uniqueness(issues)
@@ -541,6 +564,7 @@ def main() -> int:
     check_stability_sla_contract(issues)
     check_factory_contract_alignment(issues)
     check_diagnostics_reason_contract_alignment(issues)
+    check_start_evidence_boundaries(issues)
 
     if issues:
         print("Governance lint FAILED:")

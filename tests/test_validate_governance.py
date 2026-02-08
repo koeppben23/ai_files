@@ -1677,6 +1677,29 @@ def test_start_md_includes_workspace_persistence_autohook():
 
 
 @pytest.mark.governance
+def test_start_md_fallback_binding_and_identity_evidence_boundaries_are_fail_closed():
+    text = read_text(REPO_ROOT / "start.md")
+
+    required_tokens = [
+        "'reason_code':'BLOCKED-MISSING-BINDING-FILE'",
+        "'nonEvidence':'debug-only'",
+        "Fallback computed payloads are debug output only (`nonEvidence`) and MUST NOT be treated as binding evidence.",
+        "If installer-owned binding file is missing, workflow MUST block with `BLOCKED-MISSING-BINDING-FILE`",
+        "Helper output is operational convenience status only and MUST NOT be treated as canonical repo identity evidence.",
+        "Repo identity remains governed by `master.md` evidence contracts",
+    ]
+    missing = [token for token in required_tokens if token not in text]
+    assert not missing, "start.md missing evidence-boundary fail-closed tokens:\n" + "\n".join([f"- {m}" for m in missing])
+
+    forbidden_tokens = [
+        "Treat it as **evidence**.",
+        "# last resort: compute the same payload that the installer would write",
+    ]
+    found = [token for token in forbidden_tokens if token in text]
+    assert not found, "start.md still contains legacy fallback-evidence phrasing:\n" + "\n".join([f"- {m}" for m in found])
+
+
+@pytest.mark.governance
 def test_audit_reason_keys_are_declared_audit_only_and_not_reason_code_payloads():
     text = read_text(REPO_ROOT / "diagnostics" / "audit.md")
     required_tokens = [
