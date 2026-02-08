@@ -6,6 +6,10 @@ priority: highest
 # Governance-Version: 1.1.0-BETA
 MASTER PROMPT
 
+Release/readiness stability gate (binding):
+- `STABILITY_SLA.md` is the normative Go/No-Go contract for governance releases.
+- Governance changes that violate any SLA criterion MUST be treated as release-blocking.
+
 <!-- NOTE: This diff adds fail-closed TargetPath validation to prevent degenerate paths like "C" being written into the repo. -->
 
 ## PHASE 0 — BOOTSTRAP (CONDITIONAL)
@@ -669,6 +673,7 @@ If rules conflict, the following order applies:
 It MUST NOT be used to override or reinterpret this priority order.
 
 Precedence sync note (binding): this priority order MUST stay consistent with `rules.md` anchor `RULEBOOK-PRECEDENCE-POLICY`.
+Stability sync note (binding): governance release/readiness decisions MUST also satisfy `STABILITY_SLA.md`.
 
 ### 1.1 Conflict Resolution Policy (Binding)
 

@@ -19,9 +19,78 @@ def test_required_files_present():
         "rules.md",
         "start.md",
         "SESSION_STATE_SCHEMA.md",
+        "STABILITY_SLA.md",
     ]
     missing = [f for f in required if not (REPO_ROOT / f).exists()]
     assert not missing, f"Missing: {missing}"
+
+
+@pytest.mark.governance
+def test_stability_sla_is_normative_and_aligned_with_core_contracts():
+    sla = read_text(REPO_ROOT / "STABILITY_SLA.md")
+    master = read_text(REPO_ROOT / "master.md")
+    rules = read_text(REPO_ROOT / "rules.md")
+
+    sla_required = [
+        "## 1) Single Canonical Precedence",
+        "master > core rules > active profile > activated addons/templates > ticket",
+        "## 3) Fail-Closed for Required",
+        "## 7) SESSION_STATE Versioning and Isolation",
+        "BLOCKED-STATE-OUTDATED",
+        "## 10) Regression Gates (CI Required)",
+    ]
+    master_required = [
+        "`STABILITY_SLA.md` is the normative Go/No-Go contract for governance releases.",
+        "Stability sync note (binding): governance release/readiness decisions MUST also satisfy `STABILITY_SLA.md`.",
+        "4. Activated templates/addon rulebooks (manifest-driven)",
+    ]
+    rules_required = [
+        "Governance release stability is normatively defined by `STABILITY_SLA.md`",
+        "Release/readiness decisions MUST satisfy `STABILITY_SLA.md` invariants; conflicts are resolved fail-closed.",
+        "4) activated addon rulebooks (including templates and shared governance add-ons)",
+    ]
+
+    missing_sla = [token for token in sla_required if token not in sla]
+    missing_master = [token for token in master_required if token not in master]
+    missing_rules = [token for token in rules_required if token not in rules]
+
+    assert not missing_sla, "STABILITY_SLA.md missing required canonical tokens:\n" + "\n".join([f"- {m}" for m in missing_sla])
+    assert not missing_master, "master.md missing STABILITY_SLA integration tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_master]
+    )
+    assert not missing_rules, "rules.md missing STABILITY_SLA integration tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_rules]
+    )
+
+
+@pytest.mark.governance
+def test_stability_sla_required_ci_gates_are_wired():
+    sla = read_text(REPO_ROOT / "STABILITY_SLA.md")
+    ci = read_text(REPO_ROOT / ".github/workflows/ci.yml")
+
+    sla_required = [
+        "governance-lint",
+        "pytest -m governance",
+        "pytest -m e2e_governance",
+        "template quality gate",
+    ]
+    ci_required = [
+        "governance-lint:",
+        "validate-governance:",
+        "governance-e2e:",
+        "pytest -q -m governance",
+        "pytest -q -m e2e_governance",
+        "release-readiness:",
+        "needs: [conventional-pr-title, governance-lint, spec-guards, test-installer, validate-governance, governance-e2e, build-artifacts]",
+    ]
+
+    missing_sla = [token for token in sla_required if token not in sla]
+    missing_ci = [token for token in ci_required if token not in ci]
+
+    assert not missing_sla, "STABILITY_SLA.md missing required CI gate tokens:\n" + "\n".join([f"- {m}" for m in missing_sla])
+    assert not missing_ci, ".github/workflows/ci.yml missing SLA-aligned CI gate wiring:\n" + "\n".join(
+        [f"- {m}" for m in missing_ci]
+    )
 
 
 @pytest.mark.governance
