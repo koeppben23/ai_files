@@ -333,6 +333,7 @@ The following BLOCKED pointers are canonical and SHOULD be used when applicable:
 - `BLOCKED-AMBIGUOUS-PROFILE`
 - `BLOCKED-MISSING-TEMPLATES`
 - `BLOCKED-MISSING-ADDON:<addon_key>` (required when `addon_class = required` and the triggered rulebook is missing)
+- `BLOCKED-ADDON-CONFLICT` (required when same-precedence addon/template constraints are mutually incompatible or non-deterministic)
 - `BLOCKED-RULEBOOK-EVIDENCE-MISSING`
 - `BLOCKED-WORKSPACE-MEMORY-INVALID`
 - `BLOCKED-MISSING-EVIDENCE`

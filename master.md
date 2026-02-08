@@ -657,6 +657,12 @@ If two rules conflict at the same priority level or the conflict is ambiguous:
 2) **Repo conventions win** for style/tooling choices **only if** they do not weaken gates/evidence/scope lock.
 3) If the conflict still cannot be resolved deterministically, record a risk and stop (BLOCKED) with a targeted question.
 
+Addon/template tie-breakers at same precedence level (binding):
+- If multiple activated addons/templates constrain the same touched surface:
+  1) prefer the most restrictive compatible rule,
+  2) if equally restrictive, prefer narrower scope over generic scope,
+  3) if still non-deterministic or mutually incompatible -> `BLOCKED-ADDON-CONFLICT`.
+
 ### Rulebook Load Evidence (BINDING)
 
 The assistant MUST NOT mark any rulebook as loaded unless there is
@@ -911,6 +917,11 @@ Resume pointer: <exact Next pointer, e.g., "Phase 4 — Step 0 (Initialization)"
   - Resume pointer (canonical): Phase 4 — Step 0 (Phase-4 Entry initialization).
   - Required input: provide the addon rulebook path OR install it under `${PROFILES_HOME}/` as declared by the profile.
   - Note: advisory addons (`addon_class = advisory`) MUST NOT use this BLOCKED state; they use WARN + recovery + re-evaluation.
+
+- `BLOCKED-ADDON-CONFLICT`:
+  - Trigger: multiple activated addons/templates impose mutually incompatible or non-deterministic requirements on the same touched surface.
+  - Resume pointer (canonical): Phase 4 — Step 0 (Phase-4 Entry initialization) after conflict resolution input.
+  - Required input: select authoritative addon/template constraint OR narrow component/touched scope to resolve conflict deterministically.
 
 - `BLOCKED-WORKSPACE-MEMORY-INVALID`:
   - Trigger: `${WORKSPACE_MEMORY_FILE}` exists but cannot be parsed/validated.
