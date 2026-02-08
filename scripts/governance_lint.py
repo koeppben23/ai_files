@@ -39,6 +39,7 @@ ALLOWED_CAPABILITIES = {
     "openapi",
     "spring",
 }
+ALLOWED_EVIDENCE_KINDS = {"unit-test", "integration-test", "contract-test", "e2e", "lint", "build"}
 
 
 def read_text(path: Path) -> str:
@@ -168,6 +169,32 @@ def _validate_surface_ownership_uniqueness(
                 owners[surface] = addon_key
 
 
+def _validate_capability_catalog_completeness(
+    issues: list[str], manifests_data: list[tuple[Path, dict[str, str], dict[str, list[str]]]]
+) -> None:
+    used_caps: set[str] = set()
+    cap_has_signal_mapping: dict[str, bool] = {c: False for c in ALLOWED_CAPABILITIES}
+
+    for manifest, _scalars, list_fields in manifests_data:
+        caps = set(list_fields.get("capabilities_any", []) + list_fields.get("capabilities_all", []))
+        used_caps.update(caps)
+
+        text = read_text(manifest)
+        has_signal_mapping = bool(re.search(r"^\s{4}-\s*[a-z_]+:\s*.+$", text, flags=re.MULTILINE))
+        if has_signal_mapping:
+            for cap in caps:
+                if cap in cap_has_signal_mapping:
+                    cap_has_signal_mapping[cap] = True
+
+    missing_usage = sorted(c for c in ALLOWED_CAPABILITIES if c not in used_caps)
+    if missing_usage:
+        issues.append(f"capability catalog entries unused by manifests: {', '.join(missing_usage)}")
+
+    missing_mapping = sorted(c for c, ok in cap_has_signal_mapping.items() if not ok)
+    if missing_mapping:
+        issues.append(f"capability catalog entries missing signal/evidence mapping: {', '.join(missing_mapping)}")
+
+
 def check_manifest_contract(issues: list[str]) -> None:
     manifests = sorted((ROOT / "profiles" / "addons").glob("*.addon.yml"))
     if not manifests:
@@ -201,6 +228,7 @@ def check_manifest_contract(issues: list[str]) -> None:
         _validate_capability_fields(issues, manifest, list_fields)
 
     _validate_surface_ownership_uniqueness(issues, manifests_data)
+    _validate_capability_catalog_completeness(issues, manifests_data)
 
 
 def check_required_addon_references(issues: list[str]) -> None:
@@ -215,11 +243,50 @@ def check_required_addon_references(issues: list[str]) -> None:
             issues.append(f"{manifest}: required addon must reference existing rulebook")
 
 
-def check_template_verified_claims_have_evidence_wording(issues: list[str]) -> None:
+def check_template_quality_gate(issues: list[str]) -> None:
     templates = sorted((ROOT / "profiles").glob("rules*templates*.md"))
     for tpl in templates:
-        text = read_text(tpl).lower()
-        if "verified" in text and "evidence" not in text:
+        text = read_text(tpl)
+        lower = text.lower()
+
+        required_tokens = [
+            "Inputs required:",
+            "Outputs guaranteed:",
+            "Evidence expectation:",
+            "Golden examples:",
+            "Anti-example:",
+            "evidence_kinds_required:",
+        ]
+        missing = [t for t in required_tokens if t not in text]
+        if missing:
+            issues.append(f"{tpl}: missing template quality tokens {missing}")
+
+        # parse evidence_kinds_required list
+        m = re.search(r"^\s*evidence_kinds_required:\s*$", text, flags=re.MULTILINE)
+        kinds: list[str] = []
+        if m:
+            for line in text[m.end() :].splitlines():
+                mm = re.match(r"^\s{2}-\s*(.*?)\s*$", line)
+                if mm:
+                    v = _unquote(mm.group(1))
+                    if v:
+                        kinds.append(v)
+                    continue
+                if not line.strip():
+                    continue
+                break
+        if not kinds:
+            issues.append(f"{tpl}: evidence_kinds_required must be non-empty")
+        for k in kinds:
+            if k not in ALLOWED_EVIDENCE_KINDS:
+                issues.append(f"{tpl}: unsupported evidence kind '{k}'")
+
+        # forbid strong claims without evidence-gate phrasing
+        forbidden_claims = ["always passes", "always succeeds", "guaranteed pass"]
+        for claim in forbidden_claims:
+            if claim in lower and "evidence" not in lower:
+                issues.append(f"{tpl}: contains forbidden claim '{claim}' without evidence-gate phrasing")
+        if "verified" in lower and "evidence" not in lower:
             issues.append(f"{tpl}: contains 'verified' claims but no 'evidence' wording")
 
 
@@ -229,7 +296,7 @@ def main() -> int:
     check_anchor_presence(issues)
     check_manifest_contract(issues)
     check_required_addon_references(issues)
-    check_template_verified_claims_have_evidence_wording(issues)
+    check_template_quality_gate(issues)
 
     if issues:
         print("Governance lint FAILED:")

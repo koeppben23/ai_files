@@ -275,6 +275,25 @@ def test_e2e_capability_first_activation_with_hard_signal_fallback(tmp_path: Pat
 
 
 @pytest.mark.e2e_governance
+def test_e2e_activation_delta_is_bit_identical_when_inputs_unchanged(tmp_path: Path):
+    config_root = tmp_path / "opencode-config-e2e-delta"
+    r = run_install(["--force", "--no-backup", "--config-root", str(config_root)])
+    assert r.returncode == 0, f"install failed:\n{r.stderr}\n{r.stdout}"
+
+    commands = _commands_dir(config_root)
+    repo = tmp_path / "delta-repo"
+    repo.mkdir(parents=True, exist_ok=True)
+    (repo / "nx.json").write_text("{}\n", encoding="utf-8")
+    (repo / "apps" / "web").mkdir(parents=True, exist_ok=True)
+    (repo / "apps" / "web" / "cypress.config.ts").write_text("export default {}\n", encoding="utf-8")
+
+    first = _evaluate_addons(commands, repo)
+    second = _evaluate_addons(commands, repo)
+
+    assert first == second, "activation outcome must be bit-identical when manifests and repo facts are unchanged"
+
+
+@pytest.mark.e2e_governance
 def test_e2e_governance_flow_required_block_then_reload_and_advisory_warn(tmp_path: Path):
     """
     End-to-end governance flow simulation:

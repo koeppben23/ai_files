@@ -390,6 +390,13 @@ ALGORITHM (BINDING, NORMATIVE):
    - Templates/addons MUST be followed when loaded; they refine generation and test structure but MUST NOT override master/core constraints.
    - Re-entry optimization: Phase-4 re-entry MUST perform delta evaluation (what changed since last activation)
      and reload only changed rulebooks/addons.
+   - Activation delta determinism (binding):
+     - workflow MUST compute and persist:
+       - `SESSION_STATE.ActivationDelta.AddonScanHash` (hash over addon manifests + versions)
+       - `SESSION_STATE.ActivationDelta.RepoFactsHash` (hash over `RepoFacts.Capabilities` + capability evidence pointers)
+     - if both hashes are unchanged across Phase-4 re-entry, activation outcome MUST be bit-identical
+       (`ActiveProfile`, `LoadedRulebooks.*`, `AddonsEvidence.*`, blockers/warnings).
+     - if outcome differs while hashes are unchanged -> `BLOCKED-ACTIVATION-DELTA-MISMATCH`.
 
 Output obligation (BINDING):
 - At Phase 4 entry, the assistant MUST output a short activation summary:
@@ -820,6 +827,8 @@ Output and state requirements:
 - Purpose: explain current blocking reason deterministically without mutating workflow state.
 - Output MUST include:
   - blocking `reason_code`
+  - concrete trigger facts (files/keys/signals)
+  - compact decision trace (`facts -> capability -> addon/profile -> surface -> outcome`)
   - up to 3 concrete recovery steps
   - triggering rule/file evidence reference
   - recommended `next_command`
@@ -828,6 +837,7 @@ Output and state requirements:
 - Purpose: explain profile/addon/template activation reasoning deterministically without mutating workflow state.
 - Output MUST include:
   - `repo_facts`/signals used (with trigger paths when available)
+  - compact decision trace (`facts -> capability -> addon/profile -> surface -> outcome`)
   - selected profile and why
   - activated addons/templates and why
   - missing advisory addons as WARN entries
@@ -960,6 +970,11 @@ Resume pointer: <exact Next pointer, e.g., "Phase 4 — Step 0 (Initialization)"
   - Trigger: multiple activated addons/templates impose mutually incompatible or non-deterministic requirements on the same touched surface.
   - Resume pointer (canonical): Phase 4 — Step 0 (Phase-4 Entry initialization) after conflict resolution input.
   - Required input: select authoritative addon/template constraint OR narrow component/touched scope to resolve conflict deterministically.
+
+- `BLOCKED-ACTIVATION-DELTA-MISMATCH`:
+  - Trigger: activation outcome changed even though `ActivationDelta.AddonScanHash` and `ActivationDelta.RepoFactsHash` are unchanged.
+  - Resume pointer (canonical): Phase 4 — Step 0 (Phase-4 Entry initialization) after deterministic reconciliation.
+  - Required input: provide changed evidence/manifests OR reset activation cache and re-run deterministic activation.
 
 - `BLOCKED-WORKSPACE-MEMORY-INVALID`:
   - Trigger: `${WORKSPACE_MEMORY_FILE}` exists but cannot be parsed/validated.
@@ -1199,6 +1214,14 @@ When FULL mode is required, the assistant MUST additionally include, when availa
   - SHOULD include `scope_paths` or `modules` per evidence item
   - SHOULD include typed artifacts (`log|junit|sarif|coverage|other`)
   - MAY include `command_line` and `env_fingerprint` for reproducibility
+  - SHOULD include `ticket_id` and `session_run_id` for evidence isolation
+  - MUST NOT be treated as repo-wide verification when `ComponentScopePaths` is set and evidence scope is broader
+  - Verified build/test claims SHOULD include toolchain version evidence for applicable stacks:
+    - Java: `java -version`
+    - Node: `node --version`
+    - Maven: `mvn -version`
+    - Gradle: `gradle -version` or wrapper equivalent
+  - If version evidence is missing, claims SHOULD remain `not-verified` (planning may continue)
 - `CrossRepoImpact` (required if contracts are consumed cross-repo)
 - `RollbackStrategy` (required when schema/contracts change)
 - `GateArtifacts` (required at explicit gates; maps gate → required/provided artifacts)

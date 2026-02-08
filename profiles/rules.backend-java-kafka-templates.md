@@ -54,6 +54,10 @@ Outputs guaranteed:
 Evidence expectation:
 - after template application, run repo-native Kafka/unit/integration tests (or mark `not-verified` with recovery command)
 - idempotency/retry claims MUST reference BuildEvidence item ids.
+evidence_kinds_required:
+  - "unit-test"
+  - "integration-test"
+  - "contract-test"
 
 Golden examples:
 - listener validates minimally and delegates to service in one line.
