@@ -99,6 +99,15 @@ Installed layout:
 - `commands/diagnostics/`:
   - `diagnostics/**` (audit tooling, schemas, documentation, factory contracts such as `PROFILE_ADDON_FACTORY_CONTRACT.json`, and recovery helpers such as `bootstrap_session_state.py`)
 
+### Governance stability highlights (current baseline)
+
+- `STABILITY_SLA.md` is the normative Go/No-Go contract for governance release/readiness.
+- Canonical conflict precedence is defined once in `master.md` Section 1 (`PRIORITY ORDER`) and mirrored by the core precedence anchor in `rules.md`.
+- Ambiguity handling is fail-closed for material decisions: if ambiguity affects tooling/architecture/gates, workflow blocks with `BLOCKED-AMBIGUOUS-PROFILE`.
+- Top-tier governance files (`QUALITY_INDEX.md`, `CONFLICT_RESOLUTION.md`) are planning-only WARNs in Phases 1-3 if missing, but Phase 4+ blocking via `BLOCKED-MISSING-RULEBOOK:<file>`.
+- Build-evidence claim mapping is explicit: `verified` requires pass result + compatible scope + artifact/reference + version/pinning evidence; otherwise claims stay `not-verified`.
+- Release artifacts now include addon manifests (`profiles/addons/*.addon.yml`) so runtime addon activation/reload remains deterministic from packaged builds.
+
 ### Safety & operational behavior
 
 - **Fail-closed precheck:** Install fails if critical files are missing (`master.md`, `rules.md`, `start.md`).
@@ -235,6 +244,14 @@ python install.py --force --no-backup
 python install.py --uninstall --dry-run
 python install.py --uninstall
 ```
+
+Release packaging sanity check (recommended):
+
+```bash
+python scripts/build.py
+```
+
+Expected: generated archives under `dist/` include `profiles/addons/*.addon.yml` and pass build artifact policy tests.
 
 ---
 
