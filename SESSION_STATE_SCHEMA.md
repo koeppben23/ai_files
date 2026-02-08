@@ -402,6 +402,7 @@ The following BLOCKED pointers are canonical and SHOULD be used when applicable:
 - `BLOCKED-MISSING-PROFILE`
 - `BLOCKED-AMBIGUOUS-PROFILE`
 - `BLOCKED-MISSING-TEMPLATES`
+- `BLOCKED-MISSING-RULEBOOK:<file>`
 - `BLOCKED-MISSING-ADDON:<addon_key>` (required when `addon_class = required` and the triggered rulebook is missing)
 - `BLOCKED-ADDON-CONFLICT` (required when same-precedence addon/template constraints are mutually incompatible or non-deterministic)
 - `BLOCKED-ACTIVATION-DELTA-MISMATCH` (required when activation outcome changes despite unchanged activation delta hashes)
@@ -938,6 +939,10 @@ Binding:
 - Artifacts SHOULD be typed (`log|junit|sarif|coverage|other`) for machine-readable reviewability.
 - Evidence SHOULD include `ticket_id` and `session_run_id` to prevent cross-ticket/session verification leakage.
 - If `ComponentScopePaths` is set, repo-wide evidence scope MUST NOT be used as sole verification basis for scoped claims.
+
+Claim verification mapping (binding):
+- `verified` claims require `result=pass` plus compatible scope evidence, typed artifact/reference, and tool/runtime pinning evidence (`env_fingerprint` or equivalent version evidence).
+- If any required verifier is missing, inconsistent, or out-of-scope, claims MUST remain `not-verified`.
 
 ---
 

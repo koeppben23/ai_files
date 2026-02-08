@@ -35,6 +35,10 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
 - Update factory contracts (`new_profile.md`, `new_addon.md`, `PROFILE_ADDON_FACTORY_CONTRACT.json`) for shared-contract modularization defaults.
 
 ### Changed
+- Remove secondary precedence phrasing in `master.md` and enforce single canonical precedence authority with additional lint/test drift guards.
+- Clarify ambiguity handling as planning-only unless clarified, and require `BLOCKED-AMBIGUOUS-PROFILE` when ambiguity affects tooling/architecture/gates.
+- Align `/start` discovery contract with runtime override/fallback semantics (`${REPO_OVERRIDES_HOME}`, `${OPENCODE_HOME}`) without weakening installer-owned entrypoint roots.
+- Add explicit BuildEvidence -> claim verification mapping (`verified` vs `not-verified`) and top-tier missing-file blocking semantics for Phase 4+.
 - Wire Stability-SLA into normative governance docs (`master.md`, `rules.md`) as a release/readiness gate.
 - Extend governance lint + governance tests to enforce Stability-SLA presence, canonical section tokens, and CI gate alignment.
 - Clarify SLA regression gates to explicitly require both governance validation (`pytest -m governance`) and governance e2e flow coverage (`pytest -m e2e_governance`).
