@@ -55,11 +55,14 @@ def _is_excluded(path: Path, repo_root: Path) -> bool:
     return any(part in EXCLUDE_DIRS for part in rel.parts)
 
 
-def _should_include_file(p: Path) -> bool:
+def _should_include_file(p: Path, rel: str) -> bool:
     name = p.name
     if name == "install.py":
         return True
     if name.upper().startswith("LICENSE") or name.upper().startswith("LICENCE"):
+        return True
+    # Addon manifests are required at runtime for deterministic addon activation/reload.
+    if rel.startswith("profiles/addons/") and name.endswith(".addon.yml"):
         return True
     if p.suffix.lower() in {".md", ".json"}:
         return True
@@ -69,7 +72,7 @@ def _should_include_file(p: Path) -> bool:
 def collect_release_files(repo_root: Path) -> list[Path]:
     """
     Allowlist strategy:
-      - include: install.py, LICENSE*, LICENCE*, *.md, *.json
+      - include: install.py, LICENSE*, LICENCE*, *.md, *.json, profiles/addons/*.addon.yml
       - exclude: .git, .github, dist, tests, scripts, caches
     Deterministic ordering (sorted by posix relpath).
     """
@@ -79,7 +82,8 @@ def collect_release_files(repo_root: Path) -> list[Path]:
             continue
         if _is_excluded(p, repo_root):
             continue
-        if _should_include_file(p):
+        rel = p.relative_to(repo_root).as_posix()
+        if _should_include_file(p, rel):
             out.append(p)
 
     def key(x: Path) -> str:
