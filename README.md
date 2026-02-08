@@ -39,8 +39,8 @@ It explains purpose, structure, and usage — it does **not** control the AI’s
 
 Choose the workflow entry based on what you are doing:
 
-- **New repo / first time:** run `/master` and let Phase 1–2 build discovery artifacts; do not skip Phase 2.
-- **New ticket on a known repo:** run `/master` (Warm Start). The system will reuse cache/digest/memory if valid.
+- **New repo / first time:** run `/start` (bootstrap + path contract + workspace backfill), then run `/master` for the first ticket so Phase 1–2 can build discovery artifacts.
+- **New ticket on a known repo:** run `/master` (Warm Start). The system reuses cache/digest/memory when valid.
 - **Resume an interrupted ticket/session:** follow `continue.md` / `resume.md` using the active session pointer (`${SESSION_STATE_POINTER_FILE}`) and repo session file (`${SESSION_STATE_FILE}`).
 - **Audit a completed change:** run `/master` and jump to the relevant explicit gates (Contract Gate, Test Quality Gate, Phase 6 QA).
 - **Workspace artifacts missing after bootstrap:** run `/start` (auto-hook) or `python diagnostics/persist_workspace_artifacts.py --repo-root <repo_path>` (optionally `--repo-fingerprint <repo_fingerprint>`).
@@ -588,7 +588,8 @@ Repositories MUST NOT contain authoritative governance or prompt logic.
 
 1. **Initial:**
    - point OpenCode Desktop to the repository (repo scan)
-   - run `/master`
+   - run `/start` once for bootstrap/path validation and workspace persistence checks
+   - run `/master` to begin ticket execution
 
 2. **Governance:**
    - loaded from global installation
@@ -606,13 +607,14 @@ Quality emerges from combining repo context **and** the gates in this system.
 
 ## 5. Commands & Session Control (OpenCode)
 
-This repository defines three core commands:
+This command package defines core OpenCode commands:
 
 ### `/master`
 
 Starts a new task.
 
-- loads bootstrap governance (workflow + quality + conflict model) and defers profile/core rules
+- loads workflow + precedence + gating bootstrap
+- loads `rules.md`, active profile, and addons/templates phase-scoped per `master.md` (not as optional policy)
 - initializes the workflow
 - sets a new `[SESSION_STATE]`
 

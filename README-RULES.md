@@ -62,7 +62,11 @@ All work follows a clearly structured, controlled workflow.
 
 ### Archive Artifacts
 
-All repositories, APIs, or collections of multiple files must be delivered as **archive artifacts**.
+All repositories, APIs, or collections of multiple files must be delivered as **archive artifacts** in chat-only mode.
+
+Repo-aware clarification:
+- In OpenCode repo-aware mode, the repository is already available as the working directory.
+- Scope Lock still applies unchanged; this archive-delivery requirement is a chat-only transport requirement.
 
 Examples (non-exhaustive):
 
@@ -80,7 +84,7 @@ The AI may only access artifacts that were provided in the ticket or the current
 
 ## 3. Archive Artifacts – Mandatory Extraction
 
-All provided archive artifacts must **always be extracted fully and for real** by the AI.
+All provided archive artifacts must **always be extracted fully and for real** by the AI (chat-only mode).
 
 * Without successful extraction, **no** statements about contents, structures, or classes may be made.
 * Heuristic, experience-based, or reconstructed inferences are not allowed.
