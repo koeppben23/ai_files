@@ -8,6 +8,8 @@ owns_surfaces:
   - "e2e_test_framework"
 touches_surfaces:
   - "test_framework"
+capabilities_any:
+  - "cypress"
 signals:
   any:
     - file_glob: "**/cypress.config.ts"

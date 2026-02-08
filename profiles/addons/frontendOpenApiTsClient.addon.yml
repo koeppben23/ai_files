@@ -9,6 +9,8 @@ owns_surfaces:
 touches_surfaces:
   - "api_contract"
   - "test_framework"
+capabilities_any:
+  - "openapi"
 signals:
   any:
     - file_glob: "**/openapi*.yaml"

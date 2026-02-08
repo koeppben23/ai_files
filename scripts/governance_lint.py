@@ -27,6 +27,18 @@ ALLOWED_SURFACES = {
     "static",
     "test_framework",
 }
+ALLOWED_CAPABILITIES = {
+    "angular",
+    "cucumber",
+    "cypress",
+    "governance_docs",
+    "java",
+    "kafka",
+    "liquibase",
+    "nx",
+    "openapi",
+    "spring",
+}
 
 
 def read_text(path: Path) -> str:
@@ -56,7 +68,13 @@ def _unquote(value: str) -> str:
 
 def parse_manifest(path: Path) -> tuple[dict[str, str], dict[str, list[str]], list[str]]:
     scalars: dict[str, str] = {}
-    list_fields: dict[str, list[str]] = {"path_roots": [], "owns_surfaces": [], "touches_surfaces": []}
+    list_fields: dict[str, list[str]] = {
+        "path_roots": [],
+        "owns_surfaces": [],
+        "touches_surfaces": [],
+        "capabilities_any": [],
+        "capabilities_all": [],
+    }
     errors: list[str] = []
     active_list_key: str | None = None
 
@@ -118,6 +136,22 @@ def _validate_surface_fields(issues: list[str], manifest: Path, list_fields: dic
                 issues.append(f"{manifest}: unsupported {field_name} value '{value}'")
 
 
+def _validate_capability_fields(issues: list[str], manifest: Path, list_fields: dict[str, list[str]]) -> None:
+    caps_any = list_fields.get("capabilities_any", [])
+    caps_all = list_fields.get("capabilities_all", [])
+    if not caps_any and not caps_all:
+        issues.append(f"{manifest}: capabilities_any/capabilities_all must include at least one capability")
+
+    for field_name, values in (("capabilities_any", caps_any), ("capabilities_all", caps_all)):
+        seen = set()
+        for value in values:
+            if value in seen:
+                issues.append(f"{manifest}: duplicate {field_name} entry '{value}'")
+            seen.add(value)
+            if value not in ALLOWED_CAPABILITIES:
+                issues.append(f"{manifest}: unsupported {field_name} value '{value}'")
+
+
 def _validate_surface_ownership_uniqueness(
     issues: list[str], manifests_data: list[tuple[Path, dict[str, str], dict[str, list[str]]]]
 ) -> None:
@@ -164,6 +198,7 @@ def check_manifest_contract(issues: list[str]) -> None:
 
         _validate_relative_paths(issues, manifest, list_fields.get("path_roots", []))
         _validate_surface_fields(issues, manifest, list_fields)
+        _validate_capability_fields(issues, manifest, list_fields)
 
     _validate_surface_ownership_uniqueness(issues, manifests_data)
 

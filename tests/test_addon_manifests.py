@@ -130,6 +130,65 @@ def test_addon_manifests_define_relative_path_roots():
     assert not bad, "Addon manifests with invalid path_roots:\n" + "\n".join([f"- {r}" for r in bad])
 
 
+@pytest.mark.governance
+def test_addon_manifests_define_capabilities_contract():
+    manifests = list(git_ls_files("profiles/addons/*.addon.yml"))
+    assert manifests, "No addon manifests found under profiles/addons/*.addon.yml"
+
+    allowed = {
+        "angular",
+        "cucumber",
+        "cypress",
+        "governance_docs",
+        "java",
+        "kafka",
+        "liquibase",
+        "nx",
+        "openapi",
+        "spring",
+    }
+
+    bad = []
+    for rel in manifests:
+        lines = read_text(REPO_ROOT / rel).splitlines()
+
+        def extract_list(key: str) -> list[str]:
+            idx = None
+            for i, line in enumerate(lines):
+                if re.match(rf"^{re.escape(key)}:\s*$", line):
+                    idx = i
+                    break
+            if idx is None:
+                return []
+            vals: list[str] = []
+            for line in lines[idx + 1 :]:
+                m = re.match(r"^\s{2}-\s*(.*?)\s*$", line)
+                if m:
+                    val = m.group(1).strip().strip('"').strip("'")
+                    if val:
+                        vals.append(val)
+                    continue
+                if line.startswith("  ") and not line.strip():
+                    continue
+                break
+            return vals
+
+        any_caps = extract_list("capabilities_any")
+        all_caps = extract_list("capabilities_all")
+
+        if not any_caps and not all_caps:
+            bad.append(f"{rel}: missing capabilities_any/capabilities_all")
+
+        for field_name, values in (("capabilities_any", any_caps), ("capabilities_all", all_caps)):
+            if len(values) != len(set(values)):
+                bad.append(f"{rel}: duplicate {field_name} entries")
+            for value in values:
+                if value not in allowed:
+                    bad.append(f"{rel}: unsupported {field_name} value {value}")
+
+    assert not bad, "Addon manifests with invalid capabilities contract:\n" + "\n".join([f"- {r}" for r in bad])
+
+
 def _extract_list_block(lines: list[str], key: str) -> list[str]:
     idx = None
     for i, line in enumerate(lines):

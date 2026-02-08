@@ -8,6 +8,8 @@ owns_surfaces:
   - "bdd_framework"
 touches_surfaces:
   - "test_framework"
+capabilities_any:
+  - "cucumber"
 signals:
   any:
     - file_glob: "**/*.feature"

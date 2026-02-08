@@ -8,6 +8,8 @@ owns_surfaces:
   - "principal_review"
 touches_surfaces:
   - "release"
+capabilities_any:
+  - "governance_docs"
 signals:
   any:
     - file_glob: "**/*"
