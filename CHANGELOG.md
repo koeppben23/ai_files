@@ -36,6 +36,7 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
 
 ### Changed
 - Align governance factory contracts (`new_addon.md`, `new_profile.md`, `PROFILE_ADDON_FACTORY_CONTRACT.json`) with current canonical runtime policy: required surface ownership fields, capability-first manifest guidance, preferred profile filename pattern (`rules_<profile_key>.md`), canonical SESSION_STATE evidence paths, and clarified tracking/audit semantics.
+- Clarify diagnostics reason-key boundaries: `/audit` `BR_*` keys are audit-only (not canonical `reason_code` values) unless explicitly mapped to `BLOCKED-*|WARN-*|NOT_VERIFIED-*` codes.
 - Remove secondary precedence phrasing in `master.md` and enforce single canonical precedence authority with additional lint/test drift guards.
 - Clarify ambiguity handling as planning-only unless clarified, and require `BLOCKED-AMBIGUOUS-PROFILE` when ambiguity affects tooling/architecture/gates.
 - Align `/start` discovery contract with runtime override/fallback semantics (`${REPO_OVERRIDES_HOME}`, `${OPENCODE_HOME}`) without weakening installer-owned entrypoint roots.
@@ -108,6 +109,7 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
 - Normalize footer/marker consistency across `profiles/rules*.md` after modularization (remove mid-file end markers, align copyright placement/style).
 
 ### Fixed
+- Extend `persist_workspace_artifacts.py --quiet` blocked output with structured reason fields (`reason_code`, `recovery_steps`, `next_command`) for direct `SESSION_STATE.Diagnostics.ReasonPayloads` integration.
 - Include addon manifests (`profiles/addons/*.addon.yml`) in release artifacts so runtime addon activation/reload works from packaged RC builds.
 - Remove duplicate local `_pretty` function definition in `scripts/build.py` to keep release artifact logging implementation clean and deterministic.
 - Uninstall now purges installer/runtime-owned `errors-*.jsonl` logs by default (with `--keep-error-logs` opt-out), while preserving non-matching user files.

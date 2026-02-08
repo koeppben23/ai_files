@@ -461,7 +461,22 @@ def main() -> int:
             remediation="Provide --repo-fingerprint explicitly or invoke from the target repository root.",
         )
         if args.quiet:
-            print(json.dumps({"status": "blocked", "reason": str(exc)}, ensure_ascii=True))
+            print(
+                json.dumps(
+                    {
+                        "status": "blocked",
+                        "reason": str(exc),
+                        "reason_code": "BLOCKED-WORKSPACE-PERSISTENCE",
+                        "recovery_steps": [
+                            "provide --repo-fingerprint explicitly",
+                            "or run from a git repository root with valid .git metadata",
+                            "or ensure global SESSION_STATE pointer is available",
+                        ],
+                        "next_command": "python diagnostics/persist_workspace_artifacts.py --repo-fingerprint <repo_fingerprint> --repo-root <repo_root>",
+                    },
+                    ensure_ascii=True,
+                )
+            )
         else:
             print(f"ERROR: {exc}")
         return 2
