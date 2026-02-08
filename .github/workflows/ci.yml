@@ -95,6 +95,21 @@ jobs:
 
 
   # ----------------------------------
+  # Job 0: Governance Lint (Fail-fast)
+  # ----------------------------------
+  governance-lint:
+    name: Governance Lint (fast)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Run governance lint
+        run: |
+          python scripts/governance_lint.py
+
+  # ----------------------------------
   # Job 0: Spec Guards (Fail-fast)
   # ----------------------------------
   spec-guards:
@@ -120,7 +135,7 @@ jobs:
           pytest -q -m spec
 
   build-artifacts:
-    needs: spec-guards
+    needs: [governance-lint, spec-guards]
     name: Build Release Artifacts (zip + tar.gz)
     runs-on: ubuntu-latest
     steps:
@@ -191,7 +206,7 @@ jobs:
   # Job 1: Installer Tests (Cross-OS)
   # ----------------------------------
   test-installer:
-    needs: spec-guards
+    needs: [governance-lint, spec-guards]
     name: Test Installer on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
 
@@ -229,7 +244,7 @@ jobs:
   # ----------------------------------
   validate-governance:
     name: Validate Governance Files
-    needs: spec-guards
+    needs: [governance-lint, spec-guards]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -249,7 +264,7 @@ jobs:
   # ----------------------------------
   governance-e2e:
     name: Governance E2E Flow
-    needs: spec-guards
+    needs: [governance-lint, spec-guards]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -269,7 +284,7 @@ jobs:
   # ----------------------------------
   release-readiness:
     name: Release Readiness
-    needs: [conventional-pr-title, spec-guards, test-installer, validate-governance, governance-e2e, build-artifacts]
+    needs: [conventional-pr-title, governance-lint, spec-guards, test-installer, validate-governance, governance-e2e, build-artifacts]
     if: ${{ always() }}
     runs-on: ubuntu-latest
 

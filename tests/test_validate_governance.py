@@ -25,6 +25,15 @@ def test_required_files_present():
 
 
 @pytest.mark.governance
+def test_governance_lint_script_exists_and_passes():
+    script = REPO_ROOT / "scripts" / "governance_lint.py"
+    assert script.exists(), "Missing scripts/governance_lint.py"
+
+    r = run([sys.executable, str(script)])
+    assert r.returncode == 0, f"governance_lint failed:\n{r.stdout}\n{r.stderr}"
+
+
+@pytest.mark.governance
 def test_blocked_consistency_schema_vs_master():
     schema = read_text(REPO_ROOT / "SESSION_STATE_SCHEMA.md")
     master = read_text(REPO_ROOT / "master.md")
