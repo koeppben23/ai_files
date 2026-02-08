@@ -388,10 +388,9 @@ ALGORITHM (BINDING, NORMATIVE):
         - If kafka addon manifest sets `addon_class: required` -> BLOCK with `BLOCKED-MISSING-ADDON:kafka`
         - If kafka addon manifest sets `addon_class: advisory` -> continue non-blocking with explicit Kafka scope limitation.
 
-4) Precedence and merge
-   - `master.md` remains highest priority.
-   - `rules.md` (core) > active profile > templates/addons refinements.
-   - Templates/addons MUST be followed when loaded; they refine generation and test structure but MUST NOT override master/core constraints.
+4) Merge behavior (non-precedence)
+   - Canonical conflict precedence is defined once in Section 1 (`PRIORITY ORDER`) and MUST NOT be redefined here.
+   - Templates/addons MUST be followed when loaded; they refine generation and test structure but MUST NOT override master/core/profile constraints.
    - Re-entry optimization: Phase-4 re-entry MUST perform delta evaluation (what changed since last activation)
      and reload only changed rulebooks/addons.
    - Activation delta determinism (binding):
@@ -406,7 +405,7 @@ Output obligation (BINDING):
 - At Phase 4 entry, the assistant MUST output a short activation summary:
   - ActiveProfile, TemplatesLoaded, AddonsLoaded, EvidenceSignals (by addon), and Status.
  
-### Data sources & priority
+### Data sources (non-precedence)
 
 * Operational rules (technical, architectural) are defined in:
   - `rules.md` (core technical rulebook)
@@ -418,9 +417,10 @@ Output obligation (BINDING):
 ### Lookup Strategy (ENHANCED)
 
 Binding clarification:
-- The lookup orders below define **resolution precedence** when deferred activations execute
+- The lookup orders below define resolution sequence for deferred activations
   (Phase 1.2 / 1.3 / 1.4 at Phase-4 entry or re-entry).
 - They MUST NOT be interpreted as eager loading requirements for Phases 1-3.
+- They MUST NOT be interpreted as a second precedence model; canonical conflict precedence remains Section 1 (`PRIORITY ORDER`).
 
 ### Local-Only Governance & State (BINDING)
 
@@ -448,6 +448,10 @@ This governance system is single-user and MUST NOT require repo-working-tree-loc
 #### Step 1b (Phase 1.1): Resolve Top-Tier Index & Conflict Model (QUALITY_INDEX.md, CONFLICT_RESOLUTION.md)
 
 These files are normative and MUST be available in the same governance installation scope as `master.md`.
+
+Missing top-tier files behavior (binding):
+- In Phases 1-3, unresolved top-tier files (`QUALITY_INDEX.md`, `CONFLICT_RESOLUTION.md`) MUST emit WARN and keep the workflow planning-only.
+- In Phase 4+ (code/evidence/gates), unresolved top-tier files MUST block with `BLOCKED-MISSING-RULEBOOK:<file>`.
 
 **Search order (per file):**
 1. Workspace-local override (optional, outside the repo): `${REPO_OVERRIDES_HOME}/<FILE>.md`

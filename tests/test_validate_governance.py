@@ -127,6 +127,60 @@ def test_stability_sla_required_ci_gates_are_wired():
 
 
 @pytest.mark.governance
+def test_precedence_ambiguity_and_evidence_mapping_contracts_are_consistent():
+    master = read_text(REPO_ROOT / "master.md")
+    rules = read_text(REPO_ROOT / "rules.md")
+    start = read_text(REPO_ROOT / "start.md")
+    schema = read_text(REPO_ROOT / "SESSION_STATE_SCHEMA.md")
+
+    master_required = [
+        "Canonical conflict precedence is defined once in Section 1 (`PRIORITY ORDER`) and MUST NOT be redefined here.",
+        "They MUST NOT be interpreted as a second precedence model; canonical conflict precedence remains Section 1 (`PRIORITY ORDER`).",
+        "DO NOT read rulebooks from the repo working tree",
+        "BLOCKED-MISSING-RULEBOOK:<file>",
+    ]
+    master_forbidden = [
+        "4) Precedence and merge",
+        "`rules.md` (core) > active profile > templates/addons refinements.",
+        "lookup orders below define **resolution precedence**",
+        "DO NOT read rulebooks from the repository",
+    ]
+    rules_required = [
+        "conservative mode is planning-only",
+        "BLOCKED-AMBIGUOUS-PROFILE",
+    ]
+    start_required = [
+        "Runtime resolution scope note (binding):",
+        "`${REPO_OVERRIDES_HOME}`",
+        "`${OPENCODE_HOME}`",
+    ]
+    schema_required = [
+        "`BLOCKED-MISSING-RULEBOOK:<file>`",
+        "Claim verification mapping (binding):",
+        "`verified` claims require `result=pass`",
+        "claims MUST remain `not-verified`",
+    ]
+
+    missing_master = [token for token in master_required if token not in master]
+    found_master_forbidden = [token for token in master_forbidden if token in master]
+    missing_rules = [token for token in rules_required if token not in rules]
+    missing_start = [token for token in start_required if token not in start]
+    missing_schema = [token for token in schema_required if token not in schema]
+
+    assert not missing_master, "master.md missing precedence/terminology tokens:\n" + "\n".join([f"- {m}" for m in missing_master])
+    assert not found_master_forbidden, "master.md still contains secondary precedence drift fragments:\n" + "\n".join(
+        [f"- {m}" for m in found_master_forbidden]
+    )
+    assert not missing_rules, "rules.md missing ambiguity fail-closed tokens:\n" + "\n".join([f"- {m}" for m in missing_rules])
+    assert not missing_start, "start.md missing runtime resolution scope-note tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_start]
+    )
+    assert not missing_schema, "SESSION_STATE_SCHEMA.md missing claim mapping/top-tier blocking tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_schema]
+    )
+
+
+@pytest.mark.governance
 def test_governance_lint_script_exists_and_passes():
     script = REPO_ROOT / "scripts" / "governance_lint.py"
     assert script.exists(), "Missing scripts/governance_lint.py"

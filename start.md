@@ -100,6 +100,10 @@ The runtime MUST attempt to resolve rulebooks using this search order:
 2) `${COMMANDS_HOME}/rules.md`
 3) `${PROFILES_HOME}/rules.<profile>.md` OR `${PROFILES_HOME}/rules_<profile>.md` OR `${PROFILES_HOME}/rules-<profile>.md`
 
+Runtime resolution scope note (binding):
+- `/start` enforces installer-owned discovery roots (`${COMMANDS_HOME}`, `${PROFILES_HOME}`) as canonical entrypoint requirements.
+- Workspace/local overrides and global fallbacks (`${REPO_OVERRIDES_HOME}`, `${OPENCODE_HOME}`) are runtime resolution extensions governed by `master.md` and MUST NOT weaken this entrypoint contract.
+
 ### Evidence rule (Binding)
 Because this file cannot self-prove filesystem state, governance activation MUST use one of:
 

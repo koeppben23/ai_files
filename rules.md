@@ -188,11 +188,11 @@ The detected profile must be recorded as an **assumption** in the session state,
 
 If repo signals are ambiguous (e.g., monorepo with multiple stacks) and no explicit profile is provided:
 - do **not** guess silently
-- proceed in a conservative mode:
+- conservative mode is planning-only (no code generation, no irreversible tooling decisions, no gate pass claims):
   - declare ambiguity
   - document assumptions
   - downgrade confidence appropriately per the Master Prompt / confidence rules
-- if the ambiguity materially affects architecture/tooling decisions, ask a clarification (only if allowed by the Master Prompt’s clarification rules)
+- if the ambiguity materially affects architecture/tooling/gate decisions, the workflow MUST block with `BLOCKED-AMBIGUOUS-PROFILE` until clarified
 
 ### 4.5 Active Profile Must Be Traceable
 

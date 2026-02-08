@@ -103,6 +103,15 @@ def check_master_priority_uniqueness(issues: list[str]) -> None:
             "master.md: contains legacy phrase 'DO NOT read rulebooks from the repository'; use 'repo working tree' wording"
         )
 
+    forbidden_secondary_precedence_fragments = [
+        "4) Precedence and merge",
+        "`rules.md` (core) > active profile > templates/addons refinements.",
+        "lookup orders below define **resolution precedence**",
+    ]
+    found_forbidden = [frag for frag in forbidden_secondary_precedence_fragments if frag in master]
+    if found_forbidden:
+        issues.append(f"master.md: contains secondary precedence fragment(s) {found_forbidden}")
+
 
 def check_anchor_presence(issues: list[str]) -> None:
     rules = read_text(ROOT / "rules.md")
