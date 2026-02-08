@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 from pathlib import Path
 
@@ -296,6 +297,55 @@ def test_install_patches_existing_installer_owned_paths_with_missing_keys_withou
     assert isinstance(p, dict)
     assert "globalErrorLogsHome" in p, "Expected installer to patch missing globalErrorLogsHome key"
     assert "workspaceErrorLogsHomeTemplate" in p, "Expected installer to patch missing workspaceErrorLogsHomeTemplate key"
+
+
+@pytest.mark.installer
+def test_install_deterministic_paths_file_omits_generated_at(tmp_path: Path):
+    config_root = tmp_path / "opencode-config-deterministic-paths"
+
+    r = run_install([
+        "--force",
+        "--no-backup",
+        "--deterministic-paths-file",
+        "--config-root",
+        str(config_root),
+    ])
+    assert r.returncode == 0, f"install failed:\n{r.stderr}\n{r.stdout}"
+
+    paths = _paths_file(config_root)
+    payload = json.loads(read_text(paths))
+    assert "generatedAt" not in payload, "deterministic paths file must omit generatedAt"
+
+
+@pytest.mark.installer
+def test_install_fail_closed_on_source_symlink(tmp_path: Path):
+    if not hasattr(os, "symlink"):
+        pytest.skip("symlink not supported on this platform")
+
+    source_dir = tmp_path / "source-with-symlink"
+    source_dir.mkdir(parents=True, exist_ok=True)
+    (source_dir / "master.md").write_text("# Governance-Version: 1.1.0-RC.1\n", encoding="utf-8")
+    (source_dir / "rules.md").write_text("# rules\n", encoding="utf-8")
+    (source_dir / "start.md").write_text("# start\n", encoding="utf-8")
+
+    external = tmp_path / "external.txt"
+    external.write_text("external\n", encoding="utf-8")
+    try:
+        os.symlink(external, source_dir / "linked.md")
+    except (OSError, NotImplementedError):
+        pytest.skip("symlink creation unavailable on this platform")
+
+    config_root = tmp_path / "opencode-config-symlink-block"
+    r = run_install([
+        "--force",
+        "--no-backup",
+        "--source-dir",
+        str(source_dir),
+        "--config-root",
+        str(config_root),
+    ])
+    assert r.returncode == 2, "installer must fail-closed when source contains symlink/reparse points"
+    assert "Unsafe source symlinks/reparse-points detected" in (r.stderr + r.stdout)
 
 
 @pytest.mark.installer

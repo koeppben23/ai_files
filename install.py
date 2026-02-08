@@ -13,6 +13,8 @@ Features:
 NOTE:
 - This installer does NOT generate opencode.json (to avoid schema validation errors).
 - Instead it generates an installer-owned sidecar: commands/governance.paths.json for /start.
+- Installer diagnostics use `ERR-*` reason keys as installer-internal keys; they are not canonical
+  governance `reason_code` values (`BLOCKED-*|WARN-*|NOT_VERIFIED-*`).
 """
 
 from __future__ import annotations
@@ -245,9 +247,10 @@ class InstallPlan:
     manifest_path: Path
     governance_paths_path: Path
     skip_paths_file: bool
+    deterministic_paths_file: bool
 
 
-def build_plan(source_dir: Path, config_root: Path, *, skip_paths_file: bool) -> InstallPlan:
+def build_plan(source_dir: Path, config_root: Path, *, skip_paths_file: bool, deterministic_paths_file: bool) -> InstallPlan:
     commands_dir = config_root / "commands"
     profiles_dst_dir = commands_dir / "profiles"
     manifest_path = commands_dir / MANIFEST_NAME
@@ -260,6 +263,7 @@ def build_plan(source_dir: Path, config_root: Path, *, skip_paths_file: bool) ->
         manifest_path=manifest_path,
         governance_paths_path=governance_paths_path,
         skip_paths_file=skip_paths_file,
+        deterministic_paths_file=deterministic_paths_file,
     )
 
 
@@ -268,12 +272,39 @@ def required_source_files(source_dir: Path) -> list[str]:
     return ["master.md", "rules.md", "start.md"]
 
 
-def precheck_source(source_dir: Path) -> tuple[bool, list[str]]:
+def precheck_source(source_dir: Path) -> tuple[bool, list[str], list[str]]:
     missing = []
     for name in required_source_files(source_dir):
         if not (source_dir / name).exists():
             missing.append(name)
-    return (len(missing) == 0, missing)
+    unsafe_symlinks = collect_unsafe_source_symlinks(source_dir)
+    return (len(missing) == 0 and len(unsafe_symlinks) == 0, missing, unsafe_symlinks)
+
+
+def collect_unsafe_source_symlinks(source_dir: Path) -> list[str]:
+    """
+    Fail-closed source traversal guard:
+    installer-managed payload MUST NOT be sourced from symlinks/reparse points.
+    """
+    unsafe: set[str] = set()
+
+    for p in source_dir.iterdir():
+        if p.is_symlink():
+            unsafe.add(p.name)
+
+    profiles_src_dir = source_dir / PROFILES_DIR_NAME
+    if profiles_src_dir.exists():
+        for p in profiles_src_dir.rglob("*"):
+            if p.is_symlink():
+                unsafe.add(str(p.relative_to(source_dir)).replace("\\", "/"))
+
+    diag_dir = source_dir / DIAGNOSTICS_DIR_NAME
+    if diag_dir.exists():
+        for p in diag_dir.rglob("*"):
+            if p.is_symlink():
+                unsafe.add(str(p.relative_to(source_dir)).replace("\\", "/"))
+
+    return sorted(unsafe)
 
 def collect_command_root_files(source_dir: Path) -> list[Path]:
     """
@@ -312,10 +343,10 @@ def collect_diagnostics_files(source_dir: Path) -> list[Path]:
     diag_dir = source_dir / DIAGNOSTICS_DIR_NAME
     if not diag_dir.exists() or not diag_dir.is_dir():
         return []
-    return sorted([p for p in diag_dir.rglob("*") if p.is_file()])
+    return sorted([p for p in diag_dir.rglob("*") if p.is_file() and not p.is_symlink()])
 
 
-def build_governance_paths_payload(config_root: Path) -> dict:
+def build_governance_paths_payload(config_root: Path, *, deterministic: bool) -> dict:
     """
     Create a small, installer-owned JSON document that records the canonical absolute paths
     derived from config_root. This is *not* an OpenCode config file and is therefore not
@@ -332,9 +363,8 @@ def build_governance_paths_payload(config_root: Path) -> dict:
     workspaces_home = config_root / "workspaces"
     global_error_logs_home = config_root / ERROR_LOGS_DIR_NAME
 
-    return {
+    doc = {
         "schema": GOVERNANCE_PATHS_SCHEMA,
-        "generatedAt": datetime.now().isoformat(timespec="seconds"),
         "paths": {
             "configRoot": norm(config_root),
             "commandsHome": norm(commands_home),
@@ -345,6 +375,9 @@ def build_governance_paths_payload(config_root: Path) -> dict:
             "workspaceErrorLogsHomeTemplate": norm(workspaces_home / "<repo_fingerprint>" / "logs"),
         },
     }
+    if not deterministic:
+        doc["generatedAt"] = datetime.now().isoformat(timespec="seconds")
+    return doc
 
 
 def install_governance_paths_file(
@@ -366,7 +399,7 @@ def install_governance_paths_file(
     dst = plan.governance_paths_path
     dst_exists = dst.exists()
 
-    desired_doc = build_governance_paths_payload(plan.config_root)
+    desired_doc = build_governance_paths_payload(plan.config_root, deterministic=plan.deterministic_paths_file)
 
     if dst_exists and not force:
         existing = _load_json(dst)
@@ -513,14 +546,14 @@ def collect_profile_files(source_dir: Path) -> list[Path]:
     profiles_src_dir = source_dir / PROFILES_DIR_NAME
     if not profiles_src_dir.exists():
         return []
-    return sorted([p for p in profiles_src_dir.rglob("*.md") if p.is_file()])
+    return sorted([p for p in profiles_src_dir.rglob("*.md") if p.is_file() and not p.is_symlink()])
 
 
 def collect_profile_addon_manifests(source_dir: Path) -> list[Path]:
     profiles_src_dir = source_dir / PROFILES_DIR_NAME
     if not profiles_src_dir.exists():
         return []
-    return sorted([p for p in profiles_src_dir.rglob("*.addon.yml") if p.is_file()])
+    return sorted([p for p in profiles_src_dir.rglob("*.addon.yml") if p.is_file() and not p.is_symlink()])
 
 
 def write_manifest(manifest_path: Path, manifest: dict, dry_run: bool) -> None:
@@ -552,8 +585,9 @@ def load_manifest(manifest_path: Path) -> dict | None:
 
 
 def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool) -> int:
-    ok, missing = precheck_source(plan.source_dir)
+    ok, missing, unsafe_symlinks = precheck_source(plan.source_dir)
     if not ok:
+        observed = {"missing": missing, "unsafeSymlinks": unsafe_symlinks}
         safe_log_error(
             reason_key="ERR-INSTALL-PRECHECK-MISSING-SOURCE",
             message="Installer precheck failed: required source files are missing.",
@@ -564,15 +598,22 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
             repo_fingerprint=None,
             command="install.py",
             component="installer-precheck",
-            observed_value={"missing": missing},
+            observed_value=observed,
             expected_constraint="Required source files present: master.md, rules.md, start.md",
             remediation="Restore missing governance source files and rerun install.",
             action="abort",
             result="failed",
+            reason_namespace="installer-internal",
         )
-        eprint("❌ Precheck failed. Missing required source files:")
-        for m in missing:
-            eprint(f"  - {m}")
+        eprint("❌ Precheck failed.")
+        if missing:
+            eprint("   Missing required source files:")
+            for m in missing:
+                eprint(f"  - {m}")
+        if unsafe_symlinks:
+            eprint("   Unsafe source symlinks/reparse-points detected (installer fail-closed):")
+            for s in unsafe_symlinks:
+                eprint(f"  - {s}")
         return 2
 
     print(f"📁 Target config root: {plan.config_root}")
@@ -601,6 +642,7 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
             remediation="Add Governance-Version header to master.md and rerun install.",
             action="abort",
             result="failed",
+            reason_namespace="installer-internal",
         )
         eprint("❌ Governance-Version not found in master.md.")
         eprint("   Expected a header like:")
@@ -776,7 +818,7 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
         print("🎉 Installation complete!")
     print("=" * 60)
     print(f"Commands dir: {plan.commands_dir}")
-    print(f"Next: use /master (or load start.md) in OpenCode.")
+    print("Next: run /start in OpenCode (or load start.md).")
     return 0
 
 
@@ -815,6 +857,7 @@ def uninstall(
                 remediation="Re-run install once to recreate manifest, or rerun uninstall with --force.",
                 action="block",
                 result="blocked",
+                reason_namespace="installer-internal",
             )
             return 4
 
@@ -947,6 +990,7 @@ def delete_targets(targets: Iterable[Path], plan: InstallPlan, dry_run: bool) ->
                     remediation="Inspect manifest/targets and rerun uninstall.",
                     action="block",
                     result="blocked",
+                    reason_namespace="installer-internal",
                 )
                 eprint(f"  ❌ Refusing to delete outside commands dir: {t}")
                 errors += 1
@@ -968,6 +1012,7 @@ def delete_targets(targets: Iterable[Path], plan: InstallPlan, dry_run: bool) ->
                 remediation="Inspect uninstall targets and rerun.",
                 action="block",
                 result="blocked",
+                reason_namespace="installer-internal",
             )
             eprint(f"  ❌ Refusing to delete (cannot resolve path safely): {t}")
             errors += 1
@@ -1004,6 +1049,7 @@ def delete_targets(targets: Iterable[Path], plan: InstallPlan, dry_run: bool) ->
                     remediation="Check file permissions/locks and rerun uninstall.",
                     action="abort",
                     result="failed",
+                    reason_namespace="installer-internal",
                 )
                 eprint(f"  ❌ Failed removing {t}: {e}")
                 errors += 1
@@ -1064,6 +1110,7 @@ def purge_runtime_error_logs(config_root: Path, dry_run: bool) -> int:
                     remediation="Check permissions/locks and retry uninstall.",
                     action="abort",
                     result="failed",
+                    reason_namespace="installer-internal",
                 )
                 eprint(f"  ❌ Failed removing runtime log {t}: {e}")
                 errors += 1
@@ -1116,6 +1163,11 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     p.add_argument("--no-backup", action="store_true", help="Disable backup on overwrite (install only).")
     p.add_argument("--uninstall", action="store_true", help="Uninstall previously installed governance files (manifest-based).")
     p.add_argument("--skip-paths-file", action="store_true", help="Do not create/overwrite commands/governance.paths.json.")
+    p.add_argument(
+        "--deterministic-paths-file",
+        action="store_true",
+        help="Write deterministic governance.paths.json payload (omit generatedAt timestamp).",
+    )
     p.add_argument("--purge-paths-file", action="store_true", help="On uninstall: also remove commands/governance.paths.json even if it pre-existed or the manifest is missing.")
     p.add_argument(
         "--keep-error-logs",
@@ -1133,6 +1185,7 @@ def main(argv: list[str]) -> int:
         args.source_dir,
         config_root,
         skip_paths_file=args.skip_paths_file,
+        deterministic_paths_file=args.deterministic_paths_file,
     )
 
     print("=" * 60)
