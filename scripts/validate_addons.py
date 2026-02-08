@@ -296,6 +296,8 @@ def main(argv: list[str]) -> int:
 
     # deterministic surface-ownership guard (fail fast)
     owners: dict[str, str] = {}
+    used_caps: set[str] = set()
+    cap_has_signal_mapping: dict[str, bool] = {c: False for c in ALLOWED_CAPABILITIES}
     for manifest in manifests:
         rel = manifest.resolve().relative_to(repo_root).as_posix()
         scalars, _m, _s, list_fields, _e = parse_manifest(manifest)
@@ -308,6 +310,21 @@ def main(argv: list[str]) -> int:
                 )
             else:
                 owners[surface] = addon_key
+
+        caps = set(list_fields.get("capabilities_any", []) + list_fields.get("capabilities_all", []))
+        used_caps.update(caps)
+        if _s:
+            for cap in caps:
+                if cap in cap_has_signal_mapping:
+                    cap_has_signal_mapping[cap] = True
+
+    missing_usage = sorted(c for c in ALLOWED_CAPABILITIES if c not in used_caps)
+    if missing_usage:
+        failures.append("capability catalog entries unused by manifests: " + ", ".join(missing_usage))
+
+    missing_mapping = sorted(c for c, ok in cap_has_signal_mapping.items() if not ok)
+    if missing_mapping:
+        failures.append("capability catalog entries missing signal/evidence mapping: " + ", ".join(missing_mapping))
 
     if failures:
         print("Addon manifest validation FAILED:", file=sys.stderr)

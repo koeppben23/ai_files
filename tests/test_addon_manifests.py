@@ -283,6 +283,73 @@ def test_addon_manifest_owns_surfaces_are_unique_globally():
 
 
 @pytest.mark.governance
+def test_capability_catalog_completeness_against_manifest_usage_and_signal_mapping():
+    manifests = list(git_ls_files("profiles/addons/*.addon.yml"))
+    assert manifests, "No addon manifests found under profiles/addons/*.addon.yml"
+
+    catalog = {
+        "angular",
+        "cucumber",
+        "cypress",
+        "governance_docs",
+        "java",
+        "kafka",
+        "liquibase",
+        "nx",
+        "openapi",
+        "spring",
+    }
+
+    used_caps: set[str] = set()
+    cap_has_signal_mapping: dict[str, bool] = {c: False for c in catalog}
+
+    for rel in manifests:
+        text = read_text(REPO_ROOT / rel)
+        lines = text.splitlines()
+
+        def extract_list_block(key: str) -> list[str]:
+            idx = None
+            for i, line in enumerate(lines):
+                if re.match(rf"^{re.escape(key)}:\s*$", line):
+                    idx = i
+                    break
+            if idx is None:
+                return []
+            vals: list[str] = []
+            for line in lines[idx + 1 :]:
+                m = re.match(r"^\s{2}-\s*(.*?)\s*$", line)
+                if m:
+                    v = m.group(1).strip().strip('"').strip("'")
+                    if v:
+                        vals.append(v)
+                    continue
+                if line.startswith("  ") and not line.strip():
+                    continue
+                break
+            return vals
+
+        caps = set(extract_list_block("capabilities_any") + extract_list_block("capabilities_all"))
+        used_caps.update(caps)
+
+        # signal mapping heuristic: at least one signal entry in this manifest
+        has_signal = bool(re.search(r"^\s{4}-\s*[a-z_]+:\s*.+$", text, flags=re.MULTILINE))
+        if has_signal:
+            for c in caps:
+                if c in cap_has_signal_mapping:
+                    cap_has_signal_mapping[c] = True
+
+    missing_in_usage = sorted(c for c in catalog if c not in used_caps)
+    missing_signal_mapping = sorted(c for c, ok in cap_has_signal_mapping.items() if not ok)
+
+    assert not missing_in_usage, "Capability catalog entries unused by manifests:\n" + "\n".join(
+        [f"- {c}" for c in missing_in_usage]
+    )
+    assert not missing_signal_mapping, "Capabilities missing any signal/evidence mapping through manifests:\n" + "\n".join(
+        [f"- {c}" for c in missing_signal_mapping]
+    )
+
+
+@pytest.mark.governance
 def test_master_addon_policy_includes_required_advisory_and_reload():
     """Pipeline guard: master must define required/advisory semantics and re-evaluation support."""
     master = read_text(REPO_ROOT / "master.md")
