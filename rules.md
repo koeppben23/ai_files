@@ -240,6 +240,17 @@ Rules:
 - Gates depending on that addon MUST NOT be marked as fully passing.
 - Output MUST include concrete recovery steps to restore canonical required-addon loading.
 
+### 4.8 Addon Surface Ownership Matrix (Binding)
+
+Addon manifests MUST declare:
+- `owns_surfaces` (exclusive ownership)
+- `touches_surfaces` (non-exclusive influence)
+
+Rules:
+- Two activated addons/templates MUST NOT both own the same surface.
+- If ownership overlap is detected for activated addons/templates -> `BLOCKED-ADDON-CONFLICT`.
+- Surface ownership conflicts MUST be resolved by scope narrowing or authoritative owner selection before continuation.
+
 ---
 
 ## 5. Repository Guidelines as Constraints (Allowed, but Non-Normative)
@@ -800,6 +811,28 @@ When operator intent is explicit reload (for example `/reload-addons`), executio
   - or a `BLOCKED-*` pointer if reload detects missing required artifacts/evidence.
 
 Reload is a control-plane operation, not an implementation permission.
+
+## 7.12 Operator Explain Contracts (Core, Binding)
+
+Supported read-only commands:
+- `/why-blocked`
+- `/explain-activation`
+
+Requirements:
+- Commands MUST be read-only (no mutation of phase/mode/next/gates).
+- Commands MUST NOT assert new implementation/build evidence.
+
+`/why-blocked` output contract:
+- include `reason_code`
+- include up to 3 concrete `recovery_steps`
+- include triggering rule/file evidence reference
+- include recommended `next_command`
+
+`/explain-activation` output contract:
+- include repo facts/signals used
+- include selected profile and rationale
+- include activated addons/templates and rationale
+- include missing advisory addons as WARN entries
 
 ---
 

@@ -867,13 +867,24 @@ BuildEvidence:
     - id: "EV-001"
       tool: "<maven|gradle|npm|spotbugs|checkstyle|archunit|openapi|pact|...>"
       command: "<exact command executed>"
+      command_line: "<full command line with flags>"   # optional
       result: pass | fail | unknown
       scope: "<what this evidence covers (unit tests, integration tests, contract validation, etc.)>"
+      scope_paths:        # recommended repo-relative coverage paths/modules
+        - "<repo-relative/path>"
+      modules:            # optional logical module identifiers
+        - "<module-name>"
       summary: "<1-3 lines: key pass/fail + counts>"
       snippet: "<short pasted output excerpt>"
+      env_fingerprint: "<tool/runtime fingerprint, e.g. python3.11+pytest8.4.2>"   # optional
       artifacts:
-        - "<path/to/report-or-log>"   # e.g. target/surefire-reports, jacoco report, spotbugs xml/html
+        - path: "<path/to/report-or-log>"
+          type: "log|junit|sarif|coverage|other"
 ```
+
+Binding:
+- Evidence used for gate claims SHOULD include `scope_paths` or `modules`.
+- Artifacts SHOULD be typed (`log|junit|sarif|coverage|other`) for machine-readable reviewability.
 
 ---
 

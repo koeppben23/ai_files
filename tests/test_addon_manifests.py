@@ -130,6 +130,99 @@ def test_addon_manifests_define_relative_path_roots():
     assert not bad, "Addon manifests with invalid path_roots:\n" + "\n".join([f"- {r}" for r in bad])
 
 
+def _extract_list_block(lines: list[str], key: str) -> list[str]:
+    idx = None
+    for i, line in enumerate(lines):
+        if re.match(rf"^{re.escape(key)}:\s*$", line):
+            idx = i
+            break
+    if idx is None:
+        return []
+
+    values: list[str] = []
+    for line in lines[idx + 1 :]:
+        m = re.match(r"^\s{2}-\s*(.*?)\s*$", line)
+        if m:
+            val = m.group(1).strip().strip('"').strip("'")
+            if val:
+                values.append(val)
+            continue
+        if line.startswith("  ") and not line.strip():
+            continue
+        break
+    return values
+
+
+@pytest.mark.governance
+def test_addon_manifests_define_surface_ownership_and_touches():
+    manifests = list(git_ls_files("profiles/addons/*.addon.yml"))
+    assert manifests, "No addon manifests found under profiles/addons/*.addon.yml"
+
+    allowed = {
+        "api_contract",
+        "backend_templates",
+        "bdd_framework",
+        "build_tooling",
+        "db_migration",
+        "e2e_test_framework",
+        "frontend_api_client",
+        "frontend_templates",
+        "governance_docs",
+        "linting",
+        "messaging",
+        "principal_review",
+        "release",
+        "risk_model",
+        "scorecard_calibration",
+        "security",
+        "static",
+        "test_framework",
+    }
+
+    bad = []
+    for rel in manifests:
+        lines = read_text(REPO_ROOT / rel).splitlines()
+        owns = _extract_list_block(lines, "owns_surfaces")
+        touches = _extract_list_block(lines, "touches_surfaces")
+
+        if not owns:
+            bad.append(f"{rel}: owns_surfaces missing or empty")
+        if not touches:
+            bad.append(f"{rel}: touches_surfaces missing or empty")
+
+        for field, values in (("owns_surfaces", owns), ("touches_surfaces", touches)):
+            if len(values) != len(set(values)):
+                bad.append(f"{rel}: duplicate {field} entries")
+            for value in values:
+                if value not in allowed:
+                    bad.append(f"{rel}: unsupported {field} value {value}")
+
+    assert not bad, "Addon manifests with invalid surface ownership/touches:\n" + "\n".join([f"- {r}" for r in bad])
+
+
+@pytest.mark.governance
+def test_addon_manifest_owns_surfaces_are_unique_globally():
+    manifests = list(git_ls_files("profiles/addons/*.addon.yml"))
+    assert manifests, "No addon manifests found under profiles/addons/*.addon.yml"
+
+    owners: dict[str, str] = {}
+    conflicts: list[str] = []
+
+    for rel in manifests:
+        lines = read_text(REPO_ROOT / rel).splitlines()
+        m = re.search(r"^addon_key:\s*(\S+)\s*$", "\n".join(lines), flags=re.MULTILINE)
+        addon_key = m.group(1).strip().strip('"').strip("'") if m else rel
+        owns = _extract_list_block(lines, "owns_surfaces")
+        for surface in owns:
+            existing = owners.get(surface)
+            if existing and existing != addon_key:
+                conflicts.append(f"surface {surface} owned by both {existing} and {addon_key}")
+            else:
+                owners[surface] = addon_key
+
+    assert not conflicts, "Global owns_surfaces conflicts detected:\n" + "\n".join([f"- {c}" for c in conflicts])
+
+
 @pytest.mark.governance
 def test_master_addon_policy_includes_required_advisory_and_reload():
     """Pipeline guard: master must define required/advisory semantics and re-evaluation support."""

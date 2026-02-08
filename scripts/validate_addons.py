@@ -17,6 +17,26 @@ ALLOWED_SIGNAL_KEYS = {
     "config_key_prefix",
     "workflow_file",
 }
+ALLOWED_SURFACES = {
+    "api_contract",
+    "backend_templates",
+    "bdd_framework",
+    "build_tooling",
+    "db_migration",
+    "e2e_test_framework",
+    "frontend_api_client",
+    "frontend_templates",
+    "governance_docs",
+    "linting",
+    "messaging",
+    "principal_review",
+    "release",
+    "risk_model",
+    "scorecard_calibration",
+    "security",
+    "static",
+    "test_framework",
+}
 
 
 def read_text(path: Path) -> str:
@@ -41,17 +61,19 @@ def _parse_inline_list(value: str) -> list[str] | None:
     return [p for p in parts if p]
 
 
-def parse_manifest(path: Path) -> tuple[dict[str, str], str | None, list[tuple[str, str]], list[str], list[str]]:
+def parse_manifest(
+    path: Path,
+) -> tuple[dict[str, str], str | None, list[tuple[str, str]], dict[str, list[str]], list[str]]:
     """Parse constrained addon-manifest YAML shape without external dependencies."""
     text = read_text(path)
     scalars: dict[str, str] = {}
     signals_mode: str | None = None
     signals: list[tuple[str, str]] = []
-    path_roots: list[str] = []
+    list_fields: dict[str, list[str]] = {"path_roots": [], "owns_surfaces": [], "touches_surfaces": []}
     errors: list[str] = []
 
     in_signals = False
-    in_path_roots = False
+    active_list_key: str | None = None
     line_no = 0
     for raw in text.splitlines():
         line_no += 1
@@ -68,22 +90,22 @@ def parse_manifest(path: Path) -> tuple[dict[str, str], str | None, list[tuple[s
             key, val = m.group(1), m.group(2)
             if key == "signals":
                 in_signals = True
-                in_path_roots = False
+                active_list_key = None
                 continue
-            if key == "path_roots":
+            if key in list_fields:
                 in_signals = False
                 if val:
                     parsed = _parse_inline_list(val)
                     if parsed is None:
-                        errors.append(f"line {line_no}: path_roots must be a YAML list")
+                        errors.append(f"line {line_no}: {key} must be a YAML list")
                     else:
-                        path_roots.extend(parsed)
-                    in_path_roots = False
+                        list_fields[key].extend(parsed)
+                    active_list_key = None
                 else:
-                    in_path_roots = True
+                    active_list_key = key
                 continue
             in_signals = False
-            in_path_roots = False
+            active_list_key = None
             val = _unquote(val)
             if not val:
                 errors.append(f"line {line_no}: empty scalar for '{key}'")
@@ -117,28 +139,28 @@ def parse_manifest(path: Path) -> tuple[dict[str, str], str | None, list[tuple[s
             errors.append(f"line {line_no}: malformed signals entry")
             continue
 
-        if in_path_roots:
+        if active_list_key:
             root_match = re.match(r"^\s{2}-\s*(.*?)\s*$", raw)
             if root_match:
                 root = _unquote(root_match.group(1))
                 if not root:
-                    errors.append(f"line {line_no}: empty path_roots entry")
+                    errors.append(f"line {line_no}: empty {active_list_key} entry")
                 else:
-                    path_roots.append(root)
+                    list_fields[active_list_key].append(root)
                 continue
 
-            errors.append(f"line {line_no}: malformed path_roots entry")
+            errors.append(f"line {line_no}: malformed {active_list_key} entry")
             continue
 
         # any other indented block outside known structures
-        errors.append(f"line {line_no}: unexpected indentation outside 'signals'/'path_roots' block")
+        errors.append(f"line {line_no}: unexpected indentation outside list/signals blocks")
 
-    return scalars, signals_mode, signals, path_roots, errors
+    return scalars, signals_mode, signals, list_fields, errors
 
 
 def validate_manifest(path: Path, repo_root: Path) -> list[str]:
     errors: list[str] = []
-    scalars, signals_mode, signals, path_roots, parse_errors = parse_manifest(path)
+    scalars, signals_mode, signals, list_fields, parse_errors = parse_manifest(path)
     errors.extend(parse_errors)
 
     addon_key = scalars.get("addon_key")
@@ -168,12 +190,33 @@ def validate_manifest(path: Path, repo_root: Path) -> list[str]:
     elif int(manifest_version) != 1:
         errors.append(f"unsupported manifest_version={manifest_version} (expected 1)")
 
+    path_roots = list_fields["path_roots"]
+    if not path_roots:
+        errors.append("missing path_roots")
     for root in path_roots:
         p = Path(root)
         if p.is_absolute():
             errors.append(f"path_roots entry must be relative: {root}")
+        if root == "/":
+            errors.append("path_roots entry must not be '/'")
         if ".." in p.parts:
             errors.append(f"path_roots entry must not contain traversal: {root}")
+
+    owns_surfaces = list_fields["owns_surfaces"]
+    touches_surfaces = list_fields["touches_surfaces"]
+    if not owns_surfaces:
+        errors.append("missing owns_surfaces")
+    if not touches_surfaces:
+        errors.append("missing touches_surfaces")
+
+    for field_name, values in (("owns_surfaces", owns_surfaces), ("touches_surfaces", touches_surfaces)):
+        seen = set()
+        for value in values:
+            if value in seen:
+                errors.append(f"duplicate {field_name} entry: {value}")
+            seen.add(value)
+            if value not in ALLOWED_SURFACES:
+                errors.append(f"unsupported {field_name} value: {value}")
 
     if signals_mode is None:
         errors.append("missing signals block")
@@ -207,7 +250,7 @@ def main(argv: list[str]) -> int:
         rel = manifest.resolve().relative_to(repo_root).as_posix()
         errors = validate_manifest(manifest, repo_root)
 
-        scalars, _signals_mode, _signals, _path_roots, _parse_errors = parse_manifest(manifest)
+        scalars, _signals_mode, _signals, list_fields, _parse_errors = parse_manifest(manifest)
         addon_key = scalars.get("addon_key")
         if addon_key:
             if addon_key in seen_keys:
@@ -219,6 +262,21 @@ def main(argv: list[str]) -> int:
 
         if errors:
             failures.append(f"{rel}: " + "; ".join(errors))
+
+    # deterministic surface-ownership guard (fail fast)
+    owners: dict[str, str] = {}
+    for manifest in manifests:
+        rel = manifest.resolve().relative_to(repo_root).as_posix()
+        scalars, _m, _s, list_fields, _e = parse_manifest(manifest)
+        addon_key = scalars.get("addon_key") or rel
+        for surface in list_fields.get("owns_surfaces", []):
+            existing = owners.get(surface)
+            if existing and existing != addon_key:
+                failures.append(
+                    f"{rel}: owns_surfaces conflict on '{surface}' (also owned by addon_key={existing})"
+                )
+            else:
+                owners[surface] = addon_key
 
     if failures:
         print("Addon manifest validation FAILED:", file=sys.stderr)

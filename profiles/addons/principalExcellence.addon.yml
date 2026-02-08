@@ -4,6 +4,10 @@ rulebook: rules.principal-excellence.md
 manifest_version: 1
 path_roots:
   - "."
+owns_surfaces:
+  - "principal_review"
+touches_surfaces:
+  - "release"
 signals:
   any:
     - file_glob: "**/*"

@@ -36,6 +36,29 @@ This required addon refines template defaults and MUST NOT override `master.md`,
 - Use repo-native Java build/test/lint commands and preserve existing framework/tooling conventions.
 - If tooling is unavailable in-host, mark claims `not-verified` and emit recovery commands.
 
+## Correctness by construction (binding)
+
+Inputs required:
+- service/use-case name
+- module/package path
+- boundary contract context (DTO/API/event shape)
+
+Outputs guaranteed:
+- controller/service/domain/test scaffold files for changed scope
+- deterministic seams for time/randomness where applicable
+- explicit boundary mapping points (DTO <-> domain)
+
+Evidence expectation:
+- after template application, run repo-native unit tests (or mark `not-verified` with recovery command)
+- gate claims using template output MUST reference BuildEvidence item ids.
+
+Golden examples:
+- controller delegates in one line to service and uses mapper for boundary conversion.
+- service mutates domain via domain methods and uses injected seams for determinism.
+
+Anti-example:
+- controller or mapper contains business branching without evidence-backed exception.
+
 ---
 
 ## 14. LLM CODE GENERATION PATTERNS (Binding)

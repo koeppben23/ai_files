@@ -4,6 +4,11 @@ rulebook: rules.frontend-openapi-ts-client.md
 manifest_version: 1
 path_roots:
   - "."
+owns_surfaces:
+  - "frontend_api_client"
+touches_surfaces:
+  - "api_contract"
+  - "test_framework"
 signals:
   any:
     - file_glob: "**/openapi*.yaml"

@@ -4,6 +4,10 @@ rulebook: rules.frontend-cypress-testing.md
 manifest_version: 1
 path_roots:
   - "."
+owns_surfaces:
+  - "e2e_test_framework"
+touches_surfaces:
+  - "test_framework"
 signals:
   any:
     - file_glob: "**/cypress.config.ts"

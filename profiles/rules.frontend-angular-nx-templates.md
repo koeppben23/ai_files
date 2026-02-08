@@ -37,6 +37,29 @@ Rule (binding): templates are default structures. If a template conflicts with l
 - Prefer repo-native Nx targets (for example `npx nx affected -t lint,test,build`).
 - If target names differ, document the resolved equivalent commands in BuildEvidence.
 
+## Correctness by construction (binding)
+
+Inputs required:
+- feature/module path(s)
+- selected state pattern (signals/ngrx/component-store) from repo conventions
+- API/contract mapping context for changed scope
+
+Outputs guaranteed:
+- container/presentational/facade/API-boundary scaffolds aligned to repo conventions
+- deterministic frontend test scaffold for changed behavior
+- explicit boundary-safe mapping points
+
+Evidence expectation:
+- after template application, run repo-native lint/test targets (or mark `not-verified` with recovery command)
+- template-derived claims MUST reference BuildEvidence item ids.
+
+Golden examples:
+- container orchestrates only and delegates state transitions via facade/store abstraction.
+- API boundary maps DTOs explicitly before UI consumption.
+
+Anti-example:
+- introducing ad-hoc second state architecture or leaking transport DTOs into UI contracts.
+
 ## Examples (GOOD/BAD)
 
 GOOD:

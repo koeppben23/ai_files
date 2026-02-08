@@ -39,6 +39,29 @@ When active, maintain:
 - Preserve repo serializer/deserializer strategy unless ticket explicitly changes it.
 - Test tooling should follow repo standard (`spring-kafka-test`, Testcontainers, or existing equivalent).
 
+## Correctness by construction (binding)
+
+Inputs required:
+- topic name and event schema contract
+- consumer group / key strategy
+- target module/package path
+
+Outputs guaranteed:
+- producer/consumer scaffolds with deterministic keying and explicit delegation
+- async test scaffold with deterministic waits (no sleep-based control)
+- retry/DLT hooks aligned to repo conventions when present
+
+Evidence expectation:
+- after template application, run repo-native Kafka/unit/integration tests (or mark `not-verified` with recovery command)
+- idempotency/retry claims MUST reference BuildEvidence item ids.
+
+Golden examples:
+- listener validates minimally and delegates to service in one line.
+- Kafka test uses stable keys + Awaitility/Testcontainers evidence.
+
+Anti-example:
+- listener embeds business branching with side effects and no replay/idempotency proof.
+
 ## Examples (GOOD/BAD)
 
 GOOD:

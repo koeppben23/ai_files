@@ -4,6 +4,10 @@ rulebook: rules.docs-governance.md
 manifest_version: 1
 path_roots:
   - "."
+owns_surfaces:
+  - "governance_docs"
+touches_surfaces:
+  - "static"
 signals:
   any:
     - file_glob: "master.md"
