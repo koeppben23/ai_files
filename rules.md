@@ -219,6 +219,13 @@ Binding implications:
 - This section and the addon catalog contract in `master.md` are the single source of truth for required vs advisory behavior.
   Profile/addon/template rulebooks MUST reference these semantics and MUST NOT define parallel blocking policies.
 
+Deterministic addon conflict resolution (binding):
+- If multiple activated addons constrain the same touched surface and requirements differ:
+  1) preserve higher-level precedence (`master.md`/core/profile) first,
+  2) apply the most restrictive compatible rule,
+  3) prefer narrower scope over generic scope when both are equally restrictive,
+  4) if still non-deterministic or mutually incompatible -> `BLOCKED-ADDON-CONFLICT`.
+
 ### 4.7 Required-Addon Emergency Override (Binding)
 
 This override exists for exceptional continuity only; default behavior remains fail-closed.

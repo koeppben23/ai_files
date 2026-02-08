@@ -34,6 +34,8 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
 - Update factory contracts (`new_profile.md`, `new_addon.md`, `PROFILE_ADDON_FACTORY_CONTRACT.json`) for shared-contract modularization defaults.
 
 ### Changed
+- Add a deterministic addon/template tie-break contract and explicit `BLOCKED-ADDON-CONFLICT` path in `master.md` + `rules.md` to avoid same-precedence activation ambiguity.
+- Add a monorepo scope invariant contract test ensuring missing `ComponentScopePaths` at code-phase maps to `BLOCKED-MISSING-EVIDENCE` when addon activation would otherwise be repo-wide/ambiguous.
 - Clarify control-plane terminology: "repo working tree" vs workspace bucket paths, and restrict rulebook loading to trusted outside-repo governance roots.
 - Align Master priority order with canonical precedence by explicitly inserting activated templates/addons between active profile and ticket specification.
 - Clarify addon activation semantics by separating evidence-based activation requirement (`AddonsEvidence.*.required`) from manifest policy class (`addon_class`).
