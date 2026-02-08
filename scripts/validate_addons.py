@@ -37,6 +37,18 @@ ALLOWED_SURFACES = {
     "static",
     "test_framework",
 }
+ALLOWED_CAPABILITIES = {
+    "angular",
+    "cucumber",
+    "cypress",
+    "governance_docs",
+    "java",
+    "kafka",
+    "liquibase",
+    "nx",
+    "openapi",
+    "spring",
+}
 
 
 def read_text(path: Path) -> str:
@@ -69,7 +81,13 @@ def parse_manifest(
     scalars: dict[str, str] = {}
     signals_mode: str | None = None
     signals: list[tuple[str, str]] = []
-    list_fields: dict[str, list[str]] = {"path_roots": [], "owns_surfaces": [], "touches_surfaces": []}
+    list_fields: dict[str, list[str]] = {
+        "path_roots": [],
+        "owns_surfaces": [],
+        "touches_surfaces": [],
+        "capabilities_any": [],
+        "capabilities_all": [],
+    }
     errors: list[str] = []
 
     in_signals = False
@@ -216,6 +234,19 @@ def validate_manifest(path: Path, repo_root: Path) -> list[str]:
                 errors.append(f"duplicate {field_name} entry: {value}")
             seen.add(value)
             if value not in ALLOWED_SURFACES:
+                errors.append(f"unsupported {field_name} value: {value}")
+
+    capabilities_any = list_fields["capabilities_any"]
+    capabilities_all = list_fields["capabilities_all"]
+    if not capabilities_any and not capabilities_all:
+        errors.append("missing capabilities_any/capabilities_all (at least one required)")
+    for field_name, values in (("capabilities_any", capabilities_any), ("capabilities_all", capabilities_all)):
+        seen = set()
+        for value in values:
+            if value in seen:
+                errors.append(f"duplicate {field_name} entry: {value}")
+            seen.add(value)
+            if value not in ALLOWED_CAPABILITIES:
                 errors.append(f"unsupported {field_name} value: {value}")
 
     if signals_mode is None:

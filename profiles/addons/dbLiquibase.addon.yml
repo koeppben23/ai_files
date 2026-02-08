@@ -8,6 +8,8 @@ owns_surfaces:
   - "db_migration"
 touches_surfaces:
   - "release"
+capabilities_any:
+  - "liquibase"
 signals:
   any:
     - maven_dep: org.liquibase:liquibase-core

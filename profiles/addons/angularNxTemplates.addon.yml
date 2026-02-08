@@ -9,6 +9,9 @@ owns_surfaces:
 touches_surfaces:
   - "test_framework"
   - "linting"
+capabilities_any:
+  - "angular"
+  - "nx"
 signals:
   any:
     - file_glob: "**/nx.json"

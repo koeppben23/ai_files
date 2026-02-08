@@ -34,6 +34,9 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
 - Update factory contracts (`new_profile.md`, `new_addon.md`, `PROFILE_ADDON_FACTORY_CONTRACT.json`) for shared-contract modularization defaults.
 
 ### Changed
+- Introduce capability-first activation contracts (`RepoFacts.Capabilities` + `CapabilityEvidence`) with hard-signal fallback and deterministic `BLOCKED-MISSING-EVIDENCE` handling.
+- Extend addon manifests/validator/lint with capability declarations (`capabilities_any` / `capabilities_all`) for normalized activation matching.
+- Add governance coverage for capability-first activation, including e2e simulation for capability match + fallback hard-signal activation.
 - Add a machine-readable diagnostics payload contract for emitted reason codes (`BLOCKED-*`, `WARN-*`, `NOT_VERIFIED-*`) with required fields (`reason_code`, `surface`, `signals_used`, `recovery_steps`, `next_command`) in master/schema/tests.
 - Add SESSION_STATE versioning + migration contract (`session_state_version`, `ruleset_hash`) with deterministic upgrade-or-block behavior (`BLOCKED-STATE-OUTDATED`).
 - Add a fast governance lint layer (`scripts/governance_lint.py`) and CI `governance-lint` fail-fast job for structural invariants (priority uniqueness, anchor presence, manifest contract, required rulebook references).

@@ -8,6 +8,8 @@ owns_surfaces:
   - "governance_docs"
 touches_surfaces:
   - "static"
+capabilities_any:
+  - "governance_docs"
 signals:
   any:
     - file_glob: "master.md"
