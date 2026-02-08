@@ -52,6 +52,10 @@ Outputs guaranteed:
 Evidence expectation:
 - after template application, run repo-native lint/test targets (or mark `not-verified` with recovery command)
 - template-derived claims MUST reference BuildEvidence item ids.
+evidence_kinds_required:
+  - "unit-test"
+  - "e2e"
+  - "lint"
 
 Golden examples:
 - container orchestrates only and delegates state transitions via facade/store abstraction.

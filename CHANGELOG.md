@@ -34,6 +34,11 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
 - Update factory contracts (`new_profile.md`, `new_addon.md`, `PROFILE_ADDON_FACTORY_CONTRACT.json`) for shared-contract modularization defaults.
 
 ### Changed
+- Add high-ROI governance hardening invariants: capability catalog completeness checks, template evidence-kind gating, and activation delta bit-identity coverage.
+- Add proof-carrying explain output requirements (`/why-blocked`, `/explain-activation`) with mandatory trigger facts and decision trace.
+- Add evidence leakage guards for scoped/ticketed verification (`ticket_id`, `session_run_id`, scope leak constraints under ComponentScopePaths).
+- Add deterministic activation-delta contract (`ActivationDelta.AddonScanHash`, `ActivationDelta.RepoFactsHash`, `BLOCKED-ACTIVATION-DELTA-MISMATCH`).
+- Add toolchain pinning evidence policy for verified build/test claims (Java/Node/Maven/Gradle version evidence or `not-verified`).
 - Introduce capability-first activation contracts (`RepoFacts.Capabilities` + `CapabilityEvidence`) with hard-signal fallback and deterministic `BLOCKED-MISSING-EVIDENCE` handling.
 - Extend addon manifests/validator/lint with capability declarations (`capabilities_any` / `capabilities_all`) for normalized activation matching.
 - Add governance coverage for capability-first activation, including e2e simulation for capability match + fallback hard-signal activation.

@@ -51,6 +51,10 @@ Outputs guaranteed:
 Evidence expectation:
 - after template application, run repo-native unit tests (or mark `not-verified` with recovery command)
 - gate claims using template output MUST reference BuildEvidence item ids.
+evidence_kinds_required:
+  - "unit-test"
+  - "lint"
+  - "integration-test"
 
 Golden examples:
 - controller delegates in one line to service and uses mapper for boundary conversion.
