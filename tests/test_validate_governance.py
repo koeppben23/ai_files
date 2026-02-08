@@ -1568,6 +1568,35 @@ def test_workspace_persistence_backfill_derives_fingerprint_from_repo_root(tmp_p
 
 
 @pytest.mark.governance
+def test_workspace_persistence_quiet_blocked_payload_includes_reason_contract_fields(tmp_path: Path):
+    script = REPO_ROOT / "diagnostics" / "persist_workspace_artifacts.py"
+    cfg = tmp_path / "opencode-config"
+    non_repo_root = tmp_path / "not-a-repo"
+    non_repo_root.mkdir(parents=True, exist_ok=True)
+
+    r = run([
+        sys.executable,
+        str(script),
+        "--repo-root",
+        str(non_repo_root),
+        "--config-root",
+        str(cfg),
+        "--quiet",
+    ])
+    assert r.returncode == 2, (
+        "persist_workspace_artifacts.py expected blocked exit:\n"
+        f"STDERR:\n{r.stderr}\n"
+        f"STDOUT:\n{r.stdout}"
+    )
+
+    payload = json.loads(r.stdout)
+    assert payload.get("status") == "blocked"
+    assert payload.get("reason_code") == "BLOCKED-WORKSPACE-PERSISTENCE"
+    assert isinstance(payload.get("recovery_steps"), list) and len(payload["recovery_steps"]) >= 1
+    assert isinstance(payload.get("next_command"), str) and payload["next_command"].strip()
+
+
+@pytest.mark.governance
 def test_start_md_includes_workspace_persistence_autohook():
     text = read_text(REPO_ROOT / "start.md")
     required_tokens = [
@@ -1578,6 +1607,24 @@ def test_start_md_includes_workspace_persistence_autohook():
     ]
     missing = [token for token in required_tokens if token not in text]
     assert not missing, "start.md missing workspace persistence auto-hook tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing]
+    )
+
+
+@pytest.mark.governance
+def test_audit_reason_keys_are_declared_audit_only_and_not_reason_code_payloads():
+    text = read_text(REPO_ROOT / "diagnostics" / "audit.md")
+    required_tokens = [
+        "Reason key semantics (binding):",
+        "audit-only diagnostics keys",
+        "They are NOT canonical governance `reason_code` values",
+        "MUST NOT be written into `SESSION_STATE.Diagnostics.ReasonPayloads.reason_code`",
+        "auditReasonKey `BR_MISSING_SESSION_GATE_STATE`",
+        "auditReasonKey `BR_MISSING_RULEBOOK_RESOLUTION`",
+        "auditReasonKey `BR_SCOPE_ARTIFACT_MISSING`",
+    ]
+    missing = [token for token in required_tokens if token not in text]
+    assert not missing, "diagnostics/audit.md missing audit reason-key boundary tokens:\n" + "\n".join(
         [f"- {m}" for m in missing]
     )
 

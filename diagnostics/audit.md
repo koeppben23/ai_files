@@ -35,6 +35,11 @@ Rules:
 - Output MUST start with the JSON (no text before it).
 - Optional: after the JSON, a short human-readable summary MAY be printed.
 
+Reason key semantics (binding):
+- `AUDIT_REPORT.status.reasonKeys` and other audit report `*ReasonKey` fields are audit-only diagnostics keys.
+- They are NOT canonical governance `reason_code` values and MUST NOT be written into `SESSION_STATE.Diagnostics.ReasonPayloads.reason_code` without explicit mapping.
+- If a bridge to canonical workflow reasons is needed, map audit keys to canonical `BLOCKED-*|WARN-*|NOT_VERIFIED-*` codes explicitly.
+
 ---
 
 ## SESSION_STATE UPDATE (A2 — allowed mutation scope)
@@ -109,7 +114,7 @@ Derive from `SESSION_STATE` and the rules:
   - RequiredEvidence / RequiredInput (list)
 
 Rules:
-- If the current phase implies gates but gate status is missing, treat as `BLOCKED` with reason `BR_MISSING_SESSION_GATE_STATE`.
+- If the current phase implies gates but gate status is missing, treat as `BLOCKED` with auditReasonKey `BR_MISSING_SESSION_GATE_STATE`.
 
 ---
 
@@ -129,7 +134,7 @@ For each, print:
 - ActivationReason=<phase|evidence|explicit|fallback|unknown>
 
 Rules:
-- Do NOT infer unknown profile/addon selection. If unknown, print `unknown` and mark `BLOCKED` with `BR_MISSING_RULEBOOK_RESOLUTION`.
+- Do NOT infer unknown profile/addon selection. If unknown, print `unknown` and mark `BLOCKED` with auditReasonKey `BR_MISSING_RULEBOOK_RESOLUTION`.
 
 ---
 
@@ -161,7 +166,7 @@ Report whether the session has explicit scope and required inputs:
 - Non-functional constraints (present/absent)
 
 Rules:
-- If scope lock requires an artifact and it is missing → `BLOCKED` with reason `BR_SCOPE_ARTIFACT_MISSING`.
+- If scope lock requires an artifact and it is missing → `BLOCKED` with auditReasonKey `BR_SCOPE_ARTIFACT_MISSING`.
 
 ---
 

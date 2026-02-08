@@ -466,6 +466,34 @@ def check_factory_contract_alignment(issues: list[str]) -> None:
         issues.append(f"diagnostics/PROFILE_ADDON_FACTORY_CONTRACT.json: missing factory alignment tokens {missing_json}")
 
 
+def check_diagnostics_reason_contract_alignment(issues: list[str]) -> None:
+    audit = read_text(ROOT / "diagnostics" / "audit.md")
+    persist = read_text(ROOT / "diagnostics" / "persist_workspace_artifacts.py")
+
+    audit_required_tokens = [
+        "Reason key semantics (binding):",
+        "audit-only diagnostics keys",
+        "They are NOT canonical governance `reason_code` values",
+        "MUST NOT be written into `SESSION_STATE.Diagnostics.ReasonPayloads.reason_code`",
+        "auditReasonKey `BR_MISSING_SESSION_GATE_STATE`",
+        "auditReasonKey `BR_MISSING_RULEBOOK_RESOLUTION`",
+        "auditReasonKey `BR_SCOPE_ARTIFACT_MISSING`",
+    ]
+    missing_audit = [token for token in audit_required_tokens if token not in audit]
+    if missing_audit:
+        issues.append(f"diagnostics/audit.md: missing reason-key boundary tokens {missing_audit}")
+
+    persist_required_tokens = [
+        '"status": "blocked"',
+        '"reason_code": "BLOCKED-WORKSPACE-PERSISTENCE"',
+        '"recovery_steps"',
+        '"next_command"',
+    ]
+    missing_persist = [token for token in persist_required_tokens if token not in persist]
+    if missing_persist:
+        issues.append(f"diagnostics/persist_workspace_artifacts.py: missing quiet blocked payload tokens {missing_persist}")
+
+
 def main() -> int:
     issues: list[str] = []
     check_master_priority_uniqueness(issues)
@@ -475,6 +503,7 @@ def main() -> int:
     check_template_quality_gate(issues)
     check_stability_sla_contract(issues)
     check_factory_contract_alignment(issues)
+    check_diagnostics_reason_contract_alignment(issues)
 
     if issues:
         print("Governance lint FAILED:")
