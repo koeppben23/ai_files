@@ -23,7 +23,13 @@
     "rulebook",
     "manifest_version",
     "path_roots",
-    "signals.any"
+    "signals.any",
+    "owns_surfaces",
+    "touches_surfaces"
+  ],
+  "recommendedAddonManifestFields": [
+    "capabilities_any",
+    "capabilities_all"
   ],
   "requiredWarningCodes": [
     "WARN-PRINCIPAL-EVIDENCE-MISSING",
