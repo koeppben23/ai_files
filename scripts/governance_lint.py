@@ -52,6 +52,57 @@ def check_master_priority_uniqueness(issues: list[str]) -> None:
     if count != 1:
         issues.append(f"master.md: expected exactly one '## 1. PRIORITY ORDER', found {count}")
 
+    # Duplicate-detector for legacy precedence fragments anywhere in master.md.
+    lines = master.splitlines()
+    precedence_blocks: list[tuple[int, list[str]]] = []
+    i = 0
+    while i < len(lines):
+        if not re.match(r"^\s*\d+\.\s+", lines[i]):
+            i += 1
+            continue
+        start = i
+        block: list[str] = []
+        while i < len(lines) and re.match(r"^\s*\d+\.\s+", lines[i]):
+            block.append(lines[i].strip())
+            i += 1
+
+        normalized = "\n".join(block).lower()
+        is_precedence = (
+            "master prompt" in normalized
+            and "rules.md" in normalized
+            and "active profile" in normalized
+            and "ticket" in normalized
+        )
+        if is_precedence:
+            precedence_blocks.append((start + 1, block))
+
+    if len(precedence_blocks) != 1:
+        locations = [f"line {line_no}" for line_no, _ in precedence_blocks]
+        issues.append(
+            "master.md: expected exactly one numbered precedence list containing "
+            "Master Prompt/rules.md/Active profile/Ticket; found "
+            f"{len(precedence_blocks)} ({', '.join(locations) if locations else 'none'})"
+        )
+        return
+
+    _line_no, canonical = precedence_blocks[0]
+    canonical_text = "\n".join(canonical)
+    if "4. Activated templates/addon rulebooks (manifest-driven)" not in canonical_text:
+        issues.append("master.md: canonical precedence list missing '4. Activated templates/addon rulebooks (manifest-driven)'")
+    if "5. Ticket specification" not in canonical_text:
+        issues.append("master.md: canonical precedence list missing '5. Ticket specification'")
+
+    stability_note = (
+        "Stability sync note (binding): governance release/readiness decisions MUST also satisfy `STABILITY_SLA.md`."
+    )
+    if stability_note not in master:
+        issues.append("master.md: missing Stability sync note near priority order")
+
+    if "DO NOT read rulebooks from the repository" in master:
+        issues.append(
+            "master.md: contains legacy phrase 'DO NOT read rulebooks from the repository'; use 'repo working tree' wording"
+        )
+
 
 def check_anchor_presence(issues: list[str]) -> None:
     rules = read_text(ROOT / "rules.md")
@@ -335,10 +386,14 @@ def check_stability_sla_contract(issues: list[str]) -> None:
         "Governance release stability is normatively defined by `STABILITY_SLA.md`",
         "Release/readiness decisions MUST satisfy `STABILITY_SLA.md` invariants; conflicts are resolved fail-closed.",
         "4) activated addon rulebooks (including templates and shared governance add-ons)",
+        "Master Prompt > Core Rulebook > Active Profile Rulebook > Activated Addon/Template Rulebooks > Ticket > Repo docs",
     ]
     missing_rules = [token for token in rules_required_tokens if token not in rules]
     if missing_rules:
         issues.append(f"rules.md: missing stability SLA integration tokens {missing_rules}")
+
+    if "Master Prompt > Core Rulebook > Profile Rulebook > Ticket > Repo docs" in rules:
+        issues.append("rules.md: contains legacy precedence fragment without addon/template layer")
 
     ci_required_tokens = [
         "governance-lint:",

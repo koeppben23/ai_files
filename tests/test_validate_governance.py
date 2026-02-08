@@ -48,6 +48,7 @@ def test_stability_sla_is_normative_and_aligned_with_core_contracts():
         "Governance release stability is normatively defined by `STABILITY_SLA.md`",
         "Release/readiness decisions MUST satisfy `STABILITY_SLA.md` invariants; conflicts are resolved fail-closed.",
         "4) activated addon rulebooks (including templates and shared governance add-ons)",
+        "Master Prompt > Core Rulebook > Active Profile Rulebook > Activated Addon/Template Rulebooks > Ticket > Repo docs",
     ]
 
     missing_sla = [token for token in sla_required if token not in sla]
@@ -60,6 +61,38 @@ def test_stability_sla_is_normative_and_aligned_with_core_contracts():
     )
     assert not missing_rules, "rules.md missing STABILITY_SLA integration tokens:\n" + "\n".join(
         [f"- {m}" for m in missing_rules]
+    )
+
+    precedence_blocks = []
+    lines = master.splitlines()
+    i = 0
+    while i < len(lines):
+        if not re.match(r"^\s*\d+\.\s+", lines[i]):
+            i += 1
+            continue
+        block = []
+        while i < len(lines) and re.match(r"^\s*\d+\.\s+", lines[i]):
+            block.append(lines[i].strip())
+            i += 1
+        normalized = "\n".join(block).lower()
+        if (
+            "master prompt" in normalized
+            and "rules.md" in normalized
+            and "active profile" in normalized
+            and "ticket" in normalized
+        ):
+            precedence_blocks.append(block)
+
+    assert master.count("## 1. PRIORITY ORDER") == 1, "master.md must contain exactly one canonical PRIORITY ORDER section"
+    assert len(precedence_blocks) == 1, "master.md must contain exactly one numbered precedence fragment"
+    canonical = "\n".join(precedence_blocks[0])
+    assert "4. Activated templates/addon rulebooks (manifest-driven)" in canonical
+    assert "5. Ticket specification" in canonical
+    assert "DO NOT read rulebooks from the repository" not in master, (
+        "master.md contains legacy repository phrasing; use precise 'repo working tree' terminology"
+    )
+    assert "Master Prompt > Core Rulebook > Profile Rulebook > Ticket > Repo docs" not in rules, (
+        "rules.md still contains legacy precedence fragment without addon/template layer"
     )
 
 
