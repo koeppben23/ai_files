@@ -135,6 +135,7 @@ Once Phase 1.1 (bootstrap) completes successfully, these keys MUST exist:
 - `SESSION_STATE.Bootstrap.Satisfied` (boolean)
 - `SESSION_STATE.Bootstrap.Evidence` (string)
 - `SESSION_STATE.Scope` (object; see Section 6.5)
+- `SESSION_STATE.RepoFacts` (object; see Section 2.2)
 - `SESSION_STATE.LoadedRulebooks.core` (string path OR `""` if deferred until Phase 4)
 - `SESSION_STATE.LoadedRulebooks.profile` (string path OR `""` if deferred/planning-only)
 - `SESSION_STATE.LoadedRulebooks.templates` (string path OR `""` if deferred until Phase 4 or not applicable)
@@ -198,6 +199,36 @@ If `ReportRef` is a file path (repo-aware mode), it MUST follow canonical path i
 - MUST NOT contain backslashes, drive prefixes, or `..`
 
 If chat-only mode (no persistence), `ReportRef` MUST be `not-persisted`.
+
+### 2.2 RepoFacts Capabilities (binding)
+
+`SESSION_STATE.RepoFacts` captures normalized capability facts used for deterministic activation.
+
+Recommended shape:
+
+```yaml
+SESSION_STATE:
+  RepoFacts:
+    Capabilities:
+      - "java"
+      - "spring"
+      - "kafka"
+      - "liquibase"
+      - "openapi"
+      - "cucumber"
+      - "nx"
+      - "angular"
+      - "cypress"
+      - "governance_docs"
+    CapabilityEvidence:
+      java: ["pom.xml", "src/main/java"]
+      kafka: ["maven_dep:org.springframework.kafka:spring-kafka"]
+```
+
+Invariants:
+- By end of Phase 2, `RepoFacts.Capabilities` SHOULD be populated when repository evidence is available.
+- Activation decisions in Phase 1.4/Phase 4 entry MUST be capability-first with hard-signal fallback.
+- If required activation cannot be decided deterministically from capabilities or fallback signals, workflow MUST use `BLOCKED-MISSING-EVIDENCE`.
 
 ### Lazy-loading invariants (binding)
 

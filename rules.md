@@ -251,6 +251,18 @@ Rules:
 - If ownership overlap is detected for activated addons/templates -> `BLOCKED-ADDON-CONFLICT`.
 - Surface ownership conflicts MUST be resolved by scope narrowing or authoritative owner selection before continuation.
 
+### 4.9 Capability-First Activation (Binding)
+
+Activation decisions for profiles/addons MUST use normalized repository capabilities as the first decision layer.
+
+Rules:
+- Workflow MUST derive `RepoFacts.Capabilities` from repository signals before activation decisions.
+- Addon manifests SHOULD declare capability requirements (`capabilities_any` / `capabilities_all`).
+- Activation evaluation order:
+  1) capabilities (`capabilities_all` then `capabilities_any`),
+  2) hard-signal fallback (`signals`) when capability evidence is missing/ambiguous.
+- Missing evidence for required activation paths MUST map to `BLOCKED-MISSING-EVIDENCE`.
+
 ---
 
 ## 5. Repository Guidelines as Constraints (Allowed, but Non-Normative)

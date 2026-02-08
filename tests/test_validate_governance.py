@@ -316,6 +316,48 @@ def test_operator_explain_commands_are_defined_as_read_only_contracts():
 
 
 @pytest.mark.governance
+def test_capability_first_activation_contract_is_defined():
+    master = read_text(REPO_ROOT / "master.md")
+    rules = read_text(REPO_ROOT / "rules.md")
+    schema = read_text(REPO_ROOT / "SESSION_STATE_SCHEMA.md")
+
+    master_required = [
+        "Normalize repository capabilities (binding)",
+        "SESSION_STATE.RepoFacts.Capabilities",
+        "SESSION_STATE.RepoFacts.CapabilityEvidence",
+        "Activation decisions MUST be capability-first, with hard-signal fallback",
+        "capabilities_any",
+        "capabilities_all",
+    ]
+    rules_required = [
+        "### 4.9 Capability-First Activation (Binding)",
+        "`capabilities_any` / `capabilities_all`",
+        "hard-signal fallback (`signals`)",
+        "`BLOCKED-MISSING-EVIDENCE`",
+    ]
+    schema_required = [
+        "`SESSION_STATE.RepoFacts` (object; see Section 2.2)",
+        "### 2.2 RepoFacts Capabilities (binding)",
+        "CapabilityEvidence",
+        "Activation decisions in Phase 1.4/Phase 4 entry MUST be capability-first with hard-signal fallback",
+    ]
+
+    missing_master = [token for token in master_required if token not in master]
+    missing_rules = [token for token in rules_required if token not in rules]
+    missing_schema = [token for token in schema_required if token not in schema]
+
+    assert not missing_master, "master.md missing capability-first activation contract tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_master]
+    )
+    assert not missing_rules, "rules.md missing capability-first activation contract tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_rules]
+    )
+    assert not missing_schema, "SESSION_STATE_SCHEMA.md missing RepoFacts capability contract tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_schema]
+    )
+
+
+@pytest.mark.governance
 def test_session_state_versioning_and_migration_contract_is_defined():
     master = read_text(REPO_ROOT / "master.md")
     schema = read_text(REPO_ROOT / "SESSION_STATE_SCHEMA.md")

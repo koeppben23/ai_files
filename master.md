@@ -308,7 +308,15 @@ ALGORITHM (BINDING, NORMATIVE):
    - If the active profile declares templates as REQUIRED:
      - Resolve and load the declared templates rulebook (e.g., `rules.backend-java-templates.md`).
      - Record: `SESSION_STATE.LoadedRulebooks.templates = "<resolved path>"`
-     - If required but cannot be resolved/loaded → `Mode = BLOCKED` with `BLOCKED-MISSING-TEMPLATES`.
+      - If required but cannot be resolved/loaded → `Mode = BLOCKED` with `BLOCKED-MISSING-TEMPLATES`.
+
+2.5) Normalize repository capabilities (binding)
+   - Before addon activation decisions, the workflow MUST derive normalized capability facts from discovered repo signals.
+   - Canonical capability examples: `java`, `spring`, `kafka`, `liquibase`, `openapi`, `cucumber`, `nx`, `angular`, `cypress`, `governance_docs`.
+   - Record:
+      - `SESSION_STATE.RepoFacts.Capabilities = [<capabilities>]`
+      - `SESSION_STATE.RepoFacts.CapabilityEvidence.<capability> = [<signal/path references>]`
+   - Activation decisions MUST be capability-first, with hard-signal fallback when capability evidence is missing/ambiguous.
 
 3) Evaluate and load addons (evidence-based, manifest-driven)
    Evidence sources (BINDING):
@@ -336,8 +344,9 @@ ALGORITHM (BINDING, NORMATIVE):
         - `path_roots` (relative repo paths to scope signal evaluation in monorepos)
 
    Rules (BINDING):
-   - For each addon, evaluate evidence signals from Phase 2 artifacts + ticket text.
-   - If ANY signal matches, the addon becomes activation-required-by-evidence = true; otherwise false.
+   - For each addon, evaluate capability requirements from manifest (`capabilities_any` / `capabilities_all`) first.
+   - If capability evidence is missing/ambiguous, evaluate hard signals from Phase 2 artifacts + ticket text as fallback.
+   - If capability-first evaluation or fallback hard signals indicate activation, set activation-required-by-evidence = true; otherwise false.
    - Field mapping note (binding): `SESSION_STATE.AddonsEvidence.<addon_key>.required` stores this evidence-based activation requirement,
      while `addon_class` (`required` | `advisory`) is read from the addon manifest policy class.
    - Missing/unknown evidence for a required decision path MUST trigger `BLOCKED-MISSING-EVIDENCE`.
