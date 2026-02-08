@@ -35,6 +35,8 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
 - Update factory contracts (`new_profile.md`, `new_addon.md`, `PROFILE_ADDON_FACTORY_CONTRACT.json`) for shared-contract modularization defaults.
 
 ### Changed
+- Tighten `start.md` evidence boundaries: missing installer-owned `governance.paths.json` now yields explicit blocked fallback semantics (`BLOCKED-MISSING-BINDING-FILE`) and marks computed path payloads as non-evidence debug output.
+- Clarify `start.md` auto-persistence identity semantics so helper output is operational status only and cannot be treated as canonical repo identity evidence.
 - Align governance factory contracts (`new_addon.md`, `new_profile.md`, `PROFILE_ADDON_FACTORY_CONTRACT.json`) with current canonical runtime policy: required surface ownership fields, capability-first manifest guidance, preferred profile filename pattern (`rules_<profile_key>.md`), canonical SESSION_STATE evidence paths, and clarified tracking/audit semantics.
 - Clarify diagnostics reason-key boundaries: `/audit` `BR_*` keys are audit-only (not canonical `reason_code` values) unless explicitly mapped to `BLOCKED-*|WARN-*|NOT_VERIFIED-*` codes.
 - Harden precedence drift detection with context-sensitive guards for numbered lists near precedence/priority/resolution language, preventing legacy shortened precedence variants from slipping through.

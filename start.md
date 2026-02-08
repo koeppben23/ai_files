@@ -26,15 +26,26 @@ root=config_root(); f=root/'commands'/'governance.paths.json'
 if f.exists():
     print(f.read_text(encoding='utf-8'))
 else:
-    # last resort: compute the same payload that the installer would write
+    # debug fallback only: NOT canonical binding evidence
     def norm(p): return str(p)
-    doc={'schema':'opencode-governance.paths.v1','generatedAt':'missing-file','paths':{
-        'configRoot': norm(root),
-        'commandsHome': norm(root/'commands'),
-        'profilesHome': norm(root/'commands'/'profiles'),
-        'diagnosticsHome': norm(root/'commands'/'diagnostics'),
-        'workspacesHome': norm(root/'workspaces'),
-    }}
+    doc={
+        'schema':'opencode-governance.paths.v1',
+        'status':'blocked',
+        'reason_code':'BLOCKED-MISSING-BINDING-FILE',
+        'message':'Missing installer-owned governance.paths.json; computed paths are debug-only and non-evidence.',
+        'debugComputedPaths':{
+            'configRoot': norm(root),
+            'commandsHome': norm(root/'commands'),
+            'profilesHome': norm(root/'commands'/'profiles'),
+            'diagnosticsHome': norm(root/'commands'/'diagnostics'),
+            'workspacesHome': norm(root/'workspaces'),
+        },
+        'recovery_steps':[
+            'rerun installer to create commands/governance.paths.json',
+            'or provide operator binding evidence plus filesystem proof artifacts',
+        ],
+        'nonEvidence':'debug-only'
+    }
     print(json.dumps(doc,indent=2))"`
 
 ## Auto-Persistence Hook (OpenCode)
@@ -44,6 +55,11 @@ to ensure repo-scoped artifacts exist (`repo-cache.yaml`, `repo-map-digest.md`,
 `decision-pack.md`, `workspace-memory.yaml`) under `${WORKSPACES_HOME}/<repo_fingerprint>/`.
 Fingerprint resolution in the helper prefers current repo git metadata (`--repo-root`) and uses
 global pointer fallback only when repo metadata is unavailable.
+
+Identity evidence boundary (binding):
+- Helper output is operational convenience status only and MUST NOT be treated as canonical repo identity evidence.
+- Repo identity remains governed by `master.md` evidence contracts (operator-provided identity evidence or prior validated mapping/session state).
+- If identity evidence is missing for the current repo, workflow MUST remain blocked for identity-gated actions.
 
 !`python -c "import os,platform,subprocess,sys,json;from pathlib import Path
 
@@ -72,8 +88,10 @@ if helper.exists():
 else:
     print(json.dumps({'workspacePersistenceHook':'skipped','reason':'helper-missing'}))"`
 
-The injected JSON is the canonical binding for `${CONFIG_ROOT}`, `${COMMANDS_HOME}`, `${PROFILES_HOME}`, `${DIAGNOSTICS_HOME}`, `${WORKSPACES_HOME}`.
-Treat it as **evidence**.
+Binding evidence semantics (binding):
+- Only an existing installer-owned `${COMMANDS_HOME}/governance.paths.json` qualifies as canonical binding evidence.
+- Fallback computed payloads are debug output only (`nonEvidence`) and MUST NOT be treated as binding evidence.
+- If installer-owned binding file is missing, workflow MUST block with `BLOCKED-MISSING-BINDING-FILE` (or `BLOCKED-VARIABLE-RESOLUTION` when variable binding is unresolved).
 
 ---
 
