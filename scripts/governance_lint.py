@@ -112,6 +112,41 @@ def check_master_priority_uniqueness(issues: list[str]) -> None:
     if found_forbidden:
         issues.append(f"master.md: contains secondary precedence fragment(s) {found_forbidden}")
 
+    # Context-sensitive duplicate detector: any numbered list near precedence/priority/resolution
+    # language that references master/rules/profile/ticket semantics is suspicious.
+    context_hits: list[str] = []
+    for idx, line in enumerate(lines):
+        if not re.search(r"\b(precedence|priority|resolution)\b", line, flags=re.IGNORECASE):
+            continue
+
+        win_start = max(0, idx - 12)
+        win_end = min(len(lines), idx + 13)
+        window = lines[win_start:win_end]
+
+        j = 0
+        while j < len(window):
+            if not re.match(r"^\s*\d+\.\s+", window[j]):
+                j += 1
+                continue
+            block: list[str] = []
+            while j < len(window) and re.match(r"^\s*\d+\.\s+", window[j]):
+                block.append(window[j].strip())
+                j += 1
+
+            block_text = "\n".join(block).lower()
+            looks_like_precedence = (
+                "master" in block_text and "rules" in block_text and "profile" in block_text and "ticket" in block_text
+            )
+            missing_addon_layer = "activated templates/addon rulebooks" not in block_text
+            if looks_like_precedence and missing_addon_layer:
+                context_hits.append(f"line {win_start + 1}")
+
+    if context_hits:
+        issues.append(
+            "master.md: found potential secondary precedence list near precedence/priority/resolution context "
+            f"({', '.join(sorted(set(context_hits)))})"
+        )
+
 
 def check_anchor_presence(issues: list[str]) -> None:
     rules = read_text(ROOT / "rules.md")
@@ -240,7 +275,9 @@ def _validate_capability_catalog_completeness(
         used_caps.update(caps)
 
         text = read_text(manifest)
-        has_signal_mapping = bool(re.search(r"^\s{4}-\s*[a-z_]+:\s*.+$", text, flags=re.MULTILINE))
+        has_signals_any = bool(re.search(r"^\s{2}any:\s*$", text, flags=re.MULTILINE))
+        has_any_entries = bool(re.search(r"^\s{4}-\s*[a-z_]+:\s*.+$", text, flags=re.MULTILINE))
+        has_signal_mapping = has_signals_any and has_any_entries
         if has_signal_mapping:
             for cap in caps:
                 if cap in cap_has_signal_mapping:

@@ -95,6 +95,34 @@ def test_stability_sla_is_normative_and_aligned_with_core_contracts():
         "rules.md still contains legacy precedence fragment without addon/template layer"
     )
 
+    # Context-sensitive guard: numbered precedence-like lists near precedence/priority/resolution
+    # terms must not reintroduce a shortened legacy order.
+    lines = master.splitlines()
+    for i, line in enumerate(lines):
+        if not re.search(r"\b(precedence|priority|resolution)\b", line, flags=re.IGNORECASE):
+            continue
+        w_start = max(0, i - 12)
+        w_end = min(len(lines), i + 13)
+        window = lines[w_start:w_end]
+
+        j = 0
+        while j < len(window):
+            if not re.match(r"^\s*\d+\.\s+", window[j]):
+                j += 1
+                continue
+            block = []
+            while j < len(window) and re.match(r"^\s*\d+\.\s+", window[j]):
+                block.append(window[j].strip())
+                j += 1
+            block_text = "\n".join(block).lower()
+            looks_like_precedence = (
+                "master" in block_text and "rules" in block_text and "profile" in block_text and "ticket" in block_text
+            )
+            missing_addon_layer = "activated templates/addon rulebooks" not in block_text
+            assert not (looks_like_precedence and missing_addon_layer), (
+                "master.md contains a secondary precedence-like numbered list near precedence/priority/resolution context"
+            )
+
 
 @pytest.mark.governance
 def test_stability_sla_required_ci_gates_are_wired():
@@ -568,6 +596,43 @@ def test_build_evidence_schema_includes_scope_precision_and_typed_artifacts():
     assert not missing_schema, "SESSION_STATE_SCHEMA.md missing evidence precision tokens:\n" + "\n".join(
         [f"- {m}" for m in missing_schema]
     )
+
+
+@pytest.mark.governance
+def test_claim_verification_mapping_requires_pinning_and_scope_not_pass_only():
+    schema = read_text(REPO_ROOT / "SESSION_STATE_SCHEMA.md")
+    required_tokens = [
+        "`verified` claims require `result=pass` plus compatible scope evidence, typed artifact/reference, and tool/runtime pinning evidence",
+        "claims MUST remain `not-verified`",
+    ]
+    missing = [token for token in required_tokens if token not in schema]
+    assert not missing, "SESSION_STATE_SCHEMA.md missing claim verification mapping tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing]
+    )
+
+    def classify_claim(evidence_item: dict[str, object]) -> str:
+        # Contract simulation from SESSION_STATE_SCHEMA mapping: pass is necessary but not sufficient.
+        result_ok = evidence_item.get("result") == "pass"
+        has_scope = bool(evidence_item.get("scope_paths") or evidence_item.get("modules"))
+        artifacts = evidence_item.get("artifacts")
+        has_artifact = isinstance(artifacts, list) and len(artifacts) > 0
+        has_pinning = bool(evidence_item.get("env_fingerprint"))
+        return "verified" if (result_ok and has_scope and has_artifact and has_pinning) else "not-verified"
+
+    pass_without_pinning = {
+        "result": "pass",
+        "scope_paths": ["services/person"],
+        "artifacts": [{"type": "junit", "path": "reports/junit.xml"}],
+    }
+    assert classify_claim(pass_without_pinning) == "not-verified"
+
+    pass_with_pinning = {
+        "result": "pass",
+        "scope_paths": ["services/person"],
+        "artifacts": [{"type": "junit", "path": "reports/junit.xml"}],
+        "env_fingerprint": "java21+maven3.9.9",
+    }
+    assert classify_claim(pass_with_pinning) == "verified"
 
 
 @pytest.mark.governance

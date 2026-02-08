@@ -37,6 +37,9 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
 ### Changed
 - Align governance factory contracts (`new_addon.md`, `new_profile.md`, `PROFILE_ADDON_FACTORY_CONTRACT.json`) with current canonical runtime policy: required surface ownership fields, capability-first manifest guidance, preferred profile filename pattern (`rules_<profile_key>.md`), canonical SESSION_STATE evidence paths, and clarified tracking/audit semantics.
 - Clarify diagnostics reason-key boundaries: `/audit` `BR_*` keys are audit-only (not canonical `reason_code` values) unless explicitly mapped to `BLOCKED-*|WARN-*|NOT_VERIFIED-*` codes.
+- Harden precedence drift detection with context-sensitive guards for numbered lists near precedence/priority/resolution language, preventing legacy shortened precedence variants from slipping through.
+- Tighten capability signal-mapping checks to require concrete `signals.any` + non-empty entries (instead of broad indentation heuristics) for capability coverage validation.
+- Add explicit claim-mapping regression test proving `result=pass` alone is insufficient for `verified` without scope/artifact/pinning evidence.
 - Remove secondary precedence phrasing in `master.md` and enforce single canonical precedence authority with additional lint/test drift guards.
 - Clarify ambiguity handling as planning-only unless clarified, and require `BLOCKED-AMBIGUOUS-PROFILE` when ambiguity affects tooling/architecture/gates.
 - Align `/start` discovery contract with runtime override/fallback semantics (`${REPO_OVERRIDES_HOME}`, `${OPENCODE_HOME}`) without weakening installer-owned entrypoint roots.
