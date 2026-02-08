@@ -155,12 +155,17 @@ Runtime error logging:
 - On Windows, `${CONFIG_ROOT}` is `%USERPROFILE%\.config\opencode` (fallback: `%APPDATA%\opencode`) — see `master.md`.
 - `${COMMANDS_HOME} = ${CONFIG_ROOT}/commands` (global rulebooks)
 - `${PROFILES_HOME} = ${COMMANDS_HOME}/profiles` (profiles + templates/addons)
+- `${REPO_OVERRIDES_HOME} = ${WORKSPACES_HOME}/<repo_fingerprint>/governance-overrides` (optional workspace-local overrides; outside repo working tree)
 - `${WORKSPACES_HOME} = ${CONFIG_ROOT}/workspaces` (per-repo caches/digests/memory artifacts)
 - `${SESSION_STATE_FILE} = ${WORKSPACES_HOME}/<repo_fingerprint>/SESSION_STATE.json` (repo-scoped session payload)
 - `${SESSION_STATE_POINTER_FILE} = ${OPENCODE_HOME}/SESSION_STATE.json` (global active-session pointer)
 - `${RESUME_FILE}` stays global under `${CONFIG_ROOT}`/`${OPENCODE_HOME}` unless repo-scoped resume is enabled.
 
 Profiles can mandate templates/addons (e.g., `backend-java` requires `rules.backend-java-templates.md` and may require `rules.backend-java-kafka-templates.md` based on evidence).
+
+Resolution scope note:
+- `/start` enforces installer-owned roots (`${COMMANDS_HOME}`, `${PROFILES_HOME}`) as canonical entrypoint requirements.
+- Runtime may additionally resolve workspace/local overrides and global fallbacks (`${REPO_OVERRIDES_HOME}`, `${OPENCODE_HOME}`) per `master.md`, without weakening entrypoint contracts.
 
 
 If anything in this README conflicts with:

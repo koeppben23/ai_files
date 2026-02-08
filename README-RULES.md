@@ -8,6 +8,9 @@ It does not override or redefine them.
 - **Normative system authority and phase gates**  
   → See `master.md`
 
+- **Governance release/readiness SLA (normative Go/No-Go)**
+  → See `STABILITY_SLA.md`
+
 - **Actual enforceable rules**  
   → See `rules.md`
 
@@ -21,6 +24,10 @@ It does not override or redefine them.
   → See `README-OPENCODE.md`
 
 This README is explanatory only.
+
+Stability note:
+- Canonical precedence is defined once in `master.md` Section 1 (`PRIORITY ORDER`) and mirrored in `rules.md` (`RULEBOOK-PRECEDENCE-POLICY`).
+- This file MUST NOT redefine precedence, gates, or blocking policy.
 
 **Executive Summary for AI-Assisted Development**
 
