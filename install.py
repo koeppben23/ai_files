@@ -55,7 +55,7 @@ def _load_error_logger() -> Callable[..., object]:
 
 safe_log_error = _load_error_logger()
 
-VERSION = "1.1.0-BETA"
+VERSION = "1.1.0-RC.1"
 # Files copied into <config_root>/commands
 # Strategy: copy (almost) all repo-root governance artifacts that are relevant at runtime.
 # - Include: *.md, *.json, LICENSE (if present)
@@ -192,8 +192,8 @@ def read_governance_version_from_master(master_md: Path) -> str | None:
     the install step aborts to prevent unversioned deployments.
 
     Supported conventions (must appear near the top of the file, within first ~40 lines):
-      - Markdown header:   # Governance-Version: 1.0.0-BETA
-      - Markdown header:   # Version: 1.0.0-BETA              (fallback)
+      - Markdown header:   # Governance-Version: 1.0.0-RC.1
+      - Markdown header:   # Version: 1.0.0-RC.1              (fallback)
       - Frontmatter key:   governanceVersion: 1.0.0
       - Frontmatter key:   governance_version: 1.0.0
 
