@@ -151,6 +151,18 @@ Once Phase 1.1 (bootstrap) completes successfully, these keys MUST exist:
 The session state MAY include a diagnostics pointer block for the most recent `/audit` run.
 This block is **descriptive only** and MUST NOT be interpreted as normative authority.
 
+### 2.1.0 Reason Payloads (machine-readable, binding when reason codes are emitted)
+
+When any reason code is emitted (`BLOCKED-*`, `WARN-*`, `NOT_VERIFIED-*`),
+`SESSION_STATE.Diagnostics.ReasonPayloads` MUST be present and include one entry per emitted code.
+
+Required payload fields per entry:
+- `reason_code` (string; MUST start with `BLOCKED-`, `WARN-`, or `NOT_VERIFIED-`)
+- `surface` (enum: `build|tests|static|addons|profile|state|contracts|security|performance|other`)
+- `signals_used` (array of strings)
+- `recovery_steps` (array of strings; 1..3 concrete steps)
+- `next_command` (string; e.g., `/reload-addons`, `/start`, `/resume`)
+
 ### 2.1.1 `SESSION_STATE.Audit.LastRun` (optional)
 
 If present, it MUST follow this shape:

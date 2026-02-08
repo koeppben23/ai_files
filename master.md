@@ -973,6 +973,7 @@ Rules:
 - The assistant MUST ask for the minimal viable input only (single artifact/command), not broad clarifications.
 - The assistant MUST NOT propose alternative architectures while BLOCKED.
 - Once the required input is provided, the assistant MUST re-run only the minimal necessary step (e.g., Phase 1.3/1.4 load) and then resume.
+- BLOCKED/WARN/NOT_VERIFIED outputs MUST include `SESSION_STATE.Diagnostics.ReasonPayloads` entries for every emitted reason code.
 
 #### Definition: Explicit gates (Auto-Advance stops)
 
@@ -1070,6 +1071,15 @@ MIN mode SHOULD remain below ~40 lines. FULL mode should remain a digest (no lar
 
 If `SESSION_STATE.OutputMode = architect-only`, the assistant MUST output a `DecisionSurface` block first and keep the rest limited to decision rationale + evidence pointers.
 
+Machine-readable diagnostics (binding):
+- When emitting any reason code (`BLOCKED-*`, `WARN-*`, `NOT_VERIFIED-*`), the response MUST include a machine-readable diagnostics payload under `SESSION_STATE.Diagnostics.ReasonPayloads`.
+- Each payload entry MUST include:
+  - `reason_code`
+  - `surface` (`build|tests|static|addons|profile|state|contracts|security|performance|other`)
+  - `signals_used` (array)
+  - `recovery_steps` (array, max 3 concrete steps)
+  - `next_command` (e.g., `/reload-addons`, `/start`, `/resume`)
+
 ### 3.2 MIN Template (Binding)
 
 ```yaml
@@ -1108,6 +1118,8 @@ SESSION_STATE:
   CrossRepoImpact: {}     # optional in MIN; REQUIRED in FULL if contracts are consumed cross-repo
   RollbackStrategy: {}    # optional in MIN; REQUIRED in FULL if schema/contracts change
   DependencyChanges: {}   # optional in MIN; REQUIRED in FULL if deps change
+  Diagnostics:
+    ReasonPayloads: []     # REQUIRED when reason codes are emitted
 ```
 
 Binding:

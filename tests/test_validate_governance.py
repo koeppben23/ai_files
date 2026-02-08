@@ -244,6 +244,39 @@ def test_monorepo_scope_invariant_blocks_repo_wide_addon_activation_without_scop
 
 
 @pytest.mark.governance
+def test_machine_readable_reason_payload_contract_is_defined():
+    master = read_text(REPO_ROOT / "master.md")
+    schema = read_text(REPO_ROOT / "SESSION_STATE_SCHEMA.md")
+
+    master_required = [
+        "Machine-readable diagnostics (binding):",
+        "`SESSION_STATE.Diagnostics.ReasonPayloads`",
+        "`reason_code`",
+        "`surface` (`build|tests|static|addons|profile|state|contracts|security|performance|other`)",
+        "`recovery_steps` (array, max 3 concrete steps)",
+        "BLOCKED/WARN/NOT_VERIFIED outputs MUST include `SESSION_STATE.Diagnostics.ReasonPayloads`",
+    ]
+    schema_required = [
+        "### 2.1.0 Reason Payloads (machine-readable, binding when reason codes are emitted)",
+        "`BLOCKED-*`, `WARN-*`, `NOT_VERIFIED-*`",
+        "`reason_code`",
+        "`surface` (enum: `build|tests|static|addons|profile|state|contracts|security|performance|other`)",
+        "`recovery_steps` (array of strings; 1..3 concrete steps)",
+        "`next_command`",
+    ]
+
+    missing_master = [token for token in master_required if token not in master]
+    missing_schema = [token for token in schema_required if token not in schema]
+
+    assert not missing_master, "master.md missing machine-readable reason payload contract tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_master]
+    )
+    assert not missing_schema, "SESSION_STATE_SCHEMA.md missing machine-readable reason payload contract tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_schema]
+    )
+
+
+@pytest.mark.governance
 def test_schema_phase4_ticket_record_declares_must_include():
     schema = read_text(REPO_ROOT / "SESSION_STATE_SCHEMA.md")
     assert "When Phase 4 planning is produced, the workflow MUST include:" in schema
