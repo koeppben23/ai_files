@@ -309,6 +309,7 @@ Optional but strongly recommended for monorepos:
 
 **Invariant**
 - If `ComponentScopePaths` is set, profile detection, discovery summaries, and recommendations MUST prefer signals inside those paths.
+- In monorepos/multi-component repositories at code-phase, if `ComponentScopePaths` is missing and addon activation would otherwise be repo-wide/ambiguous, `Mode` MUST be `BLOCKED` with `Next = BLOCKED-MISSING-EVIDENCE`.
 
 ### 6.2 Next (Phase Pointer)
 

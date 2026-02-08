@@ -219,6 +219,31 @@ def test_deterministic_addon_conflict_resolution_contract_is_defined():
 
 
 @pytest.mark.governance
+def test_monorepo_scope_invariant_blocks_repo_wide_addon_activation_without_scope():
+    master = read_text(REPO_ROOT / "master.md")
+    schema = read_text(REPO_ROOT / "SESSION_STATE_SCHEMA.md")
+
+    master_required = [
+        "In monorepos/multi-component repositories, if `ComponentScopePaths` is missing at code-phase,",
+        "repo-wide addon activation is non-deterministic and MUST trigger `BLOCKED-MISSING-EVIDENCE`",
+    ]
+    schema_required = [
+        "In monorepos/multi-component repositories at code-phase, if `ComponentScopePaths` is missing and addon activation would otherwise be repo-wide/ambiguous",
+        "`Next = BLOCKED-MISSING-EVIDENCE`",
+    ]
+
+    missing_master = [token for token in master_required if token not in master]
+    missing_schema = [token for token in schema_required if token not in schema]
+
+    assert not missing_master, "master.md missing monorepo scope invariant tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_master]
+    )
+    assert not missing_schema, "SESSION_STATE_SCHEMA.md missing monorepo scope invariant tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_schema]
+    )
+
+
+@pytest.mark.governance
 def test_schema_phase4_ticket_record_declares_must_include():
     schema = read_text(REPO_ROOT / "SESSION_STATE_SCHEMA.md")
     assert "When Phase 4 planning is produced, the workflow MUST include:" in schema
