@@ -1,7 +1,7 @@
 # Governance Factory - New Profile
 
 Purpose (binding):
-- Create a new `profiles/rules.<profile>.md` rulebook that is immediately principal-grade and compatible with all current governance contracts.
+- Create a new `profiles/rules_<profile>.md` rulebook (preferred naming) that is immediately principal-grade and compatible with all current governance contracts.
 
 Scope:
 - This command defines how profile rulebooks are generated.
@@ -13,9 +13,9 @@ Scope:
 
 When invoking this command, provide at least:
 
-- `profile_key`: canonical profile name (for `rules.<profile_key>.md`)
+- `profile_key`: canonical profile name (preferred output: `rules_<profile_key>.md`; legacy alias accepted)
 - `stack_scope`: technology/domain scope
-- `activation_signals`: evidence signals that justify profile applicability
+- `applicability_signals`: evidence signals that justify profile applicability (descriptive only)
 - `quality_focus`: business/test quality priorities
 - `blocking_policy`: explicit fail-closed behavior for missing required contracts
 
@@ -30,8 +30,13 @@ Generated profile rulebooks MUST include:
 1. canonical precedence reference to `rules.md` anchor `RULEBOOK-PRECEDENCE-POLICY` (do not redefine local precedence order)
 2. deterministic applicability section
 3. architecture and test-quality expectations
-4. BuildEvidence requirement language
+4. canonical evidence-path requirement language
+   - include explicit paths used by runtime diagnostics/contracts:
+     - `SESSION_STATE.AddonsEvidence.<addon_key>`
+     - `SESSION_STATE.RepoFacts.CapabilityEvidence`
+     - `SESSION_STATE.Diagnostics.ReasonPayloads`
 5. phase integration section (minimum: Phase 2/2.1/4/5/6 expectations)
+   - phase semantics MUST reference canonical `master.md` phase labels and MUST NOT redefine them locally
 6. evidence contract section (SESSION_STATE paths, status/warning handling)
 7. Examples (GOOD/BAD)
 8. Troubleshooting with at least 3 concrete symptom->cause->fix entries
@@ -41,6 +46,7 @@ Generated profile rulebooks MUST include:
     - `rules.risk-tiering.md`
     - `rules.scorecard-calibration.md`
     - loaded-addon tracking keys under `SESSION_STATE.LoadedRulebooks.addons.*`
+    - tracking keys are audit/trace pointers (map entries), not activation signals
 
 Exception for shared contract rulebooks themselves:
 - If `profile_key` is one of `principal-excellence`, `risk-tiering`, `scorecard-calibration`,
@@ -51,6 +57,7 @@ Claims without evidence mapping MUST be marked `not-verified`.
 Taxonomy rule (binding):
 - Profile rulebooks define profile behavior.
 - Addon activation remains manifest-owned (`profiles/addons/*.addon.yml`) and MUST NOT be embedded as profile-selection logic.
+- `applicability_signals` are descriptive for audit/explain outputs and MUST NOT be used as profile-selection activation logic by themselves.
 
 ---
 
@@ -68,13 +75,18 @@ And MUST include tracking keys:
 - `SESSION_STATE.LoadedRulebooks.addons.riskTiering`
 - `SESSION_STATE.LoadedRulebooks.addons.scorecardCalibration`
 
+Tracking semantics (binding):
+- `SESSION_STATE.LoadedRulebooks.addons` is a map (`addon_key -> path`) used for loaded-rulebook traceability.
+- These keys document loaded shared contracts and MUST NOT be interpreted as independent activation logic.
+
 ---
 
 ## Output Files (Binding)
 
 This command MUST produce:
 
-- `profiles/rules.<profile_key>.md`
+- Preferred: `profiles/rules_<profile_key>.md`
+- Accepted legacy alias: `profiles/rules.<profile_key>.md`
 
 Optional:
 

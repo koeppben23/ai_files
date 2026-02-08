@@ -35,6 +35,7 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
 - Update factory contracts (`new_profile.md`, `new_addon.md`, `PROFILE_ADDON_FACTORY_CONTRACT.json`) for shared-contract modularization defaults.
 
 ### Changed
+- Align governance factory contracts (`new_addon.md`, `new_profile.md`, `PROFILE_ADDON_FACTORY_CONTRACT.json`) with current canonical runtime policy: required surface ownership fields, capability-first manifest guidance, preferred profile filename pattern (`rules_<profile_key>.md`), canonical SESSION_STATE evidence paths, and clarified tracking/audit semantics.
 - Remove secondary precedence phrasing in `master.md` and enforce single canonical precedence authority with additional lint/test drift guards.
 - Clarify ambiguity handling as planning-only unless clarified, and require `BLOCKED-AMBIGUOUS-PROFILE` when ambiguity affects tooling/architecture/gates.
 - Align `/start` discovery contract with runtime override/fallback semantics (`${REPO_OVERRIDES_HOME}`, `${OPENCODE_HOME}`) without weakening installer-owned entrypoint roots.

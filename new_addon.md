@@ -34,6 +34,12 @@ Generated manifest MUST include:
 - `manifest_version` (currently `1`)
 - `path_roots` (relative repo paths; use `.` when repo-wide)
 - `signals.any` with at least one signal item
+- `owns_surfaces` (non-empty)
+- `touches_surfaces` (non-empty)
+
+Capability-first alignment (binding):
+- At least one capability field MUST be present: `capabilities_any` or `capabilities_all`.
+- Prefer explicit capability declarations so activation is capability-first with hard-signal fallback.
 
 The `rulebook` value MUST resolve to an existing profile rulebook path after generation.
 
@@ -47,7 +53,12 @@ Generated addon rulebook MUST include:
 2. addon class declaration (`required` or `advisory`)
 3. activation semantics (manifest-owned) + blocking behavior consistent with addon class
 4. phase integration section (minimum: Phase 2/2.1/4/5.3/6 expectations)
-5. evidence contract section (SESSION_STATE paths, lifecycle status, WARN handling)
+   - phase semantics MUST reference canonical `master.md` phase labels and MUST NOT redefine them locally
+5. evidence contract section (canonical SESSION_STATE paths, lifecycle status, WARN handling)
+   - include explicit paths used by runtime diagnostics/contracts:
+     - `SESSION_STATE.AddonsEvidence.<addon_key>`
+     - `SESSION_STATE.RepoFacts.CapabilityEvidence`
+     - `SESSION_STATE.Diagnostics.ReasonPayloads`
 6. domain-specific hardening section for changed scope
 7. Examples (GOOD/BAD)
 8. Troubleshooting with at least 3 concrete symptom->cause->fix entries
@@ -57,6 +68,7 @@ Generated addon rulebook MUST include:
    - `rules.risk-tiering.md`
    - `rules.scorecard-calibration.md`
    - loaded-addon tracking keys under `SESSION_STATE.LoadedRulebooks.addons.*`
+   - tracking keys are audit/trace pointers (map entries), not activation signals
 
 Exception for shared contract addons:
 - If creating one of the canonical shared addons (`principalExcellence`, `riskTiering`, `scorecardCalibration`),
@@ -84,6 +96,10 @@ And tracking keys:
 - `SESSION_STATE.LoadedRulebooks.addons.principalExcellence`
 - `SESSION_STATE.LoadedRulebooks.addons.riskTiering`
 - `SESSION_STATE.LoadedRulebooks.addons.scorecardCalibration`
+
+Tracking semantics (binding):
+- `SESSION_STATE.LoadedRulebooks.addons` is a map (`addon_key -> path`) used for loaded-rulebook traceability.
+- These keys document loaded shared contracts and MUST NOT be interpreted as independent activation logic.
 
 ---
 

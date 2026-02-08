@@ -418,6 +418,54 @@ def check_stability_sla_contract(issues: list[str]) -> None:
         issues.append(f".github/workflows/ci.yml: missing SLA-aligned required gate tokens {missing_ci}")
 
 
+def check_factory_contract_alignment(issues: list[str]) -> None:
+    new_addon = read_text(ROOT / "new_addon.md")
+    new_profile = read_text(ROOT / "new_profile.md")
+    factory_json = read_text(ROOT / "diagnostics" / "PROFILE_ADDON_FACTORY_CONTRACT.json")
+
+    addon_required_tokens = [
+        "owns_surfaces",
+        "touches_surfaces",
+        "capabilities_any",
+        "capabilities_all",
+        "phase semantics MUST reference canonical `master.md` phase labels",
+        "SESSION_STATE.AddonsEvidence.<addon_key>",
+        "SESSION_STATE.RepoFacts.CapabilityEvidence",
+        "SESSION_STATE.Diagnostics.ReasonPayloads",
+        "tracking keys are audit/trace pointers (map entries), not activation signals",
+    ]
+    missing_addon = [token for token in addon_required_tokens if token not in new_addon]
+    if missing_addon:
+        issues.append(f"new_addon.md: missing factory alignment tokens {missing_addon}")
+
+    profile_required_tokens = [
+        "applicability_signals",
+        "MUST NOT be used as profile-selection activation logic",
+        "Preferred: `profiles/rules_<profile_key>.md`",
+        "Accepted legacy alias: `profiles/rules.<profile_key>.md`",
+        "phase semantics MUST reference canonical `master.md` phase labels",
+        "SESSION_STATE.AddonsEvidence.<addon_key>",
+        "SESSION_STATE.RepoFacts.CapabilityEvidence",
+        "SESSION_STATE.Diagnostics.ReasonPayloads",
+        "tracking keys are audit/trace pointers (map entries), not activation signals",
+    ]
+    missing_profile = [token for token in profile_required_tokens if token not in new_profile]
+    if missing_profile:
+        issues.append(f"new_profile.md: missing factory alignment tokens {missing_profile}")
+
+    json_required_tokens = [
+        '"requiredAddonManifestFields"',
+        '"owns_surfaces"',
+        '"touches_surfaces"',
+        '"recommendedAddonManifestFields"',
+        '"capabilities_any"',
+        '"capabilities_all"',
+    ]
+    missing_json = [token for token in json_required_tokens if token not in factory_json]
+    if missing_json:
+        issues.append(f"diagnostics/PROFILE_ADDON_FACTORY_CONTRACT.json: missing factory alignment tokens {missing_json}")
+
+
 def main() -> int:
     issues: list[str] = []
     check_master_priority_uniqueness(issues)
@@ -426,6 +474,7 @@ def main() -> int:
     check_required_addon_references(issues)
     check_template_quality_gate(issues)
     check_stability_sla_contract(issues)
+    check_factory_contract_alignment(issues)
 
     if issues:
         print("Governance lint FAILED:")
