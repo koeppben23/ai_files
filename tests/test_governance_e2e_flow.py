@@ -15,6 +15,8 @@ class AddonManifest:
     addon_key: str
     addon_class: str
     rulebook: str
+    capabilities_any: tuple[str, ...]
+    capabilities_all: tuple[str, ...]
     signals: tuple[tuple[str, str], ...]
 
 
@@ -33,6 +35,27 @@ def _parse_addon_manifest(path: Path) -> AddonManifest:
     addon_key = get_scalar("addon_key")
     addon_class = get_scalar("addon_class")
     rulebook = get_scalar("rulebook")
+
+    def get_list(key: str) -> tuple[str, ...]:
+        m = re.search(rf"^{re.escape(key)}:\s*$", text, flags=re.MULTILINE)
+        if not m:
+            return tuple()
+        vals: list[str] = []
+        for line in text[m.end() :].splitlines():
+            l = line.rstrip("\n")
+            mm = re.match(r"^\s{2}-\s*(.*?)\s*$", l)
+            if mm:
+                vals.append(mm.group(1).strip().strip('"').strip("'"))
+                continue
+            if l.startswith("  ") and not l.strip():
+                continue
+            if l.startswith(" "):
+                continue
+            break
+        return tuple(v for v in vals if v)
+
+    capabilities_any = get_list("capabilities_any")
+    capabilities_all = get_list("capabilities_all")
     signals = tuple(
         (m.group(1).strip(), m.group(2).strip().strip('"').strip("'"))
         for m in re.finditer(r"^\s*-\s*([a-z_]+):\s*(.*?)\s*$", text, flags=re.MULTILINE)
@@ -41,6 +64,8 @@ def _parse_addon_manifest(path: Path) -> AddonManifest:
         addon_key=addon_key,
         addon_class=addon_class,
         rulebook=rulebook,
+        capabilities_any=capabilities_any,
+        capabilities_all=capabilities_all,
         signals=signals,
     )
 
@@ -135,6 +160,42 @@ def _signal_matches(signal_key: str, signal_value: str, repo_root: Path, repo_re
     return False
 
 
+def _infer_capabilities(repo_root: Path, repo_relpaths: list[str]) -> set[str]:
+    caps: set[str] = set()
+
+    if (repo_root / "pom.xml").exists() or (repo_root / "build.gradle").exists() or (repo_root / "src" / "main" / "java").exists():
+        caps.add("java")
+
+    if _has_maven_dep(repo_root, "org.springframework:spring-context") or _has_maven_dep(repo_root, "org.springframework.kafka:spring-kafka"):
+        caps.add("spring")
+
+    if _has_maven_dep(repo_root, "org.springframework.kafka:spring-kafka") or _has_code_regex(repo_root, r"@KafkaListener") or _has_config_key_prefix(repo_root, "spring.kafka."):
+        caps.add("kafka")
+
+    if _has_maven_dep(repo_root, "org.liquibase:liquibase-core") or _has_config_key_prefix(repo_root, "spring.liquibase."):
+        caps.add("liquibase")
+
+    if any(_matches_file_glob(p, repo_relpaths) for p in ["**/openapi*.yml", "**/openapi*.yaml", "**/openapi*.json", "**/swagger*.yml", "**/swagger*.yaml", "**/swagger*.json"]):
+        caps.add("openapi")
+
+    if any(_matches_file_glob("**/*.feature", repo_relpaths) for _ in [0]):
+        caps.add("cucumber")
+
+    if any(_matches_file_glob(p, repo_relpaths) for p in ["**/nx.json"]):
+        caps.add("nx")
+
+    if _has_code_regex(repo_root, r"@angular/core"):
+        caps.add("angular")
+
+    if any(_matches_file_glob(p, repo_relpaths) for p in ["**/cypress.config.ts", "**/cypress.config.js", "**/*.cy.ts", "**/*.cy.js"]):
+        caps.add("cypress")
+
+    if all((repo_root / p).exists() for p in ["master.md", "rules.md", "SESSION_STATE_SCHEMA.md"]):
+        caps.add("governance_docs")
+
+    return caps
+
+
 def _evaluate_addons(commands_dir: Path, repo_root: Path) -> tuple[dict[str, str], list[str], list[str]]:
     """Returns (status_by_addon, blocked_next_codes, warnings)."""
     manifests_dir = commands_dir / "profiles" / "addons"
@@ -146,9 +207,15 @@ def _evaluate_addons(commands_dir: Path, repo_root: Path) -> tuple[dict[str, str
     warnings: list[str] = []
 
     relpaths = _repo_relpaths(repo_root)
+    capabilities = _infer_capabilities(repo_root, relpaths)
+
     for mf in manifests:
         addon = _parse_addon_manifest(mf)
-        required = any(_signal_matches(k, v, repo_root, relpaths) for k, v in addon.signals)
+        caps_all_ok = all(c in capabilities for c in addon.capabilities_all)
+        caps_any_ok = (not addon.capabilities_any) or any(c in capabilities for c in addon.capabilities_any)
+        required = caps_all_ok and caps_any_ok
+        if not required:
+            required = any(_signal_matches(k, v, repo_root, relpaths) for k, v in addon.signals)
         if not required:
             statuses[addon.addon_key] = "skipped"
             continue
@@ -165,6 +232,46 @@ def _evaluate_addons(commands_dir: Path, repo_root: Path) -> tuple[dict[str, str
             warnings.append(f"WARN-MISSING-ADDON:{addon.addon_key}")
 
     return statuses, blocked, warnings
+
+
+@pytest.mark.e2e_governance
+def test_e2e_capability_first_activation_with_hard_signal_fallback(tmp_path: Path):
+    config_root = tmp_path / "opencode-config-e2e-capabilities"
+    r = run_install(["--force", "--no-backup", "--config-root", str(config_root)])
+    assert r.returncode == 0, f"install failed:\n{r.stderr}\n{r.stdout}"
+
+    commands = _commands_dir(config_root)
+    repo = tmp_path / "cap-repo"
+    repo.mkdir(parents=True, exist_ok=True)
+
+    # Capability-first path: cypress capability from config file should activate addon
+    (repo / "apps" / "web").mkdir(parents=True, exist_ok=True)
+    (repo / "apps" / "web" / "cypress.config.ts").write_text("export default {}\n", encoding="utf-8")
+    statuses, blocked, warnings = _evaluate_addons(commands, repo)
+    assert statuses.get("frontendCypress") == "loaded"
+    assert not blocked
+    assert not any(w.endswith(":frontendCypress") for w in warnings)
+
+    # Hard-signal fallback path: cucumber capability intentionally absent (no .feature),
+    # but maven_dep_prefix signal should still activate addon
+    (repo / "pom.xml").write_text(
+        """
+<project>
+  <dependencies>
+    <dependency>
+      <groupId>io.cucumber</groupId>
+      <artifactId>cucumber-java</artifactId>
+    </dependency>
+  </dependencies>
+</project>
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+    statuses, blocked, warnings = _evaluate_addons(commands, repo)
+    assert statuses.get("cucumber") == "loaded"
+    assert not blocked
+    assert not any(w.endswith(":cucumber") for w in warnings)
 
 
 @pytest.mark.e2e_governance
