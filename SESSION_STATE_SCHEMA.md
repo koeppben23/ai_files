@@ -230,6 +230,23 @@ Invariants:
 - Activation decisions in Phase 1.4/Phase 4 entry MUST be capability-first with hard-signal fallback.
 - If required activation cannot be decided deterministically from capabilities or fallback signals, workflow MUST use `BLOCKED-MISSING-EVIDENCE`.
 
+### 2.3 ActivationDelta (binding)
+
+`SESSION_STATE.ActivationDelta` captures deterministic re-entry fingerprints.
+
+Recommended shape:
+
+```yaml
+SESSION_STATE:
+  ActivationDelta:
+    AddonScanHash: "<hash>"
+    RepoFactsHash: "<hash>"
+```
+
+Invariants:
+- If both hashes are unchanged at Phase-4 re-entry, activation outcome SHOULD be bit-identical.
+- If both hashes are unchanged but activation outcome differs, workflow MUST block with `BLOCKED-ACTIVATION-DELTA-MISMATCH`.
+
 ### Lazy-loading invariants (binding)
 
 - Until Phase 2 completes:
@@ -387,6 +404,7 @@ The following BLOCKED pointers are canonical and SHOULD be used when applicable:
 - `BLOCKED-MISSING-TEMPLATES`
 - `BLOCKED-MISSING-ADDON:<addon_key>` (required when `addon_class = required` and the triggered rulebook is missing)
 - `BLOCKED-ADDON-CONFLICT` (required when same-precedence addon/template constraints are mutually incompatible or non-deterministic)
+- `BLOCKED-ACTIVATION-DELTA-MISMATCH` (required when activation outcome changes despite unchanged activation delta hashes)
 - `BLOCKED-RULEBOOK-EVIDENCE-MISSING`
 - `BLOCKED-WORKSPACE-MEMORY-INVALID`
 - `BLOCKED-MISSING-EVIDENCE`
@@ -896,6 +914,8 @@ BuildEvidence:
   notes: "<what exists or is missing>"
   items:                # optional but strongly recommended; enables reviewer-proof verification
     - id: "EV-001"
+      ticket_id: "<ticket-id>"               # recommended for cross-ticket isolation
+      session_run_id: "<session-run-id>"     # recommended for run isolation
       tool: "<maven|gradle|npm|spotbugs|checkstyle|archunit|openapi|pact|...>"
       command: "<exact command executed>"
       command_line: "<full command line with flags>"   # optional
@@ -916,6 +936,8 @@ BuildEvidence:
 Binding:
 - Evidence used for gate claims SHOULD include `scope_paths` or `modules`.
 - Artifacts SHOULD be typed (`log|junit|sarif|coverage|other`) for machine-readable reviewability.
+- Evidence SHOULD include `ticket_id` and `session_run_id` to prevent cross-ticket/session verification leakage.
+- If `ComponentScopePaths` is set, repo-wide evidence scope MUST NOT be used as sole verification basis for scoped claims.
 
 ---
 

@@ -426,6 +426,7 @@ def test_template_rulebooks_define_correctness_by_construction_contract():
         "Inputs required:",
         "Outputs guaranteed:",
         "Evidence expectation:",
+        "evidence_kinds_required:",
         "Golden examples:",
         "Anti-example:",
     ]
@@ -440,6 +441,174 @@ def test_template_rulebooks_define_correctness_by_construction_contract():
     assert not missing, "Template rulebooks missing correctness-by-construction contract:\n" + "\n".join(
         [f"- {m}" for m in missing]
     )
+
+
+@pytest.mark.governance
+def test_template_evidence_kinds_are_allowed():
+    templates = [
+        REPO_ROOT / "profiles/rules.backend-java-templates.md",
+        REPO_ROOT / "profiles/rules.backend-java-kafka-templates.md",
+        REPO_ROOT / "profiles/rules.frontend-angular-nx-templates.md",
+    ]
+    allowed = {"unit-test", "integration-test", "contract-test", "e2e", "lint", "build"}
+    issues: list[str] = []
+
+    for p in templates:
+        text = read_text(p)
+        m = re.search(r"^\s*evidence_kinds_required:\s*$", text, flags=re.MULTILINE)
+        if not m:
+            issues.append(f"{p.relative_to(REPO_ROOT)}: missing evidence_kinds_required")
+            continue
+
+        kinds: list[str] = []
+        for line in text[m.end() :].splitlines():
+            mm = re.match(r"^\s{2}-\s*(.*?)\s*$", line)
+            if mm:
+                kinds.append(mm.group(1).strip().strip('"').strip("'"))
+                continue
+            if not line.strip():
+                continue
+            break
+
+        if not kinds:
+            issues.append(f"{p.relative_to(REPO_ROOT)}: empty evidence_kinds_required")
+            continue
+        for kind in kinds:
+            if kind not in allowed:
+                issues.append(f"{p.relative_to(REPO_ROOT)}: unsupported evidence kind {kind}")
+
+    assert not issues, "Template evidence kinds invalid:\n" + "\n".join([f"- {i}" for i in issues])
+
+
+@pytest.mark.governance
+def test_proof_carrying_explain_contract_is_defined():
+    master = read_text(REPO_ROOT / "master.md")
+    rules = read_text(REPO_ROOT / "rules.md")
+
+    master_required = [
+        "concrete trigger facts (files/keys/signals)",
+        "compact decision trace (`facts -> capability -> addon/profile -> surface -> outcome`)",
+    ]
+    rules_required = [
+        "## 7.13 Proof-Carrying Explain Output (Core, Binding)",
+        "facts -> capability -> addon/profile -> surface -> outcome",
+    ]
+
+    missing_master = [token for token in master_required if token not in master]
+    missing_rules = [token for token in rules_required if token not in rules]
+
+    assert not missing_master, "master.md missing proof-carrying explain tokens:\n" + "\n".join([f"- {m}" for m in missing_master])
+    assert not missing_rules, "rules.md missing proof-carrying explain tokens:\n" + "\n".join([f"- {m}" for m in missing_rules])
+
+
+@pytest.mark.governance
+def test_pinning_policy_and_evidence_leakage_contract_are_defined():
+    master = read_text(REPO_ROOT / "master.md")
+    rules = read_text(REPO_ROOT / "rules.md")
+    schema = read_text(REPO_ROOT / "SESSION_STATE_SCHEMA.md")
+
+    master_required = [
+        "Java: `java -version`",
+        "Node: `node --version`",
+        "Maven: `mvn -version`",
+        "Gradle: `gradle -version` or wrapper equivalent",
+        "claims SHOULD remain `not-verified`",
+        "SHOULD include `ticket_id` and `session_run_id` for evidence isolation",
+        "MUST NOT be treated as repo-wide verification when `ComponentScopePaths` is set",
+    ]
+    rules_required = [
+        "## 7.14 Evidence Scope and Ticket Isolation Guards (Core, Binding)",
+        "MUST NOT be treated as repo-wide",
+        "Evidence from Ticket A / Session A MUST NOT verify Ticket B / Session B",
+        "## 7.16 Toolchain Pinning Evidence Policy (Core, Binding)",
+    ]
+    schema_required = [
+        "ticket_id:",
+        "session_run_id:",
+        "Evidence SHOULD include `ticket_id` and `session_run_id`",
+        "repo-wide evidence scope MUST NOT be used as sole verification basis",
+    ]
+
+    missing_master = [token for token in master_required if token not in master]
+    missing_rules = [token for token in rules_required if token not in rules]
+    missing_schema = [token for token in schema_required if token not in schema]
+
+    assert not missing_master, "master.md missing pinning/evidence-leakage tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_master]
+    )
+    assert not missing_rules, "rules.md missing pinning/evidence-leakage tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_rules]
+    )
+    assert not missing_schema, "SESSION_STATE_SCHEMA.md missing pinning/evidence-leakage tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_schema]
+    )
+
+
+@pytest.mark.governance
+def test_activation_delta_determinism_contract_is_defined():
+    master = read_text(REPO_ROOT / "master.md")
+    rules = read_text(REPO_ROOT / "rules.md")
+    schema = read_text(REPO_ROOT / "SESSION_STATE_SCHEMA.md")
+
+    master_required = [
+        "Activation delta determinism (binding)",
+        "`SESSION_STATE.ActivationDelta.AddonScanHash`",
+        "`SESSION_STATE.ActivationDelta.RepoFactsHash`",
+        "`BLOCKED-ACTIVATION-DELTA-MISMATCH`",
+    ]
+    rules_required = [
+        "## 7.15 Deterministic Activation Delta Contract (Core, Binding)",
+        "`ActivationDelta.AddonScanHash`",
+        "`ActivationDelta.RepoFactsHash`",
+        "`BLOCKED-ACTIVATION-DELTA-MISMATCH`",
+    ]
+    schema_required = [
+        "### 2.3 ActivationDelta (binding)",
+        "AddonScanHash",
+        "RepoFactsHash",
+        "`BLOCKED-ACTIVATION-DELTA-MISMATCH`",
+    ]
+
+    missing_master = [token for token in master_required if token not in master]
+    missing_rules = [token for token in rules_required if token not in rules]
+    missing_schema = [token for token in schema_required if token not in schema]
+
+    assert not missing_master, "master.md missing activation-delta tokens:\n" + "\n".join([f"- {m}" for m in missing_master])
+    assert not missing_rules, "rules.md missing activation-delta tokens:\n" + "\n".join([f"- {m}" for m in missing_rules])
+    assert not missing_schema, "SESSION_STATE_SCHEMA.md missing activation-delta tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_schema]
+    )
+
+
+@pytest.mark.governance
+def test_ruleset_hash_changes_when_ruleset_files_change():
+    files = [
+        REPO_ROOT / "master.md",
+        REPO_ROOT / "rules.md",
+        *sorted((REPO_ROOT / "profiles").glob("rules*.md")),
+        *sorted((REPO_ROOT / "profiles" / "addons").glob("*.addon.yml")),
+    ]
+
+    import hashlib
+
+    def digest_for(contents: list[tuple[str, str]]) -> str:
+        h = hashlib.sha256()
+        for rel, text in sorted(contents):
+            h.update(rel.encode("utf-8"))
+            h.update(b"\0")
+            h.update(text.encode("utf-8"))
+            h.update(b"\n")
+        return h.hexdigest()
+
+    baseline_contents = [(p.relative_to(REPO_ROOT).as_posix(), read_text(p)) for p in files]
+    baseline = digest_for(baseline_contents)
+
+    mutated_contents = list(baseline_contents)
+    rel, text = mutated_contents[0]
+    mutated_contents[0] = (rel, text + "\n# ruleset-hash-test-mutation\n")
+    mutated = digest_for(mutated_contents)
+
+    assert baseline != mutated, "ruleset hash must change when any ruleset file content changes"
 
 
 @pytest.mark.governance

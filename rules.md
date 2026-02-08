@@ -846,6 +846,41 @@ Requirements:
 - include activated addons/templates and rationale
 - include missing advisory addons as WARN entries
 
+## 7.13 Proof-Carrying Explain Output (Core, Binding)
+
+`/why-blocked` and `/explain-activation` outputs MUST be proof-carrying:
+- include concrete trigger facts (files/config keys/signals), not only abstract capability names
+- include a compact decision trace:
+  - `facts -> capability -> addon/profile -> surface -> outcome`
+
+Explain outputs are descriptive only and MUST NOT mutate workflow state or claim new evidence.
+
+## 7.14 Evidence Scope and Ticket Isolation Guards (Core, Binding)
+
+To prevent verification leakage:
+- Evidence MUST NOT be treated as repo-wide if `ComponentScopePaths` is set and evidence scope is broader.
+- Evidence used for verification SHOULD carry `ticket_id` and `session_run_id`.
+- Evidence from Ticket A / Session A MUST NOT verify Ticket B / Session B without explicit re-execution or re-validation.
+
+## 7.15 Deterministic Activation Delta Contract (Core, Binding)
+
+At Phase-4 re-entry, workflow SHOULD persist:
+- `ActivationDelta.AddonScanHash`
+- `ActivationDelta.RepoFactsHash`
+
+If both hashes are unchanged, activation outcome MUST be bit-identical.
+If hashes are unchanged but outcome differs, workflow MUST block with `BLOCKED-ACTIVATION-DELTA-MISMATCH`.
+
+## 7.16 Toolchain Pinning Evidence Policy (Core, Binding)
+
+Verified build/test claims SHOULD include toolchain version evidence for applicable stacks:
+- Java (`java -version`)
+- Node (`node --version`)
+- Maven (`mvn -version`)
+- Gradle (`gradle -version` or wrapper equivalent)
+
+If version evidence is missing, build/test claims SHOULD remain `not-verified` (planning may continue).
+
 ---
 
 ## 8. Traceability (Core)
