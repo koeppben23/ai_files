@@ -286,6 +286,36 @@ def test_machine_readable_reason_payload_contract_is_defined():
 
 
 @pytest.mark.governance
+def test_operator_explain_commands_are_defined_as_read_only_contracts():
+    master = read_text(REPO_ROOT / "master.md")
+    rules = read_text(REPO_ROOT / "rules.md")
+
+    master_required = [
+        '"/why-blocked" (read-only diagnostics)',
+        '"/explain-activation" (read-only activation report)',
+        "### 2.2.2 Operator Explain Contracts (Binding, read-only)",
+        "Both commands are read-only",
+        "MUST NOT claim new implementation/build evidence",
+    ]
+    rules_required = [
+        "## 7.12 Operator Explain Contracts (Core, Binding)",
+        "`/why-blocked`",
+        "`/explain-activation`",
+        "Commands MUST be read-only",
+    ]
+
+    missing_master = [token for token in master_required if token not in master]
+    missing_rules = [token for token in rules_required if token not in rules]
+
+    assert not missing_master, "master.md missing operator explain command contract tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_master]
+    )
+    assert not missing_rules, "rules.md missing operator explain command contract tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_rules]
+    )
+
+
+@pytest.mark.governance
 def test_session_state_versioning_and_migration_contract_is_defined():
     master = read_text(REPO_ROOT / "master.md")
     schema = read_text(REPO_ROOT / "SESSION_STATE_SCHEMA.md")
@@ -313,6 +343,60 @@ def test_session_state_versioning_and_migration_contract_is_defined():
     )
     assert not missing_schema, "SESSION_STATE_SCHEMA.md missing session-state versioning contract tokens:\n" + "\n".join(
         [f"- {m}" for m in missing_schema]
+    )
+
+
+@pytest.mark.governance
+def test_build_evidence_schema_includes_scope_precision_and_typed_artifacts():
+    master = read_text(REPO_ROOT / "master.md")
+    schema = read_text(REPO_ROOT / "SESSION_STATE_SCHEMA.md")
+
+    master_required = [
+        "SHOULD include `scope_paths` or `modules` per evidence item",
+        "SHOULD include typed artifacts (`log|junit|sarif|coverage|other`)",
+        "MAY include `command_line` and `env_fingerprint` for reproducibility",
+    ]
+    schema_required = [
+        "scope_paths:",
+        "modules:",
+        "env_fingerprint:",
+        "type: \"log|junit|sarif|coverage|other\"",
+    ]
+
+    missing_master = [token for token in master_required if token not in master]
+    missing_schema = [token for token in schema_required if token not in schema]
+
+    assert not missing_master, "master.md missing evidence precision tokens:\n" + "\n".join([f"- {m}" for m in missing_master])
+    assert not missing_schema, "SESSION_STATE_SCHEMA.md missing evidence precision tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_schema]
+    )
+
+
+@pytest.mark.governance
+def test_template_rulebooks_define_correctness_by_construction_contract():
+    templates = [
+        "profiles/rules.backend-java-templates.md",
+        "profiles/rules.backend-java-kafka-templates.md",
+        "profiles/rules.frontend-angular-nx-templates.md",
+    ]
+    required_tokens = [
+        "## Correctness by construction (binding)",
+        "Inputs required:",
+        "Outputs guaranteed:",
+        "Evidence expectation:",
+        "Golden examples:",
+        "Anti-example:",
+    ]
+
+    missing: list[str] = []
+    for rel in templates:
+        text = read_text(REPO_ROOT / rel)
+        absent = [token for token in required_tokens if token not in text]
+        if absent:
+            missing.append(f"{rel} missing {absent}")
+
+    assert not missing, "Template rulebooks missing correctness-by-construction contract:\n" + "\n".join(
+        [f"- {m}" for m in missing]
     )
 
 
