@@ -25,6 +25,15 @@ def test_required_files_present():
 
 
 @pytest.mark.governance
+def test_governance_lint_script_exists_and_passes():
+    script = REPO_ROOT / "scripts" / "governance_lint.py"
+    assert script.exists(), "Missing scripts/governance_lint.py"
+
+    r = run([sys.executable, str(script)])
+    assert r.returncode == 0, f"governance_lint failed:\n{r.stdout}\n{r.stderr}"
+
+
+@pytest.mark.governance
 def test_blocked_consistency_schema_vs_master():
     schema = read_text(REPO_ROOT / "SESSION_STATE_SCHEMA.md")
     master = read_text(REPO_ROOT / "master.md")
@@ -239,6 +248,70 @@ def test_monorepo_scope_invariant_blocks_repo_wide_addon_activation_without_scop
         [f"- {m}" for m in missing_master]
     )
     assert not missing_schema, "SESSION_STATE_SCHEMA.md missing monorepo scope invariant tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_schema]
+    )
+
+
+@pytest.mark.governance
+def test_machine_readable_reason_payload_contract_is_defined():
+    master = read_text(REPO_ROOT / "master.md")
+    schema = read_text(REPO_ROOT / "SESSION_STATE_SCHEMA.md")
+
+    master_required = [
+        "Machine-readable diagnostics (binding):",
+        "`SESSION_STATE.Diagnostics.ReasonPayloads`",
+        "`reason_code`",
+        "`surface` (`build|tests|static|addons|profile|state|contracts|security|performance|other`)",
+        "`recovery_steps` (array, max 3 concrete steps)",
+        "BLOCKED/WARN/NOT_VERIFIED outputs MUST include `SESSION_STATE.Diagnostics.ReasonPayloads`",
+    ]
+    schema_required = [
+        "### 2.1.0 Reason Payloads (machine-readable, binding when reason codes are emitted)",
+        "`BLOCKED-*`, `WARN-*`, `NOT_VERIFIED-*`",
+        "`reason_code`",
+        "`surface` (enum: `build|tests|static|addons|profile|state|contracts|security|performance|other`)",
+        "`recovery_steps` (array of strings; 1..3 concrete steps)",
+        "`next_command`",
+    ]
+
+    missing_master = [token for token in master_required if token not in master]
+    missing_schema = [token for token in schema_required if token not in schema]
+
+    assert not missing_master, "master.md missing machine-readable reason payload contract tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_master]
+    )
+    assert not missing_schema, "SESSION_STATE_SCHEMA.md missing machine-readable reason payload contract tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_schema]
+    )
+
+
+@pytest.mark.governance
+def test_session_state_versioning_and_migration_contract_is_defined():
+    master = read_text(REPO_ROOT / "master.md")
+    schema = read_text(REPO_ROOT / "SESSION_STATE_SCHEMA.md")
+
+    master_required = [
+        "SESSION_STATE versioning (binding):",
+        "`session_state_version` (integer)",
+        "`ruleset_hash` (string digest over active governance rule set)",
+        "`Next = BLOCKED-STATE-OUTDATED`",
+        "`BLOCKED-STATE-OUTDATED`:",
+    ]
+    schema_required = [
+        "`SESSION_STATE.session_state_version` (integer)",
+        "`SESSION_STATE.ruleset_hash` (string)",
+        "### Session-state versioning and migration (binding)",
+        "`Next=BLOCKED-STATE-OUTDATED`",
+        "`BLOCKED-STATE-OUTDATED`",
+    ]
+
+    missing_master = [token for token in master_required if token not in master]
+    missing_schema = [token for token in schema_required if token not in schema]
+
+    assert not missing_master, "master.md missing session-state versioning contract tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_master]
+    )
+    assert not missing_schema, "SESSION_STATE_SCHEMA.md missing session-state versioning contract tokens:\n" + "\n".join(
         [f"- {m}" for m in missing_schema]
     )
 

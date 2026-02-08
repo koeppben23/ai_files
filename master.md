@@ -969,10 +969,20 @@ Resume pointer: <exact Next pointer, e.g., "Phase 4 — Step 0 (Initialization)"
     3) Re-run `/start` to re-initialize deterministically.
     4) If repeated: open a regression issue with manifest + state snapshot.
 
+- `BLOCKED-STATE-OUTDATED`:
+  - Trigger: persisted `SESSION_STATE` version is older than supported and deterministic migration cannot be completed.
+  - Resume pointer (canonical): Phase 0 — Bootstrap (State Migration/Repair).
+  - Required input: allow migration/reset OR provide updated state payload.
+  - Recovery steps:
+    1) Compare persisted `session_state_version` against current schema support.
+    2) Attempt deterministic migration; record migrated fields and ruleset hash.
+    3) If migration fails, reset to minimal valid bootstrap state and re-run `/start`.
+
 Rules:
 - The assistant MUST ask for the minimal viable input only (single artifact/command), not broad clarifications.
 - The assistant MUST NOT propose alternative architectures while BLOCKED.
 - Once the required input is provided, the assistant MUST re-run only the minimal necessary step (e.g., Phase 1.3/1.4 load) and then resume.
+- BLOCKED/WARN/NOT_VERIFIED outputs MUST include `SESSION_STATE.Diagnostics.ReasonPayloads` entries for every emitted reason code.
 
 #### Definition: Explicit gates (Auto-Advance stops)
 
@@ -1070,10 +1080,28 @@ MIN mode SHOULD remain below ~40 lines. FULL mode should remain a digest (no lar
 
 If `SESSION_STATE.OutputMode = architect-only`, the assistant MUST output a `DecisionSurface` block first and keep the rest limited to decision rationale + evidence pointers.
 
+Machine-readable diagnostics (binding):
+- When emitting any reason code (`BLOCKED-*`, `WARN-*`, `NOT_VERIFIED-*`), the response MUST include a machine-readable diagnostics payload under `SESSION_STATE.Diagnostics.ReasonPayloads`.
+- Each payload entry MUST include:
+  - `reason_code`
+  - `surface` (`build|tests|static|addons|profile|state|contracts|security|performance|other`)
+  - `signals_used` (array)
+  - `recovery_steps` (array, max 3 concrete steps)
+  - `next_command` (e.g., `/reload-addons`, `/start`, `/resume`)
+
+SESSION_STATE versioning (binding):
+- Every emitted session state MUST include:
+  - `session_state_version` (integer)
+  - `ruleset_hash` (string digest over active governance rule set)
+- If persisted state is older than the supported version and cannot be migrated deterministically,
+  the workflow MUST enter `Mode = BLOCKED` with `Next = BLOCKED-STATE-OUTDATED`.
+
 ### 3.2 MIN Template (Binding)
 
 ```yaml
 SESSION_STATE:
+  session_state_version: <int>
+  ruleset_hash: "<sha256-or-versioned-hash>"
   Phase: 1 | 1.1-Bootstrap | 1.2-ProfileDetection | 1.3-CoreRulesActivation | 2 | 2.1-DecisionPack | 1.5-BusinessRules | 3A | 3B-1 | 3B-2 | 4 | 5 | 5.3 | 5.4 | 5.5 | 5.6 | 6
   Mode: NORMAL | DEGRADED | DRAFT | BLOCKED
   ConfidenceLevel: <0-100>
@@ -1108,6 +1136,8 @@ SESSION_STATE:
   CrossRepoImpact: {}     # optional in MIN; REQUIRED in FULL if contracts are consumed cross-repo
   RollbackStrategy: {}    # optional in MIN; REQUIRED in FULL if schema/contracts change
   DependencyChanges: {}   # optional in MIN; REQUIRED in FULL if deps change
+  Diagnostics:
+    ReasonPayloads: []     # REQUIRED when reason codes are emitted
 ```
 
 Binding:
