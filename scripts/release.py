@@ -161,7 +161,7 @@ def ensure_clean_git_state() -> None:
 
 def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser(description="Cut a release: bump versions + cut changelog + (optional) commit/tag.")
-    ap.add_argument("--version", required=True, help="Release version (e.g. 1.0.0 or 1.0.0-BETA)")
+    ap.add_argument("--version", required=True, help="Release version (e.g. 1.0.0, 1.0.0-RC.1)")
     ap.add_argument("--date", default=None, help="Release date YYYY-MM-DD (default: today)")
     ap.add_argument("--allow-empty-changelog", action="store_true", help="Allow release even if [Unreleased] has no bullets.")
     ap.add_argument("--no-commit", action="store_true", help="Do not create a git commit.")

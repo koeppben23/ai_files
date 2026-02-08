@@ -3,7 +3,7 @@ description: "Activates the master workflow (phases 1-6)"
 priority: highest
 ---
 
-# Governance-Version: 1.1.0-BETA
+# Governance-Version: 1.1.0-RC.1
 MASTER PROMPT
 
 Release/readiness stability gate (binding):
