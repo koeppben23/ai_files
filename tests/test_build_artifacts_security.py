@@ -116,6 +116,7 @@ def test_release_archives_layout_and_contents_policy(built_artifacts):
         "master.md",
         "rules.md",
         "start.md",
+        "profiles/addons/docsGovernance.addon.yml",
     }
 
     allowed_suffixes = {".md", ".json"}
@@ -141,15 +142,21 @@ def test_release_archives_layout_and_contents_policy(built_artifacts):
         bad = [n for n in files if any(d in n for d in forbidden_dirs)]
         assert not bad, f"{label}: forbidden paths included: {bad[:25]}"
 
-        # allowlist file types: install.py + LICENSE* + *.md + *.json only
+        # allowlist file types: install.py + LICENSE* + *.md + *.json + profiles/addons/*.addon.yml
         for n in files:
             name = Path(n).name
+            rel = n.split("/", 1)[1] if "/" in n else n
             if name == "install.py":
                 continue
             if name.upper().startswith(("LICENSE", "LICENCE")):
                 continue
+            if rel.startswith("profiles/addons/") and name.endswith(".addon.yml"):
+                continue
             suf = Path(n).suffix.lower()
             assert suf in allowed_suffixes, f"{label}: forbidden file type in artifact: {n}"
+
+        addon_manifests = [n for n in files if "/profiles/addons/" in n and n.endswith(".addon.yml")]
+        assert addon_manifests, f"{label}: expected addon manifests under profiles/addons/*.addon.yml"
 
     with zipfile.ZipFile(zip_path, "r") as zf:
         assert_policy(zf.namelist(), "ZIP")
