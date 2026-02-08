@@ -969,6 +969,15 @@ Resume pointer: <exact Next pointer, e.g., "Phase 4 — Step 0 (Initialization)"
     3) Re-run `/start` to re-initialize deterministically.
     4) If repeated: open a regression issue with manifest + state snapshot.
 
+- `BLOCKED-STATE-OUTDATED`:
+  - Trigger: persisted `SESSION_STATE` version is older than supported and deterministic migration cannot be completed.
+  - Resume pointer (canonical): Phase 0 — Bootstrap (State Migration/Repair).
+  - Required input: allow migration/reset OR provide updated state payload.
+  - Recovery steps:
+    1) Compare persisted `session_state_version` against current schema support.
+    2) Attempt deterministic migration; record migrated fields and ruleset hash.
+    3) If migration fails, reset to minimal valid bootstrap state and re-run `/start`.
+
 Rules:
 - The assistant MUST ask for the minimal viable input only (single artifact/command), not broad clarifications.
 - The assistant MUST NOT propose alternative architectures while BLOCKED.
@@ -1080,10 +1089,19 @@ Machine-readable diagnostics (binding):
   - `recovery_steps` (array, max 3 concrete steps)
   - `next_command` (e.g., `/reload-addons`, `/start`, `/resume`)
 
+SESSION_STATE versioning (binding):
+- Every emitted session state MUST include:
+  - `session_state_version` (integer)
+  - `ruleset_hash` (string digest over active governance rule set)
+- If persisted state is older than the supported version and cannot be migrated deterministically,
+  the workflow MUST enter `Mode = BLOCKED` with `Next = BLOCKED-STATE-OUTDATED`.
+
 ### 3.2 MIN Template (Binding)
 
 ```yaml
 SESSION_STATE:
+  session_state_version: <int>
+  ruleset_hash: "<sha256-or-versioned-hash>"
   Phase: 1 | 1.1-Bootstrap | 1.2-ProfileDetection | 1.3-CoreRulesActivation | 2 | 2.1-DecisionPack | 1.5-BusinessRules | 3A | 3B-1 | 3B-2 | 4 | 5 | 5.3 | 5.4 | 5.5 | 5.6 | 6
   Mode: NORMAL | DEGRADED | DRAFT | BLOCKED
   ConfidenceLevel: <0-100>

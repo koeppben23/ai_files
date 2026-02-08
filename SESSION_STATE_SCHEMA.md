@@ -125,6 +125,8 @@ Phase 1.1 (Bootstrap) is the only phase allowed to emit a partial SESSION_STATE 
 
 Once Phase 1.1 (bootstrap) completes successfully, these keys MUST exist:
 
+- `SESSION_STATE.session_state_version` (integer)
+- `SESSION_STATE.ruleset_hash` (string)
 - `SESSION_STATE.Phase` (enum; see Section 3)
 - `SESSION_STATE.Mode` (enum; see Section 4)
 - `SESSION_STATE.ConfidenceLevel` (integer 0–100)
@@ -224,6 +226,13 @@ If chat-only mode (no persistence), `ReportRef` MUST be `not-persisted`.
 
 **Invariant**
 - If `Mode = BLOCKED`, `Next` MUST start with `BLOCKED-` and describe the minimal missing input.
+
+### Session-state versioning and migration (binding)
+
+- `session_state_version` MUST be an integer and represent the schema generation used to produce the state.
+- `ruleset_hash` MUST identify the active governance ruleset digest used when state was written.
+- If persisted state is outdated and deterministic migration succeeds, workflow MUST update version/hash before continuing.
+- If deterministic migration cannot be completed, workflow MUST enter `Mode=BLOCKED` with `Next=BLOCKED-STATE-OUTDATED` and emit recovery.
 
 ---
 
@@ -352,6 +361,7 @@ The following BLOCKED pointers are canonical and SHOULD be used when applicable:
 - `BLOCKED-MISSING-EVIDENCE`
 - `BLOCKED-VARIABLE-RESOLUTION`
 - `BLOCKED-RESUME-STATE-VIOLATION`
+- `BLOCKED-STATE-OUTDATED`
 
 ### 6.4 Rulebook Load Evidence (canonical)
 

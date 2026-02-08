@@ -277,6 +277,37 @@ def test_machine_readable_reason_payload_contract_is_defined():
 
 
 @pytest.mark.governance
+def test_session_state_versioning_and_migration_contract_is_defined():
+    master = read_text(REPO_ROOT / "master.md")
+    schema = read_text(REPO_ROOT / "SESSION_STATE_SCHEMA.md")
+
+    master_required = [
+        "SESSION_STATE versioning (binding):",
+        "`session_state_version` (integer)",
+        "`ruleset_hash` (string digest over active governance rule set)",
+        "`Next = BLOCKED-STATE-OUTDATED`",
+        "`BLOCKED-STATE-OUTDATED`:",
+    ]
+    schema_required = [
+        "`SESSION_STATE.session_state_version` (integer)",
+        "`SESSION_STATE.ruleset_hash` (string)",
+        "### Session-state versioning and migration (binding)",
+        "`Next=BLOCKED-STATE-OUTDATED`",
+        "`BLOCKED-STATE-OUTDATED`",
+    ]
+
+    missing_master = [token for token in master_required if token not in master]
+    missing_schema = [token for token in schema_required if token not in schema]
+
+    assert not missing_master, "master.md missing session-state versioning contract tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_master]
+    )
+    assert not missing_schema, "SESSION_STATE_SCHEMA.md missing session-state versioning contract tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_schema]
+    )
+
+
+@pytest.mark.governance
 def test_schema_phase4_ticket_record_declares_must_include():
     schema = read_text(REPO_ROOT / "SESSION_STATE_SCHEMA.md")
     assert "When Phase 4 planning is produced, the workflow MUST include:" in schema
