@@ -4,6 +4,10 @@ rulebook: rules.risk-tiering.md
 manifest_version: 1
 path_roots:
   - "."
+owns_surfaces:
+  - "risk_model"
+touches_surfaces:
+  - "release"
 signals:
   any:
     - file_glob: "**/*"

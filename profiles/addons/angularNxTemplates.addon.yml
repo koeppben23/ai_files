@@ -4,6 +4,11 @@ rulebook: rules.frontend-angular-nx-templates.md
 manifest_version: 1
 path_roots:
   - "."
+owns_surfaces:
+  - "frontend_templates"
+touches_surfaces:
+  - "test_framework"
+  - "linting"
 signals:
   any:
     - file_glob: "**/nx.json"

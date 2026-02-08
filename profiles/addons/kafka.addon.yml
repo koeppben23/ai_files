@@ -4,6 +4,11 @@ rulebook: rules.backend-java-kafka-templates.md
 manifest_version: 1
 path_roots:
   - "."
+owns_surfaces:
+  - "messaging"
+touches_surfaces:
+  - "test_framework"
+  - "release"
 signals:
   any:
     - maven_dep: org.springframework.kafka:spring-kafka

@@ -4,6 +4,10 @@ rulebook: rules.postgres-liquibase.md
 manifest_version: 1
 path_roots:
   - "."
+owns_surfaces:
+  - "db_migration"
+touches_surfaces:
+  - "release"
 signals:
   any:
     - maven_dep: org.liquibase:liquibase-core

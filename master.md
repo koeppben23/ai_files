@@ -325,13 +325,15 @@ ALGORITHM (BINDING, NORMATIVE):
    - Addons are discovered **dynamically** by scanning addon manifests located at:
      - `${PROFILES_HOME}/addons/*.addon.yml`
    - Each manifest MUST define:
-       - `addon_key` (string)
-       - `addon_class` (`required` | `advisory`)
-       - `rulebook` (path under `${PROFILES_HOME}`)
-       - `manifest_version` (currently `1`)
-       - `signals` (one or more evidence patterns; see manifests)
-    - Optional manifest ops fields:
-       - `path_roots` (relative repo paths to scope signal evaluation in monorepos)
+        - `addon_key` (string)
+        - `addon_class` (`required` | `advisory`)
+        - `rulebook` (path under `${PROFILES_HOME}`)
+        - `manifest_version` (currently `1`)
+        - `signals` (one or more evidence patterns; see manifests)
+        - `owns_surfaces` (non-empty list; exclusive surface ownership)
+        - `touches_surfaces` (non-empty list; non-exclusive touch surfaces)
+     - Optional manifest ops fields:
+        - `path_roots` (relative repo paths to scope signal evaluation in monorepos)
 
    Rules (BINDING):
    - For each addon, evaluate evidence signals from Phase 2 artifacts + ticket text.
@@ -348,6 +350,9 @@ ALGORITHM (BINDING, NORMATIVE):
       - `SESSION_STATE.AddonsEvidence.<addon_key>.status = loaded|skipped|missing-rulebook`
    - If `required = true` and the rulebook is present, it MUST be loaded.
    - Addons MAY be re-evaluated and loaded later at any Phase-4 re-entry/resume if new evidence appears or a missing rulebook is installed.
+   - Surface ownership guard (binding): two activated addons/templates MUST NOT both own the same surface.
+     If activated ownership conflicts are detected -> `Mode = BLOCKED`, `Next = BLOCKED-ADDON-CONFLICT`.
+     Required input: narrow scope or select authoritative surface owner.
    - Required/advisory blocking semantics are canonical from `rules.md` anchor `RULEBOOK-PRECEDENCE-POLICY`.
      Profile/addon/template rulebooks MUST reference and MUST NOT redefine parallel policies.
    - Emergency override of missing required addon is exceptional and MUST carry evidence:
@@ -774,6 +779,8 @@ Explicit overrides (highest priority):
 * "Skip business-rules discovery." → Phase 1.5 will not be executed
 * "This is a pure CRUD project." → Phase 1.5 will not be executed, P5.4 = `not-applicable`
 * "/reload-addons" (or explicit equivalent wording) → execute reload contract in Section 2.2.1
+* "/why-blocked" (read-only diagnostics) → execute explain contract in Section 2.2.2
+* "/explain-activation" (read-only activation report) → execute explain contract in Section 2.2.2
 
 Override constraints (binding):
 * "Skip Phase Y" is only valid if all artifacts/evidence required by downstream phases already exist in SESSION_STATE.
@@ -797,6 +804,28 @@ Output and state requirements:
   - default: `Phase 4 - Step 0 (Phase-4 Entry initialization)`
   - if reload detects blocking conditions: corresponding `BLOCKED-*` pointer.
 - Auto-advance to implementation/gates is forbidden from reload output; normal continuation requires explicit operator proceed/resume.
+
+### 2.2.2 Operator Explain Contracts (Binding, read-only)
+
+`/why-blocked`:
+- Purpose: explain current blocking reason deterministically without mutating workflow state.
+- Output MUST include:
+  - blocking `reason_code`
+  - up to 3 concrete recovery steps
+  - triggering rule/file evidence reference
+  - recommended `next_command`
+
+`/explain-activation`:
+- Purpose: explain profile/addon/template activation reasoning deterministically without mutating workflow state.
+- Output MUST include:
+  - `repo_facts`/signals used (with trigger paths when available)
+  - selected profile and why
+  - activated addons/templates and why
+  - missing advisory addons as WARN entries
+
+Binding:
+- Both commands are read-only: MUST NOT change `SESSION_STATE.Phase`, `Mode`, `Next`, or gate values.
+- Both commands MUST NOT claim new implementation/build evidence.
 
 ---
 
@@ -1158,6 +1187,9 @@ When FULL mode is required, the assistant MUST additionally include, when availa
 - `DecisionPack` (if produced; recommended after Phase 2)
 - `ArchitectureDecisions` (required when P5-Architecture is approved)
 - `BuildEvidence` (if relevant)
+  - SHOULD include `scope_paths` or `modules` per evidence item
+  - SHOULD include typed artifacts (`log|junit|sarif|coverage|other`)
+  - MAY include `command_line` and `env_fingerprint` for reproducibility
 - `CrossRepoImpact` (required if contracts are consumed cross-repo)
 - `RollbackStrategy` (required when schema/contracts change)
 - `GateArtifacts` (required at explicit gates; maps gate → required/provided artifacts)
