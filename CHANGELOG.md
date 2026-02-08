@@ -38,6 +38,7 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
 - Wire Stability-SLA into normative governance docs (`master.md`, `rules.md`) as a release/readiness gate.
 - Extend governance lint + governance tests to enforce Stability-SLA presence, canonical section tokens, and CI gate alignment.
 - Clarify SLA regression gates to explicitly require both governance validation (`pytest -m governance`) and governance e2e flow coverage (`pytest -m e2e_governance`).
+- Harden precedence drift detection: fail on duplicate/legacy precedence fragments and require canonical addon/template layer wording.
 - Add high-ROI governance hardening invariants: capability catalog completeness checks, template evidence-kind gating, and activation delta bit-identity coverage.
 - Add proof-carrying explain output requirements (`/why-blocked`, `/explain-activation`) with mandatory trigger facts and decision trace.
 - Add evidence leakage guards for scoped/ticketed verification (`ticket_id`, `session_run_id`, scope leak constraints under ComponentScopePaths).
