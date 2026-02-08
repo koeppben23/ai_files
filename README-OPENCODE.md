@@ -76,7 +76,7 @@ Use this when a new repository/ticket needs governance coverage that does not ex
 Minimum operator input for generation:
 
 - profile/addon key and target scope
-- activation signals
+- applicability signals (descriptive only; not selection logic)
 - addon class (`required` or `advisory`) for addons
 - quality focus and blocking policy
 
@@ -328,7 +328,8 @@ OpenCode enables **repo-first governance**.
 1. **Initialization**
    - Point OpenCode to the repository
    - Let it index the repo
-   - Run `/master`
+   - Run `/start` once (bootstrap/path contract + workspace persistence checks)
+   - Run `/master` to begin the ticket flow
 
 2. **Active governance**
    - `master.md`
@@ -362,7 +363,7 @@ OpenCode enables **repo-first governance**.
 
 ## 5. OpenCode Commands & Session Control
 
-This repository defines three core OpenCode commands.
+This command package defines core OpenCode commands.
 
 These commands are **OpenCode-specific**  
 and do **not** apply to pure chat environments.
@@ -373,7 +374,8 @@ and do **not** apply to pure chat environments.
 
 Starts a new task.
 
-- loads bootstrap governance (workflow + quality + conflict model); defers profile/core rules
+- loads workflow + precedence + gating bootstrap
+- loads `rules.md`, active profile, and addons/templates phase-scoped per `master.md` (not as optional policy)
 - initializes the workflow
 - creates a fresh `[SESSION_STATE]`
 
@@ -430,6 +432,7 @@ See:
 | File | Purpose |
 |-----|--------|
 | `master.md` | Workflow orchestration, phases, gates, session state |
+| `STABILITY_SLA.md` | Normative governance release/readiness Go/No-Go contract |
 | `rules.md` | Technical, architectural, test, and business rules |
 | `README-RULES.md` | Executive summary (not normative) |
 | `SCOPE-AND-CONTEXT.md` | Normative scope and responsibility boundaries |
