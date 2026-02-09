@@ -1879,6 +1879,7 @@ def test_architect_autopilot_lifecycle_contract_is_defined_across_core_docs():
     master = read_text(REPO_ROOT / "master.md")
     rules = read_text(REPO_ROOT / "rules.md")
     start = read_text(REPO_ROOT / "start.md")
+    schema = read_text(REPO_ROOT / "SESSION_STATE_SCHEMA.md")
 
     master_required = [
         "### 2.4.2 Architect-Only Autopilot Lifecycle (Binding)",
@@ -1911,6 +1912,19 @@ def test_architect_autopilot_lifecycle_contract_is_defined_across_core_docs():
     )
     assert not missing_start, "start.md missing architect-autopilot lifecycle tokens:\n" + "\n".join(
         [f"- {m}" for m in missing_start]
+    )
+
+    schema_required = [
+        "`SESSION_STATE.OutputMode` (enum; see Section 4.1)",
+        "## 4.1 OutputMode (enum)",
+        "`ARCHITECT`",
+        "`IMPLEMENT`",
+        "`VERIFY`",
+        "If `OutputMode = ARCHITECT`, `DecisionSurface` MUST be present",
+    ]
+    missing_schema = [t for t in schema_required if t not in schema]
+    assert not missing_schema, "SESSION_STATE_SCHEMA.md missing architect-autopilot lifecycle tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_schema]
     )
 
 
