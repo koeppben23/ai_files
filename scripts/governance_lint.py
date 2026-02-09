@@ -658,6 +658,38 @@ def check_start_mode_banner_contract(issues: list[str]) -> None:
         issues.append(f"start.md: missing start-mode banner tokens {missing_start}")
 
 
+def check_confidence_impact_snapshot_contract(issues: list[str]) -> None:
+    master = read_text(ROOT / "master.md")
+    rules = read_text(ROOT / "rules.md")
+    start = read_text(ROOT / "start.md")
+
+    master_required = [
+        "#### Confidence + Impact Snapshot (Binding)",
+        "[SNAPSHOT]",
+        "Confidence: <0-100>%",
+        "Risk: <LOW|MEDIUM|HIGH>",
+        "Scope: <repo path/module/component or \"global\">",
+    ]
+    rules_required = [
+        "### 7.3.4 Confidence + Impact Snapshot (Binding)",
+        "[SNAPSHOT]",
+        "Snapshot values MUST be consistent with `SESSION_STATE`",
+    ]
+    start_required = [
+        "Include `[SNAPSHOT]` block (`Confidence`, `Risk`, `Scope`) with values aligned to current `SESSION_STATE`.",
+    ]
+
+    missing_master = [t for t in master_required if t not in master]
+    missing_rules = [t for t in rules_required if t not in rules]
+    missing_start = [t for t in start_required if t not in start]
+    if missing_master:
+        issues.append(f"master.md: missing confidence-impact snapshot tokens {missing_master}")
+    if missing_rules:
+        issues.append(f"rules.md: missing confidence-impact snapshot tokens {missing_rules}")
+    if missing_start:
+        issues.append(f"start.md: missing confidence-impact snapshot tokens {missing_start}")
+
+
 def main() -> int:
     issues: list[str] = []
     check_master_priority_uniqueness(issues)
@@ -672,6 +704,7 @@ def main() -> int:
     check_unified_next_action_footer_contract(issues)
     check_standard_blocker_envelope_contract(issues)
     check_start_mode_banner_contract(issues)
+    check_confidence_impact_snapshot_contract(issues)
 
     if issues:
         print("Governance lint FAILED:")

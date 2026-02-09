@@ -658,6 +658,20 @@ Rules:
 - Banner decision MUST be evidence-backed (artifact presence/validity, hash match/mismatch).
 - Banner is informational only and MUST NOT bypass any gate or evidence requirement.
 
+### 7.3.4 Confidence + Impact Snapshot (Binding)
+
+Each response MUST include:
+
+```
+[SNAPSHOT]
+Confidence: <0-100>%
+Risk: <LOW|MEDIUM|HIGH>
+Scope: <repo path/module/component or "global">
+```
+
+Rules:
+- Snapshot values MUST be consistent with `SESSION_STATE` (confidence, active risk posture, and scope lock/component scope).
+
 Additional output mode:
  - If `SESSION_STATE.OutputMode = architect-only`, the assistant MUST present a `DecisionSurface` (what you must decide now vs can defer)
    and MUST NOT hide required decisions inside long narrative text.

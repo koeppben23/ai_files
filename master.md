@@ -1087,6 +1087,22 @@ Rules:
 - If mode is `BLOCKED`, `Status` MUST be `blocked` and `Command` MUST match recovery guidance.
 - Footer content MUST align with `SESSION_STATE.Next` and emitted reason payloads.
 
+#### Confidence + Impact Snapshot (Binding)
+
+Every response MUST include a compact status snapshot block:
+
+```
+[SNAPSHOT]
+Confidence: <0-100>%
+Risk: <LOW|MEDIUM|HIGH>
+Scope: <repo path/module/component or "global">
+```
+
+Rules:
+- `Confidence` MUST match (or be derivable from) `SESSION_STATE.ConfidenceLevel`.
+- `Risk` MUST align with active risk-tier semantics and current gate posture.
+- `Scope` MUST reflect approved component scope (`ComponentScopePaths`) when present.
+
 #### Definition: Explicit gates (Auto-Advance stops)
 
 An explicit gate is a decision point where the assistant does not automatically transition

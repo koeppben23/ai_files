@@ -1803,6 +1803,43 @@ def test_cold_warm_start_banner_contract_is_defined_across_core_docs():
 
 
 @pytest.mark.governance
+def test_confidence_impact_snapshot_contract_is_defined_across_core_docs():
+    master = read_text(REPO_ROOT / "master.md")
+    rules = read_text(REPO_ROOT / "rules.md")
+    start = read_text(REPO_ROOT / "start.md")
+
+    master_required = [
+        "#### Confidence + Impact Snapshot (Binding)",
+        "[SNAPSHOT]",
+        "Confidence: <0-100>%",
+        "Risk: <LOW|MEDIUM|HIGH>",
+        "Scope: <repo path/module/component or \"global\">",
+    ]
+    rules_required = [
+        "### 7.3.4 Confidence + Impact Snapshot (Binding)",
+        "[SNAPSHOT]",
+        "Snapshot values MUST be consistent with `SESSION_STATE`",
+    ]
+    start_required = [
+        "Include `[SNAPSHOT]` block (`Confidence`, `Risk`, `Scope`) with values aligned to current `SESSION_STATE`.",
+    ]
+
+    missing_master = [t for t in master_required if t not in master]
+    missing_rules = [t for t in rules_required if t not in rules]
+    missing_start = [t for t in start_required if t not in start]
+
+    assert not missing_master, "master.md missing confidence-impact snapshot tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_master]
+    )
+    assert not missing_rules, "rules.md missing confidence-impact snapshot tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_rules]
+    )
+    assert not missing_start, "start.md missing confidence-impact snapshot tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_start]
+    )
+
+
+@pytest.mark.governance
 def test_audit_reason_keys_are_declared_audit_only_and_not_reason_code_payloads():
     text = read_text(REPO_ROOT / "diagnostics" / "audit.md")
     required_tokens = [
