@@ -174,6 +174,35 @@ jobs:
             r = subprocess.run([sys.executable, "-X", "utf8", "install.py", "--force", "--no-backup", "--config-root", str(cfg)],
                                cwd=str(extracted), text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             assert r.returncode == 0, f"install failed:\n{r.stderr}\n{r.stdout}"
+
+            diagnostics = cfg / "commands" / "diagnostics"
+            required_helpers = [
+              diagnostics / "persist_workspace_artifacts.py",
+              diagnostics / "bootstrap_session_state.py",
+              diagnostics / "error_logs.py",
+            ]
+            missing = [str(p) for p in required_helpers if not p.exists()]
+            assert not missing, f"missing diagnostics runtime helpers after install: {missing}"
+
+            r = subprocess.run(
+              [
+                sys.executable,
+                "-X",
+                "utf8",
+                str(diagnostics / "persist_workspace_artifacts.py"),
+                "--repo-fingerprint",
+                "artifact-smoke-123456",
+                "--config-root",
+                str(cfg),
+                "--quiet",
+              ],
+              cwd=str(extracted),
+              text=True,
+              stdout=subprocess.PIPE,
+              stderr=subprocess.PIPE,
+            )
+            assert r.returncode == 0, f"persist helper failed:\n{r.stderr}\n{r.stdout}"
+
             r = subprocess.run([sys.executable, "-X", "utf8", "install.py", "--uninstall", "--force", "--config-root", str(cfg)],
                                cwd=str(extracted), text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             assert r.returncode == 0, f"uninstall failed:\n{r.stderr}\n{r.stdout}"
