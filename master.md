@@ -1051,6 +1051,23 @@ Rules:
 - Once the required input is provided, the assistant MUST re-run only the minimal necessary step (e.g., Phase 1.3/1.4 load) and then resume.
 - BLOCKED/WARN/NOT_VERIFIED outputs MUST include `SESSION_STATE.Diagnostics.ReasonPayloads` entries for every emitted reason code.
 
+#### Unified Next Action Footer (Binding)
+
+Every assistant response MUST end with a compact, deterministic footer block:
+
+```
+[NEXT-ACTION]
+Status: <normal|degraded|draft|blocked>
+Next: <single concrete next action>
+Why: <one-sentence rationale>
+Command: <exact next command or "none">
+```
+
+Rules:
+- `Next` MUST be singular (no multi-step chain in one line).
+- If mode is `BLOCKED`, `Status` MUST be `blocked` and `Command` MUST match recovery guidance.
+- Footer content MUST align with `SESSION_STATE.Next` and emitted reason payloads.
+
 #### Definition: Explicit gates (Auto-Advance stops)
 
 An explicit gate is a decision point where the assistant does not automatically transition

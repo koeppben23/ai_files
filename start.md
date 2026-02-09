@@ -173,6 +173,7 @@ Output requirements:
 - Explicit Gates
 - Explicit DEVIATION reporting
 - No chat-style answers
+- End every response with `[NEXT-ACTION]` footer (`Status`, `Next`, `Why`, `Command`) per `master.md`.
 
 This file is the canonical governance entrypoint.
 

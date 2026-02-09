@@ -558,6 +558,39 @@ def check_start_evidence_boundaries(issues: list[str]) -> None:
         issues.append(f"start.md: contains forbidden fallback-evidence tokens {found_forbidden}")
 
 
+def check_unified_next_action_footer_contract(issues: list[str]) -> None:
+    master = read_text(ROOT / "master.md")
+    rules = read_text(ROOT / "rules.md")
+    start = read_text(ROOT / "start.md")
+
+    master_required = [
+        "#### Unified Next Action Footer (Binding)",
+        "[NEXT-ACTION]",
+        "Status: <normal|degraded|draft|blocked>",
+        "Next: <single concrete next action>",
+        "Why: <one-sentence rationale>",
+        "Command: <exact next command or \"none\">",
+    ]
+    rules_required = [
+        "### 7.3.1 Unified Next Action Footer (Binding)",
+        "[NEXT-ACTION]",
+        "Footer values MUST be consistent with `SESSION_STATE.Mode`, `SESSION_STATE.Next`, and any emitted reason payloads.",
+    ]
+    start_required = [
+        "End every response with `[NEXT-ACTION]` footer (`Status`, `Next`, `Why`, `Command`) per `master.md`.",
+    ]
+
+    missing_master = [t for t in master_required if t not in master]
+    missing_rules = [t for t in rules_required if t not in rules]
+    missing_start = [t for t in start_required if t not in start]
+    if missing_master:
+        issues.append(f"master.md: missing unified next-action footer tokens {missing_master}")
+    if missing_rules:
+        issues.append(f"rules.md: missing unified next-action footer tokens {missing_rules}")
+    if missing_start:
+        issues.append(f"start.md: missing unified next-action footer tokens {missing_start}")
+
+
 def main() -> int:
     issues: list[str] = []
     check_master_priority_uniqueness(issues)
@@ -569,6 +602,7 @@ def main() -> int:
     check_factory_contract_alignment(issues)
     check_diagnostics_reason_contract_alignment(issues)
     check_start_evidence_boundaries(issues)
+    check_unified_next_action_footer_contract(issues)
 
     if issues:
         print("Governance lint FAILED:")

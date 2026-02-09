@@ -622,6 +622,22 @@ When producing code changes:
 - Avoid broad rewrites unless required by the ticket and justified with evidence.
 - Prefer explicitness over cleverness.
 
+### 7.3.1 Unified Next Action Footer (Binding)
+
+Each response MUST end with this compact footer shape:
+
+```
+[NEXT-ACTION]
+Status: <normal|degraded|draft|blocked>
+Next: <single concrete next action>
+Why: <one-sentence rationale>
+Command: <exact next command or "none">
+```
+
+Rules:
+- `Next` MUST be singular and actionable.
+- Footer values MUST be consistent with `SESSION_STATE.Mode`, `SESSION_STATE.Next`, and any emitted reason payloads.
+
 Additional output mode:
  - If `SESSION_STATE.OutputMode = architect-only`, the assistant MUST present a `DecisionSurface` (what you must decide now vs can defer)
    and MUST NOT hide required decisions inside long narrative text.

@@ -1705,6 +1705,38 @@ def test_start_md_fallback_binding_and_identity_evidence_boundaries_are_fail_clo
 
 
 @pytest.mark.governance
+def test_unified_next_action_footer_contract_is_defined_across_core_docs():
+    master = read_text(REPO_ROOT / "master.md")
+    rules = read_text(REPO_ROOT / "rules.md")
+    start = read_text(REPO_ROOT / "start.md")
+
+    master_required = [
+        "#### Unified Next Action Footer (Binding)",
+        "[NEXT-ACTION]",
+        "Status: <normal|degraded|draft|blocked>",
+        "Next: <single concrete next action>",
+        "Why: <one-sentence rationale>",
+        "Command: <exact next command or \"none\">",
+    ]
+    rules_required = [
+        "### 7.3.1 Unified Next Action Footer (Binding)",
+        "[NEXT-ACTION]",
+        "Footer values MUST be consistent with `SESSION_STATE.Mode`, `SESSION_STATE.Next`, and any emitted reason payloads.",
+    ]
+    start_required = [
+        "End every response with `[NEXT-ACTION]` footer (`Status`, `Next`, `Why`, `Command`) per `master.md`.",
+    ]
+
+    missing_master = [t for t in master_required if t not in master]
+    missing_rules = [t for t in rules_required if t not in rules]
+    missing_start = [t for t in start_required if t not in start]
+
+    assert not missing_master, "master.md missing next-action footer tokens:\n" + "\n".join([f"- {m}" for m in missing_master])
+    assert not missing_rules, "rules.md missing next-action footer tokens:\n" + "\n".join([f"- {m}" for m in missing_rules])
+    assert not missing_start, "start.md missing next-action footer tokens:\n" + "\n".join([f"- {m}" for m in missing_start])
+
+
+@pytest.mark.governance
 def test_audit_reason_keys_are_declared_audit_only_and_not_reason_code_payloads():
     text = read_text(REPO_ROOT / "diagnostics" / "audit.md")
     required_tokens = [
