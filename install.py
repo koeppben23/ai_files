@@ -57,7 +57,7 @@ def _load_error_logger() -> Callable[..., object]:
 
 safe_log_error = _load_error_logger()
 
-VERSION = "1.1.0-RC.1"
+VERSION = "1.1.0-RC.2"
 # Files copied into <config_root>/commands
 # Strategy: copy (almost) all repo-root governance artifacts that are relevant at runtime.
 # - Include: *.md, *.json, LICENSE (if present)
