@@ -146,6 +146,7 @@ Invocation:
 - Plan-Gates ≠ Evidence-Gates.
 - Missing evidence → BLOCKED (reported, not suppressed).
 - Profile ambiguity → BLOCKED.
+- When profile signals are ambiguous, provide a ranked profile shortlist with evidence and request explicit selection (`<recommended> | <alt> | fallback-minimum`) before activation.
 
 Rulebook discovery contract (BINDING):
 - The assistant MUST NOT claim `master.md`, `rules.md`, or profile rulebooks are "missing"
