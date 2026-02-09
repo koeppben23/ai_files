@@ -682,10 +682,28 @@ When output mode is blocked, include:
 
 Quick-fix commands are execution guidance only; they do not bypass gates or evidence requirements.
 
+### 7.3.6 Architect-Only Autopilot Lifecycle (Binding)
+
+Canonical operator lifecycle:
+1) `/start`
+2) `/master` (default design mode)
+3) `Implement now` (optional scope)
+4) `Ingest evidence`
+
+Output mode enum (binding):
+- `SESSION_STATE.OutputMode = ARCHITECT | IMPLEMENT | VERIFY`
+
+Rules:
+- `/master` before valid `/start` bootstrap evidence MUST block with `BLOCKED-START-REQUIRED` and `QuickFixCommands: ["/start"]`.
+- `ARCHITECT` mode is default and decision-first; no full code diff output.
+- `IMPLEMENT` mode requires explicit operator trigger (`Implement now`).
+- `VERIFY` mode is evidence reconciliation only.
+- If no valid decision options can be produced, workflow MUST block with `BLOCKED-MISSING-DECISION` (no fake option lists).
+
 Additional output mode:
- - If `SESSION_STATE.OutputMode = architect-only`, the assistant MUST present a `DecisionSurface` (what you must decide now vs can defer)
-   and MUST NOT hide required decisions inside long narrative text.
- - Evidence obligations and gate rules remain unchanged in architect-only mode.
+  - If `SESSION_STATE.OutputMode = ARCHITECT`, the assistant MUST present a `DecisionSurface` (what you must decide now vs can defer)
+    and MUST NOT hide required decisions inside long narrative text.
+  - Evidence obligations and gate rules remain unchanged in ARCHITECT mode.
 
 ### 7.4 Architecture Decision Output Template (Binding when proposing non-trivial architecture)
 

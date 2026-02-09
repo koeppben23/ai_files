@@ -129,6 +129,7 @@ Once Phase 1.1 (bootstrap) completes successfully, these keys MUST exist:
 - `SESSION_STATE.ruleset_hash` (string)
 - `SESSION_STATE.Phase` (enum; see Section 3)
 - `SESSION_STATE.Mode` (enum; see Section 4)
+- `SESSION_STATE.OutputMode` (enum; see Section 4.1)
 - `SESSION_STATE.ConfidenceLevel` (integer 0–100)
 - `SESSION_STATE.Next` (string; canonical continuation pointer)
 - `SESSION_STATE.Bootstrap.Present` (boolean)
@@ -322,6 +323,20 @@ Allowed values:
 - If `ConfidenceLevel < 70`, `Mode` MUST be `DRAFT` or `BLOCKED` (MUST NOT be `NORMAL` or `DEGRADED`).
 - If `Mode = BLOCKED`, `Next` MUST start with `BLOCKED-` and the session MUST name the minimal unblock requirement.
 
+## 4.1 OutputMode (enum)
+
+Allowed values:
+
+- `ARCHITECT`
+- `IMPLEMENT`
+- `VERIFY`
+
+**Invariants**
+- Default after `/master` is `ARCHITECT`.
+- If `OutputMode = ARCHITECT`, `DecisionSurface` MUST be present and code-producing full diffs are forbidden.
+- `IMPLEMENT` mode requires explicit operator trigger (e.g., `Implement now`).
+- `VERIFY` mode is evidence reconciliation only (claim upgrade/reject), not a codegen trigger.
+
 Recommended calibration (rubric; clamp 0–100):
 - +25 if `ActiveProfile` is unambiguous and evidenced
 - +25 if `RepoMapDigest` exists and is evidence-backed (paths/files)
@@ -398,9 +413,11 @@ Optional but strongly recommended for monorepos:
 The following BLOCKED pointers are canonical and SHOULD be used when applicable:
 
 - `BLOCKED-BOOTSTRAP-NOT-SATISFIED`
+- `BLOCKED-START-REQUIRED`
 - `BLOCKED-MISSING-CORE-RULES`
 - `BLOCKED-MISSING-PROFILE`
 - `BLOCKED-AMBIGUOUS-PROFILE`
+- `BLOCKED-MISSING-DECISION`
 - `BLOCKED-MISSING-TEMPLATES`
 - `BLOCKED-MISSING-RULEBOOK:<file>`
 - `BLOCKED-MISSING-ADDON:<addon_key>` (required when `addon_class = required` and the triggered rulebook is missing)
