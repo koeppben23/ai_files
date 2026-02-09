@@ -120,6 +120,8 @@ def test_release_archives_layout_and_contents_policy(built_artifacts):
         "diagnostics/persist_workspace_artifacts.py",
         "diagnostics/bootstrap_session_state.py",
         "diagnostics/error_logs.py",
+        "diagnostics/map_audit_to_canonical.py",
+        "diagnostics/AUDIT_REASON_CANONICAL_MAP.json",
     }
 
     allowed_suffixes = {".md", ".json"}

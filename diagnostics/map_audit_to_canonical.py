@@ -69,6 +69,16 @@ def _extract_reason_keys(report: dict[str, Any]) -> list[str]:
     return ordered
 
 
+def _severity_rank(code: str) -> int:
+    if code.startswith("BLOCKED-"):
+        return 3
+    if code.startswith("WARN-"):
+        return 2
+    if code.startswith("NOT_VERIFIED-"):
+        return 1
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Map /audit reason keys to canonical governance reason codes.")
     parser.add_argument("--input", required=True, type=Path, help="Path to audit report JSON.")
@@ -121,7 +131,9 @@ def main() -> int:
             seen_codes.add(code)
             canonical_codes_ordered.append(code)
 
-    primary = canonical_codes_ordered[0] if canonical_codes_ordered else "none"
+    primary = "none"
+    if canonical_codes_ordered:
+        primary = max(canonical_codes_ordered, key=lambda c: (_severity_rank(c), -canonical_codes_ordered.index(c)))
     output = {
         "schema": "opencode.audit-canonical-bridge.v1",
         "auditReasonKeys": audit_keys,

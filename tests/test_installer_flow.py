@@ -418,6 +418,15 @@ def test_install_distribution_contains_required_normative_files_and_addon_rulebo
         [f"- {m}" for m in missing_normative]
     )
 
+    required_diagnostics = [
+        commands / "diagnostics" / "map_audit_to_canonical.py",
+        commands / "diagnostics" / "AUDIT_REASON_CANONICAL_MAP.json",
+    ]
+    missing_diagnostics = [str(p) for p in required_diagnostics if not p.exists()]
+    assert not missing_diagnostics, "Missing required diagnostics bridge files after install:\n" + "\n".join(
+        [f"- {m}" for m in missing_diagnostics]
+    )
+
     manifests = sorted((commands / "profiles" / "addons").glob("*.addon.yml"))
     assert manifests, "No addon manifests found under installed commands/profiles/addons"
 
