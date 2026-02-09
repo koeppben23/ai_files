@@ -989,6 +989,10 @@ If Rulebook load evidence cannot be produced:
 - workflow MUST set `Next=BLOCKED-RULEBOOK-EVIDENCE-MISSING`
 - no phase completion may be claimed
 
+For Phase 1.1 top-tier artifacts (`QUALITY_INDEX.md`, `CONFLICT_RESOLUTION.md`):
+- workflow SHOULD record `RulebookLoadEvidence.top_tier.quality_index` and
+  `RulebookLoadEvidence.top_tier.conflict_resolution` when resolved.
+
 ---
 
 ## 8. Traceability (Core)

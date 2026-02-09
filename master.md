@@ -259,6 +259,10 @@ SESSION_STATE bootstrap (binding):
   ActiveProfile: ""          # DEFERRED until post-Phase-2
   ProfileSource: "deferred"
   ProfileEvidence: "deferred-until-phase-2"
+  RulebookLoadEvidence:
+    top_tier:
+      quality_index: "${COMMANDS_HOME}/QUALITY_INDEX.md"
+      conflict_resolution: "${COMMANDS_HOME}/CONFLICT_RESOLUTION.md"
   
 ### Phase 1.2: Profile Detection (DEFERRED TO POST-PHASE-2)
 
@@ -452,6 +456,11 @@ These files are normative and MUST be available in the same governance installat
 Missing top-tier files behavior (binding):
 - In Phases 1-3, unresolved top-tier files (`QUALITY_INDEX.md`, `CONFLICT_RESOLUTION.md`) MUST emit WARN and keep the workflow planning-only.
 - In Phase 4+ (code/evidence/gates), unresolved top-tier files MUST block with `BLOCKED-MISSING-RULEBOOK:<file>`.
+
+Top-tier load evidence obligation (binding):
+- If `QUALITY_INDEX.md` and/or `CONFLICT_RESOLUTION.md` are resolved in Phase 1.1,
+  `SESSION_STATE.RulebookLoadEvidence.top_tier.*` MUST be populated with load evidence
+  (canonical path and/or tool evidence reference).
 
 **Search order (per file):**
 1. Workspace-local override (optional, outside the repo): `${REPO_OVERRIDES_HOME}/<FILE>.md`

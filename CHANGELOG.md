@@ -79,6 +79,9 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
 - Remove `README-RULES.md` from normative priority order and mark it explicitly as non-normative executive summary.
 - Require a terminal `NEXT_STEP: <SESSION_STATE.Next>` line after every `SESSION_STATE` output, and codify this in `master.md` + `SESSION_STATE_SCHEMA.md` with governance tests.
 - Enforce Conventional naming for assistant-created branches/commits in governance contracts and CI (`master.md`, `rules.md`, `.github/workflows/ci.yml`) including PR branch-name and commit-subject validation.
+- Align bootstrap template state with canonical output-mode lifecycle (`SESSION_STATE.OutputMode=ARCHITECT`) and canonical start-order blocker (`Next=BLOCKED-START-REQUIRED`).
+- Tighten response-envelope schema to conditionally require blocker fields (`reason_payload`, `quick_fix_commands`) when `status=blocked`.
+- Strengthen top-tier governance evidence by adding explicit `RulebookLoadEvidence.top_tier.*` expectations and clarifying conflict-model mapping as classifier-only (no second precedence model).
 - Standardize `profiles/rules*.md` operational wrappers with consistent headings (`Intent`, `Scope`, `Activation`, `Phase integration`, `Evidence contract`, `Tooling`, `Examples`, `Troubleshooting`) and normalize quick-block variants to canonical section headings.
 - Replace fragile `rules.md Section 4.6` references with stable anchor references (`RULEBOOK-PRECEDENCE-POLICY`) across profiles, factory templates, master guidance, and governance tests.
 - Canonicalize required-vs-advisory addon behavior as a single fail-closed policy source in `rules.md` anchor `RULEBOOK-PRECEDENCE-POLICY` plus `master.md` addon catalog (local rulebooks now reference, not redefine, blocking semantics).
@@ -118,6 +121,7 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
 - Normalize footer/marker consistency across `profiles/rules*.md` after modularization (remove mid-file end markers, align copyright placement/style).
 - Add a canonical structured response envelope schema contract (`diagnostics/RESPONSE_ENVELOPE_SCHEMA.json`) and wire `/start`/core rulebooks to require schema-aligned output fields.
 - Narrow shared governance advisory addon activation signals from unbounded `**/*` to explicit governance entry signals (`master.md`) for cleaner capability/signal semantics.
+- Clarify `CONFLICT_RESOLUTION.md` mapping so P-levels are conflict classifiers/tie-breakers only and never a second precedence model over `master.md`.
 
 ### Fixed
 - Extend `persist_workspace_artifacts.py --quiet` blocked output with structured reason fields (`reason_code`, `recovery_steps`, `next_command`) for direct `SESSION_STATE.Diagnostics.ReasonPayloads` integration.
@@ -135,6 +139,8 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
 - Add activation-delta regression coverage that deterministically blocks when activation outcome drifts while addon/repo-facts hashes are unchanged (`BLOCKED-ACTIVATION-DELTA-MISMATCH`).
 - Fix Kafka addon capability gating to be Kafka-specific (remove broad `java`/`spring` capability activation that could over-trigger required Kafka constraints).
 - Add installer distribution completeness gate coverage for required normative files (`QUALITY_INDEX.md`, `CONFLICT_RESOLUTION.md`, `STABILITY_SLA.md`, `SESSION_STATE_SCHEMA.md`) and addon-manifest rulebook resolvability after install.
+- Add top-tier load-evidence contract fields for `QUALITY_INDEX.md` / `CONFLICT_RESOLUTION.md` (`RulebookLoadEvidence.top_tier.*`) in master/schema and governance tests.
+- Add a response-contract validator (`scripts/validate_response_contract.py`) with governance checks for blocked-envelope coherence and RulebookLoadEvidence presence when rulebooks are loaded.
 
 ### Security
 - Tighten principal-grade declaration rules: incomplete or non-comparable scorecard data must emit `WARN-SCORECARD-CALIBRATION-INCOMPLETE` and remain `not-verified`.

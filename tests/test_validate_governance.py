@@ -1478,7 +1478,8 @@ def test_session_state_bootstrap_recovery_script_exists():
         "activeSessionStateFile",
         "workspaces",
         "1.1-Bootstrap",
-        "BLOCKED-BOOTSTRAP-NOT-SATISFIED",
+        "BLOCKED-START-REQUIRED",
+        "\"OutputMode\": \"ARCHITECT\"",
         "--repo-fingerprint",
         "--config-root",
         "--force",
@@ -1531,7 +1532,8 @@ def test_session_state_bootstrap_recovery_script_creates_state_file(tmp_path: Pa
 
     assert ss["Phase"] == "1.1-Bootstrap"
     assert ss["Mode"] == "BLOCKED"
-    assert ss["Next"] == "BLOCKED-BOOTSTRAP-NOT-SATISFIED"
+    assert ss["Next"] == "BLOCKED-START-REQUIRED"
+    assert ss["OutputMode"] == "ARCHITECT"
 
 
 @pytest.mark.governance
@@ -2061,6 +2063,10 @@ def test_canonical_response_envelope_schema_contract_is_defined():
         '"snapshot"',
         '"reason_payload"',
         '"quick_fix_commands"',
+        '"allOf"',
+        '"if"',
+        '"then"',
+        '"const": "blocked"',
     ]
     missing_schema = [t for t in schema_required if t not in schema_text]
     assert not missing_schema, "Response envelope schema missing required fields:\n" + "\n".join(
@@ -2093,6 +2099,48 @@ def test_rulebook_load_evidence_gate_is_fail_closed():
     )
     assert not missing_rules, "rules.md missing fail-closed rulebook evidence gate tokens:\n" + "\n".join(
         [f"- {m}" for m in missing_rules]
+    )
+
+
+@pytest.mark.governance
+def test_top_tier_quality_index_claim_requires_loadable_scope_and_evidence_contract():
+    master = read_text(REPO_ROOT / "master.md")
+    schema = read_text(REPO_ROOT / "SESSION_STATE_SCHEMA.md")
+
+    required_master = [
+        "QUALITY_INDEX.md",
+        "CONFLICT_RESOLUTION.md",
+        "Top-tier load evidence obligation (binding):",
+        "SESSION_STATE.RulebookLoadEvidence.top_tier",
+    ]
+    required_schema = [
+        "RulebookLoadEvidence:",
+        "top_tier:",
+        "quality_index",
+        "conflict_resolution",
+    ]
+    missing_master = [t for t in required_master if t not in master]
+    missing_schema = [t for t in required_schema if t not in schema]
+
+    assert not missing_master, "master.md missing top-tier load evidence contract tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_master]
+    )
+    assert not missing_schema, "SESSION_STATE_SCHEMA.md missing top-tier evidence shape tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_schema]
+    )
+
+
+@pytest.mark.governance
+def test_conflict_resolution_p_levels_are_classifier_not_second_precedence_model():
+    conflict = read_text(REPO_ROOT / "CONFLICT_RESOLUTION.md")
+    required = [
+        "## Mapping to master precedence (binding)",
+        "Canonical governance precedence remains defined in `master.md`",
+        "P-levels MUST NOT be interpreted as a second precedence model",
+    ]
+    missing = [t for t in required if t not in conflict]
+    assert not missing, "CONFLICT_RESOLUTION.md missing precedence-mapping guard tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing]
     )
 
 

@@ -142,5 +142,22 @@
       "additionalProperties": true
     }
   },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "blocked"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "reason_payload",
+          "quick_fix_commands"
+        ]
+      }
+    }
+  ],
   "additionalProperties": true
 }
