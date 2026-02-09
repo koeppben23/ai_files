@@ -97,11 +97,14 @@ def session_state_template(repo_fingerprint: str, repo_name: str | None) -> dict
     repository = repo_name.strip() if isinstance(repo_name, str) and repo_name.strip() else repo_fingerprint
     return {
         "SESSION_STATE": {
+            "session_state_version": 1,
+            "ruleset_hash": "deferred",
             "Phase": "1.1-Bootstrap",
             "Mode": "BLOCKED",
             "ConfidenceLevel": 0,
             "Next": "BLOCKED-START-REQUIRED",
             "OutputMode": "ARCHITECT",
+            "DecisionSurface": {},
             "Bootstrap": {
                 "Present": False,
                 "Satisfied": False,

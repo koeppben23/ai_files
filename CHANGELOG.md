@@ -80,6 +80,7 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
 - Require a terminal `NEXT_STEP: <SESSION_STATE.Next>` line after every `SESSION_STATE` output, and codify this in `master.md` + `SESSION_STATE_SCHEMA.md` with governance tests.
 - Enforce Conventional naming for assistant-created branches/commits in governance contracts and CI (`master.md`, `rules.md`, `.github/workflows/ci.yml`) including PR branch-name and commit-subject validation.
 - Align bootstrap template state with canonical output-mode lifecycle (`SESSION_STATE.OutputMode=ARCHITECT`) and canonical start-order blocker (`Next=BLOCKED-START-REQUIRED`).
+- Extend bootstrap session template with canonical state invariants (`session_state_version`, `ruleset_hash`, `DecisionSurface`) required by ARCHITECT-mode/session schema contracts.
 - Tighten response-envelope schema to conditionally require blocker fields (`reason_payload`, `quick_fix_commands`) when `status=blocked`.
 - Strengthen top-tier governance evidence by adding explicit `RulebookLoadEvidence.top_tier.*` expectations and clarifying conflict-model mapping as classifier-only (no second precedence model).
 - Standardize `profiles/rules*.md` operational wrappers with consistent headings (`Intent`, `Scope`, `Activation`, `Phase integration`, `Evidence contract`, `Tooling`, `Examples`, `Troubleshooting`) and normalize quick-block variants to canonical section headings.

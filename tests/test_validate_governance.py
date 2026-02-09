@@ -1477,9 +1477,12 @@ def test_session_state_bootstrap_recovery_script_exists():
         "opencode-session-pointer.v1",
         "activeSessionStateFile",
         "workspaces",
+        "session_state_version",
+        "ruleset_hash",
         "1.1-Bootstrap",
         "BLOCKED-START-REQUIRED",
         "\"OutputMode\": \"ARCHITECT\"",
+        "\"DecisionSurface\": {}",
         "--repo-fingerprint",
         "--config-root",
         "--force",
@@ -1517,10 +1520,14 @@ def test_session_state_bootstrap_recovery_script_creates_state_file(tmp_path: Pa
     ss = data["SESSION_STATE"]
 
     required_keys = [
+        "session_state_version",
+        "ruleset_hash",
         "Phase",
         "Mode",
         "ConfidenceLevel",
         "Next",
+        "OutputMode",
+        "DecisionSurface",
         "Bootstrap",
         "Scope",
         "LoadedRulebooks",
@@ -1534,6 +1541,9 @@ def test_session_state_bootstrap_recovery_script_creates_state_file(tmp_path: Pa
     assert ss["Mode"] == "BLOCKED"
     assert ss["Next"] == "BLOCKED-START-REQUIRED"
     assert ss["OutputMode"] == "ARCHITECT"
+    assert ss["session_state_version"] == 1
+    assert isinstance(ss["ruleset_hash"], str) and ss["ruleset_hash"]
+    assert isinstance(ss["DecisionSurface"], dict)
 
 
 @pytest.mark.governance
