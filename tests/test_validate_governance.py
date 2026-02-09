@@ -44,7 +44,8 @@ def test_stability_sla_is_normative_and_aligned_with_core_contracts():
         "Stability sync note (binding): governance release/readiness decisions MUST also satisfy `STABILITY_SLA.md`.",
         "4. Activated templates/addon rulebooks (manifest-driven)",
         "SUGGEST: ranked profile shortlist with evidence (top 1 marked recommended)",
-        "Detected multiple plausible profiles. Select one:",
+        "Detected multiple plausible profiles. Reply with ONE number:",
+        "0) abort/none",
     ]
     rules_required = [
         "Governance release stability is normatively defined by `STABILITY_SLA.md`",
@@ -52,7 +53,8 @@ def test_stability_sla_is_normative_and_aligned_with_core_contracts():
         "4) activated addon rulebooks (including templates and shared governance add-ons)",
         "Master Prompt > Core Rulebook > Active Profile Rulebook > Activated Addon/Template Rulebooks > Ticket > Repo docs",
         "provide a ranked shortlist of plausible profiles with brief evidence per candidate",
-        "request explicit selection using a single targeted prompt",
+        "request explicit selection using a single targeted numbered prompt",
+        "0=abort/none",
     ]
 
     missing_sla = [token for token in sla_required if token not in sla]
@@ -186,6 +188,7 @@ def test_precedence_ambiguity_and_evidence_mapping_contracts_are_consistent():
         "`${REPO_OVERRIDES_HOME}`",
         "`${OPENCODE_HOME}`",
         "When profile signals are ambiguous, provide a ranked profile shortlist with evidence",
+        "request explicit numbered selection (`1=<recommended> | 2=<alt> | 3=<alt> | 4=fallback-minimum | 0=abort/none`)",
     ]
     schema_required = [
         "`BLOCKED-MISSING-RULEBOOK:<file>`",
@@ -1702,6 +1705,173 @@ def test_start_md_fallback_binding_and_identity_evidence_boundaries_are_fail_clo
     ]
     found = [token for token in forbidden_tokens if token in text]
     assert not found, "start.md still contains legacy fallback-evidence phrasing:\n" + "\n".join([f"- {m}" for m in found])
+
+
+@pytest.mark.governance
+def test_unified_next_action_footer_contract_is_defined_across_core_docs():
+    master = read_text(REPO_ROOT / "master.md")
+    rules = read_text(REPO_ROOT / "rules.md")
+    start = read_text(REPO_ROOT / "start.md")
+
+    master_required = [
+        "#### Unified Next Action Footer (Binding)",
+        "[NEXT-ACTION]",
+        "Status: <normal|degraded|draft|blocked>",
+        "Next: <single concrete next action>",
+        "Why: <one-sentence rationale>",
+        "Command: <exact next command or \"none\">",
+    ]
+    rules_required = [
+        "### 7.3.1 Unified Next Action Footer (Binding)",
+        "[NEXT-ACTION]",
+        "Footer values MUST be consistent with `SESSION_STATE.Mode`, `SESSION_STATE.Next`, and any emitted reason payloads.",
+    ]
+    start_required = [
+        "End every response with `[NEXT-ACTION]` footer (`Status`, `Next`, `Why`, `Command`) per `master.md`.",
+    ]
+
+    missing_master = [t for t in master_required if t not in master]
+    missing_rules = [t for t in rules_required if t not in rules]
+    missing_start = [t for t in start_required if t not in start]
+
+    assert not missing_master, "master.md missing next-action footer tokens:\n" + "\n".join([f"- {m}" for m in missing_master])
+    assert not missing_rules, "rules.md missing next-action footer tokens:\n" + "\n".join([f"- {m}" for m in missing_rules])
+    assert not missing_start, "start.md missing next-action footer tokens:\n" + "\n".join([f"- {m}" for m in missing_start])
+
+
+@pytest.mark.governance
+def test_standard_blocker_envelope_contract_is_defined_across_core_docs():
+    master = read_text(REPO_ROOT / "master.md")
+    rules = read_text(REPO_ROOT / "rules.md")
+    start = read_text(REPO_ROOT / "start.md")
+
+    master_required = [
+        "Machine-readable blocker envelope (mandatory):",
+        '"status": "blocked"',
+        '"reason_code": "BLOCKED-..."',
+        '"missing_evidence": ["..."]',
+        '"recovery_steps": ["..."]',
+        '"next_command": "..."',
+    ]
+    rules_required = [
+        "### 7.3.2 Standard Blocker Output Envelope (Binding)",
+        "`status = blocked`",
+        "`reason_code` (`BLOCKED-*`)",
+        "`missing_evidence` (array)",
+        "`recovery_steps` (array, max 3)",
+        "`next_command` (single actionable command or `none`)",
+        "deterministically ordered (priority-first, then lexicographic)",
+    ]
+    start_required = [
+        "If blocked, include the standard blocker envelope (`status`, `reason_code`, `missing_evidence`, `recovery_steps`, `next_command`).",
+    ]
+
+    missing_master = [t for t in master_required if t not in master]
+    missing_rules = [t for t in rules_required if t not in rules]
+    missing_start = [t for t in start_required if t not in start]
+
+    assert not missing_master, "master.md missing blocker envelope tokens:\n" + "\n".join([f"- {m}" for m in missing_master])
+    assert not missing_rules, "rules.md missing blocker envelope tokens:\n" + "\n".join([f"- {m}" for m in missing_rules])
+    assert not missing_start, "start.md missing blocker envelope tokens:\n" + "\n".join([f"- {m}" for m in missing_start])
+
+
+@pytest.mark.governance
+def test_cold_warm_start_banner_contract_is_defined_across_core_docs():
+    master = read_text(REPO_ROOT / "master.md")
+    rules = read_text(REPO_ROOT / "rules.md")
+    start = read_text(REPO_ROOT / "start.md")
+
+    master_required = [
+        "### 2.4.1 Session Start Mode Banner (Binding)",
+        "[START-MODE] Cold Start | Warm Start - reason:",
+        "`Cold Start` when discovery/cache artifacts are absent or invalid.",
+        "`Warm Start` only when cache/digest/memory artifacts are present and valid",
+    ]
+    rules_required = [
+        "### 7.3.3 Cold/Warm Start Banner (Binding)",
+        "[START-MODE] Cold Start | Warm Start - reason:",
+        "Banner decision MUST be evidence-backed",
+    ]
+    start_required = [
+        "At session start, include `[START-MODE] Cold Start | Warm Start - reason: ...` based on discovery artifact validity evidence.",
+    ]
+
+    missing_master = [t for t in master_required if t not in master]
+    missing_rules = [t for t in rules_required if t not in rules]
+    missing_start = [t for t in start_required if t not in start]
+
+    assert not missing_master, "master.md missing start-mode banner tokens:\n" + "\n".join([f"- {m}" for m in missing_master])
+    assert not missing_rules, "rules.md missing start-mode banner tokens:\n" + "\n".join([f"- {m}" for m in missing_rules])
+    assert not missing_start, "start.md missing start-mode banner tokens:\n" + "\n".join([f"- {m}" for m in missing_start])
+
+
+@pytest.mark.governance
+def test_confidence_impact_snapshot_contract_is_defined_across_core_docs():
+    master = read_text(REPO_ROOT / "master.md")
+    rules = read_text(REPO_ROOT / "rules.md")
+    start = read_text(REPO_ROOT / "start.md")
+
+    master_required = [
+        "#### Confidence + Impact Snapshot (Binding)",
+        "[SNAPSHOT]",
+        "Confidence: <0-100>%",
+        "Risk: <LOW|MEDIUM|HIGH>",
+        "Scope: <repo path/module/component or \"global\">",
+    ]
+    rules_required = [
+        "### 7.3.4 Confidence + Impact Snapshot (Binding)",
+        "[SNAPSHOT]",
+        "Snapshot values MUST be consistent with `SESSION_STATE`",
+    ]
+    start_required = [
+        "Include `[SNAPSHOT]` block (`Confidence`, `Risk`, `Scope`) with values aligned to current `SESSION_STATE`.",
+    ]
+
+    missing_master = [t for t in master_required if t not in master]
+    missing_rules = [t for t in rules_required if t not in rules]
+    missing_start = [t for t in start_required if t not in start]
+
+    assert not missing_master, "master.md missing confidence-impact snapshot tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_master]
+    )
+    assert not missing_rules, "rules.md missing confidence-impact snapshot tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_rules]
+    )
+    assert not missing_start, "start.md missing confidence-impact snapshot tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_start]
+    )
+
+
+@pytest.mark.governance
+def test_quick_fix_commands_contract_is_defined_across_core_docs():
+    master = read_text(REPO_ROOT / "master.md")
+    rules = read_text(REPO_ROOT / "rules.md")
+    start = read_text(REPO_ROOT / "start.md")
+
+    master_required = [
+        "Quick-fix commands (mandatory for blockers):",
+        "QuickFixCommands",
+        "1-3 copy-paste-ready commands",
+        'QuickFixCommands: ["none"]',
+        "Command coherence rule: `[NEXT-ACTION].Command`, blocker `next_command`, and `QuickFixCommands[0]` MUST be identical",
+    ]
+    rules_required = [
+        "### 7.3.5 Quick-Fix Commands for Blockers (Binding)",
+        "`QuickFixCommands` with 1-3 exact copy-paste commands aligned to the active `reason_code`.",
+        'output `QuickFixCommands: ["none"]`.',
+        "Command coherence rule: `[NEXT-ACTION].Command`, blocker `next_command`, and `QuickFixCommands[0]` MUST match exactly",
+    ]
+    start_required = [
+        "If blocked, include `QuickFixCommands` with 1-3 copy-paste commands (or `[\"none\"]` if not command-driven).",
+    ]
+
+    missing_master = [t for t in master_required if t not in master]
+    missing_rules = [t for t in rules_required if t not in rules]
+    missing_start = [t for t in start_required if t not in start]
+
+    assert not missing_master, "master.md missing quick-fix command tokens:\n" + "\n".join([f"- {m}" for m in missing_master])
+    assert not missing_rules, "rules.md missing quick-fix command tokens:\n" + "\n".join([f"- {m}" for m in missing_rules])
+    assert not missing_start, "start.md missing quick-fix command tokens:\n" + "\n".join([f"- {m}" for m in missing_start])
 
 
 @pytest.mark.governance

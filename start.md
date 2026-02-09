@@ -146,7 +146,7 @@ Invocation:
 - Plan-Gates ≠ Evidence-Gates.
 - Missing evidence → BLOCKED (reported, not suppressed).
 - Profile ambiguity → BLOCKED.
-- When profile signals are ambiguous, provide a ranked profile shortlist with evidence and request explicit selection (`<recommended> | <alt> | fallback-minimum`) before activation.
+- When profile signals are ambiguous, provide a ranked profile shortlist with evidence and request explicit numbered selection (`1=<recommended> | 2=<alt> | 3=<alt> | 4=fallback-minimum | 0=abort/none`) before activation.
 
 Rulebook discovery contract (BINDING):
 - The assistant MUST NOT claim `master.md`, `rules.md`, or profile rulebooks are "missing"
@@ -173,6 +173,11 @@ Output requirements:
 - Explicit Gates
 - Explicit DEVIATION reporting
 - No chat-style answers
+- End every response with `[NEXT-ACTION]` footer (`Status`, `Next`, `Why`, `Command`) per `master.md`.
+- If blocked, include the standard blocker envelope (`status`, `reason_code`, `missing_evidence`, `recovery_steps`, `next_command`).
+- At session start, include `[START-MODE] Cold Start | Warm Start - reason: ...` based on discovery artifact validity evidence.
+- Include `[SNAPSHOT]` block (`Confidence`, `Risk`, `Scope`) with values aligned to current `SESSION_STATE`.
+- If blocked, include `QuickFixCommands` with 1-3 copy-paste commands (or `["none"]` if not command-driven).
 
 This file is the canonical governance entrypoint.
 

@@ -191,7 +191,7 @@ If repo signals are ambiguous (e.g., monorepo with multiple stacks) and no expli
 - conservative mode is planning-only (no code generation, no irreversible tooling decisions, no gate pass claims):
   - declare ambiguity
   - provide a ranked shortlist of plausible profiles with brief evidence per candidate (top suggestion marked recommended)
-  - request explicit selection using a single targeted prompt (`<recommended> | <alt> | fallback-minimum`)
+  - request explicit selection using a single targeted numbered prompt (`1=<recommended> | 2=<alt> | 3=<alt> | 4=fallback-minimum | 0=abort/none`)
   - document assumptions
   - downgrade confidence appropriately per the Master Prompt / confidence rules
 - if the ambiguity materially affects architecture/tooling/gate decisions, the workflow MUST block with `BLOCKED-AMBIGUOUS-PROFILE` until clarified
@@ -621,6 +621,66 @@ When producing code changes:
 - Changes must be minimal, coherent, and review-friendly.
 - Avoid broad rewrites unless required by the ticket and justified with evidence.
 - Prefer explicitness over cleverness.
+
+### 7.3.1 Unified Next Action Footer (Binding)
+
+Each response MUST end with this compact footer shape:
+
+```
+[NEXT-ACTION]
+Status: <normal|degraded|draft|blocked>
+Next: <single concrete next action>
+Why: <one-sentence rationale>
+Command: <exact next command or "none">
+```
+
+Rules:
+- `Next` MUST be singular and actionable.
+- Footer values MUST be consistent with `SESSION_STATE.Mode`, `SESSION_STATE.Next`, and any emitted reason payloads.
+
+### 7.3.2 Standard Blocker Output Envelope (Binding)
+
+If `SESSION_STATE.Mode = BLOCKED`, output MUST include a machine-readable blocker envelope containing:
+- `status = blocked`
+- `reason_code` (`BLOCKED-*`)
+- `missing_evidence` (array)
+- `recovery_steps` (array, max 3)
+- `next_command` (single actionable command or `none`)
+
+No blocked response may omit these fields.
+- `missing_evidence` and `recovery_steps` MUST be deterministically ordered (priority-first, then lexicographic).
+
+### 7.3.3 Cold/Warm Start Banner (Binding)
+
+At session start, output MUST include:
+- `[START-MODE] Cold Start | Warm Start - reason: <one concise reason>`
+
+Rules:
+- Banner decision MUST be evidence-backed (artifact presence/validity, hash match/mismatch).
+- Banner is informational only and MUST NOT bypass any gate or evidence requirement.
+
+### 7.3.4 Confidence + Impact Snapshot (Binding)
+
+Each response MUST include:
+
+```
+[SNAPSHOT]
+Confidence: <0-100>%
+Risk: <LOW|MEDIUM|HIGH>
+Scope: <repo path/module/component or "global">
+```
+
+Rules:
+- Snapshot values MUST be consistent with `SESSION_STATE` (confidence, active risk posture, and scope lock/component scope).
+
+### 7.3.5 Quick-Fix Commands for Blockers (Binding)
+
+When output mode is blocked, include:
+- `QuickFixCommands` with 1-3 exact copy-paste commands aligned to the active `reason_code`.
+- If no command applies, output `QuickFixCommands: ["none"]`.
+- Command coherence rule: `[NEXT-ACTION].Command`, blocker `next_command`, and `QuickFixCommands[0]` MUST match exactly (or all be `none`).
+
+Quick-fix commands are execution guidance only; they do not bypass gates or evidence requirements.
 
 Additional output mode:
  - If `SESSION_STATE.OutputMode = architect-only`, the assistant MUST present a `DecisionSurface` (what you must decide now vs can defer)

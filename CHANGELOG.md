@@ -35,7 +35,9 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
 - Update factory contracts (`new_profile.md`, `new_addon.md`, `PROFILE_ADDON_FACTORY_CONTRACT.json`) for shared-contract modularization defaults.
 
 ### Changed
-- Add guided profile-selection behavior for ambiguous detection: system now emits ranked profile suggestions with evidence and requests explicit selection (`recommended | alternatives | fallback-minimum`) while remaining fail-closed (`BLOCKED-AMBIGUOUS-PROFILE`) until clarified.
+- Add guided profile-selection behavior for ambiguous detection: system now emits ranked profile suggestions with evidence and requests explicit numbered selection (`1..n`, including `fallback-minimum`) while remaining fail-closed (`BLOCKED-AMBIGUOUS-PROFILE`) until clarified.
+- Add UX execution contracts for deterministic operator flow: unified `[NEXT-ACTION]` footer, standardized blocked envelope fields, startup `[START-MODE]` banner, `[SNAPSHOT]` confidence/risk/scope block, and blocker `QuickFixCommands` guidance.
+- Tighten UX contract coherence: add `0=abort/none` profile-choice escape, require command-field consistency across `[NEXT-ACTION]`/`next_command`/`QuickFixCommands[0]`, and require deterministic ordering for `missing_evidence`/`recovery_steps`.
 - Tighten `start.md` evidence boundaries: missing installer-owned `governance.paths.json` now yields explicit blocked fallback semantics (`BLOCKED-MISSING-BINDING-FILE`) and marks computed path payloads as non-evidence debug output.
 - Clarify `start.md` auto-persistence identity semantics so helper output is operational status only and cannot be treated as canonical repo identity evidence.
 - Align governance factory contracts (`new_addon.md`, `new_profile.md`, `PROFILE_ADDON_FACTORY_CONTRACT.json`) with current canonical runtime policy: required surface ownership fields, capability-first manifest guidance, preferred profile filename pattern (`rules_<profile_key>.md`), canonical SESSION_STATE evidence paths, and clarified tracking/audit semantics.

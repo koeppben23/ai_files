@@ -424,7 +424,8 @@ def check_stability_sla_contract(issues: list[str]) -> None:
         "Stability sync note (binding): governance release/readiness decisions MUST also satisfy `STABILITY_SLA.md`.",
         "4. Activated templates/addon rulebooks (manifest-driven)",
         "SUGGEST: ranked profile shortlist with evidence (top 1 marked recommended)",
-        "Detected multiple plausible profiles. Select one",
+        "Detected multiple plausible profiles. Reply with ONE number",
+        "0) abort/none",
     ]
     missing_master = [token for token in master_required_tokens if token not in master]
     if missing_master:
@@ -436,7 +437,8 @@ def check_stability_sla_contract(issues: list[str]) -> None:
         "4) activated addon rulebooks (including templates and shared governance add-ons)",
         "Master Prompt > Core Rulebook > Active Profile Rulebook > Activated Addon/Template Rulebooks > Ticket > Repo docs",
         "provide a ranked shortlist of plausible profiles with brief evidence per candidate",
-        "request explicit selection using a single targeted prompt",
+        "request explicit selection using a single targeted numbered prompt",
+        "0=abort/none",
     ]
     missing_rules = [token for token in rules_required_tokens if token not in rules]
     if missing_rules:
@@ -558,6 +560,172 @@ def check_start_evidence_boundaries(issues: list[str]) -> None:
         issues.append(f"start.md: contains forbidden fallback-evidence tokens {found_forbidden}")
 
 
+def check_unified_next_action_footer_contract(issues: list[str]) -> None:
+    master = read_text(ROOT / "master.md")
+    rules = read_text(ROOT / "rules.md")
+    start = read_text(ROOT / "start.md")
+
+    master_required = [
+        "#### Unified Next Action Footer (Binding)",
+        "[NEXT-ACTION]",
+        "Status: <normal|degraded|draft|blocked>",
+        "Next: <single concrete next action>",
+        "Why: <one-sentence rationale>",
+        "Command: <exact next command or \"none\">",
+    ]
+    rules_required = [
+        "### 7.3.1 Unified Next Action Footer (Binding)",
+        "[NEXT-ACTION]",
+        "Footer values MUST be consistent with `SESSION_STATE.Mode`, `SESSION_STATE.Next`, and any emitted reason payloads.",
+    ]
+    start_required = [
+        "End every response with `[NEXT-ACTION]` footer (`Status`, `Next`, `Why`, `Command`) per `master.md`.",
+    ]
+
+    missing_master = [t for t in master_required if t not in master]
+    missing_rules = [t for t in rules_required if t not in rules]
+    missing_start = [t for t in start_required if t not in start]
+    if missing_master:
+        issues.append(f"master.md: missing unified next-action footer tokens {missing_master}")
+    if missing_rules:
+        issues.append(f"rules.md: missing unified next-action footer tokens {missing_rules}")
+    if missing_start:
+        issues.append(f"start.md: missing unified next-action footer tokens {missing_start}")
+
+
+def check_standard_blocker_envelope_contract(issues: list[str]) -> None:
+    master = read_text(ROOT / "master.md")
+    rules = read_text(ROOT / "rules.md")
+    start = read_text(ROOT / "start.md")
+
+    master_required = [
+        "Machine-readable blocker envelope (mandatory):",
+        '"status": "blocked"',
+        '"reason_code": "BLOCKED-..."',
+        '"missing_evidence": ["..."]',
+        '"recovery_steps": ["..."]',
+        '"next_command": "..."',
+    ]
+    rules_required = [
+        "### 7.3.2 Standard Blocker Output Envelope (Binding)",
+        "`status = blocked`",
+        "`reason_code` (`BLOCKED-*`)",
+        "`missing_evidence` (array)",
+        "`recovery_steps` (array, max 3)",
+        "`next_command` (single actionable command or `none`)",
+        "deterministically ordered (priority-first, then lexicographic)",
+    ]
+    start_required = [
+        "If blocked, include the standard blocker envelope (`status`, `reason_code`, `missing_evidence`, `recovery_steps`, `next_command`).",
+    ]
+
+    missing_master = [t for t in master_required if t not in master]
+    missing_rules = [t for t in rules_required if t not in rules]
+    missing_start = [t for t in start_required if t not in start]
+    if missing_master:
+        issues.append(f"master.md: missing blocker envelope tokens {missing_master}")
+    if missing_rules:
+        issues.append(f"rules.md: missing blocker envelope tokens {missing_rules}")
+    if missing_start:
+        issues.append(f"start.md: missing blocker envelope tokens {missing_start}")
+
+
+def check_start_mode_banner_contract(issues: list[str]) -> None:
+    master = read_text(ROOT / "master.md")
+    rules = read_text(ROOT / "rules.md")
+    start = read_text(ROOT / "start.md")
+
+    master_required = [
+        "### 2.4.1 Session Start Mode Banner (Binding)",
+        "[START-MODE] Cold Start | Warm Start - reason:",
+        "`Cold Start` when discovery/cache artifacts are absent or invalid.",
+        "`Warm Start` only when cache/digest/memory artifacts are present and valid",
+    ]
+    rules_required = [
+        "### 7.3.3 Cold/Warm Start Banner (Binding)",
+        "[START-MODE] Cold Start | Warm Start - reason:",
+        "Banner decision MUST be evidence-backed",
+    ]
+    start_required = [
+        "At session start, include `[START-MODE] Cold Start | Warm Start - reason: ...` based on discovery artifact validity evidence.",
+    ]
+
+    missing_master = [t for t in master_required if t not in master]
+    missing_rules = [t for t in rules_required if t not in rules]
+    missing_start = [t for t in start_required if t not in start]
+    if missing_master:
+        issues.append(f"master.md: missing start-mode banner tokens {missing_master}")
+    if missing_rules:
+        issues.append(f"rules.md: missing start-mode banner tokens {missing_rules}")
+    if missing_start:
+        issues.append(f"start.md: missing start-mode banner tokens {missing_start}")
+
+
+def check_confidence_impact_snapshot_contract(issues: list[str]) -> None:
+    master = read_text(ROOT / "master.md")
+    rules = read_text(ROOT / "rules.md")
+    start = read_text(ROOT / "start.md")
+
+    master_required = [
+        "#### Confidence + Impact Snapshot (Binding)",
+        "[SNAPSHOT]",
+        "Confidence: <0-100>%",
+        "Risk: <LOW|MEDIUM|HIGH>",
+        "Scope: <repo path/module/component or \"global\">",
+    ]
+    rules_required = [
+        "### 7.3.4 Confidence + Impact Snapshot (Binding)",
+        "[SNAPSHOT]",
+        "Snapshot values MUST be consistent with `SESSION_STATE`",
+    ]
+    start_required = [
+        "Include `[SNAPSHOT]` block (`Confidence`, `Risk`, `Scope`) with values aligned to current `SESSION_STATE`.",
+    ]
+
+    missing_master = [t for t in master_required if t not in master]
+    missing_rules = [t for t in rules_required if t not in rules]
+    missing_start = [t for t in start_required if t not in start]
+    if missing_master:
+        issues.append(f"master.md: missing confidence-impact snapshot tokens {missing_master}")
+    if missing_rules:
+        issues.append(f"rules.md: missing confidence-impact snapshot tokens {missing_rules}")
+    if missing_start:
+        issues.append(f"start.md: missing confidence-impact snapshot tokens {missing_start}")
+
+
+def check_quick_fix_commands_contract(issues: list[str]) -> None:
+    master = read_text(ROOT / "master.md")
+    rules = read_text(ROOT / "rules.md")
+    start = read_text(ROOT / "start.md")
+
+    master_required = [
+        "Quick-fix commands (mandatory for blockers):",
+        "QuickFixCommands",
+        "1-3 copy-paste-ready commands",
+        'QuickFixCommands: ["none"]',
+        "Command coherence rule: `[NEXT-ACTION].Command`, blocker `next_command`, and `QuickFixCommands[0]` MUST be identical",
+    ]
+    rules_required = [
+        "### 7.3.5 Quick-Fix Commands for Blockers (Binding)",
+        "`QuickFixCommands` with 1-3 exact copy-paste commands aligned to the active `reason_code`.",
+        'output `QuickFixCommands: ["none"]`.',
+        "Command coherence rule: `[NEXT-ACTION].Command`, blocker `next_command`, and `QuickFixCommands[0]` MUST match exactly",
+    ]
+    start_required = [
+        "If blocked, include `QuickFixCommands` with 1-3 copy-paste commands (or `[\"none\"]` if not command-driven).",
+    ]
+
+    missing_master = [t for t in master_required if t not in master]
+    missing_rules = [t for t in rules_required if t not in rules]
+    missing_start = [t for t in start_required if t not in start]
+    if missing_master:
+        issues.append(f"master.md: missing quick-fix command tokens {missing_master}")
+    if missing_rules:
+        issues.append(f"rules.md: missing quick-fix command tokens {missing_rules}")
+    if missing_start:
+        issues.append(f"start.md: missing quick-fix command tokens {missing_start}")
+
+
 def main() -> int:
     issues: list[str] = []
     check_master_priority_uniqueness(issues)
@@ -569,6 +737,11 @@ def main() -> int:
     check_factory_contract_alignment(issues)
     check_diagnostics_reason_contract_alignment(issues)
     check_start_evidence_boundaries(issues)
+    check_unified_next_action_footer_contract(issues)
+    check_standard_blocker_envelope_contract(issues)
+    check_start_mode_banner_contract(issues)
+    check_confidence_impact_snapshot_contract(issues)
+    check_quick_fix_commands_contract(issues)
 
     if issues:
         print("Governance lint FAILED:")

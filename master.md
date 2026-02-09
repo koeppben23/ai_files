@@ -512,7 +512,7 @@ Missing top-tier files behavior (binding):
             SESSION_STATE.ProfileSource = "ambiguous"
             LIST: scoped_profiles with paths + scope note
             SUGGEST: ranked profile shortlist with evidence (top 1 marked recommended)
-            PROMPT: "Detected multiple plausible profiles. Select one: <recommended_profile> (recommended) | <alt_1> | <alt_2> | fallback-minimum"
+            PROMPT: "Detected multiple plausible profiles. Reply with ONE number: 1) <recommended_profile> (recommended) 2) <alt_1> 3) <alt_2> 4) fallback-minimum 0) abort/none"
             REQUEST: user clarification
             Mode = BLOCKED
             Next = "BLOCKED-AMBIGUOUS-PROFILE"
@@ -521,7 +521,7 @@ Missing top-tier files behavior (binding):
           SESSION_STATE.ProfileSource = "ambiguous"
           LIST: all found profiles with paths
           SUGGEST: ranked profile shortlist with evidence (top 1 marked recommended)
-          PROMPT: "Detected multiple plausible profiles. Select one: <recommended_profile> (recommended) | <alt_1> | <alt_2> | fallback-minimum"
+          PROMPT: "Detected multiple plausible profiles. Reply with ONE number: 1) <recommended_profile> (recommended) 2) <alt_1> 3) <alt_2> 4) fallback-minimum 0) abort/none"
           REQUEST: user clarification
           Mode = BLOCKED
           Next = "BLOCKED-AMBIGUOUS-PROFILE"
@@ -952,6 +952,32 @@ Recovery steps:
 Resume pointer: <exact Next pointer, e.g., "Phase 4 — Step 0 (Initialization)" >
 ```
 
+**Machine-readable blocker envelope (mandatory):**
+
+For every `Mode = BLOCKED` response, include a compact machine-readable payload:
+
+```json
+{
+  "status": "blocked",
+  "reason_code": "BLOCKED-...",
+  "missing_evidence": ["..."],
+  "recovery_steps": ["..."],
+  "next_command": "..."
+}
+```
+
+Rules:
+- `reason_code` MUST match canonical prefix policy (`BLOCKED-*`).
+- `recovery_steps` MUST be concrete and capped to 3 steps.
+- `next_command` MUST be a single actionable command (or `none` if not command-driven).
+- `missing_evidence` and `recovery_steps` MUST be deterministically ordered (priority-first, then lexicographic).
+
+**Quick-fix commands (mandatory for blockers):**
+- Blocked responses MUST include a `QuickFixCommands` list with 1-3 copy-paste-ready commands.
+- Commands MUST correspond to the same blocker context (`reason_code`) and recovery steps.
+- If no command is applicable, emit `QuickFixCommands: ["none"]`.
+- Command coherence rule: `[NEXT-ACTION].Command`, blocker `next_command`, and `QuickFixCommands[0]` MUST be identical; if no command-driven recovery exists, all three MUST be `none`.
+
 **Standard BLOCKED reasons + required input (binding):**
 
 - `BLOCKED-MISSING-CORE-RULES`:
@@ -1051,6 +1077,39 @@ Rules:
 - Once the required input is provided, the assistant MUST re-run only the minimal necessary step (e.g., Phase 1.3/1.4 load) and then resume.
 - BLOCKED/WARN/NOT_VERIFIED outputs MUST include `SESSION_STATE.Diagnostics.ReasonPayloads` entries for every emitted reason code.
 
+#### Unified Next Action Footer (Binding)
+
+Every assistant response MUST end with a compact, deterministic footer block:
+
+```
+[NEXT-ACTION]
+Status: <normal|degraded|draft|blocked>
+Next: <single concrete next action>
+Why: <one-sentence rationale>
+Command: <exact next command or "none">
+```
+
+Rules:
+- `Next` MUST be singular (no multi-step chain in one line).
+- If mode is `BLOCKED`, `Status` MUST be `blocked` and `Command` MUST match recovery guidance.
+- Footer content MUST align with `SESSION_STATE.Next` and emitted reason payloads.
+
+#### Confidence + Impact Snapshot (Binding)
+
+Every response MUST include a compact status snapshot block:
+
+```
+[SNAPSHOT]
+Confidence: <0-100>%
+Risk: <LOW|MEDIUM|HIGH>
+Scope: <repo path/module/component or "global">
+```
+
+Rules:
+- `Confidence` MUST match (or be derivable from) `SESSION_STATE.ConfidenceLevel`.
+- `Risk` MUST align with active risk-tier semantics and current gate posture.
+- `Scope` MUST reflect approved component scope (`ComponentScopePaths`) when present.
+
 #### Definition: Explicit gates (Auto-Advance stops)
 
 An explicit gate is a decision point where the assistant does not automatically transition
@@ -1088,6 +1147,17 @@ This means:
 * Phase 2 (Repository discovery) is executed immediately if a repository is provided
 * Phase 3A/3B are executed immediately if API artifacts are provided
 * Phase 4 (Ticket execution) is executed immediately if a ticket is provided
+
+### 2.4.1 Session Start Mode Banner (Binding)
+
+At session start, the assistant MUST emit a one-line start banner before deeper phase output:
+
+`[START-MODE] Cold Start | Warm Start - reason: <one concise reason>`
+
+Rules:
+- `Cold Start` when discovery/cache artifacts are absent or invalid.
+- `Warm Start` only when cache/digest/memory artifacts are present and valid per `master.md` invariants.
+- Banner reason MUST reference concrete evidence (e.g., cache hash match/mismatch, artifact presence).
 
 ### 2.5 Default Decision Policies (DDP) — Reduce Cognitive Load (Binding)
 
