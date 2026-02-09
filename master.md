@@ -496,9 +496,9 @@ Missing top-tier files behavior (binding):
        LOG: "Auto-selected profile: {ActiveProfile} (only rulebook found)"
        LOAD: found_profiles[0]
        
-     ELSIF found_profiles.count > 1:
-       # Monorepo-safe refinement (assistive only):
-       # If ComponentScopePaths is set, prefer profiles closest to that scope.
+      ELSIF found_profiles.count > 1:
+        # Monorepo-safe refinement (assistive only):
+        # If ComponentScopePaths is set, prefer profiles closest to that scope.
        IF SESSION_STATE.ComponentScopePaths is set:
          scoped_profiles = filter_profiles_by_scope_proximity(found_profiles, SESSION_STATE.ComponentScopePaths)
          
@@ -508,27 +508,32 @@ Missing top-tier files behavior (binding):
            SESSION_STATE.ProfileEvidence = scoped_profiles[0].path + " | scope=" + join(SESSION_STATE.ComponentScopePaths, ",")
            LOG: "Scope-filtered profile: {ActiveProfile}"
            LOAD: scoped_profiles[0]
-         ELSE:
-           SESSION_STATE.ProfileSource = "ambiguous"
-           LIST: scoped_profiles with paths + scope note
-           REQUEST: user clarification
-           Mode = BLOCKED
-           Next = "BLOCKED-AMBIGUOUS-PROFILE"
-           BLOCKED until profile specified
-       ELSE:
-         SESSION_STATE.ProfileSource = "ambiguous"
-         LIST: all found profiles with paths
-         REQUEST: user clarification
-         Mode = BLOCKED
-         Next = "BLOCKED-AMBIGUOUS-PROFILE"
-         BLOCKED until profile specified
+          ELSE:
+            SESSION_STATE.ProfileSource = "ambiguous"
+            LIST: scoped_profiles with paths + scope note
+            SUGGEST: ranked profile shortlist with evidence (top 1 marked recommended)
+            PROMPT: "Detected multiple plausible profiles. Select one: <recommended_profile> (recommended) | <alt_1> | <alt_2> | fallback-minimum"
+            REQUEST: user clarification
+            Mode = BLOCKED
+            Next = "BLOCKED-AMBIGUOUS-PROFILE"
+            BLOCKED until profile specified
+        ELSE:
+          SESSION_STATE.ProfileSource = "ambiguous"
+          LIST: all found profiles with paths
+          SUGGEST: ranked profile shortlist with evidence (top 1 marked recommended)
+          PROMPT: "Detected multiple plausible profiles. Select one: <recommended_profile> (recommended) | <alt_1> | <alt_2> | fallback-minimum"
+          REQUEST: user clarification
+          Mode = BLOCKED
+          Next = "BLOCKED-AMBIGUOUS-PROFILE"
+          BLOCKED until profile specified
        
-     ELSE:
-       # No profile rulebooks found
-       IF repo has stack indicators (pom.xml, package.json, etc.):
-         ATTEMPT: fallback detection per rules.md Section 4.3
-       ELSE:
-         PROCEED: planning-only mode (no code generation)
+      ELSE:
+        # No profile rulebooks found
+        IF repo has stack indicators (pom.xml, package.json, etc.):
+          ATTEMPT: fallback detection per rules.md Section 4.3
+          SUGGEST: top inferred profile from repo indicators with evidence summary; ask explicit confirmation before activation
+        ELSE:
+          PROCEED: planning-only mode (no code generation)
    ```
 
 3. **Repo-based detection** (fallback if no rulebooks found)

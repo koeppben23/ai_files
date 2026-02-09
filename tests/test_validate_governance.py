@@ -43,12 +43,16 @@ def test_stability_sla_is_normative_and_aligned_with_core_contracts():
         "`STABILITY_SLA.md` is the normative Go/No-Go contract for governance releases.",
         "Stability sync note (binding): governance release/readiness decisions MUST also satisfy `STABILITY_SLA.md`.",
         "4. Activated templates/addon rulebooks (manifest-driven)",
+        "SUGGEST: ranked profile shortlist with evidence (top 1 marked recommended)",
+        "Detected multiple plausible profiles. Select one:",
     ]
     rules_required = [
         "Governance release stability is normatively defined by `STABILITY_SLA.md`",
         "Release/readiness decisions MUST satisfy `STABILITY_SLA.md` invariants; conflicts are resolved fail-closed.",
         "4) activated addon rulebooks (including templates and shared governance add-ons)",
         "Master Prompt > Core Rulebook > Active Profile Rulebook > Activated Addon/Template Rulebooks > Ticket > Repo docs",
+        "provide a ranked shortlist of plausible profiles with brief evidence per candidate",
+        "request explicit selection using a single targeted prompt",
     ]
 
     missing_sla = [token for token in sla_required if token not in sla]
@@ -181,6 +185,7 @@ def test_precedence_ambiguity_and_evidence_mapping_contracts_are_consistent():
         "Runtime resolution scope note (binding):",
         "`${REPO_OVERRIDES_HOME}`",
         "`${OPENCODE_HOME}`",
+        "When profile signals are ambiguous, provide a ranked profile shortlist with evidence",
     ]
     schema_required = [
         "`BLOCKED-MISSING-RULEBOOK:<file>`",
