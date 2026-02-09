@@ -1483,6 +1483,8 @@ def test_session_state_bootstrap_recovery_script_exists():
         "BLOCKED-START-REQUIRED",
         "\"OutputMode\": \"ARCHITECT\"",
         "\"DecisionSurface\": {}",
+        "\"quality_index\": \"${COMMANDS_HOME}/QUALITY_INDEX.md\"",
+        "\"conflict_resolution\": \"${COMMANDS_HOME}/CONFLICT_RESOLUTION.md\"",
         "--repo-fingerprint",
         "--config-root",
         "--force",
@@ -1544,6 +1546,10 @@ def test_session_state_bootstrap_recovery_script_creates_state_file(tmp_path: Pa
     assert ss["session_state_version"] == 1
     assert isinstance(ss["ruleset_hash"], str) and ss["ruleset_hash"]
     assert isinstance(ss["DecisionSurface"], dict)
+    rle = ss["RulebookLoadEvidence"]
+    assert isinstance(rle.get("top_tier"), dict)
+    assert rle["top_tier"].get("quality_index") == "${COMMANDS_HOME}/QUALITY_INDEX.md"
+    assert rle["top_tier"].get("conflict_resolution") == "${COMMANDS_HOME}/CONFLICT_RESOLUTION.md"
 
 
 @pytest.mark.governance
@@ -2137,6 +2143,19 @@ def test_top_tier_quality_index_claim_requires_loadable_scope_and_evidence_contr
     )
     assert not missing_schema, "SESSION_STATE_SCHEMA.md missing top-tier evidence shape tokens:\n" + "\n".join(
         [f"- {m}" for m in missing_schema]
+    )
+
+
+@pytest.mark.governance
+def test_phase4_missing_quality_index_is_fail_closed():
+    master = read_text(REPO_ROOT / "master.md")
+    required = [
+        "In Phase 4+ (code/evidence/gates), unresolved top-tier files MUST block with `BLOCKED-MISSING-RULEBOOK:<file>`.",
+        "QUALITY_INDEX.md",
+    ]
+    missing = [t for t in required if t not in master]
+    assert not missing, "master.md missing fail-closed top-tier blocking tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing]
     )
 
 

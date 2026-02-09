@@ -124,6 +124,10 @@ def session_state_template(repo_fingerprint: str, repo_name: str | None) -> dict
             },
             "AddonsEvidence": {},
             "RulebookLoadEvidence": {
+                "top_tier": {
+                    "quality_index": "${COMMANDS_HOME}/QUALITY_INDEX.md",
+                    "conflict_resolution": "${COMMANDS_HOME}/CONFLICT_RESOLUTION.md",
+                },
                 "core": "deferred",
                 "profile": "deferred",
                 "templates": "deferred",
