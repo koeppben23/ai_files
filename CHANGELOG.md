@@ -85,6 +85,7 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
 - Strengthen top-tier governance evidence by adding explicit `RulebookLoadEvidence.top_tier.*` expectations and clarifying conflict-model mapping as classifier-only (no second precedence model).
 - Ensure bootstrap SESSION_STATE now seeds `RulebookLoadEvidence.top_tier` with canonical `QUALITY_INDEX.md` and `CONFLICT_RESOLUTION.md` load-evidence pointers.
 - Add governance regression coverage for fail-closed Phase-4 behavior when top-tier rulebooks are unresolved (`BLOCKED-MISSING-RULEBOOK:<file>` contract token).
+- Add deterministic audit-to-canonical reason bridge tooling (`diagnostics/map_audit_to_canonical.py`) with canonical mapping source (`diagnostics/AUDIT_REASON_CANONICAL_MAP.json`) and strict-unmapped mode.
 - Standardize `profiles/rules*.md` operational wrappers with consistent headings (`Intent`, `Scope`, `Activation`, `Phase integration`, `Evidence contract`, `Tooling`, `Examples`, `Troubleshooting`) and normalize quick-block variants to canonical section headings.
 - Replace fragile `rules.md Section 4.6` references with stable anchor references (`RULEBOOK-PRECEDENCE-POLICY`) across profiles, factory templates, master guidance, and governance tests.
 - Canonicalize required-vs-advisory addon behavior as a single fail-closed policy source in `rules.md` anchor `RULEBOOK-PRECEDENCE-POLICY` plus `master.md` addon catalog (local rulebooks now reference, not redefine, blocking semantics).

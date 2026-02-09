@@ -2180,6 +2180,8 @@ def test_audit_reason_keys_are_declared_audit_only_and_not_reason_code_payloads(
         "audit-only diagnostics keys",
         "They are NOT canonical governance `reason_code` values",
         "MUST NOT be written into `SESSION_STATE.Diagnostics.ReasonPayloads.reason_code`",
+        "diagnostics/map_audit_to_canonical.py --input <audit-report.json>",
+        "diagnostics/AUDIT_REASON_CANONICAL_MAP.json",
         "auditReasonKey `BR_MISSING_SESSION_GATE_STATE`",
         "auditReasonKey `BR_MISSING_RULEBOOK_RESOLUTION`",
         "auditReasonKey `BR_SCOPE_ARTIFACT_MISSING`",
