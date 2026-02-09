@@ -124,9 +124,11 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
 - Fix `/start` workspace persistence hook failure semantics to emit canonical blocked payloads (`BLOCKED-WORKSPACE-PERSISTENCE`) and write structured runtime error logs when the helper is missing or fails.
 - Fix bootstrap diagnostics coverage by logging missing backfill helper events (`ERR-WORKSPACE-PERSISTENCE-HOOK-MISSING`) instead of silently skipping.
 - Fix Business Rules inventory read path contract to use canonical `${REPO_BUSINESS_RULES_FILE}` instead of a non-canonical `${CONFIG_ROOT}/${REPO_NAME}/business-rules.md` fallback.
+- Fix workspace persistence helper to auto-materialize `${REPO_BUSINESS_RULES_FILE}` and update `SESSION_STATE.BusinessRules.InventoryFileStatus=written` when Phase 1.5 state is marked as extracted.
 - Remove duplicate local `_pretty` function definition in `scripts/build.py` to keep release artifact logging implementation clean and deterministic.
 - Uninstall now purges installer/runtime-owned `errors-*.jsonl` logs by default (with `--keep-error-logs` opt-out), while preserving non-matching user files.
 - Fix backend-java evidence gate wording to block pass at Phase 5.3/6 when required evidence is missing.
+- Strengthen CI artifact smoke coverage to verify installed diagnostics runtime helpers exist and that `persist_workspace_artifacts.py` executes successfully from the installed payload.
 
 ### Security
 - Tighten principal-grade declaration rules: incomplete or non-comparable scorecard data must emit `WARN-SCORECARD-CALIBRATION-INCOMPLETE` and remain `not-verified`.

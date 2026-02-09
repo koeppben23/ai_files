@@ -1545,10 +1545,12 @@ def test_workspace_persistence_backfill_script_exists_and_defines_required_targe
         "repo-map-digest.md",
         "decision-pack.md",
         "workspace-memory.yaml",
+        "business-rules.md",
         "${REPO_CACHE_FILE}",
         "${REPO_DIGEST_FILE}",
         "${REPO_DECISION_PACK_FILE}",
         "${WORKSPACE_MEMORY_FILE}",
+        "${REPO_BUSINESS_RULES_FILE}",
         "--repo-fingerprint",
         "--repo-root",
     ]
@@ -1638,6 +1640,54 @@ def test_workspace_persistence_backfill_derives_fingerprint_from_repo_root(tmp_p
     assert (workspace / "repo-map-digest.md").exists()
     assert (workspace / "decision-pack.md").exists()
     assert (workspace / "workspace-memory.yaml").exists()
+
+
+@pytest.mark.governance
+def test_workspace_persistence_backfill_writes_business_rules_when_phase15_extracted(tmp_path: Path):
+    script = REPO_ROOT / "diagnostics" / "persist_workspace_artifacts.py"
+    cfg = tmp_path / "opencode-config"
+    repo_fp = "phase15-repo-999999"
+
+    workspace = cfg / "workspaces" / repo_fp
+    workspace.mkdir(parents=True, exist_ok=True)
+    session_file = workspace / "SESSION_STATE.json"
+    session_payload = {
+        "SESSION_STATE": {
+            "Phase": "1.5",
+            "Mode": "NORMAL",
+            "ConfidenceLevel": 85,
+            "Next": "Phase 4",
+            "Scope": {
+                "Repository": "Demo Repo",
+                "RepositoryType": "governance-rulebook-repo",
+                "BusinessRules": "extracted",
+            },
+            "BusinessRules": {
+                "InventoryFileStatus": "write-requested",
+                "InventoryFileMode": "unknown",
+            },
+        }
+    }
+    session_file.write_text(json.dumps(session_payload, indent=2, ensure_ascii=True) + "\n", encoding="utf-8")
+
+    r = run([sys.executable, str(script), "--repo-fingerprint", repo_fp, "--config-root", str(cfg), "--quiet"])
+    assert r.returncode == 0, f"persist_workspace_artifacts.py failed:\nSTDERR:\n{r.stderr}\nSTDOUT:\n{r.stdout}"
+
+    payload = json.loads(r.stdout)
+    actions = payload.get("actions", {})
+    assert actions.get("businessRulesInventory") in {"created", "kept", "overwritten"}
+
+    business_rules = workspace / "business-rules.md"
+    assert business_rules.exists(), "business-rules.md should be written when Phase 1.5 is extracted"
+    text = business_rules.read_text(encoding="utf-8")
+    assert "SchemaVersion: BRINV-1" in text
+    assert "Source: Phase 1.5 Business Rules Discovery" in text
+
+    updated = json.loads(session_file.read_text(encoding="utf-8"))
+    ss = updated["SESSION_STATE"]
+    br = ss.get("BusinessRules", {})
+    assert br.get("InventoryFilePath") == "${REPO_BUSINESS_RULES_FILE}"
+    assert br.get("InventoryFileStatus") == "written"
 
 
 @pytest.mark.governance
