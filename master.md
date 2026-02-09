@@ -985,6 +985,11 @@ Rules:
   - Resume pointer (canonical): Phase 1.3 — Core Rules Activation.
   - Required input: provide the location of `rules.md` OR install it under `${COMMANDS_HOME}/rules.md`.
 
+- `BLOCKED-START-REQUIRED`:
+  - Trigger: `/master` invoked without prior valid `/start` bootstrap evidence for the current repo/session.
+  - Resume pointer (canonical): Phase 0 — Bootstrap (`/start`).
+  - Required input: run `/start` and provide resulting bootstrap evidence/state.
+
 - `BLOCKED-MISSING-PROFILE`:
   - Trigger: Phase 4 requires templates/addons evaluation but `SESSION_STATE.ActiveProfile == ""`.
   - Resume pointer (canonical): Phase 1.2 — Profile Detection.
@@ -994,6 +999,11 @@ Rules:
   - Trigger: more than one profile rulebook is available and no deterministic selection is possible (no explicit user choice, and scope filtering did not yield a single profile).
   - Resume pointer (canonical): Phase 1.2 — Profile Detection.
   - Required input: specify the profile explicitly (e.g., `Profile=backend-java` or `Use rules_backend-java.md`).
+
+- `BLOCKED-MISSING-DECISION`:
+  - Trigger: a decision gate is active but no valid deterministic option set can be produced from current evidence.
+  - Resume pointer (canonical): active decision phase (typically Phase 3A/3B-1 or Phase 5 gate).
+  - Required input: provide the minimal missing decision input/evidence to construct a valid option set.
 
 - `BLOCKED-MISSING-TEMPLATES`:
   - Trigger: active profile mandates templates but template rulebook cannot be resolved/loaded.
@@ -1159,6 +1169,31 @@ Rules:
 - `Warm Start` only when cache/digest/memory artifacts are present and valid per `master.md` invariants.
 - Banner reason MUST reference concrete evidence (e.g., cache hash match/mismatch, artifact presence).
 
+### 2.4.2 Architect-Only Autopilot Lifecycle (Binding)
+
+Operator lifecycle (canonical):
+1) `/start` -> bootstrap/path contract + workspace persistence checks
+2) `/master` -> architecture/design phase (decision-first)
+3) `Implement now` (optional scope) -> implementation mode
+4) `Ingest evidence` -> verification mode (claim upgrade/reject)
+
+Execution mode enum (binding):
+- `SESSION_STATE.OutputMode = ARCHITECT | IMPLEMENT | VERIFY`
+- Default after `/master` is `ARCHITECT`.
+
+Mode constraints:
+- `ARCHITECT`:
+  - Decision-first output; no full code diffs.
+  - Optional micro-snippets for interface/signature illustration are allowed (<= 30 lines, non-executable by default).
+- `IMPLEMENT`:
+  - Full implementation output is allowed only after explicit operator trigger (`Implement now`).
+- `VERIFY`:
+  - Only evidence reconciliation/claim status updates; no new implementation proposals unless explicitly requested.
+
+Start-order gate (binding):
+- If `/master` is invoked before `/start` evidence/bootstrap is established for the current repo, workflow MUST block with `BLOCKED-START-REQUIRED`.
+- Required recovery command: `/start`.
+
 ### 2.5 Default Decision Policies (DDP) — Reduce Cognitive Load (Binding)
 
 When multiple reasonable implementation/architecture options exist and no explicit preference is given, the assistant MUST apply these defaults (unless they conflict with higher-priority rules):
@@ -1215,7 +1250,7 @@ If anything here conflicts with the schema, the schema wins.
 
 MIN mode SHOULD remain below ~40 lines. FULL mode should remain a digest (no large enumerations).
 
-If `SESSION_STATE.OutputMode = architect-only`, the assistant MUST output a `DecisionSurface` block first and keep the rest limited to decision rationale + evidence pointers.
+If `SESSION_STATE.OutputMode = ARCHITECT`, the assistant MUST output a `DecisionSurface` block first and keep the rest limited to decision rationale + evidence pointers.
 
 Machine-readable diagnostics (binding):
 - When emitting any reason code (`BLOCKED-*`, `WARN-*`, `NOT_VERIFIED-*`), the response MUST include a machine-readable diagnostics payload under `SESSION_STATE.Diagnostics.ReasonPayloads`.
@@ -1243,8 +1278,8 @@ SESSION_STATE:
   Mode: NORMAL | DEGRADED | DRAFT | BLOCKED
   ConfidenceLevel: <0-100>
   Next: "<next-step-identifier>"  # REQUIRED. Canonical continuation pointer (see SESSION_STATE_SCHEMA.md)
-  OutputMode: normal | architect-only
-  DecisionSurface: {}  # REQUIRED when OutputMode=architect-only (see SESSION_STATE_SCHEMA.md)
+  OutputMode: ARCHITECT | IMPLEMENT | VERIFY
+  DecisionSurface: {}  # REQUIRED when OutputMode=ARCHITECT (see SESSION_STATE_SCHEMA.md)
   LoadedRulebooks:
     core: "<path/to/rules.md>"
     profile: "<path/to/profile-rulebook.md>"  # empty string allowed only for planning-only mode

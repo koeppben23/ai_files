@@ -1875,6 +1875,46 @@ def test_quick_fix_commands_contract_is_defined_across_core_docs():
 
 
 @pytest.mark.governance
+def test_architect_autopilot_lifecycle_contract_is_defined_across_core_docs():
+    master = read_text(REPO_ROOT / "master.md")
+    rules = read_text(REPO_ROOT / "rules.md")
+    start = read_text(REPO_ROOT / "start.md")
+
+    master_required = [
+        "### 2.4.2 Architect-Only Autopilot Lifecycle (Binding)",
+        "SESSION_STATE.OutputMode = ARCHITECT | IMPLEMENT | VERIFY",
+        "Default after `/master` is `ARCHITECT`.",
+        "BLOCKED-START-REQUIRED",
+        "BLOCKED-MISSING-DECISION",
+    ]
+    rules_required = [
+        "### 7.3.6 Architect-Only Autopilot Lifecycle (Binding)",
+        "`SESSION_STATE.OutputMode = ARCHITECT | IMPLEMENT | VERIFY`",
+        "`/master` before valid `/start` bootstrap evidence MUST block with `BLOCKED-START-REQUIRED`",
+        "`IMPLEMENT` mode requires explicit operator trigger (`Implement now`).",
+        "`VERIFY` mode is evidence reconciliation only.",
+    ]
+    start_required = [
+        "`/start` is mandatory before `/master` for a repo/session; `/master` without valid `/start` evidence MUST map to `BLOCKED-START-REQUIRED`",
+        "Canonical operator lifecycle: `/start` -> `/master` (ARCHITECT) -> `Implement now` (IMPLEMENT) -> `Ingest evidence` (VERIFY).",
+    ]
+
+    missing_master = [t for t in master_required if t not in master]
+    missing_rules = [t for t in rules_required if t not in rules]
+    missing_start = [t for t in start_required if t not in start]
+
+    assert not missing_master, "master.md missing architect-autopilot lifecycle tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_master]
+    )
+    assert not missing_rules, "rules.md missing architect-autopilot lifecycle tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_rules]
+    )
+    assert not missing_start, "start.md missing architect-autopilot lifecycle tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_start]
+    )
+
+
+@pytest.mark.governance
 def test_audit_reason_keys_are_declared_audit_only_and_not_reason_code_payloads():
     text = read_text(REPO_ROOT / "diagnostics" / "audit.md")
     required_tokens = [
