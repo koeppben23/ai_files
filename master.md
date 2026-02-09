@@ -3358,6 +3358,7 @@ Response and output constraints are defined in `rules.md` (Core Rulebook).
 * Responses must be concise and structured
 * Use code blocks for code snippets
 * Use structured blocks for reports ([PHASE-X-COMPLETE], [GATE-REPORT-PX], etc.)
+* Structured outputs from `/start` onward MUST conform to `diagnostics/RESPONSE_ENVELOPE_SCHEMA.json`
 * Always update SESSION_STATE
 * Always document risks and blockers
 * Never fabricate: If information is missing, state "Not in the provided scope"

@@ -116,6 +116,7 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
 - Strengthen workflow guarantees for shared modularization in installer/e2e tests (shared addons copied, manifest-listed, and advisory-missing behavior verified as non-blocking).
 - Harden profile auto-detection semantics: profile candidate selection now explicitly excludes addon-referenced and shared governance rulebooks.
 - Normalize footer/marker consistency across `profiles/rules*.md` after modularization (remove mid-file end markers, align copyright placement/style).
+- Add a canonical structured response envelope schema contract (`diagnostics/RESPONSE_ENVELOPE_SCHEMA.json`) and wire `/start`/core rulebooks to require schema-aligned output fields.
 
 ### Fixed
 - Extend `persist_workspace_artifacts.py --quiet` blocked output with structured reason fields (`reason_code`, `recovery_steps`, `next_command`) for direct `SESSION_STATE.Diagnostics.ReasonPayloads` integration.
@@ -129,6 +130,8 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
 - Uninstall now purges installer/runtime-owned `errors-*.jsonl` logs by default (with `--keep-error-logs` opt-out), while preserving non-matching user files.
 - Fix backend-java evidence gate wording to block pass at Phase 5.3/6 when required evidence is missing.
 - Strengthen CI artifact smoke coverage to verify installed diagnostics runtime helpers exist and that `persist_workspace_artifacts.py` executes successfully from the installed payload.
+- Add fail-closed governance guards for trusted rulebook discovery roots, canonical addon catalog boundaries, and RulebookLoadEvidence blocking semantics (`BLOCKED-RULEBOOK-EVIDENCE-MISSING`) in lint + governance tests.
+- Add activation-delta regression coverage that deterministically blocks when activation outcome drifts while addon/repo-facts hashes are unchanged (`BLOCKED-ACTIVATION-DELTA-MISMATCH`).
 
 ### Security
 - Tighten principal-grade declaration rules: incomplete or non-comparable scorecard data must emit `WARN-SCORECARD-CALIBRATION-INCOMPLETE` and remain `not-verified`.
