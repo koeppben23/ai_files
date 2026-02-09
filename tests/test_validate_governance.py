@@ -1914,7 +1914,6 @@ def test_architect_autopilot_lifecycle_contract_is_defined_across_core_docs():
     )
 
 
-@pytest.mark.governance
 def test_audit_reason_keys_are_declared_audit_only_and_not_reason_code_payloads():
     text = read_text(REPO_ROOT / "diagnostics" / "audit.md")
     required_tokens = [
