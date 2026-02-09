@@ -12,4 +12,4 @@ capabilities_any:
   - "governance_docs"
 signals:
   any:
-    - file_glob: "**/*"
+    - file_glob: "master.md"

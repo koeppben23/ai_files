@@ -396,3 +396,41 @@ def test_installer_copies_addon_manifests_for_dynamic_activation(tmp_path: Path)
         "Addon manifests missing from INSTALL_MANIFEST.json:\n"
         + "\n".join([f"- {m}" for m in missing_in_manifest])
     )
+
+
+@pytest.mark.installer
+def test_install_distribution_contains_required_normative_files_and_addon_rulebooks(tmp_path: Path):
+    config_root = tmp_path / "opencode-config-dist-completeness"
+    r = run_install(["--force", "--no-backup", "--config-root", str(config_root)])
+    assert r.returncode == 0, f"install failed:\n{r.stderr}\n{r.stdout}"
+
+    commands = _commands_dir(config_root)
+    required_normative = [
+        commands / "master.md",
+        commands / "rules.md",
+        commands / "QUALITY_INDEX.md",
+        commands / "CONFLICT_RESOLUTION.md",
+        commands / "STABILITY_SLA.md",
+        commands / "SESSION_STATE_SCHEMA.md",
+    ]
+    missing_normative = [str(p) for p in required_normative if not p.exists()]
+    assert not missing_normative, "Missing required normative files in commands/ after install:\n" + "\n".join(
+        [f"- {m}" for m in missing_normative]
+    )
+
+    manifests = sorted((commands / "profiles" / "addons").glob("*.addon.yml"))
+    assert manifests, "No addon manifests found under installed commands/profiles/addons"
+
+    missing_rulebooks: list[str] = []
+    for manifest in manifests:
+        text = read_text(manifest)
+        m = re.search(r"^rulebook:\s*([^\s#]+)\s*$", text, flags=re.MULTILINE)
+        assert m, f"Missing 'rulebook' in addon manifest: {manifest.name}"
+        rb = m.group(1).strip()
+        rb_path = (commands / "profiles" / rb) if not rb.startswith("profiles/") else (commands / rb)
+        if not rb_path.exists():
+            missing_rulebooks.append(f"{manifest.name} -> {rb}")
+
+    assert not missing_rulebooks, "Installed addon manifests reference missing rulebooks:\n" + "\n".join(
+        [f"- {m}" for m in missing_rulebooks]
+    )

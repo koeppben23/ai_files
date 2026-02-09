@@ -42,12 +42,10 @@ ALLOWED_CAPABILITIES = {
     "cucumber",
     "cypress",
     "governance_docs",
-    "java",
     "kafka",
     "liquibase",
     "nx",
     "openapi",
-    "spring",
 }
 
 
