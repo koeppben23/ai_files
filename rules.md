@@ -191,7 +191,7 @@ If repo signals are ambiguous (e.g., monorepo with multiple stacks) and no expli
 - conservative mode is planning-only (no code generation, no irreversible tooling decisions, no gate pass claims):
   - declare ambiguity
   - provide a ranked shortlist of plausible profiles with brief evidence per candidate (top suggestion marked recommended)
-  - request explicit selection using a single targeted numbered prompt (`1=<recommended> | 2=<alt> | 3=<alt> | 4=fallback-minimum`)
+  - request explicit selection using a single targeted numbered prompt (`1=<recommended> | 2=<alt> | 3=<alt> | 4=fallback-minimum | 0=abort/none`)
   - document assumptions
   - downgrade confidence appropriately per the Master Prompt / confidence rules
 - if the ambiguity materially affects architecture/tooling/gate decisions, the workflow MUST block with `BLOCKED-AMBIGUOUS-PROFILE` until clarified
@@ -648,6 +648,7 @@ If `SESSION_STATE.Mode = BLOCKED`, output MUST include a machine-readable blocke
 - `next_command` (single actionable command or `none`)
 
 No blocked response may omit these fields.
+- `missing_evidence` and `recovery_steps` MUST be deterministically ordered (priority-first, then lexicographic).
 
 ### 7.3.3 Cold/Warm Start Banner (Binding)
 
@@ -677,6 +678,7 @@ Rules:
 When output mode is blocked, include:
 - `QuickFixCommands` with 1-3 exact copy-paste commands aligned to the active `reason_code`.
 - If no command applies, output `QuickFixCommands: ["none"]`.
+- Command coherence rule: `[NEXT-ACTION].Command`, blocker `next_command`, and `QuickFixCommands[0]` MUST match exactly (or all be `none`).
 
 Quick-fix commands are execution guidance only; they do not bypass gates or evidence requirements.
 

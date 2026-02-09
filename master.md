@@ -512,7 +512,7 @@ Missing top-tier files behavior (binding):
             SESSION_STATE.ProfileSource = "ambiguous"
             LIST: scoped_profiles with paths + scope note
             SUGGEST: ranked profile shortlist with evidence (top 1 marked recommended)
-            PROMPT: "Detected multiple plausible profiles. Reply with ONE number: 1) <recommended_profile> (recommended) 2) <alt_1> 3) <alt_2> 4) fallback-minimum"
+            PROMPT: "Detected multiple plausible profiles. Reply with ONE number: 1) <recommended_profile> (recommended) 2) <alt_1> 3) <alt_2> 4) fallback-minimum 0) abort/none"
             REQUEST: user clarification
             Mode = BLOCKED
             Next = "BLOCKED-AMBIGUOUS-PROFILE"
@@ -521,7 +521,7 @@ Missing top-tier files behavior (binding):
           SESSION_STATE.ProfileSource = "ambiguous"
           LIST: all found profiles with paths
           SUGGEST: ranked profile shortlist with evidence (top 1 marked recommended)
-          PROMPT: "Detected multiple plausible profiles. Reply with ONE number: 1) <recommended_profile> (recommended) 2) <alt_1> 3) <alt_2> 4) fallback-minimum"
+          PROMPT: "Detected multiple plausible profiles. Reply with ONE number: 1) <recommended_profile> (recommended) 2) <alt_1> 3) <alt_2> 4) fallback-minimum 0) abort/none"
           REQUEST: user clarification
           Mode = BLOCKED
           Next = "BLOCKED-AMBIGUOUS-PROFILE"
@@ -970,11 +970,13 @@ Rules:
 - `reason_code` MUST match canonical prefix policy (`BLOCKED-*`).
 - `recovery_steps` MUST be concrete and capped to 3 steps.
 - `next_command` MUST be a single actionable command (or `none` if not command-driven).
+- `missing_evidence` and `recovery_steps` MUST be deterministically ordered (priority-first, then lexicographic).
 
 **Quick-fix commands (mandatory for blockers):**
 - Blocked responses MUST include a `QuickFixCommands` list with 1-3 copy-paste-ready commands.
 - Commands MUST correspond to the same blocker context (`reason_code`) and recovery steps.
 - If no command is applicable, emit `QuickFixCommands: ["none"]`.
+- Command coherence rule: `[NEXT-ACTION].Command`, blocker `next_command`, and `QuickFixCommands[0]` MUST be identical; if no command-driven recovery exists, all three MUST be `none`.
 
 **Standard BLOCKED reasons + required input (binding):**
 

@@ -425,6 +425,7 @@ def check_stability_sla_contract(issues: list[str]) -> None:
         "4. Activated templates/addon rulebooks (manifest-driven)",
         "SUGGEST: ranked profile shortlist with evidence (top 1 marked recommended)",
         "Detected multiple plausible profiles. Reply with ONE number",
+        "0) abort/none",
     ]
     missing_master = [token for token in master_required_tokens if token not in master]
     if missing_master:
@@ -437,6 +438,7 @@ def check_stability_sla_contract(issues: list[str]) -> None:
         "Master Prompt > Core Rulebook > Active Profile Rulebook > Activated Addon/Template Rulebooks > Ticket > Repo docs",
         "provide a ranked shortlist of plausible profiles with brief evidence per candidate",
         "request explicit selection using a single targeted numbered prompt",
+        "0=abort/none",
     ]
     missing_rules = [token for token in rules_required_tokens if token not in rules]
     if missing_rules:
@@ -611,6 +613,7 @@ def check_standard_blocker_envelope_contract(issues: list[str]) -> None:
         "`missing_evidence` (array)",
         "`recovery_steps` (array, max 3)",
         "`next_command` (single actionable command or `none`)",
+        "deterministically ordered (priority-first, then lexicographic)",
     ]
     start_required = [
         "If blocked, include the standard blocker envelope (`status`, `reason_code`, `missing_evidence`, `recovery_steps`, `next_command`).",
@@ -700,11 +703,13 @@ def check_quick_fix_commands_contract(issues: list[str]) -> None:
         "QuickFixCommands",
         "1-3 copy-paste-ready commands",
         'QuickFixCommands: ["none"]',
+        "Command coherence rule: `[NEXT-ACTION].Command`, blocker `next_command`, and `QuickFixCommands[0]` MUST be identical",
     ]
     rules_required = [
         "### 7.3.5 Quick-Fix Commands for Blockers (Binding)",
         "`QuickFixCommands` with 1-3 exact copy-paste commands aligned to the active `reason_code`.",
         'output `QuickFixCommands: ["none"]`.',
+        "Command coherence rule: `[NEXT-ACTION].Command`, blocker `next_command`, and `QuickFixCommands[0]` MUST match exactly",
     ]
     start_required = [
         "If blocked, include `QuickFixCommands` with 1-3 copy-paste commands (or `[\"none\"]` if not command-driven).",

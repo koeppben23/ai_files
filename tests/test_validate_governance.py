@@ -45,6 +45,7 @@ def test_stability_sla_is_normative_and_aligned_with_core_contracts():
         "4. Activated templates/addon rulebooks (manifest-driven)",
         "SUGGEST: ranked profile shortlist with evidence (top 1 marked recommended)",
         "Detected multiple plausible profiles. Reply with ONE number:",
+        "0) abort/none",
     ]
     rules_required = [
         "Governance release stability is normatively defined by `STABILITY_SLA.md`",
@@ -53,6 +54,7 @@ def test_stability_sla_is_normative_and_aligned_with_core_contracts():
         "Master Prompt > Core Rulebook > Active Profile Rulebook > Activated Addon/Template Rulebooks > Ticket > Repo docs",
         "provide a ranked shortlist of plausible profiles with brief evidence per candidate",
         "request explicit selection using a single targeted numbered prompt",
+        "0=abort/none",
     ]
 
     missing_sla = [token for token in sla_required if token not in sla]
@@ -186,7 +188,7 @@ def test_precedence_ambiguity_and_evidence_mapping_contracts_are_consistent():
         "`${REPO_OVERRIDES_HOME}`",
         "`${OPENCODE_HOME}`",
         "When profile signals are ambiguous, provide a ranked profile shortlist with evidence",
-        "request explicit numbered selection (`1=<recommended> | 2=<alt> | 3=<alt> | 4=fallback-minimum`)",
+        "request explicit numbered selection (`1=<recommended> | 2=<alt> | 3=<alt> | 4=fallback-minimum | 0=abort/none`)",
     ]
     schema_required = [
         "`BLOCKED-MISSING-RULEBOOK:<file>`",
@@ -1758,6 +1760,7 @@ def test_standard_blocker_envelope_contract_is_defined_across_core_docs():
         "`missing_evidence` (array)",
         "`recovery_steps` (array, max 3)",
         "`next_command` (single actionable command or `none`)",
+        "deterministically ordered (priority-first, then lexicographic)",
     ]
     start_required = [
         "If blocked, include the standard blocker envelope (`status`, `reason_code`, `missing_evidence`, `recovery_steps`, `next_command`).",
@@ -1850,11 +1853,13 @@ def test_quick_fix_commands_contract_is_defined_across_core_docs():
         "QuickFixCommands",
         "1-3 copy-paste-ready commands",
         'QuickFixCommands: ["none"]',
+        "Command coherence rule: `[NEXT-ACTION].Command`, blocker `next_command`, and `QuickFixCommands[0]` MUST be identical",
     ]
     rules_required = [
         "### 7.3.5 Quick-Fix Commands for Blockers (Binding)",
         "`QuickFixCommands` with 1-3 exact copy-paste commands aligned to the active `reason_code`.",
         'output `QuickFixCommands: ["none"]`.',
+        "Command coherence rule: `[NEXT-ACTION].Command`, blocker `next_command`, and `QuickFixCommands[0]` MUST match exactly",
     ]
     start_required = [
         "If blocked, include `QuickFixCommands` with 1-3 copy-paste commands (or `[\"none\"]` if not command-driven).",
