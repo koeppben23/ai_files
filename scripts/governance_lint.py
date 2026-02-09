@@ -424,7 +424,7 @@ def check_stability_sla_contract(issues: list[str]) -> None:
         "Stability sync note (binding): governance release/readiness decisions MUST also satisfy `STABILITY_SLA.md`.",
         "4. Activated templates/addon rulebooks (manifest-driven)",
         "SUGGEST: ranked profile shortlist with evidence (top 1 marked recommended)",
-        "Detected multiple plausible profiles. Select one",
+        "Detected multiple plausible profiles. Reply with ONE number",
     ]
     missing_master = [token for token in master_required_tokens if token not in master]
     if missing_master:
@@ -436,7 +436,7 @@ def check_stability_sla_contract(issues: list[str]) -> None:
         "4) activated addon rulebooks (including templates and shared governance add-ons)",
         "Master Prompt > Core Rulebook > Active Profile Rulebook > Activated Addon/Template Rulebooks > Ticket > Repo docs",
         "provide a ranked shortlist of plausible profiles with brief evidence per candidate",
-        "request explicit selection using a single targeted prompt",
+        "request explicit selection using a single targeted numbered prompt",
     ]
     missing_rules = [token for token in rules_required_tokens if token not in rules]
     if missing_rules:

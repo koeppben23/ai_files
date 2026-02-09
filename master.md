@@ -512,7 +512,7 @@ Missing top-tier files behavior (binding):
             SESSION_STATE.ProfileSource = "ambiguous"
             LIST: scoped_profiles with paths + scope note
             SUGGEST: ranked profile shortlist with evidence (top 1 marked recommended)
-            PROMPT: "Detected multiple plausible profiles. Select one: <recommended_profile> (recommended) | <alt_1> | <alt_2> | fallback-minimum"
+            PROMPT: "Detected multiple plausible profiles. Reply with ONE number: 1) <recommended_profile> (recommended) 2) <alt_1> 3) <alt_2> 4) fallback-minimum"
             REQUEST: user clarification
             Mode = BLOCKED
             Next = "BLOCKED-AMBIGUOUS-PROFILE"
@@ -521,7 +521,7 @@ Missing top-tier files behavior (binding):
           SESSION_STATE.ProfileSource = "ambiguous"
           LIST: all found profiles with paths
           SUGGEST: ranked profile shortlist with evidence (top 1 marked recommended)
-          PROMPT: "Detected multiple plausible profiles. Select one: <recommended_profile> (recommended) | <alt_1> | <alt_2> | fallback-minimum"
+          PROMPT: "Detected multiple plausible profiles. Reply with ONE number: 1) <recommended_profile> (recommended) 2) <alt_1> 3) <alt_2> 4) fallback-minimum"
           REQUEST: user clarification
           Mode = BLOCKED
           Next = "BLOCKED-AMBIGUOUS-PROFILE"
