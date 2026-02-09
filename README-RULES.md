@@ -6,24 +6,38 @@ This document explains the intent and structure of the rules.
 It does not override or redefine them.
 
 - **Normative system authority and phase gates**  
-  → See `master.md`
+  → See [`master.md`](master.md)
 
 - **Governance release/readiness SLA (normative Go/No-Go)**
-  → See `STABILITY_SLA.md`
+  → See [`STABILITY_SLA.md`](STABILITY_SLA.md)
 
 - **Actual enforceable rules**  
-  → See `rules.md`
+  → See [`rules.md`](rules.md)
 
 - **Context- and stack-specific extensions**  
-  → See `profiles/*`
+  → See [`profiles/`](profiles/)
 
   Addons are discovered declaratively via addon manifests:
-  → See `profiles/addons/*.addon.yml`
+  → See [`profiles/addons/`](profiles/addons/)
 
 - **Operational usage and configuration**  
-  → See `README-OPENCODE.md`
+  → See [`README-OPENCODE.md`](README-OPENCODE.md)
+
+- **Canonical session-state contract**
+  → See [`SESSION_STATE_SCHEMA.md`](SESSION_STATE_SCHEMA.md)
 
 This README is explanatory only.
+
+## 🔎 Quick Navigation (This File)
+
+- [Purpose](#1-purpose)
+- [Mandatory Artifacts](#2-mandatory-artifacts)
+- [Workflow (Collapsed View)](#4-workflow-collapsed-view)
+- [Hybrid Mode](#5-hybrid-mode)
+- [Factory Extension Path](#52-factory-extension-path-profilesaddons)
+- [Output Requirements](#7-output-requirements)
+- [Session State](#10-session-state)
+- [Failure Cases](#11-failure-cases)
 
 Stability note:
 - Canonical precedence is defined once in `master.md` Section 1 (`PRIORITY ORDER`) and mirrored in `rules.md` (`RULEBOOK-PRECEDENCE-POLICY`).
@@ -39,8 +53,8 @@ This document contains **no standalone rules**.
 It only summarizes the requirements defined in **rules.md**.
 When in doubt, **rules.md** and the **Master Prompt** always take precedence.
 
-Conflicts between sources are resolved deterministically via `CONFLICT_RESOLUTION.md`
-(located next to `master.md`).
+Conflicts between sources are resolved deterministically via [`CONFLICT_RESOLUTION.md`](CONFLICT_RESOLUTION.md)
+(located next to [`master.md`](master.md)).
 
 ---
 
