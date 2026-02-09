@@ -1112,7 +1112,7 @@ Interpretation (Binding):
 
 #### Read-before-write behavior (Binding)
 
-If this rule is applicable (OpenCode context) and `${CONFIG_ROOT}/${REPO_NAME}/business-rules.md` exists:
+If this rule is applicable (OpenCode context) and `${REPO_BUSINESS_RULES_FILE}` exists:
 - The assistant MUST load and consult it BEFORE producing a new Phase 1.5 BR register.
 - Loaded content is treated as the current baseline to preserve BR identifiers across sessions.
 - It MUST NOT override higher-rung evidence (see Evidence Ladder):

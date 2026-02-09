@@ -64,6 +64,9 @@ def _should_include_file(p: Path, rel: str) -> bool:
     # Addon manifests are required at runtime for deterministic addon activation/reload.
     if rel.startswith("profiles/addons/") and name.endswith(".addon.yml"):
         return True
+    # Diagnostics runtime helpers are required for /start auto-persistence and error logging.
+    if rel.startswith("diagnostics/") and p.suffix.lower() == ".py":
+        return True
     if p.suffix.lower() in {".md", ".json"}:
         return True
     return False
@@ -72,7 +75,8 @@ def _should_include_file(p: Path, rel: str) -> bool:
 def collect_release_files(repo_root: Path) -> list[Path]:
     """
     Allowlist strategy:
-      - include: install.py, LICENSE*, LICENCE*, *.md, *.json, profiles/addons/*.addon.yml
+      - include: install.py, LICENSE*, LICENCE*, *.md, *.json,
+        profiles/addons/*.addon.yml, diagnostics/*.py
       - exclude: .git, .github, dist, tests, scripts, caches
     Deterministic ordering (sorted by posix relpath).
     """
