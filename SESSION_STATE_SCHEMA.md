@@ -443,6 +443,9 @@ Recommended shape (minimal):
 ```yaml
 SESSION_STATE:
   RulebookLoadEvidence:
+    top_tier:
+      quality_index: "<path | hash | tool-output | user-provided>"
+      conflict_resolution: "<path | hash | tool-output | user-provided>"
     core: "<path | hash | tool-output | user-provided | deferred>"
     profile: "<path | hash | tool-output | user-provided | deferred>"
     templates: "<path | hash | tool-output | user-provided | not-applicable>"
@@ -458,6 +461,9 @@ SESSION_STATE:
   - `LoadedRulebooks.templates`
   - `LoadedRulebooks.addons.*`
   then `RulebookLoadEvidence` MUST be present and MUST include corresponding keys (including addon keys).
+- If Phase 1.1 resolves `QUALITY_INDEX.md` and/or `CONFLICT_RESOLUTION.md`,
+  `RulebookLoadEvidence.top_tier.quality_index` / `RulebookLoadEvidence.top_tier.conflict_resolution`
+  SHOULD be present as canonical load evidence entries.
 - If rulebook load evidence cannot be produced due to host/tool limitations:
   - `Mode = BLOCKED`
   - `Next = BLOCKED-RULEBOOK-EVIDENCE-MISSING`

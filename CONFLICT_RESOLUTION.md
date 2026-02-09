@@ -24,6 +24,13 @@ P6: Preferences, heuristics, stylistic guidance
 - Any overridden lower-priority instruction MUST be explicitly noted,
   including the reason and the governing higher-priority reference.
 
+## Mapping to master precedence (binding)
+
+- Canonical governance precedence remains defined in `master.md` Section 1 (`PRIORITY ORDER`).
+- P-levels in this file are a deterministic conflict classifier and tie-break helper only.
+- P-levels MUST NOT be interpreted as a second precedence model that can override `master.md`.
+- If a P-level decision would conflict with canonical `master.md` precedence, `master.md` wins and the output MUST include a conflict note.
+
 ## Hard vs Soft
 - Hard rules: P0–P3 and any rule marked MUST.
 - Soft rules: SHOULD/MAY guidance and stylistic preferences.

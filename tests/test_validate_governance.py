@@ -2096,6 +2096,48 @@ def test_rulebook_load_evidence_gate_is_fail_closed():
     )
 
 
+@pytest.mark.governance
+def test_top_tier_quality_index_claim_requires_loadable_scope_and_evidence_contract():
+    master = read_text(REPO_ROOT / "master.md")
+    schema = read_text(REPO_ROOT / "SESSION_STATE_SCHEMA.md")
+
+    required_master = [
+        "QUALITY_INDEX.md",
+        "CONFLICT_RESOLUTION.md",
+        "Top-tier load evidence obligation (binding):",
+        "SESSION_STATE.RulebookLoadEvidence.top_tier",
+    ]
+    required_schema = [
+        "RulebookLoadEvidence:",
+        "top_tier:",
+        "quality_index",
+        "conflict_resolution",
+    ]
+    missing_master = [t for t in required_master if t not in master]
+    missing_schema = [t for t in required_schema if t not in schema]
+
+    assert not missing_master, "master.md missing top-tier load evidence contract tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_master]
+    )
+    assert not missing_schema, "SESSION_STATE_SCHEMA.md missing top-tier evidence shape tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_schema]
+    )
+
+
+@pytest.mark.governance
+def test_conflict_resolution_p_levels_are_classifier_not_second_precedence_model():
+    conflict = read_text(REPO_ROOT / "CONFLICT_RESOLUTION.md")
+    required = [
+        "## Mapping to master precedence (binding)",
+        "Canonical governance precedence remains defined in `master.md`",
+        "P-levels MUST NOT be interpreted as a second precedence model",
+    ]
+    missing = [t for t in required if t not in conflict]
+    assert not missing, "CONFLICT_RESOLUTION.md missing precedence-mapping guard tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing]
+    )
+
+
 def test_audit_reason_keys_are_declared_audit_only_and_not_reason_code_payloads():
     text = read_text(REPO_ROOT / "diagnostics" / "audit.md")
     required_tokens = [

@@ -453,6 +453,23 @@ def check_rulebook_load_evidence_fail_closed_contract(issues: list[str]) -> None
         issues.append(f"rules.md: missing rulebook evidence fail-closed tokens {missing_rules}")
 
 
+def check_response_contract_validator_presence(issues: list[str]) -> None:
+    script = ROOT / "scripts" / "validate_response_contract.py"
+    if not script.exists():
+        issues.append("scripts/validate_response_contract.py: missing response contract validator")
+        return
+    text = read_text(script)
+    required = [
+        "reason_payload",
+        "quick_fix_commands",
+        "command coherence violated",
+        "RulebookLoadEvidence must be present",
+    ]
+    missing = [t for t in required if t not in text]
+    if missing:
+        issues.append(f"scripts/validate_response_contract.py: missing validator tokens {missing}")
+
+
 def check_required_addon_references(issues: list[str]) -> None:
     manifests = sorted((ROOT / "profiles" / "addons").glob("*.addon.yml"))
     for manifest in manifests:
@@ -920,6 +937,7 @@ def main() -> int:
     check_addon_catalog_boundary_contract(issues)
     check_response_envelope_schema_contract(issues)
     check_rulebook_load_evidence_fail_closed_contract(issues)
+    check_response_contract_validator_presence(issues)
 
     if issues:
         print("Governance lint FAILED:")
