@@ -28,6 +28,17 @@ Use the following guide to navigate responsibilities and authority:
 
 This README is **descriptive only** and must not be interpreted as normative.
 
+## 🔎 Quick Navigation (This File)
+
+- [Quick Start Matrix](#quick-start-matrix-operational)
+- [Installation & Paths](#installation--paths-descriptive-source-of-truth-is-mastermd)
+- [Installer](#installer-optional-recommended-for-deterministic-setups)
+- [Governance Stability Highlights](#governance-stability-highlights-current-baseline)
+- [OpenCode Configuration](#opencode-local-configuration-required-for-repo-aware-mode)
+- [Commands & Session Control](#5-commands--session-control-opencode)
+- [Role of Each File](#6-role-of-each-file)
+- [Who Is This System For?](#7-who-is-this-system-for)
+
 This repository documents a **multi-layer governance and prompt system** for AI-assisted software development, designed for **Lead/Staff-level quality**, traceability, and review robustness.
 
 The system is built to work efficiently and token-aware in both:

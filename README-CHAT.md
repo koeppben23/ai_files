@@ -22,6 +22,17 @@ It does **not** define system behavior or rules.
 
 This README is **descriptive only** and applies **only to chat-only usage**.
 
+## 🔎 Quick Navigation (This File)
+
+- [Chat Mode Workflow](#chat-mode-workflow-operational)
+- [Factory Workflow in Chat Mode](#factory-workflow-in-chat-mode-profilesaddons)
+- [Minimal Required Context](#3-minimal-required-context)
+- [Scope & Evidence Rules](#6-scope--evidence-rules-critical)
+- [Test Quality Expectations](#8-test-quality-expectations)
+- [Session State in Chat-Only Mode](#9-session-state-in-chat-only-mode)
+- [Common Pitfalls](#10-common-pitfalls-avoid-these)
+- [Best Practices](#11-best-practices)
+
 This document explains how to use the **Governance & Prompt System**
 in **pure chat environments** (ChatGPT, Claude, etc.),
 **without OpenCode or repo indexing**.

@@ -25,6 +25,16 @@ It does not define system behavior.
 
 This README is descriptive and subordinate to all normative files.
 
+## 🔎 Quick Navigation (This File)
+
+- [Cold Start vs Warm Start](#cold-start-vs-warm-start-repo-aware-mode)
+- [Factory Workflow](#factory-workflow-for-new-profilesaddons-operational)
+- [Session State Bootstrap Recovery](#session-state-bootstrap-recovery-operational)
+- [Installation Layout](#installation-layout-descriptive-follow-mastermd-if-in-doubt)
+- [OpenCode Commands & Session Control](#5-opencode-commands--session-control)
+- [File Responsibilities](#6-file-responsibilities-quick-reference)
+- [Intended Audience](#7-intended-audience)
+
 
 This repository contains a **multi-layer governance and prompt system**
 for **AI-assisted software development** with **Lead / Staff-level quality**,

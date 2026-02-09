@@ -28,6 +28,17 @@ It does not override or redefine them.
 
 This README is explanatory only.
 
+## 🔎 Quick Navigation (This File)
+
+- [Purpose](#1-purpose)
+- [Mandatory Artifacts](#2-mandatory-artifacts)
+- [Workflow (Collapsed View)](#4-workflow-collapsed-view)
+- [Hybrid Mode](#5-hybrid-mode)
+- [Factory Extension Path](#52-factory-extension-path-profilesaddons)
+- [Output Requirements](#7-output-requirements)
+- [Session State](#10-session-state)
+- [Failure Cases](#11-failure-cases)
+
 Stability note:
 - Canonical precedence is defined once in `master.md` Section 1 (`PRIORITY ORDER`) and mirrored in `rules.md` (`RULEBOOK-PRECEDENCE-POLICY`).
 - This file MUST NOT redefine precedence, gates, or blocking policy.
