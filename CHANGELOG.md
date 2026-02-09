@@ -83,6 +83,8 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
 - Extend bootstrap session template with canonical state invariants (`session_state_version`, `ruleset_hash`, `DecisionSurface`) required by ARCHITECT-mode/session schema contracts.
 - Tighten response-envelope schema to conditionally require blocker fields (`reason_payload`, `quick_fix_commands`) when `status=blocked`.
 - Strengthen top-tier governance evidence by adding explicit `RulebookLoadEvidence.top_tier.*` expectations and clarifying conflict-model mapping as classifier-only (no second precedence model).
+- Ensure bootstrap SESSION_STATE now seeds `RulebookLoadEvidence.top_tier` with canonical `QUALITY_INDEX.md` and `CONFLICT_RESOLUTION.md` load-evidence pointers.
+- Add governance regression coverage for fail-closed Phase-4 behavior when top-tier rulebooks are unresolved (`BLOCKED-MISSING-RULEBOOK:<file>` contract token).
 - Standardize `profiles/rules*.md` operational wrappers with consistent headings (`Intent`, `Scope`, `Activation`, `Phase integration`, `Evidence contract`, `Tooling`, `Examples`, `Troubleshooting`) and normalize quick-block variants to canonical section headings.
 - Replace fragile `rules.md Section 4.6` references with stable anchor references (`RULEBOOK-PRECEDENCE-POLICY`) across profiles, factory templates, master guidance, and governance tests.
 - Canonicalize required-vs-advisory addon behavior as a single fail-closed policy source in `rules.md` anchor `RULEBOOK-PRECEDENCE-POLICY` plus `master.md` addon catalog (local rulebooks now reference, not redefine, blocking semantics).
