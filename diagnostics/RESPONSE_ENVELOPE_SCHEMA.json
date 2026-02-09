@@ -1,0 +1,146 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "opencode.governance.response-envelope.v1",
+  "title": "Governance Response Envelope",
+  "type": "object",
+  "required": [
+    "status",
+    "session_state",
+    "next_action",
+    "snapshot"
+  ],
+  "properties": {
+    "status": {
+      "type": "string",
+      "enum": [
+        "normal",
+        "degraded",
+        "draft",
+        "blocked"
+      ]
+    },
+    "phase": {
+      "type": "string"
+    },
+    "mode": {
+      "type": "string"
+    },
+    "session_state": {
+      "type": "object",
+      "required": [
+        "Mode",
+        "Phase",
+        "Next"
+      ],
+      "properties": {
+        "Mode": {
+          "type": "string"
+        },
+        "Phase": {
+          "type": "string"
+        },
+        "Next": {
+          "type": "string"
+        },
+        "RulebookLoadEvidence": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": true
+    },
+    "reason_payload": {
+      "type": "object",
+      "required": [
+        "status",
+        "reason_code",
+        "missing_evidence",
+        "recovery_steps",
+        "next_command"
+      ],
+      "properties": {
+        "status": {
+          "const": "blocked"
+        },
+        "reason_code": {
+          "type": "string",
+          "pattern": "^BLOCKED-"
+        },
+        "missing_evidence": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "recovery_steps": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 3
+        },
+        "next_command": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "quick_fix_commands": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "maxItems": 3
+    },
+    "next_action": {
+      "type": "object",
+      "required": [
+        "Status",
+        "Next",
+        "Why",
+        "Command"
+      ],
+      "properties": {
+        "Status": {
+          "type": "string"
+        },
+        "Next": {
+          "type": "string"
+        },
+        "Why": {
+          "type": "string"
+        },
+        "Command": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "snapshot": {
+      "type": "object",
+      "required": [
+        "Confidence",
+        "Risk",
+        "Scope"
+      ],
+      "properties": {
+        "Confidence": {
+          "type": "string"
+        },
+        "Risk": {
+          "type": "string",
+          "enum": [
+            "LOW",
+            "MEDIUM",
+            "HIGH"
+          ]
+        },
+        "Scope": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

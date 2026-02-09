@@ -4,6 +4,7 @@ import re
 from fnmatch import fnmatch
 from dataclasses import dataclass
 from pathlib import Path
+import hashlib
 
 import pytest
 
@@ -234,6 +235,34 @@ def _evaluate_addons(commands_dir: Path, repo_root: Path) -> tuple[dict[str, str
     return statuses, blocked, warnings
 
 
+def _activation_delta_hashes(commands_dir: Path, repo_root: Path) -> tuple[str, str]:
+    manifests = sorted((commands_dir / "profiles" / "addons").glob("*.addon.yml"))
+    relpaths = _repo_relpaths(repo_root)
+    capabilities = sorted(_infer_capabilities(repo_root, relpaths))
+
+    addon_scan = hashlib.sha256()
+    for mf in manifests:
+        addon_scan.update(mf.name.encode("utf-8"))
+        addon_scan.update(b"\0")
+        addon_scan.update(mf.read_bytes())
+        addon_scan.update(b"\n")
+
+    repo_facts = hashlib.sha256()
+    for cap in capabilities:
+        repo_facts.update(cap.encode("utf-8"))
+        repo_facts.update(b"\n")
+
+    return addon_scan.hexdigest(), repo_facts.hexdigest()
+
+
+def _activation_delta_gate(previous: tuple[str, str, tuple], current: tuple[str, str, tuple]) -> str:
+    prev_addon_hash, prev_repo_hash, prev_outcome = previous
+    cur_addon_hash, cur_repo_hash, cur_outcome = current
+    if prev_addon_hash == cur_addon_hash and prev_repo_hash == cur_repo_hash and prev_outcome != cur_outcome:
+        return "BLOCKED-ACTIVATION-DELTA-MISMATCH"
+    return "OK"
+
+
 @pytest.mark.e2e_governance
 def test_e2e_capability_first_activation_with_hard_signal_fallback(tmp_path: Path):
     config_root = tmp_path / "opencode-config-e2e-capabilities"
@@ -291,6 +320,30 @@ def test_e2e_activation_delta_is_bit_identical_when_inputs_unchanged(tmp_path: P
     second = _evaluate_addons(commands, repo)
 
     assert first == second, "activation outcome must be bit-identical when manifests and repo facts are unchanged"
+
+
+@pytest.mark.e2e_governance
+def test_e2e_activation_delta_blocks_when_hashes_unchanged_but_outcome_drifts(tmp_path: Path):
+    config_root = tmp_path / "opencode-config-e2e-delta-block"
+    r = run_install(["--force", "--no-backup", "--config-root", str(config_root)])
+    assert r.returncode == 0, f"install failed:\n{r.stderr}\n{r.stdout}"
+
+    commands = _commands_dir(config_root)
+    repo = tmp_path / "delta-repo-block"
+    repo.mkdir(parents=True, exist_ok=True)
+    (repo / "nx.json").write_text("{}\n", encoding="utf-8")
+
+    statuses, blocked, warnings = _evaluate_addons(commands, repo)
+    baseline_outcome = (tuple(sorted(statuses.items())), tuple(sorted(blocked)), tuple(sorted(warnings)))
+    addon_hash, repo_hash = _activation_delta_hashes(commands, repo)
+
+    drifted_outcome = (tuple(sorted(statuses.items())), tuple(sorted(blocked + ["BLOCKED-MISSING-ADDON:simulated"])), tuple(sorted(warnings)))
+
+    gate = _activation_delta_gate(
+        (addon_hash, repo_hash, baseline_outcome),
+        (addon_hash, repo_hash, drifted_outcome),
+    )
+    assert gate == "BLOCKED-ACTIVATION-DELTA-MISMATCH"
 
 
 @pytest.mark.e2e_governance

@@ -201,6 +201,7 @@ Host constraint acknowledgment:
 
 Output requirements:
 - Structured, phase-oriented output
+- Output envelope MUST comply with `diagnostics/RESPONSE_ENVELOPE_SCHEMA.json` (`status`, `session_state`, `next_action`, `snapshot`; plus blocker payload fields when blocked)
 - Explicit SESSION_STATE
 - Explicit Gates
 - Explicit DEVIATION reporting

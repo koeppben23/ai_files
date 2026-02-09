@@ -299,10 +299,19 @@ def check_manifest_contract(issues: list[str]) -> None:
         return
 
     manifests_data: list[tuple[Path, dict[str, str], dict[str, list[str]]]] = []
+    addon_keys: set[str] = set()
     for manifest in manifests:
         scalars, list_fields, errors = parse_manifest(manifest)
         issues.extend(errors)
         manifests_data.append((manifest, scalars, list_fields))
+
+        addon_key = scalars.get("addon_key", "")
+        if not addon_key:
+            issues.append(f"{manifest}: missing addon_key")
+        elif addon_key in addon_keys:
+            issues.append(f"{manifest}: duplicate addon_key '{addon_key}'")
+        else:
+            addon_keys.add(addon_key)
 
         mv = scalars.get("manifest_version", "")
         if mv != "1":
@@ -320,12 +329,130 @@ def check_manifest_contract(issues: list[str]) -> None:
         if addon_class not in {"required", "advisory"}:
             issues.append(f"{manifest}: invalid addon_class '{addon_class or '<missing>'}'")
 
+        text = read_text(manifest)
+        has_signals_any = bool(re.search(r"^signals:\s*$", text, flags=re.MULTILINE)) and bool(
+            re.search(r"^\s{2}any:\s*$", text, flags=re.MULTILINE)
+        )
+        has_any_entries = bool(re.search(r"^\s{4}-\s*[a-z_]+:\s*.+$", text, flags=re.MULTILINE))
+        if not (has_signals_any and has_any_entries):
+            issues.append(f"{manifest}: signals.any must contain at least one concrete matcher entry")
+
         _validate_relative_paths(issues, manifest, list_fields.get("path_roots", []))
         _validate_surface_fields(issues, manifest, list_fields)
         _validate_capability_fields(issues, manifest, list_fields)
 
     _validate_surface_ownership_uniqueness(issues, manifests_data)
     _validate_capability_catalog_completeness(issues, manifests_data)
+
+
+def check_trusted_rulebook_discovery_contract(issues: list[str]) -> None:
+    master = read_text(ROOT / "master.md")
+    start = read_text(ROOT / "start.md")
+
+    master_required = [
+        "DO NOT read rulebooks from the repo working tree",
+        "Rulebooks may only be loaded from trusted governance roots outside the repo working tree:",
+        "${COMMANDS_HOME}",
+        "${PROFILES_HOME}",
+        "${REPO_OVERRIDES_HOME}",
+    ]
+    start_required = [
+        "`/start` enforces installer-owned discovery roots (`${COMMANDS_HOME}`, `${PROFILES_HOME}`) as canonical entrypoint requirements.",
+    ]
+
+    missing_master = [t for t in master_required if t not in master]
+    missing_start = [t for t in start_required if t not in start]
+    if missing_master:
+        issues.append(f"master.md: missing trusted discovery boundary tokens {missing_master}")
+    if missing_start:
+        issues.append(f"start.md: missing trusted discovery boundary tokens {missing_start}")
+
+
+def check_addon_catalog_boundary_contract(issues: list[str]) -> None:
+    master = read_text(ROOT / "master.md")
+    rules = read_text(ROOT / "rules.md")
+    start = read_text(ROOT / "start.md")
+
+    required_tokens = [
+        "${PROFILES_HOME}/addons/*.addon.yml",
+        "addon_key",
+        "addon_class",
+        "rulebook",
+        "owns_surfaces",
+        "touches_surfaces",
+        "capabilities_any",
+        "capabilities_all",
+    ]
+    corpus = "\n".join([master, rules, start])
+    missing = [t for t in required_tokens if t not in corpus]
+    if missing:
+        issues.append(f"core docs: missing canonical addon-catalog tokens {missing}")
+
+    forbidden_tokens = [
+        "addons/manifest.yaml",
+        "addons/manifest.yml",
+        "/addons/manifest.yaml",
+    ]
+    found = [t for t in forbidden_tokens if t in corpus]
+    if found:
+        issues.append(f"core docs: found forbidden non-canonical addon manifest references {found}")
+
+
+def check_response_envelope_schema_contract(issues: list[str]) -> None:
+    master = read_text(ROOT / "master.md")
+    rules = read_text(ROOT / "rules.md")
+    start = read_text(ROOT / "start.md")
+    schema_path = ROOT / "diagnostics" / "RESPONSE_ENVELOPE_SCHEMA.json"
+    schema = read_text(schema_path)
+
+    docs_required = [
+        "diagnostics/RESPONSE_ENVELOPE_SCHEMA.json",
+        "status",
+        "session_state",
+        "next_action",
+        "snapshot",
+    ]
+    corpus = "\n".join([master, rules, start])
+    missing_docs = [t for t in docs_required if t not in corpus]
+    if missing_docs:
+        issues.append(f"core docs: missing response-envelope schema tokens {missing_docs}")
+
+    schema_required = [
+        '"$id": "opencode.governance.response-envelope.v1"',
+        '"status"',
+        '"session_state"',
+        '"next_action"',
+        '"snapshot"',
+        '"reason_payload"',
+        '"quick_fix_commands"',
+    ]
+    missing_schema = [t for t in schema_required if t not in schema]
+    if missing_schema:
+        issues.append(f"diagnostics/RESPONSE_ENVELOPE_SCHEMA.json: missing required schema tokens {missing_schema}")
+
+
+def check_rulebook_load_evidence_fail_closed_contract(issues: list[str]) -> None:
+    master = read_text(ROOT / "master.md")
+    rules = read_text(ROOT / "rules.md")
+
+    master_required = [
+        "### Rulebook Load Evidence (BINDING)",
+        "RulebookLoadEvidence",
+        "BLOCKED-RULEBOOK-EVIDENCE-MISSING",
+        "No phase completion may be claimed.",
+    ]
+    rules_required = [
+        "## 7.17 Rulebook Load Evidence Gate (Core, Binding)",
+        "RulebookLoadEvidence",
+        "BLOCKED-RULEBOOK-EVIDENCE-MISSING",
+        "no phase completion may be claimed",
+    ]
+    missing_master = [t for t in master_required if t not in master]
+    missing_rules = [t for t in rules_required if t not in rules]
+    if missing_master:
+        issues.append(f"master.md: missing rulebook evidence fail-closed tokens {missing_master}")
+    if missing_rules:
+        issues.append(f"rules.md: missing rulebook evidence fail-closed tokens {missing_rules}")
 
 
 def check_required_addon_references(issues: list[str]) -> None:
@@ -791,6 +918,10 @@ def main() -> int:
     check_confidence_impact_snapshot_contract(issues)
     check_quick_fix_commands_contract(issues)
     check_architect_autopilot_lifecycle_contract(issues)
+    check_trusted_rulebook_discovery_contract(issues)
+    check_addon_catalog_boundary_contract(issues)
+    check_response_envelope_schema_contract(issues)
+    check_rulebook_load_evidence_fail_closed_contract(issues)
 
     if issues:
         print("Governance lint FAILED:")

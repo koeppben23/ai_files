@@ -705,6 +705,23 @@ Additional output mode:
     and MUST NOT hide required decisions inside long narrative text.
   - Evidence obligations and gate rules remain unchanged in ARCHITECT mode.
 
+### 7.3.7 Canonical Response Envelope Schema (Binding)
+
+All structured assistant responses from `/start` onward MUST conform to:
+- `diagnostics/RESPONSE_ENVELOPE_SCHEMA.json`
+
+Minimum required envelope fields:
+- `status`
+- `session_state`
+- `next_action`
+- `snapshot`
+
+When `status=blocked`, output MUST additionally include:
+- `reason_payload` (`status`, `reason_code`, `missing_evidence`, `recovery_steps`, `next_command`)
+- `quick_fix_commands` (1-3 commands or `['none']`)
+
+Schema compliance does NOT weaken existing evidence/gate contracts. It only standardizes output shape.
+
 ### 7.4 Architecture Decision Output Template (Binding when proposing non-trivial architecture)
 
 When the assistant proposes a non-trivial architectural decision (boundaries, persistence approach, contract strategy, major dependency/tooling change, migration/rollout strategy), it MUST output a structured proposal:
@@ -962,6 +979,15 @@ Verified build/test claims SHOULD include toolchain version evidence for applica
 - Gradle (`gradle -version` or wrapper equivalent)
 
 If version evidence is missing, build/test claims SHOULD remain `not-verified` (planning may continue).
+
+## 7.17 Rulebook Load Evidence Gate (Core, Binding)
+
+If any `LoadedRulebooks.*` entry is populated, `RulebookLoadEvidence` MUST be present and non-empty.
+
+If Rulebook load evidence cannot be produced:
+- workflow MUST set `Mode=BLOCKED`
+- workflow MUST set `Next=BLOCKED-RULEBOOK-EVIDENCE-MISSING`
+- no phase completion may be claimed
 
 ---
 

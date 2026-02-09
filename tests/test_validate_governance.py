@@ -1980,6 +1980,122 @@ def test_architect_autopilot_lifecycle_contract_is_defined_across_core_docs():
     )
 
 
+@pytest.mark.governance
+def test_rulebook_discovery_is_restricted_to_trusted_roots():
+    master = read_text(REPO_ROOT / "master.md")
+    start = read_text(REPO_ROOT / "start.md")
+
+    required_master = [
+        "DO NOT read rulebooks from the repo working tree",
+        "Rulebooks may only be loaded from trusted governance roots outside the repo working tree:",
+        "${COMMANDS_HOME}",
+        "${PROFILES_HOME}",
+        "${REPO_OVERRIDES_HOME}",
+    ]
+    required_start = [
+        "`/start` enforces installer-owned discovery roots (`${COMMANDS_HOME}`, `${PROFILES_HOME}`) as canonical entrypoint requirements.",
+    ]
+
+    missing_master = [t for t in required_master if t not in master]
+    missing_start = [t for t in required_start if t not in start]
+    assert not missing_master, "master.md missing trusted rulebook discovery tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_master]
+    )
+    assert not missing_start, "start.md missing trusted rulebook discovery tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_start]
+    )
+
+
+@pytest.mark.governance
+def test_addon_catalog_contract_is_canonical_and_forbids_generic_manifest_path():
+    master = read_text(REPO_ROOT / "master.md")
+    rules = read_text(REPO_ROOT / "rules.md")
+    start = read_text(REPO_ROOT / "start.md")
+    corpus = "\n".join([master, rules, start])
+
+    required_tokens = [
+        "${PROFILES_HOME}/addons/*.addon.yml",
+        "addon_key",
+        "addon_class",
+        "rulebook",
+        "owns_surfaces",
+        "touches_surfaces",
+    ]
+    missing = [t for t in required_tokens if t not in corpus]
+    assert not missing, "Core docs missing canonical addon catalog tokens:\n" + "\n".join([f"- {m}" for m in missing])
+
+    forbidden_tokens = ["addons/manifest.yaml", "addons/manifest.yml", "/addons/manifest.yaml"]
+    found = [t for t in forbidden_tokens if t in corpus]
+    assert not found, "Core docs reference forbidden non-canonical addon manifest path(s):\n" + "\n".join(
+        [f"- {m}" for m in found]
+    )
+
+
+@pytest.mark.governance
+def test_canonical_response_envelope_schema_contract_is_defined():
+    master = read_text(REPO_ROOT / "master.md")
+    rules = read_text(REPO_ROOT / "rules.md")
+    start = read_text(REPO_ROOT / "start.md")
+    schema_path = REPO_ROOT / "diagnostics" / "RESPONSE_ENVELOPE_SCHEMA.json"
+    assert schema_path.exists(), "Missing diagnostics/RESPONSE_ENVELOPE_SCHEMA.json"
+    schema_text = read_text(schema_path)
+
+    docs_required = [
+        "diagnostics/RESPONSE_ENVELOPE_SCHEMA.json",
+        "status",
+        "session_state",
+        "next_action",
+        "snapshot",
+    ]
+    corpus = "\n".join([master, rules, start])
+    missing_docs = [t for t in docs_required if t not in corpus]
+    assert not missing_docs, "Docs missing response envelope schema references:\n" + "\n".join(
+        [f"- {m}" for m in missing_docs]
+    )
+
+    schema_required = [
+        '"$id": "opencode.governance.response-envelope.v1"',
+        '"status"',
+        '"session_state"',
+        '"next_action"',
+        '"snapshot"',
+        '"reason_payload"',
+        '"quick_fix_commands"',
+    ]
+    missing_schema = [t for t in schema_required if t not in schema_text]
+    assert not missing_schema, "Response envelope schema missing required fields:\n" + "\n".join(
+        [f"- {m}" for m in missing_schema]
+    )
+
+
+@pytest.mark.governance
+def test_rulebook_load_evidence_gate_is_fail_closed():
+    master = read_text(REPO_ROOT / "master.md")
+    rules = read_text(REPO_ROOT / "rules.md")
+
+    required_master = [
+        "### Rulebook Load Evidence (BINDING)",
+        "RulebookLoadEvidence",
+        "BLOCKED-RULEBOOK-EVIDENCE-MISSING",
+        "No phase completion may be claimed.",
+    ]
+    required_rules = [
+        "## 7.17 Rulebook Load Evidence Gate (Core, Binding)",
+        "RulebookLoadEvidence",
+        "BLOCKED-RULEBOOK-EVIDENCE-MISSING",
+        "no phase completion may be claimed",
+    ]
+
+    missing_master = [t for t in required_master if t not in master]
+    missing_rules = [t for t in required_rules if t not in rules]
+    assert not missing_master, "master.md missing fail-closed rulebook evidence gate tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_master]
+    )
+    assert not missing_rules, "rules.md missing fail-closed rulebook evidence gate tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_rules]
+    )
+
+
 def test_audit_reason_keys_are_declared_audit_only_and_not_reason_code_payloads():
     text = read_text(REPO_ROOT / "diagnostics" / "audit.md")
     required_tokens = [
