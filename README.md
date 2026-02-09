@@ -677,6 +677,7 @@ See:
 | [`README-RULES.md`](README-RULES.md) | Executive summary (not normative) |
 | [`SCOPE-AND-CONTEXT.md`](SCOPE-AND-CONTEXT.md) | Normative responsibility and scope boundary |
 | [`QUALITY_INDEX.md`](QUALITY_INDEX.md) | Canonical index for “top-tier” quality (no new rules; pointers only) |
+| [`SESSION_STATE_SCHEMA.md`](SESSION_STATE_SCHEMA.md) | Canonical session-state schema and invariants |
 | [`STABILITY_SLA.md`](STABILITY_SLA.md) | Normative governance release/readiness Go/No-Go contract |
 | [`CONFLICT_RESOLUTION.md`](CONFLICT_RESOLUTION.md) | Deterministic precedence model for conflicting instructions |
 | [`resume.md`](resume.md) | OpenCode command for controlled continuation |
