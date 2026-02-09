@@ -182,7 +182,7 @@ Profile auto-detection must exclude addon-referenced/shared rulebooks from profi
 
 When required governance capability is missing for a new repo/ticket, use the factory path:
 
-- `new_profile.md` to generate `profiles/rules.<profile>.md`
+- `new_profile.md` to generate `profiles/rules_<profile>.md` (preferred; legacy alias `rules.<profile>.md` accepted)
 - `new_addon.md` to generate:
   - `profiles/rules.<addon-rulebook>.md`
   - `profiles/addons/<addon_key>.addon.yml`

@@ -49,7 +49,7 @@ In pure chat mode, you do not get repo-aware discovery. To stay deterministic:
 - Treat any claim as **“not verified”** unless you can paste BuildEvidence output.
 - If a profile is required (e.g., backend Java), state it explicitly (e.g., `Profile=backend-java`) so templates/addons constraints apply.
 
-If you later switch to OpenCode repo-aware mode, run `/master` again so Phase 2 can build discovery artifacts and enable Warm Start behavior.
+If you later switch to OpenCode repo-aware mode, run `/start` first (bootstrap/path contract), then run `/master` so Phase 2 can build discovery artifacts and enable Warm Start behavior.
 
 ---
 
