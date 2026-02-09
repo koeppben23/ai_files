@@ -952,6 +952,25 @@ Recovery steps:
 Resume pointer: <exact Next pointer, e.g., "Phase 4 — Step 0 (Initialization)" >
 ```
 
+**Machine-readable blocker envelope (mandatory):**
+
+For every `Mode = BLOCKED` response, include a compact machine-readable payload:
+
+```json
+{
+  "status": "blocked",
+  "reason_code": "BLOCKED-...",
+  "missing_evidence": ["..."],
+  "recovery_steps": ["..."],
+  "next_command": "..."
+}
+```
+
+Rules:
+- `reason_code` MUST match canonical prefix policy (`BLOCKED-*`).
+- `recovery_steps` MUST be concrete and capped to 3 steps.
+- `next_command` MUST be a single actionable command (or `none` if not command-driven).
+
 **Standard BLOCKED reasons + required input (binding):**
 
 - `BLOCKED-MISSING-CORE-RULES`:

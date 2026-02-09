@@ -638,6 +638,17 @@ Rules:
 - `Next` MUST be singular and actionable.
 - Footer values MUST be consistent with `SESSION_STATE.Mode`, `SESSION_STATE.Next`, and any emitted reason payloads.
 
+### 7.3.2 Standard Blocker Output Envelope (Binding)
+
+If `SESSION_STATE.Mode = BLOCKED`, output MUST include a machine-readable blocker envelope containing:
+- `status = blocked`
+- `reason_code` (`BLOCKED-*`)
+- `missing_evidence` (array)
+- `recovery_steps` (array, max 3)
+- `next_command` (single actionable command or `none`)
+
+No blocked response may omit these fields.
+
 Additional output mode:
  - If `SESSION_STATE.OutputMode = architect-only`, the assistant MUST present a `DecisionSurface` (what you must decide now vs can defer)
    and MUST NOT hide required decisions inside long narrative text.

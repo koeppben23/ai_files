@@ -1738,6 +1738,41 @@ def test_unified_next_action_footer_contract_is_defined_across_core_docs():
 
 
 @pytest.mark.governance
+def test_standard_blocker_envelope_contract_is_defined_across_core_docs():
+    master = read_text(REPO_ROOT / "master.md")
+    rules = read_text(REPO_ROOT / "rules.md")
+    start = read_text(REPO_ROOT / "start.md")
+
+    master_required = [
+        "Machine-readable blocker envelope (mandatory):",
+        '"status": "blocked"',
+        '"reason_code": "BLOCKED-..."',
+        '"missing_evidence": ["..."]',
+        '"recovery_steps": ["..."]',
+        '"next_command": "..."',
+    ]
+    rules_required = [
+        "### 7.3.2 Standard Blocker Output Envelope (Binding)",
+        "`status = blocked`",
+        "`reason_code` (`BLOCKED-*`)",
+        "`missing_evidence` (array)",
+        "`recovery_steps` (array, max 3)",
+        "`next_command` (single actionable command or `none`)",
+    ]
+    start_required = [
+        "If blocked, include the standard blocker envelope (`status`, `reason_code`, `missing_evidence`, `recovery_steps`, `next_command`).",
+    ]
+
+    missing_master = [t for t in master_required if t not in master]
+    missing_rules = [t for t in rules_required if t not in rules]
+    missing_start = [t for t in start_required if t not in start]
+
+    assert not missing_master, "master.md missing blocker envelope tokens:\n" + "\n".join([f"- {m}" for m in missing_master])
+    assert not missing_rules, "rules.md missing blocker envelope tokens:\n" + "\n".join([f"- {m}" for m in missing_rules])
+    assert not missing_start, "start.md missing blocker envelope tokens:\n" + "\n".join([f"- {m}" for m in missing_start])
+
+
+@pytest.mark.governance
 def test_audit_reason_keys_are_declared_audit_only_and_not_reason_code_payloads():
     text = read_text(REPO_ROOT / "diagnostics" / "audit.md")
     required_tokens = [

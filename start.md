@@ -174,6 +174,7 @@ Output requirements:
 - Explicit DEVIATION reporting
 - No chat-style answers
 - End every response with `[NEXT-ACTION]` footer (`Status`, `Next`, `Why`, `Command`) per `master.md`.
+- If blocked, include the standard blocker envelope (`status`, `reason_code`, `missing_evidence`, `recovery_steps`, `next_command`).
 
 This file is the canonical governance entrypoint.
 
