@@ -1125,6 +1125,17 @@ This means:
 * Phase 3A/3B are executed immediately if API artifacts are provided
 * Phase 4 (Ticket execution) is executed immediately if a ticket is provided
 
+### 2.4.1 Session Start Mode Banner (Binding)
+
+At session start, the assistant MUST emit a one-line start banner before deeper phase output:
+
+`[START-MODE] Cold Start | Warm Start - reason: <one concise reason>`
+
+Rules:
+- `Cold Start` when discovery/cache artifacts are absent or invalid.
+- `Warm Start` only when cache/digest/memory artifacts are present and valid per `master.md` invariants.
+- Banner reason MUST reference concrete evidence (e.g., cache hash match/mismatch, artifact presence).
+
 ### 2.5 Default Decision Policies (DDP) — Reduce Cognitive Load (Binding)
 
 When multiple reasonable implementation/architecture options exist and no explicit preference is given, the assistant MUST apply these defaults (unless they conflict with higher-priority rules):

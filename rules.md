@@ -649,6 +649,15 @@ If `SESSION_STATE.Mode = BLOCKED`, output MUST include a machine-readable blocke
 
 No blocked response may omit these fields.
 
+### 7.3.3 Cold/Warm Start Banner (Binding)
+
+At session start, output MUST include:
+- `[START-MODE] Cold Start | Warm Start - reason: <one concise reason>`
+
+Rules:
+- Banner decision MUST be evidence-backed (artifact presence/validity, hash match/mismatch).
+- Banner is informational only and MUST NOT bypass any gate or evidence requirement.
+
 Additional output mode:
  - If `SESSION_STATE.OutputMode = architect-only`, the assistant MUST present a `DecisionSurface` (what you must decide now vs can defer)
    and MUST NOT hide required decisions inside long narrative text.

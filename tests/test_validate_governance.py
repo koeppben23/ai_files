@@ -1773,6 +1773,36 @@ def test_standard_blocker_envelope_contract_is_defined_across_core_docs():
 
 
 @pytest.mark.governance
+def test_cold_warm_start_banner_contract_is_defined_across_core_docs():
+    master = read_text(REPO_ROOT / "master.md")
+    rules = read_text(REPO_ROOT / "rules.md")
+    start = read_text(REPO_ROOT / "start.md")
+
+    master_required = [
+        "### 2.4.1 Session Start Mode Banner (Binding)",
+        "[START-MODE] Cold Start | Warm Start - reason:",
+        "`Cold Start` when discovery/cache artifacts are absent or invalid.",
+        "`Warm Start` only when cache/digest/memory artifacts are present and valid",
+    ]
+    rules_required = [
+        "### 7.3.3 Cold/Warm Start Banner (Binding)",
+        "[START-MODE] Cold Start | Warm Start - reason:",
+        "Banner decision MUST be evidence-backed",
+    ]
+    start_required = [
+        "At session start, include `[START-MODE] Cold Start | Warm Start - reason: ...` based on discovery artifact validity evidence.",
+    ]
+
+    missing_master = [t for t in master_required if t not in master]
+    missing_rules = [t for t in rules_required if t not in rules]
+    missing_start = [t for t in start_required if t not in start]
+
+    assert not missing_master, "master.md missing start-mode banner tokens:\n" + "\n".join([f"- {m}" for m in missing_master])
+    assert not missing_rules, "rules.md missing start-mode banner tokens:\n" + "\n".join([f"- {m}" for m in missing_rules])
+    assert not missing_start, "start.md missing start-mode banner tokens:\n" + "\n".join([f"- {m}" for m in missing_start])
+
+
+@pytest.mark.governance
 def test_audit_reason_keys_are_declared_audit_only_and_not_reason_code_payloads():
     text = read_text(REPO_ROOT / "diagnostics" / "audit.md")
     required_tokens = [

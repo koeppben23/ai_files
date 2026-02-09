@@ -627,6 +627,37 @@ def check_standard_blocker_envelope_contract(issues: list[str]) -> None:
         issues.append(f"start.md: missing blocker envelope tokens {missing_start}")
 
 
+def check_start_mode_banner_contract(issues: list[str]) -> None:
+    master = read_text(ROOT / "master.md")
+    rules = read_text(ROOT / "rules.md")
+    start = read_text(ROOT / "start.md")
+
+    master_required = [
+        "### 2.4.1 Session Start Mode Banner (Binding)",
+        "[START-MODE] Cold Start | Warm Start - reason:",
+        "`Cold Start` when discovery/cache artifacts are absent or invalid.",
+        "`Warm Start` only when cache/digest/memory artifacts are present and valid",
+    ]
+    rules_required = [
+        "### 7.3.3 Cold/Warm Start Banner (Binding)",
+        "[START-MODE] Cold Start | Warm Start - reason:",
+        "Banner decision MUST be evidence-backed",
+    ]
+    start_required = [
+        "At session start, include `[START-MODE] Cold Start | Warm Start - reason: ...` based on discovery artifact validity evidence.",
+    ]
+
+    missing_master = [t for t in master_required if t not in master]
+    missing_rules = [t for t in rules_required if t not in rules]
+    missing_start = [t for t in start_required if t not in start]
+    if missing_master:
+        issues.append(f"master.md: missing start-mode banner tokens {missing_master}")
+    if missing_rules:
+        issues.append(f"rules.md: missing start-mode banner tokens {missing_rules}")
+    if missing_start:
+        issues.append(f"start.md: missing start-mode banner tokens {missing_start}")
+
+
 def main() -> int:
     issues: list[str] = []
     check_master_priority_uniqueness(issues)
@@ -640,6 +671,7 @@ def main() -> int:
     check_start_evidence_boundaries(issues)
     check_unified_next_action_footer_contract(issues)
     check_standard_blocker_envelope_contract(issues)
+    check_start_mode_banner_contract(issues)
 
     if issues:
         print("Governance lint FAILED:")
