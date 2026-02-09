@@ -53,8 +53,8 @@ else:
 When available, `/start` triggers a non-destructive workspace persistence backfill helper
 to ensure repo-scoped artifacts exist (`repo-cache.yaml`, `repo-map-digest.md`,
 `decision-pack.md`, `workspace-memory.yaml`) under `${WORKSPACES_HOME}/<repo_fingerprint>/`.
-Fingerprint resolution in the helper prefers current repo git metadata (`--repo-root`) and uses
-global pointer fallback only when repo metadata is unavailable.
+Fingerprint resolution in the helper follows operational resolution (`--repo-root` first, then global pointer fallback)
+for workspace backfill convenience only.
 
 Identity evidence boundary (binding):
 - Helper output is operational convenience status only and MUST NOT be treated as canonical repo identity evidence.
