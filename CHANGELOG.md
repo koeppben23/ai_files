@@ -127,6 +127,10 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
 ### Security
 - Tighten principal-grade declaration rules: incomplete or non-comparable scorecard data must emit `WARN-SCORECARD-CALIBRATION-INCOMPLETE` and remain `not-verified`.
 
+## [1.1.0-RC.2] - 2026-02-09
+### Changed
+- Promote governance release marker to `1.1.0-RC.2` across canonical version sources (`master.md`, `install.py`) after merging UX/autopilot lifecycle and README alignment hardening.
+
 ## [1.1.0-RC.1] - 2026-02-08
 ### Changed
 - Promote current governance release classification from Beta to Release Candidate (`1.1.0-RC.1`) across canonical version sources (`master.md`, `install.py`).
