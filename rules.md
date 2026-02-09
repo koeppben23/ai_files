@@ -672,6 +672,14 @@ Scope: <repo path/module/component or "global">
 Rules:
 - Snapshot values MUST be consistent with `SESSION_STATE` (confidence, active risk posture, and scope lock/component scope).
 
+### 7.3.5 Quick-Fix Commands for Blockers (Binding)
+
+When output mode is blocked, include:
+- `QuickFixCommands` with 1-3 exact copy-paste commands aligned to the active `reason_code`.
+- If no command applies, output `QuickFixCommands: ["none"]`.
+
+Quick-fix commands are execution guidance only; they do not bypass gates or evidence requirements.
+
 Additional output mode:
  - If `SESSION_STATE.OutputMode = architect-only`, the assistant MUST present a `DecisionSurface` (what you must decide now vs can defer)
    and MUST NOT hide required decisions inside long narrative text.

@@ -971,6 +971,11 @@ Rules:
 - `recovery_steps` MUST be concrete and capped to 3 steps.
 - `next_command` MUST be a single actionable command (or `none` if not command-driven).
 
+**Quick-fix commands (mandatory for blockers):**
+- Blocked responses MUST include a `QuickFixCommands` list with 1-3 copy-paste-ready commands.
+- Commands MUST correspond to the same blocker context (`reason_code`) and recovery steps.
+- If no command is applicable, emit `QuickFixCommands: ["none"]`.
+
 **Standard BLOCKED reasons + required input (binding):**
 
 - `BLOCKED-MISSING-CORE-RULES`:

@@ -690,6 +690,37 @@ def check_confidence_impact_snapshot_contract(issues: list[str]) -> None:
         issues.append(f"start.md: missing confidence-impact snapshot tokens {missing_start}")
 
 
+def check_quick_fix_commands_contract(issues: list[str]) -> None:
+    master = read_text(ROOT / "master.md")
+    rules = read_text(ROOT / "rules.md")
+    start = read_text(ROOT / "start.md")
+
+    master_required = [
+        "Quick-fix commands (mandatory for blockers):",
+        "QuickFixCommands",
+        "1-3 copy-paste-ready commands",
+        'QuickFixCommands: ["none"]',
+    ]
+    rules_required = [
+        "### 7.3.5 Quick-Fix Commands for Blockers (Binding)",
+        "`QuickFixCommands` with 1-3 exact copy-paste commands aligned to the active `reason_code`.",
+        'output `QuickFixCommands: ["none"]`.',
+    ]
+    start_required = [
+        "If blocked, include `QuickFixCommands` with 1-3 copy-paste commands (or `[\"none\"]` if not command-driven).",
+    ]
+
+    missing_master = [t for t in master_required if t not in master]
+    missing_rules = [t for t in rules_required if t not in rules]
+    missing_start = [t for t in start_required if t not in start]
+    if missing_master:
+        issues.append(f"master.md: missing quick-fix command tokens {missing_master}")
+    if missing_rules:
+        issues.append(f"rules.md: missing quick-fix command tokens {missing_rules}")
+    if missing_start:
+        issues.append(f"start.md: missing quick-fix command tokens {missing_start}")
+
+
 def main() -> int:
     issues: list[str] = []
     check_master_priority_uniqueness(issues)
@@ -705,6 +736,7 @@ def main() -> int:
     check_standard_blocker_envelope_contract(issues)
     check_start_mode_banner_contract(issues)
     check_confidence_impact_snapshot_contract(issues)
+    check_quick_fix_commands_contract(issues)
 
     if issues:
         print("Governance lint FAILED:")

@@ -177,6 +177,7 @@ Output requirements:
 - If blocked, include the standard blocker envelope (`status`, `reason_code`, `missing_evidence`, `recovery_steps`, `next_command`).
 - At session start, include `[START-MODE] Cold Start | Warm Start - reason: ...` based on discovery artifact validity evidence.
 - Include `[SNAPSHOT]` block (`Confidence`, `Risk`, `Scope`) with values aligned to current `SESSION_STATE`.
+- If blocked, include `QuickFixCommands` with 1-3 copy-paste commands (or `["none"]` if not command-driven).
 
 This file is the canonical governance entrypoint.
 
