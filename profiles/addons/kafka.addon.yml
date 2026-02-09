@@ -11,8 +11,6 @@ touches_surfaces:
   - "release"
 capabilities_any:
   - "kafka"
-  - "spring"
-  - "java"
 signals:
   any:
     - maven_dep: org.springframework.kafka:spring-kafka

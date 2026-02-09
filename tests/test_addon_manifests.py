@@ -140,12 +140,10 @@ def test_addon_manifests_define_capabilities_contract():
         "cucumber",
         "cypress",
         "governance_docs",
-        "java",
         "kafka",
         "liquibase",
         "nx",
         "openapi",
-        "spring",
     }
 
     bad = []
@@ -292,12 +290,10 @@ def test_capability_catalog_completeness_against_manifest_usage_and_signal_mappi
         "cucumber",
         "cypress",
         "governance_docs",
-        "java",
         "kafka",
         "liquibase",
         "nx",
         "openapi",
-        "spring",
     }
 
     used_caps: set[str] = set()
@@ -410,19 +406,29 @@ def test_docs_governance_addon_exists_and_is_advisory():
 
 
 @pytest.mark.governance
+def test_kafka_addon_capability_gating_is_kafka_specific():
+    rel = "profiles/addons/kafka.addon.yml"
+    text = read_text(REPO_ROOT / rel)
+    caps = set(_extract_list_block(text.splitlines(), "capabilities_any"))
+    assert "kafka" in caps, f"{rel}: capabilities_any must include kafka"
+    assert "java" not in caps, f"{rel}: capabilities_any must not include java"
+    assert "spring" not in caps, f"{rel}: capabilities_any must not include spring"
+
+
+@pytest.mark.governance
 def test_shared_principal_governance_addons_exist_and_are_advisory():
     expected = {
         "profiles/addons/principalExcellence.addon.yml": {
             "rulebook": "rules.principal-excellence.md",
-            "signal": "file_glob: \"**/*\"",
+            "signal": "file_glob: \"master.md\"",
         },
         "profiles/addons/riskTiering.addon.yml": {
             "rulebook": "rules.risk-tiering.md",
-            "signal": "file_glob: \"**/*\"",
+            "signal": "file_glob: \"master.md\"",
         },
         "profiles/addons/scorecardCalibration.addon.yml": {
             "rulebook": "rules.scorecard-calibration.md",
-            "signal": "file_glob: \"**/*\"",
+            "signal": "file_glob: \"master.md\"",
         },
     }
 

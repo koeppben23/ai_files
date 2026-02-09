@@ -44,6 +44,8 @@ def _parse_addon_manifest(path: Path) -> AddonManifest:
         vals: list[str] = []
         for line in text[m.end() :].splitlines():
             l = line.rstrip("\n")
+            if not l.strip():
+                continue
             mm = re.match(r"^\s{2}-\s*(.*?)\s*$", l)
             if mm:
                 vals.append(mm.group(1).strip().strip('"').strip("'"))
@@ -364,6 +366,7 @@ def test_e2e_governance_flow_required_block_then_reload_and_advisory_warn(tmp_pa
 
     # Signals: Angular/Nx + Cypress
     (repo / "nx.json").write_text("{}\n", encoding="utf-8")
+    (repo / "master.md").write_text("# Governance entrypoint\n", encoding="utf-8")
     (repo / "apps" / "web").mkdir(parents=True, exist_ok=True)
     (repo / "apps" / "web" / "cypress.config.ts").write_text("export default {}\n", encoding="utf-8")
 
@@ -441,3 +444,34 @@ def test_e2e_governance_flow_required_block_then_reload_and_advisory_warn(tmp_pa
         assert not any(w.endswith(":kafka") for w in warnings)
     finally:
         kafka_backup.rename(kafka_rb)
+
+
+@pytest.mark.e2e_governance
+def test_e2e_kafka_addon_not_activated_for_java_or_spring_without_kafka_signals(tmp_path: Path):
+    config_root = tmp_path / "opencode-config-e2e-kafka-scope"
+    r = run_install(["--force", "--no-backup", "--config-root", str(config_root)])
+    assert r.returncode == 0, f"install failed:\n{r.stderr}\n{r.stdout}"
+
+    commands = _commands_dir(config_root)
+    repo = tmp_path / "java-spring-no-kafka"
+    repo.mkdir(parents=True, exist_ok=True)
+
+    (repo / "pom.xml").write_text(
+        """
+<project>
+  <dependencies>
+    <dependency>
+      <groupId>org.springframework</groupId>
+      <artifactId>spring-context</artifactId>
+    </dependency>
+  </dependencies>
+</project>
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+
+    statuses, blocked, warnings = _evaluate_addons(commands, repo)
+    assert statuses.get("kafka") == "skipped"
+    assert "BLOCKED-MISSING-ADDON:kafka" not in blocked
+    assert not any(w.endswith(":kafka") for w in warnings)

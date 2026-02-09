@@ -117,6 +117,7 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
 - Harden profile auto-detection semantics: profile candidate selection now explicitly excludes addon-referenced and shared governance rulebooks.
 - Normalize footer/marker consistency across `profiles/rules*.md` after modularization (remove mid-file end markers, align copyright placement/style).
 - Add a canonical structured response envelope schema contract (`diagnostics/RESPONSE_ENVELOPE_SCHEMA.json`) and wire `/start`/core rulebooks to require schema-aligned output fields.
+- Narrow shared governance advisory addon activation signals from unbounded `**/*` to explicit governance entry signals (`master.md`) for cleaner capability/signal semantics.
 
 ### Fixed
 - Extend `persist_workspace_artifacts.py --quiet` blocked output with structured reason fields (`reason_code`, `recovery_steps`, `next_command`) for direct `SESSION_STATE.Diagnostics.ReasonPayloads` integration.
@@ -132,6 +133,8 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
 - Strengthen CI artifact smoke coverage to verify installed diagnostics runtime helpers exist and that `persist_workspace_artifacts.py` executes successfully from the installed payload.
 - Add fail-closed governance guards for trusted rulebook discovery roots, canonical addon catalog boundaries, and RulebookLoadEvidence blocking semantics (`BLOCKED-RULEBOOK-EVIDENCE-MISSING`) in lint + governance tests.
 - Add activation-delta regression coverage that deterministically blocks when activation outcome drifts while addon/repo-facts hashes are unchanged (`BLOCKED-ACTIVATION-DELTA-MISMATCH`).
+- Fix Kafka addon capability gating to be Kafka-specific (remove broad `java`/`spring` capability activation that could over-trigger required Kafka constraints).
+- Add installer distribution completeness gate coverage for required normative files (`QUALITY_INDEX.md`, `CONFLICT_RESOLUTION.md`, `STABILITY_SLA.md`, `SESSION_STATE_SCHEMA.md`) and addon-manifest rulebook resolvability after install.
 
 ### Security
 - Tighten principal-grade declaration rules: incomplete or non-comparable scorecard data must emit `WARN-SCORECARD-CALIBRATION-INCOMPLETE` and remain `not-verified`.

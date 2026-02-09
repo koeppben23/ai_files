@@ -32,12 +32,10 @@ ALLOWED_CAPABILITIES = {
     "cucumber",
     "cypress",
     "governance_docs",
-    "java",
     "kafka",
     "liquibase",
     "nx",
     "openapi",
-    "spring",
 }
 ALLOWED_EVIDENCE_KINDS = {"unit-test", "integration-test", "contract-test", "e2e", "lint", "build"}
 
