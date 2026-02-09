@@ -61,7 +61,7 @@ Identity evidence boundary (binding):
 - Repo identity remains governed by `master.md` evidence contracts (operator-provided identity evidence or prior validated mapping/session state).
 - If identity evidence is missing for the current repo, workflow MUST remain blocked for identity-gated actions.
 
-!`python -c "import os,platform,subprocess,sys,json;from pathlib import Path
+!`python -c "import os,platform,subprocess,sys,json,importlib.util;from pathlib import Path
 
 def config_root():
     sysname=platform.system()
@@ -74,7 +74,35 @@ def config_root():
     xdg=os.getenv('XDG_CONFIG_HOME')
     return (Path(xdg) if xdg else Path.home()/'.config')/'opencode'
 
-root=config_root(); helper=root/'commands'/'diagnostics'/'persist_workspace_artifacts.py'
+root=config_root(); diag=root/'commands'/'diagnostics'; helper=diag/'persist_workspace_artifacts.py'; logger=diag/'error_logs.py'
+
+def _log(reason_key,message,observed):
+    try:
+        if not logger.exists():
+            return
+        spec=importlib.util.spec_from_file_location('opencode_error_logs',str(logger))
+        if not spec or not spec.loader:
+            return
+        mod=importlib.util.module_from_spec(spec); spec.loader.exec_module(mod)
+        fn=getattr(mod,'safe_log_error',None)
+        if not callable(fn):
+            return
+        fn(
+            reason_key=reason_key,
+            message=message,
+            config_root=root,
+            phase='1.1-Bootstrap',
+            gate='PERSISTENCE',
+            mode='repo-aware',
+            command='start.md:/start',
+            component='workspace-persistence-hook',
+            observed_value=observed,
+            expected_constraint='persist_workspace_artifacts.py available and returns code 0',
+            remediation='Reinstall governance package and rerun /start.'
+        )
+    except Exception:
+        pass
+
 if helper.exists():
     run=subprocess.run([sys.executable,str(helper),'--repo-root',str(Path.cwd()),'--quiet'], text=True, capture_output=True, check=False)
     out=(run.stdout or '').strip()
@@ -84,9 +112,11 @@ if helper.exists():
     elif run.returncode==0:
         print(json.dumps({'workspacePersistenceHook':'ok'}))
     else:
-        print(json.dumps({'workspacePersistenceHook':'blocked','code':run.returncode,'error':err[:240]}))
+        _log('ERR-WORKSPACE-PERSISTENCE-HOOK-FAILED','/start workspace persistence helper returned non-zero.',{'returncode':run.returncode,'stderr':err[:240]})
+        print(json.dumps({'workspacePersistenceHook':'blocked','reason_code':'BLOCKED-WORKSPACE-PERSISTENCE','code':run.returncode,'error':err[:240]}))
 else:
-    print(json.dumps({'workspacePersistenceHook':'skipped','reason':'helper-missing'}))"`
+    _log('ERR-WORKSPACE-PERSISTENCE-HOOK-MISSING','/start workspace persistence helper is missing from diagnostics payload.',{'helper':str(helper)})
+    print(json.dumps({'workspacePersistenceHook':'blocked','reason_code':'BLOCKED-WORKSPACE-PERSISTENCE','reason':'helper-missing','next_command':'python diagnostics/persist_workspace_artifacts.py --repo-root <repo_root>'}))"`
 
 Binding evidence semantics (binding):
 - Only an existing installer-owned `${COMMANDS_HOME}/governance.paths.json` qualifies as canonical binding evidence.

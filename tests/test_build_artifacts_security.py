@@ -117,6 +117,9 @@ def test_release_archives_layout_and_contents_policy(built_artifacts):
         "rules.md",
         "start.md",
         "profiles/addons/docsGovernance.addon.yml",
+        "diagnostics/persist_workspace_artifacts.py",
+        "diagnostics/bootstrap_session_state.py",
+        "diagnostics/error_logs.py",
     }
 
     allowed_suffixes = {".md", ".json"}
@@ -142,7 +145,12 @@ def test_release_archives_layout_and_contents_policy(built_artifacts):
         bad = [n for n in files if any(d in n for d in forbidden_dirs)]
         assert not bad, f"{label}: forbidden paths included: {bad[:25]}"
 
-        # allowlist file types: install.py + LICENSE* + *.md + *.json + profiles/addons/*.addon.yml
+        # allowlist file types:
+        # - install.py
+        # - LICENSE*
+        # - *.md + *.json
+        # - profiles/addons/*.addon.yml
+        # - diagnostics/*.py runtime helpers
         for n in files:
             name = Path(n).name
             rel = n.split("/", 1)[1] if "/" in n else n
@@ -151,6 +159,8 @@ def test_release_archives_layout_and_contents_policy(built_artifacts):
             if name.upper().startswith(("LICENSE", "LICENCE")):
                 continue
             if rel.startswith("profiles/addons/") and name.endswith(".addon.yml"):
+                continue
+            if rel.startswith("diagnostics/") and Path(name).suffix.lower() == ".py":
                 continue
             suf = Path(n).suffix.lower()
             assert suf in allowed_suffixes, f"{label}: forbidden file type in artifact: {n}"

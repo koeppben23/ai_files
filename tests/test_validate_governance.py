@@ -1677,6 +1677,8 @@ def test_start_md_includes_workspace_persistence_autohook():
         "persist_workspace_artifacts.py",
         "--repo-root",
         "workspacePersistenceHook",
+        "BLOCKED-WORKSPACE-PERSISTENCE",
+        "ERR-WORKSPACE-PERSISTENCE-HOOK-MISSING",
     ]
     missing = [token for token in required_tokens if token not in text]
     assert not missing, "start.md missing workspace persistence auto-hook tokens:\n" + "\n".join(
@@ -1973,6 +1975,13 @@ def test_backfill_decision_pack_includes_phase_15_prompt_decision():
     assert not missing, "persist_workspace_artifacts.py missing Phase 1.5 decision-pack baseline tokens:\n" + "\n".join(
         [f"- {m}" for m in missing]
     )
+
+
+@pytest.mark.governance
+def test_rules_use_canonical_repo_business_rules_file_reference():
+    text = read_text(REPO_ROOT / "rules.md")
+    assert "${REPO_BUSINESS_RULES_FILE}" in text
+    assert "${CONFIG_ROOT}/${REPO_NAME}/business-rules.md" not in text
 
 
 @pytest.mark.governance

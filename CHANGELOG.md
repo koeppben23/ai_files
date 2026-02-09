@@ -120,6 +120,10 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
 ### Fixed
 - Extend `persist_workspace_artifacts.py --quiet` blocked output with structured reason fields (`reason_code`, `recovery_steps`, `next_command`) for direct `SESSION_STATE.Diagnostics.ReasonPayloads` integration.
 - Include addon manifests (`profiles/addons/*.addon.yml`) in release artifacts so runtime addon activation/reload works from packaged RC builds.
+- Include diagnostics runtime Python helpers (`diagnostics/*.py`) in release artifacts so `/start` auto-persistence and runtime error logging remain available after install.
+- Fix `/start` workspace persistence hook failure semantics to emit canonical blocked payloads (`BLOCKED-WORKSPACE-PERSISTENCE`) and write structured runtime error logs when the helper is missing or fails.
+- Fix bootstrap diagnostics coverage by logging missing backfill helper events (`ERR-WORKSPACE-PERSISTENCE-HOOK-MISSING`) instead of silently skipping.
+- Fix Business Rules inventory read path contract to use canonical `${REPO_BUSINESS_RULES_FILE}` instead of a non-canonical `${CONFIG_ROOT}/${REPO_NAME}/business-rules.md` fallback.
 - Remove duplicate local `_pretty` function definition in `scripts/build.py` to keep release artifact logging implementation clean and deterministic.
 - Uninstall now purges installer/runtime-owned `errors-*.jsonl` logs by default (with `--keep-error-logs` opt-out), while preserving non-matching user files.
 - Fix backend-java evidence gate wording to block pass at Phase 5.3/6 when required evidence is missing.

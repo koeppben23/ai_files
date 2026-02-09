@@ -299,6 +299,20 @@ def main() -> int:
                 if run.stderr.strip():
                     print(run.stderr.strip())
         else:
+            safe_log_error(
+                reason_key="ERR-WORKSPACE-PERSISTENCE-HOOK-MISSING",
+                message="Workspace artifact backfill helper missing during bootstrap.",
+                config_root=config_root,
+                phase="1.1-Bootstrap",
+                gate="PERSISTENCE",
+                mode="repo-aware",
+                repo_fingerprint=repo_fingerprint,
+                command="bootstrap_session_state.py",
+                component="workspace-persistence-hook",
+                observed_value={"helper": str(helper)},
+                expected_constraint="persist_workspace_artifacts.py present under diagnostics",
+                remediation="Reinstall governance package and rerun bootstrap.",
+            )
             print("WARNING: persist_workspace_artifacts.py not found; skipping artifact backfill hook.")
 
     return 0
