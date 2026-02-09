@@ -6,22 +6,25 @@ This document explains the intent and structure of the rules.
 It does not override or redefine them.
 
 - **Normative system authority and phase gates**  
-  → See `master.md`
+  → See [`master.md`](master.md)
 
 - **Governance release/readiness SLA (normative Go/No-Go)**
-  → See `STABILITY_SLA.md`
+  → See [`STABILITY_SLA.md`](STABILITY_SLA.md)
 
 - **Actual enforceable rules**  
-  → See `rules.md`
+  → See [`rules.md`](rules.md)
 
 - **Context- and stack-specific extensions**  
-  → See `profiles/*`
+  → See [`profiles/`](profiles/)
 
   Addons are discovered declaratively via addon manifests:
-  → See `profiles/addons/*.addon.yml`
+  → See [`profiles/addons/`](profiles/addons/)
 
 - **Operational usage and configuration**  
-  → See `README-OPENCODE.md`
+  → See [`README-OPENCODE.md`](README-OPENCODE.md)
+
+- **Canonical session-state contract**
+  → See [`SESSION_STATE_SCHEMA.md`](SESSION_STATE_SCHEMA.md)
 
 This README is explanatory only.
 
@@ -39,8 +42,8 @@ This document contains **no standalone rules**.
 It only summarizes the requirements defined in **rules.md**.
 When in doubt, **rules.md** and the **Master Prompt** always take precedence.
 
-Conflicts between sources are resolved deterministically via `CONFLICT_RESOLUTION.md`
-(located next to `master.md`).
+Conflicts between sources are resolved deterministically via [`CONFLICT_RESOLUTION.md`](CONFLICT_RESOLUTION.md)
+(located next to [`master.md`](master.md)).
 
 ---
 

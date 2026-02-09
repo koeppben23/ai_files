@@ -6,16 +6,22 @@ This document explains OpenCode-specific configuration and persistence.
 It does not define system behavior.
 
 - **Normative system rules and gates**  
-  → See `master.md`
+  → See [`master.md`](master.md)
 
 - **Quality and technical constraints**  
-  → See `rules.md`
+  → See [`rules.md`](rules.md)
 
 - **Profiles and stack-specific rules**  
-  → See `profiles/*`
+  → See [`profiles/`](profiles/)
 
 - **Session lifecycle (start / continue / resume)**  
-  → See `start.md`, `continue.md`, `resume.md`
+  → See [`start.md`](start.md), [`continue.md`](continue.md), [`resume.md`](resume.md)
+
+- **Release/readiness stability contract**
+  → See [`STABILITY_SLA.md`](STABILITY_SLA.md)
+
+- **Canonical session-state schema**
+  → See [`SESSION_STATE_SCHEMA.md`](SESSION_STATE_SCHEMA.md)
 
 This README is descriptive and subordinate to all normative files.
 
@@ -71,7 +77,7 @@ Use this when a new repository/ticket needs governance coverage that does not ex
   - `Principal Excellence Contract (Binding)`
   - `Principal Hardening v2.1 - Standard Risk Tiering (Binding)`
   - `Principal Hardening v2.1.1 - Scorecard Calibration (Binding)`
-- Validate output against `diagnostics/PROFILE_ADDON_FACTORY_CONTRACT.json`.
+- Validate output against [`diagnostics/PROFILE_ADDON_FACTORY_CONTRACT.json`](diagnostics/PROFILE_ADDON_FACTORY_CONTRACT.json).
 
 Minimum operator input for generation:
 
@@ -422,8 +428,8 @@ Outputs an `AUDIT_REPORT` JSON (see schema) and may update only:
 `SESSION_STATE.Audit.LastRun.*` (pointer + hash), without touching workflow control fields.
 
 See:
-- `diagnostics/audit.md`
-- `diagnostics/AUDIT_REPORT_SCHEMA.json`
+- [`diagnostics/audit.md`](diagnostics/audit.md)
+- [`diagnostics/AUDIT_REPORT_SCHEMA.json`](diagnostics/AUDIT_REPORT_SCHEMA.json)
 
 ---
 
@@ -431,16 +437,17 @@ See:
 
 | File | Purpose |
 |-----|--------|
-| `master.md` | Workflow orchestration, phases, gates, session state |
-| `STABILITY_SLA.md` | Normative governance release/readiness Go/No-Go contract |
-| `rules.md` | Technical, architectural, test, and business rules |
-| `README-RULES.md` | Executive summary (not normative) |
-| `SCOPE-AND-CONTEXT.md` | Normative scope and responsibility boundaries |
-| `QUALITY_INDEX.md` | Canonical index for “top-tier” quality (no new rules; pointers only) |
-| `CONFLICT_RESOLUTION.md` | Deterministic precedence model for conflicting instructions |
-| `resume.md` | OpenCode command for controlled continuation |
-| `continue.md` | OpenCode command for uniform continuation |
-| `resume_prompt.md` | Manual fallback resume variant |
+| [`master.md`](master.md) | Workflow orchestration, phases, gates, session state |
+| [`STABILITY_SLA.md`](STABILITY_SLA.md) | Normative governance release/readiness Go/No-Go contract |
+| [`rules.md`](rules.md) | Technical, architectural, test, and business rules |
+| [`README-RULES.md`](README-RULES.md) | Executive summary (not normative) |
+| [`SCOPE-AND-CONTEXT.md`](SCOPE-AND-CONTEXT.md) | Normative scope and responsibility boundaries |
+| [`QUALITY_INDEX.md`](QUALITY_INDEX.md) | Canonical index for “top-tier” quality (no new rules; pointers only) |
+| [`SESSION_STATE_SCHEMA.md`](SESSION_STATE_SCHEMA.md) | Canonical session-state schema and invariants |
+| [`CONFLICT_RESOLUTION.md`](CONFLICT_RESOLUTION.md) | Deterministic precedence model for conflicting instructions |
+| [`resume.md`](resume.md) | OpenCode command for controlled continuation |
+| [`continue.md`](continue.md) | OpenCode command for uniform continuation |
+| [`resume_prompt.md`](resume_prompt.md) | Manual fallback resume variant |
 
 ---
 

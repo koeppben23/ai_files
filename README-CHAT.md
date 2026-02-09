@@ -6,16 +6,19 @@ This document describes how to use the governance system in **pure chat environm
 It does **not** define system behavior or rules.
 
 - **Looking for mandatory workflow, phases, and gates?**  
-  → See `master.md` (normative, highest priority)
+  → See [`master.md`](master.md) (normative, highest priority)
 
 - **Looking for technical, test, and business rules?**  
-  → See `rules.md`
+  → See [`rules.md`](rules.md)
 
 - **Looking for stack- or context-specific constraints?**  
-  → See `profiles/*`
+  → See [`profiles/`](profiles/)
 
 - **Looking for repo-aware usage and OpenCode configuration?**  
-  → See `README-OPENCODE.md`
+  → See [`README-OPENCODE.md`](README-OPENCODE.md)
+
+- **Looking for release/readiness Go/No-Go criteria?**
+  → See [`STABILITY_SLA.md`](STABILITY_SLA.md)
 
 This README is **descriptive only** and applies **only to chat-only usage**.
 
@@ -30,8 +33,8 @@ in **pure chat environments** (ChatGPT, Claude, etc.),
 This README is **descriptive, not normative**.
 
 If anything in this file conflicts with:
-- `master.md`
-- `rules.md`
+- [`master.md`](master.md)
+- [`rules.md`](rules.md)
 
 then **this README is wrong**.
 
@@ -68,7 +71,7 @@ If you discover missing governance capability while working tickets, you can sti
 
 Generated artifacts should be checked against:
 
-- `diagnostics/PROFILE_ADDON_FACTORY_CONTRACT.json`
+- [`diagnostics/PROFILE_ADDON_FACTORY_CONTRACT.json`](diagnostics/PROFILE_ADDON_FACTORY_CONTRACT.json)
 
 Required principal baseline sections in generated rulebooks:
 

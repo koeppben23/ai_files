@@ -6,19 +6,25 @@ This document is part of a multi-layer AI governance system.
 Use the following guide to navigate responsibilities and authority:
 
 - **Looking for mandatory rules and system behavior?**  
-  → See `master.md` (normative, highest priority)
+  → See [`master.md`](master.md) (normative, highest priority)
 
 - **Looking for technical and quality constraints?**  
-  → See `rules.md`
+  → See [`rules.md`](rules.md)
 
 - **Looking for stack- or context-specific rules?**  
-  → See `profiles/*`
+  → See [`profiles/`](profiles/)
 
 - **Looking for OpenCode configuration and persistence details?**  
-  → See `README-OPENCODE.md`
+  → See [`README-OPENCODE.md`](README-OPENCODE.md)
 
 - **Looking for how to start or resume a session?**  
-  → See `start.md`, `continue.md`, `resume.md`
+  → See [`start.md`](start.md), [`continue.md`](continue.md), [`resume.md`](resume.md)
+
+- **Looking for release/readiness Go/No-Go criteria?**
+  → See [`STABILITY_SLA.md`](STABILITY_SLA.md)
+
+- **Looking for canonical session-state schema?**
+  → See [`SESSION_STATE_SCHEMA.md`](SESSION_STATE_SCHEMA.md)
 
 This README is **descriptive only** and must not be interpreted as normative.
 
@@ -645,8 +651,8 @@ Outputs an `AUDIT_REPORT` JSON (see schema) and may update only:
 
 See:
 
-- `diagnostics/audit.md`
-- `diagnostics/AUDIT_REPORT_SCHEMA.json`
+- [`diagnostics/audit.md`](diagnostics/audit.md)
+- [`diagnostics/AUDIT_REPORT_SCHEMA.json`](diagnostics/AUDIT_REPORT_SCHEMA.json)
 
 ---
 
@@ -654,16 +660,17 @@ See:
 
 | File | Purpose |
 |------|---------|
-| `master.md` | Central orchestration: phases, gates, session-state |
-| `rules.md` | Technical, architectural, test, and business rules |
-| `profiles/*` | Context-specific rulebooks; includes repo-agnostic fallback baseline |
-| `README-RULES.md` | Executive summary (not normative) |
-| `SCOPE-AND-CONTEXT.md` | Normative responsibility and scope boundary |
-| `QUALITY_INDEX.md` | Canonical index for “top-tier” quality (no new rules; pointers only) |
-| `CONFLICT_RESOLUTION.md` | Deterministic precedence model for conflicting instructions |
-| `resume.md` | OpenCode command for controlled continuation |
-| `continue.md` | OpenCode command for uniform “continue” execution |
-| `resume_prompt.md` | Manual/fallback resume variant without commands |
+| [`master.md`](master.md) | Central orchestration: phases, gates, session-state |
+| [`rules.md`](rules.md) | Technical, architectural, test, and business rules |
+| [`profiles/`](profiles/) | Context-specific rulebooks; includes repo-agnostic fallback baseline |
+| [`README-RULES.md`](README-RULES.md) | Executive summary (not normative) |
+| [`SCOPE-AND-CONTEXT.md`](SCOPE-AND-CONTEXT.md) | Normative responsibility and scope boundary |
+| [`QUALITY_INDEX.md`](QUALITY_INDEX.md) | Canonical index for “top-tier” quality (no new rules; pointers only) |
+| [`STABILITY_SLA.md`](STABILITY_SLA.md) | Normative governance release/readiness Go/No-Go contract |
+| [`CONFLICT_RESOLUTION.md`](CONFLICT_RESOLUTION.md) | Deterministic precedence model for conflicting instructions |
+| [`resume.md`](resume.md) | OpenCode command for controlled continuation |
+| [`continue.md`](continue.md) | OpenCode command for uniform “continue” execution |
+| [`resume_prompt.md`](resume_prompt.md) | Manual/fallback resume variant without commands |
 
 ---
 
