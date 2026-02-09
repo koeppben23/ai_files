@@ -40,6 +40,10 @@ Reason key semantics (binding):
 - They are NOT canonical governance `reason_code` values and MUST NOT be written into `SESSION_STATE.Diagnostics.ReasonPayloads.reason_code` without explicit mapping.
 - If a bridge to canonical workflow reasons is needed, map audit keys to canonical `BLOCKED-*|WARN-*|NOT_VERIFIED-*` codes explicitly.
 
+Deterministic bridge (binding):
+- Use `diagnostics/map_audit_to_canonical.py --input <audit-report.json>` for deterministic audit-key to canonical reason-code mapping.
+- Canonical mapping source: `diagnostics/AUDIT_REASON_CANONICAL_MAP.json`.
+
 ---
 
 ## SESSION_STATE UPDATE (A2 — allowed mutation scope)

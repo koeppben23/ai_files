@@ -654,6 +654,8 @@ def check_factory_contract_alignment(issues: list[str]) -> None:
 def check_diagnostics_reason_contract_alignment(issues: list[str]) -> None:
     audit = read_text(ROOT / "diagnostics" / "audit.md")
     persist = read_text(ROOT / "diagnostics" / "persist_workspace_artifacts.py")
+    bridge = ROOT / "diagnostics" / "map_audit_to_canonical.py"
+    bridge_map = ROOT / "diagnostics" / "AUDIT_REASON_CANONICAL_MAP.json"
 
     audit_required_tokens = [
         "Reason key semantics (binding):",
@@ -663,6 +665,8 @@ def check_diagnostics_reason_contract_alignment(issues: list[str]) -> None:
         "auditReasonKey `BR_MISSING_SESSION_GATE_STATE`",
         "auditReasonKey `BR_MISSING_RULEBOOK_RESOLUTION`",
         "auditReasonKey `BR_SCOPE_ARTIFACT_MISSING`",
+        "diagnostics/map_audit_to_canonical.py --input <audit-report.json>",
+        "diagnostics/AUDIT_REASON_CANONICAL_MAP.json",
     ]
     missing_audit = [token for token in audit_required_tokens if token not in audit]
     if missing_audit:
@@ -677,6 +681,34 @@ def check_diagnostics_reason_contract_alignment(issues: list[str]) -> None:
     missing_persist = [token for token in persist_required_tokens if token not in persist]
     if missing_persist:
         issues.append(f"diagnostics/persist_workspace_artifacts.py: missing quiet blocked payload tokens {missing_persist}")
+
+    if not bridge.exists():
+        issues.append("diagnostics/map_audit_to_canonical.py: missing deterministic audit->canonical bridge script")
+    else:
+        bridge_text = read_text(bridge)
+        bridge_required_tokens = [
+            "opencode.audit-canonical-bridge.v1",
+            "--strict-unmapped",
+            "WARN-UNMAPPED-AUDIT-REASON",
+        ]
+        missing_bridge = [token for token in bridge_required_tokens if token not in bridge_text]
+        if missing_bridge:
+            issues.append(f"diagnostics/map_audit_to_canonical.py: missing bridge tokens {missing_bridge}")
+
+    if not bridge_map.exists():
+        issues.append("diagnostics/AUDIT_REASON_CANONICAL_MAP.json: missing canonical mapping source")
+    else:
+        map_text = read_text(bridge_map)
+        map_required_tokens = [
+            '"$schema": "opencode.audit-reason-map.v1"',
+            '"BR_MISSING_SESSION_GATE_STATE"',
+            '"BR_MISSING_RULEBOOK_RESOLUTION"',
+            '"BR_SCOPE_ARTIFACT_MISSING"',
+            '"default_unmapped": "WARN-UNMAPPED-AUDIT-REASON"',
+        ]
+        missing_map = [token for token in map_required_tokens if token not in map_text]
+        if missing_map:
+            issues.append(f"diagnostics/AUDIT_REASON_CANONICAL_MAP.json: missing mapping tokens {missing_map}")
 
 
 def check_start_evidence_boundaries(issues: list[str]) -> None:

@@ -1,0 +1,10 @@
+{
+  "$schema": "opencode.audit-reason-map.v1",
+  "version": "1.0",
+  "mappings": {
+    "BR_MISSING_SESSION_GATE_STATE": "BLOCKED-MISSING-EVIDENCE",
+    "BR_MISSING_RULEBOOK_RESOLUTION": "BLOCKED-RULEBOOK-EVIDENCE-MISSING",
+    "BR_SCOPE_ARTIFACT_MISSING": "BLOCKED-MISSING-EVIDENCE"
+  },
+  "default_unmapped": "WARN-UNMAPPED-AUDIT-REASON"
+}
