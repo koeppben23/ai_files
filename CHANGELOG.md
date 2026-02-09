@@ -79,6 +79,9 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
 - Remove `README-RULES.md` from normative priority order and mark it explicitly as non-normative executive summary.
 - Require a terminal `NEXT_STEP: <SESSION_STATE.Next>` line after every `SESSION_STATE` output, and codify this in `master.md` + `SESSION_STATE_SCHEMA.md` with governance tests.
 - Enforce Conventional naming for assistant-created branches/commits in governance contracts and CI (`master.md`, `rules.md`, `.github/workflows/ci.yml`) including PR branch-name and commit-subject validation.
+- Align bootstrap template state with canonical output-mode lifecycle (`SESSION_STATE.OutputMode=ARCHITECT`) and canonical start-order blocker (`Next=BLOCKED-START-REQUIRED`).
+- Tighten response-envelope schema to conditionally require blocker fields (`reason_payload`, `quick_fix_commands`) when `status=blocked`.
+- Strengthen top-tier governance evidence by adding explicit `RulebookLoadEvidence.top_tier.*` expectations and clarifying conflict-model mapping as classifier-only (no second precedence model).
 - Standardize `profiles/rules*.md` operational wrappers with consistent headings (`Intent`, `Scope`, `Activation`, `Phase integration`, `Evidence contract`, `Tooling`, `Examples`, `Troubleshooting`) and normalize quick-block variants to canonical section headings.
 - Replace fragile `rules.md Section 4.6` references with stable anchor references (`RULEBOOK-PRECEDENCE-POLICY`) across profiles, factory templates, master guidance, and governance tests.
 - Canonicalize required-vs-advisory addon behavior as a single fail-closed policy source in `rules.md` anchor `RULEBOOK-PRECEDENCE-POLICY` plus `master.md` addon catalog (local rulebooks now reference, not redefine, blocking semantics).

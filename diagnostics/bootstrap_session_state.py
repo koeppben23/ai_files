@@ -100,8 +100,8 @@ def session_state_template(repo_fingerprint: str, repo_name: str | None) -> dict
             "Phase": "1.1-Bootstrap",
             "Mode": "BLOCKED",
             "ConfidenceLevel": 0,
-            "Next": "BLOCKED-BOOTSTRAP-NOT-SATISFIED",
-            "OutputMode": "normal",
+            "Next": "BLOCKED-START-REQUIRED",
+            "OutputMode": "ARCHITECT",
             "Bootstrap": {
                 "Present": False,
                 "Satisfied": False,

@@ -1478,7 +1478,8 @@ def test_session_state_bootstrap_recovery_script_exists():
         "activeSessionStateFile",
         "workspaces",
         "1.1-Bootstrap",
-        "BLOCKED-BOOTSTRAP-NOT-SATISFIED",
+        "BLOCKED-START-REQUIRED",
+        "\"OutputMode\": \"ARCHITECT\"",
         "--repo-fingerprint",
         "--config-root",
         "--force",
@@ -1531,7 +1532,8 @@ def test_session_state_bootstrap_recovery_script_creates_state_file(tmp_path: Pa
 
     assert ss["Phase"] == "1.1-Bootstrap"
     assert ss["Mode"] == "BLOCKED"
-    assert ss["Next"] == "BLOCKED-BOOTSTRAP-NOT-SATISFIED"
+    assert ss["Next"] == "BLOCKED-START-REQUIRED"
+    assert ss["OutputMode"] == "ARCHITECT"
 
 
 @pytest.mark.governance
@@ -2061,6 +2063,10 @@ def test_canonical_response_envelope_schema_contract_is_defined():
         '"snapshot"',
         '"reason_payload"',
         '"quick_fix_commands"',
+        '"allOf"',
+        '"if"',
+        '"then"',
+        '"const": "blocked"',
     ]
     missing_schema = [t for t in schema_required if t not in schema_text]
     assert not missing_schema, "Response envelope schema missing required fields:\n" + "\n".join(
