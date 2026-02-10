@@ -204,6 +204,20 @@ Bootstrap tool preflight (binding):
 - If all required commands are available, `/start` MUST continue without a blocker.
 - If one or more commands are missing, `/start` MUST continue in degraded mode where possible and include recovery commands; block only when a later gate requires missing-tool-dependent evidence.
 
+Required-command inventory derivation (binding):
+- `/start` MUST load a deterministic command inventory from `${COMMANDS_HOME}/diagnostics/tool_requirements.json` when present.
+- If that file is unavailable, `/start` MUST fail over to deriving the inventory by scanning canonical governance artifacts for command references, at minimum:
+  - `${COMMANDS_HOME}/master.md`
+  - `${COMMANDS_HOME}/rules.md`
+  - `${PROFILES_HOME}/rules*.md`
+  - `${COMMANDS_HOME}/diagnostics/*.py`
+- The inventory MUST include:
+  - `required_now` (bootstrap/runtime essentials),
+  - `required_later` (phase/profile-gated tools),
+  - `optional` (advisory).
+- `/start` MUST emit the resolved inventory and PATH probe status before any operator prompt.
+- If a previously-missing command becomes available later, rerunning `/start` MUST refresh the inventory/probe and continue without stale blocker state.
+
 When host tools are available and the repository is a git worktree, the system MUST
 attempt host-side, non-destructive git evidence collection first before asking the
 operator to run commands manually.
@@ -1501,8 +1515,8 @@ Cache is VALID ONLY IF ALL are true:
    - Cache ComponentScope must match (same set), else INVALID
 
 Binding note:
-- The system MUST NOT probe for git availability or execute git commands.
-- GitHead comparisons are allowed ONLY when GitHead is provided as operator evidence.
+- Outside explicit identity/cache evidence collection, the system MUST NOT execute mutating git commands.
+- Read-only git probing/comparisons are allowed for identity/cache evidence when host tools are available.
 
 If VALID:
 - Treat cache as authoritative for Phase 2 output (supportive memory; repo evidence wins if later contradictions appear).

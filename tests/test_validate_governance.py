@@ -2015,6 +2015,13 @@ def test_start_and_master_require_host_git_identity_discovery_before_operator_pr
         "runtime MUST probe required external commands via PATH",
         "preflight result MUST be reported as structured diagnostics",
         "MUST NOT block by itself",
+        "Required-command inventory derivation (binding):",
+        "MUST load a deterministic command inventory from `${COMMANDS_HOME}/diagnostics/tool_requirements.json`",
+        "If that file is unavailable, `/start` MUST fail over to deriving the inventory by scanning canonical governance artifacts",
+        "`required_now` (bootstrap/runtime essentials)",
+        "`required_later` (phase/profile-gated tools)",
+        "`optional` (advisory)",
+        "rerunning `/start` MUST refresh the inventory/probe and continue without stale blocker state",
     ]
     start_required = [
         "Identity discovery order (binding):",
@@ -2023,9 +2030,14 @@ def test_start_and_master_require_host_git_identity_discovery_before_operator_pr
         "MUST block with identity-missing reason and provide copy-paste recovery commands",
         "Bootstrap command preflight (binding):",
         "`/start` MUST check required external commands in `PATH` first",
+        "`/start` MUST load command requirements from `${COMMANDS_HOME}/diagnostics/tool_requirements.json` when available",
+        "If `diagnostics/tool_requirements.json` is unavailable, `/start` MUST derive the command list by scanning canonical governance artifacts",
+        "`required_now`, `required_later`, and `optional`",
+        "MUST print the resolved command inventory and probe result (`available`/`missing`)",
         "Preflight diagnostics are informational and MUST NOT create a blocker by themselves",
         "`preflight: ok`",
         "`preflight: degraded`",
+        "rerunning `/start` MUST recompute the inventory from files",
     ]
 
     missing_master = [t for t in master_required if t not in master]
@@ -2036,6 +2048,106 @@ def test_start_and_master_require_host_git_identity_discovery_before_operator_pr
     )
     assert not missing_start, "start.md missing host git identity-discovery tokens:\n" + "\n".join(
         [f"- {m}" for m in missing_start]
+    )
+
+
+@pytest.mark.governance
+def test_tool_requirements_catalog_exists_and_has_required_sections():
+    p = REPO_ROOT / "diagnostics" / "tool_requirements.json"
+    assert p.exists(), "Missing diagnostics/tool_requirements.json"
+
+    payload = json.loads(read_text(p))
+    assert payload.get("schema") == "opencode-tool-requirements.v1", "Unexpected tool requirements schema"
+
+    for key in ["required_now", "required_later", "optional"]:
+        assert key in payload, f"tool_requirements.json missing key: {key}"
+        assert isinstance(payload[key], list), f"tool_requirements.json key must be a list: {key}"
+
+    required_now_cmds = {str(x.get("command", "")).strip() for x in payload["required_now"] if isinstance(x, dict)}
+    assert "git" in required_now_cmds, "tool_requirements.json required_now must include git"
+    assert "python3" in required_now_cmds, "tool_requirements.json required_now must include python3"
+
+
+@pytest.mark.governance
+def test_tool_requirements_catalog_covers_commands_referenced_by_flow_rulebooks():
+    catalog_path = REPO_ROOT / "diagnostics" / "tool_requirements.json"
+    catalog = json.loads(read_text(catalog_path))
+
+    catalog_cmds = set()
+    for section in ["required_now", "required_later", "optional"]:
+        for entry in catalog.get(section, []):
+            if isinstance(entry, dict):
+                cmd = str(entry.get("command", "")).strip()
+                if cmd:
+                    catalog_cmds.add(cmd)
+
+    flow_files = [
+        REPO_ROOT / "master.md",
+        REPO_ROOT / "start.md",
+    ]
+    flow_files.extend(sorted((REPO_ROOT / "profiles").glob("rules*.md")))
+
+    token_re = re.compile(r"`([^`\n]+)`")
+    cmd_re = re.compile(r"^[a-z][a-z0-9.-]*$")
+    command_like_second_tokens = {
+        "remote",
+        "symbolic-ref",
+        "rev-parse",
+        "run",
+        "test",
+        "ci",
+        "lint",
+        "validate",
+        "breaking",
+        "affected",
+        "clean",
+        "verify",
+        "update",
+        "updatesql",
+        "rollbackcount",
+        "changelogsync",
+        "marknextchangesetran",
+        "nx",
+        "i",
+    }
+
+    discovered: set[str] = set()
+    for p in flow_files:
+        text = read_text(p)
+        for m in token_re.finditer(text):
+            snippet = m.group(1).strip()
+            if " " not in snippet:
+                continue
+            parts = [x for x in snippet.split() if x]
+            if len(parts) < 2:
+                continue
+            first = parts[0].strip()
+            second = parts[1].strip()
+            if first.startswith("/"):
+                continue
+            if first == "./gradlew":
+                first = "gradle"
+            if not cmd_re.match(first):
+                continue
+            second_l = second.lower()
+            option_like = bool(re.match(r"^-[A-Za-z0-9].*", second))
+            if not (
+                option_like
+                or "/" in second
+                or second_l in command_like_second_tokens
+            ):
+                continue
+            discovered.add(first)
+
+    # `python` and `python3` are treated as equivalent bootstrap runtimes.
+    normalized_discovered = {"python3" if c == "python" else c for c in discovered}
+    normalized_catalog = {"python3" if c == "python" else c for c in catalog_cmds}
+
+    missing = sorted(c for c in normalized_discovered if c not in normalized_catalog)
+    assert not missing, (
+        "tool_requirements.json missing commands referenced in flow rulebooks:\n"
+        + "\n".join([f"- {m}" for m in missing])
+        + "\nAdd each command to diagnostics/tool_requirements.json (required_now/required_later/optional)."
     )
 
 
