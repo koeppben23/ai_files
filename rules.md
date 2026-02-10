@@ -698,16 +698,16 @@ Quick-fix commands are execution guidance only; they do not bypass gates or evid
 ### 7.3.6 Architect-Only Autopilot Lifecycle (Binding)
 
 Canonical operator lifecycle:
-1) `/start` (bootstrap + default design mode entry)
-2) `Implement now` (optional scope)
-3) `Ingest evidence`
+1) `/start`
+2) `/master` (default design mode)
+3) `Implement now` (optional scope)
+4) `Ingest evidence`
 
 Output mode enum (binding):
 - `SESSION_STATE.OutputMode = ARCHITECT | IMPLEMENT | VERIFY`
 
 Rules:
 - `/master` before valid `/start` bootstrap evidence MUST block with `BLOCKED-START-REQUIRED` and `QuickFixCommands: ["/start"]`.
-- `/start` SHOULD auto-enter ARCHITECT flow for normal operation; explicit `/master` is optional re-entry.
 - `ARCHITECT` mode is default and decision-first; no full code diff output.
 - `IMPLEMENT` mode requires explicit operator trigger (`Implement now`).
 - `VERIFY` mode is evidence reconciliation only.

@@ -33,6 +33,7 @@ if f.exists():
             'reason_code':'BLOCKED-VARIABLE-RESOLUTION',
             'message':'Installer-owned governance.paths.json exists but could not be read.',
             'bindingFile': str(f),
+            'missing_evidence':['${COMMANDS_HOME}/governance.paths.json (installer-owned binding evidence)'],
             'error': str(ex)[:240],
             'recovery_steps':[
                 'allow OpenCode host read access to governance.paths.json',
@@ -49,6 +50,8 @@ else:
         'status':'blocked',
         'reason_code':'BLOCKED-MISSING-BINDING-FILE',
         'message':'Missing installer-owned governance.paths.json; computed paths are debug-only and non-evidence.',
+        'missing_evidence':['${COMMANDS_HOME}/governance.paths.json (installer-owned binding evidence)'],
+        'next_command':'/start',
         'debugComputedPaths':{
             'configRoot': norm(root),
             'commandsHome': norm(root/'commands'),
@@ -58,7 +61,7 @@ else:
         },
         'recovery_steps':[
             'rerun installer to create commands/governance.paths.json',
-            'or provide operator binding evidence plus filesystem proof artifacts',
+            'rerun /start after installer repair',
         ],
         'nonEvidence':'debug-only'
     }
@@ -90,7 +93,7 @@ def config_root():
     xdg=os.getenv('XDG_CONFIG_HOME')
     return (Path(xdg) if xdg else Path.home()/'.config')/'opencode'
 
-root=config_root(); diag=root/'commands'/'diagnostics'; helper=diag/'persist_workspace_artifacts.py'; bootstrap=diag/'bootstrap_session_state.py'; logger=diag/'error_logs.py'
+root=config_root(); diag=root/'commands'/'diagnostics'; helper=diag/'persist_workspace_artifacts.py'; bootstrap=diag/'bootstrap_session_state.py'; logger=diag/'error_logs.py'; identity_map=root/'repo-identity-map.yaml'
 
 def _log(reason_key,message,observed):
     try:
@@ -120,6 +123,10 @@ def _log(reason_key,message,observed):
         pass
 
 if helper.exists():
+    if not identity_map.exists():
+        _log('ERR-WORKSPACE-PERSISTENCE-SKIPPED-NO-IDENTITY-EVIDENCE','/start workspace persistence skipped because repo identity map evidence is missing.',{'identityMap':str(identity_map)})
+        print(json.dumps({'workspacePersistenceHook':'warn','reason_code':'WARN-WORKSPACE-PERSISTENCE','reason':'skipped-no-identity-evidence','impact':'no repo-scoped persistence without validated identity evidence','recovery':'provide repo identity evidence and rerun /start'}))
+        raise SystemExit(0)
     run=subprocess.run([sys.executable,str(helper),'--repo-root',str(Path.cwd()),'--quiet'], text=True, capture_output=True, check=False)
     out=(run.stdout or '').strip()
     err=(run.stderr or '').strip()
@@ -193,7 +200,7 @@ Because this file cannot self-prove filesystem state, governance activation MUST
 
 A) **Host-provided file access evidence** (preferred)
    - Tool output showing the resolved directory listing for `${COMMANDS_HOME}` and `${PROFILES_HOME}`, OR
-   - Tool output confirming reads of `master.md` and `rules.md` (profile rulebook resolution may be deferred to Phase 1.2/Post-Phase-2 detection).
+   - Tool output confirming reads of `master.md` (and top-tier bootstrap artifacts when present); `rules.md` load evidence is deferred until Phase 4.
 
 Binding behavior (MUST):
 - If installer-owned `${COMMANDS_HOME}/governance.paths.json` exists and host filesystem tools are available,
@@ -214,13 +221,11 @@ Invocation:
 - This file does not replace or inline `master.md`; it only triggers its discovery and activation.
 - Phases 1–6 are enforced as far as host/system constraints allow.
 - `/start` is mandatory before `/master` for a repo/session; `/master` without valid `/start` evidence MUST map to `BLOCKED-START-REQUIRED` with `QuickFixCommands: ["/start"]`.
-- `/start` wraps master ARCHITECT entry automatically for the same session (no separate `/master` call required for normal flow).
-- Canonical operator lifecycle: `/start` (bootstrap + ARCHITECT entry) -> `Implement now` (IMPLEMENT) -> `Ingest evidence` (VERIFY).
-- `/master` remains available as an optional explicit re-entry command after `/start` when the operator wants to force architecture re-evaluation.
+- Canonical operator lifecycle: `/start` -> `/master` (ARCHITECT) -> `Implement now` (IMPLEMENT) -> `Ingest evidence` (VERIFY).
 - Plan-Gates ≠ Evidence-Gates.
 - Missing evidence → BLOCKED (reported, not suppressed).
 - Profile ambiguity → BLOCKED.
-- `/start` MUST NOT require explicit profile selection to complete bootstrap if `master.md` and `rules.md` load evidence is available; profile selection remains a Phase 1.2/Post-Phase-2 concern.
+- `/start` MUST NOT require explicit profile selection to complete bootstrap when `master.md` bootstrap evidence is available; profile selection remains a Phase 1.2/Post-Phase-2 concern.
 - When profile signals are ambiguous, provide a ranked profile shortlist with evidence and request explicit numbered selection (`1=<recommended> | 2=<alt> | 3=<alt> | 4=fallback-minimum | 0=abort/none`) before activation.
 
 Rulebook discovery contract (BINDING):

@@ -788,12 +788,15 @@ def check_start_evidence_boundaries(issues: list[str]) -> None:
     required_tokens = [
         "'reason_code':'BLOCKED-MISSING-BINDING-FILE'",
         "'reason_code':'BLOCKED-VARIABLE-RESOLUTION'",
+        "'missing_evidence':['${COMMANDS_HOME}/governance.paths.json (installer-owned binding evidence)']",
+        "'next_command':'/start'",
         "'nonEvidence':'debug-only'",
         "Fallback computed payloads are debug output only (`nonEvidence`) and MUST NOT be treated as binding evidence.",
         "Helper output is operational convenience status only and MUST NOT be treated as canonical repo identity evidence.",
         "Repo identity remains governed by `master.md` evidence contracts",
         "`/start` MUST attempt host-provided evidence first and MUST NOT request operator-provided variable binding before that attempt.",
-        "`/start` MUST NOT require explicit profile selection to complete bootstrap if `master.md` and `rules.md` load evidence is available",
+        "rules.md` load evidence is deferred until Phase 4.",
+        "`/start` MUST NOT require explicit profile selection to complete bootstrap when `master.md` bootstrap evidence is available",
     ]
     missing_required = [token for token in required_tokens if token not in start]
     if missing_required:
@@ -802,6 +805,7 @@ def check_start_evidence_boundaries(issues: list[str]) -> None:
     forbidden_tokens = [
         "Treat it as **evidence**.",
         "# last resort: compute the same payload that the installer would write",
+        "or provide operator binding evidence plus filesystem proof artifacts",
     ]
     found_forbidden = [token for token in forbidden_tokens if token in start]
     if found_forbidden:
@@ -983,10 +987,9 @@ def check_architect_autopilot_lifecycle_contract(issues: list[str]) -> None:
     master_required = [
         "### 2.4.2 Architect-Only Autopilot Lifecycle (Binding)",
         "SESSION_STATE.OutputMode = ARCHITECT | IMPLEMENT | VERIFY",
-        "Default after successful `/start` bootstrap is `ARCHITECT`.",
+        "Default after `/master` is `ARCHITECT`.",
         "BLOCKED-START-REQUIRED",
         "BLOCKED-MISSING-DECISION",
-        "Normal operator flow MUST NOT require a separate `/master` call when `/start` succeeded.",
     ]
     rules_required = [
         "### 7.3.6 Architect-Only Autopilot Lifecycle (Binding)",
@@ -997,8 +1000,7 @@ def check_architect_autopilot_lifecycle_contract(issues: list[str]) -> None:
     ]
     start_required = [
         "`/start` is mandatory before `/master` for a repo/session; `/master` without valid `/start` evidence MUST map to `BLOCKED-START-REQUIRED`",
-        "`/start` wraps master ARCHITECT entry automatically for the same session",
-        "Canonical operator lifecycle: `/start` (bootstrap + ARCHITECT entry) -> `Implement now` (IMPLEMENT) -> `Ingest evidence` (VERIFY).",
+        "Canonical operator lifecycle: `/start` -> `/master` (ARCHITECT) -> `Implement now` (IMPLEMENT) -> `Ingest evidence` (VERIFY).",
     ]
 
     missing_master = [t for t in master_required if t not in master]

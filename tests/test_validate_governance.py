@@ -1748,6 +1748,7 @@ def test_start_md_includes_workspace_persistence_autohook():
         "workspacePersistenceHook",
         "WARN-WORKSPACE-PERSISTENCE",
         "bootstrap-session-failed",
+        "skipped-no-identity-evidence",
         "ERR-WORKSPACE-PERSISTENCE-HOOK-MISSING",
     ]
     missing = [token for token in required_tokens if token not in text]
@@ -1761,8 +1762,8 @@ def test_start_prefers_host_binding_evidence_and_defers_profile_selection_at_boo
     text = read_text(REPO_ROOT / "start.md")
     required_tokens = [
         "`/start` MUST attempt host-provided evidence first and MUST NOT request operator-provided variable binding before that attempt.",
-        "profile rulebook resolution may be deferred to Phase 1.2/Post-Phase-2 detection",
-        "`/start` MUST NOT require explicit profile selection to complete bootstrap if `master.md` and `rules.md` load evidence is available",
+        "rules.md` load evidence is deferred until Phase 4.",
+        "`/start` MUST NOT require explicit profile selection to complete bootstrap when `master.md` bootstrap evidence is available",
     ]
     missing = [token for token in required_tokens if token not in text]
     assert not missing, "start.md missing bootstrap evidence/profile deferral tokens:\n" + "\n".join(
@@ -1832,6 +1833,8 @@ def test_start_md_fallback_binding_and_identity_evidence_boundaries_are_fail_clo
     required_tokens = [
         "'reason_code':'BLOCKED-MISSING-BINDING-FILE'",
         "'reason_code':'BLOCKED-VARIABLE-RESOLUTION'",
+        "'missing_evidence':['${COMMANDS_HOME}/governance.paths.json (installer-owned binding evidence)']",
+        "'next_command':'/start'",
         "'nonEvidence':'debug-only'",
         "Fallback computed payloads are debug output only (`nonEvidence`) and MUST NOT be treated as binding evidence.",
         "If installer-owned binding file is missing, workflow MUST block with `BLOCKED-MISSING-BINDING-FILE`",
@@ -1844,6 +1847,7 @@ def test_start_md_fallback_binding_and_identity_evidence_boundaries_are_fail_clo
     forbidden_tokens = [
         "Treat it as **evidence**.",
         "# last resort: compute the same payload that the installer would write",
+        "or provide operator binding evidence plus filesystem proof artifacts",
     ]
     found = [token for token in forbidden_tokens if token in text]
     assert not found, "start.md still contains legacy fallback-evidence phrasing:\n" + "\n".join([f"- {m}" for m in found])
@@ -2066,10 +2070,9 @@ def test_architect_autopilot_lifecycle_contract_is_defined_across_core_docs():
     master_required = [
         "### 2.4.2 Architect-Only Autopilot Lifecycle (Binding)",
         "SESSION_STATE.OutputMode = ARCHITECT | IMPLEMENT | VERIFY",
-        "Default after successful `/start` bootstrap is `ARCHITECT`.",
+        "Default after `/master` is `ARCHITECT`.",
         "BLOCKED-START-REQUIRED",
         "BLOCKED-MISSING-DECISION",
-        "Normal operator flow MUST NOT require a separate `/master` call when `/start` succeeded.",
     ]
     rules_required = [
         "### 7.3.6 Architect-Only Autopilot Lifecycle (Binding)",
@@ -2080,8 +2083,7 @@ def test_architect_autopilot_lifecycle_contract_is_defined_across_core_docs():
     ]
     start_required = [
         "`/start` is mandatory before `/master` for a repo/session; `/master` without valid `/start` evidence MUST map to `BLOCKED-START-REQUIRED`",
-        "`/start` wraps master ARCHITECT entry automatically for the same session",
-        "Canonical operator lifecycle: `/start` (bootstrap + ARCHITECT entry) -> `Implement now` (IMPLEMENT) -> `Ingest evidence` (VERIFY).",
+        "Canonical operator lifecycle: `/start` -> `/master` (ARCHITECT) -> `Implement now` (IMPLEMENT) -> `Ingest evidence` (VERIFY).",
     ]
 
     missing_master = [t for t in master_required if t not in master]

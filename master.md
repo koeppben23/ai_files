@@ -1181,17 +1181,14 @@ Rules:
 ### 2.4.2 Architect-Only Autopilot Lifecycle (Binding)
 
 Operator lifecycle (canonical):
-1) `/start` -> bootstrap/path contract + workspace persistence checks + architecture/design phase entry (decision-first)
-2) `Implement now` (optional scope) -> implementation mode
-3) `Ingest evidence` -> verification mode (claim upgrade/reject)
-
-`/master` command role:
-- `/master` remains an optional explicit re-entry command after `/start` to force architecture-phase re-evaluation.
-- Normal operator flow MUST NOT require a separate `/master` call when `/start` succeeded.
+1) `/start` -> bootstrap/path contract + workspace persistence checks
+2) `/master` -> architecture/design phase (decision-first)
+3) `Implement now` (optional scope) -> implementation mode
+4) `Ingest evidence` -> verification mode (claim upgrade/reject)
 
 Execution mode enum (binding):
 - `SESSION_STATE.OutputMode = ARCHITECT | IMPLEMENT | VERIFY`
-- Default after successful `/start` bootstrap is `ARCHITECT`.
+- Default after `/master` is `ARCHITECT`.
 
 Mode constraints:
 - `ARCHITECT`:
