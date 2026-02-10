@@ -1870,6 +1870,30 @@ def test_start_md_includes_workspace_persistence_autohook():
 
 
 @pytest.mark.governance
+def test_start_md_resolves_installed_diagnostics_helpers_not_workspace_relative_paths():
+    text = read_text(REPO_ROOT / "start.md")
+
+    forbidden = [
+        "python3 diagnostics/start_binding_evidence.py",
+        "python3 diagnostics/start_preflight_persistence.py",
+    ]
+    found_forbidden = [token for token in forbidden if token in text]
+    assert not found_forbidden, "start.md still uses workspace-relative diagnostics helper paths:\n" + "\n".join(
+        [f"- {m}" for m in found_forbidden]
+    )
+
+    required = [
+        "commands'/'diagnostics'/'start_binding_evidence.py",
+        "commands'/'diagnostics'/'start_preflight_persistence.py",
+        "runpy.run_path",
+    ]
+    missing = [token for token in required if token not in text]
+    assert not missing, "start.md missing installed diagnostics helper resolution tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing]
+    )
+
+
+@pytest.mark.governance
 def test_start_prefers_host_binding_evidence_and_defers_profile_selection_at_bootstrap():
     text = read_text(REPO_ROOT / "start.md")
     required_tokens = [

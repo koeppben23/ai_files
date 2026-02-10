@@ -9,7 +9,7 @@ defined in `master.md`, `rules.md`, and profile rulebooks.
 When executed as an OpenCode command (`/start`), this prompt injects the installer-owned path binding file
 `${COMMANDS_HOME}/governance.paths.json` into the model context.
 
-!`python3 diagnostics/start_binding_evidence.py`
+!`python3 -c "import os,platform,runpy;from pathlib import Path;sysname=platform.system();xdg=os.getenv('XDG_CONFIG_HOME');up=os.getenv('USERPROFILE');ad=os.getenv('APPDATA');root=(Path(up)/'.config'/'opencode' if sysname=='Windows' and up else (Path(ad)/'opencode' if sysname=='Windows' and ad else ((Path(xdg) if xdg else Path.home()/'.config')/'opencode')));runpy.run_path(str(root/'commands'/'diagnostics'/'start_binding_evidence.py'),run_name='__main__')" || python -c "import os,platform,runpy;from pathlib import Path;sysname=platform.system();xdg=os.getenv('XDG_CONFIG_HOME');up=os.getenv('USERPROFILE');ad=os.getenv('APPDATA');root=(Path(up)/'.config'/'opencode' if sysname=='Windows' and up else (Path(ad)/'opencode' if sysname=='Windows' and ad else ((Path(xdg) if xdg else Path.home()/'.config')/'opencode')));runpy.run_path(str(root/'commands'/'diagnostics'/'start_binding_evidence.py'),run_name='__main__')"`
 
 ## Auto-Persistence Hook (OpenCode)
 
@@ -43,7 +43,7 @@ Bootstrap command preflight (binding):
 - Missing-command diagnostics MUST include `expected_after_fix`, `verify_command`, and `restart_hint`.
 - `restart_hint` MUST be deterministic: `restart_required_if_path_edited` or `no_restart_if_binary_in_existing_path`.
 
-!`python3 diagnostics/start_preflight_persistence.py`
+!`python3 -c "import os,platform,runpy;from pathlib import Path;sysname=platform.system();xdg=os.getenv('XDG_CONFIG_HOME');up=os.getenv('USERPROFILE');ad=os.getenv('APPDATA');root=(Path(up)/'.config'/'opencode' if sysname=='Windows' and up else (Path(ad)/'opencode' if sysname=='Windows' and ad else ((Path(xdg) if xdg else Path.home()/'.config')/'opencode')));runpy.run_path(str(root/'commands'/'diagnostics'/'start_preflight_persistence.py'),run_name='__main__')" || python -c "import os,platform,runpy;from pathlib import Path;sysname=platform.system();xdg=os.getenv('XDG_CONFIG_HOME');up=os.getenv('USERPROFILE');ad=os.getenv('APPDATA');root=(Path(up)/'.config'/'opencode' if sysname=='Windows' and up else (Path(ad)/'opencode' if sysname=='Windows' and ad else ((Path(xdg) if xdg else Path.home()/'.config')/'opencode')));runpy.run_path(str(root/'commands'/'diagnostics'/'start_preflight_persistence.py'),run_name='__main__')"`
 
 Binding evidence semantics (binding):
 - Only an existing installer-owned `${COMMANDS_HOME}/governance.paths.json` qualifies as canonical binding evidence.
