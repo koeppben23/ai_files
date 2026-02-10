@@ -852,6 +852,7 @@ def check_start_evidence_boundaries(issues: list[str]) -> None:
         "Treat it as **evidence**.",
         "# last resort: compute the same payload that the installer would write",
         "or provide operator binding evidence plus filesystem proof artifacts",
+        "paste the full file contents for master.md, rules.md, and the selected profile.",
     ]
     found_forbidden = [token for token in forbidden_tokens if token in start]
     if found_forbidden:
