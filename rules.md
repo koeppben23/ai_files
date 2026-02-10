@@ -1213,6 +1213,10 @@ Governance-change PR operator-impact note (recommended):
   - `What changed for operators?`
   - 2-5 bullets focused on operator-visible behavior changes.
 
+Governance-change PR reviewer-focus hints (recommended):
+- PR body SHOULD include `Reviewer focus` with 2-5 bullets of highest-risk contract deltas.
+- Hints SHOULD reference concrete files/sections to speed targeted review.
+
 ## 7.11 Operator Reload Contract (Core, Binding)
 
 When operator intent is explicit reload (for example `/reload-addons`), execution MUST be deterministic and narrow:

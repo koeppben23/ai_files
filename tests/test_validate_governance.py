@@ -2413,6 +2413,33 @@ def test_operator_persona_modes_contract_is_defined():
 
 
 @pytest.mark.governance
+def test_governance_pr_reviewer_focus_hints_contract_is_defined():
+    master = read_text(REPO_ROOT / "master.md")
+    rules = read_text(REPO_ROOT / "rules.md")
+    start = read_text(REPO_ROOT / "start.md")
+
+    master_required = [
+        "Governance PRs SHOULD also include `Reviewer focus` bullets that point to highest-risk contract changes.",
+    ]
+    rules_required = [
+        "Governance-change PR reviewer-focus hints (recommended):",
+        "`Reviewer focus`",
+        "Hints SHOULD reference concrete files/sections to speed targeted review.",
+    ]
+    start_required = [
+        "Governance PR summaries SHOULD also include `Reviewer focus` bullets for highest-risk contract deltas.",
+    ]
+
+    missing_master = [t for t in master_required if t not in master]
+    missing_rules = [t for t in rules_required if t not in rules]
+    missing_start = [t for t in start_required if t not in start]
+
+    assert not missing_master, "master.md missing PR reviewer-focus tokens:\n" + "\n".join([f"- {m}" for m in missing_master])
+    assert not missing_rules, "rules.md missing PR reviewer-focus tokens:\n" + "\n".join([f"- {m}" for m in missing_rules])
+    assert not missing_start, "start.md missing PR reviewer-focus tokens:\n" + "\n".join([f"- {m}" for m in missing_start])
+
+
+@pytest.mark.governance
 def test_start_and_master_require_host_git_identity_discovery_before_operator_prompt():
     master = read_text(REPO_ROOT / "master.md")
     start = read_text(REPO_ROOT / "start.md")
