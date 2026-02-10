@@ -698,6 +698,11 @@ When output mode is blocked, include:
 
 Quick-fix commands are execution guidance only; they do not bypass gates or evidence requirements.
 
+Placeholder minimization (binding):
+- `next_command` and `QuickFixCommands` SHOULD be fully copy-paste runnable whenever runtime can derive concrete values.
+- Angle-bracket placeholders (for example `<repo_fingerprint>`) are allowed only when the value is truly unavailable from host evidence.
+- If placeholders are unavoidable, include one concise sentence describing how to derive the missing value.
+
 ### 7.3.6 Architect-Only Autopilot Lifecycle (Binding)
 
 Canonical operator lifecycle:

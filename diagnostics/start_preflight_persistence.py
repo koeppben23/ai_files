@@ -2,9 +2,11 @@
 from __future__ import annotations
 
 import importlib.util
+import hashlib
 import json
 import os
 import platform
+import re
 import shutil
 import subprocess
 import sys
@@ -41,6 +43,77 @@ def load_json(path: Path) -> dict | None:
     except Exception:
         return None
     return payload if isinstance(payload, dict) else None
+
+
+def resolve_git_dir(repo_root: Path) -> Path | None:
+    dot_git = repo_root / ".git"
+    if dot_git.is_dir():
+        return dot_git
+    if not dot_git.is_file():
+        return None
+
+    text = dot_git.read_text(encoding="utf-8", errors="ignore")
+    match = re.search(r"gitdir:\s*(.+)", text)
+    if not match:
+        return None
+    candidate = Path(match.group(1).strip())
+    if not candidate.is_absolute():
+        candidate = (repo_root / candidate).resolve()
+    return candidate if candidate.exists() else None
+
+
+def read_origin_remote(config_path: Path) -> str | None:
+    if not config_path.exists():
+        return None
+    lines = config_path.read_text(encoding="utf-8", errors="ignore").splitlines()
+    in_origin = False
+    for line in lines:
+        stripped = line.strip()
+        if not stripped:
+            continue
+        if stripped.startswith("[") and stripped.endswith("]"):
+            in_origin = stripped == '[remote "origin"]'
+            continue
+        if not in_origin:
+            continue
+        match = re.match(r"url\s*=\s*(.+)", stripped)
+        if match:
+            return match.group(1).strip()
+    return None
+
+
+def read_default_branch(git_dir: Path) -> str:
+    head_ref = git_dir / "refs" / "remotes" / "origin" / "HEAD"
+    if head_ref.exists():
+        text = head_ref.read_text(encoding="utf-8", errors="ignore")
+        match = re.search(r"ref:\s*refs/remotes/origin/(.+)", text)
+        if match:
+            branch = match.group(1).strip()
+            if branch:
+                return branch
+    return "main"
+
+
+def derive_repo_fingerprint(repo_root: Path) -> str | None:
+    git_dir = resolve_git_dir(repo_root)
+    if not git_dir:
+        return None
+    origin = read_origin_remote(git_dir / "config")
+    if not origin:
+        return None
+    branch = read_default_branch(git_dir)
+    material = f"{origin}|{branch}"
+    return hashlib.sha256(material.encode("utf-8")).hexdigest()[:16]
+
+
+def bootstrap_command(repo_fp: str | None) -> str:
+    if repo_fp:
+        return f'python3 "{BOOTSTRAP_HELPER}" --repo-fingerprint {repo_fp} --config-root "{ROOT}"'
+    return f'python3 "{BOOTSTRAP_HELPER}" --repo-fingerprint <repo_fingerprint> --config-root "{ROOT}"'
+
+
+def persist_command(repo_root: Path) -> str:
+    return f'python3 "{PERSIST_HELPER}" --repo-root "{repo_root}"'
 
 
 def emit_preflight() -> None:
@@ -166,6 +239,9 @@ def bootstrap_identity_if_needed() -> bool:
         {"identityMap": str(IDENTITY_MAP)},
     )
 
+    repo_root = Path.cwd().resolve()
+    inferred_fp = derive_repo_fingerprint(repo_root)
+
     if not BOOTSTRAP_HELPER.exists():
         print(
             json.dumps(
@@ -178,7 +254,7 @@ def bootstrap_identity_if_needed() -> bool:
                     "recovery_steps": ["restore bootstrap_session_state.py helper and rerun /start"],
                     "required_operator_action": "restore diagnostics/bootstrap_session_state.py and rerun /start",
                     "feedback_required": "reply once helper is restored and /start rerun",
-                    "next_command": "python diagnostics/bootstrap_session_state.py --repo-fingerprint <repo_fingerprint> --repo-name <repo_name>",
+                    "next_command": "/start",
                 }
             )
         )
@@ -198,7 +274,7 @@ def bootstrap_identity_if_needed() -> bool:
                     ],
                     "required_operator_action": "install git or run bootstrap_session_state.py with explicit fingerprint, then rerun /start",
                     "feedback_required": "reply with the fingerprint used (if manual bootstrap) and helper result",
-                    "next_command": "python diagnostics/bootstrap_session_state.py --repo-fingerprint <repo_fingerprint> --repo-name <repo_name>",
+                    "next_command": bootstrap_command(inferred_fp),
                 }
             )
         )
@@ -234,7 +310,7 @@ def bootstrap_identity_if_needed() -> bool:
                     ],
                     "required_operator_action": "run bootstrap_session_state.py with explicit repo fingerprint, then rerun /start",
                     "feedback_required": "reply with explicit repo fingerprint and bootstrap result",
-                    "next_command": "python diagnostics/bootstrap_session_state.py --repo-fingerprint <repo_fingerprint> --repo-name <repo_name>",
+                    "next_command": bootstrap_command(inferred_fp),
                 }
             )
         )
@@ -264,7 +340,7 @@ def bootstrap_identity_if_needed() -> bool:
                     "recovery_steps": ["run bootstrap_session_state.py manually and rerun /start"],
                     "required_operator_action": "run bootstrap_session_state.py with explicit repo fingerprint, then rerun /start",
                     "feedback_required": "reply with helper stderr and repo fingerprint",
-                    "next_command": "python diagnostics/bootstrap_session_state.py --repo-fingerprint <repo_fingerprint> --repo-name <repo_name>",
+                    "next_command": bootstrap_command(repo_fp),
                 }
             )
         )
@@ -292,15 +368,15 @@ def run_persistence_hook() -> None:
         )
         print(
             json.dumps(
-                {
-                    "workspacePersistenceHook": "warn",
-                    "reason_code": "WARN-WORKSPACE-PERSISTENCE",
-                    "reason": "helper-missing",
-                    "impact": "workspace artifacts may be incomplete",
-                    "recovery": "python diagnostics/persist_workspace_artifacts.py --repo-root <repo_root>",
-                }
+                    {
+                        "workspacePersistenceHook": "warn",
+                        "reason_code": "WARN-WORKSPACE-PERSISTENCE",
+                        "reason": "helper-missing",
+                        "impact": "workspace artifacts may be incomplete",
+                        "recovery": persist_command(Path.cwd().resolve()),
+                    }
+                )
             )
-        )
         return
 
     if not bootstrap_identity_if_needed():
@@ -363,7 +439,7 @@ def run_persistence_hook() -> None:
                                 "repoFingerprint": repo_fp,
                                 "error": boot_err,
                                 "impact": "repo-scoped SESSION_STATE may be incomplete",
-                                "recovery": "python diagnostics/bootstrap_session_state.py --repo-fingerprint <repo_fingerprint>",
+                                "recovery": bootstrap_command(repo_fp),
                             }
                         )
                     )
@@ -383,7 +459,7 @@ def run_persistence_hook() -> None:
                         "reason": "helper-reported-blocked",
                         "helperPayload": payload,
                         "impact": "workspace artifacts may be incomplete",
-                        "recovery": "python diagnostics/persist_workspace_artifacts.py --repo-root <repo_root>",
+                        "recovery": persist_command(Path.cwd().resolve()),
                     }
                 )
             )
@@ -409,7 +485,7 @@ def run_persistence_hook() -> None:
                 "code": run.returncode,
                 "error": err[:240],
                 "impact": "workspace artifacts may be incomplete",
-                "recovery": "python diagnostics/persist_workspace_artifacts.py --repo-root <repo_root>",
+                "recovery": persist_command(Path.cwd().resolve()),
             }
         )
     )
