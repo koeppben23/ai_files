@@ -714,6 +714,11 @@ Quick-fix confidence labeling (recommended):
   - `review-first` (mutating command that should be reviewed before execution).
 - If labels are emitted, they MUST align with the command semantics.
 
+Reason-code quick-fix template catalog (recommended):
+- Recovery messaging SHOULD use `diagnostics/QUICKFIX_TEMPLATES.json` when present.
+- Template lookup key is canonical `reason_code`.
+- Runtime output still MUST enforce command coherence rules (`[NEXT-ACTION].Command`, `next_command`, `QuickFixCommands[0]`).
+
 ### 7.3.6 Architect-Only Autopilot Lifecycle (Binding)
 
 Canonical operator lifecycle:

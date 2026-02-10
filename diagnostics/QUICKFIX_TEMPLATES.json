@@ -1,0 +1,31 @@
+{
+  "$schema": "opencode.quickfix-templates.v1",
+  "version": "1",
+  "templates": {
+    "BLOCKED-START-REQUIRED": {
+      "primary_command": "/start",
+      "confidence": "safe",
+      "summary": "Run bootstrap before any /master-equivalent operation."
+    },
+    "BLOCKED-VARIABLE-RESOLUTION": {
+      "primary_command": "/start",
+      "confidence": "safe",
+      "summary": "Reload installer-owned path binding evidence."
+    },
+    "BLOCKED-MISSING-BINDING-FILE": {
+      "primary_command": "/start",
+      "confidence": "review-first",
+      "summary": "Repair installer outputs, then re-run bootstrap."
+    },
+    "BLOCKED-WORKSPACE-PERSISTENCE": {
+      "primary_command": "python3 diagnostics/persist_workspace_artifacts.py --repo-root <repo_root>",
+      "confidence": "review-first",
+      "summary": "Backfill repo-scoped persistence artifacts for the active repo."
+    },
+    "BLOCKED-AMBIGUOUS-PROFILE": {
+      "primary_command": "Reply with one number: 1|2|3|4|0",
+      "confidence": "safe",
+      "summary": "Resolve profile ambiguity with explicit numbered selection."
+    }
+  }
+}

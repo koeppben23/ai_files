@@ -168,6 +168,7 @@ Output requirements:
 - Include `[SNAPSHOT]` block (`Confidence`, `Risk`, `Scope`) with values aligned to current `SESSION_STATE`.
 - If blocked, include `QuickFixCommands` with 1-3 copy-paste commands (or `["none"]` if not command-driven) when host constraints allow.
 - When `QuickFixCommands` are emitted, `/start` SHOULD label primary command confidence as `safe` or `review-first`.
+- `/start` SHOULD use `diagnostics/QUICKFIX_TEMPLATES.json` for reason-code-specific recovery command text when available.
 - `QuickFixCommands` defaults to one command; use two only for explicit `macos_linux` vs `windows` splits.
 - If strict output formatting is host-constrained, response MUST include COMPAT sections: `RequiredInputs`, `Recovery`, and `NextAction` and set `DEVIATION.host_constraint = true`.
 - Response mode MUST be explicit and singular per turn: `STRICT` or `COMPAT`.

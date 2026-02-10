@@ -2327,6 +2327,39 @@ def test_primary_blocker_prioritization_contract_is_defined():
 
 
 @pytest.mark.governance
+def test_reason_code_quickfix_template_catalog_is_defined():
+    master = read_text(REPO_ROOT / "master.md")
+    rules = read_text(REPO_ROOT / "rules.md")
+    start = read_text(REPO_ROOT / "start.md")
+
+    master_required = [
+        "Recovery guidance SHOULD source reason-specific command templates from `diagnostics/QUICKFIX_TEMPLATES.json` when available",
+    ]
+    rules_required = [
+        "Reason-code quick-fix template catalog (recommended):",
+        "`diagnostics/QUICKFIX_TEMPLATES.json`",
+        "Template lookup key is canonical `reason_code`.",
+    ]
+    start_required = [
+        "`/start` SHOULD use `diagnostics/QUICKFIX_TEMPLATES.json` for reason-code-specific recovery command text when available.",
+    ]
+
+    missing_master = [t for t in master_required if t not in master]
+    missing_rules = [t for t in rules_required if t not in rules]
+    missing_start = [t for t in start_required if t not in start]
+
+    assert not missing_master, "master.md missing quickfix-template catalog tokens:\n" + "\n".join([f"- {m}" for m in missing_master])
+    assert not missing_rules, "rules.md missing quickfix-template catalog tokens:\n" + "\n".join([f"- {m}" for m in missing_rules])
+    assert not missing_start, "start.md missing quickfix-template catalog tokens:\n" + "\n".join([f"- {m}" for m in missing_start])
+
+    catalog = REPO_ROOT / "diagnostics" / "QUICKFIX_TEMPLATES.json"
+    assert catalog.exists(), "diagnostics/QUICKFIX_TEMPLATES.json missing"
+    payload = json.loads(read_text(catalog))
+    assert payload.get("$schema") == "opencode.quickfix-templates.v1"
+    assert isinstance(payload.get("templates"), dict) and payload["templates"], "Quick-fix templates catalog is empty"
+
+
+@pytest.mark.governance
 def test_start_and_master_require_host_git_identity_discovery_before_operator_prompt():
     master = read_text(REPO_ROOT / "master.md")
     start = read_text(REPO_ROOT / "start.md")

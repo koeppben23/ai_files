@@ -3445,6 +3445,7 @@ Response and output constraints are defined in `rules.md` (Core Rulebook).
 * Responses SHOULD include a compact phase progress bar (`phase_progress_bar`, e.g. `[##----] 2/6`) for quick orientation
 * Responses SHOULD include a compact deterministic `status_tag` (`<PHASE>-<GATE>-<STATE>`) for quick operator scanning
 * Blocked recovery guidance SHOULD label primary quick-fix command confidence as `safe` or `review-first`
+* Recovery guidance SHOULD source reason-specific command templates from `diagnostics/QUICKFIX_TEMPLATES.json` when available
 * `NextAction` wording SHOULD include concrete context (active phase/gate/scope) and avoid generic continuation text
 * On phase/mode changes, responses SHOULD include a compact one-line transition summary (`[TRANSITION] from -> to | reason: ...`)
 * If state does not change, responses SHOULD acknowledge `state_unchanged` with a concise reason
