@@ -882,6 +882,26 @@ WARN/BLOCKED separation rules:
 - `WARN` MAY include `advisory_missing` only.
 - `RequiredInputs` is for BLOCKED/COMPAT blocker outputs and MUST NOT be emitted for WARN-only responses.
 
+### 7.3.15 STRICT vs COMPAT Output Matrix (Binding)
+
+Output mode matrix is deterministic and non-overlapping.
+
+STRICT mode (host supports full formatting):
+- MUST include envelope fields (`status`, `session_state`, `next_action`, `snapshot`)
+- MUST include `[NEXT-ACTION]` footer
+- MUST include `[SNAPSHOT]`
+- If blocked, MUST include blocker envelope + `QuickFixCommands`
+
+COMPAT mode (`DEVIATION.host_constraint = true`):
+- MUST include `RequiredInputs`
+- MUST include `Recovery`
+- MUST include `NextAction`
+- MUST include `[NEXT-ACTION]` footer
+- MAY omit strict envelope formatting, but MUST keep identical gates/evidence semantics
+
+Mode selection rule:
+- Response MUST declare exactly one mode (`STRICT` or `COMPAT`) per turn.
+
 ### 7.4 Architecture Decision Output Template (Binding when proposing non-trivial architecture)
 
 When the assistant proposes a non-trivial architectural decision (boundaries, persistence approach, contract strategy, major dependency/tooling change, migration/rollout strategy), it MUST output a structured proposal:

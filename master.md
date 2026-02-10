@@ -3450,6 +3450,11 @@ Host-constraint compatibility (binding):
 * `SESSION_STATE` blocks MUST NOT use placeholder tokens (`...`, `<...>`); unknown fields must be explicit (`unknown|deferred|not-applicable`).
 * COMPAT mode MUST still emit a `[NEXT-ACTION]` block with `Status`, `Next`, `Why`, and `Command` fields.
 
+Strict/compat mode matrix (binding):
+* STRICT (default when host allows): envelope + `[SNAPSHOT]` + `[NEXT-ACTION]` (+ blocker envelope/QuickFixCommands when blocked).
+* COMPAT (`DEVIATION.host_constraint = true`): `RequiredInputs` + `Recovery` + `NextAction` + `[NEXT-ACTION]`; deterministic gates/evidence remain identical.
+* Each response MUST declare exactly one output mode (`STRICT` or `COMPAT`).
+
 ---
 
 ## 7. INITIAL SESSION START

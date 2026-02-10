@@ -2519,6 +2519,9 @@ def test_host_constraint_compat_mode_contract_is_defined_across_core_docs():
         "Recovery",
         "NextAction",
         "COMPAT mode MUST still emit a `[NEXT-ACTION]` block with `Status`, `Next`, `Why`, and `Command` fields.",
+        "Strict/compat mode matrix (binding):",
+        "STRICT (default when host allows)",
+        "Each response MUST declare exactly one output mode (`STRICT` or `COMPAT`).",
     ]
     rules_required = [
         "### 7.3.8 Host Constraint Compatibility Mode (Binding)",
@@ -2527,9 +2530,15 @@ def test_host_constraint_compat_mode_contract_is_defined_across_core_docs():
         "RequiredInputs",
         "Recovery",
         "NextAction",
+        "### 7.3.15 STRICT vs COMPAT Output Matrix (Binding)",
+        "STRICT mode (host supports full formatting):",
+        "COMPAT mode (`DEVIATION.host_constraint = true`):",
+        "Response MUST declare exactly one mode (`STRICT` or `COMPAT`) per turn.",
     ]
     start_required = [
         "If strict output formatting is host-constrained, response MUST include COMPAT sections: `RequiredInputs`, `Recovery`, and `NextAction` and set `DEVIATION.host_constraint = true`.",
+        "Response mode MUST be explicit and singular per turn: `STRICT` or `COMPAT`.",
+        "`STRICT` requires envelope + `[SNAPSHOT]` + `[NEXT-ACTION]`; `COMPAT` requires `RequiredInputs` + `Recovery` + `NextAction` + `[NEXT-ACTION]`.",
     ]
 
     missing_master = [t for t in master_required if t not in master]

@@ -292,6 +292,8 @@ Output requirements:
 - If blocked, include `QuickFixCommands` with 1-3 copy-paste commands (or `["none"]` if not command-driven) when host constraints allow.
 - `QuickFixCommands` defaults to one command; use two only for explicit `macos_linux` vs `windows` splits.
 - If strict output formatting is host-constrained, response MUST include COMPAT sections: `RequiredInputs`, `Recovery`, and `NextAction` and set `DEVIATION.host_constraint = true`.
+- Response mode MUST be explicit and singular per turn: `STRICT` or `COMPAT`.
+- `STRICT` requires envelope + `[SNAPSHOT]` + `[NEXT-ACTION]`; `COMPAT` requires `RequiredInputs` + `Recovery` + `NextAction` + `[NEXT-ACTION]`.
 
 This file is the canonical governance entrypoint.
 
