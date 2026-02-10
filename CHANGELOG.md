@@ -106,6 +106,7 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
 - Prevent early Phase-2 discovery prompts for ticket/change request by routing no-ticket cases through automatic Phase 3A/3B (including auto-not-applicable paths) and deferring ticket requests to Phase 4 entry.
 - Refine `/start` no-filesystem fallback evidence wording so bootstrap asks only for `master.md` minimum and defers `rules.md`/profile contents to their phase gates.
 - Add explicit lint/test regression guard to forbid reintroduction of legacy `/start` fallback text that requests full `master.md + rules.md + profile` contents during bootstrap.
+- Normalize legacy workspace backfill placeholder phrasing (`Backfill placeholder`) on subsequent persistence runs even without `--force`, so persisted artifacts are refreshed to current wording in later phases.
 - Standardize `profiles/rules*.md` operational wrappers with consistent headings (`Intent`, `Scope`, `Activation`, `Phase integration`, `Evidence contract`, `Tooling`, `Examples`, `Troubleshooting`) and normalize quick-block variants to canonical section headings.
 - Replace fragile `rules.md Section 4.6` references with stable anchor references (`RULEBOOK-PRECEDENCE-POLICY`) across profiles, factory templates, master guidance, and governance tests.
 - Canonicalize required-vs-advisory addon behavior as a single fail-closed policy source in `rules.md` anchor `RULEBOOK-PRECEDENCE-POLICY` plus `master.md` addon catalog (local rulebooks now reference, not redefine, blocking semantics).

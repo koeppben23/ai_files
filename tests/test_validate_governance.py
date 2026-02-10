@@ -1709,6 +1709,62 @@ def test_workspace_persistence_backfill_writes_business_rules_when_phase15_extra
 
 
 @pytest.mark.governance
+def test_workspace_persistence_normalizes_legacy_placeholder_phrasing_without_force(tmp_path: Path):
+    script = REPO_ROOT / "diagnostics" / "persist_workspace_artifacts.py"
+    cfg = tmp_path / "opencode-config"
+    repo_fp = "normalize-placeholders-001"
+
+    workspace = cfg / "workspaces" / repo_fp
+    workspace.mkdir(parents=True, exist_ok=True)
+    session_file = workspace / "SESSION_STATE.json"
+    session_payload = {
+        "SESSION_STATE": {
+            "Phase": "4",
+            "Mode": "NORMAL",
+            "ConfidenceLevel": 80,
+            "Next": "Phase5",
+            "Scope": {
+                "Repository": "Demo Repo",
+                "RepositoryType": "governance-rulebook-repo",
+            },
+            "ActiveProfile": "fallback-minimum",
+            "ProfileEvidence": "phase2-detected",
+        }
+    }
+    session_file.write_text(json.dumps(session_payload, indent=2, ensure_ascii=True) + "\n", encoding="utf-8")
+
+    cache_file = workspace / "repo-cache.yaml"
+    cache_file.write_text(
+        "RepoCache:\n"
+        "  ConventionsDigest:\n"
+        '    - "Backfill placeholder: refresh after Phase 2 discovery."\n',
+        encoding="utf-8",
+    )
+
+    decision_file = workspace / "decision-pack.md"
+    decision_file.write_text(
+        "# Decision Pack\n"
+        "Evidence: Backfill initialization only; no fresh Phase 2 domain extraction attached\n",
+        encoding="utf-8",
+    )
+
+    r = run([sys.executable, str(script), "--repo-fingerprint", repo_fp, "--config-root", str(cfg), "--quiet"])
+    assert r.returncode == 0, f"persist_workspace_artifacts.py failed:\nSTDERR:\n{r.stderr}\nSTDOUT:\n{r.stdout}"
+
+    payload = json.loads(r.stdout)
+    actions = payload.get("actions", {})
+    assert actions.get("repoCache") == "normalized"
+    assert actions.get("decisionPack") == "normalized"
+
+    cache_text = cache_file.read_text(encoding="utf-8")
+    decision_text = decision_file.read_text(encoding="utf-8")
+    assert "Backfill placeholder: refresh after Phase 2 discovery." not in cache_text
+    assert "Seed snapshot: refresh after evidence-backed Phase 2 discovery." in cache_text
+    assert "Backfill initialization only" not in decision_text
+    assert "Bootstrap seed only" in decision_text
+
+
+@pytest.mark.governance
 def test_workspace_persistence_quiet_blocked_payload_includes_reason_contract_fields(tmp_path: Path):
     script = REPO_ROOT / "diagnostics" / "persist_workspace_artifacts.py"
     cfg = tmp_path / "opencode-config"
