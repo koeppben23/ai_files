@@ -749,6 +749,18 @@ COMPAT response shape (minimum required sections):
 
 COMPAT mode MUST NOT disable fail-closed evidence gates.
 
+### 7.3.9 SESSION_STATE Formatting Contract (Binding)
+
+Whenever `SESSION_STATE` is emitted in assistant output, it MUST be rendered as a fenced YAML block.
+
+Required shape:
+- heading line: `SESSION_STATE`
+- fenced block start: ````yaml
+- payload root key: `SESSION_STATE:`
+- fenced block end: ```
+
+This formatting requirement applies in both strict and COMPAT modes.
+
 ### 7.4 Architecture Decision Output Template (Binding when proposing non-trivial architecture)
 
 When the assistant proposes a non-trivial architectural decision (boundaries, persistence approach, contract strategy, major dependency/tooling change, migration/rollout strategy), it MUST output a structured proposal:

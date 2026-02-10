@@ -552,6 +552,36 @@ def check_host_constraint_compat_mode_contract(issues: list[str]) -> None:
         issues.append(f"start.md: missing host-constraint compat tokens {missing_start}")
 
 
+def check_session_state_fenced_yaml_contract(issues: list[str]) -> None:
+    master = read_text(ROOT / "master.md")
+    rules = read_text(ROOT / "rules.md")
+    start = read_text(ROOT / "start.md")
+
+    master_required = [
+        "If `SESSION_STATE` is emitted, it MUST still be rendered as fenced YAML",
+    ]
+    rules_required = [
+        "### 7.3.9 SESSION_STATE Formatting Contract (Binding)",
+        "Whenever `SESSION_STATE` is emitted in assistant output, it MUST be rendered as a fenced YAML block.",
+        "heading line: `SESSION_STATE`",
+        "fenced block start: ````yaml",
+        "payload root key: `SESSION_STATE:`",
+    ]
+    start_required = [
+        "`SESSION_STATE` output MUST be formatted as fenced YAML (````yaml` + `SESSION_STATE:` payload)",
+    ]
+
+    missing_master = [t for t in master_required if t not in master]
+    missing_rules = [t for t in rules_required if t not in rules]
+    missing_start = [t for t in start_required if t not in start]
+    if missing_master:
+        issues.append(f"master.md: missing SESSION_STATE fenced-yaml tokens {missing_master}")
+    if missing_rules:
+        issues.append(f"rules.md: missing SESSION_STATE fenced-yaml tokens {missing_rules}")
+    if missing_start:
+        issues.append(f"start.md: missing SESSION_STATE fenced-yaml tokens {missing_start}")
+
+
 def check_required_addon_references(issues: list[str]) -> None:
     manifests = sorted((ROOT / "profiles" / "addons").glob("*.addon.yml"))
     for manifest in manifests:
@@ -1067,6 +1097,7 @@ def main() -> int:
     check_phase2_repo_root_defaulting_contract(issues)
     check_phase21_ticket_goal_deferral_contract(issues)
     check_host_constraint_compat_mode_contract(issues)
+    check_session_state_fenced_yaml_contract(issues)
 
     if issues:
         print("Governance lint FAILED:")

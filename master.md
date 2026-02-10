@@ -3403,6 +3403,7 @@ Host-constraint compatibility (binding):
   - `RequiredInputs`
   - `Recovery`
   - `NextAction`
+* If `SESSION_STATE` is emitted, it MUST still be rendered as fenced YAML (format-stable machine-readable state block).
 
 ---
 
