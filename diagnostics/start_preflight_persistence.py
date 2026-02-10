@@ -311,6 +311,9 @@ def bootstrap_identity_if_needed() -> bool:
         )
         return False
 
+    repo_root = Path.cwd().resolve()
+    inferred_fp = derive_repo_fingerprint(repo_root)
+
     if not BOOTSTRAP_HELPER.exists():
         print(
             json.dumps(
