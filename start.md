@@ -115,6 +115,7 @@ Invocation:
 - Profile ambiguity → BLOCKED.
 - `/start` MUST NOT require explicit profile selection to complete bootstrap when `master.md` bootstrap evidence is available; profile selection remains a Phase 1.2/Post-Phase-2 concern.
 - If multiple profile rulebooks exist, `/start` MUST attempt deterministic repo-signal autodetection first and auto-select when one candidate is uniquely supported.
+- During Phase `1.5/2/2.1/3A/3B`, `/start` MUST NOT require a task/ticket to proceed; ticket goal is required only at Phase 4 entry.
 - When profile signals are ambiguous, provide a ranked profile shortlist with evidence and request explicit numbered selection (`1=<recommended> | 2=<alt> | 3=<alt> | 4=fallback-minimum | 0=abort/none`) before activation.
 
 Rulebook discovery contract (BINDING):

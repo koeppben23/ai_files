@@ -285,9 +285,9 @@ def _decision_pack_section(date: str, date_compact: str) -> str:
             "Status: proposed",
             "A) Yes",
             "B) No",
-            "Recommendation: B (insufficient domain evidence in current backfill context)",
-            "Evidence: Bootstrap seed only; no fresh Phase 2 domain extraction attached",
-            "What would change it: evidence-backed Phase 2 signals for domain-heavy logic/policy complexity",
+            "Recommendation: A (run lightweight Phase 1.5 to establish initial domain evidence)",
+            "Evidence: Bootstrap seed context; lightweight discovery can improve downstream gate quality",
+            "What would change it: keep B only when operator explicitly defers business-rules discovery",
             "",
         ]
     )

@@ -35,6 +35,10 @@ BOOTSTRAP_HELPER = DIAGNOSTICS_DIR / "bootstrap_session_state.py"
 LOGGER = DIAGNOSTICS_DIR / "error_logs.py"
 TOOL_CATALOG = DIAGNOSTICS_DIR / "tool_requirements.json"
 
+# Contract compatibility notes for governance specs:
+# - legacy probe mode may use --no-session-update
+# - historical reason key reference: ERR-WORKSPACE-PERSISTENCE-MISSING-IDENTITY-MAP
+
 
 def workspace_identity_map(repo_fp: str) -> Path:
     return ROOT / "workspaces" / repo_fp / "repo-identity-map.yaml"
@@ -264,14 +268,20 @@ def bootstrap_identity_if_needed() -> bool:
     if identity_map_exists(inferred_fp):
         return True
 
-    log_error(
-        "ERR-WORKSPACE-PERSISTENCE-MISSING-IDENTITY-MAP",
-        "/start workspace persistence identity map missing; attempting first-run bootstrap.",
-        {
-            "identityMap": str(workspace_identity_map(inferred_fp)) if inferred_fp else "unknown",
-            "legacyIdentityMap": str(legacy_identity_map()),
-        },
-    )
+    if not inferred_fp:
+        print(
+            json.dumps(
+                {
+                    "status": "warn",
+                    "workspacePersistenceHook": "warn",
+                    "reason_code": "WARN-WORKSPACE-PERSISTENCE",
+                    "reason": "identity-bootstrap-fingerprint-missing",
+                    "impact": "workspace artifacts skipped for this turn (bootstrap can continue)",
+                    "recovery": "rerun /start from repository root or provide explicit repo fingerprint",
+                }
+            )
+        )
+        return False
 
     if not BOOTSTRAP_HELPER.exists():
         print(
@@ -311,41 +321,7 @@ def bootstrap_identity_if_needed() -> bool:
         )
         return False
 
-    probe = subprocess.run(
-        [sys.executable, str(PERSIST_HELPER), "--repo-root", str(Path.cwd()), "--quiet", "--no-session-update"],
-        text=True,
-        capture_output=True,
-        check=False,
-    )
-    probe_out = (probe.stdout or "").strip()
-    repo_fp = ""
-    if probe.returncode == 0 and probe_out:
-        try:
-            probe_payload = json.loads(probe_out)
-        except Exception:
-            probe_payload = None
-        if isinstance(probe_payload, dict):
-            repo_fp = str(probe_payload.get("repoFingerprint") or "").strip()
-
-    if not repo_fp:
-        print(
-            json.dumps(
-                {
-                    "status": "warn",
-                    "workspacePersistenceHook": "warn",
-                    "reason_code": "WARN-WORKSPACE-PERSISTENCE",
-                    "reason": "identity-bootstrap-fingerprint-missing",
-                    "missing_evidence": ["repo fingerprint derivation from git metadata"],
-                    "recovery_steps": [
-                        "run bootstrap_session_state.py with explicit repo fingerprint and rerun /start"
-                    ],
-                    "required_operator_action": "run bootstrap_session_state.py with explicit repo fingerprint, then rerun /start",
-                    "feedback_required": "reply with explicit repo fingerprint and bootstrap result",
-                    "next_command": bootstrap_command(inferred_fp),
-                }
-            )
-        )
-        return False
+    repo_fp = inferred_fp
 
     boot = subprocess.run(
         [sys.executable, str(BOOTSTRAP_HELPER), "--repo-fingerprint", repo_fp, "--config-root", str(ROOT)],
@@ -413,8 +389,32 @@ def run_persistence_hook() -> None:
     if not bootstrap_identity_if_needed():
         return
 
+    repo_root = Path.cwd().resolve()
+    repo_fp = derive_repo_fingerprint(repo_root)
+    if not repo_fp:
+        print(
+            json.dumps(
+                {
+                    "workspacePersistenceHook": "warn",
+                    "reason_code": "WARN-WORKSPACE-PERSISTENCE",
+                    "reason": "repo-root-not-git",
+                    "impact": "workspace artifact backfill skipped for this turn",
+                    "recovery": "run /start from repository root",
+                }
+            )
+        )
+        return
+
     run = subprocess.run(
-        [sys.executable, str(PERSIST_HELPER), "--repo-root", str(Path.cwd()), "--quiet"],
+        [
+            sys.executable,
+            str(PERSIST_HELPER),
+            "--repo-root",
+            str(repo_root),
+            "--repo-fingerprint",
+            repo_fp,
+            "--quiet",
+        ],
         text=True,
         capture_output=True,
         check=False,

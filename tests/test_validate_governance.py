@@ -3429,12 +3429,22 @@ def test_backfill_decision_pack_includes_phase_15_prompt_decision():
         "D-001: Run Phase 1.5 (Business Rules Discovery) now?",
         "A) Yes",
         "B) No",
-        "Recommendation:",
+        "Recommendation: A (run lightweight Phase 1.5 to establish initial domain evidence)",
     ]
     missing = [token for token in required_tokens if token not in text]
     assert not missing, "persist_workspace_artifacts.py missing Phase 1.5 decision-pack baseline tokens:\n" + "\n".join(
         [f"- {m}" for m in missing]
     )
+
+
+@pytest.mark.governance
+def test_start_does_not_require_ticket_before_phase_4():
+    text = read_text(REPO_ROOT / "start.md")
+    required_tokens = [
+        "During Phase `1.5/2/2.1/3A/3B`, `/start` MUST NOT require a task/ticket to proceed; ticket goal is required only at Phase 4 entry.",
+    ]
+    missing = [token for token in required_tokens if token not in text]
+    assert not missing, "start.md missing pre-Phase-4 no-ticket gate token:\n" + "\n".join([f"- {m}" for m in missing])
 
 
 @pytest.mark.governance
