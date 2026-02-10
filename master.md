@@ -1282,6 +1282,7 @@ Commit subject naming (binding):
 Rules:
 - If the user-provided commit title is non-conforming, the assistant MUST normalize it to the nearest conforming form and report the normalization.
 - The assistant MUST NOT create a non-conventional branch/commit subject when it is responsible for creating them.
+- For PRs that modify governance rulebooks/contracts, PR body SHOULD include `What changed for operators?` with concise operator-visible deltas.
 
 ---
 

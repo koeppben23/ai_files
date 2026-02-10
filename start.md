@@ -170,6 +170,7 @@ Output requirements:
 - Response mode MUST be explicit and singular per turn: `STRICT` or `COMPAT`.
 - `STRICT` requires envelope + `[SNAPSHOT]` + `[NEXT-ACTION]`; `COMPAT` requires `RequiredInputs` + `Recovery` + `NextAction` + `[NEXT-ACTION]`.
 - If operator requests full details (for example: `show diagnostics`, `show full session state`), `/start` SHOULD emit full strict diagnostics without changing gate/evidence outcomes.
+- When preparing a PR that changes governance contracts, response SHOULD include an operator-impact section (`What changed for operators?`).
 
 This file is the canonical governance entrypoint.
 

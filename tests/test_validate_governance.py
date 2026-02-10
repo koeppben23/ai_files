@@ -2218,6 +2218,33 @@ def test_conversational_post_start_fixtures_contract_is_defined():
 
 
 @pytest.mark.governance
+def test_governance_pr_operator_impact_note_contract_is_defined():
+    master = read_text(REPO_ROOT / "master.md")
+    rules = read_text(REPO_ROOT / "rules.md")
+    start = read_text(REPO_ROOT / "start.md")
+
+    master_required = [
+        "For PRs that modify governance rulebooks/contracts, PR body SHOULD include `What changed for operators?`",
+    ]
+    rules_required = [
+        "Governance-change PR operator-impact note (recommended):",
+        "`What changed for operators?`",
+        "2-5 bullets focused on operator-visible behavior changes.",
+    ]
+    start_required = [
+        "When preparing a PR that changes governance contracts, response SHOULD include an operator-impact section (`What changed for operators?`).",
+    ]
+
+    missing_master = [t for t in master_required if t not in master]
+    missing_rules = [t for t in rules_required if t not in rules]
+    missing_start = [t for t in start_required if t not in start]
+
+    assert not missing_master, "master.md missing governance PR operator-impact tokens:\n" + "\n".join([f"- {m}" for m in missing_master])
+    assert not missing_rules, "rules.md missing governance PR operator-impact tokens:\n" + "\n".join([f"- {m}" for m in missing_rules])
+    assert not missing_start, "start.md missing governance PR operator-impact tokens:\n" + "\n".join([f"- {m}" for m in missing_start])
+
+
+@pytest.mark.governance
 def test_start_and_master_require_host_git_identity_discovery_before_operator_prompt():
     master = read_text(REPO_ROOT / "master.md")
     start = read_text(REPO_ROOT / "start.md")

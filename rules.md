@@ -1167,6 +1167,11 @@ Enforcement rules:
 - Non-conforming branch names MUST be replaced by a conforming equivalent before branch creation.
 - CI SHOULD enforce title/branch/commit conformance on pull requests.
 
+Governance-change PR operator-impact note (recommended):
+- For pull requests that change governance rulebooks/contracts, PR body SHOULD include a compact section:
+  - `What changed for operators?`
+  - 2-5 bullets focused on operator-visible behavior changes.
+
 ## 7.11 Operator Reload Contract (Core, Binding)
 
 When operator intent is explicit reload (for example `/reload-addons`), execution MUST be deterministic and narrow:
