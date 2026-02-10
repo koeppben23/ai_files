@@ -857,13 +857,10 @@ def check_diagnostics_reason_contract_alignment(issues: list[str]) -> None:
 
 def check_start_evidence_boundaries(issues: list[str]) -> None:
     start = read_text(ROOT / "start.md")
+    binding_helper = read_text(ROOT / "diagnostics" / "start_binding_evidence.py")
+    start_bundle = "\n".join([start, binding_helper])
 
-    required_tokens = [
-        "'reason_code':'BLOCKED-MISSING-BINDING-FILE'",
-        "'reason_code':'BLOCKED-VARIABLE-RESOLUTION'",
-        "'missing_evidence':['${COMMANDS_HOME}/governance.paths.json (installer-owned binding evidence)']",
-        "'next_command':'/start'",
-        "'nonEvidence':'debug-only'",
+    required_in_start = [
         "Fallback computed payloads are debug output only (`nonEvidence`) and MUST NOT be treated as binding evidence.",
         "Helper output is operational convenience status only and MUST NOT be treated as canonical repo identity evidence.",
         "Repo identity remains governed by `master.md` evidence contracts",
@@ -871,7 +868,22 @@ def check_start_evidence_boundaries(issues: list[str]) -> None:
         "rules.md` load evidence is deferred until Phase 4.",
         "`/start` MUST NOT require explicit profile selection to complete bootstrap when `master.md` bootstrap evidence is available",
     ]
-    missing_required = [token for token in required_tokens if token not in start]
+    missing_required = [token for token in required_in_start if token not in start]
+
+    token_alternatives = [
+        ["'reason_code':'BLOCKED-MISSING-BINDING-FILE'", '"reason_code": "BLOCKED-MISSING-BINDING-FILE"'],
+        ["'reason_code':'BLOCKED-VARIABLE-RESOLUTION'", '"reason_code": "BLOCKED-VARIABLE-RESOLUTION"'],
+        [
+            "'missing_evidence':['${COMMANDS_HOME}/governance.paths.json (installer-owned binding evidence)']",
+            '"${COMMANDS_HOME}/governance.paths.json (installer-owned binding evidence)"',
+        ],
+        ["'next_command':'/start'", '"next_command": "/start"'],
+        ["'nonEvidence':'debug-only'", '"nonEvidence": "debug-only"'],
+    ]
+    for choices in token_alternatives:
+        if not any(token in start_bundle for token in choices):
+            missing_required.append(choices[0])
+
     if missing_required:
         issues.append(f"start.md: missing evidence-boundary tokens {missing_required}")
 
