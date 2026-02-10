@@ -125,7 +125,7 @@ def _log(reason_key,message,observed):
 if helper.exists():
     if not identity_map.exists():
         _log('ERR-WORKSPACE-PERSISTENCE-SKIPPED-NO-IDENTITY-EVIDENCE','/start workspace persistence skipped because repo identity map evidence is missing.',{'identityMap':str(identity_map)})
-        print(json.dumps({'workspacePersistenceHook':'warn','reason_code':'WARN-WORKSPACE-PERSISTENCE','reason':'skipped-no-identity-evidence','impact':'no repo-scoped persistence without validated identity evidence','recovery':'provide repo identity evidence and rerun /start'}))
+        print(json.dumps({'workspacePersistenceHook':'warn','reason_code':'WARN-WORKSPACE-PERSISTENCE','reason':'skipped-no-identity-evidence','impact':'no repo-scoped persistence without validated identity evidence','required_operator_action':'run bootstrap_session_state.py with explicit repo fingerprint, then rerun /start','feedback_required':'reply with the repo fingerprint used and whether bootstrap_session_state.py succeeded','next_command':'python diagnostics/bootstrap_session_state.py --repo-fingerprint <repo_fingerprint> --repo-name <repo_name>'}))
         raise SystemExit(0)
     run=subprocess.run([sys.executable,str(helper),'--repo-root',str(Path.cwd()),'--quiet'], text=True, capture_output=True, check=False)
     out=(run.stdout or '').strip()
@@ -253,10 +253,11 @@ Output requirements:
 - Structured, phase-oriented output
 - Output envelope SHOULD comply with `diagnostics/RESPONSE_ENVELOPE_SCHEMA.json` (`status`, `session_state`, `next_action`, `snapshot`; plus blocker payload fields when blocked) when host constraints allow
 - Explicit SESSION_STATE
+- `SESSION_STATE` output MUST be formatted as fenced YAML (````yaml` + `SESSION_STATE:` payload)
 - Explicit Gates
 - Explicit DEVIATION reporting
 - Prefer structured (non-chat) answers when host constraints allow
-- End every response with `[NEXT-ACTION]` footer (`Status`, `Next`, `Why`, `Command`) per `master.md` when host constraints allow
+- End every response with `[NEXT-ACTION]` footer (`Status`, `Next`, `Why`, `Command`) per `master.md` (also required in COMPAT mode)
 - If blocked, include the standard blocker envelope (`status`, `reason_code`, `missing_evidence`, `recovery_steps`, `next_command`) when host constraints allow
 - At session start, include `[START-MODE] Cold Start | Warm Start - reason: ...` based on discovery artifact validity evidence.
 - Include `[SNAPSHOT]` block (`Confidence`, `Risk`, `Scope`) with values aligned to current `SESSION_STATE`.

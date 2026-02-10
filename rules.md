@@ -629,7 +629,7 @@ When producing code changes:
 
 ### 7.3.1 Unified Next Action Footer (Binding)
 
-Each response SHOULD end with this compact footer shape when host output constraints allow:
+Each response MUST end with this compact footer shape:
 
 ```
 [NEXT-ACTION]
@@ -642,7 +642,7 @@ Command: <exact next command or "none">
 Rules:
 - `Next` MUST be singular and actionable.
 - Footer values MUST be consistent with `SESSION_STATE.Mode`, `SESSION_STATE.Next`, and any emitted reason payloads.
-- If host/system constraints prevent strict footer formatting, the response MUST use Compat Response Shape (`RequiredInputs`, `Recovery`, `NextAction`) and record `DEVIATION.host_constraint = true`.
+- In COMPAT mode, the assistant MUST still emit `[NEXT-ACTION]` with `Status|Next|Why|Command` fields (same keys, plain-text layout allowed).
 
 ### 7.3.2 Standard Blocker Output Envelope (Binding)
 
@@ -748,6 +748,18 @@ COMPAT response shape (minimum required sections):
 - `NextAction` (single actionable command or `none`)
 
 COMPAT mode MUST NOT disable fail-closed evidence gates.
+
+### 7.3.9 SESSION_STATE Formatting Contract (Binding)
+
+Whenever `SESSION_STATE` is emitted in assistant output, it MUST be rendered as a fenced YAML block.
+
+Required shape:
+- heading line: `SESSION_STATE`
+- fenced block start: ````yaml
+- payload root key: `SESSION_STATE:`
+- fenced block end: ```
+
+This formatting requirement applies in both strict and COMPAT modes.
 
 ### 7.4 Architecture Decision Output Template (Binding when proposing non-trivial architecture)
 
@@ -1266,6 +1278,7 @@ BINDING:
 Phase 2.1 ticket-goal policy (binding):
 - Phase 2.1 Decision Pack generation MUST NOT block on missing `ticketGoal`.
 - Missing `ticketGoal` at Phase 2.1 implies planning-only decisions based on repository evidence.
+- In Phase 1.5 / 2 / 2.1 / 3A / 3B, the assistant MUST NOT request "provide ticket" or "provide change request" as `NextAction`.
 - `ticketGoal` is REQUIRED at Phase 4 entry (Step 0) before implementation planning/code-producing work.
 - All output paths MUST be expressed as variable-based path expressions (e.g., `${REPO_DECISION_PACK_FILE}`), not OS-specific absolute paths.
 

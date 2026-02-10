@@ -1733,7 +1733,10 @@ def test_workspace_persistence_quiet_blocked_payload_includes_reason_contract_fi
     payload = json.loads(r.stdout)
     assert payload.get("status") == "blocked"
     assert payload.get("reason_code") == "BLOCKED-WORKSPACE-PERSISTENCE"
+    assert isinstance(payload.get("missing_evidence"), list) and len(payload["missing_evidence"]) >= 1
     assert isinstance(payload.get("recovery_steps"), list) and len(payload["recovery_steps"]) >= 1
+    assert isinstance(payload.get("required_operator_action"), str) and payload["required_operator_action"].strip()
+    assert isinstance(payload.get("feedback_required"), str) and payload["feedback_required"].strip()
     assert isinstance(payload.get("next_command"), str) and payload["next_command"].strip()
 
 
@@ -1749,6 +1752,8 @@ def test_start_md_includes_workspace_persistence_autohook():
         "WARN-WORKSPACE-PERSISTENCE",
         "bootstrap-session-failed",
         "skipped-no-identity-evidence",
+        "required_operator_action",
+        "feedback_required",
         "ERR-WORKSPACE-PERSISTENCE-HOOK-MISSING",
     ]
     missing = [token for token in required_tokens if token not in text]
@@ -1813,6 +1818,7 @@ def test_phase21_does_not_require_ticket_goal_and_defers_mandatory_ticket_to_pha
     rules_required = [
         "Phase 2.1 ticket-goal policy (binding):",
         "Phase 2.1 Decision Pack generation MUST NOT block on missing `ticketGoal`.",
+        "In Phase 1.5 / 2 / 2.1 / 3A / 3B, the assistant MUST NOT request \"provide ticket\" or \"provide change request\" as `NextAction`.",
         "`ticketGoal` is REQUIRED at Phase 4 entry (Step 0)",
     ]
 
@@ -1830,9 +1836,9 @@ def test_phase21_does_not_require_ticket_goal_and_defers_mandatory_ticket_to_pha
 def test_phase2_and_phase15_do_not_force_ticket_prompt_without_ticket_goal():
     master = read_text(REPO_ROOT / "master.md")
     required_tokens = [
-        "if ticket goal is missing → remain in ARCHITECT-ready state (no early ticket prompt in Phase 2/2.1)",
-        "if ticket goal is missing: ARCHITECT-ready hold (await ticket or explicit continue command)",
-        "if ticket goal is missing: remain in ARCHITECT-ready state (no early ticket prompt in Phase 1.5/2.1)",
+        "otherwise → Phase 3A (auto-not-applicable path allowed) then continue to Phase 3B routing",
+        "ticket prompt is deferred until Phase 4 entry.",
+        "Otherwise: Proceed to Phase 3A (auto-not-applicable path allowed), then continue to Phase 3B routing",
     ]
     missing = [t for t in required_tokens if t not in master]
     assert not missing, "master.md missing no-early-ticket-prompt tokens for Phase 2/1.5 exits:\n" + "\n".join(
@@ -1887,7 +1893,7 @@ def test_unified_next_action_footer_contract_is_defined_across_core_docs():
         "Footer values MUST be consistent with `SESSION_STATE.Mode`, `SESSION_STATE.Next`, and any emitted reason payloads.",
     ]
     start_required = [
-        "End every response with `[NEXT-ACTION]` footer (`Status`, `Next`, `Why`, `Command`) per `master.md` when host constraints allow",
+        "End every response with `[NEXT-ACTION]` footer (`Status`, `Next`, `Why`, `Command`) per `master.md` (also required in COMPAT mode)",
     ]
 
     missing_master = [t for t in master_required if t not in master]
@@ -2046,6 +2052,7 @@ def test_host_constraint_compat_mode_contract_is_defined_across_core_docs():
         "RequiredInputs",
         "Recovery",
         "NextAction",
+        "COMPAT mode MUST still emit a `[NEXT-ACTION]` block with `Status`, `Next`, `Why`, and `Command` fields.",
     ]
     rules_required = [
         "### 7.3.8 Host Constraint Compatibility Mode (Binding)",
@@ -2070,6 +2077,41 @@ def test_host_constraint_compat_mode_contract_is_defined_across_core_docs():
         [f"- {m}" for m in missing_rules]
     )
     assert not missing_start, "start.md missing host-constraint compat tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_start]
+    )
+
+
+@pytest.mark.governance
+def test_session_state_output_format_is_fenced_yaml_across_core_docs():
+    master = read_text(REPO_ROOT / "master.md")
+    rules = read_text(REPO_ROOT / "rules.md")
+    start = read_text(REPO_ROOT / "start.md")
+
+    master_required = [
+        "If `SESSION_STATE` is emitted, it MUST still be rendered as fenced YAML",
+    ]
+    rules_required = [
+        "### 7.3.9 SESSION_STATE Formatting Contract (Binding)",
+        "Whenever `SESSION_STATE` is emitted in assistant output, it MUST be rendered as a fenced YAML block.",
+        "heading line: `SESSION_STATE`",
+        "fenced block start: ````yaml",
+        "payload root key: `SESSION_STATE:`",
+    ]
+    start_required = [
+        "`SESSION_STATE` output MUST be formatted as fenced YAML (````yaml` + `SESSION_STATE:` payload)",
+    ]
+
+    missing_master = [t for t in master_required if t not in master]
+    missing_rules = [t for t in rules_required if t not in rules]
+    missing_start = [t for t in start_required if t not in start]
+
+    assert not missing_master, "master.md missing SESSION_STATE formatting tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_master]
+    )
+    assert not missing_rules, "rules.md missing SESSION_STATE formatting tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_rules]
+    )
+    assert not missing_start, "start.md missing SESSION_STATE formatting tokens:\n" + "\n".join(
         [f"- {m}" for m in missing_start]
     )
 

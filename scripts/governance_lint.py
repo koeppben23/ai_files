@@ -495,6 +495,7 @@ def check_phase21_ticket_goal_deferral_contract(issues: list[str]) -> None:
     rules_required = [
         "Phase 2.1 ticket-goal policy (binding):",
         "Phase 2.1 Decision Pack generation MUST NOT block on missing `ticketGoal`.",
+        "In Phase 1.5 / 2 / 2.1 / 3A / 3B, the assistant MUST NOT request \"provide ticket\" or \"provide change request\" as `NextAction`.",
         "`ticketGoal` is REQUIRED at Phase 4 entry (Step 0)",
     ]
 
@@ -506,9 +507,9 @@ def check_phase21_ticket_goal_deferral_contract(issues: list[str]) -> None:
         issues.append(f"rules.md: missing Phase-2.1 ticket-goal deferral tokens {missing_rules}")
 
     master_additional = [
-        "if ticket goal is missing → remain in ARCHITECT-ready state (no early ticket prompt in Phase 2/2.1)",
-        "if ticket goal is missing: ARCHITECT-ready hold (await ticket or explicit continue command)",
-        "if ticket goal is missing: remain in ARCHITECT-ready state (no early ticket prompt in Phase 1.5/2.1)",
+        "otherwise → Phase 3A (auto-not-applicable path allowed) then continue to Phase 3B routing",
+        "ticket prompt is deferred until Phase 4 entry.",
+        "Otherwise: Proceed to Phase 3A (auto-not-applicable path allowed), then continue to Phase 3B routing",
     ]
     missing_master_additional = [token for token in master_additional if token not in master]
     if missing_master_additional:
@@ -528,6 +529,7 @@ def check_host_constraint_compat_mode_contract(issues: list[str]) -> None:
         "RequiredInputs",
         "Recovery",
         "NextAction",
+        "COMPAT mode MUST still emit a `[NEXT-ACTION]` block with `Status`, `Next`, `Why`, and `Command` fields.",
     ]
     rules_required = [
         "### 7.3.8 Host Constraint Compatibility Mode (Binding)",
@@ -550,6 +552,36 @@ def check_host_constraint_compat_mode_contract(issues: list[str]) -> None:
         issues.append(f"rules.md: missing host-constraint compat tokens {missing_rules}")
     if missing_start:
         issues.append(f"start.md: missing host-constraint compat tokens {missing_start}")
+
+
+def check_session_state_fenced_yaml_contract(issues: list[str]) -> None:
+    master = read_text(ROOT / "master.md")
+    rules = read_text(ROOT / "rules.md")
+    start = read_text(ROOT / "start.md")
+
+    master_required = [
+        "If `SESSION_STATE` is emitted, it MUST still be rendered as fenced YAML",
+    ]
+    rules_required = [
+        "### 7.3.9 SESSION_STATE Formatting Contract (Binding)",
+        "Whenever `SESSION_STATE` is emitted in assistant output, it MUST be rendered as a fenced YAML block.",
+        "heading line: `SESSION_STATE`",
+        "fenced block start: ````yaml",
+        "payload root key: `SESSION_STATE:`",
+    ]
+    start_required = [
+        "`SESSION_STATE` output MUST be formatted as fenced YAML (````yaml` + `SESSION_STATE:` payload)",
+    ]
+
+    missing_master = [t for t in master_required if t not in master]
+    missing_rules = [t for t in rules_required if t not in rules]
+    missing_start = [t for t in start_required if t not in start]
+    if missing_master:
+        issues.append(f"master.md: missing SESSION_STATE fenced-yaml tokens {missing_master}")
+    if missing_rules:
+        issues.append(f"rules.md: missing SESSION_STATE fenced-yaml tokens {missing_rules}")
+    if missing_start:
+        issues.append(f"start.md: missing SESSION_STATE fenced-yaml tokens {missing_start}")
 
 
 def check_required_addon_references(issues: list[str]) -> None:
@@ -757,7 +789,10 @@ def check_diagnostics_reason_contract_alignment(issues: list[str]) -> None:
     persist_required_tokens = [
         '"status": "blocked"',
         '"reason_code": "BLOCKED-WORKSPACE-PERSISTENCE"',
+        '"missing_evidence"',
         '"recovery_steps"',
+        '"required_operator_action"',
+        '"feedback_required"',
         '"next_command"',
     ]
     missing_persist = [token for token in persist_required_tokens if token not in persist]
@@ -842,7 +877,7 @@ def check_unified_next_action_footer_contract(issues: list[str]) -> None:
         "Footer values MUST be consistent with `SESSION_STATE.Mode`, `SESSION_STATE.Next`, and any emitted reason payloads.",
     ]
     start_required = [
-        "End every response with `[NEXT-ACTION]` footer (`Status`, `Next`, `Why`, `Command`) per `master.md` when host constraints allow",
+        "End every response with `[NEXT-ACTION]` footer (`Status`, `Next`, `Why`, `Command`) per `master.md` (also required in COMPAT mode)",
     ]
 
     missing_master = [t for t in master_required if t not in master]
@@ -1064,6 +1099,7 @@ def main() -> int:
     check_phase2_repo_root_defaulting_contract(issues)
     check_phase21_ticket_goal_deferral_contract(issues)
     check_host_constraint_compat_mode_contract(issues)
+    check_session_state_fenced_yaml_contract(issues)
 
     if issues:
         print("Governance lint FAILED:")
