@@ -35,6 +35,10 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
 - Update factory contracts (`new_profile.md`, `new_addon.md`, `PROFILE_ADDON_FACTORY_CONTRACT.json`) for shared-contract modularization defaults.
 
 ### Changed
+- Add operator-first response layering contract across governance rulebooks: concise brief-first output with full diagnostics on explicit detail request.
+- Refactor `/start` bootstrap prompt internals by extracting inline Python snippets into diagnostics helpers (`diagnostics/start_binding_evidence.py`, `diagnostics/start_preflight_persistence.py`) for maintainability.
+- Improve `/start` recovery UX by preferring concrete, copy-paste runnable `next_command`/recovery commands and minimizing unresolved placeholders when runtime evidence can derive values.
+- Clarify preflight UX with explicit `required_now` vs `required_later` reporting plus deterministic `block_now` signal, and add post-bootstrap conversational/language-adaptive follow-up guidance.
 - Add guided profile-selection behavior for ambiguous detection: system now emits ranked profile suggestions with evidence and requests explicit numbered selection (`1..n`, including `fallback-minimum`) while remaining fail-closed (`BLOCKED-AMBIGUOUS-PROFILE`) until clarified.
 - Add UX execution contracts for deterministic operator flow: unified `[NEXT-ACTION]` footer, standardized blocked envelope fields, startup `[START-MODE]` banner, `[SNAPSHOT]` confidence/risk/scope block, and blocker `QuickFixCommands` guidance.
 - Tighten UX contract coherence: add `0=abort/none` profile-choice escape, require command-field consistency across `[NEXT-ACTION]`/`next_command`/`QuickFixCommands[0]`, and require deterministic ordering for `missing_evidence`/`recovery_steps`.
