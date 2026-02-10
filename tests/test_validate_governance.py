@@ -1474,6 +1474,7 @@ def test_session_state_bootstrap_recovery_script_exists():
     text = read_text(p)
     required_tokens = [
         "SESSION_STATE.json",
+        "repo-identity-map.yaml",
         "opencode-session-pointer.v1",
         "activeSessionStateFile",
         "workspaces",
@@ -1486,6 +1487,7 @@ def test_session_state_bootstrap_recovery_script_exists():
         "\"quality_index\": \"${COMMANDS_HOME}/QUALITY_INDEX.md\"",
         "\"conflict_resolution\": \"${COMMANDS_HOME}/CONFLICT_RESOLUTION.md\"",
         "--repo-fingerprint",
+        "--repo-name",
         "--config-root",
         "--force",
         "--dry-run",
@@ -1516,6 +1518,15 @@ def test_session_state_bootstrap_recovery_script_creates_state_file(tmp_path: Pa
 
     state_file = cfg / "workspaces" / repo_fp / "SESSION_STATE.json"
     assert state_file.exists(), "Expected repo-scoped SESSION_STATE.json to be created"
+
+    identity_map_file = cfg / "repo-identity-map.yaml"
+    assert identity_map_file.exists(), "Expected repo identity map to be created"
+    identity_map = json.loads(read_text(identity_map_file))
+    assert identity_map.get("schema") == "opencode-repo-identity-map.v1"
+    repos = identity_map.get("repositories")
+    assert isinstance(repos, dict)
+    assert repo_fp in repos
+    assert repos[repo_fp].get("repoName") == repo_fp
 
     data = json.loads(read_text(state_file))
     assert "SESSION_STATE" in data and isinstance(data["SESSION_STATE"], dict)

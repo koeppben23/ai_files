@@ -93,6 +93,10 @@ def session_pointer_path(config_root: Path) -> Path:
     return config_root / "SESSION_STATE.json"
 
 
+def repo_identity_map_path(config_root: Path) -> Path:
+    return config_root / "repo-identity-map.yaml"
+
+
 def session_state_template(repo_fingerprint: str, repo_name: str | None) -> dict:
     repository = repo_name.strip() if isinstance(repo_name, str) and repo_name.strip() else repo_fingerprint
     return {
@@ -159,6 +163,38 @@ def pointer_payload(repo_fingerprint: str) -> dict:
     }
 
 
+def _upsert_repo_identity_map(config_root: Path, repo_fingerprint: str, repo_name: str) -> str:
+    path = repo_identity_map_path(config_root)
+    now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+    existing = _load_json(path)
+    if not isinstance(existing, dict) or existing.get("schema") != "opencode-repo-identity-map.v1":
+        existing = {
+            "schema": "opencode-repo-identity-map.v1",
+            "updatedAt": now,
+            "repositories": {},
+        }
+
+    repos = existing.get("repositories")
+    if not isinstance(repos, dict):
+        repos = {}
+        existing["repositories"] = repos
+
+    before = repos.get(repo_fingerprint)
+    repos[repo_fingerprint] = {
+        "repoName": repo_name,
+        "source": "bootstrap-session-state",
+        "updatedAt": now,
+    }
+    existing["updatedAt"] = now
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(existing, indent=2, ensure_ascii=True) + "\n", encoding="utf-8")
+    if before is None:
+        return "created"
+    return "updated"
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
@@ -204,11 +240,13 @@ def main() -> int:
 
     repo_state_file = repo_session_state_path(config_root, repo_fingerprint)
     pointer_file = session_pointer_path(config_root)
+    identity_map_file = repo_identity_map_path(config_root)
 
     print(f"Config root: {config_root}")
     print(f"Repo fingerprint: {repo_fingerprint}")
     print(f"Repo SESSION_STATE file: {repo_state_file}")
     print(f"Global pointer file: {pointer_file}")
+    print(f"Repo identity map file: {identity_map_file}")
 
     pointer_existing = _load_json(pointer_file)
     pointer_has_legacy_payload = isinstance(pointer_existing, dict) and "SESSION_STATE" in pointer_existing
@@ -239,14 +277,16 @@ def main() -> int:
         if not should_write_repo_state:
             repo_action = "preserve"
         pointer_action = "overwrite" if pointer_file.exists() else "create"
+        identity_action = "update" if identity_map_file.exists() else "create"
 
         print(f"[DRY-RUN] Repo SESSION_STATE action: {repo_action} -> {repo_state_file}")
         print(f"[DRY-RUN] Pointer action: {pointer_action} -> {pointer_file}")
+        print(f"[DRY-RUN] Repo identity map action: {identity_action} -> {identity_map_file}")
         if pointer_has_legacy_payload:
             print("[DRY-RUN] Legacy global payload migration would be applied (requires --force for live write).")
         return 0
 
-    repo_payload: dict
+    repo_payload: dict | None = None
     if should_write_repo_state:
         if pointer_has_legacy_payload and args.force:
             assert isinstance(pointer_existing, dict)
@@ -260,11 +300,21 @@ def main() -> int:
         print("Repo-scoped SESSION_STATE written.")
     else:
         print("Repo-scoped SESSION_STATE already exists and was preserved (use --force to overwrite).")
+        existing_payload = _load_json(repo_state_file)
+        if isinstance(existing_payload, dict):
+            repo_payload = existing_payload
 
     pointer = pointer_payload(repo_fingerprint)
     pointer_file.parent.mkdir(parents=True, exist_ok=True)
     pointer_file.write_text(json.dumps(pointer, indent=2, ensure_ascii=True) + "\n", encoding="utf-8")
     print("Global SESSION_STATE pointer written.")
+
+    scope = repo_payload.get("SESSION_STATE", {}).get("Scope", {}) if isinstance(repo_payload, dict) else {}
+    repo_name_value = scope.get("Repository") if isinstance(scope, dict) else None
+    if not isinstance(repo_name_value, str) or not repo_name_value.strip():
+        repo_name_value = repo_fingerprint
+    identity_action = _upsert_repo_identity_map(config_root, repo_fingerprint, repo_name_value.strip())
+    print(f"Repo identity map {identity_action}.")
 
     if not args.skip_artifact_backfill:
         helper = Path(__file__).resolve().parent / "persist_workspace_artifacts.py"
