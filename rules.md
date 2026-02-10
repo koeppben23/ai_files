@@ -777,6 +777,27 @@ Completeness requirements (binding):
 - Placeholder tokens like `...` or `<...>` are FORBIDDEN inside emitted `SESSION_STATE` blocks.
 - If values are unknown/deferred, emit explicit values (`unknown`, `deferred`, `not-applicable`) rather than placeholders.
 
+### 7.3.10 Bootstrap Preflight Output Contract (Binding)
+
+At `/start`, preflight output MUST be deterministic and compact.
+
+Rules:
+- Preflight is Phase `0` / `1.1` only.
+- Preflight probes MUST be fresh (`ttl=0`) and MUST NOT reuse cached availability snapshots.
+- Preflight MUST include `observed_at` (timestamp) in diagnostics/state.
+- Preflight result MAY persist in `SESSION_STATE`, but next `/start` MUST overwrite it.
+- Preflight MUST report at most 5 checks.
+
+Required compact output shape:
+- `available: <comma-separated commands or none>`
+- `missing: <comma-separated commands or none>`
+- `impact: <one concise sentence>`
+- `next: <single concrete next step>`
+
+Semantics:
+- Missing `required_now` commands are blocker-fix candidates.
+- Missing `required_later` commands are advisory unless an active downstream gate requires them.
+
 ### 7.4 Architecture Decision Output Template (Binding when proposing non-trivial architecture)
 
 When the assistant proposes a non-trivial architectural decision (boundaries, persistence approach, contract strategy, major dependency/tooling change, migration/rollout strategy), it MUST output a structured proposal:

@@ -93,6 +93,8 @@ Bootstrap command preflight (binding):
 - If all required commands are present, `/start` should report `preflight: ok` and continue without interruption.
 - If commands are missing, `/start` should report `preflight: degraded` with missing command names and copy-paste install/recovery hints; block only if a downstream gate cannot be satisfied without the missing command.
 - If a missing command is installed later, rerunning `/start` MUST recompute the inventory from files and continue with refreshed PATH evidence.
+- Preflight MUST run in Phase `0` / `1.1`, with fresh probe signals only (`ttl=0`) and `observed_at` timestamp.
+- Preflight output MUST stay compact (max 5 checks) and use fixed keys: `available`, `missing`, `impact`, `next`.
 
 !`python -c "import os,platform,subprocess,sys,json,importlib.util;from pathlib import Path
 
