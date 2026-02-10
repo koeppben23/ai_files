@@ -913,6 +913,10 @@ WARN/BLOCKED separation rules:
 - `WARN` MAY include `advisory_missing` only.
 - `RequiredInputs` is for BLOCKED/COMPAT blocker outputs and MUST NOT be emitted for WARN-only responses.
 
+No-change acknowledgment (recommended):
+- If a response performs no phase/mode/gate transition, explicitly state `state_unchanged` with a one-line reason.
+- No-change acknowledgment MUST NOT conflict with `SESSION_STATE` or transition diagnostics.
+
 ### 7.3.15 STRICT vs COMPAT Output Matrix (Binding)
 
 Output mode matrix is deterministic and non-overlapping.

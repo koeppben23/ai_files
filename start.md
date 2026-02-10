@@ -143,6 +143,7 @@ Output requirements:
 - `WARN` MUST NOT be used when required-gate evidence is missing (that case MUST be `BLOCKED`).
 - Responses MUST include compact phase progress from `SESSION_STATE`: `phase`, `active_gate`, `next_gate_condition`.
 - Responses SHOULD include a compact `status_tag` for scanability (`<PHASE>-<GATE>-<STATE>`).
+- If no phase/mode/gate transition occurred, response SHOULD acknowledge `state_unchanged` with a concise reason.
 - `WARN` may include `advisory_missing` only and MUST NOT emit blocker `RequiredInputs`.
 - Explicit SESSION_STATE
 - `SESSION_STATE` output MUST be formatted as fenced YAML (````yaml` + `SESSION_STATE:` payload)
