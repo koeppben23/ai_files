@@ -277,9 +277,9 @@ def bootstrap_identity_if_needed() -> bool:
         print(
             json.dumps(
                 {
-                    "status": "blocked",
-                    "workspacePersistenceHook": "blocked",
-                    "reason_code": "BLOCKED-WORKSPACE-PERSISTENCE",
+                    "status": "warn",
+                    "workspacePersistenceHook": "warn",
+                    "reason_code": "WARN-WORKSPACE-PERSISTENCE",
                     "reason": "missing-bootstrap-helper",
                     "missing_evidence": ["diagnostics/bootstrap_session_state.py", "workspaces/<repo_fingerprint>/repo-identity-map.yaml"],
                     "recovery_steps": ["restore bootstrap_session_state.py helper and rerun /start"],
@@ -295,9 +295,9 @@ def bootstrap_identity_if_needed() -> bool:
         print(
             json.dumps(
                 {
-                    "status": "blocked",
-                    "workspacePersistenceHook": "blocked",
-                    "reason_code": "BLOCKED-WORKSPACE-PERSISTENCE",
+                    "status": "warn",
+                    "workspacePersistenceHook": "warn",
+                    "reason_code": "WARN-WORKSPACE-PERSISTENCE",
                     "reason": "missing-git-for-identity-bootstrap",
                     "missing_evidence": ["git in PATH", "workspaces/<repo_fingerprint>/repo-identity-map.yaml"],
                     "recovery_steps": [
@@ -331,9 +331,9 @@ def bootstrap_identity_if_needed() -> bool:
         print(
             json.dumps(
                 {
-                    "status": "blocked",
-                    "workspacePersistenceHook": "blocked",
-                    "reason_code": "BLOCKED-WORKSPACE-PERSISTENCE",
+                    "status": "warn",
+                    "workspacePersistenceHook": "warn",
+                    "reason_code": "WARN-WORKSPACE-PERSISTENCE",
                     "reason": "identity-bootstrap-fingerprint-missing",
                     "missing_evidence": ["repo fingerprint derivation from git metadata"],
                     "recovery_steps": [
@@ -363,9 +363,9 @@ def bootstrap_identity_if_needed() -> bool:
         print(
             json.dumps(
                 {
-                    "status": "blocked",
-                    "workspacePersistenceHook": "blocked",
-                    "reason_code": "BLOCKED-WORKSPACE-PERSISTENCE",
+                    "status": "warn",
+                    "workspacePersistenceHook": "warn",
+                    "reason_code": "WARN-WORKSPACE-PERSISTENCE",
                     "reason": "identity-bootstrap-failed",
                     "missing_evidence": ["workspaces/<repo_fingerprint>/repo-identity-map.yaml"],
                     "recovery_steps": ["run bootstrap_session_state.py manually and rerun /start"],
