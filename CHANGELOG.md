@@ -47,6 +47,13 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
 - Add explicit `state_unchanged` acknowledgment guidance for no-transition responses.
 - Add deterministic conversational post-start fixture intents (`what_phase`, `discovery_done`, `workflow_unchanged`) and governance tests.
 - Add governance PR operator-impact note contract requiring `What changed for operators?` guidance in PR bodies.
+- Add deterministic short-intent routing contract for post-start questions (`where_am_i`, `what_blocks_me`, `what_now`) with concise intent-first responses.
+- Add compact phase progress bar contract (`phase_progress_bar`, e.g. `[##----] 2/6`) for faster operator orientation.
+- Add top-1 blocker prioritization contract (`primary_reason_code`) so one primary blocker/command leads recovery.
+- Add reason-code quick-fix template catalog (`diagnostics/QUICKFIX_TEMPLATES.json`) for reusable recovery guidance.
+- Add delta-only no-change response contract (`state_unchanged` + `no_delta`) to reduce repetitive status noise.
+- Add operator persona response modes (`compact`, `standard`, `audit`) as presentation-only controls.
+- Add governance PR `Reviewer focus` guidance for high-risk contract deltas and targeted review hints.
 - Add guided profile-selection behavior for ambiguous detection: system now emits ranked profile suggestions with evidence and requests explicit numbered selection (`1..n`, including `fallback-minimum`) while remaining fail-closed (`BLOCKED-AMBIGUOUS-PROFILE`) until clarified.
 - Add UX execution contracts for deterministic operator flow: unified `[NEXT-ACTION]` footer, standardized blocked envelope fields, startup `[START-MODE]` banner, `[SNAPSHOT]` confidence/risk/scope block, and blocker `QuickFixCommands` guidance.
 - Tighten UX contract coherence: add `0=abort/none` profile-choice escape, require command-field consistency across `[NEXT-ACTION]`/`next_command`/`QuickFixCommands[0]`, and require deterministic ordering for `missing_evidence`/`recovery_steps`.
