@@ -272,6 +272,8 @@ Output requirements:
 - Output envelope SHOULD comply with `diagnostics/RESPONSE_ENVELOPE_SCHEMA.json` (`status`, `session_state`, `next_action`, `snapshot`; plus blocker payload fields when blocked) when host constraints allow
 - Status vocabulary MUST remain deterministic: `BLOCKED | WARN | OK | NOT_VERIFIED`.
 - `WARN` MUST NOT be used when required-gate evidence is missing (that case MUST be `BLOCKED`).
+- Responses MUST include compact phase progress from `SESSION_STATE`: `phase`, `active_gate`, `next_gate_condition`.
+- `WARN` may include `advisory_missing` only and MUST NOT emit blocker `RequiredInputs`.
 - Explicit SESSION_STATE
 - `SESSION_STATE` output MUST be formatted as fenced YAML (````yaml` + `SESSION_STATE:` payload)
 - `SESSION_STATE` output MUST NOT use placeholder tokens (`...`, `<...>`); use explicit unknown/deferred values instead
