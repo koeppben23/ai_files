@@ -147,6 +147,7 @@ Output requirements:
 - Responses SHOULD include `phase_progress_bar` (for example: `[##----] 2/6`) aligned to the current phase.
 - Responses SHOULD include a compact `status_tag` for scanability (`<PHASE>-<GATE>-<STATE>`).
 - If no phase/mode/gate transition occurred, response SHOULD acknowledge `state_unchanged` with a concise reason.
+- For no-change turns, response SHOULD be delta-only (or explicit `no_delta`) instead of repeating unchanged diagnostics.
 - `WARN` may include `advisory_missing` only and MUST NOT emit blocker `RequiredInputs`.
 - Explicit SESSION_STATE
 - `SESSION_STATE` output MUST be formatted as fenced YAML (````yaml` + `SESSION_STATE:` payload)

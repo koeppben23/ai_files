@@ -3449,6 +3449,7 @@ Response and output constraints are defined in `rules.md` (Core Rulebook).
 * `NextAction` wording SHOULD include concrete context (active phase/gate/scope) and avoid generic continuation text
 * On phase/mode changes, responses SHOULD include a compact one-line transition summary (`[TRANSITION] from -> to | reason: ...`)
 * If state does not change, responses SHOULD acknowledge `state_unchanged` with a concise reason
+* For no-change turns, responses SHOULD be delta-only and avoid repeating unchanged diagnostic blocks
 * Operator-first UX layering SHOULD be used: concise brief first, full diagnostics immediately after or on explicit detail request
 * `/start` preflight SHOULD distinguish `required_now` vs `required_later` and surface `block_now` for immediate-gate impact
 * After bootstrap success, short follow-ups SHOULD default to conversational, language-adaptive responses unless full diagnostics are requested

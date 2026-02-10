@@ -930,6 +930,7 @@ WARN/BLOCKED separation rules:
 No-change acknowledgment (recommended):
 - If a response performs no phase/mode/gate transition, explicitly state `state_unchanged` with a one-line reason.
 - No-change acknowledgment MUST NOT conflict with `SESSION_STATE` or transition diagnostics.
+- In no-change cases, response SHOULD be delta-only (only what changed, or explicitly `no_delta`).
 
 ### 7.3.15 STRICT vs COMPAT Output Matrix (Binding)
 
