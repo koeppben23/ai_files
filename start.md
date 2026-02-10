@@ -349,6 +349,7 @@ Host constraint acknowledgment:
 
 Output requirements:
 - Structured, phase-oriented output
+- Operator-first layering SHOULD be used: concise brief first (status + phase/gate + one next step), then detailed diagnostics
 - Output envelope SHOULD comply with `diagnostics/RESPONSE_ENVELOPE_SCHEMA.json` (`status`, `session_state`, `next_action`, `snapshot`; plus blocker payload fields when blocked) when host constraints allow
 - `next_action.type` MUST be present and one of: `command`, `reply_with_one_number`, `manual_step`.
 - Status vocabulary MUST remain deterministic: `BLOCKED | WARN | OK | NOT_VERIFIED`.
@@ -374,6 +375,7 @@ Output requirements:
 - If strict output formatting is host-constrained, response MUST include COMPAT sections: `RequiredInputs`, `Recovery`, and `NextAction` and set `DEVIATION.host_constraint = true`.
 - Response mode MUST be explicit and singular per turn: `STRICT` or `COMPAT`.
 - `STRICT` requires envelope + `[SNAPSHOT]` + `[NEXT-ACTION]`; `COMPAT` requires `RequiredInputs` + `Recovery` + `NextAction` + `[NEXT-ACTION]`.
+- If operator requests full details (for example: `show diagnostics`, `show full session state`), `/start` SHOULD emit full strict diagnostics without changing gate/evidence outcomes.
 
 This file is the canonical governance entrypoint.
 

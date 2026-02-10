@@ -3437,6 +3437,7 @@ Response and output constraints are defined in `rules.md` (Core Rulebook).
 * Each response MUST emit exactly one NextAction mechanism: `command` OR `reply_with_one_number` OR `manual_step`
 * Session transitions are invariant-checked: stable `session_run_id`, stable `ruleset_hash` unless explicit rehydrate, and transition trace entries with `transition_id`
 * Responses include compact phase progress derived from `SESSION_STATE` (`phase`, `active_gate`, `next_gate_condition`)
+* Operator-first UX layering SHOULD be used: concise brief first, full diagnostics immediately after or on explicit detail request
 
 Host-constraint compatibility (binding):
 * If host/system/developer instructions reject strict governance output formatting, use COMPAT mode.
@@ -3454,6 +3455,11 @@ Strict/compat mode matrix (binding):
 * STRICT (default when host allows): envelope + `[SNAPSHOT]` + `[NEXT-ACTION]` (+ blocker envelope/QuickFixCommands when blocked).
 * COMPAT (`DEVIATION.host_constraint = true`): `RequiredInputs` + `Recovery` + `NextAction` + `[NEXT-ACTION]`; deterministic gates/evidence remain identical.
 * Each response MUST declare exactly one output mode (`STRICT` or `COMPAT`).
+
+Operator-first layering (binding, presentation-only):
+* Responses SHOULD start with a compact operator brief (status + phase/gate + one next step).
+* Full diagnostics/evidence remain mandatory per gate and MUST be available after the brief layer.
+* On explicit operator request (`show diagnostics`, `show full session state`), emit full strict diagnostics.
 
 ---
 

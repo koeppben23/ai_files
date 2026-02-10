@@ -902,6 +902,25 @@ COMPAT mode (`DEVIATION.host_constraint = true`):
 Mode selection rule:
 - Response MUST declare exactly one mode (`STRICT` or `COMPAT`) per turn.
 
+### 7.3.16 Operator-First Brief/Detail Layering (Binding)
+
+To reduce operator cognitive load, governance responses SHOULD present information in two layers.
+
+Layer 1 (operator brief):
+- Start with a compact 2-4 line headline that contains only:
+  - status,
+  - phase/gate progress,
+  - exactly one actionable next step.
+
+Layer 2 (details on demand):
+- Keep full diagnostics and evidence payloads available, but place them after the brief layer.
+- If the operator asks for details (for example: `show diagnostics`, `show full session state`), return full strict diagnostics without changing gate outcomes.
+
+Safety constraints:
+- Brief layering is presentation-only and MUST NOT suppress blocker fields when `status=BLOCKED`.
+- Deterministic output contracts (reason codes, `SESSION_STATE`, NextAction coherence, `QuickFixCommands`) remain unchanged.
+- If host supports strict envelopes, strict fields remain mandatory even when brief layering is used.
+
 ### 7.4 Architecture Decision Output Template (Binding when proposing non-trivial architecture)
 
 When the assistant proposes a non-trivial architectural decision (boundaries, persistence approach, contract strategy, major dependency/tooling change, migration/rollout strategy), it MUST output a structured proposal:
