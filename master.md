@@ -3441,6 +3441,7 @@ Response and output constraints are defined in `rules.md` (Core Rulebook).
 * Each response MUST emit exactly one NextAction mechanism: `command` OR `reply_with_one_number` OR `manual_step`
 * Session transitions are invariant-checked: stable `session_run_id`, stable `ruleset_hash` unless explicit rehydrate, and transition trace entries with `transition_id`
 * Responses include compact phase progress derived from `SESSION_STATE` (`phase`, `active_gate`, `next_gate_condition`)
+* Responses SHOULD include a compact phase progress bar (`phase_progress_bar`, e.g. `[##----] 2/6`) for quick orientation
 * Responses SHOULD include a compact deterministic `status_tag` (`<PHASE>-<GATE>-<STATE>`) for quick operator scanning
 * Blocked recovery guidance SHOULD label primary quick-fix command confidence as `safe` or `review-first`
 * `NextAction` wording SHOULD include concrete context (active phase/gate/scope) and avoid generic continuation text

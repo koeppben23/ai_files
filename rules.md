@@ -907,6 +907,10 @@ Required fields:
 - `active_gate` (current gate key or `none`)
 - `next_gate_condition` (one concise sentence)
 
+Recommended compact progress bar:
+- Responses SHOULD include `phase_progress_bar` in the form `[##----] 2/6`.
+- Bar semantics MUST match current phase number (1-6) and total phase count (6).
+
 WARN/BLOCKED separation rules:
 - `WARN` MUST NOT include required-gate `missing_evidence`.
 - Required-gate missing evidence MUST produce `BLOCKED`.
