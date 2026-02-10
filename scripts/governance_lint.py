@@ -470,6 +470,19 @@ def check_response_contract_validator_presence(issues: list[str]) -> None:
         issues.append(f"scripts/validate_response_contract.py: missing validator tokens {missing}")
 
 
+def check_phase2_repo_root_defaulting_contract(issues: list[str]) -> None:
+    master = read_text(ROOT / "master.md")
+    required_tokens = [
+        "Repo root defaulting behavior (binding):",
+        "Phase 2 MUST use that path as the default `RepoRoot` candidate.",
+        "MUST request filesystem/access authorization (if required by host policy)",
+        "Operator path prompts are allowed only when no host-provided repository root is available",
+    ]
+    missing = [token for token in required_tokens if token not in master]
+    if missing:
+        issues.append(f"master.md: missing Phase-2 repo-root defaulting tokens {missing}")
+
+
 def check_required_addon_references(issues: list[str]) -> None:
     manifests = sorted((ROOT / "profiles" / "addons").glob("*.addon.yml"))
     for manifest in manifests:
@@ -973,6 +986,7 @@ def main() -> int:
     check_response_envelope_schema_contract(issues)
     check_rulebook_load_evidence_fail_closed_contract(issues)
     check_response_contract_validator_presence(issues)
+    check_phase2_repo_root_defaulting_contract(issues)
 
     if issues:
         print("Governance lint FAILED:")

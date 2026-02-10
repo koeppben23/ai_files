@@ -1785,6 +1785,21 @@ def test_rules_define_deterministic_backend_java_default_when_unambiguous():
 
 
 @pytest.mark.governance
+def test_phase2_prefers_host_repo_root_before_manual_path_prompt():
+    text = read_text(REPO_ROOT / "master.md")
+    required_tokens = [
+        "Repo root defaulting behavior (binding):",
+        "Phase 2 MUST use that path as the default `RepoRoot` candidate.",
+        "MUST request filesystem/access authorization (if required by host policy)",
+        "Operator path prompts are allowed only when no host-provided repository root is available",
+    ]
+    missing = [token for token in required_tokens if token not in text]
+    assert not missing, "master.md missing Phase-2 repo-root defaulting tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing]
+    )
+
+
+@pytest.mark.governance
 def test_start_md_fallback_binding_and_identity_evidence_boundaries_are_fail_closed():
     text = read_text(REPO_ROOT / "start.md")
 

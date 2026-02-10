@@ -1419,6 +1419,14 @@ Binding:
 
 **Input:** Repository archive (ZIP/TAR) or indexed repository
 
+Repo root defaulting behavior (binding):
+- If the host provides an indexed workspace/repository root for the current session,
+  Phase 2 MUST use that path as the default `RepoRoot` candidate.
+- In that case, the assistant MUST request filesystem/access authorization (if required by host policy)
+  before asking the operator to manually provide a repo path.
+- Operator path prompts are allowed only when no host-provided repository root is available,
+  or when the host-provided root cannot be resolved after an explicit access attempt.
+
 **Objective:** Understand the repository structure, tech stack, architecture pattern, and existing contracts.
 
 #### OpenCode-only: Load existing Repo Cache (Cache-first, Binding when applicable)
