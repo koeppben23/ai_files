@@ -3394,6 +3394,7 @@ Host-constraint compatibility (binding):
   - `Recovery`
   - `NextAction`
 * If `SESSION_STATE` is emitted, it MUST still be rendered as fenced YAML (format-stable machine-readable state block).
+* COMPAT mode MUST still emit a `[NEXT-ACTION]` block with `Status`, `Next`, `Why`, and `Command` fields.
 
 ---
 

@@ -1893,7 +1893,7 @@ def test_unified_next_action_footer_contract_is_defined_across_core_docs():
         "Footer values MUST be consistent with `SESSION_STATE.Mode`, `SESSION_STATE.Next`, and any emitted reason payloads.",
     ]
     start_required = [
-        "End every response with `[NEXT-ACTION]` footer (`Status`, `Next`, `Why`, `Command`) per `master.md` when host constraints allow",
+        "End every response with `[NEXT-ACTION]` footer (`Status`, `Next`, `Why`, `Command`) per `master.md` (also required in COMPAT mode)",
     ]
 
     missing_master = [t for t in master_required if t not in master]
@@ -2052,6 +2052,7 @@ def test_host_constraint_compat_mode_contract_is_defined_across_core_docs():
         "RequiredInputs",
         "Recovery",
         "NextAction",
+        "COMPAT mode MUST still emit a `[NEXT-ACTION]` block with `Status`, `Next`, `Why`, and `Command` fields.",
     ]
     rules_required = [
         "### 7.3.8 Host Constraint Compatibility Mode (Binding)",

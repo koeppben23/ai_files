@@ -629,7 +629,7 @@ When producing code changes:
 
 ### 7.3.1 Unified Next Action Footer (Binding)
 
-Each response SHOULD end with this compact footer shape when host output constraints allow:
+Each response MUST end with this compact footer shape:
 
 ```
 [NEXT-ACTION]
@@ -642,7 +642,7 @@ Command: <exact next command or "none">
 Rules:
 - `Next` MUST be singular and actionable.
 - Footer values MUST be consistent with `SESSION_STATE.Mode`, `SESSION_STATE.Next`, and any emitted reason payloads.
-- If host/system constraints prevent strict footer formatting, the response MUST use Compat Response Shape (`RequiredInputs`, `Recovery`, `NextAction`) and record `DEVIATION.host_constraint = true`.
+- In COMPAT mode, the assistant MUST still emit `[NEXT-ACTION]` with `Status|Next|Why|Command` fields (same keys, plain-text layout allowed).
 
 ### 7.3.2 Standard Blocker Output Envelope (Binding)
 
