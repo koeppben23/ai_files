@@ -32,9 +32,18 @@ def validate(payload: dict) -> list[str]:
         errors.append("next_action must be an object")
         next_action = {}
     else:
+        na_type = next_action.get("type")
+        if na_type not in {"command", "reply_with_one_number", "manual_step"}:
+            errors.append("next_action.type must be one of command|reply_with_one_number|manual_step")
         for key in ("Status", "Next", "Why", "Command"):
             if not _is_nonempty_string(next_action.get(key)):
                 errors.append(f"next_action.{key} must be a non-empty string")
+        if na_type == "command":
+            if str(next_action.get("Command", "")).strip().lower() == "none":
+                errors.append("next_action.Command must not be none when next_action.type=command")
+        elif na_type in {"reply_with_one_number", "manual_step"}:
+            if str(next_action.get("Command", "")).strip().lower() != "none":
+                errors.append("next_action.Command must be none when next_action.type is reply_with_one_number|manual_step")
 
     snapshot = payload.get("snapshot")
     if not isinstance(snapshot, dict):
