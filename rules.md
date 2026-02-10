@@ -692,6 +692,9 @@ When output mode is blocked, include:
 - `QuickFixCommands` with 1-3 exact copy-paste commands aligned to the active `reason_code`.
 - If no command applies, output `QuickFixCommands: ["none"]`.
 - Command coherence rule: `[NEXT-ACTION].Command`, blocker `next_command`, and `QuickFixCommands[0]` MUST match exactly (or all be `none`).
+- Default cardinality is one command.
+- Use two commands only for explicit OS split (`darwin/linux` vs `windows`) when command syntax materially differs.
+- When OS split is used, each command MUST be prefixed with an OS label (`macos_linux:` or `windows:`).
 
 Quick-fix commands are execution guidance only; they do not bypass gates or evidence requirements.
 
@@ -728,6 +731,21 @@ Minimum required envelope fields:
 - `session_state`
 - `next_action`
 - `snapshot`
+
+`next_action` required shape:
+- `type` (enum: `command | reply_with_one_number | manual_step`)
+- `Status`
+- `Next`
+- `Why`
+- `Command`
+
+`preflight` shape (when `/start` diagnostics are emitted):
+- `observed_at`
+- `checks` (array, max 5)
+- `available`
+- `missing`
+- `impact`
+- `next`
 
 When `status=blocked`, output SHOULD additionally include:
 - `reason_payload` (`status`, `reason_code`, `missing_evidence`, `recovery_steps`, `next_command`)
@@ -776,6 +794,113 @@ Completeness requirements (binding):
   - `RulebookLoadEvidence`
 - Placeholder tokens like `...` or `<...>` are FORBIDDEN inside emitted `SESSION_STATE` blocks.
 - If values are unknown/deferred, emit explicit values (`unknown`, `deferred`, `not-applicable`) rather than placeholders.
+
+### 7.3.10 Bootstrap Preflight Output Contract (Binding)
+
+At `/start`, preflight output MUST be deterministic and compact.
+
+Rules:
+- Preflight is Phase `0` / `1.1` only.
+- Preflight probes MUST be fresh (`ttl=0`) and MUST NOT reuse cached availability snapshots.
+- Preflight MUST include `observed_at` (timestamp) in diagnostics/state.
+- Preflight result MAY persist in `SESSION_STATE`, but next `/start` MUST overwrite it.
+- Preflight MUST report at most 5 checks.
+
+Required compact output shape:
+- `available: <comma-separated commands or none>`
+- `missing: <comma-separated commands or none>`
+- `impact: <one concise sentence>`
+- `next: <single concrete next step>`
+
+Semantics:
+- Missing `required_now` commands are blocker-fix candidates.
+- Missing `required_later` commands are advisory unless an active downstream gate requires them.
+
+### 7.3.11 Deterministic Status + NextAction Contract (Binding)
+
+Canonical governance status vocabulary (enum):
+- `BLOCKED`
+- `WARN`
+- `OK`
+- `NOT_VERIFIED`
+
+Rules:
+- `WARN` MUST NOT carry required-gate missing evidence; if required evidence is missing, status MUST be `BLOCKED`.
+- `WARN` MAY carry advisory missing inputs only.
+- `BLOCKED` MUST include exactly one `reason_code`, exactly one concrete recovery action sentence, and one primary copy-paste command.
+- `QuickFixCommands` for blocked responses MUST contain one command by default; allow two only for explicit OS-specific splits.
+
+Single-next-action rule:
+- Each response MUST emit exactly one `NextAction` mechanism:
+  - `command`, or
+  - `reply_with_one_number`, or
+  - `manual_step`.
+- The selected mechanism MUST align with `[NEXT-ACTION].Command` and blocker `next_command` when blocked.
+
+### 7.3.12 Session Transition Invariants (Binding)
+
+To prevent state drift across `/start` -> `Implement now` -> `Ingest evidence`:
+- `SESSION_STATE.session_run_id` MUST remain stable until verify completes.
+- `SESSION_STATE.ruleset_hash` MUST remain stable unless explicit rehydrate/reload is performed.
+- `SESSION_STATE.ActivationDelta.AddonScanHash` and `SESSION_STATE.ActivationDelta.RepoFactsHash` MUST remain stable unless activation inputs change.
+- Every phase/mode transition MUST record a unique `transition_id` in diagnostics.
+
+Required transition diagnostics payload:
+- `transition_id` (unique string)
+- `from` (`Phase` + `Mode`)
+- `to` (`Phase` + `Mode`)
+- `reason` (one concise sentence)
+
+### 7.3.13 Smart Retry + Restart Guidance (Binding)
+
+For missing command diagnostics, output MUST include deterministic post-fix guidance.
+
+Required fields per missing command:
+- `expected_after_fix` (machine-readable success signal)
+- `verify_command` (exact command to confirm recovery)
+- `restart_hint` (enum):
+  - `restart_required_if_path_edited`
+  - `no_restart_if_binary_in_existing_path`
+
+Rules:
+- Smart retry guidance is advisory and MUST NOT bypass blockers.
+- If PATH location changed in shell config, guidance SHOULD recommend restarting host/CLI.
+- If binary was installed into an already-present PATH directory, guidance SHOULD recommend immediate rerun of `/start` before restart.
+
+### 7.3.14 Phase Progress + Warn/Blocked Separation (Binding)
+
+Each response MUST include a compact phase-progress status derived from `SESSION_STATE`.
+
+Required fields:
+- `phase` (current `SESSION_STATE.Phase`)
+- `active_gate` (current gate key or `none`)
+- `next_gate_condition` (one concise sentence)
+
+WARN/BLOCKED separation rules:
+- `WARN` MUST NOT include required-gate `missing_evidence`.
+- Required-gate missing evidence MUST produce `BLOCKED`.
+- `WARN` MAY include `advisory_missing` only.
+- `RequiredInputs` is for BLOCKED/COMPAT blocker outputs and MUST NOT be emitted for WARN-only responses.
+
+### 7.3.15 STRICT vs COMPAT Output Matrix (Binding)
+
+Output mode matrix is deterministic and non-overlapping.
+
+STRICT mode (host supports full formatting):
+- MUST include envelope fields (`status`, `session_state`, `next_action`, `snapshot`)
+- MUST include `[NEXT-ACTION]` footer
+- MUST include `[SNAPSHOT]`
+- If blocked, MUST include blocker envelope + `QuickFixCommands`
+
+COMPAT mode (`DEVIATION.host_constraint = true`):
+- MUST include `RequiredInputs`
+- MUST include `Recovery`
+- MUST include `NextAction`
+- MUST include `[NEXT-ACTION]` footer
+- MAY omit strict envelope formatting, but MUST keep identical gates/evidence semantics
+
+Mode selection rule:
+- Response MUST declare exactly one mode (`STRICT` or `COMPAT`) per turn.
 
 ### 7.4 Architecture Decision Output Template (Binding when proposing non-trivial architecture)
 

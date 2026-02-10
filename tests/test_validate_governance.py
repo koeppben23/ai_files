@@ -2058,6 +2058,8 @@ def test_tool_requirements_catalog_exists_and_has_required_sections():
 
     payload = json.loads(read_text(p))
     assert payload.get("schema") == "opencode-tool-requirements.v1", "Unexpected tool requirements schema"
+    assert "smart_retry" in payload and isinstance(payload["smart_retry"], dict), "tool_requirements.json missing smart_retry object"
+    assert payload["smart_retry"].get("path_snapshot_policy") == "fresh-per-start", "smart_retry.path_snapshot_policy must be fresh-per-start"
 
     for key in ["required_now", "required_later", "optional"]:
         assert key in payload, f"tool_requirements.json missing key: {key}"
@@ -2066,6 +2068,17 @@ def test_tool_requirements_catalog_exists_and_has_required_sections():
     required_now_cmds = {str(x.get("command", "")).strip() for x in payload["required_now"] if isinstance(x, dict)}
     assert "git" in required_now_cmds, "tool_requirements.json required_now must include git"
     assert "python3" in required_now_cmds, "tool_requirements.json required_now must include python3"
+
+    for section in ["required_now", "required_later"]:
+        for entry in payload.get(section, []):
+            if not isinstance(entry, dict):
+                continue
+            assert entry.get("verify_command"), f"{section} entry missing verify_command: {entry}"
+            assert entry.get("expected_after_fix"), f"{section} entry missing expected_after_fix: {entry}"
+            assert entry.get("restart_hint") in {
+                "restart_required_if_path_edited",
+                "no_restart_if_binary_in_existing_path",
+            }, f"{section} entry has invalid restart_hint: {entry}"
 
 
 @pytest.mark.governance
@@ -2148,6 +2161,206 @@ def test_tool_requirements_catalog_covers_commands_referenced_by_flow_rulebooks(
         "tool_requirements.json missing commands referenced in flow rulebooks:\n"
         + "\n".join([f"- {m}" for m in missing])
         + "\nAdd each command to diagnostics/tool_requirements.json (required_now/required_later/optional)."
+    )
+
+
+@pytest.mark.governance
+def test_bootstrap_preflight_output_contract_is_defined_across_core_docs():
+    master = read_text(REPO_ROOT / "master.md")
+    rules = read_text(REPO_ROOT / "rules.md")
+    start = read_text(REPO_ROOT / "start.md")
+
+    master_required = [
+        "Preflight executes as Phase `0` / `1.1`",
+        "Tool probe TTL is zero (`ttl=0`)",
+        "Preflight MUST include an `observed_at` timestamp",
+        "Preflight output MUST remain compact: maximum 5 checks.",
+        "Preflight summary format is fixed to these keys: `available`, `missing`, `impact`, `next`.",
+        "Smart retry guidance is mandatory: missing-tool diagnostics MUST include `expected_after_fix` and `restart_hint`.",
+        "`restart_required_if_path_edited`",
+        "`no_restart_if_binary_in_existing_path`",
+    ]
+    rules_required = [
+        "### 7.3.10 Bootstrap Preflight Output Contract (Binding)",
+        "Preflight probes MUST be fresh (`ttl=0`)",
+        "Preflight MUST include `observed_at` (timestamp) in diagnostics/state.",
+        "Preflight MUST report at most 5 checks.",
+        "`available: <comma-separated commands or none>`",
+        "`missing: <comma-separated commands or none>`",
+        "`impact: <one concise sentence>`",
+        "`next: <single concrete next step>`",
+        "Missing `required_now` commands are blocker-fix candidates.",
+        "Missing `required_later` commands are advisory",
+        "### 7.3.13 Smart Retry + Restart Guidance (Binding)",
+        "`expected_after_fix` (machine-readable success signal)",
+        "`verify_command` (exact command to confirm recovery)",
+        "`restart_hint` (enum):",
+    ]
+    start_required = [
+        "Preflight MUST run in Phase `0` / `1.1`",
+        "fresh probe signals only (`ttl=0`) and `observed_at` timestamp",
+        "Preflight output MUST stay compact (max 5 checks)",
+        "fixed keys: `available`, `missing`, `impact`, `next`.",
+        "Missing-command diagnostics MUST include `expected_after_fix`, `verify_command`, and `restart_hint`.",
+        "`restart_hint` MUST be deterministic: `restart_required_if_path_edited` or `no_restart_if_binary_in_existing_path`.",
+    ]
+
+    missing_master = [t for t in master_required if t not in master]
+    missing_rules = [t for t in rules_required if t not in rules]
+    missing_start = [t for t in start_required if t not in start]
+
+    assert not missing_master, "master.md missing preflight output contract tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_master]
+    )
+    assert not missing_rules, "rules.md missing preflight output contract tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_rules]
+    )
+    assert not missing_start, "start.md missing preflight output contract tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_start]
+    )
+
+
+@pytest.mark.governance
+def test_status_vocab_and_single_nextaction_contract_is_defined_across_core_docs():
+    master = read_text(REPO_ROOT / "master.md")
+    rules = read_text(REPO_ROOT / "rules.md")
+    start = read_text(REPO_ROOT / "start.md")
+
+    master_required = [
+        "Governance status vocabulary is fixed: `BLOCKED | WARN | OK | NOT_VERIFIED`",
+        "WARN/blocked separation is strict: required missing evidence => BLOCKED (not WARN)",
+        "Each response MUST emit exactly one NextAction mechanism: `command` OR `reply_with_one_number` OR `manual_step`",
+        "In COMPAT mode, `NextAction` MUST still resolve to exactly one mechanism",
+    ]
+    rules_required = [
+        "### 7.3.11 Deterministic Status + NextAction Contract (Binding)",
+        "Canonical governance status vocabulary (enum):",
+        "`BLOCKED`",
+        "`WARN`",
+        "`OK`",
+        "`NOT_VERIFIED`",
+        "`WARN` MUST NOT carry required-gate missing evidence",
+        "`BLOCKED` MUST include exactly one `reason_code`",
+        "exactly one concrete recovery action sentence",
+        "one primary copy-paste command",
+        "QuickFixCommands",
+        "Each response MUST emit exactly one `NextAction` mechanism",
+        "`command`, or",
+        "`reply_with_one_number`, or",
+        "`manual_step`.",
+    ]
+    start_required = [
+        "Status vocabulary MUST remain deterministic: `BLOCKED | WARN | OK | NOT_VERIFIED`.",
+        "`WARN` MUST NOT be used when required-gate evidence is missing",
+        "Exactly one `NextAction` mechanism is allowed per response",
+        "If blocked, use exactly one `reason_code`, one concrete recovery action sentence, and one primary copy-paste command.",
+    ]
+
+    missing_master = [t for t in master_required if t not in master]
+    missing_rules = [t for t in rules_required if t not in rules]
+    missing_start = [t for t in start_required if t not in start]
+
+    assert not missing_master, "master.md missing deterministic status/nextaction tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_master]
+    )
+    assert not missing_rules, "rules.md missing deterministic status/nextaction tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_rules]
+    )
+    assert not missing_start, "start.md missing deterministic status/nextaction tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_start]
+    )
+
+
+@pytest.mark.governance
+def test_session_transition_invariant_contract_is_defined_across_core_docs():
+    master = read_text(REPO_ROOT / "master.md")
+    rules = read_text(REPO_ROOT / "rules.md")
+    start = read_text(REPO_ROOT / "start.md")
+    schema = read_text(REPO_ROOT / "SESSION_STATE_SCHEMA.md")
+
+    master_required = [
+        "Session transitions are invariant-checked",
+        "stable `session_run_id`",
+        "stable `ruleset_hash` unless explicit rehydrate",
+        "transition trace entries with `transition_id`",
+    ]
+    rules_required = [
+        "### 7.3.12 Session Transition Invariants (Binding)",
+        "`SESSION_STATE.session_run_id` MUST remain stable until verify completes.",
+        "`SESSION_STATE.ruleset_hash` MUST remain stable unless explicit rehydrate/reload is performed.",
+        "`SESSION_STATE.ActivationDelta.AddonScanHash`",
+        "`SESSION_STATE.ActivationDelta.RepoFactsHash`",
+        "Every phase/mode transition MUST record a unique `transition_id`",
+        "`transition_id` (unique string)",
+    ]
+    start_required = [
+        "Across lifecycle transitions, `session_run_id` and `ruleset_hash` MUST remain stable unless explicit rehydrate/reload is performed.",
+        "Every phase/mode transition MUST record a unique `transition_id` diagnostic entry.",
+    ]
+    schema_required = [
+        "### 2.1.4 Transition trace invariants (binding)",
+        "`SESSION_STATE.session_run_id` SHOULD be present and MUST remain stable until verify completion.",
+        "`SESSION_STATE.ruleset_hash` MUST remain stable unless explicit rehydrate/reload is performed.",
+        "`SESSION_STATE.Diagnostics.TransitionTrace[]`",
+        "`transition_id` (unique string)",
+        "`from_phase`",
+        "`to_phase`",
+    ]
+
+    missing_master = [t for t in master_required if t not in master]
+    missing_rules = [t for t in rules_required if t not in rules]
+    missing_start = [t for t in start_required if t not in start]
+    missing_schema = [t for t in schema_required if t not in schema]
+
+    assert not missing_master, "master.md missing transition invariant tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_master]
+    )
+    assert not missing_rules, "rules.md missing transition invariant tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_rules]
+    )
+    assert not missing_start, "start.md missing transition invariant tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_start]
+    )
+    assert not missing_schema, "SESSION_STATE_SCHEMA.md missing transition invariant tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_schema]
+    )
+
+
+@pytest.mark.governance
+def test_phase_progress_and_warn_blocked_separation_contract_is_defined_across_core_docs():
+    master = read_text(REPO_ROOT / "master.md")
+    rules = read_text(REPO_ROOT / "rules.md")
+    start = read_text(REPO_ROOT / "start.md")
+
+    master_required = [
+        "Responses include compact phase progress derived from `SESSION_STATE`",
+        "`phase`, `active_gate`, `next_gate_condition`",
+    ]
+    rules_required = [
+        "### 7.3.14 Phase Progress + Warn/Blocked Separation (Binding)",
+        "`phase` (current `SESSION_STATE.Phase`)",
+        "`active_gate` (current gate key or `none`)",
+        "`next_gate_condition` (one concise sentence)",
+        "`WARN` MUST NOT include required-gate `missing_evidence`.",
+        "Required-gate missing evidence MUST produce `BLOCKED`.",
+        "`WARN` MAY include `advisory_missing` only.",
+        "`RequiredInputs` is for BLOCKED/COMPAT blocker outputs",
+    ]
+    start_required = [
+        "Responses MUST include compact phase progress from `SESSION_STATE`: `phase`, `active_gate`, `next_gate_condition`.",
+        "`WARN` may include `advisory_missing` only and MUST NOT emit blocker `RequiredInputs`.",
+    ]
+
+    missing_master = [t for t in master_required if t not in master]
+    missing_rules = [t for t in rules_required if t not in rules]
+    missing_start = [t for t in start_required if t not in start]
+
+    assert not missing_master, "master.md missing phase-progress tokens:\n" + "\n".join([f"- {m}" for m in missing_master])
+    assert not missing_rules, "rules.md missing warn/blocked separation tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_rules]
+    )
+    assert not missing_start, "start.md missing phase-progress or warn tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_start]
     )
 
 
@@ -2266,15 +2479,22 @@ def test_quick_fix_commands_contract_is_defined_across_core_docs():
         "1-3 copy-paste-ready commands",
         'QuickFixCommands: ["none"]',
         "Command coherence rule: `[NEXT-ACTION].Command`, blocker `next_command`, and `QuickFixCommands[0]` MUST be identical",
+        "Default cardinality is one command.",
+        "Use two commands only for explicit OS split",
+        "prefix each command with `macos_linux:` or `windows:`",
     ]
     rules_required = [
         "### 7.3.5 Quick-Fix Commands for Blockers (Binding)",
         "`QuickFixCommands` with 1-3 exact copy-paste commands aligned to the active `reason_code`.",
         'output `QuickFixCommands: ["none"]`.',
         "Command coherence rule: `[NEXT-ACTION].Command`, blocker `next_command`, and `QuickFixCommands[0]` MUST match exactly",
+        "Default cardinality is one command.",
+        "Use two commands only for explicit OS split",
+        "OS label (`macos_linux:` or `windows:`)",
     ]
     start_required = [
         "If blocked, include `QuickFixCommands` with 1-3 copy-paste commands (or `[\"none\"]` if not command-driven) when host constraints allow.",
+        "`QuickFixCommands` defaults to one command; use two only for explicit `macos_linux` vs `windows` splits.",
     ]
 
     missing_master = [t for t in master_required if t not in master]
@@ -2299,6 +2519,9 @@ def test_host_constraint_compat_mode_contract_is_defined_across_core_docs():
         "Recovery",
         "NextAction",
         "COMPAT mode MUST still emit a `[NEXT-ACTION]` block with `Status`, `Next`, `Why`, and `Command` fields.",
+        "Strict/compat mode matrix (binding):",
+        "STRICT (default when host allows)",
+        "Each response MUST declare exactly one output mode (`STRICT` or `COMPAT`).",
     ]
     rules_required = [
         "### 7.3.8 Host Constraint Compatibility Mode (Binding)",
@@ -2307,9 +2530,15 @@ def test_host_constraint_compat_mode_contract_is_defined_across_core_docs():
         "RequiredInputs",
         "Recovery",
         "NextAction",
+        "### 7.3.15 STRICT vs COMPAT Output Matrix (Binding)",
+        "STRICT mode (host supports full formatting):",
+        "COMPAT mode (`DEVIATION.host_constraint = true`):",
+        "Response MUST declare exactly one mode (`STRICT` or `COMPAT`) per turn.",
     ]
     start_required = [
         "If strict output formatting is host-constrained, response MUST include COMPAT sections: `RequiredInputs`, `Recovery`, and `NextAction` and set `DEVIATION.host_constraint = true`.",
+        "Response mode MUST be explicit and singular per turn: `STRICT` or `COMPAT`.",
+        "`STRICT` requires envelope + `[SNAPSHOT]` + `[NEXT-ACTION]`; `COMPAT` requires `RequiredInputs` + `Recovery` + `NextAction` + `[NEXT-ACTION]`.",
     ]
 
     missing_master = [t for t in master_required if t not in master]
@@ -2487,6 +2716,7 @@ def test_canonical_response_envelope_schema_contract_is_defined():
         "status",
         "session_state",
         "next_action",
+        "next_action.type",
         "snapshot",
     ]
     corpus = "\n".join([master, rules, start])
@@ -2500,7 +2730,14 @@ def test_canonical_response_envelope_schema_contract_is_defined():
         '"status"',
         '"session_state"',
         '"next_action"',
+        '"type"',
+        '"reply_with_one_number"',
+        '"manual_step"',
         '"snapshot"',
+        '"preflight"',
+        '"observed_at"',
+        '"checks"',
+        '"impact"',
         '"reason_payload"',
         '"quick_fix_commands"',
         '"allOf"',
