@@ -242,7 +242,7 @@ Rulebook discovery contract (BINDING):
   - profiles: `${PROFILES_HOME}/rules*.md`
 - If the host cannot access the filesystem, the operator MUST provide one of:
   A) exact resolved paths + confirmation they exist, OR
-  B) paste the full file contents for master.md, rules.md, and the selected profile.
+  B) paste the full file contents for master.md (bootstrap minimum); defer rules.md/profile rulebook contents to their phase gates (rules.md: Phase 4, profile: Phase 2 detection).
 
 Host constraint acknowledgment:
 - Host / system / developer instructions may override this governance.

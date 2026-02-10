@@ -103,6 +103,8 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
 - Improve enterprise-restricted fallback guidance: persistence blockers/skips now emit explicit `required_operator_action`, `feedback_required`, `missing_evidence`, and deterministic `next_command` fields so users can run manual recovery and report back.
 - Enforce formatted `SESSION_STATE` output as fenced YAML across strict and COMPAT response modes to keep state blocks machine-readable and visually stable.
 - Prevent early Phase-2 discovery prompts for ticket/change request by routing no-ticket cases through automatic Phase 3A/3B (including auto-not-applicable paths) and deferring ticket requests to Phase 4 entry.
+- Refine `/start` no-filesystem fallback evidence wording so bootstrap asks only for `master.md` minimum and defers `rules.md`/profile contents to their phase gates.
+- Add explicit lint/test regression guard to forbid reintroduction of legacy `/start` fallback text that requests full `master.md + rules.md + profile` contents during bootstrap.
 - Standardize `profiles/rules*.md` operational wrappers with consistent headings (`Intent`, `Scope`, `Activation`, `Phase integration`, `Evidence contract`, `Tooling`, `Examples`, `Troubleshooting`) and normalize quick-block variants to canonical section headings.
 - Replace fragile `rules.md Section 4.6` references with stable anchor references (`RULEBOOK-PRECEDENCE-POLICY`) across profiles, factory templates, master guidance, and governance tests.
 - Canonicalize required-vs-advisory addon behavior as a single fail-closed policy source in `rules.md` anchor `RULEBOOK-PRECEDENCE-POLICY` plus `master.md` addon catalog (local rulebooks now reference, not redefine, blocking semantics).

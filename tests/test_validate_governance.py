@@ -1769,6 +1769,7 @@ def test_start_prefers_host_binding_evidence_and_defers_profile_selection_at_boo
         "`/start` MUST attempt host-provided evidence first and MUST NOT request operator-provided variable binding before that attempt.",
         "rules.md` load evidence is deferred until Phase 4.",
         "`/start` MUST NOT require explicit profile selection to complete bootstrap when `master.md` bootstrap evidence is available",
+        "paste the full file contents for master.md (bootstrap minimum); defer rules.md/profile rulebook contents to their phase gates",
     ]
     missing = [token for token in required_tokens if token not in text]
     assert not missing, "start.md missing bootstrap evidence/profile deferral tokens:\n" + "\n".join(
@@ -1868,6 +1869,7 @@ def test_start_md_fallback_binding_and_identity_evidence_boundaries_are_fail_clo
         "Treat it as **evidence**.",
         "# last resort: compute the same payload that the installer would write",
         "or provide operator binding evidence plus filesystem proof artifacts",
+        "paste the full file contents for master.md, rules.md, and the selected profile.",
     ]
     found = [token for token in forbidden_tokens if token in text]
     assert not found, "start.md still contains legacy fallback-evidence phrasing:\n" + "\n".join([f"- {m}" for m in found])
