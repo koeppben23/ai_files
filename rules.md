@@ -852,6 +852,21 @@ Rules:
 - If PATH location changed in shell config, guidance SHOULD recommend restarting host/CLI.
 - If binary was installed into an already-present PATH directory, guidance SHOULD recommend immediate rerun of `/start` before restart.
 
+### 7.3.14 Phase Progress + Warn/Blocked Separation (Binding)
+
+Each response MUST include a compact phase-progress status derived from `SESSION_STATE`.
+
+Required fields:
+- `phase` (current `SESSION_STATE.Phase`)
+- `active_gate` (current gate key or `none`)
+- `next_gate_condition` (one concise sentence)
+
+WARN/BLOCKED separation rules:
+- `WARN` MUST NOT include required-gate `missing_evidence`.
+- Required-gate missing evidence MUST produce `BLOCKED`.
+- `WARN` MAY include `advisory_missing` only.
+- `RequiredInputs` is for BLOCKED/COMPAT blocker outputs and MUST NOT be emitted for WARN-only responses.
+
 ### 7.4 Architecture Decision Output Template (Binding when proposing non-trivial architecture)
 
 When the assistant proposes a non-trivial architectural decision (boundaries, persistence approach, contract strategy, major dependency/tooling change, migration/rollout strategy), it MUST output a structured proposal:
