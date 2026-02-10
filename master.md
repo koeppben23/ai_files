@@ -1958,6 +1958,11 @@ Rules (binding):
 - 3–7 decisions max.
 - Each decision MUST include: Options (A/B), Recommendation, Evidence, What would change it.
 
+Ticket-goal handling in Phase 2.1 (binding):
+- Phase 2.1 MUST execute automatically from Phase 2 evidence and MUST NOT require explicit `ticketGoal` input.
+- If `ticketGoal` is missing at Phase 2.1, produce a planning-only Decision Pack from repository evidence and continue per Phase 2.1 exit rules.
+- `ticketGoal` becomes mandatory at Phase 4 entry (Step 0) before any code-producing work.
+
 OpenCode persistence lifecycle (Binding when OpenCode DecisionPack file is used):
 - If the workflow is running under OpenCode AND decision-pack persistence is applicable,
   each decision MUST additionally include:

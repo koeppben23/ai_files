@@ -1800,6 +1800,32 @@ def test_phase2_prefers_host_repo_root_before_manual_path_prompt():
 
 
 @pytest.mark.governance
+def test_phase21_does_not_require_ticket_goal_and_defers_mandatory_ticket_to_phase4():
+    master = read_text(REPO_ROOT / "master.md")
+    rules = read_text(REPO_ROOT / "rules.md")
+
+    master_required = [
+        "Ticket-goal handling in Phase 2.1 (binding):",
+        "Phase 2.1 MUST execute automatically from Phase 2 evidence and MUST NOT require explicit `ticketGoal` input.",
+        "`ticketGoal` becomes mandatory at Phase 4 entry (Step 0)",
+    ]
+    rules_required = [
+        "Phase 2.1 ticket-goal policy (binding):",
+        "Phase 2.1 Decision Pack generation MUST NOT block on missing `ticketGoal`.",
+        "`ticketGoal` is REQUIRED at Phase 4 entry (Step 0)",
+    ]
+
+    missing_master = [token for token in master_required if token not in master]
+    missing_rules = [token for token in rules_required if token not in rules]
+    assert not missing_master, "master.md missing Phase-2.1 ticket-goal deferral tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_master]
+    )
+    assert not missing_rules, "rules.md missing Phase-2.1 ticket-goal deferral tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_rules]
+    )
+
+
+@pytest.mark.governance
 def test_start_md_fallback_binding_and_identity_evidence_boundaries_are_fail_closed():
     text = read_text(REPO_ROOT / "start.md")
 

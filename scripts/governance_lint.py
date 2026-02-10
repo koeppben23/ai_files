@@ -483,6 +483,29 @@ def check_phase2_repo_root_defaulting_contract(issues: list[str]) -> None:
         issues.append(f"master.md: missing Phase-2 repo-root defaulting tokens {missing}")
 
 
+def check_phase21_ticket_goal_deferral_contract(issues: list[str]) -> None:
+    master = read_text(ROOT / "master.md")
+    rules = read_text(ROOT / "rules.md")
+
+    master_required = [
+        "Ticket-goal handling in Phase 2.1 (binding):",
+        "Phase 2.1 MUST execute automatically from Phase 2 evidence and MUST NOT require explicit `ticketGoal` input.",
+        "`ticketGoal` becomes mandatory at Phase 4 entry (Step 0)",
+    ]
+    rules_required = [
+        "Phase 2.1 ticket-goal policy (binding):",
+        "Phase 2.1 Decision Pack generation MUST NOT block on missing `ticketGoal`.",
+        "`ticketGoal` is REQUIRED at Phase 4 entry (Step 0)",
+    ]
+
+    missing_master = [token for token in master_required if token not in master]
+    missing_rules = [token for token in rules_required if token not in rules]
+    if missing_master:
+        issues.append(f"master.md: missing Phase-2.1 ticket-goal deferral tokens {missing_master}")
+    if missing_rules:
+        issues.append(f"rules.md: missing Phase-2.1 ticket-goal deferral tokens {missing_rules}")
+
+
 def check_required_addon_references(issues: list[str]) -> None:
     manifests = sorted((ROOT / "profiles" / "addons").glob("*.addon.yml"))
     for manifest in manifests:
@@ -987,6 +1010,7 @@ def main() -> int:
     check_rulebook_load_evidence_fail_closed_contract(issues)
     check_response_contract_validator_presence(issues)
     check_phase2_repo_root_defaulting_contract(issues)
+    check_phase21_ticket_goal_deferral_contract(issues)
 
     if issues:
         print("Governance lint FAILED:")

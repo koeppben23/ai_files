@@ -1240,6 +1240,11 @@ The Decision Pack MUST be stored outside the repository in the OpenCode workspac
 
 BINDING:
 - The assistant MUST NOT write the Decision Pack into the repository working copy.
+
+Phase 2.1 ticket-goal policy (binding):
+- Phase 2.1 Decision Pack generation MUST NOT block on missing `ticketGoal`.
+- Missing `ticketGoal` at Phase 2.1 implies planning-only decisions based on repository evidence.
+- `ticketGoal` is REQUIRED at Phase 4 entry (Step 0) before implementation planning/code-producing work.
 - All output paths MUST be expressed as variable-based path expressions (e.g., `${REPO_DECISION_PACK_FILE}`), not OS-specific absolute paths.
 
 Resulting path example:
