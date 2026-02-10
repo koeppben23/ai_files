@@ -95,6 +95,7 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
 - Clarify Phase 2.1 decision-pack flow to auto-run from repository evidence without requiring `ticketGoal`; `ticketGoal` is now explicitly mandatory at Phase 4 entry (Step 0) before code-producing work.
 - Make `/start` workspace persistence diagnostics non-blocking (`WARN-WORKSPACE-PERSISTENCE`) when helper scripts are missing/failing, while keeping binding evidence fail-closed.
 - Add host-constraint COMPAT mode contracts (`DEVIATION.host_constraint`, `RequiredInputs`, `Recovery`, `NextAction`) so governance remains deterministic without strict output-wrapper collisions.
+- Update lifecycle contract so `/start` automatically wraps ARCHITECT entry (normal flow no longer requires a separate `/master` call; `/master` remains optional explicit re-entry).
 - Standardize `profiles/rules*.md` operational wrappers with consistent headings (`Intent`, `Scope`, `Activation`, `Phase integration`, `Evidence contract`, `Tooling`, `Examples`, `Troubleshooting`) and normalize quick-block variants to canonical section headings.
 - Replace fragile `rules.md Section 4.6` references with stable anchor references (`RULEBOOK-PRECEDENCE-POLICY`) across profiles, factory templates, master guidance, and governance tests.
 - Canonicalize required-vs-advisory addon behavior as a single fail-closed policy source in `rules.md` anchor `RULEBOOK-PRECEDENCE-POLICY` plus `master.md` addon catalog (local rulebooks now reference, not redefine, blocking semantics).

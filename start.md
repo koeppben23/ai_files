@@ -214,7 +214,9 @@ Invocation:
 - This file does not replace or inline `master.md`; it only triggers its discovery and activation.
 - Phases 1–6 are enforced as far as host/system constraints allow.
 - `/start` is mandatory before `/master` for a repo/session; `/master` without valid `/start` evidence MUST map to `BLOCKED-START-REQUIRED` with `QuickFixCommands: ["/start"]`.
-- Canonical operator lifecycle: `/start` -> `/master` (ARCHITECT) -> `Implement now` (IMPLEMENT) -> `Ingest evidence` (VERIFY).
+- `/start` wraps master ARCHITECT entry automatically for the same session (no separate `/master` call required for normal flow).
+- Canonical operator lifecycle: `/start` (bootstrap + ARCHITECT entry) -> `Implement now` (IMPLEMENT) -> `Ingest evidence` (VERIFY).
+- `/master` remains available as an optional explicit re-entry command after `/start` when the operator wants to force architecture re-evaluation.
 - Plan-Gates ≠ Evidence-Gates.
 - Missing evidence → BLOCKED (reported, not suppressed).
 - Profile ambiguity → BLOCKED.

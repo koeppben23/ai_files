@@ -983,9 +983,10 @@ def check_architect_autopilot_lifecycle_contract(issues: list[str]) -> None:
     master_required = [
         "### 2.4.2 Architect-Only Autopilot Lifecycle (Binding)",
         "SESSION_STATE.OutputMode = ARCHITECT | IMPLEMENT | VERIFY",
-        "Default after `/master` is `ARCHITECT`.",
+        "Default after successful `/start` bootstrap is `ARCHITECT`.",
         "BLOCKED-START-REQUIRED",
         "BLOCKED-MISSING-DECISION",
+        "Normal operator flow MUST NOT require a separate `/master` call when `/start` succeeded.",
     ]
     rules_required = [
         "### 7.3.6 Architect-Only Autopilot Lifecycle (Binding)",
@@ -996,7 +997,8 @@ def check_architect_autopilot_lifecycle_contract(issues: list[str]) -> None:
     ]
     start_required = [
         "`/start` is mandatory before `/master` for a repo/session; `/master` without valid `/start` evidence MUST map to `BLOCKED-START-REQUIRED`",
-        "Canonical operator lifecycle: `/start` -> `/master` (ARCHITECT) -> `Implement now` (IMPLEMENT) -> `Ingest evidence` (VERIFY).",
+        "`/start` wraps master ARCHITECT entry automatically for the same session",
+        "Canonical operator lifecycle: `/start` (bootstrap + ARCHITECT entry) -> `Implement now` (IMPLEMENT) -> `Ingest evidence` (VERIFY).",
     ]
 
     missing_master = [t for t in master_required if t not in master]
