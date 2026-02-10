@@ -2173,6 +2173,7 @@ def test_session_state_output_format_is_fenced_yaml_across_core_docs():
 
     master_required = [
         "If `SESSION_STATE` is emitted, it MUST still be rendered as fenced YAML",
+        "`SESSION_STATE` blocks MUST NOT use placeholder tokens (`...`, `<...>`); unknown fields must be explicit (`unknown|deferred|not-applicable`).",
     ]
     rules_required = [
         "### 7.3.9 SESSION_STATE Formatting Contract (Binding)",
@@ -2180,9 +2181,12 @@ def test_session_state_output_format_is_fenced_yaml_across_core_docs():
         "heading line: `SESSION_STATE`",
         "fenced block start: ````yaml",
         "payload root key: `SESSION_STATE:`",
+        "Placeholder tokens like `...` or `<...>` are FORBIDDEN inside emitted `SESSION_STATE` blocks.",
+        "If values are unknown/deferred, emit explicit values (`unknown`, `deferred`, `not-applicable`) rather than placeholders.",
     ]
     start_required = [
         "`SESSION_STATE` output MUST be formatted as fenced YAML (````yaml` + `SESSION_STATE:` payload)",
+        "`SESSION_STATE` output MUST NOT use placeholder tokens (`...`, `<...>`); use explicit unknown/deferred values instead",
     ]
 
     missing_master = [t for t in master_required if t not in master]

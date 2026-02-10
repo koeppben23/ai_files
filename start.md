@@ -254,6 +254,7 @@ Output requirements:
 - Output envelope SHOULD comply with `diagnostics/RESPONSE_ENVELOPE_SCHEMA.json` (`status`, `session_state`, `next_action`, `snapshot`; plus blocker payload fields when blocked) when host constraints allow
 - Explicit SESSION_STATE
 - `SESSION_STATE` output MUST be formatted as fenced YAML (````yaml` + `SESSION_STATE:` payload)
+- `SESSION_STATE` output MUST NOT use placeholder tokens (`...`, `<...>`); use explicit unknown/deferred values instead
 - Explicit Gates
 - Explicit DEVIATION reporting
 - Prefer structured (non-chat) answers when host constraints allow

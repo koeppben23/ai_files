@@ -761,6 +761,22 @@ Required shape:
 
 This formatting requirement applies in both strict and COMPAT modes.
 
+Completeness requirements (binding):
+- The emitted block MUST contain a real state snapshot (no placeholder-only shells).
+- At minimum, include keys:
+  - `session_state_version`
+  - `ruleset_hash`
+  - `Phase`
+  - `Mode`
+  - `OutputMode`
+  - `Next`
+  - `Scope`
+  - `Gates`
+  - `LoadedRulebooks`
+  - `RulebookLoadEvidence`
+- Placeholder tokens like `...` or `<...>` are FORBIDDEN inside emitted `SESSION_STATE` blocks.
+- If values are unknown/deferred, emit explicit values (`unknown`, `deferred`, `not-applicable`) rather than placeholders.
+
 ### 7.4 Architecture Decision Output Template (Binding when proposing non-trivial architecture)
 
 When the assistant proposes a non-trivial architectural decision (boundaries, persistence approach, contract strategy, major dependency/tooling change, migration/rollout strategy), it MUST output a structured proposal:
