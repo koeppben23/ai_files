@@ -223,7 +223,7 @@ def _render_repo_cache(
             "    DataStores: []",
             "    Testing: []",
             "  ConventionsDigest:",
-            '    - "Backfill placeholder: refresh after Phase 2 discovery."',
+            '    - "Seed snapshot: refresh after evidence-backed Phase 2 discovery."',
             "  BuildAndTooling: {}",
             "  CacheHashChecks: []",
             "  InvalidateOn:",
@@ -248,7 +248,7 @@ def _repo_map_digest_section(date: str, repository_type: str) -> str:
             f"RepositoryType: {repository_type}",
             "Architecture: unknown",
             "Modules:",
-            "- none (backfill placeholder)",
+            "- none (no evidence-backed digest yet)",
             "EntryPoints:",
             "- none",
             "DataStores:",
@@ -258,7 +258,7 @@ def _repo_map_digest_section(date: str, repository_type: str) -> str:
             "Testing:",
             "- unknown",
             "ConventionsDigest:",
-            "- Backfill placeholder; refresh after evidence-backed Phase 2 discovery.",
+            "- Seed snapshot; refresh after evidence-backed Phase 2 discovery.",
             "ArchitecturalInvariants:",
             "- unknown",
             "",
@@ -286,7 +286,7 @@ def _decision_pack_section(date: str, date_compact: str) -> str:
             "A) Yes",
             "B) No",
             "Recommendation: B (insufficient domain evidence in current backfill context)",
-            "Evidence: Backfill initialization only; no fresh Phase 2 domain extraction attached",
+            "Evidence: Bootstrap seed only; no fresh Phase 2 domain extraction attached",
             "What would change it: evidence-backed Phase 2 signals for domain-heavy logic/policy complexity",
             "",
         ]
@@ -391,6 +391,30 @@ def _append_text(path: Path, content: str, *, dry_run: bool) -> None:
     path.write_text(existing, encoding="utf-8")
 
 
+def _normalize_legacy_placeholder_phrasing(path: Path, *, dry_run: bool) -> bool:
+    if not path.exists() or not path.is_file():
+        return False
+
+    text = path.read_text(encoding="utf-8", errors="ignore")
+    replacements = {
+        "Backfill placeholder: refresh after Phase 2 discovery.": "Seed snapshot: refresh after evidence-backed Phase 2 discovery.",
+        "none (backfill placeholder)": "none (no evidence-backed digest yet)",
+        "Backfill placeholder; refresh after evidence-backed Phase 2 discovery.": "Seed snapshot; refresh after evidence-backed Phase 2 discovery.",
+        "Evidence: Backfill initialization only; no fresh Phase 2 domain extraction attached": "Evidence: Bootstrap seed only; no fresh Phase 2 domain extraction attached",
+    }
+
+    updated = text
+    for old, new in replacements.items():
+        updated = updated.replace(old, new)
+
+    if updated == text:
+        return False
+
+    if not dry_run:
+        path.write_text(updated, encoding="utf-8")
+    return True
+
+
 def _upsert_artifact(
     *,
     path: Path,
@@ -403,7 +427,11 @@ def _upsert_artifact(
         _write_text(path, create_content, dry_run=dry_run)
         return "created"
 
+    normalized = _normalize_legacy_placeholder_phrasing(path, dry_run=dry_run)
+
     if not force:
+        if normalized:
+            return "normalized"
         return "kept"
 
     if append_content is not None:
