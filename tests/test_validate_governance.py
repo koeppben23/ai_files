@@ -2001,6 +2001,45 @@ def test_unified_next_action_footer_contract_is_defined_across_core_docs():
 
 
 @pytest.mark.governance
+def test_start_and_master_require_host_git_identity_discovery_before_operator_prompt():
+    master = read_text(REPO_ROOT / "master.md")
+    start = read_text(REPO_ROOT / "start.md")
+
+    master_required = [
+        "attempt host-side identity discovery first when tool access is available",
+        "git remote get-url origin",
+        "git symbolic-ref refs/remotes/origin/HEAD",
+        "git rev-parse --show-toplevel",
+        "destructive or mutating git commands during identity collection",
+        "Bootstrap tool preflight (binding):",
+        "runtime MUST probe required external commands via PATH",
+        "preflight result MUST be reported as structured diagnostics",
+        "MUST NOT block by itself",
+    ]
+    start_required = [
+        "Identity discovery order (binding):",
+        "`/start` MUST collect repo identity evidence first via non-destructive git commands",
+        "before requesting operator-provided evidence",
+        "MUST block with identity-missing reason and provide copy-paste recovery commands",
+        "Bootstrap command preflight (binding):",
+        "`/start` MUST check required external commands in `PATH` first",
+        "Preflight diagnostics are informational and MUST NOT create a blocker by themselves",
+        "`preflight: ok`",
+        "`preflight: degraded`",
+    ]
+
+    missing_master = [t for t in master_required if t not in master]
+    missing_start = [t for t in start_required if t not in start]
+
+    assert not missing_master, "master.md missing host git identity-discovery tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_master]
+    )
+    assert not missing_start, "start.md missing host git identity-discovery tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_start]
+    )
+
+
+@pytest.mark.governance
 def test_standard_blocker_envelope_contract_is_defined_across_core_docs():
     master = read_text(REPO_ROOT / "master.md")
     rules = read_text(REPO_ROOT / "rules.md")

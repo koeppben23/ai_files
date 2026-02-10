@@ -196,13 +196,27 @@ Binding:
 
 ### Repo Identity Evidence Policy (Binding)
 
-The system MUST NOT require direct access to git or any VCS tooling.
+The system MUST support operation without direct access to git or any VCS tooling.
+
+Bootstrap tool preflight (binding):
+- During `/start`, the runtime MUST probe required external commands via PATH (e.g., `git`, `python3`).
+- The preflight result MUST be reported as structured diagnostics (`available`/`missing`) and MUST NOT block by itself.
+- If all required commands are available, `/start` MUST continue without a blocker.
+- If one or more commands are missing, `/start` MUST continue in degraded mode where possible and include recovery commands; block only when a later gate requires missing-tool-dependent evidence.
+
+When host tools are available and the repository is a git worktree, the system MUST
+attempt host-side, non-destructive git evidence collection first before asking the
+operator to run commands manually.
 
 Git-based identity means:
   - the identity is derived from git metadata (remote URL + default branch),
-  - NOT that the system executes git commands itself.
+  - and MAY be obtained either by host-executed read-only git commands or operator-provided command output.
 
 The system MUST:
+  - attempt host-side identity discovery first when tool access is available, using read-only commands:
+    - `git remote get-url origin`
+    - `git symbolic-ref refs/remotes/origin/HEAD`
+    - `git rev-parse --show-toplevel`
   - explicitly request the required evidence,
   - provide the exact commands the operator MAY run to obtain it,
   - accept pasted command output as valid evidence,
@@ -212,7 +226,7 @@ The system MUST:
 The system MUST remain fail-closed if evidence is missing or inconsistent.
 
 The following are FORBIDDEN:
-  - executing git implicitly,
+  - destructive or mutating git commands during identity collection,
   - path-based or heuristic repo fingerprints,
   - provisional or fallback identity trees.
 
