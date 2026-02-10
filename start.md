@@ -33,6 +33,7 @@ if f.exists():
             'reason_code':'BLOCKED-VARIABLE-RESOLUTION',
             'message':'Installer-owned governance.paths.json exists but could not be read.',
             'bindingFile': str(f),
+            'missing_evidence':['${COMMANDS_HOME}/governance.paths.json (installer-owned binding evidence)'],
             'error': str(ex)[:240],
             'recovery_steps':[
                 'allow OpenCode host read access to governance.paths.json',
@@ -49,6 +50,8 @@ else:
         'status':'blocked',
         'reason_code':'BLOCKED-MISSING-BINDING-FILE',
         'message':'Missing installer-owned governance.paths.json; computed paths are debug-only and non-evidence.',
+        'missing_evidence':['${COMMANDS_HOME}/governance.paths.json (installer-owned binding evidence)'],
+        'next_command':'/start',
         'debugComputedPaths':{
             'configRoot': norm(root),
             'commandsHome': norm(root/'commands'),
@@ -58,7 +61,7 @@ else:
         },
         'recovery_steps':[
             'rerun installer to create commands/governance.paths.json',
-            'or provide operator binding evidence plus filesystem proof artifacts',
+            'rerun /start after installer repair',
         ],
         'nonEvidence':'debug-only'
     }
@@ -90,7 +93,7 @@ def config_root():
     xdg=os.getenv('XDG_CONFIG_HOME')
     return (Path(xdg) if xdg else Path.home()/'.config')/'opencode'
 
-root=config_root(); diag=root/'commands'/'diagnostics'; helper=diag/'persist_workspace_artifacts.py'; bootstrap=diag/'bootstrap_session_state.py'; logger=diag/'error_logs.py'
+root=config_root(); diag=root/'commands'/'diagnostics'; helper=diag/'persist_workspace_artifacts.py'; bootstrap=diag/'bootstrap_session_state.py'; logger=diag/'error_logs.py'; identity_map=root/'repo-identity-map.yaml'
 
 def _log(reason_key,message,observed):
     try:
@@ -120,10 +123,14 @@ def _log(reason_key,message,observed):
         pass
 
 if helper.exists():
+    if not identity_map.exists():
+        _log('ERR-WORKSPACE-PERSISTENCE-SKIPPED-NO-IDENTITY-EVIDENCE','/start workspace persistence skipped because repo identity map evidence is missing.',{'identityMap':str(identity_map)})
+        print(json.dumps({'workspacePersistenceHook':'warn','reason_code':'WARN-WORKSPACE-PERSISTENCE','reason':'skipped-no-identity-evidence','impact':'no repo-scoped persistence without validated identity evidence','recovery':'provide repo identity evidence and rerun /start'}))
+        raise SystemExit(0)
     run=subprocess.run([sys.executable,str(helper),'--repo-root',str(Path.cwd()),'--quiet'], text=True, capture_output=True, check=False)
     out=(run.stdout or '').strip()
     err=(run.stderr or '').strip()
-    if out and run.returncode==0:
+    if run.returncode==0 and out:
         try:
             payload=json.loads(out)
         except Exception:
@@ -137,21 +144,22 @@ if helper.exists():
                 else:
                     b_err=(b_run.stderr or '')[:240]
                     _log('ERR-SESSION-BOOTSTRAP-HOOK-FAILED','/start session bootstrap helper returned non-zero.',{'repoFingerprint':fp,'stderr':b_err})
-                    print(json.dumps({'workspacePersistenceHook':'blocked','reason_code':'BLOCKED-SESSION-STATE-MISSING','repoFingerprint':fp,'error':b_err,'next_command':'python diagnostics/bootstrap_session_state.py --repo-fingerprint <repo_fingerprint>'}))
+                    print(json.dumps({'workspacePersistenceHook':'warn','reason_code':'WARN-WORKSPACE-PERSISTENCE','reason':'bootstrap-session-failed','repoFingerprint':fp,'error':b_err,'impact':'repo-scoped SESSION_STATE may be incomplete','recovery':'python diagnostics/bootstrap_session_state.py --repo-fingerprint <repo_fingerprint>'}))
             else:
                 print(out)
+        elif isinstance(payload,dict) and payload.get('status')=='blocked':
+            _log('ERR-WORKSPACE-PERSISTENCE-HOOK-BLOCKED','/start workspace persistence helper reported blocked output.',payload)
+            print(json.dumps({'workspacePersistenceHook':'warn','reason_code':'WARN-WORKSPACE-PERSISTENCE','reason':'helper-reported-blocked','helperPayload':payload,'impact':'workspace artifacts may be incomplete','recovery':'python diagnostics/persist_workspace_artifacts.py --repo-root <repo_root>'}))
         else:
             print(out)
-    elif out:
-        print(out)
     elif run.returncode==0:
         print(json.dumps({'workspacePersistenceHook':'ok'}))
     else:
         _log('ERR-WORKSPACE-PERSISTENCE-HOOK-FAILED','/start workspace persistence helper returned non-zero.',{'returncode':run.returncode,'stderr':err[:240]})
-        print(json.dumps({'workspacePersistenceHook':'blocked','reason_code':'BLOCKED-WORKSPACE-PERSISTENCE','code':run.returncode,'error':err[:240]}))
+        print(json.dumps({'workspacePersistenceHook':'warn','reason_code':'WARN-WORKSPACE-PERSISTENCE','reason':'helper-failed','code':run.returncode,'error':err[:240],'impact':'workspace artifacts may be incomplete','recovery':'python diagnostics/persist_workspace_artifacts.py --repo-root <repo_root>'}))
 else:
     _log('ERR-WORKSPACE-PERSISTENCE-HOOK-MISSING','/start workspace persistence helper is missing from diagnostics payload.',{'helper':str(helper)})
-    print(json.dumps({'workspacePersistenceHook':'blocked','reason_code':'BLOCKED-WORKSPACE-PERSISTENCE','reason':'helper-missing','next_command':'python diagnostics/persist_workspace_artifacts.py --repo-root <repo_root>'}))"`
+    print(json.dumps({'workspacePersistenceHook':'warn','reason_code':'WARN-WORKSPACE-PERSISTENCE','reason':'helper-missing','impact':'workspace artifacts may be incomplete','recovery':'python diagnostics/persist_workspace_artifacts.py --repo-root <repo_root>'}))"`
 
 Binding evidence semantics (binding):
 - Only an existing installer-owned `${COMMANDS_HOME}/governance.paths.json` qualifies as canonical binding evidence.
@@ -192,7 +200,7 @@ Because this file cannot self-prove filesystem state, governance activation MUST
 
 A) **Host-provided file access evidence** (preferred)
    - Tool output showing the resolved directory listing for `${COMMANDS_HOME}` and `${PROFILES_HOME}`, OR
-   - Tool output confirming reads of `master.md` and `rules.md` (profile rulebook resolution may be deferred to Phase 1.2/Post-Phase-2 detection).
+   - Tool output confirming reads of `master.md` (and top-tier bootstrap artifacts when present); `rules.md` load evidence is deferred until Phase 4.
 
 Binding behavior (MUST):
 - If installer-owned `${COMMANDS_HOME}/governance.paths.json` exists and host filesystem tools are available,
@@ -212,12 +220,14 @@ Invocation:
 - Activate the Governance-OS defined in `master.md`.
 - This file does not replace or inline `master.md`; it only triggers its discovery and activation.
 - Phases 1–6 are enforced as far as host/system constraints allow.
-- `/start` is mandatory before `/master` for a repo/session; `/master` without valid `/start` evidence MUST map to `BLOCKED-START-REQUIRED` with `QuickFixCommands: ["/start"]`.
-- Canonical operator lifecycle: `/start` -> `/master` (ARCHITECT) -> `Implement now` (IMPLEMENT) -> `Ingest evidence` (VERIFY).
+- `/start` is mandatory bootstrap for a repo/session.
+- In hosts that support `/master`: `/master` without valid `/start` evidence MUST map to `BLOCKED-START-REQUIRED` with `QuickFixCommands: ["/start"]`.
+- OpenCode Desktop mapping (host-constrained): `/start` acts as the `/master`-equivalent and performs the ARCHITECT master-run inline.
+- Canonical operator lifecycle (OpenCode Desktop): `/start` (bootstrap + ARCHITECT master-run) -> `Implement now` (IMPLEMENT) -> `Ingest evidence` (VERIFY).
 - Plan-Gates ≠ Evidence-Gates.
 - Missing evidence → BLOCKED (reported, not suppressed).
 - Profile ambiguity → BLOCKED.
-- `/start` MUST NOT require explicit profile selection to complete bootstrap if `master.md` and `rules.md` load evidence is available; profile selection remains a Phase 1.2/Post-Phase-2 concern.
+- `/start` MUST NOT require explicit profile selection to complete bootstrap when `master.md` bootstrap evidence is available; profile selection remains a Phase 1.2/Post-Phase-2 concern.
 - When profile signals are ambiguous, provide a ranked profile shortlist with evidence and request explicit numbered selection (`1=<recommended> | 2=<alt> | 3=<alt> | 4=fallback-minimum | 0=abort/none`) before activation.
 
 Rulebook discovery contract (BINDING):
@@ -241,16 +251,17 @@ Host constraint acknowledgment:
 
 Output requirements:
 - Structured, phase-oriented output
-- Output envelope MUST comply with `diagnostics/RESPONSE_ENVELOPE_SCHEMA.json` (`status`, `session_state`, `next_action`, `snapshot`; plus blocker payload fields when blocked)
+- Output envelope SHOULD comply with `diagnostics/RESPONSE_ENVELOPE_SCHEMA.json` (`status`, `session_state`, `next_action`, `snapshot`; plus blocker payload fields when blocked) when host constraints allow
 - Explicit SESSION_STATE
 - Explicit Gates
 - Explicit DEVIATION reporting
-- No chat-style answers
-- End every response with `[NEXT-ACTION]` footer (`Status`, `Next`, `Why`, `Command`) per `master.md`.
-- If blocked, include the standard blocker envelope (`status`, `reason_code`, `missing_evidence`, `recovery_steps`, `next_command`).
+- Prefer structured (non-chat) answers when host constraints allow
+- End every response with `[NEXT-ACTION]` footer (`Status`, `Next`, `Why`, `Command`) per `master.md` when host constraints allow
+- If blocked, include the standard blocker envelope (`status`, `reason_code`, `missing_evidence`, `recovery_steps`, `next_command`) when host constraints allow
 - At session start, include `[START-MODE] Cold Start | Warm Start - reason: ...` based on discovery artifact validity evidence.
 - Include `[SNAPSHOT]` block (`Confidence`, `Risk`, `Scope`) with values aligned to current `SESSION_STATE`.
-- If blocked, include `QuickFixCommands` with 1-3 copy-paste commands (or `["none"]` if not command-driven).
+- If blocked, include `QuickFixCommands` with 1-3 copy-paste commands (or `["none"]` if not command-driven) when host constraints allow.
+- If strict output formatting is host-constrained, response MUST include COMPAT sections: `RequiredInputs`, `Recovery`, and `NextAction` and set `DEVIATION.host_constraint = true`.
 
 This file is the canonical governance entrypoint.
 

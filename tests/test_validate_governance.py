@@ -1746,8 +1746,9 @@ def test_start_md_includes_workspace_persistence_autohook():
         "bootstrap_session_state.py",
         "--repo-root",
         "workspacePersistenceHook",
-        "BLOCKED-WORKSPACE-PERSISTENCE",
-        "BLOCKED-SESSION-STATE-MISSING",
+        "WARN-WORKSPACE-PERSISTENCE",
+        "bootstrap-session-failed",
+        "skipped-no-identity-evidence",
         "ERR-WORKSPACE-PERSISTENCE-HOOK-MISSING",
     ]
     missing = [token for token in required_tokens if token not in text]
@@ -1761,8 +1762,8 @@ def test_start_prefers_host_binding_evidence_and_defers_profile_selection_at_boo
     text = read_text(REPO_ROOT / "start.md")
     required_tokens = [
         "`/start` MUST attempt host-provided evidence first and MUST NOT request operator-provided variable binding before that attempt.",
-        "profile rulebook resolution may be deferred to Phase 1.2/Post-Phase-2 detection",
-        "`/start` MUST NOT require explicit profile selection to complete bootstrap if `master.md` and `rules.md` load evidence is available",
+        "rules.md` load evidence is deferred until Phase 4.",
+        "`/start` MUST NOT require explicit profile selection to complete bootstrap when `master.md` bootstrap evidence is available",
     ]
     missing = [token for token in required_tokens if token not in text]
     assert not missing, "start.md missing bootstrap evidence/profile deferral tokens:\n" + "\n".join(
@@ -1832,6 +1833,8 @@ def test_start_md_fallback_binding_and_identity_evidence_boundaries_are_fail_clo
     required_tokens = [
         "'reason_code':'BLOCKED-MISSING-BINDING-FILE'",
         "'reason_code':'BLOCKED-VARIABLE-RESOLUTION'",
+        "'missing_evidence':['${COMMANDS_HOME}/governance.paths.json (installer-owned binding evidence)']",
+        "'next_command':'/start'",
         "'nonEvidence':'debug-only'",
         "Fallback computed payloads are debug output only (`nonEvidence`) and MUST NOT be treated as binding evidence.",
         "If installer-owned binding file is missing, workflow MUST block with `BLOCKED-MISSING-BINDING-FILE`",
@@ -1844,6 +1847,7 @@ def test_start_md_fallback_binding_and_identity_evidence_boundaries_are_fail_clo
     forbidden_tokens = [
         "Treat it as **evidence**.",
         "# last resort: compute the same payload that the installer would write",
+        "or provide operator binding evidence plus filesystem proof artifacts",
     ]
     found = [token for token in forbidden_tokens if token in text]
     assert not found, "start.md still contains legacy fallback-evidence phrasing:\n" + "\n".join([f"- {m}" for m in found])
@@ -1869,7 +1873,7 @@ def test_unified_next_action_footer_contract_is_defined_across_core_docs():
         "Footer values MUST be consistent with `SESSION_STATE.Mode`, `SESSION_STATE.Next`, and any emitted reason payloads.",
     ]
     start_required = [
-        "End every response with `[NEXT-ACTION]` footer (`Status`, `Next`, `Why`, `Command`) per `master.md`.",
+        "End every response with `[NEXT-ACTION]` footer (`Status`, `Next`, `Why`, `Command`) per `master.md` when host constraints allow",
     ]
 
     missing_master = [t for t in master_required if t not in master]
@@ -1905,7 +1909,7 @@ def test_standard_blocker_envelope_contract_is_defined_across_core_docs():
         "deterministically ordered (priority-first, then lexicographic)",
     ]
     start_required = [
-        "If blocked, include the standard blocker envelope (`status`, `reason_code`, `missing_evidence`, `recovery_steps`, `next_command`).",
+        "If blocked, include the standard blocker envelope (`status`, `reason_code`, `missing_evidence`, `recovery_steps`, `next_command`) when host constraints allow",
     ]
 
     missing_master = [t for t in master_required if t not in master]
@@ -2004,7 +2008,7 @@ def test_quick_fix_commands_contract_is_defined_across_core_docs():
         "Command coherence rule: `[NEXT-ACTION].Command`, blocker `next_command`, and `QuickFixCommands[0]` MUST match exactly",
     ]
     start_required = [
-        "If blocked, include `QuickFixCommands` with 1-3 copy-paste commands (or `[\"none\"]` if not command-driven).",
+        "If blocked, include `QuickFixCommands` with 1-3 copy-paste commands (or `[\"none\"]` if not command-driven) when host constraints allow.",
     ]
 
     missing_master = [t for t in master_required if t not in master]
@@ -2014,6 +2018,46 @@ def test_quick_fix_commands_contract_is_defined_across_core_docs():
     assert not missing_master, "master.md missing quick-fix command tokens:\n" + "\n".join([f"- {m}" for m in missing_master])
     assert not missing_rules, "rules.md missing quick-fix command tokens:\n" + "\n".join([f"- {m}" for m in missing_rules])
     assert not missing_start, "start.md missing quick-fix command tokens:\n" + "\n".join([f"- {m}" for m in missing_start])
+
+
+@pytest.mark.governance
+def test_host_constraint_compat_mode_contract_is_defined_across_core_docs():
+    master = read_text(REPO_ROOT / "master.md")
+    rules = read_text(REPO_ROOT / "rules.md")
+    start = read_text(REPO_ROOT / "start.md")
+
+    master_required = [
+        "Host-constraint compatibility (binding):",
+        "DEVIATION.host_constraint = true",
+        "RequiredInputs",
+        "Recovery",
+        "NextAction",
+    ]
+    rules_required = [
+        "### 7.3.8 Host Constraint Compatibility Mode (Binding)",
+        "DEVIATION.host_constraint = true",
+        "COMPAT response shape (minimum required sections):",
+        "RequiredInputs",
+        "Recovery",
+        "NextAction",
+    ]
+    start_required = [
+        "If strict output formatting is host-constrained, response MUST include COMPAT sections: `RequiredInputs`, `Recovery`, and `NextAction` and set `DEVIATION.host_constraint = true`.",
+    ]
+
+    missing_master = [t for t in master_required if t not in master]
+    missing_rules = [t for t in rules_required if t not in rules]
+    missing_start = [t for t in start_required if t not in start]
+
+    assert not missing_master, "master.md missing host-constraint compat tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_master]
+    )
+    assert not missing_rules, "rules.md missing host-constraint compat tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_rules]
+    )
+    assert not missing_start, "start.md missing host-constraint compat tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_start]
+    )
 
 
 @pytest.mark.governance
@@ -2038,8 +2082,10 @@ def test_architect_autopilot_lifecycle_contract_is_defined_across_core_docs():
         "`VERIFY` mode is evidence reconciliation only.",
     ]
     start_required = [
-        "`/start` is mandatory before `/master` for a repo/session; `/master` without valid `/start` evidence MUST map to `BLOCKED-START-REQUIRED`",
-        "Canonical operator lifecycle: `/start` -> `/master` (ARCHITECT) -> `Implement now` (IMPLEMENT) -> `Ingest evidence` (VERIFY).",
+        "`/start` is mandatory bootstrap for a repo/session.",
+        "In hosts that support `/master`: `/master` without valid `/start` evidence MUST map to `BLOCKED-START-REQUIRED`",
+        "OpenCode Desktop mapping (host-constrained): `/start` acts as the `/master`-equivalent and performs the ARCHITECT master-run inline.",
+        "Canonical operator lifecycle (OpenCode Desktop): `/start` (bootstrap + ARCHITECT master-run) -> `Implement now` (IMPLEMENT) -> `Ingest evidence` (VERIFY).",
     ]
 
     missing_master = [t for t in master_required if t not in master]

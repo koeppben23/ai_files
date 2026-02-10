@@ -506,6 +506,41 @@ def check_phase21_ticket_goal_deferral_contract(issues: list[str]) -> None:
         issues.append(f"rules.md: missing Phase-2.1 ticket-goal deferral tokens {missing_rules}")
 
 
+def check_host_constraint_compat_mode_contract(issues: list[str]) -> None:
+    master = read_text(ROOT / "master.md")
+    rules = read_text(ROOT / "rules.md")
+    start = read_text(ROOT / "start.md")
+
+    master_required = [
+        "Host-constraint compatibility (binding):",
+        "DEVIATION.host_constraint = true",
+        "RequiredInputs",
+        "Recovery",
+        "NextAction",
+    ]
+    rules_required = [
+        "### 7.3.8 Host Constraint Compatibility Mode (Binding)",
+        "DEVIATION.host_constraint = true",
+        "COMPAT response shape (minimum required sections):",
+        "RequiredInputs",
+        "Recovery",
+        "NextAction",
+    ]
+    start_required = [
+        "If strict output formatting is host-constrained, response MUST include COMPAT sections: `RequiredInputs`, `Recovery`, and `NextAction` and set `DEVIATION.host_constraint = true`.",
+    ]
+
+    missing_master = [token for token in master_required if token not in master]
+    missing_rules = [token for token in rules_required if token not in rules]
+    missing_start = [token for token in start_required if token not in start]
+    if missing_master:
+        issues.append(f"master.md: missing host-constraint compat tokens {missing_master}")
+    if missing_rules:
+        issues.append(f"rules.md: missing host-constraint compat tokens {missing_rules}")
+    if missing_start:
+        issues.append(f"start.md: missing host-constraint compat tokens {missing_start}")
+
+
 def check_required_addon_references(issues: list[str]) -> None:
     manifests = sorted((ROOT / "profiles" / "addons").glob("*.addon.yml"))
     for manifest in manifests:
@@ -753,12 +788,15 @@ def check_start_evidence_boundaries(issues: list[str]) -> None:
     required_tokens = [
         "'reason_code':'BLOCKED-MISSING-BINDING-FILE'",
         "'reason_code':'BLOCKED-VARIABLE-RESOLUTION'",
+        "'missing_evidence':['${COMMANDS_HOME}/governance.paths.json (installer-owned binding evidence)']",
+        "'next_command':'/start'",
         "'nonEvidence':'debug-only'",
         "Fallback computed payloads are debug output only (`nonEvidence`) and MUST NOT be treated as binding evidence.",
         "Helper output is operational convenience status only and MUST NOT be treated as canonical repo identity evidence.",
         "Repo identity remains governed by `master.md` evidence contracts",
         "`/start` MUST attempt host-provided evidence first and MUST NOT request operator-provided variable binding before that attempt.",
-        "`/start` MUST NOT require explicit profile selection to complete bootstrap if `master.md` and `rules.md` load evidence is available",
+        "rules.md` load evidence is deferred until Phase 4.",
+        "`/start` MUST NOT require explicit profile selection to complete bootstrap when `master.md` bootstrap evidence is available",
     ]
     missing_required = [token for token in required_tokens if token not in start]
     if missing_required:
@@ -767,6 +805,7 @@ def check_start_evidence_boundaries(issues: list[str]) -> None:
     forbidden_tokens = [
         "Treat it as **evidence**.",
         "# last resort: compute the same payload that the installer would write",
+        "or provide operator binding evidence plus filesystem proof artifacts",
     ]
     found_forbidden = [token for token in forbidden_tokens if token in start]
     if found_forbidden:
@@ -792,7 +831,7 @@ def check_unified_next_action_footer_contract(issues: list[str]) -> None:
         "Footer values MUST be consistent with `SESSION_STATE.Mode`, `SESSION_STATE.Next`, and any emitted reason payloads.",
     ]
     start_required = [
-        "End every response with `[NEXT-ACTION]` footer (`Status`, `Next`, `Why`, `Command`) per `master.md`.",
+        "End every response with `[NEXT-ACTION]` footer (`Status`, `Next`, `Why`, `Command`) per `master.md` when host constraints allow",
     ]
 
     missing_master = [t for t in master_required if t not in master]
@@ -829,7 +868,7 @@ def check_standard_blocker_envelope_contract(issues: list[str]) -> None:
         "deterministically ordered (priority-first, then lexicographic)",
     ]
     start_required = [
-        "If blocked, include the standard blocker envelope (`status`, `reason_code`, `missing_evidence`, `recovery_steps`, `next_command`).",
+        "If blocked, include the standard blocker envelope (`status`, `reason_code`, `missing_evidence`, `recovery_steps`, `next_command`) when host constraints allow",
     ]
 
     missing_master = [t for t in master_required if t not in master]
@@ -925,7 +964,7 @@ def check_quick_fix_commands_contract(issues: list[str]) -> None:
         "Command coherence rule: `[NEXT-ACTION].Command`, blocker `next_command`, and `QuickFixCommands[0]` MUST match exactly",
     ]
     start_required = [
-        "If blocked, include `QuickFixCommands` with 1-3 copy-paste commands (or `[\"none\"]` if not command-driven).",
+        "If blocked, include `QuickFixCommands` with 1-3 copy-paste commands (or `[\"none\"]` if not command-driven) when host constraints allow.",
     ]
 
     missing_master = [t for t in master_required if t not in master]
@@ -960,8 +999,10 @@ def check_architect_autopilot_lifecycle_contract(issues: list[str]) -> None:
         "`VERIFY` mode is evidence reconciliation only.",
     ]
     start_required = [
-        "`/start` is mandatory before `/master` for a repo/session; `/master` without valid `/start` evidence MUST map to `BLOCKED-START-REQUIRED`",
-        "Canonical operator lifecycle: `/start` -> `/master` (ARCHITECT) -> `Implement now` (IMPLEMENT) -> `Ingest evidence` (VERIFY).",
+        "`/start` is mandatory bootstrap for a repo/session.",
+        "In hosts that support `/master`: `/master` without valid `/start` evidence MUST map to `BLOCKED-START-REQUIRED`",
+        "OpenCode Desktop mapping (host-constrained): `/start` acts as the `/master`-equivalent and performs the ARCHITECT master-run inline.",
+        "Canonical operator lifecycle (OpenCode Desktop): `/start` (bootstrap + ARCHITECT master-run) -> `Implement now` (IMPLEMENT) -> `Ingest evidence` (VERIFY).",
     ]
 
     missing_master = [t for t in master_required if t not in master]
@@ -1011,6 +1052,7 @@ def main() -> int:
     check_response_contract_validator_presence(issues)
     check_phase2_repo_root_defaulting_contract(issues)
     check_phase21_ticket_goal_deferral_contract(issues)
+    check_host_constraint_compat_mode_contract(issues)
 
     if issues:
         print("Governance lint FAILED:")

@@ -629,7 +629,7 @@ When producing code changes:
 
 ### 7.3.1 Unified Next Action Footer (Binding)
 
-Each response MUST end with this compact footer shape:
+Each response SHOULD end with this compact footer shape when host output constraints allow:
 
 ```
 [NEXT-ACTION]
@@ -642,18 +642,26 @@ Command: <exact next command or "none">
 Rules:
 - `Next` MUST be singular and actionable.
 - Footer values MUST be consistent with `SESSION_STATE.Mode`, `SESSION_STATE.Next`, and any emitted reason payloads.
+- If host/system constraints prevent strict footer formatting, the response MUST use Compat Response Shape (`RequiredInputs`, `Recovery`, `NextAction`) and record `DEVIATION.host_constraint = true`.
 
 ### 7.3.2 Standard Blocker Output Envelope (Binding)
 
-If `SESSION_STATE.Mode = BLOCKED`, output MUST include a machine-readable blocker envelope containing:
+If `SESSION_STATE.Mode = BLOCKED`, output SHOULD include a machine-readable blocker envelope containing:
 - `status = blocked`
 - `reason_code` (`BLOCKED-*`)
 - `missing_evidence` (array)
 - `recovery_steps` (array, max 3)
 - `next_command` (single actionable command or `none`)
 
-No blocked response may omit these fields.
+No blocked response may omit these fields when strict output shape is available.
 - `missing_evidence` and `recovery_steps` MUST be deterministically ordered (priority-first, then lexicographic).
+
+Compat fallback (binding):
+- If host constraints reject/override blocker envelope formatting, the assistant MUST still provide equivalent semantic content under:
+  - `RequiredInputs` (missing evidence/input list)
+  - `Recovery` (1-3 deterministic steps)
+  - `NextAction` (single actionable next command)
+- In this mode, set `DEVIATION.host_constraint = true` and continue deterministic gate behavior (no bypass).
 
 ### 7.3.3 Cold/Warm Start Banner (Binding)
 
@@ -712,7 +720,7 @@ Additional output mode:
 
 ### 7.3.7 Canonical Response Envelope Schema (Binding)
 
-All structured assistant responses from `/start` onward MUST conform to:
+All structured assistant responses from `/start` onward SHOULD conform to (when host supports strict shape):
 - `diagnostics/RESPONSE_ENVELOPE_SCHEMA.json`
 
 Minimum required envelope fields:
@@ -721,11 +729,25 @@ Minimum required envelope fields:
 - `next_action`
 - `snapshot`
 
-When `status=blocked`, output MUST additionally include:
+When `status=blocked`, output SHOULD additionally include:
 - `reason_payload` (`status`, `reason_code`, `missing_evidence`, `recovery_steps`, `next_command`)
 - `quick_fix_commands` (1-3 commands or `['none']`)
 
 Schema compliance does NOT weaken existing evidence/gate contracts. It only standardizes output shape.
+
+### 7.3.8 Host Constraint Compatibility Mode (Binding)
+
+If host/system/developer constraints prevent strict output envelope/footer adoption:
+- The assistant MUST switch to `COMPAT` response shape (content-first, format-minimal),
+- MUST set `DEVIATION.host_constraint = true`, and
+- MUST preserve deterministic governance semantics (same gates, same evidence requirements, same next action).
+
+COMPAT response shape (minimum required sections):
+- `RequiredInputs` (explicit missing inputs/evidence)
+- `Recovery` (1-3 concrete steps)
+- `NextAction` (single actionable command or `none`)
+
+COMPAT mode MUST NOT disable fail-closed evidence gates.
 
 ### 7.4 Architecture Decision Output Template (Binding when proposing non-trivial architecture)
 
