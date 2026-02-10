@@ -2040,13 +2040,17 @@ If file writing is not possible in the current environment:
   - If Phase 1.5 is explicitly requested → run Phase 1.5
   - Else if Phase 1.5 is explicitly skipped (`"Skip business-rules discovery"` or `"This is a pure CRUD project"`) → continue by API scope:
     - external API artifacts exist → Phase 3A
-    - otherwise → Phase 4
+    - otherwise:
+      - if ticket goal exists → Phase 4
+      - if ticket goal is missing → remain in ARCHITECT-ready state (no early ticket prompt in Phase 2/2.1)
   - Else:
     - Decision Pack MUST include: "Run Phase 1.5 now? (A=Yes, B=No)"
     - Run Phase 1.5 ONLY if the user approves
     - If user declines, continue by API scope:
       - external API artifacts exist → Phase 3A
-      - otherwise → Phase 4
+      - otherwise:
+        - if ticket goal exists → Phase 4
+        - if ticket goal is missing → remain in ARCHITECT-ready state (no early ticket prompt in Phase 2/2.1)
 * Failure: Repository not accessible, extraction failed → Mode: BLOCKED
 
 ---
@@ -2168,16 +2172,22 @@ SESSION_STATE:
     BusinessRules: extracted
   ...
   
-Proceeding to Phase 3A (API Inventory) if APIs are in scope; otherwise Phase 4 (Ticket Execution)...
+Proceeding to Phase 3A (API Inventory) if APIs are in scope; otherwise:
+- if ticket goal exists: Phase 4 (Ticket Execution)
+- if ticket goal is missing: ARCHITECT-ready hold (await ticket or explicit continue command)
 ```
 
 **Phase 1.5 exit conditions:**
 * Success: Business rules extracted and documented
   - If APIs are in scope (external artifacts or repo-embedded specs): Proceed to Phase 3A
-  - Otherwise: Proceed to Phase 4
+  - Otherwise:
+    - if ticket goal exists: Proceed to Phase 4
+    - if ticket goal is missing: remain in ARCHITECT-ready state (no early ticket prompt in Phase 1.5/2.1)
 * Skip: Not requested or pure CRUD
   - If APIs are in scope: Proceed to Phase 3A
-  - Otherwise: Proceed to Phase 4
+  - Otherwise:
+    - if ticket goal exists: Proceed to Phase 4
+    - if ticket goal is missing: remain in ARCHITECT-ready state (no early ticket prompt in Phase 1.5/2.1)
 
 **Note:** If Phase 1.5 is executed, Phase 5.4 (Business rules compliance) becomes MANDATORY.
 
