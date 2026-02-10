@@ -716,6 +716,7 @@ def check_start_evidence_boundaries(issues: list[str]) -> None:
 
     required_tokens = [
         "'reason_code':'BLOCKED-MISSING-BINDING-FILE'",
+        "'reason_code':'BLOCKED-VARIABLE-RESOLUTION'",
         "'nonEvidence':'debug-only'",
         "Fallback computed payloads are debug output only (`nonEvidence`) and MUST NOT be treated as binding evidence.",
         "Helper output is operational convenience status only and MUST NOT be treated as canonical repo identity evidence.",

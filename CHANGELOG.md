@@ -90,6 +90,7 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
 - Enforce distribution/install coverage for audit bridge assets (`diagnostics/map_audit_to_canonical.py`, `diagnostics/AUDIT_REASON_CANONICAL_MAP.json`) in build and installer policy tests.
 - Clarify `/start` bootstrap evidence behavior to require host evidence attempt first (when `governance.paths.json` is readable) and defer profile rulebook selection to Phase 1.2/Post-Phase-2 detection.
 - Add deterministic profile selection guidance for unambiguous Java backend repositories (`backend-java` default without explicit selection prompt).
+- Harden `/start` binding hook failure reporting when `governance.paths.json` exists but is unreadable (`BLOCKED-VARIABLE-RESOLUTION`) and auto-bootstrap repo session state when persistence detects `no-session-file`.
 - Standardize `profiles/rules*.md` operational wrappers with consistent headings (`Intent`, `Scope`, `Activation`, `Phase integration`, `Evidence contract`, `Tooling`, `Examples`, `Troubleshooting`) and normalize quick-block variants to canonical section headings.
 - Replace fragile `rules.md Section 4.6` references with stable anchor references (`RULEBOOK-PRECEDENCE-POLICY`) across profiles, factory templates, master guidance, and governance tests.
 - Canonicalize required-vs-advisory addon behavior as a single fail-closed policy source in `rules.md` anchor `RULEBOOK-PRECEDENCE-POLICY` plus `master.md` addon catalog (local rulebooks now reference, not redefine, blocking semantics).

@@ -1743,9 +1743,11 @@ def test_start_md_includes_workspace_persistence_autohook():
     required_tokens = [
         "Auto-Persistence Hook (OpenCode)",
         "persist_workspace_artifacts.py",
+        "bootstrap_session_state.py",
         "--repo-root",
         "workspacePersistenceHook",
         "BLOCKED-WORKSPACE-PERSISTENCE",
+        "BLOCKED-SESSION-STATE-MISSING",
         "ERR-WORKSPACE-PERSISTENCE-HOOK-MISSING",
     ]
     missing = [token for token in required_tokens if token not in text]
@@ -1788,6 +1790,7 @@ def test_start_md_fallback_binding_and_identity_evidence_boundaries_are_fail_clo
 
     required_tokens = [
         "'reason_code':'BLOCKED-MISSING-BINDING-FILE'",
+        "'reason_code':'BLOCKED-VARIABLE-RESOLUTION'",
         "'nonEvidence':'debug-only'",
         "Fallback computed payloads are debug output only (`nonEvidence`) and MUST NOT be treated as binding evidence.",
         "If installer-owned binding file is missing, workflow MUST block with `BLOCKED-MISSING-BINDING-FILE`",
