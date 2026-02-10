@@ -1755,6 +1755,34 @@ def test_start_md_includes_workspace_persistence_autohook():
 
 
 @pytest.mark.governance
+def test_start_prefers_host_binding_evidence_and_defers_profile_selection_at_bootstrap():
+    text = read_text(REPO_ROOT / "start.md")
+    required_tokens = [
+        "`/start` MUST attempt host-provided evidence first and MUST NOT request operator-provided variable binding before that attempt.",
+        "profile rulebook resolution may be deferred to Phase 1.2/Post-Phase-2 detection",
+        "`/start` MUST NOT require explicit profile selection to complete bootstrap if `master.md` and `rules.md` load evidence is available",
+    ]
+    missing = [token for token in required_tokens if token not in text]
+    assert not missing, "start.md missing bootstrap evidence/profile deferral tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing]
+    )
+
+
+@pytest.mark.governance
+def test_rules_define_deterministic_backend_java_default_when_unambiguous():
+    text = read_text(REPO_ROOT / "rules.md")
+    required_tokens = [
+        "Deterministic Java default (binding):",
+        "the assistant SHOULD set active profile to `backend-java` without requesting explicit profile selection.",
+        "Explicit profile-selection prompts are required only when repository indicators are materially ambiguous",
+    ]
+    missing = [token for token in required_tokens if token not in text]
+    assert not missing, "rules.md missing deterministic backend-java default tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing]
+    )
+
+
+@pytest.mark.governance
 def test_start_md_fallback_binding_and_identity_evidence_boundaries_are_fail_closed():
     text = read_text(REPO_ROOT / "start.md")
 

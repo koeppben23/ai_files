@@ -178,6 +178,11 @@ If neither an explicit profile nor repository indicators are available, the assi
 In that case, proceed only in planning/analysis mode (Phase 4) or switch to BLOCKED and request the profile before any code-producing work.
 The detected profile must be recorded as an **assumption** in the session state, including evidence (files/paths) used.
 
+Deterministic Java default (binding):
+- If Java backend indicators are present (`pom.xml` OR `build.gradle*` OR `src/main/java`) and no conflicting stack indicators are present,
+  the assistant SHOULD set active profile to `backend-java` without requesting explicit profile selection.
+- Explicit profile-selection prompts are required only when repository indicators are materially ambiguous for gate/tooling decisions.
+
 **Deterministic detection hints (examples):**
 - Frontend indicators: `package.json`, `pnpm-lock.yaml`, `yarn.lock`, `vite.config.*`, `next.config.*`, `src/app`, `src/pages`
 - Java backend indicators: `pom.xml`, `mvnw`, `build.gradle`, `settings.gradle`, `src/main/java`, `src/test/java`

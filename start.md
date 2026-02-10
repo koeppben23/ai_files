@@ -157,7 +157,11 @@ Because this file cannot self-prove filesystem state, governance activation MUST
 
 A) **Host-provided file access evidence** (preferred)
    - Tool output showing the resolved directory listing for `${COMMANDS_HOME}` and `${PROFILES_HOME}`, OR
-   - Tool output confirming reads of `master.md`, `rules.md`, and the selected profile rulebook.
+   - Tool output confirming reads of `master.md` and `rules.md` (profile rulebook resolution may be deferred to Phase 1.2/Post-Phase-2 detection).
+
+Binding behavior (MUST):
+- If installer-owned `${COMMANDS_HOME}/governance.paths.json` exists and host filesystem tools are available,
+  `/start` MUST attempt host-provided evidence first and MUST NOT request operator-provided variable binding before that attempt.
 
 B) **Operator-provided evidence** (fallback, minimal)
    - The operator provides the resolved value for `${COMMANDS_HOME}` as a variable binding via chat input,
@@ -178,6 +182,7 @@ Invocation:
 - Plan-Gates ≠ Evidence-Gates.
 - Missing evidence → BLOCKED (reported, not suppressed).
 - Profile ambiguity → BLOCKED.
+- `/start` MUST NOT require explicit profile selection to complete bootstrap if `master.md` and `rules.md` load evidence is available; profile selection remains a Phase 1.2/Post-Phase-2 concern.
 - When profile signals are ambiguous, provide a ranked profile shortlist with evidence and request explicit numbered selection (`1=<recommended> | 2=<alt> | 3=<alt> | 4=fallback-minimum | 0=abort/none`) before activation.
 
 Rulebook discovery contract (BINDING):

@@ -720,6 +720,8 @@ def check_start_evidence_boundaries(issues: list[str]) -> None:
         "Fallback computed payloads are debug output only (`nonEvidence`) and MUST NOT be treated as binding evidence.",
         "Helper output is operational convenience status only and MUST NOT be treated as canonical repo identity evidence.",
         "Repo identity remains governed by `master.md` evidence contracts",
+        "`/start` MUST attempt host-provided evidence first and MUST NOT request operator-provided variable binding before that attempt.",
+        "`/start` MUST NOT require explicit profile selection to complete bootstrap if `master.md` and `rules.md` load evidence is available",
     ]
     missing_required = [token for token in required_tokens if token not in start]
     if missing_required:
