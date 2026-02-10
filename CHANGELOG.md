@@ -107,6 +107,8 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
 - Refine `/start` no-filesystem fallback evidence wording so bootstrap asks only for `master.md` minimum and defers `rules.md`/profile contents to their phase gates.
 - Add explicit lint/test regression guard to forbid reintroduction of legacy `/start` fallback text that requests full `master.md + rules.md + profile` contents during bootstrap.
 - Normalize legacy workspace backfill placeholder phrasing (`Backfill placeholder`) on subsequent persistence runs even without `--force`, so persisted artifacts are refreshed to current wording in later phases.
+- Tighten `SESSION_STATE` output contract: emitted state blocks must be fenced YAML with explicit values and no placeholder tokens (`...`, `<...>`) in strict or COMPAT mode.
+- Bootstrap now writes/updates `${REPO_IDENTITY_MAP_FILE}` (`repo-identity-map.yaml`) so identity-gated persistence can continue deterministically after manual fingerprint bootstrap.
 - Standardize `profiles/rules*.md` operational wrappers with consistent headings (`Intent`, `Scope`, `Activation`, `Phase integration`, `Evidence contract`, `Tooling`, `Examples`, `Troubleshooting`) and normalize quick-block variants to canonical section headings.
 - Replace fragile `rules.md Section 4.6` references with stable anchor references (`RULEBOOK-PRECEDENCE-POLICY`) across profiles, factory templates, master guidance, and governance tests.
 - Canonicalize required-vs-advisory addon behavior as a single fail-closed policy source in `rules.md` anchor `RULEBOOK-PRECEDENCE-POLICY` plus `master.md` addon catalog (local rulebooks now reference, not redefine, blocking semantics).
