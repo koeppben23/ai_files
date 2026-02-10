@@ -130,7 +130,8 @@ def emit_preflight() -> None:
     observed = (now.stdout or "").strip() or "unknown"
     catalog = load_json(TOOL_CATALOG) if TOOL_CATALOG.exists() else None
 
-    required: list[str] = []
+    required_now: list[str] = []
+    required_later: list[str] = []
     metadata: dict[str, dict[str, str]] = {}
     if isinstance(catalog, dict):
         for item in catalog.get("required_now", []):
@@ -139,8 +140,8 @@ def emit_preflight() -> None:
             command = str(item.get("command") or "").strip()
             if not command:
                 continue
-            if command not in required:
-                required.append(command)
+            if command not in required_now:
+                required_now.append(command)
             metadata[command] = {
                 "verify_command": str(item.get("verify_command") or (command + " --version")),
                 "expected_after_fix": str(
@@ -148,15 +149,21 @@ def emit_preflight() -> None:
                 ),
                 "restart_hint": str(item.get("restart_hint") or "restart_required_if_path_edited"),
             }
+        for item in catalog.get("required_later", []):
+            if not isinstance(item, dict):
+                continue
+            command = str(item.get("command") or "").strip()
+            if command and command not in required_later and command not in required_now:
+                required_later.append(command)
 
-    if not required:
-        required = ["git", "python3"]
+    if not required_now:
+        required_now = ["git", "python3"]
 
     available: list[str] = []
     missing: list[str] = []
     missing_details: list[dict[str, str]] = []
 
-    for command in required:
+    for command in required_now:
         if shutil.which(command):
             available.append(command)
         else:
@@ -173,11 +180,14 @@ def emit_preflight() -> None:
                 }
             )
 
+    missing_later = [command for command in required_later if shutil.which(command) is None]
+
     status = "ok" if not missing else "degraded"
+    block_now = bool(missing)
     impact = (
-        "all required_now commands are available"
+        "required_now commands satisfied; required_later tools are advisory until their gate"
         if status == "ok"
-        else "missing required_now commands may block identity bootstrap"
+        else "missing required_now commands may block immediate bootstrap gates"
     )
     nxt = (
         "continue bootstrap"
@@ -189,8 +199,12 @@ def emit_preflight() -> None:
             {
                 "preflight": status,
                 "observed_at": observed,
+                "required_now": required_now,
+                "required_later": required_later,
                 "available": available,
                 "missing": missing,
+                "missing_later": missing_later,
+                "block_now": block_now,
                 "impact": impact,
                 "next": nxt,
                 "missing_details": missing_details,

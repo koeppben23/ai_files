@@ -817,6 +817,10 @@ Required compact output shape:
 - `impact: <one concise sentence>`
 - `next: <single concrete next step>`
 
+Recommended clarity fields:
+- `required_now` and `required_later` inventories
+- `block_now` (boolean; true only when any `required_now` command is missing)
+
 Semantics:
 - Missing `required_now` commands are blocker-fix candidates.
 - Missing `required_later` commands are advisory unless an active downstream gate requires them.
@@ -925,6 +929,15 @@ Safety constraints:
 - Brief layering is presentation-only and MUST NOT suppress blocker fields when `status=BLOCKED`.
 - Deterministic output contracts (reason codes, `SESSION_STATE`, NextAction coherence, `QuickFixCommands`) remain unchanged.
 - If host supports strict envelopes, strict fields remain mandatory even when brief layering is used.
+
+### 7.3.17 Post-Start Conversational UX + Language Adaptation (Binding)
+
+After `/start` bootstrap succeeds, short operator follow-up questions (for example: current phase, whether discovery is done) SHOULD use conversational minimal responses first.
+
+Rules:
+- Keep direct follow-up answers concise and task-focused unless the operator requests full diagnostics.
+- Match operator language when feasible (for example German input -> German response) while preserving canonical reason/status codes.
+- Conversational brevity MUST NOT bypass gate/evidence behavior; if a gate changes, emit required structured fields.
 
 ### 7.4 Architecture Decision Output Template (Binding when proposing non-trivial architecture)
 

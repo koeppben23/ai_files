@@ -39,6 +39,7 @@ Bootstrap command preflight (binding):
 - If a missing command is installed later, rerunning `/start` MUST recompute the inventory from files and continue with refreshed PATH evidence.
 - Preflight MUST run in Phase `0` / `1.1`, with fresh probe signals only (`ttl=0`) and `observed_at` timestamp.
 - Preflight output MUST stay compact (max 5 checks) and use fixed keys: `available`, `missing`, `impact`, `next`.
+- Preflight output SHOULD separate `required_now` vs `required_later` and expose a deterministic `block_now` signal (`true` iff any `required_now` command is missing).
 - Missing-command diagnostics MUST include `expected_after_fix`, `verify_command`, and `restart_hint`.
 - `restart_hint` MUST be deterministic: `restart_required_if_path_edited` or `no_restart_if_binary_in_existing_path`.
 
@@ -135,6 +136,7 @@ Host constraint acknowledgment:
 Output requirements:
 - Structured, phase-oriented output
 - Operator-first layering SHOULD be used: concise brief first (status + phase/gate + one next step), then detailed diagnostics
+- After successful bootstrap, short follow-up answers SHOULD be conversational and language-adaptive to operator input unless full diagnostics are requested.
 - Output envelope SHOULD comply with `diagnostics/RESPONSE_ENVELOPE_SCHEMA.json` (`status`, `session_state`, `next_action`, `snapshot`; plus blocker payload fields when blocked) when host constraints allow
 - `next_action.type` MUST be present and one of: `command`, `reply_with_one_number`, `manual_step`.
 - Status vocabulary MUST remain deterministic: `BLOCKED | WARN | OK | NOT_VERIFIED`.

@@ -3438,6 +3438,8 @@ Response and output constraints are defined in `rules.md` (Core Rulebook).
 * Session transitions are invariant-checked: stable `session_run_id`, stable `ruleset_hash` unless explicit rehydrate, and transition trace entries with `transition_id`
 * Responses include compact phase progress derived from `SESSION_STATE` (`phase`, `active_gate`, `next_gate_condition`)
 * Operator-first UX layering SHOULD be used: concise brief first, full diagnostics immediately after or on explicit detail request
+* `/start` preflight SHOULD distinguish `required_now` vs `required_later` and surface `block_now` for immediate-gate impact
+* After bootstrap success, short follow-ups SHOULD default to conversational, language-adaptive responses unless full diagnostics are requested
 
 Host-constraint compatibility (binding):
 * If host/system/developer instructions reject strict governance output formatting, use COMPAT mode.
