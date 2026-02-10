@@ -98,7 +98,7 @@ Bootstrap command preflight (binding):
 - Missing-command diagnostics MUST include `expected_after_fix`, `verify_command`, and `restart_hint`.
 - `restart_hint` MUST be deterministic: `restart_required_if_path_edited` or `no_restart_if_binary_in_existing_path`.
 
-!`python -c "import os,platform,subprocess,sys,json,importlib.util;from pathlib import Path
+!`python -c "import os,platform,subprocess,sys,json,importlib.util,shutil;from pathlib import Path
 
 def config_root():
     sysname=platform.system()
@@ -111,7 +111,59 @@ def config_root():
     xdg=os.getenv('XDG_CONFIG_HOME')
     return (Path(xdg) if xdg else Path.home()/'.config')/'opencode'
 
-root=config_root(); diag=root/'commands'/'diagnostics'; helper=diag/'persist_workspace_artifacts.py'; bootstrap=diag/'bootstrap_session_state.py'; logger=diag/'error_logs.py'; identity_map=root/'repo-identity-map.yaml'
+root=config_root(); diag=root/'commands'/'diagnostics'; helper=diag/'persist_workspace_artifacts.py'; bootstrap=diag/'bootstrap_session_state.py'; logger=diag/'error_logs.py'; identity_map=root/'repo-identity-map.yaml'; tool_catalog=diag/'tool_requirements.json'
+
+def _load_json(path):
+    try:
+        return json.loads(path.read_text(encoding='utf-8'))
+    except Exception:
+        return None
+
+def _preflight():
+    now=subprocess.run([sys.executable,'-c','from datetime import datetime,timezone;print(datetime.now(timezone.utc).isoformat(timespec=\'seconds\'))'],text=True,capture_output=True,check=False)
+    observed=(now.stdout or '').strip() or 'unknown'
+    catalog=_load_json(tool_catalog) if tool_catalog.exists() else None
+    required=[]
+    meta={}
+    if isinstance(catalog,dict):
+        for item in catalog.get('required_now',[]):
+            if not isinstance(item,dict):
+                continue
+            cmd=str(item.get('command') or '').strip()
+            if not cmd:
+                continue
+            if cmd not in required:
+                required.append(cmd)
+            meta[cmd]={
+                'verify_command':str(item.get('verify_command') or (cmd+' --version')),
+                'expected_after_fix':str(item.get('expected_after_fix') or (cmd+' --version prints a version string')),
+                'restart_hint':str(item.get('restart_hint') or 'restart_required_if_path_edited'),
+            }
+    if not required:
+        required=['git','python3']
+
+    available=[]
+    missing=[]
+    missing_details=[]
+    for cmd in required:
+        if shutil.which(cmd):
+            available.append(cmd)
+        else:
+            missing.append(cmd)
+            m=meta.get(cmd,{})
+            missing_details.append({
+                'command':cmd,
+                'verify_command':m.get('verify_command',cmd+' --version'),
+                'expected_after_fix':m.get('expected_after_fix',cmd+' --version prints a version string'),
+                'restart_hint':m.get('restart_hint','restart_required_if_path_edited'),
+            })
+
+    status='ok' if not missing else 'degraded'
+    impact='all required_now commands are available' if status=='ok' else 'missing required_now commands may block identity bootstrap'
+    nxt='continue bootstrap' if status=='ok' else 'install missing required_now tools or provide equivalent operator evidence'
+    print(json.dumps({'preflight':status,'observed_at':observed,'available':available,'missing':missing,'impact':impact,'next':nxt,'missing_details':missing_details},ensure_ascii=True))
+
+_preflight()
 
 def _log(reason_key,message,observed):
     try:
@@ -142,9 +194,37 @@ def _log(reason_key,message,observed):
 
 if helper.exists():
     if not identity_map.exists():
-        _log('ERR-WORKSPACE-PERSISTENCE-SKIPPED-NO-IDENTITY-EVIDENCE','/start workspace persistence skipped because repo identity map evidence is missing.',{'identityMap':str(identity_map)})
-        print(json.dumps({'workspacePersistenceHook':'warn','reason_code':'WARN-WORKSPACE-PERSISTENCE','reason':'skipped-no-identity-evidence','impact':'no repo-scoped persistence without validated identity evidence','required_operator_action':'run bootstrap_session_state.py with explicit repo fingerprint, then rerun /start','feedback_required':'reply with the repo fingerprint used and whether bootstrap_session_state.py succeeded','next_command':'python diagnostics/bootstrap_session_state.py --repo-fingerprint <repo_fingerprint> --repo-name <repo_name>'}))
-        raise SystemExit(0)
+        _log('ERR-WORKSPACE-PERSISTENCE-MISSING-IDENTITY-MAP','/start workspace persistence identity map missing; attempting first-run bootstrap.',{'identityMap':str(identity_map)})
+        if not bootstrap.exists():
+            print(json.dumps({'status':'blocked','workspacePersistenceHook':'blocked','reason_code':'BLOCKED-WORKSPACE-PERSISTENCE','reason':'missing-bootstrap-helper','missing_evidence':['diagnostics/bootstrap_session_state.py','repo-identity-map.yaml'],'recovery_steps':['restore bootstrap_session_state.py helper and rerun /start'],'required_operator_action':'restore diagnostics/bootstrap_session_state.py and rerun /start','feedback_required':'reply once helper is restored and /start rerun','next_command':'python diagnostics/bootstrap_session_state.py --repo-fingerprint <repo_fingerprint> --repo-name <repo_name>'}))
+            raise SystemExit(0)
+        if shutil.which('git') is None:
+            print(json.dumps({'status':'blocked','workspacePersistenceHook':'blocked','reason_code':'BLOCKED-WORKSPACE-PERSISTENCE','reason':'missing-git-for-identity-bootstrap','missing_evidence':['git in PATH','repo-identity-map.yaml'],'recovery_steps':['install git and rerun /start, or bootstrap with explicit fingerprint'],'required_operator_action':'install git or run bootstrap_session_state.py with explicit fingerprint, then rerun /start','feedback_required':'reply with the fingerprint used (if manual bootstrap) and helper result','next_command':'python diagnostics/bootstrap_session_state.py --repo-fingerprint <repo_fingerprint> --repo-name <repo_name>'}))
+            raise SystemExit(0)
+
+        probe=subprocess.run([sys.executable,str(helper),'--repo-root',str(Path.cwd()),'--quiet','--no-session-update'], text=True, capture_output=True, check=False)
+        probe_out=(probe.stdout or '').strip()
+        repo_fp=''
+        if probe.returncode==0 and probe_out:
+            try:
+                probe_payload=json.loads(probe_out)
+            except Exception:
+                probe_payload=None
+            if isinstance(probe_payload,dict):
+                repo_fp=str(probe_payload.get('repoFingerprint') or '').strip()
+
+        if not repo_fp:
+            print(json.dumps({'status':'blocked','workspacePersistenceHook':'blocked','reason_code':'BLOCKED-WORKSPACE-PERSISTENCE','reason':'identity-bootstrap-fingerprint-missing','missing_evidence':['repo fingerprint derivation from git metadata'],'recovery_steps':['run bootstrap_session_state.py with explicit repo fingerprint and rerun /start'],'required_operator_action':'run bootstrap_session_state.py with explicit repo fingerprint, then rerun /start','feedback_required':'reply with explicit repo fingerprint and bootstrap result','next_command':'python diagnostics/bootstrap_session_state.py --repo-fingerprint <repo_fingerprint> --repo-name <repo_name>'}))
+            raise SystemExit(0)
+
+        b_run=subprocess.run([sys.executable,str(bootstrap),'--repo-fingerprint',repo_fp,'--config-root',str(root)], text=True, capture_output=True, check=False)
+        if b_run.returncode!=0 or not identity_map.exists():
+            b_err=(b_run.stderr or '')[:240]
+            _log('ERR-WORKSPACE-PERSISTENCE-IDENTITY-BOOTSTRAP-FAILED','/start identity bootstrap helper returned non-zero or identity map missing after run.',{'repoFingerprint':repo_fp,'stderr':b_err})
+            print(json.dumps({'status':'blocked','workspacePersistenceHook':'blocked','reason_code':'BLOCKED-WORKSPACE-PERSISTENCE','reason':'identity-bootstrap-failed','missing_evidence':['repo-identity-map.yaml'],'recovery_steps':['run bootstrap_session_state.py manually and rerun /start'],'required_operator_action':'run bootstrap_session_state.py with explicit repo fingerprint, then rerun /start','feedback_required':'reply with helper stderr and repo fingerprint','next_command':'python diagnostics/bootstrap_session_state.py --repo-fingerprint <repo_fingerprint> --repo-name <repo_name>'}))
+            raise SystemExit(0)
+
+        print(json.dumps({'workspacePersistenceHook':'ok','bootstrapSessionState':'created','repoFingerprint':repo_fp,'identityMap':'created'}))
     run=subprocess.run([sys.executable,str(helper),'--repo-root',str(Path.cwd()),'--quiet'], text=True, capture_output=True, check=False)
     out=(run.stdout or '').strip()
     err=(run.stderr or '').strip()
