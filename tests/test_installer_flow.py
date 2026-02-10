@@ -122,6 +122,7 @@ def test_full_install_reinstall_uninstall_flow(tmp_path: Path):
         commands / "master.md",
         commands / "rules.md",
         commands / "start.md",
+        commands / "diagnostics" / "QUICKFIX_TEMPLATES.json",
         manifest,
         paths_file,
     ]
