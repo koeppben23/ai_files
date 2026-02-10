@@ -268,6 +268,8 @@ Host constraint acknowledgment:
 Output requirements:
 - Structured, phase-oriented output
 - Output envelope SHOULD comply with `diagnostics/RESPONSE_ENVELOPE_SCHEMA.json` (`status`, `session_state`, `next_action`, `snapshot`; plus blocker payload fields when blocked) when host constraints allow
+- Status vocabulary MUST remain deterministic: `BLOCKED | WARN | OK | NOT_VERIFIED`.
+- `WARN` MUST NOT be used when required-gate evidence is missing (that case MUST be `BLOCKED`).
 - Explicit SESSION_STATE
 - `SESSION_STATE` output MUST be formatted as fenced YAML (````yaml` + `SESSION_STATE:` payload)
 - `SESSION_STATE` output MUST NOT use placeholder tokens (`...`, `<...>`); use explicit unknown/deferred values instead
@@ -275,7 +277,9 @@ Output requirements:
 - Explicit DEVIATION reporting
 - Prefer structured (non-chat) answers when host constraints allow
 - End every response with `[NEXT-ACTION]` footer (`Status`, `Next`, `Why`, `Command`) per `master.md` (also required in COMPAT mode)
+- Exactly one `NextAction` mechanism is allowed per response: `command` OR `reply_with_one_number` OR `manual_step`.
 - If blocked, include the standard blocker envelope (`status`, `reason_code`, `missing_evidence`, `recovery_steps`, `next_command`) when host constraints allow
+- If blocked, use exactly one `reason_code`, one concrete recovery action sentence, and one primary copy-paste command.
 - At session start, include `[START-MODE] Cold Start | Warm Start - reason: ...` based on discovery artifact validity evidence.
 - Include `[SNAPSHOT]` block (`Confidence`, `Risk`, `Scope`) with values aligned to current `SESSION_STATE`.
 - If blocked, include `QuickFixCommands` with 1-3 copy-paste commands (or `["none"]` if not command-driven) when host constraints allow.

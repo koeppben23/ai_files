@@ -2199,6 +2199,57 @@ def test_bootstrap_preflight_output_contract_is_defined_across_core_docs():
 
 
 @pytest.mark.governance
+def test_status_vocab_and_single_nextaction_contract_is_defined_across_core_docs():
+    master = read_text(REPO_ROOT / "master.md")
+    rules = read_text(REPO_ROOT / "rules.md")
+    start = read_text(REPO_ROOT / "start.md")
+
+    master_required = [
+        "Governance status vocabulary is fixed: `BLOCKED | WARN | OK | NOT_VERIFIED`",
+        "WARN/blocked separation is strict: required missing evidence => BLOCKED (not WARN)",
+        "Each response MUST emit exactly one NextAction mechanism: `command` OR `reply_with_one_number` OR `manual_step`",
+        "In COMPAT mode, `NextAction` MUST still resolve to exactly one mechanism",
+    ]
+    rules_required = [
+        "### 7.3.11 Deterministic Status + NextAction Contract (Binding)",
+        "Canonical governance status vocabulary (enum):",
+        "`BLOCKED`",
+        "`WARN`",
+        "`OK`",
+        "`NOT_VERIFIED`",
+        "`WARN` MUST NOT carry required-gate missing evidence",
+        "`BLOCKED` MUST include exactly one `reason_code`",
+        "exactly one concrete recovery action sentence",
+        "one primary copy-paste command",
+        "QuickFixCommands",
+        "Each response MUST emit exactly one `NextAction` mechanism",
+        "`command`, or",
+        "`reply_with_one_number`, or",
+        "`manual_step`.",
+    ]
+    start_required = [
+        "Status vocabulary MUST remain deterministic: `BLOCKED | WARN | OK | NOT_VERIFIED`.",
+        "`WARN` MUST NOT be used when required-gate evidence is missing",
+        "Exactly one `NextAction` mechanism is allowed per response",
+        "If blocked, use exactly one `reason_code`, one concrete recovery action sentence, and one primary copy-paste command.",
+    ]
+
+    missing_master = [t for t in master_required if t not in master]
+    missing_rules = [t for t in rules_required if t not in rules]
+    missing_start = [t for t in start_required if t not in start]
+
+    assert not missing_master, "master.md missing deterministic status/nextaction tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_master]
+    )
+    assert not missing_rules, "rules.md missing deterministic status/nextaction tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_rules]
+    )
+    assert not missing_start, "start.md missing deterministic status/nextaction tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_start]
+    )
+
+
+@pytest.mark.governance
 def test_standard_blocker_envelope_contract_is_defined_across_core_docs():
     master = read_text(REPO_ROOT / "master.md")
     rules = read_text(REPO_ROOT / "rules.md")

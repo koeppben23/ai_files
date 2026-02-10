@@ -3424,6 +3424,9 @@ Response and output constraints are defined in `rules.md` (Core Rulebook).
 * Always document risks and blockers
 * Never fabricate: If information is missing, state "Not in the provided scope"
 * Never guess: If ambiguous, ask for clarification using the mandatory format (Section 2.3)
+* Governance status vocabulary is fixed: `BLOCKED | WARN | OK | NOT_VERIFIED`
+* WARN/blocked separation is strict: required missing evidence => BLOCKED (not WARN)
+* Each response MUST emit exactly one NextAction mechanism: `command` OR `reply_with_one_number` OR `manual_step`
 
 Host-constraint compatibility (binding):
 * If host/system/developer instructions reject strict governance output formatting, use COMPAT mode.
@@ -3432,6 +3435,7 @@ Host-constraint compatibility (binding):
   - `RequiredInputs`
   - `Recovery`
   - `NextAction`
+* In COMPAT mode, `NextAction` MUST still resolve to exactly one mechanism (`command` | `reply_with_one_number` | `manual_step`).
 * If `SESSION_STATE` is emitted, it MUST still be rendered as fenced YAML (format-stable machine-readable state block).
 * `SESSION_STATE` blocks MUST NOT use placeholder tokens (`...`, `<...>`); unknown fields must be explicit (`unknown|deferred|not-applicable`).
 * COMPAT mode MUST still emit a `[NEXT-ACTION]` block with `Status`, `Next`, `Why`, and `Command` fields.
