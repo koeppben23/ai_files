@@ -965,6 +965,20 @@ Rules:
 - Match operator language when feasible (for example German input -> German response) while preserving canonical reason/status codes.
 - Conversational brevity MUST NOT bypass gate/evidence behavior; if a gate changes, emit required structured fields.
 
+### 7.3.18 Conversational UX Regression Fixtures (Binding)
+
+To keep conversational UX stable under CI/governance tests, include deterministic fixtures for common post-start intents.
+
+Required fixture intents:
+- `what_phase` (for example: "Which phase are you in?")
+- `discovery_done` (for example: "Do you still need discovery?")
+- `workflow_unchanged` (for example: "Does the workflow remain the same?")
+
+Fixture expectations:
+- response is concise (brief-first)
+- includes one clear next step or explicit `state_unchanged`
+- keeps canonical status vocabulary (`BLOCKED|WARN|OK|NOT_VERIFIED`)
+
 ### 7.4 Architecture Decision Output Template (Binding when proposing non-trivial architecture)
 
 When the assistant proposes a non-trivial architectural decision (boundaries, persistence approach, contract strategy, major dependency/tooling change, migration/rollout strategy), it MUST output a structured proposal:
