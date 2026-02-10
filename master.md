@@ -3455,6 +3455,7 @@ Response and output constraints are defined in `rules.md` (Core Rulebook).
 * After bootstrap success, short follow-ups SHOULD default to conversational, language-adaptive responses unless full diagnostics are requested
 * Conversational post-start intents SHOULD remain regression-tested with deterministic fixtures (`what_phase`, `discovery_done`, `workflow_unchanged`)
 * Short operator follow-up questions SHOULD route through deterministic intents (`where_am_i`, `what_blocks_me`, `what_now`) before verbose diagnostics
+* Responses SHOULD support operator persona modes (`compact`, `standard`, `audit`) as presentation-density controls without changing gate behavior
 
 Host-constraint compatibility (binding):
 * If host/system/developer instructions reject strict governance output formatting, use COMPAT mode.
