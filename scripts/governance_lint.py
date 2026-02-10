@@ -470,6 +470,42 @@ def check_response_contract_validator_presence(issues: list[str]) -> None:
         issues.append(f"scripts/validate_response_contract.py: missing validator tokens {missing}")
 
 
+def check_phase2_repo_root_defaulting_contract(issues: list[str]) -> None:
+    master = read_text(ROOT / "master.md")
+    required_tokens = [
+        "Repo root defaulting behavior (binding):",
+        "Phase 2 MUST use that path as the default `RepoRoot` candidate.",
+        "MUST request filesystem/access authorization (if required by host policy)",
+        "Operator path prompts are allowed only when no host-provided repository root is available",
+    ]
+    missing = [token for token in required_tokens if token not in master]
+    if missing:
+        issues.append(f"master.md: missing Phase-2 repo-root defaulting tokens {missing}")
+
+
+def check_phase21_ticket_goal_deferral_contract(issues: list[str]) -> None:
+    master = read_text(ROOT / "master.md")
+    rules = read_text(ROOT / "rules.md")
+
+    master_required = [
+        "Ticket-goal handling in Phase 2.1 (binding):",
+        "Phase 2.1 MUST execute automatically from Phase 2 evidence and MUST NOT require explicit `ticketGoal` input.",
+        "`ticketGoal` becomes mandatory at Phase 4 entry (Step 0)",
+    ]
+    rules_required = [
+        "Phase 2.1 ticket-goal policy (binding):",
+        "Phase 2.1 Decision Pack generation MUST NOT block on missing `ticketGoal`.",
+        "`ticketGoal` is REQUIRED at Phase 4 entry (Step 0)",
+    ]
+
+    missing_master = [token for token in master_required if token not in master]
+    missing_rules = [token for token in rules_required if token not in rules]
+    if missing_master:
+        issues.append(f"master.md: missing Phase-2.1 ticket-goal deferral tokens {missing_master}")
+    if missing_rules:
+        issues.append(f"rules.md: missing Phase-2.1 ticket-goal deferral tokens {missing_rules}")
+
+
 def check_required_addon_references(issues: list[str]) -> None:
     manifests = sorted((ROOT / "profiles" / "addons").glob("*.addon.yml"))
     for manifest in manifests:
@@ -716,10 +752,13 @@ def check_start_evidence_boundaries(issues: list[str]) -> None:
 
     required_tokens = [
         "'reason_code':'BLOCKED-MISSING-BINDING-FILE'",
+        "'reason_code':'BLOCKED-VARIABLE-RESOLUTION'",
         "'nonEvidence':'debug-only'",
         "Fallback computed payloads are debug output only (`nonEvidence`) and MUST NOT be treated as binding evidence.",
         "Helper output is operational convenience status only and MUST NOT be treated as canonical repo identity evidence.",
         "Repo identity remains governed by `master.md` evidence contracts",
+        "`/start` MUST attempt host-provided evidence first and MUST NOT request operator-provided variable binding before that attempt.",
+        "`/start` MUST NOT require explicit profile selection to complete bootstrap if `master.md` and `rules.md` load evidence is available",
     ]
     missing_required = [token for token in required_tokens if token not in start]
     if missing_required:
@@ -970,6 +1009,8 @@ def main() -> int:
     check_response_envelope_schema_contract(issues)
     check_rulebook_load_evidence_fail_closed_contract(issues)
     check_response_contract_validator_presence(issues)
+    check_phase2_repo_root_defaulting_contract(issues)
+    check_phase21_ticket_goal_deferral_contract(issues)
 
     if issues:
         print("Governance lint FAILED:")

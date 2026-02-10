@@ -1419,6 +1419,14 @@ Binding:
 
 **Input:** Repository archive (ZIP/TAR) or indexed repository
 
+Repo root defaulting behavior (binding):
+- If the host provides an indexed workspace/repository root for the current session,
+  Phase 2 MUST use that path as the default `RepoRoot` candidate.
+- In that case, the assistant MUST request filesystem/access authorization (if required by host policy)
+  before asking the operator to manually provide a repo path.
+- Operator path prompts are allowed only when no host-provided repository root is available,
+  or when the host-provided root cannot be resolved after an explicit access attempt.
+
 **Objective:** Understand the repository structure, tech stack, architecture pattern, and existing contracts.
 
 #### OpenCode-only: Load existing Repo Cache (Cache-first, Binding when applicable)
@@ -1949,6 +1957,11 @@ This is not a gate; it is a deterministic *decision distillation* step.
 Rules (binding):
 - 3–7 decisions max.
 - Each decision MUST include: Options (A/B), Recommendation, Evidence, What would change it.
+
+Ticket-goal handling in Phase 2.1 (binding):
+- Phase 2.1 MUST execute automatically from Phase 2 evidence and MUST NOT require explicit `ticketGoal` input.
+- If `ticketGoal` is missing at Phase 2.1, produce a planning-only Decision Pack from repository evidence and continue per Phase 2.1 exit rules.
+- `ticketGoal` becomes mandatory at Phase 4 entry (Step 0) before any code-producing work.
 
 OpenCode persistence lifecycle (Binding when OpenCode DecisionPack file is used):
 - If the workflow is running under OpenCode AND decision-pack persistence is applicable,

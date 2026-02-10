@@ -24,7 +24,23 @@ def config_root():
 
 root=config_root(); f=root/'commands'/'governance.paths.json'
 if f.exists():
-    print(f.read_text(encoding='utf-8'))
+    try:
+        print(f.read_text(encoding='utf-8'))
+    except Exception as ex:
+        print(json.dumps({
+            'schema':'opencode-governance.paths.v1',
+            'status':'blocked',
+            'reason_code':'BLOCKED-VARIABLE-RESOLUTION',
+            'message':'Installer-owned governance.paths.json exists but could not be read.',
+            'bindingFile': str(f),
+            'error': str(ex)[:240],
+            'recovery_steps':[
+                'allow OpenCode host read access to governance.paths.json',
+                'rerun /start so host-provided binding evidence can be loaded',
+            ],
+            'next_command':'/start',
+            'nonEvidence':'debug-only'
+        },indent=2))
 else:
     # debug fallback only: NOT canonical binding evidence
     def norm(p): return str(p)
@@ -74,7 +90,7 @@ def config_root():
     xdg=os.getenv('XDG_CONFIG_HOME')
     return (Path(xdg) if xdg else Path.home()/'.config')/'opencode'
 
-root=config_root(); diag=root/'commands'/'diagnostics'; helper=diag/'persist_workspace_artifacts.py'; logger=diag/'error_logs.py'
+root=config_root(); diag=root/'commands'/'diagnostics'; helper=diag/'persist_workspace_artifacts.py'; bootstrap=diag/'bootstrap_session_state.py'; logger=diag/'error_logs.py'
 
 def _log(reason_key,message,observed):
     try:
@@ -107,7 +123,26 @@ if helper.exists():
     run=subprocess.run([sys.executable,str(helper),'--repo-root',str(Path.cwd()),'--quiet'], text=True, capture_output=True, check=False)
     out=(run.stdout or '').strip()
     err=(run.stderr or '').strip()
-    if out:
+    if out and run.returncode==0:
+        try:
+            payload=json.loads(out)
+        except Exception:
+            payload=None
+        if isinstance(payload,dict) and payload.get('sessionStateUpdate')=='no-session-file' and bootstrap.exists():
+            fp=str(payload.get('repoFingerprint') or '').strip()
+            if fp:
+                b_run=subprocess.run([sys.executable,str(bootstrap),'--repo-fingerprint',fp,'--config-root',str(root)], text=True, capture_output=True, check=False)
+                if b_run.returncode==0:
+                    print(json.dumps({'workspacePersistenceHook':'ok','bootstrapSessionState':'created','repoFingerprint':fp}))
+                else:
+                    b_err=(b_run.stderr or '')[:240]
+                    _log('ERR-SESSION-BOOTSTRAP-HOOK-FAILED','/start session bootstrap helper returned non-zero.',{'repoFingerprint':fp,'stderr':b_err})
+                    print(json.dumps({'workspacePersistenceHook':'blocked','reason_code':'BLOCKED-SESSION-STATE-MISSING','repoFingerprint':fp,'error':b_err,'next_command':'python diagnostics/bootstrap_session_state.py --repo-fingerprint <repo_fingerprint>'}))
+            else:
+                print(out)
+        else:
+            print(out)
+    elif out:
         print(out)
     elif run.returncode==0:
         print(json.dumps({'workspacePersistenceHook':'ok'}))
@@ -157,7 +192,11 @@ Because this file cannot self-prove filesystem state, governance activation MUST
 
 A) **Host-provided file access evidence** (preferred)
    - Tool output showing the resolved directory listing for `${COMMANDS_HOME}` and `${PROFILES_HOME}`, OR
-   - Tool output confirming reads of `master.md`, `rules.md`, and the selected profile rulebook.
+   - Tool output confirming reads of `master.md` and `rules.md` (profile rulebook resolution may be deferred to Phase 1.2/Post-Phase-2 detection).
+
+Binding behavior (MUST):
+- If installer-owned `${COMMANDS_HOME}/governance.paths.json` exists and host filesystem tools are available,
+  `/start` MUST attempt host-provided evidence first and MUST NOT request operator-provided variable binding before that attempt.
 
 B) **Operator-provided evidence** (fallback, minimal)
    - The operator provides the resolved value for `${COMMANDS_HOME}` as a variable binding via chat input,
@@ -178,6 +217,7 @@ Invocation:
 - Plan-Gates ≠ Evidence-Gates.
 - Missing evidence → BLOCKED (reported, not suppressed).
 - Profile ambiguity → BLOCKED.
+- `/start` MUST NOT require explicit profile selection to complete bootstrap if `master.md` and `rules.md` load evidence is available; profile selection remains a Phase 1.2/Post-Phase-2 concern.
 - When profile signals are ambiguous, provide a ranked profile shortlist with evidence and request explicit numbered selection (`1=<recommended> | 2=<alt> | 3=<alt> | 4=fallback-minimum | 0=abort/none`) before activation.
 
 Rulebook discovery contract (BINDING):

@@ -1743,9 +1743,11 @@ def test_start_md_includes_workspace_persistence_autohook():
     required_tokens = [
         "Auto-Persistence Hook (OpenCode)",
         "persist_workspace_artifacts.py",
+        "bootstrap_session_state.py",
         "--repo-root",
         "workspacePersistenceHook",
         "BLOCKED-WORKSPACE-PERSISTENCE",
+        "BLOCKED-SESSION-STATE-MISSING",
         "ERR-WORKSPACE-PERSISTENCE-HOOK-MISSING",
     ]
     missing = [token for token in required_tokens if token not in text]
@@ -1755,11 +1757,81 @@ def test_start_md_includes_workspace_persistence_autohook():
 
 
 @pytest.mark.governance
+def test_start_prefers_host_binding_evidence_and_defers_profile_selection_at_bootstrap():
+    text = read_text(REPO_ROOT / "start.md")
+    required_tokens = [
+        "`/start` MUST attempt host-provided evidence first and MUST NOT request operator-provided variable binding before that attempt.",
+        "profile rulebook resolution may be deferred to Phase 1.2/Post-Phase-2 detection",
+        "`/start` MUST NOT require explicit profile selection to complete bootstrap if `master.md` and `rules.md` load evidence is available",
+    ]
+    missing = [token for token in required_tokens if token not in text]
+    assert not missing, "start.md missing bootstrap evidence/profile deferral tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing]
+    )
+
+
+@pytest.mark.governance
+def test_rules_define_deterministic_backend_java_default_when_unambiguous():
+    text = read_text(REPO_ROOT / "rules.md")
+    required_tokens = [
+        "Deterministic Java default (binding):",
+        "the assistant SHOULD set active profile to `backend-java` without requesting explicit profile selection.",
+        "Explicit profile-selection prompts are required only when repository indicators are materially ambiguous",
+    ]
+    missing = [token for token in required_tokens if token not in text]
+    assert not missing, "rules.md missing deterministic backend-java default tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing]
+    )
+
+
+@pytest.mark.governance
+def test_phase2_prefers_host_repo_root_before_manual_path_prompt():
+    text = read_text(REPO_ROOT / "master.md")
+    required_tokens = [
+        "Repo root defaulting behavior (binding):",
+        "Phase 2 MUST use that path as the default `RepoRoot` candidate.",
+        "MUST request filesystem/access authorization (if required by host policy)",
+        "Operator path prompts are allowed only when no host-provided repository root is available",
+    ]
+    missing = [token for token in required_tokens if token not in text]
+    assert not missing, "master.md missing Phase-2 repo-root defaulting tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing]
+    )
+
+
+@pytest.mark.governance
+def test_phase21_does_not_require_ticket_goal_and_defers_mandatory_ticket_to_phase4():
+    master = read_text(REPO_ROOT / "master.md")
+    rules = read_text(REPO_ROOT / "rules.md")
+
+    master_required = [
+        "Ticket-goal handling in Phase 2.1 (binding):",
+        "Phase 2.1 MUST execute automatically from Phase 2 evidence and MUST NOT require explicit `ticketGoal` input.",
+        "`ticketGoal` becomes mandatory at Phase 4 entry (Step 0)",
+    ]
+    rules_required = [
+        "Phase 2.1 ticket-goal policy (binding):",
+        "Phase 2.1 Decision Pack generation MUST NOT block on missing `ticketGoal`.",
+        "`ticketGoal` is REQUIRED at Phase 4 entry (Step 0)",
+    ]
+
+    missing_master = [token for token in master_required if token not in master]
+    missing_rules = [token for token in rules_required if token not in rules]
+    assert not missing_master, "master.md missing Phase-2.1 ticket-goal deferral tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_master]
+    )
+    assert not missing_rules, "rules.md missing Phase-2.1 ticket-goal deferral tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_rules]
+    )
+
+
+@pytest.mark.governance
 def test_start_md_fallback_binding_and_identity_evidence_boundaries_are_fail_closed():
     text = read_text(REPO_ROOT / "start.md")
 
     required_tokens = [
         "'reason_code':'BLOCKED-MISSING-BINDING-FILE'",
+        "'reason_code':'BLOCKED-VARIABLE-RESOLUTION'",
         "'nonEvidence':'debug-only'",
         "Fallback computed payloads are debug output only (`nonEvidence`) and MUST NOT be treated as binding evidence.",
         "If installer-owned binding file is missing, workflow MUST block with `BLOCKED-MISSING-BINDING-FILE`",

@@ -178,6 +178,11 @@ If neither an explicit profile nor repository indicators are available, the assi
 In that case, proceed only in planning/analysis mode (Phase 4) or switch to BLOCKED and request the profile before any code-producing work.
 The detected profile must be recorded as an **assumption** in the session state, including evidence (files/paths) used.
 
+Deterministic Java default (binding):
+- If Java backend indicators are present (`pom.xml` OR `build.gradle*` OR `src/main/java`) and no conflicting stack indicators are present,
+  the assistant SHOULD set active profile to `backend-java` without requesting explicit profile selection.
+- Explicit profile-selection prompts are required only when repository indicators are materially ambiguous for gate/tooling decisions.
+
 **Deterministic detection hints (examples):**
 - Frontend indicators: `package.json`, `pnpm-lock.yaml`, `yarn.lock`, `vite.config.*`, `next.config.*`, `src/app`, `src/pages`
 - Java backend indicators: `pom.xml`, `mvnw`, `build.gradle`, `settings.gradle`, `src/main/java`, `src/test/java`
@@ -1235,6 +1240,11 @@ The Decision Pack MUST be stored outside the repository in the OpenCode workspac
 
 BINDING:
 - The assistant MUST NOT write the Decision Pack into the repository working copy.
+
+Phase 2.1 ticket-goal policy (binding):
+- Phase 2.1 Decision Pack generation MUST NOT block on missing `ticketGoal`.
+- Missing `ticketGoal` at Phase 2.1 implies planning-only decisions based on repository evidence.
+- `ticketGoal` is REQUIRED at Phase 4 entry (Step 0) before implementation planning/code-producing work.
 - All output paths MUST be expressed as variable-based path expressions (e.g., `${REPO_DECISION_PACK_FILE}`), not OS-specific absolute paths.
 
 Resulting path example:
