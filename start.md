@@ -152,6 +152,7 @@ Output requirements:
 - Prefer structured (non-chat) answers when host constraints allow
 - End every response with `[NEXT-ACTION]` footer (`Status`, `Next`, `Why`, `Command`) per `master.md` (also required in COMPAT mode)
 - Exactly one `NextAction` mechanism is allowed per response: `command` OR `reply_with_one_number` OR `manual_step`.
+- `NextAction` wording SHOULD include concrete context (active phase/gate/scope) rather than generic continuation text.
 - If blocked, include the standard blocker envelope (`status`, `reason_code`, `missing_evidence`, `recovery_steps`, `next_command`) when host constraints allow
 - If blocked, use exactly one `reason_code`, one concrete recovery action sentence, and one primary copy-paste command.
 - `next_command` and `QuickFixCommands` SHOULD be fully runnable without placeholders when runtime evidence can derive concrete values.

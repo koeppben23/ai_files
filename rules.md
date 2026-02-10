@@ -858,6 +858,11 @@ Single-next-action rule:
   - `manual_step`.
 - The selected mechanism MUST align with `[NEXT-ACTION].Command` and blocker `next_command` when blocked.
 
+NextAction wording quality (binding):
+- `NextAction.Next` and `[NEXT-ACTION].Why` SHOULD be context-specific, not generic.
+- Include the active scope when known (phase, gate, component scope, or ticket id).
+- Avoid placeholder phrasing like "continue" without target context.
+
 ### 7.3.12 Session Transition Invariants (Binding)
 
 To prevent state drift across `/start` -> `Implement now` -> `Ingest evidence`:

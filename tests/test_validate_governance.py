@@ -2110,6 +2110,33 @@ def test_quick_fix_confidence_labels_contract_is_defined():
 
 
 @pytest.mark.governance
+def test_next_action_wording_quality_contract_is_defined():
+    master = read_text(REPO_ROOT / "master.md")
+    rules = read_text(REPO_ROOT / "rules.md")
+    start = read_text(REPO_ROOT / "start.md")
+
+    master_required = [
+        "`NextAction` wording SHOULD include concrete context (active phase/gate/scope) and avoid generic continuation text",
+    ]
+    rules_required = [
+        "NextAction wording quality (binding):",
+        "`NextAction.Next` and `[NEXT-ACTION].Why` SHOULD be context-specific, not generic.",
+        "Avoid placeholder phrasing like \"continue\" without target context.",
+    ]
+    start_required = [
+        "`NextAction` wording SHOULD include concrete context (active phase/gate/scope) rather than generic continuation text.",
+    ]
+
+    missing_master = [t for t in master_required if t not in master]
+    missing_rules = [t for t in rules_required if t not in rules]
+    missing_start = [t for t in start_required if t not in start]
+
+    assert not missing_master, "master.md missing next-action wording quality tokens:\n" + "\n".join([f"- {m}" for m in missing_master])
+    assert not missing_rules, "rules.md missing next-action wording quality tokens:\n" + "\n".join([f"- {m}" for m in missing_rules])
+    assert not missing_start, "start.md missing next-action wording quality tokens:\n" + "\n".join([f"- {m}" for m in missing_start])
+
+
+@pytest.mark.governance
 def test_start_and_master_require_host_git_identity_discovery_before_operator_prompt():
     master = read_text(REPO_ROOT / "master.md")
     start = read_text(REPO_ROOT / "start.md")
