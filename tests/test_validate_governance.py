@@ -1942,6 +1942,34 @@ def test_unambiguous_profile_rulebooks_are_auto_loaded_without_operator_prompt()
 
 
 @pytest.mark.governance
+def test_start_invocation_guard_prevents_repeat_start_prompt_in_same_turn():
+    master = read_text(REPO_ROOT / "master.md")
+    rules = read_text(REPO_ROOT / "rules.md")
+    start = read_text(REPO_ROOT / "start.md")
+
+    master_required = [
+        "`/start` invocation guard (binding):",
+        "MUST NOT ask operator to run `/start` again in the same turn.",
+    ]
+    rules_required = [
+        "## 7.11.1 /start Re-invocation Loop Guard (Core, Binding)",
+        "MUST NOT ask operator to run `/start` again in the same turn.",
+    ]
+    start_required = [
+        "Command invocation guard (binding): when `start.md` is injected by the `/start` command, treat `/start` as already invoked in this turn.",
+        "assistant MUST NOT request the operator to run `/start` again",
+    ]
+
+    missing_master = [t for t in master_required if t not in master]
+    missing_rules = [t for t in rules_required if t not in rules]
+    missing_start = [t for t in start_required if t not in start]
+
+    assert not missing_master, "master.md missing /start invocation guard tokens:\n" + "\n".join([f"- {m}" for m in missing_master])
+    assert not missing_rules, "rules.md missing /start invocation guard tokens:\n" + "\n".join([f"- {m}" for m in missing_rules])
+    assert not missing_start, "start.md missing /start invocation guard tokens:\n" + "\n".join([f"- {m}" for m in missing_start])
+
+
+@pytest.mark.governance
 def test_rules_define_deterministic_backend_java_default_when_unambiguous():
     text = read_text(REPO_ROOT / "rules.md")
     required_tokens = [

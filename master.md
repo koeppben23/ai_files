@@ -1233,6 +1233,10 @@ Operator lifecycle (canonical):
 3) `Implement now` (optional scope) -> implementation mode
 4) `Ingest evidence` -> verification mode (claim upgrade/reject)
 
+`/start` invocation guard (binding):
+- If `start.md` is present due command injection, `/start` is already invoked for this turn.
+- In that case, assistant MUST proceed with bootstrap and MUST NOT ask operator to run `/start` again in the same turn.
+
 Execution mode enum (binding):
 - `SESSION_STATE.OutputMode = ARCHITECT | IMPLEMENT | VERIFY`
 - Default after `/master` is `ARCHITECT`.

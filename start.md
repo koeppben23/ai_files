@@ -103,6 +103,8 @@ Canonical BLOCKED reason:
 Invocation:
 - Activate the Governance-OS defined in `master.md`.
 - This file does not replace or inline `master.md`; it only triggers its discovery and activation.
+- Command invocation guard (binding): when `start.md` is injected by the `/start` command, treat `/start` as already invoked in this turn.
+- In that case, assistant MUST NOT request the operator to run `/start` again unless an explicit hard failure indicates command context was not injected.
 - Phases 1–6 are enforced as far as host/system constraints allow.
 - `/start` is mandatory bootstrap for a repo/session.
 - In hosts that support `/master`: `/master` without valid `/start` evidence MUST map to `BLOCKED-START-REQUIRED` with `QuickFixCommands: ["/start"]`.

@@ -1235,6 +1235,14 @@ When operator intent is explicit reload (for example `/reload-addons`), executio
 
 Reload is a control-plane operation, not an implementation permission.
 
+## 7.11.1 /start Re-invocation Loop Guard (Core, Binding)
+
+If `start.md` content is present because `/start` command triggered command injection, `/start` is considered invoked for this turn.
+
+Rules:
+- Assistant MUST proceed with bootstrap flow and MUST NOT ask operator to run `/start` again in the same turn.
+- Re-requesting `/start` is allowed only when evidence shows command context was not injected (host integration failure).
+
 ## 7.12 Operator Explain Contracts (Core, Binding)
 
 Supported read-only commands:
