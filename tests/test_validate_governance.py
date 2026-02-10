@@ -2152,6 +2152,53 @@ def test_tool_requirements_catalog_covers_commands_referenced_by_flow_rulebooks(
 
 
 @pytest.mark.governance
+def test_bootstrap_preflight_output_contract_is_defined_across_core_docs():
+    master = read_text(REPO_ROOT / "master.md")
+    rules = read_text(REPO_ROOT / "rules.md")
+    start = read_text(REPO_ROOT / "start.md")
+
+    master_required = [
+        "Preflight executes as Phase `0` / `1.1`",
+        "Tool probe TTL is zero (`ttl=0`)",
+        "Preflight MUST include an `observed_at` timestamp",
+        "Preflight output MUST remain compact: maximum 5 checks.",
+        "Preflight summary format is fixed to these keys: `available`, `missing`, `impact`, `next`.",
+    ]
+    rules_required = [
+        "### 7.3.10 Bootstrap Preflight Output Contract (Binding)",
+        "Preflight probes MUST be fresh (`ttl=0`)",
+        "Preflight MUST include `observed_at` (timestamp) in diagnostics/state.",
+        "Preflight MUST report at most 5 checks.",
+        "`available: <comma-separated commands or none>`",
+        "`missing: <comma-separated commands or none>`",
+        "`impact: <one concise sentence>`",
+        "`next: <single concrete next step>`",
+        "Missing `required_now` commands are blocker-fix candidates.",
+        "Missing `required_later` commands are advisory",
+    ]
+    start_required = [
+        "Preflight MUST run in Phase `0` / `1.1`",
+        "fresh probe signals only (`ttl=0`) and `observed_at` timestamp",
+        "Preflight output MUST stay compact (max 5 checks)",
+        "fixed keys: `available`, `missing`, `impact`, `next`.",
+    ]
+
+    missing_master = [t for t in master_required if t not in master]
+    missing_rules = [t for t in rules_required if t not in rules]
+    missing_start = [t for t in start_required if t not in start]
+
+    assert not missing_master, "master.md missing preflight output contract tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_master]
+    )
+    assert not missing_rules, "rules.md missing preflight output contract tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_rules]
+    )
+    assert not missing_start, "start.md missing preflight output contract tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_start]
+    )
+
+
+@pytest.mark.governance
 def test_standard_blocker_envelope_contract_is_defined_across_core_docs():
     master = read_text(REPO_ROOT / "master.md")
     rules = read_text(REPO_ROOT / "rules.md")

@@ -203,6 +203,11 @@ Bootstrap tool preflight (binding):
 - The preflight result MUST be reported as structured diagnostics (`available`/`missing`) and MUST NOT block by itself.
 - If all required commands are available, `/start` MUST continue without a blocker.
 - If one or more commands are missing, `/start` MUST continue in degraded mode where possible and include recovery commands; block only when a later gate requires missing-tool-dependent evidence.
+- Preflight executes as Phase `0` / `1.1` and MUST use freshly observed signals only (no cache reuse).
+- Tool probe TTL is zero (`ttl=0`): every `/start` rerun MUST recompute probe results.
+- Preflight MUST include an `observed_at` timestamp and overwrite any previous preflight snapshot in `SESSION_STATE`.
+- Preflight output MUST remain compact: maximum 5 checks.
+- Preflight summary format is fixed to these keys: `available`, `missing`, `impact`, `next`.
 
 Required-command inventory derivation (binding):
 - `/start` MUST load a deterministic command inventory from `${COMMANDS_HOME}/diagnostics/tool_requirements.json` when present.
