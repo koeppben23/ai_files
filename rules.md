@@ -798,6 +798,27 @@ Semantics:
 - Missing `required_now` commands are blocker-fix candidates.
 - Missing `required_later` commands are advisory unless an active downstream gate requires them.
 
+### 7.3.11 Deterministic Status + NextAction Contract (Binding)
+
+Canonical governance status vocabulary (enum):
+- `BLOCKED`
+- `WARN`
+- `OK`
+- `NOT_VERIFIED`
+
+Rules:
+- `WARN` MUST NOT carry required-gate missing evidence; if required evidence is missing, status MUST be `BLOCKED`.
+- `WARN` MAY carry advisory missing inputs only.
+- `BLOCKED` MUST include exactly one `reason_code`, exactly one concrete recovery action sentence, and one primary copy-paste command.
+- `QuickFixCommands` for blocked responses MUST contain one command by default; allow two only for explicit OS-specific splits.
+
+Single-next-action rule:
+- Each response MUST emit exactly one `NextAction` mechanism:
+  - `command`, or
+  - `reply_with_one_number`, or
+  - `manual_step`.
+- The selected mechanism MUST align with `[NEXT-ACTION].Command` and blocker `next_command` when blocked.
+
 ### 7.4 Architecture Decision Output Template (Binding when proposing non-trivial architecture)
 
 When the assistant proposes a non-trivial architectural decision (boundaries, persistence approach, contract strategy, major dependency/tooling change, migration/rollout strategy), it MUST output a structured proposal:
