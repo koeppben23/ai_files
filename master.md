@@ -629,6 +629,10 @@ Profile candidate filtering (binding):
 - Rulebooks referenced by addon manifests MUST NOT be treated as profile candidates during profile auto-detection.
 - Shared governance rulebooks (`rules.principal-excellence.md`, `rules.risk-tiering.md`, `rules.scorecard-calibration.md`) MUST NOT be treated as profile candidates.
 
+Rulebook auto-load behavior (binding):
+- If host filesystem access is available and profile detection is unambiguous, the assistant MUST auto-load core/profile rulebooks from canonical installer paths without asking the operator to provide rulebook files.
+- Operator rulebook input is allowed only when detection is ambiguous, files are genuinely unreadable/missing, or host access is unavailable.
+
 If multiple profiles exist but `SESSION_STATE.ComponentScopePaths` is present:
 - attempt profile inference **within the Component Scope only**
 - record the result as:

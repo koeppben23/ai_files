@@ -120,6 +120,7 @@ Rulebook discovery contract (BINDING):
   OR the operator confirms the files are not present.
 - If rulebook contents are not available in the current chat context, treat them as
   `NOT IN PROVIDED SCOPE` and request minimal evidence (path or pasted content).
+- If host filesystem access is available and profile detection is unambiguous, `/start` MUST auto-load canonical rulebooks and MUST NOT request operator rulebook paste/path input.
 - Canonical expected locations (per master.md variables):
   - master.md: `${COMMANDS_HOME}/master.md`
   - rules.md: `${COMMANDS_HOME}/rules.md`

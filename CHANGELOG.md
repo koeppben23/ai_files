@@ -56,6 +56,9 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
 - Add governance PR `Reviewer focus` guidance for high-risk contract deltas and targeted review hints.
 - Add installer/release artifact coverage checks to require shipping `diagnostics/QUICKFIX_TEMPLATES.json`.
 - Add deterministic conversational UX golden fixtures in `diagnostics/UX_INTENT_GOLDENS.json` with e2e regression validation for `where_am_i`, `what_blocks_me`, and `what_now` intents.
+- Fix `/start` diagnostics bootstrap pathing to resolve installed helpers from `${COMMANDS_HOME}/diagnostics` instead of workspace-relative assumptions.
+- Move `repo-identity-map.yaml` to repo workspace scope (`workspaces/<repo_fingerprint>/`) and align bootstrap persistence checks accordingly.
+- Clarify unambiguous profile behavior: auto-load canonical rulebooks without asking operator to paste/provide rulebook files.
 - Add guided profile-selection behavior for ambiguous detection: system now emits ranked profile suggestions with evidence and requests explicit numbered selection (`1..n`, including `fallback-minimum`) while remaining fail-closed (`BLOCKED-AMBIGUOUS-PROFILE`) until clarified.
 - Add UX execution contracts for deterministic operator flow: unified `[NEXT-ACTION]` footer, standardized blocked envelope fields, startup `[START-MODE]` banner, `[SNAPSHOT]` confidence/risk/scope block, and blocker `QuickFixCommands` guidance.
 - Tighten UX contract coherence: add `0=abort/none` profile-choice escape, require command-field consistency across `[NEXT-ACTION]`/`next_command`/`QuickFixCommands[0]`, and require deterministic ordering for `missing_evidence`/`recovery_steps`.

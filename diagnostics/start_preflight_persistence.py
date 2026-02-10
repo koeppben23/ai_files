@@ -33,8 +33,22 @@ DIAGNOSTICS_DIR = ROOT / "commands" / "diagnostics"
 PERSIST_HELPER = DIAGNOSTICS_DIR / "persist_workspace_artifacts.py"
 BOOTSTRAP_HELPER = DIAGNOSTICS_DIR / "bootstrap_session_state.py"
 LOGGER = DIAGNOSTICS_DIR / "error_logs.py"
-IDENTITY_MAP = ROOT / "repo-identity-map.yaml"
 TOOL_CATALOG = DIAGNOSTICS_DIR / "tool_requirements.json"
+
+
+def workspace_identity_map(repo_fp: str) -> Path:
+    return ROOT / "workspaces" / repo_fp / "repo-identity-map.yaml"
+
+
+def legacy_identity_map() -> Path:
+    return ROOT / "repo-identity-map.yaml"
+
+
+def identity_map_exists(repo_fp: str | None) -> bool:
+    if repo_fp:
+        if workspace_identity_map(repo_fp).exists():
+            return True
+    return legacy_identity_map().exists()
 
 
 def load_json(path: Path) -> dict | None:
@@ -244,17 +258,20 @@ def log_error(reason_key: str, message: str, observed: dict) -> None:
 
 
 def bootstrap_identity_if_needed() -> bool:
-    if IDENTITY_MAP.exists():
+    repo_root = Path.cwd().resolve()
+    inferred_fp = derive_repo_fingerprint(repo_root)
+
+    if identity_map_exists(inferred_fp):
         return True
 
     log_error(
         "ERR-WORKSPACE-PERSISTENCE-MISSING-IDENTITY-MAP",
         "/start workspace persistence identity map missing; attempting first-run bootstrap.",
-        {"identityMap": str(IDENTITY_MAP)},
+        {
+            "identityMap": str(workspace_identity_map(inferred_fp)) if inferred_fp else "unknown",
+            "legacyIdentityMap": str(legacy_identity_map()),
+        },
     )
-
-    repo_root = Path.cwd().resolve()
-    inferred_fp = derive_repo_fingerprint(repo_root)
 
     if not BOOTSTRAP_HELPER.exists():
         print(
@@ -264,7 +281,7 @@ def bootstrap_identity_if_needed() -> bool:
                     "workspacePersistenceHook": "blocked",
                     "reason_code": "BLOCKED-WORKSPACE-PERSISTENCE",
                     "reason": "missing-bootstrap-helper",
-                    "missing_evidence": ["diagnostics/bootstrap_session_state.py", "repo-identity-map.yaml"],
+                    "missing_evidence": ["diagnostics/bootstrap_session_state.py", "workspaces/<repo_fingerprint>/repo-identity-map.yaml"],
                     "recovery_steps": ["restore bootstrap_session_state.py helper and rerun /start"],
                     "required_operator_action": "restore diagnostics/bootstrap_session_state.py and rerun /start",
                     "feedback_required": "reply once helper is restored and /start rerun",
@@ -282,7 +299,7 @@ def bootstrap_identity_if_needed() -> bool:
                     "workspacePersistenceHook": "blocked",
                     "reason_code": "BLOCKED-WORKSPACE-PERSISTENCE",
                     "reason": "missing-git-for-identity-bootstrap",
-                    "missing_evidence": ["git in PATH", "repo-identity-map.yaml"],
+                    "missing_evidence": ["git in PATH", "workspaces/<repo_fingerprint>/repo-identity-map.yaml"],
                     "recovery_steps": [
                         "install git and rerun /start, or bootstrap with explicit fingerprint"
                     ],
@@ -336,7 +353,7 @@ def bootstrap_identity_if_needed() -> bool:
         capture_output=True,
         check=False,
     )
-    if boot.returncode != 0 or not IDENTITY_MAP.exists():
+    if boot.returncode != 0 or not identity_map_exists(repo_fp):
         boot_err = (boot.stderr or "")[:240]
         log_error(
             "ERR-WORKSPACE-PERSISTENCE-IDENTITY-BOOTSTRAP-FAILED",
@@ -350,7 +367,7 @@ def bootstrap_identity_if_needed() -> bool:
                     "workspacePersistenceHook": "blocked",
                     "reason_code": "BLOCKED-WORKSPACE-PERSISTENCE",
                     "reason": "identity-bootstrap-failed",
-                    "missing_evidence": ["repo-identity-map.yaml"],
+                    "missing_evidence": ["workspaces/<repo_fingerprint>/repo-identity-map.yaml"],
                     "recovery_steps": ["run bootstrap_session_state.py manually and rerun /start"],
                     "required_operator_action": "run bootstrap_session_state.py with explicit repo fingerprint, then rerun /start",
                     "feedback_required": "reply with helper stderr and repo fingerprint",

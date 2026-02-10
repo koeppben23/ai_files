@@ -1545,8 +1545,8 @@ def test_session_state_bootstrap_recovery_script_creates_state_file(tmp_path: Pa
     state_file = cfg / "workspaces" / repo_fp / "SESSION_STATE.json"
     assert state_file.exists(), "Expected repo-scoped SESSION_STATE.json to be created"
 
-    identity_map_file = cfg / "repo-identity-map.yaml"
-    assert identity_map_file.exists(), "Expected repo identity map to be created"
+    identity_map_file = cfg / "workspaces" / repo_fp / "repo-identity-map.yaml"
+    assert identity_map_file.exists(), "Expected repo identity map to be created in repo workspace"
     identity_map = json.loads(read_text(identity_map_file))
     assert identity_map.get("schema") == "opencode-repo-identity-map.v1"
     repos = identity_map.get("repositories")
@@ -1905,6 +1905,39 @@ def test_start_prefers_host_binding_evidence_and_defers_profile_selection_at_boo
     missing = [token for token in required_tokens if token not in text]
     assert not missing, "start.md missing bootstrap evidence/profile deferral tokens:\n" + "\n".join(
         [f"- {m}" for m in missing]
+    )
+
+
+@pytest.mark.governance
+def test_unambiguous_profile_rulebooks_are_auto_loaded_without_operator_prompt():
+    master = read_text(REPO_ROOT / "master.md")
+    rules = read_text(REPO_ROOT / "rules.md")
+    start = read_text(REPO_ROOT / "start.md")
+
+    master_required = [
+        "Rulebook auto-load behavior (binding):",
+        "MUST auto-load core/profile rulebooks from canonical installer paths without asking the operator to provide rulebook files.",
+    ]
+    rules_required = [
+        "Unambiguous rulebook auto-load (binding):",
+        "MUST NOT ask the operator to provide/paste rulebook files.",
+    ]
+    start_required = [
+        "`/start` MUST auto-load canonical rulebooks and MUST NOT request operator rulebook paste/path input.",
+    ]
+
+    missing_master = [t for t in master_required if t not in master]
+    missing_rules = [t for t in rules_required if t not in rules]
+    missing_start = [t for t in start_required if t not in start]
+
+    assert not missing_master, "master.md missing unambiguous rulebook auto-load tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_master]
+    )
+    assert not missing_rules, "rules.md missing unambiguous rulebook auto-load tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_rules]
+    )
+    assert not missing_start, "start.md missing unambiguous rulebook auto-load tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_start]
     )
 
 

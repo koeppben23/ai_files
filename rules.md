@@ -183,6 +183,10 @@ Deterministic Java default (binding):
   the assistant SHOULD set active profile to `backend-java` without requesting explicit profile selection.
 - Explicit profile-selection prompts are required only when repository indicators are materially ambiguous for gate/tooling decisions.
 
+Unambiguous rulebook auto-load (binding):
+- When profile detection is unambiguous and host filesystem access is available, load core/profile rulebooks from canonical installer paths.
+- In that unambiguous case, the assistant MUST NOT ask the operator to provide/paste rulebook files.
+
 **Deterministic detection hints (examples):**
 - Frontend indicators: `package.json`, `pnpm-lock.yaml`, `yarn.lock`, `vite.config.*`, `next.config.*`, `src/app`, `src/pages`
 - Java backend indicators: `pom.xml`, `mvnw`, `build.gradle`, `settings.gradle`, `src/main/java`, `src/test/java`
