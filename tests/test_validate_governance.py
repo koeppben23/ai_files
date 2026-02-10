@@ -508,6 +508,32 @@ def test_operator_explain_commands_are_defined_as_read_only_contracts():
 
 
 @pytest.mark.governance
+def test_why_blocked_requires_brief_then_detail_layering():
+    master = read_text(REPO_ROOT / "master.md")
+    rules = read_text(REPO_ROOT / "rules.md")
+
+    master_required = [
+        "Response SHOULD be layered:",
+        "brief layer first: one-line blocker summary + one primary recovery command",
+        "detail layer second: full trace/evidence payload",
+    ]
+    rules_required = [
+        "start with a concise blocker brief (reason + one primary recovery command)",
+        "then provide full detail payload (facts, trace, evidence pointers)",
+    ]
+
+    missing_master = [token for token in master_required if token not in master]
+    missing_rules = [token for token in rules_required if token not in rules]
+
+    assert not missing_master, "master.md missing /why-blocked brief-detail tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_master]
+    )
+    assert not missing_rules, "rules.md missing /why-blocked brief-detail tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_rules]
+    )
+
+
+@pytest.mark.governance
 def test_capability_first_activation_contract_is_defined():
     master = read_text(REPO_ROOT / "master.md")
     rules = read_text(REPO_ROOT / "rules.md")

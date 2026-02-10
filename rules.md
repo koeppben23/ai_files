@@ -1151,6 +1151,8 @@ Requirements:
 - Commands MUST NOT assert new implementation/build evidence.
 
 `/why-blocked` output contract:
+- start with a concise blocker brief (reason + one primary recovery command)
+- then provide full detail payload (facts, trace, evidence pointers)
 - include `reason_code`
 - include up to 3 concrete `recovery_steps`
 - include triggering rule/file evidence reference

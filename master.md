@@ -885,6 +885,9 @@ Output and state requirements:
 
 `/why-blocked`:
 - Purpose: explain current blocking reason deterministically without mutating workflow state.
+- Response SHOULD be layered:
+  - brief layer first: one-line blocker summary + one primary recovery command
+  - detail layer second: full trace/evidence payload
 - Output MUST include:
   - blocking `reason_code`
   - concrete trigger facts (files/keys/signals)
