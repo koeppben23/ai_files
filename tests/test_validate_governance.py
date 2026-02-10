@@ -2083,6 +2083,33 @@ def test_short_status_tag_contract_is_defined_across_core_docs():
 
 
 @pytest.mark.governance
+def test_quick_fix_confidence_labels_contract_is_defined():
+    master = read_text(REPO_ROOT / "master.md")
+    rules = read_text(REPO_ROOT / "rules.md")
+    start = read_text(REPO_ROOT / "start.md")
+
+    master_required = [
+        "Blocked recovery guidance SHOULD label primary quick-fix command confidence as `safe` or `review-first`",
+    ]
+    rules_required = [
+        "Quick-fix confidence labeling (recommended):",
+        "`safe` (read-only or low-risk local command)",
+        "`review-first` (mutating command that should be reviewed before execution)",
+    ]
+    start_required = [
+        "When `QuickFixCommands` are emitted, `/start` SHOULD label primary command confidence as `safe` or `review-first`.",
+    ]
+
+    missing_master = [t for t in master_required if t not in master]
+    missing_rules = [t for t in rules_required if t not in rules]
+    missing_start = [t for t in start_required if t not in start]
+
+    assert not missing_master, "master.md missing quick-fix confidence tokens:\n" + "\n".join([f"- {m}" for m in missing_master])
+    assert not missing_rules, "rules.md missing quick-fix confidence tokens:\n" + "\n".join([f"- {m}" for m in missing_rules])
+    assert not missing_start, "start.md missing quick-fix confidence tokens:\n" + "\n".join([f"- {m}" for m in missing_start])
+
+
+@pytest.mark.governance
 def test_start_and_master_require_host_git_identity_discovery_before_operator_prompt():
     master = read_text(REPO_ROOT / "master.md")
     start = read_text(REPO_ROOT / "start.md")

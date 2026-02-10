@@ -703,6 +703,12 @@ Placeholder minimization (binding):
 - Angle-bracket placeholders (for example `<repo_fingerprint>`) are allowed only when the value is truly unavailable from host evidence.
 - If placeholders are unavoidable, include one concise sentence describing how to derive the missing value.
 
+Quick-fix confidence labeling (recommended):
+- When emitting `QuickFixCommands`, add a compact confidence label per primary command:
+  - `safe` (read-only or low-risk local command), or
+  - `review-first` (mutating command that should be reviewed before execution).
+- If labels are emitted, they MUST align with the command semantics.
+
 ### 7.3.6 Architect-Only Autopilot Lifecycle (Binding)
 
 Canonical operator lifecycle:
