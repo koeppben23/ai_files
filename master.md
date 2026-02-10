@@ -1023,6 +1023,9 @@ Rules:
 - Commands MUST correspond to the same blocker context (`reason_code`) and recovery steps.
 - If no command is applicable, emit `QuickFixCommands: ["none"]`.
 - Command coherence rule: `[NEXT-ACTION].Command`, blocker `next_command`, and `QuickFixCommands[0]` MUST be identical; if no command-driven recovery exists, all three MUST be `none`.
+- Default cardinality is one command.
+- Use two commands only for explicit OS split (`darwin/linux` vs `windows`) when syntax materially differs.
+- For OS split, prefix each command with `macos_linux:` or `windows:`.
 
 **Standard BLOCKED reasons + required input (binding):**
 

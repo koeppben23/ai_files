@@ -2441,15 +2441,22 @@ def test_quick_fix_commands_contract_is_defined_across_core_docs():
         "1-3 copy-paste-ready commands",
         'QuickFixCommands: ["none"]',
         "Command coherence rule: `[NEXT-ACTION].Command`, blocker `next_command`, and `QuickFixCommands[0]` MUST be identical",
+        "Default cardinality is one command.",
+        "Use two commands only for explicit OS split",
+        "prefix each command with `macos_linux:` or `windows:`",
     ]
     rules_required = [
         "### 7.3.5 Quick-Fix Commands for Blockers (Binding)",
         "`QuickFixCommands` with 1-3 exact copy-paste commands aligned to the active `reason_code`.",
         'output `QuickFixCommands: ["none"]`.',
         "Command coherence rule: `[NEXT-ACTION].Command`, blocker `next_command`, and `QuickFixCommands[0]` MUST match exactly",
+        "Default cardinality is one command.",
+        "Use two commands only for explicit OS split",
+        "OS label (`macos_linux:` or `windows:`)",
     ]
     start_required = [
         "If blocked, include `QuickFixCommands` with 1-3 copy-paste commands (or `[\"none\"]` if not command-driven) when host constraints allow.",
+        "`QuickFixCommands` defaults to one command; use two only for explicit `macos_linux` vs `windows` splits.",
     ]
 
     missing_master = [t for t in master_required if t not in master]

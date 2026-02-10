@@ -692,6 +692,9 @@ When output mode is blocked, include:
 - `QuickFixCommands` with 1-3 exact copy-paste commands aligned to the active `reason_code`.
 - If no command applies, output `QuickFixCommands: ["none"]`.
 - Command coherence rule: `[NEXT-ACTION].Command`, blocker `next_command`, and `QuickFixCommands[0]` MUST match exactly (or all be `none`).
+- Default cardinality is one command.
+- Use two commands only for explicit OS split (`darwin/linux` vs `windows`) when command syntax materially differs.
+- When OS split is used, each command MUST be prefixed with an OS label (`macos_linux:` or `windows:`).
 
 Quick-fix commands are execution guidance only; they do not bypass gates or evidence requirements.
 
