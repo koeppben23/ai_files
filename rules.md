@@ -993,6 +993,7 @@ Fixture expectations:
 - response is concise (brief-first)
 - includes one clear next step or explicit `state_unchanged`
 - keeps canonical status vocabulary (`BLOCKED|WARN|OK|NOT_VERIFIED`)
+- canonical fixture source SHOULD be `diagnostics/UX_INTENT_GOLDENS.json`
 
 ### 7.3.19 Short-Intent Routing for Operator Questions (Binding)
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import re
 from fnmatch import fnmatch
 from dataclasses import dataclass
@@ -8,7 +9,7 @@ import hashlib
 
 import pytest
 
-from .util import read_text, run_install
+from .util import REPO_ROOT, read_text, run_install
 
 
 @dataclass(frozen=True)
@@ -265,6 +266,23 @@ def _activation_delta_gate(previous: tuple[str, str, tuple], current: tuple[str,
     return "OK"
 
 
+def _render_short_intent(intent: str, state: dict) -> list[str]:
+    status = str(state.get("status", "NOT_VERIFIED"))
+    if intent == "where_am_i":
+        phase = str(state.get("phase", "unknown"))
+        gate = str(state.get("active_gate", "none"))
+        nxt = str(state.get("next", "none"))
+        return [f"status: {status}", f"phase/gate: {phase} / {gate}", f"next: {nxt}"]
+    if intent == "what_blocks_me":
+        reason = str(state.get("reason_code", "none"))
+        nxt = str(state.get("next_command", "none"))
+        return [f"status: {status}", f"primary blocker: {reason}", f"next: {nxt}"]
+    if intent == "what_now":
+        nxt = str(state.get("next", "none"))
+        return [f"status: {status}", f"next: {nxt}"]
+    return [f"status: {status}", "next: none"]
+
+
 @pytest.mark.e2e_governance
 def test_e2e_capability_first_activation_with_hard_signal_fallback(tmp_path: Path):
     config_root = tmp_path / "opencode-config-e2e-capabilities"
@@ -346,6 +364,30 @@ def test_e2e_activation_delta_blocks_when_hashes_unchanged_but_outcome_drifts(tm
         (addon_hash, repo_hash, drifted_outcome),
     )
     assert gate == "BLOCKED-ACTIVATION-DELTA-MISMATCH"
+
+
+@pytest.mark.e2e_governance
+def test_e2e_short_intent_goldens_are_stable():
+    fixture = REPO_ROOT / "diagnostics" / "UX_INTENT_GOLDENS.json"
+    assert fixture.exists(), "Missing diagnostics/UX_INTENT_GOLDENS.json"
+    payload = json.loads(read_text(fixture))
+
+    assert payload.get("$schema") == "opencode.ux-intent-goldens.v1"
+    assert payload.get("version") == "1"
+    cases = payload.get("cases")
+    assert isinstance(cases, list) and cases, "UX intent goldens must define at least one case"
+
+    for case in cases:
+        assert isinstance(case, dict)
+        intent = str(case.get("intent", "")).strip()
+        assert intent in {"where_am_i", "what_blocks_me", "what_now"}
+        state = case.get("state")
+        expected = case.get("expected")
+        assert isinstance(state, dict)
+        assert isinstance(expected, list) and expected
+        rendered = _render_short_intent(intent, state)
+        assert rendered == expected, f"Golden mismatch for case {case.get('id', 'unknown')}"
+        assert 1 <= len(rendered) <= 3
 
 
 @pytest.mark.e2e_governance

@@ -2196,6 +2196,7 @@ def test_conversational_post_start_fixtures_contract_is_defined():
 
     master_required = [
         "Conversational post-start intents SHOULD remain regression-tested with deterministic fixtures (`what_phase`, `discovery_done`, `workflow_unchanged`)",
+        "Preferred fixture source for conversational intent goldens: `diagnostics/UX_INTENT_GOLDENS.json`",
     ]
     rules_required = [
         "### 7.3.18 Conversational UX Regression Fixtures (Binding)",
@@ -2203,9 +2204,11 @@ def test_conversational_post_start_fixtures_contract_is_defined():
         "`discovery_done`",
         "`workflow_unchanged`",
         "keeps canonical status vocabulary (`BLOCKED|WARN|OK|NOT_VERIFIED`)",
+        "canonical fixture source SHOULD be `diagnostics/UX_INTENT_GOLDENS.json`",
     ]
     start_required = [
         "Conversational post-start replies SHOULD stay covered by deterministic fixture intents (`what_phase`, `discovery_done`, `workflow_unchanged`).",
+        "Preferred conversational fixture source: `diagnostics/UX_INTENT_GOLDENS.json`.",
     ]
 
     missing_master = [t for t in master_required if t not in master]
