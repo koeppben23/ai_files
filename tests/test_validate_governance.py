@@ -2058,6 +2058,8 @@ def test_tool_requirements_catalog_exists_and_has_required_sections():
 
     payload = json.loads(read_text(p))
     assert payload.get("schema") == "opencode-tool-requirements.v1", "Unexpected tool requirements schema"
+    assert "smart_retry" in payload and isinstance(payload["smart_retry"], dict), "tool_requirements.json missing smart_retry object"
+    assert payload["smart_retry"].get("path_snapshot_policy") == "fresh-per-start", "smart_retry.path_snapshot_policy must be fresh-per-start"
 
     for key in ["required_now", "required_later", "optional"]:
         assert key in payload, f"tool_requirements.json missing key: {key}"
@@ -2066,6 +2068,17 @@ def test_tool_requirements_catalog_exists_and_has_required_sections():
     required_now_cmds = {str(x.get("command", "")).strip() for x in payload["required_now"] if isinstance(x, dict)}
     assert "git" in required_now_cmds, "tool_requirements.json required_now must include git"
     assert "python3" in required_now_cmds, "tool_requirements.json required_now must include python3"
+
+    for section in ["required_now", "required_later"]:
+        for entry in payload.get(section, []):
+            if not isinstance(entry, dict):
+                continue
+            assert entry.get("verify_command"), f"{section} entry missing verify_command: {entry}"
+            assert entry.get("expected_after_fix"), f"{section} entry missing expected_after_fix: {entry}"
+            assert entry.get("restart_hint") in {
+                "restart_required_if_path_edited",
+                "no_restart_if_binary_in_existing_path",
+            }, f"{section} entry has invalid restart_hint: {entry}"
 
 
 @pytest.mark.governance
@@ -2163,6 +2176,9 @@ def test_bootstrap_preflight_output_contract_is_defined_across_core_docs():
         "Preflight MUST include an `observed_at` timestamp",
         "Preflight output MUST remain compact: maximum 5 checks.",
         "Preflight summary format is fixed to these keys: `available`, `missing`, `impact`, `next`.",
+        "Smart retry guidance is mandatory: missing-tool diagnostics MUST include `expected_after_fix` and `restart_hint`.",
+        "`restart_required_if_path_edited`",
+        "`no_restart_if_binary_in_existing_path`",
     ]
     rules_required = [
         "### 7.3.10 Bootstrap Preflight Output Contract (Binding)",
@@ -2175,12 +2191,18 @@ def test_bootstrap_preflight_output_contract_is_defined_across_core_docs():
         "`next: <single concrete next step>`",
         "Missing `required_now` commands are blocker-fix candidates.",
         "Missing `required_later` commands are advisory",
+        "### 7.3.13 Smart Retry + Restart Guidance (Binding)",
+        "`expected_after_fix` (machine-readable success signal)",
+        "`verify_command` (exact command to confirm recovery)",
+        "`restart_hint` (enum):",
     ]
     start_required = [
         "Preflight MUST run in Phase `0` / `1.1`",
         "fresh probe signals only (`ttl=0`) and `observed_at` timestamp",
         "Preflight output MUST stay compact (max 5 checks)",
         "fixed keys: `available`, `missing`, `impact`, `next`.",
+        "Missing-command diagnostics MUST include `expected_after_fix`, `verify_command`, and `restart_hint`.",
+        "`restart_hint` MUST be deterministic: `restart_required_if_path_edited` or `no_restart_if_binary_in_existing_path`.",
     ]
 
     missing_master = [t for t in master_required if t not in master]

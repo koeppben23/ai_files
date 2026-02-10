@@ -95,6 +95,8 @@ Bootstrap command preflight (binding):
 - If a missing command is installed later, rerunning `/start` MUST recompute the inventory from files and continue with refreshed PATH evidence.
 - Preflight MUST run in Phase `0` / `1.1`, with fresh probe signals only (`ttl=0`) and `observed_at` timestamp.
 - Preflight output MUST stay compact (max 5 checks) and use fixed keys: `available`, `missing`, `impact`, `next`.
+- Missing-command diagnostics MUST include `expected_after_fix`, `verify_command`, and `restart_hint`.
+- `restart_hint` MUST be deterministic: `restart_required_if_path_edited` or `no_restart_if_binary_in_existing_path`.
 
 !`python -c "import os,platform,subprocess,sys,json,importlib.util;from pathlib import Path
 

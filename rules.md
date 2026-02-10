@@ -833,6 +833,22 @@ Required transition diagnostics payload:
 - `to` (`Phase` + `Mode`)
 - `reason` (one concise sentence)
 
+### 7.3.13 Smart Retry + Restart Guidance (Binding)
+
+For missing command diagnostics, output MUST include deterministic post-fix guidance.
+
+Required fields per missing command:
+- `expected_after_fix` (machine-readable success signal)
+- `verify_command` (exact command to confirm recovery)
+- `restart_hint` (enum):
+  - `restart_required_if_path_edited`
+  - `no_restart_if_binary_in_existing_path`
+
+Rules:
+- Smart retry guidance is advisory and MUST NOT bypass blockers.
+- If PATH location changed in shell config, guidance SHOULD recommend restarting host/CLI.
+- If binary was installed into an already-present PATH directory, guidance SHOULD recommend immediate rerun of `/start` before restart.
+
 ### 7.4 Architecture Decision Output Template (Binding when proposing non-trivial architecture)
 
 When the assistant proposes a non-trivial architectural decision (boundaries, persistence approach, contract strategy, major dependency/tooling change, migration/rollout strategy), it MUST output a structured proposal:
