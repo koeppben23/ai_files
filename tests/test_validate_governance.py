@@ -1809,7 +1809,12 @@ def test_workspace_persistence_quiet_blocked_payload_includes_reason_contract_fi
 
 @pytest.mark.governance
 def test_start_md_includes_workspace_persistence_autohook():
-    text = read_text(REPO_ROOT / "start.md")
+    text = "\n".join(
+        [
+            read_text(REPO_ROOT / "start.md"),
+            read_text(REPO_ROOT / "diagnostics" / "start_preflight_persistence.py"),
+        ]
+    )
     required_tokens = [
         "Auto-Persistence Hook (OpenCode)",
         "persist_workspace_artifacts.py",
@@ -1951,20 +1956,35 @@ def test_phase15_requires_repo_code_evidence_and_forbids_readme_only_extraction(
 
 @pytest.mark.governance
 def test_start_md_fallback_binding_and_identity_evidence_boundaries_are_fail_closed():
-    text = read_text(REPO_ROOT / "start.md")
+    text = "\n".join(
+        [
+            read_text(REPO_ROOT / "start.md"),
+            read_text(REPO_ROOT / "diagnostics" / "start_binding_evidence.py"),
+        ]
+    )
 
     required_tokens = [
-        "'reason_code':'BLOCKED-MISSING-BINDING-FILE'",
-        "'reason_code':'BLOCKED-VARIABLE-RESOLUTION'",
-        "'missing_evidence':['${COMMANDS_HOME}/governance.paths.json (installer-owned binding evidence)']",
-        "'next_command':'/start'",
-        "'nonEvidence':'debug-only'",
         "Fallback computed payloads are debug output only (`nonEvidence`) and MUST NOT be treated as binding evidence.",
         "If installer-owned binding file is missing, workflow MUST block with `BLOCKED-MISSING-BINDING-FILE`",
         "Helper output is operational convenience status only and MUST NOT be treated as canonical repo identity evidence.",
         "Repo identity remains governed by `master.md` evidence contracts",
     ]
     missing = [token for token in required_tokens if token not in text]
+
+    token_alternatives = [
+        ["'reason_code':'BLOCKED-MISSING-BINDING-FILE'", '"reason_code": "BLOCKED-MISSING-BINDING-FILE"'],
+        ["'reason_code':'BLOCKED-VARIABLE-RESOLUTION'", '"reason_code": "BLOCKED-VARIABLE-RESOLUTION"'],
+        [
+            "'missing_evidence':['${COMMANDS_HOME}/governance.paths.json (installer-owned binding evidence)']",
+            '"${COMMANDS_HOME}/governance.paths.json (installer-owned binding evidence)"',
+        ],
+        ["'next_command':'/start'", '"next_command": "/start"'],
+        ["'nonEvidence':'debug-only'", '"nonEvidence": "debug-only"'],
+    ]
+    for choices in token_alternatives:
+        if not any(token in text for token in choices):
+            missing.append(choices[0])
+
     assert not missing, "start.md missing evidence-boundary fail-closed tokens:\n" + "\n".join([f"- {m}" for m in missing])
 
     forbidden_tokens = [
