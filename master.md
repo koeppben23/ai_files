@@ -3440,6 +3440,7 @@ Response and output constraints are defined in `rules.md` (Core Rulebook).
 * Each response MUST emit exactly one NextAction mechanism: `command` OR `reply_with_one_number` OR `manual_step`
 * Session transitions are invariant-checked: stable `session_run_id`, stable `ruleset_hash` unless explicit rehydrate, and transition trace entries with `transition_id`
 * Responses include compact phase progress derived from `SESSION_STATE` (`phase`, `active_gate`, `next_gate_condition`)
+* Responses SHOULD include a compact deterministic `status_tag` (`<PHASE>-<GATE>-<STATE>`) for quick operator scanning
 * Operator-first UX layering SHOULD be used: concise brief first, full diagnostics immediately after or on explicit detail request
 * `/start` preflight SHOULD distinguish `required_now` vs `required_later` and surface `block_now` for immediate-gate impact
 * After bootstrap success, short follow-ups SHOULD default to conversational, language-adaptive responses unless full diagnostics are requested

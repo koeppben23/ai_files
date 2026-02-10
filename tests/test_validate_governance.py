@@ -2056,6 +2056,33 @@ def test_unified_next_action_footer_contract_is_defined_across_core_docs():
 
 
 @pytest.mark.governance
+def test_short_status_tag_contract_is_defined_across_core_docs():
+    master = read_text(REPO_ROOT / "master.md")
+    rules = read_text(REPO_ROOT / "rules.md")
+    start = read_text(REPO_ROOT / "start.md")
+
+    master_required = [
+        "Responses SHOULD include a compact deterministic `status_tag` (`<PHASE>-<GATE>-<STATE>`) for quick operator scanning",
+    ]
+    rules_required = [
+        "Deterministic short status tag (recommended):",
+        "Format: `<PHASE>-<GATE>-<STATE>` (uppercase, hyphen-separated).",
+        "Example: `P2-PROFILE-DETECTION-WARN`.",
+    ]
+    start_required = [
+        "Responses SHOULD include a compact `status_tag` for scanability (`<PHASE>-<GATE>-<STATE>`).",
+    ]
+
+    missing_master = [t for t in master_required if t not in master]
+    missing_rules = [t for t in rules_required if t not in rules]
+    missing_start = [t for t in start_required if t not in start]
+
+    assert not missing_master, "master.md missing status-tag contract tokens:\n" + "\n".join([f"- {m}" for m in missing_master])
+    assert not missing_rules, "rules.md missing status-tag contract tokens:\n" + "\n".join([f"- {m}" for m in missing_rules])
+    assert not missing_start, "start.md missing status-tag contract tokens:\n" + "\n".join([f"- {m}" for m in missing_start])
+
+
+@pytest.mark.governance
 def test_start_and_master_require_host_git_identity_discovery_before_operator_prompt():
     master = read_text(REPO_ROOT / "master.md")
     start = read_text(REPO_ROOT / "start.md")

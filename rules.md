@@ -839,6 +839,12 @@ Rules:
 - `BLOCKED` MUST include exactly one `reason_code`, exactly one concrete recovery action sentence, and one primary copy-paste command.
 - `QuickFixCommands` for blocked responses MUST contain one command by default; allow two only for explicit OS-specific splits.
 
+Deterministic short status tag (recommended):
+- Responses SHOULD include a compact `status_tag` for quick scanning.
+- Format: `<PHASE>-<GATE>-<STATE>` (uppercase, hyphen-separated).
+- `STATE` MUST align with canonical status (`BLOCKED|WARN|OK|NOT_VERIFIED`).
+- Example: `P2-PROFILE-DETECTION-WARN`.
+
 Single-next-action rule:
 - Each response MUST emit exactly one `NextAction` mechanism:
   - `command`, or
