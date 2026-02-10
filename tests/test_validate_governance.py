@@ -1848,6 +1848,32 @@ def test_phase2_and_phase15_do_not_force_ticket_prompt_without_ticket_goal():
 
 
 @pytest.mark.governance
+def test_phase15_requires_repo_code_evidence_and_forbids_readme_only_extraction():
+    master = read_text(REPO_ROOT / "master.md")
+    rules = read_text(REPO_ROOT / "rules.md")
+
+    master_required = [
+        "Phase 1.5 evidence source contract (binding):",
+        "The assistant MUST read repository code/tests for Business Rules extraction.",
+        "README-only/documentation-only rules MUST NOT be counted as extracted business rules.",
+        "Any rule lacking repository code evidence MUST be marked `CANDIDATE`",
+    ]
+    rules_required = [
+        "Repository documentation (`README*`, `CONTRIBUTING*`, `AGENTS*`, comments) MUST NOT be used as sole evidence for BR extraction.",
+        "README-only/documentation-only BRs MUST be marked `CANDIDATE` and MUST NOT count as extracted `ACTIVE` rules.",
+    ]
+
+    missing_master = [t for t in master_required if t not in master]
+    missing_rules = [t for t in rules_required if t not in rules]
+    assert not missing_master, "master.md missing Phase-1.5 code-evidence tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_master]
+    )
+    assert not missing_rules, "rules.md missing BR extraction evidence-source tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_rules]
+    )
+
+
+@pytest.mark.governance
 def test_start_md_fallback_binding_and_identity_evidence_boundaries_are_fail_closed():
     text = read_text(REPO_ROOT / "start.md")
 

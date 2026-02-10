@@ -89,6 +89,7 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
 - Harden audit bridge determinism by selecting `primaryReasonCode` via severity precedence (`BLOCKED-*` > `WARN-*` > `NOT_VERIFIED-*`) instead of first-seen order.
 - Enforce distribution/install coverage for audit bridge assets (`diagnostics/map_audit_to_canonical.py`, `diagnostics/AUDIT_REASON_CANONICAL_MAP.json`) in build and installer policy tests.
 - Clarify `/start` bootstrap evidence behavior to require host evidence attempt first (when `governance.paths.json` is readable) and defer profile rulebook selection to Phase 1.2/Post-Phase-2 detection.
+- Tighten Phase 1.5 extraction contracts to require repository code/test evidence; README/documentation-only rules are now explicitly non-counting `CANDIDATE`s and cannot satisfy extracted business-rule claims.
 - Add deterministic profile selection guidance for unambiguous Java backend repositories (`backend-java` default without explicit selection prompt).
 - Harden `/start` binding hook failure reporting when `governance.paths.json` exists but is unreadable (`BLOCKED-VARIABLE-RESOLUTION`) and auto-bootstrap repo session state when persistence detects `no-session-file`.
 - Add Phase-2 repo-root defaulting contract: when OpenCode host already provides indexed repository root, use it first and request access authorization before asking for manual repo path input.
