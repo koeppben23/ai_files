@@ -208,6 +208,10 @@ Bootstrap tool preflight (binding):
 - Preflight MUST include an `observed_at` timestamp and overwrite any previous preflight snapshot in `SESSION_STATE`.
 - Preflight output MUST remain compact: maximum 5 checks.
 - Preflight summary format is fixed to these keys: `available`, `missing`, `impact`, `next`.
+- Smart retry guidance is mandatory: missing-tool diagnostics MUST include `expected_after_fix` and `restart_hint`.
+- Restart guidance MUST be deterministic:
+  - `restart_required_if_path_edited`
+  - `no_restart_if_binary_in_existing_path`
 
 Required-command inventory derivation (binding):
 - `/start` MUST load a deterministic command inventory from `${COMMANDS_HOME}/diagnostics/tool_requirements.json` when present.
