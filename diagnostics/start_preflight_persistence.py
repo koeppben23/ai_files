@@ -83,6 +83,21 @@ def pointer_fingerprint() -> str | None:
     return None
 
 
+def workspace_identity_map(repo_fp: str) -> Path:
+    return ROOT / "workspaces" / repo_fp / "repo-identity-map.yaml"
+
+
+def legacy_identity_map() -> Path:
+    return ROOT / "repo-identity-map.yaml"
+
+
+def identity_map_exists(repo_fp: str | None) -> bool:
+    if repo_fp:
+        if workspace_identity_map(repo_fp).exists():
+            return True
+    return legacy_identity_map().exists()
+
+
 def load_json(path: Path) -> dict | None:
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
@@ -310,9 +325,6 @@ def bootstrap_identity_if_needed() -> bool:
             )
         )
         return False
-
-    repo_root = Path.cwd().resolve()
-    inferred_fp = derive_repo_fingerprint(repo_root)
 
     if not BOOTSTRAP_HELPER.exists():
         print(
