@@ -81,14 +81,18 @@ Identity evidence boundary (binding):
 - If identity evidence is missing for the current repo, workflow MUST remain blocked for identity-gated actions.
 
 Identity discovery order (binding):
-- If host shell tools are available and the current workspace is a git repository, `/start` MUST collect repo identity evidence first via non-destructive git commands (`remote get-url origin`, `symbolic-ref refs/remotes/origin/HEAD`, `rev-parse --show-toplevel`) before requesting operator-provided evidence.
+- If host shell tools are available and the current workspace is a git repository, `/start` MUST collect repo identity evidence first via non-destructive git commands (`git remote get-url origin`, `git symbolic-ref refs/remotes/origin/HEAD`, `git rev-parse --show-toplevel`) before requesting operator-provided evidence.
 - If host-side git discovery is unavailable or fails, `/start` MUST block with identity-missing reason and provide copy-paste recovery commands.
 
 Bootstrap command preflight (binding):
 - `/start` MUST check required external commands in `PATH` first (at minimum: `git`, `python3` when diagnostics helpers are used).
+- `/start` MUST load command requirements from `${COMMANDS_HOME}/diagnostics/tool_requirements.json` when available.
+- If `diagnostics/tool_requirements.json` is unavailable, `/start` MUST derive the command list by scanning canonical governance artifacts (`master.md`, `rules.md`, `profiles/rules*.md`, `diagnostics/*.py`) and classify it into `required_now`, `required_later`, and `optional`.
+- `/start` MUST print the resolved command inventory and probe result (`available`/`missing`) before requesting operator action.
 - Preflight diagnostics are informational and MUST NOT create a blocker by themselves.
 - If all required commands are present, `/start` should report `preflight: ok` and continue without interruption.
 - If commands are missing, `/start` should report `preflight: degraded` with missing command names and copy-paste install/recovery hints; block only if a downstream gate cannot be satisfied without the missing command.
+- If a missing command is installed later, rerunning `/start` MUST recompute the inventory from files and continue with refreshed PATH evidence.
 
 !`python -c "import os,platform,subprocess,sys,json,importlib.util;from pathlib import Path
 

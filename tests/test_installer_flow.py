@@ -421,6 +421,7 @@ def test_install_distribution_contains_required_normative_files_and_addon_rulebo
     required_diagnostics = [
         commands / "diagnostics" / "map_audit_to_canonical.py",
         commands / "diagnostics" / "AUDIT_REASON_CANONICAL_MAP.json",
+        commands / "diagnostics" / "tool_requirements.json",
     ]
     missing_diagnostics = [str(p) for p in required_diagnostics if not p.exists()]
     assert not missing_diagnostics, "Missing required diagnostics bridge files after install:\n" + "\n".join(

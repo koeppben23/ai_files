@@ -1,0 +1,91 @@
+{
+  "schema": "opencode-tool-requirements.v1",
+  "version": "1.0",
+  "description": "Canonical external command inventory for /start bootstrap preflight.",
+  "required_now": [
+    {
+      "command": "git",
+      "reason": "repo identity evidence collection during /start",
+      "phase": "1-bootstrap"
+    },
+    {
+      "command": "python",
+      "reason": "compatibility alias used by documented diagnostics recovery commands",
+      "phase": "1-bootstrap"
+    },
+    {
+      "command": "python3",
+      "reason": "diagnostics helper execution for workspace/session bootstrap",
+      "phase": "1-bootstrap"
+    }
+  ],
+  "required_later": [
+    {
+      "command": "pytest",
+      "reason": "governance verification and test execution",
+      "phase": "5-6"
+    },
+    {
+      "command": "mvn",
+      "reason": "java build/test flows when backend-java profile is active",
+      "phase": "4-6"
+    },
+    {
+      "command": "java",
+      "reason": "jvm runtime checks and java execution for backend-java profile",
+      "phase": "4-6"
+    },
+    {
+      "command": "gradle",
+      "reason": "java build/test flows when gradle-based profiles are active",
+      "phase": "4-6"
+    },
+    {
+      "command": "node",
+      "reason": "frontend and tooling runtime",
+      "phase": "4-6"
+    },
+    {
+      "command": "npm",
+      "reason": "frontend package scripts",
+      "phase": "4-6"
+    },
+    {
+      "command": "pnpm",
+      "reason": "frontend package scripts in pnpm repos",
+      "phase": "4-6"
+    },
+    {
+      "command": "npx",
+      "reason": "nx and frontend generator invocation",
+      "phase": "4-6"
+    },
+    {
+      "command": "liquibase",
+      "reason": "database migration validation when postgres-liquibase profile is active",
+      "phase": "4-6"
+    }
+  ],
+  "optional": [
+    {
+      "command": "gh",
+      "reason": "GitHub workflow automation"
+    },
+    {
+      "command": "spectral",
+      "reason": "OpenAPI linting"
+    },
+    {
+      "command": "oasdiff",
+      "reason": "OpenAPI diff checks"
+    },
+    {
+      "command": "swagger-cli",
+      "reason": "OpenAPI validation"
+    },
+    {
+      "command": "openapi-generator",
+      "reason": "client/server code generation"
+    }
+  ]
+}
