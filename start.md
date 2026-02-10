@@ -270,6 +270,7 @@ Host constraint acknowledgment:
 Output requirements:
 - Structured, phase-oriented output
 - Output envelope SHOULD comply with `diagnostics/RESPONSE_ENVELOPE_SCHEMA.json` (`status`, `session_state`, `next_action`, `snapshot`; plus blocker payload fields when blocked) when host constraints allow
+- `next_action.type` MUST be present and one of: `command`, `reply_with_one_number`, `manual_step`.
 - Status vocabulary MUST remain deterministic: `BLOCKED | WARN | OK | NOT_VERIFIED`.
 - `WARN` MUST NOT be used when required-gate evidence is missing (that case MUST be `BLOCKED`).
 - Responses MUST include compact phase progress from `SESSION_STATE`: `phase`, `active_gate`, `next_gate_condition`.

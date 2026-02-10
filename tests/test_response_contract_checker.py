@@ -29,6 +29,7 @@ def test_response_contract_checker_accepts_valid_payload(tmp_path: Path):
         },
         "quick_fix_commands": ["/start"],
         "next_action": {
+            "type": "command",
             "Status": "blocked",
             "Next": "Provide load evidence",
             "Why": "Rulebook evidence is required before phase completion.",
@@ -57,7 +58,7 @@ def test_response_contract_checker_rejects_command_coherence_violation(tmp_path:
             "next_command": "cmd-a",
         },
         "quick_fix_commands": ["cmd-b"],
-        "next_action": {"Status": "blocked", "Next": "n", "Why": "w", "Command": "cmd-c"},
+        "next_action": {"type": "command", "Status": "blocked", "Next": "n", "Why": "w", "Command": "cmd-c"},
         "snapshot": {"Confidence": "50%", "Risk": "LOW", "Scope": "global"},
     }
     f = tmp_path / "invalid.json"

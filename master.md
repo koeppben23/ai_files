@@ -3427,6 +3427,7 @@ Response and output constraints are defined in `rules.md` (Core Rulebook).
 * Use code blocks for code snippets
 * Use structured blocks for reports ([PHASE-X-COMPLETE], [GATE-REPORT-PX], etc.)
 * Structured outputs from `/start` onward SHOULD conform to `diagnostics/RESPONSE_ENVELOPE_SCHEMA.json` when host constraints allow
+* Envelope-aligned NextAction typing is mandatory: `next_action.type = command | reply_with_one_number | manual_step`
 * Always update SESSION_STATE
 * Always document risks and blockers
 * Never fabricate: If information is missing, state "Not in the provided scope"

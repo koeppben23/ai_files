@@ -2707,6 +2707,7 @@ def test_canonical_response_envelope_schema_contract_is_defined():
         "status",
         "session_state",
         "next_action",
+        "next_action.type",
         "snapshot",
     ]
     corpus = "\n".join([master, rules, start])
@@ -2720,7 +2721,14 @@ def test_canonical_response_envelope_schema_contract_is_defined():
         '"status"',
         '"session_state"',
         '"next_action"',
+        '"type"',
+        '"reply_with_one_number"',
+        '"manual_step"',
         '"snapshot"',
+        '"preflight"',
+        '"observed_at"',
+        '"checks"',
+        '"impact"',
         '"reason_payload"',
         '"quick_fix_commands"',
         '"allOf"',
