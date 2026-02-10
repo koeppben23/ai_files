@@ -54,6 +54,8 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
 - Add delta-only no-change response contract (`state_unchanged` + `no_delta`) to reduce repetitive status noise.
 - Add operator persona response modes (`compact`, `standard`, `audit`) as presentation-only controls.
 - Add governance PR `Reviewer focus` guidance for high-risk contract deltas and targeted review hints.
+- Add installer/release artifact coverage checks to require shipping `diagnostics/QUICKFIX_TEMPLATES.json`.
+- Add deterministic conversational UX golden fixtures in `diagnostics/UX_INTENT_GOLDENS.json` with e2e regression validation for `where_am_i`, `what_blocks_me`, and `what_now` intents.
 - Add guided profile-selection behavior for ambiguous detection: system now emits ranked profile suggestions with evidence and requests explicit numbered selection (`1..n`, including `fallback-minimum`) while remaining fail-closed (`BLOCKED-AMBIGUOUS-PROFILE`) until clarified.
 - Add UX execution contracts for deterministic operator flow: unified `[NEXT-ACTION]` footer, standardized blocked envelope fields, startup `[START-MODE]` banner, `[SNAPSHOT]` confidence/risk/scope block, and blocker `QuickFixCommands` guidance.
 - Tighten UX contract coherence: add `0=abort/none` profile-choice escape, require command-field consistency across `[NEXT-ACTION]`/`next_command`/`QuickFixCommands[0]`, and require deterministic ordering for `missing_evidence`/`recovery_steps`.
