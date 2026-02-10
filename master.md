@@ -543,9 +543,18 @@ Top-tier load evidence obligation (binding):
        LOAD: found_profiles[0]
        
       ELSIF found_profiles.count > 1:
-        # Monorepo-safe refinement (assistive only):
-        # If ComponentScopePaths is set, prefer profiles closest to that scope.
-       IF SESSION_STATE.ComponentScopePaths is set:
+        # Autodetect-first refinement (binding):
+        # Attempt deterministic repo-signal ranking before asking operator.
+       ranked_profiles = rank_profiles_by_repo_signals(found_profiles, repo_indicators, ticket_signals)
+       IF ranked_profiles.top_is_unique:
+         ActiveProfile = extract_profile_name(ranked_profiles.top)
+         SESSION_STATE.ProfileSource = "auto-detected-ranked"
+         SESSION_STATE.ProfileEvidence = ranked_profiles.top.evidence
+         LOG: "Auto-selected profile via ranked repo signals: {ActiveProfile}"
+         LOAD: ranked_profiles.top
+       ELIF SESSION_STATE.ComponentScopePaths is set:
+         # Monorepo-safe refinement (assistive only):
+         # If ComponentScopePaths is set, prefer profiles closest to that scope.
          scoped_profiles = filter_profiles_by_scope_proximity(found_profiles, SESSION_STATE.ComponentScopePaths)
          
          IF scoped_profiles.count == 1:
@@ -633,7 +642,10 @@ Rulebook auto-load behavior (binding):
 - If host filesystem access is available and profile detection is unambiguous, the assistant MUST auto-load core/profile rulebooks from canonical installer paths without asking the operator to provide rulebook files.
 - Operator rulebook input is allowed only when detection is ambiguous, files are genuinely unreadable/missing, or host access is unavailable.
 
-If multiple profiles exist but `SESSION_STATE.ComponentScopePaths` is present:
+If multiple profiles exist:
+- first attempt deterministic repo-signal ranking; if one top candidate is unique, auto-select without operator prompt
+
+If multiple profiles still exist and `SESSION_STATE.ComponentScopePaths` is present:
 - attempt profile inference **within the Component Scope only**
 - record the result as:
   - `SESSION_STATE.ProfileSource = "component-scope-inferred"`

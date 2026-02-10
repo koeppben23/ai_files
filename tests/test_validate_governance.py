@@ -1970,6 +1970,33 @@ def test_start_invocation_guard_prevents_repeat_start_prompt_in_same_turn():
 
 
 @pytest.mark.governance
+def test_profile_autodetect_runs_before_manual_selection_prompt():
+    master = read_text(REPO_ROOT / "master.md")
+    rules = read_text(REPO_ROOT / "rules.md")
+    start = read_text(REPO_ROOT / "start.md")
+
+    master_required = [
+        "Autodetect-first refinement (binding):",
+        "Attempt deterministic repo-signal ranking before asking operator.",
+        "auto-select without operator prompt",
+    ]
+    rules_required = [
+        "first attempt deterministic ranking from repo signals and ticket/context signals; if one top profile is uniquely supported, auto-select it",
+    ]
+    start_required = [
+        "`/start` MUST attempt deterministic repo-signal autodetection first and auto-select when one candidate is uniquely supported.",
+    ]
+
+    missing_master = [t for t in master_required if t not in master]
+    missing_rules = [t for t in rules_required if t not in rules]
+    missing_start = [t for t in start_required if t not in start]
+
+    assert not missing_master, "master.md missing profile autodetect-first tokens:\n" + "\n".join([f"- {m}" for m in missing_master])
+    assert not missing_rules, "rules.md missing profile autodetect-first tokens:\n" + "\n".join([f"- {m}" for m in missing_rules])
+    assert not missing_start, "start.md missing profile autodetect-first tokens:\n" + "\n".join([f"- {m}" for m in missing_start])
+
+
+@pytest.mark.governance
 def test_rules_define_deterministic_backend_java_default_when_unambiguous():
     text = read_text(REPO_ROOT / "rules.md")
     required_tokens = [

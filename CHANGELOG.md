@@ -61,6 +61,7 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
 - Clarify unambiguous profile behavior: auto-load canonical rulebooks without asking operator to paste/provide rulebook files.
 - Add `/start` invocation loop guard: when command context is injected, bootstrap proceeds immediately and does not re-request `/start` in the same turn.
 - Make workspace persistence bootstrap diagnostics non-blocking (`WARN-WORKSPACE-PERSISTENCE`) when repo fingerprint cannot be derived, so persistence remains operational convenience and not a hard gate.
+- Enforce profile autodetect-first behavior when multiple rulebooks are present: rank by repo/ticket signals and auto-select unique top candidate before prompting manual selection.
 - Add guided profile-selection behavior for ambiguous detection: system now emits ranked profile suggestions with evidence and requests explicit numbered selection (`1..n`, including `fallback-minimum`) while remaining fail-closed (`BLOCKED-AMBIGUOUS-PROFILE`) until clarified.
 - Add UX execution contracts for deterministic operator flow: unified `[NEXT-ACTION]` footer, standardized blocked envelope fields, startup `[START-MODE]` banner, `[SNAPSHOT]` confidence/risk/scope block, and blocker `QuickFixCommands` guidance.
 - Tighten UX contract coherence: add `0=abort/none` profile-choice escape, require command-field consistency across `[NEXT-ACTION]`/`next_command`/`QuickFixCommands[0]`, and require deterministic ordering for `missing_evidence`/`recovery_steps`.

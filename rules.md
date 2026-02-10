@@ -197,6 +197,7 @@ Unambiguous rulebook auto-load (binding):
 
 If repo signals are ambiguous (e.g., monorepo with multiple stacks) and no explicit profile is provided:
 - do **not** guess silently
+- first attempt deterministic ranking from repo signals and ticket/context signals; if one top profile is uniquely supported, auto-select it
 - conservative mode is planning-only (no code generation, no irreversible tooling decisions, no gate pass claims):
   - declare ambiguity
   - provide a ranked shortlist of plausible profiles with brief evidence per candidate (top suggestion marked recommended)
