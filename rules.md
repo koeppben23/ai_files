@@ -656,6 +656,11 @@ If `SESSION_STATE.Mode = BLOCKED`, output SHOULD include a machine-readable bloc
 No blocked response may omit these fields when strict output shape is available.
 - `missing_evidence` and `recovery_steps` MUST be deterministically ordered (priority-first, then lexicographic).
 
+Top-1 blocker prioritization (binding):
+- If multiple blockers are present, response MUST present one primary blocker first (`primary_reason_code`).
+- `next_command` and `QuickFixCommands[0]` MUST target the same primary blocker.
+- Secondary blockers MAY be listed after the primary blocker as deferred follow-ups.
+
 Compat fallback (binding):
 - If host constraints reject/override blocker envelope formatting, the assistant MUST still provide equivalent semantic content under:
   - `RequiredInputs` (missing evidence/input list)

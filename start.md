@@ -158,6 +158,7 @@ Output requirements:
 - Exactly one `NextAction` mechanism is allowed per response: `command` OR `reply_with_one_number` OR `manual_step`.
 - `NextAction` wording SHOULD include concrete context (active phase/gate/scope) rather than generic continuation text.
 - If blocked, include the standard blocker envelope (`status`, `reason_code`, `missing_evidence`, `recovery_steps`, `next_command`) when host constraints allow
+- If multiple blockers exist, `/start` SHOULD present one `primary_reason_code` first and keep one primary recovery command.
 - If blocked, use exactly one `reason_code`, one concrete recovery action sentence, and one primary copy-paste command.
 - `next_command` and `QuickFixCommands` SHOULD be fully runnable without placeholders when runtime evidence can derive concrete values.
 - Across lifecycle transitions, `session_run_id` and `ruleset_hash` MUST remain stable unless explicit rehydrate/reload is performed.

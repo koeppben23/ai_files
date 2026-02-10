@@ -3438,6 +3438,7 @@ Response and output constraints are defined in `rules.md` (Core Rulebook).
 * Never guess: If ambiguous, ask for clarification using the mandatory format (Section 2.3)
 * Governance status vocabulary is fixed: `BLOCKED | WARN | OK | NOT_VERIFIED`
 * WARN/blocked separation is strict: required missing evidence => BLOCKED (not WARN)
+* For multi-blocker states, responses MUST prioritize one primary blocker (`primary_reason_code`) with a single primary recovery command
 * Each response MUST emit exactly one NextAction mechanism: `command` OR `reply_with_one_number` OR `manual_step`
 * Session transitions are invariant-checked: stable `session_run_id`, stable `ruleset_hash` unless explicit rehydrate, and transition trace entries with `transition_id`
 * Responses include compact phase progress derived from `SESSION_STATE` (`phase`, `active_gate`, `next_gate_condition`)

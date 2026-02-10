@@ -2300,6 +2300,33 @@ def test_phase_progress_bar_contract_is_defined():
 
 
 @pytest.mark.governance
+def test_primary_blocker_prioritization_contract_is_defined():
+    master = read_text(REPO_ROOT / "master.md")
+    rules = read_text(REPO_ROOT / "rules.md")
+    start = read_text(REPO_ROOT / "start.md")
+
+    master_required = [
+        "For multi-blocker states, responses MUST prioritize one primary blocker (`primary_reason_code`) with a single primary recovery command",
+    ]
+    rules_required = [
+        "Top-1 blocker prioritization (binding):",
+        "`primary_reason_code`",
+        "`next_command` and `QuickFixCommands[0]` MUST target the same primary blocker.",
+    ]
+    start_required = [
+        "If multiple blockers exist, `/start` SHOULD present one `primary_reason_code` first and keep one primary recovery command.",
+    ]
+
+    missing_master = [t for t in master_required if t not in master]
+    missing_rules = [t for t in rules_required if t not in rules]
+    missing_start = [t for t in start_required if t not in start]
+
+    assert not missing_master, "master.md missing primary-blocker tokens:\n" + "\n".join([f"- {m}" for m in missing_master])
+    assert not missing_rules, "rules.md missing primary-blocker tokens:\n" + "\n".join([f"- {m}" for m in missing_rules])
+    assert not missing_start, "start.md missing primary-blocker tokens:\n" + "\n".join([f"- {m}" for m in missing_start])
+
+
+@pytest.mark.governance
 def test_start_and_master_require_host_git_identity_discovery_before_operator_prompt():
     master = read_text(REPO_ROOT / "master.md")
     start = read_text(REPO_ROOT / "start.md")
