@@ -3427,6 +3427,7 @@ Response and output constraints are defined in `rules.md` (Core Rulebook).
 * Governance status vocabulary is fixed: `BLOCKED | WARN | OK | NOT_VERIFIED`
 * WARN/blocked separation is strict: required missing evidence => BLOCKED (not WARN)
 * Each response MUST emit exactly one NextAction mechanism: `command` OR `reply_with_one_number` OR `manual_step`
+* Session transitions are invariant-checked: stable `session_run_id`, stable `ruleset_hash` unless explicit rehydrate, and transition trace entries with `transition_id`
 
 Host-constraint compatibility (binding):
 * If host/system/developer instructions reject strict governance output formatting, use COMPAT mode.

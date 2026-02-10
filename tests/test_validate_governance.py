@@ -2250,6 +2250,61 @@ def test_status_vocab_and_single_nextaction_contract_is_defined_across_core_docs
 
 
 @pytest.mark.governance
+def test_session_transition_invariant_contract_is_defined_across_core_docs():
+    master = read_text(REPO_ROOT / "master.md")
+    rules = read_text(REPO_ROOT / "rules.md")
+    start = read_text(REPO_ROOT / "start.md")
+    schema = read_text(REPO_ROOT / "SESSION_STATE_SCHEMA.md")
+
+    master_required = [
+        "Session transitions are invariant-checked",
+        "stable `session_run_id`",
+        "stable `ruleset_hash` unless explicit rehydrate",
+        "transition trace entries with `transition_id`",
+    ]
+    rules_required = [
+        "### 7.3.12 Session Transition Invariants (Binding)",
+        "`SESSION_STATE.session_run_id` MUST remain stable until verify completes.",
+        "`SESSION_STATE.ruleset_hash` MUST remain stable unless explicit rehydrate/reload is performed.",
+        "`SESSION_STATE.ActivationDelta.AddonScanHash`",
+        "`SESSION_STATE.ActivationDelta.RepoFactsHash`",
+        "Every phase/mode transition MUST record a unique `transition_id`",
+        "`transition_id` (unique string)",
+    ]
+    start_required = [
+        "Across lifecycle transitions, `session_run_id` and `ruleset_hash` MUST remain stable unless explicit rehydrate/reload is performed.",
+        "Every phase/mode transition MUST record a unique `transition_id` diagnostic entry.",
+    ]
+    schema_required = [
+        "### 2.1.4 Transition trace invariants (binding)",
+        "`SESSION_STATE.session_run_id` SHOULD be present and MUST remain stable until verify completion.",
+        "`SESSION_STATE.ruleset_hash` MUST remain stable unless explicit rehydrate/reload is performed.",
+        "`SESSION_STATE.Diagnostics.TransitionTrace[]`",
+        "`transition_id` (unique string)",
+        "`from_phase`",
+        "`to_phase`",
+    ]
+
+    missing_master = [t for t in master_required if t not in master]
+    missing_rules = [t for t in rules_required if t not in rules]
+    missing_start = [t for t in start_required if t not in start]
+    missing_schema = [t for t in schema_required if t not in schema]
+
+    assert not missing_master, "master.md missing transition invariant tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_master]
+    )
+    assert not missing_rules, "rules.md missing transition invariant tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_rules]
+    )
+    assert not missing_start, "start.md missing transition invariant tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_start]
+    )
+    assert not missing_schema, "SESSION_STATE_SCHEMA.md missing transition invariant tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_schema]
+    )
+
+
+@pytest.mark.governance
 def test_standard_blocker_envelope_contract_is_defined_across_core_docs():
     master = read_text(REPO_ROOT / "master.md")
     rules = read_text(REPO_ROOT / "rules.md")
