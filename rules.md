@@ -732,6 +732,21 @@ Minimum required envelope fields:
 - `next_action`
 - `snapshot`
 
+`next_action` required shape:
+- `type` (enum: `command | reply_with_one_number | manual_step`)
+- `Status`
+- `Next`
+- `Why`
+- `Command`
+
+`preflight` shape (when `/start` diagnostics are emitted):
+- `observed_at`
+- `checks` (array, max 5)
+- `available`
+- `missing`
+- `impact`
+- `next`
+
 When `status=blocked`, output SHOULD additionally include:
 - `reason_payload` (`status`, `reason_code`, `missing_evidence`, `recovery_steps`, `next_command`)
 - `quick_fix_commands` (1-3 commands or `['none']`)
