@@ -505,6 +505,17 @@ def check_phase21_ticket_goal_deferral_contract(issues: list[str]) -> None:
     if missing_rules:
         issues.append(f"rules.md: missing Phase-2.1 ticket-goal deferral tokens {missing_rules}")
 
+    master_additional = [
+        "if ticket goal is missing → remain in ARCHITECT-ready state (no early ticket prompt in Phase 2/2.1)",
+        "if ticket goal is missing: ARCHITECT-ready hold (await ticket or explicit continue command)",
+        "if ticket goal is missing: remain in ARCHITECT-ready state (no early ticket prompt in Phase 1.5/2.1)",
+    ]
+    missing_master_additional = [token for token in master_additional if token not in master]
+    if missing_master_additional:
+        issues.append(
+            f"master.md: missing no-early-ticket-prompt Phase-2/1.5 exit tokens {missing_master_additional}"
+        )
+
 
 def check_host_constraint_compat_mode_contract(issues: list[str]) -> None:
     master = read_text(ROOT / "master.md")
