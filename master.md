@@ -2293,9 +2293,10 @@ Output requirements (Binding):
      written | write-requested | not-applicable
 
 If file writing is not possible in the current environment:
- - set `InventoryFileStatus = write-requested`
- - set `InventoryFileMode = unknown`
- - still output the full content and target path so OpenCode or the user can persist it manually.
+  - set `InventoryFileStatus = write-requested`
+  - set `InventoryFileMode = unknown`
+  - still output the full content and target path so OpenCode or the user can persist it manually.
+  - MUST NOT redirect Business Rules persistence to `${WORKSPACE_MEMORY_FILE}` or `SESSION_STATE` fields as a substitute target.
 
 Update behavior (Binding):
 - If `${REPO_BUSINESS_RULES_FILE}` does not exist: `Mode = create`.

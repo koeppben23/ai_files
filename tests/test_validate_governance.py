@@ -3445,6 +3445,39 @@ def test_rules_use_canonical_repo_business_rules_file_reference():
 
 
 @pytest.mark.governance
+def test_business_rules_write_failure_does_not_redirect_to_workspace_memory_target():
+    master = read_text(REPO_ROOT / "master.md")
+    rules = read_text(REPO_ROOT / "rules.md")
+    start = read_text(REPO_ROOT / "start.md")
+    helper = read_text(REPO_ROOT / "diagnostics" / "persist_workspace_artifacts.py")
+
+    master_required = [
+        "MUST NOT redirect Business Rules persistence to `${WORKSPACE_MEMORY_FILE}` or `SESSION_STATE` fields as a substitute target.",
+    ]
+    rules_required = [
+        "No-fallback-target rule (binding):",
+        "MUST NOT be redirected to `workspace-memory.yaml`, `SESSION_STATE`, or any non-canonical artifact as a write fallback.",
+    ]
+    start_required = [
+        "MUST keep `${REPO_BUSINESS_RULES_FILE}` as target and MUST NOT redirect to `${WORKSPACE_MEMORY_FILE}`.",
+    ]
+    helper_required = [
+        "ERR-BUSINESS-RULES-PERSIST-WRITE-FAILED",
+        "business_rules_action = \"write-requested\"",
+    ]
+
+    missing_master = [t for t in master_required if t not in master]
+    missing_rules = [t for t in rules_required if t not in rules]
+    missing_start = [t for t in start_required if t not in start]
+    missing_helper = [t for t in helper_required if t not in helper]
+
+    assert not missing_master, "master.md missing business-rules no-redirect tokens:\n" + "\n".join([f"- {m}" for m in missing_master])
+    assert not missing_rules, "rules.md missing business-rules no-redirect tokens:\n" + "\n".join([f"- {m}" for m in missing_rules])
+    assert not missing_start, "start.md missing business-rules no-redirect tokens:\n" + "\n".join([f"- {m}" for m in missing_start])
+    assert not missing_helper, "persist_workspace_artifacts.py missing business-rules write-failure handling tokens:\n" + "\n".join([f"- {m}" for m in missing_helper])
+
+
+@pytest.mark.governance
 def test_error_logger_helper_exists_and_defines_required_log_shape():
     p = REPO_ROOT / "diagnostics" / "error_logs.py"
     assert p.exists(), "Missing diagnostics/error_logs.py"

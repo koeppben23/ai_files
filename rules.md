@@ -1538,6 +1538,10 @@ Non-blocking behavior:
   - set `InventoryFileStatus = write-requested`
   - provide the content and path so the user/OpenCode can persist it manually.
 
+No-fallback-target rule (binding):
+- The Business Rules inventory MUST NOT be redirected to `workspace-memory.yaml`, `SESSION_STATE`, or any non-canonical artifact as a write fallback.
+- If write fails, keep target `${REPO_BUSINESS_RULES_FILE}` and emit manual persistence instructions for that same target.
+
 ### 8.y Decision Pack File (OpenCode-only, Conditional, Binding)
 
 Purpose:
