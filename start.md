@@ -158,6 +158,7 @@ Output requirements:
 - `next_command` and `QuickFixCommands` SHOULD be fully runnable without placeholders when runtime evidence can derive concrete values.
 - Across lifecycle transitions, `session_run_id` and `ruleset_hash` MUST remain stable unless explicit rehydrate/reload is performed.
 - Every phase/mode transition MUST record a unique `transition_id` diagnostic entry.
+- On phase/mode changes, response SHOULD include a compact transition line: `[TRANSITION] <from> -> <to> | reason: <short reason>`.
 - At session start, include `[START-MODE] Cold Start | Warm Start - reason: ...` based on discovery artifact validity evidence.
 - Include `[SNAPSHOT]` block (`Confidence`, `Risk`, `Scope`) with values aligned to current `SESSION_STATE`.
 - If blocked, include `QuickFixCommands` with 1-3 copy-paste commands (or `["none"]` if not command-driven) when host constraints allow.

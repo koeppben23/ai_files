@@ -877,6 +877,11 @@ Required transition diagnostics payload:
 - `to` (`Phase` + `Mode`)
 - `reason` (one concise sentence)
 
+Compact transition line (recommended):
+- On phase/mode transitions, include a one-line summary:
+  - `[TRANSITION] <from> -> <to> | reason: <short reason>`
+- This line is informational and MUST stay consistent with transition diagnostics payload.
+
 ### 7.3.13 Smart Retry + Restart Guidance (Binding)
 
 For missing command diagnostics, output MUST include deterministic post-fix guidance.

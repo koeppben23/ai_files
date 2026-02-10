@@ -2137,6 +2137,32 @@ def test_next_action_wording_quality_contract_is_defined():
 
 
 @pytest.mark.governance
+def test_compact_transition_line_contract_is_defined():
+    master = read_text(REPO_ROOT / "master.md")
+    rules = read_text(REPO_ROOT / "rules.md")
+    start = read_text(REPO_ROOT / "start.md")
+
+    master_required = [
+        "On phase/mode changes, responses SHOULD include a compact one-line transition summary (`[TRANSITION] from -> to | reason: ...`)",
+    ]
+    rules_required = [
+        "Compact transition line (recommended):",
+        "`[TRANSITION] <from> -> <to> | reason: <short reason>`",
+    ]
+    start_required = [
+        "On phase/mode changes, response SHOULD include a compact transition line: `[TRANSITION] <from> -> <to> | reason: <short reason>`.",
+    ]
+
+    missing_master = [t for t in master_required if t not in master]
+    missing_rules = [t for t in rules_required if t not in rules]
+    missing_start = [t for t in start_required if t not in start]
+
+    assert not missing_master, "master.md missing transition-line tokens:\n" + "\n".join([f"- {m}" for m in missing_master])
+    assert not missing_rules, "rules.md missing transition-line tokens:\n" + "\n".join([f"- {m}" for m in missing_rules])
+    assert not missing_start, "start.md missing transition-line tokens:\n" + "\n".join([f"- {m}" for m in missing_start])
+
+
+@pytest.mark.governance
 def test_start_and_master_require_host_git_identity_discovery_before_operator_prompt():
     master = read_text(REPO_ROOT / "master.md")
     start = read_text(REPO_ROOT / "start.md")
