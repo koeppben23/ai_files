@@ -1278,6 +1278,7 @@ BINDING:
 Phase 2.1 ticket-goal policy (binding):
 - Phase 2.1 Decision Pack generation MUST NOT block on missing `ticketGoal`.
 - Missing `ticketGoal` at Phase 2.1 implies planning-only decisions based on repository evidence.
+- In Phase 1.5 / 2 / 2.1 / 3A / 3B, the assistant MUST NOT request "provide ticket" or "provide change request" as `NextAction`.
 - `ticketGoal` is REQUIRED at Phase 4 entry (Step 0) before implementation planning/code-producing work.
 - All output paths MUST be expressed as variable-based path expressions (e.g., `${REPO_DECISION_PACK_FILE}`), not OS-specific absolute paths.
 

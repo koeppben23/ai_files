@@ -495,6 +495,7 @@ def check_phase21_ticket_goal_deferral_contract(issues: list[str]) -> None:
     rules_required = [
         "Phase 2.1 ticket-goal policy (binding):",
         "Phase 2.1 Decision Pack generation MUST NOT block on missing `ticketGoal`.",
+        "In Phase 1.5 / 2 / 2.1 / 3A / 3B, the assistant MUST NOT request \"provide ticket\" or \"provide change request\" as `NextAction`.",
         "`ticketGoal` is REQUIRED at Phase 4 entry (Step 0)",
     ]
 
@@ -506,9 +507,9 @@ def check_phase21_ticket_goal_deferral_contract(issues: list[str]) -> None:
         issues.append(f"rules.md: missing Phase-2.1 ticket-goal deferral tokens {missing_rules}")
 
     master_additional = [
-        "if ticket goal is missing → remain in ARCHITECT-ready state (no early ticket prompt in Phase 2/2.1)",
-        "if ticket goal is missing: ARCHITECT-ready hold (await ticket or explicit continue command)",
-        "if ticket goal is missing: remain in ARCHITECT-ready state (no early ticket prompt in Phase 1.5/2.1)",
+        "otherwise → Phase 3A (auto-not-applicable path allowed) then continue to Phase 3B routing",
+        "ticket prompt is deferred until Phase 4 entry.",
+        "Otherwise: Proceed to Phase 3A (auto-not-applicable path allowed), then continue to Phase 3B routing",
     ]
     missing_master_additional = [token for token in master_additional if token not in master]
     if missing_master_additional:

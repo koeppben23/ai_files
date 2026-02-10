@@ -1818,6 +1818,7 @@ def test_phase21_does_not_require_ticket_goal_and_defers_mandatory_ticket_to_pha
     rules_required = [
         "Phase 2.1 ticket-goal policy (binding):",
         "Phase 2.1 Decision Pack generation MUST NOT block on missing `ticketGoal`.",
+        "In Phase 1.5 / 2 / 2.1 / 3A / 3B, the assistant MUST NOT request \"provide ticket\" or \"provide change request\" as `NextAction`.",
         "`ticketGoal` is REQUIRED at Phase 4 entry (Step 0)",
     ]
 
@@ -1835,9 +1836,9 @@ def test_phase21_does_not_require_ticket_goal_and_defers_mandatory_ticket_to_pha
 def test_phase2_and_phase15_do_not_force_ticket_prompt_without_ticket_goal():
     master = read_text(REPO_ROOT / "master.md")
     required_tokens = [
-        "if ticket goal is missing → remain in ARCHITECT-ready state (no early ticket prompt in Phase 2/2.1)",
-        "if ticket goal is missing: ARCHITECT-ready hold (await ticket or explicit continue command)",
-        "if ticket goal is missing: remain in ARCHITECT-ready state (no early ticket prompt in Phase 1.5/2.1)",
+        "otherwise → Phase 3A (auto-not-applicable path allowed) then continue to Phase 3B routing",
+        "ticket prompt is deferred until Phase 4 entry.",
+        "Otherwise: Proceed to Phase 3A (auto-not-applicable path allowed), then continue to Phase 3B routing",
     ]
     missing = [t for t in required_tokens if t not in master]
     assert not missing, "master.md missing no-early-ticket-prompt tokens for Phase 2/1.5 exits:\n" + "\n".join(
