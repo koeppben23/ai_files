@@ -1111,6 +1111,8 @@ Binding:
   - a planned test in the Change Matrix / plan, OR
   - an explicit exception with rationale (must be reviewed at Phase 5.4).
 - Phase 5.4 MUST NOT be marked `compliant` if unresolved gaps exist without explicit exceptions.
+- Repository documentation (`README*`, `CONTRIBUTING*`, `AGENTS*`, comments) MUST NOT be used as sole evidence for BR extraction.
+- README-only/documentation-only BRs MUST be marked `CANDIDATE` and MUST NOT count as extracted `ACTIVE` rules.
 
 Recommended session-state key (FULL mode):
 - `SESSION_STATE.BusinessRules`:

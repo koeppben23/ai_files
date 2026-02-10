@@ -2110,6 +2110,12 @@ SESSION_STATE updates (Binding when OpenCode applies):
 
 **Objective:** Extract and document business rules from the repository.
 
+Phase 1.5 evidence source contract (binding):
+* The assistant MUST read repository code/tests for Business Rules extraction.
+* Repository documentation (`README*`, `CONTRIBUTING*`, `AGENTS*`, comments) MAY be used as hints only.
+* README-only/documentation-only rules MUST NOT be counted as extracted business rules.
+* Any rule lacking repository code evidence MUST be marked `CANDIDATE` and excluded from `Business Rules Extracted` counts.
+
 **Actions:**
 
 1. **Scan for business logic:**

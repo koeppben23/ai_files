@@ -518,6 +518,29 @@ def check_phase21_ticket_goal_deferral_contract(issues: list[str]) -> None:
         )
 
 
+def check_phase15_repo_code_evidence_contract(issues: list[str]) -> None:
+    master = read_text(ROOT / "master.md")
+    rules = read_text(ROOT / "rules.md")
+
+    master_required = [
+        "Phase 1.5 evidence source contract (binding):",
+        "The assistant MUST read repository code/tests for Business Rules extraction.",
+        "README-only/documentation-only rules MUST NOT be counted as extracted business rules.",
+        "Any rule lacking repository code evidence MUST be marked `CANDIDATE`",
+    ]
+    rules_required = [
+        "Repository documentation (`README*`, `CONTRIBUTING*`, `AGENTS*`, comments) MUST NOT be used as sole evidence for BR extraction.",
+        "README-only/documentation-only BRs MUST be marked `CANDIDATE` and MUST NOT count as extracted `ACTIVE` rules.",
+    ]
+
+    missing_master = [token for token in master_required if token not in master]
+    missing_rules = [token for token in rules_required if token not in rules]
+    if missing_master:
+        issues.append(f"master.md: missing Phase-1.5 code-evidence tokens {missing_master}")
+    if missing_rules:
+        issues.append(f"rules.md: missing BR extraction evidence-source tokens {missing_rules}")
+
+
 def check_host_constraint_compat_mode_contract(issues: list[str]) -> None:
     master = read_text(ROOT / "master.md")
     rules = read_text(ROOT / "rules.md")
@@ -1099,6 +1122,7 @@ def main() -> int:
     check_response_contract_validator_presence(issues)
     check_phase2_repo_root_defaulting_contract(issues)
     check_phase21_ticket_goal_deferral_contract(issues)
+    check_phase15_repo_code_evidence_contract(issues)
     check_host_constraint_compat_mode_contract(issues)
     check_session_state_fenced_yaml_contract(issues)
 
