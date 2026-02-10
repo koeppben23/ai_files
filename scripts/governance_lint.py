@@ -757,7 +757,10 @@ def check_diagnostics_reason_contract_alignment(issues: list[str]) -> None:
     persist_required_tokens = [
         '"status": "blocked"',
         '"reason_code": "BLOCKED-WORKSPACE-PERSISTENCE"',
+        '"missing_evidence"',
         '"recovery_steps"',
+        '"required_operator_action"',
+        '"feedback_required"',
         '"next_command"',
     ]
     missing_persist = [token for token in persist_required_tokens if token not in persist]

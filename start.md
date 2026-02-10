@@ -125,7 +125,7 @@ def _log(reason_key,message,observed):
 if helper.exists():
     if not identity_map.exists():
         _log('ERR-WORKSPACE-PERSISTENCE-SKIPPED-NO-IDENTITY-EVIDENCE','/start workspace persistence skipped because repo identity map evidence is missing.',{'identityMap':str(identity_map)})
-        print(json.dumps({'workspacePersistenceHook':'warn','reason_code':'WARN-WORKSPACE-PERSISTENCE','reason':'skipped-no-identity-evidence','impact':'no repo-scoped persistence without validated identity evidence','recovery':'provide repo identity evidence and rerun /start'}))
+        print(json.dumps({'workspacePersistenceHook':'warn','reason_code':'WARN-WORKSPACE-PERSISTENCE','reason':'skipped-no-identity-evidence','impact':'no repo-scoped persistence without validated identity evidence','required_operator_action':'run bootstrap_session_state.py with explicit repo fingerprint, then rerun /start','feedback_required':'reply with the repo fingerprint used and whether bootstrap_session_state.py succeeded','next_command':'python diagnostics/bootstrap_session_state.py --repo-fingerprint <repo_fingerprint> --repo-name <repo_name>'}))
         raise SystemExit(0)
     run=subprocess.run([sys.executable,str(helper),'--repo-root',str(Path.cwd()),'--quiet'], text=True, capture_output=True, check=False)
     out=(run.stdout or '').strip()

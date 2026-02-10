@@ -537,11 +537,16 @@ def main() -> int:
                         "status": "blocked",
                         "reason": str(exc),
                         "reason_code": "BLOCKED-WORKSPACE-PERSISTENCE",
+                        "missing_evidence": [
+                            "repo fingerprint (provide --repo-fingerprint OR git metadata evidence OR global SESSION_STATE pointer)",
+                        ],
                         "recovery_steps": [
                             "provide --repo-fingerprint explicitly",
                             "or run from a git repository root with valid .git metadata",
                             "or ensure global SESSION_STATE pointer is available",
                         ],
+                        "required_operator_action": "run one recovery path and report back the chosen repo fingerprint",
+                        "feedback_required": "reply with the repo fingerprint used so persistence can resume deterministically",
                         "next_command": "python diagnostics/persist_workspace_artifacts.py --repo-fingerprint <repo_fingerprint> --repo-root <repo_root>",
                     },
                     ensure_ascii=True,

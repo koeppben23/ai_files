@@ -1733,7 +1733,10 @@ def test_workspace_persistence_quiet_blocked_payload_includes_reason_contract_fi
     payload = json.loads(r.stdout)
     assert payload.get("status") == "blocked"
     assert payload.get("reason_code") == "BLOCKED-WORKSPACE-PERSISTENCE"
+    assert isinstance(payload.get("missing_evidence"), list) and len(payload["missing_evidence"]) >= 1
     assert isinstance(payload.get("recovery_steps"), list) and len(payload["recovery_steps"]) >= 1
+    assert isinstance(payload.get("required_operator_action"), str) and payload["required_operator_action"].strip()
+    assert isinstance(payload.get("feedback_required"), str) and payload["feedback_required"].strip()
     assert isinstance(payload.get("next_command"), str) and payload["next_command"].strip()
 
 
@@ -1749,6 +1752,8 @@ def test_start_md_includes_workspace_persistence_autohook():
         "WARN-WORKSPACE-PERSISTENCE",
         "bootstrap-session-failed",
         "skipped-no-identity-evidence",
+        "required_operator_action",
+        "feedback_required",
         "ERR-WORKSPACE-PERSISTENCE-HOOK-MISSING",
     ]
     missing = [token for token in required_tokens if token not in text]
