@@ -1026,6 +1026,20 @@ Mode behavior:
 - If operator sets a persona mode explicitly, honor it until changed.
 - On mode change, acknowledge the selected mode in one concise line.
 
+### 7.3.19 Short-Intent Routing for Operator Questions (Binding)
+
+For short post-start operator questions, response routing SHOULD be intent-first.
+
+Supported intents (minimum):
+- `where_am_i` (phase/gate status)
+- `what_blocks_me` (active blocker + top recovery step)
+- `what_now` (single next action)
+
+Routing rules:
+- Return the matching intent response in 1-3 lines before optional diagnostics.
+- Preserve deterministic status vocabulary and NextAction coherence.
+- If intent cannot be mapped safely, fall back to normal strict/compat output.
+
 ### 7.4 Architecture Decision Output Template (Binding when proposing non-trivial architecture)
 
 When the assistant proposes a non-trivial architectural decision (boundaries, persistence approach, contract strategy, major dependency/tooling change, migration/rollout strategy), it MUST output a structured proposal:
