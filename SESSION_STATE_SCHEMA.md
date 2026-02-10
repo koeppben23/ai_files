@@ -201,22 +201,6 @@ If `ReportRef` is a file path (repo-aware mode), it MUST follow canonical path i
 
 If chat-only mode (no persistence), `ReportRef` MUST be `not-persisted`.
 
-### 2.1.4 Transition trace invariants (binding)
-
-To avoid lifecycle drift:
-- `SESSION_STATE.session_run_id` SHOULD be present and MUST remain stable until verify completion.
-- `SESSION_STATE.ruleset_hash` MUST remain stable unless explicit rehydrate/reload is performed.
-- `SESSION_STATE.ActivationDelta.AddonScanHash` and `SESSION_STATE.ActivationDelta.RepoFactsHash` SHOULD remain stable unless activation inputs changed.
-
-If the phase or mode changes, diagnostics MUST append a transition record:
-- `SESSION_STATE.Diagnostics.TransitionTrace[]` entries with:
-  - `transition_id` (unique string)
-  - `from_phase`
-  - `from_mode`
-  - `to_phase`
-  - `to_mode`
-  - `reason` (one concise sentence)
-
 ### 2.2 RepoFacts Capabilities (binding)
 
 `SESSION_STATE.RepoFacts` captures normalized capability facts used for deterministic activation.

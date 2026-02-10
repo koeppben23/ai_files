@@ -93,10 +93,6 @@ Bootstrap command preflight (binding):
 - If all required commands are present, `/start` should report `preflight: ok` and continue without interruption.
 - If commands are missing, `/start` should report `preflight: degraded` with missing command names and copy-paste install/recovery hints; block only if a downstream gate cannot be satisfied without the missing command.
 - If a missing command is installed later, rerunning `/start` MUST recompute the inventory from files and continue with refreshed PATH evidence.
-- Preflight MUST run in Phase `0` / `1.1`, with fresh probe signals only (`ttl=0`) and `observed_at` timestamp.
-- Preflight output MUST stay compact (max 5 checks) and use fixed keys: `available`, `missing`, `impact`, `next`.
-- Missing-command diagnostics MUST include `expected_after_fix`, `verify_command`, and `restart_hint`.
-- `restart_hint` MUST be deterministic: `restart_required_if_path_edited` or `no_restart_if_binary_in_existing_path`.
 
 !`python -c "import os,platform,subprocess,sys,json,importlib.util;from pathlib import Path
 
@@ -270,11 +266,6 @@ Host constraint acknowledgment:
 Output requirements:
 - Structured, phase-oriented output
 - Output envelope SHOULD comply with `diagnostics/RESPONSE_ENVELOPE_SCHEMA.json` (`status`, `session_state`, `next_action`, `snapshot`; plus blocker payload fields when blocked) when host constraints allow
-- `next_action.type` MUST be present and one of: `command`, `reply_with_one_number`, `manual_step`.
-- Status vocabulary MUST remain deterministic: `BLOCKED | WARN | OK | NOT_VERIFIED`.
-- `WARN` MUST NOT be used when required-gate evidence is missing (that case MUST be `BLOCKED`).
-- Responses MUST include compact phase progress from `SESSION_STATE`: `phase`, `active_gate`, `next_gate_condition`.
-- `WARN` may include `advisory_missing` only and MUST NOT emit blocker `RequiredInputs`.
 - Explicit SESSION_STATE
 - `SESSION_STATE` output MUST be formatted as fenced YAML (````yaml` + `SESSION_STATE:` payload)
 - `SESSION_STATE` output MUST NOT use placeholder tokens (`...`, `<...>`); use explicit unknown/deferred values instead
@@ -282,18 +273,11 @@ Output requirements:
 - Explicit DEVIATION reporting
 - Prefer structured (non-chat) answers when host constraints allow
 - End every response with `[NEXT-ACTION]` footer (`Status`, `Next`, `Why`, `Command`) per `master.md` (also required in COMPAT mode)
-- Exactly one `NextAction` mechanism is allowed per response: `command` OR `reply_with_one_number` OR `manual_step`.
 - If blocked, include the standard blocker envelope (`status`, `reason_code`, `missing_evidence`, `recovery_steps`, `next_command`) when host constraints allow
-- If blocked, use exactly one `reason_code`, one concrete recovery action sentence, and one primary copy-paste command.
-- Across lifecycle transitions, `session_run_id` and `ruleset_hash` MUST remain stable unless explicit rehydrate/reload is performed.
-- Every phase/mode transition MUST record a unique `transition_id` diagnostic entry.
 - At session start, include `[START-MODE] Cold Start | Warm Start - reason: ...` based on discovery artifact validity evidence.
 - Include `[SNAPSHOT]` block (`Confidence`, `Risk`, `Scope`) with values aligned to current `SESSION_STATE`.
 - If blocked, include `QuickFixCommands` with 1-3 copy-paste commands (or `["none"]` if not command-driven) when host constraints allow.
-- `QuickFixCommands` defaults to one command; use two only for explicit `macos_linux` vs `windows` splits.
 - If strict output formatting is host-constrained, response MUST include COMPAT sections: `RequiredInputs`, `Recovery`, and `NextAction` and set `DEVIATION.host_constraint = true`.
-- Response mode MUST be explicit and singular per turn: `STRICT` or `COMPAT`.
-- `STRICT` requires envelope + `[SNAPSHOT]` + `[NEXT-ACTION]`; `COMPAT` requires `RequiredInputs` + `Recovery` + `NextAction` + `[NEXT-ACTION]`.
 
 This file is the canonical governance entrypoint.
 

@@ -95,21 +95,12 @@
     "next_action": {
       "type": "object",
       "required": [
-        "type",
         "Status",
         "Next",
         "Why",
         "Command"
       ],
       "properties": {
-        "type": {
-          "type": "string",
-          "enum": [
-            "command",
-            "reply_with_one_number",
-            "manual_step"
-          ]
-        },
         "Status": {
           "type": "string"
         },
@@ -120,48 +111,6 @@
           "type": "string"
         },
         "Command": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": true
-    },
-    "preflight": {
-      "type": "object",
-      "required": [
-        "observed_at",
-        "checks",
-        "available",
-        "missing",
-        "impact",
-        "next"
-      ],
-      "properties": {
-        "observed_at": {
-          "type": "string"
-        },
-        "checks": {
-          "type": "array",
-          "maxItems": 5,
-          "items": {
-            "type": "string"
-          }
-        },
-        "available": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
-        "missing": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
-        "impact": {
-          "type": "string"
-        },
-        "next": {
           "type": "string"
         }
       },

@@ -203,15 +203,6 @@ Bootstrap tool preflight (binding):
 - The preflight result MUST be reported as structured diagnostics (`available`/`missing`) and MUST NOT block by itself.
 - If all required commands are available, `/start` MUST continue without a blocker.
 - If one or more commands are missing, `/start` MUST continue in degraded mode where possible and include recovery commands; block only when a later gate requires missing-tool-dependent evidence.
-- Preflight executes as Phase `0` / `1.1` and MUST use freshly observed signals only (no cache reuse).
-- Tool probe TTL is zero (`ttl=0`): every `/start` rerun MUST recompute probe results.
-- Preflight MUST include an `observed_at` timestamp and overwrite any previous preflight snapshot in `SESSION_STATE`.
-- Preflight output MUST remain compact: maximum 5 checks.
-- Preflight summary format is fixed to these keys: `available`, `missing`, `impact`, `next`.
-- Smart retry guidance is mandatory: missing-tool diagnostics MUST include `expected_after_fix` and `restart_hint`.
-- Restart guidance MUST be deterministic:
-  - `restart_required_if_path_edited`
-  - `no_restart_if_binary_in_existing_path`
 
 Required-command inventory derivation (binding):
 - `/start` MUST load a deterministic command inventory from `${COMMANDS_HOME}/diagnostics/tool_requirements.json` when present.
@@ -1023,9 +1014,6 @@ Rules:
 - Commands MUST correspond to the same blocker context (`reason_code`) and recovery steps.
 - If no command is applicable, emit `QuickFixCommands: ["none"]`.
 - Command coherence rule: `[NEXT-ACTION].Command`, blocker `next_command`, and `QuickFixCommands[0]` MUST be identical; if no command-driven recovery exists, all three MUST be `none`.
-- Default cardinality is one command.
-- Use two commands only for explicit OS split (`darwin/linux` vs `windows`) when syntax materially differs.
-- For OS split, prefix each command with `macos_linux:` or `windows:`.
 
 **Standard BLOCKED reasons + required input (binding):**
 
@@ -3427,16 +3415,10 @@ Response and output constraints are defined in `rules.md` (Core Rulebook).
 * Use code blocks for code snippets
 * Use structured blocks for reports ([PHASE-X-COMPLETE], [GATE-REPORT-PX], etc.)
 * Structured outputs from `/start` onward SHOULD conform to `diagnostics/RESPONSE_ENVELOPE_SCHEMA.json` when host constraints allow
-* Envelope-aligned NextAction typing is mandatory: `next_action.type = command | reply_with_one_number | manual_step`
 * Always update SESSION_STATE
 * Always document risks and blockers
 * Never fabricate: If information is missing, state "Not in the provided scope"
 * Never guess: If ambiguous, ask for clarification using the mandatory format (Section 2.3)
-* Governance status vocabulary is fixed: `BLOCKED | WARN | OK | NOT_VERIFIED`
-* WARN/blocked separation is strict: required missing evidence => BLOCKED (not WARN)
-* Each response MUST emit exactly one NextAction mechanism: `command` OR `reply_with_one_number` OR `manual_step`
-* Session transitions are invariant-checked: stable `session_run_id`, stable `ruleset_hash` unless explicit rehydrate, and transition trace entries with `transition_id`
-* Responses include compact phase progress derived from `SESSION_STATE` (`phase`, `active_gate`, `next_gate_condition`)
 
 Host-constraint compatibility (binding):
 * If host/system/developer instructions reject strict governance output formatting, use COMPAT mode.
@@ -3445,15 +3427,9 @@ Host-constraint compatibility (binding):
   - `RequiredInputs`
   - `Recovery`
   - `NextAction`
-* In COMPAT mode, `NextAction` MUST still resolve to exactly one mechanism (`command` | `reply_with_one_number` | `manual_step`).
 * If `SESSION_STATE` is emitted, it MUST still be rendered as fenced YAML (format-stable machine-readable state block).
 * `SESSION_STATE` blocks MUST NOT use placeholder tokens (`...`, `<...>`); unknown fields must be explicit (`unknown|deferred|not-applicable`).
 * COMPAT mode MUST still emit a `[NEXT-ACTION]` block with `Status`, `Next`, `Why`, and `Command` fields.
-
-Strict/compat mode matrix (binding):
-* STRICT (default when host allows): envelope + `[SNAPSHOT]` + `[NEXT-ACTION]` (+ blocker envelope/QuickFixCommands when blocked).
-* COMPAT (`DEVIATION.host_constraint = true`): `RequiredInputs` + `Recovery` + `NextAction` + `[NEXT-ACTION]`; deterministic gates/evidence remain identical.
-* Each response MUST declare exactly one output mode (`STRICT` or `COMPAT`).
 
 ---
 
