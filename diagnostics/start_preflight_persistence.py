@@ -55,6 +55,34 @@ def identity_map_exists(repo_fp: str | None) -> bool:
     return legacy_identity_map().exists()
 
 
+def resolve_repo_root() -> Path:
+    env_candidates = [
+        os.getenv("OPENCODE_REPO_ROOT"),
+        os.getenv("OPENCODE_WORKSPACE_ROOT"),
+        os.getenv("REPO_ROOT"),
+        os.getenv("GITHUB_WORKSPACE"),
+    ]
+    for candidate in env_candidates:
+        if not candidate:
+            continue
+        path = Path(candidate).expanduser().resolve()
+        if path.exists() and (path / ".git").exists():
+            return path
+    return Path.cwd().resolve()
+
+
+def pointer_fingerprint() -> str | None:
+    pointer = load_json(ROOT / "SESSION_STATE.json")
+    if not isinstance(pointer, dict):
+        return None
+    if pointer.get("schema") != "opencode-session-pointer.v1":
+        return None
+    fp = pointer.get("activeRepoFingerprint")
+    if isinstance(fp, str) and fp.strip():
+        return fp.strip()
+    return None
+
+
 def load_json(path: Path) -> dict | None:
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
@@ -262,8 +290,8 @@ def log_error(reason_key: str, message: str, observed: dict) -> None:
 
 
 def bootstrap_identity_if_needed() -> bool:
-    repo_root = Path.cwd().resolve()
-    inferred_fp = derive_repo_fingerprint(repo_root)
+    repo_root = resolve_repo_root()
+    inferred_fp = derive_repo_fingerprint(repo_root) or pointer_fingerprint()
 
     if identity_map_exists(inferred_fp):
         return True
@@ -277,7 +305,7 @@ def bootstrap_identity_if_needed() -> bool:
                     "reason_code": "WARN-WORKSPACE-PERSISTENCE",
                     "reason": "identity-bootstrap-fingerprint-missing",
                     "impact": "workspace artifacts skipped for this turn (bootstrap can continue)",
-                    "recovery": "rerun /start from repository root or provide explicit repo fingerprint",
+                    "recovery": "rerun /start from repository root or set OPENCODE_REPO_ROOT to the repo root",
                 }
             )
         )
@@ -389,8 +417,8 @@ def run_persistence_hook() -> None:
     if not bootstrap_identity_if_needed():
         return
 
-    repo_root = Path.cwd().resolve()
-    repo_fp = derive_repo_fingerprint(repo_root)
+    repo_root = resolve_repo_root()
+    repo_fp = derive_repo_fingerprint(repo_root) or pointer_fingerprint()
     if not repo_fp:
         print(
             json.dumps(
@@ -399,7 +427,7 @@ def run_persistence_hook() -> None:
                     "reason_code": "WARN-WORKSPACE-PERSISTENCE",
                     "reason": "repo-root-not-git",
                     "impact": "workspace artifact backfill skipped for this turn",
-                    "recovery": "run /start from repository root",
+                    "recovery": "run /start from repository root or set OPENCODE_REPO_ROOT",
                 }
             )
         )
