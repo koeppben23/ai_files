@@ -819,6 +819,20 @@ Single-next-action rule:
   - `manual_step`.
 - The selected mechanism MUST align with `[NEXT-ACTION].Command` and blocker `next_command` when blocked.
 
+### 7.3.12 Session Transition Invariants (Binding)
+
+To prevent state drift across `/start` -> `Implement now` -> `Ingest evidence`:
+- `SESSION_STATE.session_run_id` MUST remain stable until verify completes.
+- `SESSION_STATE.ruleset_hash` MUST remain stable unless explicit rehydrate/reload is performed.
+- `SESSION_STATE.ActivationDelta.AddonScanHash` and `SESSION_STATE.ActivationDelta.RepoFactsHash` MUST remain stable unless activation inputs change.
+- Every phase/mode transition MUST record a unique `transition_id` in diagnostics.
+
+Required transition diagnostics payload:
+- `transition_id` (unique string)
+- `from` (`Phase` + `Mode`)
+- `to` (`Phase` + `Mode`)
+- `reason` (one concise sentence)
+
 ### 7.4 Architecture Decision Output Template (Binding when proposing non-trivial architecture)
 
 When the assistant proposes a non-trivial architectural decision (boundaries, persistence approach, contract strategy, major dependency/tooling change, migration/rollout strategy), it MUST output a structured proposal:
