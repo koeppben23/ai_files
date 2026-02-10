@@ -1746,8 +1746,8 @@ def test_start_md_includes_workspace_persistence_autohook():
         "bootstrap_session_state.py",
         "--repo-root",
         "workspacePersistenceHook",
-        "BLOCKED-WORKSPACE-PERSISTENCE",
-        "BLOCKED-SESSION-STATE-MISSING",
+        "WARN-WORKSPACE-PERSISTENCE",
+        "bootstrap-session-failed",
         "ERR-WORKSPACE-PERSISTENCE-HOOK-MISSING",
     ]
     missing = [token for token in required_tokens if token not in text]
@@ -1869,7 +1869,7 @@ def test_unified_next_action_footer_contract_is_defined_across_core_docs():
         "Footer values MUST be consistent with `SESSION_STATE.Mode`, `SESSION_STATE.Next`, and any emitted reason payloads.",
     ]
     start_required = [
-        "End every response with `[NEXT-ACTION]` footer (`Status`, `Next`, `Why`, `Command`) per `master.md`.",
+        "End every response with `[NEXT-ACTION]` footer (`Status`, `Next`, `Why`, `Command`) per `master.md` when host constraints allow",
     ]
 
     missing_master = [t for t in master_required if t not in master]
@@ -1905,7 +1905,7 @@ def test_standard_blocker_envelope_contract_is_defined_across_core_docs():
         "deterministically ordered (priority-first, then lexicographic)",
     ]
     start_required = [
-        "If blocked, include the standard blocker envelope (`status`, `reason_code`, `missing_evidence`, `recovery_steps`, `next_command`).",
+        "If blocked, include the standard blocker envelope (`status`, `reason_code`, `missing_evidence`, `recovery_steps`, `next_command`) when host constraints allow",
     ]
 
     missing_master = [t for t in master_required if t not in master]
@@ -2004,7 +2004,7 @@ def test_quick_fix_commands_contract_is_defined_across_core_docs():
         "Command coherence rule: `[NEXT-ACTION].Command`, blocker `next_command`, and `QuickFixCommands[0]` MUST match exactly",
     ]
     start_required = [
-        "If blocked, include `QuickFixCommands` with 1-3 copy-paste commands (or `[\"none\"]` if not command-driven).",
+        "If blocked, include `QuickFixCommands` with 1-3 copy-paste commands (or `[\"none\"]` if not command-driven) when host constraints allow.",
     ]
 
     missing_master = [t for t in master_required if t not in master]
@@ -2014,6 +2014,46 @@ def test_quick_fix_commands_contract_is_defined_across_core_docs():
     assert not missing_master, "master.md missing quick-fix command tokens:\n" + "\n".join([f"- {m}" for m in missing_master])
     assert not missing_rules, "rules.md missing quick-fix command tokens:\n" + "\n".join([f"- {m}" for m in missing_rules])
     assert not missing_start, "start.md missing quick-fix command tokens:\n" + "\n".join([f"- {m}" for m in missing_start])
+
+
+@pytest.mark.governance
+def test_host_constraint_compat_mode_contract_is_defined_across_core_docs():
+    master = read_text(REPO_ROOT / "master.md")
+    rules = read_text(REPO_ROOT / "rules.md")
+    start = read_text(REPO_ROOT / "start.md")
+
+    master_required = [
+        "Host-constraint compatibility (binding):",
+        "DEVIATION.host_constraint = true",
+        "RequiredInputs",
+        "Recovery",
+        "NextAction",
+    ]
+    rules_required = [
+        "### 7.3.8 Host Constraint Compatibility Mode (Binding)",
+        "DEVIATION.host_constraint = true",
+        "COMPAT response shape (minimum required sections):",
+        "RequiredInputs",
+        "Recovery",
+        "NextAction",
+    ]
+    start_required = [
+        "If strict output formatting is host-constrained, response MUST include COMPAT sections: `RequiredInputs`, `Recovery`, and `NextAction` and set `DEVIATION.host_constraint = true`.",
+    ]
+
+    missing_master = [t for t in master_required if t not in master]
+    missing_rules = [t for t in rules_required if t not in rules]
+    missing_start = [t for t in start_required if t not in start]
+
+    assert not missing_master, "master.md missing host-constraint compat tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_master]
+    )
+    assert not missing_rules, "rules.md missing host-constraint compat tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_rules]
+    )
+    assert not missing_start, "start.md missing host-constraint compat tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_start]
+    )
 
 
 @pytest.mark.governance

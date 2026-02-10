@@ -3380,11 +3380,19 @@ Response and output constraints are defined in `rules.md` (Core Rulebook).
 * Responses must be concise and structured
 * Use code blocks for code snippets
 * Use structured blocks for reports ([PHASE-X-COMPLETE], [GATE-REPORT-PX], etc.)
-* Structured outputs from `/start` onward MUST conform to `diagnostics/RESPONSE_ENVELOPE_SCHEMA.json`
+* Structured outputs from `/start` onward SHOULD conform to `diagnostics/RESPONSE_ENVELOPE_SCHEMA.json` when host constraints allow
 * Always update SESSION_STATE
 * Always document risks and blockers
 * Never fabricate: If information is missing, state "Not in the provided scope"
 * Never guess: If ambiguous, ask for clarification using the mandatory format (Section 2.3)
+
+Host-constraint compatibility (binding):
+* If host/system/developer instructions reject strict governance output formatting, use COMPAT mode.
+* COMPAT mode MUST preserve deterministic gate/evidence behavior and MUST emit:
+  - `DEVIATION.host_constraint = true`
+  - `RequiredInputs`
+  - `Recovery`
+  - `NextAction`
 
 ---
 

@@ -506,6 +506,41 @@ def check_phase21_ticket_goal_deferral_contract(issues: list[str]) -> None:
         issues.append(f"rules.md: missing Phase-2.1 ticket-goal deferral tokens {missing_rules}")
 
 
+def check_host_constraint_compat_mode_contract(issues: list[str]) -> None:
+    master = read_text(ROOT / "master.md")
+    rules = read_text(ROOT / "rules.md")
+    start = read_text(ROOT / "start.md")
+
+    master_required = [
+        "Host-constraint compatibility (binding):",
+        "DEVIATION.host_constraint = true",
+        "RequiredInputs",
+        "Recovery",
+        "NextAction",
+    ]
+    rules_required = [
+        "### 7.3.8 Host Constraint Compatibility Mode (Binding)",
+        "DEVIATION.host_constraint = true",
+        "COMPAT response shape (minimum required sections):",
+        "RequiredInputs",
+        "Recovery",
+        "NextAction",
+    ]
+    start_required = [
+        "If strict output formatting is host-constrained, response MUST include COMPAT sections: `RequiredInputs`, `Recovery`, and `NextAction` and set `DEVIATION.host_constraint = true`.",
+    ]
+
+    missing_master = [token for token in master_required if token not in master]
+    missing_rules = [token for token in rules_required if token not in rules]
+    missing_start = [token for token in start_required if token not in start]
+    if missing_master:
+        issues.append(f"master.md: missing host-constraint compat tokens {missing_master}")
+    if missing_rules:
+        issues.append(f"rules.md: missing host-constraint compat tokens {missing_rules}")
+    if missing_start:
+        issues.append(f"start.md: missing host-constraint compat tokens {missing_start}")
+
+
 def check_required_addon_references(issues: list[str]) -> None:
     manifests = sorted((ROOT / "profiles" / "addons").glob("*.addon.yml"))
     for manifest in manifests:
@@ -792,7 +827,7 @@ def check_unified_next_action_footer_contract(issues: list[str]) -> None:
         "Footer values MUST be consistent with `SESSION_STATE.Mode`, `SESSION_STATE.Next`, and any emitted reason payloads.",
     ]
     start_required = [
-        "End every response with `[NEXT-ACTION]` footer (`Status`, `Next`, `Why`, `Command`) per `master.md`.",
+        "End every response with `[NEXT-ACTION]` footer (`Status`, `Next`, `Why`, `Command`) per `master.md` when host constraints allow",
     ]
 
     missing_master = [t for t in master_required if t not in master]
@@ -829,7 +864,7 @@ def check_standard_blocker_envelope_contract(issues: list[str]) -> None:
         "deterministically ordered (priority-first, then lexicographic)",
     ]
     start_required = [
-        "If blocked, include the standard blocker envelope (`status`, `reason_code`, `missing_evidence`, `recovery_steps`, `next_command`).",
+        "If blocked, include the standard blocker envelope (`status`, `reason_code`, `missing_evidence`, `recovery_steps`, `next_command`) when host constraints allow",
     ]
 
     missing_master = [t for t in master_required if t not in master]
@@ -925,7 +960,7 @@ def check_quick_fix_commands_contract(issues: list[str]) -> None:
         "Command coherence rule: `[NEXT-ACTION].Command`, blocker `next_command`, and `QuickFixCommands[0]` MUST match exactly",
     ]
     start_required = [
-        "If blocked, include `QuickFixCommands` with 1-3 copy-paste commands (or `[\"none\"]` if not command-driven).",
+        "If blocked, include `QuickFixCommands` with 1-3 copy-paste commands (or `[\"none\"]` if not command-driven) when host constraints allow.",
     ]
 
     missing_master = [t for t in master_required if t not in master]
@@ -1011,6 +1046,7 @@ def main() -> int:
     check_response_contract_validator_presence(issues)
     check_phase2_repo_root_defaulting_contract(issues)
     check_phase21_ticket_goal_deferral_contract(issues)
+    check_host_constraint_compat_mode_contract(issues)
 
     if issues:
         print("Governance lint FAILED:")

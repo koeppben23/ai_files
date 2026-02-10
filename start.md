@@ -123,7 +123,7 @@ if helper.exists():
     run=subprocess.run([sys.executable,str(helper),'--repo-root',str(Path.cwd()),'--quiet'], text=True, capture_output=True, check=False)
     out=(run.stdout or '').strip()
     err=(run.stderr or '').strip()
-    if out and run.returncode==0:
+    if run.returncode==0 and out:
         try:
             payload=json.loads(out)
         except Exception:
@@ -137,21 +137,22 @@ if helper.exists():
                 else:
                     b_err=(b_run.stderr or '')[:240]
                     _log('ERR-SESSION-BOOTSTRAP-HOOK-FAILED','/start session bootstrap helper returned non-zero.',{'repoFingerprint':fp,'stderr':b_err})
-                    print(json.dumps({'workspacePersistenceHook':'blocked','reason_code':'BLOCKED-SESSION-STATE-MISSING','repoFingerprint':fp,'error':b_err,'next_command':'python diagnostics/bootstrap_session_state.py --repo-fingerprint <repo_fingerprint>'}))
+                    print(json.dumps({'workspacePersistenceHook':'warn','reason_code':'WARN-WORKSPACE-PERSISTENCE','reason':'bootstrap-session-failed','repoFingerprint':fp,'error':b_err,'impact':'repo-scoped SESSION_STATE may be incomplete','recovery':'python diagnostics/bootstrap_session_state.py --repo-fingerprint <repo_fingerprint>'}))
             else:
                 print(out)
+        elif isinstance(payload,dict) and payload.get('status')=='blocked':
+            _log('ERR-WORKSPACE-PERSISTENCE-HOOK-BLOCKED','/start workspace persistence helper reported blocked output.',payload)
+            print(json.dumps({'workspacePersistenceHook':'warn','reason_code':'WARN-WORKSPACE-PERSISTENCE','reason':'helper-reported-blocked','helperPayload':payload,'impact':'workspace artifacts may be incomplete','recovery':'python diagnostics/persist_workspace_artifacts.py --repo-root <repo_root>'}))
         else:
             print(out)
-    elif out:
-        print(out)
     elif run.returncode==0:
         print(json.dumps({'workspacePersistenceHook':'ok'}))
     else:
         _log('ERR-WORKSPACE-PERSISTENCE-HOOK-FAILED','/start workspace persistence helper returned non-zero.',{'returncode':run.returncode,'stderr':err[:240]})
-        print(json.dumps({'workspacePersistenceHook':'blocked','reason_code':'BLOCKED-WORKSPACE-PERSISTENCE','code':run.returncode,'error':err[:240]}))
+        print(json.dumps({'workspacePersistenceHook':'warn','reason_code':'WARN-WORKSPACE-PERSISTENCE','reason':'helper-failed','code':run.returncode,'error':err[:240],'impact':'workspace artifacts may be incomplete','recovery':'python diagnostics/persist_workspace_artifacts.py --repo-root <repo_root>'}))
 else:
     _log('ERR-WORKSPACE-PERSISTENCE-HOOK-MISSING','/start workspace persistence helper is missing from diagnostics payload.',{'helper':str(helper)})
-    print(json.dumps({'workspacePersistenceHook':'blocked','reason_code':'BLOCKED-WORKSPACE-PERSISTENCE','reason':'helper-missing','next_command':'python diagnostics/persist_workspace_artifacts.py --repo-root <repo_root>'}))"`
+    print(json.dumps({'workspacePersistenceHook':'warn','reason_code':'WARN-WORKSPACE-PERSISTENCE','reason':'helper-missing','impact':'workspace artifacts may be incomplete','recovery':'python diagnostics/persist_workspace_artifacts.py --repo-root <repo_root>'}))"`
 
 Binding evidence semantics (binding):
 - Only an existing installer-owned `${COMMANDS_HOME}/governance.paths.json` qualifies as canonical binding evidence.
@@ -241,16 +242,17 @@ Host constraint acknowledgment:
 
 Output requirements:
 - Structured, phase-oriented output
-- Output envelope MUST comply with `diagnostics/RESPONSE_ENVELOPE_SCHEMA.json` (`status`, `session_state`, `next_action`, `snapshot`; plus blocker payload fields when blocked)
+- Output envelope SHOULD comply with `diagnostics/RESPONSE_ENVELOPE_SCHEMA.json` (`status`, `session_state`, `next_action`, `snapshot`; plus blocker payload fields when blocked) when host constraints allow
 - Explicit SESSION_STATE
 - Explicit Gates
 - Explicit DEVIATION reporting
-- No chat-style answers
-- End every response with `[NEXT-ACTION]` footer (`Status`, `Next`, `Why`, `Command`) per `master.md`.
-- If blocked, include the standard blocker envelope (`status`, `reason_code`, `missing_evidence`, `recovery_steps`, `next_command`).
+- Prefer structured (non-chat) answers when host constraints allow
+- End every response with `[NEXT-ACTION]` footer (`Status`, `Next`, `Why`, `Command`) per `master.md` when host constraints allow
+- If blocked, include the standard blocker envelope (`status`, `reason_code`, `missing_evidence`, `recovery_steps`, `next_command`) when host constraints allow
 - At session start, include `[START-MODE] Cold Start | Warm Start - reason: ...` based on discovery artifact validity evidence.
 - Include `[SNAPSHOT]` block (`Confidence`, `Risk`, `Scope`) with values aligned to current `SESSION_STATE`.
-- If blocked, include `QuickFixCommands` with 1-3 copy-paste commands (or `["none"]` if not command-driven).
+- If blocked, include `QuickFixCommands` with 1-3 copy-paste commands (or `["none"]` if not command-driven) when host constraints allow.
+- If strict output formatting is host-constrained, response MUST include COMPAT sections: `RequiredInputs`, `Recovery`, and `NextAction` and set `DEVIATION.host_constraint = true`.
 
 This file is the canonical governance entrypoint.
 
