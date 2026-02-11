@@ -45,6 +45,15 @@ class SessionStateMigrationResult:
 
 
 @dataclass(frozen=True)
+class SessionStateLoadResult:
+    """Structured repository load result for deterministic warning propagation."""
+
+    document: dict[str, Any] | None
+    warning_reason_code: str
+    warning_detail: str
+
+
+@dataclass(frozen=True)
 class SessionStateCompatibilityError(Exception):
     """Fail-closed exception for unsupported legacy SESSION_STATE usage."""
 
@@ -72,19 +81,39 @@ class SessionStateRepository:
         self.legacy_compat_mode = (
             _read_legacy_compat_mode_from_env() if legacy_compat_mode is None else legacy_compat_mode
         )
+        # Backward-compatible side-channel retained while callers migrate to
+        # `load_with_result()`.
         self.last_warning_reason_code = REASON_CODE_NONE
 
     def load(self) -> dict[str, Any] | None:
-        """Load a JSON document, returning None when the file is absent."""
+        """Load a JSON document, returning None when the file is absent.
+
+        Prefer `load_with_result()` for structured warning propagation.
+        """
+
+        result = self.load_with_result()
+        self.last_warning_reason_code = result.warning_reason_code
+        return result.document
+
+    def load_with_result(self) -> SessionStateLoadResult:
+        """Load one document and return structured warning metadata."""
 
         self.last_warning_reason_code = REASON_CODE_NONE
         if not self.path.exists():
-            return None
+            return SessionStateLoadResult(
+                document=None,
+                warning_reason_code=REASON_CODE_NONE,
+                warning_detail="",
+            )
         payload = json.loads(self.path.read_text(encoding="utf-8"))
         if not isinstance(payload, dict):
             raise ValueError("session state payload must be a JSON object")
         if self.rollout_phase == ROLLOUT_PHASE_DUAL_READ:
-            return _normalize_dual_read_aliases(payload)
+            return SessionStateLoadResult(
+                document=_normalize_dual_read_aliases(payload),
+                warning_reason_code=REASON_CODE_NONE,
+                warning_detail="",
+            )
         if self.rollout_phase >= ROLLOUT_PHASE_ENGINE_ONLY:
             legacy_fields = _legacy_alias_fields(payload)
             if legacy_fields:
@@ -96,9 +125,20 @@ class SessionStateRepository:
                             f"(fields={','.join(legacy_fields)})"
                         ),
                     )
-                self.last_warning_reason_code = WARN_SESSION_STATE_LEGACY_COMPAT_MODE
-                return _normalize_dual_read_aliases(payload)
-        return payload
+                detail = (
+                    "legacy SESSION_STATE aliases accepted in explicit compatibility mode "
+                    f"(fields={','.join(legacy_fields)})"
+                )
+                return SessionStateLoadResult(
+                    document=_normalize_dual_read_aliases(payload),
+                    warning_reason_code=WARN_SESSION_STATE_LEGACY_COMPAT_MODE,
+                    warning_detail=detail,
+                )
+        return SessionStateLoadResult(
+            document=payload,
+            warning_reason_code=REASON_CODE_NONE,
+            warning_detail="",
+        )
 
     def save(self, document: dict[str, Any]) -> None:
         """Persist one JSON document in deterministic formatting.
@@ -177,7 +217,7 @@ def _read_legacy_compat_mode_from_env() -> bool:
     normalized = raw.strip().lower()
     if normalized in {"1", "true", "yes", "on"}:
         return True
-    if normalized in {"0", "false", "no", "off", ""}:
+    if normalized in {"0", "false", "no", "off"}:
         return False
     raise ValueError(
         f"invalid {ENV_SESSION_STATE_LEGACY_COMPAT_MODE} value: {raw!r}; expected true/false"

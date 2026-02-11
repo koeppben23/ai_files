@@ -18,6 +18,7 @@ from governance.engine.session_state_repository import (
     ROLLOUT_PHASE_DUAL_READ,
     ROLLOUT_PHASE_ENGINE_ONLY,
     SessionStateCompatibilityError,
+    SessionStateLoadResult,
     SessionStateRepository,
     migrate_session_state_document,
     session_state_hash,
@@ -319,6 +320,29 @@ def test_phase2_compat_mode_allows_legacy_read_and_sets_warning_reason_code(tmp_
 
 
 @pytest.mark.governance
+def test_phase2_compat_mode_load_with_result_returns_structured_warning(tmp_path: Path):
+    """Structured load result should carry warning code and detail."""
+
+    path = tmp_path / "workspaces" / "abc" / "SESSION_STATE.json"
+    repo = SessionStateRepository(
+        path,
+        rollout_phase=ROLLOUT_PHASE_ENGINE_ONLY,
+        legacy_compat_mode=True,
+    )
+    legacy = _session_state_doc()
+    legacy["SESSION_STATE"]["RepoModel"] = {"legacy": True}
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(session_repo_module.json.dumps(legacy), encoding="utf-8")
+
+    result = repo.load_with_result()
+    assert isinstance(result, SessionStateLoadResult)
+    assert result.document is not None
+    assert result.document["SESSION_STATE"]["RepoMapDigest"] == {"legacy": True}
+    assert result.warning_reason_code == WARN_SESSION_STATE_LEGACY_COMPAT_MODE
+    assert "compatibility mode" in result.warning_detail
+
+
+@pytest.mark.governance
 def test_phase2_compat_mode_reads_from_environment_variable(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     """Compatibility mode can be enabled explicitly via environment switch."""
 
@@ -341,6 +365,18 @@ def test_phase2_compat_mode_invalid_environment_value_fails_closed(tmp_path: Pat
     """Invalid compatibility switch values should fail closed at repository setup."""
 
     monkeypatch.setenv(ENV_SESSION_STATE_LEGACY_COMPAT_MODE, "definitely")
+    path = tmp_path / "workspaces" / "abc" / "SESSION_STATE.json"
+
+    with pytest.raises(ValueError) as exc_info:
+        SessionStateRepository(path, rollout_phase=ROLLOUT_PHASE_ENGINE_ONLY)
+    assert ENV_SESSION_STATE_LEGACY_COMPAT_MODE in str(exc_info.value)
+
+
+@pytest.mark.governance
+def test_phase2_compat_mode_empty_environment_value_fails_closed(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """Empty compatibility mode env values should be rejected as invalid."""
+
+    monkeypatch.setenv(ENV_SESSION_STATE_LEGACY_COMPAT_MODE, "")
     path = tmp_path / "workspaces" / "abc" / "SESSION_STATE.json"
 
     with pytest.raises(ValueError) as exc_info:

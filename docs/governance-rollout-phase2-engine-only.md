@@ -20,12 +20,15 @@ transitional reads.
 - Explicit compatibility mode can be enabled in phase 2+:
   - config flag: `SessionStateRepository(..., legacy_compat_mode=True)`
   - env flag: `GOVERNANCE_SESSION_STATE_LEGACY_COMPAT_MODE=true`
-  - behavior: allows legacy read normalization and records warning reason code
-    `WARN-SESSION-STATE-LEGACY-COMPAT-MODE` in
-    `SessionStateRepository.last_warning_reason_code`
+  - behavior: allows legacy read normalization and emits
+    `WARN-SESSION-STATE-LEGACY-COMPAT-MODE` through structured load metadata via
+    `SessionStateRepository.load_with_result()`
+  - backward compatibility: `SessionStateRepository.load()` still mirrors the same
+    warning into `SessionStateRepository.last_warning_reason_code`
 
 - Fail-closed guardrails:
   - invalid environment values for the compatibility switch raise `ValueError`
+    (including empty string values)
   - unsupported legacy aliases in engine-only mode raise
     `SessionStateCompatibilityError` with canonical reason code and detail
 
@@ -41,8 +44,8 @@ python3 scripts/governance_lint.py
 
 Results:
 
-- targeted tests: `21 passed`
-- full suite: `293 passed, 1 skipped`
+- targeted tests: `23 passed`
+- full suite: `295 passed, 1 skipped`
 - governance lint: `OK`
 
 ## Notes
