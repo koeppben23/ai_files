@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any, cast
+
 import pytest
 
 from governance.render.delta_renderer import build_delta_state
@@ -58,8 +60,42 @@ def test_render_contract_preserves_header_and_applies_budget_guard():
         previous_state_hash="a",
         current_state_hash="b",
     )
+    output = cast(dict[str, Any], output)
     assert output["header"]["status"] == "OK"
     assert output["header"]["phase_gate"] == "P4-Entry"
     assert output["header"]["primary_next_action"] == "Run deterministic checks."
     assert output["delta"]["delta_mode"] == "delta-only"
     assert output["details"] == {"required_fact": "kept"}
+
+
+@pytest.mark.governance
+def test_render_contract_builds_fixed_operator_view_and_reason_action_card():
+    """Operator view and reason card should use fixed keys and stable ordering."""
+
+    output = build_two_layer_output(
+        status="BLOCKED",
+        phase_gate="P1.1-bootstrap.preflight",
+        primary_action="Make python available.",
+        mode="compact",
+        details={"required_fact": "kept"},
+        previous_state_hash="x",
+        current_state_hash="x",
+        phase="1.1",
+        active_gate="bootstrap.preflight",
+        phase_progress_bar="[#-----] 1/6",
+        reason_code="BLOCKED-PREFLIGHT-REQUIRED-NOW-MISSING",
+        next_command="python3 --version",
+        missing_items=["python"],
+    )
+    output = cast(dict[str, Any], output)
+
+    assert list(output["operator_view"].keys()) == [
+        "PHASE_GATE",
+        "STATUS",
+        "PRIMARY_REASON",
+        "NEXT_COMMAND",
+    ]
+    assert output["operator_view"]["PHASE_GATE"] == "1.1 | bootstrap.preflight | [#-----] 1/6"
+    assert output["operator_view"]["STATUS"] == "BLOCKED"
+    assert output["operator_view"]["PRIMARY_REASON"] == "BLOCKED-PREFLIGHT-REQUIRED-NOW-MISSING"
+    assert output["reason_to_action"]["what_missing"] == ("python",)
