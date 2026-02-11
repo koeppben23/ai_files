@@ -1,0 +1,262 @@
+name: Governance PR Gate (Shadow -> Live -> Verify)
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: governance-pr-gate-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  shadow-evaluate:
+    name: Shadow Evaluate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Shadow gate evaluation (read-only)
+        run: |
+          set -euo pipefail
+          mkdir -p diagnostics/shadow
+          python3 scripts/build_ruleset_lock.py --ruleset-id default --version 0.0.0-shadow --output-root diagnostics/shadow
+          python3 - <<'PY'
+          import json
+          import pathlib
+
+          hash_path = pathlib.Path("diagnostics/shadow/default/0.0.0-shadow/hashes.json")
+          ruleset_hash = json.loads(hash_path.read_text(encoding="utf-8"))["ruleset_hash"]
+          out = {
+            "status": "SHADOW",
+            "phase": "1.1",
+            "active_gate": "bootstrap.preflight",
+            "activation_hash": ruleset_hash,
+            "ruleset_hash": ruleset_hash,
+            "notes": "read-only shadow stage"
+          }
+          pathlib.Path("diagnostics/shadow/shadow.json").write_text(json.dumps(out, indent=2) + "\n", encoding="utf-8")
+          PY
+
+      - name: Upload shadow artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: governance-shadow-artifacts
+          path: diagnostics/shadow/shadow.json
+
+  live-verify:
+    name: Live Verify
+    runs-on: ubuntu-latest
+    needs: [shadow-evaluate]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Execute tests and lint to generate evidence
+        run: |
+          set -euo pipefail
+          mkdir -p diagnostics/benchmark-evidence diagnostics/benchmark-results
+          if python3 -m pytest -q --junitxml diagnostics/benchmark-evidence/junit.xml; then
+            echo 0 > diagnostics/benchmark-evidence/pytest.exitcode
+          else
+            echo $? > diagnostics/benchmark-evidence/pytest.exitcode
+          fi
+          if python3 scripts/governance_lint.py; then
+            echo 0 > diagnostics/benchmark-evidence/governance_lint.exitcode
+          else
+            echo $? > diagnostics/benchmark-evidence/governance_lint.exitcode
+          fi
+          git fetch origin "${{ github.base_ref }}" --depth=1
+          git diff --name-status "origin/${{ github.base_ref }}...HEAD" > diagnostics/benchmark-evidence/drift.txt
+
+      - name: Run benchmark from evidence only
+        run: |
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import pathlib
+          import subprocess
+          import sys
+
+          cmd = [
+              sys.executable,
+              "scripts/run_quality_benchmark.py",
+              "--pack", "diagnostics/PYTHON_QUALITY_BENCHMARK_PACK.json",
+              "--review-mode",
+              "--evidence-dir", "diagnostics/benchmark-evidence",
+              "--output", "diagnostics/benchmark-results/live.json",
+              "--criterion-score", "PYR-1=0.9",
+              "--criterion-score", "PYR-2=0.9",
+              "--criterion-score", "PYR-3=0.9",
+              "--criterion-score", "PYR-4=0.9",
+              "--criterion-score", "PYR-5=0.9",
+          ]
+          proc = subprocess.run(cmd, check=False)
+          pathlib.Path("diagnostics/benchmark-results/live.exitcode").write_text(str(proc.returncode) + "\n", encoding="utf-8")
+
+          file_hashes = {}
+          for path in sorted(pathlib.Path("diagnostics/benchmark-evidence").glob("*")):
+              if path.is_file():
+                  file_hashes[str(path)] = hashlib.sha256(path.read_bytes()).hexdigest()
+          live_json = pathlib.Path("diagnostics/benchmark-results/live.json")
+          if live_json.exists():
+              file_hashes[str(live_json)] = hashlib.sha256(live_json.read_bytes()).hexdigest()
+          pathlib.Path("diagnostics/benchmark-results/hashes.json").write_text(
+              json.dumps(file_hashes, indent=2) + "\n",
+              encoding="utf-8",
+          )
+
+          live_hash = hashlib.sha256(live_json.read_bytes()).hexdigest() if live_json.exists() else ""
+          pathlib.Path("diagnostics/benchmark-results/live.sha256").write_text(live_hash + "\n", encoding="utf-8")
+          raise SystemExit(proc.returncode)
+          PY
+
+      - name: Upload live artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: governance-live-artifacts
+          path: |
+            diagnostics/benchmark-evidence/**
+            diagnostics/benchmark-results/live.json
+            diagnostics/benchmark-results/live.exitcode
+            diagnostics/benchmark-results/live.sha256
+            diagnostics/benchmark-results/hashes.json
+
+  reviewer-recompute:
+    name: Reviewer Recompute Gate
+    runs-on: ubuntu-latest
+    needs: [live-verify]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: governance-live-artifacts
+          path: diagnostics
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Recompute authoritative gate decision
+        run: |
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import pathlib
+          import subprocess
+          import sys
+
+          expected_hashes = json.loads(pathlib.Path("diagnostics/benchmark-results/hashes.json").read_text(encoding="utf-8"))
+          for raw_path, expected in sorted(expected_hashes.items()):
+              path = pathlib.Path(raw_path)
+              if not path.exists():
+                  print(f"BLOCKED-EVIDENCE-HASH-MISSING: {raw_path}", file=sys.stderr)
+                  raise SystemExit(1)
+              observed_hash = hashlib.sha256(path.read_bytes()).hexdigest()
+              if observed_hash != expected:
+                  print(f"BLOCKED-EVIDENCE-HASH-MISMATCH: {raw_path}", file=sys.stderr)
+                  print(json.dumps({"expected": expected, "observed": observed_hash}, ensure_ascii=True), file=sys.stderr)
+                  raise SystemExit(1)
+
+          cmd = [
+              sys.executable,
+              "scripts/run_quality_benchmark.py",
+              "--pack", "diagnostics/PYTHON_QUALITY_BENCHMARK_PACK.json",
+              "--review-mode",
+              "--evidence-dir", "diagnostics/benchmark-evidence",
+              "--output", "diagnostics/benchmark-results/review.json",
+              "--criterion-score", "PYR-1=0.9",
+              "--criterion-score", "PYR-2=0.9",
+              "--criterion-score", "PYR-3=0.9",
+              "--criterion-score", "PYR-4=0.9",
+              "--criterion-score", "PYR-5=0.9",
+          ]
+          proc = subprocess.run(cmd, check=False)
+
+          if proc.returncode == 0:
+              live_sha = pathlib.Path("diagnostics/benchmark-results/live.sha256").read_text(encoding="utf-8").strip()
+              review_sha = hashlib.sha256(pathlib.Path("diagnostics/benchmark-results/review.json").read_bytes()).hexdigest()
+              if live_sha != review_sha:
+                  print("BLOCKED-REVIEW-HASH-MISMATCH: reviewer recompute diverges from live result", file=sys.stderr)
+                  print(json.dumps({"live_sha256": live_sha, "review_sha256": review_sha}, ensure_ascii=True), file=sys.stderr)
+                  proc = subprocess.CompletedProcess(cmd, returncode=1)
+
+          pathlib.Path("diagnostics/benchmark-results/review.exitcode").write_text(str(proc.returncode) + "\n", encoding="utf-8")
+          raise SystemExit(proc.returncode)
+          PY
+
+      - name: Upload reviewer artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: governance-review-artifacts
+          path: |
+            diagnostics/benchmark-results/review.json
+            diagnostics/benchmark-results/review.exitcode
+
+  policy-diff:
+    name: Policy Diff
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Compute hash-level policy diff
+        run: |
+          set -euo pipefail
+          mkdir -p diagnostics/policy-diff
+          git fetch origin "${{ github.base_ref }}" --depth=1
+          git diff --name-only "origin/${{ github.base_ref }}...HEAD" > diagnostics/policy-diff/files.txt
+          git show "origin/${{ github.base_ref }}:master.md" > diagnostics/policy-diff/base.master.md
+          git show "origin/${{ github.base_ref }}:rules.md" > diagnostics/policy-diff/base.rules.md
+          git show "origin/${{ github.base_ref }}:start.md" > diagnostics/policy-diff/base.start.md
+          python3 scripts/build_ruleset_lock.py --ruleset-id default --version 0.0.0-head --output-root diagnostics/policy-diff
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import pathlib
+
+          root = pathlib.Path("diagnostics/policy-diff")
+          def _sha(path: pathlib.Path) -> str:
+              return hashlib.sha256(path.read_bytes()).hexdigest()
+
+          head_hashes = json.loads((root / "default" / "0.0.0-head" / "hashes.json").read_text(encoding="utf-8"))
+          activation_hash_base = hashlib.sha256(
+              (_sha(root / "base.master.md") + _sha(root / "base.rules.md") + _sha(root / "base.start.md")).encode("utf-8")
+          ).hexdigest()
+          activation_hash_head = hashlib.sha256(
+              (_sha(pathlib.Path("master.md")) + _sha(pathlib.Path("rules.md")) + _sha(pathlib.Path("start.md"))).encode("utf-8")
+          ).hexdigest()
+          payload = {
+            "activation_hash_base": activation_hash_base,
+            "activation_hash_head": activation_hash_head,
+            "activation_hash_changed": activation_hash_base != activation_hash_head,
+            "ruleset_hash_head": head_hashes["ruleset_hash"],
+            "changed_files": root.joinpath("files.txt").read_text(encoding="utf-8").splitlines(),
+          }
+          root.joinpath("policy-diff.json").write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+          PY
+
+      - name: Upload policy diff artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: governance-policy-diff-artifacts
+          path: diagnostics/policy-diff/**

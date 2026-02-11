@@ -57,6 +57,22 @@ def _parse_criterion_scores(values: list[str]) -> dict[str, float]:
     return scores
 
 
+def _derive_observed_claims_from_evidence_dir(evidence_dir: Path) -> set[str]:
+    required = ("pytest.exitcode", "governance_lint.exitcode", "drift.txt")
+    missing = [name for name in required if not (evidence_dir / name).exists()]
+    if missing:
+        raise ValueError(f"evidence dir missing required files: {', '.join(missing)}")
+
+    observed: set[str] = set()
+    if (evidence_dir / "pytest.exitcode").read_text(encoding="utf-8").strip() == "0":
+        observed.add("claim/tests-green")
+    if (evidence_dir / "governance_lint.exitcode").read_text(encoding="utf-8").strip() == "0":
+        observed.add("claim/static-clean")
+    if not (evidence_dir / "drift.txt").read_text(encoding="utf-8").strip():
+        observed.add("claim/no-drift")
+    return observed
+
+
 def run_benchmark(
     *,
     pack: dict[str, Any],
@@ -175,6 +191,16 @@ def main(argv: list[str] | None = None) -> int:
         help="Criterion score as CRITERION_ID=value in [0,1] (repeatable).",
     )
     parser.add_argument(
+        "--evidence-dir",
+        default="",
+        help="Optional evidence directory with pytest.exitcode/governance_lint.exitcode/drift.txt.",
+    )
+    parser.add_argument(
+        "--review-mode",
+        action="store_true",
+        help="Require evidence-only claim derivation (no --observed-claim injection).",
+    )
+    parser.add_argument(
         "--output",
         default="",
         help="Optional result output file path. If omitted, prints to stdout only.",
@@ -184,7 +210,18 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         pack = _load_json(Path(args.pack))
-        observed_claims = _parse_claim_list(args.observed_claim)
+        evidence_dir = Path(args.evidence_dir) if args.evidence_dir else None
+        if args.review_mode and evidence_dir is None:
+            raise ValueError("--review-mode requires --evidence-dir")
+        if evidence_dir is not None and args.observed_claim:
+            raise ValueError("--evidence-dir cannot be combined with --observed-claim")
+
+        observed_claims: set[str]
+        if evidence_dir is not None:
+            observed_claims = _derive_observed_claims_from_evidence_dir(evidence_dir)
+        else:
+            observed_claims = _parse_claim_list(args.observed_claim)
+
         stale_claims = _parse_claim_list(args.stale_claim)
         criterion_scores = _parse_criterion_scores(args.criterion_score)
         code, result = run_benchmark(

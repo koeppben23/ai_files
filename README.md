@@ -652,6 +652,7 @@ Reference runbook:
 
 - `docs/python-quality-benchmark-pack.md`
 - `docs/governance-pipeline-roles-template.md` (hardened CI role template)
+- `docs/governance-template-blueprints.md`
 
 ---
 

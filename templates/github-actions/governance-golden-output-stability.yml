@@ -1,0 +1,82 @@
+name: Governance Golden Output Stability
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  golden-output-stability:
+    name: Golden Output Stability
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Generate canonical intent outputs
+        run: |
+          set -euo pipefail
+          python3 scripts/generate_golden_outputs.py --repo-root . --output-dir diagnostics/goldens/current
+
+      - name: Compare against golden fixtures
+        run: |
+          set -euo pipefail
+          mkdir -p diagnostics/goldens/diff
+          if [ ! -d diagnostics/goldens/baseline ]; then
+            echo "BLOCKED-GOLDEN-BASELINE-MISSING: diagnostics/goldens/baseline is required"
+            exit 1
+          fi
+          diff -ru diagnostics/goldens/baseline diagnostics/goldens/current > diagnostics/goldens/diff/output.diff || true
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import pathlib
+
+          def manifest_for(root: pathlib.Path) -> dict[str, str]:
+              payload = {}
+              for path in sorted(root.rglob("*.json")):
+                  rel = path.relative_to(root).as_posix()
+                  payload[rel] = hashlib.sha256(path.read_bytes()).hexdigest()
+              return payload
+
+          base_root = pathlib.Path("diagnostics/goldens/baseline")
+          current_root = pathlib.Path("diagnostics/goldens/current")
+          baseline_manifest = manifest_for(base_root)
+          current_manifest = manifest_for(current_root)
+          pathlib.Path("diagnostics/goldens/diff/baseline.sha256.json").write_text(
+              json.dumps(baseline_manifest, indent=2) + "\n", encoding="utf-8"
+          )
+          pathlib.Path("diagnostics/goldens/diff/current.sha256.json").write_text(
+              json.dumps(current_manifest, indent=2) + "\n", encoding="utf-8"
+          )
+          if baseline_manifest != current_manifest:
+              raise SystemExit("BLOCKED-OUTPUT-DRIFT: hash manifest mismatch between baseline and current outputs")
+          PY
+          if [ -s diagnostics/goldens/diff/output.diff ]; then
+            echo "BLOCKED-OUTPUT-DRIFT: textual diff detected between baseline and current outputs"
+            exit 1
+          fi
+
+      - name: Block baseline edits in PR
+        if: github.event_name == 'pull_request'
+        run: |
+          set -euo pipefail
+          git fetch origin "${{ github.base_ref }}" --depth=1
+          changed="$(git diff --name-only "origin/${{ github.base_ref }}...HEAD")"
+          if printf '%s\n' "${changed}" | rg -q '^diagnostics/goldens/baseline/'; then
+            echo "BLOCKED-GOLDEN-BASELINE-MODIFIED-IN-PR: baseline updates require workflow_dispatch"
+            exit 1
+          fi
+
+      - name: Upload golden comparison artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: governance-golden-output-artifacts
+          path: diagnostics/goldens/**

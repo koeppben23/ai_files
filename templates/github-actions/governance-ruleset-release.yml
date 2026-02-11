@@ -1,0 +1,125 @@
+name: Governance Ruleset Release
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "ruleset-v*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: governance-ruleset-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate-and-lock:
+    name: Validate Manifests and Build Locks
+    runs-on: ubuntu-latest
+    env:
+      RULESET_ID: default
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Validate addon manifests and governance contracts
+        run: |
+          set -euo pipefail
+          python3 scripts/validate_addons.py
+          python3 scripts/governance_lint.py
+
+      - name: Resolve release version
+        id: release_version
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            tag="${GITHUB_REF_NAME}"
+            if [[ "${tag}" =~ ^ruleset-v([0-9]+\.[0-9]+\.[0-9]+([-.+][0-9A-Za-z.-]+)?)$ ]]; then
+              version="${BASH_REMATCH[1]}"
+            else
+              echo "BLOCKED: tag must match ruleset-v<semver>; got ${tag}" >&2
+              exit 1
+            fi
+          else
+            version="0.0.0-dev.${GITHUB_RUN_NUMBER}"
+          fi
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+
+      - name: Build deterministic ruleset lock artifacts
+        run: |
+          set -euo pipefail
+          python3 scripts/build_ruleset_lock.py \
+            --ruleset-id "${RULESET_ID}" \
+            --version "${{ steps.release_version.outputs.version }}" \
+            --output-root rulesets
+
+      - name: Rebuild in isolated checkout and verify hash parity
+        env:
+          RELEASE_VERSION: ${{ steps.release_version.outputs.version }}
+        run: |
+          set -euo pipefail
+          VERIFY_ROOT="../ruleset_verify"
+          git worktree add --detach "${VERIFY_ROOT}" "${GITHUB_SHA}"
+          trap 'git worktree remove --force "${VERIFY_ROOT}"' EXIT
+          python3 "${VERIFY_ROOT}/scripts/build_ruleset_lock.py" \
+            --repo-root "${VERIFY_ROOT}" \
+            --ruleset-id "${RULESET_ID}" \
+            --version "${RELEASE_VERSION}" \
+            --output-root "${VERIFY_ROOT}/rulesets"
+
+          primary_hash="$(python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          version = os.environ["RELEASE_VERSION"]
+          print(json.loads(Path(f"rulesets/default/{version}/hashes.json").read_text(encoding="utf-8"))["ruleset_hash"])
+          PY
+          )"
+          verify_hash="$(python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          version = os.environ["RELEASE_VERSION"]
+          print(json.loads(Path(f"../ruleset_verify/rulesets/default/{version}/hashes.json").read_text(encoding="utf-8"))["ruleset_hash"])
+          PY
+          )"
+          if [[ "${primary_hash}" != "${verify_hash}" ]]; then
+            echo "BLOCKED-RULESET-HASH-MISMATCH: isolated rebuild hash diverged" >&2
+            echo "primary=${primary_hash}" >&2
+            echo "isolated=${verify_hash}" >&2
+            exit 1
+          fi
+
+      - name: Upload ruleset release artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: governance-ruleset-release
+          path: rulesets/default/${{ steps.release_version.outputs.version }}/**
+
+      - name: Enforce deterministic lock and hash contract
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, pathlib, sys
+          version = "${{ steps.release_version.outputs.version }}"
+          base = pathlib.Path(f"rulesets/default/{version}")
+          lock = json.loads((base / "lock.json").read_text(encoding="utf-8"))
+          hashes = json.loads((base / "hashes.json").read_text(encoding="utf-8"))
+
+          if lock.get("deterministic") is not True:
+              print("BLOCKED: lock resolution not deterministic")
+              sys.exit(1)
+          if not lock.get("resolved_profiles"):
+              print("BLOCKED: resolved_profiles is empty")
+              sys.exit(1)
+          if not lock.get("resolved_addons"):
+              print("BLOCKED: resolved_addons is empty")
+              sys.exit(1)
+          if not hashes.get("ruleset_hash"):
+              print("BLOCKED: ruleset_hash missing from hashes.json")
+              sys.exit(1)
+          PY
