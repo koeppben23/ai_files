@@ -136,3 +136,56 @@ def test_render_contract_builds_diff_first_diagnostics_and_last_three_timeline_r
     assert len(timeline) == 3
     assert timeline[0]["phase_gate"] == "2.1|decision"
     assert timeline[2]["snapshot_hash"] == "h4"
+
+
+@pytest.mark.governance
+def test_render_contract_builds_sorted_evidence_panel_with_freshness():
+    """Evidence panel should be claim/evidence sorted with stable freshness values."""
+
+    output = build_two_layer_output(
+        status="OK",
+        phase_gate="P5.3-TestQuality",
+        primary_action="Continue.",
+        details={"required_fact": "kept"},
+        evidence_items=[
+            {
+                "claim_id": "claim/tests-green",
+                "evidence_id": "ev-2",
+                "observed_at": "2026-02-11T12:01:00Z",
+                "is_stale": True,
+            },
+            {
+                "claim_id": "claim/tests-green",
+                "evidence_id": "ev-1",
+                "observed_at": "2026-02-11T12:00:00Z",
+                "freshness": "fresh",
+            },
+            {
+                "claim_id": "claim/static-clean",
+                "evidence_id": "ev-3",
+                "observed_at": "2026-02-11T12:02:00Z",
+            },
+        ],
+    )
+    output = cast(dict[str, Any], output)
+    panel = output["evidence_panel"]
+    assert panel == (
+        {
+            "claim_id": "claim/static-clean",
+            "evidence_id": "ev-3",
+            "freshness": "fresh",
+            "observed_at": "2026-02-11T12:02:00Z",
+        },
+        {
+            "claim_id": "claim/tests-green",
+            "evidence_id": "ev-1",
+            "freshness": "fresh",
+            "observed_at": "2026-02-11T12:00:00Z",
+        },
+        {
+            "claim_id": "claim/tests-green",
+            "evidence_id": "ev-2",
+            "freshness": "stale",
+            "observed_at": "2026-02-11T12:01:00Z",
+        },
+    )

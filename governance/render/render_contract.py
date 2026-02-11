@@ -28,6 +28,7 @@ def build_two_layer_output(
     previous_stale_claims: Sequence[str] | None = None,
     current_stale_claims: Sequence[str] | None = None,
     transition_events: Sequence[dict[str, str]] | None = None,
+    evidence_items: Sequence[dict[str, object]] | None = None,
 ) -> dict[str, object]:
     """Build deterministic two-layer response with budget-guarded details."""
 
@@ -64,6 +65,28 @@ def build_two_layer_output(
             }
         )
 
+    panel_rows: list[dict[str, str]] = []
+    for item in evidence_items or ():
+        if not isinstance(item, dict):
+            continue
+        claim_id = str(item.get("claim_id", "")).strip()
+        evidence_id = str(item.get("evidence_id", "")).strip()
+        observed_at = str(item.get("observed_at", "")).strip()
+        freshness = str(item.get("freshness", "")).strip().lower()
+        is_stale = item.get("is_stale") is True
+        if freshness not in {"fresh", "stale"}:
+            freshness = "stale" if is_stale else "fresh"
+        if claim_id or evidence_id:
+            panel_rows.append(
+                {
+                    "claim_id": claim_id,
+                    "evidence_id": evidence_id,
+                    "freshness": freshness,
+                    "observed_at": observed_at,
+                }
+            )
+    panel_rows = sorted(panel_rows, key=lambda row: (row["claim_id"], row["evidence_id"], row["observed_at"]))
+
     operator_view = {
         "PHASE_GATE": f"{phase.strip()} | {active_gate.strip()} | {phase_progress_bar.strip()}",
         "STATUS": status.strip(),
@@ -85,6 +108,7 @@ def build_two_layer_output(
         "reason_to_action": reason_to_action,
         "diagnostics_delta": diagnostics_delta,
         "timeline": tuple(timeline),
+        "evidence_panel": tuple(panel_rows),
         "details": safe_details,
         "delta": build_delta_state(
             previous_state_hash=previous_state_hash,
