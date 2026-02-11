@@ -103,10 +103,10 @@ def build_session_snapshot(
 ) -> dict[str, object]:
     """Build compact default session projection from full state and reason payload."""
 
-    reason_code = str(reason_payload.get("reason_code", "")).strip().lower()
+    reason_code = str(reason_payload.get("reason_code", "")).strip()
     if not reason_code:
         reason_code = "none"
-    if reason_code == "none" and _normalize_status(status) == "OK":
+    if reason_code.lower() == "none" and _normalize_status(status) == "OK":
         reason_code = "none"
 
     missing_evidence_value = reason_payload.get("missing_evidence")
