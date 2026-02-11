@@ -7,11 +7,31 @@ rendering can enforce one next-action mechanism and stable status vocabulary.
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
-from typing import Literal
+import hashlib
+import json
+from typing import Literal, cast
 
 ResponseMode = Literal["STRICT", "COMPAT"]
 ResponseStatus = Literal["BLOCKED", "WARN", "OK", "NOT_VERIFIED"]
 NextActionType = Literal["command", "reply_with_one_number", "manual_step"]
+DetailIntent = Literal["default", "show_diagnostics", "show_full_session_state"]
+
+SESSION_SNAPSHOT_WHITELIST = (
+    "phase",
+    "effective_operating_mode",
+    "active_gate.status",
+    "active_gate.reason_code",
+    "next_action",
+    "missing_evidence_count",
+    "activation_hash",
+    "ruleset_hash",
+    "repo_fingerprint",
+    "state_unchanged",
+    "delta_mode",
+    "snapshot_hash",
+)
+
+SESSION_SNAPSHOT_MAX_CHARS = 900
 
 
 @dataclass(frozen=True)
@@ -55,12 +75,79 @@ class CompatResponseEnvelope:
     reason_payload: dict[str, object]
 
 
+def _hash_payload(payload: dict[str, object]) -> str:
+    """Return deterministic sha256 over canonical JSON payload."""
+
+    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+
+def _extract_session_value(session_state: dict[str, object], *keys: str, default: str = "") -> str:
+    """Read first non-empty scalar value from candidate keys."""
+
+    for key in keys:
+        value = session_state.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+        if isinstance(value, (int, float)):
+            return str(value)
+    return default
+
+
+def build_session_snapshot(
+    *,
+    status: str,
+    session_state: dict[str, object],
+    next_action: NextAction,
+    reason_payload: dict[str, object],
+) -> dict[str, object]:
+    """Build compact default session projection from full state and reason payload."""
+
+    reason_code = str(reason_payload.get("reason_code", "")).strip().lower()
+    if not reason_code:
+        reason_code = "none"
+    if reason_code == "none" and _normalize_status(status) == "OK":
+        reason_code = "none"
+
+    missing_evidence_value = reason_payload.get("missing_evidence")
+    missing_evidence_count = (
+        len(missing_evidence_value)
+        if isinstance(missing_evidence_value, (list, tuple))
+        else 0
+    )
+
+    snapshot = {
+        "phase": _extract_session_value(session_state, "phase", "Phase", default="unknown"),
+        "effective_operating_mode": _extract_session_value(
+            session_state,
+            "effective_operating_mode",
+            "Mode",
+            default="unknown",
+        ).lower(),
+        "active_gate.status": _normalize_status(status),
+        "active_gate.reason_code": reason_code,
+        "next_action": next_action.command.strip(),
+        "missing_evidence_count": missing_evidence_count,
+        "activation_hash": _extract_session_value(session_state, "activation_hash"),
+        "ruleset_hash": _extract_session_value(session_state, "ruleset_hash"),
+        "repo_fingerprint": _extract_session_value(session_state, "repo_fingerprint", default="unknown"),
+        "state_unchanged": bool(session_state.get("state_unchanged", False)),
+        "delta_mode": _extract_session_value(session_state, "delta_mode", default="delta-only"),
+    }
+    if not snapshot["activation_hash"]:
+        raise ValueError("session snapshot requires activation_hash")
+    snapshot["snapshot_hash"] = _hash_payload(snapshot)
+    if len(json.dumps(snapshot, ensure_ascii=True, separators=(",", ":"))) > SESSION_SNAPSHOT_MAX_CHARS:
+        raise ValueError("session snapshot exceeds compact output budget")
+    return snapshot
+
+
 def _normalize_status(status: str) -> ResponseStatus:
     """Normalize incoming status values to canonical response vocabulary."""
 
     normalized = status.strip().upper()
     if normalized in {"BLOCKED", "WARN", "OK", "NOT_VERIFIED"}:
-        return normalized
+        return cast(ResponseStatus, normalized)
     raise ValueError(f"unsupported response status: {status!r}")
 
 
@@ -78,6 +165,7 @@ def build_strict_response(
     next_action: NextAction,
     snapshot: Snapshot,
     reason_payload: dict[str, object],
+    detail_intent: DetailIntent = "default",
 ) -> dict[str, object]:
     """Build strict response envelope dict with validated invariants."""
 
@@ -85,13 +173,20 @@ def build_strict_response(
     envelope = StrictResponseEnvelope(
         mode="STRICT",
         status=_normalize_status(status),
-        session_state=session_state,
+        session_state=build_session_snapshot(
+            status=status,
+            session_state=session_state,
+            next_action=next_action,
+            reason_payload=reason_payload,
+        ),
         next_action=next_action,
         snapshot=snapshot,
         reason_payload=reason_payload,
     )
     payload = asdict(envelope)
     payload["next_action"]["type"] = next_action.type
+    if detail_intent in {"show_diagnostics", "show_full_session_state"}:
+        payload["session_state_full"] = session_state
     return payload
 
 
