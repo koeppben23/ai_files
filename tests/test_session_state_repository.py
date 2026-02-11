@@ -5,11 +5,20 @@ from pathlib import Path
 
 import pytest
 
-from governance.engine.reason_codes import BLOCKED_STATE_OUTDATED, REASON_CODE_NONE
+from governance.engine.reason_codes import (
+    BLOCKED_SESSION_STATE_LEGACY_UNSUPPORTED,
+    BLOCKED_STATE_OUTDATED,
+    REASON_CODE_NONE,
+    WARN_SESSION_STATE_LEGACY_COMPAT_MODE,
+)
 from governance.engine import session_state_repository as session_repo_module
 from governance.engine.session_state_repository import (
     CURRENT_SESSION_STATE_VERSION,
+    ENV_SESSION_STATE_LEGACY_COMPAT_MODE,
     ROLLOUT_PHASE_DUAL_READ,
+    ROLLOUT_PHASE_ENGINE_ONLY,
+    SessionStateCompatibilityError,
+    SessionStateLoadResult,
     SessionStateRepository,
     migrate_session_state_document,
     session_state_hash,
@@ -274,15 +283,102 @@ def test_dual_read_save_then_load_is_idempotent_for_legacy_input(tmp_path: Path)
 
 @pytest.mark.governance
 def test_rollout_phase_flag_can_disable_dual_read_normalization(tmp_path: Path):
-    """Rollout phase guardrail keeps phase-1 behavior explicit and opt-in."""
+    """Phase-2 engine-only mode blocks legacy aliases by default."""
 
     path = tmp_path / "workspaces" / "abc" / "SESSION_STATE.json"
-    repo = SessionStateRepository(path, rollout_phase=2)
+    repo = SessionStateRepository(path, rollout_phase=ROLLOUT_PHASE_ENGINE_ONLY)
     legacy = _session_state_doc()
     legacy["SESSION_STATE"]["RepoModel"] = {"legacy": True}
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(session_repo_module.json.dumps(legacy), encoding="utf-8")
+
+    with pytest.raises(SessionStateCompatibilityError) as exc_info:
+        repo.load()
+    assert exc_info.value.reason_code == BLOCKED_SESSION_STATE_LEGACY_UNSUPPORTED
+    assert "RepoModel" in exc_info.value.detail
+
+
+@pytest.mark.governance
+def test_phase2_compat_mode_allows_legacy_read_and_sets_warning_reason_code(tmp_path: Path):
+    """Phase-2 compatibility mode should allow legacy aliases with explicit warning."""
+
+    path = tmp_path / "workspaces" / "abc" / "SESSION_STATE.json"
+    repo = SessionStateRepository(
+        path,
+        rollout_phase=ROLLOUT_PHASE_ENGINE_ONLY,
+        legacy_compat_mode=True,
+    )
+    legacy = _session_state_doc()
+    legacy["SESSION_STATE"]["RepoModel"] = {"legacy": True}
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(session_repo_module.json.dumps(legacy), encoding="utf-8")
+
     loaded = repo.load()
     assert loaded is not None
-    assert "RepoMapDigest" not in loaded["SESSION_STATE"]
-    assert loaded["SESSION_STATE"]["RepoModel"] == {"legacy": True}
+    assert loaded["SESSION_STATE"]["RepoMapDigest"] == {"legacy": True}
+    assert repo.last_warning_reason_code == WARN_SESSION_STATE_LEGACY_COMPAT_MODE
+
+
+@pytest.mark.governance
+def test_phase2_compat_mode_load_with_result_returns_structured_warning(tmp_path: Path):
+    """Structured load result should carry warning code and detail."""
+
+    path = tmp_path / "workspaces" / "abc" / "SESSION_STATE.json"
+    repo = SessionStateRepository(
+        path,
+        rollout_phase=ROLLOUT_PHASE_ENGINE_ONLY,
+        legacy_compat_mode=True,
+    )
+    legacy = _session_state_doc()
+    legacy["SESSION_STATE"]["RepoModel"] = {"legacy": True}
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(session_repo_module.json.dumps(legacy), encoding="utf-8")
+
+    result = repo.load_with_result()
+    assert isinstance(result, SessionStateLoadResult)
+    assert result.document is not None
+    assert result.document["SESSION_STATE"]["RepoMapDigest"] == {"legacy": True}
+    assert result.warning_reason_code == WARN_SESSION_STATE_LEGACY_COMPAT_MODE
+    assert "compatibility mode" in result.warning_detail
+
+
+@pytest.mark.governance
+def test_phase2_compat_mode_reads_from_environment_variable(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """Compatibility mode can be enabled explicitly via environment switch."""
+
+    monkeypatch.setenv(ENV_SESSION_STATE_LEGACY_COMPAT_MODE, "true")
+    path = tmp_path / "workspaces" / "abc" / "SESSION_STATE.json"
+    repo = SessionStateRepository(path, rollout_phase=ROLLOUT_PHASE_ENGINE_ONLY)
+    legacy = _session_state_doc()
+    legacy["SESSION_STATE"]["RepoModel"] = {"legacy": True}
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(session_repo_module.json.dumps(legacy), encoding="utf-8")
+
+    loaded = repo.load()
+    assert loaded is not None
+    assert loaded["SESSION_STATE"]["RepoMapDigest"] == {"legacy": True}
+    assert repo.last_warning_reason_code == WARN_SESSION_STATE_LEGACY_COMPAT_MODE
+
+
+@pytest.mark.governance
+def test_phase2_compat_mode_invalid_environment_value_fails_closed(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """Invalid compatibility switch values should fail closed at repository setup."""
+
+    monkeypatch.setenv(ENV_SESSION_STATE_LEGACY_COMPAT_MODE, "definitely")
+    path = tmp_path / "workspaces" / "abc" / "SESSION_STATE.json"
+
+    with pytest.raises(ValueError) as exc_info:
+        SessionStateRepository(path, rollout_phase=ROLLOUT_PHASE_ENGINE_ONLY)
+    assert ENV_SESSION_STATE_LEGACY_COMPAT_MODE in str(exc_info.value)
+
+
+@pytest.mark.governance
+def test_phase2_compat_mode_empty_environment_value_fails_closed(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """Empty compatibility mode env values should be rejected as invalid."""
+
+    monkeypatch.setenv(ENV_SESSION_STATE_LEGACY_COMPAT_MODE, "")
+    path = tmp_path / "workspaces" / "abc" / "SESSION_STATE.json"
+
+    with pytest.raises(ValueError) as exc_info:
+        SessionStateRepository(path, rollout_phase=ROLLOUT_PHASE_ENGINE_ONLY)
+    assert ENV_SESSION_STATE_LEGACY_COMPAT_MODE in str(exc_info.value)
