@@ -503,3 +503,135 @@ def test_orchestrator_accepts_matching_pack_lock(tmp_path: Path):
     assert out.expected_pack_lock_hash == expected.expected_pack_lock_hash
     assert out.observed_pack_lock_hash == expected.expected_pack_lock_hash
     assert out.parity["status"] == "ok"
+
+
+@pytest.mark.governance
+def test_orchestrator_blocks_on_ruleset_hash_mismatch_when_required(tmp_path: Path):
+    """Ruleset hash mismatch should fail closed when hash match is required."""
+
+    repo_root = _make_git_root(tmp_path / "repo")
+    adapter = StubAdapter(
+        env={"OPENCODE_REPO_ROOT": str(repo_root)},
+        cwd_path=repo_root,
+        caps=HostCapabilities(
+            cwd_trust="trusted",
+            fs_read_commands_home=True,
+            fs_write_config_root=True,
+            fs_write_commands_home=True,
+            fs_write_workspaces_home=True,
+            fs_write_repo_root=True,
+            exec_allowed=True,
+            git_available=True,
+        ),
+    )
+    out = run_engine_orchestrator(
+        adapter=adapter,
+        phase="1.1-Bootstrap",
+        active_gate="Persistence Preflight",
+        mode="OK",
+        next_gate_condition="Persistence helper execution completed",
+        require_hash_match=True,
+        observed_ruleset_hash="deadbeef",
+    )
+    assert out.parity["status"] == "blocked"
+    assert out.parity["reason_code"] == "BLOCKED-RULESET-HASH-MISMATCH"
+
+
+@pytest.mark.governance
+def test_orchestrator_blocks_on_activation_hash_mismatch_when_required(tmp_path: Path):
+    """Activation hash mismatch should fail closed when hash match is required."""
+
+    repo_root = _make_git_root(tmp_path / "repo")
+    adapter = StubAdapter(
+        env={"OPENCODE_REPO_ROOT": str(repo_root)},
+        cwd_path=repo_root,
+        caps=HostCapabilities(
+            cwd_trust="trusted",
+            fs_read_commands_home=True,
+            fs_write_config_root=True,
+            fs_write_commands_home=True,
+            fs_write_workspaces_home=True,
+            fs_write_repo_root=True,
+            exec_allowed=True,
+            git_available=True,
+        ),
+    )
+    out = run_engine_orchestrator(
+        adapter=adapter,
+        phase="1.1-Bootstrap",
+        active_gate="Persistence Preflight",
+        mode="OK",
+        next_gate_condition="Persistence helper execution completed",
+        require_hash_match=True,
+        observed_ruleset_hash="",  # skip ruleset mismatch branch
+        observed_activation_hash="deadbeef",
+    )
+    assert out.parity["status"] == "blocked"
+    assert out.parity["reason_code"] == "BLOCKED-ACTIVATION-HASH-MISMATCH"
+
+
+@pytest.mark.governance
+def test_orchestrator_marks_not_verified_when_required_evidence_missing(tmp_path: Path):
+    """Missing required evidence should produce NOT_VERIFIED status."""
+
+    repo_root = _make_git_root(tmp_path / "repo")
+    adapter = StubAdapter(
+        env={"OPENCODE_REPO_ROOT": str(repo_root)},
+        cwd_path=repo_root,
+        caps=HostCapabilities(
+            cwd_trust="trusted",
+            fs_read_commands_home=True,
+            fs_write_config_root=True,
+            fs_write_commands_home=True,
+            fs_write_workspaces_home=True,
+            fs_write_repo_root=True,
+            exec_allowed=True,
+            git_available=True,
+        ),
+    )
+    out = run_engine_orchestrator(
+        adapter=adapter,
+        phase="1.1-Bootstrap",
+        active_gate="Persistence Preflight",
+        mode="OK",
+        next_gate_condition="Persistence helper execution completed",
+        required_evidence_ids=["ev-1", "ev-2"],
+        observed_evidence_ids=["ev-1"],
+    )
+    assert out.parity["status"] == "not_verified"
+    assert out.parity["reason_code"] == "NOT_VERIFIED-MISSING-EVIDENCE"
+    assert out.missing_evidence == ("ev-2",)
+    assert out.reason_payload["status"] == "NOT_VERIFIED"
+
+
+@pytest.mark.governance
+def test_orchestrator_emits_valid_blocked_reason_payload_shape(tmp_path: Path):
+    """Blocked outputs should emit one-action/one-recovery/one-command payload shape."""
+
+    repo_root = _make_git_root(tmp_path / "repo")
+    adapter = StubAdapter(
+        env={"OPENCODE_REPO_ROOT": str(repo_root)},
+        cwd_path=repo_root,
+        caps=HostCapabilities(
+            cwd_trust="trusted",
+            fs_read_commands_home=True,
+            fs_write_config_root=True,
+            fs_write_commands_home=True,
+            fs_write_workspaces_home=True,
+            fs_write_repo_root=True,
+            exec_allowed=False,
+            git_available=True,
+        ),
+    )
+    out = run_engine_orchestrator(
+        adapter=adapter,
+        phase="1.1-Bootstrap",
+        active_gate="Persistence Preflight",
+        mode="OK",
+        next_gate_condition="Persistence helper execution completed",
+    )
+    payload = out.reason_payload
+    assert payload["status"] == "BLOCKED"
+    assert isinstance(payload["primary_action"], str) and payload["primary_action"].strip()
+    assert isinstance(payload["recovery"], str) and payload["recovery"].strip()
+    assert isinstance(payload["command"], str) and payload["command"].strip()

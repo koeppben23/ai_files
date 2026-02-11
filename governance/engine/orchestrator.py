@@ -1,18 +1,17 @@
-"""Wave B engine orchestrator v1.
-
-This module composes adapter normalization, context resolution, write-policy
-validation, gate evaluation, and runtime activation into one deterministic flow.
-"""
+"""Wave engine orchestrator with deterministic gates and parity outputs."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
+import hashlib
+import json
 import re
 from typing import Mapping
 
 from governance.context.repo_context_resolver import RepoRootResolutionResult, resolve_repo_root
 from governance.engine.adapters import HostAdapter, HostCapabilities, OperatingMode
 from governance.engine.reason_codes import (
+    BLOCKED_ACTIVATION_HASH_MISMATCH,
     BLOCKED_EXEC_DISALLOWED,
     BLOCKED_OPERATING_MODE_REQUIRED,
     BLOCKED_PACK_LOCK_INVALID,
@@ -20,17 +19,14 @@ from governance.engine.reason_codes import (
     BLOCKED_PACK_LOCK_REQUIRED,
     BLOCKED_PERMISSION_DENIED,
     BLOCKED_REPO_IDENTITY_RESOLUTION,
+    BLOCKED_RULESET_HASH_MISMATCH,
     BLOCKED_SYSTEM_MODE_REQUIRED,
+    NOT_VERIFIED_MISSING_EVIDENCE,
     REASON_CODE_NONE,
     WARN_MODE_DOWNGRADED,
     WARN_PERMISSION_LIMITED,
 )
-from governance.engine.surface_policy import (
-    capability_satisfies_requirement,
-    mode_satisfies_requirement,
-    resolve_surface_policy,
-)
-from governance.packs.pack_lock import resolve_pack_lock
+from governance.engine.reason_payload import build_reason_payload
 from governance.engine.runtime import (
     EngineDeviation,
     EngineRuntimeDecision,
@@ -38,6 +34,12 @@ from governance.engine.runtime import (
     evaluate_runtime_activation,
     golden_parity_fields,
 )
+from governance.engine.surface_policy import (
+    capability_satisfies_requirement,
+    mode_satisfies_requirement,
+    resolve_surface_policy,
+)
+from governance.packs.pack_lock import resolve_pack_lock
 from governance.persistence.write_policy import WriteTargetPolicyResult, evaluate_target_path
 
 _VARIABLE_CAPTURE = re.compile(r"^\$\{([A-Z0-9_]+)\}")
@@ -57,6 +59,10 @@ class EngineOrchestratorOutput:
     pack_lock_checked: bool
     expected_pack_lock_hash: str
     observed_pack_lock_hash: str
+    ruleset_hash: str
+    activation_hash: str
+    reason_payload: dict[str, object]
+    missing_evidence: tuple[str, ...]
 
 
 def _resolve_effective_operating_mode(adapter: HostAdapter, requested: OperatingMode | None) -> OperatingMode:
@@ -95,6 +101,57 @@ def _extract_target_variable(target_path: str) -> str | None:
     return match.group(1)
 
 
+def _hash_payload(payload: dict[str, object]) -> str:
+    """Return deterministic sha256 over canonical JSON payload."""
+
+    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+
+def _build_ruleset_hash(
+    *,
+    selected_pack_ids: list[str] | None,
+    pack_engine_version: str | None,
+    expected_pack_lock_hash: str,
+) -> str:
+    """Build deterministic ruleset hash from selected packs and lock evidence."""
+
+    payload = {
+        "selected_pack_ids": sorted(selected_pack_ids or []),
+        "pack_engine_version": pack_engine_version or "",
+        "expected_pack_lock_hash": expected_pack_lock_hash,
+    }
+    return _hash_payload(payload)
+
+
+def _build_activation_hash(
+    *,
+    phase: str,
+    active_gate: str,
+    next_gate_condition: str,
+    target_path: str,
+    effective_operating_mode: OperatingMode,
+    capabilities_hash: str,
+    repo_context: RepoRootResolutionResult,
+    ruleset_hash: str,
+) -> str:
+    """Build deterministic activation hash from runtime context facts."""
+
+    payload = {
+        "phase": phase,
+        "active_gate": active_gate,
+        "next_gate_condition": next_gate_condition,
+        "target_path": target_path,
+        "effective_operating_mode": effective_operating_mode,
+        "capabilities_hash": capabilities_hash,
+        "repo_root": str(repo_context.repo_root),
+        "repo_source": repo_context.source,
+        "repo_is_git_root": repo_context.is_git_root,
+        "ruleset_hash": ruleset_hash,
+    }
+    return _hash_payload(payload)
+
+
 def run_engine_orchestrator(
     *,
     adapter: HostAdapter,
@@ -113,6 +170,11 @@ def run_engine_orchestrator(
     pack_engine_version: str | None = None,
     observed_pack_lock: Mapping[str, object] | None = None,
     require_pack_lock: bool = False,
+    observed_ruleset_hash: str | None = None,
+    observed_activation_hash: str | None = None,
+    require_hash_match: bool = False,
+    required_evidence_ids: list[str] | None = None,
+    observed_evidence_ids: list[str] | None = None,
 ) -> EngineOrchestratorOutput:
     """Run one deterministic engine orchestration cycle.
 
@@ -121,6 +183,7 @@ def run_engine_orchestrator(
     """
 
     caps = adapter.capabilities()
+    capabilities_hash = caps.stable_hash()
     requested_mode = _resolve_effective_operating_mode(adapter, requested_operating_mode)
     effective_mode = requested_mode
     mode_downgraded = False
@@ -135,10 +198,7 @@ def run_engine_orchestrator(
             type="mode_downgrade",
             scope="operating_mode",
             impact=f"requested {requested_mode} mode downgraded to user mode",
-            recovery=(
-                "restore required capabilities for the requested mode "
-                "or rerun with explicit user mode"
-            ),
+            recovery="restore required capabilities for requested mode or rerun in user mode",
         )
 
     repo_context = resolve_repo_root(
@@ -150,6 +210,7 @@ def run_engine_orchestrator(
     pack_lock_checked = False
     expected_pack_lock_hash = ""
     observed_pack_lock_hash = ""
+    missing_evidence = tuple(sorted(set(required_evidence_ids or []) - set(observed_evidence_ids or [])))
 
     gate_blocked = False
     gate_reason_code = REASON_CODE_NONE
@@ -175,10 +236,7 @@ def run_engine_orchestrator(
                     gate_reason_code = BLOCKED_SYSTEM_MODE_REQUIRED
                 else:
                     gate_reason_code = BLOCKED_OPERATING_MODE_REQUIRED
-            elif not capability_satisfies_requirement(
-                caps=caps,
-                capability_key=surface_policy.capability_key,
-            ):
+            elif not capability_satisfies_requirement(caps=caps, capability_key=surface_policy.capability_key):
                 gate_blocked = True
                 gate_reason_code = BLOCKED_PERMISSION_DENIED
             elif not repo_context.is_git_root and not caps.git_available:
@@ -203,19 +261,39 @@ def run_engine_orchestrator(
                 gate_blocked = True
                 gate_reason_code = BLOCKED_PACK_LOCK_REQUIRED
         else:
-            if not isinstance(observed_pack_lock, dict):
+            observed_schema = observed_pack_lock.get("schema")
+            observed_hash = observed_pack_lock.get("lock_hash")
+            observed_pack_lock_hash = str(observed_hash) if observed_hash is not None else ""
+            if observed_schema != expected_lock.get("schema") or not isinstance(observed_hash, str) or not observed_hash:
                 gate_blocked = True
                 gate_reason_code = BLOCKED_PACK_LOCK_INVALID
-            else:
-                observed_schema = observed_pack_lock.get("schema")
-                observed_hash = observed_pack_lock.get("lock_hash")
-                observed_pack_lock_hash = str(observed_hash) if observed_hash is not None else ""
-                if observed_schema != expected_lock.get("schema") or not isinstance(observed_hash, str) or not observed_hash:
-                    gate_blocked = True
-                    gate_reason_code = BLOCKED_PACK_LOCK_INVALID
-                elif observed_hash != expected_pack_lock_hash:
-                    gate_blocked = True
-                    gate_reason_code = BLOCKED_PACK_LOCK_MISMATCH
+            elif observed_hash != expected_pack_lock_hash:
+                gate_blocked = True
+                gate_reason_code = BLOCKED_PACK_LOCK_MISMATCH
+
+    ruleset_hash = _build_ruleset_hash(
+        selected_pack_ids=selected_pack_ids,
+        pack_engine_version=pack_engine_version,
+        expected_pack_lock_hash=expected_pack_lock_hash,
+    )
+    activation_hash = _build_activation_hash(
+        phase=phase,
+        active_gate=active_gate,
+        next_gate_condition=next_gate_condition,
+        target_path=target_path,
+        effective_operating_mode=effective_mode,
+        capabilities_hash=capabilities_hash,
+        repo_context=repo_context,
+        ruleset_hash=ruleset_hash,
+    )
+
+    if not gate_blocked and require_hash_match:
+        if observed_ruleset_hash and observed_ruleset_hash.strip() != ruleset_hash:
+            gate_blocked = True
+            gate_reason_code = BLOCKED_RULESET_HASH_MISMATCH
+        elif observed_activation_hash and observed_activation_hash.strip() != activation_hash:
+            gate_blocked = True
+            gate_reason_code = BLOCKED_ACTIVATION_HASH_MISMATCH
 
     runtime = evaluate_runtime_activation(
         phase=phase,
@@ -236,6 +314,9 @@ def run_engine_orchestrator(
         parity["reason_code"] = mode_reason
     if convenience_limited and parity["status"] == "ok" and parity["reason_code"] == REASON_CODE_NONE:
         parity["reason_code"] = WARN_PERMISSION_LIMITED
+    if missing_evidence and parity["status"] == "ok":
+        parity["status"] = "not_verified"
+        parity["reason_code"] = NOT_VERIFIED_MISSING_EVIDENCE
 
     if runtime.deviation is None and mode_deviation is not None:
         runtime = EngineRuntimeDecision(
@@ -247,15 +328,47 @@ def run_engine_orchestrator(
             deviation=mode_deviation,
         )
 
+    if parity["status"] == "blocked":
+        reason_payload = build_reason_payload(
+            status="BLOCKED",
+            reason_code=parity["reason_code"],
+            primary_action="Resolve the active blocker for this gate.",
+            recovery="Collect required evidence and rerun deterministic checks.",
+            command=parity["next_action.command"],
+            impact="Workflow is blocked until the issue is fixed.",
+        ).to_dict()
+    elif parity["status"] == "not_verified":
+        reason_payload = build_reason_payload(
+            status="NOT_VERIFIED",
+            reason_code=parity["reason_code"],
+            primary_action="Provide missing evidence and rerun.",
+            recovery="Gather host evidence for all required claims.",
+            command="show diagnostics",
+            impact="Claims are not evidence-backed yet.",
+            missing_evidence=missing_evidence,
+        ).to_dict()
+    elif parity["reason_code"].startswith("WARN-"):
+        reason_payload = build_reason_payload(
+            status="WARN",
+            reason_code=parity["reason_code"],
+            impact="Execution continues with degraded capabilities.",
+        ).to_dict()
+    else:
+        reason_payload = build_reason_payload(status="OK", reason_code=REASON_CODE_NONE).to_dict()
+
     return EngineOrchestratorOutput(
         repo_context=repo_context,
         write_policy=write_policy,
         runtime=runtime,
         parity=parity,
         effective_operating_mode=effective_mode,
-        capabilities_hash=caps.stable_hash(),
+        capabilities_hash=capabilities_hash,
         mode_downgraded=mode_downgraded,
         pack_lock_checked=pack_lock_checked,
         expected_pack_lock_hash=expected_pack_lock_hash,
         observed_pack_lock_hash=observed_pack_lock_hash,
+        ruleset_hash=ruleset_hash,
+        activation_hash=activation_hash,
+        reason_payload=reason_payload,
+        missing_evidence=missing_evidence,
     )

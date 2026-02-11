@@ -25,6 +25,8 @@ def test_reason_code_registry_contains_wave_a_baseline_codes():
     assert reason_codes.BLOCKED_PACK_LOCK_REQUIRED in reason_codes.CANONICAL_REASON_CODES
     assert reason_codes.BLOCKED_PACK_LOCK_INVALID in reason_codes.CANONICAL_REASON_CODES
     assert reason_codes.BLOCKED_PACK_LOCK_MISMATCH in reason_codes.CANONICAL_REASON_CODES
+    assert reason_codes.BLOCKED_RULESET_HASH_MISMATCH in reason_codes.CANONICAL_REASON_CODES
+    assert reason_codes.BLOCKED_ACTIVATION_HASH_MISMATCH in reason_codes.CANONICAL_REASON_CODES
     assert reason_codes.BLOCKED_PERMISSION_DENIED in reason_codes.CANONICAL_REASON_CODES
     assert reason_codes.BLOCKED_EXEC_DISALLOWED in reason_codes.CANONICAL_REASON_CODES
     assert reason_codes.BLOCKED_PERSISTENCE_TARGET_DEGENERATE in reason_codes.CANONICAL_REASON_CODES
@@ -35,6 +37,7 @@ def test_reason_code_registry_contains_wave_a_baseline_codes():
     assert reason_codes.WARN_ENGINE_LIVE_DENIED in reason_codes.CANONICAL_REASON_CODES
     assert reason_codes.WARN_MODE_DOWNGRADED in reason_codes.CANONICAL_REASON_CODES
     assert reason_codes.WARN_PERMISSION_LIMITED in reason_codes.CANONICAL_REASON_CODES
+    assert reason_codes.NOT_VERIFIED_MISSING_EVIDENCE in reason_codes.CANONICAL_REASON_CODES
     assert len(reason_codes.CANONICAL_REASON_CODES) == len(set(reason_codes.CANONICAL_REASON_CODES))
 
 
