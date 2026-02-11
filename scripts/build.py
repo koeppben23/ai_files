@@ -34,6 +34,19 @@ EXCLUDE_DIRS = {
 FORBIDDEN_METADATA_SEGMENTS = ("__MACOSX",)
 FORBIDDEN_METADATA_FILENAMES = {".DS_Store", "Icon\r"}
 
+BASELINE_REQUIRED_PATHS = (
+    "scripts/migrate_session_state.py",
+    "governance/render/intent_router.py",
+    "governance/render/delta_renderer.py",
+    "governance/render/token_guard.py",
+    "governance/render/render_contract.py",
+)
+
+BASELINE_REQUIRED_REASON_CODES = (
+    "NOT_VERIFIED_MISSING_EVIDENCE",
+    "NOT_VERIFIED_EVIDENCE_STALE",
+)
+
 
 def is_forbidden_metadata_path(relpath: str) -> bool:
     """Return True for macOS metadata payload paths forbidden in artifacts."""
@@ -80,6 +93,61 @@ def _enforce_metadata_hygiene_on_archive(artifact: Path, *, format_name: str) ->
     if offenders:
         raise SystemExit(
             f"Release metadata hygiene violation in {artifact.name}: " + ", ".join(sorted(offenders))
+        )
+
+
+def _enforce_readme_baseline_claims(repo_root: Path) -> None:
+    """Fail closed when README baseline claims are not backed by repository artifacts."""
+
+    missing_paths = [p for p in BASELINE_REQUIRED_PATHS if not (repo_root / p).exists()]
+    if missing_paths:
+        raise SystemExit(
+            "README baseline claims verification failed: missing required artifacts: "
+            + ", ".join(sorted(missing_paths))
+        )
+
+    reason_codes_path = repo_root / "governance" / "engine" / "reason_codes.py"
+    if not reason_codes_path.exists():
+        raise SystemExit("README baseline claims verification failed: governance/engine/reason_codes.py is missing")
+    reason_codes_src = reason_codes_path.read_text(encoding="utf-8")
+    missing_codes = [c for c in BASELINE_REQUIRED_REASON_CODES if c not in reason_codes_src]
+    if missing_codes:
+        raise SystemExit(
+            "README baseline claims verification failed: missing reason code constants: "
+            + ", ".join(sorted(missing_codes))
+        )
+
+
+def _enforce_readme_local_link_integrity(repo_root: Path) -> None:
+    """Fail closed when root README markdown links point to missing local files."""
+
+    readmes = ("README.md", "README-OPENCODE.md", "README-RULES.md")
+    pattern = re.compile(r"\[[^\]]+\]\(([^)]+)\)")
+    broken: list[str] = []
+
+    for name in readmes:
+        readme_path = repo_root / name
+        if not readme_path.exists():
+            broken.append(f"{name}:missing")
+            continue
+        content = readme_path.read_text(encoding="utf-8")
+        for raw_target in pattern.findall(content):
+            target = raw_target.strip()
+            if not target or target.startswith(("http://", "https://", "mailto:")):
+                continue
+            target = target.split("#", 1)[0]
+            if not target:
+                continue
+            if target.startswith("/"):
+                candidate = repo_root / target.lstrip("/")
+            else:
+                candidate = (readme_path.parent / target).resolve()
+            if not candidate.exists():
+                broken.append(f"{name}:{raw_target}")
+
+    if broken:
+        raise SystemExit(
+            "README link integrity failed: unresolved local links: " + ", ".join(sorted(broken))
         )
 
 
@@ -246,6 +314,8 @@ def write_verification_report(dist_dir: Path, artifacts: list[Path]) -> Path:
         "golden_summary": os.environ.get("OPENCODE_GOLDEN_SUMMARY", "not_provided"),
         "e2e_summary": os.environ.get("OPENCODE_E2E_SUMMARY", "not_provided"),
         "governance_lint": os.environ.get("OPENCODE_GOVERNANCE_LINT", "not_provided"),
+        "readme_baseline_claims": "verified",
+        "readme_link_integrity": "verified",
         "artifact_hashes": artifact_hashes,
     }
     out = dist_dir / "verification-report.json"
@@ -269,6 +339,9 @@ def main(argv: list[str]) -> int:
 
     version = _read_governance_version(bp.repo_root / "master.md")
     prefix = f"governance-{version}"
+
+    _enforce_readme_baseline_claims(bp.repo_root)
+    _enforce_readme_local_link_integrity(bp.repo_root)
 
     files = collect_release_files(bp.repo_root, excluded_roots=(bp.dist_dir,))
 

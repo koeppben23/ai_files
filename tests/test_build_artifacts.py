@@ -72,6 +72,8 @@ def test_artifacts_contents_follow_policy(tmp_path: Path):
 
     report_payload = json.loads(verification_report.read_text(encoding="utf-8"))
     assert report_payload.get("schema") == "governance-verification-report.v1"
+    assert report_payload.get("readme_baseline_claims") == "verified"
+    assert report_payload.get("readme_link_integrity") == "verified"
     assert isinstance(report_payload.get("artifact_hashes"), dict)
     assert f"{prefix}.zip" in report_payload["artifact_hashes"]
     assert f"{prefix}.tar.gz" in report_payload["artifact_hashes"]
