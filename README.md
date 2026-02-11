@@ -124,6 +124,11 @@ Installed layout:
 - Top-tier governance files (`QUALITY_INDEX.md`, `CONFLICT_RESOLUTION.md`) are planning-only WARNs in Phases 1-3 if missing, but Phase 4+ blocking via `BLOCKED-MISSING-RULEBOOK:<file>`.
 - Build-evidence claim mapping is explicit: `verified` requires pass result + compatible scope + artifact/reference + version/pinning evidence; otherwise claims stay `not-verified`.
 - Release artifacts now include addon manifests (`profiles/addons/*.addon.yml`) so runtime addon activation/reload remains deterministic from packaged builds.
+- Governance-engine rework baseline is integrated on `main` (Wave A-D + rollout phases 1-3 + system gap closure).
+- `SESSION_STATE` rollout is fail-closed by default; legacy alias compatibility is explicit and phase-gated.
+- Claim verification is evidence-backed and freshness-gated; stale claim evidence maps to `NOT_VERIFIED-EVIDENCE-STALE`.
+- Deterministic migration tooling exists at `scripts/migrate_session_state.py` with first-write `.backup` semantics and machine-readable exits (`0=ok`, `2=blocked`).
+- Two-layer deterministic output modules are available under `governance/render/` (`intent_router`, `delta_renderer`, `token_guard`, `render_contract`).
 
 ### Safety & operational behavior
 
@@ -530,7 +535,6 @@ ${COMMANDS_HOME}/
 ├── README.md
 ├── README-RULES.md
 ├── README-OPENCODE.md
-├── README-CHAT.md
 ├── profiles/
 │   ├── rules.backend-java.md
 │   ├── rules.frontend-angular-nx.md

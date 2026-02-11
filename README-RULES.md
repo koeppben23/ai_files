@@ -42,6 +42,8 @@ This README is explanatory only.
 Stability note:
 - Canonical precedence is defined once in `master.md` Section 1 (`PRIORITY ORDER`) and mirrored in `rules.md` (`RULEBOOK-PRECEDENCE-POLICY`).
 - This file MUST NOT redefine precedence, gates, or blocking policy.
+- Current baseline on `main` includes governance-engine rework integration (Wave A-D, session-state rollout phases 1-3, claim evidence backfeed, freshness gating, lifecycle rollback audit helpers).
+- Claim verification remains fail-closed: missing evidence -> `NOT_VERIFIED-MISSING-EVIDENCE`, stale evidence -> `NOT_VERIFIED-EVIDENCE-STALE`.
 
 **Executive Summary for AI-Assisted Development**
 
