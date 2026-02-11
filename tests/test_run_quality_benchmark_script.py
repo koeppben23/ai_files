@@ -120,3 +120,46 @@ def test_runner_fails_closed_on_invalid_score_argument():
     payload = json.loads(result.stdout)
     assert result.returncode == 4
     assert payload["status"] == "BLOCKED"
+
+
+@pytest.mark.governance
+def test_runner_derives_claims_from_evidence_dir(tmp_path: Path):
+    evidence = tmp_path / "evidence"
+    evidence.mkdir(parents=True)
+    (evidence / "pytest.exitcode").write_text("0\n", encoding="utf-8")
+    (evidence / "governance_lint.exitcode").write_text("0\n", encoding="utf-8")
+    (evidence / "drift.txt").write_text("", encoding="utf-8")
+
+    result = _run(
+        [
+            "--pack",
+            str(PACK),
+            "--evidence-dir",
+            str(evidence),
+            "--review-mode",
+            "--criterion-score",
+            "PYR-1=0.9",
+            "--criterion-score",
+            "PYR-2=0.9",
+            "--criterion-score",
+            "PYR-3=0.9",
+            "--criterion-score",
+            "PYR-4=0.9",
+            "--criterion-score",
+            "PYR-5=0.9",
+        ]
+    )
+
+    payload = json.loads(result.stdout)
+    assert result.returncode == 0
+    assert payload["status"] == "PASS"
+    assert payload["missing_required_claim_ids"] == []
+
+
+@pytest.mark.governance
+def test_runner_blocks_review_mode_without_evidence_dir():
+    result = _run(["--pack", str(PACK), "--review-mode", "--criterion-score", "PYR-1=0.9"])
+    payload = json.loads(result.stdout)
+    assert result.returncode == 4
+    assert payload["status"] == "BLOCKED"
+    assert "requires --evidence-dir" in payload["message"]
