@@ -30,6 +30,8 @@ For backend-python behavior, this profile governs stack-specific rules and activ
 - Every non-trivial claim (for example tests green, static clean, no drift) MUST map to `SESSION_STATE.BuildEvidence.items[]`.
 - Missing/stale evidence MUST result in `NOT_VERIFIED` semantics for the affected claim.
 - Recovery guidance MUST reference existing commands/scripts only.
+- If a recovery path references a script, that script MUST exist in repository/runtime surface; otherwise fail closed using canonical core reason handling and emit one minimal real command.
+- Reason codes are case-sensitive and MUST be carried unchanged (canonical casing) across `reason_payload`, snapshot views, and template lookups.
 
 ## Shared Principal Governance Contracts (Binding)
 
@@ -54,6 +56,7 @@ Binding behavior for `backend-python` profile:
 - Use repository-native Python tooling first (for example `pytest`, `ruff`, `mypy`, `uv`, `poetry`, `pip-tools`, `alembic`).
 - Prefer pinned and reproducible invocation forms (lockfile/workflow-defined commands).
 - When required tooling is unavailable in host constraints, emit deterministic recovery commands and preserve fail-closed gate behavior.
+- This profile inherits core mode constraints: user-mode operations MUST NOT require writes outside repository/workspace/config boundaries; if required, block with canonical mode-violation handling and recovery.
 
 ### Recommended deterministic command order
 
