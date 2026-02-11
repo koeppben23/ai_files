@@ -163,6 +163,14 @@ def persist_command(repo_root: Path) -> str:
     return f'python3 "{PERSIST_HELPER}" --repo-root "{repo_root}"'
 
 
+def _command_available(command: str) -> bool:
+    """Return command availability with canonical alias handling."""
+
+    if command in {"python", "python3"}:
+        return shutil.which("python") is not None or shutil.which("python3") is not None
+    return shutil.which(command) is not None
+
+
 def emit_preflight() -> None:
     now = subprocess.run(
         [
@@ -211,7 +219,7 @@ def emit_preflight() -> None:
     missing_details: list[dict[str, str]] = []
 
     for command in required_now:
-        if shutil.which(command):
+        if _command_available(command):
             available.append(command)
         else:
             missing.append(command)
@@ -227,7 +235,7 @@ def emit_preflight() -> None:
                 }
             )
 
-    missing_later = [command for command in required_later if shutil.which(command) is None]
+    missing_later = [command for command in required_later if not _command_available(command)]
 
     status = "ok" if not missing else "degraded"
     block_now = bool(missing)
