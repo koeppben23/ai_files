@@ -653,6 +653,8 @@ Rules:
 - `Next` MUST be singular and actionable.
 - Footer values MUST be consistent with `SESSION_STATE.Mode`, `SESSION_STATE.Next`, and any emitted reason payloads.
 - In COMPAT mode, the assistant MUST still emit `[NEXT-ACTION]` with `Status|Next|Why|Command` fields (same keys, plain-text layout allowed).
+- `[NEXT-ACTION]` must be human-scannable multiline text: one field per line (`Status`, `Next`, `Why`, `Command`).
+- Do not collapse `[NEXT-ACTION]` into one pipe-joined line (`Status: ... | Next: ... | Why: ... | Command: ...`).
 
 ### 7.3.2 Standard Blocker Output Envelope (Binding)
 

@@ -34,6 +34,11 @@ Primary output MUST be a single JSON object conforming to:
 Rules:
 - Output MUST start with the JSON (no text before it).
 - Optional: after the JSON, a short human-readable summary MAY be printed.
+- If summary is printed, it SHOULD use a stable pretty layout with explicit sections:
+  - `[AUDIT-SUMMARY]`
+  - `Status`, `Phase/Gate`, `PrimaryReason`, `TopRecovery`
+  - `AllowedNextActions` as numbered list
+  - `[/AUDIT-SUMMARY]`
 
 Reason key semantics (binding):
 - `AUDIT_REPORT.status.reasonKeys` and other audit report `*ReasonKey` fields are audit-only diagnostics keys.

@@ -3475,6 +3475,46 @@ def test_start_does_not_require_ticket_before_phase_4():
 
 
 @pytest.mark.governance
+def test_next_action_footer_requires_multiline_pretty_layout_tokens():
+    master = read_text(REPO_ROOT / "master.md")
+    rules = read_text(REPO_ROOT / "rules.md")
+    start = read_text(REPO_ROOT / "start.md")
+
+    required_master = [
+        "[NEXT-ACTION]",
+        "single-line pipe-joined rendering is not allowed",
+    ]
+    required_rules = [
+        "one field per line (`Status`, `Next`, `Why`, `Command`).",
+        "Do not collapse `[NEXT-ACTION]` into one pipe-joined line",
+    ]
+    required_start = [
+        "Render `[NEXT-ACTION]` as multiline footer (one line per field); do not emit a single pipe-joined line.",
+    ]
+
+    missing_master = [token for token in required_master if token not in master]
+    missing_rules = [token for token in required_rules if token not in rules]
+    missing_start = [token for token in required_start if token not in start]
+
+    assert not missing_master, "master.md missing multiline next-action contract tokens:\n" + "\n".join([f"- {m}" for m in missing_master])
+    assert not missing_rules, "rules.md missing multiline next-action contract tokens:\n" + "\n".join([f"- {m}" for m in missing_rules])
+    assert not missing_start, "start.md missing multiline next-action contract token:\n" + "\n".join([f"- {m}" for m in missing_start])
+
+
+@pytest.mark.governance
+def test_audit_pretty_summary_layout_tokens_present():
+    audit = read_text(REPO_ROOT / "diagnostics" / "audit.md")
+    required = [
+        "[AUDIT-SUMMARY]",
+        "Status`, `Phase/Gate`, `PrimaryReason`, `TopRecovery`",
+        "`AllowedNextActions` as numbered list",
+        "[/AUDIT-SUMMARY]",
+    ]
+    missing = [token for token in required if token not in audit]
+    assert not missing, "diagnostics/audit.md missing pretty summary layout tokens:\n" + "\n".join([f"- {m}" for m in missing])
+
+
+@pytest.mark.governance
 def test_rules_use_canonical_repo_business_rules_file_reference():
     text = read_text(REPO_ROOT / "rules.md")
     assert "${REPO_BUSINESS_RULES_FILE}" in text
