@@ -83,21 +83,6 @@ def pointer_fingerprint() -> str | None:
     return None
 
 
-def workspace_identity_map(repo_fp: str) -> Path:
-    return ROOT / "workspaces" / repo_fp / "repo-identity-map.yaml"
-
-
-def legacy_identity_map() -> Path:
-    return ROOT / "repo-identity-map.yaml"
-
-
-def identity_map_exists(repo_fp: str | None) -> bool:
-    if repo_fp:
-        if workspace_identity_map(repo_fp).exists():
-            return True
-    return legacy_identity_map().exists()
-
-
 def load_json(path: Path) -> dict | None:
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
@@ -565,9 +550,45 @@ def run_persistence_hook() -> None:
     )
 
 
+def build_engine_shadow_snapshot() -> dict[str, object]:
+    """Build optional Wave B shadow runtime diagnostics.
+
+    This helper is intentionally non-blocking and side-effect free. It does not
+    alter bootstrap behavior; callers may choose whether to emit the snapshot.
+    """
+
+    try:
+        from governance.engine.runtime import evaluate_runtime_activation, golden_parity_fields
+    except Exception as exc:  # pragma: no cover - exercised in packaged hosts where module may be absent
+        return {
+            "available": False,
+            "reason": "engine-runtime-module-unavailable",
+            "error": str(exc),
+        }
+
+    decision = evaluate_runtime_activation(
+        phase="1.1-Bootstrap",
+        active_gate="Persistence Preflight",
+        mode="OK",
+        next_gate_condition="Persistence helper execution completed",
+        gate_key="PERSISTENCE",
+        gate_blocked=False,
+        enable_live_engine=False,
+    )
+    parity = golden_parity_fields(decision)
+    return {
+        "available": True,
+        "runtime_mode": decision.runtime_mode,
+        "selfcheck_ok": decision.selfcheck.ok,
+        "parity": parity,
+    }
+
+
 def main() -> int:
     emit_preflight()
     run_persistence_hook()
+    if os.getenv("OPENCODE_ENGINE_SHADOW_EMIT") == "1":
+        print(json.dumps({"engineRuntimeShadow": build_engine_shadow_snapshot()}, ensure_ascii=True))
     return 0
 
 
