@@ -715,6 +715,65 @@ def test_orchestrator_enforces_no_claim_without_evidence_for_quality_claims(tmp_
 
 
 @pytest.mark.governance
+def test_orchestrator_backfeeds_claim_evidence_from_session_state_build_evidence(tmp_path: Path):
+    """Claim verification should derive from SESSION_STATE build evidence items."""
+
+    repo_root = _make_git_root(tmp_path / "repo")
+    adapter = StubAdapter(
+        env={"OPENCODE_REPO_ROOT": str(repo_root)},
+        cwd_path=repo_root,
+        caps=HostCapabilities(
+            cwd_trust="trusted",
+            fs_read_commands_home=True,
+            fs_write_config_root=True,
+            fs_write_commands_home=True,
+            fs_write_workspaces_home=True,
+            fs_write_repo_root=True,
+            exec_allowed=True,
+            git_available=True,
+        ),
+    )
+    session_state = {
+        "SESSION_STATE": {
+            "BuildEvidence": {
+                "items": [
+                    {"claim": "tests green", "result": "pass"},
+                    {"claim": "static clean", "result": "pass"},
+                    {"claim": "no drift", "result": "fail"},
+                ]
+            }
+        }
+    }
+    required_claims = ["claim/tests-green", "claim/static-clean", "claim/no-drift"]
+
+    missing = run_engine_orchestrator(
+        adapter=adapter,
+        phase="1.1-Bootstrap",
+        active_gate="Persistence Preflight",
+        mode="OK",
+        next_gate_condition="Persistence helper execution completed",
+        required_claim_evidence_ids=required_claims,
+        session_state_document=session_state,
+    )
+    assert missing.parity["status"] == "not_verified"
+    assert missing.parity["reason_code"] == "NOT_VERIFIED-MISSING-EVIDENCE"
+    assert missing.missing_evidence == ("claim/no-drift",)
+
+    session_state["SESSION_STATE"]["BuildEvidence"]["items"][2]["result"] = "pass"
+    satisfied = run_engine_orchestrator(
+        adapter=adapter,
+        phase="1.1-Bootstrap",
+        active_gate="Persistence Preflight",
+        mode="OK",
+        next_gate_condition="Persistence helper execution completed",
+        required_claim_evidence_ids=required_claims,
+        session_state_document=session_state,
+    )
+    assert satisfied.parity["status"] == "ok"
+    assert satisfied.parity["reason_code"] == REASON_CODE_NONE
+
+
+@pytest.mark.governance
 def test_orchestrator_blocks_on_release_hygiene_violation_in_pipeline_mode(tmp_path: Path):
     """Pipeline/system modes should fail closed on release hygiene violations."""
 

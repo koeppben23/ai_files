@@ -111,6 +111,69 @@ def _hash_payload(payload: dict[str, object]) -> str:
     return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 
 
+def _canonical_claim_evidence_id(claim: str) -> str:
+    """Convert a human claim label into canonical claim evidence ID."""
+
+    normalized = re.sub(r"[^a-z0-9]+", "-", claim.strip().lower()).strip("-")
+    if not normalized:
+        return ""
+    return f"claim/{normalized}"
+
+
+def _extract_verified_claim_evidence_ids(session_state_document: Mapping[str, object] | None) -> tuple[str, ...]:
+    """Extract verified claim evidence IDs from SESSION_STATE build evidence."""
+
+    if session_state_document is None:
+        return ()
+
+    root: Mapping[str, object]
+    session_state = session_state_document.get("SESSION_STATE")
+    if isinstance(session_state, Mapping):
+        root = session_state
+    else:
+        root = session_state_document
+
+    build_evidence = root.get("BuildEvidence")
+    if not isinstance(build_evidence, Mapping):
+        return ()
+
+    observed: set[str] = set()
+
+    claims_verified = build_evidence.get("claims_verified")
+    if isinstance(claims_verified, list):
+        for entry in claims_verified:
+            if isinstance(entry, str) and entry.strip():
+                observed.add(entry.strip())
+
+    items = build_evidence.get("items")
+    if isinstance(items, list):
+        for item in items:
+            if not isinstance(item, Mapping):
+                continue
+            result = str(item.get("result", "")).strip().lower()
+            verified = item.get("verified") is True
+            if result not in {"pass", "passed", "ok", "success"} and not verified:
+                continue
+
+            evidence_id = item.get("evidence_id")
+            if isinstance(evidence_id, str) and evidence_id.strip():
+                observed.add(evidence_id.strip())
+                continue
+
+            claim_id = item.get("claim_id")
+            if isinstance(claim_id, str) and claim_id.strip():
+                observed.add(claim_id.strip())
+                continue
+
+            claim_label = item.get("claim")
+            if isinstance(claim_label, str) and claim_label.strip():
+                canonical = _canonical_claim_evidence_id(claim_label)
+                if canonical:
+                    observed.add(canonical)
+
+    return tuple(sorted(observed))
+
+
 def _build_ruleset_hash(
     *,
     selected_pack_ids: list[str] | None,
@@ -195,6 +258,8 @@ def run_engine_orchestrator(
     require_hash_match: bool = False,
     required_evidence_ids: list[str] | None = None,
     observed_evidence_ids: list[str] | None = None,
+    required_claim_evidence_ids: list[str] | None = None,
+    session_state_document: Mapping[str, object] | None = None,
     release_hygiene_entries: tuple[str, ...] = (),
 ) -> EngineOrchestratorOutput:
     """Run one deterministic engine orchestration cycle.
@@ -231,7 +296,11 @@ def run_engine_orchestrator(
     pack_lock_checked = False
     expected_pack_lock_hash = ""
     observed_pack_lock_hash = ""
-    missing_evidence = tuple(sorted(set(required_evidence_ids or []) - set(observed_evidence_ids or [])))
+    required_evidence = set(required_evidence_ids or [])
+    required_evidence.update(required_claim_evidence_ids or [])
+    observed_evidence = set(observed_evidence_ids or [])
+    observed_evidence.update(_extract_verified_claim_evidence_ids(session_state_document))
+    missing_evidence = tuple(sorted(required_evidence - observed_evidence))
     hash_diff: dict[str, str] = {}
 
     gate_blocked = False
