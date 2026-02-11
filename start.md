@@ -169,6 +169,7 @@ Output requirements:
 - Explicit DEVIATION reporting
 - Prefer structured (non-chat) answers when host constraints allow
 - End every response with `[NEXT-ACTION]` footer (`Status`, `Next`, `Why`, `Command`) per `master.md` (also required in COMPAT mode)
+- `[NEXT-ACTION]` footer MUST include `PhaseGate` (`phase | active_gate | phase_progress_bar`) for quick phase orientation.
 - Render `[NEXT-ACTION]` as multiline footer (one line per field); do not emit a single pipe-joined line.
 - Exactly one `NextAction` mechanism is allowed per response: `command` OR `reply_with_one_number` OR `manual_step`.
 - `NextAction` wording SHOULD include concrete context (active phase/gate/scope) rather than generic continuation text.

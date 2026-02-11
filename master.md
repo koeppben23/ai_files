@@ -1170,6 +1170,7 @@ Every assistant response MUST end with a compact, deterministic footer block:
 
 ```
 [NEXT-ACTION]
+PhaseGate: <phase> | <active_gate> | <phase_progress_bar>
 Status: <normal|degraded|draft|blocked>
 Next: <single concrete next action>
 Why: <one-sentence rationale>
@@ -1180,6 +1181,7 @@ Rules:
 - `Next` MUST be singular (no multi-step chain in one line).
 - If mode is `BLOCKED`, `Status` MUST be `blocked` and `Command` MUST match recovery guidance.
 - Footer content MUST align with `SESSION_STATE.Next` and emitted reason payloads.
+- `PhaseGate` MUST be present in both STRICT and COMPAT responses and derive from `SESSION_STATE` (`phase`, `active_gate`, `phase_progress_bar`).
 - `[NEXT-ACTION]` presentation MUST remain multiline (`Status`, `Next`, `Why`, `Command` each on its own line); single-line pipe-joined rendering is not allowed.
 
 #### Confidence + Impact Snapshot (Binding)
