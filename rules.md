@@ -727,6 +727,7 @@ Quick-fix confidence labeling (recommended):
 Reason-code quick-fix template catalog (recommended):
 - Recovery messaging SHOULD use `diagnostics/QUICKFIX_TEMPLATES.json` when present.
 - Template lookup key is canonical `reason_code`.
+- `reason_code` is case-sensitive and MUST be carried unchanged (canonical casing) across `reason_payload`, snapshot views, and template lookups.
 - Runtime output still MUST enforce command coherence rules (`[NEXT-ACTION].Command`, `next_command`, `QuickFixCommands[0]`).
 
 ### 7.3.6 Architect-Only Autopilot Lifecycle (Binding)
@@ -801,6 +802,7 @@ COMPAT mode MUST NOT disable fail-closed evidence gates.
 ### 7.3.9 SESSION_STATE Formatting Contract (Binding)
 
 In STRICT envelopes, `session_state` MAY be emitted as a compact machine-readable snapshot object.
+In this section, "`SESSION_STATE` is emitted" refers to a dedicated full-state output block, not the compact strict-envelope snapshot projection.
 Whenever `SESSION_STATE` is emitted in assistant output, it MUST be rendered as a fenced YAML block.
 Whenever full `SESSION_STATE` is emitted as a dedicated state block in assistant output, it MUST be rendered as a fenced YAML block.
 
