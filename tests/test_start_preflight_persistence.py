@@ -23,6 +23,7 @@ def test_emit_preflight_treats_python3_as_python_equivalent(monkeypatch: pytest.
     """Preflight should not block when python3 exists but python alias is missing."""
 
     module = _load_module()
+    monkeypatch.setattr(module, "TOOL_CATALOG", REPO_ROOT / "diagnostics" / "tool_requirements.json")
 
     def fake_which(command: str):
         if command == "git":
@@ -63,6 +64,7 @@ def test_emit_preflight_blocks_when_both_python_aliases_missing(monkeypatch: pyt
     """Preflight should block when neither python nor python3 is available."""
 
     module = _load_module()
+    monkeypatch.setattr(module, "TOOL_CATALOG", REPO_ROOT / "diagnostics" / "tool_requirements.json")
 
     def fake_which(command: str):
         if command == "git":
