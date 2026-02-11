@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
 
+"""Bridge raw /audit reason keys to canonical governance reason codes.
+
+This script remains behavior-compatible with existing Wave A diagnostics while
+loading defaults from the central reason-code registry.
+"""
+
 from __future__ import annotations
 
 import argparse
@@ -22,6 +28,8 @@ if DEFAULT_UNMAPPED_AUDIT_REASON != LEGACY_DEFAULT_UNMAPPED_AUDIT_REASON:
 
 
 def _extract_reason_keys(report: dict[str, Any]) -> list[str]:
+    """Extract ordered unique reason keys from known audit-report sections."""
+
     ordered: list[str] = []
     seen: set[str] = set()
 
@@ -83,6 +91,8 @@ def _extract_reason_keys(report: dict[str, Any]) -> list[str]:
 
 
 def _severity_rank(code: str) -> int:
+    """Return deterministic severity rank used to derive primaryReasonCode."""
+
     if code.startswith("BLOCKED-"):
         return 3
     if code.startswith("WARN-"):
@@ -93,6 +103,8 @@ def _severity_rank(code: str) -> int:
 
 
 def main() -> int:
+    """Parse inputs, apply mapping rules, and emit canonical bridge payload."""
+
     parser = argparse.ArgumentParser(description="Map /audit reason keys to canonical governance reason codes.")
     parser.add_argument("--input", required=True, type=Path, help="Path to audit report JSON.")
     parser.add_argument(

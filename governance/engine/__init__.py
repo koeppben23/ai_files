@@ -1,1 +1,1 @@
-"""Core governance engine primitives."""
+"""Engine-layer primitives that define deterministic governance behavior."""

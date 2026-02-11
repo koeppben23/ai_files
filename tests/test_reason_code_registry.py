@@ -12,6 +12,8 @@ from .util import REPO_ROOT, run
 
 @pytest.mark.governance
 def test_reason_code_registry_contains_wave_a_baseline_codes():
+    """Registry must expose the Wave A baseline reason codes without duplicates."""
+
     assert reason_codes.BLOCKED_MISSING_BINDING_FILE in reason_codes.CANONICAL_REASON_CODES
     assert reason_codes.BLOCKED_VARIABLE_RESOLUTION in reason_codes.CANONICAL_REASON_CODES
     assert reason_codes.BLOCKED_WORKSPACE_PERSISTENCE in reason_codes.CANONICAL_REASON_CODES
@@ -22,6 +24,8 @@ def test_reason_code_registry_contains_wave_a_baseline_codes():
 
 @pytest.mark.governance
 def test_map_audit_bridge_uses_registry_default_when_map_omits_default(tmp_path: Path):
+    """Bridge should use registry default when mapping file omits a fallback code."""
+
     report = {
         "status": {"state": "blocked", "reasonKeys": ["BR_UNKNOWN_KEY"]},
         "gateTrace": {"activeGates": [], "blockingGates": []},
