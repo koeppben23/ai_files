@@ -10,6 +10,12 @@ Release/readiness stability gate (binding):
 - `STABILITY_SLA.md` is the normative Go/No-Go contract for governance releases.
 - Governance changes that violate any SLA criterion MUST be treated as release-blocking.
 
+Normative boundary for state-machine runtime (binding):
+- `master.md` defines invariants, status vocabulary, gate semantics, and fail-closed behavior.
+- Runtime details are implemented in `governance/engine/*`, `governance/render/*`, and diagnostics schemas.
+- If implementation artifacts and this file diverge, this file is authoritative until implementation is corrected.
+- This file should avoid duplicating low-level algorithmic details that are already contract-tested in code.
+
 <!-- NOTE: This diff adds fail-closed TargetPath validation to prevent degenerate paths like "C" being written into the repo. -->
 
 ## PHASE 0 — BOOTSTRAP (CONDITIONAL)
