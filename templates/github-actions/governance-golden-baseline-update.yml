@@ -1,0 +1,104 @@
+name: Governance Golden Baseline Update
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_branch:
+        description: "Branch to update (usually main)"
+        required: true
+        default: "main"
+      confirmation:
+        description: "Type UPDATE_GOLDENS to allow baseline replacement"
+        required: true
+      commit_changes:
+        description: "Commit baseline changes back to target branch"
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+concurrency:
+  group: governance-golden-baseline-update-${{ github.event.inputs.target_branch }}
+  cancel-in-progress: false
+
+jobs:
+  update-golden-baseline:
+    name: Generate and Update Golden Baseline
+    runs-on: ubuntu-latest
+    steps:
+      - name: Enforce operator confirmation token
+        run: |
+          set -euo pipefail
+          if [[ "${{ github.event.inputs.confirmation }}" != "UPDATE_GOLDENS" ]]; then
+            echo "BLOCKED-GOLDEN-CONFIRMATION-MISSING: confirmation must equal UPDATE_GOLDENS"
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.target_branch }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Generate current golden outputs
+        run: |
+          set -euo pipefail
+          python3 scripts/generate_golden_outputs.py --repo-root . --output-dir diagnostics/goldens/current
+
+      - name: Replace baseline from generated outputs
+        run: |
+          set -euo pipefail
+          rm -rf diagnostics/goldens/baseline
+          mkdir -p diagnostics/goldens/baseline
+          cp -R diagnostics/goldens/current/. diagnostics/goldens/baseline/
+
+      - name: Emit baseline hash manifest
+        run: |
+          set -euo pipefail
+          mkdir -p diagnostics/goldens/diff
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import pathlib
+
+          root = pathlib.Path("diagnostics/goldens/baseline")
+          payload = {}
+          for path in sorted(root.rglob("*.json")):
+              payload[path.relative_to(root).as_posix()] = hashlib.sha256(path.read_bytes()).hexdigest()
+          pathlib.Path("diagnostics/goldens/diff/baseline.sha256.json").write_text(
+              json.dumps(payload, indent=2) + "\n",
+              encoding="utf-8",
+          )
+          PY
+
+      - name: Require baseline change notes
+        run: |
+          set -euo pipefail
+          if [[ ! -f diagnostics/goldens/GOLDEN_CHANGE_NOTES.md ]]; then
+            echo "BLOCKED-GOLDEN-UPDATE-NOTE-MISSING: diagnostics/goldens/GOLDEN_CHANGE_NOTES.md is required"
+            exit 1
+          fi
+
+      - name: Upload baseline update artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: governance-golden-baseline-update
+          path: |
+            diagnostics/goldens/baseline/**
+            diagnostics/goldens/diff/baseline.sha256.json
+
+      - name: Commit and push baseline update
+        if: ${{ github.event.inputs.commit_changes == 'true' }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$(git status --porcelain diagnostics/goldens/baseline diagnostics/goldens/GOLDEN_CHANGE_NOTES.md)" ]]; then
+            echo "No baseline changes to commit"
+            exit 0
+          fi
+          git add diagnostics/goldens/baseline diagnostics/goldens/GOLDEN_CHANGE_NOTES.md diagnostics/goldens/diff/baseline.sha256.json
+          git commit -m "chore(goldens): update baseline outputs"
+          git push origin "${{ github.event.inputs.target_branch }}"

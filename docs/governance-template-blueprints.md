@@ -20,7 +20,13 @@ This document maps production-ready workflow templates to governance goals.
 - `templates/github-actions/governance-golden-output-stability.yml`
   - executes canonical intents through real intent->engine->render script (`scripts/generate_golden_outputs.py`)
   - blocks output drift with both textual diff and SHA-256 manifest diff checks
-  - forbids silent baseline edits by requiring `diagnostics/goldens/GOLDEN_CHANGE_NOTES.md` in baseline-changing PRs
+  - blocks baseline edits in PRs (`BLOCKED-GOLDEN-BASELINE-MODIFIED-IN-PR`) to prevent regression masking
+
+- `templates/github-actions/governance-golden-baseline-update.yml`
+  - maintainer-only `workflow_dispatch` path for baseline replacement
+  - requires explicit `UPDATE_GOLDENS` confirmation token
+  - generates fresh baseline from real intent->engine->render pipeline and emits hash manifest
+  - supports artifact-only review or optional commit/push to target branch
 
 ## Adoption guidance
 

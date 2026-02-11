@@ -63,17 +63,15 @@ jobs:
             exit 1
           fi
 
-      - name: Require explicit golden change note when baseline updates in PR
+      - name: Block baseline edits in PR
         if: github.event_name == 'pull_request'
         run: |
           set -euo pipefail
           git fetch origin "${{ github.base_ref }}" --depth=1
           changed="$(git diff --name-only "origin/${{ github.base_ref }}...HEAD")"
           if printf '%s\n' "${changed}" | rg -q '^diagnostics/goldens/baseline/'; then
-            if ! printf '%s\n' "${changed}" | rg -q '^diagnostics/goldens/GOLDEN_CHANGE_NOTES.md$'; then
-              echo "BLOCKED-GOLDEN-UPDATE-NOTE-MISSING: baseline changed without diagnostics/goldens/GOLDEN_CHANGE_NOTES.md"
-              exit 1
-            fi
+            echo "BLOCKED-GOLDEN-BASELINE-MODIFIED-IN-PR: baseline updates require workflow_dispatch"
+            exit 1
           fi
 
       - name: Upload golden comparison artifacts
