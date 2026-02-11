@@ -154,6 +154,7 @@ def test_release_archives_layout_and_contents_policy(built_artifacts):
         assert not any(any(part.startswith("._") for part in Path(n).parts) for n in files), (
             f"{label}: AppleDouble path parts included"
         )
+        assert not any(".DS_Store" in Path(n).parts for n in files), f"{label}: .DS_Store entries included"
 
         # allowlist file types:
         # - install.py

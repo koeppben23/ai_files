@@ -41,3 +41,16 @@ def test_engine_shadow_snapshot_is_available_and_reports_parity_fields(monkeypat
         "reason_code": "none",
         "next_action.command": "none",
     }
+
+
+@pytest.mark.governance
+def test_engine_shadow_snapshot_accepts_pipeline_operating_mode(monkeypatch: pytest.MonkeyPatch):
+    """Shadow snapshot should accept explicit pipeline mode request."""
+
+    monkeypatch.chdir(REPO_ROOT)
+    monkeypatch.setenv("OPENCODE_REPO_ROOT", str(REPO_ROOT))
+    monkeypatch.setenv("OPENCODE_OPERATING_MODE", "pipeline")
+    module = _load_module()
+    snapshot = module.build_engine_shadow_snapshot()
+    assert snapshot["available"] is True
+    assert snapshot["effective_operating_mode"] in {"pipeline", "user"}

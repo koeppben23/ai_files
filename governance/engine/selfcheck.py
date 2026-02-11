@@ -7,6 +7,9 @@ of engine contracts required before enabling live engine mode.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
+
+_FORBIDDEN_METADATA_NAMES = {"__MACOSX", ".DS_Store", "Icon\r"}
 
 from governance.engine import reason_codes
 
@@ -19,7 +22,18 @@ class EngineSelfcheckResult:
     failed_checks: tuple[str, ...]
 
 
-def run_engine_selfcheck() -> EngineSelfcheckResult:
+def _is_forbidden_metadata_entry(path: str) -> bool:
+    """Return True when path points to forbidden release metadata payload."""
+
+    parts = Path(path.replace("\\", "/")).parts
+    if any(part in _FORBIDDEN_METADATA_NAMES for part in parts):
+        return True
+    if any(part.startswith("._") for part in parts):
+        return True
+    return False
+
+
+def run_engine_selfcheck(*, release_hygiene_entries: tuple[str, ...] = ()) -> EngineSelfcheckResult:
     """Validate minimal invariants required for live engine activation."""
 
     failed: list[str] = []
@@ -29,5 +43,8 @@ def run_engine_selfcheck() -> EngineSelfcheckResult:
 
     if not reason_codes.is_registered_reason_code(reason_codes.BLOCKED_ENGINE_SELFCHECK, allow_none=False):
         failed.append("missing_blocked_engine_selfcheck_reason")
+
+    if any(_is_forbidden_metadata_entry(entry) for entry in release_hygiene_entries):
+        failed.append("release_metadata_hygiene_violation")
 
     return EngineSelfcheckResult(ok=not failed, failed_checks=tuple(failed))

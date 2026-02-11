@@ -41,8 +41,8 @@ def test_desktop_adapter_respects_disable_git_env(monkeypatch: pytest.MonkeyPatc
 
 
 @pytest.mark.governance
-def test_desktop_adapter_defaults_to_system_mode_in_ci(monkeypatch: pytest.MonkeyPatch):
+def test_desktop_adapter_defaults_to_pipeline_mode_in_ci(monkeypatch: pytest.MonkeyPatch):
     """Desktop adapter should switch default operating mode in CI environments."""
 
     monkeypatch.setenv("CI", "true")
-    assert OpenCodeDesktopAdapter().default_operating_mode() == "system"
+    assert OpenCodeDesktopAdapter().default_operating_mode() == "pipeline"

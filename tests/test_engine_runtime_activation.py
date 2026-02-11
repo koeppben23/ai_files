@@ -80,6 +80,15 @@ def test_engine_selfcheck_passes_with_current_registry():
 
 
 @pytest.mark.governance
+def test_engine_selfcheck_detects_release_metadata_hygiene_violations():
+    """Selfcheck should fail when forbidden metadata entries are provided."""
+
+    result = run_engine_selfcheck(release_hygiene_entries=("__MACOSX/file", ".DS_Store"))
+    assert result.ok is False
+    assert "release_metadata_hygiene_violation" in result.failed_checks
+
+
+@pytest.mark.governance
 def test_runtime_parity_fields_for_non_blocked_shadow_decision():
     """Golden parity fields should stay stable for normal shadow-mode output."""
 
