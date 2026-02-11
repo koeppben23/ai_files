@@ -189,6 +189,8 @@ Output requirements:
 - Default strict rendering SHOULD emit a compact `SESSION_SNAPSHOT` projection and avoid full-session dumps unless diagnostics intent is explicit.
 - Compact snapshot SHOULD include stable decision references (`activation_hash`; optionally `ruleset_hash`) and compact drift context (`state_unchanged` / `no_delta`) when available.
 - Full `SESSION_STATE` remains required as canonical persisted state; compact rendering is a view-layer projection only.
+- Session-state rollout posture is final: phase >= 3 is engine-only legacy-removed mode; legacy alias compatibility is historical only and MUST NOT be used as a normal-path dependency.
+- Recovery command integrity: emitted recovery commands MUST reference existing artifacts/scripts; if a specific helper is unavailable, fail closed and emit one minimal real command (default: `/start`).
 - When preparing a PR that changes governance contracts, response SHOULD include an operator-impact section (`What changed for operators?`).
 - Governance PR summaries SHOULD also include `Reviewer focus` bullets for highest-risk contract deltas.
 
