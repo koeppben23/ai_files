@@ -183,6 +183,9 @@ Output requirements:
 - Response mode MUST be explicit and singular per turn: `STRICT` or `COMPAT`.
 - `STRICT` requires envelope + `[SNAPSHOT]` + `[NEXT-ACTION]`; `COMPAT` requires `RequiredInputs` + `Recovery` + `NextAction` + `[NEXT-ACTION]`.
 - If operator requests full details (for example: `show diagnostics`, `show full session state`), `/start` SHOULD emit full strict diagnostics without changing gate/evidence outcomes.
+- Default strict rendering SHOULD emit a compact `SESSION_SNAPSHOT` projection and avoid full-session dumps unless diagnostics intent is explicit.
+- Compact snapshot SHOULD include stable decision references (`activation_hash`; optionally `ruleset_hash`) and compact drift context (`state_unchanged` / `no_delta`) when available.
+- Full `SESSION_STATE` remains required as canonical persisted state; compact rendering is a view-layer projection only.
 - When preparing a PR that changes governance contracts, response SHOULD include an operator-impact section (`What changed for operators?`).
 - Governance PR summaries SHOULD also include `Reviewer focus` bullets for highest-risk contract deltas.
 
