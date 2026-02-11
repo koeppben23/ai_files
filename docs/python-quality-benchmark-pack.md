@@ -60,3 +60,19 @@ direct comparability over repeated runs.
 3. score criteria and compute ratio
 4. mark `NOT_VERIFIED` when required evidence is missing/stale
 5. archive results with commit SHA and timestamp for reproducibility
+
+Runner helper:
+
+```bash
+python3 scripts/run_quality_benchmark.py \
+  --pack diagnostics/PYTHON_QUALITY_BENCHMARK_PACK.json \
+  --observed-claim claim/tests-green \
+  --observed-claim claim/static-clean \
+  --observed-claim claim/no-drift \
+  --criterion-score PYR-1=0.9 \
+  --criterion-score PYR-2=0.9 \
+  --criterion-score PYR-3=0.9 \
+  --criterion-score PYR-4=0.9 \
+  --criterion-score PYR-5=0.9 \
+  --output diagnostics/benchmark-results/python-quality.json
+```
