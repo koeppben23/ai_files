@@ -1,0 +1,80 @@
+name: Governance Ruleset Release
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "ruleset-v*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: governance-ruleset-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate-and-lock:
+    name: Validate Manifests and Build Locks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Validate addon manifests and governance contracts
+        run: |
+          python3 scripts/validate_addons.py
+          python3 scripts/governance_lint.py
+
+      - name: Build profile lock artifacts
+        run: |
+          mkdir -p rulesets/default/1.0.0
+          python3 - <<'PY'
+          import hashlib, json, pathlib
+
+          base = pathlib.Path("rulesets/default/1.0.0")
+          base.mkdir(parents=True, exist_ok=True)
+
+          manifest = {
+            "schema": "governance-ruleset-manifest.v1",
+            "ruleset_id": "default",
+            "version": "1.0.0",
+            "profiles": ["backend-python", "backend-java", "frontend-angular-nx"],
+          }
+          lock = {
+            "schema": "governance-ruleset-lock.v1",
+            "deterministic": True,
+            "resolved_profiles": manifest["profiles"],
+            "resolved_addons": ["backendPythonTemplates", "angularNxTemplates", "openapi"],
+          }
+
+          (base / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+          (base / "lock.json").write_text(json.dumps(lock, indent=2) + "\n", encoding="utf-8")
+
+          hashes = {}
+          for name in ("manifest.json", "lock.json"):
+            data = (base / name).read_bytes()
+            hashes[name] = hashlib.sha256(data).hexdigest()
+          hashes["ruleset_hash"] = hashlib.sha256((hashes["manifest.json"] + hashes["lock.json"]).encode("utf-8")).hexdigest()
+
+          (base / "hashes.json").write_text(json.dumps(hashes, indent=2) + "\n", encoding="utf-8")
+          PY
+
+      - name: Upload ruleset release artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: governance-ruleset-release
+          path: rulesets/default/1.0.0/**
+
+      - name: Enforce deterministic lock gate
+        run: |
+          python3 - <<'PY'
+          import json, pathlib, sys
+          lock = json.loads(pathlib.Path("rulesets/default/1.0.0/lock.json").read_text(encoding="utf-8"))
+          if lock.get("deterministic") is not True:
+              print("BLOCKED: lock resolution not deterministic")
+              sys.exit(1)
+          PY

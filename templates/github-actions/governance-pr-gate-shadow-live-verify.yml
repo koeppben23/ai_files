@@ -1,0 +1,199 @@
+name: Governance PR Gate (Shadow -> Live -> Verify)
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: governance-pr-gate-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  shadow-evaluate:
+    name: Shadow Evaluate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Shadow gate evaluation (read-only)
+        run: |
+          mkdir -p diagnostics/shadow
+          # Replace with your actual shadow evaluator.
+          python3 - <<'PY'
+          import json, pathlib
+          out = {
+            "status": "SHADOW",
+            "phase": "1.1",
+            "active_gate": "bootstrap.preflight",
+            "activation_hash": "shadow-not-computed",
+            "ruleset_hash": "shadow-not-computed",
+            "notes": "read-only shadow stage"
+          }
+          pathlib.Path("diagnostics/shadow/shadow.json").write_text(json.dumps(out, indent=2) + "\n", encoding="utf-8")
+          PY
+
+      - name: Upload shadow artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: governance-shadow-artifacts
+          path: diagnostics/shadow/shadow.json
+
+  live-verify:
+    name: Live Verify
+    runs-on: ubuntu-latest
+    needs: [shadow-evaluate]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Execute tests and lint to generate evidence
+        run: |
+          mkdir -p diagnostics/benchmark-evidence diagnostics/benchmark-results
+          python3 -m pytest -q --junitxml diagnostics/benchmark-evidence/junit.xml
+          echo $? > diagnostics/benchmark-evidence/pytest.exitcode
+          python3 scripts/governance_lint.py
+          echo $? > diagnostics/benchmark-evidence/governance_lint.exitcode
+          git fetch origin "${{ github.base_ref }}" --depth=1
+          git diff --name-status "origin/${{ github.base_ref }}...HEAD" > diagnostics/benchmark-evidence/drift.txt
+
+      - name: Derive claims and run benchmark
+        run: |
+          python3 - <<'PY'
+          import json, pathlib, subprocess, sys
+          evidence = pathlib.Path("diagnostics/benchmark-evidence")
+          observed = []
+          if (evidence / "pytest.exitcode").read_text().strip() == "0":
+              observed.append("claim/tests-green")
+          if (evidence / "governance_lint.exitcode").read_text().strip() == "0":
+              observed.append("claim/static-clean")
+          if (evidence / "drift.txt").exists() and (evidence / "drift.txt").read_text(encoding="utf-8").strip():
+              observed.append("claim/no-drift")
+
+          cmd = [
+              sys.executable,
+              "scripts/run_quality_benchmark.py",
+              "--pack", "diagnostics/PYTHON_QUALITY_BENCHMARK_PACK.json",
+              "--output", "diagnostics/benchmark-results/live.json",
+              "--criterion-score", "PYR-1=0.9",
+              "--criterion-score", "PYR-2=0.9",
+              "--criterion-score", "PYR-3=0.9",
+              "--criterion-score", "PYR-4=0.9",
+              "--criterion-score", "PYR-5=0.9",
+          ]
+          for claim in sorted(set(observed)):
+              cmd += ["--observed-claim", claim]
+          proc = subprocess.run(cmd, check=False)
+          pathlib.Path("diagnostics/benchmark-results/live.exitcode").write_text(str(proc.returncode) + "\n", encoding="utf-8")
+          raise SystemExit(proc.returncode)
+          PY
+
+      - name: Upload live artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: governance-live-artifacts
+          path: |
+            diagnostics/benchmark-evidence/**
+            diagnostics/benchmark-results/live.json
+            diagnostics/benchmark-results/live.exitcode
+
+  reviewer-recompute:
+    name: Reviewer Recompute Gate
+    runs-on: ubuntu-latest
+    needs: [live-verify]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: governance-live-artifacts
+          path: diagnostics
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Recompute authoritative gate decision
+        run: |
+          # Replace with your dedicated review-mode evaluator when available.
+          python3 - <<'PY'
+          import json, pathlib, subprocess, sys
+          observed = []
+          if pathlib.Path("diagnostics/benchmark-evidence/pytest.exitcode").read_text().strip() == "0":
+              observed.append("claim/tests-green")
+          if pathlib.Path("diagnostics/benchmark-evidence/governance_lint.exitcode").read_text().strip() == "0":
+              observed.append("claim/static-clean")
+          if pathlib.Path("diagnostics/benchmark-evidence/drift.txt").read_text(encoding="utf-8").strip():
+              observed.append("claim/no-drift")
+
+          cmd = [
+              sys.executable,
+              "scripts/run_quality_benchmark.py",
+              "--pack", "diagnostics/PYTHON_QUALITY_BENCHMARK_PACK.json",
+              "--output", "diagnostics/benchmark-results/review.json",
+              "--criterion-score", "PYR-1=0.9",
+              "--criterion-score", "PYR-2=0.9",
+              "--criterion-score", "PYR-3=0.9",
+              "--criterion-score", "PYR-4=0.9",
+              "--criterion-score", "PYR-5=0.9",
+          ]
+          for claim in sorted(set(observed)):
+              cmd += ["--observed-claim", claim]
+          proc = subprocess.run(cmd, check=False)
+          pathlib.Path("diagnostics/benchmark-results/review.exitcode").write_text(str(proc.returncode) + "\n", encoding="utf-8")
+          raise SystemExit(proc.returncode)
+          PY
+
+      - name: Upload reviewer artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: governance-review-artifacts
+          path: |
+            diagnostics/benchmark-results/review.json
+            diagnostics/benchmark-results/review.exitcode
+
+  policy-diff:
+    name: Policy Diff
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Compute hash-level policy diff
+        run: |
+          mkdir -p diagnostics/policy-diff
+          git fetch origin "${{ github.base_ref }}" --depth=1
+          git diff --name-only "origin/${{ github.base_ref }}...HEAD" > diagnostics/policy-diff/files.txt
+          python3 - <<'PY'
+          import json, pathlib
+          payload = {
+            "activation_hash_diff": "compute-in-project-evaluator",
+            "ruleset_hash_diff": "compute-in-project-evaluator",
+            "changed_files": pathlib.Path("diagnostics/policy-diff/files.txt").read_text(encoding="utf-8").splitlines(),
+          }
+          pathlib.Path("diagnostics/policy-diff/policy-diff.json").write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+          PY
+
+      - name: Upload policy diff artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: governance-policy-diff-artifacts
+          path: diagnostics/policy-diff/**

@@ -1,0 +1,61 @@
+name: Governance Golden Output Stability
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  golden-output-stability:
+    name: Golden Output Stability
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Generate canonical intent outputs
+        run: |
+          mkdir -p diagnostics/goldens/current
+          python3 - <<'PY'
+          import json, pathlib
+
+          out = pathlib.Path("diagnostics/goldens/current")
+          out.mkdir(parents=True, exist_ok=True)
+
+          # Replace with real intent execution hooks.
+          payloads = {
+            "start.json": {"intent": "/start", "status": "OK"},
+            "what_blocks_me.json": {"intent": "what_blocks_me", "status": "OK"},
+            "show_diagnostics.json": {"intent": "show diagnostics", "status": "OK"},
+            "where_am_i.json": {"intent": "where_am_i", "status": "OK"},
+          }
+          for name, payload in payloads.items():
+            (out / name).write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+          PY
+
+      - name: Compare against golden fixtures
+        run: |
+          mkdir -p diagnostics/goldens/diff
+          if [ ! -d diagnostics/goldens/baseline ]; then
+            echo "Missing baseline goldens directory"
+            exit 1
+          fi
+          diff -ru diagnostics/goldens/baseline diagnostics/goldens/current > diagnostics/goldens/diff/output.diff || true
+          if [ -s diagnostics/goldens/diff/output.diff ] && [ "${ALLOW_GOLDEN_UPDATE:-0}" != "1" ]; then
+            echo "BLOCKED-OUTPUT-DRIFT: golden output changed without ALLOW_GOLDEN_UPDATE=1"
+            cat diagnostics/goldens/diff/output.diff
+            exit 1
+          fi
+
+      - name: Upload golden comparison artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: governance-golden-output-artifacts
+          path: diagnostics/goldens/**
