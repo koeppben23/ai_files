@@ -6,6 +6,13 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
 ## [Unreleased]
 
 ### Added
+- Add backend Python profile rulebook `profiles/rules.backend-python.md` with deterministic evidence, tooling, migration/rollback, and operational safety contracts.
+- Add backend Python templates addon pair:
+  - `profiles/rules.backend-python-templates.md` (required code-generation template contract)
+  - `profiles/addons/backendPythonTemplates.addon.yml` (capability/signal activation policy)
+- Add deterministic SESSION_STATE migration tool `scripts/migrate_session_state.py` with first-write `.backup` behavior and machine-readable exit codes (`0=ok`, `2=blocked`).
+- Add two-layer render modules under `governance/render/` (`intent_router.py`, `delta_renderer.py`, `token_guard.py`, `render_contract.py`) for compact default output and deterministic detail expansion.
+- Add engine lifecycle helpers in `governance/engine/lifecycle.py` for staged activation pointer handling, automatic rollback, and rollback audit `DEVIATION` payloads.
 - Add `STABILITY_SLA.md` as a normative 10-point governance stability Go/No-Go contract with explicit operational PASS/FAIL criteria.
 - Add a shared `Principal Excellence Contract` baseline across all governance profile rulebooks under `profiles/rules*.md`.
 - Add Java-first principal hardening v2 contracts for backend quality gates:
@@ -35,6 +42,11 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
 - Update factory contracts (`new_profile.md`, `new_addon.md`, `PROFILE_ADDON_FACTORY_CONTRACT.json`) for shared-contract modularization defaults.
 
 ### Changed
+- Align state-machine governance contracts for strict snapshot-first output, full-state YAML block semantics, and canonical reason-code casing parity across docs/runtime/tests.
+- Complete SESSION_STATE rollout hardening through phase 3 (legacy removed), including explicit compatibility semantics and deterministic fail-closed recovery guidance.
+- Add claim-evidence backfeed from `SESSION_STATE.BuildEvidence` with freshness/TTL gating and canonical stale-evidence status `NOT_VERIFIED-EVIDENCE-STALE`.
+- Add release/build-time README baseline claim guards and local README link-integrity verification in `scripts/build.py` with verification-report coverage.
+- Consolidate README set for the rework baseline and remove obsolete `README-CHAT.md`.
 - Add operator-first response layering contract across governance rulebooks: concise brief-first output with full diagnostics on explicit detail request.
 - Refactor `/start` bootstrap prompt internals by extracting inline Python snippets into diagnostics helpers (`diagnostics/start_binding_evidence.py`, `diagnostics/start_preflight_persistence.py`) for maintainability.
 - Improve `/start` recovery UX by preferring concrete, copy-paste runnable `next_command`/recovery commands and minimizing unresolved placeholders when runtime evidence can derive values.

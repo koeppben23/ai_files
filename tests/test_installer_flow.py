@@ -361,6 +361,7 @@ def test_installer_copies_addon_manifests_for_dynamic_activation(tmp_path: Path)
 
     expected = [
         commands / "profiles" / "addons" / "angularNxTemplates.addon.yml",
+        commands / "profiles" / "addons" / "backendPythonTemplates.addon.yml",
         commands / "profiles" / "addons" / "frontendCypress.addon.yml",
         commands / "profiles" / "addons" / "frontendOpenApiTsClient.addon.yml",
         commands / "profiles" / "addons" / "kafka.addon.yml",
@@ -382,6 +383,7 @@ def test_installer_copies_addon_manifests_for_dynamic_activation(tmp_path: Path)
 
     required_rel = {
         "profiles/addons/angularNxTemplates.addon.yml",
+        "profiles/addons/backendPythonTemplates.addon.yml",
         "profiles/addons/frontendCypress.addon.yml",
         "profiles/addons/frontendOpenApiTsClient.addon.yml",
         "profiles/addons/kafka.addon.yml",
