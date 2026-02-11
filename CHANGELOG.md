@@ -7,6 +7,9 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
 
 ### Added
 - Add backend Python profile rulebook `profiles/rules.backend-python.md` with deterministic evidence, tooling, migration/rollback, and operational safety contracts.
+- Add backend Python templates addon pair:
+  - `profiles/rules.backend-python-templates.md` (required code-generation template contract)
+  - `profiles/addons/backendPythonTemplates.addon.yml` (capability/signal activation policy)
 - Add deterministic SESSION_STATE migration tool `scripts/migrate_session_state.py` with first-write `.backup` behavior and machine-readable exit codes (`0=ok`, `2=blocked`).
 - Add two-layer render modules under `governance/render/` (`intent_router.py`, `delta_renderer.py`, `token_guard.py`, `render_contract.py`) for compact default output and deterministic detail expansion.
 - Add engine lifecycle helpers in `governance/engine/lifecycle.py` for staged activation pointer handling, automatic rollback, and rollback audit `DEVIATION` payloads.
