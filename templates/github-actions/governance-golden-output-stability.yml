@@ -21,36 +21,59 @@ jobs:
 
       - name: Generate canonical intent outputs
         run: |
-          mkdir -p diagnostics/goldens/current
-          python3 - <<'PY'
-          import json, pathlib
-
-          out = pathlib.Path("diagnostics/goldens/current")
-          out.mkdir(parents=True, exist_ok=True)
-
-          # Replace with real intent execution hooks.
-          payloads = {
-            "start.json": {"intent": "/start", "status": "OK"},
-            "what_blocks_me.json": {"intent": "what_blocks_me", "status": "OK"},
-            "show_diagnostics.json": {"intent": "show diagnostics", "status": "OK"},
-            "where_am_i.json": {"intent": "where_am_i", "status": "OK"},
-          }
-          for name, payload in payloads.items():
-            (out / name).write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
-          PY
+          set -euo pipefail
+          python3 scripts/generate_golden_outputs.py --repo-root . --output-dir diagnostics/goldens/current
 
       - name: Compare against golden fixtures
         run: |
+          set -euo pipefail
           mkdir -p diagnostics/goldens/diff
           if [ ! -d diagnostics/goldens/baseline ]; then
-            echo "Missing baseline goldens directory"
+            echo "BLOCKED-GOLDEN-BASELINE-MISSING: diagnostics/goldens/baseline is required"
             exit 1
           fi
           diff -ru diagnostics/goldens/baseline diagnostics/goldens/current > diagnostics/goldens/diff/output.diff || true
-          if [ -s diagnostics/goldens/diff/output.diff ] && [ "${ALLOW_GOLDEN_UPDATE:-0}" != "1" ]; then
-            echo "BLOCKED-OUTPUT-DRIFT: golden output changed without ALLOW_GOLDEN_UPDATE=1"
-            cat diagnostics/goldens/diff/output.diff
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import pathlib
+
+          def manifest_for(root: pathlib.Path) -> dict[str, str]:
+              payload = {}
+              for path in sorted(root.rglob("*.json")):
+                  rel = path.relative_to(root).as_posix()
+                  payload[rel] = hashlib.sha256(path.read_bytes()).hexdigest()
+              return payload
+
+          base_root = pathlib.Path("diagnostics/goldens/baseline")
+          current_root = pathlib.Path("diagnostics/goldens/current")
+          baseline_manifest = manifest_for(base_root)
+          current_manifest = manifest_for(current_root)
+          pathlib.Path("diagnostics/goldens/diff/baseline.sha256.json").write_text(
+              json.dumps(baseline_manifest, indent=2) + "\n", encoding="utf-8"
+          )
+          pathlib.Path("diagnostics/goldens/diff/current.sha256.json").write_text(
+              json.dumps(current_manifest, indent=2) + "\n", encoding="utf-8"
+          )
+          if baseline_manifest != current_manifest:
+              raise SystemExit("BLOCKED-OUTPUT-DRIFT: hash manifest mismatch between baseline and current outputs")
+          PY
+          if [ -s diagnostics/goldens/diff/output.diff ]; then
+            echo "BLOCKED-OUTPUT-DRIFT: textual diff detected between baseline and current outputs"
             exit 1
+          fi
+
+      - name: Require explicit golden change note when baseline updates in PR
+        if: github.event_name == 'pull_request'
+        run: |
+          set -euo pipefail
+          git fetch origin "${{ github.base_ref }}" --depth=1
+          changed="$(git diff --name-only "origin/${{ github.base_ref }}...HEAD")"
+          if printf '%s\n' "${changed}" | rg -q '^diagnostics/goldens/baseline/'; then
+            if ! printf '%s\n' "${changed}" | rg -q '^diagnostics/goldens/GOLDEN_CHANGE_NOTES.md$'; then
+              echo "BLOCKED-GOLDEN-UPDATE-NOTE-MISSING: baseline changed without diagnostics/goldens/GOLDEN_CHANGE_NOTES.md"
+              exit 1
+            fi
           fi
 
       - name: Upload golden comparison artifacts
