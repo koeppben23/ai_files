@@ -1321,7 +1321,8 @@ If anything here conflicts with the schema, the schema wins.
 
 ### 3.1 Output Policy (Binding)
 
-- Default: output `SESSION_STATE` in **MIN** mode (compact, continuation-critical keys only).
+- Default STRICT envelope behavior: emit `session_state` as a compact snapshot object (operator-first view).
+- Dedicated full-state `SESSION_STATE` blocks are not required by default and SHOULD be emitted only when FULL mode is required or explicitly requested.
 - Output **FULL** mode is REQUIRED when:
   1) the current step is an explicit gate (Phase 5 / 5.3 / 5.4 / 5.5 / 5.6 / 6), OR
   2) `SESSION_STATE.Mode = BLOCKED`, OR
@@ -1329,7 +1330,7 @@ If anything here conflicts with the schema, the schema wins.
   4) the user explicitly requests FULL state.
   5) `SESSION_STATE.ConfidenceLevel < 70` (DRAFT/BLOCKED debugging requires expanded state).
 
-MIN mode SHOULD remain below ~40 lines. FULL mode should remain a digest (no large enumerations).
+When a dedicated state block is emitted in MIN mode, it SHOULD remain below ~40 lines. FULL mode should remain a digest (no large enumerations).
 
 If `SESSION_STATE.OutputMode = ARCHITECT`, the assistant MUST output a `DecisionSurface` block first and keep the rest limited to decision rationale + evidence pointers.
 
