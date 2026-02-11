@@ -7,6 +7,7 @@ import pytest
 
 from governance.engine.adapters import HostCapabilities, OperatingMode
 from governance.engine.orchestrator import run_engine_orchestrator
+from governance.engine.reason_codes import REASON_CODE_NONE
 
 
 @dataclass(frozen=True)
@@ -657,6 +658,60 @@ def test_orchestrator_marks_not_verified_when_required_evidence_missing(tmp_path
     assert out.parity["reason_code"] == "NOT_VERIFIED-MISSING-EVIDENCE"
     assert out.missing_evidence == ("ev-2",)
     assert out.reason_payload["status"] == "NOT_VERIFIED"
+
+
+@pytest.mark.governance
+def test_orchestrator_enforces_no_claim_without_evidence_for_quality_claims(tmp_path: Path):
+    """Quality claims must remain NOT_VERIFIED unless claim evidence is present."""
+
+    repo_root = _make_git_root(tmp_path / "repo")
+    adapter = StubAdapter(
+        env={"OPENCODE_REPO_ROOT": str(repo_root)},
+        cwd_path=repo_root,
+        caps=HostCapabilities(
+            cwd_trust="trusted",
+            fs_read_commands_home=True,
+            fs_write_config_root=True,
+            fs_write_commands_home=True,
+            fs_write_workspaces_home=True,
+            fs_write_repo_root=True,
+            exec_allowed=True,
+            git_available=True,
+        ),
+    )
+    required_claim_evidence = [
+        "claim/tests-green",
+        "claim/static-clean",
+        "claim/no-drift",
+    ]
+
+    missing = run_engine_orchestrator(
+        adapter=adapter,
+        phase="1.1-Bootstrap",
+        active_gate="Persistence Preflight",
+        mode="OK",
+        next_gate_condition="Persistence helper execution completed",
+        required_evidence_ids=required_claim_evidence,
+        observed_evidence_ids=["claim/tests-green"],
+    )
+    assert missing.parity["status"] == "not_verified"
+    assert missing.parity["reason_code"] == "NOT_VERIFIED-MISSING-EVIDENCE"
+    assert missing.missing_evidence == ("claim/no-drift", "claim/static-clean")
+    assert missing.reason_payload["status"] == "NOT_VERIFIED"
+    assert missing.reason_payload["missing_evidence"] == ("claim/no-drift", "claim/static-clean")
+
+    satisfied = run_engine_orchestrator(
+        adapter=adapter,
+        phase="1.1-Bootstrap",
+        active_gate="Persistence Preflight",
+        mode="OK",
+        next_gate_condition="Persistence helper execution completed",
+        required_evidence_ids=required_claim_evidence,
+        observed_evidence_ids=required_claim_evidence,
+    )
+    assert satisfied.parity["status"] == "ok"
+    assert satisfied.parity["reason_code"] == REASON_CODE_NONE
+    assert satisfied.reason_payload["status"] == "OK"
 
 
 @pytest.mark.governance

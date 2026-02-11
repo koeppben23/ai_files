@@ -17,6 +17,7 @@ from governance.engine.session_state_repository import (
     ENV_SESSION_STATE_LEGACY_COMPAT_MODE,
     ROLLOUT_PHASE_DUAL_READ,
     ROLLOUT_PHASE_ENGINE_ONLY,
+    ROLLOUT_PHASE_LEGACY_REMOVED,
     SessionStateCompatibilityError,
     SessionStateLoadResult,
     SessionStateRepository,
@@ -296,6 +297,8 @@ def test_rollout_phase_flag_can_disable_dual_read_normalization(tmp_path: Path):
         repo.load()
     assert exc_info.value.reason_code == BLOCKED_SESSION_STATE_LEGACY_UNSUPPORTED
     assert "RepoModel" in exc_info.value.detail
+    assert "compatibility mode" in exc_info.value.primary_action
+    assert ENV_SESSION_STATE_LEGACY_COMPAT_MODE in exc_info.value.next_command
 
 
 @pytest.mark.governance
@@ -382,3 +385,26 @@ def test_phase2_compat_mode_empty_environment_value_fails_closed(tmp_path: Path,
     with pytest.raises(ValueError) as exc_info:
         SessionStateRepository(path, rollout_phase=ROLLOUT_PHASE_ENGINE_ONLY)
     assert ENV_SESSION_STATE_LEGACY_COMPAT_MODE in str(exc_info.value)
+
+
+@pytest.mark.governance
+def test_phase3_legacy_removed_blocks_even_when_compat_mode_is_enabled(tmp_path: Path):
+    """Phase-3 removes legacy compat mode and always blocks legacy aliases."""
+
+    path = tmp_path / "workspaces" / "abc" / "SESSION_STATE.json"
+    repo = SessionStateRepository(
+        path,
+        rollout_phase=ROLLOUT_PHASE_LEGACY_REMOVED,
+        legacy_compat_mode=True,
+    )
+    legacy = _session_state_doc()
+    legacy["SESSION_STATE"]["RepoModel"] = {"legacy": True}
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(session_repo_module.json.dumps(legacy), encoding="utf-8")
+
+    with pytest.raises(SessionStateCompatibilityError) as exc_info:
+        repo.load()
+    assert exc_info.value.reason_code == BLOCKED_SESSION_STATE_LEGACY_UNSUPPORTED
+    assert "legacy-removed mode" in exc_info.value.detail
+    assert "deterministic SESSION_STATE migration" in exc_info.value.primary_action
+    assert exc_info.value.next_command == "python3 scripts/migrate_session_state.py --workspace <id>"
