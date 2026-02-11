@@ -31,10 +31,14 @@ def config_root() -> Path:
 
 ROOT = config_root()
 DIAGNOSTICS_DIR = ROOT / "commands" / "diagnostics"
+COMMANDS_RUNTIME_DIR = ROOT / "commands"
 PERSIST_HELPER = DIAGNOSTICS_DIR / "persist_workspace_artifacts.py"
 BOOTSTRAP_HELPER = DIAGNOSTICS_DIR / "bootstrap_session_state.py"
 LOGGER = DIAGNOSTICS_DIR / "error_logs.py"
 TOOL_CATALOG = DIAGNOSTICS_DIR / "tool_requirements.json"
+
+if str(COMMANDS_RUNTIME_DIR) not in sys.path and COMMANDS_RUNTIME_DIR.exists():
+    sys.path.insert(0, str(COMMANDS_RUNTIME_DIR))
 
 # Contract compatibility notes for governance specs:
 # - legacy probe mode may use --no-session-update
@@ -163,6 +167,14 @@ def persist_command(repo_root: Path) -> str:
     return f'python3 "{PERSIST_HELPER}" --repo-root "{repo_root}"'
 
 
+def _command_available(command: str) -> bool:
+    """Return command availability with canonical alias handling."""
+
+    if command in {"python", "python3"}:
+        return shutil.which("python") is not None or shutil.which("python3") is not None
+    return shutil.which(command) is not None
+
+
 def emit_preflight() -> None:
     now = subprocess.run(
         [
@@ -211,7 +223,7 @@ def emit_preflight() -> None:
     missing_details: list[dict[str, str]] = []
 
     for command in required_now:
-        if shutil.which(command):
+        if _command_available(command):
             available.append(command)
         else:
             missing.append(command)
@@ -227,7 +239,7 @@ def emit_preflight() -> None:
                 }
             )
 
-    missing_later = [command for command in required_later if shutil.which(command) is None]
+    missing_later = [command for command in required_later if not _command_available(command)]
 
     status = "ok" if not missing else "degraded"
     block_now = bool(missing)

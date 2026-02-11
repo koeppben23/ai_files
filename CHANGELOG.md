@@ -59,6 +59,7 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
 - Update factory contracts (`new_profile.md`, `new_addon.md`, `PROFILE_ADDON_FACTORY_CONTRACT.json`) for shared-contract modularization defaults.
 
 ### Changed
+- Installer now ships the governance runtime package (`governance/**`) into `commands/governance/**` so state-machine modules are available from installed command surfaces without repo-local imports.
 - Align state-machine governance contracts for strict snapshot-first output, full-state YAML block semantics, and canonical reason-code casing parity across docs/runtime/tests.
 - Complete SESSION_STATE rollout hardening through phase 3 (legacy removed), including explicit compatibility semantics and deterministic fail-closed recovery guidance.
 - Add claim-evidence backfeed from `SESSION_STATE.BuildEvidence` with freshness/TTL gating and canonical stale-evidence status `NOT_VERIFIED-EVIDENCE-STALE`.

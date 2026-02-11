@@ -82,6 +82,9 @@ PROFILES_DIR_NAME = "profiles"
 # Diagnostics copied into <config_root>/commands/diagnostics/** (includes audit tooling + schemas)
 DIAGNOSTICS_DIR_NAME = "diagnostics"
 
+# Governance runtime package copied into <config_root>/commands/governance/**
+GOVERNANCE_RUNTIME_DIR_NAME = "governance"
+
 MANIFEST_NAME = "INSTALL_MANIFEST.json"
 MANIFEST_SCHEMA = "1.0"
 
@@ -304,6 +307,12 @@ def collect_unsafe_source_symlinks(source_dir: Path) -> list[str]:
             if p.is_symlink():
                 unsafe.add(str(p.relative_to(source_dir)).replace("\\", "/"))
 
+    runtime_dir = source_dir / GOVERNANCE_RUNTIME_DIR_NAME
+    if runtime_dir.exists():
+        for p in runtime_dir.rglob("*"):
+            if p.is_symlink():
+                unsafe.add(str(p.relative_to(source_dir)).replace("\\", "/"))
+
     return sorted(unsafe)
 
 def collect_command_root_files(source_dir: Path) -> list[Path]:
@@ -344,6 +353,15 @@ def collect_diagnostics_files(source_dir: Path) -> list[Path]:
     if not diag_dir.exists() or not diag_dir.is_dir():
         return []
     return sorted([p for p in diag_dir.rglob("*") if p.is_file() and not p.is_symlink()])
+
+
+def collect_governance_runtime_files(source_dir: Path) -> list[Path]:
+    """Collect governance runtime files for packaged state-machine execution."""
+
+    runtime_dir = source_dir / GOVERNANCE_RUNTIME_DIR_NAME
+    if not runtime_dir.exists() or not runtime_dir.is_dir():
+        return []
+    return sorted([p for p in runtime_dir.rglob("*") if p.is_file() and not p.is_symlink()])
 
 
 def build_governance_paths_payload(config_root: Path, *, deterministic: bool) -> dict:
@@ -774,6 +792,32 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
     else:
         print("\nℹ️  No diagnostics directory found (skipping).")
 
+    # copy governance runtime package (state machine execution modules)
+    runtime_files = collect_governance_runtime_files(plan.source_dir)
+    if runtime_files:
+        print("\n📋 Copying governance runtime package to commands/governance/ ...")
+        for rf in runtime_files:
+            rel = rf.relative_to(plan.source_dir)
+            dst = plan.commands_dir / rel
+            entry = copy_with_optional_backup(
+                src=rf,
+                dst=dst,
+                backup_enabled=backup_enabled,
+                backup_root=backup_root,
+                dry_run=dry_run,
+                overwrite=force,
+            )
+            copied_entries.append(entry)
+            status = entry["status"]
+            if status in ("planned-copy", "copied"):
+                print(f"  ✅ {rel} ({status})")
+            elif status == "skipped-exists":
+                print(f"  ⏭️  {rel} exists (use --force to overwrite)")
+            else:
+                print(f"  ⚠️  {rel} missing (skipping)")
+    else:
+        print("\nℹ️  No governance runtime package found (skipping).")
+
     # validation (critical installed files)
     print("\n🔍 Validating installation...")
     critical = [plan.commands_dir / "master.md", plan.commands_dir / "rules.md", plan.commands_dir / "start.md"]
@@ -882,6 +926,11 @@ def uninstall(
 
         # Diagnostics from current source snapshot
         for src in collect_diagnostics_files(plan.source_dir):
+            rel = src.relative_to(plan.source_dir)
+            targets.append(plan.commands_dir / rel)
+
+        # Governance runtime from current source snapshot
+        for src in collect_governance_runtime_files(plan.source_dir):
             rel = src.relative_to(plan.source_dir)
             targets.append(plan.commands_dir / rel)
 
