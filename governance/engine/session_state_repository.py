@@ -19,12 +19,19 @@ import tempfile
 import time
 from typing import Any
 
-from governance.engine.reason_codes import BLOCKED_STATE_OUTDATED, REASON_CODE_NONE
+from governance.engine.reason_codes import (
+    BLOCKED_SESSION_STATE_LEGACY_UNSUPPORTED,
+    BLOCKED_STATE_OUTDATED,
+    REASON_CODE_NONE,
+    WARN_SESSION_STATE_LEGACY_COMPAT_MODE,
+)
 
 CURRENT_SESSION_STATE_VERSION = 1
 ROLLOUT_PHASE_DUAL_READ = 1
+ROLLOUT_PHASE_ENGINE_ONLY = 2
 ATOMIC_REPLACE_RETRIES = 3
 ATOMIC_RETRY_DELAY_SECONDS = 0.05
+ENV_SESSION_STATE_LEGACY_COMPAT_MODE = "GOVERNANCE_SESSION_STATE_LEGACY_COMPAT_MODE"
 
 
 @dataclass(frozen=True)
@@ -37,6 +44,17 @@ class SessionStateMigrationResult:
     detail: str
 
 
+@dataclass(frozen=True)
+class SessionStateCompatibilityError(Exception):
+    """Fail-closed exception for unsupported legacy SESSION_STATE usage."""
+
+    reason_code: str
+    detail: str
+
+    def __str__(self) -> str:
+        return f"{self.reason_code}: {self.detail}"
+
+
 class SessionStateRepository:
     """Typed repository wrapper for repo-scoped SESSION_STATE documents."""
 
@@ -46,14 +64,20 @@ class SessionStateRepository:
         *,
         rollout_phase: int = ROLLOUT_PHASE_DUAL_READ,
         engine_version: str = "1.1.0",
+        legacy_compat_mode: bool | None = None,
     ):
         self.path = path
         self.rollout_phase = rollout_phase
         self.engine_version = engine_version
+        self.legacy_compat_mode = (
+            _read_legacy_compat_mode_from_env() if legacy_compat_mode is None else legacy_compat_mode
+        )
+        self.last_warning_reason_code = REASON_CODE_NONE
 
     def load(self) -> dict[str, Any] | None:
         """Load a JSON document, returning None when the file is absent."""
 
+        self.last_warning_reason_code = REASON_CODE_NONE
         if not self.path.exists():
             return None
         payload = json.loads(self.path.read_text(encoding="utf-8"))
@@ -61,6 +85,19 @@ class SessionStateRepository:
             raise ValueError("session state payload must be a JSON object")
         if self.rollout_phase == ROLLOUT_PHASE_DUAL_READ:
             return _normalize_dual_read_aliases(payload)
+        if self.rollout_phase >= ROLLOUT_PHASE_ENGINE_ONLY:
+            legacy_fields = _legacy_alias_fields(payload)
+            if legacy_fields:
+                if not self.legacy_compat_mode:
+                    raise SessionStateCompatibilityError(
+                        reason_code=BLOCKED_SESSION_STATE_LEGACY_UNSUPPORTED,
+                        detail=(
+                            "legacy SESSION_STATE aliases are unsupported in engine-only mode "
+                            f"(fields={','.join(legacy_fields)})"
+                        ),
+                    )
+                self.last_warning_reason_code = WARN_SESSION_STATE_LEGACY_COMPAT_MODE
+                return _normalize_dual_read_aliases(payload)
         return payload
 
     def save(self, document: dict[str, Any]) -> None:
@@ -116,6 +153,35 @@ def _normalize_dual_read_aliases(document: dict[str, Any]) -> dict[str, Any]:
             }
 
     return normalized
+
+
+def _legacy_alias_fields(document: dict[str, Any]) -> tuple[str, ...]:
+    """Return legacy alias field names present in deterministic order."""
+
+    state = document.get("SESSION_STATE")
+    if not isinstance(state, dict):
+        return ()
+    fields: list[str] = []
+    for key in ("RepoModel", "FastPath", "FastPathReason"):
+        if key in state:
+            fields.append(key)
+    return tuple(fields)
+
+
+def _read_legacy_compat_mode_from_env() -> bool:
+    """Read phase-2 legacy compatibility switch from environment."""
+
+    raw = os.getenv(ENV_SESSION_STATE_LEGACY_COMPAT_MODE)
+    if raw is None:
+        return False
+    normalized = raw.strip().lower()
+    if normalized in {"1", "true", "yes", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "off", ""}:
+        return False
+    raise ValueError(
+        f"invalid {ENV_SESSION_STATE_LEGACY_COMPAT_MODE} value: {raw!r}; expected true/false"
+    )
 
 
 def _canonicalize_for_write(document: dict[str, Any]) -> tuple[dict[str, Any], bool]:
