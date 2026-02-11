@@ -6,6 +6,7 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
 ## [Unreleased]
 
 ### Added
+- Add backend Python profile rulebook `profiles/rules.backend-python.md` with deterministic evidence, tooling, migration/rollback, and operational safety contracts.
 - Add `STABILITY_SLA.md` as a normative 10-point governance stability Go/No-Go contract with explicit operational PASS/FAIL criteria.
 - Add a shared `Principal Excellence Contract` baseline across all governance profile rulebooks under `profiles/rules*.md`.
 - Add Java-first principal hardening v2 contracts for backend quality gates:
@@ -35,6 +36,7 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
 - Update factory contracts (`new_profile.md`, `new_addon.md`, `PROFILE_ADDON_FACTORY_CONTRACT.json`) for shared-contract modularization defaults.
 
 ### Changed
+- Align state-machine governance contracts for strict snapshot-first output, full-state YAML block semantics, and canonical reason-code casing parity across docs/runtime/tests.
 - Add operator-first response layering contract across governance rulebooks: concise brief-first output with full diagnostics on explicit detail request.
 - Refactor `/start` bootstrap prompt internals by extracting inline Python snippets into diagnostics helpers (`diagnostics/start_binding_evidence.py`, `diagnostics/start_preflight_persistence.py`) for maintainability.
 - Improve `/start` recovery UX by preferring concrete, copy-paste runnable `next_command`/recovery commands and minimizing unresolved placeholders when runtime evidence can derive values.
