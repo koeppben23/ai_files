@@ -5,6 +5,11 @@ This document defines **stack-agnostic, non-negotiable** technical, quality, evi
 Operational behavior (phases, session state, hybrid mode, priorities, gates) is defined in the **Master Prompt** (`master.md`).
 Governance release stability is normatively defined by `STABILITY_SLA.md` and is release-blocking when unmet.
 
+State-machine alignment note:
+- Runtime orchestration logic is implemented in `governance/engine/*` and response projection logic in `governance/render/*`.
+- This file remains normative for core constraints and evidence obligations, not low-level runtime implementation details.
+- If runtime behavior diverges from Core-Lite constraints in this file, runtime behavior must be corrected.
+
 This Core Rulebook is:
 - **secondary to the Master Prompt**
 - **authoritative over tickets and repository documentation**, except where explicitly allowed (see “Repository Guidelines as Constraints”).
