@@ -285,6 +285,7 @@ Welle D (UX runtime):
 - no silent auto-heal without explicit deviation/reporting
 - CWD is untrusted in Desktop mode; resolver must prioritize explicit root/pointer evidence
 - business-rules target must never drift to workspace-memory/session fields
+- Python implementation and test code MUST be documented in English (module/class/function docstrings plus short intent comments where logic is non-obvious) so behavior and safety rationale stay reviewable across hosts/sessions.
 
 Repository hygiene policy (recommended/pack-gated):
 - Conventional branch/commit/PR-title enforcement is strongly recommended and should be applied via CI policy or dedicated governance pack (for example `release-governance`).
