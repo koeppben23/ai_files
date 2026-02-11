@@ -1,1 +1,1 @@
-"""Top-level namespace for governance engine architecture modules."""
+"""Top-level namespace for governance runtime modules and shared contracts."""
