@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import re
 import tarfile
 import zipfile
@@ -44,12 +45,15 @@ def test_build_is_deterministic(tmp_path: Path):
     a2_zip = d2 / f"{prefix}.zip"
     a1_tgz = d1 / f"{prefix}.tar.gz"
     a2_tgz = d2 / f"{prefix}.tar.gz"
+    a1_report = d1 / "verification-report.json"
+    a2_report = d2 / "verification-report.json"
 
-    for p in [a1_zip, a2_zip, a1_tgz, a2_tgz]:
+    for p in [a1_zip, a2_zip, a1_tgz, a2_tgz, a1_report, a2_report]:
         assert p.exists(), f"Missing artifact: {p}"
 
     assert sha256_file(a1_zip) == sha256_file(a2_zip), "ZIP artifact is not deterministic across builds"
     assert sha256_file(a1_tgz) == sha256_file(a2_tgz), "TAR.GZ artifact is not deterministic across builds"
+    assert sha256_file(a1_report) == sha256_file(a2_report), "verification report is not deterministic"
 
 
 @pytest.mark.build
@@ -62,9 +66,26 @@ def test_artifacts_contents_follow_policy(tmp_path: Path):
 
     zip_path = dist / f"{prefix}.zip"
     tgz_path = dist / f"{prefix}.tar.gz"
+    verification_report = dist / "verification-report.json"
     assert zip_path.exists() and tgz_path.exists()
+    assert verification_report.exists()
 
-    forbidden_segments = {"/.github/", "/tests/", "/scripts/", "/dist/", "/__pycache__/", "/.pytest_cache/", "/.venv/"}
+    report_payload = json.loads(verification_report.read_text(encoding="utf-8"))
+    assert report_payload.get("schema") == "governance-verification-report.v1"
+    assert isinstance(report_payload.get("artifact_hashes"), dict)
+    assert f"{prefix}.zip" in report_payload["artifact_hashes"]
+    assert f"{prefix}.tar.gz" in report_payload["artifact_hashes"]
+
+    forbidden_segments = {
+        "/.github/",
+        "/tests/",
+        "/scripts/",
+        "/dist/",
+        "/__pycache__/",
+        "/.pytest_cache/",
+        "/.venv/",
+        "/__MACOSX/",
+    }
 
     # -------- ZIP policy --------
     with zipfile.ZipFile(zip_path, "r") as zf:
@@ -77,6 +98,11 @@ def test_artifacts_contents_follow_policy(tmp_path: Path):
         for n in names:
             for seg in forbidden_segments:
                 assert seg not in ("/" + n), f"Forbidden path segment {seg} found in ZIP member: {n}"
+            assert "/._" not in n, f"AppleDouble ZIP entry found: {n}"
+            parts = Path(n).parts
+            assert "__MACOSX" not in parts, f"__MACOSX ZIP entry found: {n}"
+            assert not any(part.startswith("._") for part in parts), f"AppleDouble ZIP path part found: {n}"
+            assert ".DS_Store" not in parts, f".DS_Store ZIP entry found: {n}"
 
         required = {
             f"{prefix}/install.py",
@@ -113,6 +139,11 @@ def test_artifacts_contents_follow_policy(tmp_path: Path):
         for n in names:
             for seg in forbidden_segments:
                 assert seg not in ("/" + n), f"Forbidden path segment {seg} found in TAR member: {n}"
+            assert "/._" not in n, f"AppleDouble TAR entry found: {n}"
+            parts = Path(n).parts
+            assert "__MACOSX" not in parts, f"__MACOSX TAR entry found: {n}"
+            assert not any(part.startswith("._") for part in parts), f"AppleDouble TAR path part found: {n}"
+            assert ".DS_Store" not in parts, f".DS_Store TAR entry found: {n}"
 
         required = {
             f"{prefix}/install.py",
