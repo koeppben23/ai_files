@@ -123,6 +123,8 @@ def test_release_archives_layout_and_contents_policy(built_artifacts):
         "diagnostics/map_audit_to_canonical.py",
         "diagnostics/AUDIT_REASON_CANONICAL_MAP.json",
         "diagnostics/tool_requirements.json",
+        "diagnostics/QUICKFIX_TEMPLATES.json",
+        "diagnostics/UX_INTENT_GOLDENS.json",
     }
 
     allowed_suffixes = {".md", ".json"}

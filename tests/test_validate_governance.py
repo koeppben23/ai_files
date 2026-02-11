@@ -508,6 +508,32 @@ def test_operator_explain_commands_are_defined_as_read_only_contracts():
 
 
 @pytest.mark.governance
+def test_why_blocked_requires_brief_then_detail_layering():
+    master = read_text(REPO_ROOT / "master.md")
+    rules = read_text(REPO_ROOT / "rules.md")
+
+    master_required = [
+        "Response SHOULD be layered:",
+        "brief layer first: one-line blocker summary + one primary recovery command",
+        "detail layer second: full trace/evidence payload",
+    ]
+    rules_required = [
+        "start with a concise blocker brief (reason + one primary recovery command)",
+        "then provide full detail payload (facts, trace, evidence pointers)",
+    ]
+
+    missing_master = [token for token in master_required if token not in master]
+    missing_rules = [token for token in rules_required if token not in rules]
+
+    assert not missing_master, "master.md missing /why-blocked brief-detail tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_master]
+    )
+    assert not missing_rules, "rules.md missing /why-blocked brief-detail tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_rules]
+    )
+
+
+@pytest.mark.governance
 def test_capability_first_activation_contract_is_defined():
     master = read_text(REPO_ROOT / "master.md")
     rules = read_text(REPO_ROOT / "rules.md")
@@ -1519,8 +1545,8 @@ def test_session_state_bootstrap_recovery_script_creates_state_file(tmp_path: Pa
     state_file = cfg / "workspaces" / repo_fp / "SESSION_STATE.json"
     assert state_file.exists(), "Expected repo-scoped SESSION_STATE.json to be created"
 
-    identity_map_file = cfg / "repo-identity-map.yaml"
-    assert identity_map_file.exists(), "Expected repo identity map to be created"
+    identity_map_file = cfg / "workspaces" / repo_fp / "repo-identity-map.yaml"
+    assert identity_map_file.exists(), "Expected repo identity map to be created in repo workspace"
     identity_map = json.loads(read_text(identity_map_file))
     assert identity_map.get("schema") == "opencode-repo-identity-map.v1"
     repos = identity_map.get("repositories")
@@ -1809,7 +1835,12 @@ def test_workspace_persistence_quiet_blocked_payload_includes_reason_contract_fi
 
 @pytest.mark.governance
 def test_start_md_includes_workspace_persistence_autohook():
-    text = read_text(REPO_ROOT / "start.md")
+    text = "\n".join(
+        [
+            read_text(REPO_ROOT / "start.md"),
+            read_text(REPO_ROOT / "diagnostics" / "start_preflight_persistence.py"),
+        ]
+    )
     required_tokens = [
         "Auto-Persistence Hook (OpenCode)",
         "persist_workspace_artifacts.py",
@@ -1839,6 +1870,30 @@ def test_start_md_includes_workspace_persistence_autohook():
 
 
 @pytest.mark.governance
+def test_start_md_resolves_installed_diagnostics_helpers_not_workspace_relative_paths():
+    text = read_text(REPO_ROOT / "start.md")
+
+    forbidden = [
+        "python3 diagnostics/start_binding_evidence.py",
+        "python3 diagnostics/start_preflight_persistence.py",
+    ]
+    found_forbidden = [token for token in forbidden if token in text]
+    assert not found_forbidden, "start.md still uses workspace-relative diagnostics helper paths:\n" + "\n".join(
+        [f"- {m}" for m in found_forbidden]
+    )
+
+    required = [
+        "commands'/'diagnostics'/'start_binding_evidence.py",
+        "commands'/'diagnostics'/'start_preflight_persistence.py",
+        "runpy.run_path",
+    ]
+    missing = [token for token in required if token not in text]
+    assert not missing, "start.md missing installed diagnostics helper resolution tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing]
+    )
+
+
+@pytest.mark.governance
 def test_start_prefers_host_binding_evidence_and_defers_profile_selection_at_bootstrap():
     text = read_text(REPO_ROOT / "start.md")
     required_tokens = [
@@ -1851,6 +1906,94 @@ def test_start_prefers_host_binding_evidence_and_defers_profile_selection_at_boo
     assert not missing, "start.md missing bootstrap evidence/profile deferral tokens:\n" + "\n".join(
         [f"- {m}" for m in missing]
     )
+
+
+@pytest.mark.governance
+def test_unambiguous_profile_rulebooks_are_auto_loaded_without_operator_prompt():
+    master = read_text(REPO_ROOT / "master.md")
+    rules = read_text(REPO_ROOT / "rules.md")
+    start = read_text(REPO_ROOT / "start.md")
+
+    master_required = [
+        "Rulebook auto-load behavior (binding):",
+        "MUST auto-load core/profile rulebooks from canonical installer paths without asking the operator to provide rulebook files.",
+    ]
+    rules_required = [
+        "Unambiguous rulebook auto-load (binding):",
+        "MUST NOT ask the operator to provide/paste rulebook files.",
+    ]
+    start_required = [
+        "`/start` MUST auto-load canonical rulebooks and MUST NOT request operator rulebook paste/path input.",
+    ]
+
+    missing_master = [t for t in master_required if t not in master]
+    missing_rules = [t for t in rules_required if t not in rules]
+    missing_start = [t for t in start_required if t not in start]
+
+    assert not missing_master, "master.md missing unambiguous rulebook auto-load tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_master]
+    )
+    assert not missing_rules, "rules.md missing unambiguous rulebook auto-load tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_rules]
+    )
+    assert not missing_start, "start.md missing unambiguous rulebook auto-load tokens:\n" + "\n".join(
+        [f"- {m}" for m in missing_start]
+    )
+
+
+@pytest.mark.governance
+def test_start_invocation_guard_prevents_repeat_start_prompt_in_same_turn():
+    master = read_text(REPO_ROOT / "master.md")
+    rules = read_text(REPO_ROOT / "rules.md")
+    start = read_text(REPO_ROOT / "start.md")
+
+    master_required = [
+        "`/start` invocation guard (binding):",
+        "MUST NOT ask operator to run `/start` again in the same turn.",
+    ]
+    rules_required = [
+        "## 7.11.1 /start Re-invocation Loop Guard (Core, Binding)",
+        "MUST NOT ask operator to run `/start` again in the same turn.",
+    ]
+    start_required = [
+        "Command invocation guard (binding): when `start.md` is injected by the `/start` command, treat `/start` as already invoked in this turn.",
+        "assistant MUST NOT request the operator to run `/start` again",
+    ]
+
+    missing_master = [t for t in master_required if t not in master]
+    missing_rules = [t for t in rules_required if t not in rules]
+    missing_start = [t for t in start_required if t not in start]
+
+    assert not missing_master, "master.md missing /start invocation guard tokens:\n" + "\n".join([f"- {m}" for m in missing_master])
+    assert not missing_rules, "rules.md missing /start invocation guard tokens:\n" + "\n".join([f"- {m}" for m in missing_rules])
+    assert not missing_start, "start.md missing /start invocation guard tokens:\n" + "\n".join([f"- {m}" for m in missing_start])
+
+
+@pytest.mark.governance
+def test_profile_autodetect_runs_before_manual_selection_prompt():
+    master = read_text(REPO_ROOT / "master.md")
+    rules = read_text(REPO_ROOT / "rules.md")
+    start = read_text(REPO_ROOT / "start.md")
+
+    master_required = [
+        "Autodetect-first refinement (binding):",
+        "Attempt deterministic repo-signal ranking before asking operator.",
+        "auto-select without operator prompt",
+    ]
+    rules_required = [
+        "first attempt deterministic ranking from repo signals and ticket/context signals; if one top profile is uniquely supported, auto-select it",
+    ]
+    start_required = [
+        "`/start` MUST attempt deterministic repo-signal autodetection first and auto-select when one candidate is uniquely supported.",
+    ]
+
+    missing_master = [t for t in master_required if t not in master]
+    missing_rules = [t for t in rules_required if t not in rules]
+    missing_start = [t for t in start_required if t not in start]
+
+    assert not missing_master, "master.md missing profile autodetect-first tokens:\n" + "\n".join([f"- {m}" for m in missing_master])
+    assert not missing_rules, "rules.md missing profile autodetect-first tokens:\n" + "\n".join([f"- {m}" for m in missing_rules])
+    assert not missing_start, "start.md missing profile autodetect-first tokens:\n" + "\n".join([f"- {m}" for m in missing_start])
 
 
 @pytest.mark.governance
@@ -1951,20 +2094,35 @@ def test_phase15_requires_repo_code_evidence_and_forbids_readme_only_extraction(
 
 @pytest.mark.governance
 def test_start_md_fallback_binding_and_identity_evidence_boundaries_are_fail_closed():
-    text = read_text(REPO_ROOT / "start.md")
+    text = "\n".join(
+        [
+            read_text(REPO_ROOT / "start.md"),
+            read_text(REPO_ROOT / "diagnostics" / "start_binding_evidence.py"),
+        ]
+    )
 
     required_tokens = [
-        "'reason_code':'BLOCKED-MISSING-BINDING-FILE'",
-        "'reason_code':'BLOCKED-VARIABLE-RESOLUTION'",
-        "'missing_evidence':['${COMMANDS_HOME}/governance.paths.json (installer-owned binding evidence)']",
-        "'next_command':'/start'",
-        "'nonEvidence':'debug-only'",
         "Fallback computed payloads are debug output only (`nonEvidence`) and MUST NOT be treated as binding evidence.",
         "If installer-owned binding file is missing, workflow MUST block with `BLOCKED-MISSING-BINDING-FILE`",
         "Helper output is operational convenience status only and MUST NOT be treated as canonical repo identity evidence.",
         "Repo identity remains governed by `master.md` evidence contracts",
     ]
     missing = [token for token in required_tokens if token not in text]
+
+    token_alternatives = [
+        ["'reason_code':'BLOCKED-MISSING-BINDING-FILE'", '"reason_code": "BLOCKED-MISSING-BINDING-FILE"'],
+        ["'reason_code':'BLOCKED-VARIABLE-RESOLUTION'", '"reason_code": "BLOCKED-VARIABLE-RESOLUTION"'],
+        [
+            "'missing_evidence':['${COMMANDS_HOME}/governance.paths.json (installer-owned binding evidence)']",
+            '"${COMMANDS_HOME}/governance.paths.json (installer-owned binding evidence)"',
+        ],
+        ["'next_command':'/start'", '"next_command": "/start"'],
+        ["'nonEvidence':'debug-only'", '"nonEvidence": "debug-only"'],
+    ]
+    for choices in token_alternatives:
+        if not any(token in text for token in choices):
+            missing.append(choices[0])
+
     assert not missing, "start.md missing evidence-boundary fail-closed tokens:\n" + "\n".join([f"- {m}" for m in missing])
 
     forbidden_tokens = [
@@ -2007,6 +2165,393 @@ def test_unified_next_action_footer_contract_is_defined_across_core_docs():
     assert not missing_master, "master.md missing next-action footer tokens:\n" + "\n".join([f"- {m}" for m in missing_master])
     assert not missing_rules, "rules.md missing next-action footer tokens:\n" + "\n".join([f"- {m}" for m in missing_rules])
     assert not missing_start, "start.md missing next-action footer tokens:\n" + "\n".join([f"- {m}" for m in missing_start])
+
+
+@pytest.mark.governance
+def test_short_status_tag_contract_is_defined_across_core_docs():
+    master = read_text(REPO_ROOT / "master.md")
+    rules = read_text(REPO_ROOT / "rules.md")
+    start = read_text(REPO_ROOT / "start.md")
+
+    master_required = [
+        "Responses SHOULD include a compact deterministic `status_tag` (`<PHASE>-<GATE>-<STATE>`) for quick operator scanning",
+    ]
+    rules_required = [
+        "Deterministic short status tag (recommended):",
+        "Format: `<PHASE>-<GATE>-<STATE>` (uppercase, hyphen-separated).",
+        "Example: `P2-PROFILE-DETECTION-WARN`.",
+    ]
+    start_required = [
+        "Responses SHOULD include a compact `status_tag` for scanability (`<PHASE>-<GATE>-<STATE>`).",
+    ]
+
+    missing_master = [t for t in master_required if t not in master]
+    missing_rules = [t for t in rules_required if t not in rules]
+    missing_start = [t for t in start_required if t not in start]
+
+    assert not missing_master, "master.md missing status-tag contract tokens:\n" + "\n".join([f"- {m}" for m in missing_master])
+    assert not missing_rules, "rules.md missing status-tag contract tokens:\n" + "\n".join([f"- {m}" for m in missing_rules])
+    assert not missing_start, "start.md missing status-tag contract tokens:\n" + "\n".join([f"- {m}" for m in missing_start])
+
+
+@pytest.mark.governance
+def test_quick_fix_confidence_labels_contract_is_defined():
+    master = read_text(REPO_ROOT / "master.md")
+    rules = read_text(REPO_ROOT / "rules.md")
+    start = read_text(REPO_ROOT / "start.md")
+
+    master_required = [
+        "Blocked recovery guidance SHOULD label primary quick-fix command confidence as `safe` or `review-first`",
+    ]
+    rules_required = [
+        "Quick-fix confidence labeling (recommended):",
+        "`safe` (read-only or low-risk local command)",
+        "`review-first` (mutating command that should be reviewed before execution)",
+    ]
+    start_required = [
+        "When `QuickFixCommands` are emitted, `/start` SHOULD label primary command confidence as `safe` or `review-first`.",
+    ]
+
+    missing_master = [t for t in master_required if t not in master]
+    missing_rules = [t for t in rules_required if t not in rules]
+    missing_start = [t for t in start_required if t not in start]
+
+    assert not missing_master, "master.md missing quick-fix confidence tokens:\n" + "\n".join([f"- {m}" for m in missing_master])
+    assert not missing_rules, "rules.md missing quick-fix confidence tokens:\n" + "\n".join([f"- {m}" for m in missing_rules])
+    assert not missing_start, "start.md missing quick-fix confidence tokens:\n" + "\n".join([f"- {m}" for m in missing_start])
+
+
+@pytest.mark.governance
+def test_next_action_wording_quality_contract_is_defined():
+    master = read_text(REPO_ROOT / "master.md")
+    rules = read_text(REPO_ROOT / "rules.md")
+    start = read_text(REPO_ROOT / "start.md")
+
+    master_required = [
+        "`NextAction` wording SHOULD include concrete context (active phase/gate/scope) and avoid generic continuation text",
+    ]
+    rules_required = [
+        "NextAction wording quality (binding):",
+        "`NextAction.Next` and `[NEXT-ACTION].Why` SHOULD be context-specific, not generic.",
+        "Avoid placeholder phrasing like \"continue\" without target context.",
+    ]
+    start_required = [
+        "`NextAction` wording SHOULD include concrete context (active phase/gate/scope) rather than generic continuation text.",
+    ]
+
+    missing_master = [t for t in master_required if t not in master]
+    missing_rules = [t for t in rules_required if t not in rules]
+    missing_start = [t for t in start_required if t not in start]
+
+    assert not missing_master, "master.md missing next-action wording quality tokens:\n" + "\n".join([f"- {m}" for m in missing_master])
+    assert not missing_rules, "rules.md missing next-action wording quality tokens:\n" + "\n".join([f"- {m}" for m in missing_rules])
+    assert not missing_start, "start.md missing next-action wording quality tokens:\n" + "\n".join([f"- {m}" for m in missing_start])
+
+
+@pytest.mark.governance
+def test_compact_transition_line_contract_is_defined():
+    master = read_text(REPO_ROOT / "master.md")
+    rules = read_text(REPO_ROOT / "rules.md")
+    start = read_text(REPO_ROOT / "start.md")
+
+    master_required = [
+        "On phase/mode changes, responses SHOULD include a compact one-line transition summary (`[TRANSITION] from -> to | reason: ...`)",
+    ]
+    rules_required = [
+        "Compact transition line (recommended):",
+        "`[TRANSITION] <from> -> <to> | reason: <short reason>`",
+    ]
+    start_required = [
+        "On phase/mode changes, response SHOULD include a compact transition line: `[TRANSITION] <from> -> <to> | reason: <short reason>`.",
+    ]
+
+    missing_master = [t for t in master_required if t not in master]
+    missing_rules = [t for t in rules_required if t not in rules]
+    missing_start = [t for t in start_required if t not in start]
+
+    assert not missing_master, "master.md missing transition-line tokens:\n" + "\n".join([f"- {m}" for m in missing_master])
+    assert not missing_rules, "rules.md missing transition-line tokens:\n" + "\n".join([f"- {m}" for m in missing_rules])
+    assert not missing_start, "start.md missing transition-line tokens:\n" + "\n".join([f"- {m}" for m in missing_start])
+
+
+@pytest.mark.governance
+def test_state_unchanged_ack_contract_is_defined():
+    master = read_text(REPO_ROOT / "master.md")
+    rules = read_text(REPO_ROOT / "rules.md")
+    start = read_text(REPO_ROOT / "start.md")
+
+    master_required = [
+        "If state does not change, responses SHOULD acknowledge `state_unchanged` with a concise reason",
+    ]
+    rules_required = [
+        "No-change acknowledgment (recommended):",
+        "explicitly state `state_unchanged` with a one-line reason.",
+    ]
+    start_required = [
+        "If no phase/mode/gate transition occurred, response SHOULD acknowledge `state_unchanged` with a concise reason.",
+    ]
+
+    missing_master = [t for t in master_required if t not in master]
+    missing_rules = [t for t in rules_required if t not in rules]
+    missing_start = [t for t in start_required if t not in start]
+
+    assert not missing_master, "master.md missing state-unchanged tokens:\n" + "\n".join([f"- {m}" for m in missing_master])
+    assert not missing_rules, "rules.md missing state-unchanged tokens:\n" + "\n".join([f"- {m}" for m in missing_rules])
+    assert not missing_start, "start.md missing state-unchanged tokens:\n" + "\n".join([f"- {m}" for m in missing_start])
+
+
+@pytest.mark.governance
+def test_conversational_post_start_fixtures_contract_is_defined():
+    master = read_text(REPO_ROOT / "master.md")
+    rules = read_text(REPO_ROOT / "rules.md")
+    start = read_text(REPO_ROOT / "start.md")
+
+    master_required = [
+        "Conversational post-start intents SHOULD remain regression-tested with deterministic fixtures (`what_phase`, `discovery_done`, `workflow_unchanged`)",
+        "Preferred fixture source for conversational intent goldens: `diagnostics/UX_INTENT_GOLDENS.json`",
+    ]
+    rules_required = [
+        "### 7.3.18 Conversational UX Regression Fixtures (Binding)",
+        "`what_phase`",
+        "`discovery_done`",
+        "`workflow_unchanged`",
+        "keeps canonical status vocabulary (`BLOCKED|WARN|OK|NOT_VERIFIED`)",
+        "canonical fixture source SHOULD be `diagnostics/UX_INTENT_GOLDENS.json`",
+    ]
+    start_required = [
+        "Conversational post-start replies SHOULD stay covered by deterministic fixture intents (`what_phase`, `discovery_done`, `workflow_unchanged`).",
+        "Preferred conversational fixture source: `diagnostics/UX_INTENT_GOLDENS.json`.",
+    ]
+
+    missing_master = [t for t in master_required if t not in master]
+    missing_rules = [t for t in rules_required if t not in rules]
+    missing_start = [t for t in start_required if t not in start]
+
+    assert not missing_master, "master.md missing conversational fixture tokens:\n" + "\n".join([f"- {m}" for m in missing_master])
+    assert not missing_rules, "rules.md missing conversational fixture tokens:\n" + "\n".join([f"- {m}" for m in missing_rules])
+    assert not missing_start, "start.md missing conversational fixture tokens:\n" + "\n".join([f"- {m}" for m in missing_start])
+
+
+@pytest.mark.governance
+def test_governance_pr_operator_impact_note_contract_is_defined():
+    master = read_text(REPO_ROOT / "master.md")
+    rules = read_text(REPO_ROOT / "rules.md")
+    start = read_text(REPO_ROOT / "start.md")
+
+    master_required = [
+        "For PRs that modify governance rulebooks/contracts, PR body SHOULD include `What changed for operators?`",
+    ]
+    rules_required = [
+        "Governance-change PR operator-impact note (recommended):",
+        "`What changed for operators?`",
+        "2-5 bullets focused on operator-visible behavior changes.",
+    ]
+    start_required = [
+        "When preparing a PR that changes governance contracts, response SHOULD include an operator-impact section (`What changed for operators?`).",
+    ]
+
+    missing_master = [t for t in master_required if t not in master]
+    missing_rules = [t for t in rules_required if t not in rules]
+    missing_start = [t for t in start_required if t not in start]
+
+    assert not missing_master, "master.md missing governance PR operator-impact tokens:\n" + "\n".join([f"- {m}" for m in missing_master])
+    assert not missing_rules, "rules.md missing governance PR operator-impact tokens:\n" + "\n".join([f"- {m}" for m in missing_rules])
+    assert not missing_start, "start.md missing governance PR operator-impact tokens:\n" + "\n".join([f"- {m}" for m in missing_start])
+
+
+@pytest.mark.governance
+def test_short_intent_routing_contract_is_defined():
+    master = read_text(REPO_ROOT / "master.md")
+    rules = read_text(REPO_ROOT / "rules.md")
+    start = read_text(REPO_ROOT / "start.md")
+
+    master_required = [
+        "Short operator follow-up questions SHOULD route through deterministic intents (`where_am_i`, `what_blocks_me`, `what_now`) before verbose diagnostics",
+    ]
+    rules_required = [
+        "### 7.3.19 Short-Intent Routing for Operator Questions (Binding)",
+        "`where_am_i`",
+        "`what_blocks_me`",
+        "`what_now`",
+    ]
+    start_required = [
+        "Short follow-up questions SHOULD route via deterministic intents (`where_am_i`, `what_blocks_me`, `what_now`) before optional verbose diagnostics.",
+    ]
+
+    missing_master = [t for t in master_required if t not in master]
+    missing_rules = [t for t in rules_required if t not in rules]
+    missing_start = [t for t in start_required if t not in start]
+
+    assert not missing_master, "master.md missing short-intent routing tokens:\n" + "\n".join([f"- {m}" for m in missing_master])
+    assert not missing_rules, "rules.md missing short-intent routing tokens:\n" + "\n".join([f"- {m}" for m in missing_rules])
+    assert not missing_start, "start.md missing short-intent routing tokens:\n" + "\n".join([f"- {m}" for m in missing_start])
+
+
+@pytest.mark.governance
+def test_phase_progress_bar_contract_is_defined():
+    master = read_text(REPO_ROOT / "master.md")
+    rules = read_text(REPO_ROOT / "rules.md")
+    start = read_text(REPO_ROOT / "start.md")
+
+    master_required = [
+        "Responses SHOULD include a compact phase progress bar (`phase_progress_bar`, e.g. `[##----] 2/6`) for quick orientation",
+    ]
+    rules_required = [
+        "Recommended compact progress bar:",
+        "`phase_progress_bar`",
+        "`[##----] 2/6`",
+    ]
+    start_required = [
+        "Responses SHOULD include `phase_progress_bar` (for example: `[##----] 2/6`) aligned to the current phase.",
+    ]
+
+    missing_master = [t for t in master_required if t not in master]
+    missing_rules = [t for t in rules_required if t not in rules]
+    missing_start = [t for t in start_required if t not in start]
+
+    assert not missing_master, "master.md missing progress-bar tokens:\n" + "\n".join([f"- {m}" for m in missing_master])
+    assert not missing_rules, "rules.md missing progress-bar tokens:\n" + "\n".join([f"- {m}" for m in missing_rules])
+    assert not missing_start, "start.md missing progress-bar tokens:\n" + "\n".join([f"- {m}" for m in missing_start])
+
+
+@pytest.mark.governance
+def test_primary_blocker_prioritization_contract_is_defined():
+    master = read_text(REPO_ROOT / "master.md")
+    rules = read_text(REPO_ROOT / "rules.md")
+    start = read_text(REPO_ROOT / "start.md")
+
+    master_required = [
+        "For multi-blocker states, responses MUST prioritize one primary blocker (`primary_reason_code`) with a single primary recovery command",
+    ]
+    rules_required = [
+        "Top-1 blocker prioritization (binding):",
+        "`primary_reason_code`",
+        "`next_command` and `QuickFixCommands[0]` MUST target the same primary blocker.",
+    ]
+    start_required = [
+        "If multiple blockers exist, `/start` SHOULD present one `primary_reason_code` first and keep one primary recovery command.",
+    ]
+
+    missing_master = [t for t in master_required if t not in master]
+    missing_rules = [t for t in rules_required if t not in rules]
+    missing_start = [t for t in start_required if t not in start]
+
+    assert not missing_master, "master.md missing primary-blocker tokens:\n" + "\n".join([f"- {m}" for m in missing_master])
+    assert not missing_rules, "rules.md missing primary-blocker tokens:\n" + "\n".join([f"- {m}" for m in missing_rules])
+    assert not missing_start, "start.md missing primary-blocker tokens:\n" + "\n".join([f"- {m}" for m in missing_start])
+
+
+@pytest.mark.governance
+def test_reason_code_quickfix_template_catalog_is_defined():
+    master = read_text(REPO_ROOT / "master.md")
+    rules = read_text(REPO_ROOT / "rules.md")
+    start = read_text(REPO_ROOT / "start.md")
+
+    master_required = [
+        "Recovery guidance SHOULD source reason-specific command templates from `diagnostics/QUICKFIX_TEMPLATES.json` when available",
+    ]
+    rules_required = [
+        "Reason-code quick-fix template catalog (recommended):",
+        "`diagnostics/QUICKFIX_TEMPLATES.json`",
+        "Template lookup key is canonical `reason_code`.",
+    ]
+    start_required = [
+        "`/start` SHOULD use `diagnostics/QUICKFIX_TEMPLATES.json` for reason-code-specific recovery command text when available.",
+    ]
+
+    missing_master = [t for t in master_required if t not in master]
+    missing_rules = [t for t in rules_required if t not in rules]
+    missing_start = [t for t in start_required if t not in start]
+
+    assert not missing_master, "master.md missing quickfix-template catalog tokens:\n" + "\n".join([f"- {m}" for m in missing_master])
+    assert not missing_rules, "rules.md missing quickfix-template catalog tokens:\n" + "\n".join([f"- {m}" for m in missing_rules])
+    assert not missing_start, "start.md missing quickfix-template catalog tokens:\n" + "\n".join([f"- {m}" for m in missing_start])
+
+    catalog = REPO_ROOT / "diagnostics" / "QUICKFIX_TEMPLATES.json"
+    assert catalog.exists(), "diagnostics/QUICKFIX_TEMPLATES.json missing"
+    payload = json.loads(read_text(catalog))
+    assert payload.get("$schema") == "opencode.quickfix-templates.v1"
+    assert isinstance(payload.get("templates"), dict) and payload["templates"], "Quick-fix templates catalog is empty"
+
+
+@pytest.mark.governance
+def test_no_change_delta_only_contract_is_defined():
+    master = read_text(REPO_ROOT / "master.md")
+    rules = read_text(REPO_ROOT / "rules.md")
+    start = read_text(REPO_ROOT / "start.md")
+
+    master_required = [
+        "For no-change turns, responses SHOULD be delta-only and avoid repeating unchanged diagnostic blocks",
+    ]
+    rules_required = [
+        "In no-change cases, response SHOULD be delta-only (only what changed, or explicitly `no_delta`).",
+    ]
+    start_required = [
+        "For no-change turns, response SHOULD be delta-only (or explicit `no_delta`) instead of repeating unchanged diagnostics.",
+    ]
+
+    missing_master = [t for t in master_required if t not in master]
+    missing_rules = [t for t in rules_required if t not in rules]
+    missing_start = [t for t in start_required if t not in start]
+
+    assert not missing_master, "master.md missing no-change delta-only tokens:\n" + "\n".join([f"- {m}" for m in missing_master])
+    assert not missing_rules, "rules.md missing no-change delta-only tokens:\n" + "\n".join([f"- {m}" for m in missing_rules])
+    assert not missing_start, "start.md missing no-change delta-only tokens:\n" + "\n".join([f"- {m}" for m in missing_start])
+
+
+@pytest.mark.governance
+def test_operator_persona_modes_contract_is_defined():
+    master = read_text(REPO_ROOT / "master.md")
+    rules = read_text(REPO_ROOT / "rules.md")
+    start = read_text(REPO_ROOT / "start.md")
+
+    master_required = [
+        "Responses SHOULD support operator persona modes (`compact`, `standard`, `audit`) as presentation-density controls without changing gate behavior",
+    ]
+    rules_required = [
+        "### 7.3.20 Operator Persona Response Modes (Binding)",
+        "`compact` (minimal concise output)",
+        "`standard` (default balanced output)",
+        "`audit` (full diagnostic detail)",
+    ]
+    start_required = [
+        "Response persona modes SHOULD be supported (`compact`, `standard`, `audit`) as presentation-density controls only.",
+    ]
+
+    missing_master = [t for t in master_required if t not in master]
+    missing_rules = [t for t in rules_required if t not in rules]
+    missing_start = [t for t in start_required if t not in start]
+
+    assert not missing_master, "master.md missing persona-mode tokens:\n" + "\n".join([f"- {m}" for m in missing_master])
+    assert not missing_rules, "rules.md missing persona-mode tokens:\n" + "\n".join([f"- {m}" for m in missing_rules])
+    assert not missing_start, "start.md missing persona-mode tokens:\n" + "\n".join([f"- {m}" for m in missing_start])
+
+
+@pytest.mark.governance
+def test_governance_pr_reviewer_focus_hints_contract_is_defined():
+    master = read_text(REPO_ROOT / "master.md")
+    rules = read_text(REPO_ROOT / "rules.md")
+    start = read_text(REPO_ROOT / "start.md")
+
+    master_required = [
+        "Governance PRs SHOULD also include `Reviewer focus` bullets that point to highest-risk contract changes.",
+    ]
+    rules_required = [
+        "Governance-change PR reviewer-focus hints (recommended):",
+        "`Reviewer focus`",
+        "Hints SHOULD reference concrete files/sections to speed targeted review.",
+    ]
+    start_required = [
+        "Governance PR summaries SHOULD also include `Reviewer focus` bullets for highest-risk contract deltas.",
+    ]
+
+    missing_master = [t for t in master_required if t not in master]
+    missing_rules = [t for t in rules_required if t not in rules]
+    missing_start = [t for t in start_required if t not in start]
+
+    assert not missing_master, "master.md missing PR reviewer-focus tokens:\n" + "\n".join([f"- {m}" for m in missing_master])
+    assert not missing_rules, "rules.md missing PR reviewer-focus tokens:\n" + "\n".join([f"- {m}" for m in missing_rules])
+    assert not missing_start, "start.md missing PR reviewer-focus tokens:\n" + "\n".join([f"- {m}" for m in missing_start])
 
 
 @pytest.mark.governance
@@ -2884,7 +3429,7 @@ def test_backfill_decision_pack_includes_phase_15_prompt_decision():
         "D-001: Run Phase 1.5 (Business Rules Discovery) now?",
         "A) Yes",
         "B) No",
-        "Recommendation:",
+        "Recommendation: A (run lightweight Phase 1.5 to establish initial domain evidence)",
     ]
     missing = [token for token in required_tokens if token not in text]
     assert not missing, "persist_workspace_artifacts.py missing Phase 1.5 decision-pack baseline tokens:\n" + "\n".join(
@@ -2893,10 +3438,53 @@ def test_backfill_decision_pack_includes_phase_15_prompt_decision():
 
 
 @pytest.mark.governance
+def test_start_does_not_require_ticket_before_phase_4():
+    text = read_text(REPO_ROOT / "start.md")
+    required_tokens = [
+        "During Phase `1.5/2/2.1/3A/3B`, `/start` MUST NOT require a task/ticket to proceed; ticket goal is required only at Phase 4 entry.",
+    ]
+    missing = [token for token in required_tokens if token not in text]
+    assert not missing, "start.md missing pre-Phase-4 no-ticket gate token:\n" + "\n".join([f"- {m}" for m in missing])
+
+
+@pytest.mark.governance
 def test_rules_use_canonical_repo_business_rules_file_reference():
     text = read_text(REPO_ROOT / "rules.md")
     assert "${REPO_BUSINESS_RULES_FILE}" in text
     assert "${CONFIG_ROOT}/${REPO_NAME}/business-rules.md" not in text
+
+
+@pytest.mark.governance
+def test_business_rules_write_failure_does_not_redirect_to_workspace_memory_target():
+    master = read_text(REPO_ROOT / "master.md")
+    rules = read_text(REPO_ROOT / "rules.md")
+    start = read_text(REPO_ROOT / "start.md")
+    helper = read_text(REPO_ROOT / "diagnostics" / "persist_workspace_artifacts.py")
+
+    master_required = [
+        "MUST NOT redirect Business Rules persistence to `${WORKSPACE_MEMORY_FILE}` or `SESSION_STATE` fields as a substitute target.",
+    ]
+    rules_required = [
+        "No-fallback-target rule (binding):",
+        "MUST NOT be redirected to `workspace-memory.yaml`, `SESSION_STATE`, or any non-canonical artifact as a write fallback.",
+    ]
+    start_required = [
+        "MUST keep `${REPO_BUSINESS_RULES_FILE}` as target and MUST NOT redirect to `${WORKSPACE_MEMORY_FILE}`.",
+    ]
+    helper_required = [
+        "ERR-BUSINESS-RULES-PERSIST-WRITE-FAILED",
+        "business_rules_action = \"write-requested\"",
+    ]
+
+    missing_master = [t for t in master_required if t not in master]
+    missing_rules = [t for t in rules_required if t not in rules]
+    missing_start = [t for t in start_required if t not in start]
+    missing_helper = [t for t in helper_required if t not in helper]
+
+    assert not missing_master, "master.md missing business-rules no-redirect tokens:\n" + "\n".join([f"- {m}" for m in missing_master])
+    assert not missing_rules, "rules.md missing business-rules no-redirect tokens:\n" + "\n".join([f"- {m}" for m in missing_rules])
+    assert not missing_start, "start.md missing business-rules no-redirect tokens:\n" + "\n".join([f"- {m}" for m in missing_start])
+    assert not missing_helper, "persist_workspace_artifacts.py missing business-rules write-failure handling tokens:\n" + "\n".join([f"- {m}" for m in missing_helper])
 
 
 @pytest.mark.governance

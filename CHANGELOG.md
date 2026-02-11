@@ -35,6 +35,36 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
 - Update factory contracts (`new_profile.md`, `new_addon.md`, `PROFILE_ADDON_FACTORY_CONTRACT.json`) for shared-contract modularization defaults.
 
 ### Changed
+- Add operator-first response layering contract across governance rulebooks: concise brief-first output with full diagnostics on explicit detail request.
+- Refactor `/start` bootstrap prompt internals by extracting inline Python snippets into diagnostics helpers (`diagnostics/start_binding_evidence.py`, `diagnostics/start_preflight_persistence.py`) for maintainability.
+- Improve `/start` recovery UX by preferring concrete, copy-paste runnable `next_command`/recovery commands and minimizing unresolved placeholders when runtime evidence can derive values.
+- Clarify preflight UX with explicit `required_now` vs `required_later` reporting plus deterministic `block_now` signal, and add post-bootstrap conversational/language-adaptive follow-up guidance.
+- Improve `/why-blocked` UX contract with brief-first then detail payload layering.
+- Add deterministic compact `status_tag` contract (`<PHASE>-<GATE>-<STATE>`) for faster operator scanning.
+- Add recommended quick-fix command confidence labels (`safe` / `review-first`) for blocker recovery guidance.
+- Strengthen `NextAction` wording contract to prefer concrete phase/gate/scope context over generic continuation phrasing.
+- Add compact mode-transition summary line contract (`[TRANSITION] from -> to | reason: ...`).
+- Add explicit `state_unchanged` acknowledgment guidance for no-transition responses.
+- Add deterministic conversational post-start fixture intents (`what_phase`, `discovery_done`, `workflow_unchanged`) and governance tests.
+- Add governance PR operator-impact note contract requiring `What changed for operators?` guidance in PR bodies.
+- Add deterministic short-intent routing contract for post-start questions (`where_am_i`, `what_blocks_me`, `what_now`) with concise intent-first responses.
+- Add compact phase progress bar contract (`phase_progress_bar`, e.g. `[##----] 2/6`) for faster operator orientation.
+- Add top-1 blocker prioritization contract (`primary_reason_code`) so one primary blocker/command leads recovery.
+- Add reason-code quick-fix template catalog (`diagnostics/QUICKFIX_TEMPLATES.json`) for reusable recovery guidance.
+- Add delta-only no-change response contract (`state_unchanged` + `no_delta`) to reduce repetitive status noise.
+- Add operator persona response modes (`compact`, `standard`, `audit`) as presentation-only controls.
+- Add governance PR `Reviewer focus` guidance for high-risk contract deltas and targeted review hints.
+- Add installer/release artifact coverage checks to require shipping `diagnostics/QUICKFIX_TEMPLATES.json`.
+- Add deterministic conversational UX golden fixtures in `diagnostics/UX_INTENT_GOLDENS.json` with e2e regression validation for `where_am_i`, `what_blocks_me`, and `what_now` intents.
+- Fix `/start` diagnostics bootstrap pathing to resolve installed helpers from `${COMMANDS_HOME}/diagnostics` instead of workspace-relative assumptions.
+- Move `repo-identity-map.yaml` to repo workspace scope (`workspaces/<repo_fingerprint>/`) and align bootstrap persistence checks accordingly.
+- Clarify unambiguous profile behavior: auto-load canonical rulebooks without asking operator to paste/provide rulebook files.
+- Add `/start` invocation loop guard: when command context is injected, bootstrap proceeds immediately and does not re-request `/start` in the same turn.
+- Make workspace persistence bootstrap diagnostics non-blocking (`WARN-WORKSPACE-PERSISTENCE`) when repo fingerprint cannot be derived, so persistence remains operational convenience and not a hard gate.
+- Enforce profile autodetect-first behavior when multiple rulebooks are present: rank by repo/ticket signals and auto-select unique top candidate before prompting manual selection.
+- Prevent Business Rules fallback target drift: on write failures keep `${REPO_BUSINESS_RULES_FILE}` with `write-requested` and forbid redirecting BR inventory into `workspace-memory.yaml`/`SESSION_STATE`.
+- Adjust `/start` persistence helper for host backup-path sessions: skip fingerprint-dependent backfill as `WARN` instead of error-blocking behavior when repo root is not a git checkout.
+- Update backfill default recommendation for Phase 1.5 decision to lightweight discovery (`Recommendation: A`) and ensure `/start` does not demand ticket/task before Phase 4.
 - Add guided profile-selection behavior for ambiguous detection: system now emits ranked profile suggestions with evidence and requests explicit numbered selection (`1..n`, including `fallback-minimum`) while remaining fail-closed (`BLOCKED-AMBIGUOUS-PROFILE`) until clarified.
 - Add UX execution contracts for deterministic operator flow: unified `[NEXT-ACTION]` footer, standardized blocked envelope fields, startup `[START-MODE]` banner, `[SNAPSHOT]` confidence/risk/scope block, and blocker `QuickFixCommands` guidance.
 - Tighten UX contract coherence: add `0=abort/none` profile-choice escape, require command-field consistency across `[NEXT-ACTION]`/`next_command`/`QuickFixCommands[0]`, and require deterministic ordering for `missing_evidence`/`recovery_steps`.

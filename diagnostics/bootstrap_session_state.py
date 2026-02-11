@@ -93,8 +93,8 @@ def session_pointer_path(config_root: Path) -> Path:
     return config_root / "SESSION_STATE.json"
 
 
-def repo_identity_map_path(config_root: Path) -> Path:
-    return config_root / "repo-identity-map.yaml"
+def repo_identity_map_path(config_root: Path, repo_fingerprint: str) -> Path:
+    return config_root / "workspaces" / repo_fingerprint / "repo-identity-map.yaml"
 
 
 def session_state_template(repo_fingerprint: str, repo_name: str | None) -> dict:
@@ -164,7 +164,7 @@ def pointer_payload(repo_fingerprint: str) -> dict:
 
 
 def _upsert_repo_identity_map(config_root: Path, repo_fingerprint: str, repo_name: str) -> str:
-    path = repo_identity_map_path(config_root)
+    path = repo_identity_map_path(config_root, repo_fingerprint)
     now = datetime.now(timezone.utc).isoformat(timespec="seconds")
 
     existing = _load_json(path)
@@ -240,7 +240,7 @@ def main() -> int:
 
     repo_state_file = repo_session_state_path(config_root, repo_fingerprint)
     pointer_file = session_pointer_path(config_root)
-    identity_map_file = repo_identity_map_path(config_root)
+    identity_map_file = repo_identity_map_path(config_root, repo_fingerprint)
 
     print(f"Config root: {config_root}")
     print(f"Repo fingerprint: {repo_fingerprint}")

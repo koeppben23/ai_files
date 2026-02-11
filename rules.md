@@ -183,6 +183,10 @@ Deterministic Java default (binding):
   the assistant SHOULD set active profile to `backend-java` without requesting explicit profile selection.
 - Explicit profile-selection prompts are required only when repository indicators are materially ambiguous for gate/tooling decisions.
 
+Unambiguous rulebook auto-load (binding):
+- When profile detection is unambiguous and host filesystem access is available, load core/profile rulebooks from canonical installer paths.
+- In that unambiguous case, the assistant MUST NOT ask the operator to provide/paste rulebook files.
+
 **Deterministic detection hints (examples):**
 - Frontend indicators: `package.json`, `pnpm-lock.yaml`, `yarn.lock`, `vite.config.*`, `next.config.*`, `src/app`, `src/pages`
 - Java backend indicators: `pom.xml`, `mvnw`, `build.gradle`, `settings.gradle`, `src/main/java`, `src/test/java`
@@ -193,6 +197,7 @@ Deterministic Java default (binding):
 
 If repo signals are ambiguous (e.g., monorepo with multiple stacks) and no explicit profile is provided:
 - do **not** guess silently
+- first attempt deterministic ranking from repo signals and ticket/context signals; if one top profile is uniquely supported, auto-select it
 - conservative mode is planning-only (no code generation, no irreversible tooling decisions, no gate pass claims):
   - declare ambiguity
   - provide a ranked shortlist of plausible profiles with brief evidence per candidate (top suggestion marked recommended)
@@ -656,6 +661,11 @@ If `SESSION_STATE.Mode = BLOCKED`, output SHOULD include a machine-readable bloc
 No blocked response may omit these fields when strict output shape is available.
 - `missing_evidence` and `recovery_steps` MUST be deterministically ordered (priority-first, then lexicographic).
 
+Top-1 blocker prioritization (binding):
+- If multiple blockers are present, response MUST present one primary blocker first (`primary_reason_code`).
+- `next_command` and `QuickFixCommands[0]` MUST target the same primary blocker.
+- Secondary blockers MAY be listed after the primary blocker as deferred follow-ups.
+
 Compat fallback (binding):
 - If host constraints reject/override blocker envelope formatting, the assistant MUST still provide equivalent semantic content under:
   - `RequiredInputs` (missing evidence/input list)
@@ -697,6 +707,22 @@ When output mode is blocked, include:
 - When OS split is used, each command MUST be prefixed with an OS label (`macos_linux:` or `windows:`).
 
 Quick-fix commands are execution guidance only; they do not bypass gates or evidence requirements.
+
+Placeholder minimization (binding):
+- `next_command` and `QuickFixCommands` SHOULD be fully copy-paste runnable whenever runtime can derive concrete values.
+- Angle-bracket placeholders (for example `<repo_fingerprint>`) are allowed only when the value is truly unavailable from host evidence.
+- If placeholders are unavoidable, include one concise sentence describing how to derive the missing value.
+
+Quick-fix confidence labeling (recommended):
+- When emitting `QuickFixCommands`, add a compact confidence label per primary command:
+  - `safe` (read-only or low-risk local command), or
+  - `review-first` (mutating command that should be reviewed before execution).
+- If labels are emitted, they MUST align with the command semantics.
+
+Reason-code quick-fix template catalog (recommended):
+- Recovery messaging SHOULD use `diagnostics/QUICKFIX_TEMPLATES.json` when present.
+- Template lookup key is canonical `reason_code`.
+- Runtime output still MUST enforce command coherence rules (`[NEXT-ACTION].Command`, `next_command`, `QuickFixCommands[0]`).
 
 ### 7.3.6 Architect-Only Autopilot Lifecycle (Binding)
 
@@ -812,6 +838,10 @@ Required compact output shape:
 - `impact: <one concise sentence>`
 - `next: <single concrete next step>`
 
+Recommended clarity fields:
+- `required_now` and `required_later` inventories
+- `block_now` (boolean; true only when any `required_now` command is missing)
+
 Semantics:
 - Missing `required_now` commands are blocker-fix candidates.
 - Missing `required_later` commands are advisory unless an active downstream gate requires them.
@@ -830,12 +860,23 @@ Rules:
 - `BLOCKED` MUST include exactly one `reason_code`, exactly one concrete recovery action sentence, and one primary copy-paste command.
 - `QuickFixCommands` for blocked responses MUST contain one command by default; allow two only for explicit OS-specific splits.
 
+Deterministic short status tag (recommended):
+- Responses SHOULD include a compact `status_tag` for quick scanning.
+- Format: `<PHASE>-<GATE>-<STATE>` (uppercase, hyphen-separated).
+- `STATE` MUST align with canonical status (`BLOCKED|WARN|OK|NOT_VERIFIED`).
+- Example: `P2-PROFILE-DETECTION-WARN`.
+
 Single-next-action rule:
 - Each response MUST emit exactly one `NextAction` mechanism:
   - `command`, or
   - `reply_with_one_number`, or
   - `manual_step`.
 - The selected mechanism MUST align with `[NEXT-ACTION].Command` and blocker `next_command` when blocked.
+
+NextAction wording quality (binding):
+- `NextAction.Next` and `[NEXT-ACTION].Why` SHOULD be context-specific, not generic.
+- Include the active scope when known (phase, gate, component scope, or ticket id).
+- Avoid placeholder phrasing like "continue" without target context.
 
 ### 7.3.12 Session Transition Invariants (Binding)
 
@@ -850,6 +891,11 @@ Required transition diagnostics payload:
 - `from` (`Phase` + `Mode`)
 - `to` (`Phase` + `Mode`)
 - `reason` (one concise sentence)
+
+Compact transition line (recommended):
+- On phase/mode transitions, include a one-line summary:
+  - `[TRANSITION] <from> -> <to> | reason: <short reason>`
+- This line is informational and MUST stay consistent with transition diagnostics payload.
 
 ### 7.3.13 Smart Retry + Restart Guidance (Binding)
 
@@ -876,11 +922,20 @@ Required fields:
 - `active_gate` (current gate key or `none`)
 - `next_gate_condition` (one concise sentence)
 
+Recommended compact progress bar:
+- Responses SHOULD include `phase_progress_bar` in the form `[##----] 2/6`.
+- Bar semantics MUST match current phase number (1-6) and total phase count (6).
+
 WARN/BLOCKED separation rules:
 - `WARN` MUST NOT include required-gate `missing_evidence`.
 - Required-gate missing evidence MUST produce `BLOCKED`.
 - `WARN` MAY include `advisory_missing` only.
 - `RequiredInputs` is for BLOCKED/COMPAT blocker outputs and MUST NOT be emitted for WARN-only responses.
+
+No-change acknowledgment (recommended):
+- If a response performs no phase/mode/gate transition, explicitly state `state_unchanged` with a one-line reason.
+- No-change acknowledgment MUST NOT conflict with `SESSION_STATE` or transition diagnostics.
+- In no-change cases, response SHOULD be delta-only (only what changed, or explicitly `no_delta`).
 
 ### 7.3.15 STRICT vs COMPAT Output Matrix (Binding)
 
@@ -901,6 +956,75 @@ COMPAT mode (`DEVIATION.host_constraint = true`):
 
 Mode selection rule:
 - Response MUST declare exactly one mode (`STRICT` or `COMPAT`) per turn.
+
+### 7.3.16 Operator-First Brief/Detail Layering (Binding)
+
+To reduce operator cognitive load, governance responses SHOULD present information in two layers.
+
+Layer 1 (operator brief):
+- Start with a compact 2-4 line headline that contains only:
+  - status,
+  - phase/gate progress,
+  - exactly one actionable next step.
+
+Layer 2 (details on demand):
+- Keep full diagnostics and evidence payloads available, but place them after the brief layer.
+- If the operator asks for details (for example: `show diagnostics`, `show full session state`), return full strict diagnostics without changing gate outcomes.
+
+Safety constraints:
+- Brief layering is presentation-only and MUST NOT suppress blocker fields when `status=BLOCKED`.
+- Deterministic output contracts (reason codes, `SESSION_STATE`, NextAction coherence, `QuickFixCommands`) remain unchanged.
+- If host supports strict envelopes, strict fields remain mandatory even when brief layering is used.
+
+### 7.3.17 Post-Start Conversational UX + Language Adaptation (Binding)
+
+After `/start` bootstrap succeeds, short operator follow-up questions (for example: current phase, whether discovery is done) SHOULD use conversational minimal responses first.
+
+Rules:
+- Keep direct follow-up answers concise and task-focused unless the operator requests full diagnostics.
+- Match operator language when feasible (for example German input -> German response) while preserving canonical reason/status codes.
+- Conversational brevity MUST NOT bypass gate/evidence behavior; if a gate changes, emit required structured fields.
+
+### 7.3.18 Conversational UX Regression Fixtures (Binding)
+
+To keep conversational UX stable under CI/governance tests, include deterministic fixtures for common post-start intents.
+
+Required fixture intents:
+- `what_phase` (for example: "Which phase are you in?")
+- `discovery_done` (for example: "Do you still need discovery?")
+- `workflow_unchanged` (for example: "Does the workflow remain the same?")
+
+Fixture expectations:
+- response is concise (brief-first)
+- includes one clear next step or explicit `state_unchanged`
+- keeps canonical status vocabulary (`BLOCKED|WARN|OK|NOT_VERIFIED`)
+- canonical fixture source SHOULD be `diagnostics/UX_INTENT_GOLDENS.json`
+
+### 7.3.19 Short-Intent Routing for Operator Questions (Binding)
+
+For short post-start operator questions, response routing SHOULD be intent-first.
+
+Supported intents (minimum):
+- `where_am_i` (phase/gate status)
+- `what_blocks_me` (active blocker + top recovery step)
+- `what_now` (single next action)
+
+Routing rules:
+- Return the matching intent response in 1-3 lines before optional diagnostics.
+- Preserve deterministic status vocabulary and NextAction coherence.
+- If intent cannot be mapped safely, fall back to normal strict/compat output.
+
+### 7.3.20 Operator Persona Response Modes (Binding)
+
+Responses SHOULD support explicit operator persona modes:
+- `compact` (minimal concise output)
+- `standard` (default balanced output)
+- `audit` (full diagnostic detail)
+
+Mode behavior:
+- Persona mode changes presentation density only; gates/evidence semantics remain identical.
+- If operator sets a persona mode explicitly, honor it until changed.
+- On mode change, acknowledge the selected mode in one concise line.
 
 ### 7.4 Architecture Decision Output Template (Binding when proposing non-trivial architecture)
 
@@ -1090,6 +1214,15 @@ Enforcement rules:
 - Non-conforming branch names MUST be replaced by a conforming equivalent before branch creation.
 - CI SHOULD enforce title/branch/commit conformance on pull requests.
 
+Governance-change PR operator-impact note (recommended):
+- For pull requests that change governance rulebooks/contracts, PR body SHOULD include a compact section:
+  - `What changed for operators?`
+  - 2-5 bullets focused on operator-visible behavior changes.
+
+Governance-change PR reviewer-focus hints (recommended):
+- PR body SHOULD include `Reviewer focus` with 2-5 bullets of highest-risk contract deltas.
+- Hints SHOULD reference concrete files/sections to speed targeted review.
+
 ## 7.11 Operator Reload Contract (Core, Binding)
 
 When operator intent is explicit reload (for example `/reload-addons`), execution MUST be deterministic and narrow:
@@ -1103,6 +1236,14 @@ When operator intent is explicit reload (for example `/reload-addons`), executio
 
 Reload is a control-plane operation, not an implementation permission.
 
+## 7.11.1 /start Re-invocation Loop Guard (Core, Binding)
+
+If `start.md` content is present because `/start` command triggered command injection, `/start` is considered invoked for this turn.
+
+Rules:
+- Assistant MUST proceed with bootstrap flow and MUST NOT ask operator to run `/start` again in the same turn.
+- Re-requesting `/start` is allowed only when evidence shows command context was not injected (host integration failure).
+
 ## 7.12 Operator Explain Contracts (Core, Binding)
 
 Supported read-only commands:
@@ -1114,6 +1255,8 @@ Requirements:
 - Commands MUST NOT assert new implementation/build evidence.
 
 `/why-blocked` output contract:
+- start with a concise blocker brief (reason + one primary recovery command)
+- then provide full detail payload (facts, trace, evidence pointers)
 - include `reason_code`
 - include up to 3 concrete `recovery_steps`
 - include triggering rule/file evidence reference
@@ -1394,6 +1537,10 @@ Non-blocking behavior:
   in that case:
   - set `InventoryFileStatus = write-requested`
   - provide the content and path so the user/OpenCode can persist it manually.
+
+No-fallback-target rule (binding):
+- The Business Rules inventory MUST NOT be redirected to `workspace-memory.yaml`, `SESSION_STATE`, or any non-canonical artifact as a write fallback.
+- If write fails, keep target `${REPO_BUSINESS_RULES_FILE}` and emit manual persistence instructions for that same target.
 
 ### 8.y Decision Pack File (OpenCode-only, Conditional, Binding)
 

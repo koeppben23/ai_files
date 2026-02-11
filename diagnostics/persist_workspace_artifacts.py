@@ -285,9 +285,9 @@ def _decision_pack_section(date: str, date_compact: str) -> str:
             "Status: proposed",
             "A) Yes",
             "B) No",
-            "Recommendation: B (insufficient domain evidence in current backfill context)",
-            "Evidence: Bootstrap seed only; no fresh Phase 2 domain extraction attached",
-            "What would change it: evidence-backed Phase 2 signals for domain-heavy logic/policy complexity",
+            "Recommendation: A (run lightweight Phase 1.5 to establish initial domain evidence)",
+            "Evidence: Bootstrap seed context; lightweight discovery can improve downstream gate quality",
+            "What would change it: keep B only when operator explicitly defers business-rules discovery",
             "",
         ]
     )
@@ -638,13 +638,30 @@ def main() -> int:
     should_write_business_rules = _should_write_business_rules_inventory(session)
     business_rules_action = "not-applicable"
     if should_write_business_rules:
-        business_rules_action = _upsert_artifact(
-            path=business_rules_path,
-            create_content=_render_business_rules_inventory(date=today, repo_name=repo_name),
-            append_content=None,
-            force=args.force,
-            dry_run=args.dry_run,
-        )
+        try:
+            business_rules_action = _upsert_artifact(
+                path=business_rules_path,
+                create_content=_render_business_rules_inventory(date=today, repo_name=repo_name),
+                append_content=None,
+                force=args.force,
+                dry_run=args.dry_run,
+            )
+        except OSError as exc:
+            business_rules_action = "write-requested"
+            safe_log_error(
+                reason_key="ERR-BUSINESS-RULES-PERSIST-WRITE-FAILED",
+                message="Business rules inventory persistence failed; keeping canonical target with write-requested status.",
+                config_root=config_root,
+                phase="1.5-BusinessRules",
+                gate="PERSISTENCE",
+                mode="repo-aware",
+                repo_fingerprint=repo_fingerprint,
+                command="persist_workspace_artifacts.py",
+                component="business-rules-persistence",
+                observed_value={"target": str(business_rules_path), "error": str(exc)[:240]},
+                expected_constraint="Business rules inventory persists to ${REPO_BUSINESS_RULES_FILE}",
+                remediation="Persist the same content manually to ${REPO_BUSINESS_RULES_FILE} and rerun helper.",
+            )
 
     actions = {
         "repoCache": _upsert_artifact(

@@ -543,9 +543,18 @@ Top-tier load evidence obligation (binding):
        LOAD: found_profiles[0]
        
       ELSIF found_profiles.count > 1:
-        # Monorepo-safe refinement (assistive only):
-        # If ComponentScopePaths is set, prefer profiles closest to that scope.
-       IF SESSION_STATE.ComponentScopePaths is set:
+        # Autodetect-first refinement (binding):
+        # Attempt deterministic repo-signal ranking before asking operator.
+       ranked_profiles = rank_profiles_by_repo_signals(found_profiles, repo_indicators, ticket_signals)
+       IF ranked_profiles.top_is_unique:
+         ActiveProfile = extract_profile_name(ranked_profiles.top)
+         SESSION_STATE.ProfileSource = "auto-detected-ranked"
+         SESSION_STATE.ProfileEvidence = ranked_profiles.top.evidence
+         LOG: "Auto-selected profile via ranked repo signals: {ActiveProfile}"
+         LOAD: ranked_profiles.top
+       ELIF SESSION_STATE.ComponentScopePaths is set:
+         # Monorepo-safe refinement (assistive only):
+         # If ComponentScopePaths is set, prefer profiles closest to that scope.
          scoped_profiles = filter_profiles_by_scope_proximity(found_profiles, SESSION_STATE.ComponentScopePaths)
          
          IF scoped_profiles.count == 1:
@@ -629,7 +638,14 @@ Profile candidate filtering (binding):
 - Rulebooks referenced by addon manifests MUST NOT be treated as profile candidates during profile auto-detection.
 - Shared governance rulebooks (`rules.principal-excellence.md`, `rules.risk-tiering.md`, `rules.scorecard-calibration.md`) MUST NOT be treated as profile candidates.
 
-If multiple profiles exist but `SESSION_STATE.ComponentScopePaths` is present:
+Rulebook auto-load behavior (binding):
+- If host filesystem access is available and profile detection is unambiguous, the assistant MUST auto-load core/profile rulebooks from canonical installer paths without asking the operator to provide rulebook files.
+- Operator rulebook input is allowed only when detection is ambiguous, files are genuinely unreadable/missing, or host access is unavailable.
+
+If multiple profiles exist:
+- first attempt deterministic repo-signal ranking; if one top candidate is unique, auto-select without operator prompt
+
+If multiple profiles still exist and `SESSION_STATE.ComponentScopePaths` is present:
 - attempt profile inference **within the Component Scope only**
 - record the result as:
   - `SESSION_STATE.ProfileSource = "component-scope-inferred"`
@@ -885,6 +901,9 @@ Output and state requirements:
 
 `/why-blocked`:
 - Purpose: explain current blocking reason deterministically without mutating workflow state.
+- Response SHOULD be layered:
+  - brief layer first: one-line blocker summary + one primary recovery command
+  - detail layer second: full trace/evidence payload
 - Output MUST include:
   - blocking `reason_code`
   - concrete trigger facts (files/keys/signals)
@@ -1226,6 +1245,10 @@ Operator lifecycle (canonical):
 3) `Implement now` (optional scope) -> implementation mode
 4) `Ingest evidence` -> verification mode (claim upgrade/reject)
 
+`/start` invocation guard (binding):
+- If `start.md` is present due command injection, `/start` is already invoked for this turn.
+- In that case, assistant MUST proceed with bootstrap and MUST NOT ask operator to run `/start` again in the same turn.
+
 Execution mode enum (binding):
 - `SESSION_STATE.OutputMode = ARCHITECT | IMPLEMENT | VERIFY`
 - Default after `/master` is `ARCHITECT`.
@@ -1279,6 +1302,8 @@ Commit subject naming (binding):
 Rules:
 - If the user-provided commit title is non-conforming, the assistant MUST normalize it to the nearest conforming form and report the normalization.
 - The assistant MUST NOT create a non-conventional branch/commit subject when it is responsible for creating them.
+- For PRs that modify governance rulebooks/contracts, PR body SHOULD include `What changed for operators?` with concise operator-visible deltas.
+- Governance PRs SHOULD also include `Reviewer focus` bullets that point to highest-risk contract changes.
 
 ---
 
@@ -2268,9 +2293,10 @@ Output requirements (Binding):
      written | write-requested | not-applicable
 
 If file writing is not possible in the current environment:
- - set `InventoryFileStatus = write-requested`
- - set `InventoryFileMode = unknown`
- - still output the full content and target path so OpenCode or the user can persist it manually.
+  - set `InventoryFileStatus = write-requested`
+  - set `InventoryFileMode = unknown`
+  - still output the full content and target path so OpenCode or the user can persist it manually.
+  - MUST NOT redirect Business Rules persistence to `${WORKSPACE_MEMORY_FILE}` or `SESSION_STATE` fields as a substitute target.
 
 Update behavior (Binding):
 - If `${REPO_BUSINESS_RULES_FILE}` does not exist: `Mode = create`.
@@ -3434,9 +3460,25 @@ Response and output constraints are defined in `rules.md` (Core Rulebook).
 * Never guess: If ambiguous, ask for clarification using the mandatory format (Section 2.3)
 * Governance status vocabulary is fixed: `BLOCKED | WARN | OK | NOT_VERIFIED`
 * WARN/blocked separation is strict: required missing evidence => BLOCKED (not WARN)
+* For multi-blocker states, responses MUST prioritize one primary blocker (`primary_reason_code`) with a single primary recovery command
 * Each response MUST emit exactly one NextAction mechanism: `command` OR `reply_with_one_number` OR `manual_step`
 * Session transitions are invariant-checked: stable `session_run_id`, stable `ruleset_hash` unless explicit rehydrate, and transition trace entries with `transition_id`
 * Responses include compact phase progress derived from `SESSION_STATE` (`phase`, `active_gate`, `next_gate_condition`)
+* Responses SHOULD include a compact phase progress bar (`phase_progress_bar`, e.g. `[##----] 2/6`) for quick orientation
+* Responses SHOULD include a compact deterministic `status_tag` (`<PHASE>-<GATE>-<STATE>`) for quick operator scanning
+* Blocked recovery guidance SHOULD label primary quick-fix command confidence as `safe` or `review-first`
+* Recovery guidance SHOULD source reason-specific command templates from `diagnostics/QUICKFIX_TEMPLATES.json` when available
+* `NextAction` wording SHOULD include concrete context (active phase/gate/scope) and avoid generic continuation text
+* On phase/mode changes, responses SHOULD include a compact one-line transition summary (`[TRANSITION] from -> to | reason: ...`)
+* If state does not change, responses SHOULD acknowledge `state_unchanged` with a concise reason
+* For no-change turns, responses SHOULD be delta-only and avoid repeating unchanged diagnostic blocks
+* Operator-first UX layering SHOULD be used: concise brief first, full diagnostics immediately after or on explicit detail request
+* `/start` preflight SHOULD distinguish `required_now` vs `required_later` and surface `block_now` for immediate-gate impact
+* After bootstrap success, short follow-ups SHOULD default to conversational, language-adaptive responses unless full diagnostics are requested
+* Conversational post-start intents SHOULD remain regression-tested with deterministic fixtures (`what_phase`, `discovery_done`, `workflow_unchanged`)
+* Preferred fixture source for conversational intent goldens: `diagnostics/UX_INTENT_GOLDENS.json`
+* Short operator follow-up questions SHOULD route through deterministic intents (`where_am_i`, `what_blocks_me`, `what_now`) before verbose diagnostics
+* Responses SHOULD support operator persona modes (`compact`, `standard`, `audit`) as presentation-density controls without changing gate behavior
 
 Host-constraint compatibility (binding):
 * If host/system/developer instructions reject strict governance output formatting, use COMPAT mode.
@@ -3454,6 +3496,11 @@ Strict/compat mode matrix (binding):
 * STRICT (default when host allows): envelope + `[SNAPSHOT]` + `[NEXT-ACTION]` (+ blocker envelope/QuickFixCommands when blocked).
 * COMPAT (`DEVIATION.host_constraint = true`): `RequiredInputs` + `Recovery` + `NextAction` + `[NEXT-ACTION]`; deterministic gates/evidence remain identical.
 * Each response MUST declare exactly one output mode (`STRICT` or `COMPAT`).
+
+Operator-first layering (binding, presentation-only):
+* Responses SHOULD start with a compact operator brief (status + phase/gate + one next step).
+* Full diagnostics/evidence remain mandatory per gate and MUST be available after the brief layer.
+* On explicit operator request (`show diagnostics`, `show full session state`), emit full strict diagnostics.
 
 ---
 
