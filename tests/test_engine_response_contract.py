@@ -1,10 +1,18 @@
 from __future__ import annotations
 
+import json
 from typing import Any, cast
 
 import pytest
 
-from governance.engine.response_contract import NextAction, Snapshot, build_compat_response, build_strict_response
+from governance.engine.response_contract import (
+    SESSION_SNAPSHOT_MAX_CHARS,
+    SESSION_SNAPSHOT_WHITELIST,
+    NextAction,
+    Snapshot,
+    build_compat_response,
+    build_strict_response,
+)
 
 
 @pytest.mark.governance
@@ -13,7 +21,14 @@ def test_build_strict_response_produces_deterministic_envelope():
 
     payload = build_strict_response(
         status="ok",
-        session_state={"phase": "1.1-Bootstrap"},
+        session_state={
+            "phase": "1.1-Bootstrap",
+            "effective_operating_mode": "user",
+            "activation_hash": "ab" * 32,
+            "ruleset_hash": "cd" * 32,
+            "repo_fingerprint": "repo-123",
+            "super_verbose_field": "must-not-appear-by-default",
+        },
         next_action=NextAction(type="manual_step", command="Provide task scope"),
         snapshot=Snapshot(confidence="High", risk="Low", scope="Bootstrap"),
         reason_payload={"status": "OK", "reason_code": "none"},
@@ -23,6 +38,51 @@ def test_build_strict_response_produces_deterministic_envelope():
     assert payload["status"] == "OK"
     assert payload["next_action"]["type"] == "manual_step"
     assert payload["snapshot"]["confidence"] == "High"
+    assert set(payload["session_state"].keys()) == set(SESSION_SNAPSHOT_WHITELIST)
+    assert payload["session_state"]["activation_hash"] == "ab" * 32
+    assert payload["session_state"]["active_gate.status"] == "OK"
+    assert "session_state_full" not in payload
+    compact_len = len(json.dumps(payload["session_state"], ensure_ascii=True, separators=(",", ":")))
+    assert compact_len <= SESSION_SNAPSHOT_MAX_CHARS
+
+
+@pytest.mark.governance
+def test_build_strict_response_emits_full_state_only_for_explicit_intent():
+    """Full session dump should only be present for explicit diagnostics intent."""
+
+    full_state = {
+        "phase": "1.1-Bootstrap",
+        "effective_operating_mode": "user",
+        "activation_hash": "11" * 32,
+        "ruleset_hash": "22" * 32,
+        "repo_fingerprint": "repo-xyz",
+        "large_payload": {"x": "y"},
+    }
+    payload = build_strict_response(
+        status="WARN",
+        session_state=full_state,
+        next_action=NextAction(type="manual_step", command="Review warning"),
+        snapshot=Snapshot(confidence="Medium", risk="Medium", scope="Bootstrap"),
+        reason_payload={"status": "WARN", "reason_code": "WARN-PERMISSION-LIMITED"},
+        detail_intent="show_diagnostics",
+    )
+    payload = cast(dict[str, Any], payload)
+    assert payload["session_state"]["repo_fingerprint"] == "repo-xyz"
+    assert payload["session_state_full"] == full_state
+
+
+@pytest.mark.governance
+def test_build_strict_response_requires_activation_hash_in_snapshot():
+    """Default snapshot projection should fail closed without activation hash."""
+
+    with pytest.raises(ValueError, match="activation_hash"):
+        build_strict_response(
+            status="OK",
+            session_state={"phase": "1.1-Bootstrap"},
+            next_action=NextAction(type="manual_step", command="Proceed"),
+            snapshot=Snapshot(confidence="High", risk="Low", scope="Bootstrap"),
+            reason_payload={"status": "OK", "reason_code": "none"},
+        )
 
 
 @pytest.mark.governance
