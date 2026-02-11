@@ -61,3 +61,21 @@ def test_write_policy_accepts_canonical_variable_targets(target: str):
     result = evaluate_target_path(target)
     assert result.valid is True
     assert result.reason_code == "none"
+
+
+@pytest.mark.governance
+@pytest.mark.parametrize(
+    "target",
+    [
+        "${UNKNOWN_VAR}/repo-cache.yaml",
+        "${WORKSPACES_HOME}/../repo-cache.yaml",
+        "${WORKSPACES_HOME}/a//b/../../repo-cache.yaml",
+        "${WORKSPACES_HOME/repo-cache.yaml",
+    ],
+)
+def test_write_policy_rejects_unknown_or_traversal_variable_paths(target: str):
+    """Variable paths must use allowlisted variables and forbid parent traversal."""
+
+    result = evaluate_target_path(target)
+    assert result.valid is False
+    assert result.reason_code == BLOCKED_PERSISTENCE_PATH_VIOLATION

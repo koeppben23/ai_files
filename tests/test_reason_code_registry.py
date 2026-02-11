@@ -17,9 +17,22 @@ def test_reason_code_registry_contains_wave_a_baseline_codes():
     assert reason_codes.BLOCKED_MISSING_BINDING_FILE in reason_codes.CANONICAL_REASON_CODES
     assert reason_codes.BLOCKED_VARIABLE_RESOLUTION in reason_codes.CANONICAL_REASON_CODES
     assert reason_codes.BLOCKED_WORKSPACE_PERSISTENCE in reason_codes.CANONICAL_REASON_CODES
+    assert reason_codes.BLOCKED_PERSISTENCE_TARGET_DEGENERATE in reason_codes.CANONICAL_REASON_CODES
+    assert reason_codes.BLOCKED_PERSISTENCE_PATH_VIOLATION in reason_codes.CANONICAL_REASON_CODES
+    assert reason_codes.BLOCKED_UNSPECIFIED in reason_codes.CANONICAL_REASON_CODES
     assert reason_codes.WARN_UNMAPPED_AUDIT_REASON in reason_codes.CANONICAL_REASON_CODES
     assert reason_codes.WARN_WORKSPACE_PERSISTENCE in reason_codes.CANONICAL_REASON_CODES
     assert len(reason_codes.CANONICAL_REASON_CODES) == len(set(reason_codes.CANONICAL_REASON_CODES))
+
+
+@pytest.mark.governance
+def test_reason_code_registry_recognizes_registered_and_none_sentinel():
+    """Registry helper should detect known codes and the explicit none sentinel."""
+
+    assert reason_codes.is_registered_reason_code(reason_codes.BLOCKED_VARIABLE_RESOLUTION) is True
+    assert reason_codes.is_registered_reason_code(reason_codes.REASON_CODE_NONE) is True
+    assert reason_codes.is_registered_reason_code(reason_codes.REASON_CODE_NONE, allow_none=False) is False
+    assert reason_codes.is_registered_reason_code("BLOCKED-NOT-IN-REGISTRY") is False
 
 
 @pytest.mark.governance

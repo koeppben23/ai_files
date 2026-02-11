@@ -10,9 +10,34 @@ from __future__ import annotations
 from dataclasses import dataclass
 import re
 
+from governance.engine.reason_codes import (
+    BLOCKED_PERSISTENCE_PATH_VIOLATION,
+    BLOCKED_PERSISTENCE_TARGET_DEGENERATE,
+    REASON_CODE_NONE,
+)
 
-BLOCKED_PERSISTENCE_TARGET_DEGENERATE = "BLOCKED-PERSISTENCE-TARGET-DEGENERATE"
-BLOCKED_PERSISTENCE_PATH_VIOLATION = "BLOCKED-PERSISTENCE-PATH-VIOLATION"
+
+_CANONICAL_VARIABLE_PATH = re.compile(r"^\$\{([A-Z0-9_]+)\}(.*)$")
+_PATH_SEPARATOR_RUN = re.compile(r"[\\/]+")
+
+_ALLOWED_CANONICAL_VARIABLES = frozenset(
+    {
+        "COMMANDS_HOME",
+        "CONFIG_ROOT",
+        "OPENCODE_HOME",
+        "PROFILES_HOME",
+        "REPO_BUSINESS_RULES_FILE",
+        "REPO_CACHE_FILE",
+        "REPO_DECISION_PACK_FILE",
+        "REPO_DIGEST_FILE",
+        "REPO_HOME",
+        "REPO_OVERRIDES_HOME",
+        "SESSION_STATE_FILE",
+        "SESSION_STATE_POINTER_FILE",
+        "WORKSPACES_HOME",
+        "WORKSPACE_MEMORY_FILE",
+    }
+)
 
 _DRIVE_LETTER_ONLY = re.compile(r"^[A-Za-z]$")
 _DRIVE_ROOT_ONLY = re.compile(r"^[A-Za-z]:$")
@@ -33,6 +58,23 @@ def _looks_like_variable_path(target_path: str) -> bool:
     """Return True when path starts with a canonical variable token."""
 
     return target_path.startswith("${")
+
+
+def _extract_variable_parts(target_path: str) -> tuple[str, str] | None:
+    """Extract `${VARIABLE}` and suffix from canonical variable-form paths."""
+
+    match = _CANONICAL_VARIABLE_PATH.fullmatch(target_path)
+    if not match:
+        return None
+    return match.group(1), match.group(2)
+
+
+def _contains_parent_traversal(path_suffix: str) -> bool:
+    """Detect parent traversal segments in variable-path suffixes."""
+
+    normalized = _PATH_SEPARATOR_RUN.sub("/", path_suffix)
+    segments = [segment for segment in normalized.split("/") if segment not in ("", ".")]
+    return any(segment == ".." for segment in segments)
 
 
 def evaluate_target_path(target_path: str) -> WriteTargetPolicyResult:
@@ -86,4 +128,27 @@ def evaluate_target_path(target_path: str) -> WriteTargetPolicyResult:
             detail="target path must use canonical variable form",
         )
 
-    return WriteTargetPolicyResult(valid=True, reason_code="none", detail="ok")
+    variable_parts = _extract_variable_parts(path)
+    if variable_parts is None:
+        return WriteTargetPolicyResult(
+            valid=False,
+            reason_code=BLOCKED_PERSISTENCE_PATH_VIOLATION,
+            detail="target path must start with a valid ${VARIABLE} token",
+        )
+
+    variable_name, suffix = variable_parts
+    if variable_name not in _ALLOWED_CANONICAL_VARIABLES:
+        return WriteTargetPolicyResult(
+            valid=False,
+            reason_code=BLOCKED_PERSISTENCE_PATH_VIOLATION,
+            detail="target path uses an unknown canonical variable",
+        )
+
+    if _contains_parent_traversal(suffix):
+        return WriteTargetPolicyResult(
+            valid=False,
+            reason_code=BLOCKED_PERSISTENCE_PATH_VIOLATION,
+            detail="target path must not contain parent traversal segments",
+        )
+
+    return WriteTargetPolicyResult(valid=True, reason_code=REASON_CODE_NONE, detail="ok")

@@ -28,6 +28,7 @@ class RepoRootResolutionResult:
 
     repo_root: Path
     source: str
+    is_git_root: bool
 
 
 def _is_git_root(path: Path) -> bool:
@@ -55,7 +56,7 @@ def resolve_repo_root(
             continue
         resolved = Path(candidate).expanduser().resolve()
         if _is_git_root(resolved):
-            return RepoRootResolutionResult(repo_root=resolved, source=f"env:{key}")
+            return RepoRootResolutionResult(repo_root=resolved, source=f"env:{key}", is_git_root=True)
 
     fallback = (cwd if cwd is not None else Path.cwd()).resolve()
-    return RepoRootResolutionResult(repo_root=fallback, source="cwd")
+    return RepoRootResolutionResult(repo_root=fallback, source="cwd", is_git_root=_is_git_root(fallback))

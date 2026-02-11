@@ -36,6 +36,7 @@ def test_resolver_prefers_highest_priority_env_git_root(tmp_path: Path):
 
     assert result.repo_root == preferred.resolve()
     assert result.source == "env:OPENCODE_REPO_ROOT"
+    assert result.is_git_root is True
 
 
 @pytest.mark.governance
@@ -56,6 +57,7 @@ def test_resolver_skips_non_git_env_candidate_and_uses_next_valid(tmp_path: Path
 
     assert result.repo_root == next_valid.resolve()
     assert result.source == "env:OPENCODE_WORKSPACE_ROOT"
+    assert result.is_git_root is True
 
 
 @pytest.mark.governance
@@ -75,3 +77,16 @@ def test_resolver_falls_back_to_cwd_when_no_env_candidate_is_valid(tmp_path: Pat
 
     assert result.repo_root == cwd.resolve()
     assert result.source == "cwd"
+    assert result.is_git_root is False
+
+
+@pytest.mark.governance
+def test_resolver_marks_cwd_fallback_as_git_root_when_valid(tmp_path: Path):
+    """Fallback metadata should expose whether cwd is itself a git root."""
+
+    cwd_git_root = _make_git_root(tmp_path / "cwd-git-root")
+    result = resolve_repo_root(env={}, cwd=cwd_git_root)
+
+    assert result.repo_root == cwd_git_root.resolve()
+    assert result.source == "cwd"
+    assert result.is_git_root is True
