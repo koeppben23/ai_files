@@ -8,11 +8,15 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import re
+from typing import Mapping
 
 from governance.context.repo_context_resolver import RepoRootResolutionResult, resolve_repo_root
 from governance.engine.adapters import HostAdapter, HostCapabilities, OperatingMode
 from governance.engine.reason_codes import (
     BLOCKED_EXEC_DISALLOWED,
+    BLOCKED_PACK_LOCK_INVALID,
+    BLOCKED_PACK_LOCK_MISMATCH,
+    BLOCKED_PACK_LOCK_REQUIRED,
     BLOCKED_PERMISSION_DENIED,
     BLOCKED_REPO_IDENTITY_RESOLUTION,
     BLOCKED_SYSTEM_MODE_REQUIRED,
@@ -20,6 +24,7 @@ from governance.engine.reason_codes import (
     WARN_MODE_DOWNGRADED,
     WARN_PERMISSION_LIMITED,
 )
+from governance.packs.pack_lock import resolve_pack_lock
 from governance.engine.runtime import (
     EngineDeviation,
     EngineRuntimeDecision,
@@ -50,6 +55,9 @@ class EngineOrchestratorOutput:
     effective_operating_mode: OperatingMode
     capabilities_hash: str
     mode_downgraded: bool
+    pack_lock_checked: bool
+    expected_pack_lock_hash: str
+    observed_pack_lock_hash: str
 
 
 def _resolve_effective_operating_mode(adapter: HostAdapter, requested: OperatingMode | None) -> OperatingMode:
@@ -111,6 +119,11 @@ def run_engine_orchestrator(
     enforce_registered_reason_code: bool = False,
     live_enable_policy: LiveEnablePolicy = "ci_strict",
     requested_operating_mode: OperatingMode | None = None,
+    pack_manifests_by_id: Mapping[str, Mapping[str, object]] | None = None,
+    selected_pack_ids: list[str] | None = None,
+    pack_engine_version: str | None = None,
+    observed_pack_lock: Mapping[str, object] | None = None,
+    require_pack_lock: bool = False,
 ) -> EngineOrchestratorOutput:
     """Run one deterministic engine orchestration cycle.
 
@@ -142,6 +155,9 @@ def run_engine_orchestrator(
         search_parent_git_root=(caps.cwd_trust == "untrusted"),
     )
     write_policy = evaluate_target_path(target_path)
+    pack_lock_checked = False
+    expected_pack_lock_hash = ""
+    observed_pack_lock_hash = ""
 
     gate_blocked = False
     gate_reason_code = REASON_CODE_NONE
@@ -166,6 +182,35 @@ def run_engine_orchestrator(
         elif not repo_context.is_git_root and not caps.git_available:
             gate_blocked = True
             gate_reason_code = BLOCKED_REPO_IDENTITY_RESOLUTION
+
+    if not gate_blocked and pack_manifests_by_id is not None and selected_pack_ids is not None and pack_engine_version is not None:
+        manifests = {key: dict(value) for key, value in pack_manifests_by_id.items()}
+        expected_lock = resolve_pack_lock(
+            manifests_by_id=manifests,
+            selected_pack_ids=selected_pack_ids,
+            engine_version=pack_engine_version,
+        )
+        expected_pack_lock_hash = str(expected_lock.get("lock_hash", ""))
+        pack_lock_checked = True
+
+        if observed_pack_lock is None:
+            if require_pack_lock:
+                gate_blocked = True
+                gate_reason_code = BLOCKED_PACK_LOCK_REQUIRED
+        else:
+            if not isinstance(observed_pack_lock, dict):
+                gate_blocked = True
+                gate_reason_code = BLOCKED_PACK_LOCK_INVALID
+            else:
+                observed_schema = observed_pack_lock.get("schema")
+                observed_hash = observed_pack_lock.get("lock_hash")
+                observed_pack_lock_hash = str(observed_hash) if observed_hash is not None else ""
+                if observed_schema != expected_lock.get("schema") or not isinstance(observed_hash, str) or not observed_hash:
+                    gate_blocked = True
+                    gate_reason_code = BLOCKED_PACK_LOCK_INVALID
+                elif observed_hash != expected_pack_lock_hash:
+                    gate_blocked = True
+                    gate_reason_code = BLOCKED_PACK_LOCK_MISMATCH
 
     runtime = evaluate_runtime_activation(
         phase=phase,
@@ -205,4 +250,7 @@ def run_engine_orchestrator(
         effective_operating_mode=effective_mode,
         capabilities_hash=caps.stable_hash(),
         mode_downgraded=mode_downgraded,
+        pack_lock_checked=pack_lock_checked,
+        expected_pack_lock_hash=expected_pack_lock_hash,
+        observed_pack_lock_hash=observed_pack_lock_hash,
     )

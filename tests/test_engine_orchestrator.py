@@ -39,6 +39,18 @@ def _make_git_root(path: Path) -> Path:
     return path
 
 
+def _pack_manifest(pack_id: str, *, requires: list[str] | None = None) -> dict:
+    """Build minimal valid pack manifest for orchestrator lock checks."""
+
+    return {
+        "id": pack_id,
+        "version": "1.0.0",
+        "compat": {"engine_min": "1.0.0", "engine_max": "9.9.9"},
+        "requires": requires or [],
+        "conflicts_with": [],
+    }
+
+
 @pytest.mark.governance
 def test_orchestrator_blocks_when_cwd_is_not_git_root_and_git_is_unavailable(tmp_path: Path):
     """Wrong cwd + missing git should produce deterministic blocked parity fields."""
@@ -249,3 +261,146 @@ def test_orchestrator_requires_system_mode_for_installer_owned_surface(tmp_path:
     )
     assert out.parity["status"] == "blocked"
     assert out.parity["reason_code"] == "BLOCKED-SYSTEM-MODE-REQUIRED"
+
+
+@pytest.mark.governance
+def test_orchestrator_blocks_when_required_pack_lock_is_missing(tmp_path: Path):
+    """Required lock mode should fail closed when observed lock is absent."""
+
+    repo_root = _make_git_root(tmp_path / "repo")
+    adapter = StubAdapter(
+        env={"OPENCODE_REPO_ROOT": str(repo_root)},
+        cwd_path=repo_root,
+        caps=HostCapabilities(
+            cwd_trust="trusted",
+            fs_read_commands_home=True,
+            fs_write_config_root=True,
+            fs_write_commands_home=True,
+            fs_write_workspaces_home=True,
+            fs_write_repo_root=True,
+            exec_allowed=True,
+            git_available=True,
+        ),
+    )
+    manifests = {
+        "core": _pack_manifest("core"),
+    }
+
+    out = run_engine_orchestrator(
+        adapter=adapter,
+        phase="1.1-Bootstrap",
+        active_gate="Persistence Preflight",
+        mode="OK",
+        next_gate_condition="Persistence helper execution completed",
+        pack_manifests_by_id=manifests,
+        selected_pack_ids=["core"],
+        pack_engine_version="2.0.0",
+        observed_pack_lock=None,
+        require_pack_lock=True,
+    )
+    assert out.pack_lock_checked is True
+    assert out.expected_pack_lock_hash
+    assert out.parity["status"] == "blocked"
+    assert out.parity["reason_code"] == "BLOCKED-PACK-LOCK-REQUIRED"
+
+
+@pytest.mark.governance
+def test_orchestrator_blocks_when_observed_pack_lock_hash_mismatches(tmp_path: Path):
+    """Observed lock hash mismatch should fail closed deterministically."""
+
+    repo_root = _make_git_root(tmp_path / "repo")
+    adapter = StubAdapter(
+        env={"OPENCODE_REPO_ROOT": str(repo_root)},
+        cwd_path=repo_root,
+        caps=HostCapabilities(
+            cwd_trust="trusted",
+            fs_read_commands_home=True,
+            fs_write_config_root=True,
+            fs_write_commands_home=True,
+            fs_write_workspaces_home=True,
+            fs_write_repo_root=True,
+            exec_allowed=True,
+            git_available=True,
+        ),
+    )
+    manifests = {
+        "core": _pack_manifest("core"),
+    }
+    observed = {
+        "schema": "governance-lock.v1",
+        "lock_hash": "deadbeef",
+    }
+
+    out = run_engine_orchestrator(
+        adapter=adapter,
+        phase="1.1-Bootstrap",
+        active_gate="Persistence Preflight",
+        mode="OK",
+        next_gate_condition="Persistence helper execution completed",
+        pack_manifests_by_id=manifests,
+        selected_pack_ids=["core"],
+        pack_engine_version="2.0.0",
+        observed_pack_lock=observed,
+        require_pack_lock=True,
+    )
+    assert out.pack_lock_checked is True
+    assert out.observed_pack_lock_hash == "deadbeef"
+    assert out.parity["status"] == "blocked"
+    assert out.parity["reason_code"] == "BLOCKED-PACK-LOCK-MISMATCH"
+
+
+@pytest.mark.governance
+def test_orchestrator_accepts_matching_pack_lock(tmp_path: Path):
+    """Matching lock payload should keep parity status non-blocking."""
+
+    repo_root = _make_git_root(tmp_path / "repo")
+    adapter = StubAdapter(
+        env={"OPENCODE_REPO_ROOT": str(repo_root)},
+        cwd_path=repo_root,
+        caps=HostCapabilities(
+            cwd_trust="trusted",
+            fs_read_commands_home=True,
+            fs_write_config_root=True,
+            fs_write_commands_home=True,
+            fs_write_workspaces_home=True,
+            fs_write_repo_root=True,
+            exec_allowed=True,
+            git_available=True,
+        ),
+    )
+    manifests = {
+        "core": _pack_manifest("core"),
+        "addon": _pack_manifest("addon", requires=["core"]),
+    }
+
+    expected = run_engine_orchestrator(
+        adapter=adapter,
+        phase="1.1-Bootstrap",
+        active_gate="Persistence Preflight",
+        mode="OK",
+        next_gate_condition="Persistence helper execution completed",
+        pack_manifests_by_id=manifests,
+        selected_pack_ids=["addon"],
+        pack_engine_version="2.0.0",
+    )
+
+    observed = {
+        "schema": "governance-lock.v1",
+        "lock_hash": expected.expected_pack_lock_hash,
+    }
+    out = run_engine_orchestrator(
+        adapter=adapter,
+        phase="1.1-Bootstrap",
+        active_gate="Persistence Preflight",
+        mode="OK",
+        next_gate_condition="Persistence helper execution completed",
+        pack_manifests_by_id=manifests,
+        selected_pack_ids=["addon"],
+        pack_engine_version="2.0.0",
+        observed_pack_lock=observed,
+        require_pack_lock=True,
+    )
+    assert out.pack_lock_checked is True
+    assert out.expected_pack_lock_hash == expected.expected_pack_lock_hash
+    assert out.observed_pack_lock_hash == expected.expected_pack_lock_hash
+    assert out.parity["status"] == "ok"
