@@ -1161,8 +1161,8 @@ Class-specific mandatory add-ons (apply when relevant):
 - `performance-change`: baseline-vs-change measurement or explicit rationale why measurement is not feasible.
 
 Claim-to-evidence rule (binding):
-- Every PR-critical claim (e.g., "no contract drift", "tests green", "rollback safe") MUST map to at least one concrete evidence item in `SESSION_STATE.BuildEvidence.items[]`.
-- If a claim has no evidence mapping, it MUST be reported as `not-verified` and cannot support `ready-for-pr`.
+- Every PR-critical claim (e.g., "no contract drift", "tests green", "static clean", "no drift", "rollback safe") MUST map to at least one concrete evidence item in `SESSION_STATE.BuildEvidence.items[]`.
+- No claim without evidence: if a claim has no evidence mapping, it MUST be reported as `NOT_VERIFIED` and cannot support `ready-for-pr`.
 
 ### 7.7.2 Gate Review Scorecard (Core, Binding)
 
