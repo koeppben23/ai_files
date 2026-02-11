@@ -31,10 +31,14 @@ def config_root() -> Path:
 
 ROOT = config_root()
 DIAGNOSTICS_DIR = ROOT / "commands" / "diagnostics"
+COMMANDS_RUNTIME_DIR = ROOT / "commands"
 PERSIST_HELPER = DIAGNOSTICS_DIR / "persist_workspace_artifacts.py"
 BOOTSTRAP_HELPER = DIAGNOSTICS_DIR / "bootstrap_session_state.py"
 LOGGER = DIAGNOSTICS_DIR / "error_logs.py"
 TOOL_CATALOG = DIAGNOSTICS_DIR / "tool_requirements.json"
+
+if str(COMMANDS_RUNTIME_DIR) not in sys.path and COMMANDS_RUNTIME_DIR.exists():
+    sys.path.insert(0, str(COMMANDS_RUNTIME_DIR))
 
 # Contract compatibility notes for governance specs:
 # - legacy probe mode may use --no-session-update

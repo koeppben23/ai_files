@@ -115,6 +115,8 @@ Installed layout:
   - `profiles/addons/*.addon.yml` (addon manifests for required/advisory activation)
 - `commands/diagnostics/`:
   - `diagnostics/**` (audit tooling, schemas, documentation, factory contracts such as `PROFILE_ADDON_FACTORY_CONTRACT.json`, and recovery helpers such as `bootstrap_session_state.py`)
+- `commands/governance/`:
+  - `governance/**` runtime package (engine + render state-machine modules used by diagnostics/start workflows)
 
 ### Governance stability highlights (current baseline)
 
