@@ -9,7 +9,7 @@ This document maps production-ready workflow templates to governance goals.
   - evidence: junit/lint exitcode/drift report (runner derives claims from evidence files in review mode)
   - reviewer recomputes from raw evidence only and verifies live-vs-review hash parity
   - optional tamper resistance: reviewer verifies evidence/result hashes before recompute
-  - artifacts: shadow/live/review payloads + policy diff with activation/ruleset hash report
+  - artifacts: shadow/live/review payloads + advisory policy diff with activation/ruleset hash report
 
 - `templates/github-actions/governance-ruleset-release.yml`
   - validates manifests and governance contracts

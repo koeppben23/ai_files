@@ -251,6 +251,7 @@ jobs:
             "activation_hash_changed": activation_hash_base != activation_hash_head,
             "ruleset_hash_head": head_hashes["ruleset_hash"],
             "changed_files": root.joinpath("files.txt").read_text(encoding="utf-8").splitlines(),
+            "policy_diff_advisory_only": True,
           }
           root.joinpath("policy-diff.json").write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
           PY

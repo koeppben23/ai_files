@@ -15,8 +15,9 @@ Provide deterministic CI role separation for governance decisions:
 ## Key hardening guarantees
 
 - evidence-derived claims (not manual claim flags)
-- reviewer recomputes gate (does not trust developer status field)
+- reviewer recomputes gate in evidence-only review mode (`--review-mode --evidence-dir`)
 - artifact hash verification before reviewer decision
+- reviewer hash parity check blocks diverging recompute output
 - always-upload artifacts for post-failure diagnosis
 - minimal permissions and concurrency guard
 
@@ -37,3 +38,4 @@ Pipeline handling policy:
 
 - Pull requests: diff against base branch (`origin/<base_ref>...HEAD`)
 - Manual dispatch fallback: diff `HEAD~1..HEAD` when available
+- `claim/no-drift` is emitted only when drift report is empty
