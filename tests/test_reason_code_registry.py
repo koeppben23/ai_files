@@ -17,6 +17,7 @@ def test_reason_code_registry_contains_wave_a_baseline_codes():
     assert reason_codes.BLOCKED_MISSING_BINDING_FILE in reason_codes.CANONICAL_REASON_CODES
     assert reason_codes.BLOCKED_VARIABLE_RESOLUTION in reason_codes.CANONICAL_REASON_CODES
     assert reason_codes.BLOCKED_WORKSPACE_PERSISTENCE in reason_codes.CANONICAL_REASON_CODES
+    assert reason_codes.BLOCKED_ENGINE_SELFCHECK in reason_codes.CANONICAL_REASON_CODES
     assert reason_codes.BLOCKED_PERSISTENCE_TARGET_DEGENERATE in reason_codes.CANONICAL_REASON_CODES
     assert reason_codes.BLOCKED_PERSISTENCE_PATH_VIOLATION in reason_codes.CANONICAL_REASON_CODES
     assert reason_codes.BLOCKED_UNSPECIFIED in reason_codes.CANONICAL_REASON_CODES
