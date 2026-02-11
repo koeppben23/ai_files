@@ -23,6 +23,7 @@ def test_local_host_adapter_defaults_to_trusted_cwd_and_git_available():
 def test_desktop_adapter_defaults_to_untrusted_cwd(monkeypatch: pytest.MonkeyPatch):
     """Desktop adapter should treat cwd as untrusted by default."""
 
+    monkeypatch.delenv("CI", raising=False)
     monkeypatch.delenv("OPENCODE_DISABLE_GIT", raising=False)
     caps = OpenCodeDesktopAdapter(git_available_override=True).capabilities()
     assert caps.cwd_trust == "untrusted"

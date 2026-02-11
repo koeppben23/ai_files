@@ -23,6 +23,7 @@ def _load_module():
 def test_engine_shadow_snapshot_is_available_and_reports_parity_fields(monkeypatch: pytest.MonkeyPatch):
     """Shadow snapshot should expose deterministic parity fields when available."""
 
+    monkeypatch.delenv("CI", raising=False)
     monkeypatch.chdir(REPO_ROOT)
     monkeypatch.setenv("OPENCODE_REPO_ROOT", str(REPO_ROOT))
     module = _load_module()
