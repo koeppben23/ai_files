@@ -99,3 +99,40 @@ def test_render_contract_builds_fixed_operator_view_and_reason_action_card():
     assert output["operator_view"]["STATUS"] == "BLOCKED"
     assert output["operator_view"]["PRIMARY_REASON"] == "BLOCKED-PREFLIGHT-REQUIRED-NOW-MISSING"
     assert output["reason_to_action"]["what_missing"] == ("python",)
+
+
+@pytest.mark.governance
+def test_render_contract_builds_diff_first_diagnostics_and_last_three_timeline_rows():
+    """Diff diagnostics and timeline should be deterministic and size-bounded."""
+
+    output = build_two_layer_output(
+        status="NOT_VERIFIED",
+        phase_gate="P5.3-TestQuality",
+        primary_action="Provide missing evidence.",
+        mode="standard",
+        details={"required_fact": "kept"},
+        previous_state_hash="abc",
+        current_state_hash="def",
+        previous_blockers=["BLOCKED-OLD"],
+        current_blockers=["BLOCKED-NEW"],
+        previous_stale_claims=["claim/tests-green"],
+        current_stale_claims=["claim/static-clean"],
+        transition_events=[
+            {"phase": "1.1", "active_gate": "bootstrap", "status": "OK", "reason_code": "none", "snapshot_hash": "h1"},
+            {"phase": "2.1", "active_gate": "decision", "status": "OK", "reason_code": "none", "snapshot_hash": "h2"},
+            {"phase": "3A", "active_gate": "api.inventory", "status": "WARN", "reason_code": "WARN-MODE-DOWNGRADED", "snapshot_hash": "h3"},
+            {"phase": "5.3", "active_gate": "test.quality", "status": "NOT_VERIFIED", "reason_code": "NOT_VERIFIED-MISSING-EVIDENCE", "snapshot_hash": "h4"},
+        ],
+    )
+    output = cast(dict[str, Any], output)
+
+    assert output["diagnostics_delta"] == {
+        "new_blockers": ("BLOCKED-NEW",),
+        "resolved_blockers": ("BLOCKED-OLD",),
+        "new_stale_claims": ("claim/static-clean",),
+        "resolved_stale_claims": ("claim/tests-green",),
+    }
+    timeline = output["timeline"]
+    assert len(timeline) == 3
+    assert timeline[0]["phase_gate"] == "2.1|decision"
+    assert timeline[2]["snapshot_hash"] == "h4"
