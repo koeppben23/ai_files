@@ -58,6 +58,9 @@ def _is_excluded(path: Path, repo_root: Path) -> bool:
     # Exclude AppleDouble sidecar files (resource-fork metadata).
     if any(part.startswith("._") for part in rel.parts):
         return True
+    # Exclude macOS Finder metadata files.
+    if any(part == "Icon\r" for part in rel.parts):
+        return True
     return False
 
 

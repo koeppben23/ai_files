@@ -15,6 +15,7 @@ from governance.engine.reason_codes import (
     BLOCKED_EXEC_DISALLOWED,
     BLOCKED_PERMISSION_DENIED,
     BLOCKED_REPO_IDENTITY_RESOLUTION,
+    BLOCKED_SYSTEM_MODE_REQUIRED,
     REASON_CODE_NONE,
     WARN_MODE_DOWNGRADED,
     WARN_PERMISSION_LIMITED,
@@ -29,6 +30,13 @@ from governance.engine.runtime import (
 from governance.persistence.write_policy import WriteTargetPolicyResult, evaluate_target_path
 
 _VARIABLE_CAPTURE = re.compile(r"^\$\{([A-Z0-9_]+)\}")
+_SYSTEM_MODE_REQUIRED_TARGETS = frozenset(
+    {
+        "COMMANDS_HOME",
+        "PROFILES_HOME",
+        "SESSION_STATE_POINTER_FILE",
+    }
+)
 
 
 @dataclass(frozen=True)
@@ -82,6 +90,12 @@ def _extract_target_variable(target_path: str) -> str | None:
     if match is None:
         return None
     return match.group(1)
+
+
+def _target_requires_system_mode(target_variable: str) -> bool:
+    """Return True when writing this canonical target requires system mode."""
+
+    return target_variable in _SYSTEM_MODE_REQUIRED_TARGETS
 
 
 def run_engine_orchestrator(
@@ -139,9 +153,16 @@ def run_engine_orchestrator(
         gate_reason_code = write_policy.reason_code
     else:
         target_variable = _extract_target_variable(target_path)
-        if target_variable is not None and not _target_write_allowed(target_variable, caps):
-            gate_blocked = True
-            gate_reason_code = BLOCKED_PERMISSION_DENIED
+        if target_variable is not None:
+            if effective_mode == "user" and _target_requires_system_mode(target_variable):
+                gate_blocked = True
+                gate_reason_code = BLOCKED_SYSTEM_MODE_REQUIRED
+            elif not _target_write_allowed(target_variable, caps):
+                gate_blocked = True
+                gate_reason_code = BLOCKED_PERMISSION_DENIED
+            elif not repo_context.is_git_root and not caps.git_available:
+                gate_blocked = True
+                gate_reason_code = BLOCKED_REPO_IDENTITY_RESOLUTION
         elif not repo_context.is_git_root and not caps.git_available:
             gate_blocked = True
             gate_reason_code = BLOCKED_REPO_IDENTITY_RESOLUTION

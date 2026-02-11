@@ -87,6 +87,9 @@ def test_artifacts_contents_follow_policy(tmp_path: Path):
             for seg in forbidden_segments:
                 assert seg not in ("/" + n), f"Forbidden path segment {seg} found in ZIP member: {n}"
             assert "/._" not in n, f"AppleDouble ZIP entry found: {n}"
+            parts = Path(n).parts
+            assert "__MACOSX" not in parts, f"__MACOSX ZIP entry found: {n}"
+            assert not any(part.startswith("._") for part in parts), f"AppleDouble ZIP path part found: {n}"
 
         required = {
             f"{prefix}/install.py",
@@ -124,6 +127,9 @@ def test_artifacts_contents_follow_policy(tmp_path: Path):
             for seg in forbidden_segments:
                 assert seg not in ("/" + n), f"Forbidden path segment {seg} found in TAR member: {n}"
             assert "/._" not in n, f"AppleDouble TAR entry found: {n}"
+            parts = Path(n).parts
+            assert "__MACOSX" not in parts, f"__MACOSX TAR entry found: {n}"
+            assert not any(part.startswith("._") for part in parts), f"AppleDouble TAR path part found: {n}"
 
         required = {
             f"{prefix}/install.py",

@@ -150,6 +150,10 @@ def test_release_archives_layout_and_contents_policy(built_artifacts):
         bad = [n for n in files if any(d in n for d in forbidden_dirs)]
         assert not bad, f"{label}: forbidden paths included: {bad[:25]}"
         assert not any("/._" in n for n in files), f"{label}: AppleDouble entries included: {files[:25]}"
+        assert not any("__MACOSX" in Path(n).parts for n in files), f"{label}: __MACOSX entries included"
+        assert not any(any(part.startswith("._") for part in Path(n).parts) for n in files), (
+            f"{label}: AppleDouble path parts included"
+        )
 
         # allowlist file types:
         # - install.py

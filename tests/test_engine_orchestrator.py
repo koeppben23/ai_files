@@ -216,3 +216,36 @@ def test_orchestrator_blocks_when_exec_is_disallowed(tmp_path: Path):
     )
     assert out.parity["status"] == "blocked"
     assert out.parity["reason_code"] == "BLOCKED-EXEC-DISALLOWED"
+
+
+@pytest.mark.governance
+def test_orchestrator_requires_system_mode_for_installer_owned_surface(tmp_path: Path):
+    """User mode must not write installer-owned command surfaces even if writable."""
+
+    repo_root = _make_git_root(tmp_path / "repo")
+    adapter = StubAdapter(
+        env={"OPENCODE_REPO_ROOT": str(repo_root)},
+        cwd_path=repo_root,
+        caps=HostCapabilities(
+            cwd_trust="trusted",
+            fs_read_commands_home=True,
+            fs_write_config_root=True,
+            fs_write_commands_home=True,
+            fs_write_workspaces_home=True,
+            fs_write_repo_root=True,
+            exec_allowed=True,
+            git_available=True,
+        ),
+        default_mode="user",
+    )
+
+    out = run_engine_orchestrator(
+        adapter=adapter,
+        phase="1.1-Bootstrap",
+        active_gate="Persistence Preflight",
+        mode="OK",
+        next_gate_condition="Persistence helper execution completed",
+        target_path="${COMMANDS_HOME}/master.md",
+    )
+    assert out.parity["status"] == "blocked"
+    assert out.parity["reason_code"] == "BLOCKED-SYSTEM-MODE-REQUIRED"
