@@ -1,0 +1,53 @@
+{
+  "schema": "governance-quality-benchmark-pack.v1",
+  "version": "1.0.0",
+  "profile": "cucumber-bdd",
+  "goal": "Evaluate BDD scenario quality, determinism, and traceability to executable evidence.",
+  "run_contract": {
+    "required_commands": [
+      "python3 -m pytest -q",
+      "python3 scripts/governance_lint.py"
+    ],
+    "claim_contract": "No claim without evidence; missing/stale evidence remains NOT_VERIFIED."
+  },
+  "tasks": [
+    {
+      "id": "BDD-BENCH-001",
+      "title": "Scenario-to-step traceability",
+      "acceptance": [
+        "every scenario has executable step mapping",
+        "ambiguous steps are removed",
+        "evidence ids map scenario execution"
+      ]
+    },
+    {
+      "id": "BDD-BENCH-002",
+      "title": "Negative-path scenario hardening",
+      "acceptance": [
+        "failure paths are explicit",
+        "assertions are deterministic",
+        "no flaky retries as proof"
+      ]
+    },
+    {
+      "id": "BDD-BENCH-003",
+      "title": "Regression scenario quality",
+      "acceptance": [
+        "new scenario prevents prior bug recurrence",
+        "scenario data setup remains stable",
+        "claims remain NOT_VERIFIED when evidence stale"
+      ]
+    }
+  ],
+  "rubric": {
+    "calibration_version": "v1",
+    "criteria": [
+      { "id": "B1", "name": "Scenario quality", "weight": 3 },
+      { "id": "B2", "name": "Deterministic execution", "weight": 3 },
+      { "id": "B3", "name": "Evidence traceability", "weight": 3 },
+      { "id": "B4", "name": "Negative-path coverage", "weight": 3 },
+      { "id": "B5", "name": "Operational recovery quality", "weight": 3 }
+    ],
+    "thresholds": { "pass_ratio": 0.85, "high_confidence_ratio": 0.9 }
+  }
+}

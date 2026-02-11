@@ -1,0 +1,53 @@
+{
+  "schema": "governance-quality-benchmark-pack.v1",
+  "version": "1.0.0",
+  "profile": "docs-governance",
+  "goal": "Evaluate documentation governance quality, contract integrity, and release-readiness evidence.",
+  "run_contract": {
+    "required_commands": [
+      "python3 -m pytest -q tests/test_validate_governance.py",
+      "python3 scripts/governance_lint.py"
+    ],
+    "claim_contract": "No claim without evidence; missing/stale evidence remains NOT_VERIFIED."
+  },
+  "tasks": [
+    {
+      "id": "DOC-BENCH-001",
+      "title": "Normative boundary coherence",
+      "acceptance": [
+        "master/rules/start contracts stay coherent",
+        "policy-vs-runtime boundary explicit",
+        "no duplicate precedence models"
+      ]
+    },
+    {
+      "id": "DOC-BENCH-002",
+      "title": "Recovery command integrity",
+      "acceptance": [
+        "recovery commands reference real artifacts",
+        "single primary action + one command preserved",
+        "phantom-script drift absent"
+      ]
+    },
+    {
+      "id": "DOC-BENCH-003",
+      "title": "README-vs-build claim consistency",
+      "acceptance": [
+        "baseline README claims verified at build time",
+        "local README links resolve",
+        "report sidecar records verification flags"
+      ]
+    }
+  ],
+  "rubric": {
+    "calibration_version": "v1",
+    "criteria": [
+      { "id": "G1", "name": "Normative consistency", "weight": 3 },
+      { "id": "G2", "name": "Recovery determinism", "weight": 3 },
+      { "id": "G3", "name": "Evidence-backed documentation claims", "weight": 3 },
+      { "id": "G4", "name": "Release contract integrity", "weight": 3 },
+      { "id": "G5", "name": "Operator clarity", "weight": 3 }
+    ],
+    "thresholds": { "pass_ratio": 0.85, "high_confidence_ratio": 0.9 }
+  }
+}

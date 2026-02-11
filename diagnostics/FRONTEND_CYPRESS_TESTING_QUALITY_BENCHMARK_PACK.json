@@ -1,0 +1,53 @@
+{
+  "schema": "governance-quality-benchmark-pack.v1",
+  "version": "1.0.0",
+  "profile": "frontend-cypress-testing",
+  "goal": "Evaluate deterministic end-to-end frontend test quality and recovery behavior.",
+  "run_contract": {
+    "required_commands": [
+      "python3 -m pytest -q",
+      "python3 scripts/governance_lint.py"
+    ],
+    "claim_contract": "No claim without evidence; missing/stale evidence remains NOT_VERIFIED."
+  },
+  "tasks": [
+    {
+      "id": "CY-BENCH-001",
+      "title": "Critical path e2e scenario stability",
+      "acceptance": [
+        "critical flow has deterministic assertions",
+        "network stubs are explicit",
+        "flaky retries are not used to pass claims"
+      ]
+    },
+    {
+      "id": "CY-BENCH-002",
+      "title": "Negative-path e2e validation",
+      "acceptance": [
+        "auth/error path covered",
+        "evidence maps to test run ids",
+        "missing evidence stays NOT_VERIFIED"
+      ]
+    },
+    {
+      "id": "CY-BENCH-003",
+      "title": "Regression and drift guard",
+      "acceptance": [
+        "regression scenario blocks prior bug",
+        "test data setup is reproducible",
+        "state/delta output remains stable"
+      ]
+    }
+  ],
+  "rubric": {
+    "calibration_version": "v1",
+    "criteria": [
+      { "id": "C1", "name": "Scenario determinism", "weight": 3 },
+      { "id": "C2", "name": "Coverage quality", "weight": 3 },
+      { "id": "C3", "name": "Evidence completeness/freshness", "weight": 3 },
+      { "id": "C4", "name": "Operational resilience", "weight": 3 },
+      { "id": "C5", "name": "Recovery clarity", "weight": 3 }
+    ],
+    "thresholds": { "pass_ratio": 0.85, "high_confidence_ratio": 0.9 }
+  }
+}

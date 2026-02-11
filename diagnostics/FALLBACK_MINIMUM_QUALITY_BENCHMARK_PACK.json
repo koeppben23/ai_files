@@ -1,0 +1,53 @@
+{
+  "schema": "governance-quality-benchmark-pack.v1",
+  "version": "1.0.0",
+  "profile": "fallback-minimum",
+  "goal": "Evaluate minimum safe governance behavior under ambiguous/limited stack evidence.",
+  "run_contract": {
+    "required_commands": [
+      "python3 -m pytest -q",
+      "python3 scripts/governance_lint.py"
+    ],
+    "claim_contract": "No claim without evidence; missing/stale evidence remains NOT_VERIFIED."
+  },
+  "tasks": [
+    {
+      "id": "FB-BENCH-001",
+      "title": "Ambiguity fail-closed behavior",
+      "acceptance": [
+        "ambiguous profile blocks deterministically",
+        "single primary reason code emitted",
+        "one concrete next command provided"
+      ]
+    },
+    {
+      "id": "FB-BENCH-002",
+      "title": "Minimal safe progression",
+      "acceptance": [
+        "no hidden fallbacks",
+        "no fabricated evidence",
+        "NOT_VERIFIED semantics preserved"
+      ]
+    },
+    {
+      "id": "FB-BENCH-003",
+      "title": "Recovery path integrity",
+      "acceptance": [
+        "recovery command references real artifact",
+        "operator path is deterministic",
+        "status remains conservative until evidence arrives"
+      ]
+    }
+  ],
+  "rubric": {
+    "calibration_version": "v1",
+    "criteria": [
+      { "id": "M1", "name": "Fail-closed correctness", "weight": 3 },
+      { "id": "M2", "name": "Evidence discipline", "weight": 3 },
+      { "id": "M3", "name": "Recovery quality", "weight": 3 },
+      { "id": "M4", "name": "Operator clarity", "weight": 3 },
+      { "id": "M5", "name": "Deterministic progression", "weight": 3 }
+    ],
+    "thresholds": { "pass_ratio": 0.85, "high_confidence_ratio": 0.9 }
+  }
+}

@@ -626,6 +626,26 @@ Quality emerges from combining repo context **and** the gates in this system.
 
 ---
 
+### Quality Benchmark Packs (How to run)
+
+This repository includes machine-readable benchmark packs for active profiles under `diagnostics/*_QUALITY_BENCHMARK_PACK.json`.
+
+Use these packs to evaluate business-code and test-code quality deterministically across stacks.
+
+Quick run flow:
+
+1. Choose a pack (see `docs/quality-benchmark-pack-matrix.md`; for Python start with `diagnostics/PYTHON_QUALITY_BENCHMARK_PACK.json`).
+2. Work each benchmark task on an isolated branch.
+3. Execute the pack run contract commands and collect BuildEvidence references.
+4. Score using the rubric/thresholds in the pack.
+5. Apply no-claim-without-evidence strictly: missing or stale required evidence remains `NOT_VERIFIED`.
+
+Reference runbook:
+
+- `docs/python-quality-benchmark-pack.md`
+
+---
+
 ## 5. Commands & Session Control (OpenCode)
 
 This command package defines core OpenCode commands:

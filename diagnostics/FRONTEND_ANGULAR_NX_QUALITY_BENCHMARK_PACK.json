@@ -1,0 +1,53 @@
+{
+  "schema": "governance-quality-benchmark-pack.v1",
+  "version": "1.0.0",
+  "profile": "frontend-angular-nx",
+  "goal": "Evaluate deterministic Angular+Nx architecture, testing quality, and boundary safety.",
+  "run_contract": {
+    "required_commands": [
+      "python3 -m pytest -q",
+      "python3 scripts/governance_lint.py"
+    ],
+    "claim_contract": "No claim without evidence; missing/stale evidence remains NOT_VERIFIED."
+  },
+  "tasks": [
+    {
+      "id": "NG-BENCH-001",
+      "title": "Container/presentational separation",
+      "acceptance": [
+        "container has orchestration only",
+        "presentational component has typed inputs/outputs",
+        "state transitions go through facade/store"
+      ]
+    },
+    {
+      "id": "NG-BENCH-002",
+      "title": "API boundary mapping hardening",
+      "acceptance": [
+        "DTO-to-UI mapping explicit",
+        "no transport DTO leakage",
+        "negative-path behavior tested"
+      ]
+    },
+    {
+      "id": "NG-BENCH-003",
+      "title": "Nx boundary and test determinism",
+      "acceptance": [
+        "libs follow Nx boundary rules",
+        "unit and e2e coverage present",
+        "claims remain NOT_VERIFIED if evidence missing"
+      ]
+    }
+  ],
+  "rubric": {
+    "calibration_version": "v1",
+    "criteria": [
+      { "id": "N1", "name": "Architecture separation", "weight": 3 },
+      { "id": "N2", "name": "Boundary and mapping safety", "weight": 3 },
+      { "id": "N3", "name": "Test quality and determinism", "weight": 3 },
+      { "id": "N4", "name": "Evidence completeness/freshness", "weight": 3 },
+      { "id": "N5", "name": "Operational recovery quality", "weight": 3 }
+    ],
+    "thresholds": { "pass_ratio": 0.85, "high_confidence_ratio": 0.9 }
+  }
+}
