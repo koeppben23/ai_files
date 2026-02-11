@@ -144,6 +144,7 @@ def test_addon_manifests_define_capabilities_contract():
         "liquibase",
         "nx",
         "openapi",
+        "python",
     }
 
     bad = []
@@ -294,6 +295,7 @@ def test_capability_catalog_completeness_against_manifest_usage_and_signal_mappi
         "liquibase",
         "nx",
         "openapi",
+        "python",
     }
 
     used_caps: set[str] = set()
@@ -383,6 +385,28 @@ def test_frontend_addons_exist_and_classification_matches_policy():
             problems.append(f"{rel}: expected addon_class={expected_class}, got {value}")
 
     assert not problems, "Frontend addon policy mismatch:\n" + "\n".join([f"- {p}" for p in problems])
+
+
+@pytest.mark.governance
+def test_backend_python_templates_addon_exists_and_is_required():
+    rel = "profiles/addons/backendPythonTemplates.addon.yml"
+    p = REPO_ROOT / rel
+    assert p.exists(), f"missing: {rel}"
+
+    text = read_text(p)
+    m_class = re.search(r"^addon_class:\s*(\S+)\s*$", text, flags=re.MULTILINE)
+    m_rulebook = re.search(r"^rulebook:\s*([^\s#]+)\s*$", text, flags=re.MULTILINE)
+    m_key = re.search(r"^addon_key:\s*(\S+)\s*$", text, flags=re.MULTILINE)
+    assert m_class, f"missing addon_class: {rel}"
+    assert m_rulebook, f"missing rulebook: {rel}"
+    assert m_key, f"missing addon_key: {rel}"
+
+    assert m_key.group(1).strip().strip('"').strip("'") == "backendPythonTemplates"
+    assert m_class.group(1).strip().strip('"').strip("'") == "required"
+
+    rb = m_rulebook.group(1).strip()
+    rb_path = (REPO_ROOT / "profiles" / rb) if not rb.startswith("profiles/") else (REPO_ROOT / rb)
+    assert rb_path.exists(), f"rulebook does not exist: {rb}"
 
 
 @pytest.mark.governance

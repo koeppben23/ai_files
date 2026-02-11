@@ -194,6 +194,14 @@ def _infer_capabilities(repo_root: Path, repo_relpaths: list[str]) -> set[str]:
     if any(_matches_file_glob(p, repo_relpaths) for p in ["**/cypress.config.ts", "**/cypress.config.js", "**/*.cy.ts", "**/*.cy.js"]):
         caps.add("cypress")
 
+    if any(
+        _matches_file_glob(p, repo_relpaths)
+        for p in ["**/pyproject.toml", "**/requirements*.txt", "**/poetry.lock", "**/Pipfile"]
+    ):
+        caps.add("python")
+    elif _has_code_regex(repo_root, r"from\s+fastapi\s+import|from\s+flask\s+import|import\s+django"):
+        caps.add("python")
+
     if all((repo_root / p).exists() for p in ["master.md", "rules.md", "SESSION_STATE_SCHEMA.md"]):
         caps.add("governance_docs")
 
@@ -517,3 +525,44 @@ def test_e2e_kafka_addon_not_activated_for_java_or_spring_without_kafka_signals(
     assert statuses.get("kafka") == "skipped"
     assert "BLOCKED-MISSING-ADDON:kafka" not in blocked
     assert not any(w.endswith(":kafka") for w in warnings)
+
+
+@pytest.mark.e2e_governance
+def test_e2e_backend_python_templates_addon_activates_from_python_signals(tmp_path: Path):
+    config_root = tmp_path / "opencode-config-e2e-python-templates"
+    r = run_install(["--force", "--no-backup", "--config-root", str(config_root)])
+    assert r.returncode == 0, f"install failed:\n{r.stderr}\n{r.stdout}"
+
+    commands = _commands_dir(config_root)
+    repo = tmp_path / "python-service"
+    repo.mkdir(parents=True, exist_ok=True)
+    (repo / "pyproject.toml").write_text("[project]\nname = \"svc\"\nversion = \"0.1.0\"\n", encoding="utf-8")
+
+    statuses, blocked, warnings = _evaluate_addons(commands, repo)
+    assert statuses.get("backendPythonTemplates") == "loaded"
+    assert "BLOCKED-MISSING-ADDON:backendPythonTemplates" not in blocked
+    assert not any(w.endswith(":backendPythonTemplates") for w in warnings)
+
+
+@pytest.mark.e2e_governance
+def test_e2e_backend_python_templates_missing_rulebook_blocks_when_required(tmp_path: Path):
+    config_root = tmp_path / "opencode-config-e2e-python-required"
+    r = run_install(["--force", "--no-backup", "--config-root", str(config_root)])
+    assert r.returncode == 0, f"install failed:\n{r.stderr}\n{r.stdout}"
+
+    commands = _commands_dir(config_root)
+    repo = tmp_path / "python-api"
+    repo.mkdir(parents=True, exist_ok=True)
+    (repo / "requirements.txt").write_text("fastapi==0.115.0\n", encoding="utf-8")
+
+    rb = commands / "profiles" / "rules.backend-python-templates.md"
+    assert rb.exists(), f"Missing installed python templates rulebook: {rb}"
+    backup = rb.with_suffix(rb.suffix + ".bak")
+    rb.rename(backup)
+    try:
+        statuses, blocked, warnings = _evaluate_addons(commands, repo)
+        assert statuses.get("backendPythonTemplates") == "missing-rulebook"
+        assert "BLOCKED-MISSING-ADDON:backendPythonTemplates" in blocked
+        assert not any(w.endswith(":backendPythonTemplates") for w in warnings)
+    finally:
+        backup.rename(rb)
