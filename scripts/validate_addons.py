@@ -46,6 +46,7 @@ ALLOWED_CAPABILITIES = {
     "liquibase",
     "nx",
     "openapi",
+    "python",
 }
 
 

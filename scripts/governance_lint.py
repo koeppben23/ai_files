@@ -36,6 +36,7 @@ ALLOWED_CAPABILITIES = {
     "liquibase",
     "nx",
     "openapi",
+    "python",
 }
 ALLOWED_EVIDENCE_KINDS = {"unit-test", "integration-test", "contract-test", "e2e", "lint", "build"}
 
