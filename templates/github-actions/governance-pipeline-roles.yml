@@ -101,7 +101,7 @@ jobs:
               observed.add("claim/tests-green")
 
           drift = evidence_dir / "drift.txt"
-          if drift.exists() and drift.read_text(encoding="utf-8").strip():
+          if drift.exists() and not drift.read_text(encoding="utf-8").strip():
               observed.add("claim/no-drift")
 
           # Deterministic score derivation (example policy)
@@ -109,7 +109,7 @@ jobs:
               "PYR-1": 0.9 if test_exit == 0 else 0.4,
               "PYR-2": 0.9 if test_exit == 0 else 0.4,
               "PYR-3": 0.9 if lint_exit == 0 and test_exit == 0 else 0.4,
-              "PYR-4": 0.9 if drift.exists() else 0.5,
+              "PYR-4": 0.9 if drift.exists() and not drift.read_text(encoding="utf-8").strip() else 0.5,
               "PYR-5": 0.9 if lint_exit == 0 else 0.4,
           }
 
@@ -137,13 +137,12 @@ jobs:
               "scripts/run_quality_benchmark.py",
               "--pack",
               "diagnostics/PYTHON_QUALITY_BENCHMARK_PACK.json",
+              "--review-mode",
+              "--evidence-dir",
+              "diagnostics/benchmark-evidence",
               "--output",
               "diagnostics/benchmark-results/python.json",
           ]
-          for c in inp["observed_claims"]:
-              cmd += ["--observed-claim", c]
-          for c in inp["stale_claims"]:
-              cmd += ["--stale-claim", c]
           for cid, score in sorted(inp["criterion_scores"].items()):
               cmd += ["--criterion-score", f"{cid}={score}"]
 
@@ -236,6 +235,7 @@ jobs:
         id: review
         run: |
           python3 - <<'PY'
+          import hashlib
           import json
           import pathlib
           import subprocess
@@ -247,17 +247,23 @@ jobs:
               "scripts/run_quality_benchmark.py",
               "--pack",
               "diagnostics/PYTHON_QUALITY_BENCHMARK_PACK.json",
+              "--review-mode",
+              "--evidence-dir",
+              "diagnostics/benchmark-evidence",
               "--output",
               "diagnostics/benchmark-results/review.json",
           ]
-          for c in inp["observed_claims"]:
-              cmd += ["--observed-claim", c]
-          for c in inp["stale_claims"]:
-              cmd += ["--stale-claim", c]
           for cid, score in sorted(inp["criterion_scores"].items()):
               cmd += ["--criterion-score", f"{cid}={score}"]
 
           proc = subprocess.run(cmd, check=False)
+          if proc.returncode == 0:
+              developer_sha = hashlib.sha256(pathlib.Path("diagnostics/benchmark-results/python.json").read_bytes()).hexdigest()
+              reviewer_sha = hashlib.sha256(pathlib.Path("diagnostics/benchmark-results/review.json").read_bytes()).hexdigest()
+              if developer_sha != reviewer_sha:
+                  print("BLOCKED-REVIEW-HASH-MISMATCH: reviewer recompute diverges from developer benchmark output")
+                  print(json.dumps({"developer_sha256": developer_sha, "review_sha256": reviewer_sha}, ensure_ascii=True))
+                  proc = subprocess.CompletedProcess(cmd, returncode=1)
           pathlib.Path("diagnostics/benchmark-results/review.exitcode").write_text(str(proc.returncode) + "\n", encoding="utf-8")
           raise SystemExit(proc.returncode)
           PY
