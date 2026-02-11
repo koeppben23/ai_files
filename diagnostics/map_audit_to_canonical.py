@@ -1,14 +1,35 @@
 #!/usr/bin/env python3
 
+"""Bridge raw /audit reason keys to canonical governance reason codes.
+
+This script remains behavior-compatible with existing Wave A diagnostics while
+loading defaults from the central reason-code registry.
+"""
+
 from __future__ import annotations
 
 import argparse
 import json
 from pathlib import Path
+import sys
 from typing import Any
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+REPO_ROOT = SCRIPT_DIR.parent
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from governance.engine.reason_codes import DEFAULT_UNMAPPED_AUDIT_REASON
+
+LEGACY_DEFAULT_UNMAPPED_AUDIT_REASON = "WARN-UNMAPPED-AUDIT-REASON"
+
+if DEFAULT_UNMAPPED_AUDIT_REASON != LEGACY_DEFAULT_UNMAPPED_AUDIT_REASON:
+    raise RuntimeError("reason code registry drift: default_unmapped must remain parity-compatible")
 
 
 def _extract_reason_keys(report: dict[str, Any]) -> list[str]:
+    """Extract ordered unique reason keys from known audit-report sections."""
+
     ordered: list[str] = []
     seen: set[str] = set()
 
@@ -70,6 +91,8 @@ def _extract_reason_keys(report: dict[str, Any]) -> list[str]:
 
 
 def _severity_rank(code: str) -> int:
+    """Return deterministic severity rank used to derive primaryReasonCode."""
+
     if code.startswith("BLOCKED-"):
         return 3
     if code.startswith("WARN-"):
@@ -80,6 +103,8 @@ def _severity_rank(code: str) -> int:
 
 
 def main() -> int:
+    """Parse inputs, apply mapping rules, and emit canonical bridge payload."""
+
     parser = argparse.ArgumentParser(description="Map /audit reason keys to canonical governance reason codes.")
     parser.add_argument("--input", required=True, type=Path, help="Path to audit report JSON.")
     parser.add_argument(
@@ -98,7 +123,7 @@ def main() -> int:
     report = json.loads(args.input.read_text(encoding="utf-8"))
     mapping_doc = json.loads(args.map.read_text(encoding="utf-8"))
     mappings = mapping_doc.get("mappings", {})
-    default_unmapped = mapping_doc.get("default_unmapped", "WARN-UNMAPPED-AUDIT-REASON")
+    default_unmapped = mapping_doc.get("default_unmapped", DEFAULT_UNMAPPED_AUDIT_REASON)
 
     if not isinstance(mappings, dict):
         print("ERROR: mappings must be an object")

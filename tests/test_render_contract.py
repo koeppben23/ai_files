@@ -1,0 +1,65 @@
+from __future__ import annotations
+
+import pytest
+
+from governance.render.delta_renderer import build_delta_state
+from governance.render.intent_router import route_intent
+from governance.render.render_contract import build_two_layer_output
+from governance.render.token_guard import apply_token_budget
+
+
+@pytest.mark.governance
+def test_intent_router_routes_fast_paths_deterministically():
+    """Known intent phrases should map to stable fast-path intent keys."""
+
+    assert route_intent("Where am I right now?") == "where_am_i"
+    assert route_intent("What blocks me?") == "what_blocks_me"
+    assert route_intent("what now") == "what_now"
+    assert route_intent("") == "what_now"
+
+
+@pytest.mark.governance
+def test_delta_renderer_marks_state_unchanged_when_hashes_match():
+    """Matching non-empty hashes should return no-delta output."""
+
+    delta = build_delta_state(previous_state_hash="abc", current_state_hash="abc")
+    assert delta == {"state_unchanged": True, "delta_mode": "no-delta"}
+
+
+@pytest.mark.governance
+def test_token_guard_truncates_in_deterministic_order():
+    """Budget guard should drop verbose sections in prescribed order."""
+
+    details = {
+        "verbose_details": "x" * 500,
+        "evidence_expansions": "y" * 400,
+        "advisory_context": "z" * 300,
+        "required_fact": "keep-me",
+    }
+    trimmed = apply_token_budget(mode="compact", details=details)
+    assert "required_fact" in trimmed
+    assert "verbose_details" not in trimmed
+    assert "evidence_expansions" not in trimmed
+
+
+@pytest.mark.governance
+def test_render_contract_preserves_header_and_applies_budget_guard():
+    """Two-layer contract must keep header fields while trimming details."""
+
+    output = build_two_layer_output(
+        status="OK",
+        phase_gate="P4-Entry",
+        primary_action="Run deterministic checks.",
+        mode="compact",
+        details={
+            "verbose_details": "v" * 500,
+            "required_fact": "kept",
+        },
+        previous_state_hash="a",
+        current_state_hash="b",
+    )
+    assert output["header"]["status"] == "OK"
+    assert output["header"]["phase_gate"] == "P4-Entry"
+    assert output["header"]["primary_next_action"] == "Run deterministic checks."
+    assert output["delta"]["delta_mode"] == "delta-only"
+    assert output["details"] == {"required_fact": "kept"}
