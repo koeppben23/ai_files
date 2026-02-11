@@ -11,6 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timezone
 import errno
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -21,6 +22,7 @@ from typing import Any
 from governance.engine.reason_codes import BLOCKED_STATE_OUTDATED, REASON_CODE_NONE
 
 CURRENT_SESSION_STATE_VERSION = 1
+ROLLOUT_PHASE_DUAL_READ = 1
 ATOMIC_REPLACE_RETRIES = 3
 ATOMIC_RETRY_DELAY_SECONDS = 0.05
 
@@ -38,8 +40,16 @@ class SessionStateMigrationResult:
 class SessionStateRepository:
     """Typed repository wrapper for repo-scoped SESSION_STATE documents."""
 
-    def __init__(self, path: Path):
+    def __init__(
+        self,
+        path: Path,
+        *,
+        rollout_phase: int = ROLLOUT_PHASE_DUAL_READ,
+        engine_version: str = "1.1.0",
+    ):
         self.path = path
+        self.rollout_phase = rollout_phase
+        self.engine_version = engine_version
 
     def load(self) -> dict[str, Any] | None:
         """Load a JSON document, returning None when the file is absent."""
@@ -49,7 +59,9 @@ class SessionStateRepository:
         payload = json.loads(self.path.read_text(encoding="utf-8"))
         if not isinstance(payload, dict):
             raise ValueError("session state payload must be a JSON object")
-        return _normalize_dual_read_aliases(payload)
+        if self.rollout_phase == ROLLOUT_PHASE_DUAL_READ:
+            return _normalize_dual_read_aliases(payload)
+        return payload
 
     def save(self, document: dict[str, Any]) -> None:
         """Persist one JSON document in deterministic formatting.
@@ -59,9 +71,19 @@ class SessionStateRepository:
         """
 
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        canonical = _canonicalize_for_write(document)
+        canonical, changed = _canonicalize_for_write(document)
+        if changed:
+            _record_migration_event(canonical, engine_version=self.engine_version)
         payload = json.dumps(canonical, indent=2, ensure_ascii=True) + "\n"
         _atomic_write_text(self.path, payload)
+
+
+def session_state_hash(document: dict[str, Any]) -> str:
+    """Compute canonical session-state hash independent from legacy alias forms."""
+
+    canonical, _ = _canonicalize_for_write(document)
+    encoded = json.dumps(canonical, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 
 
 def _normalize_dual_read_aliases(document: dict[str, Any]) -> dict[str, Any]:
@@ -96,16 +118,47 @@ def _normalize_dual_read_aliases(document: dict[str, Any]) -> dict[str, Any]:
     return normalized
 
 
-def _canonicalize_for_write(document: dict[str, Any]) -> dict[str, Any]:
-    """Write canonical session-state payload, dropping legacy aliases."""
+def _canonicalize_for_write(document: dict[str, Any]) -> tuple[dict[str, Any], bool]:
+    """Write canonical session-state payload, dropping legacy aliases.
+
+    Returns `(canonical_document, changed)` where `changed` indicates whether any
+    legacy alias conversion/removal occurred.
+    """
 
     canonical = _normalize_dual_read_aliases(document)
+    changed = False
     state = canonical.get("SESSION_STATE")
     if isinstance(state, dict):
+        if "RepoModel" in state:
+            changed = True
+        if "FastPath" in state:
+            changed = True
+        if "FastPathReason" in state:
+            changed = True
         state.pop("RepoModel", None)
         state.pop("FastPath", None)
         state.pop("FastPathReason", None)
-    return canonical
+    return canonical, changed
+
+
+def _record_migration_event(document: dict[str, Any], *, engine_version: str) -> None:
+    """Append deterministic migration event for alias-to-canonical transitions."""
+
+    state = document.get("SESSION_STATE")
+    if not isinstance(state, dict):
+        return
+    event = {
+        "type": "legacy_alias_normalization",
+        "from_fields": ["RepoModel", "FastPath", "FastPathReason"],
+        "to_fields": ["RepoMapDigest", "FastPathEvaluation"],
+        "timestamp": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "engine_version": engine_version,
+    }
+    events = state.get("migration_events")
+    if not isinstance(events, list):
+        events = []
+        state["migration_events"] = events
+    events.append(event)
 
 
 def _is_retryable_replace_error(exc: OSError) -> bool:
