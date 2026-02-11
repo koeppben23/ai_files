@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
 
 from governance.engine.adapters import HostCapabilities, OperatingMode
 from governance.engine.orchestrator import run_engine_orchestrator
-from governance.engine.reason_codes import REASON_CODE_NONE
+from governance.engine.reason_codes import NOT_VERIFIED_EVIDENCE_STALE, REASON_CODE_NONE
 
 
 @dataclass(frozen=True)
@@ -733,13 +734,14 @@ def test_orchestrator_backfeeds_claim_evidence_from_session_state_build_evidence
             git_available=True,
         ),
     )
+    now = datetime(2026, 2, 11, 12, 0, tzinfo=timezone.utc)
     session_state = {
         "SESSION_STATE": {
             "BuildEvidence": {
                 "items": [
-                    {"claim": "tests green", "result": "pass"},
-                    {"claim": "static clean", "result": "pass"},
-                    {"claim": "no drift", "result": "fail"},
+                    {"claim": "tests green", "result": "pass", "observed_at": now.isoformat()},
+                    {"claim": "static clean", "result": "pass", "observed_at": now.isoformat()},
+                    {"claim": "no drift", "result": "fail", "observed_at": now.isoformat()},
                 ]
             }
         }
@@ -754,6 +756,7 @@ def test_orchestrator_backfeeds_claim_evidence_from_session_state_build_evidence
         next_gate_condition="Persistence helper execution completed",
         required_claim_evidence_ids=required_claims,
         session_state_document=session_state,
+        now_utc=now,
     )
     assert missing.parity["status"] == "not_verified"
     assert missing.parity["reason_code"] == "NOT_VERIFIED-MISSING-EVIDENCE"
@@ -768,9 +771,62 @@ def test_orchestrator_backfeeds_claim_evidence_from_session_state_build_evidence
         next_gate_condition="Persistence helper execution completed",
         required_claim_evidence_ids=required_claims,
         session_state_document=session_state,
+        now_utc=now,
     )
     assert satisfied.parity["status"] == "ok"
     assert satisfied.parity["reason_code"] == REASON_CODE_NONE
+
+
+@pytest.mark.governance
+def test_orchestrator_marks_not_verified_when_claim_evidence_is_stale(tmp_path: Path):
+    """Stale claim evidence should produce deterministic stale-evidence not-verified reason."""
+
+    repo_root = _make_git_root(tmp_path / "repo")
+    adapter = StubAdapter(
+        env={"OPENCODE_REPO_ROOT": str(repo_root)},
+        cwd_path=repo_root,
+        caps=HostCapabilities(
+            cwd_trust="trusted",
+            fs_read_commands_home=True,
+            fs_write_config_root=True,
+            fs_write_commands_home=True,
+            fs_write_workspaces_home=True,
+            fs_write_repo_root=True,
+            exec_allowed=True,
+            git_available=True,
+        ),
+    )
+    now = datetime(2026, 2, 11, 12, 0, tzinfo=timezone.utc)
+    stale_time = (now - timedelta(days=2)).isoformat()
+    session_state = {
+        "SESSION_STATE": {
+            "BuildEvidence": {
+                "items": [
+                    {
+                        "claim": "tests green",
+                        "result": "pass",
+                        "observed_at": stale_time,
+                        "evidence_class": "gate_evidence",
+                    }
+                ]
+            }
+        }
+    }
+
+    out = run_engine_orchestrator(
+        adapter=adapter,
+        phase="1.1-Bootstrap",
+        active_gate="Persistence Preflight",
+        mode="OK",
+        next_gate_condition="Persistence helper execution completed",
+        required_claim_evidence_ids=["claim/tests-green"],
+        session_state_document=session_state,
+        now_utc=now,
+    )
+
+    assert out.parity["status"] == "not_verified"
+    assert out.parity["reason_code"] == NOT_VERIFIED_EVIDENCE_STALE
+    assert out.missing_evidence == ("claim/tests-green",)
 
 
 @pytest.mark.governance

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 import hashlib
 import json
 import re
@@ -23,6 +24,7 @@ from governance.engine.reason_codes import (
     BLOCKED_RELEASE_HYGIENE,
     BLOCKED_RULESET_HASH_MISMATCH,
     BLOCKED_SYSTEM_MODE_REQUIRED,
+    NOT_VERIFIED_EVIDENCE_STALE,
     NOT_VERIFIED_MISSING_EVIDENCE,
     REASON_CODE_NONE,
     WARN_MODE_DOWNGRADED,
@@ -46,6 +48,14 @@ from governance.packs.pack_lock import resolve_pack_lock
 from governance.persistence.write_policy import WriteTargetPolicyResult, evaluate_target_path
 
 _VARIABLE_CAPTURE = re.compile(r"^\$\{([A-Z0-9_]+)\}")
+
+_EVIDENCE_CLASS_DEFAULT_TTL_SECONDS: dict[str, int] = {
+    "identity_signal": 0,
+    "preflight_probe": 0,
+    "gate_evidence": 24 * 60 * 60,
+    "runtime_diagnostic": 24 * 60 * 60,
+    "operator_provided": 24 * 60 * 60,
+}
 
 
 @dataclass(frozen=True)
@@ -120,11 +130,53 @@ def _canonical_claim_evidence_id(claim: str) -> str:
     return f"claim/{normalized}"
 
 
-def _extract_verified_claim_evidence_ids(session_state_document: Mapping[str, object] | None) -> tuple[str, ...]:
-    """Extract verified claim evidence IDs from SESSION_STATE build evidence."""
+def _parse_observed_at(raw: object) -> datetime | None:
+    """Parse observed-at timestamps in UTC, returning None for invalid values."""
+
+    if not isinstance(raw, str) or not raw.strip():
+        return None
+    value = raw.strip()
+    if value.endswith("Z"):
+        value = value[:-1] + "+00:00"
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def _resolve_ttl_seconds(item: Mapping[str, object]) -> int:
+    """Resolve evidence TTL seconds from item metadata with deterministic defaults."""
+
+    ttl_raw = item.get("ttl_seconds")
+    if isinstance(ttl_raw, int) and ttl_raw >= 0:
+        return ttl_raw
+    evidence_class = str(item.get("evidence_class", "gate_evidence")).strip().lower()
+    return _EVIDENCE_CLASS_DEFAULT_TTL_SECONDS.get(evidence_class, 24 * 60 * 60)
+
+
+def _is_stale(*, observed_at: datetime | None, ttl_seconds: int, now_utc: datetime) -> bool:
+    """Return True when evidence is stale relative to the configured TTL."""
+
+    if observed_at is None:
+        return True
+    if ttl_seconds == 0:
+        # ttl=0 means fresh probe per run; accept only near-current evidence.
+        return now_utc - observed_at > timedelta(seconds=1)
+    return now_utc - observed_at > timedelta(seconds=ttl_seconds)
+
+
+def _extract_verified_claim_evidence_ids(
+    session_state_document: Mapping[str, object] | None,
+    *,
+    now_utc: datetime,
+) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """Extract verified claim evidence IDs and stale claim IDs from build evidence."""
 
     if session_state_document is None:
-        return ()
+        return (), ()
 
     root: Mapping[str, object]
     session_state = session_state_document.get("SESSION_STATE")
@@ -135,15 +187,16 @@ def _extract_verified_claim_evidence_ids(session_state_document: Mapping[str, ob
 
     build_evidence = root.get("BuildEvidence")
     if not isinstance(build_evidence, Mapping):
-        return ()
+        return (), ()
 
     observed: set[str] = set()
+    stale: set[str] = set()
 
     claims_verified = build_evidence.get("claims_verified")
     if isinstance(claims_verified, list):
         for entry in claims_verified:
             if isinstance(entry, str) and entry.strip():
-                observed.add(entry.strip())
+                stale.add(entry.strip())
 
     items = build_evidence.get("items")
     if isinstance(items, list):
@@ -156,22 +209,30 @@ def _extract_verified_claim_evidence_ids(session_state_document: Mapping[str, ob
                 continue
 
             evidence_id = item.get("evidence_id")
+            candidate_id = ""
             if isinstance(evidence_id, str) and evidence_id.strip():
-                observed.add(evidence_id.strip())
+                candidate_id = evidence_id.strip()
+            else:
+                claim_id = item.get("claim_id")
+                if isinstance(claim_id, str) and claim_id.strip():
+                    candidate_id = claim_id.strip()
+                else:
+                    claim_label = item.get("claim")
+                    if isinstance(claim_label, str) and claim_label.strip():
+                        candidate_id = _canonical_claim_evidence_id(claim_label)
+
+            if not candidate_id:
                 continue
 
-            claim_id = item.get("claim_id")
-            if isinstance(claim_id, str) and claim_id.strip():
-                observed.add(claim_id.strip())
-                continue
+            observed_at = _parse_observed_at(item.get("observed_at"))
+            ttl_seconds = _resolve_ttl_seconds(item)
+            if _is_stale(observed_at=observed_at, ttl_seconds=ttl_seconds, now_utc=now_utc):
+                stale.add(candidate_id)
+            else:
+                observed.add(candidate_id)
 
-            claim_label = item.get("claim")
-            if isinstance(claim_label, str) and claim_label.strip():
-                canonical = _canonical_claim_evidence_id(claim_label)
-                if canonical:
-                    observed.add(canonical)
-
-    return tuple(sorted(observed))
+    stale -= observed
+    return tuple(sorted(observed)), tuple(sorted(stale))
 
 
 def _build_ruleset_hash(
@@ -260,6 +321,7 @@ def run_engine_orchestrator(
     observed_evidence_ids: list[str] | None = None,
     required_claim_evidence_ids: list[str] | None = None,
     session_state_document: Mapping[str, object] | None = None,
+    now_utc: datetime | None = None,
     release_hygiene_entries: tuple[str, ...] = (),
 ) -> EngineOrchestratorOutput:
     """Run one deterministic engine orchestration cycle.
@@ -296,11 +358,17 @@ def run_engine_orchestrator(
     pack_lock_checked = False
     expected_pack_lock_hash = ""
     observed_pack_lock_hash = ""
+    evaluation_now = now_utc if now_utc is not None else datetime.now(timezone.utc)
+    verified_claim_evidence, stale_claim_evidence = _extract_verified_claim_evidence_ids(
+        session_state_document,
+        now_utc=evaluation_now,
+    )
     required_evidence = set(required_evidence_ids or [])
     required_evidence.update(required_claim_evidence_ids or [])
     observed_evidence = set(observed_evidence_ids or [])
-    observed_evidence.update(_extract_verified_claim_evidence_ids(session_state_document))
+    observed_evidence.update(verified_claim_evidence)
     missing_evidence = tuple(sorted(required_evidence - observed_evidence))
+    stale_required_evidence = tuple(sorted(required_evidence.intersection(stale_claim_evidence)))
     hash_diff: dict[str, str] = {}
 
     gate_blocked = False
@@ -426,7 +494,10 @@ def run_engine_orchestrator(
         parity["reason_code"] = mode_reason
     if convenience_limited and parity["status"] == "ok" and parity["reason_code"] == REASON_CODE_NONE:
         parity["reason_code"] = WARN_PERMISSION_LIMITED
-    if missing_evidence and parity["status"] == "ok":
+    if stale_required_evidence and parity["status"] == "ok":
+        parity["status"] = "not_verified"
+        parity["reason_code"] = NOT_VERIFIED_EVIDENCE_STALE
+    elif missing_evidence and parity["status"] == "ok":
         parity["status"] = "not_verified"
         parity["reason_code"] = NOT_VERIFIED_MISSING_EVIDENCE
 
@@ -453,16 +524,23 @@ def run_engine_orchestrator(
             deviation=hash_diff,
         ).to_dict()
     elif parity["status"] == "not_verified":
+        not_verified_missing = stale_required_evidence if stale_required_evidence else missing_evidence
+        not_verified_signals = ("evidence_freshness",) if stale_required_evidence else ("evidence_requirements",)
+        not_verified_primary_action = (
+            "Refresh stale evidence and rerun."
+            if stale_required_evidence
+            else "Provide missing evidence and rerun."
+        )
         reason_payload = build_reason_payload(
             status="NOT_VERIFIED",
             reason_code=parity["reason_code"],
             surface=target_path,
-            signals_used=("evidence_requirements",),
-            primary_action="Provide missing evidence and rerun.",
+            signals_used=not_verified_signals,
+            primary_action=not_verified_primary_action,
             recovery_steps=("Gather host evidence for all required claims.",),
             next_command="show diagnostics",
             impact="Claims are not evidence-backed yet.",
-            missing_evidence=missing_evidence,
+            missing_evidence=not_verified_missing,
         ).to_dict()
     elif parity["reason_code"].startswith("WARN-"):
         reason_payload = build_reason_payload(
@@ -499,5 +577,5 @@ def run_engine_orchestrator(
         ruleset_hash=ruleset_hash,
         activation_hash=activation_hash,
         reason_payload=reason_payload,
-        missing_evidence=missing_evidence,
+        missing_evidence=stale_required_evidence if stale_required_evidence else missing_evidence,
     )
