@@ -161,6 +161,34 @@ Runtime error logging:
 - Old `errors-*.jsonl` files are pruned automatically (default retention: 30 days).
 - Installer uninstall purges matching runtime error logs by default (`--keep-error-logs` to preserve them).
 
+### Canonical SESSION_STATE migration (operational)
+
+When legacy alias fields must be canonicalized explicitly, use the deterministic migration tool:
+
+```bash
+python scripts/migrate_session_state.py --workspace <repo_fingerprint>
+```
+
+Useful options:
+
+```bash
+python scripts/migrate_session_state.py --file <absolute_path_to_SESSION_STATE.json>
+python scripts/migrate_session_state.py --workspace <repo_fingerprint> --workspaces-root <path>
+```
+
+Behavior contract:
+
+- First canonicalizing write creates `SESSION_STATE.json.backup` once (non-destructive).
+- Exit code `0` means success/no-op.
+- Exit code `2` means blocked (missing/malformed payload or migration failure).
+- Output is machine-readable JSON for automation.
+
+Rollout posture summary (current baseline):
+
+- Phase 2+: legacy aliases are blocked by default unless explicit compatibility mode is enabled.
+- Phase 3+: legacy compatibility is removed; legacy aliases are always blocked.
+- Claim verification is no-claim-without-evidence and freshness-gated; stale evidence yields `NOT_VERIFIED-EVIDENCE-STALE`.
+
 ---
 
 ## Installation Layout (Descriptive; follow `master.md` if in doubt)
