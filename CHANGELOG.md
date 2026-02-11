@@ -59,6 +59,8 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
 - Update factory contracts (`new_profile.md`, `new_addon.md`, `PROFILE_ADDON_FACTORY_CONTRACT.json`) for shared-contract modularization defaults.
 
 ### Changed
+- Tighten output presentation contracts so `[NEXT-ACTION]` must be multiline (one field per line) and add pretty audit-summary layout guidance in `diagnostics/audit.md`.
+- Add explicit Phase 1.5 re-entry contract from later phases (`3A`/`3B-*`/`4`/`5*`) with mandatory P5.4 rerun before final readiness claims.
 - Installer now ships the governance runtime package (`governance/**`) into `commands/governance/**` so state-machine modules are available from installed command surfaces without repo-local imports.
 - Align state-machine governance contracts for strict snapshot-first output, full-state YAML block semantics, and canonical reason-code casing parity across docs/runtime/tests.
 - Complete SESSION_STATE rollout hardening through phase 3 (legacy removed), including explicit compatibility semantics and deterministic fail-closed recovery guidance.

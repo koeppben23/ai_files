@@ -653,6 +653,8 @@ Rules:
 - `Next` MUST be singular and actionable.
 - Footer values MUST be consistent with `SESSION_STATE.Mode`, `SESSION_STATE.Next`, and any emitted reason payloads.
 - In COMPAT mode, the assistant MUST still emit `[NEXT-ACTION]` with `Status|Next|Why|Command` fields (same keys, plain-text layout allowed).
+- `[NEXT-ACTION]` must be human-scannable multiline text: one field per line (`Status`, `Next`, `Why`, `Command`).
+- Do not collapse `[NEXT-ACTION]` into one pipe-joined line (`Status: ... | Next: ... | Why: ... | Command: ...`).
 
 ### 7.3.2 Standard Blocker Output Envelope (Binding)
 
@@ -1430,6 +1432,7 @@ Binding:
   - a planned test in the Change Matrix / plan, OR
   - an explicit exception with rationale (must be reviewed at Phase 5.4).
 - Phase 5.4 MUST NOT be marked `compliant` if unresolved gaps exist without explicit exceptions.
+- If Phase 1.5 is explicitly re-opened from later phases (`3A`/`3B-*`/`4`/`5*`), Phase 5.4 MUST be rerun before final readiness claims.
 - Repository documentation (`README*`, `CONTRIBUTING*`, `AGENTS*`, comments) MUST NOT be used as sole evidence for BR extraction.
 - README-only/documentation-only BRs MUST be marked `CANDIDATE` and MUST NOT count as extracted `ACTIVE` rules.
 
