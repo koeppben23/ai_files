@@ -651,7 +651,7 @@ python3 scripts/run_quality_benchmark.py --pack diagnostics/PYTHON_QUALITY_BENCH
 Reference runbook:
 
 - `docs/python-quality-benchmark-pack.md`
-- `docs/governance-pipeline-roles-template.md`
+- `docs/governance-pipeline-roles-template.md` (hardened CI role template)
 - `docs/governance-template-blueprints.md`
 
 ---

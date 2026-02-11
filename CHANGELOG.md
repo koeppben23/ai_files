@@ -6,6 +6,8 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
 ## [Unreleased]
 
 ### Added
+- Add hardened CI role template `templates/github-actions/governance-pipeline-roles.yml` with evidence-derived claims, authoritative reviewer recomputation, hash verification, always-uploaded artifacts, and deterministic improver recovery.
+- Add template runbook `docs/governance-pipeline-roles-template.md` including benchmark runner exit-code contract and reviewer gate policy.
 - Add backend Python profile rulebook `profiles/rules.backend-python.md` with deterministic evidence, tooling, migration/rollback, and operational safety contracts.
 - Add backend Python templates addon pair:
   - `profiles/rules.backend-python-templates.md` (required code-generation template contract)
