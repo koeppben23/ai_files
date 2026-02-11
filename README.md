@@ -56,10 +56,10 @@ It explains purpose, structure, and usage — it does **not** control the AI’s
 
 Choose the workflow entry based on what you are doing:
 
-- **New repo / first time:** run `/start` (bootstrap + path contract + workspace backfill), then run `/master` for the first ticket so Phase 1–2 can build discovery artifacts.
-- **New ticket on a known repo:** run `/master` (Warm Start). The system reuses cache/digest/memory when valid.
+- **New repo / first time:** run `/start` (bootstrap + path contract + workspace backfill + task entry).
+- **New ticket on a known repo:** run `/start` again; warm-start artifacts are reused when valid.
 - **Resume an interrupted ticket/session:** follow `continue.md` / `resume.md` using the active session pointer (`${SESSION_STATE_POINTER_FILE}`) and repo session file (`${SESSION_STATE_FILE}`).
-- **Audit a completed change:** run `/master` and jump to the relevant explicit gates (Contract Gate, Test Quality Gate, Phase 6 QA).
+- **Audit a completed change:** run `/start`, then request diagnostics/audit intents for explicit gate evidence.
 - **Workspace artifacts missing after bootstrap:** run `/start` (auto-hook) or `python diagnostics/persist_workspace_artifacts.py --repo-root <repo_path>` (optionally `--repo-fingerprint <repo_fingerprint>`).
 
 ---
@@ -609,8 +609,8 @@ Repositories MUST NOT contain authoritative governance or prompt logic.
 
 1. **Initial:**
    - point OpenCode Desktop to the repository (repo scan)
-   - run `/start` once for bootstrap/path validation and workspace persistence checks
-   - run `/master` to begin ticket execution
+   - run `/start` to bootstrap, bind paths, and enter the active workflow
+   - follow `[NEXT-ACTION]` from output; use `/continue` for consented progression
 
 2. **Governance:**
    - loaded from global installation
@@ -656,9 +656,17 @@ Reference runbook:
 
 This command package defines core OpenCode commands:
 
+### `/start`
+
+Primary entrypoint for OpenCode Desktop and repo-aware execution.
+
+- performs bootstrap/path validation and workspace persistence checks
+- initializes/loads session context and active workflow state
+- emits deterministic next-action guidance for progression
+
 ### `/master`
 
-Starts a new task.
+Legacy/host-dependent entrypoint for environments that explicitly invoke it.
 
 - loads workflow + precedence + gating bootstrap
 - loads `rules.md`, active profile, and addons/templates phase-scoped per `master.md` (not as optional policy)
@@ -704,6 +712,10 @@ See:
 | [`master.md`](master.md) | Central orchestration: phases, gates, session-state |
 | [`rules.md`](rules.md) | Technical, architectural, test, and business rules |
 | [`profiles/`](profiles/) | Context-specific rulebooks; includes repo-agnostic fallback baseline |
+| [`profiles/addons/`](profiles/addons/) | Addon activation manifests (`required`/`advisory`, capabilities/signals, surface ownership) |
+| [`diagnostics/*_QUALITY_BENCHMARK_PACK.json`](diagnostics/) | Machine-readable benchmark packs for profile quality evaluation |
+| [`scripts/run_quality_benchmark.py`](scripts/run_quality_benchmark.py) | CLI runner for benchmark scoring and `PASS`/`FAIL`/`NOT_VERIFIED` outcomes |
+| [`docs/quality-benchmark-pack-matrix.md`](docs/quality-benchmark-pack-matrix.md) | Matrix of all active benchmark packs |
 | [`README-RULES.md`](README-RULES.md) | Executive summary (not normative) |
 | [`SCOPE-AND-CONTEXT.md`](SCOPE-AND-CONTEXT.md) | Normative responsibility and scope boundary |
 | [`QUALITY_INDEX.md`](QUALITY_INDEX.md) | Canonical index for “top-tier” quality (no new rules; pointers only) |
@@ -717,6 +729,14 @@ See:
 ---
 
 ## 7. Who Is This System For?
+
+### Shipped directory map (up-to-date)
+
+- `diagnostics/`: schemas, quick-fix catalogs, audit/report contracts, benchmark packs
+- `docs/`: operator runbooks and benchmark matrix
+- `profiles/`: profile rulebooks plus addon manifests in `profiles/addons/*.addon.yml`
+- `scripts/`: governance helper CLIs (`build.py`, `governance_lint.py`, `migrate_session_state.py`, `run_quality_benchmark.py`, ...)
+- root rulebooks: `master.md`, `rules.md`, `start.md`, `SESSION_STATE_SCHEMA.md`, `STABILITY_SLA.md`
 
 **Suitable for:**
 
