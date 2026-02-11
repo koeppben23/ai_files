@@ -117,12 +117,16 @@ Forbidden directive patterns (MUST):
 
 Flow:
 1. Input normalize
-2. Preflight
+2. Preflight (including deterministic permission probes)
 3. Repo-context resolution
 4. Identity evidence
 5. Profile detection
 6. Gate evaluation
 7. Rendering
+
+Preflight permission probes (MUST):
+- Preflight MUST evaluate write/exec/git capabilities deterministically for planned actions.
+- Probes are evidence records (`observed_at`, `ttl=0`) and MUST NOT rely on guessed capabilities.
 
 Hard rules:
 - `/start` once is enough (no automatic self-reinvocation loops).
@@ -158,7 +162,7 @@ Profile tie-breakers (MUST):
 
 MUST persist and compare:
 - `ruleset_hash`: pack manifests + pack file bytes + compat flags + deterministic resolution order
-- `activation_hash`: repo facts + capabilities + selected profile/addons + host mode + resolved canonical paths + engine version
+- `activation_hash`: repo facts + selected profile/addons + effective_operating_mode + capabilities_hash + resolved canonical paths + engine version
 
 If mismatch is unexplained: `BLOCKED`.
 
@@ -235,6 +239,10 @@ Evidence integrity model (SHOULD):
 Evidence strictness by mode:
 - local mode: SHOULD enforce evidence hashing/references.
 - CI mode: MUST enforce evidence hashing/references for gate claims.
+
+Operating mode evidence strictness:
+- In `system` operating mode, evidence hashing for gate claims is MUST.
+- In `user` operating mode, evidence hashing for gate claims remains SHOULD unless a stricter gate/policy applies.
 
 Evidence freshness contract (MUST):
 - Every evidence record MUST include `observed_at` (UTC ISO timestamp).
@@ -393,6 +401,11 @@ MUST:
 - Runtime must record which source enabled overrides (`policy_source`) in diagnostics/audit output.
 - If sources conflict, the highest-precedence source applies.
 
+Operating mode orthogonality (MUST):
+- Trust policy controls which policy artifacts are allowed.
+- Operating mode controls which runtime actions are permitted for observed host capabilities.
+- Operating mode MUST NOT weaken trust policy decisions.
+
 MUST:
 - Enforce pack content restrictions and loader allowlist at runtime.
 - Audit security-relevant events (pack install/update, trust-level downgrade, integrity failure, rollback).
@@ -414,3 +427,67 @@ Deprecation policy:
 MUST:
 - Mark breaking changes explicitly in changelog and migration notes.
 - Provide migration tooling for any stable-surface breaking change.
+
+## 16) Operating Modes and Permissions
+
+Goal:
+- Support least-privilege operation on restricted corporate user machines (`user` mode) and stricter pipeline execution (`system` mode) without behavior drift.
+
+Operating modes:
+- `user` (default): local operator execution under user privileges; MUST NOT require admin rights.
+- `system`: pipeline/agent execution; may have broader filesystem/process capabilities; still MUST NOT assume elevated privileges beyond observed capabilities.
+
+Mode orthogonality (MUST):
+- Operating mode is orthogonal to trust levels (installer/user/workspace override).
+- Trust policy controls allowed policy artifacts; operating mode controls permitted runtime actions.
+
+Mode resolution (MUST, deterministic):
+- Runtime computes `effective_operating_mode` from:
+  1. explicit runtime flag/session override
+  2. environment signals (for example `CI=true`)
+  3. adapter default
+- If requested mode conflicts with observed capabilities, runtime MUST downgrade to `user` and emit `DEVIATION.mode_downgrade` with recovery guidance.
+
+Host capability model (MUST):
+- Adapters MUST report capability booleans with conservative defaults:
+  - `fs.read_commands_home`
+  - `fs.write_config_root`
+  - `fs.write_commands_home`
+  - `fs.write_workspaces_home`
+  - `fs.write_repo_root`
+  - `exec.allowed`
+  - `git.available`
+  - `cwd_trust = trusted | untrusted`
+- If a capability cannot be confirmed, adapters MUST report it as unavailable.
+
+Permission probes (MUST):
+- Preflight MUST execute deterministic probes (no guesses) to confirm required capabilities for planned phase/actions.
+- Probe outputs are evidence records with `observed_at` and `ttl=0` (fresh per run).
+
+Action permission gating (MUST):
+- Before any write/process execution, runtime MUST evaluate:
+  - write-policy invariants (canonical targets; no redirects)
+  - surface ownership constraints
+  - effective operating-mode policy (allowed actions by mode)
+  - observed host capabilities and preflight probe evidence
+- If insufficient permissions for a required action: `BLOCKED-PERMISSION-DENIED` (one primary recovery action + one command).
+- If insufficient permissions for a convenience action: `WARN-PERMISSION-LIMITED` and skip the action with explicit impact.
+
+Mode-specific policy (MUST):
+- `user` mode:
+  - MUST NOT attempt system-level installs/updates, global PATH changes, service operations, or writes outside user-writable scopes.
+  - Engine/packs MUST run from user-writable locations (`${CONFIG_ROOT}`, `${COMMANDS_HOME}`, `${WORKSPACES_HOME}`), subject to capabilities.
+- `system` mode:
+  - May enforce stricter evidence requirements and may require additional outputs (reports/artifacts).
+  - MUST remain capability-driven; missing required capabilities MUST result in `BLOCKED`.
+
+Hashing and audit (MUST):
+- `activation_hash` MUST include `effective_operating_mode` and a stable `capabilities_hash`.
+- Runtime MUST report mode, capabilities, and any downgrades in diagnostics/audit output.
+
+Reason codes (MUST):
+- Add canonical reason codes:
+  - `WARN-MODE-DOWNGRADED`
+  - `BLOCKED-PERMISSION-DENIED`
+  - `WARN-PERMISSION-LIMITED`
+  - `BLOCKED-EXEC-DISALLOWED`
