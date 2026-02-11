@@ -29,6 +29,7 @@ from governance.engine.reason_codes import (
 CURRENT_SESSION_STATE_VERSION = 1
 ROLLOUT_PHASE_DUAL_READ = 1
 ROLLOUT_PHASE_ENGINE_ONLY = 2
+ROLLOUT_PHASE_LEGACY_REMOVED = 3
 ATOMIC_REPLACE_RETRIES = 3
 ATOMIC_RETRY_DELAY_SECONDS = 0.05
 ENV_SESSION_STATE_LEGACY_COMPAT_MODE = "GOVERNANCE_SESSION_STATE_LEGACY_COMPAT_MODE"
@@ -59,6 +60,8 @@ class SessionStateCompatibilityError(Exception):
 
     reason_code: str
     detail: str
+    primary_action: str = "Migrate SESSION_STATE to canonical fields."
+    next_command: str = "python3 scripts/migrate_session_state.py --workspace <id>"
 
     def __str__(self) -> str:
         return f"{self.reason_code}: {self.detail}"
@@ -117,12 +120,26 @@ class SessionStateRepository:
         if self.rollout_phase >= ROLLOUT_PHASE_ENGINE_ONLY:
             legacy_fields = _legacy_alias_fields(payload)
             if legacy_fields:
+                if self.rollout_phase >= ROLLOUT_PHASE_LEGACY_REMOVED:
+                    raise SessionStateCompatibilityError(
+                        reason_code=BLOCKED_SESSION_STATE_LEGACY_UNSUPPORTED,
+                        detail=(
+                            "legacy SESSION_STATE aliases are unsupported in legacy-removed mode "
+                            f"(fields={','.join(legacy_fields)})"
+                        ),
+                        primary_action="Run deterministic SESSION_STATE migration before continuing.",
+                        next_command="python3 scripts/migrate_session_state.py --workspace <id>",
+                    )
                 if not self.legacy_compat_mode:
                     raise SessionStateCompatibilityError(
                         reason_code=BLOCKED_SESSION_STATE_LEGACY_UNSUPPORTED,
                         detail=(
                             "legacy SESSION_STATE aliases are unsupported in engine-only mode "
                             f"(fields={','.join(legacy_fields)})"
+                        ),
+                        primary_action="Enable explicit compatibility mode or migrate SESSION_STATE.",
+                        next_command=(
+                            f"export {ENV_SESSION_STATE_LEGACY_COMPAT_MODE}=true"
                         ),
                     )
                 detail = (
