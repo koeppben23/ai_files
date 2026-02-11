@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from governance.engine.reason_codes import BLOCKED_ENGINE_SELFCHECK, REASON_CODE_NONE
+from governance.engine.reason_codes import BLOCKED_ENGINE_SELFCHECK, BLOCKED_UNSPECIFIED, REASON_CODE_NONE
 from governance.engine.runtime import evaluate_runtime_activation, golden_parity_fields
 from governance.engine.selfcheck import EngineSelfcheckResult, run_engine_selfcheck
 
@@ -85,7 +85,7 @@ def test_runtime_parity_fields_for_non_blocked_shadow_decision():
     )
     parity = golden_parity_fields(decision)
     assert parity == {
-        "status": "normal",
+        "status": "ok",
         "phase": "4-Implement-Ready",
         "reason_code": "none",
         "next_action.command": "none",
@@ -136,3 +136,20 @@ def test_runtime_parity_fields_prefer_runtime_reason_when_selfcheck_blocks_live_
         "reason_code": BLOCKED_ENGINE_SELFCHECK,
         "next_action.command": "/start",
     }
+
+
+@pytest.mark.governance
+def test_runtime_activation_can_enforce_registered_gate_reason_codes():
+    """Runtime should optionally enforce gate reason-code registry checks."""
+
+    decision = evaluate_runtime_activation(
+        phase="4-Implement-Ready",
+        active_gate="Scope/Task selection",
+        mode="OK",
+        next_gate_condition="Concrete implementation target is defined",
+        gate_key="P5-Architecture",
+        gate_blocked=True,
+        gate_reason_code="BLOCKED-NOT-REGISTERED",
+        enforce_registered_reason_code=True,
+    )
+    assert decision.gate.reason_code == BLOCKED_UNSPECIFIED

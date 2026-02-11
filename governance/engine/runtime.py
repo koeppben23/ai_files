@@ -38,6 +38,8 @@ def golden_parity_fields(
 
     The returned fields align with the baseline parity contract:
     `status`, `phase`, `reason_code`, and `next_action.command`.
+
+    Status is canonicalized to `blocked|ok` for deterministic parity snapshots.
     """
 
     runtime_blocked = decision.reason_code.startswith("BLOCKED-")
@@ -48,7 +50,7 @@ def golden_parity_fields(
         reason_code = decision.gate.reason_code
 
     return {
-        "status": "blocked" if blocked else "normal",
+        "status": "blocked" if blocked else "ok",
         "phase": decision.state.phase,
         "reason_code": reason_code,
         "next_action.command": blocked_next_command if blocked else ok_next_command,
@@ -64,6 +66,7 @@ def evaluate_runtime_activation(
     gate_key: str,
     gate_blocked: bool,
     gate_reason_code: str = REASON_CODE_NONE,
+    enforce_registered_reason_code: bool = False,
     enable_live_engine: bool = False,
     selfcheck_result: EngineSelfcheckResult | None = None,
 ) -> EngineRuntimeDecision:
@@ -83,6 +86,7 @@ def evaluate_runtime_activation(
         gate_key=gate_key,
         blocked=gate_blocked,
         reason_code=gate_reason_code,
+        enforce_registered_reason_code=enforce_registered_reason_code,
     )
 
     check = selfcheck_result if selfcheck_result is not None else run_engine_selfcheck()

@@ -29,7 +29,7 @@ def test_engine_shadow_snapshot_is_available_and_reports_parity_fields():
     assert snapshot["runtime_mode"] == "shadow"
     assert snapshot["selfcheck_ok"] is True
     assert snapshot["parity"] == {
-        "status": "normal",
+        "status": "ok",
         "phase": "1.1-Bootstrap",
         "reason_code": "none",
         "next_action.command": "none",
