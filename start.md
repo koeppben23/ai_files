@@ -161,6 +161,7 @@ Output requirements:
 - Explicit SESSION_STATE
 - In STRICT envelopes, `session_state` MAY be a compact machine-readable snapshot object.
 - `SESSION_STATE` output MUST be formatted as fenced YAML (````yaml` + `SESSION_STATE:` payload)
+- In this section, the YAML requirement applies to dedicated full-state `SESSION_STATE` blocks (including explicit diagnostics/full-state output), not to the compact strict-envelope snapshot projection.
 - When full `SESSION_STATE` is emitted as a dedicated state block, it MUST be formatted as fenced YAML (````yaml` + `SESSION_STATE:` payload)
 - `SESSION_STATE` output MUST NOT use placeholder tokens (`...`, `<...>`); use explicit unknown/deferred values instead
 - Explicit Gates
