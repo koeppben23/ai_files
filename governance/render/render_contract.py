@@ -2,8 +2,24 @@
 
 from __future__ import annotations
 
+from typing import Sequence
+
 from governance.render.delta_renderer import build_delta_state
 from governance.render.token_guard import apply_token_budget
+
+
+def _canonical_reason_code(raw_reason_code: str) -> str:
+    """Keep canonical reason code casing for non-none values.
+
+    Only blank/none-like values normalize to `none`.
+    """
+
+    value = raw_reason_code.strip()
+    if not value:
+        return "none"
+    if value.lower() == "none":
+        return "none"
+    return value
 
 
 def build_two_layer_output(
@@ -15,16 +31,109 @@ def build_two_layer_output(
     details: dict[str, str] | None = None,
     previous_state_hash: str = "",
     current_state_hash: str = "",
+    phase: str = "unknown",
+    active_gate: str = "unknown",
+    phase_progress_bar: str = "[------] 0/6",
+    reason_code: str = "none",
+    next_command: str = "none",
+    missing_items: Sequence[str] | None = None,
+    previous_blockers: Sequence[str] | None = None,
+    current_blockers: Sequence[str] | None = None,
+    previous_stale_claims: Sequence[str] | None = None,
+    current_stale_claims: Sequence[str] | None = None,
+    transition_events: Sequence[dict[str, str]] | None = None,
+    evidence_items: Sequence[dict[str, object]] | None = None,
 ) -> dict[str, object]:
     """Build deterministic two-layer response with budget-guarded details."""
 
     safe_details = apply_token_budget(mode=mode, details=details or {})
+    reason = _canonical_reason_code(reason_code)
+    command = next_command.strip() or "none"
+    missing = tuple(sorted(item.strip() for item in (missing_items or ()) if item.strip()))
+    old_blockers = {item.strip() for item in (previous_blockers or ()) if item.strip()}
+    new_blockers = {item.strip() for item in (current_blockers or ()) if item.strip()}
+    old_stale = {item.strip() for item in (previous_stale_claims or ()) if item.strip()}
+    new_stale = {item.strip() for item in (current_stale_claims or ()) if item.strip()}
+
+    diagnostics_delta = {
+        "new_blockers": tuple(sorted(new_blockers - old_blockers)),
+        "resolved_blockers": tuple(sorted(old_blockers - new_blockers)),
+        "new_stale_claims": tuple(sorted(new_stale - old_stale)),
+        "resolved_stale_claims": tuple(sorted(old_stale - new_stale)),
+    }
+
+    timeline_source = list(transition_events or ())[-3:]
+    timeline: list[dict[str, str]] = []
+    for item in timeline_source:
+        phase_value = str(item.get("phase", "unknown")).strip() if isinstance(item, dict) else "unknown"
+        gate_value = str(item.get("active_gate", "unknown")).strip() if isinstance(item, dict) else "unknown"
+        status_value = str(item.get("status", "unknown")).strip() if isinstance(item, dict) else "unknown"
+        reason_value = (
+            _canonical_reason_code(str(item.get("reason_code", "none"))) if isinstance(item, dict) else "none"
+        )
+        hash_value = str(item.get("snapshot_hash", "")).strip() if isinstance(item, dict) else ""
+        timeline.append(
+            {
+                "phase_gate": f"{phase_value}|{gate_value}",
+                "status": status_value,
+                "reason_code": reason_value or "none",
+                "snapshot_hash": hash_value,
+            }
+        )
+
+    panel_rows: list[dict[str, str]] = []
+    for item in evidence_items or ():
+        if not isinstance(item, dict):
+            continue
+        claim_id = str(item.get("claim_id", "")).strip()
+        evidence_id = str(item.get("evidence_id", "")).strip()
+        observed_at = str(item.get("observed_at", "")).strip()
+        freshness = str(item.get("freshness", "")).strip().lower()
+        is_stale = item.get("is_stale") is True
+        if freshness not in {"fresh", "stale"}:
+            freshness = "stale" if is_stale else "fresh"
+        if claim_id or evidence_id:
+            panel_rows.append(
+                {
+                    "claim_id": claim_id,
+                    "evidence_id": evidence_id,
+                    "freshness": freshness,
+                    "observed_at": observed_at,
+                }
+            )
+    panel_rows = sorted(panel_rows, key=lambda row: (row["claim_id"], row["evidence_id"], row["observed_at"]))
+
+    phase_gate_line: str
+    if phase.strip() == "unknown" and active_gate.strip() == "unknown":
+        phase_gate_line = phase_gate.strip() or "unknown | unknown | [------] 0/6"
+    else:
+        phase_gate_line = f"{phase.strip()} | {active_gate.strip()} | {phase_progress_bar.strip()}"
+
+    operator_view = {
+        "PHASE_GATE": phase_gate_line,
+        "STATUS": status.strip(),
+        "PRIMARY_REASON": reason,
+        "NEXT_COMMAND": command,
+    }
+    reason_to_action = {
+        "why": reason,
+        "what_missing": missing,
+        "next_command": command,
+    }
     return {
         "header": {
-            "status": status.strip(),
-            "phase_gate": phase_gate.strip(),
+            "status": operator_view["STATUS"],
+            "phase_gate": operator_view["PHASE_GATE"],
             "primary_next_action": primary_action.strip(),
+            "reason_code": operator_view["PRIMARY_REASON"],
+            "next_command": operator_view["NEXT_COMMAND"],
+            "header_source": "operator_view",
         },
+        "operator_view": operator_view,
+        "reason_to_action": reason_to_action,
+        "diagnostics_delta": diagnostics_delta,
+        "timeline": tuple(timeline),
+        "evidence_panel": tuple(panel_rows),
         "details": safe_details,
         "delta": build_delta_state(
             previous_state_hash=previous_state_hash,

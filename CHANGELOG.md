@@ -59,6 +59,7 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
 - Update factory contracts (`new_profile.md`, `new_addon.md`, `PROFILE_ADDON_FACTORY_CONTRACT.json`) for shared-contract modularization defaults.
 
 ### Changed
+- Improve operator UX render contracts with one-screen operator view, reason-to-action card, diff-first diagnostics delta, last-3 transition timeline, and claim evidence panel projection.
 - Extend `[NEXT-ACTION]` footer contract with required `PhaseGate` line (`phase | active_gate | phase_progress_bar`) for faster phase orientation in both STRICT and COMPAT modes.
 - Tighten output presentation contracts so `[NEXT-ACTION]` must be multiline (one field per line) and add pretty audit-summary layout guidance in `diagnostics/audit.md`.
 - Add explicit Phase 1.5 re-entry contract from later phases (`3A`/`3B-*`/`4`/`5*`) with mandatory P5.4 rerun before final readiness claims.
