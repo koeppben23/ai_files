@@ -17,7 +17,7 @@ from typing import Literal, Mapping, Protocol
 
 
 CwdTrustLevel = Literal["trusted", "untrusted"]
-OperatingMode = Literal["user", "system"]
+OperatingMode = Literal["user", "system", "pipeline"]
 
 
 def _default_config_root() -> Path:
@@ -186,5 +186,5 @@ class OpenCodeDesktopAdapter:
 
     def default_operating_mode(self) -> OperatingMode:
         if _is_ci_env(self.environment()):
-            return "system"
+            return "pipeline"
         return self.operating_mode

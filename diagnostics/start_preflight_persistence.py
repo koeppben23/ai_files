@@ -624,7 +624,7 @@ def build_engine_shadow_snapshot() -> dict[str, object]:
         }
 
     requested_mode = str(os.getenv("OPENCODE_OPERATING_MODE", "")).strip().lower()
-    if requested_mode not in {"user", "system"}:
+    if requested_mode not in {"user", "system", "pipeline"}:
         requested_mode = ""
 
     kwargs = {
@@ -641,6 +641,8 @@ def build_engine_shadow_snapshot() -> dict[str, object]:
         output = run_engine_orchestrator(**kwargs, requested_operating_mode="user")
     elif requested_mode == "system":
         output = run_engine_orchestrator(**kwargs, requested_operating_mode="system")
+    elif requested_mode == "pipeline":
+        output = run_engine_orchestrator(**kwargs, requested_operating_mode="pipeline")
     else:
         output = run_engine_orchestrator(**kwargs)
     return {

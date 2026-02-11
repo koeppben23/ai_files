@@ -200,6 +200,71 @@ def test_orchestrator_mode_downgrade_is_reported_when_system_capabilities_missin
 
 
 @pytest.mark.governance
+def test_orchestrator_resolves_pipeline_mode_from_ci_when_not_explicit(tmp_path: Path):
+    """CI signal should deterministically resolve to pipeline mode."""
+
+    repo_root = _make_git_root(tmp_path / "repo")
+    adapter = StubAdapter(
+        env={"CI": "true", "OPENCODE_REPO_ROOT": str(repo_root)},
+        cwd_path=repo_root,
+        caps=HostCapabilities(
+            cwd_trust="trusted",
+            fs_read_commands_home=True,
+            fs_write_config_root=True,
+            fs_write_commands_home=True,
+            fs_write_workspaces_home=True,
+            fs_write_repo_root=True,
+            exec_allowed=True,
+            git_available=True,
+        ),
+        default_mode="user",
+    )
+
+    out = run_engine_orchestrator(
+        adapter=adapter,
+        phase="1.1-Bootstrap",
+        active_gate="Persistence Preflight",
+        mode="OK",
+        next_gate_condition="Persistence helper execution completed",
+    )
+    assert out.effective_operating_mode == "pipeline"
+    assert out.mode_downgraded is False
+
+
+@pytest.mark.governance
+def test_orchestrator_downgrades_pipeline_mode_when_pipeline_caps_missing(tmp_path: Path):
+    """Pipeline mode should downgrade to user when stricter caps are unavailable."""
+
+    repo_root = _make_git_root(tmp_path / "repo")
+    adapter = StubAdapter(
+        env={"CI": "true", "OPENCODE_REPO_ROOT": str(repo_root)},
+        cwd_path=repo_root,
+        caps=HostCapabilities(
+            cwd_trust="trusted",
+            fs_read_commands_home=True,
+            fs_write_config_root=True,
+            fs_write_commands_home=False,
+            fs_write_workspaces_home=True,
+            fs_write_repo_root=True,
+            exec_allowed=True,
+            git_available=False,
+        ),
+        default_mode="user",
+    )
+
+    out = run_engine_orchestrator(
+        adapter=adapter,
+        phase="1.1-Bootstrap",
+        active_gate="Persistence Preflight",
+        mode="OK",
+        next_gate_condition="Persistence helper execution completed",
+    )
+    assert out.effective_operating_mode == "user"
+    assert out.mode_downgraded is True
+    assert out.parity["reason_code"] == "WARN-MODE-DOWNGRADED"
+
+
+@pytest.mark.governance
 def test_orchestrator_blocks_when_exec_is_disallowed(tmp_path: Path):
     """Execution-disallowed capability must fail closed with explicit reason code."""
 

@@ -67,14 +67,24 @@ def _resolve_effective_operating_mode(adapter: HostAdapter, requested: Operating
     if requested is not None:
         return requested
     if str(env.get("CI", "")).strip().lower() == "true":
-        return "system"
+        return "pipeline"
     return adapter.default_operating_mode()
 
 
-def _has_required_system_capabilities(caps: HostCapabilities) -> bool:
-    """Return True when minimal system-mode requirements are satisfied."""
+def _has_required_mode_capabilities(mode: OperatingMode, caps: HostCapabilities) -> bool:
+    """Return True when minimal capabilities for the requested mode are satisfied."""
 
-    return caps.exec_allowed and caps.fs_read_commands_home and caps.fs_write_workspaces_home
+    if mode == "user":
+        return True
+    if mode == "system":
+        return caps.exec_allowed and caps.fs_read_commands_home and caps.fs_write_workspaces_home
+    return (
+        caps.exec_allowed
+        and caps.fs_read_commands_home
+        and caps.fs_write_workspaces_home
+        and caps.fs_write_commands_home
+        and caps.git_available
+    )
 
 
 def _target_write_allowed(capability_key: str, caps: HostCapabilities) -> bool:
@@ -138,15 +148,18 @@ def run_engine_orchestrator(
     mode_deviation: EngineDeviation | None = None
     mode_reason = REASON_CODE_NONE
 
-    if requested_mode == "system" and not _has_required_system_capabilities(caps):
+    if requested_mode != "user" and not _has_required_mode_capabilities(requested_mode, caps):
         effective_mode = "user"
         mode_downgraded = True
         mode_reason = WARN_MODE_DOWNGRADED
         mode_deviation = EngineDeviation(
             type="mode_downgrade",
             scope="operating_mode",
-            impact="requested system mode downgraded to user mode",
-            recovery="restore required capabilities or rerun with explicit user mode",
+            impact=f"requested {requested_mode} mode downgraded to user mode",
+            recovery=(
+                "restore required capabilities for the requested mode "
+                "or rerun with explicit user mode"
+            ),
         )
 
     repo_context = resolve_repo_root(
