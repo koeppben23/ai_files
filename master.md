@@ -3494,7 +3494,9 @@ Host-constraint compatibility (binding):
   - `Recovery`
   - `NextAction`
 * In COMPAT mode, `NextAction` MUST still resolve to exactly one mechanism (`command` | `reply_with_one_number` | `manual_step`).
+* In STRICT envelopes, `session_state` MAY be emitted as a compact machine-readable snapshot object.
 * If `SESSION_STATE` is emitted, it MUST still be rendered as fenced YAML (format-stable machine-readable state block).
+* If full `SESSION_STATE` is emitted as a dedicated state block (for example diagnostics/full-state output), it MUST be rendered as fenced YAML (format-stable machine-readable state block).
 * `SESSION_STATE` blocks MUST NOT use placeholder tokens (`...`, `<...>`); unknown fields must be explicit (`unknown|deferred|not-applicable`).
 * COMPAT mode MUST still emit a `[NEXT-ACTION]` block with `Status`, `Next`, `Why`, and `Command` fields.
 

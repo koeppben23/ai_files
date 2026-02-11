@@ -800,7 +800,9 @@ COMPAT mode MUST NOT disable fail-closed evidence gates.
 
 ### 7.3.9 SESSION_STATE Formatting Contract (Binding)
 
+In STRICT envelopes, `session_state` MAY be emitted as a compact machine-readable snapshot object.
 Whenever `SESSION_STATE` is emitted in assistant output, it MUST be rendered as a fenced YAML block.
+Whenever full `SESSION_STATE` is emitted as a dedicated state block in assistant output, it MUST be rendered as a fenced YAML block.
 
 Required shape:
 - heading line: `SESSION_STATE`
@@ -808,7 +810,7 @@ Required shape:
 - payload root key: `SESSION_STATE:`
 - fenced block end: ```
 
-This formatting requirement applies in both strict and COMPAT modes.
+This full-state formatting requirement applies in both strict and COMPAT modes when a dedicated full-state block is emitted.
 
 Completeness requirements (binding):
 - The emitted block MUST contain a real state snapshot (no placeholder-only shells).

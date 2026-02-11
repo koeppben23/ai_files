@@ -148,6 +148,7 @@ Output requirements:
 - Short follow-up questions SHOULD route via deterministic intents (`where_am_i`, `what_blocks_me`, `what_now`) before optional verbose diagnostics.
 - Response persona modes SHOULD be supported (`compact`, `standard`, `audit`) as presentation-density controls only.
 - Output envelope SHOULD comply with `diagnostics/RESPONSE_ENVELOPE_SCHEMA.json` (`status`, `session_state`, `next_action`, `snapshot`; plus blocker payload fields when blocked) when host constraints allow
+- STRICT/COMPAT output matrix SSOT is defined in `master.md` and `rules.md`; this file mirrors entrypoint-specific expectations only.
 - `next_action.type` MUST be present and one of: `command`, `reply_with_one_number`, `manual_step`.
 - Status vocabulary MUST remain deterministic: `BLOCKED | WARN | OK | NOT_VERIFIED`.
 - `WARN` MUST NOT be used when required-gate evidence is missing (that case MUST be `BLOCKED`).
@@ -158,7 +159,9 @@ Output requirements:
 - For no-change turns, response SHOULD be delta-only (or explicit `no_delta`) instead of repeating unchanged diagnostics.
 - `WARN` may include `advisory_missing` only and MUST NOT emit blocker `RequiredInputs`.
 - Explicit SESSION_STATE
+- In STRICT envelopes, `session_state` MAY be a compact machine-readable snapshot object.
 - `SESSION_STATE` output MUST be formatted as fenced YAML (````yaml` + `SESSION_STATE:` payload)
+- When full `SESSION_STATE` is emitted as a dedicated state block, it MUST be formatted as fenced YAML (````yaml` + `SESSION_STATE:` payload)
 - `SESSION_STATE` output MUST NOT use placeholder tokens (`...`, `<...>`); use explicit unknown/deferred values instead
 - Explicit Gates
 - Explicit DEVIATION reporting
