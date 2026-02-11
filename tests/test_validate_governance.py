@@ -3423,6 +3423,33 @@ def test_master_requires_phase_21_to_prompt_for_phase_15_decision_when_not_expli
 
 
 @pytest.mark.governance
+def test_phase_15_reentry_from_later_phases_is_explicit_and_reruns_p54():
+    master = read_text(REPO_ROOT / "master.md")
+    rules = read_text(REPO_ROOT / "rules.md")
+    start = read_text(REPO_ROOT / "start.md")
+
+    required_master = [
+        "Re-entry path: if current phase is `3A`/`3B-*`/`4`/`5*` and operator explicitly requests `Reopen Phase 1.5`, transition back to `1.5-BusinessRules`.",
+        "Re-entry is explicit-only (never implicit).",
+        "After re-entry execution, `P5.4-BusinessRules` MUST be rerun before readiness can be asserted.",
+    ]
+    required_rules = [
+        "If Phase 1.5 is explicitly re-opened from later phases (`3A`/`3B-*`/`4`/`5*`), Phase 5.4 MUST be rerun before final readiness claims.",
+    ]
+    required_start = [
+        "If current phase is `3A`/`3B-*`/`4`/`5*` and operator asks `Reopen Phase 1.5`, `/start` MUST allow explicit re-entry to `1.5-BusinessRules` and mark BusinessRules compliance for rerun before final readiness.",
+    ]
+
+    missing_master = [token for token in required_master if token not in master]
+    missing_rules = [token for token in required_rules if token not in rules]
+    missing_start = [token for token in required_start if token not in start]
+
+    assert not missing_master, "master.md missing Phase 1.5 re-entry tokens:\n" + "\n".join([f"- {m}" for m in missing_master])
+    assert not missing_rules, "rules.md missing Phase 1.5 re-entry token:\n" + "\n".join([f"- {m}" for m in missing_rules])
+    assert not missing_start, "start.md missing Phase 1.5 re-entry token:\n" + "\n".join([f"- {m}" for m in missing_start])
+
+
+@pytest.mark.governance
 def test_backfill_decision_pack_includes_phase_15_prompt_decision():
     text = read_text(REPO_ROOT / "diagnostics" / "persist_workspace_artifacts.py")
     required_tokens = [

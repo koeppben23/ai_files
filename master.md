@@ -819,6 +819,8 @@ Canonical flow (binding, compact):
 - Once 1.5 is resolved: if APIs are in scope, run `3A -> 3B-1 -> 3B-2`; otherwise go to `4`.
 - `1.5` is optional and user-approved; when executed, it runs after `2.1` and before `4`.
 - If `1.5` executes and APIs are in scope, continue `1.5 -> 3A`; if no APIs are in scope, continue `1.5 -> 4`.
+- Re-entry path: if current phase is `3A`/`3B-*`/`4`/`5*` and operator explicitly requests `Reopen Phase 1.5`, transition back to `1.5-BusinessRules`.
+- Re-entry is explicit-only (never implicit). After re-entry execution, `P5.4-BusinessRules` MUST be rerun before readiness can be asserted.
 - Main execution path is `4 -> 5 -> 5.3 -> 6`.
 - `5.4` is mandatory only if `1.5` executed.
 - `5.5` is optional and only when explicitly proposed.
@@ -2128,6 +2130,7 @@ If file writing is not possible in the current environment:
 
 **When to execute:**
 * Explicit user request: "Extract business rules first"
+* Explicit later-phase re-entry request: "Reopen Phase 1.5"
 * Default: Do not auto-run.
   - Unless explicitly requested or explicitly skipped, Phase 2.1 MUST present an A/B decision:
     "Run Phase 1.5 (Business Rules Discovery) now?"
@@ -2141,6 +2144,11 @@ If file writing is not possible in the current environment:
 **When NOT to execute:**
 * "Skip business-rules discovery"
 * "This is a pure CRUD project"
+
+Re-entry from later phases (binding):
+* From `3A`/`3B-*`/`4`/`5*`, Phase 1.5 may be executed only on explicit operator request.
+* Re-entry MUST emit a deterministic transition note and one primary next action.
+* Re-entry invalidates previous P5.4 readiness assumptions; business-rules compliance must be rerun before final readiness.
 
 #### Load existing Business Rules Inventory (when available; Binding when applicable)
 
