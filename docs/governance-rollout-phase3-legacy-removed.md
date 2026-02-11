@@ -27,18 +27,23 @@ artifacts.
   - detail indicates legacy-removed mode and offending fields
   - recovery guidance points to deterministic migration command
 
+- No-claim-without-evidence contract coverage:
+  - added orchestrator contract test for quality claims (`tests green`,
+    `static clean`, `no drift`)
+  - claims remain `NOT_VERIFIED` unless required evidence IDs are present
+
 ## Acceptance Evidence
 
 Executed checks:
 
 ```bash
-python3 -m pytest -q tests/test_session_state_repository.py tests/test_reason_code_registry.py
+python3 -m pytest -q tests/test_engine_orchestrator.py tests/test_engine_e2e_matrix.py tests/test_session_state_repository.py tests/test_reason_code_registry.py
 python3 -m pytest -q
 python3 scripts/governance_lint.py
 ```
 
 Results:
 
-- targeted tests: `24 passed`
-- full suite: `296 passed, 1 skipped`
+- targeted tests: `48 passed`
+- full suite: `297 passed, 1 skipped`
 - governance lint: `OK`
