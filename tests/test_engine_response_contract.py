@@ -47,6 +47,27 @@ def test_build_strict_response_produces_deterministic_envelope():
 
 
 @pytest.mark.governance
+def test_build_strict_response_preserves_reason_code_casing_in_snapshot():
+    """Snapshot reason code must match reason payload casing exactly."""
+
+    payload = build_strict_response(
+        status="BLOCKED",
+        session_state={
+            "phase": "1.1-Bootstrap",
+            "effective_operating_mode": "user",
+            "activation_hash": "ab" * 32,
+            "ruleset_hash": "cd" * 32,
+            "repo_fingerprint": "repo-123",
+        },
+        next_action=NextAction(type="command", command="/start"),
+        snapshot=Snapshot(confidence="High", risk="Low", scope="Bootstrap"),
+        reason_payload={"status": "BLOCKED", "reason_code": "BLOCKED-EXEC-DISALLOWED"},
+    )
+    payload = cast(dict[str, Any], payload)
+    assert payload["session_state"]["active_gate.reason_code"] == "BLOCKED-EXEC-DISALLOWED"
+
+
+@pytest.mark.governance
 def test_build_strict_response_emits_full_state_only_for_explicit_intent():
     """Full session dump should only be present for explicit diagnostics intent."""
 

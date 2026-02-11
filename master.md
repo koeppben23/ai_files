@@ -10,6 +10,13 @@ Release/readiness stability gate (binding):
 - `STABILITY_SLA.md` is the normative Go/No-Go contract for governance releases.
 - Governance changes that violate any SLA criterion MUST be treated as release-blocking.
 
+Normative boundary for state-machine runtime (binding):
+- `master.md` defines invariants, status vocabulary, gate semantics, and fail-closed behavior.
+- Runtime details are implemented in `governance/engine/*`, `governance/render/*`, and diagnostics schemas.
+- Deterministic activation summary: `RepoFacts -> Capabilities -> Packs/Profile -> activation_hash/ruleset_hash -> Gate`.
+- If implementation artifacts and this file diverge, this file is authoritative until implementation is corrected.
+- This file should avoid duplicating low-level algorithmic details that are already contract-tested in code.
+
 <!-- NOTE: This diff adds fail-closed TargetPath validation to prevent degenerate paths like "C" being written into the repo. -->
 
 ## PHASE 0 — BOOTSTRAP (CONDITIONAL)
@@ -1314,7 +1321,8 @@ If anything here conflicts with the schema, the schema wins.
 
 ### 3.1 Output Policy (Binding)
 
-- Default: output `SESSION_STATE` in **MIN** mode (compact, continuation-critical keys only).
+- Default STRICT envelope behavior: emit `session_state` as a compact snapshot object (operator-first view).
+- Dedicated full-state `SESSION_STATE` blocks are not required by default and SHOULD be emitted only when FULL mode is required or explicitly requested.
 - Output **FULL** mode is REQUIRED when:
   1) the current step is an explicit gate (Phase 5 / 5.3 / 5.4 / 5.5 / 5.6 / 6), OR
   2) `SESSION_STATE.Mode = BLOCKED`, OR
@@ -1322,7 +1330,7 @@ If anything here conflicts with the schema, the schema wins.
   4) the user explicitly requests FULL state.
   5) `SESSION_STATE.ConfidenceLevel < 70` (DRAFT/BLOCKED debugging requires expanded state).
 
-MIN mode SHOULD remain below ~40 lines. FULL mode should remain a digest (no large enumerations).
+When a dedicated state block is emitted in MIN mode, it SHOULD remain below ~40 lines. FULL mode should remain a digest (no large enumerations).
 
 If `SESSION_STATE.OutputMode = ARCHITECT`, the assistant MUST output a `DecisionSurface` block first and keep the rest limited to decision rationale + evidence pointers.
 
@@ -3488,7 +3496,10 @@ Host-constraint compatibility (binding):
   - `Recovery`
   - `NextAction`
 * In COMPAT mode, `NextAction` MUST still resolve to exactly one mechanism (`command` | `reply_with_one_number` | `manual_step`).
+* In STRICT envelopes, `session_state` MAY be emitted as a compact machine-readable snapshot object.
+* In this section, "`SESSION_STATE` is emitted" refers to a dedicated full-state output block, not the compact strict-envelope snapshot projection.
 * If `SESSION_STATE` is emitted, it MUST still be rendered as fenced YAML (format-stable machine-readable state block).
+* If full `SESSION_STATE` is emitted as a dedicated state block (for example diagnostics/full-state output), it MUST be rendered as fenced YAML (format-stable machine-readable state block).
 * `SESSION_STATE` blocks MUST NOT use placeholder tokens (`...`, `<...>`); unknown fields must be explicit (`unknown|deferred|not-applicable`).
 * COMPAT mode MUST still emit a `[NEXT-ACTION]` block with `Status`, `Next`, `Why`, and `Command` fields.
 

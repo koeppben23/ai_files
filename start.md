@@ -148,6 +148,7 @@ Output requirements:
 - Short follow-up questions SHOULD route via deterministic intents (`where_am_i`, `what_blocks_me`, `what_now`) before optional verbose diagnostics.
 - Response persona modes SHOULD be supported (`compact`, `standard`, `audit`) as presentation-density controls only.
 - Output envelope SHOULD comply with `diagnostics/RESPONSE_ENVELOPE_SCHEMA.json` (`status`, `session_state`, `next_action`, `snapshot`; plus blocker payload fields when blocked) when host constraints allow
+- STRICT/COMPAT output matrix SSOT is defined in `master.md` and `rules.md`; this file mirrors entrypoint-specific expectations only.
 - `next_action.type` MUST be present and one of: `command`, `reply_with_one_number`, `manual_step`.
 - Status vocabulary MUST remain deterministic: `BLOCKED | WARN | OK | NOT_VERIFIED`.
 - `WARN` MUST NOT be used when required-gate evidence is missing (that case MUST be `BLOCKED`).
@@ -158,7 +159,10 @@ Output requirements:
 - For no-change turns, response SHOULD be delta-only (or explicit `no_delta`) instead of repeating unchanged diagnostics.
 - `WARN` may include `advisory_missing` only and MUST NOT emit blocker `RequiredInputs`.
 - Explicit SESSION_STATE
+- In STRICT envelopes, `session_state` MAY be a compact machine-readable snapshot object.
 - `SESSION_STATE` output MUST be formatted as fenced YAML (````yaml` + `SESSION_STATE:` payload)
+- In this section, the YAML requirement applies to dedicated full-state `SESSION_STATE` blocks (including explicit diagnostics/full-state output), not to the compact strict-envelope snapshot projection.
+- When full `SESSION_STATE` is emitted as a dedicated state block, it MUST be formatted as fenced YAML (````yaml` + `SESSION_STATE:` payload)
 - `SESSION_STATE` output MUST NOT use placeholder tokens (`...`, `<...>`); use explicit unknown/deferred values instead
 - Explicit Gates
 - Explicit DEVIATION reporting
@@ -183,6 +187,11 @@ Output requirements:
 - Response mode MUST be explicit and singular per turn: `STRICT` or `COMPAT`.
 - `STRICT` requires envelope + `[SNAPSHOT]` + `[NEXT-ACTION]`; `COMPAT` requires `RequiredInputs` + `Recovery` + `NextAction` + `[NEXT-ACTION]`.
 - If operator requests full details (for example: `show diagnostics`, `show full session state`), `/start` SHOULD emit full strict diagnostics without changing gate/evidence outcomes.
+- Default strict rendering SHOULD emit a compact `SESSION_SNAPSHOT` projection and avoid full-session dumps unless diagnostics intent is explicit.
+- Compact snapshot SHOULD include stable decision references (`activation_hash`; optionally `ruleset_hash`) and compact drift context (`state_unchanged` / `no_delta`) when available.
+- Full `SESSION_STATE` remains required as canonical persisted state; compact rendering is a view-layer projection only.
+- Session-state rollout posture is final: phase >= 3 is engine-only legacy-removed mode; legacy alias compatibility is historical only and MUST NOT be used as a normal-path dependency.
+- Recovery command integrity: emitted recovery commands MUST reference existing artifacts/scripts; if a specific helper is unavailable, fail closed and emit one minimal real command (default: `/start`).
 - When preparing a PR that changes governance contracts, response SHOULD include an operator-impact section (`What changed for operators?`).
 - Governance PR summaries SHOULD also include `Reviewer focus` bullets for highest-risk contract deltas.
 

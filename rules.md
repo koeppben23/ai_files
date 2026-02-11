@@ -5,6 +5,11 @@ This document defines **stack-agnostic, non-negotiable** technical, quality, evi
 Operational behavior (phases, session state, hybrid mode, priorities, gates) is defined in the **Master Prompt** (`master.md`).
 Governance release stability is normatively defined by `STABILITY_SLA.md` and is release-blocking when unmet.
 
+State-machine alignment note:
+- Runtime orchestration logic is implemented in `governance/engine/*` and response projection logic in `governance/render/*`.
+- This file remains normative for core constraints and evidence obligations, not low-level runtime implementation details.
+- If runtime behavior diverges from Core-Lite constraints in this file, runtime behavior must be corrected.
+
 This Core Rulebook is:
 - **secondary to the Master Prompt**
 - **authoritative over tickets and repository documentation**, except where explicitly allowed (see “Repository Guidelines as Constraints”).
@@ -722,6 +727,7 @@ Quick-fix confidence labeling (recommended):
 Reason-code quick-fix template catalog (recommended):
 - Recovery messaging SHOULD use `diagnostics/QUICKFIX_TEMPLATES.json` when present.
 - Template lookup key is canonical `reason_code`.
+- `reason_code` is case-sensitive and MUST be carried unchanged (canonical casing) across `reason_payload`, snapshot views, and template lookups.
 - Runtime output still MUST enforce command coherence rules (`[NEXT-ACTION].Command`, `next_command`, `QuickFixCommands[0]`).
 
 ### 7.3.6 Architect-Only Autopilot Lifecycle (Binding)
@@ -795,7 +801,10 @@ COMPAT mode MUST NOT disable fail-closed evidence gates.
 
 ### 7.3.9 SESSION_STATE Formatting Contract (Binding)
 
+In STRICT envelopes, `session_state` MAY be emitted as a compact machine-readable snapshot object.
+In this section, "`SESSION_STATE` is emitted" refers to a dedicated full-state output block, not the compact strict-envelope snapshot projection.
 Whenever `SESSION_STATE` is emitted in assistant output, it MUST be rendered as a fenced YAML block.
+Whenever full `SESSION_STATE` is emitted as a dedicated state block in assistant output, it MUST be rendered as a fenced YAML block.
 
 Required shape:
 - heading line: `SESSION_STATE`
@@ -803,7 +812,7 @@ Required shape:
 - payload root key: `SESSION_STATE:`
 - fenced block end: ```
 
-This formatting requirement applies in both strict and COMPAT modes.
+This full-state formatting requirement applies in both strict and COMPAT modes when a dedicated full-state block is emitted.
 
 Completeness requirements (binding):
 - The emitted block MUST contain a real state snapshot (no placeholder-only shells).
@@ -1152,8 +1161,8 @@ Class-specific mandatory add-ons (apply when relevant):
 - `performance-change`: baseline-vs-change measurement or explicit rationale why measurement is not feasible.
 
 Claim-to-evidence rule (binding):
-- Every PR-critical claim (e.g., "no contract drift", "tests green", "rollback safe") MUST map to at least one concrete evidence item in `SESSION_STATE.BuildEvidence.items[]`.
-- If a claim has no evidence mapping, it MUST be reported as `not-verified` and cannot support `ready-for-pr`.
+- Every PR-critical claim (e.g., "no contract drift", "tests green", "static clean", "no drift", "rollback safe") MUST map to at least one concrete evidence item in `SESSION_STATE.BuildEvidence.items[]`.
+- No claim without evidence: if a claim has no evidence mapping, it MUST be reported as `NOT_VERIFIED` and cannot support `ready-for-pr`.
 
 ### 7.7.2 Gate Review Scorecard (Core, Binding)
 
