@@ -5,6 +5,9 @@ import pytest
 from governance.persistence.write_policy import (
     BLOCKED_PERSISTENCE_PATH_VIOLATION,
     BLOCKED_PERSISTENCE_TARGET_DEGENERATE,
+    DETAIL_KEY_PARENT_TRAVERSAL,
+    DETAIL_KEY_UNKNOWN_VARIABLE,
+    DETAIL_OK,
     evaluate_target_path,
 )
 
@@ -61,6 +64,7 @@ def test_write_policy_accepts_canonical_variable_targets(target: str):
     result = evaluate_target_path(target)
     assert result.valid is True
     assert result.reason_code == "none"
+    assert result.detail_key == DETAIL_OK
 
 
 @pytest.mark.governance
@@ -79,3 +83,21 @@ def test_write_policy_rejects_unknown_or_traversal_variable_paths(target: str):
     result = evaluate_target_path(target)
     assert result.valid is False
     assert result.reason_code == BLOCKED_PERSISTENCE_PATH_VIOLATION
+
+
+@pytest.mark.governance
+def test_write_policy_exposes_stable_detail_key_for_unknown_variable():
+    """Unknown variable rejections should expose deterministic detail keys."""
+
+    result = evaluate_target_path("${UNKNOWN_VAR}/repo-cache.yaml")
+    assert result.valid is False
+    assert result.detail_key == DETAIL_KEY_UNKNOWN_VARIABLE
+
+
+@pytest.mark.governance
+def test_write_policy_exposes_stable_detail_key_for_parent_traversal():
+    """Parent traversal rejections should expose deterministic detail keys."""
+
+    result = evaluate_target_path("${WORKSPACES_HOME}/../repo-cache.yaml")
+    assert result.valid is False
+    assert result.detail_key == DETAIL_KEY_PARENT_TRAVERSAL

@@ -44,6 +44,17 @@ _DRIVE_ROOT_ONLY = re.compile(r"^[A-Za-z]:$")
 _DRIVE_RELATIVE = re.compile(r"^[A-Za-z]:[^\\/].*")
 _SINGLE_SEGMENT_RELATIVE = re.compile(r"^[^\\/]+$")
 
+DETAIL_OK = "ok"
+DETAIL_KEY_EMPTY_TARGET = "empty_target"
+DETAIL_KEY_DRIVE_LETTER_ONLY = "drive_letter_only"
+DETAIL_KEY_DRIVE_ROOT_ONLY = "drive_root_only"
+DETAIL_KEY_DRIVE_RELATIVE = "drive_relative"
+DETAIL_KEY_SINGLE_SEGMENT_RELATIVE = "single_segment_relative"
+DETAIL_KEY_NON_VARIABLE_PATH = "non_variable_path"
+DETAIL_KEY_INVALID_VARIABLE_TOKEN = "invalid_variable_token"
+DETAIL_KEY_UNKNOWN_VARIABLE = "unknown_variable"
+DETAIL_KEY_PARENT_TRAVERSAL = "parent_traversal"
+
 
 @dataclass(frozen=True)
 class WriteTargetPolicyResult:
@@ -51,6 +62,7 @@ class WriteTargetPolicyResult:
 
     valid: bool
     reason_code: str
+    detail_key: str
     detail: str
 
 
@@ -90,6 +102,7 @@ def evaluate_target_path(target_path: str) -> WriteTargetPolicyResult:
         return WriteTargetPolicyResult(
             valid=False,
             reason_code=BLOCKED_PERSISTENCE_TARGET_DEGENERATE,
+            detail_key=DETAIL_KEY_EMPTY_TARGET,
             detail="target path must not be empty",
         )
 
@@ -97,6 +110,7 @@ def evaluate_target_path(target_path: str) -> WriteTargetPolicyResult:
         return WriteTargetPolicyResult(
             valid=False,
             reason_code=BLOCKED_PERSISTENCE_TARGET_DEGENERATE,
+            detail_key=DETAIL_KEY_DRIVE_LETTER_ONLY,
             detail="target path is a single drive letter",
         )
 
@@ -104,6 +118,7 @@ def evaluate_target_path(target_path: str) -> WriteTargetPolicyResult:
         return WriteTargetPolicyResult(
             valid=False,
             reason_code=BLOCKED_PERSISTENCE_TARGET_DEGENERATE,
+            detail_key=DETAIL_KEY_DRIVE_ROOT_ONLY,
             detail="target path is drive-root token only",
         )
 
@@ -111,6 +126,7 @@ def evaluate_target_path(target_path: str) -> WriteTargetPolicyResult:
         return WriteTargetPolicyResult(
             valid=False,
             reason_code=BLOCKED_PERSISTENCE_TARGET_DEGENERATE,
+            detail_key=DETAIL_KEY_DRIVE_RELATIVE,
             detail="target path is drive-relative",
         )
 
@@ -118,6 +134,7 @@ def evaluate_target_path(target_path: str) -> WriteTargetPolicyResult:
         return WriteTargetPolicyResult(
             valid=False,
             reason_code=BLOCKED_PERSISTENCE_TARGET_DEGENERATE,
+            detail_key=DETAIL_KEY_SINGLE_SEGMENT_RELATIVE,
             detail="target path is non-variable single-segment relative",
         )
 
@@ -125,6 +142,7 @@ def evaluate_target_path(target_path: str) -> WriteTargetPolicyResult:
         return WriteTargetPolicyResult(
             valid=False,
             reason_code=BLOCKED_PERSISTENCE_PATH_VIOLATION,
+            detail_key=DETAIL_KEY_NON_VARIABLE_PATH,
             detail="target path must use canonical variable form",
         )
 
@@ -133,6 +151,7 @@ def evaluate_target_path(target_path: str) -> WriteTargetPolicyResult:
         return WriteTargetPolicyResult(
             valid=False,
             reason_code=BLOCKED_PERSISTENCE_PATH_VIOLATION,
+            detail_key=DETAIL_KEY_INVALID_VARIABLE_TOKEN,
             detail="target path must start with a valid ${VARIABLE} token",
         )
 
@@ -141,6 +160,7 @@ def evaluate_target_path(target_path: str) -> WriteTargetPolicyResult:
         return WriteTargetPolicyResult(
             valid=False,
             reason_code=BLOCKED_PERSISTENCE_PATH_VIOLATION,
+            detail_key=DETAIL_KEY_UNKNOWN_VARIABLE,
             detail="target path uses an unknown canonical variable",
         )
 
@@ -148,7 +168,13 @@ def evaluate_target_path(target_path: str) -> WriteTargetPolicyResult:
         return WriteTargetPolicyResult(
             valid=False,
             reason_code=BLOCKED_PERSISTENCE_PATH_VIOLATION,
+            detail_key=DETAIL_KEY_PARENT_TRAVERSAL,
             detail="target path must not contain parent traversal segments",
         )
 
-    return WriteTargetPolicyResult(valid=True, reason_code=REASON_CODE_NONE, detail="ok")
+    return WriteTargetPolicyResult(
+        valid=True,
+        reason_code=REASON_CODE_NONE,
+        detail_key=DETAIL_OK,
+        detail="ok",
+    )

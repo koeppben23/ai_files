@@ -49,6 +49,19 @@ def test_gate_evaluator_uses_registered_default_reason_codes():
 
 
 @pytest.mark.governance
+def test_gate_evaluator_can_enforce_registered_reason_codes():
+    """Optional enforcement should fail-close unknown blocked reason codes."""
+
+    evaluation = evaluate_gate(
+        gate_key="P5-Architecture",
+        blocked=True,
+        reason_code="BLOCKED-NOT-REGISTERED",
+        enforce_registered_reason_code=True,
+    )
+    assert evaluation.reason_code == BLOCKED_UNSPECIFIED
+
+
+@pytest.mark.governance
 def test_recovery_invariant_requires_primary_action_and_command():
     """Fail-closed recovery contract requires both fields to be non-empty."""
 
