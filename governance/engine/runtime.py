@@ -28,6 +28,33 @@ class EngineRuntimeDecision:
     selfcheck: EngineSelfcheckResult
 
 
+def golden_parity_fields(
+    decision: EngineRuntimeDecision,
+    *,
+    blocked_next_command: str = "/start",
+    ok_next_command: str = "none",
+) -> dict[str, str]:
+    """Extract semantic parity fields used by Wave B golden checks.
+
+    The returned fields align with the baseline parity contract:
+    `status`, `phase`, `reason_code`, and `next_action.command`.
+    """
+
+    runtime_blocked = decision.reason_code.startswith("BLOCKED-")
+    gate_blocked = decision.gate.status == "blocked"
+    blocked = runtime_blocked or gate_blocked
+    reason_code = decision.reason_code
+    if reason_code == REASON_CODE_NONE and gate_blocked:
+        reason_code = decision.gate.reason_code
+
+    return {
+        "status": "blocked" if blocked else "normal",
+        "phase": decision.state.phase,
+        "reason_code": reason_code,
+        "next_action.command": blocked_next_command if blocked else ok_next_command,
+    }
+
+
 def evaluate_runtime_activation(
     *,
     phase: str,
