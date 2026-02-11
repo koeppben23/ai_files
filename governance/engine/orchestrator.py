@@ -19,6 +19,7 @@ from governance.engine.reason_codes import (
     BLOCKED_PACK_LOCK_REQUIRED,
     BLOCKED_PERMISSION_DENIED,
     BLOCKED_REPO_IDENTITY_RESOLUTION,
+    BLOCKED_RELEASE_HYGIENE,
     BLOCKED_RULESET_HASH_MISMATCH,
     BLOCKED_SYSTEM_MODE_REQUIRED,
     NOT_VERIFIED_MISSING_EVIDENCE,
@@ -34,6 +35,7 @@ from governance.engine.runtime import (
     evaluate_runtime_activation,
     golden_parity_fields,
 )
+from governance.engine.selfcheck import run_engine_selfcheck
 from governance.engine.surface_policy import (
     capability_satisfies_requirement,
     mode_satisfies_requirement,
@@ -152,6 +154,23 @@ def _build_activation_hash(
     return _hash_payload(payload)
 
 
+def _build_hash_mismatch_diff(
+    *,
+    observed_ruleset_hash: str | None,
+    observed_activation_hash: str | None,
+    expected_ruleset_hash: str,
+    expected_activation_hash: str,
+) -> dict[str, str]:
+    """Build minimal deterministic mismatch diff payload."""
+
+    diff: dict[str, str] = {}
+    if observed_ruleset_hash and observed_ruleset_hash.strip() != expected_ruleset_hash:
+        diff["ruleset_hash"] = f"{observed_ruleset_hash.strip()}->{expected_ruleset_hash}"
+    if observed_activation_hash and observed_activation_hash.strip() != expected_activation_hash:
+        diff["activation_hash"] = f"{observed_activation_hash.strip()}->{expected_activation_hash}"
+    return diff
+
+
 def run_engine_orchestrator(
     *,
     adapter: HostAdapter,
@@ -175,6 +194,7 @@ def run_engine_orchestrator(
     require_hash_match: bool = False,
     required_evidence_ids: list[str] | None = None,
     observed_evidence_ids: list[str] | None = None,
+    release_hygiene_entries: tuple[str, ...] = (),
 ) -> EngineOrchestratorOutput:
     """Run one deterministic engine orchestration cycle.
 
@@ -211,6 +231,7 @@ def run_engine_orchestrator(
     expected_pack_lock_hash = ""
     observed_pack_lock_hash = ""
     missing_evidence = tuple(sorted(set(required_evidence_ids or []) - set(observed_evidence_ids or [])))
+    hash_diff: dict[str, str] = {}
 
     gate_blocked = False
     gate_reason_code = REASON_CODE_NONE
@@ -294,6 +315,18 @@ def run_engine_orchestrator(
         elif observed_activation_hash and observed_activation_hash.strip() != activation_hash:
             gate_blocked = True
             gate_reason_code = BLOCKED_ACTIVATION_HASH_MISMATCH
+        hash_diff = _build_hash_mismatch_diff(
+            observed_ruleset_hash=observed_ruleset_hash,
+            observed_activation_hash=observed_activation_hash,
+            expected_ruleset_hash=ruleset_hash,
+            expected_activation_hash=activation_hash,
+        )
+
+    if not gate_blocked and effective_mode in {"system", "pipeline"} and release_hygiene_entries:
+        hygiene = run_engine_selfcheck(release_hygiene_entries=release_hygiene_entries)
+        if not hygiene.ok and "release_metadata_hygiene_violation" in hygiene.failed_checks:
+            gate_blocked = True
+            gate_reason_code = BLOCKED_RELEASE_HYGIENE
 
     runtime = evaluate_runtime_activation(
         phase=phase,
@@ -332,18 +365,23 @@ def run_engine_orchestrator(
         reason_payload = build_reason_payload(
             status="BLOCKED",
             reason_code=parity["reason_code"],
+            surface=target_path,
+            signals_used=("write_policy", "mode_policy", "capabilities", "hash_gate"),
             primary_action="Resolve the active blocker for this gate.",
-            recovery="Collect required evidence and rerun deterministic checks.",
-            command=parity["next_action.command"],
+            recovery_steps=("Collect required evidence and rerun deterministic checks.",),
+            next_command=parity["next_action.command"],
             impact="Workflow is blocked until the issue is fixed.",
+            deviation=hash_diff,
         ).to_dict()
     elif parity["status"] == "not_verified":
         reason_payload = build_reason_payload(
             status="NOT_VERIFIED",
             reason_code=parity["reason_code"],
+            surface=target_path,
+            signals_used=("evidence_requirements",),
             primary_action="Provide missing evidence and rerun.",
-            recovery="Gather host evidence for all required claims.",
-            command="show diagnostics",
+            recovery_steps=("Gather host evidence for all required claims.",),
+            next_command="show diagnostics",
             impact="Claims are not evidence-backed yet.",
             missing_evidence=missing_evidence,
         ).to_dict()
@@ -351,10 +389,22 @@ def run_engine_orchestrator(
         reason_payload = build_reason_payload(
             status="WARN",
             reason_code=parity["reason_code"],
+            surface=target_path,
+            signals_used=("degraded_execution",),
             impact="Execution continues with degraded capabilities.",
+            recovery_steps=("Review warning impact and continue or remediate.",),
+            next_command="none",
+            deviation=runtime.deviation.__dict__ if runtime.deviation is not None else {},
         ).to_dict()
     else:
-        reason_payload = build_reason_payload(status="OK", reason_code=REASON_CODE_NONE).to_dict()
+        reason_payload = build_reason_payload(
+            status="OK",
+            reason_code=REASON_CODE_NONE,
+            surface=target_path,
+            impact="all checks passed",
+            next_command="none",
+            recovery_steps=(),
+        ).to_dict()
 
     return EngineOrchestratorOutput(
         repo_context=repo_context,

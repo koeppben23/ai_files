@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import gzip
 import hashlib
+import json
 import os
 import re
 import shutil
@@ -107,6 +108,8 @@ def _is_excluded(path: Path, repo_root: Path) -> bool:
     rel = path.relative_to(repo_root)
     if any(part in EXCLUDE_DIRS for part in rel.parts):
         return True
+    if any(part.startswith(".tmp_dist") for part in rel.parts):
+        return True
     # Exclude AppleDouble sidecar files (resource-fork metadata).
     if any(part.startswith("._") for part in rel.parts):
         return True
@@ -133,7 +136,17 @@ def _should_include_file(p: Path, rel: str) -> bool:
     return False
 
 
-def collect_release_files(repo_root: Path) -> list[Path]:
+def _is_under(path: Path, root: Path) -> bool:
+    """Return True when path is located under root."""
+
+    try:
+        path.relative_to(root)
+        return True
+    except ValueError:
+        return False
+
+
+def collect_release_files(repo_root: Path, *, excluded_roots: tuple[Path, ...] = ()) -> list[Path]:
     """
     Allowlist strategy:
       - include: install.py, LICENSE*, LICENCE*, *.md, *.json,
@@ -144,6 +157,8 @@ def collect_release_files(repo_root: Path) -> list[Path]:
     out: list[Path] = []
     for p in repo_root.rglob("*"):
         if not p.is_file():
+            continue
+        if any(_is_under(p, ex) for ex in excluded_roots):
             continue
         if _is_excluded(p, repo_root):
             continue
@@ -221,6 +236,23 @@ def write_sha256sums(dist_dir: Path, artifacts: list[Path]) -> Path:
     return out
 
 
+def write_verification_report(dist_dir: Path, artifacts: list[Path]) -> Path:
+    """Write machine-readable verification report sidecar for release artifacts."""
+
+    artifact_hashes = {a.name: sha256_file(a) for a in artifacts}
+    report = {
+        "schema": "governance-verification-report.v1",
+        "pytest_summary": os.environ.get("OPENCODE_PYTEST_SUMMARY", "not_provided"),
+        "golden_summary": os.environ.get("OPENCODE_GOLDEN_SUMMARY", "not_provided"),
+        "e2e_summary": os.environ.get("OPENCODE_E2E_SUMMARY", "not_provided"),
+        "governance_lint": os.environ.get("OPENCODE_GOVERNANCE_LINT", "not_provided"),
+        "artifact_hashes": artifact_hashes,
+    }
+    out = dist_dir / "verification-report.json"
+    out.write_text(json.dumps(report, indent=2, ensure_ascii=True) + "\n", encoding="utf-8")
+    return out
+
+
 def parse_args(argv: list[str]) -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Build deterministic release artifacts (zip + tar.gz).")
     p.add_argument("--out-dir", default="dist", help="Output directory (default: dist)")
@@ -238,7 +270,7 @@ def main(argv: list[str]) -> int:
     version = _read_governance_version(bp.repo_root / "master.md")
     prefix = f"governance-{version}"
 
-    files = collect_release_files(bp.repo_root)
+    files = collect_release_files(bp.repo_root, excluded_roots=(bp.dist_dir,))
 
     formats = [s.strip().lower() for s in str(args.formats).split(",") if s.strip()]
     artifacts: list[Path] = []
@@ -256,6 +288,7 @@ def main(argv: list[str]) -> int:
         artifacts.append(out_tgz)
 
     sums = write_sha256sums(bp.dist_dir, artifacts)
+    verification = write_verification_report(bp.dist_dir, artifacts)
     
     def _pretty(p: Path) -> str:
         """Pretty-print artifact paths without assuming they live under repo_root."""
@@ -268,6 +301,7 @@ def main(argv: list[str]) -> int:
     for a in artifacts:
         print(f"  - {_pretty(a)}")
     print(f"  - {_pretty(sums)}")
+    print(f"  - {_pretty(verification)}")
 
     return 0
 

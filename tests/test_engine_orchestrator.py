@@ -605,8 +605,40 @@ def test_orchestrator_marks_not_verified_when_required_evidence_missing(tmp_path
 
 
 @pytest.mark.governance
+def test_orchestrator_blocks_on_release_hygiene_violation_in_pipeline_mode(tmp_path: Path):
+    """Pipeline/system modes should fail closed on release hygiene violations."""
+
+    repo_root = _make_git_root(tmp_path / "repo")
+    adapter = StubAdapter(
+        env={"CI": "true", "OPENCODE_REPO_ROOT": str(repo_root)},
+        cwd_path=repo_root,
+        caps=HostCapabilities(
+            cwd_trust="trusted",
+            fs_read_commands_home=True,
+            fs_write_config_root=True,
+            fs_write_commands_home=True,
+            fs_write_workspaces_home=True,
+            fs_write_repo_root=True,
+            exec_allowed=True,
+            git_available=True,
+        ),
+        default_mode="pipeline",
+    )
+    out = run_engine_orchestrator(
+        adapter=adapter,
+        phase="1.1-Bootstrap",
+        active_gate="Persistence Preflight",
+        mode="OK",
+        next_gate_condition="Persistence helper execution completed",
+        release_hygiene_entries=("__MACOSX/file",),
+    )
+    assert out.parity["status"] == "blocked"
+    assert out.parity["reason_code"] == "BLOCKED-RELEASE-HYGIENE"
+
+
+@pytest.mark.governance
 def test_orchestrator_emits_valid_blocked_reason_payload_shape(tmp_path: Path):
-    """Blocked outputs should emit one-action/one-recovery/one-command payload shape."""
+    """Blocked outputs should emit one-action/one-recovery-step/one-command shape."""
 
     repo_root = _make_git_root(tmp_path / "repo")
     adapter = StubAdapter(
@@ -632,6 +664,8 @@ def test_orchestrator_emits_valid_blocked_reason_payload_shape(tmp_path: Path):
     )
     payload = out.reason_payload
     assert payload["status"] == "BLOCKED"
+    assert payload["surface"] == "${WORKSPACE_MEMORY_FILE}"
+    assert isinstance(payload["signals_used"], tuple)
     assert isinstance(payload["primary_action"], str) and payload["primary_action"].strip()
-    assert isinstance(payload["recovery"], str) and payload["recovery"].strip()
-    assert isinstance(payload["command"], str) and payload["command"].strip()
+    assert isinstance(payload["recovery_steps"], tuple) and len(payload["recovery_steps"]) == 1
+    assert isinstance(payload["next_command"], str) and payload["next_command"].strip()

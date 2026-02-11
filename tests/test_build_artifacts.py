@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import re
 import tarfile
 import zipfile
@@ -44,12 +45,15 @@ def test_build_is_deterministic(tmp_path: Path):
     a2_zip = d2 / f"{prefix}.zip"
     a1_tgz = d1 / f"{prefix}.tar.gz"
     a2_tgz = d2 / f"{prefix}.tar.gz"
+    a1_report = d1 / "verification-report.json"
+    a2_report = d2 / "verification-report.json"
 
-    for p in [a1_zip, a2_zip, a1_tgz, a2_tgz]:
+    for p in [a1_zip, a2_zip, a1_tgz, a2_tgz, a1_report, a2_report]:
         assert p.exists(), f"Missing artifact: {p}"
 
     assert sha256_file(a1_zip) == sha256_file(a2_zip), "ZIP artifact is not deterministic across builds"
     assert sha256_file(a1_tgz) == sha256_file(a2_tgz), "TAR.GZ artifact is not deterministic across builds"
+    assert sha256_file(a1_report) == sha256_file(a2_report), "verification report is not deterministic"
 
 
 @pytest.mark.build
@@ -62,7 +66,15 @@ def test_artifacts_contents_follow_policy(tmp_path: Path):
 
     zip_path = dist / f"{prefix}.zip"
     tgz_path = dist / f"{prefix}.tar.gz"
+    verification_report = dist / "verification-report.json"
     assert zip_path.exists() and tgz_path.exists()
+    assert verification_report.exists()
+
+    report_payload = json.loads(verification_report.read_text(encoding="utf-8"))
+    assert report_payload.get("schema") == "governance-verification-report.v1"
+    assert isinstance(report_payload.get("artifact_hashes"), dict)
+    assert f"{prefix}.zip" in report_payload["artifact_hashes"]
+    assert f"{prefix}.tar.gz" in report_payload["artifact_hashes"]
 
     forbidden_segments = {
         "/.github/",
