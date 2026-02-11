@@ -49,7 +49,7 @@ class SessionStateRepository:
         payload = json.loads(self.path.read_text(encoding="utf-8"))
         if not isinstance(payload, dict):
             raise ValueError("session state payload must be a JSON object")
-        return payload
+        return _normalize_dual_read_aliases(payload)
 
     def save(self, document: dict[str, Any]) -> None:
         """Persist one JSON document in deterministic formatting.
@@ -59,8 +59,53 @@ class SessionStateRepository:
         """
 
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        payload = json.dumps(document, indent=2, ensure_ascii=True) + "\n"
+        canonical = _canonicalize_for_write(document)
+        payload = json.dumps(canonical, indent=2, ensure_ascii=True) + "\n"
         _atomic_write_text(self.path, payload)
+
+
+def _normalize_dual_read_aliases(document: dict[str, Any]) -> dict[str, Any]:
+    """Normalize legacy aliases into canonical fields for phase-1 dual-read."""
+
+    normalized = json.loads(json.dumps(document))
+    state = normalized.get("SESSION_STATE")
+    if not isinstance(state, dict):
+        return normalized
+
+    repo_model = state.get("RepoModel")
+    if "RepoMapDigest" not in state and isinstance(repo_model, dict):
+        state["RepoMapDigest"] = json.loads(json.dumps(repo_model))
+
+    if "FastPathEvaluation" not in state:
+        legacy_fast_path = state.get("FastPath")
+        legacy_reason = state.get("FastPathReason")
+        if isinstance(legacy_fast_path, bool) or isinstance(legacy_reason, str):
+            eligible = bool(legacy_fast_path) if isinstance(legacy_fast_path, bool) else False
+            reason = legacy_reason.strip() if isinstance(legacy_reason, str) else "legacy fast path alias"
+            state["FastPathEvaluation"] = {
+                "Evaluated": True,
+                "Eligible": eligible,
+                "Applied": eligible,
+                "Reason": reason,
+                "Preconditions": {},
+                "DenyReasons": [] if eligible else ["legacy-alias-without-structured-evidence"],
+                "ReducedDiscoveryScope": {"PathsScanned": [], "Skipped": []},
+                "EvidenceRefs": [],
+            }
+
+    return normalized
+
+
+def _canonicalize_for_write(document: dict[str, Any]) -> dict[str, Any]:
+    """Write canonical session-state payload, dropping legacy aliases."""
+
+    canonical = _normalize_dual_read_aliases(document)
+    state = canonical.get("SESSION_STATE")
+    if isinstance(state, dict):
+        state.pop("RepoModel", None)
+        state.pop("FastPath", None)
+        state.pop("FastPathReason", None)
+    return canonical
 
 
 def _is_retryable_replace_error(exc: OSError) -> bool:

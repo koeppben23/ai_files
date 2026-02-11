@@ -146,3 +146,72 @@ def test_migration_stub_fails_closed_for_missing_session_state_object():
     )
     assert result.success is False
     assert result.reason_code == BLOCKED_STATE_OUTDATED
+
+
+@pytest.mark.governance
+def test_dual_read_maps_legacy_repo_model_into_canonical_repo_map_digest(tmp_path: Path):
+    """Dual-read should map legacy RepoModel alias to canonical RepoMapDigest."""
+
+    path = tmp_path / "workspaces" / "abc" / "SESSION_STATE.json"
+    repo = SessionStateRepository(path)
+    legacy = _session_state_doc()
+    legacy["SESSION_STATE"]["RepoModel"] = {"components": ["engine", "packs"]}
+    repo.save(legacy)
+    loaded = repo.load()
+    assert loaded is not None
+    assert loaded["SESSION_STATE"]["RepoMapDigest"] == {"components": ["engine", "packs"]}
+
+
+@pytest.mark.governance
+def test_dual_read_maps_legacy_fast_path_aliases_into_fast_path_evaluation(tmp_path: Path):
+    """Dual-read should synthesize canonical FastPathEvaluation from legacy fields."""
+
+    path = tmp_path / "workspaces" / "abc" / "SESSION_STATE.json"
+    repo = SessionStateRepository(path)
+    legacy = _session_state_doc()
+    legacy["SESSION_STATE"]["FastPath"] = True
+    legacy["SESSION_STATE"]["FastPathReason"] = "legacy reason"
+    repo.save(legacy)
+    loaded = repo.load()
+    assert loaded is not None
+    evaluation = loaded["SESSION_STATE"]["FastPathEvaluation"]
+    assert evaluation["Evaluated"] is True
+    assert evaluation["Eligible"] is True
+    assert evaluation["Applied"] is True
+    assert evaluation["Reason"] == "legacy reason"
+
+
+@pytest.mark.governance
+def test_write_only_new_drops_legacy_alias_fields(tmp_path: Path):
+    """Repository writes should keep canonical fields and drop legacy aliases."""
+
+    path = tmp_path / "workspaces" / "abc" / "SESSION_STATE.json"
+    repo = SessionStateRepository(path)
+    legacy = _session_state_doc()
+    legacy["SESSION_STATE"]["RepoModel"] = {"legacy": True}
+    legacy["SESSION_STATE"]["FastPath"] = False
+    legacy["SESSION_STATE"]["FastPathReason"] = "legacy"
+    repo.save(legacy)
+
+    persisted = session_repo_module.json.loads(path.read_text(encoding="utf-8"))
+    state = persisted["SESSION_STATE"]
+    assert "RepoModel" not in state
+    assert "FastPath" not in state
+    assert "FastPathReason" not in state
+    assert "RepoMapDigest" in state
+    assert "FastPathEvaluation" in state
+
+
+@pytest.mark.governance
+def test_dual_read_keeps_canonical_repo_map_digest_when_legacy_alias_also_present(tmp_path: Path):
+    """Canonical RepoMapDigest should win if both legacy and canonical fields exist."""
+
+    path = tmp_path / "workspaces" / "abc" / "SESSION_STATE.json"
+    repo = SessionStateRepository(path)
+    doc = _session_state_doc()
+    doc["SESSION_STATE"]["RepoModel"] = {"legacy": True}
+    doc["SESSION_STATE"]["RepoMapDigest"] = {"canonical": True}
+    repo.save(doc)
+    loaded = repo.load()
+    assert loaded is not None
+    assert loaded["SESSION_STATE"]["RepoMapDigest"] == {"canonical": True}
