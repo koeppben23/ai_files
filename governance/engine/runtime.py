@@ -10,11 +10,12 @@ from dataclasses import dataclass
 from typing import Literal
 
 from governance.engine.gate_evaluator import GateEvaluation, evaluate_gate
-from governance.engine.reason_codes import BLOCKED_ENGINE_SELFCHECK, REASON_CODE_NONE
+from governance.engine.reason_codes import BLOCKED_ENGINE_SELFCHECK, REASON_CODE_NONE, WARN_ENGINE_LIVE_DENIED
 from governance.engine.selfcheck import EngineSelfcheckResult, run_engine_selfcheck
 from governance.engine.state_machine import EngineState, build_state
 
 EngineRuntimeMode = Literal["shadow", "live"]
+LiveEnablePolicy = Literal["ci_strict", "auto_degrade"]
 
 
 @dataclass(frozen=True)
@@ -26,6 +27,7 @@ class EngineRuntimeDecision:
     gate: GateEvaluation
     reason_code: str
     selfcheck: EngineSelfcheckResult
+    deviation_code: str
 
 
 def golden_parity_fields(
@@ -68,6 +70,7 @@ def evaluate_runtime_activation(
     gate_reason_code: str = REASON_CODE_NONE,
     enforce_registered_reason_code: bool = False,
     enable_live_engine: bool = False,
+    live_enable_policy: LiveEnablePolicy = "ci_strict",
     selfcheck_result: EngineSelfcheckResult | None = None,
 ) -> EngineRuntimeDecision:
     """Compose Wave B runtime activation decision deterministically.
@@ -75,6 +78,9 @@ def evaluate_runtime_activation(
     Live mode is allowed only when `enable_live_engine=True` and selfcheck passes.
     Otherwise runtime remains in shadow mode with explicit reason code.
     """
+
+    if live_enable_policy not in ("ci_strict", "auto_degrade"):
+        raise ValueError("live_enable_policy must be one of: ci_strict, auto_degrade")
 
     state = build_state(
         phase=phase,
@@ -97,13 +103,22 @@ def evaluate_runtime_activation(
             gate=gate,
             reason_code=REASON_CODE_NONE,
             selfcheck=check,
+            deviation_code=REASON_CODE_NONE,
         )
 
-    reason = BLOCKED_ENGINE_SELFCHECK if enable_live_engine and not check.ok else REASON_CODE_NONE
+    reason = REASON_CODE_NONE
+    deviation = REASON_CODE_NONE
+    if enable_live_engine and not check.ok:
+        if live_enable_policy == "auto_degrade":
+            reason = WARN_ENGINE_LIVE_DENIED
+            deviation = "DEVIATION-ENGINE-LIVE-DENIED"
+        else:
+            reason = BLOCKED_ENGINE_SELFCHECK
     return EngineRuntimeDecision(
         runtime_mode="shadow",
         state=state,
         gate=gate,
         reason_code=reason,
         selfcheck=check,
+        deviation_code=deviation,
     )

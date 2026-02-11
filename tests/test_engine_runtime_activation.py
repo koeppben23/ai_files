@@ -2,7 +2,12 @@ from __future__ import annotations
 
 import pytest
 
-from governance.engine.reason_codes import BLOCKED_ENGINE_SELFCHECK, BLOCKED_UNSPECIFIED, REASON_CODE_NONE
+from governance.engine.reason_codes import (
+    BLOCKED_ENGINE_SELFCHECK,
+    BLOCKED_UNSPECIFIED,
+    REASON_CODE_NONE,
+    WARN_ENGINE_LIVE_DENIED,
+)
 from governance.engine.runtime import evaluate_runtime_activation, golden_parity_fields
 from governance.engine.selfcheck import EngineSelfcheckResult, run_engine_selfcheck
 
@@ -22,6 +27,7 @@ def test_runtime_activation_defaults_to_shadow_mode():
     assert decision.runtime_mode == "shadow"
     assert decision.reason_code == REASON_CODE_NONE
     assert decision.selfcheck.ok is True
+    assert decision.deviation_code == REASON_CODE_NONE
 
 
 @pytest.mark.governance
@@ -41,6 +47,7 @@ def test_runtime_activation_blocks_live_mode_on_failed_selfcheck():
     )
     assert decision.runtime_mode == "shadow"
     assert decision.reason_code == BLOCKED_ENGINE_SELFCHECK
+    assert decision.deviation_code == REASON_CODE_NONE
 
 
 @pytest.mark.governance
@@ -60,6 +67,7 @@ def test_runtime_activation_enters_live_mode_when_selfcheck_passes():
     )
     assert decision.runtime_mode == "live"
     assert decision.reason_code == REASON_CODE_NONE
+    assert decision.deviation_code == REASON_CODE_NONE
 
 
 @pytest.mark.governance
@@ -153,3 +161,49 @@ def test_runtime_activation_can_enforce_registered_gate_reason_codes():
         enforce_registered_reason_code=True,
     )
     assert decision.gate.reason_code == BLOCKED_UNSPECIFIED
+
+
+@pytest.mark.governance
+def test_runtime_activation_auto_degrades_when_live_enable_fails_selfcheck():
+    """Auto-degrade policy should not block bootstrap when live mode cannot be enabled."""
+
+    failed = EngineSelfcheckResult(ok=False, failed_checks=("reason_code_registry_has_duplicates",))
+    decision = evaluate_runtime_activation(
+        phase="4-Implement-Ready",
+        active_gate="Scope/Task selection",
+        mode="OK",
+        next_gate_condition="Concrete implementation target is defined",
+        gate_key="P4-Entry",
+        gate_blocked=False,
+        enable_live_engine=True,
+        live_enable_policy="auto_degrade",
+        selfcheck_result=failed,
+    )
+    assert decision.runtime_mode == "shadow"
+    assert decision.reason_code == WARN_ENGINE_LIVE_DENIED
+    assert decision.deviation_code == "DEVIATION-ENGINE-LIVE-DENIED"
+
+
+@pytest.mark.governance
+def test_runtime_parity_fields_for_auto_degrade_remain_non_blocking():
+    """Parity status should stay non-blocking when auto-degrade policy is active."""
+
+    failed = EngineSelfcheckResult(ok=False, failed_checks=("reason_code_registry_has_duplicates",))
+    decision = evaluate_runtime_activation(
+        phase="4-Implement-Ready",
+        active_gate="Scope/Task selection",
+        mode="OK",
+        next_gate_condition="Concrete implementation target is defined",
+        gate_key="P4-Entry",
+        gate_blocked=False,
+        enable_live_engine=True,
+        live_enable_policy="auto_degrade",
+        selfcheck_result=failed,
+    )
+    parity = golden_parity_fields(decision)
+    assert parity == {
+        "status": "ok",
+        "phase": "4-Implement-Ready",
+        "reason_code": WARN_ENGINE_LIVE_DENIED,
+        "next_action.command": "none",
+    }
