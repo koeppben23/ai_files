@@ -24,6 +24,7 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
   - `diagnostics/DOCS_GOVERNANCE_QUALITY_BENCHMARK_PACK.json`
   - `diagnostics/FALLBACK_MINIMUM_QUALITY_BENCHMARK_PACK.json`
   - `docs/quality-benchmark-pack-matrix.md`
+- Add benchmark runner script `scripts/run_quality_benchmark.py` to execute pack scoring with evidence gates (`PASS`/`FAIL`/`NOT_VERIFIED`) and machine-readable output.
 - Add operator-facing benchmark execution guidance in `README.md` (pack selection, run flow, evidence/scoring contract) with Python runbook linkage.
 - Add deterministic SESSION_STATE migration tool `scripts/migrate_session_state.py` with first-write `.backup` behavior and machine-readable exit codes (`0=ok`, `2=blocked`).
 - Add two-layer render modules under `governance/render/` (`intent_router.py`, `delta_renderer.py`, `token_guard.py`, `render_contract.py`) for compact default output and deterministic detail expansion.

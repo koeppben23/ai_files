@@ -640,6 +640,12 @@ Quick run flow:
 4. Score using the rubric/thresholds in the pack.
 5. Apply no-claim-without-evidence strictly: missing or stale required evidence remains `NOT_VERIFIED`.
 
+Optional runner helper:
+
+```bash
+python3 scripts/run_quality_benchmark.py --pack diagnostics/PYTHON_QUALITY_BENCHMARK_PACK.json
+```
+
 Reference runbook:
 
 - `docs/python-quality-benchmark-pack.md`
