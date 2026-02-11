@@ -60,7 +60,7 @@ def test_orchestrator_blocks_when_cwd_is_not_git_root_and_git_is_unavailable(tmp
     assert out.parity == {
         "status": "blocked",
         "phase": "1.1-Bootstrap",
-        "reason_code": "BLOCKED-WORKSPACE-PERSISTENCE",
+        "reason_code": "BLOCKED-REPO-IDENTITY-RESOLUTION",
         "next_action.command": "/start",
     }
 

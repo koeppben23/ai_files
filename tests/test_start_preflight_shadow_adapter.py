@@ -20,14 +20,17 @@ def _load_module():
 
 
 @pytest.mark.governance
-def test_engine_shadow_snapshot_is_available_and_reports_parity_fields():
+def test_engine_shadow_snapshot_is_available_and_reports_parity_fields(monkeypatch: pytest.MonkeyPatch):
     """Shadow snapshot should expose deterministic parity fields when available."""
 
+    monkeypatch.chdir(REPO_ROOT)
+    monkeypatch.setenv("OPENCODE_REPO_ROOT", str(REPO_ROOT))
     module = _load_module()
     snapshot = module.build_engine_shadow_snapshot()
     assert snapshot["available"] is True
     assert snapshot["runtime_mode"] == "shadow"
     assert snapshot["selfcheck_ok"] is True
+    assert snapshot["repo_context_source"].startswith("env:")
     assert snapshot["parity"] == {
         "status": "ok",
         "phase": "1.1-Bootstrap",

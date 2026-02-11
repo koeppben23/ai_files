@@ -558,7 +558,8 @@ def build_engine_shadow_snapshot() -> dict[str, object]:
     """
 
     try:
-        from governance.engine.runtime import evaluate_runtime_activation, golden_parity_fields
+        from governance.engine.adapters import OpenCodeDesktopAdapter
+        from governance.engine.orchestrator import run_engine_orchestrator
     except Exception as exc:  # pragma: no cover - exercised in packaged hosts where module may be absent
         return {
             "available": False,
@@ -566,21 +567,22 @@ def build_engine_shadow_snapshot() -> dict[str, object]:
             "error": str(exc),
         }
 
-    decision = evaluate_runtime_activation(
+    output = run_engine_orchestrator(
+        adapter=OpenCodeDesktopAdapter(),
         phase="1.1-Bootstrap",
         active_gate="Persistence Preflight",
         mode="OK",
         next_gate_condition="Persistence helper execution completed",
         gate_key="PERSISTENCE",
-        gate_blocked=False,
+        target_path="${WORKSPACE_MEMORY_FILE}",
         enable_live_engine=False,
     )
-    parity = golden_parity_fields(decision)
     return {
         "available": True,
-        "runtime_mode": decision.runtime_mode,
-        "selfcheck_ok": decision.selfcheck.ok,
-        "parity": parity,
+        "runtime_mode": output.runtime.runtime_mode,
+        "selfcheck_ok": output.runtime.selfcheck.ok,
+        "repo_context_source": output.repo_context.source,
+        "parity": output.parity,
     }
 
 

@@ -19,6 +19,16 @@ LiveEnablePolicy = Literal["ci_strict", "auto_degrade"]
 
 
 @dataclass(frozen=True)
+class EngineDeviation:
+    """Structured deviation payload for non-blocking runtime downgrades."""
+
+    type: str
+    scope: str
+    impact: str
+    recovery: str
+
+
+@dataclass(frozen=True)
 class EngineRuntimeDecision:
     """Engine runtime activation decision with derived boundary artifacts."""
 
@@ -27,7 +37,7 @@ class EngineRuntimeDecision:
     gate: GateEvaluation
     reason_code: str
     selfcheck: EngineSelfcheckResult
-    deviation_code: str
+    deviation: EngineDeviation | None
 
 
 def golden_parity_fields(
@@ -103,15 +113,20 @@ def evaluate_runtime_activation(
             gate=gate,
             reason_code=REASON_CODE_NONE,
             selfcheck=check,
-            deviation_code=REASON_CODE_NONE,
+            deviation=None,
         )
 
     reason = REASON_CODE_NONE
-    deviation = REASON_CODE_NONE
+    deviation: EngineDeviation | None = None
     if enable_live_engine and not check.ok:
         if live_enable_policy == "auto_degrade":
             reason = WARN_ENGINE_LIVE_DENIED
-            deviation = "DEVIATION-ENGINE-LIVE-DENIED"
+            deviation = EngineDeviation(
+                type="engine_live_denied",
+                scope="runtime_activation",
+                impact="live mode disabled; running in shadow mode",
+                recovery="fix selfcheck failures or use ci_strict with explicit remediation",
+            )
         else:
             reason = BLOCKED_ENGINE_SELFCHECK
     return EngineRuntimeDecision(
@@ -120,5 +135,5 @@ def evaluate_runtime_activation(
         gate=gate,
         reason_code=reason,
         selfcheck=check,
-        deviation_code=deviation,
+        deviation=deviation,
     )

@@ -9,6 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import os
 from pathlib import Path
+import shutil
 from typing import Literal, Mapping, Protocol
 
 
@@ -30,11 +31,17 @@ class HostAdapter(Protocol):
     def capabilities(self) -> HostCapabilities:
         """Return static capability flags for the current host/runtime."""
 
+        ...
+
     def environment(self) -> Mapping[str, str]:
         """Return host environment variables used by context resolution."""
 
+        ...
+
     def cwd(self) -> Path:
         """Return current working directory as seen by the host."""
+
+        ...
 
 
 @dataclass(frozen=True)
@@ -47,6 +54,32 @@ class LocalHostAdapter:
 
     def capabilities(self) -> HostCapabilities:
         return HostCapabilities(cwd_trust=self.cwd_trust, fs_read=self.fs_read, git_available=self.git_available)
+
+    def environment(self) -> Mapping[str, str]:
+        return os.environ
+
+    def cwd(self) -> Path:
+        return Path.cwd().resolve()
+
+
+@dataclass(frozen=True)
+class OpenCodeDesktopAdapter:
+    """Desktop host adapter with conservative capability defaults.
+
+    Desktop mode treats cwd as untrusted by default and enables parent git-root
+    search in the orchestrator.
+    """
+
+    cwd_trust: CwdTrustLevel = "untrusted"
+    fs_read: bool = True
+    git_available_override: bool | None = None
+
+    def capabilities(self) -> HostCapabilities:
+        git_available = self.git_available_override
+        if git_available is None:
+            disabled = os.getenv("OPENCODE_DISABLE_GIT", "").strip() == "1"
+            git_available = (shutil.which("git") is not None) and not disabled
+        return HostCapabilities(cwd_trust=self.cwd_trust, fs_read=self.fs_read, git_available=git_available)
 
     def environment(self) -> Mapping[str, str]:
         return os.environ

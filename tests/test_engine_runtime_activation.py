@@ -27,7 +27,7 @@ def test_runtime_activation_defaults_to_shadow_mode():
     assert decision.runtime_mode == "shadow"
     assert decision.reason_code == REASON_CODE_NONE
     assert decision.selfcheck.ok is True
-    assert decision.deviation_code == REASON_CODE_NONE
+    assert decision.deviation is None
 
 
 @pytest.mark.governance
@@ -47,7 +47,7 @@ def test_runtime_activation_blocks_live_mode_on_failed_selfcheck():
     )
     assert decision.runtime_mode == "shadow"
     assert decision.reason_code == BLOCKED_ENGINE_SELFCHECK
-    assert decision.deviation_code == REASON_CODE_NONE
+    assert decision.deviation is None
 
 
 @pytest.mark.governance
@@ -67,7 +67,7 @@ def test_runtime_activation_enters_live_mode_when_selfcheck_passes():
     )
     assert decision.runtime_mode == "live"
     assert decision.reason_code == REASON_CODE_NONE
-    assert decision.deviation_code == REASON_CODE_NONE
+    assert decision.deviation is None
 
 
 @pytest.mark.governance
@@ -181,7 +181,9 @@ def test_runtime_activation_auto_degrades_when_live_enable_fails_selfcheck():
     )
     assert decision.runtime_mode == "shadow"
     assert decision.reason_code == WARN_ENGINE_LIVE_DENIED
-    assert decision.deviation_code == "DEVIATION-ENGINE-LIVE-DENIED"
+    assert decision.deviation is not None
+    assert decision.deviation.type == "engine_live_denied"
+    assert decision.deviation.scope == "runtime_activation"
 
 
 @pytest.mark.governance

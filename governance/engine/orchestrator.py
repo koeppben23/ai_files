@@ -11,10 +11,15 @@ from dataclasses import dataclass
 from governance.context.repo_context_resolver import RepoRootResolutionResult, resolve_repo_root
 from governance.engine.adapters import HostAdapter
 from governance.engine.reason_codes import (
-    BLOCKED_WORKSPACE_PERSISTENCE,
+    BLOCKED_REPO_IDENTITY_RESOLUTION,
     REASON_CODE_NONE,
 )
-from governance.engine.runtime import EngineRuntimeDecision, evaluate_runtime_activation, golden_parity_fields
+from governance.engine.runtime import (
+    EngineRuntimeDecision,
+    LiveEnablePolicy,
+    evaluate_runtime_activation,
+    golden_parity_fields,
+)
 from governance.persistence.write_policy import WriteTargetPolicyResult, evaluate_target_path
 
 
@@ -39,7 +44,7 @@ def run_engine_orchestrator(
     target_path: str = "${WORKSPACE_MEMORY_FILE}",
     enable_live_engine: bool = False,
     enforce_registered_reason_code: bool = False,
-    live_enable_policy: str = "ci_strict",
+    live_enable_policy: LiveEnablePolicy = "ci_strict",
 ) -> EngineOrchestratorOutput:
     """Run one deterministic engine orchestration cycle.
 
@@ -62,7 +67,7 @@ def run_engine_orchestrator(
         gate_reason_code = write_policy.reason_code
     elif not repo_context.is_git_root and not caps.git_available:
         gate_blocked = True
-        gate_reason_code = BLOCKED_WORKSPACE_PERSISTENCE
+        gate_reason_code = BLOCKED_REPO_IDENTITY_RESOLUTION
 
     runtime = evaluate_runtime_activation(
         phase=phase,
