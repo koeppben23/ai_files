@@ -20,12 +20,16 @@ def test_reason_code_registry_contains_wave_a_baseline_codes():
     assert reason_codes.BLOCKED_ENGINE_SELFCHECK in reason_codes.CANONICAL_REASON_CODES
     assert reason_codes.BLOCKED_REPO_IDENTITY_RESOLUTION in reason_codes.CANONICAL_REASON_CODES
     assert reason_codes.BLOCKED_STATE_OUTDATED in reason_codes.CANONICAL_REASON_CODES
+    assert reason_codes.BLOCKED_PERMISSION_DENIED in reason_codes.CANONICAL_REASON_CODES
+    assert reason_codes.BLOCKED_EXEC_DISALLOWED in reason_codes.CANONICAL_REASON_CODES
     assert reason_codes.BLOCKED_PERSISTENCE_TARGET_DEGENERATE in reason_codes.CANONICAL_REASON_CODES
     assert reason_codes.BLOCKED_PERSISTENCE_PATH_VIOLATION in reason_codes.CANONICAL_REASON_CODES
     assert reason_codes.BLOCKED_UNSPECIFIED in reason_codes.CANONICAL_REASON_CODES
     assert reason_codes.WARN_UNMAPPED_AUDIT_REASON in reason_codes.CANONICAL_REASON_CODES
     assert reason_codes.WARN_WORKSPACE_PERSISTENCE in reason_codes.CANONICAL_REASON_CODES
     assert reason_codes.WARN_ENGINE_LIVE_DENIED in reason_codes.CANONICAL_REASON_CODES
+    assert reason_codes.WARN_MODE_DOWNGRADED in reason_codes.CANONICAL_REASON_CODES
+    assert reason_codes.WARN_PERMISSION_LIMITED in reason_codes.CANONICAL_REASON_CODES
     assert len(reason_codes.CANONICAL_REASON_CODES) == len(set(reason_codes.CANONICAL_REASON_CODES))
 
 

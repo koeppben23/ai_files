@@ -10,6 +10,7 @@ import re
 import shutil
 import subprocess
 import sys
+from datetime import datetime
 from pathlib import Path
 
 
@@ -254,6 +255,61 @@ def emit_preflight() -> None:
                 "impact": impact,
                 "next": nxt,
                 "missing_details": missing_details,
+            },
+            ensure_ascii=True,
+        )
+    )
+
+
+def emit_permission_probes() -> None:
+    """Emit deterministic permission probe evidence (`ttl=0`)."""
+
+    observed = datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
+    checks = []
+
+    commands_home = ROOT / "commands"
+    workspaces_home = ROOT / "workspaces"
+    checks.append({
+        "probe": "fs.read_commands_home",
+        "available": commands_home.exists() and os.access(commands_home, os.R_OK),
+    })
+    checks.append({
+        "probe": "fs.write_workspaces_home",
+        "available": (workspaces_home.exists() and os.access(workspaces_home, os.W_OK))
+        or (not workspaces_home.exists() and os.access(workspaces_home.parent, os.W_OK)),
+    })
+    checks.append({
+        "probe": "exec.allowed",
+        "available": os.access(sys.executable, os.X_OK),
+    })
+    checks.append({
+        "probe": "git.available",
+        "available": shutil.which("git") is not None,
+    })
+
+    available = [p["probe"] for p in checks if p["available"]]
+    missing = [p["probe"] for p in checks if not p["available"]]
+    status = "ok" if not missing else "degraded"
+    print(
+        json.dumps(
+            {
+                "permissionProbes": {
+                    "status": status,
+                    "observed_at": observed,
+                    "ttl": 0,
+                    "available": available,
+                    "missing": missing,
+                    "impact": (
+                        "all required runtime capabilities available"
+                        if not missing
+                        else "some runtime actions may be blocked or degraded"
+                    ),
+                    "next": (
+                        "continue bootstrap"
+                        if not missing
+                        else "grant required permissions or run in restricted mode with explicit recovery"
+                    ),
+                }
             },
             ensure_ascii=True,
         )
@@ -567,27 +623,51 @@ def build_engine_shadow_snapshot() -> dict[str, object]:
             "error": str(exc),
         }
 
-    output = run_engine_orchestrator(
-        adapter=OpenCodeDesktopAdapter(),
-        phase="1.1-Bootstrap",
-        active_gate="Persistence Preflight",
-        mode="OK",
-        next_gate_condition="Persistence helper execution completed",
-        gate_key="PERSISTENCE",
-        target_path="${WORKSPACE_MEMORY_FILE}",
-        enable_live_engine=False,
-    )
+    requested_mode = str(os.getenv("OPENCODE_OPERATING_MODE", "")).strip().lower()
+    if requested_mode not in {"user", "system"}:
+        requested_mode = ""
+
+    kwargs = {
+        "adapter": OpenCodeDesktopAdapter(),
+        "phase": "1.1-Bootstrap",
+        "active_gate": "Persistence Preflight",
+        "mode": "OK",
+        "next_gate_condition": "Persistence helper execution completed",
+        "gate_key": "PERSISTENCE",
+        "target_path": "${WORKSPACE_MEMORY_FILE}",
+        "enable_live_engine": False,
+    }
+    if requested_mode == "user":
+        output = run_engine_orchestrator(**kwargs, requested_operating_mode="user")
+    elif requested_mode == "system":
+        output = run_engine_orchestrator(**kwargs, requested_operating_mode="system")
+    else:
+        output = run_engine_orchestrator(**kwargs)
     return {
         "available": True,
         "runtime_mode": output.runtime.runtime_mode,
         "selfcheck_ok": output.runtime.selfcheck.ok,
         "repo_context_source": output.repo_context.source,
+        "effective_operating_mode": output.effective_operating_mode,
+        "capabilities_hash": output.capabilities_hash,
+        "mode_downgraded": output.mode_downgraded,
+        "deviation": (
+            {
+                "type": output.runtime.deviation.type,
+                "scope": output.runtime.deviation.scope,
+                "impact": output.runtime.deviation.impact,
+                "recovery": output.runtime.deviation.recovery,
+            }
+            if output.runtime.deviation is not None
+            else None
+        ),
         "parity": output.parity,
     }
 
 
 def main() -> int:
     emit_preflight()
+    emit_permission_probes()
     run_persistence_hook()
     if os.getenv("OPENCODE_ENGINE_SHADOW_EMIT") == "1":
         print(json.dumps({"engineRuntimeShadow": build_engine_shadow_snapshot()}, ensure_ascii=True))

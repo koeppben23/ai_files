@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from governance.engine.adapters import HostCapabilities
+from governance.engine.adapters import HostCapabilities, OperatingMode
 from governance.engine.orchestrator import run_engine_orchestrator
 
 
@@ -16,6 +16,7 @@ class StubAdapter:
     env: dict[str, str]
     cwd_path: Path
     caps: HostCapabilities
+    default_mode: OperatingMode = "user"
 
     def capabilities(self) -> HostCapabilities:
         return self.caps
@@ -25,6 +26,9 @@ class StubAdapter:
 
     def cwd(self) -> Path:
         return self.cwd_path.resolve()
+
+    def default_operating_mode(self) -> OperatingMode:
+        return self.default_mode
 
 
 def _make_git_root(path: Path) -> Path:
@@ -44,7 +48,16 @@ def test_orchestrator_blocks_when_cwd_is_not_git_root_and_git_is_unavailable(tmp
     adapter = StubAdapter(
         env={},
         cwd_path=cwd,
-        caps=HostCapabilities(cwd_trust="trusted", fs_read=True, git_available=False),
+        caps=HostCapabilities(
+            cwd_trust="trusted",
+            fs_read_commands_home=True,
+            fs_write_config_root=True,
+            fs_write_commands_home=True,
+            fs_write_workspaces_home=True,
+            fs_write_repo_root=True,
+            exec_allowed=True,
+            git_available=False,
+        ),
     )
 
     out = run_engine_orchestrator(
@@ -75,7 +88,16 @@ def test_orchestrator_uses_parent_git_root_search_for_untrusted_cwd(tmp_path: Pa
     adapter = StubAdapter(
         env={},
         cwd_path=nested,
-        caps=HostCapabilities(cwd_trust="untrusted", fs_read=True, git_available=False),
+        caps=HostCapabilities(
+            cwd_trust="untrusted",
+            fs_read_commands_home=True,
+            fs_write_config_root=True,
+            fs_write_commands_home=True,
+            fs_write_workspaces_home=True,
+            fs_write_repo_root=True,
+            exec_allowed=True,
+            git_available=False,
+        ),
     )
 
     out = run_engine_orchestrator(
@@ -100,7 +122,16 @@ def test_orchestrator_surfaces_write_policy_failures_as_blocking_reason(tmp_path
     adapter = StubAdapter(
         env={"OPENCODE_REPO_ROOT": str(repo_root)},
         cwd_path=repo_root,
-        caps=HostCapabilities(cwd_trust="trusted", fs_read=True, git_available=True),
+        caps=HostCapabilities(
+            cwd_trust="trusted",
+            fs_read_commands_home=True,
+            fs_write_config_root=True,
+            fs_write_commands_home=True,
+            fs_write_workspaces_home=True,
+            fs_write_repo_root=True,
+            exec_allowed=True,
+            git_available=True,
+        ),
     )
 
     out = run_engine_orchestrator(
@@ -119,3 +150,69 @@ def test_orchestrator_surfaces_write_policy_failures_as_blocking_reason(tmp_path
         "reason_code": "BLOCKED-PERSISTENCE-PATH-VIOLATION",
         "next_action.command": "/start",
     }
+
+
+@pytest.mark.governance
+def test_orchestrator_mode_downgrade_is_reported_when_system_capabilities_missing(tmp_path: Path):
+    """Requested system mode should deterministically downgrade when capabilities are insufficient."""
+
+    repo_root = _make_git_root(tmp_path / "repo")
+    adapter = StubAdapter(
+        env={"OPENCODE_REPO_ROOT": str(repo_root)},
+        cwd_path=repo_root,
+        caps=HostCapabilities(
+            cwd_trust="trusted",
+            fs_read_commands_home=False,
+            fs_write_config_root=True,
+            fs_write_commands_home=True,
+            fs_write_workspaces_home=True,
+            fs_write_repo_root=True,
+            exec_allowed=True,
+            git_available=True,
+        ),
+        default_mode="system",
+    )
+
+    out = run_engine_orchestrator(
+        adapter=adapter,
+        phase="1.1-Bootstrap",
+        active_gate="Persistence Preflight",
+        mode="OK",
+        next_gate_condition="Persistence helper execution completed",
+        requested_operating_mode="system",
+    )
+    assert out.effective_operating_mode == "user"
+    assert out.mode_downgraded is True
+    assert out.parity["status"] == "ok"
+    assert out.parity["reason_code"] == "WARN-MODE-DOWNGRADED"
+
+
+@pytest.mark.governance
+def test_orchestrator_blocks_when_exec_is_disallowed(tmp_path: Path):
+    """Execution-disallowed capability must fail closed with explicit reason code."""
+
+    repo_root = _make_git_root(tmp_path / "repo")
+    adapter = StubAdapter(
+        env={"OPENCODE_REPO_ROOT": str(repo_root)},
+        cwd_path=repo_root,
+        caps=HostCapabilities(
+            cwd_trust="trusted",
+            fs_read_commands_home=True,
+            fs_write_config_root=True,
+            fs_write_commands_home=True,
+            fs_write_workspaces_home=True,
+            fs_write_repo_root=True,
+            exec_allowed=False,
+            git_available=True,
+        ),
+    )
+
+    out = run_engine_orchestrator(
+        adapter=adapter,
+        phase="1.1-Bootstrap",
+        active_gate="Persistence Preflight",
+        mode="OK",
+        next_gate_condition="Persistence helper execution completed",
+    )
+    assert out.parity["status"] == "blocked"
+    assert out.parity["reason_code"] == "BLOCKED-EXEC-DISALLOWED"

@@ -31,6 +31,10 @@ def test_engine_shadow_snapshot_is_available_and_reports_parity_fields(monkeypat
     assert snapshot["runtime_mode"] == "shadow"
     assert snapshot["selfcheck_ok"] is True
     assert snapshot["repo_context_source"].startswith("env:")
+    assert snapshot["effective_operating_mode"] == "user"
+    assert isinstance(snapshot["capabilities_hash"], str) and len(snapshot["capabilities_hash"]) == 16
+    assert snapshot["mode_downgraded"] is False
+    assert snapshot["deviation"] is None
     assert snapshot["parity"] == {
         "status": "ok",
         "phase": "1.1-Bootstrap",
