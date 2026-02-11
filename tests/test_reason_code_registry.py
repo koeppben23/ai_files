@@ -25,8 +25,10 @@ def test_reason_code_registry_contains_wave_a_baseline_codes():
     assert reason_codes.BLOCKED_PACK_LOCK_REQUIRED in reason_codes.CANONICAL_REASON_CODES
     assert reason_codes.BLOCKED_PACK_LOCK_INVALID in reason_codes.CANONICAL_REASON_CODES
     assert reason_codes.BLOCKED_PACK_LOCK_MISMATCH in reason_codes.CANONICAL_REASON_CODES
+    assert reason_codes.BLOCKED_SURFACE_CONFLICT in reason_codes.CANONICAL_REASON_CODES
     assert reason_codes.BLOCKED_RULESET_HASH_MISMATCH in reason_codes.CANONICAL_REASON_CODES
     assert reason_codes.BLOCKED_ACTIVATION_HASH_MISMATCH in reason_codes.CANONICAL_REASON_CODES
+    assert reason_codes.BLOCKED_RELEASE_HYGIENE in reason_codes.CANONICAL_REASON_CODES
     assert reason_codes.BLOCKED_RELEASE_HYGIENE in reason_codes.CANONICAL_REASON_CODES
     assert reason_codes.BLOCKED_PERMISSION_DENIED in reason_codes.CANONICAL_REASON_CODES
     assert reason_codes.BLOCKED_EXEC_DISALLOWED in reason_codes.CANONICAL_REASON_CODES

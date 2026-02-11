@@ -15,6 +15,8 @@ def _manifest(
     engine_max: str = "9.9.9",
     requires: list[str] | None = None,
     conflicts_with: list[str] | None = None,
+    owns_surfaces: list[str] | None = None,
+    touches_surfaces: list[str] | None = None,
 ) -> dict:
     """Build a minimal valid manifest dict for lock resolver tests."""
 
@@ -27,6 +29,8 @@ def _manifest(
         },
         "requires": requires or [],
         "conflicts_with": conflicts_with or [],
+        "owns_surfaces": owns_surfaces or [],
+        "touches_surfaces": touches_surfaces or [],
     }
 
 
@@ -116,3 +120,55 @@ def test_pack_lock_write_is_deterministic(tmp_path: Path):
     write_pack_lock(path, lock)
     second = path.read_text(encoding="utf-8")
     assert first == second
+
+
+@pytest.mark.governance
+def test_pack_lock_fails_closed_on_duplicate_surface_owner():
+    """Resolver should fail when two packs own the same declared surface."""
+
+    manifests = {
+        "core": _manifest(pack_id="core", owns_surfaces=["session_state"]),
+        "addon": _manifest(pack_id="addon", owns_surfaces=["session_state"]),
+    }
+    with pytest.raises(ValueError, match="surface conflict detected"):
+        resolve_pack_lock(
+            manifests_by_id=manifests,
+            selected_pack_ids=["core", "addon"],
+            engine_version="2.0.0",
+        )
+
+
+@pytest.mark.governance
+def test_pack_lock_requires_owner_dependency_for_touched_surface():
+    """Touching a surface owned by another pack requires explicit dependency."""
+
+    manifests = {
+        "owner": _manifest(pack_id="owner", owns_surfaces=["session_state"]),
+        "consumer": _manifest(pack_id="consumer", touches_surfaces=["session_state"]),
+    }
+    with pytest.raises(ValueError, match="surface conflict detected"):
+        resolve_pack_lock(
+            manifests_by_id=manifests,
+            selected_pack_ids=["owner", "consumer"],
+            engine_version="2.0.0",
+        )
+
+
+@pytest.mark.governance
+def test_pack_lock_allows_touched_surface_when_owner_dependency_is_declared():
+    """Touching owner surfaces should pass when owner is required explicitly."""
+
+    manifests = {
+        "owner": _manifest(pack_id="owner", owns_surfaces=["session_state"]),
+        "consumer": _manifest(
+            pack_id="consumer",
+            requires=["owner"],
+            touches_surfaces=["session_state"],
+        ),
+    }
+    lock = resolve_pack_lock(
+        manifests_by_id=manifests,
+        selected_pack_ids=["consumer"],
+        engine_version="2.0.0",
+    )
+    assert lock["resolved_order"] == ["owner", "consumer"]

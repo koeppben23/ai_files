@@ -25,6 +25,8 @@ class PackManifest:
     compat_engine_max: str
     requires: tuple[str, ...]
     conflicts_with: tuple[str, ...]
+    owns_surfaces: tuple[str, ...]
+    touches_surfaces: tuple[str, ...]
 
 
 def _parse_semver(version: str) -> tuple[int, int, int]:
@@ -84,6 +86,8 @@ def normalize_manifest(manifest: dict[str, Any]) -> PackManifest:
 
     requires = _ensure_string_list(manifest.get("requires"), "requires")
     conflicts_with = _ensure_string_list(manifest.get("conflicts_with"), "conflicts_with")
+    owns_surfaces = _ensure_string_list(manifest.get("owns_surfaces"), "owns_surfaces")
+    touches_surfaces = _ensure_string_list(manifest.get("touches_surfaces"), "touches_surfaces")
 
     return PackManifest(
         id=pack_id.strip(),
@@ -92,6 +96,8 @@ def normalize_manifest(manifest: dict[str, Any]) -> PackManifest:
         compat_engine_max=engine_max.strip(),
         requires=tuple(sorted(set(requires))),
         conflicts_with=tuple(sorted(set(conflicts_with))),
+        owns_surfaces=tuple(sorted(set(owns_surfaces))),
+        touches_surfaces=tuple(sorted(set(touches_surfaces))),
     )
 
 
@@ -116,6 +122,8 @@ def _manifest_sha256(manifest: PackManifest) -> str:
         },
         "requires": list(manifest.requires),
         "conflicts_with": list(manifest.conflicts_with),
+        "owns_surfaces": list(manifest.owns_surfaces),
+        "touches_surfaces": list(manifest.touches_surfaces),
     }
     encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
@@ -169,6 +177,28 @@ def resolve_pack_lock(
             if conflict in closure:
                 raise ValueError(f"pack conflict detected: {pack_id!r} conflicts with {conflict!r}")
 
+    surface_owner: dict[str, str] = {}
+    for pack_id in resolved_ids:
+        manifest = normalized[pack_id]
+        for surface in manifest.owns_surfaces:
+            existing_owner = surface_owner.get(surface)
+            if existing_owner is not None and existing_owner != pack_id:
+                raise ValueError(
+                    f"surface conflict detected: {pack_id!r} and {existing_owner!r} both own {surface!r}"
+                )
+            surface_owner[surface] = pack_id
+
+    for pack_id in resolved_ids:
+        manifest = normalized[pack_id]
+        for surface in manifest.touches_surfaces:
+            owner = surface_owner.get(surface)
+            if owner is None or owner == pack_id:
+                continue
+            if owner not in manifest.requires:
+                raise ValueError(
+                    f"surface conflict detected: {pack_id!r} touches {surface!r} but does not require owner {owner!r}"
+                )
+
     indegree: dict[str, int] = {pack_id: 0 for pack_id in resolved_ids}
     adjacency: dict[str, set[str]] = {pack_id: set() for pack_id in resolved_ids}
     for pack_id in resolved_ids:
@@ -205,6 +235,8 @@ def resolve_pack_lock(
                 },
                 "requires": list(manifest.requires),
                 "conflicts_with": list(manifest.conflicts_with),
+                "owns_surfaces": list(manifest.owns_surfaces),
+                "touches_surfaces": list(manifest.touches_surfaces),
             }
         )
 

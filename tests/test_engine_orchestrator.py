@@ -506,6 +506,61 @@ def test_orchestrator_accepts_matching_pack_lock(tmp_path: Path):
 
 
 @pytest.mark.governance
+def test_orchestrator_maps_pack_surface_conflict_to_canonical_reason(tmp_path: Path):
+    """Pack surface ownership conflicts should map to BLOCKED-SURFACE-CONFLICT."""
+
+    repo_root = _make_git_root(tmp_path / "repo")
+    adapter = StubAdapter(
+        env={"OPENCODE_REPO_ROOT": str(repo_root)},
+        cwd_path=repo_root,
+        caps=HostCapabilities(
+            cwd_trust="trusted",
+            fs_read_commands_home=True,
+            fs_write_config_root=True,
+            fs_write_commands_home=True,
+            fs_write_workspaces_home=True,
+            fs_write_repo_root=True,
+            exec_allowed=True,
+            git_available=True,
+        ),
+    )
+    manifests = {
+        "core-a": {
+            "id": "core-a",
+            "version": "1.0.0",
+            "compat": {"engine_min": "1.0.0", "engine_max": "9.9.9"},
+            "requires": [],
+            "conflicts_with": [],
+            "owns_surfaces": ["session_state"],
+            "touches_surfaces": [],
+        },
+        "core-b": {
+            "id": "core-b",
+            "version": "1.0.0",
+            "compat": {"engine_min": "1.0.0", "engine_max": "9.9.9"},
+            "requires": [],
+            "conflicts_with": [],
+            "owns_surfaces": ["session_state"],
+            "touches_surfaces": [],
+        },
+    }
+
+    out = run_engine_orchestrator(
+        adapter=adapter,
+        phase="1.1-Bootstrap",
+        active_gate="Persistence Preflight",
+        mode="OK",
+        next_gate_condition="Persistence helper execution completed",
+        pack_manifests_by_id=manifests,
+        selected_pack_ids=["core-a", "core-b"],
+        pack_engine_version="2.0.0",
+        require_pack_lock=True,
+    )
+    assert out.parity["status"] == "blocked"
+    assert out.parity["reason_code"] == "BLOCKED-SURFACE-CONFLICT"
+
+
+@pytest.mark.governance
 def test_orchestrator_blocks_on_ruleset_hash_mismatch_when_required(tmp_path: Path):
     """Ruleset hash mismatch should fail closed when hash match is required."""
 

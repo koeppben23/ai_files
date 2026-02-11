@@ -17,6 +17,7 @@ from governance.engine.reason_codes import (
     BLOCKED_PACK_LOCK_INVALID,
     BLOCKED_PACK_LOCK_MISMATCH,
     BLOCKED_PACK_LOCK_REQUIRED,
+    BLOCKED_SURFACE_CONFLICT,
     BLOCKED_PERMISSION_DENIED,
     BLOCKED_REPO_IDENTITY_RESOLUTION,
     BLOCKED_RELEASE_HYGIENE,
@@ -269,28 +270,37 @@ def run_engine_orchestrator(
 
     if not gate_blocked and pack_manifests_by_id is not None and selected_pack_ids is not None and pack_engine_version is not None:
         manifests = {key: dict(value) for key, value in pack_manifests_by_id.items()}
-        expected_lock = resolve_pack_lock(
-            manifests_by_id=manifests,
-            selected_pack_ids=selected_pack_ids,
-            engine_version=pack_engine_version,
-        )
+        try:
+            expected_lock = resolve_pack_lock(
+                manifests_by_id=manifests,
+                selected_pack_ids=selected_pack_ids,
+                engine_version=pack_engine_version,
+            )
+        except ValueError as exc:
+            gate_blocked = True
+            if "surface conflict detected" in str(exc):
+                gate_reason_code = BLOCKED_SURFACE_CONFLICT
+            else:
+                gate_reason_code = BLOCKED_PACK_LOCK_INVALID
+            expected_lock = {"lock_hash": "", "schema": "governance-lock.v1"}
         expected_pack_lock_hash = str(expected_lock.get("lock_hash", ""))
         pack_lock_checked = True
 
-        if observed_pack_lock is None:
-            if require_pack_lock:
-                gate_blocked = True
-                gate_reason_code = BLOCKED_PACK_LOCK_REQUIRED
-        else:
-            observed_schema = observed_pack_lock.get("schema")
-            observed_hash = observed_pack_lock.get("lock_hash")
-            observed_pack_lock_hash = str(observed_hash) if observed_hash is not None else ""
-            if observed_schema != expected_lock.get("schema") or not isinstance(observed_hash, str) or not observed_hash:
-                gate_blocked = True
-                gate_reason_code = BLOCKED_PACK_LOCK_INVALID
-            elif observed_hash != expected_pack_lock_hash:
-                gate_blocked = True
-                gate_reason_code = BLOCKED_PACK_LOCK_MISMATCH
+        if not gate_blocked:
+            if observed_pack_lock is None:
+                if require_pack_lock:
+                    gate_blocked = True
+                    gate_reason_code = BLOCKED_PACK_LOCK_REQUIRED
+            else:
+                observed_schema = observed_pack_lock.get("schema")
+                observed_hash = observed_pack_lock.get("lock_hash")
+                observed_pack_lock_hash = str(observed_hash) if observed_hash is not None else ""
+                if observed_schema != expected_lock.get("schema") or not isinstance(observed_hash, str) or not observed_hash:
+                    gate_blocked = True
+                    gate_reason_code = BLOCKED_PACK_LOCK_INVALID
+                elif observed_hash != expected_pack_lock_hash:
+                    gate_blocked = True
+                    gate_reason_code = BLOCKED_PACK_LOCK_MISMATCH
 
     ruleset_hash = _build_ruleset_hash(
         selected_pack_ids=selected_pack_ids,
