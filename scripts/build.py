@@ -23,6 +23,7 @@ EXCLUDE_DIRS = {
     "dist",
     "tests",
     "scripts",
+    "__MACOSX",
     "__pycache__",
     ".pytest_cache",
     ".venv",
@@ -52,7 +53,12 @@ def _read_governance_version(master_md: Path) -> str:
 
 def _is_excluded(path: Path, repo_root: Path) -> bool:
     rel = path.relative_to(repo_root)
-    return any(part in EXCLUDE_DIRS for part in rel.parts)
+    if any(part in EXCLUDE_DIRS for part in rel.parts):
+        return True
+    # Exclude AppleDouble sidecar files (resource-fork metadata).
+    if any(part.startswith("._") for part in rel.parts):
+        return True
+    return False
 
 
 def _should_include_file(p: Path, rel: str) -> bool:

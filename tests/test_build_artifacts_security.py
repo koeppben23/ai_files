@@ -146,9 +146,10 @@ def test_release_archives_layout_and_contents_policy(built_artifacts):
         assert any(Path(n).name.upper().startswith(("LICENSE", "LICENCE")) for n in files), f"{label}: missing LICENSE*"
 
         # must NOT contain scripts/tests/dist (build allowlist + exclude dirs)
-        forbidden_dirs = ("/tests/", "/scripts/", "/dist/", "/.github/", "/.git/")
+        forbidden_dirs = ("/tests/", "/scripts/", "/dist/", "/.github/", "/.git/", "/__MACOSX/")
         bad = [n for n in files if any(d in n for d in forbidden_dirs)]
         assert not bad, f"{label}: forbidden paths included: {bad[:25]}"
+        assert not any("/._" in n for n in files), f"{label}: AppleDouble entries included: {files[:25]}"
 
         # allowlist file types:
         # - install.py

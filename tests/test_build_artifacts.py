@@ -64,7 +64,16 @@ def test_artifacts_contents_follow_policy(tmp_path: Path):
     tgz_path = dist / f"{prefix}.tar.gz"
     assert zip_path.exists() and tgz_path.exists()
 
-    forbidden_segments = {"/.github/", "/tests/", "/scripts/", "/dist/", "/__pycache__/", "/.pytest_cache/", "/.venv/"}
+    forbidden_segments = {
+        "/.github/",
+        "/tests/",
+        "/scripts/",
+        "/dist/",
+        "/__pycache__/",
+        "/.pytest_cache/",
+        "/.venv/",
+        "/__MACOSX/",
+    }
 
     # -------- ZIP policy --------
     with zipfile.ZipFile(zip_path, "r") as zf:
@@ -77,6 +86,7 @@ def test_artifacts_contents_follow_policy(tmp_path: Path):
         for n in names:
             for seg in forbidden_segments:
                 assert seg not in ("/" + n), f"Forbidden path segment {seg} found in ZIP member: {n}"
+            assert "/._" not in n, f"AppleDouble ZIP entry found: {n}"
 
         required = {
             f"{prefix}/install.py",
@@ -113,6 +123,7 @@ def test_artifacts_contents_follow_policy(tmp_path: Path):
         for n in names:
             for seg in forbidden_segments:
                 assert seg not in ("/" + n), f"Forbidden path segment {seg} found in TAR member: {n}"
+            assert "/._" not in n, f"AppleDouble TAR entry found: {n}"
 
         required = {
             f"{prefix}/install.py",
