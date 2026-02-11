@@ -85,6 +85,9 @@ DIAGNOSTICS_DIR_NAME = "diagnostics"
 # Governance runtime package copied into <config_root>/commands/governance/**
 GOVERNANCE_RUNTIME_DIR_NAME = "governance"
 
+FORBIDDEN_METADATA_SEGMENTS = {"__MACOSX"}
+FORBIDDEN_METADATA_FILENAMES = {".DS_Store", "Icon\r"}
+
 MANIFEST_NAME = "INSTALL_MANIFEST.json"
 MANIFEST_SCHEMA = "1.0"
 
@@ -315,6 +318,20 @@ def collect_unsafe_source_symlinks(source_dir: Path) -> list[str]:
 
     return sorted(unsafe)
 
+
+def _is_forbidden_metadata_path(path: Path, source_root: Path) -> bool:
+    """Return True when path is a filesystem metadata artifact."""
+
+    rel = path.relative_to(source_root)
+    if any(segment in FORBIDDEN_METADATA_SEGMENTS for segment in rel.parts):
+        return True
+    name = path.name
+    if name in FORBIDDEN_METADATA_FILENAMES:
+        return True
+    if name.startswith("._"):
+        return True
+    return False
+
 def collect_command_root_files(source_dir: Path) -> list[Path]:
     """
     Collect root-level governance files to copy into <config_root>/commands/.
@@ -334,6 +351,8 @@ def collect_command_root_files(source_dir: Path) -> list[Path]:
         name = p.name
         if name in EXCLUDE_ROOT_FILES:
             continue
+        if _is_forbidden_metadata_path(p, source_dir):
+            continue
 
         if name.lower().startswith("license"):
             files.append(p)
@@ -352,7 +371,13 @@ def collect_diagnostics_files(source_dir: Path) -> list[Path]:
     diag_dir = source_dir / DIAGNOSTICS_DIR_NAME
     if not diag_dir.exists() or not diag_dir.is_dir():
         return []
-    return sorted([p for p in diag_dir.rglob("*") if p.is_file() and not p.is_symlink()])
+    return sorted(
+        [
+            p
+            for p in diag_dir.rglob("*")
+            if p.is_file() and not p.is_symlink() and not _is_forbidden_metadata_path(p, source_dir)
+        ]
+    )
 
 
 def collect_governance_runtime_files(source_dir: Path) -> list[Path]:
@@ -361,7 +386,13 @@ def collect_governance_runtime_files(source_dir: Path) -> list[Path]:
     runtime_dir = source_dir / GOVERNANCE_RUNTIME_DIR_NAME
     if not runtime_dir.exists() or not runtime_dir.is_dir():
         return []
-    return sorted([p for p in runtime_dir.rglob("*") if p.is_file() and not p.is_symlink()])
+    return sorted(
+        [
+            p
+            for p in runtime_dir.rglob("*")
+            if p.is_file() and not p.is_symlink() and not _is_forbidden_metadata_path(p, source_dir)
+        ]
+    )
 
 
 def build_governance_paths_payload(config_root: Path, *, deterministic: bool) -> dict:
@@ -564,14 +595,26 @@ def collect_profile_files(source_dir: Path) -> list[Path]:
     profiles_src_dir = source_dir / PROFILES_DIR_NAME
     if not profiles_src_dir.exists():
         return []
-    return sorted([p for p in profiles_src_dir.rglob("*.md") if p.is_file() and not p.is_symlink()])
+    return sorted(
+        [
+            p
+            for p in profiles_src_dir.rglob("*.md")
+            if p.is_file() and not p.is_symlink() and not _is_forbidden_metadata_path(p, source_dir)
+        ]
+    )
 
 
 def collect_profile_addon_manifests(source_dir: Path) -> list[Path]:
     profiles_src_dir = source_dir / PROFILES_DIR_NAME
     if not profiles_src_dir.exists():
         return []
-    return sorted([p for p in profiles_src_dir.rglob("*.addon.yml") if p.is_file() and not p.is_symlink()])
+    return sorted(
+        [
+            p
+            for p in profiles_src_dir.rglob("*.addon.yml")
+            if p.is_file() and not p.is_symlink() and not _is_forbidden_metadata_path(p, source_dir)
+        ]
+    )
 
 
 def write_manifest(manifest_path: Path, manifest: dict, dry_run: bool) -> None:
