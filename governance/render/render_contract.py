@@ -8,6 +8,20 @@ from governance.render.delta_renderer import build_delta_state
 from governance.render.token_guard import apply_token_budget
 
 
+def _canonical_reason_code(raw_reason_code: str) -> str:
+    """Keep canonical reason code casing for non-none values.
+
+    Only blank/none-like values normalize to `none`.
+    """
+
+    value = raw_reason_code.strip()
+    if not value:
+        return "none"
+    if value.lower() == "none":
+        return "none"
+    return value
+
+
 def build_two_layer_output(
     *,
     status: str,
@@ -33,7 +47,7 @@ def build_two_layer_output(
     """Build deterministic two-layer response with budget-guarded details."""
 
     safe_details = apply_token_budget(mode=mode, details=details or {})
-    reason = reason_code.strip() or "none"
+    reason = _canonical_reason_code(reason_code)
     command = next_command.strip() or "none"
     missing = tuple(sorted(item.strip() for item in (missing_items or ()) if item.strip()))
     old_blockers = {item.strip() for item in (previous_blockers or ()) if item.strip()}
@@ -54,7 +68,9 @@ def build_two_layer_output(
         phase_value = str(item.get("phase", "unknown")).strip() if isinstance(item, dict) else "unknown"
         gate_value = str(item.get("active_gate", "unknown")).strip() if isinstance(item, dict) else "unknown"
         status_value = str(item.get("status", "unknown")).strip() if isinstance(item, dict) else "unknown"
-        reason_value = str(item.get("reason_code", "none")).strip() if isinstance(item, dict) else "none"
+        reason_value = (
+            _canonical_reason_code(str(item.get("reason_code", "none"))) if isinstance(item, dict) else "none"
+        )
         hash_value = str(item.get("snapshot_hash", "")).strip() if isinstance(item, dict) else ""
         timeline.append(
             {
@@ -87,8 +103,14 @@ def build_two_layer_output(
             )
     panel_rows = sorted(panel_rows, key=lambda row: (row["claim_id"], row["evidence_id"], row["observed_at"]))
 
+    phase_gate_line: str
+    if phase.strip() == "unknown" and active_gate.strip() == "unknown":
+        phase_gate_line = phase_gate.strip() or "unknown | unknown | [------] 0/6"
+    else:
+        phase_gate_line = f"{phase.strip()} | {active_gate.strip()} | {phase_progress_bar.strip()}"
+
     operator_view = {
-        "PHASE_GATE": f"{phase.strip()} | {active_gate.strip()} | {phase_progress_bar.strip()}",
+        "PHASE_GATE": phase_gate_line,
         "STATUS": status.strip(),
         "PRIMARY_REASON": reason,
         "NEXT_COMMAND": command,
@@ -100,9 +122,12 @@ def build_two_layer_output(
     }
     return {
         "header": {
-            "status": status.strip(),
-            "phase_gate": phase_gate.strip(),
+            "status": operator_view["STATUS"],
+            "phase_gate": operator_view["PHASE_GATE"],
             "primary_next_action": primary_action.strip(),
+            "reason_code": operator_view["PRIMARY_REASON"],
+            "next_command": operator_view["NEXT_COMMAND"],
+            "header_source": "operator_view",
         },
         "operator_view": operator_view,
         "reason_to_action": reason_to_action,

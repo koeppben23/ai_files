@@ -64,6 +64,8 @@ def test_render_contract_preserves_header_and_applies_budget_guard():
     assert output["header"]["status"] == "OK"
     assert output["header"]["phase_gate"] == "P4-Entry"
     assert output["header"]["primary_next_action"] == "Run deterministic checks."
+    assert output["header"]["header_source"] == "operator_view"
+    assert output["header"]["reason_code"] == "none"
     assert output["delta"]["delta_mode"] == "delta-only"
     assert output["details"] == {"required_fact": "kept"}
 
@@ -98,7 +100,34 @@ def test_render_contract_builds_fixed_operator_view_and_reason_action_card():
     assert output["operator_view"]["PHASE_GATE"] == "1.1 | bootstrap.preflight | [#-----] 1/6"
     assert output["operator_view"]["STATUS"] == "BLOCKED"
     assert output["operator_view"]["PRIMARY_REASON"] == "BLOCKED-PREFLIGHT-REQUIRED-NOW-MISSING"
+    assert output["header"]["reason_code"] == "BLOCKED-PREFLIGHT-REQUIRED-NOW-MISSING"
+    assert output["header"]["next_command"] == "python3 --version"
     assert output["reason_to_action"]["what_missing"] == ("python",)
+
+
+@pytest.mark.governance
+def test_render_contract_preserves_canonical_reason_code_casing():
+    """Renderer must never lowercase canonical reason codes."""
+
+    output = build_two_layer_output(
+        status="BLOCKED",
+        phase_gate="P1.1",
+        primary_action="Fix preflight.",
+        reason_code="BLOCKED-REPO-IDENTITY-RESOLUTION",
+        transition_events=[
+            {
+                "phase": "1.1",
+                "active_gate": "bootstrap.preflight",
+                "status": "BLOCKED",
+                "reason_code": "BLOCKED-REPO-IDENTITY-RESOLUTION",
+                "snapshot_hash": "h1",
+            }
+        ],
+    )
+    output = cast(dict[str, Any], output)
+    assert output["operator_view"]["PRIMARY_REASON"] == "BLOCKED-REPO-IDENTITY-RESOLUTION"
+    assert output["header"]["reason_code"] == "BLOCKED-REPO-IDENTITY-RESOLUTION"
+    assert output["timeline"][0]["reason_code"] == "BLOCKED-REPO-IDENTITY-RESOLUTION"
 
 
 @pytest.mark.governance
