@@ -1,0 +1,149 @@
+{
+  "schema": "governance-python-quality-benchmark-pack.v1",
+  "version": "1.0.0",
+  "profile": "backend-python",
+  "templates_addon": "backendPythonTemplates",
+  "goal": "Evaluate deterministic business-code and test-code quality under governance contracts.",
+  "run_contract": {
+    "required_commands": [
+      "python3 -m pytest -q",
+      "python3 scripts/governance_lint.py"
+    ],
+    "claim_contract": "No claim without evidence. Missing or stale evidence remains NOT_VERIFIED.",
+    "output_contract": "Default output should use compact session snapshot; diagnostics/full state only on explicit intent."
+  },
+  "tasks": [
+    {
+      "id": "PY-BENCH-001",
+      "title": "Service boundary refactor with deterministic seam",
+      "intent": "Business logic extraction",
+      "prompt": "Extract domain branching from API handler into a service boundary and add deterministic clock/random seams where needed.",
+      "required_evidence_claim_ids": [
+        "claim/tests-green",
+        "claim/static-clean",
+        "claim/no-drift"
+      ],
+      "required_artifact_kinds": [
+        "unit-test",
+        "lint"
+      ],
+      "acceptance": [
+        "handler has no business branching",
+        "service owns business decision logic",
+        "deterministic seam is injected (clock/random/external)"
+      ]
+    },
+    {
+      "id": "PY-BENCH-002",
+      "title": "Request/response contract evolution",
+      "intent": "Boundary compatibility",
+      "prompt": "Introduce a backward-compatible API model change with explicit DTO/domain mapper updates and tests.",
+      "required_evidence_claim_ids": [
+        "claim/tests-green",
+        "claim/static-clean"
+      ],
+      "required_artifact_kinds": [
+        "unit-test",
+        "integration-test",
+        "lint"
+      ],
+      "acceptance": [
+        "mapping is explicit and boundary-safe",
+        "compatibility rationale is documented",
+        "negative path is tested"
+      ]
+    },
+    {
+      "id": "PY-BENCH-003",
+      "title": "Migration-safe persistence change",
+      "intent": "Schema/migration safety",
+      "prompt": "Apply a persistence-layer shape change and provide forward and rollback/backout evidence without data-loss assumptions.",
+      "required_evidence_claim_ids": [
+        "claim/tests-green",
+        "claim/no-drift"
+      ],
+      "required_artifact_kinds": [
+        "integration-test",
+        "build"
+      ],
+      "acceptance": [
+        "forward path validated",
+        "rollback/backout path explicit",
+        "deployment-order constraints captured"
+      ]
+    },
+    {
+      "id": "PY-BENCH-004",
+      "title": "Async reliability and failure-path tests",
+      "intent": "Concurrency correctness",
+      "prompt": "Add async behavior for one service boundary and cover success/failure paths with deterministic tests (no flaky retries).",
+      "required_evidence_claim_ids": [
+        "claim/tests-green",
+        "claim/static-clean"
+      ],
+      "required_artifact_kinds": [
+        "unit-test",
+        "integration-test"
+      ],
+      "acceptance": [
+        "async path has explicit tests",
+        "failure handling is deterministic",
+        "no retry-based masking"
+      ]
+    },
+    {
+      "id": "PY-BENCH-005",
+      "title": "Security and auth guard hardening",
+      "intent": "Security posture",
+      "prompt": "Harden one authorization/input-validation boundary and demonstrate negative-path evidence plus log-safety behavior.",
+      "required_evidence_claim_ids": [
+        "claim/tests-green",
+        "claim/static-clean"
+      ],
+      "required_artifact_kinds": [
+        "unit-test",
+        "lint"
+      ],
+      "acceptance": [
+        "negative path is covered",
+        "no secret/PII leak introduced",
+        "authorization behavior is explicit"
+      ]
+    }
+  ],
+  "rubric": {
+    "calibration_version": "v1",
+    "criteria": [
+      {
+        "id": "PYR-1",
+        "name": "Business-boundary correctness",
+        "weight": 3
+      },
+      {
+        "id": "PYR-2",
+        "name": "Test determinism and coverage quality",
+        "weight": 3
+      },
+      {
+        "id": "PYR-3",
+        "name": "Evidence completeness/freshness",
+        "weight": 3
+      },
+      {
+        "id": "PYR-4",
+        "name": "Rollback and operational safety",
+        "weight": 3
+      },
+      {
+        "id": "PYR-5",
+        "name": "Security and logging hygiene",
+        "weight": 3
+      }
+    ],
+    "thresholds": {
+      "pass_ratio": 0.85,
+      "high_confidence_ratio": 0.9
+    },
+    "required_not_verified_behavior": "If one required claim lacks evidence, score remains not-verified regardless of weighted ratio."
+  }
+}

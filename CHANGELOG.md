@@ -10,6 +10,9 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
 - Add backend Python templates addon pair:
   - `profiles/rules.backend-python-templates.md` (required code-generation template contract)
   - `profiles/addons/backendPythonTemplates.addon.yml` (capability/signal activation policy)
+- Add Python quality benchmark artifacts:
+  - `diagnostics/PYTHON_QUALITY_BENCHMARK_PACK.json` (5-task benchmark + scoring rubric)
+  - `docs/python-quality-benchmark-pack.md` (operator runbook and comparison guidance)
 - Add deterministic SESSION_STATE migration tool `scripts/migrate_session_state.py` with first-write `.backup` behavior and machine-readable exit codes (`0=ok`, `2=blocked`).
 - Add two-layer render modules under `governance/render/` (`intent_router.py`, `delta_renderer.py`, `token_guard.py`, `render_contract.py`) for compact default output and deterministic detail expansion.
 - Add engine lifecycle helpers in `governance/engine/lifecycle.py` for staged activation pointer handling, automatic rollback, and rollback audit `DEVIATION` payloads.
