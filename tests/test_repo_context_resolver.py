@@ -90,3 +90,33 @@ def test_resolver_marks_cwd_fallback_as_git_root_when_valid(tmp_path: Path):
     assert result.repo_root == cwd_git_root.resolve()
     assert result.source == "cwd"
     assert result.is_git_root is True
+
+
+@pytest.mark.governance
+def test_resolver_can_find_parent_git_root_when_enabled(tmp_path: Path):
+    """Optional parent search should return ancestor git root deterministically."""
+
+    repo_root = _make_git_root(tmp_path / "repo-root")
+    nested_cwd = repo_root / "a" / "b" / "c"
+    nested_cwd.mkdir(parents=True, exist_ok=True)
+
+    result = resolve_repo_root(env={}, cwd=nested_cwd, search_parent_git_root=True, max_parent_levels=8)
+
+    assert result.repo_root == repo_root.resolve()
+    assert result.source == "cwd-parent-search"
+    assert result.is_git_root is True
+
+
+@pytest.mark.governance
+def test_resolver_parent_search_is_bounded(tmp_path: Path):
+    """Parent search must remain bounded by max_parent_levels."""
+
+    repo_root = _make_git_root(tmp_path / "repo-root")
+    nested_cwd = repo_root / "x" / "y" / "z"
+    nested_cwd.mkdir(parents=True, exist_ok=True)
+
+    result = resolve_repo_root(env={}, cwd=nested_cwd, search_parent_git_root=True, max_parent_levels=1)
+
+    assert result.repo_root == nested_cwd.resolve()
+    assert result.source == "cwd"
+    assert result.is_git_root is False
