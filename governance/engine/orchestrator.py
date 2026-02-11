@@ -14,6 +14,7 @@ from governance.context.repo_context_resolver import RepoRootResolutionResult, r
 from governance.engine.adapters import HostAdapter, HostCapabilities, OperatingMode
 from governance.engine.reason_codes import (
     BLOCKED_EXEC_DISALLOWED,
+    BLOCKED_OPERATING_MODE_REQUIRED,
     BLOCKED_PACK_LOCK_INVALID,
     BLOCKED_PACK_LOCK_MISMATCH,
     BLOCKED_PACK_LOCK_REQUIRED,
@@ -23,6 +24,11 @@ from governance.engine.reason_codes import (
     REASON_CODE_NONE,
     WARN_MODE_DOWNGRADED,
     WARN_PERMISSION_LIMITED,
+)
+from governance.engine.surface_policy import (
+    capability_satisfies_requirement,
+    mode_satisfies_requirement,
+    resolve_surface_policy,
 )
 from governance.packs.pack_lock import resolve_pack_lock
 from governance.engine.runtime import (
@@ -35,13 +41,6 @@ from governance.engine.runtime import (
 from governance.persistence.write_policy import WriteTargetPolicyResult, evaluate_target_path
 
 _VARIABLE_CAPTURE = re.compile(r"^\$\{([A-Z0-9_]+)\}")
-_SYSTEM_MODE_REQUIRED_TARGETS = frozenset(
-    {
-        "COMMANDS_HOME",
-        "PROFILES_HOME",
-        "SESSION_STATE_POINTER_FILE",
-    }
-)
 
 
 @dataclass(frozen=True)
@@ -87,20 +86,6 @@ def _has_required_mode_capabilities(mode: OperatingMode, caps: HostCapabilities)
     )
 
 
-def _target_write_allowed(capability_key: str, caps: HostCapabilities) -> bool:
-    """Map target surface to capability flag check."""
-
-    if capability_key in {"WORKSPACE_MEMORY_FILE", "SESSION_STATE_FILE", "REPO_CACHE_FILE", "REPO_DECISION_PACK_FILE", "REPO_DIGEST_FILE"}:
-        return caps.fs_write_workspaces_home
-    if capability_key in {"COMMANDS_HOME", "PROFILES_HOME", "SESSION_STATE_POINTER_FILE"}:
-        return caps.fs_write_commands_home
-    if capability_key in {"CONFIG_ROOT", "OPENCODE_HOME", "WORKSPACES_HOME"}:
-        return caps.fs_write_config_root
-    if capability_key in {"REPO_HOME", "REPO_BUSINESS_RULES_FILE"}:
-        return caps.fs_write_repo_root
-    return False
-
-
 def _extract_target_variable(target_path: str) -> str | None:
     """Extract canonical variable token from target path string."""
 
@@ -108,12 +93,6 @@ def _extract_target_variable(target_path: str) -> str | None:
     if match is None:
         return None
     return match.group(1)
-
-
-def _target_requires_system_mode(target_variable: str) -> bool:
-    """Return True when writing this canonical target requires system mode."""
-
-    return target_variable in _SYSTEM_MODE_REQUIRED_TARGETS
 
 
 def run_engine_orchestrator(
@@ -183,10 +162,23 @@ def run_engine_orchestrator(
     else:
         target_variable = _extract_target_variable(target_path)
         if target_variable is not None:
-            if effective_mode == "user" and _target_requires_system_mode(target_variable):
+            surface_policy = resolve_surface_policy(target_variable)
+            if surface_policy is None:
                 gate_blocked = True
-                gate_reason_code = BLOCKED_SYSTEM_MODE_REQUIRED
-            elif not _target_write_allowed(target_variable, caps):
+                gate_reason_code = BLOCKED_PERMISSION_DENIED
+            elif not mode_satisfies_requirement(
+                effective_mode=effective_mode,
+                minimum_mode=surface_policy.minimum_mode,
+            ):
+                gate_blocked = True
+                if surface_policy.minimum_mode == "system":
+                    gate_reason_code = BLOCKED_SYSTEM_MODE_REQUIRED
+                else:
+                    gate_reason_code = BLOCKED_OPERATING_MODE_REQUIRED
+            elif not capability_satisfies_requirement(
+                caps=caps,
+                capability_key=surface_policy.capability_key,
+            ):
                 gate_blocked = True
                 gate_reason_code = BLOCKED_PERMISSION_DENIED
             elif not repo_context.is_git_root and not caps.git_available:

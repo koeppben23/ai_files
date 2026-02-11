@@ -329,6 +329,40 @@ def test_orchestrator_requires_system_mode_for_installer_owned_surface(tmp_path:
 
 
 @pytest.mark.governance
+def test_orchestrator_requires_pipeline_mode_for_pointer_surface(tmp_path: Path):
+    """System mode should not satisfy pipeline-only canonical pointer surface."""
+
+    repo_root = _make_git_root(tmp_path / "repo")
+    adapter = StubAdapter(
+        env={"OPENCODE_REPO_ROOT": str(repo_root)},
+        cwd_path=repo_root,
+        caps=HostCapabilities(
+            cwd_trust="trusted",
+            fs_read_commands_home=True,
+            fs_write_config_root=True,
+            fs_write_commands_home=True,
+            fs_write_workspaces_home=True,
+            fs_write_repo_root=True,
+            exec_allowed=True,
+            git_available=True,
+        ),
+        default_mode="system",
+    )
+
+    out = run_engine_orchestrator(
+        adapter=adapter,
+        phase="1.1-Bootstrap",
+        active_gate="Persistence Preflight",
+        mode="OK",
+        next_gate_condition="Persistence helper execution completed",
+        requested_operating_mode="system",
+        target_path="${SESSION_STATE_POINTER_FILE}",
+    )
+    assert out.parity["status"] == "blocked"
+    assert out.parity["reason_code"] == "BLOCKED-OPERATING-MODE-REQUIRED"
+
+
+@pytest.mark.governance
 def test_orchestrator_blocks_when_required_pack_lock_is_missing(tmp_path: Path):
     """Required lock mode should fail closed when observed lock is absent."""
 
