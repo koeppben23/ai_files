@@ -643,6 +643,7 @@ Each response MUST end with this compact footer shape:
 
 ```
 [NEXT-ACTION]
+PhaseGate: <phase> | <active_gate> | <phase_progress_bar>
 Status: <normal|degraded|draft|blocked>
 Next: <single concrete next action>
 Why: <one-sentence rationale>
@@ -653,6 +654,7 @@ Rules:
 - `Next` MUST be singular and actionable.
 - Footer values MUST be consistent with `SESSION_STATE.Mode`, `SESSION_STATE.Next`, and any emitted reason payloads.
 - In COMPAT mode, the assistant MUST still emit `[NEXT-ACTION]` with `Status|Next|Why|Command` fields (same keys, plain-text layout allowed).
+- `PhaseGate` MUST be included and reflect `SESSION_STATE.phase`, `SESSION_STATE.active_gate`, and `SESSION_STATE.phase_progress_bar`.
 - `[NEXT-ACTION]` must be human-scannable multiline text: one field per line (`Status`, `Next`, `Why`, `Command`).
 - Do not collapse `[NEXT-ACTION]` into one pipe-joined line (`Status: ... | Next: ... | Why: ... | Command: ...`).
 

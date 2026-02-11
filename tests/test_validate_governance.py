@@ -3482,13 +3482,17 @@ def test_next_action_footer_requires_multiline_pretty_layout_tokens():
 
     required_master = [
         "[NEXT-ACTION]",
+        "PhaseGate: <phase> | <active_gate> | <phase_progress_bar>",
         "single-line pipe-joined rendering is not allowed",
     ]
     required_rules = [
+        "PhaseGate: <phase> | <active_gate> | <phase_progress_bar>",
+        "`PhaseGate` MUST be included and reflect `SESSION_STATE.phase`, `SESSION_STATE.active_gate`, and `SESSION_STATE.phase_progress_bar`.",
         "one field per line (`Status`, `Next`, `Why`, `Command`).",
         "Do not collapse `[NEXT-ACTION]` into one pipe-joined line",
     ]
     required_start = [
+        "`[NEXT-ACTION]` footer MUST include `PhaseGate` (`phase | active_gate | phase_progress_bar`) for quick phase orientation.",
         "Render `[NEXT-ACTION]` as multiline footer (one line per field); do not emit a single pipe-joined line.",
     ]
 
