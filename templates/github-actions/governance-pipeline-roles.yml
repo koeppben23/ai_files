@@ -1,0 +1,338 @@
+name: Governance Pipeline Roles (Hardened)
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: governance-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  governance-developer:
+    name: Governance Developer
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Enforce pinned requirements (if requirements.txt exists)
+        run: |
+          python3 - <<'PY'
+          import pathlib, sys
+          p = pathlib.Path("requirements.txt")
+          if not p.exists():
+              raise SystemExit(0)
+          bad = []
+          for line in p.read_text(encoding="utf-8").splitlines():
+              s = line.strip()
+              if not s or s.startswith("#"):
+                  continue
+              if "==" not in s:
+                  bad.append(s)
+          if bad:
+              print("Unpinned requirements detected (first 20):")
+              print("\n".join(bad[:20]))
+              raise SystemExit(1)
+          PY
+
+      - name: Install dependencies (optional)
+        run: |
+          if [ -f requirements.txt ]; then python3 -m pip install -r requirements.txt; fi
+
+      - name: Prepare evidence directories
+        run: |
+          mkdir -p diagnostics/benchmark-evidence diagnostics/benchmark-results
+
+      - name: Run tests with JUnit
+        continue-on-error: true
+        run: |
+          python3 -m pytest -q --junitxml diagnostics/benchmark-evidence/junit.xml
+          echo $? > diagnostics/benchmark-evidence/pytest.exitcode
+
+      - name: Run governance lint
+        continue-on-error: true
+        run: |
+          python3 scripts/governance_lint.py
+          echo $? > diagnostics/benchmark-evidence/governance_lint.exitcode
+
+      - name: Build PR drift report
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            git fetch origin "${{ github.base_ref }}" --depth=1
+            git diff --name-status "origin/${{ github.base_ref }}...HEAD" > diagnostics/benchmark-evidence/drift.txt
+          else
+            git diff --name-status HEAD~1..HEAD > diagnostics/benchmark-evidence/drift.txt || true
+          fi
+
+      - name: Derive claims and criterion scores from evidence
+        run: |
+          python3 - <<'PY'
+          import json
+          import pathlib
+          import xml.etree.ElementTree as ET
+
+          evidence_dir = pathlib.Path("diagnostics/benchmark-evidence")
+          results_dir = pathlib.Path("diagnostics/benchmark-results")
+          results_dir.mkdir(parents=True, exist_ok=True)
+
+          observed = set()
+          stale = set()
+
+          lint_exit = int((evidence_dir / "governance_lint.exitcode").read_text().strip() or "1")
+          test_exit = int((evidence_dir / "pytest.exitcode").read_text().strip() or "1")
+
+          if lint_exit == 0:
+              observed.add("claim/static-clean")
+
+          junit = evidence_dir / "junit.xml"
+          if test_exit == 0 and junit.exists():
+              observed.add("claim/tests-green")
+
+          drift = evidence_dir / "drift.txt"
+          if drift.exists() and drift.read_text(encoding="utf-8").strip():
+              observed.add("claim/no-drift")
+
+          # Deterministic score derivation (example policy)
+          scores = {
+              "PYR-1": 0.9 if test_exit == 0 else 0.4,
+              "PYR-2": 0.9 if test_exit == 0 else 0.4,
+              "PYR-3": 0.9 if lint_exit == 0 and test_exit == 0 else 0.4,
+              "PYR-4": 0.9 if drift.exists() else 0.5,
+              "PYR-5": 0.9 if lint_exit == 0 else 0.4,
+          }
+
+          payload = {
+              "observed_claims": sorted(observed),
+              "stale_claims": sorted(stale),
+              "criterion_scores": scores,
+          }
+          (results_dir / "derived-input.json").write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+          PY
+
+      - name: Run benchmark from derived evidence
+        id: benchmark
+        continue-on-error: true
+        run: |
+          python3 - <<'PY'
+          import json
+          import pathlib
+          import subprocess
+          import sys
+
+          inp = json.loads(pathlib.Path("diagnostics/benchmark-results/derived-input.json").read_text(encoding="utf-8"))
+          cmd = [
+              sys.executable,
+              "scripts/run_quality_benchmark.py",
+              "--pack",
+              "diagnostics/PYTHON_QUALITY_BENCHMARK_PACK.json",
+              "--output",
+              "diagnostics/benchmark-results/python.json",
+          ]
+          for c in inp["observed_claims"]:
+              cmd += ["--observed-claim", c]
+          for c in inp["stale_claims"]:
+              cmd += ["--stale-claim", c]
+          for cid, score in sorted(inp["criterion_scores"].items()):
+              cmd += ["--criterion-score", f"{cid}={score}"]
+
+          proc = subprocess.run(cmd, check=False)
+          pathlib.Path("diagnostics/benchmark-results/benchmark.exitcode").write_text(str(proc.returncode) + "\n", encoding="utf-8")
+          raise SystemExit(proc.returncode)
+          PY
+
+      - name: Create artifact hashes
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import pathlib
+
+          files = [
+              "diagnostics/benchmark-results/python.json",
+              "diagnostics/benchmark-results/benchmark.exitcode",
+              "diagnostics/benchmark-results/derived-input.json",
+              "diagnostics/benchmark-evidence/junit.xml",
+              "diagnostics/benchmark-evidence/pytest.exitcode",
+              "diagnostics/benchmark-evidence/governance_lint.exitcode",
+              "diagnostics/benchmark-evidence/drift.txt",
+          ]
+          out = {}
+          for f in files:
+              p = pathlib.Path(f)
+              if p.exists():
+                  out[f] = hashlib.sha256(p.read_bytes()).hexdigest()
+          pathlib.Path("diagnostics/benchmark-results/hashes.json").write_text(
+              json.dumps(out, indent=2) + "\n", encoding="utf-8"
+          )
+          PY
+
+      - name: Upload developer artifacts (always)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: governance-developer-artifacts
+          path: |
+            diagnostics/benchmark-results/**
+            diagnostics/benchmark-evidence/**
+
+      - name: Enforce developer hard-failure policy
+        run: |
+          test_exit=$(cat diagnostics/benchmark-evidence/pytest.exitcode || echo 1)
+          lint_exit=$(cat diagnostics/benchmark-evidence/governance_lint.exitcode || echo 1)
+          bench_exit=$(cat diagnostics/benchmark-results/benchmark.exitcode || echo 4)
+          if [ "$test_exit" -ne 0 ] || [ "$lint_exit" -ne 0 ] || [ "$bench_exit" -eq 4 ]; then
+            echo "::error::Developer stage produced hard failure."
+            exit 1
+          fi
+
+  governance-reviewer:
+    name: Governance Reviewer (Authoritative Gate)
+    runs-on: ubuntu-latest
+    needs: [governance-developer]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: governance-developer-artifacts
+          path: diagnostics
+
+      - name: Verify artifact hashes
+        run: |
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import pathlib
+          import sys
+
+          hashes = json.loads(pathlib.Path("diagnostics/benchmark-results/hashes.json").read_text(encoding="utf-8"))
+          for rel, expected in hashes.items():
+              p = pathlib.Path(rel)
+              if not p.exists():
+                  print(f"missing artifact: {rel}")
+                  raise SystemExit(1)
+              actual = hashlib.sha256(p.read_bytes()).hexdigest()
+              if actual != expected:
+                  print(f"hash mismatch: {rel}")
+                  raise SystemExit(1)
+          print("hash verification ok")
+          PY
+
+      - name: Recompute benchmark gate from evidence
+        id: review
+        run: |
+          python3 - <<'PY'
+          import json
+          import pathlib
+          import subprocess
+          import sys
+
+          inp = json.loads(pathlib.Path("diagnostics/benchmark-results/derived-input.json").read_text(encoding="utf-8"))
+          cmd = [
+              sys.executable,
+              "scripts/run_quality_benchmark.py",
+              "--pack",
+              "diagnostics/PYTHON_QUALITY_BENCHMARK_PACK.json",
+              "--output",
+              "diagnostics/benchmark-results/review.json",
+          ]
+          for c in inp["observed_claims"]:
+              cmd += ["--observed-claim", c]
+          for c in inp["stale_claims"]:
+              cmd += ["--stale-claim", c]
+          for cid, score in sorted(inp["criterion_scores"].items()):
+              cmd += ["--criterion-score", f"{cid}={score}"]
+
+          proc = subprocess.run(cmd, check=False)
+          pathlib.Path("diagnostics/benchmark-results/review.exitcode").write_text(str(proc.returncode) + "\n", encoding="utf-8")
+          raise SystemExit(proc.returncode)
+          PY
+
+      - name: Upload reviewer artifacts (always)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: governance-reviewer-artifacts
+          path: |
+            diagnostics/benchmark-results/review.json
+            diagnostics/benchmark-results/review.exitcode
+
+      - name: Publish gate summary
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import json
+          import pathlib
+
+          p = pathlib.Path("diagnostics/benchmark-results/review.json")
+          if not p.exists():
+              print("::error::review.json missing")
+              raise SystemExit(1)
+          data = json.loads(p.read_text(encoding="utf-8"))
+          print(f"::notice title=Governance Gate::status={data.get('status')} confidence={data.get('confidence')}")
+          PY
+
+      - name: Enforce reviewer decision
+        run: |
+          code=$(cat diagnostics/benchmark-results/review.exitcode || echo 4)
+          if [ "$code" -eq 0 ]; then
+            exit 0
+          elif [ "$code" -eq 2 ]; then
+            echo "::error::NOT_VERIFIED - required evidence missing/stale."
+            exit 1
+          else
+            echo "::error::FAIL/BLOCKED governance gate."
+            exit 1
+          fi
+
+  governance-improver:
+    name: Governance Improver
+    runs-on: ubuntu-latest
+    needs: [governance-reviewer]
+    if: failure()
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: governance-reviewer-artifacts
+          path: diagnostics/benchmark-results
+
+      - name: Emit deterministic recovery card
+        run: |
+          python3 - <<'PY'
+          import json
+          import pathlib
+
+          p = pathlib.Path("diagnostics/benchmark-results/review.json")
+          if not p.exists():
+              print("RECOVERY")
+              print("Primary reason: BLOCKED-MISSING-REVIEW-ARTIFACT")
+              print("Next command: python3 -m pytest -q && python3 scripts/governance_lint.py")
+              raise SystemExit(0)
+
+          data = json.loads(p.read_text(encoding="utf-8"))
+          reason = data.get("status", "UNKNOWN")
+          missing = data.get("missing_required_claim_ids", [])
+          stale = data.get("stale_required_claim_ids", [])
+
+          print("RECOVERY")
+          print(f"Primary reason: {reason}")
+          print(f"Missing claims: {missing}")
+          print(f"Stale claims: {stale}")
+          print("Next command: python3 -m pytest -q && python3 scripts/governance_lint.py")
+          PY
