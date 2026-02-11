@@ -1,0 +1,53 @@
+{
+  "schema": "governance-quality-benchmark-pack.v1",
+  "version": "1.0.0",
+  "profile": "frontend-openapi-ts-client",
+  "goal": "Evaluate deterministic frontend OpenAPI client generation and boundary-safe adoption.",
+  "run_contract": {
+    "required_commands": [
+      "python3 -m pytest -q",
+      "python3 scripts/governance_lint.py"
+    ],
+    "claim_contract": "No claim without evidence; missing/stale evidence remains NOT_VERIFIED."
+  },
+  "tasks": [
+    {
+      "id": "FOAPI-BENCH-001",
+      "title": "Client generation reproducibility",
+      "acceptance": [
+        "generated client artifacts reproducible",
+        "generation command/version evidence captured",
+        "drift checked against canonical spec"
+      ]
+    },
+    {
+      "id": "FOAPI-BENCH-002",
+      "title": "Boundary-safe client consumption",
+      "acceptance": [
+        "client usage isolated from view logic",
+        "DTO mapping explicit",
+        "error handling deterministic"
+      ]
+    },
+    {
+      "id": "FOAPI-BENCH-003",
+      "title": "Compatibility and recovery clarity",
+      "acceptance": [
+        "breaking change implications explicit",
+        "recovery command deterministic",
+        "missing evidence stays NOT_VERIFIED"
+      ]
+    }
+  ],
+  "rubric": {
+    "calibration_version": "v1",
+    "criteria": [
+      { "id": "F1", "name": "Generation reproducibility", "weight": 3 },
+      { "id": "F2", "name": "Boundary safety", "weight": 3 },
+      { "id": "F3", "name": "Compatibility handling", "weight": 3 },
+      { "id": "F4", "name": "Evidence quality/freshness", "weight": 3 },
+      { "id": "F5", "name": "Recovery determinism", "weight": 3 }
+    ],
+    "thresholds": { "pass_ratio": 0.85, "high_confidence_ratio": 0.9 }
+  }
+}

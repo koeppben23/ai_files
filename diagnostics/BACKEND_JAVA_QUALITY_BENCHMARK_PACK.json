@@ -1,0 +1,53 @@
+{
+  "schema": "governance-quality-benchmark-pack.v1",
+  "version": "1.0.0",
+  "profile": "backend-java",
+  "goal": "Evaluate deterministic Java backend business/test quality and evidence discipline.",
+  "run_contract": {
+    "required_commands": [
+      "python3 -m pytest -q",
+      "python3 scripts/governance_lint.py"
+    ],
+    "claim_contract": "No claim without evidence; missing/stale evidence remains NOT_VERIFIED."
+  },
+  "tasks": [
+    {
+      "id": "JAVA-BENCH-001",
+      "title": "Controller-service boundary hardening",
+      "acceptance": [
+        "controller delegates in single line",
+        "service/domain owns business branching",
+        "unit tests verify boundary behavior"
+      ]
+    },
+    {
+      "id": "JAVA-BENCH-002",
+      "title": "DTO/domain mapping compatibility change",
+      "acceptance": [
+        "mapping remains explicit",
+        "compatibility rationale included",
+        "negative-path tests present"
+      ]
+    },
+    {
+      "id": "JAVA-BENCH-003",
+      "title": "Persistence migration + rollback safety",
+      "acceptance": [
+        "forward migration evidence present",
+        "rollback/backout evidence present",
+        "ready-for-pr blocked if rollback evidence missing"
+      ]
+    }
+  ],
+  "rubric": {
+    "calibration_version": "v1",
+    "criteria": [
+      { "id": "J1", "name": "Boundary correctness", "weight": 3 },
+      { "id": "J2", "name": "Test determinism", "weight": 3 },
+      { "id": "J3", "name": "Evidence completeness/freshness", "weight": 3 },
+      { "id": "J4", "name": "Migration/rollback safety", "weight": 3 },
+      { "id": "J5", "name": "Security/ops hygiene", "weight": 3 }
+    ],
+    "thresholds": { "pass_ratio": 0.85, "high_confidence_ratio": 0.9 }
+  }
+}

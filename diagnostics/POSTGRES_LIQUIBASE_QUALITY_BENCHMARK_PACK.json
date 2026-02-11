@@ -1,0 +1,53 @@
+{
+  "schema": "governance-quality-benchmark-pack.v1",
+  "version": "1.0.0",
+  "profile": "postgres-liquibase",
+  "goal": "Evaluate deterministic migration safety, rollback readiness, and database contract quality.",
+  "run_contract": {
+    "required_commands": [
+      "python3 -m pytest -q",
+      "python3 scripts/governance_lint.py"
+    ],
+    "claim_contract": "No claim without evidence; missing/stale evidence remains NOT_VERIFIED."
+  },
+  "tasks": [
+    {
+      "id": "DB-BENCH-001",
+      "title": "Forward migration integrity",
+      "acceptance": [
+        "migration applies cleanly",
+        "schema intent is explicit",
+        "integration evidence references concrete artifact"
+      ]
+    },
+    {
+      "id": "DB-BENCH-002",
+      "title": "Rollback/backout determinism",
+      "acceptance": [
+        "rollback strategy is executable",
+        "rollback evidence linked",
+        "ready-for-pr blocked when rollback evidence missing"
+      ]
+    },
+    {
+      "id": "DB-BENCH-003",
+      "title": "Data-shape compatibility",
+      "acceptance": [
+        "deployment-order constraints documented",
+        "compatibility checks present",
+        "stale evidence yields NOT_VERIFIED"
+      ]
+    }
+  ],
+  "rubric": {
+    "calibration_version": "v1",
+    "criteria": [
+      { "id": "D1", "name": "Migration correctness", "weight": 3 },
+      { "id": "D2", "name": "Rollback safety", "weight": 3 },
+      { "id": "D3", "name": "Compatibility discipline", "weight": 3 },
+      { "id": "D4", "name": "Evidence quality/freshness", "weight": 3 },
+      { "id": "D5", "name": "Operational recovery quality", "weight": 3 }
+    ],
+    "thresholds": { "pass_ratio": 0.85, "high_confidence_ratio": 0.9 }
+  }
+}

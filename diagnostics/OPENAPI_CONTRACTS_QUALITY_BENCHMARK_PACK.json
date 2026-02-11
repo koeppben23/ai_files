@@ -1,0 +1,53 @@
+{
+  "schema": "governance-quality-benchmark-pack.v1",
+  "version": "1.0.0",
+  "profile": "openapi-contracts",
+  "goal": "Evaluate API contract governance and compatibility evidence quality.",
+  "run_contract": {
+    "required_commands": [
+      "python3 -m pytest -q",
+      "python3 scripts/governance_lint.py"
+    ],
+    "claim_contract": "No claim without evidence; missing/stale evidence remains NOT_VERIFIED."
+  },
+  "tasks": [
+    {
+      "id": "OAPI-BENCH-001",
+      "title": "Breaking-change guard validation",
+      "acceptance": [
+        "breaking-diff path detected",
+        "compatibility decision evidence recorded",
+        "BLOCKED/WARN semantics deterministic"
+      ]
+    },
+    {
+      "id": "OAPI-BENCH-002",
+      "title": "Spec-source and generated artifact parity",
+      "acceptance": [
+        "source spec and generated artifacts aligned",
+        "artifact references recorded in BuildEvidence",
+        "stale evidence yields NOT_VERIFIED"
+      ]
+    },
+    {
+      "id": "OAPI-BENCH-003",
+      "title": "Consumer impact communication",
+      "acceptance": [
+        "changed fields and compatibility rationale explicit",
+        "recovery command deterministic",
+        "single primary blocker/reason rule preserved"
+      ]
+    }
+  ],
+  "rubric": {
+    "calibration_version": "v1",
+    "criteria": [
+      { "id": "O1", "name": "Contract correctness", "weight": 3 },
+      { "id": "O2", "name": "Compatibility handling", "weight": 3 },
+      { "id": "O3", "name": "Evidence quality/freshness", "weight": 3 },
+      { "id": "O4", "name": "Recovery determinism", "weight": 3 },
+      { "id": "O5", "name": "Operational clarity", "weight": 3 }
+    ],
+    "thresholds": { "pass_ratio": 0.85, "high_confidence_ratio": 0.9 }
+  }
+}
