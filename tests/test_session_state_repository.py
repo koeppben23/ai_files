@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import errno
 from pathlib import Path
 
 import pytest
 
 from governance.engine.reason_codes import BLOCKED_STATE_OUTDATED, REASON_CODE_NONE
+from governance.engine import session_state_repository as session_repo_module
 from governance.engine.session_state_repository import (
     CURRENT_SESSION_STATE_VERSION,
     SessionStateRepository,
@@ -44,6 +46,44 @@ def test_session_state_repository_load_returns_none_when_missing(tmp_path: Path)
 
     repo = SessionStateRepository(tmp_path / "missing" / "SESSION_STATE.json")
     assert repo.load() is None
+
+
+@pytest.mark.governance
+def test_session_state_repository_save_is_atomic_and_replaces_existing_file(tmp_path: Path):
+    """Atomic save should replace existing file content in one final write step."""
+
+    path = tmp_path / "workspaces" / "abc" / "SESSION_STATE.json"
+    repo = SessionStateRepository(path)
+    repo.save(_session_state_doc(ruleset_hash="hash-a"))
+    repo.save(_session_state_doc(ruleset_hash="hash-b"))
+    loaded = repo.load()
+    assert loaded is not None
+    assert loaded["SESSION_STATE"]["ruleset_hash"] == "hash-b"
+    leftover = list(path.parent.glob("SESSION_STATE.json.*.tmp"))
+    assert leftover == []
+
+
+@pytest.mark.governance
+def test_session_state_repository_retries_replace_on_transient_error(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """Atomic save should retry replace on retryable transient filesystem errors."""
+
+    path = tmp_path / "workspaces" / "abc" / "SESSION_STATE.json"
+    repo = SessionStateRepository(path)
+    original_replace = session_repo_module.os.replace
+    calls = {"count": 0}
+
+    def flaky_replace(src: str, dst: str) -> None:
+        calls["count"] += 1
+        if calls["count"] == 1:
+            raise OSError(errno.EACCES, "transient lock")
+        original_replace(src, dst)
+
+    monkeypatch.setattr(session_repo_module.os, "replace", flaky_replace)
+    repo.save(_session_state_doc(ruleset_hash="hash-retry"))
+    loaded = repo.load()
+    assert loaded is not None
+    assert loaded["SESSION_STATE"]["ruleset_hash"] == "hash-retry"
+    assert calls["count"] >= 2
 
 
 @pytest.mark.governance

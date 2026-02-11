@@ -10,13 +10,19 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
+import errno
 import json
+import os
 from pathlib import Path
+import tempfile
+import time
 from typing import Any
 
 from governance.engine.reason_codes import BLOCKED_STATE_OUTDATED, REASON_CODE_NONE
 
 CURRENT_SESSION_STATE_VERSION = 1
+ATOMIC_REPLACE_RETRIES = 3
+ATOMIC_RETRY_DELAY_SECONDS = 0.05
 
 
 @dataclass(frozen=True)
@@ -46,10 +52,74 @@ class SessionStateRepository:
         return payload
 
     def save(self, document: dict[str, Any]) -> None:
-        """Persist one JSON document in deterministic formatting."""
+        """Persist one JSON document in deterministic formatting.
+
+        Writes are atomic within the same filesystem:
+        temp file -> fsync -> os.replace(final).
+        """
 
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.path.write_text(json.dumps(document, indent=2, ensure_ascii=True) + "\n", encoding="utf-8")
+        payload = json.dumps(document, indent=2, ensure_ascii=True) + "\n"
+        _atomic_write_text(self.path, payload)
+
+
+def _is_retryable_replace_error(exc: OSError) -> bool:
+    """Return True for transient replace failures often seen on Windows."""
+
+    return exc.errno in {errno.EACCES, errno.EPERM, errno.EBUSY}
+
+
+def _fsync_directory(path: Path) -> None:
+    """Best-effort directory fsync for durability after atomic replace."""
+
+    try:
+        fd = os.open(str(path), os.O_RDONLY)
+    except OSError:
+        return
+    try:
+        os.fsync(fd)
+    except OSError:
+        return
+    finally:
+        os.close(fd)
+
+
+def _atomic_write_text(path: Path, payload: str) -> None:
+    """Atomically write text to `path` with bounded replace retries."""
+
+    temp_path: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            dir=str(path.parent),
+            prefix=path.name + ".",
+            suffix=".tmp",
+            delete=False,
+            newline="\n",
+        ) as tmp:
+            tmp.write(payload)
+            tmp.flush()
+            os.fsync(tmp.fileno())
+            temp_path = Path(tmp.name)
+
+        last_error: OSError | None = None
+        for attempt in range(ATOMIC_REPLACE_RETRIES):
+            try:
+                os.replace(str(temp_path), str(path))
+                _fsync_directory(path.parent)
+                return
+            except OSError as exc:
+                last_error = exc
+                if attempt == ATOMIC_REPLACE_RETRIES - 1 or not _is_retryable_replace_error(exc):
+                    raise
+                time.sleep(ATOMIC_RETRY_DELAY_SECONDS)
+
+        if last_error is not None:
+            raise last_error
+    finally:
+        if temp_path is not None and temp_path.exists():
+            temp_path.unlink(missing_ok=True)
 
 
 def migrate_session_state_document(
