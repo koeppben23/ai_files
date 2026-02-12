@@ -79,6 +79,18 @@ EXCLUDE_ROOT_FILES = {
 # Profiles copied into <config_root>/commands/profiles/**
 PROFILES_DIR_NAME = "profiles"
 
+# Customer helper scripts copied into <config_root>/commands/scripts/**
+SCRIPTS_DIR_NAME = "scripts"
+
+# Workflow templates copied into <config_root>/commands/templates/**
+TEMPLATES_DIR_NAME = "templates"
+TEMPLATE_CATALOG_REL = Path("templates/github-actions/template_catalog.json")
+TEMPLATE_CATALOG_SCHEMA = "governance.workflow-template-catalog.v1"
+
+# Customer script catalog controlling which scripts are shipped for customers
+CUSTOMER_SCRIPT_CATALOG_REL = Path("diagnostics/CUSTOMER_SCRIPT_CATALOG.json")
+CUSTOMER_SCRIPT_CATALOG_SCHEMA = "governance.customer-script-catalog.v1"
+
 # Diagnostics copied into <config_root>/commands/diagnostics/** (includes audit tooling + schemas)
 DIAGNOSTICS_DIR_NAME = "diagnostics"
 
@@ -180,6 +192,9 @@ def ensure_dirs(config_root: Path, dry_run: bool) -> None:
     dirs = [
         config_root,
         config_root / "commands",
+        config_root / "commands" / "scripts",
+        config_root / "commands" / "templates",
+        config_root / "commands" / "templates" / "github-actions",
         config_root / "commands" / "profiles",
         config_root / "commands" / "profiles" / "addons",
         config_root / "workspaces",
@@ -316,6 +331,18 @@ def collect_unsafe_source_symlinks(source_dir: Path) -> list[str]:
             if p.is_symlink():
                 unsafe.add(str(p.relative_to(source_dir)).replace("\\", "/"))
 
+    scripts_dir = source_dir / SCRIPTS_DIR_NAME
+    if scripts_dir.exists():
+        for p in scripts_dir.rglob("*"):
+            if p.is_symlink():
+                unsafe.add(str(p.relative_to(source_dir)).replace("\\", "/"))
+
+    templates_dir = source_dir / TEMPLATES_DIR_NAME
+    if templates_dir.exists():
+        for p in templates_dir.rglob("*"):
+            if p.is_symlink():
+                unsafe.add(str(p.relative_to(source_dir)).replace("\\", "/"))
+
     return sorted(unsafe)
 
 
@@ -393,6 +420,130 @@ def collect_governance_runtime_files(source_dir: Path) -> list[Path]:
             if p.is_file() and not p.is_symlink() and not _is_forbidden_metadata_path(p, source_dir)
         ]
     )
+
+
+def collect_customer_script_files(source_dir: Path, *, strict: bool) -> list[Path]:
+    """Collect customer-relevant scripts listed in diagnostics/CUSTOMER_SCRIPT_CATALOG.json."""
+
+    catalog_path = source_dir / CUSTOMER_SCRIPT_CATALOG_REL
+    payload = _load_json(catalog_path)
+    if payload is None:
+        if strict:
+            raise RuntimeError(f"Missing or invalid customer script catalog: {CUSTOMER_SCRIPT_CATALOG_REL}")
+        return []
+
+    if payload.get("schema") != CUSTOMER_SCRIPT_CATALOG_SCHEMA:
+        if strict:
+            raise RuntimeError(
+                f"Customer script catalog schema mismatch in {CUSTOMER_SCRIPT_CATALOG_REL}: "
+                f"expected {CUSTOMER_SCRIPT_CATALOG_SCHEMA}"
+            )
+        return []
+
+    raw = payload.get("scripts")
+    if not isinstance(raw, list):
+        if strict:
+            raise RuntimeError(f"{CUSTOMER_SCRIPT_CATALOG_REL}: scripts must be an array")
+        return []
+
+    selected: list[Path] = []
+    for idx, entry in enumerate(raw, start=1):
+        if not isinstance(entry, dict):
+            if strict:
+                raise RuntimeError(f"{CUSTOMER_SCRIPT_CATALOG_REL}: scripts[{idx}] must be an object")
+            continue
+
+        if not bool(entry.get("ship_in_release")):
+            continue
+
+        rel_raw = entry.get("path")
+        if not isinstance(rel_raw, str) or not rel_raw.strip():
+            if strict:
+                raise RuntimeError(f"{CUSTOMER_SCRIPT_CATALOG_REL}: scripts[{idx}] missing path")
+            continue
+
+        rel = rel_raw.replace("\\", "/")
+        rel_path = Path(rel)
+        if rel_path.is_absolute() or ".." in rel_path.parts or not rel.startswith("scripts/") or rel_path.suffix != ".py":
+            if strict:
+                raise RuntimeError(
+                    f"{CUSTOMER_SCRIPT_CATALOG_REL}: scripts[{idx}].path must be scripts/*.py without traversal"
+                )
+            continue
+
+        src = source_dir / rel_path
+        if not src.exists() or not src.is_file() or src.is_symlink() or _is_forbidden_metadata_path(src, source_dir):
+            if strict:
+                raise RuntimeError(f"catalog references missing or invalid shipped script: {rel}")
+            continue
+        selected.append(src)
+
+    if strict and not selected:
+        raise RuntimeError("Customer script catalog has no ship_in_release=true script entries")
+    return sorted(selected)
+
+
+def collect_workflow_template_files(source_dir: Path, *, strict: bool) -> list[Path]:
+    """Collect workflow template files declared in templates/github-actions/template_catalog.json."""
+
+    catalog_path = source_dir / TEMPLATE_CATALOG_REL
+    payload = _load_json(catalog_path)
+    if payload is None:
+        if strict:
+            raise RuntimeError(f"Missing or invalid workflow template catalog: {TEMPLATE_CATALOG_REL}")
+        return []
+
+    if payload.get("schema") != TEMPLATE_CATALOG_SCHEMA:
+        if strict:
+            raise RuntimeError(
+                f"Workflow template catalog schema mismatch in {TEMPLATE_CATALOG_REL}: expected {TEMPLATE_CATALOG_SCHEMA}"
+            )
+        return []
+
+    raw = payload.get("templates")
+    if not isinstance(raw, list):
+        if strict:
+            raise RuntimeError(f"{TEMPLATE_CATALOG_REL}: templates must be an array")
+        return []
+
+    selected: list[Path] = [catalog_path]
+    for idx, entry in enumerate(raw, start=1):
+        if not isinstance(entry, dict):
+            if strict:
+                raise RuntimeError(f"{TEMPLATE_CATALOG_REL}: templates[{idx}] must be an object")
+            continue
+        rel_raw = entry.get("file")
+        if not isinstance(rel_raw, str) or not rel_raw.strip():
+            if strict:
+                raise RuntimeError(f"{TEMPLATE_CATALOG_REL}: templates[{idx}] missing file")
+            continue
+
+        rel = rel_raw.replace("\\", "/")
+        rel_path = Path(rel)
+        if (
+            rel_path.is_absolute()
+            or ".." in rel_path.parts
+            or not rel.startswith("templates/github-actions/")
+            or rel_path.suffix != ".yml"
+        ):
+            if strict:
+                raise RuntimeError(
+                    f"{TEMPLATE_CATALOG_REL}: templates[{idx}].file must be templates/github-actions/*.yml"
+                )
+            continue
+
+        src = source_dir / rel_path
+        if not src.exists() or not src.is_file() or src.is_symlink() or _is_forbidden_metadata_path(src, source_dir):
+            if strict:
+                raise RuntimeError(f"template catalog references missing or invalid template file: {rel}")
+            continue
+        selected.append(src)
+
+    # Deduplicate while preserving deterministic order.
+    unique = sorted(dict.fromkeys(selected), key=lambda p: str(p.relative_to(source_dir)).replace("\\", "/"))
+    if strict and len(unique) <= 1:
+        raise RuntimeError("workflow template catalog has no listed template files")
+    return unique
 
 
 def build_governance_paths_payload(config_root: Path, *, deterministic: bool) -> dict:
@@ -861,6 +1012,96 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
     else:
         print("\nℹ️  No governance runtime package found (skipping).")
 
+    # copy customer helper scripts (catalog-driven)
+    try:
+        customer_scripts = collect_customer_script_files(plan.source_dir, strict=True)
+    except RuntimeError as exc:
+        safe_log_error(
+            reason_key="ERR-INSTALL-CUSTOMER-SCRIPT-CATALOG-INVALID",
+            message="Installer blocked: customer script catalog invalid or missing required entries.",
+            config_root=plan.config_root,
+            phase="installer",
+            gate="customer-scripts",
+            mode="repo-aware",
+            repo_fingerprint=None,
+            command="install.py",
+            component="installer-customer-scripts",
+            observed_value={"catalog": str(CUSTOMER_SCRIPT_CATALOG_REL), "error": str(exc)},
+            expected_constraint="Valid diagnostics/CUSTOMER_SCRIPT_CATALOG.json with ship_in_release scripts",
+            remediation="Restore customer script catalog and listed script files, then rerun install.",
+            action="abort",
+            result="failed",
+            reason_namespace="installer-internal",
+        )
+        eprint(f"❌ {exc}")
+        return 2
+
+    print("\n📋 Copying customer scripts to commands/scripts/ ...")
+    for sf in customer_scripts:
+        rel = sf.relative_to(plan.source_dir)
+        dst = plan.commands_dir / rel
+        entry = copy_with_optional_backup(
+            src=sf,
+            dst=dst,
+            backup_enabled=backup_enabled,
+            backup_root=backup_root,
+            dry_run=dry_run,
+            overwrite=force,
+        )
+        copied_entries.append(entry)
+        status = entry["status"]
+        if status in ("planned-copy", "copied"):
+            print(f"  ✅ {rel} ({status})")
+        elif status == "skipped-exists":
+            print(f"  ⏭️  {rel} exists (use --force to overwrite)")
+        else:
+            print(f"  ⚠️  {rel} missing (skipping)")
+
+    # copy workflow templates (catalog-driven)
+    try:
+        workflow_templates = collect_workflow_template_files(plan.source_dir, strict=True)
+    except RuntimeError as exc:
+        safe_log_error(
+            reason_key="ERR-INSTALL-WORKFLOW-TEMPLATE-CATALOG-INVALID",
+            message="Installer blocked: workflow template catalog invalid or missing template files.",
+            config_root=plan.config_root,
+            phase="installer",
+            gate="workflow-templates",
+            mode="repo-aware",
+            repo_fingerprint=None,
+            command="install.py",
+            component="installer-workflow-templates",
+            observed_value={"catalog": str(TEMPLATE_CATALOG_REL), "error": str(exc)},
+            expected_constraint="Valid templates/github-actions/template_catalog.json with existing template files",
+            remediation="Restore workflow template catalog and listed files, then rerun install.",
+            action="abort",
+            result="failed",
+            reason_namespace="installer-internal",
+        )
+        eprint(f"❌ {exc}")
+        return 2
+
+    print("\n📋 Copying workflow templates to commands/templates/ ...")
+    for tf in workflow_templates:
+        rel = tf.relative_to(plan.source_dir)
+        dst = plan.commands_dir / rel
+        entry = copy_with_optional_backup(
+            src=tf,
+            dst=dst,
+            backup_enabled=backup_enabled,
+            backup_root=backup_root,
+            dry_run=dry_run,
+            overwrite=force,
+        )
+        copied_entries.append(entry)
+        status = entry["status"]
+        if status in ("planned-copy", "copied"):
+            print(f"  ✅ {rel} ({status})")
+        elif status == "skipped-exists":
+            print(f"  ⏭️  {rel} exists (use --force to overwrite)")
+        else:
+            print(f"  ⚠️  {rel} missing (skipping)")
+
     # validation (critical installed files)
     print("\n🔍 Validating installation...")
     critical = [plan.commands_dir / "master.md", plan.commands_dir / "rules.md", plan.commands_dir / "start.md"]
@@ -977,6 +1218,21 @@ def uninstall(
             rel = src.relative_to(plan.source_dir)
             targets.append(plan.commands_dir / rel)
 
+        # Customer scripts and workflow templates from current source snapshot (best-effort in fallback mode).
+        try:
+            for src in collect_customer_script_files(plan.source_dir, strict=False):
+                rel = src.relative_to(plan.source_dir)
+                targets.append(plan.commands_dir / rel)
+        except Exception:
+            pass
+
+        try:
+            for src in collect_workflow_template_files(plan.source_dir, strict=False):
+                rel = src.relative_to(plan.source_dir)
+                targets.append(plan.commands_dir / rel)
+        except Exception:
+            pass
+
         # Remove governance.paths.json only when explicitly requested.
         if purge_paths_file:
             targets.append(plan.governance_paths_path)
@@ -1047,6 +1303,9 @@ def uninstall(
     cleanup_dirs = [
         plan.commands_dir / "profiles" / "addons",
         plan.commands_dir / "profiles",
+        plan.commands_dir / "templates" / "github-actions",
+        plan.commands_dir / "templates",
+        plan.commands_dir / "scripts",
         plan.commands_dir / "diagnostics",
         plan.commands_dir / "_backup",
         plan.config_root / "workspaces",

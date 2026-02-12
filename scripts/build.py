@@ -24,7 +24,6 @@ EXCLUDE_DIRS = {
     ".github",
     "dist",
     "tests",
-    "scripts",
     "__MACOSX",
     "__pycache__",
     ".pytest_cache",
@@ -46,6 +45,13 @@ BASELINE_REQUIRED_REASON_CODES = (
     "NOT_VERIFIED_MISSING_EVIDENCE",
     "NOT_VERIFIED_EVIDENCE_STALE",
 )
+
+CUSTOMER_SCRIPT_CATALOG_PATH = Path("diagnostics/CUSTOMER_SCRIPT_CATALOG.json")
+CUSTOMER_SCRIPT_CATALOG_SCHEMA = "governance.customer-script-catalog.v1"
+WORKFLOW_TEMPLATE_CATALOG_PATH = Path("templates/github-actions/template_catalog.json")
+WORKFLOW_TEMPLATE_CATALOG_SCHEMA = "governance.workflow-template-catalog.v1"
+MARKDOWN_EXCLUDE_POLICY_PATH = Path("diagnostics/CUSTOMER_MARKDOWN_EXCLUDE.json")
+MARKDOWN_EXCLUDE_POLICY_SCHEMA = "governance.customer-markdown-exclude.v1"
 
 
 def is_forbidden_metadata_path(relpath: str) -> bool:
@@ -151,6 +157,135 @@ def _enforce_readme_local_link_integrity(repo_root: Path) -> None:
         )
 
 
+def _load_customer_release_script_paths(repo_root: Path) -> set[str]:
+    catalog_path = repo_root / CUSTOMER_SCRIPT_CATALOG_PATH
+    if not catalog_path.exists():
+        raise SystemExit(f"Missing customer script catalog: {CUSTOMER_SCRIPT_CATALOG_PATH}")
+
+    try:
+        payload = json.loads(catalog_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise SystemExit(f"Invalid JSON in {CUSTOMER_SCRIPT_CATALOG_PATH}: {exc}") from exc
+
+    if payload.get("schema") != CUSTOMER_SCRIPT_CATALOG_SCHEMA:
+        raise SystemExit(
+            f"Invalid customer script catalog schema in {CUSTOMER_SCRIPT_CATALOG_PATH}: "
+            f"expected {CUSTOMER_SCRIPT_CATALOG_SCHEMA}, got {payload.get('schema')!r}"
+        )
+
+    raw_scripts = payload.get("scripts")
+    if not isinstance(raw_scripts, list) or not raw_scripts:
+        raise SystemExit(f"{CUSTOMER_SCRIPT_CATALOG_PATH}: scripts must be a non-empty array")
+
+    selected: set[str] = set()
+    for idx, item in enumerate(raw_scripts, start=1):
+        if not isinstance(item, dict):
+            raise SystemExit(f"{CUSTOMER_SCRIPT_CATALOG_PATH}: scripts[{idx}] must be an object")
+
+        raw_path = item.get("path")
+        if not isinstance(raw_path, str) or not raw_path:
+            raise SystemExit(f"{CUSTOMER_SCRIPT_CATALOG_PATH}: scripts[{idx}] missing non-empty path")
+        rel = raw_path.replace("\\", "/")
+        if not rel.startswith("scripts/"):
+            raise SystemExit(f"{CUSTOMER_SCRIPT_CATALOG_PATH}: scripts[{idx}].path must be under scripts/: {rel}")
+
+        if bool(item.get("ship_in_release")):
+            selected.add(rel)
+
+    if not selected:
+        raise SystemExit(f"{CUSTOMER_SCRIPT_CATALOG_PATH}: no ship_in_release=true scripts defined")
+
+    missing = sorted(rel for rel in selected if not (repo_root / rel).is_file())
+    if missing:
+        raise SystemExit(
+            "Customer script catalog references missing script files: " + ", ".join(missing)
+        )
+    return selected
+
+
+def _load_workflow_template_paths(repo_root: Path) -> set[str]:
+    catalog_path = repo_root / WORKFLOW_TEMPLATE_CATALOG_PATH
+    if not catalog_path.exists():
+        raise SystemExit(f"Missing workflow template catalog: {WORKFLOW_TEMPLATE_CATALOG_PATH}")
+
+    try:
+        payload = json.loads(catalog_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise SystemExit(f"Invalid JSON in {WORKFLOW_TEMPLATE_CATALOG_PATH}: {exc}") from exc
+
+    if payload.get("schema") != WORKFLOW_TEMPLATE_CATALOG_SCHEMA:
+        raise SystemExit(
+            f"Invalid workflow template catalog schema in {WORKFLOW_TEMPLATE_CATALOG_PATH}: "
+            f"expected {WORKFLOW_TEMPLATE_CATALOG_SCHEMA}, got {payload.get('schema')!r}"
+        )
+
+    raw_templates = payload.get("templates")
+    if not isinstance(raw_templates, list) or not raw_templates:
+        raise SystemExit(f"{WORKFLOW_TEMPLATE_CATALOG_PATH}: templates must be a non-empty array")
+
+    selected: set[str] = set()
+    for idx, item in enumerate(raw_templates, start=1):
+        if not isinstance(item, dict):
+            raise SystemExit(f"{WORKFLOW_TEMPLATE_CATALOG_PATH}: templates[{idx}] must be an object")
+        raw_file = item.get("file")
+        if not isinstance(raw_file, str) or not raw_file:
+            raise SystemExit(f"{WORKFLOW_TEMPLATE_CATALOG_PATH}: templates[{idx}] missing non-empty file")
+        rel = raw_file.replace("\\", "/")
+        if not rel.startswith("templates/github-actions/") or not rel.endswith(".yml"):
+            raise SystemExit(
+                f"{WORKFLOW_TEMPLATE_CATALOG_PATH}: templates[{idx}].file must be templates/github-actions/*.yml: {rel}"
+            )
+        selected.add(rel)
+
+    missing = sorted(rel for rel in selected if not (repo_root / rel).is_file())
+    if missing:
+        raise SystemExit(
+            "Workflow template catalog references missing files: " + ", ".join(missing)
+        )
+    return selected
+
+
+def _load_markdown_release_exclusions(repo_root: Path) -> set[str]:
+    policy_path = repo_root / MARKDOWN_EXCLUDE_POLICY_PATH
+    if not policy_path.exists():
+        raise SystemExit(f"Missing markdown exclusion policy: {MARKDOWN_EXCLUDE_POLICY_PATH}")
+
+    try:
+        payload = json.loads(policy_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise SystemExit(f"Invalid JSON in {MARKDOWN_EXCLUDE_POLICY_PATH}: {exc}") from exc
+
+    if payload.get("schema") != MARKDOWN_EXCLUDE_POLICY_SCHEMA:
+        raise SystemExit(
+            f"Invalid markdown exclusion policy schema in {MARKDOWN_EXCLUDE_POLICY_PATH}: "
+            f"expected {MARKDOWN_EXCLUDE_POLICY_SCHEMA}, got {payload.get('schema')!r}"
+        )
+
+    raw = payload.get("release_excluded_markdown")
+    if not isinstance(raw, list):
+        raise SystemExit(f"{MARKDOWN_EXCLUDE_POLICY_PATH}: release_excluded_markdown must be an array")
+
+    excluded: set[str] = set()
+    for idx, entry in enumerate(raw, start=1):
+        if not isinstance(entry, str) or not entry.strip():
+            raise SystemExit(
+                f"{MARKDOWN_EXCLUDE_POLICY_PATH}: release_excluded_markdown[{idx}] must be a non-empty string"
+            )
+        rel = entry.replace("\\", "/")
+        rel_path = Path(rel)
+        if rel_path.is_absolute() or ".." in rel_path.parts or rel_path.suffix.lower() != ".md":
+            raise SystemExit(
+                f"{MARKDOWN_EXCLUDE_POLICY_PATH}: invalid markdown path in release_excluded_markdown[{idx}]"
+            )
+        if not (repo_root / rel_path).is_file():
+            raise SystemExit(
+                f"{MARKDOWN_EXCLUDE_POLICY_PATH}: referenced markdown file does not exist: {rel}"
+            )
+        excluded.add(rel)
+
+    return excluded
+
+
 @dataclass(frozen=True)
 class BuildPaths:
     repo_root: Path
@@ -187,7 +322,20 @@ def _is_excluded(path: Path, repo_root: Path) -> bool:
     return False
 
 
-def _should_include_file(p: Path, rel: str) -> bool:
+def _should_include_file(
+    p: Path,
+    rel: str,
+    *,
+    customer_release_scripts: set[str],
+    shipped_workflow_templates: set[str],
+    release_excluded_markdown: set[str],
+) -> bool:
+    if rel in customer_release_scripts:
+        return True
+    if rel in shipped_workflow_templates:
+        return True
+    if rel in release_excluded_markdown:
+        return False
     name = p.name
     if name == "install.py":
         return True
@@ -214,12 +362,21 @@ def _is_under(path: Path, root: Path) -> bool:
         return False
 
 
-def collect_release_files(repo_root: Path, *, excluded_roots: tuple[Path, ...] = ()) -> list[Path]:
+def collect_release_files(
+    repo_root: Path,
+    *,
+    excluded_roots: tuple[Path, ...] = (),
+    customer_release_scripts: set[str],
+    shipped_workflow_templates: set[str],
+    release_excluded_markdown: set[str],
+) -> list[Path]:
     """
     Allowlist strategy:
       - include: install.py, LICENSE*, LICENCE*, *.md, *.json,
-        profiles/addons/*.addon.yml, diagnostics/*.py
-      - exclude: .git, .github, dist, tests, scripts, caches
+        profiles/addons/*.addon.yml, diagnostics/*.py,
+        scripts listed in diagnostics/CUSTOMER_SCRIPT_CATALOG.json with ship_in_release=true,
+        workflow template .yml files listed in templates/github-actions/template_catalog.json
+      - exclude: .git, .github, dist, tests, caches
     Deterministic ordering (sorted by posix relpath).
     """
     out: list[Path] = []
@@ -231,7 +388,13 @@ def collect_release_files(repo_root: Path, *, excluded_roots: tuple[Path, ...] =
         if _is_excluded(p, repo_root):
             continue
         rel = p.relative_to(repo_root).as_posix()
-        if _should_include_file(p, rel):
+        if _should_include_file(
+            p,
+            rel,
+            customer_release_scripts=customer_release_scripts,
+            shipped_workflow_templates=shipped_workflow_templates,
+            release_excluded_markdown=release_excluded_markdown,
+        ):
             out.append(p)
 
     def key(x: Path) -> str:
@@ -343,7 +506,17 @@ def main(argv: list[str]) -> int:
     _enforce_readme_baseline_claims(bp.repo_root)
     _enforce_readme_local_link_integrity(bp.repo_root)
 
-    files = collect_release_files(bp.repo_root, excluded_roots=(bp.dist_dir,))
+    customer_release_scripts = _load_customer_release_script_paths(bp.repo_root)
+    shipped_workflow_templates = _load_workflow_template_paths(bp.repo_root)
+    release_excluded_markdown = _load_markdown_release_exclusions(bp.repo_root)
+
+    files = collect_release_files(
+        bp.repo_root,
+        excluded_roots=(bp.dist_dir,),
+        customer_release_scripts=customer_release_scripts,
+        shipped_workflow_templates=shipped_workflow_templates,
+        release_excluded_markdown=release_excluded_markdown,
+    )
 
     formats = [s.strip().lower() for s in str(args.formats).split(",") if s.strip()]
     artifacts: list[Path] = []

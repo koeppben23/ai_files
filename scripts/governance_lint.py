@@ -716,6 +716,66 @@ def check_workflow_template_factory_contract(issues: list[str]) -> None:
         )
 
 
+def check_customer_script_catalog_contract(issues: list[str]) -> None:
+    catalog_path = ROOT / "diagnostics" / "CUSTOMER_SCRIPT_CATALOG.json"
+    script_path = ROOT / "scripts" / "customer_script_catalog.py"
+
+    if not catalog_path.exists():
+        issues.append("diagnostics/CUSTOMER_SCRIPT_CATALOG.json: missing customer script catalog")
+        return
+
+    catalog = read_text(catalog_path)
+    required_tokens = [
+        '"schema": "governance.customer-script-catalog.v1"',
+        '"path": "scripts/rulebook_factory.py"',
+        '"path": "scripts/workflow_template_factory.py"',
+        '"ship_in_release": true',
+    ]
+    missing_tokens = [token for token in required_tokens if token not in catalog]
+    if missing_tokens:
+        issues.append(
+            "diagnostics/CUSTOMER_SCRIPT_CATALOG.json: missing required tokens "
+            f"{missing_tokens}"
+        )
+
+    if not script_path.exists():
+        issues.append("scripts/customer_script_catalog.py: missing catalog checker script")
+        return
+
+    proc = subprocess.run(
+        [sys.executable, str(script_path)],
+        cwd=str(ROOT),
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    if proc.returncode != 0:
+        detail = (proc.stdout + "\n" + proc.stderr).strip()
+        issues.append(
+            "customer script catalog check failed: "
+            + (detail if detail else "unknown failure")
+        )
+
+
+def check_customer_markdown_exclusion_policy(issues: list[str]) -> None:
+    policy_path = ROOT / "diagnostics" / "CUSTOMER_MARKDOWN_EXCLUDE.json"
+    if not policy_path.exists():
+        issues.append("diagnostics/CUSTOMER_MARKDOWN_EXCLUDE.json: missing markdown exclusion policy")
+        return
+
+    payload = read_text(policy_path)
+    required_tokens = [
+        '"schema": "governance.customer-markdown-exclude.v1"',
+        '"release_excluded_markdown"',
+    ]
+    missing = [token for token in required_tokens if token not in payload]
+    if missing:
+        issues.append(
+            "diagnostics/CUSTOMER_MARKDOWN_EXCLUDE.json: missing required tokens "
+            f"{missing}"
+        )
+
+
 def check_stability_sla_contract(issues: list[str]) -> None:
     sla_path = ROOT / "STABILITY_SLA.md"
     if not sla_path.exists():
@@ -1168,6 +1228,8 @@ def main() -> int:
     check_required_addon_references(issues)
     check_template_quality_gate(issues)
     check_workflow_template_factory_contract(issues)
+    check_customer_script_catalog_contract(issues)
+    check_customer_markdown_exclusion_policy(issues)
     check_stability_sla_contract(issues)
     check_factory_contract_alignment(issues)
     check_diagnostics_reason_contract_alignment(issues)

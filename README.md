@@ -654,6 +654,7 @@ Reference runbook:
 - `docs/governance-pipeline-roles-template.md` (hardened CI role template)
 - `docs/governance-template-blueprints.md`
 - `docs/governance-workflow-template-factory.md`
+- `docs/governance-customer-scripts.md`
 
 ---
 
@@ -720,8 +721,12 @@ See:
 | [`profiles/addons/`](profiles/addons/) | Addon activation manifests (`required`/`advisory`, capabilities/signals, surface ownership) |
 | [`diagnostics/*_QUALITY_BENCHMARK_PACK.json`](diagnostics/) | Machine-readable benchmark packs for profile quality evaluation |
 | [`scripts/run_quality_benchmark.py`](scripts/run_quality_benchmark.py) | CLI runner for benchmark scoring and `PASS`/`FAIL`/`NOT_VERIFIED` outcomes |
-| [`scripts/workflow_template_factory.py`](scripts/workflow_template_factory.py) | Catalog validator and scaffold command for governance GitHub Actions templates |
-| [`templates/github-actions/template_catalog.json`](templates/github-actions/template_catalog.json) | Canonical catalog of shipped governance workflow templates |
+| [`scripts/rulebook_factory.py`](scripts/rulebook_factory.py) | Scaffolder for profile/addon rulebooks and addon manifests |
+| [`scripts/workflow_template_factory.py`](scripts/workflow_template_factory.py) | Catalog validator and scaffold command for governance workflow templates (current family: GitHub Actions) |
+| [`scripts/customer_script_catalog.py`](scripts/customer_script_catalog.py) | Validator/listing CLI for customer-relevant shipped scripts |
+| [`templates/github-actions/template_catalog.json`](templates/github-actions/template_catalog.json) | Canonical catalog of shipped governance workflow templates for the current `github-actions` family |
+| [`diagnostics/CUSTOMER_SCRIPT_CATALOG.json`](diagnostics/CUSTOMER_SCRIPT_CATALOG.json) | Canonical catalog of customer-relevant and release-shipped scripts |
+| [`diagnostics/CUSTOMER_MARKDOWN_EXCLUDE.json`](diagnostics/CUSTOMER_MARKDOWN_EXCLUDE.json) | Canonical list of markdown files excluded from customer release artifacts |
 | [`docs/quality-benchmark-pack-matrix.md`](docs/quality-benchmark-pack-matrix.md) | Matrix of all active benchmark packs |
 | [`README-RULES.md`](README-RULES.md) | Executive summary (not normative) |
 | [`SCOPE-AND-CONTEXT.md`](SCOPE-AND-CONTEXT.md) | Normative responsibility and scope boundary |
@@ -744,6 +749,116 @@ See:
 - `profiles/`: profile rulebooks plus addon manifests in `profiles/addons/*.addon.yml`
 - `scripts/`: governance helper CLIs (`build.py`, `governance_lint.py`, `migrate_session_state.py`, `run_quality_benchmark.py`, ...)
 - root rulebooks: `master.md`, `rules.md`, `start.md`, `SESSION_STATE_SCHEMA.md`, `STABILITY_SLA.md`
+
+### Installed layout for customers (after `install.py`)
+
+`install.py` installs customer-usable assets under `<config_root>/commands/` so customers do **not** need GitHub access.
+
+- `<config_root>/commands/scripts/`: shipped customer scripts from `diagnostics/CUSTOMER_SCRIPT_CATALOG.json`
+- `<config_root>/commands/templates/github-actions/`: shipped governance workflow templates + `template_catalog.json`
+- `<config_root>/commands/profiles/`: profile rulebooks + addon manifests
+- `<config_root>/commands/diagnostics/`: schemas, catalogs, benchmark packs, diagnostics helpers
+
+Release note:
+
+- Not every markdown file from the source repository is shipped to customers.
+- Customer markdown exclusions are governed by `diagnostics/CUSTOMER_MARKDOWN_EXCLUDE.json` (for example internal rollout/rework notes).
+
+### Customer profile/addon creation (quality-stable path)
+
+Use this sequence after install (from your OpenCode config root):
+
+1) Use normative contracts before generation:
+
+- `commands/new_profile.md`
+- `commands/new_addon.md`
+
+2) Generate a new profile rulebook:
+
+```bash
+python3 commands/scripts/rulebook_factory.py profile \
+  --profile-key backend-rust \
+  --stack-scope "Rust backend services" \
+  --applicability-signal "cargo-lock-present" \
+  --quality-focus "deterministic tests" \
+  --blocking-policy "missing required evidence blocks Phase 4 entry" \
+  --output-root commands
+```
+
+3) Generate addon manifest + addon rulebook pair:
+
+```bash
+python3 commands/scripts/rulebook_factory.py addon \
+  --addon-key rustApiTemplates \
+  --addon-class required \
+  --rulebook-name backend-rust-templates \
+  --signal file_glob="**/*.rs" \
+  --domain-scope "Template and API conformance for Rust services" \
+  --critical-quality-claim "template output is evidence-backed" \
+  --owns-surface backend_templates \
+  --touches-surface api_contract \
+  --capability-any python \
+  --output-root commands
+```
+
+4) Enforce deterministic quality gates:
+
+```bash
+python3 commands/scripts/governance_lint.py
+python3 commands/scripts/validate_addons.py --repo-root commands
+```
+
+### Customer workflow template creation (quality-stable path)
+
+Use shipped governance templates under `commands/templates/` and create new template files via the factory script.
+Current shipped family is `github-actions/`.
+
+1) Scaffold from approved archetypes:
+
+```bash
+python3 commands/scripts/workflow_template_factory.py scaffold \
+  --repo-root commands \
+  --template-key governance-repo-gate \
+  --archetype pipeline_roles_hardened \
+  --title "Governance Repo Gate" \
+  --purpose "Evidence-first developer/reviewer gate for repository PRs"
+```
+
+2) Validate catalog/template consistency (fail-closed):
+
+```bash
+python3 commands/scripts/workflow_template_factory.py check --repo-root commands
+python3 commands/scripts/governance_lint.py
+```
+
+3) Copy the selected template into your target automation directory:
+
+```bash
+cp commands/templates/github-actions/governance-repo-gate.yml .github/workflows/governance-repo-gate.yml
+```
+
+### Customer quality benchmark run (no GitHub access required)
+
+Use installed scripts + diagnostics packs directly from `<config_root>/commands/`:
+
+```bash
+python3 commands/scripts/run_quality_benchmark.py \
+  --pack commands/diagnostics/PYTHON_QUALITY_BENCHMARK_PACK.json \
+  --review-mode \
+  --evidence-dir <evidence_dir_with_pytest_exitcode_lint_drift> \
+  --output commands/diagnostics/benchmark-results/python.json \
+  --criterion-score PYR-1=0.9 \
+  --criterion-score PYR-2=0.9 \
+  --criterion-score PYR-3=0.9 \
+  --criterion-score PYR-4=0.9 \
+  --criterion-score PYR-5=0.9
+```
+
+Minimum evidence files expected in `<evidence_dir_with_pytest_exitcode_lint_drift>`:
+
+- `pytest.exitcode`
+- `governance_lint.exitcode`
+- `drift.txt`
 
 **Suitable for:**
 

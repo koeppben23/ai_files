@@ -43,3 +43,4 @@ This document maps production-ready workflow templates to governance goals.
 - Validate catalog/file consistency with `python3 scripts/workflow_template_factory.py`.
 - Scaffold new templates from approved archetypes with `python3 scripts/workflow_template_factory.py scaffold ...`.
 - Full runbook: `docs/governance-workflow-template-factory.md`.
+- Customer script catalog for shipped helper CLIs: `docs/governance-customer-scripts.md`.
