@@ -69,9 +69,13 @@ Professional publishing is handled by `.github/workflows/release.yml`:
 - trigger via tag push (`v*`) or manual dispatch with existing tag
 - enforce tag/version consistency with `master.md`
 - execute release and build test gates before publishing
+- sign release-critical artifacts with keyless Sigstore bundles (`<asset>.sigstore.json`)
+- verify signer identity constraints (repo + workflow + tag ref) before publish
 - upload base artifacts + customer install bundle to the GitHub release
 
 For one-command release automation (including version/changelog/tag updates), use `.github/workflows/release-orchestrator.yml`, which cuts the release commit and tag first, then dispatches `release.yml`.
+
+Detailed signer identity and verification policy: `docs/release-security-model.md`.
 
 ## Customer handoff recommendation
 

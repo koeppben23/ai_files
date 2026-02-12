@@ -300,6 +300,8 @@ Release workflow behavior (fail-closed):
 - validates tag format and requires tag version to match `master.md` `Governance-Version`
 - runs release gates (`governance_lint` + `pytest -m release` + `pytest -m build`)
 - builds deterministic release artifacts and customer install bundle
+- signs release-critical artifacts with Sigstore/cosign keyless signing (OIDC)
+- verifies signature identity constraints (repo + workflow path + tag ref pattern) before publish
 - publishes/updates GitHub release assets
 
 ### One-command release orchestration
@@ -328,6 +330,22 @@ Published release assets:
 - `verification-report.json`
 - `customer-install-bundle-v1.zip`
 - `customer-install-bundle-v1.SHA256`
+- signature bundles for each release-critical asset: `<asset>.sigstore.json`
+
+Release signature verification contract:
+
+- OIDC issuer: `https://token.actions.githubusercontent.com`
+- allowed signer identity: `https://github.com/<org>/<repo>/.github/workflows/release.yml@refs/tags/v<semver-ish>`
+
+Example verification:
+
+```bash
+cosign verify-blob \
+  --bundle governance-1.2.0.zip.sigstore.json \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  --certificate-identity-regexp '^https://github\.com/<org>/<repo>/\.github/workflows/release\.yml@refs/tags/v[0-9]+\.[0-9]+\.[0-9]+([-.+][0-9A-Za-z.-]+)?$' \
+  governance-1.2.0.zip
+```
 
 ---
 
@@ -724,6 +742,7 @@ Reference runbook:
 - `docs/governance-workflow-template-factory.md`
 - `docs/governance-customer-scripts.md`
 - `docs/customer-install-bundle-v1.md`
+- `docs/release-security-model.md`
 
 ---
 
@@ -798,6 +817,7 @@ See:
 | [`diagnostics/CUSTOMER_SCRIPT_CATALOG.json`](diagnostics/CUSTOMER_SCRIPT_CATALOG.json) | Canonical catalog of customer-relevant and release-shipped scripts |
 | [`diagnostics/CUSTOMER_MARKDOWN_EXCLUDE.json`](diagnostics/CUSTOMER_MARKDOWN_EXCLUDE.json) | Canonical list of markdown files excluded from customer release artifacts |
 | [`docs/customer-install-bundle-v1.md`](docs/customer-install-bundle-v1.md) | Professional customer handoff bundle contract (file layout + CI steps + wrapper installers) |
+| [`docs/release-security-model.md`](docs/release-security-model.md) | Release threat model and deterministic signer identity verification contract |
 | [`docs/quality-benchmark-pack-matrix.md`](docs/quality-benchmark-pack-matrix.md) | Matrix of all active benchmark packs |
 | [`README-RULES.md`](README-RULES.md) | Executive summary (not normative) |
 | [`SCOPE-AND-CONTEXT.md`](SCOPE-AND-CONTEXT.md) | Normative responsibility and scope boundary |

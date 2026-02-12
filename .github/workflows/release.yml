@@ -22,6 +22,7 @@ on:
 
 permissions:
   contents: write
+  id-token: write
 
 concurrency:
   group: release-${{ github.event_name == 'push' && github.ref_name || github.event.inputs.tag }}
@@ -60,6 +61,9 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
 
       - name: Validate tag/master version consistency
         run: |
@@ -140,6 +144,46 @@ jobs:
           test -f "dist/customer-install-bundle-v1.SHA256"
           test -f "dist/RELEASE_NOTES.md"
 
+      - name: Sign release assets (cosign keyless)
+        run: |
+          set -euo pipefail
+          version="${{ steps.release_tag.outputs.version }}"
+          artifacts=(
+            "dist/governance-${version}.zip"
+            "dist/governance-${version}.tar.gz"
+            "dist/SHA256SUMS.txt"
+            "dist/verification-report.json"
+            "dist/customer-install-bundle-v1.zip"
+            "dist/customer-install-bundle-v1.SHA256"
+          )
+          for artifact in "${artifacts[@]}"; do
+            cosign sign-blob --yes --bundle "${artifact}.sigstore.json" "${artifact}"
+          done
+
+      - name: Verify signature identity constraints
+        run: |
+          set -euo pipefail
+          version="${{ steps.release_tag.outputs.version }}"
+          issuer="https://token.actions.githubusercontent.com"
+          identity_re="^https://github\\.com/${GITHUB_REPOSITORY}/\\.github/workflows/release\\.yml@refs/tags/v[0-9]+\\.[0-9]+\\.[0-9]+([-.+][0-9A-Za-z.-]+)?$"
+          artifacts=(
+            "dist/governance-${version}.zip"
+            "dist/governance-${version}.tar.gz"
+            "dist/SHA256SUMS.txt"
+            "dist/verification-report.json"
+            "dist/customer-install-bundle-v1.zip"
+            "dist/customer-install-bundle-v1.SHA256"
+          )
+          for artifact in "${artifacts[@]}"; do
+            bundle="${artifact}.sigstore.json"
+            test -f "${bundle}"
+            cosign verify-blob \
+              --bundle "${bundle}" \
+              --certificate-oidc-issuer "${issuer}" \
+              --certificate-identity-regexp "${identity_re}" \
+              "${artifact}" >/dev/null
+          done
+
       - name: Publish GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -160,20 +204,32 @@ jobs:
           if gh release view "${tag}" >/dev/null 2>&1; then
             gh release upload "${tag}" \
               "dist/governance-${version}.zip" \
+              "dist/governance-${version}.zip.sigstore.json" \
               "dist/governance-${version}.tar.gz" \
+              "dist/governance-${version}.tar.gz.sigstore.json" \
               "dist/SHA256SUMS.txt" \
+              "dist/SHA256SUMS.txt.sigstore.json" \
               "dist/verification-report.json" \
+              "dist/verification-report.json.sigstore.json" \
               "dist/customer-install-bundle-v1.zip" \
               "dist/customer-install-bundle-v1.SHA256" \
+              "dist/customer-install-bundle-v1.zip.sigstore.json" \
+              "dist/customer-install-bundle-v1.SHA256.sigstore.json" \
               --clobber
           else
             gh release create "${tag}" \
               "dist/governance-${version}.zip" \
+              "dist/governance-${version}.zip.sigstore.json" \
               "dist/governance-${version}.tar.gz" \
+              "dist/governance-${version}.tar.gz.sigstore.json" \
               "dist/SHA256SUMS.txt" \
+              "dist/SHA256SUMS.txt.sigstore.json" \
               "dist/verification-report.json" \
+              "dist/verification-report.json.sigstore.json" \
               "dist/customer-install-bundle-v1.zip" \
               "dist/customer-install-bundle-v1.SHA256" \
+              "dist/customer-install-bundle-v1.zip.sigstore.json" \
+              "dist/customer-install-bundle-v1.SHA256.sigstore.json" \
               --title "Release ${tag}" \
               --notes-file "dist/RELEASE_NOTES.md" \
               "${args[@]}"
