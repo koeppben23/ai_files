@@ -1633,6 +1633,122 @@ def show_status(source_dir: Path, config_root_arg: Path | None) -> int:
     return 0
 
 
+def show_health(source_dir: Path, config_root_arg: Path | None) -> int:
+    """Run read-only health probes and show compact status. Returns 0 on all green, non-zero if issues found."""
+
+    print("=" * 60)
+    print("LLM Governance System Health")
+    print("=" * 60)
+
+    issues_found = []
+
+    # Probe 1: Python version
+    py_ver = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
+    print(f"\n🐍 Python: {py_ver}")
+    if sys.version_info < (3, 10):
+        print("   ⚠️  Python 3.10+ recommended")
+        issues_found.append("python-version")
+
+    # Probe 2: Git availability (probe only, non-destructive)
+    git_available = shutil.which("git") is not None
+    git_status = "✅" if git_available else "⚠️"
+    print(f"\n{git_status} Git: {'available' if git_available else 'not in PATH'}")
+    if not git_available:
+        issues_found.append("git-not-available")
+
+    # Probe 3: Config root resolution
+    try:
+        config_root = config_root_arg if config_root_arg is not None else get_config_root()
+        print(f"\n✅ Config root: {config_root}")
+    except Exception as e:
+        print(f"\n❌ Config root: failed to resolve ({e})")
+        issues_found.append("config-root-resolution")
+        return 1
+
+    # Probe 4: Write permissions per scope
+    print("\n📁 Write permissions:")
+    perms_ok = True
+    for scope, path in [
+        ("config_root", config_root),
+        ("commands", config_root / "commands"),
+        ("workspaces", config_root / "workspaces"),
+    ]:
+        writable = os.access(path, os.W_OK) if path.exists() else False
+        icon = "✅" if writable else "❌"
+        status = "writable" if writable else "NOT WRITABLE"
+        print(f"   {icon} {scope}: {status}")
+        if not writable:
+            perms_ok = False
+            issues_found.append(f"perm-{scope}")
+
+    if not perms_ok:
+        print("   ⚠️  Some scopes not writable (install may fail)")
+
+    # Probe 5: Source directory accessibility
+    source_master = source_dir / "master.md"
+    source_readable = source_master.exists() and os.access(source_master, os.R_OK)
+    icon = "✅" if source_readable else "❌"
+    print(f"\n{icon} Source master.md: {'readable' if source_readable else 'not accessible'}")
+    if not source_readable:
+        issues_found.append("source-not-accessible")
+
+    # Probe 6: Installation health (if exists)
+    commands_home = config_root / "commands"
+    if commands_home.exists():
+        manifest_path = commands_home / MANIFEST_NAME
+        manifest_exists = manifest_path.exists()
+        manifest_icon = "✅" if manifest_exists else "⚠️"
+        print(f"\n{manifest_icon} Manifest: {'present' if manifest_exists else 'missing (fallback mode)'}")
+        if not manifest_exists:
+            issues_found.append("manifest-missing")
+
+        # Check key files
+        key_files = ["master.md", "rules.md", "start.md"]
+        key_ok = True
+        for kf in key_files:
+            kf_path = commands_home / kf
+            exists = kf_path.exists()
+            icon = "✅" if exists else "❌"
+            print(f"   {icon} {kf}: {'present' if exists else 'MISSING'}")
+            if not exists:
+                key_ok = False
+                issues_found.append(f"key-file-missing-{kf}")
+        if not key_ok:
+            print("   ⚠️  Core governance files missing")
+
+        # Check governance.paths.json
+        paths_file = commands_home / GOVERNANCE_PATHS_NAME
+        paths_exists = paths_file.exists()
+        paths_icon = "✅" if paths_exists else "⚠️"
+        print(f"   {paths_icon} governance.paths.json: {'present' if paths_exists else 'missing'}")
+        if not paths_exists:
+            issues_found.append("paths-json-missing")
+    else:
+        print("\n⚠️  No installation found at config root")
+        print("   Run 'python3 install.py' to install")
+        issues_found.append("no-installation")
+
+    # Summary
+    print("\n" + "=" * 60)
+    if not issues_found:
+        print("✅ All health checks passed")
+        return 0
+    else:
+        print("⚠️  Health issues detected")
+        print("\nOne command per issue:")
+        if "python-version" in issues_found:
+            print("   - Install Python 3.10+")
+        if "git-not-available" in issues_found:
+            print("   - Install git or add to PATH")
+        if "perm-" in "".join(issues_found):
+            print("   - Check directory permissions")
+        if "no-installation" in issues_found:
+            print("   - Run: python3 install.py")
+        if "manifest-missing" in issues_found or any(i.startswith("key-file-") for i in issues_found):
+            print("   - Run: python3 install.py --force")
+        return 1
+
+
 def parse_args(argv: list[str]) -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Install/Uninstall LLM Governance System files into OpenCode config dir.")
     p.add_argument(
@@ -1665,6 +1781,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     )
     p.add_argument("--version", action="store_true", help="Show installer and governance version, then exit.")
     p.add_argument("--status", action="store_true", help="Show installation status (read-only), then exit.")
+    p.add_argument("--health", action="store_true", help="Run read-only health probes and show compact status, then exit.")
     return p.parse_args(argv)
 
 
@@ -1685,6 +1802,10 @@ def main(argv: list[str]) -> int:
     # --status: show installation status and exit (read-only)
     if args.status:
         return show_status(args.source_dir, args.config_root)
+
+    # --health: run read-only health probes and exit
+    if args.health:
+        return show_health(args.source_dir, args.config_root)
 
     config_root = args.config_root if args.config_root is not None else get_config_root()
     plan = build_plan(
