@@ -32,6 +32,10 @@ def run_build(args: list[str], *, env: dict[str, str] | None = None) -> subproce
     return run([sys.executable, "scripts/build.py", *args], env=env)
 
 
+def run_customer_bundle_build(args: list[str], *, env: dict[str, str] | None = None) -> subprocess.CompletedProcess:
+    return run([sys.executable, "scripts/build_customer_install_bundle.py", *args], env=env)
+
+
 def git_ls_files(*patterns: str) -> list[str]:
     cmd = ["git", "ls-files"]
     if patterns:

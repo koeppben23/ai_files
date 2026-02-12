@@ -217,6 +217,9 @@ jobs:
       - name: Build
         run: |
           python scripts/build.py
+      - name: Build customer install bundle v1
+        run: |
+          python scripts/build_customer_install_bundle.py --dist-dir dist
       - name: Smoke test from artifacts
         shell: bash
         run: |
