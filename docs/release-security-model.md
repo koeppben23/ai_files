@@ -22,7 +22,7 @@ Each signed asset is paired with a Sigstore bundle file:
 Only the GitHub Actions release workflow is allowed to sign release artifacts.
 
 - Workflow path: `.github/workflows/release.yml`
-- Repository: `<org>/<repo>` (current: `koeppben23/ai_files`)
+- Repository: `<org>/<repo>` (for this distribution: `koeppben23/ai_files`)
 - Allowed refs: `refs/tags/v<semver-ish>`
 - OIDC issuer: `https://token.actions.githubusercontent.com`
 
