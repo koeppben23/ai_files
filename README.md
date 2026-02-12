@@ -27,8 +27,8 @@ This product is a deterministic governance system for AI-assisted software deliv
 
 ## Quick Start Matrix
 
-- First-time install: run `python3 install.py` (or use the customer bundle wrapper in `install/`).
-- New repository or new ticket: run `/start`.
+- CLI/repository install flow: run `python3 install.py` (or use the customer bundle wrapper in `install/`).
+- OpenCode session flow: run `/start` (OpenCode command, not a shell command).
 - Resume interrupted work: use `/continue` or `/resume` with existing session state.
 - Customer handoff install: deliver `customer-install-bundle-v1.zip` with `customer-install-bundle-v1.SHA256`.
 - Release operations: use the release workflow path described in [`docs/releasing.md`](docs/releasing.md).
@@ -36,7 +36,7 @@ This product is a deterministic governance system for AI-assisted software deliv
 
 ## Installation
 
-Default config root for customer installs is typically `~/.config/opencode` (platform details in [`docs/install-layout.md`](docs/install-layout.md)).
+Config root is runtime-resolved by platform/environment settings (see OS-specific examples in [`docs/install-layout.md`](docs/install-layout.md)).
 
 - Standard install: `python3 install.py`
 - Deterministic dry-run first: `python3 install.py --dry-run`

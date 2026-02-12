@@ -3,6 +3,14 @@
 This document is the detailed phase map that was previously embedded in `README.md`.
 If this file and `master.md` ever diverge, `master.md` is authoritative.
 
+## Customer View (Short)
+
+- Bootstrap validates install/path/session prerequisites before work proceeds.
+- Discovery builds repo context and reusable decision artifacts.
+- Planning produces an implementation path without bypassing gates.
+- Gate reviews validate architecture, tests, business rules (when enabled), and rollback safety.
+- Final QA issues a deterministic readiness decision (`ready-for-pr` or `fix-required`).
+
 ## Full Phase Map
 
 | Phase | What it does (one-line) | Gate / blocked behavior |

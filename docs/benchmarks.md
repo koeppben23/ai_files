@@ -21,6 +21,8 @@ Optional helper command:
 python3 scripts/run_quality_benchmark.py --pack diagnostics/PYTHON_QUALITY_BENCHMARK_PACK.json
 ```
 
+Running the helper alone does not imply `PASS`; required evidence artifacts must still be present and valid.
+
 ## References
 
 - Python benchmark runbook: [`python-quality-benchmark-pack.md`](python-quality-benchmark-pack.md)

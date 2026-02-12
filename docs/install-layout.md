@@ -20,7 +20,7 @@ Typical default install root is `~/.config/opencode` (platform-specific variants
 - Active session pointer remains global at `${SESSION_STATE_POINTER_FILE}`.
 - Canonical session payload is repo-scoped at `${SESSION_STATE_FILE}`.
 
-## Installed Layout (Authoritative Shape)
+## Installed Layout (Canonical Shape)
 
 ```text
 ${COMMANDS_HOME}/

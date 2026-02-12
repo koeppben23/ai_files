@@ -55,6 +55,7 @@ gh workflow run release-orchestrator.yml \
 
 - OIDC issuer: `https://token.actions.githubusercontent.com`
 - allowed signer identity: `https://github.com/<org>/<repo>/.github/workflows/release.yml@refs/tags/v<semver-ish>`
+- Replace `<org>/<repo>` with the actual release source repository before running verification commands.
 
 Example signature verification:
 
