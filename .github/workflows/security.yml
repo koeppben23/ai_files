@@ -21,40 +21,34 @@ jobs:
     name: Secret Scan (gitleaks)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Run gitleaks and emit evidence
         run: |
           set -euo pipefail
           mkdir -p diagnostics/security-evidence
-          python3 - <<'PY'
+          GITLEAKS_VERSION="8.30.0"
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" -o /tmp/gitleaks.tar.gz
+          tar -xzf /tmp/gitleaks.tar.gz -C /tmp gitleaks
+
+          set +e
+          /tmp/gitleaks detect \
+            --source . \
+            --report-format json \
+            --report-path diagnostics/security-evidence/gitleaks.json \
+            --exit-code 0 \
+            --redact
+          gitleaks_rc=$?
+          set -e
+
+          GITLEAKS_RC="${gitleaks_rc}" python3 - <<'PY'
           import json
+          import os
           import pathlib
-          import subprocess
+
+          gitleaks_rc = int(os.environ["GITLEAKS_RC"])
 
           out_path = pathlib.Path("diagnostics/security-evidence/gitleaks.json")
-          cmd = [
-              "docker",
-              "run",
-              "--rm",
-              "-v",
-              f"{pathlib.Path('.').resolve()}:/repo",
-              "-w",
-              "/repo",
-              "zricethezav/gitleaks:latest",
-              "detect",
-              "--source",
-              "/repo",
-              "--report-format",
-              "json",
-              "--report-path",
-              str(out_path),
-              "--exit-code",
-              "0",
-              "--redact",
-          ]
-          proc = subprocess.run(cmd, check=False)
-
           findings = []
           if out_path.exists():
               try:
@@ -64,9 +58,10 @@ jobs:
               except Exception:
                   findings = []
 
+          status = "success" if gitleaks_rc == 0 else "failure"
           summary = {
               "scanner_id": "gitleaks",
-              "status": "success" if proc.returncode == 0 else "failure",
+              "status": status,
               "findings_by_severity": {
                   "critical": 0,
                   "high": len(findings),
@@ -84,7 +79,7 @@ jobs:
           PY
 
       - name: Upload gitleaks evidence
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: security-evidence-gitleaks
           path: |
@@ -95,8 +90,8 @@ jobs:
     name: Dependency Scan (pip-audit)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.11"
 
@@ -194,7 +189,7 @@ jobs:
           PY
 
       - name: Upload dependency evidence
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: security-evidence-deps
           path: diagnostics/security-evidence/pip-audit*.json
@@ -203,20 +198,26 @@ jobs:
     name: Workflow Hardening (actionlint + zizmor)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Run actionlint and zizmor
         run: |
           set -euo pipefail
           mkdir -p diagnostics/security-evidence
+
           ACTIONLINT_VERSION="1.7.4"
           curl -sSfL "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz" -o /tmp/actionlint.tar.gz
           tar -xzf /tmp/actionlint.tar.gz -C /tmp actionlint
 
+          ZIZMOR_VERSION="1.22.0"
+          curl -sSfL "https://github.com/zizmorcore/zizmor/releases/download/v${ZIZMOR_VERSION}/zizmor-x86_64-unknown-linux-gnu.tar.gz" -o /tmp/zizmor.tar.gz
+          tar -xzf /tmp/zizmor.tar.gz -C /tmp zizmor
+
           set +e
-          /tmp/actionlint -color > diagnostics/security-evidence/actionlint.out 2>&1
+          /tmp/actionlint -shellcheck= -format '{{json .}}' .github/workflows > diagnostics/security-evidence/actionlint.jsonl 2>&1
           actionlint_rc=$?
-          docker run --rm -v "$PWD:/repo" -w /repo ghcr.io/woodruffw/zizmor:latest .github/workflows > diagnostics/security-evidence/zizmor.out 2>&1
+
+          /tmp/zizmor --no-online-audits --collect=workflows --format=json-v1 --no-exit-codes .github/workflows > diagnostics/security-evidence/zizmor.json 2>&1
           zizmor_rc=$?
           set -e
 
@@ -227,31 +228,68 @@ jobs:
 
           actionlint_rc = int(os.environ["ACTIONLINT_RC"])
           zizmor_rc = int(os.environ["ZIZMOR_RC"])
-          failures = 0
+
+          actionlint_path = pathlib.Path("diagnostics/security-evidence/actionlint.jsonl")
+          zizmor_path = pathlib.Path("diagnostics/security-evidence/zizmor.json")
+
+          severities = {"critical": 0, "high": 0, "medium": 0, "low": 0, "unknown": 0}
           notes = []
 
-          if actionlint_rc != 0:
-              failures += 1
-              notes.append(f"actionlint exit={actionlint_rc}")
+          # actionlint findings are deterministic lint errors; map as medium severity findings.
+          actionlint_count = 0
+          if actionlint_path.exists():
+              for line in actionlint_path.read_text(encoding="utf-8").splitlines():
+                  if line.strip():
+                      actionlint_count += 1
+          severities["medium"] += actionlint_count
+
+          # zizmor JSON findings carry explicit severities.
+          zizmor_findings = []
+          if zizmor_path.exists():
+              try:
+                  payload = json.loads(zizmor_path.read_text(encoding="utf-8"))
+                  if isinstance(payload, list):
+                      zizmor_findings = payload
+                  elif isinstance(payload, dict):
+                      findings = payload.get("findings")
+                      if isinstance(findings, list):
+                          zizmor_findings = findings
+              except Exception:
+                  zizmor_findings = []
+
+          for finding in zizmor_findings:
+              if not isinstance(finding, dict):
+                  continue
+              determinations = finding.get("determinations")
+              if not isinstance(determinations, dict):
+                  continue
+              severity = str(determinations.get("severity", "unknown")).strip().lower()
+              if severity == "informational":
+                  severity = "low"
+              if severity not in severities:
+                  severity = "unknown"
+              severities[severity] += 1
+
+          status = "success"
+          if actionlint_rc not in (0, 1):
+              status = "failure"
+              notes.append(f"actionlint execution failed (exit={actionlint_rc})")
           if zizmor_rc != 0:
-              failures += 1
-              notes.append(f"zizmor exit={zizmor_rc}")
+              status = "failure"
+              notes.append(f"zizmor execution failed (exit={zizmor_rc})")
+
+          notes.append(f"actionlint findings={actionlint_count}")
+          notes.append(f"zizmor findings={len(zizmor_findings)}")
 
           summary = {
               "scanner_id": "workflow-hardening",
-              "status": "success" if failures == 0 else "failure",
-              "findings_by_severity": {
-                  "critical": 0,
-                  "high": failures,
-                  "medium": 0,
-                  "low": 0,
-                  "unknown": 0,
-              },
+              "status": status,
+              "findings_by_severity": severities,
               "evidence_paths": [
-                  "diagnostics/security-evidence/actionlint.out",
-                  "diagnostics/security-evidence/zizmor.out",
+                  "diagnostics/security-evidence/actionlint.jsonl",
+                  "diagnostics/security-evidence/zizmor.json",
               ],
-              "notes": "; ".join(notes) if notes else "actionlint + zizmor succeeded",
+              "notes": "; ".join(notes),
           }
           pathlib.Path("diagnostics/security-evidence/workflow-hardening.summary.json").write_text(
               json.dumps(summary, indent=2, ensure_ascii=True) + "\n",
@@ -260,12 +298,12 @@ jobs:
           PY
 
       - name: Upload workflow-hardening evidence
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: security-evidence-workflows
           path: |
-            diagnostics/security-evidence/actionlint.out
-            diagnostics/security-evidence/zizmor.out
+            diagnostics/security-evidence/actionlint.jsonl
+            diagnostics/security-evidence/zizmor.json
             diagnostics/security-evidence/workflow-hardening.summary.json
 
   codeql-scan:
@@ -275,18 +313,18 @@ jobs:
       contents: read
       security-events: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Initialize CodeQL
         id: init
-        uses: github/codeql-action/init@v3
+        uses: github/codeql-action/init@b5ebac6f4c00c8ccddb7cdcd45fdb248329f808a # v3
         continue-on-error: true
         with:
           languages: python
 
       - name: Analyze with CodeQL
         id: analyze
-        uses: github/codeql-action/analyze@v3
+        uses: github/codeql-action/analyze@b5ebac6f4c00c8ccddb7cdcd45fdb248329f808a # v3
         continue-on-error: true
         with:
           output: diagnostics/security-evidence/codeql
@@ -382,7 +420,7 @@ jobs:
 
       - name: Upload codeql evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: security-evidence-codeql
           path: |
@@ -399,10 +437,10 @@ jobs:
       - codeql-scan
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Download scanner evidence artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           pattern: security-evidence-*
           path: diagnostics/security-evidence
@@ -421,7 +459,7 @@ jobs:
 
       - name: Upload aggregated security evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: security-evidence-aggregate
           path: diagnostics/security-evidence/security_summary.json
