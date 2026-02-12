@@ -99,6 +99,23 @@ jobs:
           import subprocess
           import sys
 
+          evidence_dir = pathlib.Path("diagnostics/benchmark-evidence")
+          results_dir = pathlib.Path("diagnostics/benchmark-results")
+          test_exit = int((evidence_dir / "pytest.exitcode").read_text(encoding="utf-8").strip() or "1")
+          lint_exit = int((evidence_dir / "governance_lint.exitcode").read_text(encoding="utf-8").strip() or "1")
+          drift_empty = not (evidence_dir / "worktree_drift.txt").read_text(encoding="utf-8").strip()
+          scores = {
+              "PYR-1": 0.9 if test_exit == 0 else 0.4,
+              "PYR-2": 0.9 if test_exit == 0 else 0.4,
+              "PYR-3": 0.9 if lint_exit == 0 and test_exit == 0 else 0.4,
+              "PYR-4": 0.9 if drift_empty else 0.5,
+              "PYR-5": 0.9 if lint_exit == 0 else 0.4,
+          }
+          (results_dir / "criterion_scores.json").write_text(
+              json.dumps(scores, indent=2) + "\n",
+              encoding="utf-8",
+          )
+
           cmd = [
               sys.executable,
               "scripts/run_quality_benchmark.py",
@@ -106,12 +123,9 @@ jobs:
               "--review-mode",
               "--evidence-dir", "diagnostics/benchmark-evidence",
               "--output", "diagnostics/benchmark-results/live.json",
-              "--criterion-score", "PYR-1=0.9",
-              "--criterion-score", "PYR-2=0.9",
-              "--criterion-score", "PYR-3=0.9",
-              "--criterion-score", "PYR-4=0.9",
-              "--criterion-score", "PYR-5=0.9",
           ]
+          for cid, score in sorted(scores.items()):
+              cmd += ["--criterion-score", f"{cid}={score}"]
           proc = subprocess.run(cmd, check=False)
           pathlib.Path("diagnostics/benchmark-results/live.exitcode").write_text(str(proc.returncode) + "\n", encoding="utf-8")
 
@@ -122,6 +136,9 @@ jobs:
           live_json = pathlib.Path("diagnostics/benchmark-results/live.json")
           if live_json.exists():
               file_hashes[str(live_json)] = hashlib.sha256(live_json.read_bytes()).hexdigest()
+          score_path = pathlib.Path("diagnostics/benchmark-results/criterion_scores.json")
+          if score_path.exists():
+              file_hashes[str(score_path)] = hashlib.sha256(score_path.read_bytes()).hexdigest()
           pathlib.Path("diagnostics/benchmark-results/hashes.json").write_text(
               json.dumps(file_hashes, indent=2) + "\n",
               encoding="utf-8",
@@ -143,6 +160,7 @@ jobs:
             diagnostics/benchmark-results/live.exitcode
             diagnostics/benchmark-results/live.sha256
             diagnostics/benchmark-results/hashes.json
+            diagnostics/benchmark-results/criterion_scores.json
 
   reviewer-recompute:
     name: Reviewer Recompute Gate
@@ -181,6 +199,7 @@ jobs:
                   print(json.dumps({"expected": expected, "observed": observed_hash}, ensure_ascii=True), file=sys.stderr)
                   raise SystemExit(1)
 
+          scores = json.loads(pathlib.Path("diagnostics/benchmark-results/criterion_scores.json").read_text(encoding="utf-8"))
           cmd = [
               sys.executable,
               "scripts/run_quality_benchmark.py",
@@ -188,12 +207,9 @@ jobs:
               "--review-mode",
               "--evidence-dir", "diagnostics/benchmark-evidence",
               "--output", "diagnostics/benchmark-results/review.json",
-              "--criterion-score", "PYR-1=0.9",
-              "--criterion-score", "PYR-2=0.9",
-              "--criterion-score", "PYR-3=0.9",
-              "--criterion-score", "PYR-4=0.9",
-              "--criterion-score", "PYR-5=0.9",
           ]
+          for cid, score in sorted(scores.items()):
+              cmd += ["--criterion-score", f"{cid}={score}"]
           proc = subprocess.run(cmd, check=False)
 
           if proc.returncode == 0:
