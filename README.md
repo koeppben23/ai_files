@@ -40,6 +40,7 @@ Default config root for customer installs is typically `~/.config/opencode` (pla
 
 - Standard install: `python3 install.py`
 - Deterministic dry-run first: `python3 install.py --dry-run`
+- Installer-owned path binding file: `governance.paths.json` under `<config_root>/commands/`
 - Customer bundle install wrappers and handoff process: [`docs/customer-install-bundle-v1.md`](docs/customer-install-bundle-v1.md)
 
 ## Verify A Release
