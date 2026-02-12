@@ -36,6 +36,15 @@ Validation is fail-closed and enforced by `python3 scripts/governance_lint.py`.
 - `scripts/governance_lint.py`
 - `scripts/validate_addons.py`
 
+## OpenCode templates for new governance artifacts
+
+In addition to the CLI scripts, OpenCode provides Markdown templates for creating new rulebooks and addons interactively:
+
+- `new_profile.md` — OpenCode template for creating a new profile rulebook (`profiles/rules_<profile>.md`)
+- `new_addon.md` — OpenCode template for creating a new addon rulebook + manifest pair (`profiles/rules_<addon>.md`, `profiles/addons/<addon_key>.addon.yml`)
+
+Run `/new_profile` or `/new_addon` in an OpenCode session to invoke these templates.
+
 ## Rulebook generation quick start
 
 Generate a profile rulebook:
