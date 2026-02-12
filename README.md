@@ -99,8 +99,12 @@ This repo ships an `install.py` (LLM Governance System Installer) that installs 
 
 Installed layout:
 
-- `${CONFIG_ROOT}/commands/` (rulebooks + commands)
-- `${CONFIG_ROOT}/commands/profiles/` (profile rulebooks)
+- `${CONFIG_ROOT}/commands/` (root rulebooks + command docs)
+- `${CONFIG_ROOT}/commands/profiles/` (profile rulebooks + addon manifests)
+- `${CONFIG_ROOT}/commands/diagnostics/` (schemas, packs, diagnostics helpers)
+- `${CONFIG_ROOT}/commands/governance/` (runtime engine/render package)
+- `${CONFIG_ROOT}/commands/scripts/` (customer-relevant helper CLIs from catalog)
+- `${CONFIG_ROOT}/commands/templates/` (shipped template families; current family: `github-actions/`)
 - `${CONFIG_ROOT}/workspaces/` (repo-scoped persistence: cache/digest/memory/etc.)
 
 ### What gets installed
@@ -117,6 +121,10 @@ Installed layout:
   - `diagnostics/**` (audit tooling, schemas, documentation, factory contracts such as `PROFILE_ADDON_FACTORY_CONTRACT.json`, and recovery helpers such as `bootstrap_session_state.py`)
 - `commands/governance/`:
   - `governance/**` runtime package (engine + render state-machine modules used by diagnostics/start workflows)
+- `commands/scripts/`:
+  - customer helper CLIs selected by `diagnostics/CUSTOMER_SCRIPT_CATALOG.json` (for example `run_quality_benchmark.py`, `rulebook_factory.py`, `workflow_template_factory.py`)
+- `commands/templates/`:
+  - shipped template families selected by catalog (currently `templates/github-actions/*.yml` + `template_catalog.json`)
 
 ### Governance stability highlights (current baseline)
 
@@ -523,6 +531,8 @@ ${COMMANDS_HOME}/
 ├── master.md
 ├── rules.md
 ├── start.md
+├── new_profile.md
+├── new_addon.md
 ├── QUALITY_INDEX.md
 ├── CONFLICT_RESOLUTION.md
 ├── SCOPE-AND-CONTEXT.md
@@ -545,11 +555,25 @@ ${COMMANDS_HOME}/
 │   └── addons/
 │       ├── angularNxTemplates.addon.yml
 │       └── <addon>.addon.yml
-└── diagnostics/
-    ├── AUDIT_REPORT_SCHEMA.json
-    ├── audit.md
-    ├── bootstrap_session_state.py
-    └── persist_workspace_artifacts.py
+├── diagnostics/
+│   ├── AUDIT_REPORT_SCHEMA.json
+│   ├── audit.md
+│   ├── CUSTOMER_SCRIPT_CATALOG.json
+│   ├── CUSTOMER_MARKDOWN_EXCLUDE.json
+│   ├── bootstrap_session_state.py
+│   └── persist_workspace_artifacts.py
+├── governance/
+│   ├── engine/
+│   └── render/
+├── scripts/
+│   ├── run_quality_benchmark.py
+│   ├── rulebook_factory.py
+│   ├── workflow_template_factory.py
+│   └── <catalog-selected customer script>.py
+└── templates/
+    └── github-actions/
+        ├── template_catalog.json
+        └── governance-*.yml
 ```
 
 If any of these files are missing, the workflow behavior is determined by the blocking rules defined in `master.md`.
@@ -723,7 +747,7 @@ See:
 | [`scripts/run_quality_benchmark.py`](scripts/run_quality_benchmark.py) | CLI runner for benchmark scoring and `PASS`/`FAIL`/`NOT_VERIFIED` outcomes |
 | [`scripts/rulebook_factory.py`](scripts/rulebook_factory.py) | Scaffolder for profile/addon rulebooks and addon manifests |
 | [`scripts/workflow_template_factory.py`](scripts/workflow_template_factory.py) | Catalog validator and scaffold command for governance workflow templates (current family: GitHub Actions) |
-| [`scripts/customer_script_catalog.py`](scripts/customer_script_catalog.py) | Validator/listing CLI for customer-relevant shipped scripts |
+| [`scripts/customer_script_catalog.py`](scripts/customer_script_catalog.py) | Maintainer/internal validator for `CUSTOMER_SCRIPT_CATALOG.json` (not customer-shipped) |
 | [`templates/github-actions/template_catalog.json`](templates/github-actions/template_catalog.json) | Canonical catalog of shipped governance workflow templates for the current `github-actions` family |
 | [`diagnostics/CUSTOMER_SCRIPT_CATALOG.json`](diagnostics/CUSTOMER_SCRIPT_CATALOG.json) | Canonical catalog of customer-relevant and release-shipped scripts |
 | [`diagnostics/CUSTOMER_MARKDOWN_EXCLUDE.json`](diagnostics/CUSTOMER_MARKDOWN_EXCLUDE.json) | Canonical list of markdown files excluded from customer release artifacts |
@@ -747,7 +771,9 @@ See:
 - `diagnostics/`: schemas, quick-fix catalogs, audit/report contracts, benchmark packs
 - `docs/`: operator runbooks and benchmark matrix
 - `profiles/`: profile rulebooks plus addon manifests in `profiles/addons/*.addon.yml`
-- `scripts/`: governance helper CLIs (`build.py`, `governance_lint.py`, `migrate_session_state.py`, `run_quality_benchmark.py`, ...)
+- `scripts/`: source scripts (internal + customer-facing); customer release/install includes only catalog-selected scripts from `diagnostics/CUSTOMER_SCRIPT_CATALOG.json`
+- `templates/`: shipped workflow template families (current family: `templates/github-actions/`)
+- `governance/`: runtime engine + render package used by installed diagnostics and start flows
 - root rulebooks: `master.md`, `rules.md`, `start.md`, `SESSION_STATE_SCHEMA.md`, `STABILITY_SLA.md`
 
 ### Installed layout for customers (after `install.py`)
@@ -755,7 +781,7 @@ See:
 `install.py` installs customer-usable assets under `<config_root>/commands/` so customers do **not** need GitHub access.
 
 - `<config_root>/commands/scripts/`: shipped customer scripts from `diagnostics/CUSTOMER_SCRIPT_CATALOG.json`
-- `<config_root>/commands/templates/github-actions/`: shipped governance workflow templates + `template_catalog.json`
+- `<config_root>/commands/templates/<family>/`: shipped governance workflow templates by family (current family: `github-actions/`)
 - `<config_root>/commands/profiles/`: profile rulebooks + addon manifests
 - `<config_root>/commands/diagnostics/`: schemas, catalogs, benchmark packs, diagnostics helpers
 
