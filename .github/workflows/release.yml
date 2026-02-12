@@ -22,6 +22,8 @@ on:
 
 permissions:
   contents: write
+  id-token: write
+  attestations: write
 
 concurrency:
   group: release-${{ github.event_name == 'push' && github.ref_name || github.event.inputs.tag }}
@@ -52,14 +54,17 @@ jobs:
           echo "tag=${tag}" >> "$GITHUB_OUTPUT"
           echo "version=${BASH_REMATCH[1]}" >> "$GITHUB_OUTPUT"
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           ref: ${{ steps.release_tag.outputs.tag }}
           fetch-depth: 0
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.11"
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@398d4b0eeef1380460a10c8013a76f728fb906ac # v3
 
       - name: Validate tag/master version consistency
         run: |
@@ -140,6 +145,89 @@ jobs:
           test -f "dist/customer-install-bundle-v1.SHA256"
           test -f "dist/RELEASE_NOTES.md"
 
+      - name: Generate SBOM for governance zip
+        uses: anchore/sbom-action@28d71544de8eaf1b958d335707167c5f783590ad # v0
+        with:
+          path: dist/governance-${{ steps.release_tag.outputs.version }}.zip
+          format: spdx-json
+          output-file: dist/governance-${{ steps.release_tag.outputs.version }}.zip.spdx.json
+
+      - name: Generate SBOM for customer bundle zip
+        uses: anchore/sbom-action@28d71544de8eaf1b958d335707167c5f783590ad # v0
+        with:
+          path: dist/customer-install-bundle-v1.zip
+          format: spdx-json
+          output-file: dist/customer-install-bundle-v1.zip.spdx.json
+
+      - name: Verify expected SBOM files
+        run: |
+          set -euo pipefail
+          version="${{ steps.release_tag.outputs.version }}"
+          test -f "dist/governance-${version}.zip.spdx.json"
+          test -f "dist/customer-install-bundle-v1.zip.spdx.json"
+
+      - name: Attest build provenance for governance zip
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2
+        with:
+          subject-path: dist/governance-${{ steps.release_tag.outputs.version }}.zip
+
+      - name: Attest build provenance for customer bundle zip
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2
+        with:
+          subject-path: dist/customer-install-bundle-v1.zip
+
+      - name: Attest SBOM for governance zip
+        uses: actions/attest-sbom@bd218ad0dbcb3e146bd073d1d9c6d78e08aa8a0b # v2
+        with:
+          subject-path: dist/governance-${{ steps.release_tag.outputs.version }}.zip
+          sbom-path: dist/governance-${{ steps.release_tag.outputs.version }}.zip.spdx.json
+
+      - name: Attest SBOM for customer bundle zip
+        uses: actions/attest-sbom@bd218ad0dbcb3e146bd073d1d9c6d78e08aa8a0b # v2
+        with:
+          subject-path: dist/customer-install-bundle-v1.zip
+          sbom-path: dist/customer-install-bundle-v1.zip.spdx.json
+
+      - name: Sign release assets (cosign keyless)
+        run: |
+          set -euo pipefail
+          version="${{ steps.release_tag.outputs.version }}"
+          artifacts=(
+            "dist/governance-${version}.zip"
+            "dist/governance-${version}.tar.gz"
+            "dist/SHA256SUMS.txt"
+            "dist/verification-report.json"
+            "dist/customer-install-bundle-v1.zip"
+            "dist/customer-install-bundle-v1.SHA256"
+          )
+          for artifact in "${artifacts[@]}"; do
+            cosign sign-blob --yes --bundle "${artifact}.sigstore.json" "${artifact}"
+          done
+
+      - name: Verify signature identity constraints
+        run: |
+          set -euo pipefail
+          version="${{ steps.release_tag.outputs.version }}"
+          issuer="https://token.actions.githubusercontent.com"
+          identity_re="^https://github\\.com/${GITHUB_REPOSITORY}/\\.github/workflows/release\\.yml@refs/tags/v[0-9]+\\.[0-9]+\\.[0-9]+([-.+][0-9A-Za-z.-]+)?$"
+          artifacts=(
+            "dist/governance-${version}.zip"
+            "dist/governance-${version}.tar.gz"
+            "dist/SHA256SUMS.txt"
+            "dist/verification-report.json"
+            "dist/customer-install-bundle-v1.zip"
+            "dist/customer-install-bundle-v1.SHA256"
+          )
+          for artifact in "${artifacts[@]}"; do
+            bundle="${artifact}.sigstore.json"
+            test -f "${bundle}"
+            cosign verify-blob \
+              --bundle "${bundle}" \
+              --certificate-oidc-issuer "${issuer}" \
+              --certificate-identity-regexp "${identity_re}" \
+              "${artifact}" >/dev/null
+          done
+
       - name: Publish GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -160,27 +248,43 @@ jobs:
           if gh release view "${tag}" >/dev/null 2>&1; then
             gh release upload "${tag}" \
               "dist/governance-${version}.zip" \
+              "dist/governance-${version}.zip.sigstore.json" \
+              "dist/governance-${version}.zip.spdx.json" \
               "dist/governance-${version}.tar.gz" \
+              "dist/governance-${version}.tar.gz.sigstore.json" \
               "dist/SHA256SUMS.txt" \
+              "dist/SHA256SUMS.txt.sigstore.json" \
               "dist/verification-report.json" \
+              "dist/verification-report.json.sigstore.json" \
               "dist/customer-install-bundle-v1.zip" \
+              "dist/customer-install-bundle-v1.zip.spdx.json" \
               "dist/customer-install-bundle-v1.SHA256" \
+              "dist/customer-install-bundle-v1.zip.sigstore.json" \
+              "dist/customer-install-bundle-v1.SHA256.sigstore.json" \
               --clobber
           else
             gh release create "${tag}" \
               "dist/governance-${version}.zip" \
+              "dist/governance-${version}.zip.sigstore.json" \
+              "dist/governance-${version}.zip.spdx.json" \
               "dist/governance-${version}.tar.gz" \
+              "dist/governance-${version}.tar.gz.sigstore.json" \
               "dist/SHA256SUMS.txt" \
+              "dist/SHA256SUMS.txt.sigstore.json" \
               "dist/verification-report.json" \
+              "dist/verification-report.json.sigstore.json" \
               "dist/customer-install-bundle-v1.zip" \
+              "dist/customer-install-bundle-v1.zip.spdx.json" \
               "dist/customer-install-bundle-v1.SHA256" \
+              "dist/customer-install-bundle-v1.zip.sigstore.json" \
+              "dist/customer-install-bundle-v1.SHA256.sigstore.json" \
               --title "Release ${tag}" \
               --notes-file "dist/RELEASE_NOTES.md" \
               "${args[@]}"
           fi
 
       - name: Upload workflow artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: release-dist-${{ steps.release_tag.outputs.tag }}
           path: dist/*
