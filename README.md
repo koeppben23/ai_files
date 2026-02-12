@@ -302,6 +302,24 @@ Release workflow behavior (fail-closed):
 - builds deterministic release artifacts and customer install bundle
 - publishes/updates GitHub release assets
 
+### One-command release orchestration
+
+Use `.github/workflows/release-orchestrator.yml` when you want one pipeline step that performs all release setup:
+
+- updates `master.md` Governance-Version, `install.py` VERSION, and cuts `CHANGELOG.md` via `scripts/release.py`
+- creates release commit + tag (`v<version>`) on `main`
+- dispatches `.github/workflows/release.yml` to build and publish assets
+
+CLI example:
+
+```bash
+gh workflow run release-orchestrator.yml \
+  -f version=1.2.0-RC2 \
+  -f prerelease=true \
+  -f draft=false \
+  -f allow_empty_changelog=false
+```
+
 Published release assets:
 
 - `governance-<version>.zip`

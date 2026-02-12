@@ -71,6 +71,8 @@ Professional publishing is handled by `.github/workflows/release.yml`:
 - execute release and build test gates before publishing
 - upload base artifacts + customer install bundle to the GitHub release
 
+For one-command release automation (including version/changelog/tag updates), use `.github/workflows/release-orchestrator.yml`, which cuts the release commit and tag first, then dispatches `release.yml`.
+
 ## Customer handoff recommendation
 
 - Deliver `customer-install-bundle-v1.zip` and `customer-install-bundle-v1.SHA256` together.
