@@ -1,0 +1,22 @@
+{
+  "schema": "governance.security-gate-policy.v1",
+  "policy_version": 1,
+  "session_state_evidence_key": "SESSION_STATE.BuildEvidence.Security",
+  "block_on_severities": [
+    "critical",
+    "high"
+  ],
+  "fail_closed_on_scanner_error": true,
+  "allowlist_override": {
+    "requires_explicit_audit_record": true,
+    "requires_expiry_date": true,
+    "default_max_valid_days": 30,
+    "required_fields": [
+      "finding_id",
+      "justification",
+      "approved_by",
+      "expires_on"
+    ]
+  },
+  "notes": "Security findings must be represented as build evidence and evaluated fail-closed."
+}

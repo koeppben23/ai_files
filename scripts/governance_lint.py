@@ -776,6 +776,59 @@ def check_customer_markdown_exclusion_policy(issues: list[str]) -> None:
         )
 
 
+def check_security_gate_contract(issues: list[str]) -> None:
+    policy_path = ROOT / "diagnostics" / "SECURITY_GATE_POLICY.json"
+    script_path = ROOT / "scripts" / "evaluate_security_evidence.py"
+    workflow_path = ROOT / ".github" / "workflows" / "security.yml"
+
+    if not policy_path.exists():
+        issues.append("diagnostics/SECURITY_GATE_POLICY.json: missing security gate policy")
+        return
+
+    policy = read_text(policy_path)
+    policy_required_tokens = [
+        '"schema": "governance.security-gate-policy.v1"',
+        '"block_on_severities"',
+        '"critical"',
+        '"high"',
+        '"fail_closed_on_scanner_error": true',
+        '"session_state_evidence_key": "SESSION_STATE.BuildEvidence.Security"',
+    ]
+    missing_policy = [token for token in policy_required_tokens if token not in policy]
+    if missing_policy:
+        issues.append(
+            "diagnostics/SECURITY_GATE_POLICY.json: missing required tokens "
+            f"{missing_policy}"
+        )
+
+    if not script_path.exists():
+        issues.append("scripts/evaluate_security_evidence.py: missing security evidence evaluator")
+
+    if not workflow_path.exists():
+        issues.append(".github/workflows/security.yml: missing security workflow")
+        return
+
+    workflow = read_text(workflow_path)
+    workflow_required_tokens = [
+        "name: Security",
+        "gitleaks",
+        "pip-audit",
+        "CodeQL",
+        "actionlint",
+        "zizmor",
+        "security-policy-gate:",
+        "scripts/evaluate_security_evidence.py",
+        "diagnostics/SECURITY_GATE_POLICY.json",
+        "SESSION_STATE.BuildEvidence.Security",
+    ]
+    missing_workflow = [token for token in workflow_required_tokens if token not in workflow]
+    if missing_workflow:
+        issues.append(
+            ".github/workflows/security.yml: missing required security gate tokens "
+            f"{missing_workflow}"
+        )
+
+
 def check_stability_sla_contract(issues: list[str]) -> None:
     sla_path = ROOT / "STABILITY_SLA.md"
     if not sla_path.exists():
@@ -1230,6 +1283,7 @@ def main() -> int:
     check_workflow_template_factory_contract(issues)
     check_customer_script_catalog_contract(issues)
     check_customer_markdown_exclusion_policy(issues)
+    check_security_gate_contract(issues)
     check_stability_sla_contract(issues)
     check_factory_contract_alignment(issues)
     check_diagnostics_reason_contract_alignment(issues)
