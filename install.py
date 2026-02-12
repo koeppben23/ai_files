@@ -847,15 +847,21 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
             result="failed",
             reason_namespace="installer-internal",
         )
-        eprint("❌ Precheck failed.")
+        eprint("❌ Precheck failed: required governance source files are missing.")
         if missing:
-            eprint("   Missing required source files:")
+            eprint("   Missing files:")
             for m in missing:
                 eprint(f"  - {m}")
         if unsafe_symlinks:
             eprint("   Unsafe source symlinks/reparse-points detected (installer fail-closed):")
             for s in unsafe_symlinks:
                 eprint(f"  - {s}")
+        eprint("")
+        eprint("Recovery options:")
+        eprint("  1. If installing from source: ensure you are in the governance repository directory.")
+        eprint("  2. If using a customer bundle: extract it first, then run install.py from the extracted root.")
+        eprint("  3. If already installed: run 'python3 install.py --status' to check installation health.")
+        eprint("")
         return 2
 
     print(f"📁 Target config root: {plan.config_root}")
@@ -887,9 +893,11 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
             reason_namespace="installer-internal",
         )
         eprint("❌ Governance-Version not found in master.md.")
-        eprint("   Expected a header like:")
-        eprint("     # Governance-Version: <semver>")
-        eprint("   Installation aborted to prevent unversioned deployments.")
+        eprint("")
+        eprint("The file master.md must contain a version header like:")
+        eprint("  # Governance-Version: 1.0.0")
+        eprint("")
+        eprint("Add the header to master.md and rerun install.")
         return 2
 
     copied_entries: list[dict] = []
@@ -1557,6 +1565,74 @@ def try_remove_empty_dir(d: Path, dry_run: bool) -> None:
         return
 
 
+def show_status(source_dir: Path, config_root_arg: Path | None) -> int:
+    """Show installation status (read-only). Returns 0 on success, non-zero on errors."""
+
+    print("=" * 60)
+    print("LLM Governance System Status")
+    print("=" * 60)
+
+    # Resolve config root
+    try:
+        config_root = config_root_arg if config_root_arg is not None else get_config_root()
+    except Exception as e:
+        print(f"❌ Failed to resolve config root: {e}")
+        return 1
+
+    print(f"Config Root: {config_root}")
+    print(f"Commands Home: {config_root / 'commands'}")
+
+    # Check if installed
+    commands_home = config_root / "commands"
+    if not commands_home.exists():
+        print("\n⚠️  No installation found at this config root.")
+        print("Run 'python3 install.py' to install.")
+        return 1
+
+    # Read manifest if present
+    manifest_path = commands_home / MANIFEST_NAME
+    manifest = load_manifest(manifest_path)
+
+    if manifest:
+        print(f"\n✅ Installation detected (manifest: {manifest_path.name})")
+        gov_ver = manifest.get("governance_version", "unknown")
+        print(f"Governance Version: {gov_ver}")
+        installed_at = manifest.get("installed_at", "unknown")
+        print(f"Installed At: {installed_at}")
+        files_count = len(manifest.get("files", []))
+        print(f"Installed Files: {files_count}")
+    else:
+        print("\n⚠️  Installation found but manifest missing (fallback mode).")
+        print("Run 'python3 install.py --force' to restore manifest.")
+
+    # Check governance version from source if available
+    source_master = source_dir / "master.md"
+    if source_master.exists():
+        src_ver = read_governance_version_from_master(source_master)
+        if src_ver:
+            print(f"\nSource Governance Version: {src_ver}")
+            if manifest and manifest.get("governance_version") != src_ver:
+                print("⚠️  Source version differs from installed version.")
+
+    # Check for binding file
+    paths_file = commands_home / GOVERNANCE_PATHS_NAME
+    if paths_file.exists():
+        print(f"\n✅ Governance paths file: {paths_file.name}")
+    else:
+        print(f"\n⚠️  Governance paths file missing: {paths_file.name}")
+
+    # List key directories
+    print("\nInstalled Directories:")
+    for subdir in ["profiles", "scripts", "templates", "diagnostics", "governance"]:
+        path = commands_home / subdir
+        if path.exists():
+            count = sum(1 for _ in path.rglob("*") if (_.is_file() and not _.name.startswith(".")))
+            print(f"  - {subdir}/: {count} items")
+
+    print("\n" + "=" * 60)
+    return 0
+
+
 def parse_args(argv: list[str]) -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Install/Uninstall LLM Governance System files into OpenCode config dir.")
     p.add_argument(
@@ -1587,11 +1663,28 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         action="store_true",
         help="On uninstall: preserve runtime error logs under <config_root>/logs and <config_root>/workspaces/*/logs.",
     )
+    p.add_argument("--version", action="store_true", help="Show installer and governance version, then exit.")
+    p.add_argument("--status", action="store_true", help="Show installation status (read-only), then exit.")
     return p.parse_args(argv)
 
 
 def main(argv: list[str]) -> int:
     args = parse_args(argv)
+
+    # --version: show version and exit (read-only)
+    if args.version:
+        print(f"Installer Version: {VERSION}")
+        # Try to read governance version from source master.md
+        source_master = args.source_dir / "master.md"
+        if source_master.exists():
+            gov_ver = read_governance_version_from_master(source_master)
+            if gov_ver:
+                print(f"Governance Version: {gov_ver}")
+        return 0
+
+    # --status: show installation status and exit (read-only)
+    if args.status:
+        return show_status(args.source_dir, args.config_root)
 
     config_root = args.config_root if args.config_root is not None else get_config_root()
     plan = build_plan(
