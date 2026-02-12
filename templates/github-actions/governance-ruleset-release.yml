@@ -60,9 +60,9 @@ jobs:
       - name: Rebuild in isolated checkout and verify hash parity
         env:
           RELEASE_VERSION: ${{ steps.release_version.outputs.version }}
+          VERIFY_ROOT: ../ruleset_verify
         run: |
           set -euo pipefail
-          VERIFY_ROOT="../ruleset_verify"
           git worktree add --detach "${VERIFY_ROOT}" "${GITHUB_SHA}"
           trap 'git worktree remove --force "${VERIFY_ROOT}"' EXIT
           python3 "${VERIFY_ROOT}/scripts/build_ruleset_lock.py" \
@@ -84,7 +84,8 @@ jobs:
           import os
           from pathlib import Path
           version = os.environ["RELEASE_VERSION"]
-          print(json.loads(Path(f"../ruleset_verify/rulesets/default/{version}/hashes.json").read_text(encoding="utf-8"))["ruleset_hash"])
+          verify_root = os.environ["VERIFY_ROOT"]
+          print(json.loads(Path(f"{verify_root}/rulesets/default/{version}/hashes.json").read_text(encoding="utf-8"))["ruleset_hash"])
           PY
           )"
           if [[ "${primary_hash}" != "${verify_hash}" ]]; then
