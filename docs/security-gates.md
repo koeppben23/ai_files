@@ -38,6 +38,15 @@ python3 scripts/evaluate_security_evidence.py \
 
 `security_summary.json` is the machine-readable security evidence artifact for governance review.
 
+## Evidence semantics and coverage caveat
+
+Scanner output can be structurally valid while still representing partial coverage.
+
+- If dependency manifests are absent (`requirements*.txt`), `pip-audit` emits `pip-audit.empty.json` and reports no findings.
+- Treat this as "no dependency manifest evidence available" rather than proof that dependencies are secure.
+- For customer/security reporting, dependency claims should be marked `NOT_VERIFIED` until manifest-backed dependency evidence exists.
+- Deterministic reason-code mapping should use `NOT_VERIFIED-MISSING-EVIDENCE` for dependency-security claims without manifest evidence.
+
 ## Blocking semantics
 
 The gate blocks when either condition holds:
