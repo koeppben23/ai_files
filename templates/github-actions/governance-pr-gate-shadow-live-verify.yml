@@ -38,12 +38,13 @@ jobs:
           hash_path = pathlib.Path("diagnostics/shadow/default/0.0.0-shadow/hashes.json")
           ruleset_hash = json.loads(hash_path.read_text(encoding="utf-8"))["ruleset_hash"]
           out = {
-            "status": "SHADOW",
+            "status": "SHADOW_PREVIEW",
             "phase": "1.1",
             "active_gate": "bootstrap.preflight",
-            "activation_hash": ruleset_hash,
+            "activation_hash": None,
             "ruleset_hash": ruleset_hash,
-            "notes": "read-only shadow stage"
+            "authoritative_decision": False,
+            "notes": "preview-only shadow stage; no authoritative gate decision"
           }
           pathlib.Path("diagnostics/shadow/shadow.json").write_text(json.dumps(out, indent=2) + "\n", encoding="utf-8")
           PY
@@ -82,7 +83,12 @@ jobs:
             echo $? > diagnostics/benchmark-evidence/governance_lint.exitcode
           fi
           git fetch origin "${{ github.base_ref }}" --depth=1
-          git diff --name-status "origin/${{ github.base_ref }}...HEAD" > diagnostics/benchmark-evidence/drift.txt
+          git diff --name-status "origin/${{ github.base_ref }}...HEAD" > diagnostics/benchmark-evidence/pr_changes.txt
+          {
+            git diff --name-status
+            git diff --cached --name-status
+          } > diagnostics/benchmark-evidence/worktree_drift.txt
+          cp diagnostics/benchmark-evidence/worktree_drift.txt diagnostics/benchmark-evidence/drift.txt
 
       - name: Run benchmark from evidence only
         run: |

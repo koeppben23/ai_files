@@ -36,6 +36,7 @@ Pipeline handling policy:
 
 ## Drift report policy
 
-- Pull requests: diff against base branch (`origin/<base_ref>...HEAD`)
-- Manual dispatch fallback: diff `HEAD~1..HEAD` when available
-- `claim/no-drift` is emitted only when drift report is empty
+- `pr_changes.txt`: pull request diff against base branch (`origin/<base_ref>...HEAD`) for review context
+- `worktree_drift.txt`: tracked-file drift after tooling (`git diff` + `git diff --cached`)
+- `drift.txt` is an alias of `worktree_drift.txt` for benchmark runner compatibility
+- `claim/no-drift` is emitted only when `worktree_drift.txt` is empty

@@ -6,7 +6,9 @@ This document maps production-ready workflow templates to governance goals.
 
 - `templates/github-actions/governance-pr-gate-shadow-live-verify.yml`
   - roles: shadow evaluator -> live verifier -> reviewer recompute
+  - shadow output is explicitly preview-only (non-authoritative)
   - evidence: junit/lint exitcode/drift report (runner derives claims from evidence files in review mode)
+  - separates PR change report (`pr_changes.txt`) from worktree drift (`worktree_drift.txt`/`drift.txt`)
   - reviewer recomputes from raw evidence only and verifies live-vs-review hash parity
   - optional tamper resistance: reviewer verifies evidence/result hashes before recompute
   - artifacts: shadow/live/review payloads + advisory policy diff with activation/ruleset hash report
@@ -26,7 +28,7 @@ This document maps production-ready workflow templates to governance goals.
   - maintainer-only `workflow_dispatch` path for baseline replacement
   - requires explicit `UPDATE_GOLDENS` confirmation token
   - generates fresh baseline from real intent->engine->render pipeline and emits hash manifest
-  - supports artifact-only review or optional commit/push to target branch
+  - supports artifact-only review or optional commit/push to target branch (with configured CI bot identity)
 
 ## Adoption guidance
 

@@ -67,14 +67,21 @@ jobs:
           python3 scripts/governance_lint.py
           echo $? > diagnostics/benchmark-evidence/governance_lint.exitcode
 
-      - name: Build PR drift report
+      - name: Build change and drift evidence
         run: |
+          set -euo pipefail
+          mkdir -p diagnostics/benchmark-evidence
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             git fetch origin "${{ github.base_ref }}" --depth=1
-            git diff --name-status "origin/${{ github.base_ref }}...HEAD" > diagnostics/benchmark-evidence/drift.txt
+            git diff --name-status "origin/${{ github.base_ref }}...HEAD" > diagnostics/benchmark-evidence/pr_changes.txt
           else
-            git diff --name-status HEAD~1..HEAD > diagnostics/benchmark-evidence/drift.txt || true
+            git diff --name-status HEAD~1..HEAD > diagnostics/benchmark-evidence/pr_changes.txt || true
           fi
+          {
+            git diff --name-status
+            git diff --cached --name-status
+          } > diagnostics/benchmark-evidence/worktree_drift.txt
+          cp diagnostics/benchmark-evidence/worktree_drift.txt diagnostics/benchmark-evidence/drift.txt
 
       - name: Derive claims and criterion scores from evidence
         run: |
@@ -166,6 +173,8 @@ jobs:
               "diagnostics/benchmark-evidence/junit.xml",
               "diagnostics/benchmark-evidence/pytest.exitcode",
               "diagnostics/benchmark-evidence/governance_lint.exitcode",
+              "diagnostics/benchmark-evidence/pr_changes.txt",
+              "diagnostics/benchmark-evidence/worktree_drift.txt",
               "diagnostics/benchmark-evidence/drift.txt",
           ]
           out = {}
