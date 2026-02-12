@@ -422,6 +422,36 @@ def collect_governance_runtime_files(source_dir: Path) -> list[Path]:
     )
 
 
+DOCS_DIR_NAME = "docs"
+CUSTOMER_DOCS = frozenset({
+    "phases.md",
+    "install-layout.md",
+    "releasing.md",
+    "benchmarks.md",
+    "security-gates.md",
+    "customer-install-bundle-v1.md",
+    "release-security-model.md",
+})
+
+
+def collect_customer_docs_files(source_dir: Path) -> list[Path]:
+    """Collect customer-relevant documentation from docs/ directory."""
+
+    docs_dir = source_dir / DOCS_DIR_NAME
+    if not docs_dir.exists() or not docs_dir.is_dir():
+        return []
+    return sorted(
+        [
+            p
+            for p in docs_dir.iterdir()
+            if p.is_file()
+            and p.name in CUSTOMER_DOCS
+            and p.suffix.lower() == ".md"
+            and not _is_forbidden_metadata_path(p, source_dir)
+        ]
+    )
+
+
 def collect_customer_script_files(source_dir: Path, *, strict: bool) -> list[Path]:
     """Collect customer-relevant scripts listed in diagnostics/CUSTOMER_SCRIPT_CATALOG.json."""
 
@@ -985,6 +1015,33 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
                 print(f"  ⚠️  {rel} missing (skipping)")
     else:
         print("\nℹ️  No diagnostics directory found (skipping).")
+
+    # copy customer documentation (docs/*.md relevant to customers)
+    docs_files = collect_customer_docs_files(plan.source_dir)
+    if docs_files:
+        print("\n📋 Copying customer documentation to commands/docs/ ...")
+        docs_dst_dir = plan.commands_dir / DOCS_DIR_NAME
+        for df in docs_files:
+            rel = df.relative_to(plan.source_dir)
+            dst = docs_dst_dir / df.name
+            entry = copy_with_optional_backup(
+                src=df,
+                dst=dst,
+                backup_enabled=backup_enabled,
+                backup_root=backup_root,
+                dry_run=dry_run,
+                overwrite=force,
+            )
+            copied_entries.append(entry)
+            status = entry["status"]
+            if status in ("planned-copy", "copied"):
+                print(f"  ✅ {rel} ({status})")
+            elif status == "skipped-exists":
+                print(f"  ⏭️  {rel} exists (use --force to overwrite)")
+            else:
+                print(f"  ⚠️  {rel} missing (skipping)")
+    else:
+        print("\nℹ️  No customer-relevant documentation found (skipping).")
 
     # copy governance runtime package (state machine execution modules)
     runtime_files = collect_governance_runtime_files(plan.source_dir)
