@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -671,6 +672,50 @@ def check_template_quality_gate(issues: list[str]) -> None:
             issues.append(f"{tpl}: contains 'verified' claims but no 'evidence' wording")
 
 
+def check_workflow_template_factory_contract(issues: list[str]) -> None:
+    contract_path = ROOT / "diagnostics" / "GITHUB_ACTIONS_TEMPLATE_FACTORY_CONTRACT.json"
+    catalog_path = ROOT / "templates" / "github-actions" / "template_catalog.json"
+    script_path = ROOT / "scripts" / "workflow_template_factory.py"
+
+    if not contract_path.exists():
+        issues.append("diagnostics/GITHUB_ACTIONS_TEMPLATE_FACTORY_CONTRACT.json: missing workflow template factory contract")
+    else:
+        contract = read_text(contract_path)
+        required_tokens = [
+            '"$schema": "opencode.governance.workflow-template-factory.v1"',
+            '"template_file_glob": "templates/github-actions/governance-*.yml"',
+            '"validate": "python3 scripts/workflow_template_factory.py"',
+        ]
+        missing_tokens = [token for token in required_tokens if token not in contract]
+        if missing_tokens:
+            issues.append(
+                "diagnostics/GITHUB_ACTIONS_TEMPLATE_FACTORY_CONTRACT.json: missing required tokens "
+                f"{missing_tokens}"
+            )
+
+    if not catalog_path.exists():
+        issues.append("templates/github-actions/template_catalog.json: missing workflow template catalog")
+        return
+
+    if not script_path.exists():
+        issues.append("scripts/workflow_template_factory.py: missing workflow template factory script")
+        return
+
+    proc = subprocess.run(
+        [sys.executable, str(script_path)],
+        cwd=str(ROOT),
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    if proc.returncode != 0:
+        detail = (proc.stdout + "\n" + proc.stderr).strip()
+        issues.append(
+            "workflow template factory check failed: "
+            + (detail if detail else "unknown failure")
+        )
+
+
 def check_stability_sla_contract(issues: list[str]) -> None:
     sla_path = ROOT / "STABILITY_SLA.md"
     if not sla_path.exists():
@@ -1122,6 +1167,7 @@ def main() -> int:
     check_manifest_contract(issues)
     check_required_addon_references(issues)
     check_template_quality_gate(issues)
+    check_workflow_template_factory_contract(issues)
     check_stability_sla_contract(issues)
     check_factory_contract_alignment(issues)
     check_diagnostics_reason_contract_alignment(issues)

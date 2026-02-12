@@ -653,6 +653,7 @@ Reference runbook:
 - `docs/python-quality-benchmark-pack.md`
 - `docs/governance-pipeline-roles-template.md` (hardened CI role template)
 - `docs/governance-template-blueprints.md`
+- `docs/governance-workflow-template-factory.md`
 
 ---
 
@@ -719,6 +720,8 @@ See:
 | [`profiles/addons/`](profiles/addons/) | Addon activation manifests (`required`/`advisory`, capabilities/signals, surface ownership) |
 | [`diagnostics/*_QUALITY_BENCHMARK_PACK.json`](diagnostics/) | Machine-readable benchmark packs for profile quality evaluation |
 | [`scripts/run_quality_benchmark.py`](scripts/run_quality_benchmark.py) | CLI runner for benchmark scoring and `PASS`/`FAIL`/`NOT_VERIFIED` outcomes |
+| [`scripts/workflow_template_factory.py`](scripts/workflow_template_factory.py) | Catalog validator and scaffold command for governance GitHub Actions templates |
+| [`templates/github-actions/template_catalog.json`](templates/github-actions/template_catalog.json) | Canonical catalog of shipped governance workflow templates |
 | [`docs/quality-benchmark-pack-matrix.md`](docs/quality-benchmark-pack-matrix.md) | Matrix of all active benchmark packs |
 | [`README-RULES.md`](README-RULES.md) | Executive summary (not normative) |
 | [`SCOPE-AND-CONTEXT.md`](SCOPE-AND-CONTEXT.md) | Normative responsibility and scope boundary |

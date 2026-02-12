@@ -36,3 +36,10 @@ This document maps production-ready workflow templates to governance goals.
 - Treat templates as blueprints; adapt command hooks to your runner entrypoints.
 - Keep reviewer recompute authoritative: never trust developer-produced gate status directly.
 - Preserve artifact uploads on failure for deterministic diagnosis.
+
+## Standardized creation flow
+
+- Catalog all templates in `templates/github-actions/template_catalog.json`.
+- Validate catalog/file consistency with `python3 scripts/workflow_template_factory.py`.
+- Scaffold new templates from approved archetypes with `python3 scripts/workflow_template_factory.py scaffold ...`.
+- Full runbook: `docs/governance-workflow-template-factory.md`.

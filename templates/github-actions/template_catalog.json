@@ -1,0 +1,36 @@
+{
+  "schema": "governance.workflow-template-catalog.v1",
+  "catalog_version": 1,
+  "templates": [
+    {
+      "template_key": "governance-golden-baseline-update",
+      "file": "templates/github-actions/governance-golden-baseline-update.yml",
+      "archetype": "golden_baseline_update",
+      "purpose": "Maintainer-controlled baseline refresh via workflow_dispatch"
+    },
+    {
+      "template_key": "governance-golden-output-stability",
+      "file": "templates/github-actions/governance-golden-output-stability.yml",
+      "archetype": "golden_output_stability",
+      "purpose": "Fail-closed golden output parity enforcement"
+    },
+    {
+      "template_key": "governance-pipeline-roles",
+      "file": "templates/github-actions/governance-pipeline-roles.yml",
+      "archetype": "pipeline_roles_hardened",
+      "purpose": "Developer/reviewer/improver governance gate pattern"
+    },
+    {
+      "template_key": "governance-pr-gate-shadow-live-verify",
+      "file": "templates/github-actions/governance-pr-gate-shadow-live-verify.yml",
+      "archetype": "pr_gate_shadow_live_verify",
+      "purpose": "Shadow to live to authoritative reviewer recompute"
+    },
+    {
+      "template_key": "governance-ruleset-release",
+      "file": "templates/github-actions/governance-ruleset-release.yml",
+      "archetype": "ruleset_release",
+      "purpose": "Deterministic ruleset release with isolated rebuild parity"
+    }
+  ]
+}
