@@ -1,0 +1,31 @@
+{
+  "$schema": "opencode.governance.workflow-template-factory.v1",
+  "catalog": {
+    "path": "templates/github-actions/template_catalog.json",
+    "schema": "governance.workflow-template-catalog.v1",
+    "required_fields": [
+      "template_key",
+      "file",
+      "archetype",
+      "purpose"
+    ],
+    "template_file_glob": "templates/github-actions/governance-*.yml"
+  },
+  "allowed_archetypes": [
+    "pr_gate_shadow_live_verify",
+    "pipeline_roles_hardened",
+    "ruleset_release",
+    "golden_output_stability",
+    "golden_baseline_update"
+  ],
+  "commands": {
+    "validate": "python3 scripts/workflow_template_factory.py",
+    "scaffold": "python3 scripts/workflow_template_factory.py scaffold --template-key <governance-key> --archetype <type> --title \"<Workflow Name>\" --purpose \"<one-line purpose>\""
+  },
+  "invariants": [
+    "Every templates/github-actions/governance-*.yml file must be declared once in template_catalog.json.",
+    "Each template_key must map to templates/github-actions/<template_key>.yml.",
+    "Scaffolded workflows must start from a known archetype skeleton.",
+    "Catalog validation is fail-closed in governance_lint."
+  ]
+}

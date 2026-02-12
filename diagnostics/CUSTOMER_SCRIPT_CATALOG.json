@@ -1,0 +1,90 @@
+{
+  "schema": "governance.customer-script-catalog.v1",
+  "catalog_version": 1,
+  "scripts": [
+    {
+      "path": "scripts/build_ruleset_lock.py",
+      "purpose": "Build deterministic ruleset manifest/lock/hash artifacts",
+      "customer_relevant": true,
+      "ship_in_release": true,
+      "tier": "essential"
+    },
+    {
+      "path": "scripts/customer_script_catalog.py",
+      "purpose": "List and validate customer-relevant script catalog entries",
+      "customer_relevant": false,
+      "ship_in_release": false,
+      "tier": "internal"
+    },
+    {
+      "path": "scripts/generate_golden_outputs.py",
+      "purpose": "Generate deterministic golden outputs from intent/engine/render",
+      "customer_relevant": true,
+      "ship_in_release": true,
+      "tier": "essential"
+    },
+    {
+      "path": "scripts/governance_lint.py",
+      "purpose": "Validate governance documentation and contract consistency",
+      "customer_relevant": true,
+      "ship_in_release": true,
+      "tier": "essential"
+    },
+    {
+      "path": "scripts/migrate_session_state.py",
+      "purpose": "Migrate session-state payloads across contract versions",
+      "customer_relevant": true,
+      "ship_in_release": true,
+      "tier": "advanced"
+    },
+    {
+      "path": "scripts/rulebook_factory.py",
+      "purpose": "Scaffold profile/addon rulebooks and addon manifests",
+      "customer_relevant": true,
+      "ship_in_release": true,
+      "tier": "essential"
+    },
+    {
+      "path": "scripts/run_quality_benchmark.py",
+      "purpose": "Run quality benchmark packs in evidence-first mode",
+      "customer_relevant": true,
+      "ship_in_release": true,
+      "tier": "essential"
+    },
+    {
+      "path": "scripts/validate_addons.py",
+      "purpose": "Validate addon manifest schema and integrity",
+      "customer_relevant": true,
+      "ship_in_release": true,
+      "tier": "essential"
+    },
+    {
+      "path": "scripts/validate_response_contract.py",
+      "purpose": "Validate response-envelope contract and reason-payload coherence",
+      "customer_relevant": true,
+      "ship_in_release": true,
+      "tier": "advanced"
+    },
+    {
+      "path": "scripts/workflow_template_factory.py",
+      "purpose": "Validate and scaffold standardized governance GitHub workflow templates",
+      "customer_relevant": true,
+      "ship_in_release": true,
+      "tier": "essential"
+    },
+    {
+      "path": "scripts/build.py",
+      "purpose": "Build official release archives",
+      "customer_relevant": false,
+      "ship_in_release": false,
+      "tier": "internal"
+    },
+    {
+      "path": "scripts/release.py",
+      "purpose": "Cut tagged governance releases",
+      "customer_relevant": false,
+      "ship_in_release": false,
+      "tier": "internal"
+    }
+  ]
+}

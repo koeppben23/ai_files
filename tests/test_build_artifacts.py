@@ -29,6 +29,26 @@ def _assert_member_paths_safe(names: list[str]) -> None:
         assert ".." not in parts, f"Path traversal in archive member: {n}"
 
 
+def _shipped_customer_scripts() -> list[str]:
+    payload = json.loads((REPO_ROOT / "diagnostics" / "CUSTOMER_SCRIPT_CATALOG.json").read_text(encoding="utf-8"))
+    scripts = []
+    for entry in payload.get("scripts", []):
+        if entry.get("ship_in_release") is True:
+            scripts.append(entry["path"])
+    return sorted(scripts)
+
+
+def _shipped_workflow_templates() -> list[str]:
+    payload = json.loads((REPO_ROOT / "templates" / "github-actions" / "template_catalog.json").read_text(encoding="utf-8"))
+    files = [entry["file"] for entry in payload.get("templates", [])]
+    return sorted(files)
+
+
+def _release_excluded_markdown() -> list[str]:
+    payload = json.loads((REPO_ROOT / "diagnostics" / "CUSTOMER_MARKDOWN_EXCLUDE.json").read_text(encoding="utf-8"))
+    return sorted(payload.get("release_excluded_markdown", []))
+
+
 @pytest.mark.build
 def test_build_is_deterministic(tmp_path: Path):
     ver = _governance_version()
@@ -81,7 +101,6 @@ def test_artifacts_contents_follow_policy(tmp_path: Path):
     forbidden_segments = {
         "/.github/",
         "/tests/",
-        "/scripts/",
         "/dist/",
         "/__pycache__/",
         "/.pytest_cache/",
@@ -112,9 +131,16 @@ def test_artifacts_contents_follow_policy(tmp_path: Path):
             f"{prefix}/rules.md",
             f"{prefix}/start.md",
             f"{prefix}/CHANGELOG.md",
+            f"{prefix}/diagnostics/CUSTOMER_SCRIPT_CATALOG.json",
         }
+        required.update(f"{prefix}/{rel}" for rel in _shipped_customer_scripts())
+        required.update(f"{prefix}/{rel}" for rel in _shipped_workflow_templates())
         missing = [x for x in required if x not in names]
         assert not missing, f"ZIP missing required files: {missing}"
+
+        forbidden_markdown = [f"{prefix}/{rel}" for rel in _release_excluded_markdown()]
+        present_forbidden = [path for path in forbidden_markdown if path in names]
+        assert not present_forbidden, f"ZIP contains markdown files excluded for customer release: {present_forbidden}"
 
         assert any(Path(n).name.upper().startswith(("LICENSE", "LICENCE")) for n in names), "ZIP missing LICENSE* file"
         assert any(n.startswith(f"{prefix}/profiles/") for n in names), "ZIP missing profiles/ payload"
@@ -153,9 +179,16 @@ def test_artifacts_contents_follow_policy(tmp_path: Path):
             f"{prefix}/rules.md",
             f"{prefix}/start.md",
             f"{prefix}/CHANGELOG.md",
+            f"{prefix}/diagnostics/CUSTOMER_SCRIPT_CATALOG.json",
         }
+        required.update(f"{prefix}/{rel}" for rel in _shipped_customer_scripts())
+        required.update(f"{prefix}/{rel}" for rel in _shipped_workflow_templates())
         missing = [x for x in required if x not in names]
         assert not missing, f"TAR missing required files: {missing}"
+
+        forbidden_markdown = [f"{prefix}/{rel}" for rel in _release_excluded_markdown()]
+        present_forbidden = [path for path in forbidden_markdown if path in names]
+        assert not present_forbidden, f"TAR contains markdown files excluded for customer release: {present_forbidden}"
 
         assert any(Path(n).name.upper().startswith(("LICENSE", "LICENCE")) for n in names), "TAR missing LICENSE* file"
         assert any(n.startswith(f"{prefix}/profiles/") for n in names), "TAR missing profiles/ payload"

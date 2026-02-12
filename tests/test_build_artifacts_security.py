@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import re
 import shutil
 import tarfile
@@ -45,6 +46,24 @@ def _top_level_prefix(names: list[str]) -> set[str]:
             continue
         out.add(n.split("/", 1)[0])
     return out
+
+
+def _shipped_customer_scripts() -> set[str]:
+    payload = json.loads((REPO_ROOT / "diagnostics" / "CUSTOMER_SCRIPT_CATALOG.json").read_text(encoding="utf-8"))
+    return {
+        str(entry["path"])
+        for entry in payload.get("scripts", [])
+        if isinstance(entry, dict) and entry.get("ship_in_release") is True
+    }
+
+
+def _shipped_workflow_templates() -> set[str]:
+    payload = json.loads((REPO_ROOT / "templates" / "github-actions" / "template_catalog.json").read_text(encoding="utf-8"))
+    return {
+        str(entry["file"])
+        for entry in payload.get("templates", [])
+        if isinstance(entry, dict) and isinstance(entry.get("file"), str)
+    }
 
 
 @pytest.fixture()
@@ -122,10 +141,13 @@ def test_release_archives_layout_and_contents_policy(built_artifacts):
         "diagnostics/error_logs.py",
         "diagnostics/map_audit_to_canonical.py",
         "diagnostics/AUDIT_REASON_CANONICAL_MAP.json",
+        "diagnostics/CUSTOMER_SCRIPT_CATALOG.json",
         "diagnostics/tool_requirements.json",
         "diagnostics/QUICKFIX_TEMPLATES.json",
         "diagnostics/UX_INTENT_GOLDENS.json",
     }
+    required_rel.update(_shipped_customer_scripts())
+    required_rel.update(_shipped_workflow_templates())
 
     allowed_suffixes = {".md", ".json"}
 
@@ -145,8 +167,8 @@ def test_release_archives_layout_and_contents_policy(built_artifacts):
         # must include at least one LICENSE*
         assert any(Path(n).name.upper().startswith(("LICENSE", "LICENCE")) for n in files), f"{label}: missing LICENSE*"
 
-        # must NOT contain scripts/tests/dist (build allowlist + exclude dirs)
-        forbidden_dirs = ("/tests/", "/scripts/", "/dist/", "/.github/", "/.git/", "/__MACOSX/")
+        # must NOT contain tests/dist/.github payloads
+        forbidden_dirs = ("/tests/", "/dist/", "/.github/", "/.git/", "/__MACOSX/")
         bad = [n for n in files if any(d in n for d in forbidden_dirs)]
         assert not bad, f"{label}: forbidden paths included: {bad[:25]}"
         assert not any("/._" in n for n in files), f"{label}: AppleDouble entries included: {files[:25]}"
@@ -156,12 +178,19 @@ def test_release_archives_layout_and_contents_policy(built_artifacts):
         )
         assert not any(".DS_Store" in Path(n).parts for n in files), f"{label}: .DS_Store entries included"
 
+        shipped_scripts = _shipped_customer_scripts()
+        shipped_templates = _shipped_workflow_templates()
+        observed_scripts: set[str] = set()
+        observed_templates: set[str] = set()
+
         # allowlist file types:
         # - install.py
         # - LICENSE*
         # - *.md + *.json
         # - profiles/addons/*.addon.yml
         # - diagnostics/*.py runtime helpers
+        # - scripts/*.py listed in CUSTOMER_SCRIPT_CATALOG ship_in_release
+        # - templates/github-actions/*.yml listed in workflow template catalog
         for n in files:
             name = Path(n).name
             rel = n.split("/", 1)[1] if "/" in n else n
@@ -173,8 +202,23 @@ def test_release_archives_layout_and_contents_policy(built_artifacts):
                 continue
             if rel.startswith("diagnostics/") and Path(name).suffix.lower() == ".py":
                 continue
+            if rel in shipped_scripts:
+                observed_scripts.add(rel)
+                continue
+            if rel in shipped_templates:
+                observed_templates.add(rel)
+                continue
             suf = Path(n).suffix.lower()
             assert suf in allowed_suffixes, f"{label}: forbidden file type in artifact: {n}"
+
+        assert observed_scripts == shipped_scripts, (
+            f"{label}: shipped customer scripts mismatch; missing={sorted(shipped_scripts - observed_scripts)} "
+            f"unexpected={sorted(observed_scripts - shipped_scripts)}"
+        )
+        assert observed_templates == shipped_templates, (
+            f"{label}: shipped template files mismatch; missing={sorted(shipped_templates - observed_templates)} "
+            f"unexpected={sorted(observed_templates - shipped_templates)}"
+        )
 
         addon_manifests = [n for n in files if "/profiles/addons/" in n and n.endswith(".addon.yml")]
         assert addon_manifests, f"{label}: expected addon manifests under profiles/addons/*.addon.yml"

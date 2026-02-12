@@ -124,6 +124,11 @@ def test_full_install_reinstall_uninstall_flow(tmp_path: Path):
         commands / "start.md",
         commands / "diagnostics" / "QUICKFIX_TEMPLATES.json",
         commands / "diagnostics" / "UX_INTENT_GOLDENS.json",
+        commands / "diagnostics" / "CUSTOMER_SCRIPT_CATALOG.json",
+        commands / "scripts" / "workflow_template_factory.py",
+        commands / "scripts" / "rulebook_factory.py",
+        commands / "templates" / "github-actions" / "template_catalog.json",
+        commands / "templates" / "github-actions" / "governance-pr-gate-shadow-live-verify.yml",
         manifest,
         paths_file,
     ]
@@ -425,6 +430,7 @@ def test_install_distribution_contains_required_normative_files_and_addon_rulebo
     required_diagnostics = [
         commands / "diagnostics" / "map_audit_to_canonical.py",
         commands / "diagnostics" / "AUDIT_REASON_CANONICAL_MAP.json",
+        commands / "diagnostics" / "CUSTOMER_SCRIPT_CATALOG.json",
         commands / "diagnostics" / "tool_requirements.json",
     ]
     missing_diagnostics = [str(p) for p in required_diagnostics if not p.exists()]
@@ -440,6 +446,35 @@ def test_install_distribution_contains_required_normative_files_and_addon_rulebo
     missing_runtime = [str(p) for p in required_runtime if not p.exists()]
     assert not missing_runtime, "Missing governance runtime package files after install:\n" + "\n".join(
         [f"- {m}" for m in missing_runtime]
+    )
+
+    required_customer_scripts = [
+        commands / "scripts" / "workflow_template_factory.py",
+        commands / "scripts" / "rulebook_factory.py",
+        commands / "scripts" / "run_quality_benchmark.py",
+    ]
+    missing_customer_scripts = [str(p) for p in required_customer_scripts if not p.exists()]
+    assert not missing_customer_scripts, "Missing customer scripts after install:\n" + "\n".join(
+        [f"- {m}" for m in missing_customer_scripts]
+    )
+
+    required_templates = [
+        commands / "templates" / "github-actions" / "template_catalog.json",
+        commands / "templates" / "github-actions" / "governance-pr-gate-shadow-live-verify.yml",
+        commands / "templates" / "github-actions" / "governance-ruleset-release.yml",
+    ]
+    missing_templates = [str(p) for p in required_templates if not p.exists()]
+    assert not missing_templates, "Missing workflow templates after install:\n" + "\n".join(
+        [f"- {m}" for m in missing_templates]
+    )
+
+    required_customer_scaffolding_docs = [
+        commands / "new_profile.md",
+        commands / "new_addon.md",
+    ]
+    missing_scaffolding_docs = [str(p) for p in required_customer_scaffolding_docs if not p.exists()]
+    assert not missing_scaffolding_docs, "Missing customer scaffolding markdown docs after install:\n" + "\n".join(
+        [f"- {m}" for m in missing_scaffolding_docs]
     )
 
     manifests = sorted((commands / "profiles" / "addons").glob("*.addon.yml"))
