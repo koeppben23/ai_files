@@ -69,7 +69,7 @@ jobs:
           set -euo pipefail
           git fetch origin "${{ github.base_ref }}" --depth=1
           changed="$(git diff --name-only "origin/${{ github.base_ref }}...HEAD")"
-          if printf '%s\n' "${changed}" | rg -q '^diagnostics/goldens/baseline/'; then
+          if printf '%s\n' "${changed}" | grep -Eq '^diagnostics/goldens/baseline/'; then
             echo "BLOCKED-GOLDEN-BASELINE-MODIFIED-IN-PR: baseline updates require workflow_dispatch"
             exit 1
           fi
