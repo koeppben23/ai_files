@@ -62,6 +62,15 @@ customer-install-bundle-v1/
 3. artifact smoke test from release archives
 4. upload `dist/*` as `governance-dist` artifact
 
+## GitHub release pipeline
+
+Professional publishing is handled by `.github/workflows/release.yml`:
+
+- trigger via tag push (`v*`) or manual dispatch with existing tag
+- enforce tag/version consistency with `master.md`
+- execute release and build test gates before publishing
+- upload base artifacts + customer install bundle to the GitHub release
+
 ## Customer handoff recommendation
 
 - Deliver `customer-install-bundle-v1.zip` and `customer-install-bundle-v1.SHA256` together.
