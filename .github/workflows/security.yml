@@ -211,7 +211,7 @@ jobs:
 
           ZIZMOR_VERSION="1.22.0"
           curl -sSfL "https://github.com/zizmorcore/zizmor/releases/download/v${ZIZMOR_VERSION}/zizmor-x86_64-unknown-linux-gnu.tar.gz" -o /tmp/zizmor.tar.gz
-          tar -xzf /tmp/zizmor.tar.gz -C /tmp zizmor
+          tar -xzf /tmp/zizmor.tar.gz -C /tmp ./zizmor
 
           set +e
           /tmp/actionlint -shellcheck= -format '{{json .}}' .github/workflows > diagnostics/security-evidence/actionlint.jsonl 2>&1
