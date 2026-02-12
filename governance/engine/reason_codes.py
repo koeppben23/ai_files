@@ -32,6 +32,11 @@ BLOCKED_UNSPECIFIED: Final[str] = "BLOCKED-UNSPECIFIED"
 BLOCKED_PERSISTENCE_TARGET_DEGENERATE: Final[str] = "BLOCKED-PERSISTENCE-TARGET-DEGENERATE"
 BLOCKED_PERSISTENCE_PATH_VIOLATION: Final[str] = "BLOCKED-PERSISTENCE-PATH-VIOLATION"
 
+# UX blocking reason codes (installer, lint).
+BLOCKED_INSTALL_PRECHECK_MISSING_SOURCE: Final[str] = "BLOCKED-INSTALL-PRECHECK-MISSING-SOURCE"
+BLOCKED_INSTALL_VERSION_MISSING: Final[str] = "BLOCKED-INSTALL-VERSION-MISSING"
+BLOCKED_INSTALL_CONFIG_ROOT_INVALID: Final[str] = "BLOCKED-INSTALL-CONFIG-ROOT-INVALID"
+
 # Warning reason codes.
 WARN_UNMAPPED_AUDIT_REASON: Final[str] = "WARN-UNMAPPED-AUDIT-REASON"
 WARN_WORKSPACE_PERSISTENCE: Final[str] = "WARN-WORKSPACE-PERSISTENCE"
@@ -69,6 +74,9 @@ CANONICAL_REASON_CODES: Final[tuple[str, ...]] = (
     BLOCKED_UNSPECIFIED,
     BLOCKED_PERSISTENCE_TARGET_DEGENERATE,
     BLOCKED_PERSISTENCE_PATH_VIOLATION,
+    BLOCKED_INSTALL_PRECHECK_MISSING_SOURCE,
+    BLOCKED_INSTALL_VERSION_MISSING,
+    BLOCKED_INSTALL_CONFIG_ROOT_INVALID,
     WARN_UNMAPPED_AUDIT_REASON,
     WARN_WORKSPACE_PERSISTENCE,
     WARN_ENGINE_LIVE_DENIED,
@@ -93,3 +101,22 @@ def is_registered_reason_code(reason_code: str, *, allow_none: bool = True) -> b
     if allow_none and normalized == REASON_CODE_NONE:
         return True
     return normalized in CANONICAL_REASON_CODES
+
+
+# UX hints for operator-facing messages.
+REASON_CODE_HINTS: Final[dict[str, str]] = {
+    BLOCKED_INSTALL_PRECHECK_MISSING_SOURCE: (
+        "Required governance source files are missing. "
+        "If installing from source: clone the repository. "
+        "If using a bundle: extract it first, then run install.py from the extracted directory. "
+        "If already installed: run 'python3 install.py --status' to check installation health."
+    ),
+    BLOCKED_INSTALL_VERSION_MISSING: (
+        "Governance version not found in master.md. "
+        "Ensure master.md contains 'Governance-Version: <semver>' header."
+    ),
+    BLOCKED_INSTALL_CONFIG_ROOT_INVALID: (
+        "Config root path is invalid or not writable. "
+        "Check path permissions and try again."
+    ),
+}
