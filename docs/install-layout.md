@@ -10,7 +10,7 @@ This document centralizes install and path layout details moved out of `README.m
 - `${PROFILES_HOME} = ${COMMANDS_HOME}/profiles`
 - `${WORKSPACES_HOME} = ${CONFIG_ROOT}/workspaces`
 
-Typical default install root is `~/.config/opencode` (platform-specific variants are resolved via `master.md`).
+A common example install root is `~/.config/opencode` (platform-specific variants are resolved via `master.md`).
 
 ## Where Files Live
 

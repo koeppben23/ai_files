@@ -46,6 +46,7 @@ Scanner output can be structurally valid while still representing partial covera
 - Treat this as "no dependency manifest evidence available" rather than proof that dependencies are secure.
 - For customer/security reporting, dependency claims should be marked `NOT_VERIFIED` until manifest-backed dependency evidence exists.
 - Deterministic reason-code mapping should use `NOT_VERIFIED-MISSING-EVIDENCE` for dependency-security claims without manifest evidence.
+- See [`governance/engine/reason_codes.py`](../../governance/engine/reason_codes.py) for the canonical reason-code registry.
 
 ## Blocking semantics
 
