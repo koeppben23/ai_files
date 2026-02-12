@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import argparse
+import json
 import re
 import subprocess
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 
@@ -1274,6 +1277,16 @@ def check_architect_autopilot_lifecycle_contract(issues: list[str]) -> None:
 
 
 def main() -> int:
+    parser = argparse.ArgumentParser(description="Validate governance documentation and contract consistency.")
+    parser.add_argument(
+        "--output",
+        type=Path,
+        default=ROOT / "diagnostics" / "governance_lint_report.json",
+        help="Output path for JSON report (default: diagnostics/governance_lint_report.json).",
+    )
+    parser.add_argument("-v", "--verbose", action="store_true", help="Show all issues even on success.")
+    args = parser.parse_args()
+
     issues: list[str] = []
     check_master_priority_uniqueness(issues)
     check_anchor_presence(issues)
@@ -1305,12 +1318,31 @@ def main() -> int:
     check_host_constraint_compat_mode_contract(issues)
     check_session_state_fenced_yaml_contract(issues)
 
+    # Build report
+    report = {
+        "schema": "governance.lint-report.v1",
+        "timestamp": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "status": "PASS" if not issues else "FAIL",
+        "issue_count": len(issues),
+        "issues": issues if issues else [],
+    }
+
+    # Write report
+    output_path = Path(args.output)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(json.dumps(report, indent=2, ensure_ascii=True) + "\n", encoding="utf-8")
+
     if issues:
         print("Governance lint FAILED:")
         for issue in issues:
             print(f"- {issue}")
+        print("")
+        print(f"Report written to: {output_path}")
+        print("For verbose output, run: python3 scripts/governance_lint.py --verbose")
         return 1
 
+    if args.verbose:
+        print("Governance lint PASSED (no issues found).")
     print("Governance lint OK")
     return 0
 
