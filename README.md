@@ -281,6 +281,7 @@ Release packaging sanity check (recommended):
 
 ```bash
 python scripts/build.py
+python scripts/build_customer_install_bundle.py --dist-dir dist
 ```
 
 Expected: generated archives under `dist/` include `profiles/addons/*.addon.yml` and pass build artifact policy tests.
@@ -679,6 +680,7 @@ Reference runbook:
 - `docs/governance-template-blueprints.md`
 - `docs/governance-workflow-template-factory.md`
 - `docs/governance-customer-scripts.md`
+- `docs/customer-install-bundle-v1.md`
 
 ---
 
@@ -745,12 +747,14 @@ See:
 | [`profiles/addons/`](profiles/addons/) | Addon activation manifests (`required`/`advisory`, capabilities/signals, surface ownership) |
 | [`diagnostics/*_QUALITY_BENCHMARK_PACK.json`](diagnostics/) | Machine-readable benchmark packs for profile quality evaluation |
 | [`scripts/run_quality_benchmark.py`](scripts/run_quality_benchmark.py) | CLI runner for benchmark scoring and `PASS`/`FAIL`/`NOT_VERIFIED` outcomes |
+| [`scripts/build_customer_install_bundle.py`](scripts/build_customer_install_bundle.py) | Maintainer build step that assembles a customer-ready install bundle from release artifacts |
 | [`scripts/rulebook_factory.py`](scripts/rulebook_factory.py) | Scaffolder for profile/addon rulebooks and addon manifests |
 | [`scripts/workflow_template_factory.py`](scripts/workflow_template_factory.py) | Catalog validator and scaffold command for governance workflow templates (current family: GitHub Actions) |
 | [`scripts/customer_script_catalog.py`](scripts/customer_script_catalog.py) | Maintainer/internal validator for `CUSTOMER_SCRIPT_CATALOG.json` (not customer-shipped) |
 | [`templates/github-actions/template_catalog.json`](templates/github-actions/template_catalog.json) | Canonical catalog of shipped governance workflow templates for the current `github-actions` family |
 | [`diagnostics/CUSTOMER_SCRIPT_CATALOG.json`](diagnostics/CUSTOMER_SCRIPT_CATALOG.json) | Canonical catalog of customer-relevant and release-shipped scripts |
 | [`diagnostics/CUSTOMER_MARKDOWN_EXCLUDE.json`](diagnostics/CUSTOMER_MARKDOWN_EXCLUDE.json) | Canonical list of markdown files excluded from customer release artifacts |
+| [`docs/customer-install-bundle-v1.md`](docs/customer-install-bundle-v1.md) | Professional customer handoff bundle contract (file layout + CI steps + wrapper installers) |
 | [`docs/quality-benchmark-pack-matrix.md`](docs/quality-benchmark-pack-matrix.md) | Matrix of all active benchmark packs |
 | [`README-RULES.md`](README-RULES.md) | Executive summary (not normative) |
 | [`SCOPE-AND-CONTEXT.md`](SCOPE-AND-CONTEXT.md) | Normative responsibility and scope boundary |
