@@ -214,7 +214,7 @@ jobs:
           tar -xzf /tmp/zizmor.tar.gz -C /tmp ./zizmor
 
           set +e
-          /tmp/actionlint -shellcheck= -format '{{json .}}' .github/workflows > diagnostics/security-evidence/actionlint.jsonl 2>&1
+          /tmp/actionlint -shellcheck= -pyflakes= -format '{{range $err := .}}{{json $err}}{{end}}' > diagnostics/security-evidence/actionlint.jsonl 2>&1
           actionlint_rc=$?
 
           /tmp/zizmor --no-online-audits --collect=workflows --format=json-v1 --no-exit-codes .github/workflows > diagnostics/security-evidence/zizmor.json 2>&1
