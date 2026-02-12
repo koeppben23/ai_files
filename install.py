@@ -1275,6 +1275,11 @@ def uninstall(
             rel = src.relative_to(plan.source_dir)
             targets.append(plan.commands_dir / rel)
 
+        # Customer docs from current source snapshot
+        for src in collect_customer_docs_files(plan.source_dir):
+            rel = src.relative_to(plan.source_dir)
+            targets.append(plan.commands_dir / rel)
+
         # Customer scripts and workflow templates from current source snapshot (best-effort in fallback mode).
         try:
             for src in collect_customer_script_files(plan.source_dir, strict=False):
