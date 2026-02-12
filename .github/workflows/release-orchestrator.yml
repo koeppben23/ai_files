@@ -1,0 +1,125 @@
+name: Release Orchestrator
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version without v-prefix (e.g. 1.2.0 or 1.2.0-RC2)"
+        required: true
+      prerelease:
+        description: "Mark published GitHub release as prerelease"
+        required: true
+        type: boolean
+        default: false
+      draft:
+        description: "Create GitHub release as draft"
+        required: true
+        type: boolean
+        default: false
+      allow_empty_changelog:
+        description: "Allow release even when [Unreleased] has no bullets"
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: release-orchestrator-${{ github.event.inputs.version }}
+  cancel-in-progress: false
+
+jobs:
+  cut-and-publish:
+    name: Cut Version, Tag, Dispatch Publish
+    runs-on: ubuntu-latest
+    env:
+      PYTHONUTF8: "1"
+      PYTHONIOENCODING: utf-8
+
+    steps:
+      - name: Validate release version input
+        id: version
+        run: |
+          set -euo pipefail
+          version="${{ github.event.inputs.version }}"
+          if [[ ! "${version}" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-.+][0-9A-Za-z.-]+)?$ ]]; then
+            echo "BLOCKED: version must match semver-ish pattern (X.Y.Z[-pre][+meta]); got ${version}" >&2
+            exit 1
+          fi
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "tag=v${version}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Sync local checkout with origin/main
+        run: |
+          set -euo pipefail
+          git fetch origin main --tags
+          git checkout main
+          git reset --hard origin/main
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Configure git release identity
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Cut release commit + tag
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          ALLOW_EMPTY_CHANGELOG: ${{ github.event.inputs.allow_empty_changelog }}
+        run: |
+          set -euo pipefail
+          args=(--version "${VERSION}")
+          if [[ "${ALLOW_EMPTY_CHANGELOG}" == "true" ]]; then
+            args+=(--allow-empty-changelog)
+          fi
+          python3 scripts/release.py "${args[@]}"
+
+      - name: Validate release gates before push
+        run: |
+          set -euo pipefail
+          python3 scripts/governance_lint.py
+          pytest -q -m release
+
+      - name: Push release commit and tag
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          set -euo pipefail
+          git push origin HEAD:main
+          git push origin "${TAG}"
+
+      - name: Dispatch publish workflow
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+          DRAFT: ${{ github.event.inputs.draft }}
+          PRERELEASE: ${{ github.event.inputs.prerelease }}
+        run: |
+          set -euo pipefail
+          gh workflow run release.yml \
+            --ref main \
+            -f tag="${TAG}" \
+            -f draft="${DRAFT}" \
+            -f prerelease="${PRERELEASE}"
+
+      - name: Summary
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          {
+            echo "## Release Orchestrator"
+            echo "- version: `${{ steps.version.outputs.version }}`"
+            echo "- tag: `${TAG}`"
+            echo "- release workflow: `release.yml` dispatched"
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -286,6 +286,49 @@ python scripts/build_customer_install_bundle.py --dist-dir dist
 
 Expected: generated archives under `dist/` include `profiles/addons/*.addon.yml` and pass build artifact policy tests.
 
+### Release pipeline (professional standard)
+
+The repository ships a dedicated release workflow at `.github/workflows/release.yml`.
+
+Supported triggers:
+
+- `push` tag `v*` (for example `v1.2.3` or `v1.2.3-RC.1`)
+- manual `workflow_dispatch` with an existing tag input
+
+Release workflow behavior (fail-closed):
+
+- validates tag format and requires tag version to match `master.md` `Governance-Version`
+- runs release gates (`governance_lint` + `pytest -m release` + `pytest -m build`)
+- builds deterministic release artifacts and customer install bundle
+- publishes/updates GitHub release assets
+
+### One-command release orchestration
+
+Use `.github/workflows/release-orchestrator.yml` when you want one pipeline step that performs all release setup:
+
+- updates `master.md` Governance-Version, `install.py` VERSION, and cuts `CHANGELOG.md` via `scripts/release.py`
+- creates release commit + tag (`v<version>`) on `main`
+- dispatches `.github/workflows/release.yml` to build and publish assets
+
+CLI example:
+
+```bash
+gh workflow run release-orchestrator.yml \
+  -f version=1.2.0-RC2 \
+  -f prerelease=true \
+  -f draft=false \
+  -f allow_empty_changelog=false
+```
+
+Published release assets:
+
+- `governance-<version>.zip`
+- `governance-<version>.tar.gz`
+- `SHA256SUMS.txt`
+- `verification-report.json`
+- `customer-install-bundle-v1.zip`
+- `customer-install-bundle-v1.SHA256`
+
 ---
 
 ## OpenCode Local Configuration (Required for Repo-Aware Mode)

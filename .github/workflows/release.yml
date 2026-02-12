@@ -1,0 +1,186 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing release tag (vX.Y.Z)"
+        required: true
+      draft:
+        description: "Create draft release"
+        required: true
+        type: boolean
+        default: false
+      prerelease:
+        description: "Mark release as prerelease"
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.event_name == 'push' && github.ref_name || github.event.inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Build and Publish Release
+    runs-on: ubuntu-latest
+    env:
+      PYTHONUTF8: "1"
+      PYTHONIOENCODING: utf-8
+
+    steps:
+      - name: Resolve release tag
+        id: release_tag
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_EVENT_NAME}" == "push" ]]; then
+            tag="${GITHUB_REF_NAME}"
+          else
+            tag="${{ github.event.inputs.tag }}"
+          fi
+          if [[ ! "${tag}" =~ ^v([0-9]+\.[0-9]+\.[0-9]+([-.+][0-9A-Za-z.-]+)?)$ ]]; then
+            echo "BLOCKED: release tag must match v<semver>; got ${tag}" >&2
+            exit 1
+          fi
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+          echo "version=${BASH_REMATCH[1]}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.release_tag.outputs.tag }}
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Validate tag/master version consistency
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import re
+          import sys
+          from pathlib import Path
+
+          expected = "${{ steps.release_tag.outputs.version }}"
+          head = "\n".join(Path("master.md").read_text(encoding="utf-8").splitlines()[:80])
+          m = re.search(
+              r"Governance-Version:\s*([0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?)",
+              head,
+              flags=re.IGNORECASE | re.MULTILINE,
+          )
+          if not m:
+              print("BLOCKED: Governance-Version missing in master.md", file=sys.stderr)
+              raise SystemExit(1)
+          observed = m.group(1)
+          if observed != expected:
+              print(f"BLOCKED: tag/master mismatch (tag={expected}, master={observed})", file=sys.stderr)
+              raise SystemExit(1)
+          PY
+
+      - name: Install test dependencies
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip install pytest
+
+      - name: Run release readiness gates
+        run: |
+          set -euo pipefail
+          python3 scripts/governance_lint.py
+          pytest -q -m release
+          pytest -q -m build
+
+      - name: Build release artifacts
+        run: |
+          set -euo pipefail
+          python3 scripts/build.py --out-dir dist --formats zip,tar.gz
+          python3 scripts/build_customer_install_bundle.py --dist-dir dist
+
+      - name: Build release notes from changelog
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import re
+          from pathlib import Path
+
+          version = "${{ steps.release_tag.outputs.version }}"
+          changelog = Path("CHANGELOG.md").read_text(encoding="utf-8")
+          header = re.search(rf"^## \[{re.escape(version)}\]\s*-.*$", changelog, flags=re.MULTILINE)
+          if not header:
+              Path("dist/RELEASE_NOTES.md").write_text(
+                  f"Release v{version}\n\nNo changelog section found for this version.\n",
+                  encoding="utf-8",
+              )
+              raise SystemExit(0)
+
+          body_start = header.start()
+          remaining = changelog[header.end():]
+          nxt = re.search(r"^## \[[^\]]+\]\s*-.*$", remaining, flags=re.MULTILINE)
+          body_end = header.end() + (nxt.start() if nxt else len(remaining))
+          notes = changelog[body_start:body_end].strip() + "\n"
+          Path("dist/RELEASE_NOTES.md").write_text(notes, encoding="utf-8")
+          PY
+
+      - name: Verify expected release files
+        run: |
+          set -euo pipefail
+          version="${{ steps.release_tag.outputs.version }}"
+          test -f "dist/governance-${version}.zip"
+          test -f "dist/governance-${version}.tar.gz"
+          test -f "dist/SHA256SUMS.txt"
+          test -f "dist/verification-report.json"
+          test -f "dist/customer-install-bundle-v1.zip"
+          test -f "dist/customer-install-bundle-v1.SHA256"
+          test -f "dist/RELEASE_NOTES.md"
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DRAFT: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.draft || 'false' }}
+          PRERELEASE: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.prerelease || 'false' }}
+        run: |
+          set -euo pipefail
+          tag="${{ steps.release_tag.outputs.tag }}"
+          version="${{ steps.release_tag.outputs.version }}"
+          args=()
+          if [[ "${DRAFT}" == "true" ]]; then
+            args+=(--draft)
+          fi
+          if [[ "${PRERELEASE}" == "true" ]]; then
+            args+=(--prerelease)
+          fi
+
+          if gh release view "${tag}" >/dev/null 2>&1; then
+            gh release upload "${tag}" \
+              "dist/governance-${version}.zip" \
+              "dist/governance-${version}.tar.gz" \
+              "dist/SHA256SUMS.txt" \
+              "dist/verification-report.json" \
+              "dist/customer-install-bundle-v1.zip" \
+              "dist/customer-install-bundle-v1.SHA256" \
+              --clobber
+          else
+            gh release create "${tag}" \
+              "dist/governance-${version}.zip" \
+              "dist/governance-${version}.tar.gz" \
+              "dist/SHA256SUMS.txt" \
+              "dist/verification-report.json" \
+              "dist/customer-install-bundle-v1.zip" \
+              "dist/customer-install-bundle-v1.SHA256" \
+              --title "Release ${tag}" \
+              --notes-file "dist/RELEASE_NOTES.md" \
+              "${args[@]}"
+          fi
+
+      - name: Upload workflow artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-dist-${{ steps.release_tag.outputs.tag }}
+          path: dist/*
