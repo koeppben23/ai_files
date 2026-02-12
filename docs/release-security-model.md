@@ -36,6 +36,21 @@ Release workflow uses keyless Sigstore signing for blobs:
 cosign sign-blob --yes --bundle <asset>.sigstore.json <asset>
 ```
 
+## Attestation mode
+
+Release workflow also emits attestations for selected ZIP artifacts:
+
+- build provenance: `actions/attest-build-provenance@v2`
+- SBOM attestation: `actions/attest-sbom@v2`
+
+SBOM source files are generated as SPDX JSON and published as release assets.
+
+Required workflow permissions for this model:
+
+- `contents: write`
+- `id-token: write`
+- `attestations: write`
+
 ## Verification contract
 
 Verification MUST check both signature validity and signer identity constraints:
@@ -46,6 +61,14 @@ cosign verify-blob \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
   --certificate-identity-regexp '^https://github\.com/<org>/<repo>/\.github/workflows/release\.yml@refs/tags/v[0-9]+\.[0-9]+\.[0-9]+([-.+][0-9A-Za-z.-]+)?$' \
   <asset>
+```
+
+Attestation verification example:
+
+```bash
+gh attestation verify <asset> \
+  --repo <org>/<repo> \
+  --signer-workflow .github/workflows/release.yml
 ```
 
 ## Customer/offline verification guidance

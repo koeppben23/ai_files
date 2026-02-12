@@ -71,6 +71,8 @@ Professional publishing is handled by `.github/workflows/release.yml`:
 - execute release and build test gates before publishing
 - sign release-critical artifacts with keyless Sigstore bundles (`<asset>.sigstore.json`)
 - verify signer identity constraints (repo + workflow + tag ref) before publish
+- generate SPDX SBOM files for published ZIP assets
+- publish build-provenance and SBOM attestations
 - upload base artifacts + customer install bundle to the GitHub release
 
 For one-command release automation (including version/changelog/tag updates), use `.github/workflows/release-orchestrator.yml`, which cuts the release commit and tag first, then dispatches `release.yml`.

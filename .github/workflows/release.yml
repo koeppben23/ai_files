@@ -23,6 +23,7 @@ on:
 permissions:
   contents: write
   id-token: write
+  attestations: write
 
 concurrency:
   group: release-${{ github.event_name == 'push' && github.ref_name || github.event.inputs.tag }}
@@ -144,6 +145,49 @@ jobs:
           test -f "dist/customer-install-bundle-v1.SHA256"
           test -f "dist/RELEASE_NOTES.md"
 
+      - name: Generate SBOM for governance zip
+        uses: anchore/sbom-action@v0
+        with:
+          path: dist/governance-${{ steps.release_tag.outputs.version }}.zip
+          format: spdx-json
+          output-file: dist/governance-${{ steps.release_tag.outputs.version }}.zip.spdx.json
+
+      - name: Generate SBOM for customer bundle zip
+        uses: anchore/sbom-action@v0
+        with:
+          path: dist/customer-install-bundle-v1.zip
+          format: spdx-json
+          output-file: dist/customer-install-bundle-v1.zip.spdx.json
+
+      - name: Verify expected SBOM files
+        run: |
+          set -euo pipefail
+          version="${{ steps.release_tag.outputs.version }}"
+          test -f "dist/governance-${version}.zip.spdx.json"
+          test -f "dist/customer-install-bundle-v1.zip.spdx.json"
+
+      - name: Attest build provenance for governance zip
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: dist/governance-${{ steps.release_tag.outputs.version }}.zip
+
+      - name: Attest build provenance for customer bundle zip
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: dist/customer-install-bundle-v1.zip
+
+      - name: Attest SBOM for governance zip
+        uses: actions/attest-sbom@v2
+        with:
+          subject-path: dist/governance-${{ steps.release_tag.outputs.version }}.zip
+          sbom-path: dist/governance-${{ steps.release_tag.outputs.version }}.zip.spdx.json
+
+      - name: Attest SBOM for customer bundle zip
+        uses: actions/attest-sbom@v2
+        with:
+          subject-path: dist/customer-install-bundle-v1.zip
+          sbom-path: dist/customer-install-bundle-v1.zip.spdx.json
+
       - name: Sign release assets (cosign keyless)
         run: |
           set -euo pipefail
@@ -205,6 +249,7 @@ jobs:
             gh release upload "${tag}" \
               "dist/governance-${version}.zip" \
               "dist/governance-${version}.zip.sigstore.json" \
+              "dist/governance-${version}.zip.spdx.json" \
               "dist/governance-${version}.tar.gz" \
               "dist/governance-${version}.tar.gz.sigstore.json" \
               "dist/SHA256SUMS.txt" \
@@ -212,6 +257,7 @@ jobs:
               "dist/verification-report.json" \
               "dist/verification-report.json.sigstore.json" \
               "dist/customer-install-bundle-v1.zip" \
+              "dist/customer-install-bundle-v1.zip.spdx.json" \
               "dist/customer-install-bundle-v1.SHA256" \
               "dist/customer-install-bundle-v1.zip.sigstore.json" \
               "dist/customer-install-bundle-v1.SHA256.sigstore.json" \
@@ -220,6 +266,7 @@ jobs:
             gh release create "${tag}" \
               "dist/governance-${version}.zip" \
               "dist/governance-${version}.zip.sigstore.json" \
+              "dist/governance-${version}.zip.spdx.json" \
               "dist/governance-${version}.tar.gz" \
               "dist/governance-${version}.tar.gz.sigstore.json" \
               "dist/SHA256SUMS.txt" \
@@ -227,6 +274,7 @@ jobs:
               "dist/verification-report.json" \
               "dist/verification-report.json.sigstore.json" \
               "dist/customer-install-bundle-v1.zip" \
+              "dist/customer-install-bundle-v1.zip.spdx.json" \
               "dist/customer-install-bundle-v1.SHA256" \
               "dist/customer-install-bundle-v1.zip.sigstore.json" \
               "dist/customer-install-bundle-v1.SHA256.sigstore.json" \
