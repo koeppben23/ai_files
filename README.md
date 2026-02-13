@@ -1,7 +1,7 @@
 # Governance & Prompt System - Customer Overview
 
-- Codex/macOS App frontend surface (non-normative mirror) -> AGENTS.md
-- OpenCode entrypoint / bootstrap adapter -> start.md
+- Codex/macOS App frontend surface (non-normative mirror) -> [AGENTS.md](AGENTS.md)
+- OpenCode entrypoint / bootstrap adapter -> [start.md](start.md)
 - Mandatory rules and system behavior -> [`master.md`](master.md)
 - Technical and quality constraints -> [`rules.md`](rules.md)
 - OpenCode setup and runtime behavior -> [`README-OPENCODE.md`](README-OPENCODE.md)
