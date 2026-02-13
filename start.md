@@ -6,6 +6,9 @@ defined in `master.md`, `rules.md`, and profile rulebooks.
 
 ## Auto-Binding Evidence (OpenCode)
 
+Bootstrap Evidence: OpenCodeBinding (governance.paths.json + preflight) OR AGENTS.md Presence (Codex surface).
+Note: Kernel remains the source of truth; AGENTS.md is the Codex frontend surface.
+
 When executed as an OpenCode command (`/start`), this prompt injects the installer-owned path binding file
 `${COMMANDS_HOME}/governance.paths.json` into the model context.
 
