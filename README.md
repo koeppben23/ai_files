@@ -1,9 +1,7 @@
 # Governance & Prompt System - Customer Overview
 
-## README Index
-
-This repository is split into a short customer-facing README and deep technical docs.
-
+- Codex/macOS App frontend surface (non-normative mirror) -> AGENTS.md
+- OpenCode entrypoint / bootstrap adapter -> start.md
 - Mandatory rules and system behavior -> [`master.md`](master.md)
 - Technical and quality constraints -> [`rules.md`](rules.md)
 - OpenCode setup and runtime behavior -> [`README-OPENCODE.md`](README-OPENCODE.md)
@@ -12,11 +10,14 @@ This repository is split into a short customer-facing README and deep technical 
 - Stability and release readiness contract -> [`STABILITY_SLA.md`](STABILITY_SLA.md)
 - Session state schema -> [`SESSION_STATE_SCHEMA.md`](SESSION_STATE_SCHEMA.md)
 
-This README is descriptive only. If this file conflicts with `master.md` or `rules.md`, treat this README as wrong.
+This README is descriptive only. AGENTS.md is also non-normative; AGENTS.md is a non-normative mirror of master.md for agent frontends; conflicts resolve to master.md. If this file conflicts with `master.md`, `rules.md`, or AGENTS.md, treat the relevant non-normative surface as the source of truth.
 
 ## What This Is
 
 This product is a deterministic governance system for AI-assisted software delivery.
+
+- It also supports Codex App via AGENTS.md as a frontend surface, in addition to the OpenCode path.
+- Model-agnostic: any LLM can be used under the same deterministic governance layer (via OpenCode).
 
 - It gives teams a controlled start/continue/resume workflow with explicit gates.
 - It prioritizes reviewability, traceability, and reproducible quality over speed.
@@ -28,6 +29,7 @@ This product is a deterministic governance system for AI-assisted software deliv
 ## Quick Start Matrix
 
 - CLI/repository install flow: run `python3 install.py` (or use the customer bundle wrapper in `install/`).
+- Codex App flow: open the repo in Codex; governance is loaded from AGENTS.md
 - OpenCode session flow: run `/start` (OpenCode command, not a shell command).
 - Resume interrupted work: use `/continue` or `/resume` with existing session state.
 - Customer handoff install: deliver `customer-install-bundle-v1.zip` with `customer-install-bundle-v1.SHA256`.
@@ -40,7 +42,7 @@ Config root is runtime-resolved by platform/environment settings (see OS-specifi
 
 - Standard install: `python3 install.py`
 - Deterministic dry-run first: `python3 install.py --dry-run`
-- Installer-owned path binding file: `governance.paths.json` under `<config_root>/commands/`
+- Installer-owned path binding file: `governance.paths.json` under `<config_root>/commands/` (Used by the OpenCode /start bootstrap; not required for AGENTS.md-frontends)
 - Customer bundle install wrappers and handoff process: [`docs/customer-install-bundle-v1.md`](docs/customer-install-bundle-v1.md)
 
 ## Verify A Release
@@ -64,7 +66,7 @@ Runtime state is outside customer code repositories and lives under the config r
 - Repo-scoped session and persistence: `${WORKSPACES_HOME}/<repo_fingerprint>/...`
 - Runtime error logs: `${WORKSPACES_HOME}/<repo_fingerprint>/logs/` (fallback `${CONFIG_ROOT}/logs/`)
 
-See full path and layout details in [`docs/install-layout.md`](docs/install-layout.md).
+See full path and layout details in [`docs/install-layout.md`](docs/install-layout.md). See start.md for the OpenCode bootstrap/binding evidence flow.
 
 ## Documentation Map (Deep Docs)
 

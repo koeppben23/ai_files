@@ -22,6 +22,8 @@ A common example install root is `~/.config/opencode` (platform-specific variant
 
 ## Installed Layout (Canonical Shape)
 
+Note: AGENTS.md is a frontend surface; kernel bootstrapping and path resolution remain governed by master.md and start.md. The runtime config root and path variables are resolved at runtime as described in master.md; AGENTS.md presence does not alter OpenCode path resolution.
+
 ```text
 ${COMMANDS_HOME}/
   master.md
