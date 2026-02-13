@@ -2,20 +2,13 @@ This repo uses Governance Kernel rules
 
 Default to ARCHITECT plan-only until explicit ‘Implement now’
 No claim without evidence
-If evidence missing → respond BLOCKED + recovery
-Do not assume ability to run commands; request evidence
+If evidence missing → BLOCKED + recovery
+AGENTS.md is a non-normative mirror of master.md; conflicts resolve to master.md
 
-AGENTS.md is a non-normative mirror of the Kernel; conflicts resolve to master.md
+Bootstrap Evidence: OpenCodeBinding (path-binding + preflight) OR AGENTS.md Presence
 
-Bootstrap Evidence: OpenCodeBinding (governance.paths.json + preflight) OR AGENTS.md Presence (Codex surface)
+AGENTS.md Frontend-Surface; CI will reference kernel (master.md) as Truth
 
-Bootstrap is satisfied by either of the two equivalent surfaces.
-
-OpenCode /start is the canonical entrypoint for OpenCode workflows.
-
-- Phases, Gates, Fail-closed, Evidence, Output envelope remain the Kernel contract.
-- AGENTS.md mirrors kernel sections but without host-binding tokens.
+AGENTS.md contains no host-binding tokens
 
 Kernel wins on conflict. AGENTS.md is only an alternative frontend surface.
-
-Note: AGENTS.md must not contain host-binding tokens (no `${COMMANDS_HOME}`, no `governance.paths.json`).
