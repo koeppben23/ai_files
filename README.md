@@ -30,6 +30,7 @@ This product is a deterministic governance system for AI-assisted software deliv
 
 - CLI/repository install flow: run `python3 install.py` (or use the customer bundle wrapper in `install/`).
 - Codex App flow: open the repo in Codex; governance is loaded from AGENTS.md
+- OpenCode session flow: OpenCode (CLI) flow remains; Codex App flow is open in Codex surface
 - OpenCode session flow: run `/start` (OpenCode command, not a shell command).
 - Resume interrupted work: use `/continue` or `/resume` with existing session state.
 - Customer handoff install: deliver `customer-install-bundle-v1.zip` with `customer-install-bundle-v1.SHA256`.
