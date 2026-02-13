@@ -1,14 +1,21 @@
-This repo uses Governance Kernel rules
+# AGENTS (non-normative mirror)
 
-Default to ARCHITECT plan-only until explicit ‘Implement now’
-No claim without evidence
-If evidence missing → BLOCKED + recovery
-AGENTS.md is a non-normative mirror of master.md; conflicts resolve to master.md
+AGENTS.md is a **non-normative mirror** for agent/front-end surfaces.
+Normative precedence (SSOT): master.md > rules.md > active profiles > addons/templates.
+If there is any conflict, **kernel wins** (master.md).
 
-Bootstrap Evidence: OpenCodeBinding (installer-owned binding evidence) OR AGENTS.md Presence
+## Defaults
+- Default to ARCHITECT (plan/decisions only) until explicit “Implement now”.
+- No claim without evidence (recorded in SESSION_STATE), otherwise NOT_VERIFIED.
+- Fail-closed: missing required inputs/addons/rulebooks => BLOCKED with recovery.
+- Do not assume ability to run commands; request evidence or provide next actions.
 
-AGENTS.md Frontend-Surface; CI will reference kernel (master.md) as Truth
+## Bootstrap (equivalence)
+Bootstrap is satisfied by either of the two equivalent surfaces:
+- OpenCode binding evidence (preflight + path bindings), OR
+- AGENTS surface presence (this file).
 
-AGENTS.md contains no host-binding tokens
-
-Kernel wins on conflict. AGENTS.md is only an alternative frontend surface.
+## Kernel contract (summary)
+- Phases, gates, evidence, and the output envelope remain the kernel contract.
+- AGENTS.md mirrors kernel sections but must not introduce new requirements.
+- No host-binding tokens in this file.
