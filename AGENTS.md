@@ -5,7 +5,7 @@ No claim without evidence
 If evidence missing → BLOCKED + recovery
 AGENTS.md is a non-normative mirror of master.md; conflicts resolve to master.md
 
-Bootstrap Evidence: OpenCodeBinding (installer-owned binding evidence file + preflight) OR AGENTS.md Presence
+Bootstrap Evidence: OpenCodeBinding (installer-owned binding evidence) OR AGENTS.md Presence
 
 AGENTS.md Frontend-Surface; CI will reference kernel (master.md) as Truth
 
