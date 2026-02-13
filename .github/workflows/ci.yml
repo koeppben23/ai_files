@@ -1,5 +1,14 @@
 name: CI
 
+# Least privilege for GITHUB_TOKEN (applies to all jobs unless overridden).
+permissions:
+  contents: read
+
+# Avoid duplicate runs on rapid PR updates / force-pushes.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 on:
   push:
     branches: [ main, develop ]
@@ -16,6 +25,11 @@ jobs:
     runs-on: ubuntu-latest
     if: ${{ github.event_name == 'pull_request' }}
     steps:
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.11'
+
       - name: Validate PR title (Conventional Commits)
         env:
           EVENT_NAME: ${{ github.event_name }}
@@ -25,7 +39,7 @@ jobs:
           import os, re, sys
           title = os.environ.get("PR_TITLE") or ""
           pattern = r'^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([^)]+\))?!?: .+'
-          if not re.match(pattern, title):
+          if not re.fullmatch(pattern, title):
               print("❌ PR title is not Conventional Commits compliant.")
               print("Title:", title)
               print("Expected pattern:", pattern)
@@ -42,12 +56,12 @@ jobs:
           python - <<'PY'
           import os, re, sys
           branch = os.environ.get("BRANCH_NAME") or ""
-          pattern = r'^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)/[a-z0-9][a-z0-9._/-]*$'
-          if not re.match(pattern, branch):
+          pattern = r'^(develop|(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)/[a-z0-9][a-z0-9._/-]*)$'
+          if not re.fullmatch(pattern, branch):
               print("❌ Branch name is not Conventional compliant.")
               print("Branch:", branch)
               print("Expected pattern:", pattern)
-              print("Examples: feat/governance-next-step | refactor/governance-policy-hardening")
+              print("Examples: develop | feat/governance-next-step | refactor/governance-policy-hardening")
               sys.exit(1)
 
           print("✅ Branch name is Conventional compliant:", branch)
@@ -83,7 +97,7 @@ jobs:
               sys.exit(1)
 
           pattern = r'^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([^)]+\))?!?: .+'
-          bad = [s for s in subjects if not re.match(pattern, s)]
+          bad = [s for s in subjects if not re.fullmatch(pattern, s)]
           if bad:
               print("❌ Non-conventional commit subjects found:")
               for s in bad:
