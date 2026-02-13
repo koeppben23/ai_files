@@ -7,10 +7,11 @@ If this file and `master.md` ever diverge, `master.md` is authoritative.
 - Phase 1.5 is optional and acts as a bridge between discovery (2.1) and business rules.
 - You may reference Phase 1.5 as 2.2 in customer-facing docs for alignment, but kernel semantics stay 1.5.
 - 2.1 creates the Decision Pack; 1.5 may run in parallel if signals exist, or follow 2.x for a stricter path.
-- Phase 1.5 is optional and acts as a bridge between discovery (2.1) and business rules.
-- You may reference Phase 1.5 as 2.2 in customer-facing docs for alignment, but kernel semantics stay 1.5.
-- 2.1 creates the Decision Pack; 1.5 may run in parallel if signals exist, or follow 2.x for a stricter path.
 - Bootstrap validates install/path/session prerequisites before work proceeds.
+- Discovery builds repo context and reusable decision artifacts.
+- Planning produces an implementation path without bypassing gates.
+- Gate reviews validate architecture, tests, business rules (when enabled), and rollback safety.
+- Final QA issues a deterministic readiness decision (`ready-for-pr` or `fix-required`).
 - Discovery builds repo context and reusable decision artifacts.
 - Planning produces an implementation path without bypassing gates.
 - Gate reviews validate architecture, tests, business rules (when enabled), and rollback safety.
