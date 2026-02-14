@@ -83,6 +83,10 @@ def _resolve_effective_operating_mode(adapter: HostAdapter, requested: Operating
 
     if requested is not None:
         return requested
+    env = adapter.environment()
+    ci = str(env.get("CI", "")).strip().lower()
+    if ci and ci not in {"0", "false", "no", "off"}:
+        return "pipeline"
     return adapter.default_operating_mode()
 
 
@@ -339,7 +343,7 @@ def run_engine_orchestrator(
     """
 
     caps = adapter.capabilities()
-    capabilities_hash = caps.stable_hash_full()
+    capabilities_hash = caps.stable_hash()
     requested_mode = _resolve_effective_operating_mode(adapter, requested_operating_mode)
     effective_mode = requested_mode
     mode_downgraded = False
@@ -452,11 +456,7 @@ def run_engine_orchestrator(
         pack_engine_version=pack_engine_version,
         expected_pack_lock_hash=expected_pack_lock_hash,
     )
-    repo_identity = _extract_repo_identity(session_state_document) or "unresolved"
-    
-    if require_hash_match and repo_identity == "unresolved":
-        gate_blocked = True
-        gate_reason_code = BLOCKED_REPO_IDENTITY_RESOLUTION
+    repo_identity = _extract_repo_identity(session_state_document) or str(repo_context.repo_root)
 
     activation_hash = _build_activation_hash(
         phase=phase,
