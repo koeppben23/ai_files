@@ -70,20 +70,10 @@ def _is_ci_env(env: Mapping[str, str]) -> bool:
     """Return True when environment indicates pipeline/system execution."""
 
     val = str(env.get("CI", "")).strip().lower()
-    if val in {"1", "true", "yes", "on"}:
-        return True
-    if val and val not in {"0", "false", "no", "off"}:
-        return True    
-    # strong CI signals across common providers
-    return any(
-        k in env
-        for k in (
-            "GITHUB_ACTIONS",
-            "GITLAB_CI",
-            "BUILD_BUILDID",
-            "JENKINS_URL",
-        )
-    )
+    if not val or val in {"0", "false", "no", "off"}:
+        return False
+    # Fail-closed: any non-false CI value means pipeline/system context.
+    return True
 
 
 @dataclass(frozen=True)
@@ -98,6 +88,15 @@ class HostCapabilities:
     fs_write_repo_root: bool
     exec_allowed: bool
     git_available: bool
+
+    @property
+    def capabilities_hash(self) -> str:
+        """Deterministic short hash for capability fingerprint (stable across environments).
+
+        Returns a 16-hex-character representation suitable for activation fingerprints.
+        This mirrors the historical stable_hash output but exposes a stable alias for tests.
+        """
+        return self.stable_hash()
 
     @property
     def fs_read(self) -> bool:
@@ -220,6 +219,7 @@ class OpenCodeDesktopAdapter:
         return Path.cwd().resolve()
 
     def default_operating_mode(self) -> OperatingMode:
+        # CI has deterministic precedence over host defaults.
         if _is_ci_env(self.environment()):
             return "pipeline"
         return self.operating_mode
