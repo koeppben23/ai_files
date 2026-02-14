@@ -34,6 +34,20 @@ def _default_config_root() -> Path:
     return (Path(xdg) if xdg else Path.home() / ".config") / "opencode"
 
 
+def _resolve_env_path(env: Mapping[str, str], key: str) -> Path | None:
+    """Resolve an environment path deterministically.
+
+    Fail-closed on relative paths to avoid CWD-dependent resolution.
+    """
+    raw = str(env.get(key, "")).strip()
+    if not raw:
+        return None
+    p = Path(raw).expanduser()
+    if not p.is_absolute():
+        return None
+    return p.resolve()
+
+
 def _path_writable(path: Path) -> bool:
     """Return True when path (or nearest existing parent) is writable."""
 
@@ -55,7 +69,21 @@ def _path_readable(path: Path) -> bool:
 def _is_ci_env(env: Mapping[str, str]) -> bool:
     """Return True when environment indicates pipeline/system execution."""
 
-    return str(env.get("CI", "")).strip().lower() == "true"
+    val = str(env.get("CI", "")).strip().lower()
+    if val in {"1", "true", "yes", "on"}:
+        return True
+    if val and val not in {"0", "false", "no", "off"}:
+        return True    
+    # strong CI signals across common providers
+    return any(
+        k in env
+        for k in (
+            "GITHUB_ACTIONS",
+            "GITLAB_CI",
+            "BUILD_BUILDID",
+            "JENKINS_URL",
+        )
+    )
 
 
 @dataclass(frozen=True)
@@ -80,8 +108,13 @@ class HostCapabilities:
     def stable_hash(self) -> str:
         """Return deterministic capabilities hash for audit/activation hashing."""
 
+        return self.stable_hash_full()[:16]
+
+    def stable_hash_full(self) -> str:
+        """Return full deterministic capabilities hash (preferred for activation)."""
+
         encoded = json.dumps(asdict(self), sort_keys=True, separators=(",", ":"))
-        return hashlib.sha256(encoded.encode("utf-8")).hexdigest()[:16]
+        return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 
 
 class HostAdapter(Protocol):
@@ -117,10 +150,11 @@ class LocalHostAdapter:
 
     def capabilities(self) -> HostCapabilities:
         env = self.environment()
-        config_root = Path(env.get("OPENCODE_CONFIG_ROOT", "")).expanduser().resolve() if env.get("OPENCODE_CONFIG_ROOT") else _default_config_root().resolve()
+        config_root = _resolve_env_path(env, "OPENCODE_CONFIG_ROOT") or _default_config_root().resolve()
         commands_home = config_root / "commands"
         workspaces_home = config_root / "workspaces"
-        repo_root = Path(env.get("OPENCODE_REPO_ROOT", str(self.cwd()))).expanduser().resolve()
+        # Fail-closed: ignore relative OPENCODE_REPO_ROOT to avoid CWD-dependent resolution
+        repo_root = _resolve_env_path(env, "OPENCODE_REPO_ROOT") or self.cwd()
         exec_allowed = os.access(sys.executable, os.X_OK)
         git_disabled = str(env.get("OPENCODE_DISABLE_GIT", "")).strip() == "1"
         git_available = (shutil.which("git") is not None) and not git_disabled
@@ -159,10 +193,11 @@ class OpenCodeDesktopAdapter:
 
     def capabilities(self) -> HostCapabilities:
         env = self.environment()
-        config_root = Path(env.get("OPENCODE_CONFIG_ROOT", "")).expanduser().resolve() if env.get("OPENCODE_CONFIG_ROOT") else _default_config_root().resolve()
+        config_root = _resolve_env_path(env, "OPENCODE_CONFIG_ROOT") or _default_config_root().resolve()
         commands_home = config_root / "commands"
         workspaces_home = config_root / "workspaces"
-        repo_root = Path(env.get("OPENCODE_REPO_ROOT", str(self.cwd()))).expanduser().resolve()
+        # Fail-closed: ignore relative OPENCODE_REPO_ROOT to avoid CWD-dependent resolution
+        repo_root = _resolve_env_path(env, "OPENCODE_REPO_ROOT") or self.cwd()
         disabled = str(env.get("OPENCODE_DISABLE_GIT", "")).strip() == "1"
         git_available = self.git_available_override
         if git_available is None:

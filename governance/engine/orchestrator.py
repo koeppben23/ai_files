@@ -81,11 +81,8 @@ class EngineOrchestratorOutput:
 def _resolve_effective_operating_mode(adapter: HostAdapter, requested: OperatingMode | None) -> OperatingMode:
     """Resolve operating mode with deterministic precedence."""
 
-    env = adapter.environment()
     if requested is not None:
         return requested
-    if str(env.get("CI", "")).strip().lower() == "true":
-        return "pipeline"
     return adapter.default_operating_mode()
 
 
@@ -192,9 +189,9 @@ def _extract_verified_claim_evidence_ids(
     observed: set[str] = set()
     stale: set[str] = set()
 
-    claims_verified = build_evidence.get("claims_verified")
-    if isinstance(claims_verified, list):
-        for entry in claims_verified:
+    claims_stale = build_evidence.get("claims_stale")
+    if isinstance(claims_stale, list):
+        for entry in claims_stale:
             if isinstance(entry, str) and entry.strip():
                 stale.add(entry.strip())
 
@@ -260,6 +257,7 @@ def _build_activation_hash(
     effective_operating_mode: OperatingMode,
     capabilities_hash: str,
     repo_context: RepoRootResolutionResult,
+    repo_identity: str,
     ruleset_hash: str,
 ) -> str:
     """Build deterministic activation hash from runtime context facts."""
@@ -271,12 +269,22 @@ def _build_activation_hash(
         "target_path": target_path,
         "effective_operating_mode": effective_operating_mode,
         "capabilities_hash": capabilities_hash,
-        "repo_root": str(repo_context.repo_root),
+        "repo_identity": repo_identity,
         "repo_source": repo_context.source,
         "repo_is_git_root": repo_context.is_git_root,
         "ruleset_hash": ruleset_hash,
     }
     return _hash_payload(payload)
+
+
+def _extract_repo_identity(session_state_document: Mapping[str, object] | None) -> str:
+    """Extract stable repo identity (repo_fingerprint) from SESSION_STATE."""
+    if session_state_document is None:
+        return ""
+    session_state = session_state_document.get("SESSION_STATE")
+    root = session_state if isinstance(session_state, Mapping) else session_state_document
+    value = root.get("repo_fingerprint")
+    return value.strip() if isinstance(value, str) else ""
 
 
 def _build_hash_mismatch_diff(
@@ -331,7 +339,7 @@ def run_engine_orchestrator(
     """
 
     caps = adapter.capabilities()
-    capabilities_hash = caps.stable_hash()
+    capabilities_hash = caps.stable_hash_full()
     requested_mode = _resolve_effective_operating_mode(adapter, requested_operating_mode)
     effective_mode = requested_mode
     mode_downgraded = False
@@ -444,6 +452,12 @@ def run_engine_orchestrator(
         pack_engine_version=pack_engine_version,
         expected_pack_lock_hash=expected_pack_lock_hash,
     )
+    repo_identity = _extract_repo_identity(session_state_document) or "unresolved"
+    
+    if require_hash_match and repo_identity == "unresolved":
+        gate_blocked = True
+        gate_reason_code = BLOCKED_REPO_IDENTITY_RESOLUTION
+
     activation_hash = _build_activation_hash(
         phase=phase,
         active_gate=active_gate,
@@ -452,6 +466,7 @@ def run_engine_orchestrator(
         effective_operating_mode=effective_mode,
         capabilities_hash=capabilities_hash,
         repo_context=repo_context,
+        repo_identity=repo_identity,
         ruleset_hash=ruleset_hash,
     )
 
