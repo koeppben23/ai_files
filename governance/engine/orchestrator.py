@@ -24,11 +24,24 @@ from governance.engine.reason_codes import (
     BLOCKED_RELEASE_HYGIENE,
     BLOCKED_RULESET_HASH_MISMATCH,
     BLOCKED_SYSTEM_MODE_REQUIRED,
+    INTERACTIVE_REQUIRED_IN_PIPELINE,
     NOT_VERIFIED_EVIDENCE_STALE,
     NOT_VERIFIED_MISSING_EVIDENCE,
+    POLICY_PRECEDENCE_APPLIED,
+    PROMPT_BUDGET_EXCEEDED,
+    REPO_CONSTRAINT_UNSUPPORTED,
+    REPO_CONSTRAINT_WIDENING,
+    REPO_DOC_UNSAFE_DIRECTIVE,
     REASON_CODE_NONE,
     WARN_MODE_DOWNGRADED,
     WARN_PERMISSION_LIMITED,
+)
+from governance.engine.mode_repo_rules import (
+    RepoDocEvidence,
+    classify_repo_doc,
+    compute_repo_doc_hash,
+    resolve_prompt_budget,
+    summarize_classification,
 )
 from governance.engine.reason_payload import build_reason_payload
 from governance.engine.runtime import (
@@ -76,6 +89,9 @@ class EngineOrchestratorOutput:
     activation_hash: str
     reason_payload: dict[str, object]
     missing_evidence: tuple[str, ...]
+    repo_doc_evidence: RepoDocEvidence | None
+    precedence_events: tuple[dict[str, object], ...]
+    prompt_events: tuple[dict[str, object], ...]
 
 
 def _resolve_effective_operating_mode(adapter: HostAdapter, requested: OperatingMode | None) -> OperatingMode:
@@ -335,6 +351,19 @@ def run_engine_orchestrator(
     session_state_document: Mapping[str, object] | None = None,
     now_utc: datetime | None = None,
     release_hygiene_entries: tuple[str, ...] = (),
+    repo_doc_path: str | None = None,
+    repo_doc_text: str | None = None,
+    prompt_used_total: int = 0,
+    prompt_used_repo_docs: int = 0,
+    repo_constraint_topic: str | None = None,
+    repo_constraint_supported: bool = True,
+    repo_constraint_widening: bool = False,
+    widening_from: str | None = None,
+    widening_to: str | None = None,
+    widening_approved: bool = False,
+    requested_action: str | None = None,
+    interactive_required: bool = False,
+    why_interactive_required: str | None = None,
 ) -> EngineOrchestratorOutput:
     """Run one deterministic engine orchestration cycle.
 
@@ -382,9 +411,88 @@ def run_engine_orchestrator(
     missing_evidence = tuple(sorted(required_evidence - observed_evidence))
     stale_required_evidence = tuple(sorted(required_evidence.intersection(stale_claim_evidence)))
     hash_diff: dict[str, str] = {}
+    repo_doc_evidence: RepoDocEvidence | None = None
+    precedence_events: list[dict[str, object]] = []
+    prompt_events: list[dict[str, object]] = []
+
+    if repo_doc_text is not None:
+        doc_hash = compute_repo_doc_hash(repo_doc_text)
+        classifications = classify_repo_doc(repo_doc_text)
+        repo_doc_evidence = RepoDocEvidence(
+            doc_path=repo_doc_path or "AGENTS.md",
+            doc_hash=doc_hash,
+            classification_summary=summarize_classification(classifications),
+        )
+        unsafe = next((c for c in classifications if c.directive_class == "unsafe_directive"), None)
+        if unsafe is not None:
+            hash_diff["repo_doc_unsafe"] = unsafe.rule_id
+
+    budget = resolve_prompt_budget(effective_mode)
 
     gate_blocked = False
     gate_reason_code = REASON_CODE_NONE
+
+    if effective_mode == "pipeline" and (interactive_required or prompt_used_total > 0 or prompt_used_repo_docs > 0):
+        gate_blocked = True
+        gate_reason_code = INTERACTIVE_REQUIRED_IN_PIPELINE
+        prompt_events.append(
+            {
+                "event": "PROMPT_REQUESTED",
+                "source": "repo_docs" if prompt_used_repo_docs > 0 else "governance",
+                "topic": requested_action or "interactive_required",
+                "mode": effective_mode,
+            }
+        )
+    elif prompt_used_total > budget.max_total_prompts or prompt_used_repo_docs > budget.max_repo_doc_prompts:
+        gate_blocked = True
+        gate_reason_code = PROMPT_BUDGET_EXCEEDED
+
+    if not gate_blocked and repo_doc_evidence is not None and repo_doc_evidence.classification_summary.get("unsafe_directive", 0) > 0:
+        gate_blocked = True
+        gate_reason_code = REPO_DOC_UNSAFE_DIRECTIVE
+
+    if not gate_blocked and repo_constraint_widening:
+        decision = "deny"
+        if effective_mode == "pipeline":
+            gate_blocked = True
+            gate_reason_code = REPO_CONSTRAINT_WIDENING
+            decision = "deny"
+        elif widening_approved:
+            decision = "allow"
+            precedence_events.append(
+                {
+                    "event": POLICY_PRECEDENCE_APPLIED,
+                    "winner_layer": "mode_policy",
+                    "loser_layer": "repo_doc_constraints",
+                    "requested_action": requested_action or "widen_constraint",
+                    "decision": decision,
+                    "reason_code": POLICY_PRECEDENCE_APPLIED,
+                    "refs": {
+                        "mode_hash": hashlib.sha256(effective_mode.encode("utf-8")).hexdigest(),
+                        "doc_hash": repo_doc_evidence.doc_hash if repo_doc_evidence is not None else "",
+                    },
+                }
+            )
+        else:
+            mode_reason = REPO_CONSTRAINT_WIDENING
+        if decision == "deny":
+            precedence_events.append(
+                {
+                    "event": POLICY_PRECEDENCE_APPLIED,
+                    "winner_layer": "mode_policy",
+                    "loser_layer": "repo_doc_constraints",
+                    "requested_action": requested_action or "widen_constraint",
+                    "decision": "deny",
+                    "reason_code": REPO_CONSTRAINT_WIDENING,
+                    "refs": {
+                        "mode_hash": hashlib.sha256(effective_mode.encode("utf-8")).hexdigest(),
+                        "doc_hash": repo_doc_evidence.doc_hash if repo_doc_evidence is not None else "",
+                    },
+                }
+            )
+
+    if not gate_blocked and not repo_constraint_supported:
+        mode_reason = REPO_CONSTRAINT_UNSUPPORTED
     if not caps.exec_allowed:
         gate_blocked = True
         gate_reason_code = BLOCKED_EXEC_DISALLOWED
@@ -507,6 +615,8 @@ def run_engine_orchestrator(
     parity = golden_parity_fields(runtime)
     if mode_reason != REASON_CODE_NONE and parity["status"] == "ok":
         parity["reason_code"] = mode_reason
+        if mode_reason == REPO_CONSTRAINT_UNSUPPORTED:
+            parity["status"] = "not_verified"
     if convenience_limited and parity["status"] == "ok" and parity["reason_code"] == REASON_CODE_NONE:
         parity["reason_code"] = WARN_PERMISSION_LIMITED
     if stale_required_evidence and parity["status"] == "ok":
@@ -557,7 +667,7 @@ def run_engine_orchestrator(
             impact="Claims are not evidence-backed yet.",
             missing_evidence=not_verified_missing,
         ).to_dict()
-    elif parity["reason_code"].startswith("WARN-"):
+    elif parity["reason_code"].startswith("WARN-") or parity["reason_code"] == REPO_CONSTRAINT_WIDENING:
         reason_payload = build_reason_payload(
             status="WARN",
             reason_code=parity["reason_code"],
@@ -593,4 +703,7 @@ def run_engine_orchestrator(
         activation_hash=activation_hash,
         reason_payload=reason_payload,
         missing_evidence=stale_required_evidence if stale_required_evidence else missing_evidence,
+        repo_doc_evidence=repo_doc_evidence,
+        precedence_events=tuple(precedence_events),
+        prompt_events=tuple(prompt_events),
     )

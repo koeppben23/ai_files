@@ -17,7 +17,7 @@ from typing import Literal, Mapping, Protocol
 
 
 CwdTrustLevel = Literal["trusted", "untrusted"]
-OperatingMode = Literal["user", "system", "pipeline"]
+OperatingMode = Literal["user", "system", "pipeline", "agents_strict"]
 
 
 def _default_config_root() -> Path:
