@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Reason Payload: Policy Precedence Applied",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["winner_layer", "loser_layer", "requested_action", "decision"],
+  "properties": {
+    "event": { "type": "string" },
+    "reason_code": { "type": "string" },
+    "winner_layer": { "type": "string" },
+    "loser_layer": { "type": "string" },
+    "requested_action": { "type": "string" },
+    "decision": { "type": "string", "enum": ["allow", "deny", "degrade"] },
+    "refs": {
+      "type": "object",
+      "properties": {
+        "policy_hash": { "type": "string" },
+        "pack_hash": { "type": "string" },
+        "mode_hash": { "type": "string" },
+        "host_perm_hash": { "type": "string" },
+        "doc_hash": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "extensions": { "type": "object", "additionalProperties": true }
+  }
+}

@@ -75,6 +75,7 @@ See full path and layout details in [`docs/install-layout.md`](docs/install-layo
 - Release workflows and one-command orchestration: [`docs/releasing.md`](docs/releasing.md)
 - Quality benchmark packs and run flow: [`docs/benchmarks.md`](docs/benchmarks.md)
 - Security scanners, fail-closed policy, and evidence semantics: [`docs/security-gates.md`](docs/security-gates.md)
+- Mode-aware repo-doc handling and host-permission orchestration: [`docs/mode-aware-repo-rules.md`](docs/mode-aware-repo-rules.md)
 - Customer bundle contract: [`docs/customer-install-bundle-v1.md`](docs/customer-install-bundle-v1.md)
 
 ## License

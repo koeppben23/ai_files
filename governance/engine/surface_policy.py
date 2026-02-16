@@ -30,6 +30,7 @@ class SurfacePolicy:
 
 _MODE_ORDER: dict[OperatingMode, int] = {
     "user": 1,
+    "agents_strict": 1,
     "system": 2,
     "pipeline": 3,
 }

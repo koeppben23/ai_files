@@ -6,6 +6,9 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
 ## [Unreleased]
 
 ### Added
+- Add mode-aware repo-rules orchestration baseline: SSOT reason-code registry entries and payload schemas for repo-doc unsafe directives, constraint widening, interactive-in-pipeline, prompt-budget exceeded, unsupported constraints, and precedence events.
+- Add deterministic repo-doc classifier/evidence utilities and prompt budget defaults for `user`, `pipeline`, and `agents_strict` modes.
+- Add governance tests for mode-aware repo-rules behavior and reason-registry/schema presence.
 - Add hardened CI role template `templates/github-actions/governance-pipeline-roles.yml` with evidence-derived claims, authoritative reviewer recomputation, hash verification, always-uploaded artifacts, and deterministic improver recovery.
 - Add template runbook `docs/governance-pipeline-roles-template.md` including benchmark runner exit-code contract and reviewer gate policy.
 - Add backend Python profile rulebook `profiles/rules.backend-python.md` with deterministic evidence, tooling, migration/rollback, and operational safety contracts.
@@ -67,6 +70,9 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
 - Update factory contracts (`new_profile.md`, `new_addon.md`, `PROFILE_ADDON_FACTORY_CONTRACT.json`) for shared-contract modularization defaults.
 
 ### Changed
+- Harden mode-policy orchestration: widening constraints now require explicit approval semantics and emit deterministic precedence events with hash refs.
+- Flatten code-specific reason payload context fields into emitted reason payload dictionaries for schema/audit alignment.
+- Tighten reason payload JSON schemas (`additionalProperties: false`) with optional `extensions` escape hatch.
 - Installer collectors now explicitly exclude filesystem metadata artifacts (`.DS_Store`, `._*`, `__MACOSX`, `Icon\r`) from installed command payloads.
 - Improve operator UX render contracts with one-screen operator view, reason-to-action card, diff-first diagnostics delta, last-3 transition timeline, and claim evidence panel projection.
 - Extend `[NEXT-ACTION]` footer contract with required `PhaseGate` line (`phase | active_gate | phase_progress_bar`) for faster phase orientation in both STRICT and COMPAT modes.

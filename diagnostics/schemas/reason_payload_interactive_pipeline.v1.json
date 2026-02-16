@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Reason Payload: Interactive Required in Pipeline",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["requested_action", "why_interactive_required"],
+  "properties": {
+    "requested_action": { "type": "string" },
+    "why_interactive_required": { "type": "string" },
+    "pointers": { "type": "array", "items": { "type": "string" } },
+    "extensions": { "type": "object", "additionalProperties": true }
+  }
+}

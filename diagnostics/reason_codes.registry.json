@@ -1,0 +1,48 @@
+{
+  "schema": "governance.reason-codes.registry.v1",
+  "version": "1.0.0",
+  "codes": [
+    {
+      "code": "REPO-DOC-UNSAFE-DIRECTIVE",
+      "severity": "blocked",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_repo_doc_unsafe.v1.json",
+      "description": "Repo document contains a directive classified as unsafe.",
+      "remediation_hint": "Remove or neutralize unsafe repo-doc directive and rerun."
+    },
+    {
+      "code": "REPO-CONSTRAINT-WIDENING",
+      "severity": "blocked",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_repo_constraint_widening.v1.json",
+      "description": "Repo constraint requests widening of write/command scope beyond policy envelope.",
+      "remediation_hint": "Require explicit widening approval or keep within policy constraints."
+    },
+    {
+      "code": "INTERACTIVE-REQUIRED-IN-PIPELINE",
+      "severity": "blocked",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_interactive_pipeline.v1.json",
+      "description": "Pipeline mode cannot satisfy interactive approval requirements.",
+      "remediation_hint": "Remove interactive requirement or rerun in user/agents_strict mode."
+    },
+    {
+      "code": "PROMPT-BUDGET-EXCEEDED",
+      "severity": "blocked",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_prompt_budget.v1.json",
+      "description": "Prompt budget exceeded for the active mode.",
+      "remediation_hint": "Reduce prompts or increase budget through explicit policy change."
+    },
+    {
+      "code": "REPO-CONSTRAINT-UNSUPPORTED",
+      "severity": "not_verified",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_repo_constraint_unsupported.v1.json",
+      "description": "Repo document contains unsupported constraint domains.",
+      "remediation_hint": "Convert unsupported constraint into approved policy domain or ignore as non-authoritative."
+    },
+    {
+      "code": "POLICY-PRECEDENCE-APPLIED",
+      "severity": "ok",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_policy_precedence.v1.json",
+      "description": "Policy precedence resolution has been applied and logged.",
+      "remediation_hint": "Inspect precedence event payload and involved hash refs."
+    }
+  ]
+}
