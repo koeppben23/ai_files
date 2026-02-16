@@ -652,6 +652,8 @@ def run_engine_orchestrator(
         ).to_dict()
     elif parity["status"] == "not_verified":
         not_verified_missing = stale_required_evidence if stale_required_evidence else missing_evidence
+        if not not_verified_missing and parity["reason_code"] == REPO_CONSTRAINT_UNSUPPORTED:
+            not_verified_missing = (repo_constraint_topic or "repo_constraint_unsupported",)
         not_verified_signals = ("evidence_freshness",) if stale_required_evidence else ("evidence_requirements",)
         not_verified_primary_action = (
             "Refresh stale evidence and rerun."
