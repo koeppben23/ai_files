@@ -493,6 +493,8 @@ def run_engine_orchestrator(
 
     if not gate_blocked and not repo_constraint_supported:
         mode_reason = REPO_CONSTRAINT_UNSUPPORTED
+        if repo_constraint_topic:
+            hash_diff["repo_constraint_topic"] = repo_constraint_topic
     if not caps.exec_allowed:
         gate_blocked = True
         gate_reason_code = BLOCKED_EXEC_DISALLOWED
