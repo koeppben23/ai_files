@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Reason Payload: Repo Constraint Widening",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["requested_widening", "doc_path", "doc_hash"],
+  "properties": {
+    "requested_widening": {
+      "type": "object",
+      "required": ["type", "from", "to"],
+      "properties": {
+        "type": { "type": "string", "enum": ["write_scope", "command_scope"] },
+        "from": { "type": "string" },
+        "to": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "doc_path": { "type": "string" },
+    "doc_hash": { "type": "string" },
+    "winner_layer": { "type": "string" },
+    "loser_layer": { "type": "string" }
+  }
+}
