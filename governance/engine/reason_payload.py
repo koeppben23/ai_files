@@ -31,10 +31,9 @@ class ReasonPayload:
         """Return deterministic dict representation for serialization/tests."""
 
         payload = asdict(self)
-        context = payload.pop("context", {})
+        context = payload.get("context", {})
         if isinstance(context, dict):
-            for key in sorted(context):
-                payload[key] = context[key]
+            payload["context"] = dict(sorted(context.items()))
         return payload
 
 
