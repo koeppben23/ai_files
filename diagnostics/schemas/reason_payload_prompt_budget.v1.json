@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Reason Payload: Prompt Budget Exceeded",
   "type": "object",
-  "additionalProperties": true,
+  "additionalProperties": false,
   "required": ["mode", "budget"],
   "properties": {
     "mode": { "type": "string" },
@@ -24,6 +24,7 @@
         "topic": { "type": "string" }
       },
       "additionalProperties": true
-    }
+    },
+    "extensions": { "type": "object", "additionalProperties": true }
   }
 }

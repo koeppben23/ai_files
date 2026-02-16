@@ -414,6 +414,7 @@ def run_engine_orchestrator(
     repo_doc_evidence: RepoDocEvidence | None = None
     precedence_events: list[dict[str, object]] = []
     prompt_events: list[dict[str, object]] = []
+    unsafe_directive = None
 
     if repo_doc_text is not None:
         doc_hash = compute_repo_doc_hash(repo_doc_text)
@@ -423,9 +424,9 @@ def run_engine_orchestrator(
             doc_hash=doc_hash,
             classification_summary=summarize_classification(classifications),
         )
-        unsafe = next((c for c in classifications if c.directive_class == "unsafe_directive"), None)
-        if unsafe is not None:
-            hash_diff["repo_doc_unsafe"] = unsafe.rule_id
+        unsafe_directive = next((c for c in classifications if c.directive_class == "unsafe_directive"), None)
+        if unsafe_directive is not None:
+            hash_diff["repo_doc_unsafe"] = unsafe_directive.rule_id
 
     budget = resolve_prompt_budget(effective_mode)
 
@@ -461,31 +462,48 @@ def run_engine_orchestrator(
             decision = "allow"
             precedence_events.append(
                 {
-                    "event": POLICY_PRECEDENCE_APPLIED,
+                    "event": "POLICY_PRECEDENCE_APPLIED",
                     "winner_layer": "mode_policy",
                     "loser_layer": "repo_doc_constraints",
                     "requested_action": requested_action or "widen_constraint",
                     "decision": decision,
                     "reason_code": POLICY_PRECEDENCE_APPLIED,
                     "refs": {
+                        "policy_hash": hashlib.sha256("master_policy".encode("utf-8")).hexdigest(),
+                        "pack_hash": expected_pack_lock_hash,
                         "mode_hash": hashlib.sha256(effective_mode.encode("utf-8")).hexdigest(),
+                        "host_perm_hash": capabilities_hash,
                         "doc_hash": repo_doc_evidence.doc_hash if repo_doc_evidence is not None else "",
                     },
                 }
             )
         else:
-            mode_reason = REPO_CONSTRAINT_WIDENING
+            gate_blocked = True
+            gate_reason_code = REPO_CONSTRAINT_WIDENING
+            interactive_required = True
+            why_interactive_required = "widening_approval_required"
+            prompt_events.append(
+                {
+                    "event": "PROMPT_REQUESTED",
+                    "source": "governance",
+                    "topic": "WideningApproval",
+                    "mode": effective_mode,
+                }
+            )
         if decision == "deny":
             precedence_events.append(
                 {
-                    "event": POLICY_PRECEDENCE_APPLIED,
+                    "event": "POLICY_PRECEDENCE_APPLIED",
                     "winner_layer": "mode_policy",
                     "loser_layer": "repo_doc_constraints",
                     "requested_action": requested_action or "widen_constraint",
                     "decision": "deny",
                     "reason_code": REPO_CONSTRAINT_WIDENING,
                     "refs": {
+                        "policy_hash": hashlib.sha256("master_policy".encode("utf-8")).hexdigest(),
+                        "pack_hash": expected_pack_lock_hash,
                         "mode_hash": hashlib.sha256(effective_mode.encode("utf-8")).hexdigest(),
+                        "host_perm_hash": capabilities_hash,
                         "doc_hash": repo_doc_evidence.doc_hash if repo_doc_evidence is not None else "",
                     },
                 }
@@ -638,6 +656,64 @@ def run_engine_orchestrator(
             deviation=mode_deviation,
         )
 
+    reason_context: dict[str, object] = {}
+    if parity["reason_code"] == REPO_DOC_UNSAFE_DIRECTIVE and repo_doc_evidence is not None and unsafe_directive is not None:
+        reason_context = {
+            "doc_path": repo_doc_evidence.doc_path,
+            "doc_hash": repo_doc_evidence.doc_hash,
+            "directive_excerpt": unsafe_directive.excerpt,
+            "classification_rule_id": unsafe_directive.rule_id,
+            "pointers": [repo_doc_evidence.doc_path],
+        }
+    elif parity["reason_code"] == REPO_CONSTRAINT_WIDENING:
+        reason_context = {
+            "requested_widening": {
+                "type": "write_scope" if (requested_action or "").startswith("write") else "command_scope",
+                "from": widening_from or "policy_envelope",
+                "to": widening_to or "repo_doc_request",
+            },
+            "doc_path": repo_doc_evidence.doc_path if repo_doc_evidence is not None else (repo_doc_path or "AGENTS.md"),
+            "doc_hash": repo_doc_evidence.doc_hash if repo_doc_evidence is not None else "",
+            "winner_layer": "mode_policy",
+            "loser_layer": "repo_doc_constraints",
+        }
+    elif parity["reason_code"] == INTERACTIVE_REQUIRED_IN_PIPELINE:
+        reason_context = {
+            "requested_action": requested_action or "interactive_required",
+            "why_interactive_required": why_interactive_required or "approval_required",
+            "pointers": [target_path],
+        }
+    elif parity["reason_code"] == PROMPT_BUDGET_EXCEEDED:
+        reason_context = {
+            "mode": effective_mode,
+            "budget": {
+                "max_total": budget.max_total_prompts,
+                "max_repo_docs": budget.max_repo_doc_prompts,
+                "used_total": prompt_used_total,
+                "used_repo_docs": prompt_used_repo_docs,
+            },
+            "last_prompt": {
+                "source": prompt_events[-1]["source"] if prompt_events else "none",
+                "topic": prompt_events[-1]["topic"] if prompt_events else "none",
+            },
+        }
+    elif parity["reason_code"] == REPO_CONSTRAINT_UNSUPPORTED:
+        reason_context = {
+            "constraint_topic": repo_constraint_topic or "unknown",
+            "doc_path": repo_doc_evidence.doc_path if repo_doc_evidence is not None else (repo_doc_path or "AGENTS.md"),
+            "doc_hash": repo_doc_evidence.doc_hash if repo_doc_evidence is not None else "",
+        }
+    elif precedence_events:
+        latest = precedence_events[-1]
+        if latest.get("reason_code") == POLICY_PRECEDENCE_APPLIED:
+            reason_context = {
+                "winner_layer": str(latest.get("winner_layer", "")),
+                "loser_layer": str(latest.get("loser_layer", "")),
+                "requested_action": str(latest.get("requested_action", "")),
+                "decision": str(latest.get("decision", "")),
+                "refs": latest.get("refs", {}),
+            }
+
     if parity["status"] == "blocked":
         reason_payload = build_reason_payload(
             status="BLOCKED",
@@ -649,6 +725,7 @@ def run_engine_orchestrator(
             next_command=parity["next_action.command"],
             impact="Workflow is blocked until the issue is fixed.",
             deviation=hash_diff,
+            context=reason_context,
         ).to_dict()
     elif parity["status"] == "not_verified":
         not_verified_missing = stale_required_evidence if stale_required_evidence else missing_evidence
@@ -670,6 +747,7 @@ def run_engine_orchestrator(
             next_command="show diagnostics",
             impact="Claims are not evidence-backed yet.",
             missing_evidence=not_verified_missing,
+            context=reason_context,
         ).to_dict()
     elif parity["reason_code"].startswith("WARN-") or parity["reason_code"] == REPO_CONSTRAINT_WIDENING:
         reason_payload = build_reason_payload(
@@ -681,6 +759,7 @@ def run_engine_orchestrator(
             recovery_steps=("Review warning impact and continue or remediate.",),
             next_command="none",
             deviation=runtime.deviation.__dict__ if runtime.deviation is not None else {},
+            context=reason_context,
         ).to_dict()
     else:
         reason_payload = build_reason_payload(
@@ -690,6 +769,7 @@ def run_engine_orchestrator(
             impact="all checks passed",
             next_command="none",
             recovery_steps=(),
+            context=reason_context,
         ).to_dict()
 
     return EngineOrchestratorOutput(

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Reason Payload: Policy Precedence Applied",
   "type": "object",
-  "additionalProperties": true,
+  "additionalProperties": false,
   "required": ["winner_layer", "loser_layer", "requested_action", "decision"],
   "properties": {
     "winner_layer": { "type": "string" },
@@ -19,6 +19,7 @@
         "doc_hash": { "type": "string" }
       },
       "additionalProperties": true
-    }
+    },
+    "extensions": { "type": "object", "additionalProperties": true }
   }
 }

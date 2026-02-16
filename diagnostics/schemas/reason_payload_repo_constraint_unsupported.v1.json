@@ -2,11 +2,12 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Reason Payload: Repo Constraint Unsupported",
   "type": "object",
-  "additionalProperties": true,
+  "additionalProperties": false,
   "required": ["constraint_topic", "doc_path", "doc_hash"],
   "properties": {
     "constraint_topic": { "type": "string" },
     "doc_path": { "type": "string" },
-    "doc_hash": { "type": "string" }
+    "doc_hash": { "type": "string" },
+    "extensions": { "type": "object", "additionalProperties": true }
   }
 }

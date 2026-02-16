@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from typing import Literal
 
 from governance.engine.reason_codes import REASON_CODE_NONE
@@ -25,11 +25,17 @@ class ReasonPayload:
     missing_evidence: tuple[str, ...]
     deviation: dict[str, str]
     expiry: str
+    context: dict[str, object] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, object]:
         """Return deterministic dict representation for serialization/tests."""
 
-        return asdict(self)
+        payload = asdict(self)
+        context = payload.pop("context", {})
+        if isinstance(context, dict):
+            for key in sorted(context):
+                payload[key] = context[key]
+        return payload
 
 
 def validate_reason_payload(payload: ReasonPayload) -> tuple[str, ...]:
@@ -74,6 +80,7 @@ def build_reason_payload(
     missing_evidence: tuple[str, ...] = (),
     deviation: dict[str, str] | None = None,
     expiry: str = "none",
+    context: dict[str, object] | None = None,
 ) -> ReasonPayload:
     """Create a validated reason payload, raising on contract errors."""
 
@@ -89,6 +96,7 @@ def build_reason_payload(
         missing_evidence=tuple(sorted(set(missing_evidence))),
         deviation=dict(sorted((deviation or {}).items())),
         expiry=expiry.strip() or "none",
+        context=dict(sorted((context or {}).items())),
     )
     errors = validate_reason_payload(payload)
     if errors:
