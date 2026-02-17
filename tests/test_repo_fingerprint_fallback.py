@@ -84,8 +84,6 @@ def test_remote_origin_canonicalization_ignores_transport_variants(tmp_path):
     fp_a = derive_repo_fingerprint(repo_a)
     fp_b = derive_repo_fingerprint(repo_b)
     assert fp_a == fp_b
-
-
 def test_remote_origin_canonicalization_ignores_scheme_variants(tmp_path):
     repo_a = tmp_path / "repo-a"
     repo_b = tmp_path / "repo-b"

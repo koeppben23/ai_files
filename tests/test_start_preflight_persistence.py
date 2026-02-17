@@ -437,8 +437,6 @@ def test_bootstrap_identity_uses_python_command_argv_for_subprocess(
 
     assert module.bootstrap_identity_if_needed() is True
     assert observed_cmd[:2] == ["py", "-3"]
-
-
 @pytest.mark.governance
 def test_command_available_accepts_py_launcher(monkeypatch: pytest.MonkeyPatch):
     module = _load_module()

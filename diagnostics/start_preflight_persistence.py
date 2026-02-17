@@ -63,8 +63,6 @@ def _normalize_absolute_path(raw: object) -> Path | None:
         return None
     normalized = os.path.normpath(os.path.abspath(str(candidate)))
     return Path(normalized)
-
-
 def _resolve_bound_paths(root: Path) -> tuple[Path, Path, bool, Path | None]:
     commands_home = root / "commands"
     workspaces_home = root / "workspaces"
@@ -289,6 +287,7 @@ def _canonicalize_origin_remote(remote: str) -> str | None:
         return None
     path = path.casefold()
 
+    return f"repo://{host}{path}"
     return f"repo://{host}{path}"
 
 
