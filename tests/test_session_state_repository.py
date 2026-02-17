@@ -98,6 +98,7 @@ def test_session_state_repository_retries_replace_on_transient_error(tmp_path: P
     assert loaded is not None
     assert loaded["SESSION_STATE"]["ruleset_hash"] == "hash-retry"
     assert calls["count"] >= 2
+    assert repo.last_atomic_replace_retries >= 1
 
 
 @pytest.mark.governance
