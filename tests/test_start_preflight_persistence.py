@@ -220,6 +220,23 @@ def test_resolve_repo_root_discovers_parent_git_from_nested_cwd(
 
 
 @pytest.mark.governance
+def test_resolve_repo_context_reports_env_discovery_method(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+):
+    repo_root = tmp_path / "repo"
+    (repo_root / ".git").mkdir(parents=True, exist_ok=True)
+    monkeypatch.setenv("GITHUB_WORKSPACE", str(repo_root))
+    monkeypatch.delenv("OPENCODE_REPO_ROOT", raising=False)
+    monkeypatch.delenv("OPENCODE_WORKSPACE_ROOT", raising=False)
+    monkeypatch.delenv("REPO_ROOT", raising=False)
+
+    module = _load_module()
+    resolved_root, method = module.resolve_repo_context()
+    assert resolved_root == repo_root.resolve()
+    assert method == "env:GITHUB_WORKSPACE"
+
+
+@pytest.mark.governance
 def test_bootstrap_identity_uses_derived_fingerprint_from_nested_repo(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ):
@@ -233,6 +250,9 @@ def test_bootstrap_identity_uses_derived_fingerprint_from_nested_repo(
     helper = tmp_path / "bootstrap_session_state.py"
     helper.write_text("#!/usr/bin/env python3\n", encoding="utf-8")
     monkeypatch.setattr(module, "BOOTSTRAP_HELPER", helper)
+    monkeypatch.setattr(module, "WORKSPACES_HOME", tmp_path / "workspaces")
+    monkeypatch.setattr(module, "COMMANDS_RUNTIME_DIR", tmp_path / "commands")
+    monkeypatch.setattr(module, "BINDING_EVIDENCE_PATH", tmp_path / "commands" / "governance.paths.json")
     monkeypatch.setattr(module.shutil, "which", lambda cmd: "/usr/bin/git" if cmd == "git" else None)
 
     calls: dict[str, int] = {"identity": 0}
@@ -254,6 +274,13 @@ def test_bootstrap_identity_uses_derived_fingerprint_from_nested_repo(
     payload = json.loads(capsys.readouterr().out.strip())
     assert payload["workspacePersistenceHook"] == "ok"
     assert isinstance(payload.get("repoFingerprint"), str) and payload["repoFingerprint"].strip()
+    repo_context_path = (tmp_path / "workspaces" / payload["repoFingerprint"] / "repo-context.json")
+    assert repo_context_path.exists()
+    repo_context = json.loads(repo_context_path.read_text(encoding="utf-8"))
+    assert repo_context["schema"] == "repo-context.v1"
+    assert repo_context["repo_root"] == str(repo_root.resolve())
+    assert repo_context["repo_fingerprint"] == payload["repoFingerprint"]
+    assert repo_context["discovery_method"] == "cwd_parent_walk"
 
 
 @pytest.mark.governance

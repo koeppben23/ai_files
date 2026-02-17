@@ -50,7 +50,7 @@ def _allow_cwd_binding_discovery() -> bool:
     return str(os.getenv("OPENCODE_ALLOW_CWD_BINDINGS", "")).strip() == "1"
 
 
-def _resolve_bound_paths(root: Path) -> tuple[Path, Path, bool]:
+def _resolve_bound_paths(root: Path) -> tuple[Path, Path, bool, Path | None]:
     commands_home = root / "commands"
     workspaces_home = root / "workspaces"
     candidates: list[Path] = [commands_home / "governance.paths.json"]
@@ -73,16 +73,16 @@ def _resolve_bound_paths(root: Path) -> tuple[Path, Path, bool]:
             break
 
     if binding_file is None:
-        return commands_home, workspaces_home, False
+        return commands_home, workspaces_home, False, None
     try:
         payload = json.loads(binding_file.read_text(encoding="utf-8"))
     except Exception:
-        return commands_home, workspaces_home, False
+        return commands_home, workspaces_home, False, binding_file
     if not isinstance(payload, dict):
-        return commands_home, workspaces_home, False
+        return commands_home, workspaces_home, False, binding_file
     paths = payload.get("paths")
     if not isinstance(paths, dict):
-        return commands_home, workspaces_home, False
+        return commands_home, workspaces_home, False, binding_file
     commands_raw = paths.get("commandsHome")
     workspaces_raw = paths.get("workspacesHome")
     resolved_commands = (
@@ -96,12 +96,12 @@ def _resolve_bound_paths(root: Path) -> tuple[Path, Path, bool]:
         else workspaces_home
     )
     if not resolved_commands.is_absolute() or not resolved_workspaces.is_absolute():
-        return commands_home, workspaces_home, False
-    return resolved_commands, resolved_workspaces, True
+        return commands_home, workspaces_home, False, binding_file
+    return resolved_commands, resolved_workspaces, True, binding_file
 
 
 ROOT = config_root()
-COMMANDS_RUNTIME_DIR, WORKSPACES_HOME, BINDING_OK = _resolve_bound_paths(ROOT)
+COMMANDS_RUNTIME_DIR, WORKSPACES_HOME, BINDING_OK, BINDING_EVIDENCE_PATH = _resolve_bound_paths(ROOT)
 DIAGNOSTICS_DIR = COMMANDS_RUNTIME_DIR / "diagnostics"
 PERSIST_HELPER = DIAGNOSTICS_DIR / "persist_workspace_artifacts.py"
 BOOTSTRAP_HELPER = DIAGNOSTICS_DIR / "bootstrap_session_state.py"
@@ -131,7 +131,7 @@ def identity_map_exists(repo_fp: str | None) -> bool:
     return legacy_identity_map().exists()
 
 
-def resolve_repo_root() -> Path:
+def resolve_repo_context() -> tuple[Path, str]:
     def _search_repo_root(start: Path) -> Path | None:
         candidate = start.resolve()
         for probe in (candidate, *candidate.parents):
@@ -141,12 +141,12 @@ def resolve_repo_root() -> Path:
         return None
 
     env_candidates = [
-        os.getenv("OPENCODE_REPO_ROOT"),
-        os.getenv("OPENCODE_WORKSPACE_ROOT"),
-        os.getenv("REPO_ROOT"),
-        os.getenv("GITHUB_WORKSPACE"),
+        ("OPENCODE_REPO_ROOT", os.getenv("OPENCODE_REPO_ROOT")),
+        ("OPENCODE_WORKSPACE_ROOT", os.getenv("OPENCODE_WORKSPACE_ROOT")),
+        ("REPO_ROOT", os.getenv("REPO_ROOT")),
+        ("GITHUB_WORKSPACE", os.getenv("GITHUB_WORKSPACE")),
     ]
-    for candidate in env_candidates:
+    for key, candidate in env_candidates:
         if not candidate:
             continue
         path = Path(candidate).expanduser().resolve()
@@ -154,9 +154,16 @@ def resolve_repo_root() -> Path:
             continue
         repo_root = _search_repo_root(path)
         if repo_root is not None:
-            return repo_root
+            return repo_root, f"env:{key}"
     cwd_repo_root = _search_repo_root(Path.cwd().resolve())
-    return cwd_repo_root if cwd_repo_root is not None else Path.cwd().resolve()
+    if cwd_repo_root is not None:
+        return cwd_repo_root, "cwd_parent_walk"
+    return Path.cwd().resolve(), "cwd"
+
+
+def resolve_repo_root() -> Path:
+    repo_root, _method = resolve_repo_context()
+    return repo_root
 
 
 def pointer_fingerprint() -> str | None:
@@ -293,6 +300,32 @@ def derive_repo_fingerprint(repo_root: Path) -> str | None:
     else:
         material = f"repo:local:{_normalize_path_for_fingerprint(resolved_root)}"
     return hashlib.sha256(material.encode("utf-8")).hexdigest()[:24]
+
+
+def _discover_repo_session_id() -> str:
+    candidate = str(os.getenv("OPENCODE_SESSION_ID", "")).strip()
+    if candidate:
+        return candidate
+    return hashlib.sha256(str(Path.cwd().resolve()).encode("utf-8")).hexdigest()[:16]
+
+
+def write_repo_context(repo_root: Path, repo_fingerprint: str, discovery_method: str) -> None:
+    try:
+        repo_context_path = WORKSPACES_HOME / repo_fingerprint / "repo-context.json"
+        repo_context_path.parent.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "schema": "repo-context.v1",
+            "session_id": _discover_repo_session_id(),
+            "repo_root": str(repo_root.expanduser().resolve()),
+            "repo_fingerprint": repo_fingerprint,
+            "discovered_at": datetime.utcnow().replace(microsecond=0).isoformat() + "Z",
+            "discovery_method": discovery_method,
+            "binding_evidence_path": str(BINDING_EVIDENCE_PATH) if BINDING_EVIDENCE_PATH is not None else "",
+            "commands_home": str(COMMANDS_RUNTIME_DIR),
+        }
+        repo_context_path.write_text(json.dumps(payload, indent=2, ensure_ascii=True) + "\n", encoding="utf-8")
+    except Exception:
+        return
 
 
 PYTHON_COMMAND = resolve_python_command()
@@ -590,8 +623,11 @@ def log_error(reason_key: str, message: str, observed: dict) -> None:
 
 
 def bootstrap_identity_if_needed() -> bool:
-    repo_root = resolve_repo_root()
+    repo_root, discovery_method = resolve_repo_context()
     inferred_fp = derive_repo_fingerprint(repo_root) or pointer_fingerprint()
+
+    if inferred_fp:
+        write_repo_context(repo_root, inferred_fp, discovery_method)
 
     if identity_map_exists(inferred_fp):
         return True
@@ -736,7 +772,7 @@ def run_persistence_hook() -> None:
     if not bootstrap_identity_if_needed():
         return
 
-    repo_root = resolve_repo_root()
+    repo_root, discovery_method = resolve_repo_context()
     repo_fp = derive_repo_fingerprint(repo_root) or pointer_fingerprint()
     if not repo_fp:
         print(
@@ -751,6 +787,8 @@ def run_persistence_hook() -> None:
             )
         )
         return
+
+    write_repo_context(repo_root, repo_fp, discovery_method)
 
     run = subprocess.run(
         [
