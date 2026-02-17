@@ -67,6 +67,13 @@ def _load_binding_paths(paths_file: Path, *, expected_config_root: Path | None =
     return config_root, paths
 
 
+def _resolve_python_command(paths: dict[str, Any]) -> str:
+    raw = paths.get("pythonCommand")
+    if isinstance(raw, str) and raw.strip():
+        return raw.strip()
+    return "py -3" if os.name == "nt" else "python3"
+
+
 def resolve_binding_config(explicit: Path | None) -> tuple[Path, dict[str, Any], Path]:
     if explicit is not None:
         root = explicit.expanduser().resolve()
@@ -609,7 +616,7 @@ def main() -> int:
             ],
             "required_operator_action": "restore installer-owned path binding evidence before persistence",
             "feedback_required": "reply with governance.paths.json location used for rerun",
-            "next_command": "python diagnostics/persist_workspace_artifacts.py --config-root <config_root>",
+            "next_command": "${PYTHON_COMMAND} diagnostics/persist_workspace_artifacts.py --config-root <config_root>",
         }
         if args.quiet:
             print(json.dumps(payload, ensure_ascii=True))
@@ -617,6 +624,7 @@ def main() -> int:
             print(f"ERROR: {exc}")
         return 2
 
+    python_cmd = _resolve_python_command(binding_paths)
     repo_root = args.repo_root.expanduser().resolve()
 
     if (repo_root / ".git").exists() and _is_within(config_root, repo_root):
@@ -633,7 +641,7 @@ def main() -> int:
             ],
             "required_operator_action": "rerun with a config root outside the repo working tree",
             "feedback_required": "reply with the chosen config root and rerun result",
-            "next_command": "python diagnostics/persist_workspace_artifacts.py --config-root <outside_repo_config_root> --repo-root <repo_root>",
+            "next_command": f"{python_cmd} diagnostics/persist_workspace_artifacts.py --config-root <outside_repo_config_root> --repo-root <repo_root>",
         }
         if args.quiet:
             print(json.dumps(payload, ensure_ascii=True))
@@ -686,7 +694,7 @@ def main() -> int:
                         ],
                         "required_operator_action": "run one recovery path and report back the chosen repo fingerprint",
                         "feedback_required": "reply with the repo fingerprint used so persistence can resume deterministically",
-                        "next_command": "python diagnostics/persist_workspace_artifacts.py --repo-fingerprint <repo_fingerprint> --repo-root <repo_root>",
+                        "next_command": f"{python_cmd} diagnostics/persist_workspace_artifacts.py --repo-fingerprint <repo_fingerprint> --repo-root <repo_root>",
                     },
                     ensure_ascii=True,
                 )
@@ -718,7 +726,7 @@ def main() -> int:
                 ],
                 "required_operator_action": "bootstrap repo-scoped session state and rerun persistence",
                 "feedback_required": "reply with bootstrap helper output and repo fingerprint",
-                "next_command": f"python diagnostics/bootstrap_session_state.py --repo-fingerprint {repo_fingerprint} --config-root \"{config_root}\"",
+                "next_command": f"{python_cmd} diagnostics/bootstrap_session_state.py --repo-fingerprint {repo_fingerprint} --config-root \"{config_root}\"",
             }
             if args.quiet:
                 print(json.dumps(payload, ensure_ascii=True))

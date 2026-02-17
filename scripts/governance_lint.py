@@ -687,7 +687,7 @@ def check_workflow_template_factory_contract(issues: list[str]) -> None:
         required_tokens = [
             '"$schema": "opencode.governance.workflow-template-factory.v1"',
             '"template_file_glob": "templates/github-actions/governance-*.yml"',
-            '"validate": "python3 scripts/workflow_template_factory.py"',
+            '"validate": "${PYTHON_COMMAND} scripts/workflow_template_factory.py"',
         ]
         missing_tokens = [token for token in required_tokens if token not in contract]
         if missing_tokens:

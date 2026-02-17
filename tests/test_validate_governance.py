@@ -2627,7 +2627,7 @@ def test_tool_requirements_catalog_exists_and_has_required_sections():
 
     required_now_cmds = {str(x.get("command", "")).strip() for x in payload["required_now"] if isinstance(x, dict)}
     assert "git" in required_now_cmds, "tool_requirements.json required_now must include git"
-    assert "python3" in required_now_cmds, "tool_requirements.json required_now must include python3"
+    assert "${PYTHON_COMMAND}" in required_now_cmds, "tool_requirements.json required_now must include ${PYTHON_COMMAND}"
 
     for section in ["required_now", "required_later"]:
         for entry in payload.get(section, []):

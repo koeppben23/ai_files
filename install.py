@@ -593,6 +593,10 @@ def build_governance_paths_payload(config_root: Path, *, deterministic: bool) ->
     diagnostics_home = commands_home / "diagnostics"
     workspaces_home = config_root / "workspaces"
     global_error_logs_home = config_root / ERROR_LOGS_DIR_NAME
+    if os.name == "nt":
+        python_command = "py -3"
+    else:
+        python_command = "python3"
 
     doc = {
         "schema": GOVERNANCE_PATHS_SCHEMA,
@@ -604,6 +608,7 @@ def build_governance_paths_payload(config_root: Path, *, deterministic: bool) ->
             "workspacesHome": norm(workspaces_home),
             "globalErrorLogsHome": norm(global_error_logs_home),
             "workspaceErrorLogsHomeTemplate": norm(workspaces_home / "<repo_fingerprint>" / "logs"),
+            "pythonCommand": python_command,
         },
     }
     if not deterministic:

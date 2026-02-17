@@ -7,6 +7,7 @@ import json
 import os
 import platform
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -96,6 +97,17 @@ def load_json(path: Path) -> dict | None:
     return payload if isinstance(payload, dict) else None
 
 
+def resolve_python_command() -> str:
+    payload = load_json(ROOT / "commands" / "governance.paths.json")
+    if isinstance(payload, dict):
+        paths = payload.get("paths")
+        if isinstance(paths, dict):
+            raw = paths.get("pythonCommand")
+            if isinstance(raw, str) and raw.strip():
+                return raw.strip()
+    return "py -3" if os.name == "nt" else "python3"
+
+
 def resolve_git_dir(repo_root: Path) -> Path | None:
     dot_git = repo_root / ".git"
     if dot_git.is_dir():
@@ -167,22 +179,32 @@ def derive_repo_fingerprint(repo_root: Path) -> str | None:
     return hashlib.sha256(material.encode("utf-8")).hexdigest()[:16]
 
 
+PYTHON_COMMAND = resolve_python_command()
+
+
 def bootstrap_command(repo_fp: str | None) -> str:
     if repo_fp:
-        return f'python3 "{BOOTSTRAP_HELPER}" --repo-fingerprint {repo_fp} --config-root "{ROOT}"'
-    return f'python3 "{BOOTSTRAP_HELPER}" --repo-fingerprint <repo_fingerprint> --config-root "{ROOT}"'
+        return f'{PYTHON_COMMAND} "{BOOTSTRAP_HELPER}" --repo-fingerprint {repo_fp} --config-root "{ROOT}"'
+    return f'{PYTHON_COMMAND} "{BOOTSTRAP_HELPER}" --repo-fingerprint <repo_fingerprint> --config-root "{ROOT}"'
 
 
 def persist_command(repo_root: Path) -> str:
-    return f'python3 "{PERSIST_HELPER}" --repo-root "{repo_root}"'
+    return f'{PYTHON_COMMAND} "{PERSIST_HELPER}" --repo-root "{repo_root}"'
 
 
 def _command_available(command: str) -> bool:
     """Return command availability with canonical alias handling."""
 
-    if command in {"python", "python3"}:
+    if command in {"python", "python3", "py", "py -3"}:
         return shutil.which("python") is not None or shutil.which("python3") is not None
-    return shutil.which(command) is not None
+    parts = shlex.split(command)
+    if not parts:
+        return False
+    return shutil.which(parts[0]) is not None
+
+
+def _expand_command_placeholders(command: str) -> str:
+    return command.replace("${PYTHON_COMMAND}", PYTHON_COMMAND)
 
 
 def emit_preflight() -> None:
@@ -207,14 +229,19 @@ def emit_preflight() -> None:
             if not isinstance(item, dict):
                 continue
             command = str(item.get("command") or "").strip()
+            command = _expand_command_placeholders(command)
             if not command:
                 continue
             if command not in required_now:
                 required_now.append(command)
             metadata[command] = {
-                "verify_command": str(item.get("verify_command") or (command + " --version")),
+                "verify_command": _expand_command_placeholders(
+                    str(item.get("verify_command") or (command + " --version"))
+                ),
                 "expected_after_fix": str(
-                    item.get("expected_after_fix") or (command + " --version prints a version string")
+                    _expand_command_placeholders(
+                        str(item.get("expected_after_fix") or (command + " --version prints a version string"))
+                    )
                 ),
                 "restart_hint": str(item.get("restart_hint") or "restart_required_if_path_edited"),
             }
@@ -222,11 +249,12 @@ def emit_preflight() -> None:
             if not isinstance(item, dict):
                 continue
             command = str(item.get("command") or "").strip()
+            command = _expand_command_placeholders(command)
             if command and command not in required_later and command not in required_now:
                 required_later.append(command)
 
     if not required_now:
-        required_now = ["git", "python3"]
+        required_now = ["git", PYTHON_COMMAND]
 
     available: list[str] = []
     missing: list[str] = []
@@ -241,9 +269,12 @@ def emit_preflight() -> None:
             missing_details.append(
                 {
                     "command": command,
-                    "verify_command": meta.get("verify_command", command + " --version"),
+                    "verify_command": _expand_command_placeholders(
+                        meta.get("verify_command", command + " --version")
+                    ),
                     "expected_after_fix": meta.get(
-                        "expected_after_fix", command + " --version prints a version string"
+                        "expected_after_fix",
+                        _expand_command_placeholders(command + " --version prints a version string"),
                     ),
                     "restart_hint": meta.get("restart_hint", "restart_required_if_path_edited"),
                 }

@@ -5,8 +5,8 @@
   "goal": "Evaluate documentation governance quality, contract integrity, and release-readiness evidence.",
   "run_contract": {
     "required_commands": [
-      "python3 -m pytest -q tests/test_validate_governance.py",
-      "python3 scripts/governance_lint.py"
+      "${PYTHON_COMMAND} -m pytest -q tests/test_validate_governance.py",
+      "${PYTHON_COMMAND} scripts/governance_lint.py"
     ],
     "claim_contract": "No claim without evidence; missing/stale evidence remains NOT_VERIFIED."
   },

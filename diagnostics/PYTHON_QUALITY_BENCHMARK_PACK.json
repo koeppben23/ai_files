@@ -6,8 +6,8 @@
   "goal": "Evaluate deterministic business-code and test-code quality under governance contracts.",
   "run_contract": {
     "required_commands": [
-      "python3 -m pytest -q",
-      "python3 scripts/governance_lint.py"
+      "${PYTHON_COMMAND} -m pytest -q",
+      "${PYTHON_COMMAND} scripts/governance_lint.py"
     ],
     "claim_contract": "No claim without evidence. Missing or stale evidence remains NOT_VERIFIED.",
     "output_contract": "Default output should use compact session snapshot; diagnostics/full state only on explicit intent."

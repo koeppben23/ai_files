@@ -18,7 +18,7 @@
       "summary": "Repair installer outputs, then re-run bootstrap."
     },
     "BLOCKED-WORKSPACE-PERSISTENCE": {
-      "primary_command": "python3 diagnostics/persist_workspace_artifacts.py --repo-root <repo_root>",
+      "primary_command": "${PYTHON_COMMAND} diagnostics/persist_workspace_artifacts.py --repo-root <repo_root>",
       "confidence": "review-first",
       "summary": "Backfill repo-scoped persistence artifacts for the active repo."
     },

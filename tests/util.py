@@ -68,6 +68,7 @@ def write_governance_paths(config_root: Path, *, workspaces_home: Path | None = 
             "workspacesHome": str(workspaces),
             "globalErrorLogsHome": str(root / "logs"),
             "workspaceErrorLogsHomeTemplate": str(workspaces / "<repo_fingerprint>" / "logs"),
+            "pythonCommand": "py -3" if os.name == "nt" else "python3",
         },
     }
     commands.mkdir(parents=True, exist_ok=True)
