@@ -1,85 +1,61 @@
-# Governance & Prompt System - Customer Overview
+# Governance and Prompt System
 
-- Codex/macOS App frontend surface (non-normative mirror) -> [AGENTS.md](AGENTS.md)
-- OpenCode entrypoint / bootstrap adapter -> [start.md](start.md)
-- Mandatory rules and system behavior -> [`master.md`](master.md)
-- Technical and quality constraints -> [`rules.md`](rules.md)
-- OpenCode setup and runtime behavior -> [`README-OPENCODE.md`](README-OPENCODE.md)
-- Rulebook structure summary -> [`README-RULES.md`](README-RULES.md)
-- Profiles and addons -> [`profiles/`](profiles/)
-- Stability and release readiness contract -> [`STABILITY_SLA.md`](STABILITY_SLA.md)
-- Session state schema -> [`SESSION_STATE_SCHEMA.md`](SESSION_STATE_SCHEMA.md)
+Deterministic governance for AI-assisted software delivery with fail-closed gates, evidence requirements, and reproducible session state.
 
-This README is descriptive only. AGENTS.md is also non-normative; AGENTS.md is a non-normative mirror of master.md for agent frontends; conflicts resolve to master.md. If this file conflicts with `master.md`, `rules.md`, or AGENTS.md, treat the relevant non-normative surface as the source of truth.
+Normative precedence:
+- `master.md` is the system source of truth for phases, gates, path variables, and fail-closed behavior.
+- `rules.md` defines core technical and quality constraints.
+- Active profile and addon rulebooks in `profiles/` extend stack-specific behavior.
+- `AGENTS.md` is a non-normative frontend mirror; on conflict, `master.md` wins.
 
-## What This Is
+Definition: in this repository, "normative" means `master.md`, `rules.md`, and active profile/addon rulebooks; "non-normative surfaces" means `README*` files and `AGENTS.md`.
 
-This product is a deterministic governance system for AI-assisted software delivery.
+## Start Here
 
-- It also supports Codex App via AGENTS.md as a frontend surface, in addition to the OpenCode path.
-- Model-agnostic: any LLM can be used under the same deterministic governance layer (via OpenCode).
+- OpenCode bootstrap entrypoint: `start.md`
+- OpenCode operational guide: `README-OPENCODE.md`
+- Rules structure overview: `README-RULES.md`
+- Stability/release contract: `STABILITY_SLA.md`
+- Canonical session-state schema: `SESSION_STATE_SCHEMA.md`
 
-- It gives teams a controlled start/continue/resume workflow with explicit gates.
-- It prioritizes reviewability, traceability, and reproducible quality over speed.
-- It ships customer-usable installers, templates, diagnostics contracts, and helper scripts.
-- It supports repo-aware OpenCode mode and chat-only mode with the same governance core.
-- It is designed for teams that need auditable delivery behavior (regulated or high-assurance environments).
-- It is not aimed at throwaway prototypes or "move fast without evidence" workflows.
+## What This Repository Provides
 
-## Quick Start Matrix
+- Deterministic phase workflow (`1` through `6`) with explicit gate outcomes.
+- Repo-aware governance runtime under `governance/` with tested fail-closed semantics.
+- Installer and customer handoff flow (`install.py`, release/bundle docs).
+- Diagnostics and schema contracts under `diagnostics/`.
+- Profile and addon ecosystem under `profiles/`.
 
-- CLI/repository install flow: run `python3 install.py` (or use the customer bundle wrapper in `install/`).
-- Codex App flow: open the repo in Codex; governance is loaded from AGENTS.md
-- OpenCode session flow: run `/start` (OpenCode command, not a shell command).
-- Resume interrupted work: use `/continue` or `/resume` with existing session state.
-- Customer handoff install: deliver `customer-install-bundle-v1.zip` with `customer-install-bundle-v1.SHA256`.
-- Release operations: use the release workflow path described in [`docs/releasing.md`](docs/releasing.md).
-- Security evidence review: inspect `security_summary.json` as documented in [`docs/security-gates.md`](docs/security-gates.md).
+## Quick Start
 
-## Installation
+- Install locally: `python3 install.py`
+- Run deterministic dry-run first: `python3 install.py --dry-run`
+- In OpenCode, start a governed session with `/start`
+- Continue an active session with `/continue` or `/resume`
 
-Config root is runtime-resolved by platform/environment settings (see OS-specific examples in [`docs/install-layout.md`](docs/install-layout.md)).
+Note: installer-owned path binding evidence is written to `<config_root>/commands/governance.paths.json` and is required for canonical OpenCode bootstrap behavior.
 
-- Standard install: `python3 install.py`
-- Deterministic dry-run first: `python3 install.py --dry-run`
-- Installer-owned path binding file: `governance.paths.json` under `<config_root>/commands/` (Used by the OpenCode /start bootstrap; not required for AGENTS.md-frontends)
-- Customer bundle install wrappers and handoff process: [`docs/customer-install-bundle-v1.md`](docs/customer-install-bundle-v1.md)
+## Runtime State and Paths
 
-## Verify A Release
+Canonical variables and resolution are defined in `master.md`.
 
-Use a short verification flow, then use deep docs if needed:
-
-1. Verify checksum files (`SHA256SUMS.txt`, `customer-install-bundle-v1.SHA256`).
-2. Verify Sigstore bundle identity constraints with `cosign verify-blob`.
-3. Verify provenance/SBOM attestations with `gh attestation verify`.
-
-Detailed verification policy and examples:
-
-- [`docs/releasing.md`](docs/releasing.md)
-- [`docs/release-security-model.md`](docs/release-security-model.md)
-
-## Where Runtime State Lives
-
-Runtime state is outside customer code repositories and lives under the config root.
-
-- Active session pointer (global): `${SESSION_STATE_POINTER_FILE}`
-- Repo-scoped session and persistence: `${WORKSPACES_HOME}/<repo_fingerprint>/...`
+- Global active session pointer: `${SESSION_STATE_POINTER_FILE}`
+- Repo-scoped workspace/session artifacts: `${WORKSPACES_HOME}/<repo_fingerprint>/...`
 - Runtime error logs: `${WORKSPACES_HOME}/<repo_fingerprint>/logs/` (fallback `${CONFIG_ROOT}/logs/`)
 
-See full path and layout details in [`docs/install-layout.md`](docs/install-layout.md). See start.md for the OpenCode bootstrap/binding evidence flow.
+See `docs/install-layout.md` for full layout details.
 
-## Documentation Map (Deep Docs)
+## Documentation Map
 
-- End-to-end phase map and gate behavior: [`docs/phases.md`](docs/phases.md)
-- Install path variables and global layout: [`docs/install-layout.md`](docs/install-layout.md)
-- Release workflows and one-command orchestration: [`docs/releasing.md`](docs/releasing.md)
-- Quality benchmark packs and run flow: [`docs/benchmarks.md`](docs/benchmarks.md)
-- Security scanners, fail-closed policy, and evidence semantics: [`docs/security-gates.md`](docs/security-gates.md)
-- Mode-aware repo-doc handling and host-permission orchestration: [`docs/mode-aware-repo-rules.md`](docs/mode-aware-repo-rules.md)
-- Customer bundle contract: [`docs/customer-install-bundle-v1.md`](docs/customer-install-bundle-v1.md)
+- Lifecycle and gates: `docs/phases.md`
+- Install layout and path model: `docs/install-layout.md`
+- Release process: `docs/releasing.md`
+- Release security model: `docs/release-security-model.md`
+- Security gates and scanner policy: `docs/security-gates.md`
+- Mode-aware repo-doc and host-permission orchestration: `docs/mode-aware-repo-rules.md`
+- Customer bundle contract: `docs/customer-install-bundle-v1.md`
+- Benchmarks and quality run guidance: `docs/benchmarks.md`
 
 ## License
 
-Distribution and usage terms are defined in [`LICENSE`](LICENSE).
-
-Copyright (c) 2026 Benjamin Fuchs.
+See `LICENSE`.
