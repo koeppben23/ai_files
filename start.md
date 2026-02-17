@@ -93,13 +93,11 @@ Binding behavior (MUST):
 - If installer-owned `${COMMANDS_HOME}/governance.paths.json` exists and host filesystem tools are available,
   `/start` MUST attempt host-provided evidence first and MUST NOT request operator-provided variable binding before that attempt.
 
-B) **Operator-provided evidence** (fallback, minimal)
-   - The operator provides the resolved value for `${COMMANDS_HOME}` as a variable binding via chat input,
-     plus ONE proof artifact:
-       - either a directory listing showing the files exist, or
-       - the full contents of the required rulebooks.
+B) **Installer recovery required** (fallback)
+   - If host-provided evidence cannot be loaded, `/start` MUST fail closed and instruct installer recovery.
+   - `/start` MUST NOT ask the operator to manually resolve `${COMMANDS_HOME}` via chat input.
 
-If neither A nor B is available → `BLOCKED` with required input = “Provide variable binding + proof artifact”.
+If neither A nor installer recovery is available -> `BLOCKED` with required input = "Run installer repair and rerun /start".
 Canonical BLOCKED reason:
 - BLOCKED-VARIABLE-RESOLUTION (no resolved value for `${COMMANDS_HOME}`)
 
@@ -108,6 +106,7 @@ Invocation:
 - This file does not replace or inline `master.md`; it only triggers its discovery and activation.
 - Command invocation guard (binding): when `start.md` is injected by the `/start` command, treat `/start` as already invoked in this turn.
 - In that case, assistant MUST NOT request the operator to run `/start` again unless an explicit hard failure indicates command context was not injected.
+- During `/start`, assistant MUST NOT ask generic task-intake questions (for example, "what task do you want me to handle?") before bootstrap evidence/gates finish.
 - Phases 1–6 are enforced as far as host/system constraints allow.
 - `/start` is mandatory bootstrap for a repo/session.
 - In hosts that support `/master`: `/master` without valid `/start` evidence MUST map to `BLOCKED-START-REQUIRED` with `QuickFixCommands: ["/start"]`.
