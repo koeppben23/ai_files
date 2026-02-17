@@ -14,6 +14,11 @@ import shutil
 import sys
 from typing import Literal, Mapping, Protocol
 
+try:
+    import pwd
+except Exception:  # pragma: no cover - unavailable on Windows
+    pwd = None
+
 from governance.engine.canonical_json import canonical_json_hash
 
 
@@ -22,17 +27,11 @@ OperatingMode = Literal["user", "system", "pipeline", "agents_strict"]
 
 
 def _default_config_root() -> Path:
-    """Resolve config root using deterministic cross-platform defaults."""
+    """Resolve canonical config root under user home on every OS."""
 
-    if os.name == "nt":
-        user_profile = os.environ.get("USERPROFILE")
-        if user_profile:
-            return Path(user_profile) / ".config" / "opencode"
-        appdata = os.environ.get("APPDATA")
-        if appdata:
-            return Path(appdata) / "opencode"
-    xdg = os.environ.get("XDG_CONFIG_HOME")
-    return (Path(xdg) if xdg else Path.home() / ".config") / "opencode"
+    if sys.platform == "darwin" and pwd is not None:
+        return Path(pwd.getpwuid(os.getuid()).pw_dir).resolve() / ".config" / "opencode"
+    return (Path.home().resolve() / ".config" / "opencode").resolve()
 
 
 def _resolve_env_path(env: Mapping[str, str], key: str) -> Path | None:
@@ -49,10 +48,28 @@ def _resolve_env_path(env: Mapping[str, str], key: str) -> Path | None:
     return p.resolve()
 
 
-def _discover_binding_file(config_root: Path) -> Path | None:
+def _candidate_config_roots(env: Mapping[str, str]) -> list[Path]:
+    """Return deterministic config-root candidates for binding discovery."""
+
+    _ = env
+    candidates: list[Path] = [_default_config_root().resolve()]
+
+    seen: set[Path] = set()
+    ordered: list[Path] = []
+    for candidate in candidates:
+        if candidate in seen:
+            continue
+        seen.add(candidate)
+        ordered.append(candidate)
+    return ordered
+
+
+def _discover_binding_file(config_root: Path, env: Mapping[str, str]) -> Path | None:
     """Discover installer-owned governance.paths.json deterministically."""
 
     candidates: list[Path] = [config_root / "commands" / "governance.paths.json"]
+    for root in _candidate_config_roots(env):
+        candidates.append(root / "commands" / "governance.paths.json")
     cwd = Path.cwd().resolve()
     for parent in (cwd, *cwd.parents):
         candidates.append(parent / "commands" / "governance.paths.json")
@@ -68,12 +85,12 @@ def _discover_binding_file(config_root: Path) -> Path | None:
     return None
 
 
-def _resolve_bound_paths(config_root: Path) -> tuple[Path, Path, bool]:
+def _resolve_bound_paths(config_root: Path, env: Mapping[str, str]) -> tuple[Path, Path, bool]:
     """Resolve commands/workspaces homes with governance.paths.json precedence."""
 
     commands_home = config_root / "commands"
     workspaces_home = config_root / "workspaces"
-    binding_file = _discover_binding_file(config_root)
+    binding_file = _discover_binding_file(config_root, env)
     if binding_file is None:
         return commands_home, workspaces_home, False
 
@@ -205,8 +222,8 @@ class LocalHostAdapter:
 
     def capabilities(self) -> HostCapabilities:
         env = self.environment()
-        config_root = _resolve_env_path(env, "OPENCODE_CONFIG_ROOT") or _default_config_root().resolve()
-        commands_home, workspaces_home, binding_ok = _resolve_bound_paths(config_root)
+        config_root = _default_config_root().resolve()
+        commands_home, workspaces_home, binding_ok = _resolve_bound_paths(config_root, env)
         # Fail-closed: ignore relative OPENCODE_REPO_ROOT to avoid CWD-dependent resolution
         repo_root = _resolve_env_path(env, "OPENCODE_REPO_ROOT") or self.cwd()
         exec_allowed = os.access(sys.executable, os.X_OK)
@@ -247,8 +264,8 @@ class OpenCodeDesktopAdapter:
 
     def capabilities(self) -> HostCapabilities:
         env = self.environment()
-        config_root = _resolve_env_path(env, "OPENCODE_CONFIG_ROOT") or _default_config_root().resolve()
-        commands_home, workspaces_home, binding_ok = _resolve_bound_paths(config_root)
+        config_root = _default_config_root().resolve()
+        commands_home, workspaces_home, binding_ok = _resolve_bound_paths(config_root, env)
         # Fail-closed: ignore relative OPENCODE_REPO_ROOT to avoid CWD-dependent resolution
         repo_root = _resolve_env_path(env, "OPENCODE_REPO_ROOT") or self.cwd()
         disabled = str(env.get("OPENCODE_DISABLE_GIT", "")).strip() == "1"

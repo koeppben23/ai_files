@@ -4,6 +4,10 @@ from __future__ import annotations
 import json
 import os
 import platform
+try:
+    import pwd
+except Exception:  # pragma: no cover - unavailable on Windows
+    pwd = None
 from pathlib import Path
 
 from command_profiles import render_command_profiles
@@ -11,22 +15,35 @@ from command_profiles import render_command_profiles
 
 def config_root() -> Path:
     system = platform.system()
-    if system == "Windows":
-        user_profile = os.getenv("USERPROFILE")
-        if user_profile:
-            return Path(user_profile) / ".config" / "opencode"
-        appdata = os.getenv("APPDATA")
-        if appdata:
-            return Path(appdata) / "opencode"
-        raise SystemExit("Windows: USERPROFILE/APPDATA not set")
+    if system == "Darwin" and pwd is not None:
+        return (Path(pwd.getpwuid(os.getuid()).pw_dir).resolve() / ".config" / "opencode").resolve()
+    return (Path.home().resolve() / ".config" / "opencode").resolve()
 
-    xdg = os.getenv("XDG_CONFIG_HOME")
-    return (Path(xdg) if xdg else Path.home() / ".config") / "opencode"
+
+def _candidate_binding_files() -> list[Path]:
+    root = config_root()
+    candidates: list[Path] = [root / "commands" / "governance.paths.json"]
+    if platform.system() == "Darwin" and pwd is not None:
+        candidates.append((Path(pwd.getpwuid(os.getuid()).pw_dir).resolve() / ".config" / "opencode" / "commands" / "governance.paths.json").resolve())
+    candidates.append((Path.home().resolve() / ".config" / "opencode" / "commands" / "governance.paths.json").resolve())
+
+    seen: set[Path] = set()
+    ordered: list[Path] = []
+    for candidate in candidates:
+        if candidate in seen:
+            continue
+        seen.add(candidate)
+        ordered.append(candidate)
+    return ordered
 
 
 def main() -> int:
     root = config_root()
     binding_file = root / "commands" / "governance.paths.json"
+    for candidate in _candidate_binding_files():
+        if candidate.exists():
+            binding_file = candidate
+            break
 
     if binding_file.exists():
         try:
