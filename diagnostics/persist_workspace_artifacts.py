@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 import re
+import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -511,6 +512,39 @@ def _update_session_state(
     return "updated"
 
 
+def _bootstrap_missing_session_state(
+    *,
+    config_root: Path,
+    repo_fingerprint: str,
+    repo_name: str,
+    dry_run: bool,
+) -> tuple[bool, str]:
+    """Ensure repo-scoped SESSION_STATE exists before persistence update."""
+
+    if dry_run:
+        return True, "bootstrap-dry-run"
+
+    helper = Path(__file__).resolve().parent / "bootstrap_session_state.py"
+    if not helper.exists():
+        return False, "missing-bootstrap-helper"
+
+    cmd = [
+        sys.executable,
+        str(helper),
+        "--repo-fingerprint",
+        repo_fingerprint,
+        "--repo-name",
+        repo_name,
+        "--config-root",
+        str(config_root),
+        "--skip-artifact-backfill",
+    ]
+    proc = subprocess.run(cmd, text=True, capture_output=True, check=False)
+    if proc.returncode != 0:
+        return False, f"bootstrap-failed:{proc.returncode}"
+    return True, "bootstrap-created"
+
+
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(
         description="Backfill repo-scoped workspace persistence artifacts (cache, digest, decision pack, memory)."
@@ -618,6 +652,36 @@ def main() -> int:
 
     repo_home = config_root / "workspaces" / repo_fingerprint
     session_path = repo_home / "SESSION_STATE.json"
+    bootstrap_status = "not-required"
+    if not args.no_session_update and not session_path.exists():
+        bootstrap_ok, bootstrap_status = _bootstrap_missing_session_state(
+            config_root=config_root,
+            repo_fingerprint=repo_fingerprint,
+            repo_name=args.repo_name or repo_root.name or repo_fingerprint,
+            dry_run=args.dry_run,
+        )
+        if not bootstrap_ok:
+            payload = {
+                "status": "blocked",
+                "reason": "repo session state bootstrap failed",
+                "reason_code": "BLOCKED-WORKSPACE-PERSISTENCE",
+                "missing_evidence": ["repo-scoped SESSION_STATE.json"],
+                "recovery_steps": [
+                    "run diagnostics/bootstrap_session_state.py with --repo-fingerprint and --config-root",
+                    "rerun diagnostics/persist_workspace_artifacts.py after bootstrap succeeds",
+                ],
+                "required_operator_action": "bootstrap repo-scoped session state and rerun persistence",
+                "feedback_required": "reply with bootstrap helper output and repo fingerprint",
+                "next_command": f"python diagnostics/bootstrap_session_state.py --repo-fingerprint {repo_fingerprint} --config-root \"{config_root}\"",
+            }
+            if args.quiet:
+                print(json.dumps(payload, ensure_ascii=True))
+            else:
+                print("ERROR: repo session state bootstrap failed")
+                print(f"- bootstrap_status: {bootstrap_status}")
+                print(f"- repo_fingerprint: {repo_fingerprint}")
+            return 2
+
     session = _read_repo_session(session_path)
 
     scope = session.get("Scope", {}) if isinstance(session, dict) else {}
@@ -762,6 +826,7 @@ def main() -> int:
         "repoHome": str(repo_home),
         "actions": actions,
         "sessionUpdate": session_update,
+        "bootstrapSessionState": bootstrap_status,
     }
 
     if args.quiet:
