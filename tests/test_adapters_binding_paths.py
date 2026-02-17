@@ -51,3 +51,18 @@ def test_desktop_adapter_prefers_bound_commands_home(monkeypatch: pytest.MonkeyP
     adapter = OpenCodeDesktopAdapter(git_available_override=True)
     caps = adapter.capabilities()
     assert caps.fs_read_commands_home is True
+
+
+@pytest.mark.governance
+def test_adapter_fails_closed_when_binding_file_is_invalid(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+    cfg = tmp_path / "cfg"
+    (cfg / "commands").mkdir(parents=True, exist_ok=True)
+    (cfg / "commands" / "governance.paths.json").write_text("{not-json", encoding="utf-8")
+
+    monkeypatch.setenv("OPENCODE_CONFIG_ROOT", str(cfg))
+    adapter = LocalHostAdapter()
+    caps = adapter.capabilities()
+
+    assert caps.fs_read_commands_home is False
+    assert caps.fs_write_commands_home is False
+    assert caps.fs_write_workspaces_home is False

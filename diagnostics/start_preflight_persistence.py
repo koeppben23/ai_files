@@ -226,13 +226,21 @@ PYTHON_COMMAND = resolve_python_command()
 
 
 def bootstrap_command(repo_fp: str | None) -> str:
+    return str(render_command_profiles(bootstrap_command_argv(repo_fp))["bash"])
+
+
+def bootstrap_command_argv(repo_fp: str | None) -> list[str]:
     if repo_fp:
-        return f'{PYTHON_COMMAND} "{BOOTSTRAP_HELPER}" --repo-fingerprint {repo_fp} --config-root "{ROOT}"'
-    return f'{PYTHON_COMMAND} "{BOOTSTRAP_HELPER}" --repo-fingerprint <repo_fingerprint> --config-root "{ROOT}"'
+        return [PYTHON_COMMAND, str(BOOTSTRAP_HELPER), "--repo-fingerprint", repo_fp, "--config-root", str(ROOT)]
+    return [PYTHON_COMMAND, str(BOOTSTRAP_HELPER), "--repo-fingerprint", "<repo_fingerprint>", "--config-root", str(ROOT)]
 
 
 def persist_command(repo_root: Path) -> str:
-    return f'{PYTHON_COMMAND} "{PERSIST_HELPER}" --repo-root "{repo_root}"'
+    return str(render_command_profiles(persist_command_argv(repo_root))["bash"])
+
+
+def persist_command_argv(repo_root: Path) -> list[str]:
+    return [PYTHON_COMMAND, str(PERSIST_HELPER), "--repo-root", str(repo_root)]
 
 
 def _command_available(command: str) -> bool:
@@ -552,7 +560,7 @@ def bootstrap_identity_if_needed() -> bool:
                     "required_operator_action": "install git or run bootstrap_session_state.py with explicit fingerprint, then rerun /start",
                     "feedback_required": "reply with the fingerprint used (if manual bootstrap) and helper result",
                     "next_command": bootstrap_command(inferred_fp),
-                    "next_command_profiles": render_command_profiles(shlex.split(bootstrap_command(inferred_fp))),
+                    "next_command_profiles": render_command_profiles(bootstrap_command_argv(inferred_fp)),
                 }
             )
         )
@@ -585,7 +593,7 @@ def bootstrap_identity_if_needed() -> bool:
                     "required_operator_action": "run bootstrap_session_state.py with explicit repo fingerprint, then rerun /start",
                     "feedback_required": "reply with helper stderr and repo fingerprint",
                     "next_command": bootstrap_command(repo_fp),
-                    "next_command_profiles": render_command_profiles(shlex.split(bootstrap_command(repo_fp))),
+                    "next_command_profiles": render_command_profiles(bootstrap_command_argv(repo_fp)),
                 }
             )
         )

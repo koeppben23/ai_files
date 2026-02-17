@@ -2,12 +2,15 @@
 from __future__ import annotations
 
 import argparse
+import errno
 import hashlib
 import json
 import os
 import re
 import subprocess
 import sys
+import tempfile
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -429,18 +432,55 @@ def _write_text(path: Path, content: str, *, dry_run: bool) -> None:
     if dry_run:
         return
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(content, encoding="utf-8")
+    _atomic_write_text(path, content)
 
 
 def _append_text(path: Path, content: str, *, dry_run: bool) -> None:
     if dry_run:
         return
     path.parent.mkdir(parents=True, exist_ok=True)
-    existing = path.read_text(encoding="utf-8")
+    try:
+        existing = path.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        existing = path.read_text(encoding="utf-8", errors="replace")
     if not existing.endswith("\n"):
         existing += "\n"
     existing += "\n" + content
-    path.write_text(existing, encoding="utf-8")
+    _atomic_write_text(path, existing)
+
+
+def _is_retryable_replace_error(exc: OSError) -> bool:
+    return exc.errno in {errno.EACCES, errno.EPERM, errno.EBUSY}
+
+
+def _atomic_write_text(path: Path, content: str, retries: int = 3) -> None:
+    temp_path: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            newline="\n",
+            dir=str(path.parent),
+            prefix=path.name + ".",
+            suffix=".tmp",
+            delete=False,
+        ) as tmp:
+            tmp.write(content)
+            tmp.flush()
+            os.fsync(tmp.fileno())
+            temp_path = Path(tmp.name)
+
+        for attempt in range(retries):
+            try:
+                os.replace(str(temp_path), str(path))
+                return
+            except OSError as exc:
+                if attempt == retries - 1 or not _is_retryable_replace_error(exc):
+                    raise
+                time.sleep(0.05)
+    finally:
+        if temp_path is not None and temp_path.exists():
+            temp_path.unlink(missing_ok=True)
 
 
 def _normalize_legacy_placeholder_phrasing(path: Path, *, dry_run: bool) -> bool:
@@ -554,7 +594,8 @@ def _update_session_state(
     if dry_run:
         return "updated-dry-run"
 
-    session_path.write_text(json.dumps(data, indent=2, ensure_ascii=True) + "\n", encoding="utf-8")
+    session_payload = json.dumps(data, sort_keys=True, separators=(",", ":"), ensure_ascii=True) + "\n"
+    _atomic_write_text(session_path, session_payload)
     return "updated"
 
 
