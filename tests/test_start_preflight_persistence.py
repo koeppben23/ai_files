@@ -292,3 +292,33 @@ def test_bootstrap_command_argv_splits_python_launcher(monkeypatch: pytest.Monke
     argv = module.bootstrap_command_argv("abc123")
     assert argv[:2] == ["py", "-3"]
     assert "--repo-fingerprint" in argv
+
+
+@pytest.mark.governance
+def test_bootstrap_identity_writes_unresolved_repo_context_when_fingerprint_missing(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+):
+    non_repo = tmp_path / "not-a-repo"
+    non_repo.mkdir(parents=True, exist_ok=True)
+    monkeypatch.chdir(non_repo)
+    monkeypatch.delenv("OPENCODE_REPO_ROOT", raising=False)
+    monkeypatch.delenv("OPENCODE_WORKSPACE_ROOT", raising=False)
+    monkeypatch.delenv("REPO_ROOT", raising=False)
+    monkeypatch.delenv("GITHUB_WORKSPACE", raising=False)
+
+    module = _load_module()
+    monkeypatch.setattr(module, "WORKSPACES_HOME", tmp_path / "workspaces")
+    monkeypatch.setattr(module, "COMMANDS_RUNTIME_DIR", tmp_path / "commands")
+    monkeypatch.setattr(module, "BINDING_EVIDENCE_PATH", tmp_path / "commands" / "governance.paths.json")
+    monkeypatch.setattr(module, "pointer_fingerprint", lambda: None)
+
+    assert module.bootstrap_identity_if_needed() is False
+    payload = json.loads(capsys.readouterr().out.strip())
+    assert payload["reason"] == "identity-bootstrap-fingerprint-missing"
+
+    unresolved = tmp_path / "workspaces" / "_unresolved" / "repo-context.json"
+    assert unresolved.exists()
+    context = json.loads(unresolved.read_text(encoding="utf-8"))
+    assert context["status"] == "unresolved"
+    assert context["reason"] == "identity-bootstrap-fingerprint-missing"
+    assert context["repo_fingerprint"] == ""

@@ -328,6 +328,27 @@ def write_repo_context(repo_root: Path, repo_fingerprint: str, discovery_method:
         return
 
 
+def write_unresolved_repo_context(repo_root: Path, discovery_method: str, reason: str) -> None:
+    try:
+        repo_context_path = WORKSPACES_HOME / "_unresolved" / "repo-context.json"
+        repo_context_path.parent.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "schema": "repo-context.v1",
+            "status": "unresolved",
+            "session_id": _discover_repo_session_id(),
+            "repo_root": str(repo_root.expanduser().resolve()),
+            "repo_fingerprint": "",
+            "discovered_at": datetime.utcnow().replace(microsecond=0).isoformat() + "Z",
+            "discovery_method": discovery_method,
+            "binding_evidence_path": str(BINDING_EVIDENCE_PATH) if BINDING_EVIDENCE_PATH is not None else "",
+            "commands_home": str(COMMANDS_RUNTIME_DIR),
+            "reason": reason,
+        }
+        repo_context_path.write_text(json.dumps(payload, indent=2, ensure_ascii=True) + "\n", encoding="utf-8")
+    except Exception:
+        return
+
+
 PYTHON_COMMAND = resolve_python_command()
 
 
@@ -633,6 +654,11 @@ def bootstrap_identity_if_needed() -> bool:
         return True
 
     if not inferred_fp:
+        write_unresolved_repo_context(
+            repo_root=repo_root,
+            discovery_method=discovery_method,
+            reason="identity-bootstrap-fingerprint-missing",
+        )
         print(
             json.dumps(
                 {
@@ -775,6 +801,11 @@ def run_persistence_hook() -> None:
     repo_root, discovery_method = resolve_repo_context()
     repo_fp = derive_repo_fingerprint(repo_root) or pointer_fingerprint()
     if not repo_fp:
+        write_unresolved_repo_context(
+            repo_root=repo_root,
+            discovery_method=discovery_method,
+            reason="repo-root-not-git",
+        )
         print(
             json.dumps(
                 {
