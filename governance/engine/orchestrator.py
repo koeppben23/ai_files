@@ -44,7 +44,11 @@ from governance.engine.mode_repo_rules import (
     resolve_prompt_budget,
     summarize_classification,
 )
-from governance.engine.reason_payload import build_reason_payload
+from governance.engine.reason_payload import (
+    ReasonPayload,
+    build_reason_payload,
+    validate_reason_payload,
+)
 from governance.engine.runtime import (
     EngineDeviation,
     EngineRuntimeDecision,
@@ -323,6 +327,21 @@ def _build_hash_mismatch_diff(
     if observed_activation_hash and observed_activation_hash.strip() != expected_activation_hash:
         diff["activation_hash"] = f"{observed_activation_hash.strip()}->{expected_activation_hash}"
     return diff
+
+
+def _canonicalize_reason_payload_failure(exc: Exception) -> tuple[str, str]:
+    """Map payload builder failures to deterministic, non-leaking buckets."""
+
+    message = str(exc)
+    if isinstance(exc, ValueError) and message.startswith("invalid reason payload:"):
+        return ("reason_payload_invalid", "schema_or_contract_violation")
+    if isinstance(exc, ValueError) and "reason_schema_missing:" in message:
+        return ("reason_schema_missing", "embedded_or_disk_schema_missing")
+    if isinstance(exc, ValueError) and "reason_schema_invalid:" in message:
+        return ("reason_schema_invalid", "schema_not_object")
+    if isinstance(exc, ValueError) and "reason_registry_" in message:
+        return ("reason_registry_invalid", "registry_unavailable_or_invalid")
+    return ("reason_payload_build_failed", type(exc).__name__.lower())
 
 
 def run_engine_orchestrator(
@@ -774,23 +793,50 @@ def run_engine_orchestrator(
                 context=reason_context,
             ).to_dict()
     except Exception as exc:
-        reason_payload = {
-            "status": "BLOCKED",
-            "reason_code": BLOCKED_ENGINE_SELFCHECK,
-            "surface": target_path,
-            "signals_used": ("reason_payload_builder",),
-            "primary_action": "Fix reason-payload schema/registry and rerun.",
-            "recovery_steps": ("Run diagnostics/schema_selfcheck.py and restore schema integrity.",),
-            "next_command": "show diagnostics",
-            "impact": "Engine blocked to preserve deterministic governance contracts.",
-            "missing_evidence": (),
-            "deviation": {"reason_payload_error": str(exc)},
-            "expiry": "none",
-            "context": {
-                "builder_failure": type(exc).__name__,
+        failure_class, failure_detail = _canonicalize_reason_payload_failure(exc)
+        fallback = ReasonPayload(
+            status="BLOCKED",
+            reason_code=BLOCKED_ENGINE_SELFCHECK,
+            surface=target_path,
+            signals_used=("reason_payload_builder",),
+            primary_action="Fix reason-payload schema/registry and rerun.",
+            recovery_steps=("Run diagnostics/schema_selfcheck.py and restore schema integrity.",),
+            next_command="show diagnostics",
+            impact="Engine blocked to preserve deterministic governance contracts.",
+            missing_evidence=(),
+            deviation={"failure_class": failure_class, "failure_detail": failure_detail},
+            expiry="none",
+            context={
+                "failure_class": failure_class,
+                "failure_detail": failure_detail,
                 "previous_reason_code": parity["reason_code"],
             },
-        }
+        )
+        fallback_errors = validate_reason_payload(fallback)
+        if fallback_errors:
+            reason_payload = {
+                "status": "BLOCKED",
+                "reason_code": BLOCKED_ENGINE_SELFCHECK,
+                "surface": target_path,
+                "signals_used": ("reason_payload_builder",),
+                "primary_action": "Fix reason-payload schema/registry and rerun.",
+                "recovery_steps": ("Run diagnostics/schema_selfcheck.py and restore schema integrity.",),
+                "next_command": "show diagnostics",
+                "impact": "Engine blocked to preserve deterministic governance contracts.",
+                "missing_evidence": (),
+                "deviation": {
+                    "failure_class": "reason_payload_fallback_invalid",
+                    "failure_detail": "contract_violation",
+                },
+                "expiry": "none",
+                "context": {
+                    "failure_class": "reason_payload_fallback_invalid",
+                    "failure_detail": "contract_violation",
+                    "previous_reason_code": parity["reason_code"],
+                },
+            }
+        else:
+            reason_payload = fallback.to_dict()
 
     return EngineOrchestratorOutput(
         repo_context=repo_context,

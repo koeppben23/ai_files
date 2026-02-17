@@ -922,7 +922,7 @@ def test_orchestrator_falls_back_to_engine_selfcheck_when_payload_builder_fails(
     )
 
     def _raise(*args: object, **kwargs: object):
-        raise ValueError("schema boom")
+        raise ValueError("invalid reason payload:blocked_primary_action_required")
 
     monkeypatch.setattr("governance.engine.orchestrator.build_reason_payload", _raise)
 
@@ -938,3 +938,51 @@ def test_orchestrator_falls_back_to_engine_selfcheck_when_payload_builder_fails(
     assert payload["status"] == "BLOCKED"
     assert payload["reason_code"] == BLOCKED_ENGINE_SELFCHECK
     assert payload["next_command"] == "show diagnostics"
+    deviation = payload.get("deviation")
+    assert isinstance(deviation, dict)
+    assert deviation["failure_class"] == "reason_payload_invalid"
+    assert deviation["failure_detail"] == "schema_or_contract_violation"
+
+
+@pytest.mark.governance
+def test_orchestrator_fallback_does_not_leak_exception_text(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    repo_root = _make_git_root(tmp_path / "repo")
+    adapter = StubAdapter(
+        env={"OPENCODE_REPO_ROOT": str(repo_root)},
+        cwd_path=repo_root,
+        caps=HostCapabilities(
+            cwd_trust="trusted",
+            fs_read_commands_home=True,
+            fs_write_config_root=True,
+            fs_write_commands_home=True,
+            fs_write_workspaces_home=True,
+            fs_write_repo_root=True,
+            exec_allowed=True,
+            git_available=True,
+        ),
+    )
+
+    def _raise(*args: object, **kwargs: object):
+        raise ValueError("reason_schema_missing:/abs/private/path/schema.json")
+
+    monkeypatch.setattr("governance.engine.orchestrator.build_reason_payload", _raise)
+
+    out = run_engine_orchestrator(
+        adapter=adapter,
+        phase="1.1-Bootstrap",
+        active_gate="Persistence Preflight",
+        mode="OK",
+        next_gate_condition="Persistence helper execution completed",
+    )
+
+    payload = out.reason_payload
+    assert payload["status"] == "BLOCKED"
+    assert payload["reason_code"] == BLOCKED_ENGINE_SELFCHECK
+    assert payload["deviation"] == {
+        "failure_class": "reason_schema_missing",
+        "failure_detail": "embedded_or_disk_schema_missing",
+    }
+    assert "/abs/private/path" not in str(payload)

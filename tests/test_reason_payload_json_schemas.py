@@ -159,3 +159,22 @@ def test_reason_context_skips_unmapped_codes_without_registry_lookup(monkeypatch
         {"arbitrary": "context"},
     )
     assert errors == ()
+
+
+def test_reason_context_schema_missing_error_is_canonical(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(reason_payload, "_SCHEMA_CACHE", {})
+    monkeypatch.setattr(
+        reason_payload,
+        "_resolve_schema_ref_for_reason",
+        lambda _reason_code: "diagnostics/schemas/does_not_exist.v1.json",
+    )
+
+    with pytest.raises(ValueError, match=r"^reason_schema_missing:diagnostics/schemas/does_not_exist.v1.json$"):
+        reason_payload.validate_reason_context_schema(
+            REPO_DOC_UNSAFE_DIRECTIVE,
+            {
+                "doc_path": "AGENTS.md",
+                "doc_hash": "sha256:abc",
+                "classification_rule_id": "repo_doc_unsafe_skip_tests",
+            },
+        )

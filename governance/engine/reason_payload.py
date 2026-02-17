@@ -82,31 +82,19 @@ def _load_reason_schema_refs() -> dict[str, str]:
         return _REASON_SCHEMA_REF_CACHE
 
     if not _REASON_REGISTRY_PATH.exists():
-        raise ValueError(
-            "reason schema registry missing: "
-            f"{_REASON_REGISTRY_PATH} (expected diagnostics/reason_codes.registry.json)"
-        )
+        raise ValueError("reason_registry_missing:diagnostics/reason_codes.registry.json")
 
     payload = json.loads(_REASON_REGISTRY_PATH.read_text(encoding="utf-8"))
     if not isinstance(payload, dict):
-        raise ValueError(
-            "reason schema registry invalid: expected JSON object at "
-            f"{_REASON_REGISTRY_PATH}"
-        )
+        raise ValueError("reason_registry_invalid:not_an_object")
 
     schema_tag = payload.get("schema")
     if schema_tag != "governance.reason-codes.registry.v1":
-        raise ValueError(
-            "reason schema registry schema mismatch: "
-            f"expected governance.reason-codes.registry.v1, got {schema_tag!r}"
-        )
+        raise ValueError("reason_registry_invalid:schema_mismatch")
 
     entries = payload.get("codes")
     if not isinstance(entries, list):
-        raise ValueError(
-            "reason schema registry invalid: 'codes' must be an array in "
-            f"{_REASON_REGISTRY_PATH}"
-        )
+        raise ValueError("reason_registry_invalid:codes_not_array")
 
     refs: dict[str, str] = {}
     for entry in entries:
@@ -118,10 +106,7 @@ def _load_reason_schema_refs() -> dict[str, str]:
             refs[code.strip()] = ref.strip()
 
     if not refs:
-        raise ValueError(
-            "reason schema registry contains no usable code->schema mappings in "
-            f"{_REASON_REGISTRY_PATH}"
-        )
+        raise ValueError("reason_registry_invalid:no_usable_mappings")
 
     _REASON_SCHEMA_REF_CACHE = refs
     return refs
@@ -147,13 +132,10 @@ def _load_schema(schema_ref: str) -> dict[str, object]:
         return cached
     schema_path = _REPO_ROOT / schema_ref
     if not schema_path.exists():
-        raise ValueError(
-            "reason payload schema missing: "
-            f"{schema_path} (from registry ref {schema_ref!r})"
-        )
+        raise ValueError(f"reason_schema_missing:{schema_ref}")
     payload = json.loads(schema_path.read_text(encoding="utf-8"))
     if not isinstance(payload, dict):
-        raise ValueError(f"invalid schema payload: {schema_ref}")
+        raise ValueError(f"reason_schema_invalid:{schema_ref}")
     _SCHEMA_CACHE[schema_ref] = payload
     return payload
 
