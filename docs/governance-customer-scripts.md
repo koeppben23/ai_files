@@ -21,10 +21,10 @@ Check entries in `diagnostics/CUSTOMER_SCRIPT_CATALOG.json` where:
 ## Validate catalog contract
 
 ```bash
-python3 scripts/governance_lint.py
+${PYTHON_COMMAND} scripts/governance_lint.py
 ```
 
-Validation is fail-closed and enforced by `python3 scripts/governance_lint.py`.
+Validation is fail-closed and enforced by `${PYTHON_COMMAND} scripts/governance_lint.py`.
 
 ## Customer-essential scripts (tier=essential)
 
@@ -50,7 +50,7 @@ Run `/new_profile` or `/new_addon` in an OpenCode session to invoke these templa
 Generate a profile rulebook:
 
 ```bash
-python3 scripts/rulebook_factory.py profile \
+${PYTHON_COMMAND} scripts/rulebook_factory.py profile \
   --profile-key backend-rust \
   --stack-scope "Rust backend services" \
   --applicability-signal "cargo-lock-present" \
@@ -62,7 +62,7 @@ python3 scripts/rulebook_factory.py profile \
 Generate an addon manifest + addon rulebook pair:
 
 ```bash
-python3 scripts/rulebook_factory.py addon \
+${PYTHON_COMMAND} scripts/rulebook_factory.py addon \
   --addon-key rustApiTemplates \
   --addon-class required \
   --rulebook-name backend-rust-templates \

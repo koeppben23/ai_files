@@ -7,13 +7,14 @@ interface that the engine can consume without direct host branching.
 from __future__ import annotations
 
 from dataclasses import dataclass, asdict
-import hashlib
 import json
 import os
 from pathlib import Path
 import shutil
 import sys
 from typing import Literal, Mapping, Protocol
+
+from governance.engine.canonical_json import canonical_json_hash
 
 
 CwdTrustLevel = Literal["trusted", "untrusted"]
@@ -46,6 +47,43 @@ def _resolve_env_path(env: Mapping[str, str], key: str) -> Path | None:
     if not p.is_absolute():
         return None
     return p.resolve()
+
+
+def _resolve_bound_paths(config_root: Path) -> tuple[Path, Path, bool]:
+    """Resolve commands/workspaces homes with governance.paths.json precedence."""
+
+    commands_home = config_root / "commands"
+    workspaces_home = config_root / "workspaces"
+    binding_file = commands_home / "governance.paths.json"
+    if not binding_file.exists():
+        return commands_home, workspaces_home, True
+
+    try:
+        payload = json.loads(binding_file.read_text(encoding="utf-8"))
+    except Exception:
+        return commands_home, workspaces_home, False
+
+    if not isinstance(payload, dict):
+        return commands_home, workspaces_home, False
+    paths = payload.get("paths")
+    if not isinstance(paths, dict):
+        return commands_home, workspaces_home, False
+
+    commands_raw = paths.get("commandsHome")
+    workspaces_raw = paths.get("workspacesHome")
+    resolved_commands = (
+        Path(commands_raw).expanduser().resolve()
+        if isinstance(commands_raw, str) and commands_raw.strip()
+        else commands_home
+    )
+    resolved_workspaces = (
+        Path(workspaces_raw).expanduser().resolve()
+        if isinstance(workspaces_raw, str) and workspaces_raw.strip()
+        else workspaces_home
+    )
+    if not resolved_commands.is_absolute() or not resolved_workspaces.is_absolute():
+        return commands_home, workspaces_home, False
+    return resolved_commands, resolved_workspaces, True
 
 
 def _path_writable(path: Path) -> bool:
@@ -112,8 +150,7 @@ class HostCapabilities:
     def stable_hash_full(self) -> str:
         """Return full deterministic capabilities hash (preferred for activation)."""
 
-        encoded = json.dumps(asdict(self), sort_keys=True, separators=(",", ":"))
-        return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+        return canonical_json_hash(asdict(self))
 
 
 class HostAdapter(Protocol):
@@ -150,8 +187,7 @@ class LocalHostAdapter:
     def capabilities(self) -> HostCapabilities:
         env = self.environment()
         config_root = _resolve_env_path(env, "OPENCODE_CONFIG_ROOT") or _default_config_root().resolve()
-        commands_home = config_root / "commands"
-        workspaces_home = config_root / "workspaces"
+        commands_home, workspaces_home, binding_ok = _resolve_bound_paths(config_root)
         # Fail-closed: ignore relative OPENCODE_REPO_ROOT to avoid CWD-dependent resolution
         repo_root = _resolve_env_path(env, "OPENCODE_REPO_ROOT") or self.cwd()
         exec_allowed = os.access(sys.executable, os.X_OK)
@@ -159,10 +195,10 @@ class LocalHostAdapter:
         git_available = (shutil.which("git") is not None) and not git_disabled
         return HostCapabilities(
             cwd_trust=self.cwd_trust,
-            fs_read_commands_home=_path_readable(commands_home),
+            fs_read_commands_home=_path_readable(commands_home) if binding_ok else False,
             fs_write_config_root=_path_writable(config_root),
-            fs_write_commands_home=_path_writable(commands_home),
-            fs_write_workspaces_home=_path_writable(workspaces_home),
+            fs_write_commands_home=_path_writable(commands_home) if binding_ok else False,
+            fs_write_workspaces_home=_path_writable(workspaces_home) if binding_ok else False,
             fs_write_repo_root=_path_writable(repo_root),
             exec_allowed=exec_allowed,
             git_available=git_available,
@@ -193,8 +229,7 @@ class OpenCodeDesktopAdapter:
     def capabilities(self) -> HostCapabilities:
         env = self.environment()
         config_root = _resolve_env_path(env, "OPENCODE_CONFIG_ROOT") or _default_config_root().resolve()
-        commands_home = config_root / "commands"
-        workspaces_home = config_root / "workspaces"
+        commands_home, workspaces_home, binding_ok = _resolve_bound_paths(config_root)
         # Fail-closed: ignore relative OPENCODE_REPO_ROOT to avoid CWD-dependent resolution
         repo_root = _resolve_env_path(env, "OPENCODE_REPO_ROOT") or self.cwd()
         disabled = str(env.get("OPENCODE_DISABLE_GIT", "")).strip() == "1"
@@ -203,10 +238,10 @@ class OpenCodeDesktopAdapter:
             git_available = (shutil.which("git") is not None) and not disabled
         return HostCapabilities(
             cwd_trust=self.cwd_trust,
-            fs_read_commands_home=_path_readable(commands_home),
+            fs_read_commands_home=_path_readable(commands_home) if binding_ok else False,
             fs_write_config_root=_path_writable(config_root),
-            fs_write_commands_home=_path_writable(commands_home),
-            fs_write_workspaces_home=_path_writable(workspaces_home),
+            fs_write_commands_home=_path_writable(commands_home) if binding_ok else False,
+            fs_write_workspaces_home=_path_writable(workspaces_home) if binding_ok else False,
             fs_write_repo_root=_path_writable(repo_root),
             exec_allowed=os.access(sys.executable, os.X_OK),
             git_available=bool(git_available),

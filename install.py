@@ -866,7 +866,7 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
         eprint("Recovery options:")
         eprint("  1. If installing from source: ensure you are in the governance repository directory.")
         eprint("  2. If using a customer bundle: extract it first, then run install.py from the extracted root.")
-        eprint("  3. If already installed: run 'python3 install.py --status' to check installation health.")
+        eprint("  3. If already installed: run '${PYTHON_COMMAND} install.py --status' to check installation health.")
         eprint("")
         return 2
 
@@ -1592,7 +1592,7 @@ def show_status(source_dir: Path, config_root_arg: Path | None) -> int:
     commands_home = config_root / "commands"
     if not commands_home.exists():
         print("\n⚠️  No installation found at this config root.")
-        print("Run 'python3 install.py' to install.")
+        print("Run '${PYTHON_COMMAND} install.py' to install.")
         return 1
 
     # Read manifest if present
@@ -1609,7 +1609,7 @@ def show_status(source_dir: Path, config_root_arg: Path | None) -> int:
         print(f"Installed Files: {files_count}")
     else:
         print("\n⚠️  Installation found but manifest missing (fallback mode).")
-        print("Run 'python3 install.py --force' to restore manifest.")
+        print("Run '${PYTHON_COMMAND} install.py --force' to restore manifest.")
 
     # Check governance version from source if available
     source_master = source_dir / "master.md"
@@ -1731,7 +1731,7 @@ def show_health(source_dir: Path, config_root_arg: Path | None) -> int:
             issues_found.append("paths-json-missing")
     else:
         print("\n⚠️  No installation found at config root")
-        print("   Run 'python3 install.py' to install")
+        print("   Run '${PYTHON_COMMAND} install.py' to install")
         issues_found.append("no-installation")
 
     # Summary
@@ -1749,9 +1749,9 @@ def show_health(source_dir: Path, config_root_arg: Path | None) -> int:
         if "perm-" in "".join(issues_found):
             print("   - Check directory permissions")
         if "no-installation" in issues_found:
-            print("   - Run: python3 install.py")
+            print("   - Run: ${PYTHON_COMMAND} install.py")
         if "manifest-missing" in issues_found or any(i.startswith("key-file-") for i in issues_found):
-            print("   - Run: python3 install.py --force")
+            print("   - Run: ${PYTHON_COMMAND} install.py --force")
         return 1
 
 

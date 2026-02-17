@@ -32,8 +32,8 @@ For engineering teams that need deterministic, auditable AI-assisted delivery in
 
 ## Quick Start
 
-- Install locally: `python3 install.py`
-- Run deterministic dry-run first: `python3 install.py --dry-run`
+- Install locally: `${PYTHON_COMMAND} install.py`
+- Run deterministic dry-run first: `${PYTHON_COMMAND} install.py --dry-run`
 - In OpenCode, start a governed session with `/start`
 - Continue an active session with `/continue` or `/resume`
 
@@ -42,7 +42,7 @@ Note: installer-owned path binding evidence is written to `<config_root>/command
 ## Support Matrix
 
 - Operating systems: macOS, Linux, Windows (path resolution is defined in `master.md` and installation layout examples in `docs/install-layout.md`).
-- Runtime requirements: `python3` for installer/diagnostics helpers; `git` is recommended and required by identity-gated workflows.
+- Runtime requirements: `${PYTHON_COMMAND}` for installer/diagnostics helpers; `git` is recommended and required by identity-gated workflows.
 - Frontend surfaces: OpenCode (`/start`, `/continue`, `/resume`, `/audit`) and Codex-style frontend surfaces via `AGENTS.md` mirror semantics.
 
 ## 60-Second Install Verification
@@ -50,9 +50,9 @@ Note: installer-owned path binding evidence is written to `<config_root>/command
 Run the following after checkout or after installation:
 
 ```bash
-python3 install.py --dry-run
-python3 install.py
-python3 install.py --status
+${PYTHON_COMMAND} install.py --dry-run
+${PYTHON_COMMAND} install.py
+${PYTHON_COMMAND} install.py --status
 ```
 
 Expected outcome:
@@ -65,7 +65,7 @@ Then, in OpenCode, run `/start` and confirm bootstrap succeeds without binding/p
 
 ## Troubleshooting
 
-- `BLOCKED-MISSING-BINDING-FILE`: rerun `python3 install.py`, then verify with `python3 install.py --status`.
+- `BLOCKED-MISSING-BINDING-FILE`: rerun `${PYTHON_COMMAND} install.py`, then verify with `${PYTHON_COMMAND} install.py --status`.
 - `BLOCKED-VARIABLE-RESOLUTION`: check resolved config root/path bindings against `docs/install-layout.md`.
 - `BLOCKED-REPO-IDENTITY-RESOLUTION`: ensure repository is a git checkout and `git` is available in `PATH`.
 - `NOT_VERIFIED-MISSING-EVIDENCE`: provide missing evidence artifacts and rerun the gate.

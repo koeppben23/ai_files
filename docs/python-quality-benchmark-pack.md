@@ -21,8 +21,8 @@ direct comparability over repeated runs.
 ## Run contract
 
 - required baseline commands:
-  - `python3 -m pytest -q`
-  - `python3 scripts/governance_lint.py`
+  - `${PYTHON_COMMAND} -m pytest -q`
+  - `${PYTHON_COMMAND} scripts/governance_lint.py`
 - no-claim-without-evidence applies:
   - missing/stale required claim evidence remains `NOT_VERIFIED`
 - output contract:
@@ -64,7 +64,7 @@ direct comparability over repeated runs.
 Runner helper:
 
 ```bash
-python3 scripts/run_quality_benchmark.py \
+${PYTHON_COMMAND} scripts/run_quality_benchmark.py \
   --pack diagnostics/PYTHON_QUALITY_BENCHMARK_PACK.json \
   --observed-claim claim/tests-green \
   --observed-claim claim/static-clean \

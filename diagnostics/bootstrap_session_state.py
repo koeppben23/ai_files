@@ -20,6 +20,8 @@ except Exception:  # pragma: no cover
     def safe_log_error(**kwargs):  # type: ignore[no-redef]
         return {"status": "log-disabled"}
 
+from workspace_lock import acquire_workspace_lock
+
 
 def default_config_root() -> Path:
     if os.name == "nt":
@@ -280,6 +282,16 @@ def main() -> int:
     pointer_file = session_pointer_path(config_root)
     identity_map_file = workspaces_home / repo_fingerprint / "repo-identity-map.yaml"
 
+    try:
+        workspace_lock = acquire_workspace_lock(
+            workspaces_home=workspaces_home,
+            repo_fingerprint=repo_fingerprint,
+        )
+    except TimeoutError:
+        print("ERROR: workspace lock timeout")
+        print("Wait for active run to complete or clear stale lock after verification.")
+        return 6
+
     print(f"Config root: {config_root}")
     print(f"Repo fingerprint: {repo_fingerprint}")
     print(f"Repo SESSION_STATE file: {repo_state_file}")
@@ -306,6 +318,7 @@ def main() -> int:
         )
         print("ERROR: legacy global SESSION_STATE payload detected in pointer file.")
         print("Use --force to migrate to pointer mode.")
+        workspace_lock.release()
         return 4
 
     should_write_repo_state = args.force or not repo_state_file.exists()
@@ -322,6 +335,7 @@ def main() -> int:
         print(f"[DRY-RUN] Repo identity map action: {identity_action} -> {identity_map_file}")
         if pointer_has_legacy_payload:
             print("[DRY-RUN] Legacy global payload migration would be applied (requires --force for live write).")
+        workspace_lock.release()
         return 0
 
     repo_payload: dict | None = None
@@ -342,11 +356,6 @@ def main() -> int:
         if isinstance(existing_payload, dict):
             repo_payload = existing_payload
 
-    pointer = pointer_payload(repo_fingerprint)
-    pointer_file.parent.mkdir(parents=True, exist_ok=True)
-    pointer_file.write_text(json.dumps(pointer, indent=2, ensure_ascii=True) + "\n", encoding="utf-8")
-    print("Global SESSION_STATE pointer written.")
-
     scope = repo_payload.get("SESSION_STATE", {}).get("Scope", {}) if isinstance(repo_payload, dict) else {}
     repo_name_value = scope.get("Repository") if isinstance(scope, dict) else None
     if not isinstance(repo_name_value, str) or not repo_name_value.strip():
@@ -354,6 +363,7 @@ def main() -> int:
     identity_action = _upsert_repo_identity_map(workspaces_home, repo_fingerprint, repo_name_value.strip())
     print(f"Repo identity map {identity_action}.")
 
+    backfill_failed = False
     if not args.skip_artifact_backfill:
         helper = Path(__file__).resolve().parent / "persist_workspace_artifacts.py"
         if helper.exists():
@@ -364,6 +374,7 @@ def main() -> int:
                 repo_fingerprint,
                 "--config-root",
                 str(config_root),
+                "--skip-lock",
                 "--quiet",
             ]
             run = subprocess.run(cmd, text=True, capture_output=True, check=False)
@@ -393,6 +404,7 @@ def main() -> int:
                     print(run.stdout.strip())
                 if run.stderr.strip():
                     print(run.stderr.strip())
+                backfill_failed = True
         else:
             safe_log_error(
                 reason_key="ERR-WORKSPACE-PERSISTENCE-HOOK-MISSING",
@@ -410,6 +422,18 @@ def main() -> int:
             )
             print("WARNING: persist_workspace_artifacts.py not found; skipping artifact backfill hook.")
 
+    if backfill_failed:
+        workspace_lock.release()
+        return 7
+
+    pointer = pointer_payload(repo_fingerprint)
+    pointer["runId"] = workspace_lock.lock_id
+    pointer["phase"] = "1.1-Bootstrap"
+    pointer_file.parent.mkdir(parents=True, exist_ok=True)
+    pointer_file.write_text(json.dumps(pointer, indent=2, ensure_ascii=True) + "\n", encoding="utf-8")
+    print("Global SESSION_STATE pointer written.")
+
+    workspace_lock.release()
     return 0
 
 

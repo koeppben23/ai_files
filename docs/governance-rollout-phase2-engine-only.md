@@ -37,9 +37,9 @@ transitional reads.
 Executed checks:
 
 ```bash
-python3 -m pytest -q tests/test_session_state_repository.py tests/test_reason_code_registry.py
-python3 -m pytest -q
-python3 scripts/governance_lint.py
+${PYTHON_COMMAND} -m pytest -q tests/test_session_state_repository.py tests/test_reason_code_registry.py
+${PYTHON_COMMAND} -m pytest -q
+${PYTHON_COMMAND} scripts/governance_lint.py
 ```
 
 Results:

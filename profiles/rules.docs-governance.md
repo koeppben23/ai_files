@@ -180,7 +180,7 @@ Binding:
 ## Tooling / CI Guidance
 
 Recommended checks:
-- `python3 scripts/validate_addons.py --repo-root <repo>`
+- `${PYTHON_COMMAND} scripts/validate_addons.py --repo-root <repo>`
 - `pytest -q -m governance`
 
 If checks are unavailable in environment, output explicit not-verified status and recovery commands.

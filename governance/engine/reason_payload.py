@@ -10,6 +10,7 @@ from typing import Literal
 from governance.engine._embedded_reason_registry import EMBEDDED_REASON_CODE_TO_SCHEMA_REF
 from governance.engine._embedded_reason_schemas import EMBEDDED_REASON_SCHEMAS
 from governance.engine.reason_codes import REASON_CODE_NONE
+from governance.engine.sanitization import sanitize_for_output
 
 ReasonStatus = Literal["BLOCKED", "WARN", "OK", "NOT_VERIFIED"]
 
@@ -38,7 +39,7 @@ class ReasonPayload:
         context = payload.get("context", {})
         if isinstance(context, dict):
             payload["context"] = dict(sorted(context.items()))
-        return payload
+        return sanitize_for_output(payload)
 
 
 def validate_reason_payload(payload: ReasonPayload) -> tuple[str, ...]:
@@ -238,9 +239,9 @@ def build_reason_payload(
         next_command=next_command.strip(),
         impact=impact.strip(),
         missing_evidence=tuple(sorted(set(missing_evidence))),
-        deviation=dict(sorted((deviation or {}).items())),
+        deviation=dict(sorted(sanitize_for_output(deviation or {}).items())),
         expiry=expiry.strip() or "none",
-        context=dict(sorted((context or {}).items())),
+        context=dict(sorted(sanitize_for_output(context or {}).items())),
     )
     errors = list(validate_reason_payload(payload))
     errors.extend(validate_reason_context_schema(payload.reason_code, payload.context))

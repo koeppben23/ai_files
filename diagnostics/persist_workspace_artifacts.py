@@ -2,12 +2,15 @@
 from __future__ import annotations
 
 import argparse
+import errno
 import hashlib
 import json
 import os
 import re
 import subprocess
 import sys
+import tempfile
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -21,6 +24,9 @@ try:
 except Exception:  # pragma: no cover
     def safe_log_error(**kwargs):  # type: ignore[no-redef]
         return {"status": "log-disabled"}
+
+from workspace_lock import acquire_workspace_lock
+from command_profiles import render_command_profiles
 
 
 def default_config_root() -> Path:
@@ -72,6 +78,12 @@ def _resolve_python_command(paths: dict[str, Any]) -> str:
     if isinstance(raw, str) and raw.strip():
         return raw.strip()
     return "py -3" if os.name == "nt" else "python3"
+
+
+def _preferred_shell_command(profiles: dict[str, object]) -> str:
+    if os.name == "nt":
+        return str(profiles.get("powershell") or profiles.get("cmd") or profiles.get("bash") or "")
+    return str(profiles.get("bash") or profiles.get("json") or "")
 
 
 def resolve_binding_config(explicit: Path | None) -> tuple[Path, dict[str, Any], Path]:
@@ -134,7 +146,10 @@ def _resolve_git_dir(repo_root: Path) -> Path | None:
         return dot_git
 
     if dot_git.is_file():
-        text = dot_git.read_text(encoding="utf-8", errors="ignore")
+        try:
+            text = dot_git.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            text = dot_git.read_text(encoding="utf-8", errors="replace")
         m = re.search(r"gitdir:\s*(.+)", text)
         if not m:
             return None
@@ -151,7 +166,10 @@ def _read_origin_remote(config_path: Path) -> str | None:
     if not config_path.exists():
         return None
 
-    lines = config_path.read_text(encoding="utf-8", errors="ignore").splitlines()
+    try:
+        lines = config_path.read_text(encoding="utf-8").splitlines()
+    except UnicodeDecodeError:
+        lines = config_path.read_text(encoding="utf-8", errors="replace").splitlines()
     in_origin = False
     for line in lines:
         stripped = line.strip()
@@ -171,7 +189,10 @@ def _read_origin_remote(config_path: Path) -> str | None:
 def _read_default_branch(git_dir: Path) -> str:
     head_ref = git_dir / "refs" / "remotes" / "origin" / "HEAD"
     if head_ref.exists():
-        text = head_ref.read_text(encoding="utf-8", errors="ignore")
+        try:
+            text = head_ref.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            text = head_ref.read_text(encoding="utf-8", errors="replace")
         m = re.search(r"ref:\s*refs/remotes/origin/(.+)", text)
         if m:
             branch = m.group(1).strip()
@@ -417,25 +438,65 @@ def _write_text(path: Path, content: str, *, dry_run: bool) -> None:
     if dry_run:
         return
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(content, encoding="utf-8")
+    _atomic_write_text(path, content)
 
 
 def _append_text(path: Path, content: str, *, dry_run: bool) -> None:
     if dry_run:
         return
     path.parent.mkdir(parents=True, exist_ok=True)
-    existing = path.read_text(encoding="utf-8")
+    try:
+        existing = path.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        existing = path.read_text(encoding="utf-8", errors="replace")
     if not existing.endswith("\n"):
         existing += "\n"
     existing += "\n" + content
-    path.write_text(existing, encoding="utf-8")
+    _atomic_write_text(path, existing)
+
+
+def _is_retryable_replace_error(exc: OSError) -> bool:
+    return exc.errno in {errno.EACCES, errno.EPERM, errno.EBUSY}
+
+
+def _atomic_write_text(path: Path, content: str, retries: int = 3) -> None:
+    temp_path: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            newline="\n",
+            dir=str(path.parent),
+            prefix=path.name + ".",
+            suffix=".tmp",
+            delete=False,
+        ) as tmp:
+            tmp.write(content)
+            tmp.flush()
+            os.fsync(tmp.fileno())
+            temp_path = Path(tmp.name)
+
+        for attempt in range(retries):
+            try:
+                os.replace(str(temp_path), str(path))
+                return
+            except OSError as exc:
+                if attempt == retries - 1 or not _is_retryable_replace_error(exc):
+                    raise
+                time.sleep(0.05)
+    finally:
+        if temp_path is not None and temp_path.exists():
+            temp_path.unlink(missing_ok=True)
 
 
 def _normalize_legacy_placeholder_phrasing(path: Path, *, dry_run: bool) -> bool:
     if not path.exists() or not path.is_file():
         return False
 
-    text = path.read_text(encoding="utf-8", errors="ignore")
+    try:
+        text = path.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        text = path.read_text(encoding="utf-8", errors="replace")
     replacements = {
         "Backfill placeholder: refresh after Phase 2 discovery.": "Seed snapshot: refresh after evidence-backed Phase 2 discovery.",
         "none (backfill placeholder)": "none (no evidence-backed digest yet)",
@@ -539,7 +600,8 @@ def _update_session_state(
     if dry_run:
         return "updated-dry-run"
 
-    session_path.write_text(json.dumps(data, indent=2, ensure_ascii=True) + "\n", encoding="utf-8")
+    session_payload = json.dumps(data, sort_keys=True, separators=(",", ":"), ensure_ascii=True) + "\n"
+    _atomic_write_text(session_path, session_payload)
     return "updated"
 
 
@@ -597,6 +659,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--dry-run", action="store_true", help="Print planned actions without writing files.")
     p.add_argument("--no-session-update", action="store_true", help="Do not update repo-scoped SESSION_STATE file pointers/status fields.")
     p.add_argument("--quiet", action="store_true", help="Print compact JSON summary only.")
+    p.add_argument("--skip-lock", action="store_true", help="Internal use: skip workspace lock acquisition.")
     return p.parse_args()
 
 
@@ -617,6 +680,14 @@ def main() -> int:
             "required_operator_action": "restore installer-owned path binding evidence before persistence",
             "feedback_required": "reply with governance.paths.json location used for rerun",
             "next_command": "${PYTHON_COMMAND} diagnostics/persist_workspace_artifacts.py --config-root <config_root>",
+            "next_command_profiles": render_command_profiles(
+                [
+                    "${PYTHON_COMMAND}",
+                    "diagnostics/persist_workspace_artifacts.py",
+                    "--config-root",
+                    "<config_root>",
+                ]
+            ),
         }
         if args.quiet:
             print(json.dumps(payload, ensure_ascii=True))
@@ -628,6 +699,16 @@ def main() -> int:
     repo_root = args.repo_root.expanduser().resolve()
 
     if (repo_root / ".git").exists() and _is_within(config_root, repo_root):
+        cmd_profiles = render_command_profiles(
+            [
+                python_cmd,
+                "diagnostics/persist_workspace_artifacts.py",
+                "--config-root",
+                "<outside_repo_config_root>",
+                "--repo-root",
+                "<repo_root>",
+            ]
+        )
         payload = {
             "status": "blocked",
             "reason": "config root resolves inside repository root",
@@ -641,7 +722,8 @@ def main() -> int:
             ],
             "required_operator_action": "rerun with a config root outside the repo working tree",
             "feedback_required": "reply with the chosen config root and rerun result",
-            "next_command": f"{python_cmd} diagnostics/persist_workspace_artifacts.py --config-root <outside_repo_config_root> --repo-root <repo_root>",
+            "next_command": _preferred_shell_command(cmd_profiles),
+            "next_command_profiles": cmd_profiles,
         }
         if args.quiet:
             print(json.dumps(payload, ensure_ascii=True))
@@ -678,6 +760,16 @@ def main() -> int:
             remediation="Provide --repo-fingerprint explicitly or invoke from the target repository root.",
         )
         if args.quiet:
+            cmd_profiles = render_command_profiles(
+                [
+                    python_cmd,
+                    "diagnostics/persist_workspace_artifacts.py",
+                    "--repo-fingerprint",
+                    "<repo_fingerprint>",
+                    "--repo-root",
+                    "<repo_root>",
+                ]
+            )
             print(
                 json.dumps(
                     {
@@ -694,7 +786,8 @@ def main() -> int:
                         ],
                         "required_operator_action": "run one recovery path and report back the chosen repo fingerprint",
                         "feedback_required": "reply with the repo fingerprint used so persistence can resume deterministically",
-                        "next_command": f"{python_cmd} diagnostics/persist_workspace_artifacts.py --repo-fingerprint <repo_fingerprint> --repo-root <repo_root>",
+                        "next_command": _preferred_shell_command(cmd_profiles),
+                        "next_command_profiles": cmd_profiles,
                     },
                     ensure_ascii=True,
                 )
@@ -715,6 +808,16 @@ def main() -> int:
             dry_run=args.dry_run,
         )
         if not bootstrap_ok:
+            cmd_profiles = render_command_profiles(
+                [
+                    python_cmd,
+                    "diagnostics/bootstrap_session_state.py",
+                    "--repo-fingerprint",
+                    repo_fingerprint,
+                    "--config-root",
+                    str(config_root),
+                ]
+            )
             payload = {
                 "status": "blocked",
                 "reason": "repo session state bootstrap failed",
@@ -726,7 +829,8 @@ def main() -> int:
                 ],
                 "required_operator_action": "bootstrap repo-scoped session state and rerun persistence",
                 "feedback_required": "reply with bootstrap helper output and repo fingerprint",
-                "next_command": f"{python_cmd} diagnostics/bootstrap_session_state.py --repo-fingerprint {repo_fingerprint} --config-root \"{config_root}\"",
+                "next_command": _preferred_shell_command(cmd_profiles),
+                "next_command_profiles": cmd_profiles,
             }
             if args.quiet:
                 print(json.dumps(payload, ensure_ascii=True))
@@ -734,6 +838,44 @@ def main() -> int:
                 print("ERROR: repo session state bootstrap failed")
                 print(f"- bootstrap_status: {bootstrap_status}")
                 print(f"- repo_fingerprint: {repo_fingerprint}")
+            return 2
+
+    workspace_lock = None
+    if not args.skip_lock:
+        try:
+            workspace_lock = acquire_workspace_lock(
+                workspaces_home=workspaces_home,
+                repo_fingerprint=repo_fingerprint,
+            )
+        except TimeoutError:
+            cmd_profiles = render_command_profiles(
+                [
+                    python_cmd,
+                    "diagnostics/persist_workspace_artifacts.py",
+                    "--repo-fingerprint",
+                    repo_fingerprint,
+                    "--config-root",
+                    str(config_root),
+                ]
+            )
+            payload = {
+                "status": "blocked",
+                "reason": "workspace lock timeout",
+                "reason_code": "BLOCKED-WORKSPACE-PERSISTENCE",
+                "missing_evidence": ["exclusive workspace lock"],
+                "recovery_steps": [
+                    "wait for active run to finish or clear stale lock after verification",
+                    "rerun workspace persistence helper",
+                ],
+                "required_operator_action": "acquire exclusive workspace lock before writing artifacts",
+                "feedback_required": "reply with rerun result after lock contention is resolved",
+                "next_command": _preferred_shell_command(cmd_profiles),
+                "next_command_profiles": cmd_profiles,
+            }
+            if args.quiet:
+                print(json.dumps(payload, ensure_ascii=True))
+            else:
+                print("ERROR: workspace lock timeout")
             return 2
 
     session = _read_repo_session(session_path)
@@ -878,6 +1020,7 @@ def main() -> int:
         "repoFingerprint": repo_fingerprint,
         "fingerprintSource": fp_source,
         "fingerprintEvidence": fp_evidence,
+        "runId": workspace_lock.lock_id if workspace_lock is not None else "none",
         "repoHome": str(repo_home),
         "actions": actions,
         "sessionUpdate": session_update,
@@ -897,6 +1040,8 @@ def main() -> int:
             print(f"- {key}: {action}")
         print(f"- sessionUpdate: {session_update}")
 
+    if workspace_lock is not None:
+        workspace_lock.release()
     return 0
 
 

@@ -42,7 +42,7 @@ If binding evidence is unavailable or unresolved, bootstrap must fail closed (fo
 ## Support Matrix
 
 - Supported host OS: macOS, Linux, Windows (canonical path model in `master.md`, layout examples in `docs/install-layout.md`).
-- Required tools for standard operation: `python3` (installer/helpers), `git` (identity-gated workflows).
+- Required tools for standard operation: `${PYTHON_COMMAND}` (installer/helpers), `git` (identity-gated workflows).
 - Supported command lifecycle: `/start`, `/continue`, `/resume`, `/audit`.
 
 ## Session State and Persistence
@@ -62,8 +62,8 @@ Use `--dry-run` when validating changes before writing.
 ## 60-Second OpenCode Verification
 
 ```bash
-python3 install.py --status
-python3 diagnostics/bootstrap_session_state.py --repo-fingerprint <repo_fingerprint> --dry-run
+${PYTHON_COMMAND} install.py --status
+${PYTHON_COMMAND} diagnostics/bootstrap_session_state.py --repo-fingerprint <repo_fingerprint> --dry-run
 ```
 
 Then run `/start` in OpenCode and confirm bootstrap succeeds without binding/identity blockers.
@@ -71,9 +71,9 @@ Then run `/start` in OpenCode and confirm bootstrap succeeds without binding/ide
 Response rendering quick check:
 
 ```bash
-python3 scripts/render_response_envelope.py --input response.json --format markdown
-python3 scripts/render_response_envelope.py --input response.json --format plain
-python3 scripts/render_response_envelope.py --input response.json --format json
+${PYTHON_COMMAND} scripts/render_response_envelope.py --input response.json --format markdown
+${PYTHON_COMMAND} scripts/render_response_envelope.py --input response.json --format plain
+${PYTHON_COMMAND} scripts/render_response_envelope.py --input response.json --format json
 ```
 
 `--format auto` is the default and resolves to plain for interactive TTY sessions (stable across Windows/macOS/Linux terminals) and JSON for non-interactive execution.
@@ -102,7 +102,7 @@ Conformance reference for generated artifacts:
 
 ## Troubleshooting
 
-- `BLOCKED-MISSING-BINDING-FILE`: rerun `python3 install.py`, then verify with `python3 install.py --status`.
+- `BLOCKED-MISSING-BINDING-FILE`: rerun `${PYTHON_COMMAND} install.py`, then verify with `${PYTHON_COMMAND} install.py --status`.
 - `BLOCKED-VARIABLE-RESOLUTION`: validate config-root/path binding resolution (`docs/install-layout.md`).
 - `BLOCKED-REPO-IDENTITY-RESOLUTION`: ensure current directory is a git repo and `git` is available in `PATH`.
 - `NOT_VERIFIED-MISSING-EVIDENCE` or `NOT_VERIFIED-EVIDENCE-STALE`: refresh/provide evidence and rerun.

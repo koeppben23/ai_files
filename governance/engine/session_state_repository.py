@@ -11,7 +11,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timezone
 import errno
-import hashlib
 import json
 import os
 from pathlib import Path
@@ -19,6 +18,7 @@ import tempfile
 import time
 from typing import Any
 
+from governance.engine.canonical_json import canonical_json_clone, canonical_json_hash
 from governance.engine.reason_codes import (
     BLOCKED_SESSION_STATE_LEGACY_UNSUPPORTED,
     BLOCKED_STATE_OUTDATED,
@@ -87,6 +87,7 @@ class SessionStateRepository:
         # Backward-compatible side-channel retained while callers migrate to
         # `load_with_result()`.
         self.last_warning_reason_code = REASON_CODE_NONE
+        self.last_atomic_replace_retries = 0
 
     def load(self) -> dict[str, Any] | None:
         """Load a JSON document, returning None when the file is absent.
@@ -157,7 +158,7 @@ class SessionStateRepository:
             warning_detail="",
         )
 
-    def save(self, document: dict[str, Any]) -> None:
+    def save(self, document: dict[str, Any], *, now_utc: datetime | None = None) -> None:
         """Persist one JSON document in deterministic formatting.
 
         Writes are atomic within the same filesystem:
@@ -167,30 +168,29 @@ class SessionStateRepository:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         canonical, changed = _canonicalize_for_write(document)
         if changed:
-            _record_migration_event(canonical, engine_version=self.engine_version)
+            _record_migration_event(canonical, engine_version=self.engine_version, now_utc=now_utc)
         payload = json.dumps(canonical, indent=2, ensure_ascii=True) + "\n"
-        _atomic_write_text(self.path, payload)
+        self.last_atomic_replace_retries = _atomic_write_text(self.path, payload)
 
 
 def session_state_hash(document: dict[str, Any]) -> str:
     """Compute canonical session-state hash independent from legacy alias forms."""
 
     canonical, _ = _canonicalize_for_write(document)
-    encoded = json.dumps(canonical, sort_keys=True, separators=(",", ":"))
-    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+    return canonical_json_hash(canonical)
 
 
 def _normalize_dual_read_aliases(document: dict[str, Any]) -> dict[str, Any]:
     """Normalize legacy aliases into canonical fields for phase-1 dual-read."""
 
-    normalized = json.loads(json.dumps(document))
+    normalized = canonical_json_clone(document)
     state = normalized.get("SESSION_STATE")
     if not isinstance(state, dict):
         return normalized
 
     repo_model = state.get("RepoModel")
     if "RepoMapDigest" not in state and isinstance(repo_model, dict):
-        state["RepoMapDigest"] = json.loads(json.dumps(repo_model))
+            state["RepoMapDigest"] = canonical_json_clone(repo_model)
 
     if "FastPathEvaluation" not in state:
         legacy_fast_path = state.get("FastPath")
@@ -264,7 +264,9 @@ def _canonicalize_for_write(document: dict[str, Any]) -> tuple[dict[str, Any], b
     return canonical, changed
 
 
-def _record_migration_event(document: dict[str, Any], *, engine_version: str) -> None:
+def _record_migration_event(
+    document: dict[str, Any], *, engine_version: str, now_utc: datetime | None = None
+) -> None:
     """Append deterministic migration event for alias-to-canonical transitions."""
 
     state = document.get("SESSION_STATE")
@@ -274,7 +276,7 @@ def _record_migration_event(document: dict[str, Any], *, engine_version: str) ->
         "type": "legacy_alias_normalization",
         "from_fields": ["RepoModel", "FastPath", "FastPathReason"],
         "to_fields": ["RepoMapDigest", "FastPathEvaluation"],
-        "timestamp": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "timestamp": (now_utc or datetime.now(timezone.utc)).isoformat(timespec="seconds"),
         "engine_version": engine_version,
     }
     events = state.get("migration_events")
@@ -305,7 +307,7 @@ def _fsync_directory(path: Path) -> None:
         os.close(fd)
 
 
-def _atomic_write_text(path: Path, payload: str) -> None:
+def _atomic_write_text(path: Path, payload: str) -> int:
     """Atomically write text to `path` with bounded replace retries."""
 
     temp_path: Path | None = None
@@ -329,7 +331,7 @@ def _atomic_write_text(path: Path, payload: str) -> None:
             try:
                 os.replace(str(temp_path), str(path))
                 _fsync_directory(path.parent)
-                return
+                return attempt
             except OSError as exc:
                 last_error = exc
                 if attempt == ATOMIC_REPLACE_RETRIES - 1 or not _is_retryable_replace_error(exc):
@@ -338,6 +340,7 @@ def _atomic_write_text(path: Path, payload: str) -> None:
 
         if last_error is not None:
             raise last_error
+        return 0
     finally:
         if temp_path is not None and temp_path.exists():
             temp_path.unlink(missing_ok=True)
@@ -348,6 +351,7 @@ def migrate_session_state_document(
     *,
     target_version: int,
     target_ruleset_hash: str,
+    now_utc: datetime | None = None,
 ) -> SessionStateMigrationResult:
     """Apply deterministic migration checks to one SESSION_STATE document.
 
@@ -404,13 +408,13 @@ def migrate_session_state_document(
             detail="no migration required",
         )
 
-    migrated = json.loads(json.dumps(document))
+    migrated = canonical_json_clone(document)
     migrated_state = migrated["SESSION_STATE"]
     migrated_state["ruleset_hash"] = target_ruleset_hash
     migrated_state["Migration"] = {
         "fromVersion": version,
         "toVersion": target_version,
-        "completedAt": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "completedAt": (now_utc or datetime.now(timezone.utc)).isoformat(timespec="seconds"),
         "rollbackAvailable": True,
     }
     return SessionStateMigrationResult(

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import errno
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -97,6 +98,7 @@ def test_session_state_repository_retries_replace_on_transient_error(tmp_path: P
     assert loaded is not None
     assert loaded["SESSION_STATE"]["ruleset_hash"] == "hash-retry"
     assert calls["count"] >= 2
+    assert repo.last_atomic_replace_retries >= 1
 
 
 @pytest.mark.governance
@@ -116,6 +118,21 @@ def test_migration_stub_updates_ruleset_hash_and_records_metadata():
     assert migrated["Migration"]["fromVersion"] == CURRENT_SESSION_STATE_VERSION
     assert migrated["Migration"]["toVersion"] == CURRENT_SESSION_STATE_VERSION
     assert migrated["Migration"]["rollbackAvailable"] is True
+
+
+@pytest.mark.governance
+def test_migration_stub_accepts_injected_decision_time():
+    doc = _session_state_doc(version=CURRENT_SESSION_STATE_VERSION, ruleset_hash="hash-old")
+    frozen_now = datetime(2026, 2, 17, 12, 30, 0, tzinfo=timezone.utc)
+
+    result = migrate_session_state_document(
+        doc,
+        target_version=CURRENT_SESSION_STATE_VERSION,
+        target_ruleset_hash="hash-new",
+        now_utc=frozen_now,
+    )
+    assert result.success is True
+    assert result.document["SESSION_STATE"]["Migration"]["completedAt"] == "2026-02-17T12:30:00+00:00"
 
 
 @pytest.mark.governance
@@ -215,6 +232,22 @@ def test_write_only_new_drops_legacy_alias_fields(tmp_path: Path):
     assert "RepoMapDigest" in state
     assert "FastPathEvaluation" in state
     assert isinstance(state.get("migration_events"), list) and state["migration_events"]
+
+
+@pytest.mark.governance
+def test_save_records_migration_event_with_injected_clock(tmp_path: Path):
+    path = tmp_path / "workspaces" / "abc" / "SESSION_STATE.json"
+    repo = SessionStateRepository(path)
+    legacy = _session_state_doc()
+    legacy["SESSION_STATE"]["RepoModel"] = {"legacy": True}
+    frozen_now = datetime(2026, 2, 17, 12, 45, 0, tzinfo=timezone.utc)
+
+    repo.save(legacy, now_utc=frozen_now)
+
+    persisted = session_repo_module.json.loads(path.read_text(encoding="utf-8"))
+    events = persisted["SESSION_STATE"].get("migration_events")
+    assert isinstance(events, list) and events
+    assert events[-1]["timestamp"] == "2026-02-17T12:45:00+00:00"
 
 
 @pytest.mark.governance

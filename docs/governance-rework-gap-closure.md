@@ -50,9 +50,9 @@ session-state rollout and evidence-backfeed milestones.
 Executed checks:
 
 ```bash
-python3 -m pytest -q tests/test_migrate_session_state_script.py tests/test_render_contract.py tests/test_engine_lifecycle.py tests/test_engine_orchestrator.py tests/test_reason_code_registry.py
-python3 -m pytest -q
-python3 scripts/governance_lint.py
+${PYTHON_COMMAND} -m pytest -q tests/test_migrate_session_state_script.py tests/test_render_contract.py tests/test_engine_lifecycle.py tests/test_engine_orchestrator.py tests/test_reason_code_registry.py
+${PYTHON_COMMAND} -m pytest -q
+${PYTHON_COMMAND} scripts/governance_lint.py
 ```
 
 Results:

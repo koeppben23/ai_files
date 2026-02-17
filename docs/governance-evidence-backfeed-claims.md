@@ -28,7 +28,7 @@ evidence directly from `SESSION_STATE.BuildEvidence` in orchestrator checks.
 Executed checks:
 
 ```bash
-python3 -m pytest -q tests/test_engine_orchestrator.py tests/test_engine_e2e_matrix.py
-python3 -m pytest -q
-python3 scripts/governance_lint.py
+${PYTHON_COMMAND} -m pytest -q tests/test_engine_orchestrator.py tests/test_engine_e2e_matrix.py
+${PYTHON_COMMAND} -m pytest -q
+${PYTHON_COMMAND} scripts/governance_lint.py
 ```

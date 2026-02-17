@@ -57,6 +57,9 @@ def test_emit_preflight_treats_python3_as_python_equivalent(monkeypatch: pytest.
     assert payload["missing"] == []
     assert "python" in payload["available"]
     assert "python3" in payload["available"]
+    assert "windows_longpaths" in payload
+    assert "git_safe_directory" in payload
+    assert "advisories" in payload
 
 
 @pytest.mark.governance
@@ -92,3 +95,28 @@ def test_emit_preflight_blocks_when_both_python_aliases_missing(monkeypatch: pyt
     assert payload["preflight"] == "degraded"
     assert payload["block_now"] is True
     assert set(payload["missing"]) == {"python", "python3"}
+    assert "windows_longpaths" in payload
+    assert "git_safe_directory" in payload
+
+
+@pytest.mark.governance
+def test_emit_preflight_blocks_on_invalid_binding_evidence(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+):
+    module = _load_module()
+    monkeypatch.setattr(module, "BINDING_OK", False)
+    monkeypatch.setattr(
+        module,
+        "load_json",
+        lambda _path: {
+            "required_now": [{"command": "git"}],
+            "required_later": [],
+        },
+    )
+    monkeypatch.setattr(module.shutil, "which", lambda _c: "/usr/bin/git")
+
+    module.emit_preflight()
+    payload = json.loads(capsys.readouterr().out.strip())
+    assert payload["binding_evidence"] == "invalid"
+    assert payload["block_now"] is True

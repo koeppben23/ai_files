@@ -30,7 +30,7 @@ Each scanner writes a summary JSON file in `diagnostics/security-evidence/`.
 The final policy gate aggregates all scanner summaries with:
 
 ```bash
-python3 scripts/evaluate_security_evidence.py \
+${PYTHON_COMMAND} scripts/evaluate_security_evidence.py \
   --policy diagnostics/SECURITY_GATE_POLICY.json \
   --input diagnostics/security-evidence/<scanner>.summary.json \
   --output diagnostics/security-evidence/security_summary.json

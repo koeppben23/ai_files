@@ -14,6 +14,12 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
+SCRIPT_DIR = Path(__file__).resolve().parent
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
+
+from command_profiles import render_command_profiles
+
 
 def config_root() -> Path:
     system = platform.system()
@@ -30,9 +36,41 @@ def config_root() -> Path:
     return (Path(xdg) if xdg else Path.home() / ".config") / "opencode"
 
 
+def _resolve_bound_paths(root: Path) -> tuple[Path, Path, bool]:
+    commands_home = root / "commands"
+    workspaces_home = root / "workspaces"
+    binding_file = commands_home / "governance.paths.json"
+    if not binding_file.exists():
+        return commands_home, workspaces_home, True
+    try:
+        payload = json.loads(binding_file.read_text(encoding="utf-8"))
+    except Exception:
+        return commands_home, workspaces_home, False
+    if not isinstance(payload, dict):
+        return commands_home, workspaces_home, False
+    paths = payload.get("paths")
+    if not isinstance(paths, dict):
+        return commands_home, workspaces_home, False
+    commands_raw = paths.get("commandsHome")
+    workspaces_raw = paths.get("workspacesHome")
+    resolved_commands = (
+        Path(commands_raw).expanduser().resolve()
+        if isinstance(commands_raw, str) and commands_raw.strip()
+        else commands_home
+    )
+    resolved_workspaces = (
+        Path(workspaces_raw).expanduser().resolve()
+        if isinstance(workspaces_raw, str) and workspaces_raw.strip()
+        else workspaces_home
+    )
+    if not resolved_commands.is_absolute() or not resolved_workspaces.is_absolute():
+        return commands_home, workspaces_home, False
+    return resolved_commands, resolved_workspaces, True
+
+
 ROOT = config_root()
-DIAGNOSTICS_DIR = ROOT / "commands" / "diagnostics"
-COMMANDS_RUNTIME_DIR = ROOT / "commands"
+COMMANDS_RUNTIME_DIR, WORKSPACES_HOME, BINDING_OK = _resolve_bound_paths(ROOT)
+DIAGNOSTICS_DIR = COMMANDS_RUNTIME_DIR / "diagnostics"
 PERSIST_HELPER = DIAGNOSTICS_DIR / "persist_workspace_artifacts.py"
 BOOTSTRAP_HELPER = DIAGNOSTICS_DIR / "bootstrap_session_state.py"
 LOGGER = DIAGNOSTICS_DIR / "error_logs.py"
@@ -47,7 +85,7 @@ if str(COMMANDS_RUNTIME_DIR) not in sys.path and COMMANDS_RUNTIME_DIR.exists():
 
 
 def workspace_identity_map(repo_fp: str) -> Path:
-    return ROOT / "workspaces" / repo_fp / "repo-identity-map.yaml"
+    return WORKSPACES_HOME / repo_fp / "repo-identity-map.yaml"
 
 
 def legacy_identity_map() -> Path:
@@ -98,7 +136,7 @@ def load_json(path: Path) -> dict | None:
 
 
 def resolve_python_command() -> str:
-    payload = load_json(ROOT / "commands" / "governance.paths.json")
+    payload = load_json(COMMANDS_RUNTIME_DIR / "governance.paths.json")
     if isinstance(payload, dict):
         paths = payload.get("paths")
         if isinstance(paths, dict):
@@ -115,7 +153,10 @@ def resolve_git_dir(repo_root: Path) -> Path | None:
     if not dot_git.is_file():
         return None
 
-    text = dot_git.read_text(encoding="utf-8", errors="ignore")
+    try:
+        text = dot_git.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        text = dot_git.read_text(encoding="utf-8", errors="replace")
     match = re.search(r"gitdir:\s*(.+)", text)
     if not match:
         return None
@@ -128,7 +169,10 @@ def resolve_git_dir(repo_root: Path) -> Path | None:
 def read_origin_remote(config_path: Path) -> str | None:
     if not config_path.exists():
         return None
-    lines = config_path.read_text(encoding="utf-8", errors="ignore").splitlines()
+    try:
+        lines = config_path.read_text(encoding="utf-8").splitlines()
+    except UnicodeDecodeError:
+        lines = config_path.read_text(encoding="utf-8", errors="replace").splitlines()
     in_origin = False
     for line in lines:
         stripped = line.strip()
@@ -148,7 +192,10 @@ def read_origin_remote(config_path: Path) -> str | None:
 def read_default_branch(git_dir: Path) -> str:
     head_ref = git_dir / "refs" / "remotes" / "origin" / "HEAD"
     if head_ref.exists():
-        text = head_ref.read_text(encoding="utf-8", errors="ignore")
+        try:
+            text = head_ref.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            text = head_ref.read_text(encoding="utf-8", errors="replace")
         match = re.search(r"ref:\s*refs/remotes/origin/(.+)", text)
         if match:
             branch = match.group(1).strip()
@@ -183,13 +230,21 @@ PYTHON_COMMAND = resolve_python_command()
 
 
 def bootstrap_command(repo_fp: str | None) -> str:
+    return _preferred_shell_command(render_command_profiles(bootstrap_command_argv(repo_fp)))
+
+
+def bootstrap_command_argv(repo_fp: str | None) -> list[str]:
     if repo_fp:
-        return f'{PYTHON_COMMAND} "{BOOTSTRAP_HELPER}" --repo-fingerprint {repo_fp} --config-root "{ROOT}"'
-    return f'{PYTHON_COMMAND} "{BOOTSTRAP_HELPER}" --repo-fingerprint <repo_fingerprint> --config-root "{ROOT}"'
+        return [PYTHON_COMMAND, str(BOOTSTRAP_HELPER), "--repo-fingerprint", repo_fp, "--config-root", str(ROOT)]
+    return [PYTHON_COMMAND, str(BOOTSTRAP_HELPER), "--repo-fingerprint", "<repo_fingerprint>", "--config-root", str(ROOT)]
 
 
 def persist_command(repo_root: Path) -> str:
-    return f'{PYTHON_COMMAND} "{PERSIST_HELPER}" --repo-root "{repo_root}"'
+    return _preferred_shell_command(render_command_profiles(persist_command_argv(repo_root)))
+
+
+def persist_command_argv(repo_root: Path) -> list[str]:
+    return [PYTHON_COMMAND, str(PERSIST_HELPER), "--repo-root", str(repo_root)]
 
 
 def _command_available(command: str) -> bool:
@@ -197,14 +252,46 @@ def _command_available(command: str) -> bool:
 
     if command in {"python", "python3", "py", "py -3"}:
         return shutil.which("python") is not None or shutil.which("python3") is not None
-    parts = shlex.split(command)
+    parts = shlex.split(command, posix=(os.name != "nt"))
     if not parts:
         return False
     return shutil.which(parts[0]) is not None
 
 
+def _preferred_shell_command(profiles: dict[str, object]) -> str:
+    if os.name == "nt":
+        return str(profiles.get("powershell") or profiles.get("cmd") or profiles.get("bash") or "")
+    return str(profiles.get("bash") or profiles.get("json") or "")
+
+
 def _expand_command_placeholders(command: str) -> str:
     return command.replace("${PYTHON_COMMAND}", PYTHON_COMMAND)
+
+
+def _windows_longpaths_enabled() -> bool | None:
+    if platform.system() != "Windows":
+        return None
+    for scope in ("--system", "--global"):
+        proc = subprocess.run(
+            ["git", "config", scope, "--get", "core.longpaths"],
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        if proc.returncode == 0 and proc.stdout.strip().lower() in {"true", "1", "yes", "on"}:
+            return True
+    return False
+
+
+def _git_safe_directory_issue() -> bool:
+    probe = subprocess.run(
+        ["git", "rev-parse", "--is-inside-work-tree"],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    stderr = (probe.stderr or "").lower()
+    return "safe.directory" in stderr
 
 
 def emit_preflight() -> None:
@@ -281,9 +368,19 @@ def emit_preflight() -> None:
             )
 
     missing_later = [command for command in required_later if not _command_available(command)]
+    longpaths_state = _windows_longpaths_enabled()
+    longpaths_note = "not_applicable"
+    if longpaths_state is True:
+        longpaths_note = "enabled"
+    elif longpaths_state is False:
+        longpaths_note = "disabled"
+    git_safe_directory_blocked = _git_safe_directory_issue() if _command_available("git") else False
 
     status = "ok" if not missing else "degraded"
     block_now = bool(missing)
+    if not BINDING_OK:
+        status = "degraded"
+        block_now = True
     impact = (
         "required_now commands satisfied; required_later tools are advisory until their gate"
         if status == "ok"
@@ -308,6 +405,29 @@ def emit_preflight() -> None:
                 "impact": impact,
                 "next": nxt,
                 "missing_details": missing_details,
+                "windows_longpaths": longpaths_note,
+                "git_safe_directory": "blocked" if git_safe_directory_blocked else "ok",
+                "advisories": (
+                    [
+                        {
+                            "key": "windows_longpaths_disabled",
+                            "message": "Enable git core.longpaths=true to reduce path-length failures on Windows toolchains.",
+                        }
+                    ]
+                    if longpaths_state is False
+                    else []
+                )
+                + (
+                    [
+                        {
+                            "key": "git_safe_directory_blocked",
+                            "message": "Git safe.directory policy is blocking repository access; add this repo to safe.directory and rerun.",
+                        }
+                    ]
+                    if git_safe_directory_blocked
+                    else []
+                ),
+                "binding_evidence": "ok" if BINDING_OK else "invalid",
             },
             ensure_ascii=True,
         )
@@ -320,8 +440,8 @@ def emit_permission_probes() -> None:
     observed = datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
     checks = []
 
-    commands_home = ROOT / "commands"
-    workspaces_home = ROOT / "workspaces"
+    commands_home = COMMANDS_RUNTIME_DIR
+    workspaces_home = WORKSPACES_HOME
     checks.append({
         "probe": "fs.read_commands_home",
         "available": commands_home.exists() and os.access(commands_home, os.R_OK),
@@ -433,6 +553,7 @@ def bootstrap_identity_if_needed() -> bool:
                     "required_operator_action": "restore diagnostics/bootstrap_session_state.py and rerun /start",
                     "feedback_required": "reply once helper is restored and /start rerun",
                     "next_command": "/start",
+                    "next_command_profiles": render_command_profiles(["/start"]),
                 }
             )
         )
@@ -453,6 +574,7 @@ def bootstrap_identity_if_needed() -> bool:
                     "required_operator_action": "install git or run bootstrap_session_state.py with explicit fingerprint, then rerun /start",
                     "feedback_required": "reply with the fingerprint used (if manual bootstrap) and helper result",
                     "next_command": bootstrap_command(inferred_fp),
+                    "next_command_profiles": render_command_profiles(bootstrap_command_argv(inferred_fp)),
                 }
             )
         )
@@ -485,6 +607,7 @@ def bootstrap_identity_if_needed() -> bool:
                     "required_operator_action": "run bootstrap_session_state.py with explicit repo fingerprint, then rerun /start",
                     "feedback_required": "reply with helper stderr and repo fingerprint",
                     "next_command": bootstrap_command(repo_fp),
+                    "next_command_profiles": render_command_profiles(bootstrap_command_argv(repo_fp)),
                 }
             )
         )
@@ -504,6 +627,22 @@ def bootstrap_identity_if_needed() -> bool:
 
 
 def run_persistence_hook() -> None:
+    if not BINDING_OK:
+        print(
+            json.dumps(
+                {
+                    "workspacePersistenceHook": "warn",
+                    "reason_code": "WARN-WORKSPACE-PERSISTENCE",
+                    "reason": "invalid-binding-evidence",
+                    "impact": "workspace persistence skipped until governance.paths.json is repaired",
+                    "recovery": "rerun installer to regenerate commands/governance.paths.json and rerun /start",
+                    "next_command": "/start",
+                    "next_command_profiles": render_command_profiles(["/start"]),
+                }
+            )
+        )
+        return
+
     if not PERSIST_HELPER.exists():
         log_error(
             "ERR-WORKSPACE-PERSISTENCE-HOOK-MISSING",
