@@ -128,3 +128,24 @@ def test_adapter_discovers_binding_from_canonical_home_config(monkeypatch: pytes
     adapter = LocalHostAdapter()
     caps = adapter.capabilities()
     assert caps.fs_read_commands_home is True
+
+
+@pytest.mark.governance
+def test_adapter_rejects_relative_binding_paths(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+    cfg = tmp_path / "cfg"
+    (cfg / "commands").mkdir(parents=True, exist_ok=True)
+    payload = {
+        "schema": "governance.paths.v1",
+        "paths": {
+            "configRoot": str(cfg),
+            "commandsHome": "./commands",
+            "workspacesHome": "./workspaces",
+        },
+    }
+    (cfg / "commands" / "governance.paths.json").write_text(json.dumps(payload), encoding="utf-8")
+
+    monkeypatch.setattr(adapters_module, "_default_config_root", lambda: cfg)
+    adapter = LocalHostAdapter()
+    caps = adapter.capabilities()
+    assert caps.fs_read_commands_home is False
+    assert caps.fs_write_workspaces_home is False

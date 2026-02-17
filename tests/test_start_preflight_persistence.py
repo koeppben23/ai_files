@@ -202,6 +202,29 @@ def test_preflight_discovers_binding_from_canonical_home_config(monkeypatch: pyt
 
 
 @pytest.mark.governance
+def test_preflight_rejects_relative_binding_paths(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+    cfg = tmp_path / ".config" / "opencode"
+    payload = {
+        "schema": "governance.paths.v1",
+        "paths": {
+            "configRoot": str(cfg),
+            "commandsHome": "./commands",
+            "workspacesHome": "./workspaces",
+            "pythonCommand": "python3",
+        },
+    }
+    (cfg / "commands").mkdir(parents=True, exist_ok=True)
+    (cfg / "commands" / "governance.paths.json").write_text(json.dumps(payload), encoding="utf-8")
+
+    monkeypatch.setattr(platform, "system", lambda: "Linux")
+    monkeypatch.setattr(Path, "home", staticmethod(lambda: tmp_path))
+    monkeypatch.chdir(tmp_path)
+
+    module = _load_module()
+    assert module.BINDING_OK is False
+
+
+@pytest.mark.governance
 def test_resolve_repo_root_discovers_parent_git_from_nested_cwd(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ):
@@ -414,3 +437,14 @@ def test_bootstrap_identity_uses_python_command_argv_for_subprocess(
 
     assert module.bootstrap_identity_if_needed() is True
     assert observed_cmd[:2] == ["py", "-3"]
+@pytest.mark.governance
+def test_command_available_accepts_py_launcher(monkeypatch: pytest.MonkeyPatch):
+    module = _load_module()
+
+    def fake_which(cmd: str):
+        if cmd == "py":
+            return "C:/Windows/py.exe"
+        return None
+
+    monkeypatch.setattr(module.shutil, "which", fake_which)
+    assert module._command_available("py -3") is True

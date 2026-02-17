@@ -52,6 +52,17 @@ def _allow_cwd_binding_discovery() -> bool:
     return str(os.getenv("OPENCODE_ALLOW_CWD_BINDINGS", "")).strip() == "1"
 
 
+def _normalize_absolute_path(raw: object) -> Path | None:
+    if not isinstance(raw, str) or not raw.strip():
+        return None
+    candidate = Path(raw).expanduser()
+    token = raw.strip()
+    if os.name == "nt" and re.match(r"^[A-Za-z]:[^/\\]", token):
+        return None
+    if not candidate.is_absolute():
+        return None
+    normalized = os.path.normpath(os.path.abspath(str(candidate)))
+    return Path(normalized)
 def _resolve_bound_paths(root: Path) -> tuple[Path, Path, bool, Path | None]:
     commands_home = root / "commands"
     workspaces_home = root / "workspaces"
@@ -87,19 +98,11 @@ def _resolve_bound_paths(root: Path) -> tuple[Path, Path, bool, Path | None]:
         return commands_home, workspaces_home, False, binding_file
     commands_raw = paths.get("commandsHome")
     workspaces_raw = paths.get("workspacesHome")
-    resolved_commands = (
-        Path(commands_raw).expanduser().resolve()
-        if isinstance(commands_raw, str) and commands_raw.strip()
-        else commands_home
-    )
-    resolved_workspaces = (
-        Path(workspaces_raw).expanduser().resolve()
-        if isinstance(workspaces_raw, str) and workspaces_raw.strip()
-        else workspaces_home
-    )
-    if not resolved_commands.is_absolute() or not resolved_workspaces.is_absolute():
+    normalized_commands = _normalize_absolute_path(commands_raw)
+    normalized_workspaces = _normalize_absolute_path(workspaces_raw)
+    if normalized_commands is None or normalized_workspaces is None:
         return commands_home, workspaces_home, False, binding_file
-    return resolved_commands, resolved_workspaces, True, binding_file
+    return normalized_commands, normalized_workspaces, True, binding_file
 
 
 ROOT = config_root()
@@ -151,7 +154,13 @@ def resolve_repo_context() -> tuple[Path, str]:
     for key, candidate in env_candidates:
         if not candidate:
             continue
-        path = Path(candidate).expanduser().resolve()
+        raw = str(candidate).strip()
+        path = Path(raw).expanduser()
+        if os.name == "nt" and re.match(r"^[A-Za-z]:[^/\\]", raw):
+            continue
+        if not path.is_absolute():
+            continue
+        path = Path(os.path.normpath(os.path.abspath(str(path))))
         if not path.exists():
             continue
         repo_root = _search_repo_root(path)
@@ -278,7 +287,7 @@ def _canonicalize_origin_remote(remote: str) -> str | None:
         return None
     path = path.casefold()
 
-    return f"{parsed.scheme.casefold()}://{host}{path}"
+    return f"repo://{host}{path}"
 
 
 def _normalize_path_for_fingerprint(path: Path) -> str:
@@ -290,8 +299,8 @@ def _normalize_path_for_fingerprint(path: Path) -> str:
 
 
 def derive_repo_fingerprint(repo_root: Path) -> str | None:
-    resolved_root = repo_root.expanduser().resolve()
-    git_dir = resolve_git_dir(resolved_root)
+    normalized_root = Path(os.path.normpath(os.path.abspath(str(repo_root.expanduser()))))
+    git_dir = resolve_git_dir(normalized_root)
     if not git_dir:
         return None
 
@@ -300,7 +309,7 @@ def derive_repo_fingerprint(repo_root: Path) -> str | None:
     if canonical_origin:
         material = f"repo:{canonical_origin}"
     else:
-        material = f"repo:local:{_normalize_path_for_fingerprint(resolved_root)}"
+        material = f"repo:local:{_normalize_path_for_fingerprint(normalized_root)}"
     return hashlib.sha256(material.encode("utf-8")).hexdigest()[:24]
 
 
@@ -445,7 +454,11 @@ def _command_available(command: str) -> bool:
     """Return command availability with canonical alias handling."""
 
     if command in {"python", "python3", "py", "py -3"}:
-        return shutil.which("python") is not None or shutil.which("python3") is not None
+        return (
+            shutil.which("python") is not None
+            or shutil.which("python3") is not None
+            or shutil.which("py") is not None
+        )
     parts = shlex.split(command, posix=(os.name != "nt"))
     if not parts:
         return False

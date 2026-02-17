@@ -11,6 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import os
 from pathlib import Path
+import re
 from typing import Mapping
 
 
@@ -35,6 +36,18 @@ def _is_git_root(path: Path) -> bool:
     """Return True when the candidate path exists and contains a .git entry."""
 
     return path.exists() and (path / ".git").exists()
+
+
+def _resolve_absolute_env_candidate(raw: str) -> Path | None:
+    token = raw.strip()
+    if not token:
+        return None
+    path = Path(token).expanduser()
+    if os.name == "nt" and re.match(r"^[A-Za-z]:[^/\\]", token):
+        return None
+    if not path.is_absolute():
+        return None
+    return Path(os.path.normpath(os.path.abspath(str(path))))
 
 
 def _search_parent_git_root(start: Path, *, max_parent_levels: int) -> Path | None:
@@ -81,7 +94,9 @@ def resolve_repo_root(
         candidate = env_view.get(key)
         if not candidate:
             continue
-        resolved = Path(candidate).expanduser().resolve()
+        resolved = _resolve_absolute_env_candidate(candidate)
+        if resolved is None:
+            continue
         if _is_git_root(resolved):
             return RepoRootResolutionResult(repo_root=resolved, source=f"env:{key}", is_git_root=True)
 

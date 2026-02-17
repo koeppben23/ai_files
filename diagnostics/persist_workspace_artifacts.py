@@ -32,20 +32,20 @@ from command_profiles import render_command_profiles
 
 
 def default_config_root() -> Path:
-    if os.name == "nt":
-        user_profile = os.environ.get("USERPROFILE")
-        if user_profile:
-            return Path(user_profile) / ".config" / "opencode"
+    return (Path.home().resolve() / ".config" / "opencode").resolve()
 
-        appdata = os.environ.get("APPDATA")
-        if appdata:
-            return Path(appdata) / "opencode"
 
-        return Path.home() / ".config" / "opencode"
-
-    xdg = os.environ.get("XDG_CONFIG_HOME")
-    base = Path(xdg) if xdg else (Path.home() / ".config")
-    return base / "opencode"
+def _normalize_absolute_path(raw: object) -> Path | None:
+    if not isinstance(raw, str) or not raw.strip():
+        return None
+    candidate = Path(raw).expanduser()
+    token = raw.strip()
+    if os.name == "nt" and re.match(r"^[A-Za-z]:[^/\\]", token):
+        return None
+    if not candidate.is_absolute():
+        return None
+    normalized = os.path.normpath(os.path.abspath(str(candidate)))
+    return Path(normalized)
 
 
 def _load_json(path: Path) -> dict[str, Any] | None:
@@ -69,7 +69,12 @@ def _load_binding_paths(paths_file: Path, *, expected_config_root: Path | None =
         raise ValueError(f"binding evidence invalid: paths.configRoot missing in {paths_file}")
     if not isinstance(workspaces_raw, str) or not workspaces_raw.strip():
         raise ValueError(f"binding evidence invalid: paths.workspacesHome missing in {paths_file}")
-    config_root = Path(config_root_raw).expanduser().resolve()
+    config_root = _normalize_absolute_path(config_root_raw)
+    _workspaces_home = _normalize_absolute_path(workspaces_raw)
+    if config_root is None:
+        raise ValueError(f"binding evidence invalid: paths.configRoot must be absolute in {paths_file}")
+    if _workspaces_home is None:
+        raise ValueError(f"binding evidence invalid: paths.workspacesHome must be absolute in {paths_file}")
     if expected_config_root is not None and config_root != expected_config_root.resolve():
         raise ValueError("binding evidence mismatch: config root does not match explicit input")
     return config_root, paths
@@ -224,7 +229,7 @@ def _canonicalize_origin_remote(remote: str) -> str | None:
         return None
     path = path.casefold()
 
-    return f"{parsed.scheme.casefold()}://{host}{path}"
+    return f"repo://{host}{path}"
 
 
 def _normalize_path_for_fingerprint(path: Path) -> str:
@@ -236,7 +241,7 @@ def _normalize_path_for_fingerprint(path: Path) -> str:
 
 
 def _derive_fingerprint_from_repo(repo_root: Path) -> tuple[str, str] | None:
-    root = repo_root.expanduser().resolve()
+    root = Path(os.path.normpath(os.path.abspath(str(repo_root.expanduser()))))
     git_dir = _resolve_git_dir(root)
     if not git_dir:
         return None
@@ -724,7 +729,7 @@ def main() -> int:
         return 2
 
     python_cmd = _resolve_python_command(binding_paths)
-    repo_root = args.repo_root.expanduser().resolve()
+    repo_root = Path(os.path.normpath(os.path.abspath(str(args.repo_root.expanduser()))))
 
     if (repo_root / ".git").exists() and _is_within(config_root, repo_root):
         cmd_profiles = render_command_profiles(

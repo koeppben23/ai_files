@@ -10,6 +10,7 @@ from dataclasses import dataclass, asdict
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import sys
 from typing import Literal, Mapping, Protocol
@@ -46,6 +47,19 @@ def _resolve_env_path(env: Mapping[str, str], key: str) -> Path | None:
     if not p.is_absolute():
         return None
     return p.resolve()
+
+
+def _normalize_absolute_path(raw: object) -> Path | None:
+    if not isinstance(raw, str) or not raw.strip():
+        return None
+    candidate = Path(raw).expanduser()
+    token = raw.strip()
+    if os.name == "nt" and re.match(r"^[A-Za-z]:[^/\\]", token):
+        return None
+    if not candidate.is_absolute():
+        return None
+    normalized = os.path.normpath(os.path.abspath(str(candidate)))
+    return Path(normalized)
 
 
 def _candidate_config_roots(env: Mapping[str, str]) -> list[Path]:
@@ -114,19 +128,11 @@ def _resolve_bound_paths(config_root: Path, env: Mapping[str, str]) -> tuple[Pat
 
     commands_raw = paths.get("commandsHome")
     workspaces_raw = paths.get("workspacesHome")
-    resolved_commands = (
-        Path(commands_raw).expanduser().resolve()
-        if isinstance(commands_raw, str) and commands_raw.strip()
-        else commands_home
-    )
-    resolved_workspaces = (
-        Path(workspaces_raw).expanduser().resolve()
-        if isinstance(workspaces_raw, str) and workspaces_raw.strip()
-        else workspaces_home
-    )
-    if not resolved_commands.is_absolute() or not resolved_workspaces.is_absolute():
+    normalized_commands = _normalize_absolute_path(commands_raw)
+    normalized_workspaces = _normalize_absolute_path(workspaces_raw)
+    if normalized_commands is None or normalized_workspaces is None:
         return commands_home, workspaces_home, False
-    return resolved_commands, resolved_workspaces, True
+    return normalized_commands, normalized_workspaces, True
 
 
 def _path_writable(path: Path) -> bool:
