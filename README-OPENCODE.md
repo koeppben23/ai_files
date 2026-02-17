@@ -27,6 +27,12 @@ Canonical OpenCode bootstrap uses installer-owned binding evidence:
 
 If binding evidence is unavailable or unresolved, bootstrap must fail closed (for example with binding/path reason codes).
 
+## OpenCode Support Matrix
+
+- Supported host OS: macOS, Linux, Windows (canonical path model in `master.md`, layout examples in `docs/install-layout.md`).
+- Required tools for standard operation: `python3` (installer/helpers), `git` (identity-gated workflows).
+- Supported command lifecycle: `/start`, `/continue`, `/resume`, `/audit`.
+
 ## Session State and Persistence
 
 Runtime persistence is repo-scoped under `${WORKSPACES_HOME}/<repo_fingerprint>/...` with a global active pointer at `${SESSION_STATE_POINTER_FILE}`.
@@ -40,6 +46,15 @@ python scripts/migrate_session_state.py --workspace <repo_fingerprint>
 ```
 
 Use `--dry-run` when validating changes before writing.
+
+## 60-Second OpenCode Verification
+
+```bash
+python3 install.py --status
+python3 diagnostics/bootstrap_session_state.py --repo-fingerprint <repo_fingerprint> --dry-run
+```
+
+Then run `/start` in OpenCode and confirm bootstrap succeeds without binding/identity blockers.
 
 ## Profiles and Addons
 
@@ -62,6 +77,18 @@ Conformance reference for generated artifacts:
 - Claim verification remains fail-closed: missing evidence and stale evidence are surfaced as `NOT_VERIFIED` reason codes.
 - Mode-aware repo-doc constraints and prompt budgets are documented in `docs/mode-aware-repo-rules.md`.
 - Runtime engine and render implementation live in `governance/engine/` and `governance/render/`.
+
+## OpenCode Troubleshooting
+
+- `BLOCKED-MISSING-BINDING-FILE`: rerun `python3 install.py`, then verify with `python3 install.py --status`.
+- `BLOCKED-VARIABLE-RESOLUTION`: validate config-root/path binding resolution (`docs/install-layout.md`).
+- `BLOCKED-REPO-IDENTITY-RESOLUTION`: ensure current directory is a git repo and `git` is available in `PATH`.
+- `NOT_VERIFIED-MISSING-EVIDENCE` or `NOT_VERIFIED-EVIDENCE-STALE`: refresh/provide evidence and rerun.
+
+## Version and Compatibility
+
+- Runtime contract version is defined by the `Governance-Version` header in `master.md`.
+- OpenCode behavior described here is subordinate to `master.md`, `rules.md`, and active profile/addon rulebooks.
 
 ## Related Docs
 

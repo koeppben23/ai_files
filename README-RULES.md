@@ -26,6 +26,11 @@ Profiles and addons must not weaken core fail-closed obligations.
 - Session-state rollout is in engine-first posture with canonical schema enforcement.
 - Mode-aware repo-doc constraints, precedence events, and prompt budgets are active and documented in `docs/mode-aware-repo-rules.md`.
 
+## Compatibility and Versioning
+
+- The authoritative runtime contract version is the `Governance-Version` in `master.md`.
+- `README-RULES.md` is descriptive only and must remain aligned to the current `master.md`/`rules.md` baseline.
+
 ## Rulebook Selection and Discovery
 
 - Explicit profile selection is preferred.
@@ -40,6 +45,12 @@ See `rules.md` for binding profile selection and ambiguity handling details.
 - Conflict handling model: `CONFLICT_RESOLUTION.md`
 - Quality index and cross-references: `QUALITY_INDEX.md`
 - Phases map: `docs/phases.md`
+
+## Troubleshooting Pointers
+
+- Installation/binding issues: `README.md` and `docs/install-layout.md`
+- OpenCode runtime/bootstrap issues: `README-OPENCODE.md`
+- Security and scanner gate issues: `docs/security-gates.md`
 
 ## License
 
