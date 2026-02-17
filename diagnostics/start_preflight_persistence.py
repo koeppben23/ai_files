@@ -36,19 +36,21 @@ def config_root() -> Path:
     return (Path(xdg) if xdg else Path.home() / ".config") / "opencode"
 
 
-def _resolve_bound_paths(root: Path) -> tuple[Path, Path]:
+def _resolve_bound_paths(root: Path) -> tuple[Path, Path, bool]:
     commands_home = root / "commands"
     workspaces_home = root / "workspaces"
     binding_file = commands_home / "governance.paths.json"
     if not binding_file.exists():
-        return commands_home, workspaces_home
+        return commands_home, workspaces_home, True
     try:
         payload = json.loads(binding_file.read_text(encoding="utf-8"))
     except Exception:
-        return commands_home, workspaces_home
+        return commands_home, workspaces_home, False
+    if not isinstance(payload, dict):
+        return commands_home, workspaces_home, False
     paths = payload.get("paths")
     if not isinstance(paths, dict):
-        return commands_home, workspaces_home
+        return commands_home, workspaces_home, False
     commands_raw = paths.get("commandsHome")
     workspaces_raw = paths.get("workspacesHome")
     resolved_commands = (
@@ -61,11 +63,13 @@ def _resolve_bound_paths(root: Path) -> tuple[Path, Path]:
         if isinstance(workspaces_raw, str) and workspaces_raw.strip()
         else workspaces_home
     )
-    return resolved_commands, resolved_workspaces
+    if not resolved_commands.is_absolute() or not resolved_workspaces.is_absolute():
+        return commands_home, workspaces_home, False
+    return resolved_commands, resolved_workspaces, True
 
 
 ROOT = config_root()
-COMMANDS_RUNTIME_DIR, WORKSPACES_HOME = _resolve_bound_paths(ROOT)
+COMMANDS_RUNTIME_DIR, WORKSPACES_HOME, BINDING_OK = _resolve_bound_paths(ROOT)
 DIAGNOSTICS_DIR = COMMANDS_RUNTIME_DIR / "diagnostics"
 PERSIST_HELPER = DIAGNOSTICS_DIR / "persist_workspace_artifacts.py"
 BOOTSTRAP_HELPER = DIAGNOSTICS_DIR / "bootstrap_session_state.py"
@@ -226,7 +230,7 @@ PYTHON_COMMAND = resolve_python_command()
 
 
 def bootstrap_command(repo_fp: str | None) -> str:
-    return str(render_command_profiles(bootstrap_command_argv(repo_fp))["bash"])
+    return _preferred_shell_command(render_command_profiles(bootstrap_command_argv(repo_fp)))
 
 
 def bootstrap_command_argv(repo_fp: str | None) -> list[str]:
@@ -236,7 +240,7 @@ def bootstrap_command_argv(repo_fp: str | None) -> list[str]:
 
 
 def persist_command(repo_root: Path) -> str:
-    return str(render_command_profiles(persist_command_argv(repo_root))["bash"])
+    return _preferred_shell_command(render_command_profiles(persist_command_argv(repo_root)))
 
 
 def persist_command_argv(repo_root: Path) -> list[str]:
@@ -248,10 +252,16 @@ def _command_available(command: str) -> bool:
 
     if command in {"python", "python3", "py", "py -3"}:
         return shutil.which("python") is not None or shutil.which("python3") is not None
-    parts = shlex.split(command)
+    parts = shlex.split(command, posix=(os.name != "nt"))
     if not parts:
         return False
     return shutil.which(parts[0]) is not None
+
+
+def _preferred_shell_command(profiles: dict[str, object]) -> str:
+    if os.name == "nt":
+        return str(profiles.get("powershell") or profiles.get("cmd") or profiles.get("bash") or "")
+    return str(profiles.get("bash") or profiles.get("json") or "")
 
 
 def _expand_command_placeholders(command: str) -> str:
@@ -368,6 +378,9 @@ def emit_preflight() -> None:
 
     status = "ok" if not missing else "degraded"
     block_now = bool(missing)
+    if not BINDING_OK:
+        status = "degraded"
+        block_now = True
     impact = (
         "required_now commands satisfied; required_later tools are advisory until their gate"
         if status == "ok"
@@ -414,6 +427,7 @@ def emit_preflight() -> None:
                     if git_safe_directory_blocked
                     else []
                 ),
+                "binding_evidence": "ok" if BINDING_OK else "invalid",
             },
             ensure_ascii=True,
         )
@@ -613,6 +627,22 @@ def bootstrap_identity_if_needed() -> bool:
 
 
 def run_persistence_hook() -> None:
+    if not BINDING_OK:
+        print(
+            json.dumps(
+                {
+                    "workspacePersistenceHook": "warn",
+                    "reason_code": "WARN-WORKSPACE-PERSISTENCE",
+                    "reason": "invalid-binding-evidence",
+                    "impact": "workspace persistence skipped until governance.paths.json is repaired",
+                    "recovery": "rerun installer to regenerate commands/governance.paths.json and rerun /start",
+                    "next_command": "/start",
+                    "next_command_profiles": render_command_profiles(["/start"]),
+                }
+            )
+        )
+        return
+
     if not PERSIST_HELPER.exists():
         log_error(
             "ERR-WORKSPACE-PERSISTENCE-HOOK-MISSING",
