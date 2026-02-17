@@ -3,12 +3,24 @@
 This file describes OpenCode runtime usage and operational recovery.
 It is non-normative. If anything here conflicts with `master.md` or `rules.md`, follow `master.md` and `rules.md`.
 
-## Authority and Scope
+## Source of Truth
 
 - System phases, gates, path variables, and fail-closed behavior: `master.md`
 - Technical and quality constraints: `rules.md`
 - Session-state schema and invariants: `SESSION_STATE_SCHEMA.md`
 - Frontend mirror for Codex-like surfaces: `AGENTS.md` (non-normative)
+
+## Quick Links
+
+- Root product overview: `README.md`
+- Core runtime contract: `master.md`
+- Core technical constraints: `rules.md`
+- Rules structure map: `README-RULES.md`
+- Install layout/path model: `docs/install-layout.md`
+
+## Audience
+
+For operators and developers running governed sessions in OpenCode who need reliable bootstrap, persistence, and recovery behavior.
 
 ## OpenCode Lifecycle
 
@@ -27,7 +39,7 @@ Canonical OpenCode bootstrap uses installer-owned binding evidence:
 
 If binding evidence is unavailable or unresolved, bootstrap must fail closed (for example with binding/path reason codes).
 
-## OpenCode Support Matrix
+## Support Matrix
 
 - Supported host OS: macOS, Linux, Windows (canonical path model in `master.md`, layout examples in `docs/install-layout.md`).
 - Required tools for standard operation: `python3` (installer/helpers), `git` (identity-gated workflows).
@@ -78,7 +90,7 @@ Conformance reference for generated artifacts:
 - Mode-aware repo-doc constraints and prompt budgets are documented in `docs/mode-aware-repo-rules.md`.
 - Runtime engine and render implementation live in `governance/engine/` and `governance/render/`.
 
-## OpenCode Troubleshooting
+## Troubleshooting
 
 - `BLOCKED-MISSING-BINDING-FILE`: rerun `python3 install.py`, then verify with `python3 install.py --status`.
 - `BLOCKED-VARIABLE-RESOLUTION`: validate config-root/path binding resolution (`docs/install-layout.md`).

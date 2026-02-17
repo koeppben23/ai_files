@@ -3,6 +3,18 @@
 This document is a non-normative map of the governance rule structure.
 It does not define independent behavior. On conflict, follow `master.md`, then `rules.md`, then active profile/addon rulebooks.
 
+## Quick Links
+
+- Root product overview: `README.md`
+- OpenCode operations: `README-OPENCODE.md`
+- Core governance contract: `master.md`
+- Core technical rulebook: `rules.md`
+- Session-state schema: `SESSION_STATE_SCHEMA.md`
+
+## Audience
+
+For reviewers and maintainers who need a compact map of rule authority, layering, and where to apply the binding contracts.
+
 ## Source of Truth
 
 - Workflow phases, gates, path variables, precedence, and fail-closed runtime semantics: `master.md`
@@ -26,7 +38,7 @@ Profiles and addons must not weaken core fail-closed obligations.
 - Session-state rollout is in engine-first posture with canonical schema enforcement.
 - Mode-aware repo-doc constraints, precedence events, and prompt budgets are active and documented in `docs/mode-aware-repo-rules.md`.
 
-## Compatibility and Versioning
+## Version and Compatibility
 
 - The authoritative runtime contract version is the `Governance-Version` in `master.md`.
 - `README-RULES.md` is descriptive only and must remain aligned to the current `master.md`/`rules.md` baseline.

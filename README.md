@@ -10,13 +10,17 @@ Normative precedence:
 
 Definition: in this repository, "normative" means `master.md`, `rules.md`, and active profile/addon rulebooks; "non-normative surfaces" means `README*` files and `AGENTS.md`.
 
-## Start Here
+## Quick Links
 
 - OpenCode bootstrap entrypoint: `start.md`
 - OpenCode operational guide: `README-OPENCODE.md`
 - Rules structure overview: `README-RULES.md`
 - Stability/release contract: `STABILITY_SLA.md`
 - Canonical session-state schema: `SESSION_STATE_SCHEMA.md`
+
+## Audience
+
+For engineering teams that need deterministic, auditable AI-assisted delivery in review-heavy or regulated environments.
 
 ## What This Repository Provides
 
@@ -84,7 +88,7 @@ Canonical variables and resolution are defined in `master.md`.
 
 See `docs/install-layout.md` for full layout details.
 
-## Documentation Map
+## Related Docs
 
 - Lifecycle and gates: `docs/phases.md`
 - Install layout and path model: `docs/install-layout.md`
