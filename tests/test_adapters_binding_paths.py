@@ -66,3 +66,22 @@ def test_adapter_fails_closed_when_binding_file_is_invalid(monkeypatch: pytest.M
     assert caps.fs_read_commands_home is False
     assert caps.fs_write_commands_home is False
     assert caps.fs_write_workspaces_home is False
+
+
+@pytest.mark.governance
+def test_adapter_discovers_binding_from_cwd_ancestor(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+    cfg = tmp_path / "cfg"
+    commands_home = cfg / "commands"
+    workspaces_home = cfg / "workspaces"
+    commands_home.mkdir(parents=True, exist_ok=True)
+    workspaces_home.mkdir(parents=True, exist_ok=True)
+    _write_binding(cfg, commands_home=commands_home, workspaces_home=workspaces_home)
+
+    repo = tmp_path / "repo" / "nested"
+    repo.mkdir(parents=True, exist_ok=True)
+    monkeypatch.chdir(repo)
+    monkeypatch.delenv("OPENCODE_CONFIG_ROOT", raising=False)
+
+    adapter = LocalHostAdapter()
+    caps = adapter.capabilities()
+    assert caps.fs_read_commands_home is True

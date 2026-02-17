@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+from pathlib import Path
 
 import pytest
 
@@ -120,3 +121,26 @@ def test_emit_preflight_blocks_on_invalid_binding_evidence(
     payload = json.loads(capsys.readouterr().out.strip())
     assert payload["binding_evidence"] == "invalid"
     assert payload["block_now"] is True
+
+
+@pytest.mark.governance
+def test_preflight_discovers_binding_from_cwd_ancestor(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+    cfg = tmp_path / "commands"
+    cfg.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "schema": "governance.paths.v1",
+        "paths": {
+            "configRoot": str(tmp_path),
+            "commandsHome": str(tmp_path / "commands"),
+            "workspacesHome": str(tmp_path / "workspaces"),
+            "pythonCommand": "python3",
+        },
+    }
+    (tmp_path / "commands" / "governance.paths.json").write_text(json.dumps(payload), encoding="utf-8")
+
+    nested = tmp_path / "repo" / "a" / "b"
+    nested.mkdir(parents=True, exist_ok=True)
+    monkeypatch.chdir(nested)
+
+    module = _load_module()
+    assert module.BINDING_OK is True
