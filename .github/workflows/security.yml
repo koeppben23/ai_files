@@ -320,20 +320,26 @@ jobs:
         uses: github/codeql-action/init@b5ebac6f4c00c8ccddb7cdcd45fdb248329f808a # v3
         continue-on-error: true
         with:
-          languages: python
+          languages: python,java-kotlin
+
+      - name: Autobuild for CodeQL
+        id: autobuild
+        uses: github/codeql-action/autobuild@b5ebac6f4c00c8ccddb7cdcd45fdb248329f808a # v3
+        continue-on-error: true
 
       - name: Analyze with CodeQL
         id: analyze
         uses: github/codeql-action/analyze@b5ebac6f4c00c8ccddb7cdcd45fdb248329f808a # v3
         continue-on-error: true
         with:
+          upload: false
           output: diagnostics/security-evidence/codeql
-          category: /language:python
 
       - name: Build CodeQL summary evidence
         if: always()
         env:
           INIT_OUTCOME: ${{ steps.init.outcome }}
+          AUTOBUILD_OUTCOME: ${{ steps.autobuild.outcome }}
           ANALYZE_OUTCOME: ${{ steps.analyze.outcome }}
         run: |
           set -euo pipefail
@@ -398,6 +404,8 @@ jobs:
           if os.environ.get("INIT_OUTCOME") != "success":
               status = "failure"
               notes.append(f"codeql init outcome={os.environ.get('INIT_OUTCOME')}")
+          if os.environ.get("AUTOBUILD_OUTCOME") != "success":
+              notes.append(f"codeql autobuild outcome={os.environ.get('AUTOBUILD_OUTCOME')}")
           if os.environ.get("ANALYZE_OUTCOME") != "success":
               status = "failure"
               notes.append(f"codeql analyze outcome={os.environ.get('ANALYZE_OUTCOME')}")
