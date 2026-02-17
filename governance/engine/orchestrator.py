@@ -12,6 +12,7 @@ from typing import Mapping
 from governance.context.repo_context_resolver import RepoRootResolutionResult, resolve_repo_root
 from governance.engine.adapters import HostAdapter, HostCapabilities, OperatingMode
 from governance.engine.reason_codes import (
+    BLOCKED_ENGINE_SELFCHECK,
     BLOCKED_ACTIVATION_HASH_MISMATCH,
     BLOCKED_EXEC_DISALLOWED,
     BLOCKED_OPERATING_MODE_REQUIRED,
@@ -714,63 +715,82 @@ def run_engine_orchestrator(
                 "refs": latest.get("refs", {}),
             }
 
-    if parity["status"] == "blocked":
-        reason_payload = build_reason_payload(
-            status="BLOCKED",
-            reason_code=parity["reason_code"],
-            surface=target_path,
-            signals_used=("write_policy", "mode_policy", "capabilities", "hash_gate"),
-            primary_action="Resolve the active blocker for this gate.",
-            recovery_steps=("Collect required evidence and rerun deterministic checks.",),
-            next_command=parity["next_action.command"],
-            impact="Workflow is blocked until the issue is fixed.",
-            deviation=hash_diff,
-            context=reason_context,
-        ).to_dict()
-    elif parity["status"] == "not_verified":
-        not_verified_missing = stale_required_evidence if stale_required_evidence else missing_evidence
-        if not not_verified_missing and parity["reason_code"] == REPO_CONSTRAINT_UNSUPPORTED:
-            not_verified_missing = (repo_constraint_topic or "repo_constraint_unsupported",)
-        not_verified_signals = ("evidence_freshness",) if stale_required_evidence else ("evidence_requirements",)
-        not_verified_primary_action = (
-            "Refresh stale evidence and rerun."
-            if stale_required_evidence
-            else "Provide missing evidence and rerun."
-        )
-        reason_payload = build_reason_payload(
-            status="NOT_VERIFIED",
-            reason_code=parity["reason_code"],
-            surface=target_path,
-            signals_used=not_verified_signals,
-            primary_action=not_verified_primary_action,
-            recovery_steps=("Gather host evidence for all required claims.",),
-            next_command="show diagnostics",
-            impact="Claims are not evidence-backed yet.",
-            missing_evidence=not_verified_missing,
-            context=reason_context,
-        ).to_dict()
-    elif parity["reason_code"].startswith("WARN-") or parity["reason_code"] == REPO_CONSTRAINT_WIDENING:
-        reason_payload = build_reason_payload(
-            status="WARN",
-            reason_code=parity["reason_code"],
-            surface=target_path,
-            signals_used=("degraded_execution",),
-            impact="Execution continues with degraded capabilities.",
-            recovery_steps=("Review warning impact and continue or remediate.",),
-            next_command="none",
-            deviation=runtime.deviation.__dict__ if runtime.deviation is not None else {},
-            context=reason_context,
-        ).to_dict()
-    else:
-        reason_payload = build_reason_payload(
-            status="OK",
-            reason_code=REASON_CODE_NONE,
-            surface=target_path,
-            impact="all checks passed",
-            next_command="none",
-            recovery_steps=(),
-            context=reason_context,
-        ).to_dict()
+    try:
+        if parity["status"] == "blocked":
+            reason_payload = build_reason_payload(
+                status="BLOCKED",
+                reason_code=parity["reason_code"],
+                surface=target_path,
+                signals_used=("write_policy", "mode_policy", "capabilities", "hash_gate"),
+                primary_action="Resolve the active blocker for this gate.",
+                recovery_steps=("Collect required evidence and rerun deterministic checks.",),
+                next_command=parity["next_action.command"],
+                impact="Workflow is blocked until the issue is fixed.",
+                deviation=hash_diff,
+                context=reason_context,
+            ).to_dict()
+        elif parity["status"] == "not_verified":
+            not_verified_missing = stale_required_evidence if stale_required_evidence else missing_evidence
+            if not not_verified_missing and parity["reason_code"] == REPO_CONSTRAINT_UNSUPPORTED:
+                not_verified_missing = (repo_constraint_topic or "repo_constraint_unsupported",)
+            not_verified_signals = ("evidence_freshness",) if stale_required_evidence else ("evidence_requirements",)
+            not_verified_primary_action = (
+                "Refresh stale evidence and rerun."
+                if stale_required_evidence
+                else "Provide missing evidence and rerun."
+            )
+            reason_payload = build_reason_payload(
+                status="NOT_VERIFIED",
+                reason_code=parity["reason_code"],
+                surface=target_path,
+                signals_used=not_verified_signals,
+                primary_action=not_verified_primary_action,
+                recovery_steps=("Gather host evidence for all required claims.",),
+                next_command="show diagnostics",
+                impact="Claims are not evidence-backed yet.",
+                missing_evidence=not_verified_missing,
+                context=reason_context,
+            ).to_dict()
+        elif parity["reason_code"].startswith("WARN-") or parity["reason_code"] == REPO_CONSTRAINT_WIDENING:
+            reason_payload = build_reason_payload(
+                status="WARN",
+                reason_code=parity["reason_code"],
+                surface=target_path,
+                signals_used=("degraded_execution",),
+                impact="Execution continues with degraded capabilities.",
+                recovery_steps=("Review warning impact and continue or remediate.",),
+                next_command="none",
+                deviation=runtime.deviation.__dict__ if runtime.deviation is not None else {},
+                context=reason_context,
+            ).to_dict()
+        else:
+            reason_payload = build_reason_payload(
+                status="OK",
+                reason_code=REASON_CODE_NONE,
+                surface=target_path,
+                impact="all checks passed",
+                next_command="none",
+                recovery_steps=(),
+                context=reason_context,
+            ).to_dict()
+    except Exception as exc:
+        reason_payload = {
+            "status": "BLOCKED",
+            "reason_code": BLOCKED_ENGINE_SELFCHECK,
+            "surface": target_path,
+            "signals_used": ("reason_payload_builder",),
+            "primary_action": "Fix reason-payload schema/registry and rerun.",
+            "recovery_steps": ("Run diagnostics/schema_selfcheck.py and restore schema integrity.",),
+            "next_command": "show diagnostics",
+            "impact": "Engine blocked to preserve deterministic governance contracts.",
+            "missing_evidence": (),
+            "deviation": {"reason_payload_error": str(exc)},
+            "expiry": "none",
+            "context": {
+                "builder_failure": type(exc).__name__,
+                "previous_reason_code": parity["reason_code"],
+            },
+        }
 
     return EngineOrchestratorOutput(
         repo_context=repo_context,

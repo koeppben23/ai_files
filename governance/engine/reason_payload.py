@@ -7,6 +7,8 @@ import json
 from pathlib import Path
 from typing import Literal
 
+from governance.engine._embedded_reason_registry import EMBEDDED_REASON_CODE_TO_SCHEMA_REF
+from governance.engine._embedded_reason_schemas import EMBEDDED_REASON_SCHEMAS
 from governance.engine.reason_codes import REASON_CODE_NONE
 
 ReasonStatus = Literal["BLOCKED", "WARN", "OK", "NOT_VERIFIED"]
@@ -125,7 +127,21 @@ def _load_reason_schema_refs() -> dict[str, str]:
     return refs
 
 
+def _resolve_schema_ref_for_reason(reason_code: str) -> str | None:
+    normalized = reason_code.strip()
+    if not normalized:
+        return None
+    embedded_ref = EMBEDDED_REASON_CODE_TO_SCHEMA_REF.get(normalized)
+    if embedded_ref:
+        return embedded_ref
+    return None
+
+
 def _load_schema(schema_ref: str) -> dict[str, object]:
+    embedded_schema = EMBEDDED_REASON_SCHEMAS.get(schema_ref)
+    if embedded_schema is not None:
+        return embedded_schema
+
     cached = _SCHEMA_CACHE.get(schema_ref)
     if cached is not None:
         return cached
@@ -202,8 +218,7 @@ def _validate_against_schema(*, schema: dict[str, object], value: object, path: 
 def validate_reason_context_schema(reason_code: str, context: dict[str, object]) -> tuple[str, ...]:
     """Validate reason context against registered payload schema when available."""
 
-    schema_refs = _load_reason_schema_refs()
-    schema_ref = schema_refs.get(reason_code.strip())
+    schema_ref = _resolve_schema_ref_for_reason(reason_code)
     if not schema_ref:
         return ()
 

@@ -8,7 +8,11 @@ import pytest
 
 from governance.engine.adapters import HostCapabilities, OperatingMode
 from governance.engine.orchestrator import run_engine_orchestrator
-from governance.engine.reason_codes import NOT_VERIFIED_EVIDENCE_STALE, REASON_CODE_NONE
+from governance.engine.reason_codes import (
+    BLOCKED_ENGINE_SELFCHECK,
+    NOT_VERIFIED_EVIDENCE_STALE,
+    REASON_CODE_NONE,
+)
 
 
 @dataclass(frozen=True)
@@ -894,3 +898,43 @@ def test_orchestrator_emits_valid_blocked_reason_payload_shape(tmp_path: Path):
     assert isinstance(payload["primary_action"], str) and payload["primary_action"].strip()
     assert isinstance(payload["recovery_steps"], tuple) and len(payload["recovery_steps"]) == 1
     assert isinstance(payload["next_command"], str) and payload["next_command"].strip()
+
+
+@pytest.mark.governance
+def test_orchestrator_falls_back_to_engine_selfcheck_when_payload_builder_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    repo_root = _make_git_root(tmp_path / "repo")
+    adapter = StubAdapter(
+        env={"OPENCODE_REPO_ROOT": str(repo_root)},
+        cwd_path=repo_root,
+        caps=HostCapabilities(
+            cwd_trust="trusted",
+            fs_read_commands_home=True,
+            fs_write_config_root=True,
+            fs_write_commands_home=True,
+            fs_write_workspaces_home=True,
+            fs_write_repo_root=True,
+            exec_allowed=True,
+            git_available=True,
+        ),
+    )
+
+    def _raise(*args: object, **kwargs: object):
+        raise ValueError("schema boom")
+
+    monkeypatch.setattr("governance.engine.orchestrator.build_reason_payload", _raise)
+
+    out = run_engine_orchestrator(
+        adapter=adapter,
+        phase="1.1-Bootstrap",
+        active_gate="Persistence Preflight",
+        mode="OK",
+        next_gate_condition="Persistence helper execution completed",
+    )
+
+    payload = out.reason_payload
+    assert payload["status"] == "BLOCKED"
+    assert payload["reason_code"] == BLOCKED_ENGINE_SELFCHECK
+    assert payload["next_command"] == "show diagnostics"

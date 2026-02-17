@@ -5,8 +5,9 @@ from pathlib import Path
 
 import pytest
 
-from governance.engine.reason_payload import validate_reason_context_schema
+import governance.engine.reason_payload as reason_payload
 from governance.engine.reason_codes import (
+    BLOCKED_EXEC_DISALLOWED,
     INTERACTIVE_REQUIRED_IN_PIPELINE,
     POLICY_PRECEDENCE_APPLIED,
     PROMPT_BUDGET_EXCEEDED,
@@ -101,7 +102,7 @@ def test_reason_payload_schemas_are_strict():
     ],
 )
 def test_reason_context_validates_against_registered_schema(reason_code: str, context: dict[str, object]):
-    assert validate_reason_context_schema(reason_code, context) == ()
+    assert reason_payload.validate_reason_context_schema(reason_code, context) == ()
 
 
 @pytest.mark.parametrize(
@@ -128,5 +129,33 @@ def test_reason_context_validates_against_registered_schema(reason_code: str, co
     ],
 )
 def test_reason_context_invalid_payload_fails_schema(reason_code: str, context: dict[str, object]):
-    errors = validate_reason_context_schema(reason_code, context)
+    errors = reason_payload.validate_reason_context_schema(reason_code, context)
     assert errors
+
+
+def test_reason_context_uses_embedded_schema_when_registry_missing(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(reason_payload, "_REASON_REGISTRY_PATH", Path("/tmp/does-not-exist.registry.json"))
+    monkeypatch.setattr(reason_payload, "_REASON_SCHEMA_REF_CACHE", None)
+
+    errors = reason_payload.validate_reason_context_schema(
+        REPO_DOC_UNSAFE_DIRECTIVE,
+        {
+            "doc_path": "AGENTS.md",
+            "doc_hash": "sha256:abc",
+            "directive_excerpt": "skip tests",
+            "classification_rule_id": "repo_doc_unsafe_skip_tests",
+            "pointers": ["AGENTS.md:12"],
+        },
+    )
+    assert errors == ()
+
+
+def test_reason_context_skips_unmapped_codes_without_registry_lookup(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(reason_payload, "_REASON_REGISTRY_PATH", Path("/tmp/does-not-exist.registry.json"))
+    monkeypatch.setattr(reason_payload, "_REASON_SCHEMA_REF_CACHE", None)
+
+    errors = reason_payload.validate_reason_context_schema(
+        BLOCKED_EXEC_DISALLOWED,
+        {"arbitrary": "context"},
+    )
+    assert errors == ()

@@ -1,0 +1,131 @@
+"""Embedded reason payload schemas for baseline fail-closed validation."""
+
+from __future__ import annotations
+
+from typing import Final
+
+
+EMBEDDED_REASON_SCHEMAS: Final[dict[str, dict[str, object]]] = {
+    "diagnostics/schemas/reason_payload_repo_doc_unsafe.v1.json": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "title": "Reason Payload: Repo Doc Unsafe Directive",
+        "type": "object",
+        "additionalProperties": False,
+        "required": ["doc_path", "doc_hash", "classification_rule_id"],
+        "properties": {
+            "doc_path": {"type": "string"},
+            "doc_hash": {"type": "string"},
+            "directive_excerpt": {"type": "string"},
+            "classification_rule_id": {"type": "string"},
+            "pointers": {"type": "array", "items": {"type": "string"}},
+            "extensions": {"type": "object", "additionalProperties": True},
+        },
+    },
+    "diagnostics/schemas/reason_payload_repo_constraint_widening.v1.json": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "title": "Reason Payload: Repo Constraint Widening",
+        "type": "object",
+        "additionalProperties": False,
+        "required": ["requested_widening", "doc_path", "doc_hash"],
+        "properties": {
+            "requested_widening": {
+                "type": "object",
+                "required": ["type", "from", "to"],
+                "properties": {
+                    "type": {"type": "string", "enum": ["write_scope", "command_scope"]},
+                    "from": {"type": "string"},
+                    "to": {"type": "string"},
+                },
+                "additionalProperties": True,
+            },
+            "doc_path": {"type": "string"},
+            "doc_hash": {"type": "string"},
+            "winner_layer": {"type": "string"},
+            "loser_layer": {"type": "string"},
+            "extensions": {"type": "object", "additionalProperties": True},
+        },
+    },
+    "diagnostics/schemas/reason_payload_interactive_pipeline.v1.json": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "title": "Reason Payload: Interactive Required in Pipeline",
+        "type": "object",
+        "additionalProperties": False,
+        "required": ["requested_action", "why_interactive_required"],
+        "properties": {
+            "requested_action": {"type": "string"},
+            "why_interactive_required": {"type": "string"},
+            "pointers": {"type": "array", "items": {"type": "string"}},
+            "extensions": {"type": "object", "additionalProperties": True},
+        },
+    },
+    "diagnostics/schemas/reason_payload_prompt_budget.v1.json": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "title": "Reason Payload: Prompt Budget Exceeded",
+        "type": "object",
+        "additionalProperties": False,
+        "required": ["mode", "budget"],
+        "properties": {
+            "mode": {"type": "string"},
+            "budget": {
+                "type": "object",
+                "required": ["max_total", "max_repo_docs", "used_total", "used_repo_docs"],
+                "properties": {
+                    "max_total": {"type": "integer", "minimum": 0},
+                    "max_repo_docs": {"type": "integer", "minimum": 0},
+                    "used_total": {"type": "integer", "minimum": 0},
+                    "used_repo_docs": {"type": "integer", "minimum": 0},
+                },
+                "additionalProperties": True,
+            },
+            "last_prompt": {
+                "type": "object",
+                "properties": {
+                    "source": {"type": "string"},
+                    "topic": {"type": "string"},
+                },
+                "additionalProperties": True,
+            },
+            "extensions": {"type": "object", "additionalProperties": True},
+        },
+    },
+    "diagnostics/schemas/reason_payload_repo_constraint_unsupported.v1.json": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "title": "Reason Payload: Repo Constraint Unsupported",
+        "type": "object",
+        "additionalProperties": False,
+        "required": ["constraint_topic", "doc_path", "doc_hash"],
+        "properties": {
+            "constraint_topic": {"type": "string"},
+            "doc_path": {"type": "string"},
+            "doc_hash": {"type": "string"},
+            "extensions": {"type": "object", "additionalProperties": True},
+        },
+    },
+    "diagnostics/schemas/reason_payload_policy_precedence.v1.json": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "title": "Reason Payload: Policy Precedence Applied",
+        "type": "object",
+        "additionalProperties": False,
+        "required": ["winner_layer", "loser_layer", "requested_action", "decision"],
+        "properties": {
+            "event": {"type": "string"},
+            "reason_code": {"type": "string"},
+            "winner_layer": {"type": "string"},
+            "loser_layer": {"type": "string"},
+            "requested_action": {"type": "string"},
+            "decision": {"type": "string", "enum": ["allow", "deny", "degrade"]},
+            "refs": {
+                "type": "object",
+                "properties": {
+                    "policy_hash": {"type": "string"},
+                    "pack_hash": {"type": "string"},
+                    "mode_hash": {"type": "string"},
+                    "host_perm_hash": {"type": "string"},
+                    "doc_hash": {"type": "string"},
+                },
+                "additionalProperties": True,
+            },
+            "extensions": {"type": "object", "additionalProperties": True},
+        },
+    },
+}
