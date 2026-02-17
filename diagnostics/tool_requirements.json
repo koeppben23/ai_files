@@ -27,11 +27,11 @@
       "restart_hint": "restart_required_if_path_edited"
     },
     {
-      "command": "python3",
+      "command": "${PYTHON_COMMAND}",
       "reason": "diagnostics helper execution for workspace/session bootstrap",
       "phase": "1-bootstrap",
-      "verify_command": "python3 --version",
-      "expected_after_fix": "python3 --version prints a version string",
+      "verify_command": "${PYTHON_COMMAND} --version",
+      "expected_after_fix": "${PYTHON_COMMAND} --version prints a version string",
       "restart_hint": "restart_required_if_path_edited"
     }
   ],
@@ -40,8 +40,8 @@
       "command": "pytest",
       "reason": "governance verification and test execution",
       "phase": "5-6",
-      "verify_command": "python3 -m pytest --version",
-      "expected_after_fix": "python3 -m pytest --version prints a version string",
+      "verify_command": "${PYTHON_COMMAND} -m pytest --version",
+      "expected_after_fix": "${PYTHON_COMMAND} -m pytest --version prints a version string",
       "restart_hint": "no_restart_if_binary_in_existing_path"
     },
     {

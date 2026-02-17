@@ -5,8 +5,8 @@
   "goal": "Evaluate deterministic migration safety, rollback readiness, and database contract quality.",
   "run_contract": {
     "required_commands": [
-      "python3 -m pytest -q",
-      "python3 scripts/governance_lint.py"
+      "${PYTHON_COMMAND} -m pytest -q",
+      "${PYTHON_COMMAND} scripts/governance_lint.py"
     ],
     "claim_contract": "No claim without evidence; missing/stale evidence remains NOT_VERIFIED."
   },

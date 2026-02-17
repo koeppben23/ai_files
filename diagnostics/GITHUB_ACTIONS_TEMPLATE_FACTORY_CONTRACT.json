@@ -19,8 +19,8 @@
     "golden_baseline_update"
   ],
   "commands": {
-    "validate": "python3 scripts/workflow_template_factory.py",
-    "scaffold": "python3 scripts/workflow_template_factory.py scaffold --template-key <governance-key> --archetype <type> --title \"<Workflow Name>\" --purpose \"<one-line purpose>\""
+    "validate": "${PYTHON_COMMAND} scripts/workflow_template_factory.py",
+    "scaffold": "${PYTHON_COMMAND} scripts/workflow_template_factory.py scaffold --template-key <governance-key> --archetype <type> --title \"<Workflow Name>\" --purpose \"<one-line purpose>\""
   },
   "invariants": [
     "Every templates/github-actions/governance-*.yml file must be declared once in template_catalog.json.",

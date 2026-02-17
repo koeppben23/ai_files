@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 import re
+import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -47,33 +48,57 @@ def _load_json(path: Path) -> dict[str, Any] | None:
     return data if isinstance(data, dict) else None
 
 
-def resolve_config_root(explicit: Path | None) -> Path:
+def _load_binding_paths(paths_file: Path, *, expected_config_root: Path | None = None) -> tuple[Path, dict[str, Any]]:
+    payload = _load_json(paths_file)
+    if not payload:
+        raise ValueError(f"binding evidence unreadable: {paths_file}")
+    paths = payload.get("paths")
+    if not isinstance(paths, dict):
+        raise ValueError(f"binding evidence invalid: missing paths object in {paths_file}")
+    config_root_raw = paths.get("configRoot")
+    workspaces_raw = paths.get("workspacesHome")
+    if not isinstance(config_root_raw, str) or not config_root_raw.strip():
+        raise ValueError(f"binding evidence invalid: paths.configRoot missing in {paths_file}")
+    if not isinstance(workspaces_raw, str) or not workspaces_raw.strip():
+        raise ValueError(f"binding evidence invalid: paths.workspacesHome missing in {paths_file}")
+    config_root = Path(config_root_raw).expanduser().resolve()
+    if expected_config_root is not None and config_root != expected_config_root.resolve():
+        raise ValueError("binding evidence mismatch: config root does not match explicit input")
+    return config_root, paths
+
+
+def _resolve_python_command(paths: dict[str, Any]) -> str:
+    raw = paths.get("pythonCommand")
+    if isinstance(raw, str) and raw.strip():
+        return raw.strip()
+    return "py -3" if os.name == "nt" else "python3"
+
+
+def resolve_binding_config(explicit: Path | None) -> tuple[Path, dict[str, Any], Path]:
     if explicit is not None:
-        return explicit.expanduser().resolve()
+        root = explicit.expanduser().resolve()
+        candidate = root / "commands" / "governance.paths.json"
+        config_root, paths = _load_binding_paths(candidate, expected_config_root=root)
+        return config_root, paths, candidate
 
     env_value = os.environ.get("OPENCODE_CONFIG_ROOT")
     if env_value:
-        return Path(env_value).expanduser().resolve()
+        root = Path(env_value).expanduser().resolve()
+        candidate = root / "commands" / "governance.paths.json"
+        config_root, paths = _load_binding_paths(candidate, expected_config_root=root)
+        return config_root, paths, candidate
 
     script_path = Path(__file__).resolve()
     diagnostics_dir = script_path.parent
     if diagnostics_dir.name == "diagnostics" and diagnostics_dir.parent.name == "commands":
         candidate = diagnostics_dir.parent / "governance.paths.json"
-        data = _load_json(candidate)
-        if data and isinstance(data.get("paths"), dict):
-            cfg = data["paths"].get("configRoot")
-            if isinstance(cfg, str) and cfg.strip():
-                return Path(cfg).expanduser().resolve()
+        config_root, paths = _load_binding_paths(candidate)
+        return config_root, paths, candidate
 
-    fallback = default_config_root()
+    fallback = default_config_root().resolve()
     candidate = fallback / "commands" / "governance.paths.json"
-    data = _load_json(candidate)
-    if data and isinstance(data.get("paths"), dict):
-        cfg = data["paths"].get("configRoot")
-        if isinstance(cfg, str) and cfg.strip():
-            return Path(cfg).expanduser().resolve()
-
-    return fallback.resolve()
+    config_root, paths = _load_binding_paths(candidate, expected_config_root=fallback)
+    return config_root, paths, candidate
 
 
 def _validate_repo_fingerprint(value: str) -> str:
@@ -93,6 +118,14 @@ def _sanitize_repo_name(value: str, fallback: str) -> str:
     raw = re.sub(r"[^a-z0-9._-]", "", raw)
     raw = re.sub(r"-+", "-", raw).strip("-")
     return raw if raw else fallback
+
+
+def _is_within(path: Path, parent: Path) -> bool:
+    try:
+        path.relative_to(parent)
+        return True
+    except ValueError:
+        return False
 
 
 def _resolve_git_dir(repo_root: Path) -> Path | None:
@@ -148,6 +181,13 @@ def _read_default_branch(git_dir: Path) -> str:
     return "main"
 
 
+def _normalize_path_for_fingerprint(path: Path) -> str:
+    """Normalize filesystem paths for deterministic cross-platform fingerprints."""
+
+    resolved = path.expanduser().resolve()
+    return resolved.as_posix().replace("\\", "/").casefold()
+
+
 def _derive_fingerprint_from_repo(repo_root: Path) -> tuple[str, str] | None:
     root = repo_root.expanduser().resolve()
     git_dir = _resolve_git_dir(root)
@@ -159,7 +199,7 @@ def _derive_fingerprint_from_repo(repo_root: Path) -> tuple[str, str] | None:
     if remote:
         material = f"{remote}|{default_branch}"
     else:
-        material = f"local-git|{root.as_posix()}|{default_branch}"
+        material = f"local-git|{_normalize_path_for_fingerprint(root)}|{default_branch}"
     fp = hashlib.sha256(material.encode("utf-8")).hexdigest()[:16]
     return fp, material
 
@@ -503,6 +543,39 @@ def _update_session_state(
     return "updated"
 
 
+def _bootstrap_missing_session_state(
+    *,
+    config_root: Path,
+    repo_fingerprint: str,
+    repo_name: str,
+    dry_run: bool,
+) -> tuple[bool, str]:
+    """Ensure repo-scoped SESSION_STATE exists before persistence update."""
+
+    if dry_run:
+        return True, "bootstrap-dry-run"
+
+    helper = Path(__file__).resolve().parent / "bootstrap_session_state.py"
+    if not helper.exists():
+        return False, "missing-bootstrap-helper"
+
+    cmd = [
+        sys.executable,
+        str(helper),
+        "--repo-fingerprint",
+        repo_fingerprint,
+        "--repo-name",
+        repo_name,
+        "--config-root",
+        str(config_root),
+        "--skip-artifact-backfill",
+    ]
+    proc = subprocess.run(cmd, text=True, capture_output=True, check=False)
+    if proc.returncode != 0:
+        return False, f"bootstrap-failed:{proc.returncode}"
+    return True, "bootstrap-created"
+
+
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(
         description="Backfill repo-scoped workspace persistence artifacts (cache, digest, decision pack, memory)."
@@ -529,8 +602,54 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
-    config_root = resolve_config_root(args.config_root)
+    try:
+        config_root, binding_paths, binding_file = resolve_binding_config(args.config_root)
+    except ValueError as exc:
+        payload = {
+            "status": "blocked",
+            "reason": str(exc),
+            "reason_code": "BLOCKED-MISSING-BINDING-FILE",
+            "missing_evidence": ["${COMMANDS_HOME}/governance.paths.json (installer-owned binding evidence)"],
+            "recovery_steps": [
+                "run installer to create commands/governance.paths.json",
+                "or provide --config-root that contains commands/governance.paths.json",
+            ],
+            "required_operator_action": "restore installer-owned path binding evidence before persistence",
+            "feedback_required": "reply with governance.paths.json location used for rerun",
+            "next_command": "${PYTHON_COMMAND} diagnostics/persist_workspace_artifacts.py --config-root <config_root>",
+        }
+        if args.quiet:
+            print(json.dumps(payload, ensure_ascii=True))
+        else:
+            print(f"ERROR: {exc}")
+        return 2
+
+    python_cmd = _resolve_python_command(binding_paths)
     repo_root = args.repo_root.expanduser().resolve()
+
+    if (repo_root / ".git").exists() and _is_within(config_root, repo_root):
+        payload = {
+            "status": "blocked",
+            "reason": "config root resolves inside repository root",
+            "reason_code": "BLOCKED-WORKSPACE-PERSISTENCE",
+            "missing_evidence": [
+                "valid config root outside repository working tree",
+            ],
+            "recovery_steps": [
+                "set OPENCODE_CONFIG_ROOT to a user config location outside the repository",
+                "or pass --config-root to an absolute path outside the repository",
+            ],
+            "required_operator_action": "rerun with a config root outside the repo working tree",
+            "feedback_required": "reply with the chosen config root and rerun result",
+            "next_command": f"{python_cmd} diagnostics/persist_workspace_artifacts.py --config-root <outside_repo_config_root> --repo-root <repo_root>",
+        }
+        if args.quiet:
+            print(json.dumps(payload, ensure_ascii=True))
+        else:
+            print("ERROR: config root resolves inside repository root")
+            print(f"- config_root: {config_root}")
+            print(f"- repo_root: {repo_root}")
+        return 2
 
     try:
         repo_fingerprint, fp_source, fp_evidence = _resolve_repo_fingerprint(
@@ -575,7 +694,7 @@ def main() -> int:
                         ],
                         "required_operator_action": "run one recovery path and report back the chosen repo fingerprint",
                         "feedback_required": "reply with the repo fingerprint used so persistence can resume deterministically",
-                        "next_command": "python diagnostics/persist_workspace_artifacts.py --repo-fingerprint <repo_fingerprint> --repo-root <repo_root>",
+                        "next_command": f"{python_cmd} diagnostics/persist_workspace_artifacts.py --repo-fingerprint <repo_fingerprint> --repo-root <repo_root>",
                     },
                     ensure_ascii=True,
                 )
@@ -584,8 +703,39 @@ def main() -> int:
             print(f"ERROR: {exc}")
         return 2
 
-    repo_home = config_root / "workspaces" / repo_fingerprint
+    workspaces_home = Path(str(binding_paths.get("workspacesHome", ""))).expanduser().resolve()
+    repo_home = workspaces_home / repo_fingerprint
     session_path = repo_home / "SESSION_STATE.json"
+    bootstrap_status = "not-required"
+    if not args.no_session_update and not session_path.exists():
+        bootstrap_ok, bootstrap_status = _bootstrap_missing_session_state(
+            config_root=config_root,
+            repo_fingerprint=repo_fingerprint,
+            repo_name=args.repo_name or repo_root.name or repo_fingerprint,
+            dry_run=args.dry_run,
+        )
+        if not bootstrap_ok:
+            payload = {
+                "status": "blocked",
+                "reason": "repo session state bootstrap failed",
+                "reason_code": "BLOCKED-WORKSPACE-PERSISTENCE",
+                "missing_evidence": ["repo-scoped SESSION_STATE.json"],
+                "recovery_steps": [
+                    "run diagnostics/bootstrap_session_state.py with --repo-fingerprint and --config-root",
+                    "rerun diagnostics/persist_workspace_artifacts.py after bootstrap succeeds",
+                ],
+                "required_operator_action": "bootstrap repo-scoped session state and rerun persistence",
+                "feedback_required": "reply with bootstrap helper output and repo fingerprint",
+                "next_command": f"{python_cmd} diagnostics/bootstrap_session_state.py --repo-fingerprint {repo_fingerprint} --config-root \"{config_root}\"",
+            }
+            if args.quiet:
+                print(json.dumps(payload, ensure_ascii=True))
+            else:
+                print("ERROR: repo session state bootstrap failed")
+                print(f"- bootstrap_status: {bootstrap_status}")
+                print(f"- repo_fingerprint: {repo_fingerprint}")
+            return 2
+
     session = _read_repo_session(session_path)
 
     scope = session.get("Scope", {}) if isinstance(session, dict) else {}
@@ -724,12 +874,14 @@ def main() -> int:
     summary = {
         "status": "ok",
         "configRoot": str(config_root),
+        "bindingEvidence": str(binding_file),
         "repoFingerprint": repo_fingerprint,
         "fingerprintSource": fp_source,
         "fingerprintEvidence": fp_evidence,
         "repoHome": str(repo_home),
         "actions": actions,
         "sessionUpdate": session_update,
+        "bootstrapSessionState": bootstrap_status,
     }
 
     if args.quiet:

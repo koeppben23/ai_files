@@ -123,7 +123,7 @@ REASON_CODE_HINTS: Final[dict[str, str]] = {
         "Required governance source files are missing. "
         "If installing from source: clone the repository. "
         "If using a bundle: extract it first, then run install.py from the extracted directory. "
-        "If already installed: run 'python3 install.py --status' to check installation health."
+        "If already installed: run '${PYTHON_COMMAND} install.py --status' to check installation health."
     ),
     BLOCKED_INSTALL_VERSION_MISSING: (
         "Governance version not found in master.md. "

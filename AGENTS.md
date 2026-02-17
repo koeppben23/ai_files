@@ -8,7 +8,7 @@ If there is any conflict, **kernel wins** (master.md).
 - Default to ARCHITECT (plan/decisions only) until explicit “Implement now”.
 - No claim without evidence (recorded in SESSION_STATE), otherwise NOT_VERIFIED.
 - Fail-closed: missing required inputs/addons/rulebooks => BLOCKED with recovery.
-- Do not assume ability to run commands; request evidence or provide next actions.
+- When host capabilities permit, execute deterministic checks/commands directly and report evidence.
 
 ## Bootstrap (equivalence)
 Bootstrap is satisfied by either of the two equivalent surfaces:

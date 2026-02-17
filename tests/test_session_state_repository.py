@@ -407,4 +407,4 @@ def test_phase3_legacy_removed_blocks_even_when_compat_mode_is_enabled(tmp_path:
     assert exc_info.value.reason_code == BLOCKED_SESSION_STATE_LEGACY_UNSUPPORTED
     assert "legacy-removed mode" in exc_info.value.detail
     assert "deterministic SESSION_STATE migration" in exc_info.value.primary_action
-    assert exc_info.value.next_command == "python3 scripts/migrate_session_state.py --workspace <id>"
+    assert exc_info.value.next_command == "${PYTHON_COMMAND} scripts/migrate_session_state.py --workspace <id>"

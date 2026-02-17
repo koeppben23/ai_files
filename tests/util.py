@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 import sys
@@ -48,6 +49,32 @@ def git_ls_files(*patterns: str) -> list[str]:
 
 def read_text(path: Path) -> str:
     return path.read_text(encoding="utf-8")
+
+
+def write_governance_paths(config_root: Path, *, workspaces_home: Path | None = None) -> Path:
+    """Create minimal installer-owned governance.paths.json for tests."""
+
+    root = config_root.resolve()
+    commands = root / "commands"
+    diagnostics = commands / "diagnostics"
+    workspaces = (workspaces_home.resolve() if workspaces_home is not None else (root / "workspaces").resolve())
+    payload = {
+        "schema": "governance.paths.v1",
+        "paths": {
+            "configRoot": str(root),
+            "commandsHome": str(commands),
+            "profilesHome": str(root / "profiles"),
+            "diagnosticsHome": str(diagnostics),
+            "workspacesHome": str(workspaces),
+            "globalErrorLogsHome": str(root / "logs"),
+            "workspaceErrorLogsHomeTemplate": str(workspaces / "<repo_fingerprint>" / "logs"),
+            "pythonCommand": "py -3" if os.name == "nt" else "python3",
+        },
+    }
+    commands.mkdir(parents=True, exist_ok=True)
+    target = commands / "governance.paths.json"
+    target.write_text(json.dumps(payload, indent=2, ensure_ascii=True) + "\n", encoding="utf-8")
+    return target
 
 
 def sha256_file(p: Path) -> str:

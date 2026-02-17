@@ -158,6 +158,7 @@ def test_full_install_reinstall_uninstall_flow(tmp_path: Path):
         "workspacesHome",
         "globalErrorLogsHome",
         "workspaceErrorLogsHomeTemplate",
+        "pythonCommand",
     ]
     missing = [k for k in required_paths if k not in p["paths"]]
     assert not missing, f"governance.paths.json missing keys: {missing}"
@@ -169,6 +170,9 @@ def test_full_install_reinstall_uninstall_flow(tmp_path: Path):
     assert dh == f"{ch}/diagnostics" or dh.endswith("/diagnostics"), (
         f"diagnosticsHome unexpected: {diagnostics_home} (commandsHome={commands_home})"
     )
+
+    python_command = str(p["paths"].get("pythonCommand", "")).strip()
+    assert python_command, "governance.paths.json paths.pythonCommand must be non-empty"
 
     # Capture hashes before reinstall (ignore variable files)
     ignore_names = {"governance.paths.json", MANIFEST_NAME}
