@@ -7,6 +7,8 @@ import os
 import sys
 from typing import Any, Literal
 
+from governance.engine.phase_next_action_contract import validate_phase_next_action_contract
+
 
 OutputFormat = Literal["auto", "markdown", "plain", "json"]
 ResolvedFormat = Literal["markdown", "plain", "json"]
@@ -44,8 +46,10 @@ def resolve_output_format(
     if not tty:
         return "json"
 
-    supports_markdown = _supports_markdown_rendering() if markdown_supported is None else markdown_supported
-    return "markdown" if supports_markdown else "plain"
+    # Use plain as the deterministic interactive default so output remains
+    # visually stable across hosts (including Windows terminals without markdown rendering).
+    _ = _supports_markdown_rendering() if markdown_supported is None else markdown_supported
+    return "plain"
 
 
 def _pretty_json(payload: dict[str, Any]) -> str:
@@ -67,7 +71,47 @@ def _normalize_next_action(next_action: Any) -> dict[str, Any]:
     for key, value in next_action.items():
         mapped = key_map.get(str(key), str(key))
         normalized[mapped] = value
+    if "command" not in normalized and isinstance(next_action.get("command"), str):
+        normalized["command"] = next_action["command"]
     return normalized
+
+
+def _canonical_status(value: object) -> str:
+    if not isinstance(value, str):
+        return ""
+    raw = value.strip().lower()
+    mapping = {
+        "ok": "normal",
+        "warn": "degraded",
+        "not_verified": "degraded",
+        "blocked": "blocked",
+        "normal": "normal",
+        "degraded": "degraded",
+        "draft": "draft",
+    }
+    return mapping.get(raw, raw)
+
+
+def _enforce_phase_contract(payload: dict[str, Any]) -> None:
+    session_state = payload.get("session_state")
+    if not isinstance(session_state, dict):
+        return
+    next_action = _normalize_next_action(payload.get("next_action"))
+    next_text = next_action.get("next")
+    why_text = next_action.get("why")
+    if not isinstance(next_text, str):
+        next_text = next_action.get("command")
+    if not isinstance(why_text, str):
+        why_text = ""
+
+    errors = validate_phase_next_action_contract(
+        status=_canonical_status(payload.get("status", "")),
+        session_state=session_state,
+        next_text=next_text,
+        why_text=why_text,
+    )
+    if errors:
+        raise ValueError("invalid phase/next_action contract: " + "; ".join(errors))
 
 
 def _render_markdown(payload: dict[str, Any]) -> str:
@@ -166,6 +210,8 @@ def _render_plain(payload: dict[str, Any]) -> str:
 
 def render_response(payload: dict[str, Any], *, output_format: OutputFormat = "auto") -> str:
     """Render response envelope using requested format contract."""
+
+    _enforce_phase_contract(payload)
 
     resolved = resolve_output_format(output_format)
     if resolved == "json":

@@ -76,7 +76,7 @@ python3 scripts/render_response_envelope.py --input response.json --format plain
 python3 scripts/render_response_envelope.py --input response.json --format json
 ```
 
-`--format auto` is the default and resolves to markdown for interactive TTY sessions and JSON for non-interactive execution.
+`--format auto` is the default and resolves to plain for interactive TTY sessions (stable across Windows/macOS/Linux terminals) and JSON for non-interactive execution.
 
 ## Profiles and Addons
 

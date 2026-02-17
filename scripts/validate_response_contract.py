@@ -5,7 +5,14 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import sys
 from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from governance.engine.phase_next_action_contract import validate_phase_next_action_contract
 
 
 def _is_nonempty_string(value: object) -> bool:
@@ -214,49 +221,17 @@ def validate(payload: dict) -> list[str]:
             if str(next_action.get("Command", "")).strip().lower() != "none":
                 errors.append("next_action.Command must be none when next_action.type is reply_with_one_number|manual_step")
 
-    phase_token = _extract_phase(session) if isinstance(session, dict) else ""
-
-    if not _phase_requires_ticket_input(phase_token):
-        next_text = next_action.get("Next") if isinstance(next_action, dict) else None
-        why_text = next_action.get("Why") if isinstance(next_action, dict) else None
-        if _contains_ticket_prompt(next_text) or _contains_ticket_prompt(why_text):
-            errors.append("next_action must not request task/ticket input before phase 4")
-
     next_text = next_action.get("Next") if isinstance(next_action, dict) else None
     why_text = next_action.get("Why") if isinstance(next_action, dict) else None
-    errors.extend(
-        _validate_phase_next_action_alignment(
-            status=status,
-            phase_token=phase_token,
-            next_text=next_text,
-            why_text=why_text,
+    if isinstance(status, str):
+        errors.extend(
+            validate_phase_next_action_contract(
+                status=status,
+                session_state=session,
+                next_text=next_text,
+                why_text=why_text,
+            )
         )
-    )
-
-    next_gate_condition = _extract_next_gate_condition(session) if isinstance(session, dict) else ""
-    if next_gate_condition:
-        gate_lower = _normalize_text(next_gate_condition)
-        if (
-            ("working set" in gate_lower or "component scope" in gate_lower)
-            and not (_contains_scope_prompt(next_text) or _contains_scope_prompt(why_text))
-        ):
-            errors.append("next_action must align with next_gate_condition scope/working-set requirements")
-
-    previous_phase_tokens = _extract_previous_phase_tokens(session) if isinstance(session, dict) else ()
-    if phase_token == "1.5":
-        if previous_phase_tokens:
-            immediate_prev = previous_phase_tokens[0]
-            allowed_prev = {"2.1", "3A", "3B-1", "3B-2", "4", "5", "5.3", "5.4", "5.5", "5.6", "6"}
-            if immediate_prev not in allowed_prev:
-                errors.append("phase 1.5 may only follow phase 2.1 or explicit later-phase reopen")
-
-        phase_history = session.get("phase_history") if isinstance(session, dict) else None
-        if isinstance(phase_history, list):
-            history_tokens = [_extract_phase_token(value) for value in phase_history]
-            history_tokens = [token for token in history_tokens if token]
-            if "1.5" in history_tokens and "2.1" in history_tokens:
-                if history_tokens.index("1.5") < history_tokens.index("2.1"):
-                    errors.append("phase history invalid: 1.5 cannot occur before 2.1")
 
     snapshot = payload.get("snapshot")
     if not isinstance(snapshot, dict):

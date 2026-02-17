@@ -136,3 +136,36 @@ def test_build_compat_response_accepts_single_next_action_mechanism():
     assert payload["status"] == "NOT_VERIFIED"
     assert payload["next_action"]["type"] == "reply_with_one_number"
     assert payload["required_inputs"] == ("Provide evidence",)
+
+
+@pytest.mark.governance
+def test_build_strict_response_rejects_phase_2_ticket_prompt_command():
+    with pytest.raises(ValueError, match="phase alignment"):
+        build_strict_response(
+            status="OK",
+            session_state={
+                "phase": "2-RepoDiscovery",
+                "activation_hash": "ab" * 32,
+                "ruleset_hash": "cd" * 32,
+            },
+            next_action=NextAction(type="manual_step", command="Provide task/ticket to plan"),
+            snapshot=Snapshot(confidence="High", risk="Low", scope="Bootstrap"),
+            reason_payload={"status": "OK", "reason_code": "none"},
+        )
+
+
+@pytest.mark.governance
+def test_build_strict_response_accepts_phase_2_scope_command():
+    payload = build_strict_response(
+        status="OK",
+        session_state={
+            "phase": "2-RepoDiscovery",
+            "activation_hash": "ab" * 32,
+            "ruleset_hash": "cd" * 32,
+        },
+        next_action=NextAction(type="manual_step", command="Set working set and component scope"),
+        snapshot=Snapshot(confidence="High", risk="Low", scope="Bootstrap"),
+        reason_payload={"status": "OK", "reason_code": "none"},
+    )
+    payload = cast(dict[str, Any], payload)
+    assert payload["status"] == "OK"

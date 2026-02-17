@@ -67,7 +67,13 @@ def main(argv: list[str]) -> int:
             print(f"FAIL: output mode mismatch, expected {args.output_mode}, got {mode!r}")
             return 1
 
-    sys.stdout.write(render_response(payload, output_format=args.format))
+    try:
+        rendered = render_response(payload, output_format=args.format)
+    except ValueError as exc:
+        print(f"FAIL: {exc}")
+        return 1
+
+    sys.stdout.write(rendered)
     return 0
 
 
