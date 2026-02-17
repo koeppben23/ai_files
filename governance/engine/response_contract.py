@@ -7,10 +7,9 @@ rendering can enforce one next-action mechanism and stable status vocabulary.
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
-import hashlib
-import json
 from typing import Literal, cast
 
+from governance.engine.canonical_json import canonical_json_hash, canonical_json_text
 from governance.engine.phase_next_action_contract import validate_phase_next_action_contract
 
 ResponseMode = Literal["STRICT", "COMPAT"]
@@ -80,8 +79,7 @@ class CompatResponseEnvelope:
 def _hash_payload(payload: dict[str, object]) -> str:
     """Return deterministic sha256 over canonical JSON payload."""
 
-    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
-    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+    return canonical_json_hash(payload)
 
 
 def _extract_session_value(session_state: dict[str, object], *keys: str, default: str = "") -> str:
@@ -139,7 +137,7 @@ def build_session_snapshot(
     if not snapshot["activation_hash"]:
         raise ValueError("session snapshot requires activation_hash")
     snapshot["snapshot_hash"] = _hash_payload(snapshot)
-    if len(json.dumps(snapshot, ensure_ascii=True, separators=(",", ":"))) > SESSION_SNAPSHOT_MAX_CHARS:
+    if len(canonical_json_text(snapshot)) > SESSION_SNAPSHOT_MAX_CHARS:
         raise ValueError("session snapshot exceeds compact output budget")
     return snapshot
 

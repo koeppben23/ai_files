@@ -7,13 +7,13 @@ interface that the engine can consume without direct host branching.
 from __future__ import annotations
 
 from dataclasses import dataclass, asdict
-import hashlib
-import json
 import os
 from pathlib import Path
 import shutil
 import sys
 from typing import Literal, Mapping, Protocol
+
+from governance.engine.canonical_json import canonical_json_hash
 
 
 CwdTrustLevel = Literal["trusted", "untrusted"]
@@ -112,8 +112,7 @@ class HostCapabilities:
     def stable_hash_full(self) -> str:
         """Return full deterministic capabilities hash (preferred for activation)."""
 
-        encoded = json.dumps(asdict(self), sort_keys=True, separators=(",", ":"))
-        return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+        return canonical_json_hash(asdict(self))
 
 
 class HostAdapter(Protocol):

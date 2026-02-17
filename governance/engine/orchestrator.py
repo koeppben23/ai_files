@@ -5,12 +5,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 import hashlib
-import json
 import re
 from typing import Mapping
 
 from governance.context.repo_context_resolver import RepoRootResolutionResult, resolve_repo_root
 from governance.engine.adapters import HostAdapter, HostCapabilities, OperatingMode
+from governance.engine.canonical_json import canonical_json_hash
+from governance.engine.error_reason_router import canonicalize_reason_payload_failure
 from governance.engine.reason_codes import (
     BLOCKED_ENGINE_SELFCHECK,
     BLOCKED_ACTIVATION_HASH_MISMATCH,
@@ -139,8 +140,7 @@ def _extract_target_variable(target_path: str) -> str | None:
 def _hash_payload(payload: dict[str, object]) -> str:
     """Return deterministic sha256 over canonical JSON payload."""
 
-    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"))
-    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+    return canonical_json_hash(payload)
 
 
 def _canonical_claim_evidence_id(claim: str) -> str:
@@ -327,21 +327,6 @@ def _build_hash_mismatch_diff(
     if observed_activation_hash and observed_activation_hash.strip() != expected_activation_hash:
         diff["activation_hash"] = f"{observed_activation_hash.strip()}->{expected_activation_hash}"
     return diff
-
-
-def _canonicalize_reason_payload_failure(exc: Exception) -> tuple[str, str]:
-    """Map payload builder failures to deterministic, non-leaking buckets."""
-
-    message = str(exc)
-    if isinstance(exc, ValueError) and message.startswith("invalid reason payload:"):
-        return ("reason_payload_invalid", "schema_or_contract_violation")
-    if isinstance(exc, ValueError) and "reason_schema_missing:" in message:
-        return ("reason_schema_missing", "embedded_or_disk_schema_missing")
-    if isinstance(exc, ValueError) and "reason_schema_invalid:" in message:
-        return ("reason_schema_invalid", "schema_not_object")
-    if isinstance(exc, ValueError) and "reason_registry_" in message:
-        return ("reason_registry_invalid", "registry_unavailable_or_invalid")
-    return ("reason_payload_build_failed", type(exc).__name__.lower())
 
 
 def run_engine_orchestrator(
@@ -793,7 +778,7 @@ def run_engine_orchestrator(
                 context=reason_context,
             ).to_dict()
     except Exception as exc:
-        failure_class, failure_detail = _canonicalize_reason_payload_failure(exc)
+        failure_class, failure_detail = canonicalize_reason_payload_failure(exc)
         fallback = ReasonPayload(
             status="BLOCKED",
             reason_code=BLOCKED_ENGINE_SELFCHECK,
