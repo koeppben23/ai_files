@@ -309,10 +309,44 @@ def _discover_repo_session_id() -> str:
     return hashlib.sha256(str(Path.cwd().resolve()).encode("utf-8")).hexdigest()[:16]
 
 
-def write_repo_context(repo_root: Path, repo_fingerprint: str, discovery_method: str) -> None:
+def _repo_context_index_path() -> Path:
+    return WORKSPACES_HOME / "repo-context.json"
+
+
+def read_repo_context_fingerprint(repo_root: Path) -> str | None:
+    index_path = _repo_context_index_path()
+    payload = load_json(index_path)
+    if not isinstance(payload, dict):
+        return None
+    expected_root = str(repo_root.expanduser().resolve())
+    observed_root = str(payload.get("repo_root") or "").strip()
+    if observed_root != expected_root:
+        return None
+    fp = str(payload.get("repo_fingerprint") or "").strip()
+    return fp or None
+
+
+def _write_repo_context_payload(payload: dict, relative_target: str) -> bool:
     try:
-        repo_context_path = WORKSPACES_HOME / repo_fingerprint / "repo-context.json"
-        repo_context_path.parent.mkdir(parents=True, exist_ok=True)
+        target = WORKSPACES_HOME / relative_target
+        target.parent.mkdir(parents=True, exist_ok=True)
+        text = json.dumps(payload, indent=2, ensure_ascii=True) + "\n"
+        target.write_text(text, encoding="utf-8")
+        index = _repo_context_index_path()
+        index.parent.mkdir(parents=True, exist_ok=True)
+        index.write_text(text, encoding="utf-8")
+        return True
+    except Exception as exc:
+        log_error(
+            "ERR-REPO-CONTEXT-WRITE-FAILED",
+            "Failed to persist repo-context evidence.",
+            {"target": relative_target, "error": str(exc)[:240]},
+        )
+        return False
+
+
+def write_repo_context(repo_root: Path, repo_fingerprint: str, discovery_method: str) -> bool:
+    try:
         payload = {
             "schema": "repo-context.v1",
             "session_id": _discover_repo_session_id(),
@@ -323,15 +357,13 @@ def write_repo_context(repo_root: Path, repo_fingerprint: str, discovery_method:
             "binding_evidence_path": str(BINDING_EVIDENCE_PATH) if BINDING_EVIDENCE_PATH is not None else "",
             "commands_home": str(COMMANDS_RUNTIME_DIR),
         }
-        repo_context_path.write_text(json.dumps(payload, indent=2, ensure_ascii=True) + "\n", encoding="utf-8")
+        return _write_repo_context_payload(payload, f"{repo_fingerprint}/repo-context.json")
     except Exception:
-        return
+        return False
 
 
-def write_unresolved_repo_context(repo_root: Path, discovery_method: str, reason: str) -> None:
+def write_unresolved_repo_context(repo_root: Path, discovery_method: str, reason: str) -> bool:
     try:
-        repo_context_path = WORKSPACES_HOME / "_unresolved" / "repo-context.json"
-        repo_context_path.parent.mkdir(parents=True, exist_ok=True)
         payload = {
             "schema": "repo-context.v1",
             "status": "unresolved",
@@ -344,9 +376,9 @@ def write_unresolved_repo_context(repo_root: Path, discovery_method: str, reason
             "commands_home": str(COMMANDS_RUNTIME_DIR),
             "reason": reason,
         }
-        repo_context_path.write_text(json.dumps(payload, indent=2, ensure_ascii=True) + "\n", encoding="utf-8")
+        return _write_repo_context_payload(payload, "_unresolved/repo-context.json")
     except Exception:
-        return
+        return False
 
 
 PYTHON_COMMAND = resolve_python_command()
@@ -645,7 +677,7 @@ def log_error(reason_key: str, message: str, observed: dict) -> None:
 
 def bootstrap_identity_if_needed() -> bool:
     repo_root, discovery_method = resolve_repo_context()
-    inferred_fp = derive_repo_fingerprint(repo_root) or pointer_fingerprint()
+    inferred_fp = derive_repo_fingerprint(repo_root) or read_repo_context_fingerprint(repo_root) or pointer_fingerprint()
 
     if inferred_fp:
         write_repo_context(repo_root, inferred_fp, discovery_method)
@@ -799,7 +831,7 @@ def run_persistence_hook() -> None:
         return
 
     repo_root, discovery_method = resolve_repo_context()
-    repo_fp = derive_repo_fingerprint(repo_root) or pointer_fingerprint()
+    repo_fp = derive_repo_fingerprint(repo_root) or read_repo_context_fingerprint(repo_root) or pointer_fingerprint()
     if not repo_fp:
         write_unresolved_repo_context(
             repo_root=repo_root,

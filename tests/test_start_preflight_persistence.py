@@ -281,6 +281,45 @@ def test_bootstrap_identity_uses_derived_fingerprint_from_nested_repo(
     assert repo_context["repo_root"] == str(repo_root.resolve())
     assert repo_context["repo_fingerprint"] == payload["repoFingerprint"]
     assert repo_context["discovery_method"] == "cwd_parent_walk"
+    index_context = json.loads((tmp_path / "workspaces" / "repo-context.json").read_text(encoding="utf-8"))
+    assert index_context["repo_fingerprint"] == payload["repoFingerprint"]
+
+
+@pytest.mark.governance
+def test_bootstrap_identity_uses_repo_context_index_fingerprint_fallback(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+):
+    non_repo = tmp_path / "outside"
+    non_repo.mkdir(parents=True, exist_ok=True)
+    monkeypatch.chdir(non_repo)
+    monkeypatch.delenv("OPENCODE_REPO_ROOT", raising=False)
+    monkeypatch.delenv("OPENCODE_WORKSPACE_ROOT", raising=False)
+    monkeypatch.delenv("REPO_ROOT", raising=False)
+    monkeypatch.delenv("GITHUB_WORKSPACE", raising=False)
+
+    module = _load_module()
+    monkeypatch.setattr(module, "WORKSPACES_HOME", tmp_path / "workspaces")
+    monkeypatch.setattr(module, "COMMANDS_RUNTIME_DIR", tmp_path / "commands")
+    monkeypatch.setattr(module, "BINDING_EVIDENCE_PATH", tmp_path / "commands" / "governance.paths.json")
+    monkeypatch.setattr(module, "resolve_repo_context", lambda: (non_repo.resolve(), "cwd"))
+    monkeypatch.setattr(module, "derive_repo_fingerprint", lambda _repo_root: None)
+    monkeypatch.setattr(module, "pointer_fingerprint", lambda: None)
+
+    cached_fp = "abcd1234abcd1234abcd1234"
+    (tmp_path / "workspaces").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "workspaces" / "repo-context.json").write_text(
+        json.dumps(
+            {
+                "schema": "repo-context.v1",
+                "repo_root": str(non_repo.resolve()),
+                "repo_fingerprint": cached_fp,
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(module, "identity_map_exists", lambda repo_fp: repo_fp == cached_fp)
+
+    assert module.bootstrap_identity_if_needed() is True
 
 
 @pytest.mark.governance
@@ -322,3 +361,5 @@ def test_bootstrap_identity_writes_unresolved_repo_context_when_fingerprint_miss
     assert context["status"] == "unresolved"
     assert context["reason"] == "identity-bootstrap-fingerprint-missing"
     assert context["repo_fingerprint"] == ""
+    index_context = json.loads((tmp_path / "workspaces" / "repo-context.json").read_text(encoding="utf-8"))
+    assert index_context["status"] == "unresolved"
