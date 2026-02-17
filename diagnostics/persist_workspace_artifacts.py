@@ -80,6 +80,12 @@ def _resolve_python_command(paths: dict[str, Any]) -> str:
     return "py -3" if os.name == "nt" else "python3"
 
 
+def _preferred_shell_command(profiles: dict[str, object]) -> str:
+    if os.name == "nt":
+        return str(profiles.get("powershell") or profiles.get("cmd") or profiles.get("bash") or "")
+    return str(profiles.get("bash") or profiles.get("json") or "")
+
+
 def resolve_binding_config(explicit: Path | None) -> tuple[Path, dict[str, Any], Path]:
     if explicit is not None:
         root = explicit.expanduser().resolve()
@@ -716,7 +722,7 @@ def main() -> int:
             ],
             "required_operator_action": "rerun with a config root outside the repo working tree",
             "feedback_required": "reply with the chosen config root and rerun result",
-            "next_command": cmd_profiles["bash"],
+            "next_command": _preferred_shell_command(cmd_profiles),
             "next_command_profiles": cmd_profiles,
         }
         if args.quiet:
@@ -780,7 +786,7 @@ def main() -> int:
                         ],
                         "required_operator_action": "run one recovery path and report back the chosen repo fingerprint",
                         "feedback_required": "reply with the repo fingerprint used so persistence can resume deterministically",
-                        "next_command": cmd_profiles["bash"],
+                        "next_command": _preferred_shell_command(cmd_profiles),
                         "next_command_profiles": cmd_profiles,
                     },
                     ensure_ascii=True,
@@ -823,7 +829,7 @@ def main() -> int:
                 ],
                 "required_operator_action": "bootstrap repo-scoped session state and rerun persistence",
                 "feedback_required": "reply with bootstrap helper output and repo fingerprint",
-                "next_command": cmd_profiles["bash"],
+                "next_command": _preferred_shell_command(cmd_profiles),
                 "next_command_profiles": cmd_profiles,
             }
             if args.quiet:
@@ -863,7 +869,7 @@ def main() -> int:
                 ],
                 "required_operator_action": "acquire exclusive workspace lock before writing artifacts",
                 "feedback_required": "reply with rerun result after lock contention is resolved",
-                "next_command": cmd_profiles["bash"],
+                "next_command": _preferred_shell_command(cmd_profiles),
                 "next_command_profiles": cmd_profiles,
             }
             if args.quiet:
