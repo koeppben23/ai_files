@@ -45,33 +45,50 @@ def _load_json(path: Path) -> dict | None:
         return None
 
 
-def resolve_config_root(explicit: Path | None) -> Path:
+def _load_binding_paths(paths_file: Path, *, expected_config_root: Path | None = None) -> tuple[Path, dict]:
+    data = _load_json(paths_file)
+    if not isinstance(data, dict):
+        raise ValueError(f"binding evidence unreadable: {paths_file}")
+    paths = data.get("paths")
+    if not isinstance(paths, dict):
+        raise ValueError(f"binding evidence invalid: missing paths object in {paths_file}")
+    config_root_raw = paths.get("configRoot")
+    workspaces_raw = paths.get("workspacesHome")
+    if not isinstance(config_root_raw, str) or not config_root_raw.strip():
+        raise ValueError(f"binding evidence invalid: paths.configRoot missing in {paths_file}")
+    if not isinstance(workspaces_raw, str) or not workspaces_raw.strip():
+        raise ValueError(f"binding evidence invalid: paths.workspacesHome missing in {paths_file}")
+    config_root = Path(config_root_raw).expanduser().resolve()
+    if expected_config_root is not None and config_root != expected_config_root.resolve():
+        raise ValueError("binding evidence mismatch: config root does not match explicit input")
+    return config_root, paths
+
+
+def resolve_binding_config(explicit: Path | None) -> tuple[Path, dict, Path]:
     if explicit is not None:
-        return explicit.expanduser().resolve()
+        root = explicit.expanduser().resolve()
+        candidate = root / "commands" / "governance.paths.json"
+        config_root, paths = _load_binding_paths(candidate, expected_config_root=root)
+        return config_root, paths, candidate
 
     env_value = os.environ.get("OPENCODE_CONFIG_ROOT")
     if env_value:
-        return Path(env_value).expanduser().resolve()
+        root = Path(env_value).expanduser().resolve()
+        candidate = root / "commands" / "governance.paths.json"
+        config_root, paths = _load_binding_paths(candidate, expected_config_root=root)
+        return config_root, paths, candidate
 
     script_path = Path(__file__).resolve()
     diagnostics_dir = script_path.parent
     if diagnostics_dir.name == "diagnostics" and diagnostics_dir.parent.name == "commands":
         candidate = diagnostics_dir.parent / "governance.paths.json"
-        data = _load_json(candidate)
-        if data and isinstance(data.get("paths"), dict):
-            cfg = data["paths"].get("configRoot")
-            if isinstance(cfg, str) and cfg.strip():
-                return Path(cfg).expanduser().resolve()
+        config_root, paths = _load_binding_paths(candidate)
+        return config_root, paths, candidate
 
-    fallback = default_config_root()
+    fallback = default_config_root().resolve()
     candidate = fallback / "commands" / "governance.paths.json"
-    data = _load_json(candidate)
-    if data and isinstance(data.get("paths"), dict):
-        cfg = data["paths"].get("configRoot")
-        if isinstance(cfg, str) and cfg.strip():
-            return Path(cfg).expanduser().resolve()
-
-    return fallback.resolve()
+    config_root, paths = _load_binding_paths(candidate, expected_config_root=fallback)
+    return config_root, paths, candidate
 
 
 def _validate_repo_fingerprint(value: str) -> str:
@@ -171,8 +188,8 @@ def pointer_payload(repo_fingerprint: str) -> dict:
     }
 
 
-def _upsert_repo_identity_map(config_root: Path, repo_fingerprint: str, repo_name: str) -> str:
-    path = repo_identity_map_path(config_root, repo_fingerprint)
+def _upsert_repo_identity_map(workspaces_home: Path, repo_fingerprint: str, repo_name: str) -> str:
+    path = workspaces_home / repo_fingerprint / "repo-identity-map.yaml"
     now = datetime.now(timezone.utc).isoformat(timespec="seconds")
 
     existing = _load_json(path)
@@ -224,7 +241,14 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
-    config_root = resolve_config_root(args.config_root)
+    try:
+        config_root, binding_paths, _binding_file = resolve_binding_config(args.config_root)
+    except ValueError as exc:
+        print(f"ERROR: {exc}")
+        print("Restore installer-owned commands/governance.paths.json and rerun.")
+        return 2
+
+    workspaces_home = Path(str(binding_paths.get("workspacesHome", ""))).expanduser().resolve()
 
     cwd_repo_root = Path.cwd().resolve()
     if (cwd_repo_root / ".git").exists() and _is_within(config_root, cwd_repo_root):
@@ -252,9 +276,9 @@ def main() -> int:
         print(f"ERROR: {exc}")
         return 2
 
-    repo_state_file = repo_session_state_path(config_root, repo_fingerprint)
+    repo_state_file = workspaces_home / repo_fingerprint / "SESSION_STATE.json"
     pointer_file = session_pointer_path(config_root)
-    identity_map_file = repo_identity_map_path(config_root, repo_fingerprint)
+    identity_map_file = workspaces_home / repo_fingerprint / "repo-identity-map.yaml"
 
     print(f"Config root: {config_root}")
     print(f"Repo fingerprint: {repo_fingerprint}")
@@ -327,7 +351,7 @@ def main() -> int:
     repo_name_value = scope.get("Repository") if isinstance(scope, dict) else None
     if not isinstance(repo_name_value, str) or not repo_name_value.strip():
         repo_name_value = repo_fingerprint
-    identity_action = _upsert_repo_identity_map(config_root, repo_fingerprint, repo_name_value.strip())
+    identity_action = _upsert_repo_identity_map(workspaces_home, repo_fingerprint, repo_name_value.strip())
     print(f"Repo identity map {identity_action}.")
 
     if not args.skip_artifact_backfill:

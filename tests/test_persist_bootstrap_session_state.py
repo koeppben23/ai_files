@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from .util import REPO_ROOT, run
+from .util import REPO_ROOT, run, write_governance_paths
 
 
 @pytest.mark.governance
@@ -14,6 +14,7 @@ def test_persist_workspace_artifacts_bootstraps_missing_session_state(tmp_path: 
     script = REPO_ROOT / "diagnostics" / "persist_workspace_artifacts.py"
     cfg = tmp_path / "opencode-config"
     repo_fp = "autobootstrap-112233"
+    write_governance_paths(cfg)
 
     result = run(
         [
@@ -41,6 +42,7 @@ def test_persist_workspace_artifacts_does_not_bootstrap_when_session_updates_dis
     script = REPO_ROOT / "diagnostics" / "persist_workspace_artifacts.py"
     cfg = tmp_path / "opencode-config"
     repo_fp = "autobootstrap-445566"
+    write_governance_paths(cfg)
 
     result = run(
         [

@@ -39,35 +39,46 @@ def _load_json(path: Path) -> dict[str, Any] | None:
     return data if isinstance(data, dict) else None
 
 
+def _load_binding_paths(paths_file: Path, *, expected_config_root: Path | None = None) -> Path:
+    data = _load_json(paths_file)
+    if not data:
+        raise ValueError(f"binding evidence unreadable: {paths_file}")
+    paths = data.get("paths")
+    if not isinstance(paths, dict):
+        raise ValueError(f"binding evidence invalid: missing paths object in {paths_file}")
+    config_root_raw = paths.get("configRoot")
+    workspaces_raw = paths.get("workspacesHome")
+    if not isinstance(config_root_raw, str) or not config_root_raw.strip():
+        raise ValueError(f"binding evidence invalid: paths.configRoot missing in {paths_file}")
+    if not isinstance(workspaces_raw, str) or not workspaces_raw.strip():
+        raise ValueError(f"binding evidence invalid: paths.workspacesHome missing in {paths_file}")
+    config_root = Path(config_root_raw).expanduser().resolve()
+    if expected_config_root is not None and config_root != expected_config_root.resolve():
+        raise ValueError("binding evidence mismatch: config root does not match explicit input")
+    return config_root
+
+
 def resolve_config_root(config_root: Path | None = None) -> Path:
     if config_root is not None:
-        return config_root.expanduser().resolve()
+        root = config_root.expanduser().resolve()
+        return _load_binding_paths(root / "commands" / "governance.paths.json", expected_config_root=root)
 
     env_value = os.environ.get("OPENCODE_CONFIG_ROOT")
     if env_value:
-        return Path(env_value).expanduser().resolve()
+        root = Path(env_value).expanduser().resolve()
+        return _load_binding_paths(root / "commands" / "governance.paths.json", expected_config_root=root)
 
     # Installed location: <config_root>/commands/diagnostics/error_logs.py
     script_path = Path(__file__).resolve()
     diagnostics_dir = script_path.parent
     if diagnostics_dir.name == "diagnostics" and diagnostics_dir.parent.name == "commands":
         candidate = diagnostics_dir.parent / "governance.paths.json"
-        data = _load_json(candidate)
-        if data and isinstance(data.get("paths"), dict):
-            cfg = data["paths"].get("configRoot")
-            if isinstance(cfg, str) and cfg.strip():
-                return Path(cfg).expanduser().resolve()
+        return _load_binding_paths(candidate)
 
     # Source-tree fallback
     fallback = default_config_root()
     candidate = fallback / "commands" / "governance.paths.json"
-    data = _load_json(candidate)
-    if data and isinstance(data.get("paths"), dict):
-        cfg = data["paths"].get("configRoot")
-        if isinstance(cfg, str) and cfg.strip():
-            return Path(cfg).expanduser().resolve()
-
-    return fallback.resolve()
+    return _load_binding_paths(candidate, expected_config_root=fallback.resolve())
 
 
 def _validate_repo_fingerprint(value: str) -> str:

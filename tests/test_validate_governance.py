@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from .util import REPO_ROOT, read_text, run
+from .util import REPO_ROOT, read_text, run, write_governance_paths
 
 
 @pytest.mark.governance
@@ -1529,6 +1529,7 @@ def test_session_state_bootstrap_recovery_script_creates_state_file(tmp_path: Pa
     script = REPO_ROOT / "diagnostics" / "bootstrap_session_state.py"
     cfg = tmp_path / "opencode-config"
     repo_fp = "demo-repo-123456"
+    write_governance_paths(cfg)
 
     r = run([sys.executable, str(script), "--repo-fingerprint", repo_fp, "--config-root", str(cfg)])
     assert r.returncode == 0, f"bootstrap_session_state.py failed:\nSTDERR:\n{r.stderr}\nSTDOUT:\n{r.stdout}"
@@ -1620,6 +1621,7 @@ def test_workspace_persistence_backfill_script_creates_missing_artifacts(tmp_pat
     script = REPO_ROOT / "diagnostics" / "persist_workspace_artifacts.py"
     cfg = tmp_path / "opencode-config"
     repo_fp = "demo-repo-654321"
+    write_governance_paths(cfg)
 
     workspace = cfg / "workspaces" / repo_fp
     workspace.mkdir(parents=True, exist_ok=True)
@@ -1657,6 +1659,7 @@ def test_workspace_persistence_backfill_derives_fingerprint_from_repo_root(tmp_p
     script = REPO_ROOT / "diagnostics" / "persist_workspace_artifacts.py"
     cfg = tmp_path / "opencode-config"
     repo_root = tmp_path / "repo"
+    write_governance_paths(cfg)
 
     git_dir = repo_root / ".git"
     (git_dir / "refs" / "remotes" / "origin").mkdir(parents=True, exist_ok=True)
@@ -1702,6 +1705,7 @@ def test_workspace_persistence_backfill_writes_business_rules_when_phase15_extra
     script = REPO_ROOT / "diagnostics" / "persist_workspace_artifacts.py"
     cfg = tmp_path / "opencode-config"
     repo_fp = "phase15-repo-999999"
+    write_governance_paths(cfg)
 
     workspace = cfg / "workspaces" / repo_fp
     workspace.mkdir(parents=True, exist_ok=True)
@@ -1750,6 +1754,7 @@ def test_workspace_persistence_normalizes_legacy_placeholder_phrasing_without_fo
     script = REPO_ROOT / "diagnostics" / "persist_workspace_artifacts.py"
     cfg = tmp_path / "opencode-config"
     repo_fp = "normalize-placeholders-001"
+    write_governance_paths(cfg)
 
     workspace = cfg / "workspaces" / repo_fp
     workspace.mkdir(parents=True, exist_ok=True)
@@ -1807,6 +1812,7 @@ def test_workspace_persistence_quiet_blocked_payload_includes_reason_contract_fi
     cfg = tmp_path / "opencode-config"
     non_repo_root = tmp_path / "not-a-repo"
     non_repo_root.mkdir(parents=True, exist_ok=True)
+    write_governance_paths(cfg)
 
     r = run([
         sys.executable,
@@ -3592,6 +3598,7 @@ def test_error_logger_updates_index_and_prunes_old_global_logs(tmp_path: Path):
     spec.loader.exec_module(mod)
 
     cfg = tmp_path / "opencode-config"
+    write_governance_paths(cfg)
     logs_dir = cfg / "logs"
     logs_dir.mkdir(parents=True, exist_ok=True)
     old_file = logs_dir / "errors-global-2000-01-01.jsonl"

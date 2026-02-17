@@ -48,33 +48,50 @@ def _load_json(path: Path) -> dict[str, Any] | None:
     return data if isinstance(data, dict) else None
 
 
-def resolve_config_root(explicit: Path | None) -> Path:
+def _load_binding_paths(paths_file: Path, *, expected_config_root: Path | None = None) -> tuple[Path, dict[str, Any]]:
+    payload = _load_json(paths_file)
+    if not payload:
+        raise ValueError(f"binding evidence unreadable: {paths_file}")
+    paths = payload.get("paths")
+    if not isinstance(paths, dict):
+        raise ValueError(f"binding evidence invalid: missing paths object in {paths_file}")
+    config_root_raw = paths.get("configRoot")
+    workspaces_raw = paths.get("workspacesHome")
+    if not isinstance(config_root_raw, str) or not config_root_raw.strip():
+        raise ValueError(f"binding evidence invalid: paths.configRoot missing in {paths_file}")
+    if not isinstance(workspaces_raw, str) or not workspaces_raw.strip():
+        raise ValueError(f"binding evidence invalid: paths.workspacesHome missing in {paths_file}")
+    config_root = Path(config_root_raw).expanduser().resolve()
+    if expected_config_root is not None and config_root != expected_config_root.resolve():
+        raise ValueError("binding evidence mismatch: config root does not match explicit input")
+    return config_root, paths
+
+
+def resolve_binding_config(explicit: Path | None) -> tuple[Path, dict[str, Any], Path]:
     if explicit is not None:
-        return explicit.expanduser().resolve()
+        root = explicit.expanduser().resolve()
+        candidate = root / "commands" / "governance.paths.json"
+        config_root, paths = _load_binding_paths(candidate, expected_config_root=root)
+        return config_root, paths, candidate
 
     env_value = os.environ.get("OPENCODE_CONFIG_ROOT")
     if env_value:
-        return Path(env_value).expanduser().resolve()
+        root = Path(env_value).expanduser().resolve()
+        candidate = root / "commands" / "governance.paths.json"
+        config_root, paths = _load_binding_paths(candidate, expected_config_root=root)
+        return config_root, paths, candidate
 
     script_path = Path(__file__).resolve()
     diagnostics_dir = script_path.parent
     if diagnostics_dir.name == "diagnostics" and diagnostics_dir.parent.name == "commands":
         candidate = diagnostics_dir.parent / "governance.paths.json"
-        data = _load_json(candidate)
-        if data and isinstance(data.get("paths"), dict):
-            cfg = data["paths"].get("configRoot")
-            if isinstance(cfg, str) and cfg.strip():
-                return Path(cfg).expanduser().resolve()
+        config_root, paths = _load_binding_paths(candidate)
+        return config_root, paths, candidate
 
-    fallback = default_config_root()
+    fallback = default_config_root().resolve()
     candidate = fallback / "commands" / "governance.paths.json"
-    data = _load_json(candidate)
-    if data and isinstance(data.get("paths"), dict):
-        cfg = data["paths"].get("configRoot")
-        if isinstance(cfg, str) and cfg.strip():
-            return Path(cfg).expanduser().resolve()
-
-    return fallback.resolve()
+    config_root, paths = _load_binding_paths(candidate, expected_config_root=fallback)
+    return config_root, paths, candidate
 
 
 def _validate_repo_fingerprint(value: str) -> str:
@@ -571,7 +588,28 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
-    config_root = resolve_config_root(args.config_root)
+    try:
+        config_root, binding_paths, binding_file = resolve_binding_config(args.config_root)
+    except ValueError as exc:
+        payload = {
+            "status": "blocked",
+            "reason": str(exc),
+            "reason_code": "BLOCKED-MISSING-BINDING-FILE",
+            "missing_evidence": ["${COMMANDS_HOME}/governance.paths.json (installer-owned binding evidence)"],
+            "recovery_steps": [
+                "run installer to create commands/governance.paths.json",
+                "or provide --config-root that contains commands/governance.paths.json",
+            ],
+            "required_operator_action": "restore installer-owned path binding evidence before persistence",
+            "feedback_required": "reply with governance.paths.json location used for rerun",
+            "next_command": "python diagnostics/persist_workspace_artifacts.py --config-root <config_root>",
+        }
+        if args.quiet:
+            print(json.dumps(payload, ensure_ascii=True))
+        else:
+            print(f"ERROR: {exc}")
+        return 2
+
     repo_root = args.repo_root.expanduser().resolve()
 
     if _is_within(config_root, repo_root):
@@ -650,7 +688,8 @@ def main() -> int:
             print(f"ERROR: {exc}")
         return 2
 
-    repo_home = config_root / "workspaces" / repo_fingerprint
+    workspaces_home = Path(str(binding_paths.get("workspacesHome", ""))).expanduser().resolve()
+    repo_home = workspaces_home / repo_fingerprint
     session_path = repo_home / "SESSION_STATE.json"
     bootstrap_status = "not-required"
     if not args.no_session_update and not session_path.exists():
@@ -820,6 +859,7 @@ def main() -> int:
     summary = {
         "status": "ok",
         "configRoot": str(config_root),
+        "bindingEvidence": str(binding_file),
         "repoFingerprint": repo_fingerprint,
         "fingerprintSource": fp_source,
         "fingerprintEvidence": fp_evidence,
