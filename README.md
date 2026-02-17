@@ -8,6 +8,8 @@ Normative precedence:
 - Active profile and addon rulebooks in `profiles/` extend stack-specific behavior.
 - `AGENTS.md` is a non-normative frontend mirror; on conflict, `master.md` wins.
 
+Definition: in this repository, "normative" means `master.md`, `rules.md`, and active profile/addon rulebooks; "non-normative surfaces" means `README*` files and `AGENTS.md`.
+
 ## Start Here
 
 - OpenCode bootstrap entrypoint: `start.md`
