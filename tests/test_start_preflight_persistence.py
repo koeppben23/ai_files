@@ -245,6 +245,10 @@ def test_bootstrap_identity_uses_derived_fingerprint_from_nested_repo(
     nested = repo_root / "src" / "feature"
     nested.mkdir(parents=True, exist_ok=True)
     monkeypatch.chdir(nested)
+    monkeypatch.delenv("OPENCODE_REPO_ROOT", raising=False)
+    monkeypatch.delenv("OPENCODE_WORKSPACE_ROOT", raising=False)
+    monkeypatch.delenv("REPO_ROOT", raising=False)
+    monkeypatch.delenv("GITHUB_WORKSPACE", raising=False)
 
     module = _load_module()
     helper = tmp_path / "bootstrap_session_state.py"
