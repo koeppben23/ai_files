@@ -121,3 +121,56 @@ def test_response_contract_checker_allows_ticket_prompt_at_phase_4(tmp_path: Pat
     script = REPO_ROOT / "scripts" / "validate_response_contract.py"
     r = run([sys.executable, str(script), "--input", str(f)])
     assert r.returncode == 0, f"validator should accept phase-4 ticket prompt:\n{r.stdout}\n{r.stderr}"
+
+
+@pytest.mark.governance
+def test_response_contract_checker_rejects_next_action_mismatch_with_scope_gate(tmp_path: Path):
+    payload = {
+        "status": "degraded",
+        "session_state": {
+            "Mode": "DEGRADED",
+            "Phase": "2-RepoDiscovery",
+            "next_gate_condition": "Complete repo discovery + set working set/component scope before Phase 4 planning",
+        },
+        "next_action": {
+            "type": "manual_step",
+            "Status": "OK",
+            "Next": "Review details and continue",
+            "Why": "Repo identity established",
+            "Command": "none",
+        },
+        "snapshot": {"Confidence": "78%", "Risk": "MEDIUM", "Scope": "global"},
+    }
+    f = tmp_path / "invalid_scope_mismatch.json"
+    f.write_text(json.dumps(payload), encoding="utf-8")
+
+    script = REPO_ROOT / "scripts" / "validate_response_contract.py"
+    r = run([sys.executable, str(script), "--input", str(f)])
+    assert r.returncode != 0
+    assert "next_action must align with next_gate_condition scope/working-set requirements" in (r.stdout + r.stderr)
+
+
+@pytest.mark.governance
+def test_response_contract_checker_accepts_scope_aligned_next_action(tmp_path: Path):
+    payload = {
+        "status": "degraded",
+        "session_state": {
+            "Mode": "DEGRADED",
+            "Phase": "2-RepoDiscovery",
+            "next_gate_condition": "Complete repo discovery + set working set/component scope before Phase 4 planning",
+        },
+        "next_action": {
+            "type": "manual_step",
+            "Status": "OK",
+            "Next": "Set working set and component scope for Phase 3 entry",
+            "Why": "Phase 4 planning requires scope to be locked first",
+            "Command": "none",
+        },
+        "snapshot": {"Confidence": "78%", "Risk": "MEDIUM", "Scope": "global"},
+    }
+    f = tmp_path / "valid_scope_aligned.json"
+    f.write_text(json.dumps(payload), encoding="utf-8")
+
+    script = REPO_ROOT / "scripts" / "validate_response_contract.py"
+    r = run([sys.executable, str(script), "--input", str(f)])
+    assert r.returncode == 0, f"validator should accept scope-aligned next action:\n{r.stdout}\n{r.stderr}"

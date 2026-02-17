@@ -41,6 +41,32 @@ def _contains_ticket_prompt(text: object) -> bool:
     return False
 
 
+def _normalize_text(value: object) -> str:
+    if not isinstance(value, str):
+        return ""
+    return " ".join(value.strip().lower().split())
+
+
+def _contains_scope_prompt(text: object) -> bool:
+    normalized = _normalize_text(text)
+    if not normalized:
+        return False
+    return (
+        "working set" in normalized
+        or "component scope" in normalized
+        or "set scope" in normalized
+        or "scope" in normalized
+    )
+
+
+def _extract_next_gate_condition(session: dict) -> str:
+    for key in ("next_gate_condition", "NextGateCondition", "nextGateCondition", "Next"):
+        value = session.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return ""
+
+
 def validate(payload: dict) -> list[str]:
     errors: list[str] = []
 
@@ -83,6 +109,17 @@ def validate(payload: dict) -> list[str]:
         why_text = next_action.get("Why") if isinstance(next_action, dict) else None
         if _contains_ticket_prompt(next_text) or _contains_ticket_prompt(why_text):
             errors.append("next_action must not request task/ticket input before phase 4")
+
+    next_gate_condition = _extract_next_gate_condition(session) if isinstance(session, dict) else ""
+    if next_gate_condition:
+        gate_lower = _normalize_text(next_gate_condition)
+        next_text = next_action.get("Next") if isinstance(next_action, dict) else None
+        why_text = next_action.get("Why") if isinstance(next_action, dict) else None
+        if (
+            ("working set" in gate_lower or "component scope" in gate_lower)
+            and not (_contains_scope_prompt(next_text) or _contains_scope_prompt(why_text))
+        ):
+            errors.append("next_action must align with next_gate_condition scope/working-set requirements")
 
     snapshot = payload.get("snapshot")
     if not isinstance(snapshot, dict):
