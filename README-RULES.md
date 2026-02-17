@@ -1,401 +1,46 @@
-# README-RULES.md
+# Rules Overview
 
-## 📌 README Index
+This document is a non-normative map of the governance rule structure.
+It does not define independent behavior. On conflict, follow `master.md`, then `rules.md`, then active profile/addon rulebooks.
 
-This document explains the intent and structure of the rules.
-It does not override or redefine them.
+## Source of Truth
 
-- **Normative system authority and phase gates**  
-  → See [`master.md`](master.md)
+- Workflow phases, gates, path variables, precedence, and fail-closed runtime semantics: `master.md`
+- Core technical and quality constraints: `rules.md`
+- Release readiness Go/No-Go contract: `STABILITY_SLA.md`
+- Session-state contract: `SESSION_STATE_SCHEMA.md`
 
-- **Governance release/readiness SLA (normative Go/No-Go)**
-  → See [`STABILITY_SLA.md`](STABILITY_SLA.md)
+## Rule Layers
 
-- **Actual enforceable rules**  
-  → See [`rules.md`](rules.md)
+- Core governance and lifecycle control: `master.md`
+- Core stack-agnostic engineering constraints: `rules.md`
+- Stack/domain extensions: `profiles/rules*.md`
+- Optional or required addon policies: manifests in `profiles/addons/*.addon.yml` with rulebooks in `profiles/`
 
-- **Context- and stack-specific extensions**  
-  → See [`profiles/`](profiles/)
+Profiles and addons must not weaken core fail-closed obligations.
 
-  Addons are discovered declaratively via addon manifests:
-  → See [`profiles/addons/`](profiles/addons/)
+## Current System Baseline
 
-- **Operational usage and configuration**  
-  → See [`README-OPENCODE.md`](README-OPENCODE.md)
+- Deterministic engine/runtime behavior is implemented in `governance/engine/` and response projection in `governance/render/`.
+- Claim verification is fail-closed (`NOT_VERIFIED-MISSING-EVIDENCE`, `NOT_VERIFIED-EVIDENCE-STALE`).
+- Session-state rollout is in engine-first posture with canonical schema enforcement.
+- Mode-aware repo-doc constraints, precedence events, and prompt budgets are active and documented in `docs/mode-aware-repo-rules.md`.
 
-- **Canonical session-state contract**
-  → See [`SESSION_STATE_SCHEMA.md`](SESSION_STATE_SCHEMA.md)
+## Rulebook Selection and Discovery
 
-This README is explanatory only.
+- Explicit profile selection is preferred.
+- If no explicit profile exists, deterministic repo-signal detection is used.
+- If profile ambiguity materially affects tooling or gate decisions, workflow must block until clarified.
 
-## 🔎 Quick Navigation (This File)
+See `rules.md` for binding profile selection and ambiguity handling details.
 
-- [Purpose](#1-purpose)
-- [Mandatory Artifacts](#2-mandatory-artifacts)
-- [Workflow (Collapsed View)](#4-workflow-collapsed-view)
-- [Hybrid Mode](#5-hybrid-mode)
-- [Factory Extension Path](#52-factory-extension-path-profilesaddons)
-- [Output Requirements](#7-output-requirements)
-- [Session State](#10-session-state)
-- [Failure Cases](#11-failure-cases)
+## Operational References
 
-Stability note:
-- Canonical precedence is defined once in `master.md` Section 1 (`PRIORITY ORDER`) and mirrored in `rules.md` (`RULEBOOK-PRECEDENCE-POLICY`).
-- This file MUST NOT redefine precedence, gates, or blocking policy.
-- Current baseline on `main` includes governance-engine rework integration (Wave A-D, session-state rollout phases 1-3, claim evidence backfeed, freshness gating, lifecycle rollback audit helpers).
-- Claim verification remains fail-closed: missing evidence -> `NOT_VERIFIED-MISSING-EVIDENCE`, stale evidence -> `NOT_VERIFIED-EVIDENCE-STALE`.
+- OpenCode usage and recovery: `README-OPENCODE.md`
+- Conflict handling model: `CONFLICT_RESOLUTION.md`
+- Quality index and cross-references: `QUALITY_INDEX.md`
+- Phases map: `docs/phases.md`
 
-**Executive Summary for AI-Assisted Development**
+## License
 
-This document is a **compact, non-normative overview** of the binding rules defined in **rules.md** and the **Master Prompt**.
-The full technical requirements are defined in **rules.md** (plus the active profile rulebook, if any).
-Operational AI behavior (phases, hybrid mode, priorities, session state) is defined in the **Master Prompt**.
-
-This document contains **no standalone rules**.
-It only summarizes the requirements defined in **rules.md**.
-When in doubt, **rules.md** and the **Master Prompt** always take precedence.
-
-Conflicts between sources are resolved deterministically via [`CONFLICT_RESOLUTION.md`](CONFLICT_RESOLUTION.md)
-(located next to [`master.md`](master.md)).
-
----
-
-## 1. Purpose
-
-### This process enables AI-assisted creation of:
-
-* technical designs
-* backend implementations
-* API-based integrations
-* unit / slice / integration tests
-* traceability and quality evidence
-
-All work follows a clearly structured, controlled workflow.
-
----
-
-## 2. Mandatory Artifacts
-
-### Archive Artifacts
-
-All repositories, APIs, or collections of multiple files must be delivered as **archive artifacts** in chat-only mode.
-
-Repo-aware clarification:
-- In OpenCode repo-aware mode, the repository is already available as the working directory.
-- Scope Lock still applies unchanged; this archive-delivery requirement is a chat-only transport requirement.
-
-Examples (non-exhaustive):
-
-* ZIP
-* TAR
-* TAR.GZ / TGZ
-* TAR.BZ2 / TAR.XZ
-* 7Z
-* RAR
-
-**Scope Lock:**
-The AI may only access artifacts that were provided in the ticket or the current session.
-
----
-
-## 3. Archive Artifacts – Mandatory Extraction
-
-All provided archive artifacts must **always be extracted fully and for real** by the AI (chat-only mode).
-
-* Without successful extraction, **no** statements about contents, structures, or classes may be made.
-* Heuristic, experience-based, or reconstructed inferences are not allowed.
-* An archive that cannot be extracted is treated as **non-existent under the scope lock**.
-
----
-
-## 4. Workflow (Collapsed View)
-
-The full workflow consists of **6 phases** (including sub-phases and gates) as defined in the **Master Prompt**.
-This document provides a **reduced 4-phase view** for quick orientation.
-
-| Collapsed Phase           | Master Prompt Equivalent           |
-| ------------------------- | ---------------------------------- |
-| Phase A – Analysis        | Phase 1 + 2 + 2.1                  |
-| Phase B – Solution Design | Phase 3A + Phase 3B-1              |
-| Phase C – Validation      | Phase 3B-2 + Phase 4               |
-| Phase D – Implementation  | Phase 5 (+ 5.6 in-gate) + 5.3 + optional (5.4/5.5) + 6 |
-
-**Extended (with Business Rules Discovery):**
-
-| Collapsed Phase           | Master Prompt Equivalent                                 |
-| ------------------------- | -------------------------------------------------------- |
-| Phase A – Analysis        | Phase 1 + Phase 2 + Phase 2.1 + *1.5 (optional)*         |
-| Phase B – Solution Design | Phase 3A + Phase 3B-1                                    |
-| Phase C – Validation      | Phase 3B-2 + Phase 4                                     |
-| Phase D – Implementation  | Phase 5 (+ 5.6 in-gate) + *5.4 (if 1.5 was active)* + 5.5 (optional) + 6 |
-
-**Important:**
-All **gates, sub-phases (e.g., 3B-1 / 3B-2), and constraints** apply in full,
-even if not listed individually in this collapsed view.
-
-**Business Rules Discovery (Phase 1.5):**
-
-* Executed when explicitly requested by the user, or after the Phase 2.1 A/B decision if not explicitly requested/skipped.
-* Explicit skip signals include: "Skip business-rules discovery" and "This is a pure CRUD project".
-* Recommendation for the A/B decision is evidence-based (Phase 2 signals), but execution still requires user approval.
-* Extracts business rules from code / database / tests
-* Reduces business-logic gaps from ~50% to <15%
-* See Master Prompt Phase 1.5 for details
-
----
-
-## 5. Hybrid Mode
-
-The AI may switch flexibly between phases.
-
-### Implicit Activation
-
-* Ticket without prior artifacts → start directly in Phase 4
-* Repository upload → start in Phase A
-* API upload → start in Phase A
-
-### Explicit Overrides
-
-The following commands override all default rules:
-
-* “Start directly in Phase 4.”
-* “Skip Phase A.”
-* “Work only on backend and ignore APIs.”
-* “Use the current session state to re-run discovery.”
-
-**Explicit overrides always take precedence.**
-
-## 5.1 Profile Rulebooks & Templates Addons (Overview)
-
-The workflow may activate a **profile rulebook** (e.g., backend Java, frontend Angular) based on repo signals.
-Profiles are loaded after Phase 2 (Repo Discovery).
-
-Some profiles additionally mandate a **templates addon** to ensure deterministic, copy-paste generation of code and tests.
-
-Addons are manifest-driven (`profiles/addons/*.addon.yml`) and carry an explicit class:
-- `addon_class: required` -> if triggered and missing: `BLOCKED-MISSING-ADDON:<addon_key>`
-- `addon_class: advisory` -> if triggered and missing: WARN + recovery steps (non-blocking)
-
-When loaded, addons MUST be recorded under `SESSION_STATE.LoadedRulebooks.addons` (addon_key -> path).
-
-Current frontend-related addon examples:
-- `angularNxTemplates` (required) -> `rules.frontend-angular-nx-templates.md`
-- `frontendCypress` (advisory) -> `rules.frontend-cypress-testing.md`
-- `frontendOpenApiTsClient` (advisory) -> `rules.frontend-openapi-ts-client.md`
-
-Cross-cutting governance addon example:
-- `docsGovernance` (advisory) -> `rules.docs-governance.md`
-
-Shared principal-governance advisory addons:
-- `principalExcellence` -> `rules.principal-excellence.md`
-- `riskTiering` -> `rules.risk-tiering.md`
-- `scorecardCalibration` -> `rules.scorecard-calibration.md`
-
-Important: these shared governance rulebooks are addon rulebooks, not profile candidates.
-Profile auto-detection must exclude addon-referenced/shared rulebooks from profile selection.
-
-## 5.2 Factory Extension Path (Profiles/Addons)
-
-When required governance capability is missing for a new repo/ticket, use the factory path:
-
-- `new_profile.md` to generate `profiles/rules_<profile>.md` (preferred; legacy alias `rules.<profile>.md` accepted)
-- `new_addon.md` to generate:
-  - `profiles/rules.<addon-rulebook>.md`
-  - `profiles/addons/<addon_key>.addon.yml`
-
-Factory outputs must be principal-grade at creation time and include:
-
-- `Principal Excellence Contract (Binding)`
-- `Principal Hardening v2.1 - Standard Risk Tiering (Binding)`
-- `Principal Hardening v2.1.1 - Scorecard Calibration (Binding)`
-
-Conformance reference:
-
-- `diagnostics/PROFILE_ADDON_FACTORY_CONTRACT.json`
-
-If mandatory generation input is missing, creation should be treated as blocked and completed only after required fields are provided.
-
-Key constraints:
-* Templates addons MUST NOT be loaded during discovery (Phase 1–3).
-* If mandated by the active profile, templates addons MUST be loaded at code-phase (Phase 4+).
-* If a required addon is triggered and present, it MUST be loaded.
-* Addons MAY be re-evaluated and loaded later at Phase-4 re-entry/resume when new evidence appears or rulebooks are installed (supports deterministic "nachladen").
-* When a templates addon is loaded, templates are binding defaults; minimal convention-aligned adaptation is allowed and must be documented.
-
----
-
-## 6. Quality Requirements (High-Level)
-
-* Java 21, Spring Boot
-* Google Java Style
-* no wildcard imports
-* indentation: 4 spaces
-* structured logging, validation, error handling
-* strict adherence to architectural layers
-* Contract & Schema Evolution Gate is mandatory for DB, Kafka/event schemas, OpenAPI/external contracts, and contract/persisted enums
-* Change Matrix is mandatory for cross-cutting changes and MUST be verified before final output (STOP on inconsistencies)
-* Mandatory Review Matrix (MRM) is mandatory in Phase 4/5/6: TicketClass + RiskTier + required artifacts must be evidenced before `ready-for-pr`
-* Explicit gates should produce machine-checkable scorecards (criteria + weights + evidence refs); failed critical criteria block approval
-* test coverage ≥ 80% of changed logic
-* for newly created production classes, corresponding unit test classes
-  (good / bad / edge cases) are mandatory
-  (see `rules.md`, Chapter 10 (Test Quality))
-
-**Build requirement:**
-
-```bash
-mvn -B -DskipITs=false clean verify
-```
-
----
-
-## 7. Output Requirements
-
-Typical outputs (summary; authoritative details in master.md / rules.md):
-
-1. **Plan** (numbered, executable)
-2. **Ticket Record (Mini-ADR + NFR checklist)** (5–10 lines + NFR statuses)
-3. **Diffs** (max 300 lines per block, max 5 files per response)
-4. **New files** (complete)
-5. **Unit / slice / integration tests**
-6. **How-to-run / test instructions**
-7. **Traceability matrix**
-8. **Evidence list**
-9. **Open issues & assumptions**
-
-For larger changes, additionally:
-
-* changes.patch
-
----
-
-## 8. Scope Lock & No Fabrication
-
-* Do not invent classes, files, endpoints, or fields
-* If something is not present in the provided material → state so explicitly
-* General knowledge may be used for explanation only, never for project-specific fabrication
-
----
-
-## 9. Discovery (Phase A)
-
-The AI extracts only:
-
-* file and folder structures
-* relevant packages and classes
-* test overviews
-* API endpoints and DTOs
-* configurations and Flyway scripts
-
-**No interpretation, no design, no implementation.**
-
----
-
-## 10. Session State
-
-Starting with **Phase A**, the assistant maintains a persistent canonical
-**`[SESSION_STATE]`** as defined in the **Master Prompt**.
-
-This README additionally provides a **shortened, non-normative reading view**.
-
-### 10.1 Canonical Session State (Excerpt, partial; authoritative source: master.md)
-
-Note: This block is a partial readability excerpt only. If it diverges from master.md, master.md is authoritative.
-
-```text
-[SESSION_STATE]
-Phase=<1|1.1-Bootstrap|1.2-ProfileDetection|1.3-CoreRulesActivation|2|2.1-DecisionPack|1.5-BusinessRules|3A|3B-1|3B-2|4|5|5.3|5.4|5.5|5.6|6> | Confidence=<0-100>% | Degraded=<active|inactive>
-
-Facts:
-- ...
-
-Decisions:
-- ...
-
-Assumptions:
-- ...
-
-Risks:
-- ...
-
-BusinessRules:
-  Inventory: <count> rules | not-extracted
-  Coverage:
-    InPlan:  <X>/<Total> (<percent>%)
-    InCode:  <X>/<Total> (<percent>%)
-    InTests: <X>/<Total> (<percent>%)
-  Gaps:
-  - BR-ID: description
-  - ...
-  NewRules:
-  - description
-  - ...     # or: none
-
-Gates:
-  P5-Architecture: <pending|approved|rejected>
-  P5.3-TestQuality: <pending|pass|pass-with-exceptions|fail>
-  P5.4-BusinessRules: <pending|not-applicable|compliant|gap-detected|compliant-with-exceptions>
-  P5.5-TechnicalDebt: <pending|approved|rejected|not-applicable>
-  P5.6-RollbackSafety: <pending|approved|rejected|not-applicable>
-  P6-ImplementationQA: <pending|ready-for-pr|fix-required>
-
-TestQuality:        # only if Phase 5.3 is active / executed
-  CoverageMatrix: <X>/<Y> methods complete (<percent>%)
-  PatternViolations:
-  - missing-rollback-test@PersonService.delete
-  - ...
-  AntiPatterns:
-  - assertNotNull-only@PersonServiceTest:L42
-  - ...      # or: none
-
-Next:
-- <specific next action>
-[/SESSION_STATE]
-```
-
-### 10.2 README View (Collapsed, Non-Normative)
-
-```text
-[SESSION_STATE – SUMMARY]
-Context:
-- Repository / Module:
-- Ticket / Goal:
-
-Current Phase:
-- Phase: <A|B|C|D>
-- Gate Status: <OPEN|PASSED|BLOCKED>
-
-Key Decisions:
-- …
-
-Open Questions / Blockers:
-- …
-
-Next Step:
-- …
-```
-
-**Rules:**
-
-* `master.md` / `SESSION_STATE_SCHEMA.md` are authoritative for canonical session-state semantics
-* The summary view is for readability only
-* Only content from provided artifacts may be recorded
-* Assumptions must be explicitly labeled
-* The block is updated with every response
-
----
-
-## 11. Failure Cases
-
-If artifacts are missing or corrupted:
-
-* The AI explicitly lists the missing files
-* The AI provides **only a plan**, not an implementation
-* No structures, classes, or contents may be fabricated
-
----
-
-Copyright © 2026 Benjamin Fuchs.
-All rights reserved. See LICENSE.
-
-**End of file — README-RULES.md**
+See `LICENSE`.
