@@ -45,7 +45,7 @@ At least one of:
 ## Minimal tooling commands (recommended)
 
 Use repo-native commands when available; otherwise propose minimal equivalents:
-- Python: `python3 -m pytest -q`
+- Python: `${PYTHON_COMMAND} -m pytest -q`
 - Node: `npm test`
 - Maven: `mvn -q test`
 - Gradle: `./gradlew test`

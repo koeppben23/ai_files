@@ -6,6 +6,8 @@ import os
 import platform
 from pathlib import Path
 
+from command_profiles import render_command_profiles
+
 
 def config_root() -> Path:
     system = platform.system()
@@ -48,6 +50,7 @@ def main() -> int:
                             "rerun /start so host-provided binding evidence can be loaded",
                         ],
                         "next_command": "/start",
+                        "next_command_profiles": render_command_profiles(["/start"]),
                         "nonEvidence": "debug-only",
                     },
                     indent=2,
@@ -69,6 +72,7 @@ def main() -> int:
                     "${COMMANDS_HOME}/governance.paths.json (installer-owned binding evidence)"
                 ],
                 "next_command": "/start",
+                "next_command_profiles": render_command_profiles(["/start"]),
                 "debugComputedPaths": {
                     "configRoot": norm(root),
                     "commandsHome": norm(root / "commands"),

@@ -18,7 +18,7 @@ Pack files live under `diagnostics/*_QUALITY_BENCHMARK_PACK.json`.
 Optional helper command:
 
 ```bash
-python3 scripts/run_quality_benchmark.py --pack diagnostics/PYTHON_QUALITY_BENCHMARK_PACK.json
+${PYTHON_COMMAND} scripts/run_quality_benchmark.py --pack diagnostics/PYTHON_QUALITY_BENCHMARK_PACK.json
 ```
 
 Running the helper alone does not imply `PASS`; required evidence artifacts must still be present and valid.

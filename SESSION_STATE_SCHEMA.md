@@ -967,7 +967,7 @@ BuildEvidence:
         - "<module-name>"
       summary: "<1-3 lines: key pass/fail + counts>"
       snippet: "<short pasted output excerpt>"
-      env_fingerprint: "<tool/runtime fingerprint, e.g. python3.11+pytest8.4.2>"   # optional
+      env_fingerprint: "<tool/runtime fingerprint, e.g. ${PYTHON_COMMAND}.11+pytest8.4.2>"   # optional
       artifacts:
         - path: "<path/to/report-or-log>"
           type: "log|junit|sarif|coverage|other"

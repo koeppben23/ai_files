@@ -14,6 +14,12 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
+SCRIPT_DIR = Path(__file__).resolve().parent
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
+
+from command_profiles import render_command_profiles
+
 
 def config_root() -> Path:
     system = platform.system()
@@ -497,6 +503,7 @@ def bootstrap_identity_if_needed() -> bool:
                     "required_operator_action": "restore diagnostics/bootstrap_session_state.py and rerun /start",
                     "feedback_required": "reply once helper is restored and /start rerun",
                     "next_command": "/start",
+                    "next_command_profiles": render_command_profiles(["/start"]),
                 }
             )
         )
@@ -517,6 +524,7 @@ def bootstrap_identity_if_needed() -> bool:
                     "required_operator_action": "install git or run bootstrap_session_state.py with explicit fingerprint, then rerun /start",
                     "feedback_required": "reply with the fingerprint used (if manual bootstrap) and helper result",
                     "next_command": bootstrap_command(inferred_fp),
+                    "next_command_profiles": render_command_profiles(shlex.split(bootstrap_command(inferred_fp))),
                 }
             )
         )
@@ -549,6 +557,7 @@ def bootstrap_identity_if_needed() -> bool:
                     "required_operator_action": "run bootstrap_session_state.py with explicit repo fingerprint, then rerun /start",
                     "feedback_required": "reply with helper stderr and repo fingerprint",
                     "next_command": bootstrap_command(repo_fp),
+                    "next_command_profiles": render_command_profiles(shlex.split(bootstrap_command(repo_fp))),
                 }
             )
         )

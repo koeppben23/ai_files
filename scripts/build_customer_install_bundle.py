@@ -107,13 +107,14 @@ BUNDLE_ROOT="$(cd -- "${{SCRIPT_DIR}}/.." && pwd)"
 ARTIFACT_DIR="${{BUNDLE_ROOT}}/artifacts"
 ARCHIVE_PATH="${{ARTIFACT_DIR}}/{archive_name}"
 SUMS_PATH="${{ARTIFACT_DIR}}/SHA256SUMS.txt"
+PYTHON_CMD="${{PYTHON_COMMAND:-python3}}"
 
 if [[ ! -f "${{ARCHIVE_PATH}}" ]]; then
   echo "Missing archive: ${{ARCHIVE_PATH}}" >&2
   exit 1
 fi
 
-python3 - "${{ARCHIVE_PATH}}" "${{SUMS_PATH}}" <<'PY'
+"${{PYTHON_CMD}}" - "${{ARCHIVE_PATH}}" "${{SUMS_PATH}}" <<'PY'
 import hashlib
 import pathlib
 import sys
@@ -137,7 +138,7 @@ TMP_DIR="${{BUNDLE_ROOT}}/_tmp_install"
 rm -rf "${{TMP_DIR}}"
 mkdir -p "${{TMP_DIR}}"
 
-python3 - "${{ARCHIVE_PATH}}" "${{TMP_DIR}}" <<'PY'
+"${{PYTHON_CMD}}" - "${{ARCHIVE_PATH}}" "${{TMP_DIR}}" <<'PY'
 import pathlib
 import sys
 import zipfile
@@ -155,7 +156,7 @@ if [[ ! -f "${{INSTALL_PY}}" ]]; then
   exit 1
 fi
 
-python3 "${{INSTALL_PY}}" "$@"
+"${{PYTHON_CMD}}" "${{INSTALL_PY}}" "$@"
 """
 
 

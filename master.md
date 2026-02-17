@@ -206,7 +206,7 @@ Binding:
 The system MUST support operation without direct access to git or any VCS tooling.
 
 Bootstrap tool preflight (binding):
-- During `/start`, the runtime MUST probe required external commands via PATH (e.g., `git`, `python3`).
+- During `/start`, the runtime MUST probe required external commands via PATH (e.g., `git`, `${PYTHON_COMMAND}`).
 - The preflight result MUST be reported as structured diagnostics (`available`/`missing`) and MUST NOT block by itself.
 - If all required commands are available, `/start` MUST continue without a blocker.
 - If one or more commands are missing, `/start` MUST continue in degraded mode where possible and include recovery commands; block only when a later gate requires missing-tool-dependent evidence.

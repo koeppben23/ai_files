@@ -17,13 +17,13 @@ Customer install path:
 ## Validate catalog consistency
 
 ```bash
-python3 scripts/workflow_template_factory.py
+${PYTHON_COMMAND} scripts/workflow_template_factory.py
 ```
 
 Installed-customer variant:
 
 ```bash
-python3 commands/scripts/workflow_template_factory.py check --repo-root commands
+${PYTHON_COMMAND} commands/scripts/workflow_template_factory.py check --repo-root commands
 ```
 
 This check is fail-closed and enforced through `scripts/governance_lint.py`.
@@ -38,7 +38,7 @@ Validation guarantees:
 ## Scaffold a new workflow template
 
 ```bash
-python3 scripts/workflow_template_factory.py scaffold \
+${PYTHON_COMMAND} scripts/workflow_template_factory.py scaffold \
   --template-key governance-example-gate \
   --archetype pr_gate_shadow_live_verify \
   --title "Governance Example Gate" \
@@ -48,7 +48,7 @@ python3 scripts/workflow_template_factory.py scaffold \
 Installed-customer variant:
 
 ```bash
-python3 commands/scripts/workflow_template_factory.py scaffold \
+${PYTHON_COMMAND} commands/scripts/workflow_template_factory.py scaffold \
   --repo-root commands \
   --template-key governance-example-gate \
   --archetype pr_gate_shadow_live_verify \

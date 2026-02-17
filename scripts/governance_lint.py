@@ -1338,7 +1338,7 @@ def main() -> int:
             print(f"- {issue}")
         print("")
         print(f"Report written to: {output_path}")
-        print("For verbose output, run: python3 scripts/governance_lint.py --verbose")
+        print("For verbose output, run: ${PYTHON_COMMAND} scripts/governance_lint.py --verbose")
         return 1
 
     if args.verbose:

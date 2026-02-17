@@ -11,8 +11,8 @@ This document defines the professional customer delivery bundle that sits on top
 ## Build command
 
 ```bash
-python3 scripts/build.py --out-dir dist --formats zip,tar.gz
-python3 scripts/build_customer_install_bundle.py --dist-dir dist
+${PYTHON_COMMAND} scripts/build.py --out-dir dist --formats zip,tar.gz
+${PYTHON_COMMAND} scripts/build_customer_install_bundle.py --dist-dir dist
 ```
 
 ## Produced files in `dist/`
@@ -46,7 +46,7 @@ customer-install-bundle-v1/
 - `install/install.sh`
   - validates checksum of `governance-<version>.zip` against `artifacts/SHA256SUMS.txt`
   - extracts zip to temporary local folder
-  - executes `python3 install.py` with forwarded arguments
+  - executes `${PYTHON_COMMAND} install.py` with forwarded arguments
 
 - `install/install.ps1`
   - validates checksum of `governance-<version>.zip` against `artifacts/SHA256SUMS.txt`
