@@ -543,7 +543,7 @@ def _normalize_legacy_placeholder_phrasing(path: Path, *, dry_run: bool) -> bool
         return False
 
     if not dry_run:
-        path.write_text(updated, encoding="utf-8")
+        _atomic_write_text(path, updated)
     return True
 
 

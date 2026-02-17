@@ -335,7 +335,7 @@ def read_repo_context_fingerprint(repo_root: Path) -> str | None:
     payload = load_json(index_path)
     if not isinstance(payload, dict):
         return None
-    expected_root = str(repo_root.expanduser().resolve())
+    expected_root = _normalize_path_for_fingerprint(repo_root)
     observed_root = str(payload.get("repo_root") or "").strip()
     if observed_root != expected_root:
         return None
@@ -396,7 +396,7 @@ def write_repo_context(repo_root: Path, repo_fingerprint: str, discovery_method:
         payload = {
             "schema": "repo-context.v1",
             "session_id": _discover_repo_session_id(),
-            "repo_root": str(repo_root.expanduser().resolve()),
+            "repo_root": _normalize_path_for_fingerprint(repo_root),
             "repo_fingerprint": repo_fingerprint,
             "discovered_at": datetime.utcnow().replace(microsecond=0).isoformat() + "Z",
             "discovery_method": discovery_method,
@@ -414,7 +414,7 @@ def write_unresolved_repo_context(repo_root: Path, discovery_method: str, reason
             "schema": "repo-context.v1",
             "status": "unresolved",
             "session_id": _discover_repo_session_id(),
-            "repo_root": str(repo_root.expanduser().resolve()),
+            "repo_root": _normalize_path_for_fingerprint(repo_root),
             "repo_fingerprint": "",
             "discovered_at": datetime.utcnow().replace(microsecond=0).isoformat() + "Z",
             "discovery_method": discovery_method,

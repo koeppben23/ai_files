@@ -1920,6 +1920,13 @@ def test_persist_helper_bootstrap_uses_binding_python_command_argv():
 
 
 @pytest.mark.governance
+def test_persist_helper_legacy_placeholder_normalization_uses_atomic_write():
+    text = read_text(REPO_ROOT / "diagnostics" / "persist_workspace_artifacts.py")
+    assert "path.write_text(updated" not in text
+    assert "_atomic_write_text(path, updated)" in text
+
+
+@pytest.mark.governance
 def test_start_prefers_host_binding_evidence_and_defers_profile_selection_at_bootstrap():
     text = read_text(REPO_ROOT / "start.md")
     required_tokens = [
