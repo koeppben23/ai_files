@@ -45,15 +45,20 @@ def _candidate_config_roots() -> list[Path]:
     return ordered
 
 
+def _allow_cwd_binding_discovery() -> bool:
+    return str(os.getenv("OPENCODE_ALLOW_CWD_BINDINGS", "")).strip() == "1"
+
+
 def _resolve_bound_paths(root: Path) -> tuple[Path, Path, bool]:
     commands_home = root / "commands"
     workspaces_home = root / "workspaces"
     candidates: list[Path] = [commands_home / "governance.paths.json"]
     for config in _candidate_config_roots():
         candidates.append(config / "commands" / "governance.paths.json")
-    cwd = Path.cwd().resolve()
-    for parent in (cwd, *cwd.parents):
-        candidates.append(parent / "commands" / "governance.paths.json")
+    if _allow_cwd_binding_discovery():
+        cwd = Path.cwd().resolve()
+        for parent in (cwd, *cwd.parents):
+            candidates.append(parent / "commands" / "governance.paths.json")
 
     binding_file: Path | None = None
     seen: set[Path] = set()

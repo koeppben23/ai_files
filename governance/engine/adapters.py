@@ -64,15 +64,22 @@ def _candidate_config_roots(env: Mapping[str, str]) -> list[Path]:
     return ordered
 
 
+def _allow_cwd_binding_discovery(env: Mapping[str, str]) -> bool:
+    """Return True only when explicit dev override enables CWD binding search."""
+
+    return str(env.get("OPENCODE_ALLOW_CWD_BINDINGS", "")).strip() == "1"
+
+
 def _discover_binding_file(config_root: Path, env: Mapping[str, str]) -> Path | None:
     """Discover installer-owned governance.paths.json deterministically."""
 
     candidates: list[Path] = [config_root / "commands" / "governance.paths.json"]
     for root in _candidate_config_roots(env):
         candidates.append(root / "commands" / "governance.paths.json")
-    cwd = Path.cwd().resolve()
-    for parent in (cwd, *cwd.parents):
-        candidates.append(parent / "commands" / "governance.paths.json")
+    if _allow_cwd_binding_discovery(env):
+        cwd = Path.cwd().resolve()
+        for parent in (cwd, *cwd.parents):
+            candidates.append(parent / "commands" / "governance.paths.json")
 
     seen: set[Path] = set()
     for candidate in candidates:

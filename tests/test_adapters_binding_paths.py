@@ -82,6 +82,29 @@ def test_adapter_discovers_binding_from_cwd_ancestor(monkeypatch: pytest.MonkeyP
     repo.mkdir(parents=True, exist_ok=True)
     monkeypatch.chdir(repo)
     monkeypatch.delenv("OPENCODE_CONFIG_ROOT", raising=False)
+    monkeypatch.setattr(adapters_module, "_default_config_root", lambda: tmp_path / "home" / ".config" / "opencode")
+
+    adapter = LocalHostAdapter()
+    caps = adapter.capabilities()
+    assert caps.fs_read_commands_home is False
+
+
+@pytest.mark.governance
+def test_adapter_discovers_binding_from_cwd_ancestor_with_dev_override(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+):
+    cfg = tmp_path
+    commands_home = cfg / "commands"
+    workspaces_home = cfg / "workspaces"
+    commands_home.mkdir(parents=True, exist_ok=True)
+    workspaces_home.mkdir(parents=True, exist_ok=True)
+    _write_binding(cfg, commands_home=commands_home, workspaces_home=workspaces_home)
+
+    repo = tmp_path / "repo" / "nested"
+    repo.mkdir(parents=True, exist_ok=True)
+    monkeypatch.chdir(repo)
+    monkeypatch.delenv("OPENCODE_CONFIG_ROOT", raising=False)
+    monkeypatch.setenv("OPENCODE_ALLOW_CWD_BINDINGS", "1")
 
     adapter = LocalHostAdapter()
     caps = adapter.capabilities()
@@ -100,7 +123,7 @@ def test_adapter_discovers_binding_from_canonical_home_config(monkeypatch: pytes
     unrelated = tmp_path / "repo" / "nested"
     unrelated.mkdir(parents=True, exist_ok=True)
     monkeypatch.chdir(unrelated)
-    monkeypatch.setattr(adapters_module.Path, "home", staticmethod(lambda: tmp_path))
+    monkeypatch.setattr(adapters_module, "_default_config_root", lambda: cfg)
 
     adapter = LocalHostAdapter()
     caps = adapter.capabilities()
