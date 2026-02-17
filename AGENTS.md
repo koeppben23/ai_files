@@ -9,6 +9,7 @@ If there is any conflict, **kernel wins** (master.md).
 - No claim without evidence (recorded in SESSION_STATE), otherwise NOT_VERIFIED.
 - Fail-closed: missing required inputs/addons/rulebooks => BLOCKED with recovery.
 - When host capabilities permit, execute deterministic checks/commands directly and report evidence.
+- After `/start`, complete bootstrap gates first; do not emit generic task-intake prompts before bootstrap state is established.
 
 ## Bootstrap (equivalence)
 Bootstrap is satisfied by either of the two equivalent surfaces:

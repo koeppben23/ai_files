@@ -1060,7 +1060,7 @@ Rules:
 - `BLOCKED-MISSING-CORE-RULES`:
   - Trigger: Phase 4 begins and `rules.md` could not be resolved/loaded.
   - Resume pointer (canonical): Phase 1.3 — Core Rules Activation.
-  - Required input: provide the location of `rules.md` OR install it under `${COMMANDS_HOME}/rules.md`.
+  - Required input: run installer repair so core rulebooks are restored under installer-owned `${COMMANDS_HOME}`.
 
 - `BLOCKED-START-REQUIRED`:
   - Trigger: `/master` invoked without prior valid `/start` bootstrap evidence for the current repo/session.
@@ -1085,12 +1085,12 @@ Rules:
 - `BLOCKED-MISSING-TEMPLATES`:
   - Trigger: active profile mandates templates but template rulebook cannot be resolved/loaded.
   - Resume pointer (canonical): Phase 4 — Step 0 (Phase-4 Entry initialization).
-  - Required input: provide the template rulebook path OR install under `${PROFILES_HOME}/` as declared by the profile.
+  - Required input: restore template rulebooks under installer-owned `${PROFILES_HOME}` and rerun.
 
 - `BLOCKED-MISSING-ADDON:<addon_key>`:
   - Trigger: an addon is mandated (`required = true`) with `addon_class = required`, but cannot be resolved/loaded.
   - Resume pointer (canonical): Phase 4 — Step 0 (Phase-4 Entry initialization).
-  - Required input: provide the addon rulebook path OR install it under `${PROFILES_HOME}/` as declared by the profile.
+  - Required input: restore addon rulebooks under installer-owned `${PROFILES_HOME}` and rerun.
   - Note: advisory addons (`addon_class = advisory`) MUST NOT use this BLOCKED state; they use WARN + recovery + re-evaluation.
 
 - `BLOCKED-ADDON-CONFLICT`:
@@ -1118,16 +1118,14 @@ Rules:
   - Evidence: start.md referenced undefined variable; variable resolution failed
   - Context: Pre-Phase-1 bootstrap issue during start.md execution
   - Resume pointer: Phase 0 — Bootstrap (Variable Resolution)
-  - Required input (one of):
-    A) Resolved absolute path for ${COMMANDS_HOME} + evidence (directory listing)
-    B) Full file contents (paste master.md, rules.md, profile)
+  - Required input: run installer repair to restore installer-owned binding evidence and rerun `/start`.
   - Recovery steps:
     1) Determine OS-specific config root (see Global Path Variables):
        - Windows: %APPDATA%/opencode or %USERPROFILE%/.config/opencode
        - macOS/Linux: ${XDG_CONFIG_HOME:-~/.config}/opencode
     2) Verify ${COMMANDS_HOME} exists at: <config_root>/commands
     3) Verify master.md and rules.md present
-    4) Provide evidence OR paste contents
+    4) Rerun installer and then rerun `/start`
   - Note: No full SESSION_STATE yet; output minimal BLOCKED state
 
 - `BLOCKED-R`:
