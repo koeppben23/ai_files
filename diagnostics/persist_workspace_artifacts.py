@@ -612,7 +612,7 @@ def main() -> int:
 
     repo_root = args.repo_root.expanduser().resolve()
 
-    if _is_within(config_root, repo_root):
+    if (repo_root / ".git").exists() and _is_within(config_root, repo_root):
         payload = {
             "status": "blocked",
             "reason": "config root resolves inside repository root",

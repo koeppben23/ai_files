@@ -136,3 +136,30 @@ def test_persist_workspace_artifacts_never_creates_repo_local_c_artifact(tmp_pat
     assert result.returncode == 0, f"persist helper failed:\nSTDERR:\n{result.stderr}\nSTDOUT:\n{result.stdout}"
     assert not (repo_root / "C").exists(), "must never create repo-local artifact named 'C'"
     assert not (repo_root / "business-rules.md").exists(), "must never write business-rules.md into repo root"
+
+
+@pytest.mark.governance
+def test_persist_workspace_artifacts_allows_repo_local_config_root_for_non_git_dirs(tmp_path: Path):
+    script = REPO_ROOT / "diagnostics" / "persist_workspace_artifacts.py"
+    repo_root = tmp_path / "artifact-extract"
+    repo_root.mkdir(parents=True, exist_ok=True)
+
+    cfg = repo_root / "_cfg"
+    write_governance_paths(cfg)
+
+    result = run(
+        [
+            sys.executable,
+            str(script),
+            "--repo-fingerprint",
+            "artifact-smoke-123456",
+            "--repo-root",
+            str(repo_root),
+            "--config-root",
+            str(cfg),
+            "--quiet",
+        ],
+        cwd=repo_root,
+    )
+
+    assert result.returncode == 0, f"persist helper should allow non-git artifact dirs:\n{result.stderr}\n{result.stdout}"
