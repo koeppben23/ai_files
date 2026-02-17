@@ -305,7 +305,7 @@ def test_bootstrap_identity_uses_derived_fingerprint_from_nested_repo(
     assert repo_context_path.exists()
     repo_context = json.loads(repo_context_path.read_text(encoding="utf-8"))
     assert repo_context["schema"] == "repo-context.v1"
-    assert repo_context["repo_root"] == str(repo_root.resolve())
+    assert repo_context["repo_root"] == module._normalize_path_for_fingerprint(repo_root)
     assert repo_context["repo_fingerprint"] == payload["repoFingerprint"]
     assert repo_context["discovery_method"] == "cwd_parent_walk"
     index_context = json.loads(module._repo_context_index_path(repo_root).read_text(encoding="utf-8"))
@@ -339,7 +339,7 @@ def test_bootstrap_identity_uses_repo_context_index_fingerprint_fallback(
         json.dumps(
             {
                 "schema": "repo-context.v1",
-                "repo_root": str(non_repo.resolve()),
+                "repo_root": module._normalize_path_for_fingerprint(non_repo),
                 "repo_fingerprint": cached_fp,
             }
         ),
