@@ -128,3 +128,22 @@ def test_adapter_discovers_binding_from_canonical_home_config(monkeypatch: pytes
     adapter = LocalHostAdapter()
     caps = adapter.capabilities()
     assert caps.fs_read_commands_home is True
+
+
+@pytest.mark.governance
+def test_adapter_discovers_binding_from_canonical_home_config(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+    cfg = tmp_path / ".config" / "opencode"
+    commands_home = cfg / "commands"
+    workspaces_home = cfg / "workspaces"
+    commands_home.mkdir(parents=True, exist_ok=True)
+    workspaces_home.mkdir(parents=True, exist_ok=True)
+    _write_binding(cfg, commands_home=commands_home, workspaces_home=workspaces_home)
+
+    unrelated = tmp_path / "repo" / "nested"
+    unrelated.mkdir(parents=True, exist_ok=True)
+    monkeypatch.chdir(unrelated)
+    monkeypatch.setattr(adapters_module.Path, "home", staticmethod(lambda: tmp_path))
+
+    adapter = LocalHostAdapter()
+    caps = adapter.capabilities()
+    assert caps.fs_read_commands_home is True
