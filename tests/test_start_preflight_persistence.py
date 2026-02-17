@@ -199,3 +199,218 @@ def test_preflight_discovers_binding_from_canonical_home_config(monkeypatch: pyt
 
     module = _load_module()
     assert module.BINDING_OK is True
+
+
+@pytest.mark.governance
+def test_resolve_repo_root_discovers_parent_git_from_nested_cwd(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+):
+    repo_root = tmp_path / "repo"
+    (repo_root / ".git").mkdir(parents=True, exist_ok=True)
+    nested = repo_root / "src" / "feature"
+    nested.mkdir(parents=True, exist_ok=True)
+    monkeypatch.chdir(nested)
+    monkeypatch.delenv("OPENCODE_REPO_ROOT", raising=False)
+    monkeypatch.delenv("OPENCODE_WORKSPACE_ROOT", raising=False)
+    monkeypatch.delenv("REPO_ROOT", raising=False)
+    monkeypatch.delenv("GITHUB_WORKSPACE", raising=False)
+
+    module = _load_module()
+    assert module.resolve_repo_root() == repo_root.resolve()
+
+
+@pytest.mark.governance
+def test_resolve_repo_context_reports_env_discovery_method(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+):
+    repo_root = tmp_path / "repo"
+    (repo_root / ".git").mkdir(parents=True, exist_ok=True)
+    monkeypatch.setenv("GITHUB_WORKSPACE", str(repo_root))
+    monkeypatch.delenv("OPENCODE_REPO_ROOT", raising=False)
+    monkeypatch.delenv("OPENCODE_WORKSPACE_ROOT", raising=False)
+    monkeypatch.delenv("REPO_ROOT", raising=False)
+
+    module = _load_module()
+    resolved_root, method = module.resolve_repo_context()
+    assert resolved_root == repo_root.resolve()
+    assert method == "env:GITHUB_WORKSPACE"
+
+
+@pytest.mark.governance
+def test_bootstrap_identity_uses_derived_fingerprint_from_nested_repo(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+):
+    repo_root = tmp_path / "repo"
+    (repo_root / ".git").mkdir(parents=True, exist_ok=True)
+    nested = repo_root / "src" / "feature"
+    nested.mkdir(parents=True, exist_ok=True)
+    monkeypatch.chdir(nested)
+    monkeypatch.delenv("OPENCODE_REPO_ROOT", raising=False)
+    monkeypatch.delenv("OPENCODE_WORKSPACE_ROOT", raising=False)
+    monkeypatch.delenv("REPO_ROOT", raising=False)
+    monkeypatch.delenv("GITHUB_WORKSPACE", raising=False)
+
+    module = _load_module()
+    helper = tmp_path / "bootstrap_session_state.py"
+    helper.write_text("#!/usr/bin/env python3\n", encoding="utf-8")
+    monkeypatch.setattr(module, "BOOTSTRAP_HELPER", helper)
+    monkeypatch.setattr(module, "WORKSPACES_HOME", tmp_path / "workspaces")
+    monkeypatch.setattr(module, "COMMANDS_RUNTIME_DIR", tmp_path / "commands")
+    monkeypatch.setattr(module, "BINDING_EVIDENCE_PATH", tmp_path / "commands" / "governance.paths.json")
+    monkeypatch.setattr(module.shutil, "which", lambda cmd: "/usr/bin/git" if cmd == "git" else None)
+
+    calls: dict[str, int] = {"identity": 0}
+
+    def fake_identity_map_exists(_repo_fp: str | None) -> bool:
+        calls["identity"] += 1
+        return calls["identity"] > 1
+
+    class FakeRun:
+        def __init__(self):
+            self.returncode = 0
+            self.stdout = ""
+            self.stderr = ""
+
+    monkeypatch.setattr(module, "identity_map_exists", fake_identity_map_exists)
+    monkeypatch.setattr(module.subprocess, "run", lambda *args, **kwargs: FakeRun())
+
+    assert module.bootstrap_identity_if_needed() is True
+    payload = json.loads(capsys.readouterr().out.strip())
+    assert payload["workspacePersistenceHook"] == "ok"
+    assert isinstance(payload.get("repoFingerprint"), str) and payload["repoFingerprint"].strip()
+    repo_context_path = (tmp_path / "workspaces" / payload["repoFingerprint"] / "repo-context.json")
+    assert repo_context_path.exists()
+    repo_context = json.loads(repo_context_path.read_text(encoding="utf-8"))
+    assert repo_context["schema"] == "repo-context.v1"
+    assert repo_context["repo_root"] == str(repo_root.resolve())
+    assert repo_context["repo_fingerprint"] == payload["repoFingerprint"]
+    assert repo_context["discovery_method"] == "cwd_parent_walk"
+    index_context = json.loads(module._repo_context_index_path(repo_root).read_text(encoding="utf-8"))
+    assert index_context["repo_fingerprint"] == payload["repoFingerprint"]
+
+
+@pytest.mark.governance
+def test_bootstrap_identity_uses_repo_context_index_fingerprint_fallback(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+):
+    non_repo = tmp_path / "outside"
+    non_repo.mkdir(parents=True, exist_ok=True)
+    monkeypatch.chdir(non_repo)
+    monkeypatch.delenv("OPENCODE_REPO_ROOT", raising=False)
+    monkeypatch.delenv("OPENCODE_WORKSPACE_ROOT", raising=False)
+    monkeypatch.delenv("REPO_ROOT", raising=False)
+    monkeypatch.delenv("GITHUB_WORKSPACE", raising=False)
+
+    module = _load_module()
+    monkeypatch.setattr(module, "WORKSPACES_HOME", tmp_path / "workspaces")
+    monkeypatch.setattr(module, "COMMANDS_RUNTIME_DIR", tmp_path / "commands")
+    monkeypatch.setattr(module, "BINDING_EVIDENCE_PATH", tmp_path / "commands" / "governance.paths.json")
+    monkeypatch.setattr(module, "resolve_repo_context", lambda: (non_repo.resolve(), "cwd"))
+    monkeypatch.setattr(module, "derive_repo_fingerprint", lambda _repo_root: None)
+    monkeypatch.setattr(module, "pointer_fingerprint", lambda: None)
+
+    cached_fp = "abcd1234abcd1234abcd1234"
+    (tmp_path / "workspaces").mkdir(parents=True, exist_ok=True)
+    module._repo_context_index_path(non_repo).parent.mkdir(parents=True, exist_ok=True)
+    module._repo_context_index_path(non_repo).write_text(
+        json.dumps(
+            {
+                "schema": "repo-context.v1",
+                "repo_root": str(non_repo.resolve()),
+                "repo_fingerprint": cached_fp,
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(module, "identity_map_exists", lambda repo_fp: repo_fp == cached_fp)
+
+    assert module.bootstrap_identity_if_needed() is True
+
+
+@pytest.mark.governance
+def test_bootstrap_command_argv_splits_python_launcher(monkeypatch: pytest.MonkeyPatch):
+    module = _load_module()
+    monkeypatch.setattr(module, "PYTHON_COMMAND", "py -3")
+    monkeypatch.setattr(module, "BOOTSTRAP_HELPER", Path("C:/tmp/bootstrap.py"))
+
+    argv = module.bootstrap_command_argv("abc123")
+    assert argv[:2] == ["py", "-3"]
+    assert "--repo-fingerprint" in argv
+
+
+@pytest.mark.governance
+def test_bootstrap_identity_writes_unresolved_repo_context_when_fingerprint_missing(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+):
+    non_repo = tmp_path / "not-a-repo"
+    non_repo.mkdir(parents=True, exist_ok=True)
+    monkeypatch.chdir(non_repo)
+    monkeypatch.delenv("OPENCODE_REPO_ROOT", raising=False)
+    monkeypatch.delenv("OPENCODE_WORKSPACE_ROOT", raising=False)
+    monkeypatch.delenv("REPO_ROOT", raising=False)
+    monkeypatch.delenv("GITHUB_WORKSPACE", raising=False)
+
+    module = _load_module()
+    monkeypatch.setattr(module, "WORKSPACES_HOME", tmp_path / "workspaces")
+    monkeypatch.setattr(module, "COMMANDS_RUNTIME_DIR", tmp_path / "commands")
+    monkeypatch.setattr(module, "BINDING_EVIDENCE_PATH", tmp_path / "commands" / "governance.paths.json")
+    monkeypatch.setattr(module, "pointer_fingerprint", lambda: None)
+
+    assert module.bootstrap_identity_if_needed() is False
+    payload = json.loads(capsys.readouterr().out.strip())
+    assert payload["reason"] == "identity-bootstrap-fingerprint-missing"
+
+    unresolved = tmp_path / "workspaces" / "_unresolved" / "repo-context.json"
+    assert unresolved.exists()
+    context = json.loads(unresolved.read_text(encoding="utf-8"))
+    assert context["status"] == "unresolved"
+    assert context["reason"] == "identity-bootstrap-fingerprint-missing"
+    assert context["repo_fingerprint"] == ""
+    index_context = json.loads(module._repo_context_index_path(non_repo).read_text(encoding="utf-8"))
+    assert index_context["status"] == "unresolved"
+
+
+@pytest.mark.governance
+def test_bootstrap_identity_uses_python_command_argv_for_subprocess(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+):
+    repo_root = tmp_path / "repo"
+    (repo_root / ".git").mkdir(parents=True, exist_ok=True)
+    monkeypatch.chdir(repo_root)
+    monkeypatch.delenv("OPENCODE_REPO_ROOT", raising=False)
+    monkeypatch.delenv("OPENCODE_WORKSPACE_ROOT", raising=False)
+    monkeypatch.delenv("REPO_ROOT", raising=False)
+    monkeypatch.delenv("GITHUB_WORKSPACE", raising=False)
+
+    module = _load_module()
+    helper = tmp_path / "bootstrap_session_state.py"
+    helper.write_text("#!/usr/bin/env python3\n", encoding="utf-8")
+    monkeypatch.setattr(module, "BOOTSTRAP_HELPER", helper)
+    monkeypatch.setattr(module, "PYTHON_COMMAND", "py -3")
+    monkeypatch.setattr(module, "WORKSPACES_HOME", tmp_path / "workspaces")
+    monkeypatch.setattr(module, "COMMANDS_RUNTIME_DIR", tmp_path / "commands")
+    monkeypatch.setattr(module, "BINDING_EVIDENCE_PATH", tmp_path / "commands" / "governance.paths.json")
+    monkeypatch.setattr(module.shutil, "which", lambda cmd: "/usr/bin/git" if cmd == "git" else None)
+
+    calls: dict[str, int] = {"identity": 0}
+    observed_cmd: list[str] = []
+
+    def fake_identity_map_exists(_repo_fp: str | None) -> bool:
+        calls["identity"] += 1
+        return calls["identity"] > 1
+
+    class FakeRun:
+        def __init__(self):
+            self.returncode = 0
+            self.stdout = ""
+            self.stderr = ""
+
+    def fake_run(cmd, **kwargs):
+        observed_cmd.extend(cmd)
+        return FakeRun()
+
+    monkeypatch.setattr(module, "identity_map_exists", fake_identity_map_exists)
+    monkeypatch.setattr(module.subprocess, "run", fake_run)
+
+    assert module.bootstrap_identity_if_needed() is True
+    assert observed_cmd[:2] == ["py", "-3"]

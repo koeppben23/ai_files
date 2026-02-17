@@ -8,7 +8,7 @@ from diagnostics.start_preflight_persistence import derive_repo_fingerprint
 
 
 def _is_short_hex(value: str) -> bool:
-    return re.fullmatch(r"[0-9a-f]{16}", value) is not None
+    return re.fullmatch(r"[0-9a-f]{24}", value) is not None
 
 
 def test_start_preflight_derive_repo_fingerprint_requires_git_repo(tmp_path):
@@ -34,7 +34,7 @@ def test_persist_helper_derive_fingerprint_falls_back_without_origin(tmp_path):
     assert derived is not None
     fp, material = derived
     assert _is_short_hex(fp)
-    assert material.startswith("local-git|")
+    assert material.startswith("repo:local:")
 
 
 def test_persist_helper_path_fingerprint_material_is_normalized(tmp_path):
@@ -47,8 +47,9 @@ def test_persist_helper_path_fingerprint_material_is_normalized(tmp_path):
     fp, material = derived
     assert _is_short_hex(fp)
 
-    normalized = repo_root.expanduser().resolve().as_posix().replace("\\", "/").casefold()
-    assert material == f"local-git|{normalized}|main"
+    normalized = str(repo_root.expanduser().resolve())
+    normalized = normalized.replace("\\", "/").casefold()
+    assert material == f"repo:local:{normalized}"
 
 
 def test_start_preflight_path_fingerprint_uses_normalized_path_material(tmp_path):
@@ -60,6 +61,26 @@ def test_start_preflight_path_fingerprint_uses_normalized_path_material(tmp_path
     assert isinstance(fp, str)
     assert _is_short_hex(fp)
 
-    normalized = repo_root.expanduser().resolve().as_posix().replace("\\", "/").casefold()
-    expected = hashlib.sha256(f"local-git|{normalized}|main".encode("utf-8")).hexdigest()[:16]
+    normalized = str(repo_root.expanduser().resolve()).replace("\\", "/").casefold()
+    expected = hashlib.sha256(f"repo:local:{normalized}".encode("utf-8")).hexdigest()[:24]
     assert fp == expected
+
+
+def test_remote_origin_canonicalization_ignores_transport_variants(tmp_path):
+    repo_a = tmp_path / "repo-a"
+    repo_b = tmp_path / "repo-b"
+    for repo in (repo_a, repo_b):
+        (repo / ".git").mkdir(parents=True, exist_ok=True)
+
+    (repo_a / ".git" / "config").write_text(
+        """[remote \"origin\"]\n    url = git@github.com:Example/Team-Repo.git\n""",
+        encoding="utf-8",
+    )
+    (repo_b / ".git" / "config").write_text(
+        """[remote \"origin\"]\n    url = ssh://github.com/example/team-repo\n""",
+        encoding="utf-8",
+    )
+
+    fp_a = derive_repo_fingerprint(repo_a)
+    fp_b = derive_repo_fingerprint(repo_b)
+    assert fp_a == fp_b

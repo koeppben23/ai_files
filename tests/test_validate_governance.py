@@ -1674,9 +1674,7 @@ def test_workspace_persistence_backfill_derives_fingerprint_from_repo_root(tmp_p
         encoding="utf-8",
     )
 
-    expected_fp = hashlib.sha256(
-        "git@github.com:example/derived-repo.git|main".encode("utf-8")
-    ).hexdigest()[:16]
+    expected_fp = hashlib.sha256("repo:ssh://github.com/example/derived-repo".encode("utf-8")).hexdigest()[:24]
 
     r = run([
         sys.executable,
@@ -1912,6 +1910,13 @@ def test_persist_helper_does_not_hardcode_bash_next_command_profile():
     text = read_text(REPO_ROOT / "diagnostics" / "persist_workspace_artifacts.py")
     assert "cmd_profiles[\"bash\"]" not in text
     assert "_preferred_shell_command(cmd_profiles)" in text
+
+
+@pytest.mark.governance
+def test_persist_helper_bootstrap_uses_binding_python_command_argv():
+    text = read_text(REPO_ROOT / "diagnostics" / "persist_workspace_artifacts.py")
+    assert "python_argv = shlex.split(python_cmd" in text
+    assert "cmd = [\n        *python_argv," in text
 
 
 @pytest.mark.governance

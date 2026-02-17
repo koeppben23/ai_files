@@ -11,6 +11,9 @@ import shlex
 import shutil
 import subprocess
 import sys
+import tempfile
+import time
+from urllib.parse import urlsplit
 try:
     import pwd
 except Exception:  # pragma: no cover - unavailable on Windows
@@ -49,7 +52,7 @@ def _allow_cwd_binding_discovery() -> bool:
     return str(os.getenv("OPENCODE_ALLOW_CWD_BINDINGS", "")).strip() == "1"
 
 
-def _resolve_bound_paths(root: Path) -> tuple[Path, Path, bool]:
+def _resolve_bound_paths(root: Path) -> tuple[Path, Path, bool, Path | None]:
     commands_home = root / "commands"
     workspaces_home = root / "workspaces"
     candidates: list[Path] = [commands_home / "governance.paths.json"]
@@ -72,16 +75,16 @@ def _resolve_bound_paths(root: Path) -> tuple[Path, Path, bool]:
             break
 
     if binding_file is None:
-        return commands_home, workspaces_home, False
+        return commands_home, workspaces_home, False, None
     try:
         payload = json.loads(binding_file.read_text(encoding="utf-8"))
     except Exception:
-        return commands_home, workspaces_home, False
+        return commands_home, workspaces_home, False, binding_file
     if not isinstance(payload, dict):
-        return commands_home, workspaces_home, False
+        return commands_home, workspaces_home, False, binding_file
     paths = payload.get("paths")
     if not isinstance(paths, dict):
-        return commands_home, workspaces_home, False
+        return commands_home, workspaces_home, False, binding_file
     commands_raw = paths.get("commandsHome")
     workspaces_raw = paths.get("workspacesHome")
     resolved_commands = (
@@ -95,12 +98,12 @@ def _resolve_bound_paths(root: Path) -> tuple[Path, Path, bool]:
         else workspaces_home
     )
     if not resolved_commands.is_absolute() or not resolved_workspaces.is_absolute():
-        return commands_home, workspaces_home, False
-    return resolved_commands, resolved_workspaces, True
+        return commands_home, workspaces_home, False, binding_file
+    return resolved_commands, resolved_workspaces, True, binding_file
 
 
 ROOT = config_root()
-COMMANDS_RUNTIME_DIR, WORKSPACES_HOME, BINDING_OK = _resolve_bound_paths(ROOT)
+COMMANDS_RUNTIME_DIR, WORKSPACES_HOME, BINDING_OK, BINDING_EVIDENCE_PATH = _resolve_bound_paths(ROOT)
 DIAGNOSTICS_DIR = COMMANDS_RUNTIME_DIR / "diagnostics"
 PERSIST_HELPER = DIAGNOSTICS_DIR / "persist_workspace_artifacts.py"
 BOOTSTRAP_HELPER = DIAGNOSTICS_DIR / "bootstrap_session_state.py"
@@ -130,20 +133,39 @@ def identity_map_exists(repo_fp: str | None) -> bool:
     return legacy_identity_map().exists()
 
 
-def resolve_repo_root() -> Path:
+def resolve_repo_context() -> tuple[Path, str]:
+    def _search_repo_root(start: Path) -> Path | None:
+        candidate = start.resolve()
+        for probe in (candidate, *candidate.parents):
+            git_path = probe / ".git"
+            if git_path.is_dir() or git_path.is_file():
+                return probe
+        return None
+
     env_candidates = [
-        os.getenv("OPENCODE_REPO_ROOT"),
-        os.getenv("OPENCODE_WORKSPACE_ROOT"),
-        os.getenv("REPO_ROOT"),
-        os.getenv("GITHUB_WORKSPACE"),
+        ("OPENCODE_REPO_ROOT", os.getenv("OPENCODE_REPO_ROOT")),
+        ("OPENCODE_WORKSPACE_ROOT", os.getenv("OPENCODE_WORKSPACE_ROOT")),
+        ("REPO_ROOT", os.getenv("REPO_ROOT")),
+        ("GITHUB_WORKSPACE", os.getenv("GITHUB_WORKSPACE")),
     ]
-    for candidate in env_candidates:
+    for key, candidate in env_candidates:
         if not candidate:
             continue
         path = Path(candidate).expanduser().resolve()
-        if path.exists() and (path / ".git").exists():
-            return path
-    return Path.cwd().resolve()
+        if not path.exists():
+            continue
+        repo_root = _search_repo_root(path)
+        if repo_root is not None:
+            return repo_root, f"env:{key}"
+    cwd_repo_root = _search_repo_root(Path.cwd().resolve())
+    if cwd_repo_root is not None:
+        return cwd_repo_root, "cwd_parent_walk"
+    return Path.cwd().resolve(), "cwd"
+
+
+def resolve_repo_root() -> Path:
+    repo_root, _method = resolve_repo_context()
+    return repo_root
 
 
 def pointer_fingerprint() -> str | None:
@@ -220,26 +242,51 @@ def read_origin_remote(config_path: Path) -> str | None:
     return None
 
 
-def read_default_branch(git_dir: Path) -> str:
-    head_ref = git_dir / "refs" / "remotes" / "origin" / "HEAD"
-    if head_ref.exists():
-        try:
-            text = head_ref.read_text(encoding="utf-8")
-        except UnicodeDecodeError:
-            text = head_ref.read_text(encoding="utf-8", errors="replace")
-        match = re.search(r"ref:\s*refs/remotes/origin/(.+)", text)
-        if match:
-            branch = match.group(1).strip()
-            if branch:
-                return branch
-    return "main"
+def _canonicalize_origin_remote(remote: str) -> str | None:
+    raw = remote.strip()
+    if not raw:
+        return None
+
+    scp_style = re.match(r"^(?P<user>[^@/\s]+)@(?P<host>[^:/\s]+):(?P<path>[^\s]+)$", raw)
+    if scp_style:
+        raw = f"ssh://{scp_style.group('user')}@{scp_style.group('host')}/{scp_style.group('path')}"
+
+    try:
+        parsed = urlsplit(raw)
+    except Exception:
+        return None
+
+    if not parsed.scheme or not parsed.netloc:
+        return None
+
+    host = parsed.hostname.casefold() if parsed.hostname else ""
+    if not host:
+        return None
+    if parsed.port:
+        host = f"{host}:{parsed.port}"
+
+    path = parsed.path.replace("\\", "/")
+    path = re.sub(r"/+", "/", path).strip()
+    if not path:
+        return None
+    if not path.startswith("/"):
+        path = f"/{path}"
+    if path.lower().endswith(".git"):
+        path = path[:-4]
+    path = path.rstrip("/")
+    if not path:
+        return None
+    path = path.casefold()
+
+    return f"{parsed.scheme.casefold()}://{host}{path}"
 
 
 def _normalize_path_for_fingerprint(path: Path) -> str:
     """Normalize filesystem paths for deterministic cross-platform fingerprints."""
 
-    resolved = path.expanduser().resolve()
-    return resolved.as_posix().replace("\\", "/").casefold()
+    absolute = Path(os.path.abspath(str(path.expanduser())))
+    normalized = os.path.normpath(str(absolute))
+    return normalized.replace("\\", "/").casefold()
 
 
 def derive_repo_fingerprint(repo_root: Path) -> str | None:
@@ -249,12 +296,126 @@ def derive_repo_fingerprint(repo_root: Path) -> str | None:
         return None
 
     origin = read_origin_remote(git_dir / "config")
-    branch = read_default_branch(git_dir)
-    if origin:
-        material = f"{origin}|{branch}"
+    canonical_origin = _canonicalize_origin_remote(origin) if origin else None
+    if canonical_origin:
+        material = f"repo:{canonical_origin}"
     else:
-        material = f"local-git|{_normalize_path_for_fingerprint(resolved_root)}|{branch}"
-    return hashlib.sha256(material.encode("utf-8")).hexdigest()[:16]
+        material = f"repo:local:{_normalize_path_for_fingerprint(resolved_root)}"
+    return hashlib.sha256(material.encode("utf-8")).hexdigest()[:24]
+
+
+def _discover_repo_session_id() -> str:
+    candidate = str(os.getenv("OPENCODE_SESSION_ID", "")).strip()
+    if candidate:
+        return candidate
+    return hashlib.sha256(str(Path.cwd().resolve()).encode("utf-8")).hexdigest()[:16]
+
+
+def _python_command_argv() -> list[str]:
+    return shlex.split(PYTHON_COMMAND, posix=(os.name != "nt")) or [PYTHON_COMMAND]
+
+
+def _repo_context_index_path(repo_root: Path) -> Path:
+    normalized_root = _normalize_path_for_fingerprint(repo_root)
+    key = hashlib.sha256(normalized_root.encode("utf-8")).hexdigest()[:24]
+    return WORKSPACES_HOME / "index" / key / "repo-context.json"
+
+
+def read_repo_context_fingerprint(repo_root: Path) -> str | None:
+    index_path = _repo_context_index_path(repo_root)
+    payload = load_json(index_path)
+    if not isinstance(payload, dict):
+        return None
+    expected_root = str(repo_root.expanduser().resolve())
+    observed_root = str(payload.get("repo_root") or "").strip()
+    if observed_root != expected_root:
+        return None
+    fp = str(payload.get("repo_fingerprint") or "").strip()
+    return fp or None
+
+
+def _atomic_write_text(path: Path, text: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    attempts = 8 if os.name == "nt" else 2
+    delay = 0.05
+    last_error: Exception | None = None
+    for _ in range(attempts):
+        tmp_fd = -1
+        tmp_name = ""
+        try:
+            tmp_fd, tmp_name = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=str(path.parent))
+            with os.fdopen(tmp_fd, "w", encoding="utf-8", newline="\n") as handle:
+                handle.write(text)
+            os.replace(tmp_name, path)
+            return
+        except Exception as exc:
+            last_error = exc
+            if tmp_fd != -1:
+                try:
+                    os.close(tmp_fd)
+                except Exception:
+                    pass
+            if tmp_name:
+                try:
+                    Path(tmp_name).unlink(missing_ok=True)
+                except Exception:
+                    pass
+            time.sleep(delay)
+    if last_error is not None:
+        raise last_error
+
+
+def _write_repo_context_payload(payload: dict, relative_target: str, repo_root: Path) -> bool:
+    try:
+        target = WORKSPACES_HOME / relative_target
+        text = json.dumps(payload, indent=2, ensure_ascii=True) + "\n"
+        _atomic_write_text(target, text)
+        index = _repo_context_index_path(repo_root)
+        _atomic_write_text(index, text)
+        return True
+    except Exception as exc:
+        log_error(
+            "ERR-REPO-CONTEXT-WRITE-FAILED",
+            "Failed to persist repo-context evidence.",
+            {"target": relative_target, "error": str(exc)[:240]},
+        )
+        return False
+
+
+def write_repo_context(repo_root: Path, repo_fingerprint: str, discovery_method: str) -> bool:
+    try:
+        payload = {
+            "schema": "repo-context.v1",
+            "session_id": _discover_repo_session_id(),
+            "repo_root": str(repo_root.expanduser().resolve()),
+            "repo_fingerprint": repo_fingerprint,
+            "discovered_at": datetime.utcnow().replace(microsecond=0).isoformat() + "Z",
+            "discovery_method": discovery_method,
+            "binding_evidence_path": str(BINDING_EVIDENCE_PATH) if BINDING_EVIDENCE_PATH is not None else "",
+            "commands_home": str(COMMANDS_RUNTIME_DIR),
+        }
+        return _write_repo_context_payload(payload, f"{repo_fingerprint}/repo-context.json", repo_root)
+    except Exception:
+        return False
+
+
+def write_unresolved_repo_context(repo_root: Path, discovery_method: str, reason: str) -> bool:
+    try:
+        payload = {
+            "schema": "repo-context.v1",
+            "status": "unresolved",
+            "session_id": _discover_repo_session_id(),
+            "repo_root": str(repo_root.expanduser().resolve()),
+            "repo_fingerprint": "",
+            "discovered_at": datetime.utcnow().replace(microsecond=0).isoformat() + "Z",
+            "discovery_method": discovery_method,
+            "binding_evidence_path": str(BINDING_EVIDENCE_PATH) if BINDING_EVIDENCE_PATH is not None else "",
+            "commands_home": str(COMMANDS_RUNTIME_DIR),
+            "reason": reason,
+        }
+        return _write_repo_context_payload(payload, "_unresolved/repo-context.json", repo_root)
+    except Exception:
+        return False
 
 
 PYTHON_COMMAND = resolve_python_command()
@@ -265,9 +426,10 @@ def bootstrap_command(repo_fp: str | None) -> str:
 
 
 def bootstrap_command_argv(repo_fp: str | None) -> list[str]:
+    python_argv = _python_command_argv()
     if repo_fp:
-        return [PYTHON_COMMAND, str(BOOTSTRAP_HELPER), "--repo-fingerprint", repo_fp, "--config-root", str(ROOT)]
-    return [PYTHON_COMMAND, str(BOOTSTRAP_HELPER), "--repo-fingerprint", "<repo_fingerprint>", "--config-root", str(ROOT)]
+        return [*python_argv, str(BOOTSTRAP_HELPER), "--repo-fingerprint", repo_fp, "--config-root", str(ROOT)]
+    return [*python_argv, str(BOOTSTRAP_HELPER), "--repo-fingerprint", "<repo_fingerprint>", "--config-root", str(ROOT)]
 
 
 def persist_command(repo_root: Path) -> str:
@@ -275,7 +437,8 @@ def persist_command(repo_root: Path) -> str:
 
 
 def persist_command_argv(repo_root: Path) -> list[str]:
-    return [PYTHON_COMMAND, str(PERSIST_HELPER), "--repo-root", str(repo_root)]
+    python_argv = _python_command_argv()
+    return [*python_argv, str(PERSIST_HELPER), "--repo-root", str(repo_root)]
 
 
 def _command_available(command: str) -> bool:
@@ -550,13 +713,21 @@ def log_error(reason_key: str, message: str, observed: dict) -> None:
 
 
 def bootstrap_identity_if_needed() -> bool:
-    repo_root = resolve_repo_root()
-    inferred_fp = derive_repo_fingerprint(repo_root) or pointer_fingerprint()
+    repo_root, discovery_method = resolve_repo_context()
+    inferred_fp = derive_repo_fingerprint(repo_root) or read_repo_context_fingerprint(repo_root) or pointer_fingerprint()
+
+    if inferred_fp:
+        write_repo_context(repo_root, inferred_fp, discovery_method)
 
     if identity_map_exists(inferred_fp):
         return True
 
     if not inferred_fp:
+        write_unresolved_repo_context(
+            repo_root=repo_root,
+            discovery_method=discovery_method,
+            reason="identity-bootstrap-fingerprint-missing",
+        )
         print(
             json.dumps(
                 {
@@ -614,7 +785,7 @@ def bootstrap_identity_if_needed() -> bool:
     repo_fp = inferred_fp
 
     boot = subprocess.run(
-        [sys.executable, str(BOOTSTRAP_HELPER), "--repo-fingerprint", repo_fp, "--config-root", str(ROOT)],
+        [*_python_command_argv(), str(BOOTSTRAP_HELPER), "--repo-fingerprint", repo_fp, "--config-root", str(ROOT)],
         text=True,
         capture_output=True,
         check=False,
@@ -696,9 +867,14 @@ def run_persistence_hook() -> None:
     if not bootstrap_identity_if_needed():
         return
 
-    repo_root = resolve_repo_root()
-    repo_fp = derive_repo_fingerprint(repo_root) or pointer_fingerprint()
+    repo_root, discovery_method = resolve_repo_context()
+    repo_fp = derive_repo_fingerprint(repo_root) or read_repo_context_fingerprint(repo_root) or pointer_fingerprint()
     if not repo_fp:
+        write_unresolved_repo_context(
+            repo_root=repo_root,
+            discovery_method=discovery_method,
+            reason="repo-root-not-git",
+        )
         print(
             json.dumps(
                 {
@@ -712,9 +888,11 @@ def run_persistence_hook() -> None:
         )
         return
 
+    write_repo_context(repo_root, repo_fp, discovery_method)
+
     run = subprocess.run(
         [
-            sys.executable,
+            *_python_command_argv(),
             str(PERSIST_HELPER),
             "--repo-root",
             str(repo_root),
@@ -740,7 +918,7 @@ def run_persistence_hook() -> None:
             if repo_fp:
                 boot = subprocess.run(
                     [
-                        sys.executable,
+                        *_python_command_argv(),
                         str(BOOTSTRAP_HELPER),
                         "--repo-fingerprint",
                         repo_fp,
