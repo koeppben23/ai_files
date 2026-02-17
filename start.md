@@ -12,7 +12,7 @@ Note: Kernel remains the source of truth; AGENTS.md is the Codex frontend surfac
 When executed as an OpenCode command (`/start`), this prompt injects the installer-owned path binding file
 `${COMMANDS_HOME}/governance.paths.json` into the model context.
 
-!`${PYTHON_COMMAND} -c "import os,platform,runpy;from pathlib import Path;sysname=platform.system();xdg=os.getenv('XDG_CONFIG_HOME');up=os.getenv('USERPROFILE');ad=os.getenv('APPDATA');root=(Path(up)/'.config'/'opencode' if sysname=='Windows' and up else (Path(ad)/'opencode' if sysname=='Windows' and ad else ((Path(xdg) if xdg else Path.home()/'.config')/'opencode')));runpy.run_path(str(root/'commands'/'diagnostics'/'start_binding_evidence.py'),run_name='__main__')" || python -c "import os,platform,runpy;from pathlib import Path;sysname=platform.system();xdg=os.getenv('XDG_CONFIG_HOME');up=os.getenv('USERPROFILE');ad=os.getenv('APPDATA');root=(Path(up)/'.config'/'opencode' if sysname=='Windows' and up else (Path(ad)/'opencode' if sysname=='Windows' and ad else ((Path(xdg) if xdg else Path.home()/'.config')/'opencode')));runpy.run_path(str(root/'commands'/'diagnostics'/'start_binding_evidence.py'),run_name='__main__')"`
+!`${PYTHON_COMMAND} -c "import runpy;from pathlib import Path;root=Path.home()/'.config'/'opencode';runpy.run_path(str(root/'commands'/'diagnostics'/'start_binding_evidence.py'),run_name='__main__')" || python -c "import runpy;from pathlib import Path;root=Path.home()/'.config'/'opencode';runpy.run_path(str(root/'commands'/'diagnostics'/'start_binding_evidence.py'),run_name='__main__')"`
 
 ## Auto-Persistence Hook (OpenCode)
 
@@ -46,12 +46,13 @@ Bootstrap command preflight (binding):
 - Missing-command diagnostics MUST include `expected_after_fix`, `verify_command`, and `restart_hint`.
 - `restart_hint` MUST be deterministic: `restart_required_if_path_edited` or `no_restart_if_binary_in_existing_path`.
 
-!`${PYTHON_COMMAND} -c "import os,platform,runpy;from pathlib import Path;sysname=platform.system();xdg=os.getenv('XDG_CONFIG_HOME');up=os.getenv('USERPROFILE');ad=os.getenv('APPDATA');root=(Path(up)/'.config'/'opencode' if sysname=='Windows' and up else (Path(ad)/'opencode' if sysname=='Windows' and ad else ((Path(xdg) if xdg else Path.home()/'.config')/'opencode')));runpy.run_path(str(root/'commands'/'diagnostics'/'start_preflight_persistence.py'),run_name='__main__')" || python -c "import os,platform,runpy;from pathlib import Path;sysname=platform.system();xdg=os.getenv('XDG_CONFIG_HOME');up=os.getenv('USERPROFILE');ad=os.getenv('APPDATA');root=(Path(up)/'.config'/'opencode' if sysname=='Windows' and up else (Path(ad)/'opencode' if sysname=='Windows' and ad else ((Path(xdg) if xdg else Path.home()/'.config')/'opencode')));runpy.run_path(str(root/'commands'/'diagnostics'/'start_preflight_persistence.py'),run_name='__main__')"`
+!`${PYTHON_COMMAND} -c "import runpy;from pathlib import Path;root=Path.home()/'.config'/'opencode';runpy.run_path(str(root/'commands'/'diagnostics'/'start_preflight_persistence.py'),run_name='__main__')" || python -c "import runpy;from pathlib import Path;root=Path.home()/'.config'/'opencode';runpy.run_path(str(root/'commands'/'diagnostics'/'start_preflight_persistence.py'),run_name='__main__')"`
 
 Binding evidence semantics (binding):
 - Only an existing installer-owned `${COMMANDS_HOME}/governance.paths.json` qualifies as canonical binding evidence.
 - Fallback computed payloads are debug output only (`nonEvidence`) and MUST NOT be treated as binding evidence.
-- If installer-owned binding file is missing, workflow MUST block with `BLOCKED-MISSING-BINDING-FILE` (or `BLOCKED-VARIABLE-RESOLUTION` when variable binding is unresolved).
+- If installer-owned binding file is missing, workflow MUST block with `BLOCKED-MISSING-BINDING-FILE`.
+- Canonical binding location is `${USER_HOME}/.config/opencode/commands/governance.paths.json`.
 
 ---
 
@@ -67,7 +68,7 @@ Clarification (Binding):
 
 ### Required variables (conceptual)
 - `${USER_HOME}` (OS-resolved user home)
-- `${CONFIG_ROOT}` (OpenCode config root; OS-resolved per master.md)
+- `${CONFIG_ROOT}` (OpenCode config root = `${USER_HOME}/.config/opencode`)
 - `${OPENCODE_HOME} = ${CONFIG_ROOT}`
 - `${COMMANDS_HOME} = ${OPENCODE_HOME}/commands`
 - `${PROFILES_HOME} = ${COMMANDS_HOME}/profiles`
@@ -99,7 +100,7 @@ B) **Installer recovery required** (fallback)
 
 If neither A nor installer recovery is available -> `BLOCKED` with required input = "Run installer repair and rerun /start".
 Canonical BLOCKED reason:
-- BLOCKED-VARIABLE-RESOLUTION (no resolved value for `${COMMANDS_HOME}`)
+- BLOCKED-MISSING-BINDING-FILE (missing `${COMMANDS_HOME}/governance.paths.json` at canonical location)
 
 Invocation:
 - Activate the Governance-OS defined in `master.md`.

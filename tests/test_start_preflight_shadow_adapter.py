@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+from pathlib import Path
 
 import pytest
 
@@ -28,8 +29,8 @@ def test_engine_shadow_snapshot_is_available_and_reports_parity_fields(
     monkeypatch.delenv("CI", raising=False)
     monkeypatch.chdir(REPO_ROOT)
     monkeypatch.setenv("OPENCODE_REPO_ROOT", str(REPO_ROOT))
-    write_governance_paths(tmp_path)
-    monkeypatch.setenv("OPENCODE_CONFIG_ROOT", str(tmp_path))
+    monkeypatch.setattr(Path, "home", staticmethod(lambda: tmp_path))
+    write_governance_paths(tmp_path / ".config" / "opencode")
     module = _load_module()
     snapshot = module.build_engine_shadow_snapshot()
     assert snapshot["available"] is True
@@ -49,9 +50,13 @@ def test_engine_shadow_snapshot_is_available_and_reports_parity_fields(
 
 
 @pytest.mark.governance
-def test_engine_shadow_snapshot_accepts_pipeline_operating_mode(monkeypatch: pytest.MonkeyPatch):
+def test_engine_shadow_snapshot_accepts_pipeline_operating_mode(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+):
     """Shadow snapshot should accept explicit pipeline mode request."""
 
+    monkeypatch.setattr(Path, "home", staticmethod(lambda: tmp_path))
+    write_governance_paths(tmp_path / ".config" / "opencode")
     monkeypatch.chdir(REPO_ROOT)
     monkeypatch.setenv("OPENCODE_REPO_ROOT", str(REPO_ROOT))
     monkeypatch.setenv("OPENCODE_OPERATING_MODE", "pipeline")

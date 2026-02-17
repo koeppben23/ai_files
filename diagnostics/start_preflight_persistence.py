@@ -11,6 +11,10 @@ import shlex
 import shutil
 import subprocess
 import sys
+try:
+    import pwd
+except Exception:  # pragma: no cover - unavailable on Windows
+    pwd = None
 from datetime import datetime
 from pathlib import Path
 
@@ -23,26 +27,38 @@ from command_profiles import render_command_profiles
 
 def config_root() -> Path:
     system = platform.system()
-    if system == "Windows":
-        user_profile = os.getenv("USERPROFILE")
-        if user_profile:
-            return Path(user_profile) / ".config" / "opencode"
-        appdata = os.getenv("APPDATA")
-        if appdata:
-            return Path(appdata) / "opencode"
-        raise SystemExit("Windows: USERPROFILE/APPDATA not set")
+    if system == "Darwin" and pwd is not None:
+        return (Path(pwd.getpwuid(os.getuid()).pw_dir).resolve() / ".config" / "opencode").resolve()
+    return (Path.home().resolve() / ".config" / "opencode").resolve()
 
-    xdg = os.getenv("XDG_CONFIG_HOME")
-    return (Path(xdg) if xdg else Path.home() / ".config") / "opencode"
+
+def _candidate_config_roots() -> list[Path]:
+    candidates: list[Path] = [config_root()]
+
+    seen: set[Path] = set()
+    ordered: list[Path] = []
+    for candidate in candidates:
+        if candidate in seen:
+            continue
+        seen.add(candidate)
+        ordered.append(candidate)
+    return ordered
+
+
+def _allow_cwd_binding_discovery() -> bool:
+    return str(os.getenv("OPENCODE_ALLOW_CWD_BINDINGS", "")).strip() == "1"
 
 
 def _resolve_bound_paths(root: Path) -> tuple[Path, Path, bool]:
     commands_home = root / "commands"
     workspaces_home = root / "workspaces"
     candidates: list[Path] = [commands_home / "governance.paths.json"]
-    cwd = Path.cwd().resolve()
-    for parent in (cwd, *cwd.parents):
-        candidates.append(parent / "commands" / "governance.paths.json")
+    for config in _candidate_config_roots():
+        candidates.append(config / "commands" / "governance.paths.json")
+    if _allow_cwd_binding_discovery():
+        cwd = Path.cwd().resolve()
+        for parent in (cwd, *cwd.parents):
+            candidates.append(parent / "commands" / "governance.paths.json")
 
     binding_file: Path | None = None
     seen: set[Path] = set()

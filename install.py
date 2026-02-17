@@ -4,7 +4,7 @@ LLM Governance System - Installer
 Installs governance system files to OpenCode config directory.
 
 Features:
-- Windows primary target: %USERPROFILE%/.config/opencode (fallback: %APPDATA%/opencode)
+- Canonical target on all OS: <user-home>/.config/opencode
 - dry-run support
 - backup-on-overwrite (timestamped) with --no-backup to disable
 - uninstall (manifest-based; deletes only what was installed)
@@ -28,6 +28,10 @@ import os
 import platform
 import shutil
 import sys
+try:
+    import pwd
+except Exception:  # pragma: no cover - unavailable on Windows
+    pwd = None
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -166,26 +170,13 @@ def get_config_root() -> Path:
     Determine OpenCode config root based on OS.
 
     Per requirement:
-    - Windows primary: %USERPROFILE%/.config/opencode
-      fallback: %APPDATA%/opencode
-    - macOS/Linux: $XDG_CONFIG_HOME/opencode or ~/.config/opencode
+    - Canonical path on all OS: <user-home>/.config/opencode
     """
     system = platform.system()
 
-    if system == "Windows":
-        userprofile = os.getenv("USERPROFILE")
-        if userprofile:
-            return Path(userprofile) / ".config" / "opencode"
-        appdata = os.getenv("APPDATA")
-        if appdata:
-            return Path(appdata) / "opencode"
-        raise RuntimeError("Windows: USERPROFILE/APPDATA not set; cannot resolve config root.")
-
-    # macOS / Linux / others POSIX-like
-    xdg_config = os.getenv("XDG_CONFIG_HOME")
-    if xdg_config:
-        return Path(xdg_config) / "opencode"
-    return Path.home() / ".config" / "opencode"
+    if system == "Darwin" and pwd is not None:
+        return Path(pwd.getpwuid(os.getuid()).pw_dir).resolve() / ".config" / "opencode"
+    return (Path.home().resolve() / ".config" / "opencode").resolve()
 
 
 def ensure_dirs(config_root: Path, dry_run: bool) -> None:
