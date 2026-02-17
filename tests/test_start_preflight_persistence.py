@@ -199,3 +199,58 @@ def test_preflight_discovers_binding_from_canonical_home_config(monkeypatch: pyt
 
     module = _load_module()
     assert module.BINDING_OK is True
+
+
+@pytest.mark.governance
+def test_resolve_repo_root_discovers_parent_git_from_nested_cwd(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+):
+    repo_root = tmp_path / "repo"
+    (repo_root / ".git").mkdir(parents=True, exist_ok=True)
+    nested = repo_root / "src" / "feature"
+    nested.mkdir(parents=True, exist_ok=True)
+    monkeypatch.chdir(nested)
+    monkeypatch.delenv("OPENCODE_REPO_ROOT", raising=False)
+    monkeypatch.delenv("OPENCODE_WORKSPACE_ROOT", raising=False)
+    monkeypatch.delenv("REPO_ROOT", raising=False)
+    monkeypatch.delenv("GITHUB_WORKSPACE", raising=False)
+
+    module = _load_module()
+    assert module.resolve_repo_root() == repo_root.resolve()
+
+
+@pytest.mark.governance
+def test_bootstrap_identity_uses_derived_fingerprint_from_nested_repo(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+):
+    repo_root = tmp_path / "repo"
+    (repo_root / ".git").mkdir(parents=True, exist_ok=True)
+    nested = repo_root / "src" / "feature"
+    nested.mkdir(parents=True, exist_ok=True)
+    monkeypatch.chdir(nested)
+
+    module = _load_module()
+    helper = tmp_path / "bootstrap_session_state.py"
+    helper.write_text("#!/usr/bin/env python3\n", encoding="utf-8")
+    monkeypatch.setattr(module, "BOOTSTRAP_HELPER", helper)
+    monkeypatch.setattr(module.shutil, "which", lambda cmd: "/usr/bin/git" if cmd == "git" else None)
+
+    calls: dict[str, int] = {"identity": 0}
+
+    def fake_identity_map_exists(_repo_fp: str | None) -> bool:
+        calls["identity"] += 1
+        return calls["identity"] > 1
+
+    class FakeRun:
+        def __init__(self):
+            self.returncode = 0
+            self.stdout = ""
+            self.stderr = ""
+
+    monkeypatch.setattr(module, "identity_map_exists", fake_identity_map_exists)
+    monkeypatch.setattr(module.subprocess, "run", lambda *args, **kwargs: FakeRun())
+
+    assert module.bootstrap_identity_if_needed() is True
+    payload = json.loads(capsys.readouterr().out.strip())
+    assert payload["workspacePersistenceHook"] == "ok"
+    assert isinstance(payload.get("repoFingerprint"), str) and payload["repoFingerprint"].strip()

@@ -131,6 +131,14 @@ def identity_map_exists(repo_fp: str | None) -> bool:
 
 
 def resolve_repo_root() -> Path:
+    def _search_repo_root(start: Path) -> Path | None:
+        candidate = start.resolve()
+        for probe in (candidate, *candidate.parents):
+            git_path = probe / ".git"
+            if git_path.is_dir() or git_path.is_file():
+                return probe
+        return None
+
     env_candidates = [
         os.getenv("OPENCODE_REPO_ROOT"),
         os.getenv("OPENCODE_WORKSPACE_ROOT"),
@@ -141,9 +149,13 @@ def resolve_repo_root() -> Path:
         if not candidate:
             continue
         path = Path(candidate).expanduser().resolve()
-        if path.exists() and (path / ".git").exists():
-            return path
-    return Path.cwd().resolve()
+        if not path.exists():
+            continue
+        repo_root = _search_repo_root(path)
+        if repo_root is not None:
+            return repo_root
+    cwd_repo_root = _search_repo_root(Path.cwd().resolve())
+    return cwd_repo_root if cwd_repo_root is not None else Path.cwd().resolve()
 
 
 def pointer_fingerprint() -> str | None:
