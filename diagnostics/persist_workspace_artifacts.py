@@ -152,9 +152,7 @@ def _derive_fingerprint_from_repo(repo_root: Path) -> tuple[str, str] | None:
     root = repo_root.expanduser().resolve()
     git_dir = _resolve_git_dir(root)
     if not git_dir:
-        material = f"local-path|{root.as_posix()}"
-        fp = hashlib.sha256(material.encode("utf-8")).hexdigest()[:16]
-        return fp, material
+        return None
 
     remote = _read_origin_remote(git_dir / "config")
     default_branch = _read_default_branch(git_dir)
