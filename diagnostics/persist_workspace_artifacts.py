@@ -95,6 +95,14 @@ def _sanitize_repo_name(value: str, fallback: str) -> str:
     return raw if raw else fallback
 
 
+def _is_within(path: Path, parent: Path) -> bool:
+    try:
+        path.relative_to(parent)
+        return True
+    except ValueError:
+        return False
+
+
 def _resolve_git_dir(repo_root: Path) -> Path | None:
     dot_git = repo_root / ".git"
     if dot_git.is_dir():
@@ -531,6 +539,30 @@ def main() -> int:
     args = parse_args()
     config_root = resolve_config_root(args.config_root)
     repo_root = args.repo_root.expanduser().resolve()
+
+    if _is_within(config_root, repo_root):
+        payload = {
+            "status": "blocked",
+            "reason": "config root resolves inside repository root",
+            "reason_code": "BLOCKED-WORKSPACE-PERSISTENCE",
+            "missing_evidence": [
+                "valid config root outside repository working tree",
+            ],
+            "recovery_steps": [
+                "set OPENCODE_CONFIG_ROOT to a user config location outside the repository",
+                "or pass --config-root to an absolute path outside the repository",
+            ],
+            "required_operator_action": "rerun with a config root outside the repo working tree",
+            "feedback_required": "reply with the chosen config root and rerun result",
+            "next_command": "python diagnostics/persist_workspace_artifacts.py --config-root <outside_repo_config_root> --repo-root <repo_root>",
+        }
+        if args.quiet:
+            print(json.dumps(payload, ensure_ascii=True))
+        else:
+            print("ERROR: config root resolves inside repository root")
+            print(f"- config_root: {config_root}")
+            print(f"- repo_root: {repo_root}")
+        return 2
 
     try:
         repo_fingerprint, fp_source, fp_evidence = _resolve_repo_fingerprint(

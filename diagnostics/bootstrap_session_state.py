@@ -97,6 +97,14 @@ def repo_identity_map_path(config_root: Path, repo_fingerprint: str) -> Path:
     return config_root / "workspaces" / repo_fingerprint / "repo-identity-map.yaml"
 
 
+def _is_within(path: Path, parent: Path) -> bool:
+    try:
+        path.relative_to(parent)
+        return True
+    except ValueError:
+        return False
+
+
 def session_state_template(repo_fingerprint: str, repo_name: str | None) -> dict:
     repository = repo_name.strip() if isinstance(repo_name, str) and repo_name.strip() else repo_fingerprint
     return {
@@ -217,6 +225,12 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     args = parse_args()
     config_root = resolve_config_root(args.config_root)
+
+    cwd_repo_root = Path.cwd().resolve()
+    if (cwd_repo_root / ".git").exists() and _is_within(config_root, cwd_repo_root):
+        print("ERROR: config root resolves inside repository root")
+        print("Set OPENCODE_CONFIG_ROOT to a location outside the repository and rerun.")
+        return 5
 
     try:
         repo_fingerprint = _validate_repo_fingerprint(args.repo_fingerprint)
