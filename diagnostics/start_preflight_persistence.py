@@ -115,7 +115,10 @@ def resolve_git_dir(repo_root: Path) -> Path | None:
     if not dot_git.is_file():
         return None
 
-    text = dot_git.read_text(encoding="utf-8", errors="ignore")
+    try:
+        text = dot_git.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        text = dot_git.read_text(encoding="utf-8", errors="replace")
     match = re.search(r"gitdir:\s*(.+)", text)
     if not match:
         return None
@@ -128,7 +131,10 @@ def resolve_git_dir(repo_root: Path) -> Path | None:
 def read_origin_remote(config_path: Path) -> str | None:
     if not config_path.exists():
         return None
-    lines = config_path.read_text(encoding="utf-8", errors="ignore").splitlines()
+    try:
+        lines = config_path.read_text(encoding="utf-8").splitlines()
+    except UnicodeDecodeError:
+        lines = config_path.read_text(encoding="utf-8", errors="replace").splitlines()
     in_origin = False
     for line in lines:
         stripped = line.strip()
@@ -148,7 +154,10 @@ def read_origin_remote(config_path: Path) -> str | None:
 def read_default_branch(git_dir: Path) -> str:
     head_ref = git_dir / "refs" / "remotes" / "origin" / "HEAD"
     if head_ref.exists():
-        text = head_ref.read_text(encoding="utf-8", errors="ignore")
+        try:
+            text = head_ref.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            text = head_ref.read_text(encoding="utf-8", errors="replace")
         match = re.search(r"ref:\s*refs/remotes/origin/(.+)", text)
         if match:
             branch = match.group(1).strip()
@@ -220,6 +229,17 @@ def _windows_longpaths_enabled() -> bool | None:
         if proc.returncode == 0 and proc.stdout.strip().lower() in {"true", "1", "yes", "on"}:
             return True
     return False
+
+
+def _git_safe_directory_issue() -> bool:
+    probe = subprocess.run(
+        ["git", "rev-parse", "--is-inside-work-tree"],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    stderr = (probe.stderr or "").lower()
+    return "safe.directory" in stderr
 
 
 def emit_preflight() -> None:
@@ -302,6 +322,7 @@ def emit_preflight() -> None:
         longpaths_note = "enabled"
     elif longpaths_state is False:
         longpaths_note = "disabled"
+    git_safe_directory_blocked = _git_safe_directory_issue() if _command_available("git") else False
 
     status = "ok" if not missing else "degraded"
     block_now = bool(missing)
@@ -330,6 +351,7 @@ def emit_preflight() -> None:
                 "next": nxt,
                 "missing_details": missing_details,
                 "windows_longpaths": longpaths_note,
+                "git_safe_directory": "blocked" if git_safe_directory_blocked else "ok",
                 "advisories": (
                     [
                         {
@@ -338,6 +360,16 @@ def emit_preflight() -> None:
                         }
                     ]
                     if longpaths_state is False
+                    else []
+                )
+                + (
+                    [
+                        {
+                            "key": "git_safe_directory_blocked",
+                            "message": "Git safe.directory policy is blocking repository access; add this repo to safe.directory and rerun.",
+                        }
+                    ]
+                    if git_safe_directory_blocked
                     else []
                 ),
             },
