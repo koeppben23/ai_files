@@ -11,6 +11,7 @@ import shlex
 import shutil
 import subprocess
 import sys
+from urllib.parse import urlsplit
 try:
     import pwd
 except Exception:  # pragma: no cover - unavailable on Windows
@@ -232,26 +233,51 @@ def read_origin_remote(config_path: Path) -> str | None:
     return None
 
 
-def read_default_branch(git_dir: Path) -> str:
-    head_ref = git_dir / "refs" / "remotes" / "origin" / "HEAD"
-    if head_ref.exists():
-        try:
-            text = head_ref.read_text(encoding="utf-8")
-        except UnicodeDecodeError:
-            text = head_ref.read_text(encoding="utf-8", errors="replace")
-        match = re.search(r"ref:\s*refs/remotes/origin/(.+)", text)
-        if match:
-            branch = match.group(1).strip()
-            if branch:
-                return branch
-    return "main"
+def _canonicalize_origin_remote(remote: str) -> str | None:
+    raw = remote.strip()
+    if not raw:
+        return None
+
+    scp_style = re.match(r"^(?P<user>[^@/\s]+)@(?P<host>[^:/\s]+):(?P<path>[^\s]+)$", raw)
+    if scp_style:
+        raw = f"ssh://{scp_style.group('user')}@{scp_style.group('host')}/{scp_style.group('path')}"
+
+    try:
+        parsed = urlsplit(raw)
+    except Exception:
+        return None
+
+    if not parsed.scheme or not parsed.netloc:
+        return None
+
+    host = parsed.hostname.casefold() if parsed.hostname else ""
+    if not host:
+        return None
+    if parsed.port:
+        host = f"{host}:{parsed.port}"
+
+    path = parsed.path.replace("\\", "/")
+    path = re.sub(r"/+", "/", path).strip()
+    if not path:
+        return None
+    if not path.startswith("/"):
+        path = f"/{path}"
+    if path.lower().endswith(".git"):
+        path = path[:-4]
+    path = path.rstrip("/")
+    if not path:
+        return None
+    path = path.casefold()
+
+    return f"{parsed.scheme.casefold()}://{host}{path}"
 
 
 def _normalize_path_for_fingerprint(path: Path) -> str:
     """Normalize filesystem paths for deterministic cross-platform fingerprints."""
 
-    resolved = path.expanduser().resolve()
-    return resolved.as_posix().replace("\\", "/").casefold()
+    absolute = Path(os.path.abspath(str(path.expanduser())))
+    normalized = os.path.normpath(str(absolute))
+    return normalized.replace("\\", "/").casefold()
 
 
 def derive_repo_fingerprint(repo_root: Path) -> str | None:
@@ -261,12 +287,12 @@ def derive_repo_fingerprint(repo_root: Path) -> str | None:
         return None
 
     origin = read_origin_remote(git_dir / "config")
-    branch = read_default_branch(git_dir)
-    if origin:
-        material = f"{origin}|{branch}"
+    canonical_origin = _canonicalize_origin_remote(origin) if origin else None
+    if canonical_origin:
+        material = f"repo:{canonical_origin}"
     else:
-        material = f"local-git|{_normalize_path_for_fingerprint(resolved_root)}|{branch}"
-    return hashlib.sha256(material.encode("utf-8")).hexdigest()[:16]
+        material = f"repo:local:{_normalize_path_for_fingerprint(resolved_root)}"
+    return hashlib.sha256(material.encode("utf-8")).hexdigest()[:24]
 
 
 PYTHON_COMMAND = resolve_python_command()
@@ -277,9 +303,10 @@ def bootstrap_command(repo_fp: str | None) -> str:
 
 
 def bootstrap_command_argv(repo_fp: str | None) -> list[str]:
+    python_argv = shlex.split(PYTHON_COMMAND, posix=(os.name != "nt")) or [PYTHON_COMMAND]
     if repo_fp:
-        return [PYTHON_COMMAND, str(BOOTSTRAP_HELPER), "--repo-fingerprint", repo_fp, "--config-root", str(ROOT)]
-    return [PYTHON_COMMAND, str(BOOTSTRAP_HELPER), "--repo-fingerprint", "<repo_fingerprint>", "--config-root", str(ROOT)]
+        return [*python_argv, str(BOOTSTRAP_HELPER), "--repo-fingerprint", repo_fp, "--config-root", str(ROOT)]
+    return [*python_argv, str(BOOTSTRAP_HELPER), "--repo-fingerprint", "<repo_fingerprint>", "--config-root", str(ROOT)]
 
 
 def persist_command(repo_root: Path) -> str:
@@ -287,7 +314,8 @@ def persist_command(repo_root: Path) -> str:
 
 
 def persist_command_argv(repo_root: Path) -> list[str]:
-    return [PYTHON_COMMAND, str(PERSIST_HELPER), "--repo-root", str(repo_root)]
+    python_argv = shlex.split(PYTHON_COMMAND, posix=(os.name != "nt")) or [PYTHON_COMMAND]
+    return [*python_argv, str(PERSIST_HELPER), "--repo-root", str(repo_root)]
 
 
 def _command_available(command: str) -> bool:

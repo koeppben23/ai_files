@@ -1674,9 +1674,7 @@ def test_workspace_persistence_backfill_derives_fingerprint_from_repo_root(tmp_p
         encoding="utf-8",
     )
 
-    expected_fp = hashlib.sha256(
-        "git@github.com:example/derived-repo.git|main".encode("utf-8")
-    ).hexdigest()[:16]
+    expected_fp = hashlib.sha256("repo:ssh://github.com/example/derived-repo".encode("utf-8")).hexdigest()[:24]
 
     r = run([
         sys.executable,

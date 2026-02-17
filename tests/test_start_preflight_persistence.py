@@ -254,3 +254,14 @@ def test_bootstrap_identity_uses_derived_fingerprint_from_nested_repo(
     payload = json.loads(capsys.readouterr().out.strip())
     assert payload["workspacePersistenceHook"] == "ok"
     assert isinstance(payload.get("repoFingerprint"), str) and payload["repoFingerprint"].strip()
+
+
+@pytest.mark.governance
+def test_bootstrap_command_argv_splits_python_launcher(monkeypatch: pytest.MonkeyPatch):
+    module = _load_module()
+    monkeypatch.setattr(module, "PYTHON_COMMAND", "py -3")
+    monkeypatch.setattr(module, "BOOTSTRAP_HELPER", Path("C:/tmp/bootstrap.py"))
+
+    argv = module.bootstrap_command_argv("abc123")
+    assert argv[:2] == ["py", "-3"]
+    assert "--repo-fingerprint" in argv

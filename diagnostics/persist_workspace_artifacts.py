@@ -11,6 +11,7 @@ import subprocess
 import sys
 import tempfile
 import time
+from urllib.parse import urlsplit
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -186,27 +187,51 @@ def _read_origin_remote(config_path: Path) -> str | None:
     return None
 
 
-def _read_default_branch(git_dir: Path) -> str:
-    head_ref = git_dir / "refs" / "remotes" / "origin" / "HEAD"
-    if head_ref.exists():
-        try:
-            text = head_ref.read_text(encoding="utf-8")
-        except UnicodeDecodeError:
-            text = head_ref.read_text(encoding="utf-8", errors="replace")
-        m = re.search(r"ref:\s*refs/remotes/origin/(.+)", text)
-        if m:
-            branch = m.group(1).strip()
-            if branch:
-                return branch
+def _canonicalize_origin_remote(remote: str) -> str | None:
+    raw = remote.strip()
+    if not raw:
+        return None
 
-    return "main"
+    scp_style = re.match(r"^(?P<user>[^@/\s]+)@(?P<host>[^:/\s]+):(?P<path>[^\s]+)$", raw)
+    if scp_style:
+        raw = f"ssh://{scp_style.group('user')}@{scp_style.group('host')}/{scp_style.group('path')}"
+
+    try:
+        parsed = urlsplit(raw)
+    except Exception:
+        return None
+
+    if not parsed.scheme or not parsed.netloc:
+        return None
+
+    host = parsed.hostname.casefold() if parsed.hostname else ""
+    if not host:
+        return None
+    if parsed.port:
+        host = f"{host}:{parsed.port}"
+
+    path = parsed.path.replace("\\", "/")
+    path = re.sub(r"/+", "/", path).strip()
+    if not path:
+        return None
+    if not path.startswith("/"):
+        path = f"/{path}"
+    if path.lower().endswith(".git"):
+        path = path[:-4]
+    path = path.rstrip("/")
+    if not path:
+        return None
+    path = path.casefold()
+
+    return f"{parsed.scheme.casefold()}://{host}{path}"
 
 
 def _normalize_path_for_fingerprint(path: Path) -> str:
     """Normalize filesystem paths for deterministic cross-platform fingerprints."""
 
-    resolved = path.expanduser().resolve()
-    return resolved.as_posix().replace("\\", "/").casefold()
+    absolute = Path(os.path.abspath(str(path.expanduser())))
+    normalized = os.path.normpath(str(absolute))
+    return normalized.replace("\\", "/").casefold()
 
 
 def _derive_fingerprint_from_repo(repo_root: Path) -> tuple[str, str] | None:
@@ -216,12 +241,12 @@ def _derive_fingerprint_from_repo(repo_root: Path) -> tuple[str, str] | None:
         return None
 
     remote = _read_origin_remote(git_dir / "config")
-    default_branch = _read_default_branch(git_dir)
-    if remote:
-        material = f"{remote}|{default_branch}"
+    canonical_remote = _canonicalize_origin_remote(remote) if remote else None
+    if canonical_remote:
+        material = f"repo:{canonical_remote}"
     else:
-        material = f"local-git|{_normalize_path_for_fingerprint(root)}|{default_branch}"
-    fp = hashlib.sha256(material.encode("utf-8")).hexdigest()[:16]
+        material = f"repo:local:{_normalize_path_for_fingerprint(root)}"
+    fp = hashlib.sha256(material.encode("utf-8")).hexdigest()[:24]
     return fp, material
 
 
