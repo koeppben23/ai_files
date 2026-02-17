@@ -57,6 +57,8 @@ def test_emit_preflight_treats_python3_as_python_equivalent(monkeypatch: pytest.
     assert payload["missing"] == []
     assert "python" in payload["available"]
     assert "python3" in payload["available"]
+    assert "windows_longpaths" in payload
+    assert "advisories" in payload
 
 
 @pytest.mark.governance
@@ -92,3 +94,4 @@ def test_emit_preflight_blocks_when_both_python_aliases_missing(monkeypatch: pyt
     assert payload["preflight"] == "degraded"
     assert payload["block_now"] is True
     assert set(payload["missing"]) == {"python", "python3"}
+    assert "windows_longpaths" in payload

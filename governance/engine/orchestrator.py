@@ -12,6 +12,7 @@ from governance.context.repo_context_resolver import RepoRootResolutionResult, r
 from governance.engine.adapters import HostAdapter, HostCapabilities, OperatingMode
 from governance.engine.canonical_json import canonical_json_hash
 from governance.engine.error_reason_router import canonicalize_reason_payload_failure
+from governance.engine.interaction_gate import evaluate_interaction_gate
 from governance.engine.reason_codes import (
     BLOCKED_ENGINE_SELFCHECK,
     BLOCKED_ACTIVATION_HASH_MISMATCH,
@@ -438,17 +439,18 @@ def run_engine_orchestrator(
     gate_blocked = False
     gate_reason_code = REASON_CODE_NONE
 
-    if effective_mode == "pipeline" and (interactive_required or prompt_used_total > 0 or prompt_used_repo_docs > 0):
+    interaction_decision = evaluate_interaction_gate(
+        effective_mode=effective_mode,
+        interactive_required=interactive_required,
+        prompt_used_total=prompt_used_total,
+        prompt_used_repo_docs=prompt_used_repo_docs,
+        requested_action=requested_action or "",
+    )
+    if interaction_decision.blocked:
         gate_blocked = True
         gate_reason_code = INTERACTIVE_REQUIRED_IN_PIPELINE
-        prompt_events.append(
-            {
-                "event": "PROMPT_REQUESTED",
-                "source": "repo_docs" if prompt_used_repo_docs > 0 else "governance",
-                "topic": requested_action or "interactive_required",
-                "mode": effective_mode,
-            }
-        )
+        if interaction_decision.event is not None:
+            prompt_events.append(interaction_decision.event)
     elif prompt_used_total > budget.max_total_prompts or prompt_used_repo_docs > budget.max_repo_doc_prompts:
         gate_blocked = True
         gate_reason_code = PROMPT_BUDGET_EXCEEDED

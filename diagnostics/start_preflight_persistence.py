@@ -207,6 +207,21 @@ def _expand_command_placeholders(command: str) -> str:
     return command.replace("${PYTHON_COMMAND}", PYTHON_COMMAND)
 
 
+def _windows_longpaths_enabled() -> bool | None:
+    if platform.system() != "Windows":
+        return None
+    for scope in ("--system", "--global"):
+        proc = subprocess.run(
+            ["git", "config", scope, "--get", "core.longpaths"],
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        if proc.returncode == 0 and proc.stdout.strip().lower() in {"true", "1", "yes", "on"}:
+            return True
+    return False
+
+
 def emit_preflight() -> None:
     now = subprocess.run(
         [
@@ -281,6 +296,12 @@ def emit_preflight() -> None:
             )
 
     missing_later = [command for command in required_later if not _command_available(command)]
+    longpaths_state = _windows_longpaths_enabled()
+    longpaths_note = "not_applicable"
+    if longpaths_state is True:
+        longpaths_note = "enabled"
+    elif longpaths_state is False:
+        longpaths_note = "disabled"
 
     status = "ok" if not missing else "degraded"
     block_now = bool(missing)
@@ -308,6 +329,17 @@ def emit_preflight() -> None:
                 "impact": impact,
                 "next": nxt,
                 "missing_details": missing_details,
+                "windows_longpaths": longpaths_note,
+                "advisories": (
+                    [
+                        {
+                            "key": "windows_longpaths_disabled",
+                            "message": "Enable git core.longpaths=true to reduce path-length failures on Windows toolchains.",
+                        }
+                    ]
+                    if longpaths_state is False
+                    else []
+                ),
             },
             ensure_ascii=True,
         )

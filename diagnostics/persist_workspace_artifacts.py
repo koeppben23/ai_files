@@ -22,6 +22,8 @@ except Exception:  # pragma: no cover
     def safe_log_error(**kwargs):  # type: ignore[no-redef]
         return {"status": "log-disabled"}
 
+from workspace_lock import acquire_workspace_lock
+
 
 def default_config_root() -> Path:
     if os.name == "nt":
@@ -736,6 +738,31 @@ def main() -> int:
                 print(f"- repo_fingerprint: {repo_fingerprint}")
             return 2
 
+    try:
+        workspace_lock = acquire_workspace_lock(
+            workspaces_home=workspaces_home,
+            repo_fingerprint=repo_fingerprint,
+        )
+    except TimeoutError:
+        payload = {
+            "status": "blocked",
+            "reason": "workspace lock timeout",
+            "reason_code": "BLOCKED-WORKSPACE-PERSISTENCE",
+            "missing_evidence": ["exclusive workspace lock"],
+            "recovery_steps": [
+                "wait for active run to finish or clear stale lock after verification",
+                "rerun workspace persistence helper",
+            ],
+            "required_operator_action": "acquire exclusive workspace lock before writing artifacts",
+            "feedback_required": "reply with rerun result after lock contention is resolved",
+            "next_command": f"{python_cmd} diagnostics/persist_workspace_artifacts.py --repo-fingerprint {repo_fingerprint} --config-root \"{config_root}\"",
+        }
+        if args.quiet:
+            print(json.dumps(payload, ensure_ascii=True))
+        else:
+            print("ERROR: workspace lock timeout")
+        return 2
+
     session = _read_repo_session(session_path)
 
     scope = session.get("Scope", {}) if isinstance(session, dict) else {}
@@ -878,6 +905,7 @@ def main() -> int:
         "repoFingerprint": repo_fingerprint,
         "fingerprintSource": fp_source,
         "fingerprintEvidence": fp_evidence,
+        "runId": workspace_lock.lock_id,
         "repoHome": str(repo_home),
         "actions": actions,
         "sessionUpdate": session_update,
@@ -897,6 +925,7 @@ def main() -> int:
             print(f"- {key}: {action}")
         print(f"- sessionUpdate: {session_update}")
 
+    workspace_lock.release()
     return 0
 
 

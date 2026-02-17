@@ -20,6 +20,8 @@ except Exception:  # pragma: no cover
     def safe_log_error(**kwargs):  # type: ignore[no-redef]
         return {"status": "log-disabled"}
 
+from workspace_lock import acquire_workspace_lock
+
 
 def default_config_root() -> Path:
     if os.name == "nt":
@@ -280,6 +282,16 @@ def main() -> int:
     pointer_file = session_pointer_path(config_root)
     identity_map_file = workspaces_home / repo_fingerprint / "repo-identity-map.yaml"
 
+    try:
+        workspace_lock = acquire_workspace_lock(
+            workspaces_home=workspaces_home,
+            repo_fingerprint=repo_fingerprint,
+        )
+    except TimeoutError:
+        print("ERROR: workspace lock timeout")
+        print("Wait for active run to complete or clear stale lock after verification.")
+        return 6
+
     print(f"Config root: {config_root}")
     print(f"Repo fingerprint: {repo_fingerprint}")
     print(f"Repo SESSION_STATE file: {repo_state_file}")
@@ -410,6 +422,7 @@ def main() -> int:
             )
             print("WARNING: persist_workspace_artifacts.py not found; skipping artifact backfill hook.")
 
+    workspace_lock.release()
     return 0
 
 
