@@ -7,6 +7,7 @@ import hashlib
 import json
 import os
 import re
+import shlex
 import subprocess
 import sys
 import tempfile
@@ -635,6 +636,7 @@ def _bootstrap_missing_session_state(
     config_root: Path,
     repo_fingerprint: str,
     repo_name: str,
+    python_cmd: str,
     dry_run: bool,
 ) -> tuple[bool, str]:
     """Ensure repo-scoped SESSION_STATE exists before persistence update."""
@@ -646,8 +648,9 @@ def _bootstrap_missing_session_state(
     if not helper.exists():
         return False, "missing-bootstrap-helper"
 
+    python_argv = shlex.split(python_cmd, posix=(os.name != "nt")) or [python_cmd]
     cmd = [
-        sys.executable,
+        *python_argv,
         str(helper),
         "--repo-fingerprint",
         repo_fingerprint,
@@ -830,6 +833,7 @@ def main() -> int:
             config_root=config_root,
             repo_fingerprint=repo_fingerprint,
             repo_name=args.repo_name or repo_root.name or repo_fingerprint,
+            python_cmd=python_cmd,
             dry_run=args.dry_run,
         )
         if not bootstrap_ok:

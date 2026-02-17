@@ -1913,6 +1913,13 @@ def test_persist_helper_does_not_hardcode_bash_next_command_profile():
 
 
 @pytest.mark.governance
+def test_persist_helper_bootstrap_uses_binding_python_command_argv():
+    text = read_text(REPO_ROOT / "diagnostics" / "persist_workspace_artifacts.py")
+    assert "python_argv = shlex.split(python_cmd" in text
+    assert "cmd = [\n        *python_argv," in text
+
+
+@pytest.mark.governance
 def test_start_prefers_host_binding_evidence_and_defers_profile_selection_at_bootstrap():
     text = read_text(REPO_ROOT / "start.md")
     required_tokens = [
