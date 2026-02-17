@@ -24,20 +24,20 @@ from workspace_lock import acquire_workspace_lock
 
 
 def default_config_root() -> Path:
-    if os.name == "nt":
-        user_profile = os.environ.get("USERPROFILE")
-        if user_profile:
-            return Path(user_profile) / ".config" / "opencode"
+    return (Path.home().resolve() / ".config" / "opencode").resolve()
 
-        appdata = os.environ.get("APPDATA")
-        if appdata:
-            return Path(appdata) / "opencode"
 
-        return Path.home() / ".config" / "opencode"
-
-    xdg = os.environ.get("XDG_CONFIG_HOME")
-    base = Path(xdg) if xdg else (Path.home() / ".config")
-    return base / "opencode"
+def _normalize_absolute_path(raw: object) -> Path | None:
+    if not isinstance(raw, str) or not raw.strip():
+        return None
+    candidate = Path(raw).expanduser()
+    token = raw.strip()
+    if os.name == "nt" and re.match(r"^[A-Za-z]:[^/\\]", token):
+        return None
+    if not candidate.is_absolute():
+        return None
+    normalized = os.path.normpath(os.path.abspath(str(candidate)))
+    return Path(normalized)
 
 
 def _load_json(path: Path) -> dict | None:
@@ -60,7 +60,12 @@ def _load_binding_paths(paths_file: Path, *, expected_config_root: Path | None =
         raise ValueError(f"binding evidence invalid: paths.configRoot missing in {paths_file}")
     if not isinstance(workspaces_raw, str) or not workspaces_raw.strip():
         raise ValueError(f"binding evidence invalid: paths.workspacesHome missing in {paths_file}")
-    config_root = Path(config_root_raw).expanduser().resolve()
+    config_root = _normalize_absolute_path(config_root_raw)
+    _workspaces_home = _normalize_absolute_path(workspaces_raw)
+    if config_root is None:
+        raise ValueError(f"binding evidence invalid: paths.configRoot must be absolute in {paths_file}")
+    if _workspaces_home is None:
+        raise ValueError(f"binding evidence invalid: paths.workspacesHome must be absolute in {paths_file}")
     if expected_config_root is not None and config_root != expected_config_root.resolve():
         raise ValueError("binding evidence mismatch: config root does not match explicit input")
     return config_root, paths

@@ -120,3 +120,17 @@ def test_resolver_parent_search_is_bounded(tmp_path: Path):
     assert result.repo_root == nested_cwd.resolve()
     assert result.source == "cwd"
     assert result.is_git_root is False
+
+
+@pytest.mark.governance
+def test_resolver_rejects_relative_env_repo_root(tmp_path: Path):
+    cwd_git_root = _make_git_root(tmp_path / "cwd-git-root")
+    _make_git_root(tmp_path / "relative-git")
+
+    result = resolve_repo_root(
+        env={"OPENCODE_REPO_ROOT": "."},
+        cwd=cwd_git_root,
+    )
+
+    assert result.repo_root == cwd_git_root.resolve()
+    assert result.source == "cwd"

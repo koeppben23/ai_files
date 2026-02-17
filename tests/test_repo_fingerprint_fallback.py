@@ -84,3 +84,23 @@ def test_remote_origin_canonicalization_ignores_transport_variants(tmp_path):
     fp_a = derive_repo_fingerprint(repo_a)
     fp_b = derive_repo_fingerprint(repo_b)
     assert fp_a == fp_b
+
+
+def test_remote_origin_canonicalization_ignores_scheme_variants(tmp_path):
+    repo_a = tmp_path / "repo-a"
+    repo_b = tmp_path / "repo-b"
+    for repo in (repo_a, repo_b):
+        (repo / ".git").mkdir(parents=True, exist_ok=True)
+
+    (repo_a / ".git" / "config").write_text(
+        """[remote \"origin\"]\n    url = https://github.com/example/team-repo.git\n""",
+        encoding="utf-8",
+    )
+    (repo_b / ".git" / "config").write_text(
+        """[remote \"origin\"]\n    url = ssh://git@github.com/example/team-repo\n""",
+        encoding="utf-8",
+    )
+
+    fp_a = derive_repo_fingerprint(repo_a)
+    fp_b = derive_repo_fingerprint(repo_b)
+    assert fp_a == fp_b
