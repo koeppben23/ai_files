@@ -4,11 +4,41 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 from pathlib import Path
 
 
 def _is_nonempty_string(value: object) -> bool:
     return isinstance(value, str) and value.strip() != ""
+
+
+def _phase_requires_ticket_input(phase_value: object) -> bool:
+    """Return True only for Phase 4+ where ticket-goal input is valid."""
+
+    if not isinstance(phase_value, str):
+        return False
+    phase = phase_value.strip()
+    if not phase:
+        return False
+    match = re.match(r"^(\d+)", phase)
+    if match is None:
+        return False
+    return int(match.group(1)) >= 4
+
+
+def _contains_ticket_prompt(text: object) -> bool:
+    if not isinstance(text, str):
+        return False
+    normalized = text.strip().lower()
+    if not normalized:
+        return False
+    if "task/ticket" in normalized:
+        return True
+    if "ticket" in normalized:
+        return True
+    if "change request" in normalized:
+        return True
+    return False
 
 
 def validate(payload: dict) -> list[str]:
@@ -44,6 +74,15 @@ def validate(payload: dict) -> list[str]:
         elif na_type in {"reply_with_one_number", "manual_step"}:
             if str(next_action.get("Command", "")).strip().lower() != "none":
                 errors.append("next_action.Command must be none when next_action.type is reply_with_one_number|manual_step")
+
+    phase_value = session.get("phase") if isinstance(session, dict) else None
+    if not isinstance(phase_value, str):
+        phase_value = session.get("Phase") if isinstance(session, dict) else None
+    if not _phase_requires_ticket_input(phase_value):
+        next_text = next_action.get("Next") if isinstance(next_action, dict) else None
+        why_text = next_action.get("Why") if isinstance(next_action, dict) else None
+        if _contains_ticket_prompt(next_text) or _contains_ticket_prompt(why_text):
+            errors.append("next_action must not request task/ticket input before phase 4")
 
     snapshot = payload.get("snapshot")
     if not isinstance(snapshot, dict):

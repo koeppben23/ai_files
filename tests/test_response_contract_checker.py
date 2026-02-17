@@ -68,3 +68,56 @@ def test_response_contract_checker_rejects_command_coherence_violation(tmp_path:
     r = run([sys.executable, str(script), "--input", str(f)])
     assert r.returncode != 0
     assert "command coherence violated" in (r.stdout + r.stderr)
+
+
+@pytest.mark.governance
+def test_response_contract_checker_rejects_ticket_prompt_before_phase_4(tmp_path: Path):
+    payload = {
+        "status": "degraded",
+        "session_state": {
+            "Mode": "DEGRADED",
+            "Phase": "2-RepoDiscovery",
+            "Next": "Complete repo discovery + set working set/component scope before Phase 4 planning",
+        },
+        "next_action": {
+            "type": "manual_step",
+            "Status": "OK",
+            "Next": "Provide the task/ticket to plan against (Phase 4 entry)",
+            "Why": "Phase 4 requires a concrete goal; repo identity and profile are now established",
+            "Command": "none",
+        },
+        "snapshot": {"Confidence": "78%", "Risk": "MEDIUM", "Scope": "global"},
+    }
+    f = tmp_path / "invalid_prephase4_ticket_prompt.json"
+    f.write_text(json.dumps(payload), encoding="utf-8")
+
+    script = REPO_ROOT / "scripts" / "validate_response_contract.py"
+    r = run([sys.executable, str(script), "--input", str(f)])
+    assert r.returncode != 0
+    assert "must not request task/ticket input before phase 4" in (r.stdout + r.stderr)
+
+
+@pytest.mark.governance
+def test_response_contract_checker_allows_ticket_prompt_at_phase_4(tmp_path: Path):
+    payload = {
+        "status": "normal",
+        "session_state": {
+            "Mode": "OK",
+            "Phase": "4-Implement",
+            "Next": "Phase 4 entry",
+        },
+        "next_action": {
+            "type": "manual_step",
+            "Status": "OK",
+            "Next": "Provide the task/ticket to plan against",
+            "Why": "Phase 4 requires ticket goal input",
+            "Command": "none",
+        },
+        "snapshot": {"Confidence": "85%", "Risk": "LOW", "Scope": "repo"},
+    }
+    f = tmp_path / "valid_phase4_ticket_prompt.json"
+    f.write_text(json.dumps(payload), encoding="utf-8")
+
+    script = REPO_ROOT / "scripts" / "validate_response_contract.py"
+    r = run([sys.executable, str(script), "--input", str(f)])
+    assert r.returncode == 0, f"validator should accept phase-4 ticket prompt:\n{r.stdout}\n{r.stderr}"
