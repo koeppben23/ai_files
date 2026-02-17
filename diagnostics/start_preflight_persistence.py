@@ -11,6 +11,8 @@ import shlex
 import shutil
 import subprocess
 import sys
+import tempfile
+import time
 from urllib.parse import urlsplit
 try:
     import pwd
@@ -309,12 +311,18 @@ def _discover_repo_session_id() -> str:
     return hashlib.sha256(str(Path.cwd().resolve()).encode("utf-8")).hexdigest()[:16]
 
 
-def _repo_context_index_path() -> Path:
-    return WORKSPACES_HOME / "repo-context.json"
+def _python_command_argv() -> list[str]:
+    return shlex.split(PYTHON_COMMAND, posix=(os.name != "nt")) or [PYTHON_COMMAND]
+
+
+def _repo_context_index_path(repo_root: Path) -> Path:
+    normalized_root = _normalize_path_for_fingerprint(repo_root)
+    key = hashlib.sha256(normalized_root.encode("utf-8")).hexdigest()[:24]
+    return WORKSPACES_HOME / "index" / key / "repo-context.json"
 
 
 def read_repo_context_fingerprint(repo_root: Path) -> str | None:
-    index_path = _repo_context_index_path()
+    index_path = _repo_context_index_path(repo_root)
     payload = load_json(index_path)
     if not isinstance(payload, dict):
         return None
@@ -326,15 +334,44 @@ def read_repo_context_fingerprint(repo_root: Path) -> str | None:
     return fp or None
 
 
-def _write_repo_context_payload(payload: dict, relative_target: str) -> bool:
+def _atomic_write_text(path: Path, text: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    attempts = 8 if os.name == "nt" else 2
+    delay = 0.05
+    last_error: Exception | None = None
+    for _ in range(attempts):
+        tmp_fd = -1
+        tmp_name = ""
+        try:
+            tmp_fd, tmp_name = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=str(path.parent))
+            with os.fdopen(tmp_fd, "w", encoding="utf-8", newline="\n") as handle:
+                handle.write(text)
+            os.replace(tmp_name, path)
+            return
+        except Exception as exc:
+            last_error = exc
+            if tmp_fd != -1:
+                try:
+                    os.close(tmp_fd)
+                except Exception:
+                    pass
+            if tmp_name:
+                try:
+                    Path(tmp_name).unlink(missing_ok=True)
+                except Exception:
+                    pass
+            time.sleep(delay)
+    if last_error is not None:
+        raise last_error
+
+
+def _write_repo_context_payload(payload: dict, relative_target: str, repo_root: Path) -> bool:
     try:
         target = WORKSPACES_HOME / relative_target
-        target.parent.mkdir(parents=True, exist_ok=True)
         text = json.dumps(payload, indent=2, ensure_ascii=True) + "\n"
-        target.write_text(text, encoding="utf-8")
-        index = _repo_context_index_path()
-        index.parent.mkdir(parents=True, exist_ok=True)
-        index.write_text(text, encoding="utf-8")
+        _atomic_write_text(target, text)
+        index = _repo_context_index_path(repo_root)
+        _atomic_write_text(index, text)
         return True
     except Exception as exc:
         log_error(
@@ -357,7 +394,7 @@ def write_repo_context(repo_root: Path, repo_fingerprint: str, discovery_method:
             "binding_evidence_path": str(BINDING_EVIDENCE_PATH) if BINDING_EVIDENCE_PATH is not None else "",
             "commands_home": str(COMMANDS_RUNTIME_DIR),
         }
-        return _write_repo_context_payload(payload, f"{repo_fingerprint}/repo-context.json")
+        return _write_repo_context_payload(payload, f"{repo_fingerprint}/repo-context.json", repo_root)
     except Exception:
         return False
 
@@ -376,7 +413,7 @@ def write_unresolved_repo_context(repo_root: Path, discovery_method: str, reason
             "commands_home": str(COMMANDS_RUNTIME_DIR),
             "reason": reason,
         }
-        return _write_repo_context_payload(payload, "_unresolved/repo-context.json")
+        return _write_repo_context_payload(payload, "_unresolved/repo-context.json", repo_root)
     except Exception:
         return False
 
@@ -389,7 +426,7 @@ def bootstrap_command(repo_fp: str | None) -> str:
 
 
 def bootstrap_command_argv(repo_fp: str | None) -> list[str]:
-    python_argv = shlex.split(PYTHON_COMMAND, posix=(os.name != "nt")) or [PYTHON_COMMAND]
+    python_argv = _python_command_argv()
     if repo_fp:
         return [*python_argv, str(BOOTSTRAP_HELPER), "--repo-fingerprint", repo_fp, "--config-root", str(ROOT)]
     return [*python_argv, str(BOOTSTRAP_HELPER), "--repo-fingerprint", "<repo_fingerprint>", "--config-root", str(ROOT)]
@@ -400,7 +437,7 @@ def persist_command(repo_root: Path) -> str:
 
 
 def persist_command_argv(repo_root: Path) -> list[str]:
-    python_argv = shlex.split(PYTHON_COMMAND, posix=(os.name != "nt")) or [PYTHON_COMMAND]
+    python_argv = _python_command_argv()
     return [*python_argv, str(PERSIST_HELPER), "--repo-root", str(repo_root)]
 
 
@@ -748,7 +785,7 @@ def bootstrap_identity_if_needed() -> bool:
     repo_fp = inferred_fp
 
     boot = subprocess.run(
-        [sys.executable, str(BOOTSTRAP_HELPER), "--repo-fingerprint", repo_fp, "--config-root", str(ROOT)],
+        [*_python_command_argv(), str(BOOTSTRAP_HELPER), "--repo-fingerprint", repo_fp, "--config-root", str(ROOT)],
         text=True,
         capture_output=True,
         check=False,
@@ -855,7 +892,7 @@ def run_persistence_hook() -> None:
 
     run = subprocess.run(
         [
-            sys.executable,
+            *_python_command_argv(),
             str(PERSIST_HELPER),
             "--repo-root",
             str(repo_root),
@@ -881,7 +918,7 @@ def run_persistence_hook() -> None:
             if repo_fp:
                 boot = subprocess.run(
                     [
-                        sys.executable,
+                        *_python_command_argv(),
                         str(BOOTSTRAP_HELPER),
                         "--repo-fingerprint",
                         repo_fp,
