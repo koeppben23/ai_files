@@ -288,7 +288,6 @@ def _canonicalize_origin_remote(remote: str) -> str | None:
     path = path.casefold()
 
     return f"repo://{host}{path}"
-    return f"repo://{host}{path}"
 
 
 def _normalize_path_for_fingerprint(path: Path) -> str:
@@ -300,8 +299,8 @@ def _normalize_path_for_fingerprint(path: Path) -> str:
 
 
 def derive_repo_fingerprint(repo_root: Path) -> str | None:
-    resolved_root = repo_root.expanduser().resolve()
-    git_dir = resolve_git_dir(resolved_root)
+    normalized_root = Path(os.path.normpath(os.path.abspath(str(repo_root.expanduser()))))
+    git_dir = resolve_git_dir(normalized_root)
     if not git_dir:
         return None
 
@@ -310,7 +309,7 @@ def derive_repo_fingerprint(repo_root: Path) -> str | None:
     if canonical_origin:
         material = f"repo:{canonical_origin}"
     else:
-        material = f"repo:local:{_normalize_path_for_fingerprint(resolved_root)}"
+        material = f"repo:local:{_normalize_path_for_fingerprint(normalized_root)}"
     return hashlib.sha256(material.encode("utf-8")).hexdigest()[:24]
 
 

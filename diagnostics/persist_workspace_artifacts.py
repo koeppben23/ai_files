@@ -241,7 +241,7 @@ def _normalize_path_for_fingerprint(path: Path) -> str:
 
 
 def _derive_fingerprint_from_repo(repo_root: Path) -> tuple[str, str] | None:
-    root = repo_root.expanduser().resolve()
+    root = Path(os.path.normpath(os.path.abspath(str(repo_root.expanduser()))))
     git_dir = _resolve_git_dir(root)
     if not git_dir:
         return None
@@ -729,7 +729,7 @@ def main() -> int:
         return 2
 
     python_cmd = _resolve_python_command(binding_paths)
-    repo_root = args.repo_root.expanduser().resolve()
+    repo_root = Path(os.path.normpath(os.path.abspath(str(args.repo_root.expanduser()))))
 
     if (repo_root / ".git").exists() and _is_within(config_root, repo_root):
         cmd_profiles = render_command_profiles(

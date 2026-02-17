@@ -7,6 +7,8 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -45,6 +47,41 @@ def _load_json(path: Path) -> dict | None:
         return json.loads(path.read_text(encoding="utf-8"))
     except Exception:
         return None
+
+
+def _is_retryable_replace_error(exc: OSError) -> bool:
+    return getattr(exc, "errno", None) in {13, 16}
+
+
+def _atomic_write_text(path: Path, content: str, retries: int = 3) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temp_path: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            newline="\n",
+            dir=str(path.parent),
+            prefix=path.name + ".",
+            suffix=".tmp",
+            delete=False,
+        ) as tmp:
+            tmp.write(content)
+            tmp.flush()
+            os.fsync(tmp.fileno())
+            temp_path = Path(tmp.name)
+
+        for attempt in range(retries):
+            try:
+                os.replace(str(temp_path), str(path))
+                return
+            except OSError as exc:
+                if attempt == retries - 1 or not _is_retryable_replace_error(exc):
+                    raise
+                time.sleep(0.05)
+    finally:
+        if temp_path is not None and temp_path.exists():
+            temp_path.unlink(missing_ok=True)
 
 
 def _load_binding_paths(paths_file: Path, *, expected_config_root: Path | None = None) -> tuple[Path, dict]:
@@ -220,8 +257,7 @@ def _upsert_repo_identity_map(workspaces_home: Path, repo_fingerprint: str, repo
     }
     existing["updatedAt"] = now
 
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(existing, indent=2, ensure_ascii=True) + "\n", encoding="utf-8")
+    _atomic_write_text(path, json.dumps(existing, indent=2, ensure_ascii=True) + "\n")
     if before is None:
         return "created"
     return "updated"
@@ -352,8 +388,7 @@ def main() -> int:
         else:
             repo_payload = session_state_template(repo_fingerprint, args.repo_name)
 
-        repo_state_file.parent.mkdir(parents=True, exist_ok=True)
-        repo_state_file.write_text(json.dumps(repo_payload, indent=2, ensure_ascii=True) + "\n", encoding="utf-8")
+        _atomic_write_text(repo_state_file, json.dumps(repo_payload, indent=2, ensure_ascii=True) + "\n")
         print("Repo-scoped SESSION_STATE written.")
     else:
         print("Repo-scoped SESSION_STATE already exists and was preserved (use --force to overwrite).")
@@ -434,8 +469,7 @@ def main() -> int:
     pointer = pointer_payload(repo_fingerprint)
     pointer["runId"] = workspace_lock.lock_id
     pointer["phase"] = "1.1-Bootstrap"
-    pointer_file.parent.mkdir(parents=True, exist_ok=True)
-    pointer_file.write_text(json.dumps(pointer, indent=2, ensure_ascii=True) + "\n", encoding="utf-8")
+    _atomic_write_text(pointer_file, json.dumps(pointer, indent=2, ensure_ascii=True) + "\n")
     print("Global SESSION_STATE pointer written.")
 
     workspace_lock.release()
