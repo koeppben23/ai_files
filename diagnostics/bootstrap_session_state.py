@@ -102,16 +102,16 @@ def _validate_repo_fingerprint(value: str) -> str:
     return token
 
 
-def repo_session_state_path(config_root: Path, repo_fingerprint: str) -> Path:
-    return config_root / "workspaces" / repo_fingerprint / "SESSION_STATE.json"
+def repo_session_state_path(workspaces_home: Path, repo_fingerprint: str) -> Path:
+    return workspaces_home / repo_fingerprint / "SESSION_STATE.json"
 
 
 def session_pointer_path(config_root: Path) -> Path:
     return config_root / "SESSION_STATE.json"
 
 
-def repo_identity_map_path(config_root: Path, repo_fingerprint: str) -> Path:
-    return config_root / "workspaces" / repo_fingerprint / "repo-identity-map.yaml"
+def repo_identity_map_path(workspaces_home: Path, repo_fingerprint: str) -> Path:
+    return workspaces_home / repo_fingerprint / "repo-identity-map.yaml"
 
 
 def _is_within(path: Path, parent: Path) -> bool:

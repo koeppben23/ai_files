@@ -3630,6 +3630,35 @@ def test_error_logger_updates_index_and_prunes_old_global_logs(tmp_path: Path):
 
 
 @pytest.mark.governance
+def test_error_logger_uses_bound_workspaces_home_for_repo_logs(tmp_path: Path):
+    module_path = REPO_ROOT / "diagnostics" / "error_logs.py"
+    spec = importlib.util.spec_from_file_location("error_logs_mod", module_path)
+    assert spec and spec.loader, "Failed to load diagnostics/error_logs.py module spec"
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    cfg = tmp_path / "opencode-config"
+    custom_workspaces = tmp_path / "custom-workspaces-root"
+    write_governance_paths(cfg, workspaces_home=custom_workspaces)
+
+    out = mod.safe_log_error(
+        reason_key="ERR-TEST-BOUND-WORKSPACES",
+        message="bound workspaces test",
+        config_root=cfg,
+        phase="test",
+        gate="test",
+        mode="repo-aware",
+        repo_fingerprint="88b39b036804c534",
+        command="pytest",
+        component="test-suite",
+    )
+    assert out.get("status") == "logged"
+    logged_path = Path(str(out.get("path", "")))
+    assert str(custom_workspaces.resolve()) in str(logged_path.resolve())
+    assert logged_path.exists(), "expected repo error log in bound workspaces home"
+
+
+@pytest.mark.governance
 def test_rules_define_canonical_rulebook_precedence_contract():
     text = read_text(REPO_ROOT / "rules.md")
     required_tokens = [

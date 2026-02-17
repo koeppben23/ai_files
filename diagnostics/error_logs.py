@@ -39,7 +39,7 @@ def _load_json(path: Path) -> dict[str, Any] | None:
     return data if isinstance(data, dict) else None
 
 
-def _load_binding_paths(paths_file: Path, *, expected_config_root: Path | None = None) -> Path:
+def _load_binding_paths(paths_file: Path, *, expected_config_root: Path | None = None) -> tuple[Path, Path]:
     data = _load_json(paths_file)
     if not data:
         raise ValueError(f"binding evidence unreadable: {paths_file}")
@@ -55,10 +55,11 @@ def _load_binding_paths(paths_file: Path, *, expected_config_root: Path | None =
     config_root = Path(config_root_raw).expanduser().resolve()
     if expected_config_root is not None and config_root != expected_config_root.resolve():
         raise ValueError("binding evidence mismatch: config root does not match explicit input")
-    return config_root
+    workspaces_home = Path(workspaces_raw).expanduser().resolve()
+    return config_root, workspaces_home
 
 
-def resolve_config_root(config_root: Path | None = None) -> Path:
+def resolve_paths(config_root: Path | None = None) -> tuple[Path, Path]:
     if config_root is not None:
         root = config_root.expanduser().resolve()
         return _load_binding_paths(root / "commands" / "governance.paths.json", expected_config_root=root)
@@ -113,10 +114,10 @@ def _normalize_value(value: Any) -> Any:
     return str(value)
 
 
-def _target_log_file(config_root: Path, repo_fingerprint: str | None) -> Path:
+def _target_log_file(config_root: Path, workspaces_home: Path, repo_fingerprint: str | None) -> Path:
     if repo_fingerprint:
         fp = _validate_repo_fingerprint(repo_fingerprint)
-        return config_root / "workspaces" / fp / "logs" / f"errors-{_today_iso()}.jsonl"
+        return workspaces_home / fp / "logs" / f"errors-{_today_iso()}.jsonl"
     return config_root / "logs" / f"errors-global-{_today_iso()}.jsonl"
 
 
@@ -228,8 +229,8 @@ def write_error_event(
     details: Any = None,
     retention_days: int = DEFAULT_RETENTION_DAYS,
 ) -> Path:
-    cfg = resolve_config_root(config_root)
-    target = _target_log_file(cfg, repo_fingerprint)
+    cfg, workspaces_home = resolve_paths(config_root)
+    target = _target_log_file(cfg, workspaces_home, repo_fingerprint)
     target.parent.mkdir(parents=True, exist_ok=True)
 
     record = {

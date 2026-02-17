@@ -51,13 +51,13 @@ def read_text(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
-def write_governance_paths(config_root: Path) -> Path:
+def write_governance_paths(config_root: Path, *, workspaces_home: Path | None = None) -> Path:
     """Create minimal installer-owned governance.paths.json for tests."""
 
     root = config_root.resolve()
     commands = root / "commands"
     diagnostics = commands / "diagnostics"
-    workspaces = root / "workspaces"
+    workspaces = (workspaces_home.resolve() if workspaces_home is not None else (root / "workspaces").resolve())
     payload = {
         "schema": "governance.paths.v1",
         "paths": {
