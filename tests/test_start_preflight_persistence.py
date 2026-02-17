@@ -36,6 +36,7 @@ def test_emit_preflight_treats_python3_as_python_equivalent(monkeypatch: pytest.
         return None
 
     monkeypatch.setattr(module.shutil, "which", fake_which)
+    monkeypatch.setattr(module, "BINDING_OK", True)
     monkeypatch.setattr(
         module,
         "load_json",
@@ -76,6 +77,7 @@ def test_emit_preflight_blocks_when_both_python_aliases_missing(monkeypatch: pyt
         return None
 
     monkeypatch.setattr(module.shutil, "which", fake_which)
+    monkeypatch.setattr(module, "BINDING_OK", True)
     monkeypatch.setattr(
         module,
         "load_json",

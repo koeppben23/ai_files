@@ -70,7 +70,7 @@ def test_adapter_fails_closed_when_binding_file_is_invalid(monkeypatch: pytest.M
 
 @pytest.mark.governance
 def test_adapter_discovers_binding_from_cwd_ancestor(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
-    cfg = tmp_path / "cfg"
+    cfg = tmp_path
     commands_home = cfg / "commands"
     workspaces_home = cfg / "workspaces"
     commands_home.mkdir(parents=True, exist_ok=True)

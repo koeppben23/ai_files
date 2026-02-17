@@ -4,7 +4,7 @@ import importlib.util
 
 import pytest
 
-from .util import REPO_ROOT
+from .util import REPO_ROOT, write_governance_paths
 
 
 def _load_module():
@@ -20,12 +20,16 @@ def _load_module():
 
 
 @pytest.mark.governance
-def test_engine_shadow_snapshot_is_available_and_reports_parity_fields(monkeypatch: pytest.MonkeyPatch):
+def test_engine_shadow_snapshot_is_available_and_reports_parity_fields(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+):
     """Shadow snapshot should expose deterministic parity fields when available."""
 
     monkeypatch.delenv("CI", raising=False)
     monkeypatch.chdir(REPO_ROOT)
     monkeypatch.setenv("OPENCODE_REPO_ROOT", str(REPO_ROOT))
+    write_governance_paths(tmp_path)
+    monkeypatch.setenv("OPENCODE_CONFIG_ROOT", str(tmp_path))
     module = _load_module()
     snapshot = module.build_engine_shadow_snapshot()
     assert snapshot["available"] is True
