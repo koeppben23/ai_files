@@ -49,14 +49,33 @@ def _resolve_env_path(env: Mapping[str, str], key: str) -> Path | None:
     return p.resolve()
 
 
+def _discover_binding_file(config_root: Path) -> Path | None:
+    """Discover installer-owned governance.paths.json deterministically."""
+
+    candidates: list[Path] = [config_root / "commands" / "governance.paths.json"]
+    cwd = Path.cwd().resolve()
+    for parent in (cwd, *cwd.parents):
+        candidates.append(parent / "commands" / "governance.paths.json")
+
+    seen: set[Path] = set()
+    for candidate in candidates:
+        resolved = candidate.expanduser().resolve()
+        if resolved in seen:
+            continue
+        seen.add(resolved)
+        if resolved.exists():
+            return resolved
+    return None
+
+
 def _resolve_bound_paths(config_root: Path) -> tuple[Path, Path, bool]:
     """Resolve commands/workspaces homes with governance.paths.json precedence."""
 
     commands_home = config_root / "commands"
     workspaces_home = config_root / "workspaces"
-    binding_file = commands_home / "governance.paths.json"
-    if not binding_file.exists():
-        return commands_home, workspaces_home, True
+    binding_file = _discover_binding_file(config_root)
+    if binding_file is None:
+        return commands_home, workspaces_home, False
 
     try:
         payload = json.loads(binding_file.read_text(encoding="utf-8"))

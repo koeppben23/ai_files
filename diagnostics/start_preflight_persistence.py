@@ -39,9 +39,24 @@ def config_root() -> Path:
 def _resolve_bound_paths(root: Path) -> tuple[Path, Path, bool]:
     commands_home = root / "commands"
     workspaces_home = root / "workspaces"
-    binding_file = commands_home / "governance.paths.json"
-    if not binding_file.exists():
-        return commands_home, workspaces_home, True
+    candidates: list[Path] = [commands_home / "governance.paths.json"]
+    cwd = Path.cwd().resolve()
+    for parent in (cwd, *cwd.parents):
+        candidates.append(parent / "commands" / "governance.paths.json")
+
+    binding_file: Path | None = None
+    seen: set[Path] = set()
+    for candidate in candidates:
+        resolved = candidate.expanduser().resolve()
+        if resolved in seen:
+            continue
+        seen.add(resolved)
+        if resolved.exists():
+            binding_file = resolved
+            break
+
+    if binding_file is None:
+        return commands_home, workspaces_home, False
     try:
         payload = json.loads(binding_file.read_text(encoding="utf-8"))
     except Exception:
