@@ -61,7 +61,7 @@ class SessionStateCompatibilityError(Exception):
     reason_code: str
     detail: str
     primary_action: str = "Migrate SESSION_STATE to canonical fields."
-    next_command: str = "python3 scripts/migrate_session_state.py --workspace <id>"
+    next_command: str = "${PYTHON_COMMAND} scripts/migrate_session_state.py --workspace <id>"
 
     def __str__(self) -> str:
         return f"{self.reason_code}: {self.detail}"
@@ -128,7 +128,7 @@ class SessionStateRepository:
                             f"(fields={','.join(legacy_fields)})"
                         ),
                         primary_action="Run deterministic SESSION_STATE migration before continuing.",
-                        next_command="python3 scripts/migrate_session_state.py --workspace <id>",
+                        next_command="${PYTHON_COMMAND} scripts/migrate_session_state.py --workspace <id>",
                     )
                 if not self.legacy_compat_mode:
                     raise SessionStateCompatibilityError(
