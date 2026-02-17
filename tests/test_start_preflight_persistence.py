@@ -199,25 +199,3 @@ def test_preflight_discovers_binding_from_canonical_home_config(monkeypatch: pyt
 
     module = _load_module()
     assert module.BINDING_OK is True
-
-
-@pytest.mark.governance
-def test_preflight_discovers_binding_from_canonical_home_config(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
-    cfg = tmp_path / ".config" / "opencode"
-    payload = {
-        "schema": "governance.paths.v1",
-        "paths": {
-            "configRoot": str(cfg),
-            "commandsHome": str(cfg / "commands"),
-            "workspacesHome": str(cfg / "workspaces"),
-            "pythonCommand": "python3",
-        },
-    }
-    (cfg / "commands").mkdir(parents=True, exist_ok=True)
-    (cfg / "commands" / "governance.paths.json").write_text(json.dumps(payload), encoding="utf-8")
-
-    monkeypatch.setattr(Path, "home", staticmethod(lambda: tmp_path))
-    monkeypatch.chdir(tmp_path)
-
-    module = _load_module()
-    assert module.BINDING_OK is True

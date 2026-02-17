@@ -47,6 +47,10 @@ def _allow_cwd_binding_discovery() -> bool:
     return str(os.getenv("OPENCODE_ALLOW_CWD_BINDINGS", "")).strip() == "1"
 
 
+def _allow_cwd_binding_discovery() -> bool:
+    return str(os.getenv("OPENCODE_ALLOW_CWD_BINDINGS", "")).strip() == "1"
+
+
 def _resolve_bound_paths(root: Path) -> tuple[Path, Path, bool]:
     commands_home = root / "commands"
     workspaces_home = root / "workspaces"
