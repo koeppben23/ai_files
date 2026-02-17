@@ -145,6 +145,13 @@ def read_default_branch(git_dir: Path) -> str:
     return "main"
 
 
+def _normalize_path_for_fingerprint(path: Path) -> str:
+    """Normalize filesystem paths for deterministic cross-platform fingerprints."""
+
+    resolved = path.expanduser().resolve()
+    return resolved.as_posix().replace("\\", "/").casefold()
+
+
 def derive_repo_fingerprint(repo_root: Path) -> str | None:
     resolved_root = repo_root.expanduser().resolve()
     git_dir = resolve_git_dir(resolved_root)
@@ -156,7 +163,7 @@ def derive_repo_fingerprint(repo_root: Path) -> str | None:
     if origin:
         material = f"{origin}|{branch}"
     else:
-        material = f"local-git|{resolved_root.as_posix()}|{branch}"
+        material = f"local-git|{_normalize_path_for_fingerprint(resolved_root)}|{branch}"
     return hashlib.sha256(material.encode("utf-8")).hexdigest()[:16]
 
 
