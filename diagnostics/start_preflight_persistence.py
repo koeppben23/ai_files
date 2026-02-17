@@ -288,7 +288,6 @@ def _canonicalize_origin_remote(remote: str) -> str | None:
     path = path.casefold()
 
     return f"repo://{host}{path}"
-    return f"repo://{host}{path}"
 
 
 def _normalize_path_for_fingerprint(path: Path) -> str:
