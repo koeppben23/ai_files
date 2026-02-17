@@ -11,6 +11,8 @@ import hashlib
 import json
 from typing import Literal, cast
 
+from governance.engine.phase_next_action_contract import validate_phase_next_action_contract
+
 ResponseMode = Literal["STRICT", "COMPAT"]
 ResponseStatus = Literal["BLOCKED", "WARN", "OK", "NOT_VERIFIED"]
 NextActionType = Literal["command", "reply_with_one_number", "manual_step"]
@@ -158,6 +160,28 @@ def _validate_next_action(next_action: NextAction) -> None:
         raise ValueError("next_action command/instruction must be non-empty")
 
 
+def _status_for_phase_contract(status: str) -> str:
+    normalized = status.strip().upper()
+    if normalized == "OK":
+        return "normal"
+    if normalized in {"WARN", "NOT_VERIFIED"}:
+        return "degraded"
+    if normalized == "BLOCKED":
+        return "blocked"
+    return normalized.lower()
+
+
+def _validate_phase_alignment(*, status: str, session_state: dict[str, object], next_action: NextAction) -> None:
+    errors = validate_phase_next_action_contract(
+        status=_status_for_phase_contract(status),
+        session_state=session_state,
+        next_text=next_action.command,
+        why_text="",
+    )
+    if errors:
+        raise ValueError("invalid response phase alignment: " + "; ".join(errors))
+
+
 def build_strict_response(
     *,
     status: str,
@@ -170,6 +194,7 @@ def build_strict_response(
     """Build strict response envelope dict with validated invariants."""
 
     _validate_next_action(next_action)
+    _validate_phase_alignment(status=status, session_state=session_state, next_action=next_action)
     envelope = StrictResponseEnvelope(
         mode="STRICT",
         status=_normalize_status(status),

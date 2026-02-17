@@ -327,8 +327,8 @@ jobs:
         uses: github/codeql-action/analyze@b5ebac6f4c00c8ccddb7cdcd45fdb248329f808a # v3
         continue-on-error: true
         with:
+          upload: false
           output: diagnostics/security-evidence/codeql
-          category: /language:python
 
       - name: Build CodeQL summary evidence
         if: always()

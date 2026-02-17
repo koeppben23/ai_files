@@ -23,15 +23,15 @@ def _sample_payload() -> dict[str, object]:
         "next_action": {
             "Type": "command",
             "Status": "OK",
-            "Next": "continue",
-            "Why": "phase advanced",
-            "Command": "/continue",
+            "Next": "Set working set and component scope",
+            "Why": "Phase 2 exits through decision-pack and scoped routing",
+            "Command": "set working set and component scope",
         },
     }
 
 
-def test_resolve_output_format_auto_prefers_markdown_when_interactive():
-    assert resolve_output_format("auto", is_tty=True, markdown_supported=True) == "markdown"
+def test_resolve_output_format_auto_prefers_plain_when_interactive():
+    assert resolve_output_format("auto", is_tty=True, markdown_supported=True) == "plain"
 
 
 def test_resolve_output_format_auto_prefers_json_when_non_tty():
@@ -59,3 +59,18 @@ def test_render_response_json_is_valid_and_pretty():
     payload = json.loads(rendered)
     assert payload["status"] == "OK"
     assert rendered.count("\n") > 3
+
+
+def test_render_response_rejects_phase_next_action_mismatch():
+    payload = _sample_payload()
+    next_action = payload["next_action"]
+    assert isinstance(next_action, dict)
+    next_action["Next"] = "Provide ticket/goal to plan"
+    next_action["Why"] = "Phase 4 needs task"
+
+    try:
+        render_response(payload, output_format="plain")
+    except ValueError as exc:
+        assert "invalid phase/next_action contract" in str(exc)
+    else:
+        raise AssertionError("expected contract validation to fail")
