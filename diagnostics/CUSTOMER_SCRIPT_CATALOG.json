@@ -38,6 +38,13 @@
       "tier": "advanced"
     },
     {
+      "path": "scripts/render_response_envelope.py",
+      "purpose": "Render governance response envelopes as markdown/plain/json",
+      "customer_relevant": true,
+      "ship_in_release": true,
+      "tier": "advanced"
+    },
+    {
       "path": "scripts/rulebook_factory.py",
       "purpose": "Scaffold profile/addon rulebooks and addon manifests",
       "customer_relevant": true,

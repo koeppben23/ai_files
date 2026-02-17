@@ -68,6 +68,16 @@ python3 diagnostics/bootstrap_session_state.py --repo-fingerprint <repo_fingerpr
 
 Then run `/start` in OpenCode and confirm bootstrap succeeds without binding/identity blockers.
 
+Response rendering quick check:
+
+```bash
+python3 scripts/render_response_envelope.py --input response.json --format markdown
+python3 scripts/render_response_envelope.py --input response.json --format plain
+python3 scripts/render_response_envelope.py --input response.json --format json
+```
+
+`--format auto` is the default and resolves to markdown for interactive TTY sessions and JSON for non-interactive execution.
+
 ## Profiles and Addons
 
 Profiles and addons are loaded from `profiles/` with deterministic precedence from `master.md`.
