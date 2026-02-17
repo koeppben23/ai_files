@@ -1900,6 +1900,21 @@ def test_start_md_resolves_installed_diagnostics_helpers_not_workspace_relative_
 
 
 @pytest.mark.governance
+def test_preflight_command_profiles_use_argv_not_shell_resplit():
+    text = read_text(REPO_ROOT / "diagnostics" / "start_preflight_persistence.py")
+    assert "render_command_profiles(shlex.split(bootstrap_command(" not in text
+    assert "render_command_profiles(shlex.split(persist_command(" not in text
+    assert "render_command_profiles(bootstrap_command_argv(" in text
+
+
+@pytest.mark.governance
+def test_persist_helper_does_not_hardcode_bash_next_command_profile():
+    text = read_text(REPO_ROOT / "diagnostics" / "persist_workspace_artifacts.py")
+    assert "cmd_profiles[\"bash\"]" not in text
+    assert "_preferred_shell_command(cmd_profiles)" in text
+
+
+@pytest.mark.governance
 def test_start_prefers_host_binding_evidence_and_defers_profile_selection_at_bootstrap():
     text = read_text(REPO_ROOT / "start.md")
     required_tokens = [
