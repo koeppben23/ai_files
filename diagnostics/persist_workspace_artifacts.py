@@ -137,7 +137,10 @@ def _resolve_git_dir(repo_root: Path) -> Path | None:
         return dot_git
 
     if dot_git.is_file():
-        text = dot_git.read_text(encoding="utf-8", errors="ignore")
+        try:
+            text = dot_git.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            text = dot_git.read_text(encoding="utf-8", errors="replace")
         m = re.search(r"gitdir:\s*(.+)", text)
         if not m:
             return None
@@ -444,7 +447,10 @@ def _normalize_legacy_placeholder_phrasing(path: Path, *, dry_run: bool) -> bool
     if not path.exists() or not path.is_file():
         return False
 
-    text = path.read_text(encoding="utf-8", errors="ignore")
+    try:
+        text = path.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        text = path.read_text(encoding="utf-8", errors="replace")
     replacements = {
         "Backfill placeholder: refresh after Phase 2 discovery.": "Seed snapshot: refresh after evidence-backed Phase 2 discovery.",
         "none (backfill placeholder)": "none (no evidence-backed digest yet)",

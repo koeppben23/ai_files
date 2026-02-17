@@ -36,9 +36,37 @@ def config_root() -> Path:
     return (Path(xdg) if xdg else Path.home() / ".config") / "opencode"
 
 
+def _resolve_bound_paths(root: Path) -> tuple[Path, Path]:
+    commands_home = root / "commands"
+    workspaces_home = root / "workspaces"
+    binding_file = commands_home / "governance.paths.json"
+    if not binding_file.exists():
+        return commands_home, workspaces_home
+    try:
+        payload = json.loads(binding_file.read_text(encoding="utf-8"))
+    except Exception:
+        return commands_home, workspaces_home
+    paths = payload.get("paths")
+    if not isinstance(paths, dict):
+        return commands_home, workspaces_home
+    commands_raw = paths.get("commandsHome")
+    workspaces_raw = paths.get("workspacesHome")
+    resolved_commands = (
+        Path(commands_raw).expanduser().resolve()
+        if isinstance(commands_raw, str) and commands_raw.strip()
+        else commands_home
+    )
+    resolved_workspaces = (
+        Path(workspaces_raw).expanduser().resolve()
+        if isinstance(workspaces_raw, str) and workspaces_raw.strip()
+        else workspaces_home
+    )
+    return resolved_commands, resolved_workspaces
+
+
 ROOT = config_root()
-DIAGNOSTICS_DIR = ROOT / "commands" / "diagnostics"
-COMMANDS_RUNTIME_DIR = ROOT / "commands"
+COMMANDS_RUNTIME_DIR, WORKSPACES_HOME = _resolve_bound_paths(ROOT)
+DIAGNOSTICS_DIR = COMMANDS_RUNTIME_DIR / "diagnostics"
 PERSIST_HELPER = DIAGNOSTICS_DIR / "persist_workspace_artifacts.py"
 BOOTSTRAP_HELPER = DIAGNOSTICS_DIR / "bootstrap_session_state.py"
 LOGGER = DIAGNOSTICS_DIR / "error_logs.py"
@@ -53,7 +81,7 @@ if str(COMMANDS_RUNTIME_DIR) not in sys.path and COMMANDS_RUNTIME_DIR.exists():
 
 
 def workspace_identity_map(repo_fp: str) -> Path:
-    return ROOT / "workspaces" / repo_fp / "repo-identity-map.yaml"
+    return WORKSPACES_HOME / repo_fp / "repo-identity-map.yaml"
 
 
 def legacy_identity_map() -> Path:
@@ -104,7 +132,7 @@ def load_json(path: Path) -> dict | None:
 
 
 def resolve_python_command() -> str:
-    payload = load_json(ROOT / "commands" / "governance.paths.json")
+    payload = load_json(COMMANDS_RUNTIME_DIR / "governance.paths.json")
     if isinstance(payload, dict):
         paths = payload.get("paths")
         if isinstance(paths, dict):
@@ -390,8 +418,8 @@ def emit_permission_probes() -> None:
     observed = datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
     checks = []
 
-    commands_home = ROOT / "commands"
-    workspaces_home = ROOT / "workspaces"
+    commands_home = COMMANDS_RUNTIME_DIR
+    workspaces_home = WORKSPACES_HOME
     checks.append({
         "probe": "fs.read_commands_home",
         "available": commands_home.exists() and os.access(commands_home, os.R_OK),

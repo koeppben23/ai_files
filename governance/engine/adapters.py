@@ -7,6 +7,7 @@ interface that the engine can consume without direct host branching.
 from __future__ import annotations
 
 from dataclasses import dataclass, asdict
+import json
 import os
 from pathlib import Path
 import shutil
@@ -46,6 +47,41 @@ def _resolve_env_path(env: Mapping[str, str], key: str) -> Path | None:
     if not p.is_absolute():
         return None
     return p.resolve()
+
+
+def _resolve_bound_paths(config_root: Path) -> tuple[Path, Path]:
+    """Resolve commands/workspaces homes with governance.paths.json precedence."""
+
+    commands_home = config_root / "commands"
+    workspaces_home = config_root / "workspaces"
+    binding_file = commands_home / "governance.paths.json"
+    if not binding_file.exists():
+        return commands_home, workspaces_home
+
+    try:
+        payload = json.loads(binding_file.read_text(encoding="utf-8"))
+    except Exception:
+        return commands_home, workspaces_home
+
+    if not isinstance(payload, dict):
+        return commands_home, workspaces_home
+    paths = payload.get("paths")
+    if not isinstance(paths, dict):
+        return commands_home, workspaces_home
+
+    commands_raw = paths.get("commandsHome")
+    workspaces_raw = paths.get("workspacesHome")
+    resolved_commands = (
+        Path(commands_raw).expanduser().resolve()
+        if isinstance(commands_raw, str) and commands_raw.strip()
+        else commands_home
+    )
+    resolved_workspaces = (
+        Path(workspaces_raw).expanduser().resolve()
+        if isinstance(workspaces_raw, str) and workspaces_raw.strip()
+        else workspaces_home
+    )
+    return resolved_commands, resolved_workspaces
 
 
 def _path_writable(path: Path) -> bool:
@@ -149,8 +185,7 @@ class LocalHostAdapter:
     def capabilities(self) -> HostCapabilities:
         env = self.environment()
         config_root = _resolve_env_path(env, "OPENCODE_CONFIG_ROOT") or _default_config_root().resolve()
-        commands_home = config_root / "commands"
-        workspaces_home = config_root / "workspaces"
+        commands_home, workspaces_home = _resolve_bound_paths(config_root)
         # Fail-closed: ignore relative OPENCODE_REPO_ROOT to avoid CWD-dependent resolution
         repo_root = _resolve_env_path(env, "OPENCODE_REPO_ROOT") or self.cwd()
         exec_allowed = os.access(sys.executable, os.X_OK)
@@ -192,8 +227,7 @@ class OpenCodeDesktopAdapter:
     def capabilities(self) -> HostCapabilities:
         env = self.environment()
         config_root = _resolve_env_path(env, "OPENCODE_CONFIG_ROOT") or _default_config_root().resolve()
-        commands_home = config_root / "commands"
-        workspaces_home = config_root / "workspaces"
+        commands_home, workspaces_home = _resolve_bound_paths(config_root)
         # Fail-closed: ignore relative OPENCODE_REPO_ROOT to avoid CWD-dependent resolution
         repo_root = _resolve_env_path(env, "OPENCODE_REPO_ROOT") or self.cwd()
         disabled = str(env.get("OPENCODE_DISABLE_GIT", "")).strip() == "1"
