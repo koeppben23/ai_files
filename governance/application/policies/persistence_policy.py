@@ -18,7 +18,6 @@ ARTIFACT_REPO_DIGEST = "REPO_DIGEST_FILE"
 ARTIFACT_DECISION_PACK = "REPO_DECISION_PACK_FILE"
 ARTIFACT_BUSINESS_RULES = "REPO_BUSINESS_RULES_FILE"
 ARTIFACT_WORKSPACE_MEMORY = "WORKSPACE_MEMORY_FILE"
-ARTIFACT_WORKSPACE_MEMORY_OBSERVATIONS = "WORKSPACE_MEMORY_OBSERVATIONS"
 
 
 @dataclass(frozen=True)
@@ -37,63 +36,38 @@ class PersistencePolicyDecision:
     reason_code: str
     reason: str
 
-
-_PHASE_RANK: dict[str, int] = {
-    "1": 10,
-    "1.1": 11,
-    "1.2": 12,
-    "1.3": 13,
-    "1.5": 15,
-    "2": 20,
-    "2.1": 21,
-    "3A": 30,
-    "3B-1": 31,
-    "3B-2": 32,
-    "4": 40,
-    "5": 50,
-    "5.3": 53,
-    "5.4": 54,
-    "5.5": 55,
-    "5.6": 56,
-    "6": 60,
-}
-
-
-def _rank(phase: str) -> int:
-    token = normalize_phase_token(phase)
-    return _PHASE_RANK.get(token, -1)
-
-
 def can_write(inputs: PersistencePolicyInput) -> PersistencePolicyDecision:
     artifact = inputs.artifact_kind.strip()
-    phase_rank = _rank(inputs.phase)
+    phase_token = normalize_phase_token(inputs.phase)
     mode = inputs.mode.strip().lower()
 
-    if artifact in {ARTIFACT_REPO_CACHE, ARTIFACT_REPO_DIGEST, ARTIFACT_DECISION_PACK}:
-        if phase_rank < _PHASE_RANK["2"]:
-            return PersistencePolicyDecision(False, PERSIST_PHASE_MISMATCH, "artifact-requires-phase-2-or-later")
+    if artifact in {ARTIFACT_REPO_CACHE, ARTIFACT_REPO_DIGEST}:
+        if phase_token != "2":
+            return PersistencePolicyDecision(False, PERSIST_PHASE_MISMATCH, "artifact-requires-phase-2")
         return PersistencePolicyDecision(True, REASON_CODE_NONE, "allowed")
 
-    # Phase-2 Observations (workspace-memory-observations) rule:
-    if artifact == ARTIFACT_WORKSPACE_MEMORY_OBSERVATIONS:
-        if phase_rank == _PHASE_RANK["2"]:
-            if mode == "pipeline":
-                return PersistencePolicyDecision(False, PERSIST_DISALLOWED_IN_PIPELINE, "workspace-memory-phase2-write-not-allowed-in-pipeline")
-            return PersistencePolicyDecision(True, REASON_CODE_NONE, "allowed-phase2-observations")
-        if phase_rank < _PHASE_RANK["5"]:
-            return PersistencePolicyDecision(False, PERSIST_PHASE_MISMATCH, "workspace-memory-phase-not-allowed-in-phase-3-or-4")
+    if artifact == ARTIFACT_DECISION_PACK:
+        if phase_token != "2.1":
+            return PersistencePolicyDecision(False, PERSIST_PHASE_MISMATCH, "artifact-requires-phase-2.1")
+        return PersistencePolicyDecision(True, REASON_CODE_NONE, "allowed")
+
     if artifact == ARTIFACT_BUSINESS_RULES:
-        if phase_rank < _PHASE_RANK["1.5"]:
-            return PersistencePolicyDecision(False, PERSIST_PHASE_MISMATCH, "business-rules-requires-phase-1.5-or-later")
+        if phase_token != "1.5":
+            return PersistencePolicyDecision(False, PERSIST_PHASE_MISMATCH, "business-rules-requires-phase-1.5")
         if not inputs.business_rules_executed:
             return PersistencePolicyDecision(False, PERSIST_GATE_NOT_APPROVED, "business-rules-discovery-not-executed")
         return PersistencePolicyDecision(True, REASON_CODE_NONE, "allowed")
 
     if artifact == ARTIFACT_WORKSPACE_MEMORY:
-        if phase_rank < _PHASE_RANK["5"]:
-            return PersistencePolicyDecision(False, PERSIST_PHASE_MISMATCH, "workspace-memory-requires-phase-5-or-later")
+        if phase_token == "2":
+            return PersistencePolicyDecision(True, REASON_CODE_NONE, "allowed-phase2-observations")
+
+        if phase_token not in {"5", "5.3", "5.4", "5.5", "5.6"}:
+            return PersistencePolicyDecision(False, PERSIST_PHASE_MISMATCH, "workspace-memory-requires-phase-2-or-phase-5-family")
+
         if not inputs.gate_approved:
             return PersistencePolicyDecision(False, PERSIST_GATE_NOT_APPROVED, "workspace-memory-phase-5-not-approved")
+
         expected = "Persist to workspace memory: YES"
         confirmation = inputs.explicit_confirmation.strip()
         if mode == "pipeline" and confirmation != expected:

@@ -66,8 +66,8 @@ ERROR_INDEX_FILE_NAME = "errors-index.json"
 def default_config_root() -> Path:
     return canonical_config_root()
 
-# Diagnostics error logging defaults to enabled for compatibility; can be disabled explicitly.
-READ_ONLY = os.environ.get("OPENCODE_DIAGNOSTICS_ALLOW_WRITE", "1") != "1"
+# Diagnostics error logging is fail-closed read-only unless explicitly enabled.
+READ_ONLY = os.environ.get("OPENCODE_DIAGNOSTICS_ALLOW_WRITE", "0") != "1"
 
 def _load_json(path: Path) -> dict[str, Any] | None:
     try:
@@ -310,6 +310,8 @@ def write_error_event(
 
 
 def safe_log_error(**kwargs: Any) -> dict[str, str]:
+    if READ_ONLY:
+        return {"status": "read-only", "path": "/dev/null"}
     try:
         p = write_error_event(**kwargs)
         return {"status": "logged", "path": str(p)}

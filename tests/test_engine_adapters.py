@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from governance.engine.adapters import LocalHostAdapter, OpenCodeDesktopAdapter
@@ -47,3 +49,20 @@ def test_desktop_adapter_defaults_to_pipeline_mode_in_ci(monkeypatch: pytest.Mon
 
     monkeypatch.setenv("CI", "true")
     assert OpenCodeDesktopAdapter().default_operating_mode() == "pipeline"
+
+
+@pytest.mark.governance
+def test_local_adapter_fs_write_repo_root_requires_absolute_env_binding(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+    monkeypatch.delenv("OPENCODE_REPO_ROOT", raising=False)
+    no_env_caps = LocalHostAdapter().capabilities()
+    assert no_env_caps.fs_write_repo_root is False
+
+    monkeypatch.setenv("OPENCODE_REPO_ROOT", "relative/path")
+    relative_caps = LocalHostAdapter().capabilities()
+    assert relative_caps.fs_write_repo_root is False
+
+    repo_root = tmp_path / "repo-root"
+    repo_root.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setenv("OPENCODE_REPO_ROOT", str(repo_root))
+    absolute_caps = LocalHostAdapter().capabilities()
+    assert absolute_caps.fs_write_repo_root is True

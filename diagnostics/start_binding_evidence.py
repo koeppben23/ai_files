@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 
 from governance.infrastructure.binding_evidence_resolver import BindingEvidenceResolver
 
@@ -10,12 +9,13 @@ from governance.infrastructure.binding_evidence_resolver import BindingEvidenceR
 def main() -> int:
     resolver = BindingEvidenceResolver()
     evidence = resolver.resolve(mode="start")
+    config_root = evidence.commands_home.parent
     debug_paths = {
-        "configRoot": str(Path.home() / ".config" / "opencode"),
-        "commandsHome": str(Path.home() / ".config" / "opencode" / "commands"),
-        "profilesHome": str(Path.home() / ".config" / "opencode" / "commands" / "profiles"),
-        "diagnosticsHome": str(Path.home() / ".config" / "opencode" / "commands" / "diagnostics"),
-        "workspacesHome": str(Path.home() / ".config" / "opencode" / "workspaces"),
+        "configRoot": str(config_root),
+        "commandsHome": str(evidence.commands_home),
+        "profilesHome": str(evidence.commands_home / "profiles"),
+        "diagnosticsHome": str(evidence.commands_home / "diagnostics"),
+        "workspacesHome": str(evidence.workspaces_home),
     }
 
     if not evidence.binding_ok:
@@ -36,9 +36,9 @@ def main() -> int:
         return 0
 
     binding_file = evidence.governance_paths_json
-    if binding_file is not None and Path(binding_file).exists():
+    if binding_file is not None and binding_file.exists():
         try:
-            print(Path(binding_file).read_text(encoding="utf-8"))
+            print(binding_file.read_text(encoding="utf-8"))
             return 0
         except Exception as ex:
             payload = {
