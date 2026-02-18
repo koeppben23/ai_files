@@ -172,6 +172,7 @@ def test_preflight_discovers_binding_from_cwd_ancestor_with_dev_override(
     nested.mkdir(parents=True, exist_ok=True)
     monkeypatch.chdir(nested)
     monkeypatch.setattr(platform, "system", lambda: "Linux")
+    monkeypatch.setattr(Path, "home", staticmethod(lambda: tmp_path / "home"))
     monkeypatch.setenv("OPENCODE_ALLOW_CWD_BINDINGS", "1")
 
     module = _load_module()

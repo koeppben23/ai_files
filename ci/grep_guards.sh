@@ -12,11 +12,6 @@ violations: list[str] = []
 allow_write_text = {
     repo / 'governance' / 'infrastructure' / 'fs_atomic.py',
 }
-allow_legacy_write_text = {
-    repo / 'diagnostics' / 'error_logs.py',
-    repo / 'diagnostics' / 'workspace_lock.py',
-    repo / 'governance' / 'packs' / 'pack_lock.py',
-}
 
 scan_roots = {
     repo / 'governance',
@@ -31,7 +26,7 @@ for path in repo.rglob('*.py'):
     text = path.read_text(encoding='utf-8', errors='replace')
 
     if 'Path.write_text(' in text or '.write_text(' in text:
-        if path not in allow_write_text and path not in allow_legacy_write_text:
+        if path not in allow_write_text:
             for idx, line in enumerate(text.splitlines(), start=1):
                 if '.write_text(' in line and 'tmp.write_text(' not in line:
                     violations.append(f"{path.relative_to(repo)}:{idx}: disallowed write_text usage")
@@ -43,7 +38,7 @@ for path in repo.rglob('*.py'):
         violations.append(f"{path.relative_to(repo)}: disallowed subprocess.run([sys.executable, ...])")
 
 # forbid resolve() in repo identity module except gitdir-follow helpers
-repo_identity = repo / 'governance' / 'domain' / 'repo_identity.py'
+repo_identity = repo / 'governance' / 'application' / 'repo_identity_service.py'
 if repo_identity.exists():
     text = repo_identity.read_text(encoding='utf-8', errors='replace')
     for idx, line in enumerate(text.splitlines(), start=1):

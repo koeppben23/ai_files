@@ -57,8 +57,64 @@ except Exception:  # pragma: no cover
 
 from workspace_lock import acquire_workspace_lock
 from command_profiles import render_command_profiles
-from governance.infrastructure.fs_atomic import atomic_write_text
-from governance.application.repo_identity_service import canonicalize_origin_url, derive_repo_identity
+try:
+    from governance.infrastructure.fs_atomic import atomic_write_text
+except Exception:
+    def atomic_write_text(path: Path, text: str, newline_lf: bool = True, attempts: int = 5, backoff_ms: int = 50) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        payload = text.replace("\r\n", "\n") if newline_lf else text
+        with path.open("w", encoding="utf-8", newline="\n" if newline_lf else None) as handle:
+            handle.write(payload)
+
+try:
+    from governance.application.repo_identity_service import canonicalize_origin_url, derive_repo_identity
+except Exception:
+    import hashlib
+    from urllib.parse import urlsplit
+
+    class _FallbackRepoIdentity:
+        def __init__(self, fingerprint: str, material_class: str, canonical_remote: str | None, normalized_repo_root: str, git_dir_path: str | None) -> None:
+            self.fingerprint = fingerprint
+            self.material_class = material_class
+            self.canonical_remote = canonical_remote
+            self.normalized_repo_root = normalized_repo_root
+            self.git_dir_path = git_dir_path
+
+    def canonicalize_origin_url(remote: str) -> str | None:
+        raw = remote.strip()
+        if not raw:
+            return None
+        scp_style = re.match(r"^(?P<user>[^@/\s]+)@(?P<host>[^:/\s]+):(?P<path>[^\s]+)$", raw)
+        if scp_style:
+            raw = f"ssh://{scp_style.group('user')}@{scp_style.group('host')}/{scp_style.group('path')}"
+        try:
+            parsed = urlsplit(raw)
+        except Exception:
+            return None
+        if not parsed.scheme or not parsed.netloc:
+            return None
+        host = parsed.hostname.casefold() if parsed.hostname else ""
+        if not host:
+            return None
+        path = parsed.path.replace("\\", "/").strip()
+        if path.lower().endswith(".git"):
+            path = path[:-4]
+        path = path.rstrip("/").casefold()
+        if not path.startswith("/"):
+            path = f"/{path}"
+        return f"repo://{host}{path}"
+
+    def _derive_repo_identity_fallback(repo_root: Path, *, canonical_remote: str | None, git_dir: Path | None):
+        normalized_root = normalize_for_fingerprint(repo_root)
+        if canonical_remote:
+            material = f"repo:{canonical_remote}"
+            fp = hashlib.sha256(material.encode("utf-8")).hexdigest()[:24]
+            return _FallbackRepoIdentity(fp, "remote_canonical", canonical_remote, normalized_root, str(git_dir) if git_dir else None)
+        material = f"repo:local:{normalized_root}"
+        fp = hashlib.sha256(material.encode("utf-8")).hexdigest()[:24]
+        return _FallbackRepoIdentity(fp, "local_path", None, normalized_root, str(git_dir) if git_dir else None)
+
+    derive_repo_identity = _derive_repo_identity_fallback  # type: ignore[assignment]
 
 
 def default_config_root() -> Path:

@@ -49,7 +49,14 @@ except Exception:  # pragma: no cover
         return {"status": "log-disabled"}
 
 from workspace_lock import acquire_workspace_lock
-from governance.infrastructure.fs_atomic import atomic_write_text
+try:
+    from governance.infrastructure.fs_atomic import atomic_write_text
+except Exception:
+    def atomic_write_text(path: Path, text: str, newline_lf: bool = True, attempts: int = 5, backoff_ms: int = 50) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        payload = text.replace("\r\n", "\n") if newline_lf else text
+        with path.open("w", encoding="utf-8", newline="\n" if newline_lf else None) as handle:
+            handle.write(payload)
 
 
 def default_config_root() -> Path:

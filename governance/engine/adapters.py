@@ -42,9 +42,9 @@ def _resolve_env_path(env: Mapping[str, str], key: str) -> Path | None:
         return None
 
 
-def _resolve_bound_paths(config_root: Path, env: Mapping[str, str]) -> tuple[Path, Path, bool]:
+def _resolve_bound_paths(config_root: Path, env: Mapping[str, str], mode: OperatingMode) -> tuple[Path, Path, bool]:
     resolver = BindingEvidenceResolver(env=env, config_root=config_root)
-    evidence = resolver.resolve()
+    evidence = resolver.resolve(mode=mode)
     return evidence.commands_home, evidence.workspaces_home, evidence.binding_ok
 
 
@@ -149,7 +149,7 @@ class LocalHostAdapter:
     def capabilities(self) -> HostCapabilities:
         env = self.environment()
         config_root = _default_config_root().resolve()
-        commands_home, workspaces_home, binding_ok = _resolve_bound_paths(config_root, env)
+        commands_home, workspaces_home, binding_ok = _resolve_bound_paths(config_root, env, self.default_operating_mode())
         # Fail-closed: ignore relative OPENCODE_REPO_ROOT to avoid CWD-dependent resolution
         repo_root = _resolve_env_path(env, "OPENCODE_REPO_ROOT") or self.cwd()
         exec_allowed = os.access(sys.executable, os.X_OK)
@@ -191,7 +191,7 @@ class OpenCodeDesktopAdapter:
     def capabilities(self) -> HostCapabilities:
         env = self.environment()
         config_root = _default_config_root().resolve()
-        commands_home, workspaces_home, binding_ok = _resolve_bound_paths(config_root, env)
+        commands_home, workspaces_home, binding_ok = _resolve_bound_paths(config_root, env, self.default_operating_mode())
         # Fail-closed: ignore relative OPENCODE_REPO_ROOT to avoid CWD-dependent resolution
         repo_root = _resolve_env_path(env, "OPENCODE_REPO_ROOT") or self.cwd()
         disabled = str(env.get("OPENCODE_DISABLE_GIT", "")).strip() == "1"

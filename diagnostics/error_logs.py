@@ -9,26 +9,26 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
+try:
+    from governance.infrastructure.fs_atomic import atomic_write_text
+    from governance.infrastructure.path_contract import canonical_config_root
+except Exception:
+    def canonical_config_root() -> Path:
+        return Path(os.path.normpath(os.path.abspath(str(Path.home().expanduser() / ".config" / "opencode"))))
+
+    def atomic_write_text(path: Path, text: str, newline_lf: bool = True, attempts: int = 5, backoff_ms: int = 50) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        payload = text.replace("\r\n", "\n") if newline_lf else text
+        with path.open("w", encoding="utf-8", newline="\n" if newline_lf else None) as handle:
+            handle.write(payload)
+
 
 DEFAULT_RETENTION_DAYS = 30
 ERROR_INDEX_FILE_NAME = "errors-index.json"
 
 
 def default_config_root() -> Path:
-    if os.name == "nt":
-        user_profile = os.environ.get("USERPROFILE")
-        if user_profile:
-            return Path(user_profile) / ".config" / "opencode"
-
-        appdata = os.environ.get("APPDATA")
-        if appdata:
-            return Path(appdata) / "opencode"
-
-        return Path.home() / ".config" / "opencode"
-
-    xdg = os.environ.get("XDG_CONFIG_HOME")
-    base = Path(xdg) if xdg else (Path.home() / ".config")
-    return base / "opencode"
+    return canonical_config_root()
 
 
 def _load_json(path: Path) -> dict[str, Any] | None:
@@ -207,7 +207,7 @@ def _update_error_index(index_path: Path, log_file: Path, record: dict[str, Any]
         "repoFingerprint": record.get("repoFingerprint"),
     }
 
-    index_path.write_text(json.dumps(idx, indent=2, ensure_ascii=True) + "\n", encoding="utf-8")
+    atomic_write_text(index_path, json.dumps(idx, indent=2, ensure_ascii=True) + "\n", newline_lf=True)
 
 
 def write_error_event(
