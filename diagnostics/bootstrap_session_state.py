@@ -137,13 +137,6 @@ def resolve_binding_config(explicit: Path | None) -> tuple[Path, dict, Path]:
         config_root, paths = _load_binding_paths(candidate, expected_config_root=root)
         return config_root, paths, candidate
 
-    script_path = Path(os.path.abspath(__file__))
-    diagnostics_dir = script_path.parent
-    if diagnostics_dir.name == "diagnostics" and diagnostics_dir.parent.name == "commands":
-        candidate = diagnostics_dir.parent / "governance.paths.json"
-        config_root, paths = _load_binding_paths(candidate)
-        return config_root, paths, candidate
-
     fallback = default_config_root()
     candidate = fallback / "commands" / "governance.paths.json"
     config_root, paths = _load_binding_paths(candidate, expected_config_root=fallback)
