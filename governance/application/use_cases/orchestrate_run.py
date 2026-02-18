@@ -33,6 +33,11 @@ from governance.domain.reason_codes import (
     INTERACTIVE_REQUIRED_IN_PIPELINE,
     NOT_VERIFIED_EVIDENCE_STALE,
     NOT_VERIFIED_MISSING_EVIDENCE,
+    PERSIST_CONFIRMATION_INVALID,
+    PERSIST_CONFIRMATION_REQUIRED,
+    PERSIST_DISALLOWED_IN_PIPELINE,
+    PERSIST_GATE_NOT_APPROVED,
+    PERSIST_PHASE_MISMATCH,
     POLICY_PRECEDENCE_APPLIED,
     PROMPT_BUDGET_EXCEEDED,
     REPO_CONSTRAINT_UNSUPPORTED,
@@ -54,6 +59,7 @@ from governance.application.ports.gateways import (
     compute_repo_doc_hash,
     build_reason_payload,
     evaluate_interaction_gate,
+    load_persist_confirmation_evidence,
     evaluate_runtime_activation,
     evaluate_target_path,
     golden_parity_fields,
@@ -64,6 +70,15 @@ from governance.application.ports.gateways import (
     resolve_surface_policy,
     run_engine_selfcheck,
     summarize_classification,
+)
+from governance.application.policies.persistence_policy import (
+    ARTIFACT_BUSINESS_RULES,
+    ARTIFACT_DECISION_PACK,
+    ARTIFACT_REPO_CACHE,
+    ARTIFACT_REPO_DIGEST,
+    ARTIFACT_WORKSPACE_MEMORY,
+    PersistencePolicyInput,
+    can_write as can_write_persistence,
 )
 from governance.application.use_cases.phase_router import route_phase
 
@@ -124,61 +139,84 @@ def _phase5_approved(state: Mapping[str, object]) -> bool:
     return False
 
 
-def _workspace_memory_confirmation_present(*, state: Mapping[str, object], requested_action: str | None) -> bool:
-    if (requested_action or "").strip() == _WORKSPACE_MEMORY_CONFIRMATION:
-        return True
-    for key in ("workspace_memory_confirmation", "WorkspaceMemoryConfirmation"):
+def _business_rules_executed(state: Mapping[str, object]) -> bool:
+    for key in ("business_rules_executed", "BusinessRulesExecuted"):
         value = state.get(key)
-        if isinstance(value, str) and value.strip() == _WORKSPACE_MEMORY_CONFIRMATION:
-            return True
+        if isinstance(value, bool):
+            return value
     return False
+
+
+def _artifact_kind_from_target_variable(target_variable: str | None) -> str | None:
+    if target_variable == "REPO_CACHE_FILE":
+        return ARTIFACT_REPO_CACHE
+    if target_variable == "REPO_DIGEST_FILE":
+        return ARTIFACT_REPO_DIGEST
+    if target_variable == "REPO_DECISION_PACK_FILE":
+        return ARTIFACT_DECISION_PACK
+    if target_variable == "REPO_BUSINESS_RULES_FILE":
+        return ARTIFACT_BUSINESS_RULES
+    if target_variable == "WORKSPACE_MEMORY_FILE":
+        return ARTIFACT_WORKSPACE_MEMORY
+    return None
+
+
+def _confirmation_from_evidence(evidence: Mapping[str, object] | None, *, scope: str, gate: str) -> str:
+    if evidence is None:
+        return ""
+    items = evidence.get("items") if isinstance(evidence, Mapping) else None
+    if not isinstance(items, list):
+        return ""
+    for item in items:
+        if not isinstance(item, Mapping):
+            continue
+        if str(item.get("scope") or "").strip() != scope:
+            continue
+        if str(item.get("gate") or "").strip() != gate:
+            continue
+        value = str(item.get("value") or "").strip()
+        if value:
+            return f"Persist to workspace memory: {value}"
+    return ""
 
 
 def _evaluate_phase_coupled_persistence(
     *,
+    persistence_write_requested: bool,
     phase: str,
     target_variable: str | None,
     effective_mode: OperatingMode,
-    requested_action: str | None,
     session_state_document: Mapping[str, object] | None,
+    persist_confirmation_evidence: Mapping[str, object] | None,
 ) -> PersistencePhaseGateDecision:
-    action = (requested_action or "").strip()
-    if target_variable != "WORKSPACE_MEMORY_FILE":
+    if not persistence_write_requested:
         return PersistencePhaseGateDecision(True, REASON_CODE_NONE, "not-applicable")
 
-    if not action or "persist" not in action.lower():
+    artifact_kind = _artifact_kind_from_target_variable(target_variable)
+    if artifact_kind is None:
         return PersistencePhaseGateDecision(True, REASON_CODE_NONE, "not-applicable")
 
     state = _session_state_root(session_state_document)
-    phase_token = _phase_token(phase)
-    if _phase_rank(phase_token) < _phase_rank("5"):
-        return PersistencePhaseGateDecision(
-            False,
-            BLOCKED_WORKSPACE_PERSISTENCE,
-            "workspace-memory-persistence-requires-phase-5-approval",
+    confirmation = _confirmation_from_evidence(
+        persist_confirmation_evidence,
+        scope="workspace-memory",
+        gate="phase5",
+    )
+    decision = can_write_persistence(
+        PersistencePolicyInput(
+            artifact_kind=artifact_kind,
+            phase=phase,
+            mode=effective_mode,
+            gate_approved=_phase5_approved(state),
+            business_rules_executed=_business_rules_executed(state),
+            explicit_confirmation=confirmation,
         )
+    )
 
-    if not _phase5_approved(state):
-        return PersistencePhaseGateDecision(
-            False,
-            BLOCKED_WORKSPACE_PERSISTENCE,
-            "workspace-memory-persistence-phase-5-not-approved",
-        )
+    if decision.allowed:
+        return PersistencePhaseGateDecision(True, REASON_CODE_NONE, "approved")
 
-    if not _workspace_memory_confirmation_present(state=state, requested_action=requested_action):
-        if effective_mode == "pipeline":
-            return PersistencePhaseGateDecision(
-                False,
-                INTERACTIVE_REQUIRED_IN_PIPELINE,
-                "workspace-memory-persistence-confirmation-required",
-            )
-        return PersistencePhaseGateDecision(
-            False,
-            BLOCKED_WORKSPACE_PERSISTENCE,
-            "workspace-memory-persistence-confirmation-required",
-        )
-
-    return PersistencePhaseGateDecision(True, REASON_CODE_NONE, "approved")
+    return PersistencePhaseGateDecision(False, decision.reason_code, decision.reason)
 
 
 def _is_code_output_request(requested_action: str | None) -> bool:
@@ -338,6 +376,8 @@ def run_engine_orchestrator(
     widening_to: str | None = None,
     widening_approved: bool = False,
     requested_action: str | None = None,
+    persistence_write_requested: bool = False,
+    persist_confirmation_evidence_path: str | None = None,
     interactive_required: bool = False,
     why_interactive_required: str | None = None,
     commit_workspace_ready_gate: bool = False,
@@ -528,18 +568,23 @@ def run_engine_orchestrator(
         if repo_constraint_topic:
             hash_diff["repo_constraint_topic"] = repo_constraint_topic
     target_variable = _extract_target_variable(target_path)
+    persist_confirmation_evidence = load_persist_confirmation_evidence(
+        evidence_path=(Path(persist_confirmation_evidence_path) if persist_confirmation_evidence_path else None)
+    )
+
     persistence_phase_gate = _evaluate_phase_coupled_persistence(
+        persistence_write_requested=persistence_write_requested,
         phase=phase,
         target_variable=target_variable,
         effective_mode=effective_mode,
-        requested_action=requested_action,
         session_state_document=session_state_document,
+        persist_confirmation_evidence=persist_confirmation_evidence,
     )
 
     if not gate_blocked and not persistence_phase_gate.allowed:
         gate_blocked = True
         gate_reason_code = persistence_phase_gate.reason_code
-        if gate_reason_code == INTERACTIVE_REQUIRED_IN_PIPELINE:
+        if gate_reason_code == PERSIST_DISALLOWED_IN_PIPELINE:
             interactive_required = True
             why_interactive_required = persistence_phase_gate.reason
 
@@ -720,7 +765,14 @@ def run_engine_orchestrator(
             "why_interactive_required": why_interactive_required or "approval_required",
             "pointers": [target_path],
         }
-    elif parity["reason_code"] == BLOCKED_WORKSPACE_PERSISTENCE:
+    elif parity["reason_code"] in {
+        BLOCKED_WORKSPACE_PERSISTENCE,
+        PERSIST_CONFIRMATION_REQUIRED,
+        PERSIST_CONFIRMATION_INVALID,
+        PERSIST_DISALLOWED_IN_PIPELINE,
+        PERSIST_PHASE_MISMATCH,
+        PERSIST_GATE_NOT_APPROVED,
+    }:
         reason_context = {
             "requested_action": requested_action or "none",
             "required_confirmation": _WORKSPACE_MEMORY_CONFIRMATION,

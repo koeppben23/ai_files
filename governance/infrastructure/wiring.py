@@ -13,6 +13,7 @@ from governance.infrastructure.mode_repo_rules import (
 )
 from governance.infrastructure.pack_lock import resolve_pack_lock
 from governance.infrastructure.reason_payload import build_reason_payload, validate_reason_payload
+from governance.infrastructure.persist_confirmation_store import load_persist_confirmation_evidence
 from governance.infrastructure.repo_root_resolver import resolve_repo_root
 from governance.infrastructure.runtime_activation import evaluate_runtime_activation, golden_parity_fields
 from governance.infrastructure.selfcheck import run_engine_selfcheck
@@ -46,5 +47,6 @@ def configure_gateway_registry() -> None:
             validate_reason_payload=validate_reason_payload,
             canonicalize_reason_payload_failure=canonicalize_reason_payload_failure,
             ensure_workspace_ready=ensure_workspace_ready,
+            load_persist_confirmation_evidence=load_persist_confirmation_evidence,
         )
     )

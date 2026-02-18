@@ -8,6 +8,7 @@ import pytest
 
 from governance.engine.adapters import ExecResult, HostCapabilities, OperatingMode
 from governance.engine.orchestrator import run_engine_orchestrator
+from governance.infrastructure.persist_confirmation_store import record_persist_confirmation
 from governance.engine.reason_codes import (
     BLOCKED_ENGINE_SELFCHECK,
     NOT_VERIFIED_EVIDENCE_STALE,
@@ -1106,11 +1107,11 @@ def test_orchestrator_blocks_workspace_memory_before_phase5(tmp_path: Path):
         next_gate_condition="Plan approved",
         target_path="${WORKSPACE_MEMORY_FILE}",
         session_state_document={"SESSION_STATE": {"workspace_ready_gate_committed": True, "phase_transition_evidence": True}},
-        requested_action="persist workspace memory",
+        persistence_write_requested=True,
     )
 
     assert out.parity["status"] == "blocked"
-    assert out.parity["reason_code"] == "BLOCKED-WORKSPACE-PERSISTENCE"
+    assert out.parity["reason_code"] == "PERSIST_PHASE_MISMATCH"
 
 
 @pytest.mark.governance
@@ -1145,11 +1146,11 @@ def test_orchestrator_blocks_workspace_memory_without_exact_confirmation(tmp_pat
                 "phase5_approved": True,
             }
         },
-        requested_action="persist workspace memory yes",
+        persistence_write_requested=True,
     )
 
     assert out.parity["status"] == "blocked"
-    assert out.parity["reason_code"] == "BLOCKED-WORKSPACE-PERSISTENCE"
+    assert out.parity["reason_code"] == "PERSIST_CONFIRMATION_REQUIRED"
 
 
 @pytest.mark.governance
@@ -1170,6 +1171,16 @@ def test_orchestrator_allows_workspace_memory_with_exact_confirmation(tmp_path: 
         ),
     )
 
+    evidence = tmp_path / "workspaces" / "abc" / "evidence" / "persist_confirmations.json"
+    _ = record_persist_confirmation(
+        evidence_path=evidence,
+        scope="workspace-memory",
+        gate="phase5",
+        value="YES",
+        mode="user",
+        reason="operator-confirmed",
+    )
+
     out = run_engine_orchestrator(
         adapter=adapter,
         phase="5-ImplementationQA",
@@ -1184,7 +1195,8 @@ def test_orchestrator_allows_workspace_memory_with_exact_confirmation(tmp_path: 
                 "phase5_approved": True,
             }
         },
-        requested_action="Persist to workspace memory: YES",
+        persistence_write_requested=True,
+        persist_confirmation_evidence_path=str(evidence),
     )
 
     assert out.parity["status"] == "ok"
@@ -1223,11 +1235,11 @@ def test_orchestrator_pipeline_blocks_when_workspace_memory_confirmation_missing
                 "phase5_approved": True,
             }
         },
-        requested_action="persist workspace memory",
+        persistence_write_requested=True,
     )
 
     assert out.parity["status"] == "blocked"
-    assert out.parity["reason_code"] == "INTERACTIVE-REQUIRED-IN-PIPELINE"
+    assert out.parity["reason_code"] == "PERSIST_DISALLOWED_IN_PIPELINE"
 
 
 @pytest.mark.governance

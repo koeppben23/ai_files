@@ -64,6 +64,7 @@ class GatewayRegistry:
     validate_reason_payload: Callable[..., Any]
     canonicalize_reason_payload_failure: Callable[..., Any]
     ensure_workspace_ready: Callable[..., Any]
+    load_persist_confirmation_evidence: Callable[..., Any]
 
 
 _REGISTRY: GatewayRegistry | None = None
@@ -150,3 +151,7 @@ def canonicalize_reason_payload_failure(*args: Any, **kwargs: Any) -> Any:
 
 def ensure_workspace_ready(*args: Any, **kwargs: Any) -> Any:
     return _gateway().ensure_workspace_ready(*args, **kwargs)
+
+
+def load_persist_confirmation_evidence(*args: Any, **kwargs: Any) -> Any:
+    return _gateway().load_persist_confirmation_evidence(*args, **kwargs)
