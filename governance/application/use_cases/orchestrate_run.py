@@ -18,6 +18,7 @@ from governance.domain.reason_codes import (
     BLOCKED_ACTIVATION_HASH_MISMATCH,
     BLOCKED_MISSING_BINDING_FILE,
     BLOCKED_EXEC_DISALLOWED,
+    BLOCKED_FINGERPRINT_MISMATCH,
     BLOCKED_OPERATING_MODE_REQUIRED,
     BLOCKED_PACK_LOCK_INVALID,
     BLOCKED_PACK_LOCK_MISMATCH,
@@ -388,8 +389,11 @@ def run_engine_orchestrator(
 ) -> EngineOrchestratorOutput:
     """Run one deterministic engine orchestration cycle.
 
-    Behavior is fail-closed and side-effect free: this function computes outputs
-    but does not write files or mutate session artifacts.
+    Behavior is fail-closed. When ``commit_workspace_ready_gate`` is True,
+    this function may write workspace marker, evidence, and pointer files
+    via ``ensure_workspace_ready()``.  All other code paths are side-effect
+    free: they compute outputs but do not write files or mutate session
+    artifacts.
     """
 
     caps = adapter.capabilities()
@@ -416,21 +420,33 @@ def run_engine_orchestrator(
         cwd=adapter.cwd(),
     )
 
+    gate_blocked = False
+    gate_reason_code = REASON_CODE_NONE
+
     if commit_workspace_ready_gate and repo_context.is_git_root and repo_context.repo_root is not None:
-        repo_fingerprint = _extract_repo_identity(session_state_document)
-        if repo_fingerprint and workspaces_home and session_state_file and session_pointer_file:
+        # Derive fingerprint from live repo_root (SSOT) and verify against session state.
+        live_repo_root = repo_context.repo_root
+        live_fingerprint = hashlib.sha256(
+            f"repo:local:{str(live_repo_root)}".encode("utf-8")
+        ).hexdigest()[:24]
+        state_fingerprint = _extract_repo_identity(session_state_document)
+        if state_fingerprint and state_fingerprint != live_fingerprint:
+            # Cross-wire detected: session state has stale fingerprint.
+            gate_blocked = True
+            gate_reason_code = BLOCKED_FINGERPRINT_MISMATCH
+        elif live_fingerprint and workspaces_home and session_state_file and session_pointer_file:
             gate = ensure_workspace_ready(
                 workspaces_home=Path(workspaces_home),
-                repo_fingerprint=repo_fingerprint,
-                repo_root=repo_context.repo_root,
+                repo_fingerprint=state_fingerprint or live_fingerprint,
+                repo_root=live_repo_root,
                 session_state_file=Path(session_state_file),
                 session_pointer_file=Path(session_pointer_file),
-                session_id=(session_id or hashlib.sha256(str(repo_context.repo_root).encode("utf-8")).hexdigest()[:16]),
+                session_id=(session_id or hashlib.sha256(str(live_repo_root).encode("utf-8")).hexdigest()[:16]),
                 discovery_method=repo_context.source,
             )
             session_state_document = _with_workspace_ready_gate(
                 session_state_document,
-                repo_fingerprint=repo_fingerprint,
+                repo_fingerprint=state_fingerprint or live_fingerprint,
                 committed=bool(getattr(gate, "ok", False)),
             )
 
@@ -479,10 +495,16 @@ def run_engine_orchestrator(
         if unsafe_directive is not None:
             hash_diff["repo_doc_unsafe"] = unsafe_directive.rule_id
 
-    budget = resolve_prompt_budget(effective_mode)
+        # HIGH #3: In agents_strict mode, enforce ask-before directives from repo docs.
+        if effective_mode == "agents_strict":
+            has_ask_before = any(
+                c.directive_class == "interactive_directive" for c in classifications
+            )
+            if has_ask_before and not interactive_required:
+                interactive_required = True
+                why_interactive_required = "repo_doc_ask_before_directive"
 
-    gate_blocked = False
-    gate_reason_code = REASON_CODE_NONE
+    budget = resolve_prompt_budget(effective_mode)
 
     interaction_decision = evaluate_interaction_gate(
         effective_mode=effective_mode,
@@ -786,6 +808,13 @@ def run_engine_orchestrator(
             "phase": phase,
             "active_gate": active_gate,
             "policy": "phase-4-planning-only-no-code-output",
+            "pointers": [target_path],
+        }
+    elif parity["reason_code"] == BLOCKED_FINGERPRINT_MISMATCH:
+        reason_context = {
+            "failure_class": "fingerprint_cross_wire",
+            "session_fingerprint": _extract_repo_identity(session_state_document),
+            "live_repo_root": str(repo_context.repo_root) if repo_context.repo_root else "unknown",
             "pointers": [target_path],
         }
     elif parity["reason_code"] == PROMPT_BUDGET_EXCEEDED:

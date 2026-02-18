@@ -14,7 +14,7 @@ Note: Kernel remains the source of truth; AGENTS.md is the Codex frontend surfac
 When executed as an OpenCode command (`/start`), this prompt injects the installer-owned path binding file
 `${COMMANDS_HOME}/governance.paths.json` into the model context.
 
-!`${PYTHON_COMMAND} -c "import runpy;from pathlib import Path;root=Path.home()/'.config'/'opencode';runpy.run_path(str(root/'commands'/'diagnostics'/'start_binding_evidence.py'),run_name='__main__')" || python -c "import runpy;from pathlib import Path;root=Path.home()/'.config'/'opencode';runpy.run_path(str(root/'commands'/'diagnostics'/'start_binding_evidence.py'),run_name='__main__')"`
+!`${PYTHON_COMMAND} -c "import runpy;from pathlib import Path;from governance.infrastructure.binding_evidence_resolver import BindingEvidenceResolver;e=BindingEvidenceResolver().resolve();root=e.commands_home.parent if e.binding_ok else Path.home()/'.config'/'opencode';runpy.run_path(str(root/'commands'/'diagnostics'/'start_binding_evidence.py'),run_name='__main__')" || ${PYTHON_COMMAND} -c "import runpy,os;from pathlib import Path;root=Path(os.environ.get('OPENCODE_CONFIG_ROOT',str(Path.home()/'.config'/'opencode')));runpy.run_path(str(root/'commands'/'diagnostics'/'start_binding_evidence.py'),run_name='__main__')"`
 
 ## Auto-Preflight Hook (OpenCode, Read-only)
 
@@ -45,7 +45,7 @@ Bootstrap command preflight (binding):
 - Missing-command diagnostics MUST include `expected_after_fix`, `verify_command`, and `restart_hint`.
 - `restart_hint` MUST be deterministic: `restart_required_if_path_edited` or `no_restart_if_binary_in_existing_path`.
 
-!`${PYTHON_COMMAND} -c "import runpy;from pathlib import Path;root=Path.home()/'.config'/'opencode';runpy.run_path(str(root/'commands'/'diagnostics'/'start_preflight_readonly.py'),run_name='__main__')" || python -c "import runpy;from pathlib import Path;root=Path.home()/'.config'/'opencode';runpy.run_path(str(root/'commands'/'diagnostics'/'start_preflight_readonly.py'),run_name='__main__')"`
+!`${PYTHON_COMMAND} -c "import runpy;from pathlib import Path;from governance.infrastructure.binding_evidence_resolver import BindingEvidenceResolver;e=BindingEvidenceResolver().resolve();root=e.commands_home.parent if e.binding_ok else Path.home()/'.config'/'opencode';runpy.run_path(str(root/'commands'/'diagnostics'/'start_preflight_readonly.py'),run_name='__main__')" || ${PYTHON_COMMAND} -c "import runpy,os;from pathlib import Path;root=Path(os.environ.get('OPENCODE_CONFIG_ROOT',str(Path.home()/'.config'/'opencode')));runpy.run_path(str(root/'commands'/'diagnostics'/'start_preflight_readonly.py'),run_name='__main__')"`
 
 Binding evidence semantics (binding):
 - Only an existing installer-owned `${COMMANDS_HOME}/governance.paths.json` qualifies as canonical binding evidence.

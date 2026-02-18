@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -1039,8 +1040,11 @@ def test_orchestrator_fallback_does_not_leak_exception_text(
 @pytest.mark.governance
 def test_orchestrator_commits_workspace_ready_gate_when_requested(tmp_path: Path):
     repo_root = _make_git_root(tmp_path / "repo")
+    # Derive fingerprint the same way orchestrate_run does (from resolved repo_root).
+    resolved_root = repo_root.resolve()
+    repo_fp = hashlib.sha256(f"repo:local:{str(resolved_root)}".encode("utf-8")).hexdigest()[:24]
     workspaces_home = tmp_path / "workspaces"
-    session_state_file = workspaces_home / "abc123def456abc123def456" / "SESSION_STATE.json"
+    session_state_file = workspaces_home / repo_fp / "SESSION_STATE.json"
     session_state_file.parent.mkdir(parents=True, exist_ok=True)
     session_state_file.write_text("{}\n", encoding="utf-8")
     session_pointer_file = tmp_path / "SESSION_STATE.json"
@@ -1066,7 +1070,7 @@ def test_orchestrator_commits_workspace_ready_gate_when_requested(tmp_path: Path
         active_gate="Discovery",
         mode="OK",
         next_gate_condition="continue",
-        session_state_document={"SESSION_STATE": {"repo_fingerprint": "abc123def456abc123def456"}},
+        session_state_document={"SESSION_STATE": {"repo_fingerprint": repo_fp}},
         commit_workspace_ready_gate=True,
         workspaces_home=str(workspaces_home),
         session_state_file=str(session_state_file),
@@ -1074,8 +1078,8 @@ def test_orchestrator_commits_workspace_ready_gate_when_requested(tmp_path: Path
         session_id="sess-1",
     )
 
-    marker = workspaces_home / "abc123def456abc123def456" / "marker.json"
-    evidence = workspaces_home / "abc123def456abc123def456" / "evidence" / "repo-context.resolved.json"
+    marker = workspaces_home / repo_fp / "marker.json"
+    evidence = workspaces_home / repo_fp / "evidence" / "repo-context.resolved.json"
     assert marker.exists()
     assert evidence.exists()
     assert session_pointer_file.exists()
@@ -1315,3 +1319,48 @@ def test_orchestrator_blocks_code_output_requests_in_phase4(tmp_path: Path):
 
     assert out.parity["status"] == "blocked"
     assert out.parity["reason_code"] == "BLOCKED-STATE-OUTDATED"
+
+
+@pytest.mark.governance
+def test_orchestrator_blocks_on_fingerprint_cross_wire(tmp_path: Path):
+    """Stale session-state fingerprint triggers BLOCKED-FINGERPRINT-MISMATCH."""
+
+    repo_root = _make_git_root(tmp_path / "repo")
+    workspaces_home = tmp_path / "workspaces"
+    stale_fp = "deadbeefdeadbeefdeadbeef"
+    session_state_file = workspaces_home / stale_fp / "SESSION_STATE.json"
+    session_state_file.parent.mkdir(parents=True, exist_ok=True)
+    session_state_file.write_text("{}\n", encoding="utf-8")
+    session_pointer_file = tmp_path / "SESSION_STATE.json"
+
+    adapter = StubAdapter(
+        env={"OPENCODE_REPO_ROOT": str(repo_root)},
+        cwd_path=repo_root,
+        caps=HostCapabilities(
+            cwd_trust="trusted",
+            fs_read_commands_home=True,
+            fs_write_config_root=True,
+            fs_write_commands_home=True,
+            fs_write_workspaces_home=True,
+            fs_write_repo_root=True,
+            exec_allowed=True,
+            git_available=True,
+        ),
+    )
+
+    out = run_engine_orchestrator(
+        adapter=adapter,
+        phase="2-Discovery",
+        active_gate="Discovery",
+        mode="OK",
+        next_gate_condition="continue",
+        session_state_document={"SESSION_STATE": {"repo_fingerprint": stale_fp}},
+        commit_workspace_ready_gate=True,
+        workspaces_home=str(workspaces_home),
+        session_state_file=str(session_state_file),
+        session_pointer_file=str(session_pointer_file),
+        session_id="sess-cross-wire",
+    )
+
+    assert out.parity["status"] == "blocked"
+    assert out.parity["reason_code"] == "BLOCKED-FINGERPRINT-MISMATCH"

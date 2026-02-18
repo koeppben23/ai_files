@@ -3535,6 +3535,7 @@ def test_error_logger_updates_index_and_prunes_old_global_logs(tmp_path: Path, m
     module_path = REPO_ROOT / "diagnostics" / "error_logs.py"
     spec = importlib.util.spec_from_file_location("error_logs_mod", module_path)
     assert spec and spec.loader, "Failed to load diagnostics/error_logs.py module spec"
+    monkeypatch.delenv("CI", raising=False)
     monkeypatch.setenv("OPENCODE_DIAGNOSTICS_ALLOW_WRITE", "1")
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
@@ -3576,6 +3577,7 @@ def test_error_logger_uses_bound_workspaces_home_for_repo_logs(tmp_path: Path, m
     module_path = REPO_ROOT / "diagnostics" / "error_logs.py"
     spec = importlib.util.spec_from_file_location("error_logs_mod", module_path)
     assert spec and spec.loader, "Failed to load diagnostics/error_logs.py module spec"
+    monkeypatch.delenv("CI", raising=False)
     monkeypatch.setenv("OPENCODE_DIAGNOSTICS_ALLOW_WRITE", "1")
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
@@ -3599,6 +3601,35 @@ def test_error_logger_uses_bound_workspaces_home_for_repo_logs(tmp_path: Path, m
     logged_path = Path(str(out.get("path", "")))
     assert str(custom_workspaces.resolve()) in str(logged_path.resolve())
     assert logged_path.exists(), "expected repo error log in bound workspaces home"
+
+
+@pytest.mark.governance
+def test_error_logger_pipeline_forces_read_only_even_when_allow_write_set(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """CI=true forces read-only in error_logs regardless of OPENCODE_DIAGNOSTICS_ALLOW_WRITE."""
+
+    module_path = REPO_ROOT / "diagnostics" / "error_logs.py"
+    spec = importlib.util.spec_from_file_location("error_logs_pipeline", module_path)
+    assert spec and spec.loader, "Failed to load diagnostics/error_logs.py module spec"
+    monkeypatch.setenv("CI", "true")
+    monkeypatch.setenv("OPENCODE_DIAGNOSTICS_ALLOW_WRITE", "1")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    assert mod.READ_ONLY is True, "Pipeline mode must force READ_ONLY even when ALLOW_WRITE=1"
+
+    cfg = tmp_path / "opencode-config"
+    write_governance_paths(cfg)
+    out = mod.safe_log_error(
+        reason_key="ERR-PIPELINE-TEST",
+        message="should be read-only in pipeline",
+        config_root=cfg,
+        phase="test",
+        gate="test",
+        mode="pipeline",
+        command="pytest",
+        component="test-suite",
+    )
+    assert out.get("status") == "read-only"
 
 
 @pytest.mark.governance
