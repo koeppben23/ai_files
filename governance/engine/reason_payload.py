@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
 import json
+import os
 from pathlib import Path
 from typing import Literal
 
@@ -71,7 +72,7 @@ def validate_reason_payload(payload: ReasonPayload) -> tuple[str, ...]:
     return tuple(errors)
 
 
-_REPO_ROOT = Path(__file__).resolve().parents[2]
+_REPO_ROOT = Path(os.path.normpath(os.path.abspath(str(Path(__file__).parent.parent.parent))))
 _REASON_REGISTRY_PATH = _REPO_ROOT / "diagnostics" / "reason_codes.registry.json"
 _SCHEMA_CACHE: dict[str, dict[str, object]] = {}
 _REASON_SCHEMA_REF_CACHE: dict[str, str] | None = None

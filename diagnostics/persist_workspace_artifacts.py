@@ -2,17 +2,12 @@
 from __future__ import annotations
 
 import argparse
-import errno
-import hashlib
 import json
 import os
 import re
 import shlex
 import subprocess
 import sys
-import tempfile
-import time
-from urllib.parse import urlsplit
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -24,7 +19,7 @@ if str(SCRIPT_DIR.parent) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR.parent))
 
 try:
-    from governance.engine.path_contract import (
+    from governance.infrastructure.path_contract import (
         canonical_config_root,
         normalize_absolute_path,
         normalize_for_fingerprint,
@@ -62,6 +57,64 @@ except Exception:  # pragma: no cover
 
 from workspace_lock import acquire_workspace_lock
 from command_profiles import render_command_profiles
+try:
+    from governance.infrastructure.fs_atomic import atomic_write_text
+except Exception:
+    def atomic_write_text(path: Path, text: str, newline_lf: bool = True, attempts: int = 5, backoff_ms: int = 50) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        payload = text.replace("\r\n", "\n") if newline_lf else text
+        with path.open("w", encoding="utf-8", newline="\n" if newline_lf else None) as handle:
+            handle.write(payload)
+
+try:
+    from governance.application.repo_identity_service import canonicalize_origin_url, derive_repo_identity
+except Exception:
+    import hashlib
+    from urllib.parse import urlsplit
+
+    class _FallbackRepoIdentity:
+        def __init__(self, fingerprint: str, material_class: str, canonical_remote: str | None, normalized_repo_root: str, git_dir_path: str | None) -> None:
+            self.fingerprint = fingerprint
+            self.material_class = material_class
+            self.canonical_remote = canonical_remote
+            self.normalized_repo_root = normalized_repo_root
+            self.git_dir_path = git_dir_path
+
+    def canonicalize_origin_url(remote: str) -> str | None:
+        raw = remote.strip()
+        if not raw:
+            return None
+        scp_style = re.match(r"^(?P<user>[^@/\s]+)@(?P<host>[^:/\s]+):(?P<path>[^\s]+)$", raw)
+        if scp_style:
+            raw = f"ssh://{scp_style.group('user')}@{scp_style.group('host')}/{scp_style.group('path')}"
+        try:
+            parsed = urlsplit(raw)
+        except Exception:
+            return None
+        if not parsed.scheme or not parsed.netloc:
+            return None
+        host = parsed.hostname.casefold() if parsed.hostname else ""
+        if not host:
+            return None
+        path = parsed.path.replace("\\", "/").strip()
+        if path.lower().endswith(".git"):
+            path = path[:-4]
+        path = path.rstrip("/").casefold()
+        if not path.startswith("/"):
+            path = f"/{path}"
+        return f"repo://{host}{path}"
+
+    def _derive_repo_identity_fallback(repo_root: Path, *, canonical_remote: str | None, git_dir: Path | None):
+        normalized_root = normalize_for_fingerprint(repo_root)
+        if canonical_remote:
+            material = f"repo:{canonical_remote}"
+            fp = hashlib.sha256(material.encode("utf-8")).hexdigest()[:24]
+            return _FallbackRepoIdentity(fp, "remote_canonical", canonical_remote, normalized_root, str(git_dir) if git_dir else None)
+        material = f"repo:local:{normalized_root}"
+        fp = hashlib.sha256(material.encode("utf-8")).hexdigest()[:24]
+        return _FallbackRepoIdentity(fp, "local_path", None, normalized_root, str(git_dir) if git_dir else None)
+
+    derive_repo_identity = _derive_repo_identity_fallback  # type: ignore[assignment]
 
 
 def default_config_root() -> Path:
@@ -213,42 +266,7 @@ def _read_origin_remote(config_path: Path) -> str | None:
 
 
 def _canonicalize_origin_remote(remote: str) -> str | None:
-    raw = remote.strip()
-    if not raw:
-        return None
-
-    scp_style = re.match(r"^(?P<user>[^@/\s]+)@(?P<host>[^:/\s]+):(?P<path>[^\s]+)$", raw)
-    if scp_style:
-        raw = f"ssh://{scp_style.group('user')}@{scp_style.group('host')}/{scp_style.group('path')}"
-
-    try:
-        parsed = urlsplit(raw)
-    except Exception:
-        return None
-
-    if not parsed.scheme or not parsed.netloc:
-        return None
-
-    host = parsed.hostname.casefold() if parsed.hostname else ""
-    if not host:
-        return None
-    if parsed.port:
-        host = f"{host}:{parsed.port}"
-
-    path = parsed.path.replace("\\", "/")
-    path = re.sub(r"/+", "/", path).strip()
-    if not path:
-        return None
-    if not path.startswith("/"):
-        path = f"/{path}"
-    if path.lower().endswith(".git"):
-        path = path[:-4]
-    path = path.rstrip("/")
-    if not path:
-        return None
-    path = path.casefold()
-
-    return f"repo://{host}{path}"
+    return canonicalize_origin_url(remote)
 
 
 def _normalize_path_for_fingerprint(path: Path) -> str:
@@ -265,11 +283,13 @@ def _derive_fingerprint_from_repo(repo_root: Path) -> tuple[str, str] | None:
 
     remote = _read_origin_remote(git_dir / "config")
     canonical_remote = _canonicalize_origin_remote(remote) if remote else None
-    if canonical_remote:
-        material = f"repo:{canonical_remote}"
-    else:
-        material = f"repo:local:{_normalize_path_for_fingerprint(root)}"
-    fp = hashlib.sha256(material.encode("utf-8")).hexdigest()[:24]
+    identity = derive_repo_identity(root, canonical_remote=canonical_remote, git_dir=git_dir)
+    material = (
+        f"repo:{identity.canonical_remote}"
+        if identity.material_class == "remote_canonical" and identity.canonical_remote
+        else f"repo:local:{identity.normalized_repo_root}"
+    )
+    fp = identity.fingerprint
     return fp, material
 
 
@@ -503,38 +523,8 @@ def _append_text(path: Path, content: str, *, dry_run: bool) -> None:
     _atomic_write_text(path, existing)
 
 
-def _is_retryable_replace_error(exc: OSError) -> bool:
-    return exc.errno in {errno.EACCES, errno.EPERM, errno.EBUSY}
-
-
-def _atomic_write_text(path: Path, content: str, retries: int = 3) -> None:
-    temp_path: Path | None = None
-    try:
-        with tempfile.NamedTemporaryFile(
-            mode="w",
-            encoding="utf-8",
-            newline="\n",
-            dir=str(path.parent),
-            prefix=path.name + ".",
-            suffix=".tmp",
-            delete=False,
-        ) as tmp:
-            tmp.write(content)
-            tmp.flush()
-            os.fsync(tmp.fileno())
-            temp_path = Path(tmp.name)
-
-        for attempt in range(retries):
-            try:
-                os.replace(str(temp_path), str(path))
-                return
-            except OSError as exc:
-                if attempt == retries - 1 or not _is_retryable_replace_error(exc):
-                    raise
-                time.sleep(0.05)
-    finally:
-        if temp_path is not None and temp_path.exists():
-            temp_path.unlink(missing_ok=True)
+def _atomic_write_text(path: Path, content: str) -> None:
+    atomic_write_text(path, content, newline_lf=True, attempts=5, backoff_ms=50)
 
 
 def _normalize_legacy_placeholder_phrasing(path: Path, *, dry_run: bool) -> bool:

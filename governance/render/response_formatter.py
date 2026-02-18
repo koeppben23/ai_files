@@ -7,7 +7,7 @@ import os
 import sys
 from typing import Any, Literal
 
-from governance.engine.phase_next_action_contract import validate_phase_next_action_contract
+from governance.application.dto.phase_next_action_contract import validate_phase_next_action_contract
 
 
 OutputFormat = Literal["auto", "markdown", "plain", "json"]

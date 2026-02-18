@@ -104,6 +104,7 @@ def test_adapter_discovers_binding_from_cwd_ancestor_with_dev_override(
     repo.mkdir(parents=True, exist_ok=True)
     monkeypatch.chdir(repo)
     monkeypatch.delenv("OPENCODE_CONFIG_ROOT", raising=False)
+    monkeypatch.setattr(Path, "home", staticmethod(lambda: tmp_path / "home"))
     monkeypatch.setenv("OPENCODE_ALLOW_CWD_BINDINGS", "1")
 
     adapter = LocalHostAdapter()

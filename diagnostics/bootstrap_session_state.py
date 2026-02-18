@@ -7,8 +7,6 @@ import os
 import re
 import subprocess
 import sys
-import tempfile
-import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -19,7 +17,7 @@ if str(SCRIPT_DIR.parent) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR.parent))
 
 try:
-    from governance.engine.path_contract import (
+    from governance.infrastructure.path_contract import (
         canonical_config_root,
         normalize_absolute_path,
     )
@@ -51,6 +49,14 @@ except Exception:  # pragma: no cover
         return {"status": "log-disabled"}
 
 from workspace_lock import acquire_workspace_lock
+try:
+    from governance.infrastructure.fs_atomic import atomic_write_text
+except Exception:
+    def atomic_write_text(path: Path, text: str, newline_lf: bool = True, attempts: int = 5, backoff_ms: int = 50) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        payload = text.replace("\r\n", "\n") if newline_lf else text
+        with path.open("w", encoding="utf-8", newline="\n" if newline_lf else None) as handle:
+            handle.write(payload)
 
 
 def default_config_root() -> Path:
@@ -64,39 +70,8 @@ def _load_json(path: Path) -> dict | None:
         return None
 
 
-def _is_retryable_replace_error(exc: OSError) -> bool:
-    return getattr(exc, "errno", None) in {13, 16}
-
-
-def _atomic_write_text(path: Path, content: str, retries: int = 3) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temp_path: Path | None = None
-    try:
-        with tempfile.NamedTemporaryFile(
-            mode="w",
-            encoding="utf-8",
-            newline="\n",
-            dir=str(path.parent),
-            prefix=path.name + ".",
-            suffix=".tmp",
-            delete=False,
-        ) as tmp:
-            tmp.write(content)
-            tmp.flush()
-            os.fsync(tmp.fileno())
-            temp_path = Path(tmp.name)
-
-        for attempt in range(retries):
-            try:
-                os.replace(str(temp_path), str(path))
-                return
-            except OSError as exc:
-                if attempt == retries - 1 or not _is_retryable_replace_error(exc):
-                    raise
-                time.sleep(0.05)
-    finally:
-        if temp_path is not None and temp_path.exists():
-            temp_path.unlink(missing_ok=True)
+def _atomic_write_text(path: Path, content: str) -> None:
+    atomic_write_text(path, content, newline_lf=True, attempts=5, backoff_ms=50)
 
 
 def _load_binding_paths(paths_file: Path, *, expected_config_root: Path | None = None) -> tuple[Path, dict]:

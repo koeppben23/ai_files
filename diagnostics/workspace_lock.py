@@ -10,6 +10,15 @@ from pathlib import Path
 import time
 import uuid
 
+try:
+    from governance.infrastructure.fs_atomic import atomic_write_text
+except Exception:
+    def atomic_write_text(path: Path, text: str, newline_lf: bool = True, attempts: int = 5, backoff_ms: int = 50) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        payload = text.replace("\r\n", "\n") if newline_lf else text
+        with path.open("w", encoding="utf-8", newline="\n" if newline_lf else None) as handle:
+            handle.write(payload)
+
 
 @dataclass(frozen=True)
 class WorkspaceLock:
@@ -49,7 +58,7 @@ def acquire_workspace_lock(
                 "pid": os.getpid(),
                 "acquired_at": _utc_now().isoformat(timespec="seconds"),
             }
-            (lock_dir / "owner.json").write_text(json.dumps(payload, ensure_ascii=True) + "\n", encoding="utf-8")
+            atomic_write_text(lock_dir / "owner.json", json.dumps(payload, ensure_ascii=True) + "\n", newline_lf=True)
             return WorkspaceLock(lock_dir=lock_dir, lock_id=lock_id)
         except FileExistsError:
             owner = lock_dir / "owner.json"

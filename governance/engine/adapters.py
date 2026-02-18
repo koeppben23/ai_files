@@ -7,7 +7,6 @@ interface that the engine can consume without direct host branching.
 from __future__ import annotations
 
 from dataclasses import dataclass, asdict
-import json
 import os
 from pathlib import Path
 import shutil
@@ -15,11 +14,8 @@ import sys
 from typing import Literal, Mapping, Protocol
 
 from governance.engine.canonical_json import canonical_json_hash
-from governance.engine.path_contract import (
-    PathContractError,
-    canonical_config_root,
-    normalize_absolute_path,
-)
+from governance.infrastructure.binding_evidence_resolver import BindingEvidenceResolver
+from governance.infrastructure.path_contract import canonical_config_root, normalize_absolute_path
 
 
 CwdTrustLevel = Literal["trusted", "untrusted"]
@@ -42,86 +38,14 @@ def _resolve_env_path(env: Mapping[str, str], key: str) -> Path | None:
         return None
     try:
         return normalize_absolute_path(raw, purpose=f"env:{key}")
-    except PathContractError:
+    except Exception:
         return None
 
 
-def _candidate_config_roots(env: Mapping[str, str]) -> list[Path]:
-    """Return deterministic config-root candidates for binding discovery."""
-
-    _ = env
-    candidates: list[Path] = [_default_config_root().resolve()]
-
-    seen: set[Path] = set()
-    ordered: list[Path] = []
-    for candidate in candidates:
-        if candidate in seen:
-            continue
-        seen.add(candidate)
-        ordered.append(candidate)
-    return ordered
-
-
-def _allow_cwd_binding_discovery(env: Mapping[str, str]) -> bool:
-    """Return True only when explicit dev override enables CWD binding search."""
-
-    return str(env.get("OPENCODE_ALLOW_CWD_BINDINGS", "")).strip() == "1"
-
-
-def _discover_binding_file(config_root: Path, env: Mapping[str, str]) -> Path | None:
-    """Discover installer-owned governance.paths.json deterministically."""
-
-    candidates: list[Path] = [config_root / "commands" / "governance.paths.json"]
-    for root in _candidate_config_roots(env):
-        candidates.append(root / "commands" / "governance.paths.json")
-    if _allow_cwd_binding_discovery(env):
-        cwd = Path.cwd().resolve()
-        for parent in (cwd, *cwd.parents):
-            candidates.append(parent / "commands" / "governance.paths.json")
-
-    seen: set[Path] = set()
-    for candidate in candidates:
-        resolved = candidate.expanduser().resolve()
-        if resolved in seen:
-            continue
-        seen.add(resolved)
-        if resolved.exists():
-            return resolved
-    return None
-
-
-def _resolve_bound_paths(config_root: Path, env: Mapping[str, str]) -> tuple[Path, Path, bool]:
-    """Resolve commands/workspaces homes with governance.paths.json precedence."""
-
-    commands_home = config_root / "commands"
-    workspaces_home = config_root / "workspaces"
-    binding_file = _discover_binding_file(config_root, env)
-    if binding_file is None:
-        return commands_home, workspaces_home, False
-
-    try:
-        payload = json.loads(binding_file.read_text(encoding="utf-8"))
-    except Exception:
-        return commands_home, workspaces_home, False
-
-    if not isinstance(payload, dict):
-        return commands_home, workspaces_home, False
-    paths = payload.get("paths")
-    if not isinstance(paths, dict):
-        return commands_home, workspaces_home, False
-
-    commands_raw = paths.get("commandsHome")
-    workspaces_raw = paths.get("workspacesHome")
-    if not isinstance(commands_raw, str) or not commands_raw.strip():
-        return commands_home, workspaces_home, False
-    if not isinstance(workspaces_raw, str) or not workspaces_raw.strip():
-        return commands_home, workspaces_home, False
-    try:
-        normalized_commands = normalize_absolute_path(commands_raw, purpose="paths.commandsHome")
-        normalized_workspaces = normalize_absolute_path(workspaces_raw, purpose="paths.workspacesHome")
-    except PathContractError:
-        return commands_home, workspaces_home, False
-    return normalized_commands, normalized_workspaces, True
+def _resolve_bound_paths(config_root: Path, env: Mapping[str, str], mode: OperatingMode) -> tuple[Path, Path, bool]:
+    resolver = BindingEvidenceResolver(env=env, config_root=config_root)
+    evidence = resolver.resolve(mode=mode)
+    return evidence.commands_home, evidence.workspaces_home, evidence.binding_ok
 
 
 def _path_writable(path: Path) -> bool:
@@ -224,8 +148,8 @@ class LocalHostAdapter:
 
     def capabilities(self) -> HostCapabilities:
         env = self.environment()
-        config_root = _default_config_root().resolve()
-        commands_home, workspaces_home, binding_ok = _resolve_bound_paths(config_root, env)
+        config_root = normalize_absolute_path(str(_default_config_root()), purpose="default_config_root")
+        commands_home, workspaces_home, binding_ok = _resolve_bound_paths(config_root, env, self.default_operating_mode())
         # Fail-closed: ignore relative OPENCODE_REPO_ROOT to avoid CWD-dependent resolution
         repo_root = _resolve_env_path(env, "OPENCODE_REPO_ROOT") or self.cwd()
         exec_allowed = os.access(sys.executable, os.X_OK)
@@ -246,7 +170,7 @@ class LocalHostAdapter:
         return os.environ
 
     def cwd(self) -> Path:
-        return Path.cwd().resolve()
+        return normalize_absolute_path(str(Path.cwd()), purpose="cwd")
 
     def default_operating_mode(self) -> OperatingMode:
         return self.operating_mode
@@ -266,8 +190,8 @@ class OpenCodeDesktopAdapter:
 
     def capabilities(self) -> HostCapabilities:
         env = self.environment()
-        config_root = _default_config_root().resolve()
-        commands_home, workspaces_home, binding_ok = _resolve_bound_paths(config_root, env)
+        config_root = normalize_absolute_path(str(_default_config_root()), purpose="default_config_root")
+        commands_home, workspaces_home, binding_ok = _resolve_bound_paths(config_root, env, self.default_operating_mode())
         # Fail-closed: ignore relative OPENCODE_REPO_ROOT to avoid CWD-dependent resolution
         repo_root = _resolve_env_path(env, "OPENCODE_REPO_ROOT") or self.cwd()
         disabled = str(env.get("OPENCODE_DISABLE_GIT", "")).strip() == "1"
@@ -289,7 +213,7 @@ class OpenCodeDesktopAdapter:
         return os.environ
 
     def cwd(self) -> Path:
-        return Path.cwd().resolve()
+        return normalize_absolute_path(str(Path.cwd()), purpose="cwd")
 
     def default_operating_mode(self) -> OperatingMode:
         # CI has deterministic precedence over host defaults.

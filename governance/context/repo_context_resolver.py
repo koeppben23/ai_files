@@ -13,7 +13,7 @@ import os
 from pathlib import Path
 from typing import Mapping
 
-from governance.engine.path_contract import PathContractError, normalize_absolute_path
+from governance.infrastructure.path_contract import PathContractError, normalize_absolute_path
 
 
 _ROOT_ENV_PRIORITY: tuple[str, ...] = (
@@ -69,7 +69,7 @@ def _search_parent_git_root(start: Path, *, max_parent_levels: int) -> Path | No
 
 def resolve_repo_root(
     *,
-    env: Mapping[str, str] | None = None,
+    env: Mapping[str, str],
     cwd: Path | None = None,
     search_parent_git_root: bool = False,
     max_parent_levels: int = 8,
@@ -85,9 +85,8 @@ def resolve_repo_root(
       walk parents up to `max_parent_levels`.
     """
 
-    env_view = env if env is not None else os.environ
     for key in _ROOT_ENV_PRIORITY:
-        candidate = env_view.get(key)
+        candidate = env.get(key)
         if not candidate:
             continue
         resolved = _resolve_absolute_env_candidate(candidate)
@@ -96,7 +95,8 @@ def resolve_repo_root(
         if _is_git_root(resolved):
             return RepoRootResolutionResult(repo_root=resolved, source=f"env:{key}", is_git_root=True)
 
-    fallback = (cwd if cwd is not None else Path.cwd()).resolve()
+    base_cwd = cwd if cwd is not None else Path.cwd()
+    fallback = Path(os.path.normpath(os.path.abspath(str(base_cwd.expanduser()))))
     if search_parent_git_root and not _is_git_root(fallback):
         parent_git_root = _search_parent_git_root(fallback, max_parent_levels=max_parent_levels)
         if parent_git_root is not None:

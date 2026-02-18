@@ -201,8 +201,8 @@ def test_orchestrator_mode_downgrade_is_reported_when_system_capabilities_missin
     )
     assert out.effective_operating_mode == "user"
     assert out.mode_downgraded is True
-    assert out.parity["status"] == "ok"
-    assert out.parity["reason_code"] == "WARN-MODE-DOWNGRADED"
+    assert out.parity["status"] == "blocked"
+    assert out.parity["reason_code"] == "BLOCKED-MISSING-BINDING-FILE"
 
 
 @pytest.mark.governance

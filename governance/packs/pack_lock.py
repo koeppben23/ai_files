@@ -12,6 +12,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+from governance.infrastructure.fs_atomic import atomic_write_json
+
 LOCK_SCHEMA = "governance-lock.v1"
 
 
@@ -255,5 +257,4 @@ def resolve_pack_lock(
 def write_pack_lock(path: Path, payload: dict[str, Any]) -> None:
     """Persist governance lock payload with deterministic JSON formatting."""
 
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, indent=2, ensure_ascii=True) + "\n", encoding="utf-8")
+    atomic_write_json(path, payload, ensure_ascii=True, indent=2)
