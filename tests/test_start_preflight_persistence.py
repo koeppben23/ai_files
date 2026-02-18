@@ -131,7 +131,7 @@ def test_preflight_discovers_binding_from_cwd_ancestor(monkeypatch: pytest.Monke
     cfg = tmp_path / "commands"
     cfg.mkdir(parents=True, exist_ok=True)
     payload = {
-        "schema": "governance.paths.v1",
+        "schema": "opencode-governance.paths.v1",
         "paths": {
             "configRoot": str(tmp_path),
             "commandsHome": str(tmp_path / "commands"),
@@ -158,7 +158,7 @@ def test_preflight_discovers_binding_from_cwd_ancestor_with_dev_override(
     cfg = tmp_path / "commands"
     cfg.mkdir(parents=True, exist_ok=True)
     payload = {
-        "schema": "governance.paths.v1",
+        "schema": "opencode-governance.paths.v1",
         "paths": {
             "configRoot": str(tmp_path),
             "commandsHome": str(tmp_path / "commands"),
@@ -183,7 +183,7 @@ def test_preflight_discovers_binding_from_cwd_ancestor_with_dev_override(
 def test_preflight_discovers_binding_from_canonical_home_config(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     cfg = tmp_path / ".config" / "opencode"
     payload = {
-        "schema": "governance.paths.v1",
+        "schema": "opencode-governance.paths.v1",
         "paths": {
             "configRoot": str(cfg),
             "commandsHome": str(cfg / "commands"),
@@ -206,7 +206,7 @@ def test_preflight_discovers_binding_from_canonical_home_config(monkeypatch: pyt
 def test_preflight_rejects_relative_binding_paths(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     cfg = tmp_path / ".config" / "opencode"
     payload = {
-        "schema": "governance.paths.v1",
+        "schema": "opencode-governance.paths.v1",
         "paths": {
             "configRoot": str(cfg),
             "commandsHome": "./commands",

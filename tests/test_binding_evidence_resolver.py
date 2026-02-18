@@ -22,7 +22,7 @@ def test_binding_resolver_rejects_relative_paths(tmp_path: Path):
     commands = tmp_path / "commands"
     commands.mkdir(parents=True, exist_ok=True)
     payload = {
-        "schema": "governance.paths.v1",
+        "schema": "opencode-governance.paths.v1",
         "paths": {
             "commandsHome": "./commands",
             "workspacesHome": "./workspaces",
@@ -42,7 +42,7 @@ def test_binding_resolver_marks_trusted_override_source_and_audit(monkeypatch: p
     for root in (canonical, trusted):
         (root / "commands").mkdir(parents=True, exist_ok=True)
         payload = {
-            "schema": "governance.paths.v1",
+            "schema": "opencode-governance.paths.v1",
             "paths": {
                 "commandsHome": str(root / "commands"),
                 "workspacesHome": str(root / "workspaces"),
@@ -67,7 +67,7 @@ def test_binding_resolver_keeps_canonical_source_when_cwd_search_enabled_but_unu
 ):
     (tmp_path / "commands").mkdir(parents=True, exist_ok=True)
     payload = {
-        "schema": "governance.paths.v1",
+        "schema": "opencode-governance.paths.v1",
         "paths": {
             "commandsHome": str(tmp_path / "commands"),
             "workspacesHome": str(tmp_path / "workspaces"),
@@ -81,3 +81,23 @@ def test_binding_resolver_keeps_canonical_source_when_cwd_search_enabled_but_unu
     assert evidence.binding_ok is True
     assert evidence.source == "canonical"
     assert evidence.audit_marker is None
+
+
+@pytest.mark.governance
+def test_binding_resolver_accepts_legacy_schema_for_backward_compat(tmp_path: Path):
+    commands = tmp_path / "commands"
+    commands.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "schema": "governance.paths.v1",
+        "paths": {
+            "commandsHome": str(commands),
+            "workspacesHome": str(tmp_path / "workspaces"),
+        },
+    }
+    (commands / "governance.paths.json").write_text(json.dumps(payload), encoding="utf-8")
+
+    resolver = BindingEvidenceResolver(env={}, config_root=tmp_path)
+    evidence = resolver.resolve(mode="user")
+
+    assert evidence.binding_ok is True
+    assert evidence.source == "canonical"
