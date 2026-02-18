@@ -43,15 +43,27 @@ def fsync_dir(path: Path) -> None:
         os.close(fd)
 
 
-def safe_replace(tmp: Path, target: Path, *, attempts: int = 5, backoff_ms: int = 50) -> None:
+def safe_replace_with_retries(tmp: Path, target: Path, *, attempts: int = 5, backoff_ms: int = 50) -> int:
     def _replace() -> None:
         os.replace(str(tmp), str(target))
         fsync_dir(target.parent)
 
-    bounded_retry(_replace, attempts=attempts, backoff_ms=backoff_ms)
+    for attempt in range(attempts):
+        try:
+            _replace()
+            return attempt
+        except OSError as exc:
+            if attempt == attempts - 1 or not is_retryable_replace_error(exc):
+                raise
+            time.sleep(backoff_ms / 1000.0)
+    return 0
 
 
-def atomic_write_text(path: Path, text: str, newline_lf: bool = True, attempts: int = 5, backoff_ms: int = 50) -> None:
+def safe_replace(tmp: Path, target: Path, *, attempts: int = 5, backoff_ms: int = 50) -> None:
+    safe_replace_with_retries(tmp, target, attempts=attempts, backoff_ms=backoff_ms)
+
+
+def atomic_write_text(path: Path, text: str, newline_lf: bool = True, attempts: int = 5, backoff_ms: int = 50) -> int:
     path.parent.mkdir(parents=True, exist_ok=True)
     temp_path: Path | None = None
     payload = text.replace("\r\n", "\n") if newline_lf else text
@@ -69,10 +81,11 @@ def atomic_write_text(path: Path, text: str, newline_lf: bool = True, attempts: 
             tmp.flush()
             os.fsync(tmp.fileno())
             temp_path = Path(tmp.name)
-        safe_replace(temp_path, path, attempts=attempts, backoff_ms=backoff_ms)
+        return safe_replace_with_retries(temp_path, path, attempts=attempts, backoff_ms=backoff_ms)
     finally:
         if temp_path is not None and temp_path.exists():
             temp_path.unlink(missing_ok=True)
+    return 0
 
 
 def atomic_write_json(path: Path, obj: Any, *, ensure_ascii: bool = True, indent: int = 2) -> None:
