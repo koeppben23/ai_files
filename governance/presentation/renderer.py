@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from typing import Any
+import json
 
-from governance.render.response_formatter import render_response
+from governance.application.dto.response_envelope import GovernanceResponseEnvelope
 
 
 class GovernanceRenderer:
     """Presentation facade for stable rendering entrypoint."""
 
-    def render(self, payload: dict[str, Any]) -> str:
-        return render_response(payload)
+    def render(self, payload: GovernanceResponseEnvelope) -> str:
+        return json.dumps(payload, indent=2, ensure_ascii=True, sort_keys=True) + "\n"

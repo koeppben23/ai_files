@@ -37,6 +37,12 @@ for path in repo.rglob('*.py'):
     if 'subprocess.run([sys.executable' in text:
         violations.append(f"{path.relative_to(repo)}: disallowed subprocess.run([sys.executable, ...])")
 
+    # env access should stay in infrastructure/diagnostics only
+    rel = path.relative_to(repo)
+    if rel.parts[:2] in {('governance', 'application'), ('governance', 'domain'), ('governance', 'presentation'), ('governance', 'render')}:
+        if 'os.environ' in text or 'os.getenv(' in text:
+            violations.append(f"{rel}: disallowed direct env access outside infrastructure")
+
 # forbid resolve() in repo identity module except gitdir-follow helpers
 repo_identity = repo / 'governance' / 'application' / 'repo_identity_service.py'
 if repo_identity.exists():
