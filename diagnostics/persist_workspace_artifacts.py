@@ -176,7 +176,7 @@ def _resolve_python_command(paths: dict[str, Any]) -> str:
     raw = paths.get("pythonCommand")
     if isinstance(raw, str) and raw.strip():
         return raw.strip()
-    return "py -3" if os.name == "nt" else "python3"
+    return str(sys.executable or "python")
 
 
 def _preferred_shell_command(profiles: dict[str, object]) -> str:
@@ -686,7 +686,7 @@ def _bootstrap_missing_session_state(
     elif token == "python -3":
         python_argv = ["python", "-3"]
     else:
-        python_argv = [token] if token else ["python3"]
+        python_argv = [token] if token else [str(sys.executable or "python")]
     cmd = [
         *python_argv,
         str(helper),
