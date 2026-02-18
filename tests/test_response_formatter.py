@@ -11,6 +11,7 @@ def _sample_payload() -> dict[str, object]:
         "status": "OK",
         "session_state": {
             "phase": "2",
+            "workspace_ready": True,
             "effective_operating_mode": "ok",
             "active_gate.status": "OK",
             "active_gate.reason_code": "none",

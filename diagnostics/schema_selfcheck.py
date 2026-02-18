@@ -12,7 +12,7 @@ import sys
 from pathlib import Path
 
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).absolute().parents[1]
 REGISTRY_PATH = REPO_ROOT / "diagnostics" / "reason_codes.registry.json"
 EXPECTED_SCHEMA = "governance.reason-codes.registry.v1"
 

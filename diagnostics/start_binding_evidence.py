@@ -13,19 +13,23 @@ from pathlib import Path
 from command_profiles import render_command_profiles
 
 
+def _abs(path: Path) -> Path:
+    return Path(os.path.normpath(os.path.abspath(str(path))))
+
+
 def config_root() -> Path:
     system = platform.system()
     if system == "Darwin" and pwd is not None:
-        return (Path(pwd.getpwuid(os.getuid()).pw_dir).resolve() / ".config" / "opencode").resolve()
-    return (Path.home().resolve() / ".config" / "opencode").resolve()
+        return _abs(Path(pwd.getpwuid(os.getuid()).pw_dir) / ".config" / "opencode")
+    return _abs(Path.home() / ".config" / "opencode")
 
 
 def _candidate_binding_files() -> list[Path]:
     root = config_root()
     candidates: list[Path] = [root / "commands" / "governance.paths.json"]
     if platform.system() == "Darwin" and pwd is not None:
-        candidates.append((Path(pwd.getpwuid(os.getuid()).pw_dir).resolve() / ".config" / "opencode" / "commands" / "governance.paths.json").resolve())
-    candidates.append((Path.home().resolve() / ".config" / "opencode" / "commands" / "governance.paths.json").resolve())
+        candidates.append(_abs(Path(pwd.getpwuid(os.getuid()).pw_dir) / ".config" / "opencode" / "commands" / "governance.paths.json"))
+    candidates.append(_abs(Path.home() / ".config" / "opencode" / "commands" / "governance.paths.json"))
 
     seen: set[Path] = set()
     ordered: list[Path] = []

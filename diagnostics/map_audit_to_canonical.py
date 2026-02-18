@@ -10,11 +10,12 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
 import sys
 from typing import Any
 
-SCRIPT_DIR = Path(__file__).resolve().parent
+SCRIPT_DIR = Path(os.path.abspath(__file__)).parent
 REPO_ROOT = SCRIPT_DIR.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
@@ -110,7 +111,7 @@ def main() -> int:
     parser.add_argument(
         "--map",
         type=Path,
-        default=Path(__file__).resolve().with_name("AUDIT_REASON_CANONICAL_MAP.json"),
+        default=SCRIPT_DIR / "AUDIT_REASON_CANONICAL_MAP.json",
         help="Path to reason mapping JSON.",
     )
     parser.add_argument(

@@ -29,7 +29,7 @@ def test_build_strict_response_produces_deterministic_envelope():
             "repo_fingerprint": "repo-123",
             "super_verbose_field": "must-not-appear-by-default",
         },
-        next_action=NextAction(type="manual_step", command="Provide task scope"),
+        next_action=NextAction(type="manual_step", command="Continue bootstrap discovery"),
         snapshot=Snapshot(confidence="High", risk="Low", scope="Bootstrap"),
         reason_payload={"status": "OK", "reason_code": "none"},
     )
@@ -164,6 +164,7 @@ def test_build_strict_response_accepts_phase_2_scope_command():
         status="OK",
         session_state={
             "phase": "2-RepoDiscovery",
+            "workspace_ready": True,
             "activation_hash": "ab" * 32,
             "ruleset_hash": "cd" * 32,
         },

@@ -130,6 +130,7 @@ def test_response_contract_checker_rejects_next_action_mismatch_with_scope_gate(
         "session_state": {
             "Mode": "DEGRADED",
             "Phase": "2-RepoDiscovery",
+            "workspace_ready": True,
             "next_gate_condition": "Complete repo discovery + set working set/component scope before Phase 4 planning",
         },
         "next_action": {
@@ -157,6 +158,7 @@ def test_response_contract_checker_accepts_scope_aligned_next_action(tmp_path: P
         "session_state": {
             "Mode": "DEGRADED",
             "Phase": "2-RepoDiscovery",
+            "workspace_ready": True,
             "next_gate_condition": "Complete repo discovery + set working set/component scope before Phase 4 planning",
         },
         "next_action": {
@@ -183,6 +185,7 @@ def test_response_contract_checker_rejects_phase_3a_next_action_without_3b_progr
         "session_state": {
             "Mode": "OK",
             "Phase": "3A",
+            "workspace_ready": True,
             "next_gate_condition": "Proceed to Phase 3B-1",
         },
         "next_action": {
@@ -210,6 +213,7 @@ def test_response_contract_checker_accepts_phase_3a_next_action_with_3b_progress
         "session_state": {
             "Mode": "OK",
             "Phase": "3A",
+            "workspace_ready": True,
             "next_gate_condition": "Proceed to Phase 3B-1",
         },
         "next_action": {

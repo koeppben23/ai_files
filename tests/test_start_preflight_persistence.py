@@ -261,6 +261,25 @@ def test_resolve_repo_context_reports_env_discovery_method(
 
 
 @pytest.mark.governance
+def test_resolve_repo_context_returns_none_when_cwd_is_not_repo(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+):
+    non_repo = tmp_path / "backup"
+    non_repo.mkdir(parents=True, exist_ok=True)
+    monkeypatch.chdir(non_repo)
+    monkeypatch.delenv("OPENCODE_REPO_ROOT", raising=False)
+    monkeypatch.delenv("OPENCODE_WORKSPACE_ROOT", raising=False)
+    monkeypatch.delenv("REPO_ROOT", raising=False)
+    monkeypatch.delenv("GITHUB_WORKSPACE", raising=False)
+
+    module = _load_module()
+    resolved_root, method = module.resolve_repo_context()
+
+    assert resolved_root is None
+    assert method == "cwd"
+
+
+@pytest.mark.governance
 def test_bootstrap_identity_uses_derived_fingerprint_from_nested_repo(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ):
@@ -308,13 +327,13 @@ def test_bootstrap_identity_uses_derived_fingerprint_from_nested_repo(
     assert repo_context["schema"] == "repo-context.v1"
     assert repo_context["repo_root"] == module._normalize_path_for_fingerprint(repo_root)
     assert repo_context["repo_fingerprint"] == payload["repoFingerprint"]
-    assert repo_context["discovery_method"] == "cwd_parent_walk"
+    assert repo_context["discovery_method"] == "cwd-parent-search"
     index_context = json.loads(module._repo_context_index_path(repo_root).read_text(encoding="utf-8"))
     assert index_context["repo_fingerprint"] == payload["repoFingerprint"]
 
 
 @pytest.mark.governance
-def test_bootstrap_identity_uses_repo_context_index_fingerprint_fallback(
+def test_bootstrap_identity_does_not_use_repo_context_index_fallback(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ):
     non_repo = tmp_path / "outside"
@@ -348,7 +367,7 @@ def test_bootstrap_identity_uses_repo_context_index_fingerprint_fallback(
     )
     monkeypatch.setattr(module, "identity_map_exists", lambda repo_fp: repo_fp == cached_fp)
 
-    assert module.bootstrap_identity_if_needed() is True
+    assert module.bootstrap_identity_if_needed() is False
 
 
 @pytest.mark.governance
@@ -363,7 +382,7 @@ def test_bootstrap_command_argv_splits_python_launcher(monkeypatch: pytest.Monke
 
 
 @pytest.mark.governance
-def test_bootstrap_identity_writes_unresolved_repo_context_when_fingerprint_missing(
+def test_bootstrap_identity_skips_workspace_writes_when_fingerprint_missing(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ):
     non_repo = tmp_path / "not-a-repo"
@@ -383,15 +402,31 @@ def test_bootstrap_identity_writes_unresolved_repo_context_when_fingerprint_miss
     assert module.bootstrap_identity_if_needed() is False
     payload = json.loads(capsys.readouterr().out.strip())
     assert payload["reason"] == "identity-bootstrap-fingerprint-missing"
+    assert not (tmp_path / "workspaces" / "_unresolved").exists()
+    assert not module._repo_context_index_path(non_repo).exists()
 
-    unresolved = tmp_path / "workspaces" / "_unresolved" / "repo-context.json"
-    assert unresolved.exists()
-    context = json.loads(unresolved.read_text(encoding="utf-8"))
-    assert context["status"] == "unresolved"
-    assert context["reason"] == "identity-bootstrap-fingerprint-missing"
-    assert context["repo_fingerprint"] == ""
-    index_context = json.loads(module._repo_context_index_path(non_repo).read_text(encoding="utf-8"))
-    assert index_context["status"] == "unresolved"
+
+@pytest.mark.governance
+def test_windows_like_backup_cwd_never_creates_workspace_or_index(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+):
+    backup = tmp_path / "opencode_backup"
+    backup.mkdir(parents=True, exist_ok=True)
+    monkeypatch.chdir(backup)
+    monkeypatch.delenv("OPENCODE_REPO_ROOT", raising=False)
+    monkeypatch.delenv("OPENCODE_WORKSPACE_ROOT", raising=False)
+    monkeypatch.delenv("REPO_ROOT", raising=False)
+    monkeypatch.delenv("GITHUB_WORKSPACE", raising=False)
+
+    module = _load_module()
+    monkeypatch.setattr(module, "WORKSPACES_HOME", tmp_path / "workspaces")
+    monkeypatch.setattr(module, "COMMANDS_RUNTIME_DIR", tmp_path / "commands")
+    monkeypatch.setattr(module, "BINDING_EVIDENCE_PATH", tmp_path / "commands" / "governance.paths.json")
+
+    assert module.bootstrap_identity_if_needed() is False
+    payload = json.loads(capsys.readouterr().out.strip())
+    assert payload["reason_code"] == "BLOCKED-REPO-IDENTITY-RESOLUTION"
+    assert not any((tmp_path / "workspaces").rglob("*"))
 
 
 @pytest.mark.governance

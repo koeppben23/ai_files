@@ -18,7 +18,7 @@ def contains_ticket_prompt(text: object) -> bool:
     normalized = normalize_text(text)
     if not normalized:
         return False
-    return any(token in normalized for token in ("task/ticket", "ticket", "change request"))
+    return any(token in normalized for token in ("task/ticket", "ticket", "task", "change request"))
 
 
 def contains_scope_prompt(text: object) -> bool:
@@ -67,12 +67,65 @@ def _extract_previous_phase_tokens(session_state: dict[str, object]) -> tuple[st
     return tuple(tokens)
 
 
+def _phase_rank(token: str) -> int:
+    ordering = {
+        "1": 10,
+        "1.1": 11,
+        "1.2": 12,
+        "1.3": 13,
+        "1.5": 15,
+        "2": 20,
+        "2.1": 21,
+        "3A": 30,
+        "3B-1": 31,
+        "3B-2": 32,
+        "4": 40,
+        "5": 50,
+        "5.3": 53,
+        "5.4": 54,
+        "5.5": 55,
+        "5.6": 56,
+        "6": 60,
+    }
+    return ordering.get(token, -1)
+
+
 def _extract_next_gate_condition(session_state: dict[str, object]) -> str:
     for key in ("next_gate_condition", "NextGateCondition", "nextGateCondition", "Next"):
         value = session_state.get(key)
         if isinstance(value, str) and value.strip():
             return value.strip()
     return ""
+
+
+def _workspace_ready(session_state: dict[str, object]) -> bool:
+    for key in ("workspace_ready", "WorkspaceReady"):
+        value = session_state.get(key)
+        if isinstance(value, bool):
+            return value
+    for key in ("repo_fingerprint", "RepoFingerprint"):
+        value = session_state.get(key)
+        if isinstance(value, str) and value.strip():
+            return True
+    return False
+
+
+def _openapi_signal_present(session_state: dict[str, object]) -> bool:
+    addons = session_state.get("AddonsEvidence")
+    if isinstance(addons, dict):
+        openapi = addons.get("openapi")
+        if isinstance(openapi, dict) and openapi.get("detected") is True:
+            return True
+        if openapi is True:
+            return True
+
+    capabilities = session_state.get("repo_capabilities")
+    if isinstance(capabilities, list):
+        normalized = {str(item).strip().lower() for item in capabilities}
+        if "openapi" in normalized:
+            return True
+
+    return False
 
 
 def _validate_phase_progression_semantics(phase_token: str, next_text: object, why_text: object) -> tuple[str, ...]:
@@ -102,10 +155,11 @@ def validate_phase_next_action_contract(
     errors: list[str] = []
     phase_token = _extract_phase(session_state)
 
+    if not phase_requires_ticket_input(phase_token):
+        if contains_ticket_prompt(next_text) or contains_ticket_prompt(why_text):
+            errors.append("next_action must not request task/ticket input before phase 4")
+
     if status.strip().lower() != "blocked":
-        if not phase_requires_ticket_input(phase_token):
-            if contains_ticket_prompt(next_text) or contains_ticket_prompt(why_text):
-                errors.append("next_action must not request task/ticket input before phase 4")
 
         errors.extend(_validate_phase_progression_semantics(phase_token, next_text, why_text))
 
@@ -116,6 +170,19 @@ def validate_phase_next_action_contract(
             errors.append("next_action must align with next_gate_condition scope/working-set requirements")
 
     previous_phase_tokens = _extract_previous_phase_tokens(session_state)
+
+    if previous_phase_tokens and phase_token and phase_token != "1.5":
+        previous = previous_phase_tokens[0]
+        if previous and _phase_rank(phase_token) < _phase_rank(previous):
+            errors.append("phase progression invalid: phase must not move backward")
+
+    if phase_token in {"2", "2.1", "3A", "3B-1", "3B-2"} and not _workspace_ready(session_state):
+        errors.append("phase routing requires workspace_ready before phases 2/3")
+
+    if phase_token == "2.1" and _openapi_signal_present(session_state):
+        if not (contains_any(next_text, ("3a", "phase 3a", "api", "openapi")) or contains_any(why_text, ("3a", "phase 3a", "api", "openapi"))):
+            errors.append("phase 2.1 with openapi signal must route to phase 3A api validation")
+
     if phase_token == "1.5":
         if previous_phase_tokens:
             immediate_prev = previous_phase_tokens[0]
