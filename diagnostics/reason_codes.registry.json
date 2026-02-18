@@ -178,6 +178,160 @@
       "remediation_hint": "Re-bootstrap session state from current repo root."
     },
     {
+      "code": "BLOCKED-BOOTSTRAP-NOT-SATISFIED",
+      "severity": "blocked",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Bootstrap gates are not satisfied; kernel cannot proceed.",
+      "remediation_hint": "Run /start to complete bootstrap evidence collection."
+    },
+    {
+      "code": "BLOCKED-START-REQUIRED",
+      "severity": "blocked",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Valid /start evidence is required before /master can proceed.",
+      "remediation_hint": "Execute /start to establish start-order evidence."
+    },
+    {
+      "code": "BLOCKED-MISSING-CORE-RULES",
+      "severity": "blocked",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Core rules file (rules.md) could not be loaded.",
+      "remediation_hint": "Restore rules.md at the expected governance path."
+    },
+    {
+      "code": "BLOCKED-MISSING-PROFILE",
+      "severity": "blocked",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Required active profile is missing and cannot be resolved.",
+      "remediation_hint": "Select a valid profile or provide profile evidence."
+    },
+    {
+      "code": "BLOCKED-AMBIGUOUS-PROFILE",
+      "severity": "blocked",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Profile resolution is non-deterministic due to ambiguity.",
+      "remediation_hint": "Resolve profile ambiguity by explicit selection or evidence."
+    },
+    {
+      "code": "BLOCKED-MISSING-DECISION",
+      "severity": "blocked",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
+      "description": "No valid decision options can be produced for the current gate.",
+      "remediation_hint": "Provide required decision evidence or inputs."
+    },
+    {
+      "code": "BLOCKED-MISSING-TEMPLATES",
+      "severity": "blocked",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Required templates cannot be resolved or loaded.",
+      "remediation_hint": "Restore template files at expected governance paths."
+    },
+    {
+      "code": "BLOCKED-MISSING-RULEBOOK",
+      "severity": "blocked",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Unresolved top-tier rulebook file blocks activation.",
+      "remediation_hint": "Provide the missing rulebook file at the expected path."
+    },
+    {
+      "code": "BLOCKED-MISSING-ADDON",
+      "severity": "blocked",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Required addon rulebook is missing and cannot be loaded.",
+      "remediation_hint": "Install or restore the required addon rulebook."
+    },
+    {
+      "code": "BLOCKED-ADDON-CONFLICT",
+      "severity": "blocked",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Activated addons have conflicting ownership or constraints.",
+      "remediation_hint": "Resolve addon conflicts by deactivating or merging conflicting addons."
+    },
+    {
+      "code": "BLOCKED-ACTIVATION-DELTA-MISMATCH",
+      "severity": "blocked",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Activation outcome differs while input hashes remain unchanged.",
+      "remediation_hint": "Investigate non-deterministic activation and fix input drift."
+    },
+    {
+      "code": "BLOCKED-RULEBOOK-EVIDENCE-MISSING",
+      "severity": "blocked",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Required evidence for rulebook claims is missing.",
+      "remediation_hint": "Provide required evidence artifacts for rulebook verification."
+    },
+    {
+      "code": "BLOCKED-WORKSPACE-MEMORY-INVALID",
+      "severity": "blocked",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Workspace memory state is invalid or corrupted.",
+      "remediation_hint": "Reset workspace memory and re-bootstrap."
+    },
+    {
+      "code": "BLOCKED-MISSING-EVIDENCE",
+      "severity": "blocked",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Required activation evidence is missing for deterministic resolution.",
+      "remediation_hint": "Provide missing evidence artifacts and rerun activation."
+    },
+    {
+      "code": "BLOCKED-RESUME-STATE-VIOLATION",
+      "severity": "blocked",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Persisted SESSION_STATE violates the canonical schema on resume.",
+      "remediation_hint": "Repair or regenerate session state from canonical evidence."
+    },
+    {
+      "code": "BLOCKED-GOLDEN-BASELINE-MODIFIED-IN-PR",
+      "severity": "blocked",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Golden baseline files were modified in a PR, risking regression masking.",
+      "remediation_hint": "Revert baseline modifications or get explicit approval."
+    },
+    {
+      "code": "BLOCKED-Phase2-RepoDiscovery",
+      "severity": "blocked",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Phase 2 repo discovery could not complete.",
+      "remediation_hint": "Ensure valid repo context and retry discovery."
+    },
+    {
+      "code": "BLOCKED-MISSING-DB-VERSION",
+      "severity": "blocked",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
+      "description": "DB_TARGET_PG_MAJOR is not declared for database migrations.",
+      "remediation_hint": "Declare DB_TARGET_PG_MAJOR in project configuration."
+    },
+    {
+      "code": "BLOCKED-FORMAT-UNDEFINED",
+      "severity": "blocked",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Migration format declaration is missing or mixed without policy.",
+      "remediation_hint": "Define explicit format declaration for migration artifacts."
+    },
+    {
+      "code": "BLOCKED-MIGRATION-UNSAFE",
+      "severity": "blocked",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Migration contains unsafe operations.",
+      "remediation_hint": "Review and fix unsafe migration operations."
+    },
+    {
+      "code": "BLOCKED-MIGRATION-NO-ROLLBACK",
+      "severity": "blocked",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Migration has no rollback plan.",
+      "remediation_hint": "Add rollback changeset for migration."
+    },
+    {
+      "code": "BLOCKED-MIGRATION-COMPATIBILITY",
+      "severity": "blocked",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Migration has compatibility issues.",
+      "remediation_hint": "Fix compatibility issues in migration definition."
+    },
+    {
       "code": "REPO-DOC-UNSAFE-DIRECTIVE",
       "severity": "blocked",
       "payload_schema_ref": "diagnostics/schemas/reason_payload_repo_doc_unsafe.v1.json",
@@ -311,6 +465,244 @@
       "payload_schema_ref": "diagnostics/schemas/reason_payload_advisory.v1.json",
       "description": "Required evidence was present but stale.",
       "remediation_hint": "Refresh stale evidence and rerun verification."
+    },
+    {
+      "code": "WARN-DOCS-README-DRIFT",
+      "severity": "warn",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_advisory.v1.json",
+      "description": "README documentation has drifted from canonical source.",
+      "remediation_hint": "Sync README with canonical documentation source."
+    },
+    {
+      "code": "WARN-DOCS-SCHEMA-DRIFT",
+      "severity": "warn",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_advisory.v1.json",
+      "description": "Schema documentation has drifted from canonical source.",
+      "remediation_hint": "Sync schema docs with canonical schema definitions."
+    },
+    {
+      "code": "WARN-DOCS-MANIFEST-RULEBOOK-MISSING",
+      "severity": "warn",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_advisory.v1.json",
+      "description": "Manifest references a rulebook that is not present.",
+      "remediation_hint": "Add the missing rulebook or remove the manifest reference."
+    },
+    {
+      "code": "WARN-FALLBACK-BASELINE-UNKNOWN",
+      "severity": "warn",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_advisory.v1.json",
+      "description": "Fallback baseline version could not be determined.",
+      "remediation_hint": "Declare explicit fallback baseline version."
+    },
+    {
+      "code": "WARN-FALLBACK-TESTING-INSUFFICIENT",
+      "severity": "warn",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_advisory.v1.json",
+      "description": "Fallback testing coverage is insufficient.",
+      "remediation_hint": "Add required fallback test coverage."
+    },
+    {
+      "code": "WARN-FALLBACK-RECOVERY-UNSPECIFIED",
+      "severity": "warn",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_advisory.v1.json",
+      "description": "Fallback recovery procedure is not specified.",
+      "remediation_hint": "Document explicit fallback recovery procedure."
+    },
+    {
+      "code": "WARN-PRINCIPAL-EVIDENCE-MISSING",
+      "severity": "warn",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_advisory.v1.json",
+      "description": "Principal evidence for decision traceability is missing.",
+      "remediation_hint": "Provide principal identity evidence for audit trail."
+    },
+    {
+      "code": "WARN-SCORECARD-CALIBRATION-INCOMPLETE",
+      "severity": "warn",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_advisory.v1.json",
+      "description": "Scorecard calibration is incomplete for active profile.",
+      "remediation_hint": "Complete scorecard calibration for all active dimensions."
+    },
+    {
+      "code": "WARN-RISK-TIER-UNRESOLVED",
+      "severity": "warn",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_advisory.v1.json",
+      "description": "Risk tier could not be resolved from available evidence.",
+      "remediation_hint": "Provide risk classification evidence or declare tier explicitly."
+    },
+    {
+      "code": "WARN-OPENAPI-SPEC-IMPLEMENTATION-MISMATCH",
+      "severity": "warn",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_advisory.v1.json",
+      "description": "OpenAPI spec diverges from observed implementation.",
+      "remediation_hint": "Sync OpenAPI spec with implementation or flag accepted deviation."
+    },
+    {
+      "code": "WARN-OPENAPI-VERSION-UNKNOWN",
+      "severity": "warn",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_advisory.v1.json",
+      "description": "OpenAPI spec version could not be determined.",
+      "remediation_hint": "Declare explicit OpenAPI version in spec metadata."
+    },
+    {
+      "code": "WARN-OPENAPI-MISSING-SPEC",
+      "severity": "warn",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_advisory.v1.json",
+      "description": "Expected OpenAPI spec file is missing.",
+      "remediation_hint": "Add OpenAPI spec at the expected path."
+    },
+    {
+      "code": "WARN-OPENAPI-BREAKING-CHANGE-UNAPPROVED",
+      "severity": "warn",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_advisory.v1.json",
+      "description": "Breaking API change detected without explicit approval.",
+      "remediation_hint": "Get explicit approval for breaking API change or revert."
+    },
+    {
+      "code": "WARN-FE-OPENAPI-GENERATOR-UNKNOWN",
+      "severity": "warn",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_advisory.v1.json",
+      "description": "Frontend OpenAPI code generator is unknown or undeclared.",
+      "remediation_hint": "Declare OpenAPI generator in project configuration."
+    },
+    {
+      "code": "WARN-FE-OPENAPI-DRIFT-RISK",
+      "severity": "warn",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_advisory.v1.json",
+      "description": "Frontend OpenAPI client may drift from backend spec.",
+      "remediation_hint": "Verify frontend client generation is synced with backend spec."
+    },
+    {
+      "code": "WARN-FE-OPENAPI-NO-NEGATIVE-TEST",
+      "severity": "warn",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_advisory.v1.json",
+      "description": "No negative tests for frontend OpenAPI integration.",
+      "remediation_hint": "Add negative test cases for API error paths."
+    },
+    {
+      "code": "WARN-FE-OPENAPI-SOURCE-UNRESOLVED",
+      "severity": "warn",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_advisory.v1.json",
+      "description": "Frontend OpenAPI source spec could not be resolved.",
+      "remediation_hint": "Provide resolvable path or URL for upstream OpenAPI spec."
+    },
+    {
+      "code": "WARN-FE-OPENAPI-MAPPING-DRIFT-RISK",
+      "severity": "warn",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_advisory.v1.json",
+      "description": "Frontend OpenAPI mapping may have drifted from canonical spec.",
+      "remediation_hint": "Regenerate frontend mappings from canonical OpenAPI spec."
+    },
+    {
+      "code": "WARN-FE-OPENAPI-CONTRACT-TEST-MISSING",
+      "severity": "warn",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_advisory.v1.json",
+      "description": "Contract tests for frontend OpenAPI integration are missing.",
+      "remediation_hint": "Add contract tests verifying frontend-backend API agreement."
+    },
+    {
+      "code": "WARN-KAFKA-IDEMPOTENCY-UNVERIFIED",
+      "severity": "warn",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_advisory.v1.json",
+      "description": "Kafka consumer idempotency is not verified.",
+      "remediation_hint": "Add idempotency verification tests for Kafka consumers."
+    },
+    {
+      "code": "WARN-KAFKA-RETRY-POLICY-UNKNOWN",
+      "severity": "warn",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_advisory.v1.json",
+      "description": "Kafka retry policy is unknown or undeclared.",
+      "remediation_hint": "Declare explicit retry policy for Kafka consumers."
+    },
+    {
+      "code": "WARN-KAFKA-ASYNC-FLAKINESS-RISK",
+      "severity": "warn",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_advisory.v1.json",
+      "description": "Kafka async processing has flakiness risk in tests.",
+      "remediation_hint": "Stabilize async Kafka test patterns to reduce flakiness."
+    },
+    {
+      "code": "WARN-CYPRESS-FLAKY-RISK",
+      "severity": "warn",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_advisory.v1.json",
+      "description": "Cypress test suite has elevated flakiness risk.",
+      "remediation_hint": "Review and stabilize flaky Cypress test patterns."
+    },
+    {
+      "code": "WARN-CYPRESS-SELECTOR-UNSTABLE",
+      "severity": "warn",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_advisory.v1.json",
+      "description": "Cypress selectors may be unstable across DOM changes.",
+      "remediation_hint": "Use data-testid or stable selectors for Cypress tests."
+    },
+    {
+      "code": "WARN-CYPRESS-NO-CRITICAL-FLOW-COVERAGE",
+      "severity": "warn",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_advisory.v1.json",
+      "description": "Critical user flows lack Cypress test coverage.",
+      "remediation_hint": "Add Cypress tests for all critical user flows."
+    },
+    {
+      "code": "WARN-CYPRESS-NETWORK-CONTROL-MISSING",
+      "severity": "warn",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_advisory.v1.json",
+      "description": "Cypress tests lack network request control.",
+      "remediation_hint": "Add cy.intercept or equivalent network control to Cypress tests."
+    },
+    {
+      "code": "WARN-CYPRESS-CRITICAL-PATH-MISSING",
+      "severity": "warn",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_advisory.v1.json",
+      "description": "Critical path test coverage is missing for Cypress suite.",
+      "remediation_hint": "Add critical path tests to Cypress test suite."
+    },
+    {
+      "code": "WARN-CYPRESS-ASYNC-FLAKE-RISK",
+      "severity": "warn",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_advisory.v1.json",
+      "description": "Cypress tests have async flake risk due to timing issues.",
+      "remediation_hint": "Use proper Cypress waiting strategies to eliminate async flakes."
+    },
+    {
+      "code": "WARN-CUCUMBER-VERSION-UNKNOWN",
+      "severity": "warn",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_advisory.v1.json",
+      "description": "Cucumber framework version is unknown or undeclared.",
+      "remediation_hint": "Declare explicit Cucumber version in project configuration."
+    },
+    {
+      "code": "WARN-CUCUMBER-RUNNER-UNKNOWN",
+      "severity": "warn",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_advisory.v1.json",
+      "description": "Cucumber test runner is unknown or undeclared.",
+      "remediation_hint": "Declare explicit Cucumber runner in project configuration."
+    },
+    {
+      "code": "WARN-CUCUMBER-CONVENTIONS-UNKNOWN",
+      "severity": "warn",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_advisory.v1.json",
+      "description": "Cucumber naming/tagging conventions are undeclared.",
+      "remediation_hint": "Document Cucumber conventions in project configuration."
+    },
+    {
+      "code": "WARN-CUCUMBER-FLAKINESS-RISK",
+      "severity": "warn",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_advisory.v1.json",
+      "description": "Cucumber tests have elevated flakiness risk.",
+      "remediation_hint": "Review and stabilize flaky Cucumber scenarios."
+    },
+    {
+      "code": "WARN-CUCUMBER-NO-EVIDENCE",
+      "severity": "warn",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_advisory.v1.json",
+      "description": "No evidence for Cucumber test execution was found.",
+      "remediation_hint": "Provide Cucumber test execution evidence or CI artifacts."
+    },
+    {
+      "code": "WARN-JAVA-DETERMINISM-RISK",
+      "severity": "warn",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_advisory.v1.json",
+      "description": "Java build or test process has non-determinism risk.",
+      "remediation_hint": "Pin Java dependencies and use reproducible build settings."
     }
   ]
 }

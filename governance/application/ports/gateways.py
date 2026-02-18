@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any, Callable, Literal, Mapping, Protocol, Sequence
 
 OperatingMode = Literal["user", "system", "pipeline", "agents_strict"]
-LiveEnablePolicy = Literal["ci_strict", "always", "never"]
+LiveEnablePolicy = Literal["ci_strict", "auto_degrade"]
 
 
 class HostCapabilities(Protocol):
