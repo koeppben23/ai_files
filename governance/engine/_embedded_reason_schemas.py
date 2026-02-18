@@ -6,6 +6,35 @@ from typing import Final
 
 
 EMBEDDED_REASON_SCHEMAS: Final[dict[str, dict[str, object]]] = {
+    "diagnostics/schemas/reason_payload_blocked_core.v1.json": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "title": "Reason Payload: Blocked Core",
+        "description": "Generic fail-closed context schema for canonical BLOCKED reason codes.",
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "failure_class": {"type": "string"},
+            "failure_detail": {"type": "string"},
+            "previous_reason_code": {"type": "string"},
+            "requested_action": {"type": "string"},
+            "why_interactive_required": {"type": "string"},
+            "doc_path": {"type": "string"},
+            "doc_hash": {"type": "string"},
+            "directive_excerpt": {"type": "string"},
+            "classification_rule_id": {"type": "string"},
+            "constraint_topic": {"type": "string"},
+            "winner_layer": {"type": "string"},
+            "loser_layer": {"type": "string"},
+            "decision": {"type": "string"},
+            "repo_constraint_topic": {"type": "string"},
+            "pointers": {"type": "array", "items": {"type": "string"}},
+            "refs": {"type": "object", "additionalProperties": True},
+            "requested_widening": {"type": "object", "additionalProperties": True},
+            "budget": {"type": "object", "additionalProperties": True},
+            "last_prompt": {"type": "object", "additionalProperties": True},
+            "extensions": {"type": "object", "additionalProperties": True},
+        },
+    },
     "diagnostics/schemas/reason_payload_repo_doc_unsafe.v1.json": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "title": "Reason Payload: Repo Doc Unsafe Directive",
