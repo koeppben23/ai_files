@@ -15,4 +15,4 @@ def canonicalize_reason_payload_failure(exc: Exception) -> tuple[str, str]:
         return ("reason_schema_invalid", "schema_not_object")
     if isinstance(exc, ValueError) and "reason_registry_" in message:
         return ("reason_registry_invalid", "registry_unavailable_or_invalid")
-    return ("reason_payload_build_failed", type(exc).__name__.lower())
+    return ("reason_payload_build_failed", "unexpected_builder_error")

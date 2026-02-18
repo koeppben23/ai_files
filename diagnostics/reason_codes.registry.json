@@ -297,6 +297,13 @@
       "remediation_hint": "Ensure valid repo context and retry discovery."
     },
     {
+      "code": "BLOCKED-R",
+      "severity": "blocked",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
+      "description": "A recovery routine is required to proceed (explicit recovery gate).",
+      "remediation_hint": "Run /resume or the defined recovery routine and re-validate SESSION_STATE."
+    },
+    {
       "code": "BLOCKED-MISSING-DB-VERSION",
       "severity": "blocked",
       "payload_schema_ref": "diagnostics/schemas/reason_payload_blocked_core.v1.json",

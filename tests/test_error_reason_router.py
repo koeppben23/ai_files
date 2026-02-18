@@ -16,4 +16,5 @@ def test_reason_router_maps_registry_bucket():
 def test_reason_router_maps_unknown_exception_bucket():
     cls, detail = canonicalize_reason_payload_failure(RuntimeError("boom"))
     assert cls == "reason_payload_build_failed"
-    assert detail == "runtimeerror"
+    # Fallback must NOT leak the exception class name (security: A8-F09).
+    assert detail == "unexpected_builder_error"

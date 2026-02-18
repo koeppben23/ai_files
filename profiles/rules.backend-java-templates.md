@@ -18,7 +18,7 @@ This addon MUST be loaded at code-phase (Phase 4+) when `SESSION_STATE.ActivePro
 
 **Precedence (binding):** use the canonical order from `rules.md` anchor `RULEBOOK-PRECEDENCE-POLICY`.
 This required addon refines template defaults and MUST NOT override `master.md`, `rules.md`, or `rules.backend-java.md` constraints.
-- In conflicts, this addon’s templates override abstract style/principles.
+- In conflicts, this addon's templates override abstract style/principles per `RULEBOOK-PRECEDENCE-POLICY` (concrete-template > abstract-style, same priority tier).
 
 ## Phase integration (binding)
 

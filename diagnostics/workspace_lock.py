@@ -97,12 +97,17 @@ def acquire_workspace_lock(
                 stale = True
 
             if stale:
+                # Reclaim stale lock: remove owner, then rmdir.  If rmdir
+                # fails another process already reclaimed; fall through to
+                # timeout/retry which will re-attempt mkdir atomically.
                 try:
                     if owner.exists():
                         owner.unlink(missing_ok=True)
                     lock_dir.rmdir()
                 except OSError:
                     pass
+                # Do NOT immediately mkdir here — loop back and let the
+                # atomic mkdir at the top of the loop handle the race.
 
             if (time.monotonic() - started) >= timeout_seconds:
                 raise TimeoutError("workspace lock timeout")

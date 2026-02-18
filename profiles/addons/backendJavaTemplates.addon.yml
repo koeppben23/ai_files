@@ -1,0 +1,22 @@
+addon_key: backendJavaTemplates
+addon_class: required
+rulebook: rules.backend-java-templates.md
+manifest_version: 1
+path_roots:
+  - "."
+owns_surfaces:
+  - "backend_java_templates"
+touches_surfaces:
+  - "test_framework"
+  - "linting"
+  - "static"
+capabilities_any:
+  - "java"
+signals:
+  any:
+    - file_glob: "**/pom.xml"
+    - file_glob: "**/build.gradle"
+    - file_glob: "**/build.gradle.kts"
+    - maven_dep: "org.springframework.boot:spring-boot-starter-web"
+    - code_regex: "@RestController"
+    - code_regex: "@SpringBootApplication"

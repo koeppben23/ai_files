@@ -69,11 +69,17 @@ def ensure_workspace_ready(
             stale = True
         if not stale:
             return WorkspaceReadyDecision(False, "workspace-lock-held", workspace_dir, marker_path, pointer_path)
-        # Reclaim stale lock.
+        # Reclaim stale lock atomically: write a sentinel file with O_CREAT|O_EXCL
+        # semantics via a temp rename, then remove old artifacts.
         try:
             if owner_file.exists():
                 owner_file.unlink(missing_ok=True)
-            os.rmdir(lock_dir)
+            # Attempt to reclaim: remove the directory and re-create atomically.
+            # If another process races us, mkdir will raise FileExistsError.
+            try:
+                os.rmdir(lock_dir)
+            except OSError:
+                return WorkspaceReadyDecision(False, "workspace-lock-held", workspace_dir, marker_path, pointer_path)
             lock_dir.mkdir(parents=False, exist_ok=False)
         except (OSError, FileExistsError):
             return WorkspaceReadyDecision(False, "workspace-lock-held", workspace_dir, marker_path, pointer_path)

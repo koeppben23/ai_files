@@ -198,11 +198,19 @@ def _evaluate_phase_coupled_persistence(
 
 
 def _is_code_output_request(requested_action: str | None) -> bool:
+    """Fail-closed: any non-empty action in phase 4 is treated as a code-output
+    request unless it matches a known read-only / observation-only allowlist.
+    This prevents denylist bypass via synonym substitution (A8-F01)."""
     action = (requested_action or "").strip().lower()
     if not action:
         return False
-    patterns = ("implement", "write code", "emit code", "generate code", "code output")
-    return any(token in action for token in patterns)
+    # Only actions that are provably read-only / non-emitting are safe.
+    safe_patterns = (
+        "review", "explain", "summarize", "describe", "list",
+        "check", "verify", "inspect", "read", "show", "status",
+        "plan", "outline", "analyse", "analyze", "compare",
+    )
+    return not any(token in action for token in safe_patterns)
 
 @dataclass(frozen=True)
 class EngineOrchestratorOutput:
@@ -600,13 +608,13 @@ def run_engine_orchestrator(
     if not gate_blocked and not caps.fs_read_commands_home:
         gate_blocked = True
         gate_reason_code = BLOCKED_MISSING_BINDING_FILE
-    elif not caps.exec_allowed:
+    if not gate_blocked and not caps.exec_allowed:
         gate_blocked = True
         gate_reason_code = BLOCKED_EXEC_DISALLOWED
-    elif not write_policy.valid:
+    if not gate_blocked and not write_policy.valid:
         gate_blocked = True
         gate_reason_code = write_policy.reason_code
-    else:
+    if not gate_blocked:
         if target_variable is not None:
             surface_policy = resolve_surface_policy(target_variable)
             if surface_policy is None:

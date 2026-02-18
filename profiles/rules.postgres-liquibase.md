@@ -226,7 +226,7 @@ YYYYMMDDHHMM_<ticket>_<short_slug>
 
 ### One intent per changeset (required)
 
-A changeset should do exactly one logical thing:
+A changeset MUST do exactly one logical thing:
 - Add a column
 - Add an index
 - Add a constraint
@@ -528,7 +528,7 @@ For changes requiring data backfill:
 
 ### Idempotence & re-runs
 
-Data migrations should be safe to re-run or designed to fail clearly without partial corruption
+Data migrations MUST be safe to re-run or designed to fail clearly without partial corruption
 
 **Example:**
 ```sql
