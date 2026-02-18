@@ -18,10 +18,7 @@ ARTIFACT_REPO_DIGEST = "REPO_DIGEST_FILE"
 ARTIFACT_DECISION_PACK = "REPO_DECISION_PACK_FILE"
 ARTIFACT_BUSINESS_RULES = "REPO_BUSINESS_RULES_FILE"
 ARTIFACT_WORKSPACE_MEMORY = "WORKSPACE_MEMORY_FILE"
-<<<<<<< HEAD
 ARTIFACT_WORKSPACE_MEMORY_OBSERVATIONS = "WORKSPACE_MEMORY_OBSERVATIONS"
-=======
->>>>>>> e05b3e0 (docs(governance): add invariant checklist references (#199))
 
 
 @dataclass(frozen=True)
@@ -77,7 +74,6 @@ def can_write(inputs: PersistencePolicyInput) -> PersistencePolicyDecision:
             return PersistencePolicyDecision(False, PERSIST_PHASE_MISMATCH, "artifact-requires-phase-2-or-later")
         return PersistencePolicyDecision(True, REASON_CODE_NONE, "allowed")
 
-<<<<<<< HEAD
     # Phase-2 Observations (workspace-memory-observations) rule:
     if artifact == ARTIFACT_WORKSPACE_MEMORY_OBSERVATIONS:
         if phase_rank == _PHASE_RANK["2"]:
@@ -86,9 +82,6 @@ def can_write(inputs: PersistencePolicyInput) -> PersistencePolicyDecision:
             return PersistencePolicyDecision(True, REASON_CODE_NONE, "allowed-phase2-observations")
         if phase_rank < _PHASE_RANK["5"]:
             return PersistencePolicyDecision(False, PERSIST_PHASE_MISMATCH, "workspace-memory-phase-not-allowed-in-phase-3-or-4")
-
-=======
->>>>>>> e05b3e0 (docs(governance): add invariant checklist references (#199))
     if artifact == ARTIFACT_BUSINESS_RULES:
         if phase_rank < _PHASE_RANK["1.5"]:
             return PersistencePolicyDecision(False, PERSIST_PHASE_MISMATCH, "business-rules-requires-phase-1.5-or-later")
