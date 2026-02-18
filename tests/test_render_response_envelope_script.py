@@ -10,7 +10,7 @@ def test_render_response_envelope_script_markdown_output(tmp_path: Path):
     payload = {
         "mode": "STRICT",
         "status": "OK",
-        "session_state": {"phase": "2", "activation_hash": "abc"},
+        "session_state": {"phase": "2", "activation_hash": "abc", "workspace_ready": True},
         "next_action": {
             "Status": "OK",
             "Next": "Set working set and component scope",

@@ -8,7 +8,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Callable, Literal, Mapping, Protocol
+from pathlib import Path
+from typing import Any, Callable, Literal, Mapping, Protocol, Sequence
 
 OperatingMode = Literal["user", "system", "pipeline"]
 LiveEnablePolicy = Literal["ci_strict", "always", "never"]
@@ -32,6 +33,7 @@ class HostAdapter(Protocol):
     def environment(self) -> Mapping[str, str]: ...
     def cwd(self): ...
     def now_utc(self) -> datetime: ...
+    def exec_argv(self, argv: Sequence[str], *, cwd: Path | None = None, timeout_seconds: int = 10) -> Any: ...
     def default_operating_mode(self) -> OperatingMode: ...
 
 

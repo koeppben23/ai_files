@@ -120,8 +120,8 @@ except Exception:
 
 try:
     from governance.application.repo_identity_service import canonicalize_origin_url, derive_repo_identity
-    from governance.application.use_cases.start_bootstrap import evaluate_start_identity as _evaluate_start_identity
     from governance.application.use_cases.start_persistence import decide_start_persistence as _decide_start_persistence
+    from governance.engine.adapters import OpenCodeDesktopAdapter
     from governance.infrastructure.start_persistence_store import (
         commit_workspace_identity as _commit_workspace_identity,
         write_unresolved_runtime_context as _write_unresolved_runtime_context,
@@ -174,29 +174,21 @@ except Exception:
 
     derive_repo_identity = _derive_repo_identity_fallback  # type: ignore[assignment]
 
-    _evaluate_start_identity = None
-
     _decide_start_persistence = None
+    OpenCodeDesktopAdapter = None
 
     _commit_workspace_identity = None
     _write_unresolved_runtime_context = None
 
 
-def evaluate_start_identity(*, env, cwd):
-    if callable(_evaluate_start_identity):
-        return _evaluate_start_identity(env=env, cwd=cwd)
-    return {
-        "repo_root": None,
-        "discovery_method": "cwd",
-        "repo_fingerprint": "",
-        "workspace_ready": False,
-        "reason_code": "BLOCKED-REPO-IDENTITY-RESOLUTION",
-    }
-
-
 def decide_start_persistence(*, env, cwd):
-    if callable(_decide_start_persistence):
-        return _decide_start_persistence(env=env, cwd=cwd)
+    _ = env
+    _ = cwd
+    if callable(_decide_start_persistence) and OpenCodeDesktopAdapter is not None:
+        try:
+            return _decide_start_persistence(adapter=OpenCodeDesktopAdapter())
+        except Exception:
+            pass
     return {
         "repo_root": None,
         "repo_fingerprint": "",
@@ -275,40 +267,8 @@ def identity_map_exists(repo_fp: str | None) -> bool:
 
 
 def resolve_repo_context() -> tuple[Path | None, str]:
-    def _search_repo_root(start: Path) -> Path | None:
-        try:
-            candidate = normalize_absolute_path(str(start), purpose="repo_search_start")
-        except Exception:
-            return None
-        for probe in (candidate, *candidate.parents):
-            git_path = probe / ".git"
-            if git_path.is_dir() or git_path.is_file():
-                return probe
-        return None
-
-    env_candidates = [
-        ("OPENCODE_REPO_ROOT", os.getenv("OPENCODE_REPO_ROOT")),
-        ("OPENCODE_WORKSPACE_ROOT", os.getenv("OPENCODE_WORKSPACE_ROOT")),
-        ("REPO_ROOT", os.getenv("REPO_ROOT")),
-        ("GITHUB_WORKSPACE", os.getenv("GITHUB_WORKSPACE")),
-    ]
-    for key, candidate in env_candidates:
-        if not candidate:
-            continue
-        try:
-            path = normalize_absolute_path(str(candidate), purpose=f"env:{key}")
-        except Exception:
-            continue
-        if not path.exists():
-            continue
-        repo_root = _search_repo_root(path)
-        if repo_root is not None:
-            return repo_root, f"env:{key}"
-    cwd_path = normalize_absolute_path(str(Path.cwd()), purpose="cwd")
-    cwd_repo_root = _search_repo_root(cwd_path)
-    if cwd_repo_root is not None:
-        return cwd_repo_root, "cwd_parent_walk"
-    return None, "cwd"
+    decision = decide_start_persistence(env=os.environ, cwd=normalize_absolute_path(str(Path.cwd()), purpose="cwd"))
+    return _persistence_value(decision, "repo_root"), str(_persistence_value(decision, "discovery_method") or "cwd")
 
 
 def resolve_repo_root() -> Path | None:
@@ -784,25 +744,8 @@ def log_error(reason_key: str, message: str, observed: dict) -> None:
 def bootstrap_identity_if_needed() -> bool:
     decision = decide_start_persistence(env=os.environ, cwd=normalize_absolute_path(str(Path.cwd()), purpose="cwd"))
     repo_root = _persistence_value(decision, "repo_root")
-    discovery_method = str(_persistence_value(decision, "discovery_method") or "cwd")
     inferred_fp = str(_persistence_value(decision, "repo_fingerprint") or "").strip() or None
-
-    if inferred_fp and repo_root is not None:
-        write_repo_context(repo_root, inferred_fp, discovery_method)
-
-    if identity_map_exists(inferred_fp):
-        return True
-
-    if not inferred_fp:
-        write_unresolved_runtime_context(
-            config_root=ROOT,
-            commands_home=COMMANDS_RUNTIME_DIR,
-            binding_evidence_path=BINDING_EVIDENCE_PATH,
-            cwd=normalize_absolute_path(str(Path.cwd()), purpose="cwd"),
-            discovery_method=discovery_method,
-            reason="identity-bootstrap-fingerprint-missing",
-            session_id=_discover_repo_session_id(),
-        )
+    if repo_root is None or not inferred_fp:
         print(
             json.dumps(
                 {
@@ -817,89 +760,6 @@ def bootstrap_identity_if_needed() -> bool:
         )
         return False
 
-    if not BOOTSTRAP_HELPER.exists():
-        print(
-            json.dumps(
-                {
-                    "status": "warn",
-                    "workspacePersistenceHook": "warn",
-                    "reason_code": "WARN-WORKSPACE-PERSISTENCE",
-                    "reason": "missing-bootstrap-helper",
-                    "missing_evidence": ["diagnostics/bootstrap_session_state.py", "workspaces/<repo_fingerprint>/repo-identity-map.yaml"],
-                    "recovery_steps": ["restore bootstrap_session_state.py helper and rerun /start"],
-                    "required_operator_action": "restore diagnostics/bootstrap_session_state.py and rerun /start",
-                    "feedback_required": "reply once helper is restored and /start rerun",
-                    "next_command": "/start",
-                    "next_command_profiles": render_command_profiles(["/start"]),
-                }
-            )
-        )
-        return False
-
-    if shutil.which("git") is None:
-        print(
-            json.dumps(
-                {
-                    "status": "warn",
-                    "workspacePersistenceHook": "warn",
-                    "reason_code": "WARN-WORKSPACE-PERSISTENCE",
-                    "reason": "missing-git-for-identity-bootstrap",
-                    "missing_evidence": ["git in PATH", "workspaces/<repo_fingerprint>/repo-identity-map.yaml"],
-                    "recovery_steps": [
-                        "install git and rerun /start, or bootstrap with explicit fingerprint"
-                    ],
-                    "required_operator_action": "install git or run bootstrap_session_state.py with explicit fingerprint, then rerun /start",
-                    "feedback_required": "reply with the fingerprint used (if manual bootstrap) and helper result",
-                    "next_command": bootstrap_command(inferred_fp),
-                    "next_command_profiles": render_command_profiles(bootstrap_command_argv(inferred_fp)),
-                }
-            )
-        )
-        return False
-
-    repo_fp = inferred_fp
-
-    boot = subprocess.run(
-        [*_python_command_argv(), str(BOOTSTRAP_HELPER), "--repo-fingerprint", repo_fp, "--config-root", str(ROOT)],
-        text=True,
-        capture_output=True,
-        check=False,
-    )
-    if boot.returncode != 0 or not identity_map_exists(repo_fp):
-        boot_err = (boot.stderr or "")[:240]
-        log_error(
-            "ERR-WORKSPACE-PERSISTENCE-IDENTITY-BOOTSTRAP-FAILED",
-            "/start identity bootstrap helper returned non-zero or identity map missing after run.",
-            {"repoFingerprint": repo_fp, "stderr": boot_err},
-        )
-        print(
-            json.dumps(
-                {
-                    "status": "warn",
-                    "workspacePersistenceHook": "warn",
-                    "reason_code": "WARN-WORKSPACE-PERSISTENCE",
-                    "reason": "identity-bootstrap-failed",
-                    "missing_evidence": ["workspaces/<repo_fingerprint>/repo-identity-map.yaml"],
-                    "recovery_steps": ["run bootstrap_session_state.py manually and rerun /start"],
-                    "required_operator_action": "run bootstrap_session_state.py with explicit repo fingerprint, then rerun /start",
-                    "feedback_required": "reply with helper stderr and repo fingerprint",
-                    "next_command": bootstrap_command(repo_fp),
-                    "next_command_profiles": render_command_profiles(bootstrap_command_argv(repo_fp)),
-                }
-            )
-        )
-        return False
-
-    print(
-        json.dumps(
-            {
-                "workspacePersistenceHook": "ok",
-                "bootstrapSessionState": "created",
-                "repoFingerprint": repo_fp,
-                "identityMap": "created",
-            }
-        )
-    )
     return True
 
 
@@ -920,25 +780,6 @@ def run_persistence_hook() -> None:
         )
         return
 
-    if not PERSIST_HELPER.exists():
-        log_error(
-            "ERR-WORKSPACE-PERSISTENCE-HOOK-MISSING",
-            "/start workspace persistence helper is missing from diagnostics payload.",
-            {"helper": str(PERSIST_HELPER)},
-        )
-        print(
-            json.dumps(
-                    {
-                        "workspacePersistenceHook": "warn",
-                        "reason_code": "WARN-WORKSPACE-PERSISTENCE",
-                        "reason": "helper-missing",
-                        "impact": "workspace artifacts may be incomplete",
-                        "recovery": persist_command(normalize_absolute_path(str(Path.cwd()), purpose="cwd_recovery")),
-                    }
-                )
-            )
-        return
-
     if not bootstrap_identity_if_needed():
         return
 
@@ -947,15 +788,6 @@ def run_persistence_hook() -> None:
     discovery_method = str(_persistence_value(decision, "discovery_method") or "cwd")
     repo_fp = str(_persistence_value(decision, "repo_fingerprint") or "").strip() or None
     if repo_root is None or not repo_fp:
-        write_unresolved_runtime_context(
-            config_root=ROOT,
-            commands_home=COMMANDS_RUNTIME_DIR,
-            binding_evidence_path=BINDING_EVIDENCE_PATH,
-            cwd=normalize_absolute_path(str(Path.cwd()), purpose="cwd"),
-            discovery_method=discovery_method,
-            reason="repo-root-not-git",
-            session_id=_discover_repo_session_id(),
-        )
         print(
             json.dumps(
                 {
@@ -969,120 +801,13 @@ def run_persistence_hook() -> None:
         )
         return
 
-    write_repo_context(repo_root, repo_fp, discovery_method)
-
-    run = subprocess.run(
-        [
-            *_python_command_argv(),
-            str(PERSIST_HELPER),
-            "--repo-root",
-            str(repo_root),
-            "--repo-fingerprint",
-            repo_fp,
-            "--quiet",
-        ],
-        text=True,
-        capture_output=True,
-        check=False,
-    )
-    out = (run.stdout or "").strip()
-    err = (run.stderr or "").strip()
-
-    if run.returncode == 0 and out:
-        try:
-            payload = json.loads(out)
-        except Exception:
-            payload = None
-
-        if isinstance(payload, dict) and payload.get("sessionStateUpdate") == "no-session-file" and BOOTSTRAP_HELPER.exists():
-            repo_fp = str(payload.get("repoFingerprint") or "").strip()
-            if repo_fp:
-                boot = subprocess.run(
-                    [
-                        *_python_command_argv(),
-                        str(BOOTSTRAP_HELPER),
-                        "--repo-fingerprint",
-                        repo_fp,
-                        "--config-root",
-                        str(ROOT),
-                    ],
-                    text=True,
-                    capture_output=True,
-                    check=False,
-                )
-                if boot.returncode == 0:
-                    print(
-                        json.dumps(
-                            {
-                                "workspacePersistenceHook": "ok",
-                                "bootstrapSessionState": "created",
-                                "repoFingerprint": repo_fp,
-                            }
-                        )
-                    )
-                else:
-                    boot_err = (boot.stderr or "")[:240]
-                    log_error(
-                        "ERR-SESSION-BOOTSTRAP-HOOK-FAILED",
-                        "/start session bootstrap helper returned non-zero.",
-                        {"repoFingerprint": repo_fp, "stderr": boot_err},
-                    )
-                    print(
-                        json.dumps(
-                            {
-                                "workspacePersistenceHook": "warn",
-                                "reason_code": "WARN-WORKSPACE-PERSISTENCE",
-                                "reason": "bootstrap-session-failed",
-                                "repoFingerprint": repo_fp,
-                                "error": boot_err,
-                                "impact": "repo-scoped SESSION_STATE may be incomplete",
-                                "recovery": bootstrap_command(repo_fp),
-                            }
-                        )
-                    )
-            else:
-                print(out)
-        elif isinstance(payload, dict) and payload.get("status") == "blocked":
-            log_error(
-                "ERR-WORKSPACE-PERSISTENCE-HOOK-BLOCKED",
-                "/start workspace persistence helper reported blocked output.",
-                payload,
-            )
-            print(
-                json.dumps(
-                    {
-                        "workspacePersistenceHook": "warn",
-                        "reason_code": "WARN-WORKSPACE-PERSISTENCE",
-                        "reason": "helper-reported-blocked",
-                        "helperPayload": payload,
-                        "impact": "workspace artifacts may be incomplete",
-                        "recovery": persist_command(normalize_absolute_path(str(Path.cwd()), purpose="cwd_recovery")),
-                    }
-                )
-            )
-        else:
-            print(out)
-        return
-
-    if run.returncode == 0:
-        print(json.dumps({"workspacePersistenceHook": "ok"}))
-        return
-
-    log_error(
-        "ERR-WORKSPACE-PERSISTENCE-HOOK-FAILED",
-        "/start workspace persistence helper returned non-zero.",
-        {"returncode": run.returncode, "stderr": err[:240]},
-    )
     print(
         json.dumps(
             {
-                "workspacePersistenceHook": "warn",
-                "reason_code": "WARN-WORKSPACE-PERSISTENCE",
-                "reason": "helper-failed",
-                "code": run.returncode,
-                "error": err[:240],
-                "impact": "workspace artifacts may be incomplete",
-                "recovery": persist_command(normalize_absolute_path(str(Path.cwd()), purpose="cwd_recovery")),
+                "workspacePersistenceHook": "ok",
+                "mode": "non-destructive",
+                "repoFingerprint": repo_fp,
+                "repoRoot": str(repo_root),
             }
         )
     )

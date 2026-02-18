@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from governance.engine.adapters import HostCapabilities, OperatingMode
+from governance.engine.adapters import ExecResult, HostCapabilities, OperatingMode
 from governance.engine.orchestrator import run_engine_orchestrator
 from governance.engine.reason_codes import (
     BLOCKED_ENGINE_SELFCHECK,
@@ -39,6 +39,16 @@ class StubAdapter:
 
     def now_utc(self) -> datetime:
         return self.now_utc_value
+
+    def exec_argv(self, argv, *, cwd=None, timeout_seconds=10):
+        _ = timeout_seconds
+        args = tuple(str(x) for x in argv)
+        run_cwd = Path(cwd) if cwd is not None else self.cwd_path.resolve()
+        if "--show-toplevel" in args:
+            if (run_cwd / ".git").exists():
+                return ExecResult(argv=args, cwd=str(run_cwd), exit_code=0, stdout=str(run_cwd) + "\n", stderr="")
+            return ExecResult(argv=args, cwd=str(run_cwd), exit_code=128, stdout="", stderr="not a git repository")
+        return ExecResult(argv=args, cwd=str(run_cwd), exit_code=0, stdout="", stderr="")
 
 
 def _make_git_root(path: Path) -> Path:
@@ -90,7 +100,7 @@ def test_orchestrator_blocks_when_cwd_is_not_git_root_and_git_is_unavailable(tmp
         next_gate_condition="Persistence helper execution completed",
     )
 
-    assert out.repo_context.source == "cwd"
+    assert out.repo_context.source == "git-unavailable"
     assert out.repo_context.is_git_root is False
     assert out.parity == {
         "status": "blocked",
@@ -101,8 +111,8 @@ def test_orchestrator_blocks_when_cwd_is_not_git_root_and_git_is_unavailable(tmp
 
 
 @pytest.mark.governance
-def test_orchestrator_uses_parent_git_root_search_for_untrusted_cwd(tmp_path: Path):
-    """Untrusted cwd should enable bounded parent search via resolver contract."""
+def test_orchestrator_blocks_when_untrusted_cwd_has_no_git_evidence(tmp_path: Path):
+    """Untrusted cwd without git availability should fail closed."""
 
     repo_root = _make_git_root(tmp_path / "repo")
     nested = repo_root / "a" / "b"
@@ -130,10 +140,11 @@ def test_orchestrator_uses_parent_git_root_search_for_untrusted_cwd(tmp_path: Pa
         next_gate_condition="Persistence helper execution completed",
     )
 
-    assert out.repo_context.repo_root == repo_root.resolve()
-    assert out.repo_context.source == "cwd-parent-search"
-    assert out.repo_context.is_git_root is True
-    assert out.parity["status"] == "ok"
+    assert out.repo_context.repo_root is None
+    assert out.repo_context.source == "git-unavailable"
+    assert out.repo_context.is_git_root is False
+    assert out.parity["status"] == "blocked"
+    assert out.parity["reason_code"] == "BLOCKED-REPO-IDENTITY-RESOLUTION"
 
 
 @pytest.mark.governance
@@ -289,7 +300,7 @@ def test_orchestrator_downgrades_pipeline_mode_when_pipeline_caps_missing(tmp_pa
             fs_write_workspaces_home=True,
             fs_write_repo_root=True,
             exec_allowed=True,
-            git_available=False,
+            git_available=True,
         ),
         default_mode="user",
     )

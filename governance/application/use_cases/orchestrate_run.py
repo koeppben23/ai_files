@@ -219,9 +219,8 @@ def run_engine_orchestrator(
         )
 
     repo_context = resolve_repo_root(
-        env=adapter.environment(),
+        adapter=adapter,
         cwd=adapter.cwd(),
-        search_parent_git_root=(caps.cwd_trust == "untrusted"),
     )
     write_policy = evaluate_target_path(target_path)
     pack_lock_checked = False

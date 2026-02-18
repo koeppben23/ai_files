@@ -3,5 +3,5 @@
   "title": "Reason Payload: Advisory",
   "description": "Advisory/non-blocking reason context schema for warning and verification telemetry.",
   "type": "object",
-  "additionalProperties": true
+  "additionalProperties": false
 }
