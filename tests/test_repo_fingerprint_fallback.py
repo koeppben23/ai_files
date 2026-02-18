@@ -5,6 +5,7 @@ import re
 
 from diagnostics.persist_workspace_artifacts import _derive_fingerprint_from_repo
 from diagnostics.start_preflight_persistence import derive_repo_fingerprint
+from governance.infrastructure.path_contract import normalize_for_fingerprint
 
 
 def _is_short_hex(value: str) -> bool:
@@ -47,8 +48,7 @@ def test_persist_helper_path_fingerprint_material_is_normalized(tmp_path):
     fp, material = derived
     assert _is_short_hex(fp)
 
-    normalized = str(repo_root.expanduser().resolve())
-    normalized = normalized.replace("\\", "/").casefold()
+    normalized = normalize_for_fingerprint(repo_root)
     assert material == f"repo:local:{normalized}"
 
 
@@ -61,7 +61,7 @@ def test_start_preflight_path_fingerprint_uses_normalized_path_material(tmp_path
     assert isinstance(fp, str)
     assert _is_short_hex(fp)
 
-    normalized = str(repo_root.expanduser().resolve()).replace("\\", "/").casefold()
+    normalized = normalize_for_fingerprint(repo_root)
     expected = hashlib.sha256(f"repo:local:{normalized}".encode("utf-8")).hexdigest()[:24]
     assert fp == expected
 
