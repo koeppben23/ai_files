@@ -7,17 +7,36 @@ from datetime import datetime, timezone
 import json
 import os
 from pathlib import Path
+import tempfile
 import time
 import uuid
 
 try:
     from governance.infrastructure.fs_atomic import atomic_write_text
 except Exception:
-    def atomic_write_text(path: Path, text: str, newline_lf: bool = True, attempts: int = 5, backoff_ms: int = 50) -> None:
+    def atomic_write_text(path: Path, text: str, newline_lf: bool = True, attempts: int = 5, backoff_ms: int = 50) -> int:
         path.parent.mkdir(parents=True, exist_ok=True)
         payload = text.replace("\r\n", "\n") if newline_lf else text
-        with path.open("w", encoding="utf-8", newline="\n" if newline_lf else None) as handle:
-            handle.write(payload)
+        temp_path: Path | None = None
+        try:
+            with tempfile.NamedTemporaryFile(
+                mode="w",
+                encoding="utf-8",
+                newline="\n" if newline_lf else None,
+                dir=str(path.parent),
+                prefix=path.name + ".",
+                suffix=".tmp",
+                delete=False,
+            ) as tmp:
+                tmp.write(payload)
+                tmp.flush()
+                os.fsync(tmp.fileno())
+                temp_path = Path(tmp.name)
+            os.replace(str(temp_path), str(path))
+            return 0
+        finally:
+            if temp_path is not None and temp_path.exists():
+                temp_path.unlink(missing_ok=True)
 
 
 @dataclass(frozen=True)

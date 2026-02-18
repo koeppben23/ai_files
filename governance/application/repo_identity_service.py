@@ -2,19 +2,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import hashlib
-import os
 from pathlib import Path
 import re
 from typing import Literal
 from urllib.parse import urlsplit
 
-
-def _normalize_for_fingerprint(path: Path) -> str:
-    normalized = os.path.normpath(os.path.abspath(str(path.expanduser())))
-    normalized = normalized.replace("\\", "/")
-    if os.name == "nt":
-        return normalized.casefold()
-    return normalized
+from governance.common.path_normalization import normalize_for_fingerprint
 
 
 @dataclass(frozen=True)
@@ -62,7 +55,7 @@ def canonicalize_origin_url(remote: str) -> str | None:
 
 
 def derive_repo_identity(repo_root: Path, *, canonical_remote: str | None, git_dir: Path | None) -> RepoIdentity:
-    normalized_root = _normalize_for_fingerprint(repo_root)
+    normalized_root = normalize_for_fingerprint(repo_root)
     if canonical_remote:
         material = f"repo:{canonical_remote}"
         fp = hashlib.sha256(material.encode("utf-8")).hexdigest()[:24]

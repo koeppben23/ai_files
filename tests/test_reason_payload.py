@@ -65,6 +65,7 @@ def test_reason_payload_builder_produces_valid_warn_payload():
         impact="degraded",
     )
     assert payload.status == "WARN"
+    assert payload.decision_outcome == "ALLOW"
     assert payload.reason_code == "WARN-PERMISSION-LIMITED"
     assert payload.missing_evidence == ()
 
@@ -93,3 +94,17 @@ def test_reason_payload_builder_rejects_unregistered_blocked_code():
             recovery_steps=("Recover",),
             next_command="/start",
         )
+
+
+@pytest.mark.governance
+def test_reason_payload_blocked_sets_blocked_decision_outcome():
+    payload = build_reason_payload(
+        status="BLOCKED",
+        reason_code="BLOCKED-EXEC-DISALLOWED",
+        surface="${WORKSPACE_MEMORY_FILE}",
+        signals_used=("gate",),
+        primary_action="Use allowed execution path",
+        recovery_steps=("Switch to allowed execution mode",),
+        next_command="/start",
+    )
+    assert payload.decision_outcome == "BLOCKED"
