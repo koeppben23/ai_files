@@ -9,6 +9,12 @@ from typing import Any, Literal, Mapping
 from governance.infrastructure.path_contract import canonical_config_root, normalize_absolute_path
 
 
+_SUPPORTED_BINDING_SCHEMAS: tuple[str, ...] = (
+    "opencode-governance.paths.v1",
+    "governance.paths.v1",
+)
+
+
 @dataclass(frozen=True)
 class BindingEvidence:
     python_command: str
@@ -112,7 +118,7 @@ class BindingEvidenceResolver:
             paths = payload.get("paths") if isinstance(payload, dict) else None
             if not isinstance(paths, dict):
                 raise ValueError("paths missing")
-            if payload.get("schema") != "governance.paths.v1":
+            if payload.get("schema") not in _SUPPORTED_BINDING_SCHEMAS:
                 raise ValueError("schema invalid")
             commands = normalize_absolute_path(str(paths.get("commandsHome", "")), purpose="paths.commandsHome")
             workspaces = normalize_absolute_path(str(paths.get("workspacesHome", "")), purpose="paths.workspacesHome")

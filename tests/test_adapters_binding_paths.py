@@ -11,7 +11,7 @@ from governance.engine.adapters import LocalHostAdapter, OpenCodeDesktopAdapter
 
 def _write_binding(config_root: Path, *, commands_home: Path, workspaces_home: Path) -> None:
     payload = {
-        "schema": "governance.paths.v1",
+        "schema": "opencode-governance.paths.v1",
         "paths": {
             "configRoot": str(config_root),
             "commandsHome": str(commands_home),
@@ -136,7 +136,7 @@ def test_adapter_rejects_relative_binding_paths(monkeypatch: pytest.MonkeyPatch,
     cfg = tmp_path / "cfg"
     (cfg / "commands").mkdir(parents=True, exist_ok=True)
     payload = {
-        "schema": "governance.paths.v1",
+        "schema": "opencode-governance.paths.v1",
         "paths": {
             "configRoot": str(cfg),
             "commandsHome": "./commands",
