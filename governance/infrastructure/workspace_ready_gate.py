@@ -91,7 +91,7 @@ def ensure_workspace_ready(
         }, ensure_ascii=True)
         owner_file_path = lock_dir / "owner.json"
         try:
-            owner_file_path.write_text(owner_payload + "\n", encoding="utf-8")
+            atomic_write_text(owner_file_path, owner_payload + "\n")
         except OSError:
             pass
 
