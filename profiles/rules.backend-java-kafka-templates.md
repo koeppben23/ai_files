@@ -37,7 +37,7 @@ When active, maintain:
 
 - Use repository-pinned Kafka/Spring tooling when present; do not invent alternate client stacks.
 - Preserve repo serializer/deserializer strategy unless ticket explicitly changes it.
-- Test tooling should follow repo standard (`spring-kafka-test`, Testcontainers, or existing equivalent).
+- Test tooling MUST follow repo standard (`spring-kafka-test`, Testcontainers, or existing equivalent).
 
 ## Correctness by construction (binding)
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from governance.domain.phase_state_machine import (
     normalize_phase_token,
+    phase_rank as _phase_rank,
     phase_requires_ticket_input as _phase_requires_ticket_input,
 )
 
@@ -65,29 +66,6 @@ def _extract_previous_phase_tokens(session_state: dict[str, object]) -> tuple[st
             if token:
                 tokens.append(token)
     return tuple(tokens)
-
-
-def _phase_rank(token: str) -> int:
-    ordering = {
-        "1": 10,
-        "1.1": 11,
-        "1.2": 12,
-        "1.3": 13,
-        "1.5": 15,
-        "2": 20,
-        "2.1": 21,
-        "3A": 30,
-        "3B-1": 31,
-        "3B-2": 32,
-        "4": 40,
-        "5": 50,
-        "5.3": 53,
-        "5.4": 54,
-        "5.5": 55,
-        "5.6": 56,
-        "6": 60,
-    }
-    return ordering.get(token, -1)
 
 
 def _extract_next_gate_condition(session_state: dict[str, object]) -> str:

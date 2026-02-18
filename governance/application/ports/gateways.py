@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any, Callable, Literal, Mapping, Protocol, Sequence
 
 OperatingMode = Literal["user", "system", "pipeline", "agents_strict"]
-LiveEnablePolicy = Literal["ci_strict", "always", "never"]
+LiveEnablePolicy = Literal["ci_strict", "auto_degrade"]
 
 
 class HostCapabilities(Protocol):
@@ -68,11 +68,25 @@ class GatewayRegistry:
 
 
 _REGISTRY: GatewayRegistry | None = None
+_SEALED: bool = False
 
 
 def set_gateway_registry(registry: GatewayRegistry) -> None:
-    global _REGISTRY
+    """Install the gateway registry.  Idempotent: once sealed, subsequent
+    calls are silently ignored so that ``configure_gateway_registry()`` can
+    be invoked from multiple entry-points without raising."""
+    global _REGISTRY, _SEALED
+    if _SEALED:
+        return  # already configured — idempotent no-op
     _REGISTRY = registry
+    _SEALED = True
+
+
+def _unseal_gateway_registry_for_testing() -> None:
+    """Test-only helper — resets seal so tests can re-configure gateways."""
+    global _REGISTRY, _SEALED
+    _SEALED = False
+    _REGISTRY = None
 
 
 def _gateway() -> GatewayRegistry:

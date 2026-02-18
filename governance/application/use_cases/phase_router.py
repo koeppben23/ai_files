@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Mapping
 
-from governance.domain.phase_state_machine import normalize_phase_token
+from governance.domain.phase_state_machine import normalize_phase_token, phase_rank
 from governance.application.dto.phase_next_action_contract import contains_ticket_prompt
 
 
@@ -16,29 +16,8 @@ class RoutedPhase:
     source: str
 
 
-_PHASE_RANK: dict[str, int] = {
-    "1": 10,
-    "1.1": 11,
-    "1.2": 12,
-    "1.3": 13,
-    "1.5": 15,
-    "2": 20,
-    "2.1": 21,
-    "3A": 30,
-    "3B-1": 31,
-    "3B-2": 32,
-    "4": 40,
-    "5": 50,
-    "5.3": 53,
-    "5.4": 54,
-    "5.5": 55,
-    "5.6": 56,
-    "6": 60,
-}
-
-
 def _rank(token: str) -> int:
-    return _PHASE_RANK.get(token, -1)
+    return phase_rank(token)
 
 
 def _session_state(session_state_document: Mapping[str, object] | None) -> Mapping[str, object]:

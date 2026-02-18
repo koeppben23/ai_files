@@ -85,7 +85,6 @@ def atomic_write_text(path: Path, text: str, newline_lf: bool = True, attempts: 
     finally:
         if temp_path is not None and temp_path.exists():
             temp_path.unlink(missing_ok=True)
-    return 0
 
 
 def atomic_write_json(path: Path, obj: Any, *, ensure_ascii: bool = True, indent: int = 2) -> None:
