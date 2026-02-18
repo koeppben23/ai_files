@@ -11,8 +11,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 import os
 from pathlib import Path
-import re
 from typing import Mapping
+
+from governance.engine.path_contract import PathContractError, normalize_absolute_path
 
 
 _ROOT_ENV_PRIORITY: tuple[str, ...] = (
@@ -39,15 +40,10 @@ def _is_git_root(path: Path) -> bool:
 
 
 def _resolve_absolute_env_candidate(raw: str) -> Path | None:
-    token = raw.strip()
-    if not token:
+    try:
+        return normalize_absolute_path(raw, purpose="repo_root_env")
+    except PathContractError:
         return None
-    path = Path(token).expanduser()
-    if os.name == "nt" and re.match(r"^[A-Za-z]:[^/\\]", token):
-        return None
-    if not path.is_absolute():
-        return None
-    return Path(os.path.normpath(os.path.abspath(str(path))))
 
 
 def _search_parent_git_root(start: Path, *, max_parent_levels: int) -> Path | None:

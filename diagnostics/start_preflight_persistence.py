@@ -14,25 +14,51 @@ import sys
 import tempfile
 import time
 from urllib.parse import urlsplit
-try:
-    import pwd
-except Exception:  # pragma: no cover - unavailable on Windows
-    pwd = None
 from datetime import datetime
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
+if str(SCRIPT_DIR.parent) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR.parent))
+
+try:
+    from governance.engine.path_contract import (
+        canonical_config_root,
+        normalize_absolute_path,
+        normalize_for_fingerprint,
+    )
+except Exception:
+    class NotAbsoluteError(Exception):
+        pass
+
+    class WindowsDriveRelativeError(Exception):
+        pass
+
+    def canonical_config_root() -> Path:
+        return Path(os.path.normpath(os.path.abspath(str(Path.home().expanduser() / ".config" / "opencode"))))
+
+    def normalize_absolute_path(raw: str, *, purpose: str) -> Path:
+        token = str(raw or "").strip()
+        if not token:
+            raise NotAbsoluteError(f"{purpose}: empty path")
+        candidate = Path(token).expanduser()
+        if os.name == "nt" and re.match(r"^[A-Za-z]:[^/\\]", token):
+            raise WindowsDriveRelativeError(f"{purpose}: drive-relative path is not allowed")
+        if not candidate.is_absolute():
+            raise NotAbsoluteError(f"{purpose}: path must be absolute")
+        return Path(os.path.normpath(os.path.abspath(str(candidate))))
+
+    def normalize_for_fingerprint(path: Path) -> str:
+        normalized = os.path.normpath(os.path.abspath(str(path.expanduser())))
+        return normalized.replace("\\", "/").casefold()
 
 from command_profiles import render_command_profiles
 
 
 def config_root() -> Path:
-    system = platform.system()
-    if system == "Darwin" and pwd is not None:
-        return (Path(pwd.getpwuid(os.getuid()).pw_dir).resolve() / ".config" / "opencode").resolve()
-    return (Path.home().resolve() / ".config" / "opencode").resolve()
+    return canonical_config_root()
 
 
 def _candidate_config_roots() -> list[Path]:
@@ -52,17 +78,6 @@ def _allow_cwd_binding_discovery() -> bool:
     return str(os.getenv("OPENCODE_ALLOW_CWD_BINDINGS", "")).strip() == "1"
 
 
-def _normalize_absolute_path(raw: object) -> Path | None:
-    if not isinstance(raw, str) or not raw.strip():
-        return None
-    candidate = Path(raw).expanduser()
-    token = raw.strip()
-    if os.name == "nt" and re.match(r"^[A-Za-z]:[^/\\]", token):
-        return None
-    if not candidate.is_absolute():
-        return None
-    normalized = os.path.normpath(os.path.abspath(str(candidate)))
-    return Path(normalized)
 def _resolve_bound_paths(root: Path) -> tuple[Path, Path, bool, Path | None]:
     commands_home = root / "commands"
     workspaces_home = root / "workspaces"
@@ -98,9 +113,14 @@ def _resolve_bound_paths(root: Path) -> tuple[Path, Path, bool, Path | None]:
         return commands_home, workspaces_home, False, binding_file
     commands_raw = paths.get("commandsHome")
     workspaces_raw = paths.get("workspacesHome")
-    normalized_commands = _normalize_absolute_path(commands_raw)
-    normalized_workspaces = _normalize_absolute_path(workspaces_raw)
-    if normalized_commands is None or normalized_workspaces is None:
+    if not isinstance(commands_raw, str) or not commands_raw.strip():
+        return commands_home, workspaces_home, False, binding_file
+    if not isinstance(workspaces_raw, str) or not workspaces_raw.strip():
+        return commands_home, workspaces_home, False, binding_file
+    try:
+        normalized_commands = normalize_absolute_path(commands_raw, purpose="paths.commandsHome")
+        normalized_workspaces = normalize_absolute_path(workspaces_raw, purpose="paths.workspacesHome")
+    except Exception:
         return commands_home, workspaces_home, False, binding_file
     return normalized_commands, normalized_workspaces, True, binding_file
 
@@ -154,13 +174,10 @@ def resolve_repo_context() -> tuple[Path, str]:
     for key, candidate in env_candidates:
         if not candidate:
             continue
-        raw = str(candidate).strip()
-        path = Path(raw).expanduser()
-        if os.name == "nt" and re.match(r"^[A-Za-z]:[^/\\]", raw):
+        try:
+            path = normalize_absolute_path(str(candidate), purpose=f"env:{key}")
+        except Exception:
             continue
-        if not path.is_absolute():
-            continue
-        path = Path(os.path.normpath(os.path.abspath(str(path))))
         if not path.exists():
             continue
         repo_root = _search_repo_root(path)
@@ -293,9 +310,7 @@ def _canonicalize_origin_remote(remote: str) -> str | None:
 def _normalize_path_for_fingerprint(path: Path) -> str:
     """Normalize filesystem paths for deterministic cross-platform fingerprints."""
 
-    absolute = Path(os.path.abspath(str(path.expanduser())))
-    normalized = os.path.normpath(str(absolute))
-    return normalized.replace("\\", "/").casefold()
+    return normalize_for_fingerprint(path)
 
 
 def derive_repo_fingerprint(repo_root: Path) -> str | None:
