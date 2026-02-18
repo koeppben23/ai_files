@@ -6,6 +6,12 @@ from governance.engine.canonical_json import (
     canonical_json_hash,
     canonical_json_text,
 )
+from governance.domain.canonical_json import (
+    canonical_json_bytes as domain_canonical_json_bytes,
+    canonical_json_clone as domain_canonical_json_clone,
+    canonical_json_hash as domain_canonical_json_hash,
+    canonical_json_text as domain_canonical_json_text,
+)
 
 
 def test_canonical_json_text_is_order_stable():
@@ -33,3 +39,11 @@ def test_canonical_json_clone_is_deep_copy():
     assert cloned == payload
     assert cloned is not payload
     assert cloned["outer"] is not payload["outer"]
+
+
+def test_engine_and_domain_canonical_json_outputs_match():
+    payload = {"a": {"line": "one\r\ntwo"}, "z": [3, 2, 1]}
+    assert canonical_json_text(payload) == domain_canonical_json_text(payload)
+    assert canonical_json_bytes(payload) == domain_canonical_json_bytes(payload)
+    assert canonical_json_hash(payload) == domain_canonical_json_hash(payload)
+    assert canonical_json_clone(payload) == domain_canonical_json_clone(payload)
