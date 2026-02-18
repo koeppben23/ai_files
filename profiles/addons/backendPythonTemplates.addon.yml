@@ -1,0 +1,23 @@
+addon_key: backendPythonTemplates
+addon_class: required
+rulebook: rules.backend-python-templates.md
+manifest_version: 1
+path_roots:
+  - "."
+owns_surfaces:
+  - "backend_templates"
+touches_surfaces:
+  - "test_framework"
+  - "linting"
+  - "static"
+capabilities_any:
+  - "python"
+signals:
+  any:
+    - file_glob: "**/pyproject.toml"
+    - file_glob: "**/requirements*.txt"
+    - file_glob: "**/poetry.lock"
+    - file_glob: "**/Pipfile"
+    - code_regex: "from fastapi import"
+    - code_regex: "from flask import"
+    - code_regex: "import django"

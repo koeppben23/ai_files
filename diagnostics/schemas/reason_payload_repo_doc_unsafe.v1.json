@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Reason Payload: Repo Doc Unsafe Directive",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["doc_path", "doc_hash", "classification_rule_id"],
+  "properties": {
+    "doc_path": { "type": "string" },
+    "doc_hash": { "type": "string" },
+    "directive_excerpt": { "type": "string" },
+    "classification_rule_id": { "type": "string" },
+    "pointers": { "type": "array", "items": { "type": "string" } },
+    "extensions": { "type": "object", "additionalProperties": true }
+  }
+}

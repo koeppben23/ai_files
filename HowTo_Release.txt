@@ -1,0 +1,62 @@
+Release How-To (Repository Flow)
+
+Goal: create a reproducible release artifact (zip + tar.gz) and publish a Git tag (and optionally a GitHub Release).
+
+0) Preconditions
+   - Work from a clean working tree: `git status` should show no local changes.
+   - CI must be green on your release branch.
+   - You are on the main branch (or an approved release branch).
+
+1) Cut a release (single command)
+   This repo uses master.md as the Single Source of Truth for the Governance version.
+   Use the release helper to update ALL version sources consistently:
+     - master.md (Governance-Version)
+     - install.py (VERSION)
+     - CHANGELOG.md (cut [Unreleased] into a new version section)
+
+   Dry-run:
+     python scripts/release.py --version 1.0.0 --dry-run
+
+   Real run (creates commit + annotated tag by default):
+     python scripts/release.py --version 1.0.0
+
+   Notes:
+     - By default the script is fail-closed: it refuses to release if [Unreleased] has no bullet entries.
+     - If you really want an empty release, use:
+         python scripts/release.py --version 1.0.0 --allow-empty-changelog 
+
+2) Run local quality gates
+   - `pytest -q` (or run per marker: `pytest -q -m spec`, `-m installer`, `-m governance`, `-m build`, `-m release`)
+
+3) Build release artifacts
+   - `python scripts/build.py`
+   - Verify output in `dist/`:
+       - `governance-X.Y.Z....zip`
+       - `governance-X.Y.Z....tar.gz`
+       - `SHA256SUMS.txt`
+
+4) Push release commit and tag
+   By default, scripts/release.py already created:
+     - a release commit
+     - an annotated tag vX.Y.Z...
+
+   Push both:
+     git push origin HEAD
+     git push origin vX.Y.Z...
+
+     Note: Pushing the tag triggers the release CI workflow.
+
+5) Publish a GitHub Release (recommended)
+   - In the repository UI: Releases → Draft a new release.
+   - Select the tag `vX.Y.Z...`.
+   - Upload the artifacts from `dist/`:
+       - zip + tar.gz + SHA256SUMS.txt
+   - Publish the release.
+
+6) Post-release sanity check
+   - Download the release artifact.
+   - Extract into a fresh folder.
+   - Run:
+       - `python -X utf8 install.py --dry-run --config-root <temp>`
+       - `python -X utf8 install.py --force --no-backup --config-root <temp>`
+       - `python -X utf8 install.py --uninstall --force --config-root <temp>`

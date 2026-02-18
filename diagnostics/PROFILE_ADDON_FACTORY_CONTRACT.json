@@ -1,0 +1,48 @@
+{
+  "schema": "governance.factory.contract.v1",
+  "purpose": "Principal-grade generation contract for new profiles and addons (shared-contract modularized).",
+  "requiredProfileSections": [
+    "## Shared Principal Governance Contracts (Binding)",
+    "rules.principal-excellence.md",
+    "rules.risk-tiering.md",
+    "rules.scorecard-calibration.md"
+  ],
+  "sharedContractRulebooks": [
+    "rules.principal-excellence.md",
+    "rules.risk-tiering.md",
+    "rules.scorecard-calibration.md"
+  ],
+  "requiredLoadedRulebookAddonKeys": [
+    "SESSION_STATE.LoadedRulebooks.addons.principalExcellence",
+    "SESSION_STATE.LoadedRulebooks.addons.riskTiering",
+    "SESSION_STATE.LoadedRulebooks.addons.scorecardCalibration"
+  ],
+  "requiredAddonManifestFields": [
+    "addon_key",
+    "addon_class",
+    "rulebook",
+    "manifest_version",
+    "path_roots",
+    "signals.any",
+    "owns_surfaces",
+    "touches_surfaces"
+  ],
+  "recommendedAddonManifestFields": [
+    "capabilities_any",
+    "capabilities_all"
+  ],
+  "requiredWarningCodes": [
+    "WARN-PRINCIPAL-EVIDENCE-MISSING",
+    "WARN-SCORECARD-CALIBRATION-INCOMPLETE"
+  ],
+  "canonicalRiskTiers": [
+    "TIER-LOW",
+    "TIER-MEDIUM",
+    "TIER-HIGH"
+  ],
+  "scoreThresholds": {
+    "TIER-LOW": 0.8,
+    "TIER-MEDIUM": 0.85,
+    "TIER-HIGH": 0.9
+  }
+}

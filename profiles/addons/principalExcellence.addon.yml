@@ -1,0 +1,15 @@
+addon_key: principalExcellence
+addon_class: advisory
+rulebook: rules.principal-excellence.md
+manifest_version: 1
+path_roots:
+  - "."
+owns_surfaces:
+  - "principal_review"
+touches_surfaces:
+  - "release"
+capabilities_any:
+  - "governance_docs"
+signals:
+  any:
+    - file_glob: "master.md"

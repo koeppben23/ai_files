@@ -1,0 +1,88 @@
+from __future__ import annotations
+
+import json
+import sys
+from pathlib import Path
+
+import pytest
+
+from governance.engine import reason_codes
+from .util import REPO_ROOT, run
+
+
+@pytest.mark.governance
+def test_reason_code_registry_contains_wave_a_baseline_codes():
+    """Registry must expose the Wave A baseline reason codes without duplicates."""
+
+    assert reason_codes.BLOCKED_MISSING_BINDING_FILE in reason_codes.CANONICAL_REASON_CODES
+    assert reason_codes.BLOCKED_VARIABLE_RESOLUTION in reason_codes.CANONICAL_REASON_CODES
+    assert reason_codes.BLOCKED_WORKSPACE_PERSISTENCE in reason_codes.CANONICAL_REASON_CODES
+    assert reason_codes.BLOCKED_ENGINE_SELFCHECK in reason_codes.CANONICAL_REASON_CODES
+    assert reason_codes.BLOCKED_REPO_IDENTITY_RESOLUTION in reason_codes.CANONICAL_REASON_CODES
+    assert reason_codes.BLOCKED_SYSTEM_MODE_REQUIRED in reason_codes.CANONICAL_REASON_CODES
+    assert reason_codes.BLOCKED_OPERATING_MODE_REQUIRED in reason_codes.CANONICAL_REASON_CODES
+    assert reason_codes.BLOCKED_STATE_OUTDATED in reason_codes.CANONICAL_REASON_CODES
+    assert reason_codes.BLOCKED_PACK_LOCK_REQUIRED in reason_codes.CANONICAL_REASON_CODES
+    assert reason_codes.BLOCKED_PACK_LOCK_INVALID in reason_codes.CANONICAL_REASON_CODES
+    assert reason_codes.BLOCKED_PACK_LOCK_MISMATCH in reason_codes.CANONICAL_REASON_CODES
+    assert reason_codes.BLOCKED_SURFACE_CONFLICT in reason_codes.CANONICAL_REASON_CODES
+    assert reason_codes.BLOCKED_RULESET_HASH_MISMATCH in reason_codes.CANONICAL_REASON_CODES
+    assert reason_codes.BLOCKED_ACTIVATION_HASH_MISMATCH in reason_codes.CANONICAL_REASON_CODES
+    assert reason_codes.BLOCKED_RELEASE_HYGIENE in reason_codes.CANONICAL_REASON_CODES
+    assert reason_codes.BLOCKED_RELEASE_HYGIENE in reason_codes.CANONICAL_REASON_CODES
+    assert reason_codes.BLOCKED_SESSION_STATE_LEGACY_UNSUPPORTED in reason_codes.CANONICAL_REASON_CODES
+    assert reason_codes.BLOCKED_PERMISSION_DENIED in reason_codes.CANONICAL_REASON_CODES
+    assert reason_codes.BLOCKED_EXEC_DISALLOWED in reason_codes.CANONICAL_REASON_CODES
+    assert reason_codes.BLOCKED_PERSISTENCE_TARGET_DEGENERATE in reason_codes.CANONICAL_REASON_CODES
+    assert reason_codes.BLOCKED_PERSISTENCE_PATH_VIOLATION in reason_codes.CANONICAL_REASON_CODES
+    assert reason_codes.BLOCKED_UNSPECIFIED in reason_codes.CANONICAL_REASON_CODES
+    assert reason_codes.WARN_UNMAPPED_AUDIT_REASON in reason_codes.CANONICAL_REASON_CODES
+    assert reason_codes.WARN_WORKSPACE_PERSISTENCE in reason_codes.CANONICAL_REASON_CODES
+    assert reason_codes.WARN_ENGINE_LIVE_DENIED in reason_codes.CANONICAL_REASON_CODES
+    assert reason_codes.WARN_MODE_DOWNGRADED in reason_codes.CANONICAL_REASON_CODES
+    assert reason_codes.WARN_PERMISSION_LIMITED in reason_codes.CANONICAL_REASON_CODES
+    assert reason_codes.WARN_SESSION_STATE_LEGACY_COMPAT_MODE in reason_codes.CANONICAL_REASON_CODES
+    assert reason_codes.NOT_VERIFIED_MISSING_EVIDENCE in reason_codes.CANONICAL_REASON_CODES
+    assert reason_codes.NOT_VERIFIED_EVIDENCE_STALE in reason_codes.CANONICAL_REASON_CODES
+    assert len(reason_codes.CANONICAL_REASON_CODES) == len(set(reason_codes.CANONICAL_REASON_CODES))
+
+
+@pytest.mark.governance
+def test_reason_code_registry_recognizes_registered_and_none_sentinel():
+    """Registry helper should detect known codes and the explicit none sentinel."""
+
+    assert reason_codes.is_registered_reason_code(reason_codes.BLOCKED_VARIABLE_RESOLUTION) is True
+    assert reason_codes.is_registered_reason_code(reason_codes.REASON_CODE_NONE) is True
+    assert reason_codes.is_registered_reason_code(reason_codes.REASON_CODE_NONE, allow_none=False) is False
+    assert reason_codes.is_registered_reason_code("BLOCKED-NOT-IN-REGISTRY") is False
+
+
+@pytest.mark.governance
+def test_map_audit_bridge_uses_registry_default_when_map_omits_default(tmp_path: Path):
+    """Bridge should use registry default when mapping file omits a fallback code."""
+
+    report = {
+        "status": {"state": "blocked", "reasonKeys": ["BR_UNKNOWN_KEY"]},
+        "gateTrace": {"activeGates": [], "blockingGates": []},
+        "ruleResolution": {"sources": [], "errors": []},
+        "evidence": {"items": [], "missingRequired": []},
+        "scopeInputs": {"items": [], "missingRequired": []},
+        "configPaths": {"applicability": "not-applicable", "checks": [], "violations": []},
+    }
+    custom_map = {
+        "$schema": "opencode.audit-reason-map.v1",
+        "version": "1.0",
+        "mappings": {},
+    }
+
+    report_file = tmp_path / "audit.json"
+    report_file.write_text(json.dumps(report), encoding="utf-8")
+    map_file = tmp_path / "map.json"
+    map_file.write_text(json.dumps(custom_map), encoding="utf-8")
+
+    script = REPO_ROOT / "diagnostics" / "map_audit_to_canonical.py"
+    result = run([sys.executable, str(script), "--input", str(report_file), "--map", str(map_file)])
+
+    assert result.returncode == 0
+    payload = json.loads(result.stdout)
+    assert payload["canonicalReasonCodes"] == [reason_codes.WARN_UNMAPPED_AUDIT_REASON]

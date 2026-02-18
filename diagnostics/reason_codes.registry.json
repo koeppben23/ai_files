@@ -1,0 +1,309 @@
+{
+  "schema": "governance.reason-codes.registry.v1",
+  "version": "1.0.0",
+  "blocked_reasons": [
+    {
+      "code": "BLOCKED-MISSING-BINDING-FILE",
+      "severity": "blocked",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Installer-owned binding evidence file is missing.",
+      "remediation_hint": "Restore governance.paths.json at canonical commands root and rerun."
+    },
+    {
+      "code": "BLOCKED-VARIABLE-RESOLUTION",
+      "severity": "blocked",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Required canonical variables could not be resolved deterministically.",
+      "remediation_hint": "Fix binding paths and rerun bootstrap evidence collection."
+    },
+    {
+      "code": "BLOCKED-WORKSPACE-PERSISTENCE",
+      "severity": "blocked",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Workspace persistence contract failed for required artifacts.",
+      "remediation_hint": "Resolve lock/path issues and rerun persistence helper."
+    },
+    {
+      "code": "BLOCKED-ENGINE-SELFCHECK",
+      "severity": "blocked",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Engine selfcheck failed and runtime activation is blocked.",
+      "remediation_hint": "Repair deterministic contracts and rerun selfcheck diagnostics."
+    },
+    {
+      "code": "BLOCKED-REPO-IDENTITY-RESOLUTION",
+      "severity": "blocked",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Repository identity could not be resolved under active policy.",
+      "remediation_hint": "Provide git identity evidence or run from a valid repository root."
+    },
+    {
+      "code": "BLOCKED-SYSTEM-MODE-REQUIRED",
+      "severity": "blocked",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Requested surface requires stricter system mode.",
+      "remediation_hint": "Switch to system mode or narrow requested operation scope."
+    },
+    {
+      "code": "BLOCKED-OPERATING-MODE-REQUIRED",
+      "severity": "blocked",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Requested operation violates operating-mode minimum requirements.",
+      "remediation_hint": "Use required mode or reduce operation scope."
+    },
+    {
+      "code": "BLOCKED-STATE-OUTDATED",
+      "severity": "blocked",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Persisted session state is stale for current deterministic contract.",
+      "remediation_hint": "Rehydrate session state from canonical evidence and rerun."
+    },
+    {
+      "code": "BLOCKED-PACK-LOCK-REQUIRED",
+      "severity": "blocked",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Pack lock is required but missing.",
+      "remediation_hint": "Generate deterministic pack lock and retry."
+    },
+    {
+      "code": "BLOCKED-PACK-LOCK-INVALID",
+      "severity": "blocked",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Observed pack lock is invalid.",
+      "remediation_hint": "Regenerate pack lock from canonical manifest set."
+    },
+    {
+      "code": "BLOCKED-PACK-LOCK-MISMATCH",
+      "severity": "blocked",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Observed pack lock hash differs from expected hash.",
+      "remediation_hint": "Sync lockfile with selected packs and engine version."
+    },
+    {
+      "code": "BLOCKED-SURFACE-CONFLICT",
+      "severity": "blocked",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Selected packs define conflicting surface ownership.",
+      "remediation_hint": "Resolve pack conflicts before activation."
+    },
+    {
+      "code": "BLOCKED-RULESET-HASH-MISMATCH",
+      "severity": "blocked",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Observed ruleset hash does not match expected deterministic hash.",
+      "remediation_hint": "Recompute ruleset hash and refresh persisted state."
+    },
+    {
+      "code": "BLOCKED-ACTIVATION-HASH-MISMATCH",
+      "severity": "blocked",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Observed activation hash does not match expected deterministic hash.",
+      "remediation_hint": "Regenerate activation metadata from current canonical inputs."
+    },
+    {
+      "code": "BLOCKED-RELEASE-HYGIENE",
+      "severity": "blocked",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Release hygiene checks failed under strict mode.",
+      "remediation_hint": "Fix release metadata and rerun hygiene selfcheck."
+    },
+    {
+      "code": "BLOCKED-SESSION-STATE-LEGACY-UNSUPPORTED",
+      "severity": "blocked",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Legacy session-state format is unsupported in active rollout phase.",
+      "remediation_hint": "Migrate session state to current schema version."
+    },
+    {
+      "code": "BLOCKED-UNSPECIFIED",
+      "severity": "blocked",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Blocked decision without a more specific canonical reason code.",
+      "remediation_hint": "Inspect deterministic gate evidence and map to specific reason code."
+    },
+    {
+      "code": "BLOCKED-PERSISTENCE-TARGET-DEGENERATE",
+      "severity": "blocked",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Persistence target resolved to forbidden or degenerate location.",
+      "remediation_hint": "Repair persistence path inputs and retry atomic write."
+    },
+    {
+      "code": "BLOCKED-PERSISTENCE-PATH-VIOLATION",
+      "severity": "blocked",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Persistence path violates allowed contract boundaries.",
+      "remediation_hint": "Use canonical workspace/config-root scoped persistence paths."
+    },
+    {
+      "code": "BLOCKED-INSTALL-PRECHECK-MISSING-SOURCE",
+      "severity": "blocked",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Installer precheck failed because required source artifacts are missing.",
+      "remediation_hint": "Restore installer source files or extract a valid release bundle."
+    },
+    {
+      "code": "BLOCKED-INSTALL-VERSION-MISSING",
+      "severity": "blocked",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Installer could not find governance version metadata.",
+      "remediation_hint": "Ensure master.md contains a valid Governance-Version header."
+    },
+    {
+      "code": "BLOCKED-INSTALL-CONFIG-ROOT-INVALID",
+      "severity": "blocked",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Installer config root is invalid or unusable.",
+      "remediation_hint": "Provide a writable canonical config root and rerun installer."
+    },
+    {
+      "code": "BLOCKED-PERMISSION-DENIED",
+      "severity": "blocked",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Host capabilities do not satisfy required permission policy.",
+      "remediation_hint": "Run with required host permissions or narrow target surface."
+    },
+    {
+      "code": "BLOCKED-EXEC-DISALLOWED",
+      "severity": "blocked",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Command execution capability is disallowed for this run.",
+      "remediation_hint": "Enable required execution capability in host policy."
+    },
+    {
+      "code": "REPO-DOC-UNSAFE-DIRECTIVE",
+      "severity": "blocked",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_repo_doc_unsafe.v1.json",
+      "description": "Repo document contains a directive classified as unsafe.",
+      "remediation_hint": "Remove or neutralize unsafe repo-doc directive and rerun."
+    },
+    {
+      "code": "REPO-CONSTRAINT-WIDENING",
+      "severity": "blocked",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_repo_constraint_widening.v1.json",
+      "description": "Repo constraint requests widening of write/command scope beyond policy envelope.",
+      "remediation_hint": "Require explicit widening approval or keep within policy constraints."
+    },
+    {
+      "code": "INTERACTIVE-REQUIRED-IN-PIPELINE",
+      "severity": "blocked",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_interactive_pipeline.v1.json",
+      "description": "Pipeline mode cannot satisfy interactive approval requirements.",
+      "remediation_hint": "Remove interactive requirement or rerun in user/agents_strict mode."
+    },
+    {
+      "code": "PROMPT-BUDGET-EXCEEDED",
+      "severity": "blocked",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_prompt_budget.v1.json",
+      "description": "Prompt budget exceeded for the active mode.",
+      "remediation_hint": "Reduce prompts or increase budget through explicit policy change."
+    },
+    {
+      "code": "PERSIST_CONFIRMATION_REQUIRED",
+      "severity": "blocked",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Persistence action requires explicit operator confirmation evidence.",
+      "remediation_hint": "Record explicit confirmation evidence and retry persistence."
+    },
+    {
+      "code": "PERSIST_CONFIRMATION_INVALID",
+      "severity": "blocked",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Provided persistence confirmation evidence is invalid.",
+      "remediation_hint": "Provide exact confirmation token and retry."
+    },
+    {
+      "code": "PERSIST_DISALLOWED_IN_PIPELINE",
+      "severity": "blocked",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Requested persistence confirmation flow is disallowed in pipeline mode.",
+      "remediation_hint": "Run in user/agents_strict mode with explicit confirmation evidence."
+    },
+    {
+      "code": "PERSIST_PHASE_MISMATCH",
+      "severity": "blocked",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Persistence artifact is not allowed in the current phase.",
+      "remediation_hint": "Move to required phase/gate and retry."
+    },
+    {
+      "code": "PERSIST_GATE_NOT_APPROVED",
+      "severity": "blocked",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Required phase gate approval for persistence is missing.",
+      "remediation_hint": "Complete gate approvals and retry persistence."
+    }
+  ],
+  "audit_events": [
+    {
+      "code": "REPO-CONSTRAINT-UNSUPPORTED",
+      "severity": "not_verified",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_repo_constraint_unsupported.v1.json",
+      "description": "Repo document contains unsupported constraint domains.",
+      "remediation_hint": "Convert unsupported constraint into approved policy domain or ignore as non-authoritative."
+    },
+    {
+      "code": "POLICY-PRECEDENCE-APPLIED",
+      "severity": "ok",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_policy_precedence.v1.json",
+      "description": "Policy precedence resolution has been applied and logged.",
+      "remediation_hint": "Inspect precedence event payload and involved hash refs."
+    },
+    {
+      "code": "WARN-UNMAPPED-AUDIT-REASON",
+      "severity": "warn",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_advisory.v1.json",
+      "description": "Audit reason was unmapped and emitted as warning fallback.",
+      "remediation_hint": "Map audit reason to canonical event or suppress at source."
+    },
+    {
+      "code": "WARN-WORKSPACE-PERSISTENCE",
+      "severity": "warn",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_advisory.v1.json",
+      "description": "Workspace persistence helper reported degraded completion.",
+      "remediation_hint": "Inspect workspace persistence diagnostics and retry."
+    },
+    {
+      "code": "WARN-ENGINE-LIVE-DENIED",
+      "severity": "warn",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_advisory.v1.json",
+      "description": "Live engine mode was denied by deterministic policy gates.",
+      "remediation_hint": "Adjust requested mode or satisfy policy prerequisites."
+    },
+    {
+      "code": "WARN-MODE-DOWNGRADED",
+      "severity": "warn",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_advisory.v1.json",
+      "description": "Requested operating mode was downgraded due to capability constraints.",
+      "remediation_hint": "Grant required host capabilities or run with downgraded expectations."
+    },
+    {
+      "code": "WARN-PERMISSION-LIMITED",
+      "severity": "warn",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_advisory.v1.json",
+      "description": "Execution proceeded under reduced permissions.",
+      "remediation_hint": "Restore missing permissions to recover full deterministic behavior."
+    },
+    {
+      "code": "WARN-SESSION-STATE-LEGACY-COMPAT-MODE",
+      "severity": "warn",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_advisory.v1.json",
+      "description": "Legacy session-state compatibility mode was used.",
+      "remediation_hint": "Migrate session-state artifacts to canonical field set."
+    },
+    {
+      "code": "NOT_VERIFIED-MISSING-EVIDENCE",
+      "severity": "not_verified",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_advisory.v1.json",
+      "description": "Required evidence was missing for full verification.",
+      "remediation_hint": "Provide required evidence and rerun deterministic checks."
+    },
+    {
+      "code": "NOT_VERIFIED-EVIDENCE-STALE",
+      "severity": "not_verified",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_advisory.v1.json",
+      "description": "Required evidence was present but stale.",
+      "remediation_hint": "Refresh stale evidence and rerun verification."
+    }
+  ]
+}
