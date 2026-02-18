@@ -6,7 +6,8 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 import hashlib
 import re
-from typing import Mapping
+from types import SimpleNamespace
+from typing import Any, Mapping
 
 from governance.domain.evidence_policy import extract_verified_claim_evidence_ids
 from governance.domain.integrity import build_activation_hash, build_ruleset_hash
@@ -40,14 +41,8 @@ from governance.domain.reason_codes import (
 )
 from governance.application.ports.gateways import (
     RepoDocEvidence,
-    RepoRootResolutionResult,
     HostAdapter,
-    HostCapabilities,
     OperatingMode,
-    ReasonPayload,
-    WriteTargetPolicyResult,
-    EngineDeviation,
-    EngineRuntimeDecision,
     LiveEnablePolicy,
     canonicalize_reason_payload_failure,
     capability_satisfies_requirement,
@@ -65,7 +60,6 @@ from governance.application.ports.gateways import (
     resolve_surface_policy,
     run_engine_selfcheck,
     summarize_classification,
-    validate_reason_payload,
 )
 
 _VARIABLE_CAPTURE = re.compile(r"^\$\{([A-Z0-9_]+)\}")
@@ -74,9 +68,9 @@ _VARIABLE_CAPTURE = re.compile(r"^\$\{([A-Z0-9_]+)\}")
 class EngineOrchestratorOutput:
     """Deterministic output payload for one orchestrated engine run."""
 
-    repo_context: RepoRootResolutionResult
-    write_policy: WriteTargetPolicyResult
-    runtime: EngineRuntimeDecision
+    repo_context: Any
+    write_policy: Any
+    runtime: Any
     parity: dict[str, str]
     effective_operating_mode: OperatingMode
     capabilities_hash: str
@@ -105,7 +99,7 @@ def _resolve_effective_operating_mode(adapter: HostAdapter, requested: Operating
     return adapter.default_operating_mode()
 
 
-def _has_required_mode_capabilities(mode: OperatingMode, caps: HostCapabilities) -> bool:
+def _has_required_mode_capabilities(mode: OperatingMode, caps: Any) -> bool:
     """Return True when minimal capabilities for the requested mode are satisfied."""
 
     if mode == "user":
@@ -210,14 +204,14 @@ def run_engine_orchestrator(
     requested_mode = _resolve_effective_operating_mode(adapter, requested_operating_mode)
     effective_mode = requested_mode
     mode_downgraded = False
-    mode_deviation: EngineDeviation | None = None
+    mode_deviation: Any | None = None
     mode_reason = REASON_CODE_NONE
 
     if requested_mode != "user" and not _has_required_mode_capabilities(requested_mode, caps):
         effective_mode = "user"
         mode_downgraded = True
         mode_reason = WARN_MODE_DOWNGRADED
-        mode_deviation = EngineDeviation(
+        mode_deviation = SimpleNamespace(
             type="mode_downgrade",
             scope="operating_mode",
             impact=f"requested {requested_mode} mode downgraded to user mode",
@@ -488,7 +482,7 @@ def run_engine_orchestrator(
         parity["reason_code"] = NOT_VERIFIED_MISSING_EVIDENCE
 
     if runtime.deviation is None and mode_deviation is not None:
-        runtime = EngineRuntimeDecision(
+        runtime = runtime.__class__(
             runtime_mode=runtime.runtime_mode,
             state=runtime.state,
             gate=runtime.gate,
@@ -619,49 +613,27 @@ def run_engine_orchestrator(
             ).to_dict()
     except Exception as exc:
         failure_class, failure_detail = canonicalize_reason_payload_failure(exc)
-        fallback = ReasonPayload(
-            status="BLOCKED",
-            reason_code=BLOCKED_ENGINE_SELFCHECK,
-            surface=target_path,
-            signals_used=("reason_payload_builder",),
-            primary_action="Fix reason-payload schema/registry and rerun.",
-            recovery_steps=("Run diagnostics/schema_selfcheck.py and restore schema integrity.",),
-            next_command="show diagnostics",
-            impact="Engine blocked to preserve deterministic governance contracts.",
-            missing_evidence=(),
-            deviation={"failure_class": failure_class, "failure_detail": failure_detail},
-            expiry="none",
-            context={
+        reason_payload = {
+            "status": "BLOCKED",
+            "reason_code": BLOCKED_ENGINE_SELFCHECK,
+            "surface": target_path,
+            "signals_used": ("reason_payload_builder",),
+            "primary_action": "Fix reason-payload schema/registry and rerun.",
+            "recovery_steps": ("Run diagnostics/schema_selfcheck.py and restore schema integrity.",),
+            "next_command": "show diagnostics",
+            "impact": "Engine blocked to preserve deterministic governance contracts.",
+            "missing_evidence": (),
+            "deviation": {
+                "failure_class": failure_class,
+                "failure_detail": failure_detail,
+            },
+            "expiry": "none",
+            "context": {
                 "failure_class": failure_class,
                 "failure_detail": failure_detail,
                 "previous_reason_code": parity["reason_code"],
             },
-        )
-        fallback_errors = validate_reason_payload(fallback)
-        if fallback_errors:
-            reason_payload = {
-                "status": "BLOCKED",
-                "reason_code": BLOCKED_ENGINE_SELFCHECK,
-                "surface": target_path,
-                "signals_used": ("reason_payload_builder",),
-                "primary_action": "Fix reason-payload schema/registry and rerun.",
-                "recovery_steps": ("Run diagnostics/schema_selfcheck.py and restore schema integrity.",),
-                "next_command": "show diagnostics",
-                "impact": "Engine blocked to preserve deterministic governance contracts.",
-                "missing_evidence": (),
-                "deviation": {
-                    "failure_class": "reason_payload_fallback_invalid",
-                    "failure_detail": "contract_violation",
-                },
-                "expiry": "none",
-                "context": {
-                    "failure_class": "reason_payload_fallback_invalid",
-                    "failure_detail": "contract_violation",
-                    "previous_reason_code": parity["reason_code"],
-                },
-            }
-        else:
-            reason_payload = fallback.to_dict()
+        }
 
     return EngineOrchestratorOutput(
         repo_context=repo_context,

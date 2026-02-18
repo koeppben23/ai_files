@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import os
 import sys
 from typing import Any, Literal
 
@@ -12,23 +11,6 @@ from governance.application.dto.phase_next_action_contract import validate_phase
 
 OutputFormat = Literal["auto", "markdown", "plain", "json"]
 ResolvedFormat = Literal["markdown", "plain", "json"]
-
-
-def _supports_markdown_rendering() -> bool:
-    """Return True when host is likely to present markdown readably."""
-
-    forced = os.getenv("GOVERNANCE_MARKDOWN")
-    if isinstance(forced, str):
-        value = forced.strip().lower()
-        if value in {"0", "false", "no", "off"}:
-            return False
-        if value in {"1", "true", "yes", "on"}:
-            return True
-
-    term = os.getenv("TERM", "").strip().lower()
-    if term in {"", "dumb"} and not os.getenv("WT_SESSION"):
-        return False
-    return True
 
 
 def resolve_output_format(
@@ -48,7 +30,7 @@ def resolve_output_format(
 
     # Use plain as the deterministic interactive default so output remains
     # visually stable across hosts (including Windows terminals without markdown rendering).
-    _ = _supports_markdown_rendering() if markdown_supported is None else markdown_supported
+    _ = markdown_supported
     return "plain"
 
 

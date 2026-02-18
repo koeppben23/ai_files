@@ -62,8 +62,6 @@ def test_presentation_layer_does_not_import_infrastructure():
 def test_application_layer_does_not_import_infrastructure():
     application_root = REPO_ROOT / "governance" / "application"
     for file in _iter_python_files(application_root):
-        if "ports" in file.parts:
-            continue
         imports = _imports(file)
         bad = sorted(i for i in imports if i.startswith("governance.infrastructure"))
         assert not bad, f"application imports infrastructure directly: {file}: {bad}"
@@ -81,8 +79,6 @@ def test_application_layer_does_not_import_legacy_engine_context_layers():
         "governance.presentation",
     )
     for file in _iter_python_files(application_root):
-        if "ports" in file.parts:
-            continue
         imports = _imports(file)
         bad = sorted(i for i in imports if any(i.startswith(prefix) for prefix in forbidden_prefixes))
         assert not bad, f"application imports forbidden legacy layers: {file}: {bad}"
