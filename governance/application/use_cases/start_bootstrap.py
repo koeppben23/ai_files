@@ -1,12 +1,20 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import os
 from pathlib import Path
 import re
 from typing import Mapping
 
 from governance.application.repo_identity_service import canonicalize_origin_url, derive_repo_identity
-from governance.context.repo_context_resolver import resolve_repo_root
+
+
+_ROOT_ENV_PRIORITY: tuple[str, ...] = (
+    "OPENCODE_REPO_ROOT",
+    "OPENCODE_WORKSPACE_ROOT",
+    "REPO_ROOT",
+    "GITHUB_WORKSPACE",
+)
 
 
 @dataclass(frozen=True)
@@ -54,23 +62,52 @@ def _read_origin_remote(config_path: Path) -> str | None:
     return None
 
 
+def _normalize_absolute(path: Path) -> Path:
+    return Path(os.path.normpath(os.path.abspath(str(path.expanduser()))))
+
+
+def _is_git_root(path: Path) -> bool:
+    return path.exists() and (path / ".git").exists()
+
+
+def _resolve_repo_context(*, env: Mapping[str, str], cwd: Path) -> tuple[Path, str, bool]:
+    for key in _ROOT_ENV_PRIORITY:
+        value = env.get(key)
+        if not value:
+            continue
+        candidate = _normalize_absolute(Path(value))
+        if _is_git_root(candidate):
+            return candidate, f"env:{key}", True
+
+    current = _normalize_absolute(cwd)
+    if _is_git_root(current):
+        return current, "cwd", True
+
+    walker = current.parent
+    while walker != walker.parent:
+        if _is_git_root(walker):
+            return walker, "cwd-parent-search", True
+        walker = walker.parent
+
+    return current, "cwd", False
+
+
 def evaluate_start_identity(*, env: Mapping[str, str], cwd: Path) -> StartIdentityResult:
-    repo_context = resolve_repo_root(env=env, cwd=cwd, search_parent_git_root=True)
-    if not repo_context.is_git_root:
+    repo_root, discovery_method, is_git_root = _resolve_repo_context(env=env, cwd=cwd)
+    if not is_git_root:
         return StartIdentityResult(
             repo_root=None,
-            discovery_method=repo_context.source,
+            discovery_method=discovery_method,
             repo_fingerprint="",
             workspace_ready=False,
             reason_code="BLOCKED-REPO-IDENTITY-RESOLUTION",
         )
 
-    repo_root = repo_context.repo_root
     git_dir = _resolve_git_dir(repo_root)
     if git_dir is None:
         return StartIdentityResult(
             repo_root=repo_root,
-            discovery_method=repo_context.source,
+            discovery_method=discovery_method,
             repo_fingerprint="",
             workspace_ready=False,
             reason_code="BLOCKED-REPO-IDENTITY-RESOLUTION",
@@ -82,7 +119,7 @@ def evaluate_start_identity(*, env: Mapping[str, str], cwd: Path) -> StartIdenti
     if not identity.fingerprint:
         return StartIdentityResult(
             repo_root=repo_root,
-            discovery_method=repo_context.source,
+            discovery_method=discovery_method,
             repo_fingerprint="",
             workspace_ready=False,
             reason_code="BLOCKED-REPO-IDENTITY-RESOLUTION",
@@ -90,7 +127,7 @@ def evaluate_start_identity(*, env: Mapping[str, str], cwd: Path) -> StartIdenti
 
     return StartIdentityResult(
         repo_root=repo_root,
-        discovery_method=repo_context.source,
+        discovery_method=discovery_method,
         repo_fingerprint=identity.fingerprint,
         workspace_ready=True,
         reason_code="none",

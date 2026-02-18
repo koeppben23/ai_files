@@ -122,7 +122,7 @@ try:
     from governance.application.repo_identity_service import canonicalize_origin_url, derive_repo_identity
     from governance.application.use_cases.start_bootstrap import evaluate_start_identity as _evaluate_start_identity
     from governance.application.use_cases.start_persistence import decide_start_persistence as _decide_start_persistence
-    from governance.application.use_cases.start_persistence import (
+    from governance.infrastructure.start_persistence_store import (
         commit_workspace_identity as _commit_workspace_identity,
         write_unresolved_runtime_context as _write_unresolved_runtime_context,
     )
