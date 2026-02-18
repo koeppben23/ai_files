@@ -407,6 +407,29 @@ def test_bootstrap_identity_skips_workspace_writes_when_fingerprint_missing(
 
 
 @pytest.mark.governance
+def test_windows_like_backup_cwd_never_creates_workspace_or_index(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+):
+    backup = tmp_path / "opencode_backup"
+    backup.mkdir(parents=True, exist_ok=True)
+    monkeypatch.chdir(backup)
+    monkeypatch.delenv("OPENCODE_REPO_ROOT", raising=False)
+    monkeypatch.delenv("OPENCODE_WORKSPACE_ROOT", raising=False)
+    monkeypatch.delenv("REPO_ROOT", raising=False)
+    monkeypatch.delenv("GITHUB_WORKSPACE", raising=False)
+
+    module = _load_module()
+    monkeypatch.setattr(module, "WORKSPACES_HOME", tmp_path / "workspaces")
+    monkeypatch.setattr(module, "COMMANDS_RUNTIME_DIR", tmp_path / "commands")
+    monkeypatch.setattr(module, "BINDING_EVIDENCE_PATH", tmp_path / "commands" / "governance.paths.json")
+
+    assert module.bootstrap_identity_if_needed() is False
+    payload = json.loads(capsys.readouterr().out.strip())
+    assert payload["reason_code"] == "BLOCKED-REPO-IDENTITY-RESOLUTION"
+    assert not any((tmp_path / "workspaces").rglob("*"))
+
+
+@pytest.mark.governance
 def test_bootstrap_identity_uses_python_command_argv_for_subprocess(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ):

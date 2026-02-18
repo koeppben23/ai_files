@@ -3,8 +3,16 @@
 from __future__ import annotations
 
 import json
-import shlex
 from typing import Sequence
+
+
+def _bash_quote(value: str) -> str:
+    if value == "":
+        return "''"
+    safe = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._/:@%+=,"
+    if all(ch in safe for ch in value):
+        return value
+    return "'" + value.replace("'", "'\"'\"'") + "'"
 
 
 def render_command_profiles(argv: Sequence[str]) -> dict[str, object]:
@@ -15,7 +23,7 @@ def render_command_profiles(argv: Sequence[str]) -> dict[str, object]:
             return '"' + value.replace('"', '\\"') + '"'
         return value
 
-    bash = " ".join(shlex.quote(p) for p in parts)
+    bash = " ".join(_bash_quote(p) for p in parts)
     cmd = " ".join(_cmd_quote(p) for p in parts)
     powershell = " ".join(_cmd_quote(p) for p in parts)
     return {
