@@ -23,12 +23,36 @@ if str(SCRIPT_DIR) not in sys.path:
 if str(SCRIPT_DIR.parent) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR.parent))
 
-from governance.engine.path_contract import (
-    PathContractError,
-    canonical_config_root,
-    normalize_absolute_path,
-    normalize_for_fingerprint,
-)
+try:
+    from governance.engine.path_contract import (
+        canonical_config_root,
+        normalize_absolute_path,
+        normalize_for_fingerprint,
+    )
+except Exception:
+    class NotAbsoluteError(Exception):
+        pass
+
+    class WindowsDriveRelativeError(Exception):
+        pass
+
+    def canonical_config_root() -> Path:
+        return Path(os.path.normpath(os.path.abspath(str(Path.home().expanduser() / ".config" / "opencode"))))
+
+    def normalize_absolute_path(raw: str, *, purpose: str) -> Path:
+        token = str(raw or "").strip()
+        if not token:
+            raise NotAbsoluteError(f"{purpose}: empty path")
+        candidate = Path(token).expanduser()
+        if os.name == "nt" and re.match(r"^[A-Za-z]:[^/\\]", token):
+            raise WindowsDriveRelativeError(f"{purpose}: drive-relative path is not allowed")
+        if not candidate.is_absolute():
+            raise NotAbsoluteError(f"{purpose}: path must be absolute")
+        return Path(os.path.normpath(os.path.abspath(str(candidate))))
+
+    def normalize_for_fingerprint(path: Path) -> str:
+        normalized = os.path.normpath(os.path.abspath(str(path.expanduser())))
+        return normalized.replace("\\", "/").casefold()
 
 from command_profiles import render_command_profiles
 
@@ -96,7 +120,7 @@ def _resolve_bound_paths(root: Path) -> tuple[Path, Path, bool, Path | None]:
     try:
         normalized_commands = normalize_absolute_path(commands_raw, purpose="paths.commandsHome")
         normalized_workspaces = normalize_absolute_path(workspaces_raw, purpose="paths.workspacesHome")
-    except PathContractError:
+    except Exception:
         return commands_home, workspaces_home, False, binding_file
     return normalized_commands, normalized_workspaces, True, binding_file
 
@@ -152,7 +176,7 @@ def resolve_repo_context() -> tuple[Path, str]:
             continue
         try:
             path = normalize_absolute_path(str(candidate), purpose=f"env:{key}")
-        except PathContractError:
+        except Exception:
             continue
         if not path.exists():
             continue
