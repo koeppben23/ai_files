@@ -61,6 +61,7 @@ from governance.application.ports.gateways import (
     run_engine_selfcheck,
     summarize_classification,
 )
+from governance.application.use_cases.phase_router import route_phase
 
 _VARIABLE_CAPTURE = re.compile(r"^\$\{([A-Z0-9_]+)\}")
 
@@ -222,6 +223,18 @@ def run_engine_orchestrator(
         adapter=adapter,
         cwd=adapter.cwd(),
     )
+    routed_phase = route_phase(
+        requested_phase=phase,
+        requested_active_gate=active_gate,
+        requested_next_gate_condition=next_gate_condition,
+        session_state_document=session_state_document,
+        repo_is_git_root=repo_context.is_git_root,
+    )
+
+    phase = routed_phase.phase
+    active_gate = routed_phase.active_gate
+    next_gate_condition = routed_phase.next_gate_condition
+
     write_policy = evaluate_target_path(target_path)
     pack_lock_checked = False
     expected_pack_lock_hash = ""

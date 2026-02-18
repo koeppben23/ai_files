@@ -6,6 +6,12 @@ import pytest
 
 from governance.application.use_cases.start_bootstrap import evaluate_start_identity
 from governance.engine.adapters import ExecResult, HostCapabilities
+from governance.infrastructure.wiring import configure_gateway_registry
+
+
+@pytest.fixture(autouse=True)
+def _configure_gateways() -> None:
+    configure_gateway_registry()
 
 
 class StubAdapter:

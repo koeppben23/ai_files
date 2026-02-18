@@ -11,7 +11,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 
 DIAGNOSTICS_ROOT = REPO_ROOT / "diagnostics"
 CRITICAL_FILES = (
-    DIAGNOSTICS_ROOT / "start_preflight_persistence.py",
+    DIAGNOSTICS_ROOT / "start_preflight_readonly.py",
     DIAGNOSTICS_ROOT / "persist_workspace_artifacts.py",
     DIAGNOSTICS_ROOT / "bootstrap_session_state.py",
     DIAGNOSTICS_ROOT / "start_binding_evidence.py",

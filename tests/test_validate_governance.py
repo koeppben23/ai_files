@@ -1838,29 +1838,23 @@ def test_workspace_persistence_quiet_blocked_payload_includes_reason_contract_fi
 
 
 @pytest.mark.governance
-def test_start_md_includes_workspace_persistence_autohook():
+def test_start_md_includes_readonly_preflight_autohook():
     text = "\n".join(
         [
             read_text(REPO_ROOT / "start.md"),
-            read_text(REPO_ROOT / "diagnostics" / "start_preflight_persistence.py"),
+            read_text(REPO_ROOT / "diagnostics" / "start_preflight_readonly.py"),
         ]
     )
     required_tokens = [
-        "Auto-Persistence Hook (OpenCode)",
-        "persist_workspace_artifacts.py",
-        "bootstrap_session_state.py",
-        "--repo-root",
-        "--no-session-update",
+        "Auto-Preflight Hook (OpenCode, Read-only)",
         "workspacePersistenceHook",
+        "read-only-preflight",
         "preflight",
         "available",
         "missing",
         "impact",
         "next",
-        "WARN-WORKSPACE-PERSISTENCE",
-        "identity-bootstrap-fingerprint-missing",
-        "ERR-WORKSPACE-PERSISTENCE-MISSING-IDENTITY-MAP",
-        "BLOCKED-REPO-IDENTITY-RESOLUTION",
+        "read_only",
     ]
     missing = [token for token in required_tokens if token not in text]
     assert not missing, "start.md missing workspace persistence auto-hook tokens:\n" + "\n".join(
@@ -1874,7 +1868,7 @@ def test_start_md_resolves_installed_diagnostics_helpers_not_workspace_relative_
 
     forbidden = [
         "python3 diagnostics/start_binding_evidence.py",
-        "python3 diagnostics/start_preflight_persistence.py",
+        "python3 diagnostics/start_preflight_readonly.py",
     ]
     found_forbidden = [token for token in forbidden if token in text]
     assert not found_forbidden, "start.md still uses workspace-relative diagnostics helper paths:\n" + "\n".join(
@@ -1883,7 +1877,7 @@ def test_start_md_resolves_installed_diagnostics_helpers_not_workspace_relative_
 
     required = [
         "commands'/'diagnostics'/'start_binding_evidence.py",
-        "commands'/'diagnostics'/'start_preflight_persistence.py",
+        "commands'/'diagnostics'/'start_preflight_readonly.py",
         "runpy.run_path",
     ]
     missing = [token for token in required if token not in text]
@@ -1893,11 +1887,11 @@ def test_start_md_resolves_installed_diagnostics_helpers_not_workspace_relative_
 
 
 @pytest.mark.governance
-def test_preflight_command_profiles_use_argv_not_shell_resplit():
-    text = read_text(REPO_ROOT / "diagnostics" / "start_preflight_persistence.py")
-    assert "render_command_profiles(shlex.split(bootstrap_command(" not in text
-    assert "render_command_profiles(shlex.split(persist_command(" not in text
-    assert "render_command_profiles(bootstrap_command_argv(" in text
+def test_preflight_readonly_remains_non_persistence_surface():
+    text = read_text(REPO_ROOT / "diagnostics" / "start_preflight_readonly.py")
+    assert "commit_workspace_identity(" not in text
+    assert "write_unresolved_runtime_context(" not in text
+    assert "workspacePersistenceHook" in text
 
 
 @pytest.mark.governance

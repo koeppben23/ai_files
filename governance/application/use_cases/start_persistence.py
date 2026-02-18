@@ -20,7 +20,7 @@ class StartPersistenceDecision:
 def decide_start_persistence(*, adapter: HostAdapter) -> StartPersistenceDecision:
     identity = evaluate_start_identity(adapter=adapter)
     repo_fp = identity.repo_fingerprint.strip()
-    if identity.repo_root is None:
+    if identity.reason == "repo-root-not-git":
         return StartPersistenceDecision(
             repo_root=None,
             repo_fingerprint="",
@@ -31,12 +31,12 @@ def decide_start_persistence(*, adapter: HostAdapter) -> StartPersistenceDecisio
         )
     if not repo_fp or not identity.workspace_ready:
         return StartPersistenceDecision(
-            repo_root=identity.repo_root,
+            repo_root=None,
             repo_fingerprint="",
             discovery_method=identity.discovery_method,
             workspace_ready=False,
             reason_code="BLOCKED-REPO-IDENTITY-RESOLUTION",
-            reason="identity-bootstrap-fingerprint-missing",
+            reason=identity.reason if identity.reason and identity.reason != "none" else "identity-bootstrap-fingerprint-missing",
         )
     return StartPersistenceDecision(
         repo_root=identity.repo_root,
