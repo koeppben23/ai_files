@@ -10,17 +10,21 @@ import platform
 import shutil
 import subprocess
 import sys
+from typing import Any, cast
 
 from diagnostics.command_profiles import render_command_profiles
-from governance.application.repo_identity_service import canonicalize_origin_url, derive_repo_identity
+from governance.application.use_cases.start_bootstrap import evaluate_start_identity
+from governance.engine.adapters import LocalHostAdapter
+from governance.infrastructure.path_contract import normalize_absolute_path
 from governance.infrastructure.binding_evidence_resolver import BindingEvidenceResolver
+from governance.infrastructure.wiring import configure_gateway_registry
 
 
 READ_ONLY = True
 
 
 def _resolve_bindings() -> tuple[Path, Path, bool, Path | None, str]:
-    resolver = BindingEvidenceResolver(config_root=Path.home() / ".config" / "opencode")
+    resolver = BindingEvidenceResolver()
     evidence = resolver.resolve(mode="user")
     python_command = evidence.python_command.strip() if evidence.python_command else ""
     if not python_command:
@@ -38,32 +42,32 @@ COMMANDS_HOME, WORKSPACES_HOME, BINDING_OK, BINDING_EVIDENCE_PATH, PYTHON_COMMAN
 TOOL_CATALOG = COMMANDS_HOME / "diagnostics" / "tool_requirements.json"
 
 
-def _read_origin_remote(repo_root: Path) -> str | None:
-    config = repo_root / ".git" / "config"
-    if not config.exists():
-        return None
-    in_origin = False
-    for line in config.read_text(encoding="utf-8", errors="replace").splitlines():
-        token = line.strip()
-        if not token:
-            continue
-        if token.startswith("[") and token.endswith("]"):
-            in_origin = token == '[remote "origin"]'
-            continue
-        if not in_origin:
-            continue
-        if token.lower().startswith("url") and "=" in token:
-            return token.split("=", 1)[1].strip() or None
-    return None
+class _RepoIdentityProbeAdapter(LocalHostAdapter):
+    def __init__(self, repo_root: Path):
+        super().__init__()
+        resolved = normalize_absolute_path(str(repo_root), purpose="repo_root")
+        self._repo_root = resolved
+        env = dict(os.environ)
+        env["OPENCODE_REPO_ROOT"] = str(resolved)
+        self._env = env
+
+    def environment(self):
+        return self._env
+
+    def cwd(self) -> Path:
+        return self._repo_root
 
 
 def derive_repo_fingerprint(repo_root: Path) -> str | None:
-    git_dir = repo_root / ".git"
-    if not git_dir.exists():
+    try:
+        normalized_repo_root = normalize_absolute_path(str(repo_root), purpose="repo_root")
+    except Exception:
         return None
-    remote = _read_origin_remote(repo_root)
-    canonical_remote = canonicalize_origin_url(remote) if remote else None
-    return derive_repo_identity(repo_root, canonical_remote=canonical_remote, git_dir=git_dir).fingerprint
+
+    configure_gateway_registry()
+    identity = evaluate_start_identity(adapter=cast(Any, _RepoIdentityProbeAdapter(normalized_repo_root)))
+    fp = (identity.repo_fingerprint or "").strip()
+    return fp or None
 
 
 def _command_available(command: str) -> bool:
@@ -225,7 +229,7 @@ def build_engine_shadow_snapshot() -> dict[str, object]:
         adapter=OpenCodeDesktopAdapter(),
         phase="1.1-Bootstrap",
         active_gate="ReadOnly Preflight",
-        mode="OK",
+        mode="user",
         next_gate_condition="Read-only diagnostics completed",
         gate_key="PREFLIGHT",
         enable_live_engine=False,
