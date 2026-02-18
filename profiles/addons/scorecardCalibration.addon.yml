@@ -13,3 +13,4 @@ capabilities_any:
 signals:
   any:
     - file_glob: "master.md"
+    - file_glob: "profiles/rules.scorecard-calibration.md"

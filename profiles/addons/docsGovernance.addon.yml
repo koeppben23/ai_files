@@ -15,6 +15,5 @@ signals:
     - file_glob: "master.md"
     - file_glob: "SESSION_STATE_SCHEMA.md"
     - file_glob: "rules.md"
-    - file_glob: "README*.md"
     - file_glob: "profiles/rules.*.md"
     - file_glob: "profiles/addons/*.addon.yml"

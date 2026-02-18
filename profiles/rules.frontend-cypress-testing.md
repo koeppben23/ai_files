@@ -37,7 +37,7 @@ When active, maintain:
 
 ## Binding guidance
 
-- Prefer deterministic network control (`cy.intercept`) for changed critical flows.
+- SHOULD use deterministic network control (`cy.intercept`) for changed critical flows.
 - Use stable selectors (`data-testid` or repo standard), not fragile CSS chains.
 - No fixed sleeps (`cy.wait(<ms>)`) except explicitly justified external constraints.
 - Assertions target user-visible outcomes, not implementation internals.

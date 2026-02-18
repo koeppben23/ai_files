@@ -32,7 +32,7 @@ When active, maintain:
 
 ## Tooling (recommended)
 
-Prefer repo-native contract tooling first (Spectral/swagger-cli/oasdiff/generator checks). If unavailable, use conservative structural validation and emit recovery commands.
+SHOULD use repo-native contract tooling first (Spectral/swagger-cli/oasdiff/generator checks). If unavailable, use conservative structural validation and emit recovery commands.
 
 ---
 
@@ -204,7 +204,7 @@ Unless the ticket explicitly requests a breaking change, the assistant MUST pres
 - no removing endpoints or fields
 - no tightening required constraints
 - no changing field types in a non-accepting way
-- prefer additive changes: new optional fields, new endpoints, new enum values with safe defaults
+- SHOULD use additive changes: new optional fields, new endpoints, new enum values with safe defaults
 
 If a breaking change is unavoidable, the assistant MUST:
 - call it out explicitly
@@ -398,6 +398,50 @@ Use this section when a contract workflow is unclear.
 ### Symptom: Breaking-change detection flags changes you think are additive
 - **Likely cause:** required-array changed, enum narrowed, or response code removed.
 - **Action:** ensure changes are additive: only add optional fields, add enum values (not remove), add response codes (not remove). If breaking change is intended, document versioning/migration.
+
+---
+
+## Principal Hardening v2 - OpenAPI Contract Quality (Binding)
+
+### OAPH2-1 Required scorecard criteria (binding)
+
+When OpenAPI contract scope is touched, the scorecard MUST evaluate and evidence:
+
+- `OPENAPI-SPEC-AUTHORITY-IDENTIFIED`
+- `OPENAPI-BACKWARD-COMPAT-VERIFIED`
+- `OPENAPI-IMPLEMENTATION-ALIGNED`
+- `OPENAPI-CONTRACT-CHECK-EVIDENCE`
+- `OPENAPI-ERROR-PATH-PROOF`
+
+Each criterion MUST include an `evidenceRef`.
+
+### OAPH2-2 Required verification workflow (binding)
+
+For changed contract scope, evidence MUST include at least:
+
+- one spec validation pass (linting or structural check)
+- one happy-path controller/integration test aligned to spec
+- one error-path test aligned to spec error responses
+
+If a row is not applicable, explicit rationale is required.
+
+### OAPH2-3 Hard fail criteria (binding)
+
+Gate result MUST be `fail` if any applies:
+
+- no authoritative spec identified for changed contract scope
+- breaking change introduced without explicit approval
+- implementation diverges from spec with no mismatch evidence recorded
+- no contract check evidence for changed API behavior
+
+### OAPH2-4 Warning codes and recovery (binding)
+
+Use status codes below with concrete recovery steps when advisory handling remains non-blocking:
+
+- `WARN-OPENAPI-VERSION-UNKNOWN`
+- `WARN-OPENAPI-MISSING-SPEC`
+- `WARN-OPENAPI-SPEC-IMPLEMENTATION-MISMATCH`
+- `WARN-OPENAPI-BREAKING-CHANGE-UNAPPROVED`
 
 ---
 

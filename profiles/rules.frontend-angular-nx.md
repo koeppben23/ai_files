@@ -119,22 +119,22 @@ Hard fail conditions:
 ## 5. Angular Implementation Standards (Binding)
 
 ### 5.1 Components
-- Keep components focused: presentational vs container responsibilities.
-- Avoid heavy computations and imperative orchestration in templates.
-- Prefer explicit inputs/outputs and typed view models.
+- MUST keep components focused: presentational vs container responsibilities.
+- MUST NOT place heavy computations and imperative orchestration in templates.
+- SHOULD use explicit inputs/outputs and typed view models.
 
 ### 5.2 Change detection and reactivity
 - Preserve repo default strategy.
 - Use deterministic reactive composition; avoid nested subscriptions.
-- Prefer `async` pipe, signals, or repo-standard teardown strategy.
+- SHOULD use `async` pipe, signals, or repo-standard teardown strategy.
 
 ### 5.3 Forms and validation
 - Use repo form pattern (typed reactive forms if present).
 - Validation messages and error states MUST be predictable and testable.
 
 ### 5.4 API boundaries
-- Keep transport DTOs at boundaries; map to view/domain models.
-- Do not leak raw backend payload shapes through UI layers.
+- MUST keep transport DTOs at boundaries; map to view/domain models.
+- MUST NOT leak raw backend payload shapes through UI layers.
 
 ### 5.5 Security and privacy
 - No secrets/PII in logs.
@@ -158,8 +158,8 @@ If no generator exists, do not invent one unless requested.
 
 ### 7.1 Unit/component tests
 - Deterministic and behavior-focused.
-- Prefer user-visible outcomes over implementation internals.
-- Avoid low-signal assertions (`truthy`/snapshot spam).
+- SHOULD test user-visible outcomes over implementation internals.
+- MUST NOT rely on low-signal assertions (`truthy`/snapshot spam).
 
 ### 7.2 Integration tests
 - Cover state transitions, async boundaries, and form/validation behavior.
@@ -260,6 +260,56 @@ BAD:
 3) Symptom: Frontend tests flaky in CI
 - Cause: unbounded waits or missing deterministic network control
 - Fix: use retryable assertions/intercepts, remove fixed sleeps, and verify stable selectors.
+
+---
+
+## Angular-Nx Principal Hardening v2 (Binding)
+
+This section defines Angular+Nx-specific, measurable hardening rules for frontend code and tests.
+
+### ANPH2-1 Risk tiering by touched surface (binding)
+
+The workflow MUST classify changed scope before implementation and gate reviews
+using the canonical tiering contract from `rules.risk-tiering.md` (`TIER-LOW|TIER-MEDIUM|TIER-HIGH`).
+
+`ANPH2` adds Angular-specific obligations per canonical tier; it does not define a parallel tier system.
+
+### ANPH2-2 Mandatory evidence pack per tier (binding)
+
+For `TIER-LOW` (per canonical tiering), evidence requires:
+- build + lint pass
+- changed-module tests
+
+For `TIER-MEDIUM`, evidence requires:
+- build + lint pass
+- changed-module tests
+- at least one negative-path test for changed UI behavior
+
+For `TIER-HIGH`, evidence requires:
+- build + lint pass
+- changed-module tests
+- boundary/contract checks (if codegen present)
+- one deterministic negative-path test and one deterministic async/state-transition test (as applicable)
+
+### ANPH2-3 Hard fail criteria for principal acceptance (binding)
+
+An Angular+Nx change MUST be marked `fail` in P5.3/P6 if any applies:
+
+- `ANPH2-FAIL-01`: no evidenceRef for a critical claim
+- `ANPH2-FAIL-02`: Nx boundary violation detected
+- `ANPH2-FAIL-03`: changed UI behavior without deterministic test coverage
+- `ANPH2-FAIL-04`: generated client code modified by hand
+- `ANPH2-FAIL-05`: flaky async test behavior (fixed sleeps, unbounded waits)
+
+### ANPH2-4 Warning codes and recovery (binding)
+
+Use status codes below with concrete recovery steps:
+
+- `WARN-ANGULAR-BOUNDARY-DRIFT`: Nx tag/project boundary mismatch — recovery: align project tags and imports
+- `WARN-ANGULAR-STATE-PATTERN-MIX`: multiple state patterns detected without repo evidence — recovery: consolidate to repo-standard pattern
+- `WARN-ANGULAR-ASYNC-DETERMINISM`: async test without deterministic control — recovery: add explicit timing/mock control
+
+---
 
 ## Shared Principal Governance Contracts (Binding)
 
