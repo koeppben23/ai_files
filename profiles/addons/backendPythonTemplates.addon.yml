@@ -5,7 +5,7 @@ manifest_version: 1
 path_roots:
   - "."
 owns_surfaces:
-  - "backend_templates"
+  - "backend_python_templates"
 touches_surfaces:
   - "test_framework"
   - "linting"

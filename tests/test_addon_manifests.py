@@ -220,7 +220,7 @@ def test_addon_manifests_define_surface_ownership_and_touches():
     allowed = {
         "api_contract",
         "backend_java_templates",
-        "backend_templates",
+        "backend_python_templates",
         "bdd_framework",
         "build_tooling",
         "db_migration",
@@ -458,10 +458,12 @@ def test_docs_governance_addon_exists_and_is_advisory():
 def test_kafka_addon_capability_gating_is_kafka_specific():
     rel = "profiles/addons/kafka.addon.yml"
     text = read_text(REPO_ROOT / rel)
-    caps = set(_extract_list_block(text.splitlines(), "capabilities_any"))
-    assert "kafka" in caps, f"{rel}: capabilities_any must include kafka"
-    assert "java" not in caps, f"{rel}: capabilities_any must not include java"
-    assert "spring" not in caps, f"{rel}: capabilities_any must not include spring"
+    caps_all = set(_extract_list_block(text.splitlines(), "capabilities_all"))
+    caps_any = set(_extract_list_block(text.splitlines(), "capabilities_any"))
+    assert "kafka" in caps_all, f"{rel}: capabilities_all must include kafka"
+    assert "java" in caps_all, f"{rel}: capabilities_all must include java (Spring-Kafka dependency)"
+    assert not caps_any, f"{rel}: capabilities_any should be empty when capabilities_all is used"
+    assert "spring" not in caps_all, f"{rel}: capabilities_all must not include spring"
 
 
 @pytest.mark.governance

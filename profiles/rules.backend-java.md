@@ -114,7 +114,7 @@ Any statement such as:
 
 is **invalid** unless supported by **BuildEvidence** captured in `SESSION_STATE`.
 
-If evidence is missing, the system must explicitly state:
+If evidence is missing, the system MUST explicitly state:
 > *“Not verified – evidence missing.”*
 
 ---
@@ -184,9 +184,9 @@ If not detectable, the assistant MUST mark the convention as "unknown" and avoid
 
 ### 3.4 Dependency Injection & Immutability (Binding)
 - Constructor injection only (no field injection)
-- Prefer immutable objects: `final` fields, no setter-based mutation unless repo pattern requires it
+- SHOULD use immutable objects: `final` fields, no setter-based mutation unless repo pattern requires it
 - DTOs: prefer `record` if repo already uses records; otherwise follow repo DTO pattern
-- Lombok (if present): avoid `@Data` on domain/entities; prefer explicit methods or focused Lombok annotations
+- Lombok (if present): SHOULD NOT use `@Data` on domain/entities; SHOULD use explicit methods or focused Lombok annotations
 - No `Optional` as parameter/field; `Optional` only for return values (already stated) and enforce it strictly
 
 ### 3.5 Forbidden Patterns (Binding)
@@ -238,9 +238,9 @@ Controllers or API adapters must:
 
 ### 4.6 Persistence Hygiene (Binding if JPA present)
 - Prevent lazy-loading leaks across boundary: controllers must not trigger lazy graph loading
-- Avoid N+1: prefer fetch joins/entity graphs where repo conventionally does
+- SHOULD NOT use N+1 queries: SHOULD use fetch joins/entity graphs where repo conventionally does
 - Use `@Transactional(readOnly = true)` for read use cases when appropriate
-- Consider optimistic locking (`@Version`) for aggregate updates with concurrent writers
+- SHOULD use optimistic locking (`@Version`) for aggregate updates with concurrent writers
 - Map persistence models to boundary DTOs explicitly (no entity exposure)
 
 ---
@@ -280,7 +280,7 @@ If drift detection exists:
 - Centralized error mapping (`@ControllerAdvice`)
 - Stable error codes
 - No internal leakage
-- Prefer RFC7807 if repo uses it
+- SHOULD use RFC7807 if repo uses it
 
 ### 6.1 Error Contract Tests (Binding)
 For any changed public endpoint behavior:
@@ -298,7 +298,7 @@ For any changed public endpoint behavior:
 4) E2E/BDD only if established
 
 ### 7.2 Behavioral Coverage Matrix (Binding)
-For changed public behavior, consider:
+For changed public behavior, the coverage matrix SHOULD include:
 - HAPPY_PATH
 - VALIDATION
 - NOT_FOUND / EMPTY
@@ -316,14 +316,14 @@ For changed public behavior, consider:
 
 Additional determinism requirements (binding):
 - If time is involved, use an injectable `Clock` (or the repo’s existing time abstraction); tests MUST use a fixed clock.
-- Avoid randomly generated identifiers in assertions; use fixed IDs or an injectable ID generator if present.
-- Avoid order-dependent assertions unless order is part of the contract; otherwise sort deterministically.
-- Prefer high-signal assertions (domain outcome, error contract) over snapshot-style full JSON/body comparisons,
+- MUST NOT use randomly generated identifiers in assertions; use fixed IDs or an injectable ID generator if present.
+- MUST NOT use order-dependent assertions unless order is part of the contract; otherwise sort deterministically.
+- SHOULD use high-signal assertions (domain outcome, error contract) over snapshot-style full JSON/body comparisons,
   unless the repo already uses contract snapshots for that boundary.
 
 ### 7.3.1 Test Design Contract (Binding)
 - Use Given/When/Then (or Arrange/Act/Assert) consistently
-- Prefer asserting outputs/state transitions over verifying internal interactions
+- SHOULD assert outputs/state transitions over verifying internal interactions
 - Use parameterized tests for boundary sets (validation ranges, edge cases)
 - Use test data builders/object mothers to keep tests readable and reduce duplication
 - Each extracted business rule must map to at least one named test that proves it
@@ -342,7 +342,7 @@ Templates (binding when loaded):
 - No volatile assertions
 
 ### 7.6 Advanced Test Excellence (Binding when applicable)
-- Mutation testing (if tooling exists, e.g., PIT): changed business logic SHOULD maintain a non-regressing mutation score; if score drops materially, record risk and remediation.
+- Mutation testing (if tooling exists, e.g., PIT): changed business logic SHOULD maintain a non-regressing mutation score; if score drops by more than 5% (absolute) from the pre-change baseline, record risk and remediation plan.
 - Property/invariant tests (if generators exist): for non-trivial domain calculations/transformations, add at least one property-style test.
 - Concurrency tests: for changes touching locking/versioning/retries/idempotency, include at least one deterministic concurrent scenario.
 - Contract-negative tests: for API changes, include at least one malformed/invalid request test proving stable error contract.
@@ -430,7 +430,7 @@ The assistant MUST request/expect evidence appropriate to the change:
 
 ### 12.3 Enforcement Rule
 If evidence is missing:
-- the system must say **“not verified”**
+- the system MUST say **“not verified”**
 - the change cannot pass Phase 5.3 / 6
 
 No exceptions.

@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 ALLOWED_SURFACES = {
     "api_contract",
     "backend_java_templates",
-    "backend_templates",
+    "backend_python_templates",
     "bdd_framework",
     "build_tooling",
     "db_migration",

@@ -9,7 +9,8 @@ owns_surfaces:
 touches_surfaces:
   - "test_framework"
   - "release"
-capabilities_any:
+capabilities_all:
+  - "java"
   - "kafka"
 signals:
   any:

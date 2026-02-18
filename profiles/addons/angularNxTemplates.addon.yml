@@ -9,7 +9,7 @@ owns_surfaces:
 touches_surfaces:
   - "test_framework"
   - "linting"
-capabilities_any:
+capabilities_all:
   - "angular"
   - "nx"
 signals:
