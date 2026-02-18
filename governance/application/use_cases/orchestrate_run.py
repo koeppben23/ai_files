@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime
 import hashlib
 import re
 from types import SimpleNamespace
@@ -227,7 +227,7 @@ def run_engine_orchestrator(
     pack_lock_checked = False
     expected_pack_lock_hash = ""
     observed_pack_lock_hash = ""
-    evaluation_now = now_utc if now_utc is not None else datetime.now(timezone.utc)
+    evaluation_now = now_utc if now_utc is not None else adapter.now_utc()
     verified_claim_evidence, stale_claim_evidence = extract_verified_claim_evidence_ids(
         session_state_document,
         now_utc=evaluation_now,

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -17,6 +18,7 @@ class StubAdapter:
     cwd_path: Path
     caps: HostCapabilities
     default_mode: OperatingMode = "user"
+    now_utc_value: datetime = datetime(2026, 1, 1, tzinfo=timezone.utc)
 
     def capabilities(self) -> HostCapabilities:
         return self.caps
@@ -29,6 +31,9 @@ class StubAdapter:
 
     def default_operating_mode(self) -> OperatingMode:
         return self.default_mode
+
+    def now_utc(self) -> datetime:
+        return self.now_utc_value
 
 
 def _git_root(path: Path) -> Path:
