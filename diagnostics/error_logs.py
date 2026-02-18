@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 from __future__ import annotations
+<<<<<<< HEAD
 import os
+=======
+>>>>>>> e05b3e0 (docs(governance): add invariant checklist references (#199))
 
 import json
 import os
@@ -67,9 +70,12 @@ ERROR_INDEX_FILE_NAME = "errors-index.json"
 def default_config_root() -> Path:
     return canonical_config_root()
 
+<<<<<<< HEAD
 # Harden read-only policy for diagnostics error logging (defense-in-depth)
 READ_ONLY = os.environ.get("OPENCODE_DIAGNOSTICS_ALLOW_WRITE", "") != "1" or os.environ.get("CI", "") not in ("", "0", "false", "no", "off")
 
+=======
+>>>>>>> e05b3e0 (docs(governance): add invariant checklist references (#199))
 
 def _load_json(path: Path) -> dict[str, Any] | None:
     try:
@@ -272,8 +278,11 @@ def write_error_event(
     retention_days: int = DEFAULT_RETENTION_DAYS,
 ) -> Path:
     cfg, workspaces_home = resolve_paths(config_root)
+<<<<<<< HEAD
     if READ_ONLY:
         return Path("/dev/null")  # no-op in read-only mode
+=======
+>>>>>>> e05b3e0 (docs(governance): add invariant checklist references (#199))
     target = _target_log_file(cfg, workspaces_home, repo_fingerprint)
     target.parent.mkdir(parents=True, exist_ok=True)
 
