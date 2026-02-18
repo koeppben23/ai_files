@@ -333,7 +333,7 @@ def test_bootstrap_identity_uses_derived_fingerprint_from_nested_repo(
 
 
 @pytest.mark.governance
-def test_bootstrap_identity_uses_repo_context_index_fingerprint_fallback(
+def test_bootstrap_identity_does_not_use_repo_context_index_fallback(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ):
     non_repo = tmp_path / "outside"
@@ -367,7 +367,7 @@ def test_bootstrap_identity_uses_repo_context_index_fingerprint_fallback(
     )
     monkeypatch.setattr(module, "identity_map_exists", lambda repo_fp: repo_fp == cached_fp)
 
-    assert module.bootstrap_identity_if_needed() is True
+    assert module.bootstrap_identity_if_needed() is False
 
 
 @pytest.mark.governance

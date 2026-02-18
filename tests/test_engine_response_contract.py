@@ -29,7 +29,7 @@ def test_build_strict_response_produces_deterministic_envelope():
             "repo_fingerprint": "repo-123",
             "super_verbose_field": "must-not-appear-by-default",
         },
-        next_action=NextAction(type="manual_step", command="Provide task scope"),
+        next_action=NextAction(type="manual_step", command="Continue bootstrap discovery"),
         snapshot=Snapshot(confidence="High", risk="Low", scope="Bootstrap"),
         reason_payload={"status": "OK", "reason_code": "none"},
     )

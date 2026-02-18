@@ -18,7 +18,7 @@ def contains_ticket_prompt(text: object) -> bool:
     normalized = normalize_text(text)
     if not normalized:
         return False
-    return any(token in normalized for token in ("task/ticket", "ticket", "change request"))
+    return any(token in normalized for token in ("task/ticket", "ticket", "task", "change request"))
 
 
 def contains_scope_prompt(text: object) -> bool:
@@ -102,10 +102,11 @@ def validate_phase_next_action_contract(
     errors: list[str] = []
     phase_token = _extract_phase(session_state)
 
+    if not phase_requires_ticket_input(phase_token):
+        if contains_ticket_prompt(next_text) or contains_ticket_prompt(why_text):
+            errors.append("next_action must not request task/ticket input before phase 4")
+
     if status.strip().lower() != "blocked":
-        if not phase_requires_ticket_input(phase_token):
-            if contains_ticket_prompt(next_text) or contains_ticket_prompt(why_text):
-                errors.append("next_action must not request task/ticket input before phase 4")
 
         errors.extend(_validate_phase_progression_semantics(phase_token, next_text, why_text))
 
