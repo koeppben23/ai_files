@@ -22,11 +22,11 @@ Feature files, step definitions, test-data lifecycle, runner conventions, and Cu
 ## 0. Core principle (binding)
 
 > Feature files are **executable specifications**: stable, readable, and deterministic.
-> Prefer **business semantics** (domain language) over implementation details.
+> SHOULD use **business semantics** (domain language) over implementation details.
 
 **Binding rules:**
 - Write scenarios so that they are deterministic across runs (no sleeps, no time-of-day dependencies, no shared mutable state).
-- Prefer “Given/When/Then” that describe intent and observable outcomes, not internal method names.
+- SHOULD use “Given/When/Then” that describe intent and observable outcomes, not internal method names.
 - If implementation details are unavoidable, isolate them in step definitions, not in feature text.
 
 ---
@@ -66,14 +66,14 @@ The system SHOULD infer versions/capabilities automatically:
 If inference fails:
 - Set `SESSION_STATE.AddonsEvidence.cucumber.status = WARN-CUCUMBER-VERSION-UNKNOWN`
 - Continue using conservative assumptions:
-  - Prefer JUnit Platform patterns (modern default)
-  - Avoid framework-specific APIs that are version-sensitive
+  - SHOULD use JUnit Platform patterns (modern default)
+  - SHOULD NOT use framework-specific APIs that are version-sensitive
 
 ---
 
 ## 3. Phase integration
 
-### Phase 1 — Discovery
+### Phase 2 — Discovery (repo scan)
 When scanning the repo, collect:
 - Feature file roots (`src/test/resources/**/*.feature`)
 - Runner location(s) if present
@@ -83,22 +83,22 @@ When scanning the repo, collect:
 If no feature files are found but dependency suggests Cucumber:
 - Mark `WARN-CUCUMBER-NO-EVIDENCE` and proceed (may be unused dependency).
 
-### Phase 2 — Plan (required output)
+### Phase 2.1 — Plan (required output)
 For any ticket affecting behavior or tests, produce a Cucumber plan section:
 - Which features/scenarios to add or update
 - Step-definition strategy (reuse vs new)
 - Test data strategy (fixtures, seed, cleanup)
 - Execution strategy (tags, profiles, parallelization constraints)
 
-### Phase 3 — Implementation (business + steps)
+### Phase 4 — Implementation (business + steps)
 Implement:
 - Feature updates
 - Step definitions with clean glue boundaries
 - Support utilities (test data builders, API clients, DB helpers) in test scope only
 
-### Phase 5 — Verification
+### Phase 5/6 — Verification
 - Run relevant tagged subset first (fast feedback)
-- Then full Cucumber suite or the repo’s standard test target
+- Then full Cucumber suite or the repo's standard test target
 - If flaky behavior detected, record `WARN-CUCUMBER-FLAKINESS-RISK` with suspected causes and remediation
 
 ---
@@ -106,15 +106,15 @@ Implement:
 ## 4. Conventions (binding)
 
 ### 4.1 Feature file structure
-- Keep each feature focused on one capability (avoid “mega features”).
-- Prefer 3–10 scenarios per feature, grouped by tags if necessary.
+- MUST keep each feature focused on one capability (MUST NOT create “mega features”).
+- SHOULD use 3–10 scenarios per feature, grouped by tags if necessary.
 - Use **Background** sparingly (only for truly shared preconditions).
-- Prefer **Scenario Outline** when it increases coverage without duplicating logic.
+- SHOULD use **Scenario Outline** when it increases coverage without duplicating logic.
 
 ### 4.2 Step phrasing and granularity
 - Steps MUST describe **observable behavior**.
-- Avoid steps that do multiple actions at once.
-- Avoid hard-coded IDs and timestamps; generate or look up deterministically.
+- MUST NOT use steps that do multiple actions at once.
+- MUST NOT hard-code IDs and timestamps; generate or look up deterministically.
 
 **Good:**
 - `Given a person exists with status "ACTIVE"`
@@ -125,7 +125,7 @@ Implement:
 - `Given I call createPersonAndActivateAndPublishKafkaEvent`
 
 ### 4.3 Step definitions (glue) design
-- Keep step definitions thin:
+- MUST keep step definitions thin:
   - parse input
   - call a small test helper/service
   - assert outputs
@@ -145,7 +145,7 @@ Implement:
 ## 5. Determinism and anti-flakiness (binding)
 
 ### 5.1 Time and async behavior
-- Do not use fixed sleeps for async waits.
+- MUST NOT use fixed sleeps for async waits.
 - Use polling with bounded timeout and clear failure messages.
 - Normalize time:
   - Use fixed clocks where available
@@ -191,9 +191,9 @@ Before finishing a ticket:
 
 ## Tooling (recommended)
 
-Prefer repo-native runner commands and tags. If runner tooling is unknown/unavailable, emit WARN + recovery and keep claims `not-verified`.
+SHOULD use repo-native runner commands and tags. If runner tooling is unknown/unavailable, emit WARN + recovery and keep claims `not-verified`.
 
-Prefer repo-native commands if they exist. If not, propose minimal equivalents:
+SHOULD use repo-native commands if they exist. If not, propose minimal equivalents:
 
 **Run all Cucumber tests (Maven, JUnit Platform engine)**
 ```bash
@@ -306,6 +306,51 @@ GOOD:
 
 BAD:
 - Scenario relies on fixed `sleep` timing or shared mutable test records across runs.
+
+---
+
+## Principal Hardening v2 - Cucumber BDD Quality (Binding)
+
+### CBPH2-1 Required scorecard criteria (binding)
+
+When Cucumber/BDD scope is touched, the scorecard MUST evaluate and evidence:
+
+- `CUCUMBER-FEATURE-DETERMINISM`
+- `CUCUMBER-STEP-DOMAIN-ALIGNMENT`
+- `CUCUMBER-DATA-ISOLATION`
+- `CUCUMBER-NO-FIXED-SLEEPS`
+- `CUCUMBER-ERROR-PATH-PROOF`
+
+Each criterion MUST include an `evidenceRef`.
+
+### CBPH2-2 Required test matrix (binding)
+
+For changed behavior, Cucumber evidence MUST include at least:
+
+- one happy-path scenario for changed business capability
+- one representative negative/error scenario
+- one async scenario without fixed sleeps (if async behavior is in scope)
+
+If a row is not applicable, explicit rationale is required.
+
+### CBPH2-3 Hard fail criteria (binding)
+
+Gate result MUST be `fail` if any applies:
+
+- no feature coverage for changed business behavior
+- fixed sleep used as primary synchronization mechanism
+- step definitions encode implementation details instead of domain semantics
+- no deterministic data isolation strategy for integration scenarios
+
+### CBPH2-4 Warning codes and recovery (binding)
+
+Use status codes below with concrete recovery steps when advisory handling remains non-blocking:
+
+- `WARN-CUCUMBER-VERSION-UNKNOWN`
+- `WARN-CUCUMBER-RUNNER-UNKNOWN`
+- `WARN-CUCUMBER-CONVENTIONS-UNKNOWN`
+- `WARN-CUCUMBER-FLAKINESS-RISK`
+- `WARN-CUCUMBER-NO-EVIDENCE`
 
 ---
 

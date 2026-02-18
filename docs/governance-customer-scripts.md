@@ -69,7 +69,7 @@ ${PYTHON_COMMAND} scripts/rulebook_factory.py addon \
   --signal fileGlob="**/*.rs" \
   --domain-scope "Template and API conformance for Rust services" \
   --critical-quality-claim "template outputs are evidence-backed" \
-  --owns-surface backend_templates \
+  --owns-surface backend_python_templates \
   --touches-surface api_contract \
   --capability-any rust
 ```

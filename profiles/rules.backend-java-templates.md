@@ -373,7 +373,7 @@ When using templates above, substitute:
 | `{resources}` | Entity name (plural, lowercase) | `users`, `orders`, `products` |
 | `{RESOURCE}` | Entity name (singular, UPPER_SNAKE) | `USER`, `ORDER`, `PRODUCT` |
 
-Placeholders must be substituted in class names, method names, annotations, and string literals (e.g., request mappings).
+Placeholders MUST be substituted in class names, method names, annotations, and string literals (e.g., request mappings).
 
 **Examples:**
 - Template: `{Resource}Service`
@@ -397,7 +397,7 @@ With templates:
 
 ---
 
-### 15.1 Test Data Builder Pattern (ALWAYS use)
+### 15.1 Test Data Builder Pattern (MUST use)
 
 **Template for Test Data Builder:**
 
@@ -434,9 +434,9 @@ public class {Resource}TestDataBuilder {
 ```
 
 **Binding Rules:**
-- ALWAYS use builders (never `new {Resource}()`)
-- ALWAYS use `FIXED_TIME` (never `Instant.now()`)
-- ALWAYS use `static` factory methods (`given{Resource}()`)
+- MUST use builders (never `new {Resource}()`)
+- MUST use `FIXED_TIME` (never `Instant.now()`)
+- MUST use `static` factory methods (`given{Resource}()`)
 - Test data builders MUST be in `src/test/java` (same package as entity)
 
 ---

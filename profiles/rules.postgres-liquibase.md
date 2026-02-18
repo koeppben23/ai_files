@@ -277,7 +277,7 @@ The following are **forbidden** unless explicitly approved (see Approvals sectio
 
 ### Locking & table rewrites
 
-**Avoid operations that rewrite whole tables or take long exclusive locks.**
+**MUST NOT use operations that rewrite whole tables or take long exclusive locks.**
 
 **High risk / must be reviewed as "online migration":**
 
@@ -333,7 +333,7 @@ The following are **forbidden** unless explicitly approved (see Approvals sectio
 
 ### Constraints
 
-**Prefer:**
+**SHOULD use:**
 1. `ADD CONSTRAINT ... NOT VALID`
 2. Then `VALIDATE CONSTRAINT` in a separate changeset
 
@@ -1147,6 +1147,51 @@ By merging a PR that touches DB migrations, approvers accept operational respons
 - Resolution of all BLOCKED states
 
 Approvers who merge migrations without meeting these criteria accept accountability for operational incidents resulting from the change.
+
+---
+
+## Principal Hardening v2 - Liquibase Migration Safety (Binding)
+
+### PLPH2-1 Required scorecard criteria (binding)
+
+When Liquibase migration scope is touched, the scorecard MUST evaluate and evidence:
+
+- `LIQUIBASE-MIGRATION-SAFETY-VERIFIED`
+- `LIQUIBASE-ROLLBACK-STRATEGY-DOCUMENTED`
+- `LIQUIBASE-PG-VERSION-COMPAT`
+- `LIQUIBASE-CHANGESET-IDEMPOTENCY`
+- `LIQUIBASE-DATA-MIGRATION-PROOF`
+
+Each criterion MUST include an `evidenceRef`.
+
+### PLPH2-2 Required verification workflow (binding)
+
+For changed migration scope, evidence MUST include at least:
+
+- one `liquibase validate` pass
+- one `liquibase updateSQL` review (dry-run verification)
+- one rollback strategy documented or verified
+- one PostgreSQL version compatibility check
+
+If a row is not applicable, explicit rationale is required.
+
+### PLPH2-3 Hard fail criteria (binding)
+
+Gate result MUST be `fail` if any applies:
+
+- migration modifies production data without explicit rollback/backout strategy
+- changeset uses raw SQL without idempotency guard (`IF NOT EXISTS`, `IF EXISTS`)
+- no PostgreSQL version compatibility verification for DDL constructs used
+- migration introduces lock-heavy operations without online-migration safeguards
+
+### PLPH2-4 Warning codes and recovery (binding)
+
+Use status codes below with concrete recovery steps when required-addon handling remains fail-closed:
+
+- `WARN-LIQUIBASE-PG-VERSION-UNKNOWN`
+- `WARN-LIQUIBASE-ROLLBACK-MISSING`
+- `WARN-LIQUIBASE-LOCK-RISK`
+- `WARN-LIQUIBASE-DATA-MIGRATION-UNVERIFIED`
 
 ---
 
