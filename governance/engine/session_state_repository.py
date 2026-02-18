@@ -13,8 +13,6 @@ from datetime import datetime, timezone
 import json
 import os
 from pathlib import Path
-import tempfile
-import time
 from typing import Any
 
 from governance.engine.canonical_json import canonical_json_clone, canonical_json_hash
@@ -24,14 +22,14 @@ from governance.engine.reason_codes import (
     REASON_CODE_NONE,
     WARN_SESSION_STATE_LEGACY_COMPAT_MODE,
 )
-from governance.infrastructure.fs_atomic import is_retryable_replace_error
+from governance.infrastructure.fs_atomic import atomic_write_text
 
 CURRENT_SESSION_STATE_VERSION = 1
 ROLLOUT_PHASE_DUAL_READ = 1
 ROLLOUT_PHASE_ENGINE_ONLY = 2
 ROLLOUT_PHASE_LEGACY_REMOVED = 3
 ATOMIC_REPLACE_RETRIES = 3
-ATOMIC_RETRY_DELAY_SECONDS = 0.05
+ATOMIC_RETRY_DELAY_MILLISECONDS = 50
 ENV_SESSION_STATE_LEGACY_COMPAT_MODE = "GOVERNANCE_SESSION_STATE_LEGACY_COMPAT_MODE"
 
 
@@ -170,7 +168,13 @@ class SessionStateRepository:
         if changed:
             _record_migration_event(canonical, engine_version=self.engine_version, now_utc=now_utc)
         payload = json.dumps(canonical, indent=2, ensure_ascii=True) + "\n"
-        self.last_atomic_replace_retries = _atomic_write_text(self.path, payload)
+        self.last_atomic_replace_retries = atomic_write_text(
+            self.path,
+            payload,
+            newline_lf=True,
+            attempts=ATOMIC_REPLACE_RETRIES,
+            backoff_ms=ATOMIC_RETRY_DELAY_MILLISECONDS,
+        )
 
 
 def session_state_hash(document: dict[str, Any]) -> str:
@@ -284,60 +288,6 @@ def _record_migration_event(
         events = []
         state["migration_events"] = events
     events.append(event)
-
-
-def _fsync_directory(path: Path) -> None:
-    """Best-effort directory fsync for durability after atomic replace."""
-
-    try:
-        fd = os.open(str(path), os.O_RDONLY)
-    except OSError:
-        return
-    try:
-        os.fsync(fd)
-    except OSError:
-        return
-    finally:
-        os.close(fd)
-
-
-def _atomic_write_text(path: Path, payload: str) -> int:
-    """Atomically write text to `path` with bounded replace retries."""
-
-    temp_path: Path | None = None
-    try:
-        with tempfile.NamedTemporaryFile(
-            mode="w",
-            encoding="utf-8",
-            dir=str(path.parent),
-            prefix=path.name + ".",
-            suffix=".tmp",
-            delete=False,
-            newline="\n",
-        ) as tmp:
-            tmp.write(payload)
-            tmp.flush()
-            os.fsync(tmp.fileno())
-            temp_path = Path(tmp.name)
-
-        last_error: OSError | None = None
-        for attempt in range(ATOMIC_REPLACE_RETRIES):
-            try:
-                os.replace(str(temp_path), str(path))
-                _fsync_directory(path.parent)
-                return attempt
-            except OSError as exc:
-                last_error = exc
-                if attempt == ATOMIC_REPLACE_RETRIES - 1 or not is_retryable_replace_error(exc):
-                    raise
-                time.sleep(ATOMIC_RETRY_DELAY_SECONDS)
-
-        if last_error is not None:
-            raise last_error
-        return 0
-    finally:
-        if temp_path is not None and temp_path.exists():
-            temp_path.unlink(missing_ok=True)
 
 
 def migrate_session_state_document(

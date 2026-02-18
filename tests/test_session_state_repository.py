@@ -13,6 +13,7 @@ from governance.engine.reason_codes import (
     WARN_SESSION_STATE_LEGACY_COMPAT_MODE,
 )
 from governance.engine import session_state_repository as session_repo_module
+from governance.infrastructure import fs_atomic
 from governance.engine.session_state_repository import (
     CURRENT_SESSION_STATE_VERSION,
     ENV_SESSION_STATE_LEGACY_COMPAT_MODE,
@@ -83,7 +84,7 @@ def test_session_state_repository_retries_replace_on_transient_error(tmp_path: P
 
     path = tmp_path / "workspaces" / "abc" / "SESSION_STATE.json"
     repo = SessionStateRepository(path)
-    original_replace = session_repo_module.os.replace
+    original_replace = fs_atomic.os.replace
     calls = {"count": 0}
 
     def flaky_replace(src: str, dst: str) -> None:
@@ -92,7 +93,7 @@ def test_session_state_repository_retries_replace_on_transient_error(tmp_path: P
             raise OSError(errno.EACCES, "transient lock")
         original_replace(src, dst)
 
-    monkeypatch.setattr(session_repo_module.os, "replace", flaky_replace)
+    monkeypatch.setattr(fs_atomic.os, "replace", flaky_replace)
     repo.save(_session_state_doc(ruleset_hash="hash-retry"))
     loaded = repo.load()
     assert loaded is not None
