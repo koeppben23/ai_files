@@ -164,6 +164,7 @@ def test_build_strict_response_accepts_phase_2_scope_command():
         status="OK",
         session_state={
             "phase": "2-RepoDiscovery",
+            "workspace_ready": True,
             "activation_hash": "ab" * 32,
             "ruleset_hash": "cd" * 32,
         },

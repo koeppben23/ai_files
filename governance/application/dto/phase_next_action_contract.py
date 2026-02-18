@@ -75,6 +75,18 @@ def _extract_next_gate_condition(session_state: dict[str, object]) -> str:
     return ""
 
 
+def _workspace_ready(session_state: dict[str, object]) -> bool:
+    for key in ("workspace_ready", "WorkspaceReady"):
+        value = session_state.get(key)
+        if isinstance(value, bool):
+            return value
+    for key in ("repo_fingerprint", "RepoFingerprint"):
+        value = session_state.get(key)
+        if isinstance(value, str) and value.strip():
+            return True
+    return False
+
+
 def _openapi_signal_present(session_state: dict[str, object]) -> bool:
     addons = session_state.get("AddonsEvidence")
     if isinstance(addons, dict):
@@ -135,6 +147,9 @@ def validate_phase_next_action_contract(
             errors.append("next_action must align with next_gate_condition scope/working-set requirements")
 
     previous_phase_tokens = _extract_previous_phase_tokens(session_state)
+
+    if phase_token in {"2", "2.1", "3A", "3B-1", "3B-2"} and not _workspace_ready(session_state):
+        errors.append("phase routing requires workspace_ready before phases 2/3")
 
     if phase_token == "2.1" and _openapi_signal_present(session_state):
         if not (contains_any(next_text, ("3a", "phase 3a", "api", "openapi")) or contains_any(why_text, ("3a", "phase 3a", "api", "openapi"))):
