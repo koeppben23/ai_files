@@ -3531,10 +3531,11 @@ def test_error_logger_helper_exists_and_defines_required_log_shape():
 
 
 @pytest.mark.governance
-def test_error_logger_updates_index_and_prunes_old_global_logs(tmp_path: Path):
+def test_error_logger_updates_index_and_prunes_old_global_logs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     module_path = REPO_ROOT / "diagnostics" / "error_logs.py"
     spec = importlib.util.spec_from_file_location("error_logs_mod", module_path)
     assert spec and spec.loader, "Failed to load diagnostics/error_logs.py module spec"
+    monkeypatch.setenv("OPENCODE_DIAGNOSTICS_ALLOW_WRITE", "1")
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
 
@@ -3571,10 +3572,11 @@ def test_error_logger_updates_index_and_prunes_old_global_logs(tmp_path: Path):
 
 
 @pytest.mark.governance
-def test_error_logger_uses_bound_workspaces_home_for_repo_logs(tmp_path: Path):
+def test_error_logger_uses_bound_workspaces_home_for_repo_logs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     module_path = REPO_ROOT / "diagnostics" / "error_logs.py"
     spec = importlib.util.spec_from_file_location("error_logs_mod", module_path)
     assert spec and spec.loader, "Failed to load diagnostics/error_logs.py module spec"
+    monkeypatch.setenv("OPENCODE_DIAGNOSTICS_ALLOW_WRITE", "1")
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
 

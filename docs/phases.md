@@ -1,6 +1,7 @@
 # End-to-End Phases
 
 This document is the detailed phase map that was previously embedded in README.md. If this file and master.md diverge, master.md is authoritative.
+Kernel authority boundary: policy and gate semantics are owned by kernel contracts (`master.md` + engine/use-case enforcement); this file is explanatory and must never widen kernel behavior.
 
 ## Customer View (Short)
 - Phase 1.5 is optional and acts as a bridge between discovery (2.1) and business rules.
