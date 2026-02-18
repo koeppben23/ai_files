@@ -210,7 +210,7 @@ def identity_map_exists(repo_fp: str | None) -> bool:
     return legacy_identity_map().exists()
 
 
-def resolve_repo_context() -> tuple[Path, str]:
+def resolve_repo_context() -> tuple[Path | None, str]:
     def _search_repo_root(start: Path) -> Path | None:
         try:
             candidate = normalize_absolute_path(str(start), purpose="repo_search_start")
@@ -244,10 +244,10 @@ def resolve_repo_context() -> tuple[Path, str]:
     cwd_repo_root = _search_repo_root(cwd_path)
     if cwd_repo_root is not None:
         return cwd_repo_root, "cwd_parent_walk"
-    return cwd_path, "cwd"
+    return None, "cwd"
 
 
-def resolve_repo_root() -> Path:
+def resolve_repo_root() -> Path | None:
     repo_root, _method = resolve_repo_context()
     return repo_root
 
@@ -391,9 +391,13 @@ def _atomic_write_text(path: Path, text: str) -> None:
     atomic_write_text(path, text, newline_lf=True, attempts=attempts, backoff_ms=50)
 
 
-def _write_repo_context_payload(payload: dict, relative_target: str, repo_root: Path) -> bool:
+def _write_repo_context_payload(payload: dict, relative_target: str, repo_root: Path, repo_fingerprint: str) -> bool:
     try:
+        if not repo_fingerprint.strip():
+            return False
         target = WORKSPACES_HOME / relative_target
+        workspace_dir = WORKSPACES_HOME / repo_fingerprint
+        workspace_dir.mkdir(parents=True, exist_ok=True)
         text = json.dumps(payload, indent=2, ensure_ascii=True) + "\n"
         _atomic_write_text(target, text)
         index = _repo_context_index_path(repo_root)
@@ -410,36 +414,20 @@ def _write_repo_context_payload(payload: dict, relative_target: str, repo_root: 
 
 def write_repo_context(repo_root: Path, repo_fingerprint: str, discovery_method: str) -> bool:
     try:
+        fingerprint = str(repo_fingerprint).strip()
+        if not fingerprint:
+            return False
         payload = {
             "schema": "repo-context.v1",
             "session_id": _discover_repo_session_id(),
             "repo_root": _normalize_path_for_fingerprint(repo_root),
-            "repo_fingerprint": repo_fingerprint,
+            "repo_fingerprint": fingerprint,
             "discovered_at": datetime.utcnow().replace(microsecond=0).isoformat() + "Z",
             "discovery_method": discovery_method,
             "binding_evidence_path": str(BINDING_EVIDENCE_PATH) if BINDING_EVIDENCE_PATH is not None else "",
             "commands_home": str(COMMANDS_RUNTIME_DIR),
         }
-        return _write_repo_context_payload(payload, f"{repo_fingerprint}/repo-context.json", repo_root)
-    except Exception:
-        return False
-
-
-def write_unresolved_repo_context(repo_root: Path, discovery_method: str, reason: str) -> bool:
-    try:
-        payload = {
-            "schema": "repo-context.v1",
-            "status": "unresolved",
-            "session_id": _discover_repo_session_id(),
-            "repo_root": _normalize_path_for_fingerprint(repo_root),
-            "repo_fingerprint": "",
-            "discovered_at": datetime.utcnow().replace(microsecond=0).isoformat() + "Z",
-            "discovery_method": discovery_method,
-            "binding_evidence_path": str(BINDING_EVIDENCE_PATH) if BINDING_EVIDENCE_PATH is not None else "",
-            "commands_home": str(COMMANDS_RUNTIME_DIR),
-            "reason": reason,
-        }
-        return _write_repo_context_payload(payload, "_unresolved/repo-context.json", repo_root)
+        return _write_repo_context_payload(payload, f"{fingerprint}/repo-context.json", repo_root, fingerprint)
     except Exception:
         return False
 
@@ -750,20 +738,19 @@ def log_error(reason_key: str, message: str, observed: dict) -> None:
 
 def bootstrap_identity_if_needed() -> bool:
     repo_root, discovery_method = resolve_repo_context()
-    inferred_fp = derive_repo_fingerprint(repo_root) or read_repo_context_fingerprint(repo_root) or pointer_fingerprint()
+    inferred_fp = (
+        (derive_repo_fingerprint(repo_root) or read_repo_context_fingerprint(repo_root))
+        if repo_root is not None
+        else None
+    ) or pointer_fingerprint()
 
-    if inferred_fp:
+    if inferred_fp and repo_root is not None:
         write_repo_context(repo_root, inferred_fp, discovery_method)
 
     if identity_map_exists(inferred_fp):
         return True
 
     if not inferred_fp:
-        write_unresolved_repo_context(
-            repo_root=repo_root,
-            discovery_method=discovery_method,
-            reason="identity-bootstrap-fingerprint-missing",
-        )
         print(
             json.dumps(
                 {
@@ -904,13 +891,12 @@ def run_persistence_hook() -> None:
         return
 
     repo_root, discovery_method = resolve_repo_context()
-    repo_fp = derive_repo_fingerprint(repo_root) or read_repo_context_fingerprint(repo_root) or pointer_fingerprint()
-    if not repo_fp:
-        write_unresolved_repo_context(
-            repo_root=repo_root,
-            discovery_method=discovery_method,
-            reason="repo-root-not-git",
-        )
+    repo_fp = (
+        (derive_repo_fingerprint(repo_root) or read_repo_context_fingerprint(repo_root))
+        if repo_root is not None
+        else None
+    ) or pointer_fingerprint()
+    if repo_root is None or not repo_fp:
         print(
             json.dumps(
                 {

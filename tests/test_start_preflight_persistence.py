@@ -261,6 +261,25 @@ def test_resolve_repo_context_reports_env_discovery_method(
 
 
 @pytest.mark.governance
+def test_resolve_repo_context_returns_none_when_cwd_is_not_repo(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+):
+    non_repo = tmp_path / "backup"
+    non_repo.mkdir(parents=True, exist_ok=True)
+    monkeypatch.chdir(non_repo)
+    monkeypatch.delenv("OPENCODE_REPO_ROOT", raising=False)
+    monkeypatch.delenv("OPENCODE_WORKSPACE_ROOT", raising=False)
+    monkeypatch.delenv("REPO_ROOT", raising=False)
+    monkeypatch.delenv("GITHUB_WORKSPACE", raising=False)
+
+    module = _load_module()
+    resolved_root, method = module.resolve_repo_context()
+
+    assert resolved_root is None
+    assert method == "cwd"
+
+
+@pytest.mark.governance
 def test_bootstrap_identity_uses_derived_fingerprint_from_nested_repo(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ):
@@ -363,7 +382,7 @@ def test_bootstrap_command_argv_splits_python_launcher(monkeypatch: pytest.Monke
 
 
 @pytest.mark.governance
-def test_bootstrap_identity_writes_unresolved_repo_context_when_fingerprint_missing(
+def test_bootstrap_identity_skips_workspace_writes_when_fingerprint_missing(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ):
     non_repo = tmp_path / "not-a-repo"
@@ -383,15 +402,8 @@ def test_bootstrap_identity_writes_unresolved_repo_context_when_fingerprint_miss
     assert module.bootstrap_identity_if_needed() is False
     payload = json.loads(capsys.readouterr().out.strip())
     assert payload["reason"] == "identity-bootstrap-fingerprint-missing"
-
-    unresolved = tmp_path / "workspaces" / "_unresolved" / "repo-context.json"
-    assert unresolved.exists()
-    context = json.loads(unresolved.read_text(encoding="utf-8"))
-    assert context["status"] == "unresolved"
-    assert context["reason"] == "identity-bootstrap-fingerprint-missing"
-    assert context["repo_fingerprint"] == ""
-    index_context = json.loads(module._repo_context_index_path(non_repo).read_text(encoding="utf-8"))
-    assert index_context["status"] == "unresolved"
+    assert not (tmp_path / "workspaces" / "_unresolved").exists()
+    assert not module._repo_context_index_path(non_repo).exists()
 
 
 @pytest.mark.governance

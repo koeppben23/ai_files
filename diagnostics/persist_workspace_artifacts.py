@@ -491,6 +491,14 @@ def _should_write_business_rules_inventory(session: dict[str, Any] | None) -> bo
         if isinstance(status, str) and status.strip().lower() == "write-requested":
             return True
 
+    active_gate = session.get("active_gate")
+    if isinstance(active_gate, str) and "business_rules_persist" in active_gate.strip().lower():
+        return True
+
+    phase = session.get("Phase")
+    if isinstance(phase, str) and phase.strip().upper().startswith("1.5"):
+        return True
+
     return business_rules_scope == "extracted"
 
 
