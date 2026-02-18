@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from governance.engine.adapters import HostCapabilities, OperatingMode
+from governance.engine.adapters import ExecResult, HostCapabilities, OperatingMode
 from governance.engine.orchestrator import run_engine_orchestrator
 
 
@@ -34,6 +34,16 @@ class StubAdapter:
 
     def now_utc(self) -> datetime:
         return self.now_utc_value
+
+    def exec_argv(self, argv, *, cwd=None, timeout_seconds=10):
+        _ = timeout_seconds
+        args = tuple(str(x) for x in argv)
+        run_cwd = Path(cwd) if cwd is not None else self.cwd_path.resolve()
+        if "--show-toplevel" in args:
+            if (run_cwd / ".git").exists():
+                return ExecResult(argv=args, cwd=str(run_cwd), exit_code=0, stdout=str(run_cwd) + "\n", stderr="")
+            return ExecResult(argv=args, cwd=str(run_cwd), exit_code=128, stdout="", stderr="not a git repository")
+        return ExecResult(argv=args, cwd=str(run_cwd), exit_code=0, stdout="", stderr="")
 
 
 def _git_root(path: Path) -> Path:
@@ -164,3 +174,9 @@ def test_engine_orchestrator_e2e_matrix(
     )
     assert out.parity["status"] == expected_status
     assert out.parity["reason_code"] == expected_reason
+    if name == "wrong-cwd-no-git":
+        assert out.repo_context.repo_root is None
+        assert out.repo_context.is_git_root is False
+    if name == "mode-downgrade":
+        assert out.repo_context.repo_root == cwd.resolve()
+        assert out.repo_context.is_git_root is True

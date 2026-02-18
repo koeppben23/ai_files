@@ -3,6 +3,8 @@
 This project uses a formal LLM Governance System
 defined in `master.md`, `rules.md`, and profile rulebooks.
 
+Invariant checklist for regression prevention: `docs/governance_invariants.md`.
+
 
 ## Auto-Binding Evidence (OpenCode)
 
@@ -14,18 +16,15 @@ When executed as an OpenCode command (`/start`), this prompt injects the install
 
 !`${PYTHON_COMMAND} -c "import runpy;from pathlib import Path;root=Path.home()/'.config'/'opencode';runpy.run_path(str(root/'commands'/'diagnostics'/'start_binding_evidence.py'),run_name='__main__')" || python -c "import runpy;from pathlib import Path;root=Path.home()/'.config'/'opencode';runpy.run_path(str(root/'commands'/'diagnostics'/'start_binding_evidence.py'),run_name='__main__')"`
 
-## Auto-Persistence Hook (OpenCode)
+## Auto-Preflight Hook (OpenCode, Read-only)
 
-When available, `/start` triggers a non-destructive workspace persistence backfill helper
-to ensure repo-scoped artifacts exist (`repo-cache.yaml`, `repo-map-digest.md`,
-`decision-pack.md`, `workspace-memory.yaml`) under `${WORKSPACES_HOME}/<repo_fingerprint>/`.
-Fingerprint resolution in the helper follows operational resolution (`--repo-root` first, then global pointer fallback)
-for workspace backfill convenience only.
+When available, `/start` triggers a read-only diagnostics preflight helper.
+This helper MUST NOT write workspace/index/session artifacts.
+Persistence and workspace readiness are kernel-owned only.
 
 Identity evidence boundary (binding):
 - Helper output is operational convenience status only and MUST NOT be treated as canonical repo identity evidence.
 - Repo identity remains governed by `master.md` evidence contracts (host-collected git evidence, operator-provided evidence, or prior validated mapping/session state).
-- If identity evidence is missing for the current repo, workflow MUST remain blocked for identity-gated actions.
 
 Identity discovery order (binding):
 - If host shell tools are available and the current workspace is a git repository, `/start` MUST collect repo identity evidence first via non-destructive git commands (`git remote get-url origin`, `git symbolic-ref refs/remotes/origin/HEAD`, `git rev-parse --show-toplevel`) before requesting operator-provided evidence.
@@ -46,7 +45,7 @@ Bootstrap command preflight (binding):
 - Missing-command diagnostics MUST include `expected_after_fix`, `verify_command`, and `restart_hint`.
 - `restart_hint` MUST be deterministic: `restart_required_if_path_edited` or `no_restart_if_binary_in_existing_path`.
 
-!`${PYTHON_COMMAND} -c "import runpy;from pathlib import Path;root=Path.home()/'.config'/'opencode';runpy.run_path(str(root/'commands'/'diagnostics'/'start_preflight_persistence.py'),run_name='__main__')" || python -c "import runpy;from pathlib import Path;root=Path.home()/'.config'/'opencode';runpy.run_path(str(root/'commands'/'diagnostics'/'start_preflight_persistence.py'),run_name='__main__')"`
+!`${PYTHON_COMMAND} -c "import runpy;from pathlib import Path;root=Path.home()/'.config'/'opencode';runpy.run_path(str(root/'commands'/'diagnostics'/'start_preflight_readonly.py'),run_name='__main__')" || python -c "import runpy;from pathlib import Path;root=Path.home()/'.config'/'opencode';runpy.run_path(str(root/'commands'/'diagnostics'/'start_preflight_readonly.py'),run_name='__main__')"`
 
 Binding evidence semantics (binding):
 - Only an existing installer-owned `${COMMANDS_HOME}/governance.paths.json` qualifies as canonical binding evidence.

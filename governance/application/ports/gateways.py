@@ -8,7 +8,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Callable, Literal, Mapping, Protocol
+from pathlib import Path
+from typing import Any, Callable, Literal, Mapping, Protocol, Sequence
 
 OperatingMode = Literal["user", "system", "pipeline"]
 LiveEnablePolicy = Literal["ci_strict", "always", "never"]
@@ -32,6 +33,7 @@ class HostAdapter(Protocol):
     def environment(self) -> Mapping[str, str]: ...
     def cwd(self): ...
     def now_utc(self) -> datetime: ...
+    def exec_argv(self, argv: Sequence[str], *, cwd: Path | None = None, timeout_seconds: int = 10) -> Any: ...
     def default_operating_mode(self) -> OperatingMode: ...
 
 
@@ -61,6 +63,8 @@ class GatewayRegistry:
     build_reason_payload: Callable[..., Any]
     validate_reason_payload: Callable[..., Any]
     canonicalize_reason_payload_failure: Callable[..., Any]
+    ensure_workspace_ready: Callable[..., Any]
+    load_persist_confirmation_evidence: Callable[..., Any]
 
 
 _REGISTRY: GatewayRegistry | None = None
@@ -143,3 +147,11 @@ def validate_reason_payload(*args: Any, **kwargs: Any) -> Any:
 
 def canonicalize_reason_payload_failure(*args: Any, **kwargs: Any) -> Any:
     return _gateway().canonicalize_reason_payload_failure(*args, **kwargs)
+
+
+def ensure_workspace_ready(*args: Any, **kwargs: Any) -> Any:
+    return _gateway().ensure_workspace_ready(*args, **kwargs)
+
+
+def load_persist_confirmation_evidence(*args: Any, **kwargs: Any) -> Any:
+    return _gateway().load_persist_confirmation_evidence(*args, **kwargs)

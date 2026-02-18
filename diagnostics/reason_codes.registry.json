@@ -197,6 +197,41 @@
       "payload_schema_ref": "diagnostics/schemas/reason_payload_prompt_budget.v1.json",
       "description": "Prompt budget exceeded for the active mode.",
       "remediation_hint": "Reduce prompts or increase budget through explicit policy change."
+    },
+    {
+      "code": "PERSIST_CONFIRMATION_REQUIRED",
+      "severity": "blocked",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Persistence action requires explicit operator confirmation evidence.",
+      "remediation_hint": "Record explicit confirmation evidence and retry persistence."
+    },
+    {
+      "code": "PERSIST_CONFIRMATION_INVALID",
+      "severity": "blocked",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Provided persistence confirmation evidence is invalid.",
+      "remediation_hint": "Provide exact confirmation token and retry."
+    },
+    {
+      "code": "PERSIST_DISALLOWED_IN_PIPELINE",
+      "severity": "blocked",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Requested persistence confirmation flow is disallowed in pipeline mode.",
+      "remediation_hint": "Run in user/agents_strict mode with explicit confirmation evidence."
+    },
+    {
+      "code": "PERSIST_PHASE_MISMATCH",
+      "severity": "blocked",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Persistence artifact is not allowed in the current phase.",
+      "remediation_hint": "Move to required phase/gate and retry."
+    },
+    {
+      "code": "PERSIST_GATE_NOT_APPROVED",
+      "severity": "blocked",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Required phase gate approval for persistence is missing.",
+      "remediation_hint": "Complete gate approvals and retry persistence."
     }
   ],
   "audit_events": [

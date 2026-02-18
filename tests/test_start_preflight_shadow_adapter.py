@@ -9,12 +9,12 @@ from .util import REPO_ROOT, write_governance_paths
 
 
 def _load_module():
-    """Load diagnostics/start_preflight_persistence.py as a module for testing."""
+    """Load diagnostics/start_preflight_readonly.py as a module for testing."""
 
-    script = REPO_ROOT / "diagnostics" / "start_preflight_persistence.py"
-    spec = importlib.util.spec_from_file_location("start_preflight_persistence", script)
+    script = REPO_ROOT / "diagnostics" / "start_preflight_readonly.py"
+    spec = importlib.util.spec_from_file_location("start_preflight_readonly", script)
     if spec is None or spec.loader is None:
-        raise RuntimeError("failed to load start_preflight_persistence module")
+        raise RuntimeError("failed to load start_preflight_readonly module")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module

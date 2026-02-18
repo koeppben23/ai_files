@@ -1,0 +1,279 @@
+#!/usr/bin/env python3
+
+from __future__ import annotations
+
+from datetime import datetime, timezone
+import json
+import os
+from pathlib import Path
+import platform
+import shutil
+import subprocess
+import sys
+
+from diagnostics.command_profiles import render_command_profiles
+from governance.application.repo_identity_service import canonicalize_origin_url, derive_repo_identity
+from governance.infrastructure.binding_evidence_resolver import BindingEvidenceResolver
+
+
+READ_ONLY = True
+
+
+def _resolve_bindings() -> tuple[Path, Path, bool, Path | None, str]:
+    resolver = BindingEvidenceResolver(config_root=Path.home() / ".config" / "opencode")
+    evidence = resolver.resolve(mode="user")
+    python_command = evidence.python_command.strip() if evidence.python_command else ""
+    if not python_command:
+        python_command = "python3"
+    return (
+        evidence.commands_home,
+        evidence.workspaces_home,
+        evidence.binding_ok,
+        evidence.governance_paths_json,
+        python_command,
+    )
+
+
+COMMANDS_HOME, WORKSPACES_HOME, BINDING_OK, BINDING_EVIDENCE_PATH, PYTHON_COMMAND = _resolve_bindings()
+TOOL_CATALOG = COMMANDS_HOME / "diagnostics" / "tool_requirements.json"
+
+
+def _read_origin_remote(repo_root: Path) -> str | None:
+    config = repo_root / ".git" / "config"
+    if not config.exists():
+        return None
+    in_origin = False
+    for line in config.read_text(encoding="utf-8", errors="replace").splitlines():
+        token = line.strip()
+        if not token:
+            continue
+        if token.startswith("[") and token.endswith("]"):
+            in_origin = token == '[remote "origin"]'
+            continue
+        if not in_origin:
+            continue
+        if token.lower().startswith("url") and "=" in token:
+            return token.split("=", 1)[1].strip() or None
+    return None
+
+
+def derive_repo_fingerprint(repo_root: Path) -> str | None:
+    git_dir = repo_root / ".git"
+    if not git_dir.exists():
+        return None
+    remote = _read_origin_remote(repo_root)
+    canonical_remote = canonicalize_origin_url(remote) if remote else None
+    return derive_repo_identity(repo_root, canonical_remote=canonical_remote, git_dir=git_dir).fingerprint
+
+
+def _command_available(command: str) -> bool:
+    if command in {"python", "python3", "py", "py -3"}:
+        return (
+            shutil.which("python") is not None
+            or shutil.which("python3") is not None
+            or shutil.which("py") is not None
+        )
+    token = str(command or "").strip()
+    if not token:
+        return False
+    if token == "py -3":
+        return shutil.which("py") is not None
+    if token == "python -3":
+        return shutil.which("python") is not None
+    return shutil.which(token) is not None
+
+
+def _windows_longpaths_enabled() -> bool | None:
+    if platform.system() != "Windows":
+        return None
+    for scope in ("--system", "--global"):
+        proc = subprocess.run(
+            ["git", "config", scope, "--get", "core.longpaths"],
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        if proc.returncode == 0 and proc.stdout.strip().lower() in {"true", "1", "yes", "on"}:
+            return True
+    return False
+
+
+def _git_safe_directory_issue() -> bool:
+    proc = subprocess.run(
+        ["git", "rev-parse", "--is-inside-work-tree"],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    return "safe.directory" in (proc.stderr or "").lower()
+
+
+def emit_preflight() -> None:
+    required_now: list[str] = []
+    required_later: list[str] = []
+    if TOOL_CATALOG.exists():
+        payload = json.loads(TOOL_CATALOG.read_text(encoding="utf-8"))
+        if isinstance(payload, dict):
+            for item in payload.get("required_now", []):
+                if isinstance(item, dict):
+                    cmd = str(item.get("command") or "").strip().replace("${PYTHON_COMMAND}", PYTHON_COMMAND)
+                    if cmd and cmd not in required_now:
+                        required_now.append(cmd)
+            for item in payload.get("required_later", []):
+                if isinstance(item, dict):
+                    cmd = str(item.get("command") or "").strip().replace("${PYTHON_COMMAND}", PYTHON_COMMAND)
+                    if cmd and cmd not in required_later and cmd not in required_now:
+                        required_later.append(cmd)
+    if not required_now:
+        required_now = ["git", PYTHON_COMMAND]
+
+    available: list[str] = []
+    missing: list[str] = []
+    for command in required_now:
+        if _command_available(command):
+            available.append(command)
+        else:
+            missing.append(command)
+
+    missing_later = [cmd for cmd in required_later if not _command_available(cmd)]
+    block_now = bool(missing) or not BINDING_OK
+    status = "degraded" if block_now else "ok"
+    longpaths = _windows_longpaths_enabled()
+    longpaths_note = "not_applicable" if longpaths is None else ("enabled" if longpaths else "disabled")
+    git_safe_directory = "blocked" if (_command_available("git") and _git_safe_directory_issue()) else "ok"
+
+    payload = {
+        "preflight": status,
+        "observed_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
+        "required_now": required_now,
+        "required_later": required_later,
+        "available": available,
+        "missing": missing,
+        "missing_later": missing_later,
+        "block_now": block_now,
+        "impact": (
+            "required_now commands satisfied; preflight remains read-only"
+            if status == "ok"
+            else "missing required_now commands may block bootstrap gates"
+        ),
+        "next": (
+            "continue bootstrap"
+            if status == "ok"
+            else "install missing required_now tools or provide equivalent operator evidence"
+        ),
+        "binding_evidence": "ok" if BINDING_OK else "invalid",
+        "windows_longpaths": longpaths_note,
+        "git_safe_directory": git_safe_directory,
+        "read_only": READ_ONLY,
+    }
+    print(json.dumps(payload, ensure_ascii=True))
+
+
+def emit_permission_probes() -> None:
+    checks = [
+        {
+            "probe": "fs.read_commands_home",
+            "available": COMMANDS_HOME.exists() and os.access(COMMANDS_HOME, os.R_OK),
+        },
+        {
+            "probe": "exec.allowed",
+            "available": os.access(sys.executable, os.X_OK),
+        },
+        {
+            "probe": "git.available",
+            "available": shutil.which("git") is not None,
+        },
+    ]
+    available = [item["probe"] for item in checks if item["available"]]
+    missing = [item["probe"] for item in checks if not item["available"]]
+    status = "ok" if not missing else "degraded"
+    print(
+        json.dumps(
+            {
+                "permissionProbes": {
+                    "status": status,
+                    "observed_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
+                    "ttl": 0,
+                    "available": available,
+                    "missing": missing,
+                    "impact": "all required runtime capabilities available" if not missing else "some runtime actions may be blocked",
+                    "next": "continue bootstrap" if not missing else "grant required permissions and rerun /start",
+                }
+            },
+            ensure_ascii=True,
+        )
+    )
+
+
+def bootstrap_command_argv(repo_fp: str | None) -> list[str]:
+    repo_value = repo_fp if repo_fp else "<repo_fingerprint>"
+    return [PYTHON_COMMAND, "diagnostics/bootstrap_session_state.py", "--repo-fingerprint", repo_value]
+
+
+def bootstrap_command(repo_fp: str | None) -> str:
+    return str(render_command_profiles(bootstrap_command_argv(repo_fp)).get("bash") or "")
+
+
+def build_engine_shadow_snapshot() -> dict[str, object]:
+    try:
+        from governance.engine.adapters import OpenCodeDesktopAdapter
+        from governance.engine.orchestrator import run_engine_orchestrator
+    except Exception as exc:  # pragma: no cover
+        return {"available": False, "reason": "engine-runtime-module-unavailable", "error": str(exc)}
+
+    output = run_engine_orchestrator(
+        adapter=OpenCodeDesktopAdapter(),
+        phase="1.1-Bootstrap",
+        active_gate="ReadOnly Preflight",
+        mode="OK",
+        next_gate_condition="Read-only diagnostics completed",
+        gate_key="PREFLIGHT",
+        enable_live_engine=False,
+    )
+    return {
+        "available": True,
+        "runtime_mode": output.runtime.runtime_mode,
+        "selfcheck_ok": output.runtime.selfcheck.ok,
+        "repo_context_source": output.repo_context.source,
+        "effective_operating_mode": output.effective_operating_mode,
+        "capabilities_hash": output.capabilities_hash,
+        "mode_downgraded": output.mode_downgraded,
+        "deviation": (
+            {
+                "type": output.runtime.deviation.type,
+                "scope": output.runtime.deviation.scope,
+                "impact": output.runtime.deviation.impact,
+                "recovery": output.runtime.deviation.recovery,
+            }
+            if output.runtime.deviation is not None
+            else None
+        ),
+        "parity": output.parity,
+    }
+
+
+def run_persistence_hook() -> None:
+    print(
+        json.dumps(
+            {
+                "workspacePersistenceHook": "skipped",
+                "reason": "read-only-preflight",
+                "impact": "workspace/index persistence is kernel-owned only",
+                "read_only": True,
+            },
+            ensure_ascii=True,
+        )
+    )
+
+
+def main() -> int:
+    emit_preflight()
+    emit_permission_probes()
+    run_persistence_hook()
+    if os.getenv("OPENCODE_ENGINE_SHADOW_EMIT") == "1":
+        print(json.dumps({"engineRuntimeShadow": build_engine_shadow_snapshot()}, ensure_ascii=True))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

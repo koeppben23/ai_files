@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 import hashlib
+from pathlib import Path
 import re
 from types import SimpleNamespace
 from typing import Any, Mapping
@@ -25,11 +26,18 @@ from governance.domain.reason_codes import (
     BLOCKED_PERMISSION_DENIED,
     BLOCKED_REPO_IDENTITY_RESOLUTION,
     BLOCKED_RELEASE_HYGIENE,
+    BLOCKED_STATE_OUTDATED,
+    BLOCKED_WORKSPACE_PERSISTENCE,
     BLOCKED_RULESET_HASH_MISMATCH,
     BLOCKED_SYSTEM_MODE_REQUIRED,
     INTERACTIVE_REQUIRED_IN_PIPELINE,
     NOT_VERIFIED_EVIDENCE_STALE,
     NOT_VERIFIED_MISSING_EVIDENCE,
+    PERSIST_CONFIRMATION_INVALID,
+    PERSIST_CONFIRMATION_REQUIRED,
+    PERSIST_DISALLOWED_IN_PIPELINE,
+    PERSIST_GATE_NOT_APPROVED,
+    PERSIST_PHASE_MISMATCH,
     POLICY_PRECEDENCE_APPLIED,
     PROMPT_BUDGET_EXCEEDED,
     REPO_CONSTRAINT_UNSUPPORTED,
@@ -45,11 +53,13 @@ from governance.application.ports.gateways import (
     OperatingMode,
     LiveEnablePolicy,
     canonicalize_reason_payload_failure,
+    ensure_workspace_ready,
     capability_satisfies_requirement,
     classify_repo_doc,
     compute_repo_doc_hash,
     build_reason_payload,
     evaluate_interaction_gate,
+    load_persist_confirmation_evidence,
     evaluate_runtime_activation,
     evaluate_target_path,
     golden_parity_fields,
@@ -61,8 +71,160 @@ from governance.application.ports.gateways import (
     run_engine_selfcheck,
     summarize_classification,
 )
+from governance.application.policies.persistence_policy import (
+    ARTIFACT_BUSINESS_RULES,
+    ARTIFACT_DECISION_PACK,
+    ARTIFACT_REPO_CACHE,
+    ARTIFACT_REPO_DIGEST,
+    ARTIFACT_WORKSPACE_MEMORY,
+    PersistencePolicyInput,
+    can_write as can_write_persistence,
+)
+from governance.application.use_cases.phase_router import route_phase
 
 _VARIABLE_CAPTURE = re.compile(r"^\$\{([A-Z0-9_]+)\}")
+_WORKSPACE_MEMORY_CONFIRMATION = "Persist to workspace memory: YES"
+
+
+@dataclass(frozen=True)
+class PersistencePhaseGateDecision:
+    allowed: bool
+    reason_code: str
+    reason: str
+
+
+def _session_state_root(session_state_document: Mapping[str, object] | None) -> Mapping[str, object]:
+    if session_state_document is None:
+        return {}
+    session_state = session_state_document.get("SESSION_STATE")
+    if isinstance(session_state, Mapping):
+        return session_state
+    return session_state_document
+
+
+def _phase_rank(token: str) -> int:
+    rank_map = {
+        "1": 10,
+        "1.1": 11,
+        "1.2": 12,
+        "1.3": 13,
+        "1.5": 15,
+        "2": 20,
+        "2.1": 21,
+        "3A": 30,
+        "3B-1": 31,
+        "3B-2": 32,
+        "4": 40,
+        "5": 50,
+        "5.3": 53,
+        "5.4": 54,
+        "5.5": 55,
+        "5.6": 56,
+        "6": 60,
+    }
+    return rank_map.get(token, -1)
+
+
+def _phase_token(value: str) -> str:
+    from governance.domain.phase_state_machine import normalize_phase_token
+
+    return normalize_phase_token(value)
+
+
+def _phase5_approved(state: Mapping[str, object]) -> bool:
+    for key in ("phase5_approved", "Phase5Approved", "phase_5_approved"):
+        value = state.get(key)
+        if isinstance(value, bool):
+            return value
+    return False
+
+
+def _business_rules_executed(state: Mapping[str, object]) -> bool:
+    for key in ("business_rules_executed", "BusinessRulesExecuted"):
+        value = state.get(key)
+        if isinstance(value, bool):
+            return value
+    return False
+
+
+def _artifact_kind_from_target_variable(target_variable: str | None) -> str | None:
+    if target_variable == "REPO_CACHE_FILE":
+        return ARTIFACT_REPO_CACHE
+    if target_variable == "REPO_DIGEST_FILE":
+        return ARTIFACT_REPO_DIGEST
+    if target_variable == "REPO_DECISION_PACK_FILE":
+        return ARTIFACT_DECISION_PACK
+    if target_variable == "REPO_BUSINESS_RULES_FILE":
+        return ARTIFACT_BUSINESS_RULES
+    if target_variable == "WORKSPACE_MEMORY_FILE":
+        return ARTIFACT_WORKSPACE_MEMORY
+    return None
+
+
+def _confirmation_from_evidence(evidence: Mapping[str, object] | None, *, scope: str, gate: str) -> str:
+    if evidence is None:
+        return ""
+    items = evidence.get("items") if isinstance(evidence, Mapping) else None
+    if not isinstance(items, list):
+        return ""
+    for item in items:
+        if not isinstance(item, Mapping):
+            continue
+        if str(item.get("scope") or "").strip() != scope:
+            continue
+        if str(item.get("gate") or "").strip() != gate:
+            continue
+        value = str(item.get("value") or "").strip()
+        if value:
+            return f"Persist to workspace memory: {value}"
+    return ""
+
+
+def _evaluate_phase_coupled_persistence(
+    *,
+    persistence_write_requested: bool,
+    phase: str,
+    target_variable: str | None,
+    effective_mode: OperatingMode,
+    session_state_document: Mapping[str, object] | None,
+    persist_confirmation_evidence: Mapping[str, object] | None,
+) -> PersistencePhaseGateDecision:
+    if not persistence_write_requested:
+        return PersistencePhaseGateDecision(True, REASON_CODE_NONE, "not-applicable")
+
+    artifact_kind = _artifact_kind_from_target_variable(target_variable)
+    if artifact_kind is None:
+        return PersistencePhaseGateDecision(True, REASON_CODE_NONE, "not-applicable")
+
+    state = _session_state_root(session_state_document)
+    confirmation = _confirmation_from_evidence(
+        persist_confirmation_evidence,
+        scope="workspace-memory",
+        gate="phase5",
+    )
+    decision = can_write_persistence(
+        PersistencePolicyInput(
+            artifact_kind=artifact_kind,
+            phase=phase,
+            mode=effective_mode,
+            gate_approved=_phase5_approved(state),
+            business_rules_executed=_business_rules_executed(state),
+            explicit_confirmation=confirmation,
+        )
+    )
+
+    if decision.allowed:
+        return PersistencePhaseGateDecision(True, REASON_CODE_NONE, "approved")
+
+    return PersistencePhaseGateDecision(False, decision.reason_code, decision.reason)
+
+
+def _is_code_output_request(requested_action: str | None) -> bool:
+    action = (requested_action or "").strip().lower()
+    if not action:
+        return False
+    patterns = ("implement", "write code", "emit code", "generate code", "code output")
+    return any(token in action for token in patterns)
 
 @dataclass(frozen=True)
 class EngineOrchestratorOutput:
@@ -135,6 +297,30 @@ def _extract_repo_identity(session_state_document: Mapping[str, object] | None) 
     return value.strip() if isinstance(value, str) else ""
 
 
+def _with_workspace_ready_gate(
+    session_state_document: Mapping[str, object] | None,
+    *,
+    repo_fingerprint: str,
+    committed: bool,
+) -> Mapping[str, object] | None:
+    if session_state_document is None:
+        state: dict[str, object] = {}
+    else:
+        state = dict(session_state_document)
+    root = state.get("SESSION_STATE")
+    if isinstance(root, Mapping):
+        ss = dict(root)
+        ss["repo_fingerprint"] = repo_fingerprint
+        ss["workspace_ready_gate_committed"] = committed
+        ss["workspace_ready"] = committed
+        state["SESSION_STATE"] = ss
+        return state
+    state["repo_fingerprint"] = repo_fingerprint
+    state["workspace_ready_gate_committed"] = committed
+    state["workspace_ready"] = committed
+    return state
+
+
 def _build_hash_mismatch_diff(
     *,
     observed_ruleset_hash: str | None,
@@ -190,8 +376,15 @@ def run_engine_orchestrator(
     widening_to: str | None = None,
     widening_approved: bool = False,
     requested_action: str | None = None,
+    persistence_write_requested: bool = False,
+    persist_confirmation_evidence_path: str | None = None,
     interactive_required: bool = False,
     why_interactive_required: str | None = None,
+    commit_workspace_ready_gate: bool = False,
+    workspaces_home: str | None = None,
+    session_state_file: str | None = None,
+    session_pointer_file: str | None = None,
+    session_id: str | None = None,
 ) -> EngineOrchestratorOutput:
     """Run one deterministic engine orchestration cycle.
 
@@ -219,10 +412,40 @@ def run_engine_orchestrator(
         )
 
     repo_context = resolve_repo_root(
-        env=adapter.environment(),
+        adapter=adapter,
         cwd=adapter.cwd(),
-        search_parent_git_root=(caps.cwd_trust == "untrusted"),
     )
+
+    if commit_workspace_ready_gate and repo_context.is_git_root and repo_context.repo_root is not None:
+        repo_fingerprint = _extract_repo_identity(session_state_document)
+        if repo_fingerprint and workspaces_home and session_state_file and session_pointer_file:
+            gate = ensure_workspace_ready(
+                workspaces_home=Path(workspaces_home),
+                repo_fingerprint=repo_fingerprint,
+                repo_root=repo_context.repo_root,
+                session_state_file=Path(session_state_file),
+                session_pointer_file=Path(session_pointer_file),
+                session_id=(session_id or hashlib.sha256(str(repo_context.repo_root).encode("utf-8")).hexdigest()[:16]),
+                discovery_method=repo_context.source,
+            )
+            session_state_document = _with_workspace_ready_gate(
+                session_state_document,
+                repo_fingerprint=repo_fingerprint,
+                committed=bool(getattr(gate, "ok", False)),
+            )
+
+    routed_phase = route_phase(
+        requested_phase=phase,
+        requested_active_gate=active_gate,
+        requested_next_gate_condition=next_gate_condition,
+        session_state_document=session_state_document,
+        repo_is_git_root=repo_context.is_git_root,
+    )
+
+    phase = routed_phase.phase
+    active_gate = routed_phase.active_gate
+    next_gate_condition = routed_phase.next_gate_condition
+
     write_policy = evaluate_target_path(target_path)
     pack_lock_checked = False
     expected_pack_lock_hash = ""
@@ -344,6 +567,31 @@ def run_engine_orchestrator(
         mode_reason = REPO_CONSTRAINT_UNSUPPORTED
         if repo_constraint_topic:
             hash_diff["repo_constraint_topic"] = repo_constraint_topic
+    target_variable = _extract_target_variable(target_path)
+    persist_confirmation_evidence = load_persist_confirmation_evidence(
+        evidence_path=(Path(persist_confirmation_evidence_path) if persist_confirmation_evidence_path else None)
+    )
+
+    persistence_phase_gate = _evaluate_phase_coupled_persistence(
+        persistence_write_requested=persistence_write_requested,
+        phase=phase,
+        target_variable=target_variable,
+        effective_mode=effective_mode,
+        session_state_document=session_state_document,
+        persist_confirmation_evidence=persist_confirmation_evidence,
+    )
+
+    if not gate_blocked and not persistence_phase_gate.allowed:
+        gate_blocked = True
+        gate_reason_code = persistence_phase_gate.reason_code
+        if gate_reason_code == PERSIST_DISALLOWED_IN_PIPELINE:
+            interactive_required = True
+            why_interactive_required = persistence_phase_gate.reason
+
+    if not gate_blocked and _phase_token(phase) == "4" and _is_code_output_request(requested_action):
+        gate_blocked = True
+        gate_reason_code = BLOCKED_STATE_OUTDATED
+
     if not caps.fs_read_commands_home:
         gate_blocked = True
         gate_reason_code = BLOCKED_MISSING_BINDING_FILE
@@ -354,7 +602,6 @@ def run_engine_orchestrator(
         gate_blocked = True
         gate_reason_code = write_policy.reason_code
     else:
-        target_variable = _extract_target_variable(target_path)
         if target_variable is not None:
             surface_policy = resolve_surface_policy(target_variable)
             if surface_policy is None:
@@ -516,6 +763,29 @@ def run_engine_orchestrator(
         reason_context = {
             "requested_action": requested_action or "interactive_required",
             "why_interactive_required": why_interactive_required or "approval_required",
+            "pointers": [target_path],
+        }
+    elif parity["reason_code"] in {
+        BLOCKED_WORKSPACE_PERSISTENCE,
+        PERSIST_CONFIRMATION_REQUIRED,
+        PERSIST_CONFIRMATION_INVALID,
+        PERSIST_DISALLOWED_IN_PIPELINE,
+        PERSIST_PHASE_MISMATCH,
+        PERSIST_GATE_NOT_APPROVED,
+    }:
+        reason_context = {
+            "requested_action": requested_action or "none",
+            "required_confirmation": _WORKSPACE_MEMORY_CONFIRMATION,
+            "phase": phase,
+            "active_gate": active_gate,
+            "pointers": [target_path],
+        }
+    elif parity["reason_code"] == BLOCKED_STATE_OUTDATED:
+        reason_context = {
+            "requested_action": requested_action or "none",
+            "phase": phase,
+            "active_gate": active_gate,
+            "policy": "phase-4-planning-only-no-code-output",
             "pointers": [target_path],
         }
     elif parity["reason_code"] == PROMPT_BUDGET_EXCEEDED:

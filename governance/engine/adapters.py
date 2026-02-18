@@ -11,8 +11,9 @@ from datetime import datetime, timezone
 import os
 from pathlib import Path
 import shutil
+import subprocess
 import sys
-from typing import Literal, Mapping, Protocol
+from typing import Literal, Mapping, Protocol, Sequence
 
 from governance.engine.canonical_json import canonical_json_hash
 from governance.infrastructure.binding_evidence_resolver import BindingEvidenceResolver
@@ -116,6 +117,15 @@ class HostCapabilities:
         return canonical_json_hash(asdict(self))
 
 
+@dataclass(frozen=True)
+class ExecResult:
+    argv: tuple[str, ...]
+    cwd: str
+    exit_code: int
+    stdout: str
+    stderr: str
+
+
 class HostAdapter(Protocol):
     """Minimal host interface for Wave B orchestration."""
 
@@ -136,6 +146,17 @@ class HostAdapter(Protocol):
 
     def now_utc(self) -> datetime:
         """Return current UTC timestamp from host clock adapter."""
+
+        ...
+
+    def exec_argv(
+        self,
+        argv: Sequence[str],
+        *,
+        cwd: Path | None = None,
+        timeout_seconds: int = 10,
+    ) -> ExecResult:
+        """Execute argv-first command deterministically (shell=False)."""
 
         ...
 
@@ -180,6 +201,47 @@ class LocalHostAdapter:
 
     def now_utc(self) -> datetime:
         return datetime.now(timezone.utc)
+
+    def exec_argv(
+        self,
+        argv: Sequence[str],
+        *,
+        cwd: Path | None = None,
+        timeout_seconds: int = 10,
+    ) -> ExecResult:
+        args = tuple(str(x) for x in argv)
+        if not args or any(not a.strip() for a in args):
+            return ExecResult(argv=args, cwd=str(cwd or self.cwd()), exit_code=127, stdout="", stderr="empty argv")
+
+        run_cwd = cwd if cwd is not None else self.cwd()
+        run_cwd = normalize_absolute_path(str(run_cwd), purpose="exec.cwd")
+        caps = self.capabilities()
+        if not caps.exec_allowed:
+            return ExecResult(argv=args, cwd=str(run_cwd), exit_code=126, stdout="", stderr="exec disallowed")
+
+        try:
+            proc = subprocess.run(
+                list(args),
+                cwd=str(run_cwd),
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                shell=False,
+                timeout=timeout_seconds,
+                check=False,
+            )
+            return ExecResult(
+                argv=args,
+                cwd=str(run_cwd),
+                exit_code=int(proc.returncode),
+                stdout=(proc.stdout or "").replace("\r\n", "\n"),
+                stderr=(proc.stderr or "").replace("\r\n", "\n"),
+            )
+        except subprocess.TimeoutExpired:
+            return ExecResult(argv=args, cwd=str(run_cwd), exit_code=124, stdout="", stderr="timeout")
+        except Exception as exc:
+            return ExecResult(argv=args, cwd=str(run_cwd), exit_code=127, stdout="", stderr=f"exec error: {exc}")
 
     def default_operating_mode(self) -> OperatingMode:
         return self.operating_mode
@@ -226,6 +288,47 @@ class OpenCodeDesktopAdapter:
 
     def now_utc(self) -> datetime:
         return datetime.now(timezone.utc)
+
+    def exec_argv(
+        self,
+        argv: Sequence[str],
+        *,
+        cwd: Path | None = None,
+        timeout_seconds: int = 10,
+    ) -> ExecResult:
+        args = tuple(str(x) for x in argv)
+        if not args or any(not a.strip() for a in args):
+            return ExecResult(argv=args, cwd=str(cwd or self.cwd()), exit_code=127, stdout="", stderr="empty argv")
+
+        run_cwd = cwd if cwd is not None else self.cwd()
+        run_cwd = normalize_absolute_path(str(run_cwd), purpose="exec.cwd")
+        caps = self.capabilities()
+        if not caps.exec_allowed:
+            return ExecResult(argv=args, cwd=str(run_cwd), exit_code=126, stdout="", stderr="exec disallowed")
+
+        try:
+            proc = subprocess.run(
+                list(args),
+                cwd=str(run_cwd),
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                shell=False,
+                timeout=timeout_seconds,
+                check=False,
+            )
+            return ExecResult(
+                argv=args,
+                cwd=str(run_cwd),
+                exit_code=int(proc.returncode),
+                stdout=(proc.stdout or "").replace("\r\n", "\n"),
+                stderr=(proc.stderr or "").replace("\r\n", "\n"),
+            )
+        except subprocess.TimeoutExpired:
+            return ExecResult(argv=args, cwd=str(run_cwd), exit_code=124, stdout="", stderr="timeout")
+        except Exception as exc:
+            return ExecResult(argv=args, cwd=str(run_cwd), exit_code=127, stdout="", stderr=f"exec error: {exc}")
 
     def default_operating_mode(self) -> OperatingMode:
         # CI has deterministic precedence over host defaults.

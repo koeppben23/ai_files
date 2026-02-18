@@ -7,13 +7,14 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 import json
 from pathlib import Path
+import subprocess
 import sys
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from governance.engine.adapters import HostCapabilities, OperatingMode
+from governance.engine.adapters import ExecResult, HostCapabilities, OperatingMode
 from governance.engine.orchestrator import run_engine_orchestrator
 from governance.render import build_two_layer_output, route_intent
 
@@ -36,6 +37,33 @@ class ScriptAdapter:
 
     def now_utc(self) -> datetime:
         return datetime.now(timezone.utc)
+
+    def exec_argv(self, argv, *, cwd=None, timeout_seconds=10) -> ExecResult:
+        args = tuple(str(x) for x in argv)
+        run_cwd = Path(cwd) if cwd is not None else self.cwd_path.resolve()
+        try:
+            proc = subprocess.run(
+                list(args),
+                cwd=str(run_cwd),
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                shell=False,
+                timeout=timeout_seconds,
+                check=False,
+            )
+            return ExecResult(
+                argv=args,
+                cwd=str(run_cwd),
+                exit_code=int(proc.returncode),
+                stdout=(proc.stdout or "").replace("\r\n", "\n"),
+                stderr=(proc.stderr or "").replace("\r\n", "\n"),
+            )
+        except subprocess.TimeoutExpired:
+            return ExecResult(argv=args, cwd=str(run_cwd), exit_code=124, stdout="", stderr="timeout")
+        except Exception as exc:
+            return ExecResult(argv=args, cwd=str(run_cwd), exit_code=127, stdout="", stderr=f"exec error: {exc}")
 
     def default_operating_mode(self) -> OperatingMode:
         return self.default_mode

@@ -11,6 +11,9 @@ import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
+
+READ_ONLY = True
+
 SCRIPT_DIR = Path(os.path.abspath(__file__)).parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
@@ -90,6 +93,8 @@ def _load_json(path: Path) -> dict | None:
 
 
 def _atomic_write_text(path: Path, content: str) -> None:
+    if READ_ONLY:
+        return
     atomic_write_text(path, content, newline_lf=True, attempts=5, backoff_ms=50)
 
 
@@ -243,6 +248,8 @@ def pointer_payload(repo_fingerprint: str) -> dict:
 
 
 def _upsert_repo_identity_map(workspaces_home: Path, repo_fingerprint: str, repo_name: str) -> str:
+    if READ_ONLY:
+        return "read-only"
     path = workspaces_home / repo_fingerprint / "repo-identity-map.yaml"
     now = datetime.now(timezone.utc).isoformat(timespec="seconds")
 
@@ -331,6 +338,17 @@ def main() -> int:
         )
         print(f"ERROR: {exc}")
         return 2
+
+    if READ_ONLY:
+        print(json.dumps({
+            "status": "ok",
+            "bootstrapSessionState": "skipped",
+            "reason": "diagnostics-read-only",
+            "impact": "workspace/index/session persistence is kernel-owned only",
+            "repoFingerprint": repo_fingerprint,
+            "read_only": True,
+        }, ensure_ascii=True))
+        return 0
 
     repo_state_file = workspaces_home / repo_fingerprint / "SESSION_STATE.json"
     pointer_file = session_pointer_path(config_root)
