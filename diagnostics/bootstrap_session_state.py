@@ -15,6 +15,14 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
+if str(SCRIPT_DIR.parent) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR.parent))
+
+from governance.engine.path_contract import (
+    PathContractError,
+    canonical_config_root,
+    normalize_absolute_path,
+)
 
 try:
     from error_logs import safe_log_error
@@ -26,20 +34,7 @@ from workspace_lock import acquire_workspace_lock
 
 
 def default_config_root() -> Path:
-    return (Path.home().resolve() / ".config" / "opencode").resolve()
-
-
-def _normalize_absolute_path(raw: object) -> Path | None:
-    if not isinstance(raw, str) or not raw.strip():
-        return None
-    candidate = Path(raw).expanduser()
-    token = raw.strip()
-    if os.name == "nt" and re.match(r"^[A-Za-z]:[^/\\]", token):
-        return None
-    if not candidate.is_absolute():
-        return None
-    normalized = os.path.normpath(os.path.abspath(str(candidate)))
-    return Path(normalized)
+    return canonical_config_root()
 
 
 def _load_json(path: Path) -> dict | None:
@@ -97,12 +92,11 @@ def _load_binding_paths(paths_file: Path, *, expected_config_root: Path | None =
         raise ValueError(f"binding evidence invalid: paths.configRoot missing in {paths_file}")
     if not isinstance(workspaces_raw, str) or not workspaces_raw.strip():
         raise ValueError(f"binding evidence invalid: paths.workspacesHome missing in {paths_file}")
-    config_root = _normalize_absolute_path(config_root_raw)
-    _workspaces_home = _normalize_absolute_path(workspaces_raw)
-    if config_root is None:
-        raise ValueError(f"binding evidence invalid: paths.configRoot must be absolute in {paths_file}")
-    if _workspaces_home is None:
-        raise ValueError(f"binding evidence invalid: paths.workspacesHome must be absolute in {paths_file}")
+    try:
+        config_root = normalize_absolute_path(config_root_raw, purpose="paths.configRoot")
+        _workspaces_home = normalize_absolute_path(workspaces_raw, purpose="paths.workspacesHome")
+    except PathContractError as exc:
+        raise ValueError(f"binding evidence invalid: {exc}") from exc
     if expected_config_root is not None and config_root != expected_config_root.resolve():
         raise ValueError("binding evidence mismatch: config root does not match explicit input")
     return config_root, paths
@@ -110,14 +104,14 @@ def _load_binding_paths(paths_file: Path, *, expected_config_root: Path | None =
 
 def resolve_binding_config(explicit: Path | None) -> tuple[Path, dict, Path]:
     if explicit is not None:
-        root = explicit.expanduser().resolve()
+        root = normalize_absolute_path(str(explicit), purpose="explicit_config_root")
         candidate = root / "commands" / "governance.paths.json"
         config_root, paths = _load_binding_paths(candidate, expected_config_root=root)
         return config_root, paths, candidate
 
     env_value = os.environ.get("OPENCODE_CONFIG_ROOT")
     if env_value:
-        root = Path(env_value).expanduser().resolve()
+        root = normalize_absolute_path(env_value, purpose="env:OPENCODE_CONFIG_ROOT")
         candidate = root / "commands" / "governance.paths.json"
         config_root, paths = _load_binding_paths(candidate, expected_config_root=root)
         return config_root, paths, candidate
@@ -129,7 +123,7 @@ def resolve_binding_config(explicit: Path | None) -> tuple[Path, dict, Path]:
         config_root, paths = _load_binding_paths(candidate)
         return config_root, paths, candidate
 
-    fallback = default_config_root().resolve()
+    fallback = default_config_root()
     candidate = fallback / "commands" / "governance.paths.json"
     config_root, paths = _load_binding_paths(candidate, expected_config_root=fallback)
     return config_root, paths, candidate

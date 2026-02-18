@@ -10,17 +10,16 @@ from dataclasses import dataclass, asdict
 import json
 import os
 from pathlib import Path
-import re
 import shutil
 import sys
 from typing import Literal, Mapping, Protocol
 
-try:
-    import pwd
-except Exception:  # pragma: no cover - unavailable on Windows
-    pwd = None
-
 from governance.engine.canonical_json import canonical_json_hash
+from governance.engine.path_contract import (
+    PathContractError,
+    canonical_config_root,
+    normalize_absolute_path,
+)
 
 
 CwdTrustLevel = Literal["trusted", "untrusted"]
@@ -30,9 +29,7 @@ OperatingMode = Literal["user", "system", "pipeline", "agents_strict"]
 def _default_config_root() -> Path:
     """Resolve canonical config root under user home on every OS."""
 
-    if sys.platform == "darwin" and pwd is not None:
-        return Path(pwd.getpwuid(os.getuid()).pw_dir).resolve() / ".config" / "opencode"
-    return (Path.home().resolve() / ".config" / "opencode").resolve()
+    return canonical_config_root()
 
 
 def _resolve_env_path(env: Mapping[str, str], key: str) -> Path | None:
@@ -43,23 +40,10 @@ def _resolve_env_path(env: Mapping[str, str], key: str) -> Path | None:
     raw = str(env.get(key, "")).strip()
     if not raw:
         return None
-    p = Path(raw).expanduser()
-    if not p.is_absolute():
+    try:
+        return normalize_absolute_path(raw, purpose=f"env:{key}")
+    except PathContractError:
         return None
-    return p.resolve()
-
-
-def _normalize_absolute_path(raw: object) -> Path | None:
-    if not isinstance(raw, str) or not raw.strip():
-        return None
-    candidate = Path(raw).expanduser()
-    token = raw.strip()
-    if os.name == "nt" and re.match(r"^[A-Za-z]:[^/\\]", token):
-        return None
-    if not candidate.is_absolute():
-        return None
-    normalized = os.path.normpath(os.path.abspath(str(candidate)))
-    return Path(normalized)
 
 
 def _candidate_config_roots(env: Mapping[str, str]) -> list[Path]:
@@ -128,9 +112,14 @@ def _resolve_bound_paths(config_root: Path, env: Mapping[str, str]) -> tuple[Pat
 
     commands_raw = paths.get("commandsHome")
     workspaces_raw = paths.get("workspacesHome")
-    normalized_commands = _normalize_absolute_path(commands_raw)
-    normalized_workspaces = _normalize_absolute_path(workspaces_raw)
-    if normalized_commands is None or normalized_workspaces is None:
+    if not isinstance(commands_raw, str) or not commands_raw.strip():
+        return commands_home, workspaces_home, False
+    if not isinstance(workspaces_raw, str) or not workspaces_raw.strip():
+        return commands_home, workspaces_home, False
+    try:
+        normalized_commands = normalize_absolute_path(commands_raw, purpose="paths.commandsHome")
+        normalized_workspaces = normalize_absolute_path(workspaces_raw, purpose="paths.workspacesHome")
+    except PathContractError:
         return commands_home, workspaces_home, False
     return normalized_commands, normalized_workspaces, True
 
