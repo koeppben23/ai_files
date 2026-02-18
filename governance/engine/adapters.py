@@ -7,6 +7,7 @@ interface that the engine can consume without direct host branching.
 from __future__ import annotations
 
 from dataclasses import dataclass, asdict
+from datetime import datetime, timezone
 import os
 from pathlib import Path
 import shutil
@@ -133,6 +134,11 @@ class HostAdapter(Protocol):
 
         ...
 
+    def now_utc(self) -> datetime:
+        """Return current UTC timestamp from host clock adapter."""
+
+        ...
+
     def default_operating_mode(self) -> OperatingMode:
         """Return adapter default operating mode when no higher signal exists."""
 
@@ -171,6 +177,9 @@ class LocalHostAdapter:
 
     def cwd(self) -> Path:
         return normalize_absolute_path(str(Path.cwd()), purpose="cwd")
+
+    def now_utc(self) -> datetime:
+        return datetime.now(timezone.utc)
 
     def default_operating_mode(self) -> OperatingMode:
         return self.operating_mode
@@ -214,6 +223,9 @@ class OpenCodeDesktopAdapter:
 
     def cwd(self) -> Path:
         return normalize_absolute_path(str(Path.cwd()), purpose="cwd")
+
+    def now_utc(self) -> datetime:
+        return datetime.now(timezone.utc)
 
     def default_operating_mode(self) -> OperatingMode:
         # CI has deterministic precedence over host defaults.

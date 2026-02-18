@@ -70,6 +70,8 @@ def _forbidden_calls(path: Path) -> list[str]:
         if isinstance(func, ast.Attribute):
             if isinstance(func.value, ast.Name) and func.value.id == "subprocess":
                 violations.append(f"L{lineno}:subprocess.{func.attr}")
+            if isinstance(func.value, ast.Name) and func.value.id == "datetime" and func.attr in {"now", "utcnow"}:
+                violations.append(f"L{lineno}:datetime.{func.attr}")
             if isinstance(func.value, ast.Name) and func.value.id == "Path" and func.attr == "cwd":
                 violations.append(f"L{lineno}:Path.cwd")
             if func.attr in {"write_text", "resolve"}:
