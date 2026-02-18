@@ -16,6 +16,8 @@ _IO_MODULE_PREFIXES = {
     "pathlib",
 }
 
+_PATH_RESOLVE_ALLOWLIST: set[str] = set()
+
 
 def _iter_python_files(root: Path):
     if not root.exists():
@@ -84,6 +86,21 @@ def _forbidden_calls(path: Path) -> list[str]:
                 violations.append(f"L{lineno}:os.environ")
 
     return sorted(set(violations))
+
+
+def _path_resolve_calls(path: Path) -> list[str]:
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    hits: list[str] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        func = node.func
+        if isinstance(func, ast.Attribute) and func.attr == "resolve":
+            if isinstance(func.value, ast.Name) and func.value.id.endswith("resolver"):
+                continue
+            lineno = getattr(node, "lineno", 0)
+            hits.append(f"L{lineno}:Path.resolve")
+    return sorted(set(hits))
 
 
 @pytest.mark.governance
@@ -162,3 +179,18 @@ def test_domain_and_application_layers_forbid_side_effect_calls():
                 violations.append(f"{file}: {bad_calls}")
 
     assert not violations, "forbidden side-effect calls detected in domain/application:\n" + "\n".join(violations)
+
+
+@pytest.mark.governance
+def test_governance_path_resolve_calls_are_allowlisted():
+    governance_root = REPO_ROOT / "governance"
+    violations: list[str] = []
+    for file in _iter_python_files(governance_root):
+        rel = file.relative_to(REPO_ROOT).as_posix()
+        if rel in _PATH_RESOLVE_ALLOWLIST:
+            continue
+        hits = _path_resolve_calls(file)
+        if hits:
+            violations.append(f"{file}: {hits}")
+
+    assert not violations, "Path.resolve usage must be explicitly allowlisted:\n" + "\n".join(violations)
