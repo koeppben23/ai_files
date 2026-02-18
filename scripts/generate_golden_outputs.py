@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 from dataclasses import dataclass
+from datetime import datetime, timezone
 import json
 from pathlib import Path
 import sys
@@ -32,6 +33,9 @@ class ScriptAdapter:
 
     def cwd(self) -> Path:
         return self.cwd_path.resolve()
+
+    def now_utc(self) -> datetime:
+        return datetime.now(timezone.utc)
 
     def default_operating_mode(self) -> OperatingMode:
         return self.default_mode
