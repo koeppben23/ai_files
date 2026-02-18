@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
 
 from governance.domain.phase_state_machine import normalize_phase_token
 from governance.domain.reason_codes import (
@@ -9,7 +8,6 @@ from governance.domain.reason_codes import (
     PERSIST_CONFIRMATION_REQUIRED,
     PERSIST_DISALLOWED_IN_PIPELINE,
     PERSIST_GATE_NOT_APPROVED,
-    PERSIST_ARTIFACT_UNKNOWN,
     PERSIST_PHASE_MISMATCH,
     REASON_CODE_NONE,
 )
@@ -81,9 +79,4 @@ def can_write(inputs: PersistencePolicyInput) -> PersistencePolicyDecision:
         return PersistencePolicyDecision(True, REASON_CODE_NONE, "allowed")
 
     # Fail-closed: unknown artifacts must not become implicitly "allowed".
-    # This prevents drift via typos/new artifact kinds bypassing policy.
-    return PersistencePolicyDecision(
-        False,
-        PERSIST_ARTIFACT_UNKNOWN,
-        "unknown-artifact-kind",
-    )
+    return PersistencePolicyDecision(False, PERSIST_PHASE_MISMATCH, "unknown-artifact-kind")
