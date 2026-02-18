@@ -25,3 +25,29 @@ def test_phase_contract_accepts_phase15_after_phase21():
         why_text="Phase 1.5 completed after decision pack",
     )
     assert errors == ()
+
+
+def test_phase_contract_requires_phase3a_when_openapi_signal_present():
+    errors = validate_phase_next_action_contract(
+        status="normal",
+        session_state={
+            "phase": "2.1-DecisionPack",
+            "repo_capabilities": ["openapi"],
+        },
+        next_text="Proceed to Phase 4 planning",
+        why_text="Decision pack ready",
+    )
+    assert "phase 2.1 with openapi signal must route to phase 3A api validation" in errors
+
+
+def test_phase_contract_accepts_phase3a_route_when_openapi_signal_present():
+    errors = validate_phase_next_action_contract(
+        status="normal",
+        session_state={
+            "phase": "2.1-DecisionPack",
+            "repo_capabilities": ["openapi"],
+        },
+        next_text="Proceed to Phase 3A API logical validation",
+        why_text="OpenAPI capability requires Phase 3A",
+    )
+    assert errors == ()

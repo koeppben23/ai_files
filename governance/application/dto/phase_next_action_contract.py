@@ -75,6 +75,24 @@ def _extract_next_gate_condition(session_state: dict[str, object]) -> str:
     return ""
 
 
+def _openapi_signal_present(session_state: dict[str, object]) -> bool:
+    addons = session_state.get("AddonsEvidence")
+    if isinstance(addons, dict):
+        openapi = addons.get("openapi")
+        if isinstance(openapi, dict) and openapi.get("detected") is True:
+            return True
+        if openapi is True:
+            return True
+
+    capabilities = session_state.get("repo_capabilities")
+    if isinstance(capabilities, list):
+        normalized = {str(item).strip().lower() for item in capabilities}
+        if "openapi" in normalized:
+            return True
+
+    return False
+
+
 def _validate_phase_progression_semantics(phase_token: str, next_text: object, why_text: object) -> tuple[str, ...]:
     expectations: dict[str, tuple[str, ...]] = {
         "2": ("discovery", "decision pack", "2.1", "working set", "component scope", "scope"),
@@ -117,6 +135,11 @@ def validate_phase_next_action_contract(
             errors.append("next_action must align with next_gate_condition scope/working-set requirements")
 
     previous_phase_tokens = _extract_previous_phase_tokens(session_state)
+
+    if phase_token == "2.1" and _openapi_signal_present(session_state):
+        if not (contains_any(next_text, ("3a", "phase 3a", "api", "openapi")) or contains_any(why_text, ("3a", "phase 3a", "api", "openapi"))):
+            errors.append("phase 2.1 with openapi signal must route to phase 3A api validation")
+
     if phase_token == "1.5":
         if previous_phase_tokens:
             immediate_prev = previous_phase_tokens[0]
