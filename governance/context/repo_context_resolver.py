@@ -69,7 +69,7 @@ def _search_parent_git_root(start: Path, *, max_parent_levels: int) -> Path | No
 
 def resolve_repo_root(
     *,
-    env: Mapping[str, str] | None = None,
+    env: Mapping[str, str],
     cwd: Path | None = None,
     search_parent_git_root: bool = False,
     max_parent_levels: int = 8,
@@ -85,9 +85,8 @@ def resolve_repo_root(
       walk parents up to `max_parent_levels`.
     """
 
-    env_view = env if env is not None else os.environ
     for key in _ROOT_ENV_PRIORITY:
-        candidate = env_view.get(key)
+        candidate = env.get(key)
         if not candidate:
             continue
         resolved = _resolve_absolute_env_candidate(candidate)

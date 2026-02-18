@@ -148,7 +148,7 @@ class LocalHostAdapter:
 
     def capabilities(self) -> HostCapabilities:
         env = self.environment()
-        config_root = _default_config_root().resolve()
+        config_root = normalize_absolute_path(str(_default_config_root()), purpose="default_config_root")
         commands_home, workspaces_home, binding_ok = _resolve_bound_paths(config_root, env, self.default_operating_mode())
         # Fail-closed: ignore relative OPENCODE_REPO_ROOT to avoid CWD-dependent resolution
         repo_root = _resolve_env_path(env, "OPENCODE_REPO_ROOT") or self.cwd()
@@ -170,7 +170,7 @@ class LocalHostAdapter:
         return os.environ
 
     def cwd(self) -> Path:
-        return Path.cwd().resolve()
+        return normalize_absolute_path(str(Path.cwd()), purpose="cwd")
 
     def default_operating_mode(self) -> OperatingMode:
         return self.operating_mode
@@ -190,7 +190,7 @@ class OpenCodeDesktopAdapter:
 
     def capabilities(self) -> HostCapabilities:
         env = self.environment()
-        config_root = _default_config_root().resolve()
+        config_root = normalize_absolute_path(str(_default_config_root()), purpose="default_config_root")
         commands_home, workspaces_home, binding_ok = _resolve_bound_paths(config_root, env, self.default_operating_mode())
         # Fail-closed: ignore relative OPENCODE_REPO_ROOT to avoid CWD-dependent resolution
         repo_root = _resolve_env_path(env, "OPENCODE_REPO_ROOT") or self.cwd()
@@ -213,7 +213,7 @@ class OpenCodeDesktopAdapter:
         return os.environ
 
     def cwd(self) -> Path:
-        return Path.cwd().resolve()
+        return normalize_absolute_path(str(Path.cwd()), purpose="cwd")
 
     def default_operating_mode(self) -> OperatingMode:
         # CI has deterministic precedence over host defaults.
