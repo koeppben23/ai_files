@@ -36,11 +36,13 @@ def test_build_strict_response_produces_deterministic_envelope():
     payload = cast(dict[str, Any], payload)
     assert payload["mode"] == "STRICT"
     assert payload["status"] == "OK"
+    assert payload["decision_outcome"] == "ALLOW"
     assert payload["next_action"]["type"] == "manual_step"
     assert payload["snapshot"]["confidence"] == "High"
     assert set(payload["session_state"].keys()) == set(SESSION_SNAPSHOT_WHITELIST)
     assert payload["session_state"]["activation_hash"] == "ab" * 32
     assert payload["session_state"]["active_gate.status"] == "OK"
+    assert payload["session_state"]["active_gate.decision_outcome"] == "ALLOW"
     assert "session_state_full" not in payload
     compact_len = len(json.dumps(payload["session_state"], ensure_ascii=True, separators=(",", ":")))
     assert compact_len <= SESSION_SNAPSHOT_MAX_CHARS
@@ -65,6 +67,7 @@ def test_build_strict_response_preserves_reason_code_casing_in_snapshot():
     )
     payload = cast(dict[str, Any], payload)
     assert payload["session_state"]["active_gate.reason_code"] == "BLOCKED-EXEC-DISALLOWED"
+    assert payload["decision_outcome"] == "BLOCKED"
 
 
 @pytest.mark.governance
@@ -134,6 +137,7 @@ def test_build_compat_response_accepts_single_next_action_mechanism():
     payload = cast(dict[str, Any], payload)
     assert payload["mode"] == "COMPAT"
     assert payload["status"] == "NOT_VERIFIED"
+    assert payload["decision_outcome"] == "ALLOW"
     assert payload["next_action"]["type"] == "reply_with_one_number"
     assert payload["required_inputs"] == ("Provide evidence",)
 
@@ -169,3 +173,4 @@ def test_build_strict_response_accepts_phase_2_scope_command():
     )
     payload = cast(dict[str, Any], payload)
     assert payload["status"] == "OK"
+    assert payload["decision_outcome"] == "ALLOW"

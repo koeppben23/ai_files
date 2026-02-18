@@ -14,6 +14,7 @@ from governance.engine.phase_next_action_contract import validate_phase_next_act
 
 ResponseMode = Literal["STRICT", "COMPAT"]
 ResponseStatus = Literal["BLOCKED", "WARN", "OK", "NOT_VERIFIED"]
+DecisionOutcome = Literal["ALLOW", "BLOCKED"]
 NextActionType = Literal["command", "reply_with_one_number", "manual_step"]
 DetailIntent = Literal["default", "show_diagnostics", "show_full_session_state"]
 
@@ -21,6 +22,7 @@ SESSION_SNAPSHOT_WHITELIST = (
     "phase",
     "effective_operating_mode",
     "active_gate.status",
+    "active_gate.decision_outcome",
     "active_gate.reason_code",
     "next_action",
     "missing_evidence_count",
@@ -58,6 +60,7 @@ class StrictResponseEnvelope:
 
     mode: ResponseMode
     status: ResponseStatus
+    decision_outcome: DecisionOutcome
     session_state: dict[str, object]
     next_action: NextAction
     snapshot: Snapshot
@@ -70,6 +73,7 @@ class CompatResponseEnvelope:
 
     mode: ResponseMode
     status: ResponseStatus
+    decision_outcome: DecisionOutcome
     required_inputs: tuple[str, ...]
     recovery: str
     next_action: NextAction
@@ -125,6 +129,7 @@ def build_session_snapshot(
             default="unknown",
         ).lower(),
         "active_gate.status": _normalize_status(status),
+        "active_gate.decision_outcome": _decision_outcome_for_status(status),
         "active_gate.reason_code": reason_code,
         "next_action": next_action.command.strip(),
         "missing_evidence_count": missing_evidence_count,
@@ -149,6 +154,10 @@ def _normalize_status(status: str) -> ResponseStatus:
     if normalized in {"BLOCKED", "WARN", "OK", "NOT_VERIFIED"}:
         return cast(ResponseStatus, normalized)
     raise ValueError(f"unsupported response status: {status!r}")
+
+
+def _decision_outcome_for_status(status: str) -> DecisionOutcome:
+    return "BLOCKED" if _normalize_status(status) == "BLOCKED" else "ALLOW"
 
 
 def _validate_next_action(next_action: NextAction) -> None:
@@ -196,6 +205,7 @@ def build_strict_response(
     envelope = StrictResponseEnvelope(
         mode="STRICT",
         status=_normalize_status(status),
+        decision_outcome=_decision_outcome_for_status(status),
         session_state=build_session_snapshot(
             status=status,
             session_state=session_state,
@@ -231,6 +241,7 @@ def build_compat_response(
     envelope = CompatResponseEnvelope(
         mode="COMPAT",
         status=_normalize_status(status),
+        decision_outcome=_decision_outcome_for_status(status),
         required_inputs=tuple(item.strip() for item in required_inputs if item.strip()),
         recovery=recovery.strip(),
         next_action=next_action,
