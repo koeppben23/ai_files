@@ -22,9 +22,25 @@ def _normalize_payload_strings(payload: Any) -> Any:
 
 
 def canonical_json_text(payload: Any) -> str:
+    """Return canonical JSON text with stable key order and separators."""
+
     normalized = _normalize_payload_strings(payload)
     return json.dumps(normalized, sort_keys=True, ensure_ascii=True, separators=(",", ":"))
 
 
+def canonical_json_bytes(payload: Any) -> bytes:
+    """Return canonical JSON bytes using UTF-8 encoding."""
+
+    return canonical_json_text(payload).encode("utf-8")
+
+
 def canonical_json_hash(payload: Any) -> str:
-    return hashlib.sha256(canonical_json_text(payload).encode("utf-8")).hexdigest()
+    """Return deterministic sha256 hash over canonical JSON bytes."""
+
+    return hashlib.sha256(canonical_json_bytes(payload)).hexdigest()
+
+
+def canonical_json_clone(payload: Any) -> Any:
+    """Return deep JSON clone using canonical serialization."""
+
+    return json.loads(canonical_json_text(payload))
