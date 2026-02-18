@@ -13,6 +13,7 @@ Definition: in this repository, "normative" means `master.md`, `rules.md`, and a
 ## Quick Links
 
 - OpenCode bootstrap entrypoint: `start.md`
+- Governance invariants checklist: `docs/governance_invariants.md`
 - OpenCode operational guide: `README-OPENCODE.md`
 - Rules structure overview: `README-RULES.md`
 - Stability/release contract: `STABILITY_SLA.md`
