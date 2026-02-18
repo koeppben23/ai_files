@@ -109,6 +109,71 @@ Rule: once detected, these become constraints. If unknown, mark unknown and avoi
 
 ---
 
+## Naming Conventions (Binding)
+
+The following naming conventions are binding unless repo conventions explicitly differ (in which case, follow repo conventions and record deviation).
+
+**Modules and packages:**
+
+| Type | Convention | Example |
+|------|-----------|---------|
+| Feature package | `{feature}/` (snake_case) | `user/`, `order/` |
+| Handler/router module | `{feature}/routes.py` or `{feature}/api.py` | `user/routes.py` |
+| Service module | `{feature}/service.py` | `user/service.py` |
+| Domain module | `{feature}/domain.py` or `{feature}/models.py` | `user/domain.py` |
+| Repository module | `{feature}/repository.py` | `user/repository.py` |
+| Schema/DTO module | `{feature}/schemas.py` | `user/schemas.py` |
+| Exception module | `{feature}/exceptions.py` | `user/exceptions.py` |
+
+**Classes:**
+
+| Type | Convention | Example |
+|------|-----------|---------|
+| Service | `{Resource}Service` | `UserService`, `OrderService` |
+| Repository (abstract) | `{Resource}Repository` | `UserRepository` |
+| Repository (impl) | `SqlAlchemy{Resource}Repository`, `InMemory{Resource}Repository` | `SqlAlchemyUserRepository` |
+| Domain model | `{Resource}` (singular, PascalCase) | `User`, `Order`, `Product` |
+| Request DTO | `Create{Resource}Request`, `Update{Resource}Request` | `CreateUserRequest` |
+| Response DTO | `{Resource}Response` | `UserResponse` |
+| Command | `Create{Resource}Command`, `Update{Resource}Command` | `CreateUserCommand` |
+| Exception | `{Resource}NotFoundError`, `{Domain}Error` | `UserNotFoundError`, `ValidationError` |
+| Port/interface | `{Capability}Port` | `ClockPort`, `EmailPort` |
+
+**Functions and methods:**
+
+| Type | Convention | Example |
+|------|-----------|---------|
+| Handler create | `create_{resource}(...)` | `create_user(payload, service)` |
+| Handler get | `get_{resource}(...)`, `list_{resources}(...)` | `get_user(resource_id)` |
+| Handler update | `update_{resource}(...)` | `update_user(resource_id, payload)` |
+| Handler delete | `delete_{resource}(...)` | `delete_user(resource_id)` |
+| Service method | `create_{resource}(...)`, `find_by_id(...)` | `create_user(command)` |
+| Domain validation | `validate()`, `validate_can_be_{action}()` | `validate_can_be_deleted()` |
+| Domain state change | `{action}(...)` | `activate()`, `update(name=..., updated_at=...)` |
+| Factory method | `create(*, ...)` (classmethod) | `User.create(name=..., created_at=...)` |
+| Mapper | `map_request_to_domain(...)`, `map_domain_to_response(...)` | `map_request_to_domain(payload)` |
+
+**Test naming:**
+
+| Type | Convention | Example |
+|------|-----------|---------|
+| Test module | `test_{module}.py` | `test_service.py`, `test_routes.py` |
+| Test class | `Test{Action}{Resource}` | `TestCreateUser`, `TestDeleteUser` |
+| Test function | `test_{method}_{condition}_{expected}` | `test_create_user_with_invalid_name_raises_validation_error` |
+| Test builder | `given_{resource}(**overrides)` | `given_user(name="custom")` |
+| Fixture | `fake_{dependency}`, `mock_{dependency}` | `fake_clock`, `fake_repository` |
+| Fixed time | `FIXED_TIME` (module-level constant) | `FIXED_TIME = datetime(2026, 1, 31, ...)` |
+
+**Variables and constants:**
+
+| Type | Convention | Example |
+|------|-----------|---------|
+| Instance variable | `snake_case` | `user_name`, `created_at` |
+| Constants | `UPPER_SNAKE_CASE` | `FIXED_TIME`, `MAX_NAME_LENGTH` |
+| Private | `_leading_underscore` | `_internal_state` |
+
+---
+
 ## Templates Addon (Binding)
 
 For the `backend-python` profile, deterministic generation requires the templates addon:
@@ -249,6 +314,142 @@ Use status codes below with concrete recovery steps:
 - Claiming "no drift" without hash/evidence mapping in session diagnostics.
 - Relying on local unstated interpreter/package versions for gate claims.
 - Marking `ready-for-pr` while migration rollback evidence is missing.
+
+---
+
+## Anti-Patterns Catalog (Binding)
+
+Each anti-pattern below includes an explanation of **why** it is harmful. The assistant MUST avoid generating code that matches these anti-patterns and MUST flag them during plan review and code review.
+
+### AP-PY01: Fat Handler / Business Logic in Routes
+
+**Pattern:** API handler/route function contains business logic (conditional branching on domain state, calculations, multi-step orchestration).
+
+**Why it is harmful:**
+- Business rules become coupled to the HTTP framework, making them untestable without full request context.
+- Logic duplication when the same rules are needed from a CLI command, background task, or messaging consumer.
+- Handler tests require TestClient/mock HTTP instead of simple unit tests.
+
+**Detection:** `if`/`match` statements in handler functions that branch on domain state; calculations or loops in route functions.
+
+---
+
+### AP-PY02: Nondeterministic Tests
+
+**Pattern:** Tests use `datetime.now()`, `datetime.utcnow()`, `random.random()`, `uuid.uuid4()`, or `time.sleep()` without deterministic control.
+
+**Why it is harmful:**
+- Creates flaky tests: time-dependent assertions fail intermittently across CI runs.
+- `time.sleep()` wastes CI time and masks actual race conditions.
+- Makes test failures impossible to reproduce locally.
+
+**Detection:** Direct calls to `datetime.now()`, `time.time()`, `time.sleep()`, `random.*`, or `uuid.uuid4()` in test code without injectable seams or monkeypatching.
+
+---
+
+### AP-PY03: Bare Exception Handling
+
+**Pattern:** `except Exception: pass` or `except Exception as e: logger.error(...)` with no rethrow or recovery.
+
+**Why it is harmful:**
+- Silently converts errors into success, corrupting data or misleading API consumers.
+- Catches `KeyboardInterrupt`, `SystemExit`, and other exceptions that should never be swallowed.
+- Makes debugging impossible: errors are logged but the system continues in an invalid state.
+
+**Detection:** Bare `except:` or `except Exception:` blocks that only log or pass without rethrowing or returning an error.
+
+---
+
+### AP-PY04: Transport DTO Leaking into Domain
+
+**Pattern:** Pydantic request/response models used directly inside service or domain logic.
+
+**Why it is harmful:**
+- Couples domain logic to the HTTP framework: changing the API contract forces changes throughout the domain.
+- Prevents reuse of domain logic from non-HTTP triggers (CLI, background tasks, tests).
+- Validation rules in Pydantic models may not match domain invariants, creating dual sources of truth.
+
+**Detection:** Service methods accepting `Request` or `Response` Pydantic models instead of domain commands/entities.
+
+---
+
+### AP-PY05: Mutable Global State
+
+**Pattern:** Module-level mutable variables used for shared state (e.g., `_cache = {}`, `_db = None` at module scope).
+
+**Why it is harmful:**
+- Creates hidden coupling between tests: one test modifies global state, breaking subsequent tests.
+- Makes concurrent execution unsafe (multiple workers/threads sharing mutable state).
+- Impossible to reason about state at any given point in the program.
+
+**Detection:** Module-level mutable variables (`list`, `dict`, `set`) that are modified at runtime; singleton patterns using module-level state.
+
+---
+
+### AP-PY06: Mock Overuse in Unit Tests
+
+**Pattern:** Using `unittest.mock.MagicMock` for everything instead of simple in-memory fakes for repositories and ports.
+
+**Why it is harmful:**
+- Mocked tests verify call signatures, not behavior: they pass even when the implementation is wrong.
+- Mock setup becomes a mirror of the implementation, breaking on every refactoring.
+- `MagicMock` silently accepts any attribute access, hiding typos and API changes.
+
+**Detection:** Test files with more `mock.patch` / `MagicMock` declarations than behavioral assertions; tests that primarily `assert_called_with` without checking outcomes.
+
+---
+
+### AP-PY07: Implicit Dependencies (No Dependency Injection)
+
+**Pattern:** Service functions directly import and call infrastructure (database sessions, HTTP clients, datetime.now()) instead of receiving them as parameters.
+
+**Why it is harmful:**
+- Makes unit testing require monkeypatching or mock.patch, which is fragile and obscures test intent.
+- Creates hidden coupling: changing the infrastructure requires finding and updating all implicit call sites.
+- Violates explicit-is-better-than-implicit (PEP 20).
+
+**Detection:** Service functions/methods that call `get_db_session()`, `requests.get()`, `datetime.now()` directly instead of receiving these as injected parameters.
+
+---
+
+### AP-PY08: Missing Type Annotations on Public API
+
+**Pattern:** Public functions, methods, and class attributes without type annotations.
+
+**Why it is harmful:**
+- Removes the possibility of static type checking with mypy/pyright, hiding bugs until runtime.
+- Makes code harder for both humans and LLMs to understand and generate correctly.
+- Auto-generated documentation and IDE support degrade significantly.
+
+**Detection:** Public functions/methods without return type annotations; function parameters without type annotations.
+
+---
+
+### AP-PY09: Circular Imports
+
+**Pattern:** Module A imports from Module B, which imports from Module A (directly or transitively).
+
+**Why it is harmful:**
+- Causes `ImportError` at runtime depending on import order.
+- Indicates architectural boundary violations: two modules are too tightly coupled.
+- Makes the codebase fragile: adding a single import can break the entire import chain.
+
+**Detection:** `ImportError` during startup or test collection; `TYPE_CHECKING` imports used to work around circular dependencies (symptom, not solution).
+
+---
+
+### AP-PY10: Async/Sync Mixing Without Boundaries
+
+**Pattern:** Calling synchronous blocking I/O (database queries, HTTP calls) inside `async def` handlers without running them in a thread pool.
+
+**Why it is harmful:**
+- Blocks the async event loop, defeating the purpose of async and causing request timeouts for all concurrent requests.
+- Creates latency spikes that are hard to diagnose: the system appears to "hang" under load.
+- Test behavior diverges from production: tests may pass because they run sequentially.
+
+**Detection:** `async def` functions that call synchronous ORMs (SQLAlchemy sync session), `requests.get()`, or `time.sleep()` without `asyncio.to_thread()` or equivalent.
+
+---
 
 ## Troubleshooting
 
