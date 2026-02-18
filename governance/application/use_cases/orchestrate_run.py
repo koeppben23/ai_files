@@ -103,7 +103,7 @@ def _has_required_mode_capabilities(mode: OperatingMode, caps: Any) -> bool:
     """Return True when minimal capabilities for the requested mode are satisfied."""
 
     if mode == "user":
-        return True
+        return caps.fs_read_commands_home and caps.fs_write_workspaces_home
     if mode == "system":
         return caps.exec_allowed and caps.fs_read_commands_home and caps.fs_write_workspaces_home
     return (

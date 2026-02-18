@@ -7,10 +7,10 @@ import json
 import os
 import platform
 import re
-import shlex
 import shutil
 import subprocess
 import sys
+import tempfile
 from datetime import datetime
 from pathlib import Path
 
@@ -94,11 +94,29 @@ except Exception:
 try:
     from governance.infrastructure.fs_atomic import atomic_write_text
 except Exception:
-    def atomic_write_text(path: Path, text: str, newline_lf: bool = True, attempts: int = 5, backoff_ms: int = 50) -> None:
+    def atomic_write_text(path: Path, text: str, newline_lf: bool = True, attempts: int = 5, backoff_ms: int = 50) -> int:
         path.parent.mkdir(parents=True, exist_ok=True)
         payload = text.replace("\r\n", "\n") if newline_lf else text
-        with path.open("w", encoding="utf-8", newline="\n" if newline_lf else None) as handle:
-            handle.write(payload)
+        temp_path: Path | None = None
+        try:
+            with tempfile.NamedTemporaryFile(
+                mode="w",
+                encoding="utf-8",
+                newline="\n" if newline_lf else None,
+                dir=str(path.parent),
+                prefix=path.name + ".",
+                suffix=".tmp",
+                delete=False,
+            ) as tmp:
+                tmp.write(payload)
+                tmp.flush()
+                os.fsync(tmp.fileno())
+                temp_path = Path(tmp.name)
+            os.replace(str(temp_path), str(path))
+            return 0
+        finally:
+            if temp_path is not None and temp_path.exists():
+                temp_path.unlink(missing_ok=True)
 
 try:
     from governance.application.repo_identity_service import canonicalize_origin_url, derive_repo_identity
@@ -334,7 +352,14 @@ def _discover_repo_session_id() -> str:
 
 
 def _python_command_argv() -> list[str]:
-    return shlex.split(PYTHON_COMMAND, posix=(os.name != "nt")) or [PYTHON_COMMAND]
+    token = str(PYTHON_COMMAND or "").strip()
+    if not token:
+        return ["python3"]
+    if token == "py -3":
+        return ["py", "-3"]
+    if token == "python -3":
+        return ["python", "-3"]
+    return [token]
 
 
 def _repo_context_index_path(repo_root: Path) -> Path:
@@ -446,7 +471,13 @@ def _command_available(command: str) -> bool:
             or shutil.which("python3") is not None
             or shutil.which("py") is not None
         )
-    parts = shlex.split(command, posix=(os.name != "nt"))
+    token = str(command or "").strip()
+    if token == "py -3":
+        parts = ["py", "-3"]
+    elif token == "python -3":
+        parts = ["python", "-3"]
+    else:
+        parts = [token] if token else []
     if not parts:
         return False
     return shutil.which(parts[0]) is not None

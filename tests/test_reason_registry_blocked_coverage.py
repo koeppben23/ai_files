@@ -69,3 +69,21 @@ def test_blocked_registry_has_exactly_one_entry_per_domain_blocked_code():
     assert registry_blocked_prefixed == domain_blocked, (
         "blocked_reasons must include each domain BLOCKED-* reason code exactly once"
     )
+
+
+@pytest.mark.governance
+def test_registry_covers_all_domain_reason_codes():
+    payload = json.loads((REPO_ROOT / "diagnostics" / "reason_codes.registry.json").read_text(encoding="utf-8"))
+    blocked_entries = payload.get("blocked_reasons")
+    audit_entries = payload.get("audit_events")
+    assert isinstance(blocked_entries, list), "blocked_reasons must be an array"
+    assert isinstance(audit_entries, list), "audit_events must be an array"
+
+    registry_codes = {
+        str(entry.get("code"))
+        for entry in [*blocked_entries, *audit_entries]
+        if isinstance(entry, dict) and isinstance(entry.get("code"), str)
+    }
+    domain_codes = {code for code in reason_codes.CANONICAL_REASON_CODES if code != "none"}
+    missing = sorted(domain_codes - registry_codes)
+    assert not missing, f"canonical reason codes missing from registry namespaces: {missing}"

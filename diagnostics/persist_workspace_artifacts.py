@@ -5,9 +5,9 @@ import argparse
 import json
 import os
 import re
-import shlex
 import subprocess
 import sys
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -60,11 +60,29 @@ from command_profiles import render_command_profiles
 try:
     from governance.infrastructure.fs_atomic import atomic_write_text
 except Exception:
-    def atomic_write_text(path: Path, text: str, newline_lf: bool = True, attempts: int = 5, backoff_ms: int = 50) -> None:
+    def atomic_write_text(path: Path, text: str, newline_lf: bool = True, attempts: int = 5, backoff_ms: int = 50) -> int:
         path.parent.mkdir(parents=True, exist_ok=True)
         payload = text.replace("\r\n", "\n") if newline_lf else text
-        with path.open("w", encoding="utf-8", newline="\n" if newline_lf else None) as handle:
-            handle.write(payload)
+        temp_path: Path | None = None
+        try:
+            with tempfile.NamedTemporaryFile(
+                mode="w",
+                encoding="utf-8",
+                newline="\n" if newline_lf else None,
+                dir=str(path.parent),
+                prefix=path.name + ".",
+                suffix=".tmp",
+                delete=False,
+            ) as tmp:
+                tmp.write(payload)
+                tmp.flush()
+                os.fsync(tmp.fileno())
+                temp_path = Path(tmp.name)
+            os.replace(str(temp_path), str(path))
+            return 0
+        finally:
+            if temp_path is not None and temp_path.exists():
+                temp_path.unlink(missing_ok=True)
 
 try:
     from governance.application.repo_identity_service import canonicalize_origin_url, derive_repo_identity
@@ -660,7 +678,13 @@ def _bootstrap_missing_session_state(
     if not helper.exists():
         return False, "missing-bootstrap-helper"
 
-    python_argv = shlex.split(python_cmd, posix=(os.name != "nt")) or [python_cmd]
+    token = str(python_cmd or "").strip()
+    if token == "py -3":
+        python_argv = ["py", "-3"]
+    elif token == "python -3":
+        python_argv = ["python", "-3"]
+    else:
+        python_argv = [token] if token else ["python3"]
     cmd = [
         *python_argv,
         str(helper),
