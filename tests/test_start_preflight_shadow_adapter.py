@@ -1,0 +1,66 @@
+from __future__ import annotations
+
+import importlib.util
+from pathlib import Path
+
+import pytest
+
+from .util import REPO_ROOT, write_governance_paths
+
+
+def _load_module():
+    """Load diagnostics/start_preflight_readonly.py as a module for testing."""
+
+    script = REPO_ROOT / "diagnostics" / "start_preflight_readonly.py"
+    spec = importlib.util.spec_from_file_location("start_preflight_readonly", script)
+    if spec is None or spec.loader is None:
+        raise RuntimeError("failed to load start_preflight_readonly module")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+@pytest.mark.governance
+def test_engine_shadow_snapshot_is_available_and_reports_parity_fields(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+):
+    """Shadow snapshot should expose deterministic parity fields when available."""
+
+    monkeypatch.delenv("CI", raising=False)
+    monkeypatch.chdir(REPO_ROOT)
+    monkeypatch.setenv("OPENCODE_REPO_ROOT", str(REPO_ROOT))
+    monkeypatch.setattr(Path, "home", staticmethod(lambda: tmp_path))
+    write_governance_paths(tmp_path / ".config" / "opencode")
+    module = _load_module()
+    snapshot = module.build_engine_shadow_snapshot()
+    assert snapshot["available"] is True
+    assert snapshot["runtime_mode"] == "shadow"
+    assert snapshot["selfcheck_ok"] is True
+    assert snapshot["repo_context_source"].startswith("env:")
+    assert snapshot["effective_operating_mode"] == "user"
+    assert isinstance(snapshot["capabilities_hash"], str) and len(snapshot["capabilities_hash"]) == 16
+    assert snapshot["mode_downgraded"] is False
+    assert snapshot["deviation"] is None
+    assert snapshot["parity"] == {
+        "status": "ok",
+        "phase": "1.1-Bootstrap",
+        "reason_code": "none",
+        "next_action.command": "none",
+    }
+
+
+@pytest.mark.governance
+def test_engine_shadow_snapshot_accepts_pipeline_operating_mode(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+):
+    """Shadow snapshot should accept explicit pipeline mode request."""
+
+    monkeypatch.setattr(Path, "home", staticmethod(lambda: tmp_path))
+    write_governance_paths(tmp_path / ".config" / "opencode")
+    monkeypatch.chdir(REPO_ROOT)
+    monkeypatch.setenv("OPENCODE_REPO_ROOT", str(REPO_ROOT))
+    monkeypatch.setenv("OPENCODE_OPERATING_MODE", "pipeline")
+    module = _load_module()
+    snapshot = module.build_engine_shadow_snapshot()
+    assert snapshot["available"] is True
+    assert snapshot["effective_operating_mode"] in {"pipeline", "user"}

@@ -1,0 +1,15 @@
+addon_key: riskTiering
+addon_class: advisory
+rulebook: rules.risk-tiering.md
+manifest_version: 1
+path_roots:
+  - "."
+owns_surfaces:
+  - "risk_model"
+touches_surfaces:
+  - "release"
+capabilities_any:
+  - "governance_docs"
+signals:
+  any:
+    - file_glob: "master.md"

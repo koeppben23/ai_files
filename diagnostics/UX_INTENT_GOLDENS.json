@@ -1,0 +1,47 @@
+{
+  "$schema": "opencode.ux-intent-goldens.v1",
+  "version": "1",
+  "cases": [
+    {
+      "id": "where-am-i-warn",
+      "intent": "where_am_i",
+      "state": {
+        "status": "WARN",
+        "phase": "2",
+        "active_gate": "2-profile-detection",
+        "next": "Implement now"
+      },
+      "expected": [
+        "status: WARN",
+        "phase/gate: 2 / 2-profile-detection",
+        "next: Implement now"
+      ]
+    },
+    {
+      "id": "what-blocks-me-blocked",
+      "intent": "what_blocks_me",
+      "state": {
+        "status": "BLOCKED",
+        "reason_code": "BLOCKED-VARIABLE-RESOLUTION",
+        "next_command": "/start"
+      },
+      "expected": [
+        "status: BLOCKED",
+        "primary blocker: BLOCKED-VARIABLE-RESOLUTION",
+        "next: /start"
+      ]
+    },
+    {
+      "id": "what-now-ok",
+      "intent": "what_now",
+      "state": {
+        "status": "OK",
+        "next": "Ingest evidence"
+      },
+      "expected": [
+        "status: OK",
+        "next: Ingest evidence"
+      ]
+    }
+  ]
+}
