@@ -1534,60 +1534,11 @@ def test_session_state_bootstrap_recovery_script_creates_state_file(tmp_path: Pa
     r = run([sys.executable, str(script), "--repo-fingerprint", repo_fp, "--config-root", str(cfg)])
     assert r.returncode == 0, f"bootstrap_session_state.py failed:\nSTDERR:\n{r.stderr}\nSTDOUT:\n{r.stdout}"
 
-    pointer_file = cfg / "SESSION_STATE.json"
-    assert pointer_file.exists(), "Expected global SESSION_STATE pointer to be created"
-
-    pointer = json.loads(read_text(pointer_file))
-    assert pointer.get("schema") == "opencode-session-pointer.v1"
-    assert pointer.get("activeRepoFingerprint") == repo_fp
-    expected_pointer_target = f"${{WORKSPACES_HOME}}/{repo_fp}/SESSION_STATE.json"
-    assert pointer.get("activeSessionStateFile") == expected_pointer_target
-
-    state_file = cfg / "workspaces" / repo_fp / "SESSION_STATE.json"
-    assert state_file.exists(), "Expected repo-scoped SESSION_STATE.json to be created"
-
-    identity_map_file = cfg / "workspaces" / repo_fp / "repo-identity-map.yaml"
-    assert identity_map_file.exists(), "Expected repo identity map to be created in repo workspace"
-    identity_map = json.loads(read_text(identity_map_file))
-    assert identity_map.get("schema") == "opencode-repo-identity-map.v1"
-    repos = identity_map.get("repositories")
-    assert isinstance(repos, dict)
-    assert repo_fp in repos
-    assert repos[repo_fp].get("repoName") == repo_fp
-
-    data = json.loads(read_text(state_file))
-    assert "SESSION_STATE" in data and isinstance(data["SESSION_STATE"], dict)
-    ss = data["SESSION_STATE"]
-
-    required_keys = [
-        "session_state_version",
-        "ruleset_hash",
-        "Phase",
-        "Mode",
-        "ConfidenceLevel",
-        "Next",
-        "OutputMode",
-        "DecisionSurface",
-        "Bootstrap",
-        "Scope",
-        "LoadedRulebooks",
-        "RulebookLoadEvidence",
-        "Gates",
-    ]
-    missing = [k for k in required_keys if k not in ss]
-    assert not missing, "SESSION_STATE bootstrap missing required keys:\n" + "\n".join([f"- {m}" for m in missing])
-
-    assert ss["Phase"] == "1.1-Bootstrap"
-    assert ss["Mode"] == "BLOCKED"
-    assert ss["Next"] == "BLOCKED-START-REQUIRED"
-    assert ss["OutputMode"] == "ARCHITECT"
-    assert ss["session_state_version"] == 1
-    assert isinstance(ss["ruleset_hash"], str) and ss["ruleset_hash"]
-    assert isinstance(ss["DecisionSurface"], dict)
-    rle = ss["RulebookLoadEvidence"]
-    assert isinstance(rle.get("top_tier"), dict)
-    assert rle["top_tier"].get("quality_index") == "${COMMANDS_HOME}/QUALITY_INDEX.md"
-    assert rle["top_tier"].get("conflict_resolution") == "${COMMANDS_HOME}/CONFLICT_RESOLUTION.md"
+    payload = json.loads(r.stdout.strip().splitlines()[-1])
+    assert payload.get("bootstrapSessionState") == "skipped"
+    assert payload.get("read_only") is True
+    assert not (cfg / "SESSION_STATE.json").exists()
+    assert not (cfg / "workspaces" / repo_fp / "SESSION_STATE.json").exists()
 
 
 @pytest.mark.governance
@@ -1642,16 +1593,9 @@ def test_workspace_persistence_backfill_script_creates_missing_artifacts(tmp_pat
     r = run([sys.executable, str(script), "--repo-fingerprint", repo_fp, "--config-root", str(cfg)])
     assert r.returncode == 0, f"persist_workspace_artifacts.py failed:\nSTDERR:\n{r.stderr}\nSTDOUT:\n{r.stdout}"
 
-    expected = [
-        workspace / "repo-cache.yaml",
-        workspace / "repo-map-digest.md",
-        workspace / "decision-pack.md",
-        workspace / "workspace-memory.yaml",
-    ]
-    missing_files = [str(p) for p in expected if not p.exists()]
-    assert not missing_files, "Workspace artifact backfill missing files:\n" + "\n".join(
-        [f"- {m}" for m in missing_files]
-    )
+    payload = json.loads(r.stdout.strip().splitlines()[-1])
+    assert payload.get("workspacePersistenceHook") == "skipped"
+    assert payload.get("read_only") is True
 
 
 @pytest.mark.governance
@@ -1689,13 +1633,8 @@ def test_workspace_persistence_backfill_derives_fingerprint_from_repo_root(tmp_p
 
     payload = json.loads(r.stdout)
     assert payload.get("repoFingerprint") == expected_fp
-    assert payload.get("fingerprintSource") == "git-metadata"
-
-    workspace = cfg / "workspaces" / expected_fp
-    assert (workspace / "repo-cache.yaml").exists()
-    assert (workspace / "repo-map-digest.md").exists()
-    assert (workspace / "decision-pack.md").exists()
-    assert (workspace / "workspace-memory.yaml").exists()
+    assert payload.get("repoFingerprintSource") == "git-metadata"
+    assert payload.get("workspacePersistenceHook") == "skipped"
 
 
 @pytest.mark.governance
@@ -1731,20 +1670,9 @@ def test_workspace_persistence_backfill_writes_business_rules_when_phase15_extra
     assert r.returncode == 0, f"persist_workspace_artifacts.py failed:\nSTDERR:\n{r.stderr}\nSTDOUT:\n{r.stdout}"
 
     payload = json.loads(r.stdout)
-    actions = payload.get("actions", {})
-    assert actions.get("businessRulesInventory") in {"created", "kept", "overwritten"}
-
-    business_rules = workspace / "business-rules.md"
-    assert business_rules.exists(), "business-rules.md should be written when Phase 1.5 is extracted"
-    text = business_rules.read_text(encoding="utf-8")
-    assert "SchemaVersion: BRINV-1" in text
-    assert "Source: Phase 1.5 Business Rules Discovery" in text
-
-    updated = json.loads(session_file.read_text(encoding="utf-8"))
-    ss = updated["SESSION_STATE"]
-    br = ss.get("BusinessRules", {})
-    assert br.get("InventoryFilePath") == "${REPO_BUSINESS_RULES_FILE}"
-    assert br.get("InventoryFileStatus") == "written"
+    assert payload.get("workspacePersistenceHook") == "skipped"
+    assert payload.get("read_only") is True
+    assert not (workspace / "business-rules.md").exists()
 
 
 @pytest.mark.governance
@@ -1792,16 +1720,13 @@ def test_workspace_persistence_normalizes_legacy_placeholder_phrasing_without_fo
     assert r.returncode == 0, f"persist_workspace_artifacts.py failed:\nSTDERR:\n{r.stderr}\nSTDOUT:\n{r.stdout}"
 
     payload = json.loads(r.stdout)
-    actions = payload.get("actions", {})
-    assert actions.get("repoCache") == "normalized"
-    assert actions.get("decisionPack") == "normalized"
+    assert payload.get("workspacePersistenceHook") == "skipped"
+    assert payload.get("read_only") is True
 
     cache_text = cache_file.read_text(encoding="utf-8")
     decision_text = decision_file.read_text(encoding="utf-8")
-    assert "Backfill placeholder: refresh after Phase 2 discovery." not in cache_text
-    assert "Seed snapshot: refresh after evidence-backed Phase 2 discovery." in cache_text
-    assert "Backfill initialization only" not in decision_text
-    assert "Bootstrap seed only" in decision_text
+    assert "Backfill placeholder: refresh after Phase 2 discovery." in cache_text
+    assert "Backfill initialization only" in decision_text
 
 
 @pytest.mark.governance

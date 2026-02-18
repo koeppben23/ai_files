@@ -12,6 +12,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+
+READ_ONLY = True
+
 SCRIPT_DIR = Path(os.path.abspath(__file__)).parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
@@ -531,14 +534,14 @@ def _render_business_rules_inventory(*, date: str, repo_name: str) -> str:
 
 
 def _write_text(path: Path, content: str, *, dry_run: bool) -> None:
-    if dry_run:
+    if READ_ONLY or dry_run:
         return
     path.parent.mkdir(parents=True, exist_ok=True)
     _atomic_write_text(path, content)
 
 
 def _append_text(path: Path, content: str, *, dry_run: bool) -> None:
-    if dry_run:
+    if READ_ONLY or dry_run:
         return
     path.parent.mkdir(parents=True, exist_ok=True)
     try:
@@ -552,6 +555,8 @@ def _append_text(path: Path, content: str, *, dry_run: bool) -> None:
 
 
 def _atomic_write_text(path: Path, content: str) -> None:
+    if READ_ONLY:
+        return
     atomic_write_text(path, content, newline_lf=True, attempts=5, backoff_ms=50)
 
 
@@ -577,7 +582,7 @@ def _normalize_legacy_placeholder_phrasing(path: Path, *, dry_run: bool) -> bool
     if updated == text:
         return False
 
-    if not dry_run:
+    if not READ_ONLY and not dry_run:
         _atomic_write_text(path, updated)
     return True
 
@@ -666,6 +671,9 @@ def _update_session_state(
     if dry_run:
         return "updated-dry-run"
 
+    if READ_ONLY:
+        return "updated-read-only"
+
     session_payload = json.dumps(data, sort_keys=True, separators=(",", ":"), ensure_ascii=True) + "\n"
     _atomic_write_text(session_path, session_payload)
     return "updated"
@@ -683,6 +691,8 @@ def _bootstrap_missing_session_state(
 
     if dry_run:
         return True, "bootstrap-dry-run"
+    if READ_ONLY:
+        return True, "bootstrap-read-only"
 
     helper = SCRIPT_DIR / "bootstrap_session_state.py"
     if not helper.exists():
@@ -869,6 +879,20 @@ def main() -> int:
         else:
             print(f"ERROR: {exc}")
         return 2
+
+    if READ_ONLY:
+        payload = {
+            "status": "ok",
+            "workspacePersistenceHook": "skipped",
+            "reason": "diagnostics-read-only",
+            "impact": "workspace/index/session persistence is kernel-owned only",
+            "repoFingerprint": repo_fingerprint,
+            "repoFingerprintSource": fp_source,
+            "repoFingerprintEvidence": fp_evidence,
+            "read_only": True,
+        }
+        print(json.dumps(payload, ensure_ascii=True))
+        return 0
 
     workspaces_home = normalize_absolute_path(
         str(binding_paths.get("workspacesHome", "")),
