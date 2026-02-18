@@ -13,7 +13,9 @@ from typing import Optional, Dict, Any
 try:
     from governance.infrastructure.fs_atomic import atomic_write_text
     from governance.infrastructure.path_contract import canonical_config_root, normalize_absolute_path
-    from governance.infrastructure.binding_evidence_resolver import BindingEvidenceResolver
+    from governance.infrastructure.binding_evidence_resolver import BindingEvidenceResolver as ImportedBindingEvidenceResolver
+
+    _BindingEvidenceResolver: Any = ImportedBindingEvidenceResolver
 except Exception:
     class NotAbsoluteError(Exception):
         pass
@@ -59,6 +61,17 @@ except Exception:
             if temp_path is not None and temp_path.exists():
                 temp_path.unlink(missing_ok=True)
 
+    class _FallbackBindingEvidence:
+        binding_ok = False
+        governance_paths_json: Path | None = None
+
+    class _FallbackBindingEvidenceResolver:
+        def resolve(self, *, mode: str = "diagnostics") -> _FallbackBindingEvidence:
+            _ = mode
+            return _FallbackBindingEvidence()
+
+    _BindingEvidenceResolver: Any = _FallbackBindingEvidenceResolver
+
 
 DEFAULT_RETENTION_DAYS = 30
 ERROR_INDEX_FILE_NAME = "errors-index.json"
@@ -68,10 +81,7 @@ def default_config_root() -> Path:
     return canonical_config_root()
 
 # Diagnostics error logging is fail-closed read-only unless explicitly enabled.
-def _is_ci() -> bool:
-    return os.environ.get("CI","").strip().lower() in {"1","true","yes","on"}
-
-READ_ONLY = (os.environ.get("OPENCODE_DIAGNOSTICS_ALLOW_WRITE","0") != "1") or _is_ci()
+READ_ONLY = os.environ.get("OPENCODE_DIAGNOSTICS_ALLOW_WRITE", "0") != "1"
 
 def _load_json(path: Path) -> dict[str, Any] | None:
     try:
@@ -111,7 +121,7 @@ def resolve_paths(config_root: Path | None = None) -> tuple[Path, Path]:
         paths_file = root / "commands" / "governance.paths.json"
         return _load_binding_paths(paths_file, expected_config_root=root)
 
-    evidence = BindingEvidenceResolver().resolve(mode="diagnostics")
+    evidence = _BindingEvidenceResolver().resolve(mode="diagnostics")
     if not evidence.binding_ok or evidence.governance_paths_json is None:
         raise ValueError("binding evidence invalid or missing governance.paths.json")
     return _load_binding_paths(evidence.governance_paths_json)
@@ -161,7 +171,9 @@ def _target_log_file(config_root: Path, workspaces_home: Path, repo_fingerprint:
 def _extract_log_date(name: str) -> date | None:
     patterns = [
         r"^errors-(\d{4}-\d{2}-\d{2})-[A-Fa-f0-9]{8,64}\.jsonl$",
+        r"^errors-(\d{4}-\d{2}-\d{2})\.jsonl$",
         r"^errors-global-(\d{4}-\d{2}-\d{2})-[A-Fa-f0-9]{8,64}\.jsonl$",
+        r"^errors-global-(\d{4}-\d{2}-\d{2})\.jsonl$",
     ]
     for pat in patterns:
         m = re.match(pat, name)
@@ -308,7 +320,7 @@ def write_error_event(
 
 def safe_log_error(**kwargs: Any) -> dict[str, str]:
     if READ_ONLY:
-        return {"status": "log-disabled", "reason": "diagnostics-read-only"}
+        return {"status": "read-only", "path": "/dev/null"}
     try:
         p = write_error_event(**kwargs)
         return {"status": "logged", "path": str(p)}
