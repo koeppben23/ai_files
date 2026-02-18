@@ -1,12 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Mapping
-
-from governance.context.repo_context_resolver import RepoRootResolutionResult
-from governance.engine.adapters import OperatingMode
-from governance.engine.canonical_json import canonical_json_hash
-
+from governance.domain.canonical_json import canonical_json_hash
 
 def hash_payload(payload: dict[str, object]) -> str:
     return canonical_json_hash(payload)
@@ -32,9 +26,10 @@ def build_activation_hash(
     active_gate: str,
     next_gate_condition: str,
     target_path: str,
-    effective_operating_mode: OperatingMode,
+    effective_operating_mode: str,
     capabilities_hash: str,
-    repo_context: RepoRootResolutionResult,
+    repo_source: str,
+    repo_is_git_root: bool,
     repo_identity: str,
     ruleset_hash: str,
 ) -> str:
@@ -46,8 +41,8 @@ def build_activation_hash(
         "effective_operating_mode": effective_operating_mode,
         "capabilities_hash": capabilities_hash,
         "repo_identity": repo_identity,
-        "repo_source": repo_context.source,
-        "repo_is_git_root": repo_context.is_git_root,
+        "repo_source": repo_source,
+        "repo_is_git_root": repo_is_git_root,
         "ruleset_hash": ruleset_hash,
     }
     return hash_payload(payload)

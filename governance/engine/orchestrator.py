@@ -18,6 +18,7 @@ from governance.engine.interaction_gate import evaluate_interaction_gate
 from governance.engine.reason_codes import (
     BLOCKED_ENGINE_SELFCHECK,
     BLOCKED_ACTIVATION_HASH_MISMATCH,
+    BLOCKED_MISSING_BINDING_FILE,
     BLOCKED_EXEC_DISALLOWED,
     BLOCKED_OPERATING_MODE_REQUIRED,
     BLOCKED_PACK_LOCK_INVALID,
@@ -351,7 +352,10 @@ def run_engine_orchestrator(
         mode_reason = REPO_CONSTRAINT_UNSUPPORTED
         if repo_constraint_topic:
             hash_diff["repo_constraint_topic"] = repo_constraint_topic
-    if not caps.exec_allowed:
+    if not caps.fs_read_commands_home:
+        gate_blocked = True
+        gate_reason_code = BLOCKED_MISSING_BINDING_FILE
+    elif not caps.exec_allowed:
         gate_blocked = True
         gate_reason_code = BLOCKED_EXEC_DISALLOWED
     elif not write_policy.valid:
@@ -431,7 +435,8 @@ def run_engine_orchestrator(
         target_path=target_path,
         effective_operating_mode=effective_mode,
         capabilities_hash=capabilities_hash,
-        repo_context=repo_context,
+        repo_source=repo_context.source,
+        repo_is_git_root=repo_context.is_git_root,
         repo_identity=repo_identity,
         ruleset_hash=ruleset_hash,
     )
@@ -554,6 +559,9 @@ def run_engine_orchestrator(
 
     try:
         if parity["status"] == "blocked":
+            blocked_missing_evidence = missing_evidence
+            if parity["reason_code"] == BLOCKED_MISSING_BINDING_FILE:
+                blocked_missing_evidence = ("${USER_HOME}/.config/opencode/commands/governance.paths.json",)
             reason_payload = build_reason_payload(
                 status="BLOCKED",
                 reason_code=parity["reason_code"],
@@ -563,6 +571,7 @@ def run_engine_orchestrator(
                 recovery_steps=("Collect required evidence and rerun deterministic checks.",),
                 next_command=parity["next_action.command"],
                 impact="Workflow is blocked until the issue is fixed.",
+                missing_evidence=blocked_missing_evidence,
                 deviation=hash_diff,
                 context=reason_context,
             ).to_dict()
