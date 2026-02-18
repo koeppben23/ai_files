@@ -158,4 +158,11 @@ EMBEDDED_REASON_SCHEMAS: Final[dict[str, dict[str, object]]] = {
             "extensions": {"type": "object", "additionalProperties": True},
         },
     },
+    "diagnostics/schemas/reason_payload_advisory.v1.json": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "title": "Reason Payload: Advisory",
+        "description": "Advisory/non-blocking reason context schema for warning and verification telemetry.",
+        "type": "object",
+        "additionalProperties": True,
+    },
 }

@@ -7,10 +7,11 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
-SCRIPT_DIR = Path(__file__).resolve().parent
+SCRIPT_DIR = Path(os.path.abspath(__file__)).parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 if str(SCRIPT_DIR.parent) not in sys.path:
@@ -52,11 +53,29 @@ from workspace_lock import acquire_workspace_lock
 try:
     from governance.infrastructure.fs_atomic import atomic_write_text
 except Exception:
-    def atomic_write_text(path: Path, text: str, newline_lf: bool = True, attempts: int = 5, backoff_ms: int = 50) -> None:
+    def atomic_write_text(path: Path, text: str, newline_lf: bool = True, attempts: int = 5, backoff_ms: int = 50) -> int:
         path.parent.mkdir(parents=True, exist_ok=True)
         payload = text.replace("\r\n", "\n") if newline_lf else text
-        with path.open("w", encoding="utf-8", newline="\n" if newline_lf else None) as handle:
-            handle.write(payload)
+        temp_path: Path | None = None
+        try:
+            with tempfile.NamedTemporaryFile(
+                mode="w",
+                encoding="utf-8",
+                newline="\n" if newline_lf else None,
+                dir=str(path.parent),
+                prefix=path.name + ".",
+                suffix=".tmp",
+                delete=False,
+            ) as tmp:
+                tmp.write(payload)
+                tmp.flush()
+                os.fsync(tmp.fileno())
+                temp_path = Path(tmp.name)
+            os.replace(str(temp_path), str(path))
+            return 0
+        finally:
+            if temp_path is not None and temp_path.exists():
+                temp_path.unlink(missing_ok=True)
 
 
 def default_config_root() -> Path:
@@ -92,8 +111,10 @@ def _load_binding_paths(paths_file: Path, *, expected_config_root: Path | None =
         _workspaces_home = normalize_absolute_path(workspaces_raw, purpose="paths.workspacesHome")
     except Exception as exc:
         raise ValueError(f"binding evidence invalid: {exc}") from exc
-    if expected_config_root is not None and config_root != expected_config_root.resolve():
-        raise ValueError("binding evidence mismatch: config root does not match explicit input")
+    if expected_config_root is not None:
+        expected = normalize_absolute_path(str(expected_config_root), purpose="expected_config_root")
+        if config_root != expected:
+            raise ValueError("binding evidence mismatch: config root does not match explicit input")
     return config_root, paths
 
 
@@ -111,7 +132,7 @@ def resolve_binding_config(explicit: Path | None) -> tuple[Path, dict, Path]:
         config_root, paths = _load_binding_paths(candidate, expected_config_root=root)
         return config_root, paths, candidate
 
-    script_path = Path(__file__).resolve()
+    script_path = Path(os.path.abspath(__file__))
     diagnostics_dir = script_path.parent
     if diagnostics_dir.name == "diagnostics" and diagnostics_dir.parent.name == "commands":
         candidate = diagnostics_dir.parent / "governance.paths.json"
@@ -280,9 +301,12 @@ def main() -> int:
         print("Restore installer-owned commands/governance.paths.json and rerun.")
         return 2
 
-    workspaces_home = Path(str(binding_paths.get("workspacesHome", ""))).expanduser().resolve()
+    workspaces_home = normalize_absolute_path(
+        str(binding_paths.get("workspacesHome", "")),
+        purpose="paths.workspacesHome",
+    )
 
-    cwd_repo_root = Path.cwd().resolve()
+    cwd_repo_root = normalize_absolute_path(str(Path.cwd()), purpose="cwd")
     if (cwd_repo_root / ".git").exists() and _is_within(config_root, cwd_repo_root):
         print("ERROR: config root resolves inside repository root")
         print("Set OPENCODE_CONFIG_ROOT to a location outside the repository and rerun.")
@@ -394,7 +418,7 @@ def main() -> int:
 
     backfill_failed = False
     if not args.skip_artifact_backfill:
-        helper = Path(__file__).resolve().parent / "persist_workspace_artifacts.py"
+        helper = SCRIPT_DIR / "persist_workspace_artifacts.py"
         if helper.exists():
             cmd = [
                 sys.executable,

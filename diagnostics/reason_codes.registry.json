@@ -213,6 +213,62 @@
       "payload_schema_ref": "diagnostics/schemas/reason_payload_policy_precedence.v1.json",
       "description": "Policy precedence resolution has been applied and logged.",
       "remediation_hint": "Inspect precedence event payload and involved hash refs."
+    },
+    {
+      "code": "WARN-UNMAPPED-AUDIT-REASON",
+      "severity": "warn",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_advisory.v1.json",
+      "description": "Audit reason was unmapped and emitted as warning fallback.",
+      "remediation_hint": "Map audit reason to canonical event or suppress at source."
+    },
+    {
+      "code": "WARN-WORKSPACE-PERSISTENCE",
+      "severity": "warn",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_advisory.v1.json",
+      "description": "Workspace persistence helper reported degraded completion.",
+      "remediation_hint": "Inspect workspace persistence diagnostics and retry."
+    },
+    {
+      "code": "WARN-ENGINE-LIVE-DENIED",
+      "severity": "warn",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_advisory.v1.json",
+      "description": "Live engine mode was denied by deterministic policy gates.",
+      "remediation_hint": "Adjust requested mode or satisfy policy prerequisites."
+    },
+    {
+      "code": "WARN-MODE-DOWNGRADED",
+      "severity": "warn",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_advisory.v1.json",
+      "description": "Requested operating mode was downgraded due to capability constraints.",
+      "remediation_hint": "Grant required host capabilities or run with downgraded expectations."
+    },
+    {
+      "code": "WARN-PERMISSION-LIMITED",
+      "severity": "warn",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_advisory.v1.json",
+      "description": "Execution proceeded under reduced permissions.",
+      "remediation_hint": "Restore missing permissions to recover full deterministic behavior."
+    },
+    {
+      "code": "WARN-SESSION-STATE-LEGACY-COMPAT-MODE",
+      "severity": "warn",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_advisory.v1.json",
+      "description": "Legacy session-state compatibility mode was used.",
+      "remediation_hint": "Migrate session-state artifacts to canonical field set."
+    },
+    {
+      "code": "NOT_VERIFIED-MISSING-EVIDENCE",
+      "severity": "not_verified",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_advisory.v1.json",
+      "description": "Required evidence was missing for full verification.",
+      "remediation_hint": "Provide required evidence and rerun deterministic checks."
+    },
+    {
+      "code": "NOT_VERIFIED-EVIDENCE-STALE",
+      "severity": "not_verified",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_advisory.v1.json",
+      "description": "Required evidence was present but stale.",
+      "remediation_hint": "Refresh stale evidence and rerun verification."
     }
   ]
 }

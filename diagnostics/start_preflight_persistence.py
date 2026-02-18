@@ -7,14 +7,14 @@ import json
 import os
 import platform
 import re
-import shlex
 import shutil
 import subprocess
 import sys
+import tempfile
 from datetime import datetime
 from pathlib import Path
 
-SCRIPT_DIR = Path(__file__).resolve().parent
+SCRIPT_DIR = Path(os.path.abspath(__file__)).parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 if str(SCRIPT_DIR.parent) not in sys.path:
@@ -94,11 +94,29 @@ except Exception:
 try:
     from governance.infrastructure.fs_atomic import atomic_write_text
 except Exception:
-    def atomic_write_text(path: Path, text: str, newline_lf: bool = True, attempts: int = 5, backoff_ms: int = 50) -> None:
+    def atomic_write_text(path: Path, text: str, newline_lf: bool = True, attempts: int = 5, backoff_ms: int = 50) -> int:
         path.parent.mkdir(parents=True, exist_ok=True)
         payload = text.replace("\r\n", "\n") if newline_lf else text
-        with path.open("w", encoding="utf-8", newline="\n" if newline_lf else None) as handle:
-            handle.write(payload)
+        temp_path: Path | None = None
+        try:
+            with tempfile.NamedTemporaryFile(
+                mode="w",
+                encoding="utf-8",
+                newline="\n" if newline_lf else None,
+                dir=str(path.parent),
+                prefix=path.name + ".",
+                suffix=".tmp",
+                delete=False,
+            ) as tmp:
+                tmp.write(payload)
+                tmp.flush()
+                os.fsync(tmp.fileno())
+                temp_path = Path(tmp.name)
+            os.replace(str(temp_path), str(path))
+            return 0
+        finally:
+            if temp_path is not None and temp_path.exists():
+                temp_path.unlink(missing_ok=True)
 
 try:
     from governance.application.repo_identity_service import canonicalize_origin_url, derive_repo_identity
@@ -194,7 +212,10 @@ def identity_map_exists(repo_fp: str | None) -> bool:
 
 def resolve_repo_context() -> tuple[Path, str]:
     def _search_repo_root(start: Path) -> Path | None:
-        candidate = start.resolve()
+        try:
+            candidate = normalize_absolute_path(str(start), purpose="repo_search_start")
+        except Exception:
+            return None
         for probe in (candidate, *candidate.parents):
             git_path = probe / ".git"
             if git_path.is_dir() or git_path.is_file():
@@ -219,10 +240,11 @@ def resolve_repo_context() -> tuple[Path, str]:
         repo_root = _search_repo_root(path)
         if repo_root is not None:
             return repo_root, f"env:{key}"
-    cwd_repo_root = _search_repo_root(Path.cwd().resolve())
+    cwd_path = normalize_absolute_path(str(Path.cwd()), purpose="cwd")
+    cwd_repo_root = _search_repo_root(cwd_path)
     if cwd_repo_root is not None:
         return cwd_repo_root, "cwd_parent_walk"
-    return Path.cwd().resolve(), "cwd"
+    return cwd_path, "cwd"
 
 
 def resolve_repo_root() -> Path:
@@ -277,7 +299,7 @@ def resolve_git_dir(repo_root: Path) -> Path | None:
         return None
     candidate = Path(match.group(1).strip())
     if not candidate.is_absolute():
-        candidate = (repo_root / candidate).resolve()
+        candidate = normalize_absolute_path(str(repo_root / candidate), purpose="gitdir_relative")
     return candidate if candidate.exists() else None
 
 
@@ -330,11 +352,19 @@ def _discover_repo_session_id() -> str:
     candidate = str(os.getenv("OPENCODE_SESSION_ID", "")).strip()
     if candidate:
         return candidate
-    return hashlib.sha256(str(Path.cwd().resolve()).encode("utf-8")).hexdigest()[:16]
+    cwd = normalize_absolute_path(str(Path.cwd()), purpose="session_id_cwd")
+    return hashlib.sha256(str(cwd).encode("utf-8")).hexdigest()[:16]
 
 
 def _python_command_argv() -> list[str]:
-    return shlex.split(PYTHON_COMMAND, posix=(os.name != "nt")) or [PYTHON_COMMAND]
+    token = str(PYTHON_COMMAND or "").strip()
+    if not token:
+        return ["python3"]
+    if token == "py -3":
+        return ["py", "-3"]
+    if token == "python -3":
+        return ["python", "-3"]
+    return [token]
 
 
 def _repo_context_index_path(repo_root: Path) -> Path:
@@ -446,7 +476,13 @@ def _command_available(command: str) -> bool:
             or shutil.which("python3") is not None
             or shutil.which("py") is not None
         )
-    parts = shlex.split(command, posix=(os.name != "nt"))
+    token = str(command or "").strip()
+    if token == "py -3":
+        parts = ["py", "-3"]
+    elif token == "python -3":
+        parts = ["python", "-3"]
+    else:
+        parts = [token] if token else []
     if not parts:
         return False
     return shutil.which(parts[0]) is not None
@@ -858,7 +894,7 @@ def run_persistence_hook() -> None:
                         "reason_code": "WARN-WORKSPACE-PERSISTENCE",
                         "reason": "helper-missing",
                         "impact": "workspace artifacts may be incomplete",
-                        "recovery": persist_command(Path.cwd().resolve()),
+                        "recovery": persist_command(normalize_absolute_path(str(Path.cwd()), purpose="cwd_recovery")),
                     }
                 )
             )
@@ -975,7 +1011,7 @@ def run_persistence_hook() -> None:
                         "reason": "helper-reported-blocked",
                         "helperPayload": payload,
                         "impact": "workspace artifacts may be incomplete",
-                        "recovery": persist_command(Path.cwd().resolve()),
+                        "recovery": persist_command(normalize_absolute_path(str(Path.cwd()), purpose="cwd_recovery")),
                     }
                 )
             )
@@ -1001,7 +1037,7 @@ def run_persistence_hook() -> None:
                 "code": run.returncode,
                 "error": err[:240],
                 "impact": "workspace artifacts may be incomplete",
-                "recovery": persist_command(Path.cwd().resolve()),
+                "recovery": persist_command(normalize_absolute_path(str(Path.cwd()), purpose="cwd_recovery")),
             }
         )
     )

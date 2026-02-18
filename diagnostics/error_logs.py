@@ -12,10 +12,27 @@ from typing import Any
 
 try:
     from governance.infrastructure.fs_atomic import atomic_write_text
-    from governance.infrastructure.path_contract import canonical_config_root
+    from governance.infrastructure.path_contract import canonical_config_root, normalize_absolute_path
 except Exception:
+    class NotAbsoluteError(Exception):
+        pass
+
+    class WindowsDriveRelativeError(Exception):
+        pass
+
     def canonical_config_root() -> Path:
         return Path(os.path.normpath(os.path.abspath(str(Path.home().expanduser() / ".config" / "opencode"))))
+
+    def normalize_absolute_path(raw: str, *, purpose: str) -> Path:
+        token = str(raw or "").strip()
+        if not token:
+            raise NotAbsoluteError(f"{purpose}: empty path")
+        candidate = Path(token).expanduser()
+        if os.name == "nt" and re.match(r"^[A-Za-z]:[^/\\]", token):
+            raise WindowsDriveRelativeError(f"{purpose}: drive-relative path is not allowed")
+        if not candidate.is_absolute():
+            raise NotAbsoluteError(f"{purpose}: path must be absolute")
+        return Path(os.path.normpath(os.path.abspath(str(candidate))))
 
     def atomic_write_text(path: Path, text: str, newline_lf: bool = True, attempts: int = 5, backoff_ms: int = 50) -> int:
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -71,25 +88,27 @@ def _load_binding_paths(paths_file: Path, *, expected_config_root: Path | None =
         raise ValueError(f"binding evidence invalid: paths.configRoot missing in {paths_file}")
     if not isinstance(workspaces_raw, str) or not workspaces_raw.strip():
         raise ValueError(f"binding evidence invalid: paths.workspacesHome missing in {paths_file}")
-    config_root = Path(config_root_raw).expanduser().resolve()
-    if expected_config_root is not None and config_root != expected_config_root.resolve():
-        raise ValueError("binding evidence mismatch: config root does not match explicit input")
-    workspaces_home = Path(workspaces_raw).expanduser().resolve()
+    config_root = normalize_absolute_path(config_root_raw, purpose="paths.configRoot")
+    if expected_config_root is not None:
+        expected = normalize_absolute_path(str(expected_config_root), purpose="expected_config_root")
+        if config_root != expected:
+            raise ValueError("binding evidence mismatch: config root does not match explicit input")
+    workspaces_home = normalize_absolute_path(workspaces_raw, purpose="paths.workspacesHome")
     return config_root, workspaces_home
 
 
 def resolve_paths(config_root: Path | None = None) -> tuple[Path, Path]:
     if config_root is not None:
-        root = config_root.expanduser().resolve()
+        root = normalize_absolute_path(str(config_root), purpose="config_root")
         return _load_binding_paths(root / "commands" / "governance.paths.json", expected_config_root=root)
 
     env_value = os.environ.get("OPENCODE_CONFIG_ROOT")
     if env_value:
-        root = Path(env_value).expanduser().resolve()
+        root = normalize_absolute_path(str(env_value), purpose="env:OPENCODE_CONFIG_ROOT")
         return _load_binding_paths(root / "commands" / "governance.paths.json", expected_config_root=root)
 
     # Installed location: <config_root>/commands/diagnostics/error_logs.py
-    script_path = Path(__file__).resolve()
+    script_path = Path(os.path.abspath(__file__))
     diagnostics_dir = script_path.parent
     if diagnostics_dir.name == "diagnostics" and diagnostics_dir.parent.name == "commands":
         candidate = diagnostics_dir.parent / "governance.paths.json"
@@ -98,7 +117,7 @@ def resolve_paths(config_root: Path | None = None) -> tuple[Path, Path]:
     # Source-tree fallback
     fallback = default_config_root()
     candidate = fallback / "commands" / "governance.paths.json"
-    return _load_binding_paths(candidate, expected_config_root=fallback.resolve())
+    return _load_binding_paths(candidate, expected_config_root=fallback)
 
 
 def _validate_repo_fingerprint(value: str) -> str:
