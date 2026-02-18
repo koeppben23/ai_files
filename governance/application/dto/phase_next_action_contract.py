@@ -67,6 +67,29 @@ def _extract_previous_phase_tokens(session_state: dict[str, object]) -> tuple[st
     return tuple(tokens)
 
 
+def _phase_rank(token: str) -> int:
+    ordering = {
+        "1": 10,
+        "1.1": 11,
+        "1.2": 12,
+        "1.3": 13,
+        "1.5": 15,
+        "2": 20,
+        "2.1": 21,
+        "3A": 30,
+        "3B-1": 31,
+        "3B-2": 32,
+        "4": 40,
+        "5": 50,
+        "5.3": 53,
+        "5.4": 54,
+        "5.5": 55,
+        "5.6": 56,
+        "6": 60,
+    }
+    return ordering.get(token, -1)
+
+
 def _extract_next_gate_condition(session_state: dict[str, object]) -> str:
     for key in ("next_gate_condition", "NextGateCondition", "nextGateCondition", "Next"):
         value = session_state.get(key)
@@ -147,6 +170,11 @@ def validate_phase_next_action_contract(
             errors.append("next_action must align with next_gate_condition scope/working-set requirements")
 
     previous_phase_tokens = _extract_previous_phase_tokens(session_state)
+
+    if previous_phase_tokens and phase_token and phase_token != "1.5":
+        previous = previous_phase_tokens[0]
+        if previous and _phase_rank(phase_token) < _phase_rank(previous):
+            errors.append("phase progression invalid: phase must not move backward")
 
     if phase_token in {"2", "2.1", "3A", "3B-1", "3B-2"} and not _workspace_ready(session_state):
         errors.append("phase routing requires workspace_ready before phases 2/3")

@@ -66,3 +66,17 @@ def test_phase_contract_blocks_phase2_routing_when_workspace_not_ready():
         why_text="continue discovery",
     )
     assert "phase routing requires workspace_ready before phases 2/3" in errors
+
+
+def test_phase_contract_rejects_backward_progression_except_phase15_reopen():
+    errors = validate_phase_next_action_contract(
+        status="normal",
+        session_state={
+            "phase": "2-RepoDiscovery",
+            "previous_phase": "3A",
+            "workspace_ready": True,
+        },
+        next_text="Proceed to decision pack",
+        why_text="continue",
+    )
+    assert "phase progression invalid: phase must not move backward" in errors
