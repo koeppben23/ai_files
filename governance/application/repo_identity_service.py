@@ -11,7 +11,10 @@ from urllib.parse import urlsplit
 
 def _normalize_for_fingerprint(path: Path) -> str:
     normalized = os.path.normpath(os.path.abspath(str(path.expanduser())))
-    return normalized.replace("\\", "/").casefold()
+    normalized = normalized.replace("\\", "/")
+    if os.name == "nt":
+        return normalized.casefold()
+    return normalized
 
 
 @dataclass(frozen=True)

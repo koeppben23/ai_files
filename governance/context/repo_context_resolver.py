@@ -96,7 +96,8 @@ def resolve_repo_root(
         if _is_git_root(resolved):
             return RepoRootResolutionResult(repo_root=resolved, source=f"env:{key}", is_git_root=True)
 
-    fallback = (cwd if cwd is not None else Path.cwd()).resolve()
+    base_cwd = cwd if cwd is not None else Path.cwd()
+    fallback = Path(os.path.normpath(os.path.abspath(str(base_cwd.expanduser()))))
     if search_parent_git_root and not _is_git_root(fallback):
         parent_git_root = _search_parent_git_root(fallback, max_parent_levels=max_parent_levels)
         if parent_git_root is not None:

@@ -18,7 +18,7 @@ class BindingEvidence:
     commands_home: Path
     workspaces_home: Path
     governance_paths_json: Path | None
-    source: Literal["canonical", "dev_cwd_search", "missing", "invalid"]
+    source: Literal["canonical", "trusted_override", "dev_cwd_search", "missing", "invalid"]
     binding_ok: bool
     audit_marker: str | None
 
@@ -30,6 +30,10 @@ class BindingEvidenceResolver:
 
     def _allow_cwd_search(self) -> bool:
         return str(self._env.get("OPENCODE_ALLOW_CWD_BINDINGS", "")).strip() == "1"
+
+    @staticmethod
+    def _normalize_path(path: Path) -> Path:
+        return Path(os.path.normpath(os.path.abspath(str(path.expanduser()))))
 
     def _allow_trusted_override(self, *, mode: str, host_caps: Any | None) -> bool:
         if str(mode).strip().lower() == "pipeline":
@@ -52,16 +56,26 @@ class BindingEvidenceResolver:
             return None
         return commands_home / "governance.paths.json"
 
-    def _candidates(self, *, mode: str, host_caps: Any | None) -> list[Path]:
+    def _candidates(
+        self,
+        *,
+        mode: str,
+        host_caps: Any | None,
+    ) -> list[tuple[Path, Literal["canonical", "trusted_override", "dev_cwd_search"]]]:
         root = self._config_root
-        candidates = [root / "commands" / "governance.paths.json"]
+        candidates: list[tuple[Path, Literal["canonical", "trusted_override", "dev_cwd_search"]]] = [
+            (root / "commands" / "governance.paths.json", "canonical")
+        ]
         if self._allow_trusted_override(mode=mode, host_caps=host_caps):
             trusted = self._trusted_override_candidate()
             if trusted is not None:
-                candidates.insert(0, trusted)
-        if self._allow_cwd_search():
-            cwd = Path.cwd().resolve()
-            candidates.extend(parent / "commands" / "governance.paths.json" for parent in (cwd, *cwd.parents))
+                candidates.insert(0, (trusted, "trusted_override"))
+        if str(mode).strip().lower() != "pipeline" and self._allow_cwd_search():
+            cwd = self._normalize_path(Path.cwd())
+            candidates.extend(
+                (parent / "commands" / "governance.paths.json", "dev_cwd_search")
+                for parent in (cwd, *cwd.parents)
+            )
         return candidates
 
     def resolve(self, *, mode: str = "user", host_caps: Any | None = None) -> BindingEvidence:
@@ -71,10 +85,12 @@ class BindingEvidenceResolver:
         python_command = "py -3" if os.name == "nt" else "python3"
 
         binding_file: Path | None = None
-        for candidate in self._candidates(mode=mode, host_caps=host_caps):
-            resolved = candidate.expanduser().resolve()
-            if resolved.exists():
-                binding_file = resolved
+        binding_source: Literal["canonical", "trusted_override", "dev_cwd_search", "missing", "invalid"] = "missing"
+        for candidate, source in self._candidates(mode=mode, host_caps=host_caps):
+            normalized = self._normalize_path(candidate)
+            if normalized.exists():
+                binding_file = normalized
+                binding_source = source
                 break
 
         if binding_file is None:
@@ -123,10 +139,7 @@ class BindingEvidenceResolver:
                 audit_marker=None,
             )
 
-        source: Literal["canonical", "dev_cwd_search", "missing", "invalid"] = (
-            "dev_cwd_search" if self._allow_cwd_search() else "canonical"
-        )
-        audit_marker = "POLICY_PRECEDENCE_APPLIED" if source == "dev_cwd_search" else None
+        audit_marker = "POLICY_PRECEDENCE_APPLIED" if binding_source != "canonical" else None
         return BindingEvidence(
             python_command=python_command,
             cmd_profiles={str(k): str(v) for k, v in cmd_profiles.items()},
@@ -135,7 +148,7 @@ class BindingEvidenceResolver:
             commands_home=commands,
             workspaces_home=workspaces,
             governance_paths_json=binding_file,
-            source=source,
+            source=binding_source,
             binding_ok=True,
             audit_marker=audit_marker,
         )

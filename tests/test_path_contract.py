@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import pytest
@@ -31,7 +32,10 @@ def test_normalize_absolute_path_rejects_relative():
 def test_normalize_for_fingerprint_is_casefolded_and_slash_normalized(tmp_path: Path):
     value = normalize_for_fingerprint(tmp_path / "Repo" / "Sub")
     assert "\\" not in value
-    assert value == value.casefold()
+    if os.name == "nt":
+        assert value == value.casefold()
+    else:
+        assert value.endswith("/Repo/Sub")
 
 
 @pytest.mark.governance

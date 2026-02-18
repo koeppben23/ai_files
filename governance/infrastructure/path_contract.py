@@ -53,7 +53,10 @@ def normalize_absolute_path(raw: str, *, purpose: str) -> Path:
 
 def normalize_for_fingerprint(path: Path) -> str:
     normalized = os.path.normpath(os.path.abspath(str(path.expanduser())))
-    return normalized.replace("\\", "/").casefold()
+    normalized = normalized.replace("\\", "/")
+    if os.name == "nt":
+        return normalized.casefold()
+    return normalized
 
 
 def binding_evidence_location(
