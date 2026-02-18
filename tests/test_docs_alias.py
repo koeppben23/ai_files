@@ -2,7 +2,7 @@ import re
 from pathlib import Path
 
 
-REPO = Path(__file__).resolve().parents[2]
+REPO = Path(__file__).resolve().parents[1]
 
 
 def test_phases_alias_note_present():

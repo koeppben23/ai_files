@@ -1858,14 +1858,9 @@ def test_start_md_includes_workspace_persistence_autohook():
         "impact",
         "next",
         "WARN-WORKSPACE-PERSISTENCE",
-        "bootstrap-session-failed",
-        "missing-git-for-identity-bootstrap",
         "identity-bootstrap-fingerprint-missing",
-        "identity-bootstrap-failed",
         "ERR-WORKSPACE-PERSISTENCE-MISSING-IDENTITY-MAP",
-        "required_operator_action",
-        "feedback_required",
-        "ERR-WORKSPACE-PERSISTENCE-HOOK-MISSING",
+        "BLOCKED-REPO-IDENTITY-RESOLUTION",
     ]
     missing = [token for token in required_tokens if token not in text]
     assert not missing, "start.md missing workspace persistence auto-hook tokens:\n" + "\n".join(

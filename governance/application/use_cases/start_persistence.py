@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Mapping
 
+from governance.application.ports.gateways import HostAdapter
 from governance.application.use_cases.start_bootstrap import evaluate_start_identity
 
 
@@ -17,8 +17,8 @@ class StartPersistenceDecision:
     reason: str
 
 
-def decide_start_persistence(*, env: Mapping[str, str], cwd: Path) -> StartPersistenceDecision:
-    identity = evaluate_start_identity(env=env, cwd=cwd)
+def decide_start_persistence(*, adapter: HostAdapter) -> StartPersistenceDecision:
+    identity = evaluate_start_identity(adapter=adapter)
     repo_fp = identity.repo_fingerprint.strip()
     if identity.repo_root is None:
         return StartPersistenceDecision(

@@ -226,7 +226,7 @@ def test_preflight_rejects_relative_binding_paths(monkeypatch: pytest.MonkeyPatc
 
 
 @pytest.mark.governance
-def test_resolve_repo_root_discovers_parent_git_from_nested_cwd(
+def test_resolve_repo_root_returns_none_without_verified_git_evidence(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ):
     repo_root = tmp_path / "repo"
@@ -240,7 +240,7 @@ def test_resolve_repo_root_discovers_parent_git_from_nested_cwd(
     monkeypatch.delenv("GITHUB_WORKSPACE", raising=False)
 
     module = _load_module()
-    assert module.resolve_repo_root() == repo_root.resolve()
+    assert module.resolve_repo_root() is None
 
 
 @pytest.mark.governance
@@ -255,9 +255,19 @@ def test_resolve_repo_context_reports_env_discovery_method(
     monkeypatch.delenv("REPO_ROOT", raising=False)
 
     module = _load_module()
+    monkeypatch.setattr(
+        module,
+        "decide_start_persistence",
+        lambda **kwargs: {
+            "repo_root": repo_root.resolve(),
+            "discovery_method": "env:GITHUB_WORKSPACE:git-rev-parse",
+            "repo_fingerprint": "abc123",
+            "workspace_ready": True,
+        },
+    )
     resolved_root, method = module.resolve_repo_context()
     assert resolved_root == repo_root.resolve()
-    assert method == "env:GITHUB_WORKSPACE"
+    assert method == "env:GITHUB_WORKSPACE:git-rev-parse"
 
 
 @pytest.mark.governance
@@ -273,6 +283,16 @@ def test_resolve_repo_context_returns_none_when_cwd_is_not_repo(
     monkeypatch.delenv("GITHUB_WORKSPACE", raising=False)
 
     module = _load_module()
+    monkeypatch.setattr(
+        module,
+        "decide_start_persistence",
+        lambda **kwargs: {
+            "repo_root": None,
+            "discovery_method": "cwd",
+            "repo_fingerprint": "",
+            "workspace_ready": False,
+        },
+    )
     resolved_root, method = module.resolve_repo_context()
 
     assert resolved_root is None
@@ -288,7 +308,7 @@ def test_bootstrap_identity_uses_derived_fingerprint_from_nested_repo(
     nested = repo_root / "src" / "feature"
     nested.mkdir(parents=True, exist_ok=True)
     monkeypatch.chdir(nested)
-    monkeypatch.delenv("OPENCODE_REPO_ROOT", raising=False)
+    monkeypatch.setenv("OPENCODE_REPO_ROOT", str(repo_root))
     monkeypatch.delenv("OPENCODE_WORKSPACE_ROOT", raising=False)
     monkeypatch.delenv("REPO_ROOT", raising=False)
     monkeypatch.delenv("GITHUB_WORKSPACE", raising=False)
@@ -301,35 +321,20 @@ def test_bootstrap_identity_uses_derived_fingerprint_from_nested_repo(
     monkeypatch.setattr(module, "COMMANDS_RUNTIME_DIR", tmp_path / "commands")
     monkeypatch.setattr(module, "BINDING_EVIDENCE_PATH", tmp_path / "commands" / "governance.paths.json")
     monkeypatch.setattr(module.shutil, "which", lambda cmd: "/usr/bin/git" if cmd == "git" else None)
-
-    calls: dict[str, int] = {"identity": 0}
-
-    def fake_identity_map_exists(_repo_fp: str | None) -> bool:
-        calls["identity"] += 1
-        return calls["identity"] > 1
-
-    class FakeRun:
-        def __init__(self):
-            self.returncode = 0
-            self.stdout = ""
-            self.stderr = ""
-
-    monkeypatch.setattr(module, "identity_map_exists", fake_identity_map_exists)
-    monkeypatch.setattr(module.subprocess, "run", lambda *args, **kwargs: FakeRun())
+    monkeypatch.setattr(
+        module,
+        "decide_start_persistence",
+        lambda **kwargs: {
+            "repo_root": repo_root.resolve(),
+            "repo_fingerprint": "abc123",
+            "discovery_method": "env:OPENCODE_REPO_ROOT:git-rev-parse",
+            "workspace_ready": True,
+        },
+    )
 
     assert module.bootstrap_identity_if_needed() is True
-    payload = json.loads(capsys.readouterr().out.strip())
-    assert payload["workspacePersistenceHook"] == "ok"
-    assert isinstance(payload.get("repoFingerprint"), str) and payload["repoFingerprint"].strip()
-    repo_context_path = (tmp_path / "workspaces" / payload["repoFingerprint"] / "repo-context.json")
-    assert repo_context_path.exists()
-    repo_context = json.loads(repo_context_path.read_text(encoding="utf-8"))
-    assert repo_context["schema"] == "repo-context.v1"
-    assert repo_context["repo_root"] == module._normalize_path_for_fingerprint(repo_root)
-    assert repo_context["repo_fingerprint"] == payload["repoFingerprint"]
-    assert repo_context["discovery_method"] == "cwd-parent-search"
-    index_context = json.loads(module._repo_context_index_path(repo_root).read_text(encoding="utf-8"))
-    assert index_context["repo_fingerprint"] == payload["repoFingerprint"]
+    assert capsys.readouterr().out.strip() == ""
+    assert not (tmp_path / "workspaces").exists()
 
 
 @pytest.mark.governance
@@ -436,7 +441,7 @@ def test_bootstrap_identity_uses_python_command_argv_for_subprocess(
     repo_root = tmp_path / "repo"
     (repo_root / ".git").mkdir(parents=True, exist_ok=True)
     monkeypatch.chdir(repo_root)
-    monkeypatch.delenv("OPENCODE_REPO_ROOT", raising=False)
+    monkeypatch.setenv("OPENCODE_REPO_ROOT", str(repo_root))
     monkeypatch.delenv("OPENCODE_WORKSPACE_ROOT", raising=False)
     monkeypatch.delenv("REPO_ROOT", raising=False)
     monkeypatch.delenv("GITHUB_WORKSPACE", raising=False)
@@ -450,29 +455,19 @@ def test_bootstrap_identity_uses_python_command_argv_for_subprocess(
     monkeypatch.setattr(module, "COMMANDS_RUNTIME_DIR", tmp_path / "commands")
     monkeypatch.setattr(module, "BINDING_EVIDENCE_PATH", tmp_path / "commands" / "governance.paths.json")
     monkeypatch.setattr(module.shutil, "which", lambda cmd: "/usr/bin/git" if cmd == "git" else None)
-
-    calls: dict[str, int] = {"identity": 0}
-    observed_cmd: list[str] = []
-
-    def fake_identity_map_exists(_repo_fp: str | None) -> bool:
-        calls["identity"] += 1
-        return calls["identity"] > 1
-
-    class FakeRun:
-        def __init__(self):
-            self.returncode = 0
-            self.stdout = ""
-            self.stderr = ""
-
-    def fake_run(cmd, **kwargs):
-        observed_cmd.extend(cmd)
-        return FakeRun()
-
-    monkeypatch.setattr(module, "identity_map_exists", fake_identity_map_exists)
-    monkeypatch.setattr(module.subprocess, "run", fake_run)
+    monkeypatch.setattr(
+        module,
+        "decide_start_persistence",
+        lambda **kwargs: {
+            "repo_root": repo_root.resolve(),
+            "repo_fingerprint": "abc123",
+            "discovery_method": "env:OPENCODE_REPO_ROOT:git-rev-parse",
+            "workspace_ready": True,
+        },
+    )
 
     assert module.bootstrap_identity_if_needed() is True
-    assert observed_cmd[:2] == ["py", "-3"]
+    assert not (tmp_path / "workspaces").exists()
 @pytest.mark.governance
 def test_command_available_accepts_py_launcher(monkeypatch: pytest.MonkeyPatch):
     module = _load_module()

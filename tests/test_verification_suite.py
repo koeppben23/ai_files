@@ -22,7 +22,7 @@ def _load_preflight_module():
 
 
 @pytest.mark.governance
-def test_start_nested_cwd_writes_repo_context_and_session_pointer(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+def test_start_nested_cwd_without_repo_override_is_non_destructive(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     cfg = tmp_path / ".config" / "opencode"
     write_governance_paths(cfg)
 
@@ -53,12 +53,9 @@ def test_start_nested_cwd_writes_repo_context_and_session_pointer(monkeypatch: p
     module.DIAGNOSTICS_DIR = diagnostics_dst
     module.BOOTSTRAP_HELPER = diagnostics_dst / "bootstrap_session_state.py"
 
-    assert module.bootstrap_identity_if_needed() is True
-
-    pointer = json.loads((cfg / "SESSION_STATE.json").read_text(encoding="utf-8"))
-    repo_fp = pointer.get("activeRepoFingerprint")
-    assert isinstance(repo_fp, str) and repo_fp
-    assert (cfg / "workspaces" / repo_fp / "repo-context.json").exists()
+    assert module.bootstrap_identity_if_needed() is False
+    assert not (cfg / "workspaces").exists()
+    assert not (cfg / "SESSION_STATE.json").exists()
 
 
 @pytest.mark.governance
