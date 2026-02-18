@@ -8,14 +8,10 @@ import hashlib
 import re
 from typing import Mapping
 
-from governance.context.repo_context_resolver import RepoRootResolutionResult, resolve_repo_root
 from governance.domain.evidence_policy import extract_verified_claim_evidence_ids
 from governance.domain.integrity import build_activation_hash, build_ruleset_hash
 from governance.domain.policy_precedence import resolve_widening_precedence
-from governance.engine.adapters import HostAdapter, HostCapabilities, OperatingMode
-from governance.engine.error_reason_router import canonicalize_reason_payload_failure
-from governance.engine.interaction_gate import evaluate_interaction_gate
-from governance.engine.reason_codes import (
+from governance.domain.reason_codes import (
     BLOCKED_ENGINE_SELFCHECK,
     BLOCKED_ACTIVATION_HASH_MISMATCH,
     BLOCKED_MISSING_BINDING_FILE,
@@ -42,33 +38,35 @@ from governance.engine.reason_codes import (
     WARN_MODE_DOWNGRADED,
     WARN_PERMISSION_LIMITED,
 )
-from governance.engine.mode_repo_rules import (
+from governance.application.ports.gateways import (
     RepoDocEvidence,
-    classify_repo_doc,
-    compute_repo_doc_hash,
-    resolve_prompt_budget,
-    summarize_classification,
-)
-from governance.engine.reason_payload import (
+    RepoRootResolutionResult,
+    HostAdapter,
+    HostCapabilities,
+    OperatingMode,
     ReasonPayload,
-    build_reason_payload,
-    validate_reason_payload,
-)
-from governance.engine.runtime import (
+    WriteTargetPolicyResult,
     EngineDeviation,
     EngineRuntimeDecision,
     LiveEnablePolicy,
-    evaluate_runtime_activation,
-    golden_parity_fields,
-)
-from governance.engine.selfcheck import run_engine_selfcheck
-from governance.engine.surface_policy import (
+    canonicalize_reason_payload_failure,
     capability_satisfies_requirement,
+    classify_repo_doc,
+    compute_repo_doc_hash,
+    build_reason_payload,
+    evaluate_interaction_gate,
+    evaluate_runtime_activation,
+    evaluate_target_path,
+    golden_parity_fields,
     mode_satisfies_requirement,
+    resolve_pack_lock,
+    resolve_prompt_budget,
+    resolve_repo_root,
     resolve_surface_policy,
+    run_engine_selfcheck,
+    summarize_classification,
+    validate_reason_payload,
 )
-from governance.packs.pack_lock import resolve_pack_lock
-from governance.persistence.write_policy import WriteTargetPolicyResult, evaluate_target_path
 
 _VARIABLE_CAPTURE = re.compile(r"^\$\{([A-Z0-9_]+)\}")
 
