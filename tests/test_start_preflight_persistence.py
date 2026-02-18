@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 import json
 from pathlib import Path
+import subprocess
 
 import pytest
 
@@ -44,7 +45,7 @@ def test_start_preflight_derive_repo_fingerprint_requires_git_repo(tmp_path: Pat
 @pytest.mark.governance
 def test_start_preflight_derive_repo_fingerprint_from_git_repo(tmp_path: Path):
     module = _load_module()
-    (tmp_path / ".git").mkdir(parents=True, exist_ok=True)
+    subprocess.run(["git", "init", str(tmp_path)], check=True, capture_output=True, text=True)
     fp = module.derive_repo_fingerprint(tmp_path)
     assert isinstance(fp, str) and len(fp) == 24
 

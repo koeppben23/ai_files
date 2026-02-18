@@ -68,6 +68,13 @@ def _path_readable(path: Path) -> bool:
     return path.exists() and os.access(path, os.R_OK)
 
 
+def _repo_root_writable(env: Mapping[str, str]) -> bool:
+    repo_root = _resolve_env_path(env, "OPENCODE_REPO_ROOT")
+    if repo_root is None:
+        return False
+    return _path_writable(repo_root)
+
+
 def _is_ci_env(env: Mapping[str, str]) -> bool:
     """Return True when environment indicates pipeline/system execution."""
 
@@ -177,8 +184,6 @@ class LocalHostAdapter:
         env = self.environment()
         config_root = normalize_absolute_path(str(_default_config_root()), purpose="default_config_root")
         commands_home, workspaces_home, binding_ok = _resolve_bound_paths(config_root, env, self.default_operating_mode())
-        # Fail-closed: ignore relative OPENCODE_REPO_ROOT to avoid CWD-dependent resolution
-        repo_root = _resolve_env_path(env, "OPENCODE_REPO_ROOT") or self.cwd()
         exec_allowed = os.access(sys.executable, os.X_OK)
         git_disabled = str(env.get("OPENCODE_DISABLE_GIT", "")).strip() == "1"
         git_available = (shutil.which("git") is not None) and not git_disabled
@@ -188,7 +193,7 @@ class LocalHostAdapter:
             fs_write_config_root=_path_writable(config_root),
             fs_write_commands_home=_path_writable(commands_home) if binding_ok else False,
             fs_write_workspaces_home=_path_writable(workspaces_home) if binding_ok else False,
-            fs_write_repo_root=_path_writable(repo_root),
+            fs_write_repo_root=_repo_root_writable(env),
             exec_allowed=exec_allowed,
             git_available=git_available,
         )
@@ -263,8 +268,6 @@ class OpenCodeDesktopAdapter:
         env = self.environment()
         config_root = normalize_absolute_path(str(_default_config_root()), purpose="default_config_root")
         commands_home, workspaces_home, binding_ok = _resolve_bound_paths(config_root, env, self.default_operating_mode())
-        # Fail-closed: ignore relative OPENCODE_REPO_ROOT to avoid CWD-dependent resolution
-        repo_root = _resolve_env_path(env, "OPENCODE_REPO_ROOT") or self.cwd()
         disabled = str(env.get("OPENCODE_DISABLE_GIT", "")).strip() == "1"
         git_available = self.git_available_override
         if git_available is None:
@@ -275,7 +278,7 @@ class OpenCodeDesktopAdapter:
             fs_write_config_root=_path_writable(config_root),
             fs_write_commands_home=_path_writable(commands_home) if binding_ok else False,
             fs_write_workspaces_home=_path_writable(workspaces_home) if binding_ok else False,
-            fs_write_repo_root=_path_writable(repo_root),
+            fs_write_repo_root=_repo_root_writable(env),
             exec_allowed=os.access(sys.executable, os.X_OK),
             git_available=bool(git_available),
         )
