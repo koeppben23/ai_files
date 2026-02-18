@@ -42,3 +42,22 @@ def test_workspace_memory_repository_allows_write_with_exact_confirmation(tmp_pa
 
     assert result.ok is True
     assert path.exists()
+
+
+@pytest.mark.governance
+def test_workspace_memory_repository_blocks_direct_bypass_write_in_pipeline(tmp_path: Path):
+    path = tmp_path / "workspaces" / "abc" / "workspace-memory.yaml"
+    repo = WorkspaceMemoryRepository(path)
+
+    result = repo.write(
+        "memory: []",
+        phase="5-ImplementationQA",
+        mode="pipeline",
+        phase5_approved=True,
+        explicit_confirmation="",
+        business_rules_executed=True,
+    )
+
+    assert result.ok is False
+    assert result.reason_code == "PERSIST_DISALLOWED_IN_PIPELINE"
+    assert not path.exists()

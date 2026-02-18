@@ -8,6 +8,7 @@ from typing import Any, Mapping
 
 from governance.domain.canonical_json import canonical_json_text
 from governance.domain.reason_codes import PERSIST_DISALLOWED_IN_PIPELINE, REASON_CODE_NONE
+from governance.domain.reason_codes import PERSIST_CONFIRMATION_INVALID
 from governance.infrastructure.fs_atomic import atomic_write_text
 
 
@@ -69,6 +70,9 @@ def record_persist_confirmation(
 ) -> PersistConfirmationResult:
     if mode.strip().lower() == "pipeline":
         return PersistConfirmationResult(False, PERSIST_DISALLOWED_IN_PIPELINE, "pipeline-cannot-record-confirmation")
+
+    if value.strip() != "YES":
+        return PersistConfirmationResult(False, PERSIST_CONFIRMATION_INVALID, "confirmation-value-must-be-exact-YES")
 
     payload = load_persist_confirmation_evidence(evidence_path=evidence_path)
     items = payload.get("items")

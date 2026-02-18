@@ -1240,6 +1240,49 @@ def test_orchestrator_pipeline_blocks_when_workspace_memory_confirmation_missing
 
     assert out.parity["status"] == "blocked"
     assert out.parity["reason_code"] == "PERSIST_DISALLOWED_IN_PIPELINE"
+    assert len(out.prompt_events) == 0
+
+
+@pytest.mark.governance
+def test_orchestrator_user_blocks_without_confirmation_evidence_and_writes_nothing(tmp_path: Path):
+    repo_root = _make_git_root(tmp_path / "repo")
+    evidence = tmp_path / "workspaces" / "abc" / "evidence" / "persist_confirmations.json"
+    adapter = StubAdapter(
+        env={"OPENCODE_REPO_ROOT": str(repo_root)},
+        cwd_path=repo_root,
+        caps=HostCapabilities(
+            cwd_trust="trusted",
+            fs_read_commands_home=True,
+            fs_write_config_root=True,
+            fs_write_commands_home=True,
+            fs_write_workspaces_home=True,
+            fs_write_repo_root=True,
+            exec_allowed=True,
+            git_available=True,
+        ),
+    )
+
+    out = run_engine_orchestrator(
+        adapter=adapter,
+        phase="5-ImplementationQA",
+        active_gate="P5",
+        mode="OK",
+        next_gate_condition="Persist memory",
+        target_path="${WORKSPACE_MEMORY_FILE}",
+        session_state_document={
+            "SESSION_STATE": {
+                "workspace_ready_gate_committed": True,
+                "phase_transition_evidence": True,
+                "phase5_approved": True,
+            }
+        },
+        persistence_write_requested=True,
+        persist_confirmation_evidence_path=str(evidence),
+    )
+
+    assert out.parity["status"] == "blocked"
+    assert out.parity["reason_code"] == "PERSIST_CONFIRMATION_REQUIRED"
+    assert not evidence.exists()
 
 
 @pytest.mark.governance

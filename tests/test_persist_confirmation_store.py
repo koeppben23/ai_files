@@ -41,3 +41,19 @@ def test_persist_confirmation_store_blocks_pipeline_recording(tmp_path: Path):
     )
     assert result.ok is False
     assert result.reason_code == "PERSIST_DISALLOWED_IN_PIPELINE"
+
+
+@pytest.mark.governance
+def test_persist_confirmation_store_rejects_non_exact_phrase_value(tmp_path: Path):
+    evidence = tmp_path / "workspaces" / "abc" / "evidence" / "persist_confirmations.json"
+    result = record_persist_confirmation(
+        evidence_path=evidence,
+        scope="workspace-memory",
+        gate="phase5",
+        value="YES!",
+        mode="user",
+        reason="operator-typo",
+    )
+    assert result.ok is False
+    assert result.reason_code == "PERSIST_CONFIRMATION_INVALID"
+    assert not evidence.exists()
