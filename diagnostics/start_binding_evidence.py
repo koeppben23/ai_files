@@ -10,6 +10,13 @@ from governance.infrastructure.binding_evidence_resolver import BindingEvidenceR
 def main() -> int:
     resolver = BindingEvidenceResolver()
     evidence = resolver.resolve(mode="start")
+    debug_paths = {
+        "configRoot": str(Path.home() / ".config" / "opencode"),
+        "commandsHome": str(Path.home() / ".config" / "opencode" / "commands"),
+        "profilesHome": str(Path.home() / ".config" / "opencode" / "commands" / "profiles"),
+        "diagnosticsHome": str(Path.home() / ".config" / "opencode" / "commands" / "diagnostics"),
+        "workspacesHome": str(Path.home() / ".config" / "opencode" / "workspaces"),
+    }
 
     if not evidence.binding_ok:
         payload = {
@@ -22,6 +29,7 @@ def main() -> int:
             ],
             "next_command": "/start",
             "nonEvidence": "debug-only",
+            "debugComputedPaths": debug_paths,
             "bindingEvidenceSource": evidence.source,
         }
         print(json.dumps(payload, ensure_ascii=True))
@@ -45,6 +53,7 @@ def main() -> int:
                 "error": str(ex)[:240],
                 "next_command": "/start",
                 "nonEvidence": "debug-only",
+                "debugComputedPaths": debug_paths,
                 "bindingEvidenceSource": evidence.source,
             }
             print(json.dumps(payload, ensure_ascii=True))
@@ -59,6 +68,7 @@ def main() -> int:
         ],
         "next_command": "/start",
         "nonEvidence": "debug-only",
+        "debugComputedPaths": debug_paths,
         "bindingEvidenceSource": evidence.source,
     }
     print(json.dumps(payload, ensure_ascii=True))
