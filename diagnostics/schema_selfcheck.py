@@ -39,13 +39,35 @@ def main() -> int:
         )
         return 2
 
-    codes = payload.get("codes")
-    if not isinstance(codes, list):
-        print("BLOCKED: reason schema registry 'codes' must be an array")
+    blocked = payload.get("blocked_reasons")
+    audit = payload.get("audit_events")
+    legacy = payload.get("codes")
+    if not isinstance(blocked, list) and not isinstance(audit, list) and not isinstance(legacy, list):
+        print("BLOCKED: reason schema registry must provide blocked_reasons/audit_events arrays")
         return 2
 
+    entries: list[object] = []
+    if isinstance(blocked, list):
+        entries.extend(blocked)
+    if isinstance(audit, list):
+        entries.extend(audit)
+    if isinstance(legacy, list):
+        entries.extend(legacy)
+
+    if isinstance(blocked, list):
+        non_blocked = [
+            entry.get("code")
+            for entry in blocked
+            if isinstance(entry, dict) and str(entry.get("severity", "blocked")) != "blocked"
+        ]
+        if non_blocked:
+            print("BLOCKED: blocked_reasons must use severity=blocked:")
+            for code in non_blocked:
+                print(f"- {code}")
+            return 2
+
     missing: list[str] = []
-    for entry in codes:
+    for entry in entries:
         if not isinstance(entry, dict):
             continue
         code = entry.get("code")

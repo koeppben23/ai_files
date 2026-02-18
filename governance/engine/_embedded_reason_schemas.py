@@ -12,6 +12,7 @@ EMBEDDED_REASON_SCHEMAS: Final[dict[str, dict[str, object]]] = {
         "description": "Generic fail-closed context schema for canonical BLOCKED reason codes.",
         "type": "object",
         "additionalProperties": False,
+        "required": ["failure_class"],
         "properties": {
             "failure_class": {"type": "string"},
             "failure_detail": {"type": "string"},

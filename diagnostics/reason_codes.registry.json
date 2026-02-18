@@ -1,7 +1,7 @@
 {
   "schema": "governance.reason-codes.registry.v1",
   "version": "1.0.0",
-  "codes": [
+  "blocked_reasons": [
     {
       "code": "BLOCKED-MISSING-BINDING-FILE",
       "severity": "blocked",
@@ -197,7 +197,9 @@
       "payload_schema_ref": "diagnostics/schemas/reason_payload_prompt_budget.v1.json",
       "description": "Prompt budget exceeded for the active mode.",
       "remediation_hint": "Reduce prompts or increase budget through explicit policy change."
-    },
+    }
+  ],
+  "audit_events": [
     {
       "code": "REPO-CONSTRAINT-UNSUPPORTED",
       "severity": "not_verified",

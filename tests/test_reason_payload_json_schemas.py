@@ -156,7 +156,7 @@ def test_reason_context_validates_mapped_blocked_codes_without_registry_lookup(m
 
     valid = reason_payload.validate_reason_context_schema(
         BLOCKED_EXEC_DISALLOWED,
-        {},
+        {"failure_class": "blocked_decision"},
     )
     assert valid == ()
 

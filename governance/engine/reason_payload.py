@@ -10,7 +10,7 @@ from typing import Literal
 
 from governance.engine._embedded_reason_registry import EMBEDDED_REASON_CODE_TO_SCHEMA_REF
 from governance.engine._embedded_reason_schemas import EMBEDDED_REASON_SCHEMAS
-from governance.engine.reason_codes import REASON_CODE_NONE
+from governance.engine.reason_codes import REASON_CODE_NONE, is_registered_reason_code
 from governance.engine.sanitization import sanitize_for_output
 
 ReasonStatus = Literal["BLOCKED", "WARN", "OK", "NOT_VERIFIED"]
@@ -94,9 +94,19 @@ def _load_reason_schema_refs() -> dict[str, str]:
     if schema_tag != "governance.reason-codes.registry.v1":
         raise ValueError("reason_registry_invalid:schema_mismatch")
 
-    entries = payload.get("codes")
-    if not isinstance(entries, list):
-        raise ValueError("reason_registry_invalid:codes_not_array")
+    blocked = payload.get("blocked_reasons")
+    audit = payload.get("audit_events")
+    legacy = payload.get("codes")
+    if not isinstance(blocked, list) and not isinstance(audit, list) and not isinstance(legacy, list):
+        raise ValueError("reason_registry_invalid:entries_not_array")
+
+    entries: list[object] = []
+    if isinstance(blocked, list):
+        entries.extend(blocked)
+    if isinstance(audit, list):
+        entries.extend(audit)
+    if isinstance(legacy, list):
+        entries.extend(legacy)
 
     refs: dict[str, str] = {}
     for entry in entries:
@@ -230,9 +240,18 @@ def build_reason_payload(
 ) -> ReasonPayload:
     """Create a validated reason payload, raising on contract errors."""
 
+    normalized_reason_code = reason_code.strip()
+    normalized_context = dict(sorted(sanitize_for_output(context or {}).items()))
+    if (
+        status == "BLOCKED"
+        and normalized_reason_code.startswith("BLOCKED-")
+        and "failure_class" not in normalized_context
+    ):
+        normalized_context["failure_class"] = "blocked_decision"
+
     payload = ReasonPayload(
         status=status,
-        reason_code=reason_code.strip(),
+        reason_code=normalized_reason_code,
         surface=surface.strip(),
         signals_used=tuple(sorted(set(s.strip() for s in signals_used if s.strip()))),
         primary_action=primary_action.strip(),
@@ -242,9 +261,11 @@ def build_reason_payload(
         missing_evidence=tuple(sorted(set(missing_evidence))),
         deviation=dict(sorted(sanitize_for_output(deviation or {}).items())),
         expiry=expiry.strip() or "none",
-        context=dict(sorted(sanitize_for_output(context or {}).items())),
+        context=normalized_context,
     )
     errors = list(validate_reason_payload(payload))
+    if payload.status == "BLOCKED" and not is_registered_reason_code(payload.reason_code, allow_none=False):
+        errors.append("blocked_reason_code_unregistered")
     errors.extend(validate_reason_context_schema(payload.reason_code, payload.context))
     if errors:
         raise ValueError("invalid reason payload: " + ",".join(errors))

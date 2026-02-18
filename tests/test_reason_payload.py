@@ -79,3 +79,17 @@ def test_reason_payload_builder_rejects_invalid_ok_payload():
             reason_code="WARN-SHOULD-NOT-APPEAR",
             surface="${WORKSPACE_MEMORY_FILE}",
         )
+
+
+@pytest.mark.governance
+def test_reason_payload_builder_rejects_unregistered_blocked_code():
+    with pytest.raises(ValueError, match="blocked_reason_code_unregistered"):
+        build_reason_payload(
+            status="BLOCKED",
+            reason_code="BLOCKED-UNKNOWN-CODE",
+            surface="${WORKSPACE_MEMORY_FILE}",
+            signals_used=("gate",),
+            primary_action="Do something",
+            recovery_steps=("Recover",),
+            next_command="/start",
+        )

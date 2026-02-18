@@ -14,11 +14,21 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 @pytest.mark.governance
 def test_every_blocked_reason_code_has_registry_schema_mapping():
     payload = json.loads((REPO_ROOT / "diagnostics" / "reason_codes.registry.json").read_text(encoding="utf-8"))
+    blocked_entries = payload.get("blocked_reasons")
+    assert isinstance(blocked_entries, list), "blocked_reasons must be an array"
+
     schema_by_code = {
         entry["code"]: entry.get("payload_schema_ref")
-        for entry in payload.get("codes", [])
+        for entry in blocked_entries
         if isinstance(entry, dict) and isinstance(entry.get("code"), str)
     }
+
+    non_blocked = [
+        str(entry.get("code"))
+        for entry in blocked_entries
+        if isinstance(entry, dict) and str(entry.get("severity", "blocked")) != "blocked"
+    ]
+    assert not non_blocked, f"blocked_reasons contain non-blocked severities: {non_blocked}"
 
     blocked_codes = sorted(code for code in reason_codes.CANONICAL_REASON_CODES if code.startswith("BLOCKED-"))
     missing = [code for code in blocked_codes if code not in schema_by_code]
