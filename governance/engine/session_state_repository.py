@@ -10,7 +10,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
-import errno
 import json
 import os
 from pathlib import Path
@@ -25,6 +24,7 @@ from governance.engine.reason_codes import (
     REASON_CODE_NONE,
     WARN_SESSION_STATE_LEGACY_COMPAT_MODE,
 )
+from governance.infrastructure.fs_atomic import is_retryable_replace_error
 
 CURRENT_SESSION_STATE_VERSION = 1
 ROLLOUT_PHASE_DUAL_READ = 1
@@ -286,12 +286,6 @@ def _record_migration_event(
     events.append(event)
 
 
-def _is_retryable_replace_error(exc: OSError) -> bool:
-    """Return True for transient replace failures often seen on Windows."""
-
-    return exc.errno in {errno.EACCES, errno.EPERM, errno.EBUSY}
-
-
 def _fsync_directory(path: Path) -> None:
     """Best-effort directory fsync for durability after atomic replace."""
 
@@ -334,7 +328,7 @@ def _atomic_write_text(path: Path, payload: str) -> int:
                 return attempt
             except OSError as exc:
                 last_error = exc
-                if attempt == ATOMIC_REPLACE_RETRIES - 1 or not _is_retryable_replace_error(exc):
+                if attempt == ATOMIC_REPLACE_RETRIES - 1 or not is_retryable_replace_error(exc):
                     raise
                 time.sleep(ATOMIC_RETRY_DELAY_SECONDS)
 

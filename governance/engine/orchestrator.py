@@ -3,14 +3,16 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 import hashlib
 import re
 from typing import Mapping
 
 from governance.context.repo_context_resolver import RepoRootResolutionResult, resolve_repo_root
+from governance.domain.evidence_policy import extract_verified_claim_evidence_ids
+from governance.domain.integrity import build_activation_hash, build_ruleset_hash
+from governance.domain.policy_precedence import resolve_widening_precedence
 from governance.engine.adapters import HostAdapter, HostCapabilities, OperatingMode
-from governance.engine.canonical_json import canonical_json_hash
 from governance.engine.error_reason_router import canonicalize_reason_payload_failure
 from governance.engine.interaction_gate import evaluate_interaction_gate
 from governance.engine.reason_codes import (
@@ -68,15 +70,6 @@ from governance.packs.pack_lock import resolve_pack_lock
 from governance.persistence.write_policy import WriteTargetPolicyResult, evaluate_target_path
 
 _VARIABLE_CAPTURE = re.compile(r"^\$\{([A-Z0-9_]+)\}")
-
-_EVIDENCE_CLASS_DEFAULT_TTL_SECONDS: dict[str, int] = {
-    "identity_signal": 0,
-    "preflight_probe": 0,
-    "gate_evidence": 24 * 60 * 60,
-    "runtime_diagnostic": 24 * 60 * 60,
-    "operator_provided": 24 * 60 * 60,
-}
-
 
 @dataclass(frozen=True)
 class EngineOrchestratorOutput:
@@ -137,170 +130,6 @@ def _extract_target_variable(target_path: str) -> str | None:
         return None
     return match.group(1)
 
-
-def _hash_payload(payload: dict[str, object]) -> str:
-    """Return deterministic sha256 over canonical JSON payload."""
-
-    return canonical_json_hash(payload)
-
-
-def _canonical_claim_evidence_id(claim: str) -> str:
-    """Convert a human claim label into canonical claim evidence ID."""
-
-    normalized = re.sub(r"[^a-z0-9]+", "-", claim.strip().lower()).strip("-")
-    if not normalized:
-        return ""
-    return f"claim/{normalized}"
-
-
-def _parse_observed_at(raw: object) -> datetime | None:
-    """Parse observed-at timestamps in UTC, returning None for invalid values."""
-
-    if not isinstance(raw, str) or not raw.strip():
-        return None
-    value = raw.strip()
-    if value.endswith("Z"):
-        value = value[:-1] + "+00:00"
-    try:
-        parsed = datetime.fromisoformat(value)
-    except ValueError:
-        return None
-    if parsed.tzinfo is None:
-        return parsed.replace(tzinfo=timezone.utc)
-    return parsed.astimezone(timezone.utc)
-
-
-def _resolve_ttl_seconds(item: Mapping[str, object]) -> int:
-    """Resolve evidence TTL seconds from item metadata with deterministic defaults."""
-
-    ttl_raw = item.get("ttl_seconds")
-    if isinstance(ttl_raw, int) and ttl_raw >= 0:
-        return ttl_raw
-    evidence_class = str(item.get("evidence_class", "gate_evidence")).strip().lower()
-    return _EVIDENCE_CLASS_DEFAULT_TTL_SECONDS.get(evidence_class, 24 * 60 * 60)
-
-
-def _is_stale(*, observed_at: datetime | None, ttl_seconds: int, now_utc: datetime) -> bool:
-    """Return True when evidence is stale relative to the configured TTL."""
-
-    if observed_at is None:
-        return True
-    if ttl_seconds == 0:
-        # ttl=0 means fresh probe per run; accept only near-current evidence.
-        return now_utc - observed_at > timedelta(seconds=1)
-    return now_utc - observed_at > timedelta(seconds=ttl_seconds)
-
-
-def _extract_verified_claim_evidence_ids(
-    session_state_document: Mapping[str, object] | None,
-    *,
-    now_utc: datetime,
-) -> tuple[tuple[str, ...], tuple[str, ...]]:
-    """Extract verified claim evidence IDs and stale claim IDs from build evidence."""
-
-    if session_state_document is None:
-        return (), ()
-
-    root: Mapping[str, object]
-    session_state = session_state_document.get("SESSION_STATE")
-    if isinstance(session_state, Mapping):
-        root = session_state
-    else:
-        root = session_state_document
-
-    build_evidence = root.get("BuildEvidence")
-    if not isinstance(build_evidence, Mapping):
-        return (), ()
-
-    observed: set[str] = set()
-    stale: set[str] = set()
-
-    claims_stale = build_evidence.get("claims_stale")
-    if isinstance(claims_stale, list):
-        for entry in claims_stale:
-            if isinstance(entry, str) and entry.strip():
-                stale.add(entry.strip())
-
-    items = build_evidence.get("items")
-    if isinstance(items, list):
-        for item in items:
-            if not isinstance(item, Mapping):
-                continue
-            result = str(item.get("result", "")).strip().lower()
-            verified = item.get("verified") is True
-            if result not in {"pass", "passed", "ok", "success"} and not verified:
-                continue
-
-            evidence_id = item.get("evidence_id")
-            candidate_id = ""
-            if isinstance(evidence_id, str) and evidence_id.strip():
-                candidate_id = evidence_id.strip()
-            else:
-                claim_id = item.get("claim_id")
-                if isinstance(claim_id, str) and claim_id.strip():
-                    candidate_id = claim_id.strip()
-                else:
-                    claim_label = item.get("claim")
-                    if isinstance(claim_label, str) and claim_label.strip():
-                        candidate_id = _canonical_claim_evidence_id(claim_label)
-
-            if not candidate_id:
-                continue
-
-            observed_at = _parse_observed_at(item.get("observed_at"))
-            ttl_seconds = _resolve_ttl_seconds(item)
-            if _is_stale(observed_at=observed_at, ttl_seconds=ttl_seconds, now_utc=now_utc):
-                stale.add(candidate_id)
-            else:
-                observed.add(candidate_id)
-
-    stale -= observed
-    return tuple(sorted(observed)), tuple(sorted(stale))
-
-
-def _build_ruleset_hash(
-    *,
-    selected_pack_ids: list[str] | None,
-    pack_engine_version: str | None,
-    expected_pack_lock_hash: str,
-) -> str:
-    """Build deterministic ruleset hash from selected packs and lock evidence."""
-
-    payload = {
-        "selected_pack_ids": sorted(selected_pack_ids or []),
-        "pack_engine_version": pack_engine_version or "",
-        "expected_pack_lock_hash": expected_pack_lock_hash,
-    }
-    return _hash_payload(payload)
-
-
-def _build_activation_hash(
-    *,
-    phase: str,
-    active_gate: str,
-    next_gate_condition: str,
-    target_path: str,
-    effective_operating_mode: OperatingMode,
-    capabilities_hash: str,
-    repo_context: RepoRootResolutionResult,
-    repo_identity: str,
-    ruleset_hash: str,
-) -> str:
-    """Build deterministic activation hash from runtime context facts."""
-
-    payload = {
-        "phase": phase,
-        "active_gate": active_gate,
-        "next_gate_condition": next_gate_condition,
-        "target_path": target_path,
-        "effective_operating_mode": effective_operating_mode,
-        "capabilities_hash": capabilities_hash,
-        "repo_identity": repo_identity,
-        "repo_source": repo_context.source,
-        "repo_is_git_root": repo_context.is_git_root,
-        "ruleset_hash": ruleset_hash,
-    }
-    return _hash_payload(payload)
 
 
 def _extract_repo_identity(session_state_document: Mapping[str, object] | None) -> str:
@@ -406,7 +235,7 @@ def run_engine_orchestrator(
     expected_pack_lock_hash = ""
     observed_pack_lock_hash = ""
     evaluation_now = now_utc if now_utc is not None else datetime.now(timezone.utc)
-    verified_claim_evidence, stale_claim_evidence = _extract_verified_claim_evidence_ids(
+    verified_claim_evidence, stale_claim_evidence = extract_verified_claim_evidence_ids(
         session_state_document,
         now_utc=evaluation_now,
     )
@@ -460,21 +289,22 @@ def run_engine_orchestrator(
         gate_reason_code = REPO_DOC_UNSAFE_DIRECTIVE
 
     if not gate_blocked and repo_constraint_widening:
-        decision = "deny"
-        if effective_mode == "pipeline":
-            gate_blocked = True
-            gate_reason_code = REPO_CONSTRAINT_WIDENING
-            decision = "deny"
-        elif widening_approved:
-            decision = "allow"
+        precedence = resolve_widening_precedence(
+            mode=effective_mode,
+            widening_approved=widening_approved,
+            reason_code=REPO_CONSTRAINT_WIDENING,
+            applied_reason_code=POLICY_PRECEDENCE_APPLIED,
+        )
+        decision = precedence.decision
+        if decision == "allow":
             precedence_events.append(
                 {
                     "event": "POLICY_PRECEDENCE_APPLIED",
-                    "winner_layer": "mode_policy",
-                    "loser_layer": "repo_doc_constraints",
+                    "winner_layer": precedence.winner_layer,
+                    "loser_layer": precedence.loser_layer,
                     "requested_action": requested_action or "widen_constraint",
                     "decision": decision,
-                    "reason_code": POLICY_PRECEDENCE_APPLIED,
+                    "reason_code": precedence.reason_code,
                     "refs": {
                         "policy_hash": hashlib.sha256("master_policy".encode("utf-8")).hexdigest(),
                         "pack_hash": expected_pack_lock_hash,
@@ -486,17 +316,18 @@ def run_engine_orchestrator(
             )
         else:
             gate_blocked = True
-            gate_reason_code = REPO_CONSTRAINT_WIDENING
-            interactive_required = True
-            why_interactive_required = "widening_approval_required"
-            prompt_events.append(
-                {
-                    "event": "PROMPT_REQUESTED",
-                    "source": "governance",
-                    "topic": "WideningApproval",
-                    "mode": effective_mode,
-                }
-            )
+            gate_reason_code = precedence.reason_code
+            if not widening_approved:
+                interactive_required = True
+                why_interactive_required = "widening_approval_required"
+                prompt_events.append(
+                    {
+                        "event": "PROMPT_REQUESTED",
+                        "source": "governance",
+                        "topic": "WideningApproval",
+                        "mode": effective_mode,
+                    }
+                )
         if decision == "deny":
             precedence_events.append(
                 {
@@ -586,14 +417,14 @@ def run_engine_orchestrator(
                     gate_blocked = True
                     gate_reason_code = BLOCKED_PACK_LOCK_MISMATCH
 
-    ruleset_hash = _build_ruleset_hash(
+    ruleset_hash = build_ruleset_hash(
         selected_pack_ids=selected_pack_ids,
         pack_engine_version=pack_engine_version,
         expected_pack_lock_hash=expected_pack_lock_hash,
     )
     repo_identity = _extract_repo_identity(session_state_document) or str(repo_context.repo_root)
 
-    activation_hash = _build_activation_hash(
+    activation_hash = build_activation_hash(
         phase=phase,
         active_gate=active_gate,
         next_gate_condition=next_gate_condition,

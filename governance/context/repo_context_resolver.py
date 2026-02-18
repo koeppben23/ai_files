@@ -13,7 +13,7 @@ import os
 from pathlib import Path
 from typing import Mapping
 
-from governance.engine.path_contract import PathContractError, normalize_absolute_path
+from governance.infrastructure.path_contract import PathContractError, normalize_absolute_path
 
 
 _ROOT_ENV_PRIORITY: tuple[str, ...] = (

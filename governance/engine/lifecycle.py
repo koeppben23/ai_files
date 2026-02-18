@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 import json
-import os
 from pathlib import Path
-import tempfile
 from typing import Any
+
+from governance.infrastructure.fs_atomic import atomic_write_json
 
 
 def _read_paths_document(paths_file: Path) -> dict[str, Any]:
@@ -36,27 +36,7 @@ def _read_paths_document(paths_file: Path) -> dict[str, Any]:
 def _atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
     """Atomically write canonical JSON payload to target path."""
 
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temp_path: Path | None = None
-    try:
-        with tempfile.NamedTemporaryFile(
-            mode="w",
-            encoding="utf-8",
-            dir=str(path.parent),
-            prefix=path.name + ".",
-            suffix=".tmp",
-            delete=False,
-            newline="\n",
-        ) as tmp:
-            json.dump(payload, tmp, indent=2, ensure_ascii=True)
-            tmp.write("\n")
-            tmp.flush()
-            os.fsync(tmp.fileno())
-            temp_path = Path(tmp.name)
-        os.replace(str(temp_path), str(path))
-    finally:
-        if temp_path is not None and temp_path.exists():
-            temp_path.unlink(missing_ok=True)
+    atomic_write_json(path, payload, ensure_ascii=True, indent=2)
 
 
 def stage_engine_activation(

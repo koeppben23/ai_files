@@ -11,9 +11,6 @@ import shlex
 import shutil
 import subprocess
 import sys
-import tempfile
-import time
-from urllib.parse import urlsplit
 from datetime import datetime
 from pathlib import Path
 
@@ -24,7 +21,7 @@ if str(SCRIPT_DIR.parent) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR.parent))
 
 try:
-    from governance.engine.path_contract import (
+    from governance.infrastructure.path_contract import (
         canonical_config_root,
         normalize_absolute_path,
         normalize_for_fingerprint,
@@ -55,74 +52,18 @@ except Exception:
         return normalized.replace("\\", "/").casefold()
 
 from command_profiles import render_command_profiles
+from governance.infrastructure.binding_evidence_resolver import BindingEvidenceResolver
+from governance.infrastructure.fs_atomic import atomic_write_text
+from governance.application.repo_identity_service import canonicalize_origin_url, derive_repo_identity
 
 
 def config_root() -> Path:
     return canonical_config_root()
 
 
-def _candidate_config_roots() -> list[Path]:
-    candidates: list[Path] = [config_root()]
-
-    seen: set[Path] = set()
-    ordered: list[Path] = []
-    for candidate in candidates:
-        if candidate in seen:
-            continue
-        seen.add(candidate)
-        ordered.append(candidate)
-    return ordered
-
-
-def _allow_cwd_binding_discovery() -> bool:
-    return str(os.getenv("OPENCODE_ALLOW_CWD_BINDINGS", "")).strip() == "1"
-
-
 def _resolve_bound_paths(root: Path) -> tuple[Path, Path, bool, Path | None]:
-    commands_home = root / "commands"
-    workspaces_home = root / "workspaces"
-    candidates: list[Path] = [commands_home / "governance.paths.json"]
-    for config in _candidate_config_roots():
-        candidates.append(config / "commands" / "governance.paths.json")
-    if _allow_cwd_binding_discovery():
-        cwd = Path.cwd().resolve()
-        for parent in (cwd, *cwd.parents):
-            candidates.append(parent / "commands" / "governance.paths.json")
-
-    binding_file: Path | None = None
-    seen: set[Path] = set()
-    for candidate in candidates:
-        resolved = candidate.expanduser().resolve()
-        if resolved in seen:
-            continue
-        seen.add(resolved)
-        if resolved.exists():
-            binding_file = resolved
-            break
-
-    if binding_file is None:
-        return commands_home, workspaces_home, False, None
-    try:
-        payload = json.loads(binding_file.read_text(encoding="utf-8"))
-    except Exception:
-        return commands_home, workspaces_home, False, binding_file
-    if not isinstance(payload, dict):
-        return commands_home, workspaces_home, False, binding_file
-    paths = payload.get("paths")
-    if not isinstance(paths, dict):
-        return commands_home, workspaces_home, False, binding_file
-    commands_raw = paths.get("commandsHome")
-    workspaces_raw = paths.get("workspacesHome")
-    if not isinstance(commands_raw, str) or not commands_raw.strip():
-        return commands_home, workspaces_home, False, binding_file
-    if not isinstance(workspaces_raw, str) or not workspaces_raw.strip():
-        return commands_home, workspaces_home, False, binding_file
-    try:
-        normalized_commands = normalize_absolute_path(commands_raw, purpose="paths.commandsHome")
-        normalized_workspaces = normalize_absolute_path(workspaces_raw, purpose="paths.workspacesHome")
-    except Exception:
-        return commands_home, workspaces_home, False, binding_file
-    return normalized_commands, normalized_workspaces, True, binding_file
+    evidence = BindingEvidenceResolver(env=os.environ, config_root=root).resolve()
+    return evidence.commands_home, evidence.workspaces_home, evidence.binding_ok, evidence.governance_paths_json
 
 
 ROOT = config_root()
@@ -269,42 +210,7 @@ def read_origin_remote(config_path: Path) -> str | None:
 
 
 def _canonicalize_origin_remote(remote: str) -> str | None:
-    raw = remote.strip()
-    if not raw:
-        return None
-
-    scp_style = re.match(r"^(?P<user>[^@/\s]+)@(?P<host>[^:/\s]+):(?P<path>[^\s]+)$", raw)
-    if scp_style:
-        raw = f"ssh://{scp_style.group('user')}@{scp_style.group('host')}/{scp_style.group('path')}"
-
-    try:
-        parsed = urlsplit(raw)
-    except Exception:
-        return None
-
-    if not parsed.scheme or not parsed.netloc:
-        return None
-
-    host = parsed.hostname.casefold() if parsed.hostname else ""
-    if not host:
-        return None
-    if parsed.port:
-        host = f"{host}:{parsed.port}"
-
-    path = parsed.path.replace("\\", "/")
-    path = re.sub(r"/+", "/", path).strip()
-    if not path:
-        return None
-    if not path.startswith("/"):
-        path = f"/{path}"
-    if path.lower().endswith(".git"):
-        path = path[:-4]
-    path = path.rstrip("/")
-    if not path:
-        return None
-    path = path.casefold()
-
-    return f"repo://{host}{path}"
+    return canonicalize_origin_url(remote)
 
 
 def _normalize_path_for_fingerprint(path: Path) -> str:
@@ -321,11 +227,8 @@ def derive_repo_fingerprint(repo_root: Path) -> str | None:
 
     origin = read_origin_remote(git_dir / "config")
     canonical_origin = _canonicalize_origin_remote(origin) if origin else None
-    if canonical_origin:
-        material = f"repo:{canonical_origin}"
-    else:
-        material = f"repo:local:{_normalize_path_for_fingerprint(normalized_root)}"
-    return hashlib.sha256(material.encode("utf-8")).hexdigest()[:24]
+    identity = derive_repo_identity(normalized_root, canonical_remote=canonical_origin, git_dir=git_dir)
+    return identity.fingerprint
 
 
 def _discover_repo_session_id() -> str:
@@ -359,34 +262,8 @@ def read_repo_context_fingerprint(repo_root: Path) -> str | None:
 
 
 def _atomic_write_text(path: Path, text: str) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
     attempts = 8 if os.name == "nt" else 2
-    delay = 0.05
-    last_error: Exception | None = None
-    for _ in range(attempts):
-        tmp_fd = -1
-        tmp_name = ""
-        try:
-            tmp_fd, tmp_name = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=str(path.parent))
-            with os.fdopen(tmp_fd, "w", encoding="utf-8", newline="\n") as handle:
-                handle.write(text)
-            os.replace(tmp_name, path)
-            return
-        except Exception as exc:
-            last_error = exc
-            if tmp_fd != -1:
-                try:
-                    os.close(tmp_fd)
-                except Exception:
-                    pass
-            if tmp_name:
-                try:
-                    Path(tmp_name).unlink(missing_ok=True)
-                except Exception:
-                    pass
-            time.sleep(delay)
-    if last_error is not None:
-        raise last_error
+    atomic_write_text(path, text, newline_lf=True, attempts=attempts, backoff_ms=50)
 
 
 def _write_repo_context_payload(payload: dict, relative_target: str, repo_root: Path) -> bool:

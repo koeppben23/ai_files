@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from governance.engine.path_contract import (
+from governance.infrastructure.path_contract import (
     NotAbsoluteError,
     binding_evidence_location,
     canonical_commands_home,
