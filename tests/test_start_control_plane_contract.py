@@ -32,8 +32,8 @@ def test_start_preflight_routes_identity_through_core_use_case_only():
     bootstrap_calls = _function_calls(tree, "bootstrap_identity_if_needed")
     run_calls = _function_calls(tree, "run_persistence_hook")
 
-    assert "evaluate_start_identity" in bootstrap_calls
-    assert "evaluate_start_identity" in run_calls
+    assert "decide_start_persistence" in bootstrap_calls
+    assert "decide_start_persistence" in run_calls
 
     forbidden = {
         "derive_repo_fingerprint",

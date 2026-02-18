@@ -121,6 +121,7 @@ except Exception:
 try:
     from governance.application.repo_identity_service import canonicalize_origin_url, derive_repo_identity
     from governance.application.use_cases.start_bootstrap import evaluate_start_identity as _evaluate_start_identity
+    from governance.application.use_cases.start_persistence import decide_start_persistence as _decide_start_persistence
 except Exception:
     import hashlib
     from urllib.parse import urlsplit
@@ -171,6 +172,8 @@ except Exception:
 
     _evaluate_start_identity = None
 
+    _decide_start_persistence = None
+
 
 def evaluate_start_identity(*, env, cwd):
     if callable(_evaluate_start_identity):
@@ -184,10 +187,29 @@ def evaluate_start_identity(*, env, cwd):
     }
 
 
+def decide_start_persistence(*, env, cwd):
+    if callable(_decide_start_persistence):
+        return _decide_start_persistence(env=env, cwd=cwd)
+    return {
+        "repo_root": None,
+        "repo_fingerprint": "",
+        "discovery_method": "cwd",
+        "workspace_ready": False,
+        "reason_code": "BLOCKED-REPO-IDENTITY-RESOLUTION",
+        "reason": "repo-root-not-git",
+    }
+
+
 def _identity_value(identity: object, key: str):
     if isinstance(identity, dict):
         return identity.get(key)
     return getattr(identity, key, None)
+
+
+def _persistence_value(decision: object, key: str):
+    if isinstance(decision, dict):
+        return decision.get(key)
+    return getattr(decision, key, None)
 
 
 def config_root() -> Path:
@@ -789,10 +811,10 @@ def log_error(reason_key: str, message: str, observed: dict) -> None:
 
 
 def bootstrap_identity_if_needed() -> bool:
-    identity = evaluate_start_identity(env=os.environ, cwd=normalize_absolute_path(str(Path.cwd()), purpose="cwd"))
-    repo_root = _identity_value(identity, "repo_root")
-    discovery_method = str(_identity_value(identity, "discovery_method") or "cwd")
-    inferred_fp = str(_identity_value(identity, "repo_fingerprint") or "").strip() or None
+    decision = decide_start_persistence(env=os.environ, cwd=normalize_absolute_path(str(Path.cwd()), purpose="cwd"))
+    repo_root = _persistence_value(decision, "repo_root")
+    discovery_method = str(_persistence_value(decision, "discovery_method") or "cwd")
+    inferred_fp = str(_persistence_value(decision, "repo_fingerprint") or "").strip() or None
 
     if inferred_fp and repo_root is not None:
         write_repo_context(repo_root, inferred_fp, discovery_method)
@@ -944,10 +966,10 @@ def run_persistence_hook() -> None:
     if not bootstrap_identity_if_needed():
         return
 
-    identity = evaluate_start_identity(env=os.environ, cwd=normalize_absolute_path(str(Path.cwd()), purpose="cwd"))
-    repo_root = _identity_value(identity, "repo_root")
-    discovery_method = str(_identity_value(identity, "discovery_method") or "cwd")
-    repo_fp = str(_identity_value(identity, "repo_fingerprint") or "").strip() or None
+    decision = decide_start_persistence(env=os.environ, cwd=normalize_absolute_path(str(Path.cwd()), purpose="cwd"))
+    repo_root = _persistence_value(decision, "repo_root")
+    discovery_method = str(_persistence_value(decision, "discovery_method") or "cwd")
+    repo_fp = str(_persistence_value(decision, "repo_fingerprint") or "").strip() or None
     if repo_root is None or not repo_fp:
         _write_unresolved_runtime_context(
             reason="repo-root-not-git",
