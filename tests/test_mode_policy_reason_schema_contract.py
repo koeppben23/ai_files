@@ -18,10 +18,20 @@ def _load_registry() -> dict[str, Any]:
     return json.loads((REPO_ROOT / "diagnostics" / "reason_codes.registry.json").read_text(encoding="utf-8"))
 
 
+def _registry_entries(reg: dict[str, Any]) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    for key in ("blocked_reasons", "audit_events", "codes"):
+        value = reg.get(key)
+        if not isinstance(value, list):
+            continue
+        out.extend(entry for entry in value if isinstance(entry, dict))
+    return out
+
+
 def _schema_for(code: str) -> dict[str, Any]:
     reg = _load_registry()
-    for entry in reg.get("codes", []):
-        if isinstance(entry, dict) and entry.get("code") == code:
+    for entry in _registry_entries(reg):
+        if entry.get("code") == code:
             schema_ref = entry.get("payload_schema_ref")
             assert isinstance(schema_ref, str) and schema_ref
             schema_path = REPO_ROOT / schema_ref

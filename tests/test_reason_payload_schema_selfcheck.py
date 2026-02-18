@@ -28,7 +28,13 @@ def test_embedded_reason_registry_matches_diagnostics_registry():
     root = Path(__file__).resolve().parents[1]
     registry_path = root / "diagnostics" / "reason_codes.registry.json"
     payload = json.loads(registry_path.read_text(encoding="utf-8"))
-    codes = payload.get("codes", [])
+    codes: list[object] = []
+    if isinstance(payload.get("blocked_reasons"), list):
+        codes.extend(payload.get("blocked_reasons", []))
+    if isinstance(payload.get("audit_events"), list):
+        codes.extend(payload.get("audit_events", []))
+    if isinstance(payload.get("codes"), list):
+        codes.extend(payload.get("codes", []))
     expected = {
         entry["code"]: entry["payload_schema_ref"]
         for entry in codes

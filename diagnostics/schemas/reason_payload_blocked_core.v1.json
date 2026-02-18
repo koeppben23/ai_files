@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Reason Payload: Blocked Core",
+  "description": "Generic fail-closed context schema for canonical BLOCKED reason codes.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["failure_class"],
+  "properties": {
+    "failure_class": { "type": "string" },
+    "failure_detail": { "type": "string" },
+    "previous_reason_code": { "type": "string" },
+    "requested_action": { "type": "string" },
+    "why_interactive_required": { "type": "string" },
+    "doc_path": { "type": "string" },
+    "doc_hash": { "type": "string" },
+    "directive_excerpt": { "type": "string" },
+    "classification_rule_id": { "type": "string" },
+    "constraint_topic": { "type": "string" },
+    "winner_layer": { "type": "string" },
+    "loser_layer": { "type": "string" },
+    "decision": { "type": "string" },
+    "repo_constraint_topic": { "type": "string" },
+    "pointers": { "type": "array", "items": { "type": "string" } },
+    "refs": { "type": "object", "additionalProperties": true },
+    "requested_widening": { "type": "object", "additionalProperties": true },
+    "budget": { "type": "object", "additionalProperties": true },
+    "last_prompt": { "type": "object", "additionalProperties": true },
+    "extensions": { "type": "object", "additionalProperties": true }
+  }
+}

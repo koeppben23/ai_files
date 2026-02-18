@@ -150,15 +150,21 @@ def test_reason_context_uses_embedded_schema_when_registry_missing(monkeypatch: 
     assert errors == ()
 
 
-def test_reason_context_skips_unmapped_codes_without_registry_lookup(monkeypatch: pytest.MonkeyPatch):
+def test_reason_context_validates_mapped_blocked_codes_without_registry_lookup(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(reason_payload, "_REASON_REGISTRY_PATH", Path("/tmp/does-not-exist.registry.json"))
     monkeypatch.setattr(reason_payload, "_REASON_SCHEMA_REF_CACHE", None)
 
-    errors = reason_payload.validate_reason_context_schema(
+    valid = reason_payload.validate_reason_context_schema(
+        BLOCKED_EXEC_DISALLOWED,
+        {"failure_class": "blocked_decision"},
+    )
+    assert valid == ()
+
+    invalid = reason_payload.validate_reason_context_schema(
         BLOCKED_EXEC_DISALLOWED,
         {"arbitrary": "context"},
     )
-    assert errors == ()
+    assert invalid
 
 
 def test_reason_context_schema_missing_error_is_canonical(monkeypatch: pytest.MonkeyPatch):
