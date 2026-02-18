@@ -11,10 +11,12 @@ If there is any conflict, **kernel wins** (master.md).
 - When host capabilities permit, execute deterministic checks/commands directly and report evidence.
 - After `/start`, complete bootstrap gates first; do not emit generic task-intake prompts before bootstrap state is established.
 
-## Bootstrap (equivalence)
-Bootstrap is satisfied by either of the two equivalent surfaces:
-- OpenCode binding evidence (preflight + path bindings), OR
-- AGENTS surface presence (this file).
+## Bootstrap
+Bootstrap is governed exclusively by master.md Phase 0 gates.
+This file does NOT constitute bootstrap evidence on its own.
+- OpenCode binding evidence (preflight + path bindings) satisfies bootstrap.
+- AGENTS.md presence alone does NOT satisfy bootstrap — it is a non-normative
+  surface mirror only.
 
 ## Kernel contract (summary)
 - Phases, gates, evidence, and the output envelope remain the kernel contract.

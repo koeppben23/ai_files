@@ -19,6 +19,7 @@ ALLOWED_SIGNAL_KEYS = {
 }
 ALLOWED_SURFACES = {
     "api_contract",
+    "backend_java_templates",
     "backend_templates",
     "bdd_framework",
     "build_tooling",
@@ -42,6 +43,7 @@ ALLOWED_CAPABILITIES = {
     "cucumber",
     "cypress",
     "governance_docs",
+    "java",
     "kafka",
     "liquibase",
     "nx",

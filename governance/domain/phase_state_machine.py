@@ -123,3 +123,33 @@ def transition_phase_state(
     if candidate == current:
         return current
     return candidate
+
+
+# ---------------------------------------------------------------------------
+# Canonical phase rank map (single source of truth)
+# ---------------------------------------------------------------------------
+PHASE_RANK: dict[str, int] = {
+    "1": 10,
+    "1.1": 11,
+    "1.2": 12,
+    "1.3": 13,
+    "1.5": 15,
+    "2": 20,
+    "2.1": 21,
+    "3A": 30,
+    "3B-1": 31,
+    "3B-2": 32,
+    "4": 40,
+    "5": 50,
+    "5.3": 53,
+    "5.4": 54,
+    "5.5": 55,
+    "5.6": 56,
+    "6": 60,
+}
+
+
+def phase_rank(token: str) -> int:
+    """Return the numeric rank for a phase token, or -1 if unknown."""
+    return PHASE_RANK.get(token, -1)
+

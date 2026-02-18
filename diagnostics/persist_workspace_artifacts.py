@@ -50,7 +50,10 @@ except Exception:
 
     def normalize_for_fingerprint(path: Path) -> str:
         normalized = os.path.normpath(os.path.abspath(str(path.expanduser())))
-        return normalized.replace("\\", "/").casefold()
+        normalized = normalized.replace("\\", "/")
+        if os.name == "nt":
+            return normalized.casefold()
+        return normalized
 
 try:
     from error_logs import safe_log_error

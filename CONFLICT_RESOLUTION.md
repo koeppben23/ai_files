@@ -11,12 +11,13 @@ P1: Session phases and gates
     (master.md; SESSION_STATE_SCHEMA.md)
 P2: Evidence and scope bounding rules
     (SCOPE-AND-CONTEXT.md; SESSION_STATE_SCHEMA.md)
-P3: Repository-local mandatory rules
-    (e.g. AGENTS.md, CI requirements, enforced tooling)
+P3: Global governance rules
+    (rules.md; README-RULES.md)
 P4: Active profile rules
     (profiles/*)
-P5: Global governance rules
-    (rules.md; README-RULES.md)
+P5: Repository-local mandatory rules
+    (e.g. CI requirements, enforced tooling; NOT governance kernel files)
+    Note: AGENTS.md is a non-normative mirror and never overrides kernel precedence.
 P6: Preferences, heuristics, stylistic guidance
 
 ## Resolution rule

@@ -6,11 +6,21 @@ import re
 from typing import Any
 
 _CREDENTIAL_URL = re.compile(r"(https?://)([^/@:\s]+):([^@/\s]+)@", flags=re.IGNORECASE)
-_SECRET_KEY = re.compile(r"(secret|token|password|api[_-]?key|authorization)", flags=re.IGNORECASE)
+_SECRET_KEY = re.compile(
+    r"(secret|token|password|api[_-]?key|authorization"
+    r"|private[_-]?key|access[_-]?token|bearer|jwt[_-]?secret"
+    r"|client[_-]?secret|refresh[_-]?token|signing[_-]?key)",
+    flags=re.IGNORECASE,
+)
+_FILESYSTEM_PATH = re.compile(
+    r"(?:(?:/(?:Users|home|root|tmp|var|etc)/[^\s\"']+)"
+    r"|(?:[A-Z]:\\[^\s\"']+))",
+)
 
 
 def _sanitize_string(value: str) -> str:
     redacted = _CREDENTIAL_URL.sub(r"\1\2:***@", value)
+    redacted = _FILESYSTEM_PATH.sub("[path-redacted]", redacted)
     return redacted
 
 
