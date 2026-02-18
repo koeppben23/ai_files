@@ -26,6 +26,7 @@ from governance.domain.reason_codes import (
     BLOCKED_PERMISSION_DENIED,
     BLOCKED_REPO_IDENTITY_RESOLUTION,
     BLOCKED_RELEASE_HYGIENE,
+    BLOCKED_WORKSPACE_PERSISTENCE,
     BLOCKED_RULESET_HASH_MISMATCH,
     BLOCKED_SYSTEM_MODE_REQUIRED,
     INTERACTIVE_REQUIRED_IN_PIPELINE,
@@ -66,6 +67,117 @@ from governance.application.ports.gateways import (
 from governance.application.use_cases.phase_router import route_phase
 
 _VARIABLE_CAPTURE = re.compile(r"^\$\{([A-Z0-9_]+)\}")
+_WORKSPACE_MEMORY_CONFIRMATION = "Persist to workspace memory: YES"
+
+
+@dataclass(frozen=True)
+class PersistencePhaseGateDecision:
+    allowed: bool
+    reason_code: str
+    reason: str
+
+
+def _session_state_root(session_state_document: Mapping[str, object] | None) -> Mapping[str, object]:
+    if session_state_document is None:
+        return {}
+    session_state = session_state_document.get("SESSION_STATE")
+    if isinstance(session_state, Mapping):
+        return session_state
+    return session_state_document
+
+
+def _phase_rank(token: str) -> int:
+    rank_map = {
+        "1": 10,
+        "1.1": 11,
+        "1.2": 12,
+        "1.3": 13,
+        "1.5": 15,
+        "2": 20,
+        "2.1": 21,
+        "3A": 30,
+        "3B-1": 31,
+        "3B-2": 32,
+        "4": 40,
+        "5": 50,
+        "5.3": 53,
+        "5.4": 54,
+        "5.5": 55,
+        "5.6": 56,
+        "6": 60,
+    }
+    return rank_map.get(token, -1)
+
+
+def _phase_token(value: str) -> str:
+    from governance.domain.phase_state_machine import normalize_phase_token
+
+    return normalize_phase_token(value)
+
+
+def _phase5_approved(state: Mapping[str, object]) -> bool:
+    for key in ("phase5_approved", "Phase5Approved", "phase_5_approved"):
+        value = state.get(key)
+        if isinstance(value, bool):
+            return value
+    return False
+
+
+def _workspace_memory_confirmation_present(*, state: Mapping[str, object], requested_action: str | None) -> bool:
+    if (requested_action or "").strip() == _WORKSPACE_MEMORY_CONFIRMATION:
+        return True
+    for key in ("workspace_memory_confirmation", "WorkspaceMemoryConfirmation"):
+        value = state.get(key)
+        if isinstance(value, str) and value.strip() == _WORKSPACE_MEMORY_CONFIRMATION:
+            return True
+    return False
+
+
+def _evaluate_phase_coupled_persistence(
+    *,
+    phase: str,
+    target_variable: str | None,
+    effective_mode: OperatingMode,
+    requested_action: str | None,
+    session_state_document: Mapping[str, object] | None,
+) -> PersistencePhaseGateDecision:
+    action = (requested_action or "").strip()
+    if target_variable != "WORKSPACE_MEMORY_FILE":
+        return PersistencePhaseGateDecision(True, REASON_CODE_NONE, "not-applicable")
+
+    if not action or "persist" not in action.lower():
+        return PersistencePhaseGateDecision(True, REASON_CODE_NONE, "not-applicable")
+
+    state = _session_state_root(session_state_document)
+    phase_token = _phase_token(phase)
+    if _phase_rank(phase_token) < _phase_rank("5"):
+        return PersistencePhaseGateDecision(
+            False,
+            BLOCKED_WORKSPACE_PERSISTENCE,
+            "workspace-memory-persistence-requires-phase-5-approval",
+        )
+
+    if not _phase5_approved(state):
+        return PersistencePhaseGateDecision(
+            False,
+            BLOCKED_WORKSPACE_PERSISTENCE,
+            "workspace-memory-persistence-phase-5-not-approved",
+        )
+
+    if not _workspace_memory_confirmation_present(state=state, requested_action=requested_action):
+        if effective_mode == "pipeline":
+            return PersistencePhaseGateDecision(
+                False,
+                INTERACTIVE_REQUIRED_IN_PIPELINE,
+                "workspace-memory-persistence-confirmation-required",
+            )
+        return PersistencePhaseGateDecision(
+            False,
+            BLOCKED_WORKSPACE_PERSISTENCE,
+            "workspace-memory-persistence-confirmation-required",
+        )
+
+    return PersistencePhaseGateDecision(True, REASON_CODE_NONE, "approved")
 
 @dataclass(frozen=True)
 class EngineOrchestratorOutput:
@@ -406,6 +518,22 @@ def run_engine_orchestrator(
         mode_reason = REPO_CONSTRAINT_UNSUPPORTED
         if repo_constraint_topic:
             hash_diff["repo_constraint_topic"] = repo_constraint_topic
+    target_variable = _extract_target_variable(target_path)
+    persistence_phase_gate = _evaluate_phase_coupled_persistence(
+        phase=phase,
+        target_variable=target_variable,
+        effective_mode=effective_mode,
+        requested_action=requested_action,
+        session_state_document=session_state_document,
+    )
+
+    if not gate_blocked and not persistence_phase_gate.allowed:
+        gate_blocked = True
+        gate_reason_code = persistence_phase_gate.reason_code
+        if gate_reason_code == INTERACTIVE_REQUIRED_IN_PIPELINE:
+            interactive_required = True
+            why_interactive_required = persistence_phase_gate.reason
+
     if not caps.fs_read_commands_home:
         gate_blocked = True
         gate_reason_code = BLOCKED_MISSING_BINDING_FILE
@@ -416,7 +544,6 @@ def run_engine_orchestrator(
         gate_blocked = True
         gate_reason_code = write_policy.reason_code
     else:
-        target_variable = _extract_target_variable(target_path)
         if target_variable is not None:
             surface_policy = resolve_surface_policy(target_variable)
             if surface_policy is None:
@@ -578,6 +705,14 @@ def run_engine_orchestrator(
         reason_context = {
             "requested_action": requested_action or "interactive_required",
             "why_interactive_required": why_interactive_required or "approval_required",
+            "pointers": [target_path],
+        }
+    elif parity["reason_code"] == BLOCKED_WORKSPACE_PERSISTENCE:
+        reason_context = {
+            "requested_action": requested_action or "none",
+            "required_confirmation": _WORKSPACE_MEMORY_CONFIRMATION,
+            "phase": phase,
+            "active_gate": active_gate,
             "pointers": [target_path],
         }
     elif parity["reason_code"] == PROMPT_BUDGET_EXCEEDED:

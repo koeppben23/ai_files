@@ -1078,3 +1078,153 @@ def test_orchestrator_commits_workspace_ready_gate_when_requested(tmp_path: Path
     assert marker.exists()
     assert evidence.exists()
     assert session_pointer_file.exists()
+
+
+@pytest.mark.governance
+def test_orchestrator_blocks_workspace_memory_before_phase5(tmp_path: Path):
+    repo_root = _make_git_root(tmp_path / "repo")
+    adapter = StubAdapter(
+        env={"OPENCODE_REPO_ROOT": str(repo_root)},
+        cwd_path=repo_root,
+        caps=HostCapabilities(
+            cwd_trust="trusted",
+            fs_read_commands_home=True,
+            fs_write_config_root=True,
+            fs_write_commands_home=True,
+            fs_write_workspaces_home=True,
+            fs_write_repo_root=True,
+            exec_allowed=True,
+            git_available=True,
+        ),
+    )
+
+    out = run_engine_orchestrator(
+        adapter=adapter,
+        phase="4-Planning",
+        active_gate="Planning",
+        mode="OK",
+        next_gate_condition="Plan approved",
+        target_path="${WORKSPACE_MEMORY_FILE}",
+        session_state_document={"SESSION_STATE": {"workspace_ready_gate_committed": True, "phase_transition_evidence": True}},
+        requested_action="persist workspace memory",
+    )
+
+    assert out.parity["status"] == "blocked"
+    assert out.parity["reason_code"] == "BLOCKED-WORKSPACE-PERSISTENCE"
+
+
+@pytest.mark.governance
+def test_orchestrator_blocks_workspace_memory_without_exact_confirmation(tmp_path: Path):
+    repo_root = _make_git_root(tmp_path / "repo")
+    adapter = StubAdapter(
+        env={"OPENCODE_REPO_ROOT": str(repo_root)},
+        cwd_path=repo_root,
+        caps=HostCapabilities(
+            cwd_trust="trusted",
+            fs_read_commands_home=True,
+            fs_write_config_root=True,
+            fs_write_commands_home=True,
+            fs_write_workspaces_home=True,
+            fs_write_repo_root=True,
+            exec_allowed=True,
+            git_available=True,
+        ),
+    )
+
+    out = run_engine_orchestrator(
+        adapter=adapter,
+        phase="5-ImplementationQA",
+        active_gate="P5",
+        mode="OK",
+        next_gate_condition="Persist memory",
+        target_path="${WORKSPACE_MEMORY_FILE}",
+        session_state_document={
+            "SESSION_STATE": {
+                "workspace_ready_gate_committed": True,
+                "phase_transition_evidence": True,
+                "phase5_approved": True,
+            }
+        },
+        requested_action="persist workspace memory yes",
+    )
+
+    assert out.parity["status"] == "blocked"
+    assert out.parity["reason_code"] == "BLOCKED-WORKSPACE-PERSISTENCE"
+
+
+@pytest.mark.governance
+def test_orchestrator_allows_workspace_memory_with_exact_confirmation(tmp_path: Path):
+    repo_root = _make_git_root(tmp_path / "repo")
+    adapter = StubAdapter(
+        env={"OPENCODE_REPO_ROOT": str(repo_root)},
+        cwd_path=repo_root,
+        caps=HostCapabilities(
+            cwd_trust="trusted",
+            fs_read_commands_home=True,
+            fs_write_config_root=True,
+            fs_write_commands_home=True,
+            fs_write_workspaces_home=True,
+            fs_write_repo_root=True,
+            exec_allowed=True,
+            git_available=True,
+        ),
+    )
+
+    out = run_engine_orchestrator(
+        adapter=adapter,
+        phase="5-ImplementationQA",
+        active_gate="P5",
+        mode="OK",
+        next_gate_condition="Persist memory",
+        target_path="${WORKSPACE_MEMORY_FILE}",
+        session_state_document={
+            "SESSION_STATE": {
+                "workspace_ready_gate_committed": True,
+                "phase_transition_evidence": True,
+                "phase5_approved": True,
+            }
+        },
+        requested_action="Persist to workspace memory: YES",
+    )
+
+    assert out.parity["status"] == "ok"
+    assert out.parity["reason_code"] in {"none", "WARN-MODE-DOWNGRADED"}
+
+
+@pytest.mark.governance
+def test_orchestrator_pipeline_blocks_when_workspace_memory_confirmation_missing(tmp_path: Path):
+    repo_root = _make_git_root(tmp_path / "repo")
+    adapter = StubAdapter(
+        env={"OPENCODE_REPO_ROOT": str(repo_root), "CI": "true"},
+        cwd_path=repo_root,
+        caps=HostCapabilities(
+            cwd_trust="trusted",
+            fs_read_commands_home=True,
+            fs_write_config_root=True,
+            fs_write_commands_home=True,
+            fs_write_workspaces_home=True,
+            fs_write_repo_root=True,
+            exec_allowed=True,
+            git_available=True,
+        ),
+    )
+
+    out = run_engine_orchestrator(
+        adapter=adapter,
+        phase="5-ImplementationQA",
+        active_gate="P5",
+        mode="OK",
+        next_gate_condition="Persist memory",
+        target_path="${WORKSPACE_MEMORY_FILE}",
+        session_state_document={
+            "SESSION_STATE": {
+                "workspace_ready_gate_committed": True,
+                "phase_transition_evidence": True,
+                "phase5_approved": True,
+            }
+        },
+        requested_action="persist workspace memory",
+    )
+
+    assert out.parity["status"] == "blocked"
+    assert out.parity["reason_code"] == "INTERACTIVE-REQUIRED-IN-PIPELINE"
