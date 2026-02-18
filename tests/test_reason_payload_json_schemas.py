@@ -133,10 +133,7 @@ def test_reason_context_invalid_payload_fails_schema(reason_code: str, context: 
     assert errors
 
 
-def test_reason_context_uses_embedded_schema_when_registry_missing(monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setattr(reason_payload, "_REASON_REGISTRY_PATH", Path("/tmp/does-not-exist.registry.json"))
-    monkeypatch.setattr(reason_payload, "_REASON_SCHEMA_REF_CACHE", None)
-
+def test_reason_context_uses_embedded_schema_when_registry_missing():
     errors = reason_payload.validate_reason_context_schema(
         REPO_DOC_UNSAFE_DIRECTIVE,
         {
@@ -150,10 +147,7 @@ def test_reason_context_uses_embedded_schema_when_registry_missing(monkeypatch: 
     assert errors == ()
 
 
-def test_reason_context_validates_mapped_blocked_codes_without_registry_lookup(monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setattr(reason_payload, "_REASON_REGISTRY_PATH", Path("/tmp/does-not-exist.registry.json"))
-    monkeypatch.setattr(reason_payload, "_REASON_SCHEMA_REF_CACHE", None)
-
+def test_reason_context_validates_mapped_blocked_codes_without_registry_lookup():
     valid = reason_payload.validate_reason_context_schema(
         BLOCKED_EXEC_DISALLOWED,
         {"failure_class": "blocked_decision"},

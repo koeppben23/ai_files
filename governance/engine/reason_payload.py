@@ -3,9 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
-import json
-import os
-from pathlib import Path
 from typing import Literal
 
 from governance.engine._embedded_reason_registry import EMBEDDED_REASON_CODE_TO_SCHEMA_REF
@@ -77,56 +74,7 @@ def validate_reason_payload(payload: ReasonPayload) -> tuple[str, ...]:
     return tuple(errors)
 
 
-_REPO_ROOT = Path(os.path.normpath(os.path.abspath(str(Path(__file__).parent.parent.parent))))
-_REASON_REGISTRY_PATH = _REPO_ROOT / "diagnostics" / "reason_codes.registry.json"
 _SCHEMA_CACHE: dict[str, dict[str, object]] = {}
-_REASON_SCHEMA_REF_CACHE: dict[str, str] | None = None
-
-
-def _load_reason_schema_refs() -> dict[str, str]:
-    global _REASON_SCHEMA_REF_CACHE
-    if _REASON_SCHEMA_REF_CACHE is not None:
-        return _REASON_SCHEMA_REF_CACHE
-
-    if not _REASON_REGISTRY_PATH.exists():
-        raise ValueError("reason_registry_missing:diagnostics/reason_codes.registry.json")
-
-    payload = json.loads(_REASON_REGISTRY_PATH.read_text(encoding="utf-8"))
-    if not isinstance(payload, dict):
-        raise ValueError("reason_registry_invalid:not_an_object")
-
-    schema_tag = payload.get("schema")
-    if schema_tag != "governance.reason-codes.registry.v1":
-        raise ValueError("reason_registry_invalid:schema_mismatch")
-
-    blocked = payload.get("blocked_reasons")
-    audit = payload.get("audit_events")
-    legacy = payload.get("codes")
-    if not isinstance(blocked, list) and not isinstance(audit, list) and not isinstance(legacy, list):
-        raise ValueError("reason_registry_invalid:entries_not_array")
-
-    entries: list[object] = []
-    if isinstance(blocked, list):
-        entries.extend(blocked)
-    if isinstance(audit, list):
-        entries.extend(audit)
-    if isinstance(legacy, list):
-        entries.extend(legacy)
-
-    refs: dict[str, str] = {}
-    for entry in entries:
-        if not isinstance(entry, dict):
-            continue
-        code = entry.get("code")
-        ref = entry.get("payload_schema_ref")
-        if isinstance(code, str) and code.strip() and isinstance(ref, str) and ref.strip():
-            refs[code.strip()] = ref.strip()
-
-    if not refs:
-        raise ValueError("reason_registry_invalid:no_usable_mappings")
-
-    _REASON_SCHEMA_REF_CACHE = refs
-    return refs
 
 
 def _resolve_schema_ref_for_reason(reason_code: str) -> str | None:
@@ -147,14 +95,9 @@ def _load_schema(schema_ref: str) -> dict[str, object]:
     cached = _SCHEMA_CACHE.get(schema_ref)
     if cached is not None:
         return cached
-    schema_path = _REPO_ROOT / schema_ref
-    if not schema_path.exists():
-        raise ValueError(f"reason_schema_missing:{schema_ref}")
-    payload = json.loads(schema_path.read_text(encoding="utf-8"))
-    if not isinstance(payload, dict):
-        raise ValueError(f"reason_schema_invalid:{schema_ref}")
-    _SCHEMA_CACHE[schema_ref] = payload
-    return payload
+
+    # No __file__-based fallback: schemas must be embedded.
+    raise ValueError(f"reason_schema_missing:{schema_ref}")
 
 
 def _validate_against_schema(*, schema: dict[str, object], value: object, path: str = "$") -> list[str]:
