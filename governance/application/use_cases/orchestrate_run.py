@@ -26,6 +26,7 @@ from governance.domain.reason_codes import (
     BLOCKED_PERMISSION_DENIED,
     BLOCKED_REPO_IDENTITY_RESOLUTION,
     BLOCKED_RELEASE_HYGIENE,
+    BLOCKED_STATE_OUTDATED,
     BLOCKED_WORKSPACE_PERSISTENCE,
     BLOCKED_RULESET_HASH_MISMATCH,
     BLOCKED_SYSTEM_MODE_REQUIRED,
@@ -178,6 +179,14 @@ def _evaluate_phase_coupled_persistence(
         )
 
     return PersistencePhaseGateDecision(True, REASON_CODE_NONE, "approved")
+
+
+def _is_code_output_request(requested_action: str | None) -> bool:
+    action = (requested_action or "").strip().lower()
+    if not action:
+        return False
+    patterns = ("implement", "write code", "emit code", "generate code", "code output")
+    return any(token in action for token in patterns)
 
 @dataclass(frozen=True)
 class EngineOrchestratorOutput:
@@ -534,6 +543,10 @@ def run_engine_orchestrator(
             interactive_required = True
             why_interactive_required = persistence_phase_gate.reason
 
+    if not gate_blocked and _phase_token(phase) == "4" and _is_code_output_request(requested_action):
+        gate_blocked = True
+        gate_reason_code = BLOCKED_STATE_OUTDATED
+
     if not caps.fs_read_commands_home:
         gate_blocked = True
         gate_reason_code = BLOCKED_MISSING_BINDING_FILE
@@ -713,6 +726,14 @@ def run_engine_orchestrator(
             "required_confirmation": _WORKSPACE_MEMORY_CONFIRMATION,
             "phase": phase,
             "active_gate": active_gate,
+            "pointers": [target_path],
+        }
+    elif parity["reason_code"] == BLOCKED_STATE_OUTDATED:
+        reason_context = {
+            "requested_action": requested_action or "none",
+            "phase": phase,
+            "active_gate": active_gate,
+            "policy": "phase-4-planning-only-no-code-output",
             "pointers": [target_path],
         }
     elif parity["reason_code"] == PROMPT_BUDGET_EXCEEDED:

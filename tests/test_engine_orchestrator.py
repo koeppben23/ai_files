@@ -1228,3 +1228,35 @@ def test_orchestrator_pipeline_blocks_when_workspace_memory_confirmation_missing
 
     assert out.parity["status"] == "blocked"
     assert out.parity["reason_code"] == "INTERACTIVE-REQUIRED-IN-PIPELINE"
+
+
+@pytest.mark.governance
+def test_orchestrator_blocks_code_output_requests_in_phase4(tmp_path: Path):
+    repo_root = _make_git_root(tmp_path / "repo")
+    adapter = StubAdapter(
+        env={"OPENCODE_REPO_ROOT": str(repo_root)},
+        cwd_path=repo_root,
+        caps=HostCapabilities(
+            cwd_trust="trusted",
+            fs_read_commands_home=True,
+            fs_write_config_root=True,
+            fs_write_commands_home=True,
+            fs_write_workspaces_home=True,
+            fs_write_repo_root=True,
+            exec_allowed=True,
+            git_available=True,
+        ),
+    )
+
+    out = run_engine_orchestrator(
+        adapter=adapter,
+        phase="4-Planning",
+        active_gate="Planning",
+        mode="OK",
+        next_gate_condition="Plan approved",
+        session_state_document={"SESSION_STATE": {"workspace_ready_gate_committed": True, "phase_transition_evidence": True}},
+        requested_action="implement now",
+    )
+
+    assert out.parity["status"] == "blocked"
+    assert out.parity["reason_code"] == "BLOCKED-STATE-OUTDATED"
