@@ -4,6 +4,8 @@ from dataclasses import dataclass
 import os
 from pathlib import Path
 import re
+
+from governance.common.path_normalization import normalize_for_fingerprint
 from typing import Literal
 
 
@@ -49,14 +51,6 @@ def normalize_absolute_path(raw: str, *, purpose: str) -> Path:
     if not candidate.is_absolute():
         raise NotAbsoluteError(f"{purpose}: path must be absolute")
     return Path(os.path.normpath(os.path.abspath(str(candidate))))
-
-
-def normalize_for_fingerprint(path: Path) -> str:
-    normalized = os.path.normpath(os.path.abspath(str(path.expanduser())))
-    normalized = normalized.replace("\\", "/")
-    if os.name == "nt":
-        return normalized.casefold()
-    return normalized
 
 
 def binding_evidence_location(

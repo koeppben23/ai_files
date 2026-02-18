@@ -14,6 +14,7 @@ from governance.engine.reason_codes import REASON_CODE_NONE, is_registered_reaso
 from governance.engine.sanitization import sanitize_for_output
 
 ReasonStatus = Literal["BLOCKED", "WARN", "OK", "NOT_VERIFIED"]
+DecisionOutcome = Literal["ALLOW", "BLOCKED"]
 
 
 @dataclass(frozen=True)
@@ -31,6 +32,7 @@ class ReasonPayload:
     missing_evidence: tuple[str, ...]
     deviation: dict[str, str]
     expiry: str
+    decision_outcome: DecisionOutcome = "ALLOW"
     context: dict[str, object] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, object]:
@@ -47,6 +49,9 @@ def validate_reason_payload(payload: ReasonPayload) -> tuple[str, ...]:
     """Validate reason payload contract invariants and return error keys."""
 
     errors: list[str] = []
+    expected_outcome: DecisionOutcome = "BLOCKED" if payload.status == "BLOCKED" else "ALLOW"
+    if payload.decision_outcome != expected_outcome:
+        errors.append("decision_outcome_mismatch")
     if payload.status == "BLOCKED":
         if not payload.primary_action.strip():
             errors.append("blocked_primary_action_required")
@@ -251,6 +256,7 @@ def build_reason_payload(
 
     payload = ReasonPayload(
         status=status,
+        decision_outcome="BLOCKED" if status == "BLOCKED" else "ALLOW",
         reason_code=normalized_reason_code,
         surface=surface.strip(),
         signals_used=tuple(sorted(set(s.strip() for s in signals_used if s.strip()))),
