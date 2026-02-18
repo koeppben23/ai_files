@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 import hashlib
+from pathlib import Path
 import re
 from types import SimpleNamespace
 from typing import Any, Mapping
@@ -45,6 +46,7 @@ from governance.application.ports.gateways import (
     OperatingMode,
     LiveEnablePolicy,
     canonicalize_reason_payload_failure,
+    ensure_workspace_ready,
     capability_satisfies_requirement,
     classify_repo_doc,
     compute_repo_doc_hash,
@@ -136,6 +138,30 @@ def _extract_repo_identity(session_state_document: Mapping[str, object] | None) 
     return value.strip() if isinstance(value, str) else ""
 
 
+def _with_workspace_ready_gate(
+    session_state_document: Mapping[str, object] | None,
+    *,
+    repo_fingerprint: str,
+    committed: bool,
+) -> Mapping[str, object] | None:
+    if session_state_document is None:
+        state: dict[str, object] = {}
+    else:
+        state = dict(session_state_document)
+    root = state.get("SESSION_STATE")
+    if isinstance(root, Mapping):
+        ss = dict(root)
+        ss["repo_fingerprint"] = repo_fingerprint
+        ss["workspace_ready_gate_committed"] = committed
+        ss["workspace_ready"] = committed
+        state["SESSION_STATE"] = ss
+        return state
+    state["repo_fingerprint"] = repo_fingerprint
+    state["workspace_ready_gate_committed"] = committed
+    state["workspace_ready"] = committed
+    return state
+
+
 def _build_hash_mismatch_diff(
     *,
     observed_ruleset_hash: str | None,
@@ -193,6 +219,11 @@ def run_engine_orchestrator(
     requested_action: str | None = None,
     interactive_required: bool = False,
     why_interactive_required: str | None = None,
+    commit_workspace_ready_gate: bool = False,
+    workspaces_home: str | None = None,
+    session_state_file: str | None = None,
+    session_pointer_file: str | None = None,
+    session_id: str | None = None,
 ) -> EngineOrchestratorOutput:
     """Run one deterministic engine orchestration cycle.
 
@@ -223,6 +254,25 @@ def run_engine_orchestrator(
         adapter=adapter,
         cwd=adapter.cwd(),
     )
+
+    if commit_workspace_ready_gate and repo_context.is_git_root and repo_context.repo_root is not None:
+        repo_fingerprint = _extract_repo_identity(session_state_document)
+        if repo_fingerprint and workspaces_home and session_state_file and session_pointer_file:
+            gate = ensure_workspace_ready(
+                workspaces_home=Path(workspaces_home),
+                repo_fingerprint=repo_fingerprint,
+                repo_root=repo_context.repo_root,
+                session_state_file=Path(session_state_file),
+                session_pointer_file=Path(session_pointer_file),
+                session_id=(session_id or hashlib.sha256(str(repo_context.repo_root).encode("utf-8")).hexdigest()[:16]),
+                discovery_method=repo_context.source,
+            )
+            session_state_document = _with_workspace_ready_gate(
+                session_state_document,
+                repo_fingerprint=repo_fingerprint,
+                committed=bool(getattr(gate, "ok", False)),
+            )
+
     routed_phase = route_phase(
         requested_phase=phase,
         requested_active_gate=active_gate,

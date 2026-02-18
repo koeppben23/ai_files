@@ -66,18 +66,11 @@ def _openapi_signal(state: Mapping[str, object]) -> bool:
 
 
 def _workspace_ready(state: Mapping[str, object], *, repo_is_git_root: bool) -> bool:
+    _ = repo_is_git_root
     for key in ("workspace_ready_gate_committed", "WorkspaceReadyGateCommitted"):
         value = state.get(key)
         if isinstance(value, bool):
             return value
-    for key in ("workspace_ready", "WorkspaceReady"):
-        value = state.get(key)
-        if isinstance(value, bool):
-            return value
-    for key in ("repo_fingerprint", "RepoFingerprint"):
-        value = state.get(key)
-        if isinstance(value, str) and value.strip():
-            return True
     return False
 
 

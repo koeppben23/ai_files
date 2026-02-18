@@ -16,6 +16,7 @@ from governance.infrastructure.reason_payload import build_reason_payload, valid
 from governance.infrastructure.repo_root_resolver import resolve_repo_root
 from governance.infrastructure.runtime_activation import evaluate_runtime_activation, golden_parity_fields
 from governance.infrastructure.selfcheck import run_engine_selfcheck
+from governance.infrastructure.workspace_ready_gate import ensure_workspace_ready
 from governance.infrastructure.surface_policy import (
     capability_satisfies_requirement,
     mode_satisfies_requirement,
@@ -44,5 +45,6 @@ def configure_gateway_registry() -> None:
             build_reason_payload=build_reason_payload,
             validate_reason_payload=validate_reason_payload,
             canonicalize_reason_payload_failure=canonicalize_reason_payload_failure,
+            ensure_workspace_ready=ensure_workspace_ready,
         )
     )

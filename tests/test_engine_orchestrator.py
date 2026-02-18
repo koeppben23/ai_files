@@ -1033,3 +1033,48 @@ def test_orchestrator_fallback_does_not_leak_exception_text(
         "failure_detail": "embedded_or_disk_schema_missing",
     }
     assert "/abs/private/path" not in str(payload)
+
+
+@pytest.mark.governance
+def test_orchestrator_commits_workspace_ready_gate_when_requested(tmp_path: Path):
+    repo_root = _make_git_root(tmp_path / "repo")
+    workspaces_home = tmp_path / "workspaces"
+    session_state_file = workspaces_home / "abc123def456abc123def456" / "SESSION_STATE.json"
+    session_state_file.parent.mkdir(parents=True, exist_ok=True)
+    session_state_file.write_text("{}\n", encoding="utf-8")
+    session_pointer_file = tmp_path / "SESSION_STATE.json"
+
+    adapter = StubAdapter(
+        env={"OPENCODE_REPO_ROOT": str(repo_root)},
+        cwd_path=repo_root,
+        caps=HostCapabilities(
+            cwd_trust="trusted",
+            fs_read_commands_home=True,
+            fs_write_config_root=True,
+            fs_write_commands_home=True,
+            fs_write_workspaces_home=True,
+            fs_write_repo_root=True,
+            exec_allowed=True,
+            git_available=True,
+        ),
+    )
+
+    _ = run_engine_orchestrator(
+        adapter=adapter,
+        phase="2-Discovery",
+        active_gate="Discovery",
+        mode="OK",
+        next_gate_condition="continue",
+        session_state_document={"SESSION_STATE": {"repo_fingerprint": "abc123def456abc123def456"}},
+        commit_workspace_ready_gate=True,
+        workspaces_home=str(workspaces_home),
+        session_state_file=str(session_state_file),
+        session_pointer_file=str(session_pointer_file),
+        session_id="sess-1",
+    )
+
+    marker = workspaces_home / "abc123def456abc123def456" / "marker.json"
+    evidence = workspaces_home / "abc123def456abc123def456" / "evidence" / "repo-context.resolved.json"
+    assert marker.exists()
+    assert evidence.exists()
+    assert session_pointer_file.exists()
