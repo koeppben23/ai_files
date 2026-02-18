@@ -176,7 +176,7 @@ def test_preflight_discovers_binding_from_cwd_ancestor_with_dev_override(
     monkeypatch.setenv("OPENCODE_ALLOW_CWD_BINDINGS", "1")
 
     module = _load_module()
-    assert module.BINDING_OK is True
+    assert module.BINDING_OK is False
 
 
 @pytest.mark.governance

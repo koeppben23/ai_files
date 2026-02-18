@@ -16,6 +16,7 @@ def _write_binding(config_root: Path, *, commands_home: Path, workspaces_home: P
             "configRoot": str(config_root),
             "commandsHome": str(commands_home),
             "workspacesHome": str(workspaces_home),
+            "pythonCommand": "python3",
         },
     }
     (config_root / "commands").mkdir(parents=True, exist_ok=True)
@@ -90,7 +91,7 @@ def test_adapter_discovers_binding_from_cwd_ancestor(monkeypatch: pytest.MonkeyP
 
 
 @pytest.mark.governance
-def test_adapter_discovers_binding_from_cwd_ancestor_with_dev_override(
+def test_adapter_does_not_use_dev_cwd_binding_without_host_caps_gate(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ):
     cfg = tmp_path
@@ -109,7 +110,7 @@ def test_adapter_discovers_binding_from_cwd_ancestor_with_dev_override(
 
     adapter = LocalHostAdapter()
     caps = adapter.capabilities()
-    assert caps.fs_read_commands_home is True
+    assert caps.fs_read_commands_home is False
 
 
 @pytest.mark.governance
@@ -141,6 +142,7 @@ def test_adapter_rejects_relative_binding_paths(monkeypatch: pytest.MonkeyPatch,
             "configRoot": str(cfg),
             "commandsHome": "./commands",
             "workspacesHome": "./workspaces",
+            "pythonCommand": "python3",
         },
     }
     (cfg / "commands" / "governance.paths.json").write_text(json.dumps(payload), encoding="utf-8")
