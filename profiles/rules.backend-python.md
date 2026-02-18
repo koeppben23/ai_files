@@ -1,4 +1,4 @@
-# Backend Python Governance Profile
+# Backend Python Governance Profile Rulebook (v1.0)
 
 This document defines **backend Python (FastAPI/Flask/Django/service backends)** profile rules.
 It is applied **in addition** to the Core Rulebook (`rules.md`) and the Master Prompt (`master.md`).
@@ -54,7 +54,7 @@ Binding behavior for `backend-python` profile:
 ## Tooling (binding)
 
 - Use repository-native Python tooling first (for example `pytest`, `ruff`, `mypy`, `uv`, `poetry`, `pip-tools`, `alembic`).
-- Prefer pinned and reproducible invocation forms (lockfile/workflow-defined commands).
+- SHOULD use pinned and reproducible invocation forms (lockfile/workflow-defined commands).
 - When required tooling is unavailable in host constraints, emit deterministic recovery commands and preserve fail-closed gate behavior.
 - This profile inherits core mode constraints: user-mode operations MUST NOT require writes outside repository/workspace/config boundaries; if required, block with canonical mode-violation handling and recovery.
 
@@ -91,6 +91,151 @@ Binding behavior for `backend-python` profile:
 - Input validation and authorization behavior changes require explicit negative-path evidence.
 - Logging changes MUST avoid PII/secret leakage and preserve troubleshooting utility.
 
+---
+
+## Repo Conventions Lock (Binding)
+
+Before code changes, detect and lock in `SESSION_STATE`:
+- Python version and virtual environment strategy (venv/poetry/uv/conda)
+- Web framework (FastAPI/Flask/Django/other) and router/middleware conventions
+- ORM/data-access pattern (SQLAlchemy/Django ORM/raw SQL/other)
+- Migration tool (Alembic/Django migrations/other)
+- Test runner and assertion style (pytest/unittest/pytest-bdd)
+- Linter/formatter configuration (ruff/black/isort/flake8/mypy)
+- Dependency management (pip/poetry/uv/pip-tools)
+- Project structure convention (src layout vs flat)
+
+Rule: once detected, these become constraints. If unknown, mark unknown and avoid introducing a new architecture pattern.
+
+---
+
+## Templates Addon (Binding)
+
+For the `backend-python` profile, deterministic generation requires the templates addon:
+`rules.backend-python-templates.md`.
+
+Binding:
+- At **code-phase** (Phase 4+), the workflow MUST load the templates addon and record it in:
+  - `SESSION_STATE.LoadedRulebooks.templates`
+- The load evidence MUST include resolved path plus version/digest evidence when available:
+  - `SESSION_STATE.RulebookLoadEvidence.templates`
+- When loaded, templates are binding defaults; if a template conflicts with locked repo conventions, apply the minimal convention-aligned adaptation and document the deviation.
+
+---
+
+## Addon Policy Classes (Binding)
+
+- Addon class semantics are canonical in `rules.md` anchor `RULEBOOK-PRECEDENCE-POLICY` and `master.md`; this profile MUST reference, not redefine, those semantics.
+- Addon manifests/rulebooks MUST declare `addon_class` explicitly.
+- This profile may define Python-specific required-signal logic, but missing-rulebook handling MUST follow canonical policy.
+
+---
+
+## Quality Gates (Hard Fail)
+
+Change fails if any applies:
+
+### PQG-1 Build/Lint Gate
+- lint/format/type-check not green
+
+### PQG-2 Contract Gate (if contracts exist)
+- API schema drift without explicit approval
+- edited generated code
+
+### PQG-3 Architecture Gate
+- layer/module boundary violations
+- fat route handlers (business logic in API layer)
+
+### PQG-4 Test Quality Gate
+- missing behavioral coverage for changed logic
+- flaky or nondeterministic tests
+- missing negative-path coverage for changed behavior
+
+### PQG-5 Migration Gate (if migrations present)
+- migration without rollback/backout evidence
+- data-shape change without compatibility assessment
+
+### PQG-6 Operational Gate
+- logging/security/auth regression
+
+---
+
+## BuildEvidence Gate (Binding)
+
+Claims like these require evidence snippets in `SESSION_STATE.BuildEvidence`:
+- "tests are green"
+- "lint/type-check clean"
+- "no contract drift"
+- "migration validated"
+
+If evidence is missing, status is "not verified" and the change cannot pass Phase 5.3 / 6.
+
+No exceptions.
+
+---
+
+## Definition of Done (Binding)
+
+A backend Python change is **DONE** only if:
+
+- All Quality Gates pass
+- All claims are evidence-backed
+- No generated code was edited
+- Architecture boundaries are intact
+- Tests prove behavior, not implementation
+- Migration safety is demonstrated (when applicable)
+- SESSION_STATE contains BuildEvidence
+
+If any item is missing → **NOT DONE**.
+
+---
+
+## Python-specific Principal Hardening v2 (Binding)
+
+This section defines Python-specific, measurable hardening rules for business and test code.
+
+### PYPH2-1 Risk tiering by touched surface (binding)
+
+The workflow MUST classify changed scope before implementation and gate reviews
+using the canonical tiering contract from `rules.risk-tiering.md` (`TIER-LOW|TIER-MEDIUM|TIER-HIGH`).
+
+`PYPH2` adds Python-specific obligations per canonical tier; it does not define a parallel tier system.
+
+### PYPH2-2 Mandatory evidence pack per tier (binding)
+
+For `TIER-LOW` (per canonical tiering), evidence requires:
+- lint/type-check pass
+- changed-module tests
+
+For `TIER-MEDIUM`, evidence requires:
+- lint/type-check pass
+- changed-module tests
+- at least one negative-path test for changed behavior
+
+For `TIER-HIGH`, evidence requires:
+- lint/type-check pass
+- changed-module tests
+- contract or schema checks (if repo tooling exists)
+- one deterministic negative-path test and one deterministic resilience test (retry/idempotency/concurrency as applicable)
+
+### PYPH2-3 Hard fail criteria for principal acceptance (binding)
+
+A Python change MUST be marked `fail` in P5.3/P6 if any applies:
+
+- `PYPH2-FAIL-01`: no evidenceRef for a critical claim
+- `PYPH2-FAIL-02`: contract-facing change without negative-path proof
+- `PYPH2-FAIL-03`: async/persistence risk change without deterministic resilience proof
+- `PYPH2-FAIL-04`: generated code modified by hand
+- `PYPH2-FAIL-05`: flaky test behavior detected (nondeterministic timing or uncontrolled I/O)
+
+### PYPH2-4 Warning codes and recovery (binding)
+
+Use status codes below with concrete recovery steps:
+
+- `WARN-PYTHON-MIGRATION-ROLLBACK-MISSING`: migration change without rollback evidence — recovery: add down-migration and test both directions
+- `WARN-PYTHON-ASYNC-DETERMINISM`: async test without deterministic control — recovery: add explicit async mock/fixture control
+- `WARN-PYTHON-TYPE-CHECK-SKIPPED`: type checker not available in environment — recovery: install mypy/pyright and run against changed modules
+
 ## Examples (GOOD/BAD)
 
 ### GOOD
@@ -115,7 +260,7 @@ Binding behavior for `backend-python` profile:
 ### Host cannot run required Python toolchain
 
 - Emit one primary recovery command for the operator.
-- Keep claim status `NOT_VERIFIED` until concrete evidence is ingested.
+- MUST keep claim status `NOT_VERIFIED` until concrete evidence is ingested.
 
 ### Ambiguous stack/profile detection
 

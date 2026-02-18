@@ -1,4 +1,4 @@
-# Fallback Minimum Profile
+# Fallback Minimum Profile Rulebook (v1.0)
 
 ## Intent (binding)
 
@@ -10,6 +10,7 @@ Applies to repos where no deterministic stack profile can be selected and minimu
 
 Precedence (binding): use the canonical order from `rules.md` anchor `RULEBOOK-PRECEDENCE-POLICY`.
 This fallback profile applies only when no stack profile can be selected deterministically.
+It is applied in addition to `master.md` (phases, gates, activation) and `rules.md` (core engineering governance).
 
 ## Activation condition
 This profile applies ONLY when no repo-local standards are discoverable.

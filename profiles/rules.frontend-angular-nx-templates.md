@@ -34,7 +34,7 @@ Rule (binding): templates are default structures. If a template conflicts with l
 
 ## Tooling (recommended)
 
-- Prefer repo-native Nx targets (for example `npx nx affected -t lint,test,build`).
+- SHOULD use repo-native Nx targets (for example `npx nx affected -t lint,test,build`).
 - If target names differ, document the resolved equivalent commands in BuildEvidence.
 
 ## Correctness by construction (binding)
@@ -151,8 +151,8 @@ export class {Feature}Facade {
 ```
 
 Binding rules:
-- Keep boundary mapping in facade/data-access layer.
-- Error paths must be explicit.
+- MUST keep boundary mapping in facade/data-access layer.
+- Error paths MUST be explicit.
 - If repo uses ngrx/component-store instead of signals, mirror repo pattern.
 
 ---
@@ -228,6 +228,50 @@ describe('{feature} flow', () => {
 Binding rules:
 - Use stable selectors and deterministic fixtures.
 - Avoid fixed waits; use retryable assertions.
+
+---
+
+## Principal Hardening v2 - Angular Template Conformance (Binding)
+
+### ATPH2-1 Template conformance gate (binding)
+
+For generated Angular business/test code, the workflow MUST verify and record conformance against templates T1–T6.
+
+Minimum conformance checks for changed scope:
+
+- Container orchestrates only (no business branching or transport parsing in component)
+- Presentational components use typed inputs/outputs with no state orchestration
+- Facade/store pattern follows repo conventions (signals/ngrx/component-store)
+- API boundary maps DTOs explicitly before UI consumption
+- Tests assert behavior/state outcomes, not internal implementation
+
+If any conformance item fails, principal completion cannot be declared.
+
+### ATPH2-2 Evidence artifact contract (binding)
+
+When templates are used, BuildEvidence MUST include references for:
+
+- `EV-TPL-CODE`: code conformance evidence (path + snippet references)
+- `EV-TPL-TEST`: test conformance evidence (path + test names)
+- `EV-TPL-GATE`: gate decision evidence (pass/fail with rationale)
+
+Claims without these evidence refs MUST be marked `not-verified`.
+
+### ATPH2-3 High-risk template extensions (binding)
+
+When touched scope includes routing guards, auth interceptors, or cross-lib Nx boundaries, template usage alone is not sufficient.
+The workflow MUST add risk-specific checks and tests (guard behavior, auth/error semantics, boundary enforcement).
+
+### ATPH2-4 Template deviation protocol (binding)
+
+If repo conventions require deviation from templates, record:
+
+- deviation reason
+- preserved architectural intent
+- risk impact (`low` | `medium` | `high`)
+- compensating test added
+
+Without deviation record, gate result cannot be `pass`.
 
 ---
 

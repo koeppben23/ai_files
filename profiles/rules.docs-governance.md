@@ -2,7 +2,7 @@
 
 ## Intent (binding)
 
-Keep governance markdown and addon manifests consistent, reviewable, and machine-checkable without introducing hard delivery blockers.
+MUST keep governance markdown and addon manifests consistent, reviewable, and machine-checkable without introducing hard delivery blockers.
 
 Addon class (binding): advisory addon.
 
@@ -18,7 +18,7 @@ This rulebook defines behavior once activated and MUST NOT redefine activation s
 
 ---
 
-## Scope
+## Scope (binding)
 
 This addon applies to governance-oriented documentation and manifests in the active repository scope, especially:
 - `master.md`
@@ -28,7 +28,7 @@ This addon applies to governance-oriented documentation and manifests in the act
 - `profiles/addons/*.addon.yml`
 - `README*.md`
 
-## Phase Integration
+## Phase Integration (binding)
 
 ### Phase 1 (scan/context)
 SHOULD:
@@ -144,14 +144,14 @@ MUST:
   - Addons -> `SESSION_STATE.LoadedRulebooks.addons.<addon_key>`
   - Addon evidence -> `SESSION_STATE.AddonsEvidence.<addon_key>`
 - keep activation logic in manifest files; rulebooks describe behavior, not detection signals
-- prefer explicit file references in docs over vague prose
+- SHOULD use explicit file references in docs over vague prose
 
 MUST NOT:
 - redefine normative behavior in README documents that conflicts with `master.md` / `rules.md`
 - mix profile and addon terminology ambiguously
 
 Canonical terms lint (binding):
-- Avoid deprecated/confusing aliases in governance docs. Prefer canonical forms:
+- MUST NOT use deprecated/confusing aliases in governance docs. SHOULD use canonical forms:
   - `rules.frontend-angular-nx.md` (not `rules.frontend.md`)
   - `BLOCKED-MISSING-TEMPLATES` (do not use legacy templates-missing variant; reference only, do not emit from this addon)
   - `BLOCKED-MISSING-ADDON:<addon_key>` (not ad-hoc addon-specific BLOCKED names; reference only, do not emit from this addon)
