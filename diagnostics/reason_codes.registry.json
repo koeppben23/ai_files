@@ -171,6 +171,13 @@
       "remediation_hint": "Enable required execution capability in host policy."
     },
     {
+      "code": "BLOCKED-FINGERPRINT-MISMATCH",
+      "severity": "blocked",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Session state fingerprint does not match live repo identity.",
+      "remediation_hint": "Re-bootstrap session state from current repo root."
+    },
+    {
       "code": "REPO-DOC-UNSAFE-DIRECTIVE",
       "severity": "blocked",
       "payload_schema_ref": "diagnostics/schemas/reason_payload_repo_doc_unsafe.v1.json",

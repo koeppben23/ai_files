@@ -81,7 +81,9 @@ def default_config_root() -> Path:
     return canonical_config_root()
 
 # Diagnostics error logging is fail-closed read-only unless explicitly enabled.
-READ_ONLY = os.environ.get("OPENCODE_DIAGNOSTICS_ALLOW_WRITE", "0") != "1"
+# In pipeline mode, writes are always disabled regardless of env override.
+_is_pipeline = os.environ.get("CI", "").strip().lower() not in {"", "0", "false", "no", "off"}
+READ_ONLY = _is_pipeline or os.environ.get("OPENCODE_DIAGNOSTICS_ALLOW_WRITE", "0") != "1"
 
 def _load_json(path: Path) -> dict[str, Any] | None:
     try:
@@ -320,7 +322,7 @@ def write_error_event(
 
 def safe_log_error(**kwargs: Any) -> dict[str, str]:
     if READ_ONLY:
-        return {"status": "read-only", "path": "/dev/null"}
+        return {"status": "read-only"}
     try:
         p = write_error_event(**kwargs)
         return {"status": "logged", "path": str(p)}

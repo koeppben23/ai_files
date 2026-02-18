@@ -34,6 +34,7 @@ EMBEDDED_REASON_CODE_TO_SCHEMA_REF: Final[dict[str, str]] = {
     "BLOCKED-INSTALL-CONFIG-ROOT-INVALID": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
     "BLOCKED-PERMISSION-DENIED": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
     "BLOCKED-EXEC-DISALLOWED": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
+    "BLOCKED-FINGERPRINT-MISMATCH": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
     "REPO-DOC-UNSAFE-DIRECTIVE": "diagnostics/schemas/reason_payload_repo_doc_unsafe.v1.json",
     "REPO-CONSTRAINT-WIDENING": "diagnostics/schemas/reason_payload_repo_constraint_widening.v1.json",
     "INTERACTIVE-REQUIRED-IN-PIPELINE": "diagnostics/schemas/reason_payload_interactive_pipeline.v1.json",
