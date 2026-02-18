@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
-import re
+from governance.domain.phase_state_machine import (
+    normalize_phase_token,
+    phase_requires_ticket_input as _phase_requires_ticket_input,
+)
 
 
 def normalize_text(value: object) -> str:
@@ -33,42 +36,11 @@ def contains_any(text: object, needles: tuple[str, ...]) -> bool:
 
 
 def extract_phase_token(value: object) -> str:
-    if not isinstance(value, str):
-        return ""
-    raw = value.strip()
-    if not raw:
-        return ""
-    normalized = raw.upper()
-    patterns = (
-        ("3B-2", r"^3B-2"),
-        ("3B-1", r"^3B-1"),
-        ("3A", r"^3A"),
-        ("2.1", r"^2\.1"),
-        ("1.5", r"^1\.5"),
-        ("1.3", r"^1\.3"),
-        ("1.2", r"^1\.2"),
-        ("1.1", r"^1\.1"),
-        ("6", r"^6(?:\b|-)"),
-        ("5.6", r"^5\.6"),
-        ("5.5", r"^5\.5"),
-        ("5.4", r"^5\.4"),
-        ("5.3", r"^5\.3"),
-        ("5", r"^5(?:\b|-)"),
-        ("4", r"^4(?:\b|-)"),
-        ("2", r"^2(?:\b|-)"),
-        ("1", r"^1(?:\b|-)"),
-    )
-    for token, pattern in patterns:
-        if re.match(pattern, normalized):
-            return token
-    return ""
+    return normalize_phase_token(value)
 
 
 def phase_requires_ticket_input(phase_token: str) -> bool:
-    match = re.match(r"^(\d+)", phase_token)
-    if match is None:
-        return False
-    return int(match.group(1)) >= 4
+    return _phase_requires_ticket_input(phase_token)
 
 
 def _extract_phase(session_state: dict[str, object]) -> str:
