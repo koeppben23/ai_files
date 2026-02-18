@@ -6,6 +6,12 @@ import pytest
 
 from governance.application.use_cases.start_persistence import decide_start_persistence
 from governance.engine.adapters import ExecResult, HostCapabilities
+from governance.infrastructure.wiring import configure_gateway_registry
+
+
+@pytest.fixture(autouse=True)
+def _configure_gateways() -> None:
+    configure_gateway_registry()
 
 
 class StubAdapter:
@@ -85,3 +91,33 @@ def test_start_persistence_resolves_workspace_ready_for_git_repo(tmp_path: Path)
     assert isinstance(decision.repo_fingerprint, str) and decision.repo_fingerprint.strip()
     assert decision.reason_code == "none"
     assert decision.reason == "none"
+
+
+@pytest.mark.governance
+def test_start_persistence_unresolved_identity_never_leaks_repo_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    repo = tmp_path / "repo"
+    repo.mkdir(parents=True, exist_ok=True)
+    (repo / ".git").mkdir(parents=True, exist_ok=True)
+    adapter = StubAdapter(
+        env={"OPENCODE_REPO_ROOT": str(repo)},
+        cwd_path=repo,
+        top_level=ExecResult(argv=("git",), cwd=str(repo), exit_code=0, stdout=str(repo) + "\n", stderr=""),
+        origin=ExecResult(argv=("git",), cwd=str(repo), exit_code=0, stdout="", stderr=""),
+    )
+
+    from governance.application.use_cases import start_bootstrap as sb
+
+    original = sb.derive_repo_identity
+    try:
+        monkeypatch.setattr(
+            sb,
+            "derive_repo_identity",
+            lambda *args, **kwargs: type("Identity", (), {"fingerprint": ""})(),
+        )
+        decision = decide_start_persistence(adapter=adapter)
+    finally:
+        monkeypatch.setattr(sb, "derive_repo_identity", original)
+
+    assert decision.workspace_ready is False
+    assert decision.reason == "identity-bootstrap-fingerprint-missing"
+    assert decision.repo_root is None

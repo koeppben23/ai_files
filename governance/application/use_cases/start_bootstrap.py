@@ -15,6 +15,7 @@ class StartIdentityResult:
     repo_fingerprint: str
     workspace_ready: bool
     reason_code: str
+    reason: str
     canonical_remote: str | None
 
 
@@ -37,6 +38,7 @@ def evaluate_start_identity(*, adapter: HostAdapter) -> StartIdentityResult:
             repo_fingerprint="",
             workspace_ready=False,
             reason_code=BLOCKED_REPO_IDENTITY_RESOLUTION,
+            reason="repo-root-not-git",
             canonical_remote=None,
         )
 
@@ -53,6 +55,7 @@ def evaluate_start_identity(*, adapter: HostAdapter) -> StartIdentityResult:
             repo_fingerprint="",
             workspace_ready=False,
             reason_code=BLOCKED_REPO_IDENTITY_RESOLUTION,
+            reason="identity-bootstrap-fingerprint-missing",
             canonical_remote=canonical_remote,
         )
 
@@ -62,5 +65,6 @@ def evaluate_start_identity(*, adapter: HostAdapter) -> StartIdentityResult:
         repo_fingerprint=fp,
         workspace_ready=True,
         reason_code=REASON_CODE_NONE,
+        reason=REASON_CODE_NONE,
         canonical_remote=canonical_remote,
     )

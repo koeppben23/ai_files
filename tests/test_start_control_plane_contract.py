@@ -7,7 +7,7 @@ import pytest
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-START_PREFLIGHT = REPO_ROOT / "diagnostics" / "start_preflight_persistence.py"
+START_PREFLIGHT = REPO_ROOT / "diagnostics" / "start_preflight_readonly.py"
 
 
 def _function_calls(tree: ast.AST, function_name: str) -> set[str]:
@@ -27,19 +27,16 @@ def _function_calls(tree: ast.AST, function_name: str) -> set[str]:
 
 
 @pytest.mark.governance
-def test_start_preflight_routes_identity_through_core_use_case_only():
+def test_start_preflight_readonly_has_no_persistence_entrypoints():
     tree = ast.parse(START_PREFLIGHT.read_text(encoding="utf-8"))
-    bootstrap_calls = _function_calls(tree, "bootstrap_identity_if_needed")
     run_calls = _function_calls(tree, "run_persistence_hook")
 
-    assert "decide_start_persistence" in bootstrap_calls
-    assert "decide_start_persistence" in run_calls
+    assert "commit_workspace_identity" not in run_calls
+    assert "write_unresolved_runtime_context" not in run_calls
 
     forbidden = {
-        "derive_repo_fingerprint",
-        "read_repo_context_fingerprint",
-        "pointer_fingerprint",
-        "resolve_repo_context",
+        "mkdir",
+        "write_text",
+        "open",
     }
-    assert not (bootstrap_calls & forbidden), f"bootstrap_identity_if_needed bypasses core identity use-case: {bootstrap_calls & forbidden}"
-    assert not (run_calls & forbidden), f"run_persistence_hook bypasses core identity use-case: {run_calls & forbidden}"
+    assert not (run_calls & forbidden), f"run_persistence_hook must remain read-only: {run_calls & forbidden}"

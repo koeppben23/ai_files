@@ -1,105 +1,113 @@
 from __future__ import annotations
 
-import importlib.util
 import json
-import shutil
-import sys
 from pathlib import Path
 
 import pytest
 
-from .util import REPO_ROOT, write_governance_paths
-
-
-def _load_preflight_module():
-    script = REPO_ROOT / "diagnostics" / "start_preflight_persistence.py"
-    spec = importlib.util.spec_from_file_location("start_preflight_persistence", script)
-    if spec is None or spec.loader is None:
-        raise RuntimeError("failed to load start_preflight_persistence module")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+from governance.application.use_cases.phase_router import route_phase
+from governance.infrastructure.workspace_ready_gate import ensure_workspace_ready
 
 
 @pytest.mark.governance
-def test_start_nested_cwd_without_repo_override_is_non_destructive(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
-    cfg = tmp_path / ".config" / "opencode"
-    write_governance_paths(cfg)
-
-    diagnostics_dst = cfg / "commands" / "diagnostics"
-    diagnostics_dst.mkdir(parents=True, exist_ok=True)
-    for name in ["bootstrap_session_state.py", "workspace_lock.py", "error_logs.py"]:
-        shutil.copy2(REPO_ROOT / "diagnostics" / name, diagnostics_dst / name)
-
-    repo_root = tmp_path / "repo"
-    (repo_root / ".git").mkdir(parents=True, exist_ok=True)
-    nested = repo_root / "src" / "feature"
-    nested.mkdir(parents=True, exist_ok=True)
-    monkeypatch.chdir(nested)
-    monkeypatch.delenv("OPENCODE_REPO_ROOT", raising=False)
-    monkeypatch.delenv("OPENCODE_WORKSPACE_ROOT", raising=False)
-    monkeypatch.delenv("REPO_ROOT", raising=False)
-    monkeypatch.delenv("GITHUB_WORKSPACE", raising=False)
-
-    module = _load_preflight_module()
-    monkeypatch.setattr(module.Path, "home", staticmethod(lambda: tmp_path))
-    monkeypatch.setattr(module, "PYTHON_COMMAND", sys.executable)
-    monkeypatch.setattr(module.shutil, "which", lambda cmd: "/usr/bin/git" if cmd == "git" else None)
-    module.ROOT = cfg
-    module.COMMANDS_RUNTIME_DIR = cfg / "commands"
-    module.WORKSPACES_HOME = cfg / "workspaces"
-    module.BINDING_OK = True
-    module.BINDING_EVIDENCE_PATH = cfg / "commands" / "governance.paths.json"
-    module.DIAGNOSTICS_DIR = diagnostics_dst
-    module.BOOTSTRAP_HELPER = diagnostics_dst / "bootstrap_session_state.py"
-
-    assert module.bootstrap_identity_if_needed() is False
-    assert not (cfg / "workspaces").exists()
-    assert not (cfg / "SESSION_STATE.json").exists()
-
-
-@pytest.mark.governance
-def test_pipeline_missing_binding_blocks_without_prompt_fields(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]):
-    module = _load_preflight_module()
-    monkeypatch.setattr(module, "BINDING_OK", False)
-    monkeypatch.setattr(
-        module,
-        "load_json",
-        lambda _path: {"required_now": [{"command": "git"}], "required_later": []},
+def test_phase_router_blocks_phase2_without_workspace_ready():
+    routed = route_phase(
+        requested_phase="2-Discovery",
+        requested_active_gate="Discovery",
+        requested_next_gate_condition="Build decision pack",
+        session_state_document={"SESSION_STATE": {"workspace_ready_gate_committed": False}},
+        repo_is_git_root=False,
     )
-    monkeypatch.setattr(module.shutil, "which", lambda _cmd: "/usr/bin/git")
-
-    module.emit_preflight()
-    payload = json.loads(capsys.readouterr().out.strip())
-    assert payload["block_now"] is True
-    assert payload["binding_evidence"] == "invalid"
-    assert "prompt" not in json.dumps(payload).lower()
+    assert routed.phase == "1.1-Bootstrap"
+    assert routed.active_gate == "Workspace Ready Gate"
+    assert routed.workspace_ready is False
 
 
 @pytest.mark.governance
-def test_windows_path_with_spaces_uses_argv_first(monkeypatch: pytest.MonkeyPatch):
-    module = _load_preflight_module()
-    monkeypatch.setattr(module, "PYTHON_COMMAND", "py -3")
-    repo_root = Path("C:/Users/Test User/Repo Root")
-    argv = module.persist_command_argv(repo_root)
-    assert argv[:2] == ["py", "-3"]
-    assert argv[-1] == str(repo_root)
+def test_phase_router_routes_openapi_from_phase21_to_3a():
+    routed = route_phase(
+        requested_phase="2.1-DecisionPack",
+        requested_active_gate="Decision Pack",
+        requested_next_gate_condition="Proceed",
+        session_state_document={"SESSION_STATE": {"workspace_ready_gate_committed": True, "repo_capabilities": ["openapi"]}},
+        repo_is_git_root=True,
+    )
+    assert routed.phase == "3A-Activation"
+    assert "3A" in routed.next_gate_condition
 
 
 @pytest.mark.governance
-def test_repo_identity_stable_across_remote_url_styles(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
-    module = _load_preflight_module()
+def test_phase_router_prevents_backward_transition_from_persisted_phase():
+    routed = route_phase(
+        requested_phase="2-Discovery",
+        requested_active_gate="Discovery",
+        requested_next_gate_condition="Proceed",
+        session_state_document={"SESSION_STATE": {"phase": "3A-Activation", "workspace_ready_gate_committed": True}},
+        repo_is_git_root=True,
+    )
+    assert routed.phase == "3A-Activation"
+    assert routed.source in {"persisted-phase", "monotonic-session-phase"}
 
-    def make_repo(name: str, url: str) -> Path:
-        repo = tmp_path / name
-        git_dir = repo / ".git"
-        git_dir.mkdir(parents=True, exist_ok=True)
-        (git_dir / "config").write_text(f"[remote \"origin\"]\n    url = {url}\n", encoding="utf-8")
-        return repo
 
-    a = make_repo("a", "git@github.com:Example/Team-Repo.git")
-    b = make_repo("b", "https://github.com/example/team-repo")
+@pytest.mark.governance
+def test_phase_router_blocks_jump_without_transition_evidence():
+    routed = route_phase(
+        requested_phase="5-Plan",
+        requested_active_gate="Plan",
+        requested_next_gate_condition="Proceed",
+        session_state_document={"SESSION_STATE": {"phase": "2-Discovery", "workspace_ready_gate_committed": True}},
+        repo_is_git_root=True,
+    )
+    assert routed.phase == "2-Discovery"
+    assert "evidence" in routed.next_gate_condition.lower()
 
-    fp_a = module.derive_repo_fingerprint(a)
-    fp_b = module.derive_repo_fingerprint(b)
-    assert fp_a == fp_b
+
+@pytest.mark.governance
+def test_phase_router_strips_ticket_prompt_before_phase4():
+    routed = route_phase(
+        requested_phase="2.1-DecisionPack",
+        requested_active_gate="Decision Pack",
+        requested_next_gate_condition="Please provide task/ticket now",
+        session_state_document={"SESSION_STATE": {"workspace_ready_gate_committed": True}},
+        repo_is_git_root=True,
+    )
+    assert "not allowed before phase 4" in routed.next_gate_condition.lower()
+
+
+@pytest.mark.governance
+def test_workspace_ready_gate_writes_marker_evidence_and_pointer(tmp_path: Path):
+    workspaces_home = tmp_path / "workspaces"
+    session_state = tmp_path / "SESSION_STATE.json"
+    session_state.write_text("{}\n", encoding="utf-8")
+    pointer = tmp_path / "active-session-pointer.json"
+
+    decision = ensure_workspace_ready(
+        workspaces_home=workspaces_home,
+        repo_fingerprint="abc123def456abc123def456",
+        repo_root=tmp_path / "repo",
+        session_state_file=session_state,
+        session_pointer_file=pointer,
+        session_id="sess-1",
+        discovery_method="env:OPENCODE_REPO_ROOT:git-rev-parse",
+    )
+
+    assert decision.ok is True
+    assert decision.marker_path is not None and decision.marker_path.exists()
+    assert decision.pointer_path is not None and decision.pointer_path.exists()
+    marker_payload = json.loads(decision.marker_path.read_text(encoding="utf-8"))
+    assert marker_payload["workspace_ready"] is True
+
+
+@pytest.mark.governance
+def test_workspace_ready_gate_fails_closed_when_fp_missing(tmp_path: Path):
+    decision = ensure_workspace_ready(
+        workspaces_home=tmp_path / "workspaces",
+        repo_fingerprint="",
+        repo_root=tmp_path / "repo",
+        session_state_file=tmp_path / "SESSION_STATE.json",
+        session_pointer_file=tmp_path / "active-session-pointer.json",
+        session_id="sess-1",
+        discovery_method="cwd",
+    )
+    assert decision.ok is False
+    assert decision.reason == "fingerprint-missing"

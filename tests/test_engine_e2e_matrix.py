@@ -174,3 +174,9 @@ def test_engine_orchestrator_e2e_matrix(
     )
     assert out.parity["status"] == expected_status
     assert out.parity["reason_code"] == expected_reason
+    if name == "wrong-cwd-no-git":
+        assert out.repo_context.repo_root is None
+        assert out.repo_context.is_git_root is False
+    if name == "mode-downgrade":
+        assert out.repo_context.repo_root == cwd.resolve()
+        assert out.repo_context.is_git_root is True
