@@ -122,6 +122,10 @@ try:
     from governance.application.repo_identity_service import canonicalize_origin_url, derive_repo_identity
     from governance.application.use_cases.start_bootstrap import evaluate_start_identity as _evaluate_start_identity
     from governance.application.use_cases.start_persistence import decide_start_persistence as _decide_start_persistence
+    from governance.application.use_cases.start_persistence import (
+        commit_workspace_identity as _commit_workspace_identity,
+        write_unresolved_runtime_context as _write_unresolved_runtime_context,
+    )
 except Exception:
     import hashlib
     from urllib.parse import urlsplit
@@ -174,6 +178,9 @@ except Exception:
 
     _decide_start_persistence = None
 
+    _commit_workspace_identity = None
+    _write_unresolved_runtime_context = None
+
 
 def evaluate_start_identity(*, env, cwd):
     if callable(_evaluate_start_identity):
@@ -198,6 +205,20 @@ def decide_start_persistence(*, env, cwd):
         "reason_code": "BLOCKED-REPO-IDENTITY-RESOLUTION",
         "reason": "repo-root-not-git",
     }
+
+
+def write_unresolved_runtime_context(**kwargs):
+    if callable(_write_unresolved_runtime_context):
+        return _write_unresolved_runtime_context(**kwargs)
+    _ = kwargs
+    return False
+
+
+def commit_workspace_identity(**kwargs):
+    if callable(_commit_workspace_identity):
+        return _commit_workspace_identity(**kwargs)
+    _ = kwargs
+    return False
 
 
 def _identity_value(identity: object, key: str):
@@ -399,32 +420,6 @@ def _discover_repo_session_id() -> str:
     return hashlib.sha256(str(cwd).encode("utf-8")).hexdigest()[:16]
 
 
-def _runtime_state_run_dir() -> Path:
-    return ROOT / "state" / "runs" / _discover_repo_session_id()
-
-
-def _write_unresolved_runtime_context(*, reason: str, discovery_method: str) -> bool:
-    try:
-        payload = {
-            "schema": "repo-context.v1",
-            "status": "unresolved",
-            "session_id": _discover_repo_session_id(),
-            "repo_root": None,
-            "repo_fingerprint": "",
-            "discovered_at": datetime.utcnow().replace(microsecond=0).isoformat() + "Z",
-            "discovery_method": discovery_method,
-            "cwd_hint": str(normalize_absolute_path(str(Path.cwd()), purpose="cwd_hint")),
-            "binding_evidence_path": str(BINDING_EVIDENCE_PATH) if BINDING_EVIDENCE_PATH is not None else "",
-            "commands_home": str(COMMANDS_RUNTIME_DIR),
-            "reason": reason,
-        }
-        target = _runtime_state_run_dir() / "repo-context.unresolved.json"
-        _atomic_write_text(target, json.dumps(payload, indent=2, ensure_ascii=True) + "\n")
-        return True
-    except Exception:
-        return False
-
-
 def _python_command_argv() -> list[str]:
     token = str(PYTHON_COMMAND or "").strip()
     if not token:
@@ -460,49 +455,25 @@ def _atomic_write_text(path: Path, text: str) -> None:
     atomic_write_text(path, text, newline_lf=True, attempts=attempts, backoff_ms=50)
 
 
-def _write_repo_context_payload(payload: dict, relative_target: str, repo_root: Path, repo_fingerprint: str) -> bool:
+def write_repo_context(repo_root: Path, repo_fingerprint: str, discovery_method: str) -> bool:
     try:
-        if not repo_fingerprint.strip():
-            return False
-        target = WORKSPACES_HOME / relative_target
-        workspace_dir = WORKSPACES_HOME / repo_fingerprint
-        workspace_dir.mkdir(parents=True, exist_ok=True)
-        marker = workspace_dir / ".workspace-ready"
-        if not marker.exists():
-            _atomic_write_text(marker, "ready\n")
-        text = json.dumps(payload, indent=2, ensure_ascii=True) + "\n"
-        _atomic_write_text(target, text)
-        if not marker.exists():
-            return False
-        index = _repo_context_index_path(repo_root)
-        _atomic_write_text(index, text)
-        return True
+        return bool(
+            commit_workspace_identity(
+                workspaces_home=WORKSPACES_HOME,
+                repo_root=repo_root,
+                repo_fingerprint=repo_fingerprint,
+                binding_evidence_path=BINDING_EVIDENCE_PATH,
+                commands_home=COMMANDS_RUNTIME_DIR,
+                discovery_method=discovery_method,
+                session_id=_discover_repo_session_id(),
+            )
+        )
     except Exception as exc:
         log_error(
             "ERR-REPO-CONTEXT-WRITE-FAILED",
-            "Failed to persist repo-context evidence.",
-            {"target": relative_target, "error": str(exc)[:240]},
+            "Failed to persist repo-context evidence via core persistence use-case.",
+            {"error": str(exc)[:240]},
         )
-        return False
-
-
-def write_repo_context(repo_root: Path, repo_fingerprint: str, discovery_method: str) -> bool:
-    try:
-        fingerprint = str(repo_fingerprint).strip()
-        if not fingerprint:
-            return False
-        payload = {
-            "schema": "repo-context.v1",
-            "session_id": _discover_repo_session_id(),
-            "repo_root": _normalize_path_for_fingerprint(repo_root),
-            "repo_fingerprint": fingerprint,
-            "discovered_at": datetime.utcnow().replace(microsecond=0).isoformat() + "Z",
-            "discovery_method": discovery_method,
-            "binding_evidence_path": str(BINDING_EVIDENCE_PATH) if BINDING_EVIDENCE_PATH is not None else "",
-            "commands_home": str(COMMANDS_RUNTIME_DIR),
-        }
-        return _write_repo_context_payload(payload, f"{fingerprint}/repo-context.json", repo_root, fingerprint)
-    except Exception:
         return False
 
 
@@ -823,9 +794,14 @@ def bootstrap_identity_if_needed() -> bool:
         return True
 
     if not inferred_fp:
-        _write_unresolved_runtime_context(
-            reason="identity-bootstrap-fingerprint-missing",
+        write_unresolved_runtime_context(
+            config_root=ROOT,
+            commands_home=COMMANDS_RUNTIME_DIR,
+            binding_evidence_path=BINDING_EVIDENCE_PATH,
+            cwd=normalize_absolute_path(str(Path.cwd()), purpose="cwd"),
             discovery_method=discovery_method,
+            reason="identity-bootstrap-fingerprint-missing",
+            session_id=_discover_repo_session_id(),
         )
         print(
             json.dumps(
@@ -971,9 +947,14 @@ def run_persistence_hook() -> None:
     discovery_method = str(_persistence_value(decision, "discovery_method") or "cwd")
     repo_fp = str(_persistence_value(decision, "repo_fingerprint") or "").strip() or None
     if repo_root is None or not repo_fp:
-        _write_unresolved_runtime_context(
-            reason="repo-root-not-git",
+        write_unresolved_runtime_context(
+            config_root=ROOT,
+            commands_home=COMMANDS_RUNTIME_DIR,
+            binding_evidence_path=BINDING_EVIDENCE_PATH,
+            cwd=normalize_absolute_path(str(Path.cwd()), purpose="cwd"),
             discovery_method=discovery_method,
+            reason="repo-root-not-git",
+            session_id=_discover_repo_session_id(),
         )
         print(
             json.dumps(
