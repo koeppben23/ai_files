@@ -24,7 +24,7 @@ READ_ONLY = True
 
 
 def _resolve_bindings() -> tuple[Path, Path, bool, Path | None, str]:
-    resolver = BindingEvidenceResolver(config_root=Path.home() / ".config" / "opencode")
+    resolver = BindingEvidenceResolver()
     evidence = resolver.resolve(mode="user")
     python_command = evidence.python_command.strip() if evidence.python_command else ""
     if not python_command:
@@ -63,13 +63,11 @@ def derive_repo_fingerprint(repo_root: Path) -> str | None:
         normalized_repo_root = normalize_absolute_path(str(repo_root), purpose="repo_root")
     except Exception:
         return None
-    if not (normalized_repo_root / ".git").exists():
-        return None
 
     configure_gateway_registry()
     identity = evaluate_start_identity(adapter=cast(Any, _RepoIdentityProbeAdapter(normalized_repo_root)))
-    fingerprint = identity.repo_fingerprint.strip()
-    return fingerprint or None
+    fp = (identity.repo_fingerprint or "").strip()
+    return fp or None
 
 
 def _command_available(command: str) -> bool:
@@ -231,7 +229,7 @@ def build_engine_shadow_snapshot() -> dict[str, object]:
         adapter=OpenCodeDesktopAdapter(),
         phase="1.1-Bootstrap",
         active_gate="ReadOnly Preflight",
-        mode="OK",
+        mode="user",
         next_gate_condition="Read-only diagnostics completed",
         gate_key="PREFLIGHT",
         enable_live_engine=False,
