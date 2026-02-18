@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-SCRIPT_DIR = Path(__file__).resolve().parent
+SCRIPT_DIR = Path(os.path.abspath(__file__)).parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 if str(SCRIPT_DIR.parent) not in sys.path:
@@ -165,8 +165,10 @@ def _load_binding_paths(paths_file: Path, *, expected_config_root: Path | None =
         _workspaces_home = normalize_absolute_path(workspaces_raw, purpose="paths.workspacesHome")
     except Exception as exc:
         raise ValueError(f"binding evidence invalid: {exc}") from exc
-    if expected_config_root is not None and config_root != expected_config_root.resolve():
-        raise ValueError("binding evidence mismatch: config root does not match explicit input")
+    if expected_config_root is not None:
+        expected = normalize_absolute_path(str(expected_config_root), purpose="expected_config_root")
+        if config_root != expected:
+            raise ValueError("binding evidence mismatch: config root does not match explicit input")
     return config_root, paths
 
 
@@ -197,7 +199,7 @@ def resolve_binding_config(explicit: Path | None) -> tuple[Path, dict[str, Any],
         config_root, paths = _load_binding_paths(candidate, expected_config_root=root)
         return config_root, paths, candidate
 
-    script_path = Path(__file__).resolve()
+    script_path = Path(os.path.abspath(__file__))
     diagnostics_dir = script_path.parent
     if diagnostics_dir.name == "diagnostics" and diagnostics_dir.parent.name == "commands":
         candidate = diagnostics_dir.parent / "governance.paths.json"
@@ -253,7 +255,7 @@ def _resolve_git_dir(repo_root: Path) -> Path | None:
         raw = m.group(1).strip()
         candidate = Path(raw)
         if not candidate.is_absolute():
-            candidate = (repo_root / candidate).resolve()
+            candidate = normalize_absolute_path(str(repo_root / candidate), purpose="gitdir_relative")
         return candidate if candidate.exists() else None
 
     return None
@@ -674,7 +676,7 @@ def _bootstrap_missing_session_state(
     if dry_run:
         return True, "bootstrap-dry-run"
 
-    helper = Path(__file__).resolve().parent / "bootstrap_session_state.py"
+    helper = SCRIPT_DIR / "bootstrap_session_state.py"
     if not helper.exists():
         return False, "missing-bootstrap-helper"
 
@@ -860,7 +862,10 @@ def main() -> int:
             print(f"ERROR: {exc}")
         return 2
 
-    workspaces_home = Path(str(binding_paths.get("workspacesHome", ""))).expanduser().resolve()
+    workspaces_home = normalize_absolute_path(
+        str(binding_paths.get("workspacesHome", "")),
+        purpose="paths.workspacesHome",
+    )
     repo_home = workspaces_home / repo_fingerprint
     session_path = repo_home / "SESSION_STATE.json"
     bootstrap_status = "not-required"
