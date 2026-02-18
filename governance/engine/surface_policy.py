@@ -28,6 +28,11 @@ class SurfacePolicy:
     minimum_mode: OperatingMode
 
 
+# agents_strict shares rank 1 with user: both satisfy the same minimum-mode
+# gates.  agents_strict adds interaction constraints (ask-before directives,
+# repo-doc interactive gates) but does NOT grant elevated write/exec
+# permissions.  If agents_strict ever needs to satisfy a higher minimum-mode
+# gate, assign it rank 2 and update tests accordingly.
 _MODE_ORDER: dict[OperatingMode, int] = {
     "user": 1,
     "agents_strict": 1,

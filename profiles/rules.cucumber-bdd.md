@@ -138,7 +138,7 @@ Implement:
   - `@slow`, `@integration`
   - environment tags if needed (`@local`, `@ci`)
 - Provide a default tag strategy in the plan:
-  - Ticket-related scenarios should be runnable as a small subset.
+   - Ticket-related scenarios MUST be runnable as a small subset.
 
 ---
 

@@ -103,29 +103,6 @@ def _session_state_root(session_state_document: Mapping[str, object] | None) -> 
     return session_state_document
 
 
-def _phase_rank(token: str) -> int:
-    rank_map = {
-        "1": 10,
-        "1.1": 11,
-        "1.2": 12,
-        "1.3": 13,
-        "1.5": 15,
-        "2": 20,
-        "2.1": 21,
-        "3A": 30,
-        "3B-1": 31,
-        "3B-2": 32,
-        "4": 40,
-        "5": 50,
-        "5.3": 53,
-        "5.4": 54,
-        "5.5": 55,
-        "5.6": 56,
-        "6": 60,
-    }
-    return rank_map.get(token, -1)
-
-
 def _phase_token(value: str) -> str:
     from governance.domain.phase_state_machine import normalize_phase_token
 
@@ -221,11 +198,19 @@ def _evaluate_phase_coupled_persistence(
 
 
 def _is_code_output_request(requested_action: str | None) -> bool:
+    """Fail-closed: any non-empty action in phase 4 is treated as a code-output
+    request unless it matches a known read-only / observation-only allowlist.
+    This prevents denylist bypass via synonym substitution (A8-F01)."""
     action = (requested_action or "").strip().lower()
     if not action:
         return False
-    patterns = ("implement", "write code", "emit code", "generate code", "code output")
-    return any(token in action for token in patterns)
+    # Only actions that are provably read-only / non-emitting are safe.
+    safe_patterns = (
+        "review", "explain", "summarize", "describe", "list",
+        "check", "verify", "inspect", "read", "show", "status",
+        "plan", "outline", "analyse", "analyze", "compare",
+    )
+    return not any(token in action for token in safe_patterns)
 
 @dataclass(frozen=True)
 class EngineOrchestratorOutput:
@@ -435,20 +420,26 @@ def run_engine_orchestrator(
             gate_blocked = True
             gate_reason_code = BLOCKED_FINGERPRINT_MISMATCH
         elif live_fingerprint and workspaces_home and session_state_file and session_pointer_file:
-            gate = ensure_workspace_ready(
-                workspaces_home=Path(workspaces_home),
-                repo_fingerprint=state_fingerprint or live_fingerprint,
-                repo_root=live_repo_root,
-                session_state_file=Path(session_state_file),
-                session_pointer_file=Path(session_pointer_file),
-                session_id=(session_id or hashlib.sha256(str(live_repo_root).encode("utf-8")).hexdigest()[:16]),
-                discovery_method=repo_context.source,
-            )
-            session_state_document = _with_workspace_ready_gate(
-                session_state_document,
-                repo_fingerprint=state_fingerprint or live_fingerprint,
-                committed=bool(getattr(gate, "ok", False)),
-            )
+            try:
+                gate = ensure_workspace_ready(
+                    workspaces_home=Path(workspaces_home),
+                    repo_fingerprint=state_fingerprint or live_fingerprint,
+                    repo_root=live_repo_root,
+                    session_state_file=Path(session_state_file),
+                    session_pointer_file=Path(session_pointer_file),
+                    session_id=(session_id or hashlib.sha256(str(live_repo_root).encode("utf-8")).hexdigest()[:16]),
+                    discovery_method=repo_context.source,
+                )
+            except Exception:
+                gate_blocked = True
+                gate_reason_code = BLOCKED_WORKSPACE_PERSISTENCE
+                gate = None
+            if gate is not None:
+                session_state_document = _with_workspace_ready_gate(
+                    session_state_document,
+                    repo_fingerprint=state_fingerprint or live_fingerprint,
+                    committed=bool(getattr(gate, "ok", False)),
+                )
 
     routed_phase = route_phase(
         requested_phase=phase,
@@ -614,16 +605,16 @@ def run_engine_orchestrator(
         gate_blocked = True
         gate_reason_code = BLOCKED_STATE_OUTDATED
 
-    if not caps.fs_read_commands_home:
+    if not gate_blocked and not caps.fs_read_commands_home:
         gate_blocked = True
         gate_reason_code = BLOCKED_MISSING_BINDING_FILE
-    elif not caps.exec_allowed:
+    if not gate_blocked and not caps.exec_allowed:
         gate_blocked = True
         gate_reason_code = BLOCKED_EXEC_DISALLOWED
-    elif not write_policy.valid:
+    if not gate_blocked and not write_policy.valid:
         gate_blocked = True
         gate_reason_code = write_policy.reason_code
-    else:
+    if not gate_blocked:
         if target_variable is not None:
             surface_policy = resolve_surface_policy(target_variable)
             if surface_policy is None:
