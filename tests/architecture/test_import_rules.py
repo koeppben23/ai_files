@@ -56,3 +56,12 @@ def test_presentation_layer_does_not_import_infrastructure():
         imports = _imports(file)
         bad = sorted(i for i in imports if i.startswith("governance.infrastructure"))
         assert not bad, f"presentation imports infrastructure directly: {file}: {bad}"
+
+
+@pytest.mark.governance
+def test_application_layer_does_not_import_infrastructure():
+    application_root = REPO_ROOT / "governance" / "application"
+    for file in _iter_python_files(application_root):
+        imports = _imports(file)
+        bad = sorted(i for i in imports if i.startswith("governance.infrastructure"))
+        assert not bad, f"application imports infrastructure directly: {file}: {bad}"
