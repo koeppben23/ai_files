@@ -107,6 +107,30 @@
       "verify_command": "liquibase --version",
       "expected_after_fix": "liquibase --version prints Liquibase version information",
       "restart_hint": "no_restart_if_binary_in_existing_path"
+    },
+    {
+      "command": "cargo",
+      "reason": "Rust build/test flows when repository uses Cargo",
+      "phase": "4-6",
+      "verify_command": "cargo --version",
+      "expected_after_fix": "cargo --version prints Cargo version information",
+      "restart_hint": "no_restart_if_binary_in_existing_path"
+    },
+    {
+      "command": "go",
+      "reason": "Go build/test flows when repository uses Go modules",
+      "phase": "4-6",
+      "verify_command": "go version",
+      "expected_after_fix": "go version prints Go version information",
+      "restart_hint": "no_restart_if_binary_in_existing_path"
+    },
+    {
+      "command": "dotnet",
+      "reason": ".NET build/test flows when repository uses .NET SDK",
+      "phase": "4-6",
+      "verify_command": "dotnet --version",
+      "expected_after_fix": "dotnet --version prints .NET SDK version",
+      "restart_hint": "no_restart_if_binary_in_existing_path"
     }
   ],
   "optional": [

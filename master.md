@@ -236,22 +236,15 @@ Required-command inventory derivation (binding):
 
 Build Toolchain Detection (binding):
 - During preflight, `/start` MUST classify the probed build-related tools into `SESSION_STATE.Preflight.BuildToolchain`.
-- At preflight time the active profile is NOT yet known (profile detection is Phase 1.2 / post-Phase-2).
-  Therefore preflight records **raw tool availability only**; the profile-specific command mapping is deferred to Phase 4 entry.
+- At preflight time the active profile and repository build system are NOT yet known.
+  Therefore preflight records **raw tool availability only**; the repo-aware command mapping is deferred to Phase 2 (Repository Discovery).
 - `SESSION_STATE.Preflight.BuildToolchain` MUST contain:
   - `DetectedTools`: object — map of tool name to version string (null if probed but not found).
-    Minimum probed set: `java`, `javac`, `mvn`, `gradle`, `node`, `npm`, `npx`, `pnpm`, `python`, `pytest`.
+    Minimum probed set from `tool_requirements.json` `required_later` entries, plus any additional tools
+    the host discovers on PATH (e.g., `cmake`, `cargo`, `go`, `dotnet`, `g++`, `make`).
   - `ObservedAt`: ISO-8601 timestamp of the probe.
-- Profile-to-build-command mapping (binding, resolved at Phase 4 entry when profile is known):
-  - `backend-java` + `mvn` available: CompileCmd=`mvn compile -q`, TestCmd=`mvn test`, FullVerifyCmd=`mvn -B -DskipITs=false clean verify`
-  - `backend-java` + `gradle`/`./gradlew` available: CompileCmd=`./gradlew classes`, TestCmd=`./gradlew test`, FullVerifyCmd=`./gradlew build`
-  - `backend-python` + `pytest` available: CompileCmd=null (interpreted language), TestCmd=`pytest`, FullVerifyCmd=`pytest`
-  - `frontend-angular-nx` + `npm`/`npx` available: CompileCmd=`npm run build` or `npx nx build`, TestCmd=`npm test` or `npx nx test`, FullVerifyCmd=`npm run build && npm test`
-  - `fallback-minimum`: derive from repo signals (package.json scripts, Makefile targets, etc.); if nothing detected → CompileCmd=null, TestCmd=null
-- The resolved mapping MUST be stored as `SESSION_STATE.BuildToolchain` (top-level, separate from `Preflight`) once the profile is known.
-  Fields: `CompileAvailable` (bool), `CompileCmd` (string|null), `TestAvailable` (bool), `TestCmd` (string|null), `FullVerifyCmd` (string|null).
-- If no build tools are detected for the active profile: `CompileAvailable=false, TestAvailable=false`.
-- The BuildToolchain record enables autonomous build verification in Phase 6 (see Phase 6 — Build Verification Loop).
+- Preflight MUST NOT derive compile/test commands — that requires repo signals (Phase 2).
+- The BuildToolchain record is resolved in Phase 2 and enables autonomous build verification in Phase 6 (see Phase 6 — Build Verification Loop).
 
 When host tools are available and the repository is a git worktree, the system MUST
 attempt host-side, non-destructive git evidence collection first before asking the
@@ -1416,12 +1409,14 @@ SESSION_STATE:
     BuildToolchain:
       DetectedTools: {}    # populated by /start preflight; map of tool name → version string (null if not found)
       ObservedAt: ""       # ISO-8601 timestamp of probe
-  BuildToolchain:          # populated at Phase 4 entry after profile is known
+  BuildToolchain:          # populated in Phase 2 (step 3b) from repo signals + preflight probe
     CompileAvailable: false
-    CompileCmd: null        # e.g., "mvn compile -q", "./gradlew classes", "npm run build"
+    CompileCmd: null        # e.g., "mvn compile -q", "./gradlew classes", "npm run build", "cargo build"
     TestAvailable: false
-    TestCmd: null            # e.g., "mvn test", "pytest", "npm test"
+    TestCmd: null            # e.g., "mvn test", "pytest", "npm test", "cargo test", "go test ./..."
     FullVerifyCmd: null      # e.g., "mvn -B -DskipITs=false clean verify"
+    BuildSystem: "unknown"   # e.g., "maven", "gradle", "npm", "cargo", "go", "cmake", "make", "dotnet"
+    MissingTool: null        # tool required by repo but not found on PATH
   Diagnostics:
     ReasonPayloads: []     # REQUIRED when reason codes are emitted
 ```
@@ -1801,6 +1796,42 @@ Application (Binding):
    - The Pattern Fingerprint MUST be derived from actual code inspection, not from framework documentation or assumptions.
    - Technical Debt Markers are optional if the working set has no TODOs/FIXMEs, but the absence MUST be explicitly noted.
    - Phase 4 planning MUST reference the Codebase Context Record for all architecture and implementation decisions.
+
+3b. **Resolve Build Toolchain (Binding):**
+
+   Cross-reference the repository's detected build system (step 2: `BuildAndTooling.buildSystem`) with the
+   preflight tool probe (`SESSION_STATE.Preflight.BuildToolchain.DetectedTools`) to determine which build
+   and test commands are actually executable for this repository.
+
+   **Resolution procedure:**
+   1. From step 2, identify the repo's build system and test framework from repo signals:
+      - `pom.xml` → Maven; `build.gradle` / `build.gradle.kts` → Gradle; `package.json` → npm/pnpm;
+        `Cargo.toml` → Cargo; `go.mod` → Go; `CMakeLists.txt` → CMake; `Makefile` → Make;
+        `pyproject.toml` / `setup.py` → Python (pip/poetry); `*.sln` / `*.csproj` → .NET; etc.
+      - If `package.json` exists, inspect `scripts` for `build`, `test`, `lint` entries.
+      - If a wrapper is present (`mvnw`, `gradlew`, `./gradlew`), prefer the wrapper over the system command.
+   2. From `SESSION_STATE.Preflight.BuildToolchain.DetectedTools`, check whether the required tools are available on PATH.
+   3. Resolve the canonical commands:
+      - `CompileCmd`: the command that compiles/builds the project without running tests (e.g., `mvn compile -q`, `./gradlew classes`, `npm run build`, `cargo build`, `go build ./...`, `cmake --build .`, `dotnet build`). Null for purely interpreted languages without a build step.
+      - `TestCmd`: the command that runs the project's test suite (e.g., `mvn test`, `./gradlew test`, `npm test`, `pytest`, `cargo test`, `go test ./...`, `dotnet test`).
+      - `FullVerifyCmd`: the command that performs a full build+test cycle (e.g., `mvn -B -DskipITs=false clean verify`, `./gradlew build`, `npm run build && npm test`, `cargo build && cargo test`).
+   4. If a required tool is detected in repo signals but NOT available in preflight probe → record as
+      `CompileAvailable=false` / `TestAvailable=false` with `MissingTool: "<tool>"` and emit `WARN-BUILD-TOOL-MISSING`.
+
+   **Populate `SESSION_STATE.BuildToolchain`:**
+   - `CompileAvailable` (bool): true if CompileCmd is non-null and the tool is available.
+   - `CompileCmd` (string|null): resolved compile command.
+   - `TestAvailable` (bool): true if TestCmd is non-null and the tool is available.
+   - `TestCmd` (string|null): resolved test command.
+   - `FullVerifyCmd` (string|null): resolved full verification command.
+   - `BuildSystem` (string): detected build system identifier (e.g., "maven", "gradle", "npm", "cargo", "go", "cmake", "make", "dotnet").
+   - `MissingTool` (string|null): name of required tool that is not available, or null.
+
+   **Rules (Binding):**
+   - BuildToolchain resolution is repo-signal-driven, NOT profile-driven. The repo's actual build files determine the commands.
+   - If the repo uses a build system not covered by any governance profile (e.g., CMake, Cargo, Go), the resolution still applies — the LLM derives commands from the detected build files.
+   - If no build system is detected (no recognized build files) → `CompileAvailable=false, TestAvailable=false, BuildSystem="unknown"`.
+   - Wrappers (`mvnw`, `gradlew`) take precedence over system-installed equivalents.
  
 4. **Verify against profile:**
    * Does the detected stack match the active profile?
@@ -1924,12 +1955,20 @@ SESSION_STATE:
     - "src/main/java/.../user/** (likely domain/service changes)"
     - "src/test/java/.../user/** (tests for touched logic)"
     - "db/migration/** (only if schema change)"
-  TouchedSurface:
-    FilesPlanned: []
-    ContractsPlanned: []
-    SchemaPlanned: []
-    SecuritySensitive: false
-  ...
+   TouchedSurface:
+     FilesPlanned: []
+     ContractsPlanned: []
+     SchemaPlanned: []
+     SecuritySensitive: false
+   BuildToolchain:
+     CompileAvailable: true
+     CompileCmd: "mvn compile -q"
+     TestAvailable: true
+     TestCmd: "mvn test"
+     FullVerifyCmd: "mvn -B -DskipITs=false clean verify"
+     BuildSystem: "maven"
+     MissingTool: null
+   ...
 
 #### OpenCode-only: Persist Repo Cache (Binding when applicable)
 
@@ -2905,11 +2944,11 @@ Note: Fast Path MAY reduce review depth/verbosity but MUST NOT bypass any gates.
    - `SESSION_STATE.SelfReviewRounds = 3` (or 6 if a second pass was triggered) MUST be recorded.
 
    **Build Toolchain awareness (binding):**
-   - At Phase 4 entry, the LLM MUST resolve `SESSION_STATE.BuildToolchain` from `SESSION_STATE.Preflight.BuildToolchain.DetectedTools` + the active profile (see Preflight: Profile-to-build-command mapping).
+   - `SESSION_STATE.BuildToolchain` is resolved in Phase 2 (step 3b) from repo signals + preflight tool probe. By Phase 4 entry, it MUST already be populated.
    - If `SESSION_STATE.BuildToolchain.CompileAvailable == true` or `TestAvailable == true`:
      - The implementation plan MUST note that autonomous build verification will execute in Phase 6.
      - Round 1 (Correctness) MAY reduce emphasis on import/type correctness issues that the compiler will catch deterministically — but MUST NOT skip the round.
-   - If no build tools are available, self-critique remains the sole verification mechanism and MUST be executed with maximum rigor.
+   - If no build tools are available (`CompileAvailable == false` AND `TestAvailable == false`), self-critique remains the sole verification mechanism and MUST be executed with maximum rigor.
 
 **Output format:**
 
