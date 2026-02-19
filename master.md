@@ -234,6 +234,18 @@ Required-command inventory derivation (binding):
 - `/start` MUST emit the resolved inventory and PATH probe status before any operator prompt.
 - If a previously-missing command becomes available later, rerunning `/start` MUST refresh the inventory/probe and continue without stale blocker state.
 
+Build Toolchain Detection (binding):
+- During preflight, `/start` MUST classify the probed build-related tools into `SESSION_STATE.Preflight.BuildToolchain`.
+- At preflight time the active profile and repository build system are NOT yet known.
+  Therefore preflight records **raw tool availability only**; the repo-aware command mapping is deferred to Phase 2 (Repository Discovery).
+- `SESSION_STATE.Preflight.BuildToolchain` MUST contain:
+  - `DetectedTools`: object — map of tool name to version string (null if probed but not found).
+    Minimum probed set from `tool_requirements.json` `required_later` entries, plus any additional tools
+    the host discovers on PATH (e.g., `cmake`, `cargo`, `go`, `dotnet`, `g++`, `make`).
+  - `ObservedAt`: ISO-8601 timestamp of the probe.
+- Preflight MUST NOT derive compile/test commands — that requires repo signals (Phase 2).
+- The BuildToolchain record is resolved in Phase 2 and enables autonomous build verification in Phase 6 (see Phase 6 — Build Verification Loop).
+
 When host tools are available and the repository is a git worktree, the system MUST
 attempt host-side, non-destructive git evidence collection first before asking the
 operator to run commands manually.
@@ -1393,6 +1405,18 @@ SESSION_STATE:
   CrossRepoImpact: {}     # optional in MIN; REQUIRED in FULL if contracts are consumed cross-repo
   RollbackStrategy: {}    # optional in MIN; REQUIRED in FULL if schema/contracts change
   DependencyChanges: {}   # optional in MIN; REQUIRED in FULL if deps change
+  Preflight:
+    BuildToolchain:
+      DetectedTools: {}    # populated by /start preflight; map of tool name → version string (null if not found)
+      ObservedAt: ""       # ISO-8601 timestamp of probe
+  BuildToolchain:          # populated in Phase 2 (step 3b) from repo signals + preflight probe
+    CompileAvailable: false
+    CompileCmd: null        # e.g., "mvn compile -q", "./gradlew classes", "npm run build", "cargo build"
+    TestAvailable: false
+    TestCmd: null            # e.g., "mvn test", "pytest", "npm test", "cargo test", "go test ./..."
+    FullVerifyCmd: null      # e.g., "mvn -B -DskipITs=false clean verify"
+    BuildSystem: "unknown"   # e.g., "maven", "gradle", "npm", "cargo", "go", "cmake", "make", "dotnet"
+    MissingTool: null        # tool required by repo but not found on PATH
   Diagnostics:
     ReasonPayloads: []     # REQUIRED when reason codes are emitted
 ```
@@ -1740,6 +1764,74 @@ Application (Binding):
    * Establish `SESSION_STATE.WorkingSet` (top files/dirs likely touched)
    * Initialize `SESSION_STATE.DecisionDrivers` (constraints/NFRs inferred from repo evidence)
    * Initialize `SESSION_STATE.TouchedSurface` (planned surface area; starts empty)
+
+3a. **Build Codebase Context Record (Binding):**
+
+   The Codebase Context Record captures actionable intelligence about the repository that directly informs code generation decisions. Unlike basic discovery (steps 2-3), this record focuses on *how* the codebase works, not just *what* it contains. The LLM MUST populate this record to enable lead-level decision-making in Phase 4.
+
+   * **Existing Abstractions Inventory:** Identify reusable abstractions already present in the codebase:
+     - Base classes, interfaces, and traits used across modules
+     - Common utility functions/modules and their responsibilities
+     - Shared DTOs, value objects, and mapping patterns
+     - Existing error hierarchies and exception handling patterns
+     - Event/message contracts and publish/subscribe patterns (if applicable)
+   * **Dependency Graph (scope-relevant):** Map how modules depend on each other for the likely touched area:
+     - Which modules import from which (1-hop from WorkingSet)
+     - External library dependencies used in the touched area
+     - Circular or problematic dependency patterns to avoid
+   * **Pattern Fingerprint:** Detect the *actual* patterns used in the codebase (not assumed):
+     - How similar features were implemented previously (find 1-2 exemplar implementations)
+     - Test patterns: how existing tests for similar features are structured
+     - Naming patterns: how similar entities/services/controllers are named
+     - File organization: where similar feature files are placed
+   * **Technical Debt Markers:** Identify constraints from existing technical debt in the working set:
+     - TODOs/FIXMEs in the working set area
+     - Known workarounds or legacy patterns that must be preserved
+     - Deprecated APIs still in use that cannot be changed in this scope
+   * **Populate `SESSION_STATE.CodebaseContext`** with structured findings (schema below)
+
+   **Rules (Binding):**
+   - The Codebase Context Record MUST be evidence-backed: every entry requires a file path reference.
+   - If no exemplar implementation exists for the planned feature, record `ExemplarImplementation: none — greenfield`.
+   - The Pattern Fingerprint MUST be derived from actual code inspection, not from framework documentation or assumptions.
+   - Technical Debt Markers are optional if the working set has no TODOs/FIXMEs, but the absence MUST be explicitly noted.
+   - Phase 4 planning MUST reference the Codebase Context Record for all architecture and implementation decisions.
+
+3b. **Resolve Build Toolchain (Binding):**
+
+   Cross-reference the repository's detected build system (step 2: `BuildAndTooling.buildSystem`) with the
+   preflight tool probe (`SESSION_STATE.Preflight.BuildToolchain.DetectedTools`) to determine which build
+   and test commands are actually executable for this repository.
+
+   **Resolution procedure:**
+   1. From step 2, identify the repo's build system and test framework from repo signals:
+      - `pom.xml` → Maven; `build.gradle` / `build.gradle.kts` → Gradle; `package.json` → npm/pnpm;
+        `Cargo.toml` → Cargo; `go.mod` → Go; `CMakeLists.txt` → CMake; `Makefile` → Make;
+        `pyproject.toml` / `setup.py` → Python (pip/poetry); `*.sln` / `*.csproj` → .NET; etc.
+      - If `package.json` exists, inspect `scripts` for `build`, `test`, `lint` entries.
+      - If a wrapper is present (`mvnw`, `gradlew`, `./gradlew`), prefer the wrapper over the system command.
+   2. From `SESSION_STATE.Preflight.BuildToolchain.DetectedTools`, check whether the required tools are available on PATH.
+   3. Resolve the canonical commands:
+      - `CompileCmd`: the command that compiles/builds the project without running tests (e.g., `mvn compile -q`, `./gradlew classes`, `npm run build`, `cargo build`, `go build ./...`, `cmake --build .`, `dotnet build`). Null for purely interpreted languages without a build step.
+      - `TestCmd`: the command that runs the project's test suite (e.g., `mvn test`, `./gradlew test`, `npm test`, `pytest`, `cargo test`, `go test ./...`, `dotnet test`).
+      - `FullVerifyCmd`: the command that performs a full build+test cycle (e.g., `mvn -B -DskipITs=false clean verify`, `./gradlew build`, `npm run build && npm test`, `cargo build && cargo test`).
+   4. If a required tool is detected in repo signals but NOT available in preflight probe → record as
+      `CompileAvailable=false` / `TestAvailable=false` with `MissingTool: "<tool>"` and emit `WARN-BUILD-TOOL-MISSING`.
+
+   **Populate `SESSION_STATE.BuildToolchain`:**
+   - `CompileAvailable` (bool): true if CompileCmd is non-null and the tool is available.
+   - `CompileCmd` (string|null): resolved compile command.
+   - `TestAvailable` (bool): true if TestCmd is non-null and the tool is available.
+   - `TestCmd` (string|null): resolved test command.
+   - `FullVerifyCmd` (string|null): resolved full verification command.
+   - `BuildSystem` (string): detected build system identifier (e.g., "maven", "gradle", "npm", "cargo", "go", "cmake", "make", "dotnet").
+   - `MissingTool` (string|null): name of required tool that is not available, or null.
+
+   **Rules (Binding):**
+   - BuildToolchain resolution is repo-signal-driven, NOT profile-driven. The repo's actual build files determine the commands.
+   - If the repo uses a build system not covered by any governance profile (e.g., CMake, Cargo, Go), the resolution still applies — the LLM derives commands from the detected build files.
+   - If no build system is detected (no recognized build files) → `CompileAvailable=false, TestAvailable=false, BuildSystem="unknown"`.
+   - Wrappers (`mvnw`, `gradlew`) take precedence over system-installed equivalents.
  
 4. **Verify against profile:**
    * Does the detected stack match the active profile?
@@ -1769,6 +1861,24 @@ Database Migrations:
   - 12 migrations detected
   
 Profile Match: ✓ Confirmed (backend-java profile matches detected stack)
+
+Codebase Context Record:
+  Existing Abstractions:
+    - BaseEntity: abstract class — JPA entity base with id/version/timestamps (evidence: src/main/java/**/domain/BaseEntity.java)
+    - ApiException hierarchy: RuntimeException subclasses — error code mapping (evidence: src/main/java/**/error/**)
+    - AbstractMapper: MapStruct base — null-safe mapping defaults (evidence: src/main/java/**/mapper/*)
+  Dependency Graph (WorkingSet):
+    - user.controller → user.service → user.repository (no cross-module deps)
+    - user.service → common.error (exception types)
+    - user.mapper → user.dto + user.domain (bidirectional mapping)
+  Pattern Fingerprint:
+    Exemplar Implementation: src/main/java/**/order/** — CRUD + validation + tests for similar domain entity
+    Test Pattern: Given/When/Then blocks, AssertJ assertions, @DataJpaTest for repos (evidence: src/test/java/**/order/**)
+    Naming Pattern: {Entity}Controller, {Entity}Service, {Entity}Repository, {Entity}Dto, {Entity}Mapper
+    File Organization: feature-package grouping ({domain}/{layer}.java)
+  Technical Debt Markers:
+    - TODO: migrate to Java records for DTOs (src/main/java/**/dto/UserDto.java:15)
+    - FIXME: N+1 query in findAllWithOrders (src/main/java/**/repository/UserRepository.java:42)
 
 [/PHASE-2-COMPLETE]
 
@@ -1815,6 +1925,29 @@ SESSION_STATE:
     ArchitecturalInvariants:
       - "Controller → Service → Repository (no layer skipping)"
     Hotspots: []
+  CodebaseContext:
+    ExistingAbstractions:
+      - name: "BaseEntity"
+        type: "abstract class"
+        purpose: "JPA entity base with id/version/timestamps"
+        evidence: "src/main/java/**/domain/BaseEntity.java"
+      - name: "ApiException"
+        type: "exception hierarchy"
+        purpose: "error code mapping for API responses"
+        evidence: "src/main/java/**/error/**"
+    DependencyGraph:
+      - from: "user.controller"
+        to: ["user.service"]
+      - from: "user.service"
+        to: ["user.repository", "common.error"]
+    PatternFingerprint:
+      ExemplarImplementation: "src/main/java/**/order/** (CRUD + validation + tests)"
+      TestPattern: "Given/When/Then + AssertJ + @DataJpaTest for repos"
+      NamingPattern: "{Entity}Controller, {Entity}Service, {Entity}Repository"
+      FileOrganization: "feature-package grouping"
+    TechnicalDebtMarkers:
+      - "TODO: migrate to Java records for DTOs (src/main/java/**/dto/UserDto.java:15)"
+      - "FIXME: N+1 query in findAllWithOrders (src/main/java/**/repository/UserRepository.java:42)"
   DecisionDrivers:
     - "Backward compatibility for public APIs (evidence: apis/*.yaml)"
     - "Schema evolution via Flyway (evidence: db/migration/**)"
@@ -1822,12 +1955,20 @@ SESSION_STATE:
     - "src/main/java/.../user/** (likely domain/service changes)"
     - "src/test/java/.../user/** (tests for touched logic)"
     - "db/migration/** (only if schema change)"
-  TouchedSurface:
-    FilesPlanned: []
-    ContractsPlanned: []
-    SchemaPlanned: []
-    SecuritySensitive: false
-  ...
+   TouchedSurface:
+     FilesPlanned: []
+     ContractsPlanned: []
+     SchemaPlanned: []
+     SecuritySensitive: false
+   BuildToolchain:
+     CompileAvailable: true
+     CompileCmd: "mvn compile -q"
+     TestAvailable: true
+     TestCmd: "mvn test"
+     FullVerifyCmd: "mvn -B -DskipITs=false clean verify"
+     BuildSystem: "maven"
+     MissingTool: null
+   ...
 
 #### OpenCode-only: Persist Repo Cache (Binding when applicable)
 
@@ -2595,6 +2736,73 @@ Proceeding to Phase 4 (Ticket Execution)...
    * Identify affected components (based on Phase 2 discovery)
    * Identify affected APIs (based on Phase 3 analysis)
    * Identify affected business rules (based on Phase 1.5, if executed)
+   * Cross-reference findings with `SESSION_STATE.CodebaseContext` (from Phase 2 step 3a):
+     - Which existing abstractions can be reused? (list from CodebaseContext.ExistingAbstractions)
+     - Does the exemplar implementation suggest a proven approach? (from CodebaseContext.PatternFingerprint)
+     - Are there technical debt markers that constrain the implementation? (from CodebaseContext.TechnicalDebtMarkers)
+     - Does the dependency graph reveal coupling risks? (from CodebaseContext.DependencyGraph)
+
+1a. **Classify Feature Complexity (Decision Tree — Binding):**
+
+   Before creating the plan, classify the feature to determine the appropriate implementation approach. Follow this decision tree strictly:
+
+   ```
+   START
+   |
+   +-- Is this a standard CRUD operation with no custom business logic?
+   |   YES -> SIMPLE-CRUD
+   |   |  Route: Template-driven implementation. Use active template rulebook directly.
+   |   |  Planning depth: Minimal. List files, apply template, done.
+   |   |  Architecture Options: NOT required (template dictates structure).
+   |   |  Test strategy: Template-prescribed tests only.
+   |   |
+   |   NO
+   |   |
+   +-- Does this modify existing behavior or architecture?
+   |   YES -> Is it a pure refactoring (behavior unchanged, structure improved)?
+   |   |  YES -> REFACTORING
+   |   |  |  Route: Characterization tests FIRST, then refactor.
+   |   |  |  Planning depth: Focus on test coverage before changes.
+   |   |  |  Architecture Options: NOT required unless boundaries change.
+   |   |  |  Risk: Regression -- require before/after test evidence.
+   |   |  |
+   |   |  NO -> MODIFICATION
+   |   |     Route: Impact analysis required. Identify all callers/consumers.
+   |   |     Planning depth: Full. Trace blast radius through CodebaseContext.
+   |   |     Architecture Options: REQUIRED if interface changes.
+   |   |     Risk: Breaking changes -- require backward compatibility assessment.
+   |   |
+   |   NO
+   |   |
+   +-- Does it span multiple bounded contexts, modules, or cross-cutting concerns?
+   |   YES -> COMPLEX
+   |   |  Route: Design document required. Multi-step implementation plan.
+   |   |  Planning depth: Maximum. Architecture Options A/B/C mandatory.
+   |   |  Require: Interaction description for cross-module flows.
+   |   |  Risk: Integration failures -- require integration test strategy.
+   |   |
+   |   NO -> STANDARD
+   |      Route: Normal Phase 4 planning with full Ticket Record.
+   |      Planning depth: Standard. Architecture Options if non-trivial.
+   |      Test strategy: Profile-prescribed test pyramid.
+   ```
+
+   Record the classification in `SESSION_STATE.FeatureComplexity`:
+   - `Class`: SIMPLE-CRUD | REFACTORING | MODIFICATION | COMPLEX | STANDARD
+   - `Reason`: 1-line evidence-based justification
+   - `PlanningDepth`: minimal | standard | full | maximum
+
+   **Planning depth implications (Binding):**
+
+   | Class | Ticket Record | Architecture Options | Test Strategy | Self-Review Depth |
+   |-------|--------------|---------------------|--------------|-------------------|
+   | SIMPLE-CRUD | Abbreviated (3 lines) | Skip | Template-prescribed | Round 1 only (Rounds 2-3 confirm "template-compliant") |
+   | REFACTORING | Focus on preservation | Only if boundaries change | Characterization-first | All 3 rounds (focus on regression) |
+   | MODIFICATION | Full | If interface changes | Full + regression | All 3 rounds |
+   | COMPLEX | Full + interaction desc. | Mandatory A/B/C | Full + integration | All 3 rounds + mandatory second pass |
+   | STANDARD | Full | If non-trivial | Profile-prescribed | All 3 rounds |
+
+   **Binding:** The classification MUST be referenced in the Ticket Record (Mini-ADR context line) and recorded in SESSION_STATE before proceeding. The planning depth determines which subsequent steps are required vs. optional.
 
 2. **Produce Ticket Record (Mini-ADR + NFR Checklist) — REQUIRED:**
    The goal is to reduce user cognitive load and make the ticket’s key trade-offs explicit.
@@ -2735,11 +2943,27 @@ Note: Fast Path MAY reduce review depth/verbosity but MUST NOT bypass any gates.
    - If Round 3 identifies critical issues (security, data loss, breaking changes), the LLM MUST loop back to Round 1 for a second pass (maximum 2 full cycles total to prevent infinite loops).
    - `SESSION_STATE.SelfReviewRounds = 3` (or 6 if a second pass was triggered) MUST be recorded.
 
+   **Build Toolchain awareness (binding):**
+   - `SESSION_STATE.BuildToolchain` is resolved in Phase 2 (step 3b) from repo signals + preflight tool probe. By Phase 4 entry, it MUST already be populated.
+   - If `SESSION_STATE.BuildToolchain.CompileAvailable == true` or `TestAvailable == true`:
+     - The implementation plan MUST note that autonomous build verification will execute in Phase 6.
+     - Round 1 (Correctness) MAY reduce emphasis on import/type correctness issues that the compiler will catch deterministically — but MUST NOT skip the round.
+   - If no build tools are available (`CompileAvailable == false` AND `TestAvailable == false`), self-critique remains the sole verification mechanism and MUST be executed with maximum rigor.
+
 **Output format:**
 
 ```
 [PHASE-4-COMPLETE]
 Ticket: <short title>
+
+Feature Complexity: <SIMPLE-CRUD|REFACTORING|MODIFICATION|COMPLEX|STANDARD>
+  Reason: <1-line evidence-based justification>
+  Planning Depth: <minimal|standard|full|maximum>
+
+Codebase Context Applied:
+  Reused Abstractions: <list or "none">
+  Exemplar Followed: <path or "greenfield">
+  Debt Constraints: <list or "none">
 
 Affected Components:
   - <component/symbol> ...
@@ -2805,6 +3029,14 @@ SESSION_STATE:
   Mode: NORMAL
   ConfidenceLevel: 85
   ...
+  FeatureComplexity:
+    Class: MODIFICATION
+    Reason: "Adds active flag to existing User entity + modifies query behavior"
+    PlanningDepth: full
+  CodebaseContextApplied:
+    ReusedAbstractions: ["BaseEntity (id/version/timestamps)", "ApiException hierarchy"]
+    ExemplarFollowed: "src/main/java/**/order/** (similar CRUD + validation pattern)"
+    DebtConstraints: ["FIXME: N+1 in findAllWithOrders — avoid similar pattern"]
   FastPath: false
   FastPathReason: ""
   TouchedSurface:
@@ -3474,15 +3706,49 @@ Canonical build command (default for Maven repositories):
 Note:
 * If the repository uses Gradle or a wrapper, replace with the equivalent
   canonical command (e.g., `./gradlew test`).
+* The canonical command is superseded by `SESSION_STATE.BuildToolchain.FullVerifyCmd` when populated.
 
-Conceptual verification (evidence-aware):
+#### Build Verification Loop (binding, conditional on build tool availability)
+
+**Trigger:** `SESSION_STATE.BuildToolchain.CompileAvailable == true` OR `SESSION_STATE.BuildToolchain.TestAvailable == true`.
+
+When build tools are available, the LLM MUST execute them autonomously instead of requesting build evidence from the user. This replaces the manual evidence collection flow with a deterministic feedback loop.
+
+**Loop procedure:**
+
+1. **Compile check** (if `CompileAvailable == true`):
+   - Execute `SESSION_STATE.BuildToolchain.CompileCmd`.
+   - If compilation succeeds → proceed to step 2.
+   - If compilation fails → parse error output, fix the identified issues, re-execute.
+   - Maximum 3 compile-fix iterations. If still failing after 3 attempts → record remaining errors in `SESSION_STATE.BuildEvidence.CompileErrors`, set `status = fix-required`, and present errors to user.
+
+2. **Test execution** (if `TestAvailable == true`):
+   - Execute `SESSION_STATE.BuildToolchain.TestCmd`.
+   - If all tests pass → proceed to step 3.
+   - If tests fail → parse failure output, fix the identified issues, re-execute.
+   - Maximum 3 test-fix iterations. If still failing after 3 attempts → record remaining failures in `SESSION_STATE.BuildEvidence.TestFailures`, set `status = fix-required`, and present failures to user.
+
+3. **Record evidence:**
+   - `SESSION_STATE.BuildEvidence.status = verified-by-tool`
+   - `SESSION_STATE.BuildEvidence.CompileResult = pass | fail`
+   - `SESSION_STATE.BuildEvidence.TestResult = pass | fail | not-executed`
+   - `SESSION_STATE.BuildEvidence.IterationsUsed = <count of compile-fix + test-fix iterations>`
+   - `SESSION_STATE.BuildEvidence.ToolOutput = <last successful or final failing output summary>`
+
+**Rules:**
+- Tool verification output ALWAYS takes precedence over self-critique. If self-critique said "looks correct" but the compiler says "error", the compiler wins.
+- The LLM MUST NOT suppress, ignore, or rationalize away compiler/test errors.
+- If `CompileAvailable == false` AND `TestAvailable == false` → fall back to the manual evidence collection flow below.
+- The Build Verification Loop MUST execute BEFORE the review-of-review consistency pass.
+
+Conceptual verification (evidence-aware, fallback when build tools are NOT available):
 
 * build (`mvn -B -DskipITs=false clean verify`)
 * tests and coverage
 * architecture and contracts
 * regressions
 
-Evidence rule (binding):
+Evidence rule (binding, applies ONLY when `SESSION_STATE.BuildToolchain.CompileAvailable == false` AND `TestAvailable == false`):
 - If `SESSION_STATE.BuildEvidence.status = not-provided`: you MUST request the required command output/log snippets and set status to `fix-required` (not `ready-for-pr`). You may only provide a theoretical assessment.
 - If `SESSION_STATE.BuildEvidence.status = partially-provided`: mark only the evidenced subset as verified; everything else remains theoretical. Status may be `ready-for-pr` only if the critical gates are evidenced.
 - If `SESSION_STATE.BuildEvidence.status = provided-by-user`: verified statements are allowed strictly within the evidence scope.

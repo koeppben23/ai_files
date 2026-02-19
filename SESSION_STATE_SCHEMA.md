@@ -545,6 +545,48 @@ After Phase 2 completes, the session SHOULD include the following (required unle
 - `SESSION_STATE.WorkingSet` (array; repo-relative paths + rationale)
 - `SESSION_STATE.TouchedSurface` (object; planned/actual surface area)
 
+### 7.a Preflight BuildToolchain (Phase 0/1.1)
+
+During Preflight the assistant probes ALL build-related tools on PATH (regardless of profile).
+Results are stored as raw availability data:
+
+```yaml
+SESSION_STATE:
+  Preflight:
+    BuildToolchain:
+      DetectedTools:
+        - Tool: "<tool-name>"          # e.g. mvn, gradle, cargo, go, cmake, make, g++, dotnet
+          Available: true | false
+          VersionOutput: "<first line of --version output>"
+      ObservedAt: "<ISO-8601 timestamp>"
+```
+
+Binding:
+- `DetectedTools` records tool availability only; it does NOT imply which build system the repo uses.
+- This data is consumed by Phase 2 step 3b for repo-signal-based resolution.
+
+### 7.b BuildToolchain (Phase 2 step 3b)
+
+Phase 2 cross-references repo build files (pom.xml, build.gradle, Cargo.toml, go.mod, CMakeLists.txt, package.json, Makefile, *.csproj, etc.) with Preflight tool availability to resolve the active build toolchain:
+
+```yaml
+SESSION_STATE:
+  BuildToolchain:
+    CompileAvailable: true | false
+    CompileCmd: "<resolved compile command>"        # e.g. "mvn compile", "cargo build", "go build ./..."
+    TestAvailable: true | false
+    TestCmd: "<resolved test command>"              # e.g. "mvn test", "cargo test", "go test ./..."
+    FullVerifyCmd: "<resolved full verify command>" # e.g. "mvn verify", "cargo test --release"
+    BuildSystem: "<detected build system>"          # e.g. maven, gradle, cargo, go, cmake, dotnet, npm, make
+    MissingTool: "<tool name if detected but unavailable>" | null
+```
+
+Binding:
+- `BuildToolchain` is resolved from **repo signals** (actual build files), NOT from governance profiles.
+- If no recognized build file is found, `CompileAvailable` and `TestAvailable` MUST be `false`.
+- If a build file is found but the corresponding tool is missing from PATH, `MissingTool` MUST name the tool and reason code `WARN-BUILD-TOOL-MISSING` MUST be emitted.
+- BuildToolchain is consumed by Phase 4 (planning confidence) and Phase 6 (Build Verification Loop).
+
 ### 7.x Repo Cache File (OpenCode-only, recommended)
 
 To speed up repeated `/master` sessions on the same repository, the workflow MAY use a structured repo cache file.
@@ -703,6 +745,70 @@ SESSION_STATE:
 **Binding rules**
 - If any dependency change is planned or observed, `DependencyChanges` MUST be present in FULL mode for Phases 4–6.
 - If `DependencyChanges.Added` or `Updated` is non-empty, Phase 5 security sanity checks MUST explicitly include a dependency-risk line item.
+
+### 7.5 CodebaseContext (Phase 2 step 3a)
+
+`CodebaseContext` captures deep codebase understanding for informed planning. Populated during Phase 2 step 3a.
+
+```yaml
+SESSION_STATE:
+  CodebaseContext:
+    ExistingAbstractions:          # reusable abstractions found in the codebase
+      - name: "<class/module name>"
+        type: "abstract class | interface | module | mixin | utility"
+        purpose: "<what it provides>"
+        evidence: "<repo-relative glob or path>"
+    DependencyGraph:               # key module-to-module dependencies
+      - from: "<module.component>"
+        to: ["<module.component>"]
+    PatternFingerprint:            # dominant code patterns observed
+      ExemplarImplementation: "<repo-relative path to best example of the pattern>"
+      TestPattern: "<dominant test style description>"
+      NamingPattern: "<naming conventions observed>"
+      FileOrganization: "<package/folder strategy>"
+    TechnicalDebtMarkers:          # observed TODO/FIXME/debt items that constrain implementation
+      - "<description (evidence: path:line)>"
+```
+
+Binding:
+- `CodebaseContext` MUST be populated during Phase 2 step 3a if repo access is available.
+- `ExistingAbstractions` SHOULD list at least the top 3–5 reusable abstractions.
+- `PatternFingerprint.ExemplarImplementation` MUST point to a real path in the repo.
+- Phase 4 planning MUST cross-reference `CodebaseContext` for reuse and constraint awareness.
+
+### 7.6 FeatureComplexity (Phase 4 step 1a)
+
+`FeatureComplexity` records the Feature Complexity Router classification. Populated during Phase 4 step 1a.
+
+```yaml
+SESSION_STATE:
+  FeatureComplexity:
+    Class: SIMPLE-CRUD | REFACTORING | MODIFICATION | COMPLEX | STANDARD
+    Reason: "<1-line evidence-based justification>"
+    PlanningDepth: minimal | standard | full | maximum
+```
+
+Binding:
+- `FeatureComplexity.Class` MUST be one of the five enumerated values.
+- `FeatureComplexity.Reason` MUST include evidence (file paths, pattern match, or scope description).
+- `FeatureComplexity.PlanningDepth` determines which subsequent Phase 4 steps are required vs. optional (see master.md Phase 4 planning depth table).
+- The classification MUST be referenced in the Ticket Record (Mini-ADR context line).
+
+### 7.7 CodebaseContextApplied (Phase 4)
+
+`CodebaseContextApplied` records how CodebaseContext was used during planning. Populated during Phase 4.
+
+```yaml
+SESSION_STATE:
+  CodebaseContextApplied:
+    ReusedAbstractions: ["<abstraction name (purpose)>"]
+    ExemplarFollowed: "<repo-relative path to pattern followed>"
+    DebtConstraints: ["<debt marker that constrained the approach>"]
+```
+
+Binding:
+- `CodebaseContextApplied` SHOULD be populated during Phase 4 if `CodebaseContext` was populated in Phase 2.
+- `ReusedAbstractions` MUST reference entries from `CodebaseContext.ExistingAbstractions`.
 
 ---
 
@@ -950,7 +1056,7 @@ Binding:
 
 ```yaml
 BuildEvidence:
-  status: not-provided | partially-provided | provided-by-user
+  status: not-provided | partially-provided | provided-by-user | verified-by-tool
   notes: "<what exists or is missing>"
   items:                # optional but strongly recommended; enables reviewer-proof verification
     - id: "EV-001"
@@ -971,6 +1077,13 @@ BuildEvidence:
       artifacts:
         - path: "<path/to/report-or-log>"
           type: "log|junit|sarif|coverage|other"
+  # Build Verification Loop fields (populated when BuildToolchain is available)
+  CompileResult: pass | fail | skipped     # outcome of autonomous compile verification
+  TestResult: pass | fail | skipped        # outcome of autonomous test verification
+  IterationsUsed:                          # number of compile→fix / test→fix iterations consumed
+    Compile: 0                             # 0..3
+    Test: 0                                # 0..3
+  ToolOutput: "<truncated last compiler/test output>" # last tool stdout/stderr (max 200 lines)
 ```
 
 Binding:
@@ -982,6 +1095,9 @@ Binding:
 Claim verification mapping (binding):
 - `verified` claims require `result=pass` plus compatible scope evidence, typed artifact/reference, and tool/runtime pinning evidence (`env_fingerprint` or equivalent version evidence).
 - If any required verifier is missing, inconsistent, or out-of-scope, claims MUST remain `not-verified`.
+- `status: verified-by-tool` MUST only be set when the Build Verification Loop (Phase 6) has executed compile and/or test commands autonomously AND all executed commands returned `pass`.
+- `CompileResult` and `TestResult` MUST be set to `skipped` if the corresponding `BuildToolchain.*Available` is `false`.
+- `IterationsUsed` counts MUST NOT exceed the maximum of 3 per category as defined in master.md Phase 6.
 
 ---
 

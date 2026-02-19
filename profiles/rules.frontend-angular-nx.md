@@ -89,6 +89,138 @@ Rule: once detected, these become constraints. If unknown, mark unknown and avoi
 
 ---
 
+## 2a. Decision Trees (Binding)
+
+The following decision trees guide architecture-level decisions for Angular/Nx projects. The assistant MUST follow these trees and record the decision path in the plan.
+
+### DT-NG1: State Management Selection
+
+When implementing state management for a new feature:
+
+```
+START -> Does the repo already use a state management pattern?
+  YES -> Follow detected pattern (signals/NgRx/component-store). STOP.
+         Reason: Mixing state patterns is anti-pattern AP-NG02.
+  NO  -> Is the state local to a single component or feature?
+    YES -> Is it simple UI state (toggle, form state, loading indicator)?
+      YES -> Component-local signals or simple properties.
+             Reason: No overhead; state is contained.
+      NO  -> Component Store (@ngrx/component-store or signal-based equivalent).
+             Reason: Encapsulated, testable, no global side effects.
+    NO  -> Is the state shared across multiple features/routes?
+      YES -> Does the app require complex async flows (optimistic updates, caching, undo)?
+        YES -> NgRx Store (actions/reducers/effects/selectors).
+               Reason: Predictable state transitions, time-travel debugging, effect isolation.
+        NO  -> Signals-based facade service (injectable, reactive).
+               Reason: Simpler than NgRx, sufficient for shared read/write state.
+      NO  -> Re-evaluate: if state is not local and not shared, clarify scope with user.
+```
+
+### DT-NG2: Test Type Selection
+
+For each changed component, select appropriate test types:
+
+```
+START -> What type of component changed?
+|
++-- Container / Smart component
+|   -> Unit test (TestBed): verify delegation to facade/store/service
+|   -> Test template bindings (essential ones): rendered output matches state
+|   -> Mock all injected services; do not test child component internals
+|
++-- Presentational / Dumb component
+|   -> Unit test (TestBed): input/output behavior
+|   -> Test: default rendering, input variations, event emission
+|   -> No service mocking needed (presentational has no dependencies)
+|
++-- Facade / Store / State management
+|   -> Unit test: state transitions, selector outputs, effect triggers
+|   -> For NgRx: test reducer (pure function), selectors, effects separately
+|   -> For Component Store: test updaters, selectors, effects
+|   -> For signal facades: test computed signals and state mutations
+|
++-- API boundary service
+|   -> Unit test: request construction, response mapping, error handling
+|   -> Mock HttpClient (HttpClientTestingModule)
+|   -> Test: success path, error mapping, retry logic if present
+|
++-- Guard / Interceptor
+|   -> Unit test: routing decisions / request transformation
+|   -> Test: allowed, denied, redirect scenarios
+|   -> For interceptors: verify header injection, error interception
+|
++-- Pipe / Directive
+|   -> Unit test: transform logic (pipes are pure functions)
+|   -> Component test (directives): host component with applied directive
+|
++-- E2E / Cross-feature flows
+   -> Only if established in the repo (Cypress/Playwright)
+   -> Cover critical user journeys, not individual components
+```
+
+### DT-NG3: Library Type Selection (Nx)
+
+When creating a new Nx library:
+
+```
+START -> What is the primary purpose of the new code?
+|
++-- UI components (shared across features)
+|   -> Type: ui library
+|   -> Location: libs/shared/ui/{name}
+|   -> Tags: type:ui, scope:shared
+|   -> Contains: presentational components, pipes, directives only
+|   -> Must NOT import from feature or data-access libraries
+|
++-- Data access (API calls, state management for a domain)
+|   -> Type: data-access library
+|   -> Location: libs/{domain}/data-access
+|   -> Tags: type:data-access, scope:{domain}
+|   -> Contains: services, facades/stores, models/DTOs, API clients
+|
++-- Feature (routed page, smart components, feature-specific logic)
+|   -> Type: feature library
+|   -> Location: libs/{domain}/feature-{name}
+|   -> Tags: type:feature, scope:{domain}
+|   -> Contains: container components, routing, feature-specific presentational components
+|   -> May import: data-access (same domain), ui (shared)
+|
++-- Pure utility (formatting, validation, math, constants)
+|   -> Type: util library
+|   -> Location: libs/shared/util/{name}
+|   -> Tags: type:util, scope:shared
+|   -> Contains: pure functions, no Angular dependencies if possible
+|   -> Must NOT import from any other library type
+|
++-- Does the code belong to an existing library?
+   -> Add to existing library. Do NOT create a new one. STOP.
+      Follow existing library structure and barrel exports.
+```
+
+### DT-NG4: Component Type Decision
+
+When creating a new component:
+
+```
+START -> Does the component manage state or orchestrate behavior?
+  YES -> Container (smart) component.
+         Inject facade/store/service. Delegate all logic.
+         Template calls presentational children via inputs/outputs.
+  NO  -> Does it render UI based purely on inputs?
+    YES -> Presentational (dumb) component.
+           @Input() for data, @Output() for events. No injected services.
+           Use OnPush change detection.
+    NO  -> Is it a form?
+      YES -> Form component (may be smart or dumb depending on context).
+             Use typed reactive forms (FormGroup<T>).
+             Validation logic in validators, not in template.
+      NO  -> Is it a layout/structural element?
+        YES -> Layout component. Minimal logic, uses <ng-content> projection.
+        NO  -> Clarify purpose with user before proceeding.
+```
+
+---
+
 ## 3. Canonical Commands (Evidence-Aware)
 
 Use repo-native Nx targets when present; otherwise nearest equivalent:

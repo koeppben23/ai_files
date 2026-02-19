@@ -710,6 +710,83 @@
       "payload_schema_ref": "diagnostics/schemas/reason_payload_advisory.v1.json",
       "description": "Java build or test process has non-determinism risk.",
       "remediation_hint": "Pin Java dependencies and use reproducible build settings."
+    },
+    {
+      "code": "WARN-BUILD-TOOL-MISSING",
+      "severity": "warn",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_advisory.v1.json",
+      "description": "Repository build file detected but corresponding build tool is not available on PATH.",
+      "remediation_hint": "Install the missing build tool or add it to PATH, then restart the session."
+    },
+    {
+      "code": "WARN-ANGULAR-BOUNDARY-DRIFT",
+      "severity": "warn",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_advisory.v1.json",
+      "description": "Nx tag/project boundary mismatch detected in Angular workspace.",
+      "remediation_hint": "Align project tags and imports to match Nx boundary configuration."
+    },
+    {
+      "code": "WARN-ANGULAR-STATE-PATTERN-MIX",
+      "severity": "warn",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_advisory.v1.json",
+      "description": "Multiple state management patterns detected without repo evidence for intentional mix.",
+      "remediation_hint": "Consolidate to the repo-standard state management pattern."
+    },
+    {
+      "code": "WARN-ANGULAR-ASYNC-DETERMINISM",
+      "severity": "warn",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_advisory.v1.json",
+      "description": "Async test without deterministic control detected in Angular component.",
+      "remediation_hint": "Add explicit timing/mock control to async test assertions."
+    },
+    {
+      "code": "WARN-PYTHON-MIGRATION-ROLLBACK-MISSING",
+      "severity": "warn",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_advisory.v1.json",
+      "description": "Database migration change without rollback evidence.",
+      "remediation_hint": "Add down-migration and test both upgrade and downgrade directions."
+    },
+    {
+      "code": "WARN-PYTHON-ASYNC-DETERMINISM",
+      "severity": "warn",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_advisory.v1.json",
+      "description": "Async test without deterministic control detected in Python module.",
+      "remediation_hint": "Add explicit async mock/fixture control to ensure test determinism."
+    },
+    {
+      "code": "WARN-PYTHON-TYPE-CHECK-SKIPPED",
+      "severity": "warn",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_advisory.v1.json",
+      "description": "Type checker not available in the environment.",
+      "remediation_hint": "Install mypy or pyright and run against changed modules."
+    },
+    {
+      "code": "WARN-LIQUIBASE-PG-VERSION-UNKNOWN",
+      "severity": "warn",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_advisory.v1.json",
+      "description": "PostgreSQL version could not be determined for Liquibase migration validation.",
+      "remediation_hint": "Provide PostgreSQL version evidence or configure version in Liquibase properties."
+    },
+    {
+      "code": "WARN-LIQUIBASE-ROLLBACK-MISSING",
+      "severity": "warn",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_advisory.v1.json",
+      "description": "Liquibase changeset missing rollback definition.",
+      "remediation_hint": "Add rollback section to the changeset and test both directions."
+    },
+    {
+      "code": "WARN-LIQUIBASE-LOCK-RISK",
+      "severity": "warn",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_advisory.v1.json",
+      "description": "Liquibase migration may acquire long-held locks on production tables.",
+      "remediation_hint": "Review lock duration, consider online DDL alternatives, or add lock timeout configuration."
+    },
+    {
+      "code": "WARN-LIQUIBASE-DATA-MIGRATION-UNVERIFIED",
+      "severity": "warn",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_advisory.v1.json",
+      "description": "Liquibase data migration changeset has not been verified against realistic data volume.",
+      "remediation_hint": "Run the migration against a staging dataset of representative size and measure duration."
     }
   ]
 }
