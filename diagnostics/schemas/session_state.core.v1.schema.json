@@ -1,0 +1,306 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "diagnostics/schemas/session_state.core.v1.schema.json",
+  "title": "SESSION_STATE Core Schema",
+  "description": "Core structural validation for SESSION_STATE documents after Phase 1 bootstrap.",
+  "type": "object",
+  "required": ["SESSION_STATE"],
+  "properties": {
+    "SESSION_STATE": {
+      "type": "object",
+      "required": [
+        "session_state_version",
+        "ruleset_hash",
+        "Phase",
+        "Mode",
+        "OutputMode",
+        "ConfidenceLevel",
+        "Next",
+        "Bootstrap",
+        "Scope",
+        "RepoFacts",
+        "LoadedRulebooks",
+        "AddonsEvidence",
+        "RulebookLoadEvidence",
+        "ActiveProfile",
+        "ProfileSource",
+        "ProfileEvidence",
+        "Gates"
+      ],
+      "properties": {
+        "session_state_version": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Schema version for migration compatibility"
+        },
+        "ruleset_hash": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Hash of the active ruleset digest"
+        },
+        "Phase": {
+          "type": "string",
+          "enum": [
+            "1", "1.1-Bootstrap", "1.2-ProfileDetection", "1.3-CoreRulesActivation",
+            "2", "2.1-DecisionPack", "1.5-BusinessRules",
+            "3A", "3B-1", "3B-2",
+            "4", "5", "5.3", "5.4", "5.5", "5.6", "6"
+          ],
+          "description": "Current workflow phase"
+        },
+        "Mode": {
+          "type": "string",
+          "enum": ["NORMAL", "DEGRADED", "DRAFT", "BLOCKED"],
+          "description": "Operating mode"
+        },
+        "OutputMode": {
+          "type": "string",
+          "enum": ["ARCHITECT", "IMPLEMENT", "VERIFY"],
+          "description": "Output mode determining response style"
+        },
+        "ConfidenceLevel": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Confidence level 0-100"
+        },
+        "Next": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Next action pointer"
+        },
+        "Bootstrap": {
+          "type": "object",
+          "required": ["Present", "Satisfied", "Evidence"],
+          "properties": {
+            "Present": { "type": "boolean" },
+            "Satisfied": { "type": "boolean" },
+            "Evidence": { "type": "string" }
+          },
+          "additionalProperties": false
+        },
+        "Scope": {
+          "type": "object",
+          "properties": {
+            "Repository": { "type": "string" },
+            "RepositoryType": { "type": "string" },
+            "ExternalAPIs": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "BusinessRules": {
+              "type": "string",
+              "enum": ["not-applicable", "pending", "extracted"]
+            }
+          },
+          "additionalProperties": true
+        },
+        "RepoFacts": {
+          "type": "object",
+          "properties": {
+            "Capabilities": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "CapabilityEvidence": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "array",
+                "items": { "type": "string" }
+              }
+            }
+          },
+          "additionalProperties": true
+        },
+        "LoadedRulebooks": {
+          "type": "object",
+          "properties": {
+            "core": { "type": "string" },
+            "profile": { "type": "string" },
+            "templates": { "type": "string" },
+            "addons": {
+              "type": "object",
+              "additionalProperties": { "type": "string" }
+            }
+          },
+          "additionalProperties": true
+        },
+        "AddonsEvidence": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "RulebookLoadEvidence": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "ActiveProfile": {
+          "type": "string",
+          "description": "Active profile name or empty string if deferred"
+        },
+        "ProfileSource": {
+          "type": "string",
+          "enum": [
+            "user-explicit",
+            "auto-detected-single",
+            "repo-fallback",
+            "deferred",
+            "component-scope-inferred",
+            "component-scope-filtered",
+            "ambiguous"
+          ]
+        },
+        "ProfileEvidence": {
+          "type": "string"
+        },
+        "Gates": {
+          "type": "object",
+          "properties": {
+            "P5-Architecture": {
+              "type": "string",
+              "enum": ["pending", "approved", "rejected"]
+            },
+            "P5.3-TestQuality": {
+              "type": "string",
+              "enum": ["pending", "pass", "pass-with-exceptions", "fail"]
+            },
+            "P5.4-BusinessRules": {
+              "type": "string",
+              "enum": ["pending", "compliant", "compliant-with-exceptions", "gap-detected", "not-applicable"]
+            },
+            "P5.5-TechnicalDebt": {
+              "type": "string",
+              "enum": ["pending", "approved", "rejected", "not-applicable"]
+            },
+            "P5.6-RollbackSafety": {
+              "type": "string",
+              "enum": ["pending", "approved", "rejected", "not-applicable"]
+            },
+            "P6-ImplementationQA": {
+              "type": "string",
+              "enum": ["pending", "ready-for-pr", "fix-required"]
+            }
+          },
+          "additionalProperties": true
+        },
+        "session_run_id": {
+          "type": "string",
+          "description": "Unique session run identifier"
+        },
+        "repo_fingerprint": {
+          "type": "string",
+          "description": "Stable repo identity hash"
+        },
+        "workspace_ready": {
+          "type": "boolean",
+          "description": "Whether workspace is ready for operations"
+        },
+        "workspace_ready_gate_committed": {
+          "type": "boolean",
+          "description": "Whether workspace ready gate was committed"
+        },
+        "Diagnostics": {
+          "type": "object",
+          "properties": {
+            "ReasonPayloads": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["reason_code", "surface"],
+                "properties": {
+                  "reason_code": {
+                    "type": "string",
+                    "pattern": "^(BLOCKED-|WARN-|NOT_VERIFIED-|OK$)"
+                  },
+                  "surface": { "type": "string" },
+                  "signals_used": {
+                    "type": "array",
+                    "items": { "type": "string" }
+                  },
+                  "recovery_steps": {
+                    "type": "array",
+                    "items": { "type": "string" },
+                    "minItems": 1,
+                    "maxItems": 3
+                  },
+                  "next_command": { "type": "string" }
+                }
+              }
+            },
+            "TransitionTrace": {
+              "type": "array",
+              "items": { "type": "object" }
+            }
+          },
+          "additionalProperties": true
+        },
+        "CodebaseContext": {
+          "type": "object",
+          "properties": {
+            "ExistingAbstractions": { "type": "array" },
+            "DependencyGraph": { "type": "array" },
+            "PatternFingerprint": { "type": "object" },
+            "TechnicalDebtMarkers": { "type": "array" }
+          },
+          "additionalProperties": true
+        },
+        "FeatureComplexity": {
+          "type": "object",
+          "required": ["Class", "Reason", "PlanningDepth"],
+          "properties": {
+            "Class": {
+              "type": "string",
+              "enum": ["SIMPLE-CRUD", "REFACTORING", "MODIFICATION", "COMPLEX", "STANDARD"]
+            },
+            "Reason": { "type": "string" },
+            "PlanningDepth": {
+              "type": "string",
+              "enum": ["minimal", "standard", "full", "maximum"]
+            }
+          },
+          "additionalProperties": false
+        },
+        "BuildToolchain": {
+          "type": "object",
+          "properties": {
+            "CompileAvailable": { "type": "boolean" },
+            "CompileCmd": { "type": "string" },
+            "TestAvailable": { "type": "boolean" },
+            "TestCmd": { "type": "string" },
+            "FullVerifyCmd": { "type": "string" },
+            "BuildSystem": { "type": "string" },
+            "MissingTool": { "type": ["string", "null"] }
+          },
+          "additionalProperties": false
+        },
+        "BuildEvidence": {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": ["not-provided", "partially-provided", "provided-by-user", "verified-by-tool"]
+            },
+            "CompileResult": {
+              "type": "string",
+              "enum": ["pass", "fail", "skipped"]
+            },
+            "TestResult": {
+              "type": "string",
+              "enum": ["pass", "fail", "skipped"]
+            },
+            "IterationsUsed": {
+              "type": "object",
+              "properties": {
+                "Compile": { "type": "integer", "minimum": 0, "maximum": 3 },
+                "Test": { "type": "integer", "minimum": 0, "maximum": 3 }
+              }
+            },
+            "ToolOutput": { "type": "string" }
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}
