@@ -88,6 +88,82 @@ When no repo conventions are discoverable, apply these minimal defaults:
 Use platform-neutral storage locations as defined in rules.md.
 
 ---
+
+## Decision Trees (Binding)
+
+When no specialized profile matches, use these minimal decision trees to guide implementation decisions.
+
+### DT-FM1: Architecture Pattern Detection
+
+When working with an unfamiliar codebase:
+
+```
+START -> Can you identify the existing architecture pattern from the code structure?
+  YES -> Follow detected pattern. Document it in SESSION_STATE. STOP.
+         Examples of detectable patterns:
+         - Layered: controllers/handlers -> services -> repositories/DAOs
+         - MVC: models + views/templates + controllers
+         - Event-driven: producers/publishers + consumers/handlers + event schemas
+         - Monolith: single deployable with internal modules
+  NO  -> Is the codebase small (<20 source files)?
+    YES -> Flat structure is acceptable. Group by function (src/, tests/, config/).
+    NO  -> Create feature-based grouping:
+           {feature}/models, {feature}/logic, {feature}/tests
+           Reason: Cohesion by feature works across all languages.
+```
+
+### DT-FM2: Test Strategy Selection
+
+When deciding what to test:
+
+```
+START -> Does the codebase have existing tests?
+  YES -> Follow existing test conventions:
+         - Use the same test framework
+         - Mirror existing test file naming and location
+         - Follow existing assertion style
+         THEN select test types below.
+  NO  -> Add minimal test infrastructure:
+         - Identify the language-standard test runner
+         - Create test directory mirroring source structure
+         - Add at least one smoke test proving the build works
+         THEN select test types below.
+
+For each changed component:
+|
++-- Business logic (calculations, rules, validations)
+|   -> Unit test: test inputs -> outputs with no external dependencies
+|   -> Must include: happy path + at least one error/edge case
+|
++-- Data access (database, file I/O, external API calls)
+|   -> Integration test: test with real or in-memory data store
+|   -> If not feasible: unit test with mocked I/O + document limitation
+|
++-- API / Entry point (HTTP, CLI, message handler)
+|   -> Integration test: test request -> response mapping
+|   -> Include: success path + at least one error path (400/404/500)
+|
++-- Configuration / Wiring
+   -> Smoke test: verify the application starts successfully
+```
+
+### DT-FM3: Technology Decision (Generic)
+
+When a new library or tool is needed in an unfamiliar codebase:
+
+```
+START -> Is the capability already present in the codebase's dependencies?
+  YES -> Use existing dependency. STOP.
+  NO  -> Is there a standard library solution in the language?
+    YES -> Use standard library. STOP.
+    NO  -> Check the language ecosystem for the most widely-used solution:
+           - Document the choice and rationale in the plan
+           - Pin the version
+           - Prefer libraries with active maintenance (recent commits, issue responses)
+           - Avoid libraries that pull large transitive dependency trees
+```
+
+---
 ## Principal Hardening v2 - Fallback Minimum Safety (Binding)
 
 ### FMPH2-1 Baseline scorecard criteria (binding)

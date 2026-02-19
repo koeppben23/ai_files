@@ -1740,6 +1740,38 @@ Application (Binding):
    * Establish `SESSION_STATE.WorkingSet` (top files/dirs likely touched)
    * Initialize `SESSION_STATE.DecisionDrivers` (constraints/NFRs inferred from repo evidence)
    * Initialize `SESSION_STATE.TouchedSurface` (planned surface area; starts empty)
+
+3a. **Build Codebase Context Record (Binding):**
+
+   The Codebase Context Record captures actionable intelligence about the repository that directly informs code generation decisions. Unlike basic discovery (steps 2-3), this record focuses on *how* the codebase works, not just *what* it contains. The LLM MUST populate this record to enable lead-level decision-making in Phase 4.
+
+   * **Existing Abstractions Inventory:** Identify reusable abstractions already present in the codebase:
+     - Base classes, interfaces, and traits used across modules
+     - Common utility functions/modules and their responsibilities
+     - Shared DTOs, value objects, and mapping patterns
+     - Existing error hierarchies and exception handling patterns
+     - Event/message contracts and publish/subscribe patterns (if applicable)
+   * **Dependency Graph (scope-relevant):** Map how modules depend on each other for the likely touched area:
+     - Which modules import from which (1-hop from WorkingSet)
+     - External library dependencies used in the touched area
+     - Circular or problematic dependency patterns to avoid
+   * **Pattern Fingerprint:** Detect the *actual* patterns used in the codebase (not assumed):
+     - How similar features were implemented previously (find 1-2 exemplar implementations)
+     - Test patterns: how existing tests for similar features are structured
+     - Naming patterns: how similar entities/services/controllers are named
+     - File organization: where similar feature files are placed
+   * **Technical Debt Markers:** Identify constraints from existing technical debt in the working set:
+     - TODOs/FIXMEs in the working set area
+     - Known workarounds or legacy patterns that must be preserved
+     - Deprecated APIs still in use that cannot be changed in this scope
+   * **Populate `SESSION_STATE.CodebaseContext`** with structured findings (schema below)
+
+   **Rules (Binding):**
+   - The Codebase Context Record MUST be evidence-backed: every entry requires a file path reference.
+   - If no exemplar implementation exists for the planned feature, record `ExemplarImplementation: none — greenfield`.
+   - The Pattern Fingerprint MUST be derived from actual code inspection, not from framework documentation or assumptions.
+   - Technical Debt Markers are optional if the working set has no TODOs/FIXMEs, but the absence MUST be explicitly noted.
+   - Phase 4 planning MUST reference the Codebase Context Record for all architecture and implementation decisions.
  
 4. **Verify against profile:**
    * Does the detected stack match the active profile?
@@ -1769,6 +1801,24 @@ Database Migrations:
   - 12 migrations detected
   
 Profile Match: ✓ Confirmed (backend-java profile matches detected stack)
+
+Codebase Context Record:
+  Existing Abstractions:
+    - BaseEntity: abstract class — JPA entity base with id/version/timestamps (evidence: src/main/java/**/domain/BaseEntity.java)
+    - ApiException hierarchy: RuntimeException subclasses — error code mapping (evidence: src/main/java/**/error/**)
+    - AbstractMapper: MapStruct base — null-safe mapping defaults (evidence: src/main/java/**/mapper/*)
+  Dependency Graph (WorkingSet):
+    - user.controller → user.service → user.repository (no cross-module deps)
+    - user.service → common.error (exception types)
+    - user.mapper → user.dto + user.domain (bidirectional mapping)
+  Pattern Fingerprint:
+    Exemplar Implementation: src/main/java/**/order/** — CRUD + validation + tests for similar domain entity
+    Test Pattern: Given/When/Then blocks, AssertJ assertions, @DataJpaTest for repos (evidence: src/test/java/**/order/**)
+    Naming Pattern: {Entity}Controller, {Entity}Service, {Entity}Repository, {Entity}Dto, {Entity}Mapper
+    File Organization: feature-package grouping ({domain}/{layer}.java)
+  Technical Debt Markers:
+    - TODO: migrate to Java records for DTOs (src/main/java/**/dto/UserDto.java:15)
+    - FIXME: N+1 query in findAllWithOrders (src/main/java/**/repository/UserRepository.java:42)
 
 [/PHASE-2-COMPLETE]
 
@@ -1815,6 +1865,29 @@ SESSION_STATE:
     ArchitecturalInvariants:
       - "Controller → Service → Repository (no layer skipping)"
     Hotspots: []
+  CodebaseContext:
+    ExistingAbstractions:
+      - name: "BaseEntity"
+        type: "abstract class"
+        purpose: "JPA entity base with id/version/timestamps"
+        evidence: "src/main/java/**/domain/BaseEntity.java"
+      - name: "ApiException"
+        type: "exception hierarchy"
+        purpose: "error code mapping for API responses"
+        evidence: "src/main/java/**/error/**"
+    DependencyGraph:
+      - from: "user.controller"
+        to: ["user.service"]
+      - from: "user.service"
+        to: ["user.repository", "common.error"]
+    PatternFingerprint:
+      ExemplarImplementation: "src/main/java/**/order/** (CRUD + validation + tests)"
+      TestPattern: "Given/When/Then + AssertJ + @DataJpaTest for repos"
+      NamingPattern: "{Entity}Controller, {Entity}Service, {Entity}Repository"
+      FileOrganization: "feature-package grouping"
+    TechnicalDebtMarkers:
+      - "TODO: migrate to Java records for DTOs (src/main/java/**/dto/UserDto.java:15)"
+      - "FIXME: N+1 query in findAllWithOrders (src/main/java/**/repository/UserRepository.java:42)"
   DecisionDrivers:
     - "Backward compatibility for public APIs (evidence: apis/*.yaml)"
     - "Schema evolution via Flyway (evidence: db/migration/**)"
@@ -2595,6 +2668,73 @@ Proceeding to Phase 4 (Ticket Execution)...
    * Identify affected components (based on Phase 2 discovery)
    * Identify affected APIs (based on Phase 3 analysis)
    * Identify affected business rules (based on Phase 1.5, if executed)
+   * Cross-reference findings with `SESSION_STATE.CodebaseContext` (from Phase 2 step 3a):
+     - Which existing abstractions can be reused? (list from CodebaseContext.ExistingAbstractions)
+     - Does the exemplar implementation suggest a proven approach? (from CodebaseContext.PatternFingerprint)
+     - Are there technical debt markers that constrain the implementation? (from CodebaseContext.TechnicalDebtMarkers)
+     - Does the dependency graph reveal coupling risks? (from CodebaseContext.DependencyGraph)
+
+1a. **Classify Feature Complexity (Decision Tree — Binding):**
+
+   Before creating the plan, classify the feature to determine the appropriate implementation approach. Follow this decision tree strictly:
+
+   ```
+   START
+   |
+   +-- Is this a standard CRUD operation with no custom business logic?
+   |   YES -> SIMPLE-CRUD
+   |   |  Route: Template-driven implementation. Use active template rulebook directly.
+   |   |  Planning depth: Minimal. List files, apply template, done.
+   |   |  Architecture Options: NOT required (template dictates structure).
+   |   |  Test strategy: Template-prescribed tests only.
+   |   |
+   |   NO
+   |   |
+   +-- Does this modify existing behavior or architecture?
+   |   YES -> Is it a pure refactoring (behavior unchanged, structure improved)?
+   |   |  YES -> REFACTORING
+   |   |  |  Route: Characterization tests FIRST, then refactor.
+   |   |  |  Planning depth: Focus on test coverage before changes.
+   |   |  |  Architecture Options: NOT required unless boundaries change.
+   |   |  |  Risk: Regression -- require before/after test evidence.
+   |   |  |
+   |   |  NO -> MODIFICATION
+   |   |     Route: Impact analysis required. Identify all callers/consumers.
+   |   |     Planning depth: Full. Trace blast radius through CodebaseContext.
+   |   |     Architecture Options: REQUIRED if interface changes.
+   |   |     Risk: Breaking changes -- require backward compatibility assessment.
+   |   |
+   |   NO
+   |   |
+   +-- Does it span multiple bounded contexts, modules, or cross-cutting concerns?
+   |   YES -> COMPLEX
+   |   |  Route: Design document required. Multi-step implementation plan.
+   |   |  Planning depth: Maximum. Architecture Options A/B/C mandatory.
+   |   |  Require: Interaction description for cross-module flows.
+   |   |  Risk: Integration failures -- require integration test strategy.
+   |   |
+   |   NO -> STANDARD
+   |      Route: Normal Phase 4 planning with full Ticket Record.
+   |      Planning depth: Standard. Architecture Options if non-trivial.
+   |      Test strategy: Profile-prescribed test pyramid.
+   ```
+
+   Record the classification in `SESSION_STATE.FeatureComplexity`:
+   - `Class`: SIMPLE-CRUD | REFACTORING | MODIFICATION | COMPLEX | STANDARD
+   - `Reason`: 1-line evidence-based justification
+   - `PlanningDepth`: minimal | standard | full | maximum
+
+   **Planning depth implications (Binding):**
+
+   | Class | Ticket Record | Architecture Options | Test Strategy | Self-Review Depth |
+   |-------|--------------|---------------------|--------------|-------------------|
+   | SIMPLE-CRUD | Abbreviated (3 lines) | Skip | Template-prescribed | Round 1 only (Rounds 2-3 confirm "template-compliant") |
+   | REFACTORING | Focus on preservation | Only if boundaries change | Characterization-first | All 3 rounds (focus on regression) |
+   | MODIFICATION | Full | If interface changes | Full + regression | All 3 rounds |
+   | COMPLEX | Full + interaction desc. | Mandatory A/B/C | Full + integration | All 3 rounds + mandatory second pass |
+   | STANDARD | Full | If non-trivial | Profile-prescribed | All 3 rounds |
+
+   **Binding:** The classification MUST be referenced in the Ticket Record (Mini-ADR context line) and recorded in SESSION_STATE before proceeding. The planning depth determines which subsequent steps are required vs. optional.
 
 2. **Produce Ticket Record (Mini-ADR + NFR Checklist) — REQUIRED:**
    The goal is to reduce user cognitive load and make the ticket’s key trade-offs explicit.
@@ -2741,6 +2881,15 @@ Note: Fast Path MAY reduce review depth/verbosity but MUST NOT bypass any gates.
 [PHASE-4-COMPLETE]
 Ticket: <short title>
 
+Feature Complexity: <SIMPLE-CRUD|REFACTORING|MODIFICATION|COMPLEX|STANDARD>
+  Reason: <1-line evidence-based justification>
+  Planning Depth: <minimal|standard|full|maximum>
+
+Codebase Context Applied:
+  Reused Abstractions: <list or "none">
+  Exemplar Followed: <path or "greenfield">
+  Debt Constraints: <list or "none">
+
 Affected Components:
   - <component/symbol> ...
 
@@ -2805,6 +2954,14 @@ SESSION_STATE:
   Mode: NORMAL
   ConfidenceLevel: 85
   ...
+  FeatureComplexity:
+    Class: MODIFICATION
+    Reason: "Adds active flag to existing User entity + modifies query behavior"
+    PlanningDepth: full
+  CodebaseContextApplied:
+    ReusedAbstractions: ["BaseEntity (id/version/timestamps)", "ApiException hierarchy"]
+    ExemplarFollowed: "src/main/java/**/order/** (similar CRUD + validation pattern)"
+    DebtConstraints: ["FIXME: N+1 in findAllWithOrders — avoid similar pattern"]
   FastPath: false
   FastPathReason: ""
   TouchedSurface:
