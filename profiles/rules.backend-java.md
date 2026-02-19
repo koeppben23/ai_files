@@ -70,8 +70,8 @@ If `required = true` but addon rulebook is missing at code-phase:
 - The workflow MUST record:
   - `SESSION_STATE.AddonsEvidence.kafka.status = missing-rulebook`
   - `SESSION_STATE.LoadedRulebooks.addons.kafka = ""`
-- The assistant MUST explicitly warn that Kafka-related changes cannot be produced safely without the addon rulebook.
-- The assistant MUST restrict output to analysis/planning + recovery steps and MUST NOT generate unsafe Kafka code/tests.
+- The workflow MUST explicitly warn that Kafka-related changes cannot be produced safely without the addon rulebook.
+- The workflow MUST restrict output to analysis/planning + recovery steps and MUST NOT generate unsafe Kafka code/tests.
 - In fail-closed code-phase handling, apply canonical required-addon policy from `rules.md` anchor `RULEBOOK-PRECEDENCE-POLICY` / `master.md`
   (this profile references but does not redefine that policy).
 
@@ -97,7 +97,7 @@ Binding behavior for `backend-java` profile:
   - `SESSION_STATE.LoadedRulebooks.addons.principalExcellence`
   - `SESSION_STATE.LoadedRulebooks.addons.riskTiering`
   - `SESSION_STATE.LoadedRulebooks.addons.scorecardCalibration`
-- If one of these shared rulebooks is unavailable, the assistant MUST emit a warning, mark affected claims as
+- If one of these shared rulebooks is unavailable, the workflow MUST emit a warning, mark affected claims as
   `not-verified`, and continue conservatively without inventing evidence.
 
 ---
@@ -162,7 +162,7 @@ Before producing code, the system MUST explicitly detect and record (in SESSION_
 - Formatting/lint gates (Spotless/Checkstyle/PMD/SpotBugs/ErrorProne/Sonar)
 
 Rule: once detected, these conventions become constraints for the task.
-If not detectable, the assistant MUST mark the convention as "unknown" and avoid introducing new patterns.
+If not detectable, the workflow MUST mark the convention as "unknown" and avoid introducing new patterns.
 
 ---
 
@@ -577,7 +577,7 @@ The following claims are **forbidden** without evidence:
 | “Static analysis is clean” | tool summary |
 
 ### 12.2.1 Minimal Evidence by Change Type (Binding)
-The assistant MUST request/expect evidence appropriate to the change:
+The workflow MUST request/expect evidence appropriate to the change:
 - API/Controller change: tests covering HTTP contract + error contract + security semantics (if security present)
 - Persistence/migration change: migration validation + happy + violation tests for constraints
 - Messaging change: consumer idempotency/retry behavior tests (as applicable) + schema validation (if exists)
@@ -692,7 +692,7 @@ BAD:
 
 ## Anti-Patterns Catalog (Binding)
 
-Each anti-pattern below includes an explanation of **why** it is harmful. The assistant MUST avoid generating code that matches these anti-patterns and MUST flag them during plan review (Phase 4 step 6) and code review (Phase 5).
+Each anti-pattern below includes an explanation of **why** it is harmful. The workflow MUST avoid generating code that matches these anti-patterns and MUST flag them during plan review (Phase 4 step 6) and code review (Phase 5).
 
 ### AP-J01: Fat Controller
 

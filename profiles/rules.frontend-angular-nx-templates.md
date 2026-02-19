@@ -1133,7 +1133,7 @@ IS it pure display/formatting logic?
 ```
 
 **Binding Rule:**
-When generating Angular code, the assistant MUST follow this decision tree and document the placement decision in the plan/response.
+When generating Angular code, the workflow MUST follow this decision tree and document the placement decision in the plan/response.
 
 ---
 

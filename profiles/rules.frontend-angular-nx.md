@@ -91,7 +91,7 @@ Rule: once detected, these become constraints. If unknown, mark unknown and avoi
 
 ## 2a. Decision Trees (Binding)
 
-The following decision trees guide architecture-level decisions for Angular/Nx projects. The assistant MUST follow these trees and record the decision path in the plan.
+The following decision trees guide architecture-level decisions for Angular/Nx projects. The workflow MUST follow these trees and record the decision path in the plan.
 
 ### DT-NG1: State Management Selection
 
@@ -453,7 +453,7 @@ BAD:
 
 ## 11.1 Anti-Patterns Catalog (Binding)
 
-Each anti-pattern below includes an explanation of **why** it is harmful. The assistant MUST avoid generating code that matches these anti-patterns and MUST flag them during plan review and code review.
+Each anti-pattern below includes an explanation of **why** it is harmful. The workflow MUST avoid generating code that matches these anti-patterns and MUST flag them during plan review and code review.
 
 ### AP-NG01: Business Logic in Components
 

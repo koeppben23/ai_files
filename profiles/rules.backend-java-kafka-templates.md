@@ -91,7 +91,7 @@ BAD:
 ## K1. LLM KAFKA CODE GENERATION PATTERNS (Binding)
 
 **Rule (Binding):**
-When generating Kafka code, the assistant MUST follow the templates in this file as the default structure, substituting placeholders marked with `{...}`.
+When generating Kafka code, the workflow MUST follow the templates in this file as the default structure, substituting placeholders marked with `{...}`.
 If a template conflicts with locked repo conventions, apply the minimal convention-aligned adaptation and record the deviation.
 
 ### K1.1 Placeholder Substitution Rules (Binding)
