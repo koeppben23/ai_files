@@ -30,6 +30,7 @@ def _session_state(session_state_document: Mapping[str, object] | None) -> Mappi
 
 
 def _openapi_signal(state: Mapping[str, object]) -> bool:
+    """Check for OpenAPI detection signal."""
     addons = state.get("AddonsEvidence")
     if isinstance(addons, Mapping):
         openapi = addons.get("openapi")
@@ -42,6 +43,27 @@ def _openapi_signal(state: Mapping[str, object]) -> bool:
         normalized = {str(item).strip().lower() for item in repo_caps}
         return "openapi" in normalized
     return False
+
+
+def _external_api_artifacts(state: Mapping[str, object]) -> bool:
+    """Check for external API artifacts provided as input."""
+    scope = state.get("Scope")
+    if isinstance(scope, Mapping):
+        external_apis = scope.get("ExternalAPIs")
+        if isinstance(external_apis, list) and len(external_apis) > 0:
+            return True
+    # Also check for explicit external_api_artifacts flag
+    artifacts = state.get("external_api_artifacts")
+    if isinstance(artifacts, list) and len(artifacts) > 0:
+        return True
+    if artifacts is True:
+        return True
+    return False
+
+
+def _api_in_scope(state: Mapping[str, object]) -> bool:
+    """Check if ANY API signals are present (external artifacts or repo-embedded specs)."""
+    return _openapi_signal(state) or _external_api_artifacts(state)
 
 
 def _workspace_ready(state: Mapping[str, object], *, repo_is_git_root: bool) -> bool:
@@ -163,13 +185,23 @@ def route_phase(
         phase_token = requested_token
         source = "requested-with-evidence"
 
-    if phase_token == "2.1" and workspace_ready and _openapi_signal(state):
+    if phase_token == "2.1" and workspace_ready and _api_in_scope(state):
         return RoutedPhase(
             phase="3A-Activation",
             active_gate="API Validation Routing",
             next_gate_condition="Route to phase 3A api validation",
             workspace_ready=True,
-            source="openapi-phase-routing",
+            source="api-phase-routing",
+        )
+
+    # Phase 3A routing: if no APIs in scope, skip directly to Phase 4
+    if phase_token == "3A" and not _api_in_scope(state):
+        return RoutedPhase(
+            phase="4",
+            active_gate="Ticket Execution",
+            next_gate_condition="No API artifacts detected; proceed to ticket planning",
+            workspace_ready=workspace_ready,
+            source="no-api-skip-to-phase4",
         )
 
     return RoutedPhase(
