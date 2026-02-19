@@ -114,3 +114,24 @@ python3 -m pytest -q
 ```
 
 Expected: full suite green (except explicitly skipped tests).
+
+## SESSION_STATE Invariants
+
+Cross-field validators in `governance/engine/session_state_invariants.py` enforce:
+
+- [ ] `Mode=BLOCKED` requires `Next` to start with `BLOCKED-`.
+- [ ] `ConfidenceLevel < 70` requires `Mode` to be `DRAFT` or `BLOCKED`.
+- [ ] `ProfileSource=ambiguous` requires `Mode=BLOCKED`.
+- [ ] Reason codes require `Diagnostics.ReasonPayloads` to be present.
+- [ ] `OutputMode=ARCHITECT` requires `DecisionSurface` to exist.
+- [ ] Loaded rulebooks require corresponding load evidence.
+- [ ] Loaded addons require corresponding `AddonsEvidence`.
+- [ ] Canonical path fields must not contain forbidden patterns (drive prefixes, backslashes, parent traversal).
+- [ ] Canonical path fields must not be degenerate (single drive letter, drive root, single segment without variable).
+- [ ] `P5-Architecture=approved` requires `ArchitectureDecisions` with at least one `Status=approved` entry.
+- [ ] Phase 5/6 code-producing steps require upstream gates to be in allowed state.
+- [ ] Gate approval is blocked when `GateArtifacts.Provided` has `missing` items.
+
+Evidence:
+- `governance/engine/session_state_invariants.py`
+- `tests/test_session_state_schema.py`
