@@ -131,6 +131,30 @@
       "verify_command": "dotnet --version",
       "expected_after_fix": "dotnet --version prints .NET SDK version",
       "restart_hint": "no_restart_if_binary_in_existing_path"
+    },
+    {
+      "command": "cmake",
+      "reason": "C/C++ build configuration when repository uses CMakeLists.txt",
+      "phase": "4-6",
+      "verify_command": "cmake --version",
+      "expected_after_fix": "cmake --version prints CMake version information",
+      "restart_hint": "no_restart_if_binary_in_existing_path"
+    },
+    {
+      "command": "make",
+      "reason": "Build execution for Makefile-based projects",
+      "phase": "4-6",
+      "verify_command": "make --version",
+      "expected_after_fix": "make --version prints GNU Make version information",
+      "restart_hint": "no_restart_if_binary_in_existing_path"
+    },
+    {
+      "command": "g++",
+      "reason": "C++ compilation when repository uses C++ source files",
+      "phase": "4-6",
+      "verify_command": "g++ --version",
+      "expected_after_fix": "g++ --version prints GCC version information",
+      "restart_hint": "no_restart_if_binary_in_existing_path"
     }
   ],
   "optional": [
