@@ -7,49 +7,16 @@ import re
 import sys
 from pathlib import Path
 
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
-ALLOWED_CLASSES = {"required", "advisory"}
-ALLOWED_SIGNAL_KEYS = {
-    "file_glob",
-    "maven_dep",
-    "maven_dep_prefix",
-    "code_regex",
-    "config_key_prefix",
-    "workflow_file",
-}
-ALLOWED_SURFACES = {
-    "api_contract",
-    "backend_java_templates",
-    "backend_python_templates",
-    "bdd_framework",
-    "build_tooling",
-    "db_migration",
-    "e2e_test_framework",
-    "frontend_api_client",
-    "frontend_templates",
-    "governance_docs",
-    "linting",
-    "messaging",
-    "principal_review",
-    "release",
-    "risk_model",
-    "scorecard_calibration",
-    "security",
-    "static",
-    "test_framework",
-}
-ALLOWED_CAPABILITIES = {
-    "angular",
-    "cucumber",
-    "cypress",
-    "governance_docs",
-    "java",
-    "kafka",
-    "liquibase",
-    "nx",
-    "openapi",
-    "python",
-}
+from governance.addon_catalog import (  # noqa: E402
+    ALLOWED_CAPABILITIES,
+    ALLOWED_CLASSES,
+    ALLOWED_SIGNAL_KEYS,
+    ALLOWED_SURFACES,
+)
 
 
 def read_text(path: Path) -> str:
@@ -266,7 +233,7 @@ def validate_manifest(path: Path, repo_root: Path) -> list[str]:
 
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description="Validate addon manifests under profiles/addons/*.addon.yml")
-    parser.add_argument("--repo-root", type=Path, default=Path(__file__).resolve().parents[1])
+    parser.add_argument("--repo-root", type=Path, default=REPO_ROOT)
     args = parser.parse_args(argv)
 
     repo_root = args.repo_root.resolve()
