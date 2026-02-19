@@ -107,6 +107,9 @@ def validate_session_state_invariants(session_state_document: Mapping[str, objec
     errors.extend(validate_rulebook_evidence_mirror(state))
     errors.extend(validate_addon_evidence_mirror(state))
     errors.extend(validate_canonical_path_invariants(state))
+    errors.extend(validate_p5_approved_architecture_decisions(state))
+    errors.extend(validate_phase_gate_prerequisites(state))
+    errors.extend(validate_gate_artifacts_integrity(state))
 
     return tuple(errors)
 
@@ -225,4 +228,119 @@ def validate_canonical_path_invariants(state: Mapping[str, object]) -> tuple[str
                 check_object(value, field_path)
 
     check_object(state, "SESSION_STATE")
+    return tuple(errors)
+
+
+def validate_p5_approved_architecture_decisions(state: Mapping[str, object]) -> tuple[str, ...]:
+    """If P5-Architecture is approved, ArchitectureDecisions MUST have approved entry.
+
+    From SESSION_STATE_SCHEMA.md lines 941-943:
+    - When Gates.P5-Architecture = approved, ArchitectureDecisions MUST be non-empty
+      and MUST contain at least one entry with Status = approved.
+    """
+    gates = state.get("Gates")
+    if not isinstance(gates, dict):
+        return ()
+
+    p5_arch = gates.get("P5-Architecture")
+    if p5_arch != "approved":
+        return ()
+
+    architecture_decisions = state.get("ArchitectureDecisions")
+    if not isinstance(architecture_decisions, list) or len(architecture_decisions) == 0:
+        return ("p5_approved_without_architecture_decisions",)
+
+    has_approved = False
+    for decision in architecture_decisions:
+        if isinstance(decision, dict) and decision.get("Status") == "approved":
+            has_approved = True
+            break
+
+    if not has_approved:
+        return ("p5_approved_without_approved_decision_entry",)
+
+    return ()
+
+
+def validate_phase_gate_prerequisites(state: Mapping[str, object]) -> tuple[str, ...]:
+    """Validate that code-producing phases have satisfied gate prerequisites.
+
+    From SESSION_STATE_SCHEMA.md lines 826-827:
+    - Next MUST NOT point to any code-producing step unless upstream gates are
+      in an allowed state per master.md and rules.md.
+
+    Phase 5+ code-producing prerequisites:
+    - Phase 5 requires: P5-Architecture approved
+    - Phase 6 requires: P5 approved, P5.3 pass/pass-with-exceptions
+    """
+    phase = state.get("Phase")
+    gates = state.get("Gates")
+    next_val = state.get("Next")
+
+    if not isinstance(phase, str):
+        return ()
+
+    errors: list[str] = []
+
+    if phase.startswith("5") and phase not in ("5", "5-Architecture"):
+        if isinstance(gates, dict):
+            p5_arch = gates.get("P5-Architecture")
+            if p5_arch != "approved":
+                errors.append("phase5_without_p5_approved")
+
+    if phase.startswith("6"):
+        if not isinstance(gates, dict):
+            errors.append("phase6_without_gates")
+        else:
+            p5_arch = gates.get("P5-Architecture")
+            p53 = gates.get("P5.3-TestQuality")
+
+            if p5_arch != "approved":
+                errors.append("phase6_without_p5_approved")
+
+            if p53 not in ("pass", "pass-with-exceptions"):
+                errors.append("phase6_without_p53_pass")
+
+    if isinstance(next_val, str):
+        if "implement" in next_val.lower() or "code" in next_val.lower():
+            if isinstance(gates, dict):
+                p5_arch = gates.get("P5-Architecture")
+                if p5_arch != "approved":
+                    errors.append("code_step_without_p5_approved")
+
+    return tuple(errors)
+
+
+def validate_gate_artifacts_integrity(state: Mapping[str, object]) -> tuple[str, ...]:
+    """Validate GateArtifacts - missing artifacts prevent gate approval.
+
+    From SESSION_STATE_SCHEMA.md lines 851-854:
+    - If any Provided item is 'missing', the gate MUST NOT be marked as
+      passing/approved.
+    """
+    gate_artifacts = state.get("GateArtifacts")
+    if not isinstance(gate_artifacts, dict):
+        return ()
+
+    gates = state.get("Gates")
+    if not isinstance(gates, dict):
+        return ()
+
+    errors: list[str] = []
+
+    for gate_key, artifacts in gate_artifacts.items():
+        if not isinstance(artifacts, dict):
+            continue
+
+        provided = artifacts.get("Provided")
+        if not isinstance(provided, dict):
+            continue
+
+        has_missing = any(v == "missing" for v in provided.values() if isinstance(v, str))
+
+        if has_missing:
+            gate_status = gates.get(gate_key)
+            if gate_status in ("approved", "pass", "pass-with-exceptions", "compliant", "compliant-with-exceptions"):
+                errors.append(f"gate_{gate_key.lower().replace('-', '_')}_approved_with_missing_artifacts")
+
     return tuple(errors)

@@ -6,6 +6,9 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
 ## [Unreleased]
 
 ### Added
+- Add 4 CRITICAL gate checks for Phase 5-6 determinism (P5.3 Test Quality, P5.4 Business Rules, P5.6 Rollback Safety, P6 Prerequisites) with corresponding reason codes.
+- Add path invariant validation for SESSION_STATE canonical path fields (forbidden patterns: drive prefixes, backslashes, parent traversal; degenerate patterns: single drive letter, drive root token, single-segment without variable).
+- Add 3 gate/phase invariant validators: P5 Architecture Decisions (approved requires entry), Phase Gate Prerequisites (Phase 5/6 require upstream gates), Gate Artifacts Integrity (missing artifacts prevent approval).
 - Add mode-aware repo-rules orchestration baseline: SSOT reason-code registry entries and payload schemas for repo-doc unsafe directives, constraint widening, interactive-in-pipeline, prompt-budget exceeded, unsupported constraints, and precedence events.
 - Add deterministic repo-doc classifier/evidence utilities and prompt budget defaults for `user`, `pipeline`, and `agents_strict` modes.
 - Add governance tests for mode-aware repo-rules behavior and reason-registry/schema presence.
