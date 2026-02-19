@@ -51,6 +51,10 @@ EMBEDDED_REASON_CODE_TO_SCHEMA_REF: Final[dict[str, str]] = {
     "BLOCKED-GOLDEN-BASELINE-MODIFIED-IN-PR": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
     "BLOCKED-Phase2-RepoDiscovery": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
     "BLOCKED-R": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
+    "BLOCKED-P5-3-TEST-QUALITY-GATE": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
+    "BLOCKED-P5-4-BUSINESS-RULES-GATE": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
+    "BLOCKED-P5-6-ROLLBACK-SAFETY-GATE": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
+    "BLOCKED-P6-PREREQUISITES-NOT-MET": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
     # Install subsystem
     "BLOCKED-INSTALL-PRECHECK-MISSING-SOURCE": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
     "BLOCKED-INSTALL-VERSION-MISSING": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
