@@ -125,10 +125,21 @@ def create_run_summary(
     reason_code: str | None = None,
     reason_payload: dict[str, Any] | None = None,
     workspaces_home: Path | None = None,
-    model_provider: str | None = None,
-    model_name: str | None = None,
+    model_identity: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Create a run summary from session state."""
+    """Create a run summary from session state.
+    
+    Args:
+        session_state: Current session state
+        result: Final result status (OK, BLOCKED, WARN, NOT_VERIFIED)
+        reason_code: Canonical reason code if blocked
+        reason_payload: Structured payload for reason
+        workspaces_home: Path to workspaces directory
+        model_identity: Model identity dict with provider, model_id, context_limit, temperature
+    
+    Returns:
+        Run summary dict conforming to RUN_SUMMARY_SCHEMA.json
+    """
     
     timestamp = datetime.now(timezone.utc).isoformat()
     run_id = compute_run_id(session_state, timestamp)
@@ -159,7 +170,7 @@ def create_run_summary(
     
     evidence_pointers = _extract_evidence_pointers(session_state, workspaces_home)
     
-    summary = {
+    summary: dict[str, Any] = {
         "schema_version": "1.0",
         "run_id": run_id,
         "timestamp": timestamp,
@@ -177,13 +188,36 @@ def create_run_summary(
             "repo_fingerprint": session_state["repo_fingerprint"],
         }
     
-    if model_provider or model_name:
-        model_ctx: dict[str, str] = {}
-        if model_provider:
-            model_ctx["provider"] = model_provider
-        if model_name:
-            model_ctx["model"] = model_name
+    # Model identity is CRITICAL for reproducibility
+    if model_identity:
+        model_ctx: dict[str, Any] = {
+            "provider": model_identity.get("provider", "unknown"),
+            "model_id": model_identity.get("model_id", "unknown"),
+            "context_limit": model_identity.get("context_limit", 0),
+            "temperature": model_identity.get("temperature", 0.0),
+        }
+        if "version" in model_identity:
+            model_ctx["version"] = model_identity["version"]
+        if "quantization" in model_identity:
+            model_ctx["quantization"] = model_identity["quantization"]
+        if "deployment_id" in model_identity:
+            model_ctx["deployment_id"] = model_identity["deployment_id"]
+        
+        # Compute identity hash for comparison
+        identity_str = json.dumps(model_ctx, sort_keys=True, separators=(",", ":"))
+        model_ctx["identity_hash"] = hashlib.sha256(identity_str.encode("utf-8")).hexdigest()[:16]
+        
         summary["model_context"] = model_ctx
+    
+    # Rulebook hashes for reproducibility
+    if "ruleset_hash" in session_state:
+        summary["rulebook_hashes"] = {
+            "ruleset": session_state["ruleset_hash"],
+        }
+    if "ActivationHash" in session_state:
+        if "rulebook_hashes" not in summary:
+            summary["rulebook_hashes"] = {}
+        summary["rulebook_hashes"]["activation"] = session_state["ActivationHash"]
     
     return summary
 
