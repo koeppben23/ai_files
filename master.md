@@ -164,7 +164,7 @@ Required BLOCKED reason keys:
 - `BLOCKED-PERSISTENCE-PATH-VIOLATION`
 
 Recovery (mandatory output via Recovery Playbook):
-- The assistant MUST print:
+- The workflow MUST print:
   - the attempted `TargetPath`,
   - the expected canonical `TargetPath` using `${...}`,
   - and the minimal correction (use canonical variable target).
@@ -276,7 +276,7 @@ The following are FORBIDDEN:
 - `${REPO_OVERRIDES_HOME}` = `${REPO_HOME}/governance-overrides`  (workspace-only override bucket; never repo-local)
 - `${REPO_DECISIONS_FILE}` = `${REPO_HOME}/decisions/ADR.md`
 
-OpenCode-only persisted knowledge (stable across sessions for the same repo identity):
+Kernel-managed persisted knowledge (stable across sessions for the same repo identity):
 - `${REPO_DIGEST_FILE}` = `${REPO_HOME}/repo-map-digest.md`
 - `${REPO_DECISION_PACK_FILE}` = `${REPO_HOME}/decision-pack.md`
 - `${REPO_BUSINESS_RULES_FILE}` = `${REPO_HOME}/business-rules.md`
@@ -462,7 +462,7 @@ ALGORITHM (BINDING, NORMATIVE):
      - if outcome differs while hashes are unchanged -> `BLOCKED-ACTIVATION-DELTA-MISMATCH`.
 
 Output obligation (BINDING):
-- At Phase 4 entry, the assistant MUST output a short activation summary:
+- At Phase 4 entry, the workflow MUST output a short activation summary:
   - ActiveProfile, TemplatesLoaded, AddonsLoaded, EvidenceSignals (by addon), and Status.
  
 ### Data sources (non-precedence)
@@ -642,7 +642,7 @@ SESSION_STATE.ActiveProfile = "backend-java"
 SESSION_STATE.ProfileSource = "auto-detected-single" | "user-explicit" | "repo-fallback"
 SESSION_STATE.ProfileEvidence = "<absolute-os-path (evidence-only)>" | "pom.xml, src/main/java"
 SESSION_STATE.ComponentScopePaths = ["<repo-relative/path>", "..."] // optional (recommended for monorepos)
-SESSION_STATE.ComponentScopeSource = "user-explicit" | "assistant-proposed"
+SESSION_STATE.ComponentScopeSource = "user-explicit" | "kernel-proposed"
 SESSION_STATE.ComponentScopeEvidence = "<ticket text or repo paths>"
 ```
 
@@ -658,7 +658,7 @@ Profile candidate filtering (binding):
 - Shared governance rulebooks (`rules.principal-excellence.md`, `rules.risk-tiering.md`, `rules.scorecard-calibration.md`) MUST NOT be treated as profile candidates.
 
 Rulebook auto-load behavior (binding):
-- If host filesystem access is available and profile detection is unambiguous, the assistant MUST auto-load core/profile rulebooks from canonical installer paths without asking the operator to provide rulebook files.
+- If host filesystem access is available and profile detection is unambiguous, the workflow MUST auto-load core/profile rulebooks from canonical installer paths without asking the operator to provide rulebook files.
 - Operator rulebook input is allowed only when detection is ambiguous, files are genuinely unreadable/missing, or host access is unavailable.
 
 If multiple profiles exist:
@@ -686,13 +686,13 @@ If multiple profiles still exist and `SESSION_STATE.ComponentScopePaths` is pres
 This repository uses OpenAPI code generation (DTOs/interfaces may be generated).
 
 Binding:
-1) The assistant MUST NOT broadly scan `target/` or `build/` by default.
+1) The workflow MUST NOT broadly scan `target/` or `build/` by default.
 2) Generated-source lookup is enabled ONLY if at least one trigger is present:
    - Build config indicates codegen (e.g., openapi-generator / swagger-codegen plugin), OR
    - a generated-sources directory already exists, OR
    - user provides BuildEvidence that generation ran, OR
    - user explicitly requests generated-source inclusion.
-3) If enabled, the assistant MAY check ONLY these default locations:
+3) If enabled, the workflow MAY check ONLY these default locations:
    - Maven: `target/generated-sources/**`
    - Gradle: `build/generated/**`
    - plus generator-configured output dirs ONLY if discovered in build files.
@@ -726,12 +726,12 @@ However, repo-local governance artifacts MUST NOT be created or modified unless 
 
 ### Default recording target (local workspace)
 
-When the assistant proposes or confirms a **non-trivial architectural decision**
+When the workflow proposes or confirms a **non-trivial architectural decision**
 (examples: boundaries, persistence, API contract approach, major dependency/tooling change, migration strategy):
-- The assistant MUST record the decision as an ADR entry in the local workspace by default:
+- The workflow MUST record the decision as an ADR entry in the local workspace by default:
   `${REPO_DECISIONS_FILE}`
-- If the environment supports editing that file directly, the assistant MUST output a unified diff that appends the entry there.
-- Otherwise, the assistant MUST print the complete ADR entry block and the target path so the user can paste it.
+- If the environment supports editing that file directly, the workflow MUST output a unified diff that appends the entry there.
+- Otherwise, the workflow MUST print the complete ADR entry block and the target path so the user can paste it.
 
 An ADR entry is mandatory if any of the following are introduced or materially changed:
 - a new abstraction or architectural boundary
@@ -742,7 +742,7 @@ An ADR entry is mandatory if any of the following are introduced or materially c
 
 Exception (Explicit Opt-Out):
 - The user MAY explicitly opt out of ADR recording for the current change.
-- If the user opts out, the assistant MUST:
+- If the user opts out, the workflow MUST:
   - keep the decision explicit in the response, and
   - record a risk in session state (per the Master Prompt’s confidence/risk mechanisms).
 
@@ -781,7 +781,7 @@ Addon/template tie-breakers at same precedence level (binding):
 
 ### Rulebook Load Evidence (BINDING)
 
-The assistant MUST NOT mark any rulebook as loaded unless there is
+The workflow MUST NOT mark any rulebook as loaded unless there is
 explicit load evidence.
 
 Binding rules:
@@ -856,7 +856,7 @@ MUST be explicitly passed when applicable.
 
 Before Phase 5, NO code may be produced.
 Phase 5 is an explicit gate.
-After the gate report, the assistant MUST wait for explicit user confirmation
+After the gate report, the workflow MUST wait for explicit user confirmation
 before proceeding to any code-producing activities.
 If a new blocker emerges, switch to BLOCKED and request the minimal missing input.
 P5.3 is a CRITICAL quality gate that must be satisfied before concluding readiness for PR (P6),
@@ -897,7 +897,7 @@ Explicit overrides (highest priority):
 
 Override constraints (binding):
 * "Skip Phase Y" is only valid if all artifacts/evidence required by downstream phases already exist in SESSION_STATE.
-* If skipping would cause missing discovery or verification evidence, the assistant MUST switch to BLOCKED and request the missing inputs.
+* If skipping would cause missing discovery or verification evidence, the workflow MUST switch to BLOCKED and request the missing inputs.
 
 Phase 5 MUST NEVER be skipped if code generation is expected.
 Phase 5.4 MUST NEVER be skipped if Phase 1.5 was executed AND code generation is expected.
@@ -952,7 +952,7 @@ Binding:
 
 Unless explicitly stated otherwise:
 
-* The assistant automatically proceeds to the next phase once the current phase is successfully completed.
+* The workflow automatically proceeds to the next phase once the current phase is successfully completed.
 * NO confirmation is requested, provided that:
 
   * no blockers exist
@@ -977,7 +977,7 @@ All other phase transitions occur implicitly.
 
 If clarifications are permitted by Section 2.3 (or a phase-specific clarification rule) AND
 multiple plausible but incompatible interpretations/implementations exist,
-the assistant MUST use the following format:
+the workflow MUST use the following format:
 
 1) State ambiguity in one sentence.
 2) Present exactly two options (A/B) unless there are more than two truly distinct options.
@@ -996,9 +996,9 @@ Recommendation: A, because <reason based on repo evidence / constraints / risk>.
 Which do you want: A or B?"
 
 Rules (binding):
-- The assistant MUST NOT ask open-ended questions like "Can you clarify?" without providing options.
-- The assistant MUST NOT ask more than one question in the closing line.
-- If the user does not choose, the assistant MUST proceed with the recommended option
+- The workflow MUST NOT ask open-ended questions like "Can you clarify?" without providing options.
+- The workflow MUST NOT ask more than one question in the closing line.
+- If the user does not choose, the workflow MUST proceed with the recommended option
   only if it is risk-minimizing and does not violate scope/contract rules; otherwise it must remain BLOCKED.
 
 #### Confidence bands for Auto-Advance (Binding)
@@ -1013,7 +1013,7 @@ Auto-advance and code-producing work are constrained by confidence.
 | <50% | BLOCKED | No | Not allowed |
 
 Binding:
-- If mode is DRAFT or BLOCKED, the assistant MUST NOT auto-advance into any code-producing work.
+- If mode is DRAFT or BLOCKED, the workflow MUST NOT auto-advance into any code-producing work.
 - Code-producing output is always additionally constrained by Phase 5 / P5.3 and applicable `rules.md` gates.
 
 Note: phase-specific clarification rules (e.g., Phase 4) may not restrict the blocker rules defined in 2.3;
@@ -1021,7 +1021,7 @@ those phase rules only add additional phase-related clarifications when CONFIDEN
 
 #### BLOCKED — Recovery Playbook (Binding)
 
-If the workflow enters `Mode = BLOCKED`, the assistant MUST output a deterministic recovery block and MUST NOT
+If the workflow enters `Mode = BLOCKED`, the workflow MUST output a deterministic recovery block and MUST NOT
 continue into any code-producing work.
 
 **Output format (mandatory):**
@@ -1169,14 +1169,14 @@ Rules:
     3) If migration fails, reset to minimal valid bootstrap state and re-run `/start`.
 
 Rules:
-- The assistant MUST ask for the minimal viable input only (single artifact/command), not broad clarifications.
-- The assistant MUST NOT propose alternative architectures while BLOCKED.
-- Once the required input is provided, the assistant MUST re-run only the minimal necessary step (e.g., Phase 1.3/1.4 load) and then resume.
+- The workflow MUST ask for the minimal viable input only (single artifact/command), not broad clarifications.
+- The workflow MUST NOT propose alternative architectures while BLOCKED.
+- Once the required input is provided, the workflow MUST re-run only the minimal necessary step (e.g., Phase 1.3/1.4 load) and then resume.
 - BLOCKED/WARN/NOT_VERIFIED outputs MUST include `SESSION_STATE.Diagnostics.ReasonPayloads` entries for every emitted reason code.
 
 #### Unified Next Action Footer (Binding)
 
-Every assistant response MUST end with a compact, deterministic footer block:
+Every workflow response MUST end with a compact, deterministic footer block:
 
 ```
 [NEXT-ACTION]
@@ -1212,7 +1212,7 @@ Rules:
 
 #### Definition: Explicit gates (Auto-Advance stops)
 
-An explicit gate is a decision point where the assistant does not automatically transition
+An explicit gate is a decision point where the workflow does not automatically transition
 into a subsequent phase. Instead, it delivers a gate result, updates `SESSION_STATE`,
 and waits for user confirmation or direction before proceeding.
 
@@ -1224,7 +1224,7 @@ Explicit gates in this workflow:
 * Phase 5.6 (Rollback safety, evaluated in Phase 5) → Gate result: `approved` | `rejected` | `not-applicable`
 * Phase 6 (Implementation QA) → Gate result: `ready-for-pr` | `fix-required`
 
-At an explicit gate, the assistant MUST:
+At an explicit gate, the workflow MUST:
 1. Output a clear gate report (structured block, e.g., `[GATE-REPORT-P5]`)
 2. Update `SESSION_STATE` with the gate result
 3. State explicitly: "Waiting for confirmation to proceed" OR "Gate passed, awaiting further instructions"
@@ -1239,7 +1239,7 @@ The user may then:
 ### 2.4 Silent Transition (Default at Session Start)
 
 At the initial session start (when the user runs `/master` or equivalent),
-the assistant begins Phase 1 **silently** (without requesting confirmation)
+the workflow begins Phase 1 **silently** (without requesting confirmation)
 and proceeds according to the Hybrid Mode rules in Section 2.2.
 
 This means:
@@ -1250,7 +1250,7 @@ This means:
 
 ### 2.4.1 Session Start Mode Banner (Binding)
 
-At session start, the assistant MUST emit a one-line start banner before deeper phase output:
+At session start, the workflow MUST emit a one-line start banner before deeper phase output:
 
 `[START-MODE] Cold Start | Warm Start - reason: <one concise reason>`
 
@@ -1269,7 +1269,7 @@ Operator lifecycle (canonical):
 
 `/start` invocation guard (binding):
 - If `start.md` is present due command injection, `/start` is already invoked for this turn.
-- In that case, assistant MUST proceed with bootstrap and MUST NOT ask operator to run `/start` again in the same turn.
+- In that case, workflow MUST proceed with bootstrap and MUST NOT ask operator to run `/start` again in the same turn.
 
 Execution mode enum (binding):
 - `SESSION_STATE.OutputMode = ARCHITECT | IMPLEMENT | VERIFY`
@@ -1290,7 +1290,7 @@ Start-order gate (binding):
 
 ### 2.5 Default Decision Policies (DDP) — Reduce Cognitive Load (Binding)
 
-When multiple reasonable implementation/architecture options exist and no explicit preference is given, the assistant MUST apply these defaults (unless they conflict with higher-priority rules):
+When multiple reasonable implementation/architecture options exist and no explicit preference is given, the workflow MUST apply these defaults (unless they conflict with higher-priority rules):
 
 1) **Prefer existing repo conventions** (frameworks, patterns, libs, naming, folder layout) if evidence-backed.
 2) **Prefer additive over breaking changes** in any contract/schema surface.
@@ -1307,7 +1307,7 @@ This default behavior may be overridden by explicit commands (e.g., "Start direc
 
 ### 2.6 Conventional Git Naming Contract (Binding when Git operations are requested)
 
-If the operator asks the assistant to create branches/commits, naming MUST follow Conventional style.
+If the operator requests the workflow to create branches/commits, naming MUST follow Conventional style.
 
 Branch naming (binding):
 - Pattern: `^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)/[a-z0-9][a-z0-9._/-]*$`
@@ -1322,8 +1322,8 @@ Commit subject naming (binding):
   - `test(governance): enforce terminal NEXT_STEP contract`
 
 Rules:
-- If the user-provided commit title is non-conforming, the assistant MUST normalize it to the nearest conforming form and report the normalization.
-- The assistant MUST NOT create a non-conventional branch/commit subject when it is responsible for creating them.
+- If the user-provided commit title is non-conforming, the workflow MUST normalize it to the nearest conforming form and report the normalization.
+- The workflow MUST NOT create a non-conventional branch/commit subject when it is responsible for creating them.
 - For PRs that modify governance rulebooks/contracts, PR body SHOULD include `What changed for operators?` with concise operator-visible deltas.
 - Governance PRs SHOULD also include `Reviewer focus` bullets that point to highest-risk contract changes.
 
@@ -1347,7 +1347,7 @@ If anything here conflicts with the schema, the schema wins.
 
 When a dedicated state block is emitted in MIN mode, it SHOULD remain below ~40 lines. FULL mode should remain a digest (no large enumerations).
 
-If `SESSION_STATE.OutputMode = ARCHITECT`, the assistant MUST output a `DecisionSurface` block first and keep the rest limited to decision rationale + evidence pointers.
+If `SESSION_STATE.OutputMode = ARCHITECT`, the workflow MUST output a `DecisionSurface` block first and keep the rest limited to decision rationale + evidence pointers.
 
 Machine-readable diagnostics (binding):
 - When emitting any reason code (`BLOCKED-*`, `WARN-*`, `NOT_VERIFIED-*`), the response MUST include a machine-readable diagnostics payload under `SESSION_STATE.Diagnostics.ReasonPayloads`.
@@ -1424,13 +1424,13 @@ SESSION_STATE:
 Binding:
 - `SESSION_STATE.Next` MUST be set at the end of every phase output.
 - `continue.md` MUST execute ONLY the step referenced by `SESSION_STATE.Next`.
-- After every `SESSION_STATE` block, the assistant MUST emit one terminal summary line:
+- After every `SESSION_STATE` block, the workflow MUST emit one terminal summary line:
   - `NEXT_STEP: <value of SESSION_STATE.Next>`
-  - This line MUST be the final line of the response (except when host tooling appends its own metadata outside assistant output).
+  - This line MUST be the final line of the response (except when host tooling appends its own metadata outside workflow output).
 
 ### 3.3 FULL Mode Additions (Binding when FULL required)
 
-When FULL mode is required, the assistant MUST additionally include, when available:
+When FULL mode is required, the workflow MUST additionally include, when available:
 
 - `Scope` (repo name/type, external APIs, business rules status)
 - `RepoMapDigest` (canonical repo understanding artifact; Phase 2 SHOULD populate it)
@@ -1459,7 +1459,7 @@ When FULL mode is required, the assistant MUST additionally include, when availa
 
 ## 4. PHASE 1 OUTPUT (BINDING)
 
-After loading rules (Phase 1), the assistant MUST output:
+After loading rules (Phase 1), the workflow MUST output:
 
 ```
 [PHASE-1-COMPLETE]
@@ -1522,14 +1522,14 @@ Binding:
 Repo root defaulting behavior (binding):
 - If the host provides an indexed workspace/repository root for the current session,
   Phase 2 MUST use that path as the default `RepoRoot` candidate.
-- In that case, the assistant MUST request filesystem/access authorization (if required by host policy)
+- In that case, the workflow MUST request filesystem/access authorization (if required by host policy)
   before asking the operator to manually provide a repo path.
 - Operator path prompts are allowed only when no host-provided repository root is available,
   or when the host-provided root cannot be resolved after an explicit access attempt.
 
 **Objective:** Understand the repository structure, tech stack, architecture pattern, and existing contracts.
 
-#### OpenCode-only: Load existing Repo Cache (Cache-first, Binding when applicable)
+#### Load Existing Repo Cache (Kernel-Managed, Cache-First)
 
 Goal:
 - Skip full Phase 2 discovery for repeated `/master` sessions on the same repo.
@@ -1618,7 +1618,7 @@ SESSION_STATE updates (Binding when OpenCode applies):
 - `SESSION_STATE.RepoCacheFile.RepoSignature = "<sha|unknown>"`
 
 Before performing repository discovery, if the workflow is running under OpenCode
-(repository provided or indexed via OpenCode), the assistant MUST check whether a
+(repository provided or indexed via OpenCode), the workflow MUST check whether a
 persisted RepoMapDigest file exists and load it as context.
 
 Cross-platform configuration root resolution (Binding):
@@ -1656,7 +1656,7 @@ SESSION_STATE updates (Binding when OpenCode applies):
 * SESSION_STATE.RepoMapDigestFile.Loaded = true | false
 * SESSION_STATE.RepoMapDigestFile.Summary = "<short text>"
 
-#### OpenCode-only: Load existing Workspace Memory (Read-before-use, Binding when applicable)
+#### Load Existing Workspace Memory (Kernel-Managed, Read-Before-Use)
 
 Purpose:
 - Stabilize repo-specific conventions and reduce drift across ticket sessions.
@@ -1695,7 +1695,7 @@ SESSION_STATE updates (Binding when OpenCode applies):
 * `SESSION_STATE.WorkspaceMemoryFile.Valid = true | false`
 * `SESSION_STATE.WorkspaceMemoryFile.InvalidationReason = "<short>"`
 
-#### Fast Path (optional, conservative, Binding when applicable)
+#### Fast Path (Optional, Conservative)
 
 Purpose:
 - Reduce repeated discovery across ticket sessions.
@@ -1986,10 +1986,10 @@ Environment-based write control (binding):
 - In CI mode (`CI=true`), writes are disabled by default for safety
 - Normal operation MUST have writes enabled via environment or explicit flag
 
-#### OpenCode-only: Persist Repo Cache (Mandatory after Phase 2)
+#### Persist Repo Cache (Kernel-Enforced, Mandatory After Phase 2)
 
 If Phase 2 completed AND the workflow is running under OpenCode (repository provided or indexed via OpenCode),
-the assistant MUST additionally produce a Repo Cache file output suitable for writing to the user's OpenCode configuration directory.
+the workflow MUST additionally produce a Repo Cache file output suitable for writing to the user's OpenCode configuration directory.
 
 Cross-platform configuration root resolution (Binding):
 * Use `${CONFIG_ROOT}` as defined in `GLOBAL PATH VARIABLES (BINDING)`.
@@ -2033,7 +2033,7 @@ If file writing is not possible in the current environment:
 * still output the full content and target path so OpenCode or the user can persist it manually.
 
 If Phase 2 completed AND the workflow is running under OpenCode (repository provided or indexed via OpenCode),
-the assistant MUST additionally produce a RepoMapDigest file output suitable for writing
+the workflow MUST additionally produce a RepoMapDigest file output suitable for writing
 to the user's OpenCode configuration directory.
 
 Cross-platform configuration root resolution (Binding):
@@ -2047,8 +2047,8 @@ Target folder and file (Binding):
     * path separators and unsafe characters removed
 
 Update behavior (Binding):
-* If the file already exists, the assistant MUST append a new section (do not overwrite history).
-* If the file does not exist, the assistant MUST create it with a short header and the current digest section.
+* If the file already exists, the workflow MUST append a new section (do not overwrite history).
+* If the file does not exist, the workflow MUST create it with a short header and the current digest section.
 
 Output requirements (Binding):
 1) Emit a single structured block:
@@ -2079,7 +2079,7 @@ If file writing is not possible in the current environment:
 * set FileStatus = write-requested
 * still output the full content and target path so OpenCode or the user can persist it manually.
 
-#### OpenCode-only: Persist Workspace Memory v1 (Binding when applicable)
+#### Persist Workspace Memory (Kernel-Enforced, Phase-Coupled)
 
 Workspace Memory captures stable, repo-specific defaults (conventions + patterns) across sessions.
 
@@ -2100,7 +2100,7 @@ Write policy (Binding, strict):
 
 Update behavior (Binding):
 - Overwrite the file (single source of truth; not append-only).
-- The assistant MUST preserve existing `Decisions` and `Deviations` sections unless explicitly instructed to reset memory.
+- The workflow MUST preserve existing `Decisions` and `Deviations` sections unless explicitly instructed to reset memory.
 
 Minimum required content (Binding):
 ```yaml
@@ -2141,10 +2141,10 @@ If file writing is not possible in the current environment:
 
 [PHASE-2.1-DECISION-PACK]  # DEFAULT (recommended)
 
-#### OpenCode-only: Load existing Decision Pack (Read-before-write, Binding when applicable)
+#### Load Existing Decision Pack (Kernel-Managed, Read-Before-Write)
 
 Before producing a new Decision Pack, if the workflow is running under OpenCode
-(repository provided or indexed via OpenCode), the assistant MUST check whether a
+(repository provided or indexed via OpenCode), the workflow MUST check whether a
 persisted Decision Pack file exists and load it as context.
 
 Cross-platform configuration root resolution (Binding):
@@ -2224,11 +2224,11 @@ Proceeding to next phase per Phase 2.1 exit rules (resolve Phase 1.5 first, then
 (Phase 1.5 runs only if explicitly requested or user-approved via the Phase 2.1 A/B decision.)
 ```
 
-#### OpenCode-only: Persist Decision Pack (Binding when applicable)
+#### Persist Decision Pack (Kernel-Enforced, Mandatory After Phase 2.1)
 
 If Phase 2.1 (Decision Pack) produced at least one decision AND the workflow is running under OpenCode
 (repository provided or indexed via OpenCode),
-the assistant MUST additionally produce a Decision Pack file output suitable for writing
+the workflow MUST additionally produce a Decision Pack file output suitable for writing
 to the user's OpenCode configuration directory.
 
 Cross-platform configuration root resolution (Binding):
@@ -2243,9 +2243,9 @@ Target folder and file (Binding):
     * path separators and unsafe characters removed
 
 Update behavior (Binding):
-* If the file already exists, the assistant MUST append a new section
+* If the file already exists, the workflow MUST append a new section
   (do not overwrite the full history).
-* If the file does not exist, the assistant MUST create it with a short header and the current Decision Pack.
+* If the file does not exist, the workflow MUST create it with a short header and the current Decision Pack.
 
 Output requirements (Binding):
 1) Emit a single structured block:
@@ -2308,10 +2308,10 @@ Re-entry from later phases (binding):
 * Re-entry MUST emit a deterministic transition note and one primary next action.
 * Re-entry invalidates previous P5.4 readiness assumptions; business-rules compliance must be rerun before final readiness.
 
-#### Load existing Business Rules Inventory (when available; Binding when applicable)
+#### Load Existing Business Rules Inventory (When Available)
 
 Before executing Phase 1.5 extraction, if the workflow is running under OpenCode
-(repository provided or indexed via OpenCode), the assistant MUST check whether a
+(repository provided or indexed via OpenCode), the workflow MUST check whether a
 persisted Business Rules inventory file exists and load it as context.
 
 Cross-platform configuration root resolution (Binding):
@@ -2350,7 +2350,7 @@ SESSION_STATE updates (Binding when OpenCode applies):
 **Objective:** Extract and document business rules from the repository.
 
 Phase 1.5 evidence source contract (binding):
-* The assistant MUST read repository code/tests for Business Rules extraction.
+* The workflow MUST read repository code/tests for Business Rules extraction.
 * Repository documentation (`README*`, `CONTRIBUTING*`, `AGENTS*`, comments) MAY be used as hints only.
 * README-only/documentation-only rules MUST NOT be counted as extracted business rules.
 * Any rule lacking repository code evidence MUST be marked `CANDIDATE` and excluded from `Business Rules Extracted` counts.
@@ -2430,12 +2430,12 @@ Proceeding to Phase 3A (API Inventory). If APIs are out of scope, Phase 3A recor
 
 Policy A:
 - If Phase 1.5 is executed, persistence of the Business Rules inventory is **automatic**.
-- The assistant MUST always produce a `${REPO_BUSINESS_RULES_FILE}` output block.
-- If the inventory file already exists, the assistant MUST update it (preserve stable BR-IDs; mark removed rules as DEPRECATED).
+- The workflow MUST always produce a `${REPO_BUSINESS_RULES_FILE}` output block.
+- If the inventory file already exists, the workflow MUST update it (preserve stable BR-IDs; mark removed rules as DEPRECATED).
 
 If the workflow is running under OpenCode (repository provided or indexed via OpenCode),
 the target path is expected to be writable via the OpenCode workspace.
-If file writing is not possible in the current environment, the assistant MUST still emit the full file content
+If file writing is not possible in the current environment, the workflow MUST still emit the full file content
 and set `InventoryFileStatus = write-requested`.
 
 Cross-platform configuration root resolution (Binding):
@@ -2486,7 +2486,7 @@ Path enforcement (BINDING):
   and request the resolved target path + the artifact header as proof.
 
 Additional enforcement (BINDING):
-- If the assistant observes that the `TargetPath` for business rules became any degenerate form (examples: `C`, `C:`,
+- If the workflow observes that the `TargetPath` for business rules became any degenerate form (examples: `C`, `C:`,
   `C:tmp\file`, or any single-segment path not starting with `${`), it MUST enter:
   - `SESSION_STATE.Mode = BLOCKED`
   - `SESSION_STATE.Next = "BLOCKED-PERSISTENCE-TARGET-DEGENERATE:business-rules"`
@@ -3075,7 +3075,7 @@ Proceeding to Phase 5 (Lead Architect Review)...
 
 **Phase 4 clarification scenarios:**
 
-If CONFIDENCE LEVEL < 70% OR if multiple plausible implementations exist, the assistant may ask for clarification using the mandatory format (Section 2.3).
+If CONFIDENCE LEVEL < 70% OR if multiple plausible implementations exist, the workflow may ask for clarification using the mandatory format (Section 2.3).
 
 Example:
 ```
@@ -3781,7 +3781,7 @@ Output:
 
 ## 5. CHANGE MATRIX (Binding)
 
-For every ticket, the assistant MUST produce a **Change Matrix** that documents all affected components.
+For every ticket, the workflow MUST produce a **Change Matrix** that documents all affected components.
 
 **Required columns:**
 * Component (file path or logical name)
@@ -3877,7 +3877,7 @@ Operator-first layering (binding, presentation-only):
 
 ## 7. INITIAL SESSION START
 
-On activation, the assistant begins with Phase 1 immediately (silent transition per Section 2.4)
+On activation, the workflow begins with Phase 1 immediately (silent transition per Section 2.4)
 and proceeds according to the hybrid-mode rules in Section 2.2.
 
 ---

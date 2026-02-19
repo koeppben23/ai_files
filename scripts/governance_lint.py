@@ -476,7 +476,7 @@ def check_phase21_ticket_goal_deferral_contract(issues: list[str]) -> None:
     rules_required = [
         "Phase 2.1 ticket-goal policy (binding):",
         "Phase 2.1 Decision Pack generation MUST NOT block on missing `ticketGoal`.",
-        "In Phase 1.5 / 2 / 2.1 / 3A / 3B, the assistant MUST NOT request \"provide ticket\" or \"provide change request\" as `NextAction`.",
+        "In Phase 1.5 / 2 / 2.1 / 3A / 3B, the workflow MUST NOT request \"provide ticket\" or \"provide change request\" as `NextAction`.",
         "`ticketGoal` is REQUIRED at Phase 4 entry (Step 0)",
     ]
 
@@ -505,7 +505,7 @@ def check_phase15_repo_code_evidence_contract(issues: list[str]) -> None:
 
     master_required = [
         "Phase 1.5 evidence source contract (binding):",
-        "The assistant MUST read repository code/tests for Business Rules extraction.",
+        "The workflow MUST read repository code/tests for Business Rules extraction.",
         "README-only/documentation-only rules MUST NOT be counted as extracted business rules.",
         "Any rule lacking repository code evidence MUST be marked `CANDIDATE`",
     ]

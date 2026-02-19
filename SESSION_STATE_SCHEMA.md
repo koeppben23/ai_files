@@ -587,7 +587,7 @@ Binding:
 - If a build file is found but the corresponding tool is missing from PATH, `MissingTool` MUST name the tool and reason code `WARN-BUILD-TOOL-MISSING` MUST be emitted.
 - BuildToolchain is consumed by Phase 4 (planning confidence) and Phase 6 (Build Verification Loop).
 
-### 7.x Repo Cache File (OpenCode-only, recommended)
+### 7.x Repo Cache File (Kernel-Managed, Recommended)
 
 To speed up repeated `/master` sessions on the same repository, the workflow MAY use a structured repo cache file.
 If used, the assistant SHOULD populate:
@@ -1101,7 +1101,7 @@ Claim verification mapping (binding):
 
 ---
 
-## 16. Workspace Memory File (OpenCode-only, recommended)
+## 16. Workspace Memory File (Kernel-Managed, Recommended)
 
 Workspace Memory stores stable, repo-specific defaults (conventions + patterns) across sessions to reduce drift.
 

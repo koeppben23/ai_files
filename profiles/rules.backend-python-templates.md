@@ -99,9 +99,9 @@ LLMs are **pattern matchers**, not abstract reasoners.
   -> LLM copies exact structure (consistent, correct)
 
 **Rule (Binding):**
-When generating code, the assistant MUST follow the templates in this section as the default structure, substituting placeholders marked with `{...}`.
+When generating code, the workflow MUST follow the templates in this section as the default structure, substituting placeholders marked with `{...}`.
 
-If a template conflicts with repository-established conventions (locked in `SESSION_STATE`), the assistant MUST:
+If a template conflicts with repository-established conventions (locked in `SESSION_STATE`), the workflow MUST:
 - keep the same architectural intent,
 - apply the minimal convention-aligned adaptation,
 - and record the deviation briefly in the plan/evidence.
@@ -1016,7 +1016,7 @@ IS logic specific to ONE domain entity?
 ```
 
 **Binding Rule:**
-When generating code, the assistant MUST follow this decision tree and document the placement decision in the plan/response.
+When generating code, the workflow MUST follow this decision tree and document the placement decision in the plan/response.
 
 ---
 

@@ -1948,7 +1948,7 @@ def test_rules_define_deterministic_backend_java_default_when_unambiguous():
     text = read_text(REPO_ROOT / "rules.md")
     required_tokens = [
         "Deterministic Java default (binding):",
-        "the assistant SHOULD set active profile to `backend-java` without requesting explicit profile selection.",
+        "the workflow SHOULD set active profile to `backend-java` without requesting explicit profile selection.",
         "Explicit profile-selection prompts are required only when repository indicators are materially ambiguous",
     ]
     missing = [token for token in required_tokens if token not in text]
@@ -1985,7 +1985,7 @@ def test_phase21_does_not_require_ticket_goal_and_defers_mandatory_ticket_to_pha
     rules_required = [
         "Phase 2.1 ticket-goal policy (binding):",
         "Phase 2.1 Decision Pack generation MUST NOT block on missing `ticketGoal`.",
-        "In Phase 1.5 / 2 / 2.1 / 3A / 3B, the assistant MUST NOT request \"provide ticket\" or \"provide change request\" as `NextAction`.",
+        "In Phase 1.5 / 2 / 2.1 / 3A / 3B, the workflow MUST NOT request \"provide ticket\" or \"provide change request\" as `NextAction`.",
         "`ticketGoal` is REQUIRED at Phase 4 entry (Step 0)",
     ]
 
@@ -2020,7 +2020,7 @@ def test_phase15_requires_repo_code_evidence_and_forbids_readme_only_extraction(
 
     master_required = [
         "Phase 1.5 evidence source contract (binding):",
-        "The assistant MUST read repository code/tests for Business Rules extraction.",
+        "The workflow MUST read repository code/tests for Business Rules extraction.",
         "README-only/documentation-only rules MUST NOT be counted as extracted business rules.",
         "Any rule lacking repository code evidence MUST be marked `CANDIDATE`",
     ]
