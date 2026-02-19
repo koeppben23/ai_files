@@ -109,7 +109,7 @@ BINDING:
 - The ONLY OS-specific logic permitted is the definition of `${CONFIG_ROOT}` in this section.
 - Circular variable references are forbidden (a variable MUST NOT be defined in terms of itself).
 
-### Path Expression Hygiene (Binding)
+### Path Expression Hygiene (Kernel-Enforced)
 
 To keep governance portable and avoid host/path parsing defects:
 
@@ -201,7 +201,7 @@ Binding:
   this as a configuration error: it MUST NOT create or use a second, divergent state tree, and MUST surface a
   clear reconciliation instruction to the user.
 
-### Repo Identity Evidence Policy (Binding)
+### Repo Identity Evidence Policy (Kernel-Enforced)
 
 The system MUST support operation without direct access to git or any VCS tooling.
 
@@ -765,7 +765,7 @@ It MUST NOT be used to override or reinterpret this priority order.
 Precedence sync note (binding): this priority order MUST stay consistent with `rules.md` anchor `RULEBOOK-PRECEDENCE-POLICY`.
 Stability sync note (binding): governance release/readiness decisions MUST also satisfy `STABILITY_SLA.md`.
 
-### 1.1 Conflict Resolution Policy (Binding)
+### 1.1 Conflict Resolution Policy (Policy)
 
 If two rules conflict at the same priority level or the conflict is ambiguous:
 
@@ -847,7 +847,7 @@ GATE STATUS:
 * P5.4-BusinessRules: `compliant` OR `compliant-with-exceptions` (only if Phase 1.5 executed)
 * P5.6-RollbackSafety: `approved` OR `not-applicable` (when rollback safety applies)
 
-Rendering note (Binding):
+Rendering note (Policy):
 - Human-readable gate labels (e.g., "test-quality-pass") are presentation only.
 - The canonical machine state MUST be `SESSION_STATE.Gates.*` values as defined in the SESSION_STATE schema/template.
 
@@ -902,7 +902,7 @@ Override constraints (binding):
 Phase 5 MUST NEVER be skipped if code generation is expected.
 Phase 5.4 MUST NEVER be skipped if Phase 1.5 was executed AND code generation is expected.
 
-### 2.2.1 Operator Reload Contract (Binding)
+### 2.2.1 Operator Reload Contract (Kernel-Enforced)
 
 Command intent:
 - `/reload-addons` (or explicit operator wording with same intent) performs deterministic rulebook/addon refresh.
@@ -973,7 +973,7 @@ It does not override the behavior matrix defined in `rules.md` Chapter 11.
 
 All other phase transitions occur implicitly.
 
-#### Clarification Format for Ambiguity (Binding)
+#### Clarification Format for Ambiguity (Policy)
 
 If clarifications are permitted by Section 2.3 (or a phase-specific clarification rule) AND
 multiple plausible but incompatible interpretations/implementations exist,
@@ -1001,7 +1001,7 @@ Rules (binding):
 - If the user does not choose, the workflow MUST proceed with the recommended option
   only if it is risk-minimizing and does not violate scope/contract rules; otherwise it must remain BLOCKED.
 
-#### Confidence bands for Auto-Advance (Binding)
+#### Confidence bands for Auto-Advance (Policy)
 
 Auto-advance and code-producing work are constrained by confidence.
 
@@ -1019,7 +1019,7 @@ Binding:
 Note: phase-specific clarification rules (e.g., Phase 4) may not restrict the blocker rules defined in 2.3;
 those phase rules only add additional phase-related clarifications when CONFIDENCE LEVEL ≥ 70%.
 
-#### BLOCKED — Recovery Playbook (Binding)
+#### BLOCKED — Recovery Playbook (Kernel-Enforced)
 
 If the workflow enters `Mode = BLOCKED`, the workflow MUST output a deterministic recovery block and MUST NOT
 continue into any code-producing work.
@@ -1255,7 +1255,7 @@ This means:
 * Phase 3A/3B are executed immediately if API artifacts are provided
 * Phase 4 (Ticket execution) is executed immediately if a ticket is provided
 
-### 2.4.1 Session Start Mode Banner (Binding)
+### 2.4.1 Session Start Mode Banner (Kernel-Enforced)
 
 At session start, the workflow MUST emit a one-line start banner before deeper phase output:
 
@@ -1266,7 +1266,7 @@ Rules:
 - `Warm Start` only when cache/digest/memory artifacts are present and valid per `master.md` invariants.
 - Banner reason MUST reference concrete evidence (e.g., cache hash match/mismatch, artifact presence).
 
-### 2.4.2 Architect-Only Autopilot Lifecycle (Binding)
+### 2.4.2 Architect-Only Autopilot Lifecycle (Policy)
 
 Operator lifecycle (canonical):
 1) `/start` -> bootstrap/path contract + workspace persistence checks
@@ -1295,7 +1295,7 @@ Start-order gate (binding):
 - If `/master` is invoked before `/start` evidence/bootstrap is established for the current repo, workflow MUST block with `BLOCKED-START-REQUIRED`.
 - Required recovery command: `/start`.
 
-### 2.5 Default Decision Policies (DDP) — Reduce Cognitive Load (Binding)
+### 2.5 Default Decision Policies (DDP) — Reduce Cognitive Load (Policy)
 
 When multiple reasonable implementation/architecture options exist and no explicit preference is given, the workflow MUST apply these defaults (unless they conflict with higher-priority rules):
 
@@ -1341,7 +1341,7 @@ Rules:
 `SESSION_STATE_SCHEMA.md` is the **canonical contract**. This section defines the **output policy** and a compact template.
 If anything here conflicts with the schema, the schema wins.
 
-### 3.1 Output Policy (Binding)
+### 3.1 Output Policy (Presentation Advisory)
 
 - Default STRICT envelope behavior: emit `session_state` as a compact snapshot object (operator-first view).
 - Dedicated full-state `SESSION_STATE` blocks are not required by default and SHOULD be emitted only when FULL mode is required or explicitly requested.
@@ -1372,7 +1372,7 @@ SESSION_STATE versioning (binding):
 - If persisted state is older than the supported version and cannot be migrated deterministically,
   the workflow MUST enter `Mode = BLOCKED` with `Next = BLOCKED-STATE-OUTDATED`.
 
-### 3.2 MIN Template (Binding)
+### 3.2 MIN Template (Presentation Advisory)
 
 ```yaml
 SESSION_STATE:
@@ -1542,18 +1542,18 @@ Goal:
 - Skip full Phase 2 discovery for repeated `/master` sessions on the same repo.
 - Use a deterministic, structured cache that is faster than parsing long digest markdown.
 
-Order of precedence (Binding):
+Order of precedence (Kernel-Enforced):
 1. Repo Cache (`repo-cache.yaml`) — authoritative if VALID
 2. RepoMapDigest file — supportive memory only (may be contradicted by repo evidence)
 3. Live repository evidence — highest priority
 
 If contradictions occur, repository evidence ALWAYS wins and MUST be recorded as Risks.
 
-Cross-platform configuration root resolution (Binding):
+Cross-platform configuration root resolution (Kernel-Enforced):
 * Use `${CONFIG_ROOT}` exactly as defined in `GLOBAL PATH VARIABLES (BINDING)`.
 * This section MUST NOT redefine or specialize OS-specific config paths.
 
-Expected file location (Binding):
+Expected file location (Kernel-Enforced):
 * `${REPO_HOME}/repo-cache.yaml`
   * `REPO_NAME` MUST be derived from the repository identity and sanitized:
     * lowercased
@@ -1605,7 +1605,7 @@ If INVALID:
 - Record invalidation reason and proceed with full discovery.
 - Overwrite cache at end of Phase 2.
 
-Output requirements (Binding):
+Output requirements (Kernel-Enforced):
 Emit a short structured block:
 [REPO-CACHE]
 Status: loaded-valid | loaded-invalid | not-found
@@ -1628,17 +1628,17 @@ Before performing repository discovery, if the workflow is running under OpenCod
 (repository provided or indexed via OpenCode), the workflow MUST check whether a
 persisted RepoMapDigest file exists and load it as context.
 
-Cross-platform configuration root resolution (Binding):
+Cross-platform configuration root resolution (Kernel-Enforced):
 * See `GLOBAL PATH VARIABLES (BINDING)` → `${CONFIG_ROOT}`
 
-Expected file location (Binding):
+Expected file location (Kernel-Enforced):
 * ${REPO_DIGEST_FILE}
   * REPO_NAME MUST be derived from the repository identity and sanitized:
     * lowercased
     * spaces replaced with "-"
     * path separators and unsafe characters removed
 
-Read behavior (Binding):
+Read behavior (Kernel-Enforced):
 * If the file exists:
   1) Load it and extract the most recent digest section.
   2) Use it to reduce re-discovery and stabilize conventions/invariants.
@@ -1669,19 +1669,19 @@ Purpose:
 - Stabilize repo-specific conventions and reduce drift across ticket sessions.
 - Workspace Memory is supportive defaults only; repository evidence always wins.
 
-Cross-platform configuration root resolution (Binding):
+Cross-platform configuration root resolution (Kernel-Enforced):
 * Use `${CONFIG_ROOT}` as defined in `GLOBAL PATH VARIABLES (BINDING)`.
 
-Expected file location (Binding):
+Expected file location (Kernel-Enforced):
 * `${WORKSPACE_MEMORY_FILE}`
 
-Read behavior (Binding):
+Read behavior (Kernel-Enforced):
 * If the file exists:
   1) Load it and treat it as the current default convention baseline for Phase 4 planning.
   2) Enforce evidence-first: if repository evidence contradicts Workspace Memory, evidence wins and a Risk MUST be recorded.
 * If the file does not exist: proceed normally (no penalty).
 
-Validation (Binding):
+Validation (Kernel-Enforced):
 * The file MUST be valid YAML and MUST contain `WorkspaceMemory.Version = "1.0"`.
 * If the file exists but cannot be parsed/validated → Mode: BLOCKED (configuration error).
 
@@ -1708,7 +1708,7 @@ Purpose:
 - Reduce repeated discovery across ticket sessions.
 - Apply ONLY when safety is provable (signature/head match).
 
-Fast Path eligibility (Binding):
+Fast Path eligibility (Kernel-Enforced):
 - Eligible ONLY if ALL are true:
   1) RepoMapDigest file was loaded (`RepoMapDigestFile.Loaded=true`), AND
   2) Either Git HEAD matches OR RepoSignature matches (see below), AND
@@ -1727,7 +1727,7 @@ GitHead (Binding, preferred if available):
 - If operator-provided evidence includes GitHead, set `CurrentGitHead = <operator-provided GitHead>`,
   else set `CurrentGitHead = unknown`.
 
-Application (Binding):
+Application (Kernel-Enforced):
 - If Eligible=true, set:
   - `SESSION_STATE.FastPath=true`
   - `SESSION_STATE.FastPathEvaluation.Applied=true`
@@ -1772,7 +1772,7 @@ Application (Binding):
    * Initialize `SESSION_STATE.DecisionDrivers` (constraints/NFRs inferred from repo evidence)
    * Initialize `SESSION_STATE.TouchedSurface` (planned surface area; starts empty)
 
-3a. **Build Codebase Context Record (Binding):**
+3a. **Build Codebase Context Record (Kernel-Enforced):**
 
    The Codebase Context Record captures actionable intelligence about the repository that directly informs code generation decisions. Unlike basic discovery (steps 2-3), this record focuses on *how* the codebase works, not just *what* it contains. The LLM MUST populate this record to enable lead-level decision-making in Phase 4.
 
@@ -1797,14 +1797,14 @@ Application (Binding):
      - Deprecated APIs still in use that cannot be changed in this scope
    * **Populate `SESSION_STATE.CodebaseContext`** with structured findings (schema below)
 
-   **Rules (Binding):**
+   **Rules (Kernel-Enforced):**
    - The Codebase Context Record MUST be evidence-backed: every entry requires a file path reference.
    - If no exemplar implementation exists for the planned feature, record `ExemplarImplementation: none — greenfield`.
    - The Pattern Fingerprint MUST be derived from actual code inspection, not from framework documentation or assumptions.
    - Technical Debt Markers are optional if the working set has no TODOs/FIXMEs, but the absence MUST be explicitly noted.
    - Phase 4 planning MUST reference the Codebase Context Record for all architecture and implementation decisions.
 
-3b. **Resolve Build Toolchain (Binding):**
+3b. **Resolve Build Toolchain (Kernel-Enforced):**
 
    Cross-reference the repository's detected build system (step 2: `BuildAndTooling.buildSystem`) with the
    preflight tool probe (`SESSION_STATE.Preflight.BuildToolchain.DetectedTools`) to determine which build
@@ -1834,7 +1834,7 @@ Application (Binding):
    - `BuildSystem` (string): detected build system identifier (e.g., "maven", "gradle", "npm", "cargo", "go", "cmake", "make", "dotnet").
    - `MissingTool` (string|null): name of required tool that is not available, or null.
 
-   **Rules (Binding):**
+   **Rules (Kernel-Enforced):**
    - BuildToolchain resolution is repo-signal-driven, NOT profile-driven. The repo's actual build files determine the commands.
    - If the repo uses a build system not covered by any governance profile (e.g., CMake, Cargo, Go), the resolution still applies — the LLM derives commands from the detected build files.
    - If no build system is detected (no recognized build files) → `CompileAvailable=false, TestAvailable=false, BuildSystem="unknown"`.
@@ -1998,17 +1998,17 @@ Environment-based write control (binding):
 If Phase 2 completed AND the workflow is running under OpenCode (repository provided or indexed via OpenCode),
 the workflow MUST additionally produce a Repo Cache file output suitable for writing to the user's OpenCode configuration directory.
 
-Cross-platform configuration root resolution (Binding):
+Cross-platform configuration root resolution (Kernel-Enforced):
 * Use `${CONFIG_ROOT}` as defined in `GLOBAL PATH VARIABLES (BINDING)`.
 
-Target folder and file (Binding):
+Target folder and file (Kernel-Enforced):
 * `${REPO_HOME}/repo-cache.yaml`
 
-Update behavior (Binding):
+Update behavior (Kernel-Enforced):
 * The file MUST be overwritten (single-source, not append-only).
   Rationale: This is a structured cache, not a historical log.
 
-Cache content (Binding):
+Cache content (Kernel-Enforced):
 * MUST include:
   - RepoCache.Version = "1.0"
   - RepoCache.LastUpdated = "<YYYY-MM-DD>"
@@ -2021,7 +2021,7 @@ Cache content (Binding):
   - RepoCache.CacheHashChecks (the files used for RepoSignature computation + their sha256)
   - RepoCache.InvalidateOn (rules list)
 
-Output requirements (Binding):
+Output requirements (Kernel-Enforced):
 1) Emit a single structured block:
    [REPO-CACHE-FILE]
    TargetPath: ${REPO_CACHE_FILE}
@@ -2043,21 +2043,21 @@ If Phase 2 completed AND the workflow is running under OpenCode (repository prov
 the workflow MUST additionally produce a RepoMapDigest file output suitable for writing
 to the user's OpenCode configuration directory.
 
-Cross-platform configuration root resolution (Binding):
+Cross-platform configuration root resolution (Kernel-Enforced):
 * Use `${CONFIG_ROOT}` as defined in `GLOBAL PATH VARIABLES (BINDING)` as the base configuration directory for RepoMapDigest.
 
-Target folder and file (Binding):
+Target folder and file (Kernel-Enforced):
 * ${REPO_DIGEST_FILE}
   * REPO_NAME MUST be derived from the repository identity and sanitized:
     * lowercased
     * spaces replaced with "-"
     * path separators and unsafe characters removed
 
-Update behavior (Binding):
+Update behavior (Kernel-Enforced):
 * If the file already exists, the workflow MUST append a new section (do not overwrite history).
 * If the file does not exist, the workflow MUST create it with a short header and the current digest section.
 
-Output requirements (Binding):
+Output requirements (Kernel-Enforced):
 1) Emit a single structured block:
    [REPO-MAP-DIGEST-FILE]
    TargetPath: ${REPO_DIGEST_FILE}
@@ -2068,7 +2068,7 @@ Output requirements (Binding):
    <complete Markdown content for create OR the appended section for append>
    [/REPO-MAP-DIGEST-FILE]
    
-RepoMapDigest section format (Binding):
+RepoMapDigest section format (Kernel-Enforced):
 - Each appended/created digest section MUST start with:
   `## Repo Map Digest — YYYY-MM-DD`
   followed by a `Meta:` block containing at least:
@@ -2090,10 +2090,10 @@ If file writing is not possible in the current environment:
 
 Workspace Memory captures stable, repo-specific defaults (conventions + patterns) across sessions.
 
-Cross-platform configuration root resolution (Binding):
+Cross-platform configuration root resolution (Kernel-Enforced):
 * Use `${CONFIG_ROOT}` as defined in `GLOBAL PATH VARIABLES (BINDING)`.
 
-Target folder and file (Binding):
+Target folder and file (Kernel-Enforced):
 * `${WORKSPACE_MEMORY_FILE}`
 
 Write policy (Binding, strict):
@@ -2105,11 +2105,11 @@ Write policy (Binding, strict):
   - To allow persisting Decisions/Defaults, the user MUST write exactly:
     "Persist to workspace memory: YES"
 
-Update behavior (Binding):
+Update behavior (Kernel-Enforced):
 - Overwrite the file (single source of truth; not append-only).
 - The workflow MUST preserve existing `Decisions` and `Deviations` sections unless explicitly instructed to reset memory.
 
-Minimum required content (Binding):
+Minimum required content (Kernel-Enforced):
 ```yaml
 WorkspaceMemory:
   Version: "1.0"
@@ -2154,10 +2154,10 @@ Before producing a new Decision Pack, if the workflow is running under OpenCode
 (repository provided or indexed via OpenCode), the workflow MUST check whether a
 persisted Decision Pack file exists and load it as context.
 
-Cross-platform configuration root resolution (Binding):
+Cross-platform configuration root resolution (Kernel-Enforced):
 * Use `${CONFIG_ROOT}` exactly as defined in `GLOBAL PATH VARIABLES (BINDING)`.
 * This section MUST NOT redefine or specialize OS-specific config paths.
-Expected file location (Binding):
+Expected file location (Kernel-Enforced):
 * ${REPO_DECISION_PACK_FILE}
   * REPO_NAME MUST be derived from the Phase 2 repository identity
     and sanitized as follows:
@@ -2165,7 +2165,7 @@ Expected file location (Binding):
     * spaces replaced with "-"
     * path separators and unsafe characters removed
 
-Read behavior (Binding):
+Read behavior (Kernel-Enforced):
 * If the file exists:
   1) Load it and extract the most recent Decision Pack section(s).
   2) Produce a short digest ("ActiveDecisionDigest") of active (accepted + not superseded) defaults.
@@ -2238,10 +2238,10 @@ If Phase 2.1 (Decision Pack) produced at least one decision AND the workflow is 
 the workflow MUST additionally produce a Decision Pack file output suitable for writing
 to the user's OpenCode configuration directory.
 
-Cross-platform configuration root resolution (Binding):
+Cross-platform configuration root resolution (Kernel-Enforced):
 * Use `${CONFIG_ROOT}` as defined in `GLOBAL PATH VARIABLES (BINDING)`.
 * Do not redefine OS-specific paths here; the environment is responsible for resolving `${CONFIG_ROOT}`.
-Target folder and file (Binding):
+Target folder and file (Kernel-Enforced):
 * ${REPO_DECISION_PACK_FILE}
   * REPO_NAME MUST be derived from the Phase 2 repository identity
     and sanitized as follows:
@@ -2249,12 +2249,12 @@ Target folder and file (Binding):
     * spaces replaced with "-"
     * path separators and unsafe characters removed
 
-Update behavior (Binding):
+Update behavior (Kernel-Enforced):
 * If the file already exists, the workflow MUST append a new section
   (do not overwrite the full history).
 * If the file does not exist, the workflow MUST create it with a short header and the current Decision Pack.
 
-Output requirements (Binding):
+Output requirements (Kernel-Enforced):
 1) Emit a single structured block:
    [DECISION-PACK-FILE]
    TargetPath: ${REPO_DECISION_PACK_FILE}
@@ -2321,10 +2321,10 @@ Before executing Phase 1.5 extraction, if the workflow is running under OpenCode
 (repository provided or indexed via OpenCode), the workflow MUST check whether a
 persisted Business Rules inventory file exists and load it as context.
 
-Cross-platform configuration root resolution (Binding):
+Cross-platform configuration root resolution (Kernel-Enforced):
 * Use `${CONFIG_ROOT}` as defined in `GLOBAL PATH VARIABLES (BINDING)`.
 
-Expected file location (Binding):
+Expected file location (Kernel-Enforced):
 * ${REPO_BUSINESS_RULES_FILE}
   * REPO_NAME MUST be derived from the Phase 2 repository identity
     and sanitized as follows:
@@ -2332,7 +2332,7 @@ Expected file location (Binding):
     * spaces replaced with "-"
     * path separators and unsafe characters removed
 
-Read behavior (Binding):
+Read behavior (Kernel-Enforced):
 * If the file exists:
   1) Load it and treat it as the current BR inventory baseline.
   2) Preserve BR-IDs where the rule is semantically the same.
@@ -2445,11 +2445,11 @@ the target path is expected to be writable via the OpenCode workspace.
 If file writing is not possible in the current environment, the workflow MUST still emit the full file content
 and set `InventoryFileStatus = write-requested`.
 
-Cross-platform configuration root resolution (Binding):
+Cross-platform configuration root resolution (Kernel-Enforced):
 * Use `${CONFIG_ROOT}` as defined in `GLOBAL PATH VARIABLES (BINDING)`.
 * No additional OS-specific paths may be introduced here; `${CONFIG_ROOT}` is the canonical definition.
 
-Target folder and file (Binding):
+Target folder and file (Kernel-Enforced):
 * ${REPO_BUSINESS_RULES_FILE}
   * REPO_NAME MUST be derived from the Phase 2 repository identity
     and sanitized as follows:
@@ -2457,7 +2457,7 @@ Target folder and file (Binding):
     * spaces replaced with "-"
     * path separators and unsafe characters removed
 
-Output requirements (Binding):
+Output requirements (Kernel-Enforced):
 1) Emit a single structured block:
    [BR-INVENTORY-FILE]
    TargetPath: ${REPO_BUSINESS_RULES_FILE}
@@ -2479,7 +2479,7 @@ If file writing is not possible in the current environment:
   - still output the full content and target path so OpenCode or the user can persist it manually.
   - MUST NOT redirect Business Rules persistence to `${WORKSPACE_MEMORY_FILE}` or `SESSION_STATE` fields as a substitute target.
 
-Update behavior (Binding):
+Update behavior (Kernel-Enforced):
 - If `${REPO_BUSINESS_RULES_FILE}` does not exist: `Mode = create`.
 - If `${REPO_BUSINESS_RULES_FILE}` exists: `Mode = update` and overwrite the file content as a whole
   (single source of truth), while preserving BR identifiers and marking removed rules as DEPRECATED.
@@ -2685,7 +2685,7 @@ BLOCKED: API spec validation failed. Please fix the broken reference in order-se
    * Field in code but not in spec (extra field)
    * Type mismatch (spec says String, code uses Integer)
 
-#### Phase 3B-2 Execution Rules (Binding) — Prevent false BLOCKED
+#### Phase 3B-2 Execution Rules (Kernel-Enforced) — Prevent false BLOCKED
 
 Phase 3B-2 MUST NOT go BLOCKED simply because controllers/DTOs/models cannot be found.
 
@@ -2815,7 +2815,7 @@ Proceeding to Phase 4 (Ticket Execution)...
    - `Reason`: 1-line evidence-based justification
    - `PlanningDepth`: minimal | standard | full | maximum
 
-   **Planning depth implications (Binding):**
+   **Planning depth implications (Kernel-Enforced):**
 
    | Class | Ticket Record | Architecture Options | Test Strategy | Self-Review Depth |
    |-------|--------------|---------------------|--------------|-------------------|
@@ -3292,12 +3292,12 @@ These are NON-GATING but their results are included in the gate report as warnin
 Purpose:
 - Persist repo-specific *prescriptive* defaults (e.g., "Kafka idempotency strategy", "error code contract") only when explicitly approved.
 
-Eligibility (Binding):
+Eligibility (Kernel-Enforced):
 - Allowed ONLY if:
   1) `SESSION_STATE.Gates.P5-Architecture = approved`, AND
   2) the user explicitly confirms by writing exactly: "Persist to workspace memory: YES"
 
-Write behavior (Binding):
+Write behavior (Kernel-Enforced):
 - Load existing `${WORKSPACE_MEMORY_FILE}` (must be valid; otherwise BLOCKED).
 - Update ONLY:
   - `WorkspaceMemory.Decisions.Defaults` (append new accepted decisions), and/or
@@ -3786,7 +3786,7 @@ Output:
 
 ---
 
-## 5. CHANGE MATRIX (Binding)
+## 5. CHANGE MATRIX (Kernel-Enforced)
 
 For every ticket, the workflow MUST produce a **Change Matrix** that documents all affected components.
 

@@ -361,7 +361,7 @@ def test_control_plane_precision_contracts_for_overrides_reload_and_priority_ord
         "4. Activated templates/addon rulebooks (manifest-driven)",
         "`README-RULES.md` (if present) is descriptive/executive summary only and non-normative.",
         "Precedence sync note (binding): this priority order MUST stay consistent with `rules.md` anchor `RULEBOOK-PRECEDENCE-POLICY`.",
-        "### 2.2.1 Operator Reload Contract (Binding)",
+        "### 2.2.1 Operator Reload Contract (Kernel-Enforced)",
         "`/reload-addons`",
         "Run only Phase 1.3 + Phase 1.4 logic",
         "Auto-advance to implementation/gates is forbidden from reload output",
@@ -548,7 +548,7 @@ def test_capability_first_activation_contract_is_defined():
         "capabilities_all",
     ]
     rules_required = [
-        "### 4.9 Capability-First Activation (Binding)",
+        "### 4.9 Capability-First Activation (Policy)",
         "`capabilities_any` / `capabilities_all`",
         "hard-signal fallback (`signals`)",
         "`BLOCKED-MISSING-EVIDENCE`",
@@ -2089,7 +2089,7 @@ def test_unified_next_action_footer_contract_is_defined_across_core_docs():
     start = read_text(REPO_ROOT / "start.md")
 
     master_required = [
-        "#### Unified Next Action Footer (Binding)",
+        "#### Unified Next Action Footer (Presentation Advisory)",
         "[NEXT-ACTION]",
         "Status: <normal|degraded|draft|blocked>",
         "Next: <single concrete next action>",
@@ -2097,7 +2097,7 @@ def test_unified_next_action_footer_contract_is_defined_across_core_docs():
         "Command: <exact next command or \"none\">",
     ]
     rules_required = [
-        "### 7.3.1 Unified Next Action Footer (Binding)",
+        "### 7.3.1 Unified Next Action Footer (Presentation Advisory)",
         "[NEXT-ACTION]",
         "Footer values MUST be consistent with `SESSION_STATE.Mode`, `SESSION_STATE.Next`, and any emitted reason payloads.",
     ]
@@ -2258,7 +2258,7 @@ def test_conversational_post_start_fixtures_contract_is_defined():
         "Preferred fixture source for conversational intent goldens: `diagnostics/UX_INTENT_GOLDENS.json`",
     ]
     rules_required = [
-        "### 7.3.18 Conversational UX Regression Fixtures (Binding)",
+        "### 7.3.18 Conversational UX Regression Fixtures (Presentation Advisory)",
         "`what_phase`",
         "`discovery_done`",
         "`workflow_unchanged`",
@@ -2316,7 +2316,7 @@ def test_short_intent_routing_contract_is_defined():
         "Short operator follow-up questions SHOULD route through deterministic intents (`where_am_i`, `what_blocks_me`, `what_now`) before verbose diagnostics",
     ]
     rules_required = [
-        "### 7.3.19 Short-Intent Routing for Operator Questions (Binding)",
+        "### 7.3.19 Short-Intent Routing for Operator Questions (Presentation Advisory)",
         "`where_am_i`",
         "`what_blocks_me`",
         "`what_now`",
@@ -2456,7 +2456,7 @@ def test_operator_persona_modes_contract_is_defined():
         "Responses SHOULD support operator persona modes (`compact`, `standard`, `audit`) as presentation-density controls without changing gate behavior",
     ]
     rules_required = [
-        "### 7.3.20 Operator Persona Response Modes (Binding)",
+        "### 7.3.20 Operator Persona Response Modes (Presentation Advisory)",
         "`compact` (minimal concise output)",
         "`standard` (default balanced output)",
         "`audit` (full diagnostic detail)",
@@ -2682,7 +2682,7 @@ def test_bootstrap_preflight_output_contract_is_defined_across_core_docs():
         "`no_restart_if_binary_in_existing_path`",
     ]
     rules_required = [
-        "### 7.3.10 Bootstrap Preflight Output Contract (Binding)",
+        "### 7.3.10 Bootstrap Preflight Output Contract (Kernel-Enforced)",
         "Preflight probes MUST be fresh (`ttl=0`)",
         "Preflight MUST include `observed_at` (timestamp) in diagnostics/state.",
         "Preflight MUST report at most 5 checks.",
@@ -2692,7 +2692,7 @@ def test_bootstrap_preflight_output_contract_is_defined_across_core_docs():
         "`next: <single concrete next step>`",
         "Missing `required_now` commands are blocker-fix candidates.",
         "Missing `required_later` commands are advisory",
-        "### 7.3.13 Smart Retry + Restart Guidance (Binding)",
+        "### 7.3.13 Smart Retry + Restart Guidance (Kernel-Enforced)",
         "`expected_after_fix` (machine-readable success signal)",
         "`verify_command` (exact command to confirm recovery)",
         "`restart_hint` (enum):",
@@ -2734,7 +2734,7 @@ def test_status_vocab_and_single_nextaction_contract_is_defined_across_core_docs
         "In COMPAT mode, `NextAction` MUST still resolve to exactly one mechanism",
     ]
     rules_required = [
-        "### 7.3.11 Deterministic Status + NextAction Contract (Binding)",
+        "### 7.3.11 Deterministic Status + NextAction Contract (Kernel-Enforced)",
         "Canonical governance status vocabulary (enum):",
         "`BLOCKED`",
         "`WARN`",
@@ -2786,7 +2786,7 @@ def test_session_transition_invariant_contract_is_defined_across_core_docs():
         "transition trace entries with `transition_id`",
     ]
     rules_required = [
-        "### 7.3.12 Session Transition Invariants (Binding)",
+        "### 7.3.12 Session Transition Invariants (Kernel-Enforced)",
         "`SESSION_STATE.session_run_id` MUST remain stable until verify completes.",
         "`SESSION_STATE.ruleset_hash` MUST remain stable unless explicit rehydrate/reload is performed.",
         "`SESSION_STATE.ActivationDelta.AddonScanHash`",
@@ -2838,7 +2838,7 @@ def test_phase_progress_and_warn_blocked_separation_contract_is_defined_across_c
         "`phase`, `active_gate`, `next_gate_condition`",
     ]
     rules_required = [
-        "### 7.3.14 Phase Progress + Warn/Blocked Separation (Binding)",
+        "### 7.3.14 Phase Progress + Warn/Blocked Separation (Kernel-Enforced)",
         "`phase` (current `SESSION_STATE.Phase`)",
         "`active_gate` (current gate key or `none`)",
         "`next_gate_condition` (one concise sentence)",
@@ -2880,7 +2880,7 @@ def test_standard_blocker_envelope_contract_is_defined_across_core_docs():
         '"next_command": "..."',
     ]
     rules_required = [
-        "### 7.3.2 Standard Blocker Output Envelope (Binding)",
+        "### 7.3.2 Standard Blocker Output Envelope (Kernel-Enforced)",
         "`status = blocked`",
         "`reason_code` (`BLOCKED-*`)",
         "`missing_evidence` (array)",
@@ -2908,13 +2908,13 @@ def test_cold_warm_start_banner_contract_is_defined_across_core_docs():
     start = read_text(REPO_ROOT / "start.md")
 
     master_required = [
-        "### 2.4.1 Session Start Mode Banner (Binding)",
+        "### 2.4.1 Session Start Mode Banner (Kernel-Enforced)",
         "[START-MODE] Cold Start | Warm Start - reason:",
         "`Cold Start` when discovery/cache artifacts are absent or invalid.",
         "`Warm Start` only when cache/digest/memory artifacts are present and valid",
     ]
     rules_required = [
-        "### 7.3.3 Cold/Warm Start Banner (Binding)",
+        "### 7.3.3 Cold/Warm Start Banner (Presentation Advisory)",
         "[START-MODE] Cold Start | Warm Start - reason:",
         "Banner decision MUST be evidence-backed",
     ]
@@ -2938,14 +2938,14 @@ def test_confidence_impact_snapshot_contract_is_defined_across_core_docs():
     start = read_text(REPO_ROOT / "start.md")
 
     master_required = [
-        "#### Confidence + Impact Snapshot (Binding)",
+        "#### Confidence + Impact Snapshot (Presentation Advisory)",
         "[SNAPSHOT]",
         "Confidence: <0-100>%",
         "Risk: <LOW|MEDIUM|HIGH>",
         "Scope: <repo path/module/component or \"global\">",
     ]
     rules_required = [
-        "### 7.3.4 Confidence + Impact Snapshot (Binding)",
+        "### 7.3.4 Confidence + Impact Snapshot (Presentation Advisory)",
         "[SNAPSHOT]",
         "Snapshot values MUST be consistent with `SESSION_STATE`",
     ]
@@ -2985,7 +2985,7 @@ def test_quick_fix_commands_contract_is_defined_across_core_docs():
         "prefix each command with `macos_linux:` or `windows:`",
     ]
     rules_required = [
-        "### 7.3.5 Quick-Fix Commands for Blockers (Binding)",
+        "### 7.3.5 Quick-Fix Commands for Blockers (Presentation Advisory)",
         "`QuickFixCommands` with 1-3 exact copy-paste commands aligned to the active `reason_code`.",
         'output `QuickFixCommands: ["none"]`.',
         "Command coherence rule: `[NEXT-ACTION].Command`, blocker `next_command`, and `QuickFixCommands[0]` MUST match exactly",
@@ -3025,13 +3025,13 @@ def test_host_constraint_compat_mode_contract_is_defined_across_core_docs():
         "Each response MUST declare exactly one output mode (`STRICT` or `COMPAT`).",
     ]
     rules_required = [
-        "### 7.3.8 Host Constraint Compatibility Mode (Binding)",
+        "### 7.3.8 Host Constraint Compatibility Mode (Kernel-Enforced)",
         "DEVIATION.host_constraint = true",
         "COMPAT response shape (minimum required sections):",
         "RequiredInputs",
         "Recovery",
         "NextAction",
-        "### 7.3.15 STRICT vs COMPAT Output Matrix (Binding)",
+        "### 7.3.15 STRICT vs COMPAT Output Matrix (Presentation Advisory)",
         "STRICT mode (host supports full formatting):",
         "COMPAT mode (`DEVIATION.host_constraint = true`):",
         "Response MUST declare exactly one mode (`STRICT` or `COMPAT`) per turn.",
@@ -3068,7 +3068,7 @@ def test_session_state_output_format_is_fenced_yaml_across_core_docs():
         "`SESSION_STATE` blocks MUST NOT use placeholder tokens (`...`, `<...>`); unknown fields must be explicit (`unknown|deferred|not-applicable`).",
     ]
     rules_required = [
-        "### 7.3.9 SESSION_STATE Formatting Contract (Binding)",
+        "### 7.3.9 SESSION_STATE Formatting Contract (Presentation Advisory)",
         "Whenever `SESSION_STATE` is emitted in assistant output, it MUST be rendered as a fenced YAML block.",
         "heading line: `SESSION_STATE`",
         "fenced block start: ````yaml",
@@ -3104,14 +3104,14 @@ def test_architect_autopilot_lifecycle_contract_is_defined_across_core_docs():
     schema = read_text(REPO_ROOT / "SESSION_STATE_SCHEMA.md")
 
     master_required = [
-        "### 2.4.2 Architect-Only Autopilot Lifecycle (Binding)",
+        "### 2.4.2 Architect-Only Autopilot Lifecycle (Policy)",
         "SESSION_STATE.OutputMode = ARCHITECT | IMPLEMENT | VERIFY",
         "Default after `/master` is `ARCHITECT`.",
         "BLOCKED-START-REQUIRED",
         "BLOCKED-MISSING-DECISION",
     ]
     rules_required = [
-        "### 7.3.6 Architect-Only Autopilot Lifecycle (Binding)",
+        "### 7.3.6 Architect-Only Autopilot Lifecycle (Policy)",
         "`SESSION_STATE.OutputMode = ARCHITECT | IMPLEMENT | VERIFY`",
         "`/master` before valid `/start` bootstrap evidence MUST block with `BLOCKED-START-REQUIRED`",
         "`IMPLEMENT` mode requires explicit operator trigger (`Implement now`).",
@@ -3636,7 +3636,7 @@ def test_error_logger_pipeline_forces_read_only_even_when_allow_write_set(tmp_pa
 def test_rules_define_canonical_rulebook_precedence_contract():
     text = read_text(REPO_ROOT / "rules.md")
     required_tokens = [
-        "### 4.6 Canonical Rulebook Precedence (Binding)",
+        "### 4.6 Canonical Rulebook Precedence (Kernel-Enforced)",
         "RULEBOOK-PRECEDENCE-POLICY",
         "ADDON-CLASS-BEHAVIOR-POLICY",
         "master.md",
