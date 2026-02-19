@@ -59,6 +59,13 @@ EMBEDDED_REASON_CODE_TO_SCHEMA_REF: Final[dict[str, str]] = {
     "BLOCKED-INSTALL-PRECHECK-MISSING-SOURCE": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
     "BLOCKED-INSTALL-VERSION-MISSING": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
     "BLOCKED-INSTALL-CONFIG-ROOT-INVALID": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
+    # Model identity
+    "BLOCKED-MODEL-IDENTITY-UNTRUSTED": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
+    "BLOCKED-MODEL-CONTEXT-LIMIT-REQUIRED": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
+    "BLOCKED-MODEL-CONTEXT-LIMIT-UNKNOWN": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
+    "BLOCKED-MODEL-CONTEXT-LIMIT-INVALID": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
+    "BLOCKED-MODEL-METADATA-FETCH-FAILED": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
+    "BLOCKED-MODEL-IDENTITY-SOURCE-INVALID": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
     # Profile/addon BLOCKED codes
     "BLOCKED-MISSING-DB-VERSION": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
     "BLOCKED-FORMAT-UNDEFINED": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
