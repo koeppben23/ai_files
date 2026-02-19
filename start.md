@@ -14,13 +14,27 @@ Note: Kernel remains the source of truth; AGENTS.md is the Codex frontend surfac
 When executed as an OpenCode command (`/start`), this prompt injects the installer-owned path binding file
 `${COMMANDS_HOME}/governance.paths.json` into the model context.
 
-!`${PYTHON_COMMAND} -c "import runpy;from pathlib import Path;from governance.infrastructure.binding_evidence_resolver import BindingEvidenceResolver;e=BindingEvidenceResolver().resolve();root=e.commands_home.parent if e.binding_ok else Path.home()/'.config'/'opencode';runpy.run_path(str(root/'commands'/'diagnostics'/'start_binding_evidence.py'),run_name='__main__')" || ${PYTHON_COMMAND} -c "import runpy,os;from pathlib import Path;root=Path(os.environ.get('OPENCODE_CONFIG_ROOT',str(Path.home()/'.config'/'opencode')));runpy.run_path(str(root/'commands'/'diagnostics'/'start_binding_evidence.py'),run_name='__main__')"`
+**Implementation Reference:** The OpenCode host executes `${COMMANDS_HOME}/diagnostics/start_binding_evidence.py`
+to resolve binding evidence. This script is part of the kernel and implements the binding resolution logic.
+
+**Policy (this document):**
+- If binding file exists at `${COMMANDS_HOME}/governance.paths.json`:
+  - Load and validate binding evidence
+  - Proceed with bootstrap
+- If binding file missing:
+  - Return `BLOCKED-MISSING-BINDING-FILE`
+  - Provide recovery command: `${PYTHON_COMMAND} install.py`
 
 ## Auto-Preflight Hook (OpenCode, Read-only)
 
 When available, `/start` triggers a read-only diagnostics preflight helper.
 This helper MUST NOT write workspace/index/session artifacts.
 Persistence and workspace readiness are kernel-owned only.
+
+**Implementation Reference:** The OpenCode host executes `${COMMANDS_HOME}/diagnostics/start_preflight_readonly.py`
+to perform preflight checks. This script is part of the kernel and implements the preflight logic.
+
+**Policy (this document):**
 
 Identity evidence boundary (binding):
 - Helper output is operational convenience status only and MUST NOT be treated as canonical repo identity evidence.
@@ -44,8 +58,6 @@ Bootstrap command preflight (binding):
 - Preflight output SHOULD separate `required_now` vs `required_later` and expose a deterministic `block_now` signal (`true` iff any `required_now` command is missing).
 - Missing-command diagnostics MUST include `expected_after_fix`, `verify_command`, and `restart_hint`.
 - `restart_hint` MUST be deterministic: `restart_required_if_path_edited` or `no_restart_if_binary_in_existing_path`.
-
-!`${PYTHON_COMMAND} -c "import runpy;from pathlib import Path;from governance.infrastructure.binding_evidence_resolver import BindingEvidenceResolver;e=BindingEvidenceResolver().resolve();root=e.commands_home.parent if e.binding_ok else Path.home()/'.config'/'opencode';runpy.run_path(str(root/'commands'/'diagnostics'/'start_preflight_readonly.py'),run_name='__main__')" || ${PYTHON_COMMAND} -c "import runpy,os;from pathlib import Path;root=Path(os.environ.get('OPENCODE_CONFIG_ROOT',str(Path.home()/'.config'/'opencode')));runpy.run_path(str(root/'commands'/'diagnostics'/'start_preflight_readonly.py'),run_name='__main__')"`
 
 Binding evidence semantics (binding):
 - Only an existing installer-owned `${COMMANDS_HOME}/governance.paths.json` qualifies as canonical binding evidence.
