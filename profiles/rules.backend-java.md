@@ -257,12 +257,112 @@ The following naming conventions are binding unless repo conventions explicitly 
 ## 4. Architecture Rules (Enforced)
 
 ### 4.1 Architecture Detection (Binding)
-Detect and **lock** the repo’s architecture pattern:
+Detect and **lock** the repo's architecture pattern:
 - Feature-modular layered
 - Classic layered
 - Hexagonal (ports & adapters)
 
 **Rule:** Once detected, do not mix patterns within a change.
+
+### 4.1a Architecture Pattern Selection Decision Tree (Binding)
+
+When creating a new module or service from scratch (no existing pattern to follow), use this decision tree:
+
+```
+START -> Does the repo already have an established architecture pattern?
+  YES -> Follow detected pattern (4.1 Architecture Detection). STOP.
+  NO  -> Is the service primarily API-driven with external consumers?
+    YES -> Does it require complex domain logic (>3 business rules, aggregates)?
+      YES -> Hexagonal (ports & adapters)
+             Reason: Isolates domain from infrastructure; testable without frameworks.
+      NO  -> Classic layered (Controller -> Service -> Repository)
+             Reason: Simplicity; sufficient for delegation-only services.
+    NO  -> Is it an event-driven or messaging-focused service?
+      YES -> Hexagonal (ports & adapters)
+             Reason: Ports for each messaging channel enable independent testing.
+      NO  -> Feature-modular layered
+             Reason: Organize by feature (not layer) for cohesion in multi-feature services.
+```
+
+Record decision in `SESSION_STATE.ArchitectureDecisions` with evidence path.
+
+### 4.1b Test Type Selection Decision Tree (Binding)
+
+For each changed component, select the appropriate test types:
+
+```
+START -> What type of component changed?
+|
++-- Controller / API endpoint
+|   -> Slice test (@WebMvcTest): HTTP mapping, status codes, serialization, error responses
+|   -> Unit test: only if input validation logic is extracted to a separate class
+|   -> Contract test: only if external consumers exist (Phase 3 evidence required)
+|
++-- Service / Use case
+|   -> Unit test: business logic with mocked dependencies (Mockito)
+|   -> Do NOT use @SpringBootTest for services -- no Spring context needed
+|   -> Integration test: only if orchestrating multiple repos with @Transactional
+|
++-- Repository / Persistence
+|   -> Slice test (@DataJpaTest): queries, constraints, mappings
+|   -> Must include: happy path + constraint violation + empty result
+|   -> Never mock the database -- use the slice test's embedded DB
+|
++-- Domain entity / Value object
+|   -> Unit test: invariants, business methods, equality contract
+|   -> No mocking -- entities must be testable in isolation
+|   -> Include: valid construction, invalid construction (rejected), state transitions
+|
++-- Configuration / Infrastructure
+|   -> Integration test: verify wiring works end-to-end
+|   -> Include: startup smoke test if new beans/configurations are added
+|
++-- Cross-cutting (security, logging, interceptors)
+   -> Slice test: @WithMockUser + @WebMvcTest for security
+   -> Unit test: for utility/helper classes
+```
+
+Record selected test types in plan's Test Strategy section.
+
+### 4.1c Technology Decision Tree (Binding)
+
+When a new library or framework component is needed:
+
+```
+START -> Is the capability already provided by an existing dependency?
+  YES -> Use existing dependency. Do NOT add alternatives. STOP.
+  NO  -> Is the capability provided by the Spring ecosystem?
+    YES -> Use the Spring module (Spring Security, Spring Data, Spring Cache, etc.).
+           Reason: Consistent configuration, tested integration, same lifecycle.
+    NO  -> Is this a build/dev dependency or a runtime dependency?
+      BUILD -> Follow repo convention (Maven plugin preferred if available).
+      RUNTIME -> Is there precedent in the repo's dependency tree?
+        YES -> Use the same library family/version.
+        NO  -> Prefer well-maintained, minimal-transitive-dependency libraries.
+               Document the choice in the plan's Architecture Options.
+               Add version to BOM/dependency management if one exists.
+```
+
+### 4.1d Module and Package Creation Decision Tree (Binding)
+
+When new packages or modules are needed:
+
+```
+START -> Does the feature belong to an existing domain module?
+  YES -> Add within existing module's package structure. STOP.
+         Follow established sub-package convention (controller/service/domain/repository).
+  NO  -> Does the feature represent a new bounded context?
+    YES -> Create new top-level module:
+           Package: {base}.{feature}
+           Sub-packages: per detected architecture pattern (4.1)
+           Required: package-info.java documenting module purpose
+           Required: module-level README or ADR entry
+    NO  -> Is it a cross-cutting utility (logging, security, common helpers)?
+      YES -> Add to existing shared/common module.
+             If no shared module exists: create {base}.common.{concern}
+      NO  -> Add to the module closest to the primary consumer.
+             If equally close to multiple modules: create shared module.
+```
 
 ### 4.2 Controllers / Boundaries (Binding)
 Controllers or API adapters must:

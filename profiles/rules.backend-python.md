@@ -109,6 +109,111 @@ Rule: once detected, these become constraints. If unknown, mark unknown and avoi
 
 ---
 
+## Decision Trees (Binding)
+
+The following decision trees guide architecture-level decisions for Python backends. The assistant MUST follow these trees and record the decision path in the plan.
+
+### DT-PY1: Architecture Pattern Selection
+
+When creating a new module or service from scratch:
+
+```
+START -> Does the repo already have an established architecture pattern?
+  YES -> Follow detected pattern. STOP.
+  NO  -> Is it a FastAPI/Flask application?
+    YES -> Does it require complex domain logic (>3 business rules, aggregates)?
+      YES -> Layered with domain isolation:
+             handlers/ (thin) -> services/ (use cases) -> domain/ (models + rules) -> repositories/
+             Reason: Domain logic testable without HTTP/DB.
+      NO  -> Flat handler-service pattern:
+             handlers/ (routes) -> services/ (logic) -> repositories/ (data access)
+             Reason: Sufficient for delegation-only services.
+    NO  -> Is it a Django application?
+      YES -> Follow Django app convention (models.py, views.py, serializers.py, tests.py per app).
+             Reason: Django's conventions are well-established; deviating creates friction.
+      NO  -> Module-per-feature layout:
+             {feature}/__init__.py, {feature}/models.py, {feature}/service.py, {feature}/repository.py
+             Reason: Cohesion by feature for CLI tools, background workers, etc.
+```
+
+Record decision in `SESSION_STATE.ArchitectureDecisions` with evidence path.
+
+### DT-PY2: Test Type Selection
+
+For each changed component, select appropriate test types:
+
+```
+START -> What type of component changed?
+|
++-- Handler / Route / View
+|   -> Integration test (TestClient/httpx): HTTP mapping, status codes, serialization
+|   -> Test both success and error responses (400, 404, 422, 500)
+|   -> Mock service layer, not infrastructure
+|
++-- Service / Use case
+|   -> Unit test: business logic with mocked dependencies
+|   -> No HTTP context, no database -- pure Python tests
+|   -> Use dependency injection; pass mocks via constructor/parameters
+|
++-- Repository / Data access
+|   -> Integration test with test database (SQLite in-memory or testcontainers)
+|   -> Must include: happy path + constraint violation + empty result
+|   -> Never mock the ORM query layer -- test actual queries
+|
++-- Domain model / Value object
+|   -> Unit test: invariants, validation, business methods
+|   -> No mocking -- models must be testable in isolation
+|   -> Include: valid construction, invalid construction (ValidationError), state transitions
+|
++-- Configuration / Middleware
+|   -> Integration test: verify middleware chain works end-to-end
+|   -> Include: startup smoke test (app factory produces runnable app)
+|
++-- Background tasks / Workers
+   -> Unit test: task logic with mocked I/O
+   -> Integration test: verify task scheduling/triggering if using Celery/dramatiq/etc.
+```
+
+### DT-PY3: Framework and Library Decision
+
+When a new library is needed:
+
+```
+START -> Is the capability already provided by an installed dependency?
+  YES -> Use existing dependency. Do NOT add alternatives. STOP.
+  NO  -> Is there a stdlib solution (pathlib, dataclasses, enum, etc.)?
+    YES -> Use stdlib. Reason: Zero dependency cost.
+    NO  -> Does the repo use a framework ecosystem (FastAPI, Django, Flask)?
+      YES -> Prefer the framework's recommended library (e.g., Pydantic for FastAPI,
+             Django REST Framework for Django, WTForms for Flask).
+      NO  -> Prefer well-maintained packages with type stubs (py.typed marker).
+             Document the choice in the plan's Architecture Options.
+             Pin the version in the dependency file.
+```
+
+### DT-PY4: Module and Package Creation
+
+When new packages or modules are needed:
+
+```
+START -> Does the feature belong to an existing package?
+  YES -> Add within existing package. Follow established file naming. STOP.
+  NO  -> Does the feature represent a new domain area?
+    YES -> Create new package:
+           {feature}/__init__.py (public API only)
+           {feature}/models.py (domain models)
+           {feature}/service.py (use cases)
+           {feature}/repository.py (data access)
+           {feature}/exceptions.py (feature-specific errors)
+           tests/test_{feature}_*.py (corresponding tests)
+    NO  -> Is it a cross-cutting utility?
+      YES -> Add to existing utils/common package.
+             If none exists: create {project}/common/{concern}.py
+      NO  -> Add to the package closest to the primary consumer.
+```
+
+---
+
 ## Naming Conventions (Binding)
 
 The following naming conventions are binding unless repo conventions explicitly differ (in which case, follow repo conventions and record deviation).
