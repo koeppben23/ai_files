@@ -2679,6 +2679,62 @@ Note: Fast Path MAY reduce review depth/verbosity but MUST NOT bypass any gates.
    * If multiple implementations are plausible → Use Clarification Format (Section 2.3)
    * If requirements are contradictory → Mode: BLOCKED, request clarification
 
+6. **Plan Self-Review and Iterative Refinement (3 rounds):**
+
+   Before presenting the plan, the LLM MUST execute exactly **3 self-critique rounds** to refine the implementation plan. Each round targets specific quality dimensions. The LLM performs both the critic and author roles internally — no user interaction occurs during these rounds.
+
+   **Round 1 — Correctness & Completeness:**
+   - Review the plan against the ticket requirements: are all acceptance criteria addressed?
+   - Verify every affected component is listed and every dependency is accounted for.
+   - Check that the test strategy covers all risk areas identified in step 4.
+   - Check that error/edge cases are handled (null inputs, boundary values, concurrency).
+   - Verify that the implementation plan steps are in a valid dependency order.
+   - **Output:** List of identified gaps or confirmation of completeness. Apply fixes immediately.
+
+   **Round 2 — Architecture & Quality Standards:**
+   - Verify the plan respects layer boundaries (no shortcuts across architectural layers).
+   - Check adherence to the active profile rulebook (naming conventions, patterns, anti-patterns).
+   - Verify the plan follows active template rulebook structures where applicable.
+   - Confirm NFR checklist items are substantive (not just "OK" without reasoning).
+   - Validate that the Mandatory Review Matrix (MRM) artifacts are achievable with the planned steps.
+   - Check for YAGNI violations: does the plan introduce unnecessary abstractions or premature generalizations?
+   - **Output:** List of architectural/quality violations found. Apply fixes immediately.
+
+   **Round 3 — Robustness & Production-Readiness:**
+   - Review rollback strategy: is it concrete and actionable (not just "revert the commit")?
+   - Verify observability: are logging, metrics, and alerting addressed where needed?
+   - Check security implications: auth, input validation, data exposure, injection risks.
+   - Validate performance considerations: N+1 queries, missing indices, unbounded collections.
+   - Confirm the plan produces code that is testable in isolation (proper seams, no hidden globals).
+   - Review the plan for common anti-patterns from the active profile’s anti-pattern catalog.
+   - **Output:** List of robustness issues found. Apply fixes immediately.
+
+   **Self-Review Evidence Block (REQUIRED in Phase 4 output):**
+
+   After the 3 rounds, append the following block to the Phase 4 output:
+
+   ```
+   Plan Self-Review (3/3 rounds completed):
+     Round 1 (Correctness & Completeness):
+       Issues found: <count>
+       Resolved: <list or "none needed">
+     Round 2 (Architecture & Quality Standards):
+       Issues found: <count>
+       Resolved: <list or "none needed">
+     Round 3 (Robustness & Production-Readiness):
+       Issues found: <count>
+       Resolved: <list or "none needed">
+     Refinement confidence delta: <initial confidence> → <post-review confidence>
+   ```
+
+   **Rules:**
+   - All 3 rounds are MANDATORY. Skipping rounds is a protocol violation.
+   - Each round MUST produce at least a "none needed" confirmation — empty output is invalid.
+   - Issues found in any round MUST be resolved before proceeding to the next round.
+   - The Self-Review Evidence Block MUST appear in the Phase 4 output before the SESSION_STATE block.
+   - If Round 3 identifies critical issues (security, data loss, breaking changes), the LLM MUST loop back to Round 1 for a second pass (maximum 2 full cycles total to prevent infinite loops).
+   - `SESSION_STATE.SelfReviewRounds = 3` (or 6 if a second pass was triggered) MUST be recorded.
+
 **Output format:**
 
 ```
@@ -2730,6 +2786,18 @@ Risks:
 
 Complexity: <simple|medium|complex>
 
+Plan Self-Review (3/3 rounds completed):
+  Round 1 (Correctness & Completeness):
+    Issues found: <count>
+    Resolved: <list or "none needed">
+  Round 2 (Architecture & Quality Standards):
+    Issues found: <count>
+    Resolved: <list or "none needed">
+  Round 3 (Robustness & Production-Readiness):
+    Issues found: <count>
+    Resolved: <list or "none needed">
+  Refinement confidence delta: <initial> → <post-review>
+
 [/PHASE-4-COMPLETE]
 
 SESSION_STATE:
@@ -2752,6 +2820,7 @@ SESSION_STATE:
     MigrationCompatibility: "OK — additive schema change"
     RollbackReleaseSafety: "OK — disable flag" 
   Risks: ["RISK-001: Existing queries may need active filter", "RISK-002: Index on active column recommended"]
+  SelfReviewRounds: 3
   
 Proceeding to Phase 5 (Lead Architect Review)...
 ```

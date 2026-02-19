@@ -141,6 +141,76 @@ Hard fail conditions:
 - Safe HTML binding and DOM operations (XSS-aware).
 - Preserve existing CSP/security posture.
 
+### 5.6 Naming Conventions (Binding)
+
+The following naming conventions are binding unless repo conventions explicitly differ (in which case, follow repo conventions and record deviation).
+
+**Files and directories:**
+
+| Type | Convention | Example |
+|------|-----------|---------|
+| Component | `{feature}-{type}.component.ts` | `user-page.component.ts`, `user-view.component.ts` |
+| Service/Facade | `{feature}.facade.ts`, `{feature}.service.ts` | `user.facade.ts` |
+| API boundary | `{feature}.api.ts` | `user.api.ts` |
+| Store (NgRx) | `{feature}.actions.ts`, `{feature}.reducer.ts`, `{feature}.effects.ts`, `{feature}.selectors.ts` | `user.actions.ts` |
+| Component Store | `{feature}.store.ts` | `user.store.ts` |
+| Guard | `{feature}.guard.ts` or `auth.guard.ts` | `auth.guard.ts` |
+| Interceptor | `{feature}.interceptor.ts` or `auth.interceptor.ts` | `auth.interceptor.ts` |
+| Model/interface | `{feature}.model.ts` | `user.model.ts` |
+| Test | `{source-file}.spec.ts` | `user.facade.spec.ts` |
+
+**Classes and symbols:**
+
+| Type | Convention | Example |
+|------|-----------|---------|
+| Container component | `{Feature}PageComponent` | `UserPageComponent`, `OrderPageComponent` |
+| Presentational component | `{Feature}ViewComponent`, `{Feature}ListComponent` | `UserViewComponent` |
+| Form component | `{Feature}FormComponent` | `UserFormComponent` |
+| Facade | `{Feature}Facade` | `UserFacade`, `OrderFacade` |
+| API service | `{Feature}Api` | `UserApi`, `OrderApi` |
+| Component Store | `{Feature}Store` | `UserStore` |
+| NgRx actions | `{Feature}Actions` (via `createActionGroup`) | `UserActions` |
+| NgRx reducer | `{feature}Reducer` | `userReducer` |
+| NgRx effects | `{Feature}Effects` | `UserEffects` |
+| Guard function | `{feature}Guard`, `authGuard`, `roleGuard` | `authGuard` |
+| Interceptor function | `{feature}Interceptor`, `authInterceptor` | `authInterceptor` |
+| View model | `{Feature}ViewModel` | `UserViewModel` |
+| State interface | `{Feature}State` | `UserState` |
+
+**Selectors:**
+
+| Type | Convention | Example |
+|------|-----------|---------|
+| Component selector | `app-{feature}-{type}` | `app-user-page`, `app-user-view` |
+
+**Methods and properties:**
+
+| Type | Convention | Example |
+|------|-----------|---------|
+| Event handler | `on{Action}()` | `onRefresh()`, `onSubmit()`, `onDelete()` |
+| View model | `vm` (signal) or `vm$` (observable) | `readonly vm = this.facade.vm` |
+| NgRx selectors | `select{Feature}{Property}` | `selectUserItems`, `selectUserLoading` |
+| NgRx action events | Natural language in `createActionGroup` | `'Load Users'`, `'Create User Success'` |
+| Store updater | `set{Property}` | `setLoading`, `setItems` |
+| Store effect | `load{Feature}s`, `create{Feature}` | `loadUsers`, `createUser` |
+
+**Test naming:**
+
+| Type | Convention | Example |
+|------|-----------|---------|
+| `describe` block | Class or function name | `describe('UserFacade', ...)` |
+| `it` block | Behavior description | `it('should expose loaded items', ...)` |
+| Spy object | `jasmine.createSpyObj('{Class}', [...])` | `jasmine.createSpyObj('UserApi', ['fetchAll'])` |
+
+**Nx library naming:**
+
+| Type | Convention | Example |
+|------|-----------|---------|
+| Feature lib | `libs/{domain}/feature-{name}` | `libs/user/feature-list` |
+| Data access lib | `libs/{domain}/data-access` | `libs/user/data-access` |
+| UI lib | `libs/{domain}/ui` | `libs/user/ui` |
+| Util lib | `libs/{domain}/util` or `libs/shared/util-{name}` | `libs/shared/util-date` |
+
 ---
 
 ## 6. Contract and Codegen Alignment (Binding if present)
@@ -246,6 +316,145 @@ GOOD:
 
 BAD:
 - E2E relies on fixed waits and brittle CSS-chain selectors for changed critical journey.
+
+---
+
+## 11.1 Anti-Patterns Catalog (Binding)
+
+Each anti-pattern below includes an explanation of **why** it is harmful. The assistant MUST avoid generating code that matches these anti-patterns and MUST flag them during plan review and code review.
+
+### AP-NG01: Business Logic in Components
+
+**Pattern:** Component class contains domain calculations, validation logic, or complex conditional branching beyond simple UI state.
+
+**Why it is harmful:**
+- Components become untestable without full Angular TestBed setup and DOM rendering.
+- Logic cannot be reused across components or triggered from non-UI contexts.
+- Mixing concerns makes components large and difficult to reason about.
+
+**Detection:** Component methods with domain calculations, API calls, or multi-step conditional logic not related to template rendering.
+
+---
+
+### AP-NG02: Mixed State Architectures
+
+**Pattern:** Introducing NgRx reducers in a codebase that uses signals, or adding signals in an NgRx codebase, without explicit repo-level decision.
+
+**Why it is harmful:**
+- Creates two incompatible mental models: developers must understand and maintain two state systems.
+- State synchronization between the two systems becomes a source of bugs.
+- Doubles the test surface: both state systems need independent test coverage.
+
+**Detection:** Imports from `@ngrx/store` and Angular `signal()` in the same feature module without documented architectural decision.
+
+---
+
+### AP-NG03: Direct HttpClient in Components
+
+**Pattern:** Component injects `HttpClient` directly instead of going through an API boundary service.
+
+**Why it is harmful:**
+- Scatters API knowledge (URLs, headers, DTO shapes) across components.
+- Makes DTO-to-view-model mapping inconsistent: each component maps differently.
+- Makes testing expensive: every component test needs `HttpTestingController`.
+- Backend API changes require touching every component that calls the API.
+
+**Detection:** `HttpClient` in component constructor/inject; `this.http.get(...)` calls in component methods.
+
+---
+
+### AP-NG04: Leaked Backend DTOs in UI
+
+**Pattern:** Backend response types used directly in component templates, facades, or stores without explicit mapping.
+
+**Why it is harmful:**
+- Couples the UI to the backend's internal data structure: backend renames break the entire frontend.
+- Backend-specific fields (internal IDs, audit timestamps, database enums) leak into UI concerns.
+- Makes frontend tests brittle: test data must match backend structure exactly.
+
+**Detection:** API response types used as `@Input()` types or facade return types without a mapping step.
+
+---
+
+### AP-NG05: Nested Subscriptions
+
+**Pattern:** Subscribing to an Observable inside another subscription callback.
+
+**Why it is harmful:**
+- Creates memory leaks: inner subscriptions are not automatically cleaned up.
+- Makes error handling unpredictable: errors in inner streams don't propagate to outer handlers.
+- Creates race conditions: inner subscriptions may fire after the outer context is stale.
+- Violates reactive composition: operators like `switchMap`, `mergeMap`, `concatMap` exist for this purpose.
+
+**Detection:** `.subscribe(() => { someObs$.subscribe(...) })` patterns in component or service code.
+
+---
+
+### AP-NG06: Fixed Waits in Tests
+
+**Pattern:** Using `setTimeout()`, `tick(5000)`, or `cy.wait(5000)` with arbitrary durations in tests.
+
+**Why it is harmful:**
+- Flaky: the wait may be too short on slow CI runners, causing intermittent failures.
+- Slow: the wait is always the maximum duration even when the operation completes instantly.
+- Masks real bugs: the test might pass only because the wait covers up a timing issue.
+
+**Detection:** `setTimeout` in test code; `tick()` with large values not tied to specific timer-based logic; `cy.wait(number)` in E2E tests.
+
+---
+
+### AP-NG07: Untyped Reactive Forms
+
+**Pattern:** Using untyped `FormGroup` (without generic parameter) and accessing form values without type safety.
+
+**Why it is harmful:**
+- No compile-time checks on form field names: typos in `form.get('emial')` are only caught at runtime.
+- No type inference on `.value`: all values are `any`, bypassing TypeScript's type system.
+- Angular 14+ supports typed forms natively; untyped forms are a legacy pattern.
+
+**Detection:** `new FormGroup({...})` without type parameter; `form.get('fieldName')` instead of `form.controls.fieldName`; `form.value` used without type assertion.
+
+---
+
+### AP-NG08: Component Without OnPush
+
+**Pattern:** Components using the default `ChangeDetectionStrategy.Default` instead of `OnPush`.
+
+**Why it is harmful:**
+- Default change detection runs on every event (click, timer, HTTP response) across the entire component tree.
+- Causes performance degradation as the component tree grows.
+- Hides reactivity bugs: components re-render even when their inputs haven't changed.
+
+**Detection:** Component decorator without `changeDetection: ChangeDetectionStrategy.OnPush` property.
+
+---
+
+### AP-NG09: Class-Based Guards and Interceptors
+
+**Pattern:** Using class-based `CanActivate` or `HttpInterceptor` interfaces instead of functional equivalents.
+
+**Why it is harmful:**
+- Class-based guards and interceptors are deprecated in modern Angular.
+- They require unnecessary boilerplate (class declaration, interface implementation, provider registration).
+- Functional equivalents are simpler, tree-shakable, and align with Angular's functional API direction.
+
+**Detection:** Classes implementing `CanActivate`, `CanDeactivate`, `HttpInterceptor` interfaces; `{ provide: HTTP_INTERCEPTORS, useClass: ... }` in providers.
+
+---
+
+### AP-NG10: Cross-App Imports in Nx Monorepo
+
+**Pattern:** One app directly imports from another app's source code instead of going through shared libraries.
+
+**Why it is harmful:**
+- Violates Nx boundary rules: apps should be independent deployment units.
+- Creates circular dependency risks between apps.
+- Makes it impossible to build/test/deploy apps independently.
+- Shared logic belongs in `libs/` where it can be versioned and boundary-tagged.
+
+**Detection:** Import paths like `apps/other-app/src/...` in any source file; Nx boundary lint rule violations.
+
+---
 
 ## 12. Troubleshooting
 

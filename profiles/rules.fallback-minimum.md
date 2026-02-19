@@ -61,6 +61,29 @@ Use repo-native commands when available; otherwise propose minimal equivalents:
 - Coherent error handling; no silent failures.
 - Logging at critical boundaries without leaking sensitive data.
 
+## Naming Conventions (SHOULD)
+
+When no repo conventions are discoverable, apply these minimal defaults:
+
+**Files:**
+- Source files: `snake_case` (Python), `PascalCase` (Java/C#), `kebab-case` (TypeScript/JavaScript)
+- Test files: mirror source file name with `test_` prefix (Python) or `.spec.`/`.test.` suffix (JS/TS) or `Test` suffix (Java)
+
+**Classes and functions:**
+- Classes: `PascalCase` (all languages)
+- Functions/methods: `snake_case` (Python), `camelCase` (Java/TS/JS)
+- Constants: `UPPER_SNAKE_CASE`
+- Private members: language-idiomatic convention (`_prefix` for Python, `private` for Java/TS)
+
+**Test naming:**
+- Test functions/methods: describe behavior, not implementation
+- Pattern: `test_{what}_{condition}_{expected}` (Python) or `{method}_{condition}_{expected}` (Java) or `it('should {behavior}', ...)` (JS/TS)
+
+**General rules:**
+- Names SHOULD convey intent and domain meaning (not abbreviations or single letters).
+- Names MUST NOT shadow built-in language constructs.
+- Names SHOULD be consistent within the codebase: if a convention exists, follow it; if not, establish one and follow it consistently.
+
 ## Portability (MUST when persisting)
 Use platform-neutral storage locations as defined in rules.md.
 
@@ -113,6 +136,67 @@ GOOD:
 
 BAD:
 - Declaring completion without any executable verification or recovery guidance.
+
+---
+
+## Anti-Patterns Catalog (Binding)
+
+Even in fallback/unknown repos, these universal anti-patterns MUST be avoided. Each includes an explanation of **why** it is harmful.
+
+### AP-FM01: Silent Error Swallowing
+
+**Pattern:** `try/except: pass`, `catch (Exception e) { }`, or `.catch(() => {})` with no logging, rethrow, or recovery.
+
+**Why it is harmful:**
+- Errors become invisible: the system continues in an undefined state.
+- Debugging becomes impossible: there is no trace of what went wrong.
+- Data corruption can occur silently without any alert.
+
+---
+
+### AP-FM02: Untested Changes Declared Complete
+
+**Pattern:** Marking a change as "done" or "ready-for-pr" without any form of verification evidence (test, lint, smoke, build).
+
+**Why it is harmful:**
+- No safety net: bugs are discovered by users in production instead of by automated checks.
+- Quality claims are unsubstantiated: "it works" without evidence is not a professional statement.
+- Violates the core governance principle: no claim without evidence.
+
+---
+
+### AP-FM03: Hardcoded Secrets or Credentials
+
+**Pattern:** API keys, passwords, tokens, or connection strings embedded directly in source code, tests, or configuration files.
+
+**Why it is harmful:**
+- Secrets committed to version control are visible to everyone with repo access (and potentially the internet).
+- Rotating compromised credentials requires finding and updating all hardcoded instances.
+- Test secrets may inadvertently connect to production systems.
+
+---
+
+### AP-FM04: Nondeterministic Test Dependencies
+
+**Pattern:** Tests that depend on current time, random values, network availability, or execution order without explicit control.
+
+**Why it is harmful:**
+- Tests that pass locally may fail in CI (or vice versa), eroding trust in the test suite.
+- Intermittent failures waste developer time investigating "phantom" bugs.
+- Order-dependent tests mask coupling issues in the codebase.
+
+---
+
+### AP-FM05: No Rollback Strategy for Non-Trivial Changes
+
+**Pattern:** Deploying schema changes, data migrations, or breaking API changes without a documented rollback plan.
+
+**Why it is harmful:**
+- If the deployment fails, there is no way to recover: the system stays broken.
+- Incomplete migrations can leave databases in inconsistent states.
+- Downstream consumers may break with no way to revert to the previous behavior.
+
+---
 
 ## Troubleshooting
 
