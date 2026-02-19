@@ -2,12 +2,22 @@
 
 Model identity is critical for reproducibility and audit.
 Every run MUST record which model produced the output.
+
+IMPORTANT: Model identity source determines trustworthiness for audit.
+- "environment": TRUSTED - comes from host environment variables
+- "llm_context": UNTRUSTED - self-reported by the LLM, advisory only
+- "user_input": UNTRUSTED - user-provided, advisory only
+- "inferred": UNTRUSTED - guessed from model_id patterns
+- "unresolved": UNTRUSTED - could not determine, must block audit
 """
 
 from __future__ import annotations
 
+import warnings
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Literal
+
+ModelIdentitySource = Literal["environment", "llm_context", "user_input", "inferred", "unresolved"]
 
 
 @dataclass(frozen=True)
@@ -28,6 +38,13 @@ class ModelIdentity:
     context_limit: int
     """Maximum context length in tokens"""
     
+    source: ModelIdentitySource = "unresolved"
+    """Source of the identity - determines trustworthiness for audit.
+    
+    TRUSTED sources: "environment"
+    UNTRUSTED sources: "llm_context", "user_input", "inferred", "unresolved"
+    """
+    
     temperature: float = 0.0
     """Sampling temperature (0.0 = deterministic)"""
     
@@ -40,12 +57,34 @@ class ModelIdentity:
     deployment_id: str | None = None
     """Deployment/endpoint ID for enterprise models"""
     
+    def is_trusted_for_audit(self) -> bool:
+        """Check if this identity is trusted for audit evidence.
+        
+        Only environment-provided identities are trusted.
+        LLM self-reported identities are UNTRUSTED because the LLM
+        could hallucinate its own identity.
+        """
+        return self.source == "environment"
+    
+    def trust_warning(self) -> str | None:
+        """Return warning message if identity is untrusted."""
+        if self.source == "environment":
+            return None
+        warnings_map = {
+            "llm_context": "Model identity self-reported by LLM - NOT TRUSTED for audit",
+            "user_input": "Model identity from user input - NOT TRUSTED for audit",
+            "inferred": "Model identity inferred from model_id - NOT TRUSTED for audit",
+            "unresolved": "Model identity unresolved - BLOCKS audit",
+        }
+        return warnings_map.get(self.source, "Unknown model identity source")
+    
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for serialization."""
         result = {
             "provider": self.provider,
             "model_id": self.model_id,
             "context_limit": self.context_limit,
+            "source": self.source,
             "temperature": self.temperature,
         }
         if self.version is not None:
@@ -63,6 +102,7 @@ class ModelIdentity:
             provider=data.get("provider", "unknown"),
             model_id=data.get("model_id", "unknown"),
             context_limit=data.get("context_limit", 0),
+            source=data.get("source", "unresolved"),
             temperature=data.get("temperature", 0.0),
             version=data.get("version"),
             quantization=data.get("quantization"),
@@ -79,6 +119,11 @@ class ModelIdentity:
 
 
 # Known model context limits for validation
+# DEPRECATION NOTICE: This dictionary will be removed in a future version.
+# Use resolve_from_environment() with OPENCODE_MODEL_CONTEXT_LIMIT instead.
+# Stale context limits cause audit failures. Environment variables are the
+# authoritative source.
+#
 # Order matters: more specific patterns should come first
 KNOWN_CONTEXT_LIMITS: dict[str, int] = {
     # Anthropic
@@ -114,7 +159,17 @@ def infer_context_limit(model_id: str) -> int:
     
     Uses known model registry. Returns 0 if unknown.
     Prioritizes more specific patterns (e.g., gpt-4-turbo before gpt-4).
+    
+    DEPRECATION WARNING: This function uses a hardcoded registry that
+    becomes stale as models are updated. Prefer OPENCODE_MODEL_CONTEXT_LIMIT
+    environment variable for trusted context limits.
     """
+    warnings.warn(
+        "infer_context_limit() uses a hardcoded registry that may be stale. "
+        "Set OPENCODE_MODEL_CONTEXT_LIMIT environment variable for trusted context limits.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     model_lower = model_id.lower()
     
     # Check patterns in order of specificity
@@ -152,6 +207,9 @@ def validate_model_identity(identity: ModelIdentity) -> tuple[bool, str]:
     
     Returns:
         (valid, reason) - valid=True if identity is complete enough for evidence
+        
+    Note: This validates completeness, not trustworthiness.
+    Use identity.is_trusted_for_audit() to check if identity is trusted.
     """
     if not identity.provider:
         return False, "MISSING_PROVIDER"
@@ -160,12 +218,12 @@ def validate_model_identity(identity: ModelIdentity) -> tuple[bool, str]:
         return False, "MISSING_MODEL_ID"
     
     if identity.context_limit <= 0:
-        # Try to infer
-        inferred = infer_context_limit(identity.model_id)
-        if inferred <= 0:
-            return False, "UNKNOWN_CONTEXT_LIMIT"
+        return False, "UNKNOWN_CONTEXT_LIMIT"
     
     if identity.temperature < 0.0 or identity.temperature > 2.0:
         return False, "INVALID_TEMPERATURE"
+    
+    if identity.source == "unresolved":
+        return False, "UNRESOLVED_SOURCE"
     
     return True, "OK"
