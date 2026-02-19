@@ -1166,7 +1166,7 @@ Binding:
 
 ### 7.7.4 Review-of-Review Consistency Check (Core, Binding)
 
-Before final `ready-for-pr`, the workflow MUST execute a consistency pass:
+Before final `ready-for-pr`, output a Consistency Check section that verifies:
 - every passing gate criterion has a valid `evidenceRef`
 - every PR-critical claim maps to BuildEvidence
 - no gate decision contradicts GateArtifacts / MRM status
