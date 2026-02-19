@@ -197,6 +197,61 @@ The following are NOT allowed in generated production code unless the repo alrea
 - Introducing new framework patterns (e.g., reactive stack) without repo evidence
 - Commented-out code or TODO/FIXME in production without explicit approval
 
+### 3.6 Naming Conventions (Binding)
+
+The following naming conventions are binding unless repo conventions explicitly differ (in which case, follow repo conventions and record deviation).
+
+**Classes:**
+
+| Type | Convention | Example |
+|------|-----------|---------|
+| Controller | `{Resource}Controller` | `UserController`, `OrderController` |
+| Service (use case) | `{Resource}Service` | `UserService`, `OrderService` |
+| Repository | `{Resource}Repository` | `UserRepository`, `OrderRepository` |
+| Entity | `{Resource}` (singular, PascalCase) | `User`, `Order`, `Product` |
+| DTO (request) | `{Resource}CreateRequest`, `{Resource}UpdateRequest` | `UserCreateRequest` |
+| DTO (response) | `{Resource}Response` | `UserResponse`, `OrderResponse` |
+| Mapper | `{Resource}Mapper` | `UserMapper`, `OrderMapper` |
+| Exception | `{Resource}NotFoundException`, `{Domain}Exception` | `UserNotFoundException` |
+| Config | `{Feature}Config`, `{Feature}Properties` | `SecurityConfig`, `CacheProperties` |
+
+**Methods:**
+
+| Type | Convention | Example |
+|------|-----------|---------|
+| Service create | `create({Resource})` | `create(user)` |
+| Service find | `findById(id)`, `findAll(...)` | `findById(1L)` |
+| Service update | `update(id, {Resource})` | `update(1L, user)` |
+| Service delete | `delete(id)` | `delete(1L)` |
+| Entity validation | `validate()`, `validateCanBe{Action}()` | `validateCanBeDeleted()` |
+| Entity state change | `{action}(params)` | `activate()`, `deactivate()` |
+| Mapper to-domain | `toDomain(request)` | `toDomain(createRequest)` |
+| Mapper to-response | `toResponse({resource})` | `toResponse(user)` |
+
+**Test classes and methods:**
+
+| Type | Convention | Example |
+|------|-----------|---------|
+| Test class | `{ClassUnderTest}Test` | `UserServiceTest`, `UserControllerTest` |
+| Test method | `{method}_{condition}_{expected}` | `create_withValidInput_persistsUser()` |
+| Test display name | Natural language with `@DisplayName` | `"should persist user with timestamps"` |
+| Test data builder | `{Resource}TestDataBuilder` | `UserTestDataBuilder` |
+| Builder method | `given{Resource}()` | `givenUser()` |
+| Nested test class | Method name (PascalCase) | `class Create { }`, `class FindById { }` |
+
+**Packages:**
+
+| Type | Convention | Example |
+|------|-----------|---------|
+| Feature root | `com.company.{app}.{feature}` | `com.acme.shop.order` |
+| Controller layer | `{feature}.api` or `{feature}.controller` | `order.api` |
+| Service layer | `{feature}.service` or `{feature}.application` | `order.service` |
+| Domain layer | `{feature}.domain` or `{feature}.model` | `order.domain` |
+| Repository layer | `{feature}.repository` or `{feature}.persistence` | `order.repository` |
+| Config | `{feature}.config` | `order.config` |
+| Exception | `{feature}.exception` | `order.exception` |
+| Mapper | `{feature}.mapper` | `order.mapper` |
+
 ---
 
 ## 4. Architecture Rules (Enforced)
@@ -532,6 +587,143 @@ GOOD:
 
 BAD:
 - Tests rely on `Instant.now()` and `Thread.sleep(...)` for async synchronization.
+
+---
+
+## Anti-Patterns Catalog (Binding)
+
+Each anti-pattern below includes an explanation of **why** it is harmful. The assistant MUST avoid generating code that matches these anti-patterns and MUST flag them during plan review (Phase 4 step 6) and code review (Phase 5).
+
+### AP-J01: Fat Controller
+
+**Pattern:** Controller contains business logic (if/else branching on domain rules, calculations, multi-step orchestration).
+
+**Why it is harmful:**
+- Violates separation of concerns: controllers become untestable without full HTTP context.
+- Business rules become duplicated when the same logic is needed from a different trigger (messaging, CLI, scheduled task).
+- Makes unit testing expensive: requires MockMvc/WebMvcTest instead of plain JUnit.
+
+**Detection:** `if`/`switch` statements in controller methods that branch on domain state rather than HTTP concerns (content negotiation, auth).
+
+---
+
+### AP-J02: Anemic Domain Model
+
+**Pattern:** Entities are pure data holders with only getters/setters; all business logic lives in services.
+
+**Why it is harmful:**
+- Domain invariants are scattered across services and impossible to enforce consistently.
+- Every new service that touches the entity risks violating invariants differently.
+- Testing requires integration-level setup because logic is coupled to service orchestration.
+
+**Detection:** Entity classes with no methods beyond getters/setters/constructors; services with inline validation/calculation that belongs to one entity.
+
+---
+
+### AP-J03: Nondeterministic Tests
+
+**Pattern:** Tests use `Instant.now()`, `Math.random()`, `UUID.randomUUID()`, or `Thread.sleep()` without deterministic control.
+
+**Why it is harmful:**
+- Creates flaky tests that pass locally but fail in CI (or vice versa).
+- Impossible to reproduce failures deterministically.
+- `Thread.sleep()` wastes CI time and masks real timing bugs.
+
+**Detection:** Direct calls to `Instant.now()`, `System.currentTimeMillis()`, `Thread.sleep()`, or `UUID.randomUUID()` in test code without injectable seams.
+
+---
+
+### AP-J04: Entity Exposure Through API
+
+**Pattern:** JPA entities are returned directly from controllers or used as request/response models.
+
+**Why it is harmful:**
+- Exposes internal persistence structure (column names, lazy proxies, version fields) to API consumers.
+- Makes it impossible to evolve the database schema without breaking the API contract.
+- Lazy-loading exceptions (`LazyInitializationException`) leak to API responses.
+- Serialization of bidirectional relationships causes infinite recursion or `StackOverflowError`.
+
+**Detection:** Controller return types or `@RequestBody` types that are `@Entity`-annotated classes.
+
+---
+
+### AP-J05: Swallowed Exceptions
+
+**Pattern:** `catch (Exception e) { log.error(...); }` with no rethrow, wrapping, or meaningful recovery.
+
+**Why it is harmful:**
+- Silently converts errors into successful responses, corrupting data or misleading consumers.
+- Makes debugging production issues extremely difficult: errors are logged but not propagated.
+- Violates fail-fast principle: the system continues in an undefined state.
+
+**Detection:** `catch` blocks that only log without rethrowing, wrapping, or returning an error response.
+
+---
+
+### AP-J06: God Service
+
+**Pattern:** A single service class with 10+ methods spanning multiple unrelated use cases.
+
+**Why it is harmful:**
+- Violates Single Responsibility Principle: changes to one use case risk breaking others.
+- Impossible to test in isolation: setup requires mocking many unrelated dependencies.
+- Leads to circular dependencies as the god service grows to depend on everything.
+
+**Detection:** Service classes with more than 5-7 public methods or more than 4-5 injected dependencies.
+
+---
+
+### AP-J07: Field Injection
+
+**Pattern:** Using `@Autowired` on fields instead of constructor injection.
+
+**Why it is harmful:**
+- Makes dependencies invisible: you cannot see what a class depends on without reading every field.
+- Makes unit testing harder: you need reflection or Spring context to inject dependencies.
+- Hides excessive coupling: constructor injection naturally reveals when a class has too many dependencies.
+
+**Detection:** `@Autowired` annotations on fields (not constructors).
+
+---
+
+### AP-J08: Test Overspecification
+
+**Pattern:** Tests verify internal method calls (`verify(mock, times(1))`) instead of behavioral outcomes.
+
+**Why it is harmful:**
+- Tests break on every refactoring even when behavior is unchanged.
+- Tests become a mirror of the implementation, providing no safety net for change.
+- False sense of coverage: tests "pass" but verify nothing meaningful.
+
+**Detection:** Heavy use of Mockito `verify(...)` with exact call counts and argument matchers, without corresponding behavioral assertions.
+
+---
+
+### AP-J09: Transaction Boundary Leak
+
+**Pattern:** Making external HTTP/messaging calls inside a database transaction.
+
+**Why it is harmful:**
+- Holds database connections open during network I/O, risking connection pool exhaustion.
+- If the external call fails after the DB commit, data is inconsistent; if before, the transaction is unnecessarily long.
+- Creates tight coupling between database state and external system availability.
+
+**Detection:** `@Transactional` methods that call `RestTemplate`, `WebClient`, `KafkaTemplate`, or similar external clients.
+
+---
+
+### AP-J10: Mutable DTO / Setter-Based Domain Mutation
+
+**Pattern:** Domain objects or DTOs with public setters used for ad-hoc field assignment throughout the codebase.
+
+**Why it is harmful:**
+- Impossible to enforce invariants: any code can set any field to any value at any time.
+- Domain objects can exist in invalid states between setter calls.
+- Makes it impossible to reason about object state at any given point in the code.
+
+**Detection:** `@Data` on entities/domain objects; public setters on business-critical fields; scattered `entity.setField(...)` calls outside domain methods.
+
+---
 
 ## Troubleshooting
 
