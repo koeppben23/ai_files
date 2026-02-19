@@ -167,8 +167,15 @@
       "code": "BLOCKED-MODEL-CONTEXT-LIMIT-REQUIRED",
       "severity": "blocked",
       "payload_schema_ref": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
-      "description": "Pipeline mode requires explicit model context limit from trusted source.",
-      "remediation_hint": "Set OPENCODE_MODEL_CONTEXT_LIMIT in binding file or activation pack."
+      "description": "Pipeline mode requires explicit model context limit from binding_env.",
+      "remediation_hint": "Set OPENCODE_MODEL_CONTEXT_LIMIT in binding file. Only binding_env is trusted in pipeline."
+    },
+    {
+      "code": "BLOCKED-MODEL-CONTEXT-LIMIT-INVALID",
+      "severity": "blocked",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Model context limit is invalid (negative value).",
+      "remediation_hint": "context_limit must be >= 0. Negative values are invalid in all modes."
     },
     {
       "code": "BLOCKED-MODEL-CONTEXT-LIMIT-UNKNOWN",

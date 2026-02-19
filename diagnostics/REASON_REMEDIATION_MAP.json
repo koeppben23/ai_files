@@ -95,9 +95,15 @@
     },
     "BLOCKED-MODEL-CONTEXT-LIMIT-REQUIRED": {
       "summary": "Model context limit required but not provided",
-      "how_to_fix": "Set OPENCODE_MODEL_CONTEXT_LIMIT in your activation pack or binding file. Unknown context limits are not permitted in pipeline mode.",
+      "how_to_fix": "Set OPENCODE_MODEL_CONTEXT_LIMIT in your binding file (governance.paths.json). Pipeline mode requires binding_env source only.",
       "copy_paste_command": null,
       "docs_link": "docs/MODEL_IDENTITY_RESOLUTION.md#fail-closed-behavior"
+    },
+    "BLOCKED-MODEL-CONTEXT-LIMIT-INVALID": {
+      "summary": "Model context limit is invalid (negative value)",
+      "how_to_fix": "context_limit must be >= 0. Negative values are invalid in all modes.",
+      "copy_paste_command": null,
+      "docs_link": "docs/MODEL_IDENTITY_RESOLUTION.md#context-limit-semantics"
     },
     "BLOCKED-MODEL-CONTEXT-LIMIT-UNKNOWN": {
       "summary": "Model context limit could not be determined",

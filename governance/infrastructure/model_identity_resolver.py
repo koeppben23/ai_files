@@ -33,6 +33,11 @@ def resolve_from_environment() -> ModelIdentity | None:
     - If OPENCODE_BINDING_FILE exists and is valid → source="binding_env" (TRUSTED)
     - Otherwise → source="process_env" (ADVISORY ONLY)
     
+    Context Limit Resolution:
+    - If OPENCODE_MODEL_CONTEXT_LIMIT is explicitly set → use as-is (even if negative)
+    - If not set or invalid → try inference (deprecated, advisory only)
+    - Explicit values are preserved so caller can validate
+    
     Returns:
         ModelIdentity with appropriate source, None if provider/model_id missing.
     """
@@ -45,14 +50,17 @@ def resolve_from_environment() -> ModelIdentity | None:
     
     source = _determine_source()
     
+    explicit_context_limit = False
     context_limit = 0
+    
     if context_limit_str:
         try:
             context_limit = int(context_limit_str)
+            explicit_context_limit = True
         except ValueError:
             pass
     
-    if context_limit <= 0:
+    if not explicit_context_limit:
         context_limit = infer_context_limit(model_id)
     
     return ModelIdentity(

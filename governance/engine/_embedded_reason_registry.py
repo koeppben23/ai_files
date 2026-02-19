@@ -63,6 +63,7 @@ EMBEDDED_REASON_CODE_TO_SCHEMA_REF: Final[dict[str, str]] = {
     "BLOCKED-MODEL-IDENTITY-UNTRUSTED": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
     "BLOCKED-MODEL-CONTEXT-LIMIT-REQUIRED": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
     "BLOCKED-MODEL-CONTEXT-LIMIT-UNKNOWN": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
+    "BLOCKED-MODEL-CONTEXT-LIMIT-INVALID": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
     "BLOCKED-MODEL-METADATA-FETCH-FAILED": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
     "BLOCKED-MODEL-IDENTITY-SOURCE-INVALID": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
     # Profile/addon BLOCKED codes
