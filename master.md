@@ -41,7 +41,7 @@ If this condition is **not met**, the system MUST enter state:
 
 Terminology:
 - **Plan-Gates** are explicit decision gates (e.g., Phase 5 / 5.3 / 5.4 / 5.6 / 6) that control whether
-  code-producing output is permitted.
+  code-producing output is described.
 - **Evidence-Gates** are the evidence prerequisites that must be satisfied to claim a phase/gate outcome
   (e.g., rulebook load evidence, repo discovery evidence). A Plan-Gate MAY be logically satisfied but
   still **blocked** if required evidence is missing.
@@ -52,7 +52,7 @@ When entering this state, set:
 
 ### Recovery
 - Operator must restate the bootstrap declaration explicitly.
-- No phase execution, planning, or evaluation is permitted before recovery.
+- Do not perform phase execution, planning, or evaluation before recovery.
 
 ## GLOBAL PATH VARIABLES (BINDING)
 
@@ -107,7 +107,7 @@ BINDING:
   - any persisted-artifact output block headers (`TargetPath` / `SourcePath`),
   - or any required/authoritative file location definition outside this section’s `${CONFIG_ROOT}` resolution.
 - The ONLY OS-specific logic permitted is the definition of `${CONFIG_ROOT}` in this section.
-- Circular variable references are forbidden (a variable MUST NOT be defined in terms of itself).
+- Do not define circular variable references (a variable MUST NOT be defined in terms of itself).
 
 ### Path Expression Hygiene (Kernel-Enforced)
 
@@ -660,7 +660,7 @@ Profile candidate filtering (binding):
 
 Rulebook auto-load behavior (binding):
 - If host filesystem access is available and profile detection is unambiguous, the workflow MUST auto-load core/profile rulebooks from canonical installer paths without asking the operator to provide rulebook files.
-- Operator rulebook input is allowed only when detection is ambiguous, files are genuinely unreadable/missing, or host access is unavailable.
+- Operator rulebook input should be requested only when detection is ambiguous, files are genuinely unreadable/missing, or host access is unavailable.
 
 If multiple profiles exist:
 - first attempt deterministic repo-signal ranking; if one top candidate is unique, auto-select without operator prompt
@@ -864,13 +864,13 @@ If a new blocker emerges, switch to BLOCKED and request the minimal missing inpu
 P5.3 is a CRITICAL quality gate that must be satisfied before concluding readiness for PR (P6),
 but it does not forbid drafting/iterating on tests and implementation during Phase 5.
 Clarification:
-* During Phase 5, drafting is allowed only as **plan-level pseudocode** or **test-case outlines**.
-  Producing actual unified diffs / production code changes remains forbidden until:
+* During Phase 5: Output drafting only as **plan-level pseudocode** or **test-case outlines**.
+  Do not produce actual unified diffs / production code changes until:
   - P5-Architecture = approved AND user confirmed proceeding, and
   - P5.3-TestQuality = pass|pass-with-exceptions,
   - P5.4-BusinessRules = compliant|compliant-with-exceptions (if Phase 1.5 executed), and
   - P5.6-RollbackSafety = approved|not-applicable (when rollback safety applies).
-* "Ready-for-PR" conclusions (Phase 6) are only allowed after required gates (P5, P5.3, and P5.4 if applicable)
+* "Ready-for-PR" conclusions (Phase 6): Output only after required gates (P5, P5.3, and P5.4 if applicable)
   and evidence rules are satisfied.
  
 ---
@@ -961,7 +961,7 @@ Unless explicitly stated otherwise:
   * CONFIDENCE LEVEL ≥ 70%
   * no explicit gate (Phase 5 / 5.3 / 5.4 / 5.5 / 5.6 / 6) has been reached
 
-Clarification is ONLY allowed when:
+Output clarification requests ONLY when:
 
 * artifacts are missing or incomplete
 * results are NOT MAPPABLE

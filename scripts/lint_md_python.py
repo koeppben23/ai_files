@@ -40,11 +40,24 @@ FORBIDDEN_PATTERNS = [
     (r"exec\(", "exec call"),
 ]
 
-# Authority language that should be reviewed (but may be acceptable in context)
+# Authority language that should be reviewed
+# Context matters: output rules are OK, policy definitions are not
+# 
+# ACCEPTABLE (output rules):
+#   - "The following are forbidden in generated code"
+#   - "Do not output X"
+#   - Section headers like "### Forbidden Patterns"
+#   - Table conditions like "| No | Not allowed |"
+#
+# NOT ACCEPTABLE (policy definitions):
+#   - "X is permitted by the system"
+#   - "The system forbids X"
+#   - Mode/permission policy
 AUTHORITY_LANGUAGE_PATTERNS = [
-    (r"\bFORBIDDEN\b", "Authority language 'FORBIDDEN' - consider 'Do not output/propose'"),
-    (r"\bALLOWED\b", "Authority language 'ALLOWED' - consider output rules"),
-    (r"\bPERMITTED\b", "Authority language 'PERMITTED' - consider output rules"),
+    # Only flag when defining system-level policy, not output rules
+    (r"\bFORBIDDEN\b.*(?:system|kernel|mode|pipeline)", "Authority policy - use output rules instead"),
+    (r"\bis\s+permitted\s+by\s+(?:the\s+)?(?:system|kernel)", "Authority policy - use output rules instead"),
+    (r"\bpermissions?\s+allow", "Permission policy - kernel SSOT only"),
 ]
 
 EXECUTION_CONTROL_PATTERNS = [

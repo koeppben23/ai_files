@@ -367,7 +367,7 @@ Allowed only if the user explicitly requests it.
 Obligations:
 - every statement MUST include at least one:
   - file path OR short relevant excerpt
-- speculation remains forbidden
+- Do not speculate
 - hallucinations remain disallowed
 
 ### 6.3 Evidence Rules Never Relax Gates
