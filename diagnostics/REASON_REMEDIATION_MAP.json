@@ -86,6 +86,36 @@
       "how_to_fix": "Phase transitions must be monotonic with evidence. Check SESSION_STATE.phase and ensure required evidence for next phase.",
       "copy_paste_command": null,
       "docs_link": "master.md#phases"
+    },
+    "BLOCKED-MODEL-IDENTITY-UNTRUSTED": {
+      "summary": "Model identity not trusted for audit",
+      "how_to_fix": "Set OPENCODE_MODEL_PROVIDER, OPENCODE_MODEL_ID, OPENCODE_MODEL_CONTEXT_LIMIT from installer-owned binding file. Ensure OPENCODE_BINDING_FILE points to a valid governance.paths.json.",
+      "copy_paste_command": null,
+      "docs_link": "docs/MODEL_IDENTITY_RESOLUTION.md#trust-sources"
+    },
+    "BLOCKED-MODEL-CONTEXT-LIMIT-REQUIRED": {
+      "summary": "Model context limit required but not provided",
+      "how_to_fix": "Set OPENCODE_MODEL_CONTEXT_LIMIT in your activation pack or binding file. Unknown context limits are not permitted in pipeline mode.",
+      "copy_paste_command": null,
+      "docs_link": "docs/MODEL_IDENTITY_RESOLUTION.md#fail-closed-behavior"
+    },
+    "BLOCKED-MODEL-CONTEXT-LIMIT-UNKNOWN": {
+      "summary": "Model context limit could not be determined",
+      "how_to_fix": "Explicitly set OPENCODE_MODEL_CONTEXT_LIMIT. The hardcoded registry does not contain this model, and inference is not permitted.",
+      "copy_paste_command": null,
+      "docs_link": "docs/MODEL_IDENTITY_RESOLUTION.md#deprecated-known_context_limits"
+    },
+    "BLOCKED-MODEL-METADATA-FETCH-FAILED": {
+      "summary": "Provider metadata fetch failed",
+      "how_to_fix": "Check provider API connectivity. If provider does not support metadata API, use explicit context limit from activation pack.",
+      "copy_paste_command": null,
+      "docs_link": "docs/MODEL_IDENTITY_RESOLUTION.md#provider-metadata-api"
+    },
+    "BLOCKED-MODEL-IDENTITY-SOURCE-INVALID": {
+      "summary": "Model identity source is invalid",
+      "how_to_fix": "Model identity source must be one of: binding_env, host_capability, provider_metadata, process_env, llm_context, user_input, inferred, unresolved.",
+      "copy_paste_command": null,
+      "docs_link": "docs/MODEL_IDENTITY_RESOLUTION.md#trust-categories"
     }
   },
   "default_unmapped": {

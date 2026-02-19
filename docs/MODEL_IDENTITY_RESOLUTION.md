@@ -131,6 +131,67 @@ When context limit is unknown:
 - Extract limit from error message (if available)
 - Write as Evidence for future runs
 
+## Trust Categories
+
+| Category | Description | Can Affect |
+|----------|-------------|------------|
+| `trusted_for_audit` | May be used as truth in audit records | Audit, Routing, Enforcement |
+| `trusted_for_routing` | May influence kernel routing decisions | Routing, Enforcement |
+| `advisory_only` | Hints only, must not affect enforcement | None |
+| `blocks_audit` | Cannot proceed with audit | None - must be resolved |
+
+## Source Trust Levels
+
+| Source | Trust Level | Description |
+|--------|-------------|-------------|
+| `binding_env` | `trusted_for_audit` | From installer-owned canonical root / pack-lock |
+| `host_capability` | `trusted_for_routing` | From host capability assertion |
+| `provider_metadata` | `advisory_only` | From provider API (requires verification) |
+| `process_env` | `advisory_only` | From user process environment (user-controlled) |
+| `llm_context` | `advisory_only` | Self-reported by LLM (hallucination risk) |
+| `user_input` | `advisory_only` | User-provided (unverified) |
+| `inferred` | `advisory_only` | Guessed from model_id patterns (stale risk) |
+| `unresolved` | `blocks_audit` | Could not determine identity |
+
+## Critical Distinction: binding_env vs process_env
+
+**`binding_env`** (TRUSTED FOR AUDIT):
+- Environment comes from installer-owned binding file
+- `OPENCODE_BINDING_FILE` points to a valid `governance.paths.json`
+- Changes go through policy activation, not ad-hoc env var changes
+- This is the **only** source trusted for audit evidence
+
+**`process_env`** (ADVISORY ONLY):
+- Environment comes from user process environment
+- Could be user-controlled (`export OPENCODE_MODEL_ID=...`)
+- NOT trusted for audit because anyone can set environment variables
+- Only advisory - must not affect enforcement decisions
+
+### Example: How Trust is Determined
+
+```python
+# In model_identity_resolver.py
+def _determine_source() -> ModelIdentitySource:
+    binding_file = os.environ.get("OPENCODE_BINDING_FILE", "")
+    
+    if binding_file and Path(binding_file).exists():
+        return "binding_env"  # TRUSTED
+    
+    return "process_env"  # ADVISORY ONLY
+```
+
+## Reason Codes
+
+When model identity issues block execution, these reason codes are used:
+
+| Code | Summary |
+|------|---------|
+| `BLOCKED-MODEL-IDENTITY-UNTRUSTED` | Model identity not from trusted source |
+| `BLOCKED-MODEL-CONTEXT-LIMIT-REQUIRED` | Context limit required but not provided |
+| `BLOCKED-MODEL-CONTEXT-LIMIT-UNKNOWN` | Context limit could not be determined |
+| `BLOCKED-MODEL-METADATA-FETCH-FAILED` | Provider metadata API fetch failed |
+| `BLOCKED-MODEL-IDENTITY-SOURCE-INVALID` | Invalid source value |
+
 ## Deprecated: KNOWN_CONTEXT_LIMITS
 
 The `KNOWN_CONTEXT_LIMITS` dictionary in code is deprecated because:

@@ -127,7 +127,7 @@ class TestValidateModelIdentity:
             provider="anthropic",
             model_id="claude-3-opus",
             context_limit=200000,
-            source="environment",
+            source="binding_env",
         )
         
         valid, reason = validate_model_identity(identity)
@@ -140,7 +140,7 @@ class TestValidateModelIdentity:
             provider="",
             model_id="claude-3-opus",
             context_limit=200000,
-            source="environment",
+            source="binding_env",
         )
         
         valid, reason = validate_model_identity(identity)
@@ -153,7 +153,7 @@ class TestValidateModelIdentity:
             provider="anthropic",
             model_id="",
             context_limit=200000,
-            source="environment",
+            source="binding_env",
         )
         
         valid, reason = validate_model_identity(identity)
@@ -167,7 +167,7 @@ class TestValidateModelIdentity:
             model_id="claude-3-opus",
             context_limit=200000,
             temperature=3.0,
-            source="environment",
+            source="binding_env",
         )
         
         valid, reason = validate_model_identity(identity)
@@ -180,7 +180,7 @@ class TestValidateModelIdentity:
             provider="anthropic",
             model_id="claude-3-opus",
             context_limit=0,
-            source="environment",
+            source="binding_env",
         )
         
         valid, reason = validate_model_identity(identity)
@@ -204,16 +204,59 @@ class TestValidateModelIdentity:
 
 @pytest.mark.governance
 class TestModelIdentityTrust:
-    def test_environment_source_is_trusted(self):
+    def test_binding_env_source_is_trusted_for_audit(self):
         identity = ModelIdentity(
             provider="anthropic",
             model_id="claude-3-opus",
             context_limit=200000,
-            source="environment",
+            source="binding_env",
         )
         
         assert identity.is_trusted_for_audit() is True
+        assert identity.is_trusted_for_routing() is True
         assert identity.trust_warning() is None
+    
+    def test_host_capability_is_trusted_for_routing_only(self):
+        identity = ModelIdentity(
+            provider="anthropic",
+            model_id="claude-3-opus",
+            context_limit=200000,
+            source="host_capability",
+        )
+        
+        assert identity.is_trusted_for_audit() is False
+        assert identity.is_trusted_for_routing() is True
+        warning = identity.trust_warning()
+        assert warning is not None
+        assert "trusted for routing only" in warning
+    
+    def test_process_env_is_not_trusted(self):
+        identity = ModelIdentity(
+            provider="anthropic",
+            model_id="claude-3-opus",
+            context_limit=200000,
+            source="process_env",
+        )
+        
+        assert identity.is_trusted_for_audit() is False
+        assert identity.is_trusted_for_routing() is False
+        warning = identity.trust_warning()
+        assert warning is not None
+        assert "ADVISORY ONLY" in warning
+    
+    def test_provider_metadata_is_advisory_only(self):
+        identity = ModelIdentity(
+            provider="anthropic",
+            model_id="claude-3-opus",
+            context_limit=200000,
+            source="provider_metadata",
+        )
+        
+        assert identity.is_trusted_for_audit() is False
+        assert identity.is_trusted_for_routing() is False
+        warning = identity.trust_warning()
+        assert warning is not None
+        assert "ADVISORY ONLY" in warning
     
     def test_llm_context_source_is_not_trusted(self):
         identity = ModelIdentity(
@@ -226,7 +269,7 @@ class TestModelIdentityTrust:
         assert identity.is_trusted_for_audit() is False
         warning = identity.trust_warning()
         assert warning is not None
-        assert "NOT TRUSTED" in warning
+        assert "ADVISORY ONLY" in warning
     
     def test_user_input_source_is_not_trusted(self):
         identity = ModelIdentity(
@@ -239,7 +282,7 @@ class TestModelIdentityTrust:
         assert identity.is_trusted_for_audit() is False
         warning = identity.trust_warning()
         assert warning is not None
-        assert "NOT TRUSTED" in warning
+        assert "ADVISORY ONLY" in warning
     
     def test_inferred_source_is_not_trusted(self):
         identity = ModelIdentity(
@@ -252,7 +295,7 @@ class TestModelIdentityTrust:
         assert identity.is_trusted_for_audit() is False
         warning = identity.trust_warning()
         assert warning is not None
-        assert "NOT TRUSTED" in warning
+        assert "ADVISORY ONLY" in warning
     
     def test_unresolved_source_is_not_trusted(self):
         identity = ModelIdentity(
@@ -286,10 +329,14 @@ class TestResolveFromEnvironment:
         
         assert result is None
     
-    def test_returns_identity_with_provider_and_model_id(self, monkeypatch):
+    def test_binding_env_trusted_when_binding_file_exists(self, monkeypatch, tmp_path):
+        binding_file = tmp_path / "governance.paths.json"
+        binding_file.write_text("{}")
+        
         monkeypatch.setenv("OPENCODE_MODEL_PROVIDER", "anthropic")
         monkeypatch.setenv("OPENCODE_MODEL_ID", "claude-3-opus-20240229")
         monkeypatch.setenv("OPENCODE_MODEL_CONTEXT_LIMIT", "200000")
+        monkeypatch.setenv("OPENCODE_BINDING_FILE", str(binding_file))
         
         result = resolve_from_environment()
         
@@ -297,8 +344,32 @@ class TestResolveFromEnvironment:
         assert result.provider == "anthropic"
         assert result.model_id == "claude-3-opus-20240229"
         assert result.context_limit == 200000
-        assert result.source == "environment"
+        assert result.source == "binding_env"
         assert result.is_trusted_for_audit() is True
+    
+    def test_process_env_not_trusted_when_no_binding_file(self, monkeypatch):
+        monkeypatch.setenv("OPENCODE_MODEL_PROVIDER", "anthropic")
+        monkeypatch.setenv("OPENCODE_MODEL_ID", "claude-3-opus-20240229")
+        monkeypatch.setenv("OPENCODE_MODEL_CONTEXT_LIMIT", "200000")
+        monkeypatch.delenv("OPENCODE_BINDING_FILE", raising=False)
+        
+        result = resolve_from_environment()
+        
+        assert result is not None
+        assert result.source == "process_env"
+        assert result.is_trusted_for_audit() is False
+        assert result.is_trusted_for_routing() is False
+    
+    def test_process_env_when_binding_file_does_not_exist(self, monkeypatch):
+        monkeypatch.setenv("OPENCODE_MODEL_PROVIDER", "anthropic")
+        monkeypatch.setenv("OPENCODE_MODEL_ID", "claude-3-opus-20240229")
+        monkeypatch.setenv("OPENCODE_BINDING_FILE", "/nonexistent/path/governance.paths.json")
+        
+        result = resolve_from_environment()
+        
+        assert result is not None
+        assert result.source == "process_env"
+        assert result.is_trusted_for_audit() is False
     
     def test_infers_context_limit_if_not_provided(self, monkeypatch):
         monkeypatch.setenv("OPENCODE_MODEL_PROVIDER", "anthropic")

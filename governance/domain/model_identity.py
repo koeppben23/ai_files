@@ -4,20 +4,60 @@ Model identity is critical for reproducibility and audit.
 Every run MUST record which model produced the output.
 
 IMPORTANT: Model identity source determines trustworthiness for audit.
-- "environment": TRUSTED - comes from host environment variables
-- "llm_context": UNTRUSTED - self-reported by the LLM, advisory only
-- "user_input": UNTRUSTED - user-provided, advisory only
-- "inferred": UNTRUSTED - guessed from model_id patterns
-- "unresolved": UNTRUSTED - could not determine, must block audit
+
+TRUST CATEGORIES:
+- trusted_for_audit: May be used as truth in audit records
+- trusted_for_routing: May influence kernel routing decisions
+- advisory_only: Hints only, must not affect enforcement
+
+SOURCE TRUST LEVELS:
+- "binding_env": TRUSTED FOR AUDIT - from installer-owned/pack-lock/activation
+- "host_capability": TRUSTED FOR ROUTING - from host capability assertion
+- "provider_metadata": ADVISORY ONLY - from provider API (requires verification)
+- "process_env": ADVISORY ONLY - from user process environment (user-controlled)
+- "llm_context": ADVISORY ONLY - self-reported by LLM (hallucination risk)
+- "user_input": ADVISORY ONLY - user-provided (unverified)
+- "inferred": ADVISORY ONLY - guessed from model_id patterns (stale risk)
+- "unresolved": BLOCKS AUDIT - could not determine identity
 """
 
 from __future__ import annotations
 
 import warnings
 from dataclasses import dataclass, field
+from enum import Enum
 from typing import Any, Literal
 
-ModelIdentitySource = Literal["environment", "llm_context", "user_input", "inferred", "unresolved"]
+ModelIdentitySource = Literal[
+    "binding_env",      # From installer-owned canonical root / pack-lock
+    "host_capability",  # From host capability assertion
+    "provider_metadata", # From provider API (unverified)
+    "process_env",      # From user process environment (user-controlled)
+    "llm_context",      # Self-reported by LLM
+    "user_input",       # User-provided
+    "inferred",         # Guessed from model_id patterns
+    "unresolved",       # Could not determine
+]
+
+
+class TrustLevel(Enum):
+    """Trust level for model identity sources."""
+    TRUSTED_FOR_AUDIT = "trusted_for_audit"
+    TRUSTED_FOR_ROUTING = "trusted_for_routing"
+    ADVISORY_ONLY = "advisory_only"
+    BLOCKS_AUDIT = "blocks_audit"
+
+
+SOURCE_TRUST_LEVELS: dict[ModelIdentitySource, TrustLevel] = {
+    "binding_env": TrustLevel.TRUSTED_FOR_AUDIT,
+    "host_capability": TrustLevel.TRUSTED_FOR_ROUTING,
+    "provider_metadata": TrustLevel.ADVISORY_ONLY,
+    "process_env": TrustLevel.ADVISORY_ONLY,
+    "llm_context": TrustLevel.ADVISORY_ONLY,
+    "user_input": TrustLevel.ADVISORY_ONLY,
+    "inferred": TrustLevel.ADVISORY_ONLY,
+    "unresolved": TrustLevel.BLOCKS_AUDIT,
+}
 
 
 @dataclass(frozen=True)
@@ -41,8 +81,10 @@ class ModelIdentity:
     source: ModelIdentitySource = "unresolved"
     """Source of the identity - determines trustworthiness for audit.
     
-    TRUSTED sources: "environment"
-    UNTRUSTED sources: "llm_context", "user_input", "inferred", "unresolved"
+    TRUSTED FOR AUDIT: "binding_env" (installer-owned/pack-lock)
+    TRUSTED FOR ROUTING: "host_capability"
+    ADVISORY ONLY: "provider_metadata", "process_env", "llm_context", "user_input", "inferred"
+    BLOCKS AUDIT: "unresolved"
     """
     
     temperature: float = 0.0
@@ -57,24 +99,43 @@ class ModelIdentity:
     deployment_id: str | None = None
     """Deployment/endpoint ID for enterprise models"""
     
+    def trust_level(self) -> TrustLevel:
+        """Get the trust level for this identity source."""
+        return SOURCE_TRUST_LEVELS.get(self.source, TrustLevel.ADVISORY_ONLY)
+    
     def is_trusted_for_audit(self) -> bool:
         """Check if this identity is trusted for audit evidence.
         
-        Only environment-provided identities are trusted.
-        LLM self-reported identities are UNTRUSTED because the LLM
-        could hallucinate its own identity.
+        Only binding_env (installer-owned/pack-lock) is trusted for audit.
+        All other sources are advisory or blocking.
         """
-        return self.source == "environment"
+        return self.trust_level() == TrustLevel.TRUSTED_FOR_AUDIT
+    
+    def is_trusted_for_routing(self) -> bool:
+        """Check if this identity is trusted for routing decisions.
+        
+        binding_env and host_capability are trusted for routing.
+        """
+        level = self.trust_level()
+        return level in (TrustLevel.TRUSTED_FOR_AUDIT, TrustLevel.TRUSTED_FOR_ROUTING)
     
     def trust_warning(self) -> str | None:
-        """Return warning message if identity is untrusted."""
-        if self.source == "environment":
+        """Return warning message if identity is not trusted for audit."""
+        level = self.trust_level()
+        
+        if level == TrustLevel.TRUSTED_FOR_AUDIT:
             return None
+        
+        if level == TrustLevel.BLOCKS_AUDIT:
+            return "Model identity unresolved - BLOCKS audit"
+        
         warnings_map = {
-            "llm_context": "Model identity self-reported by LLM - NOT TRUSTED for audit",
-            "user_input": "Model identity from user input - NOT TRUSTED for audit",
-            "inferred": "Model identity inferred from model_id - NOT TRUSTED for audit",
-            "unresolved": "Model identity unresolved - BLOCKS audit",
+            "host_capability": "Model identity from host capability - trusted for routing only, NOT audit",
+            "provider_metadata": "Model identity from provider API - ADVISORY ONLY, not verified",
+            "process_env": "Model identity from process environment - ADVISORY ONLY (user-controlled)",
+            "llm_context": "Model identity self-reported by LLM - ADVISORY ONLY (hallucination risk)",
+            "user_input": "Model identity from user input - ADVISORY ONLY (unverified)",
+            "inferred": "Model identity inferred from model_id - ADVISORY ONLY (stale registry)",
         }
         return warnings_map.get(self.source, "Unknown model identity source")
     
