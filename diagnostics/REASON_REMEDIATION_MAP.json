@@ -1,0 +1,97 @@
+{
+  "$schema": "opencode.reason-remediation-map.v1",
+  "version": "1.0",
+  "description": "Deterministic mapping from reason codes to remediation guidance. SSOT for 'how to fix'.",
+  "mappings": {
+    "BLOCKED-MISSING-BINDING-FILE": {
+      "summary": "Governance binding file not found",
+      "how_to_fix": "Run the governance installer to create ${COMMANDS_HOME}/governance.paths.json. Expected schema: {\"user_home\": \"...\", \"commands_home\": \"...\", \"profiles_home\": \"...\"}",
+      "copy_paste_command": "python install.py",
+      "docs_link": "docs/installation.md#binding-file"
+    },
+    "BLOCKED-START-REQUIRED": {
+      "summary": "Session not bootstrapped",
+      "how_to_fix": "Run /start to bootstrap the governance session before proceeding.",
+      "copy_paste_command": "/start",
+      "docs_link": "docs/phases.md#phase-0-bootstrap"
+    },
+    "BLOCKED-MISSING-EVIDENCE": {
+      "summary": "Required evidence missing",
+      "how_to_fix": "Provide the missing evidence artifact(s). Check SESSION_STATE.Diagnostics.ReasonPayloads for specific requirements.",
+      "copy_paste_command": null,
+      "docs_link": "rules.md#evidence-ladder"
+    },
+    "BLOCKED-RULEBOOK-EVIDENCE-MISSING": {
+      "summary": "Rulebook load evidence missing",
+      "how_to_fix": "Ensure rulebooks are loaded from trusted paths (${COMMANDS_HOME}, ${PROFILES_HOME}) before marking them as loaded in SESSION_STATE.",
+      "copy_paste_command": null,
+      "docs_link": "master.md#rulebook-load-evidence"
+    },
+    "BLOCKED-ADDON-CONFLICT": {
+      "summary": "Addon surface ownership conflict",
+      "how_to_fix": "Two activated addons claim ownership of the same surface. Review addon manifests and ensure owns_surfaces is unique per surface.",
+      "copy_paste_command": null,
+      "docs_link": "new_addon.md#surface-ownership"
+    },
+    "BLOCKED-VARIABLE-RESOLUTION": {
+      "summary": "Path variable resolution failed",
+      "how_to_fix": "Check that ${USER_HOME}, ${CONFIG_ROOT}, ${COMMANDS_HOME} are correctly resolved. Verify governance.paths.json exists and is valid.",
+      "copy_paste_command": "/start",
+      "docs_link": "master.md#path-variables"
+    },
+    "BLOCKED-WORKSPACE-PERSISTENCE": {
+      "summary": "Workspace persistence blocked",
+      "how_to_fix": "Check OPENCODE_DIAGNOSTICS_ALLOW_WRITE=1 is set for local runs. In CI, writes are disabled by default.",
+      "copy_paste_command": "export OPENCODE_DIAGNOSTICS_ALLOW_WRITE=1",
+      "docs_link": "master.md#persistence"
+    },
+    "BLOCKED-REPO-IDENTITY-MISMATCH": {
+      "summary": "Repository identity mismatch",
+      "how_to_fix": "Workspace fingerprint does not match current repository. Re-bootstrap identity via kernel or remove existing workspace cache.",
+      "copy_paste_command": "rm -rf ~/.config/opencode/workspaces/<fingerprint> && /start",
+      "docs_link": "master.md#repo-identity"
+    },
+    "PERSIST-CONFIRMATION-REQUIRED": {
+      "summary": "Persistence requires explicit confirmation",
+      "how_to_fix": "Provide confirmation evidence with exact text 'Persist to workspace memory: YES' to enable persistence.",
+      "copy_paste_command": null,
+      "docs_link": "rules.md#workspace-memory"
+    },
+    "INTERACTIVE-REQUIRED-IN-PIPELINE": {
+      "summary": "Interactive step requested in pipeline mode",
+      "how_to_fix": "Pipeline mode forbids interactive prompts. Either: (1) switch to user mode, or (2) add pre-approved evidence/config to bypass interaction.",
+      "copy_paste_command": null,
+      "docs_link": "rules.md#pipeline-mode"
+    },
+    "PROMPT-BUDGET-EXCEEDED": {
+      "summary": "Prompt budget exceeded for current mode",
+      "how_to_fix": "Reduce prompts or rerun with higher budget mode. Check SESSION_STATE.PromptBudget for current usage.",
+      "copy_paste_command": null,
+      "docs_link": "rules.md#prompt-budget"
+    },
+    "BLOCKED-MISSING-RULEBOOK": {
+      "summary": "Required rulebook not found",
+      "how_to_fix": "Install missing rulebook at ${COMMANDS_HOME}/ or ${PROFILES_HOME}/. Check SESSION_STATE.RulebookLoadEvidence for which file is missing.",
+      "copy_paste_command": null,
+      "docs_link": "master.md#rulebook-discovery"
+    },
+    "BLOCKED-GATE-FAILED": {
+      "summary": "Quality gate failed",
+      "how_to_fix": "Review gate output in SESSION_STATE.Gates. Fix identified issues and re-run.",
+      "copy_paste_command": null,
+      "docs_link": "master.md#gates"
+    },
+    "BLOCKED-PHASE-TRANSITION": {
+      "summary": "Invalid phase transition attempted",
+      "how_to_fix": "Phase transitions must be monotonic with evidence. Check SESSION_STATE.phase and ensure required evidence for next phase.",
+      "copy_paste_command": null,
+      "docs_link": "master.md#phases"
+    }
+  },
+  "default_unmapped": {
+    "summary": "Unknown reason code",
+    "how_to_fix": "Check SESSION_STATE.Diagnostics.ReasonPayloads for details. If this is a new reason code, it may need to be added to the remediation map.",
+    "copy_paste_command": null,
+    "docs_link": "docs/governance_invariants.md"
+  }
+}

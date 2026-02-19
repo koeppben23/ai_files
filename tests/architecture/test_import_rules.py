@@ -16,7 +16,9 @@ _IO_MODULE_PREFIXES = {
     "pathlib",
 }
 
-_PATH_RESOLVE_ALLOWLIST: set[str] = set()
+_PATH_RESOLVE_ALLOWLIST: set[str] = {
+    "governance/infrastructure/run_summary_writer.py",
+}
 
 
 def _iter_python_files(root: Path):

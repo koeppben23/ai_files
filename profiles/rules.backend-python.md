@@ -111,7 +111,7 @@ Rule: once detected, these become constraints. If unknown, mark unknown and avoi
 
 ## Decision Trees (Binding)
 
-The following decision trees guide architecture-level decisions for Python backends. The assistant MUST follow these trees and record the decision path in the plan.
+The following decision trees guide architecture-level decisions for Python backends. The workflow MUST follow these trees and record the decision path in the plan.
 
 ### DT-PY1: Architecture Pattern Selection
 
@@ -424,7 +424,7 @@ Use status codes below with concrete recovery steps:
 
 ## Anti-Patterns Catalog (Binding)
 
-Each anti-pattern below includes an explanation of **why** it is harmful. The assistant MUST avoid generating code that matches these anti-patterns and MUST flag them during plan review and code review.
+Each anti-pattern below includes an explanation of **why** it is harmful. The workflow MUST avoid generating code that matches these anti-patterns and MUST flag them during plan review and code review.
 
 ### AP-PY01: Fat Handler / Business Logic in Routes
 

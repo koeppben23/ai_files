@@ -42,6 +42,11 @@ Kernel authority boundary: policy and gate semantics are owned by kernel contrac
 
 ## Phase-Coupled Persistence (Outside Repository)
 
+**Kernel Enforcement (Binding):** Persistence is MANDATORY and MUST be enforced by the kernel, not by LLM output.
+The diagnostics helpers (`bootstrap_session_state.py`, `persist_workspace_artifacts.py`) MUST enable writes
+when `OPENCODE_DIAGNOSTICS_ALLOW_WRITE=1` is set (default in normal operation). In CI mode, writes are
+disabled for safety.
+
 | Phase | Artifact | Target | Write condition |
 | ----- | -------- | ------ | --------------- |
 | Phase 2 | `repo-cache.yaml` | `${REPO_CACHE_FILE}` (`[REPO-CACHE-FILE]`) | Written after successful discovery/cache refresh. |
@@ -75,7 +80,10 @@ Phase 3 is **conditionally executed** based on API presence:
 
 **Key insight:** Phase 3A is always executed but may immediately exit with `not-applicable` status. Phase 3B-1 and 3B-2 are only executed when APIs are actually present.
 
-**Implementation note:** The routing logic is partially implemented in `phase_router.py` (OpenAPI signal detection). The "no APIs → skip to Phase 4" path is specified in `master.md` but not yet enforced by the state machine.
+**Implementation note:** Phase routing is implemented in `phase_router.py`. The routing includes:
+- Phase 2.1 → Phase 1.5 (Business Rules Discovery decision)
+- Phase 1.5 → Phase 3A (if APIs) or Phase 4 (if no APIs)
+- Phase 3A → Phase 4 (if no APIs in scope)
 
 ## Gate Requirements for Code Generation
 
