@@ -20,6 +20,7 @@ from governance.engine.session_state_invariants import (
     validate_output_mode_architect_invariant,
     validate_rulebook_evidence_mirror,
     validate_addon_evidence_mirror,
+    validate_canonical_path_invariants,
     validate_session_state_invariants,
 )
 
@@ -307,3 +308,86 @@ class TestFullInvariantValidation:
         doc: dict[str, object] = {}
         errors = validate_session_state_invariants(doc)
         assert "missing_session_state_key" in errors
+
+
+@pytest.mark.governance
+class TestPathInvariantValidation:
+    def test_valid_variable_path(self):
+        state: dict[str, object] = {"RepoCacheFile": {"TargetPath": "${WORKSPACES_HOME}/cache.yaml"}}
+        errors = validate_canonical_path_invariants(state)
+        assert errors == ()
+
+    def test_backslash_in_path_blocked(self):
+        state: dict[str, object] = {"TargetPath": "C:\\Users\\test"}
+        errors = validate_canonical_path_invariants(state)
+        assert any("backslash" in e for e in errors)
+        assert any("BLOCKED-PERSISTENCE-PATH-VIOLATION" in e for e in errors)
+
+    def test_drive_prefix_blocked(self):
+        state: dict[str, object] = {"SourcePath": "C:/Users/test"}
+        errors = validate_canonical_path_invariants(state)
+        assert any("drive_prefix" in e for e in errors)
+
+    def test_parent_traversal_blocked(self):
+        state: dict[str, object] = {"FilePath": "../secret/file.txt"}
+        errors = validate_canonical_path_invariants(state)
+        assert any("parent_traversal" in e for e in errors)
+
+    def test_single_drive_letter_degenerate(self):
+        state: dict[str, object] = {"TargetPath": "C"}
+        errors = validate_canonical_path_invariants(state)
+        assert any("single_drive_letter" in e for e in errors)
+        assert any("BLOCKED-PERSISTENCE-TARGET-DEGENERATE" in e for e in errors)
+
+    def test_drive_root_token_degenerate(self):
+        state: dict[str, object] = {"TargetPath": "C:"}
+        errors = validate_canonical_path_invariants(state)
+        assert any("drive_root_token" in e for e in errors)
+
+    def test_single_segment_without_variable_degenerate(self):
+        state: dict[str, object] = {"TargetPath": "rules.md"}
+        errors = validate_canonical_path_invariants(state)
+        assert any("single_segment_without_variable" in e for e in errors)
+
+    def test_single_segment_with_variable_ok(self):
+        state: dict[str, object] = {"TargetPath": "${WORKSPACES_HOME}/file.txt"}
+        errors = validate_canonical_path_invariants(state)
+        assert errors == ()
+
+    def test_nested_path_field_validated(self):
+        state: dict[str, object] = {
+            "RepoMapDigestFile": {
+                "SourcePath": "C:\\bad\\path",
+                "TargetPath": "${WORKSPACES_HOME}/good/path",
+            }
+        }
+        errors = validate_canonical_path_invariants(state)
+        assert any("backslash" in e for e in errors)
+
+    def test_non_path_field_ignored(self):
+        state: dict[str, object] = {
+            "SomeOtherField": "C:\\ignored",
+            "Evidence": "backslashes OK in evidence",
+        }
+        errors = validate_canonical_path_invariants(state)
+        assert errors == ()
+
+    def test_empty_path_ignored(self):
+        state: dict[str, object] = {"TargetPath": ""}
+        errors = validate_canonical_path_invariants(state)
+        assert errors == ()
+
+    def test_path_invariant_integrated_in_full_validation(self):
+        doc: dict[str, object] = {
+            "SESSION_STATE": {
+                "Mode": "NORMAL",
+                "ConfidenceLevel": 85,
+                "ProfileSource": "user-explicit",
+                "Next": "Continue",
+                "OutputMode": "IMPLEMENT",
+                "LoadedRulebooks": {},
+                "TargetPath": "C:\\bad",
+            }
+        }
+        errors = validate_session_state_invariants(doc)
+        assert any("backslash" in e for e in errors)
