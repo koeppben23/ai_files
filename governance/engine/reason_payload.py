@@ -9,6 +9,7 @@ from governance.engine._embedded_reason_registry import EMBEDDED_REASON_CODE_TO_
 from governance.engine._embedded_reason_schemas import EMBEDDED_REASON_SCHEMAS
 from governance.engine.reason_codes import REASON_CODE_NONE, is_registered_reason_code
 from governance.engine.sanitization import sanitize_for_output
+from governance.engine.schema_validator import validate_against_schema
 
 ReasonStatus = Literal["BLOCKED", "WARN", "OK", "NOT_VERIFIED"]
 DecisionOutcome = Literal["ALLOW", "BLOCKED"]
@@ -100,63 +101,6 @@ def _load_schema(schema_ref: str) -> dict[str, object]:
     raise ValueError(f"reason_schema_missing:{schema_ref}")
 
 
-def _validate_against_schema(*, schema: dict[str, object], value: object, path: str = "$") -> list[str]:
-    errors: list[str] = []
-
-    expected_type = schema.get("type")
-    if expected_type == "object":
-        if not isinstance(value, dict):
-            return [f"{path}:expected object"]
-
-        properties = schema.get("properties")
-        if not isinstance(properties, dict):
-            properties = {}
-
-        required = schema.get("required")
-        if isinstance(required, list):
-            for key in required:
-                if isinstance(key, str) and key not in value:
-                    errors.append(f"{path}.{key}:required")
-
-        if schema.get("additionalProperties") is False:
-            allowed = {k for k in properties.keys() if isinstance(k, str)}
-            for key in value.keys():
-                if isinstance(key, str) and key not in allowed:
-                    errors.append(f"{path}.{key}:unexpected")
-
-        for key, child in properties.items():
-            if not isinstance(key, str) or key not in value or not isinstance(child, dict):
-                continue
-            errors.extend(_validate_against_schema(schema=child, value=value[key], path=f"{path}.{key}"))
-
-    elif expected_type == "array":
-        if not isinstance(value, list):
-            return [f"{path}:expected array"]
-        item_schema = schema.get("items")
-        if isinstance(item_schema, dict):
-            for idx, item in enumerate(value):
-                errors.extend(_validate_against_schema(schema=item_schema, value=item, path=f"{path}[{idx}]"))
-
-    elif expected_type == "string":
-        if not isinstance(value, str):
-            return [f"{path}:expected string"]
-        min_len = schema.get("minLength")
-        if isinstance(min_len, int) and len(value) < min_len:
-            errors.append(f"{path}:minLength")
-        enum = schema.get("enum")
-        if isinstance(enum, list) and value not in enum:
-            errors.append(f"{path}:enum")
-
-    elif expected_type == "integer":
-        if not isinstance(value, int) or isinstance(value, bool):
-            return [f"{path}:expected integer"]
-        minimum = schema.get("minimum")
-        if isinstance(minimum, int) and value < minimum:
-            errors.append(f"{path}:minimum")
-
-    return errors
-
-
 def validate_reason_context_schema(reason_code: str, context: dict[str, object]) -> tuple[str, ...]:
     """Validate reason context against registered payload schema when available."""
 
@@ -165,7 +109,7 @@ def validate_reason_context_schema(reason_code: str, context: dict[str, object])
         return ()
 
     schema = _load_schema(schema_ref)
-    errors = _validate_against_schema(schema=schema, value=context, path="$")
+    errors = validate_against_schema(schema=schema, value=context, path="$")
     if not errors:
         return ()
     return tuple(f"schema:{schema_ref}:{entry}" for entry in sorted(set(errors)))
