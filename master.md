@@ -267,10 +267,11 @@ The system MUST:
 
 The system MUST remain fail-closed if evidence is missing or inconsistent.
 
-The following are FORBIDDEN:
-  - destructive or mutating git commands during identity collection,
-  - path-based or heuristic repo fingerprints,
-  - provisional or fallback identity trees.
+**Output Rules for Identity Collection:**
+- Do not propose destructive or mutating git commands during identity collection
+- Do not suggest path-based or heuristic repo fingerprints
+- Do not propose provisional or fallback identity trees
+- If these capabilities are needed, output `NEEDS_KERNEL_CAPABILITY: <description>`
 
 - `${REPO_HOME}` = `${WORKSPACES_HOME}/<repo_fingerprint>`  (workspace bucket)
 - `${REPO_OVERRIDES_HOME}` = `${REPO_HOME}/governance-overrides`  (workspace-only override bucket; never repo-local)
@@ -838,7 +839,8 @@ Canonical flow (binding, compact):
 - `5.5` is optional and only when explicitly proposed.
 - `5.6` is evaluated inside `5` and MUST be satisfied when rollback safety applies.
 
-Code generation (production code, diffs) is ONLY permitted if the `SESSION_STATE` has:
+**Output Rule for Code Generation:**
+Do not output production code or diffs unless the `SESSION_STATE` has:
 
 GATE STATUS:
 
@@ -1430,10 +1432,12 @@ SESSION_STATE:
 
 Binding:
 - `SESSION_STATE.Next` MUST be set at the end of every phase output.
-- `continue.md` MUST execute ONLY the step referenced by `SESSION_STATE.Next`.
+- When resuming a session, output a Resume Summary that describes (read-only) the next intended kernel action from `SESSION_STATE.Next`.
 - After every `SESSION_STATE` block, the workflow MUST emit one terminal summary line:
   - `NEXT_STEP: <value of SESSION_STATE.Next>`
   - This line MUST be the final line of the response (except when host tooling appends its own metadata outside workflow output).
+
+**Note:** Continue-flow execution is kernel-enforced. MD describes expected output format, not execution logic.
 
 ### 3.3 FULL Mode Additions (Binding when FULL required)
 
@@ -1514,7 +1518,7 @@ SESSION_STATE:
 
 Binding:
 - `SESSION_STATE.Next` MUST be set at the end of every phase output.
-- `continue.md` MUST execute ONLY the step referenced by `SESSION_STATE.Next`.
+- When resuming, output a Resume Summary that describes the next intended kernel action from `SESSION_STATE.Next`.
 
 **Binding rules for Phase 1:**
 * If profile is ambiguous (multiple found, no user selection) → Mode: BLOCKED
@@ -2910,56 +2914,37 @@ Note: Fast Path MAY reduce review depth/verbosity but MUST NOT bypass any gates.
    * If multiple implementations are plausible → Use Clarification Format (Section 2.3)
    * If requirements are contradictory → Mode: BLOCKED, request clarification
 
-6. **Plan Self-Review and Iterative Refinement (3 rounds):**
+6. **Plan Risk Review (Output Section):**
 
-   Before presenting the plan, the LLM MUST execute exactly **3 self-critique rounds** to refine the implementation plan. Each round targets specific quality dimensions. The LLM performs both the critic and author roles internally — no user interaction occurs during these rounds.
-
-   **Round 1 — Correctness & Completeness:**
-   - Review the plan against the ticket requirements: are all acceptance criteria addressed?
-   - Verify every affected component is listed and every dependency is accounted for.
-   - Check that the test strategy covers all risk areas identified in step 4.
-   - Check that error/edge cases are handled (null inputs, boundary values, concurrency).
-   - Verify that the implementation plan steps are in a valid dependency order.
-   - **Output:** List of identified gaps or confirmation of completeness. Apply fixes immediately.
-
-   **Round 2 — Architecture & Quality Standards:**
-   - Verify the plan respects layer boundaries (no shortcuts across architectural layers).
-   - Check adherence to the active profile rulebook (naming conventions, patterns, anti-patterns).
-   - Verify the plan follows active template rulebook structures where applicable.
-   - Confirm NFR checklist items are substantive (not just "OK" without reasoning).
-   - Validate that the Mandatory Review Matrix (MRM) artifacts are achievable with the planned steps.
-   - Check for YAGNI violations: does the plan introduce unnecessary abstractions or premature generalizations?
-   - **Output:** List of architectural/quality violations found. Apply fixes immediately.
-
-   **Round 3 — Robustness & Production-Readiness:**
-   - Review rollback strategy: is it concrete and actionable (not just "revert the commit")?
-   - Verify observability: are logging, metrics, and alerting addressed where needed?
-   - Check security implications: auth, input validation, data exposure, injection risks.
-   - Validate performance considerations: N+1 queries, missing indices, unbounded collections.
-   - Confirm the plan produces code that is testable in isolation (proper seams, no hidden globals).
-   - Review the plan for common anti-patterns from the active profile’s anti-pattern catalog.
-   - **Output:** List of robustness issues found. Apply fixes immediately.
-
-   **Self-Review Evidence Block (REQUIRED in Phase 4 output):**
-
-   After the 3 rounds, append the following block to the Phase 4 output:
-
+   Before presenting the plan, include a single Risk Review section with 3 quality checks:
+   
+   **Risk Review Section (REQUIRED in Phase 4 output):**
+   
    ```
-   Plan Self-Review (3/3 rounds completed):
-     Round 1 (Correctness & Completeness):
-       Issues found: <count>
-       Resolved: <list or "none needed">
-     Round 2 (Architecture & Quality Standards):
-       Issues found: <count>
-       Resolved: <list or "none needed">
-     Round 3 (Robustness & Production-Readiness):
-       Issues found: <count>
-       Resolved: <list or "none needed">
-     Refinement confidence delta: <initial confidence> → <post-review confidence>
+   Risk Review:
+     1. Constraints Violation Check:
+        - All acceptance criteria addressed: <yes/no/partial>
+        - Dependency order valid: <yes/no>
+        - Edge cases handled: <yes/no>
+     2. Missing Evidence Check:
+        - Missing inputs: <list or "none">
+        - Missing artifacts: <list or "none">
+        - Confidence gaps: <list or "none">
+     3. Test Coverage Check:
+        - Risk areas covered: <yes/no>
+        - Test strategy complete: <yes/no>
+        - Architectural boundaries respected: <yes/no>
+     Refinement recommendation: <one-line summary>
    ```
 
-   **Rules:**
-   - All 3 rounds are MANDATORY. Skipping rounds is a protocol violation.
+   **Output Rules:**
+   - Do NOT output "I think" or assumptions - use "Evidence says" or mark as `MISSING:`
+   - If violations found, list them explicitly; do not suppress
+   - If evidence missing, output `MISSING_EVIDENCE: <id>` and stop
+   - The Risk Review is a format requirement, not an execution procedure
+
+   **Note:** Iterative refinement (rounds, retries) is kernel-enforced, not MD-defined.
+   The kernel determines if additional quality passes are needed based on evidence.
    - Each round MUST produce at least a "none needed" confirmation — empty output is invalid.
    - Issues found in any round MUST be resolved before proceeding to the next round.
    - The Self-Review Evidence Block MUST appear in the Phase 4 output before the SESSION_STATE block.
@@ -3403,9 +3388,9 @@ Test quality gate passed. Awaiting confirmation to proceed to Phase 5.4 (if Phas
 * `test-quality-pass-with-exceptions`: Tests mostly sufficient, documented gaps, proceed with caution
 * `test-quality-fail`: Tests are insufficient, back to Phase 4
 
-**Binding rule:**
-* If `test-quality-fail` → Code generation is FORBIDDEN
-* If `test-quality-pass-with-exceptions` → Code generation is ALLOWED but user must acknowledge gaps
+**Output Rules:**
+* If `test-quality-fail` → Do not output code diffs; output test improvement recommendations instead
+* If `test-quality-pass-with-exceptions` → Output code diffs with explicit gap acknowledgments required
 
 ---
 
@@ -3731,38 +3716,42 @@ Note:
   canonical command (e.g., `./gradlew test`).
 * The canonical command is superseded by `SESSION_STATE.BuildToolchain.FullVerifyCmd` when populated.
 
-#### Build Verification Loop (binding, conditional on build tool availability)
+#### Build Verification Output Contract (Presentation Advisory)
 
-**Trigger:** `SESSION_STATE.BuildToolchain.CompileAvailable == true` OR `SESSION_STATE.BuildToolchain.TestAvailable == true`.
+**Note:** This section defines output format requirements (Schienen), not execution logic.
+The kernel enforces build verification via `governance/application/use_cases/build_verification.py`.
+If LLM output references build/test execution, the kernel validates and executes deterministically.
 
-When build tools are available, the LLM MUST execute them autonomously instead of requesting build evidence from the user. This replaces the manual evidence collection flow with a deterministic feedback loop.
+**Output Requirement:** When build tools are available (`SESSION_STATE.BuildToolchain.CompileAvailable == true` OR `TestAvailable == true`), include a Build Verification section that describes:
 
-**Loop procedure:**
+1. **Expected Commands** (argv-only, no shell interpolation):
+   - Compile command: `SESSION_STATE.BuildToolchain.CompileCmd`
+   - Test command: `SESSION_STATE.BuildToolchain.TestCmd`
+   - Full verify command: `SESSION_STATE.BuildToolchain.FullVerifyCmd` (when populated)
 
-1. **Compile check** (if `CompileAvailable == true`):
-   - Execute `SESSION_STATE.BuildToolchain.CompileCmd`.
-   - If compilation succeeds → proceed to step 2.
-   - If compilation fails → parse error output, fix the identified issues, re-execute.
-   - Maximum 3 compile-fix iterations. If still failing after 3 attempts → record remaining errors in `SESSION_STATE.BuildEvidence.CompileErrors`, set `status = fix-required`, and present errors to user.
+2. **Expected Success Criteria:**
+   - Compilation: zero errors
+   - Tests: all pass (or documented exceptions with evidence)
 
-2. **Test execution** (if `TestAvailable == true`):
-   - Execute `SESSION_STATE.BuildToolchain.TestCmd`.
-   - If all tests pass → proceed to step 3.
-   - If tests fail → parse failure output, fix the identified issues, re-execute.
-   - Maximum 3 test-fix iterations. If still failing after 3 attempts → record remaining failures in `SESSION_STATE.BuildEvidence.TestFailures`, set `status = fix-required`, and present failures to user.
-
-3. **Record evidence:**
-   - `SESSION_STATE.BuildEvidence.status = verified-by-tool`
-   - `SESSION_STATE.BuildEvidence.CompileResult = pass | fail`
+3. **Required Evidence After Execution:**
+   - `SESSION_STATE.BuildEvidence.status = verified-by-tool | fix-required | not-provided`
+   - `SESSION_STATE.BuildEvidence.CompileResult = pass | fail | not-executed`
    - `SESSION_STATE.BuildEvidence.TestResult = pass | fail | not-executed`
-   - `SESSION_STATE.BuildEvidence.IterationsUsed = <count of compile-fix + test-fix iterations>`
-   - `SESSION_STATE.BuildEvidence.ToolOutput = <last successful or final failing output summary>`
+   - `SESSION_STATE.BuildEvidence.ToolOutput = <summary>`
 
-**Rules:**
-- Tool verification output ALWAYS takes precedence over self-critique. If self-critique said "looks correct" but the compiler says "error", the compiler wins.
-- The LLM MUST NOT suppress, ignore, or rationalize away compiler/test errors.
-- If `CompileAvailable == false` AND `TestAvailable == false` → fall back to the manual evidence collection flow below.
-- The Build Verification Loop MUST execute BEFORE the review-of-review consistency pass.
+4. **If Evidence Missing:**
+   - Output `MISSING_EVIDENCE: build_verification` and stop
+   - Do NOT propose fixes without kernel-executed evidence
+
+**Output Rules:**
+- Tool verification output ALWAYS takes precedence over self-critique
+- Do NOT suppress, ignore, or rationalize away compiler/test errors in output
+- If `CompileAvailable == false` AND `TestAvailable == false` → use manual evidence collection flow
+
+**Kernel Enforcement (NOT in MD scope):**
+- The kernel determines WHEN to execute, HOW many iterations, and WHAT evidence to write
+- Maximum iterations and retry policy are kernel-enforced, not MD-defined
+- In pipeline mode: build verification runs silently, produces evidence only
 
 Conceptual verification (evidence-aware, fallback when build tools are NOT available):
 
