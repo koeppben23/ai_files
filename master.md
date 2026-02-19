@@ -1174,9 +1174,13 @@ Rules:
 - Once the required input is provided, the workflow MUST re-run only the minimal necessary step (e.g., Phase 1.3/1.4 load) and then resume.
 - BLOCKED/WARN/NOT_VERIFIED outputs MUST include `SESSION_STATE.Diagnostics.ReasonPayloads` entries for every emitted reason code.
 
-#### Unified Next Action Footer (Binding)
+#### Unified Next Action Footer (Presentation Advisory)
 
-Every workflow response MUST end with a compact, deterministic footer block:
+**Note**: This section defines output format conventions (Schienen), not enforcement logic.
+The kernel does not depend on this format for correctness. Enforcement is handled by
+`SESSION_STATE.Next`, kernel gates, and `RESPONSE_ENVELOPE_SCHEMA.json`.
+
+Every workflow response SHOULD end with a compact, deterministic footer block:
 
 ```
 [NEXT-ACTION]
@@ -1194,9 +1198,12 @@ Rules:
 - `PhaseGate` MUST be present in both STRICT and COMPAT responses and derive from `SESSION_STATE` (`phase`, `active_gate`, `phase_progress_bar`).
 - `[NEXT-ACTION]` presentation MUST remain multiline (`Status`, `Next`, `Why`, `Command` each on its own line); single-line pipe-joined rendering is not allowed.
 
-#### Confidence + Impact Snapshot (Binding)
+#### Confidence + Impact Snapshot (Presentation Advisory)
 
-Every response MUST include a compact status snapshot block:
+**Note**: This section defines output format conventions (Schienen), not enforcement logic.
+Values are derived from kernel-enforced `SESSION_STATE` fields.
+
+Every response SHOULD include a compact status snapshot block:
 
 ```
 [SNAPSHOT]
