@@ -36,7 +36,6 @@ FORBIDDEN_PATTERNS = [
 
 ALLOWLIST_DIRS = {
     "docs/MD_PYTHON_POLICY.md",  # This document describes the patterns
-    "docs/CLEAN_ARCHITECTURE_VIOLATION.md",  # Documents violations (examples)
 }
 
 EXEMPTION_PATTERNS = [
