@@ -21,7 +21,11 @@ from governance.engine.reason_codes import (
     BLOCKED_STATE_OUTDATED,
     REASON_CODE_NONE,
     WARN_SESSION_STATE_LEGACY_COMPAT_MODE,
+    WARN_SESSION_STATE_SCHEMA_VIOLATION,
 )
+from governance.engine.schema_validator import validate_against_schema
+from governance.engine._embedded_session_state_schema import SESSION_STATE_CORE_SCHEMA
+from governance.engine.session_state_invariants import validate_session_state_invariants
 from governance.infrastructure.fs_atomic import atomic_write_text
 
 CURRENT_SESSION_STATE_VERSION = 1
@@ -50,6 +54,8 @@ class SessionStateLoadResult:
     document: dict[str, Any] | None
     warning_reason_code: str
     warning_detail: str
+    schema_errors: tuple[str, ...] = ()
+    invariant_errors: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -87,18 +93,25 @@ class SessionStateRepository:
         self.last_warning_reason_code = REASON_CODE_NONE
         self.last_atomic_replace_retries = 0
 
-    def load(self) -> dict[str, Any] | None:
+    def load(self, *, validate: bool = True) -> dict[str, Any] | None:
         """Load a JSON document, returning None when the file is absent.
 
         Prefer `load_with_result()` for structured warning propagation.
+
+        Args:
+            validate: If True (default), validate against schema and invariants.
         """
 
-        result = self.load_with_result()
+        result = self.load_with_result(validate=validate)
         self.last_warning_reason_code = result.warning_reason_code
         return result.document
 
-    def load_with_result(self) -> SessionStateLoadResult:
-        """Load one document and return structured warning metadata."""
+    def load_with_result(self, *, validate: bool = True) -> SessionStateLoadResult:
+        """Load one document and return structured warning metadata.
+
+        Args:
+            validate: If True (default), validate against schema and invariants.
+        """
 
         self.last_warning_reason_code = REASON_CODE_NONE
         if not self.path.exists():
@@ -110,13 +123,11 @@ class SessionStateRepository:
         payload = json.loads(self.path.read_text(encoding="utf-8"))
         if not isinstance(payload, dict):
             raise ValueError("session state payload must be a JSON object")
+
+        document = payload
         if self.rollout_phase == ROLLOUT_PHASE_DUAL_READ:
-            return SessionStateLoadResult(
-                document=_normalize_dual_read_aliases(payload),
-                warning_reason_code=REASON_CODE_NONE,
-                warning_detail="",
-            )
-        if self.rollout_phase >= ROLLOUT_PHASE_ENGINE_ONLY:
+            document = _normalize_dual_read_aliases(payload)
+        elif self.rollout_phase >= ROLLOUT_PHASE_ENGINE_ONLY:
             legacy_fields = _legacy_alias_fields(payload)
             if legacy_fields:
                 if self.rollout_phase >= ROLLOUT_PHASE_LEGACY_REMOVED:
@@ -145,13 +156,33 @@ class SessionStateRepository:
                     "legacy SESSION_STATE aliases accepted in explicit compatibility mode "
                     f"(fields={','.join(legacy_fields)})"
                 )
+                document = _normalize_dual_read_aliases(payload)
                 return SessionStateLoadResult(
-                    document=_normalize_dual_read_aliases(payload),
+                    document=document,
                     warning_reason_code=WARN_SESSION_STATE_LEGACY_COMPAT_MODE,
                     warning_detail=detail,
                 )
+
+        # Schema and invariant validation (enabled by default)
+        if validate:
+            schema_errors = tuple(validate_against_schema(
+                schema=SESSION_STATE_CORE_SCHEMA,
+                value=document,
+            ))
+            invariant_errors = validate_session_state_invariants(document)
+
+            if schema_errors or invariant_errors:
+                detail = f"schema_errors={len(schema_errors)} invariant_errors={len(invariant_errors)}"
+                return SessionStateLoadResult(
+                    document=document,
+                    warning_reason_code=WARN_SESSION_STATE_SCHEMA_VIOLATION,
+                    warning_detail=detail,
+                    schema_errors=schema_errors,
+                    invariant_errors=invariant_errors,
+                )
+
         return SessionStateLoadResult(
-            document=payload,
+            document=document,
             warning_reason_code=REASON_CODE_NONE,
             warning_detail="",
         )
