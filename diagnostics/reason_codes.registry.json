@@ -787,6 +787,13 @@
       "payload_schema_ref": "diagnostics/schemas/reason_payload_advisory.v1.json",
       "description": "Liquibase data migration changeset has not been verified against realistic data volume.",
       "remediation_hint": "Run the migration against a staging dataset of representative size and measure duration."
+    },
+    {
+      "code": "WARN-SESSION-STATE-SCHEMA-VIOLATION",
+      "severity": "warn",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_advisory.v1.json",
+      "description": "SESSION_STATE document failed schema or invariant validation.",
+      "remediation_hint": "Fix schema violations or invariant errors. Run schema validation for details."
     }
   ]
 }
