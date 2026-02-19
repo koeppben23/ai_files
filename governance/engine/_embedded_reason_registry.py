@@ -128,6 +128,7 @@ EMBEDDED_REASON_CODE_TO_SCHEMA_REF: Final[dict[str, str]] = {
     "WARN-LIQUIBASE-ROLLBACK-MISSING": "diagnostics/schemas/reason_payload_advisory.v1.json",
     "WARN-LIQUIBASE-LOCK-RISK": "diagnostics/schemas/reason_payload_advisory.v1.json",
     "WARN-LIQUIBASE-DATA-MIGRATION-UNVERIFIED": "diagnostics/schemas/reason_payload_advisory.v1.json",
+    "WARN-SESSION-STATE-SCHEMA-VIOLATION": "diagnostics/schemas/reason_payload_advisory.v1.json",
     # Audit events
     "REPO-CONSTRAINT-UNSUPPORTED": "diagnostics/schemas/reason_payload_repo_constraint_unsupported.v1.json",
     "POLICY-PRECEDENCE-APPLIED": "diagnostics/schemas/reason_payload_policy_precedence.v1.json",
