@@ -179,17 +179,57 @@
     "model_context": {
       "type": "object",
       "additionalProperties": false,
+      "required": ["provider", "model_id", "context_limit"],
       "properties": {
         "provider": {
           "type": "string",
-          "description": "Model provider (e.g., 'anthropic', 'openai')"
+          "description": "Model provider (e.g., 'anthropic', 'openai', 'google')"
         },
-        "model": {
+        "model_id": {
           "type": "string",
-          "description": "Model identifier (e.g., 'claude-3-opus')"
+          "description": "Model identifier (e.g., 'claude-3-opus-20240229', 'gpt-4-turbo')"
+        },
+        "context_limit": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Maximum context length in tokens"
+        },
+        "temperature": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 2,
+          "description": "Sampling temperature (0.0 = deterministic)"
+        },
+        "version": {
+          "type": "string",
+          "description": "Model version/snapshot if available"
+        },
+        "quantization": {
+          "type": "string",
+          "description": "Quantization level if applicable (e.g., '4bit', '8bit')"
+        },
+        "deployment_id": {
+          "type": "string",
+          "description": "Deployment/endpoint ID for enterprise models"
+        },
+        "identity_hash": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{16}$",
+          "description": "Deterministic hash of model identity for comparison"
         }
       },
-      "description": "Model context for reproducibility"
+      "description": "Model identity for reproducibility. CRITICAL: Different models may produce different outputs for same input."
+    },
+    "rulebook_hashes": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Hashes of loaded rulebooks for reproducibility"
+    },
+    "kernel_version": {
+      "type": "string",
+      "description": "Kernel/engine version for reproducibility"
     }
   }
 }
