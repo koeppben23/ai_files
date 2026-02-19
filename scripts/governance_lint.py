@@ -11,40 +11,14 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-ALLOWED_SURFACES = {
-    "api_contract",
-    "backend_java_templates",
-    "backend_python_templates",
-    "bdd_framework",
-    "build_tooling",
-    "db_migration",
-    "e2e_test_framework",
-    "frontend_api_client",
-    "frontend_templates",
-    "governance_docs",
-    "linting",
-    "messaging",
-    "principal_review",
-    "release",
-    "risk_model",
-    "scorecard_calibration",
-    "security",
-    "static",
-    "test_framework",
-}
-ALLOWED_CAPABILITIES = {
-    "angular",
-    "cucumber",
-    "cypress",
-    "governance_docs",
-    "java",
-    "kafka",
-    "liquibase",
-    "nx",
-    "openapi",
-    "python",
-}
-ALLOWED_EVIDENCE_KINDS = {"unit-test", "integration-test", "contract-test", "e2e", "lint", "build"}
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from governance.addon_catalog import (  # noqa: E402
+    ALLOWED_CAPABILITIES,
+    ALLOWED_EVIDENCE_KINDS,
+    ALLOWED_SURFACES,
+)
 
 
 def read_text(path: Path) -> str:

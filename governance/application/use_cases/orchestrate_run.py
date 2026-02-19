@@ -82,135 +82,32 @@ from governance.application.policies.persistence_policy import (
     can_write as can_write_persistence,
 )
 from governance.application.use_cases.phase_router import route_phase
+from governance.application.use_cases.resolve_operating_mode import (
+    resolve_effective_operating_mode,
+    has_required_mode_capabilities,
+)
+from governance.application.use_cases.target_path_helpers import (
+    VARIABLE_CAPTURE,
+    extract_target_variable,
+    is_code_output_request,
+)
+from governance.application.use_cases.session_state_helpers import (
+    session_state_root,
+    phase_token,
+    extract_repo_identity,
+    with_workspace_ready_gate,
+)
+from governance.application.use_cases.evaluate_persistence_gate import (
+    PersistencePhaseGateDecision,
+    WORKSPACE_MEMORY_CONFIRMATION,
+    evaluate_phase_coupled_persistence,
+)
+from governance.application.use_cases.build_reason_context import (
+    build_hash_mismatch_diff,
+    build_reason_context,
+    build_orchestrator_reason_payload,
+)
 
-_VARIABLE_CAPTURE = re.compile(r"^\$\{([A-Z0-9_]+)\}")
-_WORKSPACE_MEMORY_CONFIRMATION = "Persist to workspace memory: YES"
-
-
-@dataclass(frozen=True)
-class PersistencePhaseGateDecision:
-    allowed: bool
-    reason_code: str
-    reason: str
-
-
-def _session_state_root(session_state_document: Mapping[str, object] | None) -> Mapping[str, object]:
-    if session_state_document is None:
-        return {}
-    session_state = session_state_document.get("SESSION_STATE")
-    if isinstance(session_state, Mapping):
-        return session_state
-    return session_state_document
-
-
-def _phase_token(value: str) -> str:
-    from governance.domain.phase_state_machine import normalize_phase_token
-
-    return normalize_phase_token(value)
-
-
-def _phase5_approved(state: Mapping[str, object]) -> bool:
-    for key in ("phase5_approved", "Phase5Approved", "phase_5_approved"):
-        value = state.get(key)
-        if isinstance(value, bool):
-            return value
-    return False
-
-
-def _business_rules_executed(state: Mapping[str, object]) -> bool:
-    for key in ("business_rules_executed", "BusinessRulesExecuted"):
-        value = state.get(key)
-        if isinstance(value, bool):
-            return value
-    return False
-
-
-def _artifact_kind_from_target_variable(target_variable: str | None) -> str | None:
-    if target_variable == "REPO_CACHE_FILE":
-        return ARTIFACT_REPO_CACHE
-    if target_variable == "REPO_DIGEST_FILE":
-        return ARTIFACT_REPO_DIGEST
-    if target_variable == "REPO_DECISION_PACK_FILE":
-        return ARTIFACT_DECISION_PACK
-    if target_variable == "REPO_BUSINESS_RULES_FILE":
-        return ARTIFACT_BUSINESS_RULES
-    if target_variable == "WORKSPACE_MEMORY_FILE":
-        return ARTIFACT_WORKSPACE_MEMORY
-    return None
-
-
-def _confirmation_from_evidence(evidence: Mapping[str, object] | None, *, scope: str, gate: str) -> str:
-    if evidence is None:
-        return ""
-    items = evidence.get("items") if isinstance(evidence, Mapping) else None
-    if not isinstance(items, list):
-        return ""
-    for item in items:
-        if not isinstance(item, Mapping):
-            continue
-        if str(item.get("scope") or "").strip() != scope:
-            continue
-        if str(item.get("gate") or "").strip() != gate:
-            continue
-        value = str(item.get("value") or "").strip()
-        if value:
-            return f"Persist to workspace memory: {value}"
-    return ""
-
-
-def _evaluate_phase_coupled_persistence(
-    *,
-    persistence_write_requested: bool,
-    phase: str,
-    target_variable: str | None,
-    effective_mode: OperatingMode,
-    session_state_document: Mapping[str, object] | None,
-    persist_confirmation_evidence: Mapping[str, object] | None,
-) -> PersistencePhaseGateDecision:
-    if not persistence_write_requested:
-        return PersistencePhaseGateDecision(True, REASON_CODE_NONE, "not-applicable")
-
-    artifact_kind = _artifact_kind_from_target_variable(target_variable)
-    if artifact_kind is None:
-        return PersistencePhaseGateDecision(True, REASON_CODE_NONE, "not-applicable")
-
-    state = _session_state_root(session_state_document)
-    confirmation = _confirmation_from_evidence(
-        persist_confirmation_evidence,
-        scope="workspace-memory",
-        gate="phase5",
-    )
-    decision = can_write_persistence(
-        PersistencePolicyInput(
-            artifact_kind=artifact_kind,
-            phase=phase,
-            mode=effective_mode,
-            gate_approved=_phase5_approved(state),
-            business_rules_executed=_business_rules_executed(state),
-            explicit_confirmation=confirmation,
-        )
-    )
-
-    if decision.allowed:
-        return PersistencePhaseGateDecision(True, REASON_CODE_NONE, "approved")
-
-    return PersistencePhaseGateDecision(False, decision.reason_code, decision.reason)
-
-
-def _is_code_output_request(requested_action: str | None) -> bool:
-    """Fail-closed: any non-empty action in phase 4 is treated as a code-output
-    request unless it matches a known read-only / observation-only allowlist.
-    This prevents denylist bypass via synonym substitution (A8-F01)."""
-    action = (requested_action or "").strip().lower()
-    if not action:
-        return False
-    # Only actions that are provably read-only / non-emitting are safe.
-    safe_patterns = (
-        "review", "explain", "summarize", "describe", "list",
-        "check", "verify", "inspect", "read", "show", "status",
-        "plan", "outline", "analyse", "analyze", "compare",
-    )
-    return not any(token in action for token in safe_patterns)
 
 @dataclass(frozen=True)
 class EngineOrchestratorOutput:
@@ -233,95 +130,6 @@ class EngineOrchestratorOutput:
     repo_doc_evidence: RepoDocEvidence | None
     precedence_events: tuple[dict[str, object], ...]
     prompt_events: tuple[dict[str, object], ...]
-
-
-def _resolve_effective_operating_mode(adapter: HostAdapter, requested: OperatingMode | None) -> OperatingMode:
-    """Resolve operating mode with deterministic precedence."""
-
-    if requested is not None:
-        return requested
-    env = adapter.environment()
-    ci = str(env.get("CI", "")).strip().lower()
-    if ci and ci not in {"0", "false", "no", "off"}:
-        return "pipeline"
-    return adapter.default_operating_mode()
-
-
-def _has_required_mode_capabilities(mode: OperatingMode, caps: Any) -> bool:
-    """Return True when minimal capabilities for the requested mode are satisfied."""
-
-    if mode == "user":
-        return caps.fs_read_commands_home and caps.fs_write_workspaces_home
-    if mode == "system":
-        return caps.exec_allowed and caps.fs_read_commands_home and caps.fs_write_workspaces_home
-    return (
-        caps.exec_allowed
-        and caps.fs_read_commands_home
-        and caps.fs_write_workspaces_home
-        and caps.fs_write_commands_home
-        and caps.git_available
-    )
-
-
-def _extract_target_variable(target_path: str) -> str | None:
-    """Extract canonical variable token from target path string."""
-
-    match = _VARIABLE_CAPTURE.match(target_path.strip())
-    if match is None:
-        return None
-    return match.group(1)
-
-
-
-def _extract_repo_identity(session_state_document: Mapping[str, object] | None) -> str:
-    """Extract stable repo identity (repo_fingerprint) from SESSION_STATE."""
-    if session_state_document is None:
-        return ""
-    session_state = session_state_document.get("SESSION_STATE")
-    root = session_state if isinstance(session_state, Mapping) else session_state_document
-    value = root.get("repo_fingerprint")
-    return value.strip() if isinstance(value, str) else ""
-
-
-def _with_workspace_ready_gate(
-    session_state_document: Mapping[str, object] | None,
-    *,
-    repo_fingerprint: str,
-    committed: bool,
-) -> Mapping[str, object] | None:
-    if session_state_document is None:
-        state: dict[str, object] = {}
-    else:
-        state = dict(session_state_document)
-    root = state.get("SESSION_STATE")
-    if isinstance(root, Mapping):
-        ss = dict(root)
-        ss["repo_fingerprint"] = repo_fingerprint
-        ss["workspace_ready_gate_committed"] = committed
-        ss["workspace_ready"] = committed
-        state["SESSION_STATE"] = ss
-        return state
-    state["repo_fingerprint"] = repo_fingerprint
-    state["workspace_ready_gate_committed"] = committed
-    state["workspace_ready"] = committed
-    return state
-
-
-def _build_hash_mismatch_diff(
-    *,
-    observed_ruleset_hash: str | None,
-    observed_activation_hash: str | None,
-    expected_ruleset_hash: str,
-    expected_activation_hash: str,
-) -> dict[str, str]:
-    """Build minimal deterministic mismatch diff payload."""
-
-    diff: dict[str, str] = {}
-    if observed_ruleset_hash and observed_ruleset_hash.strip() != expected_ruleset_hash:
-        diff["ruleset_hash"] = f"{observed_ruleset_hash.strip()}->{expected_ruleset_hash}"
-    if observed_activation_hash and observed_activation_hash.strip() != expected_activation_hash:
-        diff["activation_hash"] = f"{observed_activation_hash.strip()}->{expected_activation_hash}"
-    return diff
 
 
 def run_engine_orchestrator(
@@ -383,13 +191,13 @@ def run_engine_orchestrator(
 
     caps = adapter.capabilities()
     capabilities_hash = caps.stable_hash()
-    requested_mode = _resolve_effective_operating_mode(adapter, requested_operating_mode)
+    requested_mode = resolve_effective_operating_mode(adapter, requested_operating_mode)
     effective_mode = requested_mode
     mode_downgraded = False
     mode_deviation: Any | None = None
     mode_reason = REASON_CODE_NONE
 
-    if requested_mode != "user" and not _has_required_mode_capabilities(requested_mode, caps):
+    if requested_mode != "user" and not has_required_mode_capabilities(requested_mode, caps):
         effective_mode = "user"
         mode_downgraded = True
         mode_reason = WARN_MODE_DOWNGRADED
@@ -414,7 +222,7 @@ def run_engine_orchestrator(
         live_fingerprint = hashlib.sha256(
             f"repo:local:{str(live_repo_root)}".encode("utf-8")
         ).hexdigest()[:24]
-        state_fingerprint = _extract_repo_identity(session_state_document)
+        state_fingerprint = extract_repo_identity(session_state_document)
         if state_fingerprint and state_fingerprint != live_fingerprint:
             # Cross-wire detected: session state has stale fingerprint.
             gate_blocked = True
@@ -435,7 +243,7 @@ def run_engine_orchestrator(
                 gate_reason_code = BLOCKED_WORKSPACE_PERSISTENCE
                 gate = None
             if gate is not None:
-                session_state_document = _with_workspace_ready_gate(
+                session_state_document = with_workspace_ready_gate(
                     session_state_document,
                     repo_fingerprint=state_fingerprint or live_fingerprint,
                     committed=bool(getattr(gate, "ok", False)),
@@ -580,12 +388,12 @@ def run_engine_orchestrator(
         mode_reason = REPO_CONSTRAINT_UNSUPPORTED
         if repo_constraint_topic:
             hash_diff["repo_constraint_topic"] = repo_constraint_topic
-    target_variable = _extract_target_variable(target_path)
+    target_variable = extract_target_variable(target_path)
     persist_confirmation_evidence = load_persist_confirmation_evidence(
         evidence_path=(Path(persist_confirmation_evidence_path) if persist_confirmation_evidence_path else None)
     )
 
-    persistence_phase_gate = _evaluate_phase_coupled_persistence(
+    persistence_phase_gate = evaluate_phase_coupled_persistence(
         persistence_write_requested=persistence_write_requested,
         phase=phase,
         target_variable=target_variable,
@@ -601,7 +409,7 @@ def run_engine_orchestrator(
             interactive_required = True
             why_interactive_required = persistence_phase_gate.reason
 
-    if not gate_blocked and _phase_token(phase) == "4" and _is_code_output_request(requested_action):
+    if not gate_blocked and phase_token(phase) == "4" and is_code_output_request(requested_action):
         gate_blocked = True
         gate_reason_code = BLOCKED_STATE_OUTDATED
 
@@ -678,7 +486,7 @@ def run_engine_orchestrator(
         pack_engine_version=pack_engine_version,
         expected_pack_lock_hash=expected_pack_lock_hash,
     )
-    repo_identity = _extract_repo_identity(session_state_document) or str(repo_context.repo_root)
+    repo_identity = extract_repo_identity(session_state_document) or str(repo_context.repo_root)
 
     activation_hash = build_activation_hash(
         phase=phase,
@@ -700,7 +508,7 @@ def run_engine_orchestrator(
         elif observed_activation_hash and observed_activation_hash.strip() != activation_hash:
             gate_blocked = True
             gate_reason_code = BLOCKED_ACTIVATION_HASH_MISMATCH
-        hash_diff = _build_hash_mismatch_diff(
+        hash_diff = build_hash_mismatch_diff(
             observed_ruleset_hash=observed_ruleset_hash,
             observed_activation_hash=observed_activation_hash,
             expected_ruleset_hash=ruleset_hash,
@@ -788,7 +596,7 @@ def run_engine_orchestrator(
     }:
         reason_context = {
             "requested_action": requested_action or "none",
-            "required_confirmation": _WORKSPACE_MEMORY_CONFIRMATION,
+            "required_confirmation": WORKSPACE_MEMORY_CONFIRMATION,
             "phase": phase,
             "active_gate": active_gate,
             "pointers": [target_path],
@@ -804,7 +612,7 @@ def run_engine_orchestrator(
     elif parity["reason_code"] == BLOCKED_FINGERPRINT_MISMATCH:
         reason_context = {
             "failure_class": "fingerprint_cross_wire",
-            "session_fingerprint": _extract_repo_identity(session_state_document),
+            "session_fingerprint": extract_repo_identity(session_state_document),
             "live_repo_root": str(repo_context.repo_root) if repo_context.repo_root else "unknown",
             "pointers": [target_path],
         }

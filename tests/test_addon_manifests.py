@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from governance.addon_catalog import ALLOWED_CAPABILITIES, ALLOWED_SURFACES
 from .util import REPO_ROOT, git_ls_files, read_text, run
 
 
@@ -135,19 +136,6 @@ def test_addon_manifests_define_capabilities_contract():
     manifests = list(git_ls_files("profiles/addons/*.addon.yml"))
     assert manifests, "No addon manifests found under profiles/addons/*.addon.yml"
 
-    allowed = {
-        "angular",
-        "cucumber",
-        "cypress",
-        "governance_docs",
-        "java",
-        "kafka",
-        "liquibase",
-        "nx",
-        "openapi",
-        "python",
-    }
-
     bad = []
     for rel in manifests:
         lines = read_text(REPO_ROOT / rel).splitlines()
@@ -183,7 +171,7 @@ def test_addon_manifests_define_capabilities_contract():
             if len(values) != len(set(values)):
                 bad.append(f"{rel}: duplicate {field_name} entries")
             for value in values:
-                if value not in allowed:
+                if value not in ALLOWED_CAPABILITIES:
                     bad.append(f"{rel}: unsupported {field_name} value {value}")
 
     assert not bad, "Addon manifests with invalid capabilities contract:\n" + "\n".join([f"- {r}" for r in bad])
@@ -217,28 +205,6 @@ def test_addon_manifests_define_surface_ownership_and_touches():
     manifests = list(git_ls_files("profiles/addons/*.addon.yml"))
     assert manifests, "No addon manifests found under profiles/addons/*.addon.yml"
 
-    allowed = {
-        "api_contract",
-        "backend_java_templates",
-        "backend_python_templates",
-        "bdd_framework",
-        "build_tooling",
-        "db_migration",
-        "e2e_test_framework",
-        "frontend_api_client",
-        "frontend_templates",
-        "governance_docs",
-        "linting",
-        "messaging",
-        "principal_review",
-        "release",
-        "risk_model",
-        "scorecard_calibration",
-        "security",
-        "static",
-        "test_framework",
-    }
-
     bad = []
     for rel in manifests:
         lines = read_text(REPO_ROOT / rel).splitlines()
@@ -254,7 +220,7 @@ def test_addon_manifests_define_surface_ownership_and_touches():
             if len(values) != len(set(values)):
                 bad.append(f"{rel}: duplicate {field} entries")
             for value in values:
-                if value not in allowed:
+                if value not in ALLOWED_SURFACES:
                     bad.append(f"{rel}: unsupported {field} value {value}")
 
     assert not bad, "Addon manifests with invalid surface ownership/touches:\n" + "\n".join([f"- {r}" for r in bad])
@@ -288,21 +254,8 @@ def test_capability_catalog_completeness_against_manifest_usage_and_signal_mappi
     manifests = list(git_ls_files("profiles/addons/*.addon.yml"))
     assert manifests, "No addon manifests found under profiles/addons/*.addon.yml"
 
-    catalog = {
-        "angular",
-        "cucumber",
-        "cypress",
-        "governance_docs",
-        "java",
-        "kafka",
-        "liquibase",
-        "nx",
-        "openapi",
-        "python",
-    }
-
     used_caps: set[str] = set()
-    cap_has_signal_mapping: dict[str, bool] = {c: False for c in catalog}
+    cap_has_signal_mapping: dict[str, bool] = {c: False for c in ALLOWED_CAPABILITIES}
 
     for rel in manifests:
         text = read_text(REPO_ROOT / rel)
@@ -319,7 +272,7 @@ def test_capability_catalog_completeness_against_manifest_usage_and_signal_mappi
                 if c in cap_has_signal_mapping:
                     cap_has_signal_mapping[c] = True
 
-    missing_in_usage = sorted(c for c in catalog if c not in used_caps)
+    missing_in_usage = sorted(c for c in ALLOWED_CAPABILITIES if c not in used_caps)
     missing_signal_mapping = sorted(c for c, ok in cap_has_signal_mapping.items() if not ok)
 
     assert not missing_in_usage, "Capability catalog entries unused by manifests:\n" + "\n".join(
