@@ -2,6 +2,8 @@
 
 Deterministic governance for AI-assisted software delivery with fail-closed gates, evidence requirements, and reproducible session state.
 
+**[→ Get started in 5 minutes: QUICKSTART.md](QUICKSTART.md)**
+
 Normative precedence:
 - `master.md` is the system source of truth for phases, gates, path variables, and fail-closed behavior.
 - `rules.md` defines core technical and quality constraints.
@@ -12,6 +14,7 @@ Definition: in this repository, "normative" means `master.md`, `rules.md`, and a
 
 ## Quick Links
 
+- **[Quick Start Guide](QUICKSTART.md)** - 5-minute setup
 - OpenCode bootstrap entrypoint: `start.md`
 - Governance invariants checklist: `docs/governance_invariants.md`
 - OpenCode operational guide: `README-OPENCODE.md`
