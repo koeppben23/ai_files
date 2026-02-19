@@ -12,7 +12,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 
-READ_ONLY = True
+_is_pipeline = os.environ.get("CI", "").strip().lower() not in {"", "0", "false", "no", "off"}
+READ_ONLY = _is_pipeline or os.environ.get("OPENCODE_DIAGNOSTICS_ALLOW_WRITE", "0") != "1"
 
 SCRIPT_DIR = Path(os.path.abspath(__file__)).parent
 if str(SCRIPT_DIR) not in sys.path:

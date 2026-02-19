@@ -61,6 +61,29 @@ def _external_api_artifacts(state: Mapping[str, object]) -> bool:
     return False
 
 
+def _business_rules_scope(state: Mapping[str, object]) -> str:
+    """Check business rules scope status."""
+    scope = state.get("Scope")
+    if isinstance(scope, Mapping):
+        br = scope.get("BusinessRules")
+        if isinstance(br, str):
+            return br.strip().lower()
+    return ""
+
+
+def _business_rules_discovery_resolved(state: Mapping[str, object]) -> bool:
+    """Check if Phase 1.5 decision has been resolved."""
+    br_scope = _business_rules_scope(state)
+    if br_scope in {"not-applicable", "extracted", "skipped"}:
+        return True
+    gates = state.get("Gates")
+    if isinstance(gates, Mapping):
+        p54 = gates.get("P5.4-BusinessRules")
+        if isinstance(p54, str) and p54.strip().lower() == "not-applicable":
+            return True
+    return False
+
+
 def _api_in_scope(state: Mapping[str, object]) -> bool:
     """Check if ANY API signals are present (external artifacts or repo-embedded specs)."""
     return _openapi_signal(state) or _external_api_artifacts(state)
@@ -185,13 +208,46 @@ def route_phase(
         phase_token = requested_token
         source = "requested-with-evidence"
 
-    if phase_token == "2.1" and workspace_ready and _api_in_scope(state):
+    if phase_token == "2.1" and workspace_ready:
+        if not _business_rules_discovery_resolved(state):
+            return RoutedPhase(
+                phase="1.5-BusinessRules",
+                active_gate="Business Rules Discovery Decision",
+                next_gate_condition="Resolve Phase 1.5: run business rules discovery (A) or skip (B)",
+                workspace_ready=True,
+                source="phase-1.5-routing-required",
+            )
+        if _api_in_scope(state):
+            return RoutedPhase(
+                phase="3A-Activation",
+                active_gate="API Validation Routing",
+                next_gate_condition="Route to phase 3A api validation",
+                workspace_ready=True,
+                source="api-phase-routing",
+            )
         return RoutedPhase(
-            phase="3A-Activation",
-            active_gate="API Validation Routing",
-            next_gate_condition="Route to phase 3A api validation",
+            phase="4",
+            active_gate="Ticket Execution",
+            next_gate_condition="No APIs in scope; proceed to ticket planning",
             workspace_ready=True,
-            source="api-phase-routing",
+            source="phase-2.1-to-4-no-api",
+        )
+
+    if phase_token == "1.5" and workspace_ready:
+        if _api_in_scope(state):
+            return RoutedPhase(
+                phase="3A-Activation",
+                active_gate="API Validation Routing",
+                next_gate_condition="Route to phase 3A api validation",
+                workspace_ready=True,
+                source="phase-1.5-to-3a",
+            )
+        return RoutedPhase(
+            phase="4",
+            active_gate="Ticket Execution",
+            next_gate_condition="Business rules resolved; proceed to ticket planning",
+            workspace_ready=True,
+            source="phase-1.5-to-4",
         )
 
     # Phase 3A routing: if no APIs in scope, skip directly to Phase 4

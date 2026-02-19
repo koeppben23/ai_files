@@ -476,7 +476,7 @@ def check_phase21_ticket_goal_deferral_contract(issues: list[str]) -> None:
     rules_required = [
         "Phase 2.1 ticket-goal policy (binding):",
         "Phase 2.1 Decision Pack generation MUST NOT block on missing `ticketGoal`.",
-        "In Phase 1.5 / 2 / 2.1 / 3A / 3B, the assistant MUST NOT request \"provide ticket\" or \"provide change request\" as `NextAction`.",
+        "In Phase 1.5 / 2 / 2.1 / 3A / 3B, the workflow MUST NOT request \"provide ticket\" or \"provide change request\" as `NextAction`.",
         "`ticketGoal` is REQUIRED at Phase 4 entry (Step 0)",
     ]
 
@@ -505,7 +505,7 @@ def check_phase15_repo_code_evidence_contract(issues: list[str]) -> None:
 
     master_required = [
         "Phase 1.5 evidence source contract (binding):",
-        "The assistant MUST read repository code/tests for Business Rules extraction.",
+        "The workflow MUST read repository code/tests for Business Rules extraction.",
         "README-only/documentation-only rules MUST NOT be counted as extracted business rules.",
         "Any rule lacking repository code evidence MUST be marked `CANDIDATE`",
     ]
@@ -536,7 +536,7 @@ def check_host_constraint_compat_mode_contract(issues: list[str]) -> None:
         "COMPAT mode MUST still emit a `[NEXT-ACTION]` block with `Status`, `Next`, `Why`, and `Command` fields.",
     ]
     rules_required = [
-        "### 7.3.8 Host Constraint Compatibility Mode (Binding)",
+        "### 7.3.8 Host Constraint Compatibility Mode (Kernel-Enforced)",
         "DEVIATION.host_constraint = true",
         "COMPAT response shape (minimum required sections):",
         "RequiredInputs",
@@ -568,7 +568,7 @@ def check_session_state_fenced_yaml_contract(issues: list[str]) -> None:
         "`SESSION_STATE` blocks MUST NOT use placeholder tokens (`...`, `<...>`); unknown fields must be explicit (`unknown|deferred|not-applicable`).",
     ]
     rules_required = [
-        "### 7.3.9 SESSION_STATE Formatting Contract (Binding)",
+        "### 7.3.9 SESSION_STATE Formatting Contract (Presentation Advisory)",
         "Whenever `SESSION_STATE` is emitted in assistant output, it MUST be rendered as a fenced YAML block.",
         "heading line: `SESSION_STATE`",
         "fenced block start: ````yaml",
@@ -1042,7 +1042,7 @@ def check_unified_next_action_footer_contract(issues: list[str]) -> None:
     start = read_text(ROOT / "start.md")
 
     master_required = [
-        "#### Unified Next Action Footer (Binding)",
+        "#### Unified Next Action Footer (Presentation Advisory)",
         "[NEXT-ACTION]",
         "Status: <normal|degraded|draft|blocked>",
         "Next: <single concrete next action>",
@@ -1050,7 +1050,7 @@ def check_unified_next_action_footer_contract(issues: list[str]) -> None:
         "Command: <exact next command or \"none\">",
     ]
     rules_required = [
-        "### 7.3.1 Unified Next Action Footer (Binding)",
+        "### 7.3.1 Unified Next Action Footer (Presentation Advisory)",
         "[NEXT-ACTION]",
         "Footer values MUST be consistent with `SESSION_STATE.Mode`, `SESSION_STATE.Next`, and any emitted reason payloads.",
     ]
@@ -1083,7 +1083,7 @@ def check_standard_blocker_envelope_contract(issues: list[str]) -> None:
         '"next_command": "..."',
     ]
     rules_required = [
-        "### 7.3.2 Standard Blocker Output Envelope (Binding)",
+        "### 7.3.2 Standard Blocker Output Envelope (Kernel-Enforced)",
         "`status = blocked`",
         "`reason_code` (`BLOCKED-*`)",
         "`missing_evidence` (array)",
@@ -1112,13 +1112,13 @@ def check_start_mode_banner_contract(issues: list[str]) -> None:
     start = read_text(ROOT / "start.md")
 
     master_required = [
-        "### 2.4.1 Session Start Mode Banner (Binding)",
+        "### 2.4.1 Session Start Mode Banner (Kernel-Enforced)",
         "[START-MODE] Cold Start | Warm Start - reason:",
         "`Cold Start` when discovery/cache artifacts are absent or invalid.",
         "`Warm Start` only when cache/digest/memory artifacts are present and valid",
     ]
     rules_required = [
-        "### 7.3.3 Cold/Warm Start Banner (Binding)",
+        "### 7.3.3 Cold/Warm Start Banner (Presentation Advisory)",
         "[START-MODE] Cold Start | Warm Start - reason:",
         "Banner decision MUST be evidence-backed",
     ]
@@ -1143,14 +1143,14 @@ def check_confidence_impact_snapshot_contract(issues: list[str]) -> None:
     start = read_text(ROOT / "start.md")
 
     master_required = [
-        "#### Confidence + Impact Snapshot (Binding)",
+        "#### Confidence + Impact Snapshot (Presentation Advisory)",
         "[SNAPSHOT]",
         "Confidence: <0-100>%",
         "Risk: <LOW|MEDIUM|HIGH>",
         "Scope: <repo path/module/component or \"global\">",
     ]
     rules_required = [
-        "### 7.3.4 Confidence + Impact Snapshot (Binding)",
+        "### 7.3.4 Confidence + Impact Snapshot (Presentation Advisory)",
         "[SNAPSHOT]",
         "Snapshot values MUST be consistent with `SESSION_STATE`",
     ]
@@ -1182,7 +1182,7 @@ def check_quick_fix_commands_contract(issues: list[str]) -> None:
         "Command coherence rule: `[NEXT-ACTION].Command`, blocker `next_command`, and `QuickFixCommands[0]` MUST be identical",
     ]
     rules_required = [
-        "### 7.3.5 Quick-Fix Commands for Blockers (Binding)",
+        "### 7.3.5 Quick-Fix Commands for Blockers (Presentation Advisory)",
         "`QuickFixCommands` with 1-3 exact copy-paste commands aligned to the active `reason_code`.",
         'output `QuickFixCommands: ["none"]`.',
         "Command coherence rule: `[NEXT-ACTION].Command`, blocker `next_command`, and `QuickFixCommands[0]` MUST match exactly",
@@ -1209,14 +1209,14 @@ def check_architect_autopilot_lifecycle_contract(issues: list[str]) -> None:
     schema = read_text(ROOT / "SESSION_STATE_SCHEMA.md")
 
     master_required = [
-        "### 2.4.2 Architect-Only Autopilot Lifecycle (Binding)",
+        "### 2.4.2 Architect-Only Autopilot Lifecycle (Policy)",
         "SESSION_STATE.OutputMode = ARCHITECT | IMPLEMENT | VERIFY",
         "Default after `/master` is `ARCHITECT`.",
         "BLOCKED-START-REQUIRED",
         "BLOCKED-MISSING-DECISION",
     ]
     rules_required = [
-        "### 7.3.6 Architect-Only Autopilot Lifecycle (Binding)",
+        "### 7.3.6 Architect-Only Autopilot Lifecycle (Policy)",
         "`SESSION_STATE.OutputMode = ARCHITECT | IMPLEMENT | VERIFY`",
         "`/master` before valid `/start` bootstrap evidence MUST block with `BLOCKED-START-REQUIRED`",
         "`IMPLEMENT` mode requires explicit operator trigger (`Implement now`).",
