@@ -304,6 +304,34 @@
       "remediation_hint": "Run /resume or the defined recovery routine and re-validate SESSION_STATE."
     },
     {
+      "code": "BLOCKED-P5-3-TEST-QUALITY-GATE",
+      "severity": "blocked",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Phase 4 plan missing required Test Strategy subsection.",
+      "remediation_hint": "Add Test Strategy subsection to Phase 4 plan and re-evaluate P5.3 gate."
+    },
+    {
+      "code": "BLOCKED-P5-4-BUSINESS-RULES-GATE",
+      "severity": "blocked",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Business rules coverage gap detected (>30% uncovered).",
+      "remediation_hint": "Ensure at least 70% of discovered business rules have coverage evidence."
+    },
+    {
+      "code": "BLOCKED-P5-6-ROLLBACK-SAFETY-GATE",
+      "severity": "blocked",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Rollback strategy missing or incomplete for schema/contract changes.",
+      "remediation_hint": "Provide RollbackStrategy with DataMigrationReversible=true or explicit safety steps."
+    },
+    {
+      "code": "BLOCKED-P6-PREREQUISITES-NOT-MET",
+      "severity": "blocked",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
+      "description": "P6 prerequisites not satisfied: P5 approval, P5.3 pass, P5.4/P5.6 compliance missing.",
+      "remediation_hint": "Complete all prerequisite gates before entering Phase 6 Implementation QA."
+    },
+    {
       "code": "BLOCKED-MISSING-DB-VERSION",
       "severity": "blocked",
       "payload_schema_ref": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
