@@ -234,6 +234,25 @@ Required-command inventory derivation (binding):
 - `/start` MUST emit the resolved inventory and PATH probe status before any operator prompt.
 - If a previously-missing command becomes available later, rerunning `/start` MUST refresh the inventory/probe and continue without stale blocker state.
 
+Build Toolchain Detection (binding):
+- During preflight, `/start` MUST classify the probed build-related tools into `SESSION_STATE.Preflight.BuildToolchain`.
+- At preflight time the active profile is NOT yet known (profile detection is Phase 1.2 / post-Phase-2).
+  Therefore preflight records **raw tool availability only**; the profile-specific command mapping is deferred to Phase 4 entry.
+- `SESSION_STATE.Preflight.BuildToolchain` MUST contain:
+  - `DetectedTools`: object — map of tool name to version string (null if probed but not found).
+    Minimum probed set: `java`, `javac`, `mvn`, `gradle`, `node`, `npm`, `npx`, `pnpm`, `python`, `pytest`.
+  - `ObservedAt`: ISO-8601 timestamp of the probe.
+- Profile-to-build-command mapping (binding, resolved at Phase 4 entry when profile is known):
+  - `backend-java` + `mvn` available: CompileCmd=`mvn compile -q`, TestCmd=`mvn test`, FullVerifyCmd=`mvn -B -DskipITs=false clean verify`
+  - `backend-java` + `gradle`/`./gradlew` available: CompileCmd=`./gradlew classes`, TestCmd=`./gradlew test`, FullVerifyCmd=`./gradlew build`
+  - `backend-python` + `pytest` available: CompileCmd=null (interpreted language), TestCmd=`pytest`, FullVerifyCmd=`pytest`
+  - `frontend-angular-nx` + `npm`/`npx` available: CompileCmd=`npm run build` or `npx nx build`, TestCmd=`npm test` or `npx nx test`, FullVerifyCmd=`npm run build && npm test`
+  - `fallback-minimum`: derive from repo signals (package.json scripts, Makefile targets, etc.); if nothing detected → CompileCmd=null, TestCmd=null
+- The resolved mapping MUST be stored as `SESSION_STATE.BuildToolchain` (top-level, separate from `Preflight`) once the profile is known.
+  Fields: `CompileAvailable` (bool), `CompileCmd` (string|null), `TestAvailable` (bool), `TestCmd` (string|null), `FullVerifyCmd` (string|null).
+- If no build tools are detected for the active profile: `CompileAvailable=false, TestAvailable=false`.
+- The BuildToolchain record enables autonomous build verification in Phase 6 (see Phase 6 — Build Verification Loop).
+
 When host tools are available and the repository is a git worktree, the system MUST
 attempt host-side, non-destructive git evidence collection first before asking the
 operator to run commands manually.
@@ -1393,6 +1412,16 @@ SESSION_STATE:
   CrossRepoImpact: {}     # optional in MIN; REQUIRED in FULL if contracts are consumed cross-repo
   RollbackStrategy: {}    # optional in MIN; REQUIRED in FULL if schema/contracts change
   DependencyChanges: {}   # optional in MIN; REQUIRED in FULL if deps change
+  Preflight:
+    BuildToolchain:
+      DetectedTools: {}    # populated by /start preflight; map of tool name → version string (null if not found)
+      ObservedAt: ""       # ISO-8601 timestamp of probe
+  BuildToolchain:          # populated at Phase 4 entry after profile is known
+    CompileAvailable: false
+    CompileCmd: null        # e.g., "mvn compile -q", "./gradlew classes", "npm run build"
+    TestAvailable: false
+    TestCmd: null            # e.g., "mvn test", "pytest", "npm test"
+    FullVerifyCmd: null      # e.g., "mvn -B -DskipITs=false clean verify"
   Diagnostics:
     ReasonPayloads: []     # REQUIRED when reason codes are emitted
 ```
@@ -2875,6 +2904,13 @@ Note: Fast Path MAY reduce review depth/verbosity but MUST NOT bypass any gates.
    - If Round 3 identifies critical issues (security, data loss, breaking changes), the LLM MUST loop back to Round 1 for a second pass (maximum 2 full cycles total to prevent infinite loops).
    - `SESSION_STATE.SelfReviewRounds = 3` (or 6 if a second pass was triggered) MUST be recorded.
 
+   **Build Toolchain awareness (binding):**
+   - At Phase 4 entry, the LLM MUST resolve `SESSION_STATE.BuildToolchain` from `SESSION_STATE.Preflight.BuildToolchain.DetectedTools` + the active profile (see Preflight: Profile-to-build-command mapping).
+   - If `SESSION_STATE.BuildToolchain.CompileAvailable == true` or `TestAvailable == true`:
+     - The implementation plan MUST note that autonomous build verification will execute in Phase 6.
+     - Round 1 (Correctness) MAY reduce emphasis on import/type correctness issues that the compiler will catch deterministically — but MUST NOT skip the round.
+   - If no build tools are available, self-critique remains the sole verification mechanism and MUST be executed with maximum rigor.
+
 **Output format:**
 
 ```
@@ -3631,15 +3667,49 @@ Canonical build command (default for Maven repositories):
 Note:
 * If the repository uses Gradle or a wrapper, replace with the equivalent
   canonical command (e.g., `./gradlew test`).
+* The canonical command is superseded by `SESSION_STATE.BuildToolchain.FullVerifyCmd` when populated.
 
-Conceptual verification (evidence-aware):
+#### Build Verification Loop (binding, conditional on build tool availability)
+
+**Trigger:** `SESSION_STATE.BuildToolchain.CompileAvailable == true` OR `SESSION_STATE.BuildToolchain.TestAvailable == true`.
+
+When build tools are available, the LLM MUST execute them autonomously instead of requesting build evidence from the user. This replaces the manual evidence collection flow with a deterministic feedback loop.
+
+**Loop procedure:**
+
+1. **Compile check** (if `CompileAvailable == true`):
+   - Execute `SESSION_STATE.BuildToolchain.CompileCmd`.
+   - If compilation succeeds → proceed to step 2.
+   - If compilation fails → parse error output, fix the identified issues, re-execute.
+   - Maximum 3 compile-fix iterations. If still failing after 3 attempts → record remaining errors in `SESSION_STATE.BuildEvidence.CompileErrors`, set `status = fix-required`, and present errors to user.
+
+2. **Test execution** (if `TestAvailable == true`):
+   - Execute `SESSION_STATE.BuildToolchain.TestCmd`.
+   - If all tests pass → proceed to step 3.
+   - If tests fail → parse failure output, fix the identified issues, re-execute.
+   - Maximum 3 test-fix iterations. If still failing after 3 attempts → record remaining failures in `SESSION_STATE.BuildEvidence.TestFailures`, set `status = fix-required`, and present failures to user.
+
+3. **Record evidence:**
+   - `SESSION_STATE.BuildEvidence.status = verified-by-tool`
+   - `SESSION_STATE.BuildEvidence.CompileResult = pass | fail`
+   - `SESSION_STATE.BuildEvidence.TestResult = pass | fail | not-executed`
+   - `SESSION_STATE.BuildEvidence.IterationsUsed = <count of compile-fix + test-fix iterations>`
+   - `SESSION_STATE.BuildEvidence.ToolOutput = <last successful or final failing output summary>`
+
+**Rules:**
+- Tool verification output ALWAYS takes precedence over self-critique. If self-critique said "looks correct" but the compiler says "error", the compiler wins.
+- The LLM MUST NOT suppress, ignore, or rationalize away compiler/test errors.
+- If `CompileAvailable == false` AND `TestAvailable == false` → fall back to the manual evidence collection flow below.
+- The Build Verification Loop MUST execute BEFORE the review-of-review consistency pass.
+
+Conceptual verification (evidence-aware, fallback when build tools are NOT available):
 
 * build (`mvn -B -DskipITs=false clean verify`)
 * tests and coverage
 * architecture and contracts
 * regressions
 
-Evidence rule (binding):
+Evidence rule (binding, applies ONLY when `SESSION_STATE.BuildToolchain.CompileAvailable == false` AND `TestAvailable == false`):
 - If `SESSION_STATE.BuildEvidence.status = not-provided`: you MUST request the required command output/log snippets and set status to `fix-required` (not `ready-for-pr`). You may only provide a theoretical assessment.
 - If `SESSION_STATE.BuildEvidence.status = partially-provided`: mark only the evidenced subset as verified; everything else remains theoretical. Status may be `ready-for-pr` only if the critical gates are evidenced.
 - If `SESSION_STATE.BuildEvidence.status = provided-by-user`: verified statements are allowed strictly within the evidence scope.
