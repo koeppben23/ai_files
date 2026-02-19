@@ -1801,9 +1801,9 @@ def test_start_md_resolves_installed_diagnostics_helpers_not_workspace_relative_
     )
 
     required = [
-        "commands'/'diagnostics'/'start_binding_evidence.py",
-        "commands'/'diagnostics'/'start_preflight_readonly.py",
-        "runpy.run_path",
+        "${COMMANDS_HOME}/diagnostics/start_binding_evidence.py",
+        "${COMMANDS_HOME}/diagnostics/start_preflight_readonly.py",
+        "Implementation Reference:",
     ]
     missing = [token for token in required if token not in text]
     assert not missing, "start.md missing installed diagnostics helper resolution tokens:\n" + "\n".join(
