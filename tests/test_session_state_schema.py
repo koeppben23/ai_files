@@ -21,6 +21,9 @@ from governance.engine.session_state_invariants import (
     validate_rulebook_evidence_mirror,
     validate_addon_evidence_mirror,
     validate_canonical_path_invariants,
+    validate_p5_approved_architecture_decisions,
+    validate_phase_gate_prerequisites,
+    validate_gate_artifacts_integrity,
     validate_session_state_invariants,
 )
 
@@ -391,3 +394,132 @@ class TestPathInvariantValidation:
         }
         errors = validate_session_state_invariants(doc)
         assert any("backslash" in e for e in errors)
+
+
+@pytest.mark.governance
+class TestP5ArchitectureDecisionsInvariant:
+    def test_p5_approved_with_valid_architecture_decisions(self):
+        state: dict[str, object] = {
+            "Gates": {"P5-Architecture": "approved"},
+            "ArchitectureDecisions": [
+                {"ID": "AD-001", "Status": "approved", "Decision": "Use PostgreSQL"}
+            ],
+        }
+        errors = validate_p5_approved_architecture_decisions(state)
+        assert errors == ()
+
+    def test_p5_approved_without_architecture_decisions(self):
+        state: dict[str, object] = {
+            "Gates": {"P5-Architecture": "approved"},
+            "ArchitectureDecisions": [],
+        }
+        errors = validate_p5_approved_architecture_decisions(state)
+        assert "p5_approved_without_architecture_decisions" in errors
+
+    def test_p5_approved_with_only_proposed_decisions(self):
+        state: dict[str, object] = {
+            "Gates": {"P5-Architecture": "approved"},
+            "ArchitectureDecisions": [
+                {"ID": "AD-001", "Status": "proposed", "Decision": "Use PostgreSQL"}
+            ],
+        }
+        errors = validate_p5_approved_architecture_decisions(state)
+        assert "p5_approved_without_approved_decision_entry" in errors
+
+    def test_p5_pending_skips_check(self):
+        state: dict[str, object] = {
+            "Gates": {"P5-Architecture": "pending"},
+        }
+        errors = validate_p5_approved_architecture_decisions(state)
+        assert errors == ()
+
+
+@pytest.mark.governance
+class TestPhaseGatePrerequisitesInvariant:
+    def test_phase5_implementation_requires_p5_approved(self):
+        state: dict[str, object] = {
+            "Phase": "5.1-Implement",
+            "Gates": {"P5-Architecture": "pending"},
+        }
+        errors = validate_phase_gate_prerequisites(state)
+        assert "phase5_without_p5_approved" in errors
+
+    def test_phase6_requires_p5_approved_and_p53_pass(self):
+        state: dict[str, object] = {
+            "Phase": "6-ImplementationQA",
+            "Gates": {"P5-Architecture": "approved", "P5.3-TestQuality": "pending"},
+        }
+        errors = validate_phase_gate_prerequisites(state)
+        assert "phase6_without_p53_pass" in errors
+
+    def test_phase6_with_all_prerequisites_ok(self):
+        state: dict[str, object] = {
+            "Phase": "6-ImplementationQA",
+            "Gates": {"P5-Architecture": "approved", "P5.3-TestQuality": "pass"},
+        }
+        errors = validate_phase_gate_prerequisites(state)
+        assert errors == ()
+
+    def test_phase4_skips_check(self):
+        state: dict[str, object] = {
+            "Phase": "4-Plan",
+            "Gates": {},
+        }
+        errors = validate_phase_gate_prerequisites(state)
+        assert errors == ()
+
+    def test_code_step_without_p5_approved(self):
+        state: dict[str, object] = {
+            "Phase": "5",
+            "Next": "Implement the feature",
+            "Gates": {"P5-Architecture": "pending"},
+        }
+        errors = validate_phase_gate_prerequisites(state)
+        assert "code_step_without_p5_approved" in errors
+
+
+@pytest.mark.governance
+class TestGateArtifactsIntegrityInvariant:
+    def test_gate_approved_with_all_artifacts_present(self):
+        state: dict[str, object] = {
+            "Gates": {"P5-Architecture": "approved"},
+            "GateArtifacts": {
+                "P5-Architecture": {
+                    "Required": ["DecisionPack"],
+                    "Provided": {"DecisionPack": "present"},
+                }
+            },
+        }
+        errors = validate_gate_artifacts_integrity(state)
+        assert errors == ()
+
+    def test_gate_approved_with_missing_artifact_fails(self):
+        state: dict[str, object] = {
+            "Gates": {"P5-Architecture": "approved"},
+            "GateArtifacts": {
+                "P5-Architecture": {
+                    "Required": ["DecisionPack", "TouchedSurface"],
+                    "Provided": {"DecisionPack": "present", "TouchedSurface": "missing"},
+                }
+            },
+        }
+        errors = validate_gate_artifacts_integrity(state)
+        assert any("missing_artifacts" in e for e in errors)
+
+    def test_gate_pending_with_missing_artifact_ok(self):
+        state: dict[str, object] = {
+            "Gates": {"P5-Architecture": "pending"},
+            "GateArtifacts": {
+                "P5-Architecture": {
+                    "Required": ["DecisionPack"],
+                    "Provided": {"DecisionPack": "missing"},
+                }
+            },
+        }
+        errors = validate_gate_artifacts_integrity(state)
+        assert errors == ()
+
+    def test_no_gate_artifacts_skips_check(self):
+        state: dict[str, object] = {"Gates": {"P5-Architecture": "approved"}}
+        errors = validate_gate_artifacts_integrity(state)
+        assert errors == ()
