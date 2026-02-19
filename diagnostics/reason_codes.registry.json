@@ -157,6 +157,48 @@
       "remediation_hint": "Provide a writable canonical config root and rerun installer."
     },
     {
+      "code": "BLOCKED-MODEL-IDENTITY-UNTRUSTED",
+      "severity": "blocked",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Model identity source is not trusted for the required operation.",
+      "remediation_hint": "Set model identity from installer-owned binding file (OPENCODE_BINDING_FILE)."
+    },
+    {
+      "code": "BLOCKED-MODEL-CONTEXT-LIMIT-REQUIRED",
+      "severity": "blocked",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Pipeline mode requires explicit model context limit from binding_env.",
+      "remediation_hint": "Set OPENCODE_MODEL_CONTEXT_LIMIT in binding file. Only binding_env is trusted in pipeline."
+    },
+    {
+      "code": "BLOCKED-MODEL-CONTEXT-LIMIT-INVALID",
+      "severity": "blocked",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Model context limit is invalid (negative value).",
+      "remediation_hint": "context_limit must be >= 0. Negative values are invalid in all modes."
+    },
+    {
+      "code": "BLOCKED-MODEL-CONTEXT-LIMIT-UNKNOWN",
+      "severity": "blocked",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Model context limit could not be determined from any source.",
+      "remediation_hint": "Explicitly set OPENCODE_MODEL_CONTEXT_LIMIT. Hardcoded inference is not permitted."
+    },
+    {
+      "code": "BLOCKED-MODEL-METADATA-FETCH-FAILED",
+      "severity": "blocked",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Provider metadata API fetch failed.",
+      "remediation_hint": "Check provider API connectivity or use explicit context limit from activation pack."
+    },
+    {
+      "code": "BLOCKED-MODEL-IDENTITY-SOURCE-INVALID",
+      "severity": "blocked",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Model identity source is not a valid trust level.",
+      "remediation_hint": "Use one of: binding_env, host_capability, provider_metadata, process_env, llm_context, user_input, inferred, unresolved."
+    },
+    {
       "code": "BLOCKED-PERMISSION-DENIED",
       "severity": "blocked",
       "payload_schema_ref": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
