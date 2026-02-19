@@ -60,7 +60,7 @@ During Phase `1.1-Bootstrap`, the session MUST include:
 ### Invariants
 
 - `SESSION_STATE.Next` MUST be set at the end of every phase output.
-- `continue.md` MUST execute ONLY the step referenced by `SESSION_STATE.Next`.
+- When resuming, output a Resume Summary that describes the next intended kernel action from `SESSION_STATE.Next`.
 - Every response containing `SESSION_STATE` MUST end with a terminal summary line:
   - `NEXT_STEP: <value of SESSION_STATE.Next>`
   - This line MUST appear after the `SESSION_STATE` block and be the last assistant-authored line.
