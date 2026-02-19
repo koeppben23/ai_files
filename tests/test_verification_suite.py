@@ -29,7 +29,7 @@ def test_phase_router_routes_openapi_from_phase21_to_3a():
         requested_phase="2.1-DecisionPack",
         requested_active_gate="Decision Pack",
         requested_next_gate_condition="Proceed",
-        session_state_document={"SESSION_STATE": {"workspace_ready_gate_committed": True, "repo_capabilities": ["openapi"]}},
+        session_state_document={"SESSION_STATE": {"workspace_ready_gate_committed": True, "repo_capabilities": ["openapi"], "Scope": {"BusinessRules": "not-applicable"}}},
         repo_is_git_root=True,
     )
     assert routed.phase == "3A-Activation"
@@ -65,8 +65,8 @@ def test_phase_router_blocks_jump_without_transition_evidence():
 @pytest.mark.governance
 def test_phase_router_strips_ticket_prompt_before_phase4():
     routed = route_phase(
-        requested_phase="2.1-DecisionPack",
-        requested_active_gate="Decision Pack",
+        requested_phase="2-Discovery",
+        requested_active_gate="Discovery",
         requested_next_gate_condition="Please provide task/ticket now",
         session_state_document={"SESSION_STATE": {"workspace_ready_gate_committed": True}},
         repo_is_git_root=True,

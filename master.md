@@ -1970,7 +1970,23 @@ SESSION_STATE:
      MissingTool: null
    ...
 
-#### OpenCode-only: Persist Repo Cache (Binding when applicable)
+#### Phase-Coupled Persistence Gate (Mandatory)
+
+The kernel MUST enforce automatic persistence after certain phases complete.
+This is NOT optional - persistence happens automatically when phase conditions are satisfied.
+
+Persistence trigger contract (binding):
+- After Phase 2 completion: MUST write `${REPO_CACHE_FILE}`, `${REPO_DIGEST_FILE}`, `${WORKSPACE_MEMORY_FILE}`
+- After Phase 2.1 completion: MUST write `${REPO_DECISION_PACK_FILE}`
+- After Phase 1.5 completion: MUST write `${REPO_BUSINESS_RULES_FILE}` (if business rules extracted)
+- The kernel persistence gate MUST NOT wait for LLM output to trigger writes
+
+Environment-based write control (binding):
+- Diagnostics helpers check `OPENCODE_DIAGNOSTICS_ALLOW_WRITE=1` to enable writes
+- In CI mode (`CI=true`), writes are disabled by default for safety
+- Normal operation MUST have writes enabled via environment or explicit flag
+
+#### OpenCode-only: Persist Repo Cache (Mandatory after Phase 2)
 
 If Phase 2 completed AND the workflow is running under OpenCode (repository provided or indexed via OpenCode),
 the assistant MUST additionally produce a Repo Cache file output suitable for writing to the user's OpenCode configuration directory.
