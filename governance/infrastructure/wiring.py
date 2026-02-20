@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 
 from governance.application.ports.gateways import GatewayRegistry, set_gateway_registry
+from governance.application.policies.persistence_policy import configure_persistence_artifact_policy
 from governance.infrastructure.error_reason_router import canonicalize_reason_payload_failure
 from governance.infrastructure.phase4_config_resolver import configure_phase4_self_review_resolver
 from governance.infrastructure.phase5_config_resolver import configure_phase5_review_resolver
@@ -37,7 +38,8 @@ def configure_gateway_registry() -> None:
     # Runtime startup wiring for policy-bound config resolvers.
     configure_phase4_self_review_resolver(mode=effective_mode)
     configure_phase5_review_resolver(mode=effective_mode)
-    ensure_policy_bundle_loaded(mode=effective_mode)
+    policy_bundle = ensure_policy_bundle_loaded(mode=effective_mode)
+    configure_persistence_artifact_policy(policy_bundle.get("persistence_artifacts.yaml"))
 
     set_gateway_registry(
         GatewayRegistry(

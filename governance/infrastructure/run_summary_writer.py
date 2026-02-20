@@ -4,11 +4,17 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping
+
+try:
+    import yaml
+except Exception:  # pragma: no cover
+    yaml = None  # type: ignore
+
+from governance.infrastructure.binding_evidence_resolver import BindingEvidenceResolver
 
 
 def compute_run_id(session_state: Mapping[str, Any], timestamp: str) -> str:
@@ -22,38 +28,71 @@ def compute_run_id(session_state: Mapping[str, Any], timestamp: str) -> str:
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]
 
 
-def _load_reason_remediation(reason_code: str) -> dict[str, Any]:
-    """Load remediation guidance for a reason code."""
-    script_dir = Path(__file__).resolve().parents[2]
-    remediation_file = script_dir / "diagnostics" / "REASON_REMEDIATION_MAP.json"
-    
-    if not remediation_file.exists():
-        return {
-            "summary": reason_code,
-            "how_to_fix": "Check SESSION_STATE.Diagnostics.ReasonPayloads for details.",
-            "copy_paste_command": None,
-            "docs_link": None,
-        }
-    
+def _default_reason_remediation(reason_code: str) -> dict[str, Any]:
+    return {
+        "summary": reason_code,
+        "how_to_fix": "Check SESSION_STATE.Diagnostics.ReasonPayloads for details.",
+        "copy_paste_command": None,
+        "docs_link": None,
+    }
+
+
+def _resolve_diagnostics_root(mode: str) -> Path | None:
+    resolver = BindingEvidenceResolver()
+    evidence = resolver.resolve(mode=mode)
+    if evidence.binding_ok and evidence.commands_home:
+        diagnostics_root = evidence.commands_home.parent / "diagnostics"
+        if diagnostics_root.exists():
+            return diagnostics_root
+    return None
+
+
+def _load_reason_remediation(reason_code: str, mode: str = "user") -> dict[str, Any]:
+    """Load remediation guidance from canonical blocked reason catalog."""
+    if yaml is None:
+        return _default_reason_remediation(reason_code)
+
+    diagnostics_root = _resolve_diagnostics_root(mode)
+    if diagnostics_root is None:
+        return _default_reason_remediation(reason_code)
+
+    catalog_path = diagnostics_root / "blocked_reason_catalog.yaml"
+    if not catalog_path.exists():
+        return _default_reason_remediation(reason_code)
+
     try:
-        with open(remediation_file, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        mappings = data.get("mappings", {})
-        if reason_code in mappings:
-            return mappings[reason_code]
-        return data.get("default_unmapped", {
-            "summary": reason_code,
-            "how_to_fix": "Unknown reason code",
-            "copy_paste_command": None,
-            "docs_link": None,
-        })
-    except (json.JSONDecodeError, OSError):
-        return {
-            "summary": reason_code,
-            "how_to_fix": "Check SESSION_STATE.Diagnostics.ReasonPayloads for details.",
-            "copy_paste_command": None,
-            "docs_link": None,
-        }
+        payload = yaml.safe_load(catalog_path.read_text(encoding="utf-8"))
+    except Exception:
+        return _default_reason_remediation(reason_code)
+
+    blocked = payload.get("blocked_reasons") if isinstance(payload, dict) else None
+    if not isinstance(blocked, dict):
+        return _default_reason_remediation(reason_code)
+
+    entry = blocked.get(reason_code)
+    if not isinstance(entry, dict):
+        return _default_reason_remediation(reason_code)
+
+    quick_fix_commands = entry.get("quick_fix_commands")
+    command = None
+    if isinstance(quick_fix_commands, list) and quick_fix_commands:
+        first = quick_fix_commands[0]
+        if isinstance(first, str) and first.strip():
+            command = first
+
+    recovery_steps = entry.get("recovery_steps")
+    how_to_fix = "Check SESSION_STATE.Diagnostics.ReasonPayloads for details."
+    if isinstance(recovery_steps, list) and recovery_steps:
+        first_step = recovery_steps[0]
+        if isinstance(first_step, str) and first_step.strip():
+            how_to_fix = first_step
+
+    return {
+        "summary": entry.get("message_template", reason_code),
+        "how_to_fix": how_to_fix,
+        "copy_paste_command": command,
+        "docs_link": None,
+    }
 
 
 def _extract_precedence_events(session_state: Mapping[str, Any]) -> list[dict[str, Any]]:
@@ -112,11 +151,15 @@ def _extract_evidence_pointers(session_state: Mapping[str, Any], workspaces_home
         if session_file.exists():
             pointers["session_state"] = str(session_file)
     
-    binding_file = os.environ.get("OPENCODE_BINDING_FILE", "")
-    if binding_file and Path(binding_file).exists():
-        pointers["binding_file"] = binding_file
-    
     return pointers
+
+
+def _resolve_workspaces_home(mode: str) -> Path:
+    resolver = BindingEvidenceResolver()
+    evidence = resolver.resolve(mode=mode)
+    if evidence.binding_ok:
+        return evidence.workspaces_home
+    return Path.home() / ".config" / "opencode" / "workspaces"
 
 
 def create_run_summary(
@@ -152,7 +195,7 @@ def create_run_summary(
     
     reason: dict[str, Any] = {"code": reason_code or "OK"}
     if reason_code and reason_code != "OK":
-        remediation = _load_reason_remediation(reason_code)
+        remediation = _load_reason_remediation(reason_code, mode=mode)
         reason["message"] = remediation.get("summary", reason_code)
         reason["how_to_fix"] = remediation.get("how_to_fix")
         if reason_payload:
@@ -162,11 +205,7 @@ def create_run_summary(
     prompt_budget = _extract_prompt_budget(session_state)
     
     if workspaces_home is None:
-        config_root = os.environ.get("OPENCODE_CONFIG_ROOT", "")
-        if config_root:
-            workspaces_home = Path(config_root) / "workspaces"
-        else:
-            workspaces_home = Path.home() / ".config" / "opencode" / "workspaces"
+        workspaces_home = _resolve_workspaces_home(mode)
     
     evidence_pointers = _extract_evidence_pointers(session_state, workspaces_home)
     

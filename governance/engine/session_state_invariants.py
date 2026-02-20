@@ -265,18 +265,14 @@ def validate_p5_approved_architecture_decisions(state: Mapping[str, object]) -> 
 def validate_phase_gate_prerequisites(state: Mapping[str, object]) -> tuple[str, ...]:
     """Validate that code-producing phases have satisfied gate prerequisites.
 
-    From SESSION_STATE_SCHEMA.md lines 826-827:
-    - Next MUST NOT point to any code-producing step unless upstream gates are
-      in an allowed state per master.md and rules.md.
-
     Phase 5+ code-producing prerequisites:
     - Phase 5 requires: P5-Architecture approved
     - Phase 6 requires: P5 approved, P5.3 pass/pass-with-exceptions
+
+    Code-producing step checks are based on structured router facts only.
     """
     phase = state.get("Phase")
     gates = state.get("Gates")
-    next_val = state.get("Next")
-
     if not isinstance(phase, str):
         return ()
 
@@ -301,12 +297,13 @@ def validate_phase_gate_prerequisites(state: Mapping[str, object]) -> tuple[str,
             if p53 not in ("pass", "pass-with-exceptions"):
                 errors.append("phase6_without_p53_pass")
 
-    if isinstance(next_val, str):
-        if "implement" in next_val.lower() or "code" in next_val.lower():
-            if isinstance(gates, dict):
-                p5_arch = gates.get("P5-Architecture")
-                if p5_arch != "approved":
-                    errors.append("code_step_without_p5_approved")
+    router_facts = state.get("PhaseRouterFacts")
+    if isinstance(router_facts, dict):
+        next_action_class = str(router_facts.get("next_action_class", "")).strip().lower()
+        if next_action_class == "code_producing" and isinstance(gates, dict):
+            p5_arch = gates.get("P5-Architecture")
+            if p5_arch != "approved":
+                errors.append("code_step_without_p5_approved")
 
     return tuple(errors)
 

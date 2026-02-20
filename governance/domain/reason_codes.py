@@ -367,8 +367,8 @@ REASON_CODE_HINTS: Final[dict[str, str]] = {
         "If already installed: run '${PYTHON_COMMAND} install.py --status' to check installation health."
     ),
     BLOCKED_INSTALL_VERSION_MISSING: (
-        "Governance version not found in master.md. "
-        "Ensure master.md contains 'Governance-Version: <semver>' header."
+        "Governance version metadata not found. "
+        "Ensure governance/VERSION contains a semantic version."
     ),
     BLOCKED_INSTALL_CONFIG_ROOT_INVALID: (
         "Config root path is invalid or not writable. "

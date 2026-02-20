@@ -198,53 +198,19 @@ def ensure_dirs(config_root: Path, dry_run: bool) -> None:
             print(f"  ✅ {d}")
 
 
-def read_governance_version_from_master(master_md: Path) -> str | None:
-    """
-    Read the governance version from master.md.
-
-    The installer requires a governance version (fail-closed). If no version is found,
-    the install step aborts to prevent unversioned deployments.
-
-    Supported conventions (must appear near the top of the file, within first ~40 lines):
-      - Markdown header:   # Governance-Version: 1.0.0-RC.1
-      - Markdown header:   # Version: 1.0.0-RC.1              (fallback)
-      - Frontmatter key:   governanceVersion: 1.0.0
-      - Frontmatter key:   governance_version: 1.0.0
-
-    Returns:
-      The raw version string (e.g. "1.0.0") or None if not found/parsable.
-    """
-    if not master_md.exists():
+def read_governance_version_metadata(version_file: Path) -> str | None:
+    """Read canonical governance version from kernel-owned metadata file."""
+    if not version_file.exists():
         return None
-        
+
     # Keep permissive parsing, but require a reasonable "semver-ish" token.
     semverish = re.compile(r"\b\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?\b")
-        
+
     try:
-        with master_md.open("r", encoding="utf-8") as f:
-            for _ in range(40):
-                line = f.readline()
-                if not line:
-                    break
-                    
-                # Frontmatter variants
-                m = re.search(
-                    r"^\s*(governanceVersion|governance_version|governance-version)\s*:\s*(.+?)\s*$",
-                    line,
-                    flags=re.IGNORECASE,
-                )
-                if m:
-                    mm = semverish.search(m.group(2))
-                    return mm.group(0) if mm else m.group(2).strip()    
-                    
-                if "Governance-Version:" in line:
-                    val = line.split("Governance-Version:", 1)[1].strip()
-                    mm = semverish.search(val)
-                    return mm.group(0) if mm else val
-                if line.lstrip().startswith("#") and "Version:" in line:
-                    val = line.split("Version:", 1)[1].strip()
-                    mm = semverish.search(val)
-                    return mm.group(0) if mm else val
+        raw = version_file.read_text(encoding="utf-8").strip()
+        mm = semverish.search(raw)
+        if mm:
+            return mm.group(0)
     except Exception:
         return None
     return None
@@ -281,7 +247,7 @@ def build_plan(source_dir: Path, config_root: Path, *, skip_paths_file: bool, de
 
 def required_source_files(source_dir: Path) -> list[str]:
     # critical minimal set
-    return ["master.md", "rules.md", "start.md"]
+    return ["master.md", "rules.md", "start.md", "governance/VERSION"]
 
 
 def precheck_source(source_dir: Path) -> tuple[bool, list[str], list[str]]:
@@ -868,13 +834,13 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
     # backup root
     backup_root = plan.commands_dir / "_backup" / now_ts()
 
-    # determine governance version from *source* master.md
-    gov_ver = read_governance_version_from_master(plan.source_dir / "master.md")
+    # determine governance version from kernel-owned metadata
+    gov_ver = read_governance_version_metadata(plan.source_dir / "governance" / "VERSION")
 
     if not gov_ver:
         safe_log_error(
             reason_key="ERR-INSTALL-GOVERNANCE-VERSION-MISSING",
-            message="Governance version not found in master.md.",
+            message="Governance version not found in governance/VERSION.",
             config_root=plan.config_root,
             phase="installer",
             gate="version-check",
@@ -882,19 +848,19 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
             repo_fingerprint=None,
             command="install.py",
             component="installer-version",
-            observed_value={"masterPath": str(plan.source_dir / "master.md")},
-            expected_constraint="# Governance-Version: <semver>",
-            remediation="Add Governance-Version header to master.md and rerun install.",
+            observed_value={"versionPath": str(plan.source_dir / "governance" / "VERSION")},
+            expected_constraint="governance/VERSION contains <semver>",
+            remediation="Add semantic version to governance/VERSION and rerun install.",
             action="abort",
             result="failed",
             reason_namespace="installer-internal",
         )
-        eprint("❌ Governance-Version not found in master.md.")
+        eprint("❌ Governance version metadata missing in governance/VERSION.")
         eprint("")
-        eprint("The file master.md must contain a version header like:")
-        eprint("  # Governance-Version: 1.0.0")
+        eprint("The file governance/VERSION must contain a semantic version like:")
+        eprint("  1.0.0")
         eprint("")
-        eprint("Add the header to master.md and rerun install.")
+        eprint("Add the version to governance/VERSION and rerun install.")
         return 2
 
     copied_entries: list[dict] = []
@@ -1602,10 +1568,10 @@ def show_status(source_dir: Path, config_root_arg: Path | None) -> int:
         print("\n⚠️  Installation found but manifest missing (fallback mode).")
         print("Run '${PYTHON_COMMAND} install.py --force' to restore manifest.")
 
-    # Check governance version from source if available
-    source_master = source_dir / "master.md"
-    if source_master.exists():
-        src_ver = read_governance_version_from_master(source_master)
+    # Check governance version metadata from source if available
+    source_version = source_dir / "governance" / "VERSION"
+    if source_version.exists():
+        src_ver = read_governance_version_metadata(source_version)
         if src_ver:
             print(f"\nSource Governance Version: {src_ver}")
             if manifest and manifest.get("governance_version") != src_ver:
@@ -1788,10 +1754,10 @@ def main(argv: list[str]) -> int:
     # --version: show version and exit (read-only)
     if args.version:
         print(f"Installer Version: {VERSION}")
-        # Try to read governance version from source master.md
-        source_master = args.source_dir / "master.md"
-        if source_master.exists():
-            gov_ver = read_governance_version_from_master(source_master)
+        # Try to read governance version metadata from source
+        source_version = args.source_dir / "governance" / "VERSION"
+        if source_version.exists():
+            gov_ver = read_governance_version_metadata(source_version)
             if gov_ver:
                 print(f"Governance Version: {gov_ver}")
         return 0
