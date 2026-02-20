@@ -11,7 +11,9 @@ def _allow_repo_local_config():
     # Configure the phase4_self_review resolver to use the infrastructure resolver
     # which reads the OPENCODE_ALLOW_REPO_LOCAL_CONFIG env var
     from governance.infrastructure.phase4_config_resolver import configure_phase4_self_review_resolver
+    from governance.infrastructure.phase5_config_resolver import configure_phase5_review_resolver
     configure_phase4_self_review_resolver()
+    configure_phase5_review_resolver()
     
     yield
     os.environ.pop("OPENCODE_ALLOW_REPO_LOCAL_CONFIG", None)
