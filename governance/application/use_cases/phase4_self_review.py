@@ -47,6 +47,10 @@ class ConfigPathResolver(Protocol):
     def resolve_config_path(self) -> Path | None:
         """Resolve path to policy-bound config, or None if unavailable."""
         ...
+    
+    def allow_repo_local_fallback(self) -> bool:
+        """Check if repo-local fallback is allowed (dev/test opt-in)."""
+        ...
 
 
 # Default resolver is set at runtime from infrastructure layer
@@ -269,10 +273,14 @@ def load_self_review_config(*, force_reload: bool = False) -> SelfReviewConfig:
         config_path = _default_resolver.resolve_config_path()
         resolver_source = "injected_resolver"
     
+    # Check if repo-local fallback is allowed
+    # Either through resolver method or direct env check (when no resolver)
+    allow_repo_local = False
+    if _default_resolver is not None and hasattr(_default_resolver, "allow_repo_local_fallback"):
+        allow_repo_local = _default_resolver.allow_repo_local_fallback()
+    
     # Fallback to repo-local path ONLY with explicit opt-in (dev/test)
-    import os
     if config_path is None:
-        allow_repo_local = str(os.environ.get("OPENCODE_ALLOW_REPO_LOCAL_CONFIG", "")).strip() == "1"
         if allow_repo_local:
             config_path = _get_repo_local_config_path()
             resolver_source = "repo_local_opt_in"
