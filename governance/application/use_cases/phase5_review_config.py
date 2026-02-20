@@ -42,6 +42,16 @@ def set_config_path_resolver(resolver: ConfigPathResolver) -> None:
     _default_resolver = resolver
 
 
+def get_config_path_resolver() -> ConfigPathResolver:
+    if _default_resolver is None:
+        raise PolicyConfigError(
+            "ConfigPathResolver not configured. "
+            "Call set_config_path_resolver() at startup. "
+            "Reason: BLOCKED-ENGINE-SELFCHECK"
+        )
+    return _default_resolver
+
+
 class PolicyConfigError(Exception):
     """Raised when policy-bound config is missing or invalid."""
 

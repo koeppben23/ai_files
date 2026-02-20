@@ -348,7 +348,7 @@ Output state updates:
 ### Phase 1.4: Templates & Addons Activation (DEFERRED TO PHASE 4)
 
 > **Routing:** Kernel-enforced via `diagnostics/phase_execution_config.yaml`.
-> Trigger: When Phase 4 (Implementation Planning) begins, immediately after Phase 1.3.
+> Informational: Kernel runs this when Phase 4 begins, immediately after Phase 1.3.
 
 PURPOSE:
 - Make rulebook loading deterministic across models and sessions.
@@ -1128,7 +1128,7 @@ Operator lifecycle (canonical):
 - In that case, workflow MUST proceed with bootstrap and MUST NOT ask operator to run `/start` again in the same turn.
 
 Execution mode enum (binding):
-- `SESSION_STATE.OutputMode = ARCHITECT | IMPLEMENT | VERIFY`
+- `SESSION_STATE.OutputMode`: `ARCHITECT | IMPLEMENT | VERIFY`
 - Default after `/master` is `ARCHITECT`.
 
 Mode constraints:
@@ -1203,7 +1203,7 @@ If anything here conflicts with the schema, the schema wins.
 
 When a dedicated state block is emitted in MIN mode, it SHOULD remain below ~40 lines. FULL mode should remain a digest (no large enumerations).
 
-If `SESSION_STATE.OutputMode = ARCHITECT`, output includes a `DecisionSurface` block first and keeps the rest limited to decision rationale + evidence pointers.
+If `SESSION_STATE.OutputMode` is `ARCHITECT`, output includes a `DecisionSurface` block first and keeps the rest limited to decision rationale + evidence pointers.
 
 Machine-readable diagnostics (informational):
 - When emitting any reason code (`BLOCKED-*`, `WARN-*`, `NOT_VERIFIED-*`), response includes a machine-readable diagnostics payload under `SESSION_STATE.Diagnostics.ReasonPayloads`.
@@ -2328,13 +2328,13 @@ Output requirements (Kernel-Enforced):
 
 If file writing is not possible in the current environment:
   - set `InventoryFileStatus = write-requested`
-  - set `InventoryFileMode = unknown`
+  - set `InventoryFileMode` to `unknown`
   - still output the full content and target path so OpenCode or the user can persist it manually.
   - MUST NOT redirect Business Rules persistence to `${WORKSPACE_MEMORY_FILE}` or `SESSION_STATE` fields as a substitute target.
 
 Update behavior (Kernel-Enforced):
-- If `${REPO_BUSINESS_RULES_FILE}` does not exist: `Mode = create`.
-- If `${REPO_BUSINESS_RULES_FILE}` exists: `Mode = update` and overwrite the file content as a whole
+- If `${REPO_BUSINESS_RULES_FILE}` does not exist: create mode.
+- If `${REPO_BUSINESS_RULES_FILE}` exists: update mode and overwrite the file content as a whole
   (single source of truth), while preserving BR identifiers and marking removed rules as DEPRECATED.
 
 Path enforcement (informational):
