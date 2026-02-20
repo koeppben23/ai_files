@@ -4,6 +4,7 @@ Validates that reason codes are consistent across:
 1. reason_codes.py (constants)
 2. reason_codes.registry.json (registry)
 3. _embedded_reason_registry.py (embedded mapping)
+4. policy-bound diagnostics/*.yaml references (catalogs/routing policies)
 
 Drift between any of these → BLOCKED_ENGINE_SELFCHECK
 """
@@ -11,6 +12,7 @@ Drift between any of these → BLOCKED_ENGINE_SELFCHECK
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 
@@ -94,7 +96,24 @@ def check_reason_registry_parity(repo_root: Path | None = None) -> tuple[bool, l
         errors.append(
             f"Reason codes in domain but NOT in embedded registry: {sorted(domain_not_embedded)}"
         )
-    
+
+    # 4. diagnostics/*.yaml references must resolve to registered blocked codes
+    yaml_refs: set[str] = set()
+    for yaml_path in sorted((repo_root / "diagnostics").glob("*.yaml")):
+        try:
+            text = yaml_path.read_text(encoding="utf-8")
+        except Exception as exc:
+            errors.append(f"Cannot read YAML policy file {yaml_path}: {exc}")
+            continue
+        for code in re.findall(r"BLOCKED-[A-Z0-9-]+", text):
+            yaml_refs.add(code)
+
+    yaml_only = yaml_refs - domain_blocked
+    if yaml_only:
+        errors.append(
+            f"Reason codes in diagnostics/*.yaml but NOT in reason_codes.py: {sorted(yaml_only)}"
+        )
+
     is_ok = len(errors) == 0
     return (is_ok, errors)
 

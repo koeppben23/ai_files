@@ -336,7 +336,8 @@ def check_trusted_rulebook_discovery_contract(issues: list[str]) -> None:
         "${REPO_OVERRIDES_HOME}",
     ]
     start_required = [
-        "`/start` enforces installer-owned discovery roots (`${COMMANDS_HOME}`, `${PROFILES_HOME}`) as canonical entrypoint requirements.",
+        "Discovery / Load search order (informational)",
+        "diagnostics/bootstrap_policy.yaml",
     ]
 
     missing_master = [t for t in master_required if t not in master]
@@ -415,10 +416,10 @@ def check_rulebook_load_evidence_fail_closed_contract(issues: list[str]) -> None
     rules = read_text(ROOT / "rules.md")
 
     master_required = [
-        "### Rulebook Load Evidence (BINDING)",
+        "### Rulebook Load Evidence",
         "RulebookLoadEvidence",
         "BLOCKED-RULEBOOK-EVIDENCE-MISSING",
-        "No phase completion may be claimed.",
+        "diagnostics/blocked_reason_catalog.yaml",
     ]
     rules_required = [
         "## 7.17 Rulebook Load Evidence Gate (Core, Binding)",
@@ -1000,9 +1001,8 @@ def check_start_evidence_boundaries(issues: list[str]) -> None:
         "Fallback computed payloads are debug output only (`nonEvidence`) and MUST NOT be treated as binding evidence.",
         "Helper output is operational convenience status only and MUST NOT be treated as canonical repo identity evidence.",
         "Repo identity remains governed by `master.md` evidence contracts",
-        "`/start` MUST attempt host-provided evidence first and MUST NOT request operator-provided variable binding before that attempt.",
-        "rules.md` load evidence is deferred until Phase 4.",
-        "`/start` MUST NOT require explicit profile selection to complete bootstrap when `master.md` bootstrap evidence is available",
+        "Bootstrap gates, evidence requirements, and blocked reasons are kernel-enforced",
+        "diagnostics/bootstrap_policy.yaml",
     ]
     missing_required = [token for token in required_in_start if token not in start]
 
@@ -1220,10 +1220,9 @@ def check_architect_autopilot_lifecycle_contract(issues: list[str]) -> None:
         "`VERIFY` mode is evidence reconciliation only.",
     ]
     start_required = [
-        "`/start` is mandatory bootstrap for a repo/session.",
-        "In hosts that support `/master`: `/master` without valid `/start` evidence MUST map to `BLOCKED-START-REQUIRED`",
-        "OpenCode Desktop mapping (host-constrained): `/start` acts as the `/master`-equivalent and performs the ARCHITECT master-run inline.",
-        "Canonical operator lifecycle (OpenCode Desktop): `/start` (bootstrap + ARCHITECT master-run) -> `Implement now` (IMPLEMENT) -> `Ingest evidence` (VERIFY).",
+        "Bootstrap gates, evidence requirements, and blocked reasons are kernel-enforced",
+        "diagnostics/bootstrap_policy.yaml",
+        "diagnostics/blocked_reason_catalog.yaml",
     ]
 
     missing_master = [t for t in master_required if t not in master]

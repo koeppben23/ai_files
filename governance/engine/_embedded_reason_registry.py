@@ -14,6 +14,7 @@ EMBEDDED_REASON_CODE_TO_SCHEMA_REF: Final[dict[str, str]] = {
     "BLOCKED-BOOTSTRAP-NOT-SATISFIED": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
     "BLOCKED-START-REQUIRED": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
     "BLOCKED-MISSING-CORE-RULES": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
+    "BLOCKED-RULEBOOK-LOAD-FAILED": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
     "BLOCKED-MISSING-PROFILE": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
     "BLOCKED-AMBIGUOUS-PROFILE": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
     "BLOCKED-MISSING-DECISION": "diagnostics/schemas/reason_payload_blocked_core.v1.json",

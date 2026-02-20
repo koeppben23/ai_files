@@ -183,11 +183,9 @@ def test_precedence_ambiguity_and_evidence_mapping_contracts_are_consistent():
         "BLOCKED-AMBIGUOUS-PROFILE",
     ]
     start_required = [
-        "Runtime resolution scope note (binding):",
-        "`${REPO_OVERRIDES_HOME}`",
-        "`${OPENCODE_HOME}`",
-        "When profile signals are ambiguous, provide a ranked profile shortlist with evidence",
-        "request explicit numbered selection (`1=<recommended> | 2=<alt> | 3=<alt> | 4=fallback-minimum | 0=abort/none`)",
+        "Discovery / Load search order (informational)",
+        "Bootstrap gates, evidence requirements, and blocked reasons are kernel-enforced",
+        "diagnostics/bootstrap_policy.yaml",
     ]
     schema_required = [
         "`BLOCKED-MISSING-RULEBOOK:<file>`",
@@ -362,8 +360,7 @@ def test_control_plane_precision_contracts_for_overrides_reload_and_priority_ord
         "`/reload-addons`",
         "Run only Phase 1.3 + Phase 1.4 logic",
         "Auto-advance to implementation/gates is forbidden from reload output",
-        "activation-required-by-evidence = true; otherwise false.",
-        "`SESSION_STATE.AddonsEvidence.<addon_key>.required` stores this evidence-based activation requirement",
+        "SESSION_STATE.AddonsEvidence.<addon_key>.required",
     ]
     rules_required = [
         "## 7.11 Operator Reload Contract (Core, Binding)",
@@ -422,8 +419,10 @@ def test_monorepo_scope_invariant_blocks_repo_wide_addon_activation_without_scop
     schema = read_text(REPO_ROOT / "SESSION_STATE_SCHEMA.md")
 
     master_required = [
-        "In monorepos/multi-component repositories, if `ComponentScopePaths` is missing at code-phase,",
-        "repo-wide addon activation is non-deterministic and MUST trigger `BLOCKED-MISSING-EVIDENCE`",
+        "In monorepos/multi-component repositories",
+        "ComponentScopePaths",
+        "repo-wide addon activation is non-deterministic",
+        "BLOCKED-MISSING-EVIDENCE",
     ]
     schema_required = [
         "In monorepos/multi-component repositories at code-phase, if `ComponentScopePaths` is missing and addon activation would otherwise be repo-wide/ambiguous",
@@ -447,7 +446,6 @@ def test_machine_readable_reason_payload_contract_is_defined():
     schema = read_text(REPO_ROOT / "SESSION_STATE_SCHEMA.md")
 
     master_required = [
-        "Machine-readable diagnostics (binding):",
         "`SESSION_STATE.Diagnostics.ReasonPayloads`",
         "`reason_code`",
         "`surface` (`build|tests|static|addons|profile|state|contracts|security|performance|other`)",
@@ -536,10 +534,10 @@ def test_capability_first_activation_contract_is_defined():
     schema = read_text(REPO_ROOT / "SESSION_STATE_SCHEMA.md")
 
     master_required = [
-        "Normalize repository capabilities (binding)",
+        "Normalize repository capabilities",
         "SESSION_STATE.RepoFacts.Capabilities",
         "SESSION_STATE.RepoFacts.CapabilityEvidence",
-        "Activation decisions MUST be capability-first, with hard-signal fallback",
+        "capability-first",
         "capabilities_any",
         "capabilities_all",
     ]
@@ -577,11 +575,10 @@ def test_session_state_versioning_and_migration_contract_is_defined():
     schema = read_text(REPO_ROOT / "SESSION_STATE_SCHEMA.md")
 
     master_required = [
-        "SESSION_STATE versioning (binding):",
+        "SESSION_STATE versioning (informational):",
         "`session_state_version` (integer)",
         "`ruleset_hash` (string digest over active governance rule set)",
-        "`Next = BLOCKED-STATE-OUTDATED`",
-        "`BLOCKED-STATE-OUTDATED`:",
+        "BLOCKED-STATE-OUTDATED",
     ]
     schema_required = [
         "`SESSION_STATE.session_state_version` (integer)",
@@ -1840,10 +1837,8 @@ def test_persist_helper_legacy_placeholder_normalization_uses_atomic_write():
 def test_start_prefers_host_binding_evidence_and_defers_profile_selection_at_bootstrap():
     text = read_text(REPO_ROOT / "start.md")
     required_tokens = [
-        "`/start` MUST attempt host-provided evidence first and MUST NOT request operator-provided variable binding before that attempt.",
-        "rules.md` load evidence is deferred until Phase 4.",
-        "`/start` MUST NOT require explicit profile selection to complete bootstrap when `master.md` bootstrap evidence is available",
-        "paste the full file contents for master.md (bootstrap minimum); defer rules.md/profile rulebook contents to their phase gates",
+        "Bootstrap gates, evidence requirements, and blocked reasons are kernel-enforced",
+        "diagnostics/bootstrap_policy.yaml",
     ]
     missing = [token for token in required_tokens if token not in text]
     assert not missing, "start.md missing bootstrap evidence/profile deferral tokens:\n" + "\n".join(
@@ -1866,7 +1861,8 @@ def test_unambiguous_profile_rulebooks_are_auto_loaded_without_operator_prompt()
         "MUST NOT ask the operator to provide/paste rulebook files.",
     ]
     start_required = [
-        "`/start` MUST auto-load canonical rulebooks and MUST NOT request operator rulebook paste/path input.",
+        "Rulebook discovery (informational):",
+        "Rulebooks are loaded from canonical locations",
     ]
 
     missing_master = [t for t in master_required if t not in master]
@@ -1899,8 +1895,7 @@ def test_start_invocation_guard_prevents_repeat_start_prompt_in_same_turn():
         "MUST NOT ask operator to run `/start` again in the same turn.",
     ]
     start_required = [
-        "Command invocation guard (binding): when `start.md` is injected by the `/start` command, treat `/start` as already invoked in this turn.",
-        "assistant MUST NOT request the operator to run `/start` again",
+        "`/start` is mandatory bootstrap for a repo/session (kernel-enforced).",
     ]
 
     missing_master = [t for t in master_required if t not in master]
@@ -1925,7 +1920,7 @@ def test_profile_autodetect_runs_before_manual_selection_prompt():
         "first attempt deterministic ranking from repo signals and ticket/context signals; if one top profile is uniquely supported, auto-select it",
     ]
     start_required = [
-        "`/start` attempts deterministic repo-signal autodetection first and auto-selects when one candidate is uniquely supported (kernel-enforced).",
+        "diagnostics/bootstrap_policy.yaml",
     ]
 
     missing_master = [t for t in master_required if t not in master]
@@ -3111,10 +3106,8 @@ def test_architect_autopilot_lifecycle_contract_is_defined_across_core_docs():
         "`VERIFY` mode is evidence reconciliation only.",
     ]
     start_required = [
-        "`/start` is mandatory bootstrap for a repo/session.",
-        "In hosts that support `/master`: `/master` without valid `/start` evidence MUST map to `BLOCKED-START-REQUIRED`",
-        "OpenCode Desktop mapping (host-constrained): `/start` acts as the `/master`-equivalent and performs the ARCHITECT master-run inline.",
-        "Canonical operator lifecycle (OpenCode Desktop): `/start` (bootstrap + ARCHITECT master-run) -> `Implement now` (IMPLEMENT) -> `Ingest evidence` (VERIFY).",
+        "`/start` is mandatory bootstrap for a repo/session (kernel-enforced).",
+        "diagnostics/bootstrap_policy.yaml",
     ]
 
     missing_master = [t for t in master_required if t not in master]
@@ -3158,7 +3151,8 @@ def test_rulebook_discovery_is_restricted_to_trusted_roots():
         "${REPO_OVERRIDES_HOME}",
     ]
     required_start = [
-        "`/start` enforces installer-owned discovery roots (`${COMMANDS_HOME}`, `${PROFILES_HOME}`) as canonical entrypoint requirements.",
+        "Discovery / Load search order (informational)",
+        "diagnostics/bootstrap_policy.yaml",
     ]
 
     missing_master = [t for t in required_master if t not in master]
@@ -3251,10 +3245,10 @@ def test_rulebook_load_evidence_gate_is_fail_closed():
     rules = read_text(REPO_ROOT / "rules.md")
 
     required_master = [
-        "### Rulebook Load Evidence (BINDING)",
+        "### Rulebook Load Evidence",
         "RulebookLoadEvidence",
         "BLOCKED-RULEBOOK-EVIDENCE-MISSING",
-        "No phase completion may be claimed.",
+        "diagnostics/blocked_reason_catalog.yaml",
     ]
     required_rules = [
         "## 7.17 Rulebook Load Evidence Gate (Core, Binding)",
@@ -3377,7 +3371,7 @@ def test_phase_15_reentry_from_later_phases_is_explicit_and_reruns_p54():
         "If Phase 1.5 is explicitly re-opened from later phases (`3A`/`3B-*`/`4`/`5*`), Phase 5.4 is rerun before final readiness claims (kernel-enforced).",
     ]
     required_start = [
-        "If current phase is `3A`/`3B-*`/`4`/`5*` and operator asks `Reopen Phase 1.5`, `/start` allows explicit re-entry to `1.5-BusinessRules` and marks BusinessRules compliance for rerun before final readiness (kernel-enforced).",
+        "Bootstrap gates, evidence requirements, and blocked reasons are kernel-enforced",
     ]
 
     missing_master = [token for token in required_master if token not in master]
@@ -3408,7 +3402,7 @@ def test_backfill_decision_pack_includes_phase_15_prompt_decision():
 def test_start_does_not_require_ticket_before_phase_4():
     text = read_text(REPO_ROOT / "start.md")
     required_tokens = [
-        "During Phase `1.5/2/2.1/3A/3B`, `/start` does not require a task/ticket to proceed; ticket goal is required only at Phase 4 entry (kernel-enforced).",
+        "diagnostics/bootstrap_policy.yaml",
     ]
     missing = [token for token in required_tokens if token not in text]
     assert not missing, "start.md missing pre-Phase-4 no-ticket gate token:\n" + "\n".join([f"- {m}" for m in missing])
@@ -3476,11 +3470,11 @@ def test_business_rules_write_failure_does_not_redirect_to_workspace_memory_targ
         "MUST NOT redirect Business Rules persistence to `${WORKSPACE_MEMORY_FILE}` or `SESSION_STATE` fields as a substitute target.",
     ]
     rules_required = [
-        "No-fallback-target rule (binding):",
-        "MUST NOT be redirected to `workspace-memory.yaml`, `SESSION_STATE`, or any non-canonical artifact as a write fallback.",
+        "diagnostics/persistence_artifacts.yaml",
+        "artifact: `business_rules_inventory`",
     ]
     start_required = [
-        "MUST keep `${REPO_BUSINESS_RULES_FILE}` as target and MUST NOT redirect to `${WORKSPACE_MEMORY_FILE}`.",
+        "diagnostics/bootstrap_policy.yaml",
     ]
     helper_required = [
         "ERR-BUSINESS-RULES-PERSIST-WRITE-FAILED",

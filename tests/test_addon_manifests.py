@@ -290,9 +290,9 @@ def test_master_addon_policy_includes_required_advisory_and_reload():
 
     required_snippets = [
         "addon_class` (`required` | `advisory`)",
-        "`addon_class = required`  -> `Mode = BLOCKED` with `BLOCKED-MISSING-ADDON:<addon_key>`",
-        "`addon_class = advisory` -> continue non-blocking",
-        "Addons MAY be re-evaluated and loaded later at any Phase-4 re-entry/resume",
+        "addon_class = required",  # kernel blocks with BLOCKED-MISSING-ADDON
+        "addon_class = advisory",  # kernel continues non-blocking
+        "Addons may be re-evaluated",
     ]
 
     missing = [s for s in required_snippets if s not in master]

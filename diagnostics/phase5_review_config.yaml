@@ -1,5 +1,16 @@
 # Phase 5 Review Configuration
-# SSOT for all Phase 5 iterative review settings
+#
+# SSOT Status: POLICY-BOUND
+# - This config is part of the engine master policy
+# - Changes require POLICY_PRECEDENCE_APPLIED audit event
+# - NOT modifiable via repo/process_env in pipeline mode
+# - Pack-locked on activation; hash recorded in SESSION_STATE
+
+policy:
+  version: "1.0.0"
+  precedence_level: "engine_master_policy"
+  pack_locked: true
+  audit_on_change: "POLICY_PRECEDENCE_APPLIED"
 
 # Iteration Limits
 max_iterations: 3
