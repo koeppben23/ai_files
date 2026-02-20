@@ -2821,13 +2821,15 @@ Proceeding to Phase 4 (Ticket Execution)...
 
    **Planning depth implications (Kernel-Enforced):**
 
-   | Class | Ticket Record | Architecture Options | Test Strategy | Self-Review Depth |
+   | Class | Ticket Record | Architecture Options | Test Strategy | Self-Review Rigor |
    |-------|--------------|---------------------|--------------|-------------------|
-   | SIMPLE-CRUD | Abbreviated (3 lines) | Skip | Template-prescribed | Round 1 only (Rounds 2-3 confirm "template-compliant") |
-   | REFACTORING | Focus on preservation | Only if boundaries change | Characterization-first | All 3 rounds (focus on regression) |
-   | MODIFICATION | Full | If interface changes | Full + regression | All 3 rounds |
-   | COMPLEX | Full + interaction desc. | Mandatory A/B/C | Full + integration | All 3 rounds + mandatory second pass |
-   | STANDARD | Full | If non-trivial | Profile-prescribed | All 3 rounds |
+   | SIMPLE-CRUD | Abbreviated (3 lines) | Skip | Template-prescribed | minimal (kernel-managed) |
+   | REFACTORING | Focus on preservation | Only if boundaries change | Characterization-first | standard (kernel-managed) |
+   | MODIFICATION | Full | If interface changes | Full + regression | standard (kernel-managed) |
+   | COMPLEX | Full + interaction desc. | Mandatory A/B/C | Full + integration | maximum (kernel-managed, may trigger second pass) |
+   | STANDARD | Full | If non-trivial | Profile-prescribed | standard (kernel-managed) |
+
+   **Note:** Self-Review rigor levels (minimal/standard/maximum) are kernel-enforced parameters that determine review depth. The kernel maps these to appropriate round counts and second-pass thresholds based on operating mode and budget. MD defines the output schema, not the execution logic.
 
    **Binding:** The classification MUST be referenced in the Ticket Record (Mini-ADR context line) and recorded in SESSION_STATE before proceeding. The planning depth determines which subsequent steps are required vs. optional.
 
@@ -2943,13 +2945,16 @@ Note: Fast Path MAY reduce review depth/verbosity but MUST NOT bypass any gates.
    - If evidence missing, output `MISSING_EVIDENCE: <id>` and stop
    - The Risk Review is a format requirement, not an execution procedure
 
-   **Note:** Iterative refinement (rounds, retries) is kernel-enforced, not MD-defined.
-   The kernel determines if additional quality passes are needed based on evidence.
-   - Each round MUST produce at least a "none needed" confirmation — empty output is invalid.
-   - Issues found in any round MUST be resolved before proceeding to the next round.
-   - The Self-Review Evidence Block MUST appear in the Phase 4 output before the SESSION_STATE block.
-   - If Round 3 identifies critical issues (security, data loss, breaking changes), the LLM MUST loop back to Round 1 for a second pass (maximum 2 full cycles total to prevent infinite loops).
-   - `SESSION_STATE.SelfReviewRounds = 3` (or 6 if a second pass was triggered) MUST be recorded.
+   **Note:** Iterative refinement (rounds, retries, max cycles) is **kernel-enforced**, not MD-defined.
+   The kernel determines if additional quality passes are needed based on operating mode, evidence, and budget.
+   
+   **Output Contract:**
+   - `SESSION_STATE.SelfReview` evidence is emitted by the kernel during Phase 4 planning
+   - Evidence schemas are validated by the kernel's embedded registry (not defined in MD)
+   - Critical findings trigger kernel policy decisions; MD does not define behavior
+   
+   **Binding:** Self-review evidence MUST appear in SESSION_STATE before Phase 5 entry.
+   Schema validation failures are kernel-blocked with registered reason codes.
 
    **Build Toolchain awareness (binding):**
    - `SESSION_STATE.BuildToolchain` is resolved in Phase 2 (step 3b) from repo signals + preflight tool probe. By Phase 4 entry, it MUST already be populated.
