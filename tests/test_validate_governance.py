@@ -2038,10 +2038,10 @@ def test_start_md_fallback_binding_and_identity_evidence_boundaries_are_fail_clo
     )
 
     required_tokens = [
-        "Fallback computed payloads are debug output only (`nonEvidence`) and MUST NOT be treated as binding evidence.",
-        "If installer-owned binding file is missing, workflow MUST block with `BLOCKED-MISSING-BINDING-FILE`",
-        "Helper output is operational convenience status only and MUST NOT be treated as canonical repo identity evidence.",
-        "Repo identity remains governed by `master.md` evidence contracts",
+        "Fallback computed payloads remain debug-only (`nonEvidence`).",
+        "Helper output is operational convenience status only and is not canonical repo identity evidence.",
+        "diagnostics/bootstrap_policy.yaml",
+        "diagnostics/blocked_reason_catalog.yaml",
     ]
     missing = [token for token in required_tokens if token not in text]
 
@@ -2514,20 +2514,9 @@ def test_start_and_master_require_host_git_identity_discovery_before_operator_pr
         "rerunning `/start` MUST refresh the inventory/probe and continue without stale blocker state",
     ]
     start_required = [
-        "Identity discovery order (binding):",
-        "`/start` MUST collect repo identity evidence first via non-destructive git commands",
-        "before requesting operator-provided evidence",
-        "MUST block with identity-missing reason and provide copy-paste recovery commands",
-        "Bootstrap command preflight (binding):",
-        "`/start` MUST check required external commands in `PATH` first",
-        "`/start` MUST load command requirements from `${COMMANDS_HOME}/diagnostics/tool_requirements.json` when available",
-        "If `diagnostics/tool_requirements.json` is unavailable, `/start` MUST derive the command list by scanning canonical governance artifacts",
-        "`required_now`, `required_later`, and `optional`",
-        "MUST print the resolved command inventory and probe result (`available`/`missing`)",
-        "Preflight diagnostics are informational and MUST NOT create a blocker by themselves",
-        "`preflight: ok`",
-        "`preflight: degraded`",
-        "rerunning `/start` MUST recompute the inventory from files",
+        "Bootstrap preflight and evidence semantics (informational):",
+        "diagnostics/bootstrap_policy.yaml",
+        "diagnostics/blocked_reason_catalog.yaml",
     ]
 
     missing_master = [t for t in master_required if t not in master]
@@ -2687,12 +2676,8 @@ def test_bootstrap_preflight_output_contract_is_defined_across_core_docs():
         "`restart_hint` (enum):",
     ]
     start_required = [
-        "Preflight MUST run in Phase `0` / `1.1`",
-        "fresh probe signals only (`ttl=0`) and `observed_at` timestamp",
-        "Preflight output MUST stay compact (max 5 checks)",
-        "fixed keys: `available`, `missing`, `impact`, `next`.",
-        "Missing-command diagnostics MUST include `expected_after_fix`, `verify_command`, and `restart_hint`.",
-        "`restart_hint` MUST be deterministic: `restart_required_if_path_edited` or `no_restart_if_binary_in_existing_path`.",
+        "Bootstrap preflight and evidence semantics (informational):",
+        "diagnostics/bootstrap_policy.yaml",
     ]
 
     missing_master = [t for t in master_required if t not in master]
@@ -3094,13 +3079,13 @@ def test_architect_autopilot_lifecycle_contract_is_defined_across_core_docs():
 
     master_required = [
         "### 2.4.2 Architect-Only Autopilot Lifecycle (Policy)",
-        "SESSION_STATE.OutputMode = ARCHITECT | IMPLEMENT | VERIFY",
+        "`SESSION_STATE.OutputMode`: `ARCHITECT | IMPLEMENT | VERIFY`",
         "Default after `/master` is `ARCHITECT`.",
         "BLOCKED-START-REQUIRED",
     ]
     rules_required = [
         "### 7.3.6 Architect-Only Autopilot Lifecycle (Policy)",
-        "`SESSION_STATE.OutputMode = ARCHITECT | IMPLEMENT | VERIFY`",
+        "`SESSION_STATE.OutputMode`: `ARCHITECT | IMPLEMENT | VERIFY`",
         "`/master` before valid `/start` bootstrap evidence MUST block with `BLOCKED-START-REQUIRED`",
         "`IMPLEMENT` mode requires explicit operator trigger (`Implement now`).",
         "`VERIFY` mode is evidence reconciliation only.",

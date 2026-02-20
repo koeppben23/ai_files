@@ -395,6 +395,13 @@
       "remediation_hint": "Ensure operation is fully automated or switch to user mode."
     },
     {
+      "code": "BLOCKED-PIPELINE-PROMPT-BUDGET",
+      "severity": "blocked",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Pipeline prompt budget exceeded under hard policy.",
+      "remediation_hint": "Reduce prompt usage or adjust mode-specific policy."
+    },
+    {
       "code": "BLOCKED-MISSING-DB-VERSION",
       "severity": "blocked",
       "payload_schema_ref": "diagnostics/schemas/reason_payload_blocked_core.v1.json",

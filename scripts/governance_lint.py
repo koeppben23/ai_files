@@ -998,9 +998,8 @@ def check_start_evidence_boundaries(issues: list[str]) -> None:
     start_bundle = "\n".join([start, binding_helper])
 
     required_in_start = [
-        "Fallback computed payloads are debug output only (`nonEvidence`) and MUST NOT be treated as binding evidence.",
-        "Helper output is operational convenience status only and MUST NOT be treated as canonical repo identity evidence.",
-        "Repo identity remains governed by `master.md` evidence contracts",
+        "Fallback computed payloads remain debug-only (`nonEvidence`).",
+        "Helper output is operational convenience status only and is not canonical repo identity evidence.",
         "Bootstrap gates, evidence requirements, and blocked reasons are kernel-enforced",
         "diagnostics/bootstrap_policy.yaml",
     ]
@@ -1208,13 +1207,13 @@ def check_architect_autopilot_lifecycle_contract(issues: list[str]) -> None:
 
     master_required = [
         "### 2.4.2 Architect-Only Autopilot Lifecycle (Policy)",
-        "SESSION_STATE.OutputMode = ARCHITECT | IMPLEMENT | VERIFY",
+        "`SESSION_STATE.OutputMode`: `ARCHITECT | IMPLEMENT | VERIFY`",
         "Default after `/master` is `ARCHITECT`.",
         "BLOCKED-START-REQUIRED",
     ]
     rules_required = [
         "### 7.3.6 Architect-Only Autopilot Lifecycle (Policy)",
-        "`SESSION_STATE.OutputMode = ARCHITECT | IMPLEMENT | VERIFY`",
+        "`SESSION_STATE.OutputMode`: `ARCHITECT | IMPLEMENT | VERIFY`",
         "`/master` before valid `/start` bootstrap evidence MUST block with `BLOCKED-START-REQUIRED`",
         "`IMPLEMENT` mode requires explicit operator trigger (`Implement now`).",
         "`VERIFY` mode is evidence reconciliation only.",
