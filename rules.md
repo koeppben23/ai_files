@@ -1120,11 +1120,11 @@ Purpose:
 - Maximize PR review resilience by requiring risk-appropriate, explicit proof before "ready-for-pr".
 
 Binding requirements:
-- In Phase 4, every ticket MUST declare:
+- In Phase 4, every ticket declares (kernel-enforced):
   - `TicketClass` (one): `api-change | schema-migration | business-rule-change | security-change | performance-change | ui-change | mixed`
   - `RiskTier` (one): `LOW | MEDIUM | HIGH`
-- The plan MUST include a `Mandatory Review Matrix` section listing required artifacts for that class/tier.
-- In Phase 5/6, the matrix MUST be verified against evidence; missing required artifacts => `fix-required` (never `ready-for-pr`).
+- The plan includes a `Mandatory Review Matrix` section listing required artifacts for that class/tier.
+- In Phase 5/6, the matrix is verified against evidence; missing required artifacts results in `fix-required` (never `ready-for-pr`).
 
 Minimum required artifacts by risk tier:
 - `LOW`: changed behavior tests (happy + one negative or boundary), Change Matrix complete, security sanity check if touched surface is security-sensitive.
@@ -1406,11 +1406,11 @@ Minimum required output (whenever Phase 4 planning is produced and at Gate Phase
 Binding:
 - Any BR with missing tests MUST be surfaced as either:
   - a planned test in the Change Matrix / plan, OR
-  - an explicit exception with rationale (must be reviewed at Phase 5.4).
-- Phase 5.4 MUST NOT be marked `compliant` if unresolved gaps exist without explicit exceptions.
-- If Phase 1.5 is explicitly re-opened from later phases (`3A`/`3B-*`/`4`/`5*`), Phase 5.4 MUST be rerun before final readiness claims.
-- Repository documentation (`README*`, `CONTRIBUTING*`, `AGENTS*`, comments) MUST NOT be used as sole evidence for BR extraction.
-- README-only/documentation-only BRs MUST be marked `CANDIDATE` and MUST NOT count as extracted `ACTIVE` rules.
+  - an explicit exception with rationale (reviewed at Phase 5.4).
+- Phase 5.4 is not marked `compliant` if unresolved gaps exist without explicit exceptions (kernel-enforced).
+- If Phase 1.5 is explicitly re-opened from later phases (`3A`/`3B-*`/`4`/`5*`), Phase 5.4 is rerun before final readiness claims (kernel-enforced).
+- Repository documentation (`README*`, `CONTRIBUTING*`, `AGENTS*`, comments) is not used as sole evidence for BR extraction.
+- README-only/documentation-only BRs are marked `CANDIDATE` and do not count as extracted `ACTIVE` rules.
 
 Recommended session-state key (FULL mode):
 - `SESSION_STATE.BusinessRules`:
@@ -1579,12 +1579,12 @@ The Decision Pack MUST be stored outside the repository in the OpenCode workspac
 BINDING:
 - The workflow MUST NOT write the Decision Pack into the repository working copy.
 
-Phase 2.1 ticket-goal policy (binding):
-- Phase 2.1 Decision Pack generation MUST NOT block on missing `ticketGoal`.
+Phase 2.1 ticket-goal policy (informational):
+- Phase 2.1 Decision Pack generation does not block on missing `ticketGoal` (kernel-enforced).
 - Missing `ticketGoal` at Phase 2.1 implies planning-only decisions based on repository evidence.
-- In Phase 1.5 / 2 / 2.1 / 3A / 3B, the workflow MUST NOT request "provide ticket" or "provide change request" as `NextAction`.
-- `ticketGoal` is REQUIRED at Phase 4 entry (Step 0) before implementation planning/code-producing work.
-- All output paths MUST be expressed as variable-based path expressions (e.g., `${REPO_DECISION_PACK_FILE}`), not OS-specific absolute paths.
+- In Phase 1.5 / 2 / 2.1 / 3A / 3B, the workflow does not request "provide ticket" or "provide change request" as `NextAction` (kernel-enforced).
+- `ticketGoal` is REQUIRED at Phase 4 entry (Step 0) before implementation planning/code-producing work (kernel-enforced).
+- All output paths are expressed as variable-based path expressions (e.g., `${REPO_DECISION_PACK_FILE}`), not OS-specific absolute paths.
 
 Resulting path example:
 - `${CONFIG_ROOT}/${REPO_NAME}/decision-pack.md`
@@ -1799,9 +1799,9 @@ Legacy / testless repositories (binding):
 - If bootstrapping is infeasible due to constraints, mark degraded mode and record `Risk: [TEST-BOOTSTRAP-BLOCKED] <reason>`,
   and provide a concrete step plan for enabling tests (commands/files).
 
-Evidence request (binding):
-- If the Master Prompt requires a test/build quality gate (e.g., Phase 6) and BuildEvidence is missing or insufficient, the workflow MUST stop and request the relevant command output/log snippets. The assistant must not silently “continue in theoretical mode” when a gate decision depends on evidence.
-- The request must specify the exact commands to run (e.g., `mvn clean verify`) and what parts of the output are needed (failure summary, failing tests, coverage report).
+Evidence request (informational):
+- If the Master Prompt requires a test/build quality gate (e.g., Phase 6) and BuildEvidence is missing or insufficient, the workflow stops and requests the relevant command output/log snippets (kernel-enforced). The assistant does not silently "continue in theoretical mode" when a gate decision depends on evidence.
+- The request specifies the exact commands to run (e.g., `mvn clean verify`) and what parts of the output are needed (failure summary, failing tests, coverage report).
 
 Profile & scope override handling (binding):
 - If the user requests work outside `SESSION_STATE.ActiveProfile` or outside `SCOPE-AND-CONTEXT.md`, the workflow MUST either:

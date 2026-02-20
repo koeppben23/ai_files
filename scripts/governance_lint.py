@@ -454,9 +454,9 @@ def check_response_contract_validator_presence(issues: list[str]) -> None:
 def check_phase2_repo_root_defaulting_contract(issues: list[str]) -> None:
     master = read_text(ROOT / "master.md")
     required_tokens = [
-        "Repo root defaulting behavior (binding):",
-        "Phase 2 MUST use that path as the default `RepoRoot` candidate.",
-        "MUST request filesystem/access authorization (if required by host policy)",
+        "Repo root defaulting behavior (informational):",
+        "Phase 2 uses that path as the default `RepoRoot` candidate (kernel-enforced).",
+        "the workflow requests filesystem/access authorization (if required by host policy)",
         "Operator path prompts are allowed only when no host-provided repository root is available",
     ]
     missing = [token for token in required_tokens if token not in master]
@@ -469,15 +469,15 @@ def check_phase21_ticket_goal_deferral_contract(issues: list[str]) -> None:
     rules = read_text(ROOT / "rules.md")
 
     master_required = [
-        "Ticket-goal handling in Phase 2.1 (binding):",
-        "Phase 2.1 MUST execute automatically from Phase 2 evidence and MUST NOT require explicit `ticketGoal` input.",
-        "`ticketGoal` becomes mandatory at Phase 4 entry (Step 0)",
+        "Ticket-goal handling in Phase 2.1 (informational):",
+        "Phase 2.1 executes automatically from Phase 2 evidence and does not require explicit `ticketGoal` input (kernel-enforced).",
+        "`ticketGoal` becomes required at Phase 4 entry (Step 0) before any code-producing work (kernel-enforced).",
     ]
     rules_required = [
-        "Phase 2.1 ticket-goal policy (binding):",
-        "Phase 2.1 Decision Pack generation MUST NOT block on missing `ticketGoal`.",
-        "In Phase 1.5 / 2 / 2.1 / 3A / 3B, the workflow MUST NOT request \"provide ticket\" or \"provide change request\" as `NextAction`.",
-        "`ticketGoal` is REQUIRED at Phase 4 entry (Step 0)",
+        "Phase 2.1 ticket-goal policy (informational):",
+        "Phase 2.1 Decision Pack generation does not block on missing `ticketGoal` (kernel-enforced).",
+        "In Phase 1.5 / 2 / 2.1 / 3A / 3B, the workflow does not request \"provide ticket\" or \"provide change request\" as `NextAction` (kernel-enforced).",
+        "`ticketGoal` is REQUIRED at Phase 4 entry (Step 0) before implementation planning/code-producing work (kernel-enforced).",
     ]
 
     missing_master = [token for token in master_required if token not in master]
@@ -510,8 +510,8 @@ def check_phase15_repo_code_evidence_contract(issues: list[str]) -> None:
         "Any rule lacking repository code evidence MUST be marked `CANDIDATE`",
     ]
     rules_required = [
-        "Repository documentation (`README*`, `CONTRIBUTING*`, `AGENTS*`, comments) MUST NOT be used as sole evidence for BR extraction.",
-        "README-only/documentation-only BRs MUST be marked `CANDIDATE` and MUST NOT count as extracted `ACTIVE` rules.",
+        "Repository documentation (`README*`, `CONTRIBUTING*`, `AGENTS*`, comments) is not used as sole evidence for BR extraction.",
+        "README-only/documentation-only BRs are marked `CANDIDATE` and do not count as extracted `ACTIVE` rules.",
     ]
 
     missing_master = [token for token in master_required if token not in master]

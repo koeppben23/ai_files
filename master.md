@@ -323,37 +323,42 @@ SESSION_STATE bootstrap (binding):
   
 ### Phase 1.2: Profile Detection (DEFERRED TO POST-PHASE-2)
 
-TRIGGER: After Phase 2 (Repo Discovery) completes
-ACTION:
-  - Detect profile from repo signals
-  - Load profile rulebook
-  - Update SESSION_STATE.ActiveProfile + LoadedRulebooks.profile
+> **Routing:** Kernel-enforced. See `diagnostics/phase_execution_config.yaml`.
+
+Output state updates:
+- `SESSION_STATE.ActiveProfile`
+- `SESSION_STATE.LoadedRulebooks.profile`
 
 ### Phase 1.3: Core Rules Activation (DEFERRED TO PHASE 4)
 
-TRIGGER: When Phase 4 (Implementation Planning) begins
-ACTION:
-  - Load rules.md (core rulebook)
-  - Merge with active profile rules
-  - Update SESSION_STATE.LoadedRulebooks.core
+> **Routing:** Kernel-enforced. See `diagnostics/phase_execution_config.yaml`.
 
-BINDING:
-  - Phase 1–3 MUST NOT require rules.md
-  - If Phase 4 begins and rules.md cannot be loaded → BLOCKED
-  - Phase 3 MUST NOT generate code
-  - Token-efficiency: if `SESSION_STATE.LoadedRulebooks.core` already points to the same resolved path
-    and `SESSION_STATE.RulebookLoadEvidence.core` has unchanged content evidence (hash/mtime/tool output),
-    the workflow MUST reuse the already-loaded core rulebook and MUST NOT reload full contents.
+Output state updates:
+- `SESSION_STATE.LoadedRulebooks.core`
+
+#### Execution Constraints (Kernel-Owned)
+
+> **Note:** Phase constraints are kernel-enforced via `diagnostics/phase_execution_config.yaml`.
+> The following are informational summaries only.
+  - Phases 1–3 do not depend on rules.md (kernel-enforced).
+  - Phase 4 entry requires core rulebook load; if missing, kernel emits BLOCKED-RULEBOOK-LOAD-FAILED.
+  - Phase 3 does not generate production code (kernel-enforced).
+  - Token-efficiency: The kernel caches and reuses loaded rulebooks when content evidence is unchanged.
+
 
 ### Phase 1.4: Templates & Addons Activation (DEFERRED TO PHASE 4)
 
-TRIGGER: When Phase 4 (Implementation Planning) begins, immediately after Phase 1.3.
+> **Routing:** Kernel-enforced via `diagnostics/phase_execution_config.yaml`.
+> Trigger: When Phase 4 (Implementation Planning) begins, immediately after Phase 1.3.
 
 PURPOSE:
 - Make rulebook loading deterministic across models and sessions.
 - Ensure profile-mandated templates and evidence-mandated addons are activated before any planning.
 
-ALGORITHM (BINDING, NORMATIVE):
+> **Algorithm:** Kernel-enforced. The following steps are informational summaries of kernel behavior.
+> For normative execution rules, see `diagnostics/phase_execution_config.yaml`.
+
+Activation Steps (Informational):
 
 0) Preconditions
    - `SESSION_STATE.ActiveProfile` MUST be set (from Phase 2 profile detection), unless `rules.fallback-minimum.md` is active.
@@ -463,7 +468,7 @@ ALGORITHM (BINDING, NORMATIVE):
      - if outcome differs while hashes are unchanged -> `BLOCKED-ACTIVATION-DELTA-MISMATCH`.
 
 Output obligation (BINDING):
-- At Phase 4 entry, the workflow MUST output a short activation summary:
+- At Phase 4 entry, output includes a short activation summary:
   - ActiveProfile, TemplatesLoaded, AddonsLoaded, EvidenceSignals (by addon), and Status.
  
 ### Data sources (non-precedence)
@@ -510,9 +515,9 @@ This governance system is single-user and MUST NOT require repo-working-tree-loc
 
 These files are normative and MUST be available in the same governance installation scope as `master.md`.
 
-Missing top-tier files behavior (binding):
-- In Phases 1-3, unresolved top-tier files (`QUALITY_INDEX.md`, `CONFLICT_RESOLUTION.md`) MUST emit WARN and keep the workflow planning-only.
-- In Phase 4+ (code/evidence/gates), unresolved top-tier files MUST block with `BLOCKED-MISSING-RULEBOOK:<file>`.
+Missing top-tier files behavior (informational):
+- In Phases 1-3, unresolved top-tier files (`QUALITY_INDEX.md`, `CONFLICT_RESOLUTION.md`) emit WARN and workflow remains planning-only (kernel-enforced).
+- In Phase 4+, unresolved top-tier files block with `BLOCKED-MISSING-RULEBOOK:<file>` (kernel-enforced).
 
 Top-tier load evidence obligation (binding):
 - If `QUALITY_INDEX.md` and/or `CONFLICT_RESOLUTION.md` are resolved in Phase 1.1,
@@ -821,23 +826,23 @@ Binding rules:
 * Phase 5: Lead architect review (gatekeeper)
   - includes non-gating internal checks (e.g., Security/Performance/Concurrency heuristics)
 * Phase 5.3: Test quality review (CRITICAL gate within Phase 5)
-* Phase 5.4: Business rules compliance (only if Phase 1.5 executed)
+* Phase 5.4: Business rules compliance (kernel-enforced: active when Phase 1.5 executed)
 * Phase 5.5: Technical debt proposal gate (optional)
 * Phase 5.6: Rollback safety gate (evaluated within Phase 5 review)
 * Phase 6: Implementation QA (self-review gate)
 
-Canonical flow (binding, compact):
+Canonical flow (informational, kernel-enforced):
 - `0 -> 1 -> 2 -> 2.1`
 - After `2.1`: first resolve the Phase 1.5 decision (explicit request/explicit skip/A-B decision).
 - Once 1.5 is resolved: if APIs are in scope, run `3A -> 3B-1 -> 3B-2`; otherwise go to `4`.
 - `1.5` is optional and user-approved; when executed, it runs after `2.1` and before `4`.
 - If `1.5` executes and APIs are in scope, continue `1.5 -> 3A`; if no APIs are in scope, continue `1.5 -> 4`.
 - Re-entry path: if current phase is `3A`/`3B-*`/`4`/`5*` and operator explicitly requests `Reopen Phase 1.5`, transition back to `1.5-BusinessRules`.
-- Re-entry is explicit-only (never implicit). After re-entry execution, `P5.4-BusinessRules` MUST be rerun before readiness can be asserted.
+- Re-entry is explicit-only (never implicit). After re-entry execution, `P5.4-BusinessRules` is rerun before readiness can be asserted.
 - Main execution path is `4 -> 5 -> 5.3 -> 6`.
-- `5.4` is mandatory only if `1.5` executed.
+- `5.4` is active only when `1.5` was executed.
 - `5.5` is optional and only when explicitly proposed.
-- `5.6` is evaluated inside `5` and MUST be satisfied when rollback safety applies.
+- `5.6` is evaluated inside `5` and applies when rollback safety is relevant.
 
 **Output Rule for Code Generation:**
 Do not output production code or diffs unless the `SESSION_STATE` has:
@@ -899,10 +904,10 @@ Explicit overrides (highest priority):
 
 Override constraints (binding):
 * "Skip Phase Y" is only valid if all artifacts/evidence required by downstream phases already exist in SESSION_STATE.
-* If skipping would cause missing discovery or verification evidence, the workflow MUST switch to BLOCKED and request the missing inputs.
+* If skipping would cause missing discovery or verification evidence, the workflow switches to BLOCKED and requests the missing inputs (kernel-enforced).
 
-Phase 5 MUST NEVER be skipped if code generation is expected.
-Phase 5.4 MUST NEVER be skipped if Phase 1.5 was executed AND code generation is expected.
+Phase 5 is not skippable when code generation is expected (kernel-enforced; see phase_execution_config.yaml).
+Phase 5.4 is not skippable when Phase 1.5 was executed AND code generation is expected (kernel-enforced).
 
 ### 2.2.1 Operator Reload Contract (Kernel-Enforced)
 
@@ -1530,11 +1535,11 @@ Binding:
 
 **Input:** Repository archive (ZIP/TAR) or indexed repository
 
-Repo root defaulting behavior (binding):
+Repo root defaulting behavior (informational):
 - If the host provides an indexed workspace/repository root for the current session,
-  Phase 2 MUST use that path as the default `RepoRoot` candidate.
-- In that case, the workflow MUST request filesystem/access authorization (if required by host policy)
-  before asking the operator to manually provide a repo path.
+  Phase 2 uses that path as the default `RepoRoot` candidate (kernel-enforced).
+- In that case, the workflow requests filesystem/access authorization (if required by host policy)
+  before asking the operator to manually provide a repo path (kernel-enforced).
 - Operator path prompts are allowed only when no host-provided repository root is available,
   or when the host-provided root cannot be resolved after an explicit access attempt.
 
@@ -2202,10 +2207,10 @@ Rules (binding):
 - 3–7 decisions max.
 - Each decision MUST include: Options (A/B), Recommendation, Evidence, What would change it.
 
-Ticket-goal handling in Phase 2.1 (binding):
-- Phase 2.1 MUST execute automatically from Phase 2 evidence and MUST NOT require explicit `ticketGoal` input.
-- If `ticketGoal` is missing at Phase 2.1, produce a planning-only Decision Pack from repository evidence and continue per Phase 2.1 exit rules.
-- `ticketGoal` becomes mandatory at Phase 4 entry (Step 0) before any code-producing work.
+Ticket-goal handling in Phase 2.1 (informational):
+- Phase 2.1 executes automatically from Phase 2 evidence and does not require explicit `ticketGoal` input (kernel-enforced).
+- If `ticketGoal` is missing at Phase 2.1, a planning-only Decision Pack is produced from repository evidence and continues per Phase 2.1 exit rules.
+- `ticketGoal` becomes required at Phase 4 entry (Step 0) before any code-producing work (kernel-enforced).
 
 OpenCode persistence lifecycle (Binding when OpenCode DecisionPack file is used):
 - If the workflow is running under OpenCode AND decision-pack persistence is applicable,
@@ -2314,10 +2319,10 @@ If file writing is not possible in the current environment:
 * "Skip business-rules discovery"
 * "This is a pure CRUD project"
 
-Re-entry from later phases (binding):
-* From `3A`/`3B-*`/`4`/`5*`, Phase 1.5 may be executed only on explicit operator request.
-* Re-entry MUST emit a deterministic transition note and one primary next action.
-* Re-entry invalidates previous P5.4 readiness assumptions; business-rules compliance must be rerun before final readiness.
+Re-entry from later phases (informational):
+* From `3A`/`3B-*`/`4`/`5*`, Phase 1.5 executes only on explicit operator request (kernel-enforced).
+* Re-entry emits a deterministic transition note and one primary next action.
+* Re-entry invalidates previous P5.4 readiness assumptions; business-rules compliance is rerun before final readiness.
 
 #### Load Existing Business Rules Inventory (When Available)
 
@@ -2956,12 +2961,12 @@ Note: Fast Path MAY reduce review depth/verbosity but MUST NOT bypass any gates.
    **Binding:** Self-review evidence MUST appear in SESSION_STATE before Phase 5 entry.
    Schema validation failures are kernel-blocked with registered reason codes.
 
-   **Build Toolchain awareness (binding):**
-   - `SESSION_STATE.BuildToolchain` is resolved in Phase 2 (step 3b) from repo signals + preflight tool probe. By Phase 4 entry, it MUST already be populated.
+   **Build Toolchain awareness (informational):**
+   - `SESSION_STATE.BuildToolchain` is resolved in Phase 2 (step 3b) from repo signals + preflight tool probe. By Phase 4 entry, it is already populated (kernel-enforced).
    - If `SESSION_STATE.BuildToolchain.CompileAvailable == true` or `TestAvailable == true`:
-     - The implementation plan MUST note that autonomous build verification will execute in Phase 6.
-     - Round 1 (Correctness) MAY reduce emphasis on import/type correctness issues that the compiler will catch deterministically — but MUST NOT skip the round.
-   - If no build tools are available (`CompileAvailable == false` AND `TestAvailable == false`), self-critique remains the sole verification mechanism and MUST be executed with maximum rigor.
+     - The implementation plan notes that autonomous build verification executes in Phase 6.
+     - Round 1 (Correctness) MAY reduce emphasis on import/type correctness issues that the compiler will catch deterministically — but does not skip the round.
+   - If no build tools are available (`CompileAvailable == false` AND `TestAvailable == false`), self-critique remains the sole verification mechanism and is executed with maximum rigor.
 
 **Output format:**
 
@@ -3697,10 +3702,10 @@ Result: complexity-warning (warnings only; requires review attention)
 ### PHASE 6 — Implementation QA (Self-Review Gate)
 
 **Binding prerequisites:**
-- `SESSION_STATE.Gates.P5-Architecture` MUST be `approved`.
-- `SESSION_STATE.Gates.P5.3-TestQuality` MUST be `pass` or `pass-with-exceptions`.
-- If Phase 1.5 executed: `SESSION_STATE.Gates.P5.4-BusinessRules` MUST be `compliant` or `compliant-with-exceptions`.
-- If rollback safety applies: `SESSION_STATE.Gates.P5.6-RollbackSafety` MUST be `approved` or `not-applicable`.
+- `SESSION_STATE.Gates.P5-Architecture` is `approved` (kernel-enforced).
+- `SESSION_STATE.Gates.P5.3-TestQuality` is `pass` or `pass-with-exceptions` (kernel-enforced).
+- If Phase 1.5 executed: `SESSION_STATE.Gates.P5.4-BusinessRules` is `compliant` or `compliant-with-exceptions` (kernel-enforced).
+- If rollback safety applies: `SESSION_STATE.Gates.P5.6-RollbackSafety` is `approved` or `not-applicable` (kernel-enforced).
 If any prerequisite is not met → BLOCK and return to the relevant phase.
 
 **Verification obligations (binding):**
