@@ -1931,7 +1931,7 @@ def test_profile_autodetect_runs_before_manual_selection_prompt():
         "first attempt deterministic ranking from repo signals and ticket/context signals; if one top profile is uniquely supported, auto-select it",
     ]
     start_required = [
-        "`/start` MUST attempt deterministic repo-signal autodetection first and auto-select when one candidate is uniquely supported.",
+        "`/start` attempts deterministic repo-signal autodetection first and auto-selects when one candidate is uniquely supported (kernel-enforced).",
     ]
 
     missing_master = [t for t in master_required if t not in master]
@@ -1961,9 +1961,9 @@ def test_rules_define_deterministic_backend_java_default_when_unambiguous():
 def test_phase2_prefers_host_repo_root_before_manual_path_prompt():
     text = read_text(REPO_ROOT / "master.md")
     required_tokens = [
-        "Repo root defaulting behavior (binding):",
-        "Phase 2 MUST use that path as the default `RepoRoot` candidate.",
-        "MUST request filesystem/access authorization (if required by host policy)",
+        "Repo root defaulting behavior (informational):",
+        "Phase 2 uses that path as the default `RepoRoot` candidate (kernel-enforced).",
+        "the workflow requests filesystem/access authorization (if required by host policy)",
         "Operator path prompts are allowed only when no host-provided repository root is available",
     ]
     missing = [token for token in required_tokens if token not in text]
@@ -1978,15 +1978,15 @@ def test_phase21_does_not_require_ticket_goal_and_defers_mandatory_ticket_to_pha
     rules = read_text(REPO_ROOT / "rules.md")
 
     master_required = [
-        "Ticket-goal handling in Phase 2.1 (binding):",
-        "Phase 2.1 MUST execute automatically from Phase 2 evidence and MUST NOT require explicit `ticketGoal` input.",
-        "`ticketGoal` becomes mandatory at Phase 4 entry (Step 0)",
+        "Ticket-goal handling in Phase 2.1 (informational):",
+        "Phase 2.1 executes automatically from Phase 2 evidence and does not require explicit `ticketGoal` input (kernel-enforced).",
+        "`ticketGoal` becomes required at Phase 4 entry (Step 0) before any code-producing work (kernel-enforced).",
     ]
     rules_required = [
-        "Phase 2.1 ticket-goal policy (binding):",
-        "Phase 2.1 Decision Pack generation MUST NOT block on missing `ticketGoal`.",
-        "In Phase 1.5 / 2 / 2.1 / 3A / 3B, the workflow MUST NOT request \"provide ticket\" or \"provide change request\" as `NextAction`.",
-        "`ticketGoal` is REQUIRED at Phase 4 entry (Step 0)",
+        "Phase 2.1 ticket-goal policy (informational):",
+        "Phase 2.1 Decision Pack generation does not block on missing `ticketGoal` (kernel-enforced).",
+        "In Phase 1.5 / 2 / 2.1 / 3A / 3B, the workflow does not request \"provide ticket\" or \"provide change request\" as `NextAction` (kernel-enforced).",
+        "`ticketGoal` is REQUIRED at Phase 4 entry (Step 0) before implementation planning/code-producing work (kernel-enforced).",
     ]
 
     missing_master = [token for token in master_required if token not in master]
@@ -2025,8 +2025,8 @@ def test_phase15_requires_repo_code_evidence_and_forbids_readme_only_extraction(
         "Any rule lacking repository code evidence MUST be marked `CANDIDATE`",
     ]
     rules_required = [
-        "Repository documentation (`README*`, `CONTRIBUTING*`, `AGENTS*`, comments) MUST NOT be used as sole evidence for BR extraction.",
-        "README-only/documentation-only BRs MUST be marked `CANDIDATE` and MUST NOT count as extracted `ACTIVE` rules.",
+        "Repository documentation (`README*`, `CONTRIBUTING*`, `AGENTS*`, comments) is not used as sole evidence for BR extraction.",
+        "README-only/documentation-only BRs are marked `CANDIDATE` and do not count as extracted `ACTIVE` rules.",
     ]
 
     missing_master = [t for t in master_required if t not in master]
@@ -2795,8 +2795,8 @@ def test_session_transition_invariant_contract_is_defined_across_core_docs():
         "`transition_id` (unique string)",
     ]
     start_required = [
-        "Across lifecycle transitions, `session_run_id` and `ruleset_hash` MUST remain stable unless explicit rehydrate/reload is performed.",
-        "Every phase/mode transition MUST record a unique `transition_id` diagnostic entry.",
+        "Across lifecycle transitions, `session_run_id` and `ruleset_hash` remain stable unless explicit rehydrate/reload is performed (kernel-enforced).",
+        "Every phase/mode transition records a unique `transition_id` diagnostic entry (kernel-enforced).",
     ]
     schema_required = [
         "### 2.1.4 Transition trace invariants (binding)",
@@ -3312,7 +3312,7 @@ def test_top_tier_quality_index_claim_requires_loadable_scope_and_evidence_contr
 def test_phase4_missing_quality_index_is_fail_closed():
     master = read_text(REPO_ROOT / "master.md")
     required = [
-        "In Phase 4+ (code/evidence/gates), unresolved top-tier files MUST block with `BLOCKED-MISSING-RULEBOOK:<file>`.",
+        "In Phase 4+, unresolved top-tier files block with `BLOCKED-MISSING-RULEBOOK:<file>` (kernel-enforced).",
         "QUALITY_INDEX.md",
     ]
     missing = [t for t in required if t not in master]
@@ -3378,13 +3378,13 @@ def test_phase_15_reentry_from_later_phases_is_explicit_and_reruns_p54():
     required_master = [
         "Re-entry path: if current phase is `3A`/`3B-*`/`4`/`5*` and operator explicitly requests `Reopen Phase 1.5`, transition back to `1.5-BusinessRules`.",
         "Re-entry is explicit-only (never implicit).",
-        "After re-entry execution, `P5.4-BusinessRules` MUST be rerun before readiness can be asserted.",
+        "After re-entry execution, `P5.4-BusinessRules` is rerun before readiness can be asserted.",
     ]
     required_rules = [
-        "If Phase 1.5 is explicitly re-opened from later phases (`3A`/`3B-*`/`4`/`5*`), Phase 5.4 MUST be rerun before final readiness claims.",
+        "If Phase 1.5 is explicitly re-opened from later phases (`3A`/`3B-*`/`4`/`5*`), Phase 5.4 is rerun before final readiness claims (kernel-enforced).",
     ]
     required_start = [
-        "If current phase is `3A`/`3B-*`/`4`/`5*` and operator asks `Reopen Phase 1.5`, `/start` MUST allow explicit re-entry to `1.5-BusinessRules` and mark BusinessRules compliance for rerun before final readiness.",
+        "If current phase is `3A`/`3B-*`/`4`/`5*` and operator asks `Reopen Phase 1.5`, `/start` allows explicit re-entry to `1.5-BusinessRules` and marks BusinessRules compliance for rerun before final readiness (kernel-enforced).",
     ]
 
     missing_master = [token for token in required_master if token not in master]
@@ -3415,7 +3415,7 @@ def test_backfill_decision_pack_includes_phase_15_prompt_decision():
 def test_start_does_not_require_ticket_before_phase_4():
     text = read_text(REPO_ROOT / "start.md")
     required_tokens = [
-        "During Phase `1.5/2/2.1/3A/3B`, `/start` MUST NOT require a task/ticket to proceed; ticket goal is required only at Phase 4 entry.",
+        "During Phase `1.5/2/2.1/3A/3B`, `/start` does not require a task/ticket to proceed; ticket goal is required only at Phase 4 entry (kernel-enforced).",
     ]
     missing = [token for token in required_tokens if token not in text]
     assert not missing, "start.md missing pre-Phase-4 no-ticket gate token:\n" + "\n".join([f"- {m}" for m in missing])

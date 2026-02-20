@@ -1,0 +1,145 @@
+# Phase 4 Self-Review Policy Configuration
+#
+# SSOT Status: POLICY-BOUND
+# - This config is part of the engine master policy
+# - Changes require POLICY_PRECEDENCE_APPLIED audit event
+# - NOT modifiable via repo/process_env in pipeline mode
+# - Pack-locked on activation; hash recorded in SESSION_STATE
+#
+# Precedence: engine master policy > activation > mode-policy > host > repo
+
+# Policy Metadata
+policy:
+  version: "1.0.0"
+  precedence_level: "engine_master_policy"
+  pack_locked: true
+  audit_on_change: "POLICY_PRECEDENCE_APPLIED"
+
+# Rigor Levels (kernel-enforced, not MD-defined)
+rigor_levels:
+  minimal:
+    rounds: 1
+    second_pass_on_critical: false
+    focus_areas: ["correctness"]
+    
+  standard:
+    rounds: 3
+    second_pass_on_critical: true
+    focus_areas: ["correctness", "completeness", "robustness"]
+    
+  maximum:
+    rounds: 3
+    second_pass_on_critical: true
+    max_cycles: 2
+    focus_areas: ["correctness", "completeness", "robustness", "security", "production-readiness"]
+
+# Complexity Class → Rigor Level Mapping
+# DETERMINISTIC: Based on measurable repo signals, NOT LLM estimation
+complexity_mapping:
+  SIMPLE-CRUD: minimal
+  REFACTORING: standard
+  MODIFICATION: standard
+  COMPLEX: maximum
+  STANDARD: standard
+
+# Deterministic Complexity Signals (Kernel Policy)
+# Classification MUST be derived from these signals, not subjective estimation
+complexity_signals:
+  simple_crud:
+    triggers:
+      - files_changed: "<= 3"
+      - loc_changed: "<= 100"
+      - public_api_changed: false
+      - schema_migration: false
+      - security_paths_touched: false
+      - permissions_changed: false
+      - network_io_changed: false
+    rigor: minimal
+    
+  standard:
+    triggers:
+      - files_changed: "<= 10"
+      - loc_changed: "<= 500"
+      - public_api_changed: "optional"
+      - schema_migration: false
+      - security_paths_touched: false
+    rigor: standard
+    
+  complex:
+    triggers:
+      - any_of:
+          - public_api_changed: true
+          - schema_migration: true
+          - security_paths_touched: true
+          - permissions_changed: true
+          - network_io_changed: true
+          - files_changed: "> 10"
+          - loc_changed: "> 500"
+          - test_coverage_delta: "< -5%"
+    rigor: maximum
+
+  # Signal Detection Paths (deterministic)
+  detection:
+    security_paths:
+      - "**/auth/**"
+      - "**/security/**"
+      - "**/crypto/**"
+      - "**/permission/**"
+      - "**/rbac/**"
+    public_api_paths:
+      - "**/api/**"
+      - "**/routes/**"
+      - "**/controllers/**"
+      - "**/handlers/**"
+    schema_paths:
+      - "**/migrations/**"
+      - "**/schema/**"
+      - "**/models/**"
+
+# Critical Issue Types that trigger second pass
+critical_issue_types:
+  - security_vulnerability
+  - data_loss_risk
+  - breaking_change_without_migration
+  - compliance_violation
+
+# Operating Mode Behavior
+# Pipeline mode: 0 prompts enforced, human assist HARD-DISABLED
+modes:
+  user:
+    max_cycles: 2
+    budget_enforced: true
+    human_assist_allowed: true
+    prompt_budget_check: "soft"  # warn if exceeded
+    
+  pipeline:
+    max_cycles: 2
+    budget_enforced: true
+    human_assist_allowed: false  # HARD-DISABLED
+    prompt_budget_check: "hard"  # BLOCKED_PIPELINE_INTERACTIVE if any prompt needed
+    block_reason: "BLOCKED-PIPELINE-INTERACTIVE"
+    # Self-review rounds are INTERNAL (no prompts to user)
+    # Any prompt requirement → immediate BLOCK with reason code
+    
+  agents_strict:
+    max_cycles: 1
+    budget_enforced: true
+    human_assist_allowed: false
+    prompt_budget_check: "hard"
+
+# Evidence Schema
+evidence:
+  per_round:
+    - round_index
+    - focus
+    - findings
+    - blocking_findings
+    - status
+    - plan_hash_before
+    - plan_hash_after
+    
+  summary:
+    - rounds_completed
+    - total_rounds
+    - critical_triggered_second_pass
+    - final_status
