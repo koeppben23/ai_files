@@ -660,7 +660,7 @@ Rules:
 
 ### 7.3.2 Standard Blocker Output Envelope (Kernel-Enforced)
 
-If `SESSION_STATE.Mode = BLOCKED`, output SHOULD include a machine-readable blocker envelope containing:
+If `SESSION_STATE.Mode` is `BLOCKED`, output SHOULD include a machine-readable blocker envelope containing:
 - `status = blocked`
 - `reason_code` (`BLOCKED-*`)
 - `missing_evidence` (array)
@@ -743,7 +743,7 @@ Canonical operator lifecycle:
 4) `Ingest evidence`
 
 Output mode enum (binding):
-- `SESSION_STATE.OutputMode = ARCHITECT | IMPLEMENT | VERIFY`
+- `SESSION_STATE.OutputMode`: `ARCHITECT | IMPLEMENT | VERIFY`
 
 Rules:
 - `/master` before valid `/start` bootstrap evidence MUST block with `BLOCKED-START-REQUIRED` and `QuickFixCommands: ["/start"]`.
@@ -753,7 +753,7 @@ Rules:
 - If no valid decision options can be produced, workflow MUST block with `BLOCKED-MISSING-DECISION` (no fake option lists).
 
 Additional output mode:
-  - If `SESSION_STATE.OutputMode = ARCHITECT`, the workflow MUST present a `DecisionSurface` (what you must decide now vs can defer)
+  - If `SESSION_STATE.OutputMode` is `ARCHITECT`, output MUST present a `DecisionSurface` (what you must decide now vs can defer)
     and MUST NOT hide required decisions inside long narrative text.
   - Evidence obligations and gate rules remain unchanged in ARCHITECT mode.
 
@@ -1466,7 +1466,7 @@ Interpretation (Kernel-Enforced):
    - `Status:` (see Lifecycle fields)
    - `Rule:` (precise, testable language)
    - `Scope:` (domain/module, context qualifiers)
-   - `Trigger:` (what changes activate it)
+   - `Activation signal:` (what changes activate it)
    - `Enforcement:` Code/Test/DB/Contract with evidence paths
    - `Source:` (see Lifecycle fields)
    - `Confidence:` (0–100)

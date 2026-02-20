@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import re
+import sys
 from pathlib import Path
 
 
@@ -32,6 +33,11 @@ def check_reason_registry_parity(repo_root: Path | None = None) -> tuple[bool, l
     if repo_root is None:
         # Detect repo root from this file's location
         repo_root = Path(__file__).parent.parent
+
+    # Ensure repository root is importable when executed as script.
+    repo_root_str = str(repo_root)
+    if repo_root_str not in sys.path:
+        sys.path.insert(0, repo_root_str)
     
     # Load all three sources
     # 1. reason_codes.py constants (BLOCKED only)
@@ -59,7 +65,7 @@ def check_reason_registry_parity(repo_root: Path | None = None) -> tuple[bool, l
     
     registry_blocked_codes = set()
     for entry in registry_data.get("blocked_reasons", []):
-        if "code" in entry:
+        if "code" in entry and str(entry["code"]).startswith("BLOCKED-"):
             registry_blocked_codes.add(entry["code"])
     
     # 3. _embedded_reason_registry.py
