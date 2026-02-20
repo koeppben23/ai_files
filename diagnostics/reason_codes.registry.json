@@ -147,7 +147,7 @@
       "severity": "blocked",
       "payload_schema_ref": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
       "description": "Installer could not find governance version metadata.",
-      "remediation_hint": "Ensure master.md contains a valid Governance-Version header."
+      "remediation_hint": "Ensure governance/VERSION contains a valid semantic version."
     },
     {
       "code": "BLOCKED-INSTALL-CONFIG-ROOT-INVALID",
@@ -435,7 +435,9 @@
       "payload_schema_ref": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
       "description": "Migration has compatibility issues.",
       "remediation_hint": "Fix compatibility issues in migration definition."
-    },
+    }
+  ],
+  "audit_events": [
     {
       "code": "REPO-DOC-UNSAFE-DIRECTIVE",
       "severity": "blocked",
@@ -498,9 +500,7 @@
       "payload_schema_ref": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
       "description": "Required phase gate approval for persistence is missing.",
       "remediation_hint": "Complete gate approvals and retry persistence."
-    }
-  ],
-  "audit_events": [
+    },
     {
       "code": "REPO-CONSTRAINT-UNSUPPORTED",
       "severity": "not_verified",

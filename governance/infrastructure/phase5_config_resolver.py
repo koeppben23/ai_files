@@ -31,6 +31,9 @@ class CanonicalRootPhase5ConfigResolver:
             return False
         return str(os.environ.get("OPENCODE_ALLOW_REPO_LOCAL_CONFIG", "")).strip() == "1"
 
+    def operating_mode(self) -> str:
+        return self._mode
+
 
 def configure_phase5_review_resolver(mode: str = "user") -> None:
     from governance.application.use_cases.phase5_review_config import set_config_path_resolver

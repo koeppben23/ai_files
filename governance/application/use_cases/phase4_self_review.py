@@ -14,7 +14,6 @@ Contract:
 """
 
 from __future__ import annotations
-
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal, Sequence, Any, Protocol, runtime_checkable
@@ -50,6 +49,10 @@ class ConfigPathResolver(Protocol):
     
     def allow_repo_local_fallback(self) -> bool:
         """Check if repo-local fallback is allowed (dev/test opt-in)."""
+        ...
+
+    def operating_mode(self) -> str:
+        """Return effective operating mode bound by infrastructure wiring."""
         ...
 
 
@@ -278,6 +281,15 @@ def load_self_review_config(*, force_reload: bool = False) -> SelfReviewConfig:
     allow_repo_local = False
     if _default_resolver is not None and hasattr(_default_resolver, "allow_repo_local_fallback"):
         allow_repo_local = _default_resolver.allow_repo_local_fallback()
+
+    effective_mode = "user"
+    if _default_resolver is not None and hasattr(_default_resolver, "operating_mode"):
+        try:
+            effective_mode = str(_default_resolver.operating_mode()).strip().lower() or "user"
+        except Exception:
+            effective_mode = "user"
+    if effective_mode == "pipeline":
+        allow_repo_local = False
     
     # Fallback to repo-local path ONLY with explicit opt-in (dev/test)
     if config_path is None:
@@ -285,9 +297,15 @@ def load_self_review_config(*, force_reload: bool = False) -> SelfReviewConfig:
             config_path = _get_repo_local_config_path()
             resolver_source = "repo_local_opt_in"
         else:
+            hint = (
+                "Pipeline mode disallows repo-local fallback. "
+                if effective_mode == "pipeline"
+                else "Set OPENCODE_ALLOW_REPO_LOCAL_CONFIG=1 for dev/test environments. "
+            )
             raise PolicyConfigError(
                 "Policy-bound config not resolved via canonical root. "
-                "Set OPENCODE_ALLOW_REPO_LOCAL_CONFIG=1 for dev/test environments. "
+                + hint
+                +
                 "Reason: BLOCKED-ENGINE-SELFCHECK"
             )
     
