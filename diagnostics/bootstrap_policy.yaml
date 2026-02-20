@@ -1,0 +1,163 @@
+# Bootstrap Policy Configuration
+#
+# SSOT Status: POLICY-BOUND
+# - This config is part of the engine master policy
+# - Changes require POLICY_PRECEDENCE_APPLIED audit event
+# - NOT modifiable via repo/process_env in pipeline mode
+# - Pack-locked on activation; hash recorded in SESSION_STATE
+#
+# Precedence: engine master policy > activation > mode-policy > host > repo
+
+# Policy Metadata
+policy:
+  version: "1.0.0"
+  precedence_level: "engine_master_policy"
+  pack_locked: true
+  audit_on_change: "POLICY_PRECEDENCE_APPLIED"
+
+# Bootstrap Discovery Configuration (Kernel-Enforced)
+discovery:
+
+  # Canonical Roots (search order)
+  canonical_roots:
+    - name: "binding_env"
+      description: "From governance.paths.json binding file"
+      enabled: true
+      precedence: 1
+      env_variable: "OPENCODE_COMMANDS_HOME"
+      required_file: "governance.paths.json"
+      
+    - name: "trusted_override"
+      description: "From OPENCODE_TRUSTED_COMMANDS_HOME env"
+      enabled: true
+      precedence: 2
+      env_variable: "OPENCODE_TRUSTED_COMMANDS_HOME"
+      requires_opt_in: "OPENCODE_ALLOW_TRUSTED_BINDING_OVERRIDE=1"
+      
+    - name: "process_env"
+      description: "From process environment (GOVERNANCE_HOME, etc.)"
+      enabled: true
+      precedence: 3
+      env_variables:
+        - "GOVERNANCE_HOME"
+        - "AI_COMMANDS_HOME"
+        
+    - name: "dev_cwd_search"
+      description: "Development search from current working directory"
+      enabled: true
+      precedence: 4
+      requires_opt_in: "OPENCODE_ALLOW_CWD_BINDINGS=1"
+      disabled_in_modes: ["pipeline"]
+
+  # Evidence Sources Precedence
+  evidence_precedence:
+    - name: "host_collected_git"
+      description: "Git evidence collected by host shell tools"
+      enabled: true
+      precedence: 1
+      commands:
+        - "git remote get-url origin"
+        - "git symbolic-ref refs/remotes/origin/HEAD"
+        - "git rev-parse --show-toplevel"
+        
+    - name: "operator_provided"
+      description: "Explicit evidence provided by operator"
+      enabled: true
+      precedence: 2
+      
+    - name: "prior_session_state"
+      description: "Evidence from prior validated session state"
+      enabled: true
+      precedence: 3
+      
+    - name: "fallback_default"
+      description: "Default/fallback values when no other evidence"
+      enabled: true
+      precedence: 4
+
+# Bootstrap Gates (Kernel-Enforced)
+gates:
+
+  # Phase 0 Gate: Bootstrap Declaration
+  phase_0_bootstrap:
+    gate_id: "P0-Bootstrap"
+    description: "Bootstrap declaration must be satisfied"
+    required_evidence:
+      - "binding_ok: true"
+      - "commands_home: valid_path"
+      - "profiles_home: valid_path"
+    on_failure:
+      reason_code: "BLOCKED-BOOTSTRAP-NOT-SATISFIED"
+      mode: "BLOCKED"
+      next: "BLOCKED-BOOTSTRAP-NOT-SATISFIED"
+    recovery_command: "/start"
+
+  # Binding File Gate
+  binding_file_gate:
+    gate_id: "BindingFile"
+    description: "governance.paths.json must exist and be valid"
+    required_evidence:
+      - "governance.paths.json exists"
+      - "schema version supported"
+    on_failure:
+      reason_code: "BLOCKED-MISSING-BINDING-FILE"
+      mode: "BLOCKED"
+      next: "BLOCKED-MISSING-BINDING-FILE"
+    recovery_command: "${PYTHON_COMMAND} install.py"
+
+  # /start Evidence Gate
+  start_evidence_gate:
+    gate_id: "StartEvidence"
+    description: "/start must complete before phase execution"
+    required_evidence:
+      - "SESSION_STATE.Bootstrap.Declared: true"
+      - "SESSION_STATE.Bootstrap.Validated: true"
+    on_failure:
+      reason_code: "BLOCKED-START-REQUIRED"
+      mode: "BLOCKED"
+      next: "BLOCKED-START-REQUIRED"
+    recovery_command: "/start"
+
+# Binding File Schema (Kernel-Enforced)
+binding_schema:
+  supported_versions:
+    - "opencode-governance.paths.v1"
+    - "governance.paths.v1"
+  required_keys:
+    - "schema"
+    - "commands_home"
+    - "profiles_home"
+    - "workspaces_home"
+  optional_keys:
+    - "python_command"
+    - "command_profiles"
+    - "metadata"
+
+# Fail-Closed Behavior (Kernel-Enforced)
+fail_closed:
+  missing_binding_file: "BLOCKED"
+  invalid_binding_file: "BLOCKED"
+  missing_commands_home: "BLOCKED"
+  missing_profiles_home: "BLOCKED"
+  unsupported_schema_version: "BLOCKED"
+  missing_python_command: "WARN_CONTINUE"
+  
+# Mode-Specific Behavior (Kernel-Enforced)
+mode_behavior:
+  pipeline:
+    allow_cwd_search: false
+    allow_trusted_override: false
+    require_canonical_root: true
+    on_missing_binding: "BLOCKED"
+    
+  user:
+    allow_cwd_search: true
+    allow_trusted_override: true
+    require_canonical_root: false
+    on_missing_binding: "BLOCKED"
+    
+  agents_strict:
+    allow_cwd_search: false
+    allow_trusted_override: false
+    require_canonical_root: true
+    on_missing_binding: "BLOCKED"
