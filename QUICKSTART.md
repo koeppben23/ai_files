@@ -55,6 +55,8 @@ Bootstrap Evidence:
   Repo Identity: git@github.com:org/repo.git (main)
 ```
 
+**Note:** Workspace persistence (fingerprint folder, SESSION_STATE.json) requires the host to set `OPENCODE_DIAGNOSTICS_ALLOW_WRITE=1`. Without this, the preflight runs in read-only mode and persistence is deferred.
+
 ### Troubleshooting Step 2
 
 | Error | Fix |
@@ -62,6 +64,7 @@ Bootstrap Evidence:
 | `BLOCKED-MISSING-BINDING-FILE` | Run `python3 install.py` |
 | `BLOCKED-VARIABLE-RESOLUTION` | Check `~/.config/opencode/commands/governance.paths.json` |
 | `BLOCKED-REPO-IDENTITY` | Ensure you're in a git repository |
+| Workspace not persisted | Host must set `OPENCODE_DIAGNOSTICS_ALLOW_WRITE=1` for persistence; or run manually: `OPENCODE_DIAGNOSTICS_ALLOW_WRITE=1 python3 diagnostics/bootstrap_session_state.py --repo-fingerprint <fp>` |
 
 ## Step 3: First Governed Task (2 minutes)
 
