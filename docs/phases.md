@@ -5,7 +5,9 @@ Kernel authority boundary: policy and gate semantics are owned by kernel contrac
 
 ## Customer View (Short)
 
-- Phase 0/1.1 performs bootstrap validation and preflight probes (including build tool detection).
+- Phase 0/1.1 performs bootstrap validation and preflight probes (including build tool detection). **Note:** Phase 0 is a customer-facing term; in the kernel, bootstrap logic is unified under Phase 1.1-Bootstrap.
+- Phase 1.1 performs preflight and initializes the governance runtime.
+- **Phase 1.2/1.3 are kernel-internal subphases** of the Rule Loading Pipeline (1.x family) and are not exposed as routable phases. They handle lazy rulebook loading and profile resolution.
 - Phase 1.5 is optional and acts as a bridge between discovery (2.1) and business rules.
 - You may reference Phase 1.5 as 2.2 in customer-facing docs for alignment, but kernel semantics stay 1.5.
 - 2.1 creates the Decision Pack; Phase 1.5 may run in parallel if signals exist, or follow 2.x for a stricter path.
@@ -82,8 +84,11 @@ Phase 3 is **conditionally executed** based on API presence:
 
 **Implementation note:** Phase routing is implemented in `phase_router.py`. The routing includes:
 - Phase 2.1 → Phase 1.5 (Business Rules Discovery decision)
-- Phase 1.5 → Phase 3A (if APIs) or Phase 4 (if no APIs)
-- Phase 3A → Phase 4 (if no APIs in scope)
+- Phase 1.5 → Phase 3A (always, per docs requirement)
+- Phase 2.1 → Phase 3A (always, per docs requirement - 3A may exit with not-applicable)
+- Phase 3A → Phase 3B-1 (if APIs in scope) OR Phase 4 (if no APIs, not-applicable)
+- Phase 3B-1 → Phase 3B-2 (contract validation)
+- Phase 3B-2 → Phase 4
 
 ## Gate Requirements for Code Generation
 

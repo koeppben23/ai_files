@@ -217,47 +217,64 @@ def route_phase(
                 workspace_ready=True,
                 source="phase-1.5-routing-required",
             )
-        if _api_in_scope(state):
-            return RoutedPhase(
-                phase="3A-Activation",
-                active_gate="API Validation Routing",
-                next_gate_condition="Route to phase 3A api validation",
-                workspace_ready=True,
-                source="api-phase-routing",
-            )
         return RoutedPhase(
-            phase="4",
-            active_gate="Ticket Execution",
-            next_gate_condition="No APIs in scope; proceed to ticket planning",
+            phase="3A-API-Inventory",
+            active_gate="API Validation Routing",
+            next_gate_condition=(
+                "Execute Phase 3A API Inventory; if no APIs are detected, record not-applicable and proceed to Phase 4"
+            ),
             workspace_ready=True,
-            source="phase-2.1-to-4-no-api",
+            source="phase-2.1-to-3a",
         )
 
     if phase_token == "1.5" and workspace_ready:
-        if _api_in_scope(state):
-            return RoutedPhase(
-                phase="3A-Activation",
-                active_gate="API Validation Routing",
-                next_gate_condition="Route to phase 3A api validation",
-                workspace_ready=True,
-                source="phase-1.5-to-3a",
-            )
         return RoutedPhase(
-            phase="4",
-            active_gate="Ticket Execution",
-            next_gate_condition="Business rules resolved; proceed to ticket planning",
+            phase="3A-API-Inventory",
+            active_gate="API Validation Routing",
+            next_gate_condition=(
+                "Execute Phase 3A API Inventory; if no APIs are detected, record not-applicable and proceed to Phase 4"
+            ),
             workspace_ready=True,
-            source="phase-1.5-to-4",
+            source="phase-1.5-to-3a",
         )
 
-    # Phase 3A routing: if no APIs in scope, skip directly to Phase 4
-    if phase_token == "3A" and not _api_in_scope(state):
+    # Phase 3A routing: always execute 3A; if no APIs in scope, record not-applicable and skip to Phase 4
+    # If APIs are in scope, route to 3B-1 for logical validation
+    if phase_token == "3A":
+        if not _api_in_scope(state):
+            return RoutedPhase(
+                phase="4",
+                active_gate="Ticket Execution",
+                next_gate_condition="Phase 3A completed with not-applicable (no APIs detected); proceed to ticket planning",
+                workspace_ready=workspace_ready,
+                source="phase-3a-not-applicable-to-phase4",
+            )
+        return RoutedPhase(
+            phase="3B-1",
+            active_gate="API Logical Validation",
+            next_gate_condition="APIs detected; proceed to Phase 3B-1 logical validation",
+            workspace_ready=workspace_ready,
+            source="phase-3a-to-3b1",
+        )
+
+    # Phase 3B-1 → 3B-2 (contract validation)
+    if phase_token == "3B-1":
+        return RoutedPhase(
+            phase="3B-2",
+            active_gate="Contract Validation",
+            next_gate_condition="Phase 3B-1 complete; proceed to Phase 3B-2 contract validation",
+            workspace_ready=workspace_ready,
+            source="phase-3b1-to-3b2",
+        )
+
+    # Phase 3B-2 → 4 (ticket planning)
+    if phase_token == "3B-2":
         return RoutedPhase(
             phase="4",
             active_gate="Ticket Execution",
-            next_gate_condition="No API artifacts detected; proceed to ticket planning",
+            next_gate_condition="Phase 3B-2 complete; proceed to ticket planning",
             workspace_ready=workspace_ready,
-            source="no-api-skip-to-phase4",
+            source="phase-3b2-to-4",
         )
 
     return RoutedPhase(
