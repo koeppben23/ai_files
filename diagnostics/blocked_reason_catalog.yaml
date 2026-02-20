@@ -1,0 +1,420 @@
+# Blocked Reason Catalog Configuration
+#
+# SSOT Status: POLICY-BOUND
+# - This config is part of the engine master policy
+# - Changes require POLICY_PRECEDENCE_APPLIED audit event
+# - NOT modifiable via repo/process_env in pipeline mode
+# - Pack-locked on activation; hash recorded in SESSION_STATE
+# - Parity required with: reason_codes.py, reason_codes.registry.json, _embedded_reason_registry.py
+#
+# Precedence: engine master policy > activation > mode-policy > host > repo
+
+# Policy Metadata
+policy:
+  version: "1.0.0"
+  precedence_level: "engine_master_policy"
+  pack_locked: true
+  audit_on_change: "POLICY_PRECEDENCE_APPLIED"
+
+# Blocked Reason Catalog (Kernel-Enforced)
+# Each reason defines: trigger conditions, required inputs, recovery steps, resume pointer
+blocked_reasons:
+
+  # Bootstrap Errors
+  BLOCKED-BOOTSTRAP-NOT-SATISFIED:
+    reason_code: "BLOCKED-BOOTSTRAP-NOT-SATISFIED"
+    surface: "state"
+    category: "bootstrap"
+    trigger_description: "Bootstrap declaration not satisfied or missing"
+    required_inputs:
+      - "Explicit bootstrap declaration restatement"
+    quick_fix_commands:
+      - "/start"
+    resume_pointer: "/start"
+    recovery_steps:
+      - "Restate the bootstrap declaration explicitly"
+      - "Run /start to re-validate bootstrap"
+    message_template: "Bootstrap not satisfied. Please restate bootstrap declaration."
+
+  BLOCKED-START-REQUIRED:
+    reason_code: "BLOCKED-START-REQUIRED"
+    surface: "state"
+    category: "bootstrap"
+    trigger_description: "/start evidence required before phase execution"
+    required_inputs:
+      - "Valid /start evidence"
+    quick_fix_commands:
+      - "/start"
+    resume_pointer: "/start"
+    recovery_steps:
+      - "Run /start to gather bootstrap evidence"
+    message_template: "/start evidence required. Run /start first."
+
+  BLOCKED-MISSING-BINDING-FILE:
+    reason_code: "BLOCKED-MISSING-BINDING-FILE"
+    surface: "state"
+    category: "bootstrap"
+    trigger_description: "governance.paths.json binding file not found"
+    required_inputs:
+      - "Valid governance.paths.json"
+    quick_fix_commands:
+      - "${PYTHON_COMMAND} install.py"
+    resume_pointer: "/start"
+    recovery_steps:
+      - "Run install.py to generate binding file"
+      - "Verify governance.paths.json exists in ${COMMANDS_HOME}"
+    message_template: "Binding file missing. Run install.py."
+
+  # Rulebook Errors
+  BLOCKED-RULEBOOK-LOAD-FAILED:
+    reason_code: "BLOCKED-RULEBOOK-LOAD-FAILED"
+    surface: "state"
+    category: "rulebook"
+    trigger_description: "Core rulebook cannot be loaded at Phase 4 entry"
+    required_inputs:
+      - "Valid rules.md file"
+    quick_fix_commands:
+      - "Verify ${PROFILES_HOME}/rules.md exists"
+    resume_pointer: "/reload-addons"
+    recovery_steps:
+      - "Verify rules.md exists in canonical location"
+      - "Check file permissions and encoding"
+      - "Run /reload-addons to retry"
+    message_template: "Core rulebook load failed. Verify rules.md exists."
+
+  BLOCKED-MISSING-RULEBOOK:
+    reason_code: "BLOCKED-MISSING-RULEBOOK"
+    surface: "state"
+    category: "rulebook"
+    trigger_description: "Required rulebook file cannot be resolved"
+    required_inputs:
+      - "Missing rulebook file"
+    quick_fix_commands:
+      - "Check if {file} exists"
+    resume_pointer: "/reload-addons"
+    recovery_steps:
+      - "Create or restore the missing rulebook file"
+      - "Run /reload-addons to retry"
+    message_template: "Missing rulebook: {file}."
+
+  BLOCKED-MISSING-PROFILE:
+    reason_code: "BLOCKED-MISSING-PROFILE"
+    surface: "profile"
+    category: "rulebook"
+    trigger_description: "Active profile required but not set or loadable"
+    required_inputs:
+      - "Profile selection"
+    quick_fix_commands:
+      - "/reload-addons"
+    resume_pointer: "/reload-addons"
+    recovery_steps:
+      - "Select a profile explicitly"
+      - "Verify profile rulebook exists"
+      - "Run /reload-addons to retry"
+    message_template: "Profile missing. Select profile or verify rulebook."
+
+  BLOCKED-MISSING-TEMPLATES:
+    reason_code: "BLOCKED-MISSING-TEMPLATES"
+    surface: "profile"
+    category: "rulebook"
+    trigger_description: "Required templates rulebook cannot be resolved"
+    required_inputs:
+      - "Templates rulebook"
+    quick_fix_commands:
+      - "Check if templates rulebook exists"
+    resume_pointer: "/reload-addons"
+    recovery_steps:
+      - "Verify templates rulebook exists for active profile"
+      - "Run /reload-addons to retry"
+    message_template: "Templates rulebook missing for profile."
+
+  BLOCKED-MISSING-ADDON:
+    reason_code: "BLOCKED-MISSING-ADDON"
+    surface: "addons"
+    category: "rulebook"
+    trigger_description: "Required addon rulebook cannot be resolved"
+    required_inputs:
+      - "Addon rulebook"
+    quick_fix_commands:
+      - "Check if addon manifest and rulebook exist"
+    resume_pointer: "/reload-addons"
+    recovery_steps:
+      - "Verify addon manifest in ${PROFILES_HOME}/addons/"
+      - "Verify addon rulebook exists"
+      - "Run /reload-addons to retry"
+    message_template: "Required addon {addon_key} missing."
+
+  # Profile Detection
+  BLOCKED-AMBIGUOUS-PROFILE:
+    reason_code: "BLOCKED-AMBIGUOUS-PROFILE"
+    surface: "profile"
+    category: "detection"
+    trigger_description: "Multiple profile candidates detected without unique match"
+    required_inputs:
+      - "Explicit profile selection"
+    quick_fix_commands:
+      - "Select profile: 1=<recommended> | 2=<alt> | 3=<alt> | 4=fallback-minimum | 0=abort"
+    resume_pointer: "/start"
+    recovery_steps:
+      - "Select a profile from the ranked shortlist"
+      - "Provide explicit profile selection"
+    message_template: "Ambiguous profile. Select from {candidates}."
+
+  # Evidence Errors
+  BLOCKED-MISSING-EVIDENCE:
+    reason_code: "BLOCKED-MISSING-EVIDENCE"
+    surface: "state"
+    category: "evidence"
+    trigger_description: "Required evidence for deterministic decision is missing"
+    required_inputs:
+      - "Missing evidence"
+    quick_fix_commands:
+      - "/start"
+    resume_pointer: "/start"
+    recovery_steps:
+      - "Provide the missing evidence"
+      - "Run /start to re-gather evidence"
+    message_template: "Missing evidence: {evidence_type}."
+
+  BLOCKED-RULEBOOK-EVIDENCE-MISSING:
+    reason_code: "BLOCKED-RULEBOOK-EVIDENCE-MISSING"
+    surface: "state"
+    category: "evidence"
+    trigger_description: "Rulebook load evidence cannot be produced"
+    required_inputs:
+      - "Load evidence (path/tool output/hash)"
+    quick_fix_commands:
+      - "Verify rulebook accessibility"
+    resume_pointer: "/reload-addons"
+    recovery_steps:
+      - "Verify rulebook file exists and is readable"
+      - "Provide explicit load evidence if host tools unavailable"
+    message_template: "Rulebook load evidence missing."
+
+  # Activation Errors
+  BLOCKED-ACTIVATION-DELTA-MISMATCH:
+    reason_code: "BLOCKED-ACTIVATION-DELTA-MISMATCH"
+    surface: "state"
+    category: "activation"
+    trigger_description: "Activation outcome differs while hashes are unchanged"
+    required_inputs:
+      - "Investigation of hash/activation mismatch"
+    quick_fix_commands:
+      - "Clear cache and re-run /start"
+    resume_pointer: "/start"
+    recovery_steps:
+      - "Clear SESSION_STATE cache"
+      - "Re-run /start to re-activate"
+      - "Report if mismatch persists"
+    message_template: "Activation delta mismatch. Re-run /start."
+
+  # State Errors
+  BLOCKED-STATE-OUTDATED:
+    reason_code: "BLOCKED-STATE-OUTDATED"
+    surface: "state"
+    category: "state"
+    trigger_description: "Persisted state is outdated and migration failed"
+    required_inputs:
+      - "Fresh session state"
+    quick_fix_commands:
+      - "/start --fresh"
+    resume_pointer: "/start"
+    recovery_steps:
+      - "Start fresh session with /start --fresh"
+      - "Or provide updated session state"
+    message_template: "Session state outdated. Start fresh."
+
+  # Pipeline Mode Errors
+  BLOCKED-PIPELINE-INTERACTIVE:
+    reason_code: "BLOCKED-PIPELINE-INTERACTIVE"
+    surface: "state"
+    category: "pipeline"
+    trigger_description: "Pipeline mode requires human interaction"
+    required_inputs:
+      - "None (configuration error)"
+    quick_fix_commands:
+      - "Fix pipeline configuration"
+    resume_pointer: "N/A"
+    recovery_steps:
+      - "Pipeline mode cannot request human interaction"
+      - "Fix the configuration that triggered this block"
+    message_template: "Pipeline mode blocked on interactive requirement."
+
+  BLOCKED-PIPELINE-HUMAN-ASSIST:
+    reason_code: "BLOCKED-PIPELINE-HUMAN-ASSIST"
+    surface: "state"
+    category: "pipeline"
+    trigger_description: "Pipeline mode requires human approval"
+    required_inputs:
+      - "None (configuration error)"
+    quick_fix_commands:
+      - "Fix pipeline configuration"
+    resume_pointer: "N/A"
+    recovery_steps:
+      - "Pipeline mode cannot request human approval"
+      - "Fix the configuration that triggered this block"
+    message_template: "Pipeline mode blocked on human approval."
+
+  # Engine Self-Check
+  BLOCKED-ENGINE-SELFCHECK:
+    reason_code: "BLOCKED-ENGINE-SELFCHECK"
+    surface: "state"
+    category: "engine"
+    trigger_description: "Engine self-check failed (config/parser/initialization)"
+    required_inputs:
+      - "Fix for engine configuration"
+    quick_fix_commands:
+      - "Verify engine configuration"
+    resume_pointer: "/start"
+    recovery_steps:
+      - "Verify policy-bound config files exist"
+      - "Verify YAML parser is available"
+      - "Run /start to retry"
+    message_template: "Engine self-check failed. Verify configuration."
+
+  # Additional blocked reasons (from SESSION_STATE_SCHEMA.md)
+  BLOCKED-MISSING-CORE-RULES:
+    reason_code: "BLOCKED-MISSING-CORE-RULES"
+    surface: "state"
+    category: "rulebook"
+    trigger_description: "Phase 4 begins and rules.md could not be resolved/loaded"
+    required_inputs:
+      - "Valid rules.md file"
+    quick_fix_commands:
+      - "Run installer repair to restore core rulebooks"
+    resume_pointer: "Phase 1.3 - Core Rules Activation"
+    recovery_steps:
+      - "Run installer to restore rulebooks"
+      - "Verify rules.md exists under ${COMMANDS_HOME}"
+    message_template: "Core rules missing. Run installer repair."
+
+  BLOCKED-MISSING-DECISION:
+    reason_code: "BLOCKED-MISSING-DECISION"
+    surface: "state"
+    category: "gate"
+    trigger_description: "Decision gate active but no valid deterministic option set can be produced"
+    required_inputs:
+      - "Missing decision input/evidence"
+    quick_fix_commands:
+      - "Provide the required decision input"
+    resume_pointer: "Active decision phase"
+    recovery_steps:
+      - "Provide minimal missing decision input"
+      - "Construct valid option set"
+    message_template: "Decision gate missing required input."
+
+  BLOCKED-ADDON-CONFLICT:
+    reason_code: "BLOCKED-ADDON-CONFLICT"
+    surface: "addons"
+    category: "activation"
+    trigger_description: "Multiple activated addons/templates impose mutually incompatible requirements"
+    required_inputs:
+      - "Conflict resolution selection"
+    quick_fix_commands:
+      - "Select authoritative addon/template constraint"
+    resume_pointer: "Phase 4 - Step 0"
+    recovery_steps:
+      - "Select authoritative constraint"
+      - "Or narrow component scope"
+    message_template: "Addon conflict detected. Resolve constraint."
+
+  BLOCKED-R:
+    reason_code: "BLOCKED-R"
+    surface: "state"
+    category: "recovery"
+    trigger_description: "Recovery routine required to proceed (explicit recovery gate)"
+    required_inputs:
+      - "Confirmation to run recovery"
+    quick_fix_commands:
+      - "/resume"
+    resume_pointer: "Phase 4 - Step 0"
+    recovery_steps:
+      - "Run /resume with current evidence"
+      - "Re-validate SESSION_STATE"
+    message_template: "Recovery required. Run /resume."
+
+  BLOCKED-RESUME-STATE-VIOLATION:
+    reason_code: "BLOCKED-RESUME-STATE-VIOLATION"
+    surface: "state"
+    category: "state"
+    trigger_description: "Persisted SESSION_STATE violates SESSION_STATE_SCHEMA.md"
+    required_inputs:
+      - "Permission to reset/repair invalid state"
+    quick_fix_commands:
+      - "Delete invalid state file and /start"
+    resume_pointer: "Phase 0 - Bootstrap (State Repair)"
+    recovery_steps:
+      - "Collect current state as evidence"
+      - "Repair to minimal valid state or delete"
+      - "Re-run /start"
+    message_template: "State violation. Reset or repair state."
+
+  BLOCKED-WORKSPACE-MEMORY-INVALID:
+    reason_code: "BLOCKED-WORKSPACE-MEMORY-INVALID"
+    surface: "state"
+    category: "state"
+    trigger_description: "WORKSPACE_MEMORY_FILE exists but cannot be parsed/validated"
+    required_inputs:
+      - "Fix or remove invalid memory file"
+    quick_fix_commands:
+      - "Remove ${WORKSPACE_MEMORY_FILE}"
+    resume_pointer: "Phase 4 - Step 0"
+    recovery_steps:
+      - "Fix the YAML file"
+      - "Or remove it to proceed"
+    message_template: "Workspace memory invalid. Fix or remove."
+
+  BLOCKED-VARIABLE-RESOLUTION:
+    reason_code: "BLOCKED-VARIABLE-RESOLUTION"
+    surface: "state"
+    category: "bootstrap"
+    trigger_description: "Runtime cannot resolve path variables (COMMANDS_HOME, CONFIG_ROOT)"
+    required_inputs:
+      - "Installer repair"
+    quick_fix_commands:
+      - "${PYTHON_COMMAND} install.py"
+    resume_pointer: "Phase 0 - Bootstrap"
+    recovery_steps:
+      - "Determine OS-specific config root"
+      - "Verify COMMANDS_HOME exists"
+      - "Verify master.md and rules.md present"
+      - "Rerun installer and /start"
+    message_template: "Variable resolution failed. Run installer."
+
+  BLOCKED-PERSISTENCE-PATH-VIOLATION:
+    reason_code: "BLOCKED-PERSISTENCE-PATH-VIOLATION"
+    surface: "state"
+    category: "persistence"
+    trigger_description: "Path contains OS-specific patterns (backslash, drive prefix, parent traversal)"
+    required_inputs:
+      - "Valid path without OS-specific patterns"
+    quick_fix_commands:
+      - "Use variable-based path expression"
+    resume_pointer: "N/A"
+    recovery_steps:
+      - "Replace OS-specific path with variable expression"
+      - "Use ${CONFIG_ROOT} instead of absolute path"
+    message_template: "Path violation. Use variable-based path."
+
+  BLOCKED-PERSISTENCE-TARGET-DEGENERATE:
+    reason_code: "BLOCKED-PERSISTENCE-TARGET-DEGENERATE"
+    surface: "state"
+    category: "persistence"
+    trigger_description: "Target path is degenerate (single drive letter, drive root token, single segment)"
+    required_inputs:
+      - "Valid multi-segment path"
+    quick_fix_commands:
+      - "Provide complete target path"
+    resume_pointer: "N/A"
+    recovery_steps:
+      - "Provide complete path with multiple segments"
+      - "Or use variable-based path expression"
+    message_template: "Degenerate target path. Provide complete path."
+
+# Quick Fix Command Templates (Kernel-Enforced)
+quick_fix_templates:
+  start: "/start"
+  reload_addons: "/reload-addons"
+  install: "${PYTHON_COMMAND} install.py"
+  check_file: "Check if {path} exists"
+  verify_permissions: "Verify file permissions and encoding"

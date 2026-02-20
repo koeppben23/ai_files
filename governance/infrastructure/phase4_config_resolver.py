@@ -6,6 +6,7 @@ ConfigPathResolver protocol defined in application layer.
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 
@@ -25,6 +26,10 @@ class CanonicalRootConfigResolver:
         except Exception:
             pass
         return None
+    
+    def allow_repo_local_fallback(self) -> bool:
+        """Check if repo-local fallback is allowed (dev/test opt-in)."""
+        return str(os.environ.get("OPENCODE_ALLOW_REPO_LOCAL_CONFIG", "")).strip() == "1"
 
 
 def configure_phase4_self_review_resolver() -> None:

@@ -537,89 +537,26 @@ Top-tier load evidence obligation (binding):
 1. **Explicit user specification** (highest priority)
    - "Profile: backend-java"
    - "Use rules_backend-java.md"
-   - SESSION_STATE.ActiveProfile if already set
+    - SESSION_STATE.ActiveProfile if already set
 
-2. **Auto-detection from available rulebooks** (NEW!)
-   - If ONLY ONE profile rulebook exists (after filtering addon/shared rulebooks) → use it automatically
-    - Search paths:
-      a. Workspace-local override (optional, outside the repo): `${REPO_OVERRIDES_HOME}/profiles/rules*.md`
-      b. `${COMMANDS_HOME}/rules*.md`
-      b2. `${PROFILES_HOME}/rules*.md`
-      c. `${OPENCODE_HOME}/rules/rules*.md`
-      d. `${OPENCODE_HOME}/rules/profiles/rules*.md`
-   
-   **Auto-selection logic:**
-   ```
-   IF user did NOT specify profile explicitly:
-      candidate_rulebooks = scan_all_search_paths_for(["rules_*.md","rules.*.md","rules-*.md"])
+ 2. **Auto-detection from available rulebooks** (informational)
+ 
+ > **Note:** Profile selection is kernel-enforced. The following describes the output state updates, not the selection algorithm.
+ > For trigger conditions and BLOCKED reasons, see `diagnostics/blocked_reason_catalog.yaml`.
 
-      # Exclude non-profile rulebooks (binding):
-      # 1) any rulebook referenced by addon manifests under ${PROFILES_HOME}/addons/*.addon.yml
-      # 2) known shared governance rulebooks:
-      #    rules.principal-excellence.md, rules.risk-tiering.md, rules.scorecard-calibration.md
-      addon_rulebooks = collect_rulebooks_from_addon_manifests(${PROFILES_HOME}/addons/*.addon.yml)
-      found_profiles = candidate_rulebooks - addon_rulebooks - shared_governance_rulebooks
-     
-     IF found_profiles.count == 1:
-       ActiveProfile = extract_profile_name(found_profiles[0])
-       SESSION_STATE.ProfileSource = "auto-detected-single"
-       SESSION_STATE.ProfileEvidence = found_profiles[0].path
-       LOG: "Auto-selected profile: {ActiveProfile} (only rulebook found)"
-       LOAD: found_profiles[0]
-       
-      ELSIF found_profiles.count > 1:
-        # Autodetect-first refinement (binding):
-        # Attempt deterministic repo-signal ranking before asking operator.
-       ranked_profiles = rank_profiles_by_repo_signals(found_profiles, repo_indicators, ticket_signals)
-       IF ranked_profiles.top_is_unique:
-         ActiveProfile = extract_profile_name(ranked_profiles.top)
-         SESSION_STATE.ProfileSource = "auto-detected-ranked"
-         SESSION_STATE.ProfileEvidence = ranked_profiles.top.evidence
-         LOG: "Auto-selected profile via ranked repo signals: {ActiveProfile}"
-         LOAD: ranked_profiles.top
-       ELIF SESSION_STATE.ComponentScopePaths is set:
-         # Monorepo-safe refinement (assistive only):
-         # If ComponentScopePaths is set, prefer profiles closest to that scope.
-         scoped_profiles = filter_profiles_by_scope_proximity(found_profiles, SESSION_STATE.ComponentScopePaths)
-         
-         IF scoped_profiles.count == 1:
-           ActiveProfile = extract_profile_name(scoped_profiles[0])
-           SESSION_STATE.ProfileSource = "component-scope-filtered"
-           SESSION_STATE.ProfileEvidence = scoped_profiles[0].path + " | scope=" + join(SESSION_STATE.ComponentScopePaths, ",")
-           LOG: "Scope-filtered profile: {ActiveProfile}"
-           LOAD: scoped_profiles[0]
-          ELSE:
-            SESSION_STATE.ProfileSource = "ambiguous"
-            LIST: scoped_profiles with paths + scope note
-            SUGGEST: ranked profile shortlist with evidence (top 1 marked recommended)
-            PROMPT: "Detected multiple plausible profiles. Reply with ONE number: 1) <recommended_profile> (recommended) 2) <alt_1> 3) <alt_2> 4) fallback-minimum 0) abort/none"
-            REQUEST: user clarification
-            Mode = BLOCKED
-            Next = "BLOCKED-AMBIGUOUS-PROFILE"
-            BLOCKED until profile specified
-        ELSE:
-          SESSION_STATE.ProfileSource = "ambiguous"
-          LIST: all found profiles with paths
-          SUGGEST: ranked profile shortlist with evidence (top 1 marked recommended)
-          PROMPT: "Detected multiple plausible profiles. Reply with ONE number: 1) <recommended_profile> (recommended) 2) <alt_1> 3) <alt_2> 4) fallback-minimum 0) abort/none"
-          REQUEST: user clarification
-          Mode = BLOCKED
-          Next = "BLOCKED-AMBIGUOUS-PROFILE"
-          BLOCKED until profile specified
-       
-      ELSE:
-        # No profile rulebooks found
-        IF repo has stack indicators (pom.xml, package.json, etc.):
-          ATTEMPT: fallback detection per rules.md Section 4.3
-          SUGGEST: top inferred profile from repo indicators with evidence summary; ask explicit confirmation before activation
-        ELSE:
-          PROCEED: planning-only mode (no code generation)
-   ```
+Output state updates when kernel auto-selects a profile:
+- `SESSION_STATE.ActiveProfile = "<profile_name>"`
+- `SESSION_STATE.ProfileSource = "auto-detected-single" | "auto-detected-ranked" | "component-scope-filtered" | "ambiguous"`
+- `SESSION_STATE.ProfileEvidence = "<path and signals>"`
 
-3. **Repo-based detection** (fallback if no rulebooks found)
-   - Only if no profile rulebooks exist in any search path
-   - Per rules.md Section 4.3 (pom.xml → backend-java, etc.)
-   - Mark as assumption in SESSION_STATE
+Search paths (informational):
+- `${REPO_OVERRIDES_HOME}/profiles/rules*.md`
+- `${COMMANDS_HOME}/rules*.md`
+- `${PROFILES_HOME}/rules*.md`
+- `${OPENCODE_HOME}/rules/rules*.md`
+- `${OPENCODE_HOME}/rules/profiles/rules*.md`
+
+When profile selection is ambiguous, kernel may emit `BLOCKED-AMBIGUOUS-PROFILE` with a ranked shortlist.
 
 **File naming patterns recognized:**
 - `rules_<profile>.md` (preferred)
@@ -1074,112 +1011,25 @@ Rules:
 - Use two commands only for explicit OS split (`darwin/linux` vs `windows`) when syntax materially differs.
 - For OS split, prefix each command with `macos_linux:` or `windows:`.
 
-**Standard BLOCKED reasons + required input (binding):**
+**Blocked reason catalog (kernel-enforced):**
 
-- `BLOCKED-MISSING-CORE-RULES`:
-  - Trigger: Phase 4 begins and `rules.md` could not be resolved/loaded.
-  - Resume pointer (canonical): Phase 1.3 — Core Rules Activation.
-  - Required input: run installer repair so core rulebooks are restored under installer-owned `${COMMANDS_HOME}`.
+> **Note:** Trigger conditions, required inputs, and resume pointers are defined in `diagnostics/blocked_reason_catalog.yaml`.
+> The kernel owns the normative catalog; this section is informational only.
 
-- `BLOCKED-START-REQUIRED`:
-  - Trigger: `/master` invoked without prior valid `/start` bootstrap evidence for the current repo/session.
-  - Resume pointer (canonical): Phase 0 — Bootstrap (`/start`).
-  - Required input: run `/start` and provide resulting bootstrap evidence/state.
+Common blocked reason codes (informational summary):
+- `BLOCKED-BOOTSTRAP-NOT-SATISFIED`: Bootstrap declaration not satisfied
+- `BLOCKED-START-REQUIRED`: /start evidence required before phase execution
+- `BLOCKED-MISSING-BINDING-FILE`: governance.paths.json not found
+- `BLOCKED-RULEBOOK-LOAD-FAILED`: Core rulebook cannot be loaded at Phase 4 entry
+- `BLOCKED-MISSING-PROFILE`: Active profile required but not set
+- `BLOCKED-AMBIGUOUS-PROFILE`: Multiple profile candidates without unique match
+- `BLOCKED-MISSING-ADDON:<addon_key>`: Required addon rulebook cannot be resolved
+- `BLOCKED-ACTIVATION-DELTA-MISMATCH`: Activation outcome differs while hashes unchanged
+- `BLOCKED-STATE-OUTDATED`: Persisted state outdated and migration failed
+- `BLOCKED-MISSING-EVIDENCE`: Required evidence for deterministic decision missing
+- `BLOCKED-ENGINE-SELFCHECK`: Engine self-check failed (config/parser/initialization)
 
-- `BLOCKED-MISSING-PROFILE`:
-  - Trigger: Phase 4 requires templates/addons evaluation but `SESSION_STATE.ActiveProfile == ""`.
-  - Resume pointer (canonical): Phase 1.2 — Profile Detection.
-  - Required input: user specifies profile explicitly (e.g., `Profile=backend-java`) OR provide repo signals to re-run Phase 2 detection.
-
-- `BLOCKED-AMBIGUOUS-PROFILE`:
-  - Trigger: more than one profile rulebook is available and no deterministic selection is possible (no explicit user choice, and scope filtering did not yield a single profile).
-  - Resume pointer (canonical): Phase 1.2 — Profile Detection.
-  - Required input: specify the profile explicitly (e.g., `Profile=backend-java` or `Use rules_backend-java.md`).
-
-- `BLOCKED-MISSING-DECISION`:
-  - Trigger: a decision gate is active but no valid deterministic option set can be produced from current evidence.
-  - Resume pointer (canonical): active decision phase (typically Phase 3A/3B-1 or Phase 5 gate).
-  - Required input: provide the minimal missing decision input/evidence to construct a valid option set.
-
-- `BLOCKED-MISSING-TEMPLATES`:
-  - Trigger: active profile mandates templates but template rulebook cannot be resolved/loaded.
-  - Resume pointer (canonical): Phase 4 — Step 0 (Phase-4 Entry initialization).
-  - Required input: restore template rulebooks under installer-owned `${PROFILES_HOME}` and rerun.
-
-- `BLOCKED-MISSING-ADDON:<addon_key>`:
-  - Trigger: an addon is mandated (`required = true`) with `addon_class = required`, but cannot be resolved/loaded.
-  - Resume pointer (canonical): Phase 4 — Step 0 (Phase-4 Entry initialization).
-  - Required input: restore addon rulebooks under installer-owned `${PROFILES_HOME}` and rerun.
-  - Note: advisory addons (`addon_class = advisory`) MUST NOT use this BLOCKED state; they use WARN + recovery + re-evaluation.
-
-- `BLOCKED-ADDON-CONFLICT`:
-  - Trigger: multiple activated addons/templates impose mutually incompatible or non-deterministic requirements on the same touched surface.
-  - Resume pointer (canonical): Phase 4 — Step 0 (Phase-4 Entry initialization) after conflict resolution input.
-  - Required input: select authoritative addon/template constraint OR narrow component/touched scope to resolve conflict deterministically.
-
-- `BLOCKED-ACTIVATION-DELTA-MISMATCH`:
-  - Trigger: activation outcome changed even though `ActivationDelta.AddonScanHash` and `ActivationDelta.RepoFactsHash` are unchanged.
-  - Resume pointer (canonical): Phase 4 — Step 0 (Phase-4 Entry initialization) after deterministic reconciliation.
-  - Required input: provide changed evidence/manifests OR reset activation cache and re-run deterministic activation.
-
-- `BLOCKED-WORKSPACE-MEMORY-INVALID`:
-  - Trigger: `${WORKSPACE_MEMORY_FILE}` exists but cannot be parsed/validated.
-  - Resume pointer (canonical): Phase 4 — Step 0 (Phase-4 Entry initialization).
-  - Required input: fix the YAML file OR remove it to proceed (memory is optional, invalid memory is not).
-
-- `BLOCKED-MISSING-EVIDENCE`:
-  - Trigger: an evidence-based addon decision is REQUIRED but the relevant repo discovery signals are missing/unknown.
-  - Resume pointer (canonical): Phase 2 — Repo Discovery (signals collection) OR Phase 1.4 — Templates & Addons Activation (re-evaluate).
-  - Required input: provide the missing repo evidence (dependency/config/annotation signals) OR allow re-run of Phase 2 discovery.
-
-- `BLOCKED-VARIABLE-RESOLUTION`:
-  - Trigger: Runtime cannot resolve path variables (${COMMANDS_HOME}, ${CONFIG_ROOT})
-  - Evidence: start.md referenced undefined variable; variable resolution failed
-  - Context: Pre-Phase-1 bootstrap issue during start.md execution
-  - Resume pointer: Phase 0 — Bootstrap (Variable Resolution)
-  - Required input: run installer repair to restore installer-owned binding evidence and rerun `/start`.
-  - Recovery steps:
-    1) Determine OS-specific config root (see Global Path Variables):
-       - Windows: %APPDATA%/opencode or %USERPROFILE%/.config/opencode
-       - macOS/Linux: ${XDG_CONFIG_HOME:-~/.config}/opencode
-    2) Verify ${COMMANDS_HOME} exists at: <config_root>/commands
-    3) Verify master.md and rules.md present
-    4) Rerun installer and then rerun `/start`
-  - Note: No full SESSION_STATE yet; output minimal BLOCKED state
-
-- `BLOCKED-R`:
-  - Trigger: A recovery routine is required to proceed (explicit recovery gate).
-  - Resume pointer (canonical): Phase 4 — Step 0 (Phase-4 Entry initialization) OR the last known valid step.
-  - Required input: confirmation to run recovery (e.g. `/resume`) or provide the missing recovery artifact.
-  - Recovery steps:
-    1) Run `/resume` (or the defined recovery routine "R") using current evidence.
-    2) Re-validate SESSION_STATE against `SESSION_STATE_SCHEMA.md`.
-    3) If recovery cannot be made deterministic: capture diagnostics and stay BLOCKED with a targeted question.
-
-- `BLOCKED-RESUME-STATE-VIOLATION`:
-  - Trigger: Persisted `SESSION_STATE` violates `SESSION_STATE_SCHEMA.md` (invalid/contradictory state).
-  - Resume pointer (canonical): Phase 0 — Bootstrap (State Repair) then Phase 1 — Bootstrap.
-  - Required input: permission to reset/repair invalid state OR provide corrected state content.
-  - Recovery steps:
-    1) Print/collect the current persisted state as evidence.
-    2) Repair to a minimal valid state (per schema defaults) OR delete invalid state file.
-    3) Re-run `/start` to re-initialize deterministically.
-    4) If repeated: open a regression issue with manifest + state snapshot.
-
-- `BLOCKED-STATE-OUTDATED`:
-  - Trigger: persisted `SESSION_STATE` version is older than supported and deterministic migration cannot be completed.
-  - Resume pointer (canonical): Phase 0 — Bootstrap (State Migration/Repair).
-  - Required input: allow migration/reset OR provide updated state payload.
-  - Recovery steps:
-    1) Compare persisted `session_state_version` against current schema support.
-    2) Attempt deterministic migration; record migrated fields and ruleset hash.
-    3) If migration fails, reset to minimal valid bootstrap state and re-run `/start`.
-
-Rules:
-- The workflow MUST ask for the minimal viable input only (single artifact/command), not broad clarifications.
-- The workflow MUST NOT propose alternative architectures while BLOCKED.
-- Once the required input is provided, the workflow MUST re-run only the minimal necessary step (e.g., Phase 1.3/1.4 load) and then resume.
-- BLOCKED/WARN/NOT_VERIFIED outputs MUST include `SESSION_STATE.Diagnostics.ReasonPayloads` entries for every emitted reason code.
+For full catalog with triggers, recovery steps, and quick-fix commands, see `diagnostics/blocked_reason_catalog.yaml`.
 
 #### Unified Next Action Footer (Presentation Advisory)
 
