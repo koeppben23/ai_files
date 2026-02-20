@@ -13,6 +13,11 @@ _FORBIDDEN_METADATA_NAMES = {"__MACOSX", ".DS_Store", "Icon\r"}
 
 from governance.engine import reason_codes
 
+try:
+    from diagnostics.reason_registry_selfcheck import check_reason_registry_parity
+except Exception:  # pragma: no cover - optional import path in packaged contexts
+    check_reason_registry_parity = None  # type: ignore
+
 
 @dataclass(frozen=True)
 class EngineSelfcheckResult:
@@ -46,5 +51,14 @@ def run_engine_selfcheck(*, release_hygiene_entries: tuple[str, ...] = ()) -> En
 
     if any(_is_forbidden_metadata_entry(entry) for entry in release_hygiene_entries):
         failed.append("release_metadata_hygiene_violation")
+
+    if check_reason_registry_parity is None:
+        failed.append("reason_registry_selfcheck_import_failed")
+    else:
+        parity_ok, parity_errors = check_reason_registry_parity()
+        if not parity_ok:
+            failed.append("reason_registry_parity_failed")
+            if parity_errors:
+                failed.append(f"reason_registry_error_count:{len(parity_errors)}")
 
     return EngineSelfcheckResult(ok=not failed, failed_checks=tuple(failed))

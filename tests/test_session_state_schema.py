@@ -471,7 +471,7 @@ class TestPhaseGatePrerequisitesInvariant:
     def test_code_step_without_p5_approved(self):
         state: dict[str, object] = {
             "Phase": "5",
-            "Next": "Implement the feature",
+            "PhaseRouterFacts": {"next_action_class": "code_producing"},
             "Gates": {"P5-Architecture": "pending"},
         }
         errors = validate_phase_gate_prerequisites(state)

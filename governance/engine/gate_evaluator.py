@@ -32,6 +32,9 @@ P56Status = Literal["pending", "approved", "rejected", "not-applicable"]
 P6Status = Literal["pending", "ready-for-pr", "fix-required"]
 
 
+P54_MIN_COVERAGE_PERCENT = 70.0
+
+
 @dataclass(frozen=True)
 class GateEvaluation:
     """Result contract for one gate evaluation."""
@@ -115,9 +118,7 @@ def evaluate_p53_test_quality_gate(
 ) -> P53GateEvaluation:
     """Evaluate P5.3 Test Quality Gate.
 
-    Binding prerequisite from master.md line 3290:
-    "The Phase 4 plan MUST include a Test Strategy subsection. If missing → BLOCK
-    and return to Phase 4."
+    Engine policy: Phase 4 plan must include a test strategy signal before P5.3 can pass.
 
     Args:
         session_state: The SESSION_STATE document (the SESSION_STATE key, not the wrapper)
@@ -181,9 +182,9 @@ def evaluate_p54_business_rules_gate(
 ) -> P54GateEvaluation:
     """Evaluate P5.4 Business Rules Compliance Gate.
 
-    From master.md lines 3389-3521:
+    Engine policy:
     - Gate is only applicable if Phase 1.5 was executed.
-    - If >30% of business rules are uncovered → gap-detected
+    - Coverage below minimum threshold yields gap-detected.
 
     Args:
         session_state: The SESSION_STATE document
@@ -245,8 +246,7 @@ def evaluate_p54_business_rules_gate(
     else:
         coverage_pct = (covered_rules / total_rules) * 100
 
-    # Gate rule: if >30% uncovered → gap-detected
-    if coverage_pct < 70:
+    if coverage_pct < P54_MIN_COVERAGE_PERCENT:
         return P54GateEvaluation(
             status="gap-detected",
             reason_code=BLOCKED_P5_4_BUSINESS_RULES_GATE,
@@ -272,10 +272,9 @@ def evaluate_p56_rollback_safety_gate(
 ) -> P56GateEvaluation:
     """Evaluate P5.6 Rollback Safety Gate.
 
-    From master.md lines 3112-3119:
-    - If TouchedSurface.SchemaPlanned is non-empty OR ContractsPlanned suggests
-      consumer impact, ensure RollbackStrategy is present and actionable.
-    - If RollbackStrategy.DataMigrationReversible = false, require explicit safety steps.
+    Engine policy:
+    - If schema/contracts are touched, rollback strategy must be present and actionable.
+    - If migration is not reversible, explicit safety steps are required.
 
     Args:
         session_state: The SESSION_STATE document
@@ -374,11 +373,11 @@ def evaluate_p6_prerequisites(
 ) -> P6PrerequisiteEvaluation:
     """Evaluate P6 Implementation QA prerequisites.
 
-    From master.md lines 3686-3691:
-    - P5-Architecture MUST be approved.
-    - P5.3-TestQuality MUST be pass or pass-with-exceptions.
-    - If Phase 1.5 executed: P5.4-BusinessRules MUST be compliant or compliant-with-exceptions.
-    - If rollback safety applies: P5.6-RollbackSafety MUST be approved or not-applicable.
+    Engine policy:
+    - P5-Architecture must be approved.
+    - P5.3-TestQuality must be pass or pass-with-exceptions.
+    - If Phase 1.5 executed: P5.4-BusinessRules must be compliant or compliant-with-exceptions.
+    - If rollback safety applies: P5.6-RollbackSafety must be approved or not-applicable.
 
     Args:
         session_state: The SESSION_STATE document

@@ -335,9 +335,11 @@ def test_install_fail_closed_on_source_symlink(tmp_path: Path):
 
     source_dir = tmp_path / "source-with-symlink"
     source_dir.mkdir(parents=True, exist_ok=True)
+    (source_dir / "governance").mkdir(parents=True, exist_ok=True)
     (source_dir / "master.md").write_text("# Governance-Version: 1.1.0-RC.1\n", encoding="utf-8")
     (source_dir / "rules.md").write_text("# rules\n", encoding="utf-8")
     (source_dir / "start.md").write_text("# start\n", encoding="utf-8")
+    (source_dir / "governance" / "VERSION").write_text("1.1.0-RC.1\n", encoding="utf-8")
 
     external = tmp_path / "external.txt"
     external.write_text("external\n", encoding="utf-8")
