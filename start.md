@@ -128,9 +128,9 @@ Invocation:
 - Missing evidence → BLOCKED (reported, not suppressed).
 - Profile ambiguity → BLOCKED.
 - `/start` MUST NOT require explicit profile selection to complete bootstrap when `master.md` bootstrap evidence is available; profile selection remains a Phase 1.2/Post-Phase-2 concern.
-- If multiple profile rulebooks exist, `/start` MUST attempt deterministic repo-signal autodetection first and auto-select when one candidate is uniquely supported.
-- During Phase `1.5/2/2.1/3A/3B`, `/start` MUST NOT require a task/ticket to proceed; ticket goal is required only at Phase 4 entry.
-- If current phase is `3A`/`3B-*`/`4`/`5*` and operator asks `Reopen Phase 1.5`, `/start` MUST allow explicit re-entry to `1.5-BusinessRules` and mark BusinessRules compliance for rerun before final readiness.
+- If multiple profile rulebooks exist, `/start` attempts deterministic repo-signal autodetection first and auto-selects when one candidate is uniquely supported (kernel-enforced).
+- During Phase `1.5/2/2.1/3A/3B`, `/start` does not require a task/ticket to proceed; ticket goal is required only at Phase 4 entry (kernel-enforced).
+- If current phase is `3A`/`3B-*`/`4`/`5*` and operator asks `Reopen Phase 1.5`, `/start` allows explicit re-entry to `1.5-BusinessRules` and marks BusinessRules compliance for rerun before final readiness (kernel-enforced).
 - When profile signals are ambiguous, provide a ranked profile shortlist with evidence and request explicit numbered selection (`1=<recommended> | 2=<alt> | 3=<alt> | 4=fallback-minimum | 0=abort/none`) before activation.
 
 Rulebook discovery contract (BINDING):
@@ -191,8 +191,8 @@ Output requirements:
 - If multiple blockers exist, `/start` SHOULD present one `primary_reason_code` first and keep one primary recovery command.
 - If blocked, use exactly one `reason_code`, one concrete recovery action sentence, and one primary copy-paste command.
 - `next_command` and `QuickFixCommands` SHOULD be fully runnable without placeholders when runtime evidence can derive concrete values.
-- Across lifecycle transitions, `session_run_id` and `ruleset_hash` MUST remain stable unless explicit rehydrate/reload is performed.
-- Every phase/mode transition MUST record a unique `transition_id` diagnostic entry.
+- Across lifecycle transitions, `session_run_id` and `ruleset_hash` remain stable unless explicit rehydrate/reload is performed (kernel-enforced).
+- Every phase/mode transition records a unique `transition_id` diagnostic entry (kernel-enforced).
 - On phase/mode changes, response SHOULD include a compact transition line: `[TRANSITION] <from> -> <to> | reason: <short reason>`.
 - At session start, include `[START-MODE] Cold Start | Warm Start - reason: ...` based on discovery artifact validity evidence.
 - Include `[SNAPSHOT]` block (`Confidence`, `Risk`, `Scope`) with values aligned to current `SESSION_STATE`.

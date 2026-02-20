@@ -292,6 +292,14 @@ Invariants:
 **Invariant**
 - If `Mode = BLOCKED`, `Next` MUST start with `BLOCKED-` and describe the minimal missing input.
 
+### Common BLOCKED reason codes
+
+- `BLOCKED-RULEBOOK-LOAD-FAILED`: Core rulebook cannot be loaded at Phase 4 entry.
+- `BLOCKED-MISSING-ADDON:<addon_key>`: Required addon rulebook cannot be resolved/loaded.
+- `BLOCKED-STATE-OUTDATED`: Persisted state is outdated and deterministic migration failed.
+- `BLOCKED-MISSING-EVIDENCE`: Required evidence for deterministic decision is missing.
+- `BLOCKED-ACTIVATION-DELTA-MISMATCH`: Activation outcome differs while hashes are unchanged.
+
 ### Session-state versioning and migration (binding)
 
 - `session_state_version` MUST be an integer and represent the schema generation used to produce the state.

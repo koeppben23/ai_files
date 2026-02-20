@@ -374,6 +374,20 @@
       "remediation_hint": "Complete all prerequisite gates before entering Phase 6 Implementation QA."
     },
     {
+      "code": "BLOCKED-PIPELINE-INTERACTIVE",
+      "severity": "blocked",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Pipeline mode requires 0 prompts; interactive prompt requirement detected.",
+      "remediation_hint": "Remove interactive dependencies or switch to user mode."
+    },
+    {
+      "code": "BLOCKED-PIPELINE-HUMAN-ASSIST",
+      "severity": "blocked",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Pipeline mode hard-disables human assist; human input was requested.",
+      "remediation_hint": "Ensure operation is fully automated or switch to user mode."
+    },
+    {
       "code": "BLOCKED-MISSING-DB-VERSION",
       "severity": "blocked",
       "payload_schema_ref": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
