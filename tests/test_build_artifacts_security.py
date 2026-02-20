@@ -132,6 +132,7 @@ def test_release_archives_layout_and_contents_policy(built_artifacts):
 
     required_rel = {
         "install.py",
+        "governance/VERSION",
         "master.md",
         "rules.md",
         "start.md",
@@ -201,6 +202,8 @@ def test_release_archives_layout_and_contents_policy(built_artifacts):
             if rel.startswith("profiles/addons/") and name.endswith(".addon.yml"):
                 continue
             if rel.startswith("diagnostics/") and Path(name).suffix.lower() == ".py":
+                continue
+            if rel == "governance/VERSION":
                 continue
             if rel in shipped_scripts:
                 observed_scripts.add(rel)

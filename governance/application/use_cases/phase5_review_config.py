@@ -5,7 +5,6 @@ Missing/invalid config is fail-closed.
 """
 
 from __future__ import annotations
-
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal, Protocol, runtime_checkable
@@ -31,6 +30,9 @@ class ConfigPathResolver(Protocol):
         ...
 
     def allow_repo_local_fallback(self) -> bool:
+        ...
+
+    def operating_mode(self) -> str:
         ...
 
 
@@ -211,13 +213,28 @@ def load_phase5_review_config(*, force_reload: bool = False) -> Phase5ReviewConf
     if _default_resolver is not None and hasattr(_default_resolver, "allow_repo_local_fallback"):
         allow_repo_local = _default_resolver.allow_repo_local_fallback()
 
+    effective_mode = "user"
+    if _default_resolver is not None and hasattr(_default_resolver, "operating_mode"):
+        try:
+            effective_mode = str(_default_resolver.operating_mode()).strip().lower() or "user"
+        except Exception:
+            effective_mode = "user"
+    if effective_mode == "pipeline":
+        allow_repo_local = False
+
     if config_path is None:
         if allow_repo_local:
             config_path = _get_repo_local_config_path()
         else:
+            hint = (
+                "Pipeline mode disallows repo-local fallback. "
+                if effective_mode == "pipeline"
+                else "Set OPENCODE_ALLOW_REPO_LOCAL_CONFIG=1 for dev/test environments. "
+            )
             raise PolicyConfigError(
                 "Policy-bound config not resolved via canonical root. "
-                "Set OPENCODE_ALLOW_REPO_LOCAL_CONFIG=1 for dev/test environments. "
+                + hint
+                +
                 "Reason: BLOCKED-ENGINE-SELFCHECK"
             )
 

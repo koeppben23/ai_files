@@ -63,10 +63,29 @@ def check_reason_registry_parity(repo_root: Path | None = None) -> tuple[bool, l
         errors.append(f"Cannot parse registry: {exc}")
         return (False, errors)
     
+    blocked_entries = registry_data.get("blocked_reasons", [])
+    if not isinstance(blocked_entries, list):
+        errors.append("Registry blocked_reasons must be an array")
+        return (False, errors)
+
     registry_blocked_codes = set()
-    for entry in registry_data.get("blocked_reasons", []):
-        if "code" in entry and str(entry["code"]).startswith("BLOCKED-"):
-            registry_blocked_codes.add(entry["code"])
+    non_blocked_entries: list[str] = []
+    for entry in blocked_entries:
+        if not isinstance(entry, dict):
+            continue
+        code = str(entry.get("code", "")).strip()
+        if not code:
+            continue
+        if code.startswith("BLOCKED-"):
+            registry_blocked_codes.add(code)
+        else:
+            non_blocked_entries.append(code)
+
+    if non_blocked_entries:
+        errors.append(
+            "Registry blocked_reasons contains non-BLOCKED codes: "
+            f"{sorted(non_blocked_entries)}"
+        )
     
     # 3. _embedded_reason_registry.py
     try:

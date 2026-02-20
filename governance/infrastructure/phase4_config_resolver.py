@@ -36,6 +36,9 @@ class CanonicalRootConfigResolver:
             return False
         return str(os.environ.get("OPENCODE_ALLOW_REPO_LOCAL_CONFIG", "")).strip() == "1"
 
+    def operating_mode(self) -> str:
+        return self._mode
+
 
 def configure_phase4_self_review_resolver(mode: str = "user") -> None:
     """Configure the phase4_self_review module with infrastructure resolver."""

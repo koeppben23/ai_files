@@ -117,4 +117,4 @@ pipeline_mode:
   
   prompt_budget:
     check: "hard"
-    on_exceeded: "BLOCKED-PIPELINE-PROMPT-BUDGET"
+    on_exceeded: "BLOCKED-PIPELINE-INTERACTIVE"

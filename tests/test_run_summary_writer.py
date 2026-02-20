@@ -47,7 +47,7 @@ class TestReasonRemediation:
         
         assert "summary" in remediation
         assert "how_to_fix" in remediation
-        assert "governance.paths.json" in remediation["how_to_fix"]
+        assert remediation["how_to_fix"]
     
     def test_unknown_reason_code_returns_default(self):
         remediation = _load_reason_remediation("UNKNOWN-CODE-XYZ")

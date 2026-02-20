@@ -114,8 +114,8 @@ artifacts:
     target_variable: "${WORKSPACE_MEMORY_FILE}"
     description: "Session state persistence for warm starts"
     phase_window:
-      write_allowed: ["phase_2", "phase_4", "phase_5", "phase_6"]
-      overwrite_allowed: ["phase_2", "phase_4", "phase_5", "phase_6"]
+      write_allowed: ["phase_2", "phase_5", "phase_6"]
+      overwrite_allowed: ["phase_2", "phase_5", "phase_6"]
     write_behavior:
       mode: "overwrite"
       format: "yaml"
