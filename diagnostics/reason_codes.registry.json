@@ -241,6 +241,13 @@
       "remediation_hint": "Restore rules.md at the expected governance path."
     },
     {
+      "code": "BLOCKED-RULEBOOK-LOAD-FAILED",
+      "severity": "blocked",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Core rulebook load failed at Phase 4 entry.",
+      "remediation_hint": "Restore rulebook files and rerun /reload-addons."
+    },
+    {
       "code": "BLOCKED-MISSING-PROFILE",
       "severity": "blocked",
       "payload_schema_ref": "diagnostics/schemas/reason_payload_blocked_core.v1.json",

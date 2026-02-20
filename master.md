@@ -46,9 +46,11 @@ Terminology:
   (e.g., rulebook load evidence, repo discovery evidence). A Plan-Gate MAY be logically satisfied but
   still **blocked** if required evidence is missing.
 
-When entering this state, set:
-- `SESSION_STATE.Mode = BLOCKED`
-- `SESSION_STATE.Next = "BLOCKED-BOOTSTRAP-NOT-SATISFIED"`
+When blocked, session state includes:
+- `SESSION_STATE.Mode` set to `BLOCKED`
+- `SESSION_STATE.Next` set to a `BLOCKED-*` reason code
+
+> **Note:** Blocked reasons and recovery are kernel-enforced. See `diagnostics/blocked_reason_catalog.yaml`.
 
 ### Recovery
 - Operator must restate the bootstrap declaration explicitly.
@@ -140,12 +142,12 @@ Applies to:
 
 Rules (MUST, fail-closed):
 1) Canonical form REQUIRED in outputs:
-   - `TargetPath` and `SourcePath` in output blocks MUST be variable-based using the canonical variables
-     defined in "GLOBAL PATH VARIABLES (BINDING)" (e.g., `${REPO_BUSINESS_RULES_FILE}`).
-   - Absolute OS paths MUST NOT appear in `TargetPath`/`SourcePath` headers.
+   - `TargetPath` and `SourcePath` in output blocks are variable-based using the canonical variables
+     defined in "GLOBAL PATH VARIABLES" (e.g., `${REPO_BUSINESS_RULES_FILE}`).
+   - Absolute OS paths do not appear in `TargetPath`/`SourcePath` headers.
 
-2) Degenerate-path guard (BLOCKED):
-   The workflow MUST enter `Mode = BLOCKED` if any `TargetPath`/`SourcePath` resolves (or is emitted) as:
+2) Degenerate-path guard (kernel-enforced):
+   Kernel blocks if any `TargetPath`/`SourcePath` resolves as:
    - A single drive letter:        `^[A-Za-z]$`            (example: `C`)
    - A drive root token only:      `^[A-Za-z]:$`           (example: `C:`)
    - A drive-relative path token:  `^[A-Za-z]:[^\\/].*`    (example: `C:tmp\file`)
@@ -153,21 +155,18 @@ Rules (MUST, fail-closed):
        - `^[^\\/]+$` AND NOT starting with `${`
      (examples: `tmp`, `rules.md`, `business-rules.md`, `C`)
 
-3) Repo-local write prevention (BLOCKED):
-   - If a persisted artifact is about to be written to any repository-local path (e.g., `./business-rules.md`
-     or `<repo>/business-rules.md`), the workflow MUST BLOCK with:
-       `Next = "BLOCKED-PERSISTENCE-PATH-VIOLATION"`
-   - The recovery MUST require the canonical variable-based target path (e.g., `${REPO_BUSINESS_RULES_FILE}`).
+3) Repo-local write prevention (kernel-enforced):
+   - If a persisted artifact is about to be written to any repository-local path, kernel blocks with:
+     `BLOCKED-PERSISTENCE-PATH-VIOLATION`
+   - Recovery requires the canonical variable-based target path.
 
-Required BLOCKED reason keys:
-- `BLOCKED-PERSISTENCE-TARGET-DEGENERATE`
-- `BLOCKED-PERSISTENCE-PATH-VIOLATION`
+> **Note:** Blocked reasons and recovery are defined in `diagnostics/blocked_reason_catalog.yaml`
+> (BLOCKED-PERSISTENCE-TARGET-DEGENERATE, BLOCKED-PERSISTENCE-PATH-VIOLATION).
 
-Recovery (mandatory output via Recovery Playbook):
-- The workflow MUST print:
-  - the attempted `TargetPath`,
-  - the expected canonical `TargetPath` using `${...}`,
-  - and the minimal correction (use canonical variable target).
+Recovery output format (informational):
+- The attempted `TargetPath`
+- The expected canonical `TargetPath` using `${...}`
+- The minimal correction (use canonical variable target)
 
 ### Canonical State / Persistence Targets
 
@@ -360,49 +359,47 @@ PURPOSE:
 
 Activation Steps (Informational):
 
+> **Note:** Activation preconditions and failure handling are kernel-enforced.
+> See `diagnostics/blocked_reason_catalog.yaml` for BLOCKED-MISSING-PROFILE, BLOCKED-MISSING-TEMPLATES, BLOCKED-MISSING-ADDON.
+
 0) Preconditions
-   - `SESSION_STATE.ActiveProfile` MUST be set (from Phase 2 profile detection), unless `rules.fallback-minimum.md` is active.
-   - If `SESSION_STATE.ActiveProfile == ""` and a profile is required → `Mode = BLOCKED` with `BLOCKED-MISSING-PROFILE`.
+   - `SESSION_STATE.ActiveProfile` is set (from Phase 2 profile detection), unless `rules.fallback-minimum.md` is active.
+   - Kernel blocks with BLOCKED-MISSING-PROFILE if profile is required but not set.
 
 1) Load profile rulebook
-   - Resolve and load the active profile rulebook under `${PROFILES_HOME}` using the recognized naming patterns:
+   - Kernel resolves and loads the active profile rulebook under `${PROFILES_HOME}` using the recognized naming patterns:
      - Preferred: `rules_<active_profile>.md`
      - Legacy: `rules.<active_profile>.md`
      - Alternative: `rules-<active_profile>.md`
-    - Record: `SESSION_STATE.LoadedRulebooks.profile = "<resolved path>"`
-    - If it cannot be resolved/loaded → `Mode = BLOCKED` with `BLOCKED-MISSING-PROFILE`.
-    - Token-efficiency: if the resolved profile path and load evidence are unchanged from the current session,
-      the workflow MUST reuse the loaded profile and MUST NOT reload full contents.
+   - Session state update: `SESSION_STATE.LoadedRulebooks.profile = "<resolved path>"`
 
 2) Load templates addon (if mandated by the active profile)
    - If the active profile declares templates as REQUIRED:
-     - Resolve and load the declared templates rulebook (e.g., `rules.backend-java-templates.md`).
-     - Record: `SESSION_STATE.LoadedRulebooks.templates = "<resolved path>"`
-      - If required but cannot be resolved/loaded → `Mode = BLOCKED` with `BLOCKED-MISSING-TEMPLATES`.
+     - Kernel resolves and loads the declared templates rulebook (e.g., `rules.backend-java-templates.md`).
+     - Session state update: `SESSION_STATE.LoadedRulebooks.templates = "<resolved path>"`
 
-2.5) Normalize repository capabilities (binding)
-   - Before addon activation decisions, the workflow MUST derive normalized capability facts from discovered repo signals.
+2.5) Normalize repository capabilities
+   - Before addon activation decisions, kernel derives normalized capability facts from discovered repo signals.
    - Canonical capability examples: `java`, `spring`, `kafka`, `liquibase`, `openapi`, `cucumber`, `nx`, `angular`, `cypress`, `governance_docs`.
-   - Record:
-      - `SESSION_STATE.RepoFacts.Capabilities = [<capabilities>]`
-      - `SESSION_STATE.RepoFacts.CapabilityEvidence.<capability> = [<signal/path references>]`
-   - Activation decisions MUST be capability-first, with hard-signal fallback when capability evidence is missing/ambiguous.
+   - Session state updates:
+     - `SESSION_STATE.RepoFacts.Capabilities = [<capabilities>]`
+     - `SESSION_STATE.RepoFacts.CapabilityEvidence.<capability> = [<signal/path references>]`
 
 3) Evaluate and load addons (evidence-based, manifest-driven)
-   Evidence sources (BINDING):
+   Evidence sources (informational):
    - Repo Discovery signals (Phase 2 artifacts): dependencies, annotations, configuration keys, file presence.
    - Ticket/request text (explicit requirements).
-   - If `SESSION_STATE.ComponentScopePaths` is set, signal evaluation MUST be constrained to those paths.
+   - If `SESSION_STATE.ComponentScopePaths` is set, signal evaluation is constrained to those paths.
 
-   Scope-safety (BINDING):
+   Scope-safety (kernel-enforced):
    - In monorepos/multi-component repositories, if `ComponentScopePaths` is missing at code-phase,
-     repo-wide addon activation is non-deterministic and MUST trigger `BLOCKED-MISSING-EVIDENCE`
+     repo-wide addon activation is non-deterministic and kernel triggers BLOCKED-MISSING-EVIDENCE
      until component scope is explicit.
 
-   Addon catalog (BINDING):
-   - Addons are discovered **dynamically** by scanning addon manifests located at:
+   Addon catalog (informational):
+   - Addons are discovered dynamically by scanning addon manifests located at:
      - `${PROFILES_HOME}/addons/*.addon.yml`
-   - Each manifest MUST define:
+   - Each manifest defines:
         - `addon_key` (string)
         - `addon_class` (`required` | `advisory`)
         - `rulebook` (path under `${PROFILES_HOME}`)
@@ -413,33 +410,29 @@ Activation Steps (Informational):
      - Optional manifest ops fields:
         - `path_roots` (relative repo paths to scope signal evaluation in monorepos)
 
-   Rules (BINDING):
-   - For each addon, evaluate capability requirements from manifest (`capabilities_any` / `capabilities_all`) first.
-   - If capability evidence is missing/ambiguous, evaluate hard signals from Phase 2 artifacts + ticket text as fallback.
-   - If capability-first evaluation or fallback hard signals indicate activation, set activation-required-by-evidence = true; otherwise false.
-   - Field mapping note (binding): `SESSION_STATE.AddonsEvidence.<addon_key>.required` stores this evidence-based activation requirement,
-     while `addon_class` (`required` | `advisory`) is read from the addon manifest policy class.
-   - Missing/unknown evidence for a required decision path MUST trigger `BLOCKED-MISSING-EVIDENCE`.
+   Rules (informational):
+   - For each addon, kernel evaluates capability requirements from manifest (`capabilities_any` / `capabilities_all`) first.
+   - If capability evidence is missing/ambiguous, kernel evaluates hard signals from Phase 2 artifacts + ticket text as fallback.
+   - If capability-first evaluation or fallback hard signals indicate activation, activation-required-by-evidence = true; otherwise false.
+   - Session state updates:
+     - `SESSION_STATE.AddonsEvidence.<addon_key>.signals = [<signal strings>]`
+     - `SESSION_STATE.AddonsEvidence.<addon_key>.required = true|false`
+     - `SESSION_STATE.AddonsEvidence.<addon_key>.status = loaded|skipped|missing-rulebook`
+   - Missing/unknown evidence for a required decision path triggers BLOCKED-MISSING-EVIDENCE (kernel-enforced).
    - If `required = true` and the addon rulebook is missing:
-     - `addon_class = required`  -> `Mode = BLOCKED` with `BLOCKED-MISSING-ADDON:<addon_key>`.
-     - `addon_class = advisory` -> continue non-blocking with WARN + recovery steps, and set status `missing-rulebook`.
-   - For each evaluated addon, record:
-      - `SESSION_STATE.AddonsEvidence.<addon_key>.signals = [<signal strings>]`
-      - `SESSION_STATE.AddonsEvidence.<addon_key>.required = true|false`
-      - `SESSION_STATE.AddonsEvidence.<addon_key>.status = loaded|skipped|missing-rulebook`
-   - If `required = true` and the rulebook is present, it MUST be loaded.
-   - Addons MAY be re-evaluated and loaded later at any Phase-4 re-entry/resume if new evidence appears or a missing rulebook is installed.
-   - Surface ownership guard (binding): two activated addons/templates MUST NOT both own the same surface.
-     If activated ownership conflicts are detected -> `Mode = BLOCKED`, `Next = BLOCKED-ADDON-CONFLICT`.
-     Required input: narrow scope or select authoritative surface owner.
+     - `addon_class = required` -> kernel blocks with BLOCKED-MISSING-ADDON:<addon_key>
+     - `addon_class = advisory` -> kernel continues non-blocking with WARN + recovery steps, status = `missing-rulebook`
+   - If `required = true` and the rulebook is present, kernel loads it.
+   - Addons may be re-evaluated and loaded later at any Phase-4 re-entry/resume if new evidence appears or a missing rulebook is installed.
+   - Surface ownership guard (kernel-enforced): two activated addons/templates may not both own the same surface.
+     If activated ownership conflicts are detected -> kernel blocks with BLOCKED-ADDON-CONFLICT.
    - Required/advisory blocking semantics are canonical from `rules.md` anchor `RULEBOOK-PRECEDENCE-POLICY`.
-     Profile/addon/template rulebooks MUST reference and MUST NOT redefine parallel policies.
-   - Emergency override of missing required addon is exceptional and MUST carry evidence:
+   - Emergency override of missing required addon is exceptional and carries evidence:
        - ticket/incident id
        - business reason
        - approver identity
        - expiry/remediation item
-     and affected claims MUST remain `not-verified`.
+     Affected claims remain `not-verified`.
 
    Kafka addon example (when the profile declares it):
    - Required signals include (evidence-based):
@@ -504,7 +497,7 @@ This governance system is single-user and MUST NOT require repo-working-tree-loc
 
 #### Step 1 (Phase 1.3): Resolve Core Rulebook (rules.md)
 
-**Search order:**
+**Lookup paths (informational):**
 1. Workspace-local override (optional, outside the repo): `${REPO_OVERRIDES_HOME}/rules.md`
 2. Global commands: `${COMMANDS_HOME}/rules.md`
 3. Global config: `${OPENCODE_HOME}/rules.md` (fallback)
@@ -735,16 +728,15 @@ Binding rules:
   - `SESSION_STATE.LoadedRulebooks.addons.*`
   then `SESSION_STATE.RulebookLoadEvidence` MUST be present and non-empty.
 
-- RulebookLoadEvidence MUST contain at least one of:
+- RulebookLoadEvidence contains at least one of:
   - resolved canonical path (using `${COMMANDS_HOME}` / `${PROFILES_HOME}`)
   - tool output confirming read/load
   - hash/digest reference
   - explicit user-provided content
 
-- If rulebook load evidence cannot be produced due to host/tool limitations:
-  - `Mode = BLOCKED`
-  - Canonical pointer: `Next = BLOCKED-RULEBOOK-EVIDENCE-MISSING`
-  - No phase completion may be claimed.
+- If rulebook load evidence cannot be produced due to host/tool limitations, kernel blocks with BLOCKED-RULEBOOK-EVIDENCE-MISSING.
+
+> **Note:** Blocked reasons and recovery are kernel-enforced. See `diagnostics/blocked_reason_catalog.yaml`.
 
 ---
 
@@ -963,10 +955,12 @@ Binding:
 Note: phase-specific clarification rules (e.g., Phase 4) may not restrict the blocker rules defined in 2.3;
 those phase rules only add additional phase-related clarifications when CONFIDENCE LEVEL ≥ 70%.
 
-#### BLOCKED — Recovery Playbook (Kernel-Enforced)
+#### BLOCKED — Recovery Playbook (Output Format)
 
-If the workflow enters `Mode = BLOCKED`, the workflow MUST output a deterministic recovery block and MUST NOT
-continue into any code-producing work.
+> **Note:** Blocked state transition is kernel-enforced. See `diagnostics/blocked_reason_catalog.yaml`.
+> This section defines the output format when kernel emits a blocked response.
+
+When blocked, output includes a deterministic recovery block:
 
 **Output format (mandatory):**
 
@@ -983,8 +977,6 @@ Resume pointer: <exact Next pointer, e.g., "Phase 4 — Step 0 (Initialization)"
 ```
 
 **Machine-readable blocker envelope (mandatory):**
-
-For every `Mode = BLOCKED` response, include a compact machine-readable payload:
 
 ```json
 {
@@ -1202,32 +1194,34 @@ If anything here conflicts with the schema, the schema wins.
 
 - Default STRICT envelope behavior: emit `session_state` as a compact snapshot object (operator-first view).
 - Dedicated full-state `SESSION_STATE` blocks are not required by default and SHOULD be emitted only when FULL mode is required or explicitly requested.
-- Output **FULL** mode is REQUIRED when:
+- Output **FULL** mode is required when:
   1) the current step is an explicit gate (Phase 5 / 5.3 / 5.4 / 5.5 / 5.6 / 6), OR
-  2) `SESSION_STATE.Mode = BLOCKED`, OR
+  2) `SESSION_STATE.Mode` is `BLOCKED`, OR
   3) Phase 2 just completed and this is the first time `RepoMapDigest` is produced, OR
   4) the user explicitly requests FULL state.
   5) `SESSION_STATE.ConfidenceLevel < 70` (DRAFT/BLOCKED debugging requires expanded state).
 
 When a dedicated state block is emitted in MIN mode, it SHOULD remain below ~40 lines. FULL mode should remain a digest (no large enumerations).
 
-If `SESSION_STATE.OutputMode = ARCHITECT`, the workflow MUST output a `DecisionSurface` block first and keep the rest limited to decision rationale + evidence pointers.
+If `SESSION_STATE.OutputMode = ARCHITECT`, output includes a `DecisionSurface` block first and keeps the rest limited to decision rationale + evidence pointers.
 
-Machine-readable diagnostics (binding):
-- When emitting any reason code (`BLOCKED-*`, `WARN-*`, `NOT_VERIFIED-*`), the response MUST include a machine-readable diagnostics payload under `SESSION_STATE.Diagnostics.ReasonPayloads`.
-- Each payload entry MUST include:
+Machine-readable diagnostics (informational):
+- When emitting any reason code (`BLOCKED-*`, `WARN-*`, `NOT_VERIFIED-*`), response includes a machine-readable diagnostics payload under `SESSION_STATE.Diagnostics.ReasonPayloads`.
+- Each payload entry includes:
   - `reason_code`
   - `surface` (`build|tests|static|addons|profile|state|contracts|security|performance|other`)
   - `signals_used` (array)
   - `recovery_steps` (array, max 3 concrete steps)
   - `next_command` (e.g., `/reload-addons`, `/start`, `/resume`)
 
-SESSION_STATE versioning (binding):
-- Every emitted session state MUST include:
+SESSION_STATE versioning (informational):
+- Every emitted session state includes:
   - `session_state_version` (integer)
   - `ruleset_hash` (string digest over active governance rule set)
 - If persisted state is older than the supported version and cannot be migrated deterministically,
-  the workflow MUST enter `Mode = BLOCKED` with `Next = BLOCKED-STATE-OUTDATED`.
+  kernel blocks with BLOCKED-STATE-OUTDATED.
+
+> **Note:** Blocked reasons and recovery are kernel-enforced. See `diagnostics/blocked_reason_catalog.yaml`.
 
 ### 3.2 MIN Template (Presentation Advisory)
 
@@ -2343,20 +2337,17 @@ Update behavior (Kernel-Enforced):
 - If `${REPO_BUSINESS_RULES_FILE}` exists: `Mode = update` and overwrite the file content as a whole
   (single source of truth), while preserving BR identifiers and marking removed rules as DEPRECATED.
 
-Path enforcement (BINDING):
-- The Business Rules inventory MUST be persisted ONLY to `${REPO_BUSINESS_RULES_FILE}`.
+Path enforcement (informational):
+- The Business Rules inventory is persisted ONLY to `${REPO_BUSINESS_RULES_FILE}`.
 - If the runtime writes to a repository-local path (e.g., `./business-rules.md` or `<repo>/business-rules.md`),
-  the system MUST enter:
-  - `SESSION_STATE.Mode = BLOCKED`
-  - `SESSION_STATE.Next = "BLOCKED-PERSISTENCE-PATH-VIOLATION:business-rules"`
-  and request the resolved target path + the artifact header as proof.
+  kernel blocks with BLOCKED-PERSISTENCE-PATH-VIOLATION:business-rules.
 
-Additional enforcement (BINDING):
+Additional enforcement (informational):
 - If the workflow observes that the `TargetPath` for business rules became any degenerate form (examples: `C`, `C:`,
-  `C:tmp\file`, or any single-segment path not starting with `${`), it MUST enter:
-  - `SESSION_STATE.Mode = BLOCKED`
-  - `SESSION_STATE.Next = "BLOCKED-PERSISTENCE-TARGET-DEGENERATE:business-rules"`
-  and request the exact artifact header lines containing `TargetPath:` as proof.
+  `C:tmp\file`, or any single-segment path not starting with `${`), kernel blocks with BLOCKED-PERSISTENCE-TARGET-DEGENERATE:business-rules.
+
+> **Note:** Blocked reasons and failure handling are kernel-enforced.
+> See `diagnostics/blocked_reason_catalog.yaml` and `diagnostics/persistence_artifacts.yaml` (artifact: `business_rules_inventory`).
 
 ---
 

@@ -1109,7 +1109,7 @@ Binding verification rules:
 - No layer marked as "Yes" is left unimplemented.
 - Unchecked or "No" layers that are non-obvious MUST be justified (one sentence).
 
-If any of the above fails: **STOP** (Mode=BLOCKED) and request the minimal missing change(s)/information.
+If any of the above fails: stop in blocked state and request the minimal missing change(s)/information.
 
 If any impacted layer involves schemas, contracts, persisted data, or enums,
 the Contract & Schema Evolution Gate (Section 6.5) MUST be evaluated and explicitly passed.
@@ -1321,8 +1321,7 @@ If version evidence is missing, build/test claims SHOULD remain `not-verified` (
 If any `LoadedRulebooks.*` entry is populated, `RulebookLoadEvidence` MUST be present and non-empty.
 
 If Rulebook load evidence cannot be produced:
-- workflow MUST set `Mode=BLOCKED`
-- workflow MUST set `Next=BLOCKED-RULEBOOK-EVIDENCE-MISSING`
+- kernel sets blocked state with reason `BLOCKED-RULEBOOK-EVIDENCE-MISSING`
 - no phase completion may be claimed
 
 For Phase 1.1 top-tier artifacts (`QUALITY_INDEX.md`, `CONFLICT_RESOLUTION.md`):
@@ -1527,34 +1526,23 @@ If the file does not exist:
 When this rule is triggered:
 - The BR inventory file is CANONICAL and SHOULD represent the current known ruleset
   (not an append-only history).
-- If the file exists, the workflow MUST produce the FULL updated file content:
+- If the file exists, the workflow outputs the FULL updated file content:
   - preserving BR-IDs where semantically equivalent,
   - updating entries in-place,
   - appending new BRs at the end,
   - marking removed rules as `Status: DEPRECATED` (do not delete).
-- If the file does not exist, the workflow MUST produce the full initial file content.
+- If the file does not exist, the workflow outputs the full initial file content.
 
-Output requirements (Kernel-Enforced):
-- The workflow MUST output the complete file content (not a diff), in a single fenced block,
-  and MUST state the exact target path.
+Output requirements (informational):
+- The workflow outputs the complete file content (not a diff), in a single fenced block,
+  and states the exact target path.
 
-Session-state (Kernel-Enforced):
-- The workflow MUST update session state with:
-  - `SESSION_STATE.BusinessRules.InventoryFilePath`
-  - `SESSION_STATE.BusinessRules.InventoryFileStatus = written | write-requested | not-applicable`
+Session-state updates:
+- `SESSION_STATE.BusinessRules.InventoryFilePath`
+- `SESSION_STATE.BusinessRules.InventoryFileStatus = written | write-requested | not-applicable`
 
-Repository safety:
-- The workflow MUST NOT attempt to write into the repository for this purpose.
-
-Non-blocking behavior:
-- This rule MUST NOT block progress if the environment cannot write files;
-  in that case:
-  - set `InventoryFileStatus = write-requested`
-  - provide the content and path so the user/OpenCode can persist it manually.
-
-No-fallback-target rule (binding):
-- The Business Rules inventory MUST NOT be redirected to `workspace-memory.yaml`, `SESSION_STATE`, or any non-canonical artifact as a write fallback.
-- If write fails, keep target `${REPO_BUSINESS_RULES_FILE}` and emit manual persistence instructions for that same target.
+> **Note:** Repository safety, non-blocking behavior, and failure handling are kernel-enforced.
+> See `diagnostics/persistence_artifacts.yaml` (artifact: `business_rules_inventory`).
 
 ### 8.y Decision Pack File (Kernel-Managed, Conditional)
 
@@ -1672,16 +1660,14 @@ If the file does not exist:
 When this rule is triggered:
 - If the file exists: append a new dated section (do not overwrite history).
 - If missing: output full file content (header + current section).
-- The workflow MUST state the exact target path and whether the output is create vs append.
+- The workflow states the exact target path and whether the output is create vs append.
 
-The workflow MUST update session state with:
+Session-state updates:
 - `SESSION_STATE.DecisionPack.FilePath`
 - `SESSION_STATE.DecisionPack.FileStatus = written | write-requested | not-applicable`
 
-This rule MUST NOT block progress if the environment cannot write files;
-in that case:
-- set `FileStatus = write-requested`
-- provide the content and path so the user/OpenCode can persist it manually.
+> **Note:** Non-blocking behavior and failure handling are kernel-enforced.
+> See `diagnostics/persistence_artifacts.yaml` (artifact: `decision_pack`).
 
 ### 8.z RepoMapDigest File (Kernel-Managed, Conditional)
 
@@ -1742,17 +1728,15 @@ Deterministic "most recent" selection (Kernel-Enforced):
   - record a Risk: `[PERSISTED-ARTIFACT-NONDETERMINISTIC] repo-map-digest.md section dating inconsistent`
   - fall back to using the last section in file order.
 
-Session-state keys (Binding when OpenCode applies):
+Session-state keys (informational):
 - `SESSION_STATE.RepoMapDigestFile.SourcePath`
 - `SESSION_STATE.RepoMapDigestFile.Loaded = true | false`
 - `SESSION_STATE.RepoMapDigestFile.Summary` (short text)
 - `SESSION_STATE.RepoMapDigestFile.FilePath`
 - `SESSION_STATE.RepoMapDigestFile.FileStatus = written | write-requested | not-applicable`
 
-This rule MUST NOT block progress if the environment cannot write files;
-in that case:
-- set `FileStatus = write-requested`
-- provide the content and path so the user/OpenCode can persist it manually.
+> **Note:** Non-blocking behavior and failure handling are kernel-enforced.
+> See `diagnostics/persistence_artifacts.yaml` (artifact: `repo_digest`).
 
 ## 9. BuildEvidence (Core)
 

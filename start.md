@@ -84,70 +84,49 @@ Clarification (Binding):
 - `${COMMANDS_HOME} = ${OPENCODE_HOME}/commands`
 - `${PROFILES_HOME} = ${COMMANDS_HOME}/profiles`
 
-### Discovery / Load search order (Binding)
-The runtime MUST attempt to resolve rulebooks using this search order:
-1) `${COMMANDS_HOME}/master.md`
-2) `${COMMANDS_HOME}/rules.md`
-3) `${PROFILES_HOME}/rules.<profile>.md` OR `${PROFILES_HOME}/rules_<profile>.md` OR `${PROFILES_HOME}/rules-<profile>.md`
+### Discovery / Load search order (informational)
 
-Runtime resolution scope note (binding):
-- `/start` enforces installer-owned discovery roots (`${COMMANDS_HOME}`, `${PROFILES_HOME}`) as canonical entrypoint requirements.
-- Workspace/local overrides and global fallbacks (`${REPO_OVERRIDES_HOME}`, `${OPENCODE_HOME}`) are runtime resolution extensions governed by `master.md` and MUST NOT weaken this entrypoint contract.
+> **Note:** Discovery roots, evidence precedence, and fail-closed behavior are kernel-enforced.
+> See `diagnostics/bootstrap_policy.yaml` for canonical roots, evidence sources, and gate definitions.
 
-### Evidence rule (Binding)
-Because this file cannot self-prove filesystem state, governance activation MUST use one of:
+Search paths (informational):
+- `${COMMANDS_HOME}/master.md`
+- `${COMMANDS_HOME}/rules.md`
+- `${PROFILES_HOME}/rules.<profile>.md` OR `${PROFILES_HOME}/rules_<profile>.md` OR `${PROFILES_HOME}/rules-<profile>.md`
 
-A) **Host-provided file access evidence** (preferred)
-   - Tool output showing the resolved directory listing for `${COMMANDS_HOME}` and `${PROFILES_HOME}`, OR
-   - Tool output confirming reads of `master.md` (and top-tier bootstrap artifacts when present); `rules.md` load evidence is deferred until Phase 4.
+### Evidence rule (informational)
 
-Binding behavior (MUST):
-- If installer-owned `${COMMANDS_HOME}/governance.paths.json` exists and host filesystem tools are available,
-  `/start` MUST attempt host-provided evidence first and MUST NOT request operator-provided variable binding before that attempt.
+> **Note:** Evidence collection and fail-closed behavior are kernel-enforced.
+> See `diagnostics/bootstrap_policy.yaml` (gates: binding_file_gate, start_evidence_gate).
 
-B) **Installer recovery required** (fallback)
-   - If host-provided evidence cannot be loaded, `/start` MUST fail closed and instruct installer recovery.
-   - `/start` MUST NOT ask the operator to manually resolve `${COMMANDS_HOME}` via chat input.
+Evidence sources (informational):
+- Host-provided file access evidence (preferred)
+- Installer recovery (fallback when host evidence unavailable)
 
-If neither A nor installer recovery is available -> `BLOCKED` with required input = "Run installer repair and rerun /start".
-Canonical BLOCKED reason:
-- BLOCKED-MISSING-BINDING-FILE (missing `${COMMANDS_HOME}/governance.paths.json` at canonical location)
+Blocked reasons (kernel-enforced):
+- BLOCKED-MISSING-BINDING-FILE (missing governance.paths.json)
+- BLOCKED-START-REQUIRED (missing /start evidence)
 
 Invocation:
 - Activate the Governance-OS defined in `master.md`.
 - This file does not replace or inline `master.md`; it only triggers its discovery and activation.
-- Command invocation guard (binding): when `start.md` is injected by the `/start` command, treat `/start` as already invoked in this turn.
-- In that case, assistant MUST NOT request the operator to run `/start` again unless an explicit hard failure indicates command context was not injected.
-- During `/start`, assistant MUST NOT ask generic task-intake questions (for example, "what task do you want me to handle?") before bootstrap evidence/gates finish.
-- Phases 1–6 are enforced as far as host/system constraints allow.
-- `/start` is mandatory bootstrap for a repo/session.
-- In hosts that support `/master`: `/master` without valid `/start` evidence MUST map to `BLOCKED-START-REQUIRED` with `QuickFixCommands: ["/start"]`.
-- OpenCode Desktop mapping (host-constrained): `/start` acts as the `/master`-equivalent and performs the ARCHITECT master-run inline.
-- Canonical operator lifecycle (OpenCode Desktop): `/start` (bootstrap + ARCHITECT master-run) -> `Implement now` (IMPLEMENT) -> `Ingest evidence` (VERIFY).
-- Plan-Gates ≠ Evidence-Gates.
-- Missing evidence → BLOCKED (reported, not suppressed).
-- Profile ambiguity → BLOCKED.
-- `/start` MUST NOT require explicit profile selection to complete bootstrap when `master.md` bootstrap evidence is available; profile selection remains a Phase 1.2/Post-Phase-2 concern.
-- If multiple profile rulebooks exist, `/start` attempts deterministic repo-signal autodetection first and auto-selects when one candidate is uniquely supported (kernel-enforced).
-- During Phase `1.5/2/2.1/3A/3B`, `/start` does not require a task/ticket to proceed; ticket goal is required only at Phase 4 entry (kernel-enforced).
-- If current phase is `3A`/`3B-*`/`4`/`5*` and operator asks `Reopen Phase 1.5`, `/start` allows explicit re-entry to `1.5-BusinessRules` and marks BusinessRules compliance for rerun before final readiness (kernel-enforced).
-- When profile signals are ambiguous, provide a ranked profile shortlist with evidence and request explicit numbered selection (`1=<recommended> | 2=<alt> | 3=<alt> | 4=fallback-minimum | 0=abort/none`) before activation.
 
-Rulebook discovery contract (BINDING):
-- The assistant MUST NOT claim `master.md`, `rules.md`, or profile rulebooks are "missing"
-  unless it has explicit load evidence that lookup was attempted in the canonical locations
-  OR the operator confirms the files are not present.
-- If rulebook contents are not available in the current chat context, treat them as
-  `NOT IN PROVIDED SCOPE` and request minimal evidence (path or pasted content).
-- If host filesystem access is available and profile detection is unambiguous, `/start` MUST auto-load canonical rulebooks and MUST NOT request operator rulebook paste/path input.
-- If Business Rules file write is unavailable, `/start` MUST keep `${REPO_BUSINESS_RULES_FILE}` as target and MUST NOT redirect to `${WORKSPACE_MEMORY_FILE}`.
-- Canonical expected locations (per master.md variables):
+> **Note:** Bootstrap gates, evidence requirements, and blocked reasons are kernel-enforced.
+> See `diagnostics/bootstrap_policy.yaml` and `diagnostics/blocked_reason_catalog.yaml`.
+
+Key behaviors (informational):
+- `/start` is mandatory bootstrap for a repo/session (kernel-enforced).
+- Missing evidence or profile ambiguity may result in blocked state (kernel-enforced).
+- Profile selection is deferred to Phase 1.2/Post-Phase-2 (kernel-enforced).
+- During Phase `1.5/2/2.1/3A/3B`, no task/ticket is required; ticket goal required only at Phase 4 entry (kernel-enforced).
+
+Rulebook discovery (informational):
+- Rulebooks are loaded from canonical locations (`${COMMANDS_HOME}`, `${PROFILES_HOME}`).
+- If rulebooks are unavailable, operator provides evidence (path or content).
+- Canonical expected locations:
   - master.md: `${COMMANDS_HOME}/master.md`
   - rules.md: `${COMMANDS_HOME}/rules.md`
   - profiles: `${PROFILES_HOME}/rules*.md`
-- If the host cannot access the filesystem, the operator MUST provide one of:
-  A) exact resolved paths + confirmation they exist, OR
-  B) paste the full file contents for master.md (bootstrap minimum); defer rules.md/profile rulebook contents to their phase gates (rules.md: Phase 4, profile: Phase 2 detection).
 
 Host constraint acknowledgment:
 - Host / system / developer instructions may override this governance.
