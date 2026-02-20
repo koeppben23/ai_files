@@ -32,7 +32,7 @@ def test_phase_router_routes_openapi_from_phase21_to_3a():
         session_state_document={"SESSION_STATE": {"workspace_ready_gate_committed": True, "repo_capabilities": ["openapi"], "Scope": {"BusinessRules": "not-applicable"}}},
         repo_is_git_root=True,
     )
-    assert routed.phase == "3A-Activation"
+    assert routed.phase == "3A-API-Inventory"
     assert "3A" in routed.next_gate_condition
 
 
@@ -42,10 +42,10 @@ def test_phase_router_prevents_backward_transition_from_persisted_phase():
         requested_phase="2-Discovery",
         requested_active_gate="Discovery",
         requested_next_gate_condition="Proceed",
-        session_state_document={"SESSION_STATE": {"phase": "3A-Activation", "workspace_ready_gate_committed": True}},
+        session_state_document={"SESSION_STATE": {"phase": "3A-API-Inventory", "workspace_ready_gate_committed": True}},
         repo_is_git_root=True,
     )
-    assert routed.phase == "3A-Activation"
+    assert routed.phase == "3A-API-Inventory"
     assert routed.source in {"persisted-phase", "monotonic-session-phase"}
 
 
