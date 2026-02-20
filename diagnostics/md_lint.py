@@ -141,9 +141,6 @@ RULES: tuple[Rule, ...] = (
         exceptions=(
             r"\boutput\s+.*\b(must|shall|required)\b",
             r"\bresponse\s+.*\b(must|shall|required)\b",
-            r"\bSESSION_STATE\.(Mode|Next)\s*=",
-            r"\bMode\s*=\s*(BLOCKED|ARCHITECT|EXPLORE|PLAN|BUILD)\b",
-            r"\bNext\s*=\s*['\"]",
             r"^\*\s*Phase\s*\d+",
             r"\b(kernel|informational)[- ]enforced\b",
             r"\(kernel-enforced",
@@ -161,6 +158,29 @@ RULES: tuple[Rule, ...] = (
         ),
         severity="error",
         message="Phase/router/next-state steering is kernel-owned. Use kernel config.",
+    ),
+
+    # MD009 - Operational policy markers in MD
+    Rule(
+        rule_id="MD009",
+        name="operational-policy-markers",
+        description="Operational policy markers are kernel-owned",
+        patterns=(
+            r"\bMode\s*=\s*BLOCKED\b",
+            r"\bNext\s*=\s*['\"]?BLOCKED-[A-Z-]+",
+            r"\bsearch\s+order\s*:",
+            r"\brequired\s+input\s*:",
+            r"\bresume\s+pointer\s*:",
+            r"\brecovery\s+steps\s*:",
+        ),
+        exceptions=(
+            r"\[BLOCKED\]",
+            r"machine-readable",
+            r"output format",
+            r"informational",
+        ),
+        severity="error",
+        message="Operational policy markers belong in kernel/config, not MD.",
     ),
     
     # MD003 - Host/Tool Execution
