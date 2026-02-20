@@ -48,7 +48,7 @@ When active, maintain:
 - `WARN-CYPRESS-SELECTOR-UNSTABLE`
 - `WARN-CYPRESS-NO-CRITICAL-FLOW-COVERAGE`
 
-## Recovery steps template
+## Recovery template
 
 1. Stabilize selectors in changed screens.
 2. Add/adjust intercept fixtures for critical path.
