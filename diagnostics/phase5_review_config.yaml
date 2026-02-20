@@ -1,0 +1,56 @@
+# Phase 5 Review Configuration
+# SSOT for all Phase 5 iterative review settings
+
+# Iteration Limits
+max_iterations: 3
+
+# Review Criteria (all must pass for approval)
+criteria:
+  test_coverage_min_percent: 80
+  security_scan_required: true
+  architecture_doc_required: true
+  breaking_changes_documented: true
+  rollback_plan_required: false  # Optional by default
+
+# Operating Mode Behavior
+modes:
+  user:
+    human_escalation_enabled: true
+    auto_approve_on_no_issues: true
+    max_iterations: 3
+    
+  pipeline:
+    human_escalation_enabled: false  # NO human interaction in CI/CD
+    auto_approve_on_no_issues: true
+    auto_reject_on_blocking_issues: true
+    max_iterations: 3
+    fail_fast: true  # Reject immediately on first blocking issue
+
+  agents_strict:
+    human_escalation_enabled: false
+    auto_approve_on_no_issues: false  # Requires explicit approval
+    max_iterations: 1
+
+# Escalation Policy
+escalation:
+  # When to escalate to human (user mode only)
+  triggers:
+    - open_questions_after_max_iterations
+    - unresolved_issues_after_max_iterations
+    - explicit_needs_human_status
+  
+  # Pipeline mode behavior when escalation would trigger
+  pipeline_fallback: reject  # reject | approve_with_warnings
+
+# Audit Settings
+audit:
+  log_all_feedback: true
+  persist_feedback_history: true
+  include_timestamps: true
+  retention_days: 90
+
+# Metrics Collection
+metrics:
+  track_review_duration: true
+  track_issues_per_iteration: true
+  track_approval_rate: true
