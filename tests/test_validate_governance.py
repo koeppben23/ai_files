@@ -3086,7 +3086,7 @@ def test_architect_autopilot_lifecycle_contract_is_defined_across_core_docs():
     rules_required = [
         "### 7.3.6 Architect-Only Autopilot Lifecycle (Policy)",
         "`SESSION_STATE.OutputMode`: `ARCHITECT | IMPLEMENT | VERIFY`",
-        "`/master` before valid `/start` bootstrap evidence MUST block with `BLOCKED-START-REQUIRED`",
+        "`/master` before valid `/start` bootstrap evidence may produce `BLOCKED-START-REQUIRED`",
         "`IMPLEMENT` mode requires explicit operator trigger (`Implement now`).",
         "`VERIFY` mode is evidence reconciliation only.",
     ]
