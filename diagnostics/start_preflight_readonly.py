@@ -20,7 +20,8 @@ from governance.infrastructure.binding_evidence_resolver import BindingEvidenceR
 from governance.infrastructure.wiring import configure_gateway_registry
 
 
-READ_ONLY = True
+_is_pipeline = os.environ.get("CI", "").strip().lower() not in {"", "0", "false", "no", "off"}
+READ_ONLY = _is_pipeline or os.environ.get("OPENCODE_DIAGNOSTICS_ALLOW_WRITE", "0") != "1"
 
 
 def _resolve_bindings() -> tuple[Path, Path, bool, Path | None, str]:
@@ -256,18 +257,21 @@ def build_engine_shadow_snapshot() -> dict[str, object]:
     }
 
 
-def run_persistence_hook() -> None:
-    print(
-        json.dumps(
-            {
-                "workspacePersistenceHook": "skipped",
-                "reason": "read-only-preflight",
-                "impact": "workspace/index persistence is kernel-owned only",
-                "read_only": True,
-            },
-            ensure_ascii=True,
-        )
-    )
+def run_persistence_hook() -> dict[str, object]:
+    if READ_ONLY:
+        result = {
+            "workspacePersistenceHook": "skipped",
+            "reason": "read-only-preflight",
+            "impact": "workspace/index persistence is kernel-owned only",
+            "read_only": True,
+        }
+        print(json.dumps(result, ensure_ascii=True))
+        return result
+
+    from diagnostics.start_persistence_hook import run_persistence_hook as _run_hook
+    result = _run_hook()
+    print(json.dumps(result, ensure_ascii=True))
+    return result
 
 
 def main() -> int:
