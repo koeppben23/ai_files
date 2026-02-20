@@ -1,0 +1,178 @@
+# Persistence Artifacts Policy Configuration
+#
+# SSOT Status: POLICY-BOUND
+# - This config is part of the engine master policy
+# - Changes require POLICY_PRECEDENCE_APPLIED audit event
+# - NOT modifiable via repo/process_env in pipeline mode
+# - Pack-locked on activation; hash recorded in SESSION_STATE
+#
+# Precedence: engine master policy > activation > mode-policy > host > repo
+
+# Policy Metadata
+policy:
+  version: "1.0.0"
+  precedence_level: "engine_master_policy"
+  pack_locked: true
+  audit_on_change: "POLICY_PRECEDENCE_APPLIED"
+
+# Artifact Definitions (Kernel-Enforced)
+# Each artifact defines: target, phase window, write behavior, failure handling
+artifacts:
+
+  # Repository Cache
+  repo_cache:
+    artifact_id: "repo_cache"
+    target_variable: "${REPO_CACHE_FILE}"
+    description: "Repository structure cache for fast-path reuse"
+    phase_window:
+      write_allowed: ["phase_2"]
+      overwrite_allowed: ["phase_2"]
+    write_behavior:
+      mode: "overwrite"
+      format: "yaml"
+      encoding: "utf-8"
+    failure_handling:
+      on_write_failure: "emit_write_requested"
+      on_parse_failure: "WARN_CONTINUE"
+      block_on_failure: false
+    required_keys:
+      - "Version"
+      - "RepoMapDigest"
+
+  # Repository Digest
+  repo_digest:
+    artifact_id: "repo_digest"
+    target_variable: "${REPO_DIGEST_FILE}"
+    description: "Repository map digest with git provenance"
+    phase_window:
+      write_allowed: ["phase_2"]
+      overwrite_allowed: ["phase_2"]
+    write_behavior:
+      mode: "create_or_append"
+      format: "markdown"
+      section_header_prefix: "## Repo Map Digest"
+      encoding: "utf-8"
+    failure_handling:
+      on_write_failure: "emit_write_requested"
+      on_parse_failure: "WARN_CONTINUE"
+      block_on_failure: false
+    required_keys:
+      - "GitHead"
+      - "RepoSignature"
+      - "ComponentScope"
+      - "Provenance"
+
+  # Decision Pack
+  decision_pack:
+    artifact_id: "decision_pack"
+    target_variable: "${REPO_DECISION_PACK_FILE}"
+    description: "Decision pack with A/B decisions from Phase 2.1"
+    phase_window:
+      write_allowed: ["phase_2_1"]
+      overwrite_allowed: ["phase_2_1"]
+    write_behavior:
+      mode: "overwrite"
+      format: "markdown"
+      encoding: "utf-8"
+    failure_handling:
+      on_write_failure: "emit_write_requested"
+      on_parse_failure: "WARN_CONTINUE"
+      block_on_failure: false
+    required_keys:
+      - "ID"
+      - "Decision"
+      - "Rationale"
+      - "Evidence"
+
+  # Business Rules Inventory
+  business_rules_inventory:
+    artifact_id: "business_rules_inventory"
+    target_variable: "${REPO_BUSINESS_RULES_FILE}"
+    description: "Extracted business rules from Phase 1.5"
+    phase_window:
+      write_allowed: ["phase_1_5"]
+      overwrite_allowed: ["phase_1_5"]
+    write_behavior:
+      mode: "update_full_content"
+      format: "markdown"
+      encoding: "utf-8"
+      repository_safety:
+        write_to_repo: false
+        emit_full_content_only: true
+        target_outside_repo: true
+    failure_handling:
+      on_write_failure: "emit_write_requested"
+      on_no_fallback_target: "WARN_MANUAL_PERSISTENCE_REQUIRED"
+      block_on_failure: false
+    required_keys:
+      - "Register"
+      - "Status"
+
+  # Workspace Memory
+  workspace_memory:
+    artifact_id: "workspace_memory"
+    target_variable: "${WORKSPACE_MEMORY_FILE}"
+    description: "Session state persistence for warm starts"
+    phase_window:
+      write_allowed: ["phase_2", "phase_4", "phase_5", "phase_6"]
+      overwrite_allowed: ["phase_2", "phase_4", "phase_5", "phase_6"]
+    write_behavior:
+      mode: "overwrite"
+      format: "yaml"
+      encoding: "utf-8"
+    failure_handling:
+      on_write_failure: "WARN_CONTINUE"
+      on_parse_failure: "WARN_CONTINUE"
+      block_on_failure: false
+    required_keys:
+      - "session_state_version"
+      - "ruleset_hash"
+
+  # Session State
+  session_state:
+    artifact_id: "session_state"
+    target_variable: "${SESSION_STATE_FILE}"
+    description: "Full session state for session resumption"
+    phase_window:
+      write_allowed: ["phase_0", "phase_1", "phase_2", "phase_3", "phase_4", "phase_5", "phase_6"]
+      overwrite_allowed: ["phase_0", "phase_1", "phase_2", "phase_3", "phase_4", "phase_5", "phase_6"]
+    write_behavior:
+      mode: "overwrite"
+      format: "yaml"
+      encoding: "utf-8"
+    failure_handling:
+      on_write_failure: "WARN_CONTINUE"
+      block_on_failure: false
+    required_keys:
+      - "Phase"
+      - "Mode"
+      - "session_run_id"
+
+# Write Failure Behaviors (Kernel-Enforced)
+write_failure_behaviors:
+  emit_write_requested:
+    description: "Emit write-requested flag in SESSION_STATE with target path and content"
+    action: "set SESSION_STATE.Persistence.WriteRequested.<artifact_id> = {path, content, reason}"
+    block_workflow: false
+
+  WARN_CONTINUE:
+    description: "Emit warning and continue without blocking"
+    action: "emit WARN-<artifact>-WRITE-FAILED"
+    block_workflow: false
+
+  WARN_MANUAL_PERSISTENCE_REQUIRED:
+    description: "Request manual persistence from operator"
+    action: "emit write-requested + WARN-MANUAL-PERSISTENCE-REQUIRED"
+    block_workflow: false
+
+  BLOCK_ON_FAILURE:
+    description: "Block workflow on write failure"
+    action: "set Mode=BLOCKED, Next=BLOCKED-<ARTIFACT>-WRITE-FAILED"
+    block_workflow: true
+
+# Repository Safety Policy (Kernel-Enforced)
+repository_safety:
+  allow_repo_writes: false
+  require_outside_repo_targets: true
+  emit_full_content_only: true
+  fallback_to_manual_persistence: true

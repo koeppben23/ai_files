@@ -410,7 +410,15 @@ rigor_levels:
             fake_repo_local_path
         )
         phase4_self_review._CONFIG_CACHE = None
-        phase4_self_review._default_resolver = None
+        
+        # Create a test resolver that allows repo-local fallback
+        class TestResolver:
+            def resolve_config_path(self):
+                return None  # No canonical path
+            def allow_repo_local_fallback(self):
+                return True  # Allow repo-local for tests
+        
+        phase4_self_review.set_config_path_resolver(TestResolver())
         
         with pytest.raises(phase4_self_review.PolicyConfigError) as exc_info:
             phase4_self_review.load_self_review_config(force_reload=True)
@@ -441,7 +449,15 @@ rigor_levels:
             fake_repo_local_path
         )
         phase4_self_review._CONFIG_CACHE = None
-        phase4_self_review._default_resolver = None
+        
+        # Create a test resolver that allows repo-local fallback
+        class TestResolver:
+            def resolve_config_path(self):
+                return None  # No canonical path
+            def allow_repo_local_fallback(self):
+                return True  # Allow repo-local for tests
+        
+        phase4_self_review.set_config_path_resolver(TestResolver())
         
         with pytest.raises(phase4_self_review.PolicyConfigError) as exc_info:
             phase4_self_review.load_self_review_config(force_reload=True)
@@ -498,7 +514,15 @@ critical_issue_types:
             fake_repo_local_path
         )
         phase4_self_review._CONFIG_CACHE = None
-        phase4_self_review._default_resolver = None
+        
+        # Create a test resolver that allows repo-local fallback
+        class TestResolver:
+            def resolve_config_path(self):
+                return None  # No canonical path
+            def allow_repo_local_fallback(self):
+                return True  # Allow repo-local for tests
+        
+        phase4_self_review.set_config_path_resolver(TestResolver())
         
         config = phase4_self_review.load_self_review_config(force_reload=True)
         
