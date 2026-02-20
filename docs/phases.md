@@ -34,7 +34,7 @@ Kernel authority boundary: policy and gate semantics are owned by kernel contrac
 | Phase 3B-2 - Contract Validation (Spec <-> Code) | Validates contract fidelity between specification and implementation. | **Conditional**: Only executed when Phase 3A detected APIs in scope. Contract mismatches block readiness when contract gates are active/applicable. Skipped entirely if no APIs present. |
 | Phase 4 - Ticket Execution (planning) | Produces the concrete implementation plan and review artifacts; no code output yet. | Planning phase; code-producing output remains blocked until explicit gate progression permits it. |
 | Phase 4 Step 1a - Feature Complexity Router | Classifies feature complexity (SIMPLE-CRUD, REFACTORING, MODIFICATION, COMPLEX, STANDARD) and determines planning depth. | Non-gate; determines which subsequent Phase 4 steps are required vs. optional. |
-| Phase 5 - Lead Architect Review (gate) | Architecture gatekeeper review for feasibility, risk, and quality readiness. | Explicit gate; failure blocks progression to implementation readiness. |
+| Phase 5 - Lead Architect Review (iterative gate) | Architecture gatekeeper review with up to 3 review iterations. Each iteration produces structured feedback (issues, suggestions, questions). | Iterative gate; approved after issues resolved OR escalated to human after max 3 iterations. |
 | Phase 5.3 - Test Quality Review (critical gate) | Reviews test strategy/coverage quality against gate criteria. | Critical gate; must pass (or pass with governed exceptions) before PR readiness. |
 | Phase 5.4 - Business Rules Compliance (conditional gate) | Checks implemented plan/output against extracted business rules. | Mandatory only if Phase 1.5 ran; non-compliance blocks readiness. |
 | Phase 5.5 - Technical Debt Proposal (optional gate) | Reviews and decides technical debt proposals and mitigation posture. | Optional gate; when activated, unresolved debt decisions can block approval. |
@@ -90,13 +90,82 @@ Phase 3 is **conditionally executed** based on API presence:
 - Phase 3B-1 → Phase 3B-2 (contract validation)
 - Phase 3B-2 → Phase 4
 
+## Phase 5 Iterative Review
+
+Phase 5 uses an **iterative review mechanism** to improve plan quality:
+
+### Review Cycle
+
+```
+Phase 4 (Plan v1) → Phase 5 Review Round 1
+                           ↓
+                    Feedback: Issues[], Suggestions[], Questions[]
+                           ↓
+                   Issues exist? → Phase 4 (Plan v2) → Review Round 2
+                           ↓
+                   ... (max 3 iterations)
+                           ↓
+                   Approved → Phase 6
+                   Rejected (3x) → Escalate to Human
+```
+
+### Parameters
+
+| Parameter | Value |
+|-----------|-------|
+| Maximum Iterations | 3 |
+| Reviewer | LLM (self-critique) |
+| Human Escalation | Optional (when questions remain or 3x rejected) |
+
+### Feedback Structure
+
+Each review iteration produces:
+
+| Field | Type | Purpose |
+|-------|------|---------|
+| `issues` | list[str] | Blocking problems - must be fixed |
+| `suggestions` | list[str] | Non-blocking improvements - recommended |
+| `questions` | list[str] | Questions for human review |
+| `status` | approved/rejected/needs-human | Review outcome |
+| `summary` | str | Brief explanation |
+
+### Escalation Criteria
+
+Automatic escalation to human occurs when:
+1. **Questions remain** after max iterations
+2. **Issues unresolved** after 3 review rounds
+3. **Explicit `needs-human` status** from reviewer
+
+### Implementation
+
+Implemented in `governance/application/use_cases/phase5_iterative_review.py`:
+- `Phase5ReviewFeedback` - Structured feedback per iteration
+- `Phase5ReviewState` - Tracks iteration count, feedback history, plan versions
+- `record_review_feedback()` - Records feedback and determines next state
+- `finalize_review()` - Returns approved/escalated result
+
+### SESSION_STATE Fields
+
+```yaml
+Phase5Review:
+  Iteration: 1..3
+  PlanVersion: 1..N
+  Status: pending | approved | escalated-to-human
+  FeedbackHistory:
+    - Iteration: 1
+      Issues: ["Missing test coverage"]
+      Suggestions: ["Add integration tests"]
+      Questions: []
+      Status: rejected
+ ```
+
 ## Gate Requirements for Code Generation
 
 Phase 3 API validation is **optional** and does NOT block code generation. The gates that MUST pass before code output:
 
 | Gate | Phase | Required? | Condition |
 |------|-------|-----------|-----------|
-| P5-Architecture | 5 | **Always** | Must be `approved` |
+| P5-Architecture | 5 | **Always** | Must be `approved` (after iterative review) |
 | P5.3-TestQuality | 5.3 | **Always** | Must be `pass` or `pass-with-exceptions` |
 | P5.4-BusinessRules | 5.4 | Conditional | Only if Phase 1.5 was executed |
 | P5.5-TechnicalDebt | 5.5 | Optional | Only when explicitly proposed |
@@ -112,5 +181,5 @@ Phase 3 API validation is **optional** and does NOT block code generation. The g
 | Phase 2 Step 3a | `CodebaseContext` (ExistingAbstractions, DependencyGraph, PatternFingerprint, TechnicalDebtMarkers) |
 | Phase 2 Step 3b | `BuildToolchain` (CompileAvailable, CompileCmd, TestAvailable, TestCmd, FullVerifyCmd, BuildSystem, MissingTool) |
 | Phase 4 Step 1a | `FeatureComplexity` (Class, Reason, PlanningDepth) |
-| Phase 5 | `Gates.P5-Architecture`, `Gates.P5.3-TestQuality`, `Gates.P5.4-BusinessRules`, `Gates.P5.5-TechnicalDebt`, `Gates.P5.6-RollbackSafety` |
+| Phase 5 | `Gates.P5-Architecture`, `Phase5Review` (Iteration, PlanVersion, Status, FeedbackHistory), `Gates.P5.3-TestQuality`, `Gates.P5.4-BusinessRules`, `Gates.P5.5-TechnicalDebt`, `Gates.P5.6-RollbackSafety` |
 | Phase 6 | `Gates.P6-ImplementationQA`, `BuildEvidence` (status, CompileResult, TestResult, IterationsUsed, ToolOutput) |
