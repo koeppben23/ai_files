@@ -55,6 +55,8 @@ EMBEDDED_REASON_CODE_TO_SCHEMA_REF: Final[dict[str, str]] = {
     "BLOCKED-P5-4-BUSINESS-RULES-GATE": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
     "BLOCKED-P5-6-ROLLBACK-SAFETY-GATE": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
     "BLOCKED-P6-PREREQUISITES-NOT-MET": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
+    "BLOCKED-PIPELINE-INTERACTIVE": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
+    "BLOCKED-PIPELINE-HUMAN-ASSIST": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
     # Install subsystem
     "BLOCKED-INSTALL-PRECHECK-MISSING-SOURCE": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
     "BLOCKED-INSTALL-VERSION-MISSING": "diagnostics/schemas/reason_payload_blocked_core.v1.json",

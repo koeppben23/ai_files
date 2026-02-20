@@ -1,0 +1,120 @@
+# Phase Execution Policy Configuration
+#
+# SSOT Status: POLICY-BOUND
+# - This config is part of the engine master policy
+# - Changes require POLICY_PRECEDENCE_APPLIED audit event
+# - NOT modifiable via repo/process_env in pipeline mode
+# - Pack-locked on activation; hash recorded in SESSION_STATE
+#
+# Precedence: engine master policy > activation > mode-policy > host > repo
+
+# Policy Metadata
+policy:
+  version: "1.0.0"
+  precedence_level: "engine_master_policy"
+  pack_locked: true
+  audit_on_change: "POLICY_PRECEDENCE_APPLIED"
+
+# Phase Routing Rules (Kernel-Enforced)
+# These rules define when phases execute and what triggers them.
+# MD files should NOT define routing logic - only output format.
+phase_routing:
+  
+  # Phase 1.2: Profile Detection
+  phase_1_2_profile_detection:
+    trigger:
+      type: "phase_completion"
+      phase: "phase_2"
+      description: "After Phase 2 (Repo Discovery) completes"
+    actions:
+      - "detect_profile_from_repo_signals"
+      - "load_profile_rulebook"
+      - "update_session_state_active_profile"
+    deferred_to: "post_phase_2"
+  
+  # Phase 1.3: Core Rules Activation
+  phase_1_3_core_rules_activation:
+    trigger:
+      type: "phase_entry"
+      phase: "phase_4"
+      description: "When Phase 4 (Implementation Planning) begins"
+    actions:
+      - "load_core_rulebook"
+      - "merge_with_profile_rules"
+      - "update_session_state_loaded_rulebooks"
+    deferred_to: "phase_4"
+
+# Phase Execution Constraints (Kernel-Enforced)
+phase_constraints:
+  
+  # Phase 1-3 Constraints
+  early_phases:
+    phases: ["phase_1", "phase_2", "phase_3"]
+    constraints:
+      - rulebook_required: false
+        description: "Phase 1-3 MUST NOT require rules.md"
+      - code_generation: false
+        description: "Phase 3 MUST NOT generate code"
+  
+  # Phase 4+ Constraints
+  implementation_phases:
+    phases: ["phase_4", "phase_5", "phase_6"]
+    constraints:
+      - rulebook_required: true
+        description: "Phase 4+ requires rules.md"
+        on_failure: "BLOCKED-RULEBOOK-LOAD-FAILED"
+
+# Mode Transitions (Kernel-Enforced)
+mode_routing:
+  
+  create_mode:
+    signals:
+      - "no_existing_plan"
+      - "new_feature_request"
+    next_mode: "PLAN"
+  
+  update_mode:
+    signals:
+      - "existing_plan_present"
+      - "modification_request"
+    next_mode: "BUILD"
+  
+  blocked_mode:
+    signals:
+      - "bootstrap_not_satisfied"
+      - "rulebook_load_failed"
+      - "preflight_failure"
+    next_mode: "BLOCKED"
+    emit_reason: true
+
+# Phase Advance Rules (Kernel-Enforced)
+advance_rules:
+  
+  phase_5_to_6:
+    conditions:
+      - "phase_5_complete"
+      - "all_gates_passed"
+      - "no_unresolved_issues"
+    on_failure: "remain_in_phase_5"
+  
+  phase_4_to_5:
+    conditions:
+      - "phase_4_plan_complete"
+      - "self_review_passed"
+      - "complexity_classified"
+    on_failure: "remain_in_phase_4"
+
+# Pipeline Mode Constraints (Kernel-Enforced)
+pipeline_mode:
+  
+  human_interaction:
+    enabled: false
+    on_violation: "BLOCKED-PIPELINE-INTERACTIVE"
+  
+  approval_required:
+    enabled: false
+    on_violation: "BLOCKED-PIPELINE-HUMAN-ASSIST"
+  
+  prompt_budget:
+    check: "hard"
+    on_exceeded: "BLOCKED-PIPELINE-PROMPT-BUDGET"
