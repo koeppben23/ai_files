@@ -128,7 +128,7 @@ Resolution semantics (BINDING):
 - Degenerate-path validation MUST be applied:
   a) to the raw emitted TargetPath string, AND
   b) to the fully resolved path after variable substitution.
-- If EITHER form matches a degenerate pattern, the workflow MUST BLOCK.
+- If either form matches a degenerate pattern, kernel emits a blocked outcome.
 
 Purpose:
 - Prevent host/path parsing defects (e.g., Windows drive token "C" / "C:" degenerating into a repo-local file).
@@ -179,7 +179,7 @@ Binding (session topology):
 - `SESSION_STATE` content MUST be persisted per repository at `${SESSION_STATE_FILE}`.
 - The global file at `${SESSION_STATE_POINTER_FILE}` MUST be treated as a pointer/locator for the currently active repo session.
 - The global pointer MUST NOT be used as a shared multi-repo session payload store.
-- If pointer and repo session disagree, the workflow MUST fail-closed and request explicit reconciliation.
+- If pointer and repo session disagree, kernel fails closed and requests explicit reconciliation.
 
 ### Repo-scoped Persistent Files (outside the repo)
 
@@ -196,9 +196,9 @@ Binding:
 - The runtime MUST maintain a single persistent mapping record `<repo_fingerprint> ↔ ${REPO_NAME}` at:
   `${REPO_IDENTITY_MAP_FILE}`
   and, on each run, validate that the newly computed identifiers match any existing mapping.
-- If a mismatch is detected between the computed identifiers and the persisted mapping, the workflow MUST treat
-  this as a configuration error: it MUST NOT create or use a second, divergent state tree, and MUST surface a
-  clear reconciliation instruction to the user.
+- If a mismatch is detected between the computed identifiers and the persisted mapping, kernel treats
+  this as a configuration error and avoids creating a second divergent state tree.
+  The response presents a clear reconciliation instruction.
 
 ### Repo Identity Evidence Policy (Kernel-Enforced)
 
@@ -517,7 +517,7 @@ Top-tier load evidence obligation (binding):
   `SESSION_STATE.RulebookLoadEvidence.top_tier.*` MUST be populated with load evidence
   (canonical path and/or tool evidence reference).
 
-**Search order (per file):**
+**Reference lookup paths (informational):**
 1. Workspace-local override (optional, outside the repo): `${REPO_OVERRIDES_HOME}/<FILE>.md`
 2. Global commands: `${COMMANDS_HOME}/<FILE>.md`
 3. Global config: `${OPENCODE_HOME}/<FILE>.md` (fallback)
@@ -934,7 +934,7 @@ Which do you want: A or B?"
 Rules (binding):
 - The workflow MUST NOT ask open-ended questions like "Can you clarify?" without providing options.
 - The workflow MUST NOT ask more than one question in the closing line.
-- If the user does not choose, the workflow MUST proceed with the recommended option
+- If the user does not choose, the response continues with the recommended option
   only if it is risk-minimizing and does not violate scope/contract rules; otherwise it must remain BLOCKED.
 
 #### Confidence bands for Auto-Advance (Policy)
@@ -968,12 +968,12 @@ When blocked, output includes a deterministic recovery block:
 [BLOCKED]
 Reason: <one sentence>
 Evidence: <what was attempted / what is missing>
-Required input:
+Missing evidence:
   - <exact artifact/command/output needed>
-Recovery steps:
+Recovery:
   1) <do X>
   2) <do Y>
-Resume pointer: <exact Next pointer, e.g., "Phase 4 — Step 0 (Initialization)" >
+Resume at: <exact next pointer, e.g., "Phase 4 — Step 0 (Initialization)">
 ```
 
 **Machine-readable blocker envelope (mandatory):**
@@ -1125,7 +1125,8 @@ Operator lifecycle (canonical):
 
 `/start` invocation guard (binding):
 - If `start.md` is present due command injection, `/start` is already invoked for this turn.
-- In that case, workflow MUST proceed with bootstrap and MUST NOT ask operator to run `/start` again in the same turn.
+- In that case, bootstrap continues without asking the operator to rerun `/start` in the same turn.
+- In that case, workflow MUST NOT ask operator to run `/start` again in the same turn.
 
 Execution mode enum (binding):
 - `SESSION_STATE.OutputMode`: `ARCHITECT | IMPLEMENT | VERIFY`
@@ -1141,7 +1142,7 @@ Mode constraints:
   - Only evidence reconciliation/claim status updates; no new implementation proposals unless explicitly requested.
 
 Start-order gate (binding):
-- If `/master` is invoked before `/start` evidence/bootstrap is established for the current repo, workflow MUST block with `BLOCKED-START-REQUIRED`.
+- If `/master` is invoked before `/start` evidence/bootstrap is established for the current repo, kernel may emit `BLOCKED-START-REQUIRED`.
 - Required recovery command: `/start`.
 
 ### 2.5 Default Decision Policies (DDP) — Reduce Cognitive Load (Policy)

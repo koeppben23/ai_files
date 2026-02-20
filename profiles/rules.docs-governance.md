@@ -111,7 +111,7 @@ SESSION_STATE:
 
 Binding:
 - If a docs-governance criterion marked `critical=true` is `fail`, status MUST include a WARN code and recovery plan.
-- Docs-governance scorecard MUST NOT directly set `Mode=BLOCKED` (advisory addon).
+- Docs-governance scorecard does not directly mutate mode state (advisory addon).
 
 Claim-to-evidence (binding):
 - Any PR-critical docs claim (e.g., "schema aligned", "manifest references valid", "README terms canonical") MUST map to an `evidenceRef`.

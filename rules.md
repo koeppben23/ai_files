@@ -103,9 +103,9 @@ Component Scope is a bounded set of repo-relative paths (folders) that define ow
 - `libs/shared`
 
 Binding rules:
-- If code generation is requested and **Component Scope is not explicit**, the workflow MUST stop (BLOCKED) and request it.
-- If Component Scope is provided, all recommendations and profile detection MUST prefer signals inside those paths.
-- The Component Scope must be recorded in session state (`SESSION_STATE.ComponentScopePaths` + evidence).
+- If code generation is requested and **Component Scope is not explicit**, kernel may return a blocked outcome and request clarification.
+- If Component Scope is provided, recommendations and profile detection prefer signals inside those paths.
+- The response records component scope in session state (`SESSION_STATE.ComponentScopePaths` + evidence).
 
 ### 2.x Working Set & Touched Surface (Binding once Phase 2 completed)
 
@@ -209,7 +209,7 @@ If repo signals are ambiguous (e.g., monorepo with multiple stacks) and no expli
   - request explicit selection using a single targeted numbered prompt (`1=<recommended> | 2=<alt> | 3=<alt> | 4=fallback-minimum | 0=abort/none`)
   - document assumptions
   - downgrade confidence appropriately per the Master Prompt / confidence rules
-- if the ambiguity materially affects architecture/tooling/gate decisions, the workflow MUST block with `BLOCKED-AMBIGUOUS-PROFILE` until clarified
+- if the ambiguity materially affects architecture/tooling/gate decisions, kernel may emit `BLOCKED-AMBIGUOUS-PROFILE` until clarified
 
 ### 4.5 Active Profile Must Be Traceable
 
@@ -470,9 +470,7 @@ Binding constraints:
 - Domain rules MUST be unit-testable without infrastructure.
 - Orchestration MUST NOT encode business rules beyond sequencing.
 
-If this gate is triggered and missing or incomplete:
-- the system MUST block progress
-- the system MUST describe the minimal output required to unblock
+If this gate is triggered and missing or incomplete, the response reports a kernel-managed blocked status with the minimal output needed to continue.
 
 ---
 
@@ -493,10 +491,7 @@ The Business Rules Ledger MUST:
 If the change is purely technical (refactoring, performance, tooling, infrastructure),
 the Business Rules Ledger MUST NOT be required.
 
-If this rule is triggered and the ledger is missing or incomplete:
-- the system MUST block progress
-- the system MUST explain exactly which rule is missing
-- the system MUST describe the minimal change required to unblock
+If this rule is triggered and the ledger is missing or incomplete, the response reports a kernel-managed blocked status, names the missing rule, and describes the minimal change needed.
 
 ---
 
@@ -520,9 +515,7 @@ Additionally (Test Signal Requirements, Binding):
 The absence of tests is NOT allowed.
 Partial coverage is allowed ONLY with explicit justification.
 
-If this rule is triggered and the matrix is missing or inconsistent:
-- the system MUST block progress
-- the system MUST describe the smallest acceptable matrix to unblock
+If this rule is triggered and the matrix is missing or inconsistent, the response reports a kernel-managed blocked status and the smallest acceptable matrix.
 
 ---
 
@@ -746,11 +739,11 @@ Output mode enum (binding):
 - `SESSION_STATE.OutputMode`: `ARCHITECT | IMPLEMENT | VERIFY`
 
 Rules:
-- `/master` before valid `/start` bootstrap evidence MUST block with `BLOCKED-START-REQUIRED` and `QuickFixCommands: ["/start"]`.
+- `/master` before valid `/start` bootstrap evidence may produce `BLOCKED-START-REQUIRED` with `QuickFixCommands: ["/start"]`.
 - `ARCHITECT` mode is default and decision-first; no full code diff output.
 - `IMPLEMENT` mode requires explicit operator trigger (`Implement now`).
 - `VERIFY` mode is evidence reconciliation only.
-- If no valid decision options can be produced, workflow MUST block with `BLOCKED-MISSING-DECISION` (no fake option lists).
+- If no valid decision options can be produced, kernel may emit `BLOCKED-MISSING-DECISION` (no fake option lists).
 
 Additional output mode:
   - If `SESSION_STATE.OutputMode` is `ARCHITECT`, output MUST present a `DecisionSurface` (what you must decide now vs can defer)
@@ -1160,7 +1153,7 @@ If a ticket changes externally-consumed contracts/events/shared schemas, cross-r
 
 Binding:
 - The plan/review MUST include `CrossRepoImpact` with affected consumers and required sync actions.
-- If consumer inventory is unknown, the workflow MUST block with a minimal request:
+- If consumer inventory is unknown, kernel may emit a minimal request:
   - either consumer inventory, or
   - explicit confirmation: `single-repo, no external consumers`.
 
@@ -1251,10 +1244,12 @@ Reload is a control-plane operation, not an implementation permission.
 
 ## 7.11.1 /start Re-invocation Loop Guard (Core, Binding)
 
+- Workflow MUST NOT ask operator to run `/start` again in the same turn.
+
 If `start.md` content is present because `/start` command triggered command injection, `/start` is considered invoked for this turn.
 
 Rules:
-- Assistant MUST proceed with bootstrap flow and MUST NOT ask operator to run `/start` again in the same turn.
+- Assistant continues with bootstrap flow and avoids asking the operator to rerun `/start` in the same turn.
 - Re-requesting `/start` is allowed only when evidence shows command context was not injected (host integration failure).
 
 ## 7.12 Operator Explain Contracts (Core, Binding)
@@ -1304,7 +1299,7 @@ At Phase-4 re-entry, workflow SHOULD persist:
 - `ActivationDelta.RepoFactsHash`
 
 If both hashes are unchanged, activation outcome MUST be bit-identical.
-If hashes are unchanged but outcome differs, workflow MUST block with `BLOCKED-ACTIVATION-DELTA-MISMATCH`.
+If hashes are unchanged but outcome differs, kernel may emit `BLOCKED-ACTIVATION-DELTA-MISMATCH`.
 
 ## 7.16 Toolchain Pinning Evidence Policy (Core, Binding)
 
