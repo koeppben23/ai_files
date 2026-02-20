@@ -1,33 +1,23 @@
-Continue the current session strictly according to the canonical SESSION_STATE (see `SESSION_STATE_SCHEMA.md`).
+# Governance Continue
 
-- Do NOT re-run discovery
+Continue uses canonical `SESSION_STATE` from `SESSION_STATE_SCHEMA.md`.
 
-Execute ONLY the step referenced by `SESSION_STATE.Next`.
+Rails-only scope:
+- output structure and quality checklist only
+- informational references to kernel-managed decisions
+- no local execution policy or state-mutation directives
 
-Binding preflight:
-1) If `SESSION_STATE.Phase` is at least Phase 2 AND BOTH `SESSION_STATE.RepoMapDigest` and `SESSION_STATE.RepoModel` are missing:
-   - set `Mode=BLOCKED`
-   - set `Next="BLOCKED-Phase2-RepoDiscovery"`
-   - record blocker `REPO-DIGEST-MISSING`
-   - request minimal action: rerun Phase 2 (repo discovery) in the current repo scope
-2) If `SESSION_STATE.Phase` is at least Phase 2 AND `SESSION_STATE.WorkingSet` is missing:
-   - set `Mode=DEGRADED`
-   - record warning `WORKING-SET-MISSING`
-   - continue, but require `WorkingSet` to be populated in the next Phase 4 output
-3) If `SESSION_STATE.Phase` is at least Phase 4 AND `SESSION_STATE.TouchedSurface` is missing:
-   - set `Mode=DEGRADED`
-   - record warning `TOUCHED-SURFACE-MISSING`
-   - continue, but require `TouchedSurface` to be populated in the next Phase 4 output
-4) If `SESSION_STATE.Phase` is at least Phase 4 AND `SESSION_STATE.TicketRecordDigest` is missing:
-   - set `Mode=DEGRADED`
-   - record warning `TICKET-RECORD-DIGEST-MISSING`
-   - continue, but require `TicketRecordDigest` (and ideally `NFRChecklist`) to be populated in the next Phase 4 output
+Output checklist:
+- reflect current `SESSION_STATE.phase` and `SESSION_STATE.next`
+- include delta-only progress for the active step
+- if kernel reports a blocker or warning, render it with concise evidence and one recovery action
+- keep profile context stable in the response narrative; do not redefine profile selection semantics here
 
-5) If `SESSION_STATE.FastPath=true`:
-   - in Phase 5, apply reduced review scope as defined in `master.md`
-
-Profile rule:
-- Do NOT change `SESSION_STATE.ActiveProfile`. If it is missing/ambiguous, stop and request it.
+Kernel references (informational):
+- discovery/re-discovery behavior is kernel-managed
+- blocked/degraded routing is kernel-managed
+- fast-path scope changes are kernel-managed
+- active profile resolution is kernel-managed
 
 Copyright © 2026 Benjamin Fuchs.
 All rights reserved. See LICENSE.

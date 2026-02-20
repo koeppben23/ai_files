@@ -292,9 +292,9 @@ These status codes replace hard blocking. They MUST be:
 
 ### WARN-OPENAPI-VERSION-UNKNOWN
 
-**Trigger:** Spec version cannot be inferred from `openapi:` or `swagger:` fields.
+**Condition:** Spec version cannot be inferred from `openapi:` or `swagger:` fields.
 
-**Recovery steps:**
+**Operator guidance:**
 1) Locate authoritative spec(s) and confirm the header.
 2) If needed, introduce a small repo config (e.g. `.openapi-config.yaml`) stating version and spec root.
 
@@ -302,9 +302,9 @@ These status codes replace hard blocking. They MUST be:
 
 ### WARN-OPENAPI-MISSING-SPEC
 
-**Trigger:** Addon is required but no spec is found in expected locations.
+**Condition:** Addon is required but no spec is found in expected locations.
 
-**Recovery steps:**
+**Operator guidance:**
 1) Confirm whether the service is externally exposed.
 2) If yes: create the spec or declare its location.
 3) If no: set `SESSION_STATE.Scope.ExternalAPIs = []` and explain why the addon was considered.
@@ -313,9 +313,9 @@ These status codes replace hard blocking. They MUST be:
 
 ### WARN-OPENAPI-SPEC-IMPLEMENTATION-MISMATCH
 
-**Trigger:** Evidence indicates implementation diverges from spec (tests/CI, manual diff review, or generation checks).
+**Condition:** Evidence indicates implementation diverges from spec (tests/CI, manual diff review, or generation checks).
 
-**Recovery steps:**
+**Operator guidance:**
 1) Identify mismatch class (status code, field naming, missing fields, schema type mismatch).
 2) Decide direction: fix implementation vs update spec (only with explicit contract change intent).
 3) Re-run repo-native contract checks (or add a minimal one if absent).
@@ -324,9 +324,9 @@ These status codes replace hard blocking. They MUST be:
 
 ### WARN-OPENAPI-BREAKING-CHANGE-UNAPPROVED
 
-**Trigger:** A breaking change is introduced without explicit approval.
+**Condition:** A breaking change is introduced without explicit approval.
 
-**Recovery steps:**
+**Operator guidance:**
 1) Revert to additive change, OR
 2) Implement a versioning strategy, OR
 3) Capture explicit approval and document migration path.

@@ -47,7 +47,7 @@ When active, maintain:
 - `WARN-FE-OPENAPI-DRIFT-RISK`
 - `WARN-FE-OPENAPI-NO-NEGATIVE-TEST`
 
-## Recovery steps template
+## Recovery template
 
 1. Locate generator command/config in repo scripts or CI.
 2. Regenerate client deterministically.

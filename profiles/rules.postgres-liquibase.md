@@ -755,13 +755,13 @@ For high-risk changes, attach:
 
 ### BLOCKED-MISSING-DB-VERSION
 
-**Trigger:** `DB_TARGET_PG_MAJOR` not declared in repository
+**Condition:** `DB_TARGET_PG_MAJOR` not declared in repository
 
-**Resume pointer:** Phase 2 — Repository Discovery
+**Resume at:** Phase 2 - Repository Discovery
 
-**Required input:** Add `DB_TARGET_PG_MAJOR` declaration to `db/config.yaml` or equivalent
+**Missing evidence:** Add `DB_TARGET_PG_MAJOR` declaration to `db/config.yaml` or equivalent
 
-**Recovery steps:**
+**Operator guidance:**
 1. Determine target PostgreSQL major version(s)
 2. Add to `db/config.yaml`: `DB_TARGET_PG_MAJOR: 15`
 3. Re-run discovery
@@ -770,13 +770,13 @@ For high-risk changes, attach:
 
 ### BLOCKED-FORMAT-UNDEFINED
 
-**Trigger:** Multiple changelog formats detected without `LIQUIBASE_FORMAT` declaration
+**Condition:** Multiple changelog formats detected without `LIQUIBASE_FORMAT` declaration
 
-**Resume pointer:** Phase 2 — Repository Discovery
+**Resume at:** Phase 2 - Repository Discovery
 
-**Required input:** Declare format choice in `db/config.yaml`
+**Missing evidence:** Declare format choice in `db/config.yaml`
 
-**Recovery steps:**
+**Operator guidance:**
 1. Choose format: XML, YAML, or HYBRID
 2. Add to `db/config.yaml`: `LIQUIBASE_FORMAT: XML`
 3. If HYBRID: Document which changesets use which format
@@ -786,15 +786,15 @@ For high-risk changes, attach:
 
 ### BLOCKED-MIGRATION-UNSAFE
 
-**Trigger:** Migration violates safety rules for declared PostgreSQL version
+**Condition:** Migration violates safety rules for declared PostgreSQL version
 
-**Resume pointer:** Phase 5.3 — Implementation Quality Gate
+**Resume at:** Phase 5.3 - Implementation Quality Gate
 
-**Required input:** 
+**Missing evidence:**
 - Revised migration with safe pattern, OR
 - Explicit approval + operational playbook for risky migration
 
-**Recovery steps:**
+**Operator guidance:**
 1. Identify violated rule (CI output shows which check failed)
 2. Evaluate against `DB_TARGET_PG_MAJOR` (e.g., PG15 vs PG10)
 3. Refactor migration OR get approval
@@ -805,15 +805,15 @@ For high-risk changes, attach:
 
 ### BLOCKED-MIGRATION-NO-ROLLBACK
 
-**Trigger:** Changeset has no rollback strategy and is not explicitly marked FORWARD-ONLY
+**Condition:** Changeset has no rollback strategy and is not explicitly marked FORWARD-ONLY
 
-**Resume pointer:** Phase 5.3 — Implementation Quality Gate
+**Resume at:** Phase 5.3 - Implementation Quality Gate
 
-**Required input:** 
+**Missing evidence:**
 - Add rollback block to changeset, OR
 - Document backout strategy + mark FORWARD-ONLY + get approval
 
-**Recovery steps:**
+**Operator guidance:**
 1. Review if rollback is technically possible
 2. If yes: Add `<rollback>` block
 3. If no: Document why + backout plan + mark FORWARD-ONLY
@@ -823,15 +823,15 @@ For high-risk changes, attach:
 
 ### BLOCKED-MIGRATION-COMPATIBILITY
 
-**Trigger:** Migration breaks N-1 compatibility without approval
+**Condition:** Migration breaks N-1 compatibility without approval
 
-**Resume pointer:** Phase 5.3 — Implementation Quality Gate
+**Resume at:** Phase 5.3 - Implementation Quality Gate
 
-**Required input:** 
+**Missing evidence:**
 - Refactor to maintain compatibility, OR
 - Explicit lockstep approval + deployment coordination plan
 
-**Recovery steps:**
+**Operator guidance:**
 1. Identify breaking change
 2. Refactor to multi-step compatible approach
 3. Or: Get lockstep approval + document deployment order
