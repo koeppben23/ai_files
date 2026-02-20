@@ -2,8 +2,13 @@
 
 from __future__ import annotations
 
+import os
+
 from governance.application.ports.gateways import GatewayRegistry, set_gateway_registry
 from governance.infrastructure.error_reason_router import canonicalize_reason_payload_failure
+from governance.infrastructure.phase4_config_resolver import configure_phase4_self_review_resolver
+from governance.infrastructure.phase5_config_resolver import configure_phase5_review_resolver
+from governance.infrastructure.policy_bundle_loader import ensure_policy_bundle_loaded
 from governance.infrastructure.interaction_gate import evaluate_interaction_gate
 from governance.infrastructure.mode_repo_rules import (
     classify_repo_doc,
@@ -27,6 +32,13 @@ from governance.infrastructure.write_policy import evaluate_target_path
 
 
 def configure_gateway_registry() -> None:
+    effective_mode = str(os.environ.get("OPENCODE_OPERATING_MODE", "user")).strip() or "user"
+
+    # Runtime startup wiring for policy-bound config resolvers.
+    configure_phase4_self_review_resolver(mode=effective_mode)
+    configure_phase5_review_resolver(mode=effective_mode)
+    ensure_policy_bundle_loaded(mode=effective_mode)
+
     set_gateway_registry(
         GatewayRegistry(
             resolve_repo_root=resolve_repo_root,

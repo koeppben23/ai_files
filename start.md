@@ -17,7 +17,7 @@ When executed as an OpenCode command (`/start`), this prompt injects the install
 **Implementation Reference:** The OpenCode host executes `${COMMANDS_HOME}/diagnostics/start_binding_evidence.py`
 to resolve binding evidence. This script is part of the kernel and implements the binding resolution logic.
 
-**Policy (this document):**
+**Informational (kernel-enforced):**
 - If binding file exists at `${COMMANDS_HOME}/governance.paths.json`:
   - Load and validate binding evidence
   - Proceed with bootstrap
@@ -34,36 +34,17 @@ Persistence and workspace readiness are kernel-owned only.
 **Implementation Reference:** The OpenCode host executes `${COMMANDS_HOME}/diagnostics/start_preflight_readonly.py`
 to perform preflight checks. This script is part of the kernel and implements the preflight logic.
 
-**Policy (this document):**
+**Informational (kernel-enforced):**
 
-Identity evidence boundary (binding):
-- Helper output is operational convenience status only and MUST NOT be treated as canonical repo identity evidence.
-- Repo identity remains governed by `master.md` evidence contracts (host-collected git evidence, operator-provided evidence, or prior validated mapping/session state).
+Identity evidence boundary (informational):
+- Helper output is operational convenience status only and is not canonical repo identity evidence.
+- Repo identity is governed by `master.md` evidence contracts (host-collected git evidence, operator-provided evidence, or prior validated mapping/session state).
 
-Identity discovery order (binding):
-- If host shell tools are available and the current workspace is a git repository, `/start` MUST collect repo identity evidence first via non-destructive git commands (`git remote get-url origin`, `git symbolic-ref refs/remotes/origin/HEAD`, `git rev-parse --show-toplevel`) before requesting operator-provided evidence.
-- If host-side git discovery is unavailable or fails, `/start` MUST block with identity-missing reason and provide copy-paste recovery commands.
-
-Bootstrap command preflight (binding):
-- `/start` MUST check required external commands in `PATH` first (at minimum: `git`, `${PYTHON_COMMAND}` when diagnostics helpers are used).
-- `/start` MUST load command requirements from `${COMMANDS_HOME}/diagnostics/tool_requirements.json` when available.
-- If `diagnostics/tool_requirements.json` is unavailable, `/start` MUST derive the command list by scanning canonical governance artifacts (`master.md`, `rules.md`, `profiles/rules*.md`, `diagnostics/*.py`) and classify it into `required_now`, `required_later`, and `optional`.
-- `/start` MUST print the resolved command inventory and probe result (`available`/`missing`) before requesting operator action.
-- Preflight diagnostics are informational and MUST NOT create a blocker by themselves.
-- If all required commands are present, `/start` should report `preflight: ok` and continue without interruption.
-- If commands are missing, `/start` should report `preflight: degraded` with missing command names and copy-paste install/recovery hints; block only if a downstream gate cannot be satisfied without the missing command.
-- If a missing command is installed later, rerunning `/start` MUST recompute the inventory from files and continue with refreshed PATH evidence.
-- Preflight MUST run in Phase `0` / `1.1`, with fresh probe signals only (`ttl=0`) and `observed_at` timestamp.
-- Preflight output MUST stay compact (max 5 checks) and use fixed keys: `available`, `missing`, `impact`, `next`.
-- Preflight output SHOULD separate `required_now` vs `required_later` and expose a deterministic `block_now` signal (`true` iff any `required_now` command is missing).
-- Missing-command diagnostics MUST include `expected_after_fix`, `verify_command`, and `restart_hint`.
-- `restart_hint` MUST be deterministic: `restart_required_if_path_edited` or `no_restart_if_binary_in_existing_path`.
-
-Binding evidence semantics (binding):
-- Only an existing installer-owned `${COMMANDS_HOME}/governance.paths.json` qualifies as canonical binding evidence.
-- Fallback computed payloads are debug output only (`nonEvidence`) and MUST NOT be treated as binding evidence.
-- If installer-owned binding file is missing, workflow MUST block with `BLOCKED-MISSING-BINDING-FILE`.
-- Canonical binding location is `${USER_HOME}/.config/opencode/commands/governance.paths.json`.
+Bootstrap preflight and evidence semantics (informational):
+- `/start` may collect git identity evidence and command availability diagnostics before bootstrap completes.
+- Binding evidence uses installer-owned `${COMMANDS_HOME}/governance.paths.json` as canonical source.
+- Fallback computed payloads remain debug-only (`nonEvidence`).
+- Blocked reasons, gate decisions, and recovery commands are kernel-managed (see `diagnostics/bootstrap_policy.yaml` and `diagnostics/blocked_reason_catalog.yaml`).
 
 ---
 
