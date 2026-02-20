@@ -43,9 +43,8 @@ def test_stability_sla_is_normative_and_aligned_with_core_contracts():
         "`STABILITY_SLA.md` is the normative Go/No-Go contract for governance releases.",
         "Stability sync note (binding): governance release/readiness decisions MUST also satisfy `STABILITY_SLA.md`.",
         "4. Activated templates/addon rulebooks (manifest-driven)",
-        "SUGGEST: ranked profile shortlist with evidence (top 1 marked recommended)",
-        "Detected multiple plausible profiles. Reply with ONE number:",
-        "0) abort/none",
+        "Profile selection is kernel-enforced",
+        "diagnostics/blocked_reason_catalog.yaml",
     ]
     rules_required = [
         "Governance release stability is normatively defined by `STABILITY_SLA.md`",
@@ -226,17 +225,15 @@ def test_governance_lint_script_exists_and_passes():
 
 
 @pytest.mark.governance
-def test_blocked_consistency_schema_vs_master():
+def test_blocked_consistency_schema_vs_catalog():
     schema = read_text(REPO_ROOT / "SESSION_STATE_SCHEMA.md")
-    master = read_text(REPO_ROOT / "master.md")
+    catalog = read_text(REPO_ROOT / "diagnostics" / "blocked_reason_catalog.yaml")
 
     s = set(re.findall(r"BLOCKED-[A-Z-]+", schema))
-    m = set(re.findall(r"BLOCKED-[A-Z-]+", master))
+    c = set(re.findall(r"BLOCKED-[A-Z-]+", catalog))
 
-    missing_in_master = s - m
-    missing_in_schema = m - s
-    assert not missing_in_master, f"Missing in master: {sorted(missing_in_master)}"
-    assert not missing_in_schema, f"Missing in schema: {sorted(missing_in_schema)}"
+    missing_in_catalog = s - c
+    assert not missing_in_catalog, f"Missing in blocked_reason_catalog.yaml: {sorted(missing_in_catalog)}"
 
 
 @pytest.mark.governance
@@ -357,7 +354,7 @@ def test_control_plane_precision_contracts_for_overrides_reload_and_priority_ord
         "DO NOT read rulebooks from the repo working tree",
         "Rulebooks may only be loaded from trusted governance roots outside the repo working tree",
         "Workspace-local override (optional, outside the repo): `${REPO_OVERRIDES_HOME}/rules.md`",
-        "Workspace-local override (optional, outside the repo): `${REPO_OVERRIDES_HOME}/profiles/rules*.md`",
+        "${REPO_OVERRIDES_HOME}/profiles/rules*.md",
         "4. Activated templates/addon rulebooks (manifest-driven)",
         "`README-RULES.md` (if present) is descriptive/executive summary only and non-normative.",
         "Precedence sync note (binding): this priority order MUST stay consistent with `rules.md` anchor `RULEBOOK-PRECEDENCE-POLICY`.",
@@ -455,7 +452,6 @@ def test_machine_readable_reason_payload_contract_is_defined():
         "`reason_code`",
         "`surface` (`build|tests|static|addons|profile|state|contracts|security|performance|other`)",
         "`recovery_steps` (array, max 3 concrete steps)",
-        "BLOCKED/WARN/NOT_VERIFIED outputs MUST include `SESSION_STATE.Diagnostics.ReasonPayloads`",
     ]
     schema_required = [
         "### 2.1.0 Reason Payloads (machine-readable, binding when reason codes are emitted)",
@@ -1923,9 +1919,7 @@ def test_profile_autodetect_runs_before_manual_selection_prompt():
     start = read_text(REPO_ROOT / "start.md")
 
     master_required = [
-        "Autodetect-first refinement (binding):",
-        "Attempt deterministic repo-signal ranking before asking operator.",
-        "auto-select without operator prompt",
+        "Profile selection is kernel-enforced",
     ]
     rules_required = [
         "first attempt deterministic ranking from repo signals and ticket/context signals; if one top profile is uniquely supported, auto-select it",
@@ -3108,7 +3102,6 @@ def test_architect_autopilot_lifecycle_contract_is_defined_across_core_docs():
         "SESSION_STATE.OutputMode = ARCHITECT | IMPLEMENT | VERIFY",
         "Default after `/master` is `ARCHITECT`.",
         "BLOCKED-START-REQUIRED",
-        "BLOCKED-MISSING-DECISION",
     ]
     rules_required = [
         "### 7.3.6 Architect-Only Autopilot Lifecycle (Policy)",

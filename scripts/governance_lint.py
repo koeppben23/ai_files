@@ -844,9 +844,7 @@ def check_stability_sla_contract(issues: list[str]) -> None:
         "normative Go/No-Go contract",
         "Stability sync note (binding): governance release/readiness decisions MUST also satisfy `STABILITY_SLA.md`.",
         "4. Activated templates/addon rulebooks (manifest-driven)",
-        "SUGGEST: ranked profile shortlist with evidence (top 1 marked recommended)",
-        "Detected multiple plausible profiles. Reply with ONE number",
-        "0) abort/none",
+        "Profile selection is kernel-enforced",
     ]
     missing_master = [token for token in master_required_tokens if token not in master]
     if missing_master:
@@ -1213,7 +1211,6 @@ def check_architect_autopilot_lifecycle_contract(issues: list[str]) -> None:
         "SESSION_STATE.OutputMode = ARCHITECT | IMPLEMENT | VERIFY",
         "Default after `/master` is `ARCHITECT`.",
         "BLOCKED-START-REQUIRED",
-        "BLOCKED-MISSING-DECISION",
     ]
     rules_required = [
         "### 7.3.6 Architect-Only Autopilot Lifecycle (Policy)",

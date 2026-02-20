@@ -47,6 +47,10 @@ class ConfigPathResolver(Protocol):
     def resolve_config_path(self) -> Path | None:
         """Resolve path to policy-bound config, or None if unavailable."""
         ...
+    
+    def allow_repo_local_fallback(self) -> bool:
+        """Check if repo-local fallback is allowed (dev/test opt-in)."""
+        ...
 
 
 # Default resolver is set at runtime from infrastructure layer
@@ -264,12 +268,28 @@ def load_self_review_config(*, force_reload: bool = False) -> SelfReviewConfig:
     
     # Try injected resolver first (SSOT via Dependency Inversion)
     config_path = None
+    resolver_source = "none"
     if _default_resolver is not None:
         config_path = _default_resolver.resolve_config_path()
+        resolver_source = "injected_resolver"
     
-    # Fallback to repo-local path for dev/test
+    # Check if repo-local fallback is allowed
+    # Either through resolver method or direct env check (when no resolver)
+    allow_repo_local = False
+    if _default_resolver is not None and hasattr(_default_resolver, "allow_repo_local_fallback"):
+        allow_repo_local = _default_resolver.allow_repo_local_fallback()
+    
+    # Fallback to repo-local path ONLY with explicit opt-in (dev/test)
     if config_path is None:
-        config_path = _get_repo_local_config_path()
+        if allow_repo_local:
+            config_path = _get_repo_local_config_path()
+            resolver_source = "repo_local_opt_in"
+        else:
+            raise PolicyConfigError(
+                "Policy-bound config not resolved via canonical root. "
+                "Set OPENCODE_ALLOW_REPO_LOCAL_CONFIG=1 for dev/test environments. "
+                "Reason: BLOCKED-ENGINE-SELFCHECK"
+            )
     
     if not config_path.exists():
         raise PolicyConfigError(
