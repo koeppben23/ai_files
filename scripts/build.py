@@ -347,6 +347,8 @@ def _should_include_file(
     # Diagnostics runtime helpers are required for /start auto-persistence and error logging.
     if rel.startswith("diagnostics/") and p.suffix.lower() == ".py":
         return True
+    if rel == "governance/VERSION":
+        return True
     if p.suffix.lower() in {".md", ".json"}:
         return True
     return False
