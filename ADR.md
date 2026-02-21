@@ -26,7 +26,7 @@ Rules of thumb:
 - **Trade-offs:** (what we give up)
 - **Evidence:** (repo paths, tickets, diagrams; if available)
 - **ConfidenceLevel:** 0-100 (aligns with master.md session state)
-- **Re-evaluation trigger:** (what would make us revisit this)
+- **Re-evaluation criteria:** (what would make us revisit this)
 
 ---
 

@@ -15,7 +15,7 @@ artifacts.
 - `SessionStateRepository.load_with_result()` now distinguishes phase 2 and 3:
   - phase 2 (`rollout_phase == 2`): legacy aliases are allowed only when
     compatibility mode is explicitly enabled
-  - phase 3+ (`rollout_phase >= 3`): legacy aliases are always blocked, even if
+  - phase 3+ (`rollout_phase >= 3`): legacy aliases are blocked, even if
     compatibility mode is enabled
 
 - `SessionStateCompatibilityError` now carries deterministic recovery fields:
