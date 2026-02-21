@@ -299,7 +299,30 @@ def run_persistence_hook() -> dict[str, object]:
     return result
 
 
+def emit_start_receipt() -> None:
+    """Emit forensic receipt for desktop dispatch debugging."""
+    receipt = {
+        "start_receipt": {
+            "observed_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
+            "argv0": sys.argv[0] if sys.argv else "",
+            "cwd": str(Path.cwd()),
+            "file": __file__,
+            "executable": sys.executable,
+            "sys_path_0_3": sys.path[:3],
+            "env_opencode_config_root": os.environ.get("OPENCODE_CONFIG_ROOT", ""),
+            "env_opencode_home": os.environ.get("OPENCODE_HOME", ""),
+            "computed_commands_home": str(COMMANDS_HOME),
+            "computed_workspaces_home": str(WORKSPACES_HOME),
+            "binding_ok": BINDING_OK,
+            "mode": _effective_mode(),
+            "platform": platform.system().lower(),
+        }
+    }
+    print(json.dumps(receipt, ensure_ascii=True))
+
+
 def main() -> int:
+    emit_start_receipt()
     emit_preflight()
     emit_permission_probes()
     run_persistence_hook()

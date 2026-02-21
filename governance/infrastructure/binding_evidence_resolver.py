@@ -208,11 +208,18 @@ class BindingEvidenceResolver:
         config_root: Path | None = None
 
         raw_config_root = paths.get("configRoot")
-        if isinstance(raw_config_root, str) and raw_config_root.strip():
+        if not isinstance(raw_config_root, str) or not raw_config_root.strip():
+            issues.append("binding.paths.configRoot.missing")
+        else:
             try:
                 config_root = normalize_absolute_path(raw_config_root, purpose="paths.configRoot")
             except Exception:
                 issues.append("binding.paths.configRoot.invalid")
+
+        if config_root is not None and commands != config_root / "commands":
+            issues.append("binding.paths.commandsHome.not_under_configRoot")
+        if config_root is not None and workspaces != config_root / "workspaces":
+            issues.append("binding.paths.workspacesHome.not_under_configRoot")
 
         binding_ok = len(issues) == 0
 

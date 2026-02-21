@@ -96,6 +96,7 @@ from governance.application.use_cases.session_state_helpers import (
     extract_repo_identity,
     with_workspace_ready_gate,
 )
+from governance.application.use_cases.start_bootstrap import evaluate_start_identity
 from governance.application.use_cases.evaluate_persistence_gate import (
     PersistencePhaseGateDecision,
     WORKSPACE_MEMORY_CONFIRMATION,
@@ -209,40 +210,40 @@ def run_engine_orchestrator(
         cwd=adapter.cwd(),
     )
 
-    # gate_blocked already initialized before repo discovery
-
+    live_fingerprint = ""
     if commit_workspace_ready_gate and repo_context.is_git_root and repo_context.repo_root is not None:
-        # Derive fingerprint from live repo_root (SSOT) and verify against session state.
         live_repo_root = repo_context.repo_root
-        live_fingerprint = hashlib.sha256(
-            f"repo:local:{str(live_repo_root)}".encode("utf-8")
-        ).hexdigest()[:24]
-        state_fingerprint = extract_repo_identity(session_state_document)
-        if state_fingerprint and state_fingerprint != live_fingerprint:
-            # Cross-wire detected: session state has stale fingerprint.
+        live_identity = evaluate_start_identity(adapter=adapter)
+        live_fingerprint = live_identity.repo_fingerprint or ""
+        if not live_fingerprint:
             gate_blocked = True
             gate_reason_code = BLOCKED_FINGERPRINT_MISMATCH
-        elif live_fingerprint and workspaces_home and session_state_file and session_pointer_file:
-            try:
-                gate = ensure_workspace_ready(
-                    workspaces_home=Path(workspaces_home),
-                    repo_fingerprint=state_fingerprint or live_fingerprint,
-                    repo_root=live_repo_root,
-                    session_state_file=Path(session_state_file),
-                    session_pointer_file=Path(session_pointer_file),
-                    session_id=(session_id or hashlib.sha256(str(live_repo_root).encode("utf-8")).hexdigest()[:16]),
-                    discovery_method=repo_context.source,
-                )
-            except Exception:
+        else:
+            state_fingerprint = extract_repo_identity(session_state_document)
+            if state_fingerprint and state_fingerprint != live_fingerprint:
                 gate_blocked = True
-                gate_reason_code = BLOCKED_WORKSPACE_PERSISTENCE
-                gate = None
-            if gate is not None:
-                session_state_document = with_workspace_ready_gate(
-                    session_state_document,
-                    repo_fingerprint=state_fingerprint or live_fingerprint,
-                    committed=bool(getattr(gate, "ok", False)),
-                )
+                gate_reason_code = BLOCKED_FINGERPRINT_MISMATCH
+            elif workspaces_home and session_state_file and session_pointer_file:
+                try:
+                    gate = ensure_workspace_ready(
+                        workspaces_home=Path(workspaces_home),
+                        repo_fingerprint=state_fingerprint or live_fingerprint,
+                        repo_root=live_repo_root,
+                        session_state_file=Path(session_state_file),
+                        session_pointer_file=Path(session_pointer_file),
+                        session_id=(session_id or hashlib.sha256(str(live_repo_root).encode("utf-8")).hexdigest()[:16]),
+                        discovery_method=repo_context.source,
+                    )
+                except Exception:
+                    gate_blocked = True
+                    gate_reason_code = BLOCKED_WORKSPACE_PERSISTENCE
+                    gate = None
+                if gate is not None:
+                    session_state_document = with_workspace_ready_gate(
+                        session_state_document,
+                        repo_fingerprint=state_fingerprint or live_fingerprint,
+                        committed=bool(getattr(gate, "ok", False)),
+                    )
 
     routed_phase = route_phase(
         requested_phase=phase,
@@ -250,6 +251,7 @@ def run_engine_orchestrator(
         requested_next_gate_condition=next_gate_condition,
         session_state_document=session_state_document,
         repo_is_git_root=repo_context.is_git_root,
+        live_repo_fingerprint=live_fingerprint if commit_workspace_ready_gate else None,
     )
 
     phase = routed_phase.phase
