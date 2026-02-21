@@ -107,8 +107,8 @@ def _git_root(path: Path) -> Path:
             "pipeline",
             [],
             [],
-            "ok",
-            "WARN-MODE-DOWNGRADED",
+            "blocked",
+            "BLOCKED-OPERATING-MODE-REQUIRED",
         ),
         (
             "missing-evidence",

@@ -7,6 +7,7 @@ import pytest
 def _allow_repo_local_config():
     """Allow repo-local config for tests (dev environment)."""
     os.environ["OPENCODE_ALLOW_REPO_LOCAL_CONFIG"] = "1"
+    os.environ["OPENCODE_OPERATING_MODE"] = "user"
     
     # Configure the phase4_self_review resolver to use the infrastructure resolver
     # which reads the OPENCODE_ALLOW_REPO_LOCAL_CONFIG env var
@@ -17,3 +18,4 @@ def _allow_repo_local_config():
     
     yield
     os.environ.pop("OPENCODE_ALLOW_REPO_LOCAL_CONFIG", None)
+    os.environ.pop("OPENCODE_OPERATING_MODE", None)

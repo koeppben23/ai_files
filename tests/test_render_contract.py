@@ -149,7 +149,7 @@ def test_render_contract_builds_diff_first_diagnostics_and_last_three_timeline_r
         transition_events=[
             {"phase": "1.1", "active_gate": "bootstrap", "status": "OK", "reason_code": "none", "snapshot_hash": "h1"},
             {"phase": "2.1", "active_gate": "decision", "status": "OK", "reason_code": "none", "snapshot_hash": "h2"},
-            {"phase": "3A", "active_gate": "api.inventory", "status": "WARN", "reason_code": "WARN-MODE-DOWNGRADED", "snapshot_hash": "h3"},
+            {"phase": "3A", "active_gate": "api.inventory", "status": "BLOCKED", "reason_code": "BLOCKED-OPERATING-MODE-REQUIRED", "snapshot_hash": "h3"},
             {"phase": "5.3", "active_gate": "test.quality", "status": "NOT_VERIFIED", "reason_code": "NOT_VERIFIED-MISSING-EVIDENCE", "snapshot_hash": "h4"},
         ],
     )

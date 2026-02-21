@@ -167,11 +167,17 @@ RULES: tuple[Rule, ...] = (
         description="Operational policy markers are kernel-owned",
         patterns=(
             r"\bMode\s*=\s*BLOCKED\b",
+            r"\bMode\s*=\s*DEGRADED\b",
+            r"\bMode\s*=\s*DRAFT\b",
+            r"\bMode\s*=\s*NORMAL\b",
             r"\bNext\s*=\s*['\"]?BLOCKED-[A-Z-]+",
             r"\bsearch\s+order\s*:",
+            r"\btrigger\s*:",
             r"\brequired\s+input\s*:",
             r"\bresume\s+pointer\s*:",
             r"\brecovery\s+steps\s*:",
+            r"\brequired\s+input:",
+            r"\bsystem\s+MUST\s+block\b",
         ),
         exceptions=(
             r"\[BLOCKED\]",

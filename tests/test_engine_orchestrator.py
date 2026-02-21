@@ -216,10 +216,8 @@ def test_orchestrator_mode_downgrade_is_reported_when_system_capabilities_missin
         next_gate_condition="Persistence helper execution completed",
         requested_operating_mode="system",
     )
-    assert out.effective_operating_mode == "user"
-    assert out.mode_downgraded is True
     assert out.parity["status"] == "blocked"
-    assert out.parity["reason_code"] == "BLOCKED-MISSING-BINDING-FILE"
+    assert out.parity["reason_code"] == "BLOCKED-OPERATING-MODE-REQUIRED"
 
 
 @pytest.mark.governance
@@ -314,9 +312,8 @@ def test_orchestrator_downgrades_pipeline_mode_when_pipeline_caps_missing(tmp_pa
         mode="OK",
         next_gate_condition="Persistence helper execution completed",
     )
-    assert out.effective_operating_mode == "user"
-    assert out.mode_downgraded is True
-    assert out.parity["reason_code"] == "WARN-MODE-DOWNGRADED"
+    assert out.parity["status"] == "blocked"
+    assert out.parity["reason_code"] == "BLOCKED-OPERATING-MODE-REQUIRED"
 
 
 @pytest.mark.governance
@@ -1204,7 +1201,7 @@ def test_orchestrator_allows_workspace_memory_with_exact_confirmation(tmp_path: 
     )
 
     assert out.parity["status"] == "ok"
-    assert out.parity["reason_code"] in {"none", "WARN-MODE-DOWNGRADED"}
+    assert out.parity["reason_code"] == "none"
 
 
 @pytest.mark.governance
