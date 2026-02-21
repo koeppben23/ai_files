@@ -59,13 +59,19 @@ def test_phase_router_allows_phase_2_1_with_persistence_committed() -> None:
 def test_session_state_template_includes_persistence_fields() -> None:
     from diagnostics.bootstrap_session_state import session_state_template
 
-    template = session_state_template("test-fingerprint-123", "test-repo")
+    template = session_state_template("a1b2c3d4e5f6a1b2c3d4e5f6", "test-repo")
     session = template.get("SESSION_STATE", {})
 
-    assert session.get("RepoFingerprint") == "test-fingerprint-123"
-    assert session.get("PersistenceCommitted") is True
-    assert session.get("WorkspaceReadyGateCommitted") is True
-    assert session.get("phase_transition_evidence") is True
+    assert session.get("RepoFingerprint") == "a1b2c3d4e5f6a1b2c3d4e5f6"
+    # Template starts with PersistenceCommitted=False (set to True only after successful pointer write + verify)
+    assert session.get("PersistenceCommitted") is False
+    assert session.get("WorkspaceReadyGateCommitted") is False
+    assert session.get("phase_transition_evidence") is False
+    # BusinessRules starts as pending (not pre-resolved to not-applicable)
+    scope = session.get("Scope", {})
+    assert scope.get("BusinessRules") == "pending"
+    gates = session.get("Gates", {})
+    assert gates.get("P5.4-BusinessRules") == "pending"
 
 
 def test_start_persistence_hook_blocked_when_writes_not_allowed(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
