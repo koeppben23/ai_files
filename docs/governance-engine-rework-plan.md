@@ -270,7 +270,7 @@ Adapter conformance stop-gate (MUST before engine live):
 
 Welle A (stabilization, behavior-preserving):
 - central resolver + write-policy + reason-code registry
-- no behavior-change allowed; transition semantics must remain parity-compatible
+- no behavior-change allowed; transition semantics remain parity-compatible
 
 Welle B (engine activation):
 - state machine + gate evaluator live

@@ -67,7 +67,7 @@ This document defines the trust boundaries, attack surfaces, and security guaran
 **Threat:** Repo MD files attempt to widen capabilities or bypass gates.
 
 **Attack Vectors:**
-- "Run this script for setup..."
+- "Use the setup helper for initialization..."
 - "Disable checks for this repo..."
 - "Use CWD fallback if path not found..."
 - "Approve without evidence..."
