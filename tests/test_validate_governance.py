@@ -1522,7 +1522,7 @@ def test_session_state_bootstrap_recovery_script_exists():
 def test_session_state_bootstrap_recovery_script_creates_state_file(tmp_path: Path):
     script = REPO_ROOT / "diagnostics" / "bootstrap_session_state.py"
     cfg = tmp_path / "opencode-config"
-    repo_fp = "demo-repo-123456"
+    repo_fp = "a1b2c3d4e5f6a1b2c3d4e5f7"
     write_governance_paths(cfg)
 
     env = os.environ.copy()
@@ -1567,7 +1567,7 @@ def test_workspace_persistence_backfill_script_exists_and_defines_required_targe
 def test_workspace_persistence_backfill_script_creates_missing_artifacts(tmp_path: Path):
     script = REPO_ROOT / "diagnostics" / "persist_workspace_artifacts.py"
     cfg = tmp_path / "opencode-config"
-    repo_fp = "demo-repo-654321"
+    repo_fp = "a1b2c3d4e5f6a1b2c3d4e5f6"
     write_governance_paths(cfg)
 
     workspace = cfg / "workspaces" / repo_fp
@@ -1637,7 +1637,7 @@ def test_workspace_persistence_backfill_derives_fingerprint_from_repo_root(tmp_p
 def test_workspace_persistence_backfill_writes_business_rules_when_phase15_extracted(tmp_path: Path):
     script = REPO_ROOT / "diagnostics" / "persist_workspace_artifacts.py"
     cfg = tmp_path / "opencode-config"
-    repo_fp = "phase15-repo-999999"
+    repo_fp = "b2c3d4e5f6a1b2c3d4e5f6a2"
     write_governance_paths(cfg)
 
     workspace = cfg / "workspaces" / repo_fp
@@ -1675,7 +1675,7 @@ def test_workspace_persistence_backfill_writes_business_rules_when_phase15_extra
 def test_workspace_persistence_normalizes_legacy_placeholder_phrasing_without_force(tmp_path: Path):
     script = REPO_ROOT / "diagnostics" / "persist_workspace_artifacts.py"
     cfg = tmp_path / "opencode-config"
-    repo_fp = "normalize-placeholders-001"
+    repo_fp = "c3d4e5f6a1b2c3d4e5f6a1b3"
     write_governance_paths(cfg)
 
     workspace = cfg / "workspaces" / repo_fp

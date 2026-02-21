@@ -64,7 +64,7 @@ def _write_governance_paths(commands_home: Path, workspaces_home: Path, config_r
             "workspacesHome": str(workspaces_home),
             "globalErrorLogsHome": str(config_root / "logs"),
             "workspaceErrorLogsHomeTemplate": str(workspaces_home / "<repo_fingerprint>" / "logs"),
-            "pythonCommand": "python",
+            "pythonCommand": sys.executable,
         },
         "generatedAt": "1970-01-01T00:00:00Z",
     }

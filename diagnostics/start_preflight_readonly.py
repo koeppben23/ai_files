@@ -83,9 +83,13 @@ def derive_repo_fingerprint(repo_root: Path) -> str | None:
     except Exception:
         return None
 
-    configure_gateway_registry()
-    identity = evaluate_start_identity(adapter=cast(Any, _RepoIdentityProbeAdapter(normalized_repo_root)))
-    fp = (identity.repo_fingerprint or "").strip()
+    try:
+        configure_gateway_registry()
+        identity = evaluate_start_identity(adapter=cast(Any, _RepoIdentityProbeAdapter(normalized_repo_root)))
+        fp = (identity.repo_fingerprint or "").strip()
+    except Exception:
+        fp = None
+
     return fp or None
 
 
@@ -301,7 +305,10 @@ def run_persistence_hook() -> dict[str, object]:
 
 def emit_start_receipt() -> None:
     """Emit forensic receipt for desktop dispatch debugging."""
-    repo_fp = derive_repo_fingerprint(Path.cwd())
+    try:
+        repo_fp = derive_repo_fingerprint(Path.cwd())
+    except Exception:
+        repo_fp = None
     planned_pointer_path = COMMANDS_HOME.parent / "SESSION_STATE.json"
     planned_workspace_path = WORKSPACES_HOME / repo_fp / "SESSION_STATE.json" if repo_fp else None
     receipt = {

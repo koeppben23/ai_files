@@ -98,22 +98,22 @@ def derive_repo_fingerprint(repo_root: Path) -> str | None:
     except Exception:
         return None
 
-    configure_gateway_registry()
-    identity = evaluate_start_identity(adapter=cast(Any, _RepoIdentityAdapter(normalized_repo_root)))
-    fp = (identity.repo_fingerprint or "").strip()
-    
-    if fp and not _is_canonical_fingerprint(fp):
-        import hashlib
-        canonical_remote = getattr(identity, 'canonical_remote', None)
-        if canonical_remote:
-            material = f"repo:{canonical_remote}"
-        else:
-            from governance.infrastructure.path_contract import normalize_for_fingerprint
-            normalized_root = normalize_for_fingerprint(normalized_repo_root)
-            material = f"repo:local:{normalized_root}"
-        fp = hashlib.sha256(material.encode("utf-8")).hexdigest()[:24]
-    
-    return fp or None
+    fp = None
+    try:
+        configure_gateway_registry()
+        identity = evaluate_start_identity(adapter=cast(Any, _RepoIdentityAdapter(normalized_repo_root)))
+        fp = (identity.repo_fingerprint or "").strip()
+    except Exception:
+        pass
+
+    if fp and _is_canonical_fingerprint(fp):
+        return fp
+
+    import hashlib
+    from governance.infrastructure.path_contract import normalize_for_fingerprint
+    normalized_root = normalize_for_fingerprint(normalized_repo_root)
+    material = f"repo:local:{normalized_root}"
+    return hashlib.sha256(material.encode("utf-8")).hexdigest()[:24]
 
 
 def _is_canonical_fingerprint(value: str) -> bool:
