@@ -223,6 +223,22 @@ def _validate_repo_fingerprint(value: str) -> str:
     return token
 
 
+def _is_canonical_fingerprint(value: str) -> bool:
+    token = value.strip()
+    return bool(re.fullmatch(r"[0-9a-f]{24}", token))
+
+
+def _validate_canonical_fingerprint(value: str) -> str:
+    token = value.strip()
+    if not token:
+        raise ValueError("repo fingerprint must not be empty")
+    if not _is_canonical_fingerprint(token):
+        raise ValueError(
+            "repo fingerprint must be a 24-character hex string (canonical hash-based format)"
+        )
+    return token
+
+
 def _sanitize_repo_name(value: str, fallback: str) -> str:
     raw = value.strip().lower()
     raw = raw.replace(" ", "-")
@@ -319,7 +335,12 @@ def _resolve_repo_fingerprint(
     repo_root: Path,
 ) -> tuple[str, str, str]:
     if explicit:
-        return _validate_repo_fingerprint(explicit), "explicit", "operator-provided"
+        validated = _validate_repo_fingerprint(explicit)
+        if not _is_canonical_fingerprint(validated):
+            raise ValueError(
+                f"explicit repo fingerprint must be canonical 24-hex format, got: {validated}"
+            )
+        return validated, "explicit", "operator-provided"
 
     derived = _derive_fingerprint_from_repo(repo_root)
     if derived:
@@ -331,10 +352,15 @@ def _resolve_repo_fingerprint(
     if pointer and pointer.get("schema") == "opencode-session-pointer.v1":
         fp = pointer.get("activeRepoFingerprint")
         if isinstance(fp, str) and fp.strip():
-            return _validate_repo_fingerprint(fp), "pointer", "global-pointer-fallback"
+            validated = _validate_repo_fingerprint(fp)
+            if not _is_canonical_fingerprint(validated):
+                raise ValueError(
+                    f"pointer repo fingerprint must be canonical 24-hex format, got: {validated}"
+                )
+            return validated, "pointer", "global-pointer-fallback"
 
     raise ValueError(
-        "repo fingerprint is required (use --repo-fingerprint), or run from a git repo root, or ensure global SESSION_STATE pointer exists"
+        "repo fingerprint is required (use --repo-fingerprint with 24-hex canonical format), or run from a git repo root, or ensure global SESSION_STATE pointer exists"
     )
 
 

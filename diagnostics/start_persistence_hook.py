@@ -101,7 +101,25 @@ def derive_repo_fingerprint(repo_root: Path) -> str | None:
     configure_gateway_registry()
     identity = evaluate_start_identity(adapter=cast(Any, _RepoIdentityAdapter(normalized_repo_root)))
     fp = (identity.repo_fingerprint or "").strip()
+    
+    if fp and not _is_canonical_fingerprint(fp):
+        import hashlib
+        canonical_remote = getattr(identity, 'canonical_remote', None)
+        if canonical_remote:
+            material = f"repo:{canonical_remote}"
+        else:
+            from governance.infrastructure.path_contract import normalize_for_fingerprint
+            normalized_root = normalize_for_fingerprint(normalized_repo_root)
+            material = f"repo:local:{normalized_root}"
+        fp = hashlib.sha256(material.encode("utf-8")).hexdigest()[:24]
+    
     return fp or None
+
+
+def _is_canonical_fingerprint(value: str) -> bool:
+    import re
+    token = value.strip()
+    return bool(re.fullmatch(r"[0-9a-f]{24}", token))
 
 
 def _verify_pointer_exists(opencode_home: Path, repo_fingerprint: str) -> tuple[bool, str]:
