@@ -226,9 +226,17 @@ class InstallPlan:
     governance_paths_path: Path
     skip_paths_file: bool
     deterministic_paths_file: bool
+    with_agent_rails: bool
 
 
-def build_plan(source_dir: Path, config_root: Path, *, skip_paths_file: bool, deterministic_paths_file: bool) -> InstallPlan:
+def build_plan(
+    source_dir: Path,
+    config_root: Path,
+    *,
+    skip_paths_file: bool,
+    deterministic_paths_file: bool,
+    with_agent_rails: bool = False,
+) -> InstallPlan:
     commands_dir = config_root / "commands"
     profiles_dst_dir = commands_dir / "profiles"
     manifest_path = commands_dir / MANIFEST_NAME
@@ -242,6 +250,7 @@ def build_plan(source_dir: Path, config_root: Path, *, skip_paths_file: bool, de
         governance_paths_path=governance_paths_path,
         skip_paths_file=skip_paths_file,
         deterministic_paths_file=deterministic_paths_file,
+        with_agent_rails=with_agent_rails,
     )
 
 
@@ -316,7 +325,7 @@ def _is_forbidden_metadata_path(path: Path, source_root: Path) -> bool:
         return True
     return False
 
-def collect_command_root_files(source_dir: Path) -> list[Path]:
+def collect_command_root_files(source_dir: Path, *, with_agent_rails: bool = False) -> list[Path]:
     """
     Collect root-level governance files to copy into <config_root>/commands/.
     Includes:
@@ -325,6 +334,7 @@ def collect_command_root_files(source_dir: Path) -> list[Path]:
       - LICENSE (if present)
     Excludes:
       - installer scripts (EXCLUDE_ROOT_FILES)
+      - AGENTS.md (unless --with-agent-rails is set)
       - (no opencode.json template handling; we never generate opencode.json)
     """
     files: list[Path] = []
@@ -336,6 +346,9 @@ def collect_command_root_files(source_dir: Path) -> list[Path]:
         if name in EXCLUDE_ROOT_FILES:
             continue
         if _is_forbidden_metadata_path(p, source_dir):
+            continue
+
+        if name == "AGENTS.md" and not with_agent_rails:
             continue
 
         if name.lower().startswith("license"):
@@ -885,7 +898,7 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
 
     # copy main files
     print("\n📋 Copying governance files to commands/ ...")
-    for src in collect_command_root_files(plan.source_dir):
+    for src in collect_command_root_files(plan.source_dir, with_agent_rails=plan.with_agent_rails):
         dst = plan.commands_dir / src.name
         entry = copy_with_optional_backup(
             src=src,
@@ -1129,6 +1142,30 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
             print(f"  ⏭️  {rel} exists (use --force to overwrite)")
         else:
             print(f"  ⚠️  {rel} missing (skipping)")
+
+    # copy AGENTS.md to templates if --with-agent-rails
+    if plan.with_agent_rails:
+        agents_src = plan.source_dir / "AGENTS.md"
+        if agents_src.exists():
+            templates_dir = plan.commands_dir / "templates"
+            agents_dst = templates_dir / "AGENTS.md"
+            print("\n📋 Copying AGENTS.md rails to commands/templates/ ...")
+            entry = copy_with_optional_backup(
+                src=agents_src,
+                dst=agents_dst,
+                backup_enabled=backup_enabled,
+                backup_root=backup_root,
+                dry_run=dry_run,
+                overwrite=force,
+            )
+            copied_entries.append(entry)
+            status = entry["status"]
+            if status in ("planned-copy", "copied"):
+                print(f"  ✅ templates/AGENTS.md ({status})")
+            elif status == "skipped-exists":
+                print(f"  ⏭️  templates/AGENTS.md exists (use --force to overwrite)")
+            else:
+                print(f"  ⚠️  AGENTS.md missing (skipping)")
 
     # validation (critical installed files)
     print("\n🔍 Validating installation...")
@@ -1745,6 +1782,11 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     p.add_argument("--version", action="store_true", help="Show installer and governance version, then exit.")
     p.add_argument("--status", action="store_true", help="Show installation status (read-only), then exit.")
     p.add_argument("--health", action="store_true", help="Run read-only health probes and show compact status, then exit.")
+    p.add_argument(
+        "--with-agent-rails",
+        action="store_true",
+        help="Install AGENTS.md (non-normative rails) into commands/ and commands/templates/ for agent front-ends.",
+    )
     return p.parse_args(argv)
 
 
@@ -1776,6 +1818,7 @@ def main(argv: list[str]) -> int:
         config_root,
         skip_paths_file=args.skip_paths_file,
         deterministic_paths_file=args.deterministic_paths_file,
+        with_agent_rails=args.with_agent_rails,
     )
 
     print("=" * 60)

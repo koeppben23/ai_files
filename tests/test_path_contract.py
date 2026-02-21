@@ -7,6 +7,7 @@ import pytest
 
 from governance.infrastructure.path_contract import (
     NotAbsoluteError,
+    PathTraversalError,
     binding_evidence_location,
     canonical_commands_home,
     canonical_config_root,
@@ -26,6 +27,12 @@ def test_canonical_roots_are_home_scoped(monkeypatch: pytest.MonkeyPatch, tmp_pa
 def test_normalize_absolute_path_rejects_relative():
     with pytest.raises(NotAbsoluteError):
         normalize_absolute_path("./commands", purpose="test")
+
+
+@pytest.mark.governance
+def test_normalize_absolute_path_rejects_parent_traversal():
+    with pytest.raises(PathTraversalError):
+        normalize_absolute_path("/a/b/../c", purpose="test")
 
 
 @pytest.mark.governance
