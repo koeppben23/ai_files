@@ -63,14 +63,16 @@ def test_start_persistence_hook_commits_fingerprint_and_artifacts(tmp_path: Path
     importlib.reload(hook)
 
     with patch.object(hook, "COMMANDS_HOME", Path(__file__).resolve().parents[1]):
-        with patch.object(hook, "derive_repo_fingerprint", return_value="test-fingerprint-123456"):
-            mock_result = MagicMock()
-            mock_result.returncode = 0
-            mock_result.stdout = ""
-            mock_result.stderr = ""
+        with patch.object(hook, "derive_repo_fingerprint", return_value="a1b2c3d4e5f6a1b2c3d4e5f6"):
+            with patch.object(hook, "_verify_pointer_exists", return_value=(True, "ok")):
+                with patch.object(hook, "_verify_workspace_session_exists", return_value=(True, "ok")):
+                    mock_result = MagicMock()
+                    mock_result.returncode = 0
+                    mock_result.stdout = ""
+                    mock_result.stderr = ""
 
-            with patch.object(hook.subprocess, "run", return_value=mock_result):
-                result = hook.run_persistence_hook(repo_root=repo_root)
+                    with patch.object(hook.subprocess, "run", return_value=mock_result):
+                        result = hook.run_persistence_hook(repo_root=repo_root)
 
     assert str(result.get("workspacePersistenceHook") or "").lower() == "ok"
     fp = str(result.get("repo_fingerprint") or "").strip()

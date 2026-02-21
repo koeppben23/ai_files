@@ -310,7 +310,7 @@ jobs:
                 "utf8",
                 str(diagnostics / "persist_workspace_artifacts.py"),
                 "--repo-fingerprint",
-                "artifact-smoke-123456",
+                "a1b2c3d4e5f6a1b2c3d4e5f8",
                 "--config-root",
                 str(cfg),
                 "--quiet",
