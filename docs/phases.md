@@ -35,7 +35,7 @@ Kernel authority boundary: policy and gate semantics are owned by kernel contrac
 | Phase 4 - Ticket Execution (planning) | Produces the concrete implementation plan and review artifacts; no code output yet. | Planning phase; code-producing output remains blocked until explicit gate progression permits it. |
 | Phase 4 Step 1a - Feature Complexity Router | Classifies feature complexity (SIMPLE-CRUD, REFACTORING, MODIFICATION, COMPLEX, STANDARD) and determines planning depth. | Non-gate; determines which subsequent Phase 4 steps are required vs. optional. |
 | Phase 5 - Lead Architect Review (iterative gate) | Architecture gatekeeper review with up to 3 review iterations. Each iteration produces structured feedback (issues, suggestions, questions). | Iterative gate; approved after issues resolved OR escalated to human after max 3 iterations. |
-| Phase 5.3 - Test Quality Review (critical gate) | Reviews test strategy/coverage quality against gate criteria. | Critical gate; must pass (or pass with governed exceptions) before PR readiness. |
+| Phase 5.3 - Test Quality Review (critical gate) | Reviews test strategy/coverage quality against gate criteria. | Critical gate; requires a passing outcome (or governed exceptions) before PR readiness. |
 | Phase 5.4 - Business Rules Compliance (conditional gate) | Checks implemented plan/output against extracted business rules. | Mandatory only if Phase 1.5 ran; non-compliance blocks readiness. |
 | Phase 5.5 - Technical Debt Proposal (optional gate) | Reviews and decides technical debt proposals and mitigation posture. | Optional gate; when activated, unresolved debt decisions can block approval. |
 | Phase 5.6 - Rollback Safety | Evaluates rollback/recovery safety for relevant changes (within Phase 5 family). | Required when rollback-sensitive changes exist; failed rollback safety blocks progression. |
@@ -80,12 +80,12 @@ Phase 3 is **conditionally executed** based on API presence:
 | Repo contains OpenAPI/GraphQL specs | Executed | Executed | 3A → 3B-1 → 3B-2 → 4 |
 | No APIs in scope | Executed (not-applicable) | Skipped | 3A → 4 directly |
 
-**Key insight:** Phase 3A is always executed but may immediately exit with `not-applicable` status. Phase 3B-1 and 3B-2 are only executed when APIs are actually present.
+**Key insight:** Phase 3A is executed by default but may immediately exit with `not-applicable` status. Phase 3B-1 and 3B-2 are only executed when APIs are actually present.
 
 **Implementation note:** Phase routing is implemented in `phase_router.py`. The routing includes:
 - Phase 2.1 → Phase 1.5 (Business Rules Discovery decision)
-- Phase 1.5 → Phase 3A (always, per docs requirement)
-- Phase 2.1 → Phase 3A (always, per docs requirement - 3A may exit with not-applicable)
+- Phase 1.5 → Phase 3A (default routing; kernel-enforced)
+- Phase 2.1 → Phase 3A (default routing; 3A may exit with not-applicable; kernel-enforced)
 - Phase 3A → Phase 3B-1 (if APIs in scope) OR Phase 4 (if no APIs, not-applicable)
 - Phase 3B-1 → Phase 3B-2 (contract validation)
 - Phase 3B-2 → Phase 4
@@ -161,7 +161,7 @@ Phase5Review:
 
 ## Gate Requirements for Code Generation
 
-Phase 3 API validation is **optional** and does NOT block code generation. The gates that MUST pass before code output:
+Phase 3 API validation is **optional** and does NOT block code generation. The required gates before code output:
 
 | Gate | Phase | Required? | Condition |
 |------|-------|-----------|-----------|

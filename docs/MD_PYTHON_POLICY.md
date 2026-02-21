@@ -57,7 +57,7 @@ from pathlib import Path (in execution context)
 | "Write tests" | Which files may be written |
 | "Use only API X" | Which commands are allowed |
 | "Mark unknown as UNKNOWN" | When persistence is allowed |
-| "List Preconditions/Evidence" | Prompt budget counting |
+| "List Preconditions/Evidence" | Interaction budget counting |
 | | Reason payload generation |
 | | Precedence/Overrides |
 

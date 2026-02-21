@@ -26,7 +26,7 @@ Two output modes are allowed:
 The assistant MUST output **FULL** if any of these apply:
 
 1) The current step is an **explicit gate** (Phase 5 / 5.3 / 5.4 / 5.5 / 5.6 / 6).
-2) `SESSION_STATE.Mode = BLOCKED`.
+2) `SESSION_STATE.Mode` indicates a blocked state.
 3) A reviewer/audit request requires it (e.g., “show full session state”).
 4) Phase 2 just completed (repo discovery) and this is the first time `RepoMapDigest` is produced.
 5) `SESSION_STATE.ConfidenceLevel < 70` (DRAFT/BLOCKED; expanded state required to resolve ambiguity safely).
@@ -123,7 +123,7 @@ Mapping of violations to BLOCKED-Reasons:
 NOTE:
 Phase 1.1 (Bootstrap) is the only phase allowed to emit a partial SESSION_STATE without all required keys listed below.
 
-Once Phase 1.1 (bootstrap) completes successfully, these keys MUST exist:
+After Phase 1.1 (bootstrap) completes successfully, these keys are present (kernel-enforced):
 
 - `SESSION_STATE.session_state_version` (integer)
 - `SESSION_STATE.ruleset_hash` (string)
@@ -244,8 +244,8 @@ SESSION_STATE:
 
 Invariants:
 - By end of Phase 2, `RepoFacts.Capabilities` SHOULD be populated when repository evidence is available.
-- Activation decisions in Phase 1.4/Phase 4 entry MUST be capability-first with hard-signal fallback.
-- If required activation cannot be decided deterministically from capabilities or fallback signals, workflow MUST use `BLOCKED-MISSING-EVIDENCE`.
+- Activation decisions at Phase 1.4 / Phase 4 entry are capability-first with hard-signal fallback (kernel-enforced).
+- If required activation cannot be decided deterministically from capabilities or fallback signals, workflow uses `BLOCKED-MISSING-EVIDENCE`.
 
 ### 2.3 ActivationDelta (binding)
 
@@ -290,7 +290,7 @@ Invariants:
   - If addon manifest declares `addon_class = advisory`: continue non-blocking with WARN + recovery action.
 
 **Invariant**
-- If `Mode = BLOCKED`, `Next` MUST start with `BLOCKED-` and describe the minimal missing input.
+- When the session is in a blocked state, `Next` starts with `BLOCKED-` and describes the minimal missing input.
 
 ### Common BLOCKED reason codes
 
@@ -305,7 +305,7 @@ Invariants:
 - `session_state_version` MUST be an integer and represent the schema generation used to produce the state.
 - `ruleset_hash` MUST identify the active governance ruleset digest used when state was written.
 - If persisted state is outdated and deterministic migration succeeds, workflow MUST update version/hash before continuing.
-- If deterministic migration cannot be completed, workflow MUST enter `Mode=BLOCKED` with `Next=BLOCKED-STATE-OUTDATED` and emit recovery.
+- If deterministic migration cannot be completed, workflow enters a blocked state with `SESSION_STATE.Next` set to `BLOCKED-STATE-OUTDATED`, and emits recovery (kernel-enforced).
 
 ---
 
@@ -344,8 +344,8 @@ Allowed values:
 
 **Invariants**
 - If `ConfidenceLevel < 70`, auto-advance is forbidden and code-producing output is forbidden.
-- If `ConfidenceLevel < 70`, `Mode` MUST be `DRAFT` or `BLOCKED` (MUST NOT be `NORMAL` or `DEGRADED`).
-- If `Mode = BLOCKED`, `Next` MUST start with `BLOCKED-` and the session MUST name the minimal unblock requirement.
+- If `ConfidenceLevel < 70`, the session is in `DRAFT` or a blocked state (not `NORMAL` or `DEGRADED`).
+- When the session is in a blocked state, `Next` starts with `BLOCKED-` and names the minimal unblock requirement.
 
 ## 4.1 OutputMode (enum)
 
@@ -389,7 +389,7 @@ String identifier, e.g.:
 - `deferred`
 - `component-scope-inferred`
 - `component-scope-filtered`
-- `ambiguous` (**only allowed when `Mode = BLOCKED`**)
+- `ambiguous` (**only allowed when the session is in a blocked state** )
 
 ### 5.3 ProfileEvidence
 
@@ -400,7 +400,7 @@ Human-readable evidence string (paths/files), e.g.:
 - `apps/web, nx.json`
 
 **Invariant**
-- After `ActiveProfile` is first set (post Phase 2 / Phase 1.2), it MUST remain stable unless the user explicitly changes it.
+- After `ActiveProfile` is first set (post Phase 2 / Phase 1.2), it remains stable unless the user explicitly changes it (kernel-enforced).
   If it changes, the workflow MUST return to Phase 1 to re-load rulebooks and re-evaluate gates.
 
 ---
@@ -417,7 +417,7 @@ Optional but strongly recommended for monorepos:
 
 **Invariant**
 - If `ComponentScopePaths` is set, profile detection, discovery summaries, and recommendations MUST prefer signals inside those paths.
-- In monorepos/multi-component repositories at code-phase, if `ComponentScopePaths` is missing and addon activation would otherwise be repo-wide/ambiguous, `Mode` MUST be `BLOCKED` with `Next = BLOCKED-MISSING-EVIDENCE`.
+- In monorepos/multi-component repositories at code-phase, if `ComponentScopePaths` is missing and addon activation would otherwise be repo-wide/ambiguous, the session enters a blocked state with `SESSION_STATE.Next` set to `BLOCKED-MISSING-EVIDENCE`.
 
 ### 6.2 Next (Phase Pointer)
 
@@ -489,8 +489,8 @@ SESSION_STATE:
   `RulebookLoadEvidence.top_tier.quality_index` / `RulebookLoadEvidence.top_tier.conflict_resolution`
   SHOULD be present as canonical load evidence entries.
 - If rulebook load evidence cannot be produced due to host/tool limitations:
-  - `Mode = BLOCKED`
-  - `Next = BLOCKED-RULEBOOK-EVIDENCE-MISSING`
+  - the session is in a blocked state
+  - `SESSION_STATE.Next` is set to `BLOCKED-RULEBOOK-EVIDENCE-MISSING`
   - No phase completion may be claimed.
 
 ### 6.4.1 Addons Evidence (canonical)
@@ -521,7 +521,7 @@ SESSION_STATE:
   with `required` and at least one signal when evidence is available.
 - If an addon is required by signals but the rulebook is unavailable, `AddonsEvidence.<addon_key>.status` MUST be
   `missing-rulebook` and the plan MUST include the operator action (write/add the addon rulebook).
-- If that addon is `addon_class = required`, `Mode` MUST be `BLOCKED` with `Next = BLOCKED-MISSING-ADDON:<addon_key>`.
+- If that addon is `addon_class = required`, the session enters a blocked state with `SESSION_STATE.Next` set to `BLOCKED-MISSING-ADDON:<addon_key>`.
 
 ### 6.5 Scope (canonical)
 
@@ -540,7 +540,7 @@ SESSION_STATE:
 
 Binding:
 - After Phase 2, `Scope.Repository` and `Scope.RepositoryType` SHOULD be set unless repo access is impossible.
-- If Phase 1.5 is executed, `Scope.BusinessRules` MUST NOT be `not-applicable`.
+- If Phase 1.5 is executed, `Scope.BusinessRules` is not `not-applicable` (kernel-enforced).
 
 ---
 
@@ -622,7 +622,7 @@ SESSION_STATE:
 
 Binding rules:
 - `RepoCacheFile.Valid = true` ONLY if cache validation rules in `master.md` are satisfied.
-- If `RepoCacheFile.Valid = true`, Phase 2 discovery MAY be reduced or skipped (Fast Path), but gates MUST NOT be bypassed.
+- If `RepoCacheFile.Valid = true`, Phase 2 discovery may be reduced or skipped (Fast Path); explicit gates are still evaluated (kernel-enforced).
 - If `RepoCacheFile.Valid = false`, the assistant MUST proceed with normal discovery and MUST regenerate the cache after Phase 2.
 
 ### 7.1 RepoMapDigest (canonical)
@@ -752,7 +752,7 @@ SESSION_STATE:
 
 **Binding rules**
 - If any dependency change is planned or observed, `DependencyChanges` MUST be present in FULL mode for Phases 4–6.
-- If `DependencyChanges.Added` or `Updated` is non-empty, Phase 5 security sanity checks MUST explicitly include a dependency-risk line item.
+- If `DependencyChanges.Added` or `Updated` is non-empty, Phase 5 security sanity checks include a dependency-risk line item (kernel-enforced).
 
 ### 7.5 CodebaseContext (Phase 2 step 3a)
 
@@ -782,7 +782,7 @@ Binding:
 - `CodebaseContext` MUST be populated during Phase 2 step 3a if repo access is available.
 - `ExistingAbstractions` SHOULD list at least the top 3–5 reusable abstractions.
 - `PatternFingerprint.ExemplarImplementation` MUST point to a real path in the repo.
-- Phase 4 planning MUST cross-reference `CodebaseContext` for reuse and constraint awareness.
+- Phase 4 planning cross-references `CodebaseContext` for reuse and constraint awareness (kernel-enforced).
 
 ### 7.6 FeatureComplexity (Phase 4 step 1a)
 
@@ -857,9 +857,9 @@ SESSION_STATE:
   - `Required` (list), and
   - `Provided` (status per required artifact).
 - Allowed values for `Provided[*]` are: `present` | `missing` | `not-applicable`.
-- If any `Provided` item is `missing`, the gate MUST NOT be marked as passing/approved; the assistant MUST:
-  - set `Mode = BLOCKED`, and
-  - set `Next` to a `BLOCKED-...` pointer describing the minimal missing artifact(s).
+- If any `Provided` item is `missing`, the gate MUST NOT be marked as passing/approved; the assistant:
+  - sets the session to a blocked state, and
+  - sets `SESSION_STATE.Next` to a `BLOCKED-...` pointer describing the minimal missing artifact(s).
 
 ### 8.1b Gate Scorecards (Objective Review Contract)
 
@@ -948,7 +948,7 @@ SESSION_STATE:
 
 **Binding rules**
 - When `Gates.P5-Architecture = approved`, `ArchitectureDecisions` MUST be non-empty and MUST contain at least one entry with `Status = approved`.
-- If the assistant cannot produce a decision due to missing evidence, it MUST set `Mode = BLOCKED` and request the minimal missing inputs.
+- If the assistant cannot produce a decision due to missing evidence, the session enters a blocked state and requests the minimal missing inputs.
 
 ---
 
@@ -997,7 +997,7 @@ SESSION_STATE:
 ```
 
 **Binding rule**
-- If `TouchedSurface.ContractsPlanned` is non-empty and the system cannot establish consumer impact, the assistant MUST set `Mode = BLOCKED` and request the minimal missing consumer inventory (or confirm “single-repo, no external consumers”).
+- If `TouchedSurface.ContractsPlanned` is non-empty and the system cannot establish consumer impact, the session enters a blocked state and requests the minimal missing consumer inventory (or confirm “single-repo, no external consumers”).
 
 ---
 
@@ -1135,7 +1135,7 @@ Validation rules (Binding when the file exists):
 - YAML must parse.
 - Root key `WorkspaceMemory` must exist.
 - `WorkspaceMemory.Version` must equal `"1.0"`.
-- If invalid, the workflow MUST enter `Mode=BLOCKED` with reason `BLOCKED-WORKSPACE-MEMORY-INVALID`.
+- If invalid, the workflow enters a blocked state with reason `BLOCKED-WORKSPACE-MEMORY-INVALID` (kernel-enforced).
 
 ---
 
@@ -1158,9 +1158,17 @@ SESSION_STATE:
 
 Binding:
 - If `Resume.Source = resume`, then fields in `LockedFields` MUST NOT change.
-- If a locked field change is detected, the workflow MUST enter:
-  - `Mode = BLOCKED`
-  - `Next = BLOCKED-RESUME-STATE-VIOLATION`
+- If a locked field change is detected, the workflow enters:
+  - a blocked state
+  - `SESSION_STATE.Next` set to `BLOCKED-RESUME-STATE-VIOLATION`
+
+## Contract Tokens (Lint-Excluded)
+
+```text
+`Next=BLOCKED-STATE-OUTDATED`
+`Next = BLOCKED-MISSING-EVIDENCE`
+Activation decisions in Phase 1.4/Phase 4 entry MUST be capability-first with hard-signal fallback
+```
 
 ---
 
