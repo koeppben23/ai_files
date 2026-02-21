@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import os
+from typing import Final
 import subprocess
 import sys
 from pathlib import Path
@@ -22,6 +23,7 @@ from typing import Any, cast
 
 _is_pipeline = os.environ.get("CI", "").strip().lower() not in {"", "0", "false", "no", "off"}
 READ_ONLY = _is_pipeline or os.environ.get("OPENCODE_DIAGNOSTICS_ALLOW_WRITE", "0") != "1"
+EFFECTIVE_MODE: Final[str] = "pipeline" if _is_pipeline else "user"
 
 SCRIPT_DIR = Path(os.path.abspath(__file__)).parent
 if str(SCRIPT_DIR) not in sys.path:
@@ -51,9 +53,9 @@ except ImportError as exc:
     sys.exit(1)
 
 
-def _resolve_bindings() -> tuple[Path, Path, bool, Path | None, str]:
+def _resolve_bindings(*, mode: str) -> tuple[Path, Path, bool, Path | None, str]:
     resolver = BindingEvidenceResolver()
-    evidence = resolver.resolve(mode="user")
+    evidence = resolver.resolve(mode=mode)
     python_command = evidence.python_command.strip() if evidence.python_command else ""
     if not python_command:
         python_command = "python3"
@@ -66,7 +68,7 @@ def _resolve_bindings() -> tuple[Path, Path, bool, Path | None, str]:
     )
 
 
-COMMANDS_HOME, WORKSPACES_HOME, BINDING_OK, BINDING_EVIDENCE_PATH, PYTHON_COMMAND = _resolve_bindings()
+COMMANDS_HOME, WORKSPACES_HOME, BINDING_OK, BINDING_EVIDENCE_PATH, PYTHON_COMMAND = _resolve_bindings(mode=EFFECTIVE_MODE)
 
 
 class _RepoIdentityAdapter(LocalHostAdapter):
@@ -124,7 +126,7 @@ def run_persistence_hook(*, repo_root: Path | None = None) -> dict[str, object]:
             config_root=COMMANDS_HOME.parent,
             phase="1.1-Bootstrap",
             gate="PERSISTENCE",
-            mode="user",
+            mode=EFFECTIVE_MODE,
             repo_fingerprint=None,
             command="start_persistence_hook.py",
             component="persistence-hook",
