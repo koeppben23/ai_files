@@ -119,9 +119,9 @@ Expected: full suite green (except explicitly skipped tests).
 
 Cross-field validators in `governance/engine/session_state_invariants.py` enforce:
 
-- [ ] `Mode=BLOCKED` requires `Next` to start with `BLOCKED-`.
+- [ ] When the session is in a blocked state, `Next` starts with `BLOCKED-`.
 - [ ] `ConfidenceLevel < 70` requires `Mode` to be `DRAFT` or `BLOCKED`.
-- [ ] `ProfileSource=ambiguous` requires `Mode=BLOCKED`.
+- [ ] If `ProfileSource=ambiguous`, the session is in a blocked state.
 - [ ] Reason codes require `Diagnostics.ReasonPayloads` to be present.
 - [ ] `OutputMode=ARCHITECT` requires `DecisionSurface` to exist.
 - [ ] Loaded rulebooks require corresponding load evidence.
