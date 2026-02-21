@@ -15,7 +15,7 @@ def test_phase_router_blocks_phase2_without_workspace_ready():
         requested_phase="2-Discovery",
         requested_active_gate="Discovery",
         requested_next_gate_condition="Build decision pack",
-        session_state_document={"SESSION_STATE": {"workspace_ready_gate_committed": False}},
+        session_state_document={"SESSION_STATE": {"PersistenceCommitted": False, "workspace_ready_gate_committed": False}},
         repo_is_git_root=False,
     )
     assert routed.phase == "1.1-Bootstrap"
@@ -29,7 +29,7 @@ def test_phase_router_routes_openapi_from_phase21_to_3a():
         requested_phase="2.1-DecisionPack",
         requested_active_gate="Decision Pack",
         requested_next_gate_condition="Proceed",
-        session_state_document={"SESSION_STATE": {"workspace_ready_gate_committed": True, "repo_capabilities": ["openapi"], "Scope": {"BusinessRules": "not-applicable"}}},
+        session_state_document={"SESSION_STATE": {"PersistenceCommitted": True, "workspace_ready_gate_committed": True, "repo_capabilities": ["openapi"], "Scope": {"BusinessRules": "not-applicable"}}},
         repo_is_git_root=True,
     )
     assert routed.phase == "3A-API-Inventory"
@@ -42,7 +42,7 @@ def test_phase_router_prevents_backward_transition_from_persisted_phase():
         requested_phase="2-Discovery",
         requested_active_gate="Discovery",
         requested_next_gate_condition="Proceed",
-        session_state_document={"SESSION_STATE": {"phase": "3A-API-Inventory", "workspace_ready_gate_committed": True}},
+        session_state_document={"SESSION_STATE": {"phase": "3A-API-Inventory", "PersistenceCommitted": True, "workspace_ready_gate_committed": True}},
         repo_is_git_root=True,
     )
     assert routed.phase == "3A-API-Inventory"
@@ -55,7 +55,7 @@ def test_phase_router_blocks_jump_without_transition_evidence():
         requested_phase="5-Plan",
         requested_active_gate="Plan",
         requested_next_gate_condition="Proceed",
-        session_state_document={"SESSION_STATE": {"phase": "2-Discovery", "workspace_ready_gate_committed": True}},
+        session_state_document={"SESSION_STATE": {"phase": "2-Discovery", "PersistenceCommitted": True, "workspace_ready_gate_committed": True}},
         repo_is_git_root=True,
     )
     assert routed.phase == "2-Discovery"
@@ -68,7 +68,7 @@ def test_phase_router_strips_ticket_prompt_before_phase4():
         requested_phase="2-Discovery",
         requested_active_gate="Discovery",
         requested_next_gate_condition="Please provide task/ticket now",
-        session_state_document={"SESSION_STATE": {"workspace_ready_gate_committed": True}},
+        session_state_document={"SESSION_STATE": {"PersistenceCommitted": True, "workspace_ready_gate_committed": True}},
         repo_is_git_root=True,
     )
     assert "not allowed before phase 4" in routed.next_gate_condition.lower()
