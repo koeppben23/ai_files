@@ -48,7 +48,7 @@ def _resolve_policy_path(filename: str, *, mode: str) -> Path:
     resolver = BindingEvidenceResolver()
     evidence = resolver.resolve(mode=effective_mode)
     if evidence.binding_ok and evidence.commands_home:
-        candidate = evidence.commands_home.parent / "diagnostics" / filename
+        candidate = evidence.commands_home / "diagnostics" / filename
         if candidate.exists():
             return candidate
 
