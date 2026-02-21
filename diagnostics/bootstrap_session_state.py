@@ -150,25 +150,25 @@ def resolve_binding_config(explicit: Path | None) -> tuple[Path, dict, Path]:
 
 
 def _validate_repo_fingerprint(value: str) -> str:
-    token = value.strip()
-    if not token:
-        raise ValueError("repo fingerprint must not be empty")
-    if not re.fullmatch(r"[A-Za-z0-9._-]{6,128}", token):
-        raise ValueError(
-            "repo fingerprint must match [A-Za-z0-9._-]{6,128} (no slashes, spaces, or traversal)"
-        )
-    return token
-
-
-def _validate_canonical_fingerprint(value: str) -> str:
+    """Validate repo fingerprint is canonical 24-hex format.
+    
+    This enforces SSOT: only hash-based fingerprints are accepted.
+    Legacy slug-style fingerprints (e.g., github.com-user-repo) are rejected.
+    """
     token = value.strip()
     if not token:
         raise ValueError("repo fingerprint must not be empty")
     if not re.fullmatch(r"[0-9a-f]{24}", token):
         raise ValueError(
-            "repo fingerprint must be a 24-character hex string (canonical hash-based format)"
+            "repo fingerprint must be a 24-character hex string (canonical hash-based format). "
+            "Legacy slug-style fingerprints are not accepted."
         )
     return token
+
+
+def _validate_canonical_fingerprint(value: str) -> str:
+    """Alias for _validate_repo_fingerprint for clarity."""
+    return _validate_repo_fingerprint(value)
 
 
 def _is_canonical_fingerprint(value: str) -> bool:
@@ -201,9 +201,9 @@ def session_state_template(repo_fingerprint: str, repo_name: str | None) -> dict
     return {
         "SESSION_STATE": {
             "RepoFingerprint": repo_fingerprint,
-            "PersistenceCommitted": True,
-            "WorkspaceReadyGateCommitted": True,
-            "phase_transition_evidence": True,
+            "PersistenceCommitted": False,
+            "WorkspaceReadyGateCommitted": False,
+            "phase_transition_evidence": False,
             "session_state_version": 1,
             "ruleset_hash": "deferred",
             "Phase": "1.1-Bootstrap",
@@ -221,7 +221,7 @@ def session_state_template(repo_fingerprint: str, repo_name: str | None) -> dict
                 "Repository": repository,
                 "RepositoryType": "",
                 "ExternalAPIs": [],
-                "BusinessRules": "not-applicable",
+                "BusinessRules": "pending",
             },
             "LoadedRulebooks": {
                 "core": "",
@@ -246,7 +246,7 @@ def session_state_template(repo_fingerprint: str, repo_name: str | None) -> dict
             "Gates": {
                 "P5-Architecture": "pending",
                 "P5.3-TestQuality": "pending",
-                "P5.4-BusinessRules": "not-applicable",
+                "P5.4-BusinessRules": "pending",
                 "P5.5-TechnicalDebt": "pending",
                 "P5.6-RollbackSafety": "pending",
                 "P6-ImplementationQA": "pending",

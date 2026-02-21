@@ -213,12 +213,18 @@ def resolve_binding_config(explicit: Path | None) -> tuple[Path, dict[str, Any],
 
 
 def _validate_repo_fingerprint(value: str) -> str:
+    """Validate repo fingerprint is canonical 24-hex format.
+    
+    This enforces SSOT: only hash-based fingerprints are accepted.
+    Legacy slug-style fingerprints (e.g., github.com-user-repo) are rejected.
+    """
     token = value.strip()
     if not token:
         raise ValueError("repo fingerprint must not be empty")
-    if not re.fullmatch(r"[A-Za-z0-9._-]{6,128}", token):
+    if not re.fullmatch(r"[0-9a-f]{24}", token):
         raise ValueError(
-            "repo fingerprint must match [A-Za-z0-9._-]{6,128} (no slashes, spaces, or traversal)"
+            "repo fingerprint must be a 24-character hex string (canonical hash-based format). "
+            "Legacy slug-style fingerprints are not accepted."
         )
     return token
 
@@ -229,14 +235,8 @@ def _is_canonical_fingerprint(value: str) -> bool:
 
 
 def _validate_canonical_fingerprint(value: str) -> str:
-    token = value.strip()
-    if not token:
-        raise ValueError("repo fingerprint must not be empty")
-    if not _is_canonical_fingerprint(token):
-        raise ValueError(
-            "repo fingerprint must be a 24-character hex string (canonical hash-based format)"
-        )
-    return token
+    """Alias for _validate_repo_fingerprint for clarity."""
+    return _validate_repo_fingerprint(value)
 
 
 PHASE2_ARTIFACTS = ["repo-cache.yaml", "repo-map-digest.md", "workspace-memory.yaml"]
