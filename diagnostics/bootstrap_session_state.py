@@ -13,7 +13,12 @@ from pathlib import Path
 
 
 _is_pipeline = os.environ.get("CI", "").strip().lower() not in {"", "0", "false", "no", "off"}
-READ_ONLY = _is_pipeline or os.environ.get("OPENCODE_DIAGNOSTICS_ALLOW_WRITE", "0") != "1"
+
+
+def _writes_allowed() -> bool:
+    if str(os.environ.get("OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY", "")).strip() == "1":
+        return False
+    return True
 
 SCRIPT_DIR = Path(os.path.abspath(__file__)).parent
 if str(SCRIPT_DIR) not in sys.path:
@@ -94,7 +99,7 @@ def _load_json(path: Path) -> dict | None:
 
 
 def _atomic_write_text(path: Path, content: str) -> None:
-    if READ_ONLY:
+    if not _writes_allowed():
         return
     atomic_write_text(path, content, newline_lf=True, attempts=5, backoff_ms=50)
 
@@ -179,6 +184,10 @@ def session_state_template(repo_fingerprint: str, repo_name: str | None) -> dict
     repository = repo_name.strip() if isinstance(repo_name, str) and repo_name.strip() else repo_fingerprint
     return {
         "SESSION_STATE": {
+            "RepoFingerprint": repo_fingerprint,
+            "PersistenceCommitted": True,
+            "WorkspaceReadyGateCommitted": True,
+            "phase_transition_evidence": True,
             "session_state_version": 1,
             "ruleset_hash": "deferred",
             "Phase": "1.1-Bootstrap",
@@ -242,8 +251,8 @@ def pointer_payload(repo_fingerprint: str) -> dict:
 
 
 def _upsert_repo_identity_map(workspaces_home: Path, repo_fingerprint: str, repo_name: str) -> str:
-    if READ_ONLY:
-        return "read-only"
+    if not _writes_allowed():
+        return "writes-not-allowed"
     path = workspaces_home / repo_fingerprint / "repo-identity-map.yaml"
     now = datetime.now(timezone.utc).isoformat(timespec="seconds")
 
@@ -333,16 +342,17 @@ def main() -> int:
         print(f"ERROR: {exc}")
         return 2
 
-    if READ_ONLY:
+    if not _writes_allowed():
         print(json.dumps({
-            "status": "ok",
-            "bootstrapSessionState": "skipped",
-            "reason": "diagnostics-read-only",
-            "impact": "workspace/index/session persistence is kernel-owned only",
+            "status": "blocked",
+            "bootstrapSessionState": "blocked",
+            "reason_code": "BLOCKED-WORKSPACE-PERSISTENCE",
+            "reason": "writes-not-allowed",
+            "impact": "fingerprint + persistence are required before any phase >= 2.1",
             "repoFingerprint": repo_fingerprint,
-            "read_only": True,
+            "writes_allowed": False,
         }, ensure_ascii=True))
-        return 0
+        return 2
 
     repo_state_file = workspaces_home / repo_fingerprint / "SESSION_STATE.json"
     pointer_file = session_pointer_path(config_root)

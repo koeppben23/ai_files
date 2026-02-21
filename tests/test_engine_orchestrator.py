@@ -1142,6 +1142,7 @@ def test_orchestrator_blocks_workspace_memory_without_exact_confirmation(tmp_pat
         target_path="${WORKSPACE_MEMORY_FILE}",
         session_state_document={
             "SESSION_STATE": {
+                "PersistenceCommitted": True,
                 "workspace_ready_gate_committed": True,
                 "phase_transition_evidence": True,
                 "phase5_approved": True,
@@ -1191,6 +1192,7 @@ def test_orchestrator_allows_workspace_memory_with_exact_confirmation(tmp_path: 
         target_path="${WORKSPACE_MEMORY_FILE}",
         session_state_document={
             "SESSION_STATE": {
+                "PersistenceCommitted": True,
                 "workspace_ready_gate_committed": True,
                 "phase_transition_evidence": True,
                 "phase5_approved": True,
@@ -1231,6 +1233,7 @@ def test_orchestrator_pipeline_blocks_when_workspace_memory_confirmation_missing
         target_path="${WORKSPACE_MEMORY_FILE}",
         session_state_document={
             "SESSION_STATE": {
+                "PersistenceCommitted": True,
                 "workspace_ready_gate_committed": True,
                 "phase_transition_evidence": True,
                 "phase5_approved": True,
@@ -1272,6 +1275,7 @@ def test_orchestrator_user_blocks_without_confirmation_evidence_and_writes_nothi
         target_path="${WORKSPACE_MEMORY_FILE}",
         session_state_document={
             "SESSION_STATE": {
+                "PersistenceCommitted": True,
                 "workspace_ready_gate_committed": True,
                 "phase_transition_evidence": True,
                 "phase5_approved": True,
@@ -1310,7 +1314,7 @@ def test_orchestrator_blocks_code_output_requests_in_phase4(tmp_path: Path):
         active_gate="Planning",
         mode="OK",
         next_gate_condition="Plan approved",
-        session_state_document={"SESSION_STATE": {"workspace_ready_gate_committed": True, "phase_transition_evidence": True}},
+        session_state_document={"SESSION_STATE": {"PersistenceCommitted": True, "workspace_ready_gate_committed": True, "phase_transition_evidence": True}},
         requested_action="implement now",
     )
 

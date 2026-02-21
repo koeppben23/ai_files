@@ -40,19 +40,27 @@ def _load_module_with_env(env: dict[str, str]):
 
 
 @pytest.mark.governance
-def test_start_preflight_readonly_module_exists_and_declares_readonly():
+def test_start_preflight_readonly_module_exists_and_declares_writes_allowed():
     module = _load_module()
-    assert module.READ_ONLY is True
+    assert callable(module._writes_allowed)
+    assert module._writes_allowed(mode="user") is True
 
 
 @pytest.mark.governance
-def test_start_preflight_readonly_hook_never_persists(capsys: pytest.CaptureFixture[str]):
-    module = _load_module()
-    module.run_persistence_hook()
+def test_start_preflight_readonly_hook_blocks_when_writes_not_allowed(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]):
+    monkeypatch.setenv("OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY", "1")
+    monkeypatch.delenv("CI", raising=False)
+    import importlib
+    import diagnostics.start_preflight_readonly as mod
+    importlib.reload(mod)
+    
+    try:
+        mod.run_persistence_hook()
+    except SystemExit as e:
+        assert e.code == 2
     payload = json.loads(capsys.readouterr().out.strip())
-    assert payload["workspacePersistenceHook"] == "skipped"
-    assert payload["reason"] == "read-only-preflight"
-    assert payload["read_only"] is True
+    assert payload["workspacePersistenceHook"] == "blocked"
+    assert payload["reason_code"] == "BLOCKED-WORKSPACE-PERSISTENCE"
 
 
 @pytest.mark.governance
@@ -82,42 +90,53 @@ def test_start_persistence_store_module_removed():
 
 
 @pytest.mark.governance
-def test_start_preflight_readonly_respects_write_env():
-    module = _load_module_with_env({"OPENCODE_DIAGNOSTICS_ALLOW_WRITE": "1", "CI": ""})
-    assert module.READ_ONLY is False
+def test_start_preflight_writes_allowed_true_by_default():
+    module = _load_module_with_env({"CI": ""})
+    assert module._writes_allowed(mode="user") is True
 
 
 @pytest.mark.governance
-def test_start_preflight_readonly_is_true_in_ci():
+def test_start_preflight_writes_allowed_true_in_ci():
     module = _load_module_with_env({"CI": "true"})
-    assert module.READ_ONLY is True
+    assert module._writes_allowed(mode="pipeline") is True
 
 
 @pytest.mark.governance
-def test_start_preflight_readonly_is_true_by_default():
-    module = _load_module_with_env({})
-    assert module.READ_ONLY is True
+def test_start_preflight_writes_allowed_false_when_force_read_only(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY", "1")
+    import importlib
+    import diagnostics.start_preflight_readonly as mod
+    importlib.reload(mod)
+    assert mod._writes_allowed(mode="user") is False
 
 
 @pytest.mark.governance
-def test_run_persistence_hook_returns_skipped_when_read_only(capsys: pytest.CaptureFixture[str]):
-    module = _load_module_with_env({})
-    result = module.run_persistence_hook()
+def test_run_persistence_hook_blocks_when_writes_not_allowed(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]):
+    monkeypatch.setenv("OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY", "1")
+    monkeypatch.delenv("CI", raising=False)
+    import importlib
+    import diagnostics.start_preflight_readonly as mod
+    importlib.reload(mod)
     
-    assert result["workspacePersistenceHook"] == "skipped"
-    assert result["reason"] == "read-only-preflight"
-    assert result["read_only"] is True
+    try:
+        mod.run_persistence_hook()
+    except SystemExit as e:
+        assert e.code == 2
+    
+    payload = json.loads(capsys.readouterr().out.strip())
+    assert payload["workspacePersistenceHook"] == "blocked"
+    assert payload["reason_code"] == "BLOCKED-WORKSPACE-PERSISTENCE"
 
 
 @pytest.mark.governance
-def test_run_persistence_hook_delegates_to_hook_module_when_write_enabled(capsys: pytest.CaptureFixture[str]):
-    module = _load_module_with_env({"OPENCODE_DIAGNOSTICS_ALLOW_WRITE": "1", "CI": ""})
+def test_run_persistence_hook_delegates_to_hook_module(capsys: pytest.CaptureFixture[str]):
+    module = _load_module_with_env({"CI": ""})
     
     mock_hook_result = {
         "workspacePersistenceHook": "ok",
         "reason": "bootstrap-completed",
         "repo_fingerprint": "testfingerprint123456",
-        "read_only": False,
+        "writes_allowed": True,
     }
     
     with patch.dict(
@@ -131,20 +150,24 @@ def test_run_persistence_hook_delegates_to_hook_module_when_write_enabled(capsys
 
 
 @pytest.mark.governance
-def test_run_persistence_hook_propagates_hook_failure(capsys: pytest.CaptureFixture[str]):
-    module = _load_module_with_env({"OPENCODE_DIAGNOSTICS_ALLOW_WRITE": "1", "CI": ""})
+def test_run_persistence_hook_exits_on_hook_failure(capsys: pytest.CaptureFixture[str]):
+    module = _load_module_with_env({"CI": ""})
     
     mock_hook_result = {
         "workspacePersistenceHook": "failed",
         "reason": "repo-fingerprint-derivation-failed",
-        "read_only": False,
+        "writes_allowed": True,
     }
     
     with patch.dict(
         "sys.modules",
         {"diagnostics.start_persistence_hook": MagicMock(run_persistence_hook=MagicMock(return_value=mock_hook_result))}
     ):
-        result = module.run_persistence_hook()
+        try:
+            module.run_persistence_hook()
+        except SystemExit as e:
+            assert e.code == 2
     
-    assert result["workspacePersistenceHook"] == "failed"
-    assert result["reason"] == "repo-fingerprint-derivation-failed"
+    payload = json.loads(capsys.readouterr().out.strip())
+    assert payload["workspacePersistenceHook"] == "failed"
+    assert payload["reason"] == "repo-fingerprint-derivation-failed"

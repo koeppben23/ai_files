@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import hashlib
 import importlib.util
+import os
 import re
 import sys
 from pathlib import Path
@@ -1524,12 +1525,14 @@ def test_session_state_bootstrap_recovery_script_creates_state_file(tmp_path: Pa
     repo_fp = "demo-repo-123456"
     write_governance_paths(cfg)
 
-    r = run([sys.executable, str(script), "--repo-fingerprint", repo_fp, "--config-root", str(cfg)])
-    assert r.returncode == 0, f"bootstrap_session_state.py failed:\nSTDERR:\n{r.stderr}\nSTDOUT:\n{r.stdout}"
+    env = os.environ.copy()
+    env["OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY"] = "1"
+    r = run([sys.executable, str(script), "--repo-fingerprint", repo_fp, "--config-root", str(cfg)], env=env)
+    assert r.returncode == 2, f"bootstrap_session_state.py should exit 2 when writes blocked:\nSTDERR:\n{r.stderr}\nSTDOUT:\n{r.stdout}"
 
     payload = json.loads(r.stdout.strip().splitlines()[-1])
-    assert payload.get("bootstrapSessionState") == "skipped"
-    assert payload.get("read_only") is True
+    assert payload.get("bootstrapSessionState") == "blocked"
+    assert payload.get("writes_allowed") is False
     assert not (cfg / "SESSION_STATE.json").exists()
     assert not (cfg / "workspaces" / repo_fp / "SESSION_STATE.json").exists()
 
@@ -1766,13 +1769,12 @@ def test_start_md_includes_readonly_preflight_autohook():
     required_tokens = [
         "Auto-Preflight Hook (OpenCode, Read-only)",
         "workspacePersistenceHook",
-        "read-only-preflight",
+        "writes_allowed",
         "preflight",
         "available",
         "missing",
         "impact",
         "next",
-        "read_only",
     ]
     missing = [token for token in required_tokens if token not in text]
     assert not missing, "start.md missing workspace persistence auto-hook tokens:\n" + "\n".join(

@@ -22,8 +22,13 @@ from pathlib import Path
 from typing import Any, cast
 
 _is_pipeline = os.environ.get("CI", "").strip().lower() not in {"", "0", "false", "no", "off"}
-READ_ONLY = _is_pipeline or os.environ.get("OPENCODE_DIAGNOSTICS_ALLOW_WRITE", "0") != "1"
 EFFECTIVE_MODE: Final[str] = "pipeline" if _is_pipeline else "user"
+
+
+def _writes_allowed() -> bool:
+    if str(os.environ.get("OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY", "")).strip() == "1":
+        return False
+    return True
 
 SCRIPT_DIR = Path(os.path.abspath(__file__)).parent
 if str(SCRIPT_DIR) not in sys.path:
@@ -48,7 +53,7 @@ except ImportError as exc:
         "persistence_hook": "failed",
         "reason": "import-error",
         "error": str(exc),
-        "read_only": READ_ONLY,
+        "writes_allowed": _writes_allowed(),
     }, ensure_ascii=True))
     sys.exit(1)
 
@@ -100,15 +105,14 @@ def derive_repo_fingerprint(repo_root: Path) -> str | None:
 
 
 def run_persistence_hook(*, repo_root: Path | None = None) -> dict[str, object]:
-    result: dict[str, object] = {
-        "workspacePersistenceHook": "skipped",
-        "reason": "read-only-mode",
-        "impact": "workspace/index persistence is kernel-owned only",
-        "read_only": READ_ONLY,
-    }
-
-    if READ_ONLY:
-        return result
+    if not _writes_allowed():
+        return {
+            "workspacePersistenceHook": "blocked",
+            "reason_code": "BLOCKED-WORKSPACE-PERSISTENCE",
+            "reason": "writes-not-allowed",
+            "mode": EFFECTIVE_MODE,
+            "writes_allowed": False,
+        }
 
     cwd = repo_root or Path.cwd()
     repo_fp = derive_repo_fingerprint(cwd)
@@ -118,7 +122,7 @@ def run_persistence_hook(*, repo_root: Path | None = None) -> dict[str, object]:
             "workspacePersistenceHook": "failed",
             "reason": "repo-fingerprint-derivation-failed",
             "impact": "cannot create workspace without repo fingerprint",
-            "read_only": False,
+            "writes_allowed": True,
         }
         safe_log_error(
             reason_key="ERR-PERSISTENCE-FINGERPRINT-DERIVATION-FAILED",
@@ -142,7 +146,7 @@ def run_persistence_hook(*, repo_root: Path | None = None) -> dict[str, object]:
             "workspacePersistenceHook": "failed",
             "reason": "bootstrap-script-not-found",
             "impact": f"bootstrap_session_state.py not found at {bootstrap_script}",
-            "read_only": False,
+            "writes_allowed": True,
         }
         safe_log_error(
             reason_key="ERR-PERSISTENCE-BOOTSTRAP-SCRIPT-MISSING",
@@ -182,7 +186,7 @@ def run_persistence_hook(*, repo_root: Path | None = None) -> dict[str, object]:
                 "reason": "bootstrap-completed",
                 "repo_fingerprint": repo_fp,
                 "repo_name": repo_name,
-                "read_only": False,
+                "writes_allowed": True,
             }
         else:
             result = {
@@ -191,7 +195,7 @@ def run_persistence_hook(*, repo_root: Path | None = None) -> dict[str, object]:
                 "returncode": proc.returncode,
                 "stdout": proc.stdout.strip()[:500] if proc.stdout else "",
                 "stderr": proc.stderr.strip()[:500] if proc.stderr else "",
-                "read_only": False,
+                "writes_allowed": True,
             }
             safe_log_error(
                 reason_key="ERR-PERSISTENCE-BOOTSTRAP-NONZERO-EXIT",
@@ -216,7 +220,7 @@ def run_persistence_hook(*, repo_root: Path | None = None) -> dict[str, object]:
             "workspacePersistenceHook": "failed",
             "reason": "bootstrap-exception",
             "error": str(exc)[:500],
-            "read_only": False,
+            "writes_allowed": True,
         }
         safe_log_error(
             reason_key="ERR-PERSISTENCE-BOOTSTRAP-EXCEPTION",
