@@ -97,15 +97,48 @@ def _persistence_committed(state: Mapping[str, object]) -> bool:
     return False
 
 
-def _workspace_ready(state: Mapping[str, object], *, repo_is_git_root: bool) -> bool:
+def _extract_fingerprint(state: Mapping[str, object]) -> str:
+    """Extract fingerprint from state, trying multiple key variants."""
+    for key in ("RepoFingerprint", "repo_fingerprint"):
+        value = state.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return ""
+
+
+def _extract_phase(state: Mapping[str, object]) -> str:
+    """Extract phase from state, trying multiple key variants."""
+    for key in ("Phase", "phase"):
+        value = state.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return ""
+
+
+def _workspace_ready(
+    state: Mapping[str, object],
+    *,
+    repo_is_git_root: bool,
+    live_repo_fingerprint: str | None = None,
+) -> bool:
     _ = repo_is_git_root
     if not _persistence_committed(state):
         return False
     for key in ("workspace_ready_gate_committed", "WorkspaceReadyGateCommitted"):
         value = state.get(key)
         if isinstance(value, bool):
-            return value
-    return False
+            if not value:
+                return False
+            break
+    else:
+        return False
+    
+    if live_repo_fingerprint is not None:
+        state_fingerprint = _extract_fingerprint(state)
+        if state_fingerprint and state_fingerprint != live_repo_fingerprint:
+            return False
+    
+    return True
 
 
 def _transition_has_evidence(state: Mapping[str, object]) -> bool:
@@ -136,12 +169,15 @@ def route_phase(
     requested_next_gate_condition: str,
     session_state_document: Mapping[str, object] | None,
     repo_is_git_root: bool,
+    live_repo_fingerprint: str | None = None,
 ) -> RoutedPhase:
     state = _session_state(session_state_document)
     requested_phase_text = requested_phase.strip() or "1.1-Bootstrap"
-    workspace_ready = _workspace_ready(state, repo_is_git_root=repo_is_git_root)
+    workspace_ready = _workspace_ready(
+        state, repo_is_git_root=repo_is_git_root, live_repo_fingerprint=live_repo_fingerprint
+    )
 
-    persisted_phase = str(state.get("phase") or "").strip()
+    persisted_phase = _extract_phase(state)
     persisted_token = normalize_phase_token(persisted_phase)
 
     if persisted_phase and persisted_token:

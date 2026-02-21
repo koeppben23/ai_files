@@ -21,6 +21,10 @@ class WindowsDriveRelativeError(PathContractError):
     pass
 
 
+class PathTraversalError(PathContractError):
+    pass
+
+
 def deterministic_home() -> Path:
     return Path.home().expanduser()
 
@@ -45,6 +49,9 @@ def normalize_absolute_path(raw: str, *, purpose: str) -> Path:
     token = str(raw or "").strip()
     if not token:
         raise NotAbsoluteError(f"{purpose}: empty path")
+    parts = Path(token).parts
+    if ".." in parts or "." in parts:
+        raise PathTraversalError(f"{purpose}: path traversal (.. or .) not allowed before normalization")
     candidate = Path(token).expanduser()
     if os.name == "nt" and re.match(r"^[A-Za-z]:[^/\\]", token):
         raise WindowsDriveRelativeError(f"{purpose}: drive-relative path is not allowed")

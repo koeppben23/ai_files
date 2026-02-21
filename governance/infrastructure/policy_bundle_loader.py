@@ -52,7 +52,14 @@ def _resolve_policy_path(filename: str, *, mode: str) -> Path:
         if candidate.exists():
             return candidate
 
-    # Runtime canonical fallback for packaged repo diagnostics (deterministic path).
+    allow_dev_unbound = str(os.environ.get("OPENCODE_DEV_ALLOW_UNBOUND_POLICY", "")).strip() == "1"
+    if not allow_dev_unbound:
+        raise PolicyBundleError(
+            f"Policy config not resolved: binding invalid and dev fallback disabled. "
+            f"binding_issues={evidence.issues}. "
+            f"Reason: BLOCKED-ENGINE-SELFCHECK"
+        )
+
     if effective_mode != "pipeline":
         repo_root = str(os.environ.get("OPENCODE_REPO_ROOT", "")).strip()
         if repo_root:
