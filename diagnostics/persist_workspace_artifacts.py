@@ -1,4 +1,38 @@
 #!/usr/bin/env python3
+"""Persist workspace artifacts for repository discovery phases.
+
+This module creates and maintains the Phase 2+ artifacts in a repository's
+workspace directory. These artifacts capture the results of repository
+discovery and analysis.
+
+Artifacts Created:
+    - repo-cache.yaml: Repository profile, detected conventions, build info
+    - repo-map-digest.md: Architecture summary, modules, entry points
+    - decision-pack.md: Decision records from discovery
+    - workspace-memory.yaml: Persistent memory for patterns and decisions
+    - business-rules.md: Business rules inventory (if Phase 1.5 completed)
+
+Fingerprint Derivation:
+    The repository fingerprint can be derived from:
+        1. Explicit --repo-fingerprint argument (must be 24-hex)
+        2. Git metadata (remote URL → SHA256[:24])
+        3. Global SESSION_STATE pointer fallback
+
+Phase 2 Completion:
+    Phase 2 is considered complete only when all three core artifacts exist:
+        - repo-cache.yaml
+        - repo-map-digest.md
+        - workspace-memory.yaml
+
+Exit Codes:
+    0: Success (or read-only mode with --quiet)
+    2: Blocked (missing binding, invalid fingerprint, config inside repo)
+
+Environment Variables:
+    OPENCODE_DIAGNOSTICS_ALLOW_WRITE: Set to "1" to allow writes outside CI
+    OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY: Set to "1" to block all writes
+    OPENCODE_CONFIG_ROOT: Override config root location
+"""
 from __future__ import annotations
 
 import argparse
@@ -180,6 +214,14 @@ def _load_binding_paths(paths_file: Path, *, expected_config_root: Path | None =
 
 
 def _resolve_python_command(paths: dict[str, Any]) -> str:
+    """Resolve the Python command to use for subprocess calls.
+    
+    Args:
+        paths: The paths dictionary from governance.paths.json.
+    
+    Returns:
+        The python command string (from config or sys.executable).
+    """
     raw = paths.get("pythonCommand")
     if isinstance(raw, str) and raw.strip():
         return raw.strip()
@@ -187,12 +229,36 @@ def _resolve_python_command(paths: dict[str, Any]) -> str:
 
 
 def _preferred_shell_command(profiles: dict[str, object]) -> str:
+    """Get the preferred shell command for the current platform.
+    
+    Args:
+        profiles: Command profiles dictionary.
+    
+    Returns:
+        The preferred shell command string.
+    """
     if os.name == "nt":
         return str(profiles.get("powershell") or profiles.get("cmd") or profiles.get("bash") or "")
     return str(profiles.get("bash") or profiles.get("json") or "")
 
 
 def resolve_binding_config(explicit: Path | None) -> tuple[Path, dict[str, Any], Path]:
+    """Resolve the binding configuration paths.
+    
+    Searches for governance.paths.json in the following order:
+        1. Explicit --config-root argument
+        2. OPENCODE_CONFIG_ROOT environment variable
+        3. Default ~/.config/opencode location
+    
+    Args:
+        explicit: Optional explicit config root path from --config-root.
+    
+    Returns:
+        Tuple of (config_root, paths_dict, binding_file_path).
+    
+    Raises:
+        ValueError: If binding file not found or invalid.
+    """
     if explicit is not None:
         root = normalize_absolute_path(str(explicit), purpose="explicit_config_root")
         candidate = root / "commands" / "governance.paths.json"
@@ -217,6 +283,15 @@ def _validate_repo_fingerprint(value: str) -> str:
     
     This enforces SSOT: only hash-based fingerprints are accepted.
     Legacy slug-style fingerprints (e.g., github.com-user-repo) are rejected.
+    
+    Args:
+        value: The fingerprint string to validate.
+    
+    Returns:
+        The validated fingerprint (lowercase, stripped).
+    
+    Raises:
+        ValueError: If fingerprint is empty or not 24-hex format.
     """
     token = value.strip()
     if not token:
@@ -230,12 +305,27 @@ def _validate_repo_fingerprint(value: str) -> str:
 
 
 def _is_canonical_fingerprint(value: str) -> bool:
+    """Check if value is a canonical 24-hex fingerprint.
+    
+    Args:
+        value: The string to check.
+    
+    Returns:
+        True if value matches ^[0-9a-f]{24}$, False otherwise.
+    """
     token = value.strip()
     return bool(re.fullmatch(r"[0-9a-f]{24}", token))
 
 
 def _validate_canonical_fingerprint(value: str) -> str:
-    """Alias for _validate_repo_fingerprint for clarity."""
+    """Alias for _validate_repo_fingerprint for clarity.
+    
+    Args:
+        value: The fingerprint string to validate.
+    
+    Returns:
+        The validated canonical fingerprint.
+    """
     return _validate_repo_fingerprint(value)
 
 
