@@ -1,4 +1,36 @@
 #!/usr/bin/env python3
+"""Bootstrap session state for repository workspaces.
+
+This module creates and manages the initial SESSION_STATE.json files for
+repository workspaces, establishing the SSOT (Single Source of Truth) for
+persistence state management.
+
+Key Responsibilities:
+    - Create repo-scoped SESSION_STATE.json with initial template
+    - Write global SESSION_STATE pointer (opencode-session-pointer.v1)
+    - Derive canonical 24-hex fingerprint from git metadata
+    - Enforce fail-closed persistence ordering:
+        1. Write workspace SESSION_STATE (PersistenceCommitted=False)
+        2. Write repo-identity-map.yaml
+        3. Run artifact backfill hook
+        4. Write global pointer
+        5. Verify pointer exists and is valid
+        6. Set PersistenceCommitted=True (only after verify)
+
+Exit Codes:
+    0: Success
+    2: Invalid arguments or blocked (writes not allowed)
+    4: Legacy pointer migration required (use --force)
+    5: Config root inside repository
+    6: Workspace lock timeout
+    7: Artifact backfill failed
+    8: Pointer verification failed (file not found)
+    9: Pointer verification failed (invalid schema)
+
+Environment Variables:
+    OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY: Set to "1" to block all writes
+    OPENCODE_CONFIG_ROOT: Override config root location
+"""
 from __future__ import annotations
 
 import argparse
@@ -16,6 +48,14 @@ _is_pipeline = os.environ.get("CI", "").strip().lower() not in {"", "0", "false"
 
 
 def _writes_allowed() -> bool:
+    """Check if write operations are permitted.
+    
+    Returns:
+        True if writes are allowed, False if read-only mode is enforced.
+    
+    The function checks OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY environment variable.
+    When set to "1", all write operations are blocked for safety.
+    """
     if str(os.environ.get("OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY", "")).strip() == "1":
         return False
     return True
@@ -130,6 +170,22 @@ def _load_binding_paths(paths_file: Path, *, expected_config_root: Path | None =
 
 
 def resolve_binding_config(explicit: Path | None) -> tuple[Path, dict, Path]:
+    """Resolve the binding configuration paths.
+    
+    Searches for governance.paths.json in the following order:
+        1. Explicit --config-root argument
+        2. OPENCODE_CONFIG_ROOT environment variable
+        3. Default ~/.config/opencode location
+    
+    Args:
+        explicit: Optional explicit config root path from --config-root.
+    
+    Returns:
+        Tuple of (config_root, paths_dict, binding_file_path).
+    
+    Raises:
+        ValueError: If binding file not found or invalid.
+    """
     if explicit is not None:
         root = normalize_absolute_path(str(explicit), purpose="explicit_config_root")
         candidate = root / "commands" / "governance.paths.json"
@@ -154,6 +210,15 @@ def _validate_repo_fingerprint(value: str) -> str:
     
     This enforces SSOT: only hash-based fingerprints are accepted.
     Legacy slug-style fingerprints (e.g., github.com-user-repo) are rejected.
+    
+    Args:
+        value: The fingerprint string to validate.
+    
+    Returns:
+        The validated fingerprint (lowercase, stripped).
+    
+    Raises:
+        ValueError: If fingerprint is empty or not 24-hex format.
     """
     token = value.strip()
     if not token:
@@ -167,28 +232,78 @@ def _validate_repo_fingerprint(value: str) -> str:
 
 
 def _validate_canonical_fingerprint(value: str) -> str:
-    """Alias for _validate_repo_fingerprint for clarity."""
+    """Alias for _validate_repo_fingerprint for clarity.
+    
+    Args:
+        value: The fingerprint string to validate.
+    
+    Returns:
+        The validated canonical fingerprint.
+    """
     return _validate_repo_fingerprint(value)
 
 
 def _is_canonical_fingerprint(value: str) -> bool:
+    """Check if value is a canonical 24-hex fingerprint.
+    
+    Args:
+        value: The string to check.
+    
+    Returns:
+        True if value matches ^[0-9a-f]{24}$, False otherwise.
+    """
     token = value.strip()
     return bool(re.fullmatch(r"[0-9a-f]{24}", token))
 
 
 def repo_session_state_path(workspaces_home: Path, repo_fingerprint: str) -> Path:
+    """Get the path to a repository's SESSION_STATE.json file.
+    
+    Args:
+        workspaces_home: The workspaces home directory.
+        repo_fingerprint: The canonical 24-hex fingerprint.
+    
+    Returns:
+        Path to ${WORKSPACES_HOME}/${fingerprint}/SESSION_STATE.json
+    """
     return workspaces_home / repo_fingerprint / "SESSION_STATE.json"
 
 
 def session_pointer_path(config_root: Path) -> Path:
+    """Get the path to the global SESSION_STATE pointer file.
+    
+    Args:
+        config_root: The OpenCode config root directory.
+    
+    Returns:
+        Path to ${CONFIG_ROOT}/SESSION_STATE.json (global pointer).
+    """
     return config_root / "SESSION_STATE.json"
 
 
 def repo_identity_map_path(workspaces_home: Path, repo_fingerprint: str) -> Path:
+    """Get the path to a repository's identity map file.
+    
+    Args:
+        workspaces_home: The workspaces home directory.
+        repo_fingerprint: The canonical 24-hex fingerprint.
+    
+    Returns:
+        Path to ${WORKSPACES_HOME}/${fingerprint}/repo-identity-map.yaml
+    """
     return workspaces_home / repo_fingerprint / "repo-identity-map.yaml"
 
 
 def _is_within(path: Path, parent: Path) -> bool:
+    """Check if a path is within a parent directory.
+    
+    Args:
+        path: The path to check.
+        parent: The potential parent directory.
+    
+    Returns:
+        True if path is a descendant of parent, False otherwise.
+    """
     try:
         path.relative_to(parent)
         return True
@@ -197,6 +312,23 @@ def _is_within(path: Path, parent: Path) -> bool:
 
 
 def session_state_template(repo_fingerprint: str, repo_name: str | None) -> dict:
+    """Create the initial SESSION_STATE template for a repository.
+    
+    The template initializes all state fields to their default "uninitialized"
+    values. Critical flags like PersistenceCommitted and WorkspaceReadyGateCommitted
+    are set to False - they will only be set to True after successful verification.
+    
+    Args:
+        repo_fingerprint: The canonical 24-hex fingerprint for this repository.
+        repo_name: Optional human-readable repository name.
+    
+    Returns:
+        A dictionary containing the SESSION_STATE template.
+    
+    Note:
+        BusinessRules is initialized to "pending" (not "not-applicable") to
+        ensure the Phase 1.5 gate is evaluated rather than skipped.
+    """
     repository = repo_name.strip() if isinstance(repo_name, str) and repo_name.strip() else repo_fingerprint
     return {
         "SESSION_STATE": {
@@ -257,6 +389,20 @@ def session_state_template(repo_fingerprint: str, repo_name: str | None) -> dict
 
 
 def pointer_payload(repo_fingerprint: str, session_state_file: Path | None = None) -> dict:
+    """Create the global SESSION_STATE pointer payload.
+    
+    The pointer is the SSOT for finding the active workspace. It uses the
+    canonical schema "opencode-session-pointer.v1" and contains the fingerprint
+    and path to the workspace's SESSION_STATE.json.
+    
+    Args:
+        repo_fingerprint: The canonical 24-hex fingerprint for this repository.
+        session_state_file: Optional explicit path to the workspace SESSION_STATE.
+            If not provided, a relative path under workspaces/ is generated.
+    
+    Returns:
+        A dictionary containing the pointer payload ready for JSON serialization.
+    """
     payload = {
         "schema": "opencode-session-pointer.v1",
         "updatedAt": datetime.now(timezone.utc).isoformat(timespec="seconds"),
