@@ -47,10 +47,15 @@ def test_start_preflight_readonly_module_exists_and_declares_writes_allowed():
 
 
 @pytest.mark.governance
-def test_start_preflight_readonly_hook_blocks_when_writes_not_allowed(capsys: pytest.CaptureFixture[str]):
-    module = _load_module_with_env({"OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY": "1"})
+def test_start_preflight_readonly_hook_blocks_when_writes_not_allowed(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]):
+    monkeypatch.setenv("OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY", "1")
+    monkeypatch.delenv("CI", raising=False)
+    import importlib
+    import diagnostics.start_preflight_readonly as mod
+    importlib.reload(mod)
+    
     try:
-        module.run_persistence_hook()
+        mod.run_persistence_hook()
     except SystemExit as e:
         assert e.code == 2
     payload = json.loads(capsys.readouterr().out.strip())
@@ -97,17 +102,24 @@ def test_start_preflight_writes_allowed_true_in_ci():
 
 
 @pytest.mark.governance
-def test_start_preflight_writes_allowed_false_when_force_read_only():
-    module = _load_module_with_env({"OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY": "1", "CI": ""})
-    assert module._writes_allowed(mode="user") is False
+def test_start_preflight_writes_allowed_false_when_force_read_only(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY", "1")
+    import importlib
+    import diagnostics.start_preflight_readonly as mod
+    importlib.reload(mod)
+    assert mod._writes_allowed(mode="user") is False
 
 
 @pytest.mark.governance
-def test_run_persistence_hook_blocks_when_writes_not_allowed(capsys: pytest.CaptureFixture[str]):
-    module = _load_module_with_env({"OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY": "1"})
+def test_run_persistence_hook_blocks_when_writes_not_allowed(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]):
+    monkeypatch.setenv("OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY", "1")
+    monkeypatch.delenv("CI", raising=False)
+    import importlib
+    import diagnostics.start_preflight_readonly as mod
+    importlib.reload(mod)
     
     try:
-        module.run_persistence_hook()
+        mod.run_persistence_hook()
     except SystemExit as e:
         assert e.code == 2
     
