@@ -223,6 +223,34 @@ def _validate_repo_fingerprint(value: str) -> str:
     return token
 
 
+def _is_canonical_fingerprint(value: str) -> bool:
+    token = value.strip()
+    return bool(re.fullmatch(r"[0-9a-f]{24}", token))
+
+
+def _validate_canonical_fingerprint(value: str) -> str:
+    token = value.strip()
+    if not token:
+        raise ValueError("repo fingerprint must not be empty")
+    if not _is_canonical_fingerprint(token):
+        raise ValueError(
+            "repo fingerprint must be a 24-character hex string (canonical hash-based format)"
+        )
+    return token
+
+
+PHASE2_ARTIFACTS = ["repo-cache.yaml", "repo-map-digest.md", "workspace-memory.yaml"]
+
+
+def _verify_phase2_artifacts_exist(repo_home: Path) -> tuple[bool, list[str]]:
+    missing = []
+    for artifact in PHASE2_ARTIFACTS:
+        path = repo_home / artifact
+        if not path.is_file():
+            missing.append(artifact)
+    return len(missing) == 0, missing
+
+
 def _sanitize_repo_name(value: str, fallback: str) -> str:
     raw = value.strip().lower()
     raw = raw.replace(" ", "-")
@@ -319,7 +347,12 @@ def _resolve_repo_fingerprint(
     repo_root: Path,
 ) -> tuple[str, str, str]:
     if explicit:
-        return _validate_repo_fingerprint(explicit), "explicit", "operator-provided"
+        validated = _validate_repo_fingerprint(explicit)
+        if not _is_canonical_fingerprint(validated):
+            raise ValueError(
+                f"explicit repo fingerprint must be canonical 24-hex format, got: {validated}"
+            )
+        return validated, "explicit", "operator-provided"
 
     derived = _derive_fingerprint_from_repo(repo_root)
     if derived:
@@ -331,10 +364,15 @@ def _resolve_repo_fingerprint(
     if pointer and pointer.get("schema") == "opencode-session-pointer.v1":
         fp = pointer.get("activeRepoFingerprint")
         if isinstance(fp, str) and fp.strip():
-            return _validate_repo_fingerprint(fp), "pointer", "global-pointer-fallback"
+            validated = _validate_repo_fingerprint(fp)
+            if not _is_canonical_fingerprint(validated):
+                raise ValueError(
+                    f"pointer repo fingerprint must be canonical 24-hex format, got: {validated}"
+                )
+            return validated, "pointer", "global-pointer-fallback"
 
     raise ValueError(
-        "repo fingerprint is required (use --repo-fingerprint), or run from a git repo root, or ensure global SESSION_STATE pointer exists"
+        "repo fingerprint is required (use --repo-fingerprint with 24-hex canonical format), or run from a git repo root, or ensure global SESSION_STATE pointer exists"
     )
 
 
@@ -1112,8 +1150,26 @@ def main() -> int:
                 remediation="Repair repo-scoped SESSION_STATE and rerun backfill helper.",
             )
 
+    phase2_artifacts_ok, phase2_missing = _verify_phase2_artifacts_exist(repo_home)
+
+    if not phase2_artifacts_ok and not args.dry_run and not READ_ONLY:
+        safe_log_error(
+            reason_key="ERR-PHASE2-ARTIFACTS-MISSING",
+            message="Phase 2 discovery did not write required artifacts.",
+            config_root=config_root,
+            phase="2",
+            gate="PERSISTENCE",
+            mode="repo-aware",
+            repo_fingerprint=repo_fingerprint,
+            command="persist_workspace_artifacts.py",
+            component="phase2-artifacts-verification",
+            observed_value={"missing": phase2_missing, "repo_home": str(repo_home)},
+            expected_constraint="repo-cache.yaml, repo-map-digest.md, workspace-memory.yaml must exist",
+            remediation="Re-run persist_workspace_artifacts.py with --force to recreate missing artifacts.",
+        )
+
     summary = {
-        "status": "ok",
+        "status": "ok" if phase2_artifacts_ok else "degraded",
         "configRoot": str(config_root),
         "bindingEvidence": str(binding_file),
         "repoFingerprint": repo_fingerprint,
@@ -1124,6 +1180,10 @@ def main() -> int:
         "actions": actions,
         "sessionUpdate": session_update,
         "bootstrapSessionState": bootstrap_status,
+        "phase2Artifacts": {
+            "ok": phase2_artifacts_ok,
+            "missing": phase2_missing,
+        },
     }
 
     if args.quiet:

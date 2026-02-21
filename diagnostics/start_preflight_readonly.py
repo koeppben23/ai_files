@@ -83,9 +83,13 @@ def derive_repo_fingerprint(repo_root: Path) -> str | None:
     except Exception:
         return None
 
-    configure_gateway_registry()
-    identity = evaluate_start_identity(adapter=cast(Any, _RepoIdentityProbeAdapter(normalized_repo_root)))
-    fp = (identity.repo_fingerprint or "").strip()
+    try:
+        configure_gateway_registry()
+        identity = evaluate_start_identity(adapter=cast(Any, _RepoIdentityProbeAdapter(normalized_repo_root)))
+        fp = (identity.repo_fingerprint or "").strip()
+    except Exception:
+        fp = None
+
     return fp or None
 
 
@@ -301,6 +305,12 @@ def run_persistence_hook() -> dict[str, object]:
 
 def emit_start_receipt() -> None:
     """Emit forensic receipt for desktop dispatch debugging."""
+    try:
+        repo_fp = derive_repo_fingerprint(Path.cwd())
+    except Exception:
+        repo_fp = None
+    planned_pointer_path = COMMANDS_HOME.parent / "SESSION_STATE.json"
+    planned_workspace_path = WORKSPACES_HOME / repo_fp / "SESSION_STATE.json" if repo_fp else None
     receipt = {
         "start_receipt": {
             "observed_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
@@ -311,8 +321,12 @@ def emit_start_receipt() -> None:
             "sys_path_0_3": sys.path[:3],
             "env_opencode_config_root": os.environ.get("OPENCODE_CONFIG_ROOT", ""),
             "env_opencode_home": os.environ.get("OPENCODE_HOME", ""),
+            "computed_opencode_home": str(COMMANDS_HOME.parent),
             "computed_commands_home": str(COMMANDS_HOME),
             "computed_workspaces_home": str(WORKSPACES_HOME),
+            "planned_pointer_path": str(planned_pointer_path),
+            "planned_workspace_session_path": str(planned_workspace_path) if planned_workspace_path else None,
+            "derived_repo_fingerprint": repo_fp,
             "binding_ok": BINDING_OK,
             "mode": _effective_mode(),
             "platform": platform.system().lower(),

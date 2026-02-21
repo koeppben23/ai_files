@@ -13,7 +13,7 @@ from .util import REPO_ROOT, run, write_governance_paths
 def test_persist_workspace_artifacts_bootstraps_missing_session_state(tmp_path: Path):
     script = REPO_ROOT / "diagnostics" / "persist_workspace_artifacts.py"
     cfg = tmp_path / "opencode-config"
-    repo_fp = "autobootstrap-112233"
+    repo_fp = "a1b2c3d4e5f6a1b2c3d4e5f6"
     write_governance_paths(cfg)
 
     result = run(
@@ -41,7 +41,7 @@ def test_persist_workspace_artifacts_bootstraps_missing_session_state(tmp_path: 
 def test_persist_workspace_artifacts_does_not_bootstrap_when_session_updates_disabled(tmp_path: Path):
     script = REPO_ROOT / "diagnostics" / "persist_workspace_artifacts.py"
     cfg = tmp_path / "opencode-config"
-    repo_fp = "autobootstrap-445566"
+    repo_fp = "b2c3d4e5f6a1b2c3d4e5f6a1"
     write_governance_paths(cfg)
 
     result = run(
