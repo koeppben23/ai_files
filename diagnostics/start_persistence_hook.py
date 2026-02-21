@@ -104,6 +104,42 @@ def derive_repo_fingerprint(repo_root: Path) -> str | None:
     return fp or None
 
 
+def _verify_pointer_exists(opencode_home: Path, repo_fingerprint: str) -> tuple[bool, str]:
+    pointer_path = opencode_home / "SESSION_STATE.json"
+    if not pointer_path.is_file():
+        return False, "pointer-file-not-found"
+    try:
+        payload = json.loads(pointer_path.read_text(encoding="utf-8"))
+    except Exception:
+        return False, "pointer-file-unreadable"
+    if not isinstance(payload, dict):
+        return False, "pointer-invalid-shape"
+    if payload.get("schema") != "opencode-session-pointer.v1":
+        return False, f"pointer-invalid-schema:{payload.get('schema')}"
+    active_fp = payload.get("activeRepoFingerprint")
+    if active_fp != repo_fingerprint:
+        return False, f"pointer-fingerprint-mismatch:expected={repo_fingerprint},got={active_fp}"
+    return True, "ok"
+
+
+def _verify_workspace_session_exists(workspaces_home: Path, repo_fingerprint: str) -> tuple[bool, str]:
+    session_path = workspaces_home / repo_fingerprint / "SESSION_STATE.json"
+    if not session_path.is_file():
+        return False, "workspace-session-file-not-found"
+    try:
+        payload = json.loads(session_path.read_text(encoding="utf-8"))
+    except Exception:
+        return False, "workspace-session-file-unreadable"
+    if not isinstance(payload, dict):
+        return False, "workspace-session-invalid-shape"
+    session_state = payload.get("SESSION_STATE")
+    if not isinstance(session_state, dict):
+        return False, "workspace-session-missing-SESSION_STATE-key"
+    if not session_state.get("PersistenceCommitted"):
+        return False, "workspace-session-PersistenceCommitted-not-true"
+    return True, "ok"
+
+
 def run_persistence_hook(*, repo_root: Path | None = None) -> dict[str, object]:
     if not _writes_allowed():
         return {
@@ -181,12 +217,66 @@ def run_persistence_hook(*, repo_root: Path | None = None) -> dict[str, object]:
             cwd=str(cwd),
         )
         if proc.returncode == 0:
+            pointer_ok, pointer_reason = _verify_pointer_exists(COMMANDS_HOME.parent, repo_fp)
+            if not pointer_ok:
+                result = {
+                    "workspacePersistenceHook": "failed",
+                    "reason": f"pointer-verification-failed:{pointer_reason}",
+                    "returncode": proc.returncode,
+                    "repo_fingerprint": repo_fp,
+                    "repo_name": repo_name,
+                    "writes_allowed": True,
+                }
+                safe_log_error(
+                    reason_key="ERR-PERSISTENCE-POINTER-VERIFICATION-FAILED",
+                    message=f"Pointer verification failed after bootstrap: {pointer_reason}",
+                    config_root=COMMANDS_HOME.parent,
+                    phase="1.1-Bootstrap",
+                    gate="PERSISTENCE",
+                    mode="user",
+                    repo_fingerprint=repo_fp,
+                    command="start_persistence_hook.py",
+                    component="persistence-hook",
+                    observed_value={"pointer_reason": pointer_reason},
+                    expected_constraint="Global SESSION_STATE pointer must exist and reference correct fingerprint",
+                    remediation="Check filesystem permissions and re-run /start.",
+                )
+                return result
+
+            workspace_ok, workspace_reason = _verify_workspace_session_exists(WORKSPACES_HOME, repo_fp)
+            if not workspace_ok:
+                result = {
+                    "workspacePersistenceHook": "failed",
+                    "reason": f"workspace-session-verification-failed:{workspace_reason}",
+                    "returncode": proc.returncode,
+                    "repo_fingerprint": repo_fp,
+                    "repo_name": repo_name,
+                    "writes_allowed": True,
+                }
+                safe_log_error(
+                    reason_key="ERR-PERSISTENCE-WORKSPACE-SESSION-VERIFICATION-FAILED",
+                    message=f"Workspace session verification failed after bootstrap: {workspace_reason}",
+                    config_root=COMMANDS_HOME.parent,
+                    phase="1.1-Bootstrap",
+                    gate="PERSISTENCE",
+                    mode="user",
+                    repo_fingerprint=repo_fp,
+                    command="start_persistence_hook.py",
+                    component="persistence-hook",
+                    observed_value={"workspace_reason": workspace_reason},
+                    expected_constraint="Workspace SESSION_STATE must exist with PersistenceCommitted=True",
+                    remediation="Check filesystem permissions and re-run /start.",
+                )
+                return result
+
             result = {
                 "workspacePersistenceHook": "ok",
                 "reason": "bootstrap-completed",
                 "repo_fingerprint": repo_fp,
                 "repo_name": repo_name,
                 "writes_allowed": True,
+                "pointer_verified": True,
+                "workspace_session_verified": True,
             }
         else:
             result = {
