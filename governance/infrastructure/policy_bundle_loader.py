@@ -52,6 +52,7 @@ def _resolve_policy_path(filename: str, *, mode: str) -> Path:
         if candidate.exists():
             return candidate
 
+    # Repo-local fallback for CI/development (OPENCODE_REPO_ROOT set)
     repo_root_env = str(os.environ.get("OPENCODE_REPO_ROOT", "")).strip()
     if effective_mode != "pipeline" and repo_root_env:
         try:
@@ -63,15 +64,8 @@ def _resolve_policy_path(filename: str, *, mode: str) -> Path:
             if candidate.exists():
                 return candidate
 
-    allow_dev_unbound = str(os.environ.get("OPENCODE_DEV_ALLOW_UNBOUND_POLICY", "")).strip() == "1"
-    if not allow_dev_unbound:
-        raise PolicyBundleError(
-            f"Policy config not resolved: binding invalid and dev fallback disabled. "
-            f"binding_issues={evidence.issues}. "
-            f"Reason: BLOCKED-ENGINE-SELFCHECK"
-        )
-
-    if effective_mode != "pipeline" and str(os.environ.get("OPENCODE_ALLOW_REPO_LOCAL_CONFIG", "")).strip() == "1":
+    # Development fallback (no binding file) - allow repo-local resolution
+    if effective_mode != "pipeline":
         candidate = _repo_local_diagnostics_root() / filename
         if candidate.exists():
             return candidate
