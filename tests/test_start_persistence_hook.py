@@ -99,7 +99,9 @@ class TestPersistenceHookGoodPaths:
                     bootstrap_script.write_text("# fake")
                     
                     with patch.object(module.subprocess, "run", return_value=mock_result) as mock_run:
-                        result = module.run_persistence_hook(repo_root=tmp_path)
+                        with patch.object(module, "_verify_pointer_exists", return_value=(True, "ok")):
+                            with patch.object(module, "_verify_workspace_session_exists", return_value=(True, "ok")):
+                                result = module.run_persistence_hook(repo_root=tmp_path)
         
         assert result["workspacePersistenceHook"] == "ok"
         assert result["reason"] == "bootstrap-completed"
@@ -127,7 +129,9 @@ class TestPersistenceHookGoodPaths:
                     bootstrap_script.write_text("# fake")
                     
                     with patch.object(module.subprocess, "run", return_value=mock_result) as mock_run:
-                        module.run_persistence_hook(repo_root=tmp_path)
+                        with patch.object(module, "_verify_pointer_exists", return_value=(True, "ok")):
+                            with patch.object(module, "_verify_workspace_session_exists", return_value=(True, "ok")):
+                                module.run_persistence_hook(repo_root=tmp_path)
         
         cmd = mock_run.call_args[0][0]
         assert "--repo-name" in cmd
