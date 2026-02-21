@@ -453,9 +453,16 @@ jobs:
   # Job 2b: Governance E2E Flow
   # ----------------------------------
   governance-e2e:
-    name: Governance E2E Flow
+    name: Governance E2E Flow (${{ matrix.os }})
     needs: [governance-lint, spec-guards, architecture-guards]
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+          - windows-latest
     steps:
       - name: Checkout repository (resilient)
         shell: bash
