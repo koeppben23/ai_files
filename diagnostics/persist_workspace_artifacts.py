@@ -239,6 +239,18 @@ def _validate_canonical_fingerprint(value: str) -> str:
     return token
 
 
+PHASE2_ARTIFACTS = ["repo-cache.yaml", "repo-map-digest.md", "workspace-memory.yaml"]
+
+
+def _verify_phase2_artifacts_exist(repo_home: Path) -> tuple[bool, list[str]]:
+    missing = []
+    for artifact in PHASE2_ARTIFACTS:
+        path = repo_home / artifact
+        if not path.is_file():
+            missing.append(artifact)
+    return len(missing) == 0, missing
+
+
 def _sanitize_repo_name(value: str, fallback: str) -> str:
     raw = value.strip().lower()
     raw = raw.replace(" ", "-")
@@ -1138,6 +1150,8 @@ def main() -> int:
                 remediation="Repair repo-scoped SESSION_STATE and rerun backfill helper.",
             )
 
+    phase2_artifacts_ok, phase2_missing = _verify_phase2_artifacts_exist(repo_home)
+
     summary = {
         "status": "ok",
         "configRoot": str(config_root),
@@ -1150,6 +1164,10 @@ def main() -> int:
         "actions": actions,
         "sessionUpdate": session_update,
         "bootstrapSessionState": bootstrap_status,
+        "phase2Artifacts": {
+            "ok": phase2_artifacts_ok,
+            "missing": phase2_missing,
+        },
     }
 
     if args.quiet:
