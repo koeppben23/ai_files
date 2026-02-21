@@ -3,8 +3,10 @@ from __future__ import annotations
 import pytest
 
 from governance.domain.phase_state_machine import (
+    PHASE_RANK,
     build_phase_state,
     normalize_phase_token,
+    phase_rank,
     resolve_phase_policy,
     transition_phase_state,
 )
@@ -55,3 +57,29 @@ def test_transition_phase_state_returns_same_object_for_no_delta() -> None:
         next_gate_condition=" Concrete implementation target is defined ",
     )
     assert transitioned is state
+
+
+@pytest.mark.governance
+def test_phase_rank_map_is_monotonic_for_expected_sequence() -> None:
+    sequence = ("1", "1.1", "1.2", "1.3", "1.5", "2", "2.1", "3A", "3B-1", "3B-2", "4", "5", "5.3", "5.4", "5.5", "5.6", "6")
+    ranks = [phase_rank(token) for token in sequence]
+    assert all(r >= 0 for r in ranks)
+    assert ranks == sorted(ranks), f"Phase ranks must be increasing: {list(zip(sequence, ranks))}"
+
+
+@pytest.mark.governance
+def test_phase_rank_unknown_returns_negative_one() -> None:
+    assert phase_rank("NOT_A_PHASE") == -1
+
+
+@pytest.mark.governance
+def test_phase_rank_map_covers_all_normalized_tokens() -> None:
+    examples = [
+        "1", "1.1-Bootstrap", "1.2-RuleLoading", "1.3-AddonScan", "1.5-BusinessRules",
+        "2-Discovery", "2.1", "3A-API-Inventory", "3B-1 contract", "3B-2 contract",
+        "4-Plan", "5-TestGen", "5.3", "5.4", "5.5", "5.6", "6-PR",
+    ]
+    for raw in examples:
+        token = normalize_phase_token(raw)
+        assert token, raw
+        assert token in PHASE_RANK, f"Missing PHASE_RANK entry for {token}"
