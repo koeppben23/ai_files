@@ -1,11 +1,28 @@
 from __future__ import annotations
 
 import importlib.util
+import shutil
 from pathlib import Path
 
 import pytest
 
 from .util import REPO_ROOT, write_governance_paths
+
+_POLICY_FILES = [
+    "bootstrap_policy.yaml",
+    "persistence_artifacts.yaml",
+    "blocked_reason_catalog.yaml",
+    "phase_execution_config.yaml",
+]
+
+
+def _copy_policy_files(dest_diagnostics: Path) -> None:
+    src_diagnostics = REPO_ROOT / "diagnostics"
+    for filename in _POLICY_FILES:
+        src = src_diagnostics / filename
+        if src.exists():
+            dest_diagnostics.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(src, dest_diagnostics / filename)
 
 
 def _load_module():
@@ -55,8 +72,10 @@ def test_engine_shadow_snapshot_accepts_pipeline_operating_mode(
 ):
     """Shadow snapshot should accept explicit pipeline mode request."""
 
+    config_root = tmp_path / ".config" / "opencode"
+    write_governance_paths(config_root)
+    _copy_policy_files(config_root / "diagnostics")
     monkeypatch.setattr(Path, "home", staticmethod(lambda: tmp_path))
-    write_governance_paths(tmp_path / ".config" / "opencode")
     monkeypatch.chdir(REPO_ROOT)
     monkeypatch.setenv("OPENCODE_REPO_ROOT", str(REPO_ROOT))
     monkeypatch.setenv("OPENCODE_OPERATING_MODE", "pipeline")

@@ -210,17 +210,15 @@ def load_phase5_review_config(*, force_reload: bool = False) -> Phase5ReviewConf
         config_path = _default_resolver.resolve_config_path()
 
     allow_repo_local = False
-    if _default_resolver is not None and hasattr(_default_resolver, "allow_repo_local_fallback"):
-        allow_repo_local = _default_resolver.allow_repo_local_fallback()
-
     effective_mode = "user"
     if _default_resolver is not None and hasattr(_default_resolver, "operating_mode"):
         try:
             effective_mode = str(_default_resolver.operating_mode()).strip().lower() or "user"
         except Exception:
             effective_mode = "user"
-    if effective_mode == "pipeline":
-        allow_repo_local = False
+
+    if effective_mode != "pipeline" and _default_resolver is not None and hasattr(_default_resolver, "allow_repo_local_fallback"):
+        allow_repo_local = _default_resolver.allow_repo_local_fallback()
 
     if config_path is None:
         if allow_repo_local:
