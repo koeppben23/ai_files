@@ -209,12 +209,11 @@ def _validate_path_value(path_value: str, field_path: str) -> tuple[str, ...]:
 def validate_canonical_path_invariants(state: Mapping[str, object]) -> tuple[str, ...]:
     """Validate all canonical path fields against forbidden patterns.
 
-    From SESSION_STATE_SCHEMA.md lines 68-118:
-    - Forbidden patterns (→ BLOCKED-PERSISTENCE-PATH-VIOLATION):
-      - Windows drive prefixes, backslashes, parent traversal
-    - Degenerate patterns (→ BLOCKED-PERSISTENCE-TARGET-DEGENERATE):
-      - Single drive letter, drive root token, drive-relative path
-      - Single-segment relative path WITHOUT ${...}
+    Derived from the kernel-owned session-state schema contract:
+    - Forbidden patterns (→ BLOCKED-PERSISTENCE-PATH-VIOLATION): Windows drive prefixes,
+      backslashes, parent traversal
+    - Degenerate patterns (→ BLOCKED-PERSISTENCE-TARGET-DEGENERATE): single drive letter,
+      drive root token, drive-relative path, and single-segment paths without ${...}
     """
     errors: list[str] = []
 
@@ -234,9 +233,9 @@ def validate_canonical_path_invariants(state: Mapping[str, object]) -> tuple[str
 def validate_p5_approved_architecture_decisions(state: Mapping[str, object]) -> tuple[str, ...]:
     """If P5-Architecture is approved, ArchitectureDecisions MUST have approved entry.
 
-    From SESSION_STATE_SCHEMA.md lines 941-943:
-    - When Gates.P5-Architecture = approved, ArchitectureDecisions MUST be non-empty
-      and MUST contain at least one entry with Status = approved.
+    Derived from the kernel-owned session-state schema contract:
+    - When Gates.P5-Architecture = approved, ArchitectureDecisions is non-empty and
+      contains at least one entry with Status = approved.
     """
     gates = state.get("Gates")
     if not isinstance(gates, dict):
@@ -311,9 +310,8 @@ def validate_phase_gate_prerequisites(state: Mapping[str, object]) -> tuple[str,
 def validate_gate_artifacts_integrity(state: Mapping[str, object]) -> tuple[str, ...]:
     """Validate GateArtifacts - missing artifacts prevent gate approval.
 
-    From SESSION_STATE_SCHEMA.md lines 851-854:
-    - If any Provided item is 'missing', the gate MUST NOT be marked as
-      passing/approved.
+    Derived from the kernel-owned session-state schema contract:
+    - If any Provided item is 'missing', the gate is not marked as passing/approved.
     """
     gate_artifacts = state.get("GateArtifacts")
     if not isinstance(gate_artifacts, dict):

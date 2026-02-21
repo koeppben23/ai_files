@@ -1,7 +1,7 @@
 """Canonical governance reason-code registry.
 
-SSOT for all reason codes referenced in kernel MD files (master.md, rules.md,
-start.md, SESSION_STATE_SCHEMA.md) and profile/addon rulebooks.
+SSOT for all reason codes referenced by kernel-owned configs/schemas and
+profile/addon rulebooks.
 
 Every reason code used in any governance surface MUST have a constant here.
 The ``CANONICAL_REASON_CODES`` tuple is the single authoritative membership set
@@ -21,7 +21,7 @@ from typing import Final
 REASON_CODE_NONE: Final[str] = "none"
 
 # ---------------------------------------------------------------------------
-# Kernel BLOCKED codes (master.md / rules.md / start.md / SESSION_STATE_SCHEMA.md)
+# Kernel BLOCKED codes (kernel-owned policy bundle)
 # ---------------------------------------------------------------------------
 BLOCKED_BOOTSTRAP_NOT_SATISFIED: Final[str] = "BLOCKED-BOOTSTRAP-NOT-SATISFIED"
 BLOCKED_START_REQUIRED: Final[str] = "BLOCKED-START-REQUIRED"
