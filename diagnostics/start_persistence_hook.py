@@ -59,6 +59,14 @@ except ImportError as exc:
 
 
 def _resolve_bindings(*, mode: str) -> tuple[Path, Path, bool, Path | None, str]:
+    """Resolve binding evidence paths for the current mode.
+    
+    Args:
+        mode: The effective mode ('pipeline' or 'user').
+    
+    Returns:
+        Tuple of (commands_home, workspaces_home, binding_ok, paths_file, python_command).
+    """
     resolver = BindingEvidenceResolver()
     evidence = resolver.resolve(mode=mode)
     python_command = evidence.python_command.strip() if evidence.python_command else ""
@@ -77,7 +85,19 @@ COMMANDS_HOME, WORKSPACES_HOME, BINDING_OK, BINDING_EVIDENCE_PATH, PYTHON_COMMAN
 
 
 class _RepoIdentityAdapter(LocalHostAdapter):
+    """Adapter to provide repo-specific identity for fingerprint derivation.
+    
+    This adapter overrides the cwd and environment to point to a specific
+    repository root, allowing evaluate_start_identity to derive the fingerprint
+    from the correct location.
+    """
+    
     def __init__(self, repo_root: Path):
+        """Initialize the adapter for a specific repo root.
+        
+        Args:
+            repo_root: The absolute path to the repository root.
+        """
         super().__init__()
         resolved = normalize_absolute_path(str(repo_root), purpose="repo_root")
         self._repo_root = resolved
@@ -86,13 +106,35 @@ class _RepoIdentityAdapter(LocalHostAdapter):
         self._env = env
 
     def environment(self):
+        """Get the environment for this adapter.
+        
+        Returns:
+            Dictionary of environment variables including OPENCODE_REPO_ROOT.
+        """
         return self._env
 
     def cwd(self) -> Path:
+        """Get the current working directory for this adapter.
+        
+        Returns:
+            The repository root path.
+        """
         return self._repo_root
 
 
 def derive_repo_fingerprint(repo_root: Path) -> str | None:
+    """Derive the canonical 24-hex fingerprint for a repository.
+    
+    The fingerprint is derived in the following order:
+        1. From evaluate_start_identity (git remote → SHA256[:24])
+        2. Fallback: local path → SHA256[:24]
+    
+    Args:
+        repo_root: The path to the repository root.
+    
+    Returns:
+        A 24-character hex string fingerprint, or None if derivation fails.
+    """
     try:
         normalized_repo_root = normalize_absolute_path(str(repo_root), purpose="repo_root")
     except Exception:
@@ -117,12 +159,30 @@ def derive_repo_fingerprint(repo_root: Path) -> str | None:
 
 
 def _is_canonical_fingerprint(value: str) -> bool:
+    """Check if value is a canonical 24-hex fingerprint.
+    
+    Args:
+        value: The string to check.
+    
+    Returns:
+        True if value matches ^[0-9a-f]{24}$, False otherwise.
+    """
     import re
     token = value.strip()
     return bool(re.fullmatch(r"[0-9a-f]{24}", token))
 
 
 def _verify_pointer_exists(opencode_home: Path, repo_fingerprint: str) -> tuple[bool, str]:
+    """Verify that the global pointer exists and references the correct fingerprint.
+    
+    Args:
+        opencode_home: The OpenCode home directory.
+        repo_fingerprint: The expected canonical 24-hex fingerprint.
+    
+    Returns:
+        Tuple of (success, reason). Success is True if pointer exists and
+        references the correct fingerprint. Reason describes any failure.
+    """
     pointer_path = opencode_home / "SESSION_STATE.json"
     if not pointer_path.is_file():
         return False, "pointer-file-not-found"

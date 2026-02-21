@@ -1,3 +1,27 @@
+"""Workspace ready gate for persistence verification.
+
+This module provides the fail-closed verification that a workspace is
+fully initialized and ready for use. It implements:
+
+    1. Workspace lock acquisition (prevents concurrent bootstrap)
+    2. Marker file creation (workspace-ready-marker.v1)
+    3. Global pointer write (opencode-session-pointer.v1)
+    4. Fingerprint SSOT enforcement (prevents cross-wire)
+    5. Legacy pointer schema migration
+
+The gate ensures that:
+    - Only one bootstrap process can write to a workspace at a time
+    - The global pointer always references a valid workspace
+    - Fingerprint mismatches are detected and blocked (cross-wire detection)
+    - Legacy pointer schemas are auto-migrated to canonical format
+
+Usage:
+    with_workspace_ready_gate(
+        workspaces_home=...,
+        repo_fingerprint="a1b2c3d4e5f6a1b2c3d4e5f6",
+        ...
+    )
+"""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -17,6 +41,18 @@ CANONICAL_POINTER_SCHEMA = "opencode-session-pointer.v1"
 
 
 def read_pointer_file(pointer_path: Path) -> dict | None:
+    """Read and optionally migrate a pointer file.
+    
+    Supports both canonical and legacy pointer schemas. Legacy schemas
+    are automatically migrated to the canonical format on read.
+    
+    Args:
+        pointer_path: Path to the SESSION_STATE.json pointer file.
+    
+    Returns:
+        The pointer payload dict, or None if invalid/unreadable.
+        Legacy pointers are returned in canonical format.
+    """
     if not pointer_path.is_file():
         return None
     try:
@@ -39,6 +75,14 @@ def read_pointer_file(pointer_path: Path) -> dict | None:
 
 
 def _migrate_legacy_pointer(legacy: dict) -> dict:
+    """Migrate a legacy pointer payload to canonical schema.
+    
+    Args:
+        legacy: The legacy pointer payload dict.
+    
+    Returns:
+        A new dict in canonical schema format.
+    """
     return {
         "schema": CANONICAL_POINTER_SCHEMA,
         "repo_fingerprint": legacy.get("repo_fingerprint", ""),

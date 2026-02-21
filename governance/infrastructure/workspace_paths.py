@@ -1,41 +1,109 @@
 """SSOT path utilities for workspace-scoped artifacts.
 
 All phase artifacts are written deterministically under:
-${WORKSPACES_HOME}/<repo_fingerprint>/
+    ${WORKSPACES_HOME}/<repo_fingerprint>/
+
+The repo_fingerprint is a canonical 24-hex hash derived from:
+    - Git remote URL: SHA256("repo:" + canonical_remote)[:24]
+    - Local path: SHA256("repo:local:" + normalized_path)[:24]
 
 This module provides canonical path functions for all persisted artifacts.
+Each function returns a Path object for a specific artifact under the
+workspace directory.
 """
-
 from __future__ import annotations
 
 from pathlib import Path
 
 
 def workspace_root(workspaces_home: Path, repo_fingerprint: str) -> Path:
+    """Get the root directory for a repository's workspace.
+    
+    Args:
+        workspaces_home: The base workspaces directory.
+        repo_fingerprint: The canonical 24-hex fingerprint.
+    
+    Returns:
+        Path to ${WORKSPACES_HOME}/${fingerprint}/
+    """
     return workspaces_home / repo_fingerprint
 
 
 def session_state_path(workspaces_home: Path, repo_fingerprint: str) -> Path:
+    """Get the path to a repository's SESSION_STATE.json file.
+    
+    Args:
+        workspaces_home: The base workspaces directory.
+        repo_fingerprint: The canonical 24-hex fingerprint.
+    
+    Returns:
+        Path to ${WORKSPACES_HOME}/${fingerprint}/SESSION_STATE.json
+    """
     return workspaces_home / repo_fingerprint / "SESSION_STATE.json"
 
 
 def repo_cache_path(workspaces_home: Path, repo_fingerprint: str) -> Path:
+    """Get the path to a repository's repo-cache.yaml file.
+    
+    Args:
+        workspaces_home: The base workspaces directory.
+        repo_fingerprint: The canonical 24-hex fingerprint.
+    
+    Returns:
+        Path to ${WORKSPACES_HOME}/${fingerprint}/repo-cache.yaml
+    """
     return workspaces_home / repo_fingerprint / "repo-cache.yaml"
 
 
 def repo_map_digest_path(workspaces_home: Path, repo_fingerprint: str) -> Path:
+    """Get the path to a repository's repo-map-digest.md file.
+    
+    Args:
+        workspaces_home: The base workspaces directory.
+        repo_fingerprint: The canonical 24-hex fingerprint.
+    
+    Returns:
+        Path to ${WORKSPACES_HOME}/${fingerprint}/repo-map-digest.md
+    """
     return workspaces_home / repo_fingerprint / "repo-map-digest.md"
 
 
 def workspace_memory_path(workspaces_home: Path, repo_fingerprint: str) -> Path:
+    """Get the path to a repository's workspace-memory.yaml file.
+    
+    Args:
+        workspaces_home: The base workspaces directory.
+        repo_fingerprint: The canonical 24-hex fingerprint.
+    
+    Returns:
+        Path to ${WORKSPACES_HOME}/${fingerprint}/workspace-memory.yaml
+    """
     return workspaces_home / repo_fingerprint / "workspace-memory.yaml"
 
 
 def decision_pack_path(workspaces_home: Path, repo_fingerprint: str) -> Path:
+    """Get the path to a repository's decision-pack.md file.
+    
+    Args:
+        workspaces_home: The base workspaces directory.
+        repo_fingerprint: The canonical 24-hex fingerprint.
+    
+    Returns:
+        Path to ${WORKSPACES_HOME}/${fingerprint}/decision-pack.md
+    """
     return workspaces_home / repo_fingerprint / "decision-pack.md"
 
 
 def business_rules_path(workspaces_home: Path, repo_fingerprint: str) -> Path:
+    """Get the path to a repository's business-rules.md file.
+    
+    Args:
+        workspaces_home: The base workspaces directory.
+        repo_fingerprint: The canonical 24-hex fingerprint.
+    
+    Returns:
+        Path to ${WORKSPACES_HOME}/${fingerprint}/business-rules.md
+    """
     return workspaces_home / repo_fingerprint / "business-rules.md"
 
 
