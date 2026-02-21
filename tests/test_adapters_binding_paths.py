@@ -28,8 +28,8 @@ def _write_binding(config_root: Path, *, commands_home: Path, workspaces_home: P
 @pytest.mark.governance
 def test_local_adapter_prefers_bound_workspaces_home(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     cfg = tmp_path / "cfg"
-    commands_home = tmp_path / "bound-commands"
-    workspaces_home = tmp_path / "bound-workspaces"
+    commands_home = cfg / "commands"
+    workspaces_home = cfg / "workspaces"
     commands_home.mkdir(parents=True, exist_ok=True)
     workspaces_home.mkdir(parents=True, exist_ok=True)
     _write_binding(cfg, commands_home=commands_home, workspaces_home=workspaces_home)
@@ -43,8 +43,8 @@ def test_local_adapter_prefers_bound_workspaces_home(monkeypatch: pytest.MonkeyP
 @pytest.mark.governance
 def test_desktop_adapter_prefers_bound_commands_home(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     cfg = tmp_path / "cfg"
-    commands_home = tmp_path / "bound-commands"
-    workspaces_home = tmp_path / "bound-workspaces"
+    commands_home = cfg / "commands"
+    workspaces_home = cfg / "workspaces"
     commands_home.mkdir(parents=True, exist_ok=True)
     workspaces_home.mkdir(parents=True, exist_ok=True)
     _write_binding(cfg, commands_home=commands_home, workspaces_home=workspaces_home)

@@ -47,7 +47,9 @@ def test_engine_shadow_snapshot_is_available_and_reports_parity_fields(
     monkeypatch.chdir(REPO_ROOT)
     monkeypatch.setenv("OPENCODE_REPO_ROOT", str(REPO_ROOT))
     monkeypatch.setattr(Path, "home", staticmethod(lambda: tmp_path))
-    write_governance_paths(tmp_path / ".config" / "opencode")
+    config_root = tmp_path / ".config" / "opencode"
+    write_governance_paths(config_root)
+    _copy_policy_files(config_root / "commands" / "diagnostics")
     module = _load_module()
     snapshot = module.build_engine_shadow_snapshot()
     assert snapshot["available"] is True

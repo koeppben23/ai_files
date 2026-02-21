@@ -46,6 +46,7 @@ def test_binding_resolver_marks_trusted_override_source_and_audit(monkeypatch: p
         payload = {
             "schema": "opencode-governance.paths.v1",
             "paths": {
+                "configRoot": str(root),
                 "commandsHome": str(root / "commands"),
                 "workspacesHome": str(root / "workspaces"),
                 "pythonCommand": "python3",
@@ -74,6 +75,7 @@ def test_binding_resolver_keeps_canonical_source_when_cwd_search_enabled_but_unu
     payload = {
         "schema": "opencode-governance.paths.v1",
         "paths": {
+            "configRoot": str(tmp_path),
             "commandsHome": str(tmp_path / "commands"),
             "workspacesHome": str(tmp_path / "workspaces"),
             "pythonCommand": "python3",
@@ -97,6 +99,7 @@ def test_binding_resolver_accepts_legacy_schema_for_backward_compat(tmp_path: Pa
     payload = {
         "schema": "governance.paths.v1",
         "paths": {
+            "configRoot": str(tmp_path),
             "commandsHome": str(commands),
             "workspacesHome": str(tmp_path / "workspaces"),
             "pythonCommand": "python3",
@@ -117,6 +120,7 @@ def test_binding_resolver_requires_host_caps_for_dev_cwd_search(monkeypatch: pyt
     payload = {
         "schema": "opencode-governance.paths.v1",
         "paths": {
+            "configRoot": str(tmp_path),
             "commandsHome": str(tmp_path / "commands"),
             "workspacesHome": str(tmp_path / "workspaces"),
             "pythonCommand": "python3",

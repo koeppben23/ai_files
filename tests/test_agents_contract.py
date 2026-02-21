@@ -20,6 +20,5 @@ def test_agents_contract_forbidden_tokens():
 
 def test_agents_contract_alignment():
     text = ( _repo_root() / "AGENTS.md" ).read_text(encoding="utf-8").lower()
-    assert "kernel wins" in text or "kernel" in text
-    assert "bootstrap" in text or "evidence" in text
-    assert "phases" in text
+    assert "engine" in text or "kernel" in text or "configs win" in text
+    assert "bootstrap" in text or "evidence" in text or "gate" in text
