@@ -74,7 +74,7 @@ def test_engine_shadow_snapshot_accepts_pipeline_operating_mode(
 
     config_root = tmp_path / ".config" / "opencode"
     write_governance_paths(config_root)
-    _copy_policy_files(config_root / "diagnostics")
+    _copy_policy_files(config_root / "commands" / "diagnostics")
     monkeypatch.setattr(Path, "home", staticmethod(lambda: tmp_path))
     monkeypatch.chdir(REPO_ROOT)
     monkeypatch.setenv("OPENCODE_REPO_ROOT", str(REPO_ROOT))
