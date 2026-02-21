@@ -23,9 +23,11 @@ class BindingEvidence:
     raw_path: Path | None
     commands_home: Path
     workspaces_home: Path
+    config_root: Path | None
     governance_paths_json: Path | None
     source: Literal["canonical", "trusted_override", "dev_cwd_search", "missing", "invalid"]
     binding_ok: bool
+    issues: list[str]
     audit_marker: str | None
     audit_event: dict[str, object] | None = None
 
@@ -141,9 +143,11 @@ class BindingEvidenceResolver:
                 raw_path=None,
                 commands_home=commands_home,
                 workspaces_home=workspaces_home,
+                config_root=None,
                 governance_paths_json=None,
                 source="missing",
                 binding_ok=False,
+                issues=["binding.file.missing"],
                 audit_marker=None,
                 audit_event=None,
             )
@@ -174,9 +178,11 @@ class BindingEvidenceResolver:
                 raw_path=binding_file,
                 commands_home=commands_home,
                 workspaces_home=workspaces_home,
+                config_root=None,
                 governance_paths_json=binding_file,
                 source="invalid",
                 binding_ok=False,
+                issues=["binding.parse.failed"],
                 audit_marker=None,
                 audit_event=None,
             )
@@ -197,6 +203,19 @@ class BindingEvidenceResolver:
                     "allow_cwd_bindings": str(self._env.get("OPENCODE_ALLOW_CWD_BINDINGS", "")).strip() == "1",
                 },
             }
+
+        issues: list[str] = []
+        config_root: Path | None = None
+
+        raw_config_root = paths.get("configRoot")
+        if isinstance(raw_config_root, str) and raw_config_root.strip():
+            try:
+                config_root = normalize_absolute_path(raw_config_root, purpose="paths.configRoot")
+            except Exception:
+                issues.append("binding.paths.configRoot.invalid")
+
+        binding_ok = len(issues) == 0
+
         return BindingEvidence(
             python_command=python_command,
             cmd_profiles=cmd_profiles,
@@ -204,9 +223,11 @@ class BindingEvidenceResolver:
             raw_path=binding_file,
             commands_home=commands,
             workspaces_home=workspaces,
+            config_root=config_root,
             governance_paths_json=binding_file,
             source=binding_source,
-            binding_ok=True,
+            binding_ok=binding_ok,
+            issues=issues,
             audit_marker=audit_marker,
             audit_event=audit_event,
         )
