@@ -1,0 +1,32 @@
+# gitleaks configuration for ai_files repository
+# This file configures secret scanning for the LLM Governance System
+
+title = "gitleaks config"
+
+[extend]
+# Use the default gitleaks rules as base
+useDefault = true
+
+# Global allowlist for false positives
+[[allowlists]]
+description = "Global allowlist for test files and example tokens"
+paths = [
+  '''tests/.*''',
+  '''.*test.*\.py$''',
+  '''\.md$''',
+]
+regexes = [
+  '''a1b2c3d4e5f6a1b2c3d4e5f6''',
+  '''test-fingerprint''',
+  '''example''',
+  '''reason_key''',  # False positive: variable name contains 'key'
+  '''ERR-[A-Z-]+''',  # Error reason keys are not secrets
+]
+stopwords = [
+  "example",
+  "test",
+  "dummy",
+  "placeholder",
+  "reason_key",
+  "ERR-",
+]
