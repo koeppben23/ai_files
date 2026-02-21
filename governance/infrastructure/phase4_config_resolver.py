@@ -27,7 +27,8 @@ class CanonicalRootConfigResolver:
                 if canonical_path.exists():
                     return canonical_path
         except Exception:
-            pass
+            if self._mode == "pipeline":
+                return None
         return None
     
     def allow_repo_local_fallback(self) -> bool:

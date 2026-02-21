@@ -45,7 +45,6 @@ from governance.domain.reason_codes import (
     REPO_CONSTRAINT_WIDENING,
     REPO_DOC_UNSAFE_DIRECTIVE,
     REASON_CODE_NONE,
-    WARN_MODE_DOWNGRADED,
     WARN_PERMISSION_LIMITED,
 )
 from governance.application.ports.gateways import (
@@ -193,28 +192,24 @@ def run_engine_orchestrator(
     capabilities_hash = caps.stable_hash()
     requested_mode = resolve_effective_operating_mode(adapter, requested_operating_mode)
     effective_mode = requested_mode
+    # mode_downgraded/mode_deviation retained for backward compatibility in output
     mode_downgraded = False
     mode_deviation: Any | None = None
     mode_reason = REASON_CODE_NONE
 
+    gate_blocked = False
+    gate_reason_code = REASON_CODE_NONE
     if requested_mode != "user" and not has_required_mode_capabilities(requested_mode, caps):
-        effective_mode = "user"
-        mode_downgraded = True
-        mode_reason = WARN_MODE_DOWNGRADED
-        mode_deviation = SimpleNamespace(
-            type="mode_downgrade",
-            scope="operating_mode",
-            impact=f"requested {requested_mode} mode downgraded to user mode",
-            recovery="restore required capabilities for requested mode or rerun in user mode",
-        )
+        gate_blocked = True
+        gate_reason_code = BLOCKED_OPERATING_MODE_REQUIRED
+        effective_mode = requested_mode
 
     repo_context = resolve_repo_root(
         adapter=adapter,
         cwd=adapter.cwd(),
     )
 
-    gate_blocked = False
-    gate_reason_code = REASON_CODE_NONE
+    # gate_blocked already initialized before repo discovery
 
     if commit_workspace_ready_gate and repo_context.is_git_root and repo_context.repo_root is not None:
         # Derive fingerprint from live repo_root (SSOT) and verify against session state.
