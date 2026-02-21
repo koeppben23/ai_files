@@ -1152,8 +1152,24 @@ def main() -> int:
 
     phase2_artifacts_ok, phase2_missing = _verify_phase2_artifacts_exist(repo_home)
 
+    if not phase2_artifacts_ok and not args.dry_run and not READ_ONLY:
+        safe_log_error(
+            reason_key="ERR-PHASE2-ARTIFACTS-MISSING",
+            message="Phase 2 discovery did not write required artifacts.",
+            config_root=config_root,
+            phase="2",
+            gate="PERSISTENCE",
+            mode="repo-aware",
+            repo_fingerprint=repo_fingerprint,
+            command="persist_workspace_artifacts.py",
+            component="phase2-artifacts-verification",
+            observed_value={"missing": phase2_missing, "repo_home": str(repo_home)},
+            expected_constraint="repo-cache.yaml, repo-map-digest.md, workspace-memory.yaml must exist",
+            remediation="Re-run persist_workspace_artifacts.py with --force to recreate missing artifacts.",
+        )
+
     summary = {
-        "status": "ok",
+        "status": "ok" if phase2_artifacts_ok else "degraded",
         "configRoot": str(config_root),
         "bindingEvidence": str(binding_file),
         "repoFingerprint": repo_fingerprint,
