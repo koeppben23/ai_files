@@ -5,11 +5,48 @@ from datetime import datetime, timezone
 from pathlib import Path
 import json
 import os
+import re
 
 from governance.domain.canonical_json import canonical_json_text
 from governance.infrastructure.fs_atomic import atomic_write_text
 
 _LOCK_TTL_SECONDS: int = 120
+
+LEGACY_POINTER_SCHEMAS = {"active-session-pointer.v1"}
+CANONICAL_POINTER_SCHEMA = "opencode-session-pointer.v1"
+
+
+def read_pointer_file(pointer_path: Path) -> dict | None:
+    if not pointer_path.is_file():
+        return None
+    try:
+        payload = json.loads(pointer_path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    if not isinstance(payload, dict):
+        return None
+    schema = payload.get("schema")
+    if schema == CANONICAL_POINTER_SCHEMA:
+        return payload
+    if schema in LEGACY_POINTER_SCHEMAS:
+        migrated = _migrate_legacy_pointer(payload)
+        try:
+            atomic_write_text(pointer_path, canonical_json_text(migrated) + "\n")
+        except OSError:
+            pass
+        return migrated
+    return None
+
+
+def _migrate_legacy_pointer(legacy: dict) -> dict:
+    return {
+        "schema": CANONICAL_POINTER_SCHEMA,
+        "repo_fingerprint": legacy.get("repo_fingerprint", ""),
+        "session_id": legacy.get("session_id", ""),
+        "workspace_ready": legacy.get("workspace_ready", False),
+        "active_session_state_file": legacy.get("active_session_state_file", ""),
+        "updatedAt": legacy.get("updated_at", legacy.get("updatedAt", "")),
+    }
 
 
 @dataclass(frozen=True)
@@ -114,12 +151,12 @@ def ensure_workspace_ready(
             "discovered_at": _iso_now(),
         }
         pointer_payload = {
-            "schema": "active-session-pointer.v1",
+            "schema": "opencode-session-pointer.v1",
             "repo_fingerprint": fp,
             "session_id": session_id,
             "workspace_ready": True,
             "active_session_state_file": str(session_state_file),
-            "updated_at": _iso_now(),
+            "updatedAt": _iso_now(),
         }
 
         atomic_write_text(marker_path, canonical_json_text(marker_payload) + "\n")
