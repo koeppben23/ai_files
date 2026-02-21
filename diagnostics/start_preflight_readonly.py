@@ -22,14 +22,24 @@ from governance.infrastructure.wiring import configure_gateway_registry
 
 
 _is_pipeline = os.environ.get("CI", "").strip().lower() not in {"", "0", "false", "no", "off"}
-READ_ONLY = _is_pipeline or os.environ.get("OPENCODE_DIAGNOSTICS_ALLOW_WRITE", "0") != "1"
+
+
+def _effective_mode() -> str:
+    mode = resolve_env_operating_mode()
+    if mode == "invalid":
+        return "pipeline"
+    return mode
+
+
+def _writes_allowed(*, mode: str) -> bool:
+    if str(os.environ.get("OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY", "")).strip() == "1":
+        return False
+    return True
 
 
 def _resolve_bindings() -> tuple[Path, Path, bool, Path | None, str]:
     resolver = BindingEvidenceResolver()
-    effective_mode = resolve_env_operating_mode()
-    if effective_mode == "invalid":
-        effective_mode = "pipeline"
+    effective_mode = _effective_mode()
     evidence = resolver.resolve(mode=effective_mode)
     python_command = evidence.python_command.strip() if evidence.python_command else ""
     if not python_command:
@@ -151,6 +161,7 @@ def emit_preflight() -> None:
     longpaths_note = "not_applicable" if longpaths is None else ("enabled" if longpaths else "disabled")
     git_safe_directory = "blocked" if (_command_available("git") and _git_safe_directory_issue()) else "ok"
 
+    mode = _effective_mode()
     payload = {
         "preflight": status,
         "observed_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
@@ -161,7 +172,7 @@ def emit_preflight() -> None:
         "missing_later": missing_later,
         "block_now": block_now,
         "impact": (
-            "required_now commands satisfied; preflight remains read-only"
+            "required_now commands satisfied; preflight continues"
             if status == "ok"
             else "missing required_now commands may block bootstrap gates"
         ),
@@ -173,7 +184,8 @@ def emit_preflight() -> None:
         "binding_evidence": "ok" if BINDING_OK else "invalid",
         "windows_longpaths": longpaths_note,
         "git_safe_directory": git_safe_directory,
-        "read_only": READ_ONLY,
+        "mode": mode,
+        "writes_allowed": _writes_allowed(mode=mode),
     }
     print(json.dumps(payload, ensure_ascii=True))
 
@@ -262,19 +274,24 @@ def build_engine_shadow_snapshot() -> dict[str, object]:
 
 
 def run_persistence_hook() -> dict[str, object]:
-    if READ_ONLY:
+    mode = _effective_mode()
+    if not _writes_allowed(mode=mode):
         result = {
-            "workspacePersistenceHook": "skipped",
-            "reason": "read-only-preflight",
-            "impact": "workspace/index persistence is kernel-owned only",
-            "read_only": True,
+            "workspacePersistenceHook": "blocked",
+            "reason_code": "BLOCKED-WORKSPACE-PERSISTENCE",
+            "reason": "writes-not-allowed",
+            "impact": "fingerprint + persistence are required before any phase >= 2.1",
+            "mode": mode,
+            "writes_allowed": False,
         }
         print(json.dumps(result, ensure_ascii=True))
-        return result
+        raise SystemExit(2)
 
     from diagnostics.start_persistence_hook import run_persistence_hook as _run_hook
     result = _run_hook()
     print(json.dumps(result, ensure_ascii=True))
+    if str(result.get("workspacePersistenceHook")).strip().lower() != "ok":
+        raise SystemExit(2)
     return result
 
 

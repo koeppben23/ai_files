@@ -89,8 +89,18 @@ def _api_in_scope(state: Mapping[str, object]) -> bool:
     return _openapi_signal(state) or _external_api_artifacts(state)
 
 
+def _persistence_committed(state: Mapping[str, object]) -> bool:
+    for key in ("PersistenceCommitted", "persistence_committed", "persistenceCommitted"):
+        value = state.get(key)
+        if isinstance(value, bool):
+            return value
+    return False
+
+
 def _workspace_ready(state: Mapping[str, object], *, repo_is_git_root: bool) -> bool:
     _ = repo_is_git_root
+    if not _persistence_committed(state):
+        return False
     for key in ("workspace_ready_gate_committed", "WorkspaceReadyGateCommitted"):
         value = state.get(key)
         if isinstance(value, bool):
