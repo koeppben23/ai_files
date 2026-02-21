@@ -32,60 +32,55 @@ def _load_hook_module_with_env(env: dict[str, str]):
 
 
 class TestEnvironmentHandling:
-    """Tests for READ_ONLY environment variable handling."""
+    """Tests for _writes_allowed environment variable handling."""
 
     @pytest.mark.governance
-    def test_read_only_false_when_write_enabled_and_not_ci(self):
-        module = _load_hook_module_with_env({
-            "OPENCODE_DIAGNOSTICS_ALLOW_WRITE": "1",
-            "CI": "",
-        })
-        assert module.READ_ONLY is False
+    def test_writes_allowed_true_by_default(self, monkeypatch: pytest.MonkeyPatch):
+        monkeypatch.delenv("OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY", raising=False)
+        from diagnostics.start_persistence_hook import _writes_allowed
+        assert _writes_allowed() is True
 
     @pytest.mark.governance
-    def test_read_only_true_when_ci_set(self):
-        module = _load_hook_module_with_env({"CI": "true"})
-        assert module.READ_ONLY is True
+    def test_writes_allowed_false_when_force_read_only_set(self, monkeypatch: pytest.MonkeyPatch):
+        monkeypatch.setenv("OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY", "1")
+        import importlib
+        import diagnostics.start_persistence_hook as mod
+        importlib.reload(mod)
+        assert mod._writes_allowed() is False
 
     @pytest.mark.governance
-    def test_read_only_true_by_default(self):
-        module = _load_hook_module_with_env({})
-        assert module.READ_ONLY is True
+    def test_writes_allowed_true_when_ci_set(self, monkeypatch: pytest.MonkeyPatch):
+        monkeypatch.setenv("CI", "true")
+        monkeypatch.delenv("OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY", raising=False)
+        from diagnostics.start_persistence_hook import _writes_allowed
+        assert _writes_allowed() is True
 
     @pytest.mark.governance
-    def test_read_only_true_when_write_is_zero(self):
-        module = _load_hook_module_with_env({
-            "OPENCODE_DIAGNOSTICS_ALLOW_WRITE": "0",
-            "CI": "",
-        })
-        assert module.READ_ONLY is True
-
-    @pytest.mark.governance
-    def test_read_only_true_ci_overrides_write_enabled(self):
-        """CI=true should override OPENCODE_DIAGNOSTICS_ALLOW_WRITE=1."""
-        module = _load_hook_module_with_env({
-            "CI": "true",
-            "OPENCODE_DIAGNOSTICS_ALLOW_WRITE": "1",
-        })
-        assert module.READ_ONLY is True
+    def test_writes_allowed_ignores_allow_write_flag(self, monkeypatch: pytest.MonkeyPatch):
+        monkeypatch.setenv("CI", "true")
+        monkeypatch.setenv("OPENCODE_DIAGNOSTICS_ALLOW_WRITE", "1")
+        monkeypatch.delenv("OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY", raising=False)
+        from diagnostics.start_persistence_hook import _writes_allowed
+        assert _writes_allowed() is True
 
 
 class TestPersistenceHookGoodPaths:
     """Tests for successful persistence scenarios."""
 
     @pytest.mark.governance
-    def test_returns_skipped_when_read_only(self):
-        module = _load_hook_module_with_env({})
-        result = module.run_persistence_hook()
+    def test_returns_blocked_when_writes_not_allowed(self, tmp_path: Path):
+        module = _load_hook_module_with_env({"CI": ""})
         
-        assert result["workspacePersistenceHook"] == "skipped"
-        assert result["reason"] == "read-only-mode"
-        assert result["read_only"] is True
+        with patch.object(module, "_writes_allowed", return_value=False):
+            result = module.run_persistence_hook(repo_root=tmp_path)
+        
+        assert result["workspacePersistenceHook"] == "blocked"
+        assert result["reason_code"] == "BLOCKED-WORKSPACE-PERSISTENCE"
+        assert result["writes_allowed"] is False
 
     @pytest.mark.governance
-    def test_calls_bootstrap_when_write_enabled(self, tmp_path: Path):
+    def test_calls_bootstrap_by_default(self, tmp_path: Path):
         module = _load_hook_module_with_env({
-            "OPENCODE_DIAGNOSTICS_ALLOW_WRITE": "1",
             "CI": "",
         })
         
@@ -116,7 +111,6 @@ class TestPersistenceHookGoodPaths:
     @pytest.mark.governance
     def test_passes_repo_name_to_bootstrap(self, tmp_path: Path):
         module = _load_hook_module_with_env({
-            "OPENCODE_DIAGNOSTICS_ALLOW_WRITE": "1",
             "CI": "",
         })
         
@@ -146,10 +140,7 @@ class TestPersistenceHookBadPaths:
 
     @pytest.mark.governance
     def test_fails_when_fingerprint_missing(self, tmp_path: Path):
-        module = _load_hook_module_with_env({
-            "OPENCODE_DIAGNOSTICS_ALLOW_WRITE": "1",
-            "CI": "",
-        })
+        module = _load_hook_module_with_env({"CI": ""})
         
         with patch.object(module, "derive_repo_fingerprint", return_value=None):
             with patch.object(module, "safe_log_error") as mock_log:
@@ -162,10 +153,7 @@ class TestPersistenceHookBadPaths:
 
     @pytest.mark.governance
     def test_fails_when_bootstrap_script_missing(self, tmp_path: Path):
-        module = _load_hook_module_with_env({
-            "OPENCODE_DIAGNOSTICS_ALLOW_WRITE": "1",
-            "CI": "",
-        })
+        module = _load_hook_module_with_env({"CI": ""})
         
         # Use empty tmp_path as COMMANDS_HOME (no bootstrap script exists)
         with patch.object(module, "derive_repo_fingerprint", return_value="testfingerprint123456"):
@@ -180,10 +168,7 @@ class TestPersistenceHookBadPaths:
 
     @pytest.mark.governance
     def test_fails_when_bootstrap_returns_nonzero(self, tmp_path: Path):
-        module = _load_hook_module_with_env({
-            "OPENCODE_DIAGNOSTICS_ALLOW_WRITE": "1",
-            "CI": "",
-        })
+        module = _load_hook_module_with_env({"CI": ""})
         
         mock_result = MagicMock()
         mock_result.returncode = 1
@@ -208,10 +193,7 @@ class TestPersistenceHookBadPaths:
 
     @pytest.mark.governance
     def test_fails_when_bootstrap_raises_exception(self, tmp_path: Path):
-        module = _load_hook_module_with_env({
-            "OPENCODE_DIAGNOSTICS_ALLOW_WRITE": "1",
-            "CI": "",
-        })
+        module = _load_hook_module_with_env({"CI": ""})
         
         with patch.object(module, "derive_repo_fingerprint", return_value="testfingerprint123456"):
             with patch.object(module, "safe_log_error") as mock_log:
@@ -235,10 +217,7 @@ class TestPersistenceHookEdgeCases:
 
     @pytest.mark.governance
     def test_truncates_long_stdout_on_failure(self, tmp_path: Path):
-        module = _load_hook_module_with_env({
-            "OPENCODE_DIAGNOSTICS_ALLOW_WRITE": "1",
-            "CI": "",
-        })
+        module = _load_hook_module_with_env({"CI": ""})
         
         long_output = "x" * 1000
         mock_result = MagicMock()
@@ -261,10 +240,7 @@ class TestPersistenceHookEdgeCases:
 
     @pytest.mark.governance
     def test_truncates_long_stderr_on_failure(self, tmp_path: Path):
-        module = _load_hook_module_with_env({
-            "OPENCODE_DIAGNOSTICS_ALLOW_WRITE": "1",
-            "CI": "",
-        })
+        module = _load_hook_module_with_env({"CI": ""})
         
         long_output = "y" * 1000
         mock_result = MagicMock()
@@ -287,10 +263,7 @@ class TestPersistenceHookEdgeCases:
 
     @pytest.mark.governance
     def test_handles_empty_stdout_stderr(self, tmp_path: Path):
-        module = _load_hook_module_with_env({
-            "OPENCODE_DIAGNOSTICS_ALLOW_WRITE": "1",
-            "CI": "",
-        })
+        module = _load_hook_module_with_env({"CI": ""})
         
         mock_result = MagicMock()
         mock_result.returncode = 1
@@ -313,10 +286,7 @@ class TestPersistenceHookEdgeCases:
 
     @pytest.mark.governance
     def test_handles_whitespace_only_output(self, tmp_path: Path):
-        module = _load_hook_module_with_env({
-            "OPENCODE_DIAGNOSTICS_ALLOW_WRITE": "1",
-            "CI": "",
-        })
+        module = _load_hook_module_with_env({"CI": ""})
         
         mock_result = MagicMock()
         mock_result.returncode = 1
