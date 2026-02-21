@@ -52,6 +52,17 @@ def _resolve_policy_path(filename: str, *, mode: str) -> Path:
         if candidate.exists():
             return candidate
 
+    repo_root_env = str(os.environ.get("OPENCODE_REPO_ROOT", "")).strip()
+    if effective_mode != "pipeline" and repo_root_env:
+        try:
+            repo_root_path = normalize_absolute_path(repo_root_env, purpose="env:OPENCODE_REPO_ROOT")
+        except PathContractError:
+            repo_root_path = None
+        if repo_root_path is not None:
+            candidate = repo_root_path / "diagnostics" / filename
+            if candidate.exists():
+                return candidate
+
     allow_dev_unbound = str(os.environ.get("OPENCODE_DEV_ALLOW_UNBOUND_POLICY", "")).strip() == "1"
     if not allow_dev_unbound:
         raise PolicyBundleError(
@@ -59,18 +70,6 @@ def _resolve_policy_path(filename: str, *, mode: str) -> Path:
             f"binding_issues={evidence.issues}. "
             f"Reason: BLOCKED-ENGINE-SELFCHECK"
         )
-
-    if effective_mode != "pipeline":
-        repo_root = str(os.environ.get("OPENCODE_REPO_ROOT", "")).strip()
-        if repo_root:
-            try:
-                repo_root_path = normalize_absolute_path(repo_root, purpose="env:OPENCODE_REPO_ROOT")
-            except PathContractError:
-                repo_root_path = None
-            if repo_root_path is not None:
-                candidate = repo_root_path / "diagnostics" / filename
-                if candidate.exists():
-                    return candidate
 
     if effective_mode != "pipeline" and str(os.environ.get("OPENCODE_ALLOW_REPO_LOCAL_CONFIG", "")).strip() == "1":
         candidate = _repo_local_diagnostics_root() / filename
