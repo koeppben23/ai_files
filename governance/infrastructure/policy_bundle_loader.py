@@ -19,6 +19,7 @@ except Exception:  # pragma: no cover
     yaml = None  # type: ignore
 
 from governance.infrastructure.binding_evidence_resolver import BindingEvidenceResolver
+from governance.infrastructure.path_contract import normalize_absolute_path, PathContractError
 
 
 class PolicyBundleError(RuntimeError):
@@ -43,21 +44,28 @@ def _repo_local_diagnostics_root() -> Path:
 
 
 def _resolve_policy_path(filename: str, *, mode: str) -> Path:
+    effective_mode = str(mode).strip().lower() or "user"
     resolver = BindingEvidenceResolver()
-    evidence = resolver.resolve(mode=mode)
+    evidence = resolver.resolve(mode=effective_mode)
     if evidence.binding_ok and evidence.commands_home:
         candidate = evidence.commands_home.parent / "diagnostics" / filename
         if candidate.exists():
             return candidate
 
     # Runtime canonical fallback for packaged repo diagnostics (deterministic path).
-    repo_root = str(os.environ.get("OPENCODE_REPO_ROOT", "")).strip()
-    if repo_root:
-        candidate = Path(repo_root) / "diagnostics" / filename
-        if candidate.exists():
-            return candidate
+    if effective_mode != "pipeline":
+        repo_root = str(os.environ.get("OPENCODE_REPO_ROOT", "")).strip()
+        if repo_root:
+            try:
+                repo_root_path = normalize_absolute_path(repo_root, purpose="env:OPENCODE_REPO_ROOT")
+            except PathContractError:
+                repo_root_path = None
+            if repo_root_path is not None:
+                candidate = repo_root_path / "diagnostics" / filename
+                if candidate.exists():
+                    return candidate
 
-    if mode != "pipeline" and str(os.environ.get("OPENCODE_ALLOW_REPO_LOCAL_CONFIG", "")).strip() == "1":
+    if effective_mode != "pipeline" and str(os.environ.get("OPENCODE_ALLOW_REPO_LOCAL_CONFIG", "")).strip() == "1":
         candidate = _repo_local_diagnostics_root() / filename
         if candidate.exists():
             return candidate

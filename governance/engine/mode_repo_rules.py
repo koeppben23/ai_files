@@ -4,8 +4,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import hashlib
+import os
 import re
-from typing import Literal
+from typing import Literal, Mapping
 
 
 RepoDirectiveClass = Literal["constraint", "interactive_directive", "unsafe_directive"]
@@ -36,6 +37,24 @@ DEFAULT_PROMPT_BUDGETS: dict[str, PromptBudget] = {
     "pipeline": PromptBudget(max_total_prompts=0, max_repo_doc_prompts=0),
     "agents_strict": PromptBudget(max_total_prompts=10, max_repo_doc_prompts=6),
 }
+
+
+def canonicalize_operating_mode(mode: str) -> str:
+    token = str(mode).strip().lower()
+    if token in {"user", "pipeline", "agents_strict", "system"}:
+        return token
+    return "invalid"
+
+
+def resolve_env_operating_mode(env: Mapping[str, str] | None = None) -> str:
+    source = env if env is not None else os.environ
+    token = str(source.get("OPENCODE_OPERATING_MODE", "")).strip()
+    if token:
+        return canonicalize_operating_mode(token)
+    ci = str(source.get("CI", "")).strip().lower()
+    if ci and ci not in {"0", "false", "no", "off"}:
+        return "pipeline"
+    return "user"
 
 
 UNSAFE_PATTERNS: tuple[tuple[str, str], ...] = (
@@ -89,4 +108,7 @@ def summarize_classification(items: list[RepoDocClassification]) -> dict[str, in
 
 
 def resolve_prompt_budget(mode: str) -> PromptBudget:
-    return DEFAULT_PROMPT_BUDGETS.get(mode, DEFAULT_PROMPT_BUDGETS["user"])
+    canonical = canonicalize_operating_mode(mode)
+    if canonical == "invalid":
+        canonical = "pipeline"
+    return DEFAULT_PROMPT_BUDGETS.get(canonical, DEFAULT_PROMPT_BUDGETS["user"])

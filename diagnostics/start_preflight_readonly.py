@@ -17,6 +17,7 @@ from governance.application.use_cases.start_bootstrap import evaluate_start_iden
 from governance.engine.adapters import LocalHostAdapter
 from governance.infrastructure.path_contract import normalize_absolute_path
 from governance.infrastructure.binding_evidence_resolver import BindingEvidenceResolver
+from governance.infrastructure.mode_repo_rules import resolve_env_operating_mode
 from governance.infrastructure.wiring import configure_gateway_registry
 
 
@@ -26,7 +27,10 @@ READ_ONLY = _is_pipeline or os.environ.get("OPENCODE_DIAGNOSTICS_ALLOW_WRITE", "
 
 def _resolve_bindings() -> tuple[Path, Path, bool, Path | None, str]:
     resolver = BindingEvidenceResolver()
-    evidence = resolver.resolve(mode="user")
+    effective_mode = resolve_env_operating_mode()
+    if effective_mode == "invalid":
+        effective_mode = "pipeline"
+    evidence = resolver.resolve(mode=effective_mode)
     python_command = evidence.python_command.strip() if evidence.python_command else ""
     if not python_command:
         python_command = "python3"

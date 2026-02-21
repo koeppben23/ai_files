@@ -1033,6 +1033,57 @@ def check_start_evidence_boundaries(issues: list[str]) -> None:
         issues.append(f"start.md: contains forbidden fallback-evidence tokens {found_forbidden}")
 
 
+def check_md_rails_only_tripwire(issues: list[str]) -> None:
+    script = ROOT / "diagnostics" / "md_lint.py"
+    if not script.exists():
+        issues.append("diagnostics/md_lint.py: missing MD rails linter")
+        return
+    files = [
+        ROOT / "master.md",
+        ROOT / "rules.md",
+        ROOT / "start.md",
+        ROOT / "continue.md",
+        ROOT / "resume.md",
+        ROOT / "resume_prompt.md",
+        ROOT / "new_profile.md",
+        ROOT / "new_addon.md",
+        ROOT / "AGENTS.md",
+    ]
+    files.extend(sorted((ROOT / "profiles").glob("rules*.md")))
+    file_args = [str(p) for p in files if p.exists()]
+    if not file_args:
+        issues.append("md_lint failed: no md files found for rails-only gate")
+        return
+    proc = subprocess.run(
+        [sys.executable, str(script), *file_args, "--ci"],
+        cwd=str(ROOT),
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    if proc.returncode == 0:
+        try:
+            payload = json.loads(proc.stdout)
+        except Exception:
+            payload = {}
+        findings = payload.get("findings", []) if isinstance(payload, dict) else []
+        critical = []
+        for item in findings:
+            if not isinstance(item, dict):
+                continue
+            if str(item.get("severity", "")).lower() != "error":
+                continue
+            if str(item.get("rule_id", "")) != "MD004":
+                continue
+            critical.append(item)
+        if critical:
+            issues.append("md_lint failed: MD004 authority language detected")
+            return
+    if proc.returncode != 0:
+        detail = (proc.stdout + "\n" + proc.stderr).strip()
+        issues.append("md_lint failed: " + (detail if detail else "unknown failure"))
+
+
 def check_unified_next_action_footer_contract(issues: list[str]) -> None:
     master = read_text(ROOT / "master.md")
     rules = read_text(ROOT / "rules.md")
@@ -1272,6 +1323,7 @@ def main() -> int:
     check_factory_contract_alignment(issues)
     check_diagnostics_reason_contract_alignment(issues)
     check_start_evidence_boundaries(issues)
+    check_md_rails_only_tripwire(issues)
     check_unified_next_action_footer_contract(issues)
     check_standard_blocker_envelope_contract(issues)
     check_start_mode_banner_contract(issues)

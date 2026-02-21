@@ -74,6 +74,8 @@ def test_runtime_activation_enters_live_mode_when_selfcheck_passes():
 def test_engine_selfcheck_passes_with_current_registry():
     """Current baseline registry should satisfy Wave B selfcheck checks."""
 
+    import os
+    os.environ["OPENCODE_ALLOW_REPO_LOCAL_CONFIG"] = "1"
     result = run_engine_selfcheck()
     assert result.ok is True
     assert result.failed_checks == ()
@@ -83,6 +85,8 @@ def test_engine_selfcheck_passes_with_current_registry():
 def test_engine_selfcheck_detects_release_metadata_hygiene_violations():
     """Selfcheck should fail when forbidden metadata entries are provided."""
 
+    import os
+    os.environ["OPENCODE_ALLOW_REPO_LOCAL_CONFIG"] = "1"
     result = run_engine_selfcheck(release_hygiene_entries=("__MACOSX/file", ".DS_Store"))
     assert result.ok is False
     assert "release_metadata_hygiene_violation" in result.failed_checks

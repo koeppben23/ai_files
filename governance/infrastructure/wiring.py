@@ -16,6 +16,7 @@ from governance.infrastructure.mode_repo_rules import (
     compute_repo_doc_hash,
     resolve_prompt_budget,
     summarize_classification,
+    resolve_env_operating_mode,
 )
 from governance.infrastructure.pack_lock import resolve_pack_lock
 from governance.infrastructure.reason_payload import build_reason_payload, validate_reason_payload
@@ -33,7 +34,9 @@ from governance.infrastructure.write_policy import evaluate_target_path
 
 
 def configure_gateway_registry() -> None:
-    effective_mode = str(os.environ.get("OPENCODE_OPERATING_MODE", "user")).strip() or "user"
+    effective_mode = resolve_env_operating_mode()
+    if effective_mode == "invalid":
+        effective_mode = "pipeline"
 
     # Runtime startup wiring for policy-bound config resolvers.
     configure_phase4_self_review_resolver(mode=effective_mode)
