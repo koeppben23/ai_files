@@ -1,7 +1,7 @@
 # End-to-End Phases
 
-This document is the detailed phase map that was previously embedded in README.md. If this file and master.md diverge, master.md is authoritative.
-Kernel authority boundary: policy and gate semantics are owned by kernel contracts (`master.md` + engine/use-case enforcement); this file is explanatory and must never widen kernel behavior.
+This document is a detailed phase map that was previously embedded in README.md.
+Authority boundary: policy, gate semantics, and routing are owned by kernel code plus kernel-owned configs/schemas; this file is explanatory and does not widen kernel behavior.
 
 ## Customer View (Short)
 
@@ -27,7 +27,7 @@ Kernel authority boundary: policy and gate semantics are owned by kernel contrac
 | Phase 2 - Repository Discovery | Builds repo understanding (structure, stack, architecture signals, contract surface), with cache-assisted warm start when valid. | Non-gate phase, but missing required discovery artifacts can trigger `BLOCKED` continuation pointers. |
 | Phase 2 Step 3a - CodebaseContext | Captures deep codebase understanding: ExistingAbstractions, DependencyGraph, PatternFingerprint, TechnicalDebtMarkers. | Non-gate phase; populates SESSION_STATE.CodebaseContext for informed planning. |
 | Phase 2 Step 3b - BuildToolchain Resolution | Cross-references repo build files (pom.xml, Cargo.toml, go.mod, CMakeLists.txt, etc.) with preflight tool availability to resolve compile/test commands. | Non-gate phase; populates SESSION_STATE.BuildToolchain. Emits WARN-BUILD-TOOL-MISSING if tool unavailable. |
-| Phase 2.1 - Decision Pack (default, non-gate) | Distills discovery outputs into reusable decisions/defaults for later phases. | Non-gate; if evidence is insufficient, decisions remain `not-verified` and downstream confidence is capped. |
+| Phase 2.1 - Routing Decision (no executor) | Routing checkpoint: if Phase 1.5 is unresolved, route to Phase 1.5; otherwise route to Phase 3A (or Phase 4 if API inventory is not applicable). | Decision point only; no phase executor runs here. |
 | Phase 1.5 - Business Rules Discovery (optional) | Extracts business rules from code/ticket artifacts when activated or required. | Optional activation; once executed, Phase 5.4 becomes mandatory for code readiness. |
 | Phase 3A - API Inventory | Inventories external API artifacts and interface landscape. | **Conditional**: Executed for all workflows, but if no APIs are in scope, records `not-applicable` and skips to Phase 4. Never blocks — missing APIs just mean no API validation needed. |
 | Phase 3B-1 - API Logical Validation | Validates API specs for logical consistency at specification level. | **Conditional**: Only executed when Phase 3A detected APIs in scope. Skipped entirely if no APIs present. |
@@ -44,10 +44,9 @@ Kernel authority boundary: policy and gate semantics are owned by kernel contrac
 
 ## Phase-Coupled Persistence (Outside Repository)
 
-**Kernel Enforcement (Binding):** Persistence is MANDATORY and MUST be enforced by the kernel, not by LLM output.
-The diagnostics helpers (`bootstrap_session_state.py`, `persist_workspace_artifacts.py`) MUST enable writes
-when `OPENCODE_DIAGNOSTICS_ALLOW_WRITE=1` is set (default in normal operation). In CI mode, writes are
-disabled for safety.
+**SSOT Enforcement (Binding):** Persistence is mandatory and enforced by the kernel (not by LLM output).
+The diagnostics helpers (`bootstrap_session_state.py`, `persist_workspace_artifacts.py`) enable writes
+when host permissions allow it in the current operating mode. In pipeline mode, interactivity is disabled; file writes follow host permissions and fail closed if not permitted.
 
 | Phase | Artifact | Target | Write condition |
 | ----- | -------- | ------ | --------------- |
@@ -67,7 +66,7 @@ Once 1.5 is resolved: if APIs are in scope, run 3A -> 3B-1 -> 3B-2; otherwise go
 Main execution path: 4 -> 5 -> 5.3 -> 6.
 5.4 is mandatory only if 1.5 executed.
 5.5 is optional and only when explicitly proposed.
-5.6 is evaluated inside 5 and MUST be satisfied when rollback safety applies.
+5.6 is evaluated inside 5 and is required when rollback safety applies.
 ```
 
 ## Phase 3 Routing (API Detection)
@@ -123,7 +122,7 @@ Each review iteration produces:
 
 | Field | Type | Purpose |
 |-------|------|---------|
-| `issues` | list[str] | Blocking problems - must be fixed |
+| `issues` | list[str] | Blocking problems - to be fixed |
 | `suggestions` | list[str] | Non-blocking improvements - recommended |
 | `questions` | list[str] | Questions for human review |
 | `status` | approved/rejected/needs-human | Review outcome |
@@ -161,16 +160,16 @@ Phase5Review:
 
 ## Gate Requirements for Code Generation
 
-Phase 3 API validation is **optional** and does NOT block code generation. The required gates before code output:
+Phase 3 API validation is **optional** and does NOT block code generation. The gates required before code output:
 
 | Gate | Phase | Required? | Condition |
 |------|-------|-----------|-----------|
-| P5-Architecture | 5 | **Always** | Must be `approved` (after iterative review) |
-| P5.3-TestQuality | 5.3 | **Always** | Must be `pass` or `pass-with-exceptions` |
+| P5-Architecture | 5 | Unconditional | Requires `approved` status (after iterative review) |
+| P5.3-TestQuality | 5.3 | Unconditional | Requires `pass` or `pass-with-exceptions` |
 | P5.4-BusinessRules | 5.4 | Conditional | Only if Phase 1.5 was executed |
 | P5.5-TechnicalDebt | 5.5 | Optional | Only when explicitly proposed |
 | P5.6-RollbackSafety | 5.6 | Conditional | When rollback-sensitive changes exist |
-| P6-ImplementationQA | 6 | **Always** | Must be `ready-for-pr` |
+| P6-ImplementationQA | 6 | Unconditional | Requires `ready-for-pr` |
 
 ## Key SESSION_STATE Fields by Phase
 
