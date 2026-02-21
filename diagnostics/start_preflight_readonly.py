@@ -12,6 +12,10 @@ import subprocess
 import sys
 from typing import Any, cast
 
+_COMMANDS_HOME = str(Path(__file__).parent.parent)
+if _COMMANDS_HOME not in sys.path:
+    sys.path.insert(0, _COMMANDS_HOME)
+
 from diagnostics.command_profiles import render_command_profiles
 from governance.application.use_cases.start_bootstrap import evaluate_start_identity
 from governance.engine.adapters import LocalHostAdapter
