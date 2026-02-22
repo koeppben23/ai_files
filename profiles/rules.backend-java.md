@@ -75,6 +75,32 @@ If `required = true` but addon rulebook is missing at code-phase:
 - In fail-closed code-phase handling, apply canonical required-addon policy from `rules.md` anchor `RULEBOOK-PRECEDENCE-POLICY` / `master.md`
   (this profile references but does not redefine that policy).
 
+---
+
+# Java Excellence Addon (Binding)
+
+For the `backend-java` profile, language-specific best practices are defined in:
+`rules.java-excellence.md`.
+
+Activation (binding):
+- In **Phase 2**, the workflow MUST evaluate whether Java Excellence addon should be loaded and record evidence in:
+  - `SESSION_STATE.AddonsEvidence.javaExcellence.applicable = true | false`
+  - `SESSION_STATE.AddonsEvidence.javaExcellence.evidence = <short evidence-based rationale>`
+- Java Excellence addon is ADVISED (advisory class) when ANY Java code is being changed.
+- In **code-phase** (Phase 4+), load and record this addon when `applicable = true`:
+  - `SESSION_STATE.LoadedRulebooks.addons.javaExcellence = rules.java-excellence.md`
+
+Binding behavior:
+- When loaded, the Java Excellence addon provides:
+  - Pattern library for idiomatic Java/Spring (constructor injection, rich domain, DTO mapping, fixed time, explicit exceptions, behavioral tests)
+  - Anti-pattern catalog with detection and recovery guidance
+  - Java-specific Risk-Tier Triggers (persistence, concurrency, external APIs, security)
+  - Java-specific verification commands (Maven/Gradle, Spotless, ArchUnit)
+
+Integration with UserMaxQuality:
+- When UserMaxQuality addon is active, Java Excellence addon enhances the Required Output Sections with Java-specific guidance.
+- Verification Handshake protocol is inherited from UserMaxQuality.
+
 Addon policy classes (binding):
 - Addon class semantics are canonical in `rules.md` anchor `RULEBOOK-PRECEDENCE-POLICY` and `master.md`; this profile MUST reference, not redefine, those semantics.
 - Addon manifests/rulebooks MUST explicitly declare class (`required` | `advisory`).

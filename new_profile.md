@@ -61,6 +61,53 @@ Taxonomy rule (binding):
 
 ---
 
+## Quality Contract (Binding)
+
+Every profile MUST define quality enforcement rules:
+
+### Required Output Sections (User Mode)
+
+When `blocking_policy = fail-closed` in user mode, the profile MUST enforce these output sections for all implementation tasks:
+
+1. **Intent & Scope** - What is being built and why
+2. **Non-goals** - What is explicitly out of scope
+3. **Design/Architecture** - Structural decisions with rationale
+4. **Invariants & Failure Modes** - What must always/never happen
+5. **Test Plan (Matrix)** - Coverage strategy by test type
+6. **Edge Cases Checklist** - Boundary conditions and corner cases
+7. **Verification Commands** - Exact commands for human execution
+8. **Risk Review** - NPE/leaks/concurrency/security analysis
+9. **Rollback Plan** - How to undo if deployment fails
+
+### Verification Handshake (Binding)
+
+In user mode, verified status requires explicit human confirmation:
+
+```
+LLM Output: "Verification Commands: [cmd1, cmd2, ...]"
+Human Response: "Executed [cmd1]: [result1]; Executed [cmd2]: [result2]"
+LLM: Set `Verified` only after receiving results; otherwise mark `NOT_VERIFIED`
+```
+
+### Risk-Tier Triggers (Binding)
+
+When touched files match risk surfaces, profile MUST require:
+
+| Risk Surface | Additional Requirements |
+|--------------|------------------------|
+| Persistence/Pointer | NPE audit, Leak audit, Rollback plan |
+| Security/Auth | Threat model checklist, Input validation audit |
+| Concurrency | Thread-safety audit, Race condition checklist |
+| External APIs | Contract tests, Timeout handling, Retry logic |
+
+### Claim Verification (Binding)
+
+- No silent assumptions: Every assumption marked `ASSUMPTION`
+- No unverified claims: Everything not executed marked `NOT_VERIFIED`
+- Language/Version: Explicit choice with rationale (no guessing)
+
+---
+
 ## Shared Principal Governance Contracts (Binding)
 
 Every generated non-shared profile MUST include a delegation section that references:
@@ -103,6 +150,10 @@ Before finalizing, verify generated profile contains:
   - `SESSION_STATE.LoadedRulebooks.addons.principalExcellence`
   - `SESSION_STATE.LoadedRulebooks.addons.riskTiering`
   - `SESSION_STATE.LoadedRulebooks.addons.scorecardCalibration`
+- quality contract section includes:
+  - required output sections (9 items)
+  - verification handshake semantics
+  - risk-tier trigger table
 
 For shared contract rulebooks (`principal-excellence`, `risk-tiering`, `scorecard-calibration`):
 - ensure the generated shared rulebook includes its canonical contract section and required warnings/thresholds.
