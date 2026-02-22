@@ -4,6 +4,11 @@ Every script, linter, and test that needs to validate addon manifests MUST impor
 from this module instead of defining inline copies.  This eliminates the N-file
 duplication that previously existed across validate_addons.py, governance_lint.py,
 and test_addon_manifests.py.
+
+Capability Derivation Notes:
+- Most capabilities are repo-derived (java, python, kafka, etc.)
+- Mode-derived capabilities (set by kernel/loader, NOT repo signals):
+  - user_mode: Set when operating in user mode (high-quality, human-in-the-loop)
 """
 
 from __future__ import annotations
