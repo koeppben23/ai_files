@@ -293,6 +293,32 @@ Binding:
 
 ---
 
+## Python Excellence Addon (Binding)
+
+For the `backend-python` profile, language-specific best practices are defined in:
+`rules.python-excellence.md`.
+
+Activation (binding):
+- In **Phase 2**, the workflow MUST evaluate whether Python Excellence addon should be loaded and record evidence in:
+  - `SESSION_STATE.AddonsEvidence.pythonExcellence.required = true | false`
+  - `SESSION_STATE.AddonsEvidence.pythonExcellence.evidence = <short evidence-based rationale>`
+- Python Excellence addon is ADVISED (advisory class) when ANY Python code is being changed.
+- In **code-phase** (Phase 4+), load and record this addon when `required = true`:
+  - `SESSION_STATE.LoadedRulebooks.addons.pythonExcellence = rules.python-excellence.md`
+
+Binding behavior:
+- When loaded, the Python Excellence addon provides:
+  - Pattern library for idiomatic Python (dependency injection, fakes over mocks, fixed time, pure domain, explicit errors)
+  - Anti-pattern catalog with detection and recovery guidance
+  - Python-specific Risk-Tier Triggers (async, type safety, exceptions, dependencies)
+  - Python-specific verification commands (ruff, mypy, pytest)
+
+Integration with UserMaxQuality:
+- When UserMaxQuality addon is active, Python Excellence addon enhances the Required Output Sections with Python-specific guidance.
+- Verification Handshake protocol is inherited from UserMaxQuality.
+
+---
+
 ## Addon Policy Classes (Binding)
 
 - Addon class semantics are canonical in `rules.md` anchor `RULEBOOK-PRECEDENCE-POLICY` and `master.md`; this profile MUST reference, not redefine, those semantics.
