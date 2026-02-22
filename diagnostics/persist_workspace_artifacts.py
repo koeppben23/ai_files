@@ -896,6 +896,7 @@ def _bootstrap_missing_session_state(
     config_root: Path,
     repo_fingerprint: str,
     repo_name: str,
+    repo_root: Path,
     python_cmd: str,
     dry_run: bool,
 ) -> tuple[bool, str]:
@@ -924,6 +925,8 @@ def _bootstrap_missing_session_state(
         repo_fingerprint,
         "--repo-name",
         repo_name,
+        "--repo-root",
+        str(repo_root),
         "--config-root",
         str(config_root),
         "--skip-artifact-backfill",
@@ -1143,6 +1146,7 @@ def main() -> int:
             config_root=config_root,
             repo_fingerprint=repo_fingerprint,
             repo_name=args.repo_name or repo_root.name or repo_fingerprint,
+            repo_root=repo_root,
             python_cmd=python_cmd,
             dry_run=args.dry_run,
         )

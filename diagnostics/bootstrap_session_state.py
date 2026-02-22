@@ -572,7 +572,7 @@ def main() -> int:
         return 2
 
     repo_root = normalize_absolute_path(str(repo_root_source), purpose="repoRoot")
-    if _is_within(config_root, repo_root):
+    if (repo_root / ".git").exists() and _is_within(config_root, repo_root):
         emit_gate_failure(
             gate="BOOTSTRAP",
             code="CONFIG_ROOT_INSIDE_REPO",
