@@ -695,12 +695,6 @@ def main() -> int:
         workspace_lock.release()
         return 9
 
-    if isinstance(repo_payload, dict) and "SESSION_STATE" in repo_payload:
-        repo_payload["SESSION_STATE"]["PersistenceCommitted"] = True
-        repo_payload["SESSION_STATE"]["WorkspaceReadyGateCommitted"] = True
-        _atomic_write_text(repo_state_file, json.dumps(repo_payload, indent=2, ensure_ascii=True) + "\n")
-        print("PersistenceCommitted=True set in workspace SESSION_STATE (after pointer verified).")
-
     scope = repo_payload.get("SESSION_STATE", {}).get("Scope", {}) if isinstance(repo_payload, dict) else {}
     repo_name_value = scope.get("Repository") if isinstance(scope, dict) else None
     if not isinstance(repo_name_value, str) or not repo_name_value.strip():
@@ -709,6 +703,7 @@ def main() -> int:
     print(f"Repo identity map {identity_action}.")
 
     backfill_failed = False
+    artifacts_committed = False
     if not args.skip_artifact_backfill:
         helper = SCRIPT_DIR / "persist_workspace_artifacts.py"
         if helper.exists():
@@ -725,6 +720,7 @@ def main() -> int:
             run = subprocess.run(cmd, text=True, capture_output=True, check=False)
             if run.returncode == 0:
                 print("Workspace artifact backfill hook completed.")
+                artifacts_committed = True
             else:
                 safe_log_error(
                     reason_key="ERR-WORKSPACE-PERSISTENCE-HOOK-FAILED",
@@ -770,6 +766,13 @@ def main() -> int:
     if backfill_failed:
         workspace_lock.release()
         return 7
+
+    if isinstance(repo_payload, dict) and "SESSION_STATE" in repo_payload:
+        repo_payload["SESSION_STATE"]["PersistenceCommitted"] = True
+        repo_payload["SESSION_STATE"]["WorkspaceReadyGateCommitted"] = True
+        repo_payload["SESSION_STATE"]["WorkspaceArtifactsCommitted"] = artifacts_committed
+        _atomic_write_text(repo_state_file, json.dumps(repo_payload, indent=2, ensure_ascii=True) + "\n")
+        print("PersistenceCommitted=True set in workspace SESSION_STATE (after backfill completed).")
 
     workspace_lock.release()
     return 0
