@@ -1,0 +1,21 @@
+addon_key: userMaxQuality
+addon_class: required
+rulebook: rules.user-max-quality.md
+manifest_version: 1
+path_roots:
+  - "."
+owns_surfaces:
+  - "quality_enforcement"
+  - "output_sections"
+  - "verification_handshake"
+touches_surfaces:
+  - "implementation"
+  - "testing"
+  - "review"
+capabilities_any:
+  - "quality_contract"
+  - "user_mode"
+signals:
+  any:
+    - file_glob: "profiles/rules.user-max-quality.md"
+    - capability: "quality_contract"

@@ -45,6 +45,53 @@ The `rulebook` value MUST resolve to an existing profile rulebook path after gen
 
 ---
 
+## Quality Contract (Binding)
+
+Every addon MUST define quality enforcement rules:
+
+### Required Output Sections (User Mode)
+
+When `addon_class = required` in user mode, the addon MUST enforce these output sections for all implementation tasks:
+
+1. **Intent & Scope** - What is being built and why
+2. **Non-goals** - What is explicitly out of scope
+3. **Design/Architecture** - Structural decisions with rationale
+4. **Invariants & Failure Modes** - What must always/never happen
+5. **Test Plan (Matrix)** - Coverage strategy by test type
+6. **Edge Cases Checklist** - Boundary conditions and corner cases
+7. **Verification Commands** - Exact commands for human execution
+8. **Risk Review** - NPE/leaks/concurrency/security analysis
+9. **Rollback Plan** - How to undo if deployment fails
+
+### Verification Handshake (Binding)
+
+In user mode, verified status requires explicit human confirmation:
+
+```
+LLM Output: "Verification Commands: [cmd1, cmd2, ...]"
+Human Response: "Executed [cmd1]: [result1]; Executed [cmd2]: [result2]"
+LLM: Set `Verified` only after receiving results; otherwise mark `NOT_VERIFIED`
+```
+
+### Risk-Tier Triggers (Binding)
+
+When touched files match risk surfaces, addon MUST require:
+
+| Risk Surface | Additional Requirements |
+|--------------|------------------------|
+| Persistence/Pointer | NPE audit, Leak audit, Rollback plan |
+| Security/Auth | Threat model checklist, Input validation audit |
+| Concurrency | Thread-safety audit, Race condition checklist |
+| External APIs | Contract tests, Timeout handling, Retry logic |
+
+### Claim Verification (Binding)
+
+- No silent assumptions: Every assumption marked `ASSUMPTION`
+- No unverified claims: Everything not executed marked `NOT_VERIFIED`
+- Language/Version: Explicit choice with rationale (no guessing)
+
+---
+
 ## Rulebook Contract (Binding)
 
 Generated addon rulebook MUST include:
@@ -60,15 +107,16 @@ Generated addon rulebook MUST include:
      - `SESSION_STATE.RepoFacts.CapabilityEvidence`
      - `SESSION_STATE.Diagnostics.ReasonPayloads`
 6. domain-specific hardening section for changed scope
-7. Examples (GOOD/BAD)
-8. Troubleshooting with at least 3 concrete symptom->cause->fix entries
-9. shared principal-governance delegation block:
-   - `## Shared Principal Governance Contracts (Binding)`
-   - `rules.principal-excellence.md`
-   - `rules.risk-tiering.md`
-   - `rules.scorecard-calibration.md`
-   - loaded-addon tracking keys under `SESSION_STATE.LoadedRulebooks.addons.*`
-   - tracking keys are audit/trace pointers (map entries), not activation signals
+7. quality contract section (required output sections, verification handshake, risk-tier triggers)
+8. Examples (GOOD/BAD)
+9. Troubleshooting with at least 3 concrete symptom->cause->fix entries
+10. shared principal-governance delegation block:
+    - `## Shared Principal Governance Contracts (Binding)`
+    - `rules.principal-excellence.md`
+    - `rules.risk-tiering.md`
+    - `rules.scorecard-calibration.md`
+    - loaded-addon tracking keys under `SESSION_STATE.LoadedRulebooks.addons.*`
+    - tracking keys are audit/trace pointers (map entries), not activation signals
 
 Exception for shared contract addons:
 - If creating one of the canonical shared addons (`principalExcellence`, `riskTiering`, `scorecardCalibration`),
@@ -130,6 +178,10 @@ Before finalizing, verify:
 - warning codes exist:
   - `WARN-PRINCIPAL-EVIDENCE-MISSING`
   - `WARN-SCORECARD-CALIBRATION-INCOMPLETE`
+- quality contract section includes:
+  - required output sections (9 items)
+  - verification handshake semantics
+  - risk-tier trigger table
 
 For shared contract addons themselves:
 - ensure canonical tiering/calibration/scorecard contract sections are present in the shared rulebook.
