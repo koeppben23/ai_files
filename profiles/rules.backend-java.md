@@ -84,10 +84,10 @@ For the `backend-java` profile, language-specific best practices are defined in:
 
 Activation (binding):
 - In **Phase 2**, the workflow MUST evaluate whether Java Excellence addon should be loaded and record evidence in:
-  - `SESSION_STATE.AddonsEvidence.javaExcellence.required = true | false`
+  - `SESSION_STATE.AddonsEvidence.javaExcellence.applicable = true | false`
   - `SESSION_STATE.AddonsEvidence.javaExcellence.evidence = <short evidence-based rationale>`
 - Java Excellence addon is ADVISED (advisory class) when ANY Java code is being changed.
-- In **code-phase** (Phase 4+), load and record this addon when `required = true`:
+- In **code-phase** (Phase 4+), load and record this addon when `applicable = true`:
   - `SESSION_STATE.LoadedRulebooks.addons.javaExcellence = rules.java-excellence.md`
 
 Binding behavior:

@@ -300,10 +300,10 @@ For the `backend-python` profile, language-specific best practices are defined i
 
 Activation (binding):
 - In **Phase 2**, the workflow MUST evaluate whether Python Excellence addon should be loaded and record evidence in:
-  - `SESSION_STATE.AddonsEvidence.pythonExcellence.required = true | false`
+  - `SESSION_STATE.AddonsEvidence.pythonExcellence.applicable = true | false`
   - `SESSION_STATE.AddonsEvidence.pythonExcellence.evidence = <short evidence-based rationale>`
 - Python Excellence addon is ADVISED (advisory class) when ANY Python code is being changed.
-- In **code-phase** (Phase 4+), load and record this addon when `required = true`:
+- In **code-phase** (Phase 4+), load and record this addon when `applicable = true`:
   - `SESSION_STATE.LoadedRulebooks.addons.pythonExcellence = rules.python-excellence.md`
 
 Binding behavior:
