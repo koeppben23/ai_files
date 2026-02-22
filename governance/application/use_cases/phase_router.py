@@ -97,6 +97,47 @@ def _persistence_committed(state: Mapping[str, object]) -> bool:
     return False
 
 
+def _workspace_artifacts_committed(state: Mapping[str, object]) -> bool:
+    for key in ("WorkspaceArtifactsCommitted", "workspace_artifacts_committed"):
+        value = state.get(key)
+        if isinstance(value, bool):
+            return value
+    return True
+
+
+def _pointer_verified(state: Mapping[str, object]) -> bool:
+    for key in ("PointerVerified", "pointer_verified"):
+        value = state.get(key)
+        if isinstance(value, bool):
+            return value
+    return True
+
+
+def _persistence_gate_passed(state: Mapping[str, object]) -> tuple[bool, str]:
+    if not _persistence_committed(state):
+        return False, "PersistenceCommitted not true"
+    
+    workspace_ready_gate = None
+    for key in ("WorkspaceReadyGateCommitted", "workspace_ready_gate_committed"):
+        value = state.get(key)
+        if isinstance(value, bool):
+            workspace_ready_gate = value
+            break
+    
+    if workspace_ready_gate is None:
+        return False, "WorkspaceReadyGateCommitted not set"
+    if not workspace_ready_gate:
+        return False, "WorkspaceReadyGateCommitted not true"
+    
+    if not _workspace_artifacts_committed(state):
+        return False, "WorkspaceArtifactsCommitted not true"
+    
+    if not _pointer_verified(state):
+        return False, "PointerVerified not true"
+    
+    return True, "ok"
+
+
 def _extract_fingerprint(state: Mapping[str, object]) -> str:
     """Extract fingerprint from state, trying multiple key variants."""
     for key in ("RepoFingerprint", "repo_fingerprint"):
@@ -122,15 +163,8 @@ def _workspace_ready(
     live_repo_fingerprint: str | None = None,
 ) -> bool:
     _ = repo_is_git_root
-    if not _persistence_committed(state):
-        return False
-    for key in ("workspace_ready_gate_committed", "WorkspaceReadyGateCommitted"):
-        value = state.get(key)
-        if isinstance(value, bool):
-            if not value:
-                return False
-            break
-    else:
+    gate_passed, _reason = _persistence_gate_passed(state)
+    if not gate_passed:
         return False
     
     if live_repo_fingerprint is not None:
@@ -204,10 +238,11 @@ def route_phase(
         "6",
     }
     if phase_token in blocked_tokens and not workspace_ready:
+        _, block_reason = _persistence_gate_passed(state)
         return RoutedPhase(
             phase="1.1-Bootstrap",
             active_gate="Workspace Ready Gate",
-            next_gate_condition="Commit workspace readiness before phase progression",
+            next_gate_condition=f"BLOCKED_PERSISTENCE_FAILED: {block_reason}. Commit workspace readiness before phase progression.",
             workspace_ready=False,
             source="workspace-ready-gate",
         )
