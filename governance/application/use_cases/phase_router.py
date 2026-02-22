@@ -102,7 +102,7 @@ def _workspace_artifacts_committed(state: Mapping[str, object]) -> bool:
         value = state.get(key)
         if isinstance(value, bool):
             return value
-    return True
+    return False
 
 
 def _pointer_verified(state: Mapping[str, object]) -> bool:
@@ -110,7 +110,7 @@ def _pointer_verified(state: Mapping[str, object]) -> bool:
         value = state.get(key)
         if isinstance(value, bool):
             return value
-    return True
+    return False
 
 
 def _persistence_gate_passed(state: Mapping[str, object]) -> tuple[bool, str]:

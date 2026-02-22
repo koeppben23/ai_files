@@ -19,6 +19,8 @@ def _minimal_session_state(**overrides) -> dict[str, object]:
             "phase": "2.1",
             "PersistenceCommitted": True,
             "workspace_ready_gate_committed": True,
+            "WorkspaceArtifactsCommitted": True,
+            "PointerVerified": True,
             **overrides,
         }
     }

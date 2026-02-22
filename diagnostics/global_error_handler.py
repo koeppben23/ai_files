@@ -372,6 +372,7 @@ def error_context(
         with error_context(phase="2-Discovery", command="persist_artifacts"):
             # ... code that might fail
     """
+    global _ERROR_CONTEXT
     old_context = _ERROR_CONTEXT.copy()
     ctx = ErrorContext(
         repo_fingerprint=repo_fingerprint,
@@ -385,7 +386,6 @@ def error_context(
     try:
         yield
     finally:
-        global _ERROR_CONTEXT
         _ERROR_CONTEXT = old_context
 
 

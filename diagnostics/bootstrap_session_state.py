@@ -55,6 +55,24 @@ if str(SCRIPT_DIR.parent) not in sys.path:
 
 from diagnostics.write_policy import EFFECTIVE_MODE, is_write_allowed, writes_allowed
 
+try:
+    from diagnostics.global_error_handler import (
+        install_global_handlers,
+        set_error_context,
+        emit_gate_failure,
+        ErrorContext,
+    )
+except ImportError:
+    def install_global_handlers(context_provider=None):  # type: ignore
+        pass
+    def set_error_context(ctx):  # type: ignore
+        pass
+    def emit_gate_failure(**kwargs):  # type: ignore
+        pass
+    class ErrorContext:  # type: ignore
+        def __init__(self, **kwargs):
+            pass
+
 
 def _writes_allowed() -> bool:
     """Legacy wrapper - use writes_allowed() from write_policy instead."""
@@ -504,6 +522,12 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--repo-fingerprint", required=True, help="Repo workspace key (e.g. 3a76fdae74e6ec7b).")
     parser.add_argument("--repo-name", default="", help="Optional repository display name for SESSION_STATE.Scope.Repository.")
+    parser.add_argument(
+        "--repo-root",
+        type=Path,
+        default=None,
+        help="Absolute git top-level path for this repo (SSOT). If omitted, OPENCODE_REPO_ROOT must be set.",
+    )
     parser.add_argument("--config-root", type=Path, default=None, help="Override OpenCode config root.")
     parser.add_argument("--force", action="store_true", help="Overwrite existing repo SESSION_STATE file and migrate legacy global payload if needed.")
     parser.add_argument("--dry-run", action="store_true", help="Print planned actions without writing files.")
@@ -516,6 +540,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> int:
+    install_global_handlers()
     args = parse_args()
     try:
         config_root, binding_paths, _binding_file = resolve_binding_config(args.config_root)
@@ -529,8 +554,33 @@ def main() -> int:
         purpose="paths.workspacesHome",
     )
 
-    cwd_repo_root = normalize_absolute_path(str(Path.cwd()), purpose="cwd")
-    if (cwd_repo_root / ".git").exists() and _is_within(config_root, cwd_repo_root):
+    repo_root_source = args.repo_root
+    if repo_root_source is None:
+        env_root = os.environ.get("OPENCODE_REPO_ROOT", "").strip()
+        if env_root:
+            repo_root_source = Path(env_root)
+    if repo_root_source is None:
+        emit_gate_failure(
+            gate="BOOTSTRAP",
+            code="REPO_ROOT_MISSING",
+            message="Repo root not provided; cannot enforce fail-closed binding guards.",
+            expected="Provide --repo-root (absolute git top-level) or set OPENCODE_REPO_ROOT.",
+            observed={"cwd": str(Path.cwd())},
+            remediation="Start /start from the git repo root, or update start_persistence_hook to pass --repo-root.",
+        )
+        print("ERROR: repo root not provided (required).")
+        return 2
+
+    repo_root = normalize_absolute_path(str(repo_root_source), purpose="repoRoot")
+    if _is_within(config_root, repo_root):
+        emit_gate_failure(
+            gate="BOOTSTRAP",
+            code="CONFIG_ROOT_INSIDE_REPO",
+            message="Config root resolves inside repository root (blocked).",
+            expected="configRoot must be outside repoRoot",
+            observed={"configRoot": str(config_root), "repoRoot": str(repo_root)},
+            remediation="Set OPENCODE_CONFIG_ROOT to a location outside the repository and rerun.",
+        )
         print("ERROR: config root resolves inside repository root")
         print("Set OPENCODE_CONFIG_ROOT to a location outside the repository and rerun.")
         return 5
@@ -570,6 +620,27 @@ def main() -> int:
     repo_state_file = workspaces_home / repo_fingerprint / "SESSION_STATE.json"
     pointer_file = session_pointer_path(config_root)
     identity_map_file = workspaces_home / repo_fingerprint / "repo-identity-map.yaml"
+
+    if _is_within(pointer_file, repo_root):
+        emit_gate_failure(
+            gate="BOOTSTRAP",
+            code="POINTER_PATH_INSIDE_REPO",
+            message="Global pointer path resolves inside repository root (blocked).",
+            expected="Pointer must live under configRoot (outside repoRoot)",
+            observed={"pointerFile": str(pointer_file), "repoRoot": str(repo_root)},
+            remediation="Fix binding so OPENCODE_HOME/configRoot is outside the repo; do not derive configRoot from CWD.",
+        )
+        print("ERROR: pointer file resolves inside repository root")
+        return 5
+
+    set_error_context(ErrorContext(
+        repo_fingerprint=repo_fingerprint,
+        config_root=str(config_root),
+        workspaces_home=str(workspaces_home),
+        repo_root=str(repo_root),
+        phase="1.1-Bootstrap",
+        command="bootstrap_session_state.py",
+    ))
 
     try:
         workspace_lock = acquire_workspace_lock(
@@ -663,6 +734,8 @@ def main() -> int:
                 repo_fingerprint,
                 "--config-root",
                 str(config_root),
+                "--repo-root",
+                str(repo_root),
                 "--skip-lock",
                 "--quiet",
             ]

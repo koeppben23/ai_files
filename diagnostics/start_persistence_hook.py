@@ -51,6 +51,24 @@ except ImportError:
         return {"status": "log-disabled"}
 
 try:
+    from diagnostics.global_error_handler import (
+        install_global_handlers,
+        set_error_context,
+        emit_gate_failure,
+        ErrorContext,
+    )
+except ImportError:
+    def install_global_handlers(context_provider=None):  # type: ignore
+        pass
+    def set_error_context(ctx):  # type: ignore
+        pass
+    def emit_gate_failure(**kwargs):  # type: ignore
+        pass
+    class ErrorContext:  # type: ignore
+        def __init__(self, **kwargs):
+            pass
+
+try:
     from governance.application.use_cases.start_bootstrap import evaluate_start_identity
     from governance.engine.adapters import LocalHostAdapter
     from governance.infrastructure.path_contract import normalize_absolute_path
@@ -295,6 +313,7 @@ def _verify_workspace_session_exists(workspaces_home: Path, repo_fingerprint: st
 
 
 def run_persistence_hook(*, repo_root: Path | None = None) -> dict[str, object]:
+    install_global_handlers()
     if not _writes_allowed():
         return {
             "workspacePersistenceHook": "blocked",
@@ -331,6 +350,15 @@ def run_persistence_hook(*, repo_root: Path | None = None) -> dict[str, object]:
         return result
 
     repo_fp = derive_repo_fingerprint(resolved_root)
+
+    set_error_context(ErrorContext(
+        repo_fingerprint=repo_fp,
+        config_root=str(COMMANDS_HOME.parent),
+        workspaces_home=str(WORKSPACES_HOME),
+        repo_root=str(resolved_root),
+        phase="1.1-Bootstrap",
+        command="start_persistence_hook.py",
+    ))
 
     if not repo_fp:
         result = {
@@ -385,6 +413,8 @@ def run_persistence_hook(*, repo_root: Path | None = None) -> dict[str, object]:
         str(bootstrap_script),
         "--repo-fingerprint", repo_fp,
         "--repo-name", repo_name,
+        "--repo-root", str(resolved_root),
+        "--config-root", str(COMMANDS_HOME.parent),
     ]
 
     try:
