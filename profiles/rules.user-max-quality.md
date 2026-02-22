@@ -39,6 +39,14 @@ This rulebook defines behavior after activation and MUST NOT redefine activation
 - Required addons MUST block code-phase if not loaded: `BLOCKED-MISSING-ADDON:userMaxQuality`.
 - All output sections MUST be documented in `SESSION_STATE.AddonsEvidence.userMaxQuality.OutputSections`.
 
+## Tooling (binding)
+
+This addon is tooling-agnostic by design:
+- Verification commands are specified by the user/implementation context
+- No automated tooling is required; human verification is mandatory
+- When host tooling is available, use it for evidence collection
+- When tooling is unavailable, mark claims as `NOT_VERIFIED` with manual verification steps
+
 ---
 
 ## Quality Contract (Binding)

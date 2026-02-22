@@ -14,6 +14,7 @@ ALLOWED_CLASSES: frozenset[str] = frozenset({
 })
 
 ALLOWED_SIGNAL_KEYS: frozenset[str] = frozenset({
+    "capability",
     "code_regex",
     "config_key_prefix",
     "file_glob",

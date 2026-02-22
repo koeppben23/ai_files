@@ -39,6 +39,20 @@ This rulebook defines behavior after activation and MUST NOT redefine activation
 - Maintain `SESSION_STATE.AddonsEvidence.javaExcellence.status` (`loaded|skipped|missing-rulebook`).
 - Advisory findings are represented via WARN codes in `warnings[]`; do not hard-block solely from this addon.
 
+## Tooling (binding)
+
+Use repository-native Java tooling for verification:
+- Build: `./mvnw verify` or `./gradlew build`
+- Format: `./mvnw spotless:check` when Spotless is configured
+- Static analysis: `./mvnw checkstyle:check pmd:check spotbugs:check` when configured
+- Tests: `./mvnw test` or `./gradlew test`
+- Architecture: `./mvnw test -Dtest=*ArchUnitTest` when ArchUnit is present
+
+When tooling is unavailable in host:
+- Emit recovery commands
+- Mark affected claims as `NOT_VERIFIED`
+- Continue conservatively without fabricating evidence
+
 ---
 
 ## Quality Contract (Binding)

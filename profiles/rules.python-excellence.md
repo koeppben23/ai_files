@@ -39,6 +39,19 @@ This rulebook defines behavior after activation and MUST NOT redefine activation
 - Maintain `SESSION_STATE.AddonsEvidence.pythonExcellence.status` (`loaded|skipped|missing-rulebook`).
 - Advisory findings are represented via WARN codes in `warnings[]`; do not hard-block solely from this addon.
 
+## Tooling (binding)
+
+Use repository-native Python tooling for verification:
+- Format/lint: `ruff check .` or configured formatter
+- Type checking: `mypy --strict src/` when mypy is configured
+- Tests: `pytest tests/ --cov=src --cov-report=term-missing`
+- Security: `pip-audit` or `safety check`
+
+When tooling is unavailable in host:
+- Emit recovery commands
+- Mark affected claims as `NOT_VERIFIED`
+- Continue conservatively without fabricating evidence
+
 ---
 
 ## Quality Contract (Binding)
