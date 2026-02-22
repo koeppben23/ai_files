@@ -228,6 +228,12 @@ Canonical order on conflict:
 3) active profile rulebook
 4) activated addon rulebooks (including templates and shared governance add-ons)
 
+**SSOT Clarification (Binding):**
+
+`master.md` refers to the **engine master policy** in `${COMMANDS_HOME}/config/master.md` (commands/config SSOT), NOT repository documentation. Repository files named `master.md` are governance documents and follow standard repo-doc precedence (rung 5 in Evidence Ladder), NOT engine policy precedence.
+
+This prevents SSOT leaks where someone might argue "repo master.md overrides kernel."
+
 Binding implications:
 - Addons/templates refine implementation behavior and evidence expectations for their scope, but MUST NOT weaken or override master/core/profile constraints.
 - Activation remains manifest-owned for addons (`profiles/addons/*.addon.yml`); addon rulebooks define behavior after activation.
@@ -368,7 +374,32 @@ Obligations:
   - `path:line` reference, **or**
   - a concrete excerpt from code/config
 - if evidence is not possible, the workflow MUST explicitly say:
-  > “Not provable with the provided artifacts.”
+  > "Not provable with the provided artifacts."
+
+**Stable Reference Alternatives (Binding):**
+
+Line numbers drift on every commit. For auditability, these alternatives are ALSO acceptable:
+
+1. **Anchor-based reference**: `path#anchor-id` (e.g., `rules.md#RULEBOOK-PRECEDENCE-POLICY`)
+   - Use for Markdown files with stable anchor IDs
+   - Preferred for governance documents
+
+2. **Excerpt-based reference**: `path` + short excerpt (≤ 5 lines)
+   - Use when anchors unavailable or for code files
+   - Excerpt MUST be distinctive enough to locate uniquely
+
+3. **Git blob reference** (optional, when available):
+   - `path@<short-sha>` or `path@blob:<git-blob-id>`
+   - NOT required in user mode
+   - Use for critical audit trails when git is accessible
+
+**Reference Placement Rule (Binding):**
+
+For consistent, review-friendly outputs:
+- Every non-trivial paragraph: at least one reference at paragraph end
+- Lists/tables: per-item reference OR a "whole-list" reference at list end
+- Missing evidence: mark section `NOT_PROVABLE` instead of continuing to argue
+- Never claim "verified" without visible reference
 
 ### 6.2 Light Evidence Mode (Explicit Exception Only)
 
