@@ -189,27 +189,68 @@ def _load_json(path: Path) -> dict[str, Any] | None:
 
 
 def _load_binding_paths(paths_file: Path, *, expected_config_root: Path | None = None) -> tuple[Path, dict[str, Any]]:
+    """Load binding paths with SSOT validation.
+    
+    This function validates binding paths consistently with the SSOT loader
+    but works both in-repo (with governance module) and in-release (standalone).
+    
+    Validates:
+    - commandsHome must be configRoot/commands
+    - workspacesHome must be configRoot/workspaces
+    
+    Args:
+        paths_file: Path to governance.paths.json
+        expected_config_root: Optional expected config root for additional validation
+    
+    Returns:
+        Tuple of (config_root, paths_dict)
+    
+    Raises:
+        ValueError: If binding file is invalid or paths don't match constraints.
+    """
     payload = _load_json(paths_file)
     if not payload:
         raise ValueError(f"binding evidence unreadable: {paths_file}")
+    
     paths = payload.get("paths")
     if not isinstance(paths, dict):
         raise ValueError(f"binding evidence invalid: missing paths object in {paths_file}")
+    
     config_root_raw = paths.get("configRoot")
+    commands_raw = paths.get("commandsHome")
     workspaces_raw = paths.get("workspacesHome")
+    
     if not isinstance(config_root_raw, str) or not config_root_raw.strip():
         raise ValueError(f"binding evidence invalid: paths.configRoot missing in {paths_file}")
+    if not isinstance(commands_raw, str) or not commands_raw.strip():
+        raise ValueError(f"binding evidence invalid: paths.commandsHome missing in {paths_file}")
     if not isinstance(workspaces_raw, str) or not workspaces_raw.strip():
         raise ValueError(f"binding evidence invalid: paths.workspacesHome missing in {paths_file}")
+    
     try:
         config_root = normalize_absolute_path(config_root_raw, purpose="paths.configRoot")
-        _workspaces_home = normalize_absolute_path(workspaces_raw, purpose="paths.workspacesHome")
+        commands_home = normalize_absolute_path(commands_raw, purpose="paths.commandsHome")
+        workspaces_home = normalize_absolute_path(workspaces_raw, purpose="paths.workspacesHome")
     except Exception as exc:
         raise ValueError(f"binding evidence invalid: {exc}") from exc
+    
+    if commands_home != config_root / "commands":
+        raise ValueError(
+            f"binding evidence invalid: commandsHome must be configRoot/commands: "
+            f"got {commands_home}, expected {config_root / 'commands'}"
+        )
+    
+    if workspaces_home != config_root / "workspaces":
+        raise ValueError(
+            f"binding evidence invalid: workspacesHome must be configRoot/workspaces: "
+            f"got {workspaces_home}, expected {config_root / 'workspaces'}"
+        )
+    
     if expected_config_root is not None:
         expected = normalize_absolute_path(str(expected_config_root), purpose="expected_config_root")
         if config_root != expected:
             raise ValueError("binding evidence mismatch: config root does not match explicit input")
+    
     return config_root, paths
 
 

@@ -1492,6 +1492,10 @@ def test_session_state_bootstrap_recovery_script_exists():
     assert p.exists(), "Missing diagnostics/bootstrap_session_state.py"
 
     text = read_text(p)
+    
+    pointer_ssot = REPO_ROOT / "governance" / "infrastructure" / "session_pointer.py"
+    pointer_text = read_text(pointer_ssot) if pointer_ssot.exists() else ""
+    
     required_tokens = [
         "SESSION_STATE.json",
         "repo-identity-map.yaml",
@@ -1512,8 +1516,9 @@ def test_session_state_bootstrap_recovery_script_exists():
         "--force",
         "--dry-run",
     ]
-    missing = [token for token in required_tokens if token not in text]
-    assert not missing, "bootstrap_session_state.py missing required behavior tokens:\n" + "\n".join(
+    combined_text = text + "\n" + pointer_text
+    missing = [token for token in required_tokens if token not in combined_text]
+    assert not missing, "bootstrap_session_state.py or session_pointer.py missing required behavior tokens:\n" + "\n".join(
         [f"- {m}" for m in missing]
     )
 
