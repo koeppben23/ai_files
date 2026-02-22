@@ -138,6 +138,41 @@ def _persistence_gate_passed(state: Mapping[str, object]) -> tuple[bool, str]:
     return True, "ok"
 
 
+def _rulebook_gate_passed(state: Mapping[str, object]) -> tuple[bool, str]:
+    return _rulebooks_loaded(state)
+
+
+def _full_gate_passed(state: Mapping[str, object], *, require_rulebooks: bool = False) -> tuple[bool, str]:
+    persistence_ok, persistence_reason = _persistence_gate_passed(state)
+    if not persistence_ok:
+        return False, persistence_reason
+    
+    if require_rulebooks:
+        rulebooks_ok, rulebooks_reason = _rulebook_gate_passed(state)
+        if not rulebooks_ok:
+            return False, rulebooks_reason
+    
+    return True, "ok"
+
+
+def _rulebooks_loaded(state: Mapping[str, object]) -> tuple[bool, str]:
+    loaded = state.get("LoadedRulebooks")
+    if not isinstance(loaded, Mapping):
+        return False, "LoadedRulebooks not set"
+    
+    core = loaded.get("core")
+    if not isinstance(core, str) or not core.strip():
+        return False, "core rulebook not loaded"
+    
+    active_profile = state.get("ActiveProfile")
+    if isinstance(active_profile, str) and active_profile.strip():
+        profile = loaded.get("profile")
+        if not isinstance(profile, str) or not profile.strip():
+            return False, f"profile rulebook '{active_profile}' not loaded"
+    
+    return True, "ok"
+
+
 def _extract_fingerprint(state: Mapping[str, object]) -> str:
     """Extract fingerprint from state, trying multiple key variants."""
     for key in ("RepoFingerprint", "repo_fingerprint"):
@@ -237,6 +272,15 @@ def route_phase(
         "5.6",
         "6",
     }
+    rulebook_required_tokens = {
+        "4",
+        "5",
+        "5.3",
+        "5.4",
+        "5.5",
+        "5.6",
+        "6",
+    }
     if phase_token in blocked_tokens and not workspace_ready:
         _, block_reason = _persistence_gate_passed(state)
         return RoutedPhase(
@@ -246,6 +290,17 @@ def route_phase(
             workspace_ready=False,
             source="workspace-ready-gate",
         )
+    
+    if phase_token in rulebook_required_tokens:
+        rulebooks_ok, rulebooks_reason = _rulebook_gate_passed(state)
+        if not rulebooks_ok:
+            return RoutedPhase(
+                phase="1.1-Bootstrap",
+                active_gate="Rulebook Load Gate",
+                next_gate_condition=f"BLOCKED_RULEBOOK_MISSING: {rulebooks_reason}. Load required rulebooks before Phase 4+.",
+                workspace_ready=workspace_ready,
+                source="rulebook-load-gate",
+            )
 
     requested_token = normalize_phase_token(requested_phase_text)
     if persisted_token and requested_token and _rank(persisted_token) > _rank(requested_token):
