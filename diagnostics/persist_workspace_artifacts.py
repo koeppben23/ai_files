@@ -762,6 +762,10 @@ def _upsert_artifact(
     dry_run: bool,
 ) -> str:
     if not path.exists():
+        if READ_ONLY:
+            return "blocked-read-only"
+        if dry_run:
+            return "write-requested"
         _write_text(path, create_content, dry_run=dry_run)
         return "created"
 
@@ -773,9 +777,17 @@ def _upsert_artifact(
         return "kept"
 
     if append_content is not None:
+        if READ_ONLY:
+            return "blocked-read-only"
+        if dry_run:
+            return "write-requested"
         _append_text(path, append_content, dry_run=dry_run)
         return "appended"
 
+    if READ_ONLY:
+        return "blocked-read-only"
+    if dry_run:
+        return "write-requested"
     _write_text(path, create_content, dry_run=dry_run)
     return "overwritten"
 
@@ -786,6 +798,10 @@ def _update_session_state(
     dry_run: bool,
     business_rules_inventory_written: bool,
     business_rules_inventory_action: str,
+    repo_cache_action: str,
+    repo_map_digest_action: str,
+    decision_pack_action: str,
+    workspace_memory_action: str,
 ) -> str:
     data = _load_json(session_path)
     if not data:
@@ -794,25 +810,36 @@ def _update_session_state(
     if not isinstance(ss, dict):
         return "invalid-session-shape"
 
+    def _action_to_status(action: str) -> str:
+        if action in {"created", "overwritten", "appended", "normalized"}:
+            return "written"
+        if action == "kept":
+            return "kept"
+        if action == "write-requested":
+            return "write-requested"
+        if action == "blocked-read-only":
+            return "blocked-read-only"
+        return "unknown"
+
     ss.setdefault("RepoCacheFile", {})
     if isinstance(ss["RepoCacheFile"], dict):
         ss["RepoCacheFile"]["TargetPath"] = "${REPO_CACHE_FILE}"
-        ss["RepoCacheFile"]["FileStatus"] = "written"
+        ss["RepoCacheFile"]["FileStatus"] = _action_to_status(repo_cache_action)
 
     ss.setdefault("RepoMapDigestFile", {})
     if isinstance(ss["RepoMapDigestFile"], dict):
         ss["RepoMapDigestFile"]["FilePath"] = "${REPO_DIGEST_FILE}"
-        ss["RepoMapDigestFile"]["FileStatus"] = "written"
+        ss["RepoMapDigestFile"]["FileStatus"] = _action_to_status(repo_map_digest_action)
 
     ss.setdefault("DecisionPack", {})
     if isinstance(ss["DecisionPack"], dict):
         ss["DecisionPack"]["FilePath"] = "${REPO_DECISION_PACK_FILE}"
-        ss["DecisionPack"]["FileStatus"] = "written"
+        ss["DecisionPack"]["FileStatus"] = _action_to_status(decision_pack_action)
 
     ss.setdefault("WorkspaceMemoryFile", {})
     if isinstance(ss["WorkspaceMemoryFile"], dict):
         ss["WorkspaceMemoryFile"]["TargetPath"] = "${WORKSPACE_MEMORY_FILE}"
-        ss["WorkspaceMemoryFile"]["FileStatus"] = "written"
+        ss["WorkspaceMemoryFile"]["FileStatus"] = _action_to_status(workspace_memory_action)
 
     scope = ss.get("Scope")
     business_rules_scope = ""
@@ -1264,6 +1291,10 @@ def main() -> int:
                 business_rules_action in {"created", "kept", "overwritten"}
             ),
             business_rules_inventory_action=business_rules_action,
+            repo_cache_action=actions["repoCache"],
+            repo_map_digest_action=actions["repoMapDigest"],
+            decision_pack_action=actions["decisionPack"],
+            workspace_memory_action=actions["workspaceMemory"],
         )
         if session_update == "invalid-session-shape":
             safe_log_error(
