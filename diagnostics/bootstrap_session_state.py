@@ -47,24 +47,18 @@ from pathlib import Path
 _is_pipeline = os.environ.get("CI", "").strip().lower() not in {"", "0", "false", "no", "off"}
 
 
-def _writes_allowed() -> bool:
-    """Check if write operations are permitted.
-    
-    Returns:
-        True if writes are allowed, False if read-only mode is enforced.
-    
-    The function checks OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY environment variable.
-    When set to "1", all write operations are blocked for safety.
-    """
-    if str(os.environ.get("OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY", "")).strip() == "1":
-        return False
-    return True
-
 SCRIPT_DIR = Path(os.path.abspath(__file__)).parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 if str(SCRIPT_DIR.parent) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR.parent))
+
+from diagnostics.write_policy import EFFECTIVE_MODE, is_write_allowed, writes_allowed
+
+
+def _writes_allowed() -> bool:
+    """Legacy wrapper - use writes_allowed() from write_policy instead."""
+    return writes_allowed()
 
 try:
     from governance.infrastructure.path_contract import (
@@ -717,7 +711,10 @@ def main() -> int:
                 "--skip-lock",
                 "--quiet",
             ]
-            run = subprocess.run(cmd, text=True, capture_output=True, check=False)
+            env = os.environ.copy()
+            if is_write_allowed():
+                env["OPENCODE_DIAGNOSTICS_ALLOW_WRITE"] = "1"
+            run = subprocess.run(cmd, text=True, capture_output=True, check=False, env=env)
             if run.returncode == 0:
                 print("Workspace artifact backfill hook completed.")
                 artifacts_committed = True
