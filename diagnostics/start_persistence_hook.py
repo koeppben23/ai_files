@@ -7,7 +7,7 @@ It is intentionally separate to maintain SoC and keep preflight truly read-only
 by default.
 
 Environment:
-    OPENCODE_DIAGNOSTICS_ALLOW_WRITE=1 - Required to enable writes
+    OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY=1 - If set, blocks all writes (safety gate)
     CI - If set, writes are always disabled (pipeline safety)
 """
 
@@ -26,6 +26,14 @@ EFFECTIVE_MODE: Final[str] = "pipeline" if _is_pipeline else "user"
 
 
 def _writes_allowed() -> bool:
+    """Check if write operations are permitted.
+    
+    Returns:
+        True if writes are allowed, False if read-only mode is enforced.
+    
+    The function checks OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY environment variable.
+    When set to "1", all write operations are blocked for safety.
+    """
     if str(os.environ.get("OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY", "")).strip() == "1":
         return False
     return True
