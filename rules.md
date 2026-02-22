@@ -276,11 +276,21 @@ Activation decisions for profiles/addons MUST use normalized repository capabili
 
 Rules:
 - Workflow MUST derive `RepoFacts.Capabilities` from repository signals before activation decisions.
+- **Mode-derived capabilities** (kernel-enforced): Certain capabilities are set by mode-policy, NOT repo signals:
+  - `user_mode`: Set when operating in user mode (high-quality, human-in-the-loop verification)
+  - These capabilities MUST be injected by the loader before addon activation evaluation.
 - Addon manifests SHOULD declare capability requirements (`capabilities_any` / `capabilities_all`).
 - Activation evaluation order:
   1) capabilities (`capabilities_all` then `capabilities_any`),
   2) hard-signal fallback (`signals`) when capability evidence is missing/ambiguous.
 - Missing evidence for required activation paths MUST map to `BLOCKED-MISSING-EVIDENCE`.
+
+**Mode-Policy Runtime Contract (Binding):**
+
+For `userMaxQuality` addon to activate deterministically:
+- When `user_mode` is active, the kernel/loader MUST inject `user_mode` into the capability set.
+- This is a runtime requirement, not a repo-signal derivation.
+- Failure to inject mode-derived capabilities results in required addons not activating.
 
 ---
 
