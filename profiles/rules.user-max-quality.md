@@ -14,10 +14,10 @@ Enforce the highest quality standards for implementation tasks through:
 ## Scope (binding)
 
 All implementation tasks in user mode where quality is paramount.
-This addon is required and will block code-phase if not loaded.
+This addon is required; code output is prohibited until all required sections are present.
 
 Precedence (binding): use the canonical order from `rules.md` anchor `RULEBOOK-PRECEDENCE-POLICY`.
-As a required addon, this rulebook MUST be loaded before code-phase execution.
+As a required addon, this rulebook MUST be loaded before code output is permitted.
 
 ## Activation (binding)
 
@@ -36,7 +36,7 @@ This rulebook defines behavior after activation and MUST NOT redefine activation
 ## Evidence contract (binding)
 
 - Maintain `SESSION_STATE.AddonsEvidence.userMaxQuality.status` (`loaded|skipped|missing-rulebook`).
-- Required addons MUST block code-phase if not loaded: `BLOCKED-MISSING-ADDON:userMaxQuality`.
+- Required addons prohibit code output until loaded: `BLOCKED-MISSING-ADDON:userMaxQuality`.
 - All output sections MUST be documented in `SESSION_STATE.AddonsEvidence.userMaxQuality.OutputSections`.
 
 ## Tooling (binding)

@@ -17,5 +17,4 @@ capabilities_any:
   - "user_mode"
 signals:
   any:
-    - file_glob: "profiles/rules.user-max-quality.md"
-    - capability: "quality_contract"
+    - capability: "user_mode"
