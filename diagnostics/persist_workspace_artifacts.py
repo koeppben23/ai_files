@@ -29,7 +29,6 @@ Exit Codes:
     2: Blocked (missing binding, invalid fingerprint, config inside repo)
 
 Environment Variables:
-    OPENCODE_DIAGNOSTICS_ALLOW_WRITE: Set to "1" to allow writes outside CI
     OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY: Set to "1" to block all writes
     OPENCODE_CONFIG_ROOT: Override config root location
 """
@@ -46,15 +45,15 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-
-_is_pipeline = os.environ.get("CI", "").strip().lower() not in {"", "0", "false", "no", "off"}
-READ_ONLY = _is_pipeline or os.environ.get("OPENCODE_DIAGNOSTICS_ALLOW_WRITE", "0") != "1"
-
 SCRIPT_DIR = Path(os.path.abspath(__file__)).parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 if str(SCRIPT_DIR.parent) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR.parent))
+
+from diagnostics.write_policy import EFFECTIVE_MODE, is_write_allowed, writes_allowed
+
+READ_ONLY = not writes_allowed()
 
 try:
     from governance.infrastructure.path_contract import (
