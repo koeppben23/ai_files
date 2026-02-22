@@ -810,10 +810,12 @@ def _update_session_state(
         return "invalid-session-shape"
 
     def _action_to_status(action: str) -> str:
-        if action in {"created", "overwritten", "appended", "normalized"}:
+        if action in {"created", "overwritten", "appended"}:
             return "written"
+        if action == "normalized":
+            return "normalized"
         if action == "kept":
-            return "kept"
+            return "unchanged"
         if action == "write-requested":
             return "write-requested"
         if action == "blocked-read-only":
@@ -1362,6 +1364,10 @@ def main() -> int:
 
     if workspace_lock is not None:
         workspace_lock.release()
+    
+    if not phase2_artifacts_ok and not args.dry_run and not READ_ONLY:
+        return 7
+    
     return 0
 
 

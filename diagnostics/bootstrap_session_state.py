@@ -644,51 +644,6 @@ def main() -> int:
         if isinstance(existing_payload, dict):
             repo_payload = existing_payload
 
-    pointer = pointer_payload(repo_fingerprint, repo_state_file)
-    pointer["runId"] = workspace_lock.lock_id
-    pointer["phase"] = "1.1-Bootstrap"
-    _atomic_write_text(pointer_file, json.dumps(pointer, indent=2, ensure_ascii=True) + "\n")
-    print("Global SESSION_STATE pointer written.")
-
-    if not pointer_file.is_file():
-        safe_log_error(
-            reason_key="ERR-POINTER-WRITE-VERIFICATION-FAILED",
-            message="Pointer file does not exist after atomic write.",
-            config_root=config_root,
-            phase="1.1-Bootstrap",
-            gate="BOOTSTRAP",
-            mode="repo-aware",
-            repo_fingerprint=repo_fingerprint,
-            command="bootstrap_session_state.py",
-            component="session-pointer",
-            observed_value={"pointerFile": str(pointer_file)},
-            expected_constraint="Pointer file must exist after atomic write",
-            remediation="Check filesystem permissions and disk space.",
-        )
-        print("ERROR: pointer verification failed - file does not exist after write.")
-        workspace_lock.release()
-        return 8
-
-    pointer_verify = _load_json(pointer_file)
-    if not pointer_verify or pointer_verify.get("schema") != "opencode-session-pointer.v1":
-        safe_log_error(
-            reason_key="ERR-POINTER-SCHEMA-VERIFICATION-FAILED",
-            message="Pointer file has invalid schema after write.",
-            config_root=config_root,
-            phase="1.1-Bootstrap",
-            gate="BOOTSTRAP",
-            mode="repo-aware",
-            repo_fingerprint=repo_fingerprint,
-            command="bootstrap_session_state.py",
-            component="session-pointer",
-            observed_value={"pointerFile": str(pointer_file), "schema": pointer_verify.get("schema") if pointer_verify else None},
-            expected_constraint="Pointer must have schema 'opencode-session-pointer.v1'",
-            remediation="Check filesystem integrity and retry.",
-        )
-        print("ERROR: pointer verification failed - invalid schema.")
-        workspace_lock.release()
-        return 9
-
     scope = repo_payload.get("SESSION_STATE", {}).get("Scope", {}) if isinstance(repo_payload, dict) else {}
     repo_name_value = scope.get("Repository") if isinstance(scope, dict) else None
     if not isinstance(repo_name_value, str) or not repo_name_value.strip():
@@ -764,12 +719,78 @@ def main() -> int:
         workspace_lock.release()
         return 7
 
+    pointer = pointer_payload(repo_fingerprint, repo_state_file)
+    pointer["runId"] = workspace_lock.lock_id
+    pointer["phase"] = "1.1-Bootstrap"
+    _atomic_write_text(pointer_file, json.dumps(pointer, indent=2, ensure_ascii=True) + "\n")
+    print("Global SESSION_STATE pointer written.")
+
+    if not pointer_file.is_file():
+        safe_log_error(
+            reason_key="ERR-POINTER-WRITE-VERIFICATION-FAILED",
+            message="Pointer file does not exist after atomic write.",
+            config_root=config_root,
+            phase="1.1-Bootstrap",
+            gate="BOOTSTRAP",
+            mode="repo-aware",
+            repo_fingerprint=repo_fingerprint,
+            command="bootstrap_session_state.py",
+            component="session-pointer",
+            observed_value={"pointerFile": str(pointer_file)},
+            expected_constraint="Pointer file must exist after atomic write",
+            remediation="Check filesystem permissions and disk space.",
+        )
+        print("ERROR: pointer verification failed - file does not exist after write.")
+        workspace_lock.release()
+        return 8
+
+    pointer_verify = _load_json(pointer_file)
+    if not pointer_verify or pointer_verify.get("schema") != "opencode-session-pointer.v1":
+        safe_log_error(
+            reason_key="ERR-POINTER-SCHEMA-VERIFICATION-FAILED",
+            message="Pointer file has invalid schema after write.",
+            config_root=config_root,
+            phase="1.1-Bootstrap",
+            gate="BOOTSTRAP",
+            mode="repo-aware",
+            repo_fingerprint=repo_fingerprint,
+            command="bootstrap_session_state.py",
+            component="session-pointer",
+            observed_value={"pointerFile": str(pointer_file), "schema": pointer_verify.get("schema") if pointer_verify else None},
+            expected_constraint="Pointer must have schema 'opencode-session-pointer.v1'",
+            remediation="Check filesystem integrity and retry.",
+        )
+        print("ERROR: pointer verification failed - invalid schema.")
+        workspace_lock.release()
+        return 9
+
+    pointer_fp = pointer_verify.get("activeRepoFingerprint") if isinstance(pointer_verify, dict) else None
+    if pointer_fp != repo_fingerprint:
+        safe_log_error(
+            reason_key="ERR-POINTER-FINGERPRINT-MISMATCH",
+            message="Pointer fingerprint does not match bootstrap fingerprint.",
+            config_root=config_root,
+            phase="1.1-Bootstrap",
+            gate="BOOTSTRAP",
+            mode="repo-aware",
+            repo_fingerprint=repo_fingerprint,
+            command="bootstrap_session_state.py",
+            component="session-pointer",
+            observed_value={"pointerFingerprint": pointer_fp, "bootstrapFingerprint": repo_fingerprint},
+            expected_constraint="Pointer fingerprint must match bootstrap fingerprint",
+            remediation="Check pointer file integrity and rerun bootstrap.",
+        )
+        print(f"ERROR: pointer fingerprint mismatch - expected {repo_fingerprint}, got {pointer_fp}")
+        workspace_lock.release()
+        return 9
+
     if isinstance(repo_payload, dict) and "SESSION_STATE" in repo_payload:
         repo_payload["SESSION_STATE"]["PersistenceCommitted"] = True
         repo_payload["SESSION_STATE"]["WorkspaceReadyGateCommitted"] = True
         repo_payload["SESSION_STATE"]["WorkspaceArtifactsCommitted"] = artifacts_committed
+        repo_payload["SESSION_STATE"]["PointerVerified"] = True
         _atomic_write_text(repo_state_file, json.dumps(repo_payload, indent=2, ensure_ascii=True) + "\n")
-        print("PersistenceCommitted=True set in workspace SESSION_STATE (after backfill completed).")
+        print("PersistenceCommitted=True set in workspace SESSION_STATE (after pointer verified).")
 
     workspace_lock.release()
     return 0
