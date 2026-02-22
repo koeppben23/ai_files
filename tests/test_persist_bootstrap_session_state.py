@@ -13,6 +13,8 @@ from .util import REPO_ROOT, run, write_governance_paths
 def test_persist_workspace_artifacts_bootstraps_missing_session_state(tmp_path: Path):
     script = REPO_ROOT / "diagnostics" / "persist_workspace_artifacts.py"
     cfg = tmp_path / "opencode-config"
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir(parents=True, exist_ok=True)
     repo_fp = "a1b2c3d4e5f6a1b2c3d4e5f6"
     write_governance_paths(cfg)
 
@@ -23,6 +25,8 @@ def test_persist_workspace_artifacts_bootstraps_missing_session_state(tmp_path: 
             str(script),
             "--repo-fingerprint",
             repo_fp,
+            "--repo-root",
+            str(repo_root),
             "--config-root",
             str(cfg),
             "--quiet",
@@ -43,6 +47,8 @@ def test_persist_workspace_artifacts_bootstraps_missing_session_state(tmp_path: 
 def test_persist_workspace_artifacts_does_not_bootstrap_when_session_updates_disabled(tmp_path: Path):
     script = REPO_ROOT / "diagnostics" / "persist_workspace_artifacts.py"
     cfg = tmp_path / "opencode-config"
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir(parents=True, exist_ok=True)
     repo_fp = "b2c3d4e5f6a1b2c3d4e5f6a1"
     write_governance_paths(cfg)
 
@@ -53,6 +59,8 @@ def test_persist_workspace_artifacts_does_not_bootstrap_when_session_updates_dis
             str(script),
             "--repo-fingerprint",
             repo_fp,
+            "--repo-root",
+            str(repo_root),
             "--config-root",
             str(cfg),
             "--no-session-update",
