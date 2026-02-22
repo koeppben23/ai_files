@@ -145,27 +145,68 @@ def _atomic_write_text(path: Path, content: str) -> None:
 
 
 def _load_binding_paths(paths_file: Path, *, expected_config_root: Path | None = None) -> tuple[Path, dict]:
+    """Load binding paths with SSOT validation.
+    
+    This function validates binding paths consistently with the SSOT loader
+    but works both in-repo (with governance module) and in-release (standalone).
+    
+    Validates:
+    - commandsHome must be configRoot/commands
+    - workspacesHome must be configRoot/workspaces
+    
+    Args:
+        paths_file: Path to governance.paths.json
+        expected_config_root: Optional expected config root for additional validation
+    
+    Returns:
+        Tuple of (config_root, paths_dict)
+    
+    Raises:
+        ValueError: If binding file is invalid or paths don't match constraints.
+    """
     data = _load_json(paths_file)
     if not isinstance(data, dict):
         raise ValueError(f"binding evidence unreadable: {paths_file}")
+    
     paths = data.get("paths")
     if not isinstance(paths, dict):
         raise ValueError(f"binding evidence invalid: missing paths object in {paths_file}")
+    
     config_root_raw = paths.get("configRoot")
+    commands_raw = paths.get("commandsHome")
     workspaces_raw = paths.get("workspacesHome")
+    
     if not isinstance(config_root_raw, str) or not config_root_raw.strip():
         raise ValueError(f"binding evidence invalid: paths.configRoot missing in {paths_file}")
+    if not isinstance(commands_raw, str) or not commands_raw.strip():
+        raise ValueError(f"binding evidence invalid: paths.commandsHome missing in {paths_file}")
     if not isinstance(workspaces_raw, str) or not workspaces_raw.strip():
         raise ValueError(f"binding evidence invalid: paths.workspacesHome missing in {paths_file}")
+    
     try:
         config_root = normalize_absolute_path(config_root_raw, purpose="paths.configRoot")
-        _workspaces_home = normalize_absolute_path(workspaces_raw, purpose="paths.workspacesHome")
+        commands_home = normalize_absolute_path(commands_raw, purpose="paths.commandsHome")
+        workspaces_home = normalize_absolute_path(workspaces_raw, purpose="paths.workspacesHome")
     except Exception as exc:
         raise ValueError(f"binding evidence invalid: {exc}") from exc
+    
+    if commands_home != config_root / "commands":
+        raise ValueError(
+            f"binding evidence invalid: commandsHome must be configRoot/commands: "
+            f"got {commands_home}, expected {config_root / 'commands'}"
+        )
+    
+    if workspaces_home != config_root / "workspaces":
+        raise ValueError(
+            f"binding evidence invalid: workspacesHome must be configRoot/workspaces: "
+            f"got {workspaces_home}, expected {config_root / 'workspaces'}"
+        )
+    
     if expected_config_root is not None:
         expected = normalize_absolute_path(str(expected_config_root), purpose="expected_config_root")
         if config_root != expected:
             raise ValueError("binding evidence mismatch: config root does not match explicit input")
+    
     return config_root, paths
 
 
@@ -395,6 +436,9 @@ def pointer_payload(repo_fingerprint: str, session_state_file: Path | None = Non
     canonical schema "opencode-session-pointer.v1" and contains the fingerprint
     and path to the workspace's SESSION_STATE.json.
     
+    This function uses the canonical format defined in governance.infrastructure.session_pointer
+    when available (in-repo), and falls back to inline implementation for release artifacts.
+    
     Args:
         repo_fingerprint: The canonical 24-hex fingerprint for this repository.
         session_state_file: Optional explicit path to the workspace SESSION_STATE.
@@ -403,6 +447,16 @@ def pointer_payload(repo_fingerprint: str, session_state_file: Path | None = Non
     Returns:
         A dictionary containing the pointer payload ready for JSON serialization.
     """
+    try:
+        from governance.infrastructure.session_pointer import build_pointer_payload
+        return build_pointer_payload(
+            repo_fingerprint=repo_fingerprint,
+            session_state_file=session_state_file,
+            updated_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        )
+    except ImportError:
+        pass
+    
     payload = {
         "schema": "opencode-session-pointer.v1",
         "updatedAt": datetime.now(timezone.utc).isoformat(timespec="seconds"),

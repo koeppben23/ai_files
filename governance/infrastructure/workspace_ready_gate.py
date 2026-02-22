@@ -32,12 +32,16 @@ import os
 import re
 
 from governance.domain.canonical_json import canonical_json_text
+from governance.infrastructure.session_pointer import (
+    CANONICAL_POINTER_SCHEMA,
+    LEGACY_POINTER_SCHEMAS,
+    build_pointer_payload,
+    parse_pointer_payload,
+    validate_fingerprint,
+)
 from governance.infrastructure.fs_atomic import atomic_write_text
 
 _LOCK_TTL_SECONDS: int = 120
-
-LEGACY_POINTER_SCHEMAS = {"active-session-pointer.v1"}
-CANONICAL_POINTER_SCHEMA = "opencode-session-pointer.v1"
 
 
 def read_pointer_file(pointer_path: Path) -> dict | None:
@@ -59,38 +63,18 @@ def read_pointer_file(pointer_path: Path) -> dict | None:
         payload = json.loads(pointer_path.read_text(encoding="utf-8"))
     except Exception:
         return None
-    if not isinstance(payload, dict):
+    
+    result = parse_pointer_payload(payload)
+    if not result:
         return None
-    schema = payload.get("schema")
-    if schema == CANONICAL_POINTER_SCHEMA:
-        return payload
-    if schema in LEGACY_POINTER_SCHEMAS:
-        migrated = _migrate_legacy_pointer(payload)
+    
+    if payload.get("schema") in LEGACY_POINTER_SCHEMAS:
         try:
-            atomic_write_text(pointer_path, canonical_json_text(migrated) + "\n")
+            atomic_write_text(pointer_path, canonical_json_text(result) + "\n")
         except OSError:
             pass
-        return migrated
-    return None
-
-
-def _migrate_legacy_pointer(legacy: dict) -> dict:
-    """Migrate a legacy pointer payload to canonical schema.
     
-    Args:
-        legacy: The legacy pointer payload dict.
-    
-    Returns:
-        A new dict in canonical schema format.
-    """
-    return {
-        "schema": CANONICAL_POINTER_SCHEMA,
-        "repo_fingerprint": legacy.get("repo_fingerprint", ""),
-        "session_id": legacy.get("session_id", ""),
-        "workspace_ready": legacy.get("workspace_ready", False),
-        "active_session_state_file": legacy.get("active_session_state_file", ""),
-        "updatedAt": legacy.get("updated_at", legacy.get("updatedAt", "")),
-    }
+    return result
 
 
 @dataclass(frozen=True)
@@ -119,6 +103,11 @@ def ensure_workspace_ready(
     fp = str(repo_fingerprint).strip()
     if not fp:
         return WorkspaceReadyDecision(False, "fingerprint-missing", None, None, None)
+    
+    try:
+        fp = validate_fingerprint(fp)
+    except ValueError:
+        return WorkspaceReadyDecision(False, "fingerprint-invalid", None, None, None)
 
     workspace_dir = workspaces_home / fp
     locks_dir = workspace_dir / "locks"
@@ -194,14 +183,11 @@ def ensure_workspace_ready(
             "discovery_method": discovery_method,
             "discovered_at": _iso_now(),
         }
-        pointer_payload = {
-            "schema": "opencode-session-pointer.v1",
-            "repo_fingerprint": fp,
-            "session_id": session_id,
-            "workspace_ready": True,
-            "active_session_state_file": str(session_state_file),
-            "updatedAt": _iso_now(),
-        }
+        pointer_payload = build_pointer_payload(
+            repo_fingerprint=fp,
+            session_state_file=session_state_file,
+            updated_at=_iso_now(),
+        )
 
         atomic_write_text(marker_path, canonical_json_text(marker_payload) + "\n")
         atomic_write_text(evidence_path, canonical_json_text(evidence_payload) + "\n")
