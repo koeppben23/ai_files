@@ -372,6 +372,116 @@ class TestE2ETestMatrix:
         
         assert proc.returncode != 0, "T3: Should exit with non-zero on invalid binding"
 
+    def test_t4_artifact_write_fail_blocks(self, isolated_env, tmp_path: Path):
+        """T4: Simulated artifact write fail via FORCE_READ_ONLY."""
+        repo = tmp_path / "repo"
+        _git_init_repo(repo)
+        
+        env = dict(isolated_env["env"])
+        env["OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY"] = "1"
+        
+        proc, _ = _run_bootstrap(
+            repo=repo,
+            config_root=isolated_env["config_root"],
+            commands_home=isolated_env["commands_home"],
+            workspaces_home=isolated_env["workspaces_home"],
+            env=env,
+        )
+        
+        assert proc.returncode != 0, "T4: Should exit with non-zero when writes blocked"
+
+    def test_t5_pointer_verify_fail_blocks(self, isolated_env, tmp_path: Path):
+        """T5: Pointer write blocked via FORCE_READ_ONLY."""
+        repo = tmp_path / "repo"
+        _git_init_repo(repo)
+        
+        env = dict(isolated_env["env"])
+        env["OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY"] = "1"
+        
+        pointer_path = isolated_env["config_root"] / "SESSION_STATE.json"
+        pointer_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        proc, _ = _run_bootstrap(
+            repo=repo,
+            config_root=isolated_env["config_root"],
+            commands_home=isolated_env["commands_home"],
+            workspaces_home=isolated_env["workspaces_home"],
+            env=env,
+        )
+        
+        assert proc.returncode != 0, "T5: Should exit with non-zero when writes blocked"
+        assert not pointer_path.exists(), "T5: Pointer should not exist when writes blocked"
+
+    def test_t6_session_state_has_rulebook_fields(self, isolated_env, tmp_path: Path):
+        """T6: SessionState has LoadedRulebooks structure (values populated by /start layer)."""
+        repo = tmp_path / "repo"
+        _git_init_repo(repo)
+        
+        proc, repo_fp = _run_bootstrap(
+            repo=repo,
+            config_root=isolated_env["config_root"],
+            commands_home=isolated_env["commands_home"],
+            workspaces_home=isolated_env["workspaces_home"],
+            env=isolated_env["env"],
+        )
+        
+        assert proc.returncode == 0, f"T6: Happy path should succeed: {proc.stdout}\n{proc.stderr}"
+        
+        session_path = isolated_env["workspaces_home"] / repo_fp / "SESSION_STATE.json"
+        state = json.loads(session_path.read_text(encoding="utf-8"))
+        ss = state.get("SESSION_STATE", {})
+        
+        assert "LoadedRulebooks" in ss, "T6: LoadedRulebooks field should exist in SESSION_STATE"
+        
+        loaded = ss.get("LoadedRulebooks", {})
+        assert "core" in loaded, "T6: LoadedRulebooks.core field should exist"
+        assert "profile" in loaded, "T6: LoadedRulebooks.profile field should exist"
+
+    def test_t7_router_blocks_without_rulebooks(self, isolated_env, tmp_path: Path):
+        """T7: Phase router checks rulebooks for Phase>=4."""
+        from governance.application.use_cases.phase_router import route_phase
+        
+        ss_with_rulebooks = {
+            "Phase": "4",
+            "PersistenceCommitted": True,
+            "WorkspaceReadyGateCommitted": True,
+            "WorkspaceArtifactsCommitted": True,
+            "PointerVerified": True,
+            "LoadedRulebooks": {"core": "${COMMANDS_HOME}/rules.md", "profile": "", "templates": "", "addons": {}},
+            "RepoFingerprint": "test12345678901234567890",
+            "phase_transition_evidence": True,
+        }
+        
+        routed = route_phase(
+            requested_phase="4",
+            requested_active_gate="Ticket Execution",
+            requested_next_gate_condition="Describe your task",
+            session_state_document={"SESSION_STATE": ss_with_rulebooks},
+            repo_is_git_root=True,
+        )
+        
+        assert routed.phase == "4", f"T7: With core rulebook, should allow Phase 4: {routed.phase}"
+        
+        ss_without_rulebooks = {
+            "Phase": "2.1-DecisionPack",
+            "PersistenceCommitted": True,
+            "WorkspaceReadyGateCommitted": True,
+            "WorkspaceArtifactsCommitted": True,
+            "PointerVerified": True,
+            "LoadedRulebooks": {"core": "", "profile": "", "templates": "", "addons": {}},
+            "RepoFingerprint": "test12345678901234567890",
+        }
+        
+        routed_blocked = route_phase(
+            requested_phase="4",
+            requested_active_gate="Ticket Execution",
+            requested_next_gate_condition="Describe your task",
+            session_state_document={"SESSION_STATE": ss_without_rulebooks},
+            repo_is_git_root=True,
+        )
+        
+        assert routed_blocked.phase != "4", "T7: Router should block Phase 4 jump from 2.1 without transition evidence"
+
 
 @pytest.mark.e2e_governance
 @pytest.mark.skipif(not HAS_PYYAML_IN_SUBPROCESS, reason="pyyaml required")
