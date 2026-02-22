@@ -11,16 +11,21 @@ All diagnostics MUST use this module to determine write permissions.
 
 Environment Variables:
     OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY: Set to "1" to block all writes
-    CI: If set (non-empty), enables pipeline mode (READ_ONLY)
-    OPENCODE_DIAGNOSTICS_ALLOW_WRITE: (DEPRECATED - use FORCE_READ_ONLY instead)
+    CI: If set (non-empty), enables pipeline mode
 
-Write Policy:
-    In user mode: writes are allowed by default (unless FORCE_READ_ONLY=1)
-    In pipeline mode: writes are blocked by default (unless FORCE_READ_ONLY=1)
+Write Policy (unified):
+    Writes are allowed by default, unless FORCE_READ_ONLY=1
+    
+    This matches the expected behavior for "/start persists always":
+    - User mode: writes allowed (default)
+    - Pipeline mode: writes allowed (default)
+    - FORCE_READ_ONLY=1: writes blocked always
 
-This replaces the previous inconsistent policies:
-where bootstrap used ALLOW_WRITE and persist_workspace_artifacts
-used ALLOW_WRITE != "1" with READ_ONLY = True.
+This unifies the previous inconsistent policies:
+- Old persist_workspace_artifacts.py: READ_ONLY = True unless ALLOW_WRITE=1
+- Old bootstrap_session_state.py: writes allowed unless FORCE_READ_ONLY=1
+
+The unified policy follows the bootstrap behavior: writes allowed unless explicitly blocked.
 """
 from __future__ import annotations
 
@@ -37,10 +42,8 @@ def writes_allowed() -> bool:
     Returns:
         True if writes are allowed, False if read-only mode is enforced.
     
-    Write Policy:
-        - User mode: writes allowed (default)
-        - Pipeline mode: writes blocked (default)
-        - FORCE_READ_ONLY=1: writes blocked always
+    Write Policy (unified):
+        Writes are allowed by default, unless FORCE_READ_ONLY=1
     """
     if str(os.environ.get("OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY", "")).strip() == "1":
         return False
