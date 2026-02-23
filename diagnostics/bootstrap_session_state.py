@@ -55,6 +55,24 @@ if str(SCRIPT_DIR.parent) not in sys.path:
 
 from diagnostics.write_policy import EFFECTIVE_MODE, is_write_allowed, writes_allowed
 
+try:
+    from diagnostics.global_error_handler import (
+        install_global_handlers,
+        set_error_context,
+        emit_gate_failure,
+        ErrorContext,
+    )
+except ImportError:
+    def install_global_handlers(context_provider=None):  # type: ignore
+        pass
+    def set_error_context(ctx):  # type: ignore
+        pass
+    def emit_gate_failure(**kwargs):  # type: ignore
+        pass
+    class ErrorContext:  # type: ignore
+        def __init__(self, **kwargs):
+            pass
+
 
 def _writes_allowed() -> bool:
     """Legacy wrapper - use writes_allowed() from write_policy instead."""
@@ -504,6 +522,12 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--repo-fingerprint", required=True, help="Repo workspace key (e.g. 3a76fdae74e6ec7b).")
     parser.add_argument("--repo-name", default="", help="Optional repository display name for SESSION_STATE.Scope.Repository.")
+    parser.add_argument(
+        "--repo-root",
+        type=Path,
+        default=None,
+        help="Absolute git top-level path for this repo (SSOT). If omitted, OPENCODE_REPO_ROOT must be set.",
+    )
     parser.add_argument("--config-root", type=Path, default=None, help="Override OpenCode config root.")
     parser.add_argument("--force", action="store_true", help="Overwrite existing repo SESSION_STATE file and migrate legacy global payload if needed.")
     parser.add_argument("--dry-run", action="store_true", help="Print planned actions without writing files.")
@@ -516,6 +540,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> int:
+    install_global_handlers()
     args = parse_args()
     try:
         config_root, binding_paths, _binding_file = resolve_binding_config(args.config_root)
@@ -529,8 +554,39 @@ def main() -> int:
         purpose="paths.workspacesHome",
     )
 
-    cwd_repo_root = normalize_absolute_path(str(Path.cwd()), purpose="cwd")
-    if (cwd_repo_root / ".git").exists() and _is_within(config_root, cwd_repo_root):
+    repo_root_source = args.repo_root
+    if repo_root_source is None:
+        env_root = os.environ.get("OPENCODE_REPO_ROOT", "").strip()
+        if env_root:
+            repo_root_source = Path(env_root)
+    if repo_root_source is None:
+        try:
+            result = subprocess.run(
+                ["git", "rev-parse", "--show-toplevel"],
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=5,
+            )
+            if result.returncode == 0:
+                git_root = result.stdout.strip()
+                if git_root:
+                    repo_root_source = Path(git_root)
+        except Exception:
+            pass
+    if repo_root_source is None:
+        repo_root_source = Path.cwd()
+
+    repo_root = normalize_absolute_path(str(repo_root_source), purpose="repoRoot")
+    if (repo_root / ".git").exists() and _is_within(config_root, repo_root):
+        emit_gate_failure(
+            gate="BOOTSTRAP",
+            code="CONFIG_ROOT_INSIDE_REPO",
+            message="Config root resolves inside repository root (blocked).",
+            expected="configRoot must be outside repoRoot",
+            observed={"configRoot": str(config_root), "repoRoot": str(repo_root)},
+            remediation="Set OPENCODE_CONFIG_ROOT to a location outside the repository and rerun.",
+        )
         print("ERROR: config root resolves inside repository root")
         print("Set OPENCODE_CONFIG_ROOT to a location outside the repository and rerun.")
         return 5
@@ -570,6 +626,27 @@ def main() -> int:
     repo_state_file = workspaces_home / repo_fingerprint / "SESSION_STATE.json"
     pointer_file = session_pointer_path(config_root)
     identity_map_file = workspaces_home / repo_fingerprint / "repo-identity-map.yaml"
+
+    if (repo_root / ".git").exists() and _is_within(pointer_file, repo_root):
+        emit_gate_failure(
+            gate="BOOTSTRAP",
+            code="POINTER_PATH_INSIDE_REPO",
+            message="Global pointer path resolves inside repository root (blocked).",
+            expected="Pointer must live under configRoot (outside repoRoot)",
+            observed={"pointerFile": str(pointer_file), "repoRoot": str(repo_root)},
+            remediation="Fix binding so OPENCODE_HOME/configRoot is outside the repo; do not derive configRoot from CWD.",
+        )
+        print("ERROR: pointer file resolves inside repository root")
+        return 5
+
+    set_error_context(ErrorContext(
+        repo_fingerprint=repo_fingerprint,
+        config_root=str(config_root),
+        workspaces_home=str(workspaces_home),
+        repo_root=str(repo_root),
+        phase="1.1-Bootstrap",
+        command="bootstrap_session_state.py",
+    ))
 
     try:
         workspace_lock = acquire_workspace_lock(
@@ -644,51 +721,6 @@ def main() -> int:
         if isinstance(existing_payload, dict):
             repo_payload = existing_payload
 
-    pointer = pointer_payload(repo_fingerprint, repo_state_file)
-    pointer["runId"] = workspace_lock.lock_id
-    pointer["phase"] = "1.1-Bootstrap"
-    _atomic_write_text(pointer_file, json.dumps(pointer, indent=2, ensure_ascii=True) + "\n")
-    print("Global SESSION_STATE pointer written.")
-
-    if not pointer_file.is_file():
-        safe_log_error(
-            reason_key="ERR-POINTER-WRITE-VERIFICATION-FAILED",
-            message="Pointer file does not exist after atomic write.",
-            config_root=config_root,
-            phase="1.1-Bootstrap",
-            gate="BOOTSTRAP",
-            mode="repo-aware",
-            repo_fingerprint=repo_fingerprint,
-            command="bootstrap_session_state.py",
-            component="session-pointer",
-            observed_value={"pointerFile": str(pointer_file)},
-            expected_constraint="Pointer file must exist after atomic write",
-            remediation="Check filesystem permissions and disk space.",
-        )
-        print("ERROR: pointer verification failed - file does not exist after write.")
-        workspace_lock.release()
-        return 8
-
-    pointer_verify = _load_json(pointer_file)
-    if not pointer_verify or pointer_verify.get("schema") != "opencode-session-pointer.v1":
-        safe_log_error(
-            reason_key="ERR-POINTER-SCHEMA-VERIFICATION-FAILED",
-            message="Pointer file has invalid schema after write.",
-            config_root=config_root,
-            phase="1.1-Bootstrap",
-            gate="BOOTSTRAP",
-            mode="repo-aware",
-            repo_fingerprint=repo_fingerprint,
-            command="bootstrap_session_state.py",
-            component="session-pointer",
-            observed_value={"pointerFile": str(pointer_file), "schema": pointer_verify.get("schema") if pointer_verify else None},
-            expected_constraint="Pointer must have schema 'opencode-session-pointer.v1'",
-            remediation="Check filesystem integrity and retry.",
-        )
-        print("ERROR: pointer verification failed - invalid schema.")
-        workspace_lock.release()
-        return 9
-
     scope = repo_payload.get("SESSION_STATE", {}).get("Scope", {}) if isinstance(repo_payload, dict) else {}
     repo_name_value = scope.get("Repository") if isinstance(scope, dict) else None
     if not isinstance(repo_name_value, str) or not repo_name_value.strip():
@@ -708,6 +740,8 @@ def main() -> int:
                 repo_fingerprint,
                 "--config-root",
                 str(config_root),
+                "--repo-root",
+                str(repo_root),
                 "--skip-lock",
                 "--quiet",
             ]
@@ -764,12 +798,78 @@ def main() -> int:
         workspace_lock.release()
         return 7
 
+    pointer = pointer_payload(repo_fingerprint, repo_state_file)
+    pointer["runId"] = workspace_lock.lock_id
+    pointer["phase"] = "1.1-Bootstrap"
+    _atomic_write_text(pointer_file, json.dumps(pointer, indent=2, ensure_ascii=True) + "\n")
+    print("Global SESSION_STATE pointer written.")
+
+    if not pointer_file.is_file():
+        safe_log_error(
+            reason_key="ERR-POINTER-WRITE-VERIFICATION-FAILED",
+            message="Pointer file does not exist after atomic write.",
+            config_root=config_root,
+            phase="1.1-Bootstrap",
+            gate="BOOTSTRAP",
+            mode="repo-aware",
+            repo_fingerprint=repo_fingerprint,
+            command="bootstrap_session_state.py",
+            component="session-pointer",
+            observed_value={"pointerFile": str(pointer_file)},
+            expected_constraint="Pointer file must exist after atomic write",
+            remediation="Check filesystem permissions and disk space.",
+        )
+        print("ERROR: pointer verification failed - file does not exist after write.")
+        workspace_lock.release()
+        return 8
+
+    pointer_verify = _load_json(pointer_file)
+    if not pointer_verify or pointer_verify.get("schema") != "opencode-session-pointer.v1":
+        safe_log_error(
+            reason_key="ERR-POINTER-SCHEMA-VERIFICATION-FAILED",
+            message="Pointer file has invalid schema after write.",
+            config_root=config_root,
+            phase="1.1-Bootstrap",
+            gate="BOOTSTRAP",
+            mode="repo-aware",
+            repo_fingerprint=repo_fingerprint,
+            command="bootstrap_session_state.py",
+            component="session-pointer",
+            observed_value={"pointerFile": str(pointer_file), "schema": pointer_verify.get("schema") if pointer_verify else None},
+            expected_constraint="Pointer must have schema 'opencode-session-pointer.v1'",
+            remediation="Check filesystem integrity and retry.",
+        )
+        print("ERROR: pointer verification failed - invalid schema.")
+        workspace_lock.release()
+        return 9
+
+    pointer_fp = pointer_verify.get("activeRepoFingerprint") if isinstance(pointer_verify, dict) else None
+    if pointer_fp != repo_fingerprint:
+        safe_log_error(
+            reason_key="ERR-POINTER-FINGERPRINT-MISMATCH",
+            message="Pointer fingerprint does not match bootstrap fingerprint.",
+            config_root=config_root,
+            phase="1.1-Bootstrap",
+            gate="BOOTSTRAP",
+            mode="repo-aware",
+            repo_fingerprint=repo_fingerprint,
+            command="bootstrap_session_state.py",
+            component="session-pointer",
+            observed_value={"pointerFingerprint": pointer_fp, "bootstrapFingerprint": repo_fingerprint},
+            expected_constraint="Pointer fingerprint must match bootstrap fingerprint",
+            remediation="Check pointer file integrity and rerun bootstrap.",
+        )
+        print(f"ERROR: pointer fingerprint mismatch - expected {repo_fingerprint}, got {pointer_fp}")
+        workspace_lock.release()
+        return 9
+
     if isinstance(repo_payload, dict) and "SESSION_STATE" in repo_payload:
         repo_payload["SESSION_STATE"]["PersistenceCommitted"] = True
         repo_payload["SESSION_STATE"]["WorkspaceReadyGateCommitted"] = True
         repo_payload["SESSION_STATE"]["WorkspaceArtifactsCommitted"] = artifacts_committed
+        repo_payload["SESSION_STATE"]["PointerVerified"] = True
         _atomic_write_text(repo_state_file, json.dumps(repo_payload, indent=2, ensure_ascii=True) + "\n")
-        print("PersistenceCommitted=True set in workspace SESSION_STATE (after backfill completed).")
+        print("PersistenceCommitted=True set in workspace SESSION_STATE (after pointer verified).")
 
     workspace_lock.release()
     return 0

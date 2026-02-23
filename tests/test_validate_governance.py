@@ -1527,12 +1527,14 @@ def test_session_state_bootstrap_recovery_script_exists():
 def test_session_state_bootstrap_recovery_script_creates_state_file(tmp_path: Path):
     script = REPO_ROOT / "diagnostics" / "bootstrap_session_state.py"
     cfg = tmp_path / "opencode-config"
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir(parents=True, exist_ok=True)
     repo_fp = "a1b2c3d4e5f6a1b2c3d4e5f7"
     write_governance_paths(cfg)
 
     env = os.environ.copy()
     env["OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY"] = "1"
-    r = run([sys.executable, str(script), "--repo-fingerprint", repo_fp, "--config-root", str(cfg)], env=env)
+    r = run([sys.executable, str(script), "--repo-fingerprint", repo_fp, "--repo-root", str(repo_root), "--config-root", str(cfg)], env=env)
     assert r.returncode == 2, f"bootstrap_session_state.py should exit 2 when writes blocked:\nSTDERR:\n{r.stderr}\nSTDOUT:\n{r.stdout}"
 
     payload = json.loads(r.stdout.strip().splitlines()[-1])
@@ -1572,6 +1574,8 @@ def test_workspace_persistence_backfill_script_exists_and_defines_required_targe
 def test_workspace_persistence_backfill_script_creates_missing_artifacts(tmp_path: Path):
     script = REPO_ROOT / "diagnostics" / "persist_workspace_artifacts.py"
     cfg = tmp_path / "opencode-config"
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir(parents=True, exist_ok=True)
     repo_fp = "a1b2c3d4e5f6a1b2c3d4e5f6"
     write_governance_paths(cfg)
 
@@ -1592,7 +1596,7 @@ def test_workspace_persistence_backfill_script_creates_missing_artifacts(tmp_pat
     session_file.write_text(json.dumps(session_payload, indent=2, ensure_ascii=True) + "\n", encoding="utf-8")
 
     env = {"OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY": "1"}
-    r = run([sys.executable, str(script), "--repo-fingerprint", repo_fp, "--config-root", str(cfg)], env=env)
+    r = run([sys.executable, str(script), "--repo-fingerprint", repo_fp, "--repo-root", str(repo_root), "--config-root", str(cfg)], env=env)
     assert r.returncode == 0, f"persist_workspace_artifacts.py failed:\nSTDERR:\n{r.stderr}\nSTDOUT:\n{r.stdout}"
 
     payload = json.loads(r.stdout.strip().splitlines()[-1])
@@ -1644,6 +1648,8 @@ def test_workspace_persistence_backfill_derives_fingerprint_from_repo_root(tmp_p
 def test_workspace_persistence_backfill_writes_business_rules_when_phase15_extracted(tmp_path: Path):
     script = REPO_ROOT / "diagnostics" / "persist_workspace_artifacts.py"
     cfg = tmp_path / "opencode-config"
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir(parents=True, exist_ok=True)
     repo_fp = "b2c3d4e5f6a1b2c3d4e5f6a2"
     write_governance_paths(cfg)
 
@@ -1670,7 +1676,7 @@ def test_workspace_persistence_backfill_writes_business_rules_when_phase15_extra
     session_file.write_text(json.dumps(session_payload, indent=2, ensure_ascii=True) + "\n", encoding="utf-8")
 
     env = {"OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY": "1"}
-    r = run([sys.executable, str(script), "--repo-fingerprint", repo_fp, "--config-root", str(cfg), "--quiet"], env=env)
+    r = run([sys.executable, str(script), "--repo-fingerprint", repo_fp, "--repo-root", str(repo_root), "--config-root", str(cfg), "--quiet"], env=env)
     assert r.returncode == 0, f"persist_workspace_artifacts.py failed:\nSTDERR:\n{r.stderr}\nSTDOUT:\n{r.stdout}"
 
     payload = json.loads(r.stdout)
@@ -1683,6 +1689,8 @@ def test_workspace_persistence_backfill_writes_business_rules_when_phase15_extra
 def test_workspace_persistence_normalizes_legacy_placeholder_phrasing_without_force(tmp_path: Path):
     script = REPO_ROOT / "diagnostics" / "persist_workspace_artifacts.py"
     cfg = tmp_path / "opencode-config"
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir(parents=True, exist_ok=True)
     repo_fp = "c3d4e5f6a1b2c3d4e5f6a1b3"
     write_governance_paths(cfg)
 
@@ -1721,7 +1729,7 @@ def test_workspace_persistence_normalizes_legacy_placeholder_phrasing_without_fo
     )
 
     env = {"OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY": "1"}
-    r = run([sys.executable, str(script), "--repo-fingerprint", repo_fp, "--config-root", str(cfg), "--quiet"], env=env)
+    r = run([sys.executable, str(script), "--repo-fingerprint", repo_fp, "--repo-root", str(repo_root), "--config-root", str(cfg), "--quiet"], env=env)
     assert r.returncode == 0, f"persist_workspace_artifacts.py failed:\nSTDERR:\n{r.stderr}\nSTDOUT:\n{r.stdout}"
 
     payload = json.loads(r.stdout)
