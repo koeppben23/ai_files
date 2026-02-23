@@ -1,1 +1,0 @@
-from governance.infrastructure.adapters.process.subprocess_runner import SubprocessRunner
