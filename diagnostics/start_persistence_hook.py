@@ -84,6 +84,8 @@ except ImportError as exc:
     sys.exit(1)
 
 _run_bootstrap_dispatch = cast(Any, None)
+_derive_fingerprint_ssot = cast(Any, None)
+_resolve_repo_root_from_bootstrap = cast(Any, None)
 try:
     from bootstrap.dispatch import run_bootstrap_dispatch as _bootstrap_dispatch
     _run_bootstrap_dispatch = cast(Any, _bootstrap_dispatch)
@@ -110,6 +112,16 @@ except ImportError:
         )
 
     _run_bootstrap_dispatch = cast(Any, _fallback_bootstrap_dispatch)
+
+try:
+    from bootstrap.repo_identity import (
+        derive_fingerprint as _bootstrap_derive_fingerprint,
+        resolve_repo_root_ssot as _bootstrap_resolve_repo_root_ssot,
+    )
+    _derive_fingerprint_ssot = cast(Any, _bootstrap_derive_fingerprint)
+    _resolve_repo_root_from_bootstrap = cast(Any, _bootstrap_resolve_repo_root_ssot)
+except ImportError:
+    pass
 
 
 def _resolve_bindings(*, mode: str) -> tuple[Path, Path, bool, Path | None, str]:
@@ -194,6 +206,14 @@ def derive_repo_fingerprint(repo_root: Path) -> str | None:
     except Exception:
         return None
 
+    if _derive_fingerprint_ssot is not None:
+        try:
+            fp = str(_derive_fingerprint_ssot(normalized_repo_root) or "").strip()
+            if fp and _is_canonical_fingerprint(fp):
+                return fp
+        except Exception:
+            pass
+
     fp = None
     try:
         configure_gateway_registry()
@@ -273,6 +293,17 @@ def _resolve_repo_root_ssot(explicit_root: Path | None = None) -> tuple[Path | N
     Returns:
         Tuple of (resolved_path, source). Path may be None if resolution fails.
     """
+    if _resolve_repo_root_from_bootstrap is not None:
+        try:
+            result = _resolve_repo_root_from_bootstrap(explicit_root)
+            if isinstance(result, tuple) and len(result) == 2:
+                path, source = result
+                if path is None:
+                    return None, str(source)
+                return normalize_absolute_path(str(path), purpose="repo_root"), str(source)
+        except Exception:
+            pass
+
     if explicit_root is not None:
         try:
             return normalize_absolute_path(str(explicit_root), purpose="explicit_repo_root"), "explicit"
