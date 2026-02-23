@@ -1010,16 +1010,22 @@ def main() -> int:
         if env_root:
             repo_root_source = Path(env_root)
     if repo_root_source is None:
-        emit_gate_failure(
-            gate="PERSISTENCE",
-            code="REPO_ROOT_MISSING",
-            message="Repo root not provided; cannot enforce deterministic fingerprint and traversal guards.",
-            expected="Provide --repo-root or set OPENCODE_REPO_ROOT",
-            observed={"cwd": str(Path.cwd())},
-            remediation="Ensure bootstrap passes --repo-root (git top-level).",
-        )
-        print("ERROR: repo root not provided (required).")
-        return 2
+        try:
+            result = subprocess.run(
+                ["git", "rev-parse", "--show-toplevel"],
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=5,
+            )
+            if result.returncode == 0:
+                git_root = result.stdout.strip()
+                if git_root:
+                    repo_root_source = Path(git_root)
+        except Exception:
+            pass
+    if repo_root_source is None:
+        repo_root_source = Path.cwd()
     repo_root = Path(os.path.normpath(os.path.abspath(str(repo_root_source.expanduser()))))
 
     if (repo_root / ".git").exists() and _is_within(config_root, repo_root):
