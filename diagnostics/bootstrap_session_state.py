@@ -785,7 +785,6 @@ def main() -> int:
                         message="Backfill completed but required Phase 2/2.1 artifacts not verified.",
                         expected="phase2Artifacts.ok==true and status=='ok'",
                         observed={"summary": summary, "returncode": run.returncode},
-                    )
                         remediation="Check artifact paths and permissions, rerun bootstrap.",
                         config_root=str(config_root),
                         workspaces_home=str(workspaces_home),
