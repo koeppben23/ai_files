@@ -1,0 +1,36 @@
+def render_repo_cache(
+    *,
+    date: str,
+    repo_name: str,
+    profile: str,
+    profile_evidence: str,
+    repository_type: str,
+) -> str:
+    return "\n".join(
+        [
+            "RepoCache:",
+            '  Version: "1.0"',
+            f'  LastUpdated: "{date}"',
+            f'  RepoName: "{repo_name}"',
+            '  GitHead: "unknown"',
+            '  RepoSignature: "unknown"',
+            f'  ProfileDetected: "{profile}"',
+            f'  ProfileEvidence: "{profile_evidence}"',
+            "  RepoMapDigest:",
+            f'    RepositoryType: "{repository_type}"',
+            '    Architecture: "unknown"',
+            "    Modules: []",
+            "    EntryPoints: []",
+            "    DataStores: []",
+            "    Testing: []",
+            "  ConventionsDigest:",
+            '    - "Seed snapshot: refresh after evidence-backed Phase 2 discovery."',
+            "  BuildAndTooling: {}",
+            "  CacheHashChecks: []",
+            "  InvalidateOn:",
+            '    - "Profile change"',
+            '    - "Rulebook update"',
+            '    - "Repository structure change"',
+            "",
+        ]
+    )
