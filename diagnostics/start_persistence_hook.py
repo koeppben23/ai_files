@@ -51,6 +51,24 @@ except ImportError:
         return {"status": "log-disabled"}
 
 try:
+    from diagnostics.global_error_handler import (
+        install_global_handlers,
+        set_error_context,
+        emit_gate_failure,
+        ErrorContext,
+    )
+except ImportError:
+    def install_global_handlers(context_provider=None):  # type: ignore
+        pass
+    def set_error_context(ctx):  # type: ignore
+        pass
+    def emit_gate_failure(**kwargs):  # type: ignore
+        pass
+    class ErrorContext:  # type: ignore
+        def __init__(self, **kwargs):
+            pass
+
+try:
     from governance.application.use_cases.start_bootstrap import evaluate_start_identity
     from governance.engine.adapters import LocalHostAdapter
     from governance.infrastructure.path_contract import normalize_absolute_path
@@ -180,6 +198,74 @@ def _is_canonical_fingerprint(value: str) -> bool:
     return bool(re.fullmatch(r"[0-9a-f]{24}", token))
 
 
+def _resolve_git_repo_root(start_dir: Path) -> Path | None:
+    """Resolve git repository root from a starting directory.
+    
+    Uses git rev-parse --show-toplevel to find the actual repository root,
+    which handles worktrees and submodules correctly.
+    
+    Args:
+        start_dir: Starting directory for git resolution.
+    
+    Returns:
+        Path to the git repository root, or None if not in a git repo.
+    """
+    import subprocess
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            cwd=str(start_dir),
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=5,
+        )
+        if result.returncode == 0:
+            root = result.stdout.strip()
+            if root:
+                return Path(root).resolve()
+    except Exception:
+        pass
+    return None
+
+
+def _resolve_repo_root_ssot(explicit_root: Path | None = None) -> tuple[Path | None, str]:
+    """Resolve repository root using SSOT approach.
+    
+    Priority:
+        1. Explicit repo_root argument (from OPENCODE_REPO_ROOT or caller)
+        2. Git metadata (git rev-parse --show-toplevel)
+        3. None (failsafe - should be handled by caller)
+    
+    NEVER uses Path.cwd() directly as repo root - only as starting point for git resolution.
+    
+    Args:
+        explicit_root: Optional explicit repo root path.
+    
+    Returns:
+        Tuple of (resolved_path, source). Path may be None if resolution fails.
+    """
+    if explicit_root is not None:
+        try:
+            return normalize_absolute_path(str(explicit_root), purpose="explicit_repo_root"), "explicit"
+        except Exception:
+            return None, "invalid-explicit"
+    
+    env_root = os.environ.get("OPENCODE_REPO_ROOT", "").strip()
+    if env_root:
+        try:
+            return normalize_absolute_path(env_root, purpose="OPENCODE_REPO_ROOT"), "env"
+        except Exception:
+            pass
+    
+    cwd = Path.cwd()
+    git_root = _resolve_git_repo_root(cwd)
+    if git_root:
+        return git_root, "git-metadata"
+    
+    return None, "not-a-git-repo"
+
+
 def _verify_pointer_exists(opencode_home: Path, repo_fingerprint: str) -> tuple[bool, str]:
     """Verify that the global pointer exists and references the correct fingerprint.
     
@@ -227,6 +313,7 @@ def _verify_workspace_session_exists(workspaces_home: Path, repo_fingerprint: st
 
 
 def run_persistence_hook(*, repo_root: Path | None = None) -> dict[str, object]:
+    install_global_handlers()
     if not _writes_allowed():
         return {
             "workspacePersistenceHook": "blocked",
@@ -236,8 +323,42 @@ def run_persistence_hook(*, repo_root: Path | None = None) -> dict[str, object]:
             "writes_allowed": False,
         }
 
-    cwd = repo_root or Path.cwd()
-    repo_fp = derive_repo_fingerprint(cwd)
+    resolved_root, root_source = _resolve_repo_root_ssot(repo_root)
+    
+    if resolved_root is None:
+        result = {
+            "workspacePersistenceHook": "failed",
+            "reason": f"repo-root-resolution-failed:{root_source}",
+            "impact": "cannot create workspace without valid git repository root",
+            "writes_allowed": True,
+            "root_source": root_source,
+        }
+        safe_log_error(
+            reason_key="ERR-PERSISTENCE-REPO-ROOT-RESOLUTION-FAILED",
+            message=f"Could not resolve git repository root (source: {root_source}).",
+            config_root=COMMANDS_HOME.parent,
+            phase="1.1-Bootstrap",
+            gate="PERSISTENCE",
+            mode=EFFECTIVE_MODE,
+            repo_fingerprint=None,
+            command="start_persistence_hook.py",
+            component="persistence-hook",
+            observed_value={"root_source": root_source, "cwd": str(Path.cwd())},
+            expected_constraint="must be in a git repository or provide explicit repo_root",
+            remediation="Run from within a git repository or set OPENCODE_REPO_ROOT environment variable.",
+        )
+        return result
+
+    repo_fp = derive_repo_fingerprint(resolved_root)
+
+    set_error_context(ErrorContext(
+        repo_fingerprint=repo_fp,
+        config_root=str(COMMANDS_HOME.parent),
+        workspaces_home=str(WORKSPACES_HOME),
+        repo_root=str(resolved_root),
+        phase="1.1-Bootstrap",
+        command="start_persistence_hook.py",
+    ))
 
     if not repo_fp:
         result = {
@@ -256,7 +377,7 @@ def run_persistence_hook(*, repo_root: Path | None = None) -> dict[str, object]:
             repo_fingerprint=None,
             command="start_persistence_hook.py",
             component="persistence-hook",
-            observed_value={"repo_root": str(cwd)},
+            observed_value={"repo_root": str(resolved_root)},
             expected_constraint="git repository with valid origin or local path",
             remediation="Ensure cwd is a git repository with valid .git metadata.",
         )
@@ -286,12 +407,14 @@ def run_persistence_hook(*, repo_root: Path | None = None) -> dict[str, object]:
         )
         return result
 
-    repo_name = cwd.name
+    repo_name = resolved_root.name
     cmd = [
         PYTHON_COMMAND,
         str(bootstrap_script),
         "--repo-fingerprint", repo_fp,
         "--repo-name", repo_name,
+        "--repo-root", str(resolved_root),
+        "--config-root", str(COMMANDS_HOME.parent),
     ]
 
     try:
@@ -300,7 +423,7 @@ def run_persistence_hook(*, repo_root: Path | None = None) -> dict[str, object]:
             text=True,
             capture_output=True,
             check=False,
-            cwd=str(cwd),
+            cwd=str(resolved_root),
         )
         if proc.returncode == 0:
             pointer_ok, pointer_reason = _verify_pointer_exists(COMMANDS_HOME.parent, repo_fp)
