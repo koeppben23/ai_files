@@ -62,6 +62,40 @@ except Exception:
     _run_backfill_subprocess = None
 
 try:
+    from bootstrap.repo_identity import resolve_repo_root_ssot
+except Exception:
+    def resolve_repo_root_ssot(explicit_root: Path | None = None) -> tuple[Path | None, str]:
+        if explicit_root is not None:
+            try:
+                return normalize_absolute_path(str(explicit_root), purpose="explicit_repo_root"), "explicit"
+            except Exception:
+                return None, "invalid-explicit"
+
+        env_root = os.environ.get("OPENCODE_REPO_ROOT", "").strip()
+        if env_root:
+            try:
+                return normalize_absolute_path(env_root, purpose="OPENCODE_REPO_ROOT"), "env"
+            except Exception:
+                pass
+
+        try:
+            result = subprocess.run(
+                ["git", "rev-parse", "--show-toplevel"],
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=5,
+            )
+            if result.returncode == 0:
+                git_root = result.stdout.strip()
+                if git_root:
+                    return normalize_absolute_path(git_root, purpose="repo_root"), "git-metadata"
+        except Exception:
+            pass
+
+        return None, "not-a-git-repo"
+
+try:
     from bootstrap.session_state_contract import (
         _is_canonical_fingerprint,
         _validate_canonical_fingerprint,
@@ -400,27 +434,8 @@ def main() -> int:
         purpose="paths.workspacesHome",
     )
 
-    repo_root_source = args.repo_root
-    if repo_root_source is None:
-        env_root = os.environ.get("OPENCODE_REPO_ROOT", "").strip()
-        if env_root:
-            repo_root_source = Path(env_root)
-    if repo_root_source is None:
-        try:
-            result = subprocess.run(
-                ["git", "rev-parse", "--show-toplevel"],
-                capture_output=True,
-                text=True,
-                check=False,
-                timeout=5,
-            )
-            if result.returncode == 0:
-                git_root = result.stdout.strip()
-                if git_root:
-                    repo_root_source = Path(git_root)
-        except Exception:
-            pass
-    if repo_root_source is None:
+    repo_root, _repo_root_source = resolve_repo_root_ssot(args.repo_root)
+    if repo_root is None:
         emit_gate_failure(
             gate="BOOTSTRAP",
             code="REPO_ROOT_STRICT_REQUIRED",
@@ -431,8 +446,6 @@ def main() -> int:
         )
         print("ERROR: repo root not determined (strict mode - no CWD fallback).")
         return 2
-
-    repo_root = normalize_absolute_path(str(repo_root_source), purpose="repoRoot")
     if (repo_root / ".git").exists() and _is_within(config_root, repo_root):
         emit_gate_failure(
             gate="BOOTSTRAP",
