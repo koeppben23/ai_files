@@ -43,9 +43,6 @@ import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
-from diagnostics.io.atomic_write import atomic_write_text as _atomic_write_new, ActionOutcome
-
-
 _is_pipeline = os.environ.get("CI", "").strip().lower() not in {"", "0", "false", "no", "off"}
 
 

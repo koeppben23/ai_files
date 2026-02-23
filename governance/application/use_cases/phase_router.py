@@ -1,16 +1,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Mapping, Any
+from typing import Mapping
 
 from governance.domain.phase_state_machine import normalize_phase_token, phase_rank
 from governance.application.dto.phase_next_action_contract import contains_ticket_prompt
 
-from routing.gates import (
-    check_persistence_gate,
-    check_rulebook_gate,
-    GateResult,
-)
 from routing.phase_rank import is_rulebook_required_phase
 
 
@@ -27,32 +22,42 @@ def _rank(token: str) -> int:
     return phase_rank(token)
 
 
-def _session_state(session_state_document: Mapping[str, object] | None) -> dict[str, Any]:
+def _session_state(session_state_document: Mapping[str, object] | None) -> Mapping[str, object]:
     if session_state_document is None:
         return {}
     candidate = session_state_document.get("SESSION_STATE")
     if isinstance(candidate, Mapping):
-        return dict(candidate)
-    if isinstance(session_state_document, Mapping):
-        return dict(session_state_document)
-    return {}
+        return candidate
+    return session_state_document
 
 
 def _persistence_gate_passed(state: Mapping[str, object]) -> tuple[bool, str]:
-    state_dict = _session_state(state)
-    result = check_persistence_gate(state_dict)
-    if result.passed:
-        return True, "ok"
-    return False, result.blocked_reason or "Persistence gate failed"
+    if not _persistence_committed(state):
+        return False, "PersistenceCommitted not true"
+
+    workspace_ready_gate = None
+    for key in ("WorkspaceReadyGateCommitted", "workspace_ready_gate_committed"):
+        value = state.get(key)
+        if isinstance(value, bool):
+            workspace_ready_gate = value
+            break
+
+    if workspace_ready_gate is None:
+        return False, "WorkspaceReadyGateCommitted not set"
+    if not workspace_ready_gate:
+        return False, "WorkspaceReadyGateCommitted not true"
+
+    if not _workspace_artifacts_committed(state):
+        return False, "WorkspaceArtifactsCommitted not true"
+
+    if not _pointer_verified(state):
+        return False, "PointerVerified not true"
+
+    return True, "ok"
 
 
 def _rulebook_gate_passed(state: Mapping[str, object]) -> tuple[bool, str]:
-    state_dict = _session_state(state)
-    current_phase = _extract_phase(state_dict)
-    result = check_rulebook_gate(state_dict, current_phase)
-    if result.passed:
-        return True, "ok"
-    return False, result.blocked_reason or "Rulebook gate failed"
+    return _rulebooks_loaded(state)
 
 
 def _full_gate_passed(state: Mapping[str, object], *, require_rulebooks: bool = False) -> tuple[bool, str]:
@@ -288,13 +293,12 @@ def route_phase(
         target_phase_token = phase_token
     
     if is_rulebook_required_phase(target_phase_token):
-        state_dict = _session_state(state)
-        rulebook_gate = check_rulebook_gate(state_dict, target_phase_token)
-        if not rulebook_gate.passed:
+        rulebooks_ok, rulebooks_reason = _rulebook_gate_passed(state)
+        if not rulebooks_ok:
             return RoutedPhase(
                 phase="1.3-RulebookLoad",
                 active_gate="Rulebook Load Gate",
-                next_gate_condition=f"BLOCKED_RULEBOOK_MISSING: {rulebook_gate.blocked_reason}. Load required rulebooks before Phase {target_phase_token}.",
+                next_gate_condition=f"BLOCKED_RULEBOOK_MISSING: {rulebooks_reason}. Load required rulebooks before Phase {target_phase_token}.",
                 workspace_ready=workspace_ready,
                 source="rulebook-load-gate",
             )
