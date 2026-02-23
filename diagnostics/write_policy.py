@@ -11,7 +11,7 @@ All diagnostics MUST use this module to determine write permissions.
 
 Environment Variables:
     OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY: Set to "1" to block all writes
-    CI: If set (non-empty), enables pipeline mode
+    OPENCODE_DIAGNOSTICS_MODE: Optional mode label for diagnostics metadata
 
 Write Policy (unified):
     Writes are allowed by default, unless FORCE_READ_ONLY=1
@@ -30,10 +30,8 @@ The unified policy follows the bootstrap behavior: writes allowed unless explici
 from __future__ import annotations
 
 import os
-from typing import Final
 
-_is_pipeline: Final[bool] = os.environ.get("CI", "").strip().lower() not in {"", "0", "false", "no", "off"}
-EFFECTIVE_MODE: Final[str] = "pipeline" if _is_pipeline else "user"
+EFFECTIVE_MODE = os.environ.get("OPENCODE_DIAGNOSTICS_MODE", "user").strip() or "user"
 
 
 def writes_allowed() -> bool:
