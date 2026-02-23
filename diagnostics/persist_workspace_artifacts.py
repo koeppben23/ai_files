@@ -318,7 +318,8 @@ except ImportError:
         def __init__(self, **kwargs):
             pass
 
-READ_ONLY = not writes_allowed()
+def _read_only() -> bool:
+    return not writes_allowed()
 
 try:
     from governance.infrastructure.path_contract import (
@@ -848,15 +849,15 @@ def _render_business_rules_inventory(*, date: str, repo_name: str) -> str:
     return render_business_rules_inventory(date=date, repo_name=repo_name)
 
 
-def _write_text(path: Path, content: str, *, dry_run: bool) -> None:
-    if READ_ONLY or dry_run:
+def _write_text(path: Path, content: str, *, dry_run: bool, read_only: bool) -> None:
+    if read_only or dry_run:
         return
     path.parent.mkdir(parents=True, exist_ok=True)
-    _atomic_write_text(path, content)
+    _atomic_write_text(path, content, read_only=read_only)
 
 
-def _append_text(path: Path, content: str, *, dry_run: bool) -> None:
-    if READ_ONLY or dry_run:
+def _append_text(path: Path, content: str, *, dry_run: bool, read_only: bool) -> None:
+    if read_only or dry_run:
         return
     path.parent.mkdir(parents=True, exist_ok=True)
     try:
@@ -866,16 +867,16 @@ def _append_text(path: Path, content: str, *, dry_run: bool) -> None:
     if not existing.endswith("\n"):
         existing += "\n"
     existing += "\n" + content
-    _atomic_write_text(path, existing)
+    _atomic_write_text(path, existing, read_only=read_only)
 
 
-def _atomic_write_text(path: Path, content: str) -> None:
-    if READ_ONLY:
+def _atomic_write_text(path: Path, content: str, *, read_only: bool = False) -> None:
+    if read_only:
         return
     atomic_write_text(path, content, newline_lf=True, attempts=5, backoff_ms=50)
 
 
-def _normalize_legacy_placeholder_phrasing(path: Path, *, dry_run: bool) -> str:
+def _normalize_legacy_placeholder_phrasing(path: Path, *, dry_run: bool, read_only: bool) -> str:
     if not path.exists() or not path.is_file():
         return "not-found"
 
@@ -888,7 +889,7 @@ def _normalize_legacy_placeholder_phrasing(path: Path, *, dry_run: bool) -> str:
     if not changed:
         return "unchanged"
 
-    if READ_ONLY:
+    if read_only:
         return "blocked-read-only"
     if dry_run:
         return "write-requested"
@@ -903,6 +904,7 @@ def _upsert_artifact(
     append_content: str | None,
     force: bool,
     dry_run: bool,
+    read_only: bool,
 ) -> str:
     return _run_upsert_artifact(
         path=path,
@@ -910,10 +912,10 @@ def _upsert_artifact(
         append_content=append_content,
         force=force,
         dry_run=dry_run,
-        read_only=READ_ONLY,
-        write_text=lambda p, c: _write_text(p, c, dry_run=False),
-        append_text=lambda p, c: _append_text(p, c, dry_run=False),
-        normalize_existing=lambda p, d: _normalize_legacy_placeholder_phrasing(p, dry_run=d),
+        read_only=read_only,
+        write_text=lambda p, c: _write_text(p, c, dry_run=False, read_only=read_only),
+        append_text=lambda p, c: _append_text(p, c, dry_run=False, read_only=read_only),
+        normalize_existing=lambda p, d: _normalize_legacy_placeholder_phrasing(p, dry_run=d, read_only=read_only),
     )
 
 
@@ -927,6 +929,7 @@ def _update_session_state(
     repo_map_digest_action: str,
     decision_pack_action: str,
     workspace_memory_action: str,
+    read_only: bool,
 ) -> str:
     data = _load_json(session_path)
     if not data:
@@ -991,11 +994,11 @@ def _update_session_state(
     if dry_run:
         return "updated-dry-run"
 
-    if READ_ONLY:
+    if read_only:
         return "updated-read-only"
 
     session_payload = json.dumps(data, sort_keys=True, separators=(",", ":"), ensure_ascii=True) + "\n"
-    _atomic_write_text(session_path, session_payload)
+    _atomic_write_text(session_path, session_payload, read_only=read_only)
     return "updated"
 
 
@@ -1007,12 +1010,13 @@ def _bootstrap_missing_session_state(
     repo_root: Path,
     python_cmd: str,
     dry_run: bool,
+    read_only: bool,
 ) -> tuple[bool, str]:
     """Ensure repo-scoped SESSION_STATE exists before persistence update."""
 
     if dry_run:
         return True, "bootstrap-dry-run"
-    if READ_ONLY:
+    if read_only:
         return True, "bootstrap-read-only"
 
     helper = SCRIPT_DIR / "bootstrap_session_state.py"
@@ -1080,8 +1084,7 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     install_global_handlers()
-    global READ_ONLY
-    READ_ONLY = not writes_allowed()
+    read_only = _read_only()
     args = parse_args()
     try:
         config_root, binding_paths, binding_file = resolve_binding_config(args.config_root)
@@ -1237,7 +1240,7 @@ def main() -> int:
             print(f"ERROR: {exc}")
         return 2
 
-    if READ_ONLY:
+    if read_only:
         payload = {
             "status": "ok",
             "workspacePersistenceHook": "skipped",
@@ -1246,7 +1249,7 @@ def main() -> int:
             "repoFingerprint": repo_fingerprint,
             "repoFingerprintSource": fp_source,
             "repoFingerprintEvidence": fp_evidence,
-            "read_only": True,
+            "read_only": read_only,
         }
         print(json.dumps(payload, ensure_ascii=True))
         return 0
@@ -1266,6 +1269,7 @@ def main() -> int:
             repo_root=repo_root,
             python_cmd=python_cmd,
             dry_run=args.dry_run,
+            read_only=read_only,
         )
         if not bootstrap_ok:
             cmd_profiles = render_command_profiles(
@@ -1397,6 +1401,7 @@ def main() -> int:
                 append_content=None,
                 force=args.force,
                 dry_run=args.dry_run,
+                read_only=read_only,
             )
         except OSError as exc:
             business_rules_action = "write-requested"
@@ -1442,10 +1447,10 @@ def main() -> int:
         ],
         force=args.force,
         dry_run=args.dry_run,
-        read_only=READ_ONLY,
-        write_text=lambda p, c: _write_text(p, c, dry_run=False),
-        append_text=lambda p, c: _append_text(p, c, dry_run=False),
-        normalize_existing=lambda p, d: _normalize_legacy_placeholder_phrasing(p, dry_run=d),
+        read_only=read_only,
+        write_text=lambda p, c: _write_text(p, c, dry_run=False, read_only=read_only),
+        append_text=lambda p, c: _append_text(p, c, dry_run=False, read_only=read_only),
+        normalize_existing=lambda p, d: _normalize_legacy_placeholder_phrasing(p, dry_run=d, read_only=read_only),
     )
     actions["businessRulesInventory"] = business_rules_action
 
@@ -1462,6 +1467,7 @@ def main() -> int:
             repo_map_digest_action=actions["repoMapDigest"],
             decision_pack_action=actions["decisionPack"],
             workspace_memory_action=actions["workspaceMemory"],
+            read_only=read_only,
         )
         if session_update == "invalid-session-shape":
             safe_log_error(
@@ -1481,7 +1487,7 @@ def main() -> int:
 
     phase2_artifacts_ok, phase2_missing = _verify_phase2_artifacts_exist(repo_home)
 
-    if not phase2_artifacts_ok and not args.dry_run and not READ_ONLY:
+    if not phase2_artifacts_ok and not args.dry_run and not read_only:
         safe_log_error(
             reason_key="ERR-PHASE2-ARTIFACTS-MISSING",
             message="Phase 2 discovery did not write required artifacts.",
@@ -1532,7 +1538,7 @@ def main() -> int:
         workspace_lock.release()
     
     if args.require_phase2 and not phase2_artifacts_ok and not args.dry_run:
-        if READ_ONLY:
+        if read_only:
             emit_gate_failure(
                 gate="PERSISTENCE",
                 code="PERSISTENCE_READ_ONLY",
@@ -1552,7 +1558,7 @@ def main() -> int:
         )
         return 7
     
-    if not phase2_artifacts_ok and not args.dry_run and not READ_ONLY:
+    if not phase2_artifacts_ok and not args.dry_run and not read_only:
         return 7
     
     return 0
