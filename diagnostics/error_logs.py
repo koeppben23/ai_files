@@ -94,9 +94,6 @@ except ImportError:
         return os.environ.get("OPENCODE_DIAGNOSTICS_ALLOW_WRITE", "0") == "1"
 
 
-READ_ONLY = not writes_allowed()
-
-
 def _read_only() -> bool:
     return not writes_allowed()
 
