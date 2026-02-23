@@ -18,6 +18,7 @@ _IO_MODULE_PREFIXES = {
 
 _PATH_RESOLVE_ALLOWLIST: set[str] = {
     "governance/infrastructure/run_summary_writer.py",
+    "governance/paths/canonical.py",
 }
 
 
