@@ -1,6 +1,19 @@
-from governance.domain.policies.gate_policy import rulebook_gate
+from governance.application.use_cases.route_phase import RoutePhaseInput, RoutePhaseService
 
 
-def test_rulebook_gate_target_phase_placeholder() -> None:
-    result = rulebook_gate(target_phase="4.1", loaded_rulebooks={"core": "x"})
-    assert result.ok is False
+def test_rulebook_gate_applies_to_target_phase_not_request() -> None:
+    service = RoutePhaseService()
+    routed = service.run(
+        RoutePhaseInput(
+            requested_phase="2.0",
+            target_phase="4.1",
+            loaded_rulebooks={"core": "x"},
+            persistence_state={
+                "CommitFlags": {
+                    "PersistenceCommitted": True,
+                    "WorkspaceArtifactsCommitted": True,
+                }
+            },
+        )
+    )
+    assert routed.blocked_code == "RULEBOOKS_INCOMPLETE"
