@@ -1,0 +1,1 @@
+"""Rulebook adapter implementations."""
