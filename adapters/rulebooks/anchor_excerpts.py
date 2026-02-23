@@ -1,1 +1,0 @@
-from governance.infrastructure.adapters.rulebooks.anchor_excerpts import excerpt_for_anchor

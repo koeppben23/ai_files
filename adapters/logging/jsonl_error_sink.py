@@ -1,1 +1,0 @@
-from governance.infrastructure.adapters.logging.jsonl_error_sink import write_error
