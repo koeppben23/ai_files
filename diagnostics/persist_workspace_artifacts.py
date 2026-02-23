@@ -743,9 +743,9 @@ def _atomic_write_text(path: Path, content: str) -> None:
     atomic_write_text(path, content, newline_lf=True, attempts=5, backoff_ms=50)
 
 
-def _normalize_legacy_placeholder_phrasing(path: Path, *, dry_run: bool) -> bool:
+def _normalize_legacy_placeholder_phrasing(path: Path, *, dry_run: bool) -> str:
     if not path.exists() or not path.is_file():
-        return False
+        return "not-found"
 
     try:
         text = path.read_text(encoding="utf-8")
@@ -763,11 +763,14 @@ def _normalize_legacy_placeholder_phrasing(path: Path, *, dry_run: bool) -> bool
         updated = updated.replace(old, new)
 
     if updated == text:
-        return False
+        return "unchanged"
 
-    if not READ_ONLY and not dry_run:
-        _atomic_write_text(path, updated)
-    return True
+    if READ_ONLY:
+        return "blocked-read-only"
+    if dry_run:
+        return "write-requested"
+    _atomic_write_text(path, updated)
+    return "normalized"
 
 
 def _upsert_artifact(
@@ -786,11 +789,15 @@ def _upsert_artifact(
         _write_text(path, create_content, dry_run=dry_run)
         return "created"
 
-    normalized = _normalize_legacy_placeholder_phrasing(path, dry_run=dry_run)
+    normalize_action = _normalize_legacy_placeholder_phrasing(path, dry_run=dry_run)
 
     if not force:
-        if normalized:
+        if normalize_action == "normalized":
             return "normalized"
+        if normalize_action == "blocked-read-only":
+            return "blocked-read-only"
+        if normalize_action == "write-requested":
+            return "write-requested"
         return "kept"
 
     if append_content is not None:
@@ -872,7 +879,7 @@ def _update_session_state(
         if isinstance(ss["BusinessRules"], dict):
             inventory = ss["BusinessRules"]
             inventory["InventoryFilePath"] = "${REPO_BUSINESS_RULES_FILE}"
-            inventory["InventoryFileStatus"] = "written" if business_rules_inventory_written else "write-requested"
+            inventory["InventoryFileStatus"] = _action_to_status(business_rules_inventory_action)
             if business_rules_inventory_action == "created":
                 inventory["InventoryFileMode"] = "create"
             elif business_rules_inventory_action in {"overwritten", "kept"}:
@@ -1342,7 +1349,7 @@ def main() -> int:
             session_path=session_path,
             dry_run=args.dry_run,
             business_rules_inventory_written=(
-                business_rules_action in {"created", "kept", "overwritten"}
+                business_rules_action in {"created", "overwritten"}
             ),
             business_rules_inventory_action=business_rules_action,
             repo_cache_action=actions["repoCache"],
