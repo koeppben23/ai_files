@@ -937,8 +937,11 @@ def _bootstrap_missing_session_state(
         "--config-root",
         str(config_root),
         "--skip-artifact-backfill",
+        "--no-commit",
     ]
-    proc = subprocess.run(cmd, text=True, capture_output=True, check=False)
+    env = os.environ.copy()
+    env["OPENCODE_INTERNAL_ALLOW_SKIP_ARTIFACT_BACKFILL"] = "1"
+    proc = subprocess.run(cmd, text=True, capture_output=True, check=False, env=env)
     if proc.returncode != 0:
         return False, f"bootstrap-failed:{proc.returncode}"
     return True, "bootstrap-created"
