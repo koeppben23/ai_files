@@ -1,4 +1,4 @@
-from adapters.filesystem.in_memory import InMemoryFS
+from governance.infrastructure.adapters.filesystem.in_memory import InMemoryFS
 
 
 def test_inmemory_fs_supports_atomic_write_contract() -> None:

@@ -1,0 +1,1 @@
+"""Governance kernel domain models."""

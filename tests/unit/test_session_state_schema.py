@@ -1,4 +1,4 @@
-from kernel.domain.models.session_state import CommitFlags, SessionState
+from governance.domain.models.session_state import CommitFlags, SessionState
 
 
 def test_session_state_defaults() -> None:
