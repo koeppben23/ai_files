@@ -61,16 +61,28 @@ try:
 except Exception:
     _run_backfill_subprocess = None
 
-from bootstrap.session_state_contract import (
-    _is_canonical_fingerprint,
-    _validate_canonical_fingerprint,
-    _validate_repo_fingerprint,
-    pointer_payload,
-    repo_identity_map_path,
-    repo_session_state_path,
-    session_pointer_path,
-    session_state_template,
-)
+try:
+    from bootstrap.session_state_contract import (
+        _is_canonical_fingerprint,
+        _validate_canonical_fingerprint,
+        _validate_repo_fingerprint,
+        pointer_payload,
+        repo_identity_map_path,
+        repo_session_state_path,
+        session_pointer_path,
+        session_state_template,
+    )
+except Exception:
+    from session_state_contract import (  # type: ignore
+        _is_canonical_fingerprint,
+        _validate_canonical_fingerprint,
+        _validate_repo_fingerprint,
+        pointer_payload,
+        repo_identity_map_path,
+        repo_session_state_path,
+        session_pointer_path,
+        session_state_template,
+    )
 
 try:
     from diagnostics.global_error_handler import (
