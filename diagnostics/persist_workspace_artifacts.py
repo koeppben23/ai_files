@@ -1143,6 +1143,14 @@ def main() -> int:
     repo_root = Path(os.path.normpath(os.path.abspath(str(repo_root_source.expanduser()))))
 
     if (repo_root / ".git").exists() and _is_within(config_root, repo_root):
+        emit_gate_failure(
+            gate="PERSISTENCE",
+            code="CONFIG_ROOT_INSIDE_REPO",
+            message="Config root resolves inside repository root (blocked).",
+            expected="configRoot must be outside repoRoot",
+            observed={"configRoot": str(config_root), "repoRoot": str(repo_root)},
+            remediation="Set OPENCODE_CONFIG_ROOT to an absolute location outside the repository and rerun.",
+        )
         cmd_profiles = render_command_profiles(
             [
                 python_cmd,
@@ -1184,6 +1192,14 @@ def main() -> int:
             repo_root,
         )
     except ValueError as exc:
+        emit_gate_failure(
+            gate="PERSISTENCE",
+            code="REPO_FINGERPRINT_RESOLUTION_FAILED",
+            message=str(exc),
+            expected="Provide --repo-fingerprint, git metadata evidence, or global SESSION_STATE pointer evidence",
+            observed={"repoFingerprintArg": args.repo_fingerprint, "repoRoot": str(repo_root)},
+            remediation="Provide --repo-fingerprint explicitly or run from a valid git repository root.",
+        )
         safe_log_error(
             reason_key="ERR-REPO-FINGERPRINT-RESOLUTION",
             message=str(exc),
@@ -1272,6 +1288,14 @@ def main() -> int:
             read_only=read_only,
         )
         if not bootstrap_ok:
+            emit_gate_failure(
+                gate="PERSISTENCE",
+                code="REPO_SESSION_BOOTSTRAP_FAILED",
+                message="Repo-scoped SESSION_STATE bootstrap failed before artifact persistence.",
+                expected="repo-scoped SESSION_STATE.json exists",
+                observed={"bootstrap_status": bootstrap_status, "repoFingerprint": repo_fingerprint},
+                remediation="Run diagnostics/bootstrap_session_state.py with the same --repo-fingerprint and --config-root, then rerun persistence.",
+            )
             cmd_profiles = render_command_profiles(
                 [
                     python_cmd,
@@ -1312,6 +1336,14 @@ def main() -> int:
                 repo_fingerprint=repo_fingerprint,
             )
         except TimeoutError:
+            emit_gate_failure(
+                gate="PERSISTENCE",
+                code="WORKSPACE_LOCK_TIMEOUT",
+                message="Workspace lock acquisition timed out.",
+                expected="exclusive workspace lock acquired before write",
+                observed={"repoFingerprint": repo_fingerprint, "workspacesHome": str(workspaces_home)},
+                remediation="Wait for active run to finish or clear stale lock after verification, then rerun.",
+            )
             cmd_profiles = render_command_profiles(
                 [
                     python_cmd,
