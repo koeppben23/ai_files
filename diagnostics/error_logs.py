@@ -11,6 +11,12 @@ from pathlib import Path
 from typing import Optional, Dict, Any
 
 try:
+    from diagnostics.global_error_handler import emit_gate_failure as emit_gate_failure_ssot
+except Exception:
+    def emit_gate_failure_ssot(**kwargs: Any) -> bool:  # type: ignore
+        return False
+
+try:
     from governance.infrastructure.fs_atomic import atomic_write_text
     from governance.infrastructure.path_contract import canonical_config_root, normalize_absolute_path
     from governance.infrastructure.binding_evidence_resolver import BindingEvidenceResolver as ImportedBindingEvidenceResolver
@@ -313,6 +319,24 @@ def write_error_event(
         "remediation": _normalize_value(remediation),
         "details": _normalize_value(details),
     }
+
+    emit_gate_failure_ssot(
+        gate=str(gate),
+        code=str(reason_key),
+        message=str(message),
+        expected=str(expected_constraint) if expected_constraint is not None else None,
+        observed={
+            "observedValue": _normalize_value(observed_value),
+            "mode": str(mode),
+            "command": str(command),
+            "component": str(component),
+        },
+        remediation=str(remediation) if remediation is not None else None,
+        config_root=str(cfg),
+        workspaces_home=str(workspaces_home),
+        repo_fingerprint=repo_fingerprint,
+        phase=str(phase),
+    )
 
     # Atomic write (no append): one file per event.
     atomic_write_text(target, json.dumps(record, ensure_ascii=True) + "\n", newline_lf=True)
