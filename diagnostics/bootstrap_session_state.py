@@ -542,6 +542,20 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     install_global_handlers()
     args = parse_args()
+    
+    # P0: Block --skip-artifact-backfill in live runs
+    if args.skip_artifact_backfill and not args.dry_run:
+        emit_gate_failure(
+            gate="BOOTSTRAP",
+            code="ARTIFACT_BACKFILL_SKIPPED_IN_LIVE_RUN",
+            message="--skip-artifact-backfill is not allowed in live runs.",
+            expected="Remove --skip-artifact-backfill or use --dry-run",
+            observed={"skip_artifact_backfill": True, "dry_run": False},
+            remediation="Remove --skip-artifact-backfill or add --dry-run for inspection only.",
+        )
+        print("ERROR: --skip-artifact-backfill is not allowed for live bootstrap.")
+        return 2
+    
     try:
         config_root, binding_paths, _binding_file = resolve_binding_config(args.config_root)
     except ValueError as exc:
@@ -905,6 +919,20 @@ def main() -> int:
         return 9
 
     if isinstance(repo_payload, dict) and "SESSION_STATE" in repo_payload:
+        # P0: Never set PersistenceCommitted if artifacts not committed
+        if not artifacts_committed and not args.dry_run:
+            emit_gate_failure(
+                gate="PERSISTENCE",
+                code="ARTIFACTS_NOT_COMMITTED_BLOCKING_PERSISTENCE",
+                message="Artifacts not committed - refusing to set PersistenceCommitted.",
+                expected="WorkspaceArtifactsCommitted must be True before PersistenceCommitted",
+                observed={"artifacts_committed": artifacts_committed},
+                remediation="Fix artifact backfill and ensure writes are allowed.",
+            )
+            print("ERROR: artifacts not committed - refusing to set PersistenceCommitted.")
+            workspace_lock.release()
+            return 7
+        
         repo_payload["SESSION_STATE"]["PersistenceCommitted"] = True
         repo_payload["SESSION_STATE"]["WorkspaceReadyGateCommitted"] = True
         repo_payload["SESSION_STATE"]["WorkspaceArtifactsCommitted"] = artifacts_committed
