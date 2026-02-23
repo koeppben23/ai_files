@@ -42,6 +42,8 @@ def test_phase_router_allows_phase_2_1_with_persistence_committed() -> None:
             "phase": "2",
             "PersistenceCommitted": True,
             "WorkspaceReadyGateCommitted": True,
+            "WorkspaceArtifactsCommitted": True,
+            "PointerVerified": True,
             "phase_transition_evidence": True,
         }
     }

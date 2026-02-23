@@ -53,6 +53,24 @@ if str(SCRIPT_DIR.parent) not in sys.path:
 
 from diagnostics.write_policy import EFFECTIVE_MODE, is_write_allowed, writes_allowed
 
+try:
+    from diagnostics.global_error_handler import (
+        install_global_handlers,
+        set_error_context,
+        emit_gate_failure,
+        ErrorContext,
+    )
+except ImportError:
+    def install_global_handlers(context_provider=None):  # type: ignore
+        pass
+    def set_error_context(ctx):  # type: ignore
+        pass
+    def emit_gate_failure(**kwargs):  # type: ignore
+        pass
+    class ErrorContext:  # type: ignore
+        def __init__(self, **kwargs):
+            pass
+
 READ_ONLY = not writes_allowed()
 
 try:
@@ -810,10 +828,12 @@ def _update_session_state(
         return "invalid-session-shape"
 
     def _action_to_status(action: str) -> str:
-        if action in {"created", "overwritten", "appended", "normalized"}:
+        if action in {"created", "overwritten", "appended"}:
             return "written"
+        if action == "normalized":
+            return "normalized"
         if action == "kept":
-            return "kept"
+            return "unchanged"
         if action == "write-requested":
             return "write-requested"
         if action == "blocked-read-only":
@@ -876,6 +896,7 @@ def _bootstrap_missing_session_state(
     config_root: Path,
     repo_fingerprint: str,
     repo_name: str,
+    repo_root: Path,
     python_cmd: str,
     dry_run: bool,
 ) -> tuple[bool, str]:
@@ -904,6 +925,8 @@ def _bootstrap_missing_session_state(
         repo_fingerprint,
         "--repo-name",
         repo_name,
+        "--repo-root",
+        str(repo_root),
         "--config-root",
         str(config_root),
         "--skip-artifact-backfill",
@@ -926,8 +949,8 @@ def parse_args() -> argparse.Namespace:
     p.add_argument(
         "--repo-root",
         type=Path,
-        default=Path("."),
-        help="Repository root for deterministic fingerprint derivation from .git metadata.",
+        default=None,
+        help="Absolute git top-level path for this repo (SSOT). If omitted, OPENCODE_REPO_ROOT must be set.",
     )
     p.add_argument("--repo-name", default="", help="Optional repository display name.")
     p.add_argument("--config-root", type=Path, default=None, help="Override OpenCode config root.")
@@ -936,10 +959,18 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--no-session-update", action="store_true", help="Do not update repo-scoped SESSION_STATE file pointers/status fields.")
     p.add_argument("--quiet", action="store_true", help="Print compact JSON summary only.")
     p.add_argument("--skip-lock", action="store_true", help="Internal use: skip workspace lock acquisition.")
+    p.add_argument(
+        "--require-phase2",
+        action="store_true",
+        help="Fail-closed if required Phase 2/2.1 artifacts are missing after backfill.",
+    )
     return p.parse_args()
 
 
 def main() -> int:
+    install_global_handlers()
+    global READ_ONLY
+    READ_ONLY = not writes_allowed()
     args = parse_args()
     try:
         config_root, binding_paths, binding_file = resolve_binding_config(args.config_root)
@@ -972,7 +1003,30 @@ def main() -> int:
         return 2
 
     python_cmd = _resolve_python_command(binding_paths)
-    repo_root = Path(os.path.normpath(os.path.abspath(str(args.repo_root.expanduser()))))
+    
+    repo_root_source = args.repo_root
+    if repo_root_source is None:
+        env_root = os.environ.get("OPENCODE_REPO_ROOT", "").strip()
+        if env_root:
+            repo_root_source = Path(env_root)
+    if repo_root_source is None:
+        try:
+            result = subprocess.run(
+                ["git", "rev-parse", "--show-toplevel"],
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=5,
+            )
+            if result.returncode == 0:
+                git_root = result.stdout.strip()
+                if git_root:
+                    repo_root_source = Path(git_root)
+        except Exception:
+            pass
+    if repo_root_source is None:
+        repo_root_source = Path.cwd()
+    repo_root = Path(os.path.normpath(os.path.abspath(str(repo_root_source.expanduser()))))
 
     if (repo_root / ".git").exists() and _is_within(config_root, repo_root):
         cmd_profiles = render_command_profiles(
@@ -1098,6 +1152,7 @@ def main() -> int:
             config_root=config_root,
             repo_fingerprint=repo_fingerprint,
             repo_name=args.repo_name or repo_root.name or repo_fingerprint,
+            repo_root=repo_root,
             python_cmd=python_cmd,
             dry_run=args.dry_run,
         )
@@ -1362,6 +1417,31 @@ def main() -> int:
 
     if workspace_lock is not None:
         workspace_lock.release()
+    
+    if args.require_phase2 and not phase2_artifacts_ok and not args.dry_run:
+        if READ_ONLY:
+            emit_gate_failure(
+                gate="PERSISTENCE",
+                code="PERSISTENCE_READ_ONLY",
+                message="Required Phase 2/2.1 artifacts missing but writes are blocked (READ_ONLY).",
+                expected="writes allowed and artifacts created/updated",
+                observed={"read_only": True, "missing": phase2_missing},
+                remediation="Remove OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY or allow diagnostics writes in user mode.",
+            )
+            return 2
+        emit_gate_failure(
+            gate="PERSISTENCE",
+            code="PHASE2_ARTIFACTS_MISSING",
+            message="Required Phase 2/2.1 artifacts missing after backfill.",
+            expected="repo-cache.yaml, repo-map-digest.md, workspace-memory.yaml, decision-pack.md must exist under workspace home",
+            observed={"missing": phase2_missing},
+            remediation="Inspect artifact actions and fix write/paths/permissions.",
+        )
+        return 7
+    
+    if not phase2_artifacts_ok and not args.dry_run and not READ_ONLY:
+        return 7
+    
     return 0
 
 
