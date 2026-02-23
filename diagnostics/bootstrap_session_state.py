@@ -43,7 +43,6 @@ import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
-
 _is_pipeline = os.environ.get("CI", "").strip().lower() not in {"", "0", "false", "no", "off"}
 
 

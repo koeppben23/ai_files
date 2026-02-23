@@ -6,7 +6,8 @@ import json
 from governance.paths.canonical import CanonicalPath, ensure_absolute_no_traversal
 from governance.paths.layout import WorkspaceLayout, ConfigLayout
 from governance.paths.binding import BindingEvidence
-from diagnostics.io.atomic_write import atomic_write_json, ActionOutcome
+from diagnostics.io.actions import ActionOutcome
+from diagnostics.io.atomic_write import atomic_write_json
 from diagnostics.io.fs_verify import verify_pointer, verify_artifacts
 from diagnostics.errors.global_handler import emit_gate_failure
 from .repo_identity import RepoIdentity
