@@ -17,6 +17,7 @@ if _COMMANDS_HOME not in sys.path:
     sys.path.insert(0, _COMMANDS_HOME)
 
 from diagnostics.command_profiles import render_command_profiles
+from diagnostics.write_policy import writes_allowed, EFFECTIVE_MODE
 from governance.application.use_cases.start_bootstrap import evaluate_start_identity
 from governance.engine.adapters import LocalHostAdapter
 from governance.infrastructure.path_contract import normalize_absolute_path
@@ -24,21 +25,22 @@ from governance.infrastructure.binding_evidence_resolver import BindingEvidenceR
 from governance.infrastructure.mode_repo_rules import resolve_env_operating_mode
 from governance.infrastructure.wiring import configure_gateway_registry
 
+try:
+    from diagnostics.global_error_handler import install_global_handlers, set_error_context, ErrorContext
+except ImportError:
+    def install_global_handlers(context_provider=None):  # type: ignore
+        pass
+    def set_error_context(ctx):  # type: ignore
+        pass
+    class ErrorContext:  # type: ignore
+        def __init__(self, **kwargs):
+            pass
 
-_is_pipeline = os.environ.get("CI", "").strip().lower() not in {"", "0", "false", "no", "off"}
+install_global_handlers()
 
 
 def _effective_mode() -> str:
-    mode = resolve_env_operating_mode()
-    if mode == "invalid":
-        return "pipeline"
-    return mode
-
-
-def _writes_allowed(*, mode: str) -> bool:
-    if str(os.environ.get("OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY", "")).strip() == "1":
-        return False
-    return True
+    return EFFECTIVE_MODE
 
 
 def _resolve_bindings() -> tuple[Path, Path, bool, Path | None, str]:
@@ -193,7 +195,7 @@ def emit_preflight() -> None:
         "windows_longpaths": longpaths_note,
         "git_safe_directory": git_safe_directory,
         "mode": mode,
-        "writes_allowed": _writes_allowed(mode=mode),
+        "writes_allowed": writes_allowed(),
     }
     print(json.dumps(payload, ensure_ascii=True))
 
@@ -283,7 +285,7 @@ def build_engine_shadow_snapshot() -> dict[str, object]:
 
 def run_persistence_hook() -> dict[str, object]:
     mode = _effective_mode()
-    if not _writes_allowed(mode=mode):
+    if not writes_allowed():
         result = {
             "workspacePersistenceHook": "blocked",
             "reason_code": "BLOCKED-WORKSPACE-PERSISTENCE",

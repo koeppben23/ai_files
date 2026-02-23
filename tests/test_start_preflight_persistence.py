@@ -40,10 +40,11 @@ def _load_module_with_env(env: dict[str, str]):
 
 
 @pytest.mark.governance
-def test_start_preflight_readonly_module_exists_and_declares_writes_allowed():
+def test_start_preflight_readonly_module_imports_ssot_writes_allowed():
+    """start_preflight_readonly uses SSOT write_policy.writes_allowed()."""
     module = _load_module()
-    assert callable(module._writes_allowed)
-    assert module._writes_allowed(mode="user") is True
+    assert hasattr(module, "writes_allowed")
+    assert callable(module.writes_allowed)
 
 
 @pytest.mark.governance
@@ -91,23 +92,26 @@ def test_start_persistence_store_module_removed():
 
 @pytest.mark.governance
 def test_start_preflight_writes_allowed_true_by_default():
+    """SSOT: writes_allowed() is True by default."""
     module = _load_module_with_env({"CI": ""})
-    assert module._writes_allowed(mode="user") is True
+    assert module.writes_allowed() is True
 
 
 @pytest.mark.governance
 def test_start_preflight_writes_allowed_true_in_ci():
+    """SSOT: writes_allowed() is True in CI (unless FORCE_READ_ONLY=1)."""
     module = _load_module_with_env({"CI": "true"})
-    assert module._writes_allowed(mode="pipeline") is True
+    assert module.writes_allowed() is True
 
 
 @pytest.mark.governance
 def test_start_preflight_writes_allowed_false_when_force_read_only(monkeypatch: pytest.MonkeyPatch):
+    """SSOT: writes_allowed() is False when FORCE_READ_ONLY=1."""
     monkeypatch.setenv("OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY", "1")
     import importlib
-    import diagnostics.start_preflight_readonly as mod
-    importlib.reload(mod)
-    assert mod._writes_allowed(mode="user") is False
+    import diagnostics.write_policy as wp
+    importlib.reload(wp)
+    assert wp.writes_allowed() is False
 
 
 @pytest.mark.governance
