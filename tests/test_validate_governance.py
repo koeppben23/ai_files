@@ -3595,24 +3595,27 @@ def test_error_logger_uses_bound_workspaces_home_for_repo_logs(tmp_path: Path, m
 
 
 @pytest.mark.governance
-def test_error_logger_pipeline_forces_read_only_even_when_allow_write_set(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
-    """CI=true forces read-only in error_logs regardless of OPENCODE_DIAGNOSTICS_ALLOW_WRITE."""
+def test_error_logger_uses_ssot_write_policy(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """error_logs.py uses write_policy.writes_allowed() as SSOT."""
 
     module_path = REPO_ROOT / "diagnostics" / "error_logs.py"
-    spec = importlib.util.spec_from_file_location("error_logs_pipeline", module_path)
+    spec = importlib.util.spec_from_file_location("error_logs_ssot", module_path)
     assert spec and spec.loader, "Failed to load diagnostics/error_logs.py module spec"
+    
+    # CI=true without FORCE_READ_ONLY should allow writes (SSOT)
     monkeypatch.setenv("CI", "true")
-    monkeypatch.setenv("OPENCODE_DIAGNOSTICS_ALLOW_WRITE", "1")
+    monkeypatch.delenv("OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY", raising=False)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
 
-    assert mod.READ_ONLY is True, "Pipeline mode must force READ_ONLY even when ALLOW_WRITE=1"
+    # With SSOT, CI mode allows writes unless FORCE_READ_ONLY=1
+    assert mod.READ_ONLY is False, "CI mode should allow writes (SSOT) unless FORCE_READ_ONLY=1"
 
     cfg = tmp_path / "opencode-config"
     write_governance_paths(cfg)
     out = mod.safe_log_error(
-        reason_key="ERR-PIPELINE-TEST",
-        message="should be read-only in pipeline",
+        reason_key="ERR-SSOT-TEST",
+        message="should use SSOT write policy",
         config_root=cfg,
         phase="test",
         gate="test",
@@ -3620,7 +3623,8 @@ def test_error_logger_pipeline_forces_read_only_even_when_allow_write_set(tmp_pa
         command="pytest",
         component="test-suite",
     )
-    assert out.get("status") == "read-only"
+    # With writes allowed, status should not be read-only
+    assert out.get("status") != "read-only", "Should not be read-only when writes allowed"
 
 
 @pytest.mark.governance
