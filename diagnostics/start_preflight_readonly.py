@@ -36,7 +36,16 @@ except ImportError:
         def __init__(self, **kwargs):
             pass
 
-install_global_handlers()
+
+# SSOT: Ensure global error handler is installed before any operations
+def _install_global_error_handler() -> None:
+    try:
+        from diagnostics.global_error_handler import install_global_handlers
+        install_global_handlers()
+    except ImportError:
+        pass
+
+_install_global_error_handler()
 
 
 def _effective_mode() -> str:

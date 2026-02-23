@@ -578,7 +578,7 @@ def main() -> int:
         emit_gate_failure(
             gate="BOOTSTRAP",
             code="REPO_ROOT_STRICT_REQUIRED",
-            message="Repo root could not be determined (strict mode).",
+            message="Repo root could not be determined (strict mode - no CWD fallback).",
             expected="Provide --repo-root, set OPENCODE_REPO_ROOT, or run from within a git repository",
             observed={"cwd": str(Path.cwd())},
             remediation="Run from within a git repository or provide --repo-root explicitly.",
@@ -777,6 +777,7 @@ def main() -> int:
                     artifacts_committed = True
                     print("Workspace artifact backfill hook completed (phase2 artifacts verified).")
                 else:
+                    safe_log_error("Backfill completed but artifacts not verified:", run.stdout)
                     backfill_failed = True
                     emit_gate_failure(
                         gate="PERSISTENCE",
