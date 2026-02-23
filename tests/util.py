@@ -42,9 +42,16 @@ def git_ls_files(*patterns: str) -> list[str]:
     if patterns:
         cmd += list(patterns)
     r = run(cmd)
-    if r.returncode != 0:
-        raise RuntimeError(f"git ls-files failed: {r.stderr}\n{r.stdout}")
-    return [l for l in r.stdout.splitlines() if l.strip()]
+    if r.returncode == 0:
+        return [l for l in r.stdout.splitlines() if l.strip()]
+
+    files: set[str] = set()
+    search_patterns = patterns or ("**/*",)
+    for pattern in search_patterns:
+        for path in REPO_ROOT.glob(pattern):
+            if path.is_file():
+                files.add(path.relative_to(REPO_ROOT).as_posix())
+    return sorted(files)
 
 
 def read_text(path: Path) -> str:
