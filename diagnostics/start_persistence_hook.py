@@ -7,22 +7,20 @@ It is intentionally separate to maintain SoC and keep preflight truly read-only
 by default.
 
 Environment:
+    OPENCODE_MODE=user|pipeline|agents_strict - explicit mode
     OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY=1 - If set, blocks all writes (safety gate)
-    CI - If set, writes are always disabled (pipeline safety)
 """
 
 from __future__ import annotations
 
 import json
 import os
-from typing import Final
 import subprocess
 import sys
 from pathlib import Path
 from typing import Any, cast
 
-_is_pipeline = os.environ.get("CI", "").strip().lower() not in {"", "0", "false", "no", "off"}
-EFFECTIVE_MODE: Final[str] = "pipeline" if _is_pipeline else "user"
+from diagnostics.write_policy import EFFECTIVE_MODE, writes_allowed
 
 
 def _writes_allowed() -> bool:
@@ -34,9 +32,7 @@ def _writes_allowed() -> bool:
     The function checks OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY environment variable.
     When set to "1", all write operations are blocked for safety.
     """
-    if str(os.environ.get("OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY", "")).strip() == "1":
-        return False
-    return True
+    return writes_allowed()
 
 SCRIPT_DIR = Path(os.path.abspath(__file__)).parent
 if str(SCRIPT_DIR) not in sys.path:

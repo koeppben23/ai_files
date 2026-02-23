@@ -69,6 +69,30 @@ def _payload() -> BootstrapInput:
     )
 
 
+def _payload_inside_repo() -> BootstrapInput:
+    return BootstrapInput(
+        repo_identity=RepoIdentity(
+            repo_root="/repo",
+            fingerprint="aaaaaaaaaaaaaaaaaaaaaaaa",
+            repo_name="repo",
+            source="test",
+        ),
+        binding=Binding(
+            config_root="/repo/.config/opencode",
+            commands_home="/repo/.config/opencode/commands",
+            workspaces_home="/repo/.config/opencode/workspaces",
+            python_command="python3",
+        ),
+        layout=WorkspaceLayout(
+            repo_home="/repo/.config/opencode/workspaces/aaaaaaaaaaaaaaaaaaaaaaaa",
+            session_state_file="/repo/.config/opencode/workspaces/aaaaaaaaaaaaaaaaaaaaaaaa/SESSION_STATE.json",
+            identity_map_file="/repo/.config/opencode/workspaces/aaaaaaaaaaaaaaaaaaaaaaaa/repo-identity-map.yaml",
+            pointer_file="/repo/.config/opencode/SESSION_STATE.json",
+        ),
+        required_artifacts=(),
+    )
+
+
 def test_bootstrap_commits_only_after_all_checks() -> None:
     fs = InMemoryFS()
     for artifact in _payload().required_artifacts:
@@ -106,3 +130,37 @@ def test_bootstrap_fails_closed_on_pointer_verify_mismatch() -> None:
 
     assert result.ok is False
     assert result.gate_code == "POINTER_VERIFY_FAILED"
+
+
+def test_bootstrap_blocks_when_config_root_is_inside_repo_root() -> None:
+    fs = InMemoryFS()
+    logger = _FakeLogger()
+    service = BootstrapPersistenceService(fs=fs, runner=_FakeRunner(returncode=0), logger=logger)
+
+    result = service.run(_payload_inside_repo())
+
+    assert result.ok is False
+    assert result.gate_code == "CONFIG_ROOT_INSIDE_REPO"
+
+
+def test_bootstrap_blocks_when_pointer_is_inside_repo_root() -> None:
+    fs = InMemoryFS()
+    logger = _FakeLogger()
+    service = BootstrapPersistenceService(fs=fs, runner=_FakeRunner(returncode=0), logger=logger)
+
+    bad = _payload()
+    bad = BootstrapInput(
+        repo_identity=bad.repo_identity,
+        binding=bad.binding,
+        layout=WorkspaceLayout(
+            repo_home=bad.layout.repo_home,
+            session_state_file=bad.layout.session_state_file,
+            identity_map_file=bad.layout.identity_map_file,
+            pointer_file="/repo/SESSION_STATE.json",
+        ),
+        required_artifacts=bad.required_artifacts,
+    )
+    result = service.run(bad)
+
+    assert result.ok is False
+    assert result.gate_code == "POINTER_PATH_INSIDE_REPO"

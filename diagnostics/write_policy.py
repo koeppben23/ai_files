@@ -11,7 +11,8 @@ All diagnostics MUST use this module to determine write permissions.
 
 Environment Variables:
     OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY: Set to "1" to block all writes
-    OPENCODE_DIAGNOSTICS_MODE: Optional mode label for diagnostics metadata
+    OPENCODE_MODE: Explicit operating mode (user|pipeline|agents_strict)
+    OPENCODE_DIAGNOSTICS_MODE: Deprecated fallback mode label for diagnostics metadata
 
 Write Policy (unified):
     Writes are allowed by default, unless FORCE_READ_ONLY=1
@@ -31,7 +32,27 @@ from __future__ import annotations
 
 import os
 
-EFFECTIVE_MODE = os.environ.get("OPENCODE_DIAGNOSTICS_MODE", "user").strip() or "user"
+
+def effective_mode() -> str:
+    primary = os.environ.get("OPENCODE_MODE", "").strip()
+    if primary:
+        return primary
+    fallback = os.environ.get("OPENCODE_DIAGNOSTICS_MODE", "").strip()
+    if fallback:
+        return fallback
+    return "user"
+
+
+EFFECTIVE_MODE = effective_mode()
+
+
+def write_policy_reasons() -> tuple[str, ...]:
+    reasons: list[str] = [f"mode:{effective_mode()}"]
+    if str(os.environ.get("OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY", "")).strip() == "1":
+        reasons.append("force-read-only")
+    else:
+        reasons.append("default-allow")
+    return tuple(reasons)
 
 
 def writes_allowed() -> bool:
