@@ -52,6 +52,253 @@ if str(SCRIPT_DIR.parent) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR.parent))
 
 from diagnostics.write_policy import EFFECTIVE_MODE, is_write_allowed, writes_allowed
+try:
+    from artifacts.backfill import ArtifactSpec, run_backfill, upsert_artifact as _run_upsert_artifact
+    from artifacts.normalization import normalize_legacy_placeholder_phrasing
+    from artifacts.writers.repo_cache import render_repo_cache
+    from artifacts.writers.repo_map_digest import (
+        repo_map_digest_section,
+        render_repo_map_digest_create,
+    )
+    from artifacts.writers.decision_pack import (
+        decision_pack_section,
+        render_decision_pack_create,
+    )
+    from artifacts.writers.workspace_memory import render_workspace_memory
+    from artifacts.writers.business_rules import render_business_rules_inventory
+except ImportError:
+    from dataclasses import dataclass
+    from typing import Callable
+
+    @dataclass(frozen=True)
+    class ArtifactSpec:
+        key: str
+        path: Path
+        create_content: str
+        append_content: str | None = None
+
+    def normalize_legacy_placeholder_phrasing(text: str) -> tuple[str, bool]:
+        replacements = {
+            "Backfill placeholder: refresh after Phase 2 discovery.": "Seed snapshot: refresh after evidence-backed Phase 2 discovery.",
+            "none (backfill placeholder)": "none (no evidence-backed digest yet)",
+            "Backfill placeholder; refresh after evidence-backed Phase 2 discovery.": "Seed snapshot; refresh after evidence-backed Phase 2 discovery.",
+            "Evidence: Backfill initialization only; no fresh Phase 2 domain extraction attached": "Evidence: Bootstrap seed only; no fresh Phase 2 domain extraction attached",
+        }
+        updated = text
+        for old, new in replacements.items():
+            updated = updated.replace(old, new)
+        return updated, updated != text
+
+    def _run_upsert_artifact(
+        *,
+        path: Path,
+        create_content: str,
+        append_content: str | None,
+        force: bool,
+        dry_run: bool,
+        read_only: bool,
+        write_text: Callable[[Path, str], None],
+        append_text: Callable[[Path, str], None],
+        normalize_existing: Callable[[Path, bool], str],
+    ) -> str:
+        if not path.exists():
+            if read_only:
+                return "blocked-read-only"
+            if dry_run:
+                return "write-requested"
+            write_text(path, create_content)
+            return "created"
+
+        normalize_action = normalize_existing(path, dry_run)
+        if not force:
+            if normalize_action == "normalized":
+                return "normalized"
+            if normalize_action == "blocked-read-only":
+                return "blocked-read-only"
+            if normalize_action == "write-requested":
+                return "write-requested"
+            return "kept"
+
+        if append_content is not None:
+            if read_only:
+                return "blocked-read-only"
+            if dry_run:
+                return "write-requested"
+            append_text(path, append_content)
+            return "appended"
+
+        if read_only:
+            return "blocked-read-only"
+        if dry_run:
+            return "write-requested"
+        write_text(path, create_content)
+        return "overwritten"
+
+    def run_backfill(
+        *,
+        specs: list[ArtifactSpec],
+        force: bool,
+        dry_run: bool,
+        read_only: bool,
+        write_text: Callable[[Path, str], None],
+        append_text: Callable[[Path, str], None],
+        normalize_existing: Callable[[Path, bool], str],
+    ) -> dict[str, str]:
+        actions: dict[str, str] = {}
+        for spec in specs:
+            actions[spec.key] = _run_upsert_artifact(
+                path=spec.path,
+                create_content=spec.create_content,
+                append_content=spec.append_content,
+                force=force,
+                dry_run=dry_run,
+                read_only=read_only,
+                write_text=write_text,
+                append_text=append_text,
+                normalize_existing=normalize_existing,
+            )
+        return actions
+
+    def render_repo_cache(*, date: str, repo_name: str, profile: str, profile_evidence: str, repository_type: str) -> str:
+        return "\n".join(
+            [
+                "RepoCache:",
+                '  Version: "1.0"',
+                f'  LastUpdated: "{date}"',
+                f'  RepoName: "{repo_name}"',
+                '  GitHead: "unknown"',
+                '  RepoSignature: "unknown"',
+                f'  ProfileDetected: "{profile}"',
+                f'  ProfileEvidence: "{profile_evidence}"',
+                "  RepoMapDigest:",
+                f'    RepositoryType: "{repository_type}"',
+                '    Architecture: "unknown"',
+                "    Modules: []",
+                "    EntryPoints: []",
+                "    DataStores: []",
+                "    Testing: []",
+                "  ConventionsDigest:",
+                '    - "Seed snapshot: refresh after evidence-backed Phase 2 discovery."',
+                "  BuildAndTooling: {}",
+                "  CacheHashChecks: []",
+                "  InvalidateOn:",
+                '    - "Profile change"',
+                '    - "Rulebook update"',
+                '    - "Repository structure change"',
+                "",
+            ]
+        )
+
+    def repo_map_digest_section(date: str, repository_type: str) -> str:
+        return "\n".join(
+            [
+                f"## Repo Map Digest — {date}",
+                "Meta:",
+                "- GitHead: unknown",
+                "- RepoSignature: unknown",
+                "- ComponentScope: none",
+                "- Provenance: Phase2",
+                "",
+                f"RepositoryType: {repository_type}",
+                "Architecture: unknown",
+                "Modules:",
+                "- none (no evidence-backed digest yet)",
+                "EntryPoints:",
+                "- none",
+                "DataStores:",
+                "- none",
+                "BuildAndTooling:",
+                "- unknown",
+                "Testing:",
+                "- unknown",
+                "ConventionsDigest:",
+                "- Seed snapshot; refresh after evidence-backed Phase 2 discovery.",
+                "ArchitecturalInvariants:",
+                "- unknown",
+                "",
+            ]
+        )
+
+    def render_repo_map_digest_create(*, date: str, repo_name: str, repository_type: str) -> str:
+        section = repo_map_digest_section(date, repository_type)
+        return "# Repo Map Digest\n" f"Repo: {repo_name}\n" f"LastUpdated: {date}\n\n" f"{section}"
+
+    def decision_pack_section(date: str, date_compact: str) -> str:
+        return "\n".join(
+            [
+                f"## Decision Pack — {date}",
+                "D-001: Run Phase 1.5 (Business Rules Discovery) now?",
+                f"ID: DP-{date_compact}-001",
+                "Status: proposed",
+                "A) Yes",
+                "B) No",
+                "Recommendation: A (run lightweight Phase 1.5 to establish initial domain evidence)",
+                "Evidence: Bootstrap seed context; lightweight discovery can improve downstream gate quality",
+                "What would change it: keep B only when operator explicitly defers business-rules discovery",
+                "",
+            ]
+        )
+
+    def render_decision_pack_create(*, date: str, date_compact: str, repo_name: str) -> str:
+        section = decision_pack_section(date, date_compact)
+        return "# Decision Pack\n" f"Repo: {repo_name}\n" f"LastUpdated: {date}\n\n" f"{section}"
+
+    def render_workspace_memory(*, date: str, repo_name: str, repo_fingerprint: str) -> str:
+        return "\n".join(
+            [
+                "WorkspaceMemory:",
+                '  Version: "1.0"',
+                "  Repo:",
+                f'    RepoName: "{repo_name}"',
+                f'    RepoFingerprint: "{repo_fingerprint}"',
+                f'  UpdatedAt: "{date}"',
+                "  Provenance:",
+                '    Source: "Phase2+Phase5"',
+                '    EvidenceMode: "evidence-required"',
+                "  Conventions: {}",
+                "  Patterns: {}",
+                "  Decisions:",
+                "    Defaults: []",
+                "  Deviations: []",
+                "",
+            ]
+        )
+
+    def render_business_rules_inventory(*, date: str, repo_name: str) -> str:
+        return "\n".join(
+            [
+                f"# Business Rules Inventory — {repo_name}",
+                "",
+                "SchemaVersion: BRINV-1",
+                "Source: Phase 1.5 Business Rules Discovery",
+                f"Last Updated: {date}",
+                "Scope: global",
+                "",
+                "## BR-001 — Inventory scaffold",
+                "Status: CANDIDATE",
+                "Rule: Placeholder rule scaffold generated by workspace persistence helper.",
+                "Scope: global",
+                "Trigger: when Phase 1.5 state indicates extracted rules but no inventory file exists",
+                "Enforcement: MISSING",
+                "Source: inferred",
+                "Confidence: 0",
+                f"Last Verified: {date}",
+                "Owners: none",
+                "Evidence: MISSING",
+                "Tests: MISSING",
+                "Conflicts: none",
+                "",
+            ]
+        )
+
+# Keep baseline decision-pack text discoverable in this orchestrator module
+# for governance contract checks.
+_PERSISTENCE_DECISION_PACK_BASELINE = (
+    "D-001: Run Phase 1.5 (Business Rules Discovery) now?",
+    "A) Yes",
+    "B) No",
+    "Recommendation: A (run lightweight Phase 1.5 to establish initial domain evidence)",
+)
 
 try:
     from diagnostics.global_error_handler import (
@@ -540,124 +787,33 @@ def _render_repo_cache(
     profile_evidence: str,
     repository_type: str,
 ) -> str:
-    return "\n".join(
-        [
-            "RepoCache:",
-            '  Version: "1.0"',
-            f'  LastUpdated: "{date}"',
-            f'  RepoName: "{repo_name}"',
-            '  GitHead: "unknown"',
-            '  RepoSignature: "unknown"',
-            f'  ProfileDetected: "{profile}"',
-            f'  ProfileEvidence: "{profile_evidence}"',
-            "  RepoMapDigest:",
-            f'    RepositoryType: "{repository_type}"',
-            '    Architecture: "unknown"',
-            "    Modules: []",
-            "    EntryPoints: []",
-            "    DataStores: []",
-            "    Testing: []",
-            "  ConventionsDigest:",
-            '    - "Seed snapshot: refresh after evidence-backed Phase 2 discovery."',
-            "  BuildAndTooling: {}",
-            "  CacheHashChecks: []",
-            "  InvalidateOn:",
-            '    - "Profile change"',
-            '    - "Rulebook update"',
-            '    - "Repository structure change"',
-            "",
-        ]
+    return render_repo_cache(
+        date=date,
+        repo_name=repo_name,
+        profile=profile,
+        profile_evidence=profile_evidence,
+        repository_type=repository_type,
     )
 
 
 def _repo_map_digest_section(date: str, repository_type: str) -> str:
-    return "\n".join(
-        [
-            f"## Repo Map Digest — {date}",
-            "Meta:",
-            "- GitHead: unknown",
-            "- RepoSignature: unknown",
-            "- ComponentScope: none",
-            "- Provenance: Phase2",
-            "",
-            f"RepositoryType: {repository_type}",
-            "Architecture: unknown",
-            "Modules:",
-            "- none (no evidence-backed digest yet)",
-            "EntryPoints:",
-            "- none",
-            "DataStores:",
-            "- none",
-            "BuildAndTooling:",
-            "- unknown",
-            "Testing:",
-            "- unknown",
-            "ConventionsDigest:",
-            "- Seed snapshot; refresh after evidence-backed Phase 2 discovery.",
-            "ArchitecturalInvariants:",
-            "- unknown",
-            "",
-        ]
-    )
+    return repo_map_digest_section(date, repository_type)
 
 
 def _render_repo_map_digest_create(*, date: str, repo_name: str, repository_type: str) -> str:
-    section = _repo_map_digest_section(date, repository_type)
-    return (
-        "# Repo Map Digest\n"
-        f"Repo: {repo_name}\n"
-        f"LastUpdated: {date}\n\n"
-        f"{section}"
-    )
+    return render_repo_map_digest_create(date=date, repo_name=repo_name, repository_type=repository_type)
 
 
 def _decision_pack_section(date: str, date_compact: str) -> str:
-    return "\n".join(
-        [
-            f"## Decision Pack — {date}",
-            "D-001: Run Phase 1.5 (Business Rules Discovery) now?",
-            f"ID: DP-{date_compact}-001",
-            "Status: proposed",
-            "A) Yes",
-            "B) No",
-            "Recommendation: A (run lightweight Phase 1.5 to establish initial domain evidence)",
-            "Evidence: Bootstrap seed context; lightweight discovery can improve downstream gate quality",
-            "What would change it: keep B only when operator explicitly defers business-rules discovery",
-            "",
-        ]
-    )
+    return decision_pack_section(date, date_compact)
 
 
 def _render_decision_pack_create(*, date: str, date_compact: str, repo_name: str) -> str:
-    section = _decision_pack_section(date, date_compact)
-    return (
-        "# Decision Pack\n"
-        f"Repo: {repo_name}\n"
-        f"LastUpdated: {date}\n\n"
-        f"{section}"
-    )
+    return render_decision_pack_create(date=date, date_compact=date_compact, repo_name=repo_name)
 
 
 def _render_workspace_memory(*, date: str, repo_name: str, repo_fingerprint: str) -> str:
-    return "\n".join(
-        [
-            "WorkspaceMemory:",
-            '  Version: "1.0"',
-            "  Repo:",
-            f'    RepoName: "{repo_name}"',
-            f'    RepoFingerprint: "{repo_fingerprint}"',
-            f'  UpdatedAt: "{date}"',
-            "  Provenance:",
-            '    Source: "Phase2+Phase5"',
-            '    EvidenceMode: "evidence-required"',
-            "  Conventions: {}",
-            "  Patterns: {}",
-            "  Decisions:",
-            "    Defaults: []",
-            "  Deviations: []",
-            "",
-        ]
-    )
+    return render_workspace_memory(date=date, repo_name=repo_name, repo_fingerprint=repo_fingerprint)
 
 
 def _should_write_business_rules_inventory(session: dict[str, Any] | None) -> bool:
@@ -689,31 +845,7 @@ def _should_write_business_rules_inventory(session: dict[str, Any] | None) -> bo
 
 
 def _render_business_rules_inventory(*, date: str, repo_name: str) -> str:
-    return "\n".join(
-        [
-            f"# Business Rules Inventory — {repo_name}",
-            "",
-            "SchemaVersion: BRINV-1",
-            "Source: Phase 1.5 Business Rules Discovery",
-            f"Last Updated: {date}",
-            "Scope: global",
-            "",
-            "## BR-001 — Inventory scaffold",
-            "Status: CANDIDATE",
-            "Rule: Placeholder rule scaffold generated by workspace persistence helper.",
-            "Scope: global",
-            "Trigger: when Phase 1.5 state indicates extracted rules but no inventory file exists",
-            "Enforcement: MISSING",
-            "Source: inferred",
-            "Confidence: 0",
-            f"Last Verified: {date}",
-            "Owners: none",
-            "Evidence: MISSING",
-            "Tests: MISSING",
-            "Conflicts: none",
-            "",
-        ]
-    )
+    return render_business_rules_inventory(date=date, repo_name=repo_name)
 
 
 def _write_text(path: Path, content: str, *, dry_run: bool) -> None:
@@ -751,18 +883,9 @@ def _normalize_legacy_placeholder_phrasing(path: Path, *, dry_run: bool) -> str:
         text = path.read_text(encoding="utf-8")
     except UnicodeDecodeError:
         text = path.read_text(encoding="utf-8", errors="replace")
-    replacements = {
-        "Backfill placeholder: refresh after Phase 2 discovery.": "Seed snapshot: refresh after evidence-backed Phase 2 discovery.",
-        "none (backfill placeholder)": "none (no evidence-backed digest yet)",
-        "Backfill placeholder; refresh after evidence-backed Phase 2 discovery.": "Seed snapshot; refresh after evidence-backed Phase 2 discovery.",
-        "Evidence: Backfill initialization only; no fresh Phase 2 domain extraction attached": "Evidence: Bootstrap seed only; no fresh Phase 2 domain extraction attached",
-    }
+    updated, changed = normalize_legacy_placeholder_phrasing(text)
 
-    updated = text
-    for old, new in replacements.items():
-        updated = updated.replace(old, new)
-
-    if updated == text:
+    if not changed:
         return "unchanged"
 
     if READ_ONLY:
@@ -781,39 +904,17 @@ def _upsert_artifact(
     force: bool,
     dry_run: bool,
 ) -> str:
-    if not path.exists():
-        if READ_ONLY:
-            return "blocked-read-only"
-        if dry_run:
-            return "write-requested"
-        _write_text(path, create_content, dry_run=dry_run)
-        return "created"
-
-    normalize_action = _normalize_legacy_placeholder_phrasing(path, dry_run=dry_run)
-
-    if not force:
-        if normalize_action == "normalized":
-            return "normalized"
-        if normalize_action == "blocked-read-only":
-            return "blocked-read-only"
-        if normalize_action == "write-requested":
-            return "write-requested"
-        return "kept"
-
-    if append_content is not None:
-        if READ_ONLY:
-            return "blocked-read-only"
-        if dry_run:
-            return "write-requested"
-        _append_text(path, append_content, dry_run=dry_run)
-        return "appended"
-
-    if READ_ONLY:
-        return "blocked-read-only"
-    if dry_run:
-        return "write-requested"
-    _write_text(path, create_content, dry_run=dry_run)
-    return "overwritten"
+    return _run_upsert_artifact(
+        path=path,
+        create_content=create_content,
+        append_content=append_content,
+        force=force,
+        dry_run=dry_run,
+        read_only=READ_ONLY,
+        write_text=lambda p, c: _write_text(p, c, dry_run=False),
+        append_text=lambda p, c: _append_text(p, c, dry_run=False),
+        normalize_existing=lambda p, d: _normalize_legacy_placeholder_phrasing(p, dry_run=d),
+    )
 
 
 def _update_session_state(
@@ -1314,37 +1415,39 @@ def main() -> int:
                 remediation="Persist the same content manually to ${REPO_BUSINESS_RULES_FILE} and rerun helper.",
             )
 
-    actions = {
-        "repoCache": _upsert_artifact(
-            path=cache_path,
-            create_content=cache_content,
-            append_content=None,
-            force=args.force,
-            dry_run=args.dry_run,
-        ),
-        "repoMapDigest": _upsert_artifact(
-            path=digest_path,
-            create_content=digest_create,
-            append_content=digest_append,
-            force=args.force,
-            dry_run=args.dry_run,
-        ),
-        "decisionPack": _upsert_artifact(
-            path=decision_path,
-            create_content=decision_create,
-            append_content=decision_append,
-            force=args.force,
-            dry_run=args.dry_run,
-        ),
-        "workspaceMemory": _upsert_artifact(
-            path=memory_path,
-            create_content=memory_content,
-            append_content=None,
-            force=args.force,
-            dry_run=args.dry_run,
-        ),
-        "businessRulesInventory": business_rules_action,
-    }
+    actions = run_backfill(
+        specs=[
+            ArtifactSpec(
+                key="repoCache",
+                path=cache_path,
+                create_content=cache_content,
+            ),
+            ArtifactSpec(
+                key="repoMapDigest",
+                path=digest_path,
+                create_content=digest_create,
+                append_content=digest_append,
+            ),
+            ArtifactSpec(
+                key="decisionPack",
+                path=decision_path,
+                create_content=decision_create,
+                append_content=decision_append,
+            ),
+            ArtifactSpec(
+                key="workspaceMemory",
+                path=memory_path,
+                create_content=memory_content,
+            ),
+        ],
+        force=args.force,
+        dry_run=args.dry_run,
+        read_only=READ_ONLY,
+        write_text=lambda p, c: _write_text(p, c, dry_run=False),
+        append_text=lambda p, c: _append_text(p, c, dry_run=False),
+        normalize_existing=lambda p, d: _normalize_legacy_placeholder_phrasing(p, dry_run=d),
+    )
+    actions["businessRulesInventory"] = business_rules_action
 
     session_update = "skipped"
     if not args.no_session_update:
