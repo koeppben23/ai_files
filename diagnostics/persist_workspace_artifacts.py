@@ -1349,7 +1349,7 @@ def main() -> int:
             session_path=session_path,
             dry_run=args.dry_run,
             business_rules_inventory_written=(
-                business_rules_action in {"created", "overwritten"}
+                business_rules_action in {"created", "kept", "overwritten"}
             ),
             business_rules_inventory_action=business_rules_action,
             repo_cache_action=actions["repoCache"],
