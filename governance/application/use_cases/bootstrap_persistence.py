@@ -30,6 +30,11 @@ class BootstrapInput:
     layout: WorkspaceLayout
     required_artifacts: tuple[str, ...]
     force_read_only: bool = False
+    skip_artifact_backfill: bool = False
+    backfill_command: tuple[str, ...] = field(default_factory=tuple)
+    effective_mode: str = "user"
+    write_policy_reasons: tuple[str, ...] = field(default_factory=tuple)
+    no_commit: bool = False
 
 
 class BootstrapPersistenceService:
@@ -49,6 +54,29 @@ class BootstrapPersistenceService:
         errors: list[ErrorEvent] = []
 
         policy = compute_write_policy(force_read_only=payload.force_read_only)
+        config_root = Path(payload.binding.config_root)
+        repo_root = Path(payload.repo_identity.repo_root)
+        pointer_file = Path(payload.layout.pointer_file)
+        if _is_within(config_root, repo_root):
+            event = ErrorEvent(
+                code="CONFIG_ROOT_INSIDE_REPO",
+                severity="error",
+                message="Config root resolves inside repository root.",
+                expected="configRoot outside repoRoot",
+                observed={"configRoot": str(config_root), "repoRoot": str(repo_root)},
+            )
+            self._logger.write(event)
+            return BootstrapResult(ok=False, gate_code=event.code, write_actions=write_actions, error_events=(event,))
+        if _is_within(pointer_file, repo_root):
+            event = ErrorEvent(
+                code="POINTER_PATH_INSIDE_REPO",
+                severity="error",
+                message="Pointer path resolves inside repository root.",
+                expected="pointer path outside repoRoot",
+                observed={"pointerFile": str(pointer_file), "repoRoot": str(repo_root)},
+            )
+            self._logger.write(event)
+            return BootstrapResult(ok=False, gate_code=event.code, write_actions=write_actions, error_events=(event,))
         if not policy.writes_allowed:
             event = ErrorEvent(
                 code="PERSISTENCE_READ_ONLY",
@@ -60,20 +88,17 @@ class BootstrapPersistenceService:
             self._logger.write(event)
             return BootstrapResult(ok=False, gate_code=event.code, write_actions=write_actions, error_events=(event,))
 
-        initial_state = {
-            "SESSION_STATE": {
-                "RepoFingerprint": payload.repo_identity.fingerprint,
-                "CommitFlags": {
-                    "PersistenceCommitted": False,
-                    "WorkspaceReadyGateCommitted": False,
-                    "WorkspaceArtifactsCommitted": False,
-                },
-            }
-        }
+        initial_state = _session_state_payload(
+            repo_fingerprint=payload.repo_identity.fingerprint,
+            repo_name=payload.repo_identity.repo_name,
+            persistence_committed=False,
+            workspace_ready_committed=False,
+            workspace_artifacts_committed=False,
+            effective_mode=payload.effective_mode,
+            write_policy_reasons=payload.write_policy_reasons,
+        )
         session_state_file = Path(payload.layout.session_state_file)
         identity_map_file = Path(payload.layout.identity_map_file)
-        pointer_file = Path(payload.layout.pointer_file)
-
         self._fs.write_text_atomic(session_state_file, _canonical_json(initial_state))
         write_actions["session_state_initial"] = "written"
 
@@ -86,19 +111,29 @@ class BootstrapPersistenceService:
         self._fs.write_text_atomic(identity_map_file, _canonical_json(identity_map))
         write_actions["identity_map"] = "written"
 
-        run = self._runner.run([payload.binding.python_command, "diagnostics/persist_workspace_artifacts.py"])
-        if run.returncode != 0:
-            event = ErrorEvent(
-                code="BACKFILL_NON_ZERO_EXIT",
-                severity="error",
-                message="Artifact backfill failed.",
-                expected="return code 0",
-                observed={"returncode": run.returncode, "stderr": run.stderr[:240]},
-            )
-            self._logger.write(event)
-            errors.append(event)
-            return BootstrapResult(ok=False, gate_code=event.code, write_actions=write_actions, error_events=tuple(errors))
-        write_actions["artifact_backfill"] = "completed"
+        if payload.no_commit:
+            write_actions["no_commit"] = "true"
+            return BootstrapResult(ok=True, gate_code="OK", write_actions=write_actions, error_events=tuple(errors))
+
+        if payload.skip_artifact_backfill:
+            write_actions["artifact_backfill"] = "skipped"
+        else:
+            command = list(payload.backfill_command)
+            if not command:
+                command = [payload.binding.python_command, "diagnostics/persist_workspace_artifacts.py"]
+            run = self._runner.run(command)
+            if run.returncode != 0:
+                event = ErrorEvent(
+                    code="BACKFILL_NON_ZERO_EXIT",
+                    severity="error",
+                    message="Artifact backfill failed.",
+                    expected="return code 0",
+                    observed={"returncode": run.returncode, "stderr": run.stderr[:240]},
+                )
+                self._logger.write(event)
+                errors.append(event)
+                return BootstrapResult(ok=False, gate_code=event.code, write_actions=write_actions, error_events=tuple(errors))
+            write_actions["artifact_backfill"] = "completed"
 
         missing = [path for path in payload.required_artifacts if not self._fs.exists(Path(path))]
         if missing:
@@ -136,16 +171,15 @@ class BootstrapPersistenceService:
             return BootstrapResult(ok=False, gate_code=event.code, write_actions=write_actions, error_events=tuple(errors))
         write_actions["pointer_verify"] = "verified"
 
-        final_state = {
-            "SESSION_STATE": {
-                "RepoFingerprint": payload.repo_identity.fingerprint,
-                "CommitFlags": {
-                    "PersistenceCommitted": True,
-                    "WorkspaceReadyGateCommitted": True,
-                    "WorkspaceArtifactsCommitted": True,
-                },
-            }
-        }
+        final_state = _session_state_payload(
+            repo_fingerprint=payload.repo_identity.fingerprint,
+            repo_name=payload.repo_identity.repo_name,
+            persistence_committed=True,
+            workspace_ready_committed=True,
+            workspace_artifacts_committed=True,
+            effective_mode=payload.effective_mode,
+            write_policy_reasons=payload.write_policy_reasons,
+        )
         self._fs.write_text_atomic(session_state_file, _canonical_json(final_state))
         write_actions["session_state_final"] = "written"
         return BootstrapResult(ok=True, gate_code="OK", write_actions=write_actions, error_events=tuple(errors))
@@ -153,3 +187,90 @@ class BootstrapPersistenceService:
 
 def _canonical_json(data: object) -> str:
     return json.dumps(data, sort_keys=True, separators=(",", ":"), ensure_ascii=True) + "\n"
+
+
+def _session_state_payload(
+    *,
+    repo_fingerprint: str,
+    repo_name: str,
+    persistence_committed: bool,
+    workspace_ready_committed: bool,
+    workspace_artifacts_committed: bool,
+    effective_mode: str,
+    write_policy_reasons: tuple[str, ...],
+) -> dict[str, object]:
+    repository = repo_name.strip() if repo_name.strip() else repo_fingerprint
+    return {
+        "SESSION_STATE": {
+            "RepoFingerprint": repo_fingerprint,
+            "PersistenceCommitted": persistence_committed,
+            "WorkspaceReadyGateCommitted": workspace_ready_committed,
+            "WorkspaceArtifactsCommitted": workspace_artifacts_committed,
+            "phase_transition_evidence": False,
+            "session_state_version": 1,
+            "ruleset_hash": "deferred",
+            "Phase": "1.1-Bootstrap",
+            "Mode": "BLOCKED",
+            "ConfidenceLevel": 0,
+            "Next": "BLOCKED-START-REQUIRED",
+            "OutputMode": "ARCHITECT",
+            "DecisionSurface": {},
+            "Bootstrap": {
+                "Present": False,
+                "Satisfied": False,
+                "Evidence": "not-initialized",
+            },
+            "Scope": {
+                "Repository": repository,
+                "RepositoryType": "",
+                "ExternalAPIs": [],
+                "BusinessRules": "pending",
+            },
+            "LoadedRulebooks": {
+                "core": "",
+                "profile": "",
+                "templates": "",
+                "addons": {},
+            },
+            "AddonsEvidence": {},
+            "RulebookLoadEvidence": {
+                "top_tier": {
+                    "quality_index": "${COMMANDS_HOME}/QUALITY_INDEX.md",
+                    "conflict_resolution": "${COMMANDS_HOME}/CONFLICT_RESOLUTION.md",
+                },
+                "core": "deferred",
+                "profile": "deferred",
+                "templates": "deferred",
+                "addons": {},
+            },
+            "ActiveProfile": "",
+            "ProfileSource": "deferred",
+            "ProfileEvidence": "",
+            "Gates": {
+                "P5-Architecture": "pending",
+                "P5.3-TestQuality": "pending",
+                "P5.4-BusinessRules": "pending",
+                "P5.5-TechnicalDebt": "pending",
+                "P5.6-RollbackSafety": "pending",
+                "P6-ImplementationQA": "pending",
+            },
+            "CreatedAt": "deferred",
+            "writePolicy": {
+                "mode": effective_mode,
+                "reasons": list(write_policy_reasons),
+            },
+            "CommitFlags": {
+                "PersistenceCommitted": persistence_committed,
+                "WorkspaceReadyGateCommitted": workspace_ready_committed,
+                "WorkspaceArtifactsCommitted": workspace_artifacts_committed,
+            },
+        }
+    }
+
+
+def _is_within(path: Path, parent: Path) -> bool:
+    try:
+        path.relative_to(parent)
+        return True
+    except Exception:
+        return False

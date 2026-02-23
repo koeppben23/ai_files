@@ -12,6 +12,7 @@ from governance.domain.models.layouts import WorkspaceLayout
 from governance.domain.models.repo_identity import RepoIdentity
 
 from cli.deps import GlobalErrorLogger, LocalFS, LocalProcessRunner
+from diagnostics.write_policy import EFFECTIVE_MODE, write_policy_reasons
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -57,6 +58,21 @@ def main(argv: list[str] | None = None) -> int:
         ),
         required_artifacts=tuple(args.required_artifact),
         force_read_only=args.force_read_only,
+        backfill_command=(
+            args.python_command,
+            "diagnostics/persist_workspace_artifacts.py",
+            "--repo-fingerprint",
+            args.repo_fingerprint,
+            "--config-root",
+            args.config_root,
+            "--repo-root",
+            args.repo_root,
+            "--require-phase2",
+            "--skip-lock",
+            "--quiet",
+        ),
+        effective_mode=EFFECTIVE_MODE,
+        write_policy_reasons=write_policy_reasons(),
     )
     result = service.run(payload)
     print(
