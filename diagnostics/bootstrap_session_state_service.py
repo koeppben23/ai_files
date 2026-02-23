@@ -62,6 +62,29 @@ except Exception:
     _run_backfill_subprocess = None
 
 try:
+    from bootstrap.session_state_contract import (
+        _is_canonical_fingerprint,
+        _validate_canonical_fingerprint,
+        _validate_repo_fingerprint,
+        pointer_payload,
+        repo_identity_map_path,
+        repo_session_state_path,
+        session_pointer_path,
+        session_state_template,
+    )
+except Exception:
+    from session_state_contract import (  # type: ignore
+        _is_canonical_fingerprint,
+        _validate_canonical_fingerprint,
+        _validate_repo_fingerprint,
+        pointer_payload,
+        repo_identity_map_path,
+        repo_session_state_path,
+        session_pointer_path,
+        session_state_template,
+    )
+
+try:
     from diagnostics.global_error_handler import (
         install_global_handlers,
         set_error_context,
@@ -264,95 +287,6 @@ def resolve_binding_config(explicit: Path | None) -> tuple[Path, dict, Path]:
     return config_root, paths, candidate
 
 
-def _validate_repo_fingerprint(value: str) -> str:
-    """Validate repo fingerprint is canonical 24-hex format.
-    
-    This enforces SSOT: only hash-based fingerprints are accepted.
-    Legacy slug-style fingerprints (e.g., github.com-user-repo) are rejected.
-    
-    Args:
-        value: The fingerprint string to validate.
-    
-    Returns:
-        The validated fingerprint (lowercase, stripped).
-    
-    Raises:
-        ValueError: If fingerprint is empty or not 24-hex format.
-    """
-    token = value.strip()
-    if not token:
-        raise ValueError("repo fingerprint must not be empty")
-    if not re.fullmatch(r"[0-9a-f]{24}", token):
-        raise ValueError(
-            "repo fingerprint must be a 24-character hex string (canonical hash-based format). "
-            "Legacy slug-style fingerprints are not accepted."
-        )
-    return token
-
-
-def _validate_canonical_fingerprint(value: str) -> str:
-    """Alias for _validate_repo_fingerprint for clarity.
-    
-    Args:
-        value: The fingerprint string to validate.
-    
-    Returns:
-        The validated canonical fingerprint.
-    """
-    return _validate_repo_fingerprint(value)
-
-
-def _is_canonical_fingerprint(value: str) -> bool:
-    """Check if value is a canonical 24-hex fingerprint.
-    
-    Args:
-        value: The string to check.
-    
-    Returns:
-        True if value matches ^[0-9a-f]{24}$, False otherwise.
-    """
-    token = value.strip()
-    return bool(re.fullmatch(r"[0-9a-f]{24}", token))
-
-
-def repo_session_state_path(workspaces_home: Path, repo_fingerprint: str) -> Path:
-    """Get the path to a repository's SESSION_STATE.json file.
-    
-    Args:
-        workspaces_home: The workspaces home directory.
-        repo_fingerprint: The canonical 24-hex fingerprint.
-    
-    Returns:
-        Path to ${WORKSPACES_HOME}/${fingerprint}/SESSION_STATE.json
-    """
-    return workspaces_home / repo_fingerprint / "SESSION_STATE.json"
-
-
-def session_pointer_path(config_root: Path) -> Path:
-    """Get the path to the global SESSION_STATE pointer file.
-    
-    Args:
-        config_root: The OpenCode config root directory.
-    
-    Returns:
-        Path to ${CONFIG_ROOT}/SESSION_STATE.json (global pointer).
-    """
-    return config_root / "SESSION_STATE.json"
-
-
-def repo_identity_map_path(workspaces_home: Path, repo_fingerprint: str) -> Path:
-    """Get the path to a repository's identity map file.
-    
-    Args:
-        workspaces_home: The workspaces home directory.
-        repo_fingerprint: The canonical 24-hex fingerprint.
-    
-    Returns:
-        Path to ${WORKSPACES_HOME}/${fingerprint}/repo-identity-map.yaml
-    """
-    return workspaces_home / repo_fingerprint / "repo-identity-map.yaml"
-
-
 def _is_within(path: Path, parent: Path) -> bool:
     """Check if a path is within a parent directory.
     
@@ -368,123 +302,6 @@ def _is_within(path: Path, parent: Path) -> bool:
         return True
     except ValueError:
         return False
-
-
-def session_state_template(repo_fingerprint: str, repo_name: str | None) -> dict:
-    """Create the initial SESSION_STATE template for a repository.
-    
-    The template initializes all state fields to their default "uninitialized"
-    values. Critical flags like PersistenceCommitted and WorkspaceReadyGateCommitted
-    are set to False - they will only be set to True after successful verification.
-    
-    Args:
-        repo_fingerprint: The canonical 24-hex fingerprint for this repository.
-        repo_name: Optional human-readable repository name.
-    
-    Returns:
-        A dictionary containing the SESSION_STATE template.
-    
-    Note:
-        BusinessRules is initialized to "pending" (not "not-applicable") to
-        ensure the Phase 1.5 gate is evaluated rather than skipped.
-    """
-    repository = repo_name.strip() if isinstance(repo_name, str) and repo_name.strip() else repo_fingerprint
-    return {
-        "SESSION_STATE": {
-            "RepoFingerprint": repo_fingerprint,
-            "PersistenceCommitted": False,
-            "WorkspaceReadyGateCommitted": False,
-            "phase_transition_evidence": False,
-            "session_state_version": 1,
-            "ruleset_hash": "deferred",
-            "Phase": "1.1-Bootstrap",
-            "Mode": "BLOCKED",
-            "ConfidenceLevel": 0,
-            "Next": "BLOCKED-START-REQUIRED",
-            "OutputMode": "ARCHITECT",
-            "DecisionSurface": {},
-            "Bootstrap": {
-                "Present": False,
-                "Satisfied": False,
-                "Evidence": "not-initialized",
-            },
-            "Scope": {
-                "Repository": repository,
-                "RepositoryType": "",
-                "ExternalAPIs": [],
-                "BusinessRules": "pending",
-            },
-            "LoadedRulebooks": {
-                "core": "",
-                "profile": "",
-                "templates": "",
-                "addons": {},
-            },
-            "AddonsEvidence": {},
-            "RulebookLoadEvidence": {
-                "top_tier": {
-                    "quality_index": "${COMMANDS_HOME}/QUALITY_INDEX.md",
-                    "conflict_resolution": "${COMMANDS_HOME}/CONFLICT_RESOLUTION.md",
-                },
-                "core": "deferred",
-                "profile": "deferred",
-                "templates": "deferred",
-                "addons": {},
-            },
-            "ActiveProfile": "",
-            "ProfileSource": "deferred",
-            "ProfileEvidence": "",
-            "Gates": {
-                "P5-Architecture": "pending",
-                "P5.3-TestQuality": "pending",
-                "P5.4-BusinessRules": "pending",
-                "P5.5-TechnicalDebt": "pending",
-                "P5.6-RollbackSafety": "pending",
-                "P6-ImplementationQA": "pending",
-            },
-            "CreatedAt": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-        }
-    }
-
-
-def pointer_payload(repo_fingerprint: str, session_state_file: Path | None = None) -> dict:
-    """Create the global SESSION_STATE pointer payload.
-    
-    The pointer is the SSOT for finding the active workspace. It uses the
-    canonical schema "opencode-session-pointer.v1" and contains the fingerprint
-    and path to the workspace's SESSION_STATE.json.
-    
-    This function uses the canonical format defined in governance.infrastructure.session_pointer
-    when available (in-repo), and falls back to inline implementation for release artifacts.
-    
-    Args:
-        repo_fingerprint: The canonical 24-hex fingerprint for this repository.
-        session_state_file: Optional explicit path to the workspace SESSION_STATE.
-            If not provided, a relative path under workspaces/ is generated.
-    
-    Returns:
-        A dictionary containing the pointer payload ready for JSON serialization.
-    """
-    try:
-        from governance.infrastructure.session_pointer import build_pointer_payload
-        return build_pointer_payload(
-            repo_fingerprint=repo_fingerprint,
-            session_state_file=session_state_file,
-            updated_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
-        )
-    except ImportError:
-        pass
-    
-    payload = {
-        "schema": "opencode-session-pointer.v1",
-        "updatedAt": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-        "activeRepoFingerprint": repo_fingerprint,
-    }
-    if session_state_file is not None:
-        payload["activeSessionStateFile"] = str(session_state_file)
-    else:
-        payload["activeSessionStateRelativePath"] = f"workspaces/{repo_fingerprint}/SESSION_STATE.json"
-    return payload
 
 
 def _upsert_repo_identity_map(workspaces_home: Path, repo_fingerprint: str, repo_name: str) -> str:
@@ -661,9 +478,9 @@ def main() -> int:
         }, ensure_ascii=True))
         return 2
 
-    repo_state_file = workspaces_home / repo_fingerprint / "SESSION_STATE.json"
+    repo_state_file = repo_session_state_path(workspaces_home, repo_fingerprint)
     pointer_file = session_pointer_path(config_root)
-    identity_map_file = workspaces_home / repo_fingerprint / "repo-identity-map.yaml"
+    identity_map_file = repo_identity_map_path(workspaces_home, repo_fingerprint)
 
     if (repo_root / ".git").exists() and _is_within(pointer_file, repo_root):
         emit_gate_failure(
