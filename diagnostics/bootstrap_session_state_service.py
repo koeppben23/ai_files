@@ -54,12 +54,10 @@ if str(SCRIPT_DIR.parent) not in sys.path:
 
 from diagnostics.write_policy import EFFECTIVE_MODE, is_write_allowed, writes_allowed
 
-_run_backfill_subprocess = None
 try:
-    from bootstrap.backfill_client import run_backfill_subprocess as _bootstrap_run_backfill_subprocess
-    _run_backfill_subprocess = _bootstrap_run_backfill_subprocess
+    from bootstrap.session_backfill import run_workspace_artifact_backfill
 except Exception:
-    _run_backfill_subprocess = None
+    from bootstrap_backfill import run_workspace_artifact_backfill  # type: ignore
 
 try:
     from bootstrap.repo_identity import resolve_repo_root_ssot
@@ -596,148 +594,18 @@ def main() -> int:
     identity_action = _upsert_repo_identity_map(workspaces_home, repo_fingerprint, repo_name_value.strip())
     print(f"Repo identity map {identity_action}.")
 
-    backfill_failed = False
-    artifacts_committed = False
-    if not args.skip_artifact_backfill:
-        helper = SCRIPT_DIR / "persist_workspace_artifacts.py"
-        if helper.exists():
-            if _run_backfill_subprocess is not None:
-                env = os.environ.copy()
-                if is_write_allowed():
-                    env["OPENCODE_DIAGNOSTICS_ALLOW_WRITE"] = "1"
-                summary_obj = _run_backfill_subprocess(
-                    repo_fingerprint=repo_fingerprint,
-                    config_root=config_root,
-                    repo_root=repo_root,
-                    workspaces_home=workspaces_home,
-                    python_cmd=sys.executable,
-                    require_phase2=True,
-                    env=env,
-                )
-                if summary_obj.success and summary_obj.phase2_ok:
-                    artifacts_committed = True
-                    print("Workspace artifact backfill hook completed (phase2 artifacts verified).")
-                else:
-                    backfill_failed = True
-                    emit_gate_failure(
-                        gate="PERSISTENCE",
-                        code="BACKFILL_PHASE2_ARTIFACTS_MISSING",
-                        message="Backfill completed but required Phase 2/2.1 artifacts not verified.",
-                        expected="phase2Artifacts.ok==true and status=='ok'",
-                        observed={
-                            "status": summary_obj.status,
-                            "phase2_ok": summary_obj.phase2_ok,
-                            "artifacts": summary_obj.artifacts,
-                            "error": summary_obj.error,
-                        },
-                        remediation="Check artifact paths and permissions, rerun bootstrap.",
-                        config_root=str(config_root),
-                        workspaces_home=str(workspaces_home),
-                        repo_fingerprint=repo_fingerprint,
-                        phase="1.1-Bootstrap",
-                    )
-                    print("ERROR: backfill completed but phase2 artifacts not verified.")
-            else:
-                cmd = [
-                    sys.executable,
-                    str(helper),
-                    "--repo-fingerprint",
-                    repo_fingerprint,
-                    "--config-root",
-                    str(config_root),
-                    "--repo-root",
-                    str(repo_root),
-                    "--require-phase2",
-                    "--skip-lock",
-                    "--quiet",
-                ]
-                env = os.environ.copy()
-                if is_write_allowed():
-                    env["OPENCODE_DIAGNOSTICS_ALLOW_WRITE"] = "1"
-                run = subprocess.run(cmd, text=True, capture_output=True, check=False, env=env)
-
-                summary = None
-                if run.stdout.strip():
-                    try:
-                        summary = json.loads(run.stdout.strip())
-                    except json.JSONDecodeError:
-                        pass
-
-                phase2_ok = False
-                if isinstance(summary, dict):
-                    phase2_artifacts = summary.get("phase2Artifacts", {})
-                    if isinstance(phase2_artifacts, dict):
-                        phase2_ok = phase2_artifacts.get("ok") is True
-                    status_ok = summary.get("status") == "ok"
-                    if phase2_ok and status_ok:
-                        artifacts_committed = True
-                        print("Workspace artifact backfill hook completed (phase2 artifacts verified).")
-                    else:
-                        backfill_failed = True
-                        emit_gate_failure(
-                            gate="PERSISTENCE",
-                            code="BACKFILL_PHASE2_ARTIFACTS_MISSING",
-                            message="Backfill completed but required Phase 2/2.1 artifacts not verified.",
-                            expected="phase2Artifacts.ok==true and status=='ok'",
-                            observed={"summary": summary, "returncode": run.returncode},
-                            remediation="Check artifact paths and permissions, rerun bootstrap.",
-                            config_root=str(config_root),
-                            workspaces_home=str(workspaces_home),
-                            repo_fingerprint=repo_fingerprint,
-                            phase="1.1-Bootstrap",
-                        )
-                        print("ERROR: backfill completed but phase2 artifacts not verified.")
-                        if run.stdout.strip():
-                            print(run.stdout.strip())
-                else:
-                    backfill_failed = True
-                    emit_gate_failure(
-                        gate="PERSISTENCE",
-                        code="BACKFALL_SUMMARY_INVALID",
-                        message="Backfill returned invalid JSON summary.",
-                        expected="JSON summary with phase2Artifacts.ok==true",
-                        observed={"stdout": run.stdout.strip()[:400], "returncode": run.returncode},
-                        remediation="Check persist_workspace_artifacts.py output format.",
-                        config_root=str(config_root),
-                        workspaces_home=str(workspaces_home),
-                        repo_fingerprint=repo_fingerprint,
-                        phase="1.1-Bootstrap",
-                    )
-                    print("ERROR: backfill returned invalid summary.")
-
-                if run.returncode != 0 and not backfill_failed:
-                    backfill_failed = True
-                    emit_gate_failure(
-                        gate="PERSISTENCE",
-                        code="BACKFILL_NON_ZERO_EXIT",
-                        message="Workspace artifact backfill hook returned non-zero.",
-                        expected="Exit code 0 with valid JSON summary",
-                        observed={"returncode": run.returncode, "stderr": run.stderr.strip()[:400]},
-                        remediation="Inspect helper output and rerun bootstrap.",
-                        config_root=str(config_root),
-                        workspaces_home=str(workspaces_home),
-                        repo_fingerprint=repo_fingerprint,
-                        phase="1.1-Bootstrap",
-                    )
-                    print(f"WARNING: backfill exit code {run.returncode}.")
-                    if run.stderr.strip():
-                        print(run.stderr.strip())
-        else:
-            safe_log_error(
-                reason_key="ERR-WORKSPACE-PERSISTENCE-HOOK-MISSING",
-                message="Workspace artifact backfill helper missing during bootstrap.",
-                config_root=config_root,
-                phase="1.1-Bootstrap",
-                gate="PERSISTENCE",
-                mode="repo-aware",
-                repo_fingerprint=repo_fingerprint,
-                command="bootstrap_session_state.py",
-                component="workspace-persistence-hook",
-                observed_value={"helper": str(helper)},
-                expected_constraint="persist_workspace_artifacts.py present under diagnostics",
-                remediation="Reinstall governance package and rerun bootstrap.",
-            )
-            print("WARNING: persist_workspace_artifacts.py not found; skipping artifact backfill hook.")
+    backfill_failed, artifacts_committed = run_workspace_artifact_backfill(
+        skip_artifact_backfill=args.skip_artifact_backfill,
+        script_dir=SCRIPT_DIR,
+        repo_fingerprint=repo_fingerprint,
+        config_root=config_root,
+        repo_root=repo_root,
+        workspaces_home=workspaces_home,
+        python_cmd=sys.executable,
+        writes_allowed=is_write_allowed(),
+        emit_gate_failure=emit_gate_failure,
+        safe_log_error=safe_log_error,
+    )
 
     if backfill_failed:
         workspace_lock.release()
