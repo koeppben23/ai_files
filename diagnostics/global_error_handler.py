@@ -23,7 +23,6 @@ import json
 import os
 import re
 import sys
-import tempfile
 import threading
 import traceback
 import uuid
@@ -33,7 +32,7 @@ from pathlib import Path
 from typing import Any, Callable, ContextManager, Optional
 
 try:
-    from governance.infrastructure.fs_atomic import atomic_write_text
+    from governance.infrastructure.adapters.logging.event_sink import write_jsonl_event
     from governance.infrastructure.path_contract import canonical_config_root, normalize_absolute_path
 except Exception:
     def canonical_config_root() -> Path:
@@ -48,29 +47,15 @@ except Exception:
             raise ValueError(f"{purpose}: path must be absolute")
         return Path(os.path.normpath(os.path.abspath(str(candidate))))
 
-    def atomic_write_text(path: Path, text: str, newline_lf: bool = True, attempts: int = 5, backoff_ms: int = 50) -> int:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        payload = text.replace("\r\n", "\n") if newline_lf else text
-        temp_path: Path | None = None
-        try:
-            with tempfile.NamedTemporaryFile(
-                mode="w",
-                encoding="utf-8",
-                newline="\n" if newline_lf else None,
-                dir=str(path.parent),
-                prefix=path.name + ".",
-                suffix=".tmp",
-                delete=False,
-            ) as tmp:
-                tmp.write(payload)
-                tmp.flush()
-                os.fsync(tmp.fileno())
-                temp_path = Path(tmp.name)
-            os.replace(str(temp_path), str(path))
-            return 0
-        finally:
-            if temp_path is not None and temp_path.exists():
-                temp_path.unlink(missing_ok=True)
+    from governance.infrastructure.fs_atomic import atomic_write_text
+
+    def write_jsonl_event(path: Path, event: dict[str, Any], *, append: bool) -> None:
+        line = json.dumps(event, ensure_ascii=True, separators=(",", ":")) + "\n"
+        if append and path.exists():
+            existing = path.read_text(encoding="utf-8")
+            atomic_write_text(path, existing + line, newline_lf=True)
+            return
+        atomic_write_text(path, line, newline_lf=True)
 
 
 ERROR_HANDLER_INSTALLED = False
@@ -170,33 +155,8 @@ def _emit_jsonl_event(event: dict[str, Any], target_path: Path) -> bool:
     """
     try:
         target_path.parent.mkdir(parents=True, exist_ok=True)
-        line = json.dumps(event, ensure_ascii=True, separators=(",", ":")) + "\n"
-        
-        temp_path: Path | None = None
-        try:
-            with tempfile.NamedTemporaryFile(
-                mode="w",
-                encoding="utf-8",
-                newline="\n",
-                dir=str(target_path.parent),
-                prefix=target_path.name + ".append.",
-                suffix=".tmp",
-                delete=False,
-            ) as tmp:
-                if target_path.exists():
-                    try:
-                        tmp.write(target_path.read_text(encoding="utf-8"))
-                    except Exception:
-                        pass
-                tmp.write(line)
-                tmp.flush()
-                os.fsync(tmp.fileno())
-                temp_path = Path(tmp.name)
-            os.replace(str(temp_path), str(target_path))
-            return True
-        finally:
-            if temp_path is not None and temp_path.exists():
-                temp_path.unlink(missing_ok=True)
+        write_jsonl_event(target_path, event, append=True)
+        return True
     except Exception:
         return False
 

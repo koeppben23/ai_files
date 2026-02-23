@@ -17,6 +17,7 @@ except Exception:
         return False
 
 try:
+    from governance.infrastructure.adapters.logging.event_sink import write_jsonl_event
     from governance.infrastructure.fs_atomic import atomic_write_text
     from governance.infrastructure.path_contract import canonical_config_root, normalize_absolute_path
     from governance.infrastructure.binding_evidence_resolver import BindingEvidenceResolver as ImportedBindingEvidenceResolver
@@ -66,6 +67,14 @@ except Exception:
         finally:
             if temp_path is not None and temp_path.exists():
                 temp_path.unlink(missing_ok=True)
+
+    def write_jsonl_event(path: Path, event: dict[str, Any], *, append: bool) -> None:
+        line = json.dumps(event, ensure_ascii=True, separators=(",", ":")) + "\n"
+        if append and path.exists():
+            existing = path.read_text(encoding="utf-8")
+            atomic_write_text(path, existing + line, newline_lf=True)
+            return
+        atomic_write_text(path, line, newline_lf=True)
 
     class _FallbackBindingEvidence:
         binding_ok = False
@@ -338,7 +347,7 @@ def write_error_event(
     )
 
     # Atomic write (no append): one file per event.
-    atomic_write_text(target, json.dumps(record, ensure_ascii=True) + "\n", newline_lf=True)
+    write_jsonl_event(target, record, append=False)
 
     # Keep same-directory index for fast diagnostics summarization.
     index_path = target.parent / ERROR_INDEX_FILE_NAME
