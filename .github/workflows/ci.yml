@@ -315,6 +315,7 @@ jobs:
                 str(extracted),
                 "--config-root",
                 str(cfg),
+                "--no-session-update",
                 "--quiet",
               ],
               cwd=str(extracted),

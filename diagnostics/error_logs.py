@@ -80,10 +80,13 @@ ERROR_INDEX_FILE_NAME = "errors-index.json"
 def default_config_root() -> Path:
     return canonical_config_root()
 
-# Diagnostics error logging is fail-closed read-only unless explicitly enabled.
-# In pipeline mode, writes are always disabled regardless of env override.
-_is_pipeline = os.environ.get("CI", "").strip().lower() not in {"", "0", "false", "no", "off"}
-READ_ONLY = _is_pipeline or os.environ.get("OPENCODE_DIAGNOSTICS_ALLOW_WRITE", "0") != "1"
+
+try:
+    from diagnostics.write_policy import writes_allowed as _writes_allowed
+    READ_ONLY = not _writes_allowed()
+except ImportError:
+    _is_pipeline = os.environ.get("CI", "").strip().lower() not in {"", "0", "false", "no", "off"}
+    READ_ONLY = _is_pipeline or os.environ.get("OPENCODE_DIAGNOSTICS_ALLOW_WRITE", "0") != "1"
 
 def _load_json(path: Path) -> dict[str, Any] | None:
     try:
