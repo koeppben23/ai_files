@@ -196,7 +196,7 @@ def _canonical_json(data: object) -> str:
 
 def _is_within(path: Path, parent: Path) -> bool:
     try:
-        path.resolve().relative_to(parent.resolve())
+        path.relative_to(parent)
         return True
     except Exception:
         return False
