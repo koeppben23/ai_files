@@ -536,20 +536,29 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Skip invoking diagnostics/persist_workspace_artifacts.py after bootstrap.",
     )
+    parser.add_argument(
+        "--no-commit",
+        action="store_true",
+        help="Initialize workspace session state without pointer write or commit flags.",
+    )
     return parser.parse_args()
 
 
 def main() -> int:
     install_global_handlers()
     args = parse_args()
+    allow_internal_skip = (
+        os.environ.get("OPENCODE_INTERNAL_ALLOW_SKIP_ARTIFACT_BACKFILL", "0") == "1"
+        or args.no_commit
+    )
     
     # P0: Block --skip-artifact-backfill in live runs
-    if args.skip_artifact_backfill and not args.dry_run:
+    if args.skip_artifact_backfill and not args.dry_run and not allow_internal_skip:
         emit_gate_failure(
             gate="BOOTSTRAP",
             code="ARTIFACT_BACKFILL_SKIPPED_IN_LIVE_RUN",
             message="--skip-artifact-backfill is not allowed in live runs.",
-            expected="Remove --skip-artifact-backfill or use --dry-run",
+            expected="Remove --skip-artifact-backfill or use --dry-run (internal calls may set OPENCODE_INTERNAL_ALLOW_SKIP_ARTIFACT_BACKFILL=1)",
             observed={"skip_artifact_backfill": True, "dry_run": False},
             remediation="Remove --skip-artifact-backfill or add --dry-run for inspection only.",
         )
@@ -861,6 +870,11 @@ def main() -> int:
     if backfill_failed:
         workspace_lock.release()
         return 7
+
+    if args.no_commit:
+        print("No-commit mode: initialized workspace session state without pointer/commit flags.")
+        workspace_lock.release()
+        return 0
 
     pointer = pointer_payload(repo_fingerprint, repo_state_file)
     pointer["runId"] = workspace_lock.lock_id
