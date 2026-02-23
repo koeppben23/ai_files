@@ -637,6 +637,7 @@ def main() -> int:
             backfill_command=backfill_command,
             effective_mode=EFFECTIVE_MODE,
             write_policy_reasons=write_policy_reasons(),
+            no_commit=args.no_commit,
         )
         result = service.run(payload)
         if result.ok:

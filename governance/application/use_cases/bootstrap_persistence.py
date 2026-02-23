@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime, timezone
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -34,6 +35,7 @@ class BootstrapInput:
     backfill_command: tuple[str, ...] = field(default_factory=tuple)
     effective_mode: str = "user"
     write_policy_reasons: tuple[str, ...] = field(default_factory=tuple)
+    no_commit: bool = False
 
 
 class BootstrapPersistenceService:
@@ -87,20 +89,15 @@ class BootstrapPersistenceService:
             self._logger.write(event)
             return BootstrapResult(ok=False, gate_code=event.code, write_actions=write_actions, error_events=(event,))
 
-        initial_state = {
-            "SESSION_STATE": {
-                "RepoFingerprint": payload.repo_identity.fingerprint,
-                "writePolicy": {
-                    "mode": payload.effective_mode,
-                    "reasons": list(payload.write_policy_reasons),
-                },
-                "CommitFlags": {
-                    "PersistenceCommitted": False,
-                    "WorkspaceReadyGateCommitted": False,
-                    "WorkspaceArtifactsCommitted": False,
-                },
-            }
-        }
+        initial_state = _session_state_payload(
+            repo_fingerprint=payload.repo_identity.fingerprint,
+            repo_name=payload.repo_identity.repo_name,
+            persistence_committed=False,
+            workspace_ready_committed=False,
+            workspace_artifacts_committed=False,
+            effective_mode=payload.effective_mode,
+            write_policy_reasons=payload.write_policy_reasons,
+        )
         session_state_file = Path(payload.layout.session_state_file)
         identity_map_file = Path(payload.layout.identity_map_file)
         self._fs.write_text_atomic(session_state_file, _canonical_json(initial_state))
@@ -114,6 +111,10 @@ class BootstrapPersistenceService:
         }
         self._fs.write_text_atomic(identity_map_file, _canonical_json(identity_map))
         write_actions["identity_map"] = "written"
+
+        if payload.no_commit:
+            write_actions["no_commit"] = "true"
+            return BootstrapResult(ok=True, gate_code="OK", write_actions=write_actions, error_events=tuple(errors))
 
         if payload.skip_artifact_backfill:
             write_actions["artifact_backfill"] = "skipped"
@@ -171,20 +172,15 @@ class BootstrapPersistenceService:
             return BootstrapResult(ok=False, gate_code=event.code, write_actions=write_actions, error_events=tuple(errors))
         write_actions["pointer_verify"] = "verified"
 
-        final_state = {
-            "SESSION_STATE": {
-                "RepoFingerprint": payload.repo_identity.fingerprint,
-                "writePolicy": {
-                    "mode": payload.effective_mode,
-                    "reasons": list(payload.write_policy_reasons),
-                },
-                "CommitFlags": {
-                    "PersistenceCommitted": True,
-                    "WorkspaceReadyGateCommitted": True,
-                    "WorkspaceArtifactsCommitted": True,
-                },
-            }
-        }
+        final_state = _session_state_payload(
+            repo_fingerprint=payload.repo_identity.fingerprint,
+            repo_name=payload.repo_identity.repo_name,
+            persistence_committed=True,
+            workspace_ready_committed=True,
+            workspace_artifacts_committed=True,
+            effective_mode=payload.effective_mode,
+            write_policy_reasons=payload.write_policy_reasons,
+        )
         self._fs.write_text_atomic(session_state_file, _canonical_json(final_state))
         write_actions["session_state_final"] = "written"
         return BootstrapResult(ok=True, gate_code="OK", write_actions=write_actions, error_events=tuple(errors))
@@ -192,6 +188,85 @@ class BootstrapPersistenceService:
 
 def _canonical_json(data: object) -> str:
     return json.dumps(data, sort_keys=True, separators=(",", ":"), ensure_ascii=True) + "\n"
+
+
+def _session_state_payload(
+    *,
+    repo_fingerprint: str,
+    repo_name: str,
+    persistence_committed: bool,
+    workspace_ready_committed: bool,
+    workspace_artifacts_committed: bool,
+    effective_mode: str,
+    write_policy_reasons: tuple[str, ...],
+) -> dict[str, object]:
+    repository = repo_name.strip() if repo_name.strip() else repo_fingerprint
+    return {
+        "SESSION_STATE": {
+            "RepoFingerprint": repo_fingerprint,
+            "PersistenceCommitted": persistence_committed,
+            "WorkspaceReadyGateCommitted": workspace_ready_committed,
+            "WorkspaceArtifactsCommitted": workspace_artifacts_committed,
+            "phase_transition_evidence": False,
+            "session_state_version": 1,
+            "ruleset_hash": "deferred",
+            "Phase": "1.1-Bootstrap",
+            "Mode": "BLOCKED",
+            "ConfidenceLevel": 0,
+            "Next": "BLOCKED-START-REQUIRED",
+            "OutputMode": "ARCHITECT",
+            "DecisionSurface": {},
+            "Bootstrap": {
+                "Present": False,
+                "Satisfied": False,
+                "Evidence": "not-initialized",
+            },
+            "Scope": {
+                "Repository": repository,
+                "RepositoryType": "",
+                "ExternalAPIs": [],
+                "BusinessRules": "pending",
+            },
+            "LoadedRulebooks": {
+                "core": "",
+                "profile": "",
+                "templates": "",
+                "addons": {},
+            },
+            "AddonsEvidence": {},
+            "RulebookLoadEvidence": {
+                "top_tier": {
+                    "quality_index": "${COMMANDS_HOME}/QUALITY_INDEX.md",
+                    "conflict_resolution": "${COMMANDS_HOME}/CONFLICT_RESOLUTION.md",
+                },
+                "core": "deferred",
+                "profile": "deferred",
+                "templates": "deferred",
+                "addons": {},
+            },
+            "ActiveProfile": "",
+            "ProfileSource": "deferred",
+            "ProfileEvidence": "",
+            "Gates": {
+                "P5-Architecture": "pending",
+                "P5.3-TestQuality": "pending",
+                "P5.4-BusinessRules": "pending",
+                "P5.5-TechnicalDebt": "pending",
+                "P5.6-RollbackSafety": "pending",
+                "P6-ImplementationQA": "pending",
+            },
+            "CreatedAt": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            "writePolicy": {
+                "mode": effective_mode,
+                "reasons": list(write_policy_reasons),
+            },
+            "CommitFlags": {
+                "PersistenceCommitted": persistence_committed,
+                "WorkspaceReadyGateCommitted": workspace_ready_committed,
+                "WorkspaceArtifactsCommitted": workspace_artifacts_committed,
+            },
+        }
+    }
 
 
 def _is_within(path: Path, parent: Path) -> bool:
