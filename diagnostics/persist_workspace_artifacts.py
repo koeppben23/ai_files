@@ -870,7 +870,7 @@ def _append_text(path: Path, content: str, *, dry_run: bool, read_only: bool) ->
     _atomic_write_text(path, existing, read_only=read_only)
 
 
-def _atomic_write_text(path: Path, content: str, *, read_only: bool) -> None:
+def _atomic_write_text(path: Path, content: str, *, read_only: bool = False) -> None:
     if read_only:
         return
     atomic_write_text(path, content, newline_lf=True, attempts=5, backoff_ms=50)
@@ -893,7 +893,7 @@ def _normalize_legacy_placeholder_phrasing(path: Path, *, dry_run: bool, read_on
         return "blocked-read-only"
     if dry_run:
         return "write-requested"
-    _atomic_write_text(path, updated, read_only=read_only)
+    _atomic_write_text(path, updated)
     return "normalized"
 
 
