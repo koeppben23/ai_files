@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -255,7 +254,7 @@ def _session_state_payload(
                 "P5.6-RollbackSafety": "pending",
                 "P6-ImplementationQA": "pending",
             },
-            "CreatedAt": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            "CreatedAt": "deferred",
             "writePolicy": {
                 "mode": effective_mode,
                 "reasons": list(write_policy_reasons),
