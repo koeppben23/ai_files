@@ -1,52 +1,10 @@
-from dataclasses import dataclass
-from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 import json
 import tempfile
 import os
 
-
-class WriteAction(str, Enum):
-    CREATE = "create"
-    OVERWRITE = "overwrite"
-    SKIP = "skip"
-    BLOCKED = "blocked"
-    FAILED = "failed"
-
-
-@dataclass(frozen=True)
-class ActionOutcome:
-    action: WriteAction
-    path: str
-    success: bool
-    error: Optional[str] = None
-    bytes_written: Optional[int] = None
-    
-    def to_dict(self) -> Dict[str, Any]:
-        return {
-            "action": self.action.value,
-            "path": self.path,
-            "success": self.success,
-            "error": self.error,
-            "bytes_written": self.bytes_written,
-        }
-
-
-def derive_file_status(outcome: ActionOutcome) -> str:
-    if not outcome.success:
-        return "failed"
-    
-    if outcome.action == WriteAction.CREATE:
-        return "created"
-    elif outcome.action == WriteAction.OVERWRITE:
-        return "overwritten"
-    elif outcome.action == WriteAction.SKIP:
-        return "unchanged"
-    elif outcome.action == WriteAction.BLOCKED:
-        return "blocked-read-only"
-    
-    return "unknown"
+from diagnostics.io.actions import ActionOutcome, WriteAction
 
 
 def atomic_write_text(path: Path, content: str, dry_run: bool = False) -> ActionOutcome:
@@ -59,6 +17,7 @@ def atomic_write_text(path: Path, content: str, dry_run: bool = False) -> Action
         )
     
     try:
+        existed_before = path.exists()
         path.parent.mkdir(parents=True, exist_ok=True)
         
         fd, tmp_path = tempfile.mkstemp(
@@ -74,12 +33,12 @@ def atomic_write_text(path: Path, content: str, dry_run: bool = False) -> Action
             os.replace(tmp_path, str(path))
             
             return ActionOutcome(
-                action=WriteAction.CREATE if not path.exists() else WriteAction.OVERWRITE,
+                action=WriteAction.OVERWRITE if existed_before else WriteAction.CREATE,
                 path=str(path),
                 success=True,
                 bytes_written=len(content.encode("utf-8")),
             )
-        except Exception as e:
+        except Exception:
             if os.path.exists(tmp_path):
                 os.unlink(tmp_path)
             raise

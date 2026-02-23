@@ -7,6 +7,7 @@ from governance.domain.phase_state_machine import normalize_phase_token, phase_r
 from governance.application.dto.phase_next_action_contract import contains_ticket_prompt
 
 from routing.phase_rank import is_rulebook_required_phase
+from routing.gates import check_persistence_gate, check_rulebook_gate
 
 
 @dataclass(frozen=True)
@@ -32,32 +33,17 @@ def _session_state(session_state_document: Mapping[str, object] | None) -> Mappi
 
 
 def _persistence_gate_passed(state: Mapping[str, object]) -> tuple[bool, str]:
-    if not _persistence_committed(state):
-        return False, "PersistenceCommitted not true"
-
-    workspace_ready_gate = None
-    for key in ("WorkspaceReadyGateCommitted", "workspace_ready_gate_committed"):
-        value = state.get(key)
-        if isinstance(value, bool):
-            workspace_ready_gate = value
-            break
-
-    if workspace_ready_gate is None:
-        return False, "WorkspaceReadyGateCommitted not set"
-    if not workspace_ready_gate:
-        return False, "WorkspaceReadyGateCommitted not true"
-
-    if not _workspace_artifacts_committed(state):
-        return False, "WorkspaceArtifactsCommitted not true"
-
-    if not _pointer_verified(state):
-        return False, "PointerVerified not true"
-
-    return True, "ok"
+    result = check_persistence_gate(state)
+    if result.passed:
+        return True, "ok"
+    return False, result.blocked_reason or "persistence gate failed"
 
 
 def _rulebook_gate_passed(state: Mapping[str, object]) -> tuple[bool, str]:
-    return _rulebooks_loaded(state)
+    result = check_rulebook_gate(state, "")
+    if result.passed:
+        return True, "ok"
+    return False, result.blocked_reason or "rulebook gate failed"
 
 
 def _full_gate_passed(state: Mapping[str, object], *, require_rulebooks: bool = False) -> tuple[bool, str]:
@@ -131,48 +117,6 @@ def _business_rules_discovery_resolved(state: Mapping[str, object]) -> bool:
 def _api_in_scope(state: Mapping[str, object]) -> bool:
     """Check if ANY API signals are present (external artifacts or repo-embedded specs)."""
     return _openapi_signal(state) or _external_api_artifacts(state)
-
-
-def _persistence_committed(state: Mapping[str, object]) -> bool:
-    for key in ("PersistenceCommitted", "persistence_committed", "persistenceCommitted"):
-        value = state.get(key)
-        if isinstance(value, bool):
-            return value
-    return False
-
-
-def _workspace_artifacts_committed(state: Mapping[str, object]) -> bool:
-    for key in ("WorkspaceArtifactsCommitted", "workspace_artifacts_committed"):
-        value = state.get(key)
-        if isinstance(value, bool):
-            return value
-    return False
-
-
-def _pointer_verified(state: Mapping[str, object]) -> bool:
-    for key in ("PointerVerified", "pointer_verified"):
-        value = state.get(key)
-        if isinstance(value, bool):
-            return value
-    return False
-
-
-def _rulebooks_loaded(state: Mapping[str, object]) -> tuple[bool, str]:
-    loaded = state.get("LoadedRulebooks")
-    if not isinstance(loaded, Mapping):
-        return False, "LoadedRulebooks not set"
-    
-    core = loaded.get("core")
-    if not isinstance(core, str) or not core.strip():
-        return False, "core rulebook not loaded"
-    
-    active_profile = state.get("ActiveProfile")
-    if isinstance(active_profile, str) and active_profile.strip():
-        profile = loaded.get("profile")
-        if not isinstance(profile, str) or not profile.strip():
-            return False, f"profile rulebook '{active_profile}' not loaded"
-    
-    return True, "ok"
 
 
 def _extract_fingerprint(state: Mapping[str, object]) -> str:
@@ -293,7 +237,9 @@ def route_phase(
         target_phase_token = phase_token
     
     if is_rulebook_required_phase(target_phase_token):
-        rulebooks_ok, rulebooks_reason = _rulebook_gate_passed(state)
+        gate_result = check_rulebook_gate(state, target_phase_token)
+        rulebooks_ok = gate_result.passed
+        rulebooks_reason = gate_result.blocked_reason or "rulebook gate failed"
         if not rulebooks_ok:
             return RoutedPhase(
                 phase="1.3-RulebookLoad",
