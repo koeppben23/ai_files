@@ -1,7 +1,7 @@
 from pathlib import Path
 
-from adapters.filesystem.atomic_write import atomic_write_action
-from kernel.domain.models.write_action import is_written
+from governance.domain.models.write_action import is_written
+from governance.infrastructure.adapters.filesystem.atomic_write import atomic_write_action
 
 
 def test_write_action_not_written_for_read_only() -> None:

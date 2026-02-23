@@ -1,4 +1,4 @@
-from kernel.use_cases.route_phase import RoutedPhase
+from governance.application.use_cases.route_phase import RoutedPhase
 
 
 def test_routed_phase_shape() -> None:
