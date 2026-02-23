@@ -627,7 +627,7 @@ def main() -> int:
     pointer_file = session_pointer_path(config_root)
     identity_map_file = workspaces_home / repo_fingerprint / "repo-identity-map.yaml"
 
-    if _is_within(pointer_file, repo_root):
+    if (repo_root / ".git").exists() and _is_within(pointer_file, repo_root):
         emit_gate_failure(
             gate="BOOTSTRAP",
             code="POINTER_PATH_INSIDE_REPO",
