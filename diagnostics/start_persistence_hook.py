@@ -83,6 +83,34 @@ except ImportError as exc:
     }, ensure_ascii=True))
     sys.exit(1)
 
+_run_bootstrap_dispatch = cast(Any, None)
+try:
+    from bootstrap.dispatch import run_bootstrap_dispatch as _bootstrap_dispatch
+    _run_bootstrap_dispatch = cast(Any, _bootstrap_dispatch)
+except ImportError:
+    def _fallback_bootstrap_dispatch(*, command, cwd):  # type: ignore
+        proc = subprocess.run(
+            list(command),
+            text=True,
+            capture_output=True,
+            check=False,
+            cwd=str(cwd),
+        )
+
+        class _FallbackDispatchResult:
+            def __init__(self, returncode: int, stdout: str, stderr: str):
+                self.returncode = returncode
+                self.stdout = stdout
+                self.stderr = stderr
+
+        return _FallbackDispatchResult(
+            returncode=proc.returncode,
+            stdout=proc.stdout or "",
+            stderr=proc.stderr or "",
+        )
+
+    _run_bootstrap_dispatch = cast(Any, _fallback_bootstrap_dispatch)
+
 
 def _resolve_bindings(*, mode: str) -> tuple[Path, Path, bool, Path | None, str]:
     """Resolve binding evidence paths for the current mode.
@@ -418,13 +446,7 @@ def run_persistence_hook(*, repo_root: Path | None = None) -> dict[str, object]:
     ]
 
     try:
-        proc = subprocess.run(
-            cmd,
-            text=True,
-            capture_output=True,
-            check=False,
-            cwd=str(resolved_root),
-        )
+        proc = _run_bootstrap_dispatch(command=cmd, cwd=resolved_root)
         if proc.returncode == 0:
             pointer_ok, pointer_reason = _verify_pointer_exists(COMMANDS_HOME.parent, repo_fp)
             if not pointer_ok:
