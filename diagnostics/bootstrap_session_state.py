@@ -575,7 +575,16 @@ def main() -> int:
         except Exception:
             pass
     if repo_root_source is None:
-        repo_root_source = Path.cwd()
+        emit_gate_failure(
+            gate="BOOTSTRAP",
+            code="REPO_ROOT_STRICT_REQUIRED",
+            message="Repo root could not be determined (strict mode).",
+            expected="Provide --repo-root, set OPENCODE_REPO_ROOT, or run from within a git repository",
+            observed={"cwd": str(Path.cwd())},
+            remediation="Run from within a git repository or provide --repo-root explicitly.",
+        )
+        print("ERROR: repo root not determined (strict mode - no CWD fallback).")
+        return 2
 
     repo_root = normalize_absolute_path(str(repo_root_source), purpose="repoRoot")
     if (repo_root / ".git").exists() and _is_within(config_root, repo_root):
@@ -742,6 +751,7 @@ def main() -> int:
                 str(config_root),
                 "--repo-root",
                 str(repo_root),
+                "--require-phase2",
                 "--skip-lock",
                 "--quiet",
             ]
@@ -749,34 +759,73 @@ def main() -> int:
             if is_write_allowed():
                 env["OPENCODE_DIAGNOSTICS_ALLOW_WRITE"] = "1"
             run = subprocess.run(cmd, text=True, capture_output=True, check=False, env=env)
-            if run.returncode == 0:
-                print("Workspace artifact backfill hook completed.")
-                artifacts_committed = True
+            
+            summary = None
+            if run.stdout.strip():
+                try:
+                    summary = json.loads(run.stdout.strip())
+                except json.JSONDecodeError:
+                    pass
+            
+            phase2_ok = False
+            if isinstance(summary, dict):
+                phase2_artifacts = summary.get("phase2Artifacts", {})
+                if isinstance(phase2_artifacts, dict):
+                    phase2_ok = phase2_artifacts.get("ok") is True
+                status_ok = summary.get("status") == "ok"
+                if phase2_ok and status_ok:
+                    artifacts_committed = True
+                    print("Workspace artifact backfill hook completed (phase2 artifacts verified).")
+                else:
+                    backfill_failed = True
+                    emit_gate_failure(
+                        gate="PERSISTENCE",
+                        code="BACKFILL_PHASE2_ARTIFACTS_MISSING",
+                        message="Backfill completed but required Phase 2/2.1 artifacts not verified.",
+                        expected="phase2Artifacts.ok==true and status=='ok'",
+                        observed={"summary": summary, "returncode": run.returncode},
+                        remediation="Check artifact paths and permissions, rerun bootstrap.",
+                        config_root=str(config_root),
+                        workspaces_home=str(workspaces_home),
+                        repo_fingerprint=repo_fingerprint,
+                        phase="1.1-Bootstrap",
+                    )
+                    print("ERROR: backfill completed but phase2 artifacts not verified.")
+                    if run.stdout.strip():
+                        print(run.stdout.strip())
             else:
-                safe_log_error(
-                    reason_key="ERR-WORKSPACE-PERSISTENCE-HOOK-FAILED",
-                    message="Workspace artifact backfill hook returned non-zero.",
-                    config_root=config_root,
-                    phase="1.1-Bootstrap",
+                backfill_failed = True
+                emit_gate_failure(
                     gate="PERSISTENCE",
-                    mode="repo-aware",
+                    code="BACKFALL_SUMMARY_INVALID",
+                    message="Backfill returned invalid JSON summary.",
+                    expected="JSON summary with phase2Artifacts.ok==true",
+                    observed={"stdout": run.stdout.strip()[:400], "returncode": run.returncode},
+                    remediation="Check persist_workspace_artifacts.py output format.",
+                    config_root=str(config_root),
+                    workspaces_home=str(workspaces_home),
                     repo_fingerprint=repo_fingerprint,
-                    command="bootstrap_session_state.py",
-                    component="workspace-persistence-hook",
-                    observed_value={
-                        "returncode": run.returncode,
-                        "stdout": run.stdout.strip()[:400],
-                        "stderr": run.stderr.strip()[:400],
-                    },
-                    expected_constraint="persist_workspace_artifacts.py must return code 0",
-                    remediation="Inspect helper output and rerun bootstrap or backfill manually.",
+                    phase="1.1-Bootstrap",
                 )
-                print("WARNING: workspace artifact backfill hook failed; bootstrap state was still written.")
-                if run.stdout.strip():
-                    print(run.stdout.strip())
+                print("ERROR: backfill returned invalid summary.")
+            
+            if run.returncode != 0 and not backfill_failed:
+                backfill_failed = True
+                emit_gate_failure(
+                    gate="PERSISTENCE",
+                    code="BACKFILL_NON_ZERO_EXIT",
+                    message="Workspace artifact backfill hook returned non-zero.",
+                    expected="Exit code 0 with valid JSON summary",
+                    observed={"returncode": run.returncode, "stderr": run.stderr.strip()[:400]},
+                    remediation="Inspect helper output and rerun bootstrap.",
+                    config_root=str(config_root),
+                    workspaces_home=str(workspaces_home),
+                    repo_fingerprint=repo_fingerprint,
+                    phase="1.1-Bootstrap",
+                )
+                print(f"WARNING: backfill exit code {run.returncode}.")
                 if run.stderr.strip():
                     print(run.stderr.strip())
-                backfill_failed = True
         else:
             safe_log_error(
                 reason_key="ERR-WORKSPACE-PERSISTENCE-HOOK-MISSING",
@@ -805,19 +854,16 @@ def main() -> int:
     print("Global SESSION_STATE pointer written.")
 
     if not pointer_file.is_file():
-        safe_log_error(
-            reason_key="ERR-POINTER-WRITE-VERIFICATION-FAILED",
-            message="Pointer file does not exist after atomic write.",
-            config_root=config_root,
-            phase="1.1-Bootstrap",
+        emit_gate_failure(
             gate="BOOTSTRAP",
-            mode="repo-aware",
-            repo_fingerprint=repo_fingerprint,
-            command="bootstrap_session_state.py",
-            component="session-pointer",
-            observed_value={"pointerFile": str(pointer_file)},
-            expected_constraint="Pointer file must exist after atomic write",
+            code="POINTER_WRITE_VERIFICATION_FAILED",
+            message="Pointer file does not exist after atomic write.",
+            expected="Pointer file must exist after atomic write",
+            observed={"pointerFile": str(pointer_file)},
             remediation="Check filesystem permissions and disk space.",
+            config_root=str(config_root),
+            repo_fingerprint=repo_fingerprint,
+            phase="1.1-Bootstrap",
         )
         print("ERROR: pointer verification failed - file does not exist after write.")
         workspace_lock.release()
@@ -825,19 +871,16 @@ def main() -> int:
 
     pointer_verify = _load_json(pointer_file)
     if not pointer_verify or pointer_verify.get("schema") != "opencode-session-pointer.v1":
-        safe_log_error(
-            reason_key="ERR-POINTER-SCHEMA-VERIFICATION-FAILED",
-            message="Pointer file has invalid schema after write.",
-            config_root=config_root,
-            phase="1.1-Bootstrap",
+        emit_gate_failure(
             gate="BOOTSTRAP",
-            mode="repo-aware",
-            repo_fingerprint=repo_fingerprint,
-            command="bootstrap_session_state.py",
-            component="session-pointer",
-            observed_value={"pointerFile": str(pointer_file), "schema": pointer_verify.get("schema") if pointer_verify else None},
-            expected_constraint="Pointer must have schema 'opencode-session-pointer.v1'",
+            code="POINTER_SCHEMA_VERIFICATION_FAILED",
+            message="Pointer file has invalid schema after write.",
+            expected="Pointer must have schema 'opencode-session-pointer.v1'",
+            observed={"pointerFile": str(pointer_file), "schema": pointer_verify.get("schema") if pointer_verify else None},
             remediation="Check filesystem integrity and retry.",
+            config_root=str(config_root),
+            repo_fingerprint=repo_fingerprint,
+            phase="1.1-Bootstrap",
         )
         print("ERROR: pointer verification failed - invalid schema.")
         workspace_lock.release()
@@ -845,19 +888,16 @@ def main() -> int:
 
     pointer_fp = pointer_verify.get("activeRepoFingerprint") if isinstance(pointer_verify, dict) else None
     if pointer_fp != repo_fingerprint:
-        safe_log_error(
-            reason_key="ERR-POINTER-FINGERPRINT-MISMATCH",
-            message="Pointer fingerprint does not match bootstrap fingerprint.",
-            config_root=config_root,
-            phase="1.1-Bootstrap",
+        emit_gate_failure(
             gate="BOOTSTRAP",
-            mode="repo-aware",
-            repo_fingerprint=repo_fingerprint,
-            command="bootstrap_session_state.py",
-            component="session-pointer",
-            observed_value={"pointerFingerprint": pointer_fp, "bootstrapFingerprint": repo_fingerprint},
-            expected_constraint="Pointer fingerprint must match bootstrap fingerprint",
+            code="POINTER_FINGERPRINT_MISMATCH",
+            message="Pointer fingerprint does not match bootstrap fingerprint.",
+            expected="Pointer fingerprint must match bootstrap fingerprint",
+            observed={"pointerFingerprint": pointer_fp, "bootstrapFingerprint": repo_fingerprint},
             remediation="Check pointer file integrity and rerun bootstrap.",
+            config_root=str(config_root),
+            repo_fingerprint=repo_fingerprint,
+            phase="1.1-Bootstrap",
         )
         print(f"ERROR: pointer fingerprint mismatch - expected {repo_fingerprint}, got {pointer_fp}")
         workspace_lock.release()
