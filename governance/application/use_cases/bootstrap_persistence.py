@@ -30,6 +30,10 @@ class BootstrapInput:
     layout: WorkspaceLayout
     required_artifacts: tuple[str, ...]
     force_read_only: bool = False
+    skip_artifact_backfill: bool = False
+    backfill_command: tuple[str, ...] = field(default_factory=tuple)
+    effective_mode: str = "user"
+    write_policy_reasons: tuple[str, ...] = field(default_factory=tuple)
 
 
 class BootstrapPersistenceService:
@@ -49,6 +53,29 @@ class BootstrapPersistenceService:
         errors: list[ErrorEvent] = []
 
         policy = compute_write_policy(force_read_only=payload.force_read_only)
+        config_root = Path(payload.binding.config_root)
+        repo_root = Path(payload.repo_identity.repo_root)
+        pointer_file = Path(payload.layout.pointer_file)
+        if _is_within(config_root, repo_root):
+            event = ErrorEvent(
+                code="CONFIG_ROOT_INSIDE_REPO",
+                severity="error",
+                message="Config root resolves inside repository root.",
+                expected="configRoot outside repoRoot",
+                observed={"configRoot": str(config_root), "repoRoot": str(repo_root)},
+            )
+            self._logger.write(event)
+            return BootstrapResult(ok=False, gate_code=event.code, write_actions=write_actions, error_events=(event,))
+        if _is_within(pointer_file, repo_root):
+            event = ErrorEvent(
+                code="POINTER_PATH_INSIDE_REPO",
+                severity="error",
+                message="Pointer path resolves inside repository root.",
+                expected="pointer path outside repoRoot",
+                observed={"pointerFile": str(pointer_file), "repoRoot": str(repo_root)},
+            )
+            self._logger.write(event)
+            return BootstrapResult(ok=False, gate_code=event.code, write_actions=write_actions, error_events=(event,))
         if not policy.writes_allowed:
             event = ErrorEvent(
                 code="PERSISTENCE_READ_ONLY",
@@ -63,6 +90,10 @@ class BootstrapPersistenceService:
         initial_state = {
             "SESSION_STATE": {
                 "RepoFingerprint": payload.repo_identity.fingerprint,
+                "writePolicy": {
+                    "mode": payload.effective_mode,
+                    "reasons": list(payload.write_policy_reasons),
+                },
                 "CommitFlags": {
                     "PersistenceCommitted": False,
                     "WorkspaceReadyGateCommitted": False,
@@ -72,8 +103,6 @@ class BootstrapPersistenceService:
         }
         session_state_file = Path(payload.layout.session_state_file)
         identity_map_file = Path(payload.layout.identity_map_file)
-        pointer_file = Path(payload.layout.pointer_file)
-
         self._fs.write_text_atomic(session_state_file, _canonical_json(initial_state))
         write_actions["session_state_initial"] = "written"
 
@@ -86,19 +115,25 @@ class BootstrapPersistenceService:
         self._fs.write_text_atomic(identity_map_file, _canonical_json(identity_map))
         write_actions["identity_map"] = "written"
 
-        run = self._runner.run([payload.binding.python_command, "diagnostics/persist_workspace_artifacts.py"])
-        if run.returncode != 0:
-            event = ErrorEvent(
-                code="BACKFILL_NON_ZERO_EXIT",
-                severity="error",
-                message="Artifact backfill failed.",
-                expected="return code 0",
-                observed={"returncode": run.returncode, "stderr": run.stderr[:240]},
-            )
-            self._logger.write(event)
-            errors.append(event)
-            return BootstrapResult(ok=False, gate_code=event.code, write_actions=write_actions, error_events=tuple(errors))
-        write_actions["artifact_backfill"] = "completed"
+        if payload.skip_artifact_backfill:
+            write_actions["artifact_backfill"] = "skipped"
+        else:
+            command = list(payload.backfill_command)
+            if not command:
+                command = [payload.binding.python_command, "diagnostics/persist_workspace_artifacts.py"]
+            run = self._runner.run(command)
+            if run.returncode != 0:
+                event = ErrorEvent(
+                    code="BACKFILL_NON_ZERO_EXIT",
+                    severity="error",
+                    message="Artifact backfill failed.",
+                    expected="return code 0",
+                    observed={"returncode": run.returncode, "stderr": run.stderr[:240]},
+                )
+                self._logger.write(event)
+                errors.append(event)
+                return BootstrapResult(ok=False, gate_code=event.code, write_actions=write_actions, error_events=tuple(errors))
+            write_actions["artifact_backfill"] = "completed"
 
         missing = [path for path in payload.required_artifacts if not self._fs.exists(Path(path))]
         if missing:
@@ -139,6 +174,10 @@ class BootstrapPersistenceService:
         final_state = {
             "SESSION_STATE": {
                 "RepoFingerprint": payload.repo_identity.fingerprint,
+                "writePolicy": {
+                    "mode": payload.effective_mode,
+                    "reasons": list(payload.write_policy_reasons),
+                },
                 "CommitFlags": {
                     "PersistenceCommitted": True,
                     "WorkspaceReadyGateCommitted": True,
@@ -153,3 +192,11 @@ class BootstrapPersistenceService:
 
 def _canonical_json(data: object) -> str:
     return json.dumps(data, sort_keys=True, separators=(",", ":"), ensure_ascii=True) + "\n"
+
+
+def _is_within(path: Path, parent: Path) -> bool:
+    try:
+        path.resolve().relative_to(parent.resolve())
+        return True
+    except Exception:
+        return False

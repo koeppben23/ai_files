@@ -43,16 +43,13 @@ import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
-_is_pipeline = os.environ.get("CI", "").strip().lower() not in {"", "0", "false", "no", "off"}
-
-
 SCRIPT_DIR = Path(os.path.abspath(__file__)).parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 if str(SCRIPT_DIR.parent) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR.parent))
 
-from diagnostics.write_policy import EFFECTIVE_MODE, is_write_allowed, writes_allowed
+from diagnostics.write_policy import EFFECTIVE_MODE, is_write_allowed, write_policy_reasons, writes_allowed
 
 try:
     from bootstrap.session_backfill import run_workspace_artifact_backfill
@@ -172,6 +169,14 @@ except Exception:  # pragma: no cover
         return {"status": "log-disabled"}
 
 from workspace_lock import acquire_workspace_lock
+try:
+    from governance.application.use_cases.bootstrap_persistence import (
+        BootstrapInput,
+        BootstrapPersistenceService,
+    )
+    from governance.domain.errors.events import ErrorEvent as GovernanceErrorEvent
+except Exception:
+    BootstrapPersistenceService = None  # type: ignore
 try:
     from governance.infrastructure.fs_atomic import atomic_write_text
 except Exception:
@@ -369,6 +374,50 @@ def _upsert_repo_identity_map(workspaces_home: Path, repo_fingerprint: str, repo
     return "updated"
 
 
+class _GovernanceFSAdapter:
+    def read_text(self, path: Path) -> str:
+        return path.read_text(encoding="utf-8")
+
+    def write_text_atomic(self, path: Path, content: str) -> None:
+        _atomic_write_text(path, content)
+
+    def exists(self, path: Path) -> bool:
+        return path.exists()
+
+
+class _GovernanceRunnerAdapter:
+    class _Result:
+        def __init__(self, returncode: int, stdout: str, stderr: str):
+            self.returncode = returncode
+            self.stdout = stdout
+            self.stderr = stderr
+
+    def run(self, argv: list[str], env: dict[str, str] | None = None):
+        run = subprocess.run(argv, text=True, capture_output=True, check=False, env=env)
+        return self._Result(returncode=run.returncode, stdout=run.stdout, stderr=run.stderr)
+
+
+class _GovernanceLoggerAdapter:
+    def __init__(self, *, config_root: Path, workspaces_home: Path, repo_fingerprint: str):
+        self._config_root = config_root
+        self._workspaces_home = workspaces_home
+        self._repo_fingerprint = repo_fingerprint
+
+    def write(self, event: "GovernanceErrorEvent") -> None:
+        emit_gate_failure(
+            gate="BOOTSTRAP",
+            code=event.code,
+            message=event.message,
+            expected=event.expected,
+            observed=event.observed,
+            remediation=event.remediation,
+            config_root=str(self._config_root),
+            workspaces_home=str(self._workspaces_home),
+            repo_fingerprint=self._repo_fingerprint,
+            phase="1.1-Bootstrap",
+        )
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
@@ -529,6 +578,81 @@ def main() -> int:
     print(f"Repo SESSION_STATE file: {repo_state_file}")
     print(f"Global pointer file: {pointer_file}")
     print(f"Repo identity map file: {identity_map_file}")
+
+    if BootstrapPersistenceService is not None and not args.dry_run:
+        from governance.application.use_cases.bootstrap_persistence import BootstrapInput
+        from governance.domain.models.binding import Binding
+        from governance.domain.models.layouts import WorkspaceLayout
+        from governance.domain.models.repo_identity import RepoIdentity
+
+        backfill_command: tuple[str, ...] = (
+            sys.executable,
+            str(SCRIPT_DIR / "persist_workspace_artifacts.py"),
+            "--repo-fingerprint",
+            repo_fingerprint,
+            "--config-root",
+            str(config_root),
+            "--repo-root",
+            str(repo_root),
+            "--require-phase2",
+            "--skip-lock",
+            "--quiet",
+        )
+        service = BootstrapPersistenceService(
+            fs=_GovernanceFSAdapter(),
+            runner=_GovernanceRunnerAdapter(),  # type: ignore[arg-type]
+            logger=_GovernanceLoggerAdapter(
+                config_root=config_root,
+                workspaces_home=workspaces_home,
+                repo_fingerprint=repo_fingerprint,
+            ),
+        )
+        payload = BootstrapInput(
+            repo_identity=RepoIdentity(
+                repo_root=str(repo_root),
+                fingerprint=repo_fingerprint,
+                repo_name=(args.repo_name or repo_root.name or repo_fingerprint),
+                source="diagnostics.bootstrap",
+            ),
+            binding=Binding(
+                config_root=str(config_root),
+                commands_home=str(config_root / "commands"),
+                workspaces_home=str(workspaces_home),
+                python_command=sys.executable,
+            ),
+            layout=WorkspaceLayout(
+                repo_home=str(workspaces_home / repo_fingerprint),
+                session_state_file=str(repo_state_file),
+                identity_map_file=str(identity_map_file),
+                pointer_file=str(pointer_file),
+            ),
+            required_artifacts=(
+                str(workspaces_home / repo_fingerprint / "repo-cache.yaml"),
+                str(workspaces_home / repo_fingerprint / "repo-map-digest.md"),
+                str(workspaces_home / repo_fingerprint / "workspace-memory.yaml"),
+                str(workspaces_home / repo_fingerprint / "decision-pack.md"),
+            ),
+            force_read_only=not _writes_allowed(),
+            skip_artifact_backfill=args.skip_artifact_backfill,
+            backfill_command=backfill_command,
+            effective_mode=EFFECTIVE_MODE,
+            write_policy_reasons=write_policy_reasons(),
+        )
+        result = service.run(payload)
+        if result.ok:
+            workspace_lock.release()
+            return 0
+        if result.gate_code in {"CONFIG_ROOT_INSIDE_REPO", "POINTER_PATH_INSIDE_REPO"}:
+            workspace_lock.release()
+            return 5
+        if result.gate_code in {"BACKFILL_NON_ZERO_EXIT", "PHASE2_ARTIFACTS_MISSING"}:
+            workspace_lock.release()
+            return 7
+        if result.gate_code == "POINTER_VERIFY_FAILED":
+            workspace_lock.release()
+            return 9
+        workspace_lock.release()
+        return 2
 
     pointer_existing = _load_json(pointer_file)
     pointer_has_legacy_payload = isinstance(pointer_existing, dict) and "SESSION_STATE" in pointer_existing
