@@ -89,14 +89,16 @@ def default_config_root() -> Path:
 
 try:
     from diagnostics.write_policy import writes_allowed
-    READ_ONLY = not writes_allowed()
 except ImportError:
-    _is_pipeline = os.environ.get("CI", "").strip().lower() not in {"", "0", "false", "no", "off"}
-    READ_ONLY = _is_pipeline or os.environ.get("OPENCODE_DIAGNOSTICS_ALLOW_WRITE", "0") != "1"
-    writes_allowed = lambda: not READ_ONLY
+    def writes_allowed() -> bool:  # type: ignore[no-redef]
+        return os.environ.get("OPENCODE_DIAGNOSTICS_ALLOW_WRITE", "0") == "1"
 
-# SSOT enforcement - override with strict policy
+
 READ_ONLY = not writes_allowed()
+
+
+def _read_only() -> bool:
+    return not writes_allowed()
 
 def _load_json(path: Path) -> dict[str, Any] | None:
     try:
@@ -294,7 +296,7 @@ def write_error_event(
     retention_days: int = DEFAULT_RETENTION_DAYS,
 ) -> Path:
     cfg, workspaces_home = resolve_paths(config_root)
-    if READ_ONLY:
+    if _read_only():
         raise RuntimeError("diagnostics-read-only")
     target = _target_log_file(cfg, workspaces_home, repo_fingerprint)
     target.parent.mkdir(parents=True, exist_ok=True)
@@ -352,7 +354,7 @@ def write_error_event(
 
 
 def safe_log_error(**kwargs: Any) -> dict[str, str]:
-    if READ_ONLY:
+    if _read_only():
         # SSOT: Always write errors for gate failures and critical diagnostics
         if kwargs.get("gate"):
             try:
