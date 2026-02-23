@@ -3609,7 +3609,7 @@ def test_error_logger_uses_ssot_write_policy(tmp_path: Path, monkeypatch: pytest
     spec.loader.exec_module(mod)
 
     # With SSOT, CI mode allows writes unless FORCE_READ_ONLY=1
-    assert mod.READ_ONLY is False, "CI mode should allow writes (SSOT) unless FORCE_READ_ONLY=1"
+    assert mod._read_only() is False, "CI mode should allow writes (SSOT) unless FORCE_READ_ONLY=1"
 
     cfg = tmp_path / "opencode-config"
     write_governance_paths(cfg)
