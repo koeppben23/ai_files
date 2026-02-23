@@ -1,1 +1,0 @@
-"""Logging adapter implementations."""
