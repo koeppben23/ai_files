@@ -55,6 +55,11 @@ def session_state_template(repo_fingerprint: str, repo_name: str | None) -> dict
             "Next": "BLOCKED-START-REQUIRED",
             "OutputMode": "ARCHITECT",
             "DecisionSurface": {},
+            "Kernel": {
+                "PhaseApiPath": "${COMMANDS_HOME}/phase_api.yaml",
+                "PhaseApiSha256": "",
+                "LastPhaseEventId": "",
+            },
             "Bootstrap": {
                 "Present": False,
                 "Satisfied": False,

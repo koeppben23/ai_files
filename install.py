@@ -64,7 +64,7 @@ safe_log_error = _load_error_logger()
 VERSION = "1.1.0-RC.2"
 # Files copied into <config_root>/commands
 # Strategy: copy (almost) all repo-root governance artifacts that are relevant at runtime.
-# - Include: *.md, *.json, LICENSE (if present)
+# - Include: *.md, *.json, LICENSE (if present), explicit runtime specs
 # - Exclude: installer scripts themselves
 EXCLUDE_ROOT_FILES = {
     "install.py",
@@ -78,6 +78,10 @@ EXCLUDE_ROOT_FILES = {
     ".commitlintrc",
     ".commitlintrc.js",
     ".commitlintrc.cjs",
+}
+
+INCLUDE_ROOT_FILES = {
+    "phase_api.yaml",
 }
 
 # Profiles copied into <config_root>/commands/profiles/**
@@ -352,6 +356,10 @@ def collect_command_root_files(source_dir: Path, *, with_agent_rails: bool = Fal
             continue
 
         if name.lower().startswith("license"):
+            files.append(p)
+            continue
+
+        if name in INCLUDE_ROOT_FILES:
             files.append(p)
             continue
 
