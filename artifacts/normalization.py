@@ -1,4 +1,15 @@
+import re
 from typing import Tuple
+
+
+_LEGACY_DECISION_PACK_PATTERNS = (
+    re.compile(r"(?im)^\s*A\)\s*Yes\s*$"),
+    re.compile(r"(?im)^\s*B\)\s*No\s*$"),
+)
+
+
+def has_legacy_decision_pack_ab_prompt(text: str) -> bool:
+    return any(pattern.search(text) is not None for pattern in _LEGACY_DECISION_PACK_PATTERNS)
 
 
 def normalize_legacy_placeholder_phrasing(text: str) -> Tuple[str, bool]:
@@ -16,4 +27,10 @@ def normalize_legacy_placeholder_phrasing(text: str) -> Tuple[str, bool]:
     updated = text
     for old, new in replacements.items():
         updated = updated.replace(old, new)
+    updated = re.sub(r"(?im)^\s*A\)\s*Yes\s*$", "Status: automatic", updated)
+    updated = re.sub(
+        r"(?im)^\s*B\)\s*No\s*$",
+        "Action: Auto-run lightweight Phase 1.5 bootstrap when business-rules inventory is missing.",
+        updated,
+    )
     return updated, updated != text

@@ -89,3 +89,4 @@ def test_start_persistence_hook_blocked_when_writes_not_allowed(tmp_path: Path, 
     assert result.get("workspacePersistenceHook") == "blocked"
     assert result.get("reason_code") == "BLOCKED-WORKSPACE-PERSISTENCE"
     assert result.get("writes_allowed") is False
+    assert str(result.get("log_path", "")).endswith("error.log.jsonl")

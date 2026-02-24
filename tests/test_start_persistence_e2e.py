@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import shlex
 import shutil
 import subprocess
 import sys
@@ -35,6 +36,17 @@ def _run(cmd: list[str], *, cwd: Path, env: dict[str, str]) -> subprocess.Comple
         stderr=subprocess.PIPE,
         check=False,
     )
+
+
+def _assert_no_blocked_gate_failures(log_path: Path) -> None:
+    if not log_path.exists():
+        return
+    lines = [line for line in log_path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    for line in lines:
+        payload = json.loads(line)
+        joined = json.dumps(payload, ensure_ascii=True).upper()
+        assert "BLOCKED" not in joined
+        assert "GATE_FAILURE" not in joined
 
 
 def _git_init_repo(repo: Path) -> None:
@@ -129,6 +141,17 @@ def test_start_preflight_persists_workspace_and_pointer(tmp_path: Path) -> None:
     hook = next((p for p in payloads if isinstance(p, dict) and "workspacePersistenceHook" in p), None)
     assert hook is not None, proc.stdout
     assert hook.get("workspacePersistenceHook") == "ok"
+    hook_command = str(hook.get("bootstrap_hook_command") or "")
+    if os.name == "nt":
+        assert " -m diagnostics.start_persistence_hook" in hook_command
+        assert Path(hook_command.split(" -m ", 1)[0]).name.lower().startswith("python")
+    else:
+        hook_argv = shlex.split(hook_command)
+        assert len(hook_argv) >= 3
+        assert hook_argv[0] == sys.executable
+        assert hook_argv[1:3] == ["-m", "diagnostics.start_persistence_hook"]
+    assert hook.get("cwd") == str(repo)
+    assert hook.get("repo_root_detected") == str(repo)
     repo_fp = str(hook.get("repo_fingerprint") or "").strip()
     assert repo_fp, hook
 
@@ -136,6 +159,9 @@ def test_start_preflight_persists_workspace_and_pointer(tmp_path: Path) -> None:
     assert workspace.exists() and workspace.is_dir()
     assert (workspace / "SESSION_STATE.json").exists()
     assert (workspace / "repo-identity-map.yaml").exists()
+    assert (workspace / "repo-cache.yaml").exists()
+    assert (workspace / "workspace-memory.yaml").exists()
+    assert (workspace / "decision-pack.md").exists()
 
     state = json.loads((workspace / "SESSION_STATE.json").read_text(encoding="utf-8"))
     ss = state.get("SESSION_STATE", {})
@@ -144,6 +170,13 @@ def test_start_preflight_persists_workspace_and_pointer(tmp_path: Path) -> None:
     assert ss.get("WorkspaceReadyGateCommitted") is True
 
     assert (config_root / "SESSION_STATE.json").exists()
+
+    decision_pack_text = (workspace / "decision-pack.md").read_text(encoding="utf-8")
+    assert "A) Yes" not in decision_pack_text
+    assert "B) No" not in decision_pack_text
+
+    _assert_no_blocked_gate_failures(workspace / "logs" / "error.log.jsonl")
+    _assert_no_blocked_gate_failures(config_root / "logs" / "error.log.jsonl")
 
 
 @pytest.mark.e2e_governance

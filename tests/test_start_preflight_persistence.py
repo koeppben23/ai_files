@@ -135,43 +135,90 @@ def test_run_persistence_hook_blocks_when_writes_not_allowed(monkeypatch: pytest
 @pytest.mark.governance
 def test_run_persistence_hook_delegates_to_hook_module(capsys: pytest.CaptureFixture[str]):
     module = _load_module_with_env({"CI": ""})
-    
-    mock_hook_result = {
-        "workspacePersistenceHook": "ok",
-        "reason": "bootstrap-completed",
-        "repo_fingerprint": "testfingerprint123456",
-        "writes_allowed": True,
-    }
-    
-    with patch.dict(
-        "sys.modules",
-        {"diagnostics.start_persistence_hook": MagicMock(run_persistence_hook=MagicMock(return_value=mock_hook_result))}
-    ):
-        result = module.run_persistence_hook()
-    
+
+    repo_root = REPO_ROOT
+    mock_proc = MagicMock()
+    mock_proc.returncode = 0
+    mock_proc.stdout = json.dumps(
+        {
+            "workspacePersistenceHook": "ok",
+            "reason": "bootstrap-completed",
+            "repo_fingerprint": "testfingerprint123456",
+            "writes_allowed": True,
+        }
+    )
+    mock_proc.stderr = ""
+
+    with patch.object(module, "_resolve_repo_root_for_hook", return_value=(repo_root, "git", {"ok": True})):
+        with patch.object(module.subprocess, "run", return_value=mock_proc) as mock_run:
+            result = module.run_persistence_hook()
+
     assert result["workspacePersistenceHook"] == "ok"
     assert result["repo_fingerprint"] == "testfingerprint123456"
+    assert result["bootstrap_hook_command"] == f"{module.sys.executable} -m diagnostics.start_persistence_hook"
+    assert result["cwd"]
+    assert result["repo_root_detected"] == str(repo_root)
+    run_args = mock_run.call_args.args[0]
+    assert run_args[:3] == [module.sys.executable, "-m", "diagnostics.start_persistence_hook"]
+    call_args = mock_run.call_args.kwargs
+    assert call_args["cwd"] == str(repo_root)
+    expected_prefix = str(repo_root) + module.os.pathsep + str(module.COMMANDS_HOME)
+    assert str(call_args["env"].get("PYTHONPATH", "")).startswith(expected_prefix)
 
 
 @pytest.mark.governance
 def test_run_persistence_hook_exits_on_hook_failure(capsys: pytest.CaptureFixture[str]):
     module = _load_module_with_env({"CI": ""})
-    
-    mock_hook_result = {
-        "workspacePersistenceHook": "failed",
-        "reason": "repo-fingerprint-derivation-failed",
-        "writes_allowed": True,
-    }
-    
-    with patch.dict(
-        "sys.modules",
-        {"diagnostics.start_persistence_hook": MagicMock(run_persistence_hook=MagicMock(return_value=mock_hook_result))}
-    ):
-        try:
-            module.run_persistence_hook()
-        except SystemExit as e:
-            assert e.code == 2
-    
+
+    mock_proc = MagicMock()
+    mock_proc.returncode = 1
+    mock_proc.stdout = ""
+    mock_proc.stderr = "ModuleNotFoundError: No module named diagnostics"
+
+    with patch.object(module, "_resolve_repo_root_for_hook", return_value=(REPO_ROOT, "git", {"ok": True})):
+        with patch.object(module.subprocess, "run", return_value=mock_proc):
+            try:
+                module.run_persistence_hook()
+            except SystemExit as e:
+                assert e.code == 2
+
     payload = json.loads(capsys.readouterr().out.strip())
     assert payload["workspacePersistenceHook"] == "failed"
-    assert payload["reason"] == "repo-fingerprint-derivation-failed"
+    assert payload["reason_code"] == "ERR-BOOTSTRAP-HOOK-IMPORT"
+    assert payload.get("stderr_snippet")
+    assert payload.get("log_path")
+
+
+@pytest.mark.governance
+def test_run_persistence_hook_blocks_when_repo_root_not_detectable(capsys: pytest.CaptureFixture[str]):
+    module = _load_module_with_env({"CI": ""})
+
+    with patch.object(module, "_resolve_repo_root_for_hook", return_value=(None, "git-miss", {"ok": False})):
+        try:
+            module.run_persistence_hook()
+        except SystemExit as exc:
+            assert exc.code == 2
+
+    payload = json.loads(capsys.readouterr().out.strip())
+    assert payload["workspacePersistenceHook"] == "failed"
+    assert payload["reason_code"] == "BLOCKED-REPO-ROOT-NOT-DETECTABLE"
+    assert payload["bootstrap_hook_command"].endswith("-m diagnostics.start_persistence_hook")
+    assert payload["python_executable"]
+
+
+@pytest.mark.governance
+def test_resolve_repo_root_for_hook_prefers_env_repo_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    module = _load_module_with_env({"CI": ""})
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir(parents=True, exist_ok=True)
+    (repo_root / ".git").mkdir()
+    outside = tmp_path / "outside"
+    outside.mkdir(parents=True, exist_ok=True)
+    monkeypatch.chdir(outside)
+    monkeypatch.setenv("OPENCODE_REPO_ROOT", str(repo_root))
+
+    resolved, source, probe = module._resolve_repo_root_for_hook()
+
+    assert resolved == repo_root
+    assert source == "env"
+    assert probe.get("ok") is True

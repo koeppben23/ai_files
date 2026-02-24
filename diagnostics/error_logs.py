@@ -5,12 +5,39 @@ import json
 import os
 import re
 import tempfile
+import time
 import uuid
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional, Dict, Any
 
-from diagnostics.error_handler_bridge import emit_gate_failure as emit_gate_failure_ssot
+_emit_error_event_ssot: Any = None
+_resolve_ssot_log_path: Any = None
+try:
+    from diagnostics.global_error_handler import emit_error_event as _emit_error_event_ssot
+    from diagnostics.global_error_handler import resolve_log_path as _resolve_ssot_log_path
+except Exception:
+    pass
+
+
+def emit_error_event_ssot(**kwargs: Any) -> bool:
+    if callable(_emit_error_event_ssot):
+        return bool(_emit_error_event_ssot(**kwargs))
+    return False
+
+
+def resolve_ssot_log_path(*, config_root: Path | str | None = None, workspaces_home: Path | str | None = None, repo_fingerprint: str | None = None) -> Path:
+    if callable(_resolve_ssot_log_path):
+        return _resolve_ssot_log_path(
+            config_root=config_root,
+            workspaces_home=workspaces_home,
+            repo_fingerprint=repo_fingerprint,
+        )
+    cfg = Path(config_root) if config_root is not None else canonical_config_root()
+    ws = Path(workspaces_home) if workspaces_home is not None else (cfg / "workspaces")
+    if repo_fingerprint:
+        return ws / repo_fingerprint / "logs" / "error.log.jsonl"
+    return cfg / "logs" / "error.log.jsonl"
 
 try:
     from governance.infrastructure.adapters.logging.event_sink import write_jsonl_event
@@ -58,17 +85,58 @@ except Exception:
                 tmp.flush()
                 os.fsync(tmp.fileno())
                 temp_path = Path(tmp.name)
-            os.replace(str(temp_path), str(path))
+            for attempt in range(max(attempts, 1)):
+                try:
+                    os.replace(str(temp_path), str(path))
+                    return attempt
+                except OSError:
+                    if attempt == max(attempts, 1) - 1:
+                        raise
+                    time.sleep(max(backoff_ms, 1) / 1000.0)
             return 0
         finally:
             if temp_path is not None and temp_path.exists():
                 temp_path.unlink(missing_ok=True)
 
+    def _append_line_with_lock(path: Path, line: str) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("a+", encoding="utf-8", newline="\n") as handle:
+            for attempt in range(8):
+                try:
+                    if os.name == "nt":
+                        import msvcrt
+
+                        handle.seek(0)
+                        msvcrt.locking(handle.fileno(), msvcrt.LK_LOCK, 1)
+                    else:
+                        import fcntl
+
+                        fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+                    break
+                except OSError:
+                    if attempt == 7:
+                        raise
+                    time.sleep(0.02)
+            try:
+                handle.seek(0, os.SEEK_END)
+                handle.write(line)
+                handle.flush()
+                os.fsync(handle.fileno())
+            finally:
+                if os.name == "nt":
+                    import msvcrt
+
+                    handle.seek(0)
+                    msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+                else:
+                    import fcntl
+
+                    fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+
     def write_jsonl_event(path: Path, event: dict[str, Any], *, append: bool) -> None:
         line = json.dumps(event, ensure_ascii=True, separators=(",", ":")) + "\n"
-        if append and path.exists():
-            existing = path.read_text(encoding="utf-8")
-            atomic_write_text(path, existing + line, newline_lf=True)
+        if append:
+            _append_line_with_lock(path, line)
             return
         atomic_write_text(path, line, newline_lf=True)
 
@@ -298,60 +366,40 @@ def write_error_event(
     retention_days: int = DEFAULT_RETENTION_DAYS,
 ) -> Path:
     cfg, workspaces_home = resolve_paths(config_root)
-    if _read_only():
+    if _read_only() and not str(gate or "").strip():
         raise RuntimeError("diagnostics-read-only")
-    target = _target_log_file(cfg, workspaces_home, repo_fingerprint)
-    target.parent.mkdir(parents=True, exist_ok=True)
 
-    record = {
-        "schema": "opencode.error-log.v1",
-        "eventId": uuid.uuid4().hex,
-        "timestamp": _utc_now(),
-        "level": "error",
-        "reasonKey": str(reason_key),
-        "phase": str(phase),
+    target = resolve_ssot_log_path(
+        config_root=cfg,
+        workspaces_home=workspaces_home,
+        repo_fingerprint=repo_fingerprint,
+    )
+    context_payload = {
         "gate": str(gate),
         "mode": str(mode),
-        "repoFingerprint": repo_fingerprint if repo_fingerprint else "unknown",
         "command": str(command),
         "component": str(component),
-        "message": str(message),
         "observedValue": _normalize_value(observed_value),
         "expectedConstraint": _normalize_value(expected_constraint),
         "action": str(action),
         "result": str(result),
         "remediation": _normalize_value(remediation),
         "details": _normalize_value(details),
+        "retention_days": int(retention_days),
     }
 
-    emit_gate_failure_ssot(
-        gate=str(gate),
+    ok = emit_error_event_ssot(
+        severity="CRITICAL" if str(result).lower() == "blocked" else "HIGH",
         code=str(reason_key),
         message=str(message),
-        expected=str(expected_constraint) if expected_constraint is not None else None,
-        observed={
-            "observedValue": _normalize_value(observed_value),
-            "mode": str(mode),
-            "command": str(command),
-            "component": str(component),
-        },
-        remediation=str(remediation) if remediation is not None else None,
-        config_root=str(cfg),
-        workspaces_home=str(workspaces_home),
+        context=context_payload,
         repo_fingerprint=repo_fingerprint,
+        config_root=cfg,
+        workspaces_home=workspaces_home,
         phase=str(phase),
     )
-
-    # Atomic write (no append): one file per event.
-    write_jsonl_event(target, record, append=False)
-
-    # Keep same-directory index for fast diagnostics summarization.
-    index_path = target.parent / ERROR_INDEX_FILE_NAME
-    _update_error_index(index_path, target, record)
-
-    # Best-effort retention cleanup (never block caller).
-    _prune_old_logs(target.parent, retention_days)
-
+    if not ok:
+        raise RuntimeError("ssot-error-emission-failed")
     return target
 
 

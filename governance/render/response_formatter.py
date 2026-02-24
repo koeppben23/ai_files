@@ -6,7 +6,11 @@ import json
 import sys
 from typing import Any, Literal
 
-from governance.application.dto.phase_next_action_contract import validate_phase_next_action_contract
+from governance.application.dto.phase_next_action_contract import (
+    extract_phase_token,
+    phase_requires_ticket_input,
+    validate_phase_next_action_contract,
+)
 
 
 OutputFormat = Literal["auto", "markdown", "plain", "json"]
@@ -79,12 +83,20 @@ def _enforce_phase_contract(payload: dict[str, Any]) -> None:
     if not isinstance(session_state, dict):
         return
     next_action = _normalize_next_action(payload.get("next_action"))
+    next_action_type = str(next_action.get("type", "")).strip().lower()
     next_text = next_action.get("next")
     why_text = next_action.get("why")
     if not isinstance(next_text, str):
         next_text = next_action.get("command")
     if not isinstance(why_text, str):
         why_text = ""
+
+    phase_token = extract_phase_token(session_state.get("phase") or session_state.get("Phase"))
+    if phase_token and not phase_requires_ticket_input(phase_token):
+        if next_action_type and next_action_type != "command":
+            raise ValueError(
+                "invalid phase/next_action contract: next_action type must be command before phase 4"
+            )
 
     errors = validate_phase_next_action_contract(
         status=_canonical_status(payload.get("status", "")),

@@ -64,7 +64,7 @@ def _payload(*, mode: str) -> BootstrapInput:
 def test_bootstrap_creates_default_activation_intent_in_user_mode():
     fs = InMemoryFS()
     logger = DummyLogger()
-    service = BootstrapPersistenceService(fs=fs, runner=DummyRunner(), logger=logger)
+    service = BootstrapPersistenceService(fs=fs, runner=DummyRunner(), logger=logger)  # type: ignore[arg-type]
 
     result = service.run(_payload(mode="user"))
 
@@ -74,14 +74,39 @@ def test_bootstrap_creates_default_activation_intent_in_user_mode():
     assert fs.exists(Path(path)) is True
     payload = json.loads(fs.read_text(Path(path)))
     assert payload.get("schema") == "opencode-activation-intent.v1"
+    assert payload.get("discovery_scope") == "full"
 
 
 def test_bootstrap_blocks_without_activation_intent_outside_user_mode():
     fs = InMemoryFS()
     logger = DummyLogger()
-    service = BootstrapPersistenceService(fs=fs, runner=DummyRunner(), logger=logger)
+    service = BootstrapPersistenceService(fs=fs, runner=DummyRunner(), logger=logger)  # type: ignore[arg-type]
 
     result = service.run(_payload(mode="pipeline"))
 
     assert result.ok is False
     assert result.gate_code == "ACTIVATION_INTENT_REQUIRED"
+
+
+def test_bootstrap_rejects_activation_intent_without_discovery_scope():
+    fs = InMemoryFS()
+    logger = DummyLogger()
+    service = BootstrapPersistenceService(fs=fs, runner=DummyRunner(), logger=logger)  # type: ignore[arg-type]
+
+    path = Path(f"/tmp/config/{ACTIVATION_INTENT_FILE}")
+    fs.write_text_atomic(
+        path,
+        json.dumps(
+            {
+                "schema": "opencode-activation-intent.v1",
+                "default_scope": "governance-pipeline-only",
+                "allowed_actions": {"read_only": True, "write_allowed_in_user_mode": True},
+                "default_question_policy": {"no_questions_before_phase4": True, "blocked_when_no_safe_default": True},
+                "single_dev_mode": True,
+            }
+        ),
+    )
+
+    result = service.run(_payload(mode="user"))
+    assert result.ok is False
+    assert result.gate_code == "ACTIVATION_INTENT_INVALID"

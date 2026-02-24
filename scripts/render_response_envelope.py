@@ -14,6 +14,18 @@ if str(_REPO_ROOT) not in sys.path:
 
 from governance.render.response_formatter import render_response
 
+try:
+    from diagnostics.global_error_handler import emit_gate_failure, resolve_log_path
+except Exception:
+    def emit_gate_failure(**kwargs: Any) -> bool:  # type: ignore[no-redef]
+        return False
+
+    def resolve_log_path(*, config_root=None, workspaces_home=None, repo_fingerprint=None):  # type: ignore[no-redef]
+        base = Path(config_root) if config_root is not None else (Path.home() / ".config" / "opencode")
+        if repo_fingerprint and workspaces_home:
+            return Path(workspaces_home) / repo_fingerprint / "logs" / "error.log.jsonl"
+        return base / "logs" / "error.log.jsonl"
+
 
 def _read_payload(path_arg: str) -> dict[str, Any]:
     if path_arg == "-":
@@ -70,6 +82,42 @@ def main(argv: list[str]) -> int:
     try:
         rendered = render_response(payload, output_format=args.format)
     except ValueError as exc:
+        message = str(exc)
+        if "invalid phase/next_action contract" in message:
+            session_state = payload.get("session_state") if isinstance(payload.get("session_state"), dict) else {}
+            repo_fingerprint = ""
+            if isinstance(session_state, dict):
+                fp = session_state.get("repo_fingerprint") or session_state.get("RepoFingerprint")
+                if isinstance(fp, str):
+                    repo_fingerprint = fp.strip()
+            log_path = resolve_log_path(
+                config_root=None,
+                workspaces_home=None,
+                repo_fingerprint=repo_fingerprint or None,
+            )
+            emit_gate_failure(
+                gate="RESPONSE_CONTRACT",
+                code="BLOCKED-INVALID-NEXT-ACTION",
+                message="Response contract validation rejected next_action for current phase.",
+                expected="next_action.type=command before phase 4",
+                observed={
+                    "error": message,
+                    "next_action": payload.get("next_action"),
+                    "phase": session_state.get("phase") if isinstance(session_state, dict) else None,
+                },
+                remediation="Set next_action.type to command for pre-phase4 responses and rerun.",
+                repo_fingerprint=repo_fingerprint or None,
+            )
+            blocked_payload = {
+                "status": "BLOCKED",
+                "reason_code": "BLOCKED-INVALID-NEXT-ACTION",
+                "missing_evidence": ["phase-aligned next_action contract"],
+                "recovery_steps": ["set next_action.type to command before phase 4"],
+                "next_command": "render_response_envelope.py --input <payload.json>",
+                "log_path": str(log_path),
+            }
+            sys.stdout.write(json.dumps(blocked_payload, ensure_ascii=True) + "\n")
+            return 2
         print(f"FAIL: {exc}")
         return 1
 
