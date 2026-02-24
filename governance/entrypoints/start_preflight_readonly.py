@@ -473,6 +473,7 @@ def _emit_persistence_gate_failure(
     remediation: str,
     repo_fingerprint: str | None,
 ) -> Path:
+    config_root = COMMANDS_HOME.parent if COMMANDS_HOME is not None else None
     emitted = emit_gate_failure(
         gate="PERSISTENCE",
         code=code,
@@ -480,8 +481,8 @@ def _emit_persistence_gate_failure(
         expected=expected,
         observed=observed,
         remediation=remediation,
-        config_root=str(COMMANDS_HOME.parent),
-        workspaces_home=str(WORKSPACES_HOME),
+        config_root=str(config_root) if config_root is not None else None,
+        workspaces_home=str(WORKSPACES_HOME) if WORKSPACES_HOME is not None else None,
         repo_fingerprint=repo_fingerprint,
         phase="1.1-Bootstrap",
     )
@@ -492,7 +493,7 @@ def _emit_persistence_gate_failure(
             safe_log_error(
                 reason_key=code,
                 message=message,
-                config_root=COMMANDS_HOME.parent,
+                config_root=config_root,
                 phase="1.1-Bootstrap",
                 gate="PERSISTENCE",
                 mode=_effective_mode(),
@@ -506,12 +507,15 @@ def _emit_persistence_gate_failure(
             )
         except Exception:
             pass
-    return resolve_log_path(
-        config_root=COMMANDS_HOME.parent,
-        commands_home=COMMANDS_HOME,
-        workspaces_home=WORKSPACES_HOME,
-        repo_fingerprint=repo_fingerprint,
-    )
+    try:
+        return resolve_log_path(
+            config_root=config_root,
+            commands_home=COMMANDS_HOME,
+            workspaces_home=WORKSPACES_HOME,
+            repo_fingerprint=repo_fingerprint,
+        )
+    except Exception:
+        return Path("error.log.jsonl")
 
 
 def _normalize_hook_failure_reason(proc: subprocess.CompletedProcess[str], result: dict[str, object]) -> tuple[str, str]:
@@ -694,8 +698,8 @@ def emit_start_receipt() -> None:
     """Emit forensic receipt for desktop dispatch debugging."""
     repo_root, repo_root_source, _probe = _resolve_repo_root_for_hook()
     repo_fp = derive_repo_fingerprint(repo_root) if repo_root is not None else None
-    planned_pointer_path = COMMANDS_HOME.parent / "SESSION_STATE.json"
-    planned_workspace_path = WORKSPACES_HOME / repo_fp / "SESSION_STATE.json" if repo_fp else None
+    planned_pointer_path = (COMMANDS_HOME.parent / "SESSION_STATE.json") if COMMANDS_HOME is not None else None
+    planned_workspace_path = (WORKSPACES_HOME / repo_fp / "SESSION_STATE.json") if (repo_fp and WORKSPACES_HOME is not None) else None
     receipt = {
         "start_receipt": {
             "observed_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
@@ -706,10 +710,10 @@ def emit_start_receipt() -> None:
             "sys_path_0_3": sys.path[:3],
             "env_opencode_config_root": os.environ.get("OPENCODE_CONFIG_ROOT", ""),
             "env_opencode_home": os.environ.get("OPENCODE_HOME", ""),
-            "computed_opencode_home": str(COMMANDS_HOME.parent),
-            "computed_commands_home": str(COMMANDS_HOME),
-            "computed_workspaces_home": str(WORKSPACES_HOME),
-            "planned_pointer_path": str(planned_pointer_path),
+            "computed_opencode_home": str(COMMANDS_HOME.parent) if COMMANDS_HOME is not None else None,
+            "computed_commands_home": str(COMMANDS_HOME) if COMMANDS_HOME is not None else None,
+            "computed_workspaces_home": str(WORKSPACES_HOME) if WORKSPACES_HOME is not None else None,
+            "planned_pointer_path": str(planned_pointer_path) if planned_pointer_path is not None else None,
             "planned_workspace_session_path": str(planned_workspace_path) if planned_workspace_path else None,
             "derived_repo_fingerprint": repo_fp,
             "repo_root_detected": str(repo_root) if repo_root else "",

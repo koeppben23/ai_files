@@ -417,29 +417,6 @@ def run_persistence_hook(*, repo_root: Path | None = None) -> dict[str, object]:
                 payload["log_path"] = ""
         return payload
 
-    if commands_home is None:
-        return _with_log_path(
-            {
-                "workspacePersistenceHook": "blocked",
-                "reason_code": "BLOCKED-MISSING-BINDING-FILE",
-                "reason": "binding-evidence-missing-or-invalid",
-                "impact": "cannot run persistence hook without valid commands/workspaces binding",
-                "writes_allowed": _writes_allowed(),
-            },
-            repo_fingerprint=None,
-        )
-    if workspaces_home is None:
-        return _with_log_path(
-            {
-                "workspacePersistenceHook": "blocked",
-                "reason_code": "BLOCKED-MISSING-BINDING-FILE",
-                "reason": "workspaces-home-unavailable",
-                "impact": "cannot run persistence hook without workspace root",
-                "writes_allowed": _writes_allowed(),
-            },
-            repo_fingerprint=None,
-        )
-
     if not _writes_allowed():
         emit_gate_failure(
             gate="PERSISTENCE",
@@ -483,7 +460,7 @@ def run_persistence_hook(*, repo_root: Path | None = None) -> dict[str, object]:
         safe_log_error(
             reason_key="ERR-PERSISTENCE-REPO-ROOT-RESOLUTION-FAILED",
             message=f"Could not resolve git repository root (source: {root_source}).",
-            config_root=commands_home.parent,
+            config_root=commands_home.parent if commands_home is not None else None,
             phase="1.1-Bootstrap",
             gate="PERSISTENCE",
             mode=EFFECTIVE_MODE,
@@ -500,8 +477,8 @@ def run_persistence_hook(*, repo_root: Path | None = None) -> dict[str, object]:
 
     set_error_context(ErrorContext(
         repo_fingerprint=repo_fp,
-        config_root=str(commands_home.parent),
-        workspaces_home=str(workspaces_home),
+        config_root=(str(commands_home.parent) if commands_home is not None else None),
+        workspaces_home=(str(workspaces_home) if workspaces_home is not None else None),
         repo_root=str(resolved_root),
         phase="1.1-Bootstrap",
         command="start_persistence_hook.py",
@@ -525,7 +502,7 @@ def run_persistence_hook(*, repo_root: Path | None = None) -> dict[str, object]:
         safe_log_error(
             reason_key="ERR-PERSISTENCE-FINGERPRINT-DERIVATION-FAILED",
             message="Could not derive repo fingerprint from git metadata during persistence hook.",
-            config_root=commands_home.parent,
+            config_root=commands_home.parent if commands_home is not None else None,
             phase="1.1-Bootstrap",
             gate="PERSISTENCE",
             mode=EFFECTIVE_MODE,
@@ -537,6 +514,18 @@ def run_persistence_hook(*, repo_root: Path | None = None) -> dict[str, object]:
             remediation="Ensure cwd is a git repository with valid .git metadata.",
         )
         return _with_log_path(result)
+
+    if commands_home is None:
+        return _with_log_path(
+            {
+                "workspacePersistenceHook": "blocked",
+                "reason_code": "BLOCKED-MISSING-BINDING-FILE",
+                "reason": "binding-evidence-missing-or-invalid",
+                "impact": "cannot run persistence hook without valid commands/workspaces binding",
+                "writes_allowed": True,
+            },
+            repo_fingerprint=repo_fp,
+        )
 
     bootstrap_script = commands_home / "governance" / "entrypoints" / "bootstrap_session_state.py"
     if not bootstrap_script.exists():
