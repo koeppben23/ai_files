@@ -9,7 +9,6 @@ from governance.infrastructure.path_contract import (
     NotAbsoluteError,
     PathTraversalError,
     binding_evidence_location,
-    canonical_commands_home,
     canonical_config_root,
     normalize_absolute_path,
     normalize_for_fingerprint,
@@ -20,7 +19,6 @@ from governance.infrastructure.path_contract import (
 def test_canonical_roots_are_home_scoped(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     monkeypatch.setattr(Path, "home", staticmethod(lambda: tmp_path))
     assert canonical_config_root() == tmp_path / ".config" / "opencode"
-    assert canonical_commands_home() == tmp_path / ".config" / "opencode" / "commands"
 
 
 @pytest.mark.governance
@@ -54,4 +52,5 @@ def test_binding_evidence_location_uses_canonical_by_default(monkeypatch: pytest
         mode="user",
     )
     assert location.source == "canonical"
-    assert location.commands_home == tmp_path / ".config" / "opencode" / "commands"
+    assert location.commands_home is None
+    assert location.governance_paths_json == tmp_path / ".config" / "opencode" / "commands" / "governance.paths.json"

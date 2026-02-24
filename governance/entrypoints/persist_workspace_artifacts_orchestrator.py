@@ -554,18 +554,6 @@ def _load_binding_paths(paths_file: Path, *, expected_config_root: Path | None =
     except Exception as exc:
         raise ValueError(f"binding evidence invalid: {exc}") from exc
     
-    if commands_home != config_root / "commands":
-        raise ValueError(
-            f"binding evidence invalid: commandsHome must be configRoot/commands: "
-            f"got {commands_home}, expected {config_root / 'commands'}"
-        )
-    
-    if workspaces_home != config_root / "workspaces":
-        raise ValueError(
-            f"binding evidence invalid: workspacesHome must be configRoot/workspaces: "
-            f"got {workspaces_home}, expected {config_root / 'workspaces'}"
-        )
-    
     if expected_config_root is not None:
         expected = normalize_absolute_path(str(expected_config_root), purpose="expected_config_root")
         if config_root != expected:

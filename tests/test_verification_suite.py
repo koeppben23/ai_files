@@ -9,6 +9,29 @@ from governance.application.use_cases.phase_router import route_phase
 from governance.infrastructure.workspace_ready_gate import ensure_workspace_ready
 
 
+@pytest.fixture(autouse=True)
+def _kernel_binding_evidence(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    cfg = home / ".config" / "opencode"
+    commands_home = cfg / "commands"
+    workspaces_home = cfg / "workspaces"
+    commands_home.mkdir(parents=True, exist_ok=True)
+    workspaces_home.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "schema": "opencode-governance.paths.v1",
+        "paths": {
+            "configRoot": str(cfg),
+            "commandsHome": str(commands_home),
+            "workspacesHome": str(workspaces_home),
+            "pythonCommand": "python3",
+        },
+    }
+    (commands_home / "governance.paths.json").write_text(json.dumps(payload), encoding="utf-8")
+    repo_root = Path(__file__).resolve().parents[1]
+    (commands_home / "phase_api.yaml").write_text((repo_root / "phase_api.yaml").read_text(encoding="utf-8"), encoding="utf-8")
+    monkeypatch.setattr(Path, "home", staticmethod(lambda: home))
+
+
 @pytest.mark.governance
 def test_phase_router_blocks_phase2_without_workspace_ready():
     routed = route_phase(
@@ -59,7 +82,7 @@ def test_phase_router_blocks_jump_without_transition_evidence():
         repo_is_git_root=True,
     )
     assert routed.phase == "2-Discovery"
-    assert "evidence" in routed.next_gate_condition.lower()
+    assert "not allowed by phase_api" in routed.next_gate_condition.lower()
 
 
 @pytest.mark.governance
@@ -71,7 +94,7 @@ def test_phase_router_strips_ticket_prompt_before_phase4():
         session_state_document={"SESSION_STATE": {"PersistenceCommitted": True, "workspace_ready_gate_committed": True, "WorkspaceArtifactsCommitted": True, "PointerVerified": True, "LoadedRulebooks": {"core": "${COMMANDS_HOME}/master.md"}, "RulebookLoadEvidence": {"core": "${COMMANDS_HOME}/master.md"}, "AddonsEvidence": {}, "RepoDiscovery": {"Completed": True, "RepoCacheFile": "cache", "RepoMapDigestFile": "digest"}}},
         repo_is_git_root=True,
     )
-    assert "not allowed before phase 4" in routed.next_gate_condition.lower()
+    assert "forbidden before phase 4" in routed.next_gate_condition.lower()
 
 
 @pytest.mark.governance

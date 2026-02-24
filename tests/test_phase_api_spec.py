@@ -34,6 +34,7 @@ phases:
     assert spec.path == commands_home / "phase_api.yaml"
     assert spec.start_token == "1.1"
     assert "2" in spec.entries
+    assert spec.loaded_at
 
 
 def test_load_phase_api_rejects_unknown_next_token(tmp_path: Path) -> None:
@@ -56,3 +57,9 @@ phases:
 
     with pytest.raises(PhaseApiSpecError):
         load_phase_api(commands_home)
+
+
+def test_load_phase_api_requires_binding_when_commands_home_omitted(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("OPENCODE_PHASE_API_REPO_FALLBACK_FOR_TESTS", raising=False)
+    with pytest.raises(PhaseApiSpecError):
+        load_phase_api()

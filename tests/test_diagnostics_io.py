@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from governance.entrypoints.io.actions import WriteAction, derive_file_status
 from governance.entrypoints.io.atomic_write import atomic_write_text
-from routing.gates import check_persistence_gate
+from governance.kernel.gates import check_persistence_gate
 
 
 def test_atomic_write_text_reports_create_then_overwrite(tmp_path):

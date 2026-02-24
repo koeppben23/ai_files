@@ -104,18 +104,6 @@ def load_binding_paths_strict(
     except Exception as e:
         raise BindingLoadError(f"Invalid paths.workspacesHome: {e}")
     
-    if commands_home != config_root / "commands":
-        raise BindingLoadError(
-            f"commandsHome must be configRoot/commands: "
-            f"got {commands_home}, expected {config_root / 'commands'}"
-        )
-    
-    if workspaces_home != config_root / "workspaces":
-        raise BindingLoadError(
-            f"workspacesHome must be configRoot/workspaces: "
-            f"got {workspaces_home}, expected {config_root / 'workspaces'}"
-        )
-    
     raw_python = paths.get("pythonCommand")
     python_command = str(raw_python).strip() if isinstance(raw_python, str) else ""
     

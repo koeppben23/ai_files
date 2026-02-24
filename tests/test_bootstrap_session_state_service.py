@@ -36,7 +36,14 @@ def test_bootstrap_service_lock_timeout_emits_gate_failure(tmp_path: Path):
         with patch.object(
             module,
             "resolve_binding_config",
-            return_value=(config_root, {"workspacesHome": str(config_root / "workspaces")}, config_root / "commands" / "governance.paths.json"),
+            return_value=(
+                config_root,
+                {
+                    "commandsHome": str(config_root / "commands"),
+                    "workspacesHome": str(config_root / "workspaces"),
+                },
+                config_root / "commands" / "governance.paths.json",
+            ),
         ):
             with patch.object(module, "resolve_repo_root_ssot", return_value=(repo_root, "explicit")):
                 with patch.object(module, "_validate_repo_fingerprint", return_value=args.repo_fingerprint):

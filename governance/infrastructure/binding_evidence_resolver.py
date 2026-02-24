@@ -216,11 +216,6 @@ class BindingEvidenceResolver:
             except Exception:
                 issues.append("binding.paths.configRoot.invalid")
 
-        if config_root is not None and commands != config_root / "commands":
-            issues.append("binding.paths.commandsHome.not_under_configRoot")
-        if config_root is not None and workspaces != config_root / "workspaces":
-            issues.append("binding.paths.workspacesHome.not_under_configRoot")
-
         binding_ok = len(issues) == 0
 
         return BindingEvidence(
