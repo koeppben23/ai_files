@@ -579,248 +579,98 @@ def main() -> int:
     print(f"Global pointer file: {pointer_file}")
     print(f"Repo identity map file: {identity_map_file}")
 
-    if BootstrapPersistenceService is not None and not args.dry_run:
-        from governance.application.use_cases.bootstrap_persistence import BootstrapInput
-        from governance.domain.models.binding import Binding
-        from governance.domain.models.layouts import WorkspaceLayout
-        from governance.domain.models.repo_identity import RepoIdentity
-
-        backfill_command: tuple[str, ...] = (
-            sys.executable,
-            str(SCRIPT_DIR / "persist_workspace_artifacts.py"),
-            "--repo-fingerprint",
-            repo_fingerprint,
-            "--config-root",
-            str(config_root),
-            "--repo-root",
-            str(repo_root),
-            "--require-phase2",
-            "--skip-lock",
-            "--quiet",
+    if BootstrapPersistenceService is None:
+        emit_gate_failure(
+            gate="BOOTSTRAP",
+            code="BOOTSTRAP_SSOT_UNAVAILABLE",
+            message="Governance bootstrap SSOT service import failed.",
+            expected="governance.application.use_cases.bootstrap_persistence importable",
+            observed={"service_available": False},
+            remediation="Restore governance bootstrap use-case module and rerun bootstrap.",
         )
-        service = BootstrapPersistenceService(
-            fs=_GovernanceFSAdapter(),
-            runner=_GovernanceRunnerAdapter(),  # type: ignore[arg-type]
-            logger=_GovernanceLoggerAdapter(
-                config_root=config_root,
-                workspaces_home=workspaces_home,
-                repo_fingerprint=repo_fingerprint,
-            ),
-        )
-        payload = BootstrapInput(
-            repo_identity=RepoIdentity(
-                repo_root=str(repo_root),
-                fingerprint=repo_fingerprint,
-                repo_name=(args.repo_name or repo_root.name or repo_fingerprint),
-                source="diagnostics.bootstrap",
-            ),
-            binding=Binding(
-                config_root=str(config_root),
-                commands_home=str(config_root / "commands"),
-                workspaces_home=str(workspaces_home),
-                python_command=sys.executable,
-            ),
-            layout=WorkspaceLayout(
-                repo_home=str(workspaces_home / repo_fingerprint),
-                session_state_file=str(repo_state_file),
-                identity_map_file=str(identity_map_file),
-                pointer_file=str(pointer_file),
-            ),
-            required_artifacts=(
-                str(workspaces_home / repo_fingerprint / "repo-cache.yaml"),
-                str(workspaces_home / repo_fingerprint / "repo-map-digest.md"),
-                str(workspaces_home / repo_fingerprint / "workspace-memory.yaml"),
-                str(workspaces_home / repo_fingerprint / "decision-pack.md"),
-            ),
-            force_read_only=not _writes_allowed(),
-            skip_artifact_backfill=args.skip_artifact_backfill,
-            backfill_command=backfill_command,
-            effective_mode=EFFECTIVE_MODE,
-            write_policy_reasons=write_policy_reasons(),
-            no_commit=args.no_commit,
-        )
-        result = service.run(payload)
-        if result.ok:
-            workspace_lock.release()
-            return 0
-        if result.gate_code in {"CONFIG_ROOT_INSIDE_REPO", "POINTER_PATH_INSIDE_REPO"}:
-            workspace_lock.release()
-            return 5
-        if result.gate_code in {"BACKFILL_NON_ZERO_EXIT", "PHASE2_ARTIFACTS_MISSING"}:
-            workspace_lock.release()
-            return 7
-        if result.gate_code == "POINTER_VERIFY_FAILED":
-            workspace_lock.release()
-            return 9
+        print("ERROR: governance bootstrap SSOT service unavailable")
         workspace_lock.release()
         return 2
 
-    pointer_existing = _load_json(pointer_file)
-    pointer_has_legacy_payload = isinstance(pointer_existing, dict) and "SESSION_STATE" in pointer_existing
+    from governance.application.use_cases.bootstrap_persistence import BootstrapInput
+    from governance.domain.models.binding import Binding
+    from governance.domain.models.layouts import WorkspaceLayout
+    from governance.domain.models.repo_identity import RepoIdentity
 
-    if pointer_has_legacy_payload and not args.force and not args.dry_run:
-        safe_log_error(
-            reason_key="ERR-LEGACY-SESSION-POINTER-MIGRATION-REQUIRED",
-            message="Legacy global SESSION_STATE payload detected in pointer file.",
-            config_root=config_root,
-            phase="1.1-Bootstrap",
-            gate="BOOTSTRAP",
-            mode="repo-aware",
-            repo_fingerprint=repo_fingerprint,
-            command="bootstrap_session_state.py",
-            component="session-pointer",
-            observed_value={"pointerFile": str(pointer_file)},
-            expected_constraint="Global pointer must use schema opencode-session-pointer.v1",
-            remediation="Re-run with --force to migrate legacy payload to repo-scoped SESSION_STATE.",
-        )
-        print("ERROR: legacy global SESSION_STATE payload detected in pointer file.")
-        print("Use --force to migrate to pointer mode.")
-        workspace_lock.release()
-        return 4
-
-    should_write_repo_state = args.force or not repo_state_file.exists()
-
-    if args.dry_run:
-        repo_action = "overwrite" if (repo_state_file.exists() and args.force) else "create"
-        if not should_write_repo_state:
-            repo_action = "preserve"
-        pointer_action = "overwrite" if pointer_file.exists() else "create"
-        identity_action = "update" if identity_map_file.exists() else "create"
-
-        print(f"[DRY-RUN] Repo SESSION_STATE action: {repo_action} -> {repo_state_file}")
-        print(f"[DRY-RUN] Pointer action: {pointer_action} -> {pointer_file}")
-        print(f"[DRY-RUN] Repo identity map action: {identity_action} -> {identity_map_file}")
-        if pointer_has_legacy_payload:
-            print("[DRY-RUN] Legacy global payload migration would be applied (requires --force for live write).")
-        workspace_lock.release()
-        return 0
-
-    repo_payload: dict | None = None
-    if should_write_repo_state:
-        if pointer_has_legacy_payload and args.force:
-            assert isinstance(pointer_existing, dict)
-            repo_payload = pointer_existing
-            print("Migrating legacy global SESSION_STATE payload to repo-scoped location.")
-        else:
-            repo_payload = session_state_template(repo_fingerprint, args.repo_name)
-
-        _atomic_write_text(repo_state_file, json.dumps(repo_payload, indent=2, ensure_ascii=True) + "\n")
-        print("Repo-scoped SESSION_STATE written.")
-    else:
-        print("Repo-scoped SESSION_STATE already exists and was preserved (use --force to overwrite).")
-        existing_payload = _load_json(repo_state_file)
-        if isinstance(existing_payload, dict):
-            repo_payload = existing_payload
-
-    scope = repo_payload.get("SESSION_STATE", {}).get("Scope", {}) if isinstance(repo_payload, dict) else {}
-    repo_name_value = scope.get("Repository") if isinstance(scope, dict) else None
-    if not isinstance(repo_name_value, str) or not repo_name_value.strip():
-        repo_name_value = repo_fingerprint
-    identity_action = _upsert_repo_identity_map(workspaces_home, repo_fingerprint, repo_name_value.strip())
-    print(f"Repo identity map {identity_action}.")
-
-    backfill_failed, artifacts_committed = run_workspace_artifact_backfill(
+    backfill_command: tuple[str, ...] = (
+        sys.executable,
+        str(SCRIPT_DIR / "persist_workspace_artifacts.py"),
+        "--repo-fingerprint",
+        repo_fingerprint,
+        "--config-root",
+        str(config_root),
+        "--repo-root",
+        str(repo_root),
+        "--require-phase2",
+        "--skip-lock",
+        "--quiet",
+    )
+    payload = BootstrapInput(
+        repo_identity=RepoIdentity(
+            repo_root=str(repo_root),
+            fingerprint=repo_fingerprint,
+            repo_name=(args.repo_name or repo_root.name or repo_fingerprint),
+            source="diagnostics.bootstrap",
+        ),
+        binding=Binding(
+            config_root=str(config_root),
+            commands_home=str(config_root / "commands"),
+            workspaces_home=str(workspaces_home),
+            python_command=sys.executable,
+        ),
+        layout=WorkspaceLayout(
+            repo_home=str(workspaces_home / repo_fingerprint),
+            session_state_file=str(repo_state_file),
+            identity_map_file=str(identity_map_file),
+            pointer_file=str(pointer_file),
+        ),
+        required_artifacts=(
+            str(workspaces_home / repo_fingerprint / "repo-cache.yaml"),
+            str(workspaces_home / repo_fingerprint / "repo-map-digest.md"),
+            str(workspaces_home / repo_fingerprint / "workspace-memory.yaml"),
+            str(workspaces_home / repo_fingerprint / "decision-pack.md"),
+        ),
+        force_read_only=not _writes_allowed(),
         skip_artifact_backfill=args.skip_artifact_backfill,
-        script_dir=SCRIPT_DIR,
-        repo_fingerprint=repo_fingerprint,
-        config_root=config_root,
-        repo_root=repo_root,
-        workspaces_home=workspaces_home,
-        python_cmd=sys.executable,
-        writes_allowed=is_write_allowed(),
-        emit_gate_failure=emit_gate_failure,
-        safe_log_error=safe_log_error,
+        backfill_command=backfill_command,
+        effective_mode=EFFECTIVE_MODE,
+        write_policy_reasons=write_policy_reasons(),
+        no_commit=args.no_commit,
     )
 
-    if backfill_failed:
-        workspace_lock.release()
-        return 7
-
-    if args.no_commit:
-        print("No-commit mode: initialized workspace session state without pointer/commit flags.")
+    if args.dry_run:
+        print(f"[DRY-RUN] Repo SESSION_STATE action: create -> {repo_state_file}")
+        print(f"[DRY-RUN] Repo identity map action: create -> {identity_map_file}")
+        print(f"[DRY-RUN] Pointer action: create -> {pointer_file}")
+        print(f"[DRY-RUN] Backfill command: {' '.join(payload.backfill_command)}")
         workspace_lock.release()
         return 0
 
-    pointer = pointer_payload(repo_fingerprint, repo_state_file)
-    pointer["runId"] = workspace_lock.lock_id
-    pointer["phase"] = "1.1-Bootstrap"
-    _atomic_write_text(pointer_file, json.dumps(pointer, indent=2, ensure_ascii=True) + "\n")
-    print("Global SESSION_STATE pointer written.")
-
-    if not pointer_file.is_file():
-        emit_gate_failure(
-            gate="BOOTSTRAP",
-            code="POINTER_WRITE_VERIFICATION_FAILED",
-            message="Pointer file does not exist after atomic write.",
-            expected="Pointer file must exist after atomic write",
-            observed={"pointerFile": str(pointer_file)},
-            remediation="Check filesystem permissions and disk space.",
-            config_root=str(config_root),
+    service = BootstrapPersistenceService(
+        fs=_GovernanceFSAdapter(),
+        runner=_GovernanceRunnerAdapter(),  # type: ignore[arg-type]
+        logger=_GovernanceLoggerAdapter(
+            config_root=config_root,
+            workspaces_home=workspaces_home,
             repo_fingerprint=repo_fingerprint,
-            phase="1.1-Bootstrap",
-        )
-        print("ERROR: pointer verification failed - file does not exist after write.")
-        workspace_lock.release()
-        return 8
-
-    pointer_verify = _load_json(pointer_file)
-    if not pointer_verify or pointer_verify.get("schema") != "opencode-session-pointer.v1":
-        emit_gate_failure(
-            gate="BOOTSTRAP",
-            code="POINTER_SCHEMA_VERIFICATION_FAILED",
-            message="Pointer file has invalid schema after write.",
-            expected="Pointer must have schema 'opencode-session-pointer.v1'",
-            observed={"pointerFile": str(pointer_file), "schema": pointer_verify.get("schema") if pointer_verify else None},
-            remediation="Check filesystem integrity and retry.",
-            config_root=str(config_root),
-            repo_fingerprint=repo_fingerprint,
-            phase="1.1-Bootstrap",
-        )
-        print("ERROR: pointer verification failed - invalid schema.")
-        workspace_lock.release()
-        return 9
-
-    pointer_fp = pointer_verify.get("activeRepoFingerprint") if isinstance(pointer_verify, dict) else None
-    if pointer_fp != repo_fingerprint:
-        emit_gate_failure(
-            gate="BOOTSTRAP",
-            code="POINTER_FINGERPRINT_MISMATCH",
-            message="Pointer fingerprint does not match bootstrap fingerprint.",
-            expected="Pointer fingerprint must match bootstrap fingerprint",
-            observed={"pointerFingerprint": pointer_fp, "bootstrapFingerprint": repo_fingerprint},
-            remediation="Check pointer file integrity and rerun bootstrap.",
-            config_root=str(config_root),
-            repo_fingerprint=repo_fingerprint,
-            phase="1.1-Bootstrap",
-        )
-        print(f"ERROR: pointer fingerprint mismatch - expected {repo_fingerprint}, got {pointer_fp}")
-        workspace_lock.release()
-        return 9
-
-    if isinstance(repo_payload, dict) and "SESSION_STATE" in repo_payload:
-        # P0: Never set PersistenceCommitted if artifacts not committed
-        if not artifacts_committed and not args.dry_run:
-            emit_gate_failure(
-                gate="PERSISTENCE",
-                code="ARTIFACTS_NOT_COMMITTED_BLOCKING_PERSISTENCE",
-                message="Artifacts not committed - refusing to set PersistenceCommitted.",
-                expected="WorkspaceArtifactsCommitted must be True before PersistenceCommitted",
-                observed={"artifacts_committed": artifacts_committed},
-                remediation="Fix artifact backfill and ensure writes are allowed.",
-            )
-            print("ERROR: artifacts not committed - refusing to set PersistenceCommitted.")
-            workspace_lock.release()
-            return 7
-        
-        repo_payload["SESSION_STATE"]["PersistenceCommitted"] = True
-        repo_payload["SESSION_STATE"]["WorkspaceReadyGateCommitted"] = True
-        repo_payload["SESSION_STATE"]["WorkspaceArtifactsCommitted"] = artifacts_committed
-        repo_payload["SESSION_STATE"]["PointerVerified"] = True
-        _atomic_write_text(repo_state_file, json.dumps(repo_payload, indent=2, ensure_ascii=True) + "\n")
-        print("PersistenceCommitted=True set in workspace SESSION_STATE (after pointer verified).")
-
+        ),
+    )
+    result = service.run(payload)
     workspace_lock.release()
-    return 0
+    if result.ok:
+        return 0
+    if result.gate_code in {"CONFIG_ROOT_INSIDE_REPO", "POINTER_PATH_INSIDE_REPO"}:
+        return 5
+    if result.gate_code in {"BACKFILL_NON_ZERO_EXIT", "PHASE2_ARTIFACTS_MISSING"}:
+        return 7
+    if result.gate_code == "POINTER_VERIFY_FAILED":
+        return 9
+    return 2
 
 
 if __name__ == "__main__":

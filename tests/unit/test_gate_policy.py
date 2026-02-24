@@ -9,3 +9,8 @@ def test_persistence_gate_fail_closed_missing_flags() -> None:
 def test_rulebook_gate_blocks_phase4_without_core_profile() -> None:
     result = rulebook_gate(target_phase="4.0", loaded_rulebooks={})
     assert result.ok is False
+
+
+def test_rulebook_gate_blocks_phase5_without_core_profile() -> None:
+    result = rulebook_gate(target_phase="5.2", loaded_rulebooks={})
+    assert result.ok is False
