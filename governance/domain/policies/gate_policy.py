@@ -23,7 +23,12 @@ def persistence_gate(state: dict[str, Any]) -> GateResult:
 
 
 def rulebook_gate(*, target_phase: str, loaded_rulebooks: dict[str, Any]) -> GateResult:
-    if not target_phase.startswith("4"):
+    major_token = str(target_phase).split(".", 1)[0].strip()
+    try:
+        major_phase = int(major_token)
+    except ValueError:
+        major_phase = 0
+    if major_phase < 4:
         return GateResult(ok=True, code="OK", reason="rulebook gate not required")
     if not isinstance(loaded_rulebooks, dict):
         return GateResult(ok=False, code="RULEBOOKS_MISSING", reason="loaded rulebooks missing")
