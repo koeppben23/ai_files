@@ -763,7 +763,7 @@ Quick-fix confidence labeling (recommended):
 - If labels are emitted, they MUST align with the command semantics.
 
 Reason-code quick-fix template catalog (recommended):
-- Recovery messaging SHOULD use `diagnostics/QUICKFIX_TEMPLATES.json` when present.
+- Recovery messaging SHOULD use `governance/assets/catalogs/QUICKFIX_TEMPLATES.json` when present.
 - Template lookup key is canonical `reason_code`.
 - `reason_code` is case-sensitive and MUST be carried unchanged (canonical casing) across `reason_payload`, snapshot views, and template lookups.
 - Runtime output still MUST enforce command coherence rules (`[NEXT-ACTION].Command`, `next_command`, `QuickFixCommands[0]`).
@@ -1045,7 +1045,7 @@ Fixture expectations:
 - response is concise (brief-first)
 - includes one clear next step or explicit `state_unchanged`
 - keeps canonical status vocabulary (`BLOCKED|WARN|OK|NOT_VERIFIED`)
-- canonical fixture source SHOULD be `diagnostics/UX_INTENT_GOLDENS.json`
+- canonical fixture source SHOULD be `governance/assets/catalogs/UX_INTENT_GOLDENS.json`
 
 ### 7.3.19 Short-Intent Routing for Operator Questions (Presentation Advisory)
 
@@ -1578,7 +1578,7 @@ Session-state updates:
 - `SESSION_STATE.BusinessRules.InventoryFileStatus = written | write-requested | not-applicable`
 
 > **Note:** Repository safety, non-blocking behavior, and failure handling are kernel-enforced.
-> See `diagnostics/persistence_artifacts.yaml` (artifact: `business_rules_inventory`).
+> See `governance/assets/config/persistence_artifacts.yaml` (artifact: `business_rules_inventory`).
 
 ### 8.y Decision Pack File (Kernel-Managed, Conditional)
 
@@ -1703,7 +1703,7 @@ Session-state updates:
 - `SESSION_STATE.DecisionPack.FileStatus = written | write-requested | not-applicable`
 
 > **Note:** Non-blocking behavior and failure handling are kernel-enforced.
-> See `diagnostics/persistence_artifacts.yaml` (artifact: `decision_pack`).
+> See `governance/assets/config/persistence_artifacts.yaml` (artifact: `decision_pack`).
 
 ### 8.z RepoMapDigest File (Kernel-Managed, Conditional)
 
@@ -1772,7 +1772,7 @@ Session-state keys (informational):
 - `SESSION_STATE.RepoMapDigestFile.FileStatus = written | write-requested | not-applicable`
 
 > **Note:** Non-blocking behavior and failure handling are kernel-enforced.
-> See `diagnostics/persistence_artifacts.yaml` (artifact: `repo_digest`).
+> See `governance/assets/config/persistence_artifacts.yaml` (artifact: `repo_digest`).
 
 ## 9. BuildEvidence (Core)
 

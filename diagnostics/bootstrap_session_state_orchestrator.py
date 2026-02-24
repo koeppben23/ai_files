@@ -47,7 +47,7 @@ if str(SCRIPT_DIR) not in sys.path:
 if str(SCRIPT_DIR.parent) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR.parent))
 
-from diagnostics.write_policy import EFFECTIVE_MODE, is_write_allowed, write_policy_reasons, writes_allowed
+from governance.entrypoints.write_policy import EFFECTIVE_MODE, is_write_allowed, write_policy_reasons, writes_allowed
 
 try:
     from bootstrap.repo_identity import resolve_repo_root_ssot
@@ -106,7 +106,7 @@ except Exception:
         session_state_template,
     )
 
-from diagnostics.global_error_handler import (
+from governance.infrastructure.logging.global_error_handler import (
     ErrorContext,
     emit_gate_failure,
     install_global_handlers,
@@ -120,7 +120,7 @@ def _writes_allowed() -> bool:
 
 from governance.infrastructure.path_contract import canonical_config_root, normalize_absolute_path
 
-from diagnostics.error_logs import safe_log_error
+from governance.infrastructure.logging.error_logs import safe_log_error
 
 from workspace_lock import acquire_workspace_lock
 try:
@@ -367,7 +367,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--skip-artifact-backfill",
         action="store_true",
-        help="Skip invoking diagnostics/persist_workspace_artifacts.py after bootstrap.",
+        help="Skip invoking governance/entrypoints/persist_workspace_artifacts.py after bootstrap.",
     )
     parser.add_argument(
         "--no-commit",

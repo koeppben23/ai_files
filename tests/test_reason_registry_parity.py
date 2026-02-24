@@ -30,7 +30,7 @@ class TestPipelineReasonCodesParity:
         import json
         from pathlib import Path
         repo_root = Path(__file__).parent.parent
-        registry_path = repo_root / "diagnostics" / "reason_codes.registry.json"
+        registry_path = repo_root / "governance" / "assets" / "catalogs" / "reason_codes.registry.json"
         
         with open(registry_path, "r", encoding="utf-8") as f:
             data = json.load(f)
@@ -43,7 +43,7 @@ class TestPipelineReasonCodesParity:
         import json
         from pathlib import Path
         repo_root = Path(__file__).parent.parent
-        registry_path = repo_root / "diagnostics" / "reason_codes.registry.json"
+        registry_path = repo_root / "governance" / "assets" / "catalogs" / "reason_codes.registry.json"
         
         with open(registry_path, "r", encoding="utf-8") as f:
             data = json.load(f)

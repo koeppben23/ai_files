@@ -20,7 +20,7 @@ import sys
 from pathlib import Path
 from typing import Any, cast
 
-from diagnostics.write_policy import EFFECTIVE_MODE, writes_allowed
+from governance.entrypoints.write_policy import EFFECTIVE_MODE, writes_allowed
 
 
 def _writes_allowed() -> bool:
@@ -41,7 +41,7 @@ if str(SCRIPT_DIR.parent) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR.parent))
 
 try:
-    from diagnostics.error_logs import safe_log_error
+    from governance.infrastructure.logging.error_logs import safe_log_error
 except ImportError:
     def safe_log_error(**kwargs):
         return {"status": "log-disabled"}
@@ -53,7 +53,7 @@ from diagnostics.error_handler_bridge import (
     set_error_context,
 )
 try:
-    from diagnostics.global_error_handler import resolve_log_path
+    from governance.infrastructure.logging.global_error_handler import resolve_log_path
 except Exception:
     def resolve_log_path(*, config_root=None, workspaces_home=None, repo_fingerprint=None):
         root = Path(config_root) if config_root is not None else (Path.home() / ".config" / "opencode")
@@ -498,7 +498,7 @@ def run_persistence_hook(*, repo_root: Path | None = None) -> dict[str, object]:
         )
         return _with_log_path(result)
 
-    bootstrap_script = COMMANDS_HOME / "diagnostics" / "bootstrap_session_state.py"
+    bootstrap_script = COMMANDS_HOME / "governance" / "entrypoints" / "bootstrap_session_state.py"
     if not bootstrap_script.exists():
         emit_gate_failure(
             gate="PERSISTENCE",
@@ -525,7 +525,7 @@ def run_persistence_hook(*, repo_root: Path | None = None) -> dict[str, object]:
             command="start_persistence_hook.py",
             component="persistence-hook",
             observed_value={"expected_path": str(bootstrap_script)},
-            expected_constraint="bootstrap_session_state.py exists in ${COMMANDS_HOME}/diagnostics/",
+            expected_constraint="bootstrap_session_state.py exists in ${COMMANDS_HOME}/governance/",
             remediation="Reinstall governance or verify commands home configuration.",
         )
         return _with_log_path(result, repo_fingerprint=repo_fp)

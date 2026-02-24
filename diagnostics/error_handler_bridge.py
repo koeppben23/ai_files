@@ -3,12 +3,12 @@ from __future__ import annotations
 from typing import Any
 
 try:
-    from diagnostics.global_error_handler import (
+    from governance.infrastructure.logging.global_error_handler import (
         emit_gate_failure,
         install_global_handlers,
         set_error_context,
     )
-    from diagnostics.global_error_handler import ErrorContext as _CanonicalErrorContext
+    from governance.infrastructure.logging.global_error_handler import ErrorContext as _CanonicalErrorContext
 
     def ErrorContext(**kwargs: Any):  # type: ignore[no-redef]
         return _CanonicalErrorContext(**kwargs)

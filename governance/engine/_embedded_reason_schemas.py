@@ -6,7 +6,7 @@ from typing import Final
 
 
 EMBEDDED_REASON_SCHEMAS: Final[dict[str, dict[str, object]]] = {
-    "diagnostics/schemas/reason_payload_blocked_core.v1.json": {
+    "governance/assets/schemas/reason_payload_blocked_core.v1.json": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "title": "Reason Payload: Blocked Core",
         "description": "Generic fail-closed context schema for canonical BLOCKED reason codes.",
@@ -36,7 +36,7 @@ EMBEDDED_REASON_SCHEMAS: Final[dict[str, dict[str, object]]] = {
             "extensions": {"type": "object", "additionalProperties": True},
         },
     },
-    "diagnostics/schemas/reason_payload_repo_doc_unsafe.v1.json": {
+    "governance/assets/schemas/reason_payload_repo_doc_unsafe.v1.json": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "title": "Reason Payload: Repo Doc Unsafe Directive",
         "type": "object",
@@ -51,7 +51,7 @@ EMBEDDED_REASON_SCHEMAS: Final[dict[str, dict[str, object]]] = {
             "extensions": {"type": "object", "additionalProperties": True},
         },
     },
-    "diagnostics/schemas/reason_payload_repo_constraint_widening.v1.json": {
+    "governance/assets/schemas/reason_payload_repo_constraint_widening.v1.json": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "title": "Reason Payload: Repo Constraint Widening",
         "type": "object",
@@ -75,7 +75,7 @@ EMBEDDED_REASON_SCHEMAS: Final[dict[str, dict[str, object]]] = {
             "extensions": {"type": "object", "additionalProperties": True},
         },
     },
-    "diagnostics/schemas/reason_payload_interactive_pipeline.v1.json": {
+    "governance/assets/schemas/reason_payload_interactive_pipeline.v1.json": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "title": "Reason Payload: Interactive Required in Pipeline",
         "type": "object",
@@ -88,7 +88,7 @@ EMBEDDED_REASON_SCHEMAS: Final[dict[str, dict[str, object]]] = {
             "extensions": {"type": "object", "additionalProperties": True},
         },
     },
-    "diagnostics/schemas/reason_payload_prompt_budget.v1.json": {
+    "governance/assets/schemas/reason_payload_prompt_budget.v1.json": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "title": "Reason Payload: Prompt Budget Exceeded",
         "type": "object",
@@ -118,7 +118,7 @@ EMBEDDED_REASON_SCHEMAS: Final[dict[str, dict[str, object]]] = {
             "extensions": {"type": "object", "additionalProperties": True},
         },
     },
-    "diagnostics/schemas/reason_payload_repo_constraint_unsupported.v1.json": {
+    "governance/assets/schemas/reason_payload_repo_constraint_unsupported.v1.json": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "title": "Reason Payload: Repo Constraint Unsupported",
         "type": "object",
@@ -131,7 +131,7 @@ EMBEDDED_REASON_SCHEMAS: Final[dict[str, dict[str, object]]] = {
             "extensions": {"type": "object", "additionalProperties": True},
         },
     },
-    "diagnostics/schemas/reason_payload_policy_precedence.v1.json": {
+    "governance/assets/schemas/reason_payload_policy_precedence.v1.json": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "title": "Reason Payload: Policy Precedence Applied",
         "type": "object",
@@ -158,7 +158,7 @@ EMBEDDED_REASON_SCHEMAS: Final[dict[str, dict[str, object]]] = {
             "extensions": {"type": "object", "additionalProperties": True},
         },
     },
-    "diagnostics/schemas/reason_payload_advisory.v1.json": {
+    "governance/assets/schemas/reason_payload_advisory.v1.json": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "title": "Reason Payload: Advisory",
         "description": "Advisory/non-blocking reason context schema for warning and verification telemetry.",

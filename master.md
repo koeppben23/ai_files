@@ -50,7 +50,7 @@ When blocked, session state includes:
 - `SESSION_STATE.Mode` set to `BLOCKED`
 - `SESSION_STATE.Next` set to a `BLOCKED-*` reason code
 
-> **Note:** Blocked reasons and recovery are kernel-enforced. See `diagnostics/blocked_reason_catalog.yaml`.
+> **Note:** Blocked reasons and recovery are kernel-enforced. See `governance/assets/reasons/blocked_reason_catalog.yaml`.
 
 ### Recovery
 - Operator must restate the bootstrap declaration explicitly.
@@ -160,7 +160,7 @@ Rules (MUST, fail-closed):
      `BLOCKED-PERSISTENCE-PATH-VIOLATION`
    - Recovery requires the canonical variable-based target path.
 
-> **Note:** Blocked reasons and recovery are defined in `diagnostics/blocked_reason_catalog.yaml`
+> **Note:** Blocked reasons and recovery are defined in `governance/assets/reasons/blocked_reason_catalog.yaml`
 > (BLOCKED-PERSISTENCE-TARGET-DEGENERATE, BLOCKED-PERSISTENCE-PATH-VIOLATION).
 
 Recovery output format (informational):
@@ -220,7 +220,7 @@ Bootstrap tool preflight (binding):
   - `no_restart_if_binary_in_existing_path`
 
 Required-command inventory derivation (binding):
-- `/start` MUST load a deterministic command inventory from `${COMMANDS_HOME}/diagnostics/tool_requirements.json` when present.
+- `/start` MUST load a deterministic command inventory from `${COMMANDS_HOME}/governance/assets/catalogs/tool_requirements.json` when present.
 - If that file is unavailable, `/start` MUST fail over to deriving the inventory by scanning canonical governance artifacts for command references, at minimum:
   - `${COMMANDS_HOME}/master.md`
   - `${COMMANDS_HOME}/rules.md`
@@ -360,7 +360,7 @@ PURPOSE:
 Activation Steps (Informational):
 
 > **Note:** Activation preconditions and failure handling are kernel-enforced.
-> See `diagnostics/blocked_reason_catalog.yaml` for BLOCKED-MISSING-PROFILE, BLOCKED-MISSING-TEMPLATES, BLOCKED-MISSING-ADDON.
+> See `governance/assets/reasons/blocked_reason_catalog.yaml` for BLOCKED-MISSING-PROFILE, BLOCKED-MISSING-TEMPLATES, BLOCKED-MISSING-ADDON.
 
 0) Preconditions
    - `SESSION_STATE.ActiveProfile` is set (from Phase 2 profile detection), unless `rules.fallback-minimum.md` is active.
@@ -535,7 +535,7 @@ Top-tier load evidence obligation (binding):
  2. **Auto-detection from available rulebooks** (informational)
  
  > **Note:** Profile selection is kernel-enforced. The following describes the output state updates, not the selection algorithm.
- > For trigger conditions and BLOCKED reasons, see `diagnostics/blocked_reason_catalog.yaml`.
+ > For trigger conditions and BLOCKED reasons, see `governance/assets/reasons/blocked_reason_catalog.yaml`.
 
 Output state updates when kernel auto-selects a profile:
 - `SESSION_STATE.ActiveProfile = "<profile_name>"`
@@ -736,7 +736,7 @@ Binding rules:
 
 - If rulebook load evidence cannot be produced due to host/tool limitations, kernel blocks with BLOCKED-RULEBOOK-EVIDENCE-MISSING.
 
-> **Note:** Blocked reasons and recovery are kernel-enforced. See `diagnostics/blocked_reason_catalog.yaml`.
+> **Note:** Blocked reasons and recovery are kernel-enforced. See `governance/assets/reasons/blocked_reason_catalog.yaml`.
 
 ---
 
@@ -957,7 +957,7 @@ those phase rules only add additional phase-related clarifications when CONFIDEN
 
 #### BLOCKED — Recovery Playbook (Output Format)
 
-> **Note:** Blocked state transition is kernel-enforced. See `diagnostics/blocked_reason_catalog.yaml`.
+> **Note:** Blocked state transition is kernel-enforced. See `governance/assets/reasons/blocked_reason_catalog.yaml`.
 > This section defines the output format when kernel emits a blocked response.
 
 When blocked, output includes a deterministic recovery block:
@@ -1005,7 +1005,7 @@ Rules:
 
 **Blocked reason catalog (kernel-enforced):**
 
-> **Note:** Trigger conditions, required inputs, and resume pointers are defined in `diagnostics/blocked_reason_catalog.yaml`.
+> **Note:** Trigger conditions, required inputs, and resume pointers are defined in `governance/assets/reasons/blocked_reason_catalog.yaml`.
 > The kernel owns the normative catalog; this section is informational only.
 
 Common blocked reason codes (informational summary):
@@ -1021,7 +1021,7 @@ Common blocked reason codes (informational summary):
 - `BLOCKED-MISSING-EVIDENCE`: Required evidence for deterministic decision missing
 - `BLOCKED-ENGINE-SELFCHECK`: Engine self-check failed (config/parser/initialization)
 
-For full catalog with triggers, recovery steps, and quick-fix commands, see `diagnostics/blocked_reason_catalog.yaml`.
+For full catalog with triggers, recovery steps, and quick-fix commands, see `governance/assets/reasons/blocked_reason_catalog.yaml`.
 
 #### Unified Next Action Footer (Presentation Advisory)
 
@@ -1222,7 +1222,7 @@ SESSION_STATE versioning (informational):
 - If persisted state is older than the supported version and cannot be migrated deterministically,
   kernel blocks with BLOCKED-STATE-OUTDATED.
 
-> **Note:** Blocked reasons and recovery are kernel-enforced. See `diagnostics/blocked_reason_catalog.yaml`.
+> **Note:** Blocked reasons and recovery are kernel-enforced. See `governance/assets/reasons/blocked_reason_catalog.yaml`.
 
 ### 3.2 MIN Template (Presentation Advisory)
 
@@ -2348,7 +2348,7 @@ Additional enforcement (informational):
   `C:tmp\file`, or any single-segment path not starting with `${`), kernel blocks with BLOCKED-PERSISTENCE-TARGET-DEGENERATE:business-rules.
 
 > **Note:** Blocked reasons and failure handling are kernel-enforced.
-> See `diagnostics/blocked_reason_catalog.yaml` and `diagnostics/persistence_artifacts.yaml` (artifact: `business_rules_inventory`).
+> See `governance/assets/reasons/blocked_reason_catalog.yaml` and `governance/assets/config/persistence_artifacts.yaml` (artifact: `business_rules_inventory`).
 
 ---
 
@@ -3683,7 +3683,7 @@ Response and output constraints are defined in `rules.md` (Core Rulebook).
 * Responses SHOULD include a compact phase progress bar (`phase_progress_bar`, e.g. `[##----] 2/6`) for quick orientation
 * Responses SHOULD include a compact deterministic `status_tag` (`<PHASE>-<GATE>-<STATE>`) for quick operator scanning
 * Blocked recovery guidance SHOULD label primary quick-fix command confidence as `safe` or `review-first`
-* Recovery guidance SHOULD source reason-specific command templates from `diagnostics/QUICKFIX_TEMPLATES.json` when available
+* Recovery guidance SHOULD source reason-specific command templates from `governance/assets/catalogs/QUICKFIX_TEMPLATES.json` when available
 * `NextAction` wording SHOULD include concrete context (active phase/gate/scope) and avoid generic continuation text
 * On phase/mode changes, responses SHOULD include a compact one-line transition summary (`[TRANSITION] from -> to | reason: ...`)
 * If state does not change, responses SHOULD acknowledge `state_unchanged` with a concise reason
@@ -3692,7 +3692,7 @@ Response and output constraints are defined in `rules.md` (Core Rulebook).
 * `/start` preflight SHOULD distinguish `required_now` vs `required_later` and surface `block_now` for immediate-gate impact
 * After bootstrap success, short follow-ups SHOULD default to conversational, language-adaptive responses unless full diagnostics are requested
 * Conversational post-start intents SHOULD remain regression-tested with deterministic fixtures (`what_phase`, `discovery_done`, `workflow_unchanged`)
-* Preferred fixture source for conversational intent goldens: `diagnostics/UX_INTENT_GOLDENS.json`
+* Preferred fixture source for conversational intent goldens: `governance/assets/catalogs/UX_INTENT_GOLDENS.json`
 * Short operator follow-up questions SHOULD route through deterministic intents (`where_am_i`, `what_blocks_me`, `what_now`) before verbose diagnostics
 * Responses SHOULD support operator persona modes (`compact`, `standard`, `audit`) as presentation-density controls without changing gate behavior
 

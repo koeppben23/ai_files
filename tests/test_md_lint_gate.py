@@ -13,7 +13,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 
 @pytest.mark.governance
 def test_md_lint_runs_in_ci_mode_and_reports_json():
-    script = REPO_ROOT / "diagnostics" / "md_lint.py"
+    script = REPO_ROOT / "governance" / "entrypoints" / "md_lint.py"
     assert script.exists(), "md_lint.py missing"
     files = [
         REPO_ROOT / "master.md",

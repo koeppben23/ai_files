@@ -19,7 +19,7 @@ if _COMMANDS_HOME not in sys.path:
     sys.path.insert(0, _COMMANDS_HOME)
 
 from diagnostics.command_profiles import render_command_profiles
-from diagnostics.write_policy import writes_allowed, EFFECTIVE_MODE
+from governance.entrypoints.write_policy import writes_allowed, EFFECTIVE_MODE
 _BindingEvidenceResolver: Any = None
 try:
     from governance.infrastructure.binding_evidence_resolver import BindingEvidenceResolver as _ImportedBindingEvidenceResolver
@@ -69,14 +69,14 @@ except Exception:
     _derive_fingerprint_ssot = None
 
 try:
-    from diagnostics.global_error_handler import (
+    from governance.infrastructure.logging.global_error_handler import (
         emit_gate_failure,
         install_global_handlers,
         resolve_log_path,
         set_error_context,
     )
 except Exception:
-    from diagnostics.error_logs import safe_log_error
+    from governance.infrastructure.logging.error_logs import safe_log_error
 
     def install_global_handlers(context_provider=None):  # type: ignore
         _ = context_provider
@@ -121,7 +121,7 @@ except Exception:
 # SSOT: Ensure global error handler is installed before any operations
 def _install_global_error_handler() -> None:
     try:
-        from diagnostics.global_error_handler import install_global_handlers
+        from governance.infrastructure.logging.global_error_handler import install_global_handlers
         install_global_handlers()
     except Exception:
         pass
@@ -150,7 +150,7 @@ def _resolve_bindings() -> tuple[Path, Path, bool, Path | None, str]:
 
 
 COMMANDS_HOME, WORKSPACES_HOME, BINDING_OK, BINDING_EVIDENCE_PATH, PYTHON_COMMAND = _resolve_bindings()
-TOOL_CATALOG = COMMANDS_HOME / "diagnostics" / "tool_requirements.json"
+TOOL_CATALOG = COMMANDS_HOME / "governance" / "assets" / "catalogs" / "tool_requirements.json"
 
 HOOK_STATUS_OK = "ok"
 HOOK_STATUS_BLOCKED = "blocked"
@@ -474,7 +474,7 @@ def _emit_persistence_gate_failure(
     )
     if not emitted:
         try:
-            from diagnostics.error_logs import safe_log_error
+            from governance.infrastructure.logging.error_logs import safe_log_error
 
             safe_log_error(
                 reason_key=code,

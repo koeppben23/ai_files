@@ -20,13 +20,13 @@ def test_reason_payload_schema_selfcheck_passes():
 @pytest.mark.governance
 def test_reason_payload_registry_exists_at_expected_path():
     root = Path(__file__).resolve().parents[1]
-    assert (root / "diagnostics" / "reason_codes.registry.json").exists()
+    assert (root / "governance" / "assets" / "catalogs" / "reason_codes.registry.json").exists()
 
 
 @pytest.mark.governance
 def test_embedded_reason_registry_matches_diagnostics_registry():
     root = Path(__file__).resolve().parents[1]
-    registry_path = root / "diagnostics" / "reason_codes.registry.json"
+    registry_path = root / "governance" / "assets" / "catalogs" / "reason_codes.registry.json"
     payload = json.loads(registry_path.read_text(encoding="utf-8"))
     codes: list[object] = []
     if isinstance(payload.get("blocked_reasons"), list):

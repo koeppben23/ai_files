@@ -20,7 +20,7 @@ def main() -> int:
         "configRoot": str(config_root),
         "commandsHome": str(evidence.commands_home),
         "profilesHome": str(evidence.commands_home / "profiles"),
-        "diagnosticsHome": str(evidence.commands_home / "diagnostics"),
+        "diagnosticsHome": str(evidence.commands_home / "governance"),
         "workspacesHome": str(evidence.workspaces_home),
     }
 

@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Reason Payload: Prompt Budget Exceeded",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["mode", "budget"],
+  "properties": {
+    "mode": { "type": "string" },
+    "budget": {
+      "type": "object",
+      "required": ["max_total", "max_repo_docs", "used_total", "used_repo_docs"],
+      "properties": {
+        "max_total": { "type": "integer", "minimum": 0 },
+        "max_repo_docs": { "type": "integer", "minimum": 0 },
+        "used_total": { "type": "integer", "minimum": 0 },
+        "used_repo_docs": { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": true
+    },
+    "last_prompt": {
+      "type": "object",
+      "properties": {
+        "source": { "type": "string" },
+        "topic": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "extensions": { "type": "object", "additionalProperties": true }
+  }
+}

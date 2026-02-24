@@ -13,7 +13,7 @@ from .util import REPO_ROOT
 
 
 def _load_module():
-    script = REPO_ROOT / "diagnostics" / "start_preflight_readonly.py"
+    script = REPO_ROOT / "governance" / "entrypoints" / "start_preflight_readonly.py"
     spec = importlib.util.spec_from_file_location("start_preflight_readonly", script)
     if spec is None or spec.loader is None:
         raise RuntimeError("failed to load start_preflight_readonly module")
@@ -23,7 +23,7 @@ def _load_module():
 
 
 def _load_module_with_env(env: dict[str, str]):
-    script = REPO_ROOT / "diagnostics" / "start_preflight_readonly.py"
+    script = REPO_ROOT / "governance" / "entrypoints" / "start_preflight_readonly.py"
     spec = importlib.util.spec_from_file_location("start_preflight_readonly", script)
     if spec is None or spec.loader is None:
         raise RuntimeError("failed to load start_preflight_readonly module")
@@ -52,7 +52,7 @@ def test_start_preflight_readonly_hook_blocks_when_writes_not_allowed(monkeypatc
     monkeypatch.setenv("OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY", "1")
     monkeypatch.delenv("CI", raising=False)
     import importlib
-    import diagnostics.start_preflight_readonly as mod
+    import governance.entrypoints.start_preflight_readonly as mod
     importlib.reload(mod)
     
     try:
@@ -109,7 +109,7 @@ def test_start_preflight_writes_allowed_false_when_force_read_only(monkeypatch: 
     """SSOT: writes_allowed() is False when FORCE_READ_ONLY=1."""
     monkeypatch.setenv("OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY", "1")
     import importlib
-    import diagnostics.write_policy as wp
+    import governance.entrypoints.write_policy as wp
     importlib.reload(wp)
     assert wp.writes_allowed() is False
 
@@ -119,7 +119,7 @@ def test_run_persistence_hook_blocks_when_writes_not_allowed(monkeypatch: pytest
     monkeypatch.setenv("OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY", "1")
     monkeypatch.delenv("CI", raising=False)
     import importlib
-    import diagnostics.start_preflight_readonly as mod
+    import governance.entrypoints.start_preflight_readonly as mod
     importlib.reload(mod)
     
     try:

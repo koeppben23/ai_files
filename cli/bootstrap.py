@@ -12,7 +12,7 @@ from governance.domain.models.layouts import WorkspaceLayout
 from governance.domain.models.repo_identity import RepoIdentity
 
 from cli.deps import GlobalErrorLogger, LocalFS, LocalProcessRunner
-from diagnostics.write_policy import EFFECTIVE_MODE, write_policy_reasons
+from governance.entrypoints.write_policy import EFFECTIVE_MODE, write_policy_reasons
 
 
 def _parser() -> argparse.ArgumentParser:

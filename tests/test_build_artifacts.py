@@ -30,7 +30,7 @@ def _assert_member_paths_safe(names: list[str]) -> None:
 
 
 def _shipped_customer_scripts() -> list[str]:
-    payload = json.loads((REPO_ROOT / "diagnostics" / "CUSTOMER_SCRIPT_CATALOG.json").read_text(encoding="utf-8"))
+    payload = json.loads((REPO_ROOT / "governance" / "assets" / "catalogs" / "CUSTOMER_SCRIPT_CATALOG.json").read_text(encoding="utf-8"))
     scripts = []
     for entry in payload.get("scripts", []):
         if entry.get("ship_in_release") is True:
@@ -45,7 +45,7 @@ def _shipped_workflow_templates() -> list[str]:
 
 
 def _release_excluded_markdown() -> list[str]:
-    payload = json.loads((REPO_ROOT / "diagnostics" / "CUSTOMER_MARKDOWN_EXCLUDE.json").read_text(encoding="utf-8"))
+    payload = json.loads((REPO_ROOT / "governance" / "assets" / "catalogs" / "CUSTOMER_MARKDOWN_EXCLUDE.json").read_text(encoding="utf-8"))
     return sorted(payload.get("release_excluded_markdown", []))
 
 

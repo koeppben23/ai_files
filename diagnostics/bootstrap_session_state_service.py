@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 try:
-    from diagnostics.bootstrap_session_state_orchestrator import (  # noqa: F401
+    from governance.entrypoints.bootstrap_session_state_orchestrator import (  # noqa: F401
         _atomic_write_text,
         _is_canonical_fingerprint,
         _validate_canonical_fingerprint,
@@ -18,7 +18,7 @@ try:
         session_pointer_path,
         session_state_template,
     )
-    from diagnostics.bootstrap_session_state_orchestrator import main as _orchestrator_main
+    from governance.entrypoints.bootstrap_session_state_orchestrator import main as _orchestrator_main
 except Exception:  # pragma: no cover
     from bootstrap_session_state_orchestrator import (  # type: ignore # noqa: F401
         _atomic_write_text,

@@ -4,8 +4,8 @@ import hashlib
 import re
 import subprocess
 
-from diagnostics.persist_workspace_artifacts import _derive_fingerprint_from_repo
-from diagnostics.start_preflight_readonly import derive_repo_fingerprint
+from governance.entrypoints.persist_workspace_artifacts import _derive_fingerprint_from_repo
+from governance.entrypoints.start_preflight_readonly import derive_repo_fingerprint
 from governance.infrastructure.path_contract import normalize_for_fingerprint
 
 

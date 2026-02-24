@@ -4,15 +4,15 @@
 from __future__ import annotations
 
 try:
-    from diagnostics.persist_workspace_artifacts_orchestrator import *  # type: ignore  # noqa: F401,F403
-    from diagnostics.persist_workspace_artifacts_orchestrator import (  # noqa: F401
+    from governance.entrypoints.persist_workspace_artifacts_orchestrator import *  # type: ignore  # noqa: F401,F403
+    from governance.entrypoints.persist_workspace_artifacts_orchestrator import (  # noqa: F401
         PHASE2_ARTIFACTS,
         _derive_fingerprint_from_repo,
         _is_canonical_fingerprint,
         _should_write_business_rules_inventory,
         _verify_phase2_artifacts_exist,
     )
-    from diagnostics.persist_workspace_artifacts_orchestrator import main as _orchestrator_main
+    from governance.entrypoints.persist_workspace_artifacts_orchestrator import main as _orchestrator_main
 except Exception:  # pragma: no cover
     from persist_workspace_artifacts_orchestrator import *  # type: ignore  # noqa: F401,F403
     from persist_workspace_artifacts_orchestrator import (  # type: ignore # noqa: F401

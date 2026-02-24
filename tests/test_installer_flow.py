@@ -122,9 +122,9 @@ def test_full_install_reinstall_uninstall_flow(tmp_path: Path):
         commands / "master.md",
         commands / "rules.md",
         commands / "start.md",
-        commands / "diagnostics" / "QUICKFIX_TEMPLATES.json",
-        commands / "diagnostics" / "UX_INTENT_GOLDENS.json",
-        commands / "diagnostics" / "CUSTOMER_SCRIPT_CATALOG.json",
+        commands / "governance" / "assets" / "catalogs" / "QUICKFIX_TEMPLATES.json",
+        commands / "governance" / "assets" / "catalogs" / "UX_INTENT_GOLDENS.json",
+        commands / "governance" / "assets" / "catalogs" / "CUSTOMER_SCRIPT_CATALOG.json",
         commands / "scripts" / "workflow_template_factory.py",
         commands / "scripts" / "rulebook_factory.py",
         commands / "templates" / "github-actions" / "template_catalog.json",
@@ -167,7 +167,7 @@ def test_full_install_reinstall_uninstall_flow(tmp_path: Path):
     diagnostics_home = p["paths"]["diagnosticsHome"]
     dh = diagnostics_home.replace("\\", "/").rstrip("/")
     ch = commands_home.replace("\\", "/").rstrip("/")
-    assert dh == f"{ch}/diagnostics" or dh.endswith("/diagnostics"), (
+    assert dh in {f"{ch}/diagnostics", f"{ch}/governance"} or dh.endswith(("/diagnostics", "/governance")), (
         f"diagnosticsHome unexpected: {diagnostics_home} (commandsHome={commands_home})"
     )
 
@@ -436,10 +436,10 @@ def test_install_distribution_contains_required_normative_files_and_addon_rulebo
     )
 
     required_diagnostics = [
-        commands / "diagnostics" / "map_audit_to_canonical.py",
-        commands / "diagnostics" / "AUDIT_REASON_CANONICAL_MAP.json",
-        commands / "diagnostics" / "CUSTOMER_SCRIPT_CATALOG.json",
-        commands / "diagnostics" / "tool_requirements.json",
+        commands / "governance" / "entrypoints" / "map_audit_to_canonical.py",
+        commands / "governance" / "assets" / "catalogs" / "AUDIT_REASON_CANONICAL_MAP.json",
+        commands / "governance" / "assets" / "catalogs" / "CUSTOMER_SCRIPT_CATALOG.json",
+        commands / "governance" / "assets" / "catalogs" / "tool_requirements.json",
     ]
     missing_diagnostics = [str(p) for p in required_diagnostics if not p.exists()]
     assert not missing_diagnostics, "Missing required diagnostics bridge files after install:\n" + "\n".join(

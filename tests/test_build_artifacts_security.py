@@ -49,7 +49,7 @@ def _top_level_prefix(names: list[str]) -> set[str]:
 
 
 def _shipped_customer_scripts() -> set[str]:
-    payload = json.loads((REPO_ROOT / "diagnostics" / "CUSTOMER_SCRIPT_CATALOG.json").read_text(encoding="utf-8"))
+    payload = json.loads((REPO_ROOT / "governance" / "assets" / "catalogs" / "CUSTOMER_SCRIPT_CATALOG.json").read_text(encoding="utf-8"))
     return {
         str(entry["path"])
         for entry in payload.get("scripts", [])
@@ -137,15 +137,15 @@ def test_release_archives_layout_and_contents_policy(built_artifacts):
         "rules.md",
         "start.md",
         "profiles/addons/docsGovernance.addon.yml",
-        "diagnostics/persist_workspace_artifacts.py",
-        "diagnostics/bootstrap_session_state.py",
-        "diagnostics/error_logs.py",
-        "diagnostics/map_audit_to_canonical.py",
-        "diagnostics/AUDIT_REASON_CANONICAL_MAP.json",
-        "diagnostics/CUSTOMER_SCRIPT_CATALOG.json",
-        "diagnostics/tool_requirements.json",
-        "diagnostics/QUICKFIX_TEMPLATES.json",
-        "diagnostics/UX_INTENT_GOLDENS.json",
+        "governance/entrypoints/persist_workspace_artifacts.py",
+        "governance/entrypoints/bootstrap_session_state.py",
+        "governance/entrypoints/error_logs.py",
+        "governance/entrypoints/map_audit_to_canonical.py",
+        "governance/assets/catalogs/AUDIT_REASON_CANONICAL_MAP.json",
+        "governance/assets/catalogs/CUSTOMER_SCRIPT_CATALOG.json",
+        "governance/assets/catalogs/tool_requirements.json",
+        "governance/assets/catalogs/QUICKFIX_TEMPLATES.json",
+        "governance/assets/catalogs/UX_INTENT_GOLDENS.json",
     }
     required_rel.update(_shipped_customer_scripts())
     required_rel.update(_shipped_workflow_templates())
@@ -189,7 +189,7 @@ def test_release_archives_layout_and_contents_policy(built_artifacts):
         # - LICENSE*
         # - *.md + *.json
         # - profiles/addons/*.addon.yml
-        # - diagnostics/*.py runtime helpers
+        # - governance/entrypoints/*.py runtime helpers
         # - scripts/*.py listed in CUSTOMER_SCRIPT_CATALOG ship_in_release
         # - templates/github-actions/*.yml listed in workflow template catalog
         for n in files:
@@ -201,7 +201,7 @@ def test_release_archives_layout_and_contents_policy(built_artifacts):
                 continue
             if rel.startswith("profiles/addons/") and name.endswith(".addon.yml"):
                 continue
-            if rel.startswith("diagnostics/") and Path(name).suffix.lower() == ".py":
+            if rel.startswith("governance/entrypoints/") and Path(name).suffix.lower() == ".py":
                 continue
             if rel == "governance/VERSION":
                 continue

@@ -72,7 +72,7 @@ def _write_governance_paths(commands_home: Path, workspaces_home: Path, config_r
             "configRoot": str(config_root),
             "commandsHome": str(commands_home),
             "profilesHome": str(commands_home / "profiles"),
-            "diagnosticsHome": str(commands_home / "diagnostics"),
+            "diagnosticsHome": str(commands_home / "governance"),
             "workspacesHome": str(workspaces_home),
             "globalErrorLogsHome": str(config_root / "logs"),
             "workspaceErrorLogsHomeTemplate": str(workspaces_home / "<repo_fingerprint>" / "logs"),
@@ -125,7 +125,7 @@ def test_start_preflight_persists_workspace_and_pointer(tmp_path: Path) -> None:
     env["CI"] = ""
     env.pop("OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY", None)
 
-    start_script = commands_home / "diagnostics" / "start_preflight_readonly.py"
+    start_script = commands_home / "governance" / "entrypoints" / "start_preflight_readonly.py"
     proc = _run([sys.executable, str(start_script)], cwd=repo, env=env)
     assert proc.returncode == 0, proc.stdout + "\n" + proc.stderr
 
@@ -207,7 +207,7 @@ def test_start_preflight_blocks_when_force_read_only(tmp_path: Path) -> None:
     env["CI"] = ""
     env["OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY"] = "1"
 
-    start_script = commands_home / "diagnostics" / "start_preflight_readonly.py"
+    start_script = commands_home / "governance" / "entrypoints" / "start_preflight_readonly.py"
     proc = _run([sys.executable, str(start_script)], cwd=repo, env=env)
     assert proc.returncode != 0
 

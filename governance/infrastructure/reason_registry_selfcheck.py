@@ -22,7 +22,7 @@ def check_reason_registry_parity(repo_root: Path | None = None) -> tuple[bool, l
         errors.append(f"Cannot load reason_codes.py: {exc}")
         return (False, errors)
 
-    registry_path = repo_root / "diagnostics" / "reason_codes.registry.json"
+    registry_path = repo_root / "governance" / "assets" / "catalogs" / "reason_codes.registry.json"
     if not registry_path.exists():
         errors.append(f"Registry file missing: {registry_path}")
         return (False, errors)

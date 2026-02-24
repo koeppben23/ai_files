@@ -39,8 +39,9 @@ def test_installer_collectors_exclude_filesystem_metadata(tmp_path: Path):
     (source / "profiles" / "addons" / "backendPythonTemplates.addon.yml").write_text(
         "addon_key: backendPythonTemplates\n", encoding="utf-8"
     )
-    (source / "diagnostics" / "tool_requirements.json").write_text("{}", encoding="utf-8")
-    (source / "diagnostics" / "CUSTOMER_SCRIPT_CATALOG.json").write_text(
+    (source / "governance" / "assets" / "catalogs").mkdir(parents=True, exist_ok=True)
+    (source / "governance" / "assets" / "catalogs" / "tool_requirements.json").write_text("{}", encoding="utf-8")
+    (source / "governance" / "assets" / "catalogs" / "CUSTOMER_SCRIPT_CATALOG.json").write_text(
         '{"schema":"governance.customer-script-catalog.v1","scripts":[{"path":"scripts/workflow_template_factory.py","ship_in_release":true}]}\n',
         encoding="utf-8",
     )
@@ -72,11 +73,12 @@ def test_installer_collectors_exclude_filesystem_metadata(tmp_path: Path):
     assert [p.relative_to(source).as_posix() for p in root_files] == ["master.md"]
     assert [p.relative_to(source).as_posix() for p in profile_files] == ["profiles/rules.backend-python.md"]
     assert [p.relative_to(source).as_posix() for p in addon_files] == ["profiles/addons/backendPythonTemplates.addon.yml"]
-    assert [p.relative_to(source).as_posix() for p in diagnostic_files] == [
-        "diagnostics/CUSTOMER_SCRIPT_CATALOG.json",
-        "diagnostics/tool_requirements.json",
+    assert [p.relative_to(source).as_posix() for p in diagnostic_files] == []
+    assert [p.relative_to(source).as_posix() for p in runtime_files] == [
+        "governance/assets/catalogs/CUSTOMER_SCRIPT_CATALOG.json",
+        "governance/assets/catalogs/tool_requirements.json",
+        "governance/engine/orchestrator.py",
     ]
-    assert [p.relative_to(source).as_posix() for p in runtime_files] == ["governance/engine/orchestrator.py"]
     assert [p.relative_to(source).as_posix() for p in customer_script_files] == [
         "scripts/workflow_template_factory.py"
     ]

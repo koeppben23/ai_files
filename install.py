@@ -96,11 +96,11 @@ TEMPLATE_CATALOG_REL = Path("templates/github-actions/template_catalog.json")
 TEMPLATE_CATALOG_SCHEMA = "governance.workflow-template-catalog.v1"
 
 # Customer script catalog controlling which scripts are shipped for customers
-CUSTOMER_SCRIPT_CATALOG_REL = Path("diagnostics/CUSTOMER_SCRIPT_CATALOG.json")
+CUSTOMER_SCRIPT_CATALOG_REL = Path("governance/assets/catalogs/CUSTOMER_SCRIPT_CATALOG.json")
 CUSTOMER_SCRIPT_CATALOG_SCHEMA = "governance.customer-script-catalog.v1"
 
-# Diagnostics copied into <config_root>/commands/diagnostics/** (includes audit tooling + schemas)
-DIAGNOSTICS_DIR_NAME = "diagnostics"
+# Governance assets copied into <config_root>/commands/governance/assets/**
+DIAGNOSTICS_DIR_NAME = "governance/assets"
 
 # Governance runtime package copied into <config_root>/commands/governance/**
 GOVERNANCE_RUNTIME_DIR_NAME = "governance"
@@ -370,19 +370,10 @@ def collect_command_root_files(source_dir: Path, *, with_agent_rails: bool = Fal
 
 def collect_diagnostics_files(source_dir: Path) -> list[Path]:
     """
-    Collect diagnostics files to copy into <config_root>/commands/diagnostics/**.
+    Collect diagnostics files to copy into <config_root>/commands/governance/**.
     Includes everything under ./diagnostics (schemas, audit docs, etc.).
     """
-    diag_dir = source_dir / DIAGNOSTICS_DIR_NAME
-    if not diag_dir.exists() or not diag_dir.is_dir():
-        return []
-    return sorted(
-        [
-            p
-            for p in diag_dir.rglob("*")
-            if p.is_file() and not p.is_symlink() and not _is_forbidden_metadata_path(p, source_dir)
-        ]
-    )
+    return []
 
 
 def collect_governance_runtime_files(source_dir: Path) -> list[Path]:
@@ -568,7 +559,7 @@ def build_governance_paths_payload(config_root: Path, *, deterministic: bool) ->
 
     commands_home = config_root / "commands"
     profiles_home = commands_home / "profiles"
-    diagnostics_home = commands_home / "diagnostics"
+    diagnostics_home = commands_home / "governance"
     workspaces_home = config_root / "workspaces"
     global_error_logs_home = config_root / ERROR_LOGS_DIR_NAME
     if os.name == "nt":
@@ -983,7 +974,7 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
     # copy diagnostics (audit tooling, schemas, etc.)
     diag_files = collect_diagnostics_files(plan.source_dir)
     if diag_files:
-        print("\n📋 Copying diagnostics to commands/diagnostics/ ...")
+        print("\n📋 Copying diagnostics to commands/governance/ ...")
         for df in diag_files:
             rel = df.relative_to(plan.source_dir)
             dst = plan.commands_dir / rel

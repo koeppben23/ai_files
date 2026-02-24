@@ -1,0 +1,13 @@
+{
+  "schema": "governance.customer-markdown-exclude.v1",
+  "catalog_version": 1,
+  "release_excluded_markdown": [
+    "docs/governance-engine-rework-plan.md",
+    "docs/governance-evidence-backfeed-claims.md",
+    "docs/governance-rework-gap-closure.md",
+    "docs/governance-rollout-phase1-dualread.md",
+    "docs/governance-rollout-phase2-engine-only.md",
+    "docs/governance-rollout-phase3-legacy-removed.md"
+  ],
+  "notes": "Files listed here are intentionally excluded from customer release archives."
+}
