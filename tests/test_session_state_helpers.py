@@ -13,6 +13,7 @@ def test_with_kernel_result_writes_session_state_kernel_block() -> None:
         status="OK",
         spec_hash="deadbeef",
         spec_path="/tmp/commands/phase_api.yaml",
+        spec_loaded_at="2026-02-24T19:00:00+00:00",
         log_paths={"phase_flow": "/tmp/commands/logs/flow.log.jsonl"},
         event_id="evt-1",
     )
@@ -25,4 +26,5 @@ def test_with_kernel_result_writes_session_state_kernel_block() -> None:
     kernel = state["Kernel"]
     assert isinstance(kernel, dict)
     assert kernel["PhaseApiSha256"] == "deadbeef"
+    assert kernel["PhaseApiLoadedAt"] == "2026-02-24T19:00:00+00:00"
     assert kernel["LastPhaseEventId"] == "evt-1"

@@ -34,13 +34,9 @@ def canonical_config_root(home: Path | None = None) -> Path:
     return Path(os.path.normpath(os.path.abspath(str(base.expanduser() / ".config" / "opencode"))))
 
 
-def canonical_commands_home(home: Path | None = None) -> Path:
-    return canonical_config_root(home) / "commands"
-
-
 @dataclass(frozen=True)
 class BindingEvidenceLocation:
-    commands_home: Path
+    commands_home: Path | None
     governance_paths_json: Path
     source: Literal["canonical", "trusted_override"]
 
@@ -74,9 +70,8 @@ def binding_evidence_location(
             source="trusted_override",
         )
 
-    commands_home = canonical_commands_home()
     return BindingEvidenceLocation(
-        commands_home=commands_home,
-        governance_paths_json=commands_home / "governance.paths.json",
+        commands_home=None,
+        governance_paths_json=canonical_config_root() / "commands" / "governance.paths.json",
         source="canonical",
     )

@@ -437,9 +437,14 @@ class TestE2ETestMatrix:
         assert "core" in loaded, "T6: LoadedRulebooks.core field should exist"
         assert "profile" in loaded, "T6: LoadedRulebooks.profile field should exist"
 
-    def test_t7_router_blocks_without_rulebooks(self, isolated_env, tmp_path: Path):
+    def test_t7_router_blocks_without_rulebooks(self, isolated_env, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         """T7: Phase router checks rulebooks for Phase>=4."""
         from governance.application.use_cases.phase_router import route_phase
+        from pathlib import Path
+
+        monkeypatch.setattr(Path, "home", staticmethod(lambda: isolated_env["home"]))
+        phase_api_src = Path(__file__).resolve().parents[1] / "phase_api.yaml"
+        (isolated_env["commands_home"] / "phase_api.yaml").write_text(phase_api_src.read_text(encoding="utf-8"), encoding="utf-8")
         
         ss_with_rulebooks = {
             "Phase": "4",

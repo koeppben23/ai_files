@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, timezone
 import hashlib
 import json
-import os
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -45,23 +45,13 @@ class PhaseApiSpec:
     path: Path
     sha256: str
     stable_hash: str
+    loaded_at: str
     start_token: str
     entries: dict[str, PhaseSpecEntry]
 
 
 def _resolve_phase_api_path(commands_home: Path) -> Path:
     return commands_home / "phase_api.yaml"
-
-
-def _repo_default_phase_api_path() -> Path:
-    return Path(__file__).absolute().parents[2] / "phase_api.yaml"
-
-
-def _allow_test_repo_fallback() -> bool:
-    flag = str(os.environ.get("OPENCODE_PHASE_API_REPO_FALLBACK_FOR_TESTS", "")).strip()
-    if flag == "1":
-        return True
-    return "PYTEST_CURRENT_TEST" in os.environ
 
 
 def _phase_rank(token: str) -> tuple[int, str]:
@@ -188,6 +178,11 @@ def _resolve_commands_home(explicit_commands_home: Path | None) -> Path:
         return explicit_commands_home
     resolver = BindingEvidenceResolver()
     evidence = getattr(resolver, "resolve")(mode="kernel")
+    if not evidence.binding_ok:
+        raise PhaseApiSpecError(
+            "binding evidence invalid or missing for commands home resolution"
+            + (f": {', '.join(evidence.issues)}" if evidence.issues else "")
+        )
     return evidence.commands_home
 
 
@@ -197,8 +192,6 @@ def load_phase_api(commands_home: Path | None = None) -> PhaseApiSpec:
 
     resolved_commands_home = _resolve_commands_home(commands_home)
     phase_api_path = _resolve_phase_api_path(resolved_commands_home)
-    if not phase_api_path.exists() and commands_home is None and _allow_test_repo_fallback():
-        phase_api_path = _repo_default_phase_api_path()
     if not phase_api_path.exists():
         raise PhaseApiSpecError(f"phase_api.yaml missing at {phase_api_path}")
 
@@ -234,6 +227,7 @@ def load_phase_api(commands_home: Path | None = None) -> PhaseApiSpec:
         path=phase_api_path,
         sha256=source_hash,
         stable_hash=stable_hash,
+        loaded_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
         start_token=start_token,
         entries=entries,
     )
