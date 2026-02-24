@@ -234,6 +234,13 @@
       "remediation_hint": "Normalize decision-pack to automatic policy wording and rerun persistence."
     },
     {
+      "code": "BLOCKED-INVALID-NEXT_ACTION",
+      "severity": "blocked",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Response contract validation rejected next_action for current phase/gate.",
+      "remediation_hint": "Use next_action.type=command before phase 4 and rerun response rendering."
+    },
+    {
       "code": "BLOCKED-BOOTSTRAP-NOT-SATISFIED",
       "severity": "blocked",
       "payload_schema_ref": "diagnostics/schemas/reason_payload_blocked_core.v1.json",

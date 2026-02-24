@@ -52,6 +52,14 @@ from diagnostics.error_handler_bridge import (
     install_global_handlers,
     set_error_context,
 )
+try:
+    from diagnostics.global_error_handler import resolve_log_path
+except Exception:
+    def resolve_log_path(*, config_root=None, workspaces_home=None, repo_fingerprint=None):
+        root = Path(config_root) if config_root is not None else (Path.home() / ".config" / "opencode")
+        if repo_fingerprint and workspaces_home:
+            return Path(workspaces_home) / repo_fingerprint / "logs" / "error.log.jsonl"
+        return root / "logs" / "error.log.jsonl"
 
 try:
     from governance.application.use_cases.start_bootstrap import evaluate_start_identity
@@ -378,6 +386,18 @@ def _verify_workspace_session_exists(workspaces_home: Path, repo_fingerprint: st
 
 def run_persistence_hook(*, repo_root: Path | None = None) -> dict[str, object]:
     install_global_handlers()
+
+    def _with_log_path(payload: dict[str, object], repo_fingerprint: str | None = None) -> dict[str, object]:
+        if "log_path" not in payload:
+            payload["log_path"] = str(
+                resolve_log_path(
+                    config_root=COMMANDS_HOME.parent,
+                    workspaces_home=WORKSPACES_HOME,
+                    repo_fingerprint=repo_fingerprint,
+                )
+            )
+        return payload
+
     if not _writes_allowed():
         emit_gate_failure(
             gate="PERSISTENCE",
@@ -387,13 +407,13 @@ def run_persistence_hook(*, repo_root: Path | None = None) -> dict[str, object]:
             observed={"mode": EFFECTIVE_MODE, "writes_allowed": False},
             remediation="Unset OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY or switch to an allowed mode.",
         )
-        return {
+        return _with_log_path({
             "workspacePersistenceHook": "blocked",
             "reason_code": "BLOCKED-WORKSPACE-PERSISTENCE",
             "reason": "writes-not-allowed",
             "mode": EFFECTIVE_MODE,
             "writes_allowed": False,
-        }
+        })
 
     resolved_root, root_source = _resolve_repo_root_ssot(repo_root)
     
@@ -432,7 +452,7 @@ def run_persistence_hook(*, repo_root: Path | None = None) -> dict[str, object]:
             expected_constraint="must be in a git repository or provide explicit repo_root",
             remediation="Run from within a git repository or set OPENCODE_REPO_ROOT environment variable.",
         )
-        return result
+        return _with_log_path(result)
 
     repo_fp = derive_repo_fingerprint(resolved_root)
 
@@ -474,7 +494,7 @@ def run_persistence_hook(*, repo_root: Path | None = None) -> dict[str, object]:
             expected_constraint="git repository with valid origin or local path",
             remediation="Ensure cwd is a git repository with valid .git metadata.",
         )
-        return result
+        return _with_log_path(result)
 
     bootstrap_script = COMMANDS_HOME / "diagnostics" / "bootstrap_session_state.py"
     if not bootstrap_script.exists():
@@ -506,7 +526,7 @@ def run_persistence_hook(*, repo_root: Path | None = None) -> dict[str, object]:
             expected_constraint="bootstrap_session_state.py exists in ${COMMANDS_HOME}/diagnostics/",
             remediation="Reinstall governance or verify commands home configuration.",
         )
-        return result
+        return _with_log_path(result, repo_fingerprint=repo_fp)
 
     repo_name = resolved_root.name
     cmd = [
@@ -553,7 +573,7 @@ def run_persistence_hook(*, repo_root: Path | None = None) -> dict[str, object]:
                     expected_constraint="Global SESSION_STATE pointer must exist and reference correct fingerprint",
                     remediation="Check filesystem permissions and re-run /start.",
                 )
-                return result
+                return _with_log_path(result, repo_fingerprint=repo_fp)
 
             workspace_ok, workspace_reason = _verify_workspace_session_exists(WORKSPACES_HOME, repo_fp)
             if not workspace_ok:
@@ -587,7 +607,7 @@ def run_persistence_hook(*, repo_root: Path | None = None) -> dict[str, object]:
                     expected_constraint="Workspace SESSION_STATE must exist with PersistenceCommitted=True",
                     remediation="Check filesystem permissions and re-run /start.",
                 )
-                return result
+                return _with_log_path(result, repo_fingerprint=repo_fp)
 
             result = {
                 "workspacePersistenceHook": "ok",
@@ -613,6 +633,7 @@ def run_persistence_hook(*, repo_root: Path | None = None) -> dict[str, object]:
             )
             result = {
                 "workspacePersistenceHook": "failed",
+                "reason_code": "BLOCKED-WORKSPACE-PERSISTENCE",
                 "reason": "bootstrap-returncode-nonzero",
                 "returncode": proc.returncode,
                 "stdout": proc.stdout.strip()[:500] if proc.stdout else "",
@@ -648,6 +669,7 @@ def run_persistence_hook(*, repo_root: Path | None = None) -> dict[str, object]:
         )
         result = {
             "workspacePersistenceHook": "failed",
+            "reason_code": "BLOCKED-WORKSPACE-PERSISTENCE",
             "reason": "bootstrap-exception",
             "error": str(exc)[:500],
             "writes_allowed": True,
@@ -667,7 +689,9 @@ def run_persistence_hook(*, repo_root: Path | None = None) -> dict[str, object]:
             remediation="Check Python environment and bootstrap script integrity.",
         )
 
-    return result
+    if result.get("workspacePersistenceHook") == "ok":
+        return result
+    return _with_log_path(result, repo_fingerprint=repo_fp if isinstance(locals().get("repo_fp"), str) else None)
 
 
 def main() -> int:

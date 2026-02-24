@@ -80,5 +80,38 @@ def test_render_response_envelope_script_rejects_phase_contract_mismatch(tmp_pat
         text=True,
     )
 
-    assert result.returncode == 1
-    assert "invalid phase/next_action contract" in result.stdout
+    assert result.returncode == 2
+    payload_out = json.loads(result.stdout)
+    assert payload_out["reason_code"] == "BLOCKED-INVALID-NEXT_ACTION"
+    assert payload_out.get("log_path")
+
+
+def test_render_response_envelope_script_rejects_manual_step_before_phase4(tmp_path: Path):
+    payload = {
+        "mode": "STRICT",
+        "status": "OK",
+        "session_state": {"phase": "1.2-ActivationIntent", "activation_hash": "abc", "workspace_ready": True},
+        "next_action": {
+            "Type": "manual_step",
+            "Status": "OK",
+            "Next": "Provide objective",
+            "Why": "Need intent",
+            "Command": "none",
+        },
+        "snapshot": {"Confidence": "HIGH", "Risk": "LOW", "Scope": "repo"},
+    }
+    input_file = tmp_path / "payload_manual_step.json"
+    input_file.write_text(json.dumps(payload), encoding="utf-8")
+
+    script = Path(__file__).resolve().parents[1] / "scripts" / "render_response_envelope.py"
+    result = subprocess.run(
+        [sys.executable, str(script), "--input", str(input_file), "--format", "plain"],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 2
+    payload_out = json.loads(result.stdout)
+    assert payload_out["reason_code"] == "BLOCKED-INVALID-NEXT_ACTION"
+    assert payload_out.get("log_path")

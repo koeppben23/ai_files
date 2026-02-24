@@ -199,3 +199,21 @@ def test_run_persistence_hook_blocks_when_repo_root_not_detectable(capsys: pytes
     assert payload["reason_code"] == "BLOCKED-REPO-ROOT-NOT-DETECTABLE"
     assert payload["bootstrap_hook_command"].endswith("-m diagnostics.start_persistence_hook")
     assert payload["python_executable"]
+
+
+@pytest.mark.governance
+def test_resolve_repo_root_for_hook_prefers_env_repo_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    module = _load_module_with_env({"CI": ""})
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir(parents=True, exist_ok=True)
+    (repo_root / ".git").mkdir()
+    outside = tmp_path / "outside"
+    outside.mkdir(parents=True, exist_ok=True)
+    monkeypatch.chdir(outside)
+    monkeypatch.setenv("OPENCODE_REPO_ROOT", str(repo_root))
+
+    resolved, source, probe = module._resolve_repo_root_for_hook()
+
+    assert resolved == repo_root
+    assert source == "env"
+    assert probe.get("ok") is True

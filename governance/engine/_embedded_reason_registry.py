@@ -51,6 +51,7 @@ EMBEDDED_REASON_CODE_TO_SCHEMA_REF: Final[dict[str, str]] = {
     "BLOCKED-FINGERPRINT-MISMATCH": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
     "BLOCKED-REPO-ROOT-NOT-DETECTABLE": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
     "BLOCKED-LEGACY-DECISION-PACK-FORMAT": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
+    "BLOCKED-INVALID-NEXT_ACTION": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
     "BLOCKED-GOLDEN-BASELINE-MODIFIED-IN-PR": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
     "BLOCKED-Phase2-RepoDiscovery": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
     "BLOCKED-R": "diagnostics/schemas/reason_payload_blocked_core.v1.json",

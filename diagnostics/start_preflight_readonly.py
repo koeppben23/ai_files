@@ -453,6 +453,8 @@ def run_persistence_hook() -> dict[str, object]:
         **parsed_payload,
         **base_payload,
     }
+    if not isinstance(result.get("repo_fingerprint"), str):
+        result["repo_fingerprint"] = ""
 
     if proc.returncode != 0 and str(result.get("reason_code", "")).strip() in {"", "none"}:
         result["reason_code"] = "ERR-BOOTSTRAP-HOOK-IMPORT"
@@ -462,7 +464,7 @@ def run_persistence_hook() -> dict[str, object]:
         log_path = resolve_log_path(
             config_root=COMMANDS_HOME.parent,
             workspaces_home=WORKSPACES_HOME,
-            repo_fingerprint=None,
+            repo_fingerprint=(result.get("repo_fingerprint") or None),
         )
         emit_gate_failure(
             gate="PERSISTENCE",
@@ -477,7 +479,7 @@ def run_persistence_hook() -> dict[str, object]:
             remediation="Run the hook command directly and fix import/runtime errors.",
             config_root=str(COMMANDS_HOME.parent),
             workspaces_home=str(WORKSPACES_HOME),
-            repo_fingerprint=None,
+            repo_fingerprint=(result.get("repo_fingerprint") or None),
             phase="1.1-Bootstrap",
         )
         result["reason_code"] = reason_code
