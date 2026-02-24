@@ -437,5 +437,3 @@ def safe_log_error(**kwargs: Any) -> dict[str, str]:
         return {"status": "logged", "path": str(p)}
     except Exception as exc:
         return {"status": "log-failed", "error": str(exc)}
-    if not isinstance(commands_raw, str) or not commands_raw.strip():
-        raise ValueError(f"binding evidence invalid: paths.commandsHome missing in {paths_file}")
