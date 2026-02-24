@@ -198,7 +198,10 @@ def load_phase_api(commands_home: Path | None = None) -> PhaseApiSpec:
     raw_text = phase_api_path.read_text(encoding="utf-8")
     source_hash = hashlib.sha256(raw_text.encode("utf-8")).hexdigest()
 
-    payload = yaml.safe_load(raw_text)
+    try:
+        payload = yaml.safe_load(raw_text)
+    except Exception as exc:
+        raise PhaseApiSpecError(f"phase_api.yaml invalid yaml at {phase_api_path}: {exc}") from exc
     if not isinstance(payload, Mapping):
         raise PhaseApiSpecError("phase_api.yaml must be a mapping")
     phases = payload.get("phases")
