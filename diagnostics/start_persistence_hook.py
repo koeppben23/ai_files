@@ -370,6 +370,14 @@ def _verify_workspace_session_exists(workspaces_home: Path, repo_fingerprint: st
 def run_persistence_hook(*, repo_root: Path | None = None) -> dict[str, object]:
     install_global_handlers()
     if not _writes_allowed():
+        emit_gate_failure(
+            gate="PERSISTENCE",
+            code="PERSISTENCE_READ_ONLY",
+            message="Persistence hook blocked by write policy.",
+            expected="writes allowed",
+            observed={"mode": EFFECTIVE_MODE, "writes_allowed": False},
+            remediation="Unset OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY or switch to an allowed mode.",
+        )
         return {
             "workspacePersistenceHook": "blocked",
             "reason_code": "BLOCKED-WORKSPACE-PERSISTENCE",
@@ -381,6 +389,14 @@ def run_persistence_hook(*, repo_root: Path | None = None) -> dict[str, object]:
     resolved_root, root_source = _resolve_repo_root_ssot(repo_root)
     
     if resolved_root is None:
+        emit_gate_failure(
+            gate="PERSISTENCE",
+            code="REPO_ROOT_RESOLUTION_FAILED",
+            message="Could not resolve git repository root.",
+            expected="valid repository root",
+            observed={"root_source": root_source, "cwd": str(Path.cwd())},
+            remediation="Run from within a git repository or set OPENCODE_REPO_ROOT.",
+        )
         result = {
             "workspacePersistenceHook": "failed",
             "reason": f"repo-root-resolution-failed:{root_source}",
@@ -416,6 +432,14 @@ def run_persistence_hook(*, repo_root: Path | None = None) -> dict[str, object]:
     ))
 
     if not repo_fp:
+        emit_gate_failure(
+            gate="PERSISTENCE",
+            code="REPO_FINGERPRINT_DERIVATION_FAILED",
+            message="Could not derive repository fingerprint.",
+            expected="non-empty repo fingerprint",
+            observed={"repo_root": str(resolved_root)},
+            remediation="Ensure git metadata is present and repository root is valid.",
+        )
         result = {
             "workspacePersistenceHook": "failed",
             "reason": "repo-fingerprint-derivation-failed",
@@ -440,6 +464,14 @@ def run_persistence_hook(*, repo_root: Path | None = None) -> dict[str, object]:
 
     bootstrap_script = COMMANDS_HOME / "diagnostics" / "bootstrap_session_state.py"
     if not bootstrap_script.exists():
+        emit_gate_failure(
+            gate="PERSISTENCE",
+            code="BOOTSTRAP_SCRIPT_MISSING",
+            message="bootstrap_session_state.py not found at expected location.",
+            expected="bootstrap script exists under diagnostics",
+            observed={"expected_path": str(bootstrap_script)},
+            remediation="Reinstall governance commands or fix commands home binding.",
+        )
         result = {
             "workspacePersistenceHook": "failed",
             "reason": "bootstrap-script-not-found",
@@ -477,6 +509,14 @@ def run_persistence_hook(*, repo_root: Path | None = None) -> dict[str, object]:
         if proc.returncode == 0:
             pointer_ok, pointer_reason = _verify_pointer_exists(COMMANDS_HOME.parent, repo_fp)
             if not pointer_ok:
+                emit_gate_failure(
+                    gate="PERSISTENCE",
+                    code="POINTER_VERIFICATION_FAILED",
+                    message="Pointer verification failed after bootstrap.",
+                    expected="pointer exists and references current fingerprint",
+                    observed={"pointer_reason": pointer_reason, "repo_fingerprint": repo_fp},
+                    remediation="Inspect pointer file and rerun /start.",
+                )
                 result = {
                     "workspacePersistenceHook": "failed",
                     "reason": f"pointer-verification-failed:{pointer_reason}",
@@ -503,6 +543,14 @@ def run_persistence_hook(*, repo_root: Path | None = None) -> dict[str, object]:
 
             workspace_ok, workspace_reason = _verify_workspace_session_exists(WORKSPACES_HOME, repo_fp)
             if not workspace_ok:
+                emit_gate_failure(
+                    gate="PERSISTENCE",
+                    code="WORKSPACE_SESSION_VERIFICATION_FAILED",
+                    message="Workspace SESSION_STATE verification failed after bootstrap.",
+                    expected="workspace session exists with PersistenceCommitted=True",
+                    observed={"workspace_reason": workspace_reason, "repo_fingerprint": repo_fp},
+                    remediation="Inspect workspace SESSION_STATE and rerun /start.",
+                )
                 result = {
                     "workspacePersistenceHook": "failed",
                     "reason": f"workspace-session-verification-failed:{workspace_reason}",
@@ -537,6 +585,18 @@ def run_persistence_hook(*, repo_root: Path | None = None) -> dict[str, object]:
                 "workspace_session_verified": True,
             }
         else:
+            emit_gate_failure(
+                gate="PERSISTENCE",
+                code="BOOTSTRAP_NON_ZERO_EXIT",
+                message="bootstrap_session_state.py returned non-zero exit code.",
+                expected="bootstrap return code 0",
+                observed={
+                    "returncode": proc.returncode,
+                    "stdout": (proc.stdout or "").strip()[:500],
+                    "stderr": (proc.stderr or "").strip()[:500],
+                },
+                remediation="Inspect bootstrap stderr/stdout and resolve blocking condition.",
+            )
             result = {
                 "workspacePersistenceHook": "failed",
                 "reason": "bootstrap-returncode-nonzero",
@@ -564,6 +624,14 @@ def run_persistence_hook(*, repo_root: Path | None = None) -> dict[str, object]:
                 remediation="Inspect stdout/stderr and fix bootstrap issues.",
             )
     except Exception as exc:
+        emit_gate_failure(
+            gate="PERSISTENCE",
+            code="BOOTSTRAP_EXCEPTION",
+            message="Exception while running bootstrap_session_state.py.",
+            expected="bootstrap executes without exception",
+            observed={"exception": str(exc)[:500]},
+            remediation="Validate Python/runtime environment and bootstrap dependencies.",
+        )
         result = {
             "workspacePersistenceHook": "failed",
             "reason": "bootstrap-exception",

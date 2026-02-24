@@ -85,5 +85,6 @@ def to_gate_payload(result: LoadedRulebooks) -> dict[str, object]:
     return {
         "core": "loaded" if result.rules.core is not None else "",
         "profile": "loaded" if result.rules.profile is not None else "",
+        "templates": "loaded" if result.rules.master is not None else "",
         "addons": result.addons,
     }

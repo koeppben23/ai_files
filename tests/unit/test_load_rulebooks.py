@@ -40,6 +40,7 @@ def test_gate_payload_reports_core_and_profile_loaded() -> None:
         source_port=_FakeSource(
             {
                 "core": _ref("core"),
+                "master": _ref("master"),
                 "profile:python": _ref("profile:python"),
                 "addon:userMaxQuality": _ref("addon:userMaxQuality"),
             }
@@ -52,3 +53,4 @@ def test_gate_payload_reports_core_and_profile_loaded() -> None:
     gate_payload = to_gate_payload(result)
     assert gate_payload["core"] == "loaded"
     assert gate_payload["profile"] == "loaded"
+    assert gate_payload["templates"] == "loaded"
