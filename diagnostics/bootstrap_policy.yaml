@@ -110,8 +110,8 @@ gates:
     gate_id: "StartEvidence"
     description: "/start must complete before phase execution"
     required_evidence:
-      - "SESSION_STATE.Bootstrap.Declared: true"
-      - "SESSION_STATE.Bootstrap.Validated: true"
+      - "SESSION_STATE.Bootstrap.Present: true"
+      - "SESSION_STATE.Bootstrap.Satisfied: true"
     on_failure:
       reason_code: "BLOCKED-START-REQUIRED"
       mode: "BLOCKED"
