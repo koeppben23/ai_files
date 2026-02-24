@@ -21,6 +21,14 @@ def _minimal_session_state(**overrides) -> dict[str, object]:
             "workspace_ready_gate_committed": True,
             "WorkspaceArtifactsCommitted": True,
             "PointerVerified": True,
+            "LoadedRulebooks": {"core": "${COMMANDS_HOME}/master.md", "profile": "", "templates": "", "addons": {}},
+            "RulebookLoadEvidence": {"core": "${COMMANDS_HOME}/master.md"},
+            "AddonsEvidence": {},
+            "RepoDiscovery": {
+                "Completed": True,
+                "RepoCacheFile": "${WORKSPACES_HOME}/repo-cache.yaml",
+                "RepoMapDigestFile": "${WORKSPACES_HOME}/repo-map-digest.md",
+            },
             **overrides,
         }
     }
@@ -78,9 +86,10 @@ class TestApiInScopeDetection:
 
 @pytest.mark.governance
 class TestPhase2And1Routing:
-    def test_phase_1_2_routes_to_phase_2_automatically_when_workspace_ready(self):
+    def test_phase_1_2_routes_to_phase_1_3_automatically_when_workspace_ready(self):
         doc = _minimal_session_state(
             phase="1.2-ActivationIntent",
+            Intent={"Path": "x", "Sha256": "y", "EffectiveScope": "repo"},
             Scope={"BusinessRules": "pending"},
         )
         result = route_phase(
@@ -90,8 +99,8 @@ class TestPhase2And1Routing:
             session_state_document=doc,
             repo_is_git_root=True,
         )
-        assert result.phase == "2-RepoDiscovery"
-        assert result.source == "phase-1.2-to-2-auto"
+        assert result.phase == "1.3-RulebookLoad"
+        assert result.source == "phase-1.2-to-1.3-auto"
 
     def test_phase_2_1_routes_to_1_5_when_business_rules_not_resolved(self):
         """After Phase 2.1, route to Phase 1.5 if business rules not resolved."""
@@ -159,6 +168,7 @@ class TestPhase1_5Routing:
         """After Phase 1.5, ALWAYS route to Phase 3A (per docs/phases.md requirement)."""
         doc = _minimal_session_state(
             phase="1.5",
+            BusinessRules={"Inventory": {"sha256": "abc123"}},
         )
         result = route_phase(
             requested_phase="1.5",
@@ -175,6 +185,7 @@ class TestPhase1_5Routing:
         doc = _minimal_session_state(
             phase="1.5",
             AddonsEvidence={"openapi": {"detected": True}},
+            BusinessRules={"Inventory": {"sha256": "abc123"}},
         )
         result = route_phase(
             requested_phase="1.5",
@@ -194,6 +205,7 @@ class TestPhase3ARouting:
         doc = _minimal_session_state(
             phase="3A",
             Scope={"BusinessRules": "not-applicable"},
+            APIInventory={"Status": "not-applicable"},
         )
         result = route_phase(
             requested_phase="3A",
@@ -211,6 +223,7 @@ class TestPhase3ARouting:
         doc = _minimal_session_state(
             phase="3A",
             AddonsEvidence={"openapi": {"detected": True}},
+            APIInventory={"Status": "completed"},
         )
         result = route_phase(
             requested_phase="3A",
@@ -227,6 +240,7 @@ class TestPhase3ARouting:
         doc = _minimal_session_state(
             phase="3A",
             Scope={"ExternalAPIs": ["service-api.yaml"]},
+            APIInventory={"Status": "completed"},
         )
         result = route_phase(
             requested_phase="3A",
@@ -269,6 +283,53 @@ class TestPhase3BRouting:
         )
         assert result.phase == "4"
         assert result.source == "phase-3b2-to-4"
+
+
+@pytest.mark.governance
+class TestPhase5Routing:
+    def test_phase_5_3_routes_to_5_4_when_business_rules_executed(self):
+        doc = _minimal_session_state(
+            phase="5.3",
+            BusinessRules={"Decision": "execute", "Inventory": {"sha256": "abc"}},
+        )
+        result = route_phase(
+            requested_phase="5.3",
+            requested_active_gate="Test Quality Gate",
+            requested_next_gate_condition="Continue",
+            session_state_document=doc,
+            repo_is_git_root=True,
+        )
+        assert result.phase == "5.4-BusinessRules"
+        assert result.source == "phase-5.3-to-5.4"
+
+    def test_phase_5_3_routes_to_5_5_when_technical_debt_proposed(self):
+        doc = _minimal_session_state(
+            phase="5.3",
+            TechnicalDebt={"Proposed": True},
+        )
+        result = route_phase(
+            requested_phase="5.3",
+            requested_active_gate="Test Quality Gate",
+            requested_next_gate_condition="Continue",
+            session_state_document=doc,
+            repo_is_git_root=True,
+        )
+        assert result.phase == "5.5-TechnicalDebt"
+        assert result.source == "phase-5.3-to-5.5"
+
+    def test_phase_5_3_routes_to_6_when_optional_gates_not_required(self):
+        doc = _minimal_session_state(
+            phase="5.3",
+        )
+        result = route_phase(
+            requested_phase="5.3",
+            requested_active_gate="Test Quality Gate",
+            requested_next_gate_condition="Continue",
+            session_state_document=doc,
+            repo_is_git_root=True,
+        )
+        assert result.phase == "6-PostFlight"
+        assert result.source == "phase-5.3-to-6"
 
 
 @pytest.mark.governance
