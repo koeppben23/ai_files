@@ -14,7 +14,7 @@ master.md enthält 55+ "the assistant MUST..." Instruktionen, die Clean Architec
 | Layer | Verantwortung | Beispiele |
 |-------|---------------|-----------|
 | **Policy (master.md)** | WAS, WANN, WARUM | "Workflow MUST persist X after Phase Y" |
-| **Kernel (Python)** | WIE (Implementierung) | `persist_artifacts()`, `phase_router.py` |
+| **Kernel (Python)** | WIE (Implementierung) | `persist_artifacts()`, `governance/kernel/phase_kernel.py` |
 | **LLM Frontend** | Präsentation, Interaktion | Output-Formatierung, User-Dialog |
 
 ### Aktuelle Verletzung (IST)
@@ -73,7 +73,7 @@ Dies definiert das Output-Format in master.md.
 
 | Aspekt | master.md (Policy) | Kernel (Python) |
 |--------|-------------------|-----------------|
-| Persistenz-Trigger | "MUST write after Phase 2" | `persistence_policy.py`, `phase_router.py` |
+| Persistenz-Trigger | "MUST write after Phase 2" | `persistence_policy.py`, `governance/kernel/phase_kernel.py` |
 | Output-Format | `[NEXT-ACTION]` blocks | `response_formatter.py` |
 | Session State | Schema-Referenz | `session_state_repository.py` |
 
@@ -91,7 +91,7 @@ Dies definiert das Output-Format in master.md.
 
 ### Commit 3: Persistenz-Contract-Klärung
 - master.md: Nur "MUST persist X after Phase Y"
-- Kernel: Implementiert Trigger in `phase_router.py`
+- Kernel: Implementiert Trigger in `governance/kernel/phase_kernel.py`
 - Keine "assistant MUST produce..." mehr
 
 ### Commit 4: Separation of Concerns
