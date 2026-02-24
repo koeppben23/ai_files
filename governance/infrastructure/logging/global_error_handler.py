@@ -94,11 +94,12 @@ def resolve_log_path(
     workspaces_home: Path | str | None = None,
     repo_fingerprint: str | None = None,
 ) -> Path:
+    _ = config_root
     cmd = Path(commands_home) if isinstance(commands_home, str) else commands_home
     ws = Path(workspaces_home) if isinstance(workspaces_home, str) else workspaces_home
     candidates = _candidate_log_paths(commands_home=cmd, workspaces_home=ws, repo_fingerprint=repo_fingerprint)
     if not candidates:
-        return Path("error.log.jsonl")
+        raise RuntimeError("no writable error log target available: commands_home is required")
     return candidates[0]
 
 

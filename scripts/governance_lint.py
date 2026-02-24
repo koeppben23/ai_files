@@ -490,7 +490,7 @@ def check_phase21_ticket_goal_deferral_contract(issues: list[str]) -> None:
 
     master_additional = [
         "otherwise → Phase 3A (auto-not-applicable path allowed) then continue to Phase 3B routing",
-        "ticket prompt is deferred until Phase 4 entry.",
+        "ticket input is accepted only at Phase 4 entry.",
         "Otherwise: Proceed to Phase 3A (auto-not-applicable path allowed), then continue to Phase 3B routing",
     ]
     missing_master_additional = [token for token in master_additional if token not in master]
