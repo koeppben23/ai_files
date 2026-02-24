@@ -200,6 +200,16 @@ def _session_state_payload(
     write_policy_reasons: tuple[str, ...],
 ) -> dict[str, object]:
     repository = repo_name.strip() if repo_name.strip() else repo_fingerprint
+    # Derive Bootstrap block dynamically based on whether bootstrap has completed
+    # and which sub-evidences were satisfied. This fixes the drift where Bootstrap
+    # was always written as not-present/not-satisfied in final payloads.
+    bootstrap_present = bool(persistence_committed)
+    bootstrap_satisfied = bool(persistence_committed and workspace_ready_committed and workspace_artifacts_committed)
+    bootstrap_evidence = "not-initialized" if not persistence_committed else "start:binding_ok+pointer_ok+artifacts_ok"
+
+    # Pointer verification should be reflected in commit flags when bootstrap completes.
+    pointer_verified = bool(persistence_committed and workspace_ready_committed and workspace_artifacts_committed)
+
     return {
         "SESSION_STATE": {
             "RepoFingerprint": repo_fingerprint,
@@ -216,9 +226,9 @@ def _session_state_payload(
             "OutputMode": "ARCHITECT",
             "DecisionSurface": {},
             "Bootstrap": {
-                "Present": False,
-                "Satisfied": False,
-                "Evidence": "not-initialized",
+                "Present": bootstrap_present,
+                "Satisfied": bootstrap_satisfied,
+                "Evidence": bootstrap_evidence,
             },
             "Scope": {
                 "Repository": repository,
@@ -263,6 +273,7 @@ def _session_state_payload(
                 "PersistenceCommitted": persistence_committed,
                 "WorkspaceReadyGateCommitted": workspace_ready_committed,
                 "WorkspaceArtifactsCommitted": workspace_artifacts_committed,
+                "PointerVerified": pointer_verified,
             },
         }
     }
