@@ -624,6 +624,29 @@ def main() -> int:
     result = service.run(payload)
     workspace_lock.release()
     if result.ok:
+        # Post-bootstrap: ensure the repo SESSION_STATE bootstrap fields are
+        # updated to reflect completion, so gating transitions don't get stuck.
+        try:
+            repo_state = repo_session_state_path(workspaces_home, repo_fingerprint)
+            if repo_state.is_file():
+                data = json.loads(repo_state.read_text(encoding="utf-8"))
+                session = data.get("SESSION_STATE", {})
+                bootstrap = session.get("Bootstrap", {})
+                bootstrap.update({
+                    "Present": True,
+                    "Satisfied": True,
+                    "Evidence": "bootstrap-completed",
+                })
+                session["Bootstrap"] = bootstrap
+                session.setdefault("Phase", "1.2-Architecture")
+                session.setdefault("Next", "P5-Architecture-in_progress")
+                data["SESSION_STATE"] = session
+                repo_state.write_text(
+                    json.dumps(data, indent=2, ensure_ascii=True) + "\n",
+                    encoding="utf-8",
+                )
+        except Exception:
+            pass
         return 0
     if result.gate_code in {"CONFIG_ROOT_INSIDE_REPO", "POINTER_PATH_INSIDE_REPO"}:
         return 5
