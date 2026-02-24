@@ -6,10 +6,9 @@ import json
 from governance.paths.canonical import CanonicalPath, ensure_absolute_no_traversal
 from governance.paths.layout import WorkspaceLayout, ConfigLayout
 from governance.paths.binding import BindingEvidence
-from diagnostics.io.actions import ActionOutcome
-from diagnostics.io.atomic_write import atomic_write_json
-from diagnostics.io.fs_verify import verify_pointer, verify_artifacts
-from diagnostics.errors.global_handler import emit_gate_failure
+from governance.infrastructure.io_actions import ActionOutcome
+from governance.infrastructure.io_atomic_write import atomic_write_json
+from governance.infrastructure.io_verify import verify_pointer
 from .repo_identity import RepoIdentity
 from .backfill_client import BackfillSummary, run_backfill_subprocess
 
@@ -122,10 +121,17 @@ class BootstrapPersistenceService:
         )
     
     def _write_pointer(self, dry_run: bool) -> ActionOutcome:
+        session_file = self.workspace_layout.workspace_session_path.path
+        try:
+            rel_path = session_file.relative_to(self.binding.config_root.path)
+            rel_value = str(rel_path).replace("\\", "/")
+        except ValueError:
+            rel_value = f"workspaces/{self.identity.fingerprint}/SESSION_STATE.json"
         pointer_data = {
             "schema": "opencode-session-pointer.v1",
             "activeRepoFingerprint": self.identity.fingerprint,
-            "workspaceSession": str(self.workspace_layout.workspace_session_path),
+            "activeSessionStateFile": str(session_file),
+            "activeSessionStateRelativePath": rel_value,
         }
         
         return atomic_write_json(
