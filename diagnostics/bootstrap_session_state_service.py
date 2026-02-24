@@ -472,6 +472,14 @@ def main() -> int:
     try:
         config_root, binding_paths, _binding_file = resolve_binding_config(args.config_root)
     except ValueError as exc:
+        emit_gate_failure(
+            gate="BOOTSTRAP",
+            code="MISSING_BINDING_FILE",
+            message=str(exc),
+            expected="installer-owned commands/governance.paths.json exists",
+            observed={"config_root_arg": str(args.config_root) if args.config_root else ""},
+            remediation="Restore governance.paths.json via installer or provide valid --config-root.",
+        )
         print(f"ERROR: {exc}")
         print("Restore installer-owned commands/governance.paths.json and rerun.")
         return 2
@@ -509,6 +517,14 @@ def main() -> int:
     try:
         repo_fingerprint = _validate_repo_fingerprint(args.repo_fingerprint)
     except ValueError as exc:
+        emit_gate_failure(
+            gate="BOOTSTRAP",
+            code="REPO_FINGERPRINT_INVALID",
+            message=str(exc),
+            expected="repo fingerprint matches [A-Za-z0-9._-]{6,128}",
+            observed={"repoFingerprintArg": args.repo_fingerprint},
+            remediation="Provide a valid --repo-fingerprint value.",
+        )
         safe_log_error(
             reason_key="ERR-REPO-FINGERPRINT-INVALID",
             message=str(exc),
@@ -527,6 +543,14 @@ def main() -> int:
         return 2
 
     if not _writes_allowed():
+        emit_gate_failure(
+            gate="BOOTSTRAP",
+            code="PERSISTENCE_READ_ONLY",
+            message="Bootstrap blocked by write policy.",
+            expected="writes allowed",
+            observed={"repoFingerprint": repo_fingerprint, "mode": EFFECTIVE_MODE},
+            remediation="Unset OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY or switch to writable mode.",
+        )
         print(json.dumps({
             "status": "blocked",
             "bootstrapSessionState": "blocked",
@@ -569,6 +593,14 @@ def main() -> int:
             repo_fingerprint=repo_fingerprint,
         )
     except TimeoutError:
+        emit_gate_failure(
+            gate="BOOTSTRAP",
+            code="WORKSPACE_LOCK_TIMEOUT",
+            message="Workspace lock acquisition timed out during bootstrap.",
+            expected="exclusive workspace lock acquired",
+            observed={"repoFingerprint": repo_fingerprint, "workspacesHome": str(workspaces_home)},
+            remediation="Wait for active run to finish or clear stale lock after verification, then rerun.",
+        )
         print("ERROR: workspace lock timeout")
         print("Wait for active run to complete or clear stale lock after verification.")
         return 6

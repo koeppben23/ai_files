@@ -1089,6 +1089,14 @@ def main() -> int:
     try:
         config_root, binding_paths, binding_file = resolve_binding_config(args.config_root)
     except ValueError as exc:
+        emit_gate_failure(
+            gate="PERSISTENCE",
+            code="MISSING_BINDING_FILE",
+            message=str(exc),
+            expected="installer-owned commands/governance.paths.json exists",
+            observed={"config_root_arg": str(args.config_root) if args.config_root else ""},
+            remediation="Restore governance.paths.json via installer or provide valid --config-root.",
+        )
         payload = {
             "status": "blocked",
             "reason": str(exc),
@@ -1591,6 +1599,14 @@ def main() -> int:
         return 7
     
     if not phase2_artifacts_ok and not args.dry_run and not read_only:
+        emit_gate_failure(
+            gate="PERSISTENCE",
+            code="PHASE2_ARTIFACTS_INCOMPLETE",
+            message="Phase 2 artifacts incomplete after persistence run.",
+            expected="Required Phase 2 artifacts exist",
+            observed={"missing": phase2_missing},
+            remediation="Run persistence backfill with writes enabled and inspect artifact actions.",
+        )
         return 7
     
     return 0
