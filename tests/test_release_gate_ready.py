@@ -448,6 +448,8 @@ class TestE2ETestMatrix:
             "WorkspaceArtifactsCommitted": True,
             "PointerVerified": True,
             "LoadedRulebooks": {"core": "${COMMANDS_HOME}/rules.md", "profile": "", "templates": "", "addons": {}},
+            "RulebookLoadEvidence": {"core": "${COMMANDS_HOME}/rules.md"},
+            "AddonsEvidence": {},
             "RepoFingerprint": "test12345678901234567890",
             "phase_transition_evidence": True,
         }

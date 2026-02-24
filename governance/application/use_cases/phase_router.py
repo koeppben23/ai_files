@@ -10,10 +10,16 @@ from governance.kernel.phase_kernel import _external_api_artifacts, _openapi_sig
 @dataclass(frozen=True)
 class RoutedPhase:
     phase: str
+    next_token: str | None
     active_gate: str
     next_gate_condition: str
     workspace_ready: bool
     source: str
+    status: str = "OK"
+    spec_hash: str = ""
+    spec_path: str = ""
+    log_paths: dict[str, str] | None = None
+    event_id: str = ""
 
 
 def route_phase(
@@ -37,10 +43,16 @@ def route_phase(
     )
     return RoutedPhase(
         phase=result.phase,
+        next_token=result.next_token,
         active_gate=result.active_gate,
         next_gate_condition=result.next_gate_condition,
         workspace_ready=result.workspace_ready,
         source=result.source,
+        status=result.status,
+        spec_hash=result.spec_hash,
+        spec_path=result.spec_path,
+        log_paths=result.log_paths,
+        event_id=result.event_id,
     )
 
 

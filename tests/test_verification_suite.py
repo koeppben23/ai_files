@@ -29,7 +29,7 @@ def test_phase_router_routes_openapi_from_phase21_to_3a():
         requested_phase="2.1-DecisionPack",
         requested_active_gate="Decision Pack",
         requested_next_gate_condition="Proceed",
-        session_state_document={"SESSION_STATE": {"PersistenceCommitted": True, "workspace_ready_gate_committed": True, "WorkspaceArtifactsCommitted": True, "PointerVerified": True, "LoadedRulebooks": {"core": "${COMMANDS_HOME}/master.md"}, "repo_capabilities": ["openapi"], "Scope": {"BusinessRules": "not-applicable"}}},
+        session_state_document={"SESSION_STATE": {"PersistenceCommitted": True, "workspace_ready_gate_committed": True, "WorkspaceArtifactsCommitted": True, "PointerVerified": True, "LoadedRulebooks": {"core": "${COMMANDS_HOME}/master.md"}, "RulebookLoadEvidence": {"core": "${COMMANDS_HOME}/master.md"}, "AddonsEvidence": {}, "RepoDiscovery": {"Completed": True, "RepoCacheFile": "cache", "RepoMapDigestFile": "digest"}, "repo_capabilities": ["openapi"], "Scope": {"BusinessRules": "not-applicable"}}},
         repo_is_git_root=True,
     )
     assert routed.phase == "3A-API-Inventory"
@@ -42,7 +42,7 @@ def test_phase_router_prevents_backward_transition_from_persisted_phase():
         requested_phase="2-Discovery",
         requested_active_gate="Discovery",
         requested_next_gate_condition="Proceed",
-        session_state_document={"SESSION_STATE": {"phase": "3A-API-Inventory", "PersistenceCommitted": True, "workspace_ready_gate_committed": True, "WorkspaceArtifactsCommitted": True, "PointerVerified": True, "LoadedRulebooks": {"core": "${COMMANDS_HOME}/master.md"}}},
+        session_state_document={"SESSION_STATE": {"phase": "3A-API-Inventory", "PersistenceCommitted": True, "workspace_ready_gate_committed": True, "WorkspaceArtifactsCommitted": True, "PointerVerified": True, "LoadedRulebooks": {"core": "${COMMANDS_HOME}/master.md"}, "RulebookLoadEvidence": {"core": "${COMMANDS_HOME}/master.md"}, "AddonsEvidence": {}, "APIInventory": {"Status": "completed"}}},
         repo_is_git_root=True,
     )
     assert routed.phase == "3A-API-Inventory"
@@ -55,7 +55,7 @@ def test_phase_router_blocks_jump_without_transition_evidence():
         requested_phase="5-Plan",
         requested_active_gate="Plan",
         requested_next_gate_condition="Proceed",
-        session_state_document={"SESSION_STATE": {"phase": "2-Discovery", "PersistenceCommitted": True, "workspace_ready_gate_committed": True, "WorkspaceArtifactsCommitted": True, "PointerVerified": True, "LoadedRulebooks": {"core": "${COMMANDS_HOME}/master.md"}}},
+        session_state_document={"SESSION_STATE": {"phase": "2-Discovery", "PersistenceCommitted": True, "workspace_ready_gate_committed": True, "WorkspaceArtifactsCommitted": True, "PointerVerified": True, "LoadedRulebooks": {"core": "${COMMANDS_HOME}/master.md"}, "RulebookLoadEvidence": {"core": "${COMMANDS_HOME}/master.md"}, "AddonsEvidence": {}, "RepoDiscovery": {"Completed": True, "RepoCacheFile": "cache", "RepoMapDigestFile": "digest"}}},
         repo_is_git_root=True,
     )
     assert routed.phase == "2-Discovery"
@@ -68,7 +68,7 @@ def test_phase_router_strips_ticket_prompt_before_phase4():
         requested_phase="2-Discovery",
         requested_active_gate="Discovery",
         requested_next_gate_condition="Please provide task/ticket now",
-        session_state_document={"SESSION_STATE": {"PersistenceCommitted": True, "workspace_ready_gate_committed": True, "WorkspaceArtifactsCommitted": True, "PointerVerified": True, "LoadedRulebooks": {"core": "${COMMANDS_HOME}/master.md"}}},
+        session_state_document={"SESSION_STATE": {"PersistenceCommitted": True, "workspace_ready_gate_committed": True, "WorkspaceArtifactsCommitted": True, "PointerVerified": True, "LoadedRulebooks": {"core": "${COMMANDS_HOME}/master.md"}, "RulebookLoadEvidence": {"core": "${COMMANDS_HOME}/master.md"}, "AddonsEvidence": {}, "RepoDiscovery": {"Completed": True, "RepoCacheFile": "cache", "RepoMapDigestFile": "digest"}}},
         repo_is_git_root=True,
     )
     assert "not allowed before phase 4" in routed.next_gate_condition.lower()

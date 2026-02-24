@@ -190,6 +190,44 @@ def _business_rules_discovery_resolved(state: Mapping[str, object]) -> bool:
     return False
 
 
+def _phase_1_5_executed(state: Mapping[str, object]) -> bool:
+    business_rules = state.get("BusinessRules")
+    if isinstance(business_rules, Mapping):
+        decision = business_rules.get("Decision")
+        if isinstance(decision, str) and decision.strip().lower() == "execute":
+            return True
+    inventory = _read_nested_key(state, "BusinessRules.Inventory.sha256")
+    if isinstance(inventory, str) and inventory.strip():
+        return True
+    return False
+
+
+def _technical_debt_proposed(state: Mapping[str, object]) -> bool:
+    for key in ("TechnicalDebtProposed", "technical_debt_proposed"):
+        value = state.get(key)
+        if isinstance(value, bool):
+            return value
+    technical_debt = state.get("TechnicalDebt")
+    if isinstance(technical_debt, Mapping):
+        proposed = technical_debt.get("Proposed")
+        if isinstance(proposed, bool):
+            return proposed
+    return False
+
+
+def _rollback_required(state: Mapping[str, object]) -> bool:
+    for key in ("RollbackRequired", "rollback_required"):
+        value = state.get(key)
+        if isinstance(value, bool):
+            return value
+    rollback = state.get("Rollback")
+    if isinstance(rollback, Mapping):
+        required = rollback.get("Required")
+        if isinstance(required, bool):
+            return required
+    return False
+
+
 def _normalize_token(value: str, spec: PhaseApiSpec) -> str:
     probe = str(value or "").strip().upper()
     if not probe:
@@ -247,14 +285,26 @@ def _read_nested_key(state: Mapping[str, object], path: str) -> object | None:
 
 
 def _validate_exit(entry: PhaseSpecEntry, state: Mapping[str, object]) -> tuple[bool, str]:
-    if entry.token == "2.1" and not _business_rules_discovery_resolved(state):
-        return False, "BusinessRules.Decision unresolved"
     for key_path in entry.exit_required_keys:
         value = _read_nested_key(state, key_path)
         if value is None:
             return False, f"missing exit evidence key: {key_path}"
         if isinstance(value, str) and not value.strip():
             return False, f"empty exit evidence key: {key_path}"
+    if entry.token == "3A":
+        status = _read_nested_key(state, "APIInventory.Status")
+        if isinstance(status, str) and status.strip().lower() not in {"completed", "not-applicable"}:
+            return False, "APIInventory.Status must be completed|not-applicable"
+    return True, "ok"
+
+
+def _validate_phase_1_3_foundation(state: Mapping[str, object]) -> tuple[bool, str]:
+    for key_path in ("LoadedRulebooks.core", "RulebookLoadEvidence.core", "AddonsEvidence"):
+        value = _read_nested_key(state, key_path)
+        if value is None:
+            return False, f"missing phase-1.3 evidence key: {key_path}"
+        if isinstance(value, str) and not value.strip():
+            return False, f"empty phase-1.3 evidence key: {key_path}"
     return True, "ok"
 
 
@@ -276,6 +326,27 @@ def _select_transition(entry: PhaseSpecEntry, state: Mapping[str, object]) -> tu
                     transition.active_gate,
                     transition.next_gate_condition,
                 )
+            if when == "business_rules_gate_required" and _phase_1_5_executed(state):
+                return (
+                    transition.next_token,
+                    transition.source,
+                    transition.active_gate,
+                    transition.next_gate_condition,
+                )
+            if when == "technical_debt_proposed" and _technical_debt_proposed(state):
+                return (
+                    transition.next_token,
+                    transition.source,
+                    transition.active_gate,
+                    transition.next_gate_condition,
+                )
+            if when == "rollback_required" and _rollback_required(state):
+                return (
+                    transition.next_token,
+                    transition.source,
+                    transition.active_gate,
+                    transition.next_gate_condition,
+                )
             if when == "default":
                 return (
                     transition.next_token,
@@ -285,6 +356,20 @@ def _select_transition(entry: PhaseSpecEntry, state: Mapping[str, object]) -> tu
                 )
         return (entry.next_token, "spec-next", None, None)
     return (entry.next_token, "spec-next", None, None)
+
+
+def _emit_phase_event(log_paths: Mapping[str, Path], event: dict[str, object]) -> tuple[bool, dict[str, str]]:
+    written_flow = _append_event(log_paths["flow"], event)
+    if not written_flow:
+        written_flow = _append_event(log_paths["flow_fallback"], event)
+    workspace_written = False
+    workspace_path = log_paths.get("workspace_events")
+    if workspace_path is not None:
+        workspace_written = _append_event(workspace_path, event)
+    return written_flow, {
+        "phase_flow": str(log_paths["flow"] if written_flow else log_paths["flow_fallback"]),
+        "workspace_events": str(workspace_path) if workspace_written and workspace_path is not None else "",
+    }
 
 
 def execute(
@@ -301,6 +386,24 @@ def execute(
     try:
         spec = load_phase_api(runtime_ctx.commands_home)
     except PhaseApiSpecError as exc:
+        log_paths = _resolve_flow_paths(commands_home, workspaces_home, config_root, repo_fingerprint)
+        _emit_phase_event(
+            log_paths,
+            {
+                "schema": "opencode.phase-flow.v1",
+                "ts_utc": _utc_now(),
+                "event_id": event_id,
+                "event": "PHASE_BLOCKED",
+                "source": "phase-api-missing",
+                "phase": "1.1-Bootstrap",
+                "phase_token": "1.1",
+                "next_token": "1.1",
+                "status": "BLOCKED",
+                "reason": str(exc),
+                "spec_path": str(commands_home / "phase_api.yaml"),
+                "spec_hash": "",
+            },
+        )
         emit_error_event(
             severity="CRITICAL",
             code="PHASE_API_MISSING",
@@ -321,7 +424,7 @@ def execute(
             status="BLOCKED",
             spec_hash="",
             spec_path=str(commands_home / "phase_api.yaml"),
-            log_paths={},
+            log_paths={"phase_flow": str(log_paths["flow"]), "workspace_events": ""},
             event_id=event_id,
         )
 
@@ -329,28 +432,93 @@ def execute(
     persisted_token = _normalize_token(persisted_phase, spec)
     requested_token = _normalize_token(current_token, spec)
     chosen_token = persisted_token or requested_token or spec.start_token
+    log_paths = _resolve_flow_paths(commands_home, workspaces_home, config_root, repo_fingerprint)
 
     if persisted_token and requested_token and phase_rank(requested_token) >= phase_rank(persisted_token):
         chosen_token = requested_token
 
     workspace_ready, workspace_reason = _persistence_gate_passed(state)
-    if phase_rank(chosen_token or "") >= phase_rank("2") and not workspace_ready:
+
+    _emit_phase_event(
+        log_paths,
+        {
+            "schema": "opencode.phase-flow.v1",
+            "ts_utc": _utc_now(),
+            "event_id": event_id,
+            "event": "PHASE_STARTED",
+            "source": "kernel",
+            "phase": spec.entries[chosen_token].phase,
+            "phase_token": chosen_token,
+            "status": "STARTED",
+            "spec_hash": spec.stable_hash,
+            "spec_path": str(spec.path),
+        },
+    )
+
+    def _blocked_result(*, phase: str, token: str, active_gate: str, next_gate_condition: str, source: str, reason: str) -> KernelResult:
+        written, result_paths = _emit_phase_event(
+            log_paths,
+            {
+                "schema": "opencode.phase-flow.v1",
+                "ts_utc": _utc_now(),
+                "event_id": event_id,
+                "event": "PHASE_BLOCKED",
+                "source": source,
+                "phase": phase,
+                "phase_token": token,
+                "next_token": token,
+                "status": "BLOCKED",
+                "reason": reason,
+                "spec_hash": spec.stable_hash,
+                "spec_path": str(spec.path),
+            },
+        )
+        if not written:
+            emit_error_event(
+                severity="CRITICAL",
+                code="PHASE_FLOW_LOG_WRITE_FAILED",
+                message="unable to write phase flow log",
+                repo_fingerprint=repo_fingerprint or None,
+                config_root=config_root,
+                workspaces_home=workspaces_home,
+                commands_home=commands_home,
+                context={"phase": phase, "source": source},
+            )
+            next_gate_condition = "PHASE_BLOCKED: flow log write failed"
+            source = "flow-log-write-failed"
+        emit_error_event(
+            severity="HIGH",
+            code="PHASE_BLOCKED",
+            message=reason,
+            repo_fingerprint=repo_fingerprint or None,
+            config_root=config_root,
+            workspaces_home=workspaces_home,
+            commands_home=commands_home,
+            context={"phase": phase, "phase_token": token, "source": source, "next_gate_condition": next_gate_condition},
+        )
         return KernelResult(
-            phase="1.1-Bootstrap",
-            next_token="1.1",
-            active_gate="Workspace Ready Gate",
-            next_gate_condition=f"BLOCKED_PERSISTENCE_FAILED: {workspace_reason}. Commit workspace readiness before phase progression.",
-            workspace_ready=False,
-            source="workspace-ready-gate",
+            phase=phase,
+            next_token=token,
+            active_gate=active_gate,
+            next_gate_condition=next_gate_condition,
+            workspace_ready=workspace_ready,
+            source=source,
             status="BLOCKED",
             spec_hash=spec.stable_hash,
             spec_path=str(spec.path),
-            log_paths={},
+            log_paths=result_paths,
             event_id=event_id,
         )
 
-    if persisted_token == "1.2" and workspace_ready:
-        chosen_token = "1.2"
+    if phase_rank(chosen_token or "") >= phase_rank("2") and not workspace_ready:
+        return _blocked_result(
+            phase="1.1-Bootstrap",
+            token="1.1",
+            active_gate="Workspace Ready Gate",
+            next_gate_condition=f"BLOCKED_PERSISTENCE_FAILED: {workspace_reason}. Commit workspace readiness before phase progression.",
+            source="workspace-ready-gate",
+            reason=workspace_reason,
+        )
 
     if (
         persisted_token
@@ -363,15 +531,11 @@ def execute(
         persisted_condition = _state_text(state, "next_gate_condition", "NextGateCondition")
         if not persisted_condition:
             persisted_condition = runtime_ctx.requested_next_gate_condition or entry.next_gate_condition
-        persisted_condition = _sanitize_ticket_progression(
-            phase=entry.phase,
-            next_gate_condition=persisted_condition,
-        )
         return KernelResult(
             phase=entry.phase,
             next_token=persisted_token,
             active_gate=persisted_gate,
-            next_gate_condition=persisted_condition,
+            next_gate_condition=_sanitize_ticket_progression(phase=entry.phase, next_gate_condition=persisted_condition),
             workspace_ready=workspace_ready,
             source="monotonic-session-phase",
             status="OK",
@@ -381,60 +545,51 @@ def execute(
             event_id=event_id,
         )
 
-    if persisted_token and requested_token:
-        if phase_rank(requested_token) - phase_rank(persisted_token) > 1 and not _transition_has_evidence(state):
-            chosen_token = persisted_token
-            entry = spec.entries[chosen_token]
-            persisted_phase_text = persisted_phase or entry.phase
-            return KernelResult(
-                phase=persisted_phase_text,
-                next_token=chosen_token,
-                active_gate=entry.active_gate or runtime_ctx.requested_active_gate,
-                next_gate_condition="Phase transition evidence required before advancing beyond next immediate phase",
-                workspace_ready=workspace_ready,
-                source="phase-transition-evidence-required",
-                status="BLOCKED",
-                spec_hash=spec.stable_hash,
-                spec_path=str(spec.path),
-                log_paths={},
-                event_id=event_id,
-            )
+    if persisted_token and requested_token and phase_rank(requested_token) - phase_rank(persisted_token) > 1 and not _transition_has_evidence(state):
+        entry = spec.entries[persisted_token]
+        return _blocked_result(
+            phase=persisted_phase or entry.phase,
+            token=persisted_token,
+            active_gate=entry.active_gate or runtime_ctx.requested_active_gate,
+            next_gate_condition="Phase transition evidence required before advancing beyond next immediate phase",
+            source="phase-transition-evidence-required",
+            reason="phase transition evidence missing",
+        )
 
     if phase_rank(chosen_token) >= phase_rank("2"):
         rulebooks_ok, rulebook_reason = _rulebook_gate_passed(state)
         if not rulebooks_ok:
-            entry = spec.entries.get("1.3")
-            phase_text = entry.phase if entry else "1.3-RulebookLoad"
-            gate_text = entry.active_gate if entry else "Rulebook Load Gate"
-            return KernelResult(
-                phase=phase_text,
-                next_token="1.3",
-                active_gate=gate_text,
+            entry_13 = spec.entries.get("1.3")
+            return _blocked_result(
+                phase=entry_13.phase if entry_13 else "1.3-RulebookLoad",
+                token="1.3",
+                active_gate=entry_13.active_gate if entry_13 else "Rulebook Load Gate",
                 next_gate_condition=f"BLOCKED_RULEBOOK_MISSING: {rulebook_reason}. Load required rulebooks before advancing.",
-                workspace_ready=workspace_ready,
                 source="rulebook-load-gate",
-                status="BLOCKED",
-                spec_hash=spec.stable_hash,
-                spec_path=str(spec.path),
-                log_paths={},
-                event_id=event_id,
+                reason=rulebook_reason,
+            )
+        foundation_ok, foundation_reason = _validate_phase_1_3_foundation(state)
+        if not foundation_ok:
+            entry_13 = spec.entries.get("1.3")
+            return _blocked_result(
+                phase=entry_13.phase if entry_13 else "1.3-RulebookLoad",
+                token="1.3",
+                active_gate=entry_13.active_gate if entry_13 else "Rulebook Load Gate",
+                next_gate_condition=f"PHASE_BLOCKED: {foundation_reason}",
+                source="phase-exit-evidence-missing",
+                reason=foundation_reason,
             )
 
     entry = spec.entries[chosen_token]
     exit_ok, exit_reason = _validate_exit(entry, state)
-    if not exit_ok and chosen_token == "1.3":
-        return KernelResult(
+    if not exit_ok:
+        return _blocked_result(
             phase=entry.phase,
-            next_token=chosen_token,
+            token=chosen_token,
             active_gate=entry.active_gate,
             next_gate_condition=f"PHASE_BLOCKED: {exit_reason}",
-            workspace_ready=workspace_ready,
             source="phase-exit-evidence-missing",
-            status="BLOCKED",
-            spec_hash=spec.stable_hash,
-            spec_path=str(spec.path),
-            log_paths={},
-            event_id=event_id,
+            reason=exit_reason,
         )
 
     next_token, source, override_active_gate, override_next_condition = _select_transition(entry, state)
@@ -451,63 +606,37 @@ def execute(
         if override_active_gate is None:
             resolved_active_gate = next_entry.active_gate or resolved_active_gate
 
-    resolved_next_condition = _sanitize_ticket_progression(
-        phase=resolved_phase,
-        next_gate_condition=resolved_next_condition,
+    resolved_next_condition = _sanitize_ticket_progression(phase=resolved_phase, next_gate_condition=resolved_next_condition)
+
+    event_name = "PHASE_COMPLETED"
+    if source == "phase-3a-not-applicable-to-phase4":
+        event_name = "PHASE_NOT_APPLICABLE"
+    written, result_paths = _emit_phase_event(
+        log_paths,
+        {
+            "schema": "opencode.phase-flow.v1",
+            "ts_utc": _utc_now(),
+            "event_id": event_id,
+            "event": event_name,
+            "source": source,
+            "phase": resolved_phase,
+            "phase_token": chosen_token,
+            "next_token": next_token,
+            "status": "OK",
+            "spec_hash": spec.stable_hash,
+            "spec_path": str(spec.path),
+        },
     )
-
-    event = {
-        "schema": "opencode.phase-flow.v1",
-        "ts_utc": _utc_now(),
-        "event_id": event_id,
-        "event": "PHASE_COMPLETED",
-        "source": source,
-        "phase": resolved_phase,
-        "phase_token": chosen_token,
-        "next_token": next_token,
-        "status": "OK",
-        "spec_hash": spec.stable_hash,
-        "spec_path": str(spec.path),
-    }
-
-    log_paths = _resolve_flow_paths(commands_home, workspaces_home, config_root, repo_fingerprint)
-    written_flow = _append_event(log_paths["flow"], event)
-    if not written_flow:
-        written_flow = _append_event(log_paths["flow_fallback"], event)
-    workspace_written = False
-    workspace_path = log_paths.get("workspace_events")
-    if workspace_path is not None:
-        workspace_written = _append_event(workspace_path, event)
-
-    if not written_flow:
-        emit_error_event(
-            severity="CRITICAL",
-            code="PHASE_FLOW_LOG_WRITE_FAILED",
-            message="unable to write phase flow log",
-            repo_fingerprint=repo_fingerprint or None,
-            config_root=config_root,
-            workspaces_home=workspaces_home,
-            commands_home=commands_home,
-            context={"phase": resolved_phase},
-        )
-        return KernelResult(
+    if not written:
+        return _blocked_result(
             phase=resolved_phase,
-            next_token=next_token,
+            token=chosen_token,
             active_gate=resolved_active_gate,
             next_gate_condition="PHASE_BLOCKED: flow log write failed",
-            workspace_ready=workspace_ready,
             source="flow-log-write-failed",
-            status="BLOCKED",
-            spec_hash=spec.stable_hash,
-            spec_path=str(spec.path),
-            log_paths={"flow": str(log_paths["flow"]), "workspace_events": str(workspace_path) if workspace_path else ""},
-            event_id=event_id,
+            reason="flow-log-write-failed",
         )
 
-    result_paths = {
-        "phase_flow": str(log_paths["flow"] if written_flow else log_paths["flow_fallback"]),
-        "workspace_events": str(workspace_path) if workspace_written and workspace_path is not None else "",
-    }
     return KernelResult(
         phase=resolved_phase,
         next_token=next_token,

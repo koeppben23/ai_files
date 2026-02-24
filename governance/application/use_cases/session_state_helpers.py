@@ -86,3 +86,38 @@ def with_workspace_ready_gate(
     state["workspace_ready_gate_committed"] = committed
     state["workspace_ready"] = committed
     return state
+
+
+def with_kernel_result(
+    session_state_document: Mapping[str, object] | None,
+    *,
+    phase: str,
+    next_token: str | None,
+    active_gate: str,
+    next_gate_condition: str,
+    status: str,
+    spec_hash: str,
+    spec_path: str,
+    log_paths: Mapping[str, str] | None,
+    event_id: str,
+) -> Mapping[str, object]:
+    state: dict[str, object] = dict(session_state_document or {})
+    root = state.get("SESSION_STATE")
+    ss = dict(root) if isinstance(root, Mapping) else {}
+
+    ss["Phase"] = phase
+    ss["phase"] = phase
+    ss["Next"] = next_token or ""
+    ss["active_gate"] = active_gate
+    ss["next_gate_condition"] = next_gate_condition
+    ss["status"] = status
+    ss["log_paths"] = dict(log_paths or {})
+    kernel = ss.get("Kernel")
+    kernel_block = dict(kernel) if isinstance(kernel, Mapping) else {}
+    kernel_block["PhaseApiPath"] = spec_path
+    kernel_block["PhaseApiSha256"] = spec_hash
+    kernel_block["LastPhaseEventId"] = event_id
+    ss["Kernel"] = kernel_block
+
+    state["SESSION_STATE"] = ss
+    return state
