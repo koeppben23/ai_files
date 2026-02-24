@@ -171,6 +171,22 @@ class BootstrapPersistenceService:
             return BootstrapResult(ok=False, gate_code=event.code, write_actions=write_actions, error_events=tuple(errors))
         write_actions["pointer_verify"] = "verified"
 
+        # Determine PointerVerified explicitly based on read-back and pointer payload validity
+        pointer_verified_final = False
+        try:
+            pointer_readback = self._fs.read_text(pointer_file)
+            pointer_json_read = json.loads(pointer_readback)
+            pointer_verified_final = (
+                pointer_json_read.get("schema") == "opencode-session-pointer.v1" and
+                pointer_json_read.get("activeRepoFingerprint") == payload.repo_identity.fingerprint and
+                (
+                    "activeSessionStateFile" in pointer_json_read or
+                    "activeSessionStateRelativePath" in pointer_json_read
+                )
+            )
+        except Exception:
+            pointer_verified_final = False
+
         final_state = _session_state_payload(
             repo_fingerprint=payload.repo_identity.fingerprint,
             repo_name=payload.repo_identity.repo_name,
@@ -179,7 +195,7 @@ class BootstrapPersistenceService:
             workspace_artifacts_committed=True,
             effective_mode=payload.effective_mode,
             write_policy_reasons=payload.write_policy_reasons,
-            pointer_verified=True,
+            pointer_verified=pointer_verified_final,
         )
         self._fs.write_text_atomic(session_state_file, _canonical_json(final_state))
         write_actions["session_state_final"] = "written"
