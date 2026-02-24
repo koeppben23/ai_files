@@ -54,7 +54,8 @@ Evidence:
 - [ ] Phase 4 remains planning-only (code-output requests blocked).
 
 Evidence:
-- `governance/application/use_cases/phase_router.py`
+- `governance/kernel/phase_kernel.py`
+- `${COMMANDS_HOME}/phase_api.yaml`
 - `governance/application/use_cases/orchestrate_run.py`
 - `tests/test_verification_suite.py`
 - `tests/test_engine_orchestrator.py`

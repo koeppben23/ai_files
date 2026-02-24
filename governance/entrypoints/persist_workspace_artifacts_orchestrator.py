@@ -325,10 +325,12 @@ from governance.entrypoints.error_handler_bridge import (
 try:
     from governance.infrastructure.logging.global_error_handler import resolve_log_path
 except Exception:
-    def resolve_log_path(*, config_root=None, workspaces_home=None, repo_fingerprint=None):
+    def resolve_log_path(*, config_root=None, commands_home=None, workspaces_home=None, repo_fingerprint=None):
         cfg_root = Path(config_root) if config_root else (Path.home() / ".config" / "opencode")
         if repo_fingerprint and workspaces_home:
             return Path(workspaces_home) / repo_fingerprint / "logs" / "error.log.jsonl"
+        if commands_home:
+            return Path(commands_home) / "logs" / "error.log.jsonl"
         return cfg_root / "logs" / "error.log.jsonl"
 
 try:
@@ -1269,6 +1271,7 @@ def main() -> int:
         )
         log_path = resolve_log_path(
             config_root=str(config_root),
+            commands_home=str(binding_paths.get("commandsHome", "")),
             workspaces_home=str(config_root / "workspaces"),
             repo_fingerprint=None,
         )
@@ -1589,7 +1592,7 @@ def main() -> int:
     memory_content = _render_workspace_memory(
         date=today, repo_name=repo_name, repo_fingerprint=repo_fingerprint
     )
-    should_write_business_rules = _should_write_business_rules_inventory(session) or not business_rules_path.exists()
+    should_write_business_rules = _should_write_business_rules_inventory(session)
     business_rules_action = "not-applicable"
     business_rules_bootstrap_event = "not-emitted"
     if should_write_business_rules:

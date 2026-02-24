@@ -42,6 +42,8 @@ def resolve_paths_full(config_root: Path | None = None) -> tuple[Path, Path, Pat
         return cfg, workspaces, commands
     resolver = BindingEvidenceResolver()
     evidence = getattr(resolver, "resolve")(mode="kernel")
+    if evidence.commands_home is None or evidence.workspaces_home is None:
+        raise RuntimeError("binding evidence missing commands/workspaces paths")
     if evidence.config_root is not None:
         resolved_cfg = evidence.config_root
     elif evidence.commands_home.name == "commands":

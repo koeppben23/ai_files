@@ -62,10 +62,12 @@ from governance.entrypoints.error_handler_bridge import (
 try:
     from governance.infrastructure.logging.global_error_handler import resolve_log_path
 except Exception:
-    def resolve_log_path(*, config_root=None, workspaces_home=None, repo_fingerprint=None):
+    def resolve_log_path(*, config_root=None, commands_home=None, workspaces_home=None, repo_fingerprint=None):
         root = Path(config_root) if config_root is not None else (Path.home() / ".config" / "opencode")
         if repo_fingerprint and workspaces_home:
             return Path(workspaces_home) / repo_fingerprint / "logs" / "error.log.jsonl"
+        if commands_home:
+            return Path(commands_home) / "logs" / "error.log.jsonl"
         return root / "logs" / "error.log.jsonl"
 
 try:
@@ -124,7 +126,7 @@ except ImportError:
     pass
 
 
-def _resolve_bindings(*, mode: str) -> tuple[Path, Path, bool, Path | None, str]:
+def _resolve_bindings(*, mode: str) -> tuple[Path | None, Path | None, bool, Path | None, str]:
     """Resolve binding evidence paths for the current mode.
     
     Args:
@@ -393,18 +395,26 @@ def _verify_workspace_session_exists(workspaces_home: Path, repo_fingerprint: st
 
 def run_persistence_hook(*, repo_root: Path | None = None) -> dict[str, object]:
     install_global_handlers()
+    commands_home = COMMANDS_HOME
+    workspaces_home = WORKSPACES_HOME if WORKSPACES_HOME is not None else (
+        commands_home.parent / "workspaces" if commands_home is not None else None
+    )
 
     def _with_log_path(payload: dict[str, object], repo_fingerprint: str | None = None) -> dict[str, object]:
         if "repo_fingerprint" not in payload:
             payload["repo_fingerprint"] = repo_fingerprint or ""
         if "log_path" not in payload:
-            payload["log_path"] = str(
-                resolve_log_path(
-                    config_root=COMMANDS_HOME.parent,
-                    workspaces_home=WORKSPACES_HOME,
-                    repo_fingerprint=repo_fingerprint,
+            try:
+                payload["log_path"] = str(
+                    resolve_log_path(
+                        config_root=commands_home.parent if commands_home is not None else None,
+                        commands_home=commands_home,
+                        workspaces_home=workspaces_home,
+                        repo_fingerprint=repo_fingerprint,
+                    )
                 )
-            )
+            except Exception:
+                payload["log_path"] = ""
         return payload
 
     if not _writes_allowed():
@@ -450,7 +460,7 @@ def run_persistence_hook(*, repo_root: Path | None = None) -> dict[str, object]:
         safe_log_error(
             reason_key="ERR-PERSISTENCE-REPO-ROOT-RESOLUTION-FAILED",
             message=f"Could not resolve git repository root (source: {root_source}).",
-            config_root=COMMANDS_HOME.parent,
+            config_root=commands_home.parent if commands_home is not None else None,
             phase="1.1-Bootstrap",
             gate="PERSISTENCE",
             mode=EFFECTIVE_MODE,
@@ -467,8 +477,8 @@ def run_persistence_hook(*, repo_root: Path | None = None) -> dict[str, object]:
 
     set_error_context(ErrorContext(
         repo_fingerprint=repo_fp,
-        config_root=str(COMMANDS_HOME.parent),
-        workspaces_home=str(WORKSPACES_HOME),
+        config_root=(str(commands_home.parent) if commands_home is not None else None),
+        workspaces_home=(str(workspaces_home) if workspaces_home is not None else None),
         repo_root=str(resolved_root),
         phase="1.1-Bootstrap",
         command="start_persistence_hook.py",
@@ -492,7 +502,7 @@ def run_persistence_hook(*, repo_root: Path | None = None) -> dict[str, object]:
         safe_log_error(
             reason_key="ERR-PERSISTENCE-FINGERPRINT-DERIVATION-FAILED",
             message="Could not derive repo fingerprint from git metadata during persistence hook.",
-            config_root=COMMANDS_HOME.parent,
+            config_root=commands_home.parent if commands_home is not None else None,
             phase="1.1-Bootstrap",
             gate="PERSISTENCE",
             mode=EFFECTIVE_MODE,
@@ -505,7 +515,19 @@ def run_persistence_hook(*, repo_root: Path | None = None) -> dict[str, object]:
         )
         return _with_log_path(result)
 
-    bootstrap_script = COMMANDS_HOME / "governance" / "entrypoints" / "bootstrap_session_state.py"
+    if commands_home is None:
+        return _with_log_path(
+            {
+                "workspacePersistenceHook": "blocked",
+                "reason_code": "BLOCKED-MISSING-BINDING-FILE",
+                "reason": "binding-evidence-missing-or-invalid",
+                "impact": "cannot run persistence hook without valid commands/workspaces binding",
+                "writes_allowed": True,
+            },
+            repo_fingerprint=repo_fp,
+        )
+
+    bootstrap_script = commands_home / "governance" / "entrypoints" / "bootstrap_session_state.py"
     if not bootstrap_script.exists():
         emit_gate_failure(
             gate="PERSISTENCE",
@@ -524,7 +546,7 @@ def run_persistence_hook(*, repo_root: Path | None = None) -> dict[str, object]:
         safe_log_error(
             reason_key="ERR-PERSISTENCE-BOOTSTRAP-SCRIPT-MISSING",
             message="bootstrap_session_state.py not found at expected location.",
-            config_root=COMMANDS_HOME.parent,
+            config_root=commands_home.parent,
             phase="1.1-Bootstrap",
             gate="PERSISTENCE",
             mode="user",
@@ -544,13 +566,13 @@ def run_persistence_hook(*, repo_root: Path | None = None) -> dict[str, object]:
         "--repo-fingerprint", repo_fp,
         "--repo-name", repo_name,
         "--repo-root", str(resolved_root),
-        "--config-root", str(COMMANDS_HOME.parent),
+        "--config-root", str(commands_home.parent),
     ]
 
     try:
         proc = _run_bootstrap_dispatch(command=cmd, cwd=resolved_root)
         if proc.returncode == 0:
-            pointer_ok, pointer_reason = _verify_pointer_exists(COMMANDS_HOME.parent, repo_fp)
+            pointer_ok, pointer_reason = _verify_pointer_exists(commands_home.parent, repo_fp)
             if not pointer_ok:
                 emit_gate_failure(
                     gate="PERSISTENCE",
@@ -571,7 +593,7 @@ def run_persistence_hook(*, repo_root: Path | None = None) -> dict[str, object]:
                 safe_log_error(
                     reason_key="ERR-PERSISTENCE-POINTER-VERIFICATION-FAILED",
                     message=f"Pointer verification failed after bootstrap: {pointer_reason}",
-                    config_root=COMMANDS_HOME.parent,
+                    config_root=commands_home.parent,
                     phase="1.1-Bootstrap",
                     gate="PERSISTENCE",
                     mode="user",
@@ -584,7 +606,7 @@ def run_persistence_hook(*, repo_root: Path | None = None) -> dict[str, object]:
                 )
                 return _with_log_path(result, repo_fingerprint=repo_fp)
 
-            workspace_ok, workspace_reason = _verify_workspace_session_exists(WORKSPACES_HOME, repo_fp)
+            workspace_ok, workspace_reason = _verify_workspace_session_exists(workspaces_home, repo_fp)
             if not workspace_ok:
                 emit_gate_failure(
                     gate="PERSISTENCE",
@@ -605,7 +627,7 @@ def run_persistence_hook(*, repo_root: Path | None = None) -> dict[str, object]:
                 safe_log_error(
                     reason_key="ERR-PERSISTENCE-WORKSPACE-SESSION-VERIFICATION-FAILED",
                     message=f"Workspace session verification failed after bootstrap: {workspace_reason}",
-                    config_root=COMMANDS_HOME.parent,
+                    config_root=commands_home.parent,
                     phase="1.1-Bootstrap",
                     gate="PERSISTENCE",
                     mode="user",
@@ -652,7 +674,7 @@ def run_persistence_hook(*, repo_root: Path | None = None) -> dict[str, object]:
             safe_log_error(
                 reason_key="ERR-PERSISTENCE-BOOTSTRAP-NONZERO-EXIT",
                 message="bootstrap_session_state.py returned non-zero exit code.",
-                config_root=COMMANDS_HOME.parent,
+                config_root=commands_home.parent,
                 phase="1.1-Bootstrap",
                 gate="PERSISTENCE",
                 mode="user",
@@ -686,7 +708,7 @@ def run_persistence_hook(*, repo_root: Path | None = None) -> dict[str, object]:
         safe_log_error(
             reason_key="ERR-PERSISTENCE-BOOTSTRAP-EXCEPTION",
             message=f"Exception while running bootstrap_session_state.py: {exc}",
-            config_root=COMMANDS_HOME.parent,
+            config_root=commands_home.parent,
             phase="1.1-Bootstrap",
             gate="PERSISTENCE",
             mode="user",

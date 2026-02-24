@@ -2085,7 +2085,7 @@ def test_phase2_and_phase15_do_not_force_ticket_prompt_without_ticket_goal():
     master = read_text(REPO_ROOT / "master.md")
     required_tokens = [
         "otherwise → Phase 3A (auto-not-applicable path allowed) then continue to Phase 3B routing",
-        "ticket prompt is deferred until Phase 4 entry.",
+        "ticket input is accepted only at Phase 4 entry.",
         "Otherwise: Proceed to Phase 3A (auto-not-applicable path allowed), then continue to Phase 3B routing",
     ]
     missing = [t for t in required_tokens if t not in master]

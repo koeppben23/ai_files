@@ -250,7 +250,7 @@ def _sanitize_ticket_progression(*, phase: str, next_gate_condition: str) -> str
     return next_gate_condition
 
 
-def _resolve_paths(runtime_ctx: RuntimeContext) -> tuple[Path, Path | None, Path | None, bool, list[str]]:
+def _resolve_paths(runtime_ctx: RuntimeContext) -> tuple[Path | None, Path | None, Path | None, bool, list[str]]:
     if runtime_ctx.commands_home is not None:
         commands_home = runtime_ctx.commands_home
         workspaces_home = runtime_ctx.workspaces_home
@@ -261,11 +261,11 @@ def _resolve_paths(runtime_ctx: RuntimeContext) -> tuple[Path, Path | None, Path
     return evidence.commands_home, evidence.workspaces_home, evidence.config_root, evidence.binding_ok, list(evidence.issues)
 
 
-def _resolve_flow_paths(commands_home: Path, workspaces_home: Path | None, repo_fingerprint: str) -> dict[str, Path]:
-    paths: dict[str, Path] = {
-        "commands_flow": commands_home / "logs" / "flow.log.jsonl",
-        "commands_boot": commands_home / "logs" / "boot.log.jsonl",
-    }
+def _resolve_flow_paths(commands_home: Path | None, workspaces_home: Path | None, repo_fingerprint: str) -> dict[str, Path]:
+    paths: dict[str, Path] = {}
+    if commands_home is not None:
+        paths["commands_flow"] = commands_home / "logs" / "flow.log.jsonl"
+        paths["commands_boot"] = commands_home / "logs" / "boot.log.jsonl"
     if workspaces_home is not None and repo_fingerprint:
         paths["workspace_events"] = workspaces_home / repo_fingerprint / "events.jsonl"
         paths["workspace_flow"] = workspaces_home / repo_fingerprint / "logs" / "flow.log.jsonl"
@@ -433,9 +433,10 @@ def execute(
         )
 
     try:
-        spec = load_phase_api(runtime_ctx.commands_home)
+        spec = load_phase_api(commands_home)
     except PhaseApiSpecError as exc:
         log_paths = _resolve_flow_paths(commands_home, workspaces_home, repo_fingerprint)
+        phase_api_path = str(commands_home / "phase_api.yaml") if commands_home is not None else ""
         _emit_phase_event(
             log_paths,
             {
@@ -449,7 +450,7 @@ def execute(
                 "next_token": "1.1",
                 "status": "BLOCKED",
                 "reason": str(exc),
-                "spec_path": str(commands_home / "phase_api.yaml"),
+                "spec_path": phase_api_path,
                 "spec_hash": "",
             },
         )
@@ -461,7 +462,7 @@ def execute(
             config_root=config_root,
             workspaces_home=workspaces_home,
             commands_home=commands_home,
-            context={"phase_api_path": str(commands_home / "phase_api.yaml")},
+            context={"phase_api_path": phase_api_path},
         )
         return KernelResult(
             phase="1.1-Bootstrap",
@@ -472,7 +473,7 @@ def execute(
             source="phase-api-missing",
             status="BLOCKED",
             spec_hash="",
-            spec_path=str(commands_home / "phase_api.yaml"),
+            spec_path=phase_api_path,
             spec_loaded_at="",
             log_paths={"phase_flow": str(log_paths.get("commands_flow") or ""), "workspace_events": ""},
             event_id=event_id,
