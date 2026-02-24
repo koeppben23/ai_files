@@ -40,29 +40,13 @@ if str(SCRIPT_DIR) not in sys.path:
 if str(SCRIPT_DIR.parent) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR.parent))
 
-try:
-    from diagnostics.error_logs import safe_log_error
-except ImportError:
-    def safe_log_error(**kwargs):
-        return {"status": "log-disabled"}
-
-try:
-    from diagnostics.global_error_handler import (
-        install_global_handlers,
-        set_error_context,
-        emit_gate_failure,
-        ErrorContext,
-    )
-except ImportError:
-    def install_global_handlers(context_provider=None):  # type: ignore
-        pass
-    def set_error_context(ctx):  # type: ignore
-        pass
-    def emit_gate_failure(**kwargs):  # type: ignore
-        pass
-    class ErrorContext:  # type: ignore
-        def __init__(self, **kwargs):
-            pass
+from diagnostics.error_logs import safe_log_error
+from diagnostics.global_error_handler import (
+    ErrorContext,
+    emit_gate_failure,
+    install_global_handlers,
+    set_error_context,
+)
 
 try:
     from governance.application.use_cases.start_bootstrap import evaluate_start_identity

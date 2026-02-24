@@ -300,23 +300,12 @@ _PERSISTENCE_DECISION_PACK_BASELINE = (
     "Recommendation: A (run lightweight Phase 1.5 to establish initial domain evidence)",
 )
 
-try:
-    from diagnostics.global_error_handler import (
-        install_global_handlers,
-        set_error_context,
-        emit_gate_failure,
-        ErrorContext,
-    )
-except ImportError:
-    def install_global_handlers(context_provider=None):  # type: ignore
-        pass
-    def set_error_context(ctx):  # type: ignore
-        pass
-    def emit_gate_failure(**kwargs):  # type: ignore
-        pass
-    class ErrorContext:  # type: ignore
-        def __init__(self, **kwargs):
-            pass
+from diagnostics.global_error_handler import (
+    ErrorContext,
+    emit_gate_failure,
+    install_global_handlers,
+    set_error_context,
+)
 
 def _read_only() -> bool:
     return not writes_allowed()
@@ -355,11 +344,7 @@ except Exception:
             return normalized.casefold()
         return normalized
 
-try:
-    from error_logs import safe_log_error
-except Exception:  # pragma: no cover
-    def safe_log_error(**kwargs):  # type: ignore[no-redef]
-        return {"status": "log-disabled"}
+from diagnostics.error_logs import safe_log_error
 
 from workspace_lock import acquire_workspace_lock
 from command_profiles import render_command_profiles
@@ -1445,6 +1430,14 @@ def main() -> int:
             )
         except OSError as exc:
             business_rules_action = "write-requested"
+            emit_gate_failure(
+                gate="PERSISTENCE",
+                code="BUSINESS_RULES_PERSIST_WRITE_FAILED",
+                message="Business rules inventory persistence failed; write downgraded to write-requested.",
+                expected="Business rules inventory persists to workspace target",
+                observed={"target": str(business_rules_path), "error": str(exc)[:240]},
+                remediation="Persist the same content manually to ${REPO_BUSINESS_RULES_FILE} and rerun helper.",
+            )
             safe_log_error(
                 reason_key="ERR-BUSINESS-RULES-PERSIST-WRITE-FAILED",
                 message="Business rules inventory persistence failed; keeping canonical target with write-requested status.",
@@ -1510,6 +1503,14 @@ def main() -> int:
             read_only=read_only,
         )
         if session_update == "invalid-session-shape":
+            emit_gate_failure(
+                gate="PERSISTENCE",
+                code="SESSION_STATE_INVALID_SHAPE",
+                message="Repo SESSION_STATE file exists but has invalid shape.",
+                expected="SESSION_STATE root object must contain SESSION_STATE dict",
+                observed={"sessionPath": str(session_path), "sessionUpdate": session_update},
+                remediation="Repair repo-scoped SESSION_STATE and rerun backfill helper.",
+            )
             safe_log_error(
                 reason_key="ERR-SESSION-STATE-INVALID-SHAPE",
                 message="Repo SESSION_STATE file exists but has invalid shape.",
@@ -1528,6 +1529,14 @@ def main() -> int:
     phase2_artifacts_ok, phase2_missing = _verify_phase2_artifacts_exist(repo_home)
 
     if not phase2_artifacts_ok and not args.dry_run and not read_only:
+        emit_gate_failure(
+            gate="PERSISTENCE",
+            code="PHASE2_ARTIFACTS_MISSING_DETECTED",
+            message="Phase 2 discovery did not write required artifacts.",
+            expected="repo-cache.yaml, repo-map-digest.md, workspace-memory.yaml must exist",
+            observed={"missing": phase2_missing, "repo_home": str(repo_home)},
+            remediation="Re-run persist_workspace_artifacts.py with --force to recreate missing artifacts.",
+        )
         safe_log_error(
             reason_key="ERR-PHASE2-ARTIFACTS-MISSING",
             message="Phase 2 discovery did not write required artifacts.",
