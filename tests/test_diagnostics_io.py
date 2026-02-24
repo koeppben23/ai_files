@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from diagnostics.io.actions import WriteAction, derive_file_status
-from diagnostics.io.atomic_write import atomic_write_text
+from governance.entrypoints.io.actions import WriteAction, derive_file_status
+from governance.entrypoints.io.atomic_write import atomic_write_text
 from routing.gates import check_persistence_gate
 
 

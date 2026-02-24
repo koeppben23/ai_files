@@ -63,7 +63,7 @@ def write_governance_paths(config_root: Path, *, workspaces_home: Path | None = 
 
     root = config_root.resolve()
     commands = root / "commands"
-    diagnostics = commands / "diagnostics"
+    diagnostics = commands / "governance"
     workspaces = (workspaces_home.resolve() if workspaces_home is not None else (root / "workspaces").resolve())
     payload = {
         "schema": "opencode-governance.paths.v1",

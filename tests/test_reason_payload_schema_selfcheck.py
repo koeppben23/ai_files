@@ -5,7 +5,7 @@ import json
 
 import pytest
 
-from diagnostics import schema_selfcheck
+from governance.entrypoints import schema_selfcheck
 from governance.engine._embedded_reason_registry import EMBEDDED_REASON_CODE_TO_SCHEMA_REF
 from governance.engine._embedded_reason_schemas import EMBEDDED_REASON_SCHEMAS
 
@@ -24,7 +24,7 @@ def test_reason_payload_registry_exists_at_expected_path():
 
 
 @pytest.mark.governance
-def test_embedded_reason_registry_matches_diagnostics_registry():
+def test_embedded_reason_registry_matches_governance_registry():
     root = Path(__file__).resolve().parents[1]
     registry_path = root / "governance" / "assets" / "catalogs" / "reason_codes.registry.json"
     payload = json.loads(registry_path.read_text(encoding="utf-8"))

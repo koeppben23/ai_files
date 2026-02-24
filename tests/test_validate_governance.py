@@ -3277,7 +3277,7 @@ def test_canonical_response_envelope_schema_contract_is_defined():
     schema_text = read_text(schema_path)
 
     docs_required = [
-        "diagnostics/RESPONSE_ENVELOPE_SCHEMA.json",
+        "governance/assets/catalogs/RESPONSE_ENVELOPE_SCHEMA.json",
         "status",
         "session_state",
         "next_action",
@@ -3406,8 +3406,8 @@ def test_audit_reason_keys_are_declared_audit_only_and_not_reason_code_payloads(
         "audit-only diagnostics keys",
         "They are NOT canonical governance `reason_code` values",
         "MUST NOT be written into `SESSION_STATE.Diagnostics.ReasonPayloads.reason_code`",
-        "diagnostics/map_audit_to_canonical.py --input <audit-report.json>",
-        "diagnostics/AUDIT_REASON_CANONICAL_MAP.json",
+        "governance/entrypoints/map_audit_to_canonical.py --input <audit-report.json>",
+        "governance/assets/catalogs/AUDIT_REASON_CANONICAL_MAP.json",
         "auditReasonKey `BR_MISSING_SESSION_GATE_STATE`",
         "auditReasonKey `BR_MISSING_RULEBOOK_RESOLUTION`",
         "auditReasonKey `BR_SCOPE_ARTIFACT_MISSING`",
@@ -3571,7 +3571,7 @@ def test_business_rules_write_failure_does_not_redirect_to_workspace_memory_targ
 
 @pytest.mark.governance
 def test_error_logger_helper_exists_and_defines_required_log_shape():
-    p = REPO_ROOT / "diagnostics" / "error_logs.py"
+    p = REPO_ROOT / "governance" / "entrypoints" / "error_logs.py"
     assert p.exists(), "Missing diagnostics/error_logs.py"
 
     text = read_text(p)
@@ -3593,7 +3593,7 @@ def test_error_logger_helper_exists_and_defines_required_log_shape():
 
 @pytest.mark.governance
 def test_error_logger_logs_to_ssot_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
-    module_path = REPO_ROOT / "diagnostics" / "error_logs.py"
+    module_path = REPO_ROOT / "governance" / "entrypoints" / "error_logs.py"
     spec = importlib.util.spec_from_file_location("error_logs_mod", module_path)
     assert spec and spec.loader, "Failed to load diagnostics/error_logs.py module spec"
     monkeypatch.delenv("CI", raising=False)
@@ -3624,7 +3624,7 @@ def test_error_logger_logs_to_ssot_path(tmp_path: Path, monkeypatch: pytest.Monk
 
 @pytest.mark.governance
 def test_error_logger_uses_bound_workspaces_home_for_repo_logs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
-    module_path = REPO_ROOT / "diagnostics" / "error_logs.py"
+    module_path = REPO_ROOT / "governance" / "entrypoints" / "error_logs.py"
     spec = importlib.util.spec_from_file_location("error_logs_mod", module_path)
     assert spec and spec.loader, "Failed to load diagnostics/error_logs.py module spec"
     monkeypatch.delenv("CI", raising=False)
@@ -3657,7 +3657,7 @@ def test_error_logger_uses_bound_workspaces_home_for_repo_logs(tmp_path: Path, m
 def test_error_logger_uses_ssot_write_policy(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     """error_logs.py uses write_policy.writes_allowed() as SSOT."""
 
-    module_path = REPO_ROOT / "diagnostics" / "error_logs.py"
+    module_path = REPO_ROOT / "governance" / "entrypoints" / "error_logs.py"
     spec = importlib.util.spec_from_file_location("error_logs_ssot", module_path)
     assert spec and spec.loader, "Failed to load diagnostics/error_logs.py module spec"
     

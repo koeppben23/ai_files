@@ -29,7 +29,7 @@ If `[SESSION_STATE]` is missing, the command MUST stop with `BLOCKED` and reques
 ## OUTPUT FORMAT (Mandatory)
 
 Primary output MUST be a single JSON object conforming to:
-- `diagnostics/AUDIT_REPORT_SCHEMA.json`
+- `governance/assets/catalogs/AUDIT_REPORT_SCHEMA.json`
 
 Rules:
 - Output MUST start with the JSON (no text before it).
@@ -46,8 +46,8 @@ Reason key semantics (binding):
 - If a bridge to canonical workflow reasons is needed, map audit keys to canonical `BLOCKED-*|WARN-*|NOT_VERIFIED-*` codes explicitly.
 
 Deterministic bridge (binding):
-- Use `diagnostics/map_audit_to_canonical.py --input <audit-report.json>` for deterministic audit-key to canonical reason-code mapping.
-- Canonical mapping source: `diagnostics/AUDIT_REASON_CANONICAL_MAP.json`.
+- Use `governance/entrypoints/map_audit_to_canonical.py --input <audit-report.json>` for deterministic audit-key to canonical reason-code mapping.
+- Canonical mapping source: `governance/assets/catalogs/AUDIT_REASON_CANONICAL_MAP.json`.
 
 ---
 

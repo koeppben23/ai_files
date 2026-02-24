@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import pytest
 
-from diagnostics.reason_registry_selfcheck import check_reason_registry_parity
+from governance.entrypoints.reason_registry_selfcheck import check_reason_registry_parity
 
 
 @pytest.mark.governance

@@ -450,7 +450,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 scripts/evaluate_security_evidence.py \
-            --policy diagnostics/SECURITY_GATE_POLICY.json \
+            --policy governance/assets/catalogs/SECURITY_GATE_POLICY.json \
             --input diagnostics/security-evidence/gitleaks.summary.json \
             --input diagnostics/security-evidence/pip-audit.summary.json \
             --input diagnostics/security-evidence/workflow-hardening.summary.json \

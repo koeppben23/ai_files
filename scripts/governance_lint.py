@@ -386,7 +386,7 @@ def check_response_envelope_schema_contract(issues: list[str]) -> None:
     schema = read_text(schema_path)
 
     docs_required = [
-        "diagnostics/RESPONSE_ENVELOPE_SCHEMA.json",
+        "governance/assets/catalogs/RESPONSE_ENVELOPE_SCHEMA.json",
         "status",
         "session_state",
         "next_action",
@@ -798,7 +798,7 @@ def check_security_gate_contract(issues: list[str]) -> None:
         "zizmor",
         "security-policy-gate:",
         "scripts/evaluate_security_evidence.py",
-        "diagnostics/SECURITY_GATE_POLICY.json",
+        "governance/assets/catalogs/SECURITY_GATE_POLICY.json",
         "SESSION_STATE.BuildEvidence.Security",
     ]
     missing_workflow = [token for token in workflow_required_tokens if token not in workflow]
@@ -943,8 +943,8 @@ def check_diagnostics_reason_contract_alignment(issues: list[str]) -> None:
         "auditReasonKey `BR_MISSING_SESSION_GATE_STATE`",
         "auditReasonKey `BR_MISSING_RULEBOOK_RESOLUTION`",
         "auditReasonKey `BR_SCOPE_ARTIFACT_MISSING`",
-        "diagnostics/map_audit_to_canonical.py --input <audit-report.json>",
-        "diagnostics/AUDIT_REASON_CANONICAL_MAP.json",
+        "governance/entrypoints/map_audit_to_canonical.py --input <audit-report.json>",
+        "governance/assets/catalogs/AUDIT_REASON_CANONICAL_MAP.json",
     ]
     missing_audit = [token for token in audit_required_tokens if token not in audit]
     if missing_audit:
@@ -1304,7 +1304,7 @@ def main() -> int:
         "--output",
         type=Path,
         default=ROOT / "diagnostics" / "governance_lint_report.json",
-        help="Output path for JSON report (default: diagnostics/governance_lint_report.json).",
+        help="Output path for JSON report (default: governance/assets/catalogs/governance_lint_report.json).",
     )
     parser.add_argument("-v", "--verbose", action="store_true", help="Show all issues even on success.")
     args = parser.parse_args()

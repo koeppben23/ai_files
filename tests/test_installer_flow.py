@@ -293,7 +293,7 @@ def test_install_patches_existing_installer_owned_paths_with_missing_keys_withou
             "configRoot": str(config_root),
             "commandsHome": str(commands),
             "profilesHome": str(commands / "profiles"),
-            "diagnosticsHome": str(commands / "diagnostics"),
+            "diagnosticsHome": str(commands / "governance"),
             "workspacesHome": str(config_root / "workspaces"),
         },
     }

@@ -9,7 +9,7 @@ from pathlib import Path
 import sys
 
 
-CATALOG_PATH = Path("diagnostics/CUSTOMER_SCRIPT_CATALOG.json")
+CATALOG_PATH = Path("governance/assets/catalogs/CUSTOMER_SCRIPT_CATALOG.json")
 CATALOG_SCHEMA = "governance.customer-script-catalog.v1"
 
 
