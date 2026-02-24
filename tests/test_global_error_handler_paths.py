@@ -71,3 +71,17 @@ def test_emit_gate_failure_supports_legacy_event_sink_signature(tmp_path: Path, 
 
     assert ok is True
     assert captured["called"] is True
+
+
+def test_resolve_log_path_prefers_commands_home_before_config_root(tmp_path: Path) -> None:
+    config_root = tmp_path / "cfg"
+    commands_home = tmp_path / "commands"
+
+    path = resolve_log_path(
+        config_root=config_root,
+        commands_home=commands_home,
+        workspaces_home=tmp_path / "workspaces",
+        repo_fingerprint=None,
+    )
+
+    assert path == commands_home / "logs" / "error.log.jsonl"
