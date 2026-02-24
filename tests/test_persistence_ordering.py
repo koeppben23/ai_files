@@ -63,7 +63,7 @@ def test_phase_router_allows_phase_2_1_with_persistence_committed() -> None:
 
 
 def test_session_state_template_includes_persistence_fields() -> None:
-    from diagnostics.bootstrap_session_state import session_state_template
+    from governance.entrypoints.bootstrap_session_state import session_state_template
 
     template = session_state_template("a1b2c3d4e5f6a1b2c3d4e5f6", "test-repo")
     session = template.get("SESSION_STATE", {})
@@ -85,7 +85,7 @@ def test_start_persistence_hook_blocked_when_writes_not_allowed(tmp_path: Path, 
     monkeypatch.delenv("CI", raising=False)
 
     import importlib
-    mod = importlib.import_module("diagnostics.start_persistence_hook")
+    mod = importlib.import_module("governance.entrypoints.start_persistence_hook")
     importlib.reload(mod)
 
     result = mod.run_persistence_hook(repo_root=tmp_path)

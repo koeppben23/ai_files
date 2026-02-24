@@ -15,7 +15,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
 def _load_registry() -> dict[str, Any]:
-    return json.loads((REPO_ROOT / "diagnostics" / "reason_codes.registry.json").read_text(encoding="utf-8"))
+    return json.loads((REPO_ROOT / "governance" / "assets" / "catalogs" / "reason_codes.registry.json").read_text(encoding="utf-8"))
 
 
 def _registry_entries(reg: dict[str, Any]) -> list[dict[str, Any]]:

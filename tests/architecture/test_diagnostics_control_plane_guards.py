@@ -9,7 +9,7 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
-DIAGNOSTICS_ROOT = REPO_ROOT / "diagnostics"
+DIAGNOSTICS_ROOT = REPO_ROOT / "governance" / "entrypoints"
 CRITICAL_FILES = (
     DIAGNOSTICS_ROOT / "start_preflight_readonly.py",
     DIAGNOSTICS_ROOT / "persist_workspace_artifacts.py",
@@ -20,28 +20,28 @@ CRITICAL_FILES = (
 
 
 @pytest.mark.governance
-def test_diagnostics_forbid_unresolved_workspace_writes():
+def test_governance_forbid_unresolved_workspace_writes():
     hits: list[str] = []
     for path in CRITICAL_FILES:
         text = path.read_text(encoding="utf-8")
         if "/_unresolved" in text or '"_unresolved/' in text or "'_unresolved/" in text:
             hits.append(str(path.relative_to(REPO_ROOT)))
-    assert not hits, f"diagnostics must not write unresolved workspace paths: {hits}"
+    assert not hits, f"governance must not write unresolved workspace paths: {hits}"
 
 
 @pytest.mark.governance
-def test_diagnostics_forbid_shell_resplit_and_direct_write_calls():
+def test_governance_forbid_shell_resplit_and_direct_write_calls():
     bad: list[str] = []
     pattern = re.compile(r"shlex\.split\(|\.write_text\(")
     for path in CRITICAL_FILES:
         text = path.read_text(encoding="utf-8")
         if pattern.search(text):
             bad.append(str(path.relative_to(REPO_ROOT)))
-    assert not bad, f"diagnostics contain forbidden shell/direct-write patterns: {bad}"
+    assert not bad, f"governance contain forbidden shell/direct-write patterns: {bad}"
 
 
 @pytest.mark.governance
-def test_diagnostics_forbid_write_primitives_outside_error_logger():
+def test_governance_forbid_write_primitives_outside_error_logger():
     allowed_open_writer = DIAGNOSTICS_ROOT / "error_logs.py"
     allowed_atomic_writers = {
         DIAGNOSTICS_ROOT / "error_logs.py",
@@ -70,7 +70,7 @@ def test_diagnostics_forbid_write_primitives_outside_error_logger():
             if isinstance(func, ast.Name) and func.id == "atomic_write_text" and path not in allowed_atomic_writers:
                 bad.append(f"{path.relative_to(REPO_ROOT)}:L{getattr(node, 'lineno', 0)}")
 
-    assert not bad, f"diagnostics write primitives only allowed in diagnostics/error_logs.py: {bad}"
+    assert not bad, f"governance write primitives only allowed in governance/error_logs.py: {bad}"
 
 
 @pytest.mark.governance
@@ -81,7 +81,7 @@ def test_error_logger_defaults_to_read_only_fail_closed():
 
 
 @pytest.mark.governance
-def test_diagnostics_forbid_resolve_in_identity_binding_workspace_paths():
+def test_governance_forbid_resolve_in_identity_binding_workspace_paths():
     bad: list[str] = []
     for path in CRITICAL_FILES:
         tree = ast.parse(path.read_text(encoding="utf-8"))
@@ -96,4 +96,4 @@ def test_diagnostics_forbid_resolve_in_identity_binding_workspace_paths():
             if isinstance(func.value, ast.Call) and isinstance(func.value.func, ast.Name) and func.value.func.id.endswith("Resolver"):
                 continue
             bad.append(f"{path.relative_to(REPO_ROOT)}:L{getattr(node, 'lineno', 0)}")
-    assert not bad, f"diagnostics contain forbidden Path.resolve usage: {bad}"
+    assert not bad, f"governance contain forbidden Path.resolve usage: {bad}"

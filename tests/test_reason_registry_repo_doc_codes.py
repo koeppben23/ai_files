@@ -18,7 +18,7 @@ def _registry_entries(payload: dict[str, object]) -> list[dict[str, object]]:
 
 
 def test_reason_registry_includes_mode_aware_repo_doc_codes():
-    registry_path = REPO_ROOT / "diagnostics" / "reason_codes.registry.json"
+    registry_path = REPO_ROOT / "governance" / "assets" / "catalogs" / "reason_codes.registry.json"
     payload = json.loads(registry_path.read_text(encoding="utf-8"))
     codes = {str(entry.get("code")) for entry in _registry_entries(payload)}
     required = {
@@ -33,7 +33,7 @@ def test_reason_registry_includes_mode_aware_repo_doc_codes():
 
 
 def test_reason_registry_payload_schema_refs_exist():
-    registry_path = REPO_ROOT / "diagnostics" / "reason_codes.registry.json"
+    registry_path = REPO_ROOT / "governance" / "assets" / "catalogs" / "reason_codes.registry.json"
     payload = json.loads(registry_path.read_text(encoding="utf-8"))
     for entry in _registry_entries(payload):
         schema_ref = entry.get("payload_schema_ref")

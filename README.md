@@ -31,7 +31,7 @@ For engineering teams that need deterministic, auditable AI-assisted delivery in
 - Deterministic phase workflow (`1` through `6`) with explicit gate outcomes.
 - Repo-aware governance runtime under `governance/` with tested fail-closed semantics.
 - Installer and customer handoff flow (`install.py`, release/bundle docs).
-- Diagnostics and schema contracts under `diagnostics/`.
+- Diagnostics and schema contracts under `governance/`.
 - Profile and addon ecosystem under `profiles/`.
 
 ## Quick Start
@@ -46,7 +46,7 @@ Note: installer-owned path binding evidence is written to `<config_root>/command
 ## Support Matrix
 
 - Operating systems: macOS, Linux, Windows (path resolution is defined in `master.md` and installation layout examples in `docs/install-layout.md`).
-- Runtime requirements: `${PYTHON_COMMAND}` for installer/diagnostics helpers; `git` is recommended and required by identity-gated workflows.
+- Runtime requirements: `${PYTHON_COMMAND}` for installer/governance helpers; `git` is recommended and required by identity-gated workflows.
 - Frontend surfaces: OpenCode (`/start`, `/continue`, `/resume`, `/audit`) and Codex-style frontend surfaces via `AGENTS.md` mirror semantics.
 
 ## 60-Second Install Verification
@@ -75,7 +75,7 @@ Then, in OpenCode, run `/start` and confirm bootstrap succeeds without binding/p
 - `NOT_VERIFIED-MISSING-EVIDENCE`: provide missing evidence artifacts and rerun the gate.
 - `NOT_VERIFIED-EVIDENCE-STALE`: refresh evidence (new probe/measurement) and rerun.
 
-Deep security and diagnostics references are in `docs/security-gates.md` and `docs/phases.md`.
+Deep security and governance references are in `docs/security-gates.md` and `docs/phases.md`.
 
 ## Version and Compatibility
 

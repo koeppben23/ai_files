@@ -73,10 +73,10 @@ def _scenario_for_intent(intent: str) -> tuple[str, str, str]:
     if intent == "where_am_i":
         return ("2.1-DecisionPack", "context.where-am-i", "Report deterministic session/repo context")
     if intent == "what_blocks_me":
-        return ("3A-Activation", "diagnostics.blockers", "Explain active blockers and recovery")
+        return ("3A-Activation", "governance.blockers", "Explain active blockers and recovery")
     if intent == "what_now":
         return ("4-Implement", "operator.next-step", "Return next deterministic operator step")
-    return ("3B-Snapshot", "diagnostics.summary", "Return compact deterministic diagnostics summary")
+    return ("3B-Snapshot", "governance.summary", "Return compact deterministic governance summary")
 
 
 def _normalized_status(parity_status: str) -> str:
@@ -105,7 +105,7 @@ def generate_golden_outputs(*, repo_root: Path, output_dir: Path) -> None:
     canonical_inputs = {
         "start": "/start",
         "what_blocks_me": "what blocks me",
-        "show_diagnostics": "show diagnostics",
+        "show_governance": "show governance",
         "where_am_i": "where am i",
     }
 

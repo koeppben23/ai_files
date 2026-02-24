@@ -337,7 +337,7 @@ def check_trusted_rulebook_discovery_contract(issues: list[str]) -> None:
     ]
     start_required = [
         "Discovery / Load search order (informational)",
-        "diagnostics/bootstrap_policy.yaml",
+        "governance/assets/config/bootstrap_policy.yaml",
     ]
 
     missing_master = [t for t in master_required if t not in master]
@@ -382,11 +382,11 @@ def check_response_envelope_schema_contract(issues: list[str]) -> None:
     master = read_text(ROOT / "master.md")
     rules = read_text(ROOT / "rules.md")
     start = read_text(ROOT / "start.md")
-    schema_path = ROOT / "diagnostics" / "RESPONSE_ENVELOPE_SCHEMA.json"
+    schema_path = ROOT / "governance" / "assets" / "catalogs" / "RESPONSE_ENVELOPE_SCHEMA.json"
     schema = read_text(schema_path)
 
     docs_required = [
-        "diagnostics/RESPONSE_ENVELOPE_SCHEMA.json",
+        "governance/assets/catalogs/RESPONSE_ENVELOPE_SCHEMA.json",
         "status",
         "session_state",
         "next_action",
@@ -408,7 +408,7 @@ def check_response_envelope_schema_contract(issues: list[str]) -> None:
     ]
     missing_schema = [t for t in schema_required if t not in schema]
     if missing_schema:
-        issues.append(f"diagnostics/RESPONSE_ENVELOPE_SCHEMA.json: missing required schema tokens {missing_schema}")
+        issues.append(f"governance/RESPONSE_ENVELOPE_SCHEMA.json: missing required schema tokens {missing_schema}")
 
 
 def check_rulebook_load_evidence_fail_closed_contract(issues: list[str]) -> None:
@@ -419,7 +419,7 @@ def check_rulebook_load_evidence_fail_closed_contract(issues: list[str]) -> None
         "### Rulebook Load Evidence",
         "RulebookLoadEvidence",
         "BLOCKED-RULEBOOK-EVIDENCE-MISSING",
-        "diagnostics/blocked_reason_catalog.yaml",
+        "governance/assets/reasons/blocked_reason_catalog.yaml",
     ]
     rules_required = [
         "## 7.17 Rulebook Load Evidence Gate (Core, Binding)",
@@ -653,12 +653,12 @@ def check_template_quality_gate(issues: list[str]) -> None:
 
 
 def check_workflow_template_factory_contract(issues: list[str]) -> None:
-    contract_path = ROOT / "diagnostics" / "GITHUB_ACTIONS_TEMPLATE_FACTORY_CONTRACT.json"
+    contract_path = ROOT / "governance" / "assets" / "catalogs" / "GITHUB_ACTIONS_TEMPLATE_FACTORY_CONTRACT.json"
     catalog_path = ROOT / "templates" / "github-actions" / "template_catalog.json"
     script_path = ROOT / "scripts" / "workflow_template_factory.py"
 
     if not contract_path.exists():
-        issues.append("diagnostics/GITHUB_ACTIONS_TEMPLATE_FACTORY_CONTRACT.json: missing workflow template factory contract")
+        issues.append("governance/GITHUB_ACTIONS_TEMPLATE_FACTORY_CONTRACT.json: missing workflow template factory contract")
     else:
         contract = read_text(contract_path)
         required_tokens = [
@@ -669,7 +669,7 @@ def check_workflow_template_factory_contract(issues: list[str]) -> None:
         missing_tokens = [token for token in required_tokens if token not in contract]
         if missing_tokens:
             issues.append(
-                "diagnostics/GITHUB_ACTIONS_TEMPLATE_FACTORY_CONTRACT.json: missing required tokens "
+                "governance/GITHUB_ACTIONS_TEMPLATE_FACTORY_CONTRACT.json: missing required tokens "
                 f"{missing_tokens}"
             )
 
@@ -697,11 +697,11 @@ def check_workflow_template_factory_contract(issues: list[str]) -> None:
 
 
 def check_customer_script_catalog_contract(issues: list[str]) -> None:
-    catalog_path = ROOT / "diagnostics" / "CUSTOMER_SCRIPT_CATALOG.json"
+    catalog_path = ROOT / "governance" / "assets" / "catalogs" / "CUSTOMER_SCRIPT_CATALOG.json"
     script_path = ROOT / "scripts" / "customer_script_catalog.py"
 
     if not catalog_path.exists():
-        issues.append("diagnostics/CUSTOMER_SCRIPT_CATALOG.json: missing customer script catalog")
+        issues.append("governance/CUSTOMER_SCRIPT_CATALOG.json: missing customer script catalog")
         return
 
     catalog = read_text(catalog_path)
@@ -714,7 +714,7 @@ def check_customer_script_catalog_contract(issues: list[str]) -> None:
     missing_tokens = [token for token in required_tokens if token not in catalog]
     if missing_tokens:
         issues.append(
-            "diagnostics/CUSTOMER_SCRIPT_CATALOG.json: missing required tokens "
+            "governance/CUSTOMER_SCRIPT_CATALOG.json: missing required tokens "
             f"{missing_tokens}"
         )
 
@@ -738,9 +738,9 @@ def check_customer_script_catalog_contract(issues: list[str]) -> None:
 
 
 def check_customer_markdown_exclusion_policy(issues: list[str]) -> None:
-    policy_path = ROOT / "diagnostics" / "CUSTOMER_MARKDOWN_EXCLUDE.json"
+    policy_path = ROOT / "governance" / "assets" / "catalogs" / "CUSTOMER_MARKDOWN_EXCLUDE.json"
     if not policy_path.exists():
-        issues.append("diagnostics/CUSTOMER_MARKDOWN_EXCLUDE.json: missing markdown exclusion policy")
+        issues.append("governance/CUSTOMER_MARKDOWN_EXCLUDE.json: missing markdown exclusion policy")
         return
 
     payload = read_text(policy_path)
@@ -751,18 +751,18 @@ def check_customer_markdown_exclusion_policy(issues: list[str]) -> None:
     missing = [token for token in required_tokens if token not in payload]
     if missing:
         issues.append(
-            "diagnostics/CUSTOMER_MARKDOWN_EXCLUDE.json: missing required tokens "
+            "governance/CUSTOMER_MARKDOWN_EXCLUDE.json: missing required tokens "
             f"{missing}"
         )
 
 
 def check_security_gate_contract(issues: list[str]) -> None:
-    policy_path = ROOT / "diagnostics" / "SECURITY_GATE_POLICY.json"
+    policy_path = ROOT / "governance" / "assets" / "catalogs" / "SECURITY_GATE_POLICY.json"
     script_path = ROOT / "scripts" / "evaluate_security_evidence.py"
     workflow_path = ROOT / ".github" / "workflows" / "security.yml"
 
     if not policy_path.exists():
-        issues.append("diagnostics/SECURITY_GATE_POLICY.json: missing security gate policy")
+        issues.append("governance/SECURITY_GATE_POLICY.json: missing security gate policy")
         return
 
     policy = read_text(policy_path)
@@ -777,7 +777,7 @@ def check_security_gate_contract(issues: list[str]) -> None:
     missing_policy = [token for token in policy_required_tokens if token not in policy]
     if missing_policy:
         issues.append(
-            "diagnostics/SECURITY_GATE_POLICY.json: missing required tokens "
+            "governance/SECURITY_GATE_POLICY.json: missing required tokens "
             f"{missing_policy}"
         )
 
@@ -798,7 +798,7 @@ def check_security_gate_contract(issues: list[str]) -> None:
         "zizmor",
         "security-policy-gate:",
         "scripts/evaluate_security_evidence.py",
-        "diagnostics/SECURITY_GATE_POLICY.json",
+        "governance/assets/catalogs/SECURITY_GATE_POLICY.json",
         "SESSION_STATE.BuildEvidence.Security",
     ]
     missing_workflow = [token for token in workflow_required_tokens if token not in workflow]
@@ -884,7 +884,7 @@ def check_stability_sla_contract(issues: list[str]) -> None:
 def check_factory_contract_alignment(issues: list[str]) -> None:
     new_addon = read_text(ROOT / "new_addon.md")
     new_profile = read_text(ROOT / "new_profile.md")
-    factory_json = read_text(ROOT / "diagnostics" / "PROFILE_ADDON_FACTORY_CONTRACT.json")
+    factory_json = read_text(ROOT / "governance" / "assets" / "catalogs" / "PROFILE_ADDON_FACTORY_CONTRACT.json")
 
     addon_required_tokens = [
         "owns_surfaces",
@@ -926,29 +926,29 @@ def check_factory_contract_alignment(issues: list[str]) -> None:
     ]
     missing_json = [token for token in json_required_tokens if token not in factory_json]
     if missing_json:
-        issues.append(f"diagnostics/PROFILE_ADDON_FACTORY_CONTRACT.json: missing factory alignment tokens {missing_json}")
+        issues.append(f"governance/PROFILE_ADDON_FACTORY_CONTRACT.json: missing factory alignment tokens {missing_json}")
 
 
-def check_diagnostics_reason_contract_alignment(issues: list[str]) -> None:
-    audit = read_text(ROOT / "diagnostics" / "audit.md")
-    persist = read_text(ROOT / "diagnostics" / "persist_workspace_artifacts.py")
-    bridge = ROOT / "diagnostics" / "map_audit_to_canonical.py"
-    bridge_map = ROOT / "diagnostics" / "AUDIT_REASON_CANONICAL_MAP.json"
+def check_governance_reason_contract_alignment(issues: list[str]) -> None:
+    audit = read_text(ROOT / "governance" / "assets" / "catalogs" / "audit.md")
+    persist = read_text(ROOT / "governance" / "entrypoints" / "persist_workspace_artifacts.py")
+    bridge = ROOT / "governance" / "entrypoints" / "map_audit_to_canonical.py"
+    bridge_map = ROOT / "governance" / "assets" / "catalogs" / "AUDIT_REASON_CANONICAL_MAP.json"
 
     audit_required_tokens = [
         "Reason key semantics (binding):",
-        "audit-only diagnostics keys",
+        "audit-only governance keys",
         "They are NOT canonical governance `reason_code` values",
         "MUST NOT be written into `SESSION_STATE.Diagnostics.ReasonPayloads.reason_code`",
         "auditReasonKey `BR_MISSING_SESSION_GATE_STATE`",
         "auditReasonKey `BR_MISSING_RULEBOOK_RESOLUTION`",
         "auditReasonKey `BR_SCOPE_ARTIFACT_MISSING`",
-        "diagnostics/map_audit_to_canonical.py --input <audit-report.json>",
-        "diagnostics/AUDIT_REASON_CANONICAL_MAP.json",
+        "governance/entrypoints/map_audit_to_canonical.py --input <audit-report.json>",
+        "governance/assets/catalogs/AUDIT_REASON_CANONICAL_MAP.json",
     ]
     missing_audit = [token for token in audit_required_tokens if token not in audit]
     if missing_audit:
-        issues.append(f"diagnostics/audit.md: missing reason-key boundary tokens {missing_audit}")
+        issues.append(f"governance/audit.md: missing reason-key boundary tokens {missing_audit}")
 
     persist_required_tokens = [
         '"status": "blocked"',
@@ -961,10 +961,10 @@ def check_diagnostics_reason_contract_alignment(issues: list[str]) -> None:
     ]
     missing_persist = [token for token in persist_required_tokens if token not in persist]
     if missing_persist:
-        issues.append(f"diagnostics/persist_workspace_artifacts.py: missing quiet blocked payload tokens {missing_persist}")
+        issues.append(f"governance/entrypoints/persist_workspace_artifacts.py: missing quiet blocked payload tokens {missing_persist}")
 
     if not bridge.exists():
-        issues.append("diagnostics/map_audit_to_canonical.py: missing deterministic audit->canonical bridge script")
+        issues.append("governance/map_audit_to_canonical.py: missing deterministic audit->canonical bridge script")
     else:
         bridge_text = read_text(bridge)
         bridge_required_tokens = [
@@ -974,10 +974,10 @@ def check_diagnostics_reason_contract_alignment(issues: list[str]) -> None:
         ]
         missing_bridge = [token for token in bridge_required_tokens if token not in bridge_text]
         if missing_bridge:
-            issues.append(f"diagnostics/map_audit_to_canonical.py: missing bridge tokens {missing_bridge}")
+            issues.append(f"governance/map_audit_to_canonical.py: missing bridge tokens {missing_bridge}")
 
     if not bridge_map.exists():
-        issues.append("diagnostics/AUDIT_REASON_CANONICAL_MAP.json: missing canonical mapping source")
+        issues.append("governance/AUDIT_REASON_CANONICAL_MAP.json: missing canonical mapping source")
     else:
         map_text = read_text(bridge_map)
         map_required_tokens = [
@@ -989,19 +989,19 @@ def check_diagnostics_reason_contract_alignment(issues: list[str]) -> None:
         ]
         missing_map = [token for token in map_required_tokens if token not in map_text]
         if missing_map:
-            issues.append(f"diagnostics/AUDIT_REASON_CANONICAL_MAP.json: missing mapping tokens {missing_map}")
+            issues.append(f"governance/AUDIT_REASON_CANONICAL_MAP.json: missing mapping tokens {missing_map}")
 
 
 def check_start_evidence_boundaries(issues: list[str]) -> None:
     start = read_text(ROOT / "start.md")
-    binding_helper = read_text(ROOT / "diagnostics" / "start_binding_evidence.py")
+    binding_helper = read_text(ROOT / "governance" / "entrypoints" / "start_binding_evidence.py")
     start_bundle = "\n".join([start, binding_helper])
 
     required_in_start = [
         "Fallback computed payloads remain debug-only (`nonEvidence`).",
         "Helper output is operational convenience status only and is not canonical repo identity evidence.",
         "Bootstrap gates, evidence requirements, and blocked reasons are kernel-enforced",
-        "diagnostics/bootstrap_policy.yaml",
+        "governance/assets/config/bootstrap_policy.yaml",
     ]
     missing_required = [token for token in required_in_start if token not in start]
 
@@ -1034,9 +1034,9 @@ def check_start_evidence_boundaries(issues: list[str]) -> None:
 
 
 def check_md_rails_only_tripwire(issues: list[str]) -> None:
-    script = ROOT / "diagnostics" / "md_lint.py"
+    script = ROOT / "governance" / "entrypoints" / "md_lint.py"
     if not script.exists():
-        issues.append("diagnostics/md_lint.py: missing MD rails linter")
+        issues.append("governance/md_lint.py: missing MD rails linter")
         return
     files = [
         ROOT / "master.md",
@@ -1271,8 +1271,8 @@ def check_architect_autopilot_lifecycle_contract(issues: list[str]) -> None:
     ]
     start_required = [
         "Bootstrap gates, evidence requirements, and blocked reasons are kernel-enforced",
-        "diagnostics/bootstrap_policy.yaml",
-        "diagnostics/blocked_reason_catalog.yaml",
+        "governance/assets/config/bootstrap_policy.yaml",
+        "governance/assets/reasons/blocked_reason_catalog.yaml",
     ]
 
     missing_master = [t for t in master_required if t not in master]
@@ -1303,8 +1303,8 @@ def main() -> int:
     parser.add_argument(
         "--output",
         type=Path,
-        default=ROOT / "diagnostics" / "governance_lint_report.json",
-        help="Output path for JSON report (default: diagnostics/governance_lint_report.json).",
+        default=ROOT / "governance" / "governance_lint_report.json",
+        help="Output path for JSON report (default: governance/assets/catalogs/governance_lint_report.json).",
     )
     parser.add_argument("-v", "--verbose", action="store_true", help="Show all issues even on success.")
     args = parser.parse_args()
@@ -1321,7 +1321,7 @@ def main() -> int:
     check_security_gate_contract(issues)
     check_stability_sla_contract(issues)
     check_factory_contract_alignment(issues)
-    check_diagnostics_reason_contract_alignment(issues)
+    check_governance_reason_contract_alignment(issues)
     check_start_evidence_boundaries(issues)
     check_md_rails_only_tripwire(issues)
     check_unified_next_action_footer_contract(issues)

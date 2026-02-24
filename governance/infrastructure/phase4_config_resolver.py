@@ -23,7 +23,7 @@ class CanonicalRootConfigResolver:
             resolver = BindingEvidenceResolver()
             evidence = resolver.resolve(mode=self._mode)
             if evidence.binding_ok and evidence.commands_home:
-                canonical_path = evidence.commands_home.parent / "diagnostics" / "phase4_self_review_config.yaml"
+                canonical_path = evidence.commands_home.parent / "governance" / "assets" / "config" / "phase4_self_review_config.yaml"
                 if canonical_path.exists():
                     return canonical_path
         except Exception:

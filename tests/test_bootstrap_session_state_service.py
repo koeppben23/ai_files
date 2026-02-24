@@ -10,7 +10,7 @@ import pytest
 
 @pytest.mark.governance
 def test_bootstrap_service_lock_timeout_emits_gate_failure(tmp_path: Path):
-    script = Path(__file__).resolve().parents[1] / "diagnostics" / "bootstrap_session_state_orchestrator.py"
+    script = Path(__file__).resolve().parents[1] / "governance" / "entrypoints" / "bootstrap_session_state_orchestrator.py"
     spec = importlib.util.spec_from_file_location("bootstrap_session_state_orchestrator", script)
     assert spec and spec.loader
     module = importlib.util.module_from_spec(spec)

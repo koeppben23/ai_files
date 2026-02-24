@@ -80,7 +80,7 @@ def test_map_audit_bridge_uses_registry_default_when_map_omits_default(tmp_path:
     map_file = tmp_path / "map.json"
     map_file.write_text(json.dumps(custom_map), encoding="utf-8")
 
-    script = REPO_ROOT / "diagnostics" / "map_audit_to_canonical.py"
+    script = REPO_ROOT / "governance" / "entrypoints" / "map_audit_to_canonical.py"
     result = run([sys.executable, str(script), "--input", str(report_file), "--map", str(map_file)])
 
     assert result.returncode == 0

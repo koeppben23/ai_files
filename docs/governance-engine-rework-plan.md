@@ -72,7 +72,7 @@ governance/
     intent_router.py
     response_renderer.py
     delta_renderer.py
-  diagnostics/
+  governance/
     schema/
       response_envelope.schema.json
       session_state.schema.json
@@ -178,7 +178,7 @@ Two-layer output contract:
   - exactly one primary next action
 - SHOULD:
   - snapshot (confidence/risk/scope)
-- On-demand details only (`show diagnostics`, `/audit`, `/explain-*`).
+- On-demand details only (`show governance`, `/audit`, `/explain-*`).
 
 Engine identity visibility (SHOULD):
 - Include runtime identity fields in `standard`/`audit` output snapshots:
@@ -275,7 +275,7 @@ Welle A (stabilization, behavior-preserving):
 Welle B (engine activation):
 - state machine + gate evaluator live
 - golden parity gate against current behavior
-- engine selfcheck gate (`health`/integrity diagnostics) MUST pass before enabling live engine mode
+- engine selfcheck gate (`health`/integrity governance) MUST pass before enabling live engine mode
 
 Golden parity definition (MUST):
 - `status`, `phase`, `reason_code`, and `next_action.command` must match baseline.
@@ -398,7 +398,7 @@ Trust-policy enablement sources (deterministic precedence):
 3. explicit runtime flag/session override
 
 MUST:
-- Runtime must record which source enabled overrides (`policy_source`) in diagnostics/audit output.
+- Runtime must record which source enabled overrides (`policy_source`) in governance/audit output.
 - If sources conflict, the highest-precedence source applies.
 
 Operating mode orthogonality (MUST):
@@ -483,7 +483,7 @@ Mode-specific policy (MUST):
 
 Hashing and audit (MUST):
 - `activation_hash` MUST include `effective_operating_mode` and a stable `capabilities_hash`.
-- Runtime MUST report mode, capabilities, and any downgrades in diagnostics/audit output.
+- Runtime MUST report mode, capabilities, and any downgrades in governance/audit output.
 
 Reason codes (MUST):
 - Add canonical reason codes:

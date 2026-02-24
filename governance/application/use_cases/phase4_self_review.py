@@ -246,9 +246,9 @@ def _get_repo_local_config_path() -> Path:
     if "governance" in parts:
         gov_idx = parts.index("governance")
         repo_root = Path(*parts[:gov_idx])
-        return repo_root / "diagnostics" / "phase4_self_review_config.yaml"
+        return repo_root / "governance" / "assets" / "config" / "phase4_self_review_config.yaml"
     # Fallback
-    return Path(__file__).parent.parent.parent.parent / "diagnostics" / "phase4_self_review_config.yaml"
+    return Path(__file__).parent.parent.parent.parent / "governance" / "assets" / "config" / "phase4_self_review_config.yaml"
 
 
 def load_self_review_config(*, force_reload: bool = False) -> SelfReviewConfig:
@@ -310,7 +310,7 @@ def load_self_review_config(*, force_reload: bool = False) -> SelfReviewConfig:
     if not config_path.exists():
         raise PolicyConfigError(
             f"Policy-bound config missing: {config_path}. "
-            f"Expected pack-locked config at canonical root or repo-local diagnostics/. "
+            f"Expected pack-locked config at canonical root or repo-local governance/. "
             f"Reason: BLOCKED-ENGINE-SELFCHECK"
         )
     

@@ -1,0 +1,182 @@
+{
+  "schema": "opencode-tool-requirements.v1",
+  "version": "1.1",
+  "description": "Canonical external command inventory for /start bootstrap preflight.",
+  "smart_retry": {
+    "path_snapshot_policy": "fresh-per-start",
+    "restart_hints": [
+      "restart_required_if_path_edited",
+      "no_restart_if_binary_in_existing_path"
+    ]
+  },
+  "required_now": [
+    {
+      "command": "git",
+      "reason": "repo identity evidence collection during /start",
+      "phase": "1-bootstrap",
+      "verify_command": "git --version",
+      "expected_after_fix": "git --version prints a version string",
+      "restart_hint": "no_restart_if_binary_in_existing_path"
+    },
+    {
+      "command": "python",
+      "reason": "compatibility alias used by documented governance recovery commands",
+      "phase": "1-bootstrap",
+      "verify_command": "python --version",
+      "expected_after_fix": "python --version prints a version string",
+      "restart_hint": "restart_required_if_path_edited"
+    },
+    {
+      "command": "${PYTHON_COMMAND}",
+      "reason": "governance helper execution for workspace/session bootstrap",
+      "phase": "1-bootstrap",
+      "verify_command": "${PYTHON_COMMAND} --version",
+      "expected_after_fix": "${PYTHON_COMMAND} --version prints a version string",
+      "restart_hint": "restart_required_if_path_edited"
+    }
+  ],
+  "required_later": [
+    {
+      "command": "pytest",
+      "reason": "governance verification and test execution",
+      "phase": "5-6",
+      "verify_command": "${PYTHON_COMMAND} -m pytest --version",
+      "expected_after_fix": "${PYTHON_COMMAND} -m pytest --version prints a version string",
+      "restart_hint": "no_restart_if_binary_in_existing_path"
+    },
+    {
+      "command": "mvn",
+      "reason": "java build/test flows when backend-java profile is active",
+      "phase": "4-6",
+      "verify_command": "mvn -version",
+      "expected_after_fix": "mvn -version prints Maven and Java versions",
+      "restart_hint": "no_restart_if_binary_in_existing_path"
+    },
+    {
+      "command": "java",
+      "reason": "jvm runtime checks and java execution for backend-java profile",
+      "phase": "4-6",
+      "verify_command": "java -version",
+      "expected_after_fix": "java -version prints JVM version information",
+      "restart_hint": "no_restart_if_binary_in_existing_path"
+    },
+    {
+      "command": "gradle",
+      "reason": "java build/test flows when gradle-based profiles are active",
+      "phase": "4-6",
+      "verify_command": "gradle -version",
+      "expected_after_fix": "gradle -version prints Gradle and JVM versions",
+      "restart_hint": "no_restart_if_binary_in_existing_path"
+    },
+    {
+      "command": "node",
+      "reason": "frontend and tooling runtime",
+      "phase": "4-6",
+      "verify_command": "node --version",
+      "expected_after_fix": "node --version prints a version string",
+      "restart_hint": "no_restart_if_binary_in_existing_path"
+    },
+    {
+      "command": "npm",
+      "reason": "frontend package scripts",
+      "phase": "4-6",
+      "verify_command": "npm --version",
+      "expected_after_fix": "npm --version prints a version string",
+      "restart_hint": "no_restart_if_binary_in_existing_path"
+    },
+    {
+      "command": "pnpm",
+      "reason": "frontend package scripts in pnpm repos",
+      "phase": "4-6",
+      "verify_command": "pnpm --version",
+      "expected_after_fix": "pnpm --version prints a version string",
+      "restart_hint": "no_restart_if_binary_in_existing_path"
+    },
+    {
+      "command": "npx",
+      "reason": "nx and frontend generator invocation",
+      "phase": "4-6",
+      "verify_command": "npx --version",
+      "expected_after_fix": "npx --version prints a version string",
+      "restart_hint": "no_restart_if_binary_in_existing_path"
+    },
+    {
+      "command": "liquibase",
+      "reason": "database migration validation when postgres-liquibase profile is active",
+      "phase": "4-6",
+      "verify_command": "liquibase --version",
+      "expected_after_fix": "liquibase --version prints Liquibase version information",
+      "restart_hint": "no_restart_if_binary_in_existing_path"
+    },
+    {
+      "command": "cargo",
+      "reason": "Rust build/test flows when repository uses Cargo",
+      "phase": "4-6",
+      "verify_command": "cargo --version",
+      "expected_after_fix": "cargo --version prints Cargo version information",
+      "restart_hint": "no_restart_if_binary_in_existing_path"
+    },
+    {
+      "command": "go",
+      "reason": "Go build/test flows when repository uses Go modules",
+      "phase": "4-6",
+      "verify_command": "go version",
+      "expected_after_fix": "go version prints Go version information",
+      "restart_hint": "no_restart_if_binary_in_existing_path"
+    },
+    {
+      "command": "dotnet",
+      "reason": ".NET build/test flows when repository uses .NET SDK",
+      "phase": "4-6",
+      "verify_command": "dotnet --version",
+      "expected_after_fix": "dotnet --version prints .NET SDK version",
+      "restart_hint": "no_restart_if_binary_in_existing_path"
+    },
+    {
+      "command": "cmake",
+      "reason": "C/C++ build configuration when repository uses CMakeLists.txt",
+      "phase": "4-6",
+      "verify_command": "cmake --version",
+      "expected_after_fix": "cmake --version prints CMake version information",
+      "restart_hint": "no_restart_if_binary_in_existing_path"
+    },
+    {
+      "command": "make",
+      "reason": "Build execution for Makefile-based projects",
+      "phase": "4-6",
+      "verify_command": "make --version",
+      "expected_after_fix": "make --version prints GNU Make version information",
+      "restart_hint": "no_restart_if_binary_in_existing_path"
+    },
+    {
+      "command": "g++",
+      "reason": "C++ compilation when repository uses C++ source files",
+      "phase": "4-6",
+      "verify_command": "g++ --version",
+      "expected_after_fix": "g++ --version prints GCC version information",
+      "restart_hint": "no_restart_if_binary_in_existing_path"
+    }
+  ],
+  "optional": [
+    {
+      "command": "gh",
+      "reason": "GitHub workflow automation"
+    },
+    {
+      "command": "spectral",
+      "reason": "OpenAPI linting"
+    },
+    {
+      "command": "oasdiff",
+      "reason": "OpenAPI diff checks"
+    },
+    {
+      "command": "swagger-cli",
+      "reason": "OpenAPI validation"
+    },
+    {
+      "command": "openapi-generator",
+      "reason": "client/server code generation"
+    }
+  ]
+}

@@ -53,35 +53,35 @@ jobs:
 
       - name: Prepare evidence directories
         run: |
-          mkdir -p diagnostics/benchmark-evidence diagnostics/benchmark-results
+          mkdir -p governance/benchmark-evidence governance/benchmark-results
 
       - name: Run tests with JUnit
         continue-on-error: true
         run: |
-          python3 -m pytest -q --junitxml diagnostics/benchmark-evidence/junit.xml
-          echo $? > diagnostics/benchmark-evidence/pytest.exitcode
+          python3 -m pytest -q --junitxml governance/benchmark-evidence/junit.xml
+          echo $? > governance/benchmark-evidence/pytest.exitcode
 
       - name: Run governance lint
         continue-on-error: true
         run: |
           python3 scripts/governance_lint.py
-          echo $? > diagnostics/benchmark-evidence/governance_lint.exitcode
+          echo $? > governance/benchmark-evidence/governance_lint.exitcode
 
       - name: Build change and drift evidence
         run: |
           set -euo pipefail
-          mkdir -p diagnostics/benchmark-evidence
+          mkdir -p governance/benchmark-evidence
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             git fetch origin "${{ github.base_ref }}" --depth=1
-            git diff --name-status "origin/${{ github.base_ref }}...HEAD" > diagnostics/benchmark-evidence/pr_changes.txt
+            git diff --name-status "origin/${{ github.base_ref }}...HEAD" > governance/benchmark-evidence/pr_changes.txt
           else
-            git diff --name-status HEAD~1..HEAD > diagnostics/benchmark-evidence/pr_changes.txt || true
+            git diff --name-status HEAD~1..HEAD > governance/benchmark-evidence/pr_changes.txt || true
           fi
           {
             git diff --name-status
             git diff --cached --name-status
-          } > diagnostics/benchmark-evidence/worktree_drift.txt
-          cp diagnostics/benchmark-evidence/worktree_drift.txt diagnostics/benchmark-evidence/drift.txt
+          } > governance/benchmark-evidence/worktree_drift.txt
+          cp governance/benchmark-evidence/worktree_drift.txt governance/benchmark-evidence/drift.txt
 
       - name: Derive claims and criterion scores from evidence
         run: |
@@ -90,8 +90,8 @@ jobs:
           import pathlib
           import xml.etree.ElementTree as ET
 
-          evidence_dir = pathlib.Path("diagnostics/benchmark-evidence")
-          results_dir = pathlib.Path("diagnostics/benchmark-results")
+          evidence_dir = pathlib.Path("governance/benchmark-evidence")
+          results_dir = pathlib.Path("governance/benchmark-results")
           results_dir.mkdir(parents=True, exist_ok=True)
 
           observed = set()
@@ -138,23 +138,23 @@ jobs:
           import subprocess
           import sys
 
-          inp = json.loads(pathlib.Path("diagnostics/benchmark-results/derived-input.json").read_text(encoding="utf-8"))
+          inp = json.loads(pathlib.Path("governance/benchmark-results/derived-input.json").read_text(encoding="utf-8"))
           cmd = [
               sys.executable,
               "scripts/run_quality_benchmark.py",
               "--pack",
-              "diagnostics/PYTHON_QUALITY_BENCHMARK_PACK.json",
+              "governance/PYTHON_QUALITY_BENCHMARK_PACK.json",
               "--review-mode",
               "--evidence-dir",
-              "diagnostics/benchmark-evidence",
+              "governance/benchmark-evidence",
               "--output",
-              "diagnostics/benchmark-results/python.json",
+              "governance/benchmark-results/python.json",
           ]
           for cid, score in sorted(inp["criterion_scores"].items()):
               cmd += ["--criterion-score", f"{cid}={score}"]
 
           proc = subprocess.run(cmd, check=False)
-          pathlib.Path("diagnostics/benchmark-results/benchmark.exitcode").write_text(str(proc.returncode) + "\n", encoding="utf-8")
+          pathlib.Path("governance/benchmark-results/benchmark.exitcode").write_text(str(proc.returncode) + "\n", encoding="utf-8")
           raise SystemExit(proc.returncode)
           PY
 
@@ -167,22 +167,22 @@ jobs:
           import pathlib
 
           files = [
-              "diagnostics/benchmark-results/python.json",
-              "diagnostics/benchmark-results/benchmark.exitcode",
-              "diagnostics/benchmark-results/derived-input.json",
-              "diagnostics/benchmark-evidence/junit.xml",
-              "diagnostics/benchmark-evidence/pytest.exitcode",
-              "diagnostics/benchmark-evidence/governance_lint.exitcode",
-              "diagnostics/benchmark-evidence/pr_changes.txt",
-              "diagnostics/benchmark-evidence/worktree_drift.txt",
-              "diagnostics/benchmark-evidence/drift.txt",
+              "governance/benchmark-results/python.json",
+              "governance/benchmark-results/benchmark.exitcode",
+              "governance/benchmark-results/derived-input.json",
+              "governance/benchmark-evidence/junit.xml",
+              "governance/benchmark-evidence/pytest.exitcode",
+              "governance/benchmark-evidence/governance_lint.exitcode",
+              "governance/benchmark-evidence/pr_changes.txt",
+              "governance/benchmark-evidence/worktree_drift.txt",
+              "governance/benchmark-evidence/drift.txt",
           ]
           out = {}
           for f in files:
               p = pathlib.Path(f)
               if p.exists():
                   out[f] = hashlib.sha256(p.read_bytes()).hexdigest()
-          pathlib.Path("diagnostics/benchmark-results/hashes.json").write_text(
+          pathlib.Path("governance/benchmark-results/hashes.json").write_text(
               json.dumps(out, indent=2) + "\n", encoding="utf-8"
           )
           PY
@@ -193,14 +193,14 @@ jobs:
         with:
           name: governance-developer-artifacts
           path: |
-            diagnostics/benchmark-results/**
-            diagnostics/benchmark-evidence/**
+            governance/benchmark-results/**
+            governance/benchmark-evidence/**
 
       - name: Enforce developer hard-failure policy
         run: |
-          test_exit=$(cat diagnostics/benchmark-evidence/pytest.exitcode || echo 1)
-          lint_exit=$(cat diagnostics/benchmark-evidence/governance_lint.exitcode || echo 1)
-          bench_exit=$(cat diagnostics/benchmark-results/benchmark.exitcode || echo 4)
+          test_exit=$(cat governance/benchmark-evidence/pytest.exitcode || echo 1)
+          lint_exit=$(cat governance/benchmark-evidence/governance_lint.exitcode || echo 1)
+          bench_exit=$(cat governance/benchmark-results/benchmark.exitcode || echo 4)
           if [ "$test_exit" -ne 0 ] || [ "$lint_exit" -ne 0 ] || [ "$bench_exit" -eq 4 ]; then
             echo "::error::Developer stage produced hard failure."
             exit 1
@@ -217,7 +217,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: governance-developer-artifacts
-          path: diagnostics
+          path: governance
 
       - name: Verify artifact hashes
         run: |
@@ -227,7 +227,7 @@ jobs:
           import pathlib
           import sys
 
-          hashes = json.loads(pathlib.Path("diagnostics/benchmark-results/hashes.json").read_text(encoding="utf-8"))
+          hashes = json.loads(pathlib.Path("governance/benchmark-results/hashes.json").read_text(encoding="utf-8"))
           for rel, expected in hashes.items():
               p = pathlib.Path(rel)
               if not p.exists():
@@ -250,30 +250,30 @@ jobs:
           import subprocess
           import sys
 
-          inp = json.loads(pathlib.Path("diagnostics/benchmark-results/derived-input.json").read_text(encoding="utf-8"))
+          inp = json.loads(pathlib.Path("governance/benchmark-results/derived-input.json").read_text(encoding="utf-8"))
           cmd = [
               sys.executable,
               "scripts/run_quality_benchmark.py",
               "--pack",
-              "diagnostics/PYTHON_QUALITY_BENCHMARK_PACK.json",
+              "governance/PYTHON_QUALITY_BENCHMARK_PACK.json",
               "--review-mode",
               "--evidence-dir",
-              "diagnostics/benchmark-evidence",
+              "governance/benchmark-evidence",
               "--output",
-              "diagnostics/benchmark-results/review.json",
+              "governance/benchmark-results/review.json",
           ]
           for cid, score in sorted(inp["criterion_scores"].items()):
               cmd += ["--criterion-score", f"{cid}={score}"]
 
           proc = subprocess.run(cmd, check=False)
           if proc.returncode == 0:
-              developer_sha = hashlib.sha256(pathlib.Path("diagnostics/benchmark-results/python.json").read_bytes()).hexdigest()
-              reviewer_sha = hashlib.sha256(pathlib.Path("diagnostics/benchmark-results/review.json").read_bytes()).hexdigest()
+              developer_sha = hashlib.sha256(pathlib.Path("governance/benchmark-results/python.json").read_bytes()).hexdigest()
+              reviewer_sha = hashlib.sha256(pathlib.Path("governance/benchmark-results/review.json").read_bytes()).hexdigest()
               if developer_sha != reviewer_sha:
                   print("BLOCKED-REVIEW-HASH-MISMATCH: reviewer recompute diverges from developer benchmark output")
                   print(json.dumps({"developer_sha256": developer_sha, "review_sha256": reviewer_sha}, ensure_ascii=True))
                   proc = subprocess.CompletedProcess(cmd, returncode=1)
-          pathlib.Path("diagnostics/benchmark-results/review.exitcode").write_text(str(proc.returncode) + "\n", encoding="utf-8")
+          pathlib.Path("governance/benchmark-results/review.exitcode").write_text(str(proc.returncode) + "\n", encoding="utf-8")
           raise SystemExit(proc.returncode)
           PY
 
@@ -283,8 +283,8 @@ jobs:
         with:
           name: governance-reviewer-artifacts
           path: |
-            diagnostics/benchmark-results/review.json
-            diagnostics/benchmark-results/review.exitcode
+            governance/benchmark-results/review.json
+            governance/benchmark-results/review.exitcode
 
       - name: Publish gate summary
         if: always()
@@ -293,7 +293,7 @@ jobs:
           import json
           import pathlib
 
-          p = pathlib.Path("diagnostics/benchmark-results/review.json")
+          p = pathlib.Path("governance/benchmark-results/review.json")
           if not p.exists():
               print("::error::review.json missing")
               raise SystemExit(1)
@@ -303,7 +303,7 @@ jobs:
 
       - name: Enforce reviewer decision
         run: |
-          code=$(cat diagnostics/benchmark-results/review.exitcode || echo 4)
+          code=$(cat governance/benchmark-results/review.exitcode || echo 4)
           if [ "$code" -eq 0 ]; then
             exit 0
           elif [ "$code" -eq 2 ]; then
@@ -325,7 +325,7 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: governance-reviewer-artifacts
-          path: diagnostics/benchmark-results
+          path: governance/benchmark-results
 
       - name: Emit deterministic recovery card
         run: |
@@ -333,7 +333,7 @@ jobs:
           import json
           import pathlib
 
-          p = pathlib.Path("diagnostics/benchmark-results/review.json")
+          p = pathlib.Path("governance/benchmark-results/review.json")
           if not p.exists():
               print("RECOVERY")
               print("Primary reason: BLOCKED-MISSING-REVIEW-ARTIFACT")

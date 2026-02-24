@@ -1,4 +1,4 @@
-"""Loader for policy-bound diagnostics config bundle.
+"""Loader for policy-bound governance config bundle.
 
 Fail-closed loader for kernel policy configs:
 - bootstrap_policy.yaml
@@ -34,13 +34,19 @@ _POLICY_FILES = (
 )
 
 
-def _repo_local_diagnostics_root() -> Path:
+def _policy_relpath(filename: str) -> Path:
+    if filename == "blocked_reason_catalog.yaml":
+        return Path("governance/assets/reasons") / filename
+    return Path("governance/assets/config") / filename
+
+
+def _repo_local_governance_assets_root() -> Path:
     parts = Path(__file__).parts
     if "governance" in parts:
         i = parts.index("governance")
         repo_root = Path(*parts[:i])
-        return repo_root / "diagnostics"
-    return Path(__file__).parent.parent.parent / "diagnostics"
+        return repo_root
+    return Path(__file__).parent.parent.parent.parent
 
 
 def _resolve_policy_path(filename: str, *, mode: str) -> Path:
@@ -48,7 +54,7 @@ def _resolve_policy_path(filename: str, *, mode: str) -> Path:
     resolver = BindingEvidenceResolver()
     evidence = resolver.resolve(mode=effective_mode)
     if evidence.binding_ok and evidence.commands_home:
-        candidate = evidence.commands_home / "diagnostics" / filename
+        candidate = evidence.commands_home / _policy_relpath(filename)
         if candidate.exists():
             return candidate
 
@@ -60,13 +66,13 @@ def _resolve_policy_path(filename: str, *, mode: str) -> Path:
         except PathContractError:
             repo_root_path = None
         if repo_root_path is not None:
-            candidate = repo_root_path / "diagnostics" / filename
+            candidate = repo_root_path / _policy_relpath(filename)
             if candidate.exists():
                 return candidate
 
     # Development fallback (no binding file) - allow repo-local resolution
     if effective_mode != "pipeline":
-        candidate = _repo_local_diagnostics_root() / filename
+        candidate = _repo_local_governance_assets_root() / _policy_relpath(filename)
         if candidate.exists():
             return candidate
 

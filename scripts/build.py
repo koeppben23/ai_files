@@ -46,11 +46,11 @@ BASELINE_REQUIRED_REASON_CODES = (
     "NOT_VERIFIED_EVIDENCE_STALE",
 )
 
-CUSTOMER_SCRIPT_CATALOG_PATH = Path("diagnostics/CUSTOMER_SCRIPT_CATALOG.json")
+CUSTOMER_SCRIPT_CATALOG_PATH = Path("governance/assets/catalogs/CUSTOMER_SCRIPT_CATALOG.json")
 CUSTOMER_SCRIPT_CATALOG_SCHEMA = "governance.customer-script-catalog.v1"
 WORKFLOW_TEMPLATE_CATALOG_PATH = Path("templates/github-actions/template_catalog.json")
 WORKFLOW_TEMPLATE_CATALOG_SCHEMA = "governance.workflow-template-catalog.v1"
-MARKDOWN_EXCLUDE_POLICY_PATH = Path("diagnostics/CUSTOMER_MARKDOWN_EXCLUDE.json")
+MARKDOWN_EXCLUDE_POLICY_PATH = Path("governance/assets/catalogs/CUSTOMER_MARKDOWN_EXCLUDE.json")
 MARKDOWN_EXCLUDE_POLICY_SCHEMA = "governance.customer-markdown-exclude.v1"
 
 
@@ -344,8 +344,8 @@ def _should_include_file(
     # Addon manifests are required at runtime for deterministic addon activation/reload.
     if rel.startswith("profiles/addons/") and name.endswith(".addon.yml"):
         return True
-    # Diagnostics runtime helpers are required for /start auto-persistence and error logging.
-    if rel.startswith("diagnostics/") and p.suffix.lower() == ".py":
+    # Governance runtime helpers are required for /start auto-persistence and error logging.
+    if rel.startswith("governance/entrypoints/") and p.suffix.lower() == ".py":
         return True
     if rel == "governance/VERSION":
         return True
@@ -375,8 +375,8 @@ def collect_release_files(
     """
     Allowlist strategy:
       - include: install.py, LICENSE*, LICENCE*, *.md, *.json,
-        profiles/addons/*.addon.yml, diagnostics/*.py,
-        scripts listed in diagnostics/CUSTOMER_SCRIPT_CATALOG.json with ship_in_release=true,
+        profiles/addons/*.addon.yml, governance/entrypoints/*.py,
+        scripts listed in governance/assets/catalogs/CUSTOMER_SCRIPT_CATALOG.json with ship_in_release=true,
         workflow template .yml files listed in templates/github-actions/template_catalog.json
       - exclude: .git, .github, dist, tests, caches
     Deterministic ordering (sorted by posix relpath).

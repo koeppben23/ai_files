@@ -11,7 +11,7 @@ from .util import REPO_ROOT, run, write_governance_paths
 
 @pytest.mark.governance
 def test_persist_workspace_artifacts_bootstraps_missing_session_state(tmp_path: Path):
-    script = REPO_ROOT / "diagnostics" / "persist_workspace_artifacts.py"
+    script = REPO_ROOT / "governance" / "entrypoints" / "persist_workspace_artifacts.py"
     cfg = tmp_path / "opencode-config"
     repo_root = tmp_path / "repo"
     repo_root.mkdir(parents=True, exist_ok=True)
@@ -41,12 +41,12 @@ def test_persist_workspace_artifacts_bootstraps_missing_session_state(tmp_path: 
     assert payload.get("read_only") is True
 
     session_file = cfg / "workspaces" / repo_fp / "SESSION_STATE.json"
-    assert not session_file.exists(), "read-only diagnostics must not create repo-scoped SESSION_STATE.json"
+    assert not session_file.exists(), "read-only governance must not create repo-scoped SESSION_STATE.json"
 
 
 @pytest.mark.governance
 def test_persist_workspace_artifacts_does_not_bootstrap_when_session_updates_disabled(tmp_path: Path):
-    script = REPO_ROOT / "diagnostics" / "persist_workspace_artifacts.py"
+    script = REPO_ROOT / "governance" / "entrypoints" / "persist_workspace_artifacts.py"
     cfg = tmp_path / "opencode-config"
     repo_root = tmp_path / "repo"
     repo_root.mkdir(parents=True, exist_ok=True)

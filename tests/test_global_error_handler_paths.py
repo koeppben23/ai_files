@@ -3,8 +3,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import diagnostics.global_error_handler as geh
-from diagnostics.global_error_handler import emit_gate_failure, resolve_log_path
+import governance.infrastructure.logging.global_error_handler as geh
+from governance.infrastructure.logging.global_error_handler import emit_gate_failure, resolve_log_path
 
 
 def test_emit_gate_failure_without_fingerprint_writes_global_log(tmp_path: Path) -> None:

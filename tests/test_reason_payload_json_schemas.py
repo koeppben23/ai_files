@@ -18,7 +18,7 @@ from governance.engine.reason_codes import (
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-SCHEMA_DIR = REPO_ROOT / "diagnostics" / "schemas"
+SCHEMA_DIR = REPO_ROOT / "governance" / "assets" / "schemas"
 
 
 def test_reason_payload_schemas_are_strict():
@@ -166,10 +166,10 @@ def test_reason_context_schema_missing_error_is_canonical(monkeypatch: pytest.Mo
     monkeypatch.setattr(
         reason_payload,
         "_resolve_schema_ref_for_reason",
-        lambda _reason_code: "diagnostics/schemas/does_not_exist.v1.json",
+        lambda _reason_code: "governance/assets/schemas/does_not_exist.v1.json",
     )
 
-    with pytest.raises(ValueError, match=r"^reason_schema_missing:diagnostics/schemas/does_not_exist.v1.json$"):
+    with pytest.raises(ValueError, match=r"^reason_schema_missing:governance/assets/schemas/does_not_exist.v1.json$"):
         reason_payload.validate_reason_context_schema(
             REPO_DOC_UNSAFE_DIRECTIVE,
             {

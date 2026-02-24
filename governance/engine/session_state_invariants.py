@@ -81,11 +81,11 @@ def validate_reason_payloads_required(state: Mapping[str, object]) -> tuple[str,
         if isinstance(next_val, str) and not next_val.startswith(("BLOCKED-", "WARN-", "NOT_VERIFIED-")):
             return ()
 
-    diagnostics = state.get("Diagnostics")
-    if not isinstance(diagnostics, dict):
-        return ("missing_diagnostics_for_reason_code",)
+    governance = state.get("Diagnostics")
+    if not isinstance(governance, dict):
+        return ("missing_governance_for_reason_code",)
 
-    payloads = diagnostics.get("ReasonPayloads")
+    payloads = governance.get("ReasonPayloads")
     if not isinstance(payloads, list) or len(payloads) == 0:
         return ("missing_reason_payloads",)
 

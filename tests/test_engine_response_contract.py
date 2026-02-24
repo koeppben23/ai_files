@@ -72,7 +72,7 @@ def test_build_strict_response_preserves_reason_code_casing_in_snapshot():
 
 @pytest.mark.governance
 def test_build_strict_response_emits_full_state_only_for_explicit_intent():
-    """Full session dump should only be present for explicit diagnostics intent."""
+    """Full session dump should only be present for explicit governance intent."""
 
     full_state = {
         "phase": "1.1-Bootstrap",
@@ -88,7 +88,7 @@ def test_build_strict_response_emits_full_state_only_for_explicit_intent():
         next_action=NextAction(type="command", command="review-warning-context"),
         snapshot=Snapshot(confidence="Medium", risk="Medium", scope="Bootstrap"),
         reason_payload={"status": "WARN", "reason_code": "WARN-PERMISSION-LIMITED"},
-        detail_intent="show_diagnostics",
+        detail_intent="show_governance",
     )
     payload = cast(dict[str, Any], payload)
     assert payload["session_state"]["repo_fingerprint"] == "repo-xyz"

@@ -131,7 +131,7 @@ def evaluate(*, policy: dict[str, object], scanner_summaries: list[dict[str, obj
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Evaluate security scanner summaries against deterministic policy.")
-    parser.add_argument("--policy", default="diagnostics/SECURITY_GATE_POLICY.json")
+    parser.add_argument("--policy", default="governance/assets/catalogs/SECURITY_GATE_POLICY.json")
     parser.add_argument("--input", action="append", required=True, help="Path to scanner summary JSON (repeatable).")
     parser.add_argument("--output", required=True, help="Path to write aggregated security summary JSON.")
     return parser.parse_args(argv)

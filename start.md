@@ -14,7 +14,7 @@ Note: Kernel remains the source of truth; AGENTS.md is the Codex frontend surfac
 When executed as an OpenCode command (`/start`), this prompt injects the installer-owned path binding file
 `${COMMANDS_HOME}/governance.paths.json` into the model context.
 
-**Implementation Reference:** The OpenCode host executes `${COMMANDS_HOME}/diagnostics/start_binding_evidence.py`
+**Implementation Reference:** The OpenCode host executes `${COMMANDS_HOME}/governance/entrypoints/start_binding_evidence.py`
 to resolve binding evidence. This script is part of the kernel and implements the binding resolution logic.
 
 **Informational (kernel-enforced):**
@@ -27,11 +27,11 @@ to resolve binding evidence. This script is part of the kernel and implements th
 
 ## Auto-Preflight Hook (OpenCode, Read-only)
 
-When available, `/start` triggers a read-only diagnostics preflight helper.
+When available, `/start` triggers a read-only governance preflight helper.
 This helper MUST NOT write workspace/index/session artifacts.
 Persistence and workspace readiness are kernel-owned only.
 
-**Implementation Reference:** The OpenCode host executes `${COMMANDS_HOME}/diagnostics/start_preflight_readonly.py`
+**Implementation Reference:** The OpenCode host executes `${COMMANDS_HOME}/governance/entrypoints/start_preflight_readonly.py`
 to perform preflight checks. This script is part of the kernel and implements the preflight logic.
 
 **Informational (kernel-enforced):**
@@ -41,10 +41,10 @@ Identity evidence boundary (informational):
 - Repo identity is governed by `master.md` evidence contracts (host-collected git evidence, operator-provided evidence, or prior validated mapping/session state).
 
 Bootstrap preflight and evidence semantics (informational):
-- `/start` may collect git identity evidence and command availability diagnostics before bootstrap completes.
+- `/start` may collect git identity evidence and command availability governance before bootstrap completes.
 - Binding evidence uses installer-owned `${COMMANDS_HOME}/governance.paths.json` as canonical source.
 - Fallback computed payloads remain debug-only (`nonEvidence`).
-- Blocked reasons, gate decisions, and recovery commands are kernel-managed (see `diagnostics/bootstrap_policy.yaml` and `diagnostics/blocked_reason_catalog.yaml`).
+- Blocked reasons, gate decisions, and recovery commands are kernel-managed (see `governance/assets/config/bootstrap_policy.yaml` and `governance/assets/reasons/blocked_reason_catalog.yaml`).
 
 ---
 
@@ -68,7 +68,7 @@ Clarification (Binding):
 ### Discovery / Load search order (informational)
 
 > **Note:** Discovery roots, evidence precedence, and fail-closed behavior are kernel-enforced.
-> See `diagnostics/bootstrap_policy.yaml` for canonical roots, evidence sources, and gate definitions.
+> See `governance/assets/config/bootstrap_policy.yaml` for canonical roots, evidence sources, and gate definitions.
 
 Search paths (informational):
 - `${COMMANDS_HOME}/master.md`
@@ -78,7 +78,7 @@ Search paths (informational):
 ### Evidence rule (informational)
 
 > **Note:** Evidence collection and fail-closed behavior are kernel-enforced.
-> See `diagnostics/bootstrap_policy.yaml` (gates: binding_file_gate, start_evidence_gate).
+> See `governance/assets/config/bootstrap_policy.yaml` (gates: binding_file_gate, start_evidence_gate).
 
 Evidence sources (informational):
 - Host-provided file access evidence (preferred)
@@ -93,7 +93,7 @@ Invocation:
 - This file does not replace or inline `master.md`; it only triggers its discovery and activation.
 
 > **Note:** Bootstrap gates, evidence requirements, and blocked reasons are kernel-enforced.
-> See `diagnostics/bootstrap_policy.yaml` and `diagnostics/blocked_reason_catalog.yaml`.
+> See `governance/assets/config/bootstrap_policy.yaml` and `governance/assets/reasons/blocked_reason_catalog.yaml`.
 
 Key behaviors (informational):
 - `/start` is mandatory bootstrap for a repo/session (kernel-enforced).
@@ -116,13 +116,13 @@ Host constraint acknowledgment:
 
 Output requirements:
 - Structured, phase-oriented output
-- Operator-first layering SHOULD be used: concise brief first (status + phase/gate + one next step), then detailed diagnostics
-- After successful bootstrap, short follow-up answers SHOULD be conversational and language-adaptive to operator input unless full diagnostics are requested.
+- Operator-first layering SHOULD be used: concise brief first (status + phase/gate + one next step), then detailed governance
+- After successful bootstrap, short follow-up answers SHOULD be conversational and language-adaptive to operator input unless full governance are requested.
 - Conversational post-start replies SHOULD stay covered by deterministic fixture intents (`what_phase`, `discovery_done`, `workflow_unchanged`).
-- Preferred conversational fixture source: `diagnostics/UX_INTENT_GOLDENS.json`.
-- Short follow-up questions SHOULD route via deterministic intents (`where_am_i`, `what_blocks_me`, `what_now`) before optional verbose diagnostics.
+- Preferred conversational fixture source: `governance/assets/catalogs/UX_INTENT_GOLDENS.json`.
+- Short follow-up questions SHOULD route via deterministic intents (`where_am_i`, `what_blocks_me`, `what_now`) before optional verbose governance.
 - Response persona modes SHOULD be supported (`compact`, `standard`, `audit`) as presentation-density controls only.
-- Output envelope SHOULD comply with `diagnostics/RESPONSE_ENVELOPE_SCHEMA.json` (`status`, `session_state`, `next_action`, `snapshot`; plus blocker payload fields when blocked) when host constraints allow
+- Output envelope SHOULD comply with `governance/RESPONSE_ENVELOPE_SCHEMA.json` (`status`, `session_state`, `next_action`, `snapshot`; plus blocker payload fields when blocked) when host constraints allow
 - STRICT/COMPAT output matrix SSOT is defined in `master.md` and `rules.md`; this file mirrors entrypoint-specific expectations only.
 - `next_action.type` MUST be present and one of: `command`, `reply_with_one_number`, `manual_step`.
 - Status vocabulary MUST remain deterministic: `BLOCKED | WARN | OK | NOT_VERIFIED`.
@@ -131,12 +131,12 @@ Output requirements:
 - Responses SHOULD include `phase_progress_bar` (for example: `[##----] 2/6`) aligned to the current phase.
 - Responses SHOULD include a compact `status_tag` for scanability (`<PHASE>-<GATE>-<STATE>`).
 - If no phase/mode/gate transition occurred, response SHOULD acknowledge `state_unchanged` with a concise reason.
-- For no-change turns, response SHOULD be delta-only (or explicit `no_delta`) instead of repeating unchanged diagnostics.
+- For no-change turns, response SHOULD be delta-only (or explicit `no_delta`) instead of repeating unchanged governance.
 - `WARN` may include `advisory_missing` only and MUST NOT emit blocker `RequiredInputs`.
 - Explicit SESSION_STATE
 - In STRICT envelopes, `session_state` MAY be a compact machine-readable snapshot object.
 - `SESSION_STATE` output MUST be formatted as fenced YAML (````yaml` + `SESSION_STATE:` payload)
-- In this section, the YAML requirement applies to dedicated full-state `SESSION_STATE` blocks (including explicit diagnostics/full-state output), not to the compact strict-envelope snapshot projection.
+- In this section, the YAML requirement applies to dedicated full-state `SESSION_STATE` blocks (including explicit governance/full-state output), not to the compact strict-envelope snapshot projection.
 - When full `SESSION_STATE` is emitted as a dedicated state block, it MUST be formatted as fenced YAML (````yaml` + `SESSION_STATE:` payload)
 - `SESSION_STATE` output MUST NOT use placeholder tokens (`...`, `<...>`); use explicit unknown/deferred values instead
 - Explicit Gates
@@ -158,13 +158,13 @@ Output requirements:
 - Include `[SNAPSHOT]` block (`Confidence`, `Risk`, `Scope`) with values aligned to current `SESSION_STATE`.
 - If blocked, include `QuickFixCommands` with 1-3 copy-paste commands (or `["none"]` if not command-driven) when host constraints allow.
 - When `QuickFixCommands` are emitted, `/start` SHOULD label primary command confidence as `safe` or `review-first`.
-- `/start` SHOULD use `diagnostics/QUICKFIX_TEMPLATES.json` for reason-code-specific recovery command text when available.
+- `/start` SHOULD use `governance/assets/catalogs/QUICKFIX_TEMPLATES.json` for reason-code-specific recovery command text when available.
 - `QuickFixCommands` defaults to one command; use two only for explicit `macos_linux` vs `windows` splits.
 - If strict output formatting is host-constrained, response MUST include COMPAT sections: `RequiredInputs`, `Recovery`, and `NextAction` and set `DEVIATION.host_constraint = true`.
 - Response mode MUST be explicit and singular per turn: `STRICT` or `COMPAT`.
 - `STRICT` requires envelope + `[SNAPSHOT]` + `[NEXT-ACTION]`; `COMPAT` requires `RequiredInputs` + `Recovery` + `NextAction` + `[NEXT-ACTION]`.
-- If operator requests full details (for example: `show diagnostics`, `show full session state`), `/start` SHOULD emit full strict diagnostics without changing gate/evidence outcomes.
-- Default strict rendering SHOULD emit a compact `SESSION_SNAPSHOT` projection and avoid full-session dumps unless diagnostics intent is explicit.
+- If operator requests full details (for example: `show governance`, `show full session state`), `/start` SHOULD emit full strict governance without changing gate/evidence outcomes.
+- Default strict rendering SHOULD emit a compact `SESSION_SNAPSHOT` projection and avoid full-session dumps unless governance intent is explicit.
 - Compact snapshot SHOULD include stable decision references (`activation_hash`; optionally `ruleset_hash`) and compact drift context (`state_unchanged` / `no_delta`) when available.
 - Full `SESSION_STATE` remains required as canonical persisted state; compact rendering is a view-layer projection only.
 - Session-state rollout posture is final: phase >= 3 is engine-only legacy-removed mode; legacy alias compatibility is historical only and MUST NOT be used as a normal-path dependency.

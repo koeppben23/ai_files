@@ -222,7 +222,7 @@ class BootstrapPersistenceService:
         else:
             command = list(payload.backfill_command)
             if not command:
-                command = [payload.binding.python_command, "diagnostics/persist_workspace_artifacts.py"]
+                command = [payload.binding.python_command, "-m", "governance.entrypoints.persist_workspace_artifacts"]
             run = self._runner.run(command)
             if run.returncode != 0:
                 event = ErrorEvent(

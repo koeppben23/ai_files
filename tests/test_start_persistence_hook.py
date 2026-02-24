@@ -1,4 +1,4 @@
-"""Tests for diagnostics/start_persistence_hook.py - GOOD/BAD/EDGE paths."""
+"""Tests for governance/start_persistence_hook.py - GOOD/BAD/EDGE paths."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ from tests.util import REPO_ROOT
 
 
 def _load_hook_module_with_env(env: dict[str, str]):
-    script = REPO_ROOT / "diagnostics" / "start_persistence_hook.py"
+    script = REPO_ROOT / "governance" / "entrypoints" / "start_persistence_hook.py"
     spec = importlib.util.spec_from_file_location("start_persistence_hook", script)
     if spec is None or spec.loader is None:
         raise RuntimeError("failed to load start_persistence_hook module")
@@ -37,14 +37,14 @@ class TestEnvironmentHandling:
     @pytest.mark.governance
     def test_writes_allowed_true_by_default(self, monkeypatch: pytest.MonkeyPatch):
         monkeypatch.delenv("OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY", raising=False)
-        from diagnostics.start_persistence_hook import _writes_allowed
+        from governance.entrypoints.start_persistence_hook import _writes_allowed
         assert _writes_allowed() is True
 
     @pytest.mark.governance
     def test_writes_allowed_false_when_force_read_only_set(self, monkeypatch: pytest.MonkeyPatch):
         monkeypatch.setenv("OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY", "1")
         import importlib
-        import diagnostics.start_persistence_hook as mod
+        import governance.entrypoints.start_persistence_hook as mod
         importlib.reload(mod)
         assert mod._writes_allowed() is False
 
@@ -52,7 +52,7 @@ class TestEnvironmentHandling:
     def test_writes_allowed_true_when_ci_set(self, monkeypatch: pytest.MonkeyPatch):
         monkeypatch.setenv("CI", "true")
         monkeypatch.delenv("OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY", raising=False)
-        from diagnostics.start_persistence_hook import _writes_allowed
+        from governance.entrypoints.start_persistence_hook import _writes_allowed
         assert _writes_allowed() is True
 
     @pytest.mark.governance
@@ -60,7 +60,7 @@ class TestEnvironmentHandling:
         monkeypatch.setenv("CI", "true")
         monkeypatch.setenv("OPENCODE_DIAGNOSTICS_ALLOW_WRITE", "1")
         monkeypatch.delenv("OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY", raising=False)
-        from diagnostics.start_persistence_hook import _writes_allowed
+        from governance.entrypoints.start_persistence_hook import _writes_allowed
         assert _writes_allowed() is True
 
 
@@ -94,7 +94,7 @@ class TestPersistenceHookGoodPaths:
             with patch.object(module, "safe_log_error"):
                 with patch.object(module, "COMMANDS_HOME", tmp_path):
                     # Create fake bootstrap script
-                    bootstrap_script = tmp_path / "diagnostics" / "bootstrap_session_state.py"
+                    bootstrap_script = tmp_path / "governance" / "entrypoints" / "bootstrap_session_state.py"
                     bootstrap_script.parent.mkdir(parents=True, exist_ok=True)
                     bootstrap_script.write_text("# fake")
                     
@@ -124,7 +124,7 @@ class TestPersistenceHookGoodPaths:
         with patch.object(module, "derive_repo_fingerprint", return_value="testfingerprint123456"):
             with patch.object(module, "safe_log_error"):
                 with patch.object(module, "COMMANDS_HOME", tmp_path):
-                    bootstrap_script = tmp_path / "diagnostics" / "bootstrap_session_state.py"
+                    bootstrap_script = tmp_path / "governance" / "entrypoints" / "bootstrap_session_state.py"
                     bootstrap_script.parent.mkdir(parents=True, exist_ok=True)
                     bootstrap_script.write_text("# fake")
                     
@@ -182,7 +182,7 @@ class TestPersistenceHookBadPaths:
         with patch.object(module, "derive_repo_fingerprint", return_value="testfingerprint123456"):
             with patch.object(module, "safe_log_error") as mock_log:
                 with patch.object(module, "COMMANDS_HOME", tmp_path):
-                    bootstrap_script = tmp_path / "diagnostics" / "bootstrap_session_state.py"
+                    bootstrap_script = tmp_path / "governance" / "entrypoints" / "bootstrap_session_state.py"
                     bootstrap_script.parent.mkdir(parents=True, exist_ok=True)
                     bootstrap_script.write_text("# fake")
                     
@@ -202,7 +202,7 @@ class TestPersistenceHookBadPaths:
         with patch.object(module, "derive_repo_fingerprint", return_value="testfingerprint123456"):
             with patch.object(module, "safe_log_error") as mock_log:
                 with patch.object(module, "COMMANDS_HOME", tmp_path):
-                    bootstrap_script = tmp_path / "diagnostics" / "bootstrap_session_state.py"
+                    bootstrap_script = tmp_path / "governance" / "entrypoints" / "bootstrap_session_state.py"
                     bootstrap_script.parent.mkdir(parents=True, exist_ok=True)
                     bootstrap_script.write_text("# fake")
                     
@@ -232,7 +232,7 @@ class TestPersistenceHookEdgeCases:
         with patch.object(module, "derive_repo_fingerprint", return_value="testfingerprint123456"):
             with patch.object(module, "safe_log_error"):
                 with patch.object(module, "COMMANDS_HOME", tmp_path):
-                    bootstrap_script = tmp_path / "diagnostics" / "bootstrap_session_state.py"
+                    bootstrap_script = tmp_path / "governance" / "entrypoints" / "bootstrap_session_state.py"
                     bootstrap_script.parent.mkdir(parents=True, exist_ok=True)
                     bootstrap_script.write_text("# fake")
                     
@@ -255,7 +255,7 @@ class TestPersistenceHookEdgeCases:
         with patch.object(module, "derive_repo_fingerprint", return_value="testfingerprint123456"):
             with patch.object(module, "safe_log_error"):
                 with patch.object(module, "COMMANDS_HOME", tmp_path):
-                    bootstrap_script = tmp_path / "diagnostics" / "bootstrap_session_state.py"
+                    bootstrap_script = tmp_path / "governance" / "entrypoints" / "bootstrap_session_state.py"
                     bootstrap_script.parent.mkdir(parents=True, exist_ok=True)
                     bootstrap_script.write_text("# fake")
                     
@@ -277,7 +277,7 @@ class TestPersistenceHookEdgeCases:
         with patch.object(module, "derive_repo_fingerprint", return_value="testfingerprint123456"):
             with patch.object(module, "safe_log_error"):
                 with patch.object(module, "COMMANDS_HOME", tmp_path):
-                    bootstrap_script = tmp_path / "diagnostics" / "bootstrap_session_state.py"
+                    bootstrap_script = tmp_path / "governance" / "entrypoints" / "bootstrap_session_state.py"
                     bootstrap_script.parent.mkdir(parents=True, exist_ok=True)
                     bootstrap_script.write_text("# fake")
                     
@@ -300,7 +300,7 @@ class TestPersistenceHookEdgeCases:
         with patch.object(module, "derive_repo_fingerprint", return_value="testfingerprint123456"):
             with patch.object(module, "safe_log_error"):
                 with patch.object(module, "COMMANDS_HOME", tmp_path):
-                    bootstrap_script = tmp_path / "diagnostics" / "bootstrap_session_state.py"
+                    bootstrap_script = tmp_path / "governance" / "entrypoints" / "bootstrap_session_state.py"
                     bootstrap_script.parent.mkdir(parents=True, exist_ok=True)
                     bootstrap_script.write_text("# fake")
                     
@@ -324,7 +324,7 @@ class TestPersistenceHookVerificationFailures:
 
         with patch.object(module, "derive_repo_fingerprint", return_value="testfingerprint123456"):
             with patch.object(module, "COMMANDS_HOME", tmp_path):
-                bootstrap_script = tmp_path / "diagnostics" / "bootstrap_session_state.py"
+                bootstrap_script = tmp_path / "governance" / "entrypoints" / "bootstrap_session_state.py"
                 bootstrap_script.parent.mkdir(parents=True, exist_ok=True)
                 bootstrap_script.write_text("# fake")
 
@@ -349,7 +349,7 @@ class TestPersistenceHookVerificationFailures:
 
         with patch.object(module, "derive_repo_fingerprint", return_value="testfingerprint123456"):
             with patch.object(module, "COMMANDS_HOME", tmp_path):
-                bootstrap_script = tmp_path / "diagnostics" / "bootstrap_session_state.py"
+                bootstrap_script = tmp_path / "governance" / "entrypoints" / "bootstrap_session_state.py"
                 bootstrap_script.parent.mkdir(parents=True, exist_ok=True)
                 bootstrap_script.write_text("# fake")
 
@@ -370,7 +370,7 @@ class TestPersistenceHookVerificationFailures:
 
     @pytest.mark.governance
     def test_pointer_fingerprint_mismatch_is_reported(self, tmp_path: Path):
-        from diagnostics.start_persistence_hook import _verify_pointer_exists
+        from governance.entrypoints.start_persistence_hook import _verify_pointer_exists
 
         repo_fp = "a1b2c3d4e5f6a1b2c3d4e5f6"
         pointer_file = tmp_path / "SESSION_STATE.json"
@@ -390,7 +390,7 @@ class TestPersistenceHookVerificationFailures:
 
     @pytest.mark.governance
     def test_pointer_invalid_json_is_reported_as_unreadable(self, tmp_path: Path):
-        from diagnostics.start_persistence_hook import _verify_pointer_exists
+        from governance.entrypoints.start_persistence_hook import _verify_pointer_exists
 
         pointer_file = tmp_path / "SESSION_STATE.json"
         pointer_file.write_text("{broken-json", encoding="utf-8")
@@ -401,7 +401,7 @@ class TestPersistenceHookVerificationFailures:
 
     @pytest.mark.governance
     def test_workspace_session_invalid_json_is_reported_as_unreadable(self, tmp_path: Path):
-        from diagnostics.start_persistence_hook import _verify_workspace_session_exists
+        from governance.entrypoints.start_persistence_hook import _verify_workspace_session_exists
 
         repo_fp = "a1b2c3d4e5f6a1b2c3d4e5f6"
         session_file = tmp_path / repo_fp / "SESSION_STATE.json"

@@ -17,7 +17,7 @@ ResponseMode = Literal["STRICT", "COMPAT"]
 ResponseStatus = Literal["BLOCKED", "WARN", "OK", "NOT_VERIFIED"]
 DecisionOutcome = Literal["ALLOW", "BLOCKED"]
 NextActionType = Literal["command", "reply_with_one_number", "manual_step"]
-DetailIntent = Literal["default", "show_diagnostics", "show_full_session_state"]
+DetailIntent = Literal["default", "show_governance", "show_full_session_state"]
 
 SESSION_SNAPSHOT_WHITELIST = (
     "phase",
@@ -227,7 +227,7 @@ def build_strict_response(
     )
     payload = asdict(envelope)
     payload["next_action"]["type"] = next_action.type
-    if detail_intent in {"show_diagnostics", "show_full_session_state"}:
+    if detail_intent in {"show_governance", "show_full_session_state"}:
         payload["session_state_full"] = session_state
     return payload
 
