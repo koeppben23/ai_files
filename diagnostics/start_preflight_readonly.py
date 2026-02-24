@@ -152,6 +152,17 @@ def _resolve_bindings() -> tuple[Path, Path, bool, Path | None, str]:
 COMMANDS_HOME, WORKSPACES_HOME, BINDING_OK, BINDING_EVIDENCE_PATH, PYTHON_COMMAND = _resolve_bindings()
 TOOL_CATALOG = COMMANDS_HOME / "diagnostics" / "tool_requirements.json"
 
+HOOK_STATUS_OK = "ok"
+HOOK_STATUS_BLOCKED = "blocked"
+HOOK_STATUS_FAILED = "failed"
+
+FAILURE_STAGE_INIT = "init"
+FAILURE_STAGE_WRITES_ALLOWED = "writes_allowed"
+FAILURE_STAGE_REPO_ROOT = "repo_root"
+FAILURE_STAGE_SUBPROCESS = "subprocess"
+FAILURE_STAGE_PARSE = "parse"
+FAILURE_STAGE_HOOK_PAYLOAD = "hook_payload"
+
 
 def _normalize_abs_path(raw: str, *, purpose: str) -> Path:
     token = str(raw or "").strip()
@@ -492,10 +503,23 @@ def _emit_persistence_gate_failure(
 def _normalize_hook_failure_reason(proc: subprocess.CompletedProcess[str], result: dict[str, object]) -> tuple[str, str]:
     reason_code = str(result.get("reason_code") or "").strip()
     if reason_code:
-        return reason_code, "hook-payload"
+        return reason_code, FAILURE_STAGE_HOOK_PAYLOAD
     if proc.returncode != 0:
-        return "BLOCKED-WORKSPACE-PERSISTENCE", "subprocess"
-    return "BLOCKED-WORKSPACE-PERSISTENCE", "parse"
+        return "BLOCKED-WORKSPACE-PERSISTENCE", FAILURE_STAGE_SUBPROCESS
+    return "BLOCKED-WORKSPACE-PERSISTENCE", FAILURE_STAGE_PARSE
+
+
+def _canonical_hook_status(*, raw_status: object, reason_code: str, returncode: int) -> str:
+    token = str(raw_status or "").strip().lower()
+    if token == HOOK_STATUS_OK:
+        return HOOK_STATUS_OK
+    if token not in {HOOK_STATUS_OK, HOOK_STATUS_BLOCKED, HOOK_STATUS_FAILED}:
+        token = HOOK_STATUS_FAILED
+    if reason_code.startswith("BLOCKED-"):
+        return HOOK_STATUS_BLOCKED
+    if returncode != 0 and token == HOOK_STATUS_OK:
+        return HOOK_STATUS_FAILED
+    return token
 
 
 def run_persistence_hook() -> dict[str, object]:
@@ -513,7 +537,7 @@ def run_persistence_hook() -> dict[str, object]:
             repo_fingerprint=None,
         )
         result = {
-            "workspacePersistenceHook": "blocked",
+            "workspacePersistenceHook": HOOK_STATUS_BLOCKED,
             "reason_code": "BLOCKED-WORKSPACE-PERSISTENCE",
             "reason": "writes-not-allowed",
             "impact": "fingerprint + persistence are required before any phase >= 2.1",
@@ -521,7 +545,7 @@ def run_persistence_hook() -> dict[str, object]:
             "writes_allowed": False,
             "log_path": str(log_path),
             "hook_invoked": False,
-            "failure_stage": "writes_allowed",
+            "failure_stage": FAILURE_STAGE_WRITES_ALLOWED,
             "cwd": str(Path.cwd()),
             "repo_root_detected": "",
             "repo_root_source": "not-evaluated",
@@ -541,7 +565,7 @@ def run_persistence_hook() -> dict[str, object]:
         "bootstrap_hook_command": hook_command,
         "git_probe": git_probe,
         "hook_invoked": False,
-        "failure_stage": "init",
+        "failure_stage": FAILURE_STAGE_INIT,
     }
 
     if repo_root is None:
@@ -560,7 +584,7 @@ def run_persistence_hook() -> dict[str, object]:
             "reason": "repo-root-not-detectable",
             "writes_allowed": True,
             "log_path": str(log_path),
-            "failure_stage": "repo_root",
+            "failure_stage": FAILURE_STAGE_REPO_ROOT,
         }
         print(json.dumps(result, ensure_ascii=True))
         raise SystemExit(2)
@@ -607,25 +631,29 @@ def run_persistence_hook() -> dict[str, object]:
         **parsed_payload,
         **base_payload,
         "hook_invoked": True,
-        "failure_stage": "subprocess",
+        "failure_stage": FAILURE_STAGE_SUBPROCESS,
     }
     if not isinstance(result.get("repo_fingerprint"), str):
         result["repo_fingerprint"] = ""
 
     if parsed_payload.get("reason") == "hook-output-not-json":
-        result["failure_stage"] = "parse"
+        result["failure_stage"] = FAILURE_STAGE_PARSE
     elif proc.returncode != 0:
-        result["failure_stage"] = "subprocess"
-    elif str(result.get("workspacePersistenceHook", "")).strip().lower() != "ok":
-        result["failure_stage"] = "hook_payload"
+        result["failure_stage"] = FAILURE_STAGE_SUBPROCESS
+    elif str(result.get("workspacePersistenceHook", "")).strip().lower() != HOOK_STATUS_OK:
+        result["failure_stage"] = FAILURE_STAGE_HOOK_PAYLOAD
 
-    if str(result.get("workspacePersistenceHook", "")).strip().lower() != "ok":
-        reason_code, inferred_stage = _normalize_hook_failure_reason(proc, result)
-        result["reason_code"] = reason_code
-        if str(result.get("failure_stage", "")).strip() in {"", "init", "subprocess"}:
+    reason_code, inferred_stage = _normalize_hook_failure_reason(proc, result)
+    result["reason_code"] = reason_code
+    result["workspacePersistenceHook"] = _canonical_hook_status(
+        raw_status=result.get("workspacePersistenceHook"),
+        reason_code=reason_code,
+        returncode=proc.returncode,
+    )
+
+    if str(result.get("workspacePersistenceHook", "")).strip().lower() != HOOK_STATUS_OK:
+        if str(result.get("failure_stage", "")).strip() in {"", FAILURE_STAGE_INIT, FAILURE_STAGE_SUBPROCESS}:
             result["failure_stage"] = inferred_stage
-        if str(result.get("workspacePersistenceHook", "")).strip().lower() == "failed" and reason_code.startswith("BLOCKED-"):
-            result["workspacePersistenceHook"] = "blocked"
         log_path = _emit_persistence_gate_failure(
             code=reason_code,
             message="Persistence hook module dispatch failed.",
@@ -643,7 +671,7 @@ def run_persistence_hook() -> dict[str, object]:
         result["log_path"] = str(log_path)
 
     print(json.dumps(result, ensure_ascii=True))
-    if str(result.get("workspacePersistenceHook")).strip().lower() != "ok":
+    if str(result.get("workspacePersistenceHook")).strip().lower() != HOOK_STATUS_OK:
         raise SystemExit(2)
     return result
 

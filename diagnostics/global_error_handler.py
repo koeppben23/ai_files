@@ -31,7 +31,7 @@ import uuid
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable, ContextManager, Optional
+from typing import Any, Callable, ContextManager, Optional, cast
 
 try:
     from governance.infrastructure.adapters.logging.event_sink import write_jsonl_event
@@ -234,7 +234,11 @@ def _emit_jsonl_event(event: dict[str, Any], target_path: Path) -> bool:
     """
     try:
         target_path.parent.mkdir(parents=True, exist_ok=True)
-        write_jsonl_event(target_path, event, append=True)
+        emitter = cast(Any, write_jsonl_event)
+        try:
+            emitter(target_path, event, append=True)
+        except TypeError:
+            emitter(target_path, event)
         return True
     except Exception:
         return False
