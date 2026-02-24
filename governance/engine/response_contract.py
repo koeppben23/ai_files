@@ -11,6 +11,7 @@ from typing import Literal, cast
 
 from governance.engine.canonical_json import canonical_json_hash, canonical_json_text
 from governance.engine.phase_next_action_contract import validate_phase_next_action_contract
+from governance.domain.phase_state_machine import normalize_phase_token, phase_requires_ticket_input
 
 ResponseMode = Literal["STRICT", "COMPAT"]
 ResponseStatus = Literal["BLOCKED", "WARN", "OK", "NOT_VERIFIED"]
@@ -179,6 +180,14 @@ def _status_for_phase_contract(status: str) -> str:
 
 
 def _validate_phase_alignment(*, status: str, session_state: dict[str, object], next_action: NextAction) -> None:
+    phase_value = _extract_session_value(session_state, "phase", "Phase", default="")
+    phase_token = normalize_phase_token(phase_value)
+    if phase_token and not phase_requires_ticket_input(phase_token):
+        if next_action.type != "command":
+            raise ValueError(
+                "invalid response phase alignment: next_action type must be command before phase 4"
+            )
+
     errors = validate_phase_next_action_contract(
         status=_status_for_phase_contract(status),
         session_state=session_state,

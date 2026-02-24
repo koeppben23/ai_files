@@ -227,14 +227,12 @@ except ImportError:
         return "\n".join(
             [
                 f"## Decision Pack — {date}",
-                "D-001: Run Phase 1.5 (Business Rules Discovery) now?",
+                "D-001: Apply Phase 1.5 Business Rules bootstrap policy",
                 f"ID: DP-{date_compact}-001",
-                "Status: proposed",
-                "A) Yes",
-                "B) No",
-                "Recommendation: A (run lightweight Phase 1.5 to establish initial domain evidence)",
-                "Evidence: Bootstrap seed context; lightweight discovery can improve downstream gate quality",
-                "What would change it: keep B only when operator explicitly defers business-rules discovery",
+                "Status: automatic",
+                "Action: Auto-run lightweight Phase 1.5 bootstrap when business-rules inventory is missing.",
+                "Policy: no questions before Phase 4; use activation intent defaults.",
+                "What would change it: activation intent or mode policy disables auto bootstrap.",
                 "",
             ]
         )
@@ -270,6 +268,7 @@ except ImportError:
                 f"# Business Rules Inventory — {repo_name}",
                 "",
                 "SchemaVersion: BRINV-1",
+                "Placeholder: true",
                 "Source: Phase 1.5 Business Rules Discovery",
                 f"Last Updated: {date}",
                 "Scope: global",
@@ -294,10 +293,10 @@ except ImportError:
 # Keep baseline decision-pack text discoverable in this orchestrator module
 # for governance contract checks.
 _PERSISTENCE_DECISION_PACK_BASELINE = (
-    "D-001: Run Phase 1.5 (Business Rules Discovery) now?",
-    "A) Yes",
-    "B) No",
-    "Recommendation: A (run lightweight Phase 1.5 to establish initial domain evidence)",
+    "D-001: Apply Phase 1.5 Business Rules bootstrap policy",
+    "Status: automatic",
+    "Action: Auto-run lightweight Phase 1.5 bootstrap when business-rules inventory is missing.",
+    "Policy: no questions before Phase 4; use activation intent defaults.",
 )
 
 from diagnostics.error_handler_bridge import (
@@ -857,6 +856,26 @@ def _append_text(path: Path, content: str, *, dry_run: bool, read_only: bool) ->
         existing += "\n"
     existing += "\n" + content
     _atomic_write_text(path, existing, read_only=read_only)
+
+
+def _append_jsonl_event(path: Path, payload: dict[str, object], *, dry_run: bool, read_only: bool) -> str:
+    if read_only:
+        return "blocked-read-only"
+    if dry_run:
+        return "write-requested"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    line = json.dumps(payload, ensure_ascii=True, sort_keys=True)
+    existing = ""
+    if path.exists():
+        try:
+            existing = path.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            existing = path.read_text(encoding="utf-8", errors="replace")
+    if existing and not existing.endswith("\n"):
+        existing += "\n"
+    updated = f"{existing}{line}\n"
+    _atomic_write_text(path, updated, read_only=read_only)
+    return "written"
 
 
 def _atomic_write_text(path: Path, content: str, *, read_only: bool = False) -> None:
@@ -1420,8 +1439,9 @@ def main() -> int:
     memory_content = _render_workspace_memory(
         date=today, repo_name=repo_name, repo_fingerprint=repo_fingerprint
     )
-    should_write_business_rules = _should_write_business_rules_inventory(session)
+    should_write_business_rules = _should_write_business_rules_inventory(session) or not business_rules_path.exists()
     business_rules_action = "not-applicable"
+    business_rules_bootstrap_event = "not-emitted"
     if should_write_business_rules:
         try:
             business_rules_action = _upsert_artifact(
@@ -1432,6 +1452,20 @@ def main() -> int:
                 dry_run=args.dry_run,
                 read_only=read_only,
             )
+            if business_rules_action in {"created", "overwritten", "appended"}:
+                business_rules_bootstrap_event = _append_jsonl_event(
+                    repo_home / "events.jsonl",
+                    {
+                        "event": "business-rules-bootstrapped",
+                        "observed_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                        "phase": "1.5-BusinessRules",
+                        "repo_fingerprint": repo_fingerprint,
+                        "status": "placeholder-created",
+                        "target": str(business_rules_path),
+                    },
+                    dry_run=args.dry_run,
+                    read_only=read_only,
+                )
         except OSError as exc:
             business_rules_action = "write-requested"
             emit_gate_failure(
@@ -1490,6 +1524,23 @@ def main() -> int:
         normalize_existing=lambda p, d: _normalize_legacy_placeholder_phrasing(p, dry_run=d, read_only=read_only),
     )
     actions["businessRulesInventory"] = business_rules_action
+    actions["businessRulesBootstrapEvent"] = business_rules_bootstrap_event
+    decision_pack_normalization_event = "not-emitted"
+    if actions.get("decisionPack") == "normalized":
+        decision_pack_normalization_event = _append_jsonl_event(
+            repo_home / "events.jsonl",
+            {
+                "event": "decision-pack-normalized-legacy-format",
+                "observed_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                "phase": "2.1-DecisionPack",
+                "repo_fingerprint": repo_fingerprint,
+                "status": "normalized",
+                "target": str(decision_path),
+            },
+            dry_run=args.dry_run,
+            read_only=read_only,
+        )
+    actions["decisionPackNormalizationEvent"] = decision_pack_normalization_event
 
     session_update = "skipped"
     if not args.no_session_update:
