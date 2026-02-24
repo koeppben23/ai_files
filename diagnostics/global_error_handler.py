@@ -129,6 +129,7 @@ _ERROR_CONTEXT: dict[str, Any] = {
     "repo_fingerprint": None,
     "repo_root": None,
     "config_root": None,
+    "commands_home": None,
     "workspaces_home": None,
     "phase": "unknown",
     "command": "unknown",
@@ -144,6 +145,7 @@ class ErrorContext:
         repo_fingerprint: str | None = None,
         repo_root: Path | None = None,
         config_root: Path | None = None,
+        commands_home: Path | None = None,
         workspaces_home: Path | None = None,
         phase: str = "unknown",
         command: str = "unknown",
@@ -151,6 +153,7 @@ class ErrorContext:
         self.repo_fingerprint = repo_fingerprint
         self.repo_root = repo_root
         self.config_root = config_root
+        self.commands_home = commands_home
         self.workspaces_home = workspaces_home
         self.phase = phase
         self.command = command
@@ -160,6 +163,7 @@ class ErrorContext:
             "repo_fingerprint": self.repo_fingerprint,
             "repo_root": str(self.repo_root) if self.repo_root else None,
             "config_root": str(self.config_root) if self.config_root else None,
+            "commands_home": str(self.commands_home) if self.commands_home else None,
             "workspaces_home": str(self.workspaces_home) if self.workspaces_home else None,
             "phase": self.phase,
             "command": self.command,
@@ -181,6 +185,7 @@ def update_error_context(**kwargs: Any) -> None:
 def _resolve_log_path(
     *,
     config_root: Path | None = None,
+    commands_home: Path | None = None,
     workspaces_home: Path | None = None,
     repo_fingerprint: str | None = None,
 ) -> Path:
@@ -188,11 +193,18 @@ def _resolve_log_path(
     
     Priority:
         1. Workspace log: ${WORKSPACES_HOME}/{fp}/logs/error.log.jsonl
-        2. Global fallback: ${CONFIG_ROOT}/logs/error.log.jsonl
+        2. Global fallback: ${COMMANDS_HOME}/logs/error.log.jsonl
+        3. Global fallback: ${CONFIG_ROOT}/logs/error.log.jsonl
     """
     cfg = config_root or _ERROR_CONTEXT.get("config_root")
+    cmd = commands_home if commands_home is not None else (_ERROR_CONTEXT.get("commands_home") if config_root is None else None)
     ws = workspaces_home or _ERROR_CONTEXT.get("workspaces_home")
-    fp = repo_fingerprint or _ERROR_CONTEXT.get("repo_fingerprint")
+    if repo_fingerprint is not None:
+        fp = repo_fingerprint
+    elif workspaces_home is not None or config_root is not None or commands_home is not None:
+        fp = None
+    else:
+        fp = _ERROR_CONTEXT.get("repo_fingerprint")
     
     if cfg is None:
         try:
@@ -204,6 +216,10 @@ def _resolve_log_path(
         ws_path = Path(ws) if isinstance(ws, str) else ws
         workspace_log = ws_path / fp / "logs" / "error.log.jsonl"
         return workspace_log
+
+    if cmd:
+        cmd_path = Path(cmd) if isinstance(cmd, str) else cmd
+        return cmd_path / "logs" / "error.log.jsonl"
     
     cfg_path = Path(cfg) if isinstance(cfg, str) else cfg
     return cfg_path / "logs" / "error.log.jsonl"
@@ -212,14 +228,21 @@ def _resolve_log_path(
 def resolve_log_path(
     *,
     config_root: Path | str | None = None,
+    commands_home: Path | str | None = None,
     workspaces_home: Path | str | None = None,
     repo_fingerprint: str | None = None,
 ) -> Path:
     """Public helper for deterministic blocker log-path reporting."""
 
     cfg = Path(config_root) if isinstance(config_root, str) else config_root
+    cmd = Path(commands_home) if isinstance(commands_home, str) else commands_home
     ws = Path(workspaces_home) if isinstance(workspaces_home, str) else workspaces_home
-    return _resolve_log_path(config_root=cfg, workspaces_home=ws, repo_fingerprint=repo_fingerprint)
+    return _resolve_log_path(
+        config_root=cfg,
+        commands_home=cmd,
+        workspaces_home=ws,
+        repo_fingerprint=repo_fingerprint,
+    )
 
 
 def _utc_now() -> str:
@@ -254,6 +277,7 @@ def emit_error_event(
     repo_fingerprint: str | None = None,
     config_root: Path | None = None,
     workspaces_home: Path | None = None,
+    commands_home: Path | None = None,
     phase: str | None = None,
 ) -> bool:
     """Emit a structured error event to JSONL log.
@@ -275,11 +299,22 @@ def emit_error_event(
     event_id = uuid.uuid4().hex
     ts = _utc_now()
     
-    effective_fp = repo_fingerprint or _ERROR_CONTEXT.get("repo_fingerprint")
+    if repo_fingerprint is not None:
+        effective_fp = repo_fingerprint
+    elif workspaces_home is not None or config_root is not None:
+        effective_fp = None
+    else:
+        effective_fp = _ERROR_CONTEXT.get("repo_fingerprint")
     effective_cfg = config_root or _ERROR_CONTEXT.get("config_root")
     effective_ws = workspaces_home or _ERROR_CONTEXT.get("workspaces_home")
+    if commands_home is not None:
+        effective_commands_home = commands_home
+    elif config_root is not None:
+        effective_commands_home = None
+    else:
+        effective_commands_home = _ERROR_CONTEXT.get("commands_home")
     effective_phase = phase or _ERROR_CONTEXT.get("phase", "unknown")
-    effective_cmd = _ERROR_CONTEXT.get("command", "unknown")
+    effective_command_name = _ERROR_CONTEXT.get("command", "unknown")
     
     event: dict[str, Any] = {
         "schema": "opencode-error-log.v1",
@@ -292,9 +327,10 @@ def emit_error_event(
             "repo_root": _ERROR_CONTEXT.get("repo_root"),
             "config_root": str(effective_cfg) if effective_cfg else None,
             "workspaces_home": str(effective_ws) if effective_ws else None,
+            "commands_home": str(effective_commands_home) if effective_commands_home else None,
             "fp": effective_fp,
             "phase": effective_phase,
-            "command": effective_cmd,
+            "command": effective_command_name,
         },
     }
     
@@ -310,6 +346,7 @@ def emit_error_event(
     
     target_path = _resolve_log_path(
         config_root=effective_cfg,
+        commands_home=effective_commands_home,
         workspaces_home=effective_ws,
         repo_fingerprint=effective_fp,
     )
@@ -405,6 +442,7 @@ def error_context(
     repo_fingerprint: str | None = None,
     repo_root: Path | None = None,
     config_root: Path | None = None,
+    commands_home: Path | None = None,
     workspaces_home: Path | None = None,
     phase: str = "unknown",
     command: str = "unknown",
@@ -421,6 +459,7 @@ def error_context(
         repo_fingerprint=repo_fingerprint,
         repo_root=repo_root,
         config_root=config_root,
+        commands_home=commands_home,
         workspaces_home=workspaces_home,
         phase=phase,
         command=command,

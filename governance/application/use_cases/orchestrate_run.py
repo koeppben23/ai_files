@@ -95,6 +95,7 @@ from governance.application.use_cases.session_state_helpers import (
     phase_token,
     extract_repo_identity,
     with_workspace_ready_gate,
+    with_kernel_result,
 )
 from governance.application.use_cases.start_bootstrap import evaluate_start_identity
 from governance.application.use_cases.evaluate_persistence_gate import (
@@ -252,6 +253,19 @@ def run_engine_orchestrator(
         session_state_document=session_state_document,
         repo_is_git_root=repo_context.is_git_root,
         live_repo_fingerprint=live_fingerprint if commit_workspace_ready_gate else None,
+    )
+
+    session_state_document = with_kernel_result(
+        session_state_document,
+        phase=routed_phase.phase,
+        next_token=routed_phase.next_token,
+        active_gate=routed_phase.active_gate,
+        next_gate_condition=routed_phase.next_gate_condition,
+        status=routed_phase.status,
+        spec_hash=routed_phase.spec_hash,
+        spec_path=routed_phase.spec_path,
+        log_paths=routed_phase.log_paths,
+        event_id=routed_phase.event_id,
     )
 
     phase = routed_phase.phase
