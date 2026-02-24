@@ -301,11 +301,15 @@ class TestValidateReviewCriteria:
         
         assert results["security_scan"] is False
 
-    def test_missing_inputs_treated_as_na(self):
+    def test_missing_required_inputs_fail_closed(self):
         state = create_initial_review_state()
         results = validate_review_criteria(state)
-        
-        assert all(results.values())
+
+        assert all(results.values()) is False
+        assert results["test_coverage"] is False
+        assert results["security_scan"] is False
+        assert results["architecture_doc"] is False
+        assert results["breaking_changes"] is False
 
 
 @pytest.mark.governance

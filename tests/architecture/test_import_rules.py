@@ -18,7 +18,6 @@ _IO_MODULE_PREFIXES = {
 
 _PATH_RESOLVE_ALLOWLIST: set[str] = {
     "governance/infrastructure/run_summary_writer.py",
-    "governance/paths/canonical.py",
 }
 
 
@@ -197,3 +196,11 @@ def test_governance_path_resolve_calls_are_allowlisted():
             violations.append(f"{file}: {hits}")
 
     assert not violations, "Path.resolve usage must be explicitly allowlisted:\n" + "\n".join(violations)
+
+
+@pytest.mark.governance
+def test_bootstrap_persistence_does_not_import_diagnostics():
+    module = REPO_ROOT / "bootstrap" / "persistence.py"
+    imports = _imports(module)
+    bad = sorted(imp for imp in imports if imp == "diagnostics" or imp.startswith("diagnostics."))
+    assert not bad, f"bootstrap persistence must not import diagnostics modules: {bad}"

@@ -448,7 +448,7 @@ def validate_review_criteria(
     """Validate review criteria and return results.
     
     Returns dict of criterion -> passed (True/False).
-    Missing inputs are treated as not applicable (True).
+    Missing required inputs are fail-closed (False).
     """
     config = load_phase5_review_config()
     criteria = config.criteria
@@ -458,27 +458,27 @@ def validate_review_criteria(
     if test_coverage_percent is not None:
         results["test_coverage"] = test_coverage_percent >= criteria.test_coverage_min_percent
     else:
-        results["test_coverage"] = True  # N/A
+        results["test_coverage"] = False
     
     if security_scan_passed is not None:
         results["security_scan"] = security_scan_passed if criteria.security_scan_required else True
     else:
-        results["security_scan"] = True
+        results["security_scan"] = not criteria.security_scan_required
     
     if architecture_doc_present is not None:
         results["architecture_doc"] = architecture_doc_present if criteria.architecture_doc_required else True
     else:
-        results["architecture_doc"] = True
+        results["architecture_doc"] = not criteria.architecture_doc_required
     
     if breaking_changes_documented is not None:
         results["breaking_changes"] = breaking_changes_documented if criteria.breaking_changes_documented else True
     else:
-        results["breaking_changes"] = True
+        results["breaking_changes"] = not criteria.breaking_changes_documented
     
     if rollback_plan_present is not None:
         results["rollback_plan"] = rollback_plan_present if criteria.rollback_plan_required else True
     else:
-        results["rollback_plan"] = True
+        results["rollback_plan"] = not criteria.rollback_plan_required
     
     return results
 
@@ -487,15 +487,15 @@ def get_criteria_failures(criteria_results: dict[str, bool]) -> list[str]:
     """Get list of failed criteria as human-readable strings."""
     failures = []
     
-    if not criteria_results.get("test_coverage", True):
+    if "test_coverage" in criteria_results and not criteria_results["test_coverage"]:
         failures.append("Test coverage below required minimum")
-    if not criteria_results.get("security_scan", True):
+    if "security_scan" in criteria_results and not criteria_results["security_scan"]:
         failures.append("Security scan not passed")
-    if not criteria_results.get("architecture_doc", True):
+    if "architecture_doc" in criteria_results and not criteria_results["architecture_doc"]:
         failures.append("Architecture documentation missing")
-    if not criteria_results.get("breaking_changes", True):
+    if "breaking_changes" in criteria_results and not criteria_results["breaking_changes"]:
         failures.append("Breaking changes not documented")
-    if not criteria_results.get("rollback_plan", True):
+    if "rollback_plan" in criteria_results and not criteria_results["rollback_plan"]:
         failures.append("Rollback plan missing")
     
     return failures
