@@ -361,7 +361,7 @@ def emit_permission_probes() -> None:
 
 def bootstrap_command_argv(repo_fp: str | None) -> list[str]:
     repo_value = repo_fp if repo_fp else "<repo_fingerprint>"
-    return [PYTHON_COMMAND, "diagnostics/bootstrap_session_state.py", "--repo-fingerprint", repo_value]
+    return [PYTHON_COMMAND, "-m", "governance.entrypoints.bootstrap_session_state", "--repo-fingerprint", repo_value]
 
 
 def bootstrap_command(repo_fp: str | None) -> str:
@@ -524,7 +524,7 @@ def _canonical_hook_status(*, raw_status: object, reason_code: str, returncode: 
 
 def run_persistence_hook() -> dict[str, object]:
     mode = _effective_mode()
-    hook_argv = [sys.executable, "-m", "diagnostics.start_persistence_hook"]
+    hook_argv = [sys.executable, "-m", "governance.entrypoints.start_persistence_hook"]
     hook_command = " ".join(hook_argv)
 
     if not writes_allowed():
@@ -657,7 +657,7 @@ def run_persistence_hook() -> dict[str, object]:
         log_path = _emit_persistence_gate_failure(
             code=reason_code,
             message="Persistence hook module dispatch failed.",
-            expected="python -m diagnostics.start_persistence_hook exits with code 0",
+            expected="python -m governance.entrypoints.start_persistence_hook exits with code 0",
             observed={
                 "returncode": proc.returncode,
                 "stderr": (proc.stderr or "").strip()[:500],

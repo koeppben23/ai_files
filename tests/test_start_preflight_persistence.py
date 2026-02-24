@@ -155,11 +155,11 @@ def test_run_persistence_hook_delegates_to_hook_module(capsys: pytest.CaptureFix
 
     assert result["workspacePersistenceHook"] == "ok"
     assert result["repo_fingerprint"] == "testfingerprint123456"
-    assert result["bootstrap_hook_command"] == f"{module.sys.executable} -m diagnostics.start_persistence_hook"
+    assert result["bootstrap_hook_command"] == f"{module.sys.executable} -m governance.entrypoints.start_persistence_hook"
     assert result["cwd"]
     assert result["repo_root_detected"] == str(repo_root)
     run_args = mock_run.call_args.args[0]
-    assert run_args[:3] == [module.sys.executable, "-m", "diagnostics.start_persistence_hook"]
+    assert run_args[:3] == [module.sys.executable, "-m", "governance.entrypoints.start_persistence_hook"]
     call_args = mock_run.call_args.kwargs
     assert call_args["cwd"] == str(repo_root)
     expected_prefix = str(repo_root) + module.os.pathsep + str(module.COMMANDS_HOME)
@@ -206,7 +206,7 @@ def test_run_persistence_hook_blocks_when_repo_root_not_detectable(capsys: pytes
     assert payload["reason_code"] == "BLOCKED-REPO-ROOT-NOT-DETECTABLE"
     assert payload["hook_invoked"] is False
     assert payload["failure_stage"] == "repo_root"
-    assert payload["bootstrap_hook_command"].endswith("-m diagnostics.start_persistence_hook")
+    assert payload["bootstrap_hook_command"].endswith("-m governance.entrypoints.start_persistence_hook")
     assert payload["python_executable"]
 
 

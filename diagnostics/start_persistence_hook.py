@@ -438,7 +438,7 @@ def run_persistence_hook(*, repo_root: Path | None = None) -> dict[str, object]:
             "cwd": str(Path.cwd()),
             "repo_root_detected": "",
             "python_executable": sys.executable,
-            "bootstrap_hook_command": f"{sys.executable} -m diagnostics.start_persistence_hook",
+            "bootstrap_hook_command": f"{sys.executable} -m governance.entrypoints.start_persistence_hook",
         }
         safe_log_error(
             reason_key="ERR-PERSISTENCE-REPO-ROOT-RESOLUTION-FAILED",

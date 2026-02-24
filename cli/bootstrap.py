@@ -60,7 +60,8 @@ def main(argv: list[str] | None = None) -> int:
         force_read_only=args.force_read_only,
         backfill_command=(
             args.python_command,
-            "diagnostics/persist_workspace_artifacts.py",
+            "-m",
+            "governance.entrypoints.persist_workspace_artifacts",
             "--repo-fingerprint",
             args.repo_fingerprint,
             "--config-root",
