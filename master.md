@@ -2065,17 +2065,17 @@ OpenCode persistence lifecycle (Binding when OpenCode DecisionPack file is used)
   - optional lifecycle links: `Supersedes:` / `SupersededBy:`
   as defined in `rules.md` (Decision Pack File rule).
 
-- Unless Phase 1.5 was already explicitly requested or explicitly skipped, include a decision:
-  "Run Phase 1.5 (Business Rules Discovery) now?" (A=Yes, B=No).
-- Recommendation for that decision MUST be evidence-backed; use the recommendation triggers from Phase 1.5.
+- Unless Phase 1.5 was already explicitly requested or explicitly skipped, include an automatic policy record:
+  "Apply Phase 1.5 Business Rules bootstrap policy" (automatic).
+- The policy statement MUST be evidence-backed; use the recommendation triggers from Phase 1.5.
 - If there are no meaningful decisions yet, output: "Decision Pack: none (no material choices identified)".
 
 Example:
 
-D-001: <decision one-liner>
-  A) <option A>
-  B) <option B>
-  Recommendation: <A or B> (why, evidence-backed)
+D-001: <policy or decision one-liner>
+  Status: automatic | proposed | accepted | rejected
+  Action: <deterministic action>
+  Policy: <why, evidence-backed>
   Evidence: <paths/configs/symbols>
   What would change it: <minimal missing evidence>
 
@@ -2136,9 +2136,9 @@ If file writing is not possible in the current environment:
     - external API artifacts exist → Phase 3A
     - otherwise → Phase 3A (auto-not-applicable path allowed) then continue to Phase 3B routing
   - Else:
-    - Decision Pack MUST include: "Run Phase 1.5 now? (A=Yes, B=No)"
-    - Run Phase 1.5 ONLY if the user approves
-    - If user declines, continue by API scope:
+    - Decision Pack MUST include: "Apply Phase 1.5 Business Rules bootstrap policy" (automatic)
+    - Run Phase 1.5 automatically when business-rules inventory is missing
+    - Continue by API scope:
       - external API artifacts exist → Phase 3A
       - otherwise → Phase 3A (auto-not-applicable path allowed) then continue to Phase 3B routing
 * Failure: Repository not accessible, extraction failed → Mode: BLOCKED
@@ -2150,10 +2150,10 @@ If file writing is not possible in the current environment:
 **When to execute:**
 * Explicit user request: "Extract business rules first"
 * Explicit later-phase re-entry request: "Reopen Phase 1.5"
-* Default: Do not auto-run.
-  - Unless explicitly requested or explicitly skipped, Phase 2.1 MUST present an A/B decision:
-    "Run Phase 1.5 (Business Rules Discovery) now?"
-  - Execute Phase 1.5 ONLY if the user approves that decision.
+* Default: auto-run only when required by deterministic policy.
+  - Unless explicitly requested or explicitly skipped, Phase 2.1 MUST apply automatic bootstrap policy:
+    "Apply Phase 1.5 Business Rules bootstrap policy"
+  - Execute Phase 1.5 automatically when business-rules inventory is missing.
 * **Recommendation trigger (non-blocking):** Recommend executing Phase 1.5 if Phase 2 evidence indicates any of:
   - domain-heavy services/policies/specifications/state machines
   - validation rules beyond simple CRUD (multi-entity invariants)

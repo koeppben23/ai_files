@@ -3346,16 +3346,16 @@ def test_audit_reason_keys_are_declared_audit_only_and_not_reason_code_payloads(
 
 
 @pytest.mark.governance
-def test_master_requires_phase_21_to_prompt_for_phase_15_decision_when_not_explicitly_set():
+def test_master_requires_phase_21_to_apply_phase_15_automatic_policy_when_not_explicitly_set():
     text = read_text(REPO_ROOT / "master.md")
     required_tokens = [
-        'Decision Pack MUST include: "Run Phase 1.5 now? (A=Yes, B=No)"',
-        "Run Phase 1.5 ONLY if the user approves",
-        '"Run Phase 1.5 (Business Rules Discovery) now?"',
-        "Execute Phase 1.5 ONLY if the user approves that decision.",
+        'Decision Pack MUST include: "Apply Phase 1.5 Business Rules bootstrap policy" (automatic)',
+        "Run Phase 1.5 automatically when business-rules inventory is missing",
+        '"Apply Phase 1.5 Business Rules bootstrap policy"',
+        "Execute Phase 1.5 automatically when business-rules inventory is missing.",
     ]
     missing = [token for token in required_tokens if token not in text]
-    assert not missing, "master.md missing mandatory Phase 2.1 -> Phase 1.5 decision prompts:\n" + "\n".join(
+    assert not missing, "master.md missing mandatory Phase 2.1 -> Phase 1.5 automatic policy tokens:\n" + "\n".join(
         [f"- {m}" for m in missing]
     )
 
