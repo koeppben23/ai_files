@@ -171,6 +171,19 @@ class BootstrapPersistenceService:
             return BootstrapResult(ok=False, gate_code=event.code, write_actions=write_actions, error_events=tuple(errors))
         write_actions["pointer_verify"] = "verified"
 
+        # Determine PointerVerified explicitly based on read-back and pointer payload validity
+        pointer_verified_final = False
+        try:
+            pointer_readback = self._fs.read_text(pointer_file)
+            pointer_json_read = json.loads(pointer_readback)
+            pointer_verified_final = _is_valid_pointer_payload(
+                pointer_json_read,
+                expected_repo_fingerprint=payload.repo_identity.fingerprint,
+                expected_session_state_file=payload.layout.session_state_file,
+            )
+        except Exception:
+            pointer_verified_final = False
+
         final_state = _session_state_payload(
             repo_fingerprint=payload.repo_identity.fingerprint,
             repo_name=payload.repo_identity.repo_name,
@@ -179,6 +192,7 @@ class BootstrapPersistenceService:
             workspace_artifacts_committed=True,
             effective_mode=payload.effective_mode,
             write_policy_reasons=payload.write_policy_reasons,
+            pointer_verified=pointer_verified_final,
         )
         self._fs.write_text_atomic(session_state_file, _canonical_json(final_state))
         write_actions["session_state_final"] = "written"
@@ -187,6 +201,30 @@ class BootstrapPersistenceService:
 
 def _canonical_json(data: object) -> str:
     return json.dumps(data, sort_keys=True, separators=(",", ":"), ensure_ascii=True) + "\n"
+
+
+def _is_valid_pointer_payload(
+    payload: object,
+    *,
+    expected_repo_fingerprint: str,
+    expected_session_state_file: str,
+) -> bool:
+    if not isinstance(payload, dict):
+        return False
+    if payload.get("schema") != "opencode-session-pointer.v1":
+        return False
+    if payload.get("activeRepoFingerprint") != expected_repo_fingerprint:
+        return False
+
+    active_state_file = payload.get("activeSessionStateFile")
+    if not isinstance(active_state_file, str) or not active_state_file.strip():
+        return False
+
+    actual_path = Path(active_state_file.strip())
+    expected_path = Path(expected_session_state_file)
+    if not actual_path.is_absolute():
+        return False
+    return actual_path == expected_path
 
 
 def _session_state_payload(
@@ -198,8 +236,21 @@ def _session_state_payload(
     workspace_artifacts_committed: bool,
     effective_mode: str,
     write_policy_reasons: tuple[str, ...],
+    pointer_verified: bool = False,
 ) -> dict[str, object]:
     repository = repo_name.strip() if repo_name.strip() else repo_fingerprint
+    bootstrap_present = bool(persistence_committed)
+    bootstrap_satisfied = bool(persistence_committed and workspace_ready_committed and workspace_artifacts_committed and pointer_verified)
+    bootstrap_evidence = "not-initialized" if not bootstrap_present else ("bootstrap-completed" if bootstrap_satisfied else "bootstrap-in-progress")
+    # Determine phase/mode based on bootstrap completion
+    phase = "1.1-Bootstrap"
+    mode = "BLOCKED"
+    next_gate = "BLOCKED-START-REQUIRED"
+    if bootstrap_satisfied:
+        phase = "1.2-Architecture"
+        mode = "IN_PROGRESS"
+        next_gate = "P5-Architecture-in_progress"
+
     return {
         "SESSION_STATE": {
             "RepoFingerprint": repo_fingerprint,
@@ -209,16 +260,16 @@ def _session_state_payload(
             "phase_transition_evidence": False,
             "session_state_version": 1,
             "ruleset_hash": "deferred",
-            "Phase": "1.1-Bootstrap",
-            "Mode": "BLOCKED",
+            "Phase": phase,
+            "Mode": mode,
             "ConfidenceLevel": 0,
-            "Next": "BLOCKED-START-REQUIRED",
+            "Next": next_gate,
             "OutputMode": "ARCHITECT",
             "DecisionSurface": {},
             "Bootstrap": {
-                "Present": False,
-                "Satisfied": False,
-                "Evidence": "not-initialized",
+                "Present": bootstrap_present,
+                "Satisfied": bootstrap_satisfied,
+                "Evidence": bootstrap_evidence,
             },
             "Scope": {
                 "Repository": repository,
@@ -263,6 +314,7 @@ def _session_state_payload(
                 "PersistenceCommitted": persistence_committed,
                 "WorkspaceReadyGateCommitted": workspace_ready_committed,
                 "WorkspaceArtifactsCommitted": workspace_artifacts_committed,
+                "PointerVerified": pointer_verified,
             },
         }
     }
