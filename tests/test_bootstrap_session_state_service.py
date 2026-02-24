@@ -3,13 +3,18 @@ from __future__ import annotations
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
+import importlib.util
 
 import pytest
 
 
 @pytest.mark.governance
 def test_bootstrap_service_lock_timeout_emits_gate_failure(tmp_path: Path):
-    from diagnostics import bootstrap_session_state_service as module
+    script = Path(__file__).resolve().parents[1] / "diagnostics" / "bootstrap_session_state_orchestrator.py"
+    spec = importlib.util.spec_from_file_location("bootstrap_session_state_orchestrator", script)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
 
     config_root = tmp_path / "cfg"
     repo_root = tmp_path / "repo"
