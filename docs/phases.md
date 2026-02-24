@@ -3,6 +3,11 @@
 This document is a detailed phase map that was previously embedded in README.md.
 Authority boundary: policy, gate semantics, and routing are owned by kernel code plus kernel-owned configs/schemas; this file is explanatory and does not widen kernel behavior.
 
+SSOT: `${COMMANDS_HOME}/phase_api.yaml` is the only truth for routing, execution, and validation.
+Kernel: `governance/kernel/*` is the only control-plane implementation.
+MD files are AI rails/guidance only and are never routing-binding.
+Phase `1.3` is mandatory before every phase `>=2`.
+
 ## Customer View (Short)
 
 - Phase 0/1.1 performs bootstrap validation and preflight probes (including build tool detection). **Note:** Phase 0 is a customer-facing term; in the kernel, bootstrap logic is unified under Phase 1.1-Bootstrap.
@@ -81,7 +86,7 @@ Phase 3 is **conditionally executed** based on API presence:
 
 **Key insight:** Phase 3A is executed by default but may immediately exit with `not-applicable` status. Phase 3B-1 and 3B-2 are only executed when APIs are actually present.
 
-**Implementation note:** Phase routing is implemented in `phase_router.py`. The routing includes:
+**Implementation note:** Phase routing is kernel-enforced by `governance/kernel/*` against `${COMMANDS_HOME}/phase_api.yaml`. The routing includes:
 - Phase 2.1 → Phase 1.5 (Business Rules Discovery decision)
 - Phase 1.5 → Phase 3A (default routing; kernel-enforced)
 - Phase 2.1 → Phase 3A (default routing; 3A may exit with not-applicable; kernel-enforced)
