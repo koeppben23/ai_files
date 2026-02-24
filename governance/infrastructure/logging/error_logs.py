@@ -87,7 +87,7 @@ def write_error_event(
     details: Any = None,
 ) -> Path:
     if _read_only() and not str(gate or "").strip():
-        raise RuntimeError("diagnostics-read-only")
+        raise RuntimeError("governance-read-only")
     cfg, ws, cmd = resolve_paths_full(config_root)
     target = resolve_ssot_log_path(
         config_root=cfg,

@@ -49,7 +49,7 @@ def _update_error_index(*args: Any, **kwargs: Any) -> None:
 
 def write_error_event(**kwargs: Any) -> Path:
     if _read_only() and not kwargs.get("gate"):
-        raise RuntimeError("diagnostics-read-only")
+        raise RuntimeError("governance-read-only")
     allowed = {
         "reason_key",
         "message",

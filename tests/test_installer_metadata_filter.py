@@ -27,7 +27,7 @@ def test_installer_collectors_exclude_filesystem_metadata(tmp_path: Path):
     module = _load_install_module()
     source = tmp_path / "source"
     (source / "profiles" / "addons").mkdir(parents=True, exist_ok=True)
-    (source / "diagnostics").mkdir(parents=True, exist_ok=True)
+    (source / "governance").mkdir(parents=True, exist_ok=True)
     (source / "governance" / "engine").mkdir(parents=True, exist_ok=True)
     (source / "governance" / "__MACOSX").mkdir(parents=True, exist_ok=True)
     (source / "scripts").mkdir(parents=True, exist_ok=True)
@@ -56,7 +56,7 @@ def test_installer_collectors_exclude_filesystem_metadata(tmp_path: Path):
     # metadata garbage that must be excluded
     (source / ".DS_Store").write_text("meta", encoding="utf-8")
     (source / "profiles" / "._rules.backend-python.md").write_text("meta", encoding="utf-8")
-    (source / "diagnostics" / ".DS_Store").write_text("meta", encoding="utf-8")
+    (source / "governance" / ".DS_Store").write_text("meta", encoding="utf-8")
     (source / "governance" / "__MACOSX" / "file.py").write_text("meta", encoding="utf-8")
     (source / "governance" / "engine" / "._orchestrator.py").write_text("meta", encoding="utf-8")
     (source / "scripts" / "._workflow_template_factory.py").write_text("meta", encoding="utf-8")
@@ -65,7 +65,7 @@ def test_installer_collectors_exclude_filesystem_metadata(tmp_path: Path):
     root_files = module.collect_command_root_files(source)
     profile_files = module.collect_profile_files(source)
     addon_files = module.collect_profile_addon_manifests(source)
-    diagnostic_files = module.collect_diagnostics_files(source)
+    diagnostic_files = module.collect_governance_files(source)
     runtime_files = module.collect_governance_runtime_files(source)
     customer_script_files = module.collect_customer_script_files(source, strict=True)
     workflow_template_files = module.collect_workflow_template_files(source, strict=True)

@@ -84,7 +84,7 @@ def check_reason_registry_parity(repo_root: Path | None = None) -> tuple[bool, l
         errors.append(f"Reason codes in domain but NOT in embedded registry: {sorted(domain_not_embedded)}")
 
     yaml_refs: set[str] = set()
-    for yaml_path in sorted((repo_root / "diagnostics").glob("*.yaml")):
+    for yaml_path in sorted((repo_root / "governance").glob("*.yaml")):
         try:
             text = yaml_path.read_text(encoding="utf-8")
         except Exception as exc:
@@ -95,7 +95,7 @@ def check_reason_registry_parity(repo_root: Path | None = None) -> tuple[bool, l
 
     yaml_only = yaml_refs - domain_blocked
     if yaml_only:
-        errors.append(f"Reason codes in diagnostics/*.yaml but NOT in reason_codes.py: {sorted(yaml_only)}")
+        errors.append(f"Reason codes in governance/*.yaml but NOT in reason_codes.py: {sorted(yaml_only)}")
 
     return (len(errors) == 0, errors)
 

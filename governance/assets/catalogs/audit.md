@@ -1,7 +1,7 @@
 # /audit — Self-Audit & Diagnostics (Read-Only)
 
 ## PURPOSE (Descriptive)
-Run a deterministic, read-only diagnostics pass over the current session.
+Run a deterministic, read-only governance pass over the current session.
 This command MUST NOT:
 - change phases
 - modify files
@@ -41,7 +41,7 @@ Rules:
   - `[/AUDIT-SUMMARY]`
 
 Reason key semantics (binding):
-- `AUDIT_REPORT.status.reasonKeys` and other audit report `*ReasonKey` fields are audit-only diagnostics keys.
+- `AUDIT_REPORT.status.reasonKeys` and other audit report `*ReasonKey` fields are audit-only governance keys.
 - They are NOT canonical governance `reason_code` values and MUST NOT be written into `SESSION_STATE.Diagnostics.ReasonPayloads.reason_code` without explicit mapping.
 - If a bridge to canonical workflow reasons is needed, map audit keys to canonical `BLOCKED-*|WARN-*|NOT_VERIFIED-*` codes explicitly.
 

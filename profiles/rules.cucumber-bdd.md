@@ -164,7 +164,7 @@ If data isolation is unclear:
 
 ---
 
-## 6. Reporting and failure diagnostics (binding)
+## 6. Reporting and failure governance (binding)
 
 On failure, the system SHOULD:
 - Include step-level context (inputs sanitized)

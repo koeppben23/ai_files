@@ -2,7 +2,7 @@
 """CLI runner for workspace bootstrap session state initialization.
 
 This module intentionally stays thin: argument parsing and orchestration logic
-live in `diagnostics/bootstrap_session_state_service.py`.
+live in `governance/bootstrap_session_state_service.py`.
 """
 
 from __future__ import annotations

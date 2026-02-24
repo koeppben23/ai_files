@@ -216,7 +216,7 @@ class TestInvariantValidators:
     def test_reason_payloads_missing_fails(self):
         state: dict[str, object] = {"Mode": "BLOCKED", "Next": "BLOCKED-TEST"}
         errors = validate_reason_payloads_required(state)
-        assert "missing_diagnostics_for_reason_code" in errors
+        assert "missing_governance_for_reason_code" in errors
 
     def test_reason_payloads_empty_fails(self):
         state: dict[str, object] = {"Mode": "BLOCKED", "Next": "BLOCKED-TEST", "Diagnostics": {"ReasonPayloads": []}}

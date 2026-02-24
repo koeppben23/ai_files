@@ -42,7 +42,7 @@ ${COMMANDS_HOME}/
   profiles/
     rules.<stack>.md
     addons/*.addon.yml
-  diagnostics/
+  governance/
   governance/
   scripts/
   templates/
@@ -55,6 +55,6 @@ After `install.py`, customer-usable assets are available under `<config_root>/co
 - `scripts/`: customer-approved script catalog entries
 - `templates/<family>/`: shipped workflow template families
 - `profiles/`: profile rulebooks and addon manifests
-- `diagnostics/`: schemas, benchmark packs, and helper diagnostics
+- `governance/`: schemas, benchmark packs, and helper governance
 
-Markdown shipping exclusions are controlled by `diagnostics/CUSTOMER_MARKDOWN_EXCLUDE.json`.
+Markdown shipping exclusions are controlled by `governance/CUSTOMER_MARKDOWN_EXCLUDE.json`.

@@ -66,7 +66,7 @@ def test_force_uninstall_without_manifest_preserves_user_profile_files(tmp_path:
     assert r.returncode == 0, f"uninstall with missing manifest failed:\n{r.stderr}\n{r.stdout}"
 
     assert user_profile.exists(), "fallback uninstall must preserve user-owned profile files"
-    assert user_diag.exists(), "fallback uninstall must preserve user-owned diagnostics files"
+    assert user_diag.exists(), "fallback uninstall must preserve user-owned governance files"
 
 
 @pytest.mark.installer

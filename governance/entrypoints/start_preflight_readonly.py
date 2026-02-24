@@ -432,7 +432,7 @@ def build_engine_shadow_snapshot() -> dict[str, object]:
         phase="1.1-Bootstrap",
         active_gate="ReadOnly Preflight",
         mode="user",
-        next_gate_condition="Read-only diagnostics completed",
+        next_gate_condition="Read-only governance completed",
         gate_key="PREFLIGHT",
         enable_live_engine=False,
     )

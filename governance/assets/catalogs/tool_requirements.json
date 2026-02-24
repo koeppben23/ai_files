@@ -20,7 +20,7 @@
     },
     {
       "command": "python",
-      "reason": "compatibility alias used by documented diagnostics recovery commands",
+      "reason": "compatibility alias used by documented governance recovery commands",
       "phase": "1-bootstrap",
       "verify_command": "python --version",
       "expected_after_fix": "python --version prints a version string",
@@ -28,7 +28,7 @@
     },
     {
       "command": "${PYTHON_COMMAND}",
-      "reason": "diagnostics helper execution for workspace/session bootstrap",
+      "reason": "governance helper execution for workspace/session bootstrap",
       "phase": "1-bootstrap",
       "verify_command": "${PYTHON_COMMAND} --version",
       "expected_after_fix": "${PYTHON_COMMAND} --version prints a version string",

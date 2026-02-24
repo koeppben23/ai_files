@@ -72,7 +72,7 @@ def _write_governance_paths(commands_home: Path, workspaces_home: Path, config_r
             "configRoot": str(config_root),
             "commandsHome": str(commands_home),
             "profilesHome": str(commands_home / "profiles"),
-            "diagnosticsHome": str(commands_home / "governance"),
+            "governanceHome": str(commands_home / "governance"),
             "workspacesHome": str(workspaces_home),
             "globalErrorLogsHome": str(config_root / "logs"),
             "workspaceErrorLogsHomeTemplate": str(workspaces_home / "<repo_fingerprint>" / "logs"),
@@ -85,7 +85,7 @@ def _write_governance_paths(commands_home: Path, workspaces_home: Path, config_r
 
 def _materialize_commands_bundle_from_checkout(*, checkout_root: Path, commands_home: Path) -> None:
     commands_home.mkdir(parents=True, exist_ok=True)
-    for dirname in ("diagnostics", "governance", "profiles", "scripts", "templates"):
+    for dirname in ("governance", "governance", "profiles", "scripts", "templates"):
         src = checkout_root / dirname
         if src.exists():
             shutil.copytree(src, commands_home / dirname, dirs_exist_ok=True)

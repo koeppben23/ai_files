@@ -64,7 +64,7 @@ Bootstrap Evidence:
 | `BLOCKED-MISSING-BINDING-FILE` | Run `python3 install.py` |
 | `BLOCKED-VARIABLE-RESOLUTION` | Check `~/.config/opencode/commands/governance.paths.json` |
 | `BLOCKED-REPO-IDENTITY` | Ensure you're in a git repository |
-| Workspace not persisted | Host must set `OPENCODE_DIAGNOSTICS_ALLOW_WRITE=1` for persistence; or run manually: `OPENCODE_DIAGNOSTICS_ALLOW_WRITE=1 python3 diagnostics/bootstrap_session_state.py --repo-fingerprint <fp>` |
+| Workspace not persisted | Host must set `OPENCODE_DIAGNOSTICS_ALLOW_WRITE=1` for persistence; or run manually: `OPENCODE_DIAGNOSTICS_ALLOW_WRITE=1 python3 governance/bootstrap_session_state.py --repo-fingerprint <fp>` |
 
 ## Step 3: First Governed Task (2 minutes)
 
@@ -183,9 +183,9 @@ Automatic based on repo signals:
 
 ## Getting Help
 
-1. Run `python3 scripts/audit_explain.py --last` for diagnostics
+1. Run `python3 scripts/audit_explain.py --last` for governance
 2. Check [docs/governance_invariants.md](docs/governance_invariants.md)
-3. Review reason code mapping: `diagnostics/REASON_REMEDIATION_MAP.json`
+3. Review reason code mapping: `governance/REASON_REMEDIATION_MAP.json`
 
 ## Verification Checklist
 

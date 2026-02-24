@@ -28,7 +28,7 @@
       "severity": "blocked",
       "payload_schema_ref": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
       "description": "Engine selfcheck failed and runtime activation is blocked.",
-      "remediation_hint": "Repair deterministic contracts and rerun selfcheck diagnostics."
+      "remediation_hint": "Repair deterministic contracts and rerun selfcheck governance."
     },
     {
       "code": "BLOCKED-REPO-IDENTITY-RESOLUTION",
@@ -548,7 +548,7 @@
       "severity": "warn",
       "payload_schema_ref": "governance/assets/schemas/reason_payload_advisory.v1.json",
       "description": "Workspace persistence helper reported degraded completion.",
-      "remediation_hint": "Inspect workspace persistence diagnostics and retry."
+      "remediation_hint": "Inspect workspace persistence governance and retry."
     },
     {
       "code": "WARN-ENGINE-LIVE-DENIED",

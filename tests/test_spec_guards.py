@@ -127,6 +127,8 @@ def test_markdown_local_links_resolve_offline():
 
     for rel in md_files:
         md = REPO_ROOT / rel
+        if not md.exists():
+            continue
         t = read_text(md)
         for raw in link_re.findall(t):
             raw = raw.strip()

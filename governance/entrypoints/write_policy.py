@@ -1,18 +1,18 @@
-"""Canonical Write Policy SSOT for diagnostics scripts.
+"""Canonical Write Policy SSOT for governance scripts.
 
-This module defines the ONE AND ONLY write policy for all diagnostics scripts.
+This module defines the ONE AND ONLY write policy for all governance scripts.
 to ensure consistent behavior across:
 - bootstrap_session_state.py
 - persist_workspace_artifacts.py
 - start_preflight_readonly.py
 - start_persistence_hook.py
 
-All diagnostics MUST use this module to determine write permissions.
+All governance MUST use this module to determine write permissions.
 
 Environment Variables:
     OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY: Set to "1" to block all writes
     OPENCODE_MODE: Explicit operating mode (user|pipeline|agents_strict)
-    OPENCODE_DIAGNOSTICS_MODE: Deprecated fallback mode label for diagnostics metadata
+    OPENCODE_DIAGNOSTICS_MODE: Deprecated fallback mode label for governance metadata
 
 Write Policy (unified):
     Writes are allowed by default, unless FORCE_READ_ONLY=1

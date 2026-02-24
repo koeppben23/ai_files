@@ -2,7 +2,7 @@
 
 """Bridge raw /audit reason keys to canonical governance reason codes.
 
-This script remains behavior-compatible with existing Wave A diagnostics while
+This script remains behavior-compatible with existing Wave A governance while
 loading defaults from the central reason-code registry.
 """
 

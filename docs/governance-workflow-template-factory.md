@@ -10,9 +10,9 @@ Customer install path:
 ## Canonical files
 
 - Catalog: `templates/github-actions/template_catalog.json`
-- Factory contract: `diagnostics/GITHUB_ACTIONS_TEMPLATE_FACTORY_CONTRACT.json`
+- Factory contract: `governance/GITHUB_ACTIONS_TEMPLATE_FACTORY_CONTRACT.json`
 - Factory script: `scripts/workflow_template_factory.py`
-- Release shipping of customer-facing scripts is defined in `diagnostics/CUSTOMER_SCRIPT_CATALOG.json`.
+- Release shipping of customer-facing scripts is defined in `governance/CUSTOMER_SCRIPT_CATALOG.json`.
 
 ## Validate catalog consistency
 

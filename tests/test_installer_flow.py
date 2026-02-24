@@ -154,7 +154,7 @@ def test_full_install_reinstall_uninstall_flow(tmp_path: Path):
         "configRoot",
         "commandsHome",
         "profilesHome",
-        "diagnosticsHome",
+        "governanceHome",
         "workspacesHome",
         "globalErrorLogsHome",
         "workspaceErrorLogsHomeTemplate",
@@ -164,11 +164,11 @@ def test_full_install_reinstall_uninstall_flow(tmp_path: Path):
     assert not missing, f"governance.paths.json missing keys: {missing}"
 
     commands_home = p["paths"]["commandsHome"]
-    diagnostics_home = p["paths"]["diagnosticsHome"]
-    dh = diagnostics_home.replace("\\", "/").rstrip("/")
+    governance_home = p["paths"]["governanceHome"]
+    dh = governance_home.replace("\\", "/").rstrip("/")
     ch = commands_home.replace("\\", "/").rstrip("/")
-    assert dh in {f"{ch}/diagnostics", f"{ch}/governance"} or dh.endswith(("/diagnostics", "/governance")), (
-        f"diagnosticsHome unexpected: {diagnostics_home} (commandsHome={commands_home})"
+    assert dh in {f"{ch}/governance", f"{ch}/governance"} or dh.endswith(("/governance", "/governance")), (
+        f"governanceHome unexpected: {governance_home} (commandsHome={commands_home})"
     )
 
     python_command = str(p["paths"].get("pythonCommand", "")).strip()
@@ -293,7 +293,7 @@ def test_install_patches_existing_installer_owned_paths_with_missing_keys_withou
             "configRoot": str(config_root),
             "commandsHome": str(commands),
             "profilesHome": str(commands / "profiles"),
-            "diagnosticsHome": str(commands / "governance"),
+            "governanceHome": str(commands / "governance"),
             "workspacesHome": str(config_root / "workspaces"),
         },
     }
@@ -435,15 +435,15 @@ def test_install_distribution_contains_required_normative_files_and_addon_rulebo
         [f"- {m}" for m in missing_normative]
     )
 
-    required_diagnostics = [
+    required_governance = [
         commands / "governance" / "entrypoints" / "map_audit_to_canonical.py",
         commands / "governance" / "assets" / "catalogs" / "AUDIT_REASON_CANONICAL_MAP.json",
         commands / "governance" / "assets" / "catalogs" / "CUSTOMER_SCRIPT_CATALOG.json",
         commands / "governance" / "assets" / "catalogs" / "tool_requirements.json",
     ]
-    missing_diagnostics = [str(p) for p in required_diagnostics if not p.exists()]
-    assert not missing_diagnostics, "Missing required diagnostics bridge files after install:\n" + "\n".join(
-        [f"- {m}" for m in missing_diagnostics]
+    missing_governance = [str(p) for p in required_governance if not p.exists()]
+    assert not missing_governance, "Missing required governance bridge files after install:\n" + "\n".join(
+        [f"- {m}" for m in missing_governance]
     )
 
     required_runtime = [

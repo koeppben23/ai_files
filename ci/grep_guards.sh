@@ -15,7 +15,7 @@ allow_write_text = {
 
 scan_roots = {
     repo / 'governance',
-    repo / 'diagnostics',
+    repo / 'governance',
 }
 
 for path in repo.rglob('*.py'):
@@ -37,7 +37,7 @@ for path in repo.rglob('*.py'):
     if 'subprocess.run([sys.executable' in text:
         violations.append(f"{path.relative_to(repo)}: disallowed subprocess.run([sys.executable, ...])")
 
-    # env access should stay in infrastructure/diagnostics only
+    # env access should stay in infrastructure/governance only
     rel = path.relative_to(repo)
     if rel.parts[:2] in {('governance', 'application'), ('governance', 'domain'), ('governance', 'presentation'), ('governance', 'render')}:
         if 'os.environ' in text or 'os.getenv(' in text:

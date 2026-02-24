@@ -173,7 +173,7 @@ def test_run_persistence_hook_exits_on_hook_failure(capsys: pytest.CaptureFixtur
     mock_proc = MagicMock()
     mock_proc.returncode = 1
     mock_proc.stdout = ""
-    mock_proc.stderr = "ModuleNotFoundError: No module named diagnostics"
+    mock_proc.stderr = "ModuleNotFoundError: No module named governance"
 
     with patch.object(module, "_resolve_repo_root_for_hook", return_value=(REPO_ROOT, "git", {"ok": True})):
         with patch.object(module.subprocess, "run", return_value=mock_proc):

@@ -1,4 +1,4 @@
-"""Tests for diagnostics/start_persistence_hook.py - GOOD/BAD/EDGE paths."""
+"""Tests for governance/start_persistence_hook.py - GOOD/BAD/EDGE paths."""
 
 from __future__ import annotations
 

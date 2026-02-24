@@ -199,8 +199,8 @@ def test_governance_path_resolve_calls_are_allowlisted():
 
 
 @pytest.mark.governance
-def test_bootstrap_persistence_does_not_import_diagnostics():
+def test_bootstrap_persistence_does_not_import_entrypoints():
     module = REPO_ROOT / "bootstrap" / "persistence.py"
     imports = _imports(module)
-    bad = sorted(imp for imp in imports if imp == "diagnostics" or imp.startswith("diagnostics."))
-    assert not bad, f"bootstrap persistence must not import diagnostics modules: {bad}"
+    bad = sorted(imp for imp in imports if imp.startswith("governance.entrypoints"))
+    assert not bad, f"bootstrap persistence must not import entrypoint modules: {bad}"

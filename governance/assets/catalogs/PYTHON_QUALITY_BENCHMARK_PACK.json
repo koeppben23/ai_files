@@ -10,7 +10,7 @@
       "${PYTHON_COMMAND} scripts/governance_lint.py"
     ],
     "claim_contract": "No claim without evidence. Missing or stale evidence remains NOT_VERIFIED.",
-    "output_contract": "Default output should use compact session snapshot; diagnostics/full state only on explicit intent."
+    "output_contract": "Default output should use compact session snapshot; governance/full state only on explicit intent."
   },
   "tasks": [
     {

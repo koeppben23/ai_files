@@ -583,7 +583,7 @@ def main() -> int:
             repo_root=str(repo_root),
             fingerprint=repo_fingerprint,
             repo_name=(args.repo_name or repo_root.name or repo_fingerprint),
-            source="diagnostics.bootstrap",
+            source="governance.bootstrap",
         ),
         binding=Binding(
             config_root=str(config_root),

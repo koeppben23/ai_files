@@ -983,7 +983,7 @@ def test_orchestrator_falls_back_to_engine_selfcheck_when_payload_builder_fails(
     payload = out.reason_payload
     assert payload["status"] == "BLOCKED"
     assert payload["reason_code"] == BLOCKED_ENGINE_SELFCHECK
-    assert payload["next_command"] == "show diagnostics"
+    assert payload["next_command"] == "show governance"
     deviation = payload.get("deviation")
     assert isinstance(deviation, dict)
     assert deviation["failure_class"] == "reason_payload_invalid"

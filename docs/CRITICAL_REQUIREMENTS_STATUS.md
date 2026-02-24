@@ -51,7 +51,7 @@
 docs/THREAT_MODEL.md:
 - Trusted: Kernel, master.md, rules.md, pack-lock
 - Untrusted: Repo docs, tickets, PR descriptions, LLM output
-- Attack surfaces: MD files, profile rulebooks, diagnostics helpers
+- Attack surfaces: MD files, profile rulebooks, governance helpers
 ```
 
 ### 2. Model Identity (KRITISCH)

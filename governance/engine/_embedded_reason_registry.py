@@ -1,7 +1,7 @@
 """Embedded reason-code -> schema registry snapshot.
 
 This baseline allows strict schema validation in PY-only deployments where
-diagnostics assets may not be mounted as sibling files.
+governance assets may not be mounted as sibling files.
 """
 
 from __future__ import annotations

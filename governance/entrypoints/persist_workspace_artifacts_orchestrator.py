@@ -1438,7 +1438,7 @@ def main() -> int:
         payload = {
             "status": "ok",
             "workspacePersistenceHook": "skipped",
-            "reason": "diagnostics-read-only",
+            "reason": "governance-read-only",
             "impact": "workspace/index/session persistence is kernel-owned only",
             "repoFingerprint": repo_fingerprint,
             "repoFingerprintSource": fp_source,
@@ -1857,7 +1857,7 @@ def main() -> int:
                 message="Required Phase 2/2.1 artifacts missing but writes are blocked (READ_ONLY).",
                 expected="writes allowed and artifacts created/updated",
                 observed={"read_only": True, "missing": phase2_missing},
-                remediation="Remove OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY or allow diagnostics writes in user mode.",
+                remediation="Remove OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY or allow governance writes in user mode.",
             )
             return 2
         emit_gate_failure(

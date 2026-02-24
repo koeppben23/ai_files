@@ -12,7 +12,7 @@ Release/readiness stability gate (binding):
 
 Normative boundary for state-machine runtime (binding):
 - `master.md` defines invariants, status vocabulary, gate semantics, and fail-closed behavior.
-- Runtime details are implemented in `governance/engine/*`, `governance/render/*`, and diagnostics schemas.
+- Runtime details are implemented in `governance/engine/*`, `governance/render/*`, and governance schemas.
 - Deterministic activation summary: `RepoFacts -> Capabilities -> Packs/Profile -> activation_hash/ruleset_hash -> Gate`.
 - If implementation artifacts and this file diverge, this file is authoritative until implementation is corrected.
 - This file should avoid duplicating low-level algorithmic details that are already contract-tested in code.
@@ -206,7 +206,7 @@ The system MUST support operation without direct access to git or any VCS toolin
 
 Bootstrap tool preflight (binding):
 - During `/start`, the runtime MUST probe required external commands via PATH (e.g., `git`, `${PYTHON_COMMAND}`).
-- The preflight result MUST be reported as structured diagnostics (`available`/`missing`) and MUST NOT block by itself.
+- The preflight result MUST be reported as structured governance (`available`/`missing`) and MUST NOT block by itself.
 - If all required commands are available, `/start` MUST continue without a blocker.
 - If one or more commands are missing, `/start` MUST continue in degraded mode where possible and include recovery commands; block only when a later gate requires missing-tool-dependent evidence.
 - Preflight executes as Phase `0` / `1.1` and MUST use freshly observed signals only (no cache reuse).
@@ -214,7 +214,7 @@ Bootstrap tool preflight (binding):
 - Preflight MUST include an `observed_at` timestamp and overwrite any previous preflight snapshot in `SESSION_STATE`.
 - Preflight output MUST remain compact: maximum 5 checks.
 - Preflight summary format is fixed to these keys: `available`, `missing`, `impact`, `next`.
-- Smart retry guidance is mandatory: missing-tool diagnostics MUST include `expected_after_fix` and `restart_hint`.
+- Smart retry guidance is mandatory: missing-tool governance MUST include `expected_after_fix` and `restart_hint`.
 - Restart guidance MUST be deterministic:
   - `restart_required_if_path_edited`
   - `no_restart_if_binary_in_existing_path`
@@ -225,7 +225,7 @@ Required-command inventory derivation (binding):
   - `${COMMANDS_HOME}/master.md`
   - `${COMMANDS_HOME}/rules.md`
   - `${PROFILES_HOME}/rules*.md`
-  - `${COMMANDS_HOME}/diagnostics/*.py`
+  - `${COMMANDS_HOME}/governance/*.py`
 - The inventory MUST include:
   - `required_now` (bootstrap/runtime essentials),
   - `required_later` (phase/profile-gated tools),
@@ -322,7 +322,7 @@ SESSION_STATE bootstrap (binding):
   
 ### Phase 1.2: Profile Detection (DEFERRED TO POST-PHASE-2)
 
-> **Routing:** Kernel-enforced. See `diagnostics/phase_execution_config.yaml`.
+> **Routing:** Kernel-enforced. See `governance/phase_execution_config.yaml`.
 
 Output state updates:
 - `SESSION_STATE.ActiveProfile`
@@ -330,14 +330,14 @@ Output state updates:
 
 ### Phase 1.3: Core Rules Activation (DEFERRED TO PHASE 4)
 
-> **Routing:** Kernel-enforced. See `diagnostics/phase_execution_config.yaml`.
+> **Routing:** Kernel-enforced. See `governance/phase_execution_config.yaml`.
 
 Output state updates:
 - `SESSION_STATE.LoadedRulebooks.core`
 
 #### Execution Constraints (Kernel-Owned)
 
-> **Note:** Phase constraints are kernel-enforced via `diagnostics/phase_execution_config.yaml`.
+> **Note:** Phase constraints are kernel-enforced via `governance/phase_execution_config.yaml`.
 > The following are informational summaries only.
   - Phases 1–3 do not depend on rules.md (kernel-enforced).
   - Phase 4 entry requires core rulebook load; if missing, kernel emits BLOCKED-RULEBOOK-LOAD-FAILED.
@@ -347,7 +347,7 @@ Output state updates:
 
 ### Phase 1.4: Templates & Addons Activation (DEFERRED TO PHASE 4)
 
-> **Routing:** Kernel-enforced via `diagnostics/phase_execution_config.yaml`.
+> **Routing:** Kernel-enforced via `governance/phase_execution_config.yaml`.
 > Informational: Kernel runs this when Phase 4 begins, immediately after Phase 1.3.
 
 PURPOSE:
@@ -355,7 +355,7 @@ PURPOSE:
 - Ensure profile-mandated templates and evidence-mandated addons are activated before any planning.
 
 > **Algorithm:** Kernel-enforced. The following steps are informational summaries of kernel behavior.
-> For normative execution rules, see `diagnostics/phase_execution_config.yaml`.
+> For normative execution rules, see `governance/phase_execution_config.yaml`.
 
 Activation Steps (Informational):
 
@@ -828,7 +828,7 @@ Explicit overrides (highest priority):
 * "Skip business-rules discovery." → Phase 1.5 will not be executed
 * "This is a pure CRUD project." → Phase 1.5 will not be executed, P5.4 = `not-applicable`
 * "/reload-addons" (or explicit equivalent wording) → execute reload contract in Section 2.2.1
-* "/why-blocked" (read-only diagnostics) → execute explain contract in Section 2.2.2
+* "/why-blocked" (read-only governance) → execute explain contract in Section 2.2.2
 * "/explain-activation" (read-only activation report) → execute explain contract in Section 2.2.2
 
 Override constraints (binding):
@@ -1206,8 +1206,8 @@ When a dedicated state block is emitted in MIN mode, it SHOULD remain below ~40 
 
 If `SESSION_STATE.OutputMode` is `ARCHITECT`, output includes a `DecisionSurface` block first and keeps the rest limited to decision rationale + evidence pointers.
 
-Machine-readable diagnostics (informational):
-- When emitting any reason code (`BLOCKED-*`, `WARN-*`, `NOT_VERIFIED-*`), response includes a machine-readable diagnostics payload under `SESSION_STATE.Diagnostics.ReasonPayloads`.
+Machine-readable governance (informational):
+- When emitting any reason code (`BLOCKED-*`, `WARN-*`, `NOT_VERIFIED-*`), response includes a machine-readable governance payload under `SESSION_STATE.Diagnostics.ReasonPayloads`.
 - Each payload entry includes:
   - `reason_code`
   - `surface` (`build|tests|static|addons|profile|state|contracts|security|performance|other`)
@@ -3688,12 +3688,12 @@ Response and output constraints are defined in `rules.md` (Core Rulebook).
 * On phase/mode changes, responses SHOULD include a compact one-line transition summary (`[TRANSITION] from -> to | reason: ...`)
 * If state does not change, responses SHOULD acknowledge `state_unchanged` with a concise reason
 * For no-change turns, responses SHOULD be delta-only and avoid repeating unchanged diagnostic blocks
-* Operator-first UX layering SHOULD be used: concise brief first, full diagnostics immediately after or on explicit detail request
+* Operator-first UX layering SHOULD be used: concise brief first, full governance immediately after or on explicit detail request
 * `/start` preflight SHOULD distinguish `required_now` vs `required_later` and surface `block_now` for immediate-gate impact
-* After bootstrap success, short follow-ups SHOULD default to conversational, language-adaptive responses unless full diagnostics are requested
+* After bootstrap success, short follow-ups SHOULD default to conversational, language-adaptive responses unless full governance are requested
 * Conversational post-start intents SHOULD remain regression-tested with deterministic fixtures (`what_phase`, `discovery_done`, `workflow_unchanged`)
 * Preferred fixture source for conversational intent goldens: `governance/assets/catalogs/UX_INTENT_GOLDENS.json`
-* Short operator follow-up questions SHOULD route through deterministic intents (`where_am_i`, `what_blocks_me`, `what_now`) before verbose diagnostics
+* Short operator follow-up questions SHOULD route through deterministic intents (`where_am_i`, `what_blocks_me`, `what_now`) before verbose governance
 * Responses SHOULD support operator persona modes (`compact`, `standard`, `audit`) as presentation-density controls without changing gate behavior
 
 Host-constraint compatibility (binding):
@@ -3707,7 +3707,7 @@ Host-constraint compatibility (binding):
 * In STRICT envelopes, `session_state` MAY be emitted as a compact machine-readable snapshot object.
 * In this section, "`SESSION_STATE` is emitted" refers to a dedicated full-state output block, not the compact strict-envelope snapshot projection.
 * If `SESSION_STATE` is emitted, it MUST still be rendered as fenced YAML (format-stable machine-readable state block).
-* If full `SESSION_STATE` is emitted as a dedicated state block (for example diagnostics/full-state output), it MUST be rendered as fenced YAML (format-stable machine-readable state block).
+* If full `SESSION_STATE` is emitted as a dedicated state block (for example governance/full-state output), it MUST be rendered as fenced YAML (format-stable machine-readable state block).
 * `SESSION_STATE` blocks MUST NOT use placeholder tokens (`...`, `<...>`); unknown fields must be explicit (`unknown|deferred|not-applicable`).
 * COMPAT mode MUST still emit a `[NEXT-ACTION]` block with `Status`, `Next`, `Why`, and `Command` fields.
 
@@ -3718,8 +3718,8 @@ Strict/compat mode matrix (binding):
 
 Operator-first layering (binding, presentation-only):
 * Responses SHOULD start with a compact operator brief (status + phase/gate + one next step).
-* Full diagnostics/evidence remain mandatory per gate and MUST be available after the brief layer.
-* On explicit operator request (`show diagnostics`, `show full session state`), emit full strict diagnostics.
+* Full governance/evidence remain mandatory per gate and MUST be available after the brief layer.
+* On explicit operator request (`show governance`, `show full session state`), emit full strict governance.
 
 ---
 

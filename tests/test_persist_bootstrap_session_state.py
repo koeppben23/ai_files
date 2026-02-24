@@ -41,7 +41,7 @@ def test_persist_workspace_artifacts_bootstraps_missing_session_state(tmp_path: 
     assert payload.get("read_only") is True
 
     session_file = cfg / "workspaces" / repo_fp / "SESSION_STATE.json"
-    assert not session_file.exists(), "read-only diagnostics must not create repo-scoped SESSION_STATE.json"
+    assert not session_file.exists(), "read-only governance must not create repo-scoped SESSION_STATE.json"
 
 
 @pytest.mark.governance

@@ -131,8 +131,8 @@ def test_render_contract_preserves_canonical_reason_code_casing():
 
 
 @pytest.mark.governance
-def test_render_contract_builds_diff_first_diagnostics_and_last_three_timeline_rows():
-    """Diff diagnostics and timeline should be deterministic and size-bounded."""
+def test_render_contract_builds_diff_first_governance_and_last_three_timeline_rows():
+    """Diff governance and timeline should be deterministic and size-bounded."""
 
     output = build_two_layer_output(
         status="NOT_VERIFIED",
@@ -155,7 +155,7 @@ def test_render_contract_builds_diff_first_diagnostics_and_last_three_timeline_r
     )
     output = cast(dict[str, Any], output)
 
-    assert output["diagnostics_delta"] == {
+    assert output["governance_delta"] == {
         "new_blockers": ("BLOCKED-NEW",),
         "resolved_blockers": ("BLOCKED-OLD",),
         "new_stale_claims": ("claim/static-clean",),

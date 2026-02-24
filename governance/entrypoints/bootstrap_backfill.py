@@ -47,7 +47,7 @@ except Exception:
                 command="bootstrap_session_state.py",
                 component="workspace-persistence-hook",
                 observed_value={"helper": str(helper)},
-                expected_constraint="persist_workspace_artifacts.py present under diagnostics",
+                expected_constraint="persist_workspace_artifacts.py present under governance",
                 remediation="Reinstall governance package and rerun bootstrap.",
             )
             output("WARNING: persist_workspace_artifacts.py not found; skipping artifact backfill hook.")

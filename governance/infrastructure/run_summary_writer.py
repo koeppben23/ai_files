@@ -42,13 +42,13 @@ def _default_reason_remediation(reason_code: str) -> dict[str, Any]:
     }
 
 
-def _resolve_diagnostics_root(mode: str) -> Path | None:
+def _resolve_governance_root(mode: str) -> Path | None:
     resolver = BindingEvidenceResolver()
     evidence = resolver.resolve(mode=mode)
     if evidence.binding_ok and evidence.commands_home:
-        diagnostics_root = evidence.commands_home.parent / "diagnostics"
-        if diagnostics_root.exists():
-            return diagnostics_root
+        governance_root = evidence.commands_home.parent / "governance"
+        if governance_root.exists():
+            return governance_root
     return None
 
 
@@ -57,11 +57,11 @@ def _load_reason_remediation(reason_code: str, mode: str = "user") -> dict[str, 
     if yaml is None:
         return _default_reason_remediation(reason_code)
 
-    diagnostics_root = _resolve_diagnostics_root(mode)
-    if diagnostics_root is None:
+    governance_root = _resolve_governance_root(mode)
+    if governance_root is None:
         return _default_reason_remediation(reason_code)
 
-    catalog_path = diagnostics_root / "blocked_reason_catalog.yaml"
+    catalog_path = governance_root / "blocked_reason_catalog.yaml"
     if not catalog_path.exists():
         return _default_reason_remediation(reason_code)
 
@@ -122,8 +122,8 @@ def _extract_precedence_events(session_state: Mapping[str, Any]) -> list[dict[st
             }
         )
 
-    diagnostics = session_state.get("Diagnostics", {})
-    reason_payloads = diagnostics.get("ReasonPayloads", [])
+    governance = session_state.get("Diagnostics", {})
+    reason_payloads = governance.get("ReasonPayloads", [])
     for payload in reason_payloads:
         if isinstance(payload, dict) and "precedence" in payload.get("reason_code", "").lower():
             events.append(

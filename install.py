@@ -13,7 +13,7 @@ Features:
 NOTE:
 - This installer does NOT generate opencode.json (to avoid schema validation errors).
 - Instead it generates an installer-owned sidecar: commands/governance.paths.json for /start.
-- Installer diagnostics use `ERR-*` reason keys as installer-internal keys; they are not canonical
+- Installer governance use `ERR-*` reason keys as installer-internal keys; they are not canonical
   governance `reason_code` values (`BLOCKED-*|WARN-*|NOT_VERIFIED-*`).
 """
 
@@ -39,7 +39,7 @@ from collections.abc import Callable
 from typing import Iterable
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-DIAGNOSTICS_SOURCE_DIR = SCRIPT_DIR / "diagnostics"
+DIAGNOSTICS_SOURCE_DIR = SCRIPT_DIR / "governance"
 
 
 def _load_error_logger() -> Callable[..., object]:
@@ -115,7 +115,7 @@ MANIFEST_SCHEMA = "1.0"
 GOVERNANCE_PATHS_NAME = "governance.paths.json"
 GOVERNANCE_PATHS_SCHEMA = "opencode-governance.paths.v1"
 
-# Runtime error logs (written by diagnostics helpers; outside repository)
+# Runtime error logs (written by governance helpers; outside repository)
 ERROR_LOGS_DIR_NAME = "logs"
 
 # Core governance files (static allowlist for conservative uninstall fallback)
@@ -368,10 +368,10 @@ def collect_command_root_files(source_dir: Path, *, with_agent_rails: bool = Fal
 
     return sorted(files)
 
-def collect_diagnostics_files(source_dir: Path) -> list[Path]:
+def collect_governance_files(source_dir: Path) -> list[Path]:
     """
-    Collect diagnostics files to copy into <config_root>/commands/governance/**.
-    Includes everything under ./diagnostics (schemas, audit docs, etc.).
+    Collect governance files to copy into <config_root>/commands/governance/**.
+    Includes everything under ./governance (schemas, audit docs, etc.).
     """
     return []
 
@@ -423,7 +423,7 @@ def collect_customer_docs_files(source_dir: Path) -> list[Path]:
 
 
 def collect_customer_script_files(source_dir: Path, *, strict: bool) -> list[Path]:
-    """Collect customer-relevant scripts listed in diagnostics/CUSTOMER_SCRIPT_CATALOG.json."""
+    """Collect customer-relevant scripts listed in governance/CUSTOMER_SCRIPT_CATALOG.json."""
 
     catalog_path = source_dir / CUSTOMER_SCRIPT_CATALOG_REL
     payload = _load_json(catalog_path)
@@ -559,7 +559,7 @@ def build_governance_paths_payload(config_root: Path, *, deterministic: bool) ->
 
     commands_home = config_root / "commands"
     profiles_home = commands_home / "profiles"
-    diagnostics_home = commands_home / "governance"
+    governance_home = commands_home / "governance"
     workspaces_home = config_root / "workspaces"
     global_error_logs_home = config_root / ERROR_LOGS_DIR_NAME
     if os.name == "nt":
@@ -573,7 +573,7 @@ def build_governance_paths_payload(config_root: Path, *, deterministic: bool) ->
             "configRoot": norm(config_root),
             "commandsHome": norm(commands_home),
             "profilesHome": norm(profiles_home),
-            "diagnosticsHome": norm(diagnostics_home),
+            "governanceHome": norm(governance_home),
             "workspacesHome": norm(workspaces_home),
             "globalErrorLogsHome": norm(global_error_logs_home),
             "workspaceErrorLogsHomeTemplate": norm(workspaces_home / "<repo_fingerprint>" / "logs"),
@@ -971,10 +971,10 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
     else:
         print("\nℹ️  No addon manifests found under profiles/addons/*.addon.yml.")
 
-    # copy diagnostics (audit tooling, schemas, etc.)
-    diag_files = collect_diagnostics_files(plan.source_dir)
+    # copy governance (audit tooling, schemas, etc.)
+    diag_files = collect_governance_files(plan.source_dir)
     if diag_files:
-        print("\n📋 Copying diagnostics to commands/governance/ ...")
+        print("\n📋 Copying governance to commands/governance/ ...")
         for df in diag_files:
             rel = df.relative_to(plan.source_dir)
             dst = plan.commands_dir / rel
@@ -997,7 +997,7 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
             else:
                 print(f"  ⚠️  {rel} missing (skipping)")
     else:
-        print("\nℹ️  No diagnostics directory found (skipping).")
+        print("\nℹ️  No governance directory found (skipping).")
 
     # copy customer documentation (docs/*.md relevant to customers)
     docs_files = collect_customer_docs_files(plan.source_dir)
@@ -1067,7 +1067,7 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
             command="install.py",
             component="installer-customer-scripts",
             observed_value={"catalog": str(CUSTOMER_SCRIPT_CATALOG_REL), "error": str(exc)},
-            expected_constraint="Valid diagnostics/CUSTOMER_SCRIPT_CATALOG.json with ship_in_release scripts",
+            expected_constraint="Valid governance/CUSTOMER_SCRIPT_CATALOG.json with ship_in_release scripts",
             remediation="Restore customer script catalog and listed script files, then rerun install.",
             action="abort",
             result="failed",
@@ -1273,7 +1273,7 @@ def uninstall(
             targets.append(plan.commands_dir / rel)
 
         # Diagnostics from current source snapshot
-        for src in collect_diagnostics_files(plan.source_dir):
+        for src in collect_governance_files(plan.source_dir):
             rel = src.relative_to(plan.source_dir)
             targets.append(plan.commands_dir / rel)
 
@@ -1375,7 +1375,7 @@ def uninstall(
         plan.commands_dir / "templates" / "github-actions",
         plan.commands_dir / "templates",
         plan.commands_dir / "scripts",
-        plan.commands_dir / "diagnostics",
+        plan.commands_dir / "governance",
         plan.commands_dir / "_backup",
         plan.config_root / "workspaces",
     ]
@@ -1622,7 +1622,7 @@ def show_status(source_dir: Path, config_root_arg: Path | None) -> int:
 
     # List key directories
     print("\nInstalled Directories:")
-    for subdir in ["profiles", "scripts", "templates", "diagnostics", "governance"]:
+    for subdir in ["profiles", "scripts", "templates", "governance", "governance"]:
         path = commands_home / subdir
         if path.exists():
             count = sum(1 for _ in path.rglob("*") if (_.is_file() and not _.name.startswith(".")))

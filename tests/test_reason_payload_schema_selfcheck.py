@@ -12,7 +12,7 @@ from governance.engine._embedded_reason_schemas import EMBEDDED_REASON_SCHEMAS
 
 @pytest.mark.governance
 def test_reason_payload_schema_selfcheck_passes():
-    # Executes shipped selfcheck against repository diagnostics tree.
+    # Executes shipped selfcheck against repository governance tree.
     rc = schema_selfcheck.main()
     assert rc == 0
 

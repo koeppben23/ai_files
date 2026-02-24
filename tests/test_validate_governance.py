@@ -478,7 +478,7 @@ def test_operator_explain_commands_are_defined_as_read_only_contracts():
     rules = read_text(REPO_ROOT / "rules.md")
 
     master_required = [
-        '"/why-blocked" (read-only diagnostics)',
+        '"/why-blocked" (read-only governance)',
         '"/explain-activation" (read-only activation report)',
         "### 2.2.2 Operator Explain Contracts (Binding, read-only)",
         "Both commands are read-only",
@@ -1431,7 +1431,7 @@ def test_docs_governance_marks_blocked_aliases_as_legacy_non_emitting():
 @pytest.mark.governance
 def test_factory_contract_diagnostic_exists_and_is_calibrated():
     p = REPO_ROOT / "governance" / "assets" / "catalogs" / "PROFILE_ADDON_FACTORY_CONTRACT.json"
-    assert p.exists(), "Missing diagnostics/PROFILE_ADDON_FACTORY_CONTRACT.json"
+    assert p.exists(), "Missing governance/PROFILE_ADDON_FACTORY_CONTRACT.json"
 
     text = read_text(p)
     required_tokens = [
@@ -1451,7 +1451,7 @@ def test_factory_contract_diagnostic_exists_and_is_calibrated():
         '"TIER-HIGH": 0.9',
     ]
     missing = [token for token in required_tokens if token not in text]
-    assert not missing, "Factory diagnostics contract incomplete:\n" + "\n".join([f"- {m}" for m in missing])
+    assert not missing, "Factory governance contract incomplete:\n" + "\n".join([f"- {m}" for m in missing])
 
 
 @pytest.mark.governance
@@ -1873,7 +1873,7 @@ def test_start_md_includes_readonly_preflight_autohook():
 
 
 @pytest.mark.governance
-def test_start_md_resolves_installed_diagnostics_helpers_not_workspace_relative_paths():
+def test_start_md_resolves_installed_governance_helpers_not_workspace_relative_paths():
     text = read_text(REPO_ROOT / "start.md")
 
     forbidden = [
@@ -1881,7 +1881,7 @@ def test_start_md_resolves_installed_diagnostics_helpers_not_workspace_relative_
         "python3 governance/entrypoints/start_preflight_readonly.py",
     ]
     found_forbidden = [token for token in forbidden if token in text]
-    assert not found_forbidden, "start.md still uses workspace-relative diagnostics helper paths:\n" + "\n".join(
+    assert not found_forbidden, "start.md still uses workspace-relative governance helper paths:\n" + "\n".join(
         [f"- {m}" for m in found_forbidden]
     )
 
@@ -1891,7 +1891,7 @@ def test_start_md_resolves_installed_diagnostics_helpers_not_workspace_relative_
         "Implementation Reference:",
     ]
     missing = [token for token in required if token not in text]
-    assert not missing, "start.md missing installed diagnostics helper resolution tokens:\n" + "\n".join(
+    assert not missing, "start.md missing installed governance helper resolution tokens:\n" + "\n".join(
         [f"- {m}" for m in missing]
     )
 
@@ -2394,7 +2394,7 @@ def test_short_intent_routing_contract_is_defined():
     start = read_text(REPO_ROOT / "start.md")
 
     master_required = [
-        "Short operator follow-up questions SHOULD route through deterministic intents (`where_am_i`, `what_blocks_me`, `what_now`) before verbose diagnostics",
+        "Short operator follow-up questions SHOULD route through deterministic intents (`where_am_i`, `what_blocks_me`, `what_now`) before verbose governance",
     ]
     rules_required = [
         "### 7.3.19 Short-Intent Routing for Operator Questions (Presentation Advisory)",
@@ -2403,7 +2403,7 @@ def test_short_intent_routing_contract_is_defined():
         "`what_now`",
     ]
     start_required = [
-        "Short follow-up questions SHOULD route via deterministic intents (`where_am_i`, `what_blocks_me`, `what_now`) before optional verbose diagnostics.",
+        "Short follow-up questions SHOULD route via deterministic intents (`where_am_i`, `what_blocks_me`, `what_now`) before optional verbose governance.",
     ]
 
     missing_master = [t for t in master_required if t not in master]
@@ -2515,7 +2515,7 @@ def test_no_change_delta_only_contract_is_defined():
         "In no-change cases, response SHOULD be delta-only (only what changed, or explicitly `no_delta`).",
     ]
     start_required = [
-        "For no-change turns, response SHOULD be delta-only (or explicit `no_delta`) instead of repeating unchanged diagnostics.",
+        "For no-change turns, response SHOULD be delta-only (or explicit `no_delta`) instead of repeating unchanged governance.",
     ]
 
     missing_master = [t for t in master_required if t not in master]
@@ -2595,7 +2595,7 @@ def test_start_and_master_require_host_git_identity_discovery_before_operator_pr
         "destructive or mutating git commands during identity collection",
         "Bootstrap tool preflight (binding):",
         "runtime MUST probe required external commands via PATH",
-        "preflight result MUST be reported as structured diagnostics",
+        "preflight result MUST be reported as structured governance",
         "MUST NOT block by itself",
         "Required-command inventory derivation (binding):",
         "MUST load a deterministic command inventory from `${COMMANDS_HOME}/governance/assets/catalogs/tool_requirements.json`",
@@ -2625,7 +2625,7 @@ def test_start_and_master_require_host_git_identity_discovery_before_operator_pr
 @pytest.mark.governance
 def test_tool_requirements_catalog_exists_and_has_required_sections():
     p = REPO_ROOT / "governance" / "assets" / "catalogs" / "tool_requirements.json"
-    assert p.exists(), "Missing diagnostics/tool_requirements.json"
+    assert p.exists(), "Missing governance/tool_requirements.json"
 
     payload = json.loads(read_text(p))
     assert payload.get("schema") == "opencode-tool-requirements.v1", "Unexpected tool requirements schema"
@@ -2731,7 +2731,7 @@ def test_tool_requirements_catalog_covers_commands_referenced_by_flow_rulebooks(
     assert not missing, (
         "tool_requirements.json missing commands referenced in flow rulebooks:\n"
         + "\n".join([f"- {m}" for m in missing])
-        + "\nAdd each command to diagnostics/tool_requirements.json (required_now/required_later/optional)."
+        + "\nAdd each command to governance/tool_requirements.json (required_now/required_later/optional)."
     )
 
 
@@ -2747,14 +2747,14 @@ def test_bootstrap_preflight_output_contract_is_defined_across_core_docs():
         "Preflight MUST include an `observed_at` timestamp",
         "Preflight output MUST remain compact: maximum 5 checks.",
         "Preflight summary format is fixed to these keys: `available`, `missing`, `impact`, `next`.",
-        "Smart retry guidance is mandatory: missing-tool diagnostics MUST include `expected_after_fix` and `restart_hint`.",
+        "Smart retry guidance is mandatory: missing-tool governance MUST include `expected_after_fix` and `restart_hint`.",
         "`restart_required_if_path_edited`",
         "`no_restart_if_binary_in_existing_path`",
     ]
     rules_required = [
         "### 7.3.10 Bootstrap Preflight Output Contract (Kernel-Enforced)",
         "Preflight probes MUST be fresh (`ttl=0`)",
-        "Preflight MUST include `observed_at` (timestamp) in diagnostics/state.",
+        "Preflight MUST include `observed_at` (timestamp) in governance/state.",
         "Preflight MUST report at most 5 checks.",
         "`available: <comma-separated commands or none>`",
         "`missing: <comma-separated commands or none>`",
@@ -3273,7 +3273,7 @@ def test_canonical_response_envelope_schema_contract_is_defined():
     rules = read_text(REPO_ROOT / "rules.md")
     start = read_text(REPO_ROOT / "start.md")
     schema_path = REPO_ROOT / "governance" / "assets" / "catalogs" / "RESPONSE_ENVELOPE_SCHEMA.json"
-    assert schema_path.exists(), "Missing diagnostics/RESPONSE_ENVELOPE_SCHEMA.json"
+    assert schema_path.exists(), "Missing governance/RESPONSE_ENVELOPE_SCHEMA.json"
     schema_text = read_text(schema_path)
 
     docs_required = [
@@ -3403,7 +3403,7 @@ def test_audit_reason_keys_are_declared_audit_only_and_not_reason_code_payloads(
     text = read_text(REPO_ROOT / "governance" / "assets" / "catalogs" / "audit.md")
     required_tokens = [
         "Reason key semantics (binding):",
-        "audit-only diagnostics keys",
+        "audit-only governance keys",
         "They are NOT canonical governance `reason_code` values",
         "MUST NOT be written into `SESSION_STATE.Diagnostics.ReasonPayloads.reason_code`",
         "governance/entrypoints/map_audit_to_canonical.py --input <audit-report.json>",
@@ -3413,7 +3413,7 @@ def test_audit_reason_keys_are_declared_audit_only_and_not_reason_code_payloads(
         "auditReasonKey `BR_SCOPE_ARTIFACT_MISSING`",
     ]
     missing = [token for token in required_tokens if token not in text]
-    assert not missing, "diagnostics/audit.md missing audit reason-key boundary tokens:\n" + "\n".join(
+    assert not missing, "governance/audit.md missing audit reason-key boundary tokens:\n" + "\n".join(
         [f"- {m}" for m in missing]
     )
 
@@ -3526,7 +3526,7 @@ def test_audit_pretty_summary_layout_tokens_present():
         "[/AUDIT-SUMMARY]",
     ]
     missing = [token for token in required if token not in audit]
-    assert not missing, "diagnostics/audit.md missing pretty summary layout tokens:\n" + "\n".join([f"- {m}" for m in missing])
+    assert not missing, "governance/audit.md missing pretty summary layout tokens:\n" + "\n".join([f"- {m}" for m in missing])
 
 
 @pytest.mark.governance
@@ -3572,7 +3572,7 @@ def test_business_rules_write_failure_does_not_redirect_to_workspace_memory_targ
 @pytest.mark.governance
 def test_error_logger_helper_exists_and_defines_required_log_shape():
     p = REPO_ROOT / "governance" / "entrypoints" / "error_logs.py"
-    assert p.exists(), "Missing diagnostics/error_logs.py"
+    assert p.exists(), "Missing governance/error_logs.py"
 
     text = read_text(p)
     required_tokens = [
@@ -3595,7 +3595,7 @@ def test_error_logger_helper_exists_and_defines_required_log_shape():
 def test_error_logger_logs_to_ssot_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     module_path = REPO_ROOT / "governance" / "entrypoints" / "error_logs.py"
     spec = importlib.util.spec_from_file_location("error_logs_mod", module_path)
-    assert spec and spec.loader, "Failed to load diagnostics/error_logs.py module spec"
+    assert spec and spec.loader, "Failed to load governance/error_logs.py module spec"
     monkeypatch.delenv("CI", raising=False)
     monkeypatch.setenv("OPENCODE_DIAGNOSTICS_ALLOW_WRITE", "1")
     mod = importlib.util.module_from_spec(spec)
@@ -3626,7 +3626,7 @@ def test_error_logger_logs_to_ssot_path(tmp_path: Path, monkeypatch: pytest.Monk
 def test_error_logger_uses_bound_workspaces_home_for_repo_logs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     module_path = REPO_ROOT / "governance" / "entrypoints" / "error_logs.py"
     spec = importlib.util.spec_from_file_location("error_logs_mod", module_path)
-    assert spec and spec.loader, "Failed to load diagnostics/error_logs.py module spec"
+    assert spec and spec.loader, "Failed to load governance/error_logs.py module spec"
     monkeypatch.delenv("CI", raising=False)
     monkeypatch.setenv("OPENCODE_DIAGNOSTICS_ALLOW_WRITE", "1")
     mod = importlib.util.module_from_spec(spec)
@@ -3659,7 +3659,7 @@ def test_error_logger_uses_ssot_write_policy(tmp_path: Path, monkeypatch: pytest
 
     module_path = REPO_ROOT / "governance" / "entrypoints" / "error_logs.py"
     spec = importlib.util.spec_from_file_location("error_logs_ssot", module_path)
-    assert spec and spec.loader, "Failed to load diagnostics/error_logs.py module spec"
+    assert spec and spec.loader, "Failed to load governance/error_logs.py module spec"
     
     # CI=true without FORCE_READ_ONLY should allow writes (SSOT)
     monkeypatch.setenv("CI", "true")

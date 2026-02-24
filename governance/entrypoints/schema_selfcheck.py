@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Deterministic selfcheck for reason registry and payload schemas.
 
-This helper verifies that diagnostics/reason_codes.registry.json exists,
+This helper verifies that governance/reason_codes.registry.json exists,
 matches expected schema tag, and all referenced payload schemas are present.
 """
 

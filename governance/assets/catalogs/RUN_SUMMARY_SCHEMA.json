@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "diagnostics/RUN_SUMMARY_SCHEMA.json",
+  "$id": "governance/RUN_SUMMARY_SCHEMA.json",
   "title": "Run Summary Schema",
   "description": "Single-source-of-truth summary for a governance run. Answers 'why blocked?' in <30 seconds.",
   "type": "object",

@@ -794,7 +794,7 @@ Additional output mode:
 ### 7.3.7 Canonical Response Envelope Schema (Presentation Advisory)
 
 All structured assistant responses from `/start` onward SHOULD conform to (when host supports strict shape):
-- `diagnostics/RESPONSE_ENVELOPE_SCHEMA.json`
+- `governance/RESPONSE_ENVELOPE_SCHEMA.json`
 
 Minimum required envelope fields:
 - `status`
@@ -809,7 +809,7 @@ Minimum required envelope fields:
 - `Why`
 - `Command`
 
-`preflight` shape (when `/start` diagnostics are emitted):
+`preflight` shape (when `/start` governance are emitted):
 - `observed_at`
 - `checks` (array, max 5)
 - `available`
@@ -875,7 +875,7 @@ At `/start`, preflight output MUST be deterministic and compact.
 Rules:
 - Preflight is Phase `0` / `1.1` only.
 - Preflight probes MUST be fresh (`ttl=0`) and MUST NOT reuse cached availability snapshots.
-- Preflight MUST include `observed_at` (timestamp) in diagnostics/state.
+- Preflight MUST include `observed_at` (timestamp) in governance/state.
 - Preflight result MAY persist in `SESSION_STATE`, but next `/start` MUST overwrite it.
 - Preflight MUST report at most 5 checks.
 
@@ -931,9 +931,9 @@ To prevent state drift across `/start` -> `Implement now` -> `Ingest evidence`:
 - `SESSION_STATE.session_run_id` MUST remain stable until verify completes.
 - `SESSION_STATE.ruleset_hash` MUST remain stable unless explicit rehydrate/reload is performed.
 - `SESSION_STATE.ActivationDelta.AddonScanHash` and `SESSION_STATE.ActivationDelta.RepoFactsHash` MUST remain stable unless activation inputs change.
-- Every phase/mode transition MUST record a unique `transition_id` in diagnostics.
+- Every phase/mode transition MUST record a unique `transition_id` in governance.
 
-Required transition diagnostics payload:
+Required transition governance payload:
 - `transition_id` (unique string)
 - `from` (`Phase` + `Mode`)
 - `to` (`Phase` + `Mode`)
@@ -942,11 +942,11 @@ Required transition diagnostics payload:
 Compact transition line (recommended):
 - On phase/mode transitions, include a one-line summary:
   - `[TRANSITION] <from> -> <to> | reason: <short reason>`
-- This line is informational and MUST stay consistent with transition diagnostics payload.
+- This line is informational and MUST stay consistent with transition governance payload.
 
 ### 7.3.13 Smart Retry + Restart Guidance (Kernel-Enforced)
 
-For missing command diagnostics, output MUST include deterministic post-fix guidance.
+For missing command governance, output MUST include deterministic post-fix guidance.
 
 Required fields per missing command:
 - `expected_after_fix` (machine-readable success signal)
@@ -981,7 +981,7 @@ WARN/BLOCKED separation rules:
 
 No-change acknowledgment (recommended):
 - If a response performs no phase/mode/gate transition, explicitly state `state_unchanged` with a one-line reason.
-- No-change acknowledgment MUST NOT conflict with `SESSION_STATE` or transition diagnostics.
+- No-change acknowledgment MUST NOT conflict with `SESSION_STATE` or transition governance.
 - In no-change cases, response SHOULD be delta-only (only what changed, or explicitly `no_delta`).
 
 ### 7.3.15 STRICT vs COMPAT Output Matrix (Presentation Advisory)
@@ -1015,8 +1015,8 @@ Layer 1 (operator brief):
   - exactly one actionable next step.
 
 Layer 2 (details on demand):
-- Keep full diagnostics and evidence payloads available, but place them after the brief layer.
-- If the operator asks for details (for example: `show diagnostics`, `show full session state`), return full strict diagnostics without changing gate outcomes.
+- Keep full governance and evidence payloads available, but place them after the brief layer.
+- If the operator asks for details (for example: `show governance`, `show full session state`), return full strict governance without changing gate outcomes.
 
 Safety constraints:
 - Brief layering is presentation-only and MUST NOT suppress blocker fields when `status=BLOCKED`.
@@ -1028,7 +1028,7 @@ Safety constraints:
 After `/start` bootstrap succeeds, short operator follow-up questions (for example: current phase, whether discovery is done) SHOULD use conversational minimal responses first.
 
 Rules:
-- Keep direct follow-up answers concise and task-focused unless the operator requests full diagnostics.
+- Keep direct follow-up answers concise and task-focused unless the operator requests full governance.
 - Match operator language when feasible (for example German input -> German response) while preserving canonical reason/status codes.
 - Conversational brevity MUST NOT bypass gate/evidence behavior; if a gate changes, emit required structured fields.
 
@@ -1057,7 +1057,7 @@ Supported intents (minimum):
 - `what_now` (single next action)
 
 Routing rules:
-- Return the matching intent response in 1-3 lines before optional diagnostics.
+- Return the matching intent response in 1-3 lines before optional governance.
 - Preserve deterministic status vocabulary and NextAction coherence.
 - If intent cannot be mapped safely, fall back to normal strict/compat output.
 
