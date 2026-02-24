@@ -82,7 +82,7 @@ def test_render_response_envelope_script_rejects_phase_contract_mismatch(tmp_pat
 
     assert result.returncode == 2
     payload_out = json.loads(result.stdout)
-    assert payload_out["reason_code"] == "BLOCKED-INVALID-NEXT_ACTION"
+    assert payload_out["reason_code"] == "BLOCKED-INVALID-NEXT-ACTION"
     assert payload_out.get("log_path")
 
 
@@ -113,5 +113,5 @@ def test_render_response_envelope_script_rejects_manual_step_before_phase4(tmp_p
 
     assert result.returncode == 2
     payload_out = json.loads(result.stdout)
-    assert payload_out["reason_code"] == "BLOCKED-INVALID-NEXT_ACTION"
+    assert payload_out["reason_code"] == "BLOCKED-INVALID-NEXT-ACTION"
     assert payload_out.get("log_path")

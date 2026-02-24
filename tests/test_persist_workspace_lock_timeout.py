@@ -21,6 +21,7 @@ def test_persist_workspace_lock_timeout_emits_gate_failure(tmp_path: Path):
     workspaces = cfg / "workspaces"
     cfg.mkdir(parents=True)
     repo_root.mkdir(parents=True)
+    (repo_root / ".git").mkdir(parents=True)
     workspaces.mkdir(parents=True)
 
     args = SimpleNamespace(

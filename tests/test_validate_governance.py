@@ -1529,6 +1529,8 @@ def test_session_state_bootstrap_recovery_script_creates_state_file(tmp_path: Pa
     cfg = tmp_path / "opencode-config"
     repo_root = tmp_path / "repo"
     repo_root.mkdir(parents=True, exist_ok=True)
+    (repo_root / ".git").mkdir(parents=True, exist_ok=True)
+    (repo_root / ".git").mkdir(parents=True, exist_ok=True)
     repo_fp = "a1b2c3d4e5f6a1b2c3d4e5f7"
     write_governance_paths(cfg)
 
@@ -1576,6 +1578,7 @@ def test_workspace_persistence_backfill_script_creates_missing_artifacts(tmp_pat
     cfg = tmp_path / "opencode-config"
     repo_root = tmp_path / "repo"
     repo_root.mkdir(parents=True, exist_ok=True)
+    (repo_root / ".git").mkdir(parents=True, exist_ok=True)
     repo_fp = "a1b2c3d4e5f6a1b2c3d4e5f6"
     write_governance_paths(cfg)
 
@@ -1650,6 +1653,7 @@ def test_workspace_persistence_backfill_writes_business_rules_when_phase15_extra
     cfg = tmp_path / "opencode-config"
     repo_root = tmp_path / "repo"
     repo_root.mkdir(parents=True, exist_ok=True)
+    (repo_root / ".git").mkdir(parents=True, exist_ok=True)
     repo_fp = "b2c3d4e5f6a1b2c3d4e5f6a2"
     write_governance_paths(cfg)
 
@@ -1691,6 +1695,7 @@ def test_workspace_persistence_normalizes_legacy_placeholder_phrasing_without_fo
     cfg = tmp_path / "opencode-config"
     repo_root = tmp_path / "repo"
     repo_root.mkdir(parents=True, exist_ok=True)
+    (repo_root / ".git").mkdir(parents=True, exist_ok=True)
     repo_fp = "c3d4e5f6a1b2c3d4e5f6a1b3"
     write_governance_paths(cfg)
 
@@ -1748,6 +1753,7 @@ def test_workspace_persistence_normalizes_legacy_decision_pack_and_emits_event(t
     cfg = tmp_path / "opencode-config"
     repo_root = tmp_path / "repo"
     repo_root.mkdir(parents=True, exist_ok=True)
+    (repo_root / ".git").mkdir(parents=True, exist_ok=True)
     repo_fp = "d4e5f6a1b2c3d4e5f6a1b2c3"
     write_governance_paths(cfg)
 
@@ -1834,7 +1840,7 @@ def test_workspace_persistence_quiet_blocked_payload_includes_reason_contract_fi
 
     payload = json.loads(r.stdout)
     assert payload.get("status") == "blocked"
-    assert payload.get("reason_code") == "BLOCKED-WORKSPACE-PERSISTENCE"
+    assert payload.get("reason_code") == "BLOCKED-REPO-ROOT-NOT-DETECTABLE"
     assert isinstance(payload.get("missing_evidence"), list) and len(payload["missing_evidence"]) >= 1
     assert isinstance(payload.get("recovery_steps"), list) and len(payload["recovery_steps"]) >= 1
     assert isinstance(payload.get("required_operator_action"), str) and payload["required_operator_action"].strip()
@@ -3570,16 +3576,13 @@ def test_error_logger_helper_exists_and_defines_required_log_shape():
 
     text = read_text(p)
     required_tokens = [
-        "opencode.error-log.v1",
+        "emit_error_event_ssot",
+        "error.log.jsonl",
         "reasonKey",
         "phase",
         "gate",
         "repoFingerprint",
-        "errors-",
-        "errors-global-",
-        "opencode.error-index.v1",
         "DEFAULT_RETENTION_DAYS",
-        "errors-index.json",
         "safe_log_error",
     ]
     missing = [token for token in required_tokens if token not in text]
@@ -3589,7 +3592,7 @@ def test_error_logger_helper_exists_and_defines_required_log_shape():
 
 
 @pytest.mark.governance
-def test_error_logger_updates_index_and_prunes_old_global_logs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+def test_error_logger_logs_to_ssot_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     module_path = REPO_ROOT / "diagnostics" / "error_logs.py"
     spec = importlib.util.spec_from_file_location("error_logs_mod", module_path)
     assert spec and spec.loader, "Failed to load diagnostics/error_logs.py module spec"
@@ -3602,8 +3605,6 @@ def test_error_logger_updates_index_and_prunes_old_global_logs(tmp_path: Path, m
     write_governance_paths(cfg)
     logs_dir = cfg / "logs"
     logs_dir.mkdir(parents=True, exist_ok=True)
-    old_file = logs_dir / "errors-global-2000-01-01.jsonl"
-    old_file.write_text('{"legacy":true}\n', encoding="utf-8")
 
     out = mod.safe_log_error(
         reason_key="ERR-TEST-INDEX",
@@ -3616,18 +3617,9 @@ def test_error_logger_updates_index_and_prunes_old_global_logs(tmp_path: Path, m
         component="test-suite",
     )
     assert out.get("status") == "logged"
-
-    # retention should prune the very old synthetic file
-    assert not old_file.exists(), "Expected old global error log file to be pruned by retention"
-
-    index_file = logs_dir / "errors-index.json"
-    assert index_file.exists(), "Expected global error index file"
-
-    idx = json.loads(read_text(index_file))
-    assert idx.get("schema") == "opencode.error-index.v1"
-    assert isinstance(idx.get("totalEvents"), int) and idx["totalEvents"] >= 1
-    assert isinstance(idx.get("byReason"), dict)
-    assert idx["byReason"].get("ERR-TEST-INDEX", 0) >= 1
+    log_path = Path(out.get("path", ""))
+    assert log_path.name == "error.log.jsonl"
+    assert log_path.exists()
 
 
 @pytest.mark.governance

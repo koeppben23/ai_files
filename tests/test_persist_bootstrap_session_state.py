@@ -15,6 +15,7 @@ def test_persist_workspace_artifacts_bootstraps_missing_session_state(tmp_path: 
     cfg = tmp_path / "opencode-config"
     repo_root = tmp_path / "repo"
     repo_root.mkdir(parents=True, exist_ok=True)
+    (repo_root / ".git").mkdir(parents=True, exist_ok=True)
     repo_fp = "a1b2c3d4e5f6a1b2c3d4e5f6"
     write_governance_paths(cfg)
 
@@ -49,6 +50,7 @@ def test_persist_workspace_artifacts_does_not_bootstrap_when_session_updates_dis
     cfg = tmp_path / "opencode-config"
     repo_root = tmp_path / "repo"
     repo_root.mkdir(parents=True, exist_ok=True)
+    (repo_root / ".git").mkdir(parents=True, exist_ok=True)
     repo_fp = "b2c3d4e5f6a1b2c3d4e5f6a1"
     write_governance_paths(cfg)
 

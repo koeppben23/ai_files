@@ -142,10 +142,14 @@ def test_start_preflight_persists_workspace_and_pointer(tmp_path: Path) -> None:
     assert hook is not None, proc.stdout
     assert hook.get("workspacePersistenceHook") == "ok"
     hook_command = str(hook.get("bootstrap_hook_command") or "")
-    hook_argv = shlex.split(hook_command)
-    assert len(hook_argv) >= 3
-    assert hook_argv[0] == sys.executable
-    assert hook_argv[1:3] == ["-m", "diagnostics.start_persistence_hook"]
+    if os.name == "nt":
+        assert " -m diagnostics.start_persistence_hook" in hook_command
+        assert Path(hook_command.split(" -m ", 1)[0]).name.lower().startswith("python")
+    else:
+        hook_argv = shlex.split(hook_command)
+        assert len(hook_argv) >= 3
+        assert hook_argv[0] == sys.executable
+        assert hook_argv[1:3] == ["-m", "diagnostics.start_persistence_hook"]
     assert hook.get("cwd") == str(repo)
     assert hook.get("repo_root_detected") == str(repo)
     repo_fp = str(hook.get("repo_fingerprint") or "").strip()

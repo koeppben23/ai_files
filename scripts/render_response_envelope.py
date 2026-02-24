@@ -97,7 +97,7 @@ def main(argv: list[str]) -> int:
             )
             emit_gate_failure(
                 gate="RESPONSE_CONTRACT",
-                code="BLOCKED-INVALID-NEXT_ACTION",
+                code="BLOCKED-INVALID-NEXT-ACTION",
                 message="Response contract validation rejected next_action for current phase.",
                 expected="next_action.type=command before phase 4",
                 observed={
@@ -110,7 +110,7 @@ def main(argv: list[str]) -> int:
             )
             blocked_payload = {
                 "status": "BLOCKED",
-                "reason_code": "BLOCKED-INVALID-NEXT_ACTION",
+                "reason_code": "BLOCKED-INVALID-NEXT-ACTION",
                 "missing_evidence": ["phase-aligned next_action contract"],
                 "recovery_steps": ["set next_action.type to command before phase 4"],
                 "next_command": "render_response_envelope.py --input <payload.json>",

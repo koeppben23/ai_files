@@ -234,7 +234,7 @@
       "remediation_hint": "Normalize decision-pack to automatic policy wording and rerun persistence."
     },
     {
-      "code": "BLOCKED-INVALID-NEXT_ACTION",
+      "code": "BLOCKED-INVALID-NEXT-ACTION",
       "severity": "blocked",
       "payload_schema_ref": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
       "description": "Response contract validation rejected next_action for current phase/gate.",
