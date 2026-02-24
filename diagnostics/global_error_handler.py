@@ -199,7 +199,12 @@ def _resolve_log_path(
     cfg = config_root or _ERROR_CONTEXT.get("config_root")
     cmd = commands_home if commands_home is not None else (_ERROR_CONTEXT.get("commands_home") if config_root is None else None)
     ws = workspaces_home or _ERROR_CONTEXT.get("workspaces_home")
-    fp = repo_fingerprint or _ERROR_CONTEXT.get("repo_fingerprint")
+    if repo_fingerprint is not None:
+        fp = repo_fingerprint
+    elif workspaces_home is not None or config_root is not None or commands_home is not None:
+        fp = None
+    else:
+        fp = _ERROR_CONTEXT.get("repo_fingerprint")
     
     if cfg is None:
         try:

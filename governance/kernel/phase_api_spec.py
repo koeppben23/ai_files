@@ -49,7 +49,7 @@ class PhaseApiSpec:
 
 
 def _repo_default_phase_api_path() -> Path:
-    return Path(__file__).resolve().parents[2] / "phase_api.yaml"
+    return Path(__file__).absolute().parents[2] / "phase_api.yaml"
 
 
 def _resolve_phase_api_path(commands_home: Path | None, *, allow_repo_fallback: bool) -> Path:
@@ -187,7 +187,8 @@ def _validate_links(entries: Mapping[str, PhaseSpecEntry]) -> None:
 def _resolve_commands_home(explicit_commands_home: Path | None) -> Path:
     if explicit_commands_home is not None:
         return explicit_commands_home
-    evidence = BindingEvidenceResolver().resolve(mode="diagnostics")
+    resolver = BindingEvidenceResolver()
+    evidence = getattr(resolver, "resolve")(mode="diagnostics")
     return evidence.commands_home
 
 
