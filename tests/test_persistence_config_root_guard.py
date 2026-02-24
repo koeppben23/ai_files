@@ -169,6 +169,33 @@ def test_persist_workspace_artifacts_never_creates_repo_local_c_artifact(tmp_pat
 
 
 @pytest.mark.governance
+def test_persist_workspace_artifacts_blocks_when_repo_root_not_detectable(tmp_path: Path):
+    script = REPO_ROOT / "diagnostics" / "persist_workspace_artifacts.py"
+    cfg = tmp_path / "opencode-config"
+    write_governance_paths(cfg)
+    non_repo = tmp_path / "non-repo"
+    non_repo.mkdir(parents=True, exist_ok=True)
+
+    result = run(
+        [
+            sys.executable,
+            str(script),
+            "--repo-fingerprint",
+            "88b39b036804c534a1b2c3d4",
+            "--config-root",
+            str(cfg),
+            "--quiet",
+        ],
+        cwd=non_repo,
+    )
+
+    assert result.returncode == 2
+    payload = json.loads(result.stdout)
+    assert payload.get("reason_code") == "BLOCKED-REPO-ROOT-NOT-DETECTABLE"
+    assert payload.get("cwd") == str(non_repo)
+
+
+@pytest.mark.governance
 @pytest.mark.skip(reason="Path resolution differs between /tmp and /private/tmp on macOS; needs test infrastructure fix")
 def test_persist_workspace_artifacts_allows_repo_local_config_root_for_non_git_dirs(tmp_path: Path):
     script = REPO_ROOT / "diagnostics" / "persist_workspace_artifacts.py"

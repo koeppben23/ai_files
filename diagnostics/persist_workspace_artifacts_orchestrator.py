@@ -53,8 +53,15 @@ if str(SCRIPT_DIR.parent) not in sys.path:
 
 from diagnostics.write_policy import EFFECTIVE_MODE, is_write_allowed, writes_allowed
 try:
-    from artifacts.backfill import ArtifactSpec, run_backfill, upsert_artifact as _run_upsert_artifact
-    from artifacts.normalization import normalize_legacy_placeholder_phrasing
+    from artifacts.backfill import (
+        ArtifactSpec as ArtifactSpec,  # type: ignore[no-redef]
+        run_backfill as run_backfill,  # type: ignore[no-redef]
+        upsert_artifact as _run_upsert_artifact,
+    )
+    from artifacts.normalization import (
+        has_legacy_decision_pack_ab_prompt,
+        normalize_legacy_placeholder_phrasing,
+    )
     from artifacts.writers.repo_cache import render_repo_cache
     from artifacts.writers.repo_map_digest import (
         repo_map_digest_section,
@@ -88,6 +95,9 @@ except ImportError:
         for old, new in replacements.items():
             updated = updated.replace(old, new)
         return updated, updated != text
+
+    def has_legacy_decision_pack_ab_prompt(text: str) -> bool:
+        return bool(re.search(r"(?im)^\s*A\)\s*Yes\s*$", text) or re.search(r"(?im)^\s*B\)\s*No\s*$", text))
 
     def _run_upsert_artifact(
         *,
@@ -305,6 +315,56 @@ from diagnostics.error_handler_bridge import (
     install_global_handlers,
     set_error_context,
 )
+try:
+    from diagnostics.global_error_handler import resolve_log_path
+except Exception:
+    def resolve_log_path(*, config_root=None, workspaces_home=None, repo_fingerprint=None):
+        cfg_root = Path(config_root) if config_root else (Path.home() / ".config" / "opencode")
+        if repo_fingerprint and workspaces_home:
+            return Path(workspaces_home) / repo_fingerprint / "logs" / "error.log.jsonl"
+        return cfg_root / "logs" / "error.log.jsonl"
+
+try:
+    from governance.domain.phase_state_machine import normalize_phase_token, phase_rank
+except Exception:
+    def normalize_phase_token(value: object) -> str:
+        token = str(value or "").strip().upper()
+        if token.startswith("1.1"):
+            return "1.1"
+        if token.startswith("1.2"):
+            return "1.2"
+        if token.startswith("1.3"):
+            return "1.3"
+        if token.startswith("1.5"):
+            return "1.5"
+        if token.startswith("2.1"):
+            return "2.1"
+        if token.startswith("2"):
+            return "2"
+        if token.startswith("3A"):
+            return "3A"
+        if token.startswith("3B-1"):
+            return "3B-1"
+        if token.startswith("3B-2"):
+            return "3B-2"
+        if token.startswith("4"):
+            return "4"
+        return ""
+
+    def phase_rank(token: str) -> int:
+        ranks = {
+            "1.1": 11,
+            "1.2": 12,
+            "1.3": 13,
+            "1.5": 15,
+            "2": 20,
+            "2.1": 21,
+            "3A": 30,
+            "3B-1": 31,
+            "3B-2": 32,
+            "4": 40,
+        }
+        return ranks.get(token, -1)
 
 def _read_only() -> bool:
     return not writes_allowed()
@@ -520,6 +580,64 @@ def _resolve_python_command(paths: dict[str, Any]) -> str:
     if isinstance(raw, str) and raw.strip():
         return raw.strip()
     return str(sys.executable or "python")
+
+
+def _resolve_repo_root_strict(explicit: Path | None) -> tuple[Path | None, str, dict[str, object]]:
+    if explicit is not None:
+        try:
+            normalized = normalize_absolute_path(str(explicit), purpose="repo_root")
+            if (normalized / ".git").exists() or (normalized / ".git").is_file():
+                return normalized, "explicit", {"ok": True, "source": "explicit", "path": str(normalized)}
+            return None, "explicit-invalid", {"ok": False, "source": "explicit", "path": str(normalized), "reason": "missing-.git"}
+        except Exception as exc:
+            return None, "explicit-invalid", {"ok": False, "source": "explicit", "error": str(exc)[:200]}
+
+    env_root = os.environ.get("OPENCODE_REPO_ROOT", "").strip()
+    if env_root:
+        try:
+            normalized = normalize_absolute_path(env_root, purpose="OPENCODE_REPO_ROOT")
+            if (normalized / ".git").exists() or (normalized / ".git").is_file():
+                return normalized, "env", {"ok": True, "source": "env", "path": str(normalized)}
+            return None, "env-invalid", {"ok": False, "source": "env", "path": str(normalized), "reason": "missing-.git"}
+        except Exception as exc:
+            return None, "env-invalid", {"ok": False, "source": "env", "raw": env_root, "error": str(exc)[:200]}
+
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=5,
+        )
+    except Exception as exc:
+        return None, "git-probe-failed", {"ok": False, "source": "git", "error": str(exc)[:200]}
+
+    root = (result.stdout or "").strip()
+    if result.returncode == 0 and root:
+        try:
+            return normalize_absolute_path(root, purpose="git-rev-parse"), "git", {
+                "ok": True,
+                "source": "git",
+                "stdout": root,
+                "returncode": result.returncode,
+            }
+        except Exception as exc:
+            return None, "git-invalid", {
+                "ok": False,
+                "source": "git",
+                "stdout": root,
+                "returncode": result.returncode,
+                "error": str(exc)[:200],
+            }
+
+    return None, "git-miss", {
+        "ok": False,
+        "source": "git",
+        "stdout": root,
+        "stderr": (result.stderr or "").strip()[:240],
+        "returncode": result.returncode,
+    }
 
 
 def _preferred_shell_command(profiles: dict[str, object]) -> str:
@@ -1134,29 +1252,58 @@ def main() -> int:
 
     python_cmd = _resolve_python_command(binding_paths)
     
-    repo_root_source = args.repo_root
-    if repo_root_source is None:
-        env_root = os.environ.get("OPENCODE_REPO_ROOT", "").strip()
-        if env_root:
-            repo_root_source = Path(env_root)
-    if repo_root_source is None:
-        try:
-            result = subprocess.run(
-                ["git", "rev-parse", "--show-toplevel"],
-                capture_output=True,
-                text=True,
-                check=False,
-                timeout=5,
-            )
-            if result.returncode == 0:
-                git_root = result.stdout.strip()
-                if git_root:
-                    repo_root_source = Path(git_root)
-        except Exception:
-            pass
-    if repo_root_source is None:
-        repo_root_source = Path.cwd()
-    repo_root = Path(os.path.normpath(os.path.abspath(str(repo_root_source.expanduser()))))
+    repo_root, repo_root_source, git_probe = _resolve_repo_root_strict(args.repo_root)
+    if repo_root is None:
+        cmd_profiles = render_command_profiles(
+            [
+                python_cmd,
+                "diagnostics/persist_workspace_artifacts.py",
+                "--repo-root",
+                "<repo_root>",
+                "--config-root",
+                str(config_root),
+            ]
+        )
+        log_path = resolve_log_path(
+            config_root=str(config_root),
+            workspaces_home=str(config_root / "workspaces"),
+            repo_fingerprint=None,
+        )
+        emit_gate_failure(
+            gate="PERSISTENCE",
+            code="BLOCKED-REPO-ROOT-NOT-DETECTABLE",
+            message="Repository root is not deterministically detectable.",
+            expected="valid --repo-root, OPENCODE_REPO_ROOT, or git rev-parse --show-toplevel",
+            observed={"cwd": str(Path.cwd()), "repo_root_source": repo_root_source, "git_probe": git_probe},
+            remediation="Provide --repo-root or OPENCODE_REPO_ROOT with a valid git repository root.",
+            config_root=str(config_root),
+            workspaces_home=str(config_root / "workspaces"),
+            repo_fingerprint=None,
+            phase="2",
+        )
+        payload = {
+            "status": "blocked",
+            "reason": "repo root not detectable",
+            "reason_code": "BLOCKED-REPO-ROOT-NOT-DETECTABLE",
+            "missing_evidence": ["deterministic repo root"],
+            "recovery_steps": [
+                "set OPENCODE_REPO_ROOT to an absolute git repository root",
+                "or pass --repo-root explicitly",
+            ],
+            "required_operator_action": "provide deterministic repository root evidence before persistence",
+            "feedback_required": "reply with the resolved repo root path used for rerun",
+            "next_command": _preferred_shell_command(cmd_profiles),
+            "next_command_profiles": cmd_profiles,
+            "repo_root_detected": "",
+            "git_probe": git_probe,
+            "cwd": str(Path.cwd()),
+            "log_path": str(log_path),
+        }
+        if args.quiet:
+            print(json.dumps(payload, ensure_ascii=True))
+        else:
+            print("ERROR: repository root is not deterministically detectable")
+        return 2
 
     if (repo_root / ".git").exists() and _is_within(config_root, repo_root):
         emit_gate_failure(
@@ -1542,6 +1689,48 @@ def main() -> int:
         )
     actions["decisionPackNormalizationEvent"] = decision_pack_normalization_event
 
+    phase_value = ""
+    if isinstance(session, dict):
+        raw_phase = session.get("Phase") or session.get("phase")
+        if isinstance(raw_phase, str):
+            phase_value = raw_phase
+    phase_token = normalize_phase_token(phase_value)
+    if phase_rank(phase_token) >= 0 and phase_rank(phase_token) < phase_rank("4") and decision_path.exists():
+        decision_text = decision_path.read_text(encoding="utf-8", errors="replace")
+        if has_legacy_decision_pack_ab_prompt(decision_text):
+            emit_gate_failure(
+                gate="PERSISTENCE",
+                code="BLOCKED-LEGACY-DECISION-PACK-FORMAT",
+                message="Legacy decision-pack A/B prompt format is not allowed before Phase 4.",
+                expected="Status: automatic policy wording without interactive A/B choices",
+                observed={"phase": phase_value or "unknown", "decisionPack": str(decision_path)},
+                remediation="Normalize decision-pack content to automatic policy format and rerun persistence.",
+                config_root=str(config_root),
+                workspaces_home=str(workspaces_home),
+                repo_fingerprint=repo_fingerprint,
+                phase=phase_value or "2",
+            )
+            payload = {
+                "status": "blocked",
+                "reason": "legacy decision-pack format detected before phase 4",
+                "reason_code": "BLOCKED-LEGACY-DECISION-PACK-FORMAT",
+                "missing_evidence": ["normalized decision-pack automatic policy format"],
+                "recovery_steps": [
+                    "replace legacy A/B prompts in decision-pack.md with automatic policy format",
+                    "rerun diagnostics/persist_workspace_artifacts.py",
+                ],
+                "required_operator_action": "normalize decision-pack markdown to non-interactive format",
+                "feedback_required": "reply with rerun result after normalization",
+                "next_command": f"{python_cmd} diagnostics/persist_workspace_artifacts.py --repo-fingerprint {repo_fingerprint} --config-root {config_root}",
+            }
+            if workspace_lock is not None:
+                workspace_lock.release()
+            if args.quiet:
+                print(json.dumps(payload, ensure_ascii=True))
+            else:
+                print("ERROR: legacy decision-pack format detected before phase 4")
+            return 2
+
     session_update = "skipped"
     if not args.no_session_update:
         session_update = _update_session_state(
@@ -1623,6 +1812,10 @@ def main() -> int:
             "ok": phase2_artifacts_ok,
             "missing": phase2_missing,
         },
+        "repo_root_detected": str(repo_root),
+        "repo_root_source": repo_root_source,
+        "git_probe": git_probe,
+        "cwd": str(Path.cwd()),
     }
 
     if args.quiet:

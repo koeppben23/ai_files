@@ -335,6 +335,26 @@ def _verify_pointer_exists(opencode_home: Path, repo_fingerprint: str) -> tuple[
     active_fp = payload.get("activeRepoFingerprint")
     if active_fp != repo_fingerprint:
         return False, f"pointer-fingerprint-mismatch:expected={repo_fingerprint},got={active_fp}"
+    active_state_file = payload.get("activeSessionStateFile")
+    if not isinstance(active_state_file, str) or not active_state_file.strip():
+        return False, "pointer-missing-activeSessionStateFile"
+    active_state_path = Path(active_state_file.strip())
+    if not active_state_path.is_absolute():
+        return False, "pointer-activeSessionStateFile-not-absolute"
+    if not active_state_path.is_file():
+        return False, "pointer-activeSessionStateFile-missing"
+    try:
+        state_payload = json.loads(active_state_path.read_text(encoding="utf-8"))
+    except Exception:
+        return False, "pointer-activeSessionStateFile-unreadable"
+    if not isinstance(state_payload, dict):
+        return False, "pointer-activeSessionStateFile-invalid-shape"
+    state = state_payload.get("SESSION_STATE")
+    if not isinstance(state, dict):
+        return False, "pointer-activeSessionStateFile-missing-SESSION_STATE"
+    state_fp = state.get("RepoFingerprint") or state.get("repo_fingerprint")
+    if state_fp != repo_fingerprint:
+        return False, "pointer-activeSessionStateFile-fingerprint-mismatch"
     return True, "ok"
 
 
@@ -380,7 +400,7 @@ def run_persistence_hook(*, repo_root: Path | None = None) -> dict[str, object]:
     if resolved_root is None:
         emit_gate_failure(
             gate="PERSISTENCE",
-            code="REPO_ROOT_RESOLUTION_FAILED",
+            code="BLOCKED-REPO-ROOT-NOT-DETECTABLE",
             message="Could not resolve git repository root.",
             expected="valid repository root",
             observed={"root_source": root_source, "cwd": str(Path.cwd())},
@@ -388,10 +408,15 @@ def run_persistence_hook(*, repo_root: Path | None = None) -> dict[str, object]:
         )
         result = {
             "workspacePersistenceHook": "failed",
+            "reason_code": "BLOCKED-REPO-ROOT-NOT-DETECTABLE",
             "reason": f"repo-root-resolution-failed:{root_source}",
             "impact": "cannot create workspace without valid git repository root",
             "writes_allowed": True,
             "root_source": root_source,
+            "cwd": str(Path.cwd()),
+            "repo_root_detected": "",
+            "python_executable": sys.executable,
+            "bootstrap_hook_command": f"{sys.executable} -m diagnostics.start_persistence_hook",
         }
         safe_log_error(
             reason_key="ERR-PERSISTENCE-REPO-ROOT-RESOLUTION-FAILED",
