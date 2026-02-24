@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import diagnostics.global_error_handler as geh
 from diagnostics.global_error_handler import emit_gate_failure, resolve_log_path
 
 
@@ -46,3 +47,27 @@ def test_emit_gate_failure_with_fingerprint_writes_workspace_log(tmp_path: Path)
     lines = path.read_text(encoding="utf-8").splitlines()
     assert lines
     assert json.loads(lines[-1])["context"]["fp"] == repo_fp
+
+
+def test_emit_gate_failure_supports_legacy_event_sink_signature(tmp_path: Path, monkeypatch) -> None:
+    config_root = tmp_path / "cfg"
+    captured = {"called": False}
+
+    def legacy_write(path: Path, event: dict[str, object]) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(event) + "\n", encoding="utf-8")
+        captured["called"] = True
+
+    monkeypatch.setattr(geh, "write_jsonl_event", legacy_write)
+
+    ok = emit_gate_failure(
+        gate="PERSISTENCE",
+        code="BLOCKED-WORKSPACE-PERSISTENCE",
+        message="legacy",
+        config_root=config_root,
+        workspaces_home=tmp_path / "workspaces",
+        repo_fingerprint=None,
+    )
+
+    assert ok is True
+    assert captured["called"] is True
