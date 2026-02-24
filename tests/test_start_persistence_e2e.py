@@ -129,6 +129,9 @@ def test_start_preflight_persists_workspace_and_pointer(tmp_path: Path) -> None:
     hook = next((p for p in payloads if isinstance(p, dict) and "workspacePersistenceHook" in p), None)
     assert hook is not None, proc.stdout
     assert hook.get("workspacePersistenceHook") == "ok"
+    assert hook.get("bootstrap_hook_command") == f"{sys.executable} -m diagnostics.start_persistence_hook"
+    assert hook.get("cwd") == str(repo)
+    assert hook.get("repo_root_detected") == str(repo)
     repo_fp = str(hook.get("repo_fingerprint") or "").strip()
     assert repo_fp, hook
 
@@ -136,6 +139,9 @@ def test_start_preflight_persists_workspace_and_pointer(tmp_path: Path) -> None:
     assert workspace.exists() and workspace.is_dir()
     assert (workspace / "SESSION_STATE.json").exists()
     assert (workspace / "repo-identity-map.yaml").exists()
+    assert (workspace / "repo-cache.yaml").exists()
+    assert (workspace / "workspace-memory.yaml").exists()
+    assert (workspace / "decision-pack.md").exists()
 
     state = json.loads((workspace / "SESSION_STATE.json").read_text(encoding="utf-8"))
     ss = state.get("SESSION_STATE", {})
@@ -144,6 +150,15 @@ def test_start_preflight_persists_workspace_and_pointer(tmp_path: Path) -> None:
     assert ss.get("WorkspaceReadyGateCommitted") is True
 
     assert (config_root / "SESSION_STATE.json").exists()
+
+    decision_pack_text = (workspace / "decision-pack.md").read_text(encoding="utf-8")
+    assert "A) Yes" not in decision_pack_text
+    assert "B) No" not in decision_pack_text
+
+    workspace_error_log = workspace / "logs" / "error.log.jsonl"
+    global_error_log = config_root / "logs" / "error.log.jsonl"
+    assert not workspace_error_log.exists(), "successful start must not emit blocked error log"
+    assert not global_error_log.exists(), "successful start must not emit blocked error log"
 
 
 @pytest.mark.e2e_governance

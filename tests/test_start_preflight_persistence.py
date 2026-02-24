@@ -156,9 +156,13 @@ def test_run_persistence_hook_delegates_to_hook_module(capsys: pytest.CaptureFix
     assert result["workspacePersistenceHook"] == "ok"
     assert result["repo_fingerprint"] == "testfingerprint123456"
     assert result["bootstrap_hook_command"] == f"{module.sys.executable} -m diagnostics.start_persistence_hook"
+    assert result["cwd"]
     assert result["repo_root_detected"] == str(repo_root)
+    run_args = mock_run.call_args.args[0]
+    assert run_args[:3] == [module.sys.executable, "-m", "diagnostics.start_persistence_hook"]
     call_args = mock_run.call_args.kwargs
     assert call_args["cwd"] == str(repo_root)
+    assert str(module.COMMANDS_HOME) in str(call_args["env"].get("PYTHONPATH", ""))
 
 
 @pytest.mark.governance
