@@ -235,6 +235,47 @@ def test_persist_workspace_artifacts_blocks_legacy_decision_pack_before_phase4(t
 
 
 @pytest.mark.governance
+def test_persist_workspace_artifacts_normalizes_legacy_decision_pack_on_write_path(tmp_path: Path):
+    script = REPO_ROOT / "diagnostics" / "persist_workspace_artifacts.py"
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir(parents=True, exist_ok=True)
+    (repo_root / ".git").mkdir()
+
+    cfg = tmp_path / "opencode-config"
+    write_governance_paths(cfg)
+    fp = "88b39b036804c534a1b2c3d4"
+    ws_repo = cfg / "workspaces" / fp
+    ws_repo.mkdir(parents=True, exist_ok=True)
+    (ws_repo / "SESSION_STATE.json").write_text(
+        json.dumps({"SESSION_STATE": {"Phase": "1.2-ActivationIntent", "PersistenceCommitted": True}}),
+        encoding="utf-8",
+    )
+    decision_pack = ws_repo / "decision-pack.md"
+    decision_pack.write_text("D-001\nA) Yes\nB) No\n", encoding="utf-8")
+
+    result = run(
+        [
+            sys.executable,
+            str(script),
+            "--repo-fingerprint",
+            fp,
+            "--repo-root",
+            str(repo_root),
+            "--config-root",
+            str(cfg),
+            "--quiet",
+        ],
+        cwd=repo_root,
+    )
+
+    assert result.returncode == 0
+    text = decision_pack.read_text(encoding="utf-8")
+    assert "A) Yes" not in text
+    assert "B) No" not in text
+    assert "Status: automatic" in text
+
+
+@pytest.mark.governance
 @pytest.mark.skip(reason="Path resolution differs between /tmp and /private/tmp on macOS; needs test infrastructure fix")
 def test_persist_workspace_artifacts_allows_repo_local_config_root_for_non_git_dirs(tmp_path: Path):
     script = REPO_ROOT / "diagnostics" / "persist_workspace_artifacts.py"

@@ -51,7 +51,8 @@ EFFECTIVE_MODE = effective_mode()
 def write_policy_reasons() -> tuple[str, ...]:
     reasons: list[str] = [f"mode:{effective_mode()}"]
     policy = compute_write_policy(
-        force_read_only=str(os.environ.get("OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY", "")).strip() == "1"
+        force_read_only=str(os.environ.get("OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY", "")).strip() == "1",
+        mode=effective_mode(),
     )
     reasons.append(policy.reason)
     return tuple(reasons)
@@ -67,7 +68,8 @@ def writes_allowed() -> bool:
         Writes are allowed by default, unless FORCE_READ_ONLY=1
     """
     return compute_write_policy(
-        force_read_only=str(os.environ.get("OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY", "")).strip() == "1"
+        force_read_only=str(os.environ.get("OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY", "")).strip() == "1",
+        mode=effective_mode(),
     ).writes_allowed
 
 

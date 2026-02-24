@@ -388,6 +388,8 @@ def run_persistence_hook(*, repo_root: Path | None = None) -> dict[str, object]:
     install_global_handlers()
 
     def _with_log_path(payload: dict[str, object], repo_fingerprint: str | None = None) -> dict[str, object]:
+        if "repo_fingerprint" not in payload:
+            payload["repo_fingerprint"] = repo_fingerprint or ""
         if "log_path" not in payload:
             payload["log_path"] = str(
                 resolve_log_path(

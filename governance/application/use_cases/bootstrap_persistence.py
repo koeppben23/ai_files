@@ -120,7 +120,7 @@ class BootstrapPersistenceService:
         write_actions: dict[str, str] = {}
         errors: list[ErrorEvent] = []
 
-        policy = compute_write_policy(force_read_only=payload.force_read_only)
+        policy = compute_write_policy(force_read_only=payload.force_read_only, mode=payload.effective_mode)
         config_root = Path(payload.binding.config_root)
         repo_root = Path(payload.repo_identity.repo_root)
         pointer_file = Path(payload.layout.pointer_file)
