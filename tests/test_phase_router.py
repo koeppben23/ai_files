@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 import pytest
 
 from governance.application.use_cases.phase_router import (
@@ -10,6 +13,30 @@ from governance.application.use_cases.phase_router import (
     _openapi_signal,
     _external_api_artifacts,
 )
+
+
+@pytest.fixture(autouse=True)
+def _kernel_binding_evidence(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    cfg = home / ".config" / "opencode"
+    commands_home = cfg / "commands"
+    workspaces_home = cfg / "workspaces"
+    commands_home.mkdir(parents=True, exist_ok=True)
+    workspaces_home.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "schema": "opencode-governance.paths.v1",
+        "paths": {
+            "configRoot": str(cfg),
+            "commandsHome": str(commands_home),
+            "workspacesHome": str(workspaces_home),
+            "pythonCommand": "python3",
+        },
+    }
+    (commands_home / "governance.paths.json").write_text(json.dumps(payload), encoding="utf-8")
+
+    repo_root = Path(__file__).resolve().parents[1]
+    (commands_home / "phase_api.yaml").write_text((repo_root / "phase_api.yaml").read_text(encoding="utf-8"), encoding="utf-8")
+    monkeypatch.setattr(Path, "home", staticmethod(lambda: home))
 
 
 def _minimal_session_state(**overrides) -> dict[str, object]:
@@ -99,8 +126,8 @@ class TestPhase2And1Routing:
             session_state_document=doc,
             repo_is_git_root=True,
         )
-        assert result.phase == "1.3-RulebookLoad"
-        assert result.source == "phase-1.2-to-1.3-auto"
+        assert result.phase == "1.2-ActivationIntent"
+        assert result.source == "phase-transition-not-allowed"
 
     def test_phase_2_1_routes_to_1_5_when_business_rules_not_resolved(self):
         """After Phase 2.1, route to Phase 1.5 if business rules not resolved."""

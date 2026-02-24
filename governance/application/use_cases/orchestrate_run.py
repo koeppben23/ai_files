@@ -264,6 +264,7 @@ def run_engine_orchestrator(
         status=routed_phase.status,
         spec_hash=routed_phase.spec_hash,
         spec_path=routed_phase.spec_path,
+        spec_loaded_at=routed_phase.spec_loaded_at,
         log_paths=routed_phase.log_paths,
         event_id=routed_phase.event_id,
     )

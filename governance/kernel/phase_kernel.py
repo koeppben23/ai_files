@@ -37,6 +37,7 @@ class KernelResult:
     status: str
     spec_hash: str
     spec_path: str
+    spec_loaded_at: str
     log_paths: dict[str, str]
     event_id: str
 
@@ -249,18 +250,18 @@ def _sanitize_ticket_progression(*, phase: str, next_gate_condition: str) -> str
     return next_gate_condition
 
 
-def _resolve_paths(runtime_ctx: RuntimeContext) -> tuple[Path, Path | None, Path | None]:
+def _resolve_paths(runtime_ctx: RuntimeContext) -> tuple[Path, Path | None, Path | None, bool, list[str]]:
     if runtime_ctx.commands_home is not None:
         commands_home = runtime_ctx.commands_home
         workspaces_home = runtime_ctx.workspaces_home
         config_root = runtime_ctx.config_root
-        return commands_home, workspaces_home, config_root
+        return commands_home, workspaces_home, config_root, True, []
     resolver = BindingEvidenceResolver()
     evidence = getattr(resolver, "resolve")(mode="kernel")
-    return evidence.commands_home, evidence.workspaces_home, evidence.config_root
+    return evidence.commands_home, evidence.workspaces_home, evidence.config_root, evidence.binding_ok, list(evidence.issues)
 
 
-def _resolve_flow_paths(commands_home: Path, workspaces_home: Path | None, config_root: Path | None, repo_fingerprint: str) -> dict[str, Path]:
+def _resolve_flow_paths(commands_home: Path, workspaces_home: Path | None, repo_fingerprint: str) -> dict[str, Path]:
     paths: dict[str, Path] = {
         "commands_flow": commands_home / "logs" / "flow.log.jsonl",
         "commands_boot": commands_home / "logs" / "boot.log.jsonl",
@@ -268,8 +269,6 @@ def _resolve_flow_paths(commands_home: Path, workspaces_home: Path | None, confi
     if workspaces_home is not None and repo_fingerprint:
         paths["workspace_events"] = workspaces_home / repo_fingerprint / "events.jsonl"
         paths["workspace_flow"] = workspaces_home / repo_fingerprint / "logs" / "flow.log.jsonl"
-    if config_root is not None:
-        paths["config_fallback"] = config_root / "logs" / "flow.log.jsonl"
     return paths
 
 
@@ -380,7 +379,7 @@ def _emit_phase_event(log_paths: Mapping[str, Path], event: dict[str, object]) -
             "workspace_events": str(workspace_path),
         }
 
-    for key in ("commands_flow", "commands_boot", "config_fallback"):
+    for key in ("commands_flow", "commands_boot"):
         target = log_paths.get(key)
         if target is not None and _append_event(target, event):
             return True, {
@@ -401,14 +400,42 @@ def execute(
     runtime_ctx: RuntimeContext,
 ) -> KernelResult:
     state = _session_state(session_state_doc)
-    commands_home, workspaces_home, config_root = _resolve_paths(runtime_ctx)
+    commands_home, workspaces_home, config_root, binding_ok, binding_issues = _resolve_paths(runtime_ctx)
     repo_fingerprint = runtime_ctx.live_repo_fingerprint or _extract_fingerprint(state)
     event_id = uuid.uuid4().hex
+
+    if not binding_ok:
+        issue_text = ", ".join(binding_issues) if binding_issues else "binding evidence missing"
+        log_paths = _resolve_flow_paths(commands_home, workspaces_home, repo_fingerprint)
+        emit_error_event(
+            severity="CRITICAL",
+            code="BINDING_EVIDENCE_INVALID",
+            message=issue_text,
+            repo_fingerprint=repo_fingerprint or None,
+            config_root=config_root,
+            workspaces_home=workspaces_home,
+            commands_home=commands_home,
+            context={"issues": binding_issues},
+        )
+        return KernelResult(
+            phase="1.1-Bootstrap",
+            next_token="1.1",
+            active_gate="Binding Evidence Gate",
+            next_gate_condition="BLOCKED_BINDING_EVIDENCE_INVALID: commands home binding is required.",
+            workspace_ready=False,
+            source="binding-evidence-invalid",
+            status="BLOCKED",
+            spec_hash="",
+            spec_path="",
+            spec_loaded_at="",
+            log_paths={"phase_flow": str(log_paths.get("commands_flow") or ""), "workspace_events": ""},
+            event_id=event_id,
+        )
 
     try:
         spec = load_phase_api(runtime_ctx.commands_home)
     except PhaseApiSpecError as exc:
-        log_paths = _resolve_flow_paths(commands_home, workspaces_home, config_root, repo_fingerprint)
+        log_paths = _resolve_flow_paths(commands_home, workspaces_home, repo_fingerprint)
         _emit_phase_event(
             log_paths,
             {
@@ -446,6 +473,7 @@ def execute(
             status="BLOCKED",
             spec_hash="",
             spec_path=str(commands_home / "phase_api.yaml"),
+            spec_loaded_at="",
             log_paths={"phase_flow": str(log_paths.get("commands_flow") or ""), "workspace_events": ""},
             event_id=event_id,
         )
@@ -454,7 +482,7 @@ def execute(
     persisted_token = _normalize_token(persisted_phase, spec)
     requested_token = _normalize_token(current_token, spec)
     chosen_token = persisted_token or requested_token or spec.start_token
-    log_paths = _resolve_flow_paths(commands_home, workspaces_home, config_root, repo_fingerprint)
+    log_paths = _resolve_flow_paths(commands_home, workspaces_home, repo_fingerprint)
 
     if persisted_token and requested_token and phase_rank(requested_token) >= phase_rank(persisted_token):
         chosen_token = requested_token
@@ -528,6 +556,7 @@ def execute(
             status="BLOCKED",
             spec_hash=spec.stable_hash,
             spec_path=str(spec.path),
+            spec_loaded_at=spec.loaded_at,
             log_paths=result_paths,
             event_id=event_id,
         )
@@ -563,8 +592,47 @@ def execute(
             status="OK",
             spec_hash=spec.stable_hash,
             spec_path=str(spec.path),
+            spec_loaded_at=spec.loaded_at,
             log_paths={},
             event_id=event_id,
+        )
+
+    if requested_token and persisted_token and requested_token != persisted_token:
+        allowed_next_tokens = {persisted_token}
+        persisted_entry = spec.entries[persisted_token]
+        if persisted_entry.next_token:
+            allowed_next_tokens.add(persisted_entry.next_token)
+        allowed_next_tokens.update(tr.next_token for tr in persisted_entry.transitions)
+        if requested_token not in allowed_next_tokens:
+            return _blocked_result(
+                phase=persisted_phase or persisted_entry.phase,
+                token=persisted_token,
+                active_gate=persisted_entry.active_gate or runtime_ctx.requested_active_gate,
+                next_gate_condition="PHASE_BLOCKED: requested phase transition not allowed by phase_api.yaml",
+                source="phase-transition-not-allowed",
+                reason=f"requested transition {persisted_token}->{requested_token} is not in spec graph",
+            )
+        if phase_rank(requested_token) > phase_rank(persisted_token) and not _transition_has_evidence(state):
+            return _blocked_result(
+                phase=persisted_phase or persisted_entry.phase,
+                token=persisted_token,
+                active_gate=persisted_entry.active_gate or runtime_ctx.requested_active_gate,
+                next_gate_condition="PHASE_BLOCKED: transition evidence required for requested phase jump",
+                source="phase-transition-evidence-required",
+                reason="phase transition evidence missing",
+            )
+
+    if phase_rank(chosen_token) < phase_rank("4") and (
+        contains_ticket_prompt(runtime_ctx.requested_next_gate_condition)
+        or contains_ticket_prompt(runtime_ctx.requested_active_gate)
+    ):
+        return _blocked_result(
+            phase=spec.entries[chosen_token].phase,
+            token=chosen_token,
+            active_gate=spec.entries[chosen_token].active_gate,
+            next_gate_condition="PHASE_BLOCKED: ticket input is forbidden before phase 4",
+            source="ticket-present-pre-phase4",
+            reason="ticket_present_pre_phase4",
         )
 
     if persisted_token and requested_token and phase_rank(requested_token) - phase_rank(persisted_token) > 1 and not _transition_has_evidence(state):
@@ -669,6 +737,7 @@ def execute(
         status="OK",
         spec_hash=spec.stable_hash,
         spec_path=str(spec.path),
+        spec_loaded_at=spec.loaded_at,
         log_paths=result_paths,
         event_id=event_id,
     )

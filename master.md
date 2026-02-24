@@ -1843,7 +1843,7 @@ Persistence trigger contract (binding):
 - The kernel persistence gate MUST NOT wait for LLM output to trigger writes
 
 Environment-based write control (binding):
-- Diagnostics helpers check `OPENCODE_DIAGNOSTICS_ALLOW_WRITE=1` to enable writes
+- Governance helpers require host write permission to configured `commandsHome` and `workspacesHome`; missing permission fails closed
 - In CI mode (`CI=true`), writes are disabled by default for safety
 - Normal operation MUST have writes enabled via environment or explicit flag
 
