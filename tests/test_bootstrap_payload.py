@@ -12,11 +12,13 @@ def test_bootstrap_payload_pointer_verified_true_golden():
         effective_mode="user",
         write_policy_reasons=(),
         pointer_verified=True,
+        activation_intent_valid=True,
     )
     s = cast(dict[str, Any], state["SESSION_STATE"])
-    assert s["Phase"] == "1.2-Architecture"
+    assert s["Phase"] == "1.2-ActivationIntent"
     assert s["Mode"] == "IN_PROGRESS"
-    assert s["Next"] == "P5-Architecture-in_progress"
+    assert s["Next"] == "P2-RepoDiscovery-ready"
+    assert s["ActivationIntent"]["Status"] == "valid"
     assert s["Bootstrap"]["Present"] is True
     assert s["Bootstrap"]["Satisfied"] is True
     assert s["Bootstrap"]["Evidence"] == "bootstrap-completed"

@@ -47,10 +47,10 @@ def test_end_to_end_bootstrap_integration(tmp_path):
     repo_map_digest = repo_home / "repo-map-digest.md"
     workspace_memory = repo_home / "workspace-memory.yaml"
     decision_pack = repo_home / "decision-pack.md"
-    repo_cache.write_text("dummy")
-    repo_map_digest.write_text("digest")
-    workspace_memory.write_text("memory")
-    decision_pack.write_text("pack")
+    fs.write_text_atomic(repo_cache, "dummy")
+    fs.write_text_atomic(repo_map_digest, "digest")
+    fs.write_text_atomic(workspace_memory, "memory")
+    fs.write_text_atomic(decision_pack, "pack")
 
     binding = Binding(
         config_root=str(config_root),
@@ -91,8 +91,8 @@ def test_end_to_end_bootstrap_integration(tmp_path):
     final_state = fs.read_text(session_state_file)
     data = json.loads(final_state)
     st = data.get("SESSION_STATE", {})
-    assert st.get("Phase") == "1.2-Architecture"
-    assert st.get("Next") == "P5-Architecture-in_progress"
+    assert st.get("Phase") == "1.2-ActivationIntent"
+    assert st.get("Next") == "P2-RepoDiscovery-ready"
     assert st.get("Bootstrap", {}).get("Present") is True
     assert st.get("Bootstrap", {}).get("Satisfied") is True
 

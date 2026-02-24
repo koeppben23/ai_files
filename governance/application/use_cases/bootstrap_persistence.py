@@ -15,6 +15,57 @@ from governance.domain.policies.write_policy import compute_write_policy
 from governance.domain.errors.events import ErrorEvent
 
 
+ACTIVATION_INTENT_FILE = "governance.activation_intent.json"
+
+
+def _default_activation_intent() -> dict[str, object]:
+    return {
+        "schema": "opencode-activation-intent.v1",
+        "default_scope": "governance-pipeline-only",
+        "allowed_actions": {
+            "read_only": True,
+            "write_allowed_in_user_mode": True,
+        },
+        "default_question_policy": {
+            "no_questions_before_phase4": True,
+            "blocked_when_no_safe_default": True,
+        },
+        "single_dev_mode": True,
+    }
+
+
+def _is_valid_activation_intent(payload: object) -> bool:
+    if not isinstance(payload, dict):
+        return False
+    if payload.get("schema") != "opencode-activation-intent.v1":
+        return False
+
+    default_scope = payload.get("default_scope")
+    if not isinstance(default_scope, str) or not default_scope.strip():
+        return False
+
+    allowed_actions = payload.get("allowed_actions")
+    if not isinstance(allowed_actions, dict):
+        return False
+    read_only = allowed_actions.get("read_only")
+    write_allowed = allowed_actions.get("write_allowed_in_user_mode")
+    if not isinstance(read_only, bool) or not isinstance(write_allowed, bool):
+        return False
+
+    question_policy = payload.get("default_question_policy")
+    if not isinstance(question_policy, dict):
+        return False
+    no_questions_before_phase4 = question_policy.get("no_questions_before_phase4")
+    blocked_when_no_safe_default = question_policy.get("blocked_when_no_safe_default")
+    if not isinstance(no_questions_before_phase4, bool) or not isinstance(blocked_when_no_safe_default, bool):
+        return False
+
+    single_dev_mode = payload.get("single_dev_mode")
+    if not isinstance(single_dev_mode, bool):
+        return False
+    return True
+
+
 @dataclass(frozen=True)
 class BootstrapResult:
     ok: bool
@@ -84,6 +135,41 @@ class BootstrapPersistenceService:
                 message="Bootstrap blocked by read-only policy.",
                 expected="writes allowed",
                 observed={"reason": policy.reason},
+            )
+            self._logger.write(event)
+            return BootstrapResult(ok=False, gate_code=event.code, write_actions=write_actions, error_events=(event,))
+
+        activation_intent_path = config_root / ACTIVATION_INTENT_FILE
+        activation_intent_valid = False
+        if self._fs.exists(activation_intent_path):
+            try:
+                activation_intent = json.loads(self._fs.read_text(activation_intent_path))
+            except Exception:
+                activation_intent = None
+            if _is_valid_activation_intent(activation_intent):
+                activation_intent_valid = True
+                write_actions["activation_intent"] = "verified"
+            else:
+                event = ErrorEvent(
+                    code="ACTIVATION_INTENT_INVALID",
+                    severity="error",
+                    message="Activation intent file exists but is invalid.",
+                    expected="valid opencode-activation-intent.v1 document",
+                    observed={"path": str(activation_intent_path)},
+                )
+                self._logger.write(event)
+                return BootstrapResult(ok=False, gate_code=event.code, write_actions=write_actions, error_events=(event,))
+        elif payload.effective_mode == "user":
+            self._fs.write_text_atomic(activation_intent_path, _canonical_json(_default_activation_intent()))
+            activation_intent_valid = True
+            write_actions["activation_intent"] = "created-default"
+        else:
+            event = ErrorEvent(
+                code="ACTIVATION_INTENT_REQUIRED",
+                severity="error",
+                message="Activation intent missing outside user mode.",
+                expected=f"{ACTIVATION_INTENT_FILE} exists and is schema-valid",
+                observed={"path": str(activation_intent_path), "effectiveMode": payload.effective_mode},
             )
             self._logger.write(event)
             return BootstrapResult(ok=False, gate_code=event.code, write_actions=write_actions, error_events=(event,))
@@ -193,6 +279,7 @@ class BootstrapPersistenceService:
             effective_mode=payload.effective_mode,
             write_policy_reasons=payload.write_policy_reasons,
             pointer_verified=pointer_verified_final,
+            activation_intent_valid=activation_intent_valid,
         )
         self._fs.write_text_atomic(session_state_file, _canonical_json(final_state))
         write_actions["session_state_final"] = "written"
@@ -237,6 +324,7 @@ def _session_state_payload(
     effective_mode: str,
     write_policy_reasons: tuple[str, ...],
     pointer_verified: bool = False,
+    activation_intent_valid: bool = False,
 ) -> dict[str, object]:
     repository = repo_name.strip() if repo_name.strip() else repo_fingerprint
     bootstrap_present = bool(persistence_committed)
@@ -246,10 +334,10 @@ def _session_state_payload(
     phase = "1.1-Bootstrap"
     mode = "BLOCKED"
     next_gate = "BLOCKED-START-REQUIRED"
-    if bootstrap_satisfied:
-        phase = "1.2-Architecture"
+    if bootstrap_satisfied and activation_intent_valid:
+        phase = "1.2-ActivationIntent"
         mode = "IN_PROGRESS"
-        next_gate = "P5-Architecture-in_progress"
+        next_gate = "P2-RepoDiscovery-ready"
 
     return {
         "SESSION_STATE": {
@@ -306,6 +394,12 @@ def _session_state_payload(
                 "P6-ImplementationQA": "pending",
             },
             "CreatedAt": "deferred",
+            "ActivationIntent": {
+                "FilePath": f"${{CONFIG_ROOT}}/{ACTIVATION_INTENT_FILE}",
+                "Schema": "opencode-activation-intent.v1",
+                "Status": "valid" if activation_intent_valid else "missing",
+                "AutoSatisfied": bool(activation_intent_valid),
+            },
             "writePolicy": {
                 "mode": effective_mode,
                 "reasons": list(write_policy_reasons),
