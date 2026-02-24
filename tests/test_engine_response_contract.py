@@ -29,7 +29,7 @@ def test_build_strict_response_produces_deterministic_envelope():
             "repo_fingerprint": "repo-123",
             "super_verbose_field": "must-not-appear-by-default",
         },
-        next_action=NextAction(type="manual_step", command="Continue bootstrap discovery"),
+        next_action=NextAction(type="command", command="continue-bootstrap"),
         snapshot=Snapshot(confidence="High", risk="Low", scope="Bootstrap"),
         reason_payload={"status": "OK", "reason_code": "none"},
     )
@@ -37,7 +37,7 @@ def test_build_strict_response_produces_deterministic_envelope():
     assert payload["mode"] == "STRICT"
     assert payload["status"] == "OK"
     assert payload["decision_outcome"] == "ALLOW"
-    assert payload["next_action"]["type"] == "manual_step"
+    assert payload["next_action"]["type"] == "command"
     assert payload["snapshot"]["confidence"] == "High"
     assert set(payload["session_state"].keys()) == set(SESSION_SNAPSHOT_WHITELIST)
     assert payload["session_state"]["activation_hash"] == "ab" * 32
@@ -85,7 +85,7 @@ def test_build_strict_response_emits_full_state_only_for_explicit_intent():
     payload = build_strict_response(
         status="WARN",
         session_state=full_state,
-        next_action=NextAction(type="manual_step", command="Review warning"),
+        next_action=NextAction(type="command", command="review-warning-context"),
         snapshot=Snapshot(confidence="Medium", risk="Medium", scope="Bootstrap"),
         reason_payload={"status": "WARN", "reason_code": "WARN-PERMISSION-LIMITED"},
         detail_intent="show_diagnostics",
@@ -103,7 +103,7 @@ def test_build_strict_response_requires_activation_hash_in_snapshot():
         build_strict_response(
             status="OK",
             session_state={"phase": "1.1-Bootstrap"},
-            next_action=NextAction(type="manual_step", command="Proceed"),
+            next_action=NextAction(type="command", command="proceed"),
             snapshot=Snapshot(confidence="High", risk="Low", scope="Bootstrap"),
             reason_payload={"status": "OK", "reason_code": "none"},
         )
@@ -152,7 +152,7 @@ def test_build_strict_response_rejects_phase_2_ticket_prompt_command():
                 "activation_hash": "ab" * 32,
                 "ruleset_hash": "cd" * 32,
             },
-            next_action=NextAction(type="manual_step", command="Provide task/ticket to plan"),
+            next_action=NextAction(type="command", command="Provide task/ticket to plan"),
             snapshot=Snapshot(confidence="High", risk="Low", scope="Bootstrap"),
             reason_payload={"status": "OK", "reason_code": "none"},
         )
@@ -168,10 +168,27 @@ def test_build_strict_response_accepts_phase_2_scope_command():
             "activation_hash": "ab" * 32,
             "ruleset_hash": "cd" * 32,
         },
-        next_action=NextAction(type="manual_step", command="Set working set and component scope"),
+        next_action=NextAction(type="command", command="Set working set and component scope"),
         snapshot=Snapshot(confidence="High", risk="Low", scope="Bootstrap"),
         reason_payload={"status": "OK", "reason_code": "none"},
     )
     payload = cast(dict[str, Any], payload)
     assert payload["status"] == "OK"
     assert payload["decision_outcome"] == "ALLOW"
+
+
+@pytest.mark.governance
+def test_build_strict_response_rejects_manual_step_before_phase4():
+    with pytest.raises(ValueError, match="next_action type must be command before phase 4"):
+        build_strict_response(
+            status="OK",
+            session_state={
+                "phase": "2-RepoDiscovery",
+                "workspace_ready": True,
+                "activation_hash": "ab" * 32,
+                "ruleset_hash": "cd" * 32,
+            },
+            next_action=NextAction(type="manual_step", command="Set working set"),
+            snapshot=Snapshot(confidence="High", risk="Low", scope="Bootstrap"),
+            reason_payload={"status": "OK", "reason_code": "none"},
+        )
