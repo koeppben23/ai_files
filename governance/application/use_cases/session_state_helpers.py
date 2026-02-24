@@ -98,6 +98,7 @@ def with_kernel_result(
     status: str,
     spec_hash: str,
     spec_path: str,
+    spec_loaded_at: str,
     log_paths: Mapping[str, str] | None,
     event_id: str,
 ) -> Mapping[str, object]:
@@ -116,6 +117,7 @@ def with_kernel_result(
     kernel_block = dict(kernel) if isinstance(kernel, Mapping) else {}
     kernel_block["PhaseApiPath"] = spec_path
     kernel_block["PhaseApiSha256"] = spec_hash
+    kernel_block["PhaseApiLoadedAt"] = spec_loaded_at
     kernel_block["LastPhaseEventId"] = event_id
     ss["Kernel"] = kernel_block
 

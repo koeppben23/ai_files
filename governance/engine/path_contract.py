@@ -9,7 +9,6 @@ from governance.infrastructure.path_contract import (  # noqa: F401
     PathContractError,
     WindowsDriveRelativeError,
     binding_evidence_location,
-    canonical_commands_home,
     canonical_config_root,
     deterministic_home,
     normalize_absolute_path,

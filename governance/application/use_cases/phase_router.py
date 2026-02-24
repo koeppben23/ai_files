@@ -18,6 +18,7 @@ class RoutedPhase:
     status: str = "OK"
     spec_hash: str = ""
     spec_path: str = ""
+    spec_loaded_at: str = ""
     log_paths: dict[str, str] | None = None
     event_id: str = ""
 
@@ -51,6 +52,7 @@ def route_phase(
         status=result.status,
         spec_hash=result.spec_hash,
         spec_path=result.spec_path,
+        spec_loaded_at=result.spec_loaded_at,
         log_paths=result.log_paths,
         event_id=result.event_id,
     )

@@ -2,6 +2,11 @@
 
 Get deterministic, auditable AI-assisted development in under 5 minutes.
 
+SSOT: `${COMMANDS_HOME}/phase_api.yaml` is the only truth for routing, execution, and validation.
+Kernel: `governance/kernel/*` is the only control-plane implementation.
+MD files are AI rails/guidance only and are never routing-binding.
+Phase `1.3` is mandatory before every phase `>=2`.
+
 ## Prerequisites
 
 | Requirement | Check | Install |
@@ -55,7 +60,7 @@ Bootstrap Evidence:
   Repo Identity: git@github.com:org/repo.git (main)
 ```
 
-**Note:** Workspace persistence (fingerprint folder, SESSION_STATE.json) requires the host to set `OPENCODE_DIAGNOSTICS_ALLOW_WRITE=1`. Without this, the preflight runs in read-only mode and persistence is deferred.
+**Note:** Workspace persistence requires host write permissions for `commandsHome/workspacesHome` from `governance.paths.json`; without permissions, the run fails closed.
 
 ### Troubleshooting Step 2
 
@@ -64,7 +69,7 @@ Bootstrap Evidence:
 | `BLOCKED-MISSING-BINDING-FILE` | Run `python3 install.py` |
 | `BLOCKED-VARIABLE-RESOLUTION` | Check `~/.config/opencode/commands/governance.paths.json` |
 | `BLOCKED-REPO-IDENTITY` | Ensure you're in a git repository |
-| Workspace not persisted | Host must set `OPENCODE_DIAGNOSTICS_ALLOW_WRITE=1` for persistence; or run manually: `OPENCODE_DIAGNOSTICS_ALLOW_WRITE=1 python3 governance/bootstrap_session_state.py --repo-fingerprint <fp>` |
+| Workspace not persisted | Verify host write permissions for binding paths and rerun `/start`; check `error.log.jsonl` for blocked reason and remediation. |
 
 ## Step 3: First Governed Task (2 minutes)
 
