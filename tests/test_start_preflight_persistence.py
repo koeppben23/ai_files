@@ -13,7 +13,7 @@ from .util import REPO_ROOT
 
 
 def _load_module():
-    script = REPO_ROOT / "diagnostics" / "start_preflight_readonly.py"
+    script = REPO_ROOT / "governance" / "entrypoints" / "start_preflight_readonly.py"
     spec = importlib.util.spec_from_file_location("start_preflight_readonly", script)
     if spec is None or spec.loader is None:
         raise RuntimeError("failed to load start_preflight_readonly module")
@@ -23,7 +23,7 @@ def _load_module():
 
 
 def _load_module_with_env(env: dict[str, str]):
-    script = REPO_ROOT / "diagnostics" / "start_preflight_readonly.py"
+    script = REPO_ROOT / "governance" / "entrypoints" / "start_preflight_readonly.py"
     spec = importlib.util.spec_from_file_location("start_preflight_readonly", script)
     if spec is None or spec.loader is None:
         raise RuntimeError("failed to load start_preflight_readonly module")
@@ -52,7 +52,7 @@ def test_start_preflight_readonly_hook_blocks_when_writes_not_allowed(monkeypatc
     monkeypatch.setenv("OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY", "1")
     monkeypatch.delenv("CI", raising=False)
     import importlib
-    import diagnostics.start_preflight_readonly as mod
+    import governance.entrypoints.start_preflight_readonly as mod
     importlib.reload(mod)
     
     try:
@@ -109,7 +109,7 @@ def test_start_preflight_writes_allowed_false_when_force_read_only(monkeypatch: 
     """SSOT: writes_allowed() is False when FORCE_READ_ONLY=1."""
     monkeypatch.setenv("OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY", "1")
     import importlib
-    import diagnostics.write_policy as wp
+    import governance.entrypoints.write_policy as wp
     importlib.reload(wp)
     assert wp.writes_allowed() is False
 
@@ -119,7 +119,7 @@ def test_run_persistence_hook_blocks_when_writes_not_allowed(monkeypatch: pytest
     monkeypatch.setenv("OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY", "1")
     monkeypatch.delenv("CI", raising=False)
     import importlib
-    import diagnostics.start_preflight_readonly as mod
+    import governance.entrypoints.start_preflight_readonly as mod
     importlib.reload(mod)
     
     try:
@@ -155,11 +155,11 @@ def test_run_persistence_hook_delegates_to_hook_module(capsys: pytest.CaptureFix
 
     assert result["workspacePersistenceHook"] == "ok"
     assert result["repo_fingerprint"] == "testfingerprint123456"
-    assert result["bootstrap_hook_command"] == f"{module.sys.executable} -m diagnostics.start_persistence_hook"
+    assert result["bootstrap_hook_command"] == f"{module.sys.executable} -m governance.entrypoints.start_persistence_hook"
     assert result["cwd"]
     assert result["repo_root_detected"] == str(repo_root)
     run_args = mock_run.call_args.args[0]
-    assert run_args[:3] == [module.sys.executable, "-m", "diagnostics.start_persistence_hook"]
+    assert run_args[:3] == [module.sys.executable, "-m", "governance.entrypoints.start_persistence_hook"]
     call_args = mock_run.call_args.kwargs
     assert call_args["cwd"] == str(repo_root)
     expected_prefix = str(repo_root) + module.os.pathsep + str(module.COMMANDS_HOME)
@@ -173,7 +173,7 @@ def test_run_persistence_hook_exits_on_hook_failure(capsys: pytest.CaptureFixtur
     mock_proc = MagicMock()
     mock_proc.returncode = 1
     mock_proc.stdout = ""
-    mock_proc.stderr = "ModuleNotFoundError: No module named diagnostics"
+    mock_proc.stderr = "ModuleNotFoundError: No module named governance"
 
     with patch.object(module, "_resolve_repo_root_for_hook", return_value=(REPO_ROOT, "git", {"ok": True})):
         with patch.object(module.subprocess, "run", return_value=mock_proc):
@@ -206,7 +206,7 @@ def test_run_persistence_hook_blocks_when_repo_root_not_detectable(capsys: pytes
     assert payload["reason_code"] == "BLOCKED-REPO-ROOT-NOT-DETECTABLE"
     assert payload["hook_invoked"] is False
     assert payload["failure_stage"] == "repo_root"
-    assert payload["bootstrap_hook_command"].endswith("-m diagnostics.start_persistence_hook")
+    assert payload["bootstrap_hook_command"].endswith("-m governance.entrypoints.start_persistence_hook")
     assert payload["python_executable"]
 
 

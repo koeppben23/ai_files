@@ -144,7 +144,7 @@ class TestSchemaValidator:
     def test_schema_sync_between_json_and_fallback(self):
         """Verify the hardcoded fallback matches the JSON file."""
         repo_root = Path(__file__).resolve().parents[1]
-        json_path = repo_root / "diagnostics" / "schemas" / "session_state.core.v1.schema.json"
+        json_path = repo_root / "governance" / "assets" / "schemas" / "session_state.core.v1.schema.json"
         with open(json_path, encoding="utf-8") as f:
             json_schema = json.load(f)
 
@@ -216,7 +216,7 @@ class TestInvariantValidators:
     def test_reason_payloads_missing_fails(self):
         state: dict[str, object] = {"Mode": "BLOCKED", "Next": "BLOCKED-TEST"}
         errors = validate_reason_payloads_required(state)
-        assert "missing_diagnostics_for_reason_code" in errors
+        assert "missing_governance_for_reason_code" in errors
 
     def test_reason_payloads_empty_fails(self):
         state: dict[str, object] = {"Mode": "BLOCKED", "Next": "BLOCKED-TEST", "Diagnostics": {"ReasonPayloads": []}}

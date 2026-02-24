@@ -26,7 +26,7 @@ jobs:
       - name: Run gitleaks and emit evidence
         run: |
           set -euo pipefail
-          mkdir -p diagnostics/security-evidence
+          mkdir -p governance/security-evidence
           GITLEAKS_VERSION="8.30.0"
           curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" -o /tmp/gitleaks.tar.gz
           tar -xzf /tmp/gitleaks.tar.gz -C /tmp gitleaks
@@ -35,7 +35,7 @@ jobs:
           /tmp/gitleaks detect \
             --source . \
             --report-format json \
-            --report-path diagnostics/security-evidence/gitleaks.json \
+            --report-path governance/security-evidence/gitleaks.json \
             --exit-code 0 \
             --redact
           gitleaks_rc=$?
@@ -48,7 +48,7 @@ jobs:
 
           gitleaks_rc = int(os.environ["GITLEAKS_RC"])
 
-          out_path = pathlib.Path("diagnostics/security-evidence/gitleaks.json")
+          out_path = pathlib.Path("governance/security-evidence/gitleaks.json")
           findings = []
           if out_path.exists():
               try:
@@ -72,7 +72,7 @@ jobs:
               "evidence_paths": [str(out_path)],
               "notes": "All secret findings are mapped to high severity.",
           }
-          pathlib.Path("diagnostics/security-evidence/gitleaks.summary.json").write_text(
+          pathlib.Path("governance/security-evidence/gitleaks.summary.json").write_text(
               json.dumps(summary, indent=2, ensure_ascii=True) + "\n",
               encoding="utf-8",
           )
@@ -83,8 +83,8 @@ jobs:
         with:
           name: security-evidence-gitleaks
           path: |
-            diagnostics/security-evidence/gitleaks.json
-            diagnostics/security-evidence/gitleaks.summary.json
+            governance/security-evidence/gitleaks.json
+            governance/security-evidence/gitleaks.summary.json
 
   dependency-scan:
     name: Dependency Scan (pip-audit)
@@ -100,7 +100,7 @@ jobs:
           set -euo pipefail
           python3 -m pip install --upgrade pip
           python3 -m pip install pip-audit
-          mkdir -p diagnostics/security-evidence
+          mkdir -p governance/security-evidence
           python3 - <<'PY'
           import json
           import pathlib
@@ -112,7 +112,7 @@ jobs:
           requirement_files = sorted(root.glob("requirements*.txt"))
 
           if not requirement_files:
-              no_req = pathlib.Path("diagnostics/security-evidence/pip-audit.empty.json")
+              no_req = pathlib.Path("governance/security-evidence/pip-audit.empty.json")
               no_req.write_text(json.dumps({"status": "no-requirements"}, indent=2) + "\n", encoding="utf-8")
               summary = {
                   "scanner_id": "pip-audit",
@@ -127,14 +127,14 @@ jobs:
                   "evidence_paths": [str(no_req)],
                   "notes": "No requirements*.txt files found; scanner completed with no findings.",
               }
-              pathlib.Path("diagnostics/security-evidence/pip-audit.summary.json").write_text(
+              pathlib.Path("governance/security-evidence/pip-audit.summary.json").write_text(
                   json.dumps(summary, indent=2, ensure_ascii=True) + "\n",
                   encoding="utf-8",
               )
               raise SystemExit(0)
 
           for req_file in requirement_files:
-              out_path = pathlib.Path("diagnostics/security-evidence") / f"pip-audit.{req_file.name}.json"
+              out_path = pathlib.Path("governance/security-evidence") / f"pip-audit.{req_file.name}.json"
               cmd = [
                   "python3",
                   "-m",
@@ -182,7 +182,7 @@ jobs:
               "evidence_paths": [str(path) for path in reports],
               "notes": "pip-audit JSON does not expose deterministic CVSS severity for all findings; mapped as unknown.",
           }
-          pathlib.Path("diagnostics/security-evidence/pip-audit.summary.json").write_text(
+          pathlib.Path("governance/security-evidence/pip-audit.summary.json").write_text(
               json.dumps(summary, indent=2, ensure_ascii=True) + "\n",
               encoding="utf-8",
           )
@@ -192,7 +192,7 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: security-evidence-deps
-          path: diagnostics/security-evidence/pip-audit*.json
+          path: governance/security-evidence/pip-audit*.json
 
   workflow-hardening:
     name: Workflow Hardening (actionlint + zizmor)
@@ -203,7 +203,7 @@ jobs:
       - name: Run actionlint and zizmor
         run: |
           set -euo pipefail
-          mkdir -p diagnostics/security-evidence
+          mkdir -p governance/security-evidence
 
           ACTIONLINT_VERSION="1.7.4"
           curl -sSfL "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz" -o /tmp/actionlint.tar.gz
@@ -214,10 +214,10 @@ jobs:
           tar -xzf /tmp/zizmor.tar.gz -C /tmp ./zizmor
 
           set +e
-          /tmp/actionlint -shellcheck= -pyflakes= -format '{{range $err := .}}{{json $err}}{{end}}' > diagnostics/security-evidence/actionlint.jsonl 2>&1
+          /tmp/actionlint -shellcheck= -pyflakes= -format '{{range $err := .}}{{json $err}}{{end}}' > governance/security-evidence/actionlint.jsonl 2>&1
           actionlint_rc=$?
 
-          /tmp/zizmor --no-online-audits --collect=workflows --format=json-v1 --no-exit-codes .github/workflows > diagnostics/security-evidence/zizmor.json 2>&1
+          /tmp/zizmor --no-online-audits --collect=workflows --format=json-v1 --no-exit-codes .github/workflows > governance/security-evidence/zizmor.json 2>&1
           zizmor_rc=$?
           set -e
 
@@ -229,8 +229,8 @@ jobs:
           actionlint_rc = int(os.environ["ACTIONLINT_RC"])
           zizmor_rc = int(os.environ["ZIZMOR_RC"])
 
-          actionlint_path = pathlib.Path("diagnostics/security-evidence/actionlint.jsonl")
-          zizmor_path = pathlib.Path("diagnostics/security-evidence/zizmor.json")
+          actionlint_path = pathlib.Path("governance/security-evidence/actionlint.jsonl")
+          zizmor_path = pathlib.Path("governance/security-evidence/zizmor.json")
 
           severities = {"critical": 0, "high": 0, "medium": 0, "low": 0, "unknown": 0}
           notes = []
@@ -286,12 +286,12 @@ jobs:
               "status": status,
               "findings_by_severity": severities,
               "evidence_paths": [
-                  "diagnostics/security-evidence/actionlint.jsonl",
-                  "diagnostics/security-evidence/zizmor.json",
+                  "governance/security-evidence/actionlint.jsonl",
+                  "governance/security-evidence/zizmor.json",
               ],
               "notes": "; ".join(notes),
           }
-          pathlib.Path("diagnostics/security-evidence/workflow-hardening.summary.json").write_text(
+          pathlib.Path("governance/security-evidence/workflow-hardening.summary.json").write_text(
               json.dumps(summary, indent=2, ensure_ascii=True) + "\n",
               encoding="utf-8",
           )
@@ -302,9 +302,9 @@ jobs:
         with:
           name: security-evidence-workflows
           path: |
-            diagnostics/security-evidence/actionlint.jsonl
-            diagnostics/security-evidence/zizmor.json
-            diagnostics/security-evidence/workflow-hardening.summary.json
+            governance/security-evidence/actionlint.jsonl
+            governance/security-evidence/zizmor.json
+            governance/security-evidence/workflow-hardening.summary.json
 
   codeql-scan:
     name: SAST (CodeQL)
@@ -328,7 +328,7 @@ jobs:
         continue-on-error: true
         with:
           upload: false
-          output: diagnostics/security-evidence/codeql
+          output: governance/security-evidence/codeql
 
       - name: Build CodeQL summary evidence
         if: always()
@@ -337,7 +337,7 @@ jobs:
           ANALYZE_OUTCOME: ${{ steps.analyze.outcome }}
         run: |
           set -euo pipefail
-          mkdir -p diagnostics/security-evidence
+          mkdir -p governance/security-evidence
           python3 - <<'PY'
           import json
           import os
@@ -373,7 +373,7 @@ jobs:
                       return "low"
                   return "unknown"
 
-          sarif_files = sorted(pathlib.Path("diagnostics/security-evidence/codeql").rglob("*.sarif"))
+          sarif_files = sorted(pathlib.Path("governance/security-evidence/codeql").rglob("*.sarif"))
           for sarif in sarif_files:
               evidence_paths.append(str(sarif))
               try:
@@ -412,7 +412,7 @@ jobs:
               "evidence_paths": evidence_paths,
               "notes": "; ".join(notes) if notes else "codeql analysis completed",
           }
-          pathlib.Path("diagnostics/security-evidence/codeql.summary.json").write_text(
+          pathlib.Path("governance/security-evidence/codeql.summary.json").write_text(
               json.dumps(summary, indent=2, ensure_ascii=True) + "\n",
               encoding="utf-8",
           )
@@ -424,8 +424,8 @@ jobs:
         with:
           name: security-evidence-codeql
           path: |
-            diagnostics/security-evidence/codeql/**
-            diagnostics/security-evidence/codeql.summary.json
+            governance/security-evidence/codeql/**
+            governance/security-evidence/codeql.summary.json
 
   security-policy-gate:
     name: Security Policy Gate
@@ -443,23 +443,23 @@ jobs:
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           pattern: security-evidence-*
-          path: diagnostics/security-evidence
+          path: governance/security-evidence
           merge-multiple: true
 
       - name: Evaluate security evidence against policy
         run: |
           set -euo pipefail
           python3 scripts/evaluate_security_evidence.py \
-            --policy diagnostics/SECURITY_GATE_POLICY.json \
-            --input diagnostics/security-evidence/gitleaks.summary.json \
-            --input diagnostics/security-evidence/pip-audit.summary.json \
-            --input diagnostics/security-evidence/workflow-hardening.summary.json \
-            --input diagnostics/security-evidence/codeql.summary.json \
-            --output diagnostics/security-evidence/security_summary.json
+            --policy governance/assets/catalogs/SECURITY_GATE_POLICY.json \
+            --input governance/security-evidence/gitleaks.summary.json \
+            --input governance/security-evidence/pip-audit.summary.json \
+            --input governance/security-evidence/workflow-hardening.summary.json \
+            --input governance/security-evidence/codeql.summary.json \
+            --output governance/security-evidence/security_summary.json
 
       - name: Upload aggregated security evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: security-evidence-aggregate
-          path: diagnostics/security-evidence/security_summary.json
+          path: governance/security-evidence/security_summary.json

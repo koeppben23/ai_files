@@ -27,7 +27,7 @@ Recent merged PRs on main:
 
 ### P0 (critical)
 
-- **P0-1 Governance SSOT orchestration:** substantially completed on active paths; diagnostics bootstrap routes through governance use case.
+- **P0-1 Governance SSOT orchestration:** substantially completed on active paths; governance bootstrap routes through governance use case.
 - **P0-2 Mode SSOT:** completed (`OPENCODE_MODE` + force-read-only policy precedence).
 - **P0-3 Fail-closed gate signaling:** completed for bootstrap/persistence non-zero and blocked exits in active paths.
 - **P0-4 Hard guards:** completed for config-root/pointer path inside repo protections.
@@ -41,7 +41,7 @@ Recent merged PRs on main:
 
 ### P2 (polish)
 
-- Architecture drift reduced; further cleanup remains available where diagnostics still contain compatibility fallbacks for release portability.
+- Architecture drift reduced; further cleanup remains available where governance still contain compatibility fallbacks for release portability.
 
 ---
 
@@ -55,6 +55,6 @@ Recent merged PRs on main:
 
 ## Remaining Cleanup Backlog (non-blocking)
 
-1. Continue trimming diagnostics compatibility fallbacks where runtime packaging guarantees are already enforced.
+1. Continue trimming governance compatibility fallbacks where runtime packaging guarantees are already enforced.
 2. Keep expanding edge-case tests around corrupted artifacts/pointers and lock contention under matrix environments.
 3. Maintain single-source behavior in governance use cases and avoid reintroducing duplicate orchestration logic.

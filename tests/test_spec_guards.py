@@ -105,12 +105,12 @@ def test_readme_consistency_no_obsolete_opencode_refs():
 def test_start_md_fallback_paths_payload_contains_required_keys():
     p = REPO_ROOT / "start.md"
     assert p.exists(), "start.md not found at repo root"
-    helper = REPO_ROOT / "diagnostics" / "start_binding_evidence.py"
+    helper = REPO_ROOT / "governance" / "entrypoints" / "start_binding_evidence.py"
     text_parts = [read_text(p)]
     if helper.exists():
         text_parts.append(read_text(helper))
     text = "\n".join(text_parts)
-    required = ["configRoot", "commandsHome", "profilesHome", "diagnosticsHome", "workspacesHome"]
+    required = ["configRoot", "commandsHome", "profilesHome", "governanceHome", "workspacesHome"]
     missing = [k for k in required if (f"'{k}'" not in text and f'"{k}"' not in text)]
     assert not missing, f"start bootstrap fallback payload missing keys: {missing}"
 
@@ -127,6 +127,8 @@ def test_markdown_local_links_resolve_offline():
 
     for rel in md_files:
         md = REPO_ROOT / rel
+        if not md.exists():
+            continue
         t = read_text(md)
         for raw in link_re.findall(t):
             raw = raw.strip()

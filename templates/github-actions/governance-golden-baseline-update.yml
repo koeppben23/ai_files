@@ -47,29 +47,29 @@ jobs:
       - name: Generate current golden outputs
         run: |
           set -euo pipefail
-          python3 scripts/generate_golden_outputs.py --repo-root . --output-dir diagnostics/goldens/current
+          python3 scripts/generate_golden_outputs.py --repo-root . --output-dir governance/goldens/current
 
       - name: Replace baseline from generated outputs
         run: |
           set -euo pipefail
-          rm -rf diagnostics/goldens/baseline
-          mkdir -p diagnostics/goldens/baseline
-          cp -R diagnostics/goldens/current/. diagnostics/goldens/baseline/
+          rm -rf governance/goldens/baseline
+          mkdir -p governance/goldens/baseline
+          cp -R governance/goldens/current/. governance/goldens/baseline/
 
       - name: Emit baseline hash manifest
         run: |
           set -euo pipefail
-          mkdir -p diagnostics/goldens/diff
+          mkdir -p governance/goldens/diff
           python3 - <<'PY'
           import hashlib
           import json
           import pathlib
 
-          root = pathlib.Path("diagnostics/goldens/baseline")
+          root = pathlib.Path("governance/goldens/baseline")
           payload = {}
           for path in sorted(root.rglob("*.json")):
               payload[path.relative_to(root).as_posix()] = hashlib.sha256(path.read_bytes()).hexdigest()
-          pathlib.Path("diagnostics/goldens/diff/baseline.sha256.json").write_text(
+          pathlib.Path("governance/goldens/diff/baseline.sha256.json").write_text(
               json.dumps(payload, indent=2) + "\n",
               encoding="utf-8",
           )
@@ -78,8 +78,8 @@ jobs:
       - name: Require baseline change notes
         run: |
           set -euo pipefail
-          if [[ ! -f diagnostics/goldens/GOLDEN_CHANGE_NOTES.md ]]; then
-            echo "BLOCKED-GOLDEN-UPDATE-NOTE-MISSING: diagnostics/goldens/GOLDEN_CHANGE_NOTES.md is required"
+          if [[ ! -f governance/goldens/GOLDEN_CHANGE_NOTES.md ]]; then
+            echo "BLOCKED-GOLDEN-UPDATE-NOTE-MISSING: governance/goldens/GOLDEN_CHANGE_NOTES.md is required"
             exit 1
           fi
 
@@ -88,8 +88,8 @@ jobs:
         with:
           name: governance-golden-baseline-update
           path: |
-            diagnostics/goldens/baseline/**
-            diagnostics/goldens/diff/baseline.sha256.json
+            governance/goldens/baseline/**
+            governance/goldens/diff/baseline.sha256.json
 
       - name: Commit and push baseline update
         if: ${{ github.event.inputs.commit_changes == 'true' }}
@@ -97,10 +97,10 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          if [[ -z "$(git status --porcelain diagnostics/goldens/baseline diagnostics/goldens/GOLDEN_CHANGE_NOTES.md)" ]]; then
+          if [[ -z "$(git status --porcelain governance/goldens/baseline governance/goldens/GOLDEN_CHANGE_NOTES.md)" ]]; then
             echo "No baseline changes to commit"
             exit 0
           fi
-          git add diagnostics/goldens/baseline diagnostics/goldens/GOLDEN_CHANGE_NOTES.md diagnostics/goldens/diff/baseline.sha256.json
+          git add governance/goldens/baseline governance/goldens/GOLDEN_CHANGE_NOTES.md governance/goldens/diff/baseline.sha256.json
           git commit -m "chore(goldens): update baseline outputs"
           git push origin "${{ github.event.inputs.target_branch }}"

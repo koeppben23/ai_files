@@ -27,7 +27,7 @@ For operators and developers running governed sessions in OpenCode who need reli
 - `/start`: mandatory bootstrap entrypoint for OpenCode sessions
 - `/continue`: execute the next deterministic step from session state
 - `/resume`: continue an interrupted session deterministically
-- `/audit`: read-only diagnostics report flow
+- `/audit`: read-only governance report flow
 
 `/start` is responsible for binding evidence, command preflight, and bootstrap checks before deeper workflow execution.
 
@@ -52,8 +52,8 @@ Runtime persistence is repo-scoped under `${WORKSPACES_HOME}/<repo_fingerprint>/
 Operational helpers:
 
 ```bash
-python diagnostics/bootstrap_session_state.py --repo-fingerprint <repo_fingerprint>
-python diagnostics/persist_workspace_artifacts.py --repo-root <repo_path>
+python governance/bootstrap_session_state.py --repo-fingerprint <repo_fingerprint>
+python governance/persist_workspace_artifacts.py --repo-root <repo_path>
 python scripts/migrate_session_state.py --workspace <repo_fingerprint>
 ```
 
@@ -63,7 +63,7 @@ Use `--dry-run` when validating changes before writing.
 
 ```bash
 ${PYTHON_COMMAND} install.py --status
-${PYTHON_COMMAND} diagnostics/bootstrap_session_state.py --repo-fingerprint <repo_fingerprint> --dry-run
+${PYTHON_COMMAND} governance/bootstrap_session_state.py --repo-fingerprint <repo_fingerprint> --dry-run
 ```
 
 Then run `/start` in OpenCode and confirm bootstrap succeeds without binding/identity blockers.
@@ -92,7 +92,7 @@ Factory generation entrypoints:
 
 Conformance reference for generated artifacts:
 
-- `diagnostics/PROFILE_ADDON_FACTORY_CONTRACT.json`
+- `governance/PROFILE_ADDON_FACTORY_CONTRACT.json`
 
 ## Runtime and Evidence Notes
 

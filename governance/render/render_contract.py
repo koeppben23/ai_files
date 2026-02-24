@@ -55,7 +55,7 @@ def build_two_layer_output(
     old_stale = {item.strip() for item in (previous_stale_claims or ()) if item.strip()}
     new_stale = {item.strip() for item in (current_stale_claims or ()) if item.strip()}
 
-    diagnostics_delta = {
+    governance_delta = {
         "new_blockers": tuple(sorted(new_blockers - old_blockers)),
         "resolved_blockers": tuple(sorted(old_blockers - new_blockers)),
         "new_stale_claims": tuple(sorted(new_stale - old_stale)),
@@ -131,7 +131,7 @@ def build_two_layer_output(
         },
         "operator_view": operator_view,
         "reason_to_action": reason_to_action,
-        "diagnostics_delta": diagnostics_delta,
+        "governance_delta": governance_delta,
         "timeline": tuple(timeline),
         "evidence_panel": tuple(panel_rows),
         "details": safe_details,

@@ -47,7 +47,7 @@ def test_audit_reason_bridge_maps_known_keys(tmp_path: Path):
 
     inp = tmp_path / "audit.json"
     inp.write_text(json.dumps(report), encoding="utf-8")
-    script = REPO_ROOT / "diagnostics" / "map_audit_to_canonical.py"
+    script = REPO_ROOT / "governance" / "entrypoints" / "map_audit_to_canonical.py"
 
     r = run([sys.executable, str(script), "--input", str(inp)])
     assert r.returncode == 0, f"bridge failed:\n{r.stdout}\n{r.stderr}"
@@ -75,7 +75,7 @@ def test_audit_reason_bridge_strict_unmapped_fails(tmp_path: Path):
     }
     inp = tmp_path / "audit.json"
     inp.write_text(json.dumps(report), encoding="utf-8")
-    script = REPO_ROOT / "diagnostics" / "map_audit_to_canonical.py"
+    script = REPO_ROOT / "governance" / "entrypoints" / "map_audit_to_canonical.py"
 
     r = run([sys.executable, str(script), "--input", str(inp), "--strict-unmapped"])
     assert r.returncode == 3
@@ -102,7 +102,7 @@ def test_audit_reason_bridge_primary_reason_prefers_higher_severity(tmp_path: Pa
     }
     inp = tmp_path / "audit.json"
     inp.write_text(json.dumps(report), encoding="utf-8")
-    script = REPO_ROOT / "diagnostics" / "map_audit_to_canonical.py"
+    script = REPO_ROOT / "governance" / "entrypoints" / "map_audit_to_canonical.py"
 
     r = run([sys.executable, str(script), "--input", str(inp)])
     assert r.returncode == 0

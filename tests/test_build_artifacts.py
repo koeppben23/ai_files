@@ -30,7 +30,7 @@ def _assert_member_paths_safe(names: list[str]) -> None:
 
 
 def _shipped_customer_scripts() -> list[str]:
-    payload = json.loads((REPO_ROOT / "diagnostics" / "CUSTOMER_SCRIPT_CATALOG.json").read_text(encoding="utf-8"))
+    payload = json.loads((REPO_ROOT / "governance" / "assets" / "catalogs" / "CUSTOMER_SCRIPT_CATALOG.json").read_text(encoding="utf-8"))
     scripts = []
     for entry in payload.get("scripts", []):
         if entry.get("ship_in_release") is True:
@@ -45,7 +45,7 @@ def _shipped_workflow_templates() -> list[str]:
 
 
 def _release_excluded_markdown() -> list[str]:
-    payload = json.loads((REPO_ROOT / "diagnostics" / "CUSTOMER_MARKDOWN_EXCLUDE.json").read_text(encoding="utf-8"))
+    payload = json.loads((REPO_ROOT / "governance" / "assets" / "catalogs" / "CUSTOMER_MARKDOWN_EXCLUDE.json").read_text(encoding="utf-8"))
     return sorted(payload.get("release_excluded_markdown", []))
 
 
@@ -131,7 +131,7 @@ def test_artifacts_contents_follow_policy(tmp_path: Path):
             f"{prefix}/rules.md",
             f"{prefix}/start.md",
             f"{prefix}/CHANGELOG.md",
-            f"{prefix}/diagnostics/CUSTOMER_SCRIPT_CATALOG.json",
+            f"{prefix}/governance/assets/catalogs/CUSTOMER_SCRIPT_CATALOG.json",
         }
         required.update(f"{prefix}/{rel}" for rel in _shipped_customer_scripts())
         required.update(f"{prefix}/{rel}" for rel in _shipped_workflow_templates())
@@ -144,7 +144,7 @@ def test_artifacts_contents_follow_policy(tmp_path: Path):
 
         assert any(Path(n).name.upper().startswith(("LICENSE", "LICENCE")) for n in names), "ZIP missing LICENSE* file"
         assert any(n.startswith(f"{prefix}/profiles/") for n in names), "ZIP missing profiles/ payload"
-        assert any(n.startswith(f"{prefix}/diagnostics/") for n in names), "ZIP missing diagnostics/ payload"
+        assert any(n.startswith(f"{prefix}/governance/") for n in names), "ZIP missing governance/ payload"
 
         for zi in zf.infolist():
             if zi.is_dir():
@@ -179,7 +179,7 @@ def test_artifacts_contents_follow_policy(tmp_path: Path):
             f"{prefix}/rules.md",
             f"{prefix}/start.md",
             f"{prefix}/CHANGELOG.md",
-            f"{prefix}/diagnostics/CUSTOMER_SCRIPT_CATALOG.json",
+            f"{prefix}/governance/assets/catalogs/CUSTOMER_SCRIPT_CATALOG.json",
         }
         required.update(f"{prefix}/{rel}" for rel in _shipped_customer_scripts())
         required.update(f"{prefix}/{rel}" for rel in _shipped_workflow_templates())
@@ -192,7 +192,7 @@ def test_artifacts_contents_follow_policy(tmp_path: Path):
 
         assert any(Path(n).name.upper().startswith(("LICENSE", "LICENCE")) for n in names), "TAR missing LICENSE* file"
         assert any(n.startswith(f"{prefix}/profiles/") for n in names), "TAR missing profiles/ payload"
-        assert any(n.startswith(f"{prefix}/diagnostics/") for n in names), "TAR missing diagnostics/ payload"
+        assert any(n.startswith(f"{prefix}/governance/") for n in names), "TAR missing governance/ payload"
 
         for m in members:
             assert m.mtime == 0, f"Non-deterministic TAR mtime for {m.name}: {m.mtime}"

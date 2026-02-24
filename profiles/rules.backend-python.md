@@ -442,7 +442,7 @@ Use status codes below with concrete recovery steps:
 
 ### BAD
 
-- Claiming "no drift" without hash/evidence mapping in session diagnostics.
+- Claiming "no drift" without hash/evidence mapping in session governance.
 - Relying on local unstated interpreter/package versions for gate claims.
 - Marking `ready-for-pr` while migration rollback evidence is missing.
 

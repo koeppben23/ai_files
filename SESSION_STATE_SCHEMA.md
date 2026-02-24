@@ -152,7 +152,7 @@ After Phase 1.1 (bootstrap) completes successfully, these keys are present (kern
 
 ## 2.1 Optional Diagnostics Keys (Self-Audit)
 
-The session state MAY include a diagnostics pointer block for the most recent `/audit` run.
+The session state MAY include a governance pointer block for the most recent `/audit` run.
 This block is **descriptive only** and MUST NOT be interpreted as normative authority.
 
 ### 2.1.0 Reason Payloads (machine-readable, binding when reason codes are emitted)
@@ -208,7 +208,7 @@ To avoid lifecycle drift:
 - `SESSION_STATE.ruleset_hash` MUST remain stable unless explicit rehydrate/reload is performed.
 - `SESSION_STATE.ActivationDelta.AddonScanHash` and `SESSION_STATE.ActivationDelta.RepoFactsHash` SHOULD remain stable unless activation inputs changed.
 
-If the phase or mode changes, diagnostics MUST append a transition record:
+If the phase or mode changes, governance MUST append a transition record:
 - `SESSION_STATE.Diagnostics.TransitionTrace[]` entries with:
   - `transition_id` (unique string)
   - `from_phase`

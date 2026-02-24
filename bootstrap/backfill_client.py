@@ -34,7 +34,7 @@ def run_backfill_subprocess(
     require_phase2: bool = True,
     env: Optional[Dict[str, str]] = None,
 ) -> BackfillSummary:
-    helper = config_root / "commands" / "diagnostics" / "persist_workspace_artifacts.py"
+    helper = config_root / "commands" / "governance" / "entrypoints" / "persist_workspace_artifacts.py"
     
     if not helper.is_file():
         return BackfillSummary(

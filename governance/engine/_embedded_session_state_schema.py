@@ -1,7 +1,7 @@
 """Embedded SESSION_STATE schema loaded from JSON resource.
 
 This module provides the SESSION_STATE schema for runtime validation.
-The schema is loaded from the JSON file at diagnostics/schemas/session_state.core.v1.schema.json
+The schema is loaded from the JSON file at governance/assets/schemas/session_state.core.v1.schema.json
 using importlib.resources, which works for both filesystem and frozen package contexts.
 """
 
@@ -15,7 +15,7 @@ from typing import Final
 def _load_schema() -> dict[str, object]:
     """Load schema from JSON resource, with hardcoded fallback."""
     try:
-        schema_text = resources.files("diagnostics.schemas").joinpath("session_state.core.v1.schema.json").read_text(encoding="utf-8")
+        schema_text = resources.files("governance.assets.schemas").joinpath("session_state.core.v1.schema.json").read_text(encoding="utf-8")
         return json.loads(schema_text)
     except Exception:
         # Hardcoded fallback for frozen/embedded contexts where resources API fails
@@ -25,7 +25,7 @@ def _load_schema() -> dict[str, object]:
 
 _HARDCODED_FALLBACK_SCHEMA: dict[str, object] = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "$id": "diagnostics/schemas/session_state.core.v1.schema.json",
+    "$id": "governance/assets/schemas/session_state.core.v1.schema.json",
     "title": "SESSION_STATE Core Schema",
     "description": "Core structural validation for SESSION_STATE documents after Phase 1 bootstrap.",
     "type": "object",

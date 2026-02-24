@@ -1,10 +1,10 @@
-"""Canonical binding paths loader - SSOT for diagnostics and runtime.
+"""Canonical binding paths loader - SSOT for governance and runtime.
 
 This module provides a single, consistent way to load binding paths
-across both diagnostics scripts and runtime components.
+across both governance scripts and runtime components.
 
 All binding path loading MUST go through this module to prevent:
-- SSOT leaks where diagnostics interpret bindings differently from runtime
+- SSOT leaks where governance interpret bindings differently from runtime
 - Path drift where files are written to wrong locations
 - Missing validation of commandsHome/workspacesHome under configRoot
 """
@@ -31,7 +31,7 @@ def load_binding_paths_strict(
 ) -> tuple[Path, dict[str, Any]]:
     """Load and validate binding paths from a governance.paths.json file.
     
-    This is the SSOT function for loading binding paths. Both diagnostics
+    This is the SSOT function for loading binding paths. Both governance
     and runtime MUST use this function to ensure consistent validation.
     
     Args:

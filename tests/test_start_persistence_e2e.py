@@ -72,7 +72,7 @@ def _write_governance_paths(commands_home: Path, workspaces_home: Path, config_r
             "configRoot": str(config_root),
             "commandsHome": str(commands_home),
             "profilesHome": str(commands_home / "profiles"),
-            "diagnosticsHome": str(commands_home / "diagnostics"),
+            "governanceHome": str(commands_home / "governance"),
             "workspacesHome": str(workspaces_home),
             "globalErrorLogsHome": str(config_root / "logs"),
             "workspaceErrorLogsHomeTemplate": str(workspaces_home / "<repo_fingerprint>" / "logs"),
@@ -85,7 +85,7 @@ def _write_governance_paths(commands_home: Path, workspaces_home: Path, config_r
 
 def _materialize_commands_bundle_from_checkout(*, checkout_root: Path, commands_home: Path) -> None:
     commands_home.mkdir(parents=True, exist_ok=True)
-    for dirname in ("diagnostics", "governance", "profiles", "scripts", "templates"):
+    for dirname in ("governance", "governance", "profiles", "scripts", "templates"):
         src = checkout_root / dirname
         if src.exists():
             shutil.copytree(src, commands_home / dirname, dirs_exist_ok=True)
@@ -125,7 +125,7 @@ def test_start_preflight_persists_workspace_and_pointer(tmp_path: Path) -> None:
     env["CI"] = ""
     env.pop("OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY", None)
 
-    start_script = commands_home / "diagnostics" / "start_preflight_readonly.py"
+    start_script = commands_home / "governance" / "entrypoints" / "start_preflight_readonly.py"
     proc = _run([sys.executable, str(start_script)], cwd=repo, env=env)
     assert proc.returncode == 0, proc.stdout + "\n" + proc.stderr
 
@@ -143,13 +143,13 @@ def test_start_preflight_persists_workspace_and_pointer(tmp_path: Path) -> None:
     assert hook.get("workspacePersistenceHook") == "ok"
     hook_command = str(hook.get("bootstrap_hook_command") or "")
     if os.name == "nt":
-        assert " -m diagnostics.start_persistence_hook" in hook_command
+        assert " -m governance.entrypoints.start_persistence_hook" in hook_command
         assert Path(hook_command.split(" -m ", 1)[0]).name.lower().startswith("python")
     else:
         hook_argv = shlex.split(hook_command)
         assert len(hook_argv) >= 3
         assert hook_argv[0] == sys.executable
-        assert hook_argv[1:3] == ["-m", "diagnostics.start_persistence_hook"]
+        assert hook_argv[1:3] == ["-m", "governance.entrypoints.start_persistence_hook"]
     assert hook.get("cwd") == str(repo)
     assert hook.get("repo_root_detected") == str(repo)
     repo_fp = str(hook.get("repo_fingerprint") or "").strip()
@@ -207,7 +207,7 @@ def test_start_preflight_blocks_when_force_read_only(tmp_path: Path) -> None:
     env["CI"] = ""
     env["OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY"] = "1"
 
-    start_script = commands_home / "diagnostics" / "start_preflight_readonly.py"
+    start_script = commands_home / "governance" / "entrypoints" / "start_preflight_readonly.py"
     proc = _run([sys.executable, str(start_script)], cwd=repo, env=env)
     assert proc.returncode != 0
 

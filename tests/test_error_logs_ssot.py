@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 import json
 
-import diagnostics.error_logs as error_logs
+import governance.infrastructure.logging.error_logs as error_logs
 
 
 def test_write_error_event_uses_ssot_error_log_path(monkeypatch) -> None:

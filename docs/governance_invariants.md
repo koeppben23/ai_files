@@ -5,16 +5,16 @@ Any change violating one item is a regression.
 
 ## Control Plane / Start
 
-- [ ] `/start` must call only read-only diagnostics helpers.
-- [ ] `diagnostics/start_preflight_persistence.py` must not exist.
+- [ ] `/start` must call only read-only governance helpers.
+- [ ] `governance/start_preflight_persistence.py` must not exist.
 - [ ] Diagnostics must not write workspace/index/session artifacts.
 
 Evidence:
 - `start.md`
-- `diagnostics/start_preflight_readonly.py`
+- `governance/start_preflight_readonly.py`
 - `tests/test_start_entrypoint_contract.py`
 - `tests/test_start_preflight_persistence.py`
-- `tests/architecture/test_diagnostics_control_plane_guards.py`
+- `tests/architecture/test_governance_control_plane_guards.py`
 
 ## Repo Identity / Resolution
 
@@ -73,12 +73,12 @@ Evidence:
 ## Forbidden Regression Patterns
 
 - [ ] No `_unresolved` workspace write paths.
-- [ ] No direct `open(..., 'w')` / `Path.write_text(...)` in protected diagnostics/control-plane files.
+- [ ] No direct `open(..., 'w')` / `Path.write_text(...)` in protected governance/control-plane files.
 - [ ] No `shlex.split(...)` command re-splitting for governance command profiles.
 - [ ] `Path.resolve()` usage remains allowlisted by architecture guards.
 
 Evidence:
-- `tests/architecture/test_diagnostics_control_plane_guards.py`
+- `tests/architecture/test_governance_control_plane_guards.py`
 - `tests/architecture/test_import_rules.py`
 - `tests/test_validate_governance.py`
 
@@ -86,7 +86,7 @@ Evidence:
 
 Persistence and gating reasons must stay present in:
 - `governance/domain/reason_codes.py`
-- `diagnostics/reason_codes.registry.json`
+- `governance/reason_codes.registry.json`
 - `governance/engine/_embedded_reason_registry.py`
 
 Critical codes:

@@ -6,11 +6,11 @@ from pathlib import Path
 from typing import Any, Mapping, cast
 import uuid
 
-from diagnostics.global_error_handler import emit_error_event
 from governance.application.dto.phase_next_action_contract import contains_ticket_prompt
 from governance.domain.phase_state_machine import phase_rank
 from governance.infrastructure.adapters.logging.event_sink import write_jsonl_event
-from governance.infrastructure.path_contract import canonical_config_root
+from governance.infrastructure.binding_evidence_resolver import BindingEvidenceResolver
+from governance.infrastructure.logging.global_error_handler import emit_error_event
 
 from .phase_api_spec import PhaseApiSpec, PhaseApiSpecError, PhaseSpecEntry, load_phase_api
 
@@ -249,20 +249,27 @@ def _sanitize_ticket_progression(*, phase: str, next_gate_condition: str) -> str
     return next_gate_condition
 
 
-def _resolve_paths(runtime_ctx: RuntimeContext) -> tuple[Path, Path | None, Path]:
-    config_root = runtime_ctx.config_root or canonical_config_root()
-    commands_home = runtime_ctx.commands_home or config_root / "commands"
-    workspaces_home = runtime_ctx.workspaces_home or config_root / "workspaces"
-    return commands_home, workspaces_home, config_root
+def _resolve_paths(runtime_ctx: RuntimeContext) -> tuple[Path, Path | None, Path | None]:
+    if runtime_ctx.commands_home is not None:
+        commands_home = runtime_ctx.commands_home
+        workspaces_home = runtime_ctx.workspaces_home
+        config_root = runtime_ctx.config_root
+        return commands_home, workspaces_home, config_root
+    resolver = BindingEvidenceResolver()
+    evidence = getattr(resolver, "resolve")(mode="kernel")
+    return evidence.commands_home, evidence.workspaces_home, evidence.config_root
 
 
-def _resolve_flow_paths(commands_home: Path, workspaces_home: Path | None, config_root: Path, repo_fingerprint: str) -> dict[str, Path]:
+def _resolve_flow_paths(commands_home: Path, workspaces_home: Path | None, config_root: Path | None, repo_fingerprint: str) -> dict[str, Path]:
     paths: dict[str, Path] = {
-        "flow": commands_home / "logs" / "flow.log.jsonl",
-        "flow_fallback": config_root / "logs" / "flow.log.jsonl",
+        "commands_flow": commands_home / "logs" / "flow.log.jsonl",
+        "commands_boot": commands_home / "logs" / "boot.log.jsonl",
     }
     if workspaces_home is not None and repo_fingerprint:
         paths["workspace_events"] = workspaces_home / repo_fingerprint / "events.jsonl"
+        paths["workspace_flow"] = workspaces_home / repo_fingerprint / "logs" / "flow.log.jsonl"
+    if config_root is not None:
+        paths["config_fallback"] = config_root / "logs" / "flow.log.jsonl"
     return paths
 
 
@@ -359,16 +366,31 @@ def _select_transition(entry: PhaseSpecEntry, state: Mapping[str, object]) -> tu
 
 
 def _emit_phase_event(log_paths: Mapping[str, Path], event: dict[str, object]) -> tuple[bool, dict[str, str]]:
-    written_flow = _append_event(log_paths["flow"], event)
-    if not written_flow:
-        written_flow = _append_event(log_paths["flow_fallback"], event)
     workspace_written = False
     workspace_path = log_paths.get("workspace_events")
     if workspace_path is not None:
         workspace_written = _append_event(workspace_path, event)
-    return written_flow, {
-        "phase_flow": str(log_paths["flow"] if written_flow else log_paths["flow_fallback"]),
-        "workspace_events": str(workspace_path) if workspace_written and workspace_path is not None else "",
+        workspace_flow = log_paths.get("workspace_flow")
+        if workspace_flow is not None:
+            _append_event(workspace_flow, event)
+
+    if workspace_written:
+        return True, {
+            "phase_flow": str(workspace_path),
+            "workspace_events": str(workspace_path),
+        }
+
+    for key in ("commands_flow", "commands_boot", "config_fallback"):
+        target = log_paths.get(key)
+        if target is not None and _append_event(target, event):
+            return True, {
+                "phase_flow": str(target),
+                "workspace_events": "",
+            }
+
+    return False, {
+        "phase_flow": str(log_paths.get("commands_flow") or ""),
+        "workspace_events": "",
     }
 
 
@@ -424,7 +446,7 @@ def execute(
             status="BLOCKED",
             spec_hash="",
             spec_path=str(commands_home / "phase_api.yaml"),
-            log_paths={"phase_flow": str(log_paths["flow"]), "workspace_events": ""},
+            log_paths={"phase_flow": str(log_paths.get("commands_flow") or ""), "workspace_events": ""},
             event_id=event_id,
         )
 

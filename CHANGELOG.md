@@ -19,18 +19,18 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
   - `profiles/rules.backend-python-templates.md` (required code-generation template contract)
   - `profiles/addons/backendPythonTemplates.addon.yml` (capability/signal activation policy)
 - Add Python quality benchmark artifacts:
-  - `diagnostics/PYTHON_QUALITY_BENCHMARK_PACK.json` (5-task benchmark + scoring rubric)
+  - `governance/PYTHON_QUALITY_BENCHMARK_PACK.json` (5-task benchmark + scoring rubric)
   - `docs/python-quality-benchmark-pack.md` (operator runbook and comparison guidance)
 - Add benchmark-pack coverage for all active profiles:
-  - `diagnostics/BACKEND_JAVA_QUALITY_BENCHMARK_PACK.json`
-  - `diagnostics/FRONTEND_ANGULAR_NX_QUALITY_BENCHMARK_PACK.json`
-  - `diagnostics/OPENAPI_CONTRACTS_QUALITY_BENCHMARK_PACK.json`
-  - `diagnostics/CUCUMBER_BDD_QUALITY_BENCHMARK_PACK.json`
-  - `diagnostics/POSTGRES_LIQUIBASE_QUALITY_BENCHMARK_PACK.json`
-  - `diagnostics/FRONTEND_CYPRESS_TESTING_QUALITY_BENCHMARK_PACK.json`
-  - `diagnostics/FRONTEND_OPENAPI_TS_CLIENT_QUALITY_BENCHMARK_PACK.json`
-  - `diagnostics/DOCS_GOVERNANCE_QUALITY_BENCHMARK_PACK.json`
-  - `diagnostics/FALLBACK_MINIMUM_QUALITY_BENCHMARK_PACK.json`
+  - `governance/BACKEND_JAVA_QUALITY_BENCHMARK_PACK.json`
+  - `governance/FRONTEND_ANGULAR_NX_QUALITY_BENCHMARK_PACK.json`
+  - `governance/OPENAPI_CONTRACTS_QUALITY_BENCHMARK_PACK.json`
+  - `governance/CUCUMBER_BDD_QUALITY_BENCHMARK_PACK.json`
+  - `governance/POSTGRES_LIQUIBASE_QUALITY_BENCHMARK_PACK.json`
+  - `governance/FRONTEND_CYPRESS_TESTING_QUALITY_BENCHMARK_PACK.json`
+  - `governance/FRONTEND_OPENAPI_TS_CLIENT_QUALITY_BENCHMARK_PACK.json`
+  - `governance/DOCS_GOVERNANCE_QUALITY_BENCHMARK_PACK.json`
+  - `governance/FALLBACK_MINIMUM_QUALITY_BENCHMARK_PACK.json`
   - `docs/quality-benchmark-pack-matrix.md`
 - Add benchmark runner script `scripts/run_quality_benchmark.py` to execute pack scoring with evidence gates (`PASS`/`FAIL`/`NOT_VERIFIED`) and machine-readable output.
 - Add operator-facing benchmark execution guidance in `README.md` (pack selection, run flow, evidence/scoring contract) with Python runbook linkage.
@@ -60,10 +60,10 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
 - Add governance factory commands for principal-grade extension work:
   - `new_profile.md` for generating new profile rulebooks
   - `new_addon.md` for generating addon rulebook + manifest pairs
-- Add diagnostics contract `diagnostics/PROFILE_ADDON_FACTORY_CONTRACT.json` to standardize factory output requirements.
-- Add diagnostics recovery helper `diagnostics/bootstrap_session_state.py` to initialize repo-scoped `${SESSION_STATE_FILE}` plus global `${SESSION_STATE_POINTER_FILE}` when session state is missing.
-- Add diagnostics helper `diagnostics/persist_workspace_artifacts.py` to backfill missing repo-scoped persistence artifacts (`repo-cache.yaml`, `repo-map-digest.md`, `decision-pack.md`, `workspace-memory.yaml`).
-- Add structured runtime error logging helper `diagnostics/error_logs.py` (`opencode.error-log.v1`) with repo-scoped and global JSONL targets.
+- Add governance contract `governance/PROFILE_ADDON_FACTORY_CONTRACT.json` to standardize factory output requirements.
+- Add governance recovery helper `governance/bootstrap_session_state.py` to initialize repo-scoped `${SESSION_STATE_FILE}` plus global `${SESSION_STATE_POINTER_FILE}` when session state is missing.
+- Add governance helper `governance/persist_workspace_artifacts.py` to backfill missing repo-scoped persistence artifacts (`repo-cache.yaml`, `repo-map-digest.md`, `decision-pack.md`, `workspace-memory.yaml`).
+- Add structured runtime error logging helper `governance/error_logs.py` (`opencode.error-log.v1`) with repo-scoped and global JSONL targets.
 - Add runtime error index summaries (`errors-index.json`) and automatic retention pruning for old `errors-*.jsonl` files (default 30 days).
 - Add shared advisory governance rulebooks and manifests for cross-profile contracts:
   - `rules.principal-excellence.md`
@@ -77,9 +77,9 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
 - Flatten code-specific reason payload context fields into emitted reason payload dictionaries for schema/audit alignment.
 - Tighten reason payload JSON schemas (`additionalProperties: false`) with optional `extensions` escape hatch.
 - Installer collectors now explicitly exclude filesystem metadata artifacts (`.DS_Store`, `._*`, `__MACOSX`, `Icon\r`) from installed command payloads.
-- Improve operator UX render contracts with one-screen operator view, reason-to-action card, diff-first diagnostics delta, last-3 transition timeline, and claim evidence panel projection.
+- Improve operator UX render contracts with one-screen operator view, reason-to-action card, diff-first governance delta, last-3 transition timeline, and claim evidence panel projection.
 - Extend `[NEXT-ACTION]` footer contract with required `PhaseGate` line (`phase | active_gate | phase_progress_bar`) for faster phase orientation in both STRICT and COMPAT modes.
-- Tighten output presentation contracts so `[NEXT-ACTION]` must be multiline (one field per line) and add pretty audit-summary layout guidance in `diagnostics/audit.md`.
+- Tighten output presentation contracts so `[NEXT-ACTION]` must be multiline (one field per line) and add pretty audit-summary layout guidance in `governance/audit.md`.
 - Add explicit Phase 1.5 re-entry contract from later phases (`3A`/`3B-*`/`4`/`5*`) with mandatory P5.4 rerun before final readiness claims.
 - Installer now ships the governance runtime package (`governance/**`) into `commands/governance/**` so state-machine modules are available from installed command surfaces without repo-local imports.
 - Align state-machine governance contracts for strict snapshot-first output, full-state YAML block semantics, and canonical reason-code casing parity across docs/runtime/tests.
@@ -87,8 +87,8 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
 - Add claim-evidence backfeed from `SESSION_STATE.BuildEvidence` with freshness/TTL gating and canonical stale-evidence status `NOT_VERIFIED-EVIDENCE-STALE`.
 - Add release/build-time README baseline claim guards and local README link-integrity verification in `scripts/build.py` with verification-report coverage.
 - Consolidate README set for the rework baseline and remove obsolete `README-CHAT.md`.
-- Add operator-first response layering contract across governance rulebooks: concise brief-first output with full diagnostics on explicit detail request.
-- Refactor `/start` bootstrap prompt internals by extracting inline Python snippets into diagnostics helpers (`diagnostics/start_binding_evidence.py`, `diagnostics/start_preflight_persistence.py`) for maintainability.
+- Add operator-first response layering contract across governance rulebooks: concise brief-first output with full governance on explicit detail request.
+- Refactor `/start` bootstrap prompt internals by extracting inline Python snippets into governance helpers (`governance/start_binding_evidence.py`, `governance/start_preflight_persistence.py`) for maintainability.
 - Improve `/start` recovery UX by preferring concrete, copy-paste runnable `next_command`/recovery commands and minimizing unresolved placeholders when runtime evidence can derive values.
 - Clarify preflight UX with explicit `required_now` vs `required_later` reporting plus deterministic `block_now` signal, and add post-bootstrap conversational/language-adaptive follow-up guidance.
 - Improve `/why-blocked` UX contract with brief-first then detail payload layering.
@@ -102,17 +102,17 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
 - Add deterministic short-intent routing contract for post-start questions (`where_am_i`, `what_blocks_me`, `what_now`) with concise intent-first responses.
 - Add compact phase progress bar contract (`phase_progress_bar`, e.g. `[##----] 2/6`) for faster operator orientation.
 - Add top-1 blocker prioritization contract (`primary_reason_code`) so one primary blocker/command leads recovery.
-- Add reason-code quick-fix template catalog (`diagnostics/QUICKFIX_TEMPLATES.json`) for reusable recovery guidance.
+- Add reason-code quick-fix template catalog (`governance/QUICKFIX_TEMPLATES.json`) for reusable recovery guidance.
 - Add delta-only no-change response contract (`state_unchanged` + `no_delta`) to reduce repetitive status noise.
 - Add operator persona response modes (`compact`, `standard`, `audit`) as presentation-only controls.
 - Add governance PR `Reviewer focus` guidance for high-risk contract deltas and targeted review hints.
-- Add installer/release artifact coverage checks to require shipping `diagnostics/QUICKFIX_TEMPLATES.json`.
-- Add deterministic conversational UX golden fixtures in `diagnostics/UX_INTENT_GOLDENS.json` with e2e regression validation for `where_am_i`, `what_blocks_me`, and `what_now` intents.
-- Fix `/start` diagnostics bootstrap pathing to resolve installed helpers from `${COMMANDS_HOME}/diagnostics` instead of workspace-relative assumptions.
+- Add installer/release artifact coverage checks to require shipping `governance/QUICKFIX_TEMPLATES.json`.
+- Add deterministic conversational UX golden fixtures in `governance/UX_INTENT_GOLDENS.json` with e2e regression validation for `where_am_i`, `what_blocks_me`, and `what_now` intents.
+- Fix `/start` governance bootstrap pathing to resolve installed helpers from `${COMMANDS_HOME}/governance` instead of workspace-relative assumptions.
 - Move `repo-identity-map.yaml` to repo workspace scope (`workspaces/<repo_fingerprint>/`) and align bootstrap persistence checks accordingly.
 - Clarify unambiguous profile behavior: auto-load canonical rulebooks without asking operator to paste/provide rulebook files.
 - Add `/start` invocation loop guard: when command context is injected, bootstrap proceeds immediately and does not re-request `/start` in the same turn.
-- Make workspace persistence bootstrap diagnostics non-blocking (`WARN-WORKSPACE-PERSISTENCE`) when repo fingerprint cannot be derived, so persistence remains operational convenience and not a hard gate.
+- Make workspace persistence bootstrap governance non-blocking (`WARN-WORKSPACE-PERSISTENCE`) when repo fingerprint cannot be derived, so persistence remains operational convenience and not a hard gate.
 - Enforce profile autodetect-first behavior when multiple rulebooks are present: rank by repo/ticket signals and auto-select unique top candidate before prompting manual selection.
 - Prevent Business Rules fallback target drift: on write failures keep `${REPO_BUSINESS_RULES_FILE}` with `write-requested` and forbid redirecting BR inventory into `workspace-memory.yaml`/`SESSION_STATE`.
 - Adjust `/start` persistence helper for host backup-path sessions: skip fingerprint-dependent backfill as `WARN` instead of error-blocking behavior when repo root is not a git checkout.
@@ -124,7 +124,7 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
 - Tighten `start.md` evidence boundaries: missing installer-owned `governance.paths.json` now yields explicit blocked fallback semantics (`BLOCKED-MISSING-BINDING-FILE`) and marks computed path payloads as non-evidence debug output.
 - Clarify `start.md` auto-persistence identity semantics so helper output is operational status only and cannot be treated as canonical repo identity evidence.
 - Align governance factory contracts (`new_addon.md`, `new_profile.md`, `PROFILE_ADDON_FACTORY_CONTRACT.json`) with current canonical runtime policy: required surface ownership fields, capability-first manifest guidance, preferred profile filename pattern (`rules_<profile_key>.md`), canonical SESSION_STATE evidence paths, and clarified tracking/audit semantics.
-- Clarify diagnostics reason-key boundaries: `/audit` `BR_*` keys are audit-only (not canonical `reason_code` values) unless explicitly mapped to `BLOCKED-*|WARN-*|NOT_VERIFIED-*` codes.
+- Clarify governance reason-key boundaries: `/audit` `BR_*` keys are audit-only (not canonical `reason_code` values) unless explicitly mapped to `BLOCKED-*|WARN-*|NOT_VERIFIED-*` codes.
 - Harden precedence drift detection with context-sensitive guards for numbered lists near precedence/priority/resolution language, preventing legacy shortened precedence variants from slipping through.
 - Tighten capability signal-mapping checks to require concrete `signals.any` + non-empty entries (instead of broad indentation heuristics) for capability coverage validation.
 - Add explicit claim-mapping regression test proving `result=pass` alone is insufficient for `verified` without scope/artifact/pinning evidence.
@@ -144,7 +144,7 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
 - Introduce capability-first activation contracts (`RepoFacts.Capabilities` + `CapabilityEvidence`) with hard-signal fallback and deterministic `BLOCKED-MISSING-EVIDENCE` handling.
 - Extend addon manifests/validator/lint with capability declarations (`capabilities_any` / `capabilities_all`) for normalized activation matching.
 - Add governance coverage for capability-first activation, including e2e simulation for capability match + fallback hard-signal activation.
-- Add a machine-readable diagnostics payload contract for emitted reason codes (`BLOCKED-*`, `WARN-*`, `NOT_VERIFIED-*`) with required fields (`reason_code`, `surface`, `signals_used`, `recovery_steps`, `next_command`) in master/schema/tests.
+- Add a machine-readable governance payload contract for emitted reason codes (`BLOCKED-*`, `WARN-*`, `NOT_VERIFIED-*`) with required fields (`reason_code`, `surface`, `signals_used`, `recovery_steps`, `next_command`) in master/schema/tests.
 - Add SESSION_STATE versioning + migration contract (`session_state_version`, `ruleset_hash`) with deterministic upgrade-or-block behavior (`BLOCKED-STATE-OUTDATED`).
 - Add a fast governance lint layer (`scripts/governance_lint.py`) and CI `governance-lint` fail-fast job for structural invariants (priority uniqueness, anchor presence, manifest contract, required rulebook references).
 - Add addon surface ownership governance (`owns_surfaces`, `touches_surfaces`) with deterministic conflict prevention and lint/validator/test enforcement.
@@ -167,16 +167,16 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
 - Strengthen top-tier governance evidence by adding explicit `RulebookLoadEvidence.top_tier.*` expectations and clarifying conflict-model mapping as classifier-only (no second precedence model).
 - Ensure bootstrap SESSION_STATE now seeds `RulebookLoadEvidence.top_tier` with canonical `QUALITY_INDEX.md` and `CONFLICT_RESOLUTION.md` load-evidence pointers.
 - Add governance regression coverage for fail-closed Phase-4 behavior when top-tier rulebooks are unresolved (`BLOCKED-MISSING-RULEBOOK:<file>` contract token).
-- Add deterministic audit-to-canonical reason bridge tooling (`diagnostics/map_audit_to_canonical.py`) with canonical mapping source (`diagnostics/AUDIT_REASON_CANONICAL_MAP.json`) and strict-unmapped mode.
+- Add deterministic audit-to-canonical reason bridge tooling (`governance/map_audit_to_canonical.py`) with canonical mapping source (`governance/AUDIT_REASON_CANONICAL_MAP.json`) and strict-unmapped mode.
 - Harden audit bridge determinism by selecting `primaryReasonCode` via severity precedence (`BLOCKED-*` > `WARN-*` > `NOT_VERIFIED-*`) instead of first-seen order.
-- Enforce distribution/install coverage for audit bridge assets (`diagnostics/map_audit_to_canonical.py`, `diagnostics/AUDIT_REASON_CANONICAL_MAP.json`) in build and installer policy tests.
+- Enforce distribution/install coverage for audit bridge assets (`governance/map_audit_to_canonical.py`, `governance/AUDIT_REASON_CANONICAL_MAP.json`) in build and installer policy tests.
 - Clarify `/start` bootstrap evidence behavior to require host evidence attempt first (when `governance.paths.json` is readable) and defer profile rulebook selection to Phase 1.2/Post-Phase-2 detection.
 - Tighten Phase 1.5 extraction contracts to require repository code/test evidence; README/documentation-only rules are now explicitly non-counting `CANDIDATE`s and cannot satisfy extracted business-rule claims.
 - Add deterministic profile selection guidance for unambiguous Java backend repositories (`backend-java` default without explicit selection prompt).
 - Harden `/start` binding hook failure reporting when `governance.paths.json` exists but is unreadable (`BLOCKED-VARIABLE-RESOLUTION`) and auto-bootstrap repo session state when persistence detects `no-session-file`.
 - Add Phase-2 repo-root defaulting contract: when OpenCode host already provides indexed repository root, use it first and request access authorization before asking for manual repo path input.
 - Clarify Phase 2.1 decision-pack flow to auto-run from repository evidence without requiring `ticketGoal`; `ticketGoal` is now explicitly mandatory at Phase 4 entry (Step 0) before code-producing work.
-- Make `/start` workspace persistence diagnostics non-blocking (`WARN-WORKSPACE-PERSISTENCE`) when helper scripts are missing/failing, while keeping binding evidence fail-closed.
+- Make `/start` workspace persistence governance non-blocking (`WARN-WORKSPACE-PERSISTENCE`) when helper scripts are missing/failing, while keeping binding evidence fail-closed.
 - Add host-constraint COMPAT mode contracts (`DEVIATION.host_constraint`, `RequiredInputs`, `Recovery`, `NextAction`) so governance remains deterministic without strict output-wrapper collisions.
 - Preserve canonical lifecycle contract (`/start` -> `/master`) while keeping host-constraint COMPAT output behavior.
 - Tighten `/start` binding blocker payloads with explicit `missing_evidence` and `next_command`, and remove normal-path wording that implied operator-evidence bypass for missing installer binding.
@@ -214,12 +214,12 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
 - Normalize governance evaluation semantics across add-ons/templates with canonical tier labels (`TIER-LOW|TIER-MEDIUM|TIER-HIGH`), fixed score thresholds, and a unified calibration version (`v2.1.1`).
 - Strengthen scorecard comparability and claim-to-evidence expectations so multi-addon reviews use the same pass/fail interpretation.
 - Extend v2.1 and v2.1.1 calibration blocks to all remaining profile rulebooks (`rules.backend-java.md`, `rules.frontend-angular-nx.md`, `rules.fallback-minimum.md`) for complete cross-profile consistency.
-- Clarify installer docs with explicit diagnostics contract reference (`PROFILE_ADDON_FACTORY_CONTRACT.json`).
+- Clarify installer docs with explicit governance contract reference (`PROFILE_ADDON_FACTORY_CONTRACT.json`).
 - Shift canonical session storage topology to repo-scoped `${SESSION_STATE_FILE}` with global `${SESSION_STATE_POINTER_FILE}` as active pointer for multi-repo safety.
 - `/start` now includes an auto-persistence hook that calls the workspace artifact backfill helper when available.
 - Improve workspace artifact routing safety: backfill helper now resolves repo fingerprint from current repo git metadata before using global pointer fallback, reducing stale-pointer cross-repo writes.
 - Add governance guardrails/tests to enforce that Phase 2.1 always surfaces the Phase 1.5 A/B decision prompt when Phase 1.5 was neither explicitly requested nor skipped.
-- Extend `/start` + diagnostics helpers to emit automatic structured error logs, and expose error-log paths in `governance.paths.json` (`globalErrorLogsHome`, `workspaceErrorLogsHomeTemplate`).
+- Extend `/start` + governance helpers to emit automatic structured error logs, and expose error-log paths in `governance.paths.json` (`globalErrorLogsHome`, `workspaceErrorLogsHomeTemplate`).
 - Installer now patches installer-owned legacy `governance.paths.json` files with missing error-log path keys even without `--force`.
 - Refine `rules.backend-java.md` to remove Kafka activation ambiguity, use canonical shared tiering semantics, and delegate shared principal contracts to modular advisory rulebooks.
 - Migrate all remaining `rules*.md` rulebooks to shared principal-governance modularization (delegation to shared advisory rulebooks).
@@ -228,22 +228,22 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
 - Strengthen workflow guarantees for shared modularization in installer/e2e tests (shared addons copied, manifest-listed, and advisory-missing behavior verified as non-blocking).
 - Harden profile auto-detection semantics: profile candidate selection now explicitly excludes addon-referenced and shared governance rulebooks.
 - Normalize footer/marker consistency across `profiles/rules*.md` after modularization (remove mid-file end markers, align copyright placement/style).
-- Add a canonical structured response envelope schema contract (`diagnostics/RESPONSE_ENVELOPE_SCHEMA.json`) and wire `/start`/core rulebooks to require schema-aligned output fields.
+- Add a canonical structured response envelope schema contract (`governance/RESPONSE_ENVELOPE_SCHEMA.json`) and wire `/start`/core rulebooks to require schema-aligned output fields.
 - Narrow shared governance advisory addon activation signals from unbounded `**/*` to explicit governance entry signals (`master.md`) for cleaner capability/signal semantics.
 - Clarify `CONFLICT_RESOLUTION.md` mapping so P-levels are conflict classifiers/tie-breakers only and never a second precedence model over `master.md`.
 
 ### Fixed
 - Extend `persist_workspace_artifacts.py --quiet` blocked output with structured reason fields (`reason_code`, `recovery_steps`, `next_command`) for direct `SESSION_STATE.Diagnostics.ReasonPayloads` integration.
 - Include addon manifests (`profiles/addons/*.addon.yml`) in release artifacts so runtime addon activation/reload works from packaged RC builds.
-- Include diagnostics runtime Python helpers (`diagnostics/*.py`) in release artifacts so `/start` auto-persistence and runtime error logging remain available after install.
+- Include governance runtime Python helpers (`governance/*.py`) in release artifacts so `/start` auto-persistence and runtime error logging remain available after install.
 - Fix `/start` workspace persistence hook failure semantics to emit canonical blocked payloads (`BLOCKED-WORKSPACE-PERSISTENCE`) and write structured runtime error logs when the helper is missing or fails.
-- Fix bootstrap diagnostics coverage by logging missing backfill helper events (`ERR-WORKSPACE-PERSISTENCE-HOOK-MISSING`) instead of silently skipping.
+- Fix bootstrap governance coverage by logging missing backfill helper events (`ERR-WORKSPACE-PERSISTENCE-HOOK-MISSING`) instead of silently skipping.
 - Fix Business Rules inventory read path contract to use canonical `${REPO_BUSINESS_RULES_FILE}` instead of a non-canonical `${CONFIG_ROOT}/${REPO_NAME}/business-rules.md` fallback.
 - Fix workspace persistence helper to auto-materialize `${REPO_BUSINESS_RULES_FILE}` and update `SESSION_STATE.BusinessRules.InventoryFileStatus=written` when Phase 1.5 state is marked as extracted.
 - Remove duplicate local `_pretty` function definition in `scripts/build.py` to keep release artifact logging implementation clean and deterministic.
 - Uninstall now purges installer/runtime-owned `errors-*.jsonl` logs by default (with `--keep-error-logs` opt-out), while preserving non-matching user files.
 - Fix backend-java evidence gate wording to block pass at Phase 5.3/6 when required evidence is missing.
-- Strengthen CI artifact smoke coverage to verify installed diagnostics runtime helpers exist and that `persist_workspace_artifacts.py` executes successfully from the installed payload.
+- Strengthen CI artifact smoke coverage to verify installed governance runtime helpers exist and that `persist_workspace_artifacts.py` executes successfully from the installed payload.
 - Add fail-closed governance guards for trusted rulebook discovery roots, canonical addon catalog boundaries, and RulebookLoadEvidence blocking semantics (`BLOCKED-RULEBOOK-EVIDENCE-MISSING`) in lint + governance tests.
 - Add activation-delta regression coverage that deterministically blocks when activation outcome drifts while addon/repo-facts hashes are unchanged (`BLOCKED-ACTIVATION-DELTA-MISMATCH`).
 - Fix Kafka addon capability gating to be Kafka-specific (remove broad `java`/`spring` capability activation that could over-trigger required Kafka constraints).
@@ -272,7 +272,7 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
   - `rules.frontend-cypress-testing.md` (advisory addon)
   - `rules.frontend-openapi-ts-client.md` (advisory addon)
 - Add addon manifest classes (`addon_class: required|advisory`) and frontend addon manifests under `profiles/addons/`.
-- Add governance diagnostics script `scripts/validate_addons.py` (manifest structure + class/signal validation).
+- Add governance governance script `scripts/validate_addons.py` (manifest structure + class/signal validation).
 - Add CI-governed end-to-end flow coverage for addon activation/reload (`tests/test_governance_e2e_flow.py`, `governance-e2e` job).
 - Add Mandatory Review Matrix (MRM) and Gate Scorecard governance contracts for reviewer-proof PR readiness.
 
