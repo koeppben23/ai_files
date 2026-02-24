@@ -1525,6 +1525,22 @@ def main() -> int:
     )
     actions["businessRulesInventory"] = business_rules_action
     actions["businessRulesBootstrapEvent"] = business_rules_bootstrap_event
+    decision_pack_normalization_event = "not-emitted"
+    if actions.get("decisionPack") == "normalized":
+        decision_pack_normalization_event = _append_jsonl_event(
+            repo_home / "events.jsonl",
+            {
+                "event": "decision-pack-normalized-legacy-format",
+                "observed_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                "phase": "2.1-DecisionPack",
+                "repo_fingerprint": repo_fingerprint,
+                "status": "normalized",
+                "target": str(decision_path),
+            },
+            dry_run=args.dry_run,
+            read_only=read_only,
+        )
+    actions["decisionPackNormalizationEvent"] = decision_pack_normalization_event
 
     session_update = "skipped"
     if not args.no_session_update:

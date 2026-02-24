@@ -1743,6 +1743,73 @@ def test_workspace_persistence_normalizes_legacy_placeholder_phrasing_without_fo
 
 
 @pytest.mark.governance
+def test_workspace_persistence_normalizes_legacy_decision_pack_and_emits_event(tmp_path: Path):
+    script = REPO_ROOT / "diagnostics" / "persist_workspace_artifacts.py"
+    cfg = tmp_path / "opencode-config"
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir(parents=True, exist_ok=True)
+    repo_fp = "d4e5f6a1b2c3d4e5f6a1b2c3"
+    write_governance_paths(cfg)
+
+    workspace = cfg / "workspaces" / repo_fp
+    workspace.mkdir(parents=True, exist_ok=True)
+    session_file = workspace / "SESSION_STATE.json"
+    session_payload = {
+        "SESSION_STATE": {
+            "Phase": "2.1-DecisionPack",
+            "Mode": "IN_PROGRESS",
+            "ConfidenceLevel": 80,
+            "Next": "3A-API-Inventory",
+            "Scope": {
+                "Repository": "Demo Repo",
+                "RepositoryType": "governance-rulebook-repo",
+            },
+            "ActiveProfile": "fallback-minimum",
+            "ProfileEvidence": "phase2-detected",
+        }
+    }
+    session_file.write_text(json.dumps(session_payload, indent=2, ensure_ascii=True) + "\n", encoding="utf-8")
+
+    decision_file = workspace / "decision-pack.md"
+    decision_file.write_text(
+        "# Decision Pack\n"
+        "D-001: Run Phase 1.5 (Business Rules Discovery) now?\n"
+        "A) Yes\n"
+        "B) No\n"
+        "Recommendation: A (run lightweight Phase 1.5 to establish initial domain evidence)\n"
+        "What would change it: keep B only when operator explicitly defers business-rules discovery\n",
+        encoding="utf-8",
+    )
+
+    r = run([
+        sys.executable,
+        str(script),
+        "--repo-fingerprint",
+        repo_fp,
+        "--repo-root",
+        str(repo_root),
+        "--config-root",
+        str(cfg),
+        "--quiet",
+    ])
+    assert r.returncode == 0, f"persist_workspace_artifacts.py failed:\nSTDERR:\n{r.stderr}\nSTDOUT:\n{r.stdout}"
+
+    payload = json.loads(r.stdout)
+    actions = payload.get("actions", {})
+    assert actions.get("decisionPack") == "normalized"
+    assert actions.get("decisionPackNormalizationEvent") == "written"
+
+    decision_text = decision_file.read_text(encoding="utf-8")
+    assert "D-001: Apply Phase 1.5 Business Rules bootstrap policy" in decision_text
+    assert "Status: automatic" in decision_text
+    assert "A) Yes" not in decision_text
+    assert "B) No" not in decision_text
+
+    events_text = (workspace / "events.jsonl").read_text(encoding="utf-8")
+    assert "decision-pack-normalized-legacy-format" in events_text
+
+
+@pytest.mark.governance
 def test_workspace_persistence_quiet_blocked_payload_includes_reason_contract_fields(tmp_path: Path):
     script = REPO_ROOT / "diagnostics" / "persist_workspace_artifacts.py"
     cfg = tmp_path / "opencode-config"
