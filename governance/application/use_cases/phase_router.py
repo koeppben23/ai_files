@@ -103,6 +103,16 @@ def _business_rules_scope(state: Mapping[str, object]) -> str:
 
 def _business_rules_discovery_resolved(state: Mapping[str, object]) -> bool:
     """Check if Phase 1.5 decision has been resolved."""
+    business_rules = state.get("BusinessRules")
+    if isinstance(business_rules, Mapping):
+        inventory_status = business_rules.get("InventoryFileStatus")
+        if isinstance(inventory_status, str) and inventory_status.strip().lower() in {
+            "written",
+            "unchanged",
+            "normalized",
+        }:
+            return True
+
     br_scope = _business_rules_scope(state)
     if br_scope in {"not-applicable", "extracted", "skipped"}:
         return True
@@ -293,8 +303,8 @@ def route_phase(
         if not _business_rules_discovery_resolved(state):
             return RoutedPhase(
                 phase="1.5-BusinessRules",
-                active_gate="Business Rules Discovery Decision",
-                next_gate_condition="Resolve Phase 1.5: run business rules discovery (A) or skip (B)",
+                active_gate="Business Rules Bootstrap",
+                next_gate_condition="Auto-bootstrap business rules placeholder when inventory is missing, then continue to Phase 3A",
                 workspace_ready=True,
                 source="phase-1.5-routing-required",
             )
@@ -325,8 +335,8 @@ def route_phase(
         if not _api_in_scope(state):
             return RoutedPhase(
                 phase="4",
-                active_gate="Ticket Execution",
-                next_gate_condition="Phase 3A completed with not-applicable (no APIs detected); proceed to ticket planning",
+                active_gate="Ticket Input Gate",
+                next_gate_condition="Phase 3A completed with not-applicable (no APIs detected); wait for ticket input at Phase 4",
                 workspace_ready=workspace_ready,
                 source="phase-3a-not-applicable-to-phase4",
             )
@@ -352,8 +362,8 @@ def route_phase(
     if phase_token == "3B-2":
         return RoutedPhase(
             phase="4",
-            active_gate="Ticket Execution",
-            next_gate_condition="Phase 3B-2 complete; proceed to ticket planning",
+            active_gate="Ticket Input Gate",
+            next_gate_condition="Phase 3B-2 complete; wait for ticket input at Phase 4",
             workspace_ready=workspace_ready,
             source="phase-3b2-to-4",
         )

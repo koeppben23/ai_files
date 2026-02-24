@@ -4,6 +4,7 @@ def render_business_rules_inventory(*, date: str, repo_name: str) -> str:
             f"# Business Rules Inventory -- {repo_name}",
             "",
             "SchemaVersion: BRINV-1",
+            "Placeholder: true",
             "Source: Phase 1.5 Business Rules Discovery",
             f"Last Updated: {date}",
             "Scope: global",
