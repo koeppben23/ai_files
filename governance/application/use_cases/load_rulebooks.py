@@ -73,6 +73,21 @@ class LoadRulebooksService:
                 )
             )
 
+        for ref in (core, master, profile, *addons_loaded):
+            if ref is None:
+                continue
+            if str(ref.anchors_version or "").strip():
+                continue
+            errors.append(
+                ErrorEvent(
+                    code="RULEBOOK_ANCHOR_MISSING",
+                    severity="error",
+                    message="Rulebook missing anchors version.",
+                    expected="non-empty anchors_version",
+                    observed={"identifier": ref.identifier},
+                )
+            )
+
         return LoadedRulebooks(
             rules=RulebookSet(core=core, master=master, profile=profile, addons=tuple(addons_loaded)),
             source=payload.source,
