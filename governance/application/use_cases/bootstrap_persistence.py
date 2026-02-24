@@ -179,6 +179,7 @@ class BootstrapPersistenceService:
             pointer_verified_final = _is_valid_pointer_payload(
                 pointer_json_read,
                 expected_repo_fingerprint=payload.repo_identity.fingerprint,
+                expected_session_state_file=payload.layout.session_state_file,
             )
         except Exception:
             pointer_verified_final = False
@@ -202,7 +203,12 @@ def _canonical_json(data: object) -> str:
     return json.dumps(data, sort_keys=True, separators=(",", ":"), ensure_ascii=True) + "\n"
 
 
-def _is_valid_pointer_payload(payload: object, *, expected_repo_fingerprint: str) -> bool:
+def _is_valid_pointer_payload(
+    payload: object,
+    *,
+    expected_repo_fingerprint: str,
+    expected_session_state_file: str,
+) -> bool:
     if not isinstance(payload, dict):
         return False
     if payload.get("schema") != "opencode-session-pointer.v1":
@@ -211,10 +217,14 @@ def _is_valid_pointer_payload(payload: object, *, expected_repo_fingerprint: str
         return False
 
     active_state_file = payload.get("activeSessionStateFile")
-    active_state_relative = payload.get("activeSessionStateRelativePath")
-    has_file = isinstance(active_state_file, str) and bool(active_state_file.strip())
-    has_relative = isinstance(active_state_relative, str) and bool(active_state_relative.strip())
-    return has_file or has_relative
+    if not isinstance(active_state_file, str) or not active_state_file.strip():
+        return False
+
+    actual_path = Path(active_state_file.strip())
+    expected_path = Path(expected_session_state_file)
+    if not actual_path.is_absolute():
+        return False
+    return actual_path == expected_path
 
 
 def _session_state_payload(

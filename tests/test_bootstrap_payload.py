@@ -50,10 +50,28 @@ def test_pointer_payload_validation() -> None:
         "activeRepoFingerprint": "abcdef0123456789abcdef01",
         "activeSessionStateFile": "/tmp/session.json",
     }
+    relative_only = {
+        "schema": "opencode-session-pointer.v1",
+        "activeRepoFingerprint": "abcdef0123456789abcdef01",
+        "activeSessionStateRelativePath": "workspaces/abcdef0123456789abcdef01/SESSION_STATE.json",
+    }
     invalid = {
         "schema": "opencode-session-pointer.v1",
         "activeRepoFingerprint": "wrong",
         "activeSessionStateFile": "/tmp/session.json",
     }
-    assert _is_valid_pointer_payload(valid, expected_repo_fingerprint="abcdef0123456789abcdef01") is True
-    assert _is_valid_pointer_payload(invalid, expected_repo_fingerprint="abcdef0123456789abcdef01") is False
+    assert _is_valid_pointer_payload(
+        valid,
+        expected_repo_fingerprint="abcdef0123456789abcdef01",
+        expected_session_state_file="/tmp/session.json",
+    ) is True
+    assert _is_valid_pointer_payload(
+        relative_only,
+        expected_repo_fingerprint="abcdef0123456789abcdef01",
+        expected_session_state_file="/tmp/session.json",
+    ) is False
+    assert _is_valid_pointer_payload(
+        invalid,
+        expected_repo_fingerprint="abcdef0123456789abcdef01",
+        expected_session_state_file="/tmp/session.json",
+    ) is False
