@@ -295,10 +295,11 @@ jobs:
             assert r.returncode == 0, f"install failed:\n{r.stderr}\n{r.stdout}"
 
             governance = cfg / "commands" / "governance"
+            entrypoints = governance / "entrypoints"
             required_helpers = [
-              governance / "persist_workspace_artifacts.py",
-              governance / "bootstrap_session_state.py",
-              governance / "error_logs.py",
+              entrypoints / "persist_workspace_artifacts.py",
+              entrypoints / "bootstrap_session_state.py",
+              entrypoints / "error_logs.py",
             ]
             missing = [str(p) for p in required_helpers if not p.exists()]
             assert not missing, f"missing governance runtime helpers after install: {missing}"
@@ -308,7 +309,7 @@ jobs:
                 sys.executable,
                 "-X",
                 "utf8",
-                str(governance / "persist_workspace_artifacts.py"),
+                str(entrypoints / "persist_workspace_artifacts.py"),
                 "--repo-fingerprint",
                 "a1b2c3d4e5f6a1b2c3d4e5f8",
                 "--repo-root",
