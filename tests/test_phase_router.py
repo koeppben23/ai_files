@@ -21,6 +21,7 @@ def _minimal_session_state(**overrides) -> dict[str, object]:
             "workspace_ready_gate_committed": True,
             "WorkspaceArtifactsCommitted": True,
             "PointerVerified": True,
+            "LoadedRulebooks": {"core": "${COMMANDS_HOME}/master.md", "profile": "", "templates": "", "addons": {}},
             **overrides,
         }
     }
