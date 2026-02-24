@@ -179,6 +179,7 @@ class BootstrapPersistenceService:
             workspace_artifacts_committed=True,
             effective_mode=payload.effective_mode,
             write_policy_reasons=payload.write_policy_reasons,
+            pointer_verified=True,
         )
         self._fs.write_text_atomic(session_state_file, _canonical_json(final_state))
         write_actions["session_state_final"] = "written"
@@ -198,17 +199,20 @@ def _session_state_payload(
     workspace_artifacts_committed: bool,
     effective_mode: str,
     write_policy_reasons: tuple[str, ...],
+    pointer_verified: bool = False,
 ) -> dict[str, object]:
     repository = repo_name.strip() if repo_name.strip() else repo_fingerprint
-    # Derive Bootstrap block dynamically based on whether bootstrap has completed
-    # and which sub-evidences were satisfied. This fixes the drift where Bootstrap
-    # was always written as not-present/not-satisfied in final payloads.
     bootstrap_present = bool(persistence_committed)
-    bootstrap_satisfied = bool(persistence_committed and workspace_ready_committed and workspace_artifacts_committed)
-    bootstrap_evidence = "not-initialized" if not persistence_committed else "start:binding_ok+pointer_ok+artifacts_ok"
-
-    # Pointer verification should be reflected in commit flags when bootstrap completes.
-    pointer_verified = bool(persistence_committed and workspace_ready_committed and workspace_artifacts_committed)
+    bootstrap_satisfied = bool(persistence_committed and workspace_ready_committed and workspace_artifacts_committed and pointer_verified)
+    bootstrap_evidence = "not-initialized" if not bootstrap_present else ("bootstrap-completed" if bootstrap_satisfied else "bootstrap-in-progress")
+    # Determine phase/mode based on bootstrap completion
+    phase = "1.1-Bootstrap"
+    mode = "BLOCKED"
+    next_gate = "BLOCKED-START-REQUIRED"
+    if bootstrap_satisfied:
+        phase = "1.2-Architecture"
+        mode = "IN_PROGRESS"
+        next_gate = "P5-Architecture-in_progress"
 
     return {
         "SESSION_STATE": {
@@ -219,10 +223,10 @@ def _session_state_payload(
             "phase_transition_evidence": False,
             "session_state_version": 1,
             "ruleset_hash": "deferred",
-            "Phase": "1.1-Bootstrap",
-            "Mode": "BLOCKED",
+            "Phase": phase,
+            "Mode": mode,
             "ConfidenceLevel": 0,
-            "Next": "BLOCKED-START-REQUIRED",
+            "Next": next_gate,
             "OutputMode": "ARCHITECT",
             "DecisionSurface": {},
             "Bootstrap": {
