@@ -387,3 +387,27 @@ class TestPersistenceHookVerificationFailures:
         ok, reason = _verify_pointer_exists(tmp_path, repo_fp)
         assert ok is False
         assert "fingerprint-mismatch" in reason
+
+    @pytest.mark.governance
+    def test_pointer_invalid_json_is_reported_as_unreadable(self, tmp_path: Path):
+        from diagnostics.start_persistence_hook import _verify_pointer_exists
+
+        pointer_file = tmp_path / "SESSION_STATE.json"
+        pointer_file.write_text("{broken-json", encoding="utf-8")
+
+        ok, reason = _verify_pointer_exists(tmp_path, "a1b2c3d4e5f6a1b2c3d4e5f6")
+        assert ok is False
+        assert reason == "pointer-file-unreadable"
+
+    @pytest.mark.governance
+    def test_workspace_session_invalid_json_is_reported_as_unreadable(self, tmp_path: Path):
+        from diagnostics.start_persistence_hook import _verify_workspace_session_exists
+
+        repo_fp = "a1b2c3d4e5f6a1b2c3d4e5f6"
+        session_file = tmp_path / repo_fp / "SESSION_STATE.json"
+        session_file.parent.mkdir(parents=True, exist_ok=True)
+        session_file.write_text("{broken-json", encoding="utf-8")
+
+        ok, reason = _verify_workspace_session_exists(tmp_path, repo_fp)
+        assert ok is False
+        assert reason == "workspace-session-file-unreadable"

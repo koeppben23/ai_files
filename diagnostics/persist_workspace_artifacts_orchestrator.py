@@ -1088,7 +1088,7 @@ def main() -> int:
     args = parse_args()
     try:
         config_root, binding_paths, binding_file = resolve_binding_config(args.config_root)
-    except ValueError as exc:
+    except Exception as exc:
         emit_gate_failure(
             gate="PERSISTENCE",
             code="MISSING_BINDING_FILE",
