@@ -2274,7 +2274,7 @@ SESSION_STATE:
     BusinessRules: extracted
   ...
   
-Proceeding to Phase 3A (API Inventory). If APIs are out of scope, Phase 3A records not-applicable and advances through Phase 3B routing; ticket prompt is deferred until Phase 4 entry.
+Proceeding to Phase 3A (API Inventory). If APIs are out of scope, Phase 3A records not-applicable and advances through Phase 3B routing; ticket input is accepted only at Phase 4 entry.
 ```
 
 **Phase 1.5 exit conditions:**
