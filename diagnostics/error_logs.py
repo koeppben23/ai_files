@@ -10,11 +10,7 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional, Dict, Any
 
-try:
-    from diagnostics.global_error_handler import emit_gate_failure as emit_gate_failure_ssot
-except Exception:
-    def emit_gate_failure_ssot(**kwargs: Any) -> bool:  # type: ignore
-        return False
+from diagnostics.error_handler_bridge import emit_gate_failure as emit_gate_failure_ssot
 
 try:
     from governance.infrastructure.adapters.logging.event_sink import write_jsonl_event

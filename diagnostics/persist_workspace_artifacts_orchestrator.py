@@ -300,23 +300,12 @@ _PERSISTENCE_DECISION_PACK_BASELINE = (
     "Recommendation: A (run lightweight Phase 1.5 to establish initial domain evidence)",
 )
 
-try:
-    from diagnostics.global_error_handler import (
-        install_global_handlers,
-        set_error_context,
-        emit_gate_failure,
-        ErrorContext,
-    )
-except ImportError:
-    def install_global_handlers(context_provider=None):  # type: ignore
-        pass
-    def set_error_context(ctx):  # type: ignore
-        pass
-    def emit_gate_failure(**kwargs):  # type: ignore
-        pass
-    class ErrorContext:  # type: ignore
-        def __init__(self, **kwargs):
-            pass
+from diagnostics.error_handler_bridge import (
+    ErrorContext,
+    emit_gate_failure,
+    install_global_handlers,
+    set_error_context,
+)
 
 def _read_only() -> bool:
     return not writes_allowed()
