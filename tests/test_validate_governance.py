@@ -3416,7 +3416,7 @@ def test_audit_reason_keys_are_declared_audit_only_and_not_reason_code_payloads(
 def test_master_requires_phase_21_to_apply_phase_15_automatic_policy_when_not_explicitly_set():
     text = read_text(REPO_ROOT / "master.md")
     required_tokens = [
-        'Decision Pack MUST include: "Apply Phase 1.5 Business Rules bootstrap policy" (automatic)',
+        'Decision Pack includes: "Apply Phase 1.5 Business Rules bootstrap policy" (automatic)',
         "Run Phase 1.5 automatically when business-rules inventory is missing",
         '"Apply Phase 1.5 Business Rules bootstrap policy"',
         "Execute Phase 1.5 automatically when business-rules inventory is missing.",

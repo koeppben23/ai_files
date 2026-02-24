@@ -2136,7 +2136,7 @@ If file writing is not possible in the current environment:
     - external API artifacts exist → Phase 3A
     - otherwise → Phase 3A (auto-not-applicable path allowed) then continue to Phase 3B routing
   - Else:
-    - Decision Pack MUST include: "Apply Phase 1.5 Business Rules bootstrap policy" (automatic)
+    - Decision Pack includes: "Apply Phase 1.5 Business Rules bootstrap policy" (automatic)
     - Run Phase 1.5 automatically when business-rules inventory is missing
     - Continue by API scope:
       - external API artifacts exist → Phase 3A
@@ -2151,7 +2151,7 @@ If file writing is not possible in the current environment:
 * Explicit user request: "Extract business rules first"
 * Explicit later-phase re-entry request: "Reopen Phase 1.5"
 * Default: auto-run only when required by deterministic policy.
-  - Unless explicitly requested or explicitly skipped, Phase 2.1 MUST apply automatic bootstrap policy:
+  - Unless explicitly requested or explicitly skipped, Phase 2.1 applies automatic bootstrap policy:
     "Apply Phase 1.5 Business Rules bootstrap policy"
   - Execute Phase 1.5 automatically when business-rules inventory is missing.
 * **Recommendation trigger (non-blocking):** Recommend executing Phase 1.5 if Phase 2 evidence indicates any of:
