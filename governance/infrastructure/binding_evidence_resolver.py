@@ -21,8 +21,8 @@ class BindingEvidence:
     cmd_profiles: dict[str, str]
     paths: dict[str, str]
     raw_path: Path | None
-    commands_home: Path
-    workspaces_home: Path
+    commands_home: Path | None
+    workspaces_home: Path | None
     config_root: Path | None
     governance_paths_json: Path | None
     source: Literal["canonical", "trusted_override", "dev_cwd_search", "missing", "invalid"]
@@ -122,8 +122,6 @@ class BindingEvidenceResolver:
 
     def resolve(self, *, mode: str = "user", host_caps: Any | None = None) -> BindingEvidence:
         root = self._config_root
-        commands_home = root / "commands"
-        workspaces_home = root / "workspaces"
         python_command = ""
 
         binding_file: Path | None = None
@@ -141,8 +139,8 @@ class BindingEvidenceResolver:
                 cmd_profiles={},
                 paths={},
                 raw_path=None,
-                commands_home=commands_home,
-                workspaces_home=workspaces_home,
+                commands_home=None,
+                workspaces_home=None,
                 config_root=None,
                 governance_paths_json=None,
                 source="missing",
@@ -176,8 +174,8 @@ class BindingEvidenceResolver:
                 cmd_profiles={},
                 paths={},
                 raw_path=binding_file,
-                commands_home=commands_home,
-                workspaces_home=workspaces_home,
+                commands_home=None,
+                workspaces_home=None,
                 config_root=None,
                 governance_paths_json=binding_file,
                 source="invalid",
