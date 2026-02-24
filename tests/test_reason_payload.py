@@ -43,7 +43,7 @@ def test_reason_payload_not_verified_requires_missing_evidence():
         signals_used=("evidence",),
         primary_action="Provide evidence",
         recovery_steps=("Gather host evidence",),
-        next_command="show diagnostics",
+        next_command="show governance",
         impact="x",
         missing_evidence=(),
         deviation={},

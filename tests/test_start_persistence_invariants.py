@@ -59,7 +59,7 @@ def test_start_persistence_hook_commits_fingerprint_and_artifacts(tmp_path: Path
     _write_governance_paths_json(home=home, commands_home=Path(__file__).resolve().parents[1], workspaces_home=workspaces_home)
 
     import importlib
-    import diagnostics.start_persistence_hook as hook
+    import governance.entrypoints.start_persistence_hook as hook
     importlib.reload(hook)
 
     with patch.object(hook, "COMMANDS_HOME", Path(__file__).resolve().parents[1]):

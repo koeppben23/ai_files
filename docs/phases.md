@@ -45,7 +45,7 @@ Authority boundary: policy, gate semantics, and routing are owned by kernel code
 ## Phase-Coupled Persistence (Outside Repository)
 
 **SSOT Enforcement (Binding):** Persistence is mandatory and enforced by the kernel (not by LLM output).
-The diagnostics helpers (`bootstrap_session_state.py`, `persist_workspace_artifacts.py`) enable writes
+The governance helpers (`bootstrap_session_state.py`, `persist_workspace_artifacts.py`) enable writes
 when host permissions allow it in the current operating mode. In pipeline mode, interactivity is disabled; file writes follow host permissions and fail closed if not permitted.
 
 | Phase | Artifact | Target | Write condition |

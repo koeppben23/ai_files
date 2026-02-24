@@ -28,7 +28,7 @@ class LocalProcessRunner(ProcessRunnerPort):
 class GlobalErrorLogger:
     def write(self, event: ErrorEvent) -> None:
         try:
-            from diagnostics.global_error_handler import emit_error_event
+            from governance.infrastructure.logging.global_error_handler import emit_error_event
 
             emit_error_event(
                 severity=event.severity,

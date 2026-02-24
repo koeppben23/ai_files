@@ -9,7 +9,7 @@ from .util import REPO_ROOT
 
 
 def _load_module():
-    script = REPO_ROOT / "diagnostics" / "persist_workspace_artifacts.py"
+    script = REPO_ROOT / "governance" / "entrypoints" / "persist_workspace_artifacts.py"
     spec = importlib.util.spec_from_file_location("persist_workspace_artifacts", script)
     assert spec and spec.loader
     module = importlib.util.module_from_spec(spec)

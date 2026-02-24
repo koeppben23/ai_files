@@ -7,13 +7,13 @@ Customers can run them directly from that installed path without GitHub access.
 
 ## Canonical source
 
-- Catalog file: `diagnostics/CUSTOMER_SCRIPT_CATALOG.json`
+- Catalog file: `governance/CUSTOMER_SCRIPT_CATALOG.json`
 - Catalog checker CLI (`scripts/customer_script_catalog.py`) is a maintainer/internal helper and is not installed for customers.
-- Markdown exclusions from release archives: `diagnostics/CUSTOMER_MARKDOWN_EXCLUDE.json`
+- Markdown exclusions from release archives: `governance/CUSTOMER_MARKDOWN_EXCLUDE.json`
 
 ## List shipped customer scripts
 
-Check entries in `diagnostics/CUSTOMER_SCRIPT_CATALOG.json` where:
+Check entries in `governance/CUSTOMER_SCRIPT_CATALOG.json` where:
 
 - `customer_relevant: true`
 - `ship_in_release: true`

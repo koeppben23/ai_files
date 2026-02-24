@@ -15,7 +15,7 @@ Scanners included:
 
 ## Policy source
 
-- `diagnostics/SECURITY_GATE_POLICY.json`
+- `governance/SECURITY_GATE_POLICY.json`
 
 Key policy controls:
 
@@ -25,15 +25,15 @@ Key policy controls:
 
 ## Evidence outputs
 
-Each scanner writes a summary JSON file in `diagnostics/security-evidence/`.
+Each scanner writes a summary JSON file in `governance/security-evidence/`.
 
 The final policy gate aggregates all scanner summaries with:
 
 ```bash
 ${PYTHON_COMMAND} scripts/evaluate_security_evidence.py \
-  --policy diagnostics/SECURITY_GATE_POLICY.json \
-  --input diagnostics/security-evidence/<scanner>.summary.json \
-  --output diagnostics/security-evidence/security_summary.json
+  --policy governance/SECURITY_GATE_POLICY.json \
+  --input governance/security-evidence/<scanner>.summary.json \
+  --output governance/security-evidence/security_summary.json
 ```
 
 `security_summary.json` is the machine-readable security evidence artifact for governance review.

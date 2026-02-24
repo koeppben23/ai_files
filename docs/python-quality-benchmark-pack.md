@@ -1,7 +1,7 @@
 # Python Quality Benchmark Pack
 
 Date: 2026-02-11
-Source: `diagnostics/PYTHON_QUALITY_BENCHMARK_PACK.json`
+Source: `governance/PYTHON_QUALITY_BENCHMARK_PACK.json`
 Profile target: `backend-python` + required addon `backendPythonTemplates`
 
 ## Goal
@@ -27,7 +27,7 @@ direct comparability over repeated runs.
   - missing/stale required claim evidence remains `NOT_VERIFIED`
 - output contract:
   - default compact session snapshot
-  - full diagnostics/state only on explicit intent
+  - full governance/state only on explicit intent
 
 ## Rubric
 
@@ -65,7 +65,7 @@ Runner helper:
 
 ```bash
 ${PYTHON_COMMAND} scripts/run_quality_benchmark.py \
-  --pack diagnostics/PYTHON_QUALITY_BENCHMARK_PACK.json \
+  --pack governance/PYTHON_QUALITY_BENCHMARK_PACK.json \
   --observed-claim claim/tests-green \
   --observed-claim claim/static-clean \
   --observed-claim claim/no-drift \
@@ -74,5 +74,5 @@ ${PYTHON_COMMAND} scripts/run_quality_benchmark.py \
   --criterion-score PYR-3=0.9 \
   --criterion-score PYR-4=0.9 \
   --criterion-score PYR-5=0.9 \
-  --output diagnostics/benchmark-results/python-quality.json
+  --output governance/benchmark-results/python-quality.json
 ```

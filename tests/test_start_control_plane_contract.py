@@ -7,7 +7,7 @@ import pytest
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-START_PREFLIGHT = REPO_ROOT / "diagnostics" / "start_preflight_readonly.py"
+START_PREFLIGHT = REPO_ROOT / "governance" / "entrypoints" / "start_preflight_readonly.py"
 
 
 def _function_calls(tree: ast.AST, function_name: str) -> set[str]:

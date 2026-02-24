@@ -194,8 +194,8 @@ def _get_repo_local_config_path() -> Path:
     if "governance" in parts:
         gov_idx = parts.index("governance")
         repo_root = Path(*parts[:gov_idx])
-        return repo_root / "diagnostics" / "phase5_review_config.yaml"
-    return Path(__file__).parent.parent.parent.parent / "diagnostics" / "phase5_review_config.yaml"
+        return repo_root / "governance" / "assets" / "config" / "phase5_review_config.yaml"
+    return Path(__file__).parent.parent.parent.parent / "governance" / "assets" / "config" / "phase5_review_config.yaml"
 
 
 def load_phase5_review_config(*, force_reload: bool = False) -> Phase5ReviewConfig:

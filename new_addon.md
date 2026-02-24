@@ -102,7 +102,7 @@ Generated addon rulebook MUST include:
 4. phase integration section (minimum: Phase 2/2.1/4/5.3/6 expectations)
    - phase semantics MUST reference canonical `master.md` phase labels and MUST NOT redefine them locally
 5. evidence contract section (canonical SESSION_STATE paths, lifecycle status, WARN handling)
-   - include explicit paths used by runtime diagnostics/contracts:
+   - include explicit paths used by runtime governance/contracts:
      - `SESSION_STATE.AddonsEvidence.<addon_key>`
      - `SESSION_STATE.RepoFacts.CapabilityEvidence`
      - `SESSION_STATE.Diagnostics.ReasonPayloads`

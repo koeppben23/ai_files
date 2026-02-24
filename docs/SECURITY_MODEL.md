@@ -24,7 +24,7 @@ These sources are under kernel control and can affect behavior:
 | Binding File | `${COMMANDS_HOME}/governance.paths.json` | Installer-owned | NO |
 | Pack Lock | `${WORKSPACE}/pack-lock.json` | Kernel-computed | NO |
 | Activation Hash | `SESSION_STATE.ActivationHash` | Kernel-computed | NO |
-| Schema Registry | `diagnostics/*.json` | Version-locked | NO |
+| Schema Registry | `governance/*.json` | Version-locked | NO |
 | Host Capabilities | Preflight validated | Runtime probed | NO |
 
 **Security Properties:**
@@ -129,7 +129,7 @@ A capability is an action the system can perform. Capabilities are ONLY granted 
 ```
 Host Capabilities:
   ├─ git (read-only commands)
-  ├─ python3 (diagnostics only)
+  ├─ python3 (governance only)
   ├─ pytest (test execution)
   └─ Filesystem (workspace-scoped)
 

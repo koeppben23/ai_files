@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import hashlib
 import json
+import os
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -48,21 +49,19 @@ class PhaseApiSpec:
     entries: dict[str, PhaseSpecEntry]
 
 
+def _resolve_phase_api_path(commands_home: Path) -> Path:
+    return commands_home / "phase_api.yaml"
+
+
 def _repo_default_phase_api_path() -> Path:
     return Path(__file__).absolute().parents[2] / "phase_api.yaml"
 
 
-def _resolve_phase_api_path(commands_home: Path | None, *, allow_repo_fallback: bool) -> Path:
-    if commands_home is not None:
-        candidate = commands_home / "phase_api.yaml"
-        if candidate.exists() or not allow_repo_fallback:
-            return candidate
-    fallback = _repo_default_phase_api_path()
-    if fallback.exists():
-        return fallback
-    if commands_home is not None:
-        return commands_home / "phase_api.yaml"
-    return fallback
+def _allow_test_repo_fallback() -> bool:
+    flag = str(os.environ.get("OPENCODE_PHASE_API_REPO_FALLBACK_FOR_TESTS", "")).strip()
+    if flag == "1":
+        return True
+    return "PYTEST_CURRENT_TEST" in os.environ
 
 
 def _phase_rank(token: str) -> tuple[int, str]:
@@ -188,7 +187,7 @@ def _resolve_commands_home(explicit_commands_home: Path | None) -> Path:
     if explicit_commands_home is not None:
         return explicit_commands_home
     resolver = BindingEvidenceResolver()
-    evidence = getattr(resolver, "resolve")(mode="diagnostics")
+    evidence = getattr(resolver, "resolve")(mode="kernel")
     return evidence.commands_home
 
 
@@ -197,10 +196,9 @@ def load_phase_api(commands_home: Path | None = None) -> PhaseApiSpec:
         raise PhaseApiSpecError("phase_api.yaml cannot be loaded: yaml parser unavailable")
 
     resolved_commands_home = _resolve_commands_home(commands_home)
-    phase_api_path = _resolve_phase_api_path(
-        resolved_commands_home,
-        allow_repo_fallback=commands_home is None,
-    )
+    phase_api_path = _resolve_phase_api_path(resolved_commands_home)
+    if not phase_api_path.exists() and commands_home is None and _allow_test_repo_fallback():
+        phase_api_path = _repo_default_phase_api_path()
     if not phase_api_path.exists():
         raise PhaseApiSpecError(f"phase_api.yaml missing at {phase_api_path}")
 

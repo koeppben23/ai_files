@@ -31,7 +31,7 @@ def test_generate_golden_outputs_uses_real_pipeline_fields(tmp_path: Path):
     payload = json.loads(result.stdout)
     assert payload["status"] == "OK"
 
-    expected = {"start.json", "what_blocks_me.json", "show_diagnostics.json", "where_am_i.json"}
+    expected = {"start.json", "what_blocks_me.json", "show_governance.json", "where_am_i.json"}
     actual = {path.name for path in out.glob("*.json")}
     assert actual == expected
 

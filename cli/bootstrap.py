@@ -12,7 +12,7 @@ from governance.domain.models.layouts import WorkspaceLayout
 from governance.domain.models.repo_identity import RepoIdentity
 
 from cli.deps import GlobalErrorLogger, LocalFS, LocalProcessRunner
-from diagnostics.write_policy import EFFECTIVE_MODE, write_policy_reasons
+from governance.entrypoints.write_policy import EFFECTIVE_MODE, write_policy_reasons
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -60,7 +60,8 @@ def main(argv: list[str] | None = None) -> int:
         force_read_only=args.force_read_only,
         backfill_command=(
             args.python_command,
-            "diagnostics/persist_workspace_artifacts.py",
+            "-m",
+            "governance.entrypoints.persist_workspace_artifacts",
             "--repo-fingerprint",
             args.repo_fingerprint,
             "--config-root",

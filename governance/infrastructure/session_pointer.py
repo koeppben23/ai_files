@@ -11,7 +11,7 @@ Canonical Keys (binding):
     - activeSessionStateRelativePath: relative path from config root
 
 Why SSOT matters:
-    - Pointer is read by diagnostics, runtime gates, and phase routers
+    - Pointer is read by governance, runtime gates, and phase routers
     - Two different key formats = kernel breaker (readers fail silently)
     - Migration path for legacy formats is defined here
 

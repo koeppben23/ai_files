@@ -31,7 +31,7 @@ Generated profile rulebooks MUST include:
 2. deterministic applicability section
 3. architecture and test-quality expectations
 4. canonical evidence-path requirement language
-   - include explicit paths used by runtime diagnostics/contracts:
+   - include explicit paths used by runtime governance/contracts:
      - `SESSION_STATE.AddonsEvidence.<addon_key>`
      - `SESSION_STATE.RepoFacts.CapabilityEvidence`
      - `SESSION_STATE.Diagnostics.ReasonPayloads`
