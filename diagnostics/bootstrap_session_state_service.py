@@ -36,10 +36,8 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import re
 import subprocess
 import sys
-import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -50,11 +48,6 @@ if str(SCRIPT_DIR.parent) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR.parent))
 
 from diagnostics.write_policy import EFFECTIVE_MODE, is_write_allowed, write_policy_reasons, writes_allowed
-
-try:
-    from bootstrap.session_backfill import run_workspace_artifact_backfill
-except Exception:
-    from bootstrap_backfill import run_workspace_artifact_backfill  # type: ignore
 
 try:
     from bootstrap.repo_identity import resolve_repo_root_ssot
@@ -113,60 +106,21 @@ except Exception:
         session_state_template,
     )
 
-try:
-    from diagnostics.global_error_handler import (
-        install_global_handlers,
-        set_error_context,
-        emit_gate_failure,
-        ErrorContext,
-    )
-except ImportError:
-    def install_global_handlers(context_provider=None):  # type: ignore
-        pass
-    def set_error_context(ctx):  # type: ignore
-        pass
-    def emit_gate_failure(**kwargs):  # type: ignore
-        pass
-    class ErrorContext:  # type: ignore
-        def __init__(self, **kwargs):
-            pass
+from diagnostics.global_error_handler import (
+    ErrorContext,
+    emit_gate_failure,
+    install_global_handlers,
+    set_error_context,
+)
 
 
 def _writes_allowed() -> bool:
     """Legacy wrapper - use writes_allowed() from write_policy instead."""
     return writes_allowed()
 
-try:
-    from governance.infrastructure.path_contract import (
-        canonical_config_root,
-        normalize_absolute_path,
-    )
-except Exception:
-    class NotAbsoluteError(Exception):
-        pass
+from governance.infrastructure.path_contract import canonical_config_root, normalize_absolute_path
 
-    class WindowsDriveRelativeError(Exception):
-        pass
-
-    def canonical_config_root() -> Path:
-        return Path(os.path.normpath(os.path.abspath(str(Path.home().expanduser() / ".config" / "opencode"))))
-
-    def normalize_absolute_path(raw: str, *, purpose: str) -> Path:
-        token = str(raw or "").strip()
-        if not token:
-            raise NotAbsoluteError(f"{purpose}: empty path")
-        candidate = Path(token).expanduser()
-        if os.name == "nt" and re.match(r"^[A-Za-z]:[^/\\]", token):
-            raise WindowsDriveRelativeError(f"{purpose}: drive-relative path is not allowed")
-        if not candidate.is_absolute():
-            raise NotAbsoluteError(f"{purpose}: path must be absolute")
-        return Path(os.path.normpath(os.path.abspath(str(candidate))))
-
-try:
-    from error_logs import safe_log_error
-except Exception:  # pragma: no cover
-    def safe_log_error(**kwargs):  # type: ignore[no-redef]
-        return {"status": "log-disabled"}
+from diagnostics.error_logs import safe_log_error
 
 from workspace_lock import acquire_workspace_lock
 try:
@@ -177,32 +131,7 @@ try:
     from governance.domain.errors.events import ErrorEvent as GovernanceErrorEvent
 except Exception:
     BootstrapPersistenceService = None  # type: ignore
-try:
-    from governance.infrastructure.fs_atomic import atomic_write_text
-except Exception:
-    def atomic_write_text(path: Path, text: str, newline_lf: bool = True, attempts: int = 5, backoff_ms: int = 50) -> int:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        payload = text.replace("\r\n", "\n") if newline_lf else text
-        temp_path: Path | None = None
-        try:
-            with tempfile.NamedTemporaryFile(
-                mode="w",
-                encoding="utf-8",
-                newline="\n" if newline_lf else None,
-                dir=str(path.parent),
-                prefix=path.name + ".",
-                suffix=".tmp",
-                delete=False,
-            ) as tmp:
-                tmp.write(payload)
-                tmp.flush()
-                os.fsync(tmp.fileno())
-                temp_path = Path(tmp.name)
-            os.replace(str(temp_path), str(path))
-            return 0
-        finally:
-            if temp_path is not None and temp_path.exists():
-                temp_path.unlink(missing_ok=True)
+from governance.infrastructure.fs_atomic import atomic_write_text
 
 
 def default_config_root() -> Path:
