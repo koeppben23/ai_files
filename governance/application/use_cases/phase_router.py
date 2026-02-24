@@ -258,6 +258,16 @@ def route_phase(
                 workspace_ready=workspace_ready,
                 source="rulebook-load-gate",
             )
+
+    if persisted_token == "1.2" and workspace_ready:
+        return RoutedPhase(
+            phase="2-RepoDiscovery",
+            active_gate="Repo Discovery",
+            next_gate_condition="Execute Phase 2 Repo Discovery (auto)",
+            workspace_ready=True,
+            source="phase-1.2-to-2-auto",
+        )
+
     if persisted_token and requested_token and _rank(persisted_token) > _rank(requested_token):
         return RoutedPhase(
             phase=persisted_phase,
@@ -336,7 +346,7 @@ def route_phase(
             return RoutedPhase(
                 phase="4",
                 active_gate="Ticket Input Gate",
-                next_gate_condition="Phase 3A completed with not-applicable (no APIs detected); wait for ticket input at Phase 4",
+                next_gate_condition="Phase 3A completed with not-applicable (no APIs detected); wait for ticket input at Phase 4 via /ticket paste",
                 workspace_ready=workspace_ready,
                 source="phase-3a-not-applicable-to-phase4",
             )
@@ -363,7 +373,7 @@ def route_phase(
         return RoutedPhase(
             phase="4",
             active_gate="Ticket Input Gate",
-            next_gate_condition="Phase 3B-2 complete; wait for ticket input at Phase 4",
+            next_gate_condition="Phase 3B-2 complete; wait for ticket input at Phase 4 via /ticket paste",
             workspace_ready=workspace_ready,
             source="phase-3b2-to-4",
         )

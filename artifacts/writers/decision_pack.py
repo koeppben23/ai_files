@@ -2,14 +2,12 @@ def decision_pack_section(date: str, date_compact: str) -> str:
     return "\n".join(
         [
             f"## Decision Pack -- {date}",
-            "D-001: Run Phase 1.5 (Business Rules Discovery) now?",
+            "D-001: Apply Phase 1.5 Business Rules bootstrap policy",
             f"ID: DP-{date_compact}-001",
-            "Status: proposed",
-            "A) Yes",
-            "B) No",
-            "Recommendation: A (run lightweight Phase 1.5 to establish initial domain evidence)",
-            "Evidence: Bootstrap seed context; lightweight discovery can improve downstream gate quality",
-            "What would change it: keep B only when operator explicitly defers business-rules discovery",
+            "Status: automatic",
+            "Action: Auto-run lightweight Phase 1.5 bootstrap when business-rules inventory is missing.",
+            "Policy: no questions before Phase 4; use activation intent defaults.",
+            "What would change it: activation intent or mode policy disables auto bootstrap.",
             "",
         ]
     )

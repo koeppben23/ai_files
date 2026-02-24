@@ -3391,10 +3391,10 @@ def test_phase_15_reentry_from_later_phases_is_explicit_and_reruns_p54():
 def test_backfill_decision_pack_includes_phase_15_prompt_decision():
     text = read_text(REPO_ROOT / "diagnostics" / "persist_workspace_artifacts.py")
     required_tokens = [
-        "D-001: Run Phase 1.5 (Business Rules Discovery) now?",
-        "A) Yes",
-        "B) No",
-        "Recommendation: A (run lightweight Phase 1.5 to establish initial domain evidence)",
+        "D-001: Apply Phase 1.5 Business Rules bootstrap policy",
+        "Status: automatic",
+        "Action: Auto-run lightweight Phase 1.5 bootstrap when business-rules inventory is missing.",
+        "Policy: no questions before Phase 4; use activation intent defaults.",
     ]
     missing = [token for token in required_tokens if token not in text]
     assert not missing, "persist_workspace_artifacts.py missing Phase 1.5 decision-pack baseline tokens:\n" + "\n".join(
