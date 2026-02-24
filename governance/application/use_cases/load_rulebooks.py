@@ -97,9 +97,11 @@ class LoadRulebooksService:
 
 
 def to_gate_payload(result: LoadedRulebooks) -> dict[str, object]:
+    anchors_ok = not any(err.code == "RULEBOOK_ANCHOR_MISSING" for err in result.errors)
     return {
         "core": "loaded" if result.rules.core is not None else "",
         "profile": "loaded" if result.rules.profile is not None else "",
         "templates": "loaded" if result.rules.master is not None else "",
+        "anchors_ok": anchors_ok,
         "addons": result.addons,
     }

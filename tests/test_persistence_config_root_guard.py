@@ -111,6 +111,34 @@ def test_bootstrap_session_state_blocks_when_binding_file_missing(tmp_path: Path
 
 
 @pytest.mark.governance
+def test_persist_workspace_artifacts_blocks_relative_config_root_traversal(tmp_path: Path):
+    script = REPO_ROOT / "diagnostics" / "persist_workspace_artifacts.py"
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir(parents=True, exist_ok=True)
+    (repo_root / ".git").mkdir()
+
+    result = run(
+        [
+            sys.executable,
+            str(script),
+            "--repo-fingerprint",
+            "88b39b036804c534a1b2c3d4",
+            "--repo-root",
+            str(repo_root),
+            "--config-root",
+            "../outside-config",
+            "--quiet",
+        ],
+        cwd=repo_root,
+    )
+
+    assert result.returncode == 2
+    payload = json.loads(result.stdout)
+    assert payload.get("reason_code") == "BLOCKED-MISSING-BINDING-FILE"
+    assert "config-root" in str(payload.get("next_command", ""))
+
+
+@pytest.mark.governance
 def test_persist_workspace_artifacts_never_creates_repo_local_c_artifact(tmp_path: Path):
     script = REPO_ROOT / "diagnostics" / "persist_workspace_artifacts.py"
     repo_root = tmp_path / "repo"

@@ -54,6 +54,7 @@ def test_gate_payload_reports_core_and_profile_loaded() -> None:
     assert gate_payload["core"] == "loaded"
     assert gate_payload["profile"] == "loaded"
     assert gate_payload["templates"] == "loaded"
+    assert gate_payload["anchors_ok"] is True
 
 
 def test_load_rulebooks_records_missing_anchor_version() -> None:
@@ -63,3 +64,5 @@ def test_load_rulebooks_records_missing_anchor_version() -> None:
     result = service.run(LoadRulebooksInput(active_profile="python", source="test"))
 
     assert any(err.code == "RULEBOOK_ANCHOR_MISSING" for err in result.errors)
+    gate_payload = to_gate_payload(result)
+    assert gate_payload["anchors_ok"] is False
