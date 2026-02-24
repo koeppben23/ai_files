@@ -122,19 +122,36 @@ def parse_pointer_payload(payload: dict) -> dict:
     result = {"schema": CANONICAL_POINTER_SCHEMA}
     
     fp = _extract_fingerprint(payload)
-    if fp:
-        try:
-            result["activeRepoFingerprint"] = validate_fingerprint(fp)
-        except ValueError:
-            return {}
+    if not fp:
+        return {}
+    try:
+        result["activeRepoFingerprint"] = validate_fingerprint(fp)
+    except ValueError:
+        return {}
     
     session_file = _extract_session_state_file(payload)
-    if session_file:
-        result["activeSessionStateFile"] = session_file
+    if not session_file:
+        return {}
+    session_file_path = Path(str(session_file).strip())
+    if not session_file_path.is_absolute():
+        return {}
+    result["activeSessionStateFile"] = str(session_file_path)
     
     rel_path = _extract_relative_path(payload)
-    if rel_path:
-        result["activeSessionStateRelativePath"] = rel_path
+    expected_rel = f"workspaces/{result['activeRepoFingerprint']}/SESSION_STATE.json"
+    if not rel_path:
+        if str(session_file_path).replace("\\", "/").endswith(expected_rel):
+            normalized_rel = expected_rel
+        else:
+            return {}
+    else:
+        normalized_rel = str(rel_path).replace("\\", "/")
+        if normalized_rel != expected_rel:
+            return {}
+    result["activeSessionStateRelativePath"] = normalized_rel
+
+    if not str(session_file_path).replace("\\", "/").endswith(expected_rel):
+        return {}
     
     updated_at = _extract_updated_at(payload)
     if updated_at:
@@ -175,22 +192,6 @@ def _extract_updated_at(payload: dict) -> str | None:
     return None
 
 
-def _extract_session_state_file(payload: dict) -> str | None:
-    """Extract session state file from canonical or legacy keys."""
-    for key in ("activeSessionStateFile", "active_session_state_file"):
-        if key in payload:
-            return str(payload[key])
-    return None
-
-
-def _extract_relative_path(payload: dict) -> str | None:
-    """Extract relative path from canonical or legacy keys."""
-    for key in ("activeSessionStateRelativePath", "active_session_state_relative_path"):
-        if key in payload:
-            return str(payload[key])
-    return None
-
-
 def is_valid_pointer(payload: dict) -> bool:
     """Check if a payload is a valid canonical pointer.
     
@@ -207,12 +208,23 @@ def is_valid_pointer(payload: dict) -> bool:
         return False
     
     fp = payload.get("activeRepoFingerprint")
-    if not fp:
+    session_file = payload.get("activeSessionStateFile")
+    rel_path = payload.get("activeSessionStateRelativePath")
+    if not fp or not session_file or not rel_path:
         return False
-    
+
     try:
-        validate_fingerprint(fp)
+        fp = validate_fingerprint(str(fp))
     except ValueError:
         return False
-    
-    return True
+
+    session_file_path = Path(str(session_file))
+    if not session_file_path.is_absolute():
+        return False
+
+    rel_normalized = str(rel_path).replace("\\", "/")
+    expected_rel = f"workspaces/{fp}/SESSION_STATE.json"
+    if rel_normalized != expected_rel:
+        return False
+
+    return str(session_file_path).replace("\\", "/").endswith(expected_rel)
