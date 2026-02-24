@@ -120,10 +120,12 @@ except Exception:
         )
         return result.get("status") == "logged"
 
-    def resolve_log_path(*, config_root=None, workspaces_home=None, repo_fingerprint=None) -> Path:  # type: ignore
+    def resolve_log_path(*, config_root=None, commands_home=None, workspaces_home=None, repo_fingerprint=None) -> Path:  # type: ignore
         root = Path(config_root) if config_root else (Path.home() / ".config" / "opencode")
         if repo_fingerprint and workspaces_home:
             return Path(workspaces_home) / repo_fingerprint / "logs" / "error.log.jsonl"
+        if commands_home:
+            return Path(commands_home) / "logs" / "error.log.jsonl"
         return root / "logs" / "error.log.jsonl"
 # SSOT: Ensure global error handler is installed before any operations
 def _install_global_error_handler() -> None:
@@ -502,6 +504,7 @@ def _emit_persistence_gate_failure(
             pass
     return resolve_log_path(
         config_root=COMMANDS_HOME.parent,
+        commands_home=COMMANDS_HOME,
         workspaces_home=WORKSPACES_HOME,
         repo_fingerprint=repo_fingerprint,
     )

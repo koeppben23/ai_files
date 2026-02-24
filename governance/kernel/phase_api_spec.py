@@ -183,6 +183,8 @@ def _resolve_commands_home(explicit_commands_home: Path | None) -> Path:
             "binding evidence invalid or missing for commands home resolution"
             + (f": {', '.join(evidence.issues)}" if evidence.issues else "")
         )
+    if evidence.commands_home is None:
+        raise PhaseApiSpecError("binding evidence did not provide commands home")
     return evidence.commands_home
 
 

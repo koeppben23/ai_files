@@ -20,10 +20,12 @@ except Exception:
     def emit_gate_failure(**kwargs: Any) -> bool:  # type: ignore[no-redef]
         return False
 
-    def resolve_log_path(*, config_root=None, workspaces_home=None, repo_fingerprint=None):  # type: ignore[no-redef]
+    def resolve_log_path(*, config_root=None, commands_home=None, workspaces_home=None, repo_fingerprint=None):  # type: ignore[no-redef]
         base = Path(config_root) if config_root is not None else (Path.home() / ".config" / "opencode")
         if repo_fingerprint and workspaces_home:
             return Path(workspaces_home) / repo_fingerprint / "logs" / "error.log.jsonl"
+        if commands_home:
+            return Path(commands_home) / "logs" / "error.log.jsonl"
         return base / "logs" / "error.log.jsonl"
 
 
@@ -90,11 +92,25 @@ def main(argv: list[str]) -> int:
                 fp = session_state.get("repo_fingerprint") or session_state.get("RepoFingerprint")
                 if isinstance(fp, str):
                     repo_fingerprint = fp.strip()
-            log_path = resolve_log_path(
-                config_root=None,
-                workspaces_home=None,
-                repo_fingerprint=repo_fingerprint or None,
-            )
+            commands_home = None
+            workspaces_home = None
+            try:
+                from governance.infrastructure.binding_evidence_resolver import BindingEvidenceResolver
+
+                evidence = BindingEvidenceResolver().resolve(mode="kernel")
+                commands_home = evidence.commands_home
+                workspaces_home = evidence.workspaces_home
+            except Exception:
+                pass
+            try:
+                log_path = resolve_log_path(
+                    config_root=None,
+                    commands_home=commands_home,
+                    workspaces_home=workspaces_home,
+                    repo_fingerprint=repo_fingerprint or None,
+                )
+            except Exception:
+                log_path = Path("")
             emit_gate_failure(
                 gate="RESPONSE_CONTRACT",
                 code="BLOCKED-INVALID-NEXT-ACTION",
@@ -107,6 +123,8 @@ def main(argv: list[str]) -> int:
                 },
                 remediation="Set next_action.type to command for pre-phase4 responses and rerun.",
                 repo_fingerprint=repo_fingerprint or None,
+                commands_home=commands_home,
+                workspaces_home=workspaces_home,
             )
             blocked_payload = {
                 "status": "BLOCKED",

@@ -62,10 +62,12 @@ from governance.entrypoints.error_handler_bridge import (
 try:
     from governance.infrastructure.logging.global_error_handler import resolve_log_path
 except Exception:
-    def resolve_log_path(*, config_root=None, workspaces_home=None, repo_fingerprint=None):
+    def resolve_log_path(*, config_root=None, commands_home=None, workspaces_home=None, repo_fingerprint=None):
         root = Path(config_root) if config_root is not None else (Path.home() / ".config" / "opencode")
         if repo_fingerprint and workspaces_home:
             return Path(workspaces_home) / repo_fingerprint / "logs" / "error.log.jsonl"
+        if commands_home:
+            return Path(commands_home) / "logs" / "error.log.jsonl"
         return root / "logs" / "error.log.jsonl"
 
 try:
@@ -124,7 +126,7 @@ except ImportError:
     pass
 
 
-def _resolve_bindings(*, mode: str) -> tuple[Path, Path, bool, Path | None, str]:
+def _resolve_bindings(*, mode: str) -> tuple[Path | None, Path | None, bool, Path | None, str]:
     """Resolve binding evidence paths for the current mode.
     
     Args:
@@ -398,14 +400,30 @@ def run_persistence_hook(*, repo_root: Path | None = None) -> dict[str, object]:
         if "repo_fingerprint" not in payload:
             payload["repo_fingerprint"] = repo_fingerprint or ""
         if "log_path" not in payload:
-            payload["log_path"] = str(
-                resolve_log_path(
-                    config_root=COMMANDS_HOME.parent,
-                    workspaces_home=WORKSPACES_HOME,
-                    repo_fingerprint=repo_fingerprint,
+            try:
+                payload["log_path"] = str(
+                    resolve_log_path(
+                        config_root=COMMANDS_HOME.parent if COMMANDS_HOME is not None else None,
+                        commands_home=COMMANDS_HOME,
+                        workspaces_home=WORKSPACES_HOME,
+                        repo_fingerprint=repo_fingerprint,
+                    )
                 )
-            )
+            except Exception:
+                payload["log_path"] = ""
         return payload
+
+    if not BINDING_OK or COMMANDS_HOME is None or WORKSPACES_HOME is None:
+        return _with_log_path(
+            {
+                "workspacePersistenceHook": "blocked",
+                "reason_code": "BLOCKED-MISSING-BINDING-FILE",
+                "reason": "binding-evidence-missing-or-invalid",
+                "impact": "cannot run persistence hook without valid commands/workspaces binding",
+                "writes_allowed": _writes_allowed(),
+            },
+            repo_fingerprint=None,
+        )
 
     if not _writes_allowed():
         emit_gate_failure(
