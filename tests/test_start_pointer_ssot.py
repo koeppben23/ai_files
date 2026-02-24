@@ -136,10 +136,19 @@ class TestPointerVerification:
         opencode_home = tmp_path
         repo_fp = "a1b2c3d4e5f6a1b2c3d4e5f6"
 
+        workspace = tmp_path / repo_fp
+        workspace.mkdir(parents=True, exist_ok=True)
+        session_file = workspace / "SESSION_STATE.json"
+        session_file.write_text(
+            json.dumps({"SESSION_STATE": {"RepoFingerprint": repo_fp, "PersistenceCommitted": True}}),
+            encoding="utf-8",
+        )
+
         pointer_file = opencode_home / "SESSION_STATE.json"
         pointer_data = {
             "schema": "opencode-session-pointer.v1",
             "activeRepoFingerprint": repo_fp,
+            "activeSessionStateFile": str(session_file),
             "updatedAt": "2026-02-21T20:00:00Z",
         }
         pointer_file.write_text(json.dumps(pointer_data))

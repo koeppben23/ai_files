@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any, Dict
 
 from governance.infrastructure.io_actions import ActionOutcome, WriteAction
+from governance.infrastructure.fs_atomic import safe_replace
 
 
 def atomic_write_text(path: Path, content: str, dry_run: bool = False) -> ActionOutcome:
@@ -26,7 +27,7 @@ def atomic_write_text(path: Path, content: str, dry_run: bool = False) -> Action
             with os.fdopen(fd, "w", encoding="utf-8") as f:
                 f.write(content)
 
-            os.replace(tmp_path, str(path))
+            safe_replace(Path(tmp_path), path, attempts=5, backoff_ms=50)
 
             return ActionOutcome(
                 action=WriteAction.OVERWRITE if existed_before else WriteAction.CREATE,
