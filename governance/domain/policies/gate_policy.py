@@ -32,6 +32,8 @@ def rulebook_gate(*, target_phase: str, loaded_rulebooks: dict[str, Any]) -> Gat
         return GateResult(ok=True, code="OK", reason="rulebook gate not required")
     if not isinstance(loaded_rulebooks, dict):
         return GateResult(ok=False, code="RULEBOOKS_MISSING", reason="loaded rulebooks missing")
+    if loaded_rulebooks.get("anchors_ok") is False:
+        return GateResult(ok=False, code="RULEBOOK_ANCHOR_MISSING", reason="rulebook anchors missing")
     if not loaded_rulebooks.get("core") or not loaded_rulebooks.get("profile"):
         return GateResult(ok=False, code="RULEBOOKS_INCOMPLETE", reason="core/profile rulebooks required")
     return GateResult(ok=True, code="OK", reason="rulebook gate satisfied")

@@ -23,3 +23,15 @@ def test_force_read_only_always_blocks(monkeypatch) -> None:
 
     assert mod.writes_allowed() is False
     assert "force-read-only" in mod.write_policy_reasons()
+
+
+def test_pipeline_mode_uses_pipeline_semantics(monkeypatch) -> None:
+    monkeypatch.setenv("CI", "1")
+    monkeypatch.setenv("OPENCODE_MODE", "pipeline")
+    monkeypatch.delenv("OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY", raising=False)
+
+    mod = importlib.import_module("diagnostics.write_policy")
+    importlib.reload(mod)
+
+    assert mod.EFFECTIVE_MODE == "pipeline"
+    assert mod.writes_allowed() is True
