@@ -3,188 +3,23 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Mapping
 
-from governance.domain.phase_state_machine import normalize_phase_token, phase_rank
-from governance.application.dto.phase_next_action_contract import contains_ticket_prompt
-
-from routing.phase_rank import is_rulebook_required_phase
-from routing.gates import check_persistence_gate, check_rulebook_gate
+from governance.kernel.phase_kernel import RuntimeContext, api_in_scope as _api_in_scope, execute
+from governance.kernel.phase_kernel import _external_api_artifacts, _openapi_signal
 
 
 @dataclass(frozen=True)
 class RoutedPhase:
     phase: str
+    next_token: str | None
     active_gate: str
     next_gate_condition: str
     workspace_ready: bool
     source: str
-
-
-def _rank(token: str) -> int:
-    return phase_rank(token)
-
-
-def _session_state(session_state_document: Mapping[str, object] | None) -> Mapping[str, object]:
-    if session_state_document is None:
-        return {}
-    candidate = session_state_document.get("SESSION_STATE")
-    if isinstance(candidate, Mapping):
-        return candidate
-    return session_state_document
-
-
-def _persistence_gate_passed(state: Mapping[str, object]) -> tuple[bool, str]:
-    result = check_persistence_gate(state)
-    if result.passed:
-        return True, "ok"
-    return False, result.blocked_reason or "persistence gate failed"
-
-
-def _rulebook_gate_passed(state: Mapping[str, object]) -> tuple[bool, str]:
-    result = check_rulebook_gate(state, "")
-    if result.passed:
-        return True, "ok"
-    return False, result.blocked_reason or "rulebook gate failed"
-
-
-def _full_gate_passed(state: Mapping[str, object], *, require_rulebooks: bool = False) -> tuple[bool, str]:
-    persistence_ok, persistence_reason = _persistence_gate_passed(state)
-    if not persistence_ok:
-        return False, persistence_reason
-    
-    if require_rulebooks:
-        rulebooks_ok, rulebooks_reason = _rulebook_gate_passed(state)
-        if not rulebooks_ok:
-            return False, rulebooks_reason
-    
-    return True, "ok"
-
-
-def _openapi_signal(state: Mapping[str, object]) -> bool:
-    """Check for OpenAPI detection signal."""
-    addons = state.get("AddonsEvidence")
-    if isinstance(addons, Mapping):
-        openapi = addons.get("openapi")
-        if isinstance(openapi, Mapping) and openapi.get("detected") is True:
-            return True
-        if openapi is True:
-            return True
-    repo_caps = state.get("repo_capabilities")
-    if isinstance(repo_caps, list):
-        normalized = {str(item).strip().lower() for item in repo_caps}
-        return "openapi" in normalized
-    return False
-
-
-def _external_api_artifacts(state: Mapping[str, object]) -> bool:
-    """Check for external API artifacts provided as input."""
-    scope = state.get("Scope")
-    if isinstance(scope, Mapping):
-        external_apis = scope.get("ExternalAPIs")
-        if isinstance(external_apis, list) and len(external_apis) > 0:
-            return True
-    # Also check for explicit external_api_artifacts flag
-    artifacts = state.get("external_api_artifacts")
-    if isinstance(artifacts, list) and len(artifacts) > 0:
-        return True
-    if artifacts is True:
-        return True
-    return False
-
-
-def _business_rules_scope(state: Mapping[str, object]) -> str:
-    """Check business rules scope status."""
-    scope = state.get("Scope")
-    if isinstance(scope, Mapping):
-        br = scope.get("BusinessRules")
-        if isinstance(br, str):
-            return br.strip().lower()
-    return ""
-
-
-def _business_rules_discovery_resolved(state: Mapping[str, object]) -> bool:
-    """Check if Phase 1.5 decision has been resolved."""
-    business_rules = state.get("BusinessRules")
-    if isinstance(business_rules, Mapping):
-        inventory_status = business_rules.get("InventoryFileStatus")
-        if isinstance(inventory_status, str) and inventory_status.strip().lower() in {
-            "written",
-            "unchanged",
-            "normalized",
-        }:
-            return True
-
-    br_scope = _business_rules_scope(state)
-    if br_scope in {"not-applicable", "extracted", "skipped"}:
-        return True
-    gates = state.get("Gates")
-    if isinstance(gates, Mapping):
-        p54 = gates.get("P5.4-BusinessRules")
-        if isinstance(p54, str) and p54.strip().lower() == "not-applicable":
-            return True
-    return False
-
-
-def _api_in_scope(state: Mapping[str, object]) -> bool:
-    """Check if ANY API signals are present (external artifacts or repo-embedded specs)."""
-    return _openapi_signal(state) or _external_api_artifacts(state)
-
-
-def _extract_fingerprint(state: Mapping[str, object]) -> str:
-    """Extract fingerprint from state, trying multiple key variants."""
-    for key in ("RepoFingerprint", "repo_fingerprint"):
-        value = state.get(key)
-        if isinstance(value, str) and value.strip():
-            return value.strip()
-    return ""
-
-
-def _extract_phase(state: Mapping[str, object]) -> str:
-    """Extract phase from state, trying multiple key variants."""
-    for key in ("Phase", "phase"):
-        value = state.get(key)
-        if isinstance(value, str) and value.strip():
-            return value.strip()
-    return ""
-
-
-def _workspace_ready(
-    state: Mapping[str, object],
-    *,
-    repo_is_git_root: bool,
-    live_repo_fingerprint: str | None = None,
-) -> bool:
-    _ = repo_is_git_root
-    gate_passed, _reason = _persistence_gate_passed(state)
-    if not gate_passed:
-        return False
-    
-    if live_repo_fingerprint is not None:
-        state_fingerprint = _extract_fingerprint(state)
-        if state_fingerprint and state_fingerprint != live_repo_fingerprint:
-            return False
-    
-    return True
-
-
-def _transition_has_evidence(state: Mapping[str, object]) -> bool:
-    value = state.get("phase_transition_evidence")
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, str):
-        return bool(value.strip())
-    if isinstance(value, list):
-        return len(value) > 0
-    return False
-
-
-def _sanitize_ticket_progression(*, phase: str, next_gate_condition: str) -> str:
-    token = normalize_phase_token(phase)
-    if not token:
-        return next_gate_condition
-    rank = _rank(token)
-    if rank < _rank("4") and contains_ticket_prompt(next_gate_condition):
-        return "Proceed with current phase evidence collection; ticket input is not allowed before phase 4"
-    return next_gate_condition
+    status: str = "OK"
+    spec_hash: str = ""
+    spec_path: str = ""
+    log_paths: dict[str, str] | None = None
+    event_id: str = ""
 
 
 def route_phase(
@@ -196,195 +31,35 @@ def route_phase(
     repo_is_git_root: bool,
     live_repo_fingerprint: str | None = None,
 ) -> RoutedPhase:
-    state = _session_state(session_state_document)
-    requested_phase_text = requested_phase.strip() or "1.1-Bootstrap"
-    workspace_ready = _workspace_ready(
-        state, repo_is_git_root=repo_is_git_root, live_repo_fingerprint=live_repo_fingerprint
-    )
-
-    persisted_phase = _extract_phase(state)
-    persisted_token = normalize_phase_token(persisted_phase)
-
-    if persisted_phase and persisted_token:
-        phase_text = persisted_phase
-        phase_token = persisted_token
-        source = "persisted-phase"
-    else:
-        phase_text = requested_phase_text
-        phase_token = normalize_phase_token(phase_text)
-        source = "requested-bootstrap"
-
-    blocked_tokens = {
-        "2",
-        "2.1",
-        "3A",
-        "3B-1",
-        "3B-2",
-        "4",
-        "5",
-        "5.3",
-        "5.4",
-        "5.5",
-        "5.6",
-        "6",
-    }
-    
-    if phase_token in blocked_tokens and not workspace_ready:
-        _, block_reason = _persistence_gate_passed(state)
-        return RoutedPhase(
-            phase="1.1-Bootstrap",
-            active_gate="Workspace Ready Gate",
-            next_gate_condition=f"BLOCKED_PERSISTENCE_FAILED: {block_reason}. Commit workspace readiness before phase progression.",
-            workspace_ready=False,
-            source="workspace-ready-gate",
-        )
-
-    requested_token = normalize_phase_token(requested_phase_text)
-    
-    if persisted_token and requested_token and _rank(requested_token) >= _rank(persisted_token):
-        target_phase_token = requested_token
-    else:
-        target_phase_token = phase_token
-    
-    if is_rulebook_required_phase(target_phase_token):
-        gate_result = check_rulebook_gate(state, target_phase_token)
-        rulebooks_ok = gate_result.passed
-        rulebooks_reason = gate_result.blocked_reason or "rulebook gate failed"
-        if not rulebooks_ok:
-            return RoutedPhase(
-                phase="1.3-RulebookLoad",
-                active_gate="Rulebook Load Gate",
-                next_gate_condition=f"BLOCKED_RULEBOOK_MISSING: {rulebooks_reason}. Load required rulebooks before Phase {target_phase_token}.",
-                workspace_ready=workspace_ready,
-                source="rulebook-load-gate",
-            )
-
-    if persisted_token == "1.2" and workspace_ready:
-        return RoutedPhase(
-            phase="2-RepoDiscovery",
-            active_gate="Repo Discovery",
-            next_gate_condition="Execute Phase 2 Repo Discovery (auto)",
-            workspace_ready=True,
-            source="phase-1.2-to-2-auto",
-        )
-
-    if persisted_token and requested_token and _rank(persisted_token) > _rank(requested_token):
-        return RoutedPhase(
-            phase=persisted_phase,
-            active_gate=str(state.get("active_gate") or requested_active_gate).strip() or requested_active_gate,
-            next_gate_condition=_sanitize_ticket_progression(phase=persisted_phase, next_gate_condition=(
-                str(state.get("next_gate_condition") or requested_next_gate_condition).strip() or requested_next_gate_condition
-            )),
-            workspace_ready=workspace_ready,
-            source="monotonic-session-phase",
-        )
-
-    if persisted_token and requested_token and _rank(requested_token) - _rank(persisted_token) > 1 and not _transition_has_evidence(state):
-        return RoutedPhase(
-            phase=persisted_phase,
-            active_gate=str(state.get("active_gate") or requested_active_gate).strip() or requested_active_gate,
-            next_gate_condition="Phase transition evidence required before advancing beyond next immediate phase",
-            workspace_ready=workspace_ready,
-            source="phase-transition-evidence-required",
-        )
-
-    allow_bootstrap_progression = requested_token in {"2", "2.1"} and workspace_ready
-    if (
-        not persisted_token
-        and requested_token
-        and _rank(requested_token) - _rank("1.1") > 1
-        and not _transition_has_evidence(state)
-        and not allow_bootstrap_progression
-    ):
-        return RoutedPhase(
-            phase="1.1-Bootstrap",
-            active_gate="Workspace Ready Gate",
-            next_gate_condition="Phase transition evidence required before advancing beyond next immediate phase",
-            workspace_ready=workspace_ready,
-            source="phase-transition-evidence-required",
-        )
-
-    if persisted_token and requested_token and _rank(requested_token) >= _rank(persisted_token):
-        phase_text = requested_phase_text
-        phase_token = requested_token
-        source = "requested-with-evidence"
-
-    if phase_token == "2.1" and workspace_ready:
-        if not _business_rules_discovery_resolved(state):
-            return RoutedPhase(
-                phase="1.5-BusinessRules",
-                active_gate="Business Rules Bootstrap",
-                next_gate_condition="Auto-bootstrap business rules placeholder when inventory is missing, then continue to Phase 3A",
-                workspace_ready=True,
-                source="phase-1.5-routing-required",
-            )
-        return RoutedPhase(
-            phase="3A-API-Inventory",
-            active_gate="API Validation Routing",
-            next_gate_condition=(
-                "Execute Phase 3A API Inventory; if no APIs are detected, record not-applicable and proceed to Phase 4"
-            ),
-            workspace_ready=True,
-            source="phase-2.1-to-3a",
-        )
-
-    if phase_token == "1.5" and workspace_ready:
-        return RoutedPhase(
-            phase="3A-API-Inventory",
-            active_gate="API Validation Routing",
-            next_gate_condition=(
-                "Execute Phase 3A API Inventory; if no APIs are detected, record not-applicable and proceed to Phase 4"
-            ),
-            workspace_ready=True,
-            source="phase-1.5-to-3a",
-        )
-
-    # Phase 3A routing: always execute 3A; if no APIs in scope, record not-applicable and skip to Phase 4
-    # If APIs are in scope, route to 3B-1 for logical validation
-    if phase_token == "3A":
-        if not _api_in_scope(state):
-            return RoutedPhase(
-                phase="4",
-                active_gate="Ticket Input Gate",
-                next_gate_condition="Phase 3A completed with not-applicable (no APIs detected); wait for ticket input at Phase 4 via /ticket paste",
-                workspace_ready=workspace_ready,
-                source="phase-3a-not-applicable-to-phase4",
-            )
-        return RoutedPhase(
-            phase="3B-1",
-            active_gate="API Logical Validation",
-            next_gate_condition="APIs detected; proceed to Phase 3B-1 logical validation",
-            workspace_ready=workspace_ready,
-            source="phase-3a-to-3b1",
-        )
-
-    # Phase 3B-1 → 3B-2 (contract validation)
-    if phase_token == "3B-1":
-        return RoutedPhase(
-            phase="3B-2",
-            active_gate="Contract Validation",
-            next_gate_condition="Phase 3B-1 complete; proceed to Phase 3B-2 contract validation",
-            workspace_ready=workspace_ready,
-            source="phase-3b1-to-3b2",
-        )
-
-    # Phase 3B-2 → 4 (ticket planning)
-    if phase_token == "3B-2":
-        return RoutedPhase(
-            phase="4",
-            active_gate="Ticket Input Gate",
-            next_gate_condition="Phase 3B-2 complete; wait for ticket input at Phase 4 via /ticket paste",
-            workspace_ready=workspace_ready,
-            source="phase-3b2-to-4",
-        )
-
-    return RoutedPhase(
-        phase=phase_text,
-        active_gate=requested_active_gate,
-        next_gate_condition=_sanitize_ticket_progression(
-            phase=phase_text,
-            next_gate_condition=requested_next_gate_condition,
+    result = execute(
+        current_token=requested_phase,
+        session_state_doc=session_state_document,
+        runtime_ctx=RuntimeContext(
+            requested_active_gate=requested_active_gate,
+            requested_next_gate_condition=requested_next_gate_condition,
+            repo_is_git_root=repo_is_git_root,
+            live_repo_fingerprint=live_repo_fingerprint,
         ),
-        workspace_ready=workspace_ready,
-        source=source,
     )
+    return RoutedPhase(
+        phase=result.phase,
+        next_token=result.next_token,
+        active_gate=result.active_gate,
+        next_gate_condition=result.next_gate_condition,
+        workspace_ready=result.workspace_ready,
+        source=result.source,
+        status=result.status,
+        spec_hash=result.spec_hash,
+        spec_path=result.spec_path,
+        log_paths=result.log_paths,
+        event_id=result.event_id,
+    )
+
+
+__all__ = [
+    "RoutedPhase",
+    "route_phase",
+    "_api_in_scope",
+    "_openapi_signal",
+    "_external_api_artifacts",
+]

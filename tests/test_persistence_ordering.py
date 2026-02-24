@@ -44,6 +44,10 @@ def test_phase_router_allows_phase_2_1_with_persistence_committed() -> None:
             "WorkspaceReadyGateCommitted": True,
             "WorkspaceArtifactsCommitted": True,
             "PointerVerified": True,
+            "LoadedRulebooks": {"core": "${COMMANDS_HOME}/master.md"},
+            "RulebookLoadEvidence": {"core": "${COMMANDS_HOME}/master.md"},
+            "AddonsEvidence": {},
+            "RepoDiscovery": {"Completed": True, "RepoCacheFile": "cache", "RepoMapDigestFile": "digest"},
             "phase_transition_evidence": True,
         }
     }

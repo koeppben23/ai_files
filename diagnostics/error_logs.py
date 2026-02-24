@@ -9,7 +9,7 @@ import time
 import uuid
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, cast
 
 _emit_error_event_ssot: Any = None
 _resolve_ssot_log_path: Any = None
@@ -26,18 +26,26 @@ def emit_error_event_ssot(**kwargs: Any) -> bool:
     return False
 
 
-def resolve_ssot_log_path(*, config_root: Path | str | None = None, workspaces_home: Path | str | None = None, repo_fingerprint: str | None = None) -> Path:
+def resolve_ssot_log_path(
+    *,
+    config_root: Path | str | None = None,
+    commands_home: Path | str | None = None,
+    workspaces_home: Path | str | None = None,
+    repo_fingerprint: str | None = None,
+) -> Path:
     if callable(_resolve_ssot_log_path):
-        return _resolve_ssot_log_path(
+        return cast(Path, _resolve_ssot_log_path(
             config_root=config_root,
+            commands_home=commands_home,
             workspaces_home=workspaces_home,
             repo_fingerprint=repo_fingerprint,
-        )
+        ))
     cfg = Path(config_root) if config_root is not None else canonical_config_root()
+    cmd = Path(commands_home) if commands_home is not None else (cfg / "commands")
     ws = Path(workspaces_home) if workspaces_home is not None else (cfg / "workspaces")
     if repo_fingerprint:
         return ws / repo_fingerprint / "logs" / "error.log.jsonl"
-    return cfg / "logs" / "error.log.jsonl"
+    return cmd / "logs" / "error.log.jsonl"
 
 try:
     from governance.infrastructure.adapters.logging.event_sink import write_jsonl_event
@@ -178,7 +186,7 @@ def _load_json(path: Path) -> dict[str, Any] | None:
     return data if isinstance(data, dict) else None
 
 
-def _load_binding_paths(paths_file: Path, *, expected_config_root: Path | None = None) -> tuple[Path, Path]:
+def _load_binding_paths(paths_file: Path, *, expected_config_root: Path | None = None) -> tuple[Path, Path, Path]:
     data = _load_json(paths_file)
     if not data:
         raise ValueError(f"binding evidence unreadable: {paths_file}")
@@ -186,9 +194,12 @@ def _load_binding_paths(paths_file: Path, *, expected_config_root: Path | None =
     if not isinstance(paths, dict):
         raise ValueError(f"binding evidence invalid: missing paths object in {paths_file}")
     config_root_raw = paths.get("configRoot")
+    commands_raw = paths.get("commandsHome")
     workspaces_raw = paths.get("workspacesHome")
     if not isinstance(config_root_raw, str) or not config_root_raw.strip():
         raise ValueError(f"binding evidence invalid: paths.configRoot missing in {paths_file}")
+    if not isinstance(commands_raw, str) or not commands_raw.strip():
+        raise ValueError(f"binding evidence invalid: paths.commandsHome missing in {paths_file}")
     if not isinstance(workspaces_raw, str) or not workspaces_raw.strip():
         raise ValueError(f"binding evidence invalid: paths.workspacesHome missing in {paths_file}")
     config_root = normalize_absolute_path(config_root_raw, purpose="paths.configRoot")
@@ -197,12 +208,11 @@ def _load_binding_paths(paths_file: Path, *, expected_config_root: Path | None =
         if config_root != expected:
             raise ValueError("binding evidence mismatch: config root does not match explicit input")
     workspaces_home = normalize_absolute_path(workspaces_raw, purpose="paths.workspacesHome")
-    return config_root, workspaces_home
+    commands_home = normalize_absolute_path(commands_raw, purpose="paths.commandsHome")
+    return config_root, workspaces_home, commands_home
 
 
-def resolve_paths(config_root: Path | None = None) -> tuple[Path, Path]:
-    # SSOT-only: resolve via BindingEvidenceResolver; no script-location search.
-    # Optional explicit config_root stays supported (mainly for dev/test), but still uses binding evidence file.
+def resolve_paths_full(config_root: Path | None = None) -> tuple[Path, Path, Path]:
     if config_root is not None:
         root = normalize_absolute_path(str(config_root), purpose="config_root")
         paths_file = root / "commands" / "governance.paths.json"
@@ -212,6 +222,13 @@ def resolve_paths(config_root: Path | None = None) -> tuple[Path, Path]:
     if not evidence.binding_ok or evidence.governance_paths_json is None:
         raise ValueError("binding evidence invalid or missing governance.paths.json")
     return _load_binding_paths(evidence.governance_paths_json)
+
+
+def resolve_paths(config_root: Path | None = None) -> tuple[Path, Path]:
+    # SSOT-only: resolve via BindingEvidenceResolver; no script-location search.
+    # Optional explicit config_root stays supported (mainly for dev/test), but still uses binding evidence file.
+    cfg, workspaces_home, _commands_home = resolve_paths_full(config_root)
+    return cfg, workspaces_home
 
 
 def _validate_repo_fingerprint(value: str) -> str:
@@ -365,12 +382,13 @@ def write_error_event(
     details: Any = None,
     retention_days: int = DEFAULT_RETENTION_DAYS,
 ) -> Path:
-    cfg, workspaces_home = resolve_paths(config_root)
+    cfg, workspaces_home, commands_home = resolve_paths_full(config_root)
     if _read_only() and not str(gate or "").strip():
         raise RuntimeError("diagnostics-read-only")
 
     target = resolve_ssot_log_path(
         config_root=cfg,
+        commands_home=commands_home,
         workspaces_home=workspaces_home,
         repo_fingerprint=repo_fingerprint,
     )
@@ -395,6 +413,7 @@ def write_error_event(
         context=context_payload,
         repo_fingerprint=repo_fingerprint,
         config_root=cfg,
+        commands_home=commands_home,
         workspaces_home=workspaces_home,
         phase=str(phase),
     )
