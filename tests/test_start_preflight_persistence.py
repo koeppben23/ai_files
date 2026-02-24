@@ -162,7 +162,8 @@ def test_run_persistence_hook_delegates_to_hook_module(capsys: pytest.CaptureFix
     assert run_args[:3] == [module.sys.executable, "-m", "diagnostics.start_persistence_hook"]
     call_args = mock_run.call_args.kwargs
     assert call_args["cwd"] == str(repo_root)
-    assert str(module.COMMANDS_HOME) in str(call_args["env"].get("PYTHONPATH", ""))
+    expected_prefix = str(repo_root) + module.os.pathsep + str(module.COMMANDS_HOME)
+    assert str(call_args["env"].get("PYTHONPATH", "")).startswith(expected_prefix)
 
 
 @pytest.mark.governance

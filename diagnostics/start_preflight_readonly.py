@@ -421,11 +421,12 @@ def run_persistence_hook() -> dict[str, object]:
     env = dict(os.environ)
     env["OPENCODE_REPO_ROOT"] = str(repo_root)
     existing_pythonpath = env.get("PYTHONPATH", "").strip()
+    repo_root_token = str(repo_root)
     commands_home_token = str(COMMANDS_HOME)
     if existing_pythonpath:
-        env["PYTHONPATH"] = commands_home_token + os.pathsep + existing_pythonpath
+        env["PYTHONPATH"] = os.pathsep.join((repo_root_token, commands_home_token, existing_pythonpath))
     else:
-        env["PYTHONPATH"] = commands_home_token
+        env["PYTHONPATH"] = os.pathsep.join((repo_root_token, commands_home_token))
     proc = subprocess.run(
         hook_argv,
         capture_output=True,
