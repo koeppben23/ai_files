@@ -582,11 +582,16 @@ def _resolve_python_command(paths: dict[str, Any]) -> str:
     return str(sys.executable or "python")
 
 
-def _resolve_repo_root_strict(explicit: Path | None) -> tuple[Path | None, str, dict[str, object]]:
+def _resolve_repo_root_strict(
+    explicit: Path | None,
+    *,
+    require_git_marker: bool = True,
+) -> tuple[Path | None, str, dict[str, object]]:
     if explicit is not None:
         try:
             normalized = normalize_absolute_path(str(explicit), purpose="repo_root")
-            if (normalized / ".git").exists() or (normalized / ".git").is_file():
+            has_git_marker = (normalized / ".git").exists() or (normalized / ".git").is_file()
+            if has_git_marker or not require_git_marker:
                 return normalized, "explicit", {"ok": True, "source": "explicit", "path": str(normalized)}
             return None, "explicit-invalid", {"ok": False, "source": "explicit", "path": str(normalized), "reason": "missing-.git"}
         except Exception as exc:
@@ -1252,7 +1257,10 @@ def main() -> int:
 
     python_cmd = _resolve_python_command(binding_paths)
     
-    repo_root, repo_root_source, git_probe = _resolve_repo_root_strict(args.repo_root)
+    repo_root, repo_root_source, git_probe = _resolve_repo_root_strict(
+        args.repo_root,
+        require_git_marker=not bool(args.no_session_update),
+    )
     if repo_root is None:
         cmd_profiles = render_command_profiles(
             [
