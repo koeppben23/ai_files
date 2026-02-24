@@ -32,6 +32,21 @@ from __future__ import annotations
 
 import os
 
+try:
+    from governance.domain.policies.write_policy import compute_write_policy
+except Exception:
+    def compute_write_policy(*, force_read_only: bool, mode: str = "user"):
+        normalized_mode = str(mode or "user").strip().lower()
+        if normalized_mode not in {"user", "pipeline", "agents_strict"}:
+            normalized_mode = "user"
+        if force_read_only:
+            return type("WritePolicy", (), {"writes_allowed": False, "reason": "force-read-only", "mode": normalized_mode})()
+        return type(
+            "WritePolicy",
+            (),
+            {"writes_allowed": True, "reason": f"explicit-{normalized_mode}-mode-allow", "mode": normalized_mode},
+        )()
+
 
 def effective_mode() -> str:
     primary = os.environ.get("OPENCODE_MODE", "").strip()
@@ -48,10 +63,11 @@ EFFECTIVE_MODE = effective_mode()
 
 def write_policy_reasons() -> tuple[str, ...]:
     reasons: list[str] = [f"mode:{effective_mode()}"]
-    if str(os.environ.get("OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY", "")).strip() == "1":
-        reasons.append("force-read-only")
-    else:
-        reasons.append("default-allow")
+    policy = compute_write_policy(
+        force_read_only=str(os.environ.get("OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY", "")).strip() == "1",
+        mode=effective_mode(),
+    )
+    reasons.append(policy.reason)
     return tuple(reasons)
 
 
@@ -64,9 +80,10 @@ def writes_allowed() -> bool:
     Write Policy (unified):
         Writes are allowed by default, unless FORCE_READ_ONLY=1
     """
-    if str(os.environ.get("OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY", "")).strip() == "1":
-        return False
-    return True
+    return compute_write_policy(
+        force_read_only=str(os.environ.get("OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY", "")).strip() == "1",
+        mode=effective_mode(),
+    ).writes_allowed
 
 
 def is_write_allowed() -> bool:

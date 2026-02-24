@@ -75,3 +75,17 @@ def test_render_response_rejects_phase_next_action_mismatch():
         assert "invalid phase/next_action contract" in str(exc)
     else:
         raise AssertionError("expected contract validation to fail")
+
+
+def test_render_response_rejects_manual_step_before_phase4() -> None:
+    payload = _sample_payload()
+    next_action = payload["next_action"]
+    assert isinstance(next_action, dict)
+    next_action["Type"] = "manual_step"
+
+    try:
+        render_response(payload, output_format="plain")
+    except ValueError as exc:
+        assert "next_action type must be command before phase 4" in str(exc)
+    else:
+        raise AssertionError("expected next_action type contract validation to fail")

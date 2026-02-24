@@ -21,6 +21,9 @@ ACTIVATION_INTENT_FILE = "governance.activation_intent.json"
 def _default_activation_intent() -> dict[str, object]:
     return {
         "schema": "opencode-activation-intent.v1",
+        "discovery_scope": "full",
+        "discovery_patterns": [],
+        "discovery_excludes": [],
         "default_scope": "governance-pipeline-only",
         "allowed_actions": {
             "read_only": True,
@@ -38,6 +41,19 @@ def _is_valid_activation_intent(payload: object) -> bool:
     if not isinstance(payload, dict):
         return False
     if payload.get("schema") != "opencode-activation-intent.v1":
+        return False
+
+    discovery_scope = payload.get("discovery_scope")
+    if discovery_scope not in {"full", "governance-only", "changed-files-only"}:
+        return False
+
+    discovery_patterns = payload.get("discovery_patterns", [])
+    discovery_excludes = payload.get("discovery_excludes", [])
+    if not isinstance(discovery_patterns, list) or not isinstance(discovery_excludes, list):
+        return False
+    if any(not isinstance(item, str) for item in discovery_patterns):
+        return False
+    if any(not isinstance(item, str) for item in discovery_excludes):
         return False
 
     default_scope = payload.get("default_scope")
@@ -104,7 +120,7 @@ class BootstrapPersistenceService:
         write_actions: dict[str, str] = {}
         errors: list[ErrorEvent] = []
 
-        policy = compute_write_policy(force_read_only=payload.force_read_only)
+        policy = compute_write_policy(force_read_only=payload.force_read_only, mode=payload.effective_mode)
         config_root = Path(payload.binding.config_root)
         repo_root = Path(payload.repo_identity.repo_root)
         pointer_file = Path(payload.layout.pointer_file)
@@ -399,6 +415,7 @@ def _session_state_payload(
                 "Schema": "opencode-activation-intent.v1",
                 "Status": "valid" if activation_intent_valid else "missing",
                 "AutoSatisfied": bool(activation_intent_valid),
+                "DiscoveryScope": "full" if activation_intent_valid else "unknown",
             },
             "writePolicy": {
                 "mode": effective_mode,

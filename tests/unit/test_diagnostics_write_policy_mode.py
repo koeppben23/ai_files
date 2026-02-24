@@ -35,3 +35,4 @@ def test_pipeline_mode_uses_pipeline_semantics(monkeypatch) -> None:
 
     assert mod.EFFECTIVE_MODE == "pipeline"
     assert mod.writes_allowed() is True
+    assert "explicit-pipeline-mode-allow" in mod.write_policy_reasons()
