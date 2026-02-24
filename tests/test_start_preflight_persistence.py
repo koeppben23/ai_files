@@ -183,8 +183,10 @@ def test_run_persistence_hook_exits_on_hook_failure(capsys: pytest.CaptureFixtur
                 assert e.code == 2
 
     payload = json.loads(capsys.readouterr().out.strip())
-    assert payload["workspacePersistenceHook"] == "failed"
-    assert payload["reason_code"] == "ERR-BOOTSTRAP-HOOK-IMPORT"
+    assert payload["workspacePersistenceHook"] == "blocked"
+    assert payload["reason_code"] == "BLOCKED-WORKSPACE-PERSISTENCE"
+    assert payload["hook_invoked"] is True
+    assert payload["failure_stage"] in {"subprocess", "parse", "hook-payload", "hook_payload"}
     assert payload.get("stderr_snippet")
     assert payload.get("log_path")
 
@@ -200,8 +202,10 @@ def test_run_persistence_hook_blocks_when_repo_root_not_detectable(capsys: pytes
             assert exc.code == 2
 
     payload = json.loads(capsys.readouterr().out.strip())
-    assert payload["workspacePersistenceHook"] == "failed"
+    assert payload["workspacePersistenceHook"] == "blocked"
     assert payload["reason_code"] == "BLOCKED-REPO-ROOT-NOT-DETECTABLE"
+    assert payload["hook_invoked"] is False
+    assert payload["failure_stage"] == "repo_root"
     assert payload["bootstrap_hook_command"].endswith("-m diagnostics.start_persistence_hook")
     assert payload["python_executable"]
 
