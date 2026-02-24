@@ -310,3 +310,80 @@ class TestPersistenceHookEdgeCases:
         assert result["workspacePersistenceHook"] == "failed"
         assert result["stdout"] == ""
         assert result["stderr"] == ""
+
+
+class TestPersistenceHookVerificationFailures:
+    @pytest.mark.governance
+    def test_pointer_verification_failure_emits_gate_event(self, tmp_path: Path):
+        module = _load_hook_module_with_env({"CI": ""})
+
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = ""
+        mock_result.stderr = ""
+
+        with patch.object(module, "derive_repo_fingerprint", return_value="testfingerprint123456"):
+            with patch.object(module, "COMMANDS_HOME", tmp_path):
+                bootstrap_script = tmp_path / "diagnostics" / "bootstrap_session_state.py"
+                bootstrap_script.parent.mkdir(parents=True, exist_ok=True)
+                bootstrap_script.write_text("# fake")
+
+                with patch.object(module.subprocess, "run", return_value=mock_result):
+                    with patch.object(module, "_verify_pointer_exists", return_value=(False, "pointer-file-unreadable")):
+                        with patch.object(module, "emit_gate_failure") as mock_gate:
+                            result = module.run_persistence_hook(repo_root=tmp_path)
+
+        assert result["workspacePersistenceHook"] == "failed"
+        assert result["reason"].startswith("pointer-verification-failed")
+        assert mock_gate.called
+        assert mock_gate.call_args.kwargs["code"] == "POINTER_VERIFICATION_FAILED"
+
+    @pytest.mark.governance
+    def test_workspace_session_verification_failure_emits_gate_event(self, tmp_path: Path):
+        module = _load_hook_module_with_env({"CI": ""})
+
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = ""
+        mock_result.stderr = ""
+
+        with patch.object(module, "derive_repo_fingerprint", return_value="testfingerprint123456"):
+            with patch.object(module, "COMMANDS_HOME", tmp_path):
+                bootstrap_script = tmp_path / "diagnostics" / "bootstrap_session_state.py"
+                bootstrap_script.parent.mkdir(parents=True, exist_ok=True)
+                bootstrap_script.write_text("# fake")
+
+                with patch.object(module.subprocess, "run", return_value=mock_result):
+                    with patch.object(module, "_verify_pointer_exists", return_value=(True, "ok")):
+                        with patch.object(
+                            module,
+                            "_verify_workspace_session_exists",
+                            return_value=(False, "workspace-session-file-unreadable"),
+                        ):
+                            with patch.object(module, "emit_gate_failure") as mock_gate:
+                                result = module.run_persistence_hook(repo_root=tmp_path)
+
+        assert result["workspacePersistenceHook"] == "failed"
+        assert result["reason"].startswith("workspace-session-verification-failed")
+        assert mock_gate.called
+        assert mock_gate.call_args.kwargs["code"] == "WORKSPACE_SESSION_VERIFICATION_FAILED"
+
+    @pytest.mark.governance
+    def test_pointer_fingerprint_mismatch_is_reported(self, tmp_path: Path):
+        from diagnostics.start_persistence_hook import _verify_pointer_exists
+
+        repo_fp = "a1b2c3d4e5f6a1b2c3d4e5f6"
+        pointer_file = tmp_path / "SESSION_STATE.json"
+        pointer_file.write_text(
+            json.dumps(
+                {
+                    "schema": "opencode-session-pointer.v1",
+                    "activeRepoFingerprint": "ffffffffffffffffffffffff",
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        ok, reason = _verify_pointer_exists(tmp_path, repo_fp)
+        assert ok is False
+        assert "fingerprint-mismatch" in reason
