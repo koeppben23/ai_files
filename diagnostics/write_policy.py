@@ -51,7 +51,7 @@ def write_policy_reasons() -> tuple[str, ...]:
     if str(os.environ.get("OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY", "")).strip() == "1":
         reasons.append("force-read-only")
     else:
-        reasons.append("default-allow")
+        reasons.append("explicit-user-mode-allow")
     return tuple(reasons)
 
 

@@ -26,17 +26,24 @@ from governance.infrastructure.mode_repo_rules import resolve_env_operating_mode
 from governance.infrastructure.wiring import configure_gateway_registry
 
 try:
-    from diagnostics.global_error_handler import install_global_handlers, set_error_context, ErrorContext
+    from diagnostics.global_error_handler import (
+        emit_gate_failure,
+        install_global_handlers,
+        resolve_log_path,
+        set_error_context,
+    )
 except ImportError:
     def install_global_handlers(context_provider=None):  # type: ignore
         pass
     def set_error_context(ctx):  # type: ignore
         pass
-    class ErrorContext:  # type: ignore
-        def __init__(self, **kwargs):
-            pass
-
-
+    def emit_gate_failure(*args: Any, **kwargs: Any) -> bool:  # type: ignore
+        return False
+    def resolve_log_path(*, config_root=None, workspaces_home=None, repo_fingerprint=None) -> Path:  # type: ignore
+        root = Path(config_root) if config_root else (Path.home() / ".config" / "opencode")
+        if repo_fingerprint and workspaces_home:
+            return Path(workspaces_home) / repo_fingerprint / "logs" / "error.log.jsonl"
+        return root / "logs" / "error.log.jsonl"
 # SSOT: Ensure global error handler is installed before any operations
 def _install_global_error_handler() -> None:
     try:
@@ -254,6 +261,51 @@ def bootstrap_command(repo_fp: str | None) -> str:
     return str(render_command_profiles(bootstrap_command_argv(repo_fp)).get("bash") or "")
 
 
+def _resolve_repo_root_for_hook() -> tuple[Path | None, str, dict[str, object]]:
+    env_root = os.environ.get("OPENCODE_REPO_ROOT", "").strip()
+    if env_root:
+        try:
+            resolved_env_root = normalize_absolute_path(env_root, purpose="OPENCODE_REPO_ROOT")
+            if (resolved_env_root / ".git").exists() or (resolved_env_root / ".git").is_file():
+                return resolved_env_root, "env", {"ok": True, "source": "env", "raw": env_root}
+            return None, "env-invalid", {"ok": False, "source": "env", "raw": env_root, "reason": "missing-.git"}
+        except Exception as exc:
+            return None, "env-invalid", {"ok": False, "source": "env", "raw": env_root, "error": str(exc)[:200]}
+
+    probe = subprocess.run(
+        ["git", "rev-parse", "--show-toplevel"],
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=5,
+    )
+    root_text = (probe.stdout or "").strip()
+    if probe.returncode == 0 and root_text:
+        try:
+            resolved_git_root = normalize_absolute_path(root_text, purpose="git-rev-parse")
+            return resolved_git_root, "git", {
+                "ok": True,
+                "source": "git",
+                "returncode": probe.returncode,
+                "stdout": root_text,
+            }
+        except Exception as exc:
+            return None, "git-invalid", {
+                "ok": False,
+                "source": "git",
+                "returncode": probe.returncode,
+                "stdout": root_text,
+                "error": str(exc)[:200],
+            }
+    return None, "git-miss", {
+        "ok": False,
+        "source": "git",
+        "returncode": probe.returncode,
+        "stdout": root_text,
+        "stderr": (probe.stderr or "").strip()[:240],
+    }
+
+
 def build_engine_shadow_snapshot() -> dict[str, object]:
     try:
         from governance.engine.adapters import OpenCodeDesktopAdapter
@@ -294,7 +346,53 @@ def build_engine_shadow_snapshot() -> dict[str, object]:
 
 def run_persistence_hook() -> dict[str, object]:
     mode = _effective_mode()
+    repo_root, repo_root_source, git_probe = _resolve_repo_root_for_hook()
+    hook_argv = [sys.executable, "-m", "diagnostics.start_persistence_hook"]
+    hook_command = " ".join(hook_argv)
+    base_payload = {
+        "cwd": str(Path.cwd()),
+        "repo_root_detected": str(repo_root) if repo_root else "",
+        "repo_root_source": repo_root_source,
+        "python_executable": sys.executable,
+        "bootstrap_hook_command": hook_command,
+        "git_probe": git_probe,
+    }
+
+    if repo_root is None:
+        log_path = resolve_log_path(
+            config_root=COMMANDS_HOME.parent,
+            workspaces_home=WORKSPACES_HOME,
+            repo_fingerprint=None,
+        )
+        emit_gate_failure(
+            gate="PERSISTENCE",
+            code="BLOCKED-REPO-ROOT-NOT-DETECTABLE",
+            message="Repository root is not deterministically detectable for persistence hook dispatch.",
+            expected="valid OPENCODE_REPO_ROOT or git rev-parse --show-toplevel",
+            observed={"cwd": str(Path.cwd()), "git_probe": git_probe},
+            remediation="Set OPENCODE_REPO_ROOT to a valid git repository root and rerun /start.",
+            config_root=str(COMMANDS_HOME.parent),
+            workspaces_home=str(WORKSPACES_HOME),
+            repo_fingerprint=None,
+            phase="1.1-Bootstrap",
+        )
+        result = {
+            "workspacePersistenceHook": "failed",
+            "reason_code": "BLOCKED-REPO-ROOT-NOT-DETECTABLE",
+            "reason": "repo-root-not-detectable",
+            "writes_allowed": writes_allowed(),
+            "log_path": str(log_path),
+            **base_payload,
+        }
+        print(json.dumps(result, ensure_ascii=True))
+        raise SystemExit(2)
+
     if not writes_allowed():
+        log_path = resolve_log_path(
+            config_root=COMMANDS_HOME.parent,
+            workspaces_home=WORKSPACES_HOME,
+            repo_fingerprint=None,
+        )
         result = {
             "workspacePersistenceHook": "blocked",
             "reason_code": "BLOCKED-WORKSPACE-PERSISTENCE",
@@ -302,12 +400,90 @@ def run_persistence_hook() -> dict[str, object]:
             "impact": "fingerprint + persistence are required before any phase >= 2.1",
             "mode": mode,
             "writes_allowed": False,
+            "log_path": str(log_path),
+            **base_payload,
         }
+        emit_gate_failure(
+            gate="PERSISTENCE",
+            code="BLOCKED-WORKSPACE-PERSISTENCE",
+            message="Persistence hook blocked by write policy before dispatch.",
+            expected="writes allowed",
+            observed={"mode": mode, "writes_allowed": False},
+            remediation="Unset OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY or use a writable mode.",
+            config_root=str(COMMANDS_HOME.parent),
+            workspaces_home=str(WORKSPACES_HOME),
+            repo_fingerprint=None,
+            phase="1.1-Bootstrap",
+        )
         print(json.dumps(result, ensure_ascii=True))
         raise SystemExit(2)
 
-    from diagnostics.start_persistence_hook import run_persistence_hook as _run_hook
-    result = _run_hook()
+    env = dict(os.environ)
+    env["OPENCODE_REPO_ROOT"] = str(repo_root)
+    proc = subprocess.run(
+        hook_argv,
+        capture_output=True,
+        text=True,
+        check=False,
+        cwd=str(repo_root),
+        env=env,
+    )
+
+    stdout_lines = [(line or "").strip() for line in (proc.stdout or "").splitlines() if (line or "").strip()]
+    parsed_payload: dict[str, object] | None = None
+    for candidate in reversed(stdout_lines):
+        try:
+            loaded = json.loads(candidate)
+        except Exception:
+            continue
+        if isinstance(loaded, dict):
+            parsed_payload = loaded
+            break
+
+    if parsed_payload is None:
+        parsed_payload = {
+            "workspacePersistenceHook": "failed",
+            "reason_code": "ERR-BOOTSTRAP-HOOK-IMPORT",
+            "reason": "hook-output-not-json",
+            "stderr": (proc.stderr or "").strip()[:500],
+            "stdout": (proc.stdout or "").strip()[:500],
+        }
+
+    result = {
+        **parsed_payload,
+        **base_payload,
+    }
+
+    if proc.returncode != 0 and str(result.get("reason_code", "")).strip() in {"", "none"}:
+        result["reason_code"] = "ERR-BOOTSTRAP-HOOK-IMPORT"
+
+    if str(result.get("workspacePersistenceHook", "")).strip().lower() != "ok":
+        reason_code = str(result.get("reason_code", "ERR-BOOTSTRAP-HOOK-IMPORT")).strip() or "ERR-BOOTSTRAP-HOOK-IMPORT"
+        log_path = resolve_log_path(
+            config_root=COMMANDS_HOME.parent,
+            workspaces_home=WORKSPACES_HOME,
+            repo_fingerprint=None,
+        )
+        emit_gate_failure(
+            gate="PERSISTENCE",
+            code=reason_code,
+            message="Persistence hook module dispatch failed.",
+            expected="python -m diagnostics.start_persistence_hook exits with code 0",
+            observed={
+                "returncode": proc.returncode,
+                "stderr": (proc.stderr or "").strip()[:500],
+                "stdout": (proc.stdout or "").strip()[:500],
+            },
+            remediation="Run the hook command directly and fix import/runtime errors.",
+            config_root=str(COMMANDS_HOME.parent),
+            workspaces_home=str(WORKSPACES_HOME),
+            repo_fingerprint=None,
+            phase="1.1-Bootstrap",
+        )
+        result["reason_code"] = reason_code
+        result["stderr_snippet"] = (proc.stderr or "").strip()[:500]
+        result["log_path"] = str(log_path)
+
     print(json.dumps(result, ensure_ascii=True))
     if str(result.get("workspacePersistenceHook")).strip().lower() != "ok":
         raise SystemExit(2)

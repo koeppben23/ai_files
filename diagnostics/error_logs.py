@@ -5,6 +5,7 @@ import json
 import os
 import re
 import tempfile
+import time
 import uuid
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
@@ -58,17 +59,58 @@ except Exception:
                 tmp.flush()
                 os.fsync(tmp.fileno())
                 temp_path = Path(tmp.name)
-            os.replace(str(temp_path), str(path))
+            for attempt in range(max(attempts, 1)):
+                try:
+                    os.replace(str(temp_path), str(path))
+                    return attempt
+                except OSError:
+                    if attempt == max(attempts, 1) - 1:
+                        raise
+                    time.sleep(max(backoff_ms, 1) / 1000.0)
             return 0
         finally:
             if temp_path is not None and temp_path.exists():
                 temp_path.unlink(missing_ok=True)
 
+    def _append_line_with_lock(path: Path, line: str) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("a+", encoding="utf-8", newline="\n") as handle:
+            for attempt in range(8):
+                try:
+                    if os.name == "nt":
+                        import msvcrt
+
+                        handle.seek(0)
+                        msvcrt.locking(handle.fileno(), msvcrt.LK_LOCK, 1)
+                    else:
+                        import fcntl
+
+                        fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+                    break
+                except OSError:
+                    if attempt == 7:
+                        raise
+                    time.sleep(0.02)
+            try:
+                handle.seek(0, os.SEEK_END)
+                handle.write(line)
+                handle.flush()
+                os.fsync(handle.fileno())
+            finally:
+                if os.name == "nt":
+                    import msvcrt
+
+                    handle.seek(0)
+                    msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+                else:
+                    import fcntl
+
+                    fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+
     def write_jsonl_event(path: Path, event: dict[str, Any], *, append: bool) -> None:
         line = json.dumps(event, ensure_ascii=True, separators=(",", ":")) + "\n"
-        if append and path.exists():
-            existing = path.read_text(encoding="utf-8")
-            atomic_write_text(path, existing + line, newline_lf=True)
+        if append:
+            _append_line_with_lock(path, line)
             return
         atomic_write_text(path, line, newline_lf=True)
 

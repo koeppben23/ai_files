@@ -12,4 +12,4 @@ class WritePolicy:
 def compute_write_policy(*, force_read_only: bool) -> WritePolicy:
     if force_read_only:
         return WritePolicy(writes_allowed=False, reason="force-read-only")
-    return WritePolicy(writes_allowed=True, reason="default-allow")
+    return WritePolicy(writes_allowed=True, reason="explicit-user-mode-allow")
