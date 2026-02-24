@@ -78,6 +78,21 @@ class TestApiInScopeDetection:
 
 @pytest.mark.governance
 class TestPhase2And1Routing:
+    def test_phase_1_2_routes_to_phase_2_automatically_when_workspace_ready(self):
+        doc = _minimal_session_state(
+            phase="1.2-ActivationIntent",
+            Scope={"BusinessRules": "pending"},
+        )
+        result = route_phase(
+            requested_phase="1.1-Bootstrap",
+            requested_active_gate="",
+            requested_next_gate_condition="Continue",
+            session_state_document=doc,
+            repo_is_git_root=True,
+        )
+        assert result.phase == "2-RepoDiscovery"
+        assert result.source == "phase-1.2-to-2-auto"
+
     def test_phase_2_1_routes_to_1_5_when_business_rules_not_resolved(self):
         """After Phase 2.1, route to Phase 1.5 if business rules not resolved."""
         doc = _minimal_session_state()
@@ -106,6 +121,20 @@ class TestPhase2And1Routing:
         assert result.phase == "3A-API-Inventory"
         assert result.source == "phase-2.1-to-3a"
         assert "3A" in result.next_gate_condition
+
+    def test_phase_2_1_skips_phase_1_5_when_business_rules_inventory_exists(self):
+        doc = _minimal_session_state(
+            BusinessRules={"InventoryFileStatus": "written"},
+        )
+        result = route_phase(
+            requested_phase="2.1",
+            requested_active_gate="",
+            requested_next_gate_condition="Continue",
+            session_state_document=doc,
+            repo_is_git_root=True,
+        )
+        assert result.phase == "3A-API-Inventory"
+        assert result.source == "phase-2.1-to-3a"
 
     def test_phase_2_1_routes_to_3a_even_with_apis(self):
         """After Phase 2.1 with APIs detected, route to Phase 3A (same path, 3A decides next step)."""
