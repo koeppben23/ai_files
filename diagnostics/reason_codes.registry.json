@@ -220,6 +220,20 @@
       "remediation_hint": "Re-bootstrap session state from current repo root."
     },
     {
+      "code": "BLOCKED-REPO-ROOT-NOT-DETECTABLE",
+      "severity": "blocked",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Repository root cannot be resolved deterministically from explicit/env/git evidence.",
+      "remediation_hint": "Set OPENCODE_REPO_ROOT or pass explicit repo-root pointing to a valid git root."
+    },
+    {
+      "code": "BLOCKED-LEGACY-DECISION-PACK-FORMAT",
+      "severity": "blocked",
+      "payload_schema_ref": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Decision-pack contains legacy interactive A/B prompt wording before Phase 4.",
+      "remediation_hint": "Normalize decision-pack to automatic policy wording and rerun persistence."
+    },
+    {
       "code": "BLOCKED-BOOTSTRAP-NOT-SATISFIED",
       "severity": "blocked",
       "payload_schema_ref": "diagnostics/schemas/reason_payload_blocked_core.v1.json",
