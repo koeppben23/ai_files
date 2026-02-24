@@ -28,3 +28,19 @@ def test_bounded_retry_retries_retryable_replace(monkeypatch: pytest.MonkeyPatch
 
     assert fs_atomic.bounded_retry(flaky, attempts=3, backoff_ms=1) == "ok"
     assert calls["n"] == 2
+
+
+@pytest.mark.governance
+def test_atomic_write_removes_temp_file_when_replace_fails(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+    target = tmp_path / "out.txt"
+
+    def always_fail(*_args, **_kwargs):
+        raise OSError(errno.EPERM, "replace blocked")
+
+    monkeypatch.setattr(fs_atomic, "safe_replace_with_retries", always_fail)
+
+    with pytest.raises(OSError):
+        fs_atomic.atomic_write_text(target, "payload\n")
+
+    leftovers = [p for p in tmp_path.glob("out.txt.*.tmp") if p.is_file()]
+    assert leftovers == []
