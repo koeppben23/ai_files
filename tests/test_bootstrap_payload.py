@@ -1,5 +1,5 @@
-import pytest
-from governance.application.use_cases.bootstrap_persistence import _session_state_payload
+from typing import Any, cast
+from governance.application.use_cases.bootstrap_persistence import _is_valid_pointer_payload, _session_state_payload
 
 
 def test_bootstrap_payload_pointer_verified_true_golden():
@@ -13,7 +13,7 @@ def test_bootstrap_payload_pointer_verified_true_golden():
         write_policy_reasons=(),
         pointer_verified=True,
     )
-    s = state["SESSION_STATE"]
+    s = cast(dict[str, Any], state["SESSION_STATE"])
     assert s["Phase"] == "1.2-Architecture"
     assert s["Mode"] == "IN_PROGRESS"
     assert s["Next"] == "P5-Architecture-in_progress"
@@ -34,7 +34,7 @@ def test_bootstrap_payload_not_satisfied_initial_block():
         write_policy_reasons=(),
         pointer_verified=False,
     )
-    s = state["SESSION_STATE"]
+    s = cast(dict[str, Any], state["SESSION_STATE"])
     assert s["Phase"] == "1.1-Bootstrap"
     assert s["Mode"] == "BLOCKED"
     assert s["Next"] == "BLOCKED-START-REQUIRED"
@@ -42,3 +42,18 @@ def test_bootstrap_payload_not_satisfied_initial_block():
     assert s["Bootstrap"]["Satisfied"] is False
     assert s["Bootstrap"]["Evidence"] == "not-initialized"
     assert s["CommitFlags"]["PointerVerified"] is False
+
+
+def test_pointer_payload_validation() -> None:
+    valid = {
+        "schema": "opencode-session-pointer.v1",
+        "activeRepoFingerprint": "abcdef0123456789abcdef01",
+        "activeSessionStateFile": "/tmp/session.json",
+    }
+    invalid = {
+        "schema": "opencode-session-pointer.v1",
+        "activeRepoFingerprint": "wrong",
+        "activeSessionStateFile": "/tmp/session.json",
+    }
+    assert _is_valid_pointer_payload(valid, expected_repo_fingerprint="abcdef0123456789abcdef01") is True
+    assert _is_valid_pointer_payload(invalid, expected_repo_fingerprint="abcdef0123456789abcdef01") is False

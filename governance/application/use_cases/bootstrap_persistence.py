@@ -176,13 +176,9 @@ class BootstrapPersistenceService:
         try:
             pointer_readback = self._fs.read_text(pointer_file)
             pointer_json_read = json.loads(pointer_readback)
-            pointer_verified_final = (
-                pointer_json_read.get("schema") == "opencode-session-pointer.v1" and
-                pointer_json_read.get("activeRepoFingerprint") == payload.repo_identity.fingerprint and
-                (
-                    "activeSessionStateFile" in pointer_json_read or
-                    "activeSessionStateRelativePath" in pointer_json_read
-                )
+            pointer_verified_final = _is_valid_pointer_payload(
+                pointer_json_read,
+                expected_repo_fingerprint=payload.repo_identity.fingerprint,
             )
         except Exception:
             pointer_verified_final = False
@@ -204,6 +200,21 @@ class BootstrapPersistenceService:
 
 def _canonical_json(data: object) -> str:
     return json.dumps(data, sort_keys=True, separators=(",", ":"), ensure_ascii=True) + "\n"
+
+
+def _is_valid_pointer_payload(payload: object, *, expected_repo_fingerprint: str) -> bool:
+    if not isinstance(payload, dict):
+        return False
+    if payload.get("schema") != "opencode-session-pointer.v1":
+        return False
+    if payload.get("activeRepoFingerprint") != expected_repo_fingerprint:
+        return False
+
+    active_state_file = payload.get("activeSessionStateFile")
+    active_state_relative = payload.get("activeSessionStateRelativePath")
+    has_file = isinstance(active_state_file, str) and bool(active_state_file.strip())
+    has_relative = isinstance(active_state_relative, str) and bool(active_state_relative.strip())
+    return has_file or has_relative
 
 
 def _session_state_payload(
