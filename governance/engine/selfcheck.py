@@ -8,10 +8,10 @@ import re
 from pathlib import Path
 from typing import Iterable
 
-from diagnostics.reason_registry_selfcheck import check_reason_registry_parity
 from governance.domain.reason_codes import BLOCKED_ENGINE_SELFCHECK, CANONICAL_REASON_CODES, is_registered_reason_code
 from governance.engine.mode_repo_rules import canonicalize_operating_mode
 from governance.infrastructure.policy_bundle_loader import ensure_policy_bundle_loaded
+from governance.infrastructure.reason_registry_selfcheck import check_reason_registry_parity
 
 
 @dataclass(frozen=True)
