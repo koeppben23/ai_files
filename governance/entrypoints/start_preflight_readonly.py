@@ -159,7 +159,11 @@ def _resolve_bindings() -> tuple[Path, Path, bool, Path | None, str]:
 
 
 COMMANDS_HOME, WORKSPACES_HOME, BINDING_OK, BINDING_EVIDENCE_PATH, PYTHON_COMMAND = _resolve_bindings()
-TOOL_CATALOG = COMMANDS_HOME / "governance" / "assets" / "catalogs" / "tool_requirements.json"
+TOOL_CATALOG = (
+    COMMANDS_HOME / "governance" / "assets" / "catalogs" / "tool_requirements.json"
+    if COMMANDS_HOME is not None
+    else None
+)
 
 HOOK_STATUS_OK = "ok"
 HOOK_STATUS_BLOCKED = "blocked"
@@ -272,7 +276,7 @@ def _git_safe_directory_issue() -> bool:
 def emit_preflight() -> None:
     required_now: list[str] = []
     required_later: list[str] = []
-    if TOOL_CATALOG.exists():
+    if TOOL_CATALOG is not None and TOOL_CATALOG.exists():
         payload = json.loads(TOOL_CATALOG.read_text(encoding="utf-8"))
         if isinstance(payload, dict):
             for item in payload.get("required_now", []):
