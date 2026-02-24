@@ -23,6 +23,7 @@ import json
 import os
 import re
 import sys
+import tempfile
 import threading
 import time
 import traceback
@@ -48,7 +49,37 @@ except Exception:
             raise ValueError(f"{purpose}: path must be absolute")
         return Path(os.path.normpath(os.path.abspath(str(candidate))))
 
-    from governance.infrastructure.fs_atomic import atomic_write_text
+    def atomic_write_text(path: Path, text: str, newline_lf: bool = True, attempts: int = 5, backoff_ms: int = 50) -> int:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        payload = text.replace("\r\n", "\n") if newline_lf else text
+        temp_path: Path | None = None
+        try:
+            with tempfile.NamedTemporaryFile(
+                mode="w",
+                encoding="utf-8",
+                newline="\n" if newline_lf else None,
+                dir=str(path.parent),
+                prefix=path.name + ".",
+                suffix=".tmp",
+                delete=False,
+            ) as tmp:
+                tmp.write(payload)
+                tmp.flush()
+                os.fsync(tmp.fileno())
+                temp_path = Path(tmp.name)
+            max_attempts = max(attempts, 1)
+            for attempt in range(max_attempts):
+                try:
+                    os.replace(str(temp_path), str(path))
+                    return attempt
+                except OSError:
+                    if attempt == max_attempts - 1:
+                        raise
+                    time.sleep(max(backoff_ms, 1) / 1000.0)
+            return 0
+        finally:
+            if temp_path is not None and temp_path.exists():
+                temp_path.unlink(missing_ok=True)
 
     def _append_line_with_lock(path: Path, line: str) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
