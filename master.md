@@ -10,11 +10,10 @@ Release/readiness stability gate (binding):
 - `STABILITY_SLA.md` is the normative Go/No-Go contract for governance releases.
 - Governance changes that violate any SLA criterion MUST be treated as release-blocking.
 
-Normative boundary for state-machine runtime (binding):
-- `master.md` defines invariants, status vocabulary, gate semantics, and fail-closed behavior.
-- Runtime details are implemented in `governance/engine/*`, `governance/render/*`, and governance schemas.
+Runtime orientation (informational):
+- Runtime behavior is implemented in `governance/kernel/*`, `governance/engine/*`, `governance/render/*`, and governance schemas.
 - Deterministic activation summary: `RepoFacts -> Capabilities -> Packs/Profile -> activation_hash/ruleset_hash -> Gate`.
-- This file should avoid duplicating low-level algorithmic details that are already contract-tested in code.
+- This file is operator guidance and should avoid duplicating low-level algorithmic details that are contract-tested in code.
 
 SSOT: `${COMMANDS_HOME}/phase_api.yaml` is the only truth for routing, execution, and validation.
 Kernel: `governance/kernel/*` is the only control-plane implementation.

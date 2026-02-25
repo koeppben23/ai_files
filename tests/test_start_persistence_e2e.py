@@ -176,7 +176,7 @@ def test_start_preflight_persists_workspace_and_pointer(tmp_path: Path) -> None:
     assert "B) No" not in decision_pack_text
 
     _assert_no_blocked_gate_failures(workspace / "logs" / "error.log.jsonl")
-    _assert_no_blocked_gate_failures(config_root / "logs" / "error.log.jsonl")
+    _assert_no_blocked_gate_failures(config_root / "commands" / "logs" / "error.log.jsonl")
 
 
 @pytest.mark.e2e_governance

@@ -6,9 +6,13 @@ Runtime authority is kernel + `${COMMANDS_HOME}/phase_api.yaml`; this file is la
 ## Canonical Path Variables
 
 - `${CONFIG_ROOT}`: OpenCode config root (runtime-resolved; do not hard-code OS paths)
-- `${COMMANDS_HOME} = ${CONFIG_ROOT}/commands`
-- `${PROFILES_HOME} = ${COMMANDS_HOME}/profiles`
-- `${WORKSPACES_HOME} = ${CONFIG_ROOT}/workspaces`
+- `${COMMANDS_HOME}`: default `${CONFIG_ROOT}/commands` from installer binding evidence
+- `${PROFILES_HOME}`: `${COMMANDS_HOME}/profiles`
+- `${WORKSPACES_HOME}`: default `${CONFIG_ROOT}/workspaces` from installer binding evidence
+
+Supported exception sources (must be explicit and auditable):
+- trusted binding override (`OPENCODE_ALLOW_TRUSTED_BINDING_OVERRIDE=1` + `OPENCODE_TRUSTED_COMMANDS_HOME`)
+- controlled dev cwd binding search (`OPENCODE_ALLOW_CWD_BINDINGS=1`)
 
 A common example install root is `~/.config/opencode` (platform-specific variants are resolved via `master.md`).
 
