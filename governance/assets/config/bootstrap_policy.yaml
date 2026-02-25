@@ -27,15 +27,6 @@ discovery:
       env_variable: "COMMANDS_HOME"
       required_file: "governance.paths.json"
       fail_closed: true
-      
-    - name: "process_env"
-      description: "From process environment (GOVERNANCE_HOME, etc.)"
-      enabled: false
-      precedence: 2
-      env_variables:
-        - "GOVERNANCE_HOME"
-        - "AI_COMMANDS_HOME"
-      note: "Disabled - fail-closed binding only via governance.paths.json"
 
   # Evidence Sources Precedence
   evidence_precedence:
