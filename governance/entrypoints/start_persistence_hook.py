@@ -42,6 +42,8 @@ def _writes_allowed() -> bool:
     return writes_allowed()
 
 SCRIPT_DIR = Path(os.path.abspath(__file__)).parent
+_FALLBACK_COMMANDS_HOME = SCRIPT_DIR.parent.parent  # grandparent = commands root (parent of governance)
+
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 if str(SCRIPT_DIR.parent) not in sys.path:
@@ -132,11 +134,15 @@ def _resolve_bindings(*, mode: str) -> tuple[Path | None, Path | None, bool, Pat
     if not python_command:
         python_command = "python3"
     
-    if evidence.commands_home is None:
-        return (Path(""), evidence.workspaces_home, evidence.binding_ok, evidence.governance_paths_json, python_command)
-    
-    if not str(evidence.commands_home).strip():
-        return (Path(""), evidence.workspaces_home, evidence.binding_ok, evidence.governance_paths_json, python_command)
+    # If binding evidence is missing or invalid, use fallback derived from script location
+    if evidence.commands_home is None or not str(evidence.commands_home).strip():
+        return (
+            _FALLBACK_COMMANDS_HOME,
+            None,
+            False,
+            None,
+            python_command,
+        )
     
     return (
         evidence.commands_home,
@@ -149,7 +155,8 @@ def _resolve_bindings(*, mode: str) -> tuple[Path | None, Path | None, bool, Pat
 
 COMMANDS_HOME, WORKSPACES_HOME, BINDING_OK, BINDING_EVIDENCE_PATH, PYTHON_COMMAND = _resolve_bindings(mode=EFFECTIVE_MODE)
 
-if COMMANDS_HOME is None or str(COMMANDS_HOME).strip() == "":
+# Final safety check - should rarely trigger since we have fallback
+if COMMANDS_HOME is None or str(COMMANDS_HOME).strip() == "" or not COMMANDS_HOME.is_absolute():
     print(json.dumps({
         "persistence_hook": "failed",
         "reason": "commands_home-empty-or-missing",
@@ -541,7 +548,7 @@ def run_persistence_hook(*, repo_root: Path | None = None) -> dict[str, object]:
         )
         return _with_log_path(result)
 
-    if commands_home is None:
+    if commands_home is None or not str(commands_home).strip():
         return _with_log_path(
             {
                 "workspacePersistenceHook": "blocked",
