@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime, timezone
 from pathlib import Path
 
 from governance.application.use_cases.bootstrap_persistence import (
@@ -65,8 +66,8 @@ def test_bootstrap_creates_default_activation_intent_in_user_mode():
     fs = InMemoryFS()
     logger = DummyLogger()
     service = BootstrapPersistenceService(fs=fs, runner=DummyRunner(), logger=logger)  # type: ignore[arg-type]
-
-    result = service.run(_payload(mode="user"))
+    created_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    result = service.run(_payload(mode="user"), created_at)
 
     assert result.ok is True
     assert result.write_actions.get("activation_intent") == "created-default"
@@ -81,8 +82,8 @@ def test_bootstrap_blocks_without_activation_intent_outside_user_mode():
     fs = InMemoryFS()
     logger = DummyLogger()
     service = BootstrapPersistenceService(fs=fs, runner=DummyRunner(), logger=logger)  # type: ignore[arg-type]
-
-    result = service.run(_payload(mode="pipeline"))
+    created_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    result = service.run(_payload(mode="pipeline"), created_at)
 
     assert result.ok is False
     assert result.gate_code == "ACTIVATION_INTENT_REQUIRED"
@@ -107,6 +108,6 @@ def test_bootstrap_rejects_activation_intent_without_discovery_scope():
         ),
     )
 
-    result = service.run(_payload(mode="user"))
+    result = service.run(_payload(mode="user"), datetime.now(timezone.utc).isoformat(timespec="seconds"))
     assert result.ok is False
     assert result.gate_code == "ACTIVATION_INTENT_INVALID"
