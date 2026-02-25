@@ -131,7 +131,7 @@ Phase 1.1 (Bootstrap) is the only phase allowed to emit a partial SESSION_STATE 
 After Phase 1.1 (bootstrap) completes successfully, these keys are present (kernel-enforced):
 
 - `SESSION_STATE.session_state_version` (integer)
-- `SESSION_STATE.ruleset_hash` (string OR `null` until ruleset activation completes)
+- `SESSION_STATE.ruleset_hash` (string OR `null` until ruleset activation is computed)
 - `SESSION_STATE.Phase` (enum; see Section 3)
 - `SESSION_STATE.Mode` (enum; see Section 4)
 - `SESSION_STATE.OutputMode` (enum; see Section 4.1)
@@ -383,7 +383,7 @@ Recommended calibration (rubric; clamp 0–100):
 
 ### 5.1 ActiveProfile
 
-String identifier when selected, otherwise `null`, e.g.:
+String identifier when selected; otherwise `null`, e.g.:
 - `backend-java`
 - `frontend-angular-nx`
 

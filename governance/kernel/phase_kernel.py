@@ -258,7 +258,7 @@ def _sanitize_ticket_progression(*, phase: str, next_gate_condition: str) -> str
 def _normalize_source(source: str) -> str:
     if source == "kernel":
         return "kernel"
-    if source == "spec-next" or source == "spec":
+    if source in ("spec-next", "spec"):
         return "spec"
     if source in ("transition", "not_applicable"):
         return source
