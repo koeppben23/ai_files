@@ -1106,7 +1106,9 @@ This means:
 
 At session start, the workflow MUST emit a one-line start banner before deeper phase output:
 
-`[START-MODE] Cold Start | Warm Start - reason: <one concise reason>`
+Emit exactly one of:
+- `[START-MODE] Cold Start - reason: <one concise reason>`
+- `[START-MODE] Warm Start - reason: <one concise reason>`
 
 Rules:
 - `Cold Start` when discovery/cache artifacts are absent or invalid.

@@ -722,8 +722,9 @@ Compat fallback (binding):
 
 ### 7.3.3 Cold/Warm Start Banner (Presentation Advisory)
 
-At session start, output MUST include:
-- `[START-MODE] Cold Start | Warm Start - reason: <one concise reason>`
+At session start, output MUST include exactly one of:
+- `[START-MODE] Cold Start - reason: <one concise reason>`
+- `[START-MODE] Warm Start - reason: <one concise reason>`
 
 Rules:
 - Banner decision MUST be evidence-backed (artifact presence/validity, hash match/mismatch).
