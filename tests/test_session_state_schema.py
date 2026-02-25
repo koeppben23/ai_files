@@ -48,9 +48,9 @@ def _minimal_valid_session_state() -> dict[str, object]:
             "LoadedRulebooks": {},
             "AddonsEvidence": {},
             "RulebookLoadEvidence": {},
-            "ActiveProfile": "",
-            "ProfileSource": "",
-            "ProfileEvidence": "",
+            "ActiveProfile": None,
+            "ProfileSource": None,
+            "ProfileEvidence": None,
             "Gates": {},
             "DecisionSurface": {},  # Required for ARCHITECT mode
         }
