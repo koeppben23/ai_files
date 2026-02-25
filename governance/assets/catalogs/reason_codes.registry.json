@@ -251,7 +251,7 @@
       "code": "BLOCKED-START-REQUIRED",
       "severity": "blocked",
       "payload_schema_ref": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
-      "description": "Valid /start evidence is required before /master can proceed.",
+      "description": "Valid /start evidence is required before governance execution can proceed.",
       "remediation_hint": "Execute /start to establish start-order evidence."
     },
     {
