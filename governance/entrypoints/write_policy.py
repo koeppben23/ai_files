@@ -10,7 +10,8 @@ to ensure consistent behavior across:
 All governance MUST use this module to determine write permissions.
 
 Environment Variables:
-    OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY: Set to "1" to block all writes
+    OPENCODE_FORCE_READ_ONLY: Set to "1" to block all writes
+    OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY: Deprecated alias for compatibility
     OPENCODE_MODE: Explicit operating mode (user|pipeline|agents_strict)
     OPENCODE_DIAGNOSTICS_MODE: Deprecated fallback mode label for governance metadata
 
@@ -70,8 +71,12 @@ EFFECTIVE_MODE = effective_mode()
 
 def write_policy_reasons() -> tuple[str, ...]:
     reasons: list[str] = [f"mode:{effective_mode()}"]
+    force_read_only = (
+        str(os.environ.get("OPENCODE_FORCE_READ_ONLY", "")).strip() == "1"
+        or str(os.environ.get("OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY", "")).strip() == "1"
+    )
     policy = compute_write_policy(
-        force_read_only=str(os.environ.get("OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY", "")).strip() == "1",
+        force_read_only=force_read_only,
         mode=effective_mode(),
     )
     reasons.append(policy.reason)
@@ -87,8 +92,12 @@ def writes_allowed() -> bool:
     Write Policy (unified):
         Writes are allowed by default, unless FORCE_READ_ONLY=1
     """
+    force_read_only = (
+        str(os.environ.get("OPENCODE_FORCE_READ_ONLY", "")).strip() == "1"
+        or str(os.environ.get("OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY", "")).strip() == "1"
+    )
     return compute_write_policy(
-        force_read_only=str(os.environ.get("OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY", "")).strip() == "1",
+        force_read_only=force_read_only,
         mode=effective_mode(),
     ).writes_allowed
 

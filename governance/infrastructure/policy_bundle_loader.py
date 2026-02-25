@@ -9,7 +9,6 @@ Fail-closed loader for kernel policy configs:
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 from typing import Any
 
@@ -19,7 +18,7 @@ except Exception:  # pragma: no cover
     yaml = None  # type: ignore
 
 from governance.infrastructure.binding_evidence_resolver import BindingEvidenceResolver
-from governance.infrastructure.path_contract import normalize_absolute_path, PathContractError
+from governance.infrastructure.path_contract import normalize_absolute_path
 
 
 class PolicyBundleError(RuntimeError):
@@ -40,41 +39,19 @@ def _policy_relpath(filename: str) -> Path:
     return Path("governance/assets/config") / filename
 
 
-def _repo_local_governance_assets_root() -> Path:
-    parts = Path(__file__).parts
-    if "governance" in parts:
-        i = parts.index("governance")
-        repo_root = Path(*parts[:i])
-        return repo_root
-    return Path(__file__).parent.parent.parent.parent
-
-
 def _resolve_policy_path(filename: str, *, mode: str) -> Path:
     effective_mode = str(mode).strip().lower() or "user"
     resolver = BindingEvidenceResolver()
     evidence = resolver.resolve(mode=effective_mode)
-    if evidence.binding_ok and evidence.commands_home:
-        candidate = evidence.commands_home / _policy_relpath(filename)
-        if candidate.exists():
-            return candidate
-
-    # Repo-local fallback for CI/development (OPENCODE_REPO_ROOT set)
-    repo_root_env = str(os.environ.get("OPENCODE_REPO_ROOT", "")).strip()
-    if effective_mode != "pipeline" and repo_root_env:
-        try:
-            repo_root_path = normalize_absolute_path(repo_root_env, purpose="env:OPENCODE_REPO_ROOT")
-        except PathContractError:
-            repo_root_path = None
-        if repo_root_path is not None:
-            candidate = repo_root_path / _policy_relpath(filename)
-            if candidate.exists():
-                return candidate
-
-    # Development fallback (no binding file) - allow repo-local resolution
-    if effective_mode != "pipeline":
-        candidate = _repo_local_governance_assets_root() / _policy_relpath(filename)
-        if candidate.exists():
-            return candidate
+    if not evidence.binding_ok or evidence.commands_home is None:
+        raise PolicyBundleError(
+            f"Policy config not resolved via canonical root: {filename}. "
+            "Reason: BLOCKED-ENGINE-SELFCHECK"
+        )
+    candidate = evidence.commands_home / _policy_relpath(filename)
+    candidate = normalize_absolute_path(str(candidate), purpose=f"policy:{filename}")
+    if candidate.exists():
+        return candidate
 
     raise PolicyBundleError(
         f"Policy config not resolved via canonical root: {filename}. "
