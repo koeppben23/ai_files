@@ -73,7 +73,7 @@ def write_governance_paths(config_root: Path, *, workspaces_home: Path | None = 
             "profilesHome": str(root / "profiles"),
             "governanceHome": str(governance),
             "workspacesHome": str(workspaces),
-            "globalErrorLogsHome": str(root / "logs"),
+            "globalErrorLogsHome": str(commands / "logs"),
             "workspaceErrorLogsHomeTemplate": str(workspaces / "<repo_fingerprint>" / "logs"),
             "pythonCommand": "py -3" if os.name == "nt" else "python3",
         },

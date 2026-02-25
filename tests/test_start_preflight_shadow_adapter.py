@@ -12,7 +12,6 @@ _POLICY_FILES = [
     "bootstrap_policy.yaml",
     "persistence_artifacts.yaml",
     "blocked_reason_catalog.yaml",
-    "phase_execution_config.yaml",
 ]
 
 

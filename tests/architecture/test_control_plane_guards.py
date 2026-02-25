@@ -9,13 +9,13 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
-DIAGNOSTICS_ROOT = REPO_ROOT / "governance" / "entrypoints"
+ENTRYPOINTS_ROOT = REPO_ROOT / "governance" / "entrypoints"
 CRITICAL_FILES = (
-    DIAGNOSTICS_ROOT / "start_preflight_readonly.py",
-    DIAGNOSTICS_ROOT / "persist_workspace_artifacts.py",
-    DIAGNOSTICS_ROOT / "bootstrap_session_state.py",
-    DIAGNOSTICS_ROOT / "start_binding_evidence.py",
-    DIAGNOSTICS_ROOT / "error_logs.py",
+    ENTRYPOINTS_ROOT / "start_preflight_readonly.py",
+    ENTRYPOINTS_ROOT / "persist_workspace_artifacts.py",
+    ENTRYPOINTS_ROOT / "bootstrap_session_state.py",
+    ENTRYPOINTS_ROOT / "start_binding_evidence.py",
+    ENTRYPOINTS_ROOT / "error_logs.py",
 )
 
 
@@ -42,11 +42,11 @@ def test_governance_forbid_shell_resplit_and_direct_write_calls():
 
 @pytest.mark.governance
 def test_governance_forbid_write_primitives_outside_error_logger():
-    allowed_open_writer = DIAGNOSTICS_ROOT / "error_logs.py"
+    allowed_open_writer = ENTRYPOINTS_ROOT / "error_logs.py"
     allowed_atomic_writers = {
-        DIAGNOSTICS_ROOT / "error_logs.py",
-        DIAGNOSTICS_ROOT / "bootstrap_session_state.py",
-        DIAGNOSTICS_ROOT / "persist_workspace_artifacts.py",
+        ENTRYPOINTS_ROOT / "error_logs.py",
+        ENTRYPOINTS_ROOT / "bootstrap_session_state.py",
+        ENTRYPOINTS_ROOT / "persist_workspace_artifacts.py",
     }
     bad: list[str] = []
 
@@ -75,7 +75,7 @@ def test_governance_forbid_write_primitives_outside_error_logger():
 
 @pytest.mark.governance
 def test_error_logger_defaults_to_read_only_fail_closed():
-    text = (DIAGNOSTICS_ROOT / "error_logs.py").read_text(encoding="utf-8")
+    text = (ENTRYPOINTS_ROOT / "error_logs.py").read_text(encoding="utf-8")
     assert "return not writes_allowed()" in text
     assert 'return {"status": "read-only"}' in text
 
