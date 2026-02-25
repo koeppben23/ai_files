@@ -2,128 +2,141 @@
 
 This document defines the required coverage for each core MD file to ensure governance functionality is not broken by refactoring.
 
-## master.md - Required Contracts
-
-| Contract | Status | Location |
-|----------|--------|----------|
-| Global Principles (fail-closed, evidence-based, scope lock, repo-first, stack-agnostic) | ✅ Present | Lines 16-22 |
-| Priority Order (Master > rules > profile > addons > ticket > model) | ✅ Present | Lines 24-33 |
-| SSOT/Boundary clarification (phase_api.yaml binding, MD non-binding) | ✅ Present | Lines 10-14 |
-| Stability SLA reference | ✅ Present | Lines 37-41 |
-| Execution Flow (phases, conditional branches) | ✅ Present | Lines 43-46 |
-| Decision Memory (ADR requirement) | ✅ Present | Lines 48-57 |
-| Thematic Rails references | ✅ Present | Lines 59-67 |
-| Output Constraints (max files, diff lines) | ✅ Present | Lines 69-73 |
-| Confidence & Gates | ✅ Present | Lines 75-79 |
-
-### Anchor Requirements (for governance_lint.py)
-
-| Anchor | Required |
-|--------|----------|
-| RULEBOOK-PRECEDENCE-POLICY | Via rules.md |
-| ADDON-CLASS-BEHAVIOR-POLICY | Via rules.md |
-| Stability sync note | ✅ Present |
+**This is a review artifact, not self-praise. Update on each significant MD change.**
 
 ---
 
-## rules.md - Required Contracts
+## 1. File Contract Coverage
 
-| Contract | Status | Location |
-|----------|--------|----------|
-| No Fabrication rule | ✅ Present | Section 1.1 |
-| Scope Lock | ✅ Present | Section 1.2 |
-| Evidence Obligations (ladder, proof requirements) | ✅ Present | Section 1.3 |
-| Component Scope (monorepos) | ✅ Present | Section 1.4 |
-| Profile Selection (explicit preferred, detection fallback) | ✅ Present | Section 2 |
-| Ambiguity Handling | ✅ Present | Section 2.3 |
-| Repository Guidelines as Constraints | ✅ Present | Section 3 |
-| Contract & Schema Evolution Gate | ✅ Present | Section 4.1 |
-| Business Rules Ledger (conditional) | ✅ Present | Section 4.2 |
-| Test Coverage Matrix (conditional) | ✅ Present | Section 4.3 |
-| Fast Lane (escape hatch) | ✅ Present | Section 4.4 |
-| Blocking Transparency | ✅ Present | Section 6 |
-| Architecture Decision Output | ✅ Present | Section 7 |
-| Change Matrix | ✅ Present | Section 5 |
-
-### Anchor Requirements (for governance_lint.py)
-
-| Anchor | Required |
-|--------|----------|
-| RULEBOOK-PRECEDENCE-POLICY | ✅ Present |
-| ADDON-CLASS-BEHAVIOR-POLICY | ✅ Present |
-| Stability SLA reference | ✅ Present |
-| Master Prompt > ... precedence | ✅ Present |
-
----
-
-## start.md - Required Contracts
-
-| Contract | Status | Location |
-|----------|--------|----------|
-| /start purpose (bootstrap entrypoint) | ✅ Present | Section "Purpose" |
-| Binding Evidence requirement | ✅ Present | Section "Binding Evidence" |
-| Preflight checks | ✅ Present | Section "Preflight" |
-| Cold/Warm Start modes | ✅ Present | Section "Start Modes" |
-| After Start behavior | ✅ Present | Section "After Start" |
-| Blocked States semantics | ✅ Present | Section "Blocked States" |
-| Kernel boundary reference | ✅ Present | Footer |
-
-### Kernel-Enforced References
-
-| Reference | Required |
-|-----------|----------|
-| bootstrap_policy.yaml | ✅ Present |
-| blocked_reason_catalog.yaml | ✅ Present |
-| Evidence boundary note | ✅ Present |
-
----
-
-## Cognitive Heuristics Checklist
-
-These are the "thinking patterns" that must NOT be lost:
-
-### master.md
-
-- [ ] Fail-closed default (missing evidence = block)
-- [ ] Evidence-based reasoning requirement
-- [ ] Scope lock enforcement
-- [ ] Repo-first persistence
-- [ ] Stack-agnostic approach
-- [ ] Priority-based conflict resolution
-- [ ] Phase gating for code production
-- [ ] ADR recording for architectural decisions
+| Contract | Canonical Source | Required | Verification |
+|----------|------------------|----------|--------------|
+| Global Principles (fail-closed, evidence-based, scope lock, repo-first, stack-agnostic) | master.md | Required | Section present |
+| Priority Order (Master > rules > profile > addons > ticket > model) | master.md | Required | Section present |
+| SSOT/Boundary clarification (phase_api.yaml binding, MD non-binding) | master.md | Required | Section present |
+| Stability SLA reference | master.md | Required | Token present |
+| Execution Flow (high-level phase model reference) | master.md | Optional reference | Section present |
+| Decision Memory (ADR requirement) | master.md | Required | Section present |
+| Thematic Rails references | master.md | Required | References present |
+| Output discipline reference | master.md | Advisory | Section present |
 
 ### rules.md
 
-- [ ] No fabrication / no hallucination
-- [ ] Scope lock enforcement
-- [ ] Evidence ladder (build > code > tests > docs > ticket)
-- [ ] Component scope for monorepos
-- [ ] Profile detection with fallback
-- [ ] Ambiguity handling (don't guess)
-- [ ] Contract/Schema gate enforcement
-- [ ] Business rules gate (conditional)
-- [ ] Test coverage gate (conditional)
-- [ ] Fast lane escape hatch
-- [ ] Blocking transparency
+| Contract | Canonical Source | Required | Verification |
+|----------|------------------|----------|--------------|
+| No Fabrication rule | rules.md | Required | Section present |
+| Scope Lock | rules.md | Required | Section present |
+| Evidence Obligations | rules.md | Required | Section present |
+| Component Scope (monorepos) | rules.md | Required | Section present |
+| Profile Selection (explicit preferred, detection fallback) | rules.md | Required | Section present |
+| Ambiguity Handling | rules.md | Required | Section present |
+| Repository Guidelines as Constraints | rules.md | Required | Section present |
+| Contract & Schema Evolution Gate | rules.md | Required | Section present |
+| Business Rules Ledger (conditional) | rules.md | Conditional | Section present |
+| Test Coverage Matrix (conditional) | rules.md | Conditional | Section present |
+| Fast Lane (escape hatch) | rules.md | Advisory | Section present |
+| Blocking Transparency | rules.md | Required | Section present |
+| Architecture Decision Output | rules.md | Required | Section present |
+| Change Matrix | rules.md | Required | Section present |
 
-### start.md
+### Anchor Requirements (governance_lint.py)
 
-- [ ] Bootstrap validation requirement
-- [ ] Cold/Warm start distinction
-- [ ] Blocked state recovery
-- [ ] Kernel ownership boundary
+| Anchor | Canonical Source | Required | Verification |
+|--------|------------------|----------|--------------|
+| RULEBOOK-PRECEDENCE-POLICY | rules.md | Required | Anchor present |
+| ADDON-CLASS-BEHAVIOR-POLICY | rules.md | Required | Section present |
+| Stability sync note | master.md | Required | Token present |
+| Master Prompt precedence chain | rules.md | Required | Text present |
 
 ---
 
-## Test Coverage
+## start.md
 
-Tests verifying these contracts exist in:
+| Contract | Canonical Source | Required | Verification |
+|----------|------------------|----------|--------------|
+| /start purpose (bootstrap entrypoint) | start.md | Required | Section present |
+| Binding Evidence requirement | start.md | Required | Section present |
+| Preflight checks | start.md | Required | Section present |
+| Cold/Warm Start modes | start.md | Required | Section present |
+| After Start behavior | start.md | Required | Section present |
+| Blocked States semantics | start.md | Required | Section present |
+| Recovery semantics | start.md | Required | Section present |
+| Kernel boundary reference | start.md | Required | Reference present |
 
-- `tests/test_md_rails_tripwire.py` - Operational markers absent
-- `scripts/governance_lint.py` - Token/anchor presence
-- `tests/test_validate_governance.py` - Governance validation
+### Kernel-Enforced References
+
+| Reference | Canonical Source | Required | Verification |
+|-----------|------------------|----------|--------------|
+| bootstrap_policy.yaml | start.md | Required | Token present |
+| blocked_reason_catalog.yaml | start.md | Required | Token present |
+| Evidence boundary note | start.md | Required | Token present |
+
+---
+
+## 2. Cognitive Heuristics Coverage
+
+These are the "thinking patterns" that must NOT be lost. They may live in any MD file but must exist somewhere.
+
+| Heuristic | Must Survive Refactor | Canonical Location | Verification |
+|-----------|---------------------|-------------------|--------------|
+| Fail-closed default (missing evidence = block) | Yes | master.md | Semantic present |
+| Evidence-based reasoning requirement | Yes | master.md/rules.md | Semantic present |
+| Scope lock enforcement | Yes | rules.md | Semantic present |
+| Repo-first persistence | Yes | master.md | Semantic present |
+| Stack-agnostic approach | Yes | master.md | Semantic present |
+| Priority-based conflict resolution | Yes | master.md | Semantic present |
+| Phase gating for code production | Yes | master.md | Semantic present |
+| No fabrication / no hallucination | Yes | rules.md | Semantic present |
+| Evidence ladder (build > code > tests > docs > ticket) | Yes | rules.md | Semantic present |
+| Component scope for monorepos | Yes | rules.md | Semantic present |
+| Profile detection with fallback | Yes | rules.md | Semantic present |
+| Ambiguity handling (don't guess) | Yes | rules.md | Semantic present |
+| Contract/Schema gate enforcement | Yes | rules.md | Semantic present |
+| Business rules gate (conditional) | Yes | rules.md | Semantic present |
+| Test coverage gate (conditional) | Yes | rules.md | Semantic present |
+| Blocking transparency | Yes | rules.md | Semantic present |
+| Bootstrap validation requirement | Yes | start.md | Semantic present |
+| Cold/Warm start distinction | Yes | start.md | Semantic present |
+| Blocked state recovery | Yes | start.md | Semantic present |
+| Kernel ownership boundary | Yes | start.md | Semantic present |
+
+---
+
+## 3. Regression Rules
+
+What must NOT happen:
+
+- [ ] Required contract missing entirely
+- [ ] Contract duplicated normatively across files
+- [ ] Kernel-owned logic reintroduced in MD files
+- [ ] Important heuristic removed without updating coverage matrix
+- [ ] Anchor shifted without test adjustment
+
+---
+
+## 4. Verification Methods
+
+| Method | Used For |
+|--------|----------|
+| Section present | Structural requirements |
+| Token present | Specific phrases/anchors |
+| Semantic present | Cognitive heuristics |
+| Anchor present | governance_lint.py anchors |
+| Reference present | Cross-file references |
+
+---
+
+## 5. Review Checklist
+
+Before merging any MD refactor:
+
+- [ ] All Required contracts still present (see Section 1)
+- [ ] All Cognitive heuristics preserved (see Section 2)
+- [ ] No Regression Rules triggered (see Section 3)
+- [ ] governance_lint.py passes
+- [ ] test_md_rails_coverage.py passes
+- [ ] Semantic review: Does the MD still "feel" complete?
 
 ---
 
 Last Updated: 2026-02-25
+Last Reviewer: [PR Author / Reviewer]
