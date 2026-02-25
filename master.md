@@ -504,9 +504,7 @@ This governance system is single-user and MUST NOT require repo-working-tree-loc
 **Lookup paths (informational):**
 1. Workspace-local override (optional, outside the repo): `${REPO_OVERRIDES_HOME}/rules.md`
 2. Global commands: `${COMMANDS_HOME}/rules.md`
-3. Global config: `${OPENCODE_HOME}/rules.md` (fallback)
-4. Global rules folder: `${OPENCODE_HOME}/rules/rules.md` (fallback)
-5. Context: manually provided (planning-only)
+3. Context: manually provided (planning-only)
 
 #### Step 1b (Phase 1.1): Resolve Top-Tier Index & Conflict Model (QUALITY_INDEX.md, CONFLICT_RESOLUTION.md)
 
@@ -524,9 +522,7 @@ Top-tier load evidence obligation (binding):
 **Reference lookup paths (informational):**
 1. Workspace-local override (optional, outside the repo): `${REPO_OVERRIDES_HOME}/<FILE>.md`
 2. Global commands: `${COMMANDS_HOME}/<FILE>.md`
-3. Global config: `${OPENCODE_HOME}/<FILE>.md` (fallback)
-4. Global rules folder: `${OPENCODE_HOME}/rules/<FILE>.md` (fallback)
-5. Context: manually provided (planning-only)
+3. Context: manually provided (planning-only)
 
 #### Step 2: Load Profile Rulebook (AUTO-DETECTION ADDED)
 
@@ -550,8 +546,6 @@ Search paths (informational):
 - `${REPO_OVERRIDES_HOME}/profiles/rules*.md`
 - `${COMMANDS_HOME}/rules*.md`
 - `${PROFILES_HOME}/rules*.md`
-- `${OPENCODE_HOME}/rules/rules*.md`
-- `${OPENCODE_HOME}/rules/profiles/rules*.md`
 
 When profile selection is ambiguous, kernel may emit `BLOCKED-AMBIGUOUS-PROFILE` with a ranked shortlist.
 
@@ -751,7 +745,7 @@ Binding rules:
 * Phase 1: Load rules (with AUTO-DETECTION)
 * Phase 2: Repository discovery
 * Phase 2.1: Decision Pack (default, non-gate; reduces cognitive load)
-* Phase 1.5: Business Rules Discovery (optional, requires Phase 2 evidence)
+* Phase 1.5: Business Rules Discovery (conditional, policy-driven from Phase 2.1 evidence)
 * Phase 3A: API inventory (external artifacts)
 * Phase 3B-1: API logical validation (spec-level)
 * Phase 3B-2: Contract validation (spec ↔ code)
@@ -766,9 +760,9 @@ Binding rules:
 
 Canonical flow (informational, kernel-enforced):
 - `0 -> 1 -> 2 -> 2.1`
-- After `2.1`: first resolve the Phase 1.5 decision (explicit request/explicit skip/A-B decision).
-- Once 1.5 is resolved: if APIs are in scope, run `3A -> 3B-1 -> 3B-2`; otherwise go to `4`.
-- `1.5` is optional and user-approved; when executed, it runs after `2.1` and before `4`.
+- After `2.1`: kernel resolves Phase 1.5 policy from evidence and runs `1.5` automatically when required.
+- Once Phase 1.5 policy is resolved: if APIs are in scope, run `3A -> 3B-1 -> 3B-2`; otherwise go to `4`.
+- `1.5` is not a pre-Phase-4 operator prompt branch; it is deterministic from Phase 2.1 evidence.
 - If `1.5` executes and APIs are in scope, continue `1.5 -> 3A`; if no APIs are in scope, continue `1.5 -> 4`.
 - Re-entry path: if current phase is `3A`/`3B-*`/`4`/`5*` and operator explicitly requests `Reopen Phase 1.5`, transition back to `1.5-BusinessRules`.
 - Re-entry is explicit-only (never implicit). After re-entry execution, `P5.4-BusinessRules` is rerun before readiness can be asserted.
@@ -2069,7 +2063,7 @@ OpenCode persistence lifecycle (Binding when OpenCode DecisionPack file is used)
   - optional lifecycle links: `Supersedes:` / `SupersededBy:`
   as defined in `rules.md` (Decision Pack File rule).
 
-- Unless Phase 1.5 was already explicitly requested or explicitly skipped, include an automatic policy record:
+- Unless Phase 1.5 was already executed for the current decision context, include an automatic policy record:
   "Apply Phase 1.5 Business Rules bootstrap policy" (automatic).
 - The policy statement MUST be evidence-backed; use the recommendation triggers from Phase 1.5.
 - If there are no meaningful decisions yet, output: "Decision Pack: none (no material choices identified)".
@@ -2085,8 +2079,8 @@ D-001: <policy or decision one-liner>
 
 [/PHASE-2.1-DECISION-PACK]
   
-Proceeding to next phase per Phase 2.1 exit rules (resolve Phase 1.5 first, then API-scope routing).
-(Phase 1.5 runs only if explicitly requested or user-approved via the Phase 2.1 A/B decision.)
+Proceeding to next phase per Phase 2.1 exit rules (resolve Phase 1.5 policy first, then API-scope routing).
+(Phase 1.5 runs automatically when required by evidence policy, including missing business-rules inventory.)
 ```
 
 #### Persist Decision Pack (Kernel-Enforced, Mandatory After Phase 2.1)
@@ -2135,27 +2129,22 @@ If file writing is not possible in the current environment:
 
 **Phase 2 exit conditions:**
 * Success: Repository scanned, findings documented → Proceed to **Phase 2.1 (Decision Pack)** by default, then:
-  - If Phase 1.5 is explicitly requested → run Phase 1.5
-  - Else if Phase 1.5 is explicitly skipped (`"Skip business-rules discovery"` or `"This is a pure CRUD project"`) → continue by API scope:
+  - Decision Pack includes: "Apply Phase 1.5 Business Rules bootstrap policy" (automatic)
+  - Run Phase 1.5 automatically when business-rules inventory is missing or policy resolves `execute`
+  - Continue by API scope:
     - external API artifacts exist → Phase 3A
     - otherwise → Phase 3A (auto-not-applicable path allowed) then continue to Phase 3B routing
-  - Else:
-    - Decision Pack includes: "Apply Phase 1.5 Business Rules bootstrap policy" (automatic)
-    - Run Phase 1.5 automatically when business-rules inventory is missing
-    - Continue by API scope:
-      - external API artifacts exist → Phase 3A
-      - otherwise → Phase 3A (auto-not-applicable path allowed) then continue to Phase 3B routing
 * Failure: Repository not accessible, extraction failed → Mode: BLOCKED
 
 ---
 
-### PHASE 1.5 — Business Rules Discovery (Optional)
+### PHASE 1.5 — Business Rules Discovery (Conditional)
 
 **When to execute:**
-* Explicit user request: "Extract business rules first"
+* Deterministic policy run from Phase 2.1 evidence.
 * Explicit later-phase re-entry request: "Reopen Phase 1.5"
-* Default: auto-run only when required by deterministic policy.
-  - Unless explicitly requested or explicitly skipped, Phase 2.1 applies automatic bootstrap policy:
+* Default: auto-run when required by deterministic policy.
+  - Phase 2.1 applies automatic bootstrap policy:
     "Apply Phase 1.5 Business Rules bootstrap policy"
   - Execute Phase 1.5 automatically when business-rules inventory is missing.
 * **Recommendation trigger (non-blocking):** Recommend executing Phase 1.5 if Phase 2 evidence indicates any of:
@@ -2165,8 +2154,7 @@ If file writing is not possible in the current environment:
   - frequent “magic constants” / hard-coded rule branches in core workflows
 
 **When NOT to execute:**
-* "Skip business-rules discovery"
-* "This is a pure CRUD project"
+* Kernel policy resolves `skip` from Phase 2.1 evidence.
 
 Re-entry from later phases (informational):
 * From `3A`/`3B-*`/`4`/`5*`, Phase 1.5 executes only on explicit operator request (kernel-enforced).
