@@ -50,7 +50,7 @@ def test_start_persistence_hook_commits_fingerprint_and_artifacts(tmp_path: Path
     _set_home(monkeypatch, home)
 
     monkeypatch.delenv("CI", raising=False)
-    monkeypatch.delenv("OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY", raising=False)
+    monkeypatch.delenv("OPENCODE_FORCE_READ_ONLY", raising=False)
 
     repo_root = tmp_path / "repo"
     _init_git_repo(repo_root)

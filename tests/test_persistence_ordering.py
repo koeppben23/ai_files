@@ -104,7 +104,7 @@ def test_session_state_template_includes_persistence_fields() -> None:
 
 
 def test_start_persistence_hook_blocked_when_writes_not_allowed(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY", "1")
+    monkeypatch.setenv("OPENCODE_FORCE_READ_ONLY", "1")
     monkeypatch.delenv("CI", raising=False)
 
     import importlib

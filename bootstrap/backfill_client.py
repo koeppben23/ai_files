@@ -65,8 +65,7 @@ def run_backfill_subprocess(
     if env:
         run_env.update(env)
     
-    if run_env.get("OPENCODE_DIAGNOSTICS_ALLOW_WRITE") != "1":
-        run_env["OPENCODE_DIAGNOSTICS_ALLOW_WRITE"] = "1"
+    run_env.pop("OPENCODE_FORCE_READ_ONLY", None)
     
     result = subprocess.run(
         cmd,

@@ -41,8 +41,8 @@
     },
     "BLOCKED-WORKSPACE-PERSISTENCE": {
       "summary": "Workspace persistence blocked",
-      "how_to_fix": "Check OPENCODE_DIAGNOSTICS_ALLOW_WRITE=1 is set for local runs. In CI, writes are disabled by default.",
-      "copy_paste_command": "export OPENCODE_DIAGNOSTICS_ALLOW_WRITE=1",
+      "how_to_fix": "Unset OPENCODE_FORCE_READ_ONLY and verify write permissions for commands/workspaces paths.",
+      "copy_paste_command": "unset OPENCODE_FORCE_READ_ONLY",
       "docs_link": "master.md#persistence"
     },
     "BLOCKED-REPO-IDENTITY-MISMATCH": {

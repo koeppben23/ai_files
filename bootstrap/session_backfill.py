@@ -50,7 +50,7 @@ def run_workspace_artifact_backfill(
 
     env = os.environ.copy()
     if writes_allowed:
-        env["OPENCODE_DIAGNOSTICS_ALLOW_WRITE"] = "1"
+        env.pop("OPENCODE_FORCE_READ_ONLY", None)
 
     summary_obj = run_backfill_subprocess(
         repo_fingerprint=repo_fingerprint,
