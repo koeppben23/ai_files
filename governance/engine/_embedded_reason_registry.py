@@ -54,6 +54,7 @@ EMBEDDED_REASON_CODE_TO_SCHEMA_REF: Final[dict[str, str]] = {
     "BLOCKED-INVALID-NEXT-ACTION": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
     "BLOCKED-GOLDEN-BASELINE-MODIFIED-IN-PR": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
     "BLOCKED-Phase2-RepoDiscovery": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
+    "BLOCKED-2-REPO-DISCOVERY": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
     "BLOCKED-R": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
     "BLOCKED-P5-3-TEST-QUALITY-GATE": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
     "BLOCKED-P5-4-BUSINESS-RULES-GATE": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
