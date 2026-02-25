@@ -179,5 +179,42 @@ All MD files reviewed against MD_RAILS_COVERAGE_MATRIX. No required contracts lo
 
 ---
 
+## A/B Verification Guide
+
+For verifying MD refactors don't break behavior, run representative cases against both old and new MD versions.
+
+### Test Cases
+
+| Case | Input | Compare |
+|------|-------|---------|
+| /start without binding | No governance.paths.json | Blocked reason, missing_evidence, recovery_steps |
+| /start with valid binding | Valid governance.paths.json | Start mode (Cold/Warm), phase, next_action |
+| Missing required addon | Addon with addon_class=required not present | Blocked, reason_code |
+| Missing advisory addon | Addon with addon_class=advisory not present | Warning, recovery offered |
+| Ticket unclear scope | Ticket without Component Scope | Blocked or clarification prompt |
+| Ticket clear scope | Ticket with Java/Spring/Kafka signals | Profile detected, scope locked |
+| Resume with unchanged repo | Resume after Phase 3 | Same phase, same evidence |
+| Resume with new evidence | Resume with new artifact signals | Re-evaluation triggered |
+
+### Expected Equal Outputs
+
+- Phase
+- ActiveGate
+- Blocked/Not blocked status
+- reason_code
+- Addon decisions
+- NextAction
+- SESSION_STATE core fields
+
+### If Outputs Differ
+
+1. Check if new output is an improvement (clearer recovery, better next action)
+2. If worse: identify which contract/heuristic was lost
+3. Update matrix or restore missing guidance
+
+This A/B check is the strongest proof that refactoring only removed redundancy, not functionality.
+
+---
+
 Last Updated: 2026-02-25
 Last Reviewer: [PR Author / Reviewer]
