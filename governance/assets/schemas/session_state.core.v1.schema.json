@@ -36,7 +36,7 @@
         "ruleset_hash": {
           "type": ["string", "null"],
           "minLength": 1,
-          "description": "Hash of the active ruleset digest; null until ruleset activation is complete"
+          "description": "Hash of the active ruleset digest; null until activation computes it"
         },
         "Phase": {
           "type": "string",
@@ -135,7 +135,7 @@
         },
         "ActiveProfile": {
           "type": ["string", "null"],
-          "description": "Active profile name or null when not selected"
+          "description": "Active profile name or null when profile is not selected"
         },
         "ProfileSource": {
           "type": ["string", "null"],
