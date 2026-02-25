@@ -1092,9 +1092,9 @@ The user may then:
 
 ### 2.4 Silent Transition (Default at Session Start)
 
-At the initial session start (when the user runs `/master` or equivalent),
+At the initial session start (when the user runs `/start`),
 the workflow begins Phase 1 **silently** (without requesting confirmation)
-and proceeds according to the Hybrid Mode rules in Section 2.2.
+and proceeds according to the Hybrid Mode rules in Section 2.2 until the first valid user-facing stop.
 
 This means:
 * Phase 1 (Load rules) is executed immediately
@@ -1116,10 +1116,12 @@ Rules:
 ### 2.4.2 Architect-Only Autopilot Lifecycle (Policy)
 
 Operator lifecycle (canonical):
-1) `/start` -> bootstrap/path contract + workspace persistence checks
-2) `/master` -> architecture/design phase (decision-first)
-3) `Implement now` (optional scope) -> implementation mode
-4) `Ingest evidence` -> verification mode (claim upgrade/reject)
+1) `/start` -> bootstrap/path contract + automatic phase progression to first user stop (typically Phase 4)
+2) `Implement now` (optional scope) -> implementation mode
+3) `Ingest evidence` -> verification mode (claim upgrade/reject)
+
+Compatibility note:
+- `/master` MAY exist as an optional compatibility alias, but it MUST NOT be required after `/start`.
 
 `/start` invocation guard (binding):
 - If `start.md` is present due command injection, `/start` is already invoked for this turn.
@@ -1128,7 +1130,7 @@ Operator lifecycle (canonical):
 
 Execution mode enum (binding):
 - `SESSION_STATE.OutputMode`: `ARCHITECT | IMPLEMENT | VERIFY`
-- Default after `/master` is `ARCHITECT`.
+- Default after successful `/start` progression is `ARCHITECT`.
 
 Mode constraints:
 - `ARCHITECT`:
@@ -1140,7 +1142,7 @@ Mode constraints:
   - Only evidence reconciliation/claim status updates; no new implementation proposals unless explicitly requested.
 
 Start-order gate (binding):
-- If `/master` is invoked before `/start` evidence/bootstrap is established for the current repo, kernel may emit `BLOCKED-START-REQUIRED`.
+- If any governance command is invoked before `/start` evidence/bootstrap is established for the current repo, kernel may emit `BLOCKED-START-REQUIRED`.
 - Required recovery command: `/start`.
 
 ### 2.5 Default Decision Policies (DDP) — Reduce Cognitive Load (Policy)
@@ -1391,7 +1393,7 @@ Repo root defaulting behavior (informational):
 #### Load Existing Repo Cache (Kernel-Managed, Cache-First)
 
 Goal:
-- Skip full Phase 2 discovery for repeated `/master` sessions on the same repo.
+- Skip full Phase 2 discovery for repeated `/start` sessions on the same repo.
 - Use a deterministic, structured cache that is faster than parsing long digest markdown.
 
 Order of precedence (Kernel-Enforced):

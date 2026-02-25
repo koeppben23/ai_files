@@ -92,9 +92,12 @@ def test_end_to_end_bootstrap_integration(tmp_path):
     data = json.loads(final_state)
     st = data.get("SESSION_STATE", {})
     assert st.get("Phase") == "1.2-ActivationIntent"
-    assert st.get("Next") == "P2-RepoDiscovery-ready"
+    assert st.get("Next") == "1.3"
     assert st.get("Bootstrap", {}).get("Present") is True
     assert st.get("Bootstrap", {}).get("Satisfied") is True
+    assert st.get("Intent", {}).get("Path") == "${CONFIG_ROOT}/governance.activation_intent.json"
+    assert isinstance(st.get("Intent", {}).get("Sha256"), str)
+    assert st.get("Intent", {}).get("EffectiveScope") == "full"
 
     # Pointer content
     pointer_text = fs.read_text(pointer_file)

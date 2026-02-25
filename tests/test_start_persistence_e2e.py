@@ -89,7 +89,7 @@ def _materialize_commands_bundle_from_checkout(*, checkout_root: Path, commands_
         src = checkout_root / dirname
         if src.exists():
             shutil.copytree(src, commands_home / dirname, dirs_exist_ok=True)
-    for filename in ("master.md", "rules.md", "QUALITY_INDEX.md", "CONFLICT_RESOLUTION.md"):
+    for filename in ("master.md", "rules.md", "QUALITY_INDEX.md", "CONFLICT_RESOLUTION.md", "phase_api.yaml"):
         src = checkout_root / filename
         if src.exists():
             shutil.copy2(src, commands_home / filename)
@@ -168,6 +168,22 @@ def test_start_preflight_persists_workspace_and_pointer(tmp_path: Path) -> None:
     assert ss.get("RepoFingerprint") == repo_fp
     assert ss.get("PersistenceCommitted") is True
     assert ss.get("WorkspaceReadyGateCommitted") is True
+    assert ss.get("Phase") != "1.2-ActivationIntent"
+    assert ss.get("LoadedRulebooks", {}).get("core")
+    assert ss.get("RulebookLoadEvidence", {}).get("core")
+    assert ss.get("RepoDiscovery", {}).get("Completed") is True
+    assert ss.get("DecisionPack", {}).get("FilePath") == "${REPO_DECISION_PACK_FILE}"
+
+    phase = str(ss.get("Phase") or "")
+    phase_token = phase.split("-", 1)[0]
+    assert phase_token in {"4", "3B-1", "3B-2"}
+
+    next_gate_condition = str(ss.get("next_gate_condition") or "")
+    assert "/master" not in next_gate_condition.lower()
+
+    continuation_payload = next((p for p in payloads if isinstance(p, dict) and "kernelContinuation" in p), None)
+    assert continuation_payload is not None, proc.stdout
+    assert continuation_payload.get("kernelContinuation") == "ok"
 
     assert (config_root / "SESSION_STATE.json").exists()
 

@@ -17,8 +17,11 @@ def test_bootstrap_payload_pointer_verified_true_golden():
     s = cast(dict[str, Any], state["SESSION_STATE"])
     assert s["Phase"] == "1.2-ActivationIntent"
     assert s["Mode"] == "IN_PROGRESS"
-    assert s["Next"] == "P2-RepoDiscovery-ready"
+    assert s["Next"] == "1.3"
     assert s["ActivationIntent"]["Status"] == "valid"
+    assert s["Intent"]["Path"] == ""
+    assert s["Intent"]["Sha256"] == ""
+    assert s["Intent"]["EffectiveScope"] == "unknown"
     assert s["Bootstrap"]["Present"] is True
     assert s["Bootstrap"]["Satisfied"] is True
     assert s["Bootstrap"]["Evidence"] == "bootstrap-completed"

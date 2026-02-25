@@ -230,7 +230,7 @@ Canonical order on conflict:
 
 **SSOT Clarification (Binding):**
 
-`master.md` refers to the **engine master policy** in `${COMMANDS_HOME}/config/master.md` (commands/config SSOT), NOT repository documentation. Repository files named `master.md` are governance documents and follow standard repo-doc precedence (rung 5 in Evidence Ladder), NOT engine policy precedence.
+`master.md` refers to the **engine master policy** in `${COMMANDS_HOME}/master.md` (commands SSOT), NOT repository documentation. Repository files named `master.md` are governance documents and follow standard repo-doc precedence (rung 5 in Evidence Ladder), NOT engine policy precedence.
 
 This prevents SSOT leaks where someone might argue "repo master.md overrides kernel."
 
@@ -772,15 +772,18 @@ Reason-code quick-fix template catalog (recommended):
 
 Canonical operator lifecycle:
 1) `/start`
-2) `/master` (default design mode)
+2) automatic kernel progression to first valid user-facing stop
 3) `Implement now` (optional scope)
 4) `Ingest evidence`
+
+Compatibility note:
+- `/master` MAY be supported as an optional alias, but MUST NOT be a required step after `/start`.
 
 Output mode enum (binding):
 - `SESSION_STATE.OutputMode`: `ARCHITECT | IMPLEMENT | VERIFY`
 
 Rules:
-- `/master` before valid `/start` bootstrap evidence may produce `BLOCKED-START-REQUIRED` with `QuickFixCommands: ["/start"]`.
+- Any governance command before valid `/start` bootstrap evidence may produce `BLOCKED-START-REQUIRED` with `QuickFixCommands: ["/start"]`.
 - `ARCHITECT` mode is default and decision-first; no full code diff output.
 - `IMPLEMENT` mode requires explicit operator trigger (`Implement now`).
 - `VERIFY` mode is evidence reconciliation only.
