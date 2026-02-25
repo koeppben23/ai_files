@@ -89,7 +89,7 @@ def session_state_template(repo_fingerprint: str, repo_name: str | None) -> dict
                 "addons": {},
             },
             "ActiveProfile": "",
-            "ProfileSource": "deferred",
+            "ProfileSource": "",
             "ProfileEvidence": "",
             "Gates": {
                 "P5-Architecture": "pending",

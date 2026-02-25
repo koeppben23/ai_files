@@ -100,7 +100,7 @@ except Exception:
                     "addons": {},
                 },
                 "ActiveProfile": "",
-                "ProfileSource": "deferred",
+                "ProfileSource": "",
                 "ProfileEvidence": "",
                 "Gates": {
                     "P5-Architecture": "pending",
