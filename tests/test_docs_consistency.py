@@ -6,6 +6,16 @@ import re
 
 DOC_FILES = [
     "master.md",
+    "governance/assets/catalogs/audit.md",
+    "docs/phases.md",
+    "docs/governance_invariants.md",
+    "docs/CLEANUP_ANALYSIS.md",
+    "QUICKSTART.md",
+    "SESSION_STATE_SCHEMA.md",
+]
+
+REQUIRED_PHRASE_DOCS = [
+    "master.md",
     "docs/phases.md",
     "docs/governance_invariants.md",
     "docs/CLEANUP_ANALYSIS.md",
@@ -30,6 +40,8 @@ FORBIDDEN_PATTERNS = [
     re.compile(r"deferred to post-phase-2", re.IGNORECASE),
     re.compile(r"phase_execution_config\.yaml", re.IGNORECASE),
     re.compile(r"OPENCODE_DIAGNOSTICS_ALLOW_WRITE", re.IGNORECASE),
+    re.compile(r"active gates.*master\.md\s*\+\s*rules\.md", re.IGNORECASE),
+    re.compile(r"authoritative and active", re.IGNORECASE),
 ]
 
 REQUIRED_PHRASES = [
@@ -53,7 +65,7 @@ def test_docs_forbidden_phrases_absent() -> None:
 
 def test_docs_ssot_clarification_present() -> None:
     root = Path(__file__).resolve().parents[1]
-    for rel in DOC_FILES:
+    for rel in REQUIRED_PHRASE_DOCS:
         text = (root / rel).read_text(encoding="utf-8")
         for phrase in REQUIRED_PHRASES:
             assert phrase in text, f"missing required SSOT phrase in {rel}: {phrase}"

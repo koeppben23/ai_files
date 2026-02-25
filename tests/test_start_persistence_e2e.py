@@ -74,7 +74,7 @@ def _write_governance_paths(commands_home: Path, workspaces_home: Path, config_r
             "profilesHome": str(commands_home / "profiles"),
             "governanceHome": str(commands_home / "governance"),
             "workspacesHome": str(workspaces_home),
-            "globalErrorLogsHome": str(config_root / "logs"),
+            "globalErrorLogsHome": str(commands_home / "logs"),
             "workspaceErrorLogsHomeTemplate": str(workspaces_home / "<repo_fingerprint>" / "logs"),
             "pythonCommand": sys.executable,
         },
