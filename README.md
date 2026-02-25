@@ -42,7 +42,7 @@ Note: installer-owned path binding evidence is written to `<config_root>/command
 
 ## Support Matrix
 
-- Operating systems: macOS, Linux, Windows (path resolution is defined in `master.md` and installation layout examples in `docs/install-layout.md`).
+- Operating systems: macOS, Linux, Windows (path resolution is defined by installer binding + kernel loaders; examples in `docs/install-layout.md`).
 - Runtime requirements: `${PYTHON_COMMAND}` for installer/governance helpers; `git` is recommended and required by identity-gated workflows.
 - Frontend surfaces: OpenCode (`/start`, `/continue`, `/resume`, `/audit`) and Codex-style frontend surfaces via `AGENTS.md` mirror semantics.
 
