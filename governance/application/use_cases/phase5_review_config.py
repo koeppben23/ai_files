@@ -29,9 +29,6 @@ class ConfigPathResolver(Protocol):
     def resolve_config_path(self) -> Path | None:
         ...
 
-    def allow_repo_local_fallback(self) -> bool:
-        ...
-
     def operating_mode(self) -> str:
         ...
 
@@ -189,15 +186,6 @@ class Phase5ReviewConfig:
 _CONFIG_CACHE: Phase5ReviewConfig | None = None
 
 
-def _get_repo_local_config_path() -> Path:
-    parts = Path(__file__).parts
-    if "governance" in parts:
-        gov_idx = parts.index("governance")
-        repo_root = Path(*parts[:gov_idx])
-        return repo_root / "governance" / "assets" / "config" / "phase5_review_config.yaml"
-    return Path(__file__).parent.parent.parent.parent / "governance" / "assets" / "config" / "phase5_review_config.yaml"
-
-
 def load_phase5_review_config(*, force_reload: bool = False) -> Phase5ReviewConfig:
     """Load policy-bound phase5 config (fail-closed)."""
     global _CONFIG_CACHE
@@ -209,7 +197,6 @@ def load_phase5_review_config(*, force_reload: bool = False) -> Phase5ReviewConf
     if _default_resolver is not None:
         config_path = _default_resolver.resolve_config_path()
 
-    allow_repo_local = False
     effective_mode = "user"
     if _default_resolver is not None and hasattr(_default_resolver, "operating_mode"):
         try:
@@ -217,24 +204,13 @@ def load_phase5_review_config(*, force_reload: bool = False) -> Phase5ReviewConf
         except Exception:
             effective_mode = "user"
 
-    if effective_mode != "pipeline" and _default_resolver is not None and hasattr(_default_resolver, "allow_repo_local_fallback"):
-        allow_repo_local = _default_resolver.allow_repo_local_fallback()
-
     if config_path is None:
-        if allow_repo_local:
-            config_path = _get_repo_local_config_path()
-        else:
-            hint = (
-                "Pipeline mode disallows repo-local fallback. "
-                if effective_mode == "pipeline"
-                else "Set OPENCODE_ALLOW_REPO_LOCAL_CONFIG=1 for dev/test environments. "
-            )
-            raise PolicyConfigError(
-                "Policy-bound config not resolved via canonical root. "
-                + hint
-                +
-                "Reason: BLOCKED-ENGINE-SELFCHECK"
-            )
+        hint = "Pipeline mode requires binding evidence. " if effective_mode == "pipeline" else "Binding evidence missing. "
+        raise PolicyConfigError(
+            "Policy-bound config not resolved via canonical root. "
+            + hint
+            + "Reason: BLOCKED-ENGINE-SELFCHECK"
+        )
 
     if not config_path.exists():
         raise PolicyConfigError(

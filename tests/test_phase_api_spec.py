@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -60,6 +61,13 @@ phases:
 
 
 def test_load_phase_api_requires_binding_when_commands_home_omitted(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delenv("OPENCODE_PHASE_API_REPO_FALLBACK_FOR_TESTS", raising=False)
+    from governance.kernel import phase_api_spec as module
+
+    class _Resolver:
+        def resolve(self, *, mode: str = "kernel"):
+            _ = mode
+            return SimpleNamespace(binding_ok=False, commands_home=None, issues=["binding.file.missing"])
+
+    monkeypatch.setattr(module, "BindingEvidenceResolver", _Resolver)
     with pytest.raises(PhaseApiSpecError):
         load_phase_api()

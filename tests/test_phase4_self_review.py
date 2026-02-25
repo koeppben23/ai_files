@@ -365,19 +365,10 @@ class TestPipelineHardBlocks:
 class TestPolicyBoundConfigLoading:
     """Tests for policy-bound config fail-closed behavior."""
 
-    def test_missing_config_raises_policy_error(self, tmp_path, monkeypatch):
+    def test_missing_config_raises_policy_error(self, tmp_path):
         """When policy-bound config is missing, raise PolicyConfigError."""
         from governance.application.use_cases import phase4_self_review
-        
-        # Mock the repo-local path to non-existent location
-        def fake_repo_local_path():
-            return tmp_path / "nonexistent" / "config.yaml"
-        
-        monkeypatch.setattr(
-            phase4_self_review,
-            "_get_repo_local_config_path",
-            fake_repo_local_path
-        )
+
         phase4_self_review._CONFIG_CACHE = None  # Clear cache
         phase4_self_review._default_resolver = None  # No resolver configured
         
@@ -386,7 +377,7 @@ class TestPolicyBoundConfigLoading:
         
         assert "BLOCKED-ENGINE-SELFCHECK" in str(exc_info.value)
 
-    def test_config_without_pack_locked_raises_error(self, tmp_path, monkeypatch):
+    def test_config_without_pack_locked_raises_error(self, tmp_path):
         """Config must have pack_locked=true."""
         from governance.application.use_cases import phase4_self_review
         
@@ -400,23 +391,14 @@ rigor_levels:
 """
         config_path = tmp_path / "config.yaml"
         config_path.write_text(config_content)
-        
-        def fake_repo_local_path():
-            return config_path
-        
-        monkeypatch.setattr(
-            phase4_self_review,
-            "_get_repo_local_config_path",
-            fake_repo_local_path
-        )
+
         phase4_self_review._CONFIG_CACHE = None
-        
-        # Create a test resolver that allows repo-local fallback
+
         class TestResolver:
             def resolve_config_path(self):
-                return None  # No canonical path
-            def allow_repo_local_fallback(self):
-                return True  # Allow repo-local for tests
+                return config_path
+            def operating_mode(self):
+                return "user"
         
         phase4_self_review.set_config_path_resolver(TestResolver())
         
@@ -425,7 +407,7 @@ rigor_levels:
         
         assert "pack_locked" in str(exc_info.value)
 
-    def test_config_with_wrong_precedence_raises_error(self, tmp_path, monkeypatch):
+    def test_config_with_wrong_precedence_raises_error(self, tmp_path):
         """Config must have correct precedence_level."""
         from governance.application.use_cases import phase4_self_review
         
@@ -439,23 +421,14 @@ rigor_levels:
 """
         config_path = tmp_path / "config.yaml"
         config_path.write_text(config_content)
-        
-        def fake_repo_local_path():
-            return config_path
-        
-        monkeypatch.setattr(
-            phase4_self_review,
-            "_get_repo_local_config_path",
-            fake_repo_local_path
-        )
+
         phase4_self_review._CONFIG_CACHE = None
-        
-        # Create a test resolver that allows repo-local fallback
+
         class TestResolver:
             def resolve_config_path(self):
-                return None  # No canonical path
-            def allow_repo_local_fallback(self):
-                return True  # Allow repo-local for tests
+                return config_path
+            def operating_mode(self):
+                return "user"
         
         phase4_self_review.set_config_path_resolver(TestResolver())
         
@@ -464,7 +437,7 @@ rigor_levels:
         
         assert "precedence_level" in str(exc_info.value)
 
-    def test_valid_config_loads_successfully(self, tmp_path, monkeypatch):
+    def test_valid_config_loads_successfully(self, tmp_path):
         """Valid policy-bound config loads without error."""
         from governance.application.use_cases import phase4_self_review
         
@@ -504,23 +477,14 @@ critical_issue_types:
 """
         config_path = tmp_path / "config.yaml"
         config_path.write_text(config_content)
-        
-        def fake_repo_local_path():
-            return config_path
-        
-        monkeypatch.setattr(
-            phase4_self_review,
-            "_get_repo_local_config_path",
-            fake_repo_local_path
-        )
+
         phase4_self_review._CONFIG_CACHE = None
-        
-        # Create a test resolver that allows repo-local fallback
+
         class TestResolver:
             def resolve_config_path(self):
-                return None  # No canonical path
-            def allow_repo_local_fallback(self):
-                return True  # Allow repo-local for tests
+                return config_path
+            def operating_mode(self):
+                return "user"
         
         phase4_self_review.set_config_path_resolver(TestResolver())
         
