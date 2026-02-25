@@ -154,7 +154,7 @@ Output requirements:
 - Across lifecycle transitions, `session_run_id` and `ruleset_hash` remain stable unless explicit rehydrate/reload is performed (kernel-enforced).
 - Every phase/mode transition records a unique `transition_id` diagnostic entry (kernel-enforced).
 - On phase/mode changes, response SHOULD include a compact transition line: `[TRANSITION] <from> -> <to> | reason: <short reason>`.
-- At session start, include `[START-MODE] Cold Start | Warm Start - reason: ...` based on discovery artifact validity evidence.
+- At session start, include exactly one banner based on discovery artifact validity evidence: `[START-MODE] Cold Start - reason: ...` or `[START-MODE] Warm Start - reason: ...`.
 - Include `[SNAPSHOT]` block (`Confidence`, `Risk`, `Scope`) with values aligned to current `SESSION_STATE`.
 - If blocked, include `QuickFixCommands` with 1-3 copy-paste commands (or `["none"]` if not command-driven) when host constraints allow.
 - When `QuickFixCommands` are emitted, `/start` SHOULD label primary command confidence as `safe` or `review-first`.

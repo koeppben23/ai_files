@@ -34,9 +34,9 @@
           "description": "Schema version for migration compatibility"
         },
         "ruleset_hash": {
-          "type": "string",
+          "type": ["string", "null"],
           "minLength": 1,
-          "description": "Hash of the active ruleset digest"
+          "description": "Hash of the active ruleset digest; null until ruleset activation is complete"
         },
         "Phase": {
           "type": "string",
@@ -134,11 +134,11 @@
           "additionalProperties": true
         },
         "ActiveProfile": {
-          "type": "string",
-          "description": "Active profile name or empty string if deferred"
+          "type": ["string", "null"],
+          "description": "Active profile name or null when not selected"
         },
         "ProfileSource": {
-          "type": "string",
+          "type": ["string", "null"],
           "enum": [
             "user-explicit",
             "auto-detected-single",
@@ -147,11 +147,11 @@
             "component-scope-inferred",
             "component-scope-filtered",
             "ambiguous",
-            ""
+            null
           ]
         },
         "ProfileEvidence": {
-          "type": "string"
+          "type": ["string", "null"]
         },
         "Gates": {
           "type": "object",

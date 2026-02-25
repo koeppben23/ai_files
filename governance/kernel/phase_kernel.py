@@ -256,8 +256,10 @@ def _sanitize_ticket_progression(*, phase: str, next_gate_condition: str) -> str
 
 
 def _normalize_source(source: str) -> str:
-    if source in ("kernel", "spec-next"):
-        return source
+    if source == "kernel":
+        return "kernel"
+    if source == "spec-next" or source == "spec":
+        return "spec"
     if source in ("transition", "not_applicable"):
         return source
     if source.startswith("phase-"):
@@ -384,15 +386,16 @@ def _emit_phase_event(log_paths: Mapping[str, Path], event: dict[str, object]) -
     # Operational mirror/debug: flow.log.jsonl
     workspace_written = False
     workspace_path = log_paths.get("workspace_events")
+    workspace_flow = log_paths.get("workspace_flow")
     if workspace_path is not None:
         workspace_written = _append_event(workspace_path, event)
-        workspace_flow = log_paths.get("workspace_flow")
         if workspace_flow is not None:
             _append_event(workspace_flow, event)
 
     if workspace_written:
+        phase_flow_path = workspace_flow if workspace_flow is not None else workspace_path
         return True, {
-            "phase_flow": str(workspace_path),
+            "phase_flow": str(phase_flow_path),
             "workspace_events": str(workspace_path),
         }
 

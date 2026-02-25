@@ -54,7 +54,7 @@ _HARDCODED_FALLBACK_SCHEMA: dict[str, object] = {
             ],
             "properties": {
                 "session_state_version": {"type": "integer", "minimum": 1},
-                "ruleset_hash": {"type": "string", "minLength": 1},
+                "ruleset_hash": {"type": ["string", "null"], "minLength": 1},
                 "Phase": {
                     "type": "string",
                     "enum": [
@@ -108,15 +108,15 @@ _HARDCODED_FALLBACK_SCHEMA: dict[str, object] = {
                 },
                 "AddonsEvidence": {"type": "object", "additionalProperties": True},
                 "RulebookLoadEvidence": {"type": "object", "additionalProperties": True},
-                "ActiveProfile": {"type": "string"},
+                "ActiveProfile": {"type": ["string", "null"]},
                 "ProfileSource": {
-                    "type": "string",
+                    "type": ["string", "null"],
                     "enum": [
                         "user-explicit", "auto-detected-single", "repo-fallback",
-                        "deferred", "component-scope-inferred", "component-scope-filtered", "ambiguous",
+                        "deferred", "component-scope-inferred", "component-scope-filtered", "ambiguous", None,
                     ],
                 },
-                "ProfileEvidence": {"type": "string"},
+                "ProfileEvidence": {"type": ["string", "null"]},
                 "Gates": {
                     "type": "object",
                     "properties": {
