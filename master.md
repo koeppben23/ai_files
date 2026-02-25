@@ -3,6 +3,7 @@ description: "Operator guidance for governance phases 1-6"
 priority: highest
 ---
 
+# Governance-Version: 2.0.0
 # MASTER PROMPT
 
 This document defines the highest-priority AI guidance for the governance workflow.
