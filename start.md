@@ -173,6 +173,8 @@ Output requirements:
 - Governance PR summaries SHOULD also include `Reviewer focus` bullets for highest-risk contract deltas.
 
 This file is an AI-facing `/start` rail; runtime control remains kernel-owned.
+Binding boundary reference: `docs/governance/RESPONSIBILITY_BOUNDARY.md`.
+Rails mapping reference: `docs/governance/RAILS_REFACTOR_MAPPING.md`.
 
 ---
 

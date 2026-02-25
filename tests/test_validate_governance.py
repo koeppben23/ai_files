@@ -583,7 +583,7 @@ def test_session_state_versioning_and_migration_contract_is_defined():
     ]
     schema_required = [
         "`SESSION_STATE.session_state_version` (integer)",
-        "`SESSION_STATE.ruleset_hash` (string OR `null` until ruleset activation completes)",
+        "`SESSION_STATE.ruleset_hash` (string OR `null` until ruleset activation is computed)",
         "### Session-state versioning and migration (binding)",
         "`Next=BLOCKED-STATE-OUTDATED`",
         "`BLOCKED-STATE-OUTDATED`",
@@ -2997,6 +2997,38 @@ def test_cold_warm_start_banner_contract_is_defined_across_core_docs():
     assert not missing_master, "master.md missing start-mode banner tokens:\n" + "\n".join([f"- {m}" for m in missing_master])
     assert not missing_rules, "rules.md missing start-mode banner tokens:\n" + "\n".join([f"- {m}" for m in missing_rules])
     assert not missing_start, "start.md missing start-mode banner tokens:\n" + "\n".join([f"- {m}" for m in missing_start])
+
+
+@pytest.mark.governance
+def test_start_mode_mixed_phrase_is_absent_in_core_docs():
+    core_docs = [
+        REPO_ROOT / "master.md",
+        REPO_ROOT / "rules.md",
+        REPO_ROOT / "start.md",
+    ]
+    offenders: list[str] = []
+    needle = "Cold Start | Warm Start"
+    for doc in core_docs:
+        text = read_text(doc)
+        if needle in text:
+            offenders.append(str(doc.relative_to(REPO_ROOT)))
+
+    assert not offenders, "Mixed start-mode phrase must not appear in core docs:\n" + "\n".join([f"- {o}" for o in offenders])
+
+
+@pytest.mark.governance
+def test_governance_boundary_and_thematic_rails_docs_exist():
+    required = [
+        REPO_ROOT / "docs" / "governance" / "RESPONSIBILITY_BOUNDARY.md",
+        REPO_ROOT / "docs" / "governance" / "RAILS_REFACTOR_MAPPING.md",
+        REPO_ROOT / "docs" / "governance" / "rails" / "planning.md",
+        REPO_ROOT / "docs" / "governance" / "rails" / "implementation.md",
+        REPO_ROOT / "docs" / "governance" / "rails" / "testing.md",
+        REPO_ROOT / "docs" / "governance" / "rails" / "pr_review.md",
+        REPO_ROOT / "docs" / "governance" / "rails" / "failure_handling.md",
+    ]
+    missing = [str(p.relative_to(REPO_ROOT)) for p in required if not p.exists()]
+    assert not missing, "Missing governance boundary/thematic rails docs:\n" + "\n".join([f"- {m}" for m in missing])
 
 
 @pytest.mark.governance
