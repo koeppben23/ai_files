@@ -132,9 +132,18 @@ Before merging any MD refactor:
 - [ ] All Required contracts still present (see Section 1)
 - [ ] All Cognitive heuristics preserved (see Section 2)
 - [ ] No Regression Rules triggered (see Section 3)
-- [ ] governance_lint.py passes
-- [ ] MD rails coverage checks pass
+- [ ] governance_lint.py passes (see note below)
+- [ ] MD rails coverage checks pass (test_md_rails_coverage.py)
 - [ ] Semantic review: Is intended behavior and guidance preserved?
+
+**Note on governance_lint.py:** This linter was adapted to the reduced MD scope. Output-detail checks were moved to kernel/render layer. The linter now focuses on:
+- Priority order structure
+- Anchor presence (RULEBOOK-PRECEDENCE-POLICY, ADDON-CLASS-BEHAVIOR-POLICY)
+- Stability SLA references
+- Start evidence boundary tokens
+- Security/factory contracts
+
+See governance_lint.py lines 1330-1349 for commented-out output-detail checks.
 
 ---
 
@@ -171,8 +180,10 @@ Before merging any MD refactor:
 #### Regression Check
 - ✅ No required contracts missing
 - ✅ No kernel logic in wrong files
-- ✅ governance_lint.py passes
+- ✅ governance_lint.py passes (adapted to reduced scope)
 - ✅ test_md_rails_coverage.py passes (40/40)
+
+**Note:** governance_lint.py was adapted for the reduced MD scope. Output presentation details (NEXT-ACTION, blocker envelope, start banners, snapshots) are now kernel-owned. The linter verifies structural integrity and anchor presence rather than output formatting details.
 
 #### Conclusion
 All MD files reviewed against MD_RAILS_COVERAGE_MATRIX. No required contracts lost. Guidance strength maintained while reducing redundancy.
