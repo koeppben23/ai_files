@@ -2,7 +2,7 @@
 Technical Rulebook (Core) for AI-Assisted Development
 
 This document defines **stack-agnostic, non-negotiable** technical, quality, evidence, and output rules.
-Operational behavior (phases, session state, hybrid mode, priorities, gates) is defined in the **Master Prompt** (`master.md`).
+Operator guidance semantics (phases, session-state presentation, hybrid mode, priorities, gates) are described in the **Master Prompt** (`master.md`). Runtime routing and control-plane behavior are kernel-owned (`phase_api.yaml` + `governance/kernel/*`).
 Governance release stability is normatively defined by `STABILITY_SLA.md` and is release-blocking when unmet.
 
 State-machine alignment note:
@@ -11,7 +11,7 @@ State-machine alignment note:
 - If runtime behavior diverges from Core-Lite constraints in this file, runtime behavior must be corrected.
 
 This Core Rulebook is:
-- **secondary to the Master Prompt**
+- **secondary to the Master Prompt for AI guidance semantics**
 - **authoritative over tickets and repository documentation**, except where explicitly allowed (see “Repository Guidelines as Constraints”).
 
 Stack-/environment-specific rules (e.g., Java backend vs. frontend) are defined in **profile rulebooks**:
@@ -228,9 +228,13 @@ Canonical order on conflict:
 3) active profile rulebook
 4) activated addon rulebooks (including templates and shared governance add-ons)
 
+Scope note (binding):
+- This precedence order governs AI guidance text only.
+- Runtime routing/execution/validation precedence is controlled exclusively by `${COMMANDS_HOME}/phase_api.yaml` and `governance/kernel/*`.
+
 **SSOT Clarification (Binding):**
 
-`master.md` refers to the **engine master policy** in `${COMMANDS_HOME}/config/master.md` (commands/config SSOT), NOT repository documentation. Repository files named `master.md` are governance documents and follow standard repo-doc precedence (rung 5 in Evidence Ladder), NOT engine policy precedence.
+`master.md` refers to the **engine master policy** in `${COMMANDS_HOME}/master.md` (commands SSOT), NOT repository documentation. Repository files named `master.md` are governance documents and follow standard repo-doc precedence (rung 5 in Evidence Ladder), NOT engine policy precedence.
 
 This prevents SSOT leaks where someone might argue "repo master.md overrides kernel."
 
@@ -772,15 +776,19 @@ Reason-code quick-fix template catalog (recommended):
 
 Canonical operator lifecycle:
 1) `/start`
-2) `/master` (default design mode)
+2) automatic kernel progression to first valid user-facing stop
 3) `Implement now` (optional scope)
 4) `Ingest evidence`
+
+Compatibility note:
+- `/master` MAY be supported as an optional alias, but MUST NOT be a required step after `/start`.
 
 Output mode enum (binding):
 - `SESSION_STATE.OutputMode`: `ARCHITECT | IMPLEMENT | VERIFY`
 
 Rules:
-- `/master` before valid `/start` bootstrap evidence may produce `BLOCKED-START-REQUIRED` with `QuickFixCommands: ["/start"]`.
+- Any governance command before valid `/start` bootstrap evidence may produce `BLOCKED-START-REQUIRED` with `QuickFixCommands: ["/start"]`.
+- `/master` before valid `/start` bootstrap evidence may produce `BLOCKED-START-REQUIRED`.
 - `ARCHITECT` mode is default and decision-first; no full code diff output.
 - `IMPLEMENT` mode requires explicit operator trigger (`Implement now`).
 - `VERIFY` mode is evidence reconciliation only.

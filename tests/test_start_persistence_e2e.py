@@ -4,6 +4,7 @@ import json
 import os
 import shlex
 import shutil
+import site
 import subprocess
 import sys
 from pathlib import Path
@@ -49,6 +50,19 @@ def _assert_no_blocked_gate_failures(log_path: Path) -> None:
         assert "GATE_FAILURE" not in joined
 
 
+def _read_jsonl(path: Path) -> list[dict[str, object]]:
+    if not path.exists():
+        return []
+    rows: list[dict[str, object]] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        payload = json.loads(line)
+        if isinstance(payload, dict):
+            rows.append(payload)
+    return rows
+
+
 def _git_init_repo(repo: Path) -> None:
     repo.mkdir(parents=True, exist_ok=True)
     subprocess.run(["git", "init"], cwd=str(repo), check=True)
@@ -89,7 +103,7 @@ def _materialize_commands_bundle_from_checkout(*, checkout_root: Path, commands_
         src = checkout_root / dirname
         if src.exists():
             shutil.copytree(src, commands_home / dirname, dirs_exist_ok=True)
-    for filename in ("master.md", "rules.md", "QUALITY_INDEX.md", "CONFLICT_RESOLUTION.md"):
+    for filename in ("master.md", "rules.md", "QUALITY_INDEX.md", "CONFLICT_RESOLUTION.md", "phase_api.yaml"):
         src = checkout_root / filename
         if src.exists():
             shutil.copy2(src, commands_home / filename)
@@ -124,6 +138,11 @@ def test_start_preflight_persists_workspace_and_pointer(tmp_path: Path) -> None:
     env["USERPROFILE"] = str(home)
     env["CI"] = ""
     env.pop("OPENCODE_FORCE_READ_ONLY", None)
+    user_site = site.getusersitepackages()
+    if user_site:
+        env["PYTHONPATH"] = os.pathsep.join(
+            [part for part in (user_site, env.get("PYTHONPATH", "")) if part]
+        )
 
     start_script = commands_home / "governance" / "entrypoints" / "start_preflight_readonly.py"
     proc = _run([sys.executable, str(start_script)], cwd=repo, env=env)
@@ -168,6 +187,29 @@ def test_start_preflight_persists_workspace_and_pointer(tmp_path: Path) -> None:
     assert ss.get("RepoFingerprint") == repo_fp
     assert ss.get("PersistenceCommitted") is True
     assert ss.get("WorkspaceReadyGateCommitted") is True
+    assert ss.get("Phase") != "1.2-ActivationIntent"
+    assert ss.get("Phase") == "4"
+    assert ss.get("LoadedRulebooks", {}).get("core")
+    assert ss.get("RulebookLoadEvidence", {}).get("core")
+    assert ss.get("RepoDiscovery", {}).get("Completed") is True
+    assert ss.get("DecisionPack", {}).get("FilePath") == "${REPO_DECISION_PACK_FILE}"
+    assert ss.get("APIInventory", {}).get("Status") == "not-applicable"
+
+    events = _read_jsonl(workspace / "events.jsonl")
+    phase_tokens = [str(event.get("phase_token") or "") for event in events]
+    assert "2.1" in phase_tokens
+    assert "3A" in phase_tokens
+    assert any(str(event.get("next_token") or "") == "4" for event in events)
+
+    next_gate_condition = str(ss.get("next_gate_condition") or "")
+    assert "/master" not in next_gate_condition.lower()
+
+    continuation_payload = next((p for p in payloads if isinstance(p, dict) and "kernelContinuation" in p), None)
+    assert continuation_payload is not None, proc.stdout
+    assert continuation_payload.get("kernelContinuation") == "ok"
+    assert continuation_payload.get("auto_continuation") == "route_phase"
+    assert continuation_payload.get("route_phase_invoked") is True
+    assert continuation_payload.get("phase") == "4"
 
     assert (config_root / "SESSION_STATE.json").exists()
 
@@ -206,6 +248,11 @@ def test_start_preflight_blocks_when_force_read_only(tmp_path: Path) -> None:
     env["USERPROFILE"] = str(home)
     env["CI"] = ""
     env["OPENCODE_FORCE_READ_ONLY"] = "1"
+    user_site = site.getusersitepackages()
+    if user_site:
+        env["PYTHONPATH"] = os.pathsep.join(
+            [part for part in (user_site, env.get("PYTHONPATH", "")) if part]
+        )
 
     start_script = commands_home / "governance" / "entrypoints" / "start_preflight_readonly.py"
     proc = _run([sys.executable, str(start_script)], cwd=repo, env=env)
