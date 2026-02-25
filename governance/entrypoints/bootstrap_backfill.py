@@ -55,7 +55,7 @@ except Exception:
 
         env = os.environ.copy()
         if writes_allowed:
-            env["OPENCODE_DIAGNOSTICS_ALLOW_WRITE"] = "1"
+            env.pop("OPENCODE_FORCE_READ_ONLY", None)
 
         if run_backfill_subprocess is None:
             cmd = [

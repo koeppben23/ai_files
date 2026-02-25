@@ -36,13 +36,13 @@ class TestEnvironmentHandling:
 
     @pytest.mark.governance
     def test_writes_allowed_true_by_default(self, monkeypatch: pytest.MonkeyPatch):
-        monkeypatch.delenv("OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY", raising=False)
+        monkeypatch.delenv("OPENCODE_FORCE_READ_ONLY", raising=False)
         from governance.entrypoints.start_persistence_hook import _writes_allowed
         assert _writes_allowed() is True
 
     @pytest.mark.governance
     def test_writes_allowed_false_when_force_read_only_set(self, monkeypatch: pytest.MonkeyPatch):
-        monkeypatch.setenv("OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY", "1")
+        monkeypatch.setenv("OPENCODE_FORCE_READ_ONLY", "1")
         import importlib
         import governance.entrypoints.start_persistence_hook as mod
         importlib.reload(mod)
@@ -51,15 +51,14 @@ class TestEnvironmentHandling:
     @pytest.mark.governance
     def test_writes_allowed_true_when_ci_set(self, monkeypatch: pytest.MonkeyPatch):
         monkeypatch.setenv("CI", "true")
-        monkeypatch.delenv("OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY", raising=False)
+        monkeypatch.delenv("OPENCODE_FORCE_READ_ONLY", raising=False)
         from governance.entrypoints.start_persistence_hook import _writes_allowed
         assert _writes_allowed() is True
 
     @pytest.mark.governance
     def test_writes_allowed_ignores_allow_write_flag(self, monkeypatch: pytest.MonkeyPatch):
         monkeypatch.setenv("CI", "true")
-        monkeypatch.setenv("OPENCODE_DIAGNOSTICS_ALLOW_WRITE", "1")
-        monkeypatch.delenv("OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY", raising=False)
+        monkeypatch.delenv("OPENCODE_FORCE_READ_ONLY", raising=False)
         from governance.entrypoints.start_persistence_hook import _writes_allowed
         assert _writes_allowed() is True
 

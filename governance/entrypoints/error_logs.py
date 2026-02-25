@@ -7,14 +7,13 @@ if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).absolute().parents[2]))
 
 
-import os
 from pathlib import Path
 from typing import Any
 
 from governance.infrastructure.logging import error_logs as _impl
+from governance.entrypoints.write_policy import writes_allowed
 
 # Compatibility tokens retained for static contract checks:
-# OPENCODE_DIAGNOSTICS_ALLOW_WRITE", "0"
 # error.log.jsonl
 # reasonKey phase gate repoFingerprint DEFAULT_RETENTION_DAYS
 
@@ -22,13 +21,7 @@ DEFAULT_RETENTION_DAYS = 30
 
 
 def _read_only() -> bool:
-    if os.environ.get("OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY", "0") == "1":
-        return True
-    if os.environ.get("OPENCODE_DIAGNOSTICS_ALLOW_WRITE", "0") == "1":
-        return False
-    if os.environ.get("CI", "").strip().lower() in {"1", "true", "yes"}:
-        return False
-    return True
+    return not writes_allowed()
 
 
 def emit_error_event_ssot(**kwargs: Any) -> bool:

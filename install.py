@@ -39,11 +39,11 @@ from collections.abc import Callable
 from typing import Iterable
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-DIAGNOSTICS_SOURCE_DIR = SCRIPT_DIR / "governance"
+GOVERNANCE_SOURCE_DIR = SCRIPT_DIR / "governance"
 
 
 def _load_error_logger() -> Callable[..., object]:
-    helper = DIAGNOSTICS_SOURCE_DIR / "error_logs.py"
+    helper = GOVERNANCE_SOURCE_DIR / "entrypoints" / "error_logs.py"
     if not helper.exists():
         return lambda **kwargs: {"status": "log-disabled"}
 
@@ -100,7 +100,7 @@ CUSTOMER_SCRIPT_CATALOG_REL = Path("governance/assets/catalogs/CUSTOMER_SCRIPT_C
 CUSTOMER_SCRIPT_CATALOG_SCHEMA = "governance.customer-script-catalog.v1"
 
 # Governance assets copied into <config_root>/commands/governance/assets/**
-DIAGNOSTICS_DIR_NAME = "governance/assets"
+GOVERNANCE_ASSETS_DIR_NAME = "governance/assets"
 
 # Governance runtime package copied into <config_root>/commands/governance/**
 GOVERNANCE_RUNTIME_DIR_NAME = "governance"
@@ -289,9 +289,9 @@ def collect_unsafe_source_symlinks(source_dir: Path) -> list[str]:
             if p.is_symlink():
                 unsafe.add(str(p.relative_to(source_dir)).replace("\\", "/"))
 
-    diag_dir = source_dir / DIAGNOSTICS_DIR_NAME
-    if diag_dir.exists():
-        for p in diag_dir.rglob("*"):
+    governance_assets_dir = source_dir / GOVERNANCE_ASSETS_DIR_NAME
+    if governance_assets_dir.exists():
+        for p in governance_assets_dir.rglob("*"):
             if p.is_symlink():
                 unsafe.add(str(p.relative_to(source_dir)).replace("\\", "/"))
 
@@ -368,14 +368,6 @@ def collect_command_root_files(source_dir: Path, *, with_agent_rails: bool = Fal
 
     return sorted(files)
 
-def collect_governance_files(source_dir: Path) -> list[Path]:
-    """
-    Collect governance files to copy into <config_root>/commands/governance/**.
-    Includes everything under ./governance (schemas, audit docs, etc.).
-    """
-    return []
-
-
 def collect_governance_runtime_files(source_dir: Path) -> list[Path]:
     """Collect governance runtime files for packaged state-machine execution."""
 
@@ -389,6 +381,12 @@ def collect_governance_runtime_files(source_dir: Path) -> list[Path]:
             if p.is_file() and not p.is_symlink() and not _is_forbidden_metadata_path(p, source_dir)
         ]
     )
+
+
+def collect_governance_files(source_dir: Path) -> list[Path]:
+    """Legacy collector kept for compatibility; governance runtime ships via collect_governance_runtime_files."""
+    _ = source_dir
+    return []
 
 
 DOCS_DIR_NAME = "docs"
@@ -971,34 +969,6 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
     else:
         print("\nℹ️  No addon manifests found under profiles/addons/*.addon.yml.")
 
-    # copy governance (audit tooling, schemas, etc.)
-    diag_files = collect_governance_files(plan.source_dir)
-    if diag_files:
-        print("\n📋 Copying governance to commands/governance/ ...")
-        for df in diag_files:
-            rel = df.relative_to(plan.source_dir)
-            dst = plan.commands_dir / rel
-
-            entry = copy_with_optional_backup(
-                src=df,
-                dst=dst,
-                backup_enabled=backup_enabled,
-                backup_root=backup_root,
-                dry_run=dry_run,
-                overwrite=force,
-            )
-            copied_entries.append(entry)
-
-            status = entry["status"]
-            if status in ("planned-copy", "copied"):
-                print(f"  ✅ {rel} ({status})")
-            elif status == "skipped-exists":
-                print(f"  ⏭️  {rel} exists (use --force to overwrite)")
-            else:
-                print(f"  ⚠️  {rel} missing (skipping)")
-    else:
-        print("\nℹ️  No governance directory found (skipping).")
-
     # copy customer documentation (docs/*.md relevant to customers)
     docs_files = collect_customer_docs_files(plan.source_dir)
     if docs_files:
@@ -1272,11 +1242,6 @@ def uninstall(
             rel = src.relative_to(plan.source_dir)
             targets.append(plan.commands_dir / rel)
 
-        # Diagnostics from current source snapshot
-        for src in collect_governance_files(plan.source_dir):
-            rel = src.relative_to(plan.source_dir)
-            targets.append(plan.commands_dir / rel)
-
         # Governance runtime from current source snapshot
         for src in collect_governance_runtime_files(plan.source_dir):
             rel = src.relative_to(plan.source_dir)
@@ -1479,10 +1444,12 @@ def delete_targets(targets: Iterable[Path], plan: InstallPlan, dry_run: bool) ->
 def purge_runtime_error_logs(config_root: Path, dry_run: bool) -> int:
     """
     Remove installer/runtime-owned error log files:
-      - <config_root>/logs/errors-*.jsonl
-      - <config_root>/logs/errors-index.json
-      - <config_root>/workspaces/*/logs/errors-*.jsonl
-      - <config_root>/workspaces/*/logs/errors-index.json
+      - <config_root>/commands/logs/error.log.jsonl
+      - <config_root>/workspaces/*/logs/error.log.jsonl
+      - legacy: <config_root>/logs/errors-*.jsonl
+      - legacy: <config_root>/logs/errors-index.json
+      - legacy: <config_root>/workspaces/*/logs/errors-*.jsonl
+      - legacy: <config_root>/workspaces/*/logs/errors-index.json
 
     Safety:
       - only matching files are removed
@@ -1495,8 +1462,10 @@ def purge_runtime_error_logs(config_root: Path, dry_run: bool) -> int:
             [
                 *list((config_root / ERROR_LOGS_DIR_NAME).glob("errors-*.jsonl")),
                 *list((config_root / ERROR_LOGS_DIR_NAME).glob("errors-index.json")),
+                *list((config_root / "commands" / ERROR_LOGS_DIR_NAME).glob("error.log.jsonl")),
                 *list((config_root / "workspaces").glob("*/logs/errors-*.jsonl")),
                 *list((config_root / "workspaces").glob("*/logs/errors-index.json")),
+                *list((config_root / "workspaces").glob("*/logs/error.log.jsonl")),
             ]
         )
     )
@@ -1542,6 +1511,7 @@ def purge_runtime_error_logs(config_root: Path, dry_run: bool) -> int:
 
     # Also try common parents if now empty.
     try_remove_empty_dir(config_root / ERROR_LOGS_DIR_NAME, dry_run=dry_run)
+    try_remove_empty_dir(config_root / "commands" / ERROR_LOGS_DIR_NAME, dry_run=dry_run)
     for repo_logs in (config_root / "workspaces").glob("*/logs"):
         try_remove_empty_dir(repo_logs, dry_run=dry_run)
 

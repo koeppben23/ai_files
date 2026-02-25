@@ -1535,7 +1535,7 @@ def test_session_state_bootstrap_recovery_script_creates_state_file(tmp_path: Pa
     write_governance_paths(cfg)
 
     env = os.environ.copy()
-    env["OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY"] = "1"
+    env["OPENCODE_FORCE_READ_ONLY"] = "1"
     r = run([sys.executable, str(script), "--repo-fingerprint", repo_fp, "--repo-root", str(repo_root), "--config-root", str(cfg)], env=env)
     assert r.returncode == 2, f"bootstrap_session_state.py should exit 2 when writes blocked:\nSTDERR:\n{r.stderr}\nSTDOUT:\n{r.stdout}"
 
@@ -1598,7 +1598,7 @@ def test_workspace_persistence_backfill_script_creates_missing_artifacts(tmp_pat
     }
     session_file.write_text(json.dumps(session_payload, indent=2, ensure_ascii=True) + "\n", encoding="utf-8")
 
-    env = {"OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY": "1"}
+    env = {"OPENCODE_FORCE_READ_ONLY": "1"}
     r = run([sys.executable, str(script), "--repo-fingerprint", repo_fp, "--repo-root", str(repo_root), "--config-root", str(cfg)], env=env)
     assert r.returncode == 0, f"persist_workspace_artifacts.py failed:\nSTDERR:\n{r.stderr}\nSTDOUT:\n{r.stdout}"
 
@@ -1629,7 +1629,7 @@ def test_workspace_persistence_backfill_derives_fingerprint_from_repo_root(tmp_p
 
     expected_fp = hashlib.sha256("repo:repo://github.com/example/derived-repo".encode("utf-8")).hexdigest()[:24]
 
-    env = {"OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY": "1"}
+    env = {"OPENCODE_FORCE_READ_ONLY": "1"}
     r = run([
         sys.executable,
         str(script),
@@ -1679,7 +1679,7 @@ def test_workspace_persistence_backfill_writes_business_rules_when_phase15_extra
     }
     session_file.write_text(json.dumps(session_payload, indent=2, ensure_ascii=True) + "\n", encoding="utf-8")
 
-    env = {"OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY": "1"}
+    env = {"OPENCODE_FORCE_READ_ONLY": "1"}
     r = run([sys.executable, str(script), "--repo-fingerprint", repo_fp, "--repo-root", str(repo_root), "--config-root", str(cfg), "--quiet"], env=env)
     assert r.returncode == 0, f"persist_workspace_artifacts.py failed:\nSTDERR:\n{r.stderr}\nSTDOUT:\n{r.stdout}"
 
@@ -1733,7 +1733,7 @@ def test_workspace_persistence_normalizes_legacy_placeholder_phrasing_without_fo
         encoding="utf-8",
     )
 
-    env = {"OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY": "1"}
+    env = {"OPENCODE_FORCE_READ_ONLY": "1"}
     r = run([sys.executable, str(script), "--repo-fingerprint", repo_fp, "--repo-root", str(repo_root), "--config-root", str(cfg), "--quiet"], env=env)
     assert r.returncode == 0, f"persist_workspace_artifacts.py failed:\nSTDERR:\n{r.stderr}\nSTDOUT:\n{r.stdout}"
 
@@ -3597,7 +3597,7 @@ def test_error_logger_logs_to_ssot_path(tmp_path: Path, monkeypatch: pytest.Monk
     spec = importlib.util.spec_from_file_location("error_logs_mod", module_path)
     assert spec and spec.loader, "Failed to load governance/error_logs.py module spec"
     monkeypatch.delenv("CI", raising=False)
-    monkeypatch.setenv("OPENCODE_DIAGNOSTICS_ALLOW_WRITE", "1")
+    monkeypatch.delenv("OPENCODE_FORCE_READ_ONLY", raising=False)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
 
@@ -3628,7 +3628,7 @@ def test_error_logger_uses_bound_workspaces_home_for_repo_logs(tmp_path: Path, m
     spec = importlib.util.spec_from_file_location("error_logs_mod", module_path)
     assert spec and spec.loader, "Failed to load governance/error_logs.py module spec"
     monkeypatch.delenv("CI", raising=False)
-    monkeypatch.setenv("OPENCODE_DIAGNOSTICS_ALLOW_WRITE", "1")
+    monkeypatch.delenv("OPENCODE_FORCE_READ_ONLY", raising=False)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
 
@@ -3663,7 +3663,7 @@ def test_error_logger_uses_ssot_write_policy(tmp_path: Path, monkeypatch: pytest
     
     # CI=true without FORCE_READ_ONLY should allow writes (SSOT)
     monkeypatch.setenv("CI", "true")
-    monkeypatch.delenv("OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY", raising=False)
+    monkeypatch.delenv("OPENCODE_FORCE_READ_ONLY", raising=False)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
 

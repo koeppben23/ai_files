@@ -142,6 +142,20 @@ class TestPhase2And1Routing:
         assert result.phase == "1.5-BusinessRules"
         assert result.source == "phase-1.5-routing-required"
 
+    def test_phase_2_1_routes_to_1_5_when_business_rules_decision_is_execute(self):
+        doc = _minimal_session_state(
+            BusinessRules={"Decision": "execute"},
+        )
+        result = route_phase(
+            requested_phase="2.1",
+            requested_active_gate="",
+            requested_next_gate_condition="Continue",
+            session_state_document=doc,
+            repo_is_git_root=True,
+        )
+        assert result.phase == "1.5-BusinessRules"
+        assert result.source == "phase-1.5-routing-required"
+
     def test_phase_2_1_always_routes_to_3a_after_business_rules_resolved(self):
         """After Phase 2.1 with business rules resolved, ALWAYS route to Phase 3A (per docs/phases.md)."""
         doc = _minimal_session_state(
@@ -328,6 +342,21 @@ class TestPhase5Routing:
         )
         assert result.phase == "5.4-BusinessRules"
         assert result.source == "phase-5.3-to-5.4"
+
+    def test_phase_5_3_does_not_route_to_5_4_for_execute_decision_without_1_5_evidence(self):
+        doc = _minimal_session_state(
+            phase="5.3",
+            BusinessRules={"Decision": "execute"},
+        )
+        result = route_phase(
+            requested_phase="5.3",
+            requested_active_gate="Test Quality Gate",
+            requested_next_gate_condition="Continue",
+            session_state_document=doc,
+            repo_is_git_root=True,
+        )
+        assert result.phase == "6-PostFlight"
+        assert result.source == "phase-5.3-to-6"
 
     def test_phase_5_3_routes_to_5_5_when_technical_debt_proposed(self):
         doc = _minimal_session_state(

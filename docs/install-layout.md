@@ -1,7 +1,7 @@
 # Install Layout
 
 This document centralizes install and path layout details moved out of `README.md`.
-`master.md` remains authoritative for variable binding and precedence.
+Runtime authority is kernel + `${COMMANDS_HOME}/phase_api.yaml`; this file is layout guidance.
 
 ## Canonical Path Variables
 
@@ -22,7 +22,7 @@ A common example install root is `~/.config/opencode` (platform-specific variant
 
 ## Installed Layout (Canonical Shape)
 
-Note: AGENTS.md is a frontend surface; kernel bootstrapping and path resolution remain governed by master.md and start.md. The runtime config root and path variables are resolved at runtime as described in master.md; AGENTS.md presence does not alter OpenCode path resolution.
+Note: AGENTS.md is a frontend surface; kernel bootstrapping and path resolution are governed by installer binding evidence and kernel loaders. AGENTS.md presence does not alter OpenCode path resolution.
 
 ```text
 ${COMMANDS_HOME}/

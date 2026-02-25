@@ -1,19 +1,19 @@
 # OpenCode Governance Guide
 
 This file describes OpenCode runtime usage and operational recovery.
-It is non-normative. If anything here conflicts with `master.md` or `rules.md`, follow `master.md` and `rules.md`.
+It is non-normative guidance.
 
 ## Source of Truth
 
-- System phases, gates, path variables, and fail-closed behavior: `master.md`
-- Technical and quality constraints: `rules.md`
+- System routing, execution, and validation: `${COMMANDS_HOME}/phase_api.yaml` via `governance/kernel/*`
+- Technical and quality constraints: `rules.md` + active profile/addon rulebooks
 - Session-state schema and invariants: `SESSION_STATE_SCHEMA.md`
 - Frontend mirror for Codex-like surfaces: `AGENTS.md` (non-normative)
 
 ## Quick Links
 
 - Root product overview: `README.md`
-- Core runtime contract: `master.md`
+- Runtime phase spec: `${COMMANDS_HOME}/phase_api.yaml`
 - Core technical constraints: `rules.md`
 - Rules structure map: `README-RULES.md`
 - Install layout/path model: `docs/install-layout.md`
@@ -109,8 +109,8 @@ Conformance reference for generated artifacts:
 
 ## Version and Compatibility
 
-- Runtime contract version is defined by the `Governance-Version` header in `master.md`.
-- OpenCode behavior described here is subordinate to `master.md`, `rules.md`, and active profile/addon rulebooks.
+- Runtime behavior is governed by `${COMMANDS_HOME}/phase_api.yaml` and `governance/kernel/*`.
+- OpenCode behavior described here is subordinate to kernel/spec semantics and `rules.md` constraints.
 
 ## Related Docs
 
