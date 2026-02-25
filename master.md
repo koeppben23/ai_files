@@ -316,9 +316,9 @@ SESSION_STATE bootstrap (binding):
     profile: ""  # set when a profile is selected or marked not-applicable
     templates: ""
     addons: {}
-  ActiveProfile: ""          # resolved or marked not-applicable
-  ProfileSource: "pending"
-  ProfileEvidence: "pending"
+  ActiveProfile: null         # selected profile name when resolved
+  ProfileSource: null
+  ProfileEvidence: null
   RulebookLoadEvidence:
     top_tier:
       quality_index: "${COMMANDS_HOME}/QUALITY_INDEX.md"
@@ -1090,23 +1090,22 @@ The user may then:
 
 ---
 
-### 2.4 Silent Transition (Default at Session Start)
+### 2.4 Session Start Principles (Kernel-Enforced)
 
-At the initial session start (when the user runs `/start`),
-the workflow begins Phase 1 **silently** (without requesting confirmation)
-and proceeds according to the Hybrid Mode rules in Section 2.2 until the first valid user-facing stop.
+At initial `/start`, bootstrap progression is kernel-owned and deterministic.
+Runtime routing, transitions, and stop conditions are defined by kernel/config contracts
+(not by this markdown rail).
 
-This means:
-* Phase 1 (Load rules) is executed immediately
-* Phase 2 (Repository discovery) is executed immediately if a repository is provided
-* Phase 3A/3B are executed immediately if API artifacts are provided
-* Phase 4 (Ticket execution) is executed immediately if a ticket is provided
+Detailed operational start behavior is documented as non-binding guidance in:
+- `start.md` (operator-facing start rail)
+- `docs/governance/RESPONSIBILITY_BOUNDARY.md` (binding vs guidance boundary)
+- `docs/governance/rails/planning.md` (workflow planning guidance)
 
 ### 2.4.1 Session Start Mode Banner (Kernel-Enforced)
 
-At session start, the workflow MUST emit a one-line start banner before deeper phase output:
+At session start, the workflow MUST emit a one-line start banner before deeper phase output.
+Use exactly one of:
 
-Emit exactly one of:
 - `[START-MODE] Cold Start - reason: <one concise reason>`
 - `[START-MODE] Warm Start - reason: <one concise reason>`
 
@@ -1117,36 +1116,28 @@ Rules:
 
 ### 2.4.2 Architect-Only Autopilot Lifecycle (Policy)
 
-Operator lifecycle (canonical):
-1) `/start` -> bootstrap/path contract + automatic phase progression to first user stop (typically Phase 4)
-2) `Implement now` (optional scope) -> implementation mode
-3) `Ingest evidence` -> verification mode (claim upgrade/reject)
-
-Compatibility note:
-- `/master` MAY exist as an optional compatibility alias, but it MUST NOT be required after `/start`.
+Lifecycle semantics are intentionally compact here:
+- `/start` establishes bootstrap context.
+- `Implement now` enables implementation output.
+- `Ingest evidence` enables verification-only reconciliation.
 
 `/start` invocation guard (binding):
-- If `start.md` is present due command injection, `/start` is already invoked for this turn.
-- In that case, bootstrap continues without asking the operator to rerun `/start` in the same turn.
-- In that case, workflow MUST NOT ask operator to run `/start` again in the same turn.
+- Workflow MUST NOT ask operator to run `/start` again in the same turn.
 
 Execution mode enum (binding):
 - `SESSION_STATE.OutputMode`: `ARCHITECT | IMPLEMENT | VERIFY`
-- Default after successful `/start` progression is `ARCHITECT`.
-- For `/master` compatibility alias flows, Default after `/master` is `ARCHITECT`.
+- Default after `/master` is `ARCHITECT`.
 
-Mode constraints:
-- `ARCHITECT`:
-  - Decision-first output; no full code diffs.
-  - Optional micro-snippets for interface/signature illustration are allowed (<= 30 lines, non-executable by default).
-- `IMPLEMENT`:
-  - Full implementation output is allowed only after explicit operator trigger (`Implement now`).
-- `VERIFY`:
-  - Only evidence reconciliation/claim status updates; no new implementation proposals unless explicitly requested.
+Detailed lifecycle routing and mode transition behavior is maintained outside `master.md`:
+- Kernel/config contracts for binding behavior
+- `docs/governance/rails/implementation.md` and `docs/governance/rails/failure_handling.md` for non-binding guidance
 
-Start-order gate (binding):
-- If any governance command is invoked before `/start` evidence/bootstrap is established for the current repo, kernel may emit `BLOCKED-START-REQUIRED`.
-- Required recovery command: `/start`.
+Thematic rails (non-binding) are split into:
+- `docs/governance/rails/planning.md`
+- `docs/governance/rails/implementation.md`
+- `docs/governance/rails/testing.md`
+- `docs/governance/rails/pr_review.md`
+- `docs/governance/rails/failure_handling.md`
 
 ### 2.5 Default Decision Policies (DDP) — Reduce Cognitive Load (Policy)
 
@@ -1222,6 +1213,7 @@ SESSION_STATE versioning (informational):
 - Every emitted session state includes:
   - `session_state_version` (integer)
   - `ruleset_hash` (string digest over active governance rule set)
+  - `ruleset_hash` MAY be `null` until activation completes
 - If persisted state is older than the supported version and cannot be migrated deterministically,
   kernel blocks with BLOCKED-STATE-OUTDATED.
 
@@ -1232,7 +1224,7 @@ SESSION_STATE versioning (informational):
 ```yaml
 SESSION_STATE:
   session_state_version: <int>
-  ruleset_hash: "<sha256-or-versioned-hash>"
+  ruleset_hash: <sha256-or-versioned-hash|null>
   Phase: 1.1-Bootstrap | 1.2-ActivationIntent | 1.2-ProfileDetection | 1.3-CoreRulesActivation | 1.5-BusinessRules | 2 | 2.1-DecisionPack | 3A | 3B-1 | 3B-2 | 4 | 5 | 5.3 | 5.4 | 5.5 | 5.6 | 6
   Mode: NORMAL | DEGRADED | DRAFT | BLOCKED
   ConfidenceLevel: <0-100>
@@ -1245,9 +1237,9 @@ SESSION_STATE:
     templates: ""
     addons: {}
   
-  ActiveProfile: "<profile-name>"
-  ProfileSource: "user-explicit" | "auto-detected-single" | "repo-fallback" | "component-scope-inferred" | "component-scope-filtered" | "ambiguous"
-  ProfileEvidence: "<evidence-path-or-indicators>"  # may contain absolute OS paths (evidence-only)
+  ActiveProfile: <profile-name|null>
+  ProfileSource: "user-explicit" | "auto-detected-single" | "repo-fallback" | "component-scope-inferred" | "component-scope-filtered" | "ambiguous" | null
+  ProfileEvidence: <evidence-path-or-indicators|null>  # may contain absolute OS paths (evidence-only)
   
   Gates:
     P5-Architecture: pending | approved | rejected

@@ -722,7 +722,9 @@ Compat fallback (binding):
 
 ### 7.3.3 Cold/Warm Start Banner (Presentation Advisory)
 
-At session start, output MUST include exactly one of:
+Canonical ownership boundary: `docs/governance/RESPONSIBILITY_BOUNDARY.md`.
+
+At session start, output MUST include exactly one banner variant:
 - `[START-MODE] Cold Start - reason: <one concise reason>`
 - `[START-MODE] Warm Start - reason: <one concise reason>`
 
@@ -774,6 +776,10 @@ Reason-code quick-fix template catalog (recommended):
 - Runtime output still MUST enforce command coherence rules (`[NEXT-ACTION].Command`, `next_command`, `QuickFixCommands[0]`).
 
 ### 7.3.6 Architect-Only Autopilot Lifecycle (Policy)
+
+This section is non-binding presentation guidance.
+Kernel-owned routing, transition rules, and execution decisions are defined in kernel/config contracts.
+Canonical boundary reference: `docs/governance/RESPONSIBILITY_BOUNDARY.md`.
 
 Canonical operator lifecycle:
 1) `/start`
