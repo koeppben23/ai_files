@@ -881,7 +881,7 @@ Completeness requirements (binding):
   - `LoadedRulebooks`
   - `RulebookLoadEvidence`
 - Placeholder tokens like `...` or `<...>` are FORBIDDEN inside emitted `SESSION_STATE` blocks.
-- If values are unknown/deferred, emit explicit values (`unknown`, `deferred`, `not-applicable`) rather than placeholders.
+- If values are unknown, emit explicit values (`unknown`, `null`, `not-applicable`) rather than placeholders.
 
 ### 7.3.10 Bootstrap Preflight Output Contract (Kernel-Enforced)
 
