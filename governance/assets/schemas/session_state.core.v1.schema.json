@@ -146,7 +146,8 @@
             "deferred",
             "component-scope-inferred",
             "component-scope-filtered",
-            "ambiguous"
+            "ambiguous",
+            ""
           ]
         },
         "ProfileEvidence": {
