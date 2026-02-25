@@ -504,9 +504,7 @@ This governance system is single-user and MUST NOT require repo-working-tree-loc
 **Lookup paths (informational):**
 1. Workspace-local override (optional, outside the repo): `${REPO_OVERRIDES_HOME}/rules.md`
 2. Global commands: `${COMMANDS_HOME}/rules.md`
-3. Global config: `${OPENCODE_HOME}/rules.md` (fallback)
-4. Global rules folder: `${OPENCODE_HOME}/rules/rules.md` (fallback)
-5. Context: manually provided (planning-only)
+3. Context: manually provided (planning-only)
 
 #### Step 1b (Phase 1.1): Resolve Top-Tier Index & Conflict Model (QUALITY_INDEX.md, CONFLICT_RESOLUTION.md)
 
@@ -524,9 +522,7 @@ Top-tier load evidence obligation (binding):
 **Reference lookup paths (informational):**
 1. Workspace-local override (optional, outside the repo): `${REPO_OVERRIDES_HOME}/<FILE>.md`
 2. Global commands: `${COMMANDS_HOME}/<FILE>.md`
-3. Global config: `${OPENCODE_HOME}/<FILE>.md` (fallback)
-4. Global rules folder: `${OPENCODE_HOME}/rules/<FILE>.md` (fallback)
-5. Context: manually provided (planning-only)
+3. Context: manually provided (planning-only)
 
 #### Step 2: Load Profile Rulebook (AUTO-DETECTION ADDED)
 

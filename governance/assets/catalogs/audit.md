@@ -93,7 +93,7 @@ It is diagnostic only.
 
 ### AR-5 — Non-normative disclaimer
 - The audit report MUST NOT be interpreted as normative authority.
-- If report content conflicts with `master.md` or `rules.md`, the rulebooks win.
+- Active runtime evidence (`SESSION_STATE` + kernel + `${COMMANDS_HOME}/phase_api.yaml`) is authoritative for phase/gate status.
 
 ## REPORT PERSISTENCE (Repo-aware only; descriptive)
 
@@ -114,7 +114,7 @@ If chat-only mode:
 Derive from `SESSION_STATE` and the rules:
 
 - Current Phase
-- Active gates for this phase (as defined by `master.md` + `rules.md`)
+- Active gates for this phase (as derived from `SESSION_STATE` + kernel/phase-api evidence)
 - Gate statuses (pending/pass/blocked/not-applicable)
 - If blocked: name EXACT blocking gate(s) and show:
   - GateKey
@@ -239,7 +239,7 @@ Do NOT propose implementation steps if any gate is blocked for implementation.
 ---
 
 ## NOTE
-This command is diagnostic only. It does not override `master.md` or `rules.md`.
+This command is diagnostic only. It does not override runtime evidence from kernel/phase-api state.
 
 ---
 

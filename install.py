@@ -1740,7 +1740,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     p.add_argument(
         "--keep-error-logs",
         action="store_true",
-        help="On uninstall: preserve runtime error logs under <config_root>/logs and <config_root>/workspaces/*/logs.",
+        help="On uninstall: preserve runtime error logs under <config_root>/commands/logs and <config_root>/workspaces/*/logs (legacy <config_root>/logs paths may still exist).",
     )
     p.add_argument("--version", action="store_true", help="Show installer and governance version, then exit.")
     p.add_argument("--status", action="store_true", help="Show installation status (read-only), then exit.")

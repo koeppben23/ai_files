@@ -1,4 +1,4 @@
-"""Tests for phase_router.py routing logic."""
+"""Tests for governance.application.use_cases.phase_router routing logic."""
 
 from __future__ import annotations
 

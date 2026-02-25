@@ -4,7 +4,6 @@ Fail-closed loader for kernel policy configs:
 - bootstrap_policy.yaml
 - persistence_artifacts.yaml
 - blocked_reason_catalog.yaml
-- phase_execution_config.yaml
 """
 
 from __future__ import annotations
@@ -29,7 +28,6 @@ _POLICY_FILES = (
     "bootstrap_policy.yaml",
     "persistence_artifacts.yaml",
     "blocked_reason_catalog.yaml",
-    "phase_execution_config.yaml",
 )
 
 
