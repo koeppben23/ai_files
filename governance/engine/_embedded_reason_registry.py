@@ -28,6 +28,7 @@ EMBEDDED_REASON_CODE_TO_SCHEMA_REF: Final[dict[str, str]] = {
     "BLOCKED-MISSING-EVIDENCE": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
     "BLOCKED-RESUME-STATE-VIOLATION": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
     "BLOCKED-MISSING-BINDING-FILE": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
+    "BLOCKED-MISSING-COMMANDS-HOME": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
     "BLOCKED-VARIABLE-RESOLUTION": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
     "BLOCKED-WORKSPACE-PERSISTENCE": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
     "BLOCKED-ENGINE-SELFCHECK": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
