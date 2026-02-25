@@ -4,13 +4,10 @@ Deterministic governance for AI-assisted software delivery with fail-closed gate
 
 **[→ Get started in 5 minutes: QUICKSTART.md](QUICKSTART.md)**
 
-Normative precedence:
-- `master.md` is the system source of truth for phases, gates, path variables, and fail-closed behavior.
-- `rules.md` defines core technical and quality constraints.
-- Active profile and addon rulebooks in `profiles/` extend stack-specific behavior.
-- `AGENTS.md` is a non-normative frontend mirror; on conflict, `master.md` wins.
-
-Definition: in this repository, "normative" means `master.md`, `rules.md`, and active profile/addon rulebooks; "non-normative surfaces" means `README*` files and `AGENTS.md`.
+Runtime contract boundary:
+- SSOT routing/execution/validation is `${COMMANDS_HOME}/phase_api.yaml` enforced by `governance/kernel/*`.
+- `rules.md` and active profile/addon rulebooks define engineering constraints and stack extensions.
+- `README*` and `AGENTS.md` are descriptive operational guides only.
 
 ## Quick Links
 
@@ -31,7 +28,7 @@ For engineering teams that need deterministic, auditable AI-assisted delivery in
 - Deterministic phase workflow (`1` through `6`) with explicit gate outcomes.
 - Repo-aware governance runtime under `governance/` with tested fail-closed semantics.
 - Installer and customer handoff flow (`install.py`, release/bundle docs).
-- Diagnostics and schema contracts under `governance/`.
+- Governance schema and policy contracts under `governance/`.
 - Profile and addon ecosystem under `profiles/`.
 
 ## Quick Start
@@ -79,16 +76,16 @@ Deep security and governance references are in `docs/security-gates.md` and `doc
 
 ## Version and Compatibility
 
-- This README tracks the current repository baseline; the authoritative runtime contract version is the `Governance-Version` header in `master.md`.
+- This README tracks the current repository baseline; runtime behavior is determined by kernel + `${COMMANDS_HOME}/phase_api.yaml`.
 - For release readiness and compatibility gates, always apply `STABILITY_SLA.md` and the release process in `docs/releasing.md`.
 
 ## Runtime State and Paths
 
-Canonical variables and resolution are defined in `master.md`.
+Canonical variables are resolved from installer-owned binding evidence and kernel policy loaders.
 
 - Global active session pointer: `${SESSION_STATE_POINTER_FILE}`
 - Repo-scoped workspace/session artifacts: `${WORKSPACES_HOME}/<repo_fingerprint>/...`
-- Runtime error logs: `${WORKSPACES_HOME}/<repo_fingerprint>/logs/` (fallback `${CONFIG_ROOT}/logs/`)
+- Runtime error logs: `${WORKSPACES_HOME}/<repo_fingerprint>/logs/error.log.jsonl` (fallback `${COMMANDS_HOME}/logs/error.log.jsonl`)
 
 See `docs/install-layout.md` for full layout details.
 

@@ -1,13 +1,13 @@
 # Rules Overview
 
 This document is a non-normative map of the governance rule structure.
-It does not define independent behavior. On conflict, follow `master.md`, then `rules.md`, then active profile/addon rulebooks.
+It does not define independent runtime behavior.
 
 ## Quick Links
 
 - Root product overview: `README.md`
 - OpenCode operations: `README-OPENCODE.md`
-- Core governance contract: `master.md`
+- Runtime phase spec: `${COMMANDS_HOME}/phase_api.yaml`
 - Core technical rulebook: `rules.md`
 - Session-state schema: `SESSION_STATE_SCHEMA.md`
 
@@ -17,14 +17,14 @@ For reviewers and maintainers who need a compact map of rule authority, layering
 
 ## Source of Truth
 
-- Workflow phases, gates, path variables, precedence, and fail-closed runtime semantics: `master.md`
+- Workflow phases/gates and runtime semantics: `${COMMANDS_HOME}/phase_api.yaml` enforced by `governance/kernel/*`
 - Core technical and quality constraints: `rules.md`
 - Release readiness Go/No-Go contract: `STABILITY_SLA.md`
 - Session-state contract: `SESSION_STATE_SCHEMA.md`
 
 ## Rule Layers
 
-- Core governance and lifecycle control: `master.md`
+- Runtime control-plane: `governance/kernel/*` with `${COMMANDS_HOME}/phase_api.yaml`
 - Core stack-agnostic engineering constraints: `rules.md`
 - Stack/domain extensions: `profiles/rules*.md`
 - Optional or required addon policies: manifests in `profiles/addons/*.addon.yml` with rulebooks in `profiles/`
@@ -40,8 +40,8 @@ Profiles and addons must not weaken core fail-closed obligations.
 
 ## Version and Compatibility
 
-- The authoritative runtime contract version is the `Governance-Version` in `master.md`.
-- `README-RULES.md` is descriptive only and must remain aligned to the current `master.md`/`rules.md` baseline.
+- Runtime contract versioning follows shipped kernel + phase spec bundle.
+- `README-RULES.md` is descriptive only and must remain aligned to current kernel/spec + `rules.md` baseline.
 
 ## Rulebook Selection and Discovery
 

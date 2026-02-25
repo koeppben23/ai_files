@@ -14,7 +14,6 @@ Normative boundary for state-machine runtime (binding):
 - `master.md` defines invariants, status vocabulary, gate semantics, and fail-closed behavior.
 - Runtime details are implemented in `governance/engine/*`, `governance/render/*`, and governance schemas.
 - Deterministic activation summary: `RepoFacts -> Capabilities -> Packs/Profile -> activation_hash/ruleset_hash -> Gate`.
-- If implementation artifacts and this file diverge, this file is authoritative until implementation is corrected.
 - This file should avoid duplicating low-level algorithmic details that are already contract-tested in code.
 
 SSOT: `${COMMANDS_HOME}/phase_api.yaml` is the only truth for routing, execution, and validation.
