@@ -3,7 +3,7 @@
 This project uses a formal LLM Governance System
 defined in `master.md`, `rules.md`, and profile rulebooks.
 
-Invariant checklist for regression prevention: `docs/governance_invariants.md` (source repo path).
+Invariant checklist for regression prevention: `${COMMANDS_HOME}/docs/governance_invariants.md`.
 
 
 ## Auto-Binding Evidence (OpenCode)
