@@ -427,10 +427,13 @@ Optional but strongly recommended for monorepos:
 ### 6.2 Next (Phase Pointer)
 
 `SESSION_STATE.Next` is a string describing the next executable step, e.g.:
-- `Phase2-RepoDiscovery`
-- `Phase2.1-DecisionPack`
-- `Phase4-TicketExecution`
-- `Phase5-ArchitectureGate`
+- `1.1-Bootstrap`
+- `1.2-ActivationIntent`
+- `1.3-RulebookLoad`
+- `2-RepoDiscovery`
+- `2.1-DecisionPack`
+- `4-TicketExecution`
+- `5-ArchitectureGate`
 - `BLOCKED-<reason>`
 
 **Invariant**
