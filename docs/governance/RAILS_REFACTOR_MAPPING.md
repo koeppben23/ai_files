@@ -1,26 +1,33 @@
 # Rails Refactor Mapping (Old -> New)
 
-## Goal
+## Rule -> Canonical Location
 
-Reduce duplicated runtime language in central markdown rails and keep canonical ownership explicit.
+| rule_id | rule_summary | canonical_source | secondary_references |
+|---|---|---|---|
+| R001 | Start-mode semantics are binary (Cold vs Warm) | `master.md` (2.4.1) | `rules.md` (7.3.3), `start.md` output requirements |
+| R002 | Runtime routing/transition/gate decisions are kernel-owned | `governance/kernel/*` + `governance/phase_api.yaml` | `docs/governance/RESPONSIBILITY_BOUNDARY.md` |
+| R003 | Session-state field contract is schema-owned | `governance/assets/schemas/session_state.core.v1.schema.json` | `SESSION_STATE_SCHEMA.md` |
+| R004 | MD rails are non-binding AI guidance | `docs/governance/RESPONSIBILITY_BOUNDARY.md` | `master.md`, `rules.md`, `start.md`, `README-RULES.md` |
+| R005 | Profile optional state target semantics (`null` target; legacy placeholders documented only) | `SESSION_STATE_SCHEMA.md` | `master.md` MIN template examples |
 
-## Canonical Mapping
+## Content Migration (old -> new)
 
-| Rule Topic | Canonical Location | Secondary References |
+| original_section | target_location | action |
 |---|---|---|
-| Start-mode banner semantics | `master.md` section 2.4.1 | `rules.md`, `start.md` (non-binding references) |
-| Runtime transition/routing semantics | `governance/kernel/*` + `governance/phase_api.yaml` | `docs/governance/RESPONSIBILITY_BOUNDARY.md` |
-| Session-state data contract | `governance/assets/schemas/session_state.core.v1.schema.json` | `SESSION_STATE_SCHEMA.md` |
-| Bootstrap/default state payload shape | `governance/application/use_cases/bootstrap_persistence.py` | `governance/entrypoints/session_state_contract.py`, `bootstrap/session_state_contract.py` |
+| Start-mode mixed phrase in core rails | `master.md` 2.4.1 / `rules.md` 7.3.3 / `start.md` output bullets | removed + reduced |
+| Monolithic operational guidance in central rails | `docs/governance/rails/*.md` | moved |
+| Repeated boundary wording across docs | `docs/governance/RESPONSIBILITY_BOUNDARY.md` | merged |
+| Runtime-like guidance snippets in central rails | kernel/schema references from central rails | reduced |
 
-## Thematic Rails Split
+## File Classification (required + conditional)
 
-Operational guidance moved to thematic rails under `docs/governance/rails/`:
-
-- `planning.md`
-- `implementation.md`
-- `testing.md`
-- `pr_review.md`
-- `failure_handling.md`
-
-These files are guidance-only and do not define runtime routing authority.
+| file | classification | note |
+|---|---|---|
+| `master.md` | central-core | global principles + references only |
+| `rules.md` | central-core | technical policy + presentation rails |
+| `start.md` | central-core | start-facing guidance, kernel references |
+| `SESSION_STATE_SCHEMA.md` | schema-adjacent-doc | data contract documentation |
+| `continue.md` | guidance-only | no runtime authority |
+| `resume.md` | guidance-only | resume behavior guidance only |
+| `resume_prompt.md` | guidance-only | controlled resume prompt template |
+| `README-RULES.md` | descriptive-map | non-normative authority map |

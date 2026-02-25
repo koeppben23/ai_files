@@ -143,8 +143,8 @@ After Phase 1.1 (bootstrap) completes successfully, these keys are present (kern
 - `SESSION_STATE.Scope` (object; see Section 6.5)
 - `SESSION_STATE.RepoFacts` (object; see Section 2.2)
 - `SESSION_STATE.LoadedRulebooks.core` (string path; mandatory by Phase 1.3 before any Phase >=2 execution)
-- `SESSION_STATE.LoadedRulebooks.profile` (string path OR `""` when profile not applicable)
-- `SESSION_STATE.LoadedRulebooks.templates` (string path OR `""` when templates not applicable)
+- `SESSION_STATE.LoadedRulebooks.profile` (string path OR `null`; legacy `""` is transitional only)
+- `SESSION_STATE.LoadedRulebooks.templates` (string path OR `null`; legacy `""` is transitional only)
 - `SESSION_STATE.LoadedRulebooks.addons` (object map addon_key -> string path; default `{}`)
 - `SESSION_STATE.AddonsEvidence` (object map addon_key -> evidence object; default `{}`)
 - `SESSION_STATE.RulebookLoadEvidence` (object; see Section 6.4)
@@ -275,16 +275,16 @@ Invariants:
   - `ActiveProfile` SHOULD be `null`
   - `ProfileSource` SHOULD be `null`
   - `ProfileEvidence` SHOULD be `null`
-  - `LoadedRulebooks.profile` MAY be `""`
+  - `LoadedRulebooks.profile` SHOULD be `null` (legacy `""` transitional only)
 
 - Until Phase 4 begins:
-  - `LoadedRulebooks.core` MAY be `""`
-  - `LoadedRulebooks.templates` MAY be `""`
+  - `LoadedRulebooks.core` SHOULD be `null` (legacy `""` transitional only)
+  - `LoadedRulebooks.templates` SHOULD be `null` (legacy `""` transitional only)
 
-- If Phase 4 begins and `LoadedRulebooks.core` is still `""`:
+- If Phase 4 begins and `LoadedRulebooks.core` is still `null` (or legacy `""`):
   → WORKFLOW MUST BE BLOCKED
 
-- If Phase 4 begins and the `ActiveProfile` mandates templates, and `LoadedRulebooks.templates` is still `""`:
+- If Phase 4 begins and the `ActiveProfile` mandates templates, and `LoadedRulebooks.templates` is still `null` (or legacy `""`):
   → WORKFLOW MUST BE BLOCKED
 
 - If Phase 4 begins and the workflow determines an addon is required (evidence-based), but the addon rulebook is not available:
@@ -392,7 +392,7 @@ String identifier when selected; otherwise `null`, e.g.:
 - `user-explicit`
 - `auto-detected-single`
 - `repo-fallback`
-- `deferred`
+- `deferred` (legacy transition only; not target state)
 - `component-scope-inferred`
 - `component-scope-filtered`
 - `ambiguous` (**only allowed when the session is in a blocked state** )
@@ -480,8 +480,8 @@ SESSION_STATE:
     top_tier:
       quality_index: "<path | hash | tool-output | user-provided>"
       conflict_resolution: "<path | hash | tool-output | user-provided>"
-    core: "<path | hash | tool-output | user-provided | deferred>"
-    profile: "<path | hash | tool-output | user-provided | deferred>"
+    core: "<path | hash | tool-output | user-provided | legacy-deferred>"
+    profile: "<path | hash | tool-output | user-provided | legacy-deferred>"
     templates: "<path | hash | tool-output | user-provided | not-applicable>"
     addons:
       kafka: "<path | hash | tool-output | user-provided>"
@@ -840,6 +840,9 @@ Binding:
 - `P5.5-TechnicalDebt`: `pending | approved | rejected | not-applicable`
 - `P5.6-RollbackSafety`: `pending | approved | rejected | not-applicable`
 - `P6-ImplementationQA`: `pending | ready-for-pr | fix-required`
+
+Note:
+- `pending` in gate enums is a canonical workflow status, not an optional placeholder/null-equivalent.
 
 **Invariant**
 - `Next` MUST NOT point to any code-producing step unless the relevant upstream gates are in an allowed state per `master.md` and `rules.md`.
