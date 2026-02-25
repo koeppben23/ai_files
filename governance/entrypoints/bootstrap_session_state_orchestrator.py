@@ -216,9 +216,10 @@ def resolve_binding_config(explicit: Path | None) -> tuple[Path, dict, Path]:
     """Resolve the binding configuration paths.
     
     Searches for governance.paths.json in the following order:
-        1. Explicit --config-root argument
-        2. OPENCODE_CONFIG_ROOT environment variable
-        3. Default ~/.config/opencode location
+        1. COMMANDS_HOME environment variable
+        2. Explicit --config-root argument
+        3. OPENCODE_CONFIG_ROOT environment variable
+        4. Default ~/.config/opencode location
     
     Args:
         explicit: Optional explicit config root path from --config-root.
@@ -229,6 +230,18 @@ def resolve_binding_config(explicit: Path | None) -> tuple[Path, dict, Path]:
     Raises:
         ValueError: If binding file not found or invalid.
     """
+    env_commands_home = os.environ.get("COMMANDS_HOME")
+    if env_commands_home:
+        try:
+            commands_home = normalize_absolute_path(env_commands_home, purpose="COMMANDS_HOME env")
+            root = commands_home.parent
+            candidate = commands_home / "governance.paths.json"
+            if candidate.exists():
+                config_root, paths = _load_binding_paths(candidate, expected_config_root=root)
+                return config_root, paths, candidate
+        except Exception:
+            pass
+
     if explicit is not None:
         root = normalize_absolute_path(str(explicit), purpose="explicit_config_root")
         candidate = root / "commands" / "governance.paths.json"
