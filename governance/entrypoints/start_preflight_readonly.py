@@ -26,6 +26,7 @@ if _COMMANDS_HOME not in sys.path:
     sys.path.insert(0, _COMMANDS_HOME)
 
 from governance.entrypoints.command_profiles import render_command_profiles
+from governance.entrypoints.io.atomic_write import atomic_write_text
 from governance.entrypoints.write_policy import writes_allowed, EFFECTIVE_MODE
 from governance.application.use_cases.phase_router import route_phase
 from governance.application.use_cases.session_state_helpers import with_kernel_result
@@ -653,7 +654,9 @@ def _read_json_document(path: Path) -> dict[str, object] | None:
 
 def _write_json_document(path: Path, payload: Mapping[str, object]) -> None:
     text = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True) + "\n"
-    path.write_text(text, encoding="utf-8")
+    outcome = atomic_write_text(path, text, dry_run=False)
+    if not outcome.success:
+        raise RuntimeError(outcome.error or f"atomic write failed: {path}")
 
 
 def _root_state(document: Mapping[str, object]) -> dict[str, object]:

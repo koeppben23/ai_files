@@ -1131,6 +1131,7 @@ Compatibility note:
 Execution mode enum (binding):
 - `SESSION_STATE.OutputMode`: `ARCHITECT | IMPLEMENT | VERIFY`
 - Default after successful `/start` progression is `ARCHITECT`.
+- For `/master` compatibility alias flows, Default after `/master` is `ARCHITECT`.
 
 Mode constraints:
 - `ARCHITECT`:
@@ -1320,7 +1321,7 @@ When FULL mode is required, the workflow MUST additionally include, when availab
 
 ## 4. PHASE 1 TOKEN OUTPUT (BINDING)
 
-Phase 1 is tokenized (`1.1`, `1.2`, `1.3`) and MUST NOT be represented as a single aggregate `Phase: 1` runtime state.
+Phase 1 is tokenized (`1.1`, `1.2`, `1.3`) and should not be represented as a single aggregate `Phase: 1` runtime state.
 
 After successful bootstrap and activation-intent validation, the workflow MUST emit the tokenized Phase 1.2 state:
 

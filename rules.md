@@ -788,6 +788,7 @@ Output mode enum (binding):
 
 Rules:
 - Any governance command before valid `/start` bootstrap evidence may produce `BLOCKED-START-REQUIRED` with `QuickFixCommands: ["/start"]`.
+- `/master` before valid `/start` bootstrap evidence may produce `BLOCKED-START-REQUIRED`.
 - `ARCHITECT` mode is default and decision-first; no full code diff output.
 - `IMPLEMENT` mode requires explicit operator trigger (`Implement now`).
 - `VERIFY` mode is evidence reconciliation only.
