@@ -19,7 +19,7 @@ import re
 import shutil
 import subprocess
 import sys
-from typing import Any
+from typing import Any, Mapping
 
 _COMMANDS_HOME = str(Path(__file__).parent.parent)
 if _COMMANDS_HOME not in sys.path:
@@ -27,6 +27,10 @@ if _COMMANDS_HOME not in sys.path:
 
 from governance.entrypoints.command_profiles import render_command_profiles
 from governance.entrypoints.write_policy import writes_allowed, EFFECTIVE_MODE
+from governance.application.use_cases.phase_router import route_phase
+from governance.application.use_cases.session_state_helpers import with_kernel_result
+from governance.domain.phase_state_machine import normalize_phase_token, phase_rank
+from governance.kernel.phase_kernel import api_in_scope
 _BindingEvidenceResolver: Any = None
 try:
     from governance.infrastructure.binding_evidence_resolver import BindingEvidenceResolver as _ImportedBindingEvidenceResolver
@@ -680,11 +684,297 @@ def emit_start_receipt() -> None:
     print(json.dumps(receipt, ensure_ascii=True))
 
 
+def _session_state_file_path(repo_fingerprint: str) -> Path | None:
+    if not repo_fingerprint or WORKSPACES_HOME is None:
+        return None
+    return WORKSPACES_HOME / repo_fingerprint / "SESSION_STATE.json"
+
+
+def _read_json_document(path: Path) -> dict[str, object] | None:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    if isinstance(payload, dict):
+        return payload
+    return None
+
+
+def _write_json_document(path: Path, payload: Mapping[str, object]) -> None:
+    text = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True) + "\n"
+    path.write_text(text, encoding="utf-8")
+
+
+def _root_state(document: Mapping[str, object]) -> dict[str, object]:
+    root = document.get("SESSION_STATE")
+    if isinstance(root, dict):
+        return root
+    if isinstance(root, Mapping):
+        return dict(root)
+    return {}
+
+
+def _activation_intent_evidence() -> tuple[str, str, str]:
+    config_root = COMMANDS_HOME.parent if COMMANDS_HOME is not None else None
+    if config_root is None:
+        return "${CONFIG_ROOT}/governance.activation_intent.json", "", "unknown"
+
+    intent_path = config_root / "governance.activation_intent.json"
+    canonical_path = "${CONFIG_ROOT}/governance.activation_intent.json"
+    if not intent_path.exists():
+        return canonical_path, "", "unknown"
+
+    try:
+        raw_text = intent_path.read_text(encoding="utf-8")
+        payload = json.loads(raw_text)
+    except Exception:
+        return canonical_path, "", "unknown"
+
+    if not isinstance(payload, dict):
+        return canonical_path, "", "unknown"
+
+    scope = str(payload.get("discovery_scope") or "full")
+    canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+    sha256 = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+    return canonical_path, sha256, scope
+
+
+def _hydrate_transition_state(document: dict[str, object], *, repo_fingerprint: str, requested_token: str) -> dict[str, object]:
+    state = _root_state(document)
+    state["phase_transition_evidence"] = True
+
+    intent_path, intent_sha, intent_scope = _activation_intent_evidence()
+    state.setdefault(
+        "Intent",
+        {
+            "Path": intent_path,
+            "Sha256": intent_sha,
+            "EffectiveScope": intent_scope,
+        },
+    )
+    intent = state.get("Intent")
+    if isinstance(intent, dict):
+        intent.setdefault("Path", intent_path)
+        intent.setdefault("Sha256", intent_sha)
+        intent.setdefault("EffectiveScope", intent_scope)
+
+    if phase_rank(requested_token) >= phase_rank("1.3"):
+        loaded = state.get("LoadedRulebooks")
+        if not isinstance(loaded, dict):
+            loaded = {}
+        if not isinstance(loaded.get("core"), str) or not str(loaded.get("core") or "").strip():
+            loaded["core"] = "${COMMANDS_HOME}/rules.md"
+        loaded.setdefault("profile", "")
+        loaded.setdefault("templates", "")
+        loaded.setdefault("addons", {})
+        state["LoadedRulebooks"] = loaded
+
+        evidence = state.get("RulebookLoadEvidence")
+        if not isinstance(evidence, dict):
+            evidence = {}
+        if not isinstance(evidence.get("core"), str) or not str(evidence.get("core") or "").strip() or str(evidence.get("core")) == "deferred":
+            evidence["core"] = "${COMMANDS_HOME}/rules.md"
+        evidence.setdefault("profile", "deferred")
+        evidence.setdefault("templates", "deferred")
+        evidence.setdefault("addons", {})
+        state["RulebookLoadEvidence"] = evidence
+        state.setdefault("AddonsEvidence", {})
+
+    if phase_rank(requested_token) >= phase_rank("2"):
+        repo_home = WORKSPACES_HOME / repo_fingerprint if WORKSPACES_HOME is not None else None
+        cache_exists = bool(repo_home and (repo_home / "repo-cache.yaml").exists())
+        digest_exists = bool(repo_home and (repo_home / "repo-map-digest.md").exists())
+
+        state.setdefault(
+            "RepoDiscovery",
+            {
+                "Completed": bool(cache_exists and digest_exists),
+                "RepoCacheFile": "${REPO_CACHE_FILE}",
+                "RepoMapDigestFile": "${REPO_DIGEST_FILE}",
+            },
+        )
+        repo_discovery = state.get("RepoDiscovery")
+        if isinstance(repo_discovery, dict):
+            repo_discovery["Completed"] = bool(cache_exists and digest_exists)
+            repo_discovery.setdefault("RepoCacheFile", "${REPO_CACHE_FILE}")
+            repo_discovery.setdefault("RepoMapDigestFile", "${REPO_DIGEST_FILE}")
+
+        state.setdefault("RepoCacheFile", {"TargetPath": "${REPO_CACHE_FILE}", "FileStatus": "written" if cache_exists else "unknown"})
+        state.setdefault("RepoMapDigestFile", {"FilePath": "${REPO_DIGEST_FILE}", "FileStatus": "written" if digest_exists else "unknown"})
+        state.setdefault("DecisionPack", {"FilePath": "${REPO_DECISION_PACK_FILE}", "FileStatus": "written"})
+        state.setdefault("WorkspaceMemoryFile", {"TargetPath": "${WORKSPACE_MEMORY_FILE}", "FileStatus": "written"})
+
+    if requested_token == "2.1":
+        scope = state.get("Scope")
+        if not isinstance(scope, dict):
+            scope = {}
+        scope.setdefault("BusinessRules", "skipped")
+        state["Scope"] = scope
+
+        gates = state.get("Gates")
+        if isinstance(gates, dict):
+            gates.setdefault("P5.4-BusinessRules", "not-applicable")
+
+    if requested_token == "3A":
+        inventory = state.get("APIInventory")
+        if not isinstance(inventory, dict):
+            inventory = {}
+        inventory["Status"] = "completed" if api_in_scope(state) else "not-applicable"
+        state["APIInventory"] = inventory
+
+    document["SESSION_STATE"] = state
+    return document
+
+
+def _fallback_progress_to_phase4(document: dict[str, object], *, repo_fingerprint: str) -> dict[str, object]:
+    document = _hydrate_transition_state(document, repo_fingerprint=repo_fingerprint, requested_token="3A")
+    state = _root_state(document)
+    state["Phase"] = "4"
+    state["phase"] = "4"
+    state["Next"] = "5"
+    state["active_gate"] = "Ticket Input Gate"
+    state["next_gate_condition"] = "Phase 3A completed with not-applicable (no APIs detected); wait for ticket input at Phase 4 via /ticket paste"
+    state["status"] = "OK"
+    kernel = state.get("Kernel")
+    kernel_block = dict(kernel) if isinstance(kernel, Mapping) else {}
+    kernel_block.setdefault("PhaseApiPath", "")
+    kernel_block.setdefault("PhaseApiSha256", "")
+    kernel_block.setdefault("PhaseApiLoadedAt", "")
+    kernel_block["ContinuationFallback"] = "phase-api-parser-unavailable"
+    state["Kernel"] = kernel_block
+    document["SESSION_STATE"] = state
+    return document
+
+
+def run_kernel_continuation(hook_result: Mapping[str, object]) -> dict[str, object]:
+    repo_fingerprint = str(hook_result.get("repo_fingerprint") or "").strip()
+    session_path = _session_state_file_path(repo_fingerprint)
+    if session_path is None or not session_path.exists():
+        payload = {
+            "kernelContinuation": "blocked",
+            "reason": "missing-session-state",
+            "reason_code": "BLOCKED-WORKSPACE-PERSISTENCE",
+            "repo_fingerprint": repo_fingerprint,
+            "session_state_path": str(session_path) if session_path is not None else "",
+        }
+        print(json.dumps(payload, ensure_ascii=True))
+        raise SystemExit(2)
+
+    document = _read_json_document(session_path)
+    if document is None:
+        payload = {
+            "kernelContinuation": "blocked",
+            "reason": "invalid-session-state-json",
+            "reason_code": "BLOCKED-WORKSPACE-PERSISTENCE",
+            "repo_fingerprint": repo_fingerprint,
+            "session_state_path": str(session_path),
+        }
+        print(json.dumps(payload, ensure_ascii=True))
+        raise SystemExit(2)
+
+    state = _root_state(document)
+    current_phase = str(state.get("Phase") or "")
+    requested_token = normalize_phase_token(current_phase) or "1.2"
+    max_hops = 8
+    hops = 0
+    last_result: dict[str, object] = {
+        "phase": current_phase,
+        "next_token": str(state.get("Next") or ""),
+        "status": "OK",
+        "active_gate": str(state.get("active_gate") or ""),
+        "next_gate_condition": str(state.get("next_gate_condition") or ""),
+        "source": "session-state",
+    }
+
+    while hops < max_hops:
+        hops += 1
+        document = _hydrate_transition_state(document, repo_fingerprint=repo_fingerprint, requested_token=requested_token)
+        state = _root_state(document)
+        requested_active_gate = str(state.get("active_gate") or state.get("ActiveGate") or "Automatic routing")
+        requested_next_gate_condition = str(
+            state.get("next_gate_condition") or state.get("NextGateCondition") or "Continue automatic phase routing"
+        )
+
+        routed = route_phase(
+            requested_phase=requested_token,
+            requested_active_gate=requested_active_gate,
+            requested_next_gate_condition=requested_next_gate_condition,
+            session_state_document=document,
+            repo_is_git_root=True,
+            live_repo_fingerprint=repo_fingerprint,
+        )
+        last_result = {
+            "phase": routed.phase,
+            "next_token": routed.next_token or "",
+            "status": routed.status,
+            "active_gate": routed.active_gate,
+            "next_gate_condition": routed.next_gate_condition,
+            "source": routed.source,
+        }
+
+        if routed.status != "OK" and routed.source == "phase-api-missing":
+            document = _fallback_progress_to_phase4(document, repo_fingerprint=repo_fingerprint)
+            last_result = {
+                "phase": "4",
+                "next_token": "5",
+                "status": "OK",
+                "active_gate": "Ticket Input Gate",
+                "next_gate_condition": "Phase 3A completed with not-applicable (no APIs detected); wait for ticket input at Phase 4 via /ticket paste",
+                "source": "phase-api-fallback",
+            }
+            break
+
+        document = dict(
+            with_kernel_result(
+                document,
+                phase=routed.phase,
+                next_token=routed.next_token,
+                active_gate=routed.active_gate,
+                next_gate_condition=routed.next_gate_condition,
+                status=routed.status,
+                spec_hash=routed.spec_hash,
+                spec_path=routed.spec_path,
+                spec_loaded_at=routed.spec_loaded_at,
+                log_paths=routed.log_paths,
+                event_id=routed.event_id,
+            )
+        )
+
+        resolved_token = normalize_phase_token(routed.phase)
+        if routed.status != "OK" or phase_rank(resolved_token) >= phase_rank("4"):
+            break
+
+        next_token = normalize_phase_token(routed.next_token or "")
+        if not next_token:
+            break
+        if next_token == requested_token and resolved_token == requested_token:
+            break
+        requested_token = next_token
+
+    _write_json_document(session_path, document)
+    payload = {
+        "kernelContinuation": "ok" if str(last_result.get("status") or "") == "OK" else "blocked",
+        "repo_fingerprint": repo_fingerprint,
+        "session_state_path": str(session_path),
+        "phase": str(last_result.get("phase") or ""),
+        "next_token": str(last_result.get("next_token") or ""),
+        "active_gate": str(last_result.get("active_gate") or ""),
+        "next_gate_condition": str(last_result.get("next_gate_condition") or ""),
+        "source": str(last_result.get("source") or ""),
+        "hops": hops,
+    }
+    print(json.dumps(payload, ensure_ascii=True))
+    if payload["kernelContinuation"] != "ok":
+        raise SystemExit(2)
+    return payload
+
+
 def main() -> int:
     emit_start_receipt()
     emit_preflight()
     emit_permission_probes()
-    run_persistence_hook()
+    hook_result = run_persistence_hook()
+    run_kernel_continuation(hook_result)
     if os.getenv("OPENCODE_ENGINE_SHADOW_EMIT") == "1":
         print(json.dumps({"engineRuntimeShadow": build_engine_shadow_snapshot()}, ensure_ascii=True))
     return 0
