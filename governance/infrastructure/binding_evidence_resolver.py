@@ -106,6 +106,18 @@ class BindingEvidenceResolver:
         else:
             root = self._config_root
             binding_file = root / "commands" / "governance.paths.json"
+        
+        # Fallback search for common locations if binding file not found
+        if not binding_file.exists():
+            search_paths = [
+                Path.cwd() / "commands" / "governance.paths.json",
+                Path.cwd() / ".opencode" / "commands" / "governance.paths.json",
+                Path.home() / ".opencode" / "commands" / "governance.paths.json",
+            ]
+            for search_path in search_paths:
+                if search_path.exists():
+                    binding_file = search_path
+                    break
 
         python_command = ""
 
