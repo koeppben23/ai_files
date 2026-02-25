@@ -360,14 +360,6 @@
       "remediation_hint": "Revert baseline modifications or get explicit approval."
     },
     {
-      "code": "BLOCKED-Phase2-RepoDiscovery",
-      "severity": "blocked",
-      "payload_schema_ref": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
-      "description": "[DEPRECATED] Phase 2 repo discovery could not complete. Use BLOCKED-2-REPO-DISCOVERY instead.",
-      "remediation_hint": "Use tokenized phase name: BLOCKED-2-REPO-DISCOVERY",
-      "deprecated": true
-    },
-    {
       "code": "BLOCKED-2-REPO-DISCOVERY",
       "severity": "blocked",
       "payload_schema_ref": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
