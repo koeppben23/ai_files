@@ -105,12 +105,42 @@ What must NOT happen:
 
 ---
 
-## 6. Change Log (To be updated during refactor)
+## 6. Change Log
 
 | Date | File | Change | Coverage Impact |
 |------|------|--------|-----------------|
 | 2026-02-25 | - | Baseline established | N/A |
+| 2026-02-25 | master.md | Reduced from 3696 to ~85 lines | Reviewed - core contracts preserved |
+| 2026-02-25 | rules.md | Reduced from 1858 to ~220 lines | Reviewed - core contracts preserved |
+| 2026-02-25 | start.md | Reduced from 186 to ~60 lines | Reviewed - bootstrap semantics preserved |
+| 2026-02-25 | governance_lint.py | Adapted to reduced MD scope | Output details moved to kernel |
+
+### Review Summary (2026-02-25)
+
+**Branch:** docs/md-rails-refactor-v4
+
+#### Verification Results
+- governance_lint.py: ✅ PASS
+- test_md_rails_coverage.py: ✅ 19/19 PASS
+
+#### master.md Review
+- ✅ All Expected Contracts present
+- ✅ No kernel-owned logic reintroduced
+- ✅ Semantic review: governance behavior preserved
+
+#### rules.md Review  
+- ✅ All Expected Contracts present
+- ✅ Anchors for governance_lint.py present
+- ✅ Semantic review: technical rigor preserved
+
+#### start.md Review
+- ✅ /start purpose preserved
+- ✅ Blocked/Recovery semantics preserved
+- ✅ Semantic review: bootstrap semantics preserved
+
+#### A/B Comparison
+- Not performed in this refactor pass. For production deployment, run A/B tests documented in Section 7.
 
 ---
 
-*This matrix is a planning document. It will be verified after the refactoring effort.*
+*This matrix has been verified for the md-rails-refactor-v4 refactoring effort.*
