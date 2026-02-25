@@ -74,7 +74,7 @@ def main() -> int:
                 "bindingEvidenceSource": evidence.source,
             }
             print(json.dumps(payload, ensure_ascii=True))
-            return 0
+            return 2
 
     payload = {
         "schema": "opencode-governance.paths.v1",
@@ -89,7 +89,7 @@ def main() -> int:
         "bindingEvidenceSource": evidence.source,
     }
     print(json.dumps(payload, ensure_ascii=True))
-    return 0
+    return 2
 
 
 if __name__ == "__main__":
