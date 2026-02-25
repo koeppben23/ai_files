@@ -11,6 +11,7 @@ def test_bootstrap_payload_pointer_verified_true_golden():
         workspace_artifacts_committed=True,
         effective_mode="user",
         write_policy_reasons=(),
+        created_at="2026-01-01T00:00:00+00:00",
         pointer_verified=True,
         activation_intent_valid=True,
         intent_path="${CONFIG_ROOT}/governance.activation_intent.json",
@@ -40,6 +41,7 @@ def test_bootstrap_payload_not_satisfied_initial_block():
         workspace_artifacts_committed=False,
         effective_mode="user",
         write_policy_reasons=(),
+        created_at="2026-01-01T00:00:00+00:00",
         pointer_verified=False,
     )
     s = cast(dict[str, Any], state["SESSION_STATE"])

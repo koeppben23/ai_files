@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from datetime import datetime, timezone
 
 from governance.application.use_cases.bootstrap_persistence import (
     BootstrapInput,
@@ -75,7 +76,8 @@ def main(argv: list[str] | None = None) -> int:
         effective_mode=EFFECTIVE_MODE,
         write_policy_reasons=write_policy_reasons(),
     )
-    result = service.run(payload)
+    created_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    result = service.run(payload, created_at)
     print(
         json.dumps(
             {
