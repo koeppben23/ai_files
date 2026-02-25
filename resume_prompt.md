@@ -1,34 +1,34 @@
-RESUME-PROMPT — Controlled Session Recovery
+RESUME-PROMPT — Controlled Session Recovery (Guidance Template)
 
-INSTRUCTION (highest priority):
+INSTRUCTION (template guidance):
 This is a controlled resume of an existing engineering session.
-Load and strictly enforce the provided governance and rule documents.
-The SESSION_STATE below is the single authoritative source of truth and overrides any implicit assumptions.
+Use the provided governance and rule documents as context.
+Kernel/config remain authoritative for runtime decisions.
 
-1. Governance & Rules (load in this order):
+1. Governance & Rules (recommended context order):
 - master.md             (workflow, phases, gates)
 - rules.md              (technical & quality rules)
 - SCOPE-AND-CONTEXT.md  (governance, responsibility boundaries)
 - the active profile rulebook referenced by SESSION_STATE.ActiveProfile (e.g., rules.backend-java.md)
 
-2. Restored SESSION_STATE (authoritative, do not reinterpret):
+2. Restored SESSION_STATE (continuity context):
 
-Profile rule:
-- If SESSION_STATE.ActiveProfile is missing or ambiguous: stop and ask the user to provide the correct ActiveProfile (and, if needed, the rulebook filename). Do not assume a default.
+Profile guidance:
+- If `SESSION_STATE.ActiveProfile` is missing or ambiguous, ask for clarification and avoid default assumptions.
 
 <<< PASTE LAST [SESSION_STATE] BLOCK HERE — UNCHANGED >>>
 
-3. Execution Directive:
+3. Execution Guidance:
 
 - Confirm receipt of the SESSION_STATE.
 - Confirm current Phase, Confidence Level, and Gate Status.
-- Continue work **directly in Phase <X>** as specified in NEXT STEP.
-- Perform **only fact validation and consistency checks** required for this phase.
-- Do NOT generate code, diffs, or new artifacts unless the gate status explicitly allows it.
+- Continue work in the phase implied by `SESSION_STATE.Next` and current gate context.
+- Prioritize fact validation and consistency checks for the current step.
+- Avoid generating code/diffs unless requested and gate posture allows it.
 - If required facts are missing or inconsistent:
-  - Switch to BLOCKED or DEGRADED mode as defined in rules.md.
-  - Report blockers explicitly.
-  - Do NOT infer or reconstruct missing information.
+  - report blockers explicitly,
+  - request minimal missing information,
+  - avoid reconstructing unknown facts.
 
 4. Output Constraints:
 

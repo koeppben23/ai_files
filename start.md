@@ -138,7 +138,7 @@ Output requirements:
 - `SESSION_STATE` output MUST be formatted as fenced YAML (````yaml` + `SESSION_STATE:` payload)
 - In this section, the YAML requirement applies to dedicated full-state `SESSION_STATE` blocks (including explicit governance/full-state output), not to the compact strict-envelope snapshot projection.
 - When full `SESSION_STATE` is emitted as a dedicated state block, it MUST be formatted as fenced YAML (````yaml` + `SESSION_STATE:` payload)
-- `SESSION_STATE` output MUST NOT use placeholder tokens (`...`, `<...>`); use explicit unknown/deferred values instead
+- `SESSION_STATE` output MUST NOT use placeholder tokens (`...`, `<...>`); use explicit unknown/null values instead
 - Explicit Gates
 - Explicit DEVIATION reporting
 - Prefer structured (non-chat) answers when host constraints allow
@@ -154,7 +154,9 @@ Output requirements:
 - Across lifecycle transitions, `session_run_id` and `ruleset_hash` remain stable unless explicit rehydrate/reload is performed (kernel-enforced).
 - Every phase/mode transition records a unique `transition_id` diagnostic entry (kernel-enforced).
 - On phase/mode changes, response SHOULD include a compact transition line: `[TRANSITION] <from> -> <to> | reason: <short reason>`.
-- At session start, include exactly one banner based on discovery artifact validity evidence: `[START-MODE] Cold Start - reason: ...` or `[START-MODE] Warm Start - reason: ...`.
+- At session start, include exactly one start-mode banner based on discovery artifact validity evidence:
+  - `[START-MODE] Cold Start - reason: ...`
+  - `[START-MODE] Warm Start - reason: ...`
 - Include `[SNAPSHOT]` block (`Confidence`, `Risk`, `Scope`) with values aligned to current `SESSION_STATE`.
 - If blocked, include `QuickFixCommands` with 1-3 copy-paste commands (or `["none"]` if not command-driven) when host constraints allow.
 - When `QuickFixCommands` are emitted, `/start` SHOULD label primary command confidence as `safe` or `review-first`.
