@@ -131,7 +131,7 @@ Phase 1.1 (Bootstrap) is the only phase allowed to emit a partial SESSION_STATE 
 After Phase 1.1 (bootstrap) completes successfully, these keys are present (kernel-enforced):
 
 - `SESSION_STATE.session_state_version` (integer)
-- `SESSION_STATE.ruleset_hash` (string)
+- `SESSION_STATE.ruleset_hash` (string OR `null` until ruleset activation completes)
 - `SESSION_STATE.Phase` (enum; see Section 3)
 - `SESSION_STATE.Mode` (enum; see Section 4)
 - `SESSION_STATE.OutputMode` (enum; see Section 4.1)
@@ -148,9 +148,9 @@ After Phase 1.1 (bootstrap) completes successfully, these keys are present (kern
 - `SESSION_STATE.LoadedRulebooks.addons` (object map addon_key -> string path; default `{}`)
 - `SESSION_STATE.AddonsEvidence` (object map addon_key -> evidence object; default `{}`)
 - `SESSION_STATE.RulebookLoadEvidence` (object; see Section 6.4)
-- `SESSION_STATE.ActiveProfile` (string OR `""` only when profile resolution is explicitly not applicable)
+- `SESSION_STATE.ActiveProfile` (string OR `null` when no profile is selected)
 - `SESSION_STATE.ProfileSource` (enum; see Section 5)
-- `SESSION_STATE.ProfileEvidence` (string)
+- `SESSION_STATE.ProfileEvidence` (string OR `null`)
 - `SESSION_STATE.Gates` (object; see Section 8)
 
 ---
@@ -272,8 +272,9 @@ Invariants:
 ### Lazy-loading invariants (binding)
 
 - Until Phase 2 completes:
-  - `ActiveProfile` MAY be `""`
-  - `ProfileSource` MUST be `"deferred"`
+  - `ActiveProfile` SHOULD be `null`
+  - `ProfileSource` SHOULD be `null`
+  - `ProfileEvidence` SHOULD be `null`
   - `LoadedRulebooks.profile` MAY be `""`
 
 - Until Phase 4 begins:
@@ -382,7 +383,7 @@ Recommended calibration (rubric; clamp 0–100):
 
 ### 5.1 ActiveProfile
 
-String identifier, e.g.:
+String identifier when selected, otherwise `null`, e.g.:
 - `backend-java`
 - `frontend-angular-nx`
 
@@ -395,10 +396,11 @@ String identifier, e.g.:
 - `component-scope-inferred`
 - `component-scope-filtered`
 - `ambiguous` (**only allowed when the session is in a blocked state** )
+- `null` (no profile selected)
 
 ### 5.3 ProfileEvidence
 
-Human-readable evidence string (paths/files), e.g.:
+Human-readable evidence string (paths/files) when selected, otherwise `null`, e.g.:
 - `profiles/rules.backend-java.md`
 - `${OPENCODE_HOME}/rules/profiles/rules.backend-java.md` (if installed globally)
 - `pom.xml, src/main/java`
