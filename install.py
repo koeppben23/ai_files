@@ -393,6 +393,7 @@ CUSTOMER_DOCS = frozenset({
     "customer-install-bundle-v1.md",
     "release-security-model.md",
     "mode-aware-repo-rules.md",
+    "governance_invariants.md",
 })
 
 
