@@ -12,6 +12,11 @@
       "confidence": "safe",
       "summary": "Reload installer-owned path binding evidence."
     },
+    "BLOCKED-MISSING-COMMANDS-HOME": {
+      "primary_command": "/start",
+      "confidence": "review-first",
+      "summary": "Repair commands_home binding or set COMMANDS_HOME environment variable."
+    },
     "BLOCKED-MISSING-BINDING-FILE": {
       "primary_command": "/start",
       "confidence": "review-first",
