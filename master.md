@@ -1231,7 +1231,7 @@ SESSION_STATE versioning (informational):
 SESSION_STATE:
   session_state_version: <int>
   ruleset_hash: "<sha256-or-versioned-hash>"
-  Phase: 1.1-Bootstrap | 1.2-ActivationIntent | 1.3-CoreRulesActivation | 1.5-BusinessRules | 2 | 2.1-DecisionPack | 3A | 3B-1 | 3B-2 | 4 | 5 | 5.3 | 5.4 | 5.5 | 5.6 | 6
+  Phase: 1.1-Bootstrap | 1.2-ActivationIntent | 1.2-ProfileDetection | 1.3-CoreRulesActivation | 1.5-BusinessRules | 2 | 2.1-DecisionPack | 3A | 3B-1 | 3B-2 | 4 | 5 | 5.3 | 5.4 | 5.5 | 5.6 | 6
   Mode: NORMAL | DEGRADED | DRAFT | BLOCKED
   ConfidenceLevel: <0-100>
   Next: "<next-step-identifier>"  # REQUIRED. Canonical continuation pointer (see SESSION_STATE_SCHEMA.md)

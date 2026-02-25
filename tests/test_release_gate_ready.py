@@ -27,6 +27,7 @@ import json
 import os
 import re
 import shutil
+import site
 import subprocess
 import sys
 from pathlib import Path
@@ -101,7 +102,7 @@ def _materialize_commands_bundle_from_checkout(*, checkout_root: Path, commands_
         src = checkout_root / dirname
         if src.exists():
             shutil.copytree(src, commands_home / dirname, dirs_exist_ok=True)
-    for filename in ("master.md", "rules.md", "QUALITY_INDEX.md", "CONFLICT_RESOLUTION.md"):
+    for filename in ("master.md", "rules.md", "QUALITY_INDEX.md", "CONFLICT_RESOLUTION.md", "phase_api.yaml"):
         src = checkout_root / filename
         if src.exists():
             shutil.copy2(src, commands_home / filename)
@@ -145,6 +146,9 @@ def isolated_env(tmp_path: Path):
     env["USERPROFILE"] = str(home)
     env["CI"] = ""
     env.pop("OPENCODE_FORCE_READ_ONLY", None)
+    user_site = site.getusersitepackages()
+    if user_site:
+        env["PYTHONPATH"] = os.pathsep.join([part for part in (user_site, env.get("PYTHONPATH", "")) if part])
     
     return {
         "home": home,
