@@ -583,7 +583,7 @@ def test_session_state_versioning_and_migration_contract_is_defined():
     ]
     schema_required = [
         "`SESSION_STATE.session_state_version` (integer)",
-        "`SESSION_STATE.ruleset_hash` (string)",
+        "`SESSION_STATE.ruleset_hash` (string OR `null` until ruleset activation completes)",
         "### Session-state versioning and migration (binding)",
         "`Next=BLOCKED-STATE-OUTDATED`",
         "`BLOCKED-STATE-OUTDATED`",
@@ -2975,17 +2975,19 @@ def test_cold_warm_start_banner_contract_is_defined_across_core_docs():
 
     master_required = [
         "### 2.4.1 Session Start Mode Banner (Kernel-Enforced)",
-        "[START-MODE] Cold Start | Warm Start - reason:",
+        "[START-MODE] Cold Start - reason:",
+        "[START-MODE] Warm Start - reason:",
         "`Cold Start` when discovery/cache artifacts are absent or invalid.",
         "`Warm Start` only when cache/digest/memory artifacts are present and valid",
     ]
     rules_required = [
         "### 7.3.3 Cold/Warm Start Banner (Presentation Advisory)",
-        "[START-MODE] Cold Start | Warm Start - reason:",
+        "[START-MODE] Cold Start - reason:",
+        "[START-MODE] Warm Start - reason:",
         "Banner decision MUST be evidence-backed",
     ]
     start_required = [
-        "At session start, include `[START-MODE] Cold Start | Warm Start - reason: ...` based on discovery artifact validity evidence.",
+        "At session start, include exactly one banner based on discovery artifact validity evidence: `[START-MODE] Cold Start - reason: ...` or `[START-MODE] Warm Start - reason: ...`.",
     ]
 
     missing_master = [t for t in master_required if t not in master]
