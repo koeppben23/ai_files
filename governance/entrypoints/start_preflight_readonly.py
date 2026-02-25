@@ -31,48 +31,7 @@ from governance.application.use_cases.phase_router import route_phase
 from governance.application.use_cases.session_state_helpers import with_kernel_result
 from governance.domain.phase_state_machine import normalize_phase_token, phase_rank
 from governance.kernel.phase_kernel import api_in_scope
-_BindingEvidenceResolver: Any = None
-try:
-    from governance.infrastructure.binding_evidence_resolver import BindingEvidenceResolver as _ImportedBindingEvidenceResolver
-
-    _BindingEvidenceResolver = _ImportedBindingEvidenceResolver
-except Exception:
-    class _FallbackBindingEvidence:
-        def __init__(self, commands_home: Path):
-            self.commands_home = commands_home
-            self.workspaces_home = commands_home.parent / "workspaces"
-            self.binding_ok = False
-            self.governance_paths_json: Path | None = None
-            self.python_command = "python3"
-
-    class _FallbackBindingEvidenceResolver:
-        def resolve(self, mode: str = "user") -> _FallbackBindingEvidence:
-            _ = mode
-            commands_home = Path(__file__).parent.parent
-            evidence = _FallbackBindingEvidence(commands_home)
-            candidate = commands_home / "governance.paths.json"
-            if not candidate.is_file():
-                return evidence
-            try:
-                payload = json.loads(candidate.read_text(encoding="utf-8"))
-                paths = payload.get("paths") if isinstance(payload, dict) else None
-                if isinstance(paths, dict):
-                    configured_commands = paths.get("commandsHome")
-                    configured_workspaces = paths.get("workspacesHome")
-                    configured_python = paths.get("pythonCommand")
-                    if isinstance(configured_commands, str) and configured_commands.strip():
-                        evidence.commands_home = Path(configured_commands.strip())
-                    if isinstance(configured_workspaces, str) and configured_workspaces.strip():
-                        evidence.workspaces_home = Path(configured_workspaces.strip())
-                    if isinstance(configured_python, str) and configured_python.strip():
-                        evidence.python_command = configured_python.strip()
-                evidence.binding_ok = True
-                evidence.governance_paths_json = candidate
-            except Exception:
-                evidence.binding_ok = False
-            return evidence
-
-    _BindingEvidenceResolver = _FallbackBindingEvidenceResolver
+from governance.infrastructure.binding_evidence_resolver import BindingEvidenceResolver
 
 try:
     from bootstrap.repo_identity import derive_fingerprint as _derive_fingerprint_ssot
@@ -100,8 +59,8 @@ def _effective_mode() -> str:
     return EFFECTIVE_MODE
 
 
-def _resolve_bindings() -> tuple[Path, Path, bool, Path | None, str]:
-    resolver = _BindingEvidenceResolver()
+def _resolve_bindings() -> tuple[Path | None, Path | None, bool, Path | None, str]:
+    resolver = BindingEvidenceResolver()
     effective_mode = _effective_mode()
     evidence = resolver.resolve(mode=effective_mode)
     python_command = evidence.python_command.strip() if evidence.python_command else ""
@@ -298,7 +257,7 @@ def emit_permission_probes() -> None:
     checks = [
         {
             "probe": "fs.read_commands_home",
-            "available": COMMANDS_HOME.exists() and os.access(COMMANDS_HOME, os.R_OK),
+            "available": bool(COMMANDS_HOME is not None and COMMANDS_HOME.exists() and os.access(COMMANDS_HOME, os.R_OK)),
         },
         {
             "probe": "exec.allowed",
@@ -445,26 +404,18 @@ def _emit_persistence_gate_failure(
         phase="1.1-Bootstrap",
     )
     if not emitted:
-        try:
-            from governance.infrastructure.logging.error_logs import safe_log_error
-
-            safe_log_error(
-                reason_key=code,
-                message=message,
-                config_root=config_root,
-                phase="1.1-Bootstrap",
-                gate="PERSISTENCE",
-                mode=_effective_mode(),
-                repo_fingerprint=repo_fingerprint,
-                command="start_preflight_readonly.py",
-                component="start-preflight",
-                observed_value=observed,
-                expected_constraint=expected,
-                remediation=remediation,
-                result="blocked",
-            )
-        except Exception:
-            pass
+        print(
+            json.dumps(
+                {
+                    "persistenceGateFailure": "not-logged",
+                    "reason_code": code,
+                    "phase": "1.1-Bootstrap",
+                    "message": "emit_gate_failure returned false",
+                },
+                ensure_ascii=True,
+            ),
+            file=sys.stderr,
+        )
     try:
         return resolve_log_path(
             config_root=config_root,
