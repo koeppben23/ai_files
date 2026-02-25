@@ -255,6 +255,16 @@ def _sanitize_ticket_progression(*, phase: str, next_gate_condition: str) -> str
     return next_gate_condition
 
 
+def _normalize_source(source: str) -> str:
+    if source in ("kernel", "spec-next"):
+        return source
+    if source in ("transition", "not_applicable"):
+        return source
+    if source.startswith("phase-"):
+        return "transition"
+    return "kernel"
+
+
 def _resolve_paths(runtime_ctx: RuntimeContext) -> tuple[Path | None, Path | None, Path | None, bool, list[str]]:
     if runtime_ctx.commands_home is not None:
         commands_home = runtime_ctx.commands_home
@@ -370,6 +380,8 @@ def _select_transition(entry: PhaseSpecEntry, state: Mapping[str, object]) -> tu
 
 
 def _emit_phase_event(log_paths: Mapping[str, Path], event: dict[str, object]) -> tuple[bool, dict[str, str]]:
+    # Canonical audit log: events.jsonl
+    # Operational mirror/debug: flow.log.jsonl
     workspace_written = False
     workspace_path = log_paths.get("workspace_events")
     if workspace_path is not None:
@@ -449,7 +461,7 @@ def execute(
                 "ts_utc": _utc_now(),
                 "event_id": event_id,
                 "event": "PHASE_BLOCKED",
-                "source": "phase-api-missing",
+                "source": _normalize_source("phase-api-missing"),
                 "phase": "1.1-Bootstrap",
                 "phase_token": "1.1",
                 "next_token": "1.1",
@@ -519,7 +531,7 @@ def execute(
                 "ts_utc": _utc_now(),
                 "event_id": event_id,
                 "event": "PHASE_BLOCKED",
-                "source": source,
+                "source": _normalize_source(source),
                 "phase": phase,
                 "phase_token": token,
                 "next_token": token,
