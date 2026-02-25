@@ -133,7 +133,7 @@ Before merging any MD refactor:
 - [ ] All Cognitive heuristics preserved (see Section 2)
 - [ ] No Regression Rules triggered (see Section 3)
 - [ ] governance_lint.py passes
-- [ ] test_md_rails_coverage.py passes
+- [ ] MD rails coverage checks pass
 - [ ] Semantic review: Is intended behavior and guidance preserved?
 
 ---
@@ -142,9 +142,9 @@ Before merging any MD refactor:
 
 | Date | File | Change | Coverage Impact | Matrix Updated |
 |------|------|--------|-----------------|---------------|
-| 2026-02-25 | master.md | Initial refactor: reduced to core guidance | No required contract loss | Yes |
-| 2026-02-25 | rules.md | Initial refactor: focused on technical core rules | No required contract loss | Yes |
-| 2026-02-25 | start.md | Initial refactor: minimal bootstrap semantics | No required contract loss | Yes |
+| 2026-02-25 | master.md | Initial refactor: reduced to core guidance | Reviewed - no required contract loss observed | Yes |
+| 2026-02-25 | rules.md | Initial refactor: focused on technical core rules | Reviewed - no required contract loss observed | Yes |
+| 2026-02-25 | start.md | Initial refactor: minimal bootstrap semantics | Reviewed - no required contract loss observed | Yes |
 | 2026-02-25 | governance_lint.py | Commented out output-detail checks | Adapted to reduced MD scope | Yes |
 
 ---
