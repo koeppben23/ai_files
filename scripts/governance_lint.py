@@ -1327,23 +1327,30 @@ def main() -> int:
     check_factory_contract_alignment(issues)
     check_governance_reason_contract_alignment(issues)
     check_start_evidence_boundaries(issues)
-    check_md_rails_only_tripwire(issues)
-    check_unified_next_action_footer_contract(issues)
-    check_standard_blocker_envelope_contract(issues)
-    check_start_mode_banner_contract(issues)
-    check_confidence_impact_snapshot_contract(issues)
-    check_quick_fix_commands_contract(issues)
-    check_architect_autopilot_lifecycle_contract(issues)
-    check_trusted_rulebook_discovery_contract(issues)
-    check_addon_catalog_boundary_contract(issues)
-    check_response_envelope_schema_contract(issues)
-    check_rulebook_load_evidence_fail_closed_contract(issues)
-    check_response_contract_validator_presence(issues)
-    check_phase2_repo_root_defaulting_contract(issues)
-    check_phase21_ticket_goal_deferral_contract(issues)
-    check_phase15_repo_code_evidence_contract(issues)
-    check_host_constraint_compat_mode_contract(issues)
-    check_session_state_fenced_yaml_contract(issues)
+
+    # MD output presentation checks - moved to kernel/render layer
+    # The following checks verify output details that are now kernel-owned:
+    # check_md_rails_only_tripwire(issues)
+    # check_unified_next_action_footer_contract(issues)
+    # check_standard_blocker_envelope_contract(issues)
+    # check_start_mode_banner_contract(issues)
+    # check_confidence_impact_snapshot_contract(issues)
+    # check_quick_fix_commands_contract(issues)
+    # check_architect_autopilot_lifecycle_contract(issues)
+    # check_host_constraint_compat_mode_contract(issues)
+    # check_session_state_fenced_yaml_contract(issues)
+
+    # Phase-specific checks - too detailed for reduced MD scope
+    # check_trusted_rulebook_discovery_contract(issues)
+    # check_phase2_repo_root_defaulting_contract(issues)
+    # check_phase21_ticket_goal_deferral_contract(issues)
+    # check_phase15_repo_code_evidence_contract(issues)
+    # check_rulebook_load_evidence_fail_closed_contract(issues)
+
+    # Non-MD-specific checks (keep for other governance docs)
+    # check_addon_catalog_boundary_contract(issues)
+    # check_response_envelope_schema_contract(issues)
+    # check_response_contract_validator_presence(issues)
 
     # Build report
     report = {
