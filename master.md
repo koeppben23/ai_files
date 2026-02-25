@@ -312,9 +312,9 @@ SESSION_STATE bootstrap (binding):
     Satisfied: true
     Evidence: "explicit bootstrap declaration in session header"
   LoadedRulebooks:
-    core: ""     # set at Phase 1.3 before any Phase >=2 execution
-    profile: ""  # set when a profile is selected or marked not-applicable
-    templates: ""
+    core: null     # target state: null until set (legacy "" may appear during migration)
+    profile: null  # target state: null until profile is selected
+    templates: null
     addons: {}
   ActiveProfile: null         # selected profile name when resolved
   ProfileSource: null
@@ -569,7 +569,7 @@ See SESSION_STATE_SCHEMA.md for the canonical contract (required keys, enums, in
 SESSION_STATE.LoadedRulebooks = {
   core: "${COMMANDS_HOME}/rules.md",
   profile: "${COMMANDS_HOME}/profiles/rules.backend-java.md",
-  templates: "",
+  templates: null,
   addons: {}
 }
 SESSION_STATE.ActiveProfile = "backend-java"
@@ -1100,6 +1100,7 @@ Detailed operational start behavior is documented as non-binding guidance in:
 - `start.md` (operator-facing start rail)
 - `docs/governance/RESPONSIBILITY_BOUNDARY.md` (binding vs guidance boundary)
 - `docs/governance/rails/planning.md` (workflow planning guidance)
+- `docs/governance/MASTER_SECTION_CLASSIFICATION.md` (master section class mapping)
 
 ### 2.4.1 Session Start Mode Banner (Kernel-Enforced)
 
@@ -1233,8 +1234,8 @@ SESSION_STATE:
   DecisionSurface: {}  # REQUIRED when OutputMode=ARCHITECT (see SESSION_STATE_SCHEMA.md)
   LoadedRulebooks:
     core: "<path/to/rules.md>"
-    profile: "<path/to/profile-rulebook.md>"  # empty string allowed only for planning-only mode
-    templates: ""
+    profile: <path/to/profile-rulebook.md|null>
+    templates: <path/to/template-rulebook.md|null>
     addons: {}
   
   ActiveProfile: <profile-name|null>
@@ -1254,7 +1255,7 @@ SESSION_STATE:
   Risks: []
   Blockers: []
   Warnings: []
-  TicketRecordDigest: ""   # REQUIRED for planning-or-later phases (4 | 5 | 5.3 | 5.4 | 5.5 | 5.6 | 6)
+  TicketRecordDigest: null  # REQUIRED for planning-or-later phases once available
   NFRChecklist: {}         # optional in MIN; recommended for planning-or-later phases
   CrossRepoImpact: {}     # optional in MIN; REQUIRED in FULL if contracts are consumed cross-repo
   RollbackStrategy: {}    # optional in MIN; REQUIRED in FULL if schema/contracts change
@@ -1262,7 +1263,7 @@ SESSION_STATE:
   Preflight:
     BuildToolchain:
       DetectedTools: {}    # populated by /start preflight; map of tool name → version string (null if not found)
-      ObservedAt: ""       # ISO-8601 timestamp of probe
+      ObservedAt: null       # ISO-8601 timestamp once probe runs
   BuildToolchain:          # populated in Phase 2 (step 3b) from repo signals + preflight probe
     CompileAvailable: false
     CompileCmd: null        # e.g., "mvn compile -q", "./gradlew classes", "npm run build", "cargo build"
@@ -1742,7 +1743,7 @@ SESSION_STATE:
       ci: []
     Testing:
       frameworks: ["junit5", "mockito"]
-      notes: ""
+      notes: null
     ConventionsDigest:
       - "Error mapping via @ControllerAdvice + stable error codes (evidence: src/main/java/**/error/**)"
       - "DTO mapping via MapStruct (evidence: src/main/java/**/mapper/**)"
@@ -2857,7 +2858,7 @@ SESSION_STATE:
     ExemplarFollowed: "src/main/java/**/order/** (similar CRUD + validation pattern)"
     DebtConstraints: ["FIXME: N+1 in findAllWithOrders — avoid similar pattern"]
   FastPath: false
-  FastPathReason: ""
+  FastPathReason: null
   TouchedSurface:
     FilesPlanned: ["<paths...>"]
     ContractsPlanned: []
@@ -3667,7 +3668,7 @@ Host-constraint compatibility (binding):
 * In this section, "`SESSION_STATE` is emitted" refers to a dedicated full-state output block, not the compact strict-envelope snapshot projection.
 * If `SESSION_STATE` is emitted, it MUST still be rendered as fenced YAML (format-stable machine-readable state block).
 * If full `SESSION_STATE` is emitted as a dedicated state block (for example governance/full-state output), it MUST be rendered as fenced YAML (format-stable machine-readable state block).
-* `SESSION_STATE` blocks MUST NOT use placeholder tokens (`...`, `<...>`); unknown fields must be explicit (`unknown|deferred|not-applicable`).
+* `SESSION_STATE` blocks MUST NOT use placeholder tokens (`...`, `<...>`); unknown fields must be explicit (`unknown|null|not-applicable`).
 * COMPAT mode MUST still emit a `[NEXT-ACTION]` block with `Status`, `Next`, `Why`, and `Command` fields.
 
 Strict/compat mode matrix (binding):

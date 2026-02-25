@@ -566,7 +566,7 @@ def check_session_state_fenced_yaml_contract(issues: list[str]) -> None:
 
     master_required = [
         "If `SESSION_STATE` is emitted, it MUST still be rendered as fenced YAML",
-        "`SESSION_STATE` blocks MUST NOT use placeholder tokens (`...`, `<...>`); unknown fields must be explicit (`unknown|deferred|not-applicable`).",
+        "`SESSION_STATE` blocks MUST NOT use placeholder tokens (`...`, `<...>`); unknown fields must be explicit (`unknown|null|not-applicable`).",
     ]
     rules_required = [
         "### 7.3.9 SESSION_STATE Formatting Contract (Presentation Advisory)",
@@ -575,11 +575,11 @@ def check_session_state_fenced_yaml_contract(issues: list[str]) -> None:
         "fenced block start: ````yaml",
         "payload root key: `SESSION_STATE:`",
         "Placeholder tokens like `...` or `<...>` are FORBIDDEN inside emitted `SESSION_STATE` blocks.",
-        "If values are unknown/deferred, emit explicit values (`unknown`, `deferred`, `not-applicable`) rather than placeholders.",
+        "If values are unknown, emit explicit values (`unknown`, `null`, `not-applicable`) rather than placeholders.",
     ]
     start_required = [
         "`SESSION_STATE` output MUST be formatted as fenced YAML (````yaml` + `SESSION_STATE:` payload)",
-        "`SESSION_STATE` output MUST NOT use placeholder tokens (`...`, `<...>`); use explicit unknown/deferred values instead",
+        "`SESSION_STATE` output MUST NOT use placeholder tokens (`...`, `<...>`); use explicit unknown/null values instead",
     ]
 
     missing_master = [t for t in master_required if t not in master]
@@ -1173,7 +1173,9 @@ def check_start_mode_banner_contract(issues: list[str]) -> None:
         "Banner decision MUST be evidence-backed",
     ]
     start_required = [
-        "At session start, include exactly one banner based on discovery artifact validity evidence: `[START-MODE] Cold Start - reason: ...` or `[START-MODE] Warm Start - reason: ...`.",
+        "At session start, include exactly one start-mode banner based on discovery artifact validity evidence:",
+        "[START-MODE] Cold Start - reason:",
+        "[START-MODE] Warm Start - reason:",
     ]
 
     missing_master = [t for t in master_required if t not in master]
