@@ -804,16 +804,23 @@ def _hydrate_transition_state(document: dict[str, object], *, repo_fingerprint: 
         state.setdefault("DecisionPack", {"FilePath": "${REPO_DECISION_PACK_FILE}", "FileStatus": "written"})
         state.setdefault("WorkspaceMemoryFile", {"TargetPath": "${WORKSPACE_MEMORY_FILE}", "FileStatus": "written"})
 
-    if requested_token == "2.1":
+    if phase_rank(requested_token) >= phase_rank("2.1"):
         scope = state.get("Scope")
         if not isinstance(scope, dict):
             scope = {}
-        scope.setdefault("BusinessRules", "skipped")
+        scope["BusinessRules"] = "skipped"
         state["Scope"] = scope
 
         gates = state.get("Gates")
         if isinstance(gates, dict):
-            gates.setdefault("P5.4-BusinessRules", "not-applicable")
+            gates["P5.4-BusinessRules"] = "not-applicable"
+
+        business_rules = state.get("BusinessRules")
+        if not isinstance(business_rules, dict):
+            business_rules = {}
+        business_rules["Decision"] = "skip"
+        business_rules.setdefault("InventoryFileStatus", "not-applicable")
+        state["BusinessRules"] = business_rules
 
     if requested_token == "3A":
         inventory = state.get("APIInventory")
@@ -822,26 +829,6 @@ def _hydrate_transition_state(document: dict[str, object], *, repo_fingerprint: 
         inventory["Status"] = "completed" if api_in_scope(state) else "not-applicable"
         state["APIInventory"] = inventory
 
-    document["SESSION_STATE"] = state
-    return document
-
-
-def _fallback_progress_to_phase4(document: dict[str, object], *, repo_fingerprint: str) -> dict[str, object]:
-    document = _hydrate_transition_state(document, repo_fingerprint=repo_fingerprint, requested_token="3A")
-    state = _root_state(document)
-    state["Phase"] = "4"
-    state["phase"] = "4"
-    state["Next"] = "5"
-    state["active_gate"] = "Ticket Input Gate"
-    state["next_gate_condition"] = "Phase 3A completed with not-applicable (no APIs detected); wait for ticket input at Phase 4 via /ticket paste"
-    state["status"] = "OK"
-    kernel = state.get("Kernel")
-    kernel_block = dict(kernel) if isinstance(kernel, Mapping) else {}
-    kernel_block.setdefault("PhaseApiPath", "")
-    kernel_block.setdefault("PhaseApiSha256", "")
-    kernel_block.setdefault("PhaseApiLoadedAt", "")
-    kernel_block["ContinuationFallback"] = "phase-api-parser-unavailable"
-    state["Kernel"] = kernel_block
     document["SESSION_STATE"] = state
     return document
 
@@ -911,18 +898,6 @@ def run_kernel_continuation(hook_result: Mapping[str, object]) -> dict[str, obje
             "next_gate_condition": routed.next_gate_condition,
             "source": routed.source,
         }
-
-        if routed.status != "OK" and routed.source == "phase-api-missing":
-            document = _fallback_progress_to_phase4(document, repo_fingerprint=repo_fingerprint)
-            last_result = {
-                "phase": "4",
-                "next_token": "5",
-                "status": "OK",
-                "active_gate": "Ticket Input Gate",
-                "next_gate_condition": "Phase 3A completed with not-applicable (no APIs detected); wait for ticket input at Phase 4 via /ticket paste",
-                "source": "phase-api-fallback",
-            }
-            break
 
         document = dict(
             with_kernel_result(
