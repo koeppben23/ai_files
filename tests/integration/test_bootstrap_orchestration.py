@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from pathlib import Path
 
 from governance.application.ports.process_runner import ProcessResult
@@ -100,7 +101,7 @@ def test_bootstrap_commits_only_after_all_checks() -> None:
     logger = _FakeLogger()
     service = BootstrapPersistenceService(fs=fs, runner=_FakeRunner(returncode=0), logger=logger)
 
-    result = service.run(_payload())
+    result = service.run(_payload(), datetime.now(timezone.utc).isoformat(timespec="seconds"))
 
     assert result.ok is True
     assert result.gate_code == "OK"
@@ -112,7 +113,7 @@ def test_bootstrap_fails_closed_when_required_artifacts_missing() -> None:
     logger = _FakeLogger()
     service = BootstrapPersistenceService(fs=fs, runner=_FakeRunner(returncode=0), logger=logger)
 
-    result = service.run(_payload())
+    result = service.run(_payload(), datetime.now(timezone.utc).isoformat(timespec="seconds"))
 
     assert result.ok is False
     assert result.gate_code == "PHASE2_ARTIFACTS_MISSING"
@@ -126,7 +127,7 @@ def test_bootstrap_fails_closed_on_pointer_verify_mismatch() -> None:
     logger = _FakeLogger()
     service = BootstrapPersistenceService(fs=fs, runner=_FakeRunner(returncode=0), logger=logger)
 
-    result = service.run(_payload())
+    result = service.run(_payload(), datetime.now(timezone.utc).isoformat(timespec="seconds"))
 
     assert result.ok is False
     assert result.gate_code == "POINTER_VERIFY_FAILED"
@@ -137,7 +138,7 @@ def test_bootstrap_blocks_when_config_root_is_inside_repo_root() -> None:
     logger = _FakeLogger()
     service = BootstrapPersistenceService(fs=fs, runner=_FakeRunner(returncode=0), logger=logger)
 
-    result = service.run(_payload_inside_repo())
+    result = service.run(_payload_inside_repo(), datetime.now(timezone.utc).isoformat(timespec="seconds"))
 
     assert result.ok is False
     assert result.gate_code == "CONFIG_ROOT_INSIDE_REPO"
@@ -160,7 +161,7 @@ def test_bootstrap_blocks_when_pointer_is_inside_repo_root() -> None:
         ),
         required_artifacts=bad.required_artifacts,
     )
-    result = service.run(bad)
+    result = service.run(bad, datetime.now(timezone.utc).isoformat(timespec="seconds"))
 
     assert result.ok is False
     assert result.gate_code == "POINTER_PATH_INSIDE_REPO"
