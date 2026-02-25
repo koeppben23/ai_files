@@ -147,6 +147,36 @@ Before merging any MD refactor:
 | 2026-02-25 | start.md | Initial refactor: minimal bootstrap semantics | Reviewed - no required contract loss observed | Yes |
 | 2026-02-25 | governance_lint.py | Commented out output-detail checks | Adapted to reduced MD scope | Yes |
 
+### Review Summary (2026-02-25)
+
+**Branch:** `docs/md-rails-refactor-v3`
+
+#### master.md Review
+- ✅ All Required Contracts present (Global Principles, Priority Order, SSOT, Stability, Decision Memory, Thematic Rails, Output, Confidence/Gates)
+- ✅ No kernel-owned logic reintroduced
+- ✅ Semantic review: governance behavior preserved, more compact but equivalent guidance
+
+#### rules.md Review
+- ✅ All Core Constraints present (No Fabrication, Scope Lock, Evidence)
+- ✅ All Governance Gates present (Contract/Schema, Business Rules, Test Matrix, Fast Lane)
+- ✅ Anchors for governance_lint.py present
+- ✅ Semantic review: technical rigor preserved
+
+#### start.md Review
+- ✅ /start purpose still strong (bootstrap entrypoint)
+- ✅ Blocked/Recovery semantics still clear
+- ✅ Compact but sufficient for operator guidance
+- ✅ Semantic review: start semantics preserved
+
+#### Regression Check
+- ✅ No required contracts missing
+- ✅ No kernel logic in wrong files
+- ✅ governance_lint.py passes
+- ✅ test_md_rails_coverage.py passes (40/40)
+
+#### Conclusion
+All MD files reviewed against MD_RAILS_COVERAGE_MATRIX. No required contracts lost. Guidance strength maintained while reducing redundancy.
+
 ---
 
 Last Updated: 2026-02-25
