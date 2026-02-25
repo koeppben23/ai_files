@@ -42,6 +42,8 @@ def _writes_allowed() -> bool:
     return writes_allowed()
 
 SCRIPT_DIR = Path(os.path.abspath(__file__)).parent
+_FALLBACK_COMMANDS_HOME = SCRIPT_DIR.parent.parent  # grandparent = commands root (parent of governance)
+
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 if str(SCRIPT_DIR.parent) not in sys.path:
@@ -130,7 +132,19 @@ def _resolve_bindings(*, mode: str) -> tuple[Path | None, Path | None, bool, Pat
     evidence = resolver.resolve(mode=mode)
     python_command = evidence.python_command.strip() if evidence.python_command else ""
     if not python_command:
-        python_command = "python3"
+        # Use sys.executable instead of "python3" for Windows compatibility
+        python_command = sys.executable
+    
+    # If binding evidence is missing or invalid, use fallback derived from script location
+    if evidence.commands_home is None or not str(evidence.commands_home).strip():
+        return (
+            _FALLBACK_COMMANDS_HOME,
+            None,
+            False,
+            None,
+            python_command,
+        )
+    
     return (
         evidence.commands_home,
         evidence.workspaces_home,
@@ -141,6 +155,16 @@ def _resolve_bindings(*, mode: str) -> tuple[Path | None, Path | None, bool, Pat
 
 
 COMMANDS_HOME, WORKSPACES_HOME, BINDING_OK, BINDING_EVIDENCE_PATH, PYTHON_COMMAND = _resolve_bindings(mode=EFFECTIVE_MODE)
+
+# Final safety check - should rarely trigger since we have fallback
+if COMMANDS_HOME is None or str(COMMANDS_HOME).strip() == "" or not COMMANDS_HOME.is_absolute():
+    print(json.dumps({
+        "persistence_hook": "failed",
+        "reason": "commands_home-empty-or-missing",
+        "commands_home_received": str(COMMANDS_HOME) if COMMANDS_HOME else "None",
+        "binding_ok": BINDING_OK,
+    }, ensure_ascii=True))
+    sys.exit(1)
 
 
 class _RepoIdentityAdapter(LocalHostAdapter):
@@ -387,6 +411,25 @@ def _verify_workspace_session_exists(workspaces_home: Path, repo_fingerprint: st
 def run_persistence_hook(*, repo_root: Path | None = None) -> dict[str, object]:
     install_global_handlers()
     commands_home = COMMANDS_HOME
+    
+    if commands_home is None or str(commands_home).strip() == "" or not commands_home.is_absolute():
+        emit_gate_failure(
+            gate="PERSISTENCE",
+            code="BLOCKED-MISSING-COMMANDS-HOME",
+            message="commands_home is missing, empty, or not absolute.",
+            expected="valid absolute path in commands_home",
+            observed={"commands_home": str(commands_home) if commands_home else "None"},
+            remediation="Ensure governance.paths.json contains valid commandsHome path.",
+        )
+        return {
+            "workspacePersistenceHook": "failed",
+            "reason_code": "BLOCKED-MISSING-COMMANDS-HOME",
+            "reason": "commands_home-missing-or-empty",
+            "commands_home_received": str(commands_home) if commands_home else "None",
+            "impact": "cannot run persistence hook without valid commands_home",
+            "writes_allowed": True,
+        }
+    
     workspaces_home = WORKSPACES_HOME if WORKSPACES_HOME is not None else (
         commands_home.parent / "workspaces" if commands_home is not None else None
     )
@@ -506,7 +549,7 @@ def run_persistence_hook(*, repo_root: Path | None = None) -> dict[str, object]:
         )
         return _with_log_path(result)
 
-    if commands_home is None:
+    if commands_home is None or not str(commands_home).strip():
         return _with_log_path(
             {
                 "workspacePersistenceHook": "blocked",

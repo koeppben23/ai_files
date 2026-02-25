@@ -3,6 +3,13 @@
   "version": "1.0.0",
   "blocked_reasons": [
     {
+      "code": "BLOCKED-MISSING-COMMANDS-HOME",
+      "severity": "blocked",
+      "payload_schema_ref": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
+      "description": "commands_home is missing, empty, or invalid.",
+      "remediation_hint": "Ensure COMMANDS_HOME is set or binding evidence is valid."
+    },
+    {
       "code": "BLOCKED-MISSING-BINDING-FILE",
       "severity": "blocked",
       "payload_schema_ref": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
