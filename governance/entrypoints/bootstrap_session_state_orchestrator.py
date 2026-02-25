@@ -28,7 +28,7 @@ Exit Codes:
     9: Pointer verification failed (invalid schema)
 
 Environment Variables:
-    OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY: Set to "1" to block all writes
+    OPENCODE_FORCE_READ_ONLY: Set to "1" to block all writes
     OPENCODE_CONFIG_ROOT: Override config root location
 """
 from __future__ import annotations
@@ -477,7 +477,7 @@ def main() -> int:
             message="Bootstrap blocked by write policy.",
             expected="writes allowed",
             observed={"repoFingerprint": repo_fingerprint, "mode": EFFECTIVE_MODE},
-            remediation="Unset OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY or switch to writable mode.",
+            remediation="Unset OPENCODE_FORCE_READ_ONLY or switch to writable mode.",
         )
         print(json.dumps({
             "status": "blocked",

@@ -19,7 +19,7 @@ def test_persist_workspace_artifacts_bootstraps_missing_session_state(tmp_path: 
     repo_fp = "a1b2c3d4e5f6a1b2c3d4e5f6"
     write_governance_paths(cfg)
 
-    env = {"OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY": "1"}
+    env = {"OPENCODE_FORCE_READ_ONLY": "1"}
     result = run(
         [
             sys.executable,
@@ -54,7 +54,7 @@ def test_persist_workspace_artifacts_does_not_bootstrap_when_session_updates_dis
     repo_fp = "b2c3d4e5f6a1b2c3d4e5f6a1"
     write_governance_paths(cfg)
 
-    env = {"OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY": "1"}
+    env = {"OPENCODE_FORCE_READ_ONLY": "1"}
     result = run(
         [
             sys.executable,

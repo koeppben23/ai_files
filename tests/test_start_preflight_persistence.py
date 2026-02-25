@@ -49,7 +49,7 @@ def test_start_preflight_readonly_module_imports_ssot_writes_allowed():
 
 @pytest.mark.governance
 def test_start_preflight_readonly_hook_blocks_when_writes_not_allowed(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]):
-    monkeypatch.setenv("OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY", "1")
+    monkeypatch.setenv("OPENCODE_FORCE_READ_ONLY", "1")
     monkeypatch.delenv("CI", raising=False)
     import importlib
     import governance.entrypoints.start_preflight_readonly as mod
@@ -107,7 +107,7 @@ def test_start_preflight_writes_allowed_true_in_ci():
 @pytest.mark.governance
 def test_start_preflight_writes_allowed_false_when_force_read_only(monkeypatch: pytest.MonkeyPatch):
     """SSOT: writes_allowed() is False when FORCE_READ_ONLY=1."""
-    monkeypatch.setenv("OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY", "1")
+    monkeypatch.setenv("OPENCODE_FORCE_READ_ONLY", "1")
     import importlib
     import governance.entrypoints.write_policy as wp
     importlib.reload(wp)
@@ -116,7 +116,7 @@ def test_start_preflight_writes_allowed_false_when_force_read_only(monkeypatch: 
 
 @pytest.mark.governance
 def test_run_persistence_hook_blocks_when_writes_not_allowed(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]):
-    monkeypatch.setenv("OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY", "1")
+    monkeypatch.setenv("OPENCODE_FORCE_READ_ONLY", "1")
     monkeypatch.delenv("CI", raising=False)
     import importlib
     import governance.entrypoints.start_preflight_readonly as mod

@@ -175,7 +175,7 @@ def _business_rules_discovery_resolved(state: Mapping[str, object]) -> bool:
     business_rules = state.get("BusinessRules")
     if isinstance(business_rules, Mapping):
         decision = business_rules.get("Decision")
-        if isinstance(decision, str) and decision.strip().lower() in {"execute", "skip"}:
+        if isinstance(decision, str) and decision.strip().lower() == "skip":
             return True
         inventory_status = business_rules.get("InventoryFileStatus")
         if isinstance(inventory_status, str) and inventory_status.strip().lower() in {"written", "unchanged", "normalized"}:
@@ -194,8 +194,13 @@ def _business_rules_discovery_resolved(state: Mapping[str, object]) -> bool:
 def _phase_1_5_executed(state: Mapping[str, object]) -> bool:
     business_rules = state.get("BusinessRules")
     if isinstance(business_rules, Mapping):
-        decision = business_rules.get("Decision")
-        if isinstance(decision, str) and decision.strip().lower() == "execute":
+        execution = business_rules.get("Execution")
+        if isinstance(execution, Mapping):
+            completed = execution.get("Completed")
+            if isinstance(completed, bool) and completed:
+                return True
+        executed = business_rules.get("Executed")
+        if isinstance(executed, bool) and executed:
             return True
     inventory = _read_nested_key(state, "BusinessRules.Inventory.sha256")
     if isinstance(inventory, str) and inventory.strip():

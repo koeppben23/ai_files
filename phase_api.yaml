@@ -1,6 +1,6 @@
 version: 1
 schema: opencode.phase-api.v1
-start_token: "1.1"
+start_token: "0"
 phases:
   - token: "0"
     phase: "0-None"

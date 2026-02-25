@@ -144,7 +144,7 @@ def isolated_env(tmp_path: Path):
     env["HOME"] = str(home)
     env["USERPROFILE"] = str(home)
     env["CI"] = ""
-    env.pop("OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY", None)
+    env.pop("OPENCODE_FORCE_READ_ONLY", None)
     
     return {
         "home": home,
@@ -282,7 +282,7 @@ class TestReleaseGateReady:
         _git_init_repo(repo)
         
         env = dict(isolated_env["env"])
-        env["OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY"] = "1"
+        env["OPENCODE_FORCE_READ_ONLY"] = "1"
         
         proc, _ = _run_bootstrap(
             repo=repo,
@@ -338,7 +338,7 @@ class TestE2ETestMatrix:
         _git_init_repo(repo)
         
         env = dict(isolated_env["env"])
-        env["OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY"] = "1"
+        env["OPENCODE_FORCE_READ_ONLY"] = "1"
         
         proc, _ = _run_bootstrap(
             repo=repo,
@@ -378,7 +378,7 @@ class TestE2ETestMatrix:
         _git_init_repo(repo)
         
         env = dict(isolated_env["env"])
-        env["OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY"] = "1"
+        env["OPENCODE_FORCE_READ_ONLY"] = "1"
         
         proc, _ = _run_bootstrap(
             repo=repo,
@@ -396,7 +396,7 @@ class TestE2ETestMatrix:
         _git_init_repo(repo)
         
         env = dict(isolated_env["env"])
-        env["OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY"] = "1"
+        env["OPENCODE_FORCE_READ_ONLY"] = "1"
         
         pointer_path = isolated_env["config_root"] / "SESSION_STATE.json"
         pointer_path.parent.mkdir(parents=True, exist_ok=True)
