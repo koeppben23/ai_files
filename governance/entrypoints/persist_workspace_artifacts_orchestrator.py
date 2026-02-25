@@ -29,7 +29,7 @@ Exit Codes:
     2: Blocked (missing binding, invalid fingerprint, config inside repo)
 
 Environment Variables:
-    OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY: Set to "1" to block all writes
+    OPENCODE_FORCE_READ_ONLY: Set to "1" to block all writes
     OPENCODE_CONFIG_ROOT: Override config root location
 """
 from __future__ import annotations
@@ -326,12 +326,12 @@ try:
     from governance.infrastructure.logging.global_error_handler import resolve_log_path
 except Exception:
     def resolve_log_path(*, config_root=None, commands_home=None, workspaces_home=None, repo_fingerprint=None):
-        cfg_root = Path(config_root) if config_root else (Path.home() / ".config" / "opencode")
+        _ = config_root
         if repo_fingerprint and workspaces_home:
             return Path(workspaces_home) / repo_fingerprint / "logs" / "error.log.jsonl"
         if commands_home:
             return Path(commands_home) / "logs" / "error.log.jsonl"
-        return cfg_root / "logs" / "error.log.jsonl"
+        raise RuntimeError("no writable error log target available")
 
 try:
     from governance.domain.phase_state_machine import normalize_phase_token, phase_rank
@@ -1848,7 +1848,7 @@ def main() -> int:
                 message="Required Phase 2/2.1 artifacts missing but writes are blocked (READ_ONLY).",
                 expected="writes allowed and artifacts created/updated",
                 observed={"read_only": True, "missing": phase2_missing},
-                remediation="Remove OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY or allow governance writes in user mode.",
+                remediation="Remove OPENCODE_FORCE_READ_ONLY or allow governance writes in user mode.",
             )
             return 2
         emit_gate_failure(

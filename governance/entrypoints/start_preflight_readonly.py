@@ -75,58 +75,12 @@ try:
 except Exception:
     _derive_fingerprint_ssot = None
 
-try:
-    from governance.infrastructure.logging.global_error_handler import (
-        emit_gate_failure,
-        install_global_handlers,
-        resolve_log_path,
-        set_error_context,
-    )
-except Exception:
-    from governance.infrastructure.logging.error_logs import safe_log_error
-
-    def install_global_handlers(context_provider=None):  # type: ignore
-        _ = context_provider
-
-    def set_error_context(ctx):  # type: ignore
-        _ = ctx
-
-    def emit_gate_failure(*args: Any, **kwargs: Any) -> bool:  # type: ignore
-        _ = args
-        gate = str(kwargs.get("gate") or "PERSISTENCE")
-        code = str(kwargs.get("code") or "BLOCKED-WORKSPACE-PERSISTENCE")
-        message = str(kwargs.get("message") or "Gate failure")
-        observed = kwargs.get("observed")
-        expected = kwargs.get("expected")
-        remediation = kwargs.get("remediation")
-        phase = str(kwargs.get("phase") or "1.1-Bootstrap")
-        repo_fingerprint = kwargs.get("repo_fingerprint")
-        raw_config_root = kwargs.get("config_root")
-        config_root_path = Path(str(raw_config_root)) if raw_config_root else None
-        result = safe_log_error(
-            reason_key=code,
-            message=message,
-            config_root=config_root_path,
-            phase=phase,
-            gate=gate,
-            mode=_effective_mode(),
-            repo_fingerprint=(str(repo_fingerprint) if repo_fingerprint else None),
-            command="start_preflight_readonly.py",
-            component="start-preflight",
-            observed_value={"observed": observed, "expected": expected},
-            expected_constraint=str(expected) if expected else None,
-            remediation=str(remediation) if remediation else None,
-            result="blocked",
-        )
-        return result.get("status") == "logged"
-
-    def resolve_log_path(*, config_root=None, commands_home=None, workspaces_home=None, repo_fingerprint=None) -> Path:  # type: ignore
-        root = Path(config_root) if config_root else (Path.home() / ".config" / "opencode")
-        if repo_fingerprint and workspaces_home:
-            return Path(workspaces_home) / repo_fingerprint / "logs" / "error.log.jsonl"
-        if commands_home:
-            return Path(commands_home) / "logs" / "error.log.jsonl"
-        return root / "logs" / "error.log.jsonl"
+from governance.infrastructure.logging.global_error_handler import (
+    emit_gate_failure,
+    install_global_handlers,
+    resolve_log_path,
+    set_error_context,
+)
 # SSOT: Ensure global error handler is installed before any operations
 def _install_global_error_handler() -> None:
     try:
@@ -551,7 +505,7 @@ def run_persistence_hook() -> dict[str, object]:
             message="Persistence hook blocked by write policy before dispatch.",
             expected="writes allowed",
             observed={"mode": mode, "writes_allowed": False},
-            remediation="Unset OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY or use a writable mode.",
+            remediation="Unset OPENCODE_FORCE_READ_ONLY or use a writable mode.",
             repo_fingerprint=None,
         )
         result = {

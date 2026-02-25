@@ -76,7 +76,7 @@ def test_governance_forbid_write_primitives_outside_error_logger():
 @pytest.mark.governance
 def test_error_logger_defaults_to_read_only_fail_closed():
     text = (DIAGNOSTICS_ROOT / "error_logs.py").read_text(encoding="utf-8")
-    assert "OPENCODE_DIAGNOSTICS_ALLOW_WRITE\", \"0\"" in text
+    assert "return not writes_allowed()" in text
     assert 'return {"status": "read-only"}' in text
 
 

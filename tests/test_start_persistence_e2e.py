@@ -123,7 +123,7 @@ def test_start_preflight_persists_workspace_and_pointer(tmp_path: Path) -> None:
     env["HOME"] = str(home)
     env["USERPROFILE"] = str(home)
     env["CI"] = ""
-    env.pop("OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY", None)
+    env.pop("OPENCODE_FORCE_READ_ONLY", None)
 
     start_script = commands_home / "governance" / "entrypoints" / "start_preflight_readonly.py"
     proc = _run([sys.executable, str(start_script)], cwd=repo, env=env)
@@ -184,7 +184,7 @@ def test_start_preflight_persists_workspace_and_pointer(tmp_path: Path) -> None:
 def test_start_preflight_blocks_when_force_read_only(tmp_path: Path) -> None:
     """
     Fail-closed guard:
-      If OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY=1 then /start must exit non-zero
+      If OPENCODE_FORCE_READ_ONLY=1 then /start must exit non-zero
       and MUST NOT create a fingerprint workspace.
     """
     checkout_root = Path(__file__).resolve().parents[1]
@@ -205,7 +205,7 @@ def test_start_preflight_blocks_when_force_read_only(tmp_path: Path) -> None:
     env["HOME"] = str(home)
     env["USERPROFILE"] = str(home)
     env["CI"] = ""
-    env["OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY"] = "1"
+    env["OPENCODE_FORCE_READ_ONLY"] = "1"
 
     start_script = commands_home / "governance" / "entrypoints" / "start_preflight_readonly.py"
     proc = _run([sys.executable, str(start_script)], cwd=repo, env=env)
