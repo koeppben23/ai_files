@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 import pytest
 
@@ -85,7 +86,8 @@ def test_end_to_end_bootstrap_integration(tmp_path):
 
     from governance.application.use_cases.bootstrap_persistence import BootstrapPersistenceService
     service = BootstrapPersistenceService(fs=fs, runner=DummyRunner(), logger=logger)
-    result = service.run(payload)
+    created_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    result = service.run(payload, created_at)
     assert result.ok
 
     final_state = fs.read_text(session_state_file)
