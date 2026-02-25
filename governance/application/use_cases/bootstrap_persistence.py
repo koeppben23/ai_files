@@ -122,7 +122,7 @@ class BootstrapPersistenceService:
         self._runner = runner
         self._logger = logger
 
-    def run(self, payload: BootstrapInput) -> BootstrapResult:
+    def run(self, payload: BootstrapInput, created_at: str) -> BootstrapResult:
         write_actions: dict[str, str] = {}
         errors: list[ErrorEvent] = []
 
@@ -212,6 +212,7 @@ class BootstrapPersistenceService:
             workspace_artifacts_committed=False,
             effective_mode=payload.effective_mode,
             write_policy_reasons=payload.write_policy_reasons,
+            created_at=created_at,
             intent_path=f"${{CONFIG_ROOT}}/{ACTIVATION_INTENT_FILE}",
         )
         session_state_file = Path(payload.layout.session_state_file)
@@ -309,6 +310,7 @@ class BootstrapPersistenceService:
             workspace_artifacts_committed=True,
             effective_mode=payload.effective_mode,
             write_policy_reasons=payload.write_policy_reasons,
+            created_at=created_at,
             pointer_verified=pointer_verified_final,
             activation_intent_valid=activation_intent_valid,
             intent_path=f"${{CONFIG_ROOT}}/{ACTIVATION_INTENT_FILE}",
@@ -357,6 +359,7 @@ def _session_state_payload(
     workspace_artifacts_committed: bool,
     effective_mode: str,
     write_policy_reasons: tuple[str, ...],
+    created_at: str,
     pointer_verified: bool = False,
     activation_intent_valid: bool = False,
     intent_path: str = "",
@@ -430,7 +433,7 @@ def _session_state_payload(
                 "P5.6-RollbackSafety": "pending",
                 "P6-ImplementationQA": "pending",
             },
-            "CreatedAt": "deferred",
+            "CreatedAt": created_at,
             "ActivationIntent": {
                 "FilePath": f"${{CONFIG_ROOT}}/{ACTIVATION_INTENT_FILE}",
                 "Schema": "opencode-activation-intent.v1",
