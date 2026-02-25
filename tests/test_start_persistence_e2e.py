@@ -207,6 +207,8 @@ def test_start_preflight_persists_workspace_and_pointer(tmp_path: Path) -> None:
     continuation_payload = next((p for p in payloads if isinstance(p, dict) and "kernelContinuation" in p), None)
     assert continuation_payload is not None, proc.stdout
     assert continuation_payload.get("kernelContinuation") == "ok"
+    assert continuation_payload.get("auto_continuation") == "route_phase"
+    assert continuation_payload.get("route_phase_invoked") is True
     assert continuation_payload.get("phase") == "4"
 
     assert (config_root / "SESSION_STATE.json").exists()

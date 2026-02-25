@@ -13,15 +13,18 @@ def test_bootstrap_payload_pointer_verified_true_golden():
         write_policy_reasons=(),
         pointer_verified=True,
         activation_intent_valid=True,
+        intent_path="${CONFIG_ROOT}/governance.activation_intent.json",
+        intent_sha256="a" * 64,
+        intent_effective_scope="full",
     )
     s = cast(dict[str, Any], state["SESSION_STATE"])
     assert s["Phase"] == "1.2-ActivationIntent"
     assert s["Mode"] == "IN_PROGRESS"
     assert s["Next"] == "1.3"
     assert s["ActivationIntent"]["Status"] == "valid"
-    assert s["Intent"]["Path"] == ""
-    assert s["Intent"]["Sha256"] == ""
-    assert s["Intent"]["EffectiveScope"] == "unknown"
+    assert s["Intent"]["Path"] == "${CONFIG_ROOT}/governance.activation_intent.json"
+    assert s["Intent"]["Sha256"] == "a" * 64
+    assert s["Intent"]["EffectiveScope"] == "full"
     assert s["Bootstrap"]["Present"] is True
     assert s["Bootstrap"]["Satisfied"] is True
     assert s["Bootstrap"]["Evidence"] == "bootstrap-completed"

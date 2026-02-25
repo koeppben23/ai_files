@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import json
 import sys
 from pathlib import Path
@@ -7,16 +9,14 @@ from governance.application.use_cases.bootstrap_persistence import BootstrapInpu
 from governance.domain.models.binding import Binding
 from governance.domain.models.layouts import WorkspaceLayout
 from governance.domain.models.repo_identity import RepoIdentity
+from governance.application.ports.process_runner import ProcessResult, ProcessRunnerPort
 from governance.infrastructure.adapters.filesystem.in_memory import InMemoryFS
 
-class DummyRunner:
-    class _Result:
-        def __init__(self):
-            self.returncode = 0
-            self.stdout = ""
-            self.stderr = ""
-    def run(self, argv, env=None):
-        return DummyRunner._Result()
+class DummyRunner(ProcessRunnerPort):
+    def run(self, argv: list[str], env: dict[str, str] | None = None) -> ProcessResult:
+        _ = argv
+        _ = env
+        return ProcessResult(returncode=0, stdout="", stderr="")
 
 class DummyLogger:
     def write(self, event):
@@ -97,6 +97,7 @@ def test_end_to_end_bootstrap_integration(tmp_path):
     assert st.get("Bootstrap", {}).get("Satisfied") is True
     assert st.get("Intent", {}).get("Path") == "${CONFIG_ROOT}/governance.activation_intent.json"
     assert isinstance(st.get("Intent", {}).get("Sha256"), str)
+    assert len(str(st.get("Intent", {}).get("Sha256") or "")) == 64
     assert st.get("Intent", {}).get("EffectiveScope") == "full"
 
     # Pointer content

@@ -929,6 +929,8 @@ def run_kernel_continuation(hook_result: Mapping[str, object]) -> dict[str, obje
     _write_json_document(session_path, document)
     payload = {
         "kernelContinuation": "ok" if str(last_result.get("status") or "") == "OK" else "blocked",
+        "auto_continuation": "route_phase",
+        "route_phase_invoked": bool(hops > 0),
         "repo_fingerprint": repo_fingerprint,
         "session_state_path": str(session_path),
         "phase": str(last_result.get("phase") or ""),

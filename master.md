@@ -1,5 +1,5 @@
 ---
-description: "Activates the master workflow (phases 1-6)"
+description: "Operator guidance for governance phases 1-6"
 priority: highest
 ---
 
@@ -29,7 +29,7 @@ This governance system operates in **fail-closed mode**.
 
 ### Bootstrap Activation Condition
 
-This master workflow is considered **ACTIVE** only if the session input
+This governance workflow is considered **ACTIVE** only if the session input
 contains an explicit bootstrap declaration equivalent in intent to:
 
 - Governance-OS enabled
@@ -1230,7 +1230,7 @@ SESSION_STATE versioning (informational):
 SESSION_STATE:
   session_state_version: <int>
   ruleset_hash: "<sha256-or-versioned-hash>"
-  Phase: 1 | 1.1-Bootstrap | 1.2-ProfileDetection | 1.3-CoreRulesActivation | 2 | 2.1-DecisionPack | 1.5-BusinessRules | 3A | 3B-1 | 3B-2 | 4 | 5 | 5.3 | 5.4 | 5.5 | 5.6 | 6
+  Phase: 1.1-Bootstrap | 1.2-ActivationIntent | 1.3-CoreRulesActivation | 1.5-BusinessRules | 2 | 2.1-DecisionPack | 3A | 3B-1 | 3B-2 | 4 | 5 | 5.3 | 5.4 | 5.5 | 5.6 | 6
   Mode: NORMAL | DEGRADED | DRAFT | BLOCKED
   ConfidenceLevel: <0-100>
   Next: "<next-step-identifier>"  # REQUIRED. Canonical continuation pointer (see SESSION_STATE_SCHEMA.md)
@@ -1318,61 +1318,31 @@ When FULL mode is required, the workflow MUST additionally include, when availab
 
 ---
 
-## 4. PHASE 1 OUTPUT (BINDING)
+## 4. PHASE 1 TOKEN OUTPUT (BINDING)
 
-After loading rules (Phase 1), the workflow MUST output:
+Phase 1 is tokenized (`1.1`, `1.2`, `1.3`) and MUST NOT be represented as a single aggregate `Phase: 1` runtime state.
 
-```
-[PHASE-1-COMPLETE]
-Loaded Rulebooks:
-  Core: <path/to/rules.md>
-  Profile: <path/to/rules_<profile>.md>
-  Templates: <path/to/rules.backend-java-templates.md> | deferred | not-applicable
-  Addons: {} | (e.g., kafka -> <path>) 
+After successful bootstrap and activation-intent validation, the workflow MUST emit the tokenized Phase 1.2 state:
 
-Active Profile: <profile-name>
-Profile Source: auto-detected-single | user-explicit | repo-fallback | component-scope-inferred | ambiguous
-Profile Evidence: <path-or-indicators>
-Rationale: <brief explanation of how profile was determined>
-
-[/PHASE-1-COMPLETE]
-
+```yaml
 SESSION_STATE:
-  Phase: 1
-  Mode: NORMAL | DEGRADED | BLOCKED
-  ConfidenceLevel: <0-100>
-  Next: "Phase2-RepoDiscovery" | "Phase3A-APIInventory" | "Phase4-TicketExecution" | "BLOCKED"
-  LoadedRulebooks:
-    core: "<path>"
-    profile: "<path>"
-    templates: ""
-    addons: {}
-  ActiveProfile: "<profile-name>"
-  ProfileSource: "<source>"
-  ProfileEvidence: "<evidence>"
-  Scope:
-    Repository: <pending Phase 2>
-    ExternalAPIs: []
-    BusinessRules: not-applicable
-  Gates:
-    P5-Architecture: pending
-    P5.3-TestQuality: pending
-    P5.4-BusinessRules: pending
-    P5.5-TechnicalDebt: pending
-    P5.6-RollbackSafety: pending
-    P6-ImplementationQA: pending
-  Risks: []
-  Blockers: []
-  <Next action: Proceeding to Phase 2... | Waiting for repository... | etc.>
+  Phase: "1.2-ActivationIntent"
+  Mode: "IN_PROGRESS"
+  Next: "1.3"
+  ActivationIntent:
+    Status: "valid"
+  Intent:
+    Path: "${CONFIG_ROOT}/governance.activation_intent.json"
+    Sha256: "<sha256>"
+    EffectiveScope: "full|component"
 ```
+
+After core rules activation at token `1.3`, the next token MUST be `2` (never legacy display strings).
 
 Binding:
-- `SESSION_STATE.Next` MUST be set at the end of every phase output.
-- When resuming, output a Resume Summary that describes the next intended kernel action from `SESSION_STATE.Next`.
-
-**Binding rules for Phase 1:**
-* If profile is ambiguous (multiple found, no user selection) → Mode: BLOCKED
-* Always output SESSION_STATE after Phase 1
+- `SESSION_STATE.Next` MUST always use canonical phase tokens (e.g., `1.3`, `2`, `2.1`, `3A`, `4`) or `BLOCKED-*` reason codes.
+- Legacy `Next` values such as `P2-RepoDiscovery-ready` and `Phase2-RepoDiscovery` are invalid.
+- If profile resolution is ambiguous, mode MUST become `BLOCKED` with canonical blocker codes.
 
 ---
 

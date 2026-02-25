@@ -2,7 +2,7 @@
 Technical Rulebook (Core) for AI-Assisted Development
 
 This document defines **stack-agnostic, non-negotiable** technical, quality, evidence, and output rules.
-Operational behavior (phases, session state, hybrid mode, priorities, gates) is defined in the **Master Prompt** (`master.md`).
+Operator guidance semantics (phases, session-state presentation, hybrid mode, priorities, gates) are described in the **Master Prompt** (`master.md`). Runtime routing and control-plane behavior are kernel-owned (`phase_api.yaml` + `governance/kernel/*`).
 Governance release stability is normatively defined by `STABILITY_SLA.md` and is release-blocking when unmet.
 
 State-machine alignment note:
@@ -11,7 +11,7 @@ State-machine alignment note:
 - If runtime behavior diverges from Core-Lite constraints in this file, runtime behavior must be corrected.
 
 This Core Rulebook is:
-- **secondary to the Master Prompt**
+- **secondary to the Master Prompt for AI guidance semantics**
 - **authoritative over tickets and repository documentation**, except where explicitly allowed (see “Repository Guidelines as Constraints”).
 
 Stack-/environment-specific rules (e.g., Java backend vs. frontend) are defined in **profile rulebooks**:
@@ -227,6 +227,10 @@ Canonical order on conflict:
 2) `rules.md` (core)
 3) active profile rulebook
 4) activated addon rulebooks (including templates and shared governance add-ons)
+
+Scope note (binding):
+- This precedence order governs AI guidance text only.
+- Runtime routing/execution/validation precedence is controlled exclusively by `${COMMANDS_HOME}/phase_api.yaml` and `governance/kernel/*`.
 
 **SSOT Clarification (Binding):**
 
