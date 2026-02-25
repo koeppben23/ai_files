@@ -5,7 +5,7 @@
     "BLOCKED-START-REQUIRED": {
       "primary_command": "/start",
       "confidence": "safe",
-      "summary": "Run bootstrap before any /master-equivalent operation."
+      "summary": "Run /start to initialize and continue governance session routing."
     },
     "BLOCKED-VARIABLE-RESOLUTION": {
       "primary_command": "/start",

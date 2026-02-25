@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -35,6 +36,11 @@ def _default_activation_intent() -> dict[str, object]:
         },
         "single_dev_mode": True,
     }
+
+
+def _activation_intent_sha256(payload: object) -> str:
+    canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
 def _is_valid_activation_intent(payload: object) -> bool:
@@ -157,6 +163,8 @@ class BootstrapPersistenceService:
 
         activation_intent_path = config_root / ACTIVATION_INTENT_FILE
         activation_intent_valid = False
+        activation_intent_sha256 = ""
+        activation_intent_scope = "unknown"
         if self._fs.exists(activation_intent_path):
             try:
                 activation_intent = json.loads(self._fs.read_text(activation_intent_path))
@@ -164,6 +172,9 @@ class BootstrapPersistenceService:
                 activation_intent = None
             if _is_valid_activation_intent(activation_intent):
                 activation_intent_valid = True
+                activation_intent_sha256 = _activation_intent_sha256(activation_intent)
+                if isinstance(activation_intent, dict):
+                    activation_intent_scope = str(activation_intent.get("discovery_scope") or "full")
                 write_actions["activation_intent"] = "verified"
             else:
                 event = ErrorEvent(
@@ -176,8 +187,11 @@ class BootstrapPersistenceService:
                 self._logger.write(event)
                 return BootstrapResult(ok=False, gate_code=event.code, write_actions=write_actions, error_events=(event,))
         elif payload.effective_mode == "user":
-            self._fs.write_text_atomic(activation_intent_path, _canonical_json(_default_activation_intent()))
+            created_activation_intent = _default_activation_intent()
+            self._fs.write_text_atomic(activation_intent_path, _canonical_json(created_activation_intent))
             activation_intent_valid = True
+            activation_intent_sha256 = _activation_intent_sha256(created_activation_intent)
+            activation_intent_scope = str(created_activation_intent.get("discovery_scope") or "full")
             write_actions["activation_intent"] = "created-default"
         else:
             event = ErrorEvent(
@@ -198,6 +212,7 @@ class BootstrapPersistenceService:
             workspace_artifacts_committed=False,
             effective_mode=payload.effective_mode,
             write_policy_reasons=payload.write_policy_reasons,
+            intent_path=f"${{CONFIG_ROOT}}/{ACTIVATION_INTENT_FILE}",
         )
         session_state_file = Path(payload.layout.session_state_file)
         identity_map_file = Path(payload.layout.identity_map_file)
@@ -296,6 +311,9 @@ class BootstrapPersistenceService:
             write_policy_reasons=payload.write_policy_reasons,
             pointer_verified=pointer_verified_final,
             activation_intent_valid=activation_intent_valid,
+            intent_path=f"${{CONFIG_ROOT}}/{ACTIVATION_INTENT_FILE}",
+            intent_sha256=activation_intent_sha256,
+            intent_effective_scope=activation_intent_scope,
         )
         self._fs.write_text_atomic(session_state_file, _canonical_json(final_state))
         write_actions["session_state_final"] = "written"
@@ -341,6 +359,9 @@ def _session_state_payload(
     write_policy_reasons: tuple[str, ...],
     pointer_verified: bool = False,
     activation_intent_valid: bool = False,
+    intent_path: str = "",
+    intent_sha256: str = "",
+    intent_effective_scope: str = "unknown",
 ) -> dict[str, object]:
     repository = repo_name.strip() if repo_name.strip() else repo_fingerprint
     bootstrap_present = bool(persistence_committed)
@@ -353,7 +374,7 @@ def _session_state_payload(
     if bootstrap_satisfied and activation_intent_valid:
         phase = "1.2-ActivationIntent"
         mode = "IN_PROGRESS"
-        next_gate = "P2-RepoDiscovery-ready"
+        next_gate = "1.3"
 
     return {
         "SESSION_STATE": {
@@ -416,6 +437,11 @@ def _session_state_payload(
                 "Status": "valid" if activation_intent_valid else "missing",
                 "AutoSatisfied": bool(activation_intent_valid),
                 "DiscoveryScope": "full" if activation_intent_valid else "unknown",
+            },
+            "Intent": {
+                "Path": intent_path,
+                "Sha256": intent_sha256,
+                "EffectiveScope": intent_effective_scope,
             },
             "writePolicy": {
                 "mode": effective_mode,

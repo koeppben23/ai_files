@@ -1,4 +1,4 @@
-# Governance Start — master invocation
+# Governance Start — automatic bootstrap continuation
 
 This project uses a formal LLM Governance System
 defined in `master.md`, `rules.md`, and profile rulebooks.
@@ -89,8 +89,8 @@ Blocked reasons (kernel-enforced):
 - BLOCKED-START-REQUIRED (missing /start evidence)
 
 Invocation:
-- Activate the Governance-OS defined in `master.md`.
-- This file does not replace or inline `master.md`; it only triggers its discovery and activation.
+- Activate the Governance-OS defined in `master.md` via kernel-owned routing.
+- `/start` is the single bootstrap entrypoint and continues automatically until the first valid user-facing stop.
 
 > **Note:** Bootstrap gates, evidence requirements, and blocked reasons are kernel-enforced.
 > See `governance/assets/config/bootstrap_policy.yaml` and `governance/assets/reasons/blocked_reason_catalog.yaml`.
@@ -98,7 +98,7 @@ Invocation:
 Key behaviors (informational):
 - `/start` is mandatory bootstrap for a repo/session (kernel-enforced).
 - Missing evidence or profile ambiguity may result in blocked state (kernel-enforced).
-- Profile selection is deferred to Phase 1.2/Post-Phase-2 (kernel-enforced).
+- Profile selection is resolved by kernel-owned phase routing after ActivationIntent (starting at Phase 1.3+).
 - During Phase `1.5/2/2.1/3A/3B`, no task/ticket is required; ticket goal required only at Phase 4 entry (kernel-enforced).
 
 Rulebook discovery (informational):
@@ -172,7 +172,7 @@ Output requirements:
 - When preparing a PR that changes governance contracts, response SHOULD include an operator-impact section (`What changed for operators?`).
 - Governance PR summaries SHOULD also include `Reviewer focus` bullets for highest-risk contract deltas.
 
-This file is the canonical governance entrypoint.
+This file is an AI-facing `/start` rail; runtime control remains kernel-owned.
 
 ---
 
