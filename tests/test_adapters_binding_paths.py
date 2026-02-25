@@ -91,7 +91,7 @@ def test_adapter_discovers_binding_from_cwd_ancestor(monkeypatch: pytest.MonkeyP
 
 
 @pytest.mark.governance
-def test_adapter_does_not_use_dev_cwd_binding_without_host_caps_gate(
+def test_adapter_does_not_use_noncanonical_cwd_binding(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ):
     cfg = tmp_path
@@ -106,8 +106,6 @@ def test_adapter_does_not_use_dev_cwd_binding_without_host_caps_gate(
     monkeypatch.chdir(repo)
     monkeypatch.delenv("OPENCODE_CONFIG_ROOT", raising=False)
     monkeypatch.setattr(Path, "home", staticmethod(lambda: tmp_path / "home"))
-    monkeypatch.setenv("OPENCODE_ALLOW_CWD_BINDINGS", "1")
-
     adapter = LocalHostAdapter()
     caps = adapter.capabilities()
     assert caps.fs_read_commands_home is False

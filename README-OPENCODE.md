@@ -41,7 +41,7 @@ If binding evidence is unavailable or unresolved, bootstrap must fail closed (fo
 
 ## Support Matrix
 
-- Supported host OS: macOS, Linux, Windows (canonical path model in `master.md`, layout examples in `docs/install-layout.md`).
+- Supported host OS: macOS, Linux, Windows (canonical path model from binding evidence + kernel loaders, layout examples in `docs/install-layout.md`).
 - Required tools for standard operation: `${PYTHON_COMMAND}` (installer/helpers), `git` (identity-gated workflows).
 - Supported command lifecycle: `/start`, `/continue`, `/resume`, `/audit`.
 
@@ -80,7 +80,7 @@ ${PYTHON_COMMAND} scripts/render_response_envelope.py --input response.json --fo
 
 ## Profiles and Addons
 
-Profiles and addons are loaded from `profiles/` with deterministic precedence from `master.md`.
+Profiles and addons are loaded from `profiles/` with deterministic precedence from kernel policy resolution.
 
 - Profile rulebooks: `profiles/rules*.md`
 - Addon manifests: `profiles/addons/*.addon.yml`

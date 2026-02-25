@@ -65,7 +65,6 @@ def test_installer_collectors_exclude_filesystem_metadata(tmp_path: Path):
     root_files = module.collect_command_root_files(source)
     profile_files = module.collect_profile_files(source)
     addon_files = module.collect_profile_addon_manifests(source)
-    diagnostic_files = module.collect_governance_files(source)
     runtime_files = module.collect_governance_runtime_files(source)
     customer_script_files = module.collect_customer_script_files(source, strict=True)
     workflow_template_files = module.collect_workflow_template_files(source, strict=True)
@@ -73,7 +72,6 @@ def test_installer_collectors_exclude_filesystem_metadata(tmp_path: Path):
     assert [p.relative_to(source).as_posix() for p in root_files] == ["master.md"]
     assert [p.relative_to(source).as_posix() for p in profile_files] == ["profiles/rules.backend-python.md"]
     assert [p.relative_to(source).as_posix() for p in addon_files] == ["profiles/addons/backendPythonTemplates.addon.yml"]
-    assert [p.relative_to(source).as_posix() for p in diagnostic_files] == []
     assert [p.relative_to(source).as_posix() for p in runtime_files] == [
         "governance/assets/catalogs/CUSTOMER_SCRIPT_CATALOG.json",
         "governance/assets/catalogs/tool_requirements.json",

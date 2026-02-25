@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import json
-import os
 from pathlib import Path
 from typing import Any, Callable, Literal, Mapping
 
@@ -25,7 +24,7 @@ class BindingEvidence:
     workspaces_home: Path | None
     config_root: Path | None
     governance_paths_json: Path | None
-    source: Literal["canonical", "trusted_override", "dev_cwd_search", "missing", "invalid"]
+    source: Literal["canonical", "missing", "invalid"]
     binding_ok: bool
     issues: list[str]
     audit_marker: str | None
@@ -40,27 +39,10 @@ class BindingEvidenceResolver:
         config_root: Path | None = None,
         cwd_provider: Callable[[], Path] | None = None,
     ):
-        self._env = env if env is not None else os.environ
+        self._env = env if env is not None else {}
         configured_root = config_root if config_root is not None else canonical_config_root()
         self._config_root = normalize_absolute_path(str(configured_root), purpose="resolver.config_root")
         self._cwd_provider = cwd_provider if cwd_provider is not None else Path.cwd
-
-    def _allow_cwd_search(self, *, mode: str, host_caps: Any | None) -> bool:
-        if str(mode).strip().lower() == "pipeline":
-            return False
-        if str(self._env.get("OPENCODE_ALLOW_CWD_BINDINGS", "")).strip() != "1":
-            return False
-        if host_caps is None:
-            return False
-        writable = bool(getattr(host_caps, "fs_write_commands_home", False))
-        readable = bool(getattr(host_caps, "fs_read_commands_home", False))
-        return writable or readable
-
-    @staticmethod
-    def _normalize_path(path: Path) -> Path:
-        if not path.is_absolute():
-            raise ValueError("binding candidate path must be absolute")
-        return Path(os.path.normpath(os.path.abspath(str(path))))
 
     @staticmethod
     def _parse_command_profiles(value: object) -> dict[str, str]:
@@ -77,63 +59,17 @@ class BindingEvidenceResolver:
             out[raw_key.strip()] = raw_val.strip()
         return out
 
-    def _allow_trusted_override(self, *, mode: str, host_caps: Any | None) -> bool:
-        if str(mode).strip().lower() == "pipeline":
-            return False
-        if str(self._env.get("OPENCODE_ALLOW_TRUSTED_BINDING_OVERRIDE", "")).strip() != "1":
-            return False
-        if host_caps is None:
-            return True
-        writable = bool(getattr(host_caps, "fs_write_commands_home", False))
-        readable = bool(getattr(host_caps, "fs_read_commands_home", False))
-        return writable or readable
-
-    def _trusted_override_candidate(self) -> Path | None:
-        raw = str(self._env.get("OPENCODE_TRUSTED_COMMANDS_HOME", "")).strip()
-        if not raw:
-            return None
-        try:
-            commands_home = normalize_absolute_path(raw, purpose="env:OPENCODE_TRUSTED_COMMANDS_HOME")
-        except Exception:
-            return None
-        return commands_home / "governance.paths.json"
-
-    def _candidates(
-        self,
-        *,
-        mode: str,
-        host_caps: Any | None,
-    ) -> list[tuple[Path, Literal["canonical", "trusted_override", "dev_cwd_search"]]]:
-        root = self._config_root
-        candidates: list[tuple[Path, Literal["canonical", "trusted_override", "dev_cwd_search"]]] = [
-            (root / "commands" / "governance.paths.json", "canonical")
-        ]
-        if self._allow_trusted_override(mode=mode, host_caps=host_caps):
-            trusted = self._trusted_override_candidate()
-            if trusted is not None:
-                candidates.insert(0, (trusted, "trusted_override"))
-        if self._allow_cwd_search(mode=mode, host_caps=host_caps):
-            cwd = self._normalize_path(self._cwd_provider())
-            candidates.extend(
-                (parent / "commands" / "governance.paths.json", "dev_cwd_search")
-                for parent in (cwd, *cwd.parents)
-            )
-        return candidates
-
     def resolve(self, *, mode: str = "user", host_caps: Any | None = None) -> BindingEvidence:
+        _ = mode
+        _ = host_caps
+        _ = self._env
+        _ = self._cwd_provider
+
         root = self._config_root
         python_command = ""
+        binding_file = root / "commands" / "governance.paths.json"
 
-        binding_file: Path | None = None
-        binding_source: Literal["canonical", "trusted_override", "dev_cwd_search", "missing", "invalid"] = "missing"
-        for candidate, source in self._candidates(mode=mode, host_caps=host_caps):
-            normalized = self._normalize_path(candidate)
-            if normalized.exists():
-                binding_file = normalized
-                binding_source = source
-                break
-
-        if binding_file is None:
+        if not binding_file.exists():
             return BindingEvidence(
                 python_command=python_command,
                 cmd_profiles={},
@@ -185,23 +121,6 @@ class BindingEvidenceResolver:
                 audit_event=None,
             )
 
-        audit_marker = "POLICY_PRECEDENCE_APPLIED" if binding_source != "canonical" else None
-        audit_event: dict[str, object] | None = None
-        if audit_marker is not None:
-            audit_event = {
-                "event": audit_marker,
-                "source": binding_source,
-                "candidate_path": str(binding_file),
-                "mode": str(mode).strip().lower() or "user",
-                "flags": {
-                    "allow_trusted_binding_override": str(
-                        self._env.get("OPENCODE_ALLOW_TRUSTED_BINDING_OVERRIDE", "")
-                    ).strip()
-                    == "1",
-                    "allow_cwd_bindings": str(self._env.get("OPENCODE_ALLOW_CWD_BINDINGS", "")).strip() == "1",
-                },
-            }
-
         issues: list[str] = []
         config_root: Path | None = None
 
@@ -225,9 +144,9 @@ class BindingEvidenceResolver:
             workspaces_home=workspaces,
             config_root=config_root,
             governance_paths_json=binding_file,
-            source=binding_source,
+            source="canonical",
             binding_ok=binding_ok,
             issues=issues,
-            audit_marker=audit_marker,
-            audit_event=audit_event,
+            audit_marker=None,
+            audit_event=None,
         )
