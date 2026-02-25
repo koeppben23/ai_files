@@ -129,7 +129,7 @@ Rules:
 
 ## 3) RULE RESOLUTION TRACE (Mandatory)
 
-List, in order, which sources are currently authoritative and active:
+List, in order, which guidance sources are currently active:
 
 - master.md (always)
 - rules.md (active or not, and why)

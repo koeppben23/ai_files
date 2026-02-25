@@ -553,7 +553,7 @@ def build_governance_paths_payload(config_root: Path, *, deterministic: bool) ->
     profiles_home = commands_home / "profiles"
     governance_home = commands_home / "governance"
     workspaces_home = config_root / "workspaces"
-    global_error_logs_home = config_root / ERROR_LOGS_DIR_NAME
+    global_error_logs_home = commands_home / ERROR_LOGS_DIR_NAME
     if os.name == "nt":
         python_command = "py -3"
     else:

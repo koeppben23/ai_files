@@ -41,6 +41,7 @@ FORBIDDEN_PATTERNS = [
     re.compile(r"phase_execution_config\.yaml", re.IGNORECASE),
     re.compile(r"OPENCODE_DIAGNOSTICS_ALLOW_WRITE", re.IGNORECASE),
     re.compile(r"active gates.*master\.md\s*\+\s*rules\.md", re.IGNORECASE),
+    re.compile(r"authoritative and active", re.IGNORECASE),
 ]
 
 REQUIRED_PHRASES = [
