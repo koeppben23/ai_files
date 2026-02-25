@@ -87,7 +87,7 @@ def _normalized_status(parity_status: str) -> str:
 
 def generate_golden_outputs(*, repo_root: Path, output_dir: Path) -> None:
     binding_root = Path(tempfile.mkdtemp(prefix="opencode-golden-binding-"))
-    config_root = binding_root / "config"
+    config_root = binding_root / ".config" / "opencode"
     commands_binding_home = config_root / "commands"
     workspaces_home = config_root / "workspaces"
     commands_binding_home.mkdir(parents=True, exist_ok=True)
@@ -105,17 +105,14 @@ def generate_golden_outputs(*, repo_root: Path, output_dir: Path) -> None:
         json.dumps(binding_payload, ensure_ascii=True),
         encoding="utf-8",
     )
-    previous_allow_trusted = os.environ.get("OPENCODE_ALLOW_TRUSTED_BINDING_OVERRIDE")
-    previous_trusted_home = os.environ.get("OPENCODE_TRUSTED_COMMANDS_HOME")
-    os.environ["OPENCODE_ALLOW_TRUSTED_BINDING_OVERRIDE"] = "1"
-    os.environ["OPENCODE_TRUSTED_COMMANDS_HOME"] = str(commands_binding_home.resolve())
+    previous_home = os.environ.get("HOME")
+    os.environ["HOME"] = str(binding_root.resolve())
 
     adapter = ScriptAdapter(
         env={
             "OPENCODE_REPO_ROOT": str(repo_root.resolve()),
             "OPENCODE_DISABLE_GIT": "0",
-            "OPENCODE_ALLOW_TRUSTED_BINDING_OVERRIDE": "1",
-            "OPENCODE_TRUSTED_COMMANDS_HOME": str(commands_binding_home.resolve()),
+            "HOME": str(binding_root.resolve()),
         },
         cwd_path=repo_root.resolve(),
         caps=HostCapabilities(
@@ -186,14 +183,10 @@ def generate_golden_outputs(*, repo_root: Path, output_dir: Path) -> None:
             }
             (output_dir / f"{key}.json").write_text(json.dumps(payload, indent=2, ensure_ascii=True) + "\n", encoding="utf-8")
     finally:
-        if previous_allow_trusted is None:
-            os.environ.pop("OPENCODE_ALLOW_TRUSTED_BINDING_OVERRIDE", None)
+        if previous_home is None:
+            os.environ.pop("HOME", None)
         else:
-            os.environ["OPENCODE_ALLOW_TRUSTED_BINDING_OVERRIDE"] = previous_allow_trusted
-        if previous_trusted_home is None:
-            os.environ.pop("OPENCODE_TRUSTED_COMMANDS_HOME", None)
-        else:
-            os.environ["OPENCODE_TRUSTED_COMMANDS_HOME"] = previous_trusted_home
+            os.environ["HOME"] = previous_home
 
 
 def main(argv: list[str] | None = None) -> int:

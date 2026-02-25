@@ -6,9 +6,10 @@ priority: highest
 # Governance-Version: 1.1.0-RC.2
 MASTER PROMPT
 
-Release/readiness stability gate (binding):
+Release/readiness stability gate (policy):
 - `STABILITY_SLA.md` is the normative Go/No-Go contract for governance releases.
-- Governance changes that violate any SLA criterion MUST be treated as release-blocking.
+- `STABILITY_SLA.md` defines release Go/No-Go expectations.
+- Governance changes that violate any SLA criterion are treated as release-blocking by kernel/pipeline enforcement.
 
 Runtime orientation (informational):
 - Runtime behavior is implemented in `governance/kernel/*`, `governance/engine/*`, `governance/render/*`, and governance schemas.
@@ -509,7 +510,7 @@ This governance system is single-user and MUST NOT require repo-working-tree-loc
 
 #### Step 1b (Phase 1.1): Resolve Top-Tier Index & Conflict Model (QUALITY_INDEX.md, CONFLICT_RESOLUTION.md)
 
-These files are normative and MUST be available in the same governance installation scope as `master.md`.
+These files are required in the same governance installation scope as `master.md`.
 
 Missing top-tier files behavior (informational):
 - In Phases 1-3, unresolved top-tier files (`QUALITY_INDEX.md`, `CONFLICT_RESOLUTION.md`) emit WARN and workflow remains planning-only (kernel-enforced).
@@ -1400,7 +1401,7 @@ Goal:
 - Use a deterministic, structured cache that is faster than parsing long digest markdown.
 
 Order of precedence (Kernel-Enforced):
-1. Repo Cache (`repo-cache.yaml`) — authoritative if VALID
+1. Repo Cache (`repo-cache.yaml`) — preferred when VALID
 2. RepoMapDigest file — supportive memory only (may be contradicted by repo evidence)
 3. Live repository evidence — highest priority
 
@@ -1455,7 +1456,7 @@ Binding note:
 - Read-only git probing/comparisons are allowed for identity/cache evidence when host tools are available.
 
 If VALID:
-- Treat cache as authoritative for Phase 2 output (supportive memory; repo evidence wins if later contradictions appear).
+- Treat cache as preferred for Phase 2 output (supportive memory; repo evidence wins if later contradictions appear).
 - Set `SESSION_STATE.RepoCacheFile` fields and SKIP full Phase 2 discovery.
 
 If INVALID:
