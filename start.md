@@ -3,7 +3,7 @@
 This project uses a formal LLM Governance System
 defined in `master.md`, `rules.md`, and profile rulebooks.
 
-Invariant checklist for regression prevention: `docs/governance_invariants.md`.
+Invariant checklist for regression prevention: `docs/governance_invariants.md` (source repo path).
 
 
 ## Auto-Binding Evidence (OpenCode)
@@ -122,7 +122,7 @@ Output requirements:
 - Preferred conversational fixture source: `governance/assets/catalogs/UX_INTENT_GOLDENS.json`.
 - Short follow-up questions SHOULD route via deterministic intents (`where_am_i`, `what_blocks_me`, `what_now`) before optional verbose governance.
 - Response persona modes SHOULD be supported (`compact`, `standard`, `audit`) as presentation-density controls only.
-- Output envelope SHOULD comply with `governance/RESPONSE_ENVELOPE_SCHEMA.json` (`status`, `session_state`, `next_action`, `snapshot`; plus blocker payload fields when blocked) when host constraints allow
+- Output envelope SHOULD comply with `governance/assets/catalogs/RESPONSE_ENVELOPE_SCHEMA.json` (`status`, `session_state`, `next_action`, `snapshot`; plus blocker payload fields when blocked) when host constraints allow
 - STRICT/COMPAT output matrix SSOT is defined in `master.md` and `rules.md`; this file mirrors entrypoint-specific expectations only.
 - `next_action.type` MUST be present and one of: `command`, `reply_with_one_number`, `manual_step`.
 - Status vocabulary MUST remain deterministic: `BLOCKED | WARN | OK | NOT_VERIFIED`.

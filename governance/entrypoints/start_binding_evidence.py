@@ -22,14 +22,6 @@ from governance.infrastructure.binding_evidence_resolver import BindingEvidenceR
 def main() -> int:
     resolver = BindingEvidenceResolver()
     evidence = resolver.resolve(mode="start")
-    config_root = evidence.commands_home.parent
-    debug_paths = {
-        "configRoot": str(config_root),
-        "commandsHome": str(evidence.commands_home),
-        "profilesHome": str(evidence.commands_home / "profiles"),
-        "governanceHome": str(evidence.commands_home / "governance"),
-        "workspacesHome": str(evidence.workspaces_home),
-    }
 
     if not evidence.binding_ok:
         payload = {
@@ -42,11 +34,23 @@ def main() -> int:
             ],
             "next_command": "/start",
             "nonEvidence": "debug-only",
-            "debugComputedPaths": debug_paths,
+            "debugComputedPaths": {
+                "configRoot": str(evidence.config_root) if evidence.config_root else "unknown",
+                "commandsHome": str(evidence.commands_home) if evidence.commands_home else "unknown",
+            },
             "bindingEvidenceSource": evidence.source,
         }
         print(json.dumps(payload, ensure_ascii=True))
         return 0
+
+    config_root = evidence.commands_home.parent if evidence.commands_home else None
+    debug_paths = {
+        "configRoot": str(config_root) if config_root else "unknown",
+        "commandsHome": str(evidence.commands_home) if evidence.commands_home else "unknown",
+        "profilesHome": str(evidence.commands_home / "profiles") if evidence.commands_home else "unknown",
+        "governanceHome": str(evidence.commands_home / "governance") if evidence.commands_home else "unknown",
+        "workspacesHome": str(evidence.workspaces_home) if evidence.workspaces_home else "unknown",
+    }
 
     binding_file = evidence.governance_paths_json
     if binding_file is not None and binding_file.exists():
