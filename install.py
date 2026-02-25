@@ -383,12 +383,6 @@ def collect_governance_runtime_files(source_dir: Path) -> list[Path]:
     )
 
 
-def collect_governance_files(source_dir: Path) -> list[Path]:
-    """Legacy collector kept for compatibility; governance runtime ships via collect_governance_runtime_files."""
-    _ = source_dir
-    return []
-
-
 DOCS_DIR_NAME = "docs"
 CUSTOMER_DOCS = frozenset({
     "phases.md",
