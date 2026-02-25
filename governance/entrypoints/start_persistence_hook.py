@@ -132,7 +132,8 @@ def _resolve_bindings(*, mode: str) -> tuple[Path | None, Path | None, bool, Pat
     evidence = resolver.resolve(mode=mode)
     python_command = evidence.python_command.strip() if evidence.python_command else ""
     if not python_command:
-        python_command = "python3"
+        # Use sys.executable instead of "python3" for Windows compatibility
+        python_command = sys.executable
     
     # If binding evidence is missing or invalid, use fallback derived from script location
     if evidence.commands_home is None or not str(evidence.commands_home).strip():
