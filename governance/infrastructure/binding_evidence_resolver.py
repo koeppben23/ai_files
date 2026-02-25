@@ -65,15 +65,44 @@ class BindingEvidenceResolver:
         _ = host_caps
         _ = self._cwd_provider
 
-        env_commands_home = os.environ.get("COMMANDS_HOME")
+        env_commands_home = self._env.get("COMMANDS_HOME") or os.environ.get("COMMANDS_HOME")
         if env_commands_home:
             try:
                 commands_home = normalize_absolute_path(env_commands_home, purpose="COMMANDS_HOME env")
                 root = commands_home.parent
                 binding_file = commands_home / "governance.paths.json"
-            except Exception:
-                root = self._config_root
-                binding_file = root / "commands" / "governance.paths.json"
+                if not binding_file.exists():
+                    return BindingEvidence(
+                        python_command="",
+                        cmd_profiles={},
+                        paths={},
+                        raw_path=None,
+                        commands_home=None,
+                        workspaces_home=None,
+                        config_root=None,
+                        governance_paths_json=None,
+                        source="invalid",
+                        binding_ok=False,
+                        issues=[f"COMMANDS_HOME set but binding file not found: {binding_file}"],
+                        audit_marker=None,
+                        audit_event=None,
+                    )
+            except Exception as e:
+                return BindingEvidence(
+                    python_command="",
+                    cmd_profiles={},
+                    paths={},
+                    raw_path=None,
+                    commands_home=None,
+                    workspaces_home=None,
+                    config_root=None,
+                    governance_paths_json=None,
+                    source="invalid",
+                    binding_ok=False,
+                    issues=[f"COMMANDS_HOME invalid: {e}"],
+                    audit_marker=None,
+                    audit_event=None,
+                )
         else:
             root = self._config_root
             binding_file = root / "commands" / "governance.paths.json"
