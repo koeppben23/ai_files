@@ -41,7 +41,7 @@ def main() -> int:
             "bindingEvidenceSource": evidence.source,
         }
         print(json.dumps(payload, ensure_ascii=True))
-        return 0
+        return 2  # Non-zero exit for blocked state
 
     config_root = evidence.commands_home.parent if evidence.commands_home else None
     debug_paths = {
