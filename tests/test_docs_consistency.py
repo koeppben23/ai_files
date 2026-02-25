@@ -5,6 +5,7 @@ import re
 
 
 DOC_FILES = [
+    "master.md",
     "docs/phases.md",
     "docs/governance_invariants.md",
     "docs/CLEANUP_ANALYSIS.md",
@@ -17,6 +18,9 @@ FORBIDDEN_PATTERNS = [
     re.compile(r"phase_router\.py", re.IGNORECASE),
     re.compile(r"1\.3 deferred until phase 4", re.IGNORECASE),
     re.compile(r"deferred until post-phase-2", re.IGNORECASE),
+    re.compile(r"deferred to phase 4", re.IGNORECASE),
+    re.compile(r"deferred to post-phase-2", re.IGNORECASE),
+    re.compile(r"phase_execution_config\.yaml", re.IGNORECASE),
     re.compile(r"OPENCODE_DIAGNOSTICS_ALLOW_WRITE", re.IGNORECASE),
 ]
 

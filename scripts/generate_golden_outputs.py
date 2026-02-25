@@ -6,9 +6,11 @@ import argparse
 from dataclasses import dataclass
 from datetime import datetime, timezone
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
+import tempfile
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
@@ -84,10 +86,36 @@ def _normalized_status(parity_status: str) -> str:
 
 
 def generate_golden_outputs(*, repo_root: Path, output_dir: Path) -> None:
+    binding_root = Path(tempfile.mkdtemp(prefix="opencode-golden-binding-"))
+    config_root = binding_root / "config"
+    commands_binding_home = config_root / "commands"
+    workspaces_home = config_root / "workspaces"
+    commands_binding_home.mkdir(parents=True, exist_ok=True)
+    workspaces_home.mkdir(parents=True, exist_ok=True)
+    binding_payload = {
+        "schema": "opencode-governance.paths.v1",
+        "paths": {
+            "configRoot": str(config_root),
+            "commandsHome": str(repo_root.resolve()),
+            "workspacesHome": str(workspaces_home.resolve()),
+            "pythonCommand": sys.executable,
+        },
+    }
+    (commands_binding_home / "governance.paths.json").write_text(
+        json.dumps(binding_payload, ensure_ascii=True),
+        encoding="utf-8",
+    )
+    previous_allow_trusted = os.environ.get("OPENCODE_ALLOW_TRUSTED_BINDING_OVERRIDE")
+    previous_trusted_home = os.environ.get("OPENCODE_TRUSTED_COMMANDS_HOME")
+    os.environ["OPENCODE_ALLOW_TRUSTED_BINDING_OVERRIDE"] = "1"
+    os.environ["OPENCODE_TRUSTED_COMMANDS_HOME"] = str(commands_binding_home.resolve())
+
     adapter = ScriptAdapter(
         env={
             "OPENCODE_REPO_ROOT": str(repo_root.resolve()),
             "OPENCODE_DISABLE_GIT": "0",
+            "OPENCODE_ALLOW_TRUSTED_BINDING_OVERRIDE": "1",
+            "OPENCODE_TRUSTED_COMMANDS_HOME": str(commands_binding_home.resolve()),
         },
         cwd_path=repo_root.resolve(),
         caps=HostCapabilities(
@@ -109,53 +137,63 @@ def generate_golden_outputs(*, repo_root: Path, output_dir: Path) -> None:
         "where_am_i": "where am i",
     }
 
-    output_dir.mkdir(parents=True, exist_ok=True)
-    for key, prompt in canonical_inputs.items():
-        intent = route_intent(prompt)
-        phase, active_gate, primary_action = _scenario_for_intent(intent)
-        orchestrated = run_engine_orchestrator(
-            adapter=adapter,
-            phase=phase,
-            active_gate=active_gate,
-            mode="OK",
-            next_gate_condition=primary_action,
-            requested_operating_mode="user",
-        )
+    try:
+        output_dir.mkdir(parents=True, exist_ok=True)
+        for key, prompt in canonical_inputs.items():
+            intent = route_intent(prompt)
+            phase, active_gate, primary_action = _scenario_for_intent(intent)
+            orchestrated = run_engine_orchestrator(
+                adapter=adapter,
+                phase=phase,
+                active_gate=active_gate,
+                mode="OK",
+                next_gate_condition=primary_action,
+                requested_operating_mode="user",
+            )
 
-        rendered = build_two_layer_output(
-            status=_normalized_status(orchestrated.parity["status"]),
-            phase_gate=f"{phase}|{active_gate}",
-            primary_action=primary_action,
-            phase=phase,
-            active_gate=active_gate,
-            reason_code=orchestrated.parity["reason_code"],
-            next_command=orchestrated.parity["next_action.command"],
-            details={
-                "activation_hash": orchestrated.activation_hash,
-                "ruleset_hash": orchestrated.ruleset_hash,
-                "effective_operating_mode": orchestrated.effective_operating_mode,
-            },
-        )
+            rendered = build_two_layer_output(
+                status=_normalized_status(orchestrated.parity["status"]),
+                phase_gate=f"{phase}|{active_gate}",
+                primary_action=primary_action,
+                phase=phase,
+                active_gate=active_gate,
+                reason_code=orchestrated.parity["reason_code"],
+                next_command=orchestrated.parity["next_action.command"],
+                details={
+                    "activation_hash": orchestrated.activation_hash,
+                    "ruleset_hash": orchestrated.ruleset_hash,
+                    "effective_operating_mode": orchestrated.effective_operating_mode,
+                },
+            )
 
-        payload = {
-            "schema": "governance-golden-intent-output.v1",
-            "input": prompt,
-            "intent": intent,
-            "parity": orchestrated.parity,
-            "engine": {
-                "phase": orchestrated.runtime.state.phase,
-                "active_gate": orchestrated.runtime.state.active_gate,
-                "activation_hash": orchestrated.activation_hash,
-                "ruleset_hash": orchestrated.ruleset_hash,
-                "next_command": orchestrated.parity["next_action.command"],
-            },
-            "render": {
-                "header": rendered["header"],
-                "operator_view": rendered["operator_view"],
-                "reason_to_action": rendered["reason_to_action"],
-            },
-        }
-        (output_dir / f"{key}.json").write_text(json.dumps(payload, indent=2, ensure_ascii=True) + "\n", encoding="utf-8")
+            payload = {
+                "schema": "governance-golden-intent-output.v1",
+                "input": prompt,
+                "intent": intent,
+                "parity": orchestrated.parity,
+                "engine": {
+                    "phase": orchestrated.runtime.state.phase,
+                    "active_gate": orchestrated.runtime.state.active_gate,
+                    "activation_hash": orchestrated.activation_hash,
+                    "ruleset_hash": orchestrated.ruleset_hash,
+                    "next_command": orchestrated.parity["next_action.command"],
+                },
+                "render": {
+                    "header": rendered["header"],
+                    "operator_view": rendered["operator_view"],
+                    "reason_to_action": rendered["reason_to_action"],
+                },
+            }
+            (output_dir / f"{key}.json").write_text(json.dumps(payload, indent=2, ensure_ascii=True) + "\n", encoding="utf-8")
+    finally:
+        if previous_allow_trusted is None:
+            os.environ.pop("OPENCODE_ALLOW_TRUSTED_BINDING_OVERRIDE", None)
+        else:
+            os.environ["OPENCODE_ALLOW_TRUSTED_BINDING_OVERRIDE"] = previous_allow_trusted
+        if previous_trusted_home is None:
+            os.environ.pop("OPENCODE_TRUSTED_COMMANDS_HOME", None)
+        else:
+            os.environ["OPENCODE_TRUSTED_COMMANDS_HOME"] = previous_trusted_home
 
 
 def main(argv: list[str] | None = None) -> int:

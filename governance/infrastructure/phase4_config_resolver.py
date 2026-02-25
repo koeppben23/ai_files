@@ -6,7 +6,6 @@ ConfigPathResolver protocol defined in application layer.
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 
 
@@ -23,19 +22,13 @@ class CanonicalRootConfigResolver:
             resolver = BindingEvidenceResolver()
             evidence = resolver.resolve(mode=self._mode)
             if evidence.binding_ok and evidence.commands_home:
-                canonical_path = evidence.commands_home.parent / "governance" / "assets" / "config" / "phase4_self_review_config.yaml"
+                canonical_path = evidence.commands_home / "governance" / "assets" / "config" / "phase4_self_review_config.yaml"
                 if canonical_path.exists():
                     return canonical_path
         except Exception:
             if self._mode == "pipeline":
                 return None
         return None
-    
-    def allow_repo_local_fallback(self) -> bool:
-        """Check if repo-local fallback is allowed (dev/test opt-in)."""
-        if self._mode == "pipeline":
-            return False
-        return str(os.environ.get("OPENCODE_ALLOW_REPO_LOCAL_CONFIG", "")).strip() == "1"
 
     def operating_mode(self) -> str:
         return self._mode

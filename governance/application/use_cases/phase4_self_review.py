@@ -47,10 +47,6 @@ class ConfigPathResolver(Protocol):
         """Resolve path to policy-bound config, or None if unavailable."""
         ...
     
-    def allow_repo_local_fallback(self) -> bool:
-        """Check if repo-local fallback is allowed (dev/test opt-in)."""
-        ...
-
     def operating_mode(self) -> str:
         """Return effective operating mode bound by infrastructure wiring."""
         ...
@@ -232,25 +228,6 @@ class PolicyConfigError(Exception):
     pass
 
 
-def _get_repo_local_config_path() -> Path:
-    """Get repo-local config path as fallback.
-    
-    This is used when canonical root is not available (dev/test environments).
-    Uses string manipulation instead of resolve() to avoid side effects.
-    """
-    # Navigate from this file to repo root without resolve()
-    # __file__ = .../governance/application/use_cases/phase4_self_review.py
-    # repo root = 4 levels up
-    parts = Path(__file__).parts
-    # Find governance index and go 1 level up
-    if "governance" in parts:
-        gov_idx = parts.index("governance")
-        repo_root = Path(*parts[:gov_idx])
-        return repo_root / "governance" / "assets" / "config" / "phase4_self_review_config.yaml"
-    # Fallback
-    return Path(__file__).parent.parent.parent.parent / "governance" / "assets" / "config" / "phase4_self_review_config.yaml"
-
-
 def load_self_review_config(*, force_reload: bool = False) -> SelfReviewConfig:
     """Load policy-bound self-review config.
     
@@ -259,7 +236,7 @@ def load_self_review_config(*, force_reload: bool = False) -> SelfReviewConfig:
     - Missing/invalid config → BLOCKED_ENGINE_SELFCHECK (fail-closed)
     - No silent fallback to defaults for policy-bound settings
     - Path resolved via injected resolver (Dependency Inversion)
-    - Fallback to repo-local path for dev/test environments
+    - No repository-local fallback; binding/commands-home only
     
     Raises:
         PolicyConfigError: If policy-bound config is missing or invalid
@@ -271,14 +248,9 @@ def load_self_review_config(*, force_reload: bool = False) -> SelfReviewConfig:
     
     # Try injected resolver first (SSOT via Dependency Inversion)
     config_path = None
-    resolver_source = "none"
     if _default_resolver is not None:
         config_path = _default_resolver.resolve_config_path()
-        resolver_source = "injected_resolver"
-    
-    # Check if repo-local fallback is allowed
-    # Either through resolver method or direct env check (when no resolver)
-    allow_repo_local = False
+
     effective_mode = "user"
     if _default_resolver is not None and hasattr(_default_resolver, "operating_mode"):
         try:
@@ -286,32 +258,19 @@ def load_self_review_config(*, force_reload: bool = False) -> SelfReviewConfig:
         except Exception:
             effective_mode = "user"
 
-    if effective_mode != "pipeline" and _default_resolver is not None and hasattr(_default_resolver, "allow_repo_local_fallback"):
-        allow_repo_local = _default_resolver.allow_repo_local_fallback()
-    
-    # Fallback to repo-local path ONLY with explicit opt-in (dev/test)
     if config_path is None:
-        if allow_repo_local:
-            config_path = _get_repo_local_config_path()
-            resolver_source = "repo_local_opt_in"
-        else:
-            hint = (
-                "Pipeline mode disallows repo-local fallback. "
-                if effective_mode == "pipeline"
-                else "Set OPENCODE_ALLOW_REPO_LOCAL_CONFIG=1 for dev/test environments. "
-            )
-            raise PolicyConfigError(
-                "Policy-bound config not resolved via canonical root. "
-                + hint
-                +
-                "Reason: BLOCKED-ENGINE-SELFCHECK"
-            )
+        hint = "Pipeline mode requires binding evidence. " if effective_mode == "pipeline" else "Binding evidence missing. "
+        raise PolicyConfigError(
+            "Policy-bound config not resolved via canonical root. "
+            + hint
+            + "Reason: BLOCKED-ENGINE-SELFCHECK"
+        )
     
     if not config_path.exists():
         raise PolicyConfigError(
             f"Policy-bound config missing: {config_path}. "
-            f"Expected pack-locked config at canonical root or repo-local governance/. "
-            f"Reason: BLOCKED-ENGINE-SELFCHECK"
+            "Expected pack-locked config under ${COMMANDS_HOME}/governance/assets/config/. "
+            "Reason: BLOCKED-ENGINE-SELFCHECK"
         )
     
     if not YAML_AVAILABLE:
