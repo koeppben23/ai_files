@@ -17,6 +17,11 @@ Normative boundary for state-machine runtime (binding):
 - If implementation artifacts and this file diverge, this file is authoritative until implementation is corrected.
 - This file should avoid duplicating low-level algorithmic details that are already contract-tested in code.
 
+SSOT: `${COMMANDS_HOME}/phase_api.yaml` is the only truth for routing, execution, and validation.
+Kernel: `governance/kernel/*` is the only control-plane implementation.
+MD files are AI rails/guidance only and are never routing-binding.
+Phase `1.3` is mandatory before every phase `>=2`.
+
 <!-- NOTE: This diff adds fail-closed TargetPath validation to prevent degenerate paths like "C" being written into the repo. -->
 
 ## PHASE 0 — BOOTSTRAP (CONDITIONAL)
@@ -308,36 +313,36 @@ SESSION_STATE bootstrap (binding):
     Satisfied: true
     Evidence: "explicit bootstrap declaration in session header"
   LoadedRulebooks:
-    core: ""     # DEFERRED until Phase 4
-    profile: ""  # DEFERRED until post-Phase-2
+    core: ""     # set at Phase 1.3 before any Phase >=2 execution
+    profile: ""  # set when a profile is selected or marked not-applicable
     templates: ""
     addons: {}
-  ActiveProfile: ""          # DEFERRED until post-Phase-2
-  ProfileSource: "deferred"
-  ProfileEvidence: "deferred-until-phase-2"
+  ActiveProfile: ""          # resolved or marked not-applicable
+  ProfileSource: "pending"
+  ProfileEvidence: "pending"
   RulebookLoadEvidence:
     top_tier:
       quality_index: "${COMMANDS_HOME}/QUALITY_INDEX.md"
       conflict_resolution: "${COMMANDS_HOME}/CONFLICT_RESOLUTION.md"
   
-### Phase 1.2: Profile Detection (DEFERRED TO POST-PHASE-2)
+### Phase 1.2: Profile Detection
 
-> **Routing:** Kernel-enforced. See `governance/phase_execution_config.yaml`.
+> **Routing:** Kernel-enforced from `${COMMANDS_HOME}/phase_api.yaml`.
 
 Output state updates:
 - `SESSION_STATE.ActiveProfile`
 - `SESSION_STATE.LoadedRulebooks.profile`
 
-### Phase 1.3: Core Rules Activation (DEFERRED TO PHASE 4)
+### Phase 1.3: Core Rules Activation
 
-> **Routing:** Kernel-enforced. See `governance/phase_execution_config.yaml`.
+> **Routing:** Kernel-enforced from `${COMMANDS_HOME}/phase_api.yaml`.
 
 Output state updates:
 - `SESSION_STATE.LoadedRulebooks.core`
 
 #### Execution Constraints (Kernel-Owned)
 
-> **Note:** Phase constraints are kernel-enforced via `governance/phase_execution_config.yaml`.
+> **Note:** Phase constraints are kernel-enforced via `${COMMANDS_HOME}/phase_api.yaml`.
 > The following are informational summaries only.
   - Phases 1–3 do not depend on rules.md (kernel-enforced).
   - Phase 4 entry requires core rulebook load; if missing, kernel emits BLOCKED-RULEBOOK-LOAD-FAILED.
@@ -345,17 +350,17 @@ Output state updates:
   - Token-efficiency: The kernel caches and reuses loaded rulebooks when content evidence is unchanged.
 
 
-### Phase 1.4: Templates & Addons Activation (DEFERRED TO PHASE 4)
+### Phase 1.4: Templates & Addons Activation
 
-> **Routing:** Kernel-enforced via `governance/phase_execution_config.yaml`.
-> Informational: Kernel runs this when Phase 4 begins, immediately after Phase 1.3.
+> **Routing:** Kernel-enforced via `${COMMANDS_HOME}/phase_api.yaml`.
+> Informational: Kernel runs this according to phase-api transitions.
 
 PURPOSE:
 - Make rulebook loading deterministic across models and sessions.
 - Ensure profile-mandated templates and evidence-mandated addons are activated before any planning.
 
 > **Algorithm:** Kernel-enforced. The following steps are informational summaries of kernel behavior.
-> For normative execution rules, see `governance/phase_execution_config.yaml`.
+> For normative execution rules, see `${COMMANDS_HOME}/phase_api.yaml`.
 
 Activation Steps (Informational):
 
@@ -835,7 +840,7 @@ Override constraints (binding):
 * "Skip Phase Y" is only valid if all artifacts/evidence required by downstream phases already exist in SESSION_STATE.
 * If skipping would cause missing discovery or verification evidence, the workflow switches to BLOCKED and requests the missing inputs (kernel-enforced).
 
-Phase 5 is not skippable when code generation is expected (kernel-enforced; see phase_execution_config.yaml).
+Phase 5 is not skippable when code generation is expected (kernel-enforced by `${COMMANDS_HOME}/phase_api.yaml`).
 Phase 5.4 is not skippable when Phase 1.5 was executed AND code generation is expected (kernel-enforced).
 
 ### 2.2.1 Operator Reload Contract (Kernel-Enforced)

@@ -8,7 +8,7 @@ by default.
 
 Environment:
     OPENCODE_MODE=user|pipeline|agents_strict - explicit mode
-    OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY=1 - If set, blocks all writes (safety gate)
+    OPENCODE_FORCE_READ_ONLY=1 - If set, blocks all writes (safety gate)
 """
 
 from __future__ import annotations
@@ -36,7 +36,7 @@ def _writes_allowed() -> bool:
     Returns:
         True if writes are allowed, False if read-only mode is enforced.
     
-    The function checks OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY environment variable.
+    The function checks OPENCODE_FORCE_READ_ONLY (and legacy alias) environment variable.
     When set to "1", all write operations are blocked for safety.
     """
     return writes_allowed()
@@ -59,16 +59,6 @@ from governance.entrypoints.error_handler_bridge import (
     install_global_handlers,
     set_error_context,
 )
-try:
-    from governance.infrastructure.logging.global_error_handler import resolve_log_path
-except Exception:
-    def resolve_log_path(*, config_root=None, commands_home=None, workspaces_home=None, repo_fingerprint=None):
-        root = Path(config_root) if config_root is not None else (Path.home() / ".config" / "opencode")
-        if repo_fingerprint and workspaces_home:
-            return Path(workspaces_home) / repo_fingerprint / "logs" / "error.log.jsonl"
-        if commands_home:
-            return Path(commands_home) / "logs" / "error.log.jsonl"
-        return root / "logs" / "error.log.jsonl"
 
 try:
     from governance.application.use_cases.start_bootstrap import evaluate_start_identity
@@ -76,6 +66,7 @@ try:
     from governance.infrastructure.path_contract import normalize_absolute_path
     from governance.infrastructure.wiring import configure_gateway_registry
     from governance.infrastructure.binding_evidence_resolver import BindingEvidenceResolver
+    from governance.infrastructure.logging.global_error_handler import resolve_log_path
 except ImportError as exc:
     print(json.dumps({
         "persistence_hook": "failed",
@@ -424,7 +415,7 @@ def run_persistence_hook(*, repo_root: Path | None = None) -> dict[str, object]:
             message="Persistence hook blocked by write policy.",
             expected="writes allowed",
             observed={"mode": EFFECTIVE_MODE, "writes_allowed": False},
-            remediation="Unset OPENCODE_DIAGNOSTICS_FORCE_READ_ONLY or switch to an allowed mode.",
+            remediation="Unset OPENCODE_FORCE_READ_ONLY or switch to an allowed mode.",
         )
         return _with_log_path({
             "workspacePersistenceHook": "blocked",
@@ -526,6 +517,8 @@ def run_persistence_hook(*, repo_root: Path | None = None) -> dict[str, object]:
             },
             repo_fingerprint=repo_fp,
         )
+    if workspaces_home is None:
+        workspaces_home = commands_home.parent / "workspaces"
 
     bootstrap_script = commands_home / "governance" / "entrypoints" / "bootstrap_session_state.py"
     if not bootstrap_script.exists():

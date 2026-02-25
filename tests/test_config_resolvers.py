@@ -4,21 +4,21 @@ import pytest
 
 
 @pytest.mark.governance
-def test_phase4_resolver_disables_repo_local_fallback_in_pipeline(monkeypatch):
+def test_phase4_resolver_resolves_canonical_path():
     from governance.infrastructure.phase4_config_resolver import CanonicalRootConfigResolver
 
-    monkeypatch.setenv("OPENCODE_ALLOW_REPO_LOCAL_CONFIG", "1")
-    assert CanonicalRootConfigResolver(mode="pipeline").allow_repo_local_fallback() is False
-    assert CanonicalRootConfigResolver(mode="user").allow_repo_local_fallback() is True
+    path = CanonicalRootConfigResolver(mode="user").resolve_config_path()
+    assert path is not None
+    assert path.name == "phase4_self_review_config.yaml"
 
 
 @pytest.mark.governance
-def test_phase5_resolver_disables_repo_local_fallback_in_pipeline(monkeypatch):
+def test_phase5_resolver_resolves_canonical_path():
     from governance.infrastructure.phase5_config_resolver import CanonicalRootPhase5ConfigResolver
 
-    monkeypatch.setenv("OPENCODE_ALLOW_REPO_LOCAL_CONFIG", "1")
-    assert CanonicalRootPhase5ConfigResolver(mode="pipeline").allow_repo_local_fallback() is False
-    assert CanonicalRootPhase5ConfigResolver(mode="agents_strict").allow_repo_local_fallback() is True
+    path = CanonicalRootPhase5ConfigResolver(mode="agents_strict").resolve_config_path()
+    assert path is not None
+    assert path.name == "phase5_review_config.yaml"
 
 
 @pytest.mark.governance
