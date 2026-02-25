@@ -1335,6 +1335,8 @@ def uninstall(
         plan.commands_dir / "templates",
         plan.commands_dir / "scripts",
         plan.commands_dir / "governance",
+        plan.commands_dir / "logs",
+        plan.commands_dir / "docs",
         plan.commands_dir / "_backup",
         plan.config_root / "workspaces",
     ]
