@@ -2987,7 +2987,9 @@ def test_cold_warm_start_banner_contract_is_defined_across_core_docs():
         "Banner decision MUST be evidence-backed",
     ]
     start_required = [
-        "At session start, include exactly one banner based on discovery artifact validity evidence: `[START-MODE] Cold Start - reason: ...` or `[START-MODE] Warm Start - reason: ...`.",
+        "At session start, include exactly one start-mode banner based on discovery artifact validity evidence:",
+        "[START-MODE] Cold Start - reason:",
+        "[START-MODE] Warm Start - reason:",
     ]
 
     missing_master = [t for t in master_required if t not in master]
@@ -3029,6 +3031,38 @@ def test_governance_boundary_and_thematic_rails_docs_exist():
     ]
     missing = [str(p.relative_to(REPO_ROOT)) for p in required if not p.exists()]
     assert not missing, "Missing governance boundary/thematic rails docs:\n" + "\n".join([f"- {m}" for m in missing])
+
+
+@pytest.mark.governance
+def test_rails_refactor_mapping_contains_required_tables():
+    mapping = read_text(REPO_ROOT / "docs" / "governance" / "RAILS_REFACTOR_MAPPING.md")
+
+    required_tokens = [
+        "| rule_id | rule_summary | canonical_source | secondary_references |",
+        "| original_section | target_location | action |",
+        "| file | classification | note |",
+    ]
+    missing = [t for t in required_tokens if t not in mapping]
+    assert not missing, "RAILS_REFACTOR_MAPPING.md missing required mapping tables:\n" + "\n".join([f"- {m}" for m in missing])
+
+
+@pytest.mark.governance
+def test_master_section_classification_doc_exists_and_uses_allowed_classes():
+    path = REPO_ROOT / "docs" / "governance" / "MASTER_SECTION_CLASSIFICATION.md"
+    assert path.exists(), "Missing docs/governance/MASTER_SECTION_CLASSIFICATION.md"
+    text = read_text(path)
+
+    allowed = ["global_principle", "priority_rule", "ai_behavior_rule", "reference"]
+    for klass in allowed:
+        assert klass in text, f"MASTER_SECTION_CLASSIFICATION.md missing class: {klass}"
+
+
+@pytest.mark.governance
+def test_responsibility_boundary_uses_bindend_vs_nicht_bindend_terms():
+    text = read_text(REPO_ROOT / "docs" / "governance" / "RESPONSIBILITY_BOUNDARY.md")
+    required = ["bindend", "nicht-bindend", "Kernel", "Schemas"]
+    missing = [t for t in required if t not in text]
+    assert not missing, "RESPONSIBILITY_BOUNDARY.md missing explicit boundary terms:\n" + "\n".join([f"- {m}" for m in missing])
 
 
 @pytest.mark.governance
@@ -3165,7 +3199,7 @@ def test_session_state_output_format_is_fenced_yaml_across_core_docs():
 
     master_required = [
         "If `SESSION_STATE` is emitted, it MUST still be rendered as fenced YAML",
-        "`SESSION_STATE` blocks MUST NOT use placeholder tokens (`...`, `<...>`); unknown fields must be explicit (`unknown|deferred|not-applicable`).",
+        "`SESSION_STATE` blocks MUST NOT use placeholder tokens (`...`, `<...>`); unknown fields must be explicit (`unknown|null|not-applicable`).",
     ]
     rules_required = [
         "### 7.3.9 SESSION_STATE Formatting Contract (Presentation Advisory)",
@@ -3174,11 +3208,11 @@ def test_session_state_output_format_is_fenced_yaml_across_core_docs():
         "fenced block start: ````yaml",
         "payload root key: `SESSION_STATE:`",
         "Placeholder tokens like `...` or `<...>` are FORBIDDEN inside emitted `SESSION_STATE` blocks.",
-        "If values are unknown/deferred, emit explicit values (`unknown`, `deferred`, `not-applicable`) rather than placeholders.",
+        "If values are unknown, emit explicit values (`unknown`, `null`, `not-applicable`) rather than placeholders.",
     ]
     start_required = [
         "`SESSION_STATE` output MUST be formatted as fenced YAML (````yaml` + `SESSION_STATE:` payload)",
-        "`SESSION_STATE` output MUST NOT use placeholder tokens (`...`, `<...>`); use explicit unknown/deferred values instead",
+        "`SESSION_STATE` output MUST NOT use placeholder tokens (`...`, `<...>`); use explicit unknown/null values instead",
     ]
 
     missing_master = [t for t in master_required if t not in master]

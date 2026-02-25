@@ -4,6 +4,10 @@
 
 This repository uses a strict separation of concerns.
 
+Terminology (explicit):
+- **bindend** = runtime-authoritative (kernel/config/schema contracts)
+- **nicht-bindend** = AI guidance/presentation rails only
+
 - Kernel + `phase_api.yaml` are binding runtime control.
 - Schemas + contracts are binding data and response contracts.
 - Markdown rails are non-binding AI guidance.
