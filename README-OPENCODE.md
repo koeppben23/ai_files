@@ -52,8 +52,8 @@ Runtime persistence is repo-scoped under `${WORKSPACES_HOME}/<repo_fingerprint>/
 Operational helpers:
 
 ```bash
-python governance/bootstrap_session_state.py --repo-fingerprint <repo_fingerprint>
-python governance/persist_workspace_artifacts.py --repo-root <repo_path>
+python governance/entrypoints/bootstrap_session_state.py --repo-fingerprint <repo_fingerprint>
+python governance/entrypoints/persist_workspace_artifacts.py --repo-root <repo_path>
 python scripts/migrate_session_state.py --workspace <repo_fingerprint>
 ```
 
@@ -63,7 +63,7 @@ Use `--dry-run` when validating changes before writing.
 
 ```bash
 ${PYTHON_COMMAND} install.py --status
-${PYTHON_COMMAND} governance/bootstrap_session_state.py --repo-fingerprint <repo_fingerprint> --dry-run
+${PYTHON_COMMAND} governance/entrypoints/bootstrap_session_state.py --repo-fingerprint <repo_fingerprint> --dry-run
 ```
 
 Then run `/start` in OpenCode and confirm bootstrap succeeds without binding/identity blockers.

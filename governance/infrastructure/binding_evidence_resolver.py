@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 import json
 from pathlib import Path
@@ -62,12 +63,22 @@ class BindingEvidenceResolver:
     def resolve(self, *, mode: str = "user", host_caps: Any | None = None) -> BindingEvidence:
         _ = mode
         _ = host_caps
-        _ = self._env
         _ = self._cwd_provider
 
-        root = self._config_root
+        env_commands_home = os.environ.get("COMMANDS_HOME")
+        if env_commands_home:
+            try:
+                commands_home = normalize_absolute_path(env_commands_home, purpose="COMMANDS_HOME env")
+                root = commands_home.parent
+                binding_file = commands_home / "governance.paths.json"
+            except Exception:
+                root = self._config_root
+                binding_file = root / "commands" / "governance.paths.json"
+        else:
+            root = self._config_root
+            binding_file = root / "commands" / "governance.paths.json"
+
         python_command = ""
-        binding_file = root / "commands" / "governance.paths.json"
 
         if not binding_file.exists():
             return BindingEvidence(
