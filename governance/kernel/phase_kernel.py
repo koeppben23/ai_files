@@ -702,26 +702,43 @@ def execute(
         if override_active_gate is None:
             resolved_active_gate = next_entry.active_gate or resolved_active_gate
 
+    resolved_phase_for_event = entry.phase
+
     resolved_next_condition = _sanitize_ticket_progression(phase=resolved_phase, next_gate_condition=resolved_next_condition)
 
     event_name = "PHASE_COMPLETED"
+    normalized_source = "transition"
+    transition_reason = ""
     if source == "phase-3a-not-applicable-to-phase4":
         event_name = "PHASE_NOT_APPLICABLE"
+        normalized_source = "not_applicable"
+        transition_reason = "no_external_apis"
+    elif source == "spec-next":
+        normalized_source = "spec"
+    elif source.startswith("phase-"):
+        normalized_source = "transition"
+
+    event_payload = {
+        "schema": "opencode.phase-flow.v1",
+        "ts_utc": _utc_now(),
+        "event_id": event_id,
+        "event": event_name,
+        "source": normalized_source,
+        "phase": resolved_phase_for_event,
+        "phase_token": chosen_token,
+        "next_token": next_token,
+        "status": "OK",
+        "spec_hash": spec.stable_hash,
+        "spec_path": str(spec.path),
+    }
+    if transition_reason:
+        event_payload["reason"] = transition_reason
+    if source not in ("kernel", "spec-next", "transition", "not_applicable"):
+        event_payload["transition_rule"] = source
+
     written, result_paths = _emit_phase_event(
         log_paths,
-        {
-            "schema": "opencode.phase-flow.v1",
-            "ts_utc": _utc_now(),
-            "event_id": event_id,
-            "event": event_name,
-            "source": source,
-            "phase": resolved_phase,
-            "phase_token": chosen_token,
-            "next_token": next_token,
-            "status": "OK",
-            "spec_hash": spec.stable_hash,
-            "spec_path": str(spec.path),
-        },
+        event_payload,
     )
     if not written:
         return _blocked_result(

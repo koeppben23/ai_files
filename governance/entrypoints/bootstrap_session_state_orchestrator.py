@@ -624,6 +624,7 @@ def main() -> int:
         workspace_lock.release()
         return 0
 
+    created_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
     service = BootstrapPersistenceService(
         fs=_GovernanceFSAdapter(),
         runner=_GovernanceRunnerAdapter(),  # type: ignore[arg-type]
@@ -633,7 +634,7 @@ def main() -> int:
             repo_fingerprint=repo_fingerprint,
         ),
     )
-    result = service.run(payload)
+    result = service.run(payload, created_at)
     workspace_lock.release()
     if result.ok:
         return 0
