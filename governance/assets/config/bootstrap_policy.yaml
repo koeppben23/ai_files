@@ -26,28 +26,16 @@ discovery:
       precedence: 1
       env_variable: "OPENCODE_COMMANDS_HOME"
       required_file: "governance.paths.json"
-      
-    - name: "trusted_override"
-      description: "From OPENCODE_TRUSTED_COMMANDS_HOME env"
-      enabled: true
-      precedence: 2
-      env_variable: "OPENCODE_TRUSTED_COMMANDS_HOME"
-      requires_opt_in: "OPENCODE_ALLOW_TRUSTED_BINDING_OVERRIDE=1"
+      fail_closed: true
       
     - name: "process_env"
       description: "From process environment (GOVERNANCE_HOME, etc.)"
-      enabled: true
-      precedence: 3
+      enabled: false
+      precedence: 2
       env_variables:
         - "GOVERNANCE_HOME"
         - "AI_COMMANDS_HOME"
-        
-    - name: "dev_cwd_search"
-      description: "Development search from current working directory"
-      enabled: true
-      precedence: 4
-      requires_opt_in: "OPENCODE_ALLOW_CWD_BINDINGS=1"
-      disabled_in_modes: ["pipeline"]
+      note: "Disabled - fail-closed binding only via governance.paths.json"
 
   # Evidence Sources Precedence
   evidence_precedence:
@@ -69,11 +57,6 @@ discovery:
       description: "Evidence from prior validated session state"
       enabled: true
       precedence: 3
-      
-    - name: "fallback_default"
-      description: "Default/fallback values when no other evidence"
-      enabled: true
-      precedence: 4
 
 # Bootstrap Gates (Kernel-Enforced)
 gates:
