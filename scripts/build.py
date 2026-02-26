@@ -347,6 +347,9 @@ def _should_include_file(
     # Governance runtime helpers are required for /start auto-persistence and error logging.
     if rel.startswith("governance/entrypoints/") and p.suffix.lower() == ".py":
         return True
+    # Local bootstrap runtime package.
+    if rel.startswith("cli/") and p.suffix.lower() == ".py":
+        return True
     if rel == "governance/VERSION":
         return True
     if p.suffix.lower() in {".md", ".json"}:

@@ -132,6 +132,7 @@ def test_release_archives_layout_and_contents_policy(built_artifacts):
 
     required_rel = {
         "install.py",
+        "cli/start.py",
         "governance/VERSION",
         "master.md",
         "rules.md",
@@ -190,6 +191,7 @@ def test_release_archives_layout_and_contents_policy(built_artifacts):
         # - *.md + *.json
         # - profiles/addons/*.addon.yml
         # - governance/entrypoints/*.py runtime helpers
+        # - cli/*.py local bootstrap runtime package
         # - scripts/*.py listed in CUSTOMER_SCRIPT_CATALOG ship_in_release
         # - templates/github-actions/*.yml listed in workflow template catalog
         for n in files:
@@ -202,6 +204,8 @@ def test_release_archives_layout_and_contents_policy(built_artifacts):
             if rel.startswith("profiles/addons/") and name.endswith(".addon.yml"):
                 continue
             if rel.startswith("governance/entrypoints/") and Path(name).suffix.lower() == ".py":
+                continue
+            if rel.startswith("cli/") and Path(name).suffix.lower() == ".py":
                 continue
             if rel == "governance/VERSION":
                 continue
