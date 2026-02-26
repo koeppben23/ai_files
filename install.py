@@ -242,6 +242,7 @@ def create_launcher(plan: InstallPlan, dry_run: bool, force: bool) -> list[dict]
             if dest_unix.exists():
                 dest_unix.unlink()
             shutil.copy2(wrapper_unix, dest_unix)
+            dest_unix.chmod(0o755)  # Ensure executable
             created_entries.append({"dst": str(dest_unix.resolve()), "src": str(wrapper_unix), "status": "copied"})
         if wrapper_win.exists():
             dest_win = bin_dir / wrapper_win.name

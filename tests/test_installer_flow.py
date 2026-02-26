@@ -291,8 +291,10 @@ def test_launcher_uses_installed_runtime_and_config_root_env(tmp_path: Path):
 
     # Validate launcher runs from installed runtime (fails if cli package is not installed).
     # The launcher runs bootstrap and outputs JSON; we just verify it can be invoked.
+    # Use shell=True to avoid permission issues with wrapper script
     help_run = subprocess.run(
-        [str(launcher)],
+        str(launcher),
+        shell=True,
         capture_output=True,
         text=True,
         env={**os.environ, "OPENCODE_CONFIG_ROOT": str(config_root)},
@@ -305,7 +307,8 @@ def test_launcher_uses_installed_runtime_and_config_root_env(tmp_path: Path):
     # Validate OPENCODE_CONFIG_ROOT is honored by cli/bootstrap.py when --config-root is omitted.
     # If ignored, binding lookup fails before repo detection.
     run = subprocess.run(
-        [str(launcher)],
+        str(launcher),
+        shell=True,
         cwd=str(tmp_path),
         capture_output=True,
         text=True,
