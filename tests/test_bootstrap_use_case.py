@@ -4,8 +4,11 @@ from pathlib import Path
 
 import pytest
 
-from governance.application.use_cases.start_bootstrap import evaluate_start_identity
-from governance.engine.adapters import ExecResult, HostCapabilities
+from governance.application.use_cases.bootstrap_session import evaluate_bootstrap_identity
+from typing import cast
+from governance.application.ports.gateways import HostAdapter
+from governance.engine.adapters import ExecResult
+from governance.engine.adapters import HostCapabilities
 from governance.infrastructure.wiring import configure_gateway_registry
 
 
@@ -54,7 +57,7 @@ class StubAdapter:
 
 
 @pytest.mark.governance
-def test_start_identity_returns_unresolved_when_cwd_is_not_git_repo(tmp_path: Path):
+def test_bootstrap_identity_returns_unresolved_when_cwd_is_not_git_repo(tmp_path: Path):
     non_repo = tmp_path / "backup"
     non_repo.mkdir(parents=True, exist_ok=True)
     adapter = StubAdapter(
@@ -64,7 +67,7 @@ def test_start_identity_returns_unresolved_when_cwd_is_not_git_repo(tmp_path: Pa
         origin_result=ExecResult(argv=("git",), cwd=str(non_repo), exit_code=128, stdout="", stderr="not a git repo"),
     )
 
-    result = evaluate_start_identity(adapter=adapter)
+    result = evaluate_bootstrap_identity(adapter=cast(HostAdapter, adapter))
 
     assert result.workspace_ready is False
     assert result.repo_root is None
@@ -73,7 +76,7 @@ def test_start_identity_returns_unresolved_when_cwd_is_not_git_repo(tmp_path: Pa
 
 
 @pytest.mark.governance
-def test_start_identity_derives_fingerprint_from_git_repo(tmp_path: Path):
+def test_bootstrap_identity_derives_fingerprint_from_git_repo(tmp_path: Path):
     repo = tmp_path / "repo"
     repo.mkdir(parents=True, exist_ok=True)
     adapter = StubAdapter(
@@ -83,7 +86,7 @@ def test_start_identity_derives_fingerprint_from_git_repo(tmp_path: Path):
         origin_result=ExecResult(argv=("git",), cwd=str(repo), exit_code=0, stdout="git@github.com:org/proj.git\n", stderr=""),
     )
 
-    result = evaluate_start_identity(adapter=adapter)
+    result = evaluate_bootstrap_identity(adapter=cast(HostAdapter, adapter))
 
     assert result.workspace_ready is True
     assert result.repo_root == repo.resolve()

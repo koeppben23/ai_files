@@ -7,7 +7,7 @@ import pytest
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-START_PREFLIGHT = REPO_ROOT / "governance" / "entrypoints" / "start_preflight_readonly.py"
+START_PREFLIGHT = REPO_ROOT / "governance" / "entrypoints" / "bootstrap_preflight_readonly.py"
 
 
 def _function_calls(tree: ast.AST, function_name: str) -> set[str]:
@@ -27,7 +27,7 @@ def _function_calls(tree: ast.AST, function_name: str) -> set[str]:
 
 
 @pytest.mark.governance
-def test_start_preflight_readonly_has_no_persistence_entrypoints():
+def test_bootstrap_preflight_readonly_has_no_persistence_entrypoints():
     tree = ast.parse(START_PREFLIGHT.read_text(encoding="utf-8"))
     run_calls = _function_calls(tree, "run_persistence_hook")
 

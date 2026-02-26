@@ -1,95 +1,184 @@
+#!/usr/bin/env python3
+"""
+Local bootstrap launcher for OpenCode Governance.
+
+This is the official entry point for repo-specific bootstrap.
+Run this before working in a repository to ensure governance is active.
+
+Usage:
+    opencode-governance-bootstrap [--repo-root PATH] [--config-root PATH]
+
+Exit codes:
+    0 - success
+    2 - invalid config / binding / repo missing
+    7 - bootstrap failed
+    8 - pointer verify failed
+"""
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
-from datetime import datetime, timezone
+import os
+import subprocess
+import sys
+from pathlib import Path
 
-from governance.application.use_cases.bootstrap_persistence import (
-    BootstrapInput,
-    BootstrapPersistenceService,
-)
-from governance.domain.models.binding import Binding
-from governance.domain.models.layouts import WorkspaceLayout
-from governance.domain.models.repo_identity import RepoIdentity
 
-from cli.deps import GlobalErrorLogger, LocalFS, LocalProcessRunner
-from governance.entrypoints.write_policy import EFFECTIVE_MODE, write_policy_reasons
+def _get_bootstrap_module():
+    """Lazy import of cli.bootstrap to allow sys.path manipulation first."""
+    import cli.bootstrap
+    return cli.bootstrap
 
 
 def _parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Bootstrap persistence orchestrator")
-    parser.add_argument("--repo-root", required=True)
-    parser.add_argument("--repo-fingerprint", required=True)
-    parser.add_argument("--repo-name", required=True)
-    parser.add_argument("--config-root", required=True)
-    parser.add_argument("--workspaces-home", required=True)
-    parser.add_argument("--python-command", default="python3")
-    parser.add_argument("--required-artifact", action="append", default=[])
-    parser.add_argument("--force-read-only", action="store_true")
+    parser = argparse.ArgumentParser(
+        description="OpenCode Governance Local Bootstrap Launcher"
+    )
+    parser.add_argument(
+        "--repo-root",
+        help="Repository root path (default: auto-detect via git)",
+    )
+    parser.add_argument(
+        "--config-root",
+        help="OpenCode config root (default: ~/.config/opencode)",
+    )
     return parser
+
+
+def _resolve_config_root(user_provided: str | None) -> Path:
+    if user_provided:
+        return Path(user_provided).expanduser().resolve()
+    
+    # Check OPENCODE_CONFIG_ROOT environment variable
+    env_config_root = os.environ.get("OPENCODE_CONFIG_ROOT")
+    if env_config_root:
+        return Path(env_config_root).expanduser().resolve()
+    
+    # Check COMMANDS_HOME environment variable and derive config_root
+    commands_home = os.environ.get("COMMANDS_HOME")
+    if commands_home:
+        return Path(commands_home).expanduser().resolve().parent
+    
+    return Path(os.path.expanduser("~/.config/opencode"))
+
+
+def _resolve_repo_root(user_provided: str | None) -> Path | None:
+    if user_provided:
+        return Path(user_provided).resolve()
+
+    env_repo_root = os.environ.get("OPENCODE_REPO_ROOT")
+    if env_repo_root:
+        return Path(env_repo_root).resolve()
+
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        return Path(result.stdout.strip()).resolve()
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return None
+
+
+def _compute_fingerprint(repo_root: Path) -> str:
+    path_str = str(repo_root.resolve())
+    return hashlib.sha256(path_str.encode()).hexdigest()[:24]
+
+
+def _resolve_binding(config_root: Path) -> dict | None:
+    candidates: list[Path] = []
+    env_commands_home = os.environ.get("COMMANDS_HOME")
+    if env_commands_home:
+        candidates.append(Path(env_commands_home).expanduser().resolve() / "governance.paths.json")
+    candidates.append(config_root / "commands" / "governance.paths.json")
+
+    for binding_path in candidates:
+        if not binding_path.exists():
+            continue
+        try:
+            with open(binding_path) as f:
+                data = json.load(f)
+
+            if data.get("schema") != "opencode-governance.paths.v1":
+                continue
+
+            paths = data.get("paths", {})
+            required = ["configRoot", "commandsHome", "workspacesHome"]
+            if not all(paths.get(k) for k in required):
+                continue
+
+            return data
+        except (json.JSONDecodeError, IOError):
+            continue
+    return None
 
 
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
-    service = BootstrapPersistenceService(
-        fs=LocalFS(),
-        runner=LocalProcessRunner(),
-        logger=GlobalErrorLogger(),
-    )
 
-    repo_home = f"{args.workspaces_home.rstrip('/')}/{args.repo_fingerprint}"
-    payload = BootstrapInput(
-        repo_identity=RepoIdentity(
-            repo_root=args.repo_root,
-            fingerprint=args.repo_fingerprint,
-            repo_name=args.repo_name,
-            source="cli",
-        ),
-        binding=Binding(
-            config_root=args.config_root,
-            commands_home=f"{args.config_root.rstrip('/')}/commands",
-            workspaces_home=args.workspaces_home,
-            python_command=args.python_command,
-        ),
-        layout=WorkspaceLayout(
-            repo_home=repo_home,
-            session_state_file=f"{repo_home}/SESSION_STATE.json",
-            identity_map_file=f"{repo_home}/repo-identity-map.yaml",
-            pointer_file=f"{args.config_root.rstrip('/')}/SESSION_STATE.json",
-        ),
-        required_artifacts=tuple(args.required_artifact),
-        force_read_only=args.force_read_only,
-        backfill_command=(
-            args.python_command,
-            "-m",
-            "governance.entrypoints.persist_workspace_artifacts",
-            "--repo-fingerprint",
-            args.repo_fingerprint,
-            "--config-root",
-            args.config_root,
-            "--repo-root",
-            args.repo_root,
-            "--require-phase2",
-            "--skip-lock",
-            "--quiet",
-        ),
-        effective_mode=EFFECTIVE_MODE,
-        write_policy_reasons=write_policy_reasons(),
-    )
-    created_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
-    result = service.run(payload, created_at)
-    print(
-        json.dumps(
-            {
-                "ok": result.ok,
-                "gateCode": result.gate_code,
-                "writeActions": result.write_actions,
-                "errorCount": len(result.error_events),
-            },
-            ensure_ascii=True,
-        )
-    )
-    return 0 if result.ok else 2
+    # Pre-emptively add repo_root to sys.path for module imports
+    # This must happen before any cli.* imports
+    potential_repo_root = _resolve_repo_root(args.repo_root)
+    if potential_repo_root:
+        repo_root_str = str(potential_repo_root)
+        if repo_root_str not in sys.path:
+            sys.path.insert(0, repo_root_str)
+
+    config_root = _resolve_config_root(args.config_root)
+    repo_root = _resolve_repo_root(args.repo_root)
+
+    print("=" * 60)
+    print("OpenCode Governance Bootstrap Launcher")
+    print("=" * 60)
+
+    binding = _resolve_binding(config_root)
+    if not binding:
+        print("ERROR: Invalid or missing binding file.")
+        print(f"  Expected: {config_root}/commands/governance.paths.json")
+        print("  Or set COMMANDS_HOME to an installed commands directory.")
+        print("  Run 'python install.py' to set up governance.")
+        return 2
+
+    paths = binding["paths"]
+    commands_home = paths.get("commandsHome")
+    workspaces_home = paths.get("workspacesHome")
+    python_command = paths.get("pythonCommand", sys.executable)
+
+    print(f"Config root: {config_root}")
+    print(f"Commands home: {commands_home}")
+
+    if not repo_root:
+        print("ERROR: Repository root not found.")
+        print("  Provide --repo-root or run from within a Git repository.")
+        return 2
+
+    print(f"Repo root: {repo_root}")
+
+    if not (repo_root / ".git").exists():
+        print("ERROR: Not a Git repository.")
+        return 2
+
+    repo_fingerprint = _compute_fingerprint(repo_root)
+    repo_name = repo_root.name or "repo"
+
+    print(f"Repo fingerprint: {repo_fingerprint}")
+    print(f"Repo name: {repo_name}")
+    print("-" * 60)
+
+    bootstrap_args = [
+        "--repo-root", str(repo_root),
+        "--repo-fingerprint", repo_fingerprint,
+        "--repo-name", repo_name,
+        "--config-root", str(config_root),
+        "--workspaces-home", workspaces_home,
+        "--python-command", python_command,
+    ]
+
+    bootstrap = _get_bootstrap_module()
+    return bootstrap.main(bootstrap_args)
 
 
 if __name__ == "__main__":

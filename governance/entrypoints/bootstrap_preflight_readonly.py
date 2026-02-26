@@ -283,7 +283,7 @@ def emit_permission_probes() -> None:
                     "available": available,
                     "missing": missing,
                     "impact": "all required runtime capabilities available" if not missing else "some runtime actions may be blocked",
-                    "next": "continue bootstrap" if not missing else "grant required permissions and rerun /start",
+                    "next": "continue bootstrap" if not missing else "grant required permissions and rerun the local bootstrap launcher",
                 }
             },
             ensure_ascii=True,
@@ -453,7 +453,7 @@ def _canonical_hook_status(*, raw_status: object, reason_code: str, returncode: 
 
 def run_persistence_hook() -> dict[str, object]:
     mode = _effective_mode()
-    hook_argv = [sys.executable, "-m", "governance.entrypoints.start_persistence_hook"]
+    hook_argv = [sys.executable, "-m", "governance.entrypoints.bootstrap_persistence_hook"]
     hook_command = " ".join(hook_argv)
 
     if not writes_allowed():
@@ -503,7 +503,7 @@ def run_persistence_hook() -> dict[str, object]:
             message="Repository root is not deterministically detectable for persistence hook dispatch.",
             expected="valid OPENCODE_REPO_ROOT or git rev-parse --show-toplevel",
             observed={"cwd": str(Path.cwd()), "git_probe": git_probe},
-            remediation="Set OPENCODE_REPO_ROOT to a valid git repository root and rerun /start.",
+            remediation="Set OPENCODE_REPO_ROOT to a valid git repository root and rerun the local bootstrap launcher.",
             repo_fingerprint=None,
         )
         result = {
@@ -586,7 +586,7 @@ def run_persistence_hook() -> dict[str, object]:
         log_path = _emit_persistence_gate_failure(
             code=reason_code,
             message="Persistence hook module dispatch failed.",
-            expected="python -m governance.entrypoints.start_persistence_hook exits with code 0",
+            expected="python -m governance.entrypoints.bootstrap_persistence_hook exits with code 0",
             observed={
                 "returncode": proc.returncode,
                 "stderr": (proc.stderr or "").strip()[:500],

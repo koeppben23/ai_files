@@ -17,7 +17,6 @@ def test_md_rails_tripwire_operational_markers_absent():
     files = [
         REPO_ROOT / "master.md",
         REPO_ROOT / "rules.md",
-        REPO_ROOT / "start.md",
         REPO_ROOT / "continue.md",
         REPO_ROOT / "resume.md",
         REPO_ROOT / "resume_prompt.md",
@@ -29,7 +28,6 @@ def test_md_rails_tripwire_operational_markers_absent():
 
     patterns = [
         r"Policy \(this document\)",
-        r"/start MUST",
         r"\bTrigger:",
         r"\bSearch order:",
         r"\bMode\s*=\s*(BLOCKED|DEGRADED|DRAFT|NORMAL)\b",

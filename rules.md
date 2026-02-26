@@ -782,20 +782,20 @@ Kernel-owned routing, transition rules, and execution decisions are defined in k
 Canonical boundary reference: `docs/governance/RESPONSIBILITY_BOUNDARY.md`.
 
 Canonical operator lifecycle:
-1) `/start`
+1) local bootstrap launcher
 2) automatic kernel progression to first valid user-facing stop
 3) `Implement now` (optional scope)
 4) `Ingest evidence`
 
 Compatibility note:
-- `/master` MAY be supported as an optional alias, but MUST NOT be a required step after `/start`.
+- `/master` MAY be supported as an optional alias, but MUST NOT be a required step after bootstrap.
 
 Output mode enum (binding):
 - `SESSION_STATE.OutputMode`: `ARCHITECT | IMPLEMENT | VERIFY`
 
 Rules:
-- Any governance command before valid `/start` bootstrap evidence may produce `BLOCKED-START-REQUIRED` with `QuickFixCommands: ["/start"]`.
-- `/master` before valid `/start` bootstrap evidence may produce `BLOCKED-START-REQUIRED`.
+- Any governance command before valid bootstrap evidence may produce `BLOCKED-START-REQUIRED` with `QuickFixCommands: ["opencode-governance-bootstrap"]`.
+- `/master` before valid bootstrap evidence may produce `BLOCKED-START-REQUIRED`.
 - `ARCHITECT` mode is default and decision-first; no full code diff output.
 - `IMPLEMENT` mode requires explicit operator trigger (`Implement now`).
 - `VERIFY` mode is evidence reconciliation only.
@@ -808,7 +808,7 @@ Additional output mode:
 
 ### 7.3.7 Canonical Response Envelope Schema (Presentation Advisory)
 
-All structured assistant responses from `/start` onward SHOULD conform to (when host supports strict shape):
+All structured assistant responses from bootstrap onward SHOULD conform to (when host supports strict shape):
 - `governance/RESPONSE_ENVELOPE_SCHEMA.json`
 
 Minimum required envelope fields:
@@ -824,7 +824,7 @@ Minimum required envelope fields:
 - `Why`
 - `Command`
 
-`preflight` shape (when `/start` governance are emitted):
+`preflight` shape (when bootstrap governance are emitted):
 - `observed_at`
 - `checks` (array, max 5)
 - `available`
@@ -885,13 +885,13 @@ Completeness requirements (binding):
 
 ### 7.3.10 Bootstrap Preflight Output Contract (Kernel-Enforced)
 
-At `/start`, preflight output MUST be deterministic and compact.
+At bootstrap, preflight output MUST be deterministic and compact.
 
 Rules:
 - Preflight is Phase `0` / `1.1` only.
 - Preflight probes MUST be fresh (`ttl=0`) and MUST NOT reuse cached availability snapshots.
 - Preflight MUST include `observed_at` (timestamp) in governance/state.
-- Preflight result MAY persist in `SESSION_STATE`, but next `/start` MUST overwrite it.
+- Preflight result MAY persist in `SESSION_STATE`, but next bootstrap MUST overwrite it.
 - Preflight MUST report at most 5 checks.
 
 Required compact output shape:
@@ -942,7 +942,7 @@ NextAction wording quality (binding):
 
 ### 7.3.12 Session Transition Invariants (Kernel-Enforced)
 
-To prevent state drift across `/start` -> `Implement now` -> `Ingest evidence`:
+To prevent state drift across bootstrap -> `Implement now` -> `Ingest evidence`:
 - `SESSION_STATE.session_run_id` MUST remain stable until verify completes.
 - `SESSION_STATE.ruleset_hash` MUST remain stable unless explicit rehydrate/reload is performed.
 - `SESSION_STATE.ActivationDelta.AddonScanHash` and `SESSION_STATE.ActivationDelta.RepoFactsHash` MUST remain stable unless activation inputs change.
@@ -973,7 +973,7 @@ Required fields per missing command:
 Rules:
 - Smart retry guidance is advisory and MUST NOT bypass blockers.
 - If PATH location changed in shell config, guidance SHOULD recommend restarting host/CLI.
-- If binary was installed into an already-present PATH directory, guidance SHOULD recommend immediate rerun of `/start` before restart.
+- If binary was installed into an already-present PATH directory, guidance SHOULD recommend immediate rerun of bootstrap before restart.
 
 ### 7.3.14 Phase Progress + Warn/Blocked Separation (Kernel-Enforced)
 
@@ -1040,7 +1040,7 @@ Safety constraints:
 
 ### 7.3.17 Post-Start Conversational UX + Language Adaptation (Presentation Advisory)
 
-After `/start` bootstrap succeeds, short operator follow-up questions (for example: current phase, whether discovery is done) SHOULD use conversational minimal responses first.
+After bootstrap succeeds, short operator follow-up questions (for example: current phase, whether discovery is done) SHOULD use conversational minimal responses first.
 
 Rules:
 - Keep direct follow-up answers concise and task-focused unless the operator requests full governance.
@@ -1298,15 +1298,15 @@ When operator intent is explicit reload (for example `/reload-addons`), executio
 
 Reload is a control-plane operation, not an implementation permission.
 
-## 7.11.1 /start Re-invocation Loop Guard (Core, Binding)
+## 7.11.1 Bootstrap Re-invocation Loop Guard (Core, Binding)
 
-- Workflow MUST NOT ask operator to run `/start` again in the same turn.
+- Workflow MUST NOT ask operator to rerun the local bootstrap launcher in the same turn.
 
-If `start.md` content is present because `/start` command triggered command injection, `/start` is considered invoked for this turn.
+If bootstrap evidence is present because host command injection triggered bootstrap, bootstrap is considered invoked for this turn.
 
 Rules:
-- Assistant continues with bootstrap flow and avoids asking the operator to rerun `/start` in the same turn.
-- Re-requesting `/start` is allowed only when evidence shows command context was not injected (host integration failure).
+- Assistant continues with bootstrap flow and avoids asking the operator to rerun the local bootstrap launcher in the same turn.
+- Re-requesting bootstrap is allowed only when evidence shows command context was not injected (host integration failure).
 
 ## 7.12 Operator Explain Contracts (Core, Binding)
 

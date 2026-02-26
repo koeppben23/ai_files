@@ -109,8 +109,8 @@ def _materialize_commands_bundle_from_checkout(*, checkout_root: Path, commands_
 
 
 def _run_bootstrap(*, repo: Path, config_root: Path, commands_home: Path, workspaces_home: Path, env: dict[str, str]) -> tuple[subprocess.CompletedProcess[str], str | None]:
-    start_script = commands_home / "governance" / "entrypoints" / "start_preflight_readonly.py"
-    proc = _run([sys.executable, str(start_script)], cwd=repo, env=env)
+    bootstrap_script = commands_home / "governance" / "entrypoints" / "bootstrap_preflight_readonly.py"
+    proc = _run([sys.executable, str(bootstrap_script)], cwd=repo, env=env)
     
     repo_fp = None
     lines = [ln.strip() for ln in proc.stdout.splitlines() if ln.strip()]
@@ -417,7 +417,7 @@ class TestE2ETestMatrix:
         assert not pointer_path.exists(), "T5: Pointer should not exist when writes blocked"
 
     def test_t6_session_state_has_rulebook_fields(self, isolated_env, tmp_path: Path):
-        """T6: SessionState has LoadedRulebooks structure (values populated by /start layer)."""
+        """T6: SessionState has LoadedRulebooks structure (values populated by bootstrap layer)."""
         repo = tmp_path / "repo"
         _git_init_repo(repo)
         

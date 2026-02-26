@@ -170,7 +170,7 @@ Required payload fields per entry:
 - `surface` (enum: `build|tests|static|addons|profile|state|contracts|security|performance|other`)
 - `signals_used` (array of strings)
 - `recovery_steps` (array of strings; 1..3 concrete steps)
-- `next_command` (string; e.g., `/reload-addons`, `/start`, `/resume`)
+- `next_command` (string; e.g., `/reload-addons`, `opencode-governance-bootstrap`, `/resume`)
 
 ### 2.1.1 `SESSION_STATE.Audit.LastRun` (optional)
 

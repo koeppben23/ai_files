@@ -25,15 +25,15 @@ def test_response_contract_checker_accepts_valid_payload(tmp_path: Path):
             "reason_code": "BLOCKED-RULEBOOK-EVIDENCE-MISSING",
             "missing_evidence": ["rules.md load evidence"],
             "recovery_steps": ["provide load evidence"],
-            "next_command": "/start",
+            "next_command": "opencode-governance-bootstrap",
         },
-        "quick_fix_commands": ["/start"],
+        "quick_fix_commands": ["opencode-governance-bootstrap"],
         "next_action": {
             "type": "command",
             "Status": "blocked",
             "Next": "Provide load evidence",
             "Why": "Rulebook evidence is required before phase completion.",
-            "Command": "/start",
+            "Command": "opencode-governance-bootstrap",
         },
         "snapshot": {"Confidence": "88%", "Risk": "MEDIUM", "Scope": "global"},
     }

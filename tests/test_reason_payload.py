@@ -92,7 +92,7 @@ def test_reason_payload_builder_rejects_unregistered_blocked_code():
             signals_used=("gate",),
             primary_action="Do something",
             recovery_steps=("Recover",),
-            next_command="/start",
+            next_command="opencode-governance-bootstrap",
         )
 
 
@@ -105,6 +105,6 @@ def test_reason_payload_blocked_sets_blocked_decision_outcome():
         signals_used=("gate",),
         primary_action="Use allowed execution path",
         recovery_steps=("Switch to allowed execution mode",),
-        next_command="/start",
+        next_command="opencode-governance-bootstrap",
     )
     assert payload.decision_outcome == "BLOCKED"

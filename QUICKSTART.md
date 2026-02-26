@@ -104,7 +104,6 @@ The governance system will:
 | Command | Purpose |
 |---------|---------|
 | `~/.config/opencode/bin/opencode-governance-bootstrap` | Bootstrap session (recommended) |
-| `/start` | Optional convenience path (delegates to bootstrap) |
 | `/continue` | Resume active session |
 | `python3 install.py` | Install/update governance |
 | `python3 install.py --status` | Check installation |
@@ -134,13 +133,11 @@ python3 scripts/audit_explain.py --last
 ### Windows
 
 - Always use the local launcher: `%USERPROFILE%\.config\opencode\bin\opencode-governance-bootstrap.cmd`
-- Do not rely on `/start` in chat for Windows
 - The launcher uses the correct Python interpreter from installation
 
 ### macOS / Linux
 
 - Use `~/.config/opencode/bin/opencode-governance-bootstrap`
-- Chat `/start` may work if the host supports it
 
 ## Understanding the Output
 

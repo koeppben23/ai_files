@@ -4,8 +4,11 @@ from pathlib import Path
 
 import pytest
 
-from governance.application.use_cases.start_persistence import decide_start_persistence
-from governance.engine.adapters import ExecResult, HostCapabilities
+from governance.application.use_cases.bootstrap_persistence import decide_bootstrap_persistence
+from typing import cast
+from governance.application.ports.gateways import HostAdapter
+from governance.engine.adapters import ExecResult
+from tests.test_engine_orchestrator import HostCapabilities
 from governance.infrastructure.wiring import configure_gateway_registry
 
 
@@ -54,7 +57,7 @@ class StubAdapter:
 
 
 @pytest.mark.governance
-def test_start_persistence_blocks_when_repo_not_resolved(tmp_path: Path):
+def test_bootstrap_persistence_blocks_when_repo_not_resolved(tmp_path: Path):
     non_repo = tmp_path / "backup"
     non_repo.mkdir(parents=True, exist_ok=True)
     adapter = StubAdapter(
@@ -64,7 +67,7 @@ def test_start_persistence_blocks_when_repo_not_resolved(tmp_path: Path):
         origin=ExecResult(argv=("git",), cwd=str(non_repo), exit_code=128, stdout="", stderr="not a git repo"),
     )
 
-    decision = decide_start_persistence(adapter=adapter)
+    decision = decide_bootstrap_persistence(adapter=cast(HostAdapter, adapter))
 
     assert decision.workspace_ready is False
     assert decision.repo_root is None
@@ -74,7 +77,7 @@ def test_start_persistence_blocks_when_repo_not_resolved(tmp_path: Path):
 
 
 @pytest.mark.governance
-def test_start_persistence_resolves_workspace_ready_for_git_repo(tmp_path: Path):
+def test_bootstrap_persistence_resolves_workspace_ready_for_git_repo(tmp_path: Path):
     repo = tmp_path / "repo"
     repo.mkdir(parents=True, exist_ok=True)
     adapter = StubAdapter(
@@ -84,7 +87,7 @@ def test_start_persistence_resolves_workspace_ready_for_git_repo(tmp_path: Path)
         origin=ExecResult(argv=("git",), cwd=str(repo), exit_code=0, stdout="git@github.com:org/proj.git\n", stderr=""),
     )
 
-    decision = decide_start_persistence(adapter=adapter)
+    decision = decide_bootstrap_persistence(adapter=cast(HostAdapter, adapter))
 
     assert decision.workspace_ready is True
     assert decision.repo_root == repo.resolve()
@@ -94,7 +97,7 @@ def test_start_persistence_resolves_workspace_ready_for_git_repo(tmp_path: Path)
 
 
 @pytest.mark.governance
-def test_start_persistence_unresolved_identity_never_leaks_repo_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+def test_bootstrap_persistence_unresolved_identity_never_leaks_repo_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     repo = tmp_path / "repo"
     repo.mkdir(parents=True, exist_ok=True)
     (repo / ".git").mkdir(parents=True, exist_ok=True)
@@ -105,7 +108,7 @@ def test_start_persistence_unresolved_identity_never_leaks_repo_root(tmp_path: P
         origin=ExecResult(argv=("git",), cwd=str(repo), exit_code=0, stdout="", stderr=""),
     )
 
-    from governance.application.use_cases import start_bootstrap as sb
+    from governance.application.use_cases import bootstrap_session as sb
 
     original = sb.derive_repo_identity
     try:
@@ -114,7 +117,7 @@ def test_start_persistence_unresolved_identity_never_leaks_repo_root(tmp_path: P
             "derive_repo_identity",
             lambda *args, **kwargs: type("Identity", (), {"fingerprint": ""})(),
         )
-        decision = decide_start_persistence(adapter=adapter)
+        decision = decide_bootstrap_persistence(adapter=cast(HostAdapter, adapter))
     finally:
         monkeypatch.setattr(sb, "derive_repo_identity", original)
 

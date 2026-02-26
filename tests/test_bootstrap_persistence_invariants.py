@@ -45,7 +45,7 @@ def _init_git_repo(repo_root: Path) -> None:
 
 
 @pytest.mark.governance
-def test_start_persistence_hook_commits_fingerprint_and_artifacts(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_bootstrap_persistence_hook_commits_fingerprint_and_artifacts(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     home = tmp_path / "home"
     _set_home(monkeypatch, home)
 
@@ -59,7 +59,7 @@ def test_start_persistence_hook_commits_fingerprint_and_artifacts(tmp_path: Path
     _write_governance_paths_json(home=home, commands_home=Path(__file__).resolve().parents[1], workspaces_home=workspaces_home)
 
     import importlib
-    import governance.entrypoints.start_persistence_hook as hook
+    import governance.entrypoints.bootstrap_persistence_hook as hook
     importlib.reload(hook)
 
     with patch.object(hook, "COMMANDS_HOME", Path(__file__).resolve().parents[1]):
@@ -80,17 +80,17 @@ def test_start_persistence_hook_commits_fingerprint_and_artifacts(tmp_path: Path
 
 
 @pytest.mark.governance
-def test_start_identity_blocks_when_git_is_disabled(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+def test_bootstrap_identity_blocks_when_git_is_disabled(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     _init_git_repo(tmp_path)
     monkeypatch.setenv("OPENCODE_DISABLE_GIT", "1")
 
-    from governance.application.use_cases.start_bootstrap import evaluate_start_identity
+    from governance.application.use_cases.bootstrap_session import evaluate_bootstrap_identity
     from governance.engine.adapters import LocalHostAdapter
     from governance.infrastructure.wiring import configure_gateway_registry
 
     configure_gateway_registry()
     adapter = LocalHostAdapter()
-    res = evaluate_start_identity(adapter=adapter)
+    res = evaluate_bootstrap_identity(adapter=adapter)
     assert res.workspace_ready is False
     assert res.repo_fingerprint == ""
 

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Persistence hook for /start bootstrap.
+Persistence hook for bootstrap.
 
-This module is called by start_preflight_readonly.py when writes are enabled.
+This module is called by bootstrap_preflight_readonly.py when writes are enabled.
 It is intentionally separate to maintain SoC and keep preflight truly read-only
 by default.
 
@@ -63,7 +63,7 @@ from governance.entrypoints.error_handler_bridge import (
 )
 
 try:
-    from governance.application.use_cases.start_bootstrap import evaluate_start_identity
+    from governance.application.use_cases.bootstrap_session import evaluate_bootstrap_identity
     from governance.engine.adapters import LocalHostAdapter
     from governance.infrastructure.path_contract import normalize_absolute_path
     from governance.infrastructure.wiring import configure_gateway_registry
@@ -171,7 +171,7 @@ class _RepoIdentityAdapter(LocalHostAdapter):
     """Adapter to provide repo-specific identity for fingerprint derivation.
     
     This adapter overrides the cwd and environment to point to a specific
-    repository root, allowing evaluate_start_identity to derive the fingerprint
+    repository root, allowing evaluate_bootstrap_identity to derive the fingerprint
     from the correct location.
     """
     
@@ -209,7 +209,7 @@ def derive_repo_fingerprint(repo_root: Path) -> str | None:
     """Derive the canonical 24-hex fingerprint for a repository.
     
     The fingerprint is derived in the following order:
-        1. From evaluate_start_identity (git remote → SHA256[:24])
+        1. From evaluate_bootstrap_identity (git remote → SHA256[:24])
         2. Fallback: local path → SHA256[:24]
     
     Args:
@@ -234,7 +234,7 @@ def derive_repo_fingerprint(repo_root: Path) -> str | None:
     fp = None
     try:
         configure_gateway_registry()
-        identity = evaluate_start_identity(adapter=cast(Any, _RepoIdentityAdapter(normalized_repo_root)))
+        identity = evaluate_bootstrap_identity(adapter=cast(Any, _RepoIdentityAdapter(normalized_repo_root)))
         fp = (identity.repo_fingerprint or "").strip()
     except Exception:
         pass
@@ -489,7 +489,7 @@ def run_persistence_hook(*, repo_root: Path | None = None) -> dict[str, object]:
             "cwd": str(Path.cwd()),
             "repo_root_detected": "",
             "python_executable": sys.executable,
-            "bootstrap_hook_command": f"{sys.executable} -m governance.entrypoints.start_persistence_hook",
+            "bootstrap_hook_command": f"{sys.executable} -m governance.entrypoints.bootstrap_persistence_hook",
         }
         safe_log_error(
             reason_key="ERR-PERSISTENCE-REPO-ROOT-RESOLUTION-FAILED",
@@ -499,7 +499,7 @@ def run_persistence_hook(*, repo_root: Path | None = None) -> dict[str, object]:
             gate="PERSISTENCE",
             mode=EFFECTIVE_MODE,
             repo_fingerprint=None,
-            command="start_persistence_hook.py",
+            command="bootstrap_persistence_hook.py",
             component="persistence-hook",
             observed_value={"root_source": root_source, "cwd": str(Path.cwd())},
             expected_constraint="must be in a git repository or provide explicit repo_root",
@@ -515,7 +515,7 @@ def run_persistence_hook(*, repo_root: Path | None = None) -> dict[str, object]:
         workspaces_home=(str(workspaces_home) if workspaces_home is not None else None),
         repo_root=str(resolved_root),
         phase="1.1-Bootstrap",
-        command="start_persistence_hook.py",
+        command="bootstrap_persistence_hook.py",
     ))
 
     if not repo_fp:
@@ -541,7 +541,7 @@ def run_persistence_hook(*, repo_root: Path | None = None) -> dict[str, object]:
             gate="PERSISTENCE",
             mode=EFFECTIVE_MODE,
             repo_fingerprint=None,
-            command="start_persistence_hook.py",
+            command="bootstrap_persistence_hook.py",
             component="persistence-hook",
             observed_value={"repo_root": str(resolved_root)},
             expected_constraint="git repository with valid origin or local path",
@@ -587,7 +587,7 @@ def run_persistence_hook(*, repo_root: Path | None = None) -> dict[str, object]:
             gate="PERSISTENCE",
             mode="user",
             repo_fingerprint=repo_fp,
-            command="start_persistence_hook.py",
+            command="bootstrap_persistence_hook.py",
             component="persistence-hook",
             observed_value={"expected_path": str(bootstrap_script)},
             expected_constraint="bootstrap_session_state.py exists in ${COMMANDS_HOME}/governance/entrypoints/",
@@ -616,7 +616,7 @@ def run_persistence_hook(*, repo_root: Path | None = None) -> dict[str, object]:
                     message="Pointer verification failed after bootstrap.",
                     expected="pointer exists and references current fingerprint",
                     observed={"pointer_reason": pointer_reason, "repo_fingerprint": repo_fp},
-                    remediation="Inspect pointer file and rerun /start.",
+                    remediation="Inspect pointer file and rerun the local bootstrap launcher.",
                 )
                 result = {
                     "workspacePersistenceHook": "failed",
@@ -634,7 +634,7 @@ def run_persistence_hook(*, repo_root: Path | None = None) -> dict[str, object]:
                     gate="PERSISTENCE",
                     mode="user",
                     repo_fingerprint=repo_fp,
-                    command="start_persistence_hook.py",
+                    command="bootstrap_persistence_hook.py",
                     component="persistence-hook",
                     observed_value={"pointer_reason": pointer_reason},
                     expected_constraint="Global SESSION_STATE pointer must exist and reference correct fingerprint",
@@ -650,7 +650,7 @@ def run_persistence_hook(*, repo_root: Path | None = None) -> dict[str, object]:
                     message="Workspace SESSION_STATE verification failed after bootstrap.",
                     expected="workspace session exists with PersistenceCommitted=True",
                     observed={"workspace_reason": workspace_reason, "repo_fingerprint": repo_fp},
-                    remediation="Inspect workspace SESSION_STATE and rerun /start.",
+                    remediation="Inspect workspace SESSION_STATE and rerun the local bootstrap launcher.",
                 )
                 result = {
                     "workspacePersistenceHook": "failed",
@@ -668,7 +668,7 @@ def run_persistence_hook(*, repo_root: Path | None = None) -> dict[str, object]:
                     gate="PERSISTENCE",
                     mode="user",
                     repo_fingerprint=repo_fp,
-                    command="start_persistence_hook.py",
+                    command="bootstrap_persistence_hook.py",
                     component="persistence-hook",
                     observed_value={"workspace_reason": workspace_reason},
                     expected_constraint="Workspace SESSION_STATE must exist with PersistenceCommitted=True",
@@ -715,7 +715,7 @@ def run_persistence_hook(*, repo_root: Path | None = None) -> dict[str, object]:
                 gate="PERSISTENCE",
                 mode="user",
                 repo_fingerprint=repo_fp,
-                command="start_persistence_hook.py",
+                command="bootstrap_persistence_hook.py",
                 component="persistence-hook",
                 observed_value={
                     "returncode": proc.returncode,
@@ -749,7 +749,7 @@ def run_persistence_hook(*, repo_root: Path | None = None) -> dict[str, object]:
             gate="PERSISTENCE",
             mode="user",
             repo_fingerprint=repo_fp,
-            command="start_persistence_hook.py",
+            command="bootstrap_persistence_hook.py",
             component="persistence-hook",
             observed_value={"exception": str(exc)[:500]},
             expected_constraint="bootstrap_session_state.py executes without exception",

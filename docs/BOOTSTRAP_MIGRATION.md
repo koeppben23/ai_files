@@ -8,25 +8,24 @@ This document describes the current (pre-change) behavior and the new behavior a
 
 When AGENTS.md exists in the repository root:
 - OpenCode host detects AGENTS.md as bootstrap evidence
-- `/start` command uses AGENTS.md as AI-facing rail
 - Chat enforces bootstrap completion before allowing work
-- BLOCKED-START-REQUIRED if /start not run
+- BLOCKED-START-REQUIRED if bootstrap not run
 - Profile detection happens during bootstrap
 
-**Windows Issue:** On Windows, the chat-based `/start` enforcement was unreliable due to subprocess handling issues.
+**Windows Issue:** On Windows, chat-based bootstrap enforcement was unreliable due to subprocess handling issues.
 
 ### Without AGENTS.md
 
 When AGENTS.md is missing:
 - Bootstrap cannot proceed without alternative evidence
 - Requires manual bootstrap via Python
-- Users must run: `python3 install.py` then `/start`
+- Users must run: `python3 install.py` then the local launcher
 
 ### Manual Python Bootstrap
 
 The manual bootstrap process:
 1. Run `python3 install.py` - installs governance files
-2. Run `/start` in OpenCode - triggers bootstrap
+2. Run the local launcher - triggers bootstrap
 3. Bootstrap creates SESSION_STATE.json in workspace
 4. Sets PersistenceCommitted, WorkspaceReadyGateCommitted flags
 
@@ -75,14 +74,13 @@ The installer now:
 New `--smoketest` flag verifies:
 - Launcher files exist
 - governance.paths.json present
-- cli.start importable
+- cli.bootstrap importable
 
 ### Chat Behavior
 
-`/start` is now optional:
-- Delegates to local launcher if available
-- Falls back to explaining local launcher usage
-- Never blocks on "AGENTS.md missing"
+Chat bootstrap is no longer required:
+- Local launcher is the canonical entry point
+- Chat should not be used to initiate bootstrap
 
 ## Migration Path
 
@@ -94,8 +92,8 @@ New `--smoketest` flag verifies:
 
 | Aspect | Old (AGENTS.md) | New (Launcher) |
 |--------|-----------------|----------------|
-| Entry point | `/start` in chat | Local launcher |
+| Entry point | Chat bootstrap | Local launcher |
 | Windows support | Fragile | Reliable |
 | Bootstrap enforcement | Chat-dependent | Standalone |
 | AGENTS.md required | Yes | No |
-| Profile detection | During /start | During bootstrap |
+| Profile detection | During chat bootstrap | During bootstrap |

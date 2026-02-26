@@ -18,7 +18,6 @@ def test_md_lint_runs_in_ci_mode_and_reports_json():
     files = [
         REPO_ROOT / "master.md",
         REPO_ROOT / "rules.md",
-        REPO_ROOT / "start.md",
         REPO_ROOT / "continue.md",
         REPO_ROOT / "resume.md",
         REPO_ROOT / "resume_prompt.md",

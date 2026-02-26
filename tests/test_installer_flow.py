@@ -136,7 +136,7 @@ def test_full_install_reinstall_uninstall_flow(tmp_path: Path):
     critical = [
         commands / "master.md",
         commands / "rules.md",
-        commands / "start.md",
+        commands / "BOOTSTRAP.md",
         commands / "governance" / "assets" / "catalogs" / "QUICKFIX_TEMPLATES.json",
         commands / "governance" / "assets" / "catalogs" / "UX_INTENT_GOLDENS.json",
         commands / "governance" / "assets" / "catalogs" / "CUSTOMER_SCRIPT_CATALOG.json",
@@ -234,7 +234,7 @@ def test_full_install_reinstall_uninstall_flow(tmp_path: Path):
     must_be_gone = [
         commands / "master.md",
         commands / "rules.md",
-        commands / "start.md",
+        commands / "BOOTSTRAP.md",
         manifest,
         paths_file,  # this should be removed for a normal install-owned paths file
     ]
@@ -298,7 +298,7 @@ def test_launcher_uses_installed_runtime_and_config_root_env(tmp_path: Path):
     )
     assert help_run.returncode == 0, f"launcher --help failed:\nSTDERR:\n{help_run.stderr}\nSTDOUT:\n{help_run.stdout}"
 
-    # Validate OPENCODE_CONFIG_ROOT is honored by cli/start.py when --config-root is omitted.
+    # Validate OPENCODE_CONFIG_ROOT is honored by cli/bootstrap.py when --config-root is omitted.
     # If ignored, binding lookup fails before repo detection.
     run = subprocess.run(
         [str(launcher)],
@@ -402,7 +402,7 @@ def test_install_fail_closed_on_source_symlink(tmp_path: Path):
     (source_dir / "governance").mkdir(parents=True, exist_ok=True)
     (source_dir / "master.md").write_text("# Governance-Version: 1.1.0-RC.1\n", encoding="utf-8")
     (source_dir / "rules.md").write_text("# rules\n", encoding="utf-8")
-    (source_dir / "start.md").write_text("# start\n", encoding="utf-8")
+    (source_dir / "BOOTSTRAP.md").write_text("# bootstrap\n", encoding="utf-8")
     (source_dir / "governance" / "VERSION").write_text("1.1.0-RC.1\n", encoding="utf-8")
 
     external = tmp_path / "external.txt"

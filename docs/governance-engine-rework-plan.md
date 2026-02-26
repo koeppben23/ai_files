@@ -129,11 +129,11 @@ Preflight permission probes (MUST):
 - Probes are evidence records (`observed_at`, `ttl=0`) and MUST NOT rely on guessed capabilities.
 
 Hard rules:
-- `/start` once is enough (no automatic self-reinvocation loops).
+- bootstrap once is enough (no automatic self-reinvocation loops).
 - profile autodetect-first; prompt only on true ambiguity.
 - canonical persistence targets are invariant.
 
-`/start` rerun semantics (MUST):
+bootstrap rerun semantics (MUST):
 - Manual reruns are allowed after recovery/update actions.
 - Reruns MUST be idempotent (`same state -> delta-only/no-delta`).
 
@@ -223,7 +223,7 @@ Token budget guard (MUST):
 
 Required layers:
 - contract tests (reason codes, envelopes, next-action coherence, write-target invariants)
-- golden tests (intent outputs, `/start` dialogs)
+- golden tests (intent outputs, bootstrap dialogs)
 - e2e matrix (repo-root vs backup-cwd, git/no-git, write-allowed/write-denied, profile ambiguity)
 - migration tests (`SESSION_STATE` + pack schema evolution)
 - mutation checks (gate logic)

@@ -25,7 +25,6 @@ For operators and developers running governed sessions in OpenCode who need reli
 ## OpenCode Lifecycle
 
 - Bootstrap: Use local launcher (`~/.config/opencode/bin/opencode-governance-bootstrap`)
-- `/start`: optional convenience path that delegates to local bootstrap
 - `/continue`: execute the next deterministic step from session state
 - `/resume`: continue an interrupted session deterministically
 - `/audit`: read-only governance report flow
@@ -44,7 +43,7 @@ If binding evidence is unavailable or unresolved, bootstrap must fail closed (fo
 
 - Supported host OS: macOS, Linux, Windows (canonical path model from binding evidence + kernel loaders, layout examples in `docs/install-layout.md`).
 - Required tools for standard operation: `${PYTHON_COMMAND}` (installer/helpers), `git` (identity-gated workflows).
-- Supported command lifecycle: `/start`, `/continue`, `/resume`, `/audit`.
+- Supported command lifecycle: `/continue`, `/resume`, `/audit`.
 
 ## Session State and Persistence
 
@@ -67,7 +66,7 @@ ${PYTHON_COMMAND} install.py --status
 ${PYTHON_COMMAND} governance/entrypoints/bootstrap_session_state.py --repo-fingerprint <repo_fingerprint> --dry-run
 ```
 
-Then run `/start` in OpenCode and confirm bootstrap succeeds without binding/identity blockers.
+Then run the local bootstrap launcher and confirm bootstrap succeeds without binding/identity blockers.
 
 Response rendering quick check:
 
