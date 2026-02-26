@@ -2,5 +2,6 @@
 set -e
 OPENCODE_CONFIG_ROOT="${OPENCODE_CONFIG_ROOT:-$HOME/.config/opencode}"
 OPENCODE_REPO_ROOT="${OPENCODE_REPO_ROOT:-}"
-PYTHONPATH="${OPENCODE_CONFIG_ROOT}/commands:${OPENCODE_CONFIG_ROOT}/governance:${PYTHONPATH}"
+COMMANDS_HOME="${OPENCODE_CONFIG_ROOT}/commands"
+PYTHONPATH="${COMMANDS_HOME}:${OPENCODE_CONFIG_ROOT}:${PYTHONPATH}"
 exec "$(command -v python3 || command -v python)" -m governance.entrypoints.bootstrap_preflight_readonly
