@@ -1301,6 +1301,7 @@ Reload is a control-plane operation, not an implementation permission.
 ## 7.11.1 Bootstrap Re-invocation Loop Guard (Core, Binding)
 
 - Workflow MUST NOT ask operator to rerun the local bootstrap launcher in the same turn.
+- `/master` before valid bootstrap evidence may produce `BLOCKED-START-REQUIRED`
 
 If bootstrap evidence is present because host command injection triggered bootstrap, bootstrap is considered invoked for this turn.
 

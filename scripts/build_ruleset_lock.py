@@ -66,7 +66,11 @@ def build_ruleset_artifacts(*, repo_root: Path, ruleset_id: str, version: str, o
         "deterministic": True,
         "resolved_profiles": [entry["path"] for entry in profile_entries],
         "resolved_addons": [entry["path"] for entry in addon_entries],
-        "resolved_core_rulebooks": [entry["path"] for entry in source_entries if entry["path"] in {"master.md", "rules.md", "BOOTSTRAP.md"}],
+        "resolved_core_rulebooks": [
+            name
+            for name in ["master.md", "rules.md", "BOOTSTRAP.md"]
+            if any(entry["path"] == name for entry in source_entries)
+        ],
         "source_files": source_entries,
         "conflicts": [],
     }
