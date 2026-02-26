@@ -104,9 +104,10 @@ def _iter_manifest_entries(files_obj, commands: Path):
             elif dst.startswith("bin/"):
                 # Launcher files go to bin/ directory
                 target = commands.parent / target
+                assert_under_base(target, "Manifest dst")
             else:
                 target = commands / target
-            assert_under_base(target, "Manifest dst")
+                assert_under_base(target, "Manifest dst")
             expected = entry.get("sha256")
             yield (target, expected if looks_like_sha256(expected) else None)
             continue
@@ -193,7 +194,11 @@ def test_full_install_reinstall_uninstall_flow(tmp_path: Path):
     for target, _ in entries:
         if target.name in ignore_names:
             continue
-        rel = target.resolve().relative_to(commands.resolve()).as_posix()
+        # Skip files not under commands/ (e.g., bin/ launcher files)
+        try:
+            rel = target.resolve().relative_to(commands.resolve()).as_posix()
+        except ValueError:
+            continue
         before[rel] = sha256_file(target)
 
     # Reinstall (idempotency)
@@ -209,7 +214,11 @@ def test_full_install_reinstall_uninstall_flow(tmp_path: Path):
     for target, _ in entries2:
         if target.name in ignore_names:
             continue
-        rel = target.resolve().relative_to(commands.resolve()).as_posix()
+        # Skip files not under commands/ (e.g., bin/ launcher files)
+        try:
+            rel = target.resolve().relative_to(commands.resolve()).as_posix()
+        except ValueError:
+            continue
         after[rel] = sha256_file(target)
 
     assert set(before.keys()) == set(after.keys()), f"Installed file set changed on reinstall. missing={set(before)-set(after)} added={set(after)-set(before)}"
@@ -404,7 +413,7 @@ def test_installer_copies_addon_manifests_for_dynamic_activation(tmp_path: Path)
 
     manifest = _load_manifest(config_root)
     entries = list(_iter_manifest_entries(manifest["files"], commands))
-    installed = {t.resolve().relative_to(commands.resolve()).as_posix() for t, _ in entries}
+    installed = {t.resolve().relative_to(commands.resolve()).as_posix() for t, _ in entries if t.resolve().is_relative_to(commands.resolve())}
 
     required_rel = {
         "profiles/addons/angularNxTemplates.addon.yml",
