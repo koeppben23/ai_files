@@ -247,6 +247,7 @@ def create_launcher(plan: InstallPlan, dry_run: bool, force: bool) -> list[dict]
 # OpenCode Governance Bootstrap Launcher
 export OPENCODE_CONFIG_ROOT="{plan.config_root}"
 export COMMANDS_HOME="{commands_home}"
+export PYTHONDONTWRITEBYTECODE=1
 
 # Add commands_home and current dir to PYTHONPATH first
 export PYTHONPATH="{commands_home}:$PYTHONPATH"
@@ -265,6 +266,7 @@ exec {python_exe} -m cli.start "$@"
 REM OpenCode Governance Bootstrap Launcher
 set "OPENCODE_CONFIG_ROOT={plan.config_root}"
 set "COMMANDS_HOME={commands_home}"
+set "PYTHONDONTWRITEBYTECODE=1"
 set "PYTHONPATH={commands_home};%PYTHONPATH%"
 
 REM Auto-detect repo root from git or OPENCODE_REPO_ROOT
