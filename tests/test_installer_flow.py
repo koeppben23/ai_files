@@ -284,7 +284,9 @@ def test_launcher_uses_installed_runtime_and_config_root_env(tmp_path: Path):
     r = run_install(["--force", "--no-backup", "--config-root", str(config_root)])
     assert r.returncode == 0, f"install failed:\n{r.stderr}\n{r.stdout}"
 
-    launcher = config_root / "bin" / "opencode-governance-bootstrap"
+    launcher = config_root / "bin" / (
+        "opencode-governance-bootstrap.cmd" if os.name == "nt" else "opencode-governance-bootstrap"
+    )
     assert launcher.exists(), f"Missing launcher: {launcher}"
 
     # Validate launcher runs from installed runtime (fails if cli package is not installed).
