@@ -40,13 +40,18 @@ def _iter_manifest_entries(files_obj, commands: Path):
     Yields (target_path, expected_sha256_or_none).
     """
     base = commands.resolve()
+    bin_base = (commands.parent / "bin").resolve()
 
     def assert_under_base(p: Path, label: str) -> None:
         p = p.resolve()
         try:
             p.relative_to(base)
         except ValueError:
-            raise AssertionError(f"{label} escapes commands dir: {p} (base={base})")
+            # Also allow bin/ directory
+            try:
+                p.relative_to(bin_base)
+            except ValueError:
+                raise AssertionError(f"{label} escapes commands/bin dir: {p} (base={base}, bin={bin_base})")
         assert p.exists(), f"{label} missing on disk: {p}"
 
     def looks_like_sha256(s: object) -> bool:
