@@ -209,12 +209,12 @@ Binding:
 The system MUST support operation without direct access to git or any VCS tooling.
 
 Bootstrap tool preflight (binding):
-- During `/start`, the runtime MUST probe required external commands via PATH (e.g., `git`, `${PYTHON_COMMAND}`).
+- During bootstrap, the runtime MUST probe required external commands via PATH (e.g., `git`, `${PYTHON_COMMAND}`).
 - The preflight result MUST be reported as structured governance (`available`/`missing`) and MUST NOT block by itself.
-- If all required commands are available, `/start` MUST continue without a blocker.
-- If one or more commands are missing, `/start` MUST continue in degraded mode where possible and include recovery commands; block only when a later gate requires missing-tool-dependent evidence.
+- If all required commands are available, bootstrap MUST continue without a blocker.
+- If one or more commands are missing, bootstrap MUST continue in degraded mode where possible and include recovery commands; block only when a later gate requires missing-tool-dependent evidence.
 - Preflight executes as Phase `0` / `1.1` and MUST use freshly observed signals only (no cache reuse).
-- Tool probe TTL is zero (`ttl=0`): every `/start` rerun MUST recompute probe results.
+- Tool probe TTL is zero (`ttl=0`): every bootstrap rerun MUST recompute probe results.
 - Preflight MUST include an `observed_at` timestamp and overwrite any previous preflight snapshot in `SESSION_STATE`.
 - Preflight output MUST remain compact: maximum 5 checks.
 - Preflight summary format is fixed to these keys: `available`, `missing`, `impact`, `next`.
@@ -224,8 +224,8 @@ Bootstrap tool preflight (binding):
   - `no_restart_if_binary_in_existing_path`
 
 Required-command inventory derivation (binding):
-- `/start` MUST load a deterministic command inventory from `${COMMANDS_HOME}/governance/assets/catalogs/tool_requirements.json` when present.
-- If that file is unavailable, `/start` MUST fail over to deriving the inventory by scanning canonical governance artifacts for command references, at minimum:
+- Bootstrap MUST load a deterministic command inventory from `${COMMANDS_HOME}/governance/assets/catalogs/tool_requirements.json` when present.
+- If that file is unavailable, bootstrap MUST fail over to deriving the inventory by scanning canonical governance artifacts for command references, at minimum:
   - `${COMMANDS_HOME}/master.md`
   - `${COMMANDS_HOME}/rules.md`
   - `${PROFILES_HOME}/rules*.md`
@@ -234,11 +234,11 @@ Required-command inventory derivation (binding):
   - `required_now` (bootstrap/runtime essentials),
   - `required_later` (phase/profile-gated tools),
   - `optional` (advisory).
-- `/start` MUST emit the resolved inventory and PATH probe status before any operator prompt.
-- If a previously-missing command becomes available later, rerunning `/start` MUST refresh the inventory/probe and continue without stale blocker state.
+- Bootstrap MUST emit the resolved inventory and PATH probe status before any operator prompt.
+- If a previously-missing command becomes available later, rerunning bootstrap MUST refresh the inventory/probe and continue without stale blocker state.
 
 Build Toolchain Detection (binding):
-- During preflight, `/start` MUST classify the probed build-related tools into `SESSION_STATE.Preflight.BuildToolchain`.
+- During preflight, bootstrap MUST classify the probed build-related tools into `SESSION_STATE.Preflight.BuildToolchain`.
 - At preflight time the active profile and repository build system are NOT yet known.
   Therefore preflight records **raw tool availability only**; the repo-aware command mapping is deferred to Phase 2 (Repository Discovery).
 - `SESSION_STATE.Preflight.BuildToolchain` MUST contain:
@@ -1008,7 +1008,7 @@ Rules:
 
 Common blocked reason codes (informational summary):
 - `BLOCKED-BOOTSTRAP-NOT-SATISFIED`: Bootstrap declaration not satisfied
-- `BLOCKED-START-REQUIRED`: /start evidence required before phase execution
+- `BLOCKED-START-REQUIRED`: bootstrap evidence required before phase execution
 - `BLOCKED-MISSING-BINDING-FILE`: governance.paths.json not found
 - `BLOCKED-RULEBOOK-LOAD-FAILED`: Core rulebook cannot be loaded at Phase 4 entry
 - `BLOCKED-MISSING-PROFILE`: Active profile required but not set
@@ -1090,14 +1090,14 @@ The user may then:
 
 ---
 
-### 2.4 Session Start Principles (Kernel-Enforced)
+### 2.4 Session Bootstrap Principles (Kernel-Enforced)
 
-At initial `/start`, bootstrap progression is kernel-owned and deterministic.
+At initial bootstrap, progression is kernel-owned and deterministic.
 Runtime routing, transitions, and stop conditions are defined by kernel/config contracts
 (not by this markdown rail).
 
 Detailed operational start behavior is documented as non-binding guidance in:
-- `start.md` (operator-facing start rail)
+- `BOOTSTRAP.md` (operator-facing bootstrap guide)
 - `docs/governance/RESPONSIBILITY_BOUNDARY.md` (binding vs guidance boundary)
 - `docs/governance/rails/planning.md` (workflow planning guidance)
 - `docs/governance/MASTER_SECTION_CLASSIFICATION.md` (master section class mapping)
@@ -1118,12 +1118,12 @@ Rules:
 ### 2.4.2 Architect-Only Autopilot Lifecycle (Policy)
 
 Lifecycle semantics are intentionally compact here:
-- `/start` establishes bootstrap context.
+- Bootstrap establishes bootstrap context.
 - `Implement now` enables implementation output.
 - `Ingest evidence` enables verification-only reconciliation.
 
-`/start` invocation guard (binding):
-- Workflow MUST NOT ask operator to run `/start` again in the same turn.
+Bootstrap invocation guard (binding):
+- Workflow MUST NOT ask operator to rerun the local bootstrap launcher in the same turn.
 
 Execution mode enum (binding):
 - `SESSION_STATE.OutputMode`: `ARCHITECT | IMPLEMENT | VERIFY`
@@ -1208,7 +1208,7 @@ Machine-readable governance (informational):
   - `surface` (`build|tests|static|addons|profile|state|contracts|security|performance|other`)
   - `signals_used` (array)
   - `recovery_steps` (array, max 3 concrete steps)
-  - `next_command` (e.g., `/reload-addons`, `/start`, `/resume`)
+- `next_command` (e.g., `/reload-addons`, `opencode-governance-bootstrap`, `/resume`)
 
 SESSION_STATE versioning (informational):
 - Every emitted session state includes:
@@ -1262,7 +1262,7 @@ SESSION_STATE:
   DependencyChanges: {}   # optional in MIN; REQUIRED in FULL if deps change
   Preflight:
     BuildToolchain:
-      DetectedTools: {}    # populated by /start preflight; map of tool name → version string (null if not found)
+      DetectedTools: {}    # populated by bootstrap preflight; map of tool name → version string (null if not found)
       ObservedAt: null       # ISO-8601 timestamp once probe runs
   BuildToolchain:          # populated in Phase 2 (step 3b) from repo signals + preflight probe
     CompileAvailable: false
@@ -1359,7 +1359,7 @@ Repo root defaulting behavior (informational):
 #### Load Existing Repo Cache (Kernel-Managed, Cache-First)
 
 Goal:
-- Skip full Phase 2 discovery for repeated `/start` sessions on the same repo.
+- Skip full Phase 2 discovery for repeated bootstrap sessions on the same repo.
 - Use a deterministic, structured cache that is faster than parsing long digest markdown.
 
 Order of precedence (Kernel-Enforced):
@@ -3628,7 +3628,7 @@ Response and output constraints are defined in `rules.md` (Core Rulebook).
 * Responses must be concise and structured
 * Use code blocks for code snippets
 * Use structured blocks for reports ([PHASE-X-COMPLETE], [GATE-REPORT-PX], etc.)
-* Structured outputs from `/start` onward SHOULD conform to `governance/assets/catalogs/RESPONSE_ENVELOPE_SCHEMA.json` when host constraints allow
+* Structured outputs from bootstrap onward SHOULD conform to `governance/assets/catalogs/RESPONSE_ENVELOPE_SCHEMA.json` when host constraints allow
 * Envelope-aligned NextAction typing is mandatory: `next_action.type = command | reply_with_one_number | manual_step`
 * Always update SESSION_STATE
 * Always document risks and blockers
@@ -3649,7 +3649,7 @@ Response and output constraints are defined in `rules.md` (Core Rulebook).
 * If state does not change, responses SHOULD acknowledge `state_unchanged` with a concise reason
 * For no-change turns, responses SHOULD be delta-only and avoid repeating unchanged diagnostic blocks
 * Operator-first UX layering SHOULD be used: concise brief first, full governance immediately after or on explicit detail request
-* `/start` preflight SHOULD distinguish `required_now` vs `required_later` and surface `block_now` for immediate-gate impact
+* Bootstrap preflight SHOULD distinguish `required_now` vs `required_later` and surface `block_now` for immediate-gate impact
 * After bootstrap success, short follow-ups SHOULD default to conversational, language-adaptive responses unless full governance are requested
 * Conversational post-start intents SHOULD remain regression-tested with deterministic fixtures (`what_phase`, `discovery_done`, `workflow_unchanged`)
 * Preferred fixture source for conversational intent goldens: `governance/assets/catalogs/UX_INTENT_GOLDENS.json`

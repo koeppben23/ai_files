@@ -6,6 +6,15 @@ This document describes how to bootstrap the OpenCode Governance System for a re
 
 The OpenCode Governance System ensures consistent development practices across repositories. Before working in a repository, you must run the bootstrap process to activate governance.
 
+## Bootstrap Process
+
+The bootstrap process:
+
+1. **Validates binding** - Checks `governance.paths.json` exists
+2. **Detects repository** - Finds Git root and computes fingerprint
+3. **Creates workspace** - Sets up `SESSION_STATE.json`
+4. **Applies gates** - Ensures all required gates are satisfied
+
 ## Standard Bootstrap Path
 
 The recommended way to bootstrap is using the **local launcher**:
@@ -35,15 +44,6 @@ This creates:
 - Commands and governance files
 - Local bootstrap launcher
 - Workspace directories
-
-## Bootstrap Process
-
-The bootstrap process:
-
-1. **Validates binding** - Checks `governance.paths.json` exists
-2. **Detects repository** - Finds Git root and computes fingerprint
-3. **Creates workspace** - Sets up `SESSION_STATE.json`
-4. **Applies gates** - Ensures all required gates are satisfied
 
 ## Verification
 
@@ -75,10 +75,6 @@ opencode-governance-bootstrap --repo-root /path/to/repo
 ```
 
 Or ensure you're in a Git repository.
-
-## Chat Usage
-
-If your host supports `/start`, it may delegate to the same bootstrap process. For best results, use the local launcher directly.
 
 ## Documentation
 

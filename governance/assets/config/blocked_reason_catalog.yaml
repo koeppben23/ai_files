@@ -29,11 +29,11 @@ blocked_reasons:
     required_inputs:
       - "Explicit bootstrap declaration restatement"
     quick_fix_commands:
-      - "/start"
-    resume_pointer: "/start"
+      - "opencode-governance-bootstrap"
+    resume_pointer: "opencode-governance-bootstrap"
     recovery_steps:
       - "Restate the bootstrap declaration explicitly"
-      - "Run /start to re-validate bootstrap"
+      - "Run the local bootstrap launcher to re-validate bootstrap"
     message_template: "Bootstrap not satisfied. Please restate bootstrap declaration."
 
   BLOCKED-START-REQUIRED:
@@ -44,11 +44,11 @@ blocked_reasons:
     required_inputs:
       - "Valid /start evidence"
     quick_fix_commands:
-      - "/start"
-    resume_pointer: "/start"
+      - "opencode-governance-bootstrap"
+    resume_pointer: "opencode-governance-bootstrap"
     recovery_steps:
-      - "Run /start to gather bootstrap evidence"
-    message_template: "/start evidence required. Run /start first."
+      - "Run the local bootstrap launcher to gather bootstrap evidence"
+    message_template: "Bootstrap evidence required. Run the local bootstrap launcher first."
 
   BLOCKED-MISSING-BINDING-FILE:
     reason_code: "BLOCKED-MISSING-BINDING-FILE"
@@ -59,7 +59,7 @@ blocked_reasons:
       - "Valid governance.paths.json"
     quick_fix_commands:
       - "${PYTHON_COMMAND} install.py"
-    resume_pointer: "/start"
+    resume_pointer: "opencode-governance-bootstrap"
     recovery_steps:
       - "Run install.py to generate binding file"
       - "Verify governance.paths.json exists in ${COMMANDS_HOME}"
@@ -154,7 +154,7 @@ blocked_reasons:
       - "Explicit profile selection"
     quick_fix_commands:
       - "Select profile: 1=<recommended> | 2=<alt> | 3=<alt> | 4=fallback-minimum | 0=abort"
-    resume_pointer: "/start"
+    resume_pointer: "opencode-governance-bootstrap"
     recovery_steps:
       - "Select a profile from the ranked shortlist"
       - "Provide explicit profile selection"
@@ -169,11 +169,11 @@ blocked_reasons:
     required_inputs:
       - "Missing evidence"
     quick_fix_commands:
-      - "/start"
-    resume_pointer: "/start"
+      - "opencode-governance-bootstrap"
+    resume_pointer: "opencode-governance-bootstrap"
     recovery_steps:
       - "Provide the missing evidence"
-      - "Run /start to re-gather evidence"
+      - "Run the local bootstrap launcher to re-gather evidence"
     message_template: "Missing evidence: {evidence_type}."
 
   BLOCKED-RULEBOOK-EVIDENCE-MISSING:
@@ -201,12 +201,12 @@ blocked_reasons:
       - "Investigation of hash/activation mismatch"
     quick_fix_commands:
       - "Clear cache and re-run the bootstrap launcher"
-    resume_pointer: "/start"
+    resume_pointer: "opencode-governance-bootstrap"
     recovery_steps:
       - "Clear SESSION_STATE cache"
-      - "Re-run the bootstrap launcher to re-activate"
+      - "Re-run the local bootstrap launcher to re-activate"
       - "Report if mismatch persists"
-    message_template: "Activation delta mismatch. Re-run /start."
+    message_template: "Activation delta mismatch. Re-run the local bootstrap launcher."
 
   # State Errors
   BLOCKED-STATE-OUTDATED:
@@ -217,10 +217,10 @@ blocked_reasons:
     required_inputs:
       - "Fresh session state"
     quick_fix_commands:
-      - "/start --fresh"
-    resume_pointer: "/start"
+      - "opencode-governance-bootstrap --fresh"
+    resume_pointer: "opencode-governance-bootstrap"
     recovery_steps:
-      - "Start fresh session with /start --fresh"
+      - "Start fresh session with the local bootstrap launcher --fresh"
       - "Or provide updated session state"
     message_template: "Session state outdated. Start fresh."
 
@@ -265,11 +265,11 @@ blocked_reasons:
       - "Fix for engine configuration"
     quick_fix_commands:
       - "Verify engine configuration"
-    resume_pointer: "/start"
+    resume_pointer: "opencode-governance-bootstrap"
     recovery_steps:
       - "Verify policy-bound config files exist"
       - "Verify YAML parser is available"
-      - "Run /start to retry"
+      - "Run the local bootstrap launcher to retry"
     message_template: "Engine self-check failed. Verify configuration."
 
   # Additional blocked reasons (from SESSION_STATE_SCHEMA.md)
@@ -341,12 +341,12 @@ blocked_reasons:
     required_inputs:
       - "Permission to reset/repair invalid state"
     quick_fix_commands:
-      - "Delete invalid state file and /start"
+      - "Delete invalid state file and opencode-governance-bootstrap"
     resume_pointer: "Phase 0 - Bootstrap (State Repair)"
     recovery_steps:
       - "Collect current state as evidence"
       - "Repair to minimal valid state or delete"
-      - "Re-run /start"
+      - "Re-run the local bootstrap launcher"
     message_template: "State violation. Reset or repair state."
 
   BLOCKED-WORKSPACE-MEMORY-INVALID:
@@ -378,7 +378,7 @@ blocked_reasons:
       - "Determine OS-specific config root"
       - "Verify COMMANDS_HOME exists"
       - "Verify master.md and rules.md present"
-      - "Rerun installer and /start"
+      - "Rerun installer and the local bootstrap launcher"
     message_template: "Variable resolution failed. Run installer."
 
   BLOCKED-PERSISTENCE-PATH-VIOLATION:
@@ -413,7 +413,7 @@ blocked_reasons:
 
 # Quick Fix Command Templates (Kernel-Enforced)
 quick_fix_templates:
-  start: "/start"
+  start: "opencode-governance-bootstrap"
   reload_addons: "/reload-addons"
   install: "${PYTHON_COMMAND} install.py"
   check_file: "Check if {path} exists"

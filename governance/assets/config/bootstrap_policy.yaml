@@ -64,7 +64,7 @@ gates:
       reason_code: "BLOCKED-BOOTSTRAP-NOT-SATISFIED"
       mode: "BLOCKED"
       next: "BLOCKED-BOOTSTRAP-NOT-SATISFIED"
-    recovery_command: "/start"
+    recovery_command: "opencode-governance-bootstrap"
 
   # Binding File Gate
   binding_file_gate:
@@ -79,10 +79,10 @@ gates:
       next: "BLOCKED-MISSING-BINDING-FILE"
     recovery_command: "${PYTHON_COMMAND} install.py"
 
-  # /start Evidence Gate
+  # Bootstrap Evidence Gate
   start_evidence_gate:
     gate_id: "StartEvidence"
-    description: "/start must complete before phase execution"
+    description: "Bootstrap must complete before phase execution"
     required_evidence:
       - "SESSION_STATE.Bootstrap.Present: true"
       - "SESSION_STATE.Bootstrap.Satisfied: true"
@@ -90,7 +90,7 @@ gates:
       reason_code: "BLOCKED-START-REQUIRED"
       mode: "BLOCKED"
       next: "BLOCKED-START-REQUIRED"
-    recovery_command: "/start"
+    recovery_command: "opencode-governance-bootstrap"
 
 # Binding File Schema (Kernel-Enforced)
 binding_schema:

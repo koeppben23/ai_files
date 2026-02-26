@@ -17,8 +17,8 @@
     },
     "BLOCKED-START-REQUIRED": {
       "summary": "Session not bootstrapped",
-      "how_to_fix": "Run /start to bootstrap the governance session before proceeding.",
-      "copy_paste_command": "/start",
+      "how_to_fix": "Run the local bootstrap launcher to bootstrap the governance session before proceeding.",
+      "copy_paste_command": "opencode-governance-bootstrap",
       "docs_link": "docs/phases.md#phase-0-bootstrap"
     },
     "BLOCKED-MISSING-EVIDENCE": {
@@ -42,7 +42,7 @@
     "BLOCKED-VARIABLE-RESOLUTION": {
       "summary": "Path variable resolution failed",
       "how_to_fix": "Check that ${USER_HOME}, ${CONFIG_ROOT}, ${COMMANDS_HOME} are correctly resolved. Verify governance.paths.json exists and is valid.",
-      "copy_paste_command": "/start",
+      "copy_paste_command": "opencode-governance-bootstrap",
       "docs_link": "master.md#path-variables"
     },
     "BLOCKED-WORKSPACE-PERSISTENCE": {
@@ -54,7 +54,7 @@
     "BLOCKED-REPO-IDENTITY-MISMATCH": {
       "summary": "Repository identity mismatch",
       "how_to_fix": "Workspace fingerprint does not match current repository. Re-bootstrap identity via kernel or remove existing workspace cache.",
-      "copy_paste_command": "rm -rf ~/.config/opencode/workspaces/<fingerprint> && /start",
+      "copy_paste_command": "rm -rf ~/.config/opencode/workspaces/<fingerprint> && opencode-governance-bootstrap",
       "docs_link": "master.md#repo-identity"
     },
     "PERSIST-CONFIRMATION-REQUIRED": {

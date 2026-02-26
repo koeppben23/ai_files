@@ -12,7 +12,7 @@ Features:
 
 NOTE:
 - This installer does NOT generate opencode.json (to avoid schema validation errors).
-- Instead it generates an installer-owned sidecar: commands/governance.paths.json for /start.
+ - Instead it generates an installer-owned sidecar: commands/governance.paths.json for bootstrap.
 - Installer governance use `ERR-*` reason keys as installer-internal keys; they are not canonical
   governance `reason_code` values (`BLOCKED-*|WARN-*|NOT_VERIFIED-*`).
 """
@@ -26,6 +26,7 @@ import json
 import os
 import platform
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -106,13 +107,13 @@ GOVERNANCE_ASSETS_DIR_NAME = "governance/assets"
 # Governance runtime package copied into <config_root>/commands/governance/**
 GOVERNANCE_RUNTIME_DIR_NAME = "governance"
 
-FORBIDDEN_METADATA_SEGMENTS = {"__MACOSX"}
+FORBIDDEN_METADATA_SEGMENTS = {"__MACOSX", "__pycache__"}
 FORBIDDEN_METADATA_FILENAMES = {".DS_Store", "Icon\r"}
 
 MANIFEST_NAME = "INSTALL_MANIFEST.json"
 MANIFEST_SCHEMA = "1.0"
 
-# Governance paths bootstrap (used by /start)
+# Governance paths bootstrap (used by local launcher)
 GOVERNANCE_PATHS_NAME = "governance.paths.json"
 GOVERNANCE_PATHS_SCHEMA = "opencode-governance.paths.v1"
 
@@ -123,7 +124,7 @@ ERROR_LOGS_DIR_NAME = "logs"
 CORE_COMMAND_FILES = {
     "master.md",
     "rules.md",
-    "start.md",
+    "BOOTSTRAP.md",
     "continue.md",
     "resume.md",
     "resume_prompt.md",
@@ -248,6 +249,7 @@ def create_launcher(plan: InstallPlan, dry_run: bool, force: bool) -> list[dict]
     launcher_unix = bin_dir / "opencode-governance-bootstrap"
     launcher_win = bin_dir / "opencode-governance-bootstrap.cmd"
 
+    python_exe_quoted = shlex.quote(python_exe)
     unix_content = f"""#!/bin/sh
 # OpenCode Governance Bootstrap Launcher
 export OPENCODE_CONFIG_ROOT="{plan.config_root}"
@@ -264,7 +266,7 @@ elif [ -d ".git" ]; then
     export PYTHONPATH="$(pwd):$PYTHONPATH"
 fi
 
-exec {python_exe} -m cli.start "$@"
+exec {python_exe_quoted} -m cli.bootstrap "$@"
 """
 
     win_content = f"""@echo off
@@ -281,7 +283,7 @@ if defined OPENCODE_REPO_ROOT (
     for /f "delims=" %%i in ('git rev-parse --show-toplevel 2^>nul') do set "PYTHONPATH=%%i;%PYTHONPATH%"
 )
 
-"{python_exe}" -m cli.start %*
+"{python_exe}" -m cli.bootstrap %*
 """
 
     for path, content in [(launcher_unix, unix_content), (launcher_win, win_content)]:
@@ -406,7 +408,7 @@ def build_plan(
 
 def required_source_files(source_dir: Path) -> list[str]:
     # critical minimal set
-    return ["master.md", "rules.md", "start.md", "governance/VERSION"]
+    return ["master.md", "rules.md", "BOOTSTRAP.md", "governance/VERSION"]
 
 
 def precheck_source(source_dir: Path) -> tuple[bool, list[str], list[str]]:
@@ -687,7 +689,7 @@ def build_governance_paths_payload(config_root: Path, *, deterministic: bool) ->
     derived from config_root. This is *not* an OpenCode config file and is therefore not
     validated against the OpenCode config schema.
 
-    /start loads this file via shell output injection to avoid interactive path binding.
+    The local bootstrap launcher loads this file via shell output injection to avoid interactive path binding.
     """
     def norm(p: Path) -> str:
         return str(p)
@@ -697,10 +699,7 @@ def build_governance_paths_payload(config_root: Path, *, deterministic: bool) ->
     governance_home = commands_home / "governance"
     workspaces_home = config_root / "workspaces"
     global_error_logs_home = commands_home / ERROR_LOGS_DIR_NAME
-    if os.name == "nt":
-        python_command = "py -3"
-    else:
-        python_command = "python3"
+    python_command = sys.executable
 
     doc = {
         "schema": GOVERNANCE_PATHS_SCHEMA,
@@ -951,7 +950,7 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
             command="install.py",
             component="installer-precheck",
             observed_value=observed,
-            expected_constraint="Required source files present: master.md, rules.md, start.md",
+            expected_constraint="Required source files present: master.md, rules.md, BOOTSTRAP.md",
             remediation="Restore missing governance source files and rerun install.",
             action="abort",
             result="failed",
@@ -1254,7 +1253,7 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
 
     # validation (critical installed files)
     print("\n🔍 Validating installation...")
-    critical = [plan.commands_dir / "master.md", plan.commands_dir / "rules.md", plan.commands_dir / "start.md"]
+    critical = [plan.commands_dir / "master.md", plan.commands_dir / "rules.md", plan.commands_dir / "BOOTSTRAP.md"]
     missing_critical = [p.name for p in critical if not p.exists() and not dry_run]
     if missing_critical:
         eprint("❌ Installation incomplete; missing critical files:")
@@ -1837,7 +1836,7 @@ def show_health(source_dir: Path, config_root_arg: Path | None) -> int:
             issues_found.append("manifest-missing")
 
         # Check key files
-        key_files = ["master.md", "rules.md", "start.md"]
+        key_files = ["master.md", "rules.md", "BOOTSTRAP.md"]
         key_ok = True
         for kf in key_files:
             kf_path = commands_home / kf

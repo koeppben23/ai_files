@@ -132,11 +132,11 @@ def test_release_archives_layout_and_contents_policy(built_artifacts):
 
     required_rel = {
         "install.py",
-        "cli/start.py",
+        "cli/bootstrap.py",
         "governance/VERSION",
         "master.md",
         "rules.md",
-        "start.md",
+        "BOOTSTRAP.md",
         "profiles/addons/docsGovernance.addon.yml",
         "governance/entrypoints/persist_workspace_artifacts.py",
         "governance/entrypoints/bootstrap_session_state.py",

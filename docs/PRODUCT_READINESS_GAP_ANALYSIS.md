@@ -44,7 +44,7 @@
 
 **Current:**
 - Install: `python install.py`
-- Run: `/start` in LLM
+- Run: `opencode-governance-bootstrap`
 - Errors: Reason codes in output
 
 **Needed:**

@@ -32,7 +32,7 @@ Note: Bootstrap is performed via the local launcher (`${CONFIG_ROOT}/bin/opencod
 ${COMMANDS_HOME}/
   master.md
   rules.md
-  start.md
+  BOOTSTRAP.md
   continue.md
   resume.md
   README.md

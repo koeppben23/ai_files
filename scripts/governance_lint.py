@@ -326,7 +326,7 @@ def check_manifest_contract(issues: list[str]) -> None:
 
 def check_trusted_rulebook_discovery_contract(issues: list[str]) -> None:
     master = read_text(ROOT / "master.md")
-    start = read_text(ROOT / "start.md")
+    start = read_text(ROOT / "BOOTSTRAP.md")
 
     master_required = [
         "DO NOT read rulebooks from the repo working tree",
@@ -345,13 +345,13 @@ def check_trusted_rulebook_discovery_contract(issues: list[str]) -> None:
     if missing_master:
         issues.append(f"master.md: missing trusted discovery boundary tokens {missing_master}")
     if missing_start:
-        issues.append(f"start.md: missing trusted discovery boundary tokens {missing_start}")
+        issues.append(f"BOOTSTRAP.md: missing trusted discovery boundary tokens {missing_start}")
 
 
 def check_addon_catalog_boundary_contract(issues: list[str]) -> None:
     master = read_text(ROOT / "master.md")
     rules = read_text(ROOT / "rules.md")
-    start = read_text(ROOT / "start.md")
+    start = read_text(ROOT / "BOOTSTRAP.md")
 
     required_tokens = [
         "${PROFILES_HOME}/addons/*.addon.yml",
@@ -381,7 +381,7 @@ def check_addon_catalog_boundary_contract(issues: list[str]) -> None:
 def check_response_envelope_schema_contract(issues: list[str]) -> None:
     master = read_text(ROOT / "master.md")
     rules = read_text(ROOT / "rules.md")
-    start = read_text(ROOT / "start.md")
+    start = read_text(ROOT / "BOOTSTRAP.md")
     schema_path = ROOT / "governance" / "assets" / "catalogs" / "RESPONSE_ENVELOPE_SCHEMA.json"
     schema = read_text(schema_path)
 
@@ -526,7 +526,7 @@ def check_phase15_repo_code_evidence_contract(issues: list[str]) -> None:
 def check_host_constraint_compat_mode_contract(issues: list[str]) -> None:
     master = read_text(ROOT / "master.md")
     rules = read_text(ROOT / "rules.md")
-    start = read_text(ROOT / "start.md")
+    start = read_text(ROOT / "BOOTSTRAP.md")
 
     master_required = [
         "Host-constraint compatibility (binding):",
@@ -556,13 +556,13 @@ def check_host_constraint_compat_mode_contract(issues: list[str]) -> None:
     if missing_rules:
         issues.append(f"rules.md: missing host-constraint compat tokens {missing_rules}")
     if missing_start:
-        issues.append(f"start.md: missing host-constraint compat tokens {missing_start}")
+        issues.append(f"BOOTSTRAP.md: missing host-constraint compat tokens {missing_start}")
 
 
 def check_session_state_fenced_yaml_contract(issues: list[str]) -> None:
     master = read_text(ROOT / "master.md")
     rules = read_text(ROOT / "rules.md")
-    start = read_text(ROOT / "start.md")
+    start = read_text(ROOT / "BOOTSTRAP.md")
 
     master_required = [
         "If `SESSION_STATE` is emitted, it MUST still be rendered as fenced YAML",
@@ -590,7 +590,7 @@ def check_session_state_fenced_yaml_contract(issues: list[str]) -> None:
     if missing_rules:
         issues.append(f"rules.md: missing SESSION_STATE fenced-yaml tokens {missing_rules}")
     if missing_start:
-        issues.append(f"start.md: missing SESSION_STATE fenced-yaml tokens {missing_start}")
+        issues.append(f"BOOTSTRAP.md: missing SESSION_STATE fenced-yaml tokens {missing_start}")
 
 
 def check_required_addon_references(issues: list[str]) -> None:
@@ -993,8 +993,8 @@ def check_governance_reason_contract_alignment(issues: list[str]) -> None:
 
 
 def check_start_evidence_boundaries(issues: list[str]) -> None:
-    start = read_text(ROOT / "start.md")
-    binding_helper = read_text(ROOT / "governance" / "entrypoints" / "start_binding_evidence.py")
+    start = read_text(ROOT / "BOOTSTRAP.md")
+    binding_helper = read_text(ROOT / "governance" / "entrypoints" / "bootstrap_binding_evidence.py")
     start_bundle = "\n".join([start, binding_helper])
 
     required_in_start = [
@@ -1012,7 +1012,7 @@ def check_start_evidence_boundaries(issues: list[str]) -> None:
             "'missing_evidence':['${COMMANDS_HOME}/governance.paths.json (installer-owned binding evidence)']",
             '"${COMMANDS_HOME}/governance.paths.json (installer-owned binding evidence)"',
         ],
-        ["'next_command':'/start'", '"next_command": "/start"'],
+        ["'next_command':'opencode-governance-bootstrap'", '"next_command": "opencode-governance-bootstrap"'],
         ["'nonEvidence':'debug-only'", '"nonEvidence": "debug-only"'],
     ]
     for choices in token_alternatives:
@@ -1020,7 +1020,7 @@ def check_start_evidence_boundaries(issues: list[str]) -> None:
             missing_required.append(choices[0])
 
     if missing_required:
-        issues.append(f"start.md: missing evidence-boundary tokens {missing_required}")
+        issues.append(f"BOOTSTRAP.md: missing evidence-boundary tokens {missing_required}")
 
     forbidden_tokens = [
         "Treat it as **evidence**.",
@@ -1030,7 +1030,7 @@ def check_start_evidence_boundaries(issues: list[str]) -> None:
     ]
     found_forbidden = [token for token in forbidden_tokens if token in start]
     if found_forbidden:
-        issues.append(f"start.md: contains forbidden fallback-evidence tokens {found_forbidden}")
+        issues.append(f"BOOTSTRAP.md: contains forbidden fallback-evidence tokens {found_forbidden}")
 
 
 def check_md_rails_only_tripwire(issues: list[str]) -> None:
@@ -1041,7 +1041,7 @@ def check_md_rails_only_tripwire(issues: list[str]) -> None:
     files = [
         ROOT / "master.md",
         ROOT / "rules.md",
-        ROOT / "start.md",
+        ROOT / "BOOTSTRAP.md",
         ROOT / "continue.md",
         ROOT / "resume.md",
         ROOT / "resume_prompt.md",
@@ -1087,7 +1087,7 @@ def check_md_rails_only_tripwire(issues: list[str]) -> None:
 def check_unified_next_action_footer_contract(issues: list[str]) -> None:
     master = read_text(ROOT / "master.md")
     rules = read_text(ROOT / "rules.md")
-    start = read_text(ROOT / "start.md")
+    start = read_text(ROOT / "BOOTSTRAP.md")
 
     master_required = [
         "#### Unified Next Action Footer (Presentation Advisory)",
@@ -1114,13 +1114,13 @@ def check_unified_next_action_footer_contract(issues: list[str]) -> None:
     if missing_rules:
         issues.append(f"rules.md: missing unified next-action footer tokens {missing_rules}")
     if missing_start:
-        issues.append(f"start.md: missing unified next-action footer tokens {missing_start}")
+        issues.append(f"BOOTSTRAP.md: missing unified next-action footer tokens {missing_start}")
 
 
 def check_standard_blocker_envelope_contract(issues: list[str]) -> None:
     master = read_text(ROOT / "master.md")
     rules = read_text(ROOT / "rules.md")
-    start = read_text(ROOT / "start.md")
+    start = read_text(ROOT / "BOOTSTRAP.md")
 
     master_required = [
         "Machine-readable blocker envelope (mandatory):",
@@ -1151,13 +1151,13 @@ def check_standard_blocker_envelope_contract(issues: list[str]) -> None:
     if missing_rules:
         issues.append(f"rules.md: missing blocker envelope tokens {missing_rules}")
     if missing_start:
-        issues.append(f"start.md: missing blocker envelope tokens {missing_start}")
+        issues.append(f"BOOTSTRAP.md: missing blocker envelope tokens {missing_start}")
 
 
 def check_start_mode_banner_contract(issues: list[str]) -> None:
     master = read_text(ROOT / "master.md")
     rules = read_text(ROOT / "rules.md")
-    start = read_text(ROOT / "start.md")
+    start = read_text(ROOT / "BOOTSTRAP.md")
 
     master_required = [
         "### 2.4.1 Session Start Mode Banner (Kernel-Enforced)",
@@ -1186,13 +1186,13 @@ def check_start_mode_banner_contract(issues: list[str]) -> None:
     if missing_rules:
         issues.append(f"rules.md: missing start-mode banner tokens {missing_rules}")
     if missing_start:
-        issues.append(f"start.md: missing start-mode banner tokens {missing_start}")
+        issues.append(f"BOOTSTRAP.md: missing start-mode banner tokens {missing_start}")
 
 
 def check_confidence_impact_snapshot_contract(issues: list[str]) -> None:
     master = read_text(ROOT / "master.md")
     rules = read_text(ROOT / "rules.md")
-    start = read_text(ROOT / "start.md")
+    start = read_text(ROOT / "BOOTSTRAP.md")
 
     master_required = [
         "#### Confidence + Impact Snapshot (Presentation Advisory)",
@@ -1218,13 +1218,13 @@ def check_confidence_impact_snapshot_contract(issues: list[str]) -> None:
     if missing_rules:
         issues.append(f"rules.md: missing confidence-impact snapshot tokens {missing_rules}")
     if missing_start:
-        issues.append(f"start.md: missing confidence-impact snapshot tokens {missing_start}")
+        issues.append(f"BOOTSTRAP.md: missing confidence-impact snapshot tokens {missing_start}")
 
 
 def check_quick_fix_commands_contract(issues: list[str]) -> None:
     master = read_text(ROOT / "master.md")
     rules = read_text(ROOT / "rules.md")
-    start = read_text(ROOT / "start.md")
+    start = read_text(ROOT / "BOOTSTRAP.md")
 
     master_required = [
         "Quick-fix commands (mandatory for blockers):",
@@ -1251,13 +1251,13 @@ def check_quick_fix_commands_contract(issues: list[str]) -> None:
     if missing_rules:
         issues.append(f"rules.md: missing quick-fix command tokens {missing_rules}")
     if missing_start:
-        issues.append(f"start.md: missing quick-fix command tokens {missing_start}")
+        issues.append(f"BOOTSTRAP.md: missing quick-fix command tokens {missing_start}")
 
 
 def check_architect_autopilot_lifecycle_contract(issues: list[str]) -> None:
     master = read_text(ROOT / "master.md")
     rules = read_text(ROOT / "rules.md")
-    start = read_text(ROOT / "start.md")
+    start = read_text(ROOT / "BOOTSTRAP.md")
     schema = read_text(ROOT / "SESSION_STATE_SCHEMA.md")
 
     master_required = [
@@ -1269,14 +1269,13 @@ def check_architect_autopilot_lifecycle_contract(issues: list[str]) -> None:
     rules_required = [
         "### 7.3.6 Architect-Only Autopilot Lifecycle (Policy)",
         "`SESSION_STATE.OutputMode`: `ARCHITECT | IMPLEMENT | VERIFY`",
-        "`/master` before valid `/start` bootstrap evidence may produce `BLOCKED-START-REQUIRED`",
+        "`/master` before valid bootstrap evidence may produce `BLOCKED-START-REQUIRED`",
         "`IMPLEMENT` mode requires explicit operator trigger (`Implement now`).",
         "`VERIFY` mode is evidence reconciliation only.",
     ]
     start_required = [
-        "Bootstrap gates, evidence requirements, and blocked reasons are kernel-enforced",
-        "governance/assets/config/bootstrap_policy.yaml",
-        "governance/assets/reasons/blocked_reason_catalog.yaml",
+        "Bootstrap Process",
+        "governance.paths.json",
     ]
 
     missing_master = [t for t in master_required if t not in master]
@@ -1287,7 +1286,7 @@ def check_architect_autopilot_lifecycle_contract(issues: list[str]) -> None:
     if missing_rules:
         issues.append(f"rules.md: missing architect-autopilot lifecycle tokens {missing_rules}")
     if missing_start:
-        issues.append(f"start.md: missing architect-autopilot lifecycle tokens {missing_start}")
+        issues.append(f"BOOTSTRAP.md: missing architect-autopilot lifecycle tokens {missing_start}")
 
     schema_required = [
         "`SESSION_STATE.OutputMode` (enum; see Section 4.1)",

@@ -23,7 +23,7 @@ def _relative_posix(path: Path, root: Path) -> str:
 
 
 def build_ruleset_artifacts(*, repo_root: Path, ruleset_id: str, version: str, output_root: Path) -> dict[str, str]:
-    core_files = [repo_root / "master.md", repo_root / "rules.md", repo_root / "start.md"]
+    core_files = [repo_root / "master.md", repo_root / "rules.md", repo_root / "BOOTSTRAP.md"]
     missing_core = [_relative_posix(p, repo_root) for p in core_files if not p.exists()]
     if missing_core:
         raise ValueError(f"missing required core rulebook files: {', '.join(missing_core)}")
@@ -66,7 +66,7 @@ def build_ruleset_artifacts(*, repo_root: Path, ruleset_id: str, version: str, o
         "deterministic": True,
         "resolved_profiles": [entry["path"] for entry in profile_entries],
         "resolved_addons": [entry["path"] for entry in addon_entries],
-        "resolved_core_rulebooks": [entry["path"] for entry in source_entries if entry["path"] in {"master.md", "rules.md", "start.md"}],
+        "resolved_core_rulebooks": [entry["path"] for entry in source_entries if entry["path"] in {"master.md", "rules.md", "BOOTSTRAP.md"}],
         "source_files": source_entries,
         "conflicts": [],
     }
