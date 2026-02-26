@@ -20,7 +20,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
-from typing import Any, Mapping
+from typing import Any, Mapping, cast
 
 _COMMANDS_HOME = str(Path(__file__).parent.parent)
 if _COMMANDS_HOME not in sys.path:
@@ -192,24 +192,99 @@ def _git_safe_directory_issue() -> bool:
     return "safe.directory" in (proc.stderr or "").lower()
 
 
-def emit_preflight() -> None:
-    required_now: list[str] = []
-    required_later: list[str] = []
-    if TOOL_CATALOG is not None and TOOL_CATALOG.exists():
+def _load_tool_catalog() -> dict[str, object]:
+    if TOOL_CATALOG is None or not TOOL_CATALOG.exists():
+        return {}
+    try:
         payload = json.loads(TOOL_CATALOG.read_text(encoding="utf-8"))
         if isinstance(payload, dict):
-            for item in payload.get("required_now", []):
-                if isinstance(item, dict):
-                    cmd = str(item.get("command") or "").strip().replace("${PYTHON_COMMAND}", PYTHON_COMMAND)
-                    if cmd and cmd not in required_now:
-                        required_now.append(cmd)
-            for item in payload.get("required_later", []):
-                if isinstance(item, dict):
-                    cmd = str(item.get("command") or "").strip().replace("${PYTHON_COMMAND}", PYTHON_COMMAND)
-                    if cmd and cmd not in required_later and cmd not in required_now:
-                        required_later.append(cmd)
+            return payload
+    except Exception:
+        return {}
+    return {}
+
+
+def _normalize_tool_command(token: str) -> str:
+    return token.replace("${PYTHON_COMMAND}", PYTHON_COMMAND).strip()
+
+
+def _tool_inventory() -> tuple[list[str], list[str], list[dict[str, str]]]:
+    payload = _load_tool_catalog()
+    required_now: list[str] = []
+    required_later: list[str] = []
+    required_later_entries: list[dict[str, str]] = []
+
+    if isinstance(payload, dict):
+        required_now_raw = payload.get("required_now", [])
+        if not isinstance(required_now_raw, list):
+            required_now_raw = []
+        for item in cast(list[object], required_now_raw):
+            if isinstance(item, dict):
+                cmd = _normalize_tool_command(str(item.get("command") or ""))
+                if cmd and cmd not in required_now:
+                    required_now.append(cmd)
+        required_later_raw = payload.get("required_later", [])
+        if not isinstance(required_later_raw, list):
+            required_later_raw = []
+        for item in cast(list[object], required_later_raw):
+            if isinstance(item, dict):
+                cmd = _normalize_tool_command(str(item.get("command") or ""))
+                if cmd and cmd not in required_later and cmd not in required_now:
+                    required_later.append(cmd)
+                    required_later_entries.append(
+                        {
+                            "command": cmd,
+                            "verify_command": _normalize_tool_command(str(item.get("verify_command") or "")),
+                        }
+                    )
+
     if not required_now:
         required_now = ["git", PYTHON_COMMAND]
+    return required_now, required_later, required_later_entries
+
+
+def _probe_tool_version(verify_command: str) -> str | None:
+    if not verify_command:
+        return None
+    try:
+        proc = subprocess.run(
+            verify_command,
+            shell=True,
+            text=True,
+            capture_output=True,
+            check=False,
+            timeout=5,
+        )
+    except Exception:
+        return None
+    output = (proc.stdout or "") + "\n" + (proc.stderr or "")
+    for line in output.splitlines():
+        token = (line or "").strip()
+        if token:
+            return token[:200]
+    return None
+
+
+def _preflight_build_toolchain_snapshot() -> dict[str, object]:
+    _required_now, _required_later, required_later_entries = _tool_inventory()
+    detected: dict[str, str | None] = {}
+    for entry in required_later_entries:
+        cmd = entry.get("command", "").strip()
+        if not cmd:
+            continue
+        if _command_available(cmd):
+            detected[cmd] = _probe_tool_version(entry.get("verify_command", ""))
+        else:
+            detected[cmd] = None
+    observed_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    return {
+        "DetectedTools": detected,
+        "ObservedAt": observed_at,
+    }
+
+
+def emit_preflight() -> None:
+    required_now, required_later, _required_later_entries = _tool_inventory()
 
     available: list[str] = []
     missing: list[str] = []
@@ -225,6 +300,7 @@ def emit_preflight() -> None:
     longpaths = _windows_longpaths_enabled()
     longpaths_note = "not_applicable" if longpaths is None else ("enabled" if longpaths else "disabled")
     git_safe_directory = "blocked" if (_command_available("git") and _git_safe_directory_issue()) else "ok"
+    build_toolchain = _preflight_build_toolchain_snapshot()
 
     mode = _effective_mode()
     payload = {
@@ -251,6 +327,7 @@ def emit_preflight() -> None:
         "git_safe_directory": git_safe_directory,
         "mode": mode,
         "writes_allowed": writes_allowed(),
+        "build_toolchain": build_toolchain,
     }
     print(json.dumps(payload, ensure_ascii=True))
 
@@ -822,6 +899,11 @@ def run_kernel_continuation(hook_result: Mapping[str, object]) -> dict[str, obje
         raise SystemExit(2)
 
     state = _root_state(document)
+    preflight = state.get("Preflight")
+    if not isinstance(preflight, dict):
+        preflight = {}
+    preflight.setdefault("BuildToolchain", _preflight_build_toolchain_snapshot())
+    state["Preflight"] = preflight
     current_phase = str(state.get("Phase") or "")
     requested_token = normalize_phase_token(current_phase) or "1.2"
     max_hops = 8
