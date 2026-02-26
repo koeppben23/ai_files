@@ -1,6 +1,6 @@
 # Mode-Aware Repo Rules + Host-Permissions Orchestration
 
-This document defines deterministic handling for repository docs (for example `AGENTS.md`) under the governance engine.
+This document defines deterministic handling for repository docs under the governance engine.
 
 ## Invariants
 
@@ -14,7 +14,7 @@ This document defines deterministic handling for repository docs (for example `A
 2. Pack-lock + activation ruleset policy
 3. Mode policy (`user`, `pipeline`, `agents_strict`)
 4. Host permissions (OpenCode host config / CI runtime)
-5. Repo-doc constraints (`AGENTS.md` and related docs)
+5. Repo-doc constraints (project-specific docs like `CONTRIBUTING.md`, `.cursorrules`)
 
 When a lower layer conflicts with a higher layer, the higher layer wins and the engine emits `POLICY-PRECEDENCE-APPLIED`.
 

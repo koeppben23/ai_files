@@ -1,4 +1,4 @@
-# Governance Start — automatic bootstrap continuation
+# Governance Start — optional bootstrap continuation
 
 This project uses a formal LLM Governance System
 defined in `master.md`, `rules.md`, and profile rulebooks.
@@ -6,10 +6,24 @@ defined in `master.md`, `rules.md`, and profile rulebooks.
 Invariant checklist for regression prevention: `${COMMANDS_HOME}/docs/governance_invariants.md`.
 
 
+## Bootstrap Entry Points
+
+The official bootstrap entry point is the **local launcher**:
+
+```
+~/.config/opencode/bin/opencode-governance-bootstrap
+```
+
+For Windows:
+```
+%USERPROFILE%\.config\opencode\bin\opencode-governance-bootstrap.cmd
+```
+
+See `BOOTSTRAP.md` for detailed documentation.
+
 ## Auto-Binding Evidence (OpenCode)
 
-Bootstrap Evidence: OpenCodeBinding (governance.paths.json + preflight) OR AGENTS.md Presence (Codex surface).
-Note: Kernel remains the source of truth; AGENTS.md is the Codex frontend surface.
+Bootstrap Evidence: OpenCodeBinding (governance.paths.json + preflight).
 
 When executed as an OpenCode command (`/start`), this prompt injects the installer-owned path binding file
 `${COMMANDS_HOME}/governance.paths.json` into the model context.
@@ -86,17 +100,18 @@ Evidence sources (informational):
 
 Blocked reasons (kernel-enforced):
 - BLOCKED-MISSING-BINDING-FILE (missing governance.paths.json)
-- BLOCKED-START-REQUIRED (missing /start evidence)
 
 Invocation:
 - Activate the Governance-OS defined in `master.md` via kernel-owned routing.
-- `/start` is the single bootstrap entrypoint and continues automatically until the first valid user-facing stop.
+- The recommended bootstrap entry point is the local launcher.
+- `/start` is an optional convenience path only.
 
 > **Note:** Bootstrap gates, evidence requirements, and blocked reasons are kernel-enforced.
 > See `governance/assets/config/bootstrap_policy.yaml` and `governance/assets/reasons/blocked_reason_catalog.yaml`.
 
 Key behaviors (informational):
-- `/start` is mandatory bootstrap for a repo/session (kernel-enforced).
+- The local launcher is the standard bootstrap entry point.
+- `/start` is optional and may delegate to the same process as the local launcher.
 - Missing evidence or profile ambiguity may result in blocked state (kernel-enforced).
 - Profile selection is resolved by kernel-owned phase routing after ActivationIntent (starting at Phase 1.3+).
 - During Phase `1.5/2/2.1/3A/3B`, no task/ticket is required; ticket goal required only at Phase 4 entry (kernel-enforced).
@@ -170,7 +185,7 @@ Output requirements:
 - Compact snapshot SHOULD include stable decision references (`activation_hash`; optionally `ruleset_hash`) and compact drift context (`state_unchanged` / `no_delta`) when available.
 - Full `SESSION_STATE` remains required as canonical persisted state; compact rendering is a view-layer projection only.
 - Session-state rollout posture is final: phase >= 3 is engine-only legacy-removed mode; legacy alias compatibility is historical only and MUST NOT be used as a normal-path dependency.
-- Recovery command integrity: emitted recovery commands MUST reference existing artifacts/scripts; if a specific helper is unavailable, fail closed and emit one minimal real command (default: `/start`).
+- Recovery command integrity: emitted recovery commands MUST reference existing artifacts/scripts; if a specific helper is unavailable, fail closed and emit one minimal real command (default: local launcher).
 - When preparing a PR that changes governance contracts, response SHOULD include an operator-impact section (`What changed for operators?`).
 - Governance PR summaries SHOULD also include `Reviewer focus` bullets for highest-risk contract deltas.
 

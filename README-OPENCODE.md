@@ -8,11 +8,11 @@ It is non-normative guidance.
 - System routing, execution, and validation: `${COMMANDS_HOME}/phase_api.yaml` via `governance/kernel/*`
 - Technical and quality constraints: `rules.md` + active profile/addon rulebooks
 - Session-state schema and invariants: `SESSION_STATE_SCHEMA.md`
-- Frontend mirror for Codex-like surfaces: `AGENTS.md` (non-normative)
 
 ## Quick Links
 
 - Root product overview: `README.md`
+- Bootstrap guide: `BOOTSTRAP.md`
 - Runtime phase spec: `${COMMANDS_HOME}/phase_api.yaml`
 - Core technical constraints: `rules.md`
 - Rules structure map: `README-RULES.md`
@@ -24,12 +24,13 @@ For operators and developers running governed sessions in OpenCode who need reli
 
 ## OpenCode Lifecycle
 
-- `/start`: mandatory bootstrap entrypoint for OpenCode sessions
+- Bootstrap: Use local launcher (`~/.config/opencode/bin/opencode-governance-bootstrap`)
+- `/start`: optional convenience path that delegates to local bootstrap
 - `/continue`: execute the next deterministic step from session state
 - `/resume`: continue an interrupted session deterministically
 - `/audit`: read-only governance report flow
 
-`/start` is responsible for binding evidence, command preflight, and bootstrap checks before deeper workflow execution.
+See `BOOTSTRAP.md` for detailed bootstrap instructions.
 
 ## Bootstrap and Binding Evidence
 
