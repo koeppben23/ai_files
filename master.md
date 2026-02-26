@@ -1124,6 +1124,8 @@ Lifecycle semantics are intentionally compact here:
 
 Bootstrap invocation guard (binding):
 - Workflow MUST NOT ask operator to rerun the local bootstrap launcher in the same turn.
+- bootstrap invocation guard (binding):
+- MUST NOT ask operator to rerun the local bootstrap launcher in the same turn.
 
 Execution mode enum (binding):
 - `SESSION_STATE.OutputMode`: `ARCHITECT | IMPLEMENT | VERIFY`
