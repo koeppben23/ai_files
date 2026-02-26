@@ -224,7 +224,12 @@ def create_launcher(plan: InstallPlan, dry_run: bool, force: bool) -> list[dict]
     else:
         if cli_dest.exists():
             shutil.rmtree(cli_dest)
-        shutil.copytree(cli_source, cli_dest)
+        cli_dest.mkdir(parents=True, exist_ok=True)
+        for f in sorted(cli_source.rglob("*.py")):
+            rel = f.relative_to(cli_source)
+            dst = cli_dest / rel
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(f, dst)
         print(f"  ✅ {cli_dest}")
 
     for f in sorted(cli_source.rglob("*.py")):
