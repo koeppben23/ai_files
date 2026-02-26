@@ -108,7 +108,7 @@ def test_orchestrator_blocks_when_cwd_is_not_git_root_and_git_is_unavailable(tmp
         "status": "blocked",
         "phase": "1.1-Bootstrap",
         "reason_code": "BLOCKED-REPO-IDENTITY-RESOLUTION",
-        "next_action.command": "/start",
+        "next_action.command": "opencode-governance-bootstrap",
     }
 
 
@@ -183,7 +183,7 @@ def test_orchestrator_surfaces_write_policy_failures_as_blocking_reason(tmp_path
         "status": "blocked",
         "phase": "1.1-Bootstrap",
         "reason_code": "BLOCKED-PERSISTENCE-PATH-VIOLATION",
-        "next_action.command": "/start",
+        "next_action.command": "opencode-governance-bootstrap",
     }
 
 

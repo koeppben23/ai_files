@@ -128,7 +128,7 @@ def generate_golden_outputs(*, repo_root: Path, output_dir: Path) -> None:
     )
 
     canonical_inputs = {
-        "start": "/start",
+        "start": "opencode-governance-bootstrap",
         "what_blocks_me": "what blocks me",
         "show_governance": "show governance",
         "where_am_i": "where am i",

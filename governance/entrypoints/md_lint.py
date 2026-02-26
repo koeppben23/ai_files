@@ -335,23 +335,6 @@ RULES: tuple[Rule, ...] = (
         severity="error",
         message="Algorithm/trigger/action sections are kernel-owned.",
     ),
-    
-    # MD008 - Non-normative Guard (for AGENTS.md)
-    Rule(
-        rule_id="MD008",
-        name="non-normative-guard",
-        description="AGENTS.md must be non-normative mirror",
-        patterns=(
-            r".",  # Matches any content - we check for required banner separately
-        ),
-        severity="error",
-        message="AGENTS.md must contain 'non-normative' and 'kernel wins' banner.",
-    ),
-)
-
-NON_NORMATIVE_REQUIRED = (
-    r"\bnon[- ]normative\b",
-    r"\bkernel\s+(wins|is\s+ssot|controls)\b",
 )
 
 
@@ -380,13 +363,6 @@ def should_check_file(file_path: Path) -> bool:
     return True
 
 
-def check_non_normative_banner(content: str) -> bool:
-    """Check if content has required non-normative banner."""
-    has_non_normative = any(re.search(p, content, re.IGNORECASE) for p in NON_NORMATIVE_REQUIRED[0:1])
-    has_kernel_wins = any(re.search(p, content, re.IGNORECASE) for p in NON_NORMATIVE_REQUIRED[1:])
-    return has_non_normative and has_kernel_wins
-
-
 def lint_file(file_path: Path, rules: Sequence[Rule] = RULES) -> list[Finding]:
     """Lint a single file and return findings."""
     findings: list[Finding] = []
@@ -410,24 +386,6 @@ def lint_file(file_path: Path, rules: Sequence[Rule] = RULES) -> list[Finding]:
         ))
         return findings
     
-    # Special check for AGENTS.md
-    if file_path.name.upper() == "AGENTS.MD":
-        if not check_non_normative_banner(content):
-            findings.append(Finding(
-                rule_id="MD008",
-                severity="error",
-                file_path=str(file_path),
-                line=1,
-                column=1,
-                match="missing non-normative banner",
-                snippet_hash="",
-                context_hash="",
-                message="AGENTS.md must contain 'non-normative' and 'kernel wins' banner.",
-            ))
-        # Still check other rules, but with exceptions for UI guidance
-        # Continue to normal linting
-        pass
-    
     # Remove fenced blocks and comments
     checkable = remove_fenced_blocks(content)
     checkable = remove_html_comments(checkable)
@@ -435,9 +393,6 @@ def lint_file(file_path: Path, rules: Sequence[Rule] = RULES) -> list[Finding]:
     lines = checkable.split("\n")
     
     for rule in rules:
-        if rule.rule_id == "MD008":
-            continue  # Handled separately
-        
         for i, line in enumerate(lines):
             line_num = i + 1
             

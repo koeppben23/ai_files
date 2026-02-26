@@ -8,11 +8,11 @@ It is non-normative guidance.
 - System routing, execution, and validation: `${COMMANDS_HOME}/phase_api.yaml` via `governance/kernel/*`
 - Technical and quality constraints: `rules.md` + active profile/addon rulebooks
 - Session-state schema and invariants: `SESSION_STATE_SCHEMA.md`
-- Frontend mirror for Codex-like surfaces: `AGENTS.md` (non-normative)
 
 ## Quick Links
 
 - Root product overview: `README.md`
+- Bootstrap guide: `BOOTSTRAP.md`
 - Runtime phase spec: `${COMMANDS_HOME}/phase_api.yaml`
 - Core technical constraints: `rules.md`
 - Rules structure map: `README-RULES.md`
@@ -24,12 +24,12 @@ For operators and developers running governed sessions in OpenCode who need reli
 
 ## OpenCode Lifecycle
 
-- `/start`: mandatory bootstrap entrypoint for OpenCode sessions
+- Bootstrap: Use local launcher (`~/.config/opencode/bin/opencode-governance-bootstrap`)
 - `/continue`: execute the next deterministic step from session state
 - `/resume`: continue an interrupted session deterministically
 - `/audit`: read-only governance report flow
 
-`/start` is responsible for binding evidence, command preflight, and bootstrap checks before deeper workflow execution.
+See `BOOTSTRAP.md` for detailed bootstrap instructions.
 
 ## Bootstrap and Binding Evidence
 
@@ -38,12 +38,13 @@ Canonical OpenCode bootstrap uses installer-owned binding evidence:
 - `<config_root>/commands/governance.paths.json`
 
 If binding evidence is unavailable or unresolved, bootstrap must fail closed (for example with binding/path reason codes).
+Preflight records only raw tool availability (BuildToolchain snapshot); repo-specific build mapping happens later in Phase 2.
 
 ## Support Matrix
 
 - Supported host OS: macOS, Linux, Windows (canonical path model from binding evidence + kernel loaders, layout examples in `docs/install-layout.md`).
 - Required tools for standard operation: `${PYTHON_COMMAND}` (installer/helpers), `git` (identity-gated workflows).
-- Supported command lifecycle: `/start`, `/continue`, `/resume`, `/audit`.
+- Supported command lifecycle: `/continue`, `/resume`, `/audit`.
 
 ## Session State and Persistence
 
@@ -66,7 +67,7 @@ ${PYTHON_COMMAND} install.py --status
 ${PYTHON_COMMAND} governance/entrypoints/bootstrap_session_state.py --repo-fingerprint <repo_fingerprint> --dry-run
 ```
 
-Then run `/start` in OpenCode and confirm bootstrap succeeds without binding/identity blockers.
+Then run the local bootstrap launcher and confirm bootstrap succeeds without binding/identity blockers.
 
 Response rendering quick check:
 

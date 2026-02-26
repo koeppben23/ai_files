@@ -8,17 +8,17 @@ Kernel: `governance/kernel/*` is the only control-plane implementation.
 MD files are AI rails/guidance only and are never routing-binding.
 Phase `1.3` is mandatory before every phase `>=2`.
 
-## Control Plane / Start
+## Control Plane / Bootstrap
 
-- [ ] `/start` must call only read-only governance helpers.
-- [ ] `governance/start_preflight_persistence.py` must not exist.
+- [ ] Bootstrap must call only read-only governance helpers.
+- [ ] `governance/bootstrap_preflight_persistence.py` must not exist.
 - [ ] Diagnostics must not write workspace/index/session artifacts.
 
 Evidence:
-- `start.md`
-- `governance/start_preflight_readonly.py`
-- `tests/test_start_entrypoint_contract.py`
-- `tests/test_start_preflight_persistence.py`
+- `BOOTSTRAP.md`
+- `governance/bootstrap_preflight_readonly.py`
+- `tests/test_bootstrap_entrypoint_contract.py`
+- `tests/test_bootstrap_preflight_persistence.py`
 - `tests/architecture/test_governance_control_plane_guards.py`
 
 ## Repo Identity / Resolution
@@ -29,9 +29,9 @@ Evidence:
 
 Evidence:
 - `governance/context/repo_context_resolver.py`
-- `governance/application/use_cases/start_persistence.py`
+- `governance/application/use_cases/bootstrap_persistence.py`
 - `tests/architecture/test_repo_identity_guards.py`
-- `tests/test_start_persistence_use_case.py`
+- `tests/test_bootstrap_persistence_use_case.py`
 
 ## Workspace Ready Gate
 

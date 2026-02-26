@@ -30,12 +30,12 @@ def _copy_policy_files(commands_home: Path) -> None:
 
 
 def _load_module():
-    """Load governance/entrypoints/start_preflight_readonly.py as a module for testing."""
+    """Load governance/entrypoints/bootstrap_preflight_readonly.py as a module for testing."""
 
-    script = REPO_ROOT / "governance" / "entrypoints" / "start_preflight_readonly.py"
-    spec = importlib.util.spec_from_file_location("start_preflight_readonly", script)
+    script = REPO_ROOT / "governance" / "entrypoints" / "bootstrap_preflight_readonly.py"
+    spec = importlib.util.spec_from_file_location("bootstrap_preflight_readonly", script)
     if spec is None or spec.loader is None:
-        raise RuntimeError("failed to load start_preflight_readonly module")
+        raise RuntimeError("failed to load bootstrap_preflight_readonly module")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module

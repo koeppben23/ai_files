@@ -111,10 +111,10 @@ def _materialize_commands_bundle_from_checkout(*, checkout_root: Path, commands_
 
 @pytest.mark.e2e_governance
 @pytest.mark.skipif(not HAS_PYYAML_IN_SUBPROCESS, reason="pyyaml required in subprocess Python for E2E persistence test")
-def test_start_preflight_persists_workspace_and_pointer(tmp_path: Path) -> None:
+def test_bootstrap_preflight_persists_workspace_and_pointer(tmp_path: Path) -> None:
     """
     Hard regression guard:
-      - /start MUST create fingerprint workspace
+      - bootstrap MUST create fingerprint workspace
       - MUST write SESSION_STATE.json under that workspace
       - MUST write global pointer SESSION_STATE.json under OPENCODE_HOME/configRoot
     If any of these regress, CI must fail deterministically.
@@ -144,8 +144,8 @@ def test_start_preflight_persists_workspace_and_pointer(tmp_path: Path) -> None:
             [part for part in (user_site, env.get("PYTHONPATH", "")) if part]
         )
 
-    start_script = commands_home / "governance" / "entrypoints" / "start_preflight_readonly.py"
-    proc = _run([sys.executable, str(start_script)], cwd=repo, env=env)
+    bootstrap_script = commands_home / "governance" / "entrypoints" / "bootstrap_preflight_readonly.py"
+    proc = _run([sys.executable, str(bootstrap_script)], cwd=repo, env=env)
     assert proc.returncode == 0, proc.stdout + "\n" + proc.stderr
 
     lines = [ln.strip() for ln in proc.stdout.splitlines() if ln.strip()]
@@ -162,13 +162,13 @@ def test_start_preflight_persists_workspace_and_pointer(tmp_path: Path) -> None:
     assert hook.get("workspacePersistenceHook") == "ok"
     hook_command = str(hook.get("bootstrap_hook_command") or "")
     if os.name == "nt":
-        assert " -m governance.entrypoints.start_persistence_hook" in hook_command
+        assert " -m governance.entrypoints.bootstrap_persistence_hook" in hook_command
         assert Path(hook_command.split(" -m ", 1)[0]).name.lower().startswith("python")
     else:
         hook_argv = shlex.split(hook_command)
         assert len(hook_argv) >= 3
         assert hook_argv[0] == sys.executable
-        assert hook_argv[1:3] == ["-m", "governance.entrypoints.start_persistence_hook"]
+        assert hook_argv[1:3] == ["-m", "governance.entrypoints.bootstrap_persistence_hook"]
     assert hook.get("cwd") == str(repo)
     assert hook.get("repo_root_detected") == str(repo)
     repo_fp = str(hook.get("repo_fingerprint") or "").strip()
@@ -223,10 +223,10 @@ def test_start_preflight_persists_workspace_and_pointer(tmp_path: Path) -> None:
 
 @pytest.mark.e2e_governance
 @pytest.mark.skipif(not HAS_PYYAML_IN_SUBPROCESS, reason="pyyaml required in subprocess Python for E2E persistence test")
-def test_start_preflight_blocks_when_force_read_only(tmp_path: Path) -> None:
+def test_bootstrap_preflight_blocks_when_force_read_only(tmp_path: Path) -> None:
     """
     Fail-closed guard:
-      If OPENCODE_FORCE_READ_ONLY=1 then /start must exit non-zero
+      If OPENCODE_FORCE_READ_ONLY=1 then bootstrap must exit non-zero
       and MUST NOT create a fingerprint workspace.
     """
     checkout_root = Path(__file__).resolve().parents[1]
@@ -254,8 +254,8 @@ def test_start_preflight_blocks_when_force_read_only(tmp_path: Path) -> None:
             [part for part in (user_site, env.get("PYTHONPATH", "")) if part]
         )
 
-    start_script = commands_home / "governance" / "entrypoints" / "start_preflight_readonly.py"
-    proc = _run([sys.executable, str(start_script)], cwd=repo, env=env)
+    bootstrap_script = commands_home / "governance" / "entrypoints" / "bootstrap_preflight_readonly.py"
+    proc = _run([sys.executable, str(bootstrap_script)], cwd=repo, env=env)
     assert proc.returncode != 0
 
     entries = [p for p in workspaces_home.glob("*") if p.is_dir()]

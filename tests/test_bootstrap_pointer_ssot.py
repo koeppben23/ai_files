@@ -1,7 +1,7 @@
 """E2E tests for pointer SSOT and canonical fingerprint enforcement.
 
 These tests reproduce and prevent the bug where:
-- /start returns success text but pointer is missing
+- bootstrap returns success text but pointer is missing
 - workspace shows PersistenceCommitted=True but pointer doesn't exist
 - fingerprint is slug-style instead of 24-hex hash
 """
@@ -131,7 +131,7 @@ class TestPointerVerification:
 
     @pytest.mark.governance
     def test_verify_pointer_exists_success(self, tmp_path: Path):
-        from governance.entrypoints.start_persistence_hook import _verify_pointer_exists
+        from governance.entrypoints.bootstrap_persistence_hook import _verify_pointer_exists
 
         opencode_home = tmp_path
         repo_fp = "a1b2c3d4e5f6a1b2c3d4e5f6"
@@ -159,7 +159,7 @@ class TestPointerVerification:
 
     @pytest.mark.governance
     def test_verify_pointer_missing_fails(self, tmp_path: Path):
-        from governance.entrypoints.start_persistence_hook import _verify_pointer_exists
+        from governance.entrypoints.bootstrap_persistence_hook import _verify_pointer_exists
 
         opencode_home = tmp_path
         repo_fp = "a1b2c3d4e5f6a1b2c3d4e5f6"
@@ -170,7 +170,7 @@ class TestPointerVerification:
 
     @pytest.mark.governance
     def test_verify_pointer_fingerprint_mismatch_fails(self, tmp_path: Path):
-        from governance.entrypoints.start_persistence_hook import _verify_pointer_exists
+        from governance.entrypoints.bootstrap_persistence_hook import _verify_pointer_exists
 
         opencode_home = tmp_path
         repo_fp = "a1b2c3d4e5f6a1b2c3d4e5f6"
@@ -189,7 +189,7 @@ class TestPointerVerification:
 
     @pytest.mark.governance
     def test_verify_workspace_session_exists_success(self, tmp_path: Path):
-        from governance.entrypoints.start_persistence_hook import _verify_workspace_session_exists
+        from governance.entrypoints.bootstrap_persistence_hook import _verify_workspace_session_exists
 
         workspaces_home = tmp_path
         repo_fp = "a1b2c3d4e5f6a1b2c3d4e5f6"
@@ -211,7 +211,7 @@ class TestPointerVerification:
 
     @pytest.mark.governance
     def test_verify_workspace_session_not_committed_fails(self, tmp_path: Path):
-        from governance.entrypoints.start_persistence_hook import _verify_workspace_session_exists
+        from governance.entrypoints.bootstrap_persistence_hook import _verify_workspace_session_exists
 
         workspaces_home = tmp_path
         repo_fp = "a1b2c3d4e5f6a1b2c3d4e5f6"

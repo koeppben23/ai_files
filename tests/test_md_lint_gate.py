@@ -18,13 +18,12 @@ def test_md_lint_runs_in_ci_mode_and_reports_json():
     files = [
         REPO_ROOT / "master.md",
         REPO_ROOT / "rules.md",
-        REPO_ROOT / "start.md",
         REPO_ROOT / "continue.md",
         REPO_ROOT / "resume.md",
         REPO_ROOT / "resume_prompt.md",
         REPO_ROOT / "new_profile.md",
         REPO_ROOT / "new_addon.md",
-        REPO_ROOT / "AGENTS.md",
+        REPO_ROOT / "BOOTSTRAP.md",
     ]
     files.extend(sorted((REPO_ROOT / "profiles").glob("rules*.md")))
     file_args = [str(p) for p in files if p.exists()]

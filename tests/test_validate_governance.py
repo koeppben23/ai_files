@@ -18,7 +18,7 @@ def test_required_files_present():
     required = [
         "master.md",
         "rules.md",
-        "start.md",
+        "BOOTSTRAP.md",
         "SESSION_STATE_SCHEMA.md",
         "STABILITY_SLA.md",
     ]
@@ -164,7 +164,7 @@ def test_stability_sla_required_ci_gates_are_wired():
 def test_precedence_ambiguity_and_evidence_mapping_contracts_are_consistent():
     master = read_text(REPO_ROOT / "master.md")
     rules = read_text(REPO_ROOT / "rules.md")
-    start = read_text(REPO_ROOT / "start.md")
+    start = read_text(REPO_ROOT / "BOOTSTRAP.md")
     schema = read_text(REPO_ROOT / "SESSION_STATE_SCHEMA.md")
 
     master_required = [
@@ -183,10 +183,9 @@ def test_precedence_ambiguity_and_evidence_mapping_contracts_are_consistent():
         "conservative mode is planning-only",
         "BLOCKED-AMBIGUOUS-PROFILE",
     ]
-    start_required = [
-        "Discovery / Load search order (informational)",
-        "Bootstrap gates, evidence requirements, and blocked reasons are kernel-enforced",
-        "governance/assets/config/bootstrap_policy.yaml",
+    bootstrap_required = [
+        "Bootstrap Process",
+        "governance.paths.json",
     ]
     schema_required = [
         "`BLOCKED-MISSING-RULEBOOK:<file>`",
@@ -198,7 +197,7 @@ def test_precedence_ambiguity_and_evidence_mapping_contracts_are_consistent():
     missing_master = [token for token in master_required if token not in master]
     found_master_forbidden = [token for token in master_forbidden if token in master]
     missing_rules = [token for token in rules_required if token not in rules]
-    missing_start = [token for token in start_required if token not in start]
+    missing_start = [token for token in bootstrap_required if token not in start]
     missing_schema = [token for token in schema_required if token not in schema]
 
     assert not missing_master, "master.md missing precedence/terminology tokens:\n" + "\n".join([f"- {m}" for m in missing_master])
@@ -206,7 +205,7 @@ def test_precedence_ambiguity_and_evidence_mapping_contracts_are_consistent():
         [f"- {m}" for m in found_master_forbidden]
     )
     assert not missing_rules, "rules.md missing ambiguity fail-closed tokens:\n" + "\n".join([f"- {m}" for m in missing_rules])
-    assert not missing_start, "start.md missing runtime resolution scope-note tokens:\n" + "\n".join(
+    assert not missing_start, "BOOTSTRAP.md missing bootstrap summary tokens:\n" + "\n".join(
         [f"- {m}" for m in missing_start]
     )
     assert not missing_schema, "SESSION_STATE_SCHEMA.md missing claim mapping/top-tier blocking tokens:\n" + "\n".join(
@@ -1849,56 +1848,36 @@ def test_workspace_persistence_quiet_blocked_payload_includes_reason_contract_fi
 
 
 @pytest.mark.governance
-def test_start_md_includes_readonly_preflight_autohook():
-    text = "\n".join(
-        [
-            read_text(REPO_ROOT / "start.md"),
-            read_text(REPO_ROOT / "governance" / "entrypoints" / "start_preflight_readonly.py"),
-        ]
-    )
-    required_tokens = [
-        "Auto-Preflight Hook (OpenCode, Read-only)",
+def test_bootstrap_doc_excludes_preflight_hook_markers():
+    text = read_text(REPO_ROOT / "BOOTSTRAP.md")
+    forbidden_tokens = [
+        "bootstrap_preflight_readonly.py",
         "workspacePersistenceHook",
         "writes_allowed",
-        "preflight",
-        "available",
-        "missing",
-        "impact",
-        "next",
     ]
-    missing = [token for token in required_tokens if token not in text]
-    assert not missing, "start.md missing workspace persistence auto-hook tokens:\n" + "\n".join(
-        [f"- {m}" for m in missing]
+    found = [token for token in forbidden_tokens if token in text]
+    assert not found, "BOOTSTRAP.md should not reference preflight hook internals:\n" + "\n".join(
+        [f"- {m}" for m in found]
     )
 
 
 @pytest.mark.governance
-def test_start_md_resolves_installed_governance_helpers_not_workspace_relative_paths():
-    text = read_text(REPO_ROOT / "start.md")
-
+def test_bootstrap_doc_avoids_helper_path_instructions():
+    text = read_text(REPO_ROOT / "BOOTSTRAP.md")
     forbidden = [
-        "python3 governance/entrypoints/start_binding_evidence.py",
-        "python3 governance/entrypoints/start_preflight_readonly.py",
-    ]
-    found_forbidden = [token for token in forbidden if token in text]
-    assert not found_forbidden, "start.md still uses workspace-relative governance helper paths:\n" + "\n".join(
-        [f"- {m}" for m in found_forbidden]
-    )
-
-    required = [
-        "${COMMANDS_HOME}/governance/entrypoints/start_binding_evidence.py",
-        "${COMMANDS_HOME}/governance/entrypoints/start_preflight_readonly.py",
+        "governance/entrypoints/bootstrap_binding_evidence.py",
+        "governance/entrypoints/bootstrap_preflight_readonly.py",
         "Implementation Reference:",
     ]
-    missing = [token for token in required if token not in text]
-    assert not missing, "start.md missing installed governance helper resolution tokens:\n" + "\n".join(
-        [f"- {m}" for m in missing]
+    found = [token for token in forbidden if token in text]
+    assert not found, "BOOTSTRAP.md should not reference governance helper paths:\n" + "\n".join(
+        [f"- {m}" for m in found]
     )
 
 
 @pytest.mark.governance
 def test_preflight_readonly_remains_non_persistence_surface():
-    text = read_text(REPO_ROOT / "governance" / "entrypoints" / "start_preflight_readonly.py")
+    text = read_text(REPO_ROOT / "governance" / "entrypoints" / "bootstrap_preflight_readonly.py")
     assert "commit_workspace_identity(" not in text
     assert "write_unresolved_runtime_context(" not in text
     assert "workspacePersistenceHook" in text
@@ -1926,14 +1905,14 @@ def test_persist_helper_legacy_placeholder_normalization_uses_atomic_write():
 
 
 @pytest.mark.governance
-def test_start_prefers_host_binding_evidence_and_defers_profile_selection_at_bootstrap():
-    text = read_text(REPO_ROOT / "start.md")
+def test_bootstrap_doc_references_kernel_policy_location():
+    text = read_text(REPO_ROOT / "BOOTSTRAP.md")
     required_tokens = [
-        "Bootstrap gates, evidence requirements, and blocked reasons are kernel-enforced",
-        "governance/assets/config/bootstrap_policy.yaml",
+        "Bootstrap process",
+        "governance.paths.json",
     ]
     missing = [token for token in required_tokens if token not in text]
-    assert not missing, "start.md missing bootstrap evidence/profile deferral tokens:\n" + "\n".join(
+    assert not missing, "BOOTSTRAP.md missing bootstrap summary tokens:\n" + "\n".join(
         [f"- {m}" for m in missing]
     )
 
@@ -1942,7 +1921,7 @@ def test_start_prefers_host_binding_evidence_and_defers_profile_selection_at_boo
 def test_unambiguous_profile_rulebooks_are_auto_loaded_without_operator_prompt():
     master = read_text(REPO_ROOT / "master.md")
     rules = read_text(REPO_ROOT / "rules.md")
-    start = read_text(REPO_ROOT / "start.md")
+    start = read_text(REPO_ROOT / "BOOTSTRAP.md")
 
     master_required = [
         "Rulebook auto-load behavior (binding):",
@@ -1953,8 +1932,8 @@ def test_unambiguous_profile_rulebooks_are_auto_loaded_without_operator_prompt()
         "MUST NOT ask the operator to provide/paste rulebook files.",
     ]
     start_required = [
-        "Rulebook discovery (informational):",
-        "Rulebooks are loaded from canonical locations",
+        "Bootstrap Process",
+        "governance.paths.json",
     ]
 
     missing_master = [t for t in master_required if t not in master]
@@ -1967,43 +1946,44 @@ def test_unambiguous_profile_rulebooks_are_auto_loaded_without_operator_prompt()
     assert not missing_rules, "rules.md missing unambiguous rulebook auto-load tokens:\n" + "\n".join(
         [f"- {m}" for m in missing_rules]
     )
-    assert not missing_start, "start.md missing unambiguous rulebook auto-load tokens:\n" + "\n".join(
+    assert not missing_start, "BOOTSTRAP.md missing unambiguous rulebook auto-load tokens:\n" + "\n".join(
         [f"- {m}" for m in missing_start]
     )
 
 
 @pytest.mark.governance
-def test_start_invocation_guard_prevents_repeat_start_prompt_in_same_turn():
+def test_bootstrap_invocation_guard_prevents_repeat_prompt_in_same_turn():
     master = read_text(REPO_ROOT / "master.md")
     rules = read_text(REPO_ROOT / "rules.md")
-    start = read_text(REPO_ROOT / "start.md")
+    start = read_text(REPO_ROOT / "BOOTSTRAP.md")
 
     master_required = [
-        "`/start` invocation guard (binding):",
-        "MUST NOT ask operator to run `/start` again in the same turn.",
+        "bootstrap invocation guard (binding):",
+        "MUST NOT ask operator to rerun the local bootstrap launcher in the same turn.",
     ]
     rules_required = [
-        "## 7.11.1 /start Re-invocation Loop Guard (Core, Binding)",
-        "MUST NOT ask operator to run `/start` again in the same turn.",
+        "## 7.11.1 Bootstrap Re-invocation Loop Guard (Core, Binding)",
+        "MUST NOT ask operator to rerun the local bootstrap launcher in the same turn.",
     ]
     start_required = [
-        "`/start` is mandatory bootstrap for a repo/session (kernel-enforced).",
+        "local launcher",
+        "opencode-governance-bootstrap",
     ]
 
     missing_master = [t for t in master_required if t not in master]
     missing_rules = [t for t in rules_required if t not in rules]
     missing_start = [t for t in start_required if t not in start]
 
-    assert not missing_master, "master.md missing /start invocation guard tokens:\n" + "\n".join([f"- {m}" for m in missing_master])
-    assert not missing_rules, "rules.md missing /start invocation guard tokens:\n" + "\n".join([f"- {m}" for m in missing_rules])
-    assert not missing_start, "start.md missing /start invocation guard tokens:\n" + "\n".join([f"- {m}" for m in missing_start])
+    assert not missing_master, "master.md missing bootstrap invocation guard tokens:\n" + "\n".join([f"- {m}" for m in missing_master])
+    assert not missing_rules, "rules.md missing bootstrap invocation guard tokens:\n" + "\n".join([f"- {m}" for m in missing_rules])
+    assert not missing_start, "BOOTSTRAP.md missing local launcher tokens:\n" + "\n".join([f"- {m}" for m in missing_start])
 
 
 @pytest.mark.governance
 def test_profile_autodetect_runs_before_manual_selection_prompt():
     master = read_text(REPO_ROOT / "master.md")
     rules = read_text(REPO_ROOT / "rules.md")
-    start = read_text(REPO_ROOT / "start.md")
+    start = read_text(REPO_ROOT / "BOOTSTRAP.md")
 
     master_required = [
         "Profile selection is kernel-enforced",
@@ -2012,7 +1992,7 @@ def test_profile_autodetect_runs_before_manual_selection_prompt():
         "first attempt deterministic ranking from repo signals and ticket/context signals; if one top profile is uniquely supported, auto-select it",
     ]
     start_required = [
-        "governance/assets/config/bootstrap_policy.yaml",
+        "Bootstrap Process",
     ]
 
     missing_master = [t for t in master_required if t not in master]
@@ -2021,7 +2001,7 @@ def test_profile_autodetect_runs_before_manual_selection_prompt():
 
     assert not missing_master, "master.md missing profile autodetect-first tokens:\n" + "\n".join([f"- {m}" for m in missing_master])
     assert not missing_rules, "rules.md missing profile autodetect-first tokens:\n" + "\n".join([f"- {m}" for m in missing_rules])
-    assert not missing_start, "start.md missing profile autodetect-first tokens:\n" + "\n".join([f"- {m}" for m in missing_start])
+    assert not missing_start, "BOOTSTRAP.md missing profile autodetect-first tokens:\n" + "\n".join([f"- {m}" for m in missing_start])
 
 
 @pytest.mark.governance
@@ -2121,11 +2101,11 @@ def test_phase15_requires_repo_code_evidence_and_forbids_readme_only_extraction(
 
 
 @pytest.mark.governance
-def test_start_md_fallback_binding_and_identity_evidence_boundaries_are_fail_closed():
+def test_bootstrap_binding_and_identity_evidence_boundaries_are_fail_closed():
     text = "\n".join(
         [
-            read_text(REPO_ROOT / "start.md"),
-            read_text(REPO_ROOT / "governance" / "entrypoints" / "start_binding_evidence.py"),
+            read_text(REPO_ROOT / "BOOTSTRAP.md"),
+            read_text(REPO_ROOT / "governance" / "entrypoints" / "bootstrap_binding_evidence.py"),
         ]
     )
 
@@ -2144,14 +2124,14 @@ def test_start_md_fallback_binding_and_identity_evidence_boundaries_are_fail_clo
             "'missing_evidence':['${COMMANDS_HOME}/governance.paths.json (installer-owned binding evidence)']",
             '"${COMMANDS_HOME}/governance.paths.json (installer-owned binding evidence)"',
         ],
-        ["'next_command':'/start'", '"next_command": "/start"'],
+        ["'next_command':'opencode-governance-bootstrap'", '"next_command": "opencode-governance-bootstrap"'],
         ["'nonEvidence':'debug-only'", '"nonEvidence": "debug-only"'],
     ]
     for choices in token_alternatives:
         if not any(token in text for token in choices):
             missing.append(choices[0])
 
-    assert not missing, "start.md missing evidence-boundary fail-closed tokens:\n" + "\n".join([f"- {m}" for m in missing])
+    assert not missing, "BOOTSTRAP.md missing evidence-boundary fail-closed tokens:\n" + "\n".join([f"- {m}" for m in missing])
 
     forbidden_tokens = [
         "Treat it as **evidence**.",
@@ -2160,14 +2140,14 @@ def test_start_md_fallback_binding_and_identity_evidence_boundaries_are_fail_clo
         "paste the full file contents for master.md, rules.md, and the selected profile.",
     ]
     found = [token for token in forbidden_tokens if token in text]
-    assert not found, "start.md still contains legacy fallback-evidence phrasing:\n" + "\n".join([f"- {m}" for m in found])
+    assert not found, "BOOTSTRAP.md still contains legacy fallback-evidence phrasing:\n" + "\n".join([f"- {m}" for m in found])
 
 
 @pytest.mark.governance
 def test_unified_next_action_footer_contract_is_defined_across_core_docs():
     master = read_text(REPO_ROOT / "master.md")
     rules = read_text(REPO_ROOT / "rules.md")
-    start = read_text(REPO_ROOT / "start.md")
+    start = read_text(REPO_ROOT / "BOOTSTRAP.md")
 
     master_required = [
         "#### Unified Next Action Footer (Presentation Advisory)",
@@ -2192,14 +2172,14 @@ def test_unified_next_action_footer_contract_is_defined_across_core_docs():
 
     assert not missing_master, "master.md missing next-action footer tokens:\n" + "\n".join([f"- {m}" for m in missing_master])
     assert not missing_rules, "rules.md missing next-action footer tokens:\n" + "\n".join([f"- {m}" for m in missing_rules])
-    assert not missing_start, "start.md missing next-action footer tokens:\n" + "\n".join([f"- {m}" for m in missing_start])
+    assert not missing_start, "BOOTSTRAP.md missing next-action footer tokens:\n" + "\n".join([f"- {m}" for m in missing_start])
 
 
 @pytest.mark.governance
 def test_short_status_tag_contract_is_defined_across_core_docs():
     master = read_text(REPO_ROOT / "master.md")
     rules = read_text(REPO_ROOT / "rules.md")
-    start = read_text(REPO_ROOT / "start.md")
+    start = read_text(REPO_ROOT / "BOOTSTRAP.md")
 
     master_required = [
         "Responses SHOULD include a compact deterministic `status_tag` (`<PHASE>-<GATE>-<STATE>`) for quick operator scanning",
@@ -2219,14 +2199,14 @@ def test_short_status_tag_contract_is_defined_across_core_docs():
 
     assert not missing_master, "master.md missing status-tag contract tokens:\n" + "\n".join([f"- {m}" for m in missing_master])
     assert not missing_rules, "rules.md missing status-tag contract tokens:\n" + "\n".join([f"- {m}" for m in missing_rules])
-    assert not missing_start, "start.md missing status-tag contract tokens:\n" + "\n".join([f"- {m}" for m in missing_start])
+    assert not missing_start, "BOOTSTRAP.md missing status-tag contract tokens:\n" + "\n".join([f"- {m}" for m in missing_start])
 
 
 @pytest.mark.governance
 def test_quick_fix_confidence_labels_contract_is_defined():
     master = read_text(REPO_ROOT / "master.md")
     rules = read_text(REPO_ROOT / "rules.md")
-    start = read_text(REPO_ROOT / "start.md")
+    start = read_text(REPO_ROOT / "BOOTSTRAP.md")
 
     master_required = [
         "Blocked recovery guidance SHOULD label primary quick-fix command confidence as `safe` or `review-first`",
@@ -2237,7 +2217,7 @@ def test_quick_fix_confidence_labels_contract_is_defined():
         "`review-first` (mutating command that should be reviewed before execution)",
     ]
     start_required = [
-        "When `QuickFixCommands` are emitted, `/start` SHOULD label primary command confidence as `safe` or `review-first`.",
+        "When `QuickFixCommands` are emitted, the bootstrap flow SHOULD label primary command confidence as `safe` or `review-first`.",
     ]
 
     missing_master = [t for t in master_required if t not in master]
@@ -2246,14 +2226,14 @@ def test_quick_fix_confidence_labels_contract_is_defined():
 
     assert not missing_master, "master.md missing quick-fix confidence tokens:\n" + "\n".join([f"- {m}" for m in missing_master])
     assert not missing_rules, "rules.md missing quick-fix confidence tokens:\n" + "\n".join([f"- {m}" for m in missing_rules])
-    assert not missing_start, "start.md missing quick-fix confidence tokens:\n" + "\n".join([f"- {m}" for m in missing_start])
+    assert not missing_start, "BOOTSTRAP.md missing quick-fix confidence tokens:\n" + "\n".join([f"- {m}" for m in missing_start])
 
 
 @pytest.mark.governance
 def test_next_action_wording_quality_contract_is_defined():
     master = read_text(REPO_ROOT / "master.md")
     rules = read_text(REPO_ROOT / "rules.md")
-    start = read_text(REPO_ROOT / "start.md")
+    start = read_text(REPO_ROOT / "BOOTSTRAP.md")
 
     master_required = [
         "`NextAction` wording SHOULD include concrete context (active phase/gate/scope) and avoid generic continuation text",
@@ -2273,14 +2253,14 @@ def test_next_action_wording_quality_contract_is_defined():
 
     assert not missing_master, "master.md missing next-action wording quality tokens:\n" + "\n".join([f"- {m}" for m in missing_master])
     assert not missing_rules, "rules.md missing next-action wording quality tokens:\n" + "\n".join([f"- {m}" for m in missing_rules])
-    assert not missing_start, "start.md missing next-action wording quality tokens:\n" + "\n".join([f"- {m}" for m in missing_start])
+    assert not missing_start, "BOOTSTRAP.md missing next-action wording quality tokens:\n" + "\n".join([f"- {m}" for m in missing_start])
 
 
 @pytest.mark.governance
 def test_compact_transition_line_contract_is_defined():
     master = read_text(REPO_ROOT / "master.md")
     rules = read_text(REPO_ROOT / "rules.md")
-    start = read_text(REPO_ROOT / "start.md")
+    start = read_text(REPO_ROOT / "BOOTSTRAP.md")
 
     master_required = [
         "On phase/mode changes, responses SHOULD include a compact one-line transition summary (`[TRANSITION] from -> to | reason: ...`)",
@@ -2299,14 +2279,14 @@ def test_compact_transition_line_contract_is_defined():
 
     assert not missing_master, "master.md missing transition-line tokens:\n" + "\n".join([f"- {m}" for m in missing_master])
     assert not missing_rules, "rules.md missing transition-line tokens:\n" + "\n".join([f"- {m}" for m in missing_rules])
-    assert not missing_start, "start.md missing transition-line tokens:\n" + "\n".join([f"- {m}" for m in missing_start])
+    assert not missing_start, "BOOTSTRAP.md missing transition-line tokens:\n" + "\n".join([f"- {m}" for m in missing_start])
 
 
 @pytest.mark.governance
 def test_state_unchanged_ack_contract_is_defined():
     master = read_text(REPO_ROOT / "master.md")
     rules = read_text(REPO_ROOT / "rules.md")
-    start = read_text(REPO_ROOT / "start.md")
+    start = read_text(REPO_ROOT / "BOOTSTRAP.md")
 
     master_required = [
         "If state does not change, responses SHOULD acknowledge `state_unchanged` with a concise reason",
@@ -2325,14 +2305,14 @@ def test_state_unchanged_ack_contract_is_defined():
 
     assert not missing_master, "master.md missing state-unchanged tokens:\n" + "\n".join([f"- {m}" for m in missing_master])
     assert not missing_rules, "rules.md missing state-unchanged tokens:\n" + "\n".join([f"- {m}" for m in missing_rules])
-    assert not missing_start, "start.md missing state-unchanged tokens:\n" + "\n".join([f"- {m}" for m in missing_start])
+    assert not missing_start, "BOOTSTRAP.md missing state-unchanged tokens:\n" + "\n".join([f"- {m}" for m in missing_start])
 
 
 @pytest.mark.governance
-def test_conversational_post_start_fixtures_contract_is_defined():
+def test_conversational_post_bootstrap_fixtures_contract_is_defined():
     master = read_text(REPO_ROOT / "master.md")
     rules = read_text(REPO_ROOT / "rules.md")
-    start = read_text(REPO_ROOT / "start.md")
+    start = read_text(REPO_ROOT / "BOOTSTRAP.md")
 
     master_required = [
         "Conversational post-start intents SHOULD remain regression-tested with deterministic fixtures (`what_phase`, `discovery_done`, `workflow_unchanged`)",
@@ -2357,14 +2337,14 @@ def test_conversational_post_start_fixtures_contract_is_defined():
 
     assert not missing_master, "master.md missing conversational fixture tokens:\n" + "\n".join([f"- {m}" for m in missing_master])
     assert not missing_rules, "rules.md missing conversational fixture tokens:\n" + "\n".join([f"- {m}" for m in missing_rules])
-    assert not missing_start, "start.md missing conversational fixture tokens:\n" + "\n".join([f"- {m}" for m in missing_start])
+    assert not missing_start, "BOOTSTRAP.md missing conversational fixture tokens:\n" + "\n".join([f"- {m}" for m in missing_start])
 
 
 @pytest.mark.governance
 def test_governance_pr_operator_impact_note_contract_is_defined():
     master = read_text(REPO_ROOT / "master.md")
     rules = read_text(REPO_ROOT / "rules.md")
-    start = read_text(REPO_ROOT / "start.md")
+    start = read_text(REPO_ROOT / "BOOTSTRAP.md")
 
     master_required = [
         "For PRs that modify governance rulebooks/contracts, PR body SHOULD include `What changed for operators?`",
@@ -2384,14 +2364,14 @@ def test_governance_pr_operator_impact_note_contract_is_defined():
 
     assert not missing_master, "master.md missing governance PR operator-impact tokens:\n" + "\n".join([f"- {m}" for m in missing_master])
     assert not missing_rules, "rules.md missing governance PR operator-impact tokens:\n" + "\n".join([f"- {m}" for m in missing_rules])
-    assert not missing_start, "start.md missing governance PR operator-impact tokens:\n" + "\n".join([f"- {m}" for m in missing_start])
+    assert not missing_start, "BOOTSTRAP.md missing governance PR operator-impact tokens:\n" + "\n".join([f"- {m}" for m in missing_start])
 
 
 @pytest.mark.governance
 def test_short_intent_routing_contract_is_defined():
     master = read_text(REPO_ROOT / "master.md")
     rules = read_text(REPO_ROOT / "rules.md")
-    start = read_text(REPO_ROOT / "start.md")
+    start = read_text(REPO_ROOT / "BOOTSTRAP.md")
 
     master_required = [
         "Short operator follow-up questions SHOULD route through deterministic intents (`where_am_i`, `what_blocks_me`, `what_now`) before verbose governance",
@@ -2412,14 +2392,14 @@ def test_short_intent_routing_contract_is_defined():
 
     assert not missing_master, "master.md missing short-intent routing tokens:\n" + "\n".join([f"- {m}" for m in missing_master])
     assert not missing_rules, "rules.md missing short-intent routing tokens:\n" + "\n".join([f"- {m}" for m in missing_rules])
-    assert not missing_start, "start.md missing short-intent routing tokens:\n" + "\n".join([f"- {m}" for m in missing_start])
+    assert not missing_start, "BOOTSTRAP.md missing short-intent routing tokens:\n" + "\n".join([f"- {m}" for m in missing_start])
 
 
 @pytest.mark.governance
 def test_phase_progress_bar_contract_is_defined():
     master = read_text(REPO_ROOT / "master.md")
     rules = read_text(REPO_ROOT / "rules.md")
-    start = read_text(REPO_ROOT / "start.md")
+    start = read_text(REPO_ROOT / "BOOTSTRAP.md")
 
     master_required = [
         "Responses SHOULD include a compact phase progress bar (`phase_progress_bar`, e.g. `[##----] 2/6`) for quick orientation",
@@ -2439,14 +2419,14 @@ def test_phase_progress_bar_contract_is_defined():
 
     assert not missing_master, "master.md missing progress-bar tokens:\n" + "\n".join([f"- {m}" for m in missing_master])
     assert not missing_rules, "rules.md missing progress-bar tokens:\n" + "\n".join([f"- {m}" for m in missing_rules])
-    assert not missing_start, "start.md missing progress-bar tokens:\n" + "\n".join([f"- {m}" for m in missing_start])
+    assert not missing_start, "BOOTSTRAP.md missing progress-bar tokens:\n" + "\n".join([f"- {m}" for m in missing_start])
 
 
 @pytest.mark.governance
 def test_primary_blocker_prioritization_contract_is_defined():
     master = read_text(REPO_ROOT / "master.md")
     rules = read_text(REPO_ROOT / "rules.md")
-    start = read_text(REPO_ROOT / "start.md")
+    start = read_text(REPO_ROOT / "BOOTSTRAP.md")
 
     master_required = [
         "For multi-blocker states, responses MUST prioritize one primary blocker (`primary_reason_code`) with a single primary recovery command",
@@ -2457,7 +2437,7 @@ def test_primary_blocker_prioritization_contract_is_defined():
         "`next_command` and `QuickFixCommands[0]` MUST target the same primary blocker.",
     ]
     start_required = [
-        "If multiple blockers exist, `/start` SHOULD present one `primary_reason_code` first and keep one primary recovery command.",
+        "If multiple blockers exist, the bootstrap flow SHOULD present one `primary_reason_code` first and keep one primary recovery command.",
     ]
 
     missing_master = [t for t in master_required if t not in master]
@@ -2466,14 +2446,14 @@ def test_primary_blocker_prioritization_contract_is_defined():
 
     assert not missing_master, "master.md missing primary-blocker tokens:\n" + "\n".join([f"- {m}" for m in missing_master])
     assert not missing_rules, "rules.md missing primary-blocker tokens:\n" + "\n".join([f"- {m}" for m in missing_rules])
-    assert not missing_start, "start.md missing primary-blocker tokens:\n" + "\n".join([f"- {m}" for m in missing_start])
+    assert not missing_start, "BOOTSTRAP.md missing primary-blocker tokens:\n" + "\n".join([f"- {m}" for m in missing_start])
 
 
 @pytest.mark.governance
 def test_reason_code_quickfix_template_catalog_is_defined():
     master = read_text(REPO_ROOT / "master.md")
     rules = read_text(REPO_ROOT / "rules.md")
-    start = read_text(REPO_ROOT / "start.md")
+    start = read_text(REPO_ROOT / "BOOTSTRAP.md")
 
     master_required = [
         "Recovery guidance SHOULD source reason-specific command templates from `governance/assets/catalogs/QUICKFIX_TEMPLATES.json` when available",
@@ -2484,7 +2464,7 @@ def test_reason_code_quickfix_template_catalog_is_defined():
         "Template lookup key is canonical `reason_code`.",
     ]
     start_required = [
-        "`/start` SHOULD use `governance/assets/catalogs/QUICKFIX_TEMPLATES.json` for reason-code-specific recovery command text when available.",
+        "The bootstrap flow SHOULD use `governance/assets/catalogs/QUICKFIX_TEMPLATES.json` for reason-code-specific recovery command text when available.",
     ]
 
     missing_master = [t for t in master_required if t not in master]
@@ -2493,7 +2473,7 @@ def test_reason_code_quickfix_template_catalog_is_defined():
 
     assert not missing_master, "master.md missing quickfix-template catalog tokens:\n" + "\n".join([f"- {m}" for m in missing_master])
     assert not missing_rules, "rules.md missing quickfix-template catalog tokens:\n" + "\n".join([f"- {m}" for m in missing_rules])
-    assert not missing_start, "start.md missing quickfix-template catalog tokens:\n" + "\n".join([f"- {m}" for m in missing_start])
+    assert not missing_start, "BOOTSTRAP.md missing quickfix-template catalog tokens:\n" + "\n".join([f"- {m}" for m in missing_start])
 
     catalog = REPO_ROOT / "governance" / "assets" / "catalogs" / "QUICKFIX_TEMPLATES.json"
     assert catalog.exists(), "governance/assets/catalogs/QUICKFIX_TEMPLATES.json missing"
@@ -2506,7 +2486,7 @@ def test_reason_code_quickfix_template_catalog_is_defined():
 def test_no_change_delta_only_contract_is_defined():
     master = read_text(REPO_ROOT / "master.md")
     rules = read_text(REPO_ROOT / "rules.md")
-    start = read_text(REPO_ROOT / "start.md")
+    start = read_text(REPO_ROOT / "BOOTSTRAP.md")
 
     master_required = [
         "For no-change turns, responses SHOULD be delta-only and avoid repeating unchanged diagnostic blocks",
@@ -2524,14 +2504,14 @@ def test_no_change_delta_only_contract_is_defined():
 
     assert not missing_master, "master.md missing no-change delta-only tokens:\n" + "\n".join([f"- {m}" for m in missing_master])
     assert not missing_rules, "rules.md missing no-change delta-only tokens:\n" + "\n".join([f"- {m}" for m in missing_rules])
-    assert not missing_start, "start.md missing no-change delta-only tokens:\n" + "\n".join([f"- {m}" for m in missing_start])
+    assert not missing_start, "BOOTSTRAP.md missing no-change delta-only tokens:\n" + "\n".join([f"- {m}" for m in missing_start])
 
 
 @pytest.mark.governance
 def test_operator_persona_modes_contract_is_defined():
     master = read_text(REPO_ROOT / "master.md")
     rules = read_text(REPO_ROOT / "rules.md")
-    start = read_text(REPO_ROOT / "start.md")
+    start = read_text(REPO_ROOT / "BOOTSTRAP.md")
 
     master_required = [
         "Responses SHOULD support operator persona modes (`compact`, `standard`, `audit`) as presentation-density controls without changing gate behavior",
@@ -2552,14 +2532,14 @@ def test_operator_persona_modes_contract_is_defined():
 
     assert not missing_master, "master.md missing persona-mode tokens:\n" + "\n".join([f"- {m}" for m in missing_master])
     assert not missing_rules, "rules.md missing persona-mode tokens:\n" + "\n".join([f"- {m}" for m in missing_rules])
-    assert not missing_start, "start.md missing persona-mode tokens:\n" + "\n".join([f"- {m}" for m in missing_start])
+    assert not missing_start, "BOOTSTRAP.md missing persona-mode tokens:\n" + "\n".join([f"- {m}" for m in missing_start])
 
 
 @pytest.mark.governance
 def test_governance_pr_reviewer_focus_hints_contract_is_defined():
     master = read_text(REPO_ROOT / "master.md")
     rules = read_text(REPO_ROOT / "rules.md")
-    start = read_text(REPO_ROOT / "start.md")
+    start = read_text(REPO_ROOT / "BOOTSTRAP.md")
 
     master_required = [
         "Governance PRs SHOULD also include `Reviewer focus` bullets that point to highest-risk contract changes.",
@@ -2579,13 +2559,13 @@ def test_governance_pr_reviewer_focus_hints_contract_is_defined():
 
     assert not missing_master, "master.md missing PR reviewer-focus tokens:\n" + "\n".join([f"- {m}" for m in missing_master])
     assert not missing_rules, "rules.md missing PR reviewer-focus tokens:\n" + "\n".join([f"- {m}" for m in missing_rules])
-    assert not missing_start, "start.md missing PR reviewer-focus tokens:\n" + "\n".join([f"- {m}" for m in missing_start])
+    assert not missing_start, "BOOTSTRAP.md missing PR reviewer-focus tokens:\n" + "\n".join([f"- {m}" for m in missing_start])
 
 
 @pytest.mark.governance
-def test_start_and_master_require_host_git_identity_discovery_before_operator_prompt():
+def test_bootstrap_and_master_require_host_git_identity_discovery_before_operator_prompt():
     master = read_text(REPO_ROOT / "master.md")
-    start = read_text(REPO_ROOT / "start.md")
+    start = read_text(REPO_ROOT / "BOOTSTRAP.md")
 
     master_required = [
         "attempt host-side identity discovery first when tool access is available",
@@ -2599,11 +2579,11 @@ def test_start_and_master_require_host_git_identity_discovery_before_operator_pr
         "MUST NOT block by itself",
         "Required-command inventory derivation (binding):",
         "MUST load a deterministic command inventory from `${COMMANDS_HOME}/governance/assets/catalogs/tool_requirements.json`",
-        "If that file is unavailable, `/start` MUST fail over to deriving the inventory by scanning canonical governance artifacts",
+        "If that file is unavailable, bootstrap MUST fail over to deriving the inventory by scanning canonical governance artifacts",
         "`required_now` (bootstrap/runtime essentials)",
         "`required_later` (phase/profile-gated tools)",
         "`optional` (advisory)",
-        "rerunning `/start` MUST refresh the inventory/probe and continue without stale blocker state",
+        "rerunning bootstrap MUST refresh the inventory/probe and continue without stale blocker state",
     ]
     start_required = [
         "Bootstrap preflight and evidence semantics (informational):",
@@ -2617,7 +2597,7 @@ def test_start_and_master_require_host_git_identity_discovery_before_operator_pr
     assert not missing_master, "master.md missing host git identity-discovery tokens:\n" + "\n".join(
         [f"- {m}" for m in missing_master]
     )
-    assert not missing_start, "start.md missing host git identity-discovery tokens:\n" + "\n".join(
+    assert not missing_start, "BOOTSTRAP.md missing host git identity-discovery tokens:\n" + "\n".join(
         [f"- {m}" for m in missing_start]
     )
 
@@ -2667,7 +2647,7 @@ def test_tool_requirements_catalog_covers_commands_referenced_by_flow_rulebooks(
 
     flow_files = [
         REPO_ROOT / "master.md",
-        REPO_ROOT / "start.md",
+        REPO_ROOT / "BOOTSTRAP.md",
     ]
     flow_files.extend(sorted((REPO_ROOT / "profiles").glob("rules*.md")))
 
@@ -2739,7 +2719,7 @@ def test_tool_requirements_catalog_covers_commands_referenced_by_flow_rulebooks(
 def test_bootstrap_preflight_output_contract_is_defined_across_core_docs():
     master = read_text(REPO_ROOT / "master.md")
     rules = read_text(REPO_ROOT / "rules.md")
-    start = read_text(REPO_ROOT / "start.md")
+    start = read_text(REPO_ROOT / "BOOTSTRAP.md")
 
     master_required = [
         "Preflight executes as Phase `0` / `1.1`",
@@ -2782,7 +2762,7 @@ def test_bootstrap_preflight_output_contract_is_defined_across_core_docs():
     assert not missing_rules, "rules.md missing preflight output contract tokens:\n" + "\n".join(
         [f"- {m}" for m in missing_rules]
     )
-    assert not missing_start, "start.md missing preflight output contract tokens:\n" + "\n".join(
+    assert not missing_start, "BOOTSTRAP.md missing preflight output contract tokens:\n" + "\n".join(
         [f"- {m}" for m in missing_start]
     )
 
@@ -2791,7 +2771,7 @@ def test_bootstrap_preflight_output_contract_is_defined_across_core_docs():
 def test_status_vocab_and_single_nextaction_contract_is_defined_across_core_docs():
     master = read_text(REPO_ROOT / "master.md")
     rules = read_text(REPO_ROOT / "rules.md")
-    start = read_text(REPO_ROOT / "start.md")
+    start = read_text(REPO_ROOT / "BOOTSTRAP.md")
 
     master_required = [
         "Governance status vocabulary is fixed: `BLOCKED | WARN | OK | NOT_VERIFIED`",
@@ -2833,7 +2813,7 @@ def test_status_vocab_and_single_nextaction_contract_is_defined_across_core_docs
     assert not missing_rules, "rules.md missing deterministic status/nextaction tokens:\n" + "\n".join(
         [f"- {m}" for m in missing_rules]
     )
-    assert not missing_start, "start.md missing deterministic status/nextaction tokens:\n" + "\n".join(
+    assert not missing_start, "BOOTSTRAP.md missing deterministic status/nextaction tokens:\n" + "\n".join(
         [f"- {m}" for m in missing_start]
     )
 
@@ -2842,7 +2822,7 @@ def test_status_vocab_and_single_nextaction_contract_is_defined_across_core_docs
 def test_session_transition_invariant_contract_is_defined_across_core_docs():
     master = read_text(REPO_ROOT / "master.md")
     rules = read_text(REPO_ROOT / "rules.md")
-    start = read_text(REPO_ROOT / "start.md")
+    start = read_text(REPO_ROOT / "BOOTSTRAP.md")
     schema = read_text(REPO_ROOT / "SESSION_STATE_SCHEMA.md")
 
     master_required = [
@@ -2885,7 +2865,7 @@ def test_session_transition_invariant_contract_is_defined_across_core_docs():
     assert not missing_rules, "rules.md missing transition invariant tokens:\n" + "\n".join(
         [f"- {m}" for m in missing_rules]
     )
-    assert not missing_start, "start.md missing transition invariant tokens:\n" + "\n".join(
+    assert not missing_start, "BOOTSTRAP.md missing transition invariant tokens:\n" + "\n".join(
         [f"- {m}" for m in missing_start]
     )
     assert not missing_schema, "SESSION_STATE_SCHEMA.md missing transition invariant tokens:\n" + "\n".join(
@@ -2897,7 +2877,7 @@ def test_session_transition_invariant_contract_is_defined_across_core_docs():
 def test_phase_progress_and_warn_blocked_separation_contract_is_defined_across_core_docs():
     master = read_text(REPO_ROOT / "master.md")
     rules = read_text(REPO_ROOT / "rules.md")
-    start = read_text(REPO_ROOT / "start.md")
+    start = read_text(REPO_ROOT / "BOOTSTRAP.md")
 
     master_required = [
         "Responses include compact phase progress derived from `SESSION_STATE`",
@@ -2926,7 +2906,7 @@ def test_phase_progress_and_warn_blocked_separation_contract_is_defined_across_c
     assert not missing_rules, "rules.md missing warn/blocked separation tokens:\n" + "\n".join(
         [f"- {m}" for m in missing_rules]
     )
-    assert not missing_start, "start.md missing phase-progress or warn tokens:\n" + "\n".join(
+    assert not missing_start, "BOOTSTRAP.md missing phase-progress or warn tokens:\n" + "\n".join(
         [f"- {m}" for m in missing_start]
     )
 
@@ -2935,7 +2915,7 @@ def test_phase_progress_and_warn_blocked_separation_contract_is_defined_across_c
 def test_standard_blocker_envelope_contract_is_defined_across_core_docs():
     master = read_text(REPO_ROOT / "master.md")
     rules = read_text(REPO_ROOT / "rules.md")
-    start = read_text(REPO_ROOT / "start.md")
+    start = read_text(REPO_ROOT / "BOOTSTRAP.md")
 
     master_required = [
         "Machine-readable blocker envelope (mandatory):",
@@ -2964,14 +2944,14 @@ def test_standard_blocker_envelope_contract_is_defined_across_core_docs():
 
     assert not missing_master, "master.md missing blocker envelope tokens:\n" + "\n".join([f"- {m}" for m in missing_master])
     assert not missing_rules, "rules.md missing blocker envelope tokens:\n" + "\n".join([f"- {m}" for m in missing_rules])
-    assert not missing_start, "start.md missing blocker envelope tokens:\n" + "\n".join([f"- {m}" for m in missing_start])
+    assert not missing_start, "BOOTSTRAP.md missing blocker envelope tokens:\n" + "\n".join([f"- {m}" for m in missing_start])
 
 
 @pytest.mark.governance
-def test_cold_warm_start_banner_contract_is_defined_across_core_docs():
+def test_cold_warm_bootstrap_banner_contract_is_defined_across_core_docs():
     master = read_text(REPO_ROOT / "master.md")
     rules = read_text(REPO_ROOT / "rules.md")
-    start = read_text(REPO_ROOT / "start.md")
+    start = read_text(REPO_ROOT / "BOOTSTRAP.md")
 
     master_required = [
         "### 2.4.1 Session Start Mode Banner (Kernel-Enforced)",
@@ -2998,15 +2978,15 @@ def test_cold_warm_start_banner_contract_is_defined_across_core_docs():
 
     assert not missing_master, "master.md missing start-mode banner tokens:\n" + "\n".join([f"- {m}" for m in missing_master])
     assert not missing_rules, "rules.md missing start-mode banner tokens:\n" + "\n".join([f"- {m}" for m in missing_rules])
-    assert not missing_start, "start.md missing start-mode banner tokens:\n" + "\n".join([f"- {m}" for m in missing_start])
+    assert not missing_start, "BOOTSTRAP.md missing start-mode banner tokens:\n" + "\n".join([f"- {m}" for m in missing_start])
 
 
 @pytest.mark.governance
-def test_start_mode_mixed_phrase_is_absent_in_core_docs():
+def test_bootstrap_mode_mixed_phrase_is_absent_in_core_docs():
     core_docs = [
         REPO_ROOT / "master.md",
         REPO_ROOT / "rules.md",
-        REPO_ROOT / "start.md",
+        REPO_ROOT / "BOOTSTRAP.md",
     ]
     offenders: list[str] = []
     needle = "Cold Start | Warm Start"
@@ -3069,7 +3049,7 @@ def test_responsibility_boundary_uses_bindend_vs_nicht_bindend_terms():
 def test_confidence_impact_snapshot_contract_is_defined_across_core_docs():
     master = read_text(REPO_ROOT / "master.md")
     rules = read_text(REPO_ROOT / "rules.md")
-    start = read_text(REPO_ROOT / "start.md")
+    start = read_text(REPO_ROOT / "BOOTSTRAP.md")
 
     master_required = [
         "#### Confidence + Impact Snapshot (Presentation Advisory)",
@@ -3097,7 +3077,7 @@ def test_confidence_impact_snapshot_contract_is_defined_across_core_docs():
     assert not missing_rules, "rules.md missing confidence-impact snapshot tokens:\n" + "\n".join(
         [f"- {m}" for m in missing_rules]
     )
-    assert not missing_start, "start.md missing confidence-impact snapshot tokens:\n" + "\n".join(
+    assert not missing_start, "BOOTSTRAP.md missing confidence-impact snapshot tokens:\n" + "\n".join(
         [f"- {m}" for m in missing_start]
     )
 
@@ -3106,7 +3086,7 @@ def test_confidence_impact_snapshot_contract_is_defined_across_core_docs():
 def test_quick_fix_commands_contract_is_defined_across_core_docs():
     master = read_text(REPO_ROOT / "master.md")
     rules = read_text(REPO_ROOT / "rules.md")
-    start = read_text(REPO_ROOT / "start.md")
+    start = read_text(REPO_ROOT / "BOOTSTRAP.md")
 
     master_required = [
         "Quick-fix commands (mandatory for blockers):",
@@ -3138,14 +3118,14 @@ def test_quick_fix_commands_contract_is_defined_across_core_docs():
 
     assert not missing_master, "master.md missing quick-fix command tokens:\n" + "\n".join([f"- {m}" for m in missing_master])
     assert not missing_rules, "rules.md missing quick-fix command tokens:\n" + "\n".join([f"- {m}" for m in missing_rules])
-    assert not missing_start, "start.md missing quick-fix command tokens:\n" + "\n".join([f"- {m}" for m in missing_start])
+    assert not missing_start, "BOOTSTRAP.md missing quick-fix command tokens:\n" + "\n".join([f"- {m}" for m in missing_start])
 
 
 @pytest.mark.governance
 def test_host_constraint_compat_mode_contract_is_defined_across_core_docs():
     master = read_text(REPO_ROOT / "master.md")
     rules = read_text(REPO_ROOT / "rules.md")
-    start = read_text(REPO_ROOT / "start.md")
+    start = read_text(REPO_ROOT / "BOOTSTRAP.md")
 
     master_required = [
         "Host-constraint compatibility (binding):",
@@ -3186,7 +3166,7 @@ def test_host_constraint_compat_mode_contract_is_defined_across_core_docs():
     assert not missing_rules, "rules.md missing host-constraint compat tokens:\n" + "\n".join(
         [f"- {m}" for m in missing_rules]
     )
-    assert not missing_start, "start.md missing host-constraint compat tokens:\n" + "\n".join(
+    assert not missing_start, "BOOTSTRAP.md missing host-constraint compat tokens:\n" + "\n".join(
         [f"- {m}" for m in missing_start]
     )
 
@@ -3195,7 +3175,7 @@ def test_host_constraint_compat_mode_contract_is_defined_across_core_docs():
 def test_session_state_output_format_is_fenced_yaml_across_core_docs():
     master = read_text(REPO_ROOT / "master.md")
     rules = read_text(REPO_ROOT / "rules.md")
-    start = read_text(REPO_ROOT / "start.md")
+    start = read_text(REPO_ROOT / "BOOTSTRAP.md")
 
     master_required = [
         "If `SESSION_STATE` is emitted, it MUST still be rendered as fenced YAML",
@@ -3225,7 +3205,7 @@ def test_session_state_output_format_is_fenced_yaml_across_core_docs():
     assert not missing_rules, "rules.md missing SESSION_STATE formatting tokens:\n" + "\n".join(
         [f"- {m}" for m in missing_rules]
     )
-    assert not missing_start, "start.md missing SESSION_STATE formatting tokens:\n" + "\n".join(
+    assert not missing_start, "BOOTSTRAP.md missing SESSION_STATE formatting tokens:\n" + "\n".join(
         [f"- {m}" for m in missing_start]
     )
 
@@ -3234,7 +3214,7 @@ def test_session_state_output_format_is_fenced_yaml_across_core_docs():
 def test_architect_autopilot_lifecycle_contract_is_defined_across_core_docs():
     master = read_text(REPO_ROOT / "master.md")
     rules = read_text(REPO_ROOT / "rules.md")
-    start = read_text(REPO_ROOT / "start.md")
+    start = read_text(REPO_ROOT / "BOOTSTRAP.md")
     schema = read_text(REPO_ROOT / "SESSION_STATE_SCHEMA.md")
 
     master_required = [
@@ -3246,13 +3226,13 @@ def test_architect_autopilot_lifecycle_contract_is_defined_across_core_docs():
     rules_required = [
         "### 7.3.6 Architect-Only Autopilot Lifecycle (Policy)",
         "`SESSION_STATE.OutputMode`: `ARCHITECT | IMPLEMENT | VERIFY`",
-        "`/master` before valid `/start` bootstrap evidence may produce `BLOCKED-START-REQUIRED`",
+        "`/master` before valid bootstrap evidence may produce `BLOCKED-START-REQUIRED`",
         "`IMPLEMENT` mode requires explicit operator trigger (`Implement now`).",
         "`VERIFY` mode is evidence reconciliation only.",
     ]
     start_required = [
-        "`/start` is mandatory bootstrap for a repo/session (kernel-enforced).",
-        "governance/assets/config/bootstrap_policy.yaml",
+        "local launcher",
+        "governance.paths.json",
     ]
 
     missing_master = [t for t in master_required if t not in master]
@@ -3265,7 +3245,7 @@ def test_architect_autopilot_lifecycle_contract_is_defined_across_core_docs():
     assert not missing_rules, "rules.md missing architect-autopilot lifecycle tokens:\n" + "\n".join(
         [f"- {m}" for m in missing_rules]
     )
-    assert not missing_start, "start.md missing architect-autopilot lifecycle tokens:\n" + "\n".join(
+    assert not missing_start, "BOOTSTRAP.md missing architect-autopilot lifecycle tokens:\n" + "\n".join(
         [f"- {m}" for m in missing_start]
     )
 
@@ -3286,7 +3266,7 @@ def test_architect_autopilot_lifecycle_contract_is_defined_across_core_docs():
 @pytest.mark.governance
 def test_rulebook_discovery_is_restricted_to_trusted_roots():
     master = read_text(REPO_ROOT / "master.md")
-    start = read_text(REPO_ROOT / "start.md")
+    start = read_text(REPO_ROOT / "BOOTSTRAP.md")
 
     required_master = [
         "DO NOT read rulebooks from the repo working tree",
@@ -3305,7 +3285,7 @@ def test_rulebook_discovery_is_restricted_to_trusted_roots():
     assert not missing_master, "master.md missing trusted rulebook discovery tokens:\n" + "\n".join(
         [f"- {m}" for m in missing_master]
     )
-    assert not missing_start, "start.md missing trusted rulebook discovery tokens:\n" + "\n".join(
+    assert not missing_start, "BOOTSTRAP.md missing trusted rulebook discovery tokens:\n" + "\n".join(
         [f"- {m}" for m in missing_start]
     )
 
@@ -3314,7 +3294,7 @@ def test_rulebook_discovery_is_restricted_to_trusted_roots():
 def test_addon_catalog_contract_is_canonical_and_forbids_generic_manifest_path():
     master = read_text(REPO_ROOT / "master.md")
     rules = read_text(REPO_ROOT / "rules.md")
-    start = read_text(REPO_ROOT / "start.md")
+    start = read_text(REPO_ROOT / "BOOTSTRAP.md")
     corpus = "\n".join([master, rules, start])
 
     required_tokens = [
@@ -3339,7 +3319,7 @@ def test_addon_catalog_contract_is_canonical_and_forbids_generic_manifest_path()
 def test_canonical_response_envelope_schema_contract_is_defined():
     master = read_text(REPO_ROOT / "master.md")
     rules = read_text(REPO_ROOT / "rules.md")
-    start = read_text(REPO_ROOT / "start.md")
+    start = read_text(REPO_ROOT / "BOOTSTRAP.md")
     schema_path = REPO_ROOT / "governance" / "assets" / "catalogs" / "RESPONSE_ENVELOPE_SCHEMA.json"
     assert schema_path.exists(), "Missing governance/RESPONSE_ENVELOPE_SCHEMA.json"
     schema_text = read_text(schema_path)
@@ -3505,7 +3485,7 @@ def test_master_requires_phase_21_to_apply_phase_15_automatic_policy_when_not_ex
 def test_phase_15_reentry_from_later_phases_is_explicit_and_reruns_p54():
     master = read_text(REPO_ROOT / "master.md")
     rules = read_text(REPO_ROOT / "rules.md")
-    start = read_text(REPO_ROOT / "start.md")
+    start = read_text(REPO_ROOT / "BOOTSTRAP.md")
 
     required_master = [
         "Re-entry path: if current phase is `3A`/`3B-*`/`4`/`5*` and operator explicitly requests `Reopen Phase 1.5`, transition back to `1.5-BusinessRules`.",
@@ -3525,7 +3505,7 @@ def test_phase_15_reentry_from_later_phases_is_explicit_and_reruns_p54():
 
     assert not missing_master, "master.md missing Phase 1.5 re-entry tokens:\n" + "\n".join([f"- {m}" for m in missing_master])
     assert not missing_rules, "rules.md missing Phase 1.5 re-entry token:\n" + "\n".join([f"- {m}" for m in missing_rules])
-    assert not missing_start, "start.md missing Phase 1.5 re-entry token:\n" + "\n".join([f"- {m}" for m in missing_start])
+    assert not missing_start, "BOOTSTRAP.md missing Phase 1.5 re-entry token:\n" + "\n".join([f"- {m}" for m in missing_start])
 
 
 @pytest.mark.governance
@@ -3544,20 +3524,20 @@ def test_backfill_decision_pack_includes_phase_15_prompt_decision():
 
 
 @pytest.mark.governance
-def test_start_does_not_require_ticket_before_phase_4():
-    text = read_text(REPO_ROOT / "start.md")
+def test_bootstrap_does_not_require_ticket_before_phase_4():
+    text = read_text(REPO_ROOT / "BOOTSTRAP.md")
     required_tokens = [
         "governance/assets/config/bootstrap_policy.yaml",
     ]
     missing = [token for token in required_tokens if token not in text]
-    assert not missing, "start.md missing pre-Phase-4 no-ticket gate token:\n" + "\n".join([f"- {m}" for m in missing])
+    assert not missing, "BOOTSTRAP.md missing pre-Phase-4 no-ticket gate token:\n" + "\n".join([f"- {m}" for m in missing])
 
 
 @pytest.mark.governance
 def test_next_action_footer_requires_multiline_pretty_layout_tokens():
     master = read_text(REPO_ROOT / "master.md")
     rules = read_text(REPO_ROOT / "rules.md")
-    start = read_text(REPO_ROOT / "start.md")
+    start = read_text(REPO_ROOT / "BOOTSTRAP.md")
 
     required_master = [
         "[NEXT-ACTION]",
@@ -3581,7 +3561,7 @@ def test_next_action_footer_requires_multiline_pretty_layout_tokens():
 
     assert not missing_master, "master.md missing multiline next-action contract tokens:\n" + "\n".join([f"- {m}" for m in missing_master])
     assert not missing_rules, "rules.md missing multiline next-action contract tokens:\n" + "\n".join([f"- {m}" for m in missing_rules])
-    assert not missing_start, "start.md missing multiline next-action contract token:\n" + "\n".join([f"- {m}" for m in missing_start])
+    assert not missing_start, "BOOTSTRAP.md missing multiline next-action contract token:\n" + "\n".join([f"- {m}" for m in missing_start])
 
 
 @pytest.mark.governance
@@ -3608,7 +3588,7 @@ def test_rules_use_canonical_repo_business_rules_file_reference():
 def test_business_rules_write_failure_does_not_redirect_to_workspace_memory_target():
     master = read_text(REPO_ROOT / "master.md")
     rules = read_text(REPO_ROOT / "rules.md")
-    start = read_text(REPO_ROOT / "start.md")
+    start = read_text(REPO_ROOT / "BOOTSTRAP.md")
     helper = read_text(REPO_ROOT / "governance" / "entrypoints" / "persist_workspace_artifacts.py")
 
     master_required = [
@@ -3633,7 +3613,7 @@ def test_business_rules_write_failure_does_not_redirect_to_workspace_memory_targ
 
     assert not missing_master, "master.md missing business-rules no-redirect tokens:\n" + "\n".join([f"- {m}" for m in missing_master])
     assert not missing_rules, "rules.md missing business-rules no-redirect tokens:\n" + "\n".join([f"- {m}" for m in missing_rules])
-    assert not missing_start, "start.md missing business-rules no-redirect tokens:\n" + "\n".join([f"- {m}" for m in missing_start])
+    assert not missing_start, "BOOTSTRAP.md missing business-rules no-redirect tokens:\n" + "\n".join([f"- {m}" for m in missing_start])
     assert not missing_helper, "persist_workspace_artifacts.py missing business-rules write-failure handling tokens:\n" + "\n".join([f"- {m}" for m in missing_helper])
 
 

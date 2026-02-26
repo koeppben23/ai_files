@@ -9,7 +9,7 @@ from governance.domain.reason_codes import BLOCKED_REPO_IDENTITY_RESOLUTION, REA
 
 
 @dataclass(frozen=True)
-class StartIdentityResult:
+class BootstrapIdentityResult:
     repo_root: Path | None
     discovery_method: str
     repo_fingerprint: str
@@ -29,10 +29,10 @@ def _git_remote_origin(adapter: HostAdapter, repo_root: Path) -> str | None:
     return first or None
 
 
-def evaluate_start_identity(*, adapter: HostAdapter) -> StartIdentityResult:
+def evaluate_bootstrap_identity(*, adapter: HostAdapter) -> BootstrapIdentityResult:
     rr = resolve_repo_root(adapter=adapter, cwd=adapter.cwd())
     if not rr.is_git_root or rr.repo_root is None:
-        return StartIdentityResult(
+        return BootstrapIdentityResult(
             repo_root=None,
             discovery_method=rr.source,
             repo_fingerprint="",
@@ -49,7 +49,7 @@ def evaluate_start_identity(*, adapter: HostAdapter) -> StartIdentityResult:
     fp = (identity.fingerprint or "").strip()
 
     if not fp:
-        return StartIdentityResult(
+        return BootstrapIdentityResult(
             repo_root=None,
             discovery_method=rr.source,
             repo_fingerprint="",
@@ -59,7 +59,7 @@ def evaluate_start_identity(*, adapter: HostAdapter) -> StartIdentityResult:
             canonical_remote=canonical_remote,
         )
 
-    return StartIdentityResult(
+    return BootstrapIdentityResult(
         repo_root=repo_root,
         discovery_method=rr.source,
         repo_fingerprint=fp,

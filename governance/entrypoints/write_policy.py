@@ -4,8 +4,8 @@ This module defines the ONE AND ONLY write policy for all governance scripts.
 to ensure consistent behavior across:
 - bootstrap_session_state.py
 - persist_workspace_artifacts.py
-- start_preflight_readonly.py
-- start_persistence_hook.py
+- bootstrap_preflight_readonly.py
+- bootstrap_persistence_hook.py
 
 All governance MUST use this module to determine write permissions.
 
@@ -16,7 +16,7 @@ Environment Variables:
 Write Policy (unified):
     Writes are allowed by default, unless FORCE_READ_ONLY=1
     
-    This matches the expected behavior for "/start persists always":
+This matches the expected behavior for "bootstrap persists always":
     - User mode: writes allowed (default)
     - Pipeline mode: writes allowed (default)
     - FORCE_READ_ONLY=1: writes blocked always

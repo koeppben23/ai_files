@@ -1,0 +1,1005 @@
+#!/usr/bin/env python3
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+if __package__ in {None, ""}:
+    sys.path.insert(0, str(Path(__file__).absolute().parents[2]))
+
+
+from datetime import datetime, timezone
+import hashlib
+import json
+import os
+from pathlib import Path
+import platform
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+from typing import Any, Mapping, cast
+
+_COMMANDS_HOME = str(Path(__file__).parent.parent)
+if _COMMANDS_HOME not in sys.path:
+    sys.path.insert(0, _COMMANDS_HOME)
+
+from governance.entrypoints.command_profiles import render_command_profiles
+from governance.entrypoints.write_policy import writes_allowed, EFFECTIVE_MODE
+from governance.application.use_cases.phase_router import route_phase
+from governance.application.use_cases.session_state_helpers import with_kernel_result
+from governance.domain.phase_state_machine import normalize_phase_token, phase_rank
+from governance.kernel.phase_kernel import api_in_scope
+from governance.infrastructure.binding_evidence_resolver import BindingEvidenceResolver
+
+try:
+    from bootstrap.repo_identity import derive_fingerprint as _derive_fingerprint_ssot
+except Exception:
+    _derive_fingerprint_ssot = None
+
+from governance.infrastructure.logging.global_error_handler import (
+    emit_gate_failure,
+    install_global_handlers,
+    resolve_log_path,
+    set_error_context,
+)
+# SSOT: Ensure global error handler is installed before any operations
+def _install_global_error_handler() -> None:
+    try:
+        from governance.infrastructure.logging.global_error_handler import install_global_handlers
+        install_global_handlers()
+    except Exception:
+        pass
+
+_install_global_error_handler()
+
+
+def _effective_mode() -> str:
+    return EFFECTIVE_MODE
+
+
+def _resolve_bindings() -> tuple[Path | None, Path | None, bool, Path | None, str]:
+    resolver = BindingEvidenceResolver()
+    effective_mode = _effective_mode()
+    evidence = resolver.resolve(mode=effective_mode)
+    python_command = evidence.python_command.strip() if evidence.python_command else ""
+    if not python_command:
+        # Use sys.executable instead of "python3" for Windows compatibility
+        python_command = sys.executable
+    return (
+        evidence.commands_home,
+        evidence.workspaces_home,
+        evidence.binding_ok,
+        evidence.governance_paths_json,
+        python_command,
+    )
+
+
+COMMANDS_HOME, WORKSPACES_HOME, BINDING_OK, BINDING_EVIDENCE_PATH, PYTHON_COMMAND = _resolve_bindings()
+TOOL_CATALOG = (
+    COMMANDS_HOME / "governance" / "assets" / "catalogs" / "tool_requirements.json"
+    if COMMANDS_HOME is not None
+    else None
+)
+
+HOOK_STATUS_OK = "ok"
+HOOK_STATUS_BLOCKED = "blocked"
+HOOK_STATUS_FAILED = "failed"
+
+FAILURE_STAGE_INIT = "init"
+FAILURE_STAGE_WRITES_ALLOWED = "writes_allowed"
+FAILURE_STAGE_REPO_ROOT = "repo_root"
+FAILURE_STAGE_SUBPROCESS = "subprocess"
+FAILURE_STAGE_PARSE = "parse"
+FAILURE_STAGE_HOOK_PAYLOAD = "hook_payload"
+
+
+def _normalize_abs_path(raw: str, *, purpose: str) -> Path:
+    token = str(raw or "").strip()
+    if not token:
+        raise ValueError(f"{purpose}: empty path")
+    candidate = Path(token).expanduser()
+    if os.name == "nt" and re.match(r"^[A-Za-z]:[^/\\]", token):
+        raise ValueError(f"{purpose}: drive-relative path is not allowed")
+    if not candidate.is_absolute():
+        raise ValueError(f"{purpose}: path must be absolute")
+    return Path(os.path.normpath(os.path.abspath(str(candidate))))
+
+
+def derive_repo_fingerprint(repo_root: Path) -> str | None:
+    try:
+        normalized_repo_root = _normalize_abs_path(str(repo_root), purpose="repo_root")
+    except Exception:
+        return None
+
+    probe = subprocess.run(
+        ["git", "-C", str(normalized_repo_root), "rev-parse", "--is-inside-work-tree"],
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=5,
+    )
+    if probe.returncode != 0 or (probe.stdout or "").strip().lower() != "true":
+        return None
+
+    if callable(_derive_fingerprint_ssot):
+        try:
+            candidate = str(_derive_fingerprint_ssot(normalized_repo_root) or "").strip()
+            if re.fullmatch(r"[0-9a-f]{24}", candidate):
+                return candidate
+        except Exception:
+            pass
+
+    try:
+        remote = subprocess.run(
+            ["git", "-C", str(normalized_repo_root), "remote", "get-url", "origin"],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=5,
+        )
+        material = (remote.stdout or "").strip()
+    except Exception:
+        material = ""
+    if not material:
+        material = f"repo:local:{normalized_repo_root}"
+    fp = hashlib.sha256(material.encode("utf-8")).hexdigest()[:24]
+
+    return fp
+
+
+def _command_available(command: str) -> bool:
+    if command in {"python", "python3", "py", "py -3"}:
+        return (
+            shutil.which("python") is not None
+            or shutil.which("python3") is not None
+            or shutil.which("py") is not None
+        )
+    token = str(command or "").strip()
+    if not token:
+        return False
+    if token == "py -3":
+        return shutil.which("py") is not None
+    if token == "python -3":
+        return shutil.which("python") is not None
+    return shutil.which(token) is not None
+
+
+def _windows_longpaths_enabled() -> bool | None:
+    if platform.system() != "Windows":
+        return None
+    for scope in ("--system", "--global"):
+        proc = subprocess.run(
+            ["git", "config", scope, "--get", "core.longpaths"],
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        if proc.returncode == 0 and proc.stdout.strip().lower() in {"true", "1", "yes", "on"}:
+            return True
+    return False
+
+
+def _git_safe_directory_issue() -> bool:
+    proc = subprocess.run(
+        ["git", "rev-parse", "--is-inside-work-tree"],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    return "safe.directory" in (proc.stderr or "").lower()
+
+
+def _load_tool_catalog() -> dict[str, object]:
+    if TOOL_CATALOG is None or not TOOL_CATALOG.exists():
+        return {}
+    try:
+        payload = json.loads(TOOL_CATALOG.read_text(encoding="utf-8"))
+        if isinstance(payload, dict):
+            return payload
+    except Exception:
+        return {}
+    return {}
+
+
+def _normalize_tool_command(token: str) -> str:
+    return token.replace("${PYTHON_COMMAND}", PYTHON_COMMAND).strip()
+
+
+def _tool_inventory() -> tuple[list[str], list[str], list[dict[str, str]]]:
+    payload = _load_tool_catalog()
+    required_now: list[str] = []
+    required_later: list[str] = []
+    required_later_entries: list[dict[str, str]] = []
+
+    if isinstance(payload, dict):
+        required_now_raw = payload.get("required_now", [])
+        if not isinstance(required_now_raw, list):
+            required_now_raw = []
+        for item in cast(list[object], required_now_raw):
+            if isinstance(item, dict):
+                cmd = _normalize_tool_command(str(item.get("command") or ""))
+                if cmd and cmd not in required_now:
+                    required_now.append(cmd)
+        required_later_raw = payload.get("required_later", [])
+        if not isinstance(required_later_raw, list):
+            required_later_raw = []
+        for item in cast(list[object], required_later_raw):
+            if isinstance(item, dict):
+                cmd = _normalize_tool_command(str(item.get("command") or ""))
+                if cmd and cmd not in required_later and cmd not in required_now:
+                    required_later.append(cmd)
+                    required_later_entries.append(
+                        {
+                            "command": cmd,
+                            "verify_command": _normalize_tool_command(str(item.get("verify_command") or "")),
+                        }
+                    )
+
+    if not required_now:
+        required_now = ["git", PYTHON_COMMAND]
+    return required_now, required_later, required_later_entries
+
+
+def _probe_tool_version(verify_command: str) -> str | None:
+    if not verify_command:
+        return None
+    try:
+        proc = subprocess.run(
+            verify_command,
+            shell=True,
+            text=True,
+            capture_output=True,
+            check=False,
+            timeout=5,
+        )
+    except Exception:
+        return None
+    output = (proc.stdout or "") + "\n" + (proc.stderr or "")
+    for line in output.splitlines():
+        token = (line or "").strip()
+        if token:
+            return token[:200]
+    return None
+
+
+def _preflight_build_toolchain_snapshot() -> dict[str, object]:
+    _required_now, _required_later, required_later_entries = _tool_inventory()
+    detected: dict[str, str | None] = {}
+    for entry in required_later_entries:
+        cmd = entry.get("command", "").strip()
+        if not cmd:
+            continue
+        if _command_available(cmd):
+            detected[cmd] = _probe_tool_version(entry.get("verify_command", ""))
+        else:
+            detected[cmd] = None
+    observed_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    return {
+        "DetectedTools": detected,
+        "ObservedAt": observed_at,
+    }
+
+
+def emit_preflight() -> None:
+    required_now, required_later, _required_later_entries = _tool_inventory()
+
+    available: list[str] = []
+    missing: list[str] = []
+    for command in required_now:
+        if _command_available(command):
+            available.append(command)
+        else:
+            missing.append(command)
+
+    missing_later = [cmd for cmd in required_later if not _command_available(cmd)]
+    block_now = bool(missing) or not BINDING_OK
+    status = "degraded" if block_now else "ok"
+    longpaths = _windows_longpaths_enabled()
+    longpaths_note = "not_applicable" if longpaths is None else ("enabled" if longpaths else "disabled")
+    git_safe_directory = "blocked" if (_command_available("git") and _git_safe_directory_issue()) else "ok"
+    build_toolchain = _preflight_build_toolchain_snapshot()
+
+    mode = _effective_mode()
+    payload = {
+        "preflight": status,
+        "observed_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
+        "required_now": required_now,
+        "required_later": required_later,
+        "available": available,
+        "missing": missing,
+        "missing_later": missing_later,
+        "block_now": block_now,
+        "impact": (
+            "required_now commands satisfied; preflight continues"
+            if status == "ok"
+            else "missing required_now commands may block bootstrap gates"
+        ),
+        "next": (
+            "continue bootstrap"
+            if status == "ok"
+            else "install missing required_now tools or provide equivalent operator evidence"
+        ),
+        "binding_evidence": "ok" if BINDING_OK else "invalid",
+        "windows_longpaths": longpaths_note,
+        "git_safe_directory": git_safe_directory,
+        "mode": mode,
+        "writes_allowed": writes_allowed(),
+        "build_toolchain": build_toolchain,
+    }
+    print(json.dumps(payload, ensure_ascii=True))
+
+
+def emit_permission_probes() -> None:
+    checks = [
+        {
+            "probe": "fs.read_commands_home",
+            "available": bool(COMMANDS_HOME is not None and COMMANDS_HOME.exists() and os.access(COMMANDS_HOME, os.R_OK)),
+        },
+        {
+            "probe": "exec.allowed",
+            "available": os.access(sys.executable, os.X_OK),
+        },
+        {
+            "probe": "git.available",
+            "available": shutil.which("git") is not None,
+        },
+    ]
+    available = [item["probe"] for item in checks if item["available"]]
+    missing = [item["probe"] for item in checks if not item["available"]]
+    status = "ok" if not missing else "degraded"
+    print(
+        json.dumps(
+            {
+                "permissionProbes": {
+                    "status": status,
+                    "observed_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
+                    "ttl": 0,
+                    "available": available,
+                    "missing": missing,
+                    "impact": "all required runtime capabilities available" if not missing else "some runtime actions may be blocked",
+                    "next": "continue bootstrap" if not missing else "grant required permissions and rerun the local bootstrap launcher",
+                }
+            },
+            ensure_ascii=True,
+        )
+    )
+
+
+def bootstrap_command_argv(repo_fp: str | None) -> list[str]:
+    repo_value = repo_fp if repo_fp else "<repo_fingerprint>"
+    return [PYTHON_COMMAND, "-m", "governance.entrypoints.bootstrap_session_state", "--repo-fingerprint", repo_value]
+
+
+def bootstrap_command(repo_fp: str | None) -> str:
+    return str(render_command_profiles(bootstrap_command_argv(repo_fp)).get("bash") or "")
+
+
+def _resolve_repo_root_for_hook() -> tuple[Path | None, str, dict[str, object]]:
+    env_root = os.environ.get("OPENCODE_REPO_ROOT", "").strip()
+    if env_root:
+        try:
+            resolved_env_root = _normalize_abs_path(env_root, purpose="OPENCODE_REPO_ROOT")
+            if (resolved_env_root / ".git").exists() or (resolved_env_root / ".git").is_file():
+                return resolved_env_root, "env", {"ok": True, "source": "env", "raw": env_root}
+            return None, "env-invalid", {"ok": False, "source": "env", "raw": env_root, "reason": "missing-.git"}
+        except Exception as exc:
+            return None, "env-invalid", {"ok": False, "source": "env", "raw": env_root, "error": str(exc)[:200]}
+
+    probe = subprocess.run(
+        ["git", "rev-parse", "--show-toplevel"],
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=5,
+    )
+    root_text = (probe.stdout or "").strip()
+    if probe.returncode == 0 and root_text:
+        try:
+            resolved_git_root = _normalize_abs_path(root_text, purpose="git-rev-parse")
+            return resolved_git_root, "git", {
+                "ok": True,
+                "source": "git",
+                "returncode": probe.returncode,
+                "stdout": root_text,
+            }
+        except Exception as exc:
+            return None, "git-invalid", {
+                "ok": False,
+                "source": "git",
+                "returncode": probe.returncode,
+                "stdout": root_text,
+                "error": str(exc)[:200],
+            }
+    return None, "git-miss", {
+        "ok": False,
+        "source": "git",
+        "returncode": probe.returncode,
+        "stdout": root_text,
+        "stderr": (probe.stderr or "").strip()[:240],
+    }
+
+
+def build_engine_shadow_snapshot() -> dict[str, object]:
+    try:
+        from governance.engine.adapters import OpenCodeDesktopAdapter
+        from governance.engine.orchestrator import run_engine_orchestrator
+    except Exception as exc:  # pragma: no cover
+        return {"available": False, "reason": "engine-runtime-module-unavailable", "error": str(exc)}
+
+    output = run_engine_orchestrator(
+        adapter=OpenCodeDesktopAdapter(),
+        phase="1.1-Bootstrap",
+        active_gate="ReadOnly Preflight",
+        mode="user",
+        next_gate_condition="Read-only governance completed",
+        gate_key="PREFLIGHT",
+        enable_live_engine=False,
+    )
+    return {
+        "available": True,
+        "runtime_mode": output.runtime.runtime_mode,
+        "selfcheck_ok": output.runtime.selfcheck.ok,
+        "repo_context_source": output.repo_context.source,
+        "effective_operating_mode": output.effective_operating_mode,
+        "capabilities_hash": output.capabilities_hash,
+        "mode_downgraded": output.mode_downgraded,
+        "deviation": (
+            {
+                "type": output.runtime.deviation.type,
+                "scope": output.runtime.deviation.scope,
+                "impact": output.runtime.deviation.impact,
+                "recovery": output.runtime.deviation.recovery,
+            }
+            if output.runtime.deviation is not None
+            else None
+        ),
+        "parity": output.parity,
+    }
+
+
+def _emit_persistence_gate_failure(
+    *,
+    code: str,
+    message: str,
+    expected: str,
+    observed: dict[str, object],
+    remediation: str,
+    repo_fingerprint: str | None,
+) -> Path:
+    config_root = COMMANDS_HOME.parent if COMMANDS_HOME is not None else None
+    emitted = emit_gate_failure(
+        gate="PERSISTENCE",
+        code=code,
+        message=message,
+        expected=expected,
+        observed=observed,
+        remediation=remediation,
+        config_root=str(config_root) if config_root is not None else None,
+        workspaces_home=str(WORKSPACES_HOME) if WORKSPACES_HOME is not None else None,
+        repo_fingerprint=repo_fingerprint,
+        phase="1.1-Bootstrap",
+    )
+    if not emitted:
+        print(
+            json.dumps(
+                {
+                    "persistenceGateFailure": "not-logged",
+                    "reason_code": code,
+                    "phase": "1.1-Bootstrap",
+                    "message": "emit_gate_failure returned false",
+                },
+                ensure_ascii=True,
+            ),
+            file=sys.stderr,
+        )
+    try:
+        return resolve_log_path(
+            config_root=config_root,
+            commands_home=COMMANDS_HOME,
+            workspaces_home=WORKSPACES_HOME,
+            repo_fingerprint=repo_fingerprint,
+        )
+    except Exception:
+        return Path("error.log.jsonl")
+
+
+def _normalize_hook_failure_reason(proc: subprocess.CompletedProcess[str], result: dict[str, object]) -> tuple[str, str]:
+    reason_code = str(result.get("reason_code") or "").strip()
+    if reason_code:
+        return reason_code, FAILURE_STAGE_HOOK_PAYLOAD
+    if proc.returncode != 0:
+        return "BLOCKED-WORKSPACE-PERSISTENCE", FAILURE_STAGE_SUBPROCESS
+    return "BLOCKED-WORKSPACE-PERSISTENCE", FAILURE_STAGE_PARSE
+
+
+def _canonical_hook_status(*, raw_status: object, reason_code: str, returncode: int) -> str:
+    token = str(raw_status or "").strip().lower()
+    if token == HOOK_STATUS_OK:
+        return HOOK_STATUS_OK
+    if token not in {HOOK_STATUS_OK, HOOK_STATUS_BLOCKED, HOOK_STATUS_FAILED}:
+        token = HOOK_STATUS_FAILED
+    if reason_code.startswith("BLOCKED-"):
+        return HOOK_STATUS_BLOCKED
+    if returncode != 0 and token == HOOK_STATUS_OK:
+        return HOOK_STATUS_FAILED
+    return token
+
+
+def run_persistence_hook() -> dict[str, object]:
+    mode = _effective_mode()
+    hook_argv = [sys.executable, "-m", "governance.entrypoints.bootstrap_persistence_hook"]
+    hook_command = " ".join(hook_argv)
+
+    if not writes_allowed():
+        log_path = _emit_persistence_gate_failure(
+            code="BLOCKED-WORKSPACE-PERSISTENCE",
+            message="Persistence hook blocked by write policy before dispatch.",
+            expected="writes allowed",
+            observed={"mode": mode, "writes_allowed": False},
+            remediation="Unset OPENCODE_FORCE_READ_ONLY or use a writable mode.",
+            repo_fingerprint=None,
+        )
+        result = {
+            "workspacePersistenceHook": HOOK_STATUS_BLOCKED,
+            "reason_code": "BLOCKED-WORKSPACE-PERSISTENCE",
+            "reason": "writes-not-allowed",
+            "impact": "fingerprint + persistence are required before any phase >= 2.1",
+            "mode": mode,
+            "writes_allowed": False,
+            "log_path": str(log_path),
+            "hook_invoked": False,
+            "failure_stage": FAILURE_STAGE_WRITES_ALLOWED,
+            "cwd": str(Path.cwd()),
+            "repo_root_detected": "",
+            "repo_root_source": "not-evaluated",
+            "python_executable": sys.executable,
+            "bootstrap_hook_command": hook_command,
+            "git_probe": {"ok": False, "source": "not-evaluated"},
+        }
+        print(json.dumps(result, ensure_ascii=True))
+        raise SystemExit(2)
+
+    repo_root, repo_root_source, git_probe = _resolve_repo_root_for_hook()
+    base_payload = {
+        "cwd": str(Path.cwd()),
+        "repo_root_detected": str(repo_root) if repo_root else "",
+        "repo_root_source": repo_root_source,
+        "python_executable": sys.executable,
+        "bootstrap_hook_command": hook_command,
+        "git_probe": git_probe,
+        "hook_invoked": False,
+        "failure_stage": FAILURE_STAGE_INIT,
+    }
+
+    if repo_root is None:
+        log_path = _emit_persistence_gate_failure(
+            code="BLOCKED-REPO-ROOT-NOT-DETECTABLE",
+            message="Repository root is not deterministically detectable for persistence hook dispatch.",
+            expected="valid OPENCODE_REPO_ROOT or git rev-parse --show-toplevel",
+            observed={"cwd": str(Path.cwd()), "git_probe": git_probe},
+            remediation="Set OPENCODE_REPO_ROOT to a valid git repository root and rerun the local bootstrap launcher.",
+            repo_fingerprint=None,
+        )
+        result = {
+            **base_payload,
+            "workspacePersistenceHook": "blocked",
+            "reason_code": "BLOCKED-REPO-ROOT-NOT-DETECTABLE",
+            "reason": "repo-root-not-detectable",
+            "writes_allowed": True,
+            "log_path": str(log_path),
+            "failure_stage": FAILURE_STAGE_REPO_ROOT,
+        }
+        print(json.dumps(result, ensure_ascii=True))
+        raise SystemExit(2)
+
+    env = dict(os.environ)
+    env["OPENCODE_REPO_ROOT"] = str(repo_root)
+    existing_pythonpath = env.get("PYTHONPATH", "").strip()
+    repo_root_token = str(repo_root)
+    commands_home_token = str(COMMANDS_HOME)
+    if existing_pythonpath:
+        env["PYTHONPATH"] = os.pathsep.join((repo_root_token, commands_home_token, existing_pythonpath))
+    else:
+        env["PYTHONPATH"] = os.pathsep.join((repo_root_token, commands_home_token))
+    proc = subprocess.run(
+        hook_argv,
+        capture_output=True,
+        text=True,
+        check=False,
+        cwd=str(repo_root),
+        env=env,
+    )
+
+    stdout_lines = [(line or "").strip() for line in (proc.stdout or "").splitlines() if (line or "").strip()]
+    parsed_payload: dict[str, object] | None = None
+    for candidate in reversed(stdout_lines):
+        try:
+            loaded = json.loads(candidate)
+        except Exception:
+            continue
+        if isinstance(loaded, dict):
+            parsed_payload = loaded
+            break
+
+    if parsed_payload is None:
+        parsed_payload = {
+            "workspacePersistenceHook": "blocked",
+            "reason_code": "BLOCKED-WORKSPACE-PERSISTENCE",
+            "reason": "hook-output-not-json",
+            "stderr": (proc.stderr or "").strip()[:500],
+            "stdout": (proc.stdout or "").strip()[:500],
+        }
+
+    result = {
+        **parsed_payload,
+        **base_payload,
+        "hook_invoked": True,
+        "failure_stage": FAILURE_STAGE_SUBPROCESS,
+    }
+    if not isinstance(result.get("repo_fingerprint"), str):
+        result["repo_fingerprint"] = ""
+
+    if parsed_payload.get("reason") == "hook-output-not-json":
+        result["failure_stage"] = FAILURE_STAGE_PARSE
+    elif proc.returncode != 0:
+        result["failure_stage"] = FAILURE_STAGE_SUBPROCESS
+    elif str(result.get("workspacePersistenceHook", "")).strip().lower() != HOOK_STATUS_OK:
+        result["failure_stage"] = FAILURE_STAGE_HOOK_PAYLOAD
+
+    reason_code, inferred_stage = _normalize_hook_failure_reason(proc, result)
+    result["reason_code"] = reason_code
+    result["workspacePersistenceHook"] = _canonical_hook_status(
+        raw_status=result.get("workspacePersistenceHook"),
+        reason_code=reason_code,
+        returncode=proc.returncode,
+    )
+
+    if str(result.get("workspacePersistenceHook", "")).strip().lower() != HOOK_STATUS_OK:
+        if str(result.get("failure_stage", "")).strip() in {"", FAILURE_STAGE_INIT, FAILURE_STAGE_SUBPROCESS}:
+            result["failure_stage"] = inferred_stage
+        log_path = _emit_persistence_gate_failure(
+            code=reason_code,
+            message="Persistence hook module dispatch failed.",
+            expected="python -m governance.entrypoints.bootstrap_persistence_hook exits with code 0",
+            observed={
+                "returncode": proc.returncode,
+                "stderr": (proc.stderr or "").strip()[:500],
+                "stdout": (proc.stdout or "").strip()[:500],
+                "payload_reason": str(result.get("reason") or ""),
+            },
+            remediation="Run the hook command directly and inspect returned reason_code/reason payload.",
+            repo_fingerprint=(str(result.get("repo_fingerprint") or "") or None),
+        )
+        result["stderr_snippet"] = (proc.stderr or "").strip()[:500]
+        result["log_path"] = str(log_path)
+
+    print(json.dumps(result, ensure_ascii=True))
+    if str(result.get("workspacePersistenceHook")).strip().lower() != HOOK_STATUS_OK:
+        raise SystemExit(2)
+    return result
+
+
+def emit_start_receipt() -> None:
+    """Emit forensic receipt for desktop dispatch debugging."""
+    repo_root, repo_root_source, _probe = _resolve_repo_root_for_hook()
+    repo_fp = derive_repo_fingerprint(repo_root) if repo_root is not None else None
+    planned_pointer_path = (COMMANDS_HOME.parent / "SESSION_STATE.json") if COMMANDS_HOME is not None else None
+    planned_workspace_path = (WORKSPACES_HOME / repo_fp / "SESSION_STATE.json") if (repo_fp and WORKSPACES_HOME is not None) else None
+    receipt = {
+        "start_receipt": {
+            "observed_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
+            "argv0": sys.argv[0] if sys.argv else "",
+            "cwd": str(Path.cwd()),
+            "file": __file__,
+            "executable": sys.executable,
+            "sys_path_0_3": sys.path[:3],
+            "env_opencode_config_root": os.environ.get("OPENCODE_CONFIG_ROOT", ""),
+            "env_opencode_home": os.environ.get("OPENCODE_HOME", ""),
+            "computed_opencode_home": str(COMMANDS_HOME.parent) if COMMANDS_HOME is not None else None,
+            "computed_commands_home": str(COMMANDS_HOME) if COMMANDS_HOME is not None else None,
+            "computed_workspaces_home": str(WORKSPACES_HOME) if WORKSPACES_HOME is not None else None,
+            "planned_pointer_path": str(planned_pointer_path) if planned_pointer_path is not None else None,
+            "planned_workspace_session_path": str(planned_workspace_path) if planned_workspace_path else None,
+            "derived_repo_fingerprint": repo_fp,
+            "repo_root_detected": str(repo_root) if repo_root else "",
+            "repo_root_source": repo_root_source,
+            "binding_ok": BINDING_OK,
+            "mode": _effective_mode(),
+            "platform": platform.system().lower(),
+        }
+    }
+    print(json.dumps(receipt, ensure_ascii=True))
+
+
+def _session_state_file_path(repo_fingerprint: str) -> Path | None:
+    if not repo_fingerprint or WORKSPACES_HOME is None:
+        return None
+    return WORKSPACES_HOME / repo_fingerprint / "SESSION_STATE.json"
+
+
+def _read_json_document(path: Path) -> dict[str, object] | None:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    if isinstance(payload, dict):
+        return payload
+    return None
+
+
+def _write_json_document(path: Path, payload: Mapping[str, object]) -> None:
+    text = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True) + "\n"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, temp_path = tempfile.mkstemp(dir=str(path.parent), prefix=f".{path.name}.", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(text)
+        os.replace(temp_path, str(path))
+    except Exception:
+        if os.path.exists(temp_path):
+            os.unlink(temp_path)
+        raise
+
+
+def _root_state(document: Mapping[str, object]) -> dict[str, object]:
+    root = document.get("SESSION_STATE")
+    if isinstance(root, dict):
+        return root
+    if isinstance(root, Mapping):
+        return dict(root)
+    return {}
+
+
+def _activation_intent_evidence() -> tuple[str, str, str]:
+    config_root = COMMANDS_HOME.parent if COMMANDS_HOME is not None else None
+    if config_root is None:
+        return "${CONFIG_ROOT}/governance.activation_intent.json", "", "unknown"
+
+    intent_path = config_root / "governance.activation_intent.json"
+    canonical_path = "${CONFIG_ROOT}/governance.activation_intent.json"
+    if not intent_path.exists():
+        return canonical_path, "", "unknown"
+
+    try:
+        raw_text = intent_path.read_text(encoding="utf-8")
+        payload = json.loads(raw_text)
+    except Exception:
+        return canonical_path, "", "unknown"
+
+    if not isinstance(payload, dict):
+        return canonical_path, "", "unknown"
+
+    scope = str(payload.get("discovery_scope") or "full")
+    canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+    sha256 = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+    return canonical_path, sha256, scope
+
+
+def _hydrate_transition_state(document: dict[str, object], *, repo_fingerprint: str, requested_token: str) -> dict[str, object]:
+    state = _root_state(document)
+    state["phase_transition_evidence"] = True
+
+    intent_path, intent_sha, intent_scope = _activation_intent_evidence()
+    state.setdefault(
+        "Intent",
+        {
+            "Path": intent_path,
+            "Sha256": intent_sha,
+            "EffectiveScope": intent_scope,
+        },
+    )
+    intent = state.get("Intent")
+    if isinstance(intent, dict):
+        intent.setdefault("Path", intent_path)
+        intent.setdefault("Sha256", intent_sha)
+        intent.setdefault("EffectiveScope", intent_scope)
+
+    if phase_rank(requested_token) >= phase_rank("1.3"):
+        loaded = state.get("LoadedRulebooks")
+        if not isinstance(loaded, dict):
+            loaded = {}
+        if not isinstance(loaded.get("core"), str) or not str(loaded.get("core") or "").strip():
+            loaded["core"] = "${COMMANDS_HOME}/rules.md"
+        loaded.setdefault("profile", "")
+        loaded.setdefault("templates", "")
+        loaded.setdefault("addons", {})
+        state["LoadedRulebooks"] = loaded
+
+        evidence = state.get("RulebookLoadEvidence")
+        if not isinstance(evidence, dict):
+            evidence = {}
+        if not isinstance(evidence.get("core"), str) or not str(evidence.get("core") or "").strip() or str(evidence.get("core")) == "deferred":
+            evidence["core"] = "${COMMANDS_HOME}/rules.md"
+        evidence.setdefault("profile", "deferred")
+        evidence.setdefault("templates", "deferred")
+        evidence.setdefault("addons", {})
+        state["RulebookLoadEvidence"] = evidence
+        state.setdefault("AddonsEvidence", {})
+
+    if phase_rank(requested_token) >= phase_rank("2"):
+        repo_home = WORKSPACES_HOME / repo_fingerprint if WORKSPACES_HOME is not None else None
+        cache_exists = bool(repo_home and (repo_home / "repo-cache.yaml").exists())
+        digest_exists = bool(repo_home and (repo_home / "repo-map-digest.md").exists())
+
+        state.setdefault(
+            "RepoDiscovery",
+            {
+                "Completed": bool(cache_exists and digest_exists),
+                "RepoCacheFile": "${REPO_CACHE_FILE}",
+                "RepoMapDigestFile": "${REPO_DIGEST_FILE}",
+            },
+        )
+        repo_discovery = state.get("RepoDiscovery")
+        if isinstance(repo_discovery, dict):
+            repo_discovery["Completed"] = bool(cache_exists and digest_exists)
+            repo_discovery.setdefault("RepoCacheFile", "${REPO_CACHE_FILE}")
+            repo_discovery.setdefault("RepoMapDigestFile", "${REPO_DIGEST_FILE}")
+
+        state.setdefault("RepoCacheFile", {"TargetPath": "${REPO_CACHE_FILE}", "FileStatus": "written" if cache_exists else "unknown"})
+        state.setdefault("RepoMapDigestFile", {"FilePath": "${REPO_DIGEST_FILE}", "FileStatus": "written" if digest_exists else "unknown"})
+        state.setdefault("DecisionPack", {"FilePath": "${REPO_DECISION_PACK_FILE}", "FileStatus": "written"})
+        state.setdefault("WorkspaceMemoryFile", {"TargetPath": "${WORKSPACE_MEMORY_FILE}", "FileStatus": "written"})
+
+    if phase_rank(requested_token) >= phase_rank("2.1"):
+        scope = state.get("Scope")
+        if not isinstance(scope, dict):
+            scope = {}
+        scope["BusinessRules"] = "skipped"
+        state["Scope"] = scope
+
+        gates = state.get("Gates")
+        if isinstance(gates, dict):
+            gates["P5.4-BusinessRules"] = "not-applicable"
+
+        business_rules = state.get("BusinessRules")
+        if not isinstance(business_rules, dict):
+            business_rules = {}
+        business_rules["Decision"] = "skip"
+        business_rules.setdefault("InventoryFileStatus", "not-applicable")
+        state["BusinessRules"] = business_rules
+
+    if requested_token == "3A":
+        inventory = state.get("APIInventory")
+        if not isinstance(inventory, dict):
+            inventory = {}
+        inventory["Status"] = "completed" if api_in_scope(state) else "not-applicable"
+        state["APIInventory"] = inventory
+
+    document["SESSION_STATE"] = state
+    return document
+
+
+def run_kernel_continuation(hook_result: Mapping[str, object]) -> dict[str, object]:
+    repo_fingerprint = str(hook_result.get("repo_fingerprint") or "").strip()
+    session_path = _session_state_file_path(repo_fingerprint)
+    if session_path is None or not session_path.exists():
+        payload = {
+            "kernelContinuation": "blocked",
+            "reason": "missing-session-state",
+            "reason_code": "BLOCKED-WORKSPACE-PERSISTENCE",
+            "repo_fingerprint": repo_fingerprint,
+            "session_state_path": str(session_path) if session_path is not None else "",
+        }
+        print(json.dumps(payload, ensure_ascii=True))
+        raise SystemExit(2)
+
+    document = _read_json_document(session_path)
+    if document is None:
+        payload = {
+            "kernelContinuation": "blocked",
+            "reason": "invalid-session-state-json",
+            "reason_code": "BLOCKED-WORKSPACE-PERSISTENCE",
+            "repo_fingerprint": repo_fingerprint,
+            "session_state_path": str(session_path),
+        }
+        print(json.dumps(payload, ensure_ascii=True))
+        raise SystemExit(2)
+
+    state = _root_state(document)
+    preflight = state.get("Preflight")
+    if not isinstance(preflight, dict):
+        preflight = {}
+    preflight.setdefault("BuildToolchain", _preflight_build_toolchain_snapshot())
+    state["Preflight"] = preflight
+    current_phase = str(state.get("Phase") or "")
+    requested_token = normalize_phase_token(current_phase) or "1.2"
+    max_hops = 8
+    hops = 0
+    last_result: dict[str, object] = {
+        "phase": current_phase,
+        "next_token": str(state.get("Next") or ""),
+        "status": "OK",
+        "active_gate": str(state.get("active_gate") or ""),
+        "next_gate_condition": str(state.get("next_gate_condition") or ""),
+        "source": "session-state",
+    }
+
+    while hops < max_hops:
+        hops += 1
+        document = _hydrate_transition_state(document, repo_fingerprint=repo_fingerprint, requested_token=requested_token)
+        state = _root_state(document)
+        requested_active_gate = str(state.get("active_gate") or state.get("ActiveGate") or "Automatic routing")
+        requested_next_gate_condition = str(
+            state.get("next_gate_condition") or state.get("NextGateCondition") or "Continue automatic phase routing"
+        )
+
+        routed = route_phase(
+            requested_phase=requested_token,
+            requested_active_gate=requested_active_gate,
+            requested_next_gate_condition=requested_next_gate_condition,
+            session_state_document=document,
+            repo_is_git_root=True,
+            live_repo_fingerprint=repo_fingerprint,
+        )
+        last_result = {
+            "phase": routed.phase,
+            "next_token": routed.next_token or "",
+            "status": routed.status,
+            "active_gate": routed.active_gate,
+            "next_gate_condition": routed.next_gate_condition,
+            "source": routed.source,
+        }
+
+        document = dict(
+            with_kernel_result(
+                document,
+                phase=routed.phase,
+                next_token=routed.next_token,
+                active_gate=routed.active_gate,
+                next_gate_condition=routed.next_gate_condition,
+                status=routed.status,
+                spec_hash=routed.spec_hash,
+                spec_path=routed.spec_path,
+                spec_loaded_at=routed.spec_loaded_at,
+                log_paths=routed.log_paths,
+                event_id=routed.event_id,
+            )
+        )
+
+        resolved_token = normalize_phase_token(routed.phase)
+        if routed.status != "OK" or phase_rank(resolved_token) >= phase_rank("4"):
+            break
+
+        next_token = normalize_phase_token(routed.next_token or "")
+        if not next_token:
+            break
+        if next_token == requested_token and resolved_token == requested_token:
+            break
+        requested_token = next_token
+
+    _write_json_document(session_path, document)
+    payload = {
+        "kernelContinuation": "ok" if str(last_result.get("status") or "") == "OK" else "blocked",
+        "auto_continuation": "route_phase",
+        "route_phase_invoked": bool(hops > 0),
+        "repo_fingerprint": repo_fingerprint,
+        "session_state_path": str(session_path),
+        "phase": str(last_result.get("phase") or ""),
+        "next_token": str(last_result.get("next_token") or ""),
+        "active_gate": str(last_result.get("active_gate") or ""),
+        "next_gate_condition": str(last_result.get("next_gate_condition") or ""),
+        "source": str(last_result.get("source") or ""),
+        "hops": hops,
+    }
+    print(json.dumps(payload, ensure_ascii=True))
+    if payload["kernelContinuation"] != "ok":
+        raise SystemExit(2)
+    return payload
+
+
+def main() -> int:
+    emit_start_receipt()
+    emit_preflight()
+    emit_permission_probes()
+    hook_result = run_persistence_hook()
+    run_kernel_continuation(hook_result)
+    if os.getenv("OPENCODE_ENGINE_SHADOW_EMIT") == "1":
+        print(json.dumps({"engineRuntimeShadow": build_engine_shadow_snapshot()}, ensure_ascii=True))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

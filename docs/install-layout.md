@@ -26,13 +26,13 @@ A common example install root is `~/.config/opencode` (platform-specific variant
 
 ## Installed Layout (Canonical Shape)
 
-Note: AGENTS.md is a frontend surface; kernel bootstrapping and path resolution are governed by installer binding evidence and kernel loaders. AGENTS.md presence does not alter OpenCode path resolution.
+Note: Bootstrap is performed via the local launcher (`${CONFIG_ROOT}/bin/opencode-governance-bootstrap`). Kernel bootstrapping and path resolution are governed by installer binding evidence and kernel loaders.
 
 ```text
 ${COMMANDS_HOME}/
   master.md
   rules.md
-  start.md
+  BOOTSTRAP.md
   continue.md
   resume.md
   README.md

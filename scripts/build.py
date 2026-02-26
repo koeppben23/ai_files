@@ -344,8 +344,11 @@ def _should_include_file(
     # Addon manifests are required at runtime for deterministic addon activation/reload.
     if rel.startswith("profiles/addons/") and name.endswith(".addon.yml"):
         return True
-    # Governance runtime helpers are required for /start auto-persistence and error logging.
+    # Governance runtime helpers are required for bootstrap auto-persistence and error logging.
     if rel.startswith("governance/entrypoints/") and p.suffix.lower() == ".py":
+        return True
+    # Local bootstrap runtime package.
+    if rel.startswith("cli/") and p.suffix.lower() == ".py":
         return True
     if rel == "governance/VERSION":
         return True

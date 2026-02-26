@@ -32,7 +32,7 @@ def main() -> int:
             "missing_evidence": [
                 "${COMMANDS_HOME}/governance.paths.json (installer-owned binding evidence)"
             ],
-            "next_command": "/start",
+            "next_command": "opencode-governance-bootstrap",
             "nonEvidence": "debug-only",
             "debugComputedPaths": {
                 "configRoot": str(evidence.config_root) if evidence.config_root else "unknown",
@@ -68,7 +68,7 @@ def main() -> int:
                     "${COMMANDS_HOME}/governance.paths.json (installer-owned binding evidence)"
                 ],
                 "error": str(ex)[:240],
-                "next_command": "/start",
+                "next_command": "opencode-governance-bootstrap",
                 "nonEvidence": "debug-only",
                 "debugComputedPaths": debug_paths,
                 "bindingEvidenceSource": evidence.source,
@@ -83,7 +83,7 @@ def main() -> int:
         "missing_evidence": [
             "${COMMANDS_HOME}/governance.paths.json (installer-owned binding evidence)"
         ],
-        "next_command": "/start",
+        "next_command": "opencode-governance-bootstrap",
         "nonEvidence": "debug-only",
         "debugComputedPaths": debug_paths,
         "bindingEvidenceSource": evidence.source,

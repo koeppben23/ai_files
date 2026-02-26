@@ -17,19 +17,17 @@ def test_md_rails_tripwire_operational_markers_absent():
     files = [
         REPO_ROOT / "master.md",
         REPO_ROOT / "rules.md",
-        REPO_ROOT / "start.md",
         REPO_ROOT / "continue.md",
         REPO_ROOT / "resume.md",
         REPO_ROOT / "resume_prompt.md",
         REPO_ROOT / "new_profile.md",
         REPO_ROOT / "new_addon.md",
-        REPO_ROOT / "AGENTS.md",
+        REPO_ROOT / "BOOTSTRAP.md",
     ]
     files.extend(sorted((REPO_ROOT / "profiles").glob("rules*.md")))
 
     patterns = [
         r"Policy \(this document\)",
-        r"/start MUST",
         r"\bTrigger:",
         r"\bSearch order:",
         r"\bMode\s*=\s*(BLOCKED|DEGRADED|DRAFT|NORMAL)\b",
