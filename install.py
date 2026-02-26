@@ -210,6 +210,9 @@ def create_launcher(plan: InstallPlan, dry_run: bool, force: bool) -> list[dict]
     import sys
 
     bin_dir = plan.config_root / "bin"
+    # Prepare cross-platform launcher wrappers to be installed into runtime bin dir
+    wrapper_unix = Path(__file__).resolve().parent / "bin" / "opencode-governance-bootstrap"
+    wrapper_win = Path(__file__).resolve().parent / "bin" / "opencode-governance-bootstrap.cmd"
     python_exe = sys.executable
     commands_home = str(plan.commands_dir)
     workspaces_home = str(plan.config_root / "workspaces")
@@ -232,6 +235,20 @@ def create_launcher(plan: InstallPlan, dry_run: bool, force: bool) -> list[dict]
             dst.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(f, dst)
         print(f"  ✅ {cli_dest}")
+
+        # Install runtime wrappers if not a dry-run
+        if wrapper_unix.exists():
+            dest_unix = bin_dir / wrapper_unix.name
+            if dest_unix.exists():
+                dest_unix.unlink()
+            shutil.copy2(wrapper_unix, dest_unix)
+            created_entries.append({"dst": str(dest_unix.resolve()), "src": str(wrapper_unix), "status": "copied"})
+        if wrapper_win.exists():
+            dest_win = bin_dir / wrapper_win.name
+            if dest_win.exists():
+                dest_win.unlink()
+            shutil.copy2(wrapper_win, dest_win)
+            created_entries.append({"dst": str(dest_win.resolve()), "src": str(wrapper_win), "status": "copied"})
 
     for f in sorted(cli_source.rglob("*.py")):
         rel = f.relative_to(cli_source)
