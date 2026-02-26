@@ -7,7 +7,7 @@ Deterministic governance for AI-assisted software delivery with fail-closed gate
 Runtime contract boundary:
 - SSOT routing/execution/validation is `${COMMANDS_HOME}/phase_api.yaml` enforced by `governance/kernel/*`.
 - `rules.md` and active profile/addon rulebooks define engineering constraints and stack extensions.
-- `README*` and `AGENTS.md` are descriptive operational guides only.
+- `README*` and `BOOTSTRAP.md` are descriptive operational guides only.
 
 ## Quick Links
 
@@ -44,7 +44,7 @@ Note: installer-owned path binding evidence is written to `<config_root>/command
 
 - Operating systems: macOS, Linux, Windows (path resolution is defined by installer binding + kernel loaders; examples in `docs/install-layout.md`).
 - Runtime requirements: `${PYTHON_COMMAND}` for installer/governance helpers; `git` is recommended and required by identity-gated workflows.
-- Frontend surfaces: OpenCode (`/start`, `/continue`, `/resume`, `/audit`) and Codex-style frontend surfaces via `AGENTS.md` mirror semantics.
+- Frontend surfaces: OpenCode (`/start`, `/continue`, `/resume`, `/audit`) and local bootstrap launcher (`~/.config/opencode/bin/opencode-governance-bootstrap`).
 
 ## 60-Second Install Verification
 

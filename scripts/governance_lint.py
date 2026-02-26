@@ -1047,7 +1047,7 @@ def check_md_rails_only_tripwire(issues: list[str]) -> None:
         ROOT / "resume_prompt.md",
         ROOT / "new_profile.md",
         ROOT / "new_addon.md",
-        ROOT / "AGENTS.md",
+        ROOT / "BOOTSTRAP.md",
     ]
     files.extend(sorted((ROOT / "profiles").glob("rules*.md")))
     file_args = [str(p) for p in files if p.exists()]

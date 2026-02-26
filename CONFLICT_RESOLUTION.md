@@ -17,7 +17,7 @@ P4: Active profile rules
     (profiles/*)
 P5: Repository-local mandatory rules
     (e.g. CI requirements, enforced tooling; NOT governance kernel files)
-    Note: AGENTS.md is a non-normative mirror and never overrides kernel precedence.
+    Note: Repository docs are non-normative and never override kernel precedence.
 P6: Preferences, heuristics, stylistic guidance
 
 ## Resolution rule
