@@ -97,7 +97,15 @@ def _iter_manifest_entries(files_obj, commands: Path):
                 raise AssertionError(f"Duplicate manifest dst: {dst}")
             seen.add(dst)
             target = Path(dst)
-            target = target if target.is_absolute() else (commands / target)
+            # Handle bin/ directory for local launcher
+            if target.is_absolute():
+                # Already absolute - check if under commands/ or bin/
+                assert_under_base(target, "Manifest dst")
+            elif dst.startswith("bin/"):
+                # Launcher files go to bin/ directory
+                target = commands.parent / target
+            else:
+                target = commands / target
             assert_under_base(target, "Manifest dst")
             expected = entry.get("sha256")
             yield (target, expected if looks_like_sha256(expected) else None)
