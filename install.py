@@ -266,66 +266,18 @@ def create_launcher(plan: InstallPlan, dry_run: bool, force: bool) -> list[dict]
     launcher_unix = bin_dir / "opencode-governance-bootstrap"
     launcher_win = bin_dir / "opencode-governance-bootstrap.cmd"
 
-    python_exe_quoted = shlex.quote(python_exe)
-    unix_content = f"""#!/bin/sh
-# OpenCode Governance Bootstrap Launcher
-export OPENCODE_CONFIG_ROOT="{plan.config_root}"
-export COMMANDS_HOME="{commands_home}"
-export PYTHONDONTWRITEBYTECODE=1
-
-# Add commands_home and current dir to PYTHONPATH first
-export PYTHONPATH="{commands_home}:$PYTHONPATH"
-
-# Auto-detect repo root from git or OPENCODE_REPO_ROOT
-if [ -n "$OPENCODE_REPO_ROOT" ]; then
-    export PYTHONPATH="$OPENCODE_REPO_ROOT:$PYTHONPATH"
-elif [ -d ".git" ]; then
-    export PYTHONPATH="$(pwd):$PYTHONPATH"
-fi
-
-exec {python_exe_quoted} -m cli.bootstrap "$@"
-"""
-
-    win_content = f"""@echo off
-REM OpenCode Governance Bootstrap Launcher
-set "OPENCODE_CONFIG_ROOT={plan.config_root}"
-set "COMMANDS_HOME={commands_home}"
-set "PYTHONDONTWRITEBYTECODE=1"
-set "PYTHONPATH={commands_home};%PYTHONPATH%"
-
-REM Auto-detect repo root from git or OPENCODE_REPO_ROOT
-if defined OPENCODE_REPO_ROOT (
-    set "PYTHONPATH=%OPENCODE_REPO_ROOT%;%PYTHONPATH%"
-) else (
-    for /f "delims=" %%i in ('git rev-parse --show-toplevel 2^>nul') do set "PYTHONPATH=%%i;%PYTHONPATH%"
-)
-
-"{python_exe}" -m cli.bootstrap %*
-"""
-
-    for path, content in [(launcher_unix, unix_content), (launcher_win, win_content)]:
+    # Skip generating launcher content - we only use the copied wrappers from bin/
+    # This prevents duplicate manifest entries
+    for path in [launcher_unix, launcher_win]:
+        if not path.exists():
+            continue
         if dry_run:
-            print(f"  [DRY-RUN] write {path}")
             created_entries.append(
                 {
                     "dst": str(path),
                     "rel": str(path.relative_to(plan.config_root)),
                     "rel_base": "config",
                     "status": "planned-copy",
-                    "src": "generated",
-                }
-            )
-        else:
-            path.write_text(content, encoding="utf-8")
-            if path == launcher_unix:
-                path.chmod(0o755)
-            print(f"  ✅ {path}")
-            created_entries.append(
-                {
-                    "dst": str(path.resolve()),
-                    "rel": str(path.resolve().relative_to(plan.config_root.resolve())),
-                    "rel_base": "config",
-                    "status": "copied",
                     "src": "generated",
                 }
             )
