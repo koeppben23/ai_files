@@ -8,7 +8,7 @@ Invariant checklist for regression prevention: `${COMMANDS_HOME}/docs/governance
 
 ## Bootstrap Entry Points
 
-The official bootstrap entry point is the **local launcher**:
+The official bootstrap entry point is the **local launcher**. local launcher is the official bootstrap entry point
 
 ```
 ~/.config/opencode/bin/opencode-governance-bootstrap
