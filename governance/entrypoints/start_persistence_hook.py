@@ -638,7 +638,7 @@ def run_persistence_hook(*, repo_root: Path | None = None) -> dict[str, object]:
                     component="persistence-hook",
                     observed_value={"pointer_reason": pointer_reason},
                     expected_constraint="Global SESSION_STATE pointer must exist and reference correct fingerprint",
-                    remediation="Check filesystem permissions and re-run /start.",
+                    remediation="Check filesystem permissions and re-run the bootstrap launcher.",
                 )
                 return _with_log_path(result, repo_fingerprint=repo_fp)
 
@@ -672,7 +672,7 @@ def run_persistence_hook(*, repo_root: Path | None = None) -> dict[str, object]:
                     component="persistence-hook",
                     observed_value={"workspace_reason": workspace_reason},
                     expected_constraint="Workspace SESSION_STATE must exist with PersistenceCommitted=True",
-                    remediation="Check filesystem permissions and re-run /start.",
+                    remediation="Check filesystem permissions and re-run the bootstrap launcher.",
                 )
                 return _with_log_path(result, repo_fingerprint=repo_fp)
 

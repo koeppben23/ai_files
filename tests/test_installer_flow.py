@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -244,6 +245,11 @@ def test_full_install_reinstall_uninstall_flow(tmp_path: Path):
         leftovers = [p for p in commands.rglob("*") if p.is_file()]
         assert not leftovers, f"Commands dir not empty after uninstall: {[p.name for p in leftovers[:25]]}"
 
+    bin_dir = config_root / "bin"
+    if bin_dir.exists():
+        bin_leftovers = [p for p in bin_dir.rglob("*") if p.is_file()]
+        assert not bin_leftovers, f"Bin dir not empty after uninstall: {[p.name for p in bin_leftovers[:25]]}"
+
 
 @pytest.mark.installer
 def test_uninstall_fallback_manifest_missing(tmp_path: Path):
@@ -270,6 +276,40 @@ def test_uninstall_fallback_manifest_missing(tmp_path: Path):
     if commands.exists():
         leftovers = [p for p in commands.rglob("*") if p.is_file()]
         assert not leftovers, f"Fallback uninstall left files behind: {[p.as_posix() for p in leftovers[:25]]}"
+
+
+@pytest.mark.installer
+def test_launcher_uses_installed_runtime_and_config_root_env(tmp_path: Path):
+    config_root = tmp_path / "opencode-config-custom"
+    r = run_install(["--force", "--no-backup", "--config-root", str(config_root)])
+    assert r.returncode == 0, f"install failed:\n{r.stderr}\n{r.stdout}"
+
+    launcher = config_root / "bin" / "opencode-governance-bootstrap"
+    assert launcher.exists(), f"Missing launcher: {launcher}"
+
+    # Validate launcher runs from installed runtime (fails if cli package is not installed).
+    help_run = subprocess.run(
+        [str(launcher), "--help"],
+        capture_output=True,
+        text=True,
+        env={**os.environ, "OPENCODE_CONFIG_ROOT": str(config_root)},
+    )
+    assert help_run.returncode == 0, f"launcher --help failed:\nSTDERR:\n{help_run.stderr}\nSTDOUT:\n{help_run.stdout}"
+
+    # Validate OPENCODE_CONFIG_ROOT is honored by cli/start.py when --config-root is omitted.
+    # If ignored, binding lookup fails before repo detection.
+    run = subprocess.run(
+        [str(launcher)],
+        cwd=str(tmp_path),
+        capture_output=True,
+        text=True,
+        env={**os.environ, "OPENCODE_CONFIG_ROOT": str(config_root)},
+    )
+    assert run.returncode == 2
+    assert "Repository root not found." in run.stdout, (
+        "Expected binding resolution to succeed via OPENCODE_CONFIG_ROOT before repo validation; "
+        f"got output:\n{run.stdout}\n{run.stderr}"
+    )
 
 
 @pytest.mark.installer

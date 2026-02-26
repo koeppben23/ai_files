@@ -23,10 +23,11 @@ import argparse
 import hashlib
 import importlib.util
 import json
-import re
 import os
 import platform
+import re
 import shutil
+import subprocess
 import sys
 try:
     import pwd
@@ -212,6 +213,33 @@ def create_launcher(plan: InstallPlan, dry_run: bool, force: bool) -> list[dict]
     commands_home = str(plan.commands_dir)
     workspaces_home = str(plan.config_root / "workspaces")
 
+    # Copy cli/ package to commands_home so launcher has a local runtime.
+    cli_source = SCRIPT_DIR / "cli"
+    cli_dest = plan.commands_dir / "cli"
+
+    created_entries: list[dict] = []
+
+    if dry_run:
+        print(f"  [DRY-RUN] copy {cli_source} -> {cli_dest}")
+    else:
+        if cli_dest.exists():
+            shutil.rmtree(cli_dest)
+        shutil.copytree(cli_source, cli_dest)
+        print(f"  ✅ {cli_dest}")
+
+    for f in sorted(cli_source.rglob("*.py")):
+        rel = f.relative_to(cli_source)
+        installed_path = cli_dest / rel
+        created_entries.append(
+            {
+                "dst": str(installed_path.resolve()) if not dry_run else str(installed_path),
+                "rel": str(Path("cli") / rel),
+                "rel_base": "commands",
+                "status": "planned-copy" if dry_run else "copied",
+                "src": str(f),
+            }
+        )
+
     launcher_unix = bin_dir / "opencode-governance-bootstrap"
     launcher_win = bin_dir / "opencode-governance-bootstrap.cmd"
 
@@ -249,17 +277,32 @@ if defined OPENCODE_REPO_ROOT (
 "{python_exe}" -m cli.start %*
 """
 
-    created_entries = []
     for path, content in [(launcher_unix, unix_content), (launcher_win, win_content)]:
         if dry_run:
             print(f"  [DRY-RUN] write {path}")
-            created_entries.append({"dst": str(path), "status": "planned-copy", "src": "generated"})
+            created_entries.append(
+                {
+                    "dst": str(path),
+                    "rel": str(path.relative_to(plan.config_root)),
+                    "rel_base": "config",
+                    "status": "planned-copy",
+                    "src": "generated",
+                }
+            )
         else:
             path.write_text(content, encoding="utf-8")
             if path == launcher_unix:
                 path.chmod(0o755)
             print(f"  ✅ {path}")
-            created_entries.append({"dst": str(path), "status": "copied", "src": "generated"})
+            created_entries.append(
+                {
+                    "dst": str(path.resolve()),
+                    "rel": str(path.resolve().relative_to(plan.config_root.resolve())),
+                    "rel_base": "config",
+                    "status": "copied",
+                    "src": "generated",
+                }
+            )
 
     # Write INSTALL_HEALTH.json
     health_path = plan.config_root / "INSTALL_HEALTH.json"
@@ -1213,29 +1256,35 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
         return 3
 
     # manifest: store only entries that were actually copied/planned
-    installed_files = [
-        {
-            "dst": e["dst"],
-            "rel": str(Path(e["dst"]).resolve().relative_to(plan.commands_dir.resolve())) if "dst" in e else None,
-            "src": e["src"],
-            "sha256": e.get("sha256", "unknown"),
-            "backup": e.get("backup"),
-            "status": e["status"],
-        }
-        for e in copied_entries
-        if e["status"] in ("copied", "planned-copy", "patched", "planned-patch")
-    ]
+    installed_files = []
+    for e in copied_entries:
+        if e["status"] not in ("copied", "planned-copy", "patched", "planned-patch"):
+            continue
+        installed_files.append(
+            {
+                "dst": e["dst"],
+                "rel": str(Path(e["dst"]).resolve().relative_to(plan.commands_dir.resolve())) if "dst" in e else None,
+                "rel_base": "commands",
+                "src": e["src"],
+                "sha256": e.get("sha256", "unknown"),
+                "backup": e.get("backup"),
+                "status": e["status"],
+            }
+        )
 
     # Add launcher entries to manifest
     for entry in launcher_entries:
-        installed_files.append({
-            "dst": entry["dst"],
-            "rel": str(Path(entry["dst"]).resolve().relative_to(plan.config_root.resolve())) if "dst" in entry else None,
-            "src": entry.get("src", "generated"),
-            "sha256": "generated",
-            "backup": None,
-            "status": entry["status"],
-        })
+        installed_files.append(
+            {
+                "dst": entry["dst"],
+                "rel": entry.get("rel"),
+                "rel_base": entry.get("rel_base", "config"),
+                "src": entry.get("src", "generated"),
+                "sha256": "generated",
+                "backup": None,
+                "status": entry["status"],
+            }
+        )
 
     manifest = {
         "schema": MANIFEST_SCHEMA,
@@ -1257,7 +1306,8 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
         print("🎉 Installation complete!")
     print("=" * 60)
     print(f"Commands dir: {plan.commands_dir}")
-    print("Next: run /start in OpenCode (or load start.md).")
+    print("Next: run the local bootstrap launcher:")
+    print(f"  {plan.config_root}/bin/opencode-governance-bootstrap")
     return 0
 
 
@@ -1311,6 +1361,13 @@ def uninstall(
         for name in CORE_COMMAND_FILES:
             targets.append(plan.commands_dir / name)
 
+        # CLI package (for bootstrap launcher)
+        cli_dir = plan.commands_dir / "cli"
+        if cli_dir.exists():
+            for f in cli_dir.rglob("*"):
+                if f.is_file():
+                    targets.append(f)
+
         # Profiles and addon manifests from current source snapshot
         for src in collect_profile_files(plan.source_dir):
             rel = src.relative_to(plan.source_dir)
@@ -1344,6 +1401,13 @@ def uninstall(
         except Exception:
             pass
 
+        # Launcher scripts in bin/
+        bin_dir = plan.config_root / "bin"
+        if bin_dir.exists():
+            for f in bin_dir.rglob("*"):
+                if f.is_file():
+                    targets.append(f)
+
         # Remove governance.paths.json only when explicitly requested.
         if purge_paths_file:
             targets.append(plan.governance_paths_path)
@@ -1364,8 +1428,14 @@ def uninstall(
         rel = entry.get("rel")
         dst = entry.get("dst")
         if rel:
-            # Prefer relative paths to make uninstall resilient after moving configRoot.
-            targets.append(plan.commands_dir / rel)
+            rel_base = str(entry.get("rel_base") or "commands")
+            if rel_base == "commands" and str(rel).startswith("bin/"):
+                # Backward compatibility for manifests created before rel_base.
+                rel_base = "config"
+            if rel_base == "config":
+                targets.append(plan.config_root / rel)
+            else:
+                targets.append(plan.commands_dir / rel)
         elif dst:
             targets.append(Path(dst))
             
@@ -1434,14 +1504,23 @@ def uninstall(
 def delete_targets(targets: Iterable[Path], plan: InstallPlan, dry_run: bool) -> int:
     errors = 0
     for t in targets:
-        # Safety guard: only delete within commands_dir
+        # Safety guard: only delete within commands_dir or config_root/bin.
         try:
             t_resolved = t.resolve()
-            base_resolved = plan.commands_dir.resolve()
-            if base_resolved not in t_resolved.parents and t_resolved != base_resolved:
+            commands_resolved = plan.commands_dir.resolve()
+            bin_resolved = (plan.config_root / "bin").resolve()
+            
+            # Allow deletion in commands_dir or in config_root/bin.
+            allowed_bases = [commands_resolved, bin_resolved]
+            is_under_allowed = any(
+                base_resolved in t_resolved.parents or t_resolved == base_resolved
+                for base_resolved in allowed_bases
+            )
+            
+            if not is_under_allowed:
                 safe_log_error(
                     reason_key="ERR-UNINSTALL-PATH-ESCAPE-REFUSED",
-                    message="Refused deletion outside commands directory.",
+                    message="Refused deletion outside commands/bin directory.",
                     config_root=plan.config_root,
                     phase="installer",
                     gate="uninstall-safety",
@@ -1450,13 +1529,13 @@ def delete_targets(targets: Iterable[Path], plan: InstallPlan, dry_run: bool) ->
                     command="install.py",
                     component="installer-delete-guard",
                     observed_value={"target": str(t), "resolvedTarget": str(t_resolved)},
-                    expected_constraint=f"Target must be under {base_resolved}",
+                    expected_constraint=f"Target must be under {commands_resolved} or {bin_resolved}",
                     remediation="Inspect manifest/targets and rerun uninstall.",
                     action="block",
                     result="blocked",
                     reason_namespace="installer-internal",
                 )
-                eprint(f"  ❌ Refusing to delete outside commands dir: {t}")
+                eprint(f"  ❌ Refusing to delete outside allowed dirs: {t}")
                 errors += 1
                 continue
         except Exception:
@@ -1782,15 +1861,23 @@ def show_health(source_dir: Path, config_root_arg: Path | None) -> int:
         if not launcher_exists:
             issues_found.append("launcher-missing")
 
-        # Check cli.start importability
-        try:
-            import cli.start
-            cli_icon = "✅"
-            print(f"   {cli_icon} cli.start: importable")
-        except ImportError:
-            cli_icon = "⚠️"
-            print(f"   {cli_icon} cli.start: NOT importable (check PYTHONPATH)")
-            issues_found.append("cli-start-not-importable")
+        # Check launcher can execute against installed runtime.
+        launcher = launcher_unix if launcher_unix.exists() else launcher_win
+        if launcher.exists():
+            test_env = os.environ.copy()
+            test_env["OPENCODE_CONFIG_ROOT"] = str(config_root)
+            result = subprocess.run(
+                [str(launcher), "--help"],
+                capture_output=True,
+                text=True,
+                env=test_env,
+                cwd=str(config_root),
+            )
+            if result.returncode == 0:
+                print("   ✅ launcher runtime: healthy")
+            else:
+                print("   ⚠️  launcher runtime: failed")
+                issues_found.append("launcher-runtime-failed")
     else:
         print("\n⚠️  No installation found at config root")
         print("   Run '${PYTHON_COMMAND} install.py' to install")
@@ -1816,8 +1903,8 @@ def show_health(source_dir: Path, config_root_arg: Path | None) -> int:
             print("   - Run: ${PYTHON_COMMAND} install.py --force")
         if "launcher-missing" in issues_found:
             print("   - Run: ${PYTHON_COMMAND} install.py --force")
-        if "cli-start-not-importable" in issues_found:
-            print("   - Check PYTHONPATH or reinstall")
+        if "launcher-runtime-failed" in issues_found:
+            print("   - Reinstall and run smoketest to verify launcher runtime")
         return 1
 
 
@@ -1848,13 +1935,25 @@ def run_smoketest(config_root: Path) -> int:
     else:
         print("✅ governance.paths.json present")
 
-    # Check cli.start importable
-    try:
-        import cli.start
-        print("✅ cli.start importable")
-    except ImportError:
-        print("❌ cli.start not importable")
-        issues.append("cli-start-not-importable")
+    # Check launcher execution against installed runtime (not source checkout).
+    launcher = launcher_unix if launcher_unix.exists() else launcher_win
+    if launcher.exists():
+        test_env = os.environ.copy()
+        test_env["OPENCODE_CONFIG_ROOT"] = str(config_root)
+        result = subprocess.run(
+            [str(launcher), "--help"],
+            capture_output=True,
+            text=True,
+            env=test_env,
+            cwd=str(config_root),
+        )
+        if result.returncode == 0:
+            print("✅ launcher executes with installed runtime")
+        else:
+            print("❌ launcher failed in installed runtime")
+            if result.stderr.strip():
+                print(f"   Error: {result.stderr.strip()}")
+            issues.append("launcher-runtime-failed")
 
     # Check interpreter
     print(f"✅ Interpreter: {sys.executable}")
@@ -1900,7 +1999,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     p.add_argument("--version", action="store_true", help="Show installer and governance version, then exit.")
     p.add_argument("--status", action="store_true", help="Show installation status (read-only), then exit.")
     p.add_argument("--health", action="store_true", help="Run read-only health probes and show compact status, then exit.")
-    p.add_argument("--smoketest", action="store_true", help="Run installation smoketest (checks launcher, paths.json, cli.start importability).")
+    p.add_argument("--smoketest", action="store_true", help="Run installation smoketest (checks launcher, paths.json, installed runtime execution).")
     return p.parse_args(argv)
 
 

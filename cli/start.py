@@ -49,6 +49,17 @@ def _parser() -> argparse.ArgumentParser:
 def _resolve_config_root(user_provided: str | None) -> Path:
     if user_provided:
         return Path(user_provided).expanduser().resolve()
+    
+    # Check OPENCODE_CONFIG_ROOT environment variable
+    env_config_root = os.environ.get("OPENCODE_CONFIG_ROOT")
+    if env_config_root:
+        return Path(env_config_root).expanduser().resolve()
+    
+    # Check COMMANDS_HOME environment variable and derive config_root
+    commands_home = os.environ.get("COMMANDS_HOME")
+    if commands_home:
+        return Path(commands_home).expanduser().resolve().parent
+    
     return Path(os.path.expanduser("~/.config/opencode"))
 
 
@@ -78,25 +89,31 @@ def _compute_fingerprint(repo_root: Path) -> str:
 
 
 def _resolve_binding(config_root: Path) -> dict | None:
-    binding_path = config_root / "commands" / "governance.paths.json"
-    if not binding_path.exists():
-        return None
+    candidates: list[Path] = []
+    env_commands_home = os.environ.get("COMMANDS_HOME")
+    if env_commands_home:
+        candidates.append(Path(env_commands_home).expanduser().resolve() / "governance.paths.json")
+    candidates.append(config_root / "commands" / "governance.paths.json")
 
-    try:
-        with open(binding_path) as f:
-            data = json.load(f)
+    for binding_path in candidates:
+        if not binding_path.exists():
+            continue
+        try:
+            with open(binding_path) as f:
+                data = json.load(f)
 
-        if data.get("schema") != "opencode-governance.paths.v1":
-            return None
+            if data.get("schema") != "opencode-governance.paths.v1":
+                continue
 
-        paths = data.get("paths", {})
-        required = ["configRoot", "commandsHome", "workspacesHome"]
-        if not all(paths.get(k) for k in required):
-            return None
+            paths = data.get("paths", {})
+            required = ["configRoot", "commandsHome", "workspacesHome"]
+            if not all(paths.get(k) for k in required):
+                continue
 
-        return data
-    except (json.JSONDecodeError, IOError):
-        return None
+            return data
+        except (json.JSONDecodeError, IOError):
+            continue
+    return None
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -121,6 +138,7 @@ def main(argv: list[str] | None = None) -> int:
     if not binding:
         print("ERROR: Invalid or missing binding file.")
         print(f"  Expected: {config_root}/commands/governance.paths.json")
+        print("  Or set COMMANDS_HOME to an installed commands directory.")
         print("  Run 'python install.py' to set up governance.")
         return 2
 
