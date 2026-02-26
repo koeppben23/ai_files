@@ -200,11 +200,11 @@ blocked_reasons:
     required_inputs:
       - "Investigation of hash/activation mismatch"
     quick_fix_commands:
-      - "Clear cache and re-run /start"
+      - "Clear cache and re-run the bootstrap launcher"
     resume_pointer: "/start"
     recovery_steps:
       - "Clear SESSION_STATE cache"
-      - "Re-run /start to re-activate"
+      - "Re-run the bootstrap launcher to re-activate"
       - "Report if mismatch persists"
     message_template: "Activation delta mismatch. Re-run /start."
 
