@@ -1987,7 +1987,7 @@ def test_start_invocation_guard_prevents_repeat_start_prompt_in_same_turn():
         "MUST NOT ask operator to run `/start` again in the same turn.",
     ]
     start_required = [
-        "`/start` is mandatory bootstrap for a repo/session (kernel-enforced).",
+        "local launcher is the official bootstrap entry point",
     ]
 
     missing_master = [t for t in master_required if t not in master]
@@ -1996,7 +1996,7 @@ def test_start_invocation_guard_prevents_repeat_start_prompt_in_same_turn():
 
     assert not missing_master, "master.md missing /start invocation guard tokens:\n" + "\n".join([f"- {m}" for m in missing_master])
     assert not missing_rules, "rules.md missing /start invocation guard tokens:\n" + "\n".join([f"- {m}" for m in missing_rules])
-    assert not missing_start, "start.md missing /start invocation guard tokens:\n" + "\n".join([f"- {m}" for m in missing_start])
+    assert not missing_start, "start.md missing local launcher tokens:\n" + "\n".join([f"- {m}" for m in missing_start])
 
 
 @pytest.mark.governance
@@ -3251,7 +3251,7 @@ def test_architect_autopilot_lifecycle_contract_is_defined_across_core_docs():
         "`VERIFY` mode is evidence reconciliation only.",
     ]
     start_required = [
-        "`/start` is mandatory bootstrap for a repo/session (kernel-enforced).",
+        "local launcher is the official bootstrap entry point",
         "governance/assets/config/bootstrap_policy.yaml",
     ]
 
