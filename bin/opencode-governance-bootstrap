@@ -1,7 +1,31 @@
 #!/bin/sh
 set -e
-OPENCODE_CONFIG_ROOT="${OPENCODE_CONFIG_ROOT:-$HOME/.config/opencode}"
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+OPENCODE_CONFIG_ROOT="${OPENCODE_CONFIG_ROOT:-"${SCRIPT_DIR}/.."}"
 OPENCODE_REPO_ROOT="${OPENCODE_REPO_ROOT:-}"
-COMMANDS_HOME="${OPENCODE_CONFIG_ROOT}/commands"
+COMMANDS_HOME="${COMMANDS_HOME:-"${OPENCODE_CONFIG_ROOT}/commands"}"
 PYTHONPATH="${COMMANDS_HOME}:${COMMANDS_HOME}/governance:${PYTHONPATH}"
-exec "$(command -v python3 || command -v python)" -m governance.entrypoints.bootstrap_preflight_readonly
+
+export OPENCODE_CONFIG_ROOT
+export OPENCODE_REPO_ROOT
+export COMMANDS_HOME
+export PYTHONPATH
+
+PYTHON_BIN="$(command -v python3 || command -v python)"
+if [ -n "${PYTHON_BIN}" ] && [ -f "${COMMANDS_HOME}/governance.paths.json" ]; then
+  PYTHON_FROM_BINDING="$(${PYTHON_BIN} -c 'import json,os,sys
+p=os.path.join(os.environ.get("COMMANDS_HOME",""),"governance.paths.json")
+try:
+    data=json.load(open(p, "r", encoding="utf-8"))
+    v=data.get("paths",{}).get("pythonCommand","")
+    print(v)
+except Exception:
+    pass
+' 2>/dev/null || true)"
+  if [ -n "${PYTHON_FROM_BINDING}" ]; then
+    PYTHON_BIN="${PYTHON_FROM_BINDING}"
+  fi
+fi
+
+exec "${PYTHON_BIN}" -m cli.bootstrap "$@"

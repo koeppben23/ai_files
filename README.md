@@ -39,6 +39,7 @@ For engineering teams that need deterministic, auditable AI-assisted delivery in
 - Continue an active session with `/continue` or `/resume`
 
 Note: installer-owned path binding evidence is written to `<config_root>/commands/governance.paths.json` and is required for canonical OpenCode bootstrap behavior.
+Preflight records only raw tool availability (BuildToolchain snapshot); repo-specific build mapping happens later in Phase 2.
 
 ## Support Matrix
 

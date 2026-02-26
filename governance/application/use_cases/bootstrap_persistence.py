@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import hashlib
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -345,9 +346,10 @@ def _is_valid_pointer_payload(
     if not isinstance(active_state_file, str) or not active_state_file.strip():
         return False
 
-    actual_path = Path(active_state_file.strip())
+    active_state_file_value = active_state_file.strip()
+    actual_path = Path(active_state_file_value)
     expected_path = Path(expected_session_state_file)
-    if not actual_path.is_absolute():
+    if not os.path.isabs(active_state_file_value):
         return False
     return actual_path == expected_path
 

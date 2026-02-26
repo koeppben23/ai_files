@@ -38,6 +38,7 @@ Canonical OpenCode bootstrap uses installer-owned binding evidence:
 - `<config_root>/commands/governance.paths.json`
 
 If binding evidence is unavailable or unresolved, bootstrap must fail closed (for example with binding/path reason codes).
+Preflight records only raw tool availability (BuildToolchain snapshot); repo-specific build mapping happens later in Phase 2.
 
 ## Support Matrix
 
