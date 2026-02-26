@@ -236,7 +236,7 @@ def create_launcher(plan: InstallPlan, dry_run: bool, force: bool) -> list[dict]
             shutil.copy2(f, dst)
         print(f"  ✅ {cli_dest}")
 
-        # Install runtime wrappers if not a dry-run
+        # Copy runtime wrappers into bin/ in the config root
         if wrapper_unix.exists():
             dest_unix = bin_dir / wrapper_unix.name
             if dest_unix.exists():
