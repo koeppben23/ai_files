@@ -994,6 +994,8 @@ def main() -> int:
     emit_permission_probes()
     hook_result = run_persistence_hook()
     payload = run_kernel_continuation(hook_result)
+    if os.getenv("OPENCODE_BOOTSTRAP_OUTPUT", "final").strip().lower() != "minimal":
+        print(json.dumps(payload, ensure_ascii=True))
     if payload.get("kernelContinuation") != "ok":
         raise SystemExit(2)
     if os.getenv("OPENCODE_ENGINE_SHADOW_EMIT") == "1":
