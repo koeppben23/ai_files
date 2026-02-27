@@ -284,7 +284,7 @@ def _preflight_build_toolchain_snapshot() -> dict[str, object]:
 
 
 def emit_preflight() -> None:
-    if os.getenv("OPENCODE_BOOTSTRAP_OUTPUT", "final").strip().lower() in ("minimal", "final"):
+    if os.getenv("OPENCODE_BOOTSTRAP_OUTPUT", "final").strip().lower() == "minimal":
         return
     required_now, required_later, _required_later_entries = _tool_inventory()
 
@@ -335,7 +335,7 @@ def emit_preflight() -> None:
 
 
 def emit_permission_probes() -> None:
-    if os.getenv("OPENCODE_BOOTSTRAP_OUTPUT", "final").strip().lower() in ("minimal", "final"):
+    if os.getenv("OPENCODE_BOOTSTRAP_OUTPUT", "final").strip().lower() == "minimal":
         return
     checks = [
         {
