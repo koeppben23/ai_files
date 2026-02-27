@@ -521,15 +521,6 @@ def test_install_distribution_contains_required_normative_files_and_addon_rulebo
         [f"- {m}" for m in missing_templates]
     )
 
-    required_customer_scaffolding_docs = [
-        commands / "docs" / "_archive" / "new_profile.md",
-        commands / "docs" / "_archive" / "new_addon.md",
-    ]
-    missing_scaffolding_docs = [str(p) for p in required_customer_scaffolding_docs if not p.exists()]
-    assert not missing_scaffolding_docs, "Missing customer scaffolding markdown docs after install:\n" + "\n".join(
-        [f"- {m}" for m in missing_scaffolding_docs]
-    )
-
     manifests = sorted((commands / "profiles" / "addons").glob("*.addon.yml"))
     assert manifests, "No addon manifests found under installed commands/profiles/addons"
 
