@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from typing import Optional
 
 from governance.application.use_cases.route_phase import RoutePhaseInput, RoutePhaseService
 
@@ -17,7 +18,7 @@ def _parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(argv: Optional[list[str]] = None) -> int:
     args = _parser().parse_args(argv)
 
     loaded = {

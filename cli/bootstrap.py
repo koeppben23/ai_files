@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 import sys
+from typing import Optional
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(argv: Optional[list[str]] = None) -> int:
     try:
         from governance.entrypoints.bootstrap_executor import main as executor_main
     except Exception as exc:
