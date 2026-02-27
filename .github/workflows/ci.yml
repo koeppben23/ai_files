@@ -76,14 +76,20 @@ jobs:
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BRANCH_NAME: ${{ github.head_ref }}
         run: |
           python - <<'PY'
           import os, re, subprocess, sys
           base = os.environ.get("BASE_SHA") or ""
           head = os.environ.get("HEAD_SHA") or ""
+          branch = os.environ.get("BRANCH_NAME") or ""
           if not base or not head:
               print("❌ Missing BASE_SHA/HEAD_SHA for commit validation")
               sys.exit(1)
+
+          if branch == "develop":
+              print("ℹ️ Skipping commit-subject enforcement for integration branch 'develop'")
+              sys.exit(0)
 
           r = subprocess.run(["git", "log", "--format=%s", f"{base}..{head}"], text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
           if r.returncode != 0:
@@ -97,12 +103,17 @@ jobs:
               sys.exit(1)
 
           pattern = r'^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([^)]+\))?!?: .+'
-          bad = [s for s in subjects if not re.fullmatch(pattern, s)]
+          bad = [
+              s
+              for s in subjects
+              if not re.fullmatch(pattern, s) and not s.startswith("Merge ")
+          ]
           if bad:
               print("❌ Non-conventional commit subjects found:")
               for s in bad:
                   print("-", s)
               print("Expected pattern:", pattern)
+              print("Note: merge commit subjects that start with 'Merge ' are allowed.")
               sys.exit(1)
 
           print(f"✅ All {len(subjects)} commit subject(s) are Conventional compliant")

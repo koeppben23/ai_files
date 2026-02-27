@@ -129,7 +129,7 @@ def test_artifacts_contents_follow_policy(tmp_path: Path):
             f"{prefix}/install.py",
             f"{prefix}/master.md",
             f"{prefix}/rules.md",
-            f"{prefix}/start.md",
+            f"{prefix}/BOOTSTRAP.md",
             f"{prefix}/CHANGELOG.md",
             f"{prefix}/governance/assets/catalogs/CUSTOMER_SCRIPT_CATALOG.json",
         }
@@ -177,7 +177,7 @@ def test_artifacts_contents_follow_policy(tmp_path: Path):
             f"{prefix}/install.py",
             f"{prefix}/master.md",
             f"{prefix}/rules.md",
-            f"{prefix}/start.md",
+            f"{prefix}/BOOTSTRAP.md",
             f"{prefix}/CHANGELOG.md",
             f"{prefix}/governance/assets/catalogs/CUSTOMER_SCRIPT_CATALOG.json",
         }

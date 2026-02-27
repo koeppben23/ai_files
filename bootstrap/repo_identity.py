@@ -6,7 +6,7 @@ import os
 import re
 import subprocess
 
-from governance.application.use_cases.start_bootstrap import evaluate_start_identity
+from governance.application.use_cases.bootstrap_session import evaluate_bootstrap_identity
 from governance.engine.adapters import LocalHostAdapter
 from governance.infrastructure.path_contract import normalize_absolute_path, normalize_for_fingerprint
 from governance.infrastructure.wiring import configure_gateway_registry
@@ -69,7 +69,7 @@ def derive_fingerprint(repo_root: Path) -> str:
     normalized_repo_root = normalize_absolute_path(str(repo_root), purpose="repo_root")
     try:
         configure_gateway_registry()
-        identity = evaluate_start_identity(adapter=cast(Any, _RepoIdentityAdapter(normalized_repo_root)))
+        identity = evaluate_bootstrap_identity(adapter=cast(Any, _RepoIdentityAdapter(normalized_repo_root)))
         fp = (identity.repo_fingerprint or "").strip()
         if _is_canonical_fingerprint(fp):
             return fp

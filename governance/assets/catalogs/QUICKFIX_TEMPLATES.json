@@ -3,22 +3,22 @@
   "version": "1",
   "templates": {
     "BLOCKED-START-REQUIRED": {
-      "primary_command": "/start",
+      "primary_command": "opencode-governance-bootstrap",
       "confidence": "safe",
-      "summary": "Run /start to initialize and continue governance session routing."
+      "summary": "Run the local bootstrap launcher to initialize and continue governance session routing."
     },
     "BLOCKED-VARIABLE-RESOLUTION": {
-      "primary_command": "/start",
+      "primary_command": "opencode-governance-bootstrap",
       "confidence": "safe",
       "summary": "Reload installer-owned path binding evidence."
     },
     "BLOCKED-MISSING-COMMANDS-HOME": {
-      "primary_command": "/start",
+      "primary_command": "opencode-governance-bootstrap",
       "confidence": "review-first",
       "summary": "Repair commands_home binding or set COMMANDS_HOME environment variable."
     },
     "BLOCKED-MISSING-BINDING-FILE": {
-      "primary_command": "/start",
+      "primary_command": "opencode-governance-bootstrap",
       "confidence": "review-first",
       "summary": "Repair installer outputs, then re-run bootstrap."
     },

@@ -44,39 +44,50 @@ Binding File: ~/.config/opencode/commands/governance.paths.json
 
 ## Step 2: Bootstrap Session (1 minute)
 
-In OpenCode (or compatible LLM frontend):
+Run the local bootstrap launcher:
 
+```bash
+# macOS / Linux
+~/.config/opencode/bin/opencode-governance-bootstrap
+
+# Windows
+%USERPROFILE%\.config\opencode\bin\opencode-governance-bootstrap.cmd
 ```
-/start
+
+Or from within a Git repository, simply:
+
+```bash
+cd /path/to/your-repo
+~/.config/opencode/bin/opencode-governance-bootstrap
 ```
 
 **Expected output:**
 ```
-[START-MODE] Cold Start - reason: no existing workspace cache
-[PHASE-1.1-COMPLETE]
-Bootstrap Evidence:
-  Binding: governance.paths.json ✓
-  Preflight: git ✓, python3 ✓
-  Repo Identity: git@github.com:org/repo.git (main)
+OpenCode Governance Bootstrap Launcher
+====================================
+Config root: /Users/.../.config/opencode
+Commands home: /Users/.../.config/opencode/commands
+Repo root: /Users/.../your-repo
+Repo fingerprint: abc123...
+Repo name: your-repo
+...
 ```
-
-**Note:** Workspace persistence requires host write permissions for `commandsHome/workspacesHome` from `governance.paths.json`; without permissions, the run fails closed.
 
 ### Troubleshooting Step 2
 
 | Error | Fix |
 |-------|-----|
-| `BLOCKED-MISSING-BINDING-FILE` | Run `python3 install.py` |
-| `BLOCKED-VARIABLE-RESOLUTION` | Check `~/.config/opencode/commands/governance.paths.json` |
-| `BLOCKED-REPO-IDENTITY` | Ensure you're in a git repository |
-| Workspace not persisted | Verify host write permissions for binding paths and rerun `/start`; check `error.log.jsonl` for blocked reason and remediation. |
+| Launcher not found | Run `python3 install.py` first |
+| Binding file invalid | Run `python3 install.py` to regenerate |
+| Repo not detected | Provide `--repo-root /path/to/repo` or run from within Git repo |
+| Not a Git repository | Initialize git or provide `--repo-root` to a valid Git repo |
 
 ## Step 3: First Governed Task (2 minutes)
 
-After `/start` completes, provide a task:
+After bootstrap completes, you can work in OpenCode:
 
 ```
-Implement a function to validate email addresses with tests
+/continue
 ```
 
 The governance system will:
@@ -92,18 +103,18 @@ The governance system will:
 
 | Command | Purpose |
 |---------|---------|
-| `/start` | Bootstrap governance session |
+| `~/.config/opencode/bin/opencode-governance-bootstrap` | Bootstrap session (recommended) |
 | `/continue` | Resume active session |
 | `python3 install.py` | Install/update governance |
 | `python3 install.py --status` | Check installation |
-| `python3 scripts/audit_explain.py --last` | Explain last run |
+| `python3 install.py --smoketest` | Run installation smoketest |
 
 ### Common Workflows
 
 **Start new work:**
-```
-/start
-<describe task>
+```bash
+~/.config/opencode/bin/opencode-governance-bootstrap
+/continue
 "Implement now"
 ```
 
@@ -117,10 +128,16 @@ The governance system will:
 python3 scripts/audit_explain.py --last
 ```
 
-**Check why something was blocked:**
-```bash
-python3 scripts/audit_explain.py --run <run_id>
-```
+## Platform Notes
+
+### Windows
+
+- Always use the local launcher: `%USERPROFILE%\.config\opencode\bin\opencode-governance-bootstrap.cmd`
+- The launcher uses the correct Python interpreter from installation
+
+### macOS / Linux
+
+- Use `~/.config/opencode/bin/opencode-governance-bootstrap`
 
 ## Understanding the Output
 
@@ -138,9 +155,8 @@ python3 scripts/audit_explain.py --run <run_id>
 | Code | Meaning | Fix |
 |------|---------|-----|
 | `BLOCKED-MISSING-BINDING-FILE` | Install not run | `python3 install.py` |
-| `BLOCKED-START-REQUIRED` | Session not bootstrapped | `/start` |
-| `BLOCKED-MISSING-EVIDENCE` | Required evidence missing | Check payload for details |
-| `INTERACTIVE-REQUIRED-IN-PIPELINE` | CI needs user input | Add pre-approved config |
+| `BLOCKED-REPO-ROOT-NOT-DETECTABLE` | Repository not found | Provide `--repo-root` or run from Git repo |
+| `BLOCKED-WORKSPACE-PERSISTENCE` | Bootstrap failed | Check logs |
 
 ### Phase Progress
 
@@ -183,8 +199,9 @@ Automatic based on repo signals:
 
 1. **Read the rules**: [README-RULES.md](README-RULES.md)
 2. **Understand phases**: [docs/phases.md](docs/phases.md)
-3. **Security model**: [docs/security-gates.md](docs/security-gates.md)
-4. **Stability contract**: [STABILITY_SLA.md](STABILITY_SLA.md)
+3. **Bootstrap guide**: [BOOTSTRAP.md](BOOTSTRAP.md)
+4. **Security model**: [docs/security-gates.md](docs/security-gates.md)
+5. **Stability contract**: [STABILITY_SLA.md](STABILITY_SLA.md)
 
 ## Getting Help
 
@@ -197,9 +214,9 @@ Automatic based on repo signals:
 After setup, verify:
 
 - [ ] `python3 install.py --status` shows OK
-- [ ] `/start` completes without blockers
+- [ ] `python3 install.py --smoketest` passes
+- [ ] Local bootstrap launcher runs without errors
 - [ ] Phase 2 discovery shows correct profile
-- [ ] Can provide a task and see plan output
 
 ---
 

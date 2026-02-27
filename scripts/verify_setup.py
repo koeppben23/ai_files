@@ -168,7 +168,7 @@ def print_report(results: dict[str, Any]) -> None:
         print("STATUS: ✓ READY")
         print()
         print("Next steps:")
-        print("  1. Run /start in OpenCode to begin a governance session")
+        print("  1. Run opencode-governance-bootstrap to begin a governance session")
         print("  2. Provide a task description")
         print("  3. Say 'Implement now' to proceed with implementation")
     else:

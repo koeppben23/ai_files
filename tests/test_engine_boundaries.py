@@ -78,9 +78,9 @@ def test_gate_evaluator_can_enforce_registered_reason_codes():
 def test_recovery_invariant_requires_primary_action_and_command():
     """Fail-closed recovery contract requires both fields to be non-empty."""
 
-    assert check_single_recovery_action("Run /start", "/start").valid is True
-    assert check_single_recovery_action("", "/start").valid is False
-    assert check_single_recovery_action("Run /start", "").valid is False
+    assert check_single_recovery_action("Run the local bootstrap launcher", "opencode-governance-bootstrap").valid is True
+    assert check_single_recovery_action("", "opencode-governance-bootstrap").valid is False
+    assert check_single_recovery_action("Run the local bootstrap launcher", "").valid is False
 
 
 @pytest.mark.governance

@@ -5,7 +5,7 @@ import re
 import subprocess
 
 from governance.entrypoints.persist_workspace_artifacts import _derive_fingerprint_from_repo
-from governance.entrypoints.start_preflight_readonly import derive_repo_fingerprint
+from governance.entrypoints.bootstrap_preflight_readonly import derive_repo_fingerprint
 from governance.infrastructure.path_contract import normalize_for_fingerprint
 
 
@@ -13,12 +13,12 @@ def _is_short_hex(value: str) -> bool:
     return re.fullmatch(r"[0-9a-f]{24}", value) is not None
 
 
-def test_start_preflight_derive_repo_fingerprint_requires_git_repo(tmp_path):
+def test_bootstrap_preflight_derive_repo_fingerprint_requires_git_repo(tmp_path):
     fp = derive_repo_fingerprint(tmp_path)
     assert fp is None
 
 
-def test_start_preflight_derive_repo_fingerprint_falls_back_without_origin(tmp_path):
+def test_bootstrap_preflight_derive_repo_fingerprint_falls_back_without_origin(tmp_path):
     subprocess.run(["git", "init", str(tmp_path)], check=True, capture_output=True, text=True)
     fp = derive_repo_fingerprint(tmp_path)
     assert isinstance(fp, str)
@@ -53,7 +53,7 @@ def test_persist_helper_path_fingerprint_material_is_normalized(tmp_path):
     assert material == f"repo:local:{normalized}"
 
 
-def test_start_preflight_path_fingerprint_uses_normalized_path_material(tmp_path):
+def test_bootstrap_preflight_path_fingerprint_uses_normalized_path_material(tmp_path):
     repo_root = tmp_path / "Repo-MixedCase"
     repo_root.mkdir(parents=True, exist_ok=True)
     subprocess.run(["git", "init", str(repo_root)], check=True, capture_output=True, text=True)

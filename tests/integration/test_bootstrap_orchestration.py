@@ -36,9 +36,20 @@ class _FakeLogger:
 class _TamperedInMemoryFS(InMemoryFS):
     def read_text(self, path: Path) -> str:
         value = super().read_text(path)
-        if str(path) == "/cfg/SESSION_STATE.json":
+        if path.as_posix() == "/cfg/SESSION_STATE.json":
             return value + "tampered"
         return value
+
+
+    def write_text_atomic(self, path: Path, content: str) -> None:
+        if path.as_posix() == "/cfg/SESSION_STATE.json":
+            content = content + "tampered"
+        super().write_text_atomic(path, content)
+
+    def exists(self, path: Path) -> bool:
+        if path.as_posix() == "/cfg/SESSION_STATE.json":
+            return True
+        return super().exists(path)
 
 
 def _payload() -> BootstrapInput:

@@ -22,6 +22,7 @@ Migration from legacy keys:
 """
 from __future__ import annotations
 
+import os
 import re
 from pathlib import Path
 
@@ -132,8 +133,9 @@ def parse_pointer_payload(payload: dict) -> dict:
     session_file = _extract_session_state_file(payload)
     if not session_file:
         return {}
-    session_file_path = Path(str(session_file).strip())
-    if not session_file_path.is_absolute():
+    session_file_text = str(session_file).strip()
+    session_file_path = Path(session_file_text)
+    if not os.path.isabs(session_file_text):
         return {}
     result["activeSessionStateFile"] = str(session_file_path)
     
@@ -218,8 +220,9 @@ def is_valid_pointer(payload: dict) -> bool:
     except ValueError:
         return False
 
-    session_file_path = Path(str(session_file))
-    if not session_file_path.is_absolute():
+    session_file_text = str(session_file)
+    session_file_path = Path(session_file_text)
+    if not os.path.isabs(session_file_text):
         return False
 
     rel_normalized = str(rel_path).replace("\\", "/")

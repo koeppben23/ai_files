@@ -12,7 +12,7 @@ Features:
 
 NOTE:
 - This installer does NOT generate opencode.json (to avoid schema validation errors).
-- Instead it generates an installer-owned sidecar: commands/governance.paths.json for /start.
+ - Instead it generates an installer-owned sidecar: commands/governance.paths.json for bootstrap.
 - Installer governance use `ERR-*` reason keys as installer-internal keys; they are not canonical
   governance `reason_code` values (`BLOCKED-*|WARN-*|NOT_VERIFIED-*`).
 """
@@ -23,10 +23,12 @@ import argparse
 import hashlib
 import importlib.util
 import json
-import re
 import os
 import platform
+import re
+import shlex
 import shutil
+import subprocess
 import sys
 try:
     import pwd
@@ -105,13 +107,13 @@ GOVERNANCE_ASSETS_DIR_NAME = "governance/assets"
 # Governance runtime package copied into <config_root>/commands/governance/**
 GOVERNANCE_RUNTIME_DIR_NAME = "governance"
 
-FORBIDDEN_METADATA_SEGMENTS = {"__MACOSX"}
+FORBIDDEN_METADATA_SEGMENTS = {"__MACOSX", "__pycache__"}
 FORBIDDEN_METADATA_FILENAMES = {".DS_Store", "Icon\r"}
 
 MANIFEST_NAME = "INSTALL_MANIFEST.json"
 MANIFEST_SCHEMA = "1.0"
 
-# Governance paths bootstrap (used by /start)
+# Governance paths bootstrap (used by local launcher)
 GOVERNANCE_PATHS_NAME = "governance.paths.json"
 GOVERNANCE_PATHS_SCHEMA = "opencode-governance.paths.v1"
 
@@ -122,10 +124,12 @@ ERROR_LOGS_DIR_NAME = "logs"
 CORE_COMMAND_FILES = {
     "master.md",
     "rules.md",
-    "start.md",
+    "BOOTSTRAP.md",
     "continue.md",
-    "resume.md",
-    "resume_prompt.md",
+    "docs/_archive/resume.md",
+    "docs/_archive/resume_prompt.md",
+    "docs/_archive/new_profile.md",
+    "docs/_archive/new_addon.md",
     "QUALITY_INDEX.md",
     "CONFLICT_RESOLUTION.md",
     "SCOPE-AND-CONTEXT.md",
@@ -186,6 +190,7 @@ def get_config_root() -> Path:
 def ensure_dirs(config_root: Path, dry_run: bool) -> None:
     dirs = [
         config_root,
+        config_root / "bin",
         config_root / "commands",
         config_root / "commands" / "scripts",
         config_root / "commands" / "templates",
@@ -200,6 +205,271 @@ def ensure_dirs(config_root: Path, dry_run: bool) -> None:
         else:
             d.mkdir(parents=True, exist_ok=True)
             print(f"  ✅ {d}")
+
+
+def create_launcher(plan: InstallPlan, dry_run: bool, force: bool) -> list[dict]:
+    """Create local bootstrap launcher scripts. Returns list of created file entries for manifest."""
+    import sys
+    import json
+
+    bin_dir = plan.config_root / "bin"
+    python_exe = sys.executable
+    commands_home = str(plan.commands_dir)
+    workspaces_home = str(plan.config_root / "workspaces")
+
+    # Copy cli/ package to commands_home so launcher has a local runtime.
+    cli_source = SCRIPT_DIR / "cli"
+    cli_dest = plan.commands_dir / "cli"
+
+    created_entries: list[dict] = []
+
+    if dry_run:
+        print(f"  [DRY-RUN] copy {cli_source} -> {cli_dest}")
+        created_entries.extend(
+            _planned_launcher_entries(plan=plan, bin_dir=bin_dir)
+        )
+    else:
+        if cli_dest.exists():
+            shutil.rmtree(cli_dest)
+        cli_dest.mkdir(parents=True, exist_ok=True)
+        for f in sorted(cli_source.rglob("*.py")):
+            rel = f.relative_to(cli_source)
+            dst = cli_dest / rel
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(f, dst)
+        print(f"  ✅ {cli_dest}")
+
+        # Copy governance runtime into commands/governance for bootstrap hook.
+        governance_dest = plan.commands_dir / "governance"
+        if governance_dest.exists():
+            shutil.rmtree(governance_dest)
+        governance_dest.mkdir(parents=True, exist_ok=True)
+        for f in sorted(GOVERNANCE_SOURCE_DIR.rglob("*.py")):
+            rel = f.relative_to(GOVERNANCE_SOURCE_DIR)
+            dst = governance_dest / rel
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(f, dst)
+        print(f"  ✅ {governance_dest}")
+
+        # Launcher generation deferred until governance.paths.json is written.
+
+    for f in sorted(cli_source.rglob("*.py")):
+        rel = f.relative_to(cli_source)
+        installed_path = cli_dest / rel
+        created_entries.append(
+            {
+                "dst": str(installed_path.resolve()) if not dry_run else str(installed_path),
+                "rel": str(Path("cli") / rel),
+                "rel_base": "commands",
+                "status": "planned-copy" if dry_run else "copied",
+                "src": str(f),
+            }
+        )
+
+    launcher_unix = bin_dir / "opencode-governance-bootstrap"
+    launcher_win = bin_dir / "opencode-governance-bootstrap.cmd"
+
+    # Write INSTALL_HEALTH.json
+    health_path = plan.config_root / "INSTALL_HEALTH.json"
+    binding_path = plan.commands_dir / "governance.paths.json"
+
+    binding_ok = False
+    if not plan.skip_paths_file:
+        if dry_run:
+            print(f"  [DRY-RUN] write {binding_path}")
+        else:
+            binding_payload = {
+                "schema": GOVERNANCE_PATHS_SCHEMA,
+                "generatedAt": datetime.now().isoformat(timespec="seconds"),
+                "paths": {
+                    "configRoot": str(plan.config_root),
+                    "commandsHome": str(plan.commands_dir),
+                    "workspacesHome": str(plan.config_root / "workspaces"),
+                    "pythonCommand": sys.executable,
+                },
+                "commandProfiles": {},
+            }
+            binding_path.write_text(json.dumps(binding_payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+
+    if not dry_run:
+        try:
+            launcher_entries = _write_launcher_wrappers(
+                plan=plan,
+                python_exe=python_exe,
+                dest_unix=launcher_unix,
+                dest_win=launcher_win,
+            )
+            created_entries.extend(launcher_entries)
+        except RuntimeError as exc:
+            raise RuntimeError(f"Launcher generation failed: {exc}")
+
+    if binding_path.exists():
+        try:
+            data = json.loads(binding_path.read_text(encoding="utf-8"))
+            binding_ok = data.get("schema") == "opencode-governance.paths.v1"
+        except Exception:
+            pass
+
+    git_available = shutil.which("git") is not None
+    launcher_present = launcher_unix.exists() or launcher_win.exists()
+
+    health_data = {
+        "schema": "opencode-install-health.v1",
+        "installerVersion": VERSION,
+        "generatedAt": datetime.now().isoformat(timespec="seconds"),
+        "configRoot": str(plan.config_root),
+        "commandsHome": commands_home,
+        "workspacesHome": workspaces_home,
+        "pythonExecutable": python_exe,
+        "bindingFilePresent": binding_path.exists(),
+        "bindingSchemaOk": binding_ok,
+        "launcherPresent": launcher_present,
+        "gitAvailable": git_available,
+    }
+
+    if dry_run:
+        print(f"  [DRY-RUN] write {health_path}")
+    else:
+        import json
+        health_path.write_text(json.dumps(health_data, indent=2, ensure_ascii=True), encoding="utf-8")
+        print(f"  ✅ {health_path}")
+
+    return created_entries
+
+
+def _resolve_python_executable(binding_path: Path, *, fallback: str, strict: bool = True) -> str:
+    if not binding_path.exists():
+        return fallback
+    try:
+        data = json.loads(binding_path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        raise RuntimeError(f"Invalid governance.paths.json: {exc}")
+    paths = data.get("paths")
+    if not isinstance(paths, dict):
+        return fallback
+    python_cmd = str(paths.get("pythonCommand") or "").strip()
+    if python_cmd:
+        if os.path.isabs(python_cmd) and not Path(python_cmd).exists():
+            if strict:
+                raise RuntimeError(f"pythonCommand not found: {python_cmd}")
+            return fallback
+    if not python_cmd:
+        return fallback
+    candidate = Path(python_cmd)
+    if candidate.exists():
+        return str(candidate)
+    if strict:
+        raise RuntimeError(f"pythonCommand not found: {python_cmd}")
+    return fallback
+
+
+def _launcher_template_unix(*, python_exe: str, config_root: Path) -> str:
+    return "\n".join(
+        [
+            "#!/usr/bin/env bash",
+            "set -e",
+            "SCRIPT_DIR=\"$(cd \"$(dirname \"$0\")\" && pwd)\"",
+            f"OPENCODE_CONFIG_ROOT=\"{config_root}\"",
+            "OPENCODE_REPO_ROOT=\"${OPENCODE_REPO_ROOT:-}\"",
+            "COMMANDS_HOME=\"${OPENCODE_CONFIG_ROOT}/commands\"",
+            "PYTHONPATH=\"${COMMANDS_HOME}:${COMMANDS_HOME}/governance:${PYTHONPATH}\"",
+            "export OPENCODE_CONFIG_ROOT",
+            "export OPENCODE_REPO_ROOT",
+            "export COMMANDS_HOME",
+            "export PYTHONPATH",
+            f"PYTHON_BIN=\"{python_exe}\"",
+            "exec \"${PYTHON_BIN}\" -m governance.entrypoints.bootstrap_executor \"$@\"",
+            "",
+        ]
+    )
+
+
+def _launcher_template_windows(*, python_exe: str, config_root: Path) -> str:
+    return "\n".join(
+        [
+            "@echo off",
+            "setlocal EnableDelayedExpansion",
+            "set \"SCRIPT_DIR=%~dp0\"",
+            f"set \"OPENCODE_CONFIG_ROOT={config_root}\"",
+            "set \"OPENCODE_REPO_ROOT=%OPENCODE_REPO_ROOT%\"",
+            "if not defined OPENCODE_REPO_ROOT (",
+            "    if defined GITHUB_WORKSPACE (",
+            "        set \"OPENCODE_REPO_ROOT=%GITHUB_WORKSPACE%\"",
+            "    )",
+            ")",
+            "set \"COMMANDS_HOME=%OPENCODE_CONFIG_ROOT%\\commands\"",
+            "set \"OPENCODE_HOME=%OPENCODE_CONFIG_ROOT%\"",
+            f"set \"PYTHON_EXE={python_exe}\"",
+            "set \"PYTHONPATH=%COMMANDS_HOME%;%COMMANDS_HOME%\\governance;!PYTHONPATH!\"",
+            "set \"OPENCODE_INTERNAL_BOOTSTRAP_CONFIG_ROOT=%OPENCODE_CONFIG_ROOT%\"",
+            "set \"OPENCODE_BOOTSTRAP_BINDING_PATH=%COMMANDS_HOME%\\governance.paths.json\"",
+            "if defined OPENCODE_REPO_ROOT (",
+            "    set \"PYTHONPATH=%OPENCODE_REPO_ROOT%;%PYTHONPATH%\"",
+            ")",
+            "set \"OPENCODE_CONFIG_ROOT=%OPENCODE_CONFIG_ROOT%\"",
+            "set \"OPENCODE_REPO_ROOT=%OPENCODE_REPO_ROOT%\"",
+            "set \"COMMANDS_HOME=%COMMANDS_HOME%\"",
+            "set \"PYTHONPATH=%PYTHONPATH%\"",
+            "if not defined OPENCODE_BOOTSTRAP_VERBOSE (",
+            "    set \"OPENCODE_BOOTSTRAP_VERBOSE=0\"",
+            ")",
+            "if not defined OPENCODE_BOOTSTRAP_OUTPUT (",
+            "    set \"OPENCODE_BOOTSTRAP_OUTPUT=final\"",
+            ")",
+            "\"%PYTHON_EXE%\" -m governance.entrypoints.bootstrap_executor %*",
+            "set \"WRAPPER_EXIT=%ERRORLEVEL%\"",
+            "endlocal & exit /b %WRAPPER_EXIT%",
+            "",
+        ]
+    )
+
+
+def _write_launcher_wrappers(
+    *,
+    plan: InstallPlan,
+    python_exe: str,
+    dest_unix: Path,
+    dest_win: Path,
+) -> list[dict]:
+    created: list[dict] = []
+    binding_path = plan.commands_dir / "governance.paths.json"
+    try:
+        python_exec = _resolve_python_executable(binding_path, fallback=python_exe, strict=True)
+    except RuntimeError as exc:
+        raise RuntimeError(f"Invalid pythonCommand in governance.paths.json: {exc}")
+
+    unix_payload = _launcher_template_unix(python_exe=python_exec, config_root=plan.config_root)
+    win_payload = _launcher_template_windows(python_exe=python_exec, config_root=plan.config_root)
+
+    dest_unix.write_text(unix_payload, encoding="utf-8")
+    dest_unix.chmod(0o755)
+    created.append({"dst": str(dest_unix.resolve()), "src": "generated", "status": "generated"})
+
+    dest_win.write_text(win_payload, encoding="utf-8")
+    created.append({"dst": str(dest_win.resolve()), "src": "generated", "status": "generated"})
+
+    return created
+
+
+def _planned_launcher_entries(*, plan: InstallPlan, bin_dir: Path) -> list[dict]:
+    launcher_unix = bin_dir / "opencode-governance-bootstrap"
+    launcher_win = bin_dir / "opencode-governance-bootstrap.cmd"
+    return [
+        {
+            "dst": str(launcher_unix),
+            "rel": str(launcher_unix.relative_to(plan.config_root)),
+            "rel_base": "config",
+            "status": "planned-copy",
+            "src": "generated",
+        },
+        {
+            "dst": str(launcher_win),
+            "rel": str(launcher_win.relative_to(plan.config_root)),
+            "rel_base": "config",
+            "status": "planned-copy",
+            "src": "generated",
+        },
+    ]
 
 
 def read_governance_version_metadata(version_file: Path) -> str | None:
@@ -230,7 +500,6 @@ class InstallPlan:
     governance_paths_path: Path
     skip_paths_file: bool
     deterministic_paths_file: bool
-    with_agent_rails: bool
 
 
 def build_plan(
@@ -239,7 +508,6 @@ def build_plan(
     *,
     skip_paths_file: bool,
     deterministic_paths_file: bool,
-    with_agent_rails: bool = False,
 ) -> InstallPlan:
     commands_dir = config_root / "commands"
     profiles_dst_dir = commands_dir / "profiles"
@@ -254,13 +522,12 @@ def build_plan(
         governance_paths_path=governance_paths_path,
         skip_paths_file=skip_paths_file,
         deterministic_paths_file=deterministic_paths_file,
-        with_agent_rails=with_agent_rails,
     )
 
 
 def required_source_files(source_dir: Path) -> list[str]:
     # critical minimal set
-    return ["master.md", "rules.md", "start.md", "governance/VERSION"]
+    return ["master.md", "rules.md", "BOOTSTRAP.md", "governance/VERSION"]
 
 
 def precheck_source(source_dir: Path) -> tuple[bool, list[str], list[str]]:
@@ -329,7 +596,7 @@ def _is_forbidden_metadata_path(path: Path, source_root: Path) -> bool:
         return True
     return False
 
-def collect_command_root_files(source_dir: Path, *, with_agent_rails: bool = False) -> list[Path]:
+def collect_command_root_files(source_dir: Path) -> list[Path]:
     """
     Collect root-level governance files to copy into <config_root>/commands/.
     Includes:
@@ -338,7 +605,6 @@ def collect_command_root_files(source_dir: Path, *, with_agent_rails: bool = Fal
       - LICENSE (if present)
     Excludes:
       - installer scripts (EXCLUDE_ROOT_FILES)
-      - AGENTS.md (unless --with-agent-rails is set)
       - (no opencode.json template handling; we never generate opencode.json)
     """
     files: list[Path] = []
@@ -350,9 +616,6 @@ def collect_command_root_files(source_dir: Path, *, with_agent_rails: bool = Fal
         if name in EXCLUDE_ROOT_FILES:
             continue
         if _is_forbidden_metadata_path(p, source_dir):
-            continue
-
-        if name == "AGENTS.md" and not with_agent_rails:
             continue
 
         if name.lower().startswith("license"):
@@ -545,7 +808,7 @@ def build_governance_paths_payload(config_root: Path, *, deterministic: bool) ->
     derived from config_root. This is *not* an OpenCode config file and is therefore not
     validated against the OpenCode config schema.
 
-    /start loads this file via shell output injection to avoid interactive path binding.
+    The local bootstrap launcher loads this file via shell output injection to avoid interactive path binding.
     """
     def norm(p: Path) -> str:
         return str(p)
@@ -555,10 +818,7 @@ def build_governance_paths_payload(config_root: Path, *, deterministic: bool) ->
     governance_home = commands_home / "governance"
     workspaces_home = config_root / "workspaces"
     global_error_logs_home = commands_home / ERROR_LOGS_DIR_NAME
-    if os.name == "nt":
-        python_command = "py -3"
-    else:
-        python_command = "python3"
+    python_command = sys.executable
 
     doc = {
         "schema": GOVERNANCE_PATHS_SCHEMA,
@@ -809,7 +1069,7 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
             command="install.py",
             component="installer-precheck",
             observed_value=observed,
-            expected_constraint="Required source files present: master.md, rules.md, start.md",
+            expected_constraint="Required source files present: master.md, rules.md, BOOTSTRAP.md",
             remediation="Restore missing governance source files and rerun install.",
             action="abort",
             result="failed",
@@ -835,6 +1095,9 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
     print(f"📁 Target config root: {plan.config_root}")
     print("📁 Ensuring directory structure...")
     ensure_dirs(plan.config_root, dry_run=dry_run)
+
+    print("\n🚀 Creating local bootstrap launcher...")
+    launcher_entries = create_launcher(plan, dry_run=dry_run, force=force)
 
     # backup root
     backup_root = plan.commands_dir / "_backup" / now_ts()
@@ -890,7 +1153,7 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
 
     # copy main files
     print("\n📋 Copying governance files to commands/ ...")
-    for src in collect_command_root_files(plan.source_dir, with_agent_rails=plan.with_agent_rails):
+    for src in collect_command_root_files(plan.source_dir):
         dst = plan.commands_dir / src.name
         entry = copy_with_optional_backup(
             src=src,
@@ -1107,33 +1370,9 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
         else:
             print(f"  ⚠️  {rel} missing (skipping)")
 
-    # copy AGENTS.md to templates if --with-agent-rails
-    if plan.with_agent_rails:
-        agents_src = plan.source_dir / "AGENTS.md"
-        if agents_src.exists():
-            templates_dir = plan.commands_dir / "templates"
-            agents_dst = templates_dir / "AGENTS.md"
-            print("\n📋 Copying AGENTS.md rails to commands/templates/ ...")
-            entry = copy_with_optional_backup(
-                src=agents_src,
-                dst=agents_dst,
-                backup_enabled=backup_enabled,
-                backup_root=backup_root,
-                dry_run=dry_run,
-                overwrite=force,
-            )
-            copied_entries.append(entry)
-            status = entry["status"]
-            if status in ("planned-copy", "copied"):
-                print(f"  ✅ templates/AGENTS.md ({status})")
-            elif status == "skipped-exists":
-                print(f"  ⏭️  templates/AGENTS.md exists (use --force to overwrite)")
-            else:
-                print(f"  ⚠️  AGENTS.md missing (skipping)")
-
     # validation (critical installed files)
     print("\n🔍 Validating installation...")
-    critical = [plan.commands_dir / "master.md", plan.commands_dir / "rules.md", plan.commands_dir / "start.md"]
+    critical = [plan.commands_dir / "master.md", plan.commands_dir / "rules.md", plan.commands_dir / "BOOTSTRAP.md"]
     missing_critical = [p.name for p in critical if not p.exists() and not dry_run]
     if missing_critical:
         eprint("❌ Installation incomplete; missing critical files:")
@@ -1142,18 +1381,35 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
         return 3
 
     # manifest: store only entries that were actually copied/planned
-    installed_files = [
-        {
-            "dst": e["dst"],
-            "rel": str(Path(e["dst"]).resolve().relative_to(plan.commands_dir.resolve())) if "dst" in e else None,
-            "src": e["src"],
-            "sha256": e.get("sha256", "unknown"),
-            "backup": e.get("backup"),
-            "status": e["status"],
-        }
-        for e in copied_entries
-        if e["status"] in ("copied", "planned-copy", "patched", "planned-patch")
-    ]
+    installed_files = []
+    for e in copied_entries:
+        if e["status"] not in ("copied", "planned-copy", "patched", "planned-patch"):
+            continue
+        installed_files.append(
+            {
+                "dst": e["dst"],
+                "rel": str(Path(e["dst"]).resolve().relative_to(plan.commands_dir.resolve())) if "dst" in e else None,
+                "rel_base": "commands",
+                "src": e["src"],
+                "sha256": e.get("sha256", "unknown"),
+                "backup": e.get("backup"),
+                "status": e["status"],
+            }
+        )
+
+    # Add launcher entries to manifest
+    for entry in launcher_entries:
+        installed_files.append(
+            {
+                "dst": entry["dst"],
+                "rel": entry.get("rel"),
+                "rel_base": entry.get("rel_base", "config"),
+                "src": entry.get("src", "generated"),
+                "sha256": "generated",
+                "backup": None,
+                "status": entry["status"],
+            }
+        )
 
     manifest = {
         "schema": MANIFEST_SCHEMA,
@@ -1175,7 +1431,8 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
         print("🎉 Installation complete!")
     print("=" * 60)
     print(f"Commands dir: {plan.commands_dir}")
-    print("Next: run /start in OpenCode (or load start.md).")
+    print("Next: run the local bootstrap launcher:")
+    print(f"  {plan.config_root}/bin/opencode-governance-bootstrap")
     return 0
 
 
@@ -1229,6 +1486,13 @@ def uninstall(
         for name in CORE_COMMAND_FILES:
             targets.append(plan.commands_dir / name)
 
+        # CLI package (for bootstrap launcher)
+        cli_dir = plan.commands_dir / "cli"
+        if cli_dir.exists():
+            for f in cli_dir.rglob("*"):
+                if f.is_file():
+                    targets.append(f)
+
         # Profiles and addon manifests from current source snapshot
         for src in collect_profile_files(plan.source_dir):
             rel = src.relative_to(plan.source_dir)
@@ -1262,6 +1526,13 @@ def uninstall(
         except Exception:
             pass
 
+        # Launcher scripts in bin/
+        bin_dir = plan.config_root / "bin"
+        if bin_dir.exists():
+            for f in bin_dir.rglob("*"):
+                if f.is_file():
+                    targets.append(f)
+
         # Remove governance.paths.json only when explicitly requested.
         if purge_paths_file:
             targets.append(plan.governance_paths_path)
@@ -1282,8 +1553,14 @@ def uninstall(
         rel = entry.get("rel")
         dst = entry.get("dst")
         if rel:
-            # Prefer relative paths to make uninstall resilient after moving configRoot.
-            targets.append(plan.commands_dir / rel)
+            rel_base = str(entry.get("rel_base") or "commands")
+            if rel_base == "commands" and str(rel).startswith("bin/"):
+                # Backward compatibility for manifests created before rel_base.
+                rel_base = "config"
+            if rel_base == "config":
+                targets.append(plan.config_root / rel)
+            else:
+                targets.append(plan.commands_dir / rel)
         elif dst:
             targets.append(Path(dst))
             
@@ -1352,14 +1629,23 @@ def uninstall(
 def delete_targets(targets: Iterable[Path], plan: InstallPlan, dry_run: bool) -> int:
     errors = 0
     for t in targets:
-        # Safety guard: only delete within commands_dir
+        # Safety guard: only delete within commands_dir or config_root/bin.
         try:
             t_resolved = t.resolve()
-            base_resolved = plan.commands_dir.resolve()
-            if base_resolved not in t_resolved.parents and t_resolved != base_resolved:
+            commands_resolved = plan.commands_dir.resolve()
+            bin_resolved = (plan.config_root / "bin").resolve()
+            
+            # Allow deletion in commands_dir or in config_root/bin.
+            allowed_bases = [commands_resolved, bin_resolved]
+            is_under_allowed = any(
+                base_resolved in t_resolved.parents or t_resolved == base_resolved
+                for base_resolved in allowed_bases
+            )
+            
+            if not is_under_allowed:
                 safe_log_error(
                     reason_key="ERR-UNINSTALL-PATH-ESCAPE-REFUSED",
-                    message="Refused deletion outside commands directory.",
+                    message="Refused deletion outside commands/bin directory.",
                     config_root=plan.config_root,
                     phase="installer",
                     gate="uninstall-safety",
@@ -1368,13 +1654,13 @@ def delete_targets(targets: Iterable[Path], plan: InstallPlan, dry_run: bool) ->
                     command="install.py",
                     component="installer-delete-guard",
                     observed_value={"target": str(t), "resolvedTarget": str(t_resolved)},
-                    expected_constraint=f"Target must be under {base_resolved}",
+                    expected_constraint=f"Target must be under {commands_resolved} or {bin_resolved}",
                     remediation="Inspect manifest/targets and rerun uninstall.",
                     action="block",
                     result="blocked",
                     reason_namespace="installer-internal",
                 )
-                eprint(f"  ❌ Refusing to delete outside commands dir: {t}")
+                eprint(f"  ❌ Refusing to delete outside allowed dirs: {t}")
                 errors += 1
                 continue
         except Exception:
@@ -1669,7 +1955,7 @@ def show_health(source_dir: Path, config_root_arg: Path | None) -> int:
             issues_found.append("manifest-missing")
 
         # Check key files
-        key_files = ["master.md", "rules.md", "start.md"]
+        key_files = ["master.md", "rules.md", "BOOTSTRAP.md"]
         key_ok = True
         for kf in key_files:
             kf_path = commands_home / kf
@@ -1689,6 +1975,38 @@ def show_health(source_dir: Path, config_root_arg: Path | None) -> int:
         print(f"   {paths_icon} governance.paths.json: {'present' if paths_exists else 'missing'}")
         if not paths_exists:
             issues_found.append("paths-json-missing")
+
+        # Check local bootstrap launcher
+        bin_dir = config_root / "bin"
+        launcher_unix = bin_dir / "opencode-governance-bootstrap"
+        launcher_win = bin_dir / "opencode-governance-bootstrap.cmd"
+        launcher_exists = launcher_unix.exists() or launcher_win.exists()
+        launcher_icon = "✅" if launcher_exists else "⚠️"
+        print(f"   {launcher_icon} Local bootstrap launcher: {'present' if launcher_exists else 'missing'}")
+        if not launcher_exists:
+            issues_found.append("launcher-missing")
+
+        # Check launcher can execute against installed runtime.
+        launcher = launcher_unix if launcher_unix.exists() else launcher_win
+        if launcher.exists():
+            test_env = os.environ.copy()
+            test_env["OPENCODE_CONFIG_ROOT"] = str(config_root)
+            if os.name == "nt" and launcher_win.exists():
+                cmd = ["cmd", "/c", str(launcher), "--help"]
+            else:
+                cmd = [str(launcher), "--help"]
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                env=test_env,
+                cwd=str(config_root),
+            )
+            if result.returncode == 0:
+                print("   ✅ launcher runtime: healthy")
+            else:
+                print("   ⚠️  launcher runtime: failed")
+                issues_found.append("launcher-runtime-failed")
     else:
         print("\n⚠️  No installation found at config root")
         print("   Run '${PYTHON_COMMAND} install.py' to install")
@@ -1712,7 +2030,73 @@ def show_health(source_dir: Path, config_root_arg: Path | None) -> int:
             print("   - Run: ${PYTHON_COMMAND} install.py")
         if "manifest-missing" in issues_found or any(i.startswith("key-file-") for i in issues_found):
             print("   - Run: ${PYTHON_COMMAND} install.py --force")
+        if "launcher-missing" in issues_found:
+            print("   - Run: ${PYTHON_COMMAND} install.py --force")
+        if "launcher-runtime-failed" in issues_found:
+            print("   - Reinstall and run smoketest to verify launcher runtime")
         return 1
+
+
+def run_smoketest(config_root: Path) -> int:
+    """Run installation smoketest. Returns 0 if healthy, non-zero if issues."""
+    print("=" * 60)
+    print("LLM Governance System Smoketest")
+    print("=" * 60)
+
+    issues = []
+
+    # Check launcher exists
+    bin_dir = config_root / "bin"
+    launcher_unix = bin_dir / "opencode-governance-bootstrap"
+    launcher_win = bin_dir / "opencode-governance-bootstrap.cmd"
+
+    if not launcher_unix.exists() and not launcher_win.exists():
+        print("❌ Local bootstrap launcher missing")
+        issues.append("launcher-missing")
+    else:
+        print("✅ Local bootstrap launcher present")
+
+    # Check governance.paths.json
+    paths_json = config_root / "commands" / "governance.paths.json"
+    if not paths_json.exists():
+        print("❌ governance.paths.json missing")
+        issues.append("paths-json-missing")
+    else:
+        print("✅ governance.paths.json present")
+
+    # Check launcher execution against installed runtime (not source checkout).
+    launcher = launcher_unix if launcher_unix.exists() else launcher_win
+    if launcher.exists():
+        test_env = os.environ.copy()
+        test_env["OPENCODE_CONFIG_ROOT"] = str(config_root)
+        if os.name == "nt" and launcher_win.exists():
+            cmd = ["cmd", "/c", str(launcher), "--help"]
+        else:
+            cmd = [str(launcher), "--help"]
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            env=test_env,
+            cwd=str(config_root),
+        )
+        if result.returncode == 0:
+            print("✅ launcher executes with installed runtime")
+        else:
+            print("❌ launcher failed in installed runtime")
+            if result.stderr.strip():
+                print(f"   Error: {result.stderr.strip()}")
+            issues.append("launcher-runtime-failed")
+
+    # Check interpreter
+    print(f"✅ Interpreter: {sys.executable}")
+
+    print("\n" + "=" * 60)
+    if issues:
+        print("⚠️  Smoketest issues found")
+        return 1
+    print("✅ Smoketest passed")
+    return 0
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
@@ -1748,11 +2132,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     p.add_argument("--version", action="store_true", help="Show installer and governance version, then exit.")
     p.add_argument("--status", action="store_true", help="Show installation status (read-only), then exit.")
     p.add_argument("--health", action="store_true", help="Run read-only health probes and show compact status, then exit.")
-    p.add_argument(
-        "--with-agent-rails",
-        action="store_true",
-        help="Install AGENTS.md (non-normative rails) into commands/ and commands/templates/ for agent front-ends.",
-    )
+    p.add_argument("--smoketest", action="store_true", help="Run installation smoketest (checks launcher, paths.json, installed runtime execution).")
     return p.parse_args(argv)
 
 
@@ -1778,13 +2158,17 @@ def main(argv: list[str]) -> int:
     if args.health:
         return show_health(args.source_dir, args.config_root)
 
+    # --smoketest: run installation smoketest
+    if args.smoketest:
+        config_root = args.config_root if args.config_root is not None else get_config_root()
+        return run_smoketest(config_root)
+
     config_root = args.config_root if args.config_root is not None else get_config_root()
     plan = build_plan(
         args.source_dir,
         config_root,
         skip_paths_file=args.skip_paths_file,
         deterministic_paths_file=args.deterministic_paths_file,
-        with_agent_rails=args.with_agent_rails,
     )
 
     print("=" * 60)

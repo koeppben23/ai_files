@@ -21,6 +21,42 @@ Kernel: `governance/kernel/*` is the only control-plane implementation.
 MD files are AI rails/guidance only and are never routing-binding.
 Phase `1.3` is mandatory before every phase `>=2`.
 
+Default: any section labeled Kernel-Enforced or Binding is reference-only; the SSOT/kernel behavior is authoritative.
+
+## Terminology Freeze (Binding)
+
+Canonical vocabulary is frozen in:
+- `docs/governance/governance_glossary.yaml`
+
+Rules:
+- Use exactly one canonical name per phase/gate/blocked state/evidence type.
+- Synonyms or alternate spellings are forbidden in normative sections.
+- If a term is missing, add it to the glossary before using it.
+
+## State Transition Table (Binding)
+
+Canonical transition expectations live in:
+- `docs/governance/phase_transitions.yaml`
+
+Rules:
+- This table is the reference for allowed transitions and blocking conditions.
+- It does not override kernel routing; it standardizes LLM output and explanations.
+
+## Phase Core Map (Policy)
+
+Canonical per-phase Inputs/Outputs/Gates/Do/Don't/Evidence live in:
+- `docs/governance/phase_core_map.md`
+
+## Schema Registry (Binding)
+
+Canonical schema IDs and versions are listed in:
+- `docs/governance/governance_schemas.md`
+
+Rules:
+- Any normative output contract MUST reference a schema ID.
+- Schema IDs are versioned (`schema: governance.<area>.<name>.v1`).
+- Compact presentation schema is optional: `governance.compact_mode.v1`.
+
 <!-- NOTE: This diff adds fail-closed TargetPath validation to prevent degenerate paths like "C" being written into the repo. -->
 
 ## PHASE 0 — BOOTSTRAP (CONDITIONAL)
@@ -209,12 +245,12 @@ Binding:
 The system MUST support operation without direct access to git or any VCS tooling.
 
 Bootstrap tool preflight (binding):
-- During `/start`, the runtime MUST probe required external commands via PATH (e.g., `git`, `${PYTHON_COMMAND}`).
+- During bootstrap, the runtime MUST probe required external commands via PATH (e.g., `git`, `${PYTHON_COMMAND}`).
 - The preflight result MUST be reported as structured governance (`available`/`missing`) and MUST NOT block by itself.
-- If all required commands are available, `/start` MUST continue without a blocker.
-- If one or more commands are missing, `/start` MUST continue in degraded mode where possible and include recovery commands; block only when a later gate requires missing-tool-dependent evidence.
+- If all required commands are available, bootstrap MUST continue without a blocker.
+- If one or more commands are missing, bootstrap MUST continue in degraded mode where possible and include recovery commands; block only when a later gate requires missing-tool-dependent evidence.
 - Preflight executes as Phase `0` / `1.1` and MUST use freshly observed signals only (no cache reuse).
-- Tool probe TTL is zero (`ttl=0`): every `/start` rerun MUST recompute probe results.
+- Tool probe TTL is zero (`ttl=0`): every bootstrap rerun MUST recompute probe results.
 - Preflight MUST include an `observed_at` timestamp and overwrite any previous preflight snapshot in `SESSION_STATE`.
 - Preflight output MUST remain compact: maximum 5 checks.
 - Preflight summary format is fixed to these keys: `available`, `missing`, `impact`, `next`.
@@ -222,10 +258,11 @@ Bootstrap tool preflight (binding):
 - Restart guidance MUST be deterministic:
   - `restart_required_if_path_edited`
   - `no_restart_if_binary_in_existing_path`
+ - Schema reference: `governance.preflight.v1` (see `docs/governance/governance_schemas.md`).
 
 Required-command inventory derivation (binding):
-- `/start` MUST load a deterministic command inventory from `${COMMANDS_HOME}/governance/assets/catalogs/tool_requirements.json` when present.
-- If that file is unavailable, `/start` MUST fail over to deriving the inventory by scanning canonical governance artifacts for command references, at minimum:
+- Bootstrap MUST load a deterministic command inventory from `${COMMANDS_HOME}/governance/assets/catalogs/tool_requirements.json` when present.
+- If that file is unavailable, bootstrap MUST fail over to deriving the inventory by scanning canonical governance artifacts for command references, at minimum:
   - `${COMMANDS_HOME}/master.md`
   - `${COMMANDS_HOME}/rules.md`
   - `${PROFILES_HOME}/rules*.md`
@@ -234,11 +271,11 @@ Required-command inventory derivation (binding):
   - `required_now` (bootstrap/runtime essentials),
   - `required_later` (phase/profile-gated tools),
   - `optional` (advisory).
-- `/start` MUST emit the resolved inventory and PATH probe status before any operator prompt.
-- If a previously-missing command becomes available later, rerunning `/start` MUST refresh the inventory/probe and continue without stale blocker state.
+- Bootstrap MUST emit the resolved inventory and PATH probe status before any operator prompt.
+- If a previously-missing command becomes available later, rerunning bootstrap MUST refresh the inventory/probe and continue without stale blocker state.
 
 Build Toolchain Detection (binding):
-- During preflight, `/start` MUST classify the probed build-related tools into `SESSION_STATE.Preflight.BuildToolchain`.
+- During preflight, bootstrap MUST classify the probed build-related tools into `SESSION_STATE.Preflight.BuildToolchain`.
 - At preflight time the active profile and repository build system are NOT yet known.
   Therefore preflight records **raw tool availability only**; the repo-aware command mapping is deferred to Phase 2 (Repository Discovery).
 - `SESSION_STATE.Preflight.BuildToolchain` MUST contain:
@@ -1007,19 +1044,7 @@ Rules:
 > The kernel owns the normative catalog; this section is informational only.
 
 Common blocked reason codes (informational summary):
-- `BLOCKED-BOOTSTRAP-NOT-SATISFIED`: Bootstrap declaration not satisfied
-- `BLOCKED-START-REQUIRED`: /start evidence required before phase execution
-- `BLOCKED-MISSING-BINDING-FILE`: governance.paths.json not found
-- `BLOCKED-RULEBOOK-LOAD-FAILED`: Core rulebook cannot be loaded at Phase 4 entry
-- `BLOCKED-MISSING-PROFILE`: Active profile required but not set
-- `BLOCKED-AMBIGUOUS-PROFILE`: Multiple profile candidates without unique match
-- `BLOCKED-MISSING-ADDON:<addon_key>`: Required addon rulebook cannot be resolved
-- `BLOCKED-ACTIVATION-DELTA-MISMATCH`: Activation outcome differs while hashes unchanged
-- `BLOCKED-STATE-OUTDATED`: Persisted state outdated and migration failed
-- `BLOCKED-MISSING-EVIDENCE`: Required evidence for deterministic decision missing
-- `BLOCKED-ENGINE-SELFCHECK`: Engine self-check failed (config/parser/initialization)
-
-For full catalog with triggers, recovery steps, and quick-fix commands, see `governance/assets/reasons/blocked_reason_catalog.yaml`.
+- See `governance/assets/reasons/blocked_reason_catalog.yaml` (SSOT list).
 
 #### Unified Next Action Footer (Presentation Advisory)
 
@@ -1071,12 +1096,12 @@ into a subsequent phase. Instead, it delivers a gate result, updates `SESSION_ST
 and waits for user confirmation or direction before proceeding.
 
 Explicit gates in this workflow:
-* Phase 5 (Architecture review) → Gate result: `architecture-approved` | `architecture-rejected`
-* Phase 5.3 (Test quality review) → Gate result: `test-quality-pass` | `test-quality-pass-with-exceptions` | `test-quality-fail`
-* Phase 5.4 (Business rules compliance) → Gate result: `business-rules-compliant` | `business-rules-compliant-with-exceptions` | `business-rules-gap-detected`
-* Phase 5.5 (Technical debt proposal) → Gate result: `debt-approved` | `debt-rejected`
-* Phase 5.6 (Rollback safety, evaluated in Phase 5) → Gate result: `approved` | `rejected` | `not-applicable`
-* Phase 6 (Implementation QA) → Gate result: `ready-for-pr` | `fix-required`
+* Phase 5 (Architecture review) → Gate result: `P5-Architecture` values (see `governance.phase5.gates.v1`)
+* Phase 5.3 (Test quality review) → Gate result: `P5.3-TestQuality` values (see `governance.phase5.gates.v1`)
+* Phase 5.4 (Business rules compliance) → Gate result: `P5.4-BusinessRules` values (see `governance.phase5.gates.v1`)
+* Phase 5.5 (Technical debt proposal) → Gate result: `P5.5-TechnicalDebt` values (see `docs/governance/governance_glossary.yaml`)
+* Phase 5.6 (Rollback safety, evaluated in Phase 5) → Gate result: `P5.6-RollbackSafety` values (see `governance.phase5.gates.v1`)
+* Phase 6 (Implementation QA) → Gate result: `P6-ImplementationQA` values (see `governance.phase6.qa.v1`)
 
 At an explicit gate, the workflow MUST:
 1. Output a clear gate report (structured block, e.g., `[GATE-REPORT-P5]`)
@@ -1090,14 +1115,14 @@ The user may then:
 
 ---
 
-### 2.4 Session Start Principles (Kernel-Enforced)
+### 2.4 Session Bootstrap Principles (Kernel-Enforced)
 
-At initial `/start`, bootstrap progression is kernel-owned and deterministic.
+At initial bootstrap, progression is kernel-owned and deterministic.
 Runtime routing, transitions, and stop conditions are defined by kernel/config contracts
 (not by this markdown rail).
 
 Detailed operational start behavior is documented as non-binding guidance in:
-- `start.md` (operator-facing start rail)
+- `BOOTSTRAP.md` (operator-facing bootstrap guide)
 - `docs/governance/RESPONSIBILITY_BOUNDARY.md` (binding vs guidance boundary)
 - `docs/governance/rails/planning.md` (workflow planning guidance)
 - `docs/governance/MASTER_SECTION_CLASSIFICATION.md` (master section class mapping)
@@ -1118,16 +1143,17 @@ Rules:
 ### 2.4.2 Architect-Only Autopilot Lifecycle (Policy)
 
 Lifecycle semantics are intentionally compact here:
-- `/start` establishes bootstrap context.
+- Bootstrap establishes bootstrap context.
 - `Implement now` enables implementation output.
 - `Ingest evidence` enables verification-only reconciliation.
 
-`/start` invocation guard (binding):
-- Workflow MUST NOT ask operator to run `/start` again in the same turn.
+bootstrap invocation guard (binding):
+- Workflow MUST NOT ask operator to rerun the local bootstrap launcher in the same turn.
 
 Execution mode enum (binding):
 - `SESSION_STATE.OutputMode`: `ARCHITECT | IMPLEMENT | VERIFY`
 - Default after `/master` is `ARCHITECT`.
+- `BLOCKED-START-REQUIRED` may be emitted before valid bootstrap evidence.
 
 Detailed lifecycle routing and mode transition behavior is maintained outside `master.md`:
 - Kernel/config contracts for binding behavior
@@ -1208,7 +1234,7 @@ Machine-readable governance (informational):
   - `surface` (`build|tests|static|addons|profile|state|contracts|security|performance|other`)
   - `signals_used` (array)
   - `recovery_steps` (array, max 3 concrete steps)
-  - `next_command` (e.g., `/reload-addons`, `/start`, `/resume`)
+- `next_command` (e.g., `/reload-addons`, `opencode-governance-bootstrap`, `/resume`)
 
 SESSION_STATE versioning (informational):
 - Every emitted session state includes:
@@ -1262,7 +1288,7 @@ SESSION_STATE:
   DependencyChanges: {}   # optional in MIN; REQUIRED in FULL if deps change
   Preflight:
     BuildToolchain:
-      DetectedTools: {}    # populated by /start preflight; map of tool name → version string (null if not found)
+      DetectedTools: {}    # populated by bootstrap preflight; map of tool name -> version string (null if not found)
       ObservedAt: null       # ISO-8601 timestamp once probe runs
   BuildToolchain:          # populated in Phase 2 (step 3b) from repo signals + preflight probe
     CompileAvailable: false
@@ -1359,7 +1385,7 @@ Repo root defaulting behavior (informational):
 #### Load Existing Repo Cache (Kernel-Managed, Cache-First)
 
 Goal:
-- Skip full Phase 2 discovery for repeated `/start` sessions on the same repo.
+- Skip full Phase 2 discovery for repeated bootstrap sessions on the same repo.
 - Use a deterministic, structured cache that is faster than parsing long digest markdown.
 
 Order of precedence (Kernel-Enforced):
@@ -1664,7 +1690,7 @@ Application (Kernel-Enforced):
    * Does the detected stack match the active profile?
    * If mismatch detected → Risk: [PROFILE-MISMATCH], consider asking for clarification
 
-**Output format:**
+    **Output format (see `governance.phase4.plan.v1`):**
 
 ```
 [PHASE-2-COMPLETE]
@@ -2196,7 +2222,7 @@ Phase 1.5 evidence source contract (binding):
    * Note where each rule is tested (test location)
    * Identify gaps (rules in code but not tested, etc.)
 
-**Output format:**
+ **Output format:**
 
 ```
 [PHASE-1.5-COMPLETE]
@@ -2337,7 +2363,7 @@ Additional enforcement (informational):
 3. **Update SESSION_STATE:**
    * Add to `SESSION_STATE.Scope.ExternalAPIs`
 
-**Output format:**
+ **Output format:**
 
 ```
 [PHASE-3A-COMPLETE]
@@ -2405,7 +2431,7 @@ Proceeding to Phase 3B-1 (API Logical Validation)...
    * Warnings: Missing descriptions, missing examples
    * Recommendations: Best practices (e.g., use of problem details for errors)
 
-**Output format:**
+ **Output format:**
 
 ```
 [PHASE-3B-1-COMPLETE]
@@ -2512,7 +2538,7 @@ Status classification:
 - blocked:
   - Spec is invalid (broken `$ref`, schema errors), OR truly NOT MAPPABLE contradictions require user choice.
 
-**Output format:**
+ **Output format:**
 
 ```
 [PHASE-3B-2-COMPLETE]
@@ -2755,10 +2781,10 @@ Note: Fast Path MAY reduce review depth/verbosity but MUST NOT bypass any gates.
    **Note:** Iterative refinement (rounds, retries, max cycles) is **kernel-enforced**, not MD-defined.
    The kernel determines if additional quality passes are needed based on operating mode, evidence, and budget.
    
-   **Output Contract:**
-   - `SESSION_STATE.SelfReview` evidence is emitted by the kernel during Phase 4 planning
-   - Evidence schemas are validated by the kernel's embedded registry (not defined in MD)
-   - Critical findings trigger kernel policy decisions; MD does not define behavior
+    **Output Contract:**
+    - `SESSION_STATE.SelfReview` evidence is emitted by the kernel during Phase 4 planning
+    - Evidence schemas are versioned and referenced by schema IDs (see `docs/governance/governance_schemas.md`)
+    - Critical findings trigger kernel policy decisions; MD does not define behavior
    
    **Binding:** Self-review evidence MUST appear in SESSION_STATE before Phase 5 entry.
    Schema validation failures are kernel-blocked with registered reason codes.
@@ -2770,7 +2796,7 @@ Note: Fast Path MAY reduce review depth/verbosity but MUST NOT bypass any gates.
      - Round 1 (Correctness) MAY reduce emphasis on import/type correctness issues that the compiler will catch deterministically — but does not skip the round.
    - If no build tools are available (`CompileAvailable == false` AND `TestAvailable == false`), self-critique remains the sole verification mechanism and is executed with maximum rigor.
 
-**Output format:**
+ **Output format (schema: governance.phase4.plan.v1):**
 
 ```
 [PHASE-4-COMPLETE]
@@ -3005,7 +3031,7 @@ If the session becomes long (large discovery outputs / many iterations), compres
    * Are validations complete?
    * Are state transitions correct?
 
-**Output format:**
+ **Output format (schema: governance.phase5.gates.v1):**
 
 ```
 [GATE-REPORT-P5]
@@ -3144,7 +3170,7 @@ Output requirements (Binding when writeback happens):
    * Integration tests: Controller + Service + Repository (with test containers if applicable)
    * Contract tests: API compliance (if OpenAPI contract-first)
 
-**Output format:**
+ **Output format (schema: governance.phase5.gates.v1):**
 
 ```
 [GATE-REPORT-P5.3]
@@ -3285,7 +3311,7 @@ BR-001 in DB: not present
 → warning: "BR-001 not enforced at DB level (no FK constraint with ON DELETE RESTRICT)"
 → recommendation: "Add FK constraint OR document why DB-level enforcement is not needed"
 
-**Output format:**
+ **Output format (schema: governance.phase5.gates.v1):**
 
 ```text
 [BUSINESS-RULES-COMPLIANCE-REPORT]
@@ -3528,13 +3554,13 @@ Note:
   canonical command (e.g., `./gradlew test`).
 * The canonical command is superseded by `SESSION_STATE.BuildToolchain.FullVerifyCmd` when populated.
 
-#### Build Verification Output Contract (Presentation Advisory)
+#### Build Verification Output Contract (Presentation Advisory, schema: governance.phase6.qa.v1)
 
 **Note:** This section defines output format requirements (Schienen), not execution logic.
 The kernel enforces build verification via `governance/application/use_cases/build_verification.py`.
 If LLM output references build/test execution, the kernel validates and executes deterministically.
 
-**Output Requirement:** When build tools are available (`SESSION_STATE.BuildToolchain.CompileAvailable == true` OR `TestAvailable == true`), include a Build Verification section that describes:
+**Output Requirement:** When build tools are available (`SESSION_STATE.BuildToolchain.CompileAvailable == true` OR `TestAvailable == true`), include a Build Verification section that follows `governance.phase6.qa.v1`.
 
 1. **Expected Commands** (argv-only, no shell interpolation):
    - Compile command: `SESSION_STATE.BuildToolchain.CompileCmd`
@@ -3628,7 +3654,7 @@ Response and output constraints are defined in `rules.md` (Core Rulebook).
 * Responses must be concise and structured
 * Use code blocks for code snippets
 * Use structured blocks for reports ([PHASE-X-COMPLETE], [GATE-REPORT-PX], etc.)
-* Structured outputs from `/start` onward SHOULD conform to `governance/assets/catalogs/RESPONSE_ENVELOPE_SCHEMA.json` when host constraints allow
+* Structured outputs from bootstrap onward SHOULD conform to `governance/assets/catalogs/RESPONSE_ENVELOPE_SCHEMA.json` when host constraints allow
 * Envelope-aligned NextAction typing is mandatory: `next_action.type = command | reply_with_one_number | manual_step`
 * Always update SESSION_STATE
 * Always document risks and blockers
@@ -3649,7 +3675,7 @@ Response and output constraints are defined in `rules.md` (Core Rulebook).
 * If state does not change, responses SHOULD acknowledge `state_unchanged` with a concise reason
 * For no-change turns, responses SHOULD be delta-only and avoid repeating unchanged diagnostic blocks
 * Operator-first UX layering SHOULD be used: concise brief first, full governance immediately after or on explicit detail request
-* `/start` preflight SHOULD distinguish `required_now` vs `required_later` and surface `block_now` for immediate-gate impact
+* Bootstrap preflight SHOULD distinguish `required_now` vs `required_later` and surface `block_now` for immediate-gate impact
 * After bootstrap success, short follow-ups SHOULD default to conversational, language-adaptive responses unless full governance are requested
 * Conversational post-start intents SHOULD remain regression-tested with deterministic fixtures (`what_phase`, `discovery_done`, `workflow_unchanged`)
 * Preferred fixture source for conversational intent goldens: `governance/assets/catalogs/UX_INTENT_GOLDENS.json`

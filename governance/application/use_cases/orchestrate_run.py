@@ -97,7 +97,7 @@ from governance.application.use_cases.session_state_helpers import (
     with_workspace_ready_gate,
     with_kernel_result,
 )
-from governance.application.use_cases.start_bootstrap import evaluate_start_identity
+from governance.application.use_cases.bootstrap_session import evaluate_bootstrap_identity
 from governance.application.use_cases.evaluate_persistence_gate import (
     PersistencePhaseGateDecision,
     WORKSPACE_MEMORY_CONFIRMATION,
@@ -214,17 +214,19 @@ def run_engine_orchestrator(
     live_fingerprint = ""
     if commit_workspace_ready_gate and repo_context.is_git_root and repo_context.repo_root is not None:
         live_repo_root = repo_context.repo_root
-        live_identity = evaluate_start_identity(adapter=adapter)
+        live_identity = evaluate_bootstrap_identity(adapter=adapter)
         live_fingerprint = live_identity.repo_fingerprint or ""
         if not live_fingerprint:
             gate_blocked = True
             gate_reason_code = BLOCKED_FINGERPRINT_MISMATCH
         else:
             state_fingerprint = extract_repo_identity(session_state_document)
+            if not state_fingerprint:
+                state_fingerprint = live_fingerprint
             if state_fingerprint and state_fingerprint != live_fingerprint:
                 gate_blocked = True
                 gate_reason_code = BLOCKED_FINGERPRINT_MISMATCH
-            elif workspaces_home and session_state_file and session_pointer_file:
+            if not gate_blocked and workspaces_home and session_state_file and session_pointer_file:
                 try:
                     gate = ensure_workspace_ready(
                         workspaces_home=Path(workspaces_home),
@@ -298,7 +300,7 @@ def run_engine_orchestrator(
         doc_hash = compute_repo_doc_hash(repo_doc_text)
         classifications = classify_repo_doc(repo_doc_text)
         repo_doc_evidence = RepoDocEvidence(
-            doc_path=repo_doc_path or "AGENTS.md",
+            doc_path=repo_doc_path or "BOOTSTRAP.md",
             doc_hash=doc_hash,
             classification_summary=summarize_classification(classifications),
         )
@@ -587,7 +589,7 @@ def run_engine_orchestrator(
                 "from": widening_from or "policy_envelope",
                 "to": widening_to or "repo_doc_request",
             },
-            "doc_path": repo_doc_evidence.doc_path if repo_doc_evidence is not None else (repo_doc_path or "AGENTS.md"),
+            "doc_path": repo_doc_evidence.doc_path if repo_doc_evidence is not None else (repo_doc_path or "BOOTSTRAP.md"),
             "doc_hash": repo_doc_evidence.doc_hash if repo_doc_evidence is not None else "",
             "winner_layer": "mode_policy",
             "loser_layer": "repo_doc_constraints",
@@ -645,7 +647,7 @@ def run_engine_orchestrator(
     elif parity["reason_code"] == REPO_CONSTRAINT_UNSUPPORTED:
         reason_context = {
             "constraint_topic": repo_constraint_topic or "unknown",
-            "doc_path": repo_doc_evidence.doc_path if repo_doc_evidence is not None else (repo_doc_path or "AGENTS.md"),
+            "doc_path": repo_doc_evidence.doc_path if repo_doc_evidence is not None else (repo_doc_path or "BOOTSTRAP.md"),
             "doc_hash": repo_doc_evidence.doc_hash if repo_doc_evidence is not None else "",
         }
     elif precedence_events:

@@ -1,7 +1,7 @@
 {
   "schema": "opencode-tool-requirements.v1",
   "version": "1.1",
-  "description": "Canonical external command inventory for /start bootstrap preflight.",
+  "description": "Canonical external command inventory for bootstrap preflight.",
   "smart_retry": {
     "path_snapshot_policy": "fresh-per-start",
     "restart_hints": [
@@ -12,7 +12,7 @@
   "required_now": [
     {
       "command": "git",
-      "reason": "repo identity evidence collection during /start",
+      "reason": "repo identity evidence collection during bootstrap",
       "phase": "1-bootstrap",
       "verify_command": "git --version",
       "expected_after_fix": "git --version prints a version string",

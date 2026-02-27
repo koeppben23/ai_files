@@ -103,12 +103,12 @@ def test_session_state_template_includes_persistence_fields() -> None:
     assert gates.get("P5.4-BusinessRules") == "pending"
 
 
-def test_start_persistence_hook_blocked_when_writes_not_allowed(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_bootstrap_persistence_hook_blocked_when_writes_not_allowed(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("OPENCODE_FORCE_READ_ONLY", "1")
     monkeypatch.delenv("CI", raising=False)
 
     import importlib
-    mod = importlib.import_module("governance.entrypoints.start_persistence_hook")
+    mod = importlib.import_module("governance.entrypoints.bootstrap_persistence_hook")
     importlib.reload(mod)
 
     result = mod.run_persistence_hook(repo_root=tmp_path)

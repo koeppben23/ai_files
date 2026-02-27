@@ -12,7 +12,7 @@ def test_renderer_facade_returns_string_payload():
         {
             "phase": "1.1-Bootstrap",
             "active_gate": "Gate",
-            "next_action": {"command": "/start"},
+            "next_action": {"command": "opencode-governance-bootstrap"},
             "reason_code": "none",
         }
     )
