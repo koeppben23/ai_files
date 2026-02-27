@@ -564,7 +564,7 @@ def run_persistence_hook() -> dict[str, object]:
             "bootstrap_hook_command": hook_command,
             "git_probe": {"ok": False, "source": "not-evaluated"},
         }
-        if output_mode == "full":
+        if os.getenv("OPENCODE_BOOTSTRAP_OUTPUT", "final").strip().lower() != "minimal":
             print(json.dumps(result, ensure_ascii=True))
         return result
 
@@ -598,7 +598,7 @@ def run_persistence_hook() -> dict[str, object]:
             "log_path": str(log_path),
             "failure_stage": FAILURE_STAGE_REPO_ROOT,
         }
-        if output_mode == "full":
+        if os.getenv("OPENCODE_BOOTSTRAP_OUTPUT", "final").strip().lower() != "minimal":
             print(json.dumps(result, ensure_ascii=True))
         return result
 
@@ -683,7 +683,7 @@ def run_persistence_hook() -> dict[str, object]:
         result["stderr_snippet"] = (proc.stderr or "").strip()[:500]
         result["log_path"] = str(log_path)
 
-    if output_mode == "full":
+    if os.getenv("OPENCODE_BOOTSTRAP_OUTPUT", "final").strip().lower() != "minimal":
         print(json.dumps(result, ensure_ascii=True))
     return result
 
