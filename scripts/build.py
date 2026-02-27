@@ -39,6 +39,10 @@ BASELINE_REQUIRED_PATHS = (
     "governance/render/delta_renderer.py",
     "governance/render/token_guard.py",
     "governance/render/render_contract.py",
+    "governance/assets/catalogs/AUDIT_REASON_CANONICAL_MAP.json",
+    "governance/assets/catalogs/QUICKFIX_TEMPLATES.json",
+    "governance/assets/catalogs/UX_INTENT_GOLDENS.json",
+    "governance/assets/catalogs/tool_requirements.json",
 )
 
 BASELINE_REQUIRED_REASON_CODES = (
@@ -68,6 +72,10 @@ CUSTOMER_DOCS_ALLOWLIST = {
     "BOOTSTRAP.md",
     "CHANGELOG.md",
     "governance/assets/catalogs/CUSTOMER_SCRIPT_CATALOG.json",
+    "governance/assets/catalogs/AUDIT_REASON_CANONICAL_MAP.json",
+    "governance/assets/catalogs/QUICKFIX_TEMPLATES.json",
+    "governance/assets/catalogs/UX_INTENT_GOLDENS.json",
+    "governance/assets/catalogs/tool_requirements.json",
 }
 
 
