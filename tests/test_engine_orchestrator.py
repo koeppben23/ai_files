@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from governance.engine.adapters import ExecResult, HostCapabilities, OperatingMode
+from governance.application.repo_identity_service import derive_repo_identity
 from governance.engine.orchestrator import run_engine_orchestrator
 from governance.infrastructure.persist_confirmation_store import record_persist_confirmation
 from governance.engine.reason_codes import (
@@ -1038,8 +1039,7 @@ def test_orchestrator_fallback_does_not_leak_exception_text(
 def test_orchestrator_commits_workspace_ready_gate_when_requested(tmp_path: Path):
     repo_root = _make_git_root(tmp_path / "repo")
     # Derive fingerprint the same way orchestrate_run does (from resolved repo_root).
-    resolved_root = repo_root.resolve()
-    repo_fp = hashlib.sha256(f"repo:local:{str(resolved_root)}".encode("utf-8")).hexdigest()[:24]
+    repo_fp = derive_repo_identity(repo_root, canonical_remote=None, git_dir=None).fingerprint
     workspaces_home = tmp_path / "workspaces"
     session_state_file = workspaces_home / repo_fp / "SESSION_STATE.json"
     session_state_file.parent.mkdir(parents=True, exist_ok=True)

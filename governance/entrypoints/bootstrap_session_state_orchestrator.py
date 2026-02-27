@@ -248,6 +248,13 @@ def resolve_binding_config(explicit: Path | None) -> tuple[Path, dict, Path]:
         config_root, paths = _load_binding_paths(candidate, expected_config_root=root)
         return config_root, paths, candidate
 
+    internal_root = os.environ.get("OPENCODE_INTERNAL_BOOTSTRAP_CONFIG_ROOT")
+    if internal_root:
+        root = normalize_absolute_path(internal_root, purpose="env:OPENCODE_INTERNAL_BOOTSTRAP_CONFIG_ROOT")
+        candidate = root / "commands" / "governance.paths.json"
+        config_root, paths = _load_binding_paths(candidate, expected_config_root=root)
+        return config_root, paths, candidate
+
     env_value = os.environ.get("OPENCODE_CONFIG_ROOT")
     if env_value:
         root = normalize_absolute_path(env_value, purpose="env:OPENCODE_CONFIG_ROOT")
@@ -521,9 +528,10 @@ def main() -> int:
 
     set_error_context(ErrorContext(
         repo_fingerprint=repo_fingerprint,
-        config_root=str(config_root),
-        workspaces_home=str(workspaces_home),
-        repo_root=str(repo_root),
+        config_root=config_root,
+        workspaces_home=workspaces_home,
+        repo_root=repo_root,
+        commands_home=commands_home,
         phase="1.1-Bootstrap",
         command="bootstrap_session_state.py",
     ))

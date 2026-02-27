@@ -284,6 +284,8 @@ def _preflight_build_toolchain_snapshot() -> dict[str, object]:
 
 
 def emit_preflight() -> None:
+    if os.getenv("OPENCODE_BOOTSTRAP_OUTPUT", "final").strip().lower() != "full":
+        return
     required_now, required_later, _required_later_entries = _tool_inventory()
 
     available: list[str] = []
@@ -333,6 +335,8 @@ def emit_preflight() -> None:
 
 
 def emit_permission_probes() -> None:
+    if os.getenv("OPENCODE_BOOTSTRAP_OUTPUT", "final").strip().lower() != "full":
+        return
     checks = [
         {
             "probe": "fs.read_commands_home",
@@ -529,6 +533,7 @@ def _canonical_hook_status(*, raw_status: object, reason_code: str, returncode: 
 
 
 def run_persistence_hook() -> dict[str, object]:
+    output_mode = os.getenv("OPENCODE_BOOTSTRAP_OUTPUT", "final").strip().lower()
     mode = _effective_mode()
     hook_argv = [sys.executable, "-m", "governance.entrypoints.bootstrap_persistence_hook"]
     hook_command = " ".join(hook_argv)
@@ -559,8 +564,9 @@ def run_persistence_hook() -> dict[str, object]:
             "bootstrap_hook_command": hook_command,
             "git_probe": {"ok": False, "source": "not-evaluated"},
         }
-        print(json.dumps(result, ensure_ascii=True))
-        raise SystemExit(2)
+        if output_mode == "full":
+            print(json.dumps(result, ensure_ascii=True))
+        return result
 
     repo_root, repo_root_source, git_probe = _resolve_repo_root_for_hook()
     base_payload = {
@@ -592,8 +598,9 @@ def run_persistence_hook() -> dict[str, object]:
             "log_path": str(log_path),
             "failure_stage": FAILURE_STAGE_REPO_ROOT,
         }
-        print(json.dumps(result, ensure_ascii=True))
-        raise SystemExit(2)
+        if output_mode == "full":
+            print(json.dumps(result, ensure_ascii=True))
+        return result
 
     env = dict(os.environ)
     env["OPENCODE_REPO_ROOT"] = str(repo_root)
@@ -676,9 +683,8 @@ def run_persistence_hook() -> dict[str, object]:
         result["stderr_snippet"] = (proc.stderr or "").strip()[:500]
         result["log_path"] = str(log_path)
 
-    print(json.dumps(result, ensure_ascii=True))
-    if str(result.get("workspacePersistenceHook")).strip().lower() != HOOK_STATUS_OK:
-        raise SystemExit(2)
+    if output_mode == "full":
+        print(json.dumps(result, ensure_ascii=True))
     return result
 
 
@@ -876,27 +882,25 @@ def run_kernel_continuation(hook_result: Mapping[str, object]) -> dict[str, obje
     repo_fingerprint = str(hook_result.get("repo_fingerprint") or "").strip()
     session_path = _session_state_file_path(repo_fingerprint)
     if session_path is None or not session_path.exists():
-        payload = {
+        payload: dict[str, object] = {
             "kernelContinuation": "blocked",
             "reason": "missing-session-state",
             "reason_code": "BLOCKED-WORKSPACE-PERSISTENCE",
             "repo_fingerprint": repo_fingerprint,
             "session_state_path": str(session_path) if session_path is not None else "",
         }
-        print(json.dumps(payload, ensure_ascii=True))
-        raise SystemExit(2)
+        return dict(payload)
 
     document = _read_json_document(session_path)
     if document is None:
-        payload = {
+        payload: dict[str, object] = {
             "kernelContinuation": "blocked",
             "reason": "invalid-session-state-json",
             "reason_code": "BLOCKED-WORKSPACE-PERSISTENCE",
             "repo_fingerprint": repo_fingerprint,
             "session_state_path": str(session_path),
         }
-        print(json.dumps(payload, ensure_ascii=True))
-        raise SystemExit(2)
+        return dict(payload)
 
     state = _root_state(document)
     preflight = state.get("Preflight")
@@ -984,18 +988,20 @@ def run_kernel_continuation(hook_result: Mapping[str, object]) -> dict[str, obje
         "source": str(last_result.get("source") or ""),
         "hops": hops,
     }
-    print(json.dumps(payload, ensure_ascii=True))
-    if payload["kernelContinuation"] != "ok":
-        raise SystemExit(2)
     return payload
 
 
 def main() -> int:
-    emit_start_receipt()
+    if os.getenv("OPENCODE_BOOTSTRAP_VERBOSE", "").strip() == "1":
+        emit_start_receipt()
     emit_preflight()
     emit_permission_probes()
     hook_result = run_persistence_hook()
-    run_kernel_continuation(hook_result)
+    payload = run_kernel_continuation(hook_result)
+    if os.getenv("OPENCODE_BOOTSTRAP_OUTPUT", "final").strip().lower() != "full":
+        print(json.dumps(payload, ensure_ascii=True))
+    if payload.get("kernelContinuation") != "ok":
+        raise SystemExit(2)
     if os.getenv("OPENCODE_ENGINE_SHADOW_EMIT") == "1":
         print(json.dumps({"engineRuntimeShadow": build_engine_shadow_snapshot()}, ensure_ascii=True))
     return 0

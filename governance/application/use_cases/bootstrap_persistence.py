@@ -274,28 +274,15 @@ class BootstrapPersistenceService:
             "schema": "opencode-session-pointer.v1",
             "activeRepoFingerprint": payload.repo_identity.fingerprint,
             "activeSessionStateFile": payload.layout.session_state_file,
+            "activeSessionStateRelativePath": f"workspaces/{payload.repo_identity.fingerprint}/SESSION_STATE.json",
         }
         pointer_text = _canonical_json(pointer_payload)
         self._fs.write_text_atomic(pointer_file, pointer_text)
         write_actions["pointer"] = "written"
 
-        if self._fs.read_text(pointer_file) != pointer_text:
-            event = ErrorEvent(
-                code="POINTER_VERIFY_FAILED",
-                severity="error",
-                message="Pointer verification failed after write.",
-                expected="pointer read-back equals write payload",
-                observed={"pointerFile": str(pointer_file)},
-            )
-            self._logger.write(event)
-            errors.append(event)
-            return BootstrapResult(ok=False, gate_code=event.code, write_actions=write_actions, error_events=tuple(errors))
-        write_actions["pointer_verify"] = "verified"
-
-        # Determine PointerVerified explicitly based on read-back and pointer payload validity
+        pointer_readback = self._fs.read_text(pointer_file)
         pointer_verified_final = False
         try:
-            pointer_readback = self._fs.read_text(pointer_file)
             pointer_json_read = json.loads(pointer_readback)
             pointer_verified_final = _is_valid_pointer_payload(
                 pointer_json_read,
@@ -304,6 +291,32 @@ class BootstrapPersistenceService:
             )
         except Exception:
             pointer_verified_final = False
+
+        if not pointer_verified_final:
+            event = ErrorEvent(
+                code="POINTER_VERIFY_FAILED",
+                severity="error",
+                message="Pointer verification failed after write.",
+                expected="pointer read-back is valid and canonical",
+                observed={"pointerFile": str(pointer_file)},
+            )
+            self._logger.write(event)
+            errors.append(event)
+            return BootstrapResult(ok=False, gate_code=event.code, write_actions=write_actions, error_events=tuple(errors))
+
+        write_actions["pointer_verify"] = "verified"
+
+        if not pointer_verified_final:
+            event = ErrorEvent(
+                code="POINTER_VERIFY_FAILED",
+                severity="error",
+                message="Pointer verification failed after read-back.",
+                expected="pointer read-back is valid and canonical",
+                observed={"pointerFile": str(pointer_file)},
+            )
+            self._logger.write(event)
+            errors.append(event)
+            return BootstrapResult(ok=False, gate_code=event.code, write_actions=write_actions, error_events=tuple(errors))
 
         final_state = _session_state_payload(
             repo_fingerprint=payload.repo_identity.fingerprint,
@@ -345,13 +358,23 @@ def _is_valid_pointer_payload(
     active_state_file = payload.get("activeSessionStateFile")
     if not isinstance(active_state_file, str) or not active_state_file.strip():
         return False
+    rel_path = payload.get("activeSessionStateRelativePath")
+    if not isinstance(rel_path, str) or not rel_path.strip():
+        return False
+    expected_rel = f"workspaces/{expected_repo_fingerprint}/SESSION_STATE.json"
+    if rel_path.replace("\\", "/") != expected_rel:
+        return False
 
     active_state_file_value = active_state_file.strip()
     actual_path = Path(active_state_file_value)
     expected_path = Path(expected_session_state_file)
     if not os.path.isabs(active_state_file_value):
         return False
-    return actual_path == expected_path
+    if actual_path != expected_path:
+        return False
+    if not str(actual_path).replace("\\", "/").endswith(expected_rel):
+        return False
+    return True
 
 
 def _session_state_payload(

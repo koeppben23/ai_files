@@ -1,0 +1,6 @@
+ssot_source,md_file,md_section,ownership,drift_risk,md_role
+phase_api.yaml,master.md,SSOT intro,Kernel-owned only,low,reference-only
+session_state_invariants.py,rules.md,7.3.12 Session Transition Invariants,Kernel-owned only,high,reference-only
+bootstrap_preflight_readonly.py,rules.md,7.3.10 Bootstrap Preflight Output Contract,Kernel-owned only,high,reference-only
+blocked_reason_catalog.yaml,master.md,BLOCKED reason catalog,Kernel-owned only,high,reference-only
+gate_evaluator.py,master.md,Phase 5/5.3/5.4/5.6/6 gates,Kernel-owned only,high,reference-only

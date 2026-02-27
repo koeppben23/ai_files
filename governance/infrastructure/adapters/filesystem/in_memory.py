@@ -15,3 +15,6 @@ class InMemoryFS:
 
     def exists(self, path: Path) -> bool:
         return str(path) in self._data
+
+    def write_text(self, path: Path, content: str) -> None:
+        self._data[str(path)] = content

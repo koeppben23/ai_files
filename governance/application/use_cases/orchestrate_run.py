@@ -221,10 +221,12 @@ def run_engine_orchestrator(
             gate_reason_code = BLOCKED_FINGERPRINT_MISMATCH
         else:
             state_fingerprint = extract_repo_identity(session_state_document)
+            if not state_fingerprint:
+                state_fingerprint = live_fingerprint
             if state_fingerprint and state_fingerprint != live_fingerprint:
                 gate_blocked = True
                 gate_reason_code = BLOCKED_FINGERPRINT_MISMATCH
-            elif workspaces_home and session_state_file and session_pointer_file:
+            if not gate_blocked and workspaces_home and session_state_file and session_pointer_file:
                 try:
                     gate = ensure_workspace_ready(
                         workspaces_home=Path(workspaces_home),

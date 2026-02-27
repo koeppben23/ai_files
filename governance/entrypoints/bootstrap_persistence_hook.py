@@ -22,6 +22,7 @@ if __package__ in {None, ""}:
 
 import json
 import os
+import shlex
 import subprocess
 import sys
 from pathlib import Path
@@ -152,6 +153,17 @@ def _resolve_bindings(*, mode: str) -> tuple[Path | None, Path | None, bool, Pat
         evidence.governance_paths_json,
         python_command,
     )
+
+
+def _python_command_argv(python_command: str) -> list[str]:
+    token = str(python_command or "").strip()
+    if not token:
+        return [sys.executable]
+    try:
+        parts = [part for part in shlex.split(token, posix=False) if part]
+    except Exception:
+        parts = []
+    return parts or [sys.executable]
 
 
 COMMANDS_HOME, WORKSPACES_HOME, BINDING_OK, BINDING_EVIDENCE_PATH, PYTHON_COMMAND = _resolve_bindings(mode=EFFECTIVE_MODE)
@@ -597,7 +609,7 @@ def run_persistence_hook(*, repo_root: Path | None = None) -> dict[str, object]:
 
     repo_name = resolved_root.name
     cmd = [
-        PYTHON_COMMAND,
+        *_python_command_argv(PYTHON_COMMAND),
         str(bootstrap_script),
         "--repo-fingerprint", repo_fp,
         "--repo-name", repo_name,

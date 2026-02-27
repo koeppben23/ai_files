@@ -548,7 +548,7 @@ def main(argv: list[str]) -> int:
         except ValueError:
             return str(p)
 
-    print("✅ Built artifacts:")
+    print("Built artifacts:")
     for a in artifacts:
         print(f"  - {_pretty(a)}")
     print(f"  - {_pretty(sums)}")

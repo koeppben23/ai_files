@@ -208,6 +208,7 @@ def ensure_dirs(config_root: Path, dry_run: bool) -> None:
 def create_launcher(plan: InstallPlan, dry_run: bool, force: bool) -> list[dict]:
     """Create local bootstrap launcher scripts. Returns list of created file entries for manifest."""
     import sys
+    import json
 
     bin_dir = plan.config_root / "bin"
     # Prepare cross-platform launcher wrappers to be installed into runtime bin dir
@@ -235,6 +236,18 @@ def create_launcher(plan: InstallPlan, dry_run: bool, force: bool) -> list[dict]
             dst.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(f, dst)
         print(f"  ✅ {cli_dest}")
+
+        # Copy governance runtime into commands/governance for bootstrap hook.
+        governance_dest = plan.commands_dir / "governance"
+        if governance_dest.exists():
+            shutil.rmtree(governance_dest)
+        governance_dest.mkdir(parents=True, exist_ok=True)
+        for f in sorted(GOVERNANCE_SOURCE_DIR.rglob("*.py")):
+            rel = f.relative_to(GOVERNANCE_SOURCE_DIR)
+            dst = governance_dest / rel
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(f, dst)
+        print(f"  ✅ {governance_dest}")
 
         # Copy runtime wrappers into bin/ in the config root
         if wrapper_unix.exists():
@@ -288,9 +301,25 @@ def create_launcher(plan: InstallPlan, dry_run: bool, force: bool) -> list[dict]
     binding_path = plan.commands_dir / "governance.paths.json"
 
     binding_ok = False
+    if not plan.skip_paths_file:
+        if dry_run:
+            print(f"  [DRY-RUN] write {binding_path}")
+        else:
+            binding_payload = {
+                "schema": GOVERNANCE_PATHS_SCHEMA,
+                "generatedAt": datetime.now().isoformat(timespec="seconds"),
+                "paths": {
+                    "configRoot": str(plan.config_root),
+                    "commandsHome": str(plan.commands_dir),
+                    "workspacesHome": str(plan.config_root / "workspaces"),
+                    "pythonCommand": sys.executable,
+                },
+                "commandProfiles": {},
+            }
+            binding_path.write_text(json.dumps(binding_payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+
     if binding_path.exists():
         try:
-            import json
             data = json.loads(binding_path.read_text(encoding="utf-8"))
             binding_ok = data.get("schema") == "opencode-governance.paths.v1"
         except Exception:
