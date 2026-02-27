@@ -17,18 +17,19 @@ FIXED_ZIP_DT = (1980, 1, 1, 0, 0, 0)
 BUNDLE_SCHEMA = "governance.customer-install-bundle.v1"
 
 
-def _read_version(master_md: Path) -> str:
-    if not master_md.exists():
-        raise SystemExit("master.md not found")
-    head = "\n".join(master_md.read_text(encoding="utf-8").splitlines()[:80])
-    match = re.search(
-        r"Governance-Version:\s*([0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?)",
-        head,
-        flags=re.IGNORECASE | re.MULTILINE,
-    )
-    if not match:
-        raise SystemExit("Missing Governance-Version in master.md")
-    return match.group(1)
+def _read_version(repo_root: Path) -> str:
+    version_file = repo_root / "governance" / "VERSION"
+    if not version_file.exists():
+        raise SystemExit("governance/VERSION not found")
+
+    version = version_file.read_text(encoding="utf-8").strip()
+    if not version:
+        raise SystemExit("governance/VERSION is empty (expected semver)")
+
+    if not re.match(r"^[0-9]+\.[0-9]+\.[0-9]+", version):
+        raise SystemExit(f"Invalid governance version in VERSION: {version} (expected semver)")
+
+    return version
 
 
 def _sha256(path: Path) -> str:
@@ -280,7 +281,7 @@ def main(argv: list[str]) -> int:
     if not dist_dir.exists():
         raise SystemExit(f"Dist directory not found: {dist_dir}")
 
-    version = _read_version(repo_root / "master.md")
+    version = _read_version(repo_root)
     release_prefix = f"governance-{version}"
 
     release_zip = dist_dir / f"{release_prefix}.zip"

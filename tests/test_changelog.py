@@ -9,14 +9,11 @@ from .util import REPO_ROOT, read_text
 
 
 def _governance_version() -> str:
-    head = "\n".join(read_text(REPO_ROOT / "master.md").splitlines()[:80])
-    m = re.search(
-        r"Governance-Version:\s*([0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?)",
-        head,
-        flags=re.IGNORECASE | re.MULTILINE,
-    )
-    assert m, "Missing Governance-Version in master.md"
-    return m.group(1)
+    version_file = REPO_ROOT / "governance" / "VERSION"
+    assert version_file.exists(), "Missing governance/VERSION"
+    version = version_file.read_text(encoding="utf-8").strip()
+    assert version, "Empty governance/VERSION"
+    return version
 
 
 @pytest.mark.release

@@ -325,19 +325,19 @@ class BuildPaths:
     dist_dir: Path
 
 
-def _read_governance_version(master_md: Path) -> str:
-    if not master_md.exists():
-        raise SystemExit("master.md not found (required for build)")
+def _read_governance_version(repo_root: Path) -> str:
+    version_file = repo_root / "governance" / "VERSION"
+    if not version_file.exists():
+        raise SystemExit("governance/VERSION not found (required for build)")
 
-    head = "\n".join(master_md.read_text(encoding="utf-8").splitlines()[:80])
-    m = re.search(
-        r"Governance-Version:\s*([0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?)",
-        head,
-        flags=re.IGNORECASE | re.MULTILINE,
-    )
-    if not m:
-        raise SystemExit("Missing governance version in master.md (expected '# Governance-Version: <semver>' near the top).")
-    return m.group(1)
+    version = version_file.read_text(encoding="utf-8").strip()
+    if not version:
+        raise SystemExit("governance/VERSION is empty (expected semver)")
+
+    if not re.match(r"^[0-9]+\.[0-9]+\.[0-9]+", version):
+        raise SystemExit(f"Invalid governance version in VERSION: {version} (expected semver)")
+
+    return version
 
 
 def _is_excluded(path: Path, repo_root: Path) -> bool:
@@ -650,7 +650,7 @@ def main(argv: list[str]) -> int:
     dist_dir = (repo_root / args.out_dir).resolve()
     bp = BuildPaths(repo_root=repo_root, dist_dir=dist_dir)
 
-    version = _read_governance_version(bp.repo_root / "master.md")
+    version = _read_governance_version(bp.repo_root)
     prefix = f"governance-{version}"
 
     _enforce_readme_baseline_claims(bp.repo_root)
