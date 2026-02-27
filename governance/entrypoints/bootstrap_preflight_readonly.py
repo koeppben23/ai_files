@@ -284,7 +284,7 @@ def _preflight_build_toolchain_snapshot() -> dict[str, object]:
 
 
 def emit_preflight() -> None:
-    if os.getenv("OPENCODE_BOOTSTRAP_OUTPUT", "final").strip().lower() == "minimal":
+    if os.getenv("OPENCODE_BOOTSTRAP_OUTPUT", "final").strip().lower() != "full":
         return
     required_now, required_later, _required_later_entries = _tool_inventory()
 
@@ -335,7 +335,7 @@ def emit_preflight() -> None:
 
 
 def emit_permission_probes() -> None:
-    if os.getenv("OPENCODE_BOOTSTRAP_OUTPUT", "final").strip().lower() == "minimal":
+    if os.getenv("OPENCODE_BOOTSTRAP_OUTPUT", "final").strip().lower() != "full":
         return
     checks = [
         {
@@ -564,8 +564,7 @@ def run_persistence_hook() -> dict[str, object]:
             "bootstrap_hook_command": hook_command,
             "git_probe": {"ok": False, "source": "not-evaluated"},
         }
-        if os.getenv("OPENCODE_BOOTSTRAP_OUTPUT", "final").strip().lower() != "minimal":
-            print(json.dumps(result, ensure_ascii=True))
+        print(json.dumps(result, ensure_ascii=True))
         return result
 
     repo_root, repo_root_source, git_probe = _resolve_repo_root_for_hook()
@@ -598,8 +597,7 @@ def run_persistence_hook() -> dict[str, object]:
             "log_path": str(log_path),
             "failure_stage": FAILURE_STAGE_REPO_ROOT,
         }
-        if os.getenv("OPENCODE_BOOTSTRAP_OUTPUT", "final").strip().lower() != "minimal":
-            print(json.dumps(result, ensure_ascii=True))
+        print(json.dumps(result, ensure_ascii=True))
         return result
 
     env = dict(os.environ)
@@ -683,8 +681,7 @@ def run_persistence_hook() -> dict[str, object]:
         result["stderr_snippet"] = (proc.stderr or "").strip()[:500]
         result["log_path"] = str(log_path)
 
-    if os.getenv("OPENCODE_BOOTSTRAP_OUTPUT", "final").strip().lower() != "minimal":
-        print(json.dumps(result, ensure_ascii=True))
+    print(json.dumps(result, ensure_ascii=True))
     return result
 
 
@@ -997,8 +994,6 @@ def main() -> int:
     emit_permission_probes()
     hook_result = run_persistence_hook()
     payload = run_kernel_continuation(hook_result)
-    if os.getenv("OPENCODE_BOOTSTRAP_OUTPUT", "final").strip().lower() != "full":
-        print(json.dumps(hook_result, ensure_ascii=True))
     if payload.get("kernelContinuation") != "ok":
         raise SystemExit(2)
     if os.getenv("OPENCODE_ENGINE_SHADOW_EMIT") == "1":
