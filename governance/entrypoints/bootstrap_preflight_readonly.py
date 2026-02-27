@@ -284,7 +284,7 @@ def _preflight_build_toolchain_snapshot() -> dict[str, object]:
 
 
 def emit_preflight() -> None:
-    if os.getenv("OPENCODE_BOOTSTRAP_OUTPUT", "final").strip().lower() != "full":
+    if os.getenv("OPENCODE_BOOTSTRAP_OUTPUT", "final").strip().lower() == "minimal":
         return
     required_now, required_later, _required_later_entries = _tool_inventory()
 
@@ -335,7 +335,7 @@ def emit_preflight() -> None:
 
 
 def emit_permission_probes() -> None:
-    if os.getenv("OPENCODE_BOOTSTRAP_OUTPUT", "final").strip().lower() != "full":
+    if os.getenv("OPENCODE_BOOTSTRAP_OUTPUT", "final").strip().lower() == "minimal":
         return
     checks = [
         {
@@ -992,14 +992,13 @@ def run_kernel_continuation(hook_result: Mapping[str, object]) -> dict[str, obje
 
 
 def main() -> int:
-    if os.getenv("OPENCODE_BOOTSTRAP_VERBOSE", "").strip() == "1":
-        emit_start_receipt()
+    emit_start_receipt()
     emit_preflight()
     emit_permission_probes()
     hook_result = run_persistence_hook()
     payload = run_kernel_continuation(hook_result)
     if os.getenv("OPENCODE_BOOTSTRAP_OUTPUT", "final").strip().lower() != "full":
-        print(json.dumps(payload, ensure_ascii=True))
+        print(json.dumps(hook_result, ensure_ascii=True))
     if payload.get("kernelContinuation") != "ok":
         raise SystemExit(2)
     if os.getenv("OPENCODE_ENGINE_SHADOW_EMIT") == "1":
