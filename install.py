@@ -40,6 +40,19 @@ from pathlib import Path
 from collections.abc import Callable
 from typing import Iterable
 
+
+def _ensure_utf8_stdio() -> None:
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            reconfigure = getattr(stream, "reconfigure", None)
+            if callable(reconfigure):
+                reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            pass
+
+
+_ensure_utf8_stdio()
+
 SCRIPT_DIR = Path(__file__).resolve().parent
 GOVERNANCE_SOURCE_DIR = SCRIPT_DIR / "governance"
 
@@ -183,7 +196,16 @@ def get_config_root() -> Path:
     system = platform.system()
 
     if system == "Darwin" and pwd is not None:
-        return Path(pwd.getpwuid(os.getuid()).pw_dir).resolve() / ".config" / "opencode"
+        try:
+            getpwuid = getattr(pwd, "getpwuid", None)
+            getuid = getattr(os, "getuid", None)
+            if callable(getpwuid) and callable(getuid):
+                pw_entry = getpwuid(getuid())
+                home = getattr(pw_entry, "pw_dir", None)
+                if home:
+                    return Path(home).resolve() / ".config" / "opencode"
+        except Exception:
+            pass
     return (Path.home().resolve() / ".config" / "opencode").resolve()
 
 
@@ -1092,11 +1114,11 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
         eprint("")
         return 2
 
-    print(f"📁 Target config root: {plan.config_root}")
-    print("📁 Ensuring directory structure...")
+    print(f"Target config root: {plan.config_root}")
+    print("Ensuring directory structure...")
     ensure_dirs(plan.config_root, dry_run=dry_run)
 
-    print("\n🚀 Creating local bootstrap launcher...")
+    print("\nCreating local bootstrap launcher...")
     launcher_entries = create_launcher(plan, dry_run=dry_run, force=force)
 
     # backup root

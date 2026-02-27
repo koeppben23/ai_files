@@ -30,6 +30,13 @@ EXCLUDE_DIRS = {
     ".venv",
 }
 
+GOVERNANCE_EXCLUDE_DIRS = {
+    "__pycache__",
+    ".pytest_cache",
+    ".mypy_cache",
+    ".ruff_cache",
+}
+
 FORBIDDEN_METADATA_SEGMENTS = ("__MACOSX",)
 FORBIDDEN_METADATA_FILENAMES = {".DS_Store", "Icon\r"}
 
@@ -356,6 +363,19 @@ def _should_include_file(
     shipped_workflow_templates: set[str],
     release_excluded_markdown: set[str],
 ) -> bool:
+    def _is_governance_runtime_excluded(rel_path: str) -> bool:
+        if not rel_path.startswith("governance/"):
+            return False
+        parts = rel_path.split("/")
+        if any(part in GOVERNANCE_EXCLUDE_DIRS for part in parts):
+            return True
+        if "/tests/" in rel_path:
+            return True
+        name = Path(rel_path).name
+        if name.endswith(".py") and (name.startswith("test_") or name.endswith("_test.py")):
+            return True
+        return False
+
     if rel in customer_release_scripts:
         return True
     if rel in shipped_workflow_templates:
@@ -367,11 +387,16 @@ def _should_include_file(
         return True
     if name.upper().startswith("LICENSE") or name.upper().startswith("LICENCE"):
         return True
+    if rel in {"phase_api.yaml"}:
+        return True
     # Addon manifests are required at runtime for deterministic addon activation/reload.
     if rel.startswith("profiles/addons/") and name.endswith(".addon.yml"):
         return True
-    # Governance runtime helpers are required for bootstrap auto-persistence and error logging.
-    if rel.startswith("governance/entrypoints/") and p.suffix.lower() == ".py":
+    # Governance runtime should ship as a coherent tree, excluding only non-runtime artifacts.
+    if rel.startswith("governance/"):
+        return not _is_governance_runtime_excluded(rel)
+    # Bootstrap runtime modules required by governance entrypoints.
+    if rel.startswith("bootstrap/") and p.suffix.lower() == ".py":
         return True
     # Local bootstrap runtime package.
     if rel.startswith("cli/") and p.suffix.lower() == ".py":
@@ -406,7 +431,7 @@ def collect_release_files(
     """
     Allowlist strategy:
       - include: install.py, LICENSE*, LICENCE*, *.md, *.json,
-        profiles/addons/*.addon.yml, governance/entrypoints/*.py,
+        profiles/addons/*.addon.yml, governance/** (runtime),
         scripts listed in governance/assets/catalogs/CUSTOMER_SCRIPT_CATALOG.json with ship_in_release=true,
         workflow template .yml files listed in templates/github-actions/template_catalog.json
       - exclude: .git, .github, dist, tests, caches
@@ -436,8 +461,100 @@ def collect_release_files(
     out = sorted(out, key=key)
     if not out:
         raise SystemExit("No files selected for release artifact (check include/exclude rules).")
+    _enforce_runtime_imports(out, repo_root)
     _enforce_metadata_hygiene_on_files(out, repo_root)
     return out
+
+
+def _enforce_runtime_imports(files: Iterable[Path], repo_root: Path) -> None:
+    """Fail closed if governance entrypoints import modules outside the release payload."""
+
+    relset = {p.relative_to(repo_root).as_posix() for p in files}
+    stdlib_modules = set(getattr(sys, "stdlib_module_names", set()))
+    entrypoints_root = repo_root / "governance" / "entrypoints"
+    if not entrypoints_root.exists():
+        raise SystemExit("Release build failed: governance/entrypoints missing")
+
+    import_re = re.compile(r"^\s*(?:from\s+([\w\.]+)|import\s+([\w\.]+))")
+    allow_prefixes = (
+        "governance.",
+        "bootstrap.",
+        "cli.",
+        "yaml.",
+        "artifacts.",
+    )
+    optional_runtime_prefixes = (
+        "artifacts.",
+    )
+    allow_modules = {
+        "yaml",
+    }
+
+    violations: list[str] = []
+    for path in sorted(entrypoints_root.rglob("*.py")):
+        if not path.is_file():
+            continue
+        rel = path.relative_to(repo_root).as_posix()
+        if rel not in relset:
+            violations.append(f"entrypoint not shipped: {rel}")
+            continue
+        try:
+            lines = path.read_text(encoding="utf-8").splitlines()
+        except Exception:
+            continue
+        in_docstring = False
+        for line in lines:
+            token = line.lstrip()
+            if token.startswith(('"""', "'''")):
+                in_docstring = not in_docstring
+                continue
+            if in_docstring or token.startswith("#"):
+                continue
+            m = import_re.match(line)
+            if not m:
+                continue
+            module = m.group(1) or m.group(2) or ""
+            if not module:
+                continue
+            if module.startswith("."):
+                continue
+            root_module = module.split(".", 1)[0]
+            if root_module in stdlib_modules:
+                continue
+            if module in allow_modules:
+                continue
+            if module.startswith(allow_prefixes):
+                mod_path = module.replace(".", "/") + ".py"
+                pkg_init = module.replace(".", "/") + "/__init__.py"
+                if mod_path in relset or pkg_init in relset:
+                    continue
+                if module.startswith(optional_runtime_prefixes):
+                    continue
+
+            mod_path = module.replace(".", "/") + ".py"
+            pkg_init = module.replace(".", "/") + "/__init__.py"
+            module_file = repo_root / mod_path
+            module_pkg = repo_root / pkg_init
+
+            if mod_path in relset or pkg_init in relset:
+                continue
+
+            if module_file.exists() or module_pkg.exists():
+                violations.append(f"{rel}: missing dependency {module}")
+                continue
+
+            if "." not in module:
+                local_entrypoint = entrypoints_root / f"{module}.py"
+                if local_entrypoint.exists():
+                    if local_entrypoint.relative_to(repo_root).as_posix() not in relset:
+                        violations.append(f"{rel}: missing dependency {module}")
+                continue
+
+    if violations:
+        raise SystemExit(
+            "Release build failed: runtime import dependencies missing from artifact: "
+            + ", ".join(sorted(violations))
+        )
 
 
 def sha256_file(p: Path) -> str:

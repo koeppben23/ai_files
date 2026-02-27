@@ -106,6 +106,10 @@ _HARDCODED_FALLBACK_SCHEMA: dict[str, object] = {
                     },
                     "additionalProperties": True,
                 },
+                "ticket_intake_ready": {
+                    "type": "boolean",
+                    "description": "Authoritative readiness gate for ticket intake",
+                },
                 "AddonsEvidence": {"type": "object", "additionalProperties": True},
                 "RulebookLoadEvidence": {"type": "object", "additionalProperties": True},
                 "ActiveProfile": {"type": ["string", "null"]},
@@ -117,10 +121,6 @@ _HARDCODED_FALLBACK_SCHEMA: dict[str, object] = {
                     ],
                 },
                 "ProfileEvidence": {"type": ["string", "null"]},
-                "ticket_intake_ready": {
-                    "type": "boolean",
-                    "description": "Authoritative readiness gate for ticket intake",
-                },
                 "phase_ready": {
                     "type": "integer",
                     "minimum": 0,

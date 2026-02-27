@@ -348,6 +348,10 @@ def _is_valid_pointer_payload(
     expected_repo_fingerprint: str,
     expected_session_state_file: str,
 ) -> bool:
+    def _is_absolute_path(value: str) -> bool:
+        if os.path.isabs(value):
+            return True
+        return value.startswith("/")
     if not isinstance(payload, dict):
         return False
     if payload.get("schema") != "opencode-session-pointer.v1":
@@ -359,21 +363,23 @@ def _is_valid_pointer_payload(
     if not isinstance(active_state_file, str) or not active_state_file.strip():
         return False
     rel_path = payload.get("activeSessionStateRelativePath")
-    if not isinstance(rel_path, str) or not rel_path.strip():
-        return False
     expected_rel = f"workspaces/{expected_repo_fingerprint}/SESSION_STATE.json"
-    if rel_path.replace("\\", "/") != expected_rel:
-        return False
+    if rel_path is not None:
+        if not isinstance(rel_path, str) or not rel_path.strip():
+            return False
+        if rel_path.replace("\\", "/") != expected_rel:
+            return False
 
     active_state_file_value = active_state_file.strip()
     actual_path = Path(active_state_file_value)
     expected_path = Path(expected_session_state_file)
-    if not os.path.isabs(active_state_file_value):
+    if not _is_absolute_path(active_state_file_value):
         return False
     if actual_path != expected_path:
         return False
-    if not str(actual_path).replace("\\", "/").endswith(expected_rel):
-        return False
+    if rel_path is not None:
+        if not str(actual_path).replace("\\", "/").endswith(expected_rel):
+            return False
     return True
 
 
@@ -438,6 +444,7 @@ def _session_state_payload(
                 "templates": "",
                 "addons": {},
             },
+            "ticket_intake_ready": False,
             "AddonsEvidence": {},
             "RulebookLoadEvidence": {
                 "top_tier": {
