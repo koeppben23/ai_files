@@ -39,6 +39,10 @@ BASELINE_REQUIRED_PATHS = (
     "governance/render/delta_renderer.py",
     "governance/render/token_guard.py",
     "governance/render/render_contract.py",
+    "governance/assets/catalogs/AUDIT_REASON_CANONICAL_MAP.json",
+    "governance/assets/catalogs/QUICKFIX_TEMPLATES.json",
+    "governance/assets/catalogs/UX_INTENT_GOLDENS.json",
+    "governance/assets/catalogs/tool_requirements.json",
 )
 
 BASELINE_REQUIRED_REASON_CODES = (
@@ -52,6 +56,28 @@ WORKFLOW_TEMPLATE_CATALOG_PATH = Path("templates/github-actions/template_catalog
 WORKFLOW_TEMPLATE_CATALOG_SCHEMA = "governance.workflow-template-catalog.v1"
 MARKDOWN_EXCLUDE_POLICY_PATH = Path("governance/assets/catalogs/CUSTOMER_MARKDOWN_EXCLUDE.json")
 MARKDOWN_EXCLUDE_POLICY_SCHEMA = "governance.customer-markdown-exclude.v1"
+
+CUSTOMER_DOCS_ALLOWLIST = {
+    "docs/phases.md",
+    "docs/install-layout.md",
+    "docs/releasing.md",
+    "docs/benchmarks.md",
+    "docs/security-gates.md",
+    "docs/customer-install-bundle-v1.md",
+    "docs/release-security-model.md",
+    "docs/mode-aware-repo-rules.md",
+    "docs/governance_invariants.md",
+    "master.md",
+    "rules.md",
+    "BOOTSTRAP.md",
+    "CHANGELOG.md",
+    "governance/assets/catalogs/CUSTOMER_SCRIPT_CATALOG.json",
+    "governance/assets/catalogs/AUDIT_REASON_CANONICAL_MAP.json",
+    "governance/assets/catalogs/QUICKFIX_TEMPLATES.json",
+    "governance/assets/catalogs/UX_INTENT_GOLDENS.json",
+    "governance/assets/catalogs/tool_requirements.json",
+    "templates/github-actions/template_catalog.json",
+}
 
 
 def is_forbidden_metadata_path(relpath: str) -> bool:
@@ -344,13 +370,18 @@ def _should_include_file(
     # Addon manifests are required at runtime for deterministic addon activation/reload.
     if rel.startswith("profiles/addons/") and name.endswith(".addon.yml"):
         return True
-    # Governance runtime helpers are required for /start auto-persistence and error logging.
+    # Governance runtime helpers are required for bootstrap auto-persistence and error logging.
     if rel.startswith("governance/entrypoints/") and p.suffix.lower() == ".py":
+        return True
+    # Local bootstrap runtime package.
+    if rel.startswith("cli/") and p.suffix.lower() == ".py":
         return True
     if rel == "governance/VERSION":
         return True
+    if rel.startswith("docs/"):
+        return rel in CUSTOMER_DOCS_ALLOWLIST
     if p.suffix.lower() in {".md", ".json"}:
-        return True
+        return rel in CUSTOMER_DOCS_ALLOWLIST
     return False
 
 
@@ -545,7 +576,7 @@ def main(argv: list[str]) -> int:
         except ValueError:
             return str(p)
 
-    print("✅ Built artifacts:")
+    print("Built artifacts:")
     for a in artifacts:
         print(f"  - {_pretty(a)}")
     print(f"  - {_pretty(sums)}")

@@ -23,12 +23,12 @@
       "state": {
         "status": "BLOCKED",
         "reason_code": "BLOCKED-VARIABLE-RESOLUTION",
-        "next_command": "/start"
+        "next_command": "opencode-governance-bootstrap"
       },
       "expected": [
         "status: BLOCKED",
         "primary blocker: BLOCKED-VARIABLE-RESOLUTION",
-        "next: /start"
+        "next: opencode-governance-bootstrap"
       ]
     },
     {

@@ -43,7 +43,7 @@ class EngineRuntimeDecision:
 def golden_parity_fields(
     decision: EngineRuntimeDecision,
     *,
-    blocked_next_command: str = "/start",
+    blocked_next_command: str = "opencode-governance-bootstrap",
     ok_next_command: str = "none",
 ) -> dict[str, str]:
     """Extract semantic parity fields used by Wave B golden checks.

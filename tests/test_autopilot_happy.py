@@ -31,7 +31,7 @@ def _seed_binding(tmp_path: Path, monkeypatch) -> tuple[Path, str]:
     return workspaces_home, "88b39b036804c534a1b2c3d4"
 
 
-def test_start_autopilot_happy_until_phase_2_1(tmp_path: Path, monkeypatch) -> None:
+def test_bootstrap_autopilot_happy_until_phase_2_1(tmp_path: Path, monkeypatch) -> None:
     workspaces_home, fp = _seed_binding(tmp_path, monkeypatch)
     state: dict[str, object] = {
         "SESSION_STATE": {

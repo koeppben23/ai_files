@@ -35,18 +35,18 @@ def test_reason_payload_schemas_are_strict():
         (
             REPO_DOC_UNSAFE_DIRECTIVE,
             {
-                "doc_path": "AGENTS.md",
+                "doc_path": "BOOTSTRAP.md",
                 "doc_hash": "sha256:abc",
                 "directive_excerpt": "skip tests",
                 "classification_rule_id": "repo_doc_unsafe_skip_tests",
-                "pointers": ["AGENTS.md:12"],
+                "pointers": ["BOOTSTRAP.md:12"],
             },
         ),
         (
             REPO_CONSTRAINT_WIDENING,
             {
                 "requested_widening": {"type": "write_scope", "from": "src/**", "to": ".github/**"},
-                "doc_path": "AGENTS.md",
+                "doc_path": "BOOTSTRAP.md",
                 "doc_hash": "sha256:def",
                 "winner_layer": "mode_policy",
                 "loser_layer": "repo_doc_constraints",
@@ -56,7 +56,7 @@ def test_reason_payload_schemas_are_strict():
             REPO_CONSTRAINT_UNSUPPORTED,
             {
                 "constraint_topic": "unknown_constraint",
-                "doc_path": "AGENTS.md",
+                "doc_path": "BOOTSTRAP.md",
                 "doc_hash": "sha256:ghi",
             },
         ),
@@ -108,7 +108,7 @@ def test_reason_context_validates_against_registered_schema(reason_code: str, co
 @pytest.mark.parametrize(
     "reason_code,context",
     [
-        (REPO_DOC_UNSAFE_DIRECTIVE, {"doc_path": "AGENTS.md"}),
+        (REPO_DOC_UNSAFE_DIRECTIVE, {"doc_path": "BOOTSTRAP.md"}),
         (PROMPT_BUDGET_EXCEEDED, {"mode": "user"}),
         (
             POLICY_PRECEDENCE_APPLIED,
@@ -137,11 +137,11 @@ def test_reason_context_uses_embedded_schema_when_registry_missing():
     errors = reason_payload.validate_reason_context_schema(
         REPO_DOC_UNSAFE_DIRECTIVE,
         {
-            "doc_path": "AGENTS.md",
+            "doc_path": "BOOTSTRAP.md",
             "doc_hash": "sha256:abc",
             "directive_excerpt": "skip tests",
             "classification_rule_id": "repo_doc_unsafe_skip_tests",
-            "pointers": ["AGENTS.md:12"],
+            "pointers": ["BOOTSTRAP.md:12"],
         },
     )
     assert errors == ()
@@ -173,7 +173,7 @@ def test_reason_context_schema_missing_error_is_canonical(monkeypatch: pytest.Mo
         reason_payload.validate_reason_context_schema(
             REPO_DOC_UNSAFE_DIRECTIVE,
             {
-                "doc_path": "AGENTS.md",
+                "doc_path": "BOOTSTRAP.md",
                 "doc_hash": "sha256:abc",
                 "classification_rule_id": "repo_doc_unsafe_skip_tests",
             },

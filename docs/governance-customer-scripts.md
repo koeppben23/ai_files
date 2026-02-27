@@ -40,8 +40,8 @@ Validation is fail-closed and enforced by `${PYTHON_COMMAND} scripts/governance_
 
 In addition to the CLI scripts, OpenCode provides Markdown templates for creating new rulebooks and addons interactively:
 
-- `new_profile.md` — OpenCode template for creating a new profile rulebook (`profiles/rules_<profile>.md`)
-- `new_addon.md` — OpenCode template for creating a new addon rulebook + manifest pair (`profiles/rules_<addon>.md`, `profiles/addons/<addon_key>.addon.yml`)
+- `docs/_archive/new_profile.md` — OpenCode template for creating a new profile rulebook (`profiles/rules_<profile>.md`)
+- `docs/_archive/new_addon.md` — OpenCode template for creating a new addon rulebook + manifest pair (`profiles/rules_<addon>.md`, `profiles/addons/<addon_key>.addon.yml`)
 
 Run `/new_profile` or `/new_addon` in an OpenCode session to invoke these templates.
 

@@ -49,7 +49,7 @@ def test_build_ruleset_lock_outputs_hash_artifacts(tmp_path: Path):
     assert lock["deterministic"] is True
     assert manifest["source_file_count"] == len(manifest["source_files"])
     assert lock["source_files"] == manifest["source_files"]
-    assert lock["resolved_core_rulebooks"] == ["master.md", "rules.md", "start.md"]
+    assert lock["resolved_core_rulebooks"] == ["master.md", "rules.md", "BOOTSTRAP.md"]
     assert hashes["ruleset_hash"] == payload["ruleset_hash"]
 
 

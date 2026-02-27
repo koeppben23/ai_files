@@ -211,7 +211,7 @@ Examples:
     if args.last:
         run_path = find_latest_run(workspaces_home)
         if not run_path:
-            print("No runs found. Run /start to create a governance session.", file=sys.stderr)
+            print("No runs found. Run opencode-governance-bootstrap to create a governance session.", file=sys.stderr)
             return 1
     else:
         run_path = workspaces_home / "*/evidence/runs" / f"{args.run}.json"

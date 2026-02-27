@@ -88,7 +88,7 @@ def _load_catalog(repo_root: Path, catalog_rel: Path) -> tuple[Path, dict[str, o
         rel_path = _validate_relative_path(file_rel, field_name=f"{template_key}.file")
         if rel_path.suffix != ".yml":
             raise ValueError(f"{catalog_rel}: file for {template_key} must end with .yml")
-        if not str(rel_path).startswith(str(WORKFLOW_DIR) + "/"):
+        if not rel_path.as_posix().startswith(WORKFLOW_DIR.as_posix() + "/"):
             raise ValueError(
                 f"{catalog_rel}: file for {template_key} must be under {WORKFLOW_DIR.as_posix()}/"
             )

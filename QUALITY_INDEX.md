@@ -13,7 +13,7 @@ A change qualifies as top-tier only if ALL of the following are true:
 2. Reasoning and decisions are evidence-bounded
    (see: SCOPE-AND-CONTEXT.md; SESSION_STATE_SCHEMA.md Evidence fields).
 3. Repository-local standards are respected when present
-   (e.g. AGENTS.md, CONTRIBUTING, CI rules).
+   (e.g. CONTRIBUTING, CI rules, project-specific docs).
 4. Architectural decisions are explicit when architecture is affected
    (see: ADR.md; master.md decision points; active profile rules).
 5. Verification depth is proportional to risk and change scope
