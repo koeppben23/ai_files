@@ -3050,7 +3050,7 @@ def test_start_mode_mixed_phrase_is_absent_in_core_docs():
     core_docs = [
         REPO_ROOT / "master.md",
         REPO_ROOT / "rules.md",
-        REPO_ROOT / "start.md",
+        REPO_ROOT / "BOOTSTRAP.md",
     ]
     offenders: list[str] = []
     needle = "Cold Start | Warm Start"

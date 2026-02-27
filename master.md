@@ -1147,7 +1147,7 @@ Lifecycle semantics are intentionally compact here:
 - `Implement now` enables implementation output.
 - `Ingest evidence` enables verification-only reconciliation.
 
-Bootstrap invocation guard (binding):
+bootstrap invocation guard (binding):
 - Workflow MUST NOT ask operator to rerun the local bootstrap launcher in the same turn.
 
 Execution mode enum (binding):
