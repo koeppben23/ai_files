@@ -63,6 +63,11 @@ CUSTOMER_DOCS_ALLOWLIST = {
     "docs/release-security-model.md",
     "docs/mode-aware-repo-rules.md",
     "docs/governance_invariants.md",
+    "master.md",
+    "rules.md",
+    "BOOTSTRAP.md",
+    "CHANGELOG.md",
+    "governance/assets/catalogs/CUSTOMER_SCRIPT_CATALOG.json",
 }
 
 
