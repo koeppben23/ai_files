@@ -192,7 +192,12 @@ def get_config_root() -> Path:
 
     Per requirement:
     - Canonical path on all OS: <user-home>/.config/opencode
+    - Override with OPENCODE_CONFIG_ROOT environment variable.
     """
+    env_config = os.environ.get("OPENCODE_CONFIG_ROOT")
+    if env_config:
+        return Path(env_config).resolve()
+
     system = platform.system()
 
     if system == "Darwin" and pwd is not None:
