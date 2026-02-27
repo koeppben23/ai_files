@@ -12,7 +12,7 @@ Phase `1.3` is mandatory before every phase `>=2`.
 
 - Phase 0/1.1 performs bootstrap validation and preflight probes (including build tool detection). **Note:** Phase 0 is a customer-facing term; in the kernel, bootstrap logic is unified under Phase 1.1-Bootstrap.
 - Phase 1.1 performs preflight and initializes the governance runtime.
-- **Phase 1.2/1.3 are kernel-internal subphases** of the Rule Loading Pipeline (1.x family) and are not exposed as routable phases. They handle lazy rulebook loading and profile resolution.
+- **Phase 1.2/1.3 are kernel-owned subphases** of the Rule Loading Pipeline (1.x family). They handle lazy rulebook loading and profile resolution and are routed by the kernel via `${COMMANDS_HOME}/phase_api.yaml`.
 - Phase 1.5 is optional and acts as a bridge between discovery (2.1) and business rules.
 - You may reference Phase 1.5 as 2.2 in customer-facing docs for alignment, but kernel semantics stay 1.5.
 - 2.1 creates the Decision Pack; Phase 1.5 may run in parallel if signals exist, or follow 2.x for a stricter path.
@@ -39,7 +39,7 @@ Phase `1.3` is mandatory before every phase `>=2`.
 | Phase 3B-2 - Contract Validation (Spec <-> Code) | Validates contract fidelity between specification and implementation. | **Conditional**: Only executed when Phase 3A detected APIs in scope. Contract mismatches block readiness when contract gates are active/applicable. Skipped entirely if no APIs present. |
 | Phase 4 - Ticket Execution (planning) | Produces the concrete implementation plan and review artifacts; no code output yet. | Planning phase; code-producing output remains blocked until explicit gate progression permits it. |
 | Phase 4 Step 1a - Feature Complexity Router | Classifies feature complexity (SIMPLE-CRUD, REFACTORING, MODIFICATION, COMPLEX, STANDARD) and determines planning depth. | Non-gate; determines which subsequent Phase 4 steps are required vs. optional. |
-| Phase 5 - Lead Architect Review (iterative gate) | Architecture gatekeeper review with up to 3 review iterations. Each iteration produces structured feedback (issues, suggestions, questions). | Iterative gate; approved after issues resolved OR escalated to human after max 3 iterations. |
+| Phase 5 - Lead Architect Review (gate) | Architecture gatekeeper review with explicit re-entry when changes are required. | Gate review; re-entry is explicit and required when issues remain. |
 | Phase 5.3 - Test Quality Review (critical gate) | Reviews test strategy/coverage quality against gate criteria. | Critical gate; requires a passing outcome (or governed exceptions) before PR readiness. |
 | Phase 5.4 - Business Rules Compliance (conditional gate) | Checks implemented plan/output against extracted business rules. | Mandatory only if Phase 1.5 ran; non-compliance blocks readiness. |
 | Phase 5.5 - Technical Debt Proposal (optional gate) | Reviews and decides technical debt proposals and mitigation posture. | Optional gate; when activated, unresolved debt decisions can block approval. |
@@ -94,74 +94,30 @@ Phase 3 is **conditionally executed** based on API presence:
 - Phase 3B-1 → Phase 3B-2 (contract validation)
 - Phase 3B-2 → Phase 4
 
-## Phase 5 Iterative Review
+## Phase 5 Review Gate
 
-Phase 5 uses an **iterative review mechanism** to improve plan quality:
+Phase 5 is an explicit gate with **manual re-entry** when changes are required. It does not enforce a fixed number of automatic review rounds; re-entry is triggered by the operator when a revised plan is ready.
 
-### Review Cycle
+### Review Cycle (explicit re-entry)
 
 ```
-Phase 4 (Plan v1) → Phase 5 Review Round 1
-                           ↓
-                    Feedback: Issues[], Suggestions[], Questions[]
-                           ↓
-                   Issues exist? → Phase 4 (Plan v2) → Review Round 2
-                           ↓
-                   ... (max 3 iterations)
-                           ↓
-                   Approved → Phase 6
-                   Rejected (3x) → Escalate to Human
+Phase 4 (Plan) → Phase 5 Review
+                       ↓
+                Feedback: Issues / Suggestions / Questions
+                       ↓
+              Issues remain? → return to Phase 4 (revise plan)
+                       ↓
+              Operator re-enters Phase 5 for another review
 ```
 
-### Parameters
+### Implementation Notes
 
-| Parameter | Value |
-|-----------|-------|
-| Maximum Iterations | 3 |
-| Reviewer | LLM (self-critique) |
-| Human Escalation | Optional (when questions remain or 3x rejected) |
+Phase 5 review state may be tracked in `SESSION_STATE.Gates.*` and any optional review metadata. The authoritative gate conditions remain:
 
-### Feedback Structure
-
-Each review iteration produces:
-
-| Field | Type | Purpose |
-|-------|------|---------|
-| `issues` | list[str] | Blocking problems - to be fixed |
-| `suggestions` | list[str] | Non-blocking improvements - recommended |
-| `questions` | list[str] | Questions for human review |
-| `status` | approved/rejected/needs-human | Review outcome |
-| `summary` | str | Brief explanation |
-
-### Escalation Criteria
-
-Automatic escalation to human occurs when:
-1. **Questions remain** after max iterations
-2. **Issues unresolved** after 3 review rounds
-3. **Explicit `needs-human` status** from reviewer
-
-### Implementation
-
-Implemented in `governance/application/use_cases/phase5_iterative_review.py`:
-- `Phase5ReviewFeedback` - Structured feedback per iteration
-- `Phase5ReviewState` - Tracks iteration count, feedback history, plan versions
-- `record_review_feedback()` - Records feedback and determines next state
-- `finalize_review()` - Returns approved/escalated result
-
-### SESSION_STATE Fields
-
-```yaml
-Phase5Review:
-  Iteration: 1..3
-  PlanVersion: 1..N
-  Status: pending | approved | escalated-to-human
-  FeedbackHistory:
-    - Iteration: 1
-      Issues: ["Missing test coverage"]
-      Suggestions: ["Add integration tests"]
-      Questions: []
-      Status: rejected
- ```
+- `Gates.P5-Architecture = architecture-approved`
+- `Gates.P5.3-TestQuality = pass|pass-with-exceptions`
+- `Gates.P5.4-BusinessRules = compliant|compliant-with-exceptions` (only if Phase 1.5 executed)
+- `Gates.P5.6-RollbackSafety = approved|not-applicable` (when rollback safety applies)
 
 ## Gate Requirements for Code Generation
 

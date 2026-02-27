@@ -125,7 +125,7 @@ def test_runtime_parity_fields_use_gate_reason_when_runtime_reason_is_none():
         "status": "blocked",
         "phase": "4-Implement-Ready",
         "reason_code": "BLOCKED-MISSING-EVIDENCE",
-        "next_action.command": "/start",
+        "next_action.command": "opencode-governance-bootstrap",
     }
 
 
@@ -149,7 +149,7 @@ def test_runtime_parity_fields_prefer_runtime_reason_when_selfcheck_blocks_live_
         "status": "blocked",
         "phase": "4-Implement-Ready",
         "reason_code": BLOCKED_ENGINE_SELFCHECK,
-        "next_action.command": "/start",
+        "next_action.command": "opencode-governance-bootstrap",
     }
 
 

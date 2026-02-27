@@ -1,6 +1,6 @@
 # SESSION_STATE_SCHEMA.md (Canonical Contract)
 
-This document defines the **canonical SESSION_STATE contract** used by `master.md`, `continue.md`, and `resume.md`.
+This document defines the **canonical SESSION_STATE contract** used by `master.md`, `continue.md`, and `docs/_archive/resume.md`.
 It exists to prevent **session state drift** across models and sessions and to make gates **enforceable**.
 
 Normative language (MUST / SHOULD / MAY) is binding.
@@ -152,6 +152,27 @@ After Phase 1.1 (bootstrap) completes successfully, these keys are present (kern
 - `SESSION_STATE.ProfileSource` (enum; see Section 5)
 - `SESSION_STATE.ProfileEvidence` (string OR `null`)
 - `SESSION_STATE.Gates` (object; see Section 8)
+- `SESSION_STATE.ticket_intake_ready` (boolean; authoritative readiness gate for ticket intake)
+- `SESSION_STATE.phase_ready` (integer; optional, observability only)
+
+### 2.x Ticket Intake Readiness (authoritative)
+
+`ticket_intake_ready` is the **only authoritative readiness gate** for entering Ticket Intake.
+`phase_ready` is **not** authoritative and exists only for observability.
+
+Presence:
+- `ticket_intake_ready` SHOULD be present once readiness is evaluated; if missing, readiness MUST be treated as false.
+- `phase_ready` is optional but recommended.
+
+Invariant (iff): `ticket_intake_ready = true` if and only if all of the following are true:
+- `PersistenceCommitted = true`
+- `WorkspaceReadyGateCommitted = true`
+- `Bootstrap.Satisfied = true`
+- Phase rank >= 4
+- If `phase_ready` is present: `phase_ready >= 4`
+
+Write authority: Only the real local bootstrap/preflight path may set `ticket_intake_ready` to true.
+Other paths (chat/command, documentation, convenience wrappers) MUST NOT set it.
 
 ---
 
@@ -170,7 +191,7 @@ Required payload fields per entry:
 - `surface` (enum: `build|tests|static|addons|profile|state|contracts|security|performance|other`)
 - `signals_used` (array of strings)
 - `recovery_steps` (array of strings; 1..3 concrete steps)
-- `next_command` (string; e.g., `/reload-addons`, `/start`, `/resume`)
+- `next_command` (string; e.g., `/reload-addons`, `opencode-governance-bootstrap`, `/resume`)
 
 ### 2.1.1 `SESSION_STATE.Audit.LastRun` (optional)
 

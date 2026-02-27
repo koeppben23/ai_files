@@ -117,6 +117,15 @@ _HARDCODED_FALLBACK_SCHEMA: dict[str, object] = {
                     ],
                 },
                 "ProfileEvidence": {"type": ["string", "null"]},
+                "ticket_intake_ready": {
+                    "type": "boolean",
+                    "description": "Authoritative readiness gate for ticket intake",
+                },
+                "phase_ready": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "Optional phase readiness marker (observability only)",
+                },
                 "Gates": {
                     "type": "object",
                     "properties": {

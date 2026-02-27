@@ -92,7 +92,7 @@ def build_reason_context(
                 "from": widening_from or "policy_envelope",
                 "to": widening_to or "repo_doc_request",
             },
-            "doc_path": repo_doc_evidence.doc_path if repo_doc_evidence is not None else (repo_doc_path or "AGENTS.md"),
+            "doc_path": repo_doc_evidence.doc_path if repo_doc_evidence is not None else (repo_doc_path or "BOOTSTRAP.md"),
             "doc_hash": repo_doc_evidence.doc_hash if repo_doc_evidence is not None else "",
             "winner_layer": "mode_policy",
             "loser_layer": "repo_doc_constraints",
@@ -150,7 +150,7 @@ def build_reason_context(
     elif parity_reason_code == REPO_CONSTRAINT_UNSUPPORTED:
         reason_context = {
             "constraint_topic": repo_constraint_topic or "unknown",
-            "doc_path": repo_doc_evidence.doc_path if repo_doc_evidence is not None else (repo_doc_path or "AGENTS.md"),
+            "doc_path": repo_doc_evidence.doc_path if repo_doc_evidence is not None else (repo_doc_path or "BOOTSTRAP.md"),
             "doc_hash": repo_doc_evidence.doc_hash if repo_doc_evidence is not None else "",
         }
     elif precedence_events:

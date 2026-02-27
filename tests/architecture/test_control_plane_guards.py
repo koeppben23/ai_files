@@ -11,10 +11,10 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 
 ENTRYPOINTS_ROOT = REPO_ROOT / "governance" / "entrypoints"
 CRITICAL_FILES = (
-    ENTRYPOINTS_ROOT / "start_preflight_readonly.py",
+    ENTRYPOINTS_ROOT / "bootstrap_preflight_readonly.py",
     ENTRYPOINTS_ROOT / "persist_workspace_artifacts.py",
     ENTRYPOINTS_ROOT / "bootstrap_session_state.py",
-    ENTRYPOINTS_ROOT / "start_binding_evidence.py",
+    ENTRYPOINTS_ROOT / "bootstrap_binding_evidence.py",
     ENTRYPOINTS_ROOT / "error_logs.py",
 )
 

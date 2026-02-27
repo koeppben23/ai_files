@@ -38,9 +38,9 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
   - `templates/github-actions/governance-pr-gate-shadow-live-verify.yml`
   - `templates/github-actions/governance-ruleset-release.yml`
   - `templates/github-actions/governance-golden-output-stability.yml`
-  - `docs/governance-template-blueprints.md`
-  - `docs/governance-pipeline-roles-template.md`
-- Refresh `README.md` operational guidance to use `/start` as primary workflow entrypoint and update shipped artifact/directory mapping for current releases.
+- `docs/_archive/governance-template-blueprints.md`
+- `docs/_archive/governance-pipeline-roles-template.md`
+- Refresh `README.md` operational guidance to use the local bootstrap launcher as primary workflow entrypoint and update shipped artifact/directory mapping for current releases.
 - Add deterministic SESSION_STATE migration tool `scripts/migrate_session_state.py` with first-write `.backup` behavior and machine-readable exit codes (`0=ok`, `2=blocked`).
 - Add two-layer render modules under `governance/render/` (`intent_router.py`, `delta_renderer.py`, `token_guard.py`, `render_contract.py`) for compact default output and deterministic detail expansion.
 - Add engine lifecycle helpers in `governance/engine/lifecycle.py` for staged activation pointer handling, automatic rollback, and rollback audit `DEVIATION` payloads.
@@ -58,8 +58,8 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
   - `Principal Hardening v2.1 - Standard Risk Tiering`
   - `Principal Hardening v2.1.1 - Scorecard Calibration`
 - Add governance factory commands for principal-grade extension work:
-  - `new_profile.md` for generating new profile rulebooks
-  - `new_addon.md` for generating addon rulebook + manifest pairs
+- `docs/_archive/new_profile.md` for generating new profile rulebooks
+- `docs/_archive/new_addon.md` for generating addon rulebook + manifest pairs
 - Add governance contract `governance/PROFILE_ADDON_FACTORY_CONTRACT.json` to standardize factory output requirements.
 - Add governance recovery helper `governance/bootstrap_session_state.py` to initialize repo-scoped `${SESSION_STATE_FILE}` plus global `${SESSION_STATE_POINTER_FILE}` when session state is missing.
 - Add governance helper `governance/persist_workspace_artifacts.py` to backfill missing repo-scoped persistence artifacts (`repo-cache.yaml`, `repo-map-digest.md`, `decision-pack.md`, `workspace-memory.yaml`).
@@ -70,7 +70,7 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
   - `rules.risk-tiering.md`
   - `rules.scorecard-calibration.md`
   - manifests: `principalExcellence`, `riskTiering`, `scorecardCalibration`
-- Update factory contracts (`new_profile.md`, `new_addon.md`, `PROFILE_ADDON_FACTORY_CONTRACT.json`) for shared-contract modularization defaults.
+- Update factory contracts (`docs/_archive/new_profile.md`, `docs/_archive/new_addon.md`, `PROFILE_ADDON_FACTORY_CONTRACT.json`) for shared-contract modularization defaults.
 
 ### Changed
 - Harden mode-policy orchestration: widening constraints now require explicit approval semantics and emit deterministic precedence events with hash refs.
@@ -88,8 +88,8 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
 - Add release/build-time README baseline claim guards and local README link-integrity verification in `scripts/build.py` with verification-report coverage.
 - Consolidate README set for the rework baseline and remove obsolete `README-CHAT.md`.
 - Add operator-first response layering contract across governance rulebooks: concise brief-first output with full governance on explicit detail request.
-- Refactor `/start` bootstrap prompt internals by extracting inline Python snippets into governance helpers (`governance/start_binding_evidence.py`, `governance/start_preflight_persistence.py`) for maintainability.
-- Improve `/start` recovery UX by preferring concrete, copy-paste runnable `next_command`/recovery commands and minimizing unresolved placeholders when runtime evidence can derive values.
+- Refactor bootstrap prompt internals by extracting inline Python snippets into governance helpers (`governance/bootstrap_binding_evidence.py`, `governance/bootstrap_preflight_readonly.py`) for maintainability.
+- Improve bootstrap recovery UX by preferring concrete, copy-paste runnable `next_command`/recovery commands and minimizing unresolved placeholders when runtime evidence can derive values.
 - Clarify preflight UX with explicit `required_now` vs `required_later` reporting plus deterministic `block_now` signal, and add post-bootstrap conversational/language-adaptive follow-up guidance.
 - Improve `/why-blocked` UX contract with brief-first then detail payload layering.
 - Add deterministic compact `status_tag` contract (`<PHASE>-<GATE>-<STATE>`) for faster operator scanning.
@@ -108,29 +108,29 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
 - Add governance PR `Reviewer focus` guidance for high-risk contract deltas and targeted review hints.
 - Add installer/release artifact coverage checks to require shipping `governance/QUICKFIX_TEMPLATES.json`.
 - Add deterministic conversational UX golden fixtures in `governance/UX_INTENT_GOLDENS.json` with e2e regression validation for `where_am_i`, `what_blocks_me`, and `what_now` intents.
-- Fix `/start` governance bootstrap pathing to resolve installed helpers from `${COMMANDS_HOME}/governance` instead of workspace-relative assumptions.
+- Fix bootstrap pathing to resolve installed helpers from `${COMMANDS_HOME}/governance` instead of workspace-relative assumptions.
 - Move `repo-identity-map.yaml` to repo workspace scope (`workspaces/<repo_fingerprint>/`) and align bootstrap persistence checks accordingly.
 - Clarify unambiguous profile behavior: auto-load canonical rulebooks without asking operator to paste/provide rulebook files.
-- Add `/start` invocation loop guard: when command context is injected, bootstrap proceeds immediately and does not re-request `/start` in the same turn.
+- Add bootstrap invocation loop guard: when command context is injected, bootstrap proceeds immediately and does not re-request bootstrap in the same turn.
 - Make workspace persistence bootstrap governance non-blocking (`WARN-WORKSPACE-PERSISTENCE`) when repo fingerprint cannot be derived, so persistence remains operational convenience and not a hard gate.
 - Enforce profile autodetect-first behavior when multiple rulebooks are present: rank by repo/ticket signals and auto-select unique top candidate before prompting manual selection.
 - Prevent Business Rules fallback target drift: on write failures keep `${REPO_BUSINESS_RULES_FILE}` with `write-requested` and forbid redirecting BR inventory into `workspace-memory.yaml`/`SESSION_STATE`.
-- Adjust `/start` persistence helper for host backup-path sessions: skip fingerprint-dependent backfill as `WARN` instead of error-blocking behavior when repo root is not a git checkout.
-- Update backfill default recommendation for Phase 1.5 decision to lightweight discovery (`Recommendation: A`) and ensure `/start` does not demand ticket/task before Phase 4.
+- Adjust bootstrap persistence helper for host backup-path sessions: skip fingerprint-dependent backfill as `WARN` instead of error-blocking behavior when repo root is not a git checkout.
+- Update backfill default recommendation for Phase 1.5 decision to lightweight discovery (`Recommendation: A`) and ensure bootstrap does not demand ticket/task before Phase 4.
 - Add guided profile-selection behavior for ambiguous detection: system now emits ranked profile suggestions with evidence and requests explicit numbered selection (`1..n`, including `fallback-minimum`) while remaining fail-closed (`BLOCKED-AMBIGUOUS-PROFILE`) until clarified.
 - Add UX execution contracts for deterministic operator flow: unified `[NEXT-ACTION]` footer, standardized blocked envelope fields, startup `[START-MODE]` banner, `[SNAPSHOT]` confidence/risk/scope block, and blocker `QuickFixCommands` guidance.
 - Tighten UX contract coherence: add `0=abort/none` profile-choice escape, require command-field consistency across `[NEXT-ACTION]`/`next_command`/`QuickFixCommands[0]`, and require deterministic ordering for `missing_evidence`/`recovery_steps`.
-- Add Architect-only Autopilot lifecycle contract (`/start` -> `/master` -> `Implement now` -> `Ingest evidence`) with explicit output-mode enum (`ARCHITECT|IMPLEMENT|VERIFY`) and fail-closed `/master` start-order gate (`BLOCKED-START-REQUIRED`).
+- Add Architect-only Autopilot lifecycle contract (bootstrap -> `/master` -> `Implement now` -> `Ingest evidence`) with explicit output-mode enum (`ARCHITECT|IMPLEMENT|VERIFY`) and fail-closed `/master` start-order gate (`BLOCKED-START-REQUIRED`).
 - Tighten `start.md` evidence boundaries: missing installer-owned `governance.paths.json` now yields explicit blocked fallback semantics (`BLOCKED-MISSING-BINDING-FILE`) and marks computed path payloads as non-evidence debug output.
 - Clarify `start.md` auto-persistence identity semantics so helper output is operational status only and cannot be treated as canonical repo identity evidence.
-- Align governance factory contracts (`new_addon.md`, `new_profile.md`, `PROFILE_ADDON_FACTORY_CONTRACT.json`) with current canonical runtime policy: required surface ownership fields, capability-first manifest guidance, preferred profile filename pattern (`rules_<profile_key>.md`), canonical SESSION_STATE evidence paths, and clarified tracking/audit semantics.
+- Align governance factory contracts (`docs/_archive/new_addon.md`, `docs/_archive/new_profile.md`, `PROFILE_ADDON_FACTORY_CONTRACT.json`) with current canonical runtime policy: required surface ownership fields, capability-first manifest guidance, preferred profile filename pattern (`rules_<profile_key>.md`), canonical SESSION_STATE evidence paths, and clarified tracking/audit semantics.
 - Clarify governance reason-key boundaries: `/audit` `BR_*` keys are audit-only (not canonical `reason_code` values) unless explicitly mapped to `BLOCKED-*|WARN-*|NOT_VERIFIED-*` codes.
 - Harden precedence drift detection with context-sensitive guards for numbered lists near precedence/priority/resolution language, preventing legacy shortened precedence variants from slipping through.
 - Tighten capability signal-mapping checks to require concrete `signals.any` + non-empty entries (instead of broad indentation heuristics) for capability coverage validation.
 - Add explicit claim-mapping regression test proving `result=pass` alone is insufficient for `verified` without scope/artifact/pinning evidence.
 - Remove secondary precedence phrasing in `master.md` and enforce single canonical precedence authority with additional lint/test drift guards.
 - Clarify ambiguity handling as planning-only unless clarified, and require `BLOCKED-AMBIGUOUS-PROFILE` when ambiguity affects tooling/architecture/gates.
-- Align `/start` discovery contract with runtime override/fallback semantics (`${REPO_OVERRIDES_HOME}`, `${OPENCODE_HOME}`) without weakening installer-owned entrypoint roots.
+- Align bootstrap discovery contract with runtime override/fallback semantics (`${REPO_OVERRIDES_HOME}`, `${OPENCODE_HOME}`) without weakening installer-owned entrypoint roots.
 - Add explicit BuildEvidence -> claim verification mapping (`verified` vs `not-verified`) and top-tier missing-file blocking semantics for Phase 4+.
 - Wire Stability-SLA into normative governance docs (`master.md`, `rules.md`) as a release/readiness gate.
 - Extend governance lint + governance tests to enforce Stability-SLA presence, canonical section tokens, and CI gate alignment.
@@ -170,24 +170,24 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
 - Add deterministic audit-to-canonical reason bridge tooling (`governance/map_audit_to_canonical.py`) with canonical mapping source (`governance/AUDIT_REASON_CANONICAL_MAP.json`) and strict-unmapped mode.
 - Harden audit bridge determinism by selecting `primaryReasonCode` via severity precedence (`BLOCKED-*` > `WARN-*` > `NOT_VERIFIED-*`) instead of first-seen order.
 - Enforce distribution/install coverage for audit bridge assets (`governance/map_audit_to_canonical.py`, `governance/AUDIT_REASON_CANONICAL_MAP.json`) in build and installer policy tests.
-- Clarify `/start` bootstrap evidence behavior to require host evidence attempt first (when `governance.paths.json` is readable) and defer profile rulebook selection to Phase 1.2/Post-Phase-2 detection.
+- Clarify bootstrap evidence behavior to require host evidence attempt first (when `governance.paths.json` is readable) and defer profile rulebook selection to Phase 1.2/Post-Phase-2 detection.
 - Tighten Phase 1.5 extraction contracts to require repository code/test evidence; README/documentation-only rules are now explicitly non-counting `CANDIDATE`s and cannot satisfy extracted business-rule claims.
 - Add deterministic profile selection guidance for unambiguous Java backend repositories (`backend-java` default without explicit selection prompt).
-- Harden `/start` binding hook failure reporting when `governance.paths.json` exists but is unreadable (`BLOCKED-VARIABLE-RESOLUTION`) and auto-bootstrap repo session state when persistence detects `no-session-file`.
+- Harden bootstrap binding hook failure reporting when `governance.paths.json` exists but is unreadable (`BLOCKED-VARIABLE-RESOLUTION`) and auto-bootstrap repo session state when persistence detects `no-session-file`.
 - Add Phase-2 repo-root defaulting contract: when OpenCode host already provides indexed repository root, use it first and request access authorization before asking for manual repo path input.
 - Clarify Phase 2.1 decision-pack flow to auto-run from repository evidence without requiring `ticketGoal`; `ticketGoal` is now explicitly mandatory at Phase 4 entry (Step 0) before code-producing work.
-- Make `/start` workspace persistence governance non-blocking (`WARN-WORKSPACE-PERSISTENCE`) when helper scripts are missing/failing, while keeping binding evidence fail-closed.
+- Make bootstrap workspace persistence governance non-blocking (`WARN-WORKSPACE-PERSISTENCE`) when helper scripts are missing/failing, while keeping binding evidence fail-closed.
 - Add host-constraint COMPAT mode contracts (`DEVIATION.host_constraint`, `RequiredInputs`, `Recovery`, `NextAction`) so governance remains deterministic without strict output-wrapper collisions.
-- Preserve canonical lifecycle contract (`/start` -> `/master`) while keeping host-constraint COMPAT output behavior.
-- Tighten `/start` binding blocker payloads with explicit `missing_evidence` and `next_command`, and remove normal-path wording that implied operator-evidence bypass for missing installer binding.
+- Preserve canonical lifecycle contract (bootstrap -> `/master`) while keeping host-constraint COMPAT output behavior.
+- Tighten bootstrap binding blocker payloads with explicit `missing_evidence` and `next_command`, and remove normal-path wording that implied operator-evidence bypass for missing installer binding.
 - Guard workspace persistence writes behind repo identity evidence presence (`repo-identity-map.yaml`), emitting non-blocking `WARN-WORKSPACE-PERSISTENCE` when identity evidence is unavailable.
-- Clarify OpenCode Desktop host-constrained mapping: `/start` is the practical `/master`-equivalent entrypoint while preserving canonical `/master` semantics for hosts that support direct invocation.
+- Clarify OpenCode Desktop host-constrained mapping: bootstrap is the practical `/master`-equivalent entrypoint while preserving canonical `/master` semantics for hosts that support direct invocation.
 - Adjust Phase 2/2.1 and Phase 1.5 exit contracts to avoid early ticket prompts when `ticketGoal` is missing; hold in ARCHITECT-ready state until ticket is provided or an explicit continue command is given.
 - Improve enterprise-restricted fallback guidance: persistence blockers/skips now emit explicit `required_operator_action`, `feedback_required`, `missing_evidence`, and deterministic `next_command` fields so users can run manual recovery and report back.
 - Enforce formatted `SESSION_STATE` output as fenced YAML across strict and COMPAT response modes to keep state blocks machine-readable and visually stable.
 - Prevent early Phase-2 discovery prompts for ticket/change request by routing no-ticket cases through automatic Phase 3A/3B (including auto-not-applicable paths) and deferring ticket requests to Phase 4 entry.
-- Refine `/start` no-filesystem fallback evidence wording so bootstrap asks only for `master.md` minimum and defers `rules.md`/profile contents to their phase gates.
-- Add explicit lint/test regression guard to forbid reintroduction of legacy `/start` fallback text that requests full `master.md + rules.md + profile` contents during bootstrap.
+- Refine bootstrap no-filesystem fallback evidence wording so bootstrap asks only for `master.md` minimum and defers `rules.md`/profile contents to their phase gates.
+- Add explicit lint/test regression guard to forbid reintroduction of legacy bootstrap fallback text that requests full `master.md + rules.md + profile` contents during bootstrap.
 - Normalize legacy workspace backfill placeholder phrasing (`Backfill placeholder`) on subsequent persistence runs even without `--force`, so persisted artifacts are refreshed to current wording in later phases.
 - Tighten `SESSION_STATE` output contract: emitted state blocks must be fenced YAML with explicit values and no placeholder tokens (`...`, `<...>`) in strict or COMPAT mode.
 - Bootstrap now writes/updates `${REPO_IDENTITY_MAP_FILE}` (`repo-identity-map.yaml`) so identity-gated persistence can continue deterministically after manual fingerprint bootstrap.
@@ -216,10 +216,10 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
 - Extend v2.1 and v2.1.1 calibration blocks to all remaining profile rulebooks (`rules.backend-java.md`, `rules.frontend-angular-nx.md`, `rules.fallback-minimum.md`) for complete cross-profile consistency.
 - Clarify installer docs with explicit governance contract reference (`PROFILE_ADDON_FACTORY_CONTRACT.json`).
 - Shift canonical session storage topology to repo-scoped `${SESSION_STATE_FILE}` with global `${SESSION_STATE_POINTER_FILE}` as active pointer for multi-repo safety.
-- `/start` now includes an auto-persistence hook that calls the workspace artifact backfill helper when available.
+- Bootstrap now includes an auto-persistence hook that calls the workspace artifact backfill helper when available.
 - Improve workspace artifact routing safety: backfill helper now resolves repo fingerprint from current repo git metadata before using global pointer fallback, reducing stale-pointer cross-repo writes.
 - Add governance guardrails/tests to enforce that Phase 2.1 always surfaces the Phase 1.5 A/B decision prompt when Phase 1.5 was neither explicitly requested nor skipped.
-- Extend `/start` + governance helpers to emit automatic structured error logs, and expose error-log paths in `governance.paths.json` (`globalErrorLogsHome`, `workspaceErrorLogsHomeTemplate`).
+- Extend bootstrap + governance helpers to emit automatic structured error logs, and expose error-log paths in `governance.paths.json` (`globalErrorLogsHome`, `workspaceErrorLogsHomeTemplate`).
 - Installer now patches installer-owned legacy `governance.paths.json` files with missing error-log path keys even without `--force`.
 - Refine `rules.backend-java.md` to remove Kafka activation ambiguity, use canonical shared tiering semantics, and delegate shared principal contracts to modular advisory rulebooks.
 - Migrate all remaining `rules*.md` rulebooks to shared principal-governance modularization (delegation to shared advisory rulebooks).
@@ -228,15 +228,15 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
 - Strengthen workflow guarantees for shared modularization in installer/e2e tests (shared addons copied, manifest-listed, and advisory-missing behavior verified as non-blocking).
 - Harden profile auto-detection semantics: profile candidate selection now explicitly excludes addon-referenced and shared governance rulebooks.
 - Normalize footer/marker consistency across `profiles/rules*.md` after modularization (remove mid-file end markers, align copyright placement/style).
-- Add a canonical structured response envelope schema contract (`governance/RESPONSE_ENVELOPE_SCHEMA.json`) and wire `/start`/core rulebooks to require schema-aligned output fields.
+- Add a canonical structured response envelope schema contract (`governance/RESPONSE_ENVELOPE_SCHEMA.json`) and wire bootstrap/core rulebooks to require schema-aligned output fields.
 - Narrow shared governance advisory addon activation signals from unbounded `**/*` to explicit governance entry signals (`master.md`) for cleaner capability/signal semantics.
 - Clarify `CONFLICT_RESOLUTION.md` mapping so P-levels are conflict classifiers/tie-breakers only and never a second precedence model over `master.md`.
 
 ### Fixed
 - Extend `persist_workspace_artifacts.py --quiet` blocked output with structured reason fields (`reason_code`, `recovery_steps`, `next_command`) for direct `SESSION_STATE.Diagnostics.ReasonPayloads` integration.
 - Include addon manifests (`profiles/addons/*.addon.yml`) in release artifacts so runtime addon activation/reload works from packaged RC builds.
-- Include governance runtime Python helpers (`governance/*.py`) in release artifacts so `/start` auto-persistence and runtime error logging remain available after install.
-- Fix `/start` workspace persistence hook failure semantics to emit canonical blocked payloads (`BLOCKED-WORKSPACE-PERSISTENCE`) and write structured runtime error logs when the helper is missing or fails.
+- Include governance runtime Python helpers (`governance/*.py`) in release artifacts so bootstrap auto-persistence and runtime error logging remain available after install.
+- Fix bootstrap workspace persistence hook failure semantics to emit canonical blocked payloads (`BLOCKED-WORKSPACE-PERSISTENCE`) and write structured runtime error logs when the helper is missing or fails.
 - Fix bootstrap governance coverage by logging missing backfill helper events (`ERR-WORKSPACE-PERSISTENCE-HOOK-MISSING`) instead of silently skipping.
 - Fix Business Rules inventory read path contract to use canonical `${REPO_BUSINESS_RULES_FILE}` instead of a non-canonical `${CONFIG_ROOT}/${REPO_NAME}/business-rules.md` fallback.
 - Fix workspace persistence helper to auto-materialize `${REPO_BUSINESS_RULES_FILE}` and update `SESSION_STATE.BusinessRules.InventoryFileStatus=written` when Phase 1.5 state is marked as extracted.

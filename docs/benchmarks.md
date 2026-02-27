@@ -27,4 +27,4 @@ Running the helper alone does not imply `PASS`; required evidence artifacts must
 
 - Python benchmark runbook: [`python-quality-benchmark-pack.md`](python-quality-benchmark-pack.md)
 - Benchmark pack matrix: [`quality-benchmark-pack-matrix.md`](quality-benchmark-pack-matrix.md)
-- Pipeline role template: [`governance-pipeline-roles-template.md`](governance-pipeline-roles-template.md)
+- Pipeline role template: [`_archive/governance-pipeline-roles-template.md`](_archive/governance-pipeline-roles-template.md)

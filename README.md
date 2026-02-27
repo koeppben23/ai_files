@@ -7,12 +7,12 @@ Deterministic governance for AI-assisted software delivery with fail-closed gate
 Runtime contract boundary:
 - SSOT routing/execution/validation is `${COMMANDS_HOME}/phase_api.yaml` enforced by `governance/kernel/*`.
 - `rules.md` and active profile/addon rulebooks define engineering constraints and stack extensions.
-- `README*` and `AGENTS.md` are descriptive operational guides only.
+- `README*` and `BOOTSTRAP.md` are descriptive operational guides only.
 
 ## Quick Links
 
 - **[Quick Start Guide](QUICKSTART.md)** - 5-minute setup
-- OpenCode bootstrap entrypoint: `start.md`
+- OpenCode bootstrap entrypoint: `BOOTSTRAP.md`
 - Governance invariants checklist: `docs/governance_invariants.md`
 - OpenCode operational guide: `README-OPENCODE.md`
 - Rules structure overview: `README-RULES.md`
@@ -35,16 +35,17 @@ For engineering teams that need deterministic, auditable AI-assisted delivery in
 
 - Install locally: `${PYTHON_COMMAND} install.py`
 - Run deterministic dry-run first: `${PYTHON_COMMAND} install.py --dry-run`
-- In OpenCode, start a governed session with `/start`
+- Run the local bootstrap launcher to start a governed session
 - Continue an active session with `/continue` or `/resume`
 
 Note: installer-owned path binding evidence is written to `<config_root>/commands/governance.paths.json` and is required for canonical OpenCode bootstrap behavior.
+Preflight records only raw tool availability (BuildToolchain snapshot); repo-specific build mapping happens later in Phase 2.
 
 ## Support Matrix
 
 - Operating systems: macOS, Linux, Windows (path resolution is defined by installer binding + kernel loaders; examples in `docs/install-layout.md`).
 - Runtime requirements: `${PYTHON_COMMAND}` for installer/governance helpers; `git` is recommended and required by identity-gated workflows.
-- Frontend surfaces: OpenCode (`/start`, `/continue`, `/resume`, `/audit`) and Codex-style frontend surfaces via `AGENTS.md` mirror semantics.
+- Frontend surfaces: OpenCode (`/continue`, `/resume`, `/audit`) and local bootstrap launcher (`~/.config/opencode/bin/opencode-governance-bootstrap`).
 
 ## 60-Second Install Verification
 
@@ -62,7 +63,7 @@ Expected outcome:
 - install run completes without blocker reason codes.
 - `--status` reports installed governance assets and healthy path bindings.
 
-Then, in OpenCode, run `/start` and confirm bootstrap succeeds without binding/path blockers.
+Then run the local bootstrap launcher and confirm bootstrap succeeds without binding/path blockers.
 
 ## Troubleshooting
 

@@ -61,7 +61,7 @@ def test_build_strict_response_preserves_reason_code_casing_in_snapshot():
             "ruleset_hash": "cd" * 32,
             "repo_fingerprint": "repo-123",
         },
-        next_action=NextAction(type="command", command="/start"),
+        next_action=NextAction(type="command", command="opencode-governance-bootstrap"),
         snapshot=Snapshot(confidence="High", risk="Low", scope="Bootstrap"),
         reason_payload={"status": "BLOCKED", "reason_code": "BLOCKED-EXEC-DISALLOWED"},
     )
@@ -118,7 +118,7 @@ def test_build_compat_response_requires_inputs_when_blocked():
             status="BLOCKED",
             required_inputs=(),
             recovery="Run one recovery command",
-            next_action=NextAction(type="command", command="/start"),
+            next_action=NextAction(type="command", command="opencode-governance-bootstrap"),
             reason_payload={"status": "BLOCKED", "reason_code": "BLOCKED-X"},
         )
 
