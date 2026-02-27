@@ -53,6 +53,18 @@ WORKFLOW_TEMPLATE_CATALOG_SCHEMA = "governance.workflow-template-catalog.v1"
 MARKDOWN_EXCLUDE_POLICY_PATH = Path("governance/assets/catalogs/CUSTOMER_MARKDOWN_EXCLUDE.json")
 MARKDOWN_EXCLUDE_POLICY_SCHEMA = "governance.customer-markdown-exclude.v1"
 
+CUSTOMER_DOCS_ALLOWLIST = {
+    "docs/phases.md",
+    "docs/install-layout.md",
+    "docs/releasing.md",
+    "docs/benchmarks.md",
+    "docs/security-gates.md",
+    "docs/customer-install-bundle-v1.md",
+    "docs/release-security-model.md",
+    "docs/mode-aware-repo-rules.md",
+    "docs/governance_invariants.md",
+}
+
 
 def is_forbidden_metadata_path(relpath: str) -> bool:
     """Return True for macOS metadata payload paths forbidden in artifacts."""
@@ -352,8 +364,10 @@ def _should_include_file(
         return True
     if rel == "governance/VERSION":
         return True
+    if rel.startswith("docs/"):
+        return rel in CUSTOMER_DOCS_ALLOWLIST
     if p.suffix.lower() in {".md", ".json"}:
-        return True
+        return rel in CUSTOMER_DOCS_ALLOWLIST
     return False
 
 

@@ -24,6 +24,7 @@ from governance.engine.session_state_invariants import (
     validate_p5_approved_architecture_decisions,
     validate_phase_gate_prerequisites,
     validate_gate_artifacts_integrity,
+    validate_ticket_intake_ready_invariant,
     validate_session_state_invariants,
 )
 
@@ -149,9 +150,22 @@ class TestSchemaValidator:
             json_schema = json.load(f)
 
         # Compare key structural elements
+        assert isinstance(json_schema, dict)
+        assert isinstance(_HARDCODED_FALLBACK_SCHEMA, dict)
         assert json_schema["required"] == _HARDCODED_FALLBACK_SCHEMA["required"]
-        json_props = json_schema["properties"]["SESSION_STATE"]["properties"]
-        fallback_props = _HARDCODED_FALLBACK_SCHEMA["properties"]["SESSION_STATE"]["properties"]
+        json_properties = json_schema.get("properties")
+        assert isinstance(json_properties, dict)
+        json_root = json_properties["SESSION_STATE"]
+        assert isinstance(json_root, dict)
+        json_props = json_root.get("properties")
+        assert isinstance(json_props, dict)
+        fallback_schema = _HARDCODED_FALLBACK_SCHEMA
+        fallback_properties = fallback_schema.get("properties")
+        assert isinstance(fallback_properties, dict)
+        fallback_root = fallback_properties["SESSION_STATE"]
+        assert isinstance(fallback_root, dict)
+        fallback_props = fallback_root.get("properties")
+        assert isinstance(fallback_props, dict)
         assert set(json_props.keys()) == set(fallback_props.keys())
 
 
@@ -204,6 +218,77 @@ class TestInvariantValidators:
     def test_non_ambiguous_profile_skips_check(self):
         state: dict[str, object] = {"ProfileSource": "user-explicit", "Mode": "NORMAL"}
         assert validate_profile_source_blocked_invariant(state) == ()
+
+    def test_ticket_intake_ready_ok(self):
+        state: dict[str, object] = {
+            "Phase": "4",
+            "PersistenceCommitted": True,
+            "WorkspaceReadyGateCommitted": True,
+            "Bootstrap": {"Satisfied": True},
+            "ticket_intake_ready": True,
+            "phase_ready": 4,
+        }
+        assert validate_ticket_intake_ready_invariant(state) == ()
+
+    def test_ticket_intake_ready_blocks_without_bootstrap_satisfied(self):
+        state: dict[str, object] = {
+            "Phase": "4",
+            "PersistenceCommitted": True,
+            "WorkspaceReadyGateCommitted": True,
+            "Bootstrap": {"Satisfied": False},
+            "ticket_intake_ready": True,
+        }
+        errors = validate_ticket_intake_ready_invariant(state)
+        assert "ticket_intake_ready_without_bootstrap_satisfied" in errors
+
+    def test_ticket_intake_ready_blocks_without_persistence_committed(self):
+        state: dict[str, object] = {
+            "Phase": "4",
+            "PersistenceCommitted": False,
+            "WorkspaceReadyGateCommitted": True,
+            "Bootstrap": {"Satisfied": True},
+            "ticket_intake_ready": True,
+        }
+        errors = validate_ticket_intake_ready_invariant(state)
+        assert "ticket_intake_ready_without_persistence_committed" in errors
+
+    def test_ticket_intake_ready_blocks_without_workspace_ready_gate(self):
+        state: dict[str, object] = {
+            "Phase": "4",
+            "PersistenceCommitted": True,
+            "WorkspaceReadyGateCommitted": False,
+            "Bootstrap": {"Satisfied": True},
+            "ticket_intake_ready": True,
+        }
+        errors = validate_ticket_intake_ready_invariant(state)
+        assert "ticket_intake_ready_without_workspace_ready_gate" in errors
+
+    def test_ticket_intake_ready_blocks_below_phase_4(self):
+        state: dict[str, object] = {
+            "Phase": "3A",
+            "PersistenceCommitted": True,
+            "WorkspaceReadyGateCommitted": True,
+            "Bootstrap": {"Satisfied": True},
+            "ticket_intake_ready": True,
+        }
+        errors = validate_ticket_intake_ready_invariant(state)
+        assert "ticket_intake_ready_below_phase_4" in errors
+
+    def test_ticket_intake_ready_blocks_phase_ready_below_4(self):
+        state: dict[str, object] = {
+            "Phase": "4",
+            "PersistenceCommitted": True,
+            "WorkspaceReadyGateCommitted": True,
+            "Bootstrap": {"Satisfied": True},
+            "ticket_intake_ready": True,
+            "phase_ready": 3,
+        }
+        errors = validate_ticket_intake_ready_invariant(state)
+        assert "ticket_intake_ready_phase_ready_below_4" in errors
+
+    def test_ticket_intake_ready_false_skips_checks(self):
+        state: dict[str, object] = {"ticket_intake_ready": False}
+        assert validate_ticket_intake_ready_invariant(state) == ()
 
     def test_reason_payloads_present_ok(self):
         state: dict[str, object] = {

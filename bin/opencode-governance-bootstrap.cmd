@@ -39,7 +39,6 @@ if not defined OPENCODE_BOOTSTRAP_OUTPUT (
     set "OPENCODE_BOOTSTRAP_OUTPUT=final"
 )
 
-"%PYTHON_EXE%" -m cli.bootstrap %*
+"%PYTHON_EXE%" -m governance.entrypoints.bootstrap_executor %*
 set "WRAPPER_EXIT=%ERRORLEVEL%"
-endlocal
-exit /b %WRAPPER_EXIT%
+endlocal & exit /b %WRAPPER_EXIT%

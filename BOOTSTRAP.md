@@ -14,6 +14,7 @@ The bootstrap process:
 2. **Detects repository** - Finds Git root and computes fingerprint
 3. **Creates workspace** - Sets up `SESSION_STATE.json`
 4. **Applies gates** - Ensures all required gates are satisfied
+5. **Sets readiness** - Writes `ticket_intake_ready` when Phase >= 4 and all commit flags are true
 
 ## Standard Bootstrap Path
 
@@ -22,13 +23,19 @@ The recommended way to bootstrap is using the **local launcher**:
 ### macOS / Linux
 
 ```bash
-~/.config/opencode/bin/opencode-governance-bootstrap
+~/.config/opencode/bin/opencode-governance-bootstrap --repo-root /path/to/repo
 ```
 
 ### Windows
 
 ```cmd
-%USERPROFILE%\.config\opencode\bin\opencode-governance-bootstrap.cmd
+%USERPROFILE%\.config\opencode\bin\opencode-governance-bootstrap.cmd --repo-root C:\path\to\repo
+```
+
+### Optional flags
+
+```bash
+opencode-governance-bootstrap --repo-root /path/to/repo --config-root /path/to/.config/opencode
 ```
 
 ## Installation First
@@ -57,6 +64,8 @@ The file should contain:
 - `Phase`: "4" or higher
 - `Bootstrap.Satisfied`: `true`
 - `PersistenceCommitted`: `true`
+- `ticket_intake_ready`: `true` (authoritative readiness gate)
+- `phase_ready`: `4` (optional; observability only)
 
 ## Troubleshooting
 
@@ -69,12 +78,10 @@ python3 install.py
 
 ### "Repository root not found"
 
-Provide the repository path:
+The launcher requires an explicit repository path:
 ```bash
 opencode-governance-bootstrap --repo-root /path/to/repo
 ```
-
-Or ensure you're in a Git repository.
 
 ## Documentation
 

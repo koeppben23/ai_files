@@ -37,7 +37,7 @@
       "summary": "Addon surface ownership conflict",
       "how_to_fix": "Two activated addons claim ownership of the same surface. Review addon manifests and ensure owns_surfaces is unique per surface.",
       "copy_paste_command": null,
-      "docs_link": "new_addon.md#surface-ownership"
+      "docs_link": "docs/_archive/new_addon.md#surface-ownership"
     },
     "BLOCKED-VARIABLE-RESOLUTION": {
       "summary": "Path variable resolution failed",

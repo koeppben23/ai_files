@@ -522,8 +522,8 @@ def test_install_distribution_contains_required_normative_files_and_addon_rulebo
     )
 
     required_customer_scaffolding_docs = [
-        commands / "new_profile.md",
-        commands / "new_addon.md",
+        commands / "docs" / "_archive" / "new_profile.md",
+        commands / "docs" / "_archive" / "new_addon.md",
     ]
     missing_scaffolding_docs = [str(p) for p in required_customer_scaffolding_docs if not p.exists()]
     assert not missing_scaffolding_docs, "Missing customer scaffolding markdown docs after install:\n" + "\n".join(

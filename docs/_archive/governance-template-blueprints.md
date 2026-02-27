@@ -42,5 +42,5 @@ This document maps production-ready workflow templates to governance goals.
 - Catalog all templates in `templates/github-actions/template_catalog.json`.
 - Validate catalog/file consistency with `${PYTHON_COMMAND} scripts/workflow_template_factory.py`.
 - Scaffold new templates from approved archetypes with `${PYTHON_COMMAND} scripts/workflow_template_factory.py scaffold ...`.
-- Full runbook: `docs/governance-workflow-template-factory.md`.
+- Full runbook: `docs/_archive/governance-workflow-template-factory.md`.
 - Customer script catalog for shipped helper CLIs: `docs/governance-customer-scripts.md`.

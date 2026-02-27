@@ -28,6 +28,6 @@
 | `start.md` | central-core | start-facing guidance, kernel references |
 | `SESSION_STATE_SCHEMA.md` | schema-adjacent-doc | data contract documentation |
 | `continue.md` | guidance-only | no runtime authority |
-| `resume.md` | guidance-only | resume behavior guidance only |
-| `resume_prompt.md` | guidance-only | controlled resume prompt template |
+| `docs/_archive/resume.md` | guidance-only | resume behavior guidance only |
+| `docs/_archive/resume_prompt.md` | guidance-only | controlled resume prompt template |
 | `README-RULES.md` | descriptive-map | non-normative authority map |

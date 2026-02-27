@@ -10,8 +10,8 @@ It does not define independent runtime behavior.
 - Runtime phase spec: `${COMMANDS_HOME}/phase_api.yaml`
 - Core technical rulebook: `rules.md`
 - Session-state schema: `SESSION_STATE_SCHEMA.md`
-- Responsibility boundary: `docs/governance/RESPONSIBILITY_BOUNDARY.md`
-- Rails refactor mapping: `docs/governance/RAILS_REFACTOR_MAPPING.md`
+- Responsibility boundary: `docs/_archive/governance/RESPONSIBILITY_BOUNDARY.md`
+- Rails refactor mapping: `docs/_archive/governance/RAILS_REFACTOR_MAPPING.md`
 
 ## Audience
 

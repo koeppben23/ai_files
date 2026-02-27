@@ -1,0 +1,2224 @@
+From 7ec070f00ba52c2d119b4b4f4be9c6b9708f489e Mon Sep 17 00:00:00 2001
+From: Benjamin Fuchs <benjamin.fuchs@adorsys.com>
+Date: Fri, 27 Feb 2026 09:41:00 +0100
+Subject: [PATCH 1/3] fix(bootstrap): stabilize wrapper, binding, and
+ governance outputs
+
+---
+ .../bootstrap_preflight_readonly.py            | 18 +++++++++++-------
+ 1 file changed, 11 insertions(+), 7 deletions(-)
+
+diff --git a/governance/entrypoints/bootstrap_preflight_readonly.py b/governance/entrypoints/bootstrap_preflight_readonly.py
+index 0017953..56c72ef 100644
+--- a/governance/entrypoints/bootstrap_preflight_readonly.py
++++ b/governance/entrypoints/bootstrap_preflight_readonly.py
+@@ -284,7 +284,7 @@ def _preflight_build_toolchain_snapshot() -> dict[str, object]:
+ 
+ 
+ def emit_preflight() -> None:
+-    if os.getenv("OPENCODE_BOOTSTRAP_OUTPUT", "final").strip().lower() == "minimal":
++    if os.getenv("OPENCODE_BOOTSTRAP_OUTPUT", "final").strip().lower() != "full":
+         return
+     required_now, required_later, _required_later_entries = _tool_inventory()
+ 
+@@ -335,7 +335,7 @@ def emit_preflight() -> None:
+ 
+ 
+ def emit_permission_probes() -> None:
+-    if os.getenv("OPENCODE_BOOTSTRAP_OUTPUT", "final").strip().lower() == "minimal":
++    if os.getenv("OPENCODE_BOOTSTRAP_OUTPUT", "final").strip().lower() != "full":
+         return
+     checks = [
+         {
+@@ -564,7 +564,8 @@ def run_persistence_hook() -> dict[str, object]:
+             "bootstrap_hook_command": hook_command,
+             "git_probe": {"ok": False, "source": "not-evaluated"},
+         }
+-        print(json.dumps(result, ensure_ascii=True))
++        if output_mode == "full":
++            print(json.dumps(result, ensure_ascii=True))
+         return result
+ 
+     repo_root, repo_root_source, git_probe = _resolve_repo_root_for_hook()
+@@ -597,7 +598,8 @@ def run_persistence_hook() -> dict[str, object]:
+             "log_path": str(log_path),
+             "failure_stage": FAILURE_STAGE_REPO_ROOT,
+         }
+-        print(json.dumps(result, ensure_ascii=True))
++        if output_mode == "full":
++            print(json.dumps(result, ensure_ascii=True))
+         return result
+ 
+     env = dict(os.environ)
+@@ -681,7 +683,8 @@ def run_persistence_hook() -> dict[str, object]:
+         result["stderr_snippet"] = (proc.stderr or "").strip()[:500]
+         result["log_path"] = str(log_path)
+ 
+-    print(json.dumps(result, ensure_ascii=True))
++    if output_mode == "full":
++        print(json.dumps(result, ensure_ascii=True))
+     return result
+ 
+ 
+@@ -989,12 +992,13 @@ def run_kernel_continuation(hook_result: Mapping[str, object]) -> dict[str, obje
+ 
+ 
+ def main() -> int:
+-    emit_start_receipt()
++    if os.getenv("OPENCODE_BOOTSTRAP_VERBOSE", "").strip() == "1":
++        emit_start_receipt()
+     emit_preflight()
+     emit_permission_probes()
+     hook_result = run_persistence_hook()
+     payload = run_kernel_continuation(hook_result)
+-    if os.getenv("OPENCODE_BOOTSTRAP_OUTPUT", "final").strip().lower() != "minimal":
++    if os.getenv("OPENCODE_BOOTSTRAP_OUTPUT", "final").strip().lower() != "full":
+         print(json.dumps(payload, ensure_ascii=True))
+     if payload.get("kernelContinuation") != "ok":
+         raise SystemExit(2)
+-- 
+2.53.0.windows.1
+
+
+From 0e48520049abdb9a6eb43343b78fe0b43914e162 Mon Sep 17 00:00:00 2001
+From: Benjamin Fuchs <benjamin.fuchs@adorsys.com>
+Date: Fri, 27 Feb 2026 12:12:39 +0100
+Subject: [PATCH 2/3] fix: align bootstrap readiness and SSOT guardrails
+
+---
+ BOOTSTRAP.md                                  |  17 ++-
+ SESSION_STATE_SCHEMA.md                       |  21 +++
+ bin/opencode-governance-bootstrap             |   2 +-
+ bin/opencode-governance-bootstrap.cmd         |   5 +-
+ cli/bootstrap.py                              |  12 +-
+ cli/bootstrap_executor.py                     |  73 +++++++--
+ docs/governance/canonical_field_ownership.md  |  17 ++-
+ docs/governance/kernel_vs_docs_matrix.csv     |   7 +-
+ .../catalogs/CUSTOMER_MARKDOWN_EXCLUDE.json   |  15 +-
+ .../assets/catalogs/SSOT_GUARD_RULES.json     |  51 +++++++
+ .../schemas/session_state.core.v1.schema.json |   9 ++
+ .../engine/_embedded_session_state_schema.py  |   9 ++
+ governance/engine/session_state_invariants.py |  44 ++++++
+ governance/entrypoints/bootstrap_executor.py  |  84 ++++++++++
+ .../bootstrap_preflight_readonly.py           |  76 ++++++++-
+ scripts/build.py                              |  14 ++
+ scripts/governance_lint.py                    |  15 ++
+ scripts/ssot_guard.py                         | 106 +++++++++++++
+ tests/test_bootstrap_cli_contract.py          | 144 ++++++++++++++++++
+ tests/test_bootstrap_persistence_e2e.py       |  76 ++++++---
+ tests/test_release_gate_ready.py              |  20 ++-
+ tests/test_session_state_schema.py            |  89 ++++++++++-
+ 22 files changed, 843 insertions(+), 63 deletions(-)
+ create mode 100644 governance/assets/catalogs/SSOT_GUARD_RULES.json
+ create mode 100644 governance/entrypoints/bootstrap_executor.py
+ create mode 100644 scripts/ssot_guard.py
+ create mode 100644 tests/test_bootstrap_cli_contract.py
+
+diff --git a/BOOTSTRAP.md b/BOOTSTRAP.md
+index b34cc9b..886f467 100644
+--- a/BOOTSTRAP.md
++++ b/BOOTSTRAP.md
+@@ -14,6 +14,7 @@ The bootstrap process:
+ 2. **Detects repository** - Finds Git root and computes fingerprint
+ 3. **Creates workspace** - Sets up `SESSION_STATE.json`
+ 4. **Applies gates** - Ensures all required gates are satisfied
++5. **Sets readiness** - Writes `ticket_intake_ready` when Phase >= 4 and all commit flags are true
+ 
+ ## Standard Bootstrap Path
+ 
+@@ -22,13 +23,19 @@ The recommended way to bootstrap is using the **local launcher**:
+ ### macOS / Linux
+ 
+ ```bash
+-~/.config/opencode/bin/opencode-governance-bootstrap
++~/.config/opencode/bin/opencode-governance-bootstrap --repo-root /path/to/repo
+ ```
+ 
+ ### Windows
+ 
+ ```cmd
+-%USERPROFILE%\.config\opencode\bin\opencode-governance-bootstrap.cmd
++%USERPROFILE%\.config\opencode\bin\opencode-governance-bootstrap.cmd --repo-root C:\path\to\repo
++```
++
++### Optional flags
++
++```bash
++opencode-governance-bootstrap --repo-root /path/to/repo --config-root /path/to/.config/opencode
+ ```
+ 
+ ## Installation First
+@@ -57,6 +64,8 @@ The file should contain:
+ - `Phase`: "4" or higher
+ - `Bootstrap.Satisfied`: `true`
+ - `PersistenceCommitted`: `true`
++- `ticket_intake_ready`: `true` (authoritative readiness gate)
++- `phase_ready`: `4` (optional; observability only)
+ 
+ ## Troubleshooting
+ 
+@@ -69,13 +78,11 @@ python3 install.py
+ 
+ ### "Repository root not found"
+ 
+-Provide the repository path:
++The launcher requires an explicit repository path:
+ ```bash
+ opencode-governance-bootstrap --repo-root /path/to/repo
+ ```
+ 
+-Or ensure you're in a Git repository.
+-
+ ## Documentation
+ 
+ - `master.md` - Core governance rules
+diff --git a/SESSION_STATE_SCHEMA.md b/SESSION_STATE_SCHEMA.md
+index 9fe8d36..c10e689 100644
+--- a/SESSION_STATE_SCHEMA.md
++++ b/SESSION_STATE_SCHEMA.md
+@@ -152,6 +152,27 @@ After Phase 1.1 (bootstrap) completes successfully, these keys are present (kern
+ - `SESSION_STATE.ProfileSource` (enum; see Section 5)
+ - `SESSION_STATE.ProfileEvidence` (string OR `null`)
+ - `SESSION_STATE.Gates` (object; see Section 8)
++- `SESSION_STATE.ticket_intake_ready` (boolean; authoritative readiness gate for ticket intake)
++- `SESSION_STATE.phase_ready` (integer; optional, observability only)
++
++### 2.x Ticket Intake Readiness (authoritative)
++
++`ticket_intake_ready` is the **only authoritative readiness gate** for entering Ticket Intake.
++`phase_ready` is **not** authoritative and exists only for observability.
++
++Presence:
++- `ticket_intake_ready` SHOULD be present once readiness is evaluated; if missing, readiness MUST be treated as false.
++- `phase_ready` is optional but recommended.
++
++Invariant (iff): `ticket_intake_ready = true` if and only if all of the following are true:
++- `PersistenceCommitted = true`
++- `WorkspaceReadyGateCommitted = true`
++- `Bootstrap.Satisfied = true`
++- Phase rank >= 4
++- If `phase_ready` is present: `phase_ready >= 4`
++
++Write authority: Only the real local bootstrap/preflight path may set `ticket_intake_ready` to true.
++Other paths (chat/command, documentation, convenience wrappers) MUST NOT set it.
+ 
+ ---
+ 
+diff --git a/bin/opencode-governance-bootstrap b/bin/opencode-governance-bootstrap
+index 26a28d8..55bed8a 100644
+--- a/bin/opencode-governance-bootstrap
++++ b/bin/opencode-governance-bootstrap
+@@ -28,4 +28,4 @@ except Exception:
+   fi
+ fi
+ 
+-exec "${PYTHON_BIN}" -m cli.bootstrap "$@"
++exec "${PYTHON_BIN}" -m governance.entrypoints.bootstrap_executor "$@"
+diff --git a/bin/opencode-governance-bootstrap.cmd b/bin/opencode-governance-bootstrap.cmd
+index 497a39d..342f286 100644
+--- a/bin/opencode-governance-bootstrap.cmd
++++ b/bin/opencode-governance-bootstrap.cmd
+@@ -39,7 +39,6 @@ if not defined OPENCODE_BOOTSTRAP_OUTPUT (
+     set "OPENCODE_BOOTSTRAP_OUTPUT=final"
+ )
+ 
+-"%PYTHON_EXE%" -m cli.bootstrap %*
++"%PYTHON_EXE%" -m governance.entrypoints.bootstrap_executor %*
+ set "WRAPPER_EXIT=%ERRORLEVEL%"
+-endlocal
+-exit /b %WRAPPER_EXIT%
++endlocal & exit /b %WRAPPER_EXIT%
+diff --git a/cli/bootstrap.py b/cli/bootstrap.py
+index e1e5aaa..a1ddfc8 100644
+--- a/cli/bootstrap.py
++++ b/cli/bootstrap.py
+@@ -1,13 +1,15 @@
+ #!/usr/bin/env python3
+ import sys
+ 
+-def main():
++
++def main() -> int:
+     try:
+-        import governance.entrypoints.bootstrap_preflight_readonly as bp
+-        return bp.main()
+-    except Exception as e:
+-        print("Bootstrap launcher error:", e, file=sys.stderr)
++        from governance.entrypoints.bootstrap_executor import main as executor_main
++    except Exception as exc:
++        print("Bootstrap launcher error:", exc, file=sys.stderr)
+         return 1
++    return int(executor_main())
++
+ 
+ if __name__ == "__main__":
+     raise SystemExit(main())
+diff --git a/cli/bootstrap_executor.py b/cli/bootstrap_executor.py
+index b80d526..e98dc4c 100644
+--- a/cli/bootstrap_executor.py
++++ b/cli/bootstrap_executor.py
+@@ -1,21 +1,76 @@
+ #!/usr/bin/env python3
+ import argparse
+ import os
+-import sys
++from pathlib import Path
+ import subprocess
++import sys
++
++try:
++    from governance.infrastructure.path_contract import normalize_absolute_path
++except Exception:  # pragma: no cover
++    normalize_absolute_path = None  # type: ignore
++
++def _normalize_path(raw: str, *, purpose: str) -> Path:
++    token = str(raw or "").strip()
++    if not token:
++        raise ValueError(f"{purpose}: empty path")
++    if callable(normalize_absolute_path):
++        return normalize_absolute_path(token, purpose=purpose)
++    candidate = Path(token).expanduser()
++    if not candidate.is_absolute():
++        raise ValueError(f"{purpose}: path must be absolute")
++    return Path(os.path.normpath(os.path.abspath(str(candidate))))
++
++
++def _validate_repo_root(raw: str) -> Path:
++    repo_root = _normalize_path(raw, purpose="repo_root")
++    if not repo_root.exists() or not repo_root.is_dir():
++        raise ValueError("repo_root: path does not exist or is not a directory")
++    git_marker = repo_root / ".git"
++    if not git_marker.exists():
++        raise ValueError("repo_root: missing .git")
++    return repo_root
++
+ 
+-def main():
+-    parser = argparse.ArgumentParser(prog="opencode-bootstrap-executor", description="Execute bootstrap preflight until Phase 4")
++def _validate_config_root(raw: str) -> Path:
++    config_root = _normalize_path(raw, purpose="config_root")
++    if not config_root.exists() or not config_root.is_dir():
++        raise ValueError("config_root: path does not exist or is not a directory")
++    return config_root
++
++
++def main() -> int:
++    parser = argparse.ArgumentParser(
++        prog="opencode-governance-bootstrap",
++        description="Execute bootstrap preflight until ready for Phase 4",
++    )
+     parser.add_argument("--config-root", help="Path to OpenCode config root", required=False)
+-    parser.add_argument("--repo-root", help="Path to repository root", required=False)
++    parser.add_argument("--repo-root", help="Path to repository root", required=True)
+     args = parser.parse_args()
++
++    try:
++        repo_root = _validate_repo_root(args.repo_root)
++    except Exception as exc:
++        print(f"invalid --repo-root: {exc}", file=sys.stderr)
++        return 2
++
+     env = os.environ.copy()
+     if args.config_root:
+-        env["OPENCODE_CONFIG_ROOT"] = os.path.abspath(args.config_root)
+-    if args.repo_root:
+-        env["OPENCODE_REPO_ROOT"] = os.path.abspath(args.repo_root)
+-    # Run the preflight bootstrap until ready for Phase 4
+-    ret = subprocess.run([sys.executable, "-m", "governance.entrypoints.bootstrap_preflight_readonly"], env=env)
++        try:
++            config_root = _validate_config_root(args.config_root)
++        except Exception as exc:
++            print(f"invalid --config-root: {exc}", file=sys.stderr)
++            return 2
++        env["OPENCODE_CONFIG_ROOT"] = str(config_root)
++        env["COMMANDS_HOME"] = str(config_root / "commands")
++
++    env["OPENCODE_REPO_ROOT"] = str(repo_root)
++
++    ret = subprocess.run(
++        [sys.executable, "-m", "governance.entrypoints.bootstrap_preflight_readonly"],
++        env=env,
++        cwd=str(repo_root),
++    )
+     return ret.returncode
+ 
+ if __name__ == "__main__":
+diff --git a/docs/governance/canonical_field_ownership.md b/docs/governance/canonical_field_ownership.md
+index 396cb81..150dd02 100644
+--- a/docs/governance/canonical_field_ownership.md
++++ b/docs/governance/canonical_field_ownership.md
+@@ -4,12 +4,12 @@ Purpose: prevent SSOT drift by declaring ownership of terms and contracts.
+ 
+ ## Kernel-owned only (reference-only in MD)
+ 
+-- Phase IDs
+-- Gate enums and statuses
+-- Reason codes
+-- Transition IDs
+-- SESSION_STATE keys and invariant rules
+-- Blocked defaults and recovery triggers
++- Phase IDs (from `phase_api.yaml`)
++- Gate enums and statuses (kernel gate evaluators)
++- Reason codes (from `governance/assets/reasons/*.yaml`)
++- Transition IDs (kernel trace)
++- SESSION_STATE keys and invariant rules (session schema + invariants)
++- Blocked defaults and recovery triggers (kernel enforcement)
+ 
+ Default rewrite role:
+ - If a field/contract is Kernel-owned only, the MD role is **Reference-only**.
+@@ -24,3 +24,8 @@ Default rewrite role:
+ ## Enforcement rule
+ 
+ - Kernel-owned rules must be referenced, not re-specified, in Markdown.
++
++## SSOT guard artifacts
++
++- `docs/governance/kernel_vs_docs_matrix.csv`
++- `governance/assets/catalogs/SSOT_GUARD_RULES.json`
+diff --git a/docs/governance/kernel_vs_docs_matrix.csv b/docs/governance/kernel_vs_docs_matrix.csv
+index 31c0fcb..48b19e0 100644
+--- a/docs/governance/kernel_vs_docs_matrix.csv
++++ b/docs/governance/kernel_vs_docs_matrix.csv
+@@ -1,6 +1,7 @@
+ ssot_source,md_file,md_section,ownership,drift_risk,md_role
+ phase_api.yaml,master.md,SSOT intro,Kernel-owned only,low,reference-only
+-session_state_invariants.py,rules.md,7.3.12 Session Transition Invariants,Kernel-owned only,high,reference-only
+-bootstrap_preflight_readonly.py,rules.md,7.3.10 Bootstrap Preflight Output Contract,Kernel-owned only,high,reference-only
+-blocked_reason_catalog.yaml,master.md,BLOCKED reason catalog,Kernel-owned only,high,reference-only
++governance/engine/session_state_invariants.py,rules.md,7.3.12 Session Transition Invariants,Kernel-owned only,high,reference-only
++governance/entrypoints/bootstrap_preflight_readonly.py,rules.md,7.3.10 Bootstrap Preflight Output Contract,Kernel-owned only,high,reference-only
++governance/assets/reasons/blocked_reason_catalog.yaml,master.md,BLOCKED reason catalog,Kernel-owned only,high,reference-only
++governance/entrypoints/write_policy.py,rules.md,Write policy SSOT,Kernel-owned only,high,reference-only
+ gate_evaluator.py,master.md,Phase 5/5.3/5.4/5.6/6 gates,Kernel-owned only,high,reference-only
+diff --git a/governance/assets/catalogs/CUSTOMER_MARKDOWN_EXCLUDE.json b/governance/assets/catalogs/CUSTOMER_MARKDOWN_EXCLUDE.json
+index fa601f2..1cf54d7 100644
+--- a/governance/assets/catalogs/CUSTOMER_MARKDOWN_EXCLUDE.json
++++ b/governance/assets/catalogs/CUSTOMER_MARKDOWN_EXCLUDE.json
+@@ -2,12 +2,25 @@
+   "schema": "governance.customer-markdown-exclude.v1",
+   "catalog_version": 1,
+   "release_excluded_markdown": [
++    "docs/BINDING_MIGRATION_MAP.md",
++    "docs/BOOTSTRAP_MIGRATION.md",
++    "docs/CLEANUP_ANALYSIS.md",
++    "docs/CRITICAL_REQUIREMENTS_STATUS.md",
++    "docs/MD_PYTHON_POLICY.md",
++    "docs/MD_VIOLATION_ANALYSIS.md",
++    "docs/MODEL_IDENTITY_RESOLUTION.md",
++    "docs/PRODUCT_READINESS_GAP_ANALYSIS.md",
++    "docs/TERMINOLOGY_CLASSIFICATION.md",
++    "docs/governance-customer-scripts.md",
+     "docs/governance-engine-rework-plan.md",
+     "docs/governance-evidence-backfeed-claims.md",
++    "docs/governance-pipeline-roles-template.md",
+     "docs/governance-rework-gap-closure.md",
+     "docs/governance-rollout-phase1-dualread.md",
+     "docs/governance-rollout-phase2-engine-only.md",
+-    "docs/governance-rollout-phase3-legacy-removed.md"
++    "docs/governance-rollout-phase3-legacy-removed.md",
++    "docs/governance-template-blueprints.md",
++    "docs/governance-workflow-template-factory.md"
+   ],
+   "notes": "Files listed here are intentionally excluded from customer release archives."
+ }
+diff --git a/governance/assets/catalogs/SSOT_GUARD_RULES.json b/governance/assets/catalogs/SSOT_GUARD_RULES.json
+new file mode 100644
+index 0000000..2f148d7
+--- /dev/null
++++ b/governance/assets/catalogs/SSOT_GUARD_RULES.json
+@@ -0,0 +1,51 @@
++{
++  "schema": "governance.ssot-guard-rules.v1",
++  "version": 1,
++  "policy": {
++    "owner": "kernel",
++    "default_md_role": "reference-only",
++    "fail_closed": true
++  },
++  "guards": [
++    {
++      "id": "kernel_owned_phase_api",
++      "source": "phase_api.yaml",
++      "owner": "kernel",
++      "md_references": ["master.md", "docs/phases.md"],
++      "severity": "high",
++      "notes": "Routing/phase transitions are kernel-owned. MD must be reference-only."
++    },
++    {
++      "id": "session_state_invariants",
++      "source": "governance/engine/session_state_invariants.py",
++      "owner": "kernel",
++      "md_references": ["SESSION_STATE_SCHEMA.md", "rules.md"],
++      "severity": "high",
++      "notes": "Invariants are enforced by kernel; MD must not restate normative logic."
++    },
++    {
++      "id": "bootstrap_preflight_contract",
++      "source": "governance/entrypoints/bootstrap_preflight_readonly.py",
++      "owner": "kernel",
++      "md_references": ["rules.md", "BOOTSTRAP.md"],
++      "severity": "high",
++      "notes": "Preflight/bootstrapping semantics are kernel-owned; MD is reference-only."
++    },
++    {
++      "id": "blocked_reason_catalog",
++      "source": "governance/assets/reasons/blocked_reason_catalog.yaml",
++      "owner": "kernel",
++      "md_references": ["master.md"],
++      "severity": "high",
++      "notes": "Blocked reason codes are kernel-owned list."
++    },
++    {
++      "id": "write_policy",
++      "source": "governance/entrypoints/write_policy.py",
++      "owner": "kernel",
++      "md_references": ["rules.md", "docs/governance_invariants.md"],
++      "severity": "medium",
++      "notes": "Write policy and read-only enforcement are kernel-owned."
++    }
++  ]
++}
+diff --git a/governance/assets/schemas/session_state.core.v1.schema.json b/governance/assets/schemas/session_state.core.v1.schema.json
+index 130975a..98ae6e9 100644
+--- a/governance/assets/schemas/session_state.core.v1.schema.json
++++ b/governance/assets/schemas/session_state.core.v1.schema.json
+@@ -153,6 +153,15 @@
+         "ProfileEvidence": {
+           "type": ["string", "null"]
+         },
++        "ticket_intake_ready": {
++          "type": "boolean",
++          "description": "Authoritative readiness gate for ticket intake"
++        },
++        "phase_ready": {
++          "type": "integer",
++          "minimum": 0,
++          "description": "Optional phase readiness marker (observability only)"
++        },
+         "Gates": {
+           "type": "object",
+           "properties": {
+diff --git a/governance/engine/_embedded_session_state_schema.py b/governance/engine/_embedded_session_state_schema.py
+index 49874f9..e83a3a2 100644
+--- a/governance/engine/_embedded_session_state_schema.py
++++ b/governance/engine/_embedded_session_state_schema.py
+@@ -117,6 +117,15 @@ _HARDCODED_FALLBACK_SCHEMA: dict[str, object] = {
+                     ],
+                 },
+                 "ProfileEvidence": {"type": ["string", "null"]},
++                "ticket_intake_ready": {
++                    "type": "boolean",
++                    "description": "Authoritative readiness gate for ticket intake",
++                },
++                "phase_ready": {
++                    "type": "integer",
++                    "minimum": 0,
++                    "description": "Optional phase readiness marker (observability only)",
++                },
+                 "Gates": {
+                     "type": "object",
+                     "properties": {
+diff --git a/governance/engine/session_state_invariants.py b/governance/engine/session_state_invariants.py
+index 9d90a44..a875e68 100644
+--- a/governance/engine/session_state_invariants.py
++++ b/governance/engine/session_state_invariants.py
+@@ -9,6 +9,8 @@ from __future__ import annotations
+ import re
+ from typing import Mapping
+ 
++from governance.domain.phase_state_machine import normalize_phase_token, phase_rank
++
+ 
+ _PATH_FIELD_SUFFIXES = ("Path", "FilePath")
+ _PATH_FIELD_NAMES = ("TargetPath", "SourcePath")
+@@ -24,6 +26,14 @@ _DEGENERATE_PATTERNS = (
+ )
+ 
+ 
++def _read_bool(state: Mapping[str, object], *keys: str) -> bool:
++    for key in keys:
++        value = state.get(key)
++        if isinstance(value, bool):
++            return value
++    return False
++
++
+ def validate_blocked_next_invariant(state: Mapping[str, object]) -> tuple[str, ...]:
+     """If Mode=BLOCKED, Next MUST start with 'BLOCKED-'."""
+     mode = state.get("Mode")
+@@ -72,6 +82,39 @@ def validate_profile_source_blocked_invariant(state: Mapping[str, object]) -> tu
+     return ()
+ 
+ 
++def validate_ticket_intake_ready_invariant(state: Mapping[str, object]) -> tuple[str, ...]:
++    """ticket_intake_ready is authoritative and must match readiness preconditions."""
++    ticket_ready = state.get("ticket_intake_ready")
++    phase_ready = state.get("phase_ready")
++    if not isinstance(ticket_ready, bool) or ticket_ready is False:
++        return ()
++
++    phase_value = state.get("Phase") or state.get("phase") or ""
++    token = normalize_phase_token(str(phase_value))
++    if phase_rank(token) < phase_rank("4"):
++        return ("ticket_intake_ready_below_phase_4",)
++
++    persistence_committed = _read_bool(state, "PersistenceCommitted", "persistence_committed")
++    if not persistence_committed:
++        return ("ticket_intake_ready_without_persistence_committed",)
++
++    workspace_ready = _read_bool(state, "WorkspaceReadyGateCommitted", "workspace_ready_gate_committed")
++    if not workspace_ready:
++        return ("ticket_intake_ready_without_workspace_ready_gate",)
++
++    bootstrap = state.get("Bootstrap")
++    satisfied = False
++    if isinstance(bootstrap, Mapping):
++        satisfied = bool(bootstrap.get("Satisfied") is True)
++    if not satisfied:
++        return ("ticket_intake_ready_without_bootstrap_satisfied",)
++
++    if isinstance(phase_ready, int) and phase_ready < 4:
++        return ("ticket_intake_ready_phase_ready_below_4",)
++
++    return ()
++
++
+ def validate_reason_payloads_required(state: Mapping[str, object]) -> tuple[str, ...]:
+     """If any BLOCKED-/WARN-/NOT_VERIFIED- code appears, Diagnostics.ReasonPayloads MUST exist."""
+     mode = state.get("Mode")
+@@ -102,6 +145,7 @@ def validate_session_state_invariants(session_state_document: Mapping[str, objec
+     errors.extend(validate_blocked_next_invariant(state))
+     errors.extend(validate_confidence_mode_invariant(state))
+     errors.extend(validate_profile_source_blocked_invariant(state))
++    errors.extend(validate_ticket_intake_ready_invariant(state))
+     errors.extend(validate_reason_payloads_required(state))
+     errors.extend(validate_output_mode_architect_invariant(state))
+     errors.extend(validate_rulebook_evidence_mirror(state))
+diff --git a/governance/entrypoints/bootstrap_executor.py b/governance/entrypoints/bootstrap_executor.py
+new file mode 100644
+index 0000000..2e21d2c
+--- /dev/null
++++ b/governance/entrypoints/bootstrap_executor.py
+@@ -0,0 +1,84 @@
++#!/usr/bin/env python3
++from __future__ import annotations
++
++import argparse
++import os
++from pathlib import Path
++import subprocess
++import sys
++
++try:
++    from governance.infrastructure.path_contract import normalize_absolute_path
++except Exception:  # pragma: no cover
++    normalize_absolute_path = None  # type: ignore
++
++
++def _normalize_path(raw: str, *, purpose: str) -> Path:
++    token = str(raw or "").strip()
++    if not token:
++        raise ValueError(f"{purpose}: empty path")
++    if callable(normalize_absolute_path):
++        return normalize_absolute_path(token, purpose=purpose)
++    candidate = Path(token).expanduser()
++    if not candidate.is_absolute():
++        raise ValueError(f"{purpose}: path must be absolute")
++    return Path(os.path.normpath(os.path.abspath(str(candidate))))
++
++
++def _validate_repo_root(raw: str) -> Path:
++    repo_root = _normalize_path(raw, purpose="repo_root")
++    if not repo_root.exists() or not repo_root.is_dir():
++        raise ValueError("repo_root: path does not exist or is not a directory")
++    git_marker = repo_root / ".git"
++    if git_marker.exists():
++        return repo_root
++    for parent in repo_root.parents:
++        if (parent / ".git").exists():
++            return parent
++    raise ValueError("repo_root: missing .git")
++
++
++def _validate_config_root(raw: str) -> Path:
++    config_root = _normalize_path(raw, purpose="config_root")
++    if not config_root.exists() or not config_root.is_dir():
++        raise ValueError("config_root: path does not exist or is not a directory")
++    return config_root
++
++
++def main() -> int:
++    parser = argparse.ArgumentParser(
++        prog="opencode-governance-bootstrap",
++        description="Execute bootstrap preflight until ready for Phase 4",
++    )
++    parser.add_argument("--config-root", help="Path to OpenCode config root", required=False)
++    parser.add_argument("--repo-root", help="Path to repository root", required=True)
++    args = parser.parse_args()
++
++    try:
++        repo_root = _validate_repo_root(args.repo_root)
++    except Exception as exc:
++        print(f"invalid --repo-root: {exc}", file=sys.stderr)
++        return 2
++
++    env = os.environ.copy()
++    if args.config_root:
++        try:
++            config_root = _validate_config_root(args.config_root)
++        except Exception as exc:
++            print(f"invalid --config-root: {exc}", file=sys.stderr)
++            return 2
++        env["OPENCODE_CONFIG_ROOT"] = str(config_root)
++        env["COMMANDS_HOME"] = str(config_root / "commands")
++
++    env["OPENCODE_REPO_ROOT"] = str(repo_root)
++
++    ret = subprocess.run(
++        [sys.executable, "-m", "governance.entrypoints.bootstrap_preflight_readonly"],
++        env=env,
++        cwd=str(repo_root),
++    )
++    return ret.returncode
++
++
++if __name__ == "__main__":
++    raise SystemExit(main())
+diff --git a/governance/entrypoints/bootstrap_preflight_readonly.py b/governance/entrypoints/bootstrap_preflight_readonly.py
+index 56c72ef..82c543f 100644
+--- a/governance/entrypoints/bootstrap_preflight_readonly.py
++++ b/governance/entrypoints/bootstrap_preflight_readonly.py
+@@ -564,7 +564,7 @@ def run_persistence_hook() -> dict[str, object]:
+             "bootstrap_hook_command": hook_command,
+             "git_probe": {"ok": False, "source": "not-evaluated"},
+         }
+-        if output_mode == "full":
++        if output_mode != "silent":
+             print(json.dumps(result, ensure_ascii=True))
+         return result
+ 
+@@ -598,7 +598,7 @@ def run_persistence_hook() -> dict[str, object]:
+             "log_path": str(log_path),
+             "failure_stage": FAILURE_STAGE_REPO_ROOT,
+         }
+-        if output_mode == "full":
++        if output_mode != "silent":
+             print(json.dumps(result, ensure_ascii=True))
+         return result
+ 
+@@ -683,7 +683,7 @@ def run_persistence_hook() -> dict[str, object]:
+         result["stderr_snippet"] = (proc.stderr or "").strip()[:500]
+         result["log_path"] = str(log_path)
+ 
+-    if output_mode == "full":
++    if output_mode != "silent":
+         print(json.dumps(result, ensure_ascii=True))
+     return result
+ 
+@@ -759,6 +759,59 @@ def _root_state(document: Mapping[str, object]) -> dict[str, object]:
+     return {}
+ 
+ 
++def _read_bool(state: Mapping[str, object], *keys: str) -> bool:
++    for key in keys:
++        value = state.get(key)
++        if isinstance(value, bool):
++            return value
++    return False
++
++
++def _phase_ready_value(phase_value: object) -> int | None:
++    token = normalize_phase_token(str(phase_value or ""))
++    if not token:
++        return None
++    match = re.match(r"^(\d+)", token)
++    if match is None:
++        return None
++    try:
++        return int(match.group(1))
++    except Exception:
++        return None
++
++
++def _bootstrap_satisfied(state: Mapping[str, object]) -> bool:
++    bootstrap = state.get("Bootstrap")
++    if not isinstance(bootstrap, Mapping):
++        return False
++    value = bootstrap.get("Satisfied")
++    return isinstance(value, bool) and value is True
++
++
++def _ticket_intake_ready(state: Mapping[str, object], phase_token: str) -> bool:
++    if phase_rank(phase_token) < phase_rank("4"):
++        return False
++    if not _read_bool(state, "PersistenceCommitted", "persistence_committed"):
++        return False
++    if not _read_bool(state, "WorkspaceReadyGateCommitted", "workspace_ready_gate_committed"):
++        return False
++    if not _bootstrap_satisfied(state):
++        return False
++    return True
++
++
++def _apply_ticket_intake_readiness(document: Mapping[str, object], *, phase_token: str) -> dict[str, object]:
++    updated = dict(document)
++    state = _root_state(updated)
++    ready = _ticket_intake_ready(state, phase_token)
++    state["ticket_intake_ready"] = ready
++    phase_ready = _phase_ready_value(state.get("Phase") or phase_token)
++    if phase_ready is not None:
++        state["phase_ready"] = phase_ready
++    updated["SESSION_STATE"] = state
++    return updated
++
++
+ def _activation_intent_evidence() -> tuple[str, str, str]:
+     config_root = COMMANDS_HOME.parent if COMMANDS_HOME is not None else None
+     if config_root is None:
+@@ -879,6 +932,16 @@ def _hydrate_transition_state(document: dict[str, object], *, repo_fingerprint:
+ 
+ 
+ def run_kernel_continuation(hook_result: Mapping[str, object]) -> dict[str, object]:
++    hook_status = str(hook_result.get("workspacePersistenceHook") or "").strip().lower()
++    if hook_status and hook_status != HOOK_STATUS_OK:
++        payload: dict[str, object] = {
++            "kernelContinuation": "blocked",
++            "reason": "persistence-hook-blocked",
++            "reason_code": str(hook_result.get("reason_code") or "BLOCKED-WORKSPACE-PERSISTENCE"),
++            "repo_fingerprint": str(hook_result.get("repo_fingerprint") or ""),
++            "session_state_path": "",
++        }
++        return dict(payload)
+     repo_fingerprint = str(hook_result.get("repo_fingerprint") or "").strip()
+     session_path = _session_state_file_path(repo_fingerprint)
+     if session_path is None or not session_path.exists():
+@@ -921,6 +984,7 @@ def run_kernel_continuation(hook_result: Mapping[str, object]) -> dict[str, obje
+         "source": "session-state",
+     }
+ 
++    resolved_token = normalize_phase_token(current_phase) or ""
+     while hops < max_hops:
+         hops += 1
+         document = _hydrate_transition_state(document, repo_fingerprint=repo_fingerprint, requested_token=requested_token)
+@@ -974,6 +1038,7 @@ def run_kernel_continuation(hook_result: Mapping[str, object]) -> dict[str, obje
+             break
+         requested_token = next_token
+ 
++    document = _apply_ticket_intake_readiness(document, phase_token=resolved_token)
+     _write_json_document(session_path, document)
+     payload = {
+         "kernelContinuation": "ok" if str(last_result.get("status") or "") == "OK" else "blocked",
+@@ -992,6 +1057,8 @@ def run_kernel_continuation(hook_result: Mapping[str, object]) -> dict[str, obje
+ 
+ 
+ def main() -> int:
++    if os.getenv("OPENCODE_FORCE_READ_ONLY", "").strip() == "1":
++        raise SystemExit(2)
+     if os.getenv("OPENCODE_BOOTSTRAP_VERBOSE", "").strip() == "1":
+         emit_start_receipt()
+     emit_preflight()
+@@ -1000,6 +1067,9 @@ def main() -> int:
+     payload = run_kernel_continuation(hook_result)
+     if os.getenv("OPENCODE_BOOTSTRAP_OUTPUT", "final").strip().lower() != "full":
+         print(json.dumps(payload, ensure_ascii=True))
++    hook_status = str(hook_result.get("workspacePersistenceHook") or "").strip().lower()
++    if hook_status and hook_status != HOOK_STATUS_OK:
++        raise SystemExit(2)
+     if payload.get("kernelContinuation") != "ok":
+         raise SystemExit(2)
+     if os.getenv("OPENCODE_ENGINE_SHADOW_EMIT") == "1":
+diff --git a/scripts/build.py b/scripts/build.py
+index 058c74c..f3b17b8 100644
+--- a/scripts/build.py
++++ b/scripts/build.py
+@@ -53,6 +53,18 @@ WORKFLOW_TEMPLATE_CATALOG_SCHEMA = "governance.workflow-template-catalog.v1"
+ MARKDOWN_EXCLUDE_POLICY_PATH = Path("governance/assets/catalogs/CUSTOMER_MARKDOWN_EXCLUDE.json")
+ MARKDOWN_EXCLUDE_POLICY_SCHEMA = "governance.customer-markdown-exclude.v1"
+ 
++CUSTOMER_DOCS_ALLOWLIST = {
++    "docs/phases.md",
++    "docs/install-layout.md",
++    "docs/releasing.md",
++    "docs/benchmarks.md",
++    "docs/security-gates.md",
++    "docs/customer-install-bundle-v1.md",
++    "docs/release-security-model.md",
++    "docs/mode-aware-repo-rules.md",
++    "docs/governance_invariants.md",
++}
++
+ 
+ def is_forbidden_metadata_path(relpath: str) -> bool:
+     """Return True for macOS metadata payload paths forbidden in artifacts."""
+@@ -352,6 +364,8 @@ def _should_include_file(
+         return True
+     if rel == "governance/VERSION":
+         return True
++    if rel.startswith("docs/"):
++        return rel in CUSTOMER_DOCS_ALLOWLIST
+     if p.suffix.lower() in {".md", ".json"}:
+         return True
+     return False
+diff --git a/scripts/governance_lint.py b/scripts/governance_lint.py
+index 5e4ccc2..31c7456 100644
+--- a/scripts/governance_lint.py
++++ b/scripts/governance_lint.py
+@@ -1315,6 +1315,21 @@ def main() -> int:
+     issues: list[str] = []
+     check_master_priority_uniqueness(issues)
+     check_anchor_presence(issues)
++    try:
++        proc = subprocess.run(
++            [sys.executable, str(ROOT / "scripts" / "ssot_guard.py")],
++            check=False,
++            capture_output=True,
++            text=True,
++        )
++        if proc.returncode != 0:
++            issues.append("SSOT guard check failed")
++            if proc.stdout:
++                issues.append(proc.stdout.strip())
++            if proc.stderr:
++                issues.append(proc.stderr.strip())
++    except Exception as exc:
++        issues.append(f"SSOT guard check failed to run: {exc}")
+     check_manifest_contract(issues)
+     check_required_addon_references(issues)
+     check_template_quality_gate(issues)
+diff --git a/scripts/ssot_guard.py b/scripts/ssot_guard.py
+new file mode 100644
+index 0000000..5caea91
+--- /dev/null
++++ b/scripts/ssot_guard.py
+@@ -0,0 +1,106 @@
++from __future__ import annotations
++
++import json
++import sys
++from pathlib import Path
++
++
++REPO_ROOT = Path(__file__).resolve().parents[1]
++CATALOG_PATH = REPO_ROOT / "governance" / "assets" / "catalogs" / "SSOT_GUARD_RULES.json"
++MATRIX_PATH = REPO_ROOT / "docs" / "governance" / "kernel_vs_docs_matrix.csv"
++FIELD_OWNERSHIP_PATH = REPO_ROOT / "docs" / "governance" / "canonical_field_ownership.md"
++
++
++def _fail(message: str) -> int:
++    print(message, file=sys.stderr)
++    return 1
++
++
++def _load_catalog() -> dict[str, object]:
++    if not CATALOG_PATH.exists():
++        raise SystemExit(f"Missing SSOT guard catalog: {CATALOG_PATH}")
++    payload = json.loads(CATALOG_PATH.read_text(encoding="utf-8"))
++    if payload.get("schema") != "governance.ssot-guard-rules.v1":
++        raise SystemExit("SSOT guard catalog schema mismatch")
++    return payload
++
++
++def _load_kernel_matrix() -> list[list[str]]:
++    if not MATRIX_PATH.exists():
++        raise SystemExit(f"Missing kernel/doc matrix: {MATRIX_PATH}")
++    rows = []
++    for raw in MATRIX_PATH.read_text(encoding="utf-8").splitlines():
++        line = raw.strip()
++        if not line or line.startswith("#"):
++            continue
++        rows.append([col.strip() for col in line.split(",")])
++    return rows
++
++
++def _validate_guard_sources(issues: list[str], guards: list[dict[str, object]]) -> None:
++    for guard in guards:
++        source = guard.get("source")
++        if not isinstance(source, str) or not source.strip():
++            issues.append("SSOT guard missing source")
++            continue
++        src_path = REPO_ROOT / source
++        if not src_path.exists():
++            issues.append(f"SSOT guard source missing: {source}")
++
++
++def _validate_guard_references(issues: list[str], guards: list[dict[str, object]]) -> None:
++    for guard in guards:
++        refs = guard.get("md_references")
++        if not isinstance(refs, list) or not refs:
++            issues.append(f"SSOT guard missing md_references: {guard.get('id')}")
++            continue
++        for entry in refs:
++            if not isinstance(entry, str) or not entry.strip():
++                issues.append(f"SSOT guard invalid md_references entry: {guard.get('id')}")
++                continue
++            if not (REPO_ROOT / entry).exists():
++                issues.append(f"SSOT guard reference missing: {entry}")
++
++
++def _validate_matrix_alignment(issues: list[str], guards: list[dict[str, object]], matrix_rows: list[list[str]]) -> None:
++    matrix_sources = set()
++    for row in matrix_rows[1:] if matrix_rows and matrix_rows[0][0] == "ssot_source" else matrix_rows:
++        if row:
++            matrix_sources.add(row[0])
++
++    guard_sources = {guard.get("source") for guard in guards if isinstance(guard.get("source"), str)}
++    missing_in_matrix = sorted(source for source in guard_sources if source not in matrix_sources)
++    if missing_in_matrix:
++        issues.append("SSOT guard sources missing from kernel_vs_docs_matrix.csv: " + ", ".join(missing_in_matrix))
++
++
++def _validate_field_ownership_exists(issues: list[str]) -> None:
++    if not FIELD_OWNERSHIP_PATH.exists():
++        issues.append("canonical_field_ownership.md missing")
++
++
++def main() -> int:
++    issues: list[str] = []
++    payload = _load_catalog()
++    guards = payload.get("guards")
++    if not isinstance(guards, list) or not guards:
++        return _fail("SSOT guard catalog guards must be a non-empty array")
++
++    _validate_guard_sources(issues, guards)
++    _validate_guard_references(issues, guards)
++    _validate_field_ownership_exists(issues)
++
++    matrix_rows = _load_kernel_matrix()
++    if not matrix_rows:
++        issues.append("kernel_vs_docs_matrix.csv empty")
++    _validate_matrix_alignment(issues, guards, matrix_rows)
++
++    if issues:
++        for issue in issues:
++            print(f"SSOT-GUARD: {issue}", file=sys.stderr)
++        return 1
++    return 0
++
++
++if __name__ == "__main__":
++    raise SystemExit(main())
+diff --git a/tests/test_bootstrap_cli_contract.py b/tests/test_bootstrap_cli_contract.py
+new file mode 100644
+index 0000000..239a32f
+--- /dev/null
++++ b/tests/test_bootstrap_cli_contract.py
+@@ -0,0 +1,144 @@
++from __future__ import annotations
++
++import json
++import os
++import shutil
++import site
++import subprocess
++import sys
++from pathlib import Path
++
++import pytest
++
++
++def _bootstrap_launcher(checkout_root: Path) -> list[str]:
++    if os.name == "nt":
++        launcher = checkout_root / "bin" / "opencode-governance-bootstrap.cmd"
++        return ["cmd", "/c", str(launcher)]
++    launcher = checkout_root / "bin" / "opencode-governance-bootstrap"
++    return [str(launcher)]
++
++
++def _run(cmd: list[str], *, cwd: Path, env: dict[str, str]) -> subprocess.CompletedProcess[str]:
++    return subprocess.run(
++        cmd,
++        cwd=str(cwd),
++        env=env,
++        text=True,
++        stdout=subprocess.PIPE,
++        stderr=subprocess.PIPE,
++        check=False,
++    )
++
++
++def _git_init_repo(repo: Path) -> None:
++    repo.mkdir(parents=True, exist_ok=True)
++    subprocess.run(["git", "init"], cwd=str(repo), check=True)
++    subprocess.run(["git", "checkout", "-b", "main"], cwd=str(repo), check=True)
++    subprocess.run(["git", "config", "user.email", "ci@example.invalid"], cwd=str(repo), check=True)
++    subprocess.run(["git", "config", "user.name", "CI"], cwd=str(repo), check=True)
++    (repo / "README.txt").write_text("hello\n", encoding="utf-8")
++    subprocess.run(["git", "add", "README.txt"], cwd=str(repo), check=True)
++    subprocess.run(["git", "commit", "-m", "init"], cwd=str(repo), check=True)
++    subprocess.run(
++        ["git", "remote", "add", "origin", "git@github.com:example/example.git"],
++        cwd=str(repo),
++        check=True,
++    )
++
++
++def _materialize_commands_bundle_from_checkout(*, checkout_root: Path, commands_home: Path) -> None:
++    commands_home.mkdir(parents=True, exist_ok=True)
++    for dirname in ("governance", "governance", "profiles", "scripts", "templates"):
++        src = checkout_root / dirname
++        if src.exists():
++            shutil.copytree(src, commands_home / dirname, dirs_exist_ok=True)
++    for filename in ("master.md", "rules.md", "QUALITY_INDEX.md", "CONFLICT_RESOLUTION.md", "phase_api.yaml"):
++        src = checkout_root / filename
++        if src.exists():
++            shutil.copy2(src, commands_home / filename)
++
++
++def _write_governance_paths(*, config_root: Path, commands_home: Path, workspaces_home: Path) -> None:
++    commands_home.mkdir(parents=True, exist_ok=True)
++    workspaces_home.mkdir(parents=True, exist_ok=True)
++    payload = {
++        "schema": "opencode-governance.paths.v1",
++        "paths": {
++            "configRoot": str(config_root),
++            "commandsHome": str(commands_home),
++            "profilesHome": str(commands_home / "profiles"),
++            "governanceHome": str(commands_home / "governance"),
++            "workspacesHome": str(workspaces_home),
++            "globalErrorLogsHome": str(commands_home / "logs"),
++            "workspaceErrorLogsHomeTemplate": str(workspaces_home / "<repo_fingerprint>" / "logs"),
++            "pythonCommand": sys.executable,
++        },
++        "generatedAt": "1970-01-01T00:00:00Z",
++    }
++    (commands_home / "governance.paths.json").write_text(
++        json.dumps(payload, indent=2),
++        encoding="utf-8",
++    )
++
++
++@pytest.mark.e2e_governance
++def test_cli_contract_requires_repo_root(tmp_path: Path) -> None:
++    checkout_root = Path(__file__).resolve().parents[1]
++    launcher = _bootstrap_launcher(checkout_root)
++    env = dict(os.environ)
++    env["OPENCODE_CONFIG_ROOT"] = str(tmp_path / "config")
++    env["COMMANDS_HOME"] = str(tmp_path / "config" / "commands")
++    env["HOME"] = str(tmp_path / "home")
++    env["USERPROFILE"] = str(tmp_path / "home")
++    proc = _run(launcher, cwd=tmp_path, env=env)
++    assert proc.returncode != 0
++
++
++@pytest.mark.e2e_governance
++def test_cli_contract_rejects_invalid_repo_root(tmp_path: Path) -> None:
++    checkout_root = Path(__file__).resolve().parents[1]
++    launcher = _bootstrap_launcher(checkout_root)
++    env = dict(os.environ)
++    env["OPENCODE_CONFIG_ROOT"] = str(tmp_path / "config")
++    env["COMMANDS_HOME"] = str(tmp_path / "config" / "commands")
++    env["HOME"] = str(tmp_path / "home")
++    env["USERPROFILE"] = str(tmp_path / "home")
++    proc = _run(launcher + ["--repo-root", str(tmp_path / "missing")], cwd=tmp_path, env=env)
++    assert proc.returncode != 0
++
++
++@pytest.mark.e2e_governance
++def test_cli_contract_uses_repo_root_and_config_root(tmp_path: Path) -> None:
++    checkout_root = Path(__file__).resolve().parents[1]
++    launcher = _bootstrap_launcher(checkout_root)
++
++    home = tmp_path / "home"
++    config_root = home / ".config" / "opencode"
++    commands_home = config_root / "commands"
++    workspaces_home = config_root / "workspaces"
++    _materialize_commands_bundle_from_checkout(checkout_root=checkout_root, commands_home=commands_home)
++    _write_governance_paths(config_root=config_root, commands_home=commands_home, workspaces_home=workspaces_home)
++
++    repo = tmp_path / "repo"
++    _git_init_repo(repo)
++
++    env = dict(os.environ)
++    env["HOME"] = str(home)
++    env["USERPROFILE"] = str(home)
++    env["CI"] = ""
++    env["OPENCODE_CONFIG_ROOT"] = str(config_root)
++    env["COMMANDS_HOME"] = str(commands_home)
++    user_site = site.getusersitepackages()
++    if user_site:
++        env["PYTHONPATH"] = os.pathsep.join(
++            [part for part in (user_site, env.get("PYTHONPATH", "")) if part]
++        )
++
++    proc = _run(
++        launcher + ["--repo-root", str(repo), "--config-root", str(config_root)],
++        cwd=repo,
++        env=env,
++    )
++    assert proc.returncode == 0, proc.stdout + "\n" + proc.stderr
++    assert (config_root / "SESSION_STATE.json").exists()
+diff --git a/tests/test_bootstrap_persistence_e2e.py b/tests/test_bootstrap_persistence_e2e.py
+index 501a32f..a1bc47c 100644
+--- a/tests/test_bootstrap_persistence_e2e.py
++++ b/tests/test_bootstrap_persistence_e2e.py
+@@ -39,6 +39,29 @@ def _run(cmd: list[str], *, cwd: Path, env: dict[str, str]) -> subprocess.Comple
+     )
+ 
+ 
++def _bootstrap_launcher(checkout_root: Path) -> list[str]:
++    if os.name == "nt":
++        launcher = checkout_root / "bin" / "opencode-governance-bootstrap.cmd"
++        return ["cmd", "/c", str(launcher)]
++    launcher = checkout_root / "bin" / "opencode-governance-bootstrap"
++    return [str(launcher)]
++
++
++def _read_json_lines(stdout: str) -> list[dict[str, object]]:
++    payloads: list[dict[str, object]] = []
++    for line in stdout.splitlines():
++        token = line.strip()
++        if not token:
++            continue
++        try:
++            payload = json.loads(token)
++        except Exception:
++            continue
++        if isinstance(payload, dict):
++            payloads.append(payload)
++    return payloads
++
++
+ def _assert_no_blocked_gate_failures(log_path: Path) -> None:
+     if not log_path.exists():
+         return
+@@ -137,6 +160,8 @@ def test_bootstrap_preflight_persists_workspace_and_pointer(tmp_path: Path) -> N
+     env["HOME"] = str(home)
+     env["USERPROFILE"] = str(home)
+     env["CI"] = ""
++    env["OPENCODE_CONFIG_ROOT"] = str(config_root)
++    env["COMMANDS_HOME"] = str(commands_home)
+     env.pop("OPENCODE_FORCE_READ_ONLY", None)
+     user_site = site.getusersitepackages()
+     if user_site:
+@@ -144,31 +169,27 @@ def test_bootstrap_preflight_persists_workspace_and_pointer(tmp_path: Path) -> N
+             [part for part in (user_site, env.get("PYTHONPATH", "")) if part]
+         )
+ 
+-    bootstrap_script = commands_home / "governance" / "entrypoints" / "bootstrap_preflight_readonly.py"
+-    proc = _run([sys.executable, str(bootstrap_script)], cwd=repo, env=env)
++    launcher = _bootstrap_launcher(checkout_root)
++    proc = _run(
++        launcher + ["--repo-root", str(repo), "--config-root", str(config_root)],
++        cwd=repo,
++        env=env,
++    )
+     assert proc.returncode == 0, proc.stdout + "\n" + proc.stderr
+ 
+-    lines = [ln.strip() for ln in proc.stdout.splitlines() if ln.strip()]
+-    assert len(lines) >= 3, proc.stdout
+-    payloads = []
+-    for ln in lines:
+-        try:
+-            payloads.append(json.loads(ln))
+-        except Exception:
+-            continue
+-
+-    hook = next((p for p in payloads if isinstance(p, dict) and "workspacePersistenceHook" in p), None)
++    payloads = _read_json_lines(proc.stdout)
++    hook = next((p for p in payloads if "workspacePersistenceHook" in p), None)
+     assert hook is not None, proc.stdout
+     assert hook.get("workspacePersistenceHook") == "ok"
+     hook_command = str(hook.get("bootstrap_hook_command") or "")
+-    if os.name == "nt":
+-        assert " -m governance.entrypoints.bootstrap_persistence_hook" in hook_command
+-        assert Path(hook_command.split(" -m ", 1)[0]).name.lower().startswith("python")
+-    else:
+-        hook_argv = shlex.split(hook_command)
+-        assert len(hook_argv) >= 3
+-        assert hook_argv[0] == sys.executable
+-        assert hook_argv[1:3] == ["-m", "governance.entrypoints.bootstrap_persistence_hook"]
++    if hook_command:
++        if os.name == "nt":
++            assert " -m governance.entrypoints.bootstrap_persistence_hook" in hook_command
++            assert Path(hook_command.split(" -m ", 1)[0]).name.lower().startswith("python")
++        else:
++            hook_argv = shlex.split(hook_command)
++            assert len(hook_argv) >= 3
++            assert hook_argv[1:3] == ["-m", "governance.entrypoints.bootstrap_persistence_hook"]
+     assert hook.get("cwd") == str(repo)
+     assert hook.get("repo_root_detected") == str(repo)
+     repo_fp = str(hook.get("repo_fingerprint") or "").strip()
+@@ -187,6 +208,9 @@ def test_bootstrap_preflight_persists_workspace_and_pointer(tmp_path: Path) -> N
+     assert ss.get("RepoFingerprint") == repo_fp
+     assert ss.get("PersistenceCommitted") is True
+     assert ss.get("WorkspaceReadyGateCommitted") is True
++    assert ss.get("ticket_intake_ready") is True
++    phase_ready = ss.get("phase_ready")
++    assert phase_ready is None or int(phase_ready) >= 4
+     assert ss.get("Phase") != "1.2-ActivationIntent"
+     assert ss.get("Phase") == "4"
+     assert ss.get("LoadedRulebooks", {}).get("core")
+@@ -204,7 +228,7 @@ def test_bootstrap_preflight_persists_workspace_and_pointer(tmp_path: Path) -> N
+     next_gate_condition = str(ss.get("next_gate_condition") or "")
+     assert "/master" not in next_gate_condition.lower()
+ 
+-    continuation_payload = next((p for p in payloads if isinstance(p, dict) and "kernelContinuation" in p), None)
++    continuation_payload = next((p for p in payloads if "kernelContinuation" in p), None)
+     assert continuation_payload is not None, proc.stdout
+     assert continuation_payload.get("kernelContinuation") == "ok"
+     assert continuation_payload.get("auto_continuation") == "route_phase"
+@@ -248,14 +272,20 @@ def test_bootstrap_preflight_blocks_when_force_read_only(tmp_path: Path) -> None
+     env["USERPROFILE"] = str(home)
+     env["CI"] = ""
+     env["OPENCODE_FORCE_READ_ONLY"] = "1"
++    env["OPENCODE_CONFIG_ROOT"] = str(config_root)
++    env["COMMANDS_HOME"] = str(commands_home)
+     user_site = site.getusersitepackages()
+     if user_site:
+         env["PYTHONPATH"] = os.pathsep.join(
+             [part for part in (user_site, env.get("PYTHONPATH", "")) if part]
+         )
+ 
+-    bootstrap_script = commands_home / "governance" / "entrypoints" / "bootstrap_preflight_readonly.py"
+-    proc = _run([sys.executable, str(bootstrap_script)], cwd=repo, env=env)
++    launcher = _bootstrap_launcher(checkout_root)
++    proc = _run(
++        launcher + ["--repo-root", str(repo), "--config-root", str(config_root)],
++        cwd=repo,
++        env=env,
++    )
+     assert proc.returncode != 0
+ 
+     entries = [p for p in workspaces_home.glob("*") if p.is_dir()]
+diff --git a/tests/test_release_gate_ready.py b/tests/test_release_gate_ready.py
+index 427da4c..26983c4 100644
+--- a/tests/test_release_gate_ready.py
++++ b/tests/test_release_gate_ready.py
+@@ -108,9 +108,22 @@ def _materialize_commands_bundle_from_checkout(*, checkout_root: Path, commands_
+             shutil.copy2(src, commands_home / filename)
+ 
+ 
++def _bootstrap_launcher(checkout_root: Path) -> list[str]:
++    if os.name == "nt":
++        launcher = checkout_root / "bin" / "opencode-governance-bootstrap.cmd"
++        return ["cmd", "/c", str(launcher)]
++    launcher = checkout_root / "bin" / "opencode-governance-bootstrap"
++    return [str(launcher)]
++
++
+ def _run_bootstrap(*, repo: Path, config_root: Path, commands_home: Path, workspaces_home: Path, env: dict[str, str]) -> tuple[subprocess.CompletedProcess[str], str | None]:
+-    bootstrap_script = commands_home / "governance" / "entrypoints" / "bootstrap_preflight_readonly.py"
+-    proc = _run([sys.executable, str(bootstrap_script)], cwd=repo, env=env)
++    checkout_root = Path(__file__).resolve().parents[1]
++    launcher = _bootstrap_launcher(checkout_root)
++    proc = _run(
++        launcher + ["--repo-root", str(repo), "--config-root", str(config_root)],
++        cwd=repo,
++        env=env,
++    )
+     
+     repo_fp = None
+     lines = [ln.strip() for ln in proc.stdout.splitlines() if ln.strip()]
+@@ -145,6 +158,8 @@ def isolated_env(tmp_path: Path):
+     env["HOME"] = str(home)
+     env["USERPROFILE"] = str(home)
+     env["CI"] = ""
++    env["OPENCODE_CONFIG_ROOT"] = str(config_root)
++    env["COMMANDS_HOME"] = str(commands_home)
+     env.pop("OPENCODE_FORCE_READ_ONLY", None)
+     user_site = site.getusersitepackages()
+     if user_site:
+@@ -279,6 +294,7 @@ class TestReleaseGateReady:
+         
+         assert ss.get("PersistenceCommitted") is True, "PersistenceCommitted not true"
+         assert ss.get("WorkspaceReadyGateCommitted") is True, "WorkspaceReadyGateCommitted not true"
++        assert ss.get("ticket_intake_ready") is True, "ticket_intake_ready not true"
+ 
+     def test_rg7_global_error_handler_fires_on_failure(self, isolated_env, tmp_path: Path):
+         """RG-7: Global Error Handler writes JSONL on failure."""
+diff --git a/tests/test_session_state_schema.py b/tests/test_session_state_schema.py
+index 28f4c7b..f4367a3 100644
+--- a/tests/test_session_state_schema.py
++++ b/tests/test_session_state_schema.py
+@@ -24,6 +24,7 @@ from governance.engine.session_state_invariants import (
+     validate_p5_approved_architecture_decisions,
+     validate_phase_gate_prerequisites,
+     validate_gate_artifacts_integrity,
++    validate_ticket_intake_ready_invariant,
+     validate_session_state_invariants,
+ )
+ 
+@@ -149,9 +150,22 @@ class TestSchemaValidator:
+             json_schema = json.load(f)
+ 
+         # Compare key structural elements
++        assert isinstance(json_schema, dict)
++        assert isinstance(_HARDCODED_FALLBACK_SCHEMA, dict)
+         assert json_schema["required"] == _HARDCODED_FALLBACK_SCHEMA["required"]
+-        json_props = json_schema["properties"]["SESSION_STATE"]["properties"]
+-        fallback_props = _HARDCODED_FALLBACK_SCHEMA["properties"]["SESSION_STATE"]["properties"]
++        json_properties = json_schema.get("properties")
++        assert isinstance(json_properties, dict)
++        json_root = json_properties["SESSION_STATE"]
++        assert isinstance(json_root, dict)
++        json_props = json_root.get("properties")
++        assert isinstance(json_props, dict)
++        fallback_schema = _HARDCODED_FALLBACK_SCHEMA
++        fallback_properties = fallback_schema.get("properties")
++        assert isinstance(fallback_properties, dict)
++        fallback_root = fallback_properties["SESSION_STATE"]
++        assert isinstance(fallback_root, dict)
++        fallback_props = fallback_root.get("properties")
++        assert isinstance(fallback_props, dict)
+         assert set(json_props.keys()) == set(fallback_props.keys())
+ 
+ 
+@@ -205,6 +219,77 @@ class TestInvariantValidators:
+         state: dict[str, object] = {"ProfileSource": "user-explicit", "Mode": "NORMAL"}
+         assert validate_profile_source_blocked_invariant(state) == ()
+ 
++    def test_ticket_intake_ready_ok(self):
++        state: dict[str, object] = {
++            "Phase": "4",
++            "PersistenceCommitted": True,
++            "WorkspaceReadyGateCommitted": True,
++            "Bootstrap": {"Satisfied": True},
++            "ticket_intake_ready": True,
++            "phase_ready": 4,
++        }
++        assert validate_ticket_intake_ready_invariant(state) == ()
++
++    def test_ticket_intake_ready_blocks_without_bootstrap_satisfied(self):
++        state: dict[str, object] = {
++            "Phase": "4",
++            "PersistenceCommitted": True,
++            "WorkspaceReadyGateCommitted": True,
++            "Bootstrap": {"Satisfied": False},
++            "ticket_intake_ready": True,
++        }
++        errors = validate_ticket_intake_ready_invariant(state)
++        assert "ticket_intake_ready_without_bootstrap_satisfied" in errors
++
++    def test_ticket_intake_ready_blocks_without_persistence_committed(self):
++        state: dict[str, object] = {
++            "Phase": "4",
++            "PersistenceCommitted": False,
++            "WorkspaceReadyGateCommitted": True,
++            "Bootstrap": {"Satisfied": True},
++            "ticket_intake_ready": True,
++        }
++        errors = validate_ticket_intake_ready_invariant(state)
++        assert "ticket_intake_ready_without_persistence_committed" in errors
++
++    def test_ticket_intake_ready_blocks_without_workspace_ready_gate(self):
++        state: dict[str, object] = {
++            "Phase": "4",
++            "PersistenceCommitted": True,
++            "WorkspaceReadyGateCommitted": False,
++            "Bootstrap": {"Satisfied": True},
++            "ticket_intake_ready": True,
++        }
++        errors = validate_ticket_intake_ready_invariant(state)
++        assert "ticket_intake_ready_without_workspace_ready_gate" in errors
++
++    def test_ticket_intake_ready_blocks_below_phase_4(self):
++        state: dict[str, object] = {
++            "Phase": "3A",
++            "PersistenceCommitted": True,
++            "WorkspaceReadyGateCommitted": True,
++            "Bootstrap": {"Satisfied": True},
++            "ticket_intake_ready": True,
++        }
++        errors = validate_ticket_intake_ready_invariant(state)
++        assert "ticket_intake_ready_below_phase_4" in errors
++
++    def test_ticket_intake_ready_blocks_phase_ready_below_4(self):
++        state: dict[str, object] = {
++            "Phase": "4",
++            "PersistenceCommitted": True,
++            "WorkspaceReadyGateCommitted": True,
++            "Bootstrap": {"Satisfied": True},
++            "ticket_intake_ready": True,
++            "phase_ready": 3,
++        }
++        errors = validate_ticket_intake_ready_invariant(state)
++        assert "ticket_intake_ready_phase_ready_below_4" in errors
++
++    def test_ticket_intake_ready_false_skips_checks(self):
++        state: dict[str, object] = {"ticket_intake_ready": False}
++        assert validate_ticket_intake_ready_invariant(state) == ()
++
+     def test_reason_payloads_present_ok(self):
+         state: dict[str, object] = {
+             "Mode": "BLOCKED",
+-- 
+2.53.0.windows.1
+
+
+From 803152517f72b6f940a46283fbbcf5ef1a276dfd Mon Sep 17 00:00:00 2001
+From: Benjamin Fuchs <benjamin.fuchs@adorsys.com>
+Date: Fri, 27 Feb 2026 12:41:47 +0100
+Subject: [PATCH 3/3] chore: archive internal docs and tighten release
+ packaging
+
+---
+ CHANGELOG.md                                  | 12 ++--
+ README-OPENCODE.md                            |  4 +-
+ README-RULES.md                               |  4 +-
+ SESSION_STATE_SCHEMA.md                       |  2 +-
+ docs/_archive/.gitkeep                        |  0
+ docs/{ => _archive}/BINDING_MIGRATION_MAP.md  |  0
+ docs/{ => _archive}/BOOTSTRAP_MIGRATION.md    |  0
+ docs/{ => _archive}/CLEANUP_ANALYSIS.md       |  0
+ .../CRITICAL_REQUIREMENTS_STATUS.md           |  0
+ .../PRODUCT_READINESS_GAP_ANALYSIS.md         |  0
+ .../governance-engine-rework-plan.md          |  0
+ .../governance-evidence-backfeed-claims.md    |  0
+ .../governance-pipeline-roles-template.md     |  0
+ .../governance-rework-gap-closure.md          |  0
+ .../governance-rollout-phase1-dualread.md     |  0
+ .../governance-rollout-phase2-engine-only.md  |  0
+ ...overnance-rollout-phase3-legacy-removed.md |  0
+ .../governance-template-blueprints.md         |  2 +-
+ .../governance-workflow-template-factory.md   |  0
+ .../MASTER_SECTION_CLASSIFICATION.md          |  0
+ .../governance/RAILS_REFACTOR_MAPPING.md      |  4 +-
+ .../governance/RESPONSIBILITY_BOUNDARY.md     |  0
+ .../{ => _archive}/governance/audit_report.md |  0
+ docs/{ => _archive}/governance/diff_plan.md   |  0
+ .../governance/kernel_owned_passages_audit.md |  0
+ .../governance/phase_core_map.md              |  0
+ .../governance/rails/failure_handling.md      |  0
+ .../governance/rails/implementation.md        |  0
+ .../governance/rails/planning.md              |  0
+ .../governance/rails/pr_review.md             |  0
+ .../governance/rails/testing.md               |  0
+ .../governance/validation_report.md           |  0
+ new_addon.md => docs/_archive/new_addon.md    |  0
+ .../_archive/new_profile.md                   |  0
+ resume.md => docs/_archive/resume.md          |  0
+ .../_archive/resume_prompt.md                 |  0
+ docs/benchmarks.md                            |  2 +-
+ docs/governance-customer-scripts.md           |  4 +-
+ docs/install-layout.md                        |  2 +-
+ .../catalogs/CUSTOMER_MARKDOWN_EXCLUDE.json   | 28 ++++----
+ .../catalogs/REASON_REMEDIATION_MAP.json      |  2 +-
+ .../catalogs/governance_lint_report.json      |  7 --
+ install.py                                    |  6 +-
+ master.md                                     | 18 ++---
+ rules.md                                      |  4 +-
+ scripts/build.py                              |  2 +-
+ scripts/governance_lint.py                    | 16 ++---
+ tests/test_docs_consistency.py                |  4 +-
+ tests/test_installer_flow.py                  |  4 +-
+ tests/test_md_lint_gate.py                    |  8 +--
+ tests/test_md_rails_tripwire.py               |  8 +--
+ tests/test_validate_governance.py             | 71 ++++---------------
+ 52 files changed, 82 insertions(+), 132 deletions(-)
+ create mode 100644 docs/_archive/.gitkeep
+ rename docs/{ => _archive}/BINDING_MIGRATION_MAP.md (100%)
+ rename docs/{ => _archive}/BOOTSTRAP_MIGRATION.md (100%)
+ rename docs/{ => _archive}/CLEANUP_ANALYSIS.md (100%)
+ rename docs/{ => _archive}/CRITICAL_REQUIREMENTS_STATUS.md (100%)
+ rename docs/{ => _archive}/PRODUCT_READINESS_GAP_ANALYSIS.md (100%)
+ rename docs/{ => _archive}/governance-engine-rework-plan.md (100%)
+ rename docs/{ => _archive}/governance-evidence-backfeed-claims.md (100%)
+ rename docs/{ => _archive}/governance-pipeline-roles-template.md (100%)
+ rename docs/{ => _archive}/governance-rework-gap-closure.md (100%)
+ rename docs/{ => _archive}/governance-rollout-phase1-dualread.md (100%)
+ rename docs/{ => _archive}/governance-rollout-phase2-engine-only.md (100%)
+ rename docs/{ => _archive}/governance-rollout-phase3-legacy-removed.md (100%)
+ rename docs/{ => _archive}/governance-template-blueprints.md (97%)
+ rename docs/{ => _archive}/governance-workflow-template-factory.md (100%)
+ rename docs/{ => _archive}/governance/MASTER_SECTION_CLASSIFICATION.md (100%)
+ rename docs/{ => _archive}/governance/RAILS_REFACTOR_MAPPING.md (92%)
+ rename docs/{ => _archive}/governance/RESPONSIBILITY_BOUNDARY.md (100%)
+ rename docs/{ => _archive}/governance/audit_report.md (100%)
+ rename docs/{ => _archive}/governance/diff_plan.md (100%)
+ rename docs/{ => _archive}/governance/kernel_owned_passages_audit.md (100%)
+ rename docs/{ => _archive}/governance/phase_core_map.md (100%)
+ rename docs/{ => _archive}/governance/rails/failure_handling.md (100%)
+ rename docs/{ => _archive}/governance/rails/implementation.md (100%)
+ rename docs/{ => _archive}/governance/rails/planning.md (100%)
+ rename docs/{ => _archive}/governance/rails/pr_review.md (100%)
+ rename docs/{ => _archive}/governance/rails/testing.md (100%)
+ rename docs/{ => _archive}/governance/validation_report.md (100%)
+ rename new_addon.md => docs/_archive/new_addon.md (100%)
+ rename new_profile.md => docs/_archive/new_profile.md (100%)
+ rename resume.md => docs/_archive/resume.md (100%)
+ rename resume_prompt.md => docs/_archive/resume_prompt.md (100%)
+ delete mode 100644 governance/assets/catalogs/governance_lint_report.json
+
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 5254ab5..9821036 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -38,8 +38,8 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
+   - `templates/github-actions/governance-pr-gate-shadow-live-verify.yml`
+   - `templates/github-actions/governance-ruleset-release.yml`
+   - `templates/github-actions/governance-golden-output-stability.yml`
+-  - `docs/governance-template-blueprints.md`
+-  - `docs/governance-pipeline-roles-template.md`
++- `docs/_archive/governance-template-blueprints.md`
++- `docs/_archive/governance-pipeline-roles-template.md`
+ - Refresh `README.md` operational guidance to use the local bootstrap launcher as primary workflow entrypoint and update shipped artifact/directory mapping for current releases.
+ - Add deterministic SESSION_STATE migration tool `scripts/migrate_session_state.py` with first-write `.backup` behavior and machine-readable exit codes (`0=ok`, `2=blocked`).
+ - Add two-layer render modules under `governance/render/` (`intent_router.py`, `delta_renderer.py`, `token_guard.py`, `render_contract.py`) for compact default output and deterministic detail expansion.
+@@ -58,8 +58,8 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
+   - `Principal Hardening v2.1 - Standard Risk Tiering`
+   - `Principal Hardening v2.1.1 - Scorecard Calibration`
+ - Add governance factory commands for principal-grade extension work:
+-  - `new_profile.md` for generating new profile rulebooks
+-  - `new_addon.md` for generating addon rulebook + manifest pairs
++- `docs/_archive/new_profile.md` for generating new profile rulebooks
++- `docs/_archive/new_addon.md` for generating addon rulebook + manifest pairs
+ - Add governance contract `governance/PROFILE_ADDON_FACTORY_CONTRACT.json` to standardize factory output requirements.
+ - Add governance recovery helper `governance/bootstrap_session_state.py` to initialize repo-scoped `${SESSION_STATE_FILE}` plus global `${SESSION_STATE_POINTER_FILE}` when session state is missing.
+ - Add governance helper `governance/persist_workspace_artifacts.py` to backfill missing repo-scoped persistence artifacts (`repo-cache.yaml`, `repo-map-digest.md`, `decision-pack.md`, `workspace-memory.yaml`).
+@@ -70,7 +70,7 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
+   - `rules.risk-tiering.md`
+   - `rules.scorecard-calibration.md`
+   - manifests: `principalExcellence`, `riskTiering`, `scorecardCalibration`
+-- Update factory contracts (`new_profile.md`, `new_addon.md`, `PROFILE_ADDON_FACTORY_CONTRACT.json`) for shared-contract modularization defaults.
++- Update factory contracts (`docs/_archive/new_profile.md`, `docs/_archive/new_addon.md`, `PROFILE_ADDON_FACTORY_CONTRACT.json`) for shared-contract modularization defaults.
+ 
+ ### Changed
+ - Harden mode-policy orchestration: widening constraints now require explicit approval semantics and emit deterministic precedence events with hash refs.
+@@ -123,7 +123,7 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
+ - Add Architect-only Autopilot lifecycle contract (bootstrap -> `/master` -> `Implement now` -> `Ingest evidence`) with explicit output-mode enum (`ARCHITECT|IMPLEMENT|VERIFY`) and fail-closed `/master` start-order gate (`BLOCKED-START-REQUIRED`).
+ - Tighten `start.md` evidence boundaries: missing installer-owned `governance.paths.json` now yields explicit blocked fallback semantics (`BLOCKED-MISSING-BINDING-FILE`) and marks computed path payloads as non-evidence debug output.
+ - Clarify `start.md` auto-persistence identity semantics so helper output is operational status only and cannot be treated as canonical repo identity evidence.
+-- Align governance factory contracts (`new_addon.md`, `new_profile.md`, `PROFILE_ADDON_FACTORY_CONTRACT.json`) with current canonical runtime policy: required surface ownership fields, capability-first manifest guidance, preferred profile filename pattern (`rules_<profile_key>.md`), canonical SESSION_STATE evidence paths, and clarified tracking/audit semantics.
++- Align governance factory contracts (`docs/_archive/new_addon.md`, `docs/_archive/new_profile.md`, `PROFILE_ADDON_FACTORY_CONTRACT.json`) with current canonical runtime policy: required surface ownership fields, capability-first manifest guidance, preferred profile filename pattern (`rules_<profile_key>.md`), canonical SESSION_STATE evidence paths, and clarified tracking/audit semantics.
+ - Clarify governance reason-key boundaries: `/audit` `BR_*` keys are audit-only (not canonical `reason_code` values) unless explicitly mapped to `BLOCKED-*|WARN-*|NOT_VERIFIED-*` codes.
+ - Harden precedence drift detection with context-sensitive guards for numbered lists near precedence/priority/resolution language, preventing legacy shortened precedence variants from slipping through.
+ - Tighten capability signal-mapping checks to require concrete `signals.any` + non-empty entries (instead of broad indentation heuristics) for capability coverage validation.
+diff --git a/README-OPENCODE.md b/README-OPENCODE.md
+index e2fc092..0662c1b 100644
+--- a/README-OPENCODE.md
++++ b/README-OPENCODE.md
+@@ -88,8 +88,8 @@ Profiles and addons are loaded from `profiles/` with deterministic precedence fr
+ 
+ Factory generation entrypoints:
+ 
+-- `new_profile.md`
+-- `new_addon.md`
++- `docs/_archive/new_profile.md`
++- `docs/_archive/new_addon.md`
+ 
+ Conformance reference for generated artifacts:
+ 
+diff --git a/README-RULES.md b/README-RULES.md
+index 26a930a..1e784ad 100644
+--- a/README-RULES.md
++++ b/README-RULES.md
+@@ -10,8 +10,8 @@ It does not define independent runtime behavior.
+ - Runtime phase spec: `${COMMANDS_HOME}/phase_api.yaml`
+ - Core technical rulebook: `rules.md`
+ - Session-state schema: `SESSION_STATE_SCHEMA.md`
+-- Responsibility boundary: `docs/governance/RESPONSIBILITY_BOUNDARY.md`
+-- Rails refactor mapping: `docs/governance/RAILS_REFACTOR_MAPPING.md`
++- Responsibility boundary: `docs/_archive/governance/RESPONSIBILITY_BOUNDARY.md`
++- Rails refactor mapping: `docs/_archive/governance/RAILS_REFACTOR_MAPPING.md`
+ 
+ ## Audience
+ 
+diff --git a/SESSION_STATE_SCHEMA.md b/SESSION_STATE_SCHEMA.md
+index c10e689..09848b2 100644
+--- a/SESSION_STATE_SCHEMA.md
++++ b/SESSION_STATE_SCHEMA.md
+@@ -1,6 +1,6 @@
+ # SESSION_STATE_SCHEMA.md (Canonical Contract)
+ 
+-This document defines the **canonical SESSION_STATE contract** used by `master.md`, `continue.md`, and `resume.md`.
++This document defines the **canonical SESSION_STATE contract** used by `master.md`, `continue.md`, and `docs/_archive/resume.md`.
+ It exists to prevent **session state drift** across models and sessions and to make gates **enforceable**.
+ 
+ Normative language (MUST / SHOULD / MAY) is binding.
+diff --git a/docs/_archive/.gitkeep b/docs/_archive/.gitkeep
+new file mode 100644
+index 0000000..e69de29
+diff --git a/docs/BINDING_MIGRATION_MAP.md b/docs/_archive/BINDING_MIGRATION_MAP.md
+similarity index 100%
+rename from docs/BINDING_MIGRATION_MAP.md
+rename to docs/_archive/BINDING_MIGRATION_MAP.md
+diff --git a/docs/BOOTSTRAP_MIGRATION.md b/docs/_archive/BOOTSTRAP_MIGRATION.md
+similarity index 100%
+rename from docs/BOOTSTRAP_MIGRATION.md
+rename to docs/_archive/BOOTSTRAP_MIGRATION.md
+diff --git a/docs/CLEANUP_ANALYSIS.md b/docs/_archive/CLEANUP_ANALYSIS.md
+similarity index 100%
+rename from docs/CLEANUP_ANALYSIS.md
+rename to docs/_archive/CLEANUP_ANALYSIS.md
+diff --git a/docs/CRITICAL_REQUIREMENTS_STATUS.md b/docs/_archive/CRITICAL_REQUIREMENTS_STATUS.md
+similarity index 100%
+rename from docs/CRITICAL_REQUIREMENTS_STATUS.md
+rename to docs/_archive/CRITICAL_REQUIREMENTS_STATUS.md
+diff --git a/docs/PRODUCT_READINESS_GAP_ANALYSIS.md b/docs/_archive/PRODUCT_READINESS_GAP_ANALYSIS.md
+similarity index 100%
+rename from docs/PRODUCT_READINESS_GAP_ANALYSIS.md
+rename to docs/_archive/PRODUCT_READINESS_GAP_ANALYSIS.md
+diff --git a/docs/governance-engine-rework-plan.md b/docs/_archive/governance-engine-rework-plan.md
+similarity index 100%
+rename from docs/governance-engine-rework-plan.md
+rename to docs/_archive/governance-engine-rework-plan.md
+diff --git a/docs/governance-evidence-backfeed-claims.md b/docs/_archive/governance-evidence-backfeed-claims.md
+similarity index 100%
+rename from docs/governance-evidence-backfeed-claims.md
+rename to docs/_archive/governance-evidence-backfeed-claims.md
+diff --git a/docs/governance-pipeline-roles-template.md b/docs/_archive/governance-pipeline-roles-template.md
+similarity index 100%
+rename from docs/governance-pipeline-roles-template.md
+rename to docs/_archive/governance-pipeline-roles-template.md
+diff --git a/docs/governance-rework-gap-closure.md b/docs/_archive/governance-rework-gap-closure.md
+similarity index 100%
+rename from docs/governance-rework-gap-closure.md
+rename to docs/_archive/governance-rework-gap-closure.md
+diff --git a/docs/governance-rollout-phase1-dualread.md b/docs/_archive/governance-rollout-phase1-dualread.md
+similarity index 100%
+rename from docs/governance-rollout-phase1-dualread.md
+rename to docs/_archive/governance-rollout-phase1-dualread.md
+diff --git a/docs/governance-rollout-phase2-engine-only.md b/docs/_archive/governance-rollout-phase2-engine-only.md
+similarity index 100%
+rename from docs/governance-rollout-phase2-engine-only.md
+rename to docs/_archive/governance-rollout-phase2-engine-only.md
+diff --git a/docs/governance-rollout-phase3-legacy-removed.md b/docs/_archive/governance-rollout-phase3-legacy-removed.md
+similarity index 100%
+rename from docs/governance-rollout-phase3-legacy-removed.md
+rename to docs/_archive/governance-rollout-phase3-legacy-removed.md
+diff --git a/docs/governance-template-blueprints.md b/docs/_archive/governance-template-blueprints.md
+similarity index 97%
+rename from docs/governance-template-blueprints.md
+rename to docs/_archive/governance-template-blueprints.md
+index 8c8a6bd..084e867 100644
+--- a/docs/governance-template-blueprints.md
++++ b/docs/_archive/governance-template-blueprints.md
+@@ -42,5 +42,5 @@ This document maps production-ready workflow templates to governance goals.
+ - Catalog all templates in `templates/github-actions/template_catalog.json`.
+ - Validate catalog/file consistency with `${PYTHON_COMMAND} scripts/workflow_template_factory.py`.
+ - Scaffold new templates from approved archetypes with `${PYTHON_COMMAND} scripts/workflow_template_factory.py scaffold ...`.
+-- Full runbook: `docs/governance-workflow-template-factory.md`.
++- Full runbook: `docs/_archive/governance-workflow-template-factory.md`.
+ - Customer script catalog for shipped helper CLIs: `docs/governance-customer-scripts.md`.
+diff --git a/docs/governance-workflow-template-factory.md b/docs/_archive/governance-workflow-template-factory.md
+similarity index 100%
+rename from docs/governance-workflow-template-factory.md
+rename to docs/_archive/governance-workflow-template-factory.md
+diff --git a/docs/governance/MASTER_SECTION_CLASSIFICATION.md b/docs/_archive/governance/MASTER_SECTION_CLASSIFICATION.md
+similarity index 100%
+rename from docs/governance/MASTER_SECTION_CLASSIFICATION.md
+rename to docs/_archive/governance/MASTER_SECTION_CLASSIFICATION.md
+diff --git a/docs/governance/RAILS_REFACTOR_MAPPING.md b/docs/_archive/governance/RAILS_REFACTOR_MAPPING.md
+similarity index 92%
+rename from docs/governance/RAILS_REFACTOR_MAPPING.md
+rename to docs/_archive/governance/RAILS_REFACTOR_MAPPING.md
+index 4a7a469..a020b46 100644
+--- a/docs/governance/RAILS_REFACTOR_MAPPING.md
++++ b/docs/_archive/governance/RAILS_REFACTOR_MAPPING.md
+@@ -28,6 +28,6 @@
+ | `start.md` | central-core | start-facing guidance, kernel references |
+ | `SESSION_STATE_SCHEMA.md` | schema-adjacent-doc | data contract documentation |
+ | `continue.md` | guidance-only | no runtime authority |
+-| `resume.md` | guidance-only | resume behavior guidance only |
+-| `resume_prompt.md` | guidance-only | controlled resume prompt template |
++| `docs/_archive/resume.md` | guidance-only | resume behavior guidance only |
++| `docs/_archive/resume_prompt.md` | guidance-only | controlled resume prompt template |
+ | `README-RULES.md` | descriptive-map | non-normative authority map |
+diff --git a/docs/governance/RESPONSIBILITY_BOUNDARY.md b/docs/_archive/governance/RESPONSIBILITY_BOUNDARY.md
+similarity index 100%
+rename from docs/governance/RESPONSIBILITY_BOUNDARY.md
+rename to docs/_archive/governance/RESPONSIBILITY_BOUNDARY.md
+diff --git a/docs/governance/audit_report.md b/docs/_archive/governance/audit_report.md
+similarity index 100%
+rename from docs/governance/audit_report.md
+rename to docs/_archive/governance/audit_report.md
+diff --git a/docs/governance/diff_plan.md b/docs/_archive/governance/diff_plan.md
+similarity index 100%
+rename from docs/governance/diff_plan.md
+rename to docs/_archive/governance/diff_plan.md
+diff --git a/docs/governance/kernel_owned_passages_audit.md b/docs/_archive/governance/kernel_owned_passages_audit.md
+similarity index 100%
+rename from docs/governance/kernel_owned_passages_audit.md
+rename to docs/_archive/governance/kernel_owned_passages_audit.md
+diff --git a/docs/governance/phase_core_map.md b/docs/_archive/governance/phase_core_map.md
+similarity index 100%
+rename from docs/governance/phase_core_map.md
+rename to docs/_archive/governance/phase_core_map.md
+diff --git a/docs/governance/rails/failure_handling.md b/docs/_archive/governance/rails/failure_handling.md
+similarity index 100%
+rename from docs/governance/rails/failure_handling.md
+rename to docs/_archive/governance/rails/failure_handling.md
+diff --git a/docs/governance/rails/implementation.md b/docs/_archive/governance/rails/implementation.md
+similarity index 100%
+rename from docs/governance/rails/implementation.md
+rename to docs/_archive/governance/rails/implementation.md
+diff --git a/docs/governance/rails/planning.md b/docs/_archive/governance/rails/planning.md
+similarity index 100%
+rename from docs/governance/rails/planning.md
+rename to docs/_archive/governance/rails/planning.md
+diff --git a/docs/governance/rails/pr_review.md b/docs/_archive/governance/rails/pr_review.md
+similarity index 100%
+rename from docs/governance/rails/pr_review.md
+rename to docs/_archive/governance/rails/pr_review.md
+diff --git a/docs/governance/rails/testing.md b/docs/_archive/governance/rails/testing.md
+similarity index 100%
+rename from docs/governance/rails/testing.md
+rename to docs/_archive/governance/rails/testing.md
+diff --git a/docs/governance/validation_report.md b/docs/_archive/governance/validation_report.md
+similarity index 100%
+rename from docs/governance/validation_report.md
+rename to docs/_archive/governance/validation_report.md
+diff --git a/new_addon.md b/docs/_archive/new_addon.md
+similarity index 100%
+rename from new_addon.md
+rename to docs/_archive/new_addon.md
+diff --git a/new_profile.md b/docs/_archive/new_profile.md
+similarity index 100%
+rename from new_profile.md
+rename to docs/_archive/new_profile.md
+diff --git a/resume.md b/docs/_archive/resume.md
+similarity index 100%
+rename from resume.md
+rename to docs/_archive/resume.md
+diff --git a/resume_prompt.md b/docs/_archive/resume_prompt.md
+similarity index 100%
+rename from resume_prompt.md
+rename to docs/_archive/resume_prompt.md
+diff --git a/docs/benchmarks.md b/docs/benchmarks.md
+index dd42bdf..41cc467 100644
+--- a/docs/benchmarks.md
++++ b/docs/benchmarks.md
+@@ -27,4 +27,4 @@ Running the helper alone does not imply `PASS`; required evidence artifacts must
+ 
+ - Python benchmark runbook: [`python-quality-benchmark-pack.md`](python-quality-benchmark-pack.md)
+ - Benchmark pack matrix: [`quality-benchmark-pack-matrix.md`](quality-benchmark-pack-matrix.md)
+-- Pipeline role template: [`governance-pipeline-roles-template.md`](governance-pipeline-roles-template.md)
++- Pipeline role template: [`_archive/governance-pipeline-roles-template.md`](_archive/governance-pipeline-roles-template.md)
+diff --git a/docs/governance-customer-scripts.md b/docs/governance-customer-scripts.md
+index c50cdfc..759a448 100644
+--- a/docs/governance-customer-scripts.md
++++ b/docs/governance-customer-scripts.md
+@@ -40,8 +40,8 @@ Validation is fail-closed and enforced by `${PYTHON_COMMAND} scripts/governance_
+ 
+ In addition to the CLI scripts, OpenCode provides Markdown templates for creating new rulebooks and addons interactively:
+ 
+-- `new_profile.md` — OpenCode template for creating a new profile rulebook (`profiles/rules_<profile>.md`)
+-- `new_addon.md` — OpenCode template for creating a new addon rulebook + manifest pair (`profiles/rules_<addon>.md`, `profiles/addons/<addon_key>.addon.yml`)
++- `docs/_archive/new_profile.md` — OpenCode template for creating a new profile rulebook (`profiles/rules_<profile>.md`)
++- `docs/_archive/new_addon.md` — OpenCode template for creating a new addon rulebook + manifest pair (`profiles/rules_<addon>.md`, `profiles/addons/<addon_key>.addon.yml`)
+ 
+ Run `/new_profile` or `/new_addon` in an OpenCode session to invoke these templates.
+ 
+diff --git a/docs/install-layout.md b/docs/install-layout.md
+index 0c98436..2191954 100644
+--- a/docs/install-layout.md
++++ b/docs/install-layout.md
+@@ -34,7 +34,7 @@ ${COMMANDS_HOME}/
+   rules.md
+   BOOTSTRAP.md
+   continue.md
+-  resume.md
++  docs/_archive/resume.md
+   README.md
+   README-RULES.md
+   README-OPENCODE.md
+diff --git a/governance/assets/catalogs/CUSTOMER_MARKDOWN_EXCLUDE.json b/governance/assets/catalogs/CUSTOMER_MARKDOWN_EXCLUDE.json
+index 1cf54d7..79131e1 100644
+--- a/governance/assets/catalogs/CUSTOMER_MARKDOWN_EXCLUDE.json
++++ b/governance/assets/catalogs/CUSTOMER_MARKDOWN_EXCLUDE.json
+@@ -2,25 +2,25 @@
+   "schema": "governance.customer-markdown-exclude.v1",
+   "catalog_version": 1,
+   "release_excluded_markdown": [
+-    "docs/BINDING_MIGRATION_MAP.md",
+-    "docs/BOOTSTRAP_MIGRATION.md",
+-    "docs/CLEANUP_ANALYSIS.md",
+-    "docs/CRITICAL_REQUIREMENTS_STATUS.md",
++    "docs/_archive/BINDING_MIGRATION_MAP.md",
++    "docs/_archive/BOOTSTRAP_MIGRATION.md",
++    "docs/_archive/CLEANUP_ANALYSIS.md",
++    "docs/_archive/CRITICAL_REQUIREMENTS_STATUS.md",
+     "docs/MD_PYTHON_POLICY.md",
+     "docs/MD_VIOLATION_ANALYSIS.md",
+     "docs/MODEL_IDENTITY_RESOLUTION.md",
+-    "docs/PRODUCT_READINESS_GAP_ANALYSIS.md",
++    "docs/_archive/PRODUCT_READINESS_GAP_ANALYSIS.md",
+     "docs/TERMINOLOGY_CLASSIFICATION.md",
+     "docs/governance-customer-scripts.md",
+-    "docs/governance-engine-rework-plan.md",
+-    "docs/governance-evidence-backfeed-claims.md",
+-    "docs/governance-pipeline-roles-template.md",
+-    "docs/governance-rework-gap-closure.md",
+-    "docs/governance-rollout-phase1-dualread.md",
+-    "docs/governance-rollout-phase2-engine-only.md",
+-    "docs/governance-rollout-phase3-legacy-removed.md",
+-    "docs/governance-template-blueprints.md",
+-    "docs/governance-workflow-template-factory.md"
++    "docs/_archive/governance-engine-rework-plan.md",
++    "docs/_archive/governance-evidence-backfeed-claims.md",
++    "docs/_archive/governance-pipeline-roles-template.md",
++    "docs/_archive/governance-rework-gap-closure.md",
++    "docs/_archive/governance-rollout-phase1-dualread.md",
++    "docs/_archive/governance-rollout-phase2-engine-only.md",
++    "docs/_archive/governance-rollout-phase3-legacy-removed.md",
++    "docs/_archive/governance-template-blueprints.md",
++    "docs/_archive/governance-workflow-template-factory.md"
+   ],
+   "notes": "Files listed here are intentionally excluded from customer release archives."
+ }
+diff --git a/governance/assets/catalogs/REASON_REMEDIATION_MAP.json b/governance/assets/catalogs/REASON_REMEDIATION_MAP.json
+index 111a91f..09ec763 100644
+--- a/governance/assets/catalogs/REASON_REMEDIATION_MAP.json
++++ b/governance/assets/catalogs/REASON_REMEDIATION_MAP.json
+@@ -37,7 +37,7 @@
+       "summary": "Addon surface ownership conflict",
+       "how_to_fix": "Two activated addons claim ownership of the same surface. Review addon manifests and ensure owns_surfaces is unique per surface.",
+       "copy_paste_command": null,
+-      "docs_link": "new_addon.md#surface-ownership"
++      "docs_link": "docs/_archive/new_addon.md#surface-ownership"
+     },
+     "BLOCKED-VARIABLE-RESOLUTION": {
+       "summary": "Path variable resolution failed",
+diff --git a/governance/assets/catalogs/governance_lint_report.json b/governance/assets/catalogs/governance_lint_report.json
+deleted file mode 100644
+index a2b97c3..0000000
+--- a/governance/assets/catalogs/governance_lint_report.json
++++ /dev/null
+@@ -1,7 +0,0 @@
+-{
+-  "schema": "governance.lint-report.v1",
+-  "timestamp": "2026-02-23T11:50:49+00:00",
+-  "status": "PASS",
+-  "issue_count": 0,
+-  "issues": []
+-}
+diff --git a/install.py b/install.py
+index 9ba462d..8e91472 100644
+--- a/install.py
++++ b/install.py
+@@ -126,8 +126,10 @@ CORE_COMMAND_FILES = {
+     "rules.md",
+     "BOOTSTRAP.md",
+     "continue.md",
+-    "resume.md",
+-    "resume_prompt.md",
++    "docs/_archive/resume.md",
++    "docs/_archive/resume_prompt.md",
++    "docs/_archive/new_profile.md",
++    "docs/_archive/new_addon.md",
+     "QUALITY_INDEX.md",
+     "CONFLICT_RESOLUTION.md",
+     "SCOPE-AND-CONTEXT.md",
+diff --git a/master.md b/master.md
+index 8060cfd..a53f33c 100644
+--- a/master.md
++++ b/master.md
+@@ -1123,9 +1123,9 @@ Runtime routing, transitions, and stop conditions are defined by kernel/config c
+ 
+ Detailed operational start behavior is documented as non-binding guidance in:
+ - `BOOTSTRAP.md` (operator-facing bootstrap guide)
+-- `docs/governance/RESPONSIBILITY_BOUNDARY.md` (binding vs guidance boundary)
+-- `docs/governance/rails/planning.md` (workflow planning guidance)
+-- `docs/governance/MASTER_SECTION_CLASSIFICATION.md` (master section class mapping)
++- `docs/_archive/governance/RESPONSIBILITY_BOUNDARY.md` (binding vs guidance boundary)
++- `docs/_archive/governance/rails/planning.md` (workflow planning guidance)
++- `docs/_archive/governance/MASTER_SECTION_CLASSIFICATION.md` (master section class mapping)
+ 
+ ### 2.4.1 Session Start Mode Banner (Kernel-Enforced)
+ 
+@@ -1157,14 +1157,14 @@ Execution mode enum (binding):
+ 
+ Detailed lifecycle routing and mode transition behavior is maintained outside `master.md`:
+ - Kernel/config contracts for binding behavior
+-- `docs/governance/rails/implementation.md` and `docs/governance/rails/failure_handling.md` for non-binding guidance
++- `docs/_archive/governance/rails/implementation.md` and `docs/_archive/governance/rails/failure_handling.md` for non-binding guidance
+ 
+ Thematic rails (non-binding) are split into:
+-- `docs/governance/rails/planning.md`
+-- `docs/governance/rails/implementation.md`
+-- `docs/governance/rails/testing.md`
+-- `docs/governance/rails/pr_review.md`
+-- `docs/governance/rails/failure_handling.md`
++- `docs/_archive/governance/rails/planning.md`
++- `docs/_archive/governance/rails/implementation.md`
++- `docs/_archive/governance/rails/testing.md`
++- `docs/_archive/governance/rails/pr_review.md`
++- `docs/_archive/governance/rails/failure_handling.md`
+ 
+ ### 2.5 Default Decision Policies (DDP) — Reduce Cognitive Load (Policy)
+ 
+diff --git a/rules.md b/rules.md
+index 870ae48..ebf058d 100644
+--- a/rules.md
++++ b/rules.md
+@@ -735,7 +735,7 @@ Compat fallback (binding):
+ 
+ ### 7.3.3 Cold/Warm Start Banner (Presentation Advisory)
+ 
+-Canonical ownership boundary: `docs/governance/RESPONSIBILITY_BOUNDARY.md`.
++Canonical ownership boundary: `docs/_archive/governance/RESPONSIBILITY_BOUNDARY.md`.
+ 
+ At session start, output MUST include exactly one banner variant:
+ - `[START-MODE] Cold Start - reason: <one concise reason>`
+@@ -793,7 +793,7 @@ Command coherence rules remain mandatory (see 7.3.2).
+ 
+ This section is non-binding presentation guidance.
+ Kernel-owned routing, transition rules, and execution decisions are defined in kernel/config contracts.
+-Canonical boundary reference: `docs/governance/RESPONSIBILITY_BOUNDARY.md`.
++Canonical boundary reference: `docs/_archive/governance/RESPONSIBILITY_BOUNDARY.md`.
+ 
+ Canonical operator lifecycle:
+ 1) local bootstrap launcher
+diff --git a/scripts/build.py b/scripts/build.py
+index f3b17b8..7d29d76 100644
+--- a/scripts/build.py
++++ b/scripts/build.py
+@@ -367,7 +367,7 @@ def _should_include_file(
+     if rel.startswith("docs/"):
+         return rel in CUSTOMER_DOCS_ALLOWLIST
+     if p.suffix.lower() in {".md", ".json"}:
+-        return True
++        return rel in CUSTOMER_DOCS_ALLOWLIST
+     return False
+ 
+ 
+diff --git a/scripts/governance_lint.py b/scripts/governance_lint.py
+index 31c7456..3b2e8dd 100644
+--- a/scripts/governance_lint.py
++++ b/scripts/governance_lint.py
+@@ -882,8 +882,8 @@ def check_stability_sla_contract(issues: list[str]) -> None:
+ 
+ 
+ def check_factory_contract_alignment(issues: list[str]) -> None:
+-    new_addon = read_text(ROOT / "new_addon.md")
+-    new_profile = read_text(ROOT / "new_profile.md")
++    new_addon = read_text(ROOT / "docs" / "_archive" / "new_addon.md")
++    new_profile = read_text(ROOT / "docs" / "_archive" / "new_profile.md")
+     factory_json = read_text(ROOT / "governance" / "assets" / "catalogs" / "PROFILE_ADDON_FACTORY_CONTRACT.json")
+ 
+     addon_required_tokens = [
+@@ -899,7 +899,7 @@ def check_factory_contract_alignment(issues: list[str]) -> None:
+     ]
+     missing_addon = [token for token in addon_required_tokens if token not in new_addon]
+     if missing_addon:
+-        issues.append(f"new_addon.md: missing factory alignment tokens {missing_addon}")
++        issues.append(f"docs/_archive/new_addon.md: missing factory alignment tokens {missing_addon}")
+ 
+     profile_required_tokens = [
+         "applicability_signals",
+@@ -914,7 +914,7 @@ def check_factory_contract_alignment(issues: list[str]) -> None:
+     ]
+     missing_profile = [token for token in profile_required_tokens if token not in new_profile]
+     if missing_profile:
+-        issues.append(f"new_profile.md: missing factory alignment tokens {missing_profile}")
++        issues.append(f"docs/_archive/new_profile.md: missing factory alignment tokens {missing_profile}")
+ 
+     json_required_tokens = [
+         '"requiredAddonManifestFields"',
+@@ -1043,10 +1043,10 @@ def check_md_rails_only_tripwire(issues: list[str]) -> None:
+         ROOT / "rules.md",
+         ROOT / "BOOTSTRAP.md",
+         ROOT / "continue.md",
+-        ROOT / "resume.md",
+-        ROOT / "resume_prompt.md",
+-        ROOT / "new_profile.md",
+-        ROOT / "new_addon.md",
++        ROOT / "docs" / "_archive" / "resume.md",
++        ROOT / "docs" / "_archive" / "resume_prompt.md",
++        ROOT / "docs" / "_archive" / "new_profile.md",
++        ROOT / "docs" / "_archive" / "new_addon.md",
+         ROOT / "BOOTSTRAP.md",
+     ]
+     files.extend(sorted((ROOT / "profiles").glob("rules*.md")))
+diff --git a/tests/test_docs_consistency.py b/tests/test_docs_consistency.py
+index 2b21e9e..52f3a00 100644
+--- a/tests/test_docs_consistency.py
++++ b/tests/test_docs_consistency.py
+@@ -9,7 +9,7 @@ DOC_FILES = [
+     "governance/assets/catalogs/audit.md",
+     "docs/phases.md",
+     "docs/governance_invariants.md",
+-    "docs/CLEANUP_ANALYSIS.md",
++    "docs/_archive/CLEANUP_ANALYSIS.md",
+     "QUICKSTART.md",
+     "SESSION_STATE_SCHEMA.md",
+ ]
+@@ -18,7 +18,7 @@ REQUIRED_PHRASE_DOCS = [
+     "master.md",
+     "docs/phases.md",
+     "docs/governance_invariants.md",
+-    "docs/CLEANUP_ANALYSIS.md",
++    "docs/_archive/CLEANUP_ANALYSIS.md",
+     "QUICKSTART.md",
+     "SESSION_STATE_SCHEMA.md",
+ ]
+diff --git a/tests/test_installer_flow.py b/tests/test_installer_flow.py
+index 21c2511..6261d09 100644
+--- a/tests/test_installer_flow.py
++++ b/tests/test_installer_flow.py
+@@ -522,8 +522,8 @@ def test_install_distribution_contains_required_normative_files_and_addon_rulebo
+     )
+ 
+     required_customer_scaffolding_docs = [
+-        commands / "new_profile.md",
+-        commands / "new_addon.md",
++        commands / "docs" / "_archive" / "new_profile.md",
++        commands / "docs" / "_archive" / "new_addon.md",
+     ]
+     missing_scaffolding_docs = [str(p) for p in required_customer_scaffolding_docs if not p.exists()]
+     assert not missing_scaffolding_docs, "Missing customer scaffolding markdown docs after install:\n" + "\n".join(
+diff --git a/tests/test_md_lint_gate.py b/tests/test_md_lint_gate.py
+index 22f6581..9b0ce2c 100644
+--- a/tests/test_md_lint_gate.py
++++ b/tests/test_md_lint_gate.py
+@@ -19,10 +19,10 @@ def test_md_lint_runs_in_ci_mode_and_reports_json():
+         REPO_ROOT / "master.md",
+         REPO_ROOT / "rules.md",
+         REPO_ROOT / "continue.md",
+-        REPO_ROOT / "resume.md",
+-        REPO_ROOT / "resume_prompt.md",
+-        REPO_ROOT / "new_profile.md",
+-        REPO_ROOT / "new_addon.md",
++        REPO_ROOT / "docs" / "_archive" / "resume.md",
++        REPO_ROOT / "docs" / "_archive" / "resume_prompt.md",
++        REPO_ROOT / "docs" / "_archive" / "new_profile.md",
++        REPO_ROOT / "docs" / "_archive" / "new_addon.md",
+         REPO_ROOT / "BOOTSTRAP.md",
+     ]
+     files.extend(sorted((REPO_ROOT / "profiles").glob("rules*.md")))
+diff --git a/tests/test_md_rails_tripwire.py b/tests/test_md_rails_tripwire.py
+index be5e0ae..76b01ec 100644
+--- a/tests/test_md_rails_tripwire.py
++++ b/tests/test_md_rails_tripwire.py
+@@ -18,10 +18,10 @@ def test_md_rails_tripwire_operational_markers_absent():
+         REPO_ROOT / "master.md",
+         REPO_ROOT / "rules.md",
+         REPO_ROOT / "continue.md",
+-        REPO_ROOT / "resume.md",
+-        REPO_ROOT / "resume_prompt.md",
+-        REPO_ROOT / "new_profile.md",
+-        REPO_ROOT / "new_addon.md",
++        REPO_ROOT / "docs" / "_archive" / "resume.md",
++        REPO_ROOT / "docs" / "_archive" / "resume_prompt.md",
++        REPO_ROOT / "docs" / "_archive" / "new_profile.md",
++        REPO_ROOT / "docs" / "_archive" / "new_addon.md",
+         REPO_ROOT / "BOOTSTRAP.md",
+     ]
+     files.extend(sorted((REPO_ROOT / "profiles").glob("rules*.md")))
+diff --git a/tests/test_validate_governance.py b/tests/test_validate_governance.py
+index 4ca832c..5584341 100644
+--- a/tests/test_validate_governance.py
++++ b/tests/test_validate_governance.py
+@@ -1263,7 +1263,7 @@ def test_addon_rulebooks_use_scorecard_calibration_v211():
+ @pytest.mark.governance
+ def test_factory_commands_exist_and_define_principal_generation_contracts():
+     targets = {
+-        "new_profile.md": [
++        "docs/_archive/new_profile.md": [
+             "# Governance Factory - New Profile",
+             "## Required Input (Binding)",
+             "## Generation Contract (Binding)",
+@@ -1284,7 +1284,7 @@ def test_factory_commands_exist_and_define_principal_generation_contracts():
+             "Examples (GOOD/BAD)",
+             "Troubleshooting with at least 3 concrete symptom->cause->fix entries",
+         ],
+-        "new_addon.md": [
++        "docs/_archive/new_addon.md": [
+             "# Governance Factory - New Addon",
+             "## Required Input (Binding)",
+             "## Manifest Contract (Binding)",
+@@ -2998,51 +2998,6 @@ def test_bootstrap_mode_mixed_phrase_is_absent_in_core_docs():
+     assert not offenders, "Mixed start-mode phrase must not appear in core docs:\n" + "\n".join([f"- {o}" for o in offenders])
+ 
+ 
+-@pytest.mark.governance
+-def test_governance_boundary_and_thematic_rails_docs_exist():
+-    required = [
+-        REPO_ROOT / "docs" / "governance" / "RESPONSIBILITY_BOUNDARY.md",
+-        REPO_ROOT / "docs" / "governance" / "RAILS_REFACTOR_MAPPING.md",
+-        REPO_ROOT / "docs" / "governance" / "rails" / "planning.md",
+-        REPO_ROOT / "docs" / "governance" / "rails" / "implementation.md",
+-        REPO_ROOT / "docs" / "governance" / "rails" / "testing.md",
+-        REPO_ROOT / "docs" / "governance" / "rails" / "pr_review.md",
+-        REPO_ROOT / "docs" / "governance" / "rails" / "failure_handling.md",
+-    ]
+-    missing = [str(p.relative_to(REPO_ROOT)) for p in required if not p.exists()]
+-    assert not missing, "Missing governance boundary/thematic rails docs:\n" + "\n".join([f"- {m}" for m in missing])
+-
+-
+-@pytest.mark.governance
+-def test_rails_refactor_mapping_contains_required_tables():
+-    mapping = read_text(REPO_ROOT / "docs" / "governance" / "RAILS_REFACTOR_MAPPING.md")
+-
+-    required_tokens = [
+-        "| rule_id | rule_summary | canonical_source | secondary_references |",
+-        "| original_section | target_location | action |",
+-        "| file | classification | note |",
+-    ]
+-    missing = [t for t in required_tokens if t not in mapping]
+-    assert not missing, "RAILS_REFACTOR_MAPPING.md missing required mapping tables:\n" + "\n".join([f"- {m}" for m in missing])
+-
+-
+-@pytest.mark.governance
+-def test_master_section_classification_doc_exists_and_uses_allowed_classes():
+-    path = REPO_ROOT / "docs" / "governance" / "MASTER_SECTION_CLASSIFICATION.md"
+-    assert path.exists(), "Missing docs/governance/MASTER_SECTION_CLASSIFICATION.md"
+-    text = read_text(path)
+-
+-    allowed = ["global_principle", "priority_rule", "ai_behavior_rule", "reference"]
+-    for klass in allowed:
+-        assert klass in text, f"MASTER_SECTION_CLASSIFICATION.md missing class: {klass}"
+-
+-
+-@pytest.mark.governance
+-def test_responsibility_boundary_uses_bindend_vs_nicht_bindend_terms():
+-    text = read_text(REPO_ROOT / "docs" / "governance" / "RESPONSIBILITY_BOUNDARY.md")
+-    required = ["bindend", "nicht-bindend", "Kernel", "Schemas"]
+-    missing = [t for t in required if t not in text]
+-    assert not missing, "RESPONSIBILITY_BOUNDARY.md missing explicit boundary terms:\n" + "\n".join([f"- {m}" for m in missing])
+ 
+ 
+ @pytest.mark.governance
+@@ -3065,13 +3020,13 @@ def test_start_mode_mixed_phrase_is_absent_in_core_docs():
+ @pytest.mark.governance
+ def test_governance_boundary_and_thematic_rails_docs_exist():
+     required = [
+-        REPO_ROOT / "docs" / "governance" / "RESPONSIBILITY_BOUNDARY.md",
+-        REPO_ROOT / "docs" / "governance" / "RAILS_REFACTOR_MAPPING.md",
+-        REPO_ROOT / "docs" / "governance" / "rails" / "planning.md",
+-        REPO_ROOT / "docs" / "governance" / "rails" / "implementation.md",
+-        REPO_ROOT / "docs" / "governance" / "rails" / "testing.md",
+-        REPO_ROOT / "docs" / "governance" / "rails" / "pr_review.md",
+-        REPO_ROOT / "docs" / "governance" / "rails" / "failure_handling.md",
++        REPO_ROOT / "docs" / "_archive" / "governance" / "RESPONSIBILITY_BOUNDARY.md",
++        REPO_ROOT / "docs" / "_archive" / "governance" / "RAILS_REFACTOR_MAPPING.md",
++        REPO_ROOT / "docs" / "_archive" / "governance" / "rails" / "planning.md",
++        REPO_ROOT / "docs" / "_archive" / "governance" / "rails" / "implementation.md",
++        REPO_ROOT / "docs" / "_archive" / "governance" / "rails" / "testing.md",
++        REPO_ROOT / "docs" / "_archive" / "governance" / "rails" / "pr_review.md",
++        REPO_ROOT / "docs" / "_archive" / "governance" / "rails" / "failure_handling.md",
+     ]
+     missing = [str(p.relative_to(REPO_ROOT)) for p in required if not p.exists()]
+     assert not missing, "Missing governance boundary/thematic rails docs:\n" + "\n".join([f"- {m}" for m in missing])
+@@ -3079,7 +3034,7 @@ def test_governance_boundary_and_thematic_rails_docs_exist():
+ 
+ @pytest.mark.governance
+ def test_rails_refactor_mapping_contains_required_tables():
+-    mapping = read_text(REPO_ROOT / "docs" / "governance" / "RAILS_REFACTOR_MAPPING.md")
++    mapping = read_text(REPO_ROOT / "docs" / "_archive" / "governance" / "RAILS_REFACTOR_MAPPING.md")
+ 
+     required_tokens = [
+         "| rule_id | rule_summary | canonical_source | secondary_references |",
+@@ -3092,8 +3047,8 @@ def test_rails_refactor_mapping_contains_required_tables():
+ 
+ @pytest.mark.governance
+ def test_master_section_classification_doc_exists_and_uses_allowed_classes():
+-    path = REPO_ROOT / "docs" / "governance" / "MASTER_SECTION_CLASSIFICATION.md"
+-    assert path.exists(), "Missing docs/governance/MASTER_SECTION_CLASSIFICATION.md"
++    path = REPO_ROOT / "docs" / "_archive" / "governance" / "MASTER_SECTION_CLASSIFICATION.md"
++    assert path.exists(), "Missing docs/_archive/governance/MASTER_SECTION_CLASSIFICATION.md"
+     text = read_text(path)
+ 
+     allowed = ["global_principle", "priority_rule", "ai_behavior_rule", "reference"]
+@@ -3103,7 +3058,7 @@ def test_master_section_classification_doc_exists_and_uses_allowed_classes():
+ 
+ @pytest.mark.governance
+ def test_responsibility_boundary_uses_bindend_vs_nicht_bindend_terms():
+-    text = read_text(REPO_ROOT / "docs" / "governance" / "RESPONSIBILITY_BOUNDARY.md")
++    text = read_text(REPO_ROOT / "docs" / "_archive" / "governance" / "RESPONSIBILITY_BOUNDARY.md")
+     required = ["bindend", "nicht-bindend", "Kernel", "Schemas"]
+     missing = [t for t in required if t not in text]
+     assert not missing, "RESPONSIBILITY_BOUNDARY.md missing explicit boundary terms:\n" + "\n".join([f"- {m}" for m in missing])
+-- 
+2.53.0.windows.1
+

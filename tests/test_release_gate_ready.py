@@ -108,9 +108,22 @@ def _materialize_commands_bundle_from_checkout(*, checkout_root: Path, commands_
             shutil.copy2(src, commands_home / filename)
 
 
+def _bootstrap_launcher(checkout_root: Path) -> list[str]:
+    if os.name == "nt":
+        launcher = checkout_root / "bin" / "opencode-governance-bootstrap.cmd"
+        return ["cmd", "/c", str(launcher)]
+    launcher = checkout_root / "bin" / "opencode-governance-bootstrap"
+    return [str(launcher)]
+
+
 def _run_bootstrap(*, repo: Path, config_root: Path, commands_home: Path, workspaces_home: Path, env: dict[str, str]) -> tuple[subprocess.CompletedProcess[str], str | None]:
-    bootstrap_script = commands_home / "governance" / "entrypoints" / "bootstrap_preflight_readonly.py"
-    proc = _run([sys.executable, str(bootstrap_script)], cwd=repo, env=env)
+    checkout_root = Path(__file__).resolve().parents[1]
+    launcher = _bootstrap_launcher(checkout_root)
+    proc = _run(
+        launcher + ["--repo-root", str(repo), "--config-root", str(config_root)],
+        cwd=repo,
+        env=env,
+    )
     
     repo_fp = None
     lines = [ln.strip() for ln in proc.stdout.splitlines() if ln.strip()]
@@ -145,6 +158,8 @@ def isolated_env(tmp_path: Path):
     env["HOME"] = str(home)
     env["USERPROFILE"] = str(home)
     env["CI"] = ""
+    env["OPENCODE_CONFIG_ROOT"] = str(config_root)
+    env["COMMANDS_HOME"] = str(commands_home)
     env.pop("OPENCODE_FORCE_READ_ONLY", None)
     user_site = site.getusersitepackages()
     if user_site:
@@ -279,6 +294,7 @@ class TestReleaseGateReady:
         
         assert ss.get("PersistenceCommitted") is True, "PersistenceCommitted not true"
         assert ss.get("WorkspaceReadyGateCommitted") is True, "WorkspaceReadyGateCommitted not true"
+        assert ss.get("ticket_intake_ready") is True, "ticket_intake_ready not true"
 
     def test_rg7_global_error_handler_fires_on_failure(self, isolated_env, tmp_path: Path):
         """RG-7: Global Error Handler writes JSONL on failure."""

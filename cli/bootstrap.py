@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
 import sys
 
-def main():
+
+def main() -> int:
     try:
-        import governance.entrypoints.bootstrap_preflight_readonly as bp
-        return bp.main()
-    except Exception as e:
-        print("Bootstrap launcher error:", e, file=sys.stderr)
+        from governance.entrypoints.bootstrap_executor import main as executor_main
+    except Exception as exc:
+        print("Bootstrap launcher error:", exc, file=sys.stderr)
         return 1
+    return int(executor_main())
+
 
 if __name__ == "__main__":
     raise SystemExit(main())

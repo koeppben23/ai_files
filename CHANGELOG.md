@@ -38,8 +38,8 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
   - `templates/github-actions/governance-pr-gate-shadow-live-verify.yml`
   - `templates/github-actions/governance-ruleset-release.yml`
   - `templates/github-actions/governance-golden-output-stability.yml`
-  - `docs/governance-template-blueprints.md`
-  - `docs/governance-pipeline-roles-template.md`
+- `docs/_archive/governance-template-blueprints.md`
+- `docs/_archive/governance-pipeline-roles-template.md`
 - Refresh `README.md` operational guidance to use the local bootstrap launcher as primary workflow entrypoint and update shipped artifact/directory mapping for current releases.
 - Add deterministic SESSION_STATE migration tool `scripts/migrate_session_state.py` with first-write `.backup` behavior and machine-readable exit codes (`0=ok`, `2=blocked`).
 - Add two-layer render modules under `governance/render/` (`intent_router.py`, `delta_renderer.py`, `token_guard.py`, `render_contract.py`) for compact default output and deterministic detail expansion.
@@ -58,8 +58,8 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
   - `Principal Hardening v2.1 - Standard Risk Tiering`
   - `Principal Hardening v2.1.1 - Scorecard Calibration`
 - Add governance factory commands for principal-grade extension work:
-  - `new_profile.md` for generating new profile rulebooks
-  - `new_addon.md` for generating addon rulebook + manifest pairs
+- `docs/_archive/new_profile.md` for generating new profile rulebooks
+- `docs/_archive/new_addon.md` for generating addon rulebook + manifest pairs
 - Add governance contract `governance/PROFILE_ADDON_FACTORY_CONTRACT.json` to standardize factory output requirements.
 - Add governance recovery helper `governance/bootstrap_session_state.py` to initialize repo-scoped `${SESSION_STATE_FILE}` plus global `${SESSION_STATE_POINTER_FILE}` when session state is missing.
 - Add governance helper `governance/persist_workspace_artifacts.py` to backfill missing repo-scoped persistence artifacts (`repo-cache.yaml`, `repo-map-digest.md`, `decision-pack.md`, `workspace-memory.yaml`).
@@ -70,7 +70,7 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
   - `rules.risk-tiering.md`
   - `rules.scorecard-calibration.md`
   - manifests: `principalExcellence`, `riskTiering`, `scorecardCalibration`
-- Update factory contracts (`new_profile.md`, `new_addon.md`, `PROFILE_ADDON_FACTORY_CONTRACT.json`) for shared-contract modularization defaults.
+- Update factory contracts (`docs/_archive/new_profile.md`, `docs/_archive/new_addon.md`, `PROFILE_ADDON_FACTORY_CONTRACT.json`) for shared-contract modularization defaults.
 
 ### Changed
 - Harden mode-policy orchestration: widening constraints now require explicit approval semantics and emit deterministic precedence events with hash refs.
@@ -123,7 +123,7 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
 - Add Architect-only Autopilot lifecycle contract (bootstrap -> `/master` -> `Implement now` -> `Ingest evidence`) with explicit output-mode enum (`ARCHITECT|IMPLEMENT|VERIFY`) and fail-closed `/master` start-order gate (`BLOCKED-START-REQUIRED`).
 - Tighten `start.md` evidence boundaries: missing installer-owned `governance.paths.json` now yields explicit blocked fallback semantics (`BLOCKED-MISSING-BINDING-FILE`) and marks computed path payloads as non-evidence debug output.
 - Clarify `start.md` auto-persistence identity semantics so helper output is operational status only and cannot be treated as canonical repo identity evidence.
-- Align governance factory contracts (`new_addon.md`, `new_profile.md`, `PROFILE_ADDON_FACTORY_CONTRACT.json`) with current canonical runtime policy: required surface ownership fields, capability-first manifest guidance, preferred profile filename pattern (`rules_<profile_key>.md`), canonical SESSION_STATE evidence paths, and clarified tracking/audit semantics.
+- Align governance factory contracts (`docs/_archive/new_addon.md`, `docs/_archive/new_profile.md`, `PROFILE_ADDON_FACTORY_CONTRACT.json`) with current canonical runtime policy: required surface ownership fields, capability-first manifest guidance, preferred profile filename pattern (`rules_<profile_key>.md`), canonical SESSION_STATE evidence paths, and clarified tracking/audit semantics.
 - Clarify governance reason-key boundaries: `/audit` `BR_*` keys are audit-only (not canonical `reason_code` values) unless explicitly mapped to `BLOCKED-*|WARN-*|NOT_VERIFIED-*` codes.
 - Harden precedence drift detection with context-sensitive guards for numbered lists near precedence/priority/resolution language, preventing legacy shortened precedence variants from slipping through.
 - Tighten capability signal-mapping checks to require concrete `signals.any` + non-empty entries (instead of broad indentation heuristics) for capability coverage validation.

@@ -882,8 +882,8 @@ def check_stability_sla_contract(issues: list[str]) -> None:
 
 
 def check_factory_contract_alignment(issues: list[str]) -> None:
-    new_addon = read_text(ROOT / "new_addon.md")
-    new_profile = read_text(ROOT / "new_profile.md")
+    new_addon = read_text(ROOT / "docs" / "_archive" / "new_addon.md")
+    new_profile = read_text(ROOT / "docs" / "_archive" / "new_profile.md")
     factory_json = read_text(ROOT / "governance" / "assets" / "catalogs" / "PROFILE_ADDON_FACTORY_CONTRACT.json")
 
     addon_required_tokens = [
@@ -899,7 +899,7 @@ def check_factory_contract_alignment(issues: list[str]) -> None:
     ]
     missing_addon = [token for token in addon_required_tokens if token not in new_addon]
     if missing_addon:
-        issues.append(f"new_addon.md: missing factory alignment tokens {missing_addon}")
+        issues.append(f"docs/_archive/new_addon.md: missing factory alignment tokens {missing_addon}")
 
     profile_required_tokens = [
         "applicability_signals",
@@ -914,7 +914,7 @@ def check_factory_contract_alignment(issues: list[str]) -> None:
     ]
     missing_profile = [token for token in profile_required_tokens if token not in new_profile]
     if missing_profile:
-        issues.append(f"new_profile.md: missing factory alignment tokens {missing_profile}")
+        issues.append(f"docs/_archive/new_profile.md: missing factory alignment tokens {missing_profile}")
 
     json_required_tokens = [
         '"requiredAddonManifestFields"',
@@ -1043,10 +1043,10 @@ def check_md_rails_only_tripwire(issues: list[str]) -> None:
         ROOT / "rules.md",
         ROOT / "BOOTSTRAP.md",
         ROOT / "continue.md",
-        ROOT / "resume.md",
-        ROOT / "resume_prompt.md",
-        ROOT / "new_profile.md",
-        ROOT / "new_addon.md",
+        ROOT / "docs" / "_archive" / "resume.md",
+        ROOT / "docs" / "_archive" / "resume_prompt.md",
+        ROOT / "docs" / "_archive" / "new_profile.md",
+        ROOT / "docs" / "_archive" / "new_addon.md",
         ROOT / "BOOTSTRAP.md",
     ]
     files.extend(sorted((ROOT / "profiles").glob("rules*.md")))
@@ -1315,6 +1315,21 @@ def main() -> int:
     issues: list[str] = []
     check_master_priority_uniqueness(issues)
     check_anchor_presence(issues)
+    try:
+        proc = subprocess.run(
+            [sys.executable, str(ROOT / "scripts" / "ssot_guard.py")],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        if proc.returncode != 0:
+            issues.append("SSOT guard check failed")
+            if proc.stdout:
+                issues.append(proc.stdout.strip())
+            if proc.stderr:
+                issues.append(proc.stderr.strip())
+    except Exception as exc:
+        issues.append(f"SSOT guard check failed to run: {exc}")
     check_manifest_contract(issues)
     check_required_addon_references(issues)
     check_template_quality_gate(issues)

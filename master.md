@@ -1123,9 +1123,9 @@ Runtime routing, transitions, and stop conditions are defined by kernel/config c
 
 Detailed operational start behavior is documented as non-binding guidance in:
 - `BOOTSTRAP.md` (operator-facing bootstrap guide)
-- `docs/governance/RESPONSIBILITY_BOUNDARY.md` (binding vs guidance boundary)
-- `docs/governance/rails/planning.md` (workflow planning guidance)
-- `docs/governance/MASTER_SECTION_CLASSIFICATION.md` (master section class mapping)
+- `docs/_archive/governance/RESPONSIBILITY_BOUNDARY.md` (binding vs guidance boundary)
+- `docs/_archive/governance/rails/planning.md` (workflow planning guidance)
+- `docs/_archive/governance/MASTER_SECTION_CLASSIFICATION.md` (master section class mapping)
 
 ### 2.4.1 Session Start Mode Banner (Kernel-Enforced)
 
@@ -1157,14 +1157,14 @@ Execution mode enum (binding):
 
 Detailed lifecycle routing and mode transition behavior is maintained outside `master.md`:
 - Kernel/config contracts for binding behavior
-- `docs/governance/rails/implementation.md` and `docs/governance/rails/failure_handling.md` for non-binding guidance
+- `docs/_archive/governance/rails/implementation.md` and `docs/_archive/governance/rails/failure_handling.md` for non-binding guidance
 
 Thematic rails (non-binding) are split into:
-- `docs/governance/rails/planning.md`
-- `docs/governance/rails/implementation.md`
-- `docs/governance/rails/testing.md`
-- `docs/governance/rails/pr_review.md`
-- `docs/governance/rails/failure_handling.md`
+- `docs/_archive/governance/rails/planning.md`
+- `docs/_archive/governance/rails/implementation.md`
+- `docs/_archive/governance/rails/testing.md`
+- `docs/_archive/governance/rails/pr_review.md`
+- `docs/_archive/governance/rails/failure_handling.md`
 
 ### 2.5 Default Decision Policies (DDP) — Reduce Cognitive Load (Policy)
 

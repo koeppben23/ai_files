@@ -735,7 +735,7 @@ Compat fallback (binding):
 
 ### 7.3.3 Cold/Warm Start Banner (Presentation Advisory)
 
-Canonical ownership boundary: `docs/governance/RESPONSIBILITY_BOUNDARY.md`.
+Canonical ownership boundary: `docs/_archive/governance/RESPONSIBILITY_BOUNDARY.md`.
 
 At session start, output MUST include exactly one banner variant:
 - `[START-MODE] Cold Start - reason: <one concise reason>`
@@ -793,7 +793,7 @@ Command coherence rules remain mandatory (see 7.3.2).
 
 This section is non-binding presentation guidance.
 Kernel-owned routing, transition rules, and execution decisions are defined in kernel/config contracts.
-Canonical boundary reference: `docs/governance/RESPONSIBILITY_BOUNDARY.md`.
+Canonical boundary reference: `docs/_archive/governance/RESPONSIBILITY_BOUNDARY.md`.
 
 Canonical operator lifecycle:
 1) local bootstrap launcher

@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+from __future__ import annotations
+
 import argparse
 import os
 from pathlib import Path
@@ -9,6 +11,7 @@ try:
     from governance.infrastructure.path_contract import normalize_absolute_path
 except Exception:  # pragma: no cover
     normalize_absolute_path = None  # type: ignore
+
 
 def _normalize_path(raw: str, *, purpose: str) -> Path:
     token = str(raw or "").strip()
@@ -27,9 +30,12 @@ def _validate_repo_root(raw: str) -> Path:
     if not repo_root.exists() or not repo_root.is_dir():
         raise ValueError("repo_root: path does not exist or is not a directory")
     git_marker = repo_root / ".git"
-    if not git_marker.exists():
-        raise ValueError("repo_root: missing .git")
-    return repo_root
+    if git_marker.exists():
+        return repo_root
+    for parent in repo_root.parents:
+        if (parent / ".git").exists():
+            return parent
+    raise ValueError("repo_root: missing .git")
 
 
 def _validate_config_root(raw: str) -> Path:
@@ -72,6 +78,7 @@ def main() -> int:
         cwd=str(repo_root),
     )
     return ret.returncode
+
 
 if __name__ == "__main__":
     raise SystemExit(main())

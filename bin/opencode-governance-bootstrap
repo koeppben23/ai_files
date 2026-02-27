@@ -28,4 +28,4 @@ except Exception:
   fi
 fi
 
-exec "${PYTHON_BIN}" -m cli.bootstrap "$@"
+exec "${PYTHON_BIN}" -m governance.entrypoints.bootstrap_executor "$@"

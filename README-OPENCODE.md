@@ -88,8 +88,8 @@ Profiles and addons are loaded from `profiles/` with deterministic precedence fr
 
 Factory generation entrypoints:
 
-- `new_profile.md`
-- `new_addon.md`
+- `docs/_archive/new_profile.md`
+- `docs/_archive/new_addon.md`
 
 Conformance reference for generated artifacts:
 

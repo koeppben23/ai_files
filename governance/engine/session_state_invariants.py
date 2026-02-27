@@ -9,6 +9,8 @@ from __future__ import annotations
 import re
 from typing import Mapping
 
+from governance.domain.phase_state_machine import normalize_phase_token, phase_rank
+
 
 _PATH_FIELD_SUFFIXES = ("Path", "FilePath")
 _PATH_FIELD_NAMES = ("TargetPath", "SourcePath")
@@ -22,6 +24,14 @@ _DEGENERATE_PATTERNS = (
     (re.compile(r"^[A-Za-z]:$"), "BLOCKED-PERSISTENCE-TARGET-DEGENERATE", "drive_root_token"),
     (re.compile(r"^[A-Za-z]:[^\\/]"), "BLOCKED-PERSISTENCE-TARGET-DEGENERATE", "drive_relative_path"),
 )
+
+
+def _read_bool(state: Mapping[str, object], *keys: str) -> bool:
+    for key in keys:
+        value = state.get(key)
+        if isinstance(value, bool):
+            return value
+    return False
 
 
 def validate_blocked_next_invariant(state: Mapping[str, object]) -> tuple[str, ...]:
@@ -72,6 +82,39 @@ def validate_profile_source_blocked_invariant(state: Mapping[str, object]) -> tu
     return ()
 
 
+def validate_ticket_intake_ready_invariant(state: Mapping[str, object]) -> tuple[str, ...]:
+    """ticket_intake_ready is authoritative and must match readiness preconditions."""
+    ticket_ready = state.get("ticket_intake_ready")
+    phase_ready = state.get("phase_ready")
+    if not isinstance(ticket_ready, bool) or ticket_ready is False:
+        return ()
+
+    phase_value = state.get("Phase") or state.get("phase") or ""
+    token = normalize_phase_token(str(phase_value))
+    if phase_rank(token) < phase_rank("4"):
+        return ("ticket_intake_ready_below_phase_4",)
+
+    persistence_committed = _read_bool(state, "PersistenceCommitted", "persistence_committed")
+    if not persistence_committed:
+        return ("ticket_intake_ready_without_persistence_committed",)
+
+    workspace_ready = _read_bool(state, "WorkspaceReadyGateCommitted", "workspace_ready_gate_committed")
+    if not workspace_ready:
+        return ("ticket_intake_ready_without_workspace_ready_gate",)
+
+    bootstrap = state.get("Bootstrap")
+    satisfied = False
+    if isinstance(bootstrap, Mapping):
+        satisfied = bool(bootstrap.get("Satisfied") is True)
+    if not satisfied:
+        return ("ticket_intake_ready_without_bootstrap_satisfied",)
+
+    if isinstance(phase_ready, int) and phase_ready < 4:
+        return ("ticket_intake_ready_phase_ready_below_4",)
+
+    return ()
+
+
 def validate_reason_payloads_required(state: Mapping[str, object]) -> tuple[str, ...]:
     """If any BLOCKED-/WARN-/NOT_VERIFIED- code appears, Diagnostics.ReasonPayloads MUST exist."""
     mode = state.get("Mode")
@@ -102,6 +145,7 @@ def validate_session_state_invariants(session_state_document: Mapping[str, objec
     errors.extend(validate_blocked_next_invariant(state))
     errors.extend(validate_confidence_mode_invariant(state))
     errors.extend(validate_profile_source_blocked_invariant(state))
+    errors.extend(validate_ticket_intake_ready_invariant(state))
     errors.extend(validate_reason_payloads_required(state))
     errors.extend(validate_output_mode_architect_invariant(state))
     errors.extend(validate_rulebook_evidence_mirror(state))

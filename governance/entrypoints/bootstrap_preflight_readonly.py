@@ -284,7 +284,7 @@ def _preflight_build_toolchain_snapshot() -> dict[str, object]:
 
 
 def emit_preflight() -> None:
-    if os.getenv("OPENCODE_BOOTSTRAP_OUTPUT", "final").strip().lower() == "minimal":
+    if os.getenv("OPENCODE_BOOTSTRAP_OUTPUT", "final").strip().lower() != "full":
         return
     required_now, required_later, _required_later_entries = _tool_inventory()
 
@@ -335,7 +335,7 @@ def emit_preflight() -> None:
 
 
 def emit_permission_probes() -> None:
-    if os.getenv("OPENCODE_BOOTSTRAP_OUTPUT", "final").strip().lower() == "minimal":
+    if os.getenv("OPENCODE_BOOTSTRAP_OUTPUT", "final").strip().lower() != "full":
         return
     checks = [
         {
@@ -564,7 +564,8 @@ def run_persistence_hook() -> dict[str, object]:
             "bootstrap_hook_command": hook_command,
             "git_probe": {"ok": False, "source": "not-evaluated"},
         }
-        print(json.dumps(result, ensure_ascii=True))
+        if output_mode != "silent":
+            print(json.dumps(result, ensure_ascii=True))
         return result
 
     repo_root, repo_root_source, git_probe = _resolve_repo_root_for_hook()
@@ -597,7 +598,8 @@ def run_persistence_hook() -> dict[str, object]:
             "log_path": str(log_path),
             "failure_stage": FAILURE_STAGE_REPO_ROOT,
         }
-        print(json.dumps(result, ensure_ascii=True))
+        if output_mode != "silent":
+            print(json.dumps(result, ensure_ascii=True))
         return result
 
     env = dict(os.environ)
@@ -681,7 +683,8 @@ def run_persistence_hook() -> dict[str, object]:
         result["stderr_snippet"] = (proc.stderr or "").strip()[:500]
         result["log_path"] = str(log_path)
 
-    print(json.dumps(result, ensure_ascii=True))
+    if output_mode != "silent":
+        print(json.dumps(result, ensure_ascii=True))
     return result
 
 
@@ -754,6 +757,59 @@ def _root_state(document: Mapping[str, object]) -> dict[str, object]:
     if isinstance(root, Mapping):
         return dict(root)
     return {}
+
+
+def _read_bool(state: Mapping[str, object], *keys: str) -> bool:
+    for key in keys:
+        value = state.get(key)
+        if isinstance(value, bool):
+            return value
+    return False
+
+
+def _phase_ready_value(phase_value: object) -> int | None:
+    token = normalize_phase_token(str(phase_value or ""))
+    if not token:
+        return None
+    match = re.match(r"^(\d+)", token)
+    if match is None:
+        return None
+    try:
+        return int(match.group(1))
+    except Exception:
+        return None
+
+
+def _bootstrap_satisfied(state: Mapping[str, object]) -> bool:
+    bootstrap = state.get("Bootstrap")
+    if not isinstance(bootstrap, Mapping):
+        return False
+    value = bootstrap.get("Satisfied")
+    return isinstance(value, bool) and value is True
+
+
+def _ticket_intake_ready(state: Mapping[str, object], phase_token: str) -> bool:
+    if phase_rank(phase_token) < phase_rank("4"):
+        return False
+    if not _read_bool(state, "PersistenceCommitted", "persistence_committed"):
+        return False
+    if not _read_bool(state, "WorkspaceReadyGateCommitted", "workspace_ready_gate_committed"):
+        return False
+    if not _bootstrap_satisfied(state):
+        return False
+    return True
+
+
+def _apply_ticket_intake_readiness(document: Mapping[str, object], *, phase_token: str) -> dict[str, object]:
+    updated = dict(document)
+    state = _root_state(updated)
+    ready = _ticket_intake_ready(state, phase_token)
+    state["ticket_intake_ready"] = ready
+    phase_ready = _phase_ready_value(state.get("Phase") or phase_token)
+    if phase_ready is not None:
+        state["phase_ready"] = phase_ready
+    updated["SESSION_STATE"] = state
+    return updated
 
 
 def _activation_intent_evidence() -> tuple[str, str, str]:
@@ -876,6 +932,16 @@ def _hydrate_transition_state(document: dict[str, object], *, repo_fingerprint: 
 
 
 def run_kernel_continuation(hook_result: Mapping[str, object]) -> dict[str, object]:
+    hook_status = str(hook_result.get("workspacePersistenceHook") or "").strip().lower()
+    if hook_status and hook_status != HOOK_STATUS_OK:
+        payload: dict[str, object] = {
+            "kernelContinuation": "blocked",
+            "reason": "persistence-hook-blocked",
+            "reason_code": str(hook_result.get("reason_code") or "BLOCKED-WORKSPACE-PERSISTENCE"),
+            "repo_fingerprint": str(hook_result.get("repo_fingerprint") or ""),
+            "session_state_path": "",
+        }
+        return dict(payload)
     repo_fingerprint = str(hook_result.get("repo_fingerprint") or "").strip()
     session_path = _session_state_file_path(repo_fingerprint)
     if session_path is None or not session_path.exists():
@@ -918,6 +984,7 @@ def run_kernel_continuation(hook_result: Mapping[str, object]) -> dict[str, obje
         "source": "session-state",
     }
 
+    resolved_token = normalize_phase_token(current_phase) or ""
     while hops < max_hops:
         hops += 1
         document = _hydrate_transition_state(document, repo_fingerprint=repo_fingerprint, requested_token=requested_token)
@@ -971,6 +1038,7 @@ def run_kernel_continuation(hook_result: Mapping[str, object]) -> dict[str, obje
             break
         requested_token = next_token
 
+    document = _apply_ticket_intake_readiness(document, phase_token=resolved_token)
     _write_json_document(session_path, document)
     payload = {
         "kernelContinuation": "ok" if str(last_result.get("status") or "") == "OK" else "blocked",
@@ -989,13 +1057,19 @@ def run_kernel_continuation(hook_result: Mapping[str, object]) -> dict[str, obje
 
 
 def main() -> int:
-    emit_start_receipt()
+    if os.getenv("OPENCODE_FORCE_READ_ONLY", "").strip() == "1":
+        raise SystemExit(2)
+    if os.getenv("OPENCODE_BOOTSTRAP_VERBOSE", "").strip() == "1":
+        emit_start_receipt()
     emit_preflight()
     emit_permission_probes()
     hook_result = run_persistence_hook()
     payload = run_kernel_continuation(hook_result)
-    if os.getenv("OPENCODE_BOOTSTRAP_OUTPUT", "final").strip().lower() != "minimal":
+    if os.getenv("OPENCODE_BOOTSTRAP_OUTPUT", "final").strip().lower() != "full":
         print(json.dumps(payload, ensure_ascii=True))
+    hook_status = str(hook_result.get("workspacePersistenceHook") or "").strip().lower()
+    if hook_status and hook_status != HOOK_STATUS_OK:
+        raise SystemExit(2)
     if payload.get("kernelContinuation") != "ok":
         raise SystemExit(2)
     if os.getenv("OPENCODE_ENGINE_SHADOW_EMIT") == "1":

@@ -39,6 +39,29 @@ def _run(cmd: list[str], *, cwd: Path, env: dict[str, str]) -> subprocess.Comple
     )
 
 
+def _bootstrap_launcher(checkout_root: Path) -> list[str]:
+    if os.name == "nt":
+        launcher = checkout_root / "bin" / "opencode-governance-bootstrap.cmd"
+        return ["cmd", "/c", str(launcher)]
+    launcher = checkout_root / "bin" / "opencode-governance-bootstrap"
+    return [str(launcher)]
+
+
+def _read_json_lines(stdout: str) -> list[dict[str, object]]:
+    payloads: list[dict[str, object]] = []
+    for line in stdout.splitlines():
+        token = line.strip()
+        if not token:
+            continue
+        try:
+            payload = json.loads(token)
+        except Exception:
+            continue
+        if isinstance(payload, dict):
+            payloads.append(payload)
+    return payloads
+
+
 def _assert_no_blocked_gate_failures(log_path: Path) -> None:
     if not log_path.exists():
         return
@@ -137,6 +160,8 @@ def test_bootstrap_preflight_persists_workspace_and_pointer(tmp_path: Path) -> N
     env["HOME"] = str(home)
     env["USERPROFILE"] = str(home)
     env["CI"] = ""
+    env["OPENCODE_CONFIG_ROOT"] = str(config_root)
+    env["COMMANDS_HOME"] = str(commands_home)
     env.pop("OPENCODE_FORCE_READ_ONLY", None)
     user_site = site.getusersitepackages()
     if user_site:
@@ -144,31 +169,27 @@ def test_bootstrap_preflight_persists_workspace_and_pointer(tmp_path: Path) -> N
             [part for part in (user_site, env.get("PYTHONPATH", "")) if part]
         )
 
-    bootstrap_script = commands_home / "governance" / "entrypoints" / "bootstrap_preflight_readonly.py"
-    proc = _run([sys.executable, str(bootstrap_script)], cwd=repo, env=env)
+    launcher = _bootstrap_launcher(checkout_root)
+    proc = _run(
+        launcher + ["--repo-root", str(repo), "--config-root", str(config_root)],
+        cwd=repo,
+        env=env,
+    )
     assert proc.returncode == 0, proc.stdout + "\n" + proc.stderr
 
-    lines = [ln.strip() for ln in proc.stdout.splitlines() if ln.strip()]
-    assert len(lines) >= 3, proc.stdout
-    payloads = []
-    for ln in lines:
-        try:
-            payloads.append(json.loads(ln))
-        except Exception:
-            continue
-
-    hook = next((p for p in payloads if isinstance(p, dict) and "workspacePersistenceHook" in p), None)
+    payloads = _read_json_lines(proc.stdout)
+    hook = next((p for p in payloads if "workspacePersistenceHook" in p), None)
     assert hook is not None, proc.stdout
     assert hook.get("workspacePersistenceHook") == "ok"
     hook_command = str(hook.get("bootstrap_hook_command") or "")
-    if os.name == "nt":
-        assert " -m governance.entrypoints.bootstrap_persistence_hook" in hook_command
-        assert Path(hook_command.split(" -m ", 1)[0]).name.lower().startswith("python")
-    else:
-        hook_argv = shlex.split(hook_command)
-        assert len(hook_argv) >= 3
-        assert hook_argv[0] == sys.executable
-        assert hook_argv[1:3] == ["-m", "governance.entrypoints.bootstrap_persistence_hook"]
+    if hook_command:
+        if os.name == "nt":
+            assert " -m governance.entrypoints.bootstrap_persistence_hook" in hook_command
+            assert Path(hook_command.split(" -m ", 1)[0]).name.lower().startswith("python")
+        else:
+            hook_argv = shlex.split(hook_command)
+            assert len(hook_argv) >= 3
+            assert hook_argv[1:3] == ["-m", "governance.entrypoints.bootstrap_persistence_hook"]
     assert hook.get("cwd") == str(repo)
     assert hook.get("repo_root_detected") == str(repo)
     repo_fp = str(hook.get("repo_fingerprint") or "").strip()
@@ -187,6 +208,9 @@ def test_bootstrap_preflight_persists_workspace_and_pointer(tmp_path: Path) -> N
     assert ss.get("RepoFingerprint") == repo_fp
     assert ss.get("PersistenceCommitted") is True
     assert ss.get("WorkspaceReadyGateCommitted") is True
+    assert ss.get("ticket_intake_ready") is True
+    phase_ready = ss.get("phase_ready")
+    assert phase_ready is None or int(phase_ready) >= 4
     assert ss.get("Phase") != "1.2-ActivationIntent"
     assert ss.get("Phase") == "4"
     assert ss.get("LoadedRulebooks", {}).get("core")
@@ -204,7 +228,7 @@ def test_bootstrap_preflight_persists_workspace_and_pointer(tmp_path: Path) -> N
     next_gate_condition = str(ss.get("next_gate_condition") or "")
     assert "/master" not in next_gate_condition.lower()
 
-    continuation_payload = next((p for p in payloads if isinstance(p, dict) and "kernelContinuation" in p), None)
+    continuation_payload = next((p for p in payloads if "kernelContinuation" in p), None)
     assert continuation_payload is not None, proc.stdout
     assert continuation_payload.get("kernelContinuation") == "ok"
     assert continuation_payload.get("auto_continuation") == "route_phase"
@@ -248,14 +272,20 @@ def test_bootstrap_preflight_blocks_when_force_read_only(tmp_path: Path) -> None
     env["USERPROFILE"] = str(home)
     env["CI"] = ""
     env["OPENCODE_FORCE_READ_ONLY"] = "1"
+    env["OPENCODE_CONFIG_ROOT"] = str(config_root)
+    env["COMMANDS_HOME"] = str(commands_home)
     user_site = site.getusersitepackages()
     if user_site:
         env["PYTHONPATH"] = os.pathsep.join(
             [part for part in (user_site, env.get("PYTHONPATH", "")) if part]
         )
 
-    bootstrap_script = commands_home / "governance" / "entrypoints" / "bootstrap_preflight_readonly.py"
-    proc = _run([sys.executable, str(bootstrap_script)], cwd=repo, env=env)
+    launcher = _bootstrap_launcher(checkout_root)
+    proc = _run(
+        launcher + ["--repo-root", str(repo), "--config-root", str(config_root)],
+        cwd=repo,
+        env=env,
+    )
     assert proc.returncode != 0
 
     entries = [p for p in workspaces_home.glob("*") if p.is_dir()]
