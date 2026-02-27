@@ -76,6 +76,7 @@ CUSTOMER_DOCS_ALLOWLIST = {
     "governance/assets/catalogs/QUICKFIX_TEMPLATES.json",
     "governance/assets/catalogs/UX_INTENT_GOLDENS.json",
     "governance/assets/catalogs/tool_requirements.json",
+    "templates/github-actions/template_catalog.json",
 }
 
 
