@@ -1123,9 +1123,9 @@ Runtime routing, transitions, and stop conditions are defined by kernel/config c
 
 Detailed operational start behavior is documented as non-binding guidance in:
 - `BOOTSTRAP.md` (operator-facing bootstrap guide)
-- `docs/_archive/governance/RESPONSIBILITY_BOUNDARY.md` (binding vs guidance boundary)
-- `docs/_archive/governance/rails/planning.md` (workflow planning guidance)
-- `docs/_archive/governance/MASTER_SECTION_CLASSIFICATION.md` (master section class mapping)
+- `docs/governance/RESPONSIBILITY_BOUNDARY.md` (binding vs guidance boundary)
+- `docs/governance/rails/planning.md` (workflow planning guidance)
+- `docs/governance/MASTER_SECTION_CLASSIFICATION.md` (master section class mapping)
 
 ### 2.4.1 Session Start Mode Banner (Kernel-Enforced)
 
@@ -1157,14 +1157,14 @@ Execution mode enum (binding):
 
 Detailed lifecycle routing and mode transition behavior is maintained outside `master.md`:
 - Kernel/config contracts for binding behavior
-- `docs/_archive/governance/rails/implementation.md` and `docs/_archive/governance/rails/failure_handling.md` for non-binding guidance
+- `docs/governance/rails/implementation.md` and `docs/governance/rails/failure_handling.md` for non-binding guidance
 
 Thematic rails (non-binding) are split into:
-- `docs/_archive/governance/rails/planning.md`
-- `docs/_archive/governance/rails/implementation.md`
-- `docs/_archive/governance/rails/testing.md`
-- `docs/_archive/governance/rails/pr_review.md`
-- `docs/_archive/governance/rails/failure_handling.md`
+- `docs/governance/rails/planning.md`
+- `docs/governance/rails/implementation.md`
+- `docs/governance/rails/testing.md`
+- `docs/governance/rails/pr_review.md`
+- `docs/governance/rails/failure_handling.md`
 
 ### 2.5 Default Decision Policies (DDP) — Reduce Cognitive Load (Policy)
 
@@ -1288,7 +1288,7 @@ SESSION_STATE:
   DependencyChanges: {}   # optional in MIN; REQUIRED in FULL if deps change
   Preflight:
     BuildToolchain:
-      DetectedTools: {}    # populated by bootstrap preflight; map of tool name → version string (null if not found)
+      DetectedTools: {}    # populated by bootstrap preflight; map of tool name -> version string (null if not found)
       ObservedAt: null       # ISO-8601 timestamp once probe runs
   BuildToolchain:          # populated in Phase 2 (step 3b) from repo signals + preflight probe
     CompileAvailable: false

@@ -3065,6 +3065,70 @@ def test_responsibility_boundary_uses_bindend_vs_nicht_bindend_terms():
 
 
 @pytest.mark.governance
+def test_start_mode_mixed_phrase_is_absent_in_core_docs():
+    core_docs = [
+        REPO_ROOT / "master.md",
+        REPO_ROOT / "rules.md",
+        REPO_ROOT / "start.md",
+    ]
+    offenders: list[str] = []
+    needle = "Cold Start | Warm Start"
+    for doc in core_docs:
+        text = read_text(doc)
+        if needle in text:
+            offenders.append(str(doc.relative_to(REPO_ROOT)))
+
+    assert not offenders, "Mixed start-mode phrase must not appear in core docs:\n" + "\n".join([f"- {o}" for o in offenders])
+
+
+@pytest.mark.governance
+def test_governance_boundary_and_thematic_rails_docs_exist():
+    required = [
+        REPO_ROOT / "docs" / "governance" / "RESPONSIBILITY_BOUNDARY.md",
+        REPO_ROOT / "docs" / "governance" / "RAILS_REFACTOR_MAPPING.md",
+        REPO_ROOT / "docs" / "governance" / "rails" / "planning.md",
+        REPO_ROOT / "docs" / "governance" / "rails" / "implementation.md",
+        REPO_ROOT / "docs" / "governance" / "rails" / "testing.md",
+        REPO_ROOT / "docs" / "governance" / "rails" / "pr_review.md",
+        REPO_ROOT / "docs" / "governance" / "rails" / "failure_handling.md",
+    ]
+    missing = [str(p.relative_to(REPO_ROOT)) for p in required if not p.exists()]
+    assert not missing, "Missing governance boundary/thematic rails docs:\n" + "\n".join([f"- {m}" for m in missing])
+
+
+@pytest.mark.governance
+def test_rails_refactor_mapping_contains_required_tables():
+    mapping = read_text(REPO_ROOT / "docs" / "governance" / "RAILS_REFACTOR_MAPPING.md")
+
+    required_tokens = [
+        "| rule_id | rule_summary | canonical_source | secondary_references |",
+        "| original_section | target_location | action |",
+        "| file | classification | note |",
+    ]
+    missing = [t for t in required_tokens if t not in mapping]
+    assert not missing, "RAILS_REFACTOR_MAPPING.md missing required mapping tables:\n" + "\n".join([f"- {m}" for m in missing])
+
+
+@pytest.mark.governance
+def test_master_section_classification_doc_exists_and_uses_allowed_classes():
+    path = REPO_ROOT / "docs" / "governance" / "MASTER_SECTION_CLASSIFICATION.md"
+    assert path.exists(), "Missing docs/governance/MASTER_SECTION_CLASSIFICATION.md"
+    text = read_text(path)
+
+    allowed = ["global_principle", "priority_rule", "ai_behavior_rule", "reference"]
+    for klass in allowed:
+        assert klass in text, f"MASTER_SECTION_CLASSIFICATION.md missing class: {klass}"
+
+
+@pytest.mark.governance
+def test_responsibility_boundary_uses_bindend_vs_nicht_bindend_terms():
+    text = read_text(REPO_ROOT / "docs" / "governance" / "RESPONSIBILITY_BOUNDARY.md")
+    required = ["bindend", "nicht-bindend", "Kernel", "Schemas"]
+    missing = [t for t in required if t not in text]
+    assert not missing, "RESPONSIBILITY_BOUNDARY.md missing explicit boundary terms:\n" + "\n".join([f"- {m}" for m in missing])
+
+
+@pytest.mark.governance
 def test_confidence_impact_snapshot_contract_is_defined_across_core_docs():
     master = read_text(REPO_ROOT / "master.md")
     rules = read_text(REPO_ROOT / "rules.md")
