@@ -46,7 +46,7 @@ If the launcher is not available, run the installer first:
 python3 install.py
 ```
 
-This creates:
+This creates (including installer-generated launcher wrappers):
 - Configuration directory at `~/.config/opencode`
 - Commands and governance files
 - Local bootstrap launcher

@@ -213,9 +213,6 @@ def create_launcher(plan: InstallPlan, dry_run: bool, force: bool) -> list[dict]
     import json
 
     bin_dir = plan.config_root / "bin"
-    # Prepare cross-platform launcher wrappers to be installed into runtime bin dir
-    wrapper_unix = Path(__file__).resolve().parent / "bin" / "opencode-governance-bootstrap"
-    wrapper_win = Path(__file__).resolve().parent / "bin" / "opencode-governance-bootstrap.cmd"
     python_exe = sys.executable
     commands_home = str(plan.commands_dir)
     workspaces_home = str(plan.config_root / "workspaces")
@@ -228,6 +225,9 @@ def create_launcher(plan: InstallPlan, dry_run: bool, force: bool) -> list[dict]
 
     if dry_run:
         print(f"  [DRY-RUN] copy {cli_source} -> {cli_dest}")
+        created_entries.extend(
+            _planned_launcher_entries(plan=plan, bin_dir=bin_dir)
+        )
     else:
         if cli_dest.exists():
             shutil.rmtree(cli_dest)
@@ -251,20 +251,7 @@ def create_launcher(plan: InstallPlan, dry_run: bool, force: bool) -> list[dict]
             shutil.copy2(f, dst)
         print(f"  ✅ {governance_dest}")
 
-        # Copy runtime wrappers into bin/ in the config root
-        if wrapper_unix.exists():
-            dest_unix = bin_dir / wrapper_unix.name
-            if dest_unix.exists():
-                dest_unix.unlink()
-            shutil.copy2(wrapper_unix, dest_unix)
-            dest_unix.chmod(0o755)  # Ensure executable
-            created_entries.append({"dst": str(dest_unix.resolve()), "src": str(wrapper_unix), "status": "copied"})
-        if wrapper_win.exists():
-            dest_win = bin_dir / wrapper_win.name
-            if dest_win.exists():
-                dest_win.unlink()
-            shutil.copy2(wrapper_win, dest_win)
-            created_entries.append({"dst": str(dest_win.resolve()), "src": str(wrapper_win), "status": "copied"})
+        # Launcher generation deferred until governance.paths.json is written.
 
     for f in sorted(cli_source.rglob("*.py")):
         rel = f.relative_to(cli_source)
@@ -281,22 +268,6 @@ def create_launcher(plan: InstallPlan, dry_run: bool, force: bool) -> list[dict]
 
     launcher_unix = bin_dir / "opencode-governance-bootstrap"
     launcher_win = bin_dir / "opencode-governance-bootstrap.cmd"
-
-    # Skip generating launcher content - we only use the copied wrappers from bin/
-    # This prevents duplicate manifest entries
-    for path in [launcher_unix, launcher_win]:
-        if not path.exists():
-            continue
-        if dry_run:
-            created_entries.append(
-                {
-                    "dst": str(path),
-                    "rel": str(path.relative_to(plan.config_root)),
-                    "rel_base": "config",
-                    "status": "planned-copy",
-                    "src": "generated",
-                }
-            )
 
     # Write INSTALL_HEALTH.json
     health_path = plan.config_root / "INSTALL_HEALTH.json"
@@ -319,6 +290,18 @@ def create_launcher(plan: InstallPlan, dry_run: bool, force: bool) -> list[dict]
                 "commandProfiles": {},
             }
             binding_path.write_text(json.dumps(binding_payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+
+    if not dry_run:
+        try:
+            launcher_entries = _write_launcher_wrappers(
+                plan=plan,
+                python_exe=python_exe,
+                dest_unix=launcher_unix,
+                dest_win=launcher_win,
+            )
+            created_entries.extend(launcher_entries)
+        except RuntimeError as exc:
+            raise RuntimeError(f"Launcher generation failed: {exc}")
 
     if binding_path.exists():
         try:
@@ -352,6 +335,141 @@ def create_launcher(plan: InstallPlan, dry_run: bool, force: bool) -> list[dict]
         print(f"  ✅ {health_path}")
 
     return created_entries
+
+
+def _resolve_python_executable(binding_path: Path, *, fallback: str, strict: bool = True) -> str:
+    if not binding_path.exists():
+        return fallback
+    try:
+        data = json.loads(binding_path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        raise RuntimeError(f"Invalid governance.paths.json: {exc}")
+    paths = data.get("paths")
+    if not isinstance(paths, dict):
+        return fallback
+    python_cmd = str(paths.get("pythonCommand") or "").strip()
+    if python_cmd:
+        if os.path.isabs(python_cmd) and not Path(python_cmd).exists():
+            if strict:
+                raise RuntimeError(f"pythonCommand not found: {python_cmd}")
+            return fallback
+    if not python_cmd:
+        return fallback
+    candidate = Path(python_cmd)
+    if candidate.exists():
+        return str(candidate)
+    if strict:
+        raise RuntimeError(f"pythonCommand not found: {python_cmd}")
+    return fallback
+
+
+def _launcher_template_unix(*, python_exe: str, config_root: Path) -> str:
+    return "\n".join(
+        [
+            "#!/usr/bin/env bash",
+            "set -e",
+            "SCRIPT_DIR=\"$(cd \"$(dirname \"$0\")\" && pwd)\"",
+            f"OPENCODE_CONFIG_ROOT=\"{config_root}\"",
+            "OPENCODE_REPO_ROOT=\"${OPENCODE_REPO_ROOT:-}\"",
+            "COMMANDS_HOME=\"${OPENCODE_CONFIG_ROOT}/commands\"",
+            "PYTHONPATH=\"${COMMANDS_HOME}:${COMMANDS_HOME}/governance:${PYTHONPATH}\"",
+            "export OPENCODE_CONFIG_ROOT",
+            "export OPENCODE_REPO_ROOT",
+            "export COMMANDS_HOME",
+            "export PYTHONPATH",
+            f"PYTHON_BIN=\"{python_exe}\"",
+            "exec \"${PYTHON_BIN}\" -m governance.entrypoints.bootstrap_executor \"$@\"",
+            "",
+        ]
+    )
+
+
+def _launcher_template_windows(*, python_exe: str, config_root: Path) -> str:
+    return "\n".join(
+        [
+            "@echo off",
+            "setlocal EnableDelayedExpansion",
+            "set \"SCRIPT_DIR=%~dp0\"",
+            f"set \"OPENCODE_CONFIG_ROOT={config_root}\"",
+            "set \"OPENCODE_REPO_ROOT=%OPENCODE_REPO_ROOT%\"",
+            "if not defined OPENCODE_REPO_ROOT (",
+            "    if defined GITHUB_WORKSPACE (",
+            "        set \"OPENCODE_REPO_ROOT=%GITHUB_WORKSPACE%\"",
+            "    )",
+            ")",
+            "set \"COMMANDS_HOME=%OPENCODE_CONFIG_ROOT%\\commands\"",
+            "set \"OPENCODE_HOME=%OPENCODE_CONFIG_ROOT%\"",
+            f"set \"PYTHON_EXE={python_exe}\"",
+            "set \"PYTHONPATH=%COMMANDS_HOME%;%COMMANDS_HOME%\\governance;!PYTHONPATH!\"",
+            "set \"OPENCODE_INTERNAL_BOOTSTRAP_CONFIG_ROOT=%OPENCODE_CONFIG_ROOT%\"",
+            "set \"OPENCODE_BOOTSTRAP_BINDING_PATH=%COMMANDS_HOME%\\governance.paths.json\"",
+            "if defined OPENCODE_REPO_ROOT (",
+            "    set \"PYTHONPATH=%OPENCODE_REPO_ROOT%;%PYTHONPATH%\"",
+            ")",
+            "set \"OPENCODE_CONFIG_ROOT=%OPENCODE_CONFIG_ROOT%\"",
+            "set \"OPENCODE_REPO_ROOT=%OPENCODE_REPO_ROOT%\"",
+            "set \"COMMANDS_HOME=%COMMANDS_HOME%\"",
+            "set \"PYTHONPATH=%PYTHONPATH%\"",
+            "if not defined OPENCODE_BOOTSTRAP_VERBOSE (",
+            "    set \"OPENCODE_BOOTSTRAP_VERBOSE=0\"",
+            ")",
+            "if not defined OPENCODE_BOOTSTRAP_OUTPUT (",
+            "    set \"OPENCODE_BOOTSTRAP_OUTPUT=final\"",
+            ")",
+            "\"%PYTHON_EXE%\" -m governance.entrypoints.bootstrap_executor %*",
+            "set \"WRAPPER_EXIT=%ERRORLEVEL%\"",
+            "endlocal & exit /b %WRAPPER_EXIT%",
+            "",
+        ]
+    )
+
+
+def _write_launcher_wrappers(
+    *,
+    plan: InstallPlan,
+    python_exe: str,
+    dest_unix: Path,
+    dest_win: Path,
+) -> list[dict]:
+    created: list[dict] = []
+    binding_path = plan.commands_dir / "governance.paths.json"
+    try:
+        python_exec = _resolve_python_executable(binding_path, fallback=python_exe, strict=True)
+    except RuntimeError as exc:
+        raise RuntimeError(f"Invalid pythonCommand in governance.paths.json: {exc}")
+
+    unix_payload = _launcher_template_unix(python_exe=python_exec, config_root=plan.config_root)
+    win_payload = _launcher_template_windows(python_exe=python_exec, config_root=plan.config_root)
+
+    dest_unix.write_text(unix_payload, encoding="utf-8")
+    dest_unix.chmod(0o755)
+    created.append({"dst": str(dest_unix.resolve()), "src": "generated", "status": "generated"})
+
+    dest_win.write_text(win_payload, encoding="utf-8")
+    created.append({"dst": str(dest_win.resolve()), "src": "generated", "status": "generated"})
+
+    return created
+
+
+def _planned_launcher_entries(*, plan: InstallPlan, bin_dir: Path) -> list[dict]:
+    launcher_unix = bin_dir / "opencode-governance-bootstrap"
+    launcher_win = bin_dir / "opencode-governance-bootstrap.cmd"
+    return [
+        {
+            "dst": str(launcher_unix),
+            "rel": str(launcher_unix.relative_to(plan.config_root)),
+            "rel_base": "config",
+            "status": "planned-copy",
+            "src": "generated",
+        },
+        {
+            "dst": str(launcher_win),
+            "rel": str(launcher_win.relative_to(plan.config_root)),
+            "rel_base": "config",
+            "status": "planned-copy",
+            "src": "generated",
+        },
+    ]
 
 
 def read_governance_version_metadata(version_file: Path) -> str | None:
@@ -1873,8 +1991,12 @@ def show_health(source_dir: Path, config_root_arg: Path | None) -> int:
         if launcher.exists():
             test_env = os.environ.copy()
             test_env["OPENCODE_CONFIG_ROOT"] = str(config_root)
+            if os.name == "nt" and launcher_win.exists():
+                cmd = ["cmd", "/c", str(launcher), "--help"]
+            else:
+                cmd = [str(launcher), "--help"]
             result = subprocess.run(
-                [str(launcher), "--help"],
+                cmd,
                 capture_output=True,
                 text=True,
                 env=test_env,
@@ -1947,8 +2069,12 @@ def run_smoketest(config_root: Path) -> int:
     if launcher.exists():
         test_env = os.environ.copy()
         test_env["OPENCODE_CONFIG_ROOT"] = str(config_root)
+        if os.name == "nt" and launcher_win.exists():
+            cmd = ["cmd", "/c", str(launcher), "--help"]
+        else:
+            cmd = [str(launcher), "--help"]
         result = subprocess.run(
-            [str(launcher), "--help"],
+            cmd,
             capture_output=True,
             text=True,
             env=test_env,

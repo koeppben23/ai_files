@@ -286,6 +286,17 @@ class TestInvariantValidators:
         errors = validate_ticket_intake_ready_invariant(state)
         assert "ticket_intake_ready_phase_ready_below_4" in errors
 
+    def test_ticket_intake_ready_missing_when_preconditions_met(self):
+        state: dict[str, object] = {
+            "Phase": "4",
+            "PersistenceCommitted": True,
+            "WorkspaceReadyGateCommitted": True,
+            "Bootstrap": {"Satisfied": True},
+            "ticket_intake_ready": False,
+        }
+        errors = validate_ticket_intake_ready_invariant(state)
+        assert "ticket_intake_ready_missing_when_preconditions_met" in errors
+
     def test_ticket_intake_ready_false_skips_checks(self):
         state: dict[str, object] = {"ticket_intake_ready": False}
         assert validate_ticket_intake_ready_invariant(state) == ()

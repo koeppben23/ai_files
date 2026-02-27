@@ -86,26 +86,37 @@ def validate_ticket_intake_ready_invariant(state: Mapping[str, object]) -> tuple
     """ticket_intake_ready is authoritative and must match readiness preconditions."""
     ticket_ready = state.get("ticket_intake_ready")
     phase_ready = state.get("phase_ready")
-    if not isinstance(ticket_ready, bool) or ticket_ready is False:
-        return ()
-
     phase_value = state.get("Phase") or state.get("phase") or ""
     token = normalize_phase_token(str(phase_value))
-    if phase_rank(token) < phase_rank("4"):
-        return ("ticket_intake_ready_below_phase_4",)
-
     persistence_committed = _read_bool(state, "PersistenceCommitted", "persistence_committed")
-    if not persistence_committed:
-        return ("ticket_intake_ready_without_persistence_committed",)
-
     workspace_ready = _read_bool(state, "WorkspaceReadyGateCommitted", "workspace_ready_gate_committed")
-    if not workspace_ready:
-        return ("ticket_intake_ready_without_workspace_ready_gate",)
-
     bootstrap = state.get("Bootstrap")
     satisfied = False
     if isinstance(bootstrap, Mapping):
         satisfied = bool(bootstrap.get("Satisfied") is True)
+
+    preconditions_ok = (
+        phase_rank(token) >= phase_rank("4")
+        and persistence_committed
+        and workspace_ready
+        and satisfied
+        and (not isinstance(phase_ready, int) or phase_ready >= 4)
+    )
+
+    if not isinstance(ticket_ready, bool) or ticket_ready is False:
+        if preconditions_ok:
+            return ("ticket_intake_ready_missing_when_preconditions_met",)
+        return ()
+
+    if phase_rank(token) < phase_rank("4"):
+        return ("ticket_intake_ready_below_phase_4",)
+
+    if not persistence_committed:
+        return ("ticket_intake_ready_without_persistence_committed",)
+
+    if not workspace_ready:
+        return ("ticket_intake_ready_without_workspace_ready_gate",)
+
     if not satisfied:
         return ("ticket_intake_ready_without_bootstrap_satisfied",)
 
