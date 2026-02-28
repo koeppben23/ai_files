@@ -6,6 +6,7 @@ Authority boundary: Schemas, validators, and kernel code are authoritative. This
 SSOT: `${COMMANDS_HOME}/phase_api.yaml` is the only truth for routing, execution, and validation.
 Kernel: `governance/kernel/*` is the only control-plane implementation.
 MD files are AI rails/guidance only and are never routing-binding.
+Phase `1.3` is mandatory before every phase `>=2`.
 - Schema IDs are versioned (`schema: governance.<area>.<name>.v1`).
 - Compact presentation schema is optional: `governance.compact_mode.v1`.
 
