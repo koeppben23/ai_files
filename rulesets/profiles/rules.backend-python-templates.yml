@@ -1,0 +1,36 @@
+kind: profile
+metadata:
+  id: profile.backend-python-templates
+  name: Backend Python Templates Addon Rulebook (v2.0)
+  version: '1.0'
+  status: active
+phase_integration:
+  phases:
+  - phase_5_3
+  - phase_4
+  - phase_2
+  required_outputs: []
+  required_checks: []
+references:
+- id: ref_1
+  target: backend-python
+  type: rulebook
+- id: ref_2
+  target: principal-excellence
+  type: rulebook
+- id: ref_3
+  target: risk-tiering
+  type: rulebook
+- id: ref_4
+  target: scorecard-calibration
+  type: rulebook
+activation:
+  type: manifest
+  conditions: []
+evidence_contract:
+  required_artifacts: []
+  required_fields: []
+verification_commands: []
+patterns: []
+anti_patterns: []
+decision_trees: []

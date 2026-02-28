@@ -1,0 +1,31 @@
+kind: profile
+metadata:
+  id: profile.risk-tiering
+  name: Risk Tiering Shared Rulebook
+  version: '1.0'
+  status: active
+phase_integration:
+  phases:
+  - phase_5
+  - phase_6
+  - phase_2
+  required_outputs: []
+  required_checks: []
+warning_codes:
+- code: WARN-RISK-TIER-UNRESOLVED
+  triggers: []
+  recovery: ''
+references:
+- id: ref_1
+  target: profiles/addons/riskTiering.addon.yml
+  type: schema
+activation:
+  type: manifest
+  conditions: []
+evidence_contract:
+  required_artifacts: []
+  required_fields: []
+verification_commands: []
+patterns: []
+anti_patterns: []
+decision_trees: []

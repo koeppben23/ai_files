@@ -1,0 +1,145 @@
+kind: profile
+metadata:
+  id: profile.frontend-angular-nx
+  name: Frontend Angular + Nx Profile Rulebook (v2.0)
+  version: '1.0'
+  status: active
+phase_integration:
+  phases:
+  - phase_5
+  - phase_4
+  - phase_2
+  required_outputs: []
+  required_checks: []
+anti_patterns:
+- id: AP-NG01
+  title: 'Pattern:'
+  detects:
+  - 'Component methods with domain calculations, API calls, or multi-step conditional logic not related to template rendering.
+
+
+    ---'
+  recovery: ''
+- id: AP-NG02
+  title: 'Pattern:'
+  detects:
+  - 'Imports from `@ngrx/store` and Angular `signal()` in the same feature module without documented architectural decision.
+
+
+    ---'
+  recovery: ''
+- id: AP-NG03
+  title: 'Pattern:'
+  detects:
+  - '`HttpClient` in component constructor/inject; `this.http.get(...)` calls in component methods.
+
+
+    ---'
+  recovery: ''
+- id: AP-NG04
+  title: 'Pattern:'
+  detects:
+  - 'API response types used as `@Input()` types or facade return types without a mapping step.
+
+
+    ---'
+  recovery: ''
+- id: AP-NG05
+  title: 'Pattern:'
+  detects:
+  - '`.subscribe(() => { someObs$.subscribe(...) })` patterns in component or service code.
+
+
+    ---'
+  recovery: ''
+- id: AP-NG06
+  title: 'Pattern:'
+  detects:
+  - '`setTimeout` in test code; `tick()` with large values not tied to specific timer-based logic; `cy.wait(number)` in E2E tests.
+
+
+    ---'
+  recovery: ''
+- id: AP-NG07
+  title: 'Pattern:'
+  detects:
+  - '`new FormGroup({...})` without type parameter; `form.get(''fieldName'')` instead of `form.controls.fieldName`; `form.value` used without type assertion.
+
+
+    ---'
+  recovery: ''
+- id: AP-NG08
+  title: 'Pattern:'
+  detects:
+  - 'Component decorator without `changeDetection: ChangeDetectionStrategy.OnPush` property.
+
+
+    ---'
+  recovery: ''
+- id: AP-NG09
+  title: 'Pattern:'
+  detects:
+  - 'Classes implementing `CanActivate`, `CanDeactivate`, `HttpInterceptor` interfaces; `{ provide: HTTP_INTERCEPTORS, useClass: ... }` in providers.
+
+
+    ---'
+  recovery: ''
+- id: AP-NG10
+  title: 'Pattern:'
+  detects:
+  - 'Import paths like `apps/other-app/src/...` in any source file; Nx boundary lint rule violations.
+
+
+    ---'
+  recovery: ''
+decision_trees:
+  - id: DT-NG1
+    root:
+      node_type: leaf
+      result: See architecture decision tree
+  - id: DT-NG2
+    root:
+      node_type: leaf
+      result: See state management decision tree
+  - id: DT-NG3
+    root:
+      node_type: leaf
+      result: See testing decision tree
+  - id: DT-NG4
+    root:
+      node_type: leaf
+      result: SeeNx boundary decision tree
+warning_codes:
+- code: WARN-ANGULAR-BOUNDARY-DRIFT
+  triggers: []
+  recovery: ''
+- code: WARN-ANGULAR-STATE-PATTERN-MIX
+  triggers: []
+  recovery: ''
+- code: WARN-ANGULAR-ASYNC-DETERMINISM
+  triggers: []
+  recovery: ''
+references:
+- id: ref_1
+  target: frontend-angular-nx-templates
+  type: rulebook
+- id: ref_2
+  target: risk-tiering
+  type: rulebook
+- id: ref_3
+  target: principal-excellence
+  type: rulebook
+- id: ref_4
+  target: risk-tiering
+  type: rulebook
+- id: ref_5
+  target: scorecard-calibration
+  type: rulebook
+activation:
+  type: manifest
+  conditions: []
+evidence_contract:
+  required_artifacts: []
+  required_fields: []
+verification_commands: []
+patterns: []

@@ -1,0 +1,50 @@
+kind: profile
+metadata:
+  id: profile.openapi-contracts
+  name: OpenAPI Contracts Addon Rulebook (v1.1)
+  version: '1.0'
+  status: active
+phase_integration:
+  phases:
+  - phase_2
+  - phase_2_1
+  - phase_4
+  - phase_5_3
+  required_outputs: []
+  required_checks: []
+warning_codes:
+- code: WARN-OPENAPI-SPEC-IMPLEMENTATION-MISMATCH
+  triggers: []
+  recovery: ''
+- code: WARN-OPENAPI-VERSION-UNKNOWN
+  triggers: []
+  recovery: ''
+- code: WARN-OPENAPI-BREAKING-CHANGE-UNAPPROVED
+  triggers: []
+  recovery: ''
+- code: WARN-OPENAPI-MISSING-SPEC
+  triggers: []
+  recovery: ''
+references:
+- id: ref_1
+  target: principal-excellence
+  type: rulebook
+- id: ref_2
+  target: risk-tiering
+  type: rulebook
+- id: ref_3
+  target: scorecard-calibration
+  type: rulebook
+- id: ref_4
+  target: profiles/addons/openapi.addon.yml
+  type: schema
+activation:
+  type: manifest
+  conditions: []
+evidence_contract:
+  required_artifacts: []
+  required_fields: []
+verification_commands: []
+patterns: []
+anti_patterns: []
+decision_trees: []
