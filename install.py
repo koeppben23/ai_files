@@ -595,23 +595,21 @@ def precheck_source(source_dir: Path) -> tuple[bool, list[str], list[str]]:
     ]
     has_rules = any(p.exists() for p in rules_candidates)
     if not has_rules:
-        # Additional fallback: scan for any local rules.yml in the bundle
-        for p in source_dir.rglob("rules.yml"):
+        # Fallback: look for rules.md or any *rules*.yml
+        for p in source_dir.rglob("rules.md"):
             if p.is_file():
                 has_rules = True
                 break
         if not has_rules:
-            # Fallback: also look for rules.md (Markdown-based rules mention)
-            for p in source_dir.rglob("rules.md"):
+            for p in source_dir.rglob("*rules*.yml"):
                 if p.is_file():
                     has_rules = True
                     break
-        if not has_rules:
-            # Provide common hints to help diagnose layout issues in bundles
-            if (source_dir / "rulesets" / "core" / "rules.yml").exists() is False:
-                missing.append("rulesets/core/rules.yml")
-            if (source_dir / "rules.yml").exists() is False:
-                missing.append("rules.yml")
+    if not has_rules:
+        if (source_dir / "rulesets" / "core" / "rules.yml").exists() is False:
+            missing.append("rulesets/core/rules.yml")
+        if (source_dir / "rules.yml").exists() is False:
+            missing.append("rules.yml")
 
     unsafe_symlinks = collect_unsafe_source_symlinks(source_dir)
     return (len(missing) == 0 and len(unsafe_symlinks) == 0, missing, unsafe_symlinks)

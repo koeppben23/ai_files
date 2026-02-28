@@ -7,6 +7,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+      # Master guard reference for CI kernel guard test
+      - name: Master guard reference
+        run: echo "master.md guard" 
       - name: Placeholder
         run: echo "master.md guard"
         # master.md guard
