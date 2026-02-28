@@ -142,7 +142,6 @@ def test_release_zip_invalid_python_command_fails(tmp_path: Path) -> None:
     assert proc.returncode != 0, proc.stdout + "\n" + proc.stderr
 
 
-@pytest.mark.skip(reason="Bootstrap E2E test has path resolution issues on macOS - needs investigation")
 def test_release_zip_installer_bootstrap_e2e(tmp_path: Path) -> None:
     repo_root = Path(__file__).resolve().parents[2]
     dist = tmp_path / "dist"
