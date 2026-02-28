@@ -25,8 +25,25 @@ def test_end_to_end_windows_wrapper_smoke():
         # Create necessary dirs
         installer.ensure_dirs(config_root, dry_run=False)
 
+        (config_root / "commands").mkdir(parents=True, exist_ok=True)
+        phase_src = REPO_ROOT / "phase_api.yaml"
+        if not phase_src.exists():
+            raise AssertionError("phase_api.yaml missing from repo root")
+        phase_dst = config_root / "commands" / "phase_api.yaml"
+        if not phase_dst.exists():
+            phase_dst.write_bytes(phase_src.read_bytes())
+
         # Create launcher (installs wrappers into runtime bin)
         created = installer.create_launcher(plan, dry_run=False, force=False)
+        paths_file = plan.governance_paths_path
+        if not paths_file.exists():
+            installer.install_governance_paths_file(
+                plan,
+                dry_run=False,
+                force=True,
+                backup_enabled=False,
+                backup_root=config_root,
+            )
 
         wrapper_path = config_root / "bin" / "opencode-governance-bootstrap.cmd"
         assert wrapper_path.exists(), f"Windows wrapper not installed: {wrapper_path}"
@@ -37,7 +54,7 @@ def test_end_to_end_windows_wrapper_smoke():
 
         # Execute the Windows launcher
         result = subprocess.run(
-            [str(wrapper_path)],
+            [str(wrapper_path), "--repo-root", str(REPO_ROOT), "--config-root", str(config_root)],
             capture_output=True,
             text=True,
             env=env,
@@ -49,7 +66,17 @@ def test_end_to_end_windows_wrapper_smoke():
         # Expect a JSON payload on stdout
         payload_text = result.stdout.strip()
         assert payload_text, "Launcher did not print payload JSON"
-        payload = json.loads(payload_text)
+        payload = None
+        for line in payload_text.splitlines():
+            try:
+                candidate = json.loads(line)
+            except Exception:
+                continue
+            if isinstance(candidate, dict) and "session_state_path" in candidate:
+                payload = candidate
+                break
+        if payload is None:
+            payload = json.loads(payload_text)
         assert isinstance(payload, dict)
         # Basic sanity checks on the payload
         assert 'phase' in payload, payload

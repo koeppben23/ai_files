@@ -125,6 +125,10 @@
           },
           "additionalProperties": true
         },
+        "ticket_intake_ready": {
+          "type": "boolean",
+          "description": "Authoritative readiness gate for ticket intake"
+        },
         "AddonsEvidence": {
           "type": "object",
           "additionalProperties": true
@@ -152,10 +156,6 @@
         },
         "ProfileEvidence": {
           "type": ["string", "null"]
-        },
-        "ticket_intake_ready": {
-          "type": "boolean",
-          "description": "Authoritative readiness gate for ticket intake"
         },
         "phase_ready": {
           "type": "integer",

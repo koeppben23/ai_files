@@ -41,7 +41,11 @@ class BindingEvidenceResolver:
         cwd_provider: Callable[[], Path] | None = None,
     ):
         self._env = env if env is not None else {}
-        configured_root = config_root if config_root is not None else canonical_config_root()
+        env_config_root = os.environ.get("OPENCODE_CONFIG_ROOT")
+        if env_config_root:
+            configured_root = Path(env_config_root).resolve()
+        else:
+            configured_root = (config_root if config_root is not None else canonical_config_root()).resolve()
         self._config_root = normalize_absolute_path(str(configured_root), purpose="resolver.config_root")
         self._cwd_provider = cwd_provider if cwd_provider is not None else Path.cwd
 
