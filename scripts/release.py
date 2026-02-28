@@ -4,13 +4,14 @@ Release helper for the Governance System.
 
 Goals:
 - Single command that updates all version sources consistently:
-  - master.md (Governance-Version header)
+  - governance/VERSION (authoritative version source)
   - install.py (VERSION constant)
   - CHANGELOG.md (Keep-a-Changelog: cut [Unreleased] into new version section)
 - Optionally commit + tag (annotated) the release.
 
 Design:
 - Fail-closed by default (empty unreleased changes => abort), unless --allow-empty-changelog.
+- master.md is no longer authoritative (rails-only documentation).
 """
 
 from __future__ import annotations
@@ -47,21 +48,14 @@ def run(cmd: list[str], *, check: bool = True) -> subprocess.CompletedProcess[st
     return subprocess.run(cmd, text=True, capture_output=False, check=check)
 
 
-def replace_master_version(master_path: Path, version: str) -> bool:
+def replace_version_file(version_path: Path, version: str) -> bool:
     """
-    Replace the first occurrence of:
-      Governance-Version: <...>
-    near the top, but we allow it anywhere to be robust.
+    Replace the version in governance/VERSION file.
     """
-    text = read_text(master_path)
-    # Match a line that contains Governance-Version: <token>
-    pat = re.compile(r"^(.*Governance-Version:\s*)(.+?)\s*$", re.IGNORECASE | re.MULTILINE)
-    m = pat.search(text)
-    if not m:
+    text = read_text(version_path)
+    if text.strip() == version:
         return False
-    new_text = pat.sub(lambda m: f"{m.group(1)}{version}", text, count=1)
-    if new_text != text:
-        write_text(master_path, new_text)
+    write_text(version_path, version + "\n")
     return True
 
 
@@ -184,10 +178,11 @@ def main(argv: list[str]) -> int:
         return 2
 
     master_path = REPO_ROOT / "master.md"
+    version_path = REPO_ROOT / "governance" / "VERSION"
     install_path = REPO_ROOT / "install.py"
     changelog_path = REPO_ROOT / "CHANGELOG.md"
 
-    for p in (master_path, install_path, changelog_path):
+    for p in (version_path, install_path, changelog_path):
         if not p.exists():
             eprint(f"❌ Missing required file: {p}")
             return 2
@@ -199,30 +194,20 @@ def main(argv: list[str]) -> int:
         return 2
 
     # Load originals for dry-run diff preview
-    orig_master = read_text(master_path)
+    orig_version = read_text(version_path)
     orig_install = read_text(install_path)
     orig_changelog = read_text(changelog_path)
 
     # Apply transforms in-memory first (so we can dry-run)
     # We'll write via helpers unless dry-run.
     try:
-        # master.md
-        if not re.search(r"Governance-Version:", orig_master, flags=re.IGNORECASE):
-            raise RuntimeError("master.md: Missing 'Governance-Version:' header.")
-
         # install.py
         if not re.search(r'VERSION\s*=\s*"', orig_install):
             raise RuntimeError('install.py: Missing VERSION = "..." constant.')
 
         # For dry-run, we simulate by writing to temp strings via regex ops
-        # 1) master
-        new_master = re.sub(
-            r"^(.*Governance-Version:\s*)(.+?)\s*$",
-            lambda m: f"{m.group(1)}{version}",
-            orig_master,
-            count=1,
-            flags=re.IGNORECASE | re.MULTILINE,
-        )
+        # 1) version file
+        new_version = version
         # 2) install
         new_install = re.sub(
             r'^(VERSION\s*=\s*")([^"]+)(")\s*$',
@@ -245,11 +230,9 @@ def main(argv: list[str]) -> int:
                     allow_empty=args.allow_empty_changelog,
                 )
         else:
-            # write master/install first, then cut changelog using file-based function
-            ok_m = replace_master_version(master_path, version)
+            # write install first, then cut changelog using file-based function
+            ok_v = replace_version_file(version_path, version)
             ok_i = replace_install_version(install_path, version)
-            if not ok_m:
-                raise RuntimeError("master.md: Could not replace Governance-Version.")
             if not ok_i:
                 raise RuntimeError("install.py: Could not replace VERSION.")
             cut_changelog_unreleased(changelog_path, version, date_str, allow_empty=args.allow_empty_changelog)
@@ -262,8 +245,8 @@ def main(argv: list[str]) -> int:
         print("=== DRY RUN ===")
         print(f"Would set version: {version}")
         print(f"Would set date:    {date_str}")
-        if new_master != orig_master:
-            print(" - master.md would change")
+        if new_version != orig_version:
+            print(" - governance/VERSION would change")
         if new_install != orig_install:
             print(" - install.py would change")
         print(" - CHANGELOG.md would be cut (Unreleased -> new version section)")
@@ -275,7 +258,7 @@ def main(argv: list[str]) -> int:
     tag = f"{args.tag_prefix}{version}"
 
     if not args.no_commit:
-        run(["git", "add", "master.md", "install.py", "CHANGELOG.md"])
+        run(["git", "add", "governance/VERSION", "install.py", "CHANGELOG.md"])
         run(["git", "commit", "-m", commit_msg])
         print(f"✅ Created release commit: {commit_msg}")
     else:

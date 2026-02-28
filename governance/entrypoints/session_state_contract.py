@@ -88,6 +88,7 @@ except Exception:
                     "templates": "",
                     "addons": {},
                 },
+                "ticket_intake_ready": False,
                 "AddonsEvidence": {},
                 "RulebookLoadEvidence": {
                     "top_tier": {

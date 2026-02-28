@@ -50,25 +50,15 @@ def test_master_md_no_resolved_path_placeholder_and_variable_paths():
 
 
 @pytest.mark.spec
-def test_governance_version_present_in_master_md():
-    p = REPO_ROOT / "master.md"
-    assert p.exists(), "master.md not found"
-    head = "\n".join(read_text(p).splitlines()[:60])
+def test_governance_version_present_in_version_file():
+    version_file = REPO_ROOT / "governance" / "VERSION"
+    assert version_file.exists(), "governance/VERSION not found"
 
-    patterns = [
-        r"Governance-Version:\s*([0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?)",
-        r"^\s*governanceVersion:\s*([0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?)\s*$",
-        r"^\s*governance_version:\s*([0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?)\s*$",
-    ]
+    version = version_file.read_text(encoding="utf-8").strip()
+    assert version, "governance/VERSION is empty"
 
-    ver = None
-    for pat in patterns:
-        m = re.search(pat, head, flags=re.IGNORECASE | re.MULTILINE)
-        if m:
-            ver = m.group(1)
-            break
-
-    assert ver, "Missing governance version in master.md. Add e.g. '# Governance-Version: 1.0.0' near the top."
+    semver_pattern = r"^[0-9]+\.[0-9]+\.[0-9]+"
+    assert re.match(semver_pattern, version), f"Invalid semver in governance/VERSION: {version}"
 
 
 @pytest.mark.spec

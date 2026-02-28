@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from typing import Optional
 
 from governance.application.use_cases.artifact_backfill import (
     ArtifactBackfillInput,
@@ -32,7 +33,7 @@ def _parse_specs(values: list[str]) -> tuple[ArtifactSpec, ...]:
     return tuple(specs)
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(argv: Optional[list[str]] = None) -> int:
     args = _parser().parse_args(argv)
     service = ArtifactBackfillService(fs=LocalFS())
     summary = service.run(
