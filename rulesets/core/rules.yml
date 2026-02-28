@@ -1,0 +1,14 @@
+kind: core
+metadata:
+  id: core.rules
+  name: rules
+  version: '1.0'
+  status: active
+phase_integration:
+  phases:
+  - phase_4
+  - phase_1_5
+  - phase_2
+  - phase_5
+  required_outputs: []
+  required_checks: []

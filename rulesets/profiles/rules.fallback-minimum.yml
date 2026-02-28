@@ -1,0 +1,68 @@
+kind: profile
+metadata:
+  id: profile.fallback-minimum
+  name: Fallback Minimum Profile Rulebook (v1.0)
+  version: '1.0'
+  status: active
+phase_integration:
+  phases:
+  - phase_5
+  - phase_4
+  - phase_2_1
+  - phase_2
+  required_outputs: []
+  required_checks: []
+anti_patterns:
+- id: AP-FM01
+  title: 'Pattern:'
+  detects: []
+  recovery: ''
+- id: AP-FM02
+  title: 'Pattern:'
+  detects: []
+  recovery: ''
+- id: AP-FM03
+  title: 'Pattern:'
+  detects: []
+  recovery: ''
+- id: AP-FM04
+  title: 'Pattern:'
+  detects: []
+  recovery: ''
+- id: AP-FM05
+  title: 'Pattern:'
+  detects: []
+  recovery: ''
+decision_trees:
+- id: DT-FM1
+  title: DT-FM1
+  root: {}
+- id: DT-FM2
+  title: DT-FM2
+  root: {}
+- id: DT-FM3
+  title: DT-FM3
+  root: {}
+warning_codes:
+- code: WARN-FALLBACK-BASELINE-UNKNOWN
+  triggers: []
+  recovery: null
+- code: WARN-FALLBACK-TESTING-INSUFFICIENT
+  triggers: []
+  recovery: null
+- code: WARN-FALLBACK-RECOVERY-UNSPECIFIED
+  triggers: []
+  recovery: null
+references:
+- id: ref_1
+  target: principal-excellence
+  type: rulebook
+- id: ref_2
+  target: risk-tiering
+  type: rulebook
+- id: ref_3
+  target: scorecard-calibration
+  type: rulebook
+- id: ref_4
+  target: fallback-minimum
+  type: rulebook
