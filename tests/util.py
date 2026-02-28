@@ -32,6 +32,9 @@ def run_install(args: list[str], *, env: dict[str, str] | None = None) -> subpro
             source_dir = Path(args[i + 1])
             break
     
+    # If no explicit --source-dir provided, default to repository root
+    if source_dir is None:
+        source_dir = REPO_ROOT
     # Always use the current interpreter (matrix python-version).
     # If the source_dir does not contain an install.py (some tests set up synthetic
     # governance sources), fall back to the repository's install.py to execute.

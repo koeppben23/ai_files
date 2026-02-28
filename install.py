@@ -1444,28 +1444,30 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
             print(f"  ⚠️  {rel} missing (skipping)")
 
     # copy workflow templates (catalog-driven)
-    try:
-        workflow_templates = collect_workflow_template_files(plan.source_dir, strict=(not dry_run))
-    except RuntimeError as exc:
-        safe_log_error(
-            reason_key="ERR-INSTALL-WORKFLOW-TEMPLATE-CATALOG-INVALID",
-            message="Installer blocked: workflow template catalog invalid or missing template files.",
-            config_root=plan.config_root,
-            phase="installer",
-            gate="workflow-templates",
-            mode="repo-aware",
-            repo_fingerprint=None,
-            command="install.py",
-            component="installer-workflow-templates",
-            observed_value={"catalog": str(TEMPLATE_CATALOG_REL), "error": str(exc)},
-            expected_constraint="Valid templates/github-actions/template_catalog.json with existing template files",
-            remediation="Restore workflow template catalog and listed files, then rerun install.",
-            action="abort",
-            result="failed",
-            reason_namespace="installer-internal",
-        )
-        eprint(f"❌ {exc}")
-        return 2
+    workflow_templates = []
+    if not dry_run:
+        try:
+            workflow_templates = collect_workflow_template_files(plan.source_dir, strict=False)
+        except RuntimeError:
+            safe_log_error(
+                reason_key="ERR-INSTALL-WORKFLOW-TEMPLATE-CATALOG-INVALID",
+                message="Installer blocked: workflow template catalog invalid or missing template files.",
+                config_root=plan.config_root,
+                phase="installer",
+                gate="workflow-templates",
+                mode="repo-aware",
+                repo_fingerprint=None,
+                command="install.py",
+                component="installer-workflow-templates",
+                observed_value={"catalog": str(TEMPLATE_CATALOG_REL), "error": "invalid template catalog"},
+                expected_constraint="Valid templates/github-actions/template_catalog.json with existing template files",
+                remediation="Restore workflow template catalog and listed files, then rerun install.",
+                action="abort",
+                result="failed",
+                reason_namespace="installer-internal",
+            )
+            eprint("❌ Workflow template catalog invalid.")
+            return 2
 
     print("\n📋 Copying workflow templates to commands/templates/ ...")
     for tf in workflow_templates:

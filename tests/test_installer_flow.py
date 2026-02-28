@@ -413,7 +413,7 @@ def test_install_fail_closed_on_source_symlink(tmp_path: Path):
         "--source-dir", str(source_dir),
         "--config-root", str(config_root),
     ])
-    assert r.returncode == 0, f"install failed:\n{r.stderr}\n{r.stdout}"
+    # Live install should fail-closed due to symlink in source-dir
     assert r.returncode == 2, "installer must fail-closed when source contains symlink/reparse points"
     assert "Unsafe source symlinks/reparse-points detected" in (r.stderr + r.stdout)
 
