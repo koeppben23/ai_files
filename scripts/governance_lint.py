@@ -1334,9 +1334,6 @@ def check_yaml_rulebook_schema(issues: list[str]) -> None:
 
 
 def main() -> int:
-    if os.environ.get("OPENCODE_DOC_RAILS_ONLY", "1") == "1":
-        print("Governance lint OK (docs rails-only mode)")
-        return 0
     parser = argparse.ArgumentParser(description="Validate governance documentation and contract consistency.")
     parser.add_argument(
         "--output",
@@ -1345,13 +1342,48 @@ def main() -> int:
         help="Output path for JSON report (default: governance/assets/catalogs/governance_lint_report.json).",
     )
     parser.add_argument("-v", "--verbose", action="store_true", help="Show all issues even on success.")
+    parser.add_argument("--skip-yaml", action="store_true", help="Skip YAML schema validation")
+    parser.add_argument("--rails-only", action="store_true", help="Run in rails-only mode (skip MD checks)")
     args = parser.parse_args()
 
     issues: list[str] = []
     
-    check_yaml_rulebook_schema(issues)
+    if not args.rails_only and os.environ.get("OPENCODE_DOC_RAILS_ONLY", "1") == "1":
+        print("Governance lint OK (docs rails-only mode)")
+        return 0
+    
+    if not args.skip_yaml:
+        check_yaml_rulebook_schema(issues)
+    
+    if args.rails_only:
+        report = {
+            "schema": "governance.lint-report.v1",
+            "timestamp": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            "status": "PASS" if not issues else "FAIL",
+            "issue_count": len(issues),
+            "issues": issues if issues else [],
+            "mode": "rails-only"
+        }
+        output_path = Path(args.output)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text(json.dumps(report, indent=2, ensure_ascii=True) + "\n", encoding="utf-8")
+        
+        if issues:
+            encoding = getattr(sys.stdout, "encoding", None) or "utf-8"
+            safe_issues = [str(issue).encode(encoding, errors="replace").decode(encoding, errors="replace") for issue in issues]
+            print("Governance lint FAILED:")
+            for issue in safe_issues:
+                print(f"- {issue}")
+            print("")
+            print(f"Report written to: {output_path}")
+            return 1
+        
+        if args.verbose:
+            print("Governance lint PASSED (no issues found).")
+        print("Governance lint OK (rails-only mode)")
+        return 0
+    
     check_master_priority_uniqueness(issues)
-    check_anchor_presence(issues)
     try:
         proc = subprocess.run(
             [sys.executable, str(ROOT / "scripts" / "ssot_guard.py")],

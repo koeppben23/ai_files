@@ -219,7 +219,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--version", required=True)
     parser.add_argument("--repo-root", default="", help="Repository root containing master.md/rules.md/profiles.")
     parser.add_argument("--output-root", default="rulesets")
-    parser.add_argument("--schema-v2", action="store_true", help="Use YAML/JSON schema v2 (rulesets/*.yml)")
+    parser.add_argument("--legacy", action="store_true", help="Use legacy MD-based schema v1 (default: auto-detect v2 if YAML exists)")
     args = parser.parse_args(argv)
 
     if not re.fullmatch(r"[A-Za-z0-9._-]+", args.ruleset_id):
@@ -231,14 +231,18 @@ def main(argv: list[str] | None = None) -> int:
 
     repo_root = Path(args.repo_root).resolve() if args.repo_root else Path(__file__).resolve().parents[1]
     
+    rulesets_dir = repo_root / "rulesets"
+    use_v2 = not args.legacy and rulesets_dir.exists() and any((rulesets_dir / "profiles").glob("*.yml"))
+    
     try:
-        if args.schema_v2:
+        if use_v2:
             hashes = build_ruleset_artifacts_v2(
                 repo_root=repo_root,
                 ruleset_id=args.ruleset_id,
                 version=args.version,
                 output_root=Path(args.output_root),
             )
+            print(json.dumps({"status": "OK", "ruleset_hash": hashes["ruleset_hash"], "mode": "v2-yaml"}, ensure_ascii=True))
         else:
             hashes = build_ruleset_artifacts(
                 repo_root=repo_root,
@@ -246,7 +250,7 @@ def main(argv: list[str] | None = None) -> int:
                 version=args.version,
                 output_root=Path(args.output_root),
             )
-        print(json.dumps({"status": "OK", "ruleset_hash": hashes["ruleset_hash"]}, ensure_ascii=True))
+            print(json.dumps({"status": "OK", "ruleset_hash": hashes["ruleset_hash"], "mode": "v1-legacy"}, ensure_ascii=True))
         return 0
     except Exception as e:
         print(json.dumps({"status": "BLOCKED", "message": str(e)}, ensure_ascii=True))
