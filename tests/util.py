@@ -25,8 +25,15 @@ def run(cmd: list[str], *, env: dict[str, str] | None = None, cwd: Path | None =
 
 
 def run_install(args: list[str], *, env: dict[str, str] | None = None) -> subprocess.CompletedProcess:
+    # Check if --source-dir is provided in args
+    source_dir = None
+    for i, arg in enumerate(args):
+        if arg == "--source-dir" and i + 1 < len(args):
+            source_dir = Path(args[i + 1])
+            break
+    
     # Always use the current interpreter (matrix python-version).
-    return run([sys.executable, "-X", "utf8", "install.py", *args], env=env)
+    return run([sys.executable, "-X", "utf8", "install.py", *args], env=env, cwd=source_dir)
 
 
 def run_build(args: list[str], *, env: dict[str, str] | None = None) -> subprocess.CompletedProcess:

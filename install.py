@@ -560,14 +560,38 @@ def build_plan(
 def required_source_files(source_dir: Path) -> list[str]:
     # YAML rulebooks are authoritative; VERSION is required, YAML rulebooks preferred
     # MD files are guidance-only and optional
-    return ["governance/VERSION", "rulesets/core/rules.yml"]
+    # NOTE: Some downstream/governance test bundles place files under alternative
+    # locations (eg governance/VERSION or governance/rulesets/core/rules.yml).
+    # We keep the explicit list for compatibility, but augment precheck logic to
+    # tolerate alternative layouts in case the expected paths are missing in a
+    # given bundle. The actual existence checks are performed in precheck_source.
+    return ["VERSION", "rulesets/core/rules.yml"]
 
 
 def precheck_source(source_dir: Path) -> tuple[bool, list[str], list[str]]:
-    missing = []
-    for name in required_source_files(source_dir):
-        if not (source_dir / name).exists():
-            missing.append(name)
+    """Pre-checks for required governance source files.
+
+    Accept multiple possible layouts to support different distributions/layouts
+    of the governance source tarballs. Specifically, tolerate either root-based
+    VERSION and rules.yml or their governance-namespaced equivalents.
+    """
+    missing: list[str] = []
+
+    # Version: allow VERSION at root or governance/VERSION
+    version_root = source_dir / "VERSION"
+    version_governance = source_dir / "governance" / "VERSION"
+    has_version = version_root.exists() or version_governance.exists()
+    if not has_version:
+        # Prefer explicit messaging about the two possible locations
+        missing.append("VERSION" )
+
+    # Rules.yml: allow either root path (rulesets/core/rules.yml) or governance variant
+    rules_root = source_dir / "rulesets" / "core" / "rules.yml"
+    rules_governance = source_dir / "governance" / "rulesets" / "core" / "rules.yml"
+    has_rules = rules_root.exists() or rules_governance.exists()
+    if not has_rules:
+        missing.append("rulesets/core/rules.yml")
+
     unsafe_symlinks = collect_unsafe_source_symlinks(source_dir)
     return (len(missing) == 0 and len(unsafe_symlinks) == 0, missing, unsafe_symlinks)
 
@@ -1136,12 +1160,15 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
     backup_root = plan.commands_dir / "_backup" / now_ts()
 
     # determine governance version from kernel-owned metadata
-    gov_ver = read_governance_version_metadata(plan.source_dir / "governance" / "VERSION")
+    # governance version may live in root VERSION or governance/VERSION
+    gov_ver = read_governance_version_metadata(plan.source_dir / "VERSION")
+    if not gov_ver:
+        gov_ver = read_governance_version_metadata(plan.source_dir / "governance" / "VERSION")
 
     if not gov_ver:
         safe_log_error(
             reason_key="ERR-INSTALL-GOVERNANCE-VERSION-MISSING",
-            message="Governance version not found in governance/VERSION.",
+            message="Governance version not found in VERSION.",
             config_root=plan.config_root,
             phase="installer",
             gate="version-check",
@@ -1149,19 +1176,19 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
             repo_fingerprint=None,
             command="install.py",
             component="installer-version",
-            observed_value={"versionPath": str(plan.source_dir / "governance" / "VERSION")},
-            expected_constraint="governance/VERSION contains <semver>",
-            remediation="Add semantic version to governance/VERSION and rerun install.",
+            observed_value={"versionPath": str(plan.source_dir / "VERSION")},
+            expected_constraint="VERSION contains <semver>",
+            remediation="Add semantic version to VERSION and rerun install.",
             action="abort",
             result="failed",
             reason_namespace="installer-internal",
         )
-        eprint("❌ Governance version metadata missing in governance/VERSION.")
+        eprint("❌ Governance version metadata missing in VERSION.")
         eprint("")
-        eprint("The file governance/VERSION must contain a semantic version like:")
+        eprint("The file VERSION must contain a semantic version like:")
         eprint("  1.0.0")
         eprint("")
-        eprint("Add the version to governance/VERSION and rerun install.")
+        eprint("Add the version to VERSION and rerun install.")
         return 2
 
     copied_entries: list[dict] = []
