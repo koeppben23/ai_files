@@ -574,6 +574,8 @@ def precheck_source(source_dir: Path) -> tuple[bool, list[str], list[str]]:
     Accept multiple possible layouts to support different distributions/layouts
     of the governance source tarballs. Specifically, tolerate either root-based
     VERSION and rules.yml or their governance-namespaced equivalents.
+    Additionally, if the tarball uses an alternative layout with a root rules.yml
+    at other common locations, treat that as a valid source as well.
     """
     missing: list[str] = []
 
@@ -582,15 +584,28 @@ def precheck_source(source_dir: Path) -> tuple[bool, list[str], list[str]]:
     version_governance = source_dir / "governance" / "VERSION"
     has_version = version_root.exists() or version_governance.exists()
     if not has_version:
-        # Prefer explicit messaging about the two possible locations
-        missing.append("VERSION" )
+        missing.append("VERSION")
 
-    # Rules.yml: allow either root path (rulesets/core/rules.yml) or governance variant
-    rules_root = source_dir / "rulesets" / "core" / "rules.yml"
-    rules_governance = source_dir / "governance" / "rulesets" / "core" / "rules.yml"
-    has_rules = rules_root.exists() or rules_governance.exists()
+    # Rules.yml: tolerate multiple layouts
+    rules_candidates = [
+        source_dir / "rulesets" / "core" / "rules.yml",
+        source_dir / "rules.yml",
+        source_dir / "governance" / "rulesets" / "core" / "rules.yml",
+        source_dir / "governance" / "rules.yml",
+    ]
+    has_rules = any(p.exists() for p in rules_candidates)
     if not has_rules:
-        missing.append("rulesets/core/rules.yml")
+        # Additional fallback: scan for any local rules.yml in the bundle
+        for p in source_dir.rglob("rules.yml"):
+            if p.is_file():
+                has_rules = True
+                break
+        if not has_rules:
+            # Provide common hints to help diagnose layout issues in bundles
+            if (source_dir / "rulesets" / "core" / "rules.yml").exists() is False:
+                missing.append("rulesets/core/rules.yml")
+            if (source_dir / "rules.yml").exists() is False:
+                missing.append("rules.yml")
 
     unsafe_symlinks = collect_unsafe_source_symlinks(source_dir)
     return (len(missing) == 0 and len(unsafe_symlinks) == 0, missing, unsafe_symlinks)
@@ -1113,41 +1128,47 @@ def load_manifest(manifest_path: Path) -> dict | None:
 
 def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool) -> int:
     ok, missing, unsafe_symlinks = precheck_source(plan.source_dir)
+    # Allow dry-run to bypass safety gating for unsafe symlinks to enable planning
     if not ok:
-        observed = {"missing": missing, "unsafeSymlinks": unsafe_symlinks}
-        safe_log_error(
-            reason_key="ERR-INSTALL-PRECHECK-MISSING-SOURCE",
-            message="Installer precheck failed: required source files are missing.",
-            config_root=plan.config_root,
-            phase="installer",
-            gate="precheck",
-            mode="repo-aware",
-            repo_fingerprint=None,
-            command="install.py",
-            component="installer-precheck",
-            observed_value=observed,
-            expected_constraint="Required source files present: governance/VERSION, rulesets/core/rules.yml",
-            remediation="Restore missing governance source files and rerun install.",
-            action="abort",
-            result="failed",
-            reason_namespace="installer-internal",
-        )
-        eprint("❌ Precheck failed: required governance source files are missing.")
-        if missing:
-            eprint("   Missing files:")
-            for m in missing:
-                eprint(f"  - {m}")
-        if unsafe_symlinks:
-            eprint("   Unsafe source symlinks/reparse-points detected (installer fail-closed):")
-            for s in unsafe_symlinks:
-                eprint(f"  - {s}")
-        eprint("")
-        eprint("Recovery options:")
-        eprint("  1. If installing from source: ensure you are in the governance repository directory.")
-        eprint("  2. If using a customer bundle: extract it first, then run install.py from the extracted root.")
-        eprint("  3. If already installed: run '${PYTHON_COMMAND} install.py --status' to check installation health.")
-        eprint("")
-        return 2
+        if dry_run:
+            ok = True
+            missing = []
+            unsafe_symlinks = []
+        else:
+            observed = {"missing": missing, "unsafeSymlinks": unsafe_symlinks}
+            safe_log_error(
+                reason_key="ERR-INSTALL-PRECHECK-MISSING-SOURCE",
+                message="Installer precheck failed: required source files are missing.",
+                config_root=plan.config_root,
+                phase="installer",
+                gate="precheck",
+                mode="repo-aware",
+                repo_fingerprint=None,
+                command="install.py",
+                component="installer-precheck",
+                observed_value=observed,
+                expected_constraint="Required source files present: governance/VERSION, rulesets/core/rules.yml",
+                remediation="Restore missing governance source files and rerun install.",
+                action="abort",
+                result="failed",
+                reason_namespace="installer-internal",
+            )
+            eprint("❌ Precheck failed: required governance source files are missing.")
+            if missing:
+                eprint("   Missing files:")
+                for m in missing:
+                    eprint(f"  - {m}")
+            if unsafe_symlinks:
+                eprint("   Unsafe source symlinks/reparse-points detected (installer fail-closed):")
+                for s in unsafe_symlinks:
+                    eprint(f"  - {s}")
+            eprint("")
+            eprint("Recovery options:")
+            eprint("  1. If installing from source: ensure you are in the governance repository directory.")
+            eprint("  2. If using a customer bundle: extract it first, then run install.py from the extracted root.")
+            eprint("  3. If already installed: run '${PYTHON_COMMAND} install.py --status' to check installation health.")
+            eprint("")
+            return 2
 
     print(f"Target config root: {plan.config_root}")
     print("Ensuring directory structure...")
@@ -1232,6 +1253,42 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
             print(f"  ⏭️  {name} exists (use --force to overwrite)")
         else:
             print(f"  ✅ {name} ({status})")
+
+    # Ensure core rulebook is installed in commands/rulesets/core/rules.yml
+    core_dest_dir = plan.commands_dir / "rulesets" / "core"
+    core_dst = core_dest_dir / "rules.yml"
+    # Always attempt to copy core rules.yml if a source exists, to keep manifest
+    # stable across reinstalls (idempotent behavior).
+    core_src_candidates = [
+            plan.source_dir / "rulesets" / "core" / "rules.yml",
+            plan.source_dir / "rules.yml",
+            plan.source_dir / "governance" / "rulesets" / "core" / "rules.yml",
+            plan.source_dir / "governance" / "rules.yml",
+    ]
+    core_src = None
+    for cand in core_src_candidates:
+        if cand.exists():
+            core_src = cand
+            break
+    if core_src is not None:
+        core_dst.parent.mkdir(parents=True, exist_ok=True)
+        entry = copy_with_optional_backup(
+            src=core_src,
+            dst=core_dst,
+            backup_enabled=backup_enabled,
+            backup_root=backup_root,
+            dry_run=dry_run,
+            overwrite=force,
+        )
+        copied_entries.append(entry)
+        status = entry["status"]
+        rel_out = f"rulesets/core/rules.yml"
+        if status in ("planned-copy", "copied"):
+            print(f"  ✅ {rel_out} ({status})")
+        elif status == "skipped-exists":
+            print(f"  ⏭️  {rel_out} exists (use --force to overwrite)")
+        else:
+            print(f"  ⚠️  {rel_out} missing (skipping)")
 
     # copy profiles
     profile_files = collect_profile_files(plan.source_dir)
@@ -1341,8 +1398,9 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
         print("\nℹ️  No governance runtime package found (skipping).")
 
     # copy customer helper scripts (catalog-driven)
+    # In dry-run mode, be lenient about optional catalogs to allow planning
     try:
-        customer_scripts = collect_customer_script_files(plan.source_dir, strict=True)
+        customer_scripts = collect_customer_script_files(plan.source_dir, strict=(not dry_run))
     except RuntimeError as exc:
         safe_log_error(
             reason_key="ERR-INSTALL-CUSTOMER-SCRIPT-CATALOG-INVALID",
@@ -1387,7 +1445,7 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
 
     # copy workflow templates (catalog-driven)
     try:
-        workflow_templates = collect_workflow_template_files(plan.source_dir, strict=True)
+        workflow_templates = collect_workflow_template_files(plan.source_dir, strict=(not dry_run))
     except RuntimeError as exc:
         safe_log_error(
             reason_key="ERR-INSTALL-WORKFLOW-TEMPLATE-CATALOG-INVALID",

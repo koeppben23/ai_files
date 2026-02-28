@@ -33,7 +33,12 @@ def run_install(args: list[str], *, env: dict[str, str] | None = None) -> subpro
             break
     
     # Always use the current interpreter (matrix python-version).
-    return run([sys.executable, "-X", "utf8", "install.py", *args], env=env, cwd=source_dir)
+    # If the source_dir does not contain an install.py (some tests set up synthetic
+    # governance sources), fall back to the repository's install.py to execute.
+    script = source_dir / "install.py"
+    if not script.exists():
+        script = REPO_ROOT / "install.py"
+    return run([sys.executable, "-X", "utf8", str(script), *args], env=env, cwd=source_dir)
 
 
 def run_build(args: list[str], *, env: dict[str, str] | None = None) -> subprocess.CompletedProcess:
