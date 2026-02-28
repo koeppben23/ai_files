@@ -129,3 +129,4 @@ After setup, verify:
 - [ ] Phase 2 discovery shows correct profile
 
 ---
+SSOT: `${COMMANDS_HOME}/phase_api.yaml` is the only truth for routing, execution, and validation.

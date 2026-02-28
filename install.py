@@ -601,6 +601,12 @@ def precheck_source(source_dir: Path) -> tuple[bool, list[str], list[str]]:
                 has_rules = True
                 break
         if not has_rules:
+            # Fallback: also look for rules.md (Markdown-based rules mention)
+            for p in source_dir.rglob("rules.md"):
+                if p.is_file():
+                    has_rules = True
+                    break
+        if not has_rules:
             # Provide common hints to help diagnose layout issues in bundles
             if (source_dir / "rulesets" / "core" / "rules.yml").exists() is False:
                 missing.append("rulesets/core/rules.yml")
