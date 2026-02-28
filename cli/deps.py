@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import subprocess
 from pathlib import Path
+from typing import Optional
 
 from governance.application.ports.process_runner import ProcessResult, ProcessRunnerPort
 from governance.domain.errors.events import ErrorEvent
@@ -20,7 +21,7 @@ class LocalFS:
 
 
 class LocalProcessRunner(ProcessRunnerPort):
-    def run(self, argv: list[str], env: dict[str, str] | None = None) -> ProcessResult:
+    def run(self, argv: list[str], env: Optional[dict[str, str]] = None) -> ProcessResult:
         run = subprocess.run(argv, text=True, capture_output=True, check=False, env=env)
         return ProcessResult(returncode=run.returncode, stdout=run.stdout, stderr=run.stderr)
 

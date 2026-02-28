@@ -77,6 +77,7 @@ def session_state_template(repo_fingerprint: str, repo_name: str | None) -> dict
                 "templates": "",
                 "addons": {},
             },
+            "ticket_intake_ready": False,
             "AddonsEvidence": {},
             "RulebookLoadEvidence": {
                 "top_tier": {
