@@ -134,7 +134,12 @@ GOVERNANCE_PATHS_SCHEMA = "opencode-governance.paths.v1"
 ERROR_LOGS_DIR_NAME = "logs"
 
 # Core governance files (static allowlist for conservative uninstall fallback)
+# YAML rulebooks are authoritative; MD files are guidance-only
 CORE_COMMAND_FILES = {
+    # YAML rulebooks (authoritative)
+    "rulesets/core/rules.yml",
+    # Profile rulebooks are loaded dynamically from rulesets/profiles/
+    # Legacy MD files (guidance only, not required for operation)
     "master.md",
     "rules.md",
     "BOOTSTRAP.md",
@@ -553,8 +558,9 @@ def build_plan(
 
 
 def required_source_files(source_dir: Path) -> list[str]:
-    # critical minimal set
-    return ["master.md", "rules.md", "BOOTSTRAP.md", "governance/VERSION"]
+    # YAML rulebooks are authoritative; VERSION is required, YAML rulebooks preferred
+    # MD files are guidance-only and optional
+    return ["governance/VERSION", "rulesets/core/rules.yml"]
 
 
 def precheck_source(source_dir: Path) -> tuple[bool, list[str], list[str]]:
@@ -1096,7 +1102,7 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
             command="install.py",
             component="installer-precheck",
             observed_value=observed,
-            expected_constraint="Required source files present: master.md, rules.md, BOOTSTRAP.md",
+            expected_constraint="Required source files present: governance/VERSION, rulesets/core/rules.yml",
             remediation="Restore missing governance source files and rerun install.",
             action="abort",
             result="failed",
@@ -1399,7 +1405,11 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
 
     # validation (critical installed files)
     print("\n🔍 Validating installation...")
-    critical = [plan.commands_dir / "master.md", plan.commands_dir / "rules.md", plan.commands_dir / "BOOTSTRAP.md"]
+    # YAML rulebooks are authoritative; MD files are optional guidance
+    critical = [
+        plan.commands_dir / "rulesets" / "core" / "rules.yml",
+        plan.commands_dir / "governance" / "VERSION",
+    ]
     missing_critical = [p.name for p in critical if not p.exists() and not dry_run]
     if missing_critical:
         eprint("❌ Installation incomplete; missing critical files:")
@@ -1963,11 +1973,17 @@ def show_health(source_dir: Path, config_root_arg: Path | None) -> int:
     if not perms_ok:
         print("   ⚠️  Some scopes not writable (install may fail)")
 
-    # Probe 5: Source directory accessibility
-    source_master = source_dir / "master.md"
-    source_readable = source_master.exists() and os.access(source_master, os.R_OK)
-    icon = "✅" if source_readable else "❌"
-    print(f"\n{icon} Source master.md: {'readable' if source_readable else 'not accessible'}")
+    # Probe 5: Source directory accessibility (YAML rulebooks preferred, MD optional)
+    source_rules = source_dir / "rulesets" / "core" / "rules.yml"
+    source_readable = source_rules.exists() and os.access(source_rules, os.R_OK)
+    icon = "✅" if source_readable else "⚠️"
+    print(f"\n{icon} Source rulesets/core/rules.yml: {'readable' if source_readable else 'not accessible (optional fallback to MD)'}")
+    if not source_readable:
+        # Fallback: check for legacy MD
+        source_master = source_dir / "master.md"
+        if source_master.exists() and os.access(source_master, os.R_OK):
+            print(f"   ↳ Fallback: master.md accessible")
+            source_readable = True
     if not source_readable:
         issues_found.append("source-not-accessible")
 
