@@ -38,7 +38,8 @@
     "references": { 
       "type": "array",
       "items": { "$ref": "#/$defs/typed_reference" }
-    }
+    },
+    "authority_index": { "$ref": "#/$defs/authority_index" }
   },
   "allOf": [
     { 

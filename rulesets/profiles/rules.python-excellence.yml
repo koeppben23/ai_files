@@ -4,139 +4,172 @@ metadata:
   name: Python Excellence Rulebook
   version: '1.0'
   status: active
+activation:
+  type: manifest
+  conditions:
+    - field: addon.pythonExcellence
+      operator: equals
+      value: true
 phase_integration:
   phases:
-  - phase_5
-  - phase_2
-  - phase_4
-  - phase_6
-  required_outputs: []
-  required_checks: []
+    - phase_2
+    - phase_4
+    - phase_5
+    - phase_6
+  required_outputs:
+    - python_excellence_checklist
+    - pattern_violations
+  required_checks:
+    - ruff_check
+    - mypy_strict
+    - pytest_coverage
+evidence_contract:
+  required_artifacts:
+    - SESSION_STATE.AddonsEvidence.pythonExcellence.status
+  required_fields:
+    - status
+  acceptance_rules:
+    - field: status
+      condition: equals
+      error_message: pythonExcellence status must be loaded|skipped|missing-rulebook
+verification_commands:
+  - cmd: ruff check .
+    purpose: Format and lint check
+    expected_exit_code: 0
+  - cmd: mypy --strict src/
+    purpose: Type checking
+    expected_exit_code: 0
+  - cmd: pytest tests/ --cov=src --cov-report=term-missing
+    purpose: Test execution with coverage
 patterns:
-- id: PAT-PY01
-  title: 'Pattern:'
-  enforces: []
-  code_example:
-    language: python
-    code: "# GOOD\nclass UserService:\n    def __init__(self, repository: UserRepository, clock: ClockPort):\n        self._repository = repository\n        self._clock = clock\n\n    def create_user(self, command: CreateUserCommand) -> User:\n        now = self._clock.now()\n        user = User.create(name=command.name, created_at=now)\n        return self._repository.save(user)\n\n# BAD - implicit dependency\nclass UserService:\n    def create_user(self, command: CreateUserCommand) -> User:\n        now = datetime.now()  # Implicit, untestable\n        user = User.create(name=command.name, created_at=now)\n        return get_repository().save(user)  # Hidden dependency"
-  rationale: Enables unit testing without monkeypatching; explicit dependencies; single source of truth.
-- id: PAT-PY02
-  title: 'Pattern:'
-  enforces: []
-  code_example:
-    language: python
-    code: "# GOOD - in-memory fake\nclass InMemoryUserRepository(UserRepository):\n    def __init__(self):\n        self._users: dict[UserId, User] = {}\n\n    def save(self, user: User) -> User:\n        self._users[user.id] = user\n        return user\n\n    def find_by_id(self, user_id: UserId) -> User | None:\n        return self._users.get(user_id)\n\n# BAD - mock overuse\ndef test_create_user():\n    mock_repo = MagicMock()\n    mock_repo.save.return_value = User(id=1, name=\"test\")\n    # This tests nothing about actual behavior"
-  rationale: Fakes test actual behavior; mocks only test call signatures; fakes are reusable across tests.
-- id: PAT-PY03
-  title: 'Pattern:'
-  enforces: []
-  code_example:
-    language: python
-    code: "# GOOD\nFIXED_TIME = datetime(2026, 1, 31, 12, 0, 0, tzinfo=timezone.utc)\n\nclass FakeClock(ClockPort):\n    def __init__(self, now: datetime = FIXED_TIME):\n        self._now = now\n\n    def now(self) -> datetime:\n        return self._now\n\ndef test_user_created_at():\n    clock = FakeClock()\n    service = UserService(repository=fake_repo, clock=clock)\n    user = service.create_user(CreateUserCommand(name=\"test\"))\n    assert user.created_at == FIXED_TIME\n\n# BAD - datetime.now() in tests\ndef test_user_created_at():\n    service = UserService(repository=fake_repo)\n    user = service.create_user(CreateUserCommand(name=\"test\"))\n    assert user.created_at <= datetime.now()  # Flaky!"
-  rationale: Deterministic tests; reproducible failures; no flaky time-dependent assertions.
-- id: PAT-PY04
-  title: 'Pattern:'
-  enforces: []
-  code_example:
-    language: python
-    code: "# GOOD - pure domain\n@dataclass(frozen=True)\nclass User:\n    id: UserId\n    name: str\n    created_at: datetime\n\n    @classmethod\n    def create(cls, *, name: str, created_at: datetime) -> \"User\":\n        if not name or len(name) > 100:\n            raise ValidationError(\"name must be 1-100 characters\")\n        return cls(id=UserId(uuid4()), name=name, created_at=created_at)\n\n    def update(self, *, name: str | None = None) -> \"User\":\n        return User(\n            id=self.id,\n            name=name if name is not None else self.name,\n            created_at=self.created_at,\n        )\n\n# BAD - framework-coupled\nclass User(BaseModel):  # Pydantic in domain\n    id: UUID\n    name: str\n\n    @validator(\"name\")\n    def validate_name(cls, v):\n        if not v or len(v) > 100:\n            raise ValueError(\"...\")\n        return v"
-  rationale: Domain logic testable without any framework; portable across persistence layers; no hidden validation behavior.
-- id: PAT-PY05
-  title: 'Pattern:'
-  enforces: []
-  code_example:
-    language: python
-    code: "# GOOD\nclass DomainError(Exception):\n    \"\"\"Base for all domain errors.\"\"\"\n\nclass ValidationError(DomainError):\n    \"\"\"Input validation failed.\"\"\"\n\nclass UserNotFoundError(DomainError):\n    \"\"\"User does not exist.\"\"\"\n\nclass UserAlreadyExistsError(DomainError):\n    \"\"\"User with this identifier already exists.\"\"\"\n\n# Handler\ndef create_user(payload: CreateUserRequest, service: UserService) -> Response:\n    try:\n        command = map_request_to_command(payload)\n        user = service.create_user(command)\n        return JsonResponse(UserResponse.from_domain(user), status=201)\n    except ValidationError as e:\n        return JsonResponse({\"error\": str(e)}, status=400)\n    except UserAlreadyExistsError as e:\n        return JsonResponse({\"error\": str(e)}, status=409)\n\n# BAD\ndef create_user(payload):\n    try:\n        # ...\n    except Exception as e:\n        logger.error(f\"Error: {e}\")\n        return JsonResponse({\"error\": \"\
-      Internal error\"}, status=500)"
-  rationale: Explicit error handling; proper HTTP status codes; errors are part of the API contract.
+  - id: PAT-PY01
+    title: Dependency Injection via Constructor
+    enforces:
+      - testability
+      - explicit_dependencies
+    code_example:
+      language: python
+      code: |
+        class UserService:
+            def __init__(self, repository: UserRepository, clock: ClockPort):
+                self._repository = repository
+                self._clock = clock
+    rationale: Enables unit testing without monkeypatching
+  - id: PAT-PY02
+    title: In-Memory Fakes Over Mocks
+    enforces:
+      - behavioral_testing
+      - reuse
+    code_example:
+      language: python
+      code: |
+        class InMemoryUserRepository(UserRepository):
+            def __init__(self):
+                self._users = {}
+    rationale: Fakes test actual behavior
+  - id: PAT-PY03
+    title: Fixed Time in Tests
+    enforces:
+      - deterministic_tests
+    code_example:
+      language: python
+      code: |
+        FIXED_TIME = datetime(2026, 1, 31, tzinfo=timezone.utc)
+        class FakeClock(ClockPort):
+            def now(self):
+                return FIXED_TIME
+    rationale: Deterministic tests without flakiness
+  - id: PAT-PY04
+    title: Domain Models Without Framework Dependencies
+    enforces:
+      - portability
+      - testability
+    code_example:
+      language: python
+      code: |
+        @dataclass(frozen=True)
+        class User:
+            id: UserId
+            name: str
+    rationale: Domain logic testable without frameworks
+  - id: PAT-PY05
+    title: Explicit Error Types
+    enforces:
+      - proper_error_handling
+    code_example:
+      language: python
+      code: |
+        class ValidationError(DomainError):
+            pass
+    rationale: Explicit error handling
 anti_patterns:
-- id: AP-PY-EXCEL-01
-  title: 'Pattern:'
-  detects:
-  - Handler functions with `if`/`match` on domain state, calculations, or orchestration.
-  recovery: 'Extract to service layer; handler only maps request → command, calls service, maps response.
-
-
-    ---'
-- id: AP-PY-EXCEL-02
-  title: 'Pattern:'
-  detects:
-  - Direct calls without injectable seams.
-  recovery: 'Inject `ClockPort`; use `FakeClock` in tests with `FIXED_TIME`.
-
-
-    ---'
-- id: AP-PY-EXCEL-03
-  title: 'Pattern:'
-  detects:
-  - Test files dominated by mock setup; no behavioral assertions.
-  recovery: 'Create in-memory fakes; test actual behavior, not implementation details.
-
-
-    ---'
-- id: AP-PY-EXCEL-04
-  title: 'Pattern:'
-  detects:
-  - Domain imports from `pydantic`, `sqlalchemy`, `django.db`.
-  recovery: 'Create pure Python domain models; map at repository boundary.
-
-
-    ---'
-- id: AP-PY-EXCEL-05
-  title: 'Pattern:'
-  detects:
-  - '`mypy --strict` failures; functions with `-> None` implicit.'
-  recovery: 'Add explicit type annotations; run `mypy --strict` before commit.
-
-
-    ---'
-- id: AP-PY-EXCEL-06
-  title: 'Pattern:'
-  detects:
-  - '`ImportError` during import; circular dependency in module graph.'
-  recovery: 'Restructure to eliminate circular dependency; introduce interface module; use dependency injection.
-
-
-    ---'
-- id: AP-PY-EXCEL-07
-  title: 'Pattern:'
-  detects:
-  - '`async def` calling sync database/HTTP without `to_thread`.'
-  recovery: 'Use async-native libraries (SQLAlchemy async, httpx); or wrap sync calls in `asyncio.to_thread`.
-
-
-    ---'
-- id: AP-PY-EXCEL-08
-  title: 'Pattern:'
-  detects:
-  - '`_cache = {}`, `_db = None` at module scope with runtime modification.'
-  recovery: 'Use dependency injection; pass state through constructor/parameters.
-
-
-    ---'
+  - id: AP-PY-EXCEL-01
+    title: Fat Handler
+    detects:
+      - business_logic_in_handlers
+    recovery: Extract to service layer
+  - id: AP-PY-EXCEL-02
+    title: Nondeterministic Time
+    detects:
+      - datetime_now_without_injection
+    recovery: Inject ClockPort
+  - id: AP-PY-EXCEL-03
+    title: Mock Overuse
+    detects:
+      - excessive_mocking
+    recovery: Create in-memory fakes
+  - id: AP-PY-EXCEL-04
+    title: Framework in Domain
+    detects:
+      - pydantic_sqlalchemy_in_domain
+    recovery: Pure Python domain models
+  - id: AP-PY-EXCEL-05
+    title: Missing Type Annotations
+    detects:
+      - implicit_return_types
+    recovery: Add explicit type annotations
+  - id: AP-PY-EXCEL-06
+    title: Circular Imports
+    detects:
+      - import_cycles
+    recovery: Restructure to eliminate cycles
+  - id: AP-PY-EXCEL-07
+    title: Async Without Boundaries
+    detects:
+      - blocking_io_in_async
+    recovery: Use async-native libraries
+  - id: AP-PY-EXCEL-08
+    title: Mutable Global State
+    detects:
+      - module_level_mutable
+    recovery: Use dependency injection
 warning_codes:
-- code: WARN-PYTHON-EXCEL-MOCK-OVERUSE
-  triggers: []
-  recovery: null
-- code: WARN-PYTHON-EXCEL-MISSING-TYPES
-  triggers: []
-  recovery: null
-- code: WARN-PYTHON-EXCEL-FRAMEWORK-IN-DOMAIN
-  triggers: []
-  recovery: null
-- code: WARN-PYTHON-EXCEL-ASYNC-MIXING
-  triggers: []
-  recovery: null
+  - code: WARN-PYTHON-EXCEL-MOCK-OVERUSE
+    triggers:
+      - mock_count_greater_than_assertions
+    recovery: Replace mocks with in-memory fakes
+  - code: WARN-PYTHON-EXCEL-MISSING-TYPES
+    triggers:
+      - missing_return_type_annotation
+    recovery: Add explicit return types
+  - code: WARN-PYTHON-EXCEL-FRAMEWORK-IN-DOMAIN
+    triggers:
+      - domain_imports_framework
+    recovery: Move framework code to repository layer
+  - code: WARN-PYTHON-EXCEL-ASYNC-MIXING
+    triggers:
+      - sync_call_in_async_function
+    recovery: Use asyncio.to_thread or async library
 references:
-- id: ref_1
-  target: principal-excellence
-  type: rulebook
-- id: ref_2
-  target: risk-tiering
-  type: rulebook
-- id: ref_3
-  target: scorecard-calibration
-  type: rulebook
-- id: ref_4
-  target: profiles/addons/pythonExcellence.addon.yml
-  type: schema
+  - id: ref_1
+    target: profile.principal-excellence
+    type: rulebook
+  - id: ref_2
+    target: profile.risk-tiering
+    type: rulebook
+  - id: ref_3
+    target: profile.scorecard-calibration
+    type: rulebook
+  - id: ref_4
+    target: profiles/addons/pythonExcellence.addon.yml
+    type: schema

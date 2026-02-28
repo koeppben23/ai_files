@@ -1,68 +1,144 @@
 kind: profile
 metadata:
   id: profile.fallback-minimum
-  name: Fallback Minimum Profile Rulebook (v1.0)
+  name: Fallback Minimum Profile Rulebook
   version: '1.0'
   status: active
+activation:
+  type: fallback
+  conditions:
+    - field: stack_profile_detected
+      operator: equals
+      value: false
 phase_integration:
   phases:
-  - phase_5
-  - phase_4
-  - phase_2_1
-  - phase_2
-  required_outputs: []
-  required_checks: []
+    - phase_2
+    - phase_2_1
+    - phase_4
+    - phase_5
+  required_outputs:
+    - minimal_runnable_baseline
+    - verification_path_decision
+  required_checks:
+    - build_smoke_test
+    - minimal_test_coverage
+evidence_contract:
+  required_artifacts:
+    - SESSION_STATE.BuildEvidence
+    - SESSION_STATE.RiskTiering
+  required_fields:
+    - evidenceRef
+    - riskRationale
+  acceptance_rules:
+    - field: claims
+      condition: equals
+      error_message: Claims must be marked if evidence is missing
+verification_commands:
+  - cmd: "{PYTHON_COMMAND} -m pytest -q"
+    purpose: Run Python tests if available
+    required_for: python_repos
+  - cmd: npm test
+    purpose: Run Node tests if available
+    required_for: node_repos
+  - cmd: mvn -q test
+    purpose: Run Maven tests if available
+    required_for: java_repos
+  - cmd: ./gradlew test
+    purpose: Run Gradle tests if available
+    required_for: gradle_repos
 anti_patterns:
-- id: AP-FM01
-  title: 'Pattern:'
-  detects: []
-  recovery: ''
-- id: AP-FM02
-  title: 'Pattern:'
-  detects: []
-  recovery: ''
-- id: AP-FM03
-  title: 'Pattern:'
-  detects: []
-  recovery: ''
-- id: AP-FM04
-  title: 'Pattern:'
-  detects: []
-  recovery: ''
-- id: AP-FM05
-  title: 'Pattern:'
-  detects: []
-  recovery: ''
+  - id: AP-FM01
+    title: Silent Error Swallowing
+    detects:
+      - try_except_pass
+      - catch_without_action
+    recovery: Log error, rethrow, or handle explicitly
+  - id: AP-FM02
+    title: Untested Changes Declared Complete
+    detects:
+      - no_verification_evidence
+    recovery: Add at least smoke test or verification
+  - id: AP-FM03
+    title: Hardcoded Secrets or Credentials
+    detects:
+      - api_keys_in_source
+      - passwords_in_code
+    recovery: Use environment variables or secrets management
+  - id: AP-FM04
+    title: Nondeterministic Test Dependencies
+    detects:
+      - time_dependent_tests
+      - random_value_assertions
+    recovery: Use fixed time, seed random, or inject dependencies
+  - id: AP-FM05
+    title: No Rollback Strategy for Non-Trivial Changes
+    detects:
+      - no_rollback_plan
+    recovery: Document rollback/recovery steps
 decision_trees:
-- id: DT-FM1
-  title: DT-FM1
-  root: {}
-- id: DT-FM2
-  title: DT-FM2
-  root: {}
-- id: DT-FM3
-  title: DT-FM3
-  root: {}
+  - id: DT-FM1
+    root:
+      node_type: condition
+      expression: Can you identify the existing architecture pattern?
+      "yes":
+        node_type: leaf
+        result: Follow detected pattern, document in SESSION_STATE
+      "no":
+        node_type: condition
+        expression: Is codebase small (<20 source files)?
+        "yes":
+          node_type: leaf
+          result: Flat structure acceptable, group by function
+        "no":
+          node_type: leaf
+          result: Create feature-based grouping
+  - id: DT-FM2
+    root:
+      node_type: condition
+      expression: Does the codebase have existing tests?
+      "yes":
+        node_type: leaf
+        result: Follow existing conventions
+      "no":
+        node_type: leaf
+        result: Add minimal test infrastructure
+  - id: DT-FM3
+    root:
+      node_type: condition
+      expression: Is capability already in dependencies?
+      "yes":
+        node_type: leaf
+        result: Use existing dependency
+      "no":
+        node_type: condition
+        expression: Is there a standard library solution?
+        "yes":
+          node_type: leaf
+          result: Use standard library
+        "no":
+          node_type: leaf
+          result: Choose widely-used library, document rationale, pin version
 warning_codes:
-- code: WARN-FALLBACK-BASELINE-UNKNOWN
-  triggers: []
-  recovery: null
-- code: WARN-FALLBACK-TESTING-INSUFFICIENT
-  triggers: []
-  recovery: null
-- code: WARN-FALLBACK-RECOVERY-UNSPECIFIED
-  triggers: []
-  recovery: null
+  - code: WARN-FALLBACK-BASELINE-UNKNOWN
+    triggers:
+      - no_build_commands_found
+      - no_test_framework_detected
+    recovery: Document minimal bootstrap commands
+  - code: WARN-FALLBACK-TESTING-INSUFFICIENT
+    triggers:
+      - coverage_below_threshold
+    recovery: Add at least smoke test
+  - code: WARN-FALLBACK-RECOVERY-UNSPECIFIED
+    triggers:
+      - complex_change_without_rollback
+    recovery: Document recovery/rollback steps
 references:
-- id: ref_1
-  target: principal-excellence
-  type: rulebook
-- id: ref_2
-  target: risk-tiering
-  type: rulebook
-- id: ref_3
-  target: scorecard-calibration
-  type: rulebook
-- id: ref_4
-  target: fallback-minimum
-  type: rulebook
+  - id: ref_1
+    target: profile.principal-excellence
+    type: rulebook
+  - id: ref_2
+    target: profile.risk-tiering
+    type: rulebook
+  - id: ref_3
+    target: profile.scorecard-calibration
+    type: rulebook
