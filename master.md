@@ -12,9 +12,9 @@ Phase `1.3` is mandatory before every phase `>=2`.
 
 Doc-lint standard: `docs/governance/doc_lint.md`.
 
-## Authority Index (Binding)
+## Authority Index (Rail-only Guidance - See rulesets/core/rules.yml for authoritative data)
 
-Authoritative sources by area:
+Authoritative sources by area (see rulesets/core/rules.yml for machine-readable authoritative data):
 - Routing/validation/transitions: `${COMMANDS_HOME}/phase_api.yaml` and `governance/kernel/*`
 - Session-state shape and invariants: `SESSION_STATE_SCHEMA.md` and `governance/assets/schemas/*`
 - Response envelope and presentation shape: `governance/RESPONSE_ENVELOPE_SCHEMA.json`
@@ -39,7 +39,7 @@ See `governance/assets/reasons/blocked_reason_catalog.yaml` for authoritative bl
 ### Recovery
 - Operator must restate the bootstrap declaration explicitly.
 
-## GLOBAL PATH VARIABLES (BINDING)
+## GLOBAL PATH VARIABLES (Rail-only Guidance)
 
 Path variables, resolution rules, and persistence topology are kernel- and schema-owned.
 This markdown section is a rail-only summary for operators.
@@ -195,7 +195,7 @@ Clarification:
 
 * "/explain-activation" (read-only activation report) → execute explain contract in Section 2.2.2
 
-Override constraints (binding):
+Override constraints (Rail-only Guidance):
 Skip-validation rules and blocked behavior are kernel- and schema-owned.
 See `${COMMANDS_HOME}/phase_api.yaml`.
 
@@ -253,7 +253,7 @@ See `governance/RESPONSE_ENVELOPE_SCHEMA.json` and `SESSION_STATE_SCHEMA.md`.
 
 ### 2.4.2 Architect-Only Autopilot Lifecycle (Policy)
 
-bootstrap invocation guard (binding):
+bootstrap invocation guard (Rail-only Guidance):
 - Workflow MUST NOT ask operator to rerun the local bootstrap launcher in the same turn.
 
 Execution mode enum and blocked reasons are schema- and kernel-owned.
@@ -401,12 +401,12 @@ See `${COMMANDS_HOME}/phase_api.yaml` and `governance/RESPONSE_ENVELOPE_SCHEMA.j
 
 2. **Produce Ticket Record (Mini-ADR + NFR Checklist) — REQUIRED:**
    The goal is to reduce user cognitive load and make the ticket’s key trade-offs explicit.
-   **NFR checklist constraints (binding):**
+   **NFR checklist constraints (Rail-only Guidance):**
    - Cover at least: Security/Privacy, Observability, Performance, Migration/Compatibility, Rollback/Release safety.
    - Each item must be one short line: `OK | N/A | Risk | Needs decision` + one sentence.
     - If anything is `Risk` or `Needs decision`, record it via kernel- and schema-owned risk/blocker fields.
 
-   **Architecture Options (A/B/C) constraints (binding):**
+   **Architecture Options (A/B/C) constraints (Rail-only Guidance):**
    - REQUIRED whenever the plan involves any non-trivial decision surface (examples: boundaries, persistence approach,
    - MUST list at least **Option A** and **Option B** (Option C optional).
    - Each option MUST include: one-line description, key trade-offs (perf/complexity/operability/risk), and test impact.
@@ -418,11 +418,11 @@ See `${COMMANDS_HOME}/phase_api.yaml` and `governance/RESPONSE_ENVELOPE_SCHEMA.j
    * List all API changes (if contract changes)
    * Estimate complexity (simple, medium, complex)
 
-    **Test strategy constraints (binding):**
+    **Test strategy constraints (Rail-only Guidance):**
     Test strategy requirements and format are kernel- and schema-owned.
     See `${COMMANDS_HOME}/phase_api.yaml` and `docs/governance/governance_schemas.md`.
 
-   **Mandatory Review Matrix constraints (binding):**
+   **Mandatory Review Matrix constraints (Rail-only Guidance):**
    - The MRM is kernel- and schema-owned. See `${COMMANDS_HOME}/phase_api.yaml` and `SESSION_STATE_SCHEMA.md`.
 
    Touched-surface tracking and Fast Path evaluation are kernel- and schema-owned.
@@ -541,7 +541,7 @@ See `docs/governance/governance_schemas.md`.
 Gate prerequisites and readiness checks are kernel- and schema-owned.
 See `${COMMANDS_HOME}/phase_api.yaml` and `SESSION_STATE_SCHEMA.md`.
 
-**Verification obligations (binding):**
+**Verification obligations (Rail-only Guidance):**
 Verification obligations, change-matrix updates, and review-of-review checks are kernel- and schema-owned.
 See `${COMMANDS_HOME}/phase_api.yaml`, `SESSION_STATE_SCHEMA.md`, and `governance/RESPONSE_ENVELOPE_SCHEMA.json`.
 
