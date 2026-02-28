@@ -1,0 +1,170 @@
+{
+  "schema": "governance-ruleset-manifest.v2",
+  "ruleset_id": "governance",
+  "version": "0.1.0",
+  "source_type": "yaml",
+  "profile_count": 2,
+  "addon_count": 16,
+  "core_rulebook_count": 1,
+  "source_file_count": 19,
+  "source_files": [
+    {
+      "path": "profiles/addons/angularNxTemplates.addon.yml",
+      "sha256": "11ded01a41f8e071968971605edc7990b41928f244a03fb92b8f43faec24ccb1"
+    },
+    {
+      "path": "profiles/addons/backendJavaTemplates.addon.yml",
+      "sha256": "86907a370bf5e748bd1e6fb241ece93c7fcf326a32df956f1804b03175f6e693"
+    },
+    {
+      "path": "profiles/addons/backendPythonTemplates.addon.yml",
+      "sha256": "f5ce849496fc3de86c9022684a1a9a1844c2733149fb9814ef013ebe84954e15"
+    },
+    {
+      "path": "profiles/addons/cucumber.addon.yml",
+      "sha256": "ed38c4cc94099a82f993cb571f6c77d4a7d86f5cdf86543c5c6ee4b77c86e6d0"
+    },
+    {
+      "path": "profiles/addons/dbLiquibase.addon.yml",
+      "sha256": "2e7ab9562b6e37e32a1b024433e273fdc5d37bea63d6cd664242eb5f4c9444ec"
+    },
+    {
+      "path": "profiles/addons/docsGovernance.addon.yml",
+      "sha256": "ae7b86f72b94fe4dcae781f80f58d17b7e4b08f2f1dab78f7524e68bacd928d2"
+    },
+    {
+      "path": "profiles/addons/frontendCypress.addon.yml",
+      "sha256": "a578bb16d9c94cda8c5b0b3913a1f4318081d3c2d36c7d0dee7e7517b25c118e"
+    },
+    {
+      "path": "profiles/addons/frontendOpenApiTsClient.addon.yml",
+      "sha256": "2196d630e90c0d25f898271e14fb7052ce533c0a1e74dc8d6d0f20e60db9f798"
+    },
+    {
+      "path": "profiles/addons/javaExcellence.addon.yml",
+      "sha256": "ec3ab364fd1803007fcfb89c4f51e6b58a0437c4d66d235bdc2360dffff7374b"
+    },
+    {
+      "path": "profiles/addons/kafka.addon.yml",
+      "sha256": "e14b547506649e707f8325105aeda41af951b2d5cee557fa936903ba8aa8c9b6"
+    },
+    {
+      "path": "profiles/addons/openapi.addon.yml",
+      "sha256": "ce43d5a6be9e0b3d65ca7a1a0eef8b044486cfc46492f18e82b624a645995399"
+    },
+    {
+      "path": "profiles/addons/principalExcellence.addon.yml",
+      "sha256": "34a3b019a7a029259c9b74b7a32f3371398c72962e7de30f2b8623f660c3bd2b"
+    },
+    {
+      "path": "profiles/addons/pythonExcellence.addon.yml",
+      "sha256": "c539ee84897d71ed7269cd59de89207c3326e82be083196c6eb7dbf1164be4a6"
+    },
+    {
+      "path": "profiles/addons/riskTiering.addon.yml",
+      "sha256": "1c40b9fd4676ae3c1b0432ba503725607a23dbeb1e18dba6f49c1a0c2df0da7a"
+    },
+    {
+      "path": "profiles/addons/scorecardCalibration.addon.yml",
+      "sha256": "c0fecb3392f536e3af50a91578677240ed1b431ebb1be71f81461a4d827ffe6d"
+    },
+    {
+      "path": "profiles/addons/userMaxQuality.addon.yml",
+      "sha256": "9797dd120f5c48f0ee39474318789c52b4fb4c661e842638df2ff50b53b28c77"
+    },
+    {
+      "path": "rulesets/core/rules.yml",
+      "sha256": "d7f5ee51ac5f91fa4c6783c0c4958e7339ecbbace8dba2bd943b7302830bb133"
+    },
+    {
+      "path": "rulesets/profiles/rules.fallback-minimum.yml",
+      "sha256": "b1606f0835e1a66d09bf716c83c84c4888017bacb18c81ebf888402de67b7b6f"
+    },
+    {
+      "path": "rulesets/profiles/rules.python-excellence.yml",
+      "sha256": "18711d6fe20d6f7789420ca3af865dd0a26f3f92ea20a0d82d0b741a092aa1c8"
+    }
+  ],
+  "profiles": [
+    {
+      "path": "rulesets/profiles/rules.fallback-minimum.yml",
+      "sha256": "b1606f0835e1a66d09bf716c83c84c4888017bacb18c81ebf888402de67b7b6f"
+    },
+    {
+      "path": "rulesets/profiles/rules.python-excellence.yml",
+      "sha256": "18711d6fe20d6f7789420ca3af865dd0a26f3f92ea20a0d82d0b741a092aa1c8"
+    }
+  ],
+  "addons": [
+    {
+      "path": "profiles/addons/angularNxTemplates.addon.yml",
+      "sha256": "11ded01a41f8e071968971605edc7990b41928f244a03fb92b8f43faec24ccb1"
+    },
+    {
+      "path": "profiles/addons/backendJavaTemplates.addon.yml",
+      "sha256": "86907a370bf5e748bd1e6fb241ece93c7fcf326a32df956f1804b03175f6e693"
+    },
+    {
+      "path": "profiles/addons/backendPythonTemplates.addon.yml",
+      "sha256": "f5ce849496fc3de86c9022684a1a9a1844c2733149fb9814ef013ebe84954e15"
+    },
+    {
+      "path": "profiles/addons/cucumber.addon.yml",
+      "sha256": "ed38c4cc94099a82f993cb571f6c77d4a7d86f5cdf86543c5c6ee4b77c86e6d0"
+    },
+    {
+      "path": "profiles/addons/dbLiquibase.addon.yml",
+      "sha256": "2e7ab9562b6e37e32a1b024433e273fdc5d37bea63d6cd664242eb5f4c9444ec"
+    },
+    {
+      "path": "profiles/addons/docsGovernance.addon.yml",
+      "sha256": "ae7b86f72b94fe4dcae781f80f58d17b7e4b08f2f1dab78f7524e68bacd928d2"
+    },
+    {
+      "path": "profiles/addons/frontendCypress.addon.yml",
+      "sha256": "a578bb16d9c94cda8c5b0b3913a1f4318081d3c2d36c7d0dee7e7517b25c118e"
+    },
+    {
+      "path": "profiles/addons/frontendOpenApiTsClient.addon.yml",
+      "sha256": "2196d630e90c0d25f898271e14fb7052ce533c0a1e74dc8d6d0f20e60db9f798"
+    },
+    {
+      "path": "profiles/addons/javaExcellence.addon.yml",
+      "sha256": "ec3ab364fd1803007fcfb89c4f51e6b58a0437c4d66d235bdc2360dffff7374b"
+    },
+    {
+      "path": "profiles/addons/kafka.addon.yml",
+      "sha256": "e14b547506649e707f8325105aeda41af951b2d5cee557fa936903ba8aa8c9b6"
+    },
+    {
+      "path": "profiles/addons/openapi.addon.yml",
+      "sha256": "ce43d5a6be9e0b3d65ca7a1a0eef8b044486cfc46492f18e82b624a645995399"
+    },
+    {
+      "path": "profiles/addons/principalExcellence.addon.yml",
+      "sha256": "34a3b019a7a029259c9b74b7a32f3371398c72962e7de30f2b8623f660c3bd2b"
+    },
+    {
+      "path": "profiles/addons/pythonExcellence.addon.yml",
+      "sha256": "c539ee84897d71ed7269cd59de89207c3326e82be083196c6eb7dbf1164be4a6"
+    },
+    {
+      "path": "profiles/addons/riskTiering.addon.yml",
+      "sha256": "1c40b9fd4676ae3c1b0432ba503725607a23dbeb1e18dba6f49c1a0c2df0da7a"
+    },
+    {
+      "path": "profiles/addons/scorecardCalibration.addon.yml",
+      "sha256": "c0fecb3392f536e3af50a91578677240ed1b431ebb1be71f81461a4d827ffe6d"
+    },
+    {
+      "path": "profiles/addons/userMaxQuality.addon.yml",
+      "sha256": "9797dd120f5c48f0ee39474318789c52b4fb4c661e842638df2ff50b53b28c77"
+    }
+  ],
+  "core_rulebooks": [
+    {
+      "path": "rulesets/core/rules.yml",
+      "sha256": "d7f5ee51ac5f91fa4c6783c0c4958e7339ecbbace8dba2bd943b7302830bb133"
+    }
+  ]
+}
