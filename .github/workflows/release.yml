@@ -66,7 +66,7 @@ jobs:
       - name: Install cosign
         uses: sigstore/cosign-installer@398d4b0eeef1380460a10c8013a76f728fb906ac # v3
 
-      - name: Validate tag/master version consistency
+      - name: Validate tag/version consistency
         run: |
           set -euo pipefail
           python3 - <<'PY'
@@ -75,18 +75,17 @@ jobs:
           from pathlib import Path
 
           expected = "${{ steps.release_tag.outputs.version }}"
-          head = "\n".join(Path("master.md").read_text(encoding="utf-8").splitlines()[:80])
-          m = re.search(
-              r"Governance-Version:\s*([0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?)",
-              head,
-              flags=re.IGNORECASE | re.MULTILINE,
-          )
-          if not m:
-              print("BLOCKED: Governance-Version missing in master.md", file=sys.stderr)
+          
+          # Read from VERSION file (authoritative source)
+          version_file = Path("governance/VERSION")
+          if version_file.exists():
+              observed = version_file.read_text(encoding="utf-8").strip()
+          else:
+              print("BLOCKED: governance/VERSION not found", file=sys.stderr)
               raise SystemExit(1)
-          observed = m.group(1)
+          
           if observed != expected:
-              print(f"BLOCKED: tag/master mismatch (tag={expected}, master={observed})", file=sys.stderr)
+              print(f"BLOCKED: tag/VERSION mismatch (tag={expected}, VERSION={observed})", file=sys.stderr)
               raise SystemExit(1)
           PY
 
