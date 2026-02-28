@@ -1302,6 +1302,37 @@ def check_architect_autopilot_lifecycle_contract(issues: list[str]) -> None:
         issues.append(f"SESSION_STATE_SCHEMA.md: missing architect-autopilot lifecycle tokens {missing_schema}")
 
 
+def check_yaml_rulebook_schema(issues: list[str]) -> None:
+    """Validate YAML rulebooks against schema (v2 path)."""
+    try:
+        import yaml
+        from jsonschema import Draft202012Validator
+    except ImportError:
+        issues.append("YAML schema validation requires: pip install jsonschema pyyaml")
+        return
+
+    schema_path = ROOT / "schemas" / "rulebook.schema.json"
+    if not schema_path.exists():
+        return
+
+    schema = json.loads(schema_path.read_text())
+
+    rulesets_dir = ROOT / "rulesets"
+    if not rulesets_dir.exists():
+        return
+
+    for yaml_file in rulesets_dir.glob("**/*.yml"):
+        try:
+            rulebook = yaml.safe_load(yaml_file.read_text())
+            validator = Draft202012Validator(schema)
+            errors = list(validator.iter_errors(rulebook))
+            if errors:
+                for error in errors:
+                    issues.append(f"{yaml_file.relative_to(ROOT)}: schema violation at {error.json_path}: {error.message}")
+        except Exception as e:
+            issues.append(f"{yaml_file.relative_to(ROOT)}: failed to parse: {e}")
+
+
 def main() -> int:
     if os.environ.get("OPENCODE_DOC_RAILS_ONLY", "1") == "1":
         print("Governance lint OK (docs rails-only mode)")
@@ -1317,6 +1348,8 @@ def main() -> int:
     args = parser.parse_args()
 
     issues: list[str] = []
+    
+    check_yaml_rulebook_schema(issues)
     check_master_priority_uniqueness(issues)
     check_anchor_presence(issues)
     try:
