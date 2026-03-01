@@ -457,7 +457,7 @@ def check_response_contract_validator_presence(issues: list[str]) -> None:
 
 
 def check_yaml_rulebook_schema(issues: list[str]) -> None:
-    """Validate YAML rulebooks against schema (v2 path)."""
+    """Validate YAML rulebooks against schema (v2 path) including schema_version compatibility."""
     try:
         import yaml
         from jsonschema import Draft202012Validator
@@ -470,6 +470,7 @@ def check_yaml_rulebook_schema(issues: list[str]) -> None:
         return
 
     schema = json.loads(schema_path.read_text())
+    schema_version = schema.get("version", "")
 
     rulesets_dir = ROOT / "rulesets"
     if not rulesets_dir.exists():
@@ -483,6 +484,19 @@ def check_yaml_rulebook_schema(issues: list[str]) -> None:
             if errors:
                 for error in errors:
                     issues.append(f"{yaml_file.relative_to(ROOT)}: schema violation at {error.json_path}: {error.message}")
+            elif schema_version:
+                # Check schema_version compatibility (major version must match)
+                rb_schema_ver = (rulebook.get("metadata") or {}).get("schema_version", "")
+                if not rb_schema_ver:
+                    issues.append(f"{yaml_file.relative_to(ROOT)}: missing metadata.schema_version")
+                else:
+                    schema_major = schema_version.split(".")[0]
+                    rb_major = rb_schema_ver.split(".")[0]
+                    if schema_major != rb_major:
+                        issues.append(
+                            f"{yaml_file.relative_to(ROOT)}: schema_version mismatch: "
+                            f"rulebook targets {rb_schema_ver} but schema is {schema_version}"
+                        )
         except Exception as e:
             issues.append(f"{yaml_file.relative_to(ROOT)}: failed to parse: {e}")
 

@@ -3,6 +3,7 @@ metadata:
   id: profile.java-excellence
   name: Java Excellence Rulebook
   version: '1.0'
+  schema_version: '1.0.0'
   status: active
 phase_integration:
   phases:

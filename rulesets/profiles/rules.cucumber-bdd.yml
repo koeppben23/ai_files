@@ -3,6 +3,7 @@ metadata:
   id: profile.cucumber-bdd
   name: Cucumber BDD Addon Rulebook (v1.1)
   version: '1.0'
+  schema_version: '1.0.0'
   status: active
 phase_integration:
   phases:

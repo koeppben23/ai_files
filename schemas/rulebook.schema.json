@@ -1,6 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://governance.example.com/schemas/rulebook.schema.json",
+  "$id": "https://governance.opencode.ai/schemas/rulebook/v1.0.0/rulebook.schema.json",
+  "version": "1.0.0",
   "title": "Governance Rulebook",
   "type": "object",
   "required": ["kind", "metadata"],
@@ -73,7 +74,7 @@
   "$defs": {
     "metadata": {
       "type": "object",
-      "required": ["id", "name", "version", "status"],
+      "required": ["id", "name", "version", "status", "schema_version"],
       "additionalProperties": false,
       "properties": {
         "id": { 
@@ -85,7 +86,12 @@
         },
         "name": { "type": "string" },
         "version": { "type": "string", "pattern": "^\\d+\\.\\d+$" },
-        "status": { "type": "string", "enum": ["active", "deprecated"] }
+        "status": { "type": "string", "enum": ["active", "deprecated"] },
+        "schema_version": { 
+          "type": "string", 
+          "pattern": "^\\d+\\.\\d+\\.\\d+$",
+          "description": "Semver of the rulebook.schema.json this document targets."
+        }
       }
     },
 

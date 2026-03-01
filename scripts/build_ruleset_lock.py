@@ -35,6 +35,19 @@ def validate_against_schema(rulebook_path: Path, schema_path: Path) -> list[str]
     
     if errors:
         return [f"{e.json_path}: {e.message}" for e in errors]
+    
+    # Check schema_version compatibility: rulebook major must match schema major
+    schema_ver = schema.get("version", "")
+    rb_schema_ver = (rulebook.get("metadata") or {}).get("schema_version", "")
+    if schema_ver and rb_schema_ver:
+        schema_major = schema_ver.split(".")[0]
+        rb_major = rb_schema_ver.split(".")[0]
+        if schema_major != rb_major:
+            return [
+                f"schema_version mismatch: rulebook targets {rb_schema_ver} "
+                f"but schema is {schema_ver} (major version differs)"
+            ]
+    
     return []
 
 
@@ -70,6 +83,10 @@ def build_ruleset_artifacts_v2(*, repo_root: Path, ruleset_id: str, version: str
     if validation_errors:
         raise ValueError(f"schema validation failed:\n" + "\n".join(validation_errors))
     
+    # Extract schema version from schema file for manifest
+    schema_data = json.loads(schema_path.read_text())
+    rulebook_schema_version = schema_data.get("version", "unknown")
+    
     addons = _collect_files(repo_root / "profiles" / "addons", "*.addon.yml")
     if not addons:
         raise ValueError("no addon manifests found under profiles/addons/*.addon.yml")
@@ -91,6 +108,7 @@ def build_ruleset_artifacts_v2(*, repo_root: Path, ruleset_id: str, version: str
         "schema": "governance-ruleset-manifest.v2",
         "ruleset_id": ruleset_id,
         "version": version,
+        "rulebook_schema_version": rulebook_schema_version,
         "source_type": "yaml",
         "profile_count": len(profile_entries),
         "addon_count": len(addon_entries),

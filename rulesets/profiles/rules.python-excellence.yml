@@ -3,6 +3,7 @@ metadata:
   id: profile.python-excellence
   name: Python Excellence Rulebook
   version: '1.0'
+  schema_version: '1.0.0'
   status: active
 activation:
   type: manifest
