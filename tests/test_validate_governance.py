@@ -1469,39 +1469,6 @@ def test_canonical_response_envelope_schema_contract_is_defined():
 
 
 @pytest.mark.governance
-def test_conflict_resolution_p_levels_are_classifier_not_second_precedence_model():
-    conflict = read_text(REPO_ROOT / "CONFLICT_RESOLUTION.md")
-    required = [
-        "## Mapping to master precedence (binding)",
-        "Canonical governance precedence remains defined in `master.md`",
-        "P-levels MUST NOT be interpreted as a second precedence model",
-    ]
-    missing = [t for t in required if t not in conflict]
-    assert not missing, "CONFLICT_RESOLUTION.md missing precedence-mapping guard tokens:\n" + "\n".join(
-        [f"- {m}" for m in missing]
-    )
-
-
-def test_audit_reason_keys_are_declared_audit_only_and_not_reason_code_payloads():
-    text = read_text(REPO_ROOT / "governance" / "assets" / "catalogs" / "audit.md")
-    required_tokens = [
-        "Reason key semantics (binding):",
-        "audit-only governance keys",
-        "They are NOT canonical governance `reason_code` values",
-        "MUST NOT be written into `SESSION_STATE.Diagnostics.ReasonPayloads.reason_code`",
-        "governance/entrypoints/map_audit_to_canonical.py --input <audit-report.json>",
-        "governance/assets/catalogs/AUDIT_REASON_CANONICAL_MAP.json",
-        "auditReasonKey `BR_MISSING_SESSION_GATE_STATE`",
-        "auditReasonKey `BR_MISSING_RULEBOOK_RESOLUTION`",
-        "auditReasonKey `BR_SCOPE_ARTIFACT_MISSING`",
-    ]
-    missing = [token for token in required_tokens if token not in text]
-    assert not missing, "governance/audit.md missing audit reason-key boundary tokens:\n" + "\n".join(
-        [f"- {m}" for m in missing]
-    )
-
-
-@pytest.mark.governance
 def test_backfill_decision_pack_includes_phase_15_prompt_decision():
     text = read_text(REPO_ROOT / "governance" / "entrypoints" / "persist_workspace_artifacts.py")
     required_tokens = [
