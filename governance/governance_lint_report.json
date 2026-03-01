@@ -1,8 +1,7 @@
 {
   "schema": "governance.lint-report.v1",
-  "timestamp": "2026-02-28T10:13:35+00:00",
+  "timestamp": "2026-03-01T11:02:16+00:00",
   "status": "PASS",
   "issue_count": 0,
-  "issues": [],
-  "mode": "rails-only"
+  "issues": []
 }
