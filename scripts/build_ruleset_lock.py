@@ -136,90 +136,12 @@ def build_ruleset_artifacts_v2(*, repo_root: Path, ruleset_id: str, version: str
     return hashes
 
 
-def build_ruleset_artifacts(*, repo_root: Path, ruleset_id: str, version: str, output_root: Path) -> dict[str, str]:
-    """Build artifacts using legacy MD rulebooks (v1)."""
-    
-    core_files = [repo_root / "master.md", repo_root / "rules.md", repo_root / "BOOTSTRAP.md"]
-    missing_core = [_relative_posix(p, repo_root) for p in core_files if not p.exists()]
-    if missing_core:
-        raise ValueError(f"missing required core rulebook files: {', '.join(missing_core)}")
-
-    profiles = _collect_files(repo_root, "profiles/rules*.md")
-    addons = _collect_files(repo_root, "profiles/addons/*.addon.yml")
-    if not profiles:
-        raise ValueError("no profile rulebooks found under profiles/rules*.md")
-    if not addons:
-        raise ValueError("no addon manifests found under profiles/addons/*.addon.yml")
-
-    source_files = sorted(core_files + profiles + addons)
-    source_entries = [
-        {
-            "path": _relative_posix(path, repo_root),
-            "sha256": _sha256(path),
-        }
-        for path in source_files
-    ]
-
-    profile_entries = [entry for entry in source_entries if entry["path"].startswith("profiles/rules")]
-    addon_entries = [entry for entry in source_entries if entry["path"].startswith("profiles/addons/")]
-
-    manifest = {
-        "schema": "governance-ruleset-manifest.v1",
-        "ruleset_id": ruleset_id,
-        "version": version,
-        "source_type": "markdown",
-        "profile_count": len(profile_entries),
-        "addon_count": len(addon_entries),
-        "core_rulebook_count": len(source_entries) - len(profile_entries) - len(addon_entries),
-        "source_file_count": len(source_entries),
-        "source_files": source_entries,
-        "profiles": profile_entries,
-        "addons": addon_entries,
-    }
-    lock = {
-        "schema": "governance-ruleset-lock.v1",
-        "ruleset_id": ruleset_id,
-        "version": version,
-        "deterministic": True,
-        "source_type": "markdown",
-        "resolved_profiles": [entry["path"] for entry in profile_entries],
-        "resolved_addons": [entry["path"] for entry in addon_entries],
-        "resolved_core_rulebooks": [
-            name
-            for name in ["master.md", "rules.md", "BOOTSTRAP.md"]
-            if any(entry["path"] == name for entry in source_entries)
-        ],
-        "source_files": source_entries,
-        "conflicts": [],
-    }
-
-    out = output_root / ruleset_id / version
-    out.mkdir(parents=True, exist_ok=True)
-    manifest_path = out / "manifest.json"
-    lock_path = out / "lock.json"
-    manifest_path.write_text(json.dumps(manifest, indent=2, ensure_ascii=True) + "\n", encoding="utf-8")
-    lock_path.write_text(json.dumps(lock, indent=2, ensure_ascii=True) + "\n", encoding="utf-8")
-
-    hashes = {
-        "manifest.json": _sha256(manifest_path),
-        "lock.json": _sha256(lock_path),
-    }
-    digest_parts = [hashes["manifest.json"], hashes["lock.json"]]
-    digest_parts.extend(f"{entry['path']}:{entry['sha256']}" for entry in source_entries)
-    hashes["ruleset_hash"] = hashlib.sha256("".join(digest_parts).encode("utf-8")).hexdigest()
-
-    hashes_path = out / "hashes.json"
-    hashes_path.write_text(json.dumps(hashes, indent=2, ensure_ascii=True) + "\n", encoding="utf-8")
-    return hashes
-
-
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Build deterministic governance ruleset lock artifacts.")
+    parser = argparse.ArgumentParser(description="Build deterministic governance ruleset lock artifacts (v2 YAML schema).")
     parser.add_argument("--ruleset-id", required=True)
     parser.add_argument("--version", required=True)
-    parser.add_argument("--repo-root", default="", help="Repository root containing master.md/rules.md/profiles.")
+    parser.add_argument("--repo-root", default="", help="Repository root containing rulesets/profiles YAML rulebooks.")
     parser.add_argument("--output-root", default="rulesets")
-    parser.add_argument("--legacy", action="store_true", help="Use legacy MD-based schema v1 (default: auto-detect v2 if YAML exists)")
     args = parser.parse_args(argv)
 
     if not re.fullmatch(r"[A-Za-z0-9._-]+", args.ruleset_id):
@@ -230,27 +152,15 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     repo_root = Path(args.repo_root).resolve() if args.repo_root else Path(__file__).resolve().parents[1]
-    
-    rulesets_dir = repo_root / "rulesets"
-    use_v2 = not args.legacy and rulesets_dir.exists() and any((rulesets_dir / "profiles").glob("*.yml"))
-    
+
     try:
-        if use_v2:
-            hashes = build_ruleset_artifacts_v2(
-                repo_root=repo_root,
-                ruleset_id=args.ruleset_id,
-                version=args.version,
-                output_root=Path(args.output_root),
-            )
-            print(json.dumps({"status": "OK", "ruleset_hash": hashes["ruleset_hash"], "mode": "v2-yaml"}, ensure_ascii=True))
-        else:
-            hashes = build_ruleset_artifacts(
-                repo_root=repo_root,
-                ruleset_id=args.ruleset_id,
-                version=args.version,
-                output_root=Path(args.output_root),
-            )
-            print(json.dumps({"status": "OK", "ruleset_hash": hashes["ruleset_hash"], "mode": "v1-legacy"}, ensure_ascii=True))
+        hashes = build_ruleset_artifacts_v2(
+            repo_root=repo_root,
+            ruleset_id=args.ruleset_id,
+            version=args.version,
+            output_root=Path(args.output_root),
+        )
+        print(json.dumps({"status": "OK", "ruleset_hash": hashes["ruleset_hash"], "mode": "v2-yaml"}, ensure_ascii=True))
         return 0
     except Exception as e:
         print(json.dumps({"status": "BLOCKED", "message": str(e)}, ensure_ascii=True))

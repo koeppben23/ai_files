@@ -44,8 +44,8 @@ def test_build_ruleset_lock_outputs_hash_artifacts(tmp_path: Path):
     lock = json.loads((base / "lock.json").read_text(encoding="utf-8"))
     hashes = json.loads((base / "hashes.json").read_text(encoding="utf-8"))
 
-    assert manifest["schema"] in ("governance-ruleset-manifest.v1", "governance-ruleset-manifest.v2")
-    assert lock["schema"] in ("governance-ruleset-lock.v1", "governance-ruleset-lock.v2")
+    assert manifest["schema"] == "governance-ruleset-manifest.v2"
+    assert lock["schema"] == "governance-ruleset-lock.v2"
     assert lock["deterministic"] is True
     assert manifest["source_file_count"] == len(manifest["source_files"])
     assert lock["source_files"] == manifest["source_files"]
