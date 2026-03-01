@@ -236,32 +236,27 @@ class TestPointerWriteFailure:
     """Tests for pointer write failure handling."""
 
     @pytest.mark.governance
-    @pytest.mark.skip(
-        reason="chmod read-only does not reliably prevent writes for file owner on any platform"
-    )
     def test_pointer_write_failure_returns_nonzero(self, tmp_path: Path):
-        config_root = tmp_path / "config"
-        config_root.mkdir(parents=True)
+        # Use a path inside a non-existent directory to guarantee write failure.
+        config_root = tmp_path / "config" / "nonexistent_subdir"
         pointer_file = config_root / "SESSION_STATE.json"
 
-        pointer_file.write_text("{}")
-        os.chmod(config_root, 0o555)
-
-        try:
-            result = subprocess.run(
-                [sys.executable, "-c", f"""
-import json
+        result = subprocess.run(
+            [sys.executable, "-c", f"""
+import json, sys
 from pathlib import Path
 pointer_file = Path("{pointer_file}")
-pointer_file.write_text(json.dumps({{"test": "fail"}}))
-print("written")
+try:
+    pointer_file.write_text(json.dumps({{"test": "fail"}}))
+    print("written")
+except OSError:
+    print("write-failed")
+    sys.exit(1)
 """],
-                capture_output=True,
-                text=True,
-            )
-            assert result.returncode != 0 or "written" not in result.stdout
-        finally:
-            os.chmod(config_root, 0o755)
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode != 0 or "written" not in result.stdout
 
 
 class TestSchemaDriftElimination:

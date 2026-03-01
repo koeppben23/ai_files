@@ -152,9 +152,16 @@ jobs:
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: '3.11'
+      - name: Install lint dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install jsonschema pyyaml
       - name: Run governance lint
         run: |
           python scripts/governance_lint.py
+      - name: Check rulebook schema version compatibility
+        run: |
+          python scripts/migrate_rulebook_schema.py --check
 
   # ----------------------------------
   # Job 0: Spec Guards (Fail-fast)
@@ -273,7 +280,7 @@ jobs:
       - name: Install test deps
         run: |
           python -m pip install --upgrade pip
-          python -m pip install pytest
+          python -m pip install pytest jsonschema pyyaml
       - name: Run build artifact tests (pytest)
         run: |
           pytest -q -m build
@@ -416,7 +423,7 @@ jobs:
         shell: bash
         run: |
           python -m pip install --upgrade pip
-          python -m pip install pytest
+          python -m pip install pytest jsonschema pyyaml
 
       - name: Run installer flow tests (pytest)
         shell: bash
@@ -459,7 +466,7 @@ jobs:
       - name: Install test deps
         run: |
           python -m pip install --upgrade pip
-          python -m pip install pytest pyyaml
+          python -m pip install pytest jsonschema pyyaml
       - name: Run governance validation (pytest)
         run: |
           pytest -q -m governance
@@ -507,7 +514,7 @@ jobs:
       - name: Install test deps
         run: |
           python -m pip install --upgrade pip
-          python -m pip install pytest pyyaml
+          python -m pip install pytest jsonschema pyyaml
       - name: Run governance end-to-end flow tests (pytest)
         run: |
           pytest -q -m e2e_governance
@@ -571,7 +578,7 @@ jobs:
         shell: bash
         run: |
           python -m pip install --upgrade pip
-          python -m pip install pytest
+          python -m pip install pytest jsonschema pyyaml
 
       - name: Run release readiness gates (pytest)
         shell: bash

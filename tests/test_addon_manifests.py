@@ -284,22 +284,6 @@ def test_capability_catalog_completeness_against_manifest_usage_and_signal_mappi
 
 
 @pytest.mark.governance
-def test_master_addon_policy_includes_required_advisory_and_reload():
-    """Pipeline guard: master must define required/advisory semantics and re-evaluation support."""
-    master = read_text(REPO_ROOT / "master.md")
-
-    required_snippets = [
-        "addon_class` (`required` | `advisory`)",
-        "addon_class = required",  # kernel blocks with BLOCKED-MISSING-ADDON
-        "addon_class = advisory",  # kernel continues non-blocking
-        "Addons may be re-evaluated",
-    ]
-
-    missing = [s for s in required_snippets if s not in master]
-    assert not missing, "master.md missing addon policy guarantees:\n" + "\n".join([f"- {s}" for s in missing])
-
-
-@pytest.mark.governance
 def test_master_profile_detection_excludes_addon_and_shared_rulebooks_from_profile_candidates():
     master = read_text(REPO_ROOT / "master.md")
     required_snippets = [

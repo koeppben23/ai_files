@@ -25,8 +25,23 @@ def run(cmd: list[str], *, env: dict[str, str] | None = None, cwd: Path | None =
 
 
 def run_install(args: list[str], *, env: dict[str, str] | None = None) -> subprocess.CompletedProcess:
+    # Check if --source-dir is provided in args
+    source_dir = None
+    for i, arg in enumerate(args):
+        if arg == "--source-dir" and i + 1 < len(args):
+            source_dir = Path(args[i + 1])
+            break
+    
+    # If no explicit --source-dir provided, default to repository root
+    if source_dir is None:
+        source_dir = REPO_ROOT
     # Always use the current interpreter (matrix python-version).
-    return run([sys.executable, "-X", "utf8", "install.py", *args], env=env)
+    # If the source_dir does not contain an install.py (some tests set up synthetic
+    # governance sources), fall back to the repository's install.py to execute.
+    script = source_dir / "install.py"
+    if not script.exists():
+        script = REPO_ROOT / "install.py"
+    return run([sys.executable, "-X", "utf8", str(script), *args], env=env, cwd=source_dir)
 
 
 def run_build(args: list[str], *, env: dict[str, str] | None = None) -> subprocess.CompletedProcess:
@@ -61,10 +76,10 @@ def read_text(path: Path) -> str:
 def write_governance_paths(config_root: Path, *, workspaces_home: Path | None = None) -> Path:
     """Create minimal installer-owned governance.paths.json for tests."""
 
-    root = config_root.resolve()
+    root = Path(os.path.normpath(os.path.abspath(config_root)))
     commands = root / "commands"
     governance = commands / "governance"
-    workspaces = (workspaces_home.resolve() if workspaces_home is not None else (root / "workspaces").resolve())
+    workspaces = (Path(os.path.normpath(os.path.abspath(workspaces_home))) if workspaces_home is not None else (root / "workspaces"))
     payload = {
         "schema": "opencode-governance.paths.v1",
         "paths": {

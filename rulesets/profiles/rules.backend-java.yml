@@ -1,0 +1,157 @@
+kind: profile
+metadata:
+  id: profile.backend-java
+  name: Backend Java Profile Rulebook (v2.2)
+  version: '1.0'
+  schema_version: '1.0.0'
+  status: active
+phase_integration:
+  phases:
+  - phase_1
+  - phase_5
+  - phase_2
+  - phase_5_3
+  - phase_3
+  - phase_4
+  required_outputs: []
+  required_checks: []
+anti_patterns:
+- id: AP-J01
+  title: 'Pattern:'
+  detects:
+  - '`if`/`switch` statements in controller methods that branch on domain state rather than HTTP concerns (content negotiation, auth).
+
+
+    ---'
+  recovery: ''
+- id: AP-J02
+  title: 'Pattern:'
+  detects:
+  - 'Entity classes with no methods beyond getters/setters/constructors; services with inline validation/calculation that belongs to one entity.
+
+
+    ---'
+  recovery: ''
+- id: AP-J03
+  title: 'Pattern:'
+  detects:
+  - 'Direct calls to `Instant.now()`, `System.currentTimeMillis()`, `Thread.sleep()`, or `UUID.randomUUID()` in test code without injectable seams.
+
+
+    ---'
+  recovery: ''
+- id: AP-J04
+  title: 'Pattern:'
+  detects:
+  - 'Controller return types or `@RequestBody` types that are `@Entity`-annotated classes.
+
+
+    ---'
+  recovery: ''
+- id: AP-J05
+  title: 'Pattern:'
+  detects:
+  - '`catch` blocks that only log without rethrowing, wrapping, or returning an error response.
+
+
+    ---'
+  recovery: ''
+- id: AP-J06
+  title: 'Pattern:'
+  detects:
+  - 'Service classes with more than 5-7 public methods or more than 4-5 injected dependencies.
+
+
+    ---'
+  recovery: ''
+- id: AP-J07
+  title: 'Pattern:'
+  detects:
+  - '`@Autowired` annotations on fields (not constructors).
+
+
+    ---'
+  recovery: ''
+- id: AP-J08
+  title: 'Pattern:'
+  detects:
+  - 'Heavy use of Mockito `verify(...)` with exact call counts and argument matchers, without corresponding behavioral assertions.
+
+
+    ---'
+  recovery: ''
+- id: AP-J09
+  title: 'Pattern:'
+  detects:
+  - '`@Transactional` methods that call `RestTemplate`, `WebClient`, `KafkaTemplate`, or similar external clients.
+
+
+    ---'
+  recovery: ''
+- id: AP-J10
+  title: 'Pattern:'
+  detects:
+  - '`@Data` on entities/domain objects; public setters on business-critical fields; scattered `entity.setField(...)` calls outside domain methods.
+
+
+    ---'
+  recovery: ''
+warning_codes:
+- code: WARN-JAVA-DETERMINISM-RISK
+  triggers: []
+  recovery: ''
+references:
+- id: ref_1
+  target: backend-java-templates
+  type: rulebook
+- id: ref_2
+  target: backend-java-kafka-templates
+  type: rulebook
+- id: ref_3
+  target: backend-java-kafka-templates
+  type: rulebook
+- id: ref_4
+  target: java-excellence
+  type: rulebook
+- id: ref_5
+  target: java-excellence
+  type: rulebook
+- id: ref_6
+  target: principal-excellence
+  type: rulebook
+- id: ref_7
+  target: risk-tiering
+  type: rulebook
+- id: ref_8
+  target: scorecard-calibration
+  type: rulebook
+- id: ref_9
+  target: backend-java-templates
+  type: rulebook
+- id: ref_10
+  target: principal-excellence
+  type: rulebook
+- id: ref_11
+  target: risk-tiering
+  type: rulebook
+- id: ref_12
+  target: scorecard-calibration
+  type: rulebook
+- id: ref_13
+  target: risk-tiering
+  type: rulebook
+- id: ref_14
+  target: risk-tiering
+  type: rulebook
+- id: ref_15
+  target: scorecard-calibration
+  type: rulebook
+activation:
+  type: manifest
+  conditions: []
+evidence_contract:
+  required_artifacts: []
+  required_fields: []
+verification_commands: []
+patterns: []
+decision_trees: []
