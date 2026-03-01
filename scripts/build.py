@@ -35,6 +35,7 @@ GOVERNANCE_EXCLUDE_DIRS = {
     ".pytest_cache",
     ".mypy_cache",
     ".ruff_cache",
+    "docs/_archive",
 }
 
 FORBIDDEN_METADATA_SEGMENTS = ("__MACOSX",)

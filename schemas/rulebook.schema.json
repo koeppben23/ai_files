@@ -1,0 +1,328 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://governance.opencode.ai/schemas/rulebook/v1.0.0/rulebook.schema.json",
+  "version": "1.0.0",
+  "title": "Governance Rulebook",
+  "type": "object",
+  "required": ["kind", "metadata"],
+  "additionalProperties": false,
+  "properties": {
+    "kind": {
+      "type": "string",
+      "enum": ["core", "profile"]
+    },
+    "metadata": { "$ref": "#/$defs/metadata" },
+    "precedence": { "$ref": "#/$defs/precedence" },
+    "activation": { "$ref": "#/$defs/activation" },
+    "phase_integration": { "$ref": "#/$defs/phase_integration" },
+    "evidence_contract": { "$ref": "#/$defs/evidence_contract" },
+    "patterns": { 
+      "type": "array", 
+      "items": { "$ref": "#/$defs/pattern" }
+    },
+    "anti_patterns": { 
+      "type": "array", 
+      "items": { "$ref": "#/$defs/anti_pattern" }
+    },
+    "decision_trees": { 
+      "type": "array", 
+      "items": { "$ref": "#/$defs/decision_tree" }
+    },
+    "verification_commands": { 
+      "type": "array",
+      "items": { "$ref": "#/$defs/command" }
+    },
+    "warning_codes": { 
+      "type": "array",
+      "items": { "$ref": "#/$defs/warning_code" }
+    },
+    "references": { 
+      "type": "array",
+      "items": { "$ref": "#/$defs/typed_reference" }
+    },
+    "authority_index": { "$ref": "#/$defs/authority_index" }
+  },
+  "allOf": [
+    { 
+      "if": { "properties": { "kind": { "const": "core" } } },
+      "then": { 
+        "required": ["authority_index"],
+        "properties": { "authority_index": { "$ref": "#/$defs/authority_index" } }
+      }
+    },
+    {
+      "if": { "properties": { "kind": { "const": "profile" } } },
+      "then": {
+        "not": { "required": ["authority_index"] }
+      }
+    },
+    {
+      "if": { 
+        "properties": { 
+          "metadata": { 
+            "properties": { 
+              "status": { "const": "active" } 
+            } 
+          } 
+        } 
+      },
+      "then": {
+        "required": ["activation", "phase_integration", "evidence_contract", "verification_commands", "references"]
+      }
+    }
+  ],
+  "$defs": {
+    "metadata": {
+      "type": "object",
+      "required": ["id", "name", "version", "status", "schema_version"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { 
+          "type": "string",
+          "oneOf": [
+            { "pattern": "^core\\.(master|rules|bootstrap)$" },
+            { "pattern": "^profile\\.[a-z][a-z0-9-]*$" }
+          ]
+        },
+        "name": { "type": "string" },
+        "version": { "type": "string", "pattern": "^\\d+\\.\\d+$" },
+        "status": { "type": "string", "enum": ["active", "deprecated"] },
+        "schema_version": { 
+          "type": "string", 
+          "pattern": "^\\d+\\.\\d+\\.\\d+$",
+          "description": "Semver of the rulebook.schema.json this document targets."
+        }
+      }
+    },
+
+    "precedence": {
+      "type": "object",
+      "required": ["rank", "applies_when"],
+      "additionalProperties": false,
+      "properties": {
+        "rank": { "type": "integer" },
+        "applies_when": { 
+          "oneOf": [
+            { "type": "array", "items": { "$ref": "#/$defs/condition" } },
+            { 
+              "type": "string", 
+              "description": "DEPRECATED: Nur für Übergangsphase (Phase A Pilot). Entfernen vor Full Rollout in Phase B."
+            }
+          ]
+        },
+        "overrides": { 
+          "type": "array", 
+          "items": { "type": "string" }
+        }
+      }
+    },
+
+    "activation": {
+      "type": "object",
+      "required": ["type", "conditions"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["manifest", "detection", "fallback"]
+        },
+        "conditions": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/condition" }
+        }
+      }
+    },
+
+    "condition": {
+      "type": "object",
+      "required": ["field", "operator", "value"],
+      "additionalProperties": false,
+      "properties": {
+        "field": { "type": "string" },
+        "operator": { "type": "string", "enum": ["equals", "not_exists", "contains", "regex", "gt", "gte", "lt", "lte"] },
+        "value": { "type": ["string", "boolean", "number", "null"] }
+      }
+    },
+
+    "phase_integration": {
+      "type": "object",
+      "required": ["phases"],
+      "additionalProperties": false,
+      "properties": {
+        "phases": {
+          "type": "array",
+          "items": { 
+            "type": "string",
+            "pattern": "^phase_[0-9](_[0-9])?$"
+          }
+        },
+        "required_outputs": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "required_checks": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+
+    "evidence_contract": {
+      "type": "object",
+      "required": ["required_artifacts", "required_fields"],
+      "additionalProperties": false,
+      "properties": {
+        "required_artifacts": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "required_fields": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "acceptance_rules": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/acceptance_rule" }
+        }
+      }
+    },
+
+    "acceptance_rule": {
+      "type": "object",
+      "required": ["field", "condition"],
+      "additionalProperties": false,
+      "properties": {
+        "field": { "type": "string" },
+        "condition": { 
+          "oneOf": [
+            { "type": "array", "items": { "$ref": "#/$defs/condition" } },
+            { 
+              "type": "string", 
+              "description": "DEPRECATED: Nur für Übergangsphase (Phase A Pilot). Entfernen vor Full Rollout in Phase B."
+            }
+          ]
+        },
+        "error_message": { "type": "string" }
+      }
+    },
+
+    "command": {
+      "type": "object",
+      "required": ["cmd", "purpose"],
+      "additionalProperties": false,
+      "properties": {
+        "cmd": { "type": "string" },
+        "purpose": { "type": "string" },
+        "expected_exit_code": { "type": "integer" },
+        "required_for": { "type": "string" }
+      }
+    },
+
+    "typed_reference": {
+      "type": "object",
+      "required": ["id", "target", "type"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "target": { "type": "string" },
+        "type": { "type": "string", "enum": ["rulebook", "schema", "kernel", "external"] }
+      }
+    },
+
+    "pattern": {
+      "type": "object",
+      "required": ["id", "title", "enforces", "code_example"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "pattern": "^PAT-[A-Z0-9-]+$" },
+        "title": { "type": "string" },
+        "enforces": { 
+          "type": "array", 
+          "items": { "type": "string" }
+        },
+        "code_example": { "$ref": "#/$defs/code_block" },
+        "rationale": { "type": "string" }
+      }
+    },
+
+    "anti_pattern": {
+      "type": "object",
+      "required": ["id", "title", "detects", "recovery"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "pattern": "^AP-[A-Z0-9-]+$" },
+        "title": { "type": "string" },
+        "detects": { 
+          "type": "array", 
+          "items": { "type": "string" }
+        },
+        "recovery": { "type": "string" }
+      }
+    },
+
+    "decision_tree": {
+      "type": "object",
+      "required": ["id", "root"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "pattern": "^DT-[A-Z0-9-]+$" },
+        "root": { "$ref": "#/$defs/tree_node" }
+      }
+    },
+
+    "tree_node": {
+      "type": "object",
+      "required": ["node_type"],
+      "additionalProperties": false,
+      "properties": {
+        "node_type": { "type": "string", "enum": ["condition", "action", "leaf"] },
+        "expression": { "type": "string" },
+        "yes": { "$ref": "#/$defs/tree_node" },
+        "no": { "$ref": "#/$defs/tree_node" },
+        "result": { "type": "string" }
+      }
+    },
+
+    "warning_code": {
+      "type": "object",
+      "required": ["code", "triggers"],
+      "additionalProperties": false,
+      "properties": {
+        "code": { "type": "string", "pattern": "^WARN-[A-Z0-9-]+$" },
+        "triggers": { 
+          "type": "array", 
+          "items": { "type": "string" }
+        },
+        "recovery": { "type": "string" }
+      }
+    },
+
+    "code_block": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "language": { "type": "string" },
+        "code": { "type": "string" }
+      }
+    },
+
+    "authority_index": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "entries": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["area", "source"],
+            "additionalProperties": false,
+            "properties": {
+              "area": { "type": "string" },
+              "source": { "type": "string" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

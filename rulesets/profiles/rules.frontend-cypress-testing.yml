@@ -1,0 +1,57 @@
+kind: profile
+metadata:
+  id: profile.frontend-cypress-testing
+  name: Frontend Cypress Testing Addon
+  version: '1.0'
+  schema_version: '1.0.0'
+  status: active
+phase_integration:
+  phases:
+  - phase_4
+  - phase_2_1
+  - phase_5_3
+  - phase_2
+  required_outputs: []
+  required_checks: []
+warning_codes:
+- code: WARN-CYPRESS-FLAKY-RISK
+  triggers: []
+  recovery: ''
+- code: WARN-CYPRESS-SELECTOR-UNSTABLE
+  triggers: []
+  recovery: ''
+- code: WARN-CYPRESS-NO-CRITICAL-FLOW-COVERAGE
+  triggers: []
+  recovery: ''
+- code: WARN-CYPRESS-NETWORK-CONTROL-MISSING
+  triggers: []
+  recovery: ''
+- code: WARN-CYPRESS-CRITICAL-PATH-MISSING
+  triggers: []
+  recovery: ''
+- code: WARN-CYPRESS-ASYNC-FLAKE-RISK
+  triggers: []
+  recovery: ''
+references:
+- id: ref_1
+  target: principal-excellence
+  type: rulebook
+- id: ref_2
+  target: risk-tiering
+  type: rulebook
+- id: ref_3
+  target: scorecard-calibration
+  type: rulebook
+- id: ref_4
+  target: profiles/addons/frontendCypress.addon.yml
+  type: schema
+activation:
+  type: manifest
+  conditions: []
+evidence_contract:
+  required_artifacts: []
+  required_fields: []
+verification_commands: []
+patterns: []
+anti_patterns: []
+decision_trees: []

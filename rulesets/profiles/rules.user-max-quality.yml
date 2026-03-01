@@ -1,0 +1,43 @@
+kind: profile
+metadata:
+  id: profile.user-max-quality
+  name: User Max Quality Rulebook
+  version: '1.0'
+  schema_version: '1.0.0'
+  status: active
+phase_integration:
+  phases:
+  - phase_2_1
+  - phase_4
+  - phase_2
+  - phase_5
+  - phase_6
+  - phase_5_3
+  required_outputs: []
+  required_checks: []
+references:
+- id: ref_1
+  target: principal-excellence
+  type: rulebook
+- id: ref_2
+  target: risk-tiering
+  type: rulebook
+- id: ref_3
+  target: scorecard-calibration
+  type: rulebook
+- id: ref_4
+  target: profiles/addons/userMaxQuality.addon.yml
+  type: schema
+- id: ref_5
+  target: profiles/addons/userMaxQuality.addon.yml
+  type: schema
+activation:
+  type: manifest
+  conditions: []
+evidence_contract:
+  required_artifacts: []
+  required_fields: []
+verification_commands: []
+patterns: []
+anti_patterns: []
+decision_trees: []

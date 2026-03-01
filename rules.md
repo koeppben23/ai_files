@@ -19,9 +19,9 @@ This Core Rulebook is:
 
 Doc-lint standard: `docs/governance/doc_lint.md`.
 
-## Authority Index (Binding)
+## Authority Index (Rail-only Guidance - See rulesets/core/rules.yml for authoritative data)
 
-Authoritative sources by area:
+Authoritative sources by area (see rulesets/core/rules.yml for machine-readable authoritative data):
 - Routing/validation/transitions: `${COMMANDS_HOME}/phase_api.yaml` and `governance/kernel/*`
 - Session-state shape and invariants: `SESSION_STATE_SCHEMA.md` and `governance/assets/schemas/*`
 - Response envelope and presentation shape: `governance/RESPONSE_ENVELOPE_SCHEMA.json`
@@ -68,7 +68,7 @@ The detected profile must be recorded as an **assumption** in the session state,
 
 Deterministic Java default is kernel-owned. See `${COMMANDS_HOME}/phase_api.yaml`.
 
-Unambiguous rulebook auto-load (binding):
+Unambiguous rulebook auto-load (Rail-only Guidance):
 - When profile detection is unambiguous and host filesystem access is available, load core/profile rulebooks from canonical installer paths.
 - In that unambiguous case, the workflow MUST NOT ask the operator to provide/paste rulebook files.
 
@@ -90,7 +90,7 @@ Stable anchor IDs are schema- and kernel-owned. See `${COMMANDS_HOME}/phase_api.
 
 Precedence rules are kernel-owned. See `${COMMANDS_HOME}/phase_api.yaml` and `docs/governance/RESPONSIBILITY_BOUNDARY.md`.
 
-Scope note (binding):
+Scope note (Rail-only Guidance):
 - This precedence order governs AI guidance text only.
 - Runtime routing/execution/validation precedence is controlled exclusively by `${COMMANDS_HOME}/phase_api.yaml` and `governance/kernel/*`.
 
@@ -406,7 +406,7 @@ See `SESSION_STATE_SCHEMA.md` and `${COMMANDS_HOME}/phase_api.yaml`.
 Test-quality expectations and gate requirements are kernel- and schema-owned.
 See `${COMMANDS_HOME}/phase_api.yaml` and `docs/governance/governance_schemas.md`.
 
-Profile & scope override handling (binding):
+Profile & scope override handling (Rail-only Guidance):
 Override fields and recording requirements are kernel- and schema-owned.
 See `${COMMANDS_HOME}/phase_api.yaml` and `SESSION_STATE_SCHEMA.md`.
 
