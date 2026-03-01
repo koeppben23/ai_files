@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import re
 import subprocess
 import sys
@@ -24,115 +23,6 @@ from governance.addon_catalog import (  # noqa: E402
 
 def read_text(path: Path) -> str:
     return path.read_text(encoding="utf-8")
-
-
-def check_master_priority_uniqueness(issues: list[str]) -> None:
-    master = read_text(ROOT / "master.md")
-    count = master.count("## 1. PRIORITY ORDER")
-    if count != 1:
-        issues.append(f"master.md: expected exactly one '## 1. PRIORITY ORDER', found {count}")
-
-    # Duplicate-detector for legacy precedence fragments anywhere in master.md.
-    lines = master.splitlines()
-    precedence_blocks: list[tuple[int, list[str]]] = []
-    i = 0
-    while i < len(lines):
-        if not re.match(r"^\s*\d+\.\s+", lines[i]):
-            i += 1
-            continue
-        start = i
-        block: list[str] = []
-        while i < len(lines) and re.match(r"^\s*\d+\.\s+", lines[i]):
-            block.append(lines[i].strip())
-            i += 1
-
-        normalized = "\n".join(block).lower()
-        is_precedence = (
-            "master prompt" in normalized
-            and "rules.md" in normalized
-            and "active profile" in normalized
-            and "ticket" in normalized
-        )
-        if is_precedence:
-            precedence_blocks.append((start + 1, block))
-
-    if len(precedence_blocks) != 1:
-        locations = [f"line {line_no}" for line_no, _ in precedence_blocks]
-        issues.append(
-            "master.md: expected exactly one numbered precedence list containing "
-            "Master Prompt/rules.md/Active profile/Ticket; found "
-            f"{len(precedence_blocks)} ({', '.join(locations) if locations else 'none'})"
-        )
-        return
-
-    _line_no, canonical = precedence_blocks[0]
-    canonical_text = "\n".join(canonical)
-    if "4. Activated templates/addon rulebooks (manifest-driven)" not in canonical_text:
-        issues.append("master.md: canonical precedence list missing '4. Activated templates/addon rulebooks (manifest-driven)'")
-    if "5. Ticket specification" not in canonical_text:
-        issues.append("master.md: canonical precedence list missing '5. Ticket specification'")
-
-    stability_note = (
-        "Stability sync note (binding): governance release/readiness decisions MUST also satisfy `STABILITY_SLA.md`."
-    )
-    if stability_note not in master:
-        issues.append("master.md: missing Stability sync note near priority order")
-
-    if "DO NOT read rulebooks from the repository" in master:
-        issues.append(
-            "master.md: contains legacy phrase 'DO NOT read rulebooks from the repository'; use 'repo working tree' wording"
-        )
-
-    forbidden_secondary_precedence_fragments = [
-        "4) Precedence and merge",
-        "`rules.md` (core) > active profile > templates/addons refinements.",
-        "lookup orders below define **resolution precedence**",
-    ]
-    found_forbidden = [frag for frag in forbidden_secondary_precedence_fragments if frag in master]
-    if found_forbidden:
-        issues.append(f"master.md: contains secondary precedence fragment(s) {found_forbidden}")
-
-    # Context-sensitive duplicate detector: any numbered list near precedence/priority/resolution
-    # language that references master/rules/profile/ticket semantics is suspicious.
-    context_hits: list[str] = []
-    for idx, line in enumerate(lines):
-        if not re.search(r"\b(precedence|priority|resolution)\b", line, flags=re.IGNORECASE):
-            continue
-
-        win_start = max(0, idx - 12)
-        win_end = min(len(lines), idx + 13)
-        window = lines[win_start:win_end]
-
-        j = 0
-        while j < len(window):
-            if not re.match(r"^\s*\d+\.\s+", window[j]):
-                j += 1
-                continue
-            block: list[str] = []
-            while j < len(window) and re.match(r"^\s*\d+\.\s+", window[j]):
-                block.append(window[j].strip())
-                j += 1
-
-            block_text = "\n".join(block).lower()
-            looks_like_precedence = (
-                "master" in block_text and "rules" in block_text and "profile" in block_text and "ticket" in block_text
-            )
-            missing_addon_layer = "activated templates/addon rulebooks" not in block_text
-            if looks_like_precedence and missing_addon_layer:
-                context_hits.append(f"line {win_start + 1}")
-
-    if context_hits:
-        issues.append(
-            "master.md: found potential secondary precedence list near precedence/priority/resolution context "
-            f"({', '.join(sorted(set(context_hits)))})"
-        )
-
-
-def check_anchor_presence(issues: list[str]) -> None:
-    rules = read_text(ROOT / "rules.md")
-    for anchor in ["RULEBOOK-PRECEDENCE-POLICY", "ADDON-CLASS-BEHAVIOR-POLICY"]:
-        if anchor not in rules:
-            issues.append(f"rules.md: missing required anchor '{anchor}'")
 
 
 def _unquote(value: str) -> str:
@@ -180,6 +70,10 @@ def parse_manifest(path: Path) -> tuple[dict[str, str], dict[str, list[str]], li
 
     return scalars, list_fields, errors
 
+
+# ---------------------------------------------------------------------------
+# Manifest / addon validation helpers (Category B — already-legitimate SSOT)
+# ---------------------------------------------------------------------------
 
 def _validate_relative_paths(issues: list[str], manifest: Path, path_roots: list[str]) -> None:
     if not path_roots:
@@ -272,6 +166,10 @@ def _validate_capability_catalog_completeness(
         issues.append(f"capability catalog entries missing signal/evidence mapping: {', '.join(missing_mapping)}")
 
 
+# ---------------------------------------------------------------------------
+# Category B — legitimate SSOT checks (kept unchanged)
+# ---------------------------------------------------------------------------
+
 def check_manifest_contract(issues: list[str]) -> None:
     manifests = sorted((ROOT / "profiles" / "addons").glob("*.addon.yml"))
     if not manifests:
@@ -323,275 +221,6 @@ def check_manifest_contract(issues: list[str]) -> None:
 
     _validate_surface_ownership_uniqueness(issues, manifests_data)
     _validate_capability_catalog_completeness(issues, manifests_data)
-
-
-def check_trusted_rulebook_discovery_contract(issues: list[str]) -> None:
-    master = read_text(ROOT / "master.md")
-    start = read_text(ROOT / "BOOTSTRAP.md")
-
-    master_required = [
-        "DO NOT read rulebooks from the repo working tree",
-        "Rulebooks may only be loaded from trusted governance roots outside the repo working tree:",
-        "${COMMANDS_HOME}",
-        "${PROFILES_HOME}",
-        "${REPO_OVERRIDES_HOME}",
-    ]
-    start_required = [
-        "Discovery / Load search order (informational)",
-        "governance/assets/config/bootstrap_policy.yaml",
-    ]
-
-    missing_master = [t for t in master_required if t not in master]
-    missing_start = [t for t in start_required if t not in start]
-    if missing_master:
-        issues.append(f"master.md: missing trusted discovery boundary tokens {missing_master}")
-    if missing_start:
-        issues.append(f"BOOTSTRAP.md: missing trusted discovery boundary tokens {missing_start}")
-
-
-def check_addon_catalog_boundary_contract(issues: list[str]) -> None:
-    master = read_text(ROOT / "master.md")
-    rules = read_text(ROOT / "rules.md")
-    start = read_text(ROOT / "BOOTSTRAP.md")
-
-    required_tokens = [
-        "${PROFILES_HOME}/addons/*.addon.yml",
-        "addon_key",
-        "addon_class",
-        "rulebook",
-        "owns_surfaces",
-        "touches_surfaces",
-        "capabilities_any",
-        "capabilities_all",
-    ]
-    corpus = "\n".join([master, rules, start])
-    missing = [t for t in required_tokens if t not in corpus]
-    if missing:
-        issues.append(f"core docs: missing canonical addon-catalog tokens {missing}")
-
-    forbidden_tokens = [
-        "addons/manifest.yaml",
-        "addons/manifest.yml",
-        "/addons/manifest.yaml",
-    ]
-    found = [t for t in forbidden_tokens if t in corpus]
-    if found:
-        issues.append(f"core docs: found forbidden non-canonical addon manifest references {found}")
-
-
-def check_response_envelope_schema_contract(issues: list[str]) -> None:
-    master = read_text(ROOT / "master.md")
-    rules = read_text(ROOT / "rules.md")
-    start = read_text(ROOT / "BOOTSTRAP.md")
-    schema_path = ROOT / "governance" / "assets" / "catalogs" / "RESPONSE_ENVELOPE_SCHEMA.json"
-    schema = read_text(schema_path)
-
-    docs_required = [
-        "governance/assets/catalogs/RESPONSE_ENVELOPE_SCHEMA.json",
-        "status",
-        "session_state",
-        "next_action",
-        "snapshot",
-    ]
-    corpus = "\n".join([master, rules, start])
-    missing_docs = [t for t in docs_required if t not in corpus]
-    if missing_docs:
-        issues.append(f"core docs: missing response-envelope schema tokens {missing_docs}")
-
-    schema_required = [
-        '"$id": "opencode.governance.response-envelope.v1"',
-        '"status"',
-        '"session_state"',
-        '"next_action"',
-        '"snapshot"',
-        '"reason_payload"',
-        '"quick_fix_commands"',
-    ]
-    missing_schema = [t for t in schema_required if t not in schema]
-    if missing_schema:
-        issues.append(f"governance/RESPONSE_ENVELOPE_SCHEMA.json: missing required schema tokens {missing_schema}")
-
-
-def check_rulebook_load_evidence_fail_closed_contract(issues: list[str]) -> None:
-    master = read_text(ROOT / "master.md")
-    rules = read_text(ROOT / "rules.md")
-
-    master_required = [
-        "### Rulebook Load Evidence",
-        "RulebookLoadEvidence",
-        "BLOCKED-RULEBOOK-EVIDENCE-MISSING",
-        "governance/assets/reasons/blocked_reason_catalog.yaml",
-    ]
-    rules_required = [
-        "## 7.17 Rulebook Load Evidence Gate (Core, Binding)",
-        "RulebookLoadEvidence",
-        "BLOCKED-RULEBOOK-EVIDENCE-MISSING",
-        "no phase completion may be claimed",
-    ]
-    missing_master = [t for t in master_required if t not in master]
-    missing_rules = [t for t in rules_required if t not in rules]
-    if missing_master:
-        issues.append(f"master.md: missing rulebook evidence fail-closed tokens {missing_master}")
-    if missing_rules:
-        issues.append(f"rules.md: missing rulebook evidence fail-closed tokens {missing_rules}")
-
-
-def check_response_contract_validator_presence(issues: list[str]) -> None:
-    script = ROOT / "scripts" / "validate_response_contract.py"
-    if not script.exists():
-        issues.append("scripts/validate_response_contract.py: missing response contract validator")
-        return
-    text = read_text(script)
-    required = [
-        "reason_payload",
-        "quick_fix_commands",
-        "command coherence violated",
-        "RulebookLoadEvidence must be present",
-    ]
-    missing = [t for t in required if t not in text]
-    if missing:
-        issues.append(f"scripts/validate_response_contract.py: missing validator tokens {missing}")
-
-
-def check_phase2_repo_root_defaulting_contract(issues: list[str]) -> None:
-    master = read_text(ROOT / "master.md")
-    required_tokens = [
-        "Repo root defaulting behavior (informational):",
-        "Phase 2 uses that path as the default `RepoRoot` candidate (kernel-enforced).",
-        "the workflow requests filesystem/access authorization (if required by host policy)",
-        "Operator path prompts are allowed only when no host-provided repository root is available",
-    ]
-    missing = [token for token in required_tokens if token not in master]
-    if missing:
-        issues.append(f"master.md: missing Phase-2 repo-root defaulting tokens {missing}")
-
-
-def check_phase21_ticket_goal_deferral_contract(issues: list[str]) -> None:
-    master = read_text(ROOT / "master.md")
-    rules = read_text(ROOT / "rules.md")
-
-    master_required = [
-        "Ticket-goal handling in Phase 2.1 (informational):",
-        "Phase 2.1 executes automatically from Phase 2 evidence and does not require explicit `ticketGoal` input (kernel-enforced).",
-        "`ticketGoal` becomes required at Phase 4 entry (Step 0) before any code-producing work (kernel-enforced).",
-    ]
-    rules_required = [
-        "Phase 2.1 ticket-goal policy (informational):",
-        "Phase 2.1 Decision Pack generation does not block on missing `ticketGoal` (kernel-enforced).",
-        "In Phase 1.5 / 2 / 2.1 / 3A / 3B, the workflow does not request \"provide ticket\" or \"provide change request\" as `NextAction` (kernel-enforced).",
-        "`ticketGoal` is REQUIRED at Phase 4 entry (Step 0) before implementation planning/code-producing work (kernel-enforced).",
-    ]
-
-    missing_master = [token for token in master_required if token not in master]
-    missing_rules = [token for token in rules_required if token not in rules]
-    if missing_master:
-        issues.append(f"master.md: missing Phase-2.1 ticket-goal deferral tokens {missing_master}")
-    if missing_rules:
-        issues.append(f"rules.md: missing Phase-2.1 ticket-goal deferral tokens {missing_rules}")
-
-    master_additional = [
-        "otherwise → Phase 3A (auto-not-applicable path allowed) then continue to Phase 3B routing",
-        "ticket input is accepted only at Phase 4 entry.",
-        "Otherwise: Proceed to Phase 3A (auto-not-applicable path allowed), then continue to Phase 3B routing",
-    ]
-    missing_master_additional = [token for token in master_additional if token not in master]
-    if missing_master_additional:
-        issues.append(
-            f"master.md: missing no-early-ticket-prompt Phase-2/1.5 exit tokens {missing_master_additional}"
-        )
-
-
-def check_phase15_repo_code_evidence_contract(issues: list[str]) -> None:
-    master = read_text(ROOT / "master.md")
-    rules = read_text(ROOT / "rules.md")
-
-    master_required = [
-        "Phase 1.5 evidence source contract (binding):",
-        "The workflow MUST read repository code/tests for Business Rules extraction.",
-        "README-only/documentation-only rules MUST NOT be counted as extracted business rules.",
-        "Any rule lacking repository code evidence MUST be marked `CANDIDATE`",
-    ]
-    rules_required = [
-        "Repository documentation (`README*`, `CONTRIBUTING*`, `AGENTS*`, comments) is not used as sole evidence for BR extraction.",
-        "README-only/documentation-only BRs are marked `CANDIDATE` and do not count as extracted `ACTIVE` rules.",
-    ]
-
-    missing_master = [token for token in master_required if token not in master]
-    missing_rules = [token for token in rules_required if token not in rules]
-    if missing_master:
-        issues.append(f"master.md: missing Phase-1.5 code-evidence tokens {missing_master}")
-    if missing_rules:
-        issues.append(f"rules.md: missing BR extraction evidence-source tokens {missing_rules}")
-
-
-def check_host_constraint_compat_mode_contract(issues: list[str]) -> None:
-    master = read_text(ROOT / "master.md")
-    rules = read_text(ROOT / "rules.md")
-    start = read_text(ROOT / "BOOTSTRAP.md")
-
-    master_required = [
-        "Host-constraint compatibility (binding):",
-        "DEVIATION.host_constraint = true",
-        "RequiredInputs",
-        "Recovery",
-        "NextAction",
-        "COMPAT mode MUST still emit a `[NEXT-ACTION]` block with `Status`, `Next`, `Why`, and `Command` fields.",
-    ]
-    rules_required = [
-        "### 7.3.8 Host Constraint Compatibility Mode (Kernel-Enforced)",
-        "DEVIATION.host_constraint = true",
-        "COMPAT response shape (minimum required sections):",
-        "RequiredInputs",
-        "Recovery",
-        "NextAction",
-    ]
-    start_required = [
-        "If strict output formatting is host-constrained, response MUST include COMPAT sections: `RequiredInputs`, `Recovery`, and `NextAction` and set `DEVIATION.host_constraint = true`.",
-    ]
-
-    missing_master = [token for token in master_required if token not in master]
-    missing_rules = [token for token in rules_required if token not in rules]
-    missing_start = [token for token in start_required if token not in start]
-    if missing_master:
-        issues.append(f"master.md: missing host-constraint compat tokens {missing_master}")
-    if missing_rules:
-        issues.append(f"rules.md: missing host-constraint compat tokens {missing_rules}")
-    if missing_start:
-        issues.append(f"BOOTSTRAP.md: missing host-constraint compat tokens {missing_start}")
-
-
-def check_session_state_fenced_yaml_contract(issues: list[str]) -> None:
-    master = read_text(ROOT / "master.md")
-    rules = read_text(ROOT / "rules.md")
-    start = read_text(ROOT / "BOOTSTRAP.md")
-
-    master_required = [
-        "If `SESSION_STATE` is emitted, it MUST still be rendered as fenced YAML",
-        "`SESSION_STATE` blocks MUST NOT use placeholder tokens (`...`, `<...>`); unknown fields must be explicit (`unknown|null|not-applicable`).",
-    ]
-    rules_required = [
-        "### 7.3.9 SESSION_STATE Formatting Contract (Presentation Advisory)",
-        "Whenever `SESSION_STATE` is emitted in assistant output, it MUST be rendered as a fenced YAML block.",
-        "heading line: `SESSION_STATE`",
-        "fenced block start: ````yaml",
-        "payload root key: `SESSION_STATE:`",
-        "Placeholder tokens like `...` or `<...>` are FORBIDDEN inside emitted `SESSION_STATE` blocks.",
-        "If values are unknown, emit explicit values (`unknown`, `null`, `not-applicable`) rather than placeholders.",
-    ]
-    start_required = [
-        "`SESSION_STATE` output MUST be formatted as fenced YAML (````yaml` + `SESSION_STATE:` payload)",
-        "`SESSION_STATE` output MUST NOT use placeholder tokens (`...`, `<...>`); use explicit unknown/null values instead",
-    ]
-
-    missing_master = [t for t in master_required if t not in master]
-    missing_rules = [t for t in rules_required if t not in rules]
-    missing_start = [t for t in start_required if t not in start]
-    if missing_master:
-        issues.append(f"master.md: missing SESSION_STATE fenced-yaml tokens {missing_master}")
-    if missing_rules:
-        issues.append(f"rules.md: missing SESSION_STATE fenced-yaml tokens {missing_rules}")
-    if missing_start:
-        issues.append(f"BOOTSTRAP.md: missing SESSION_STATE fenced-yaml tokens {missing_start}")
 
 
 def check_required_addon_references(issues: list[str]) -> None:
@@ -810,228 +439,66 @@ def check_security_gate_contract(issues: list[str]) -> None:
         )
 
 
-def check_stability_sla_contract(issues: list[str]) -> None:
-    sla_path = ROOT / "STABILITY_SLA.md"
-    if not sla_path.exists():
-        issues.append("STABILITY_SLA.md: missing required stability SLA document")
+def check_response_contract_validator_presence(issues: list[str]) -> None:
+    script = ROOT / "scripts" / "validate_response_contract.py"
+    if not script.exists():
+        issues.append("scripts/validate_response_contract.py: missing response contract validator")
+        return
+    text = read_text(script)
+    required = [
+        "reason_payload",
+        "quick_fix_commands",
+        "command coherence violated",
+        "RulebookLoadEvidence must be present",
+    ]
+    missing = [t for t in required if t not in text]
+    if missing:
+        issues.append(f"scripts/validate_response_contract.py: missing validator tokens {missing}")
+
+
+def check_yaml_rulebook_schema(issues: list[str]) -> None:
+    """Validate YAML rulebooks against schema (v2 path) including schema_version compatibility."""
+    try:
+        import yaml
+        from jsonschema import Draft202012Validator
+    except ImportError:
+        issues.append("YAML schema validation requires: pip install jsonschema pyyaml")
         return
 
-    sla = read_text(sla_path)
-    master = read_text(ROOT / "master.md")
-    rules = read_text(ROOT / "rules.md")
-    ci = read_text(ROOT / ".github" / "workflows" / "ci.yml")
+    schema_path = ROOT / "schemas" / "rulebook.schema.json"
+    if not schema_path.exists():
+        return
 
-    sla_required_tokens = [
-        "# Stability-SLA: AI Governance System (Go/No-Go)",
-        "## 1) Single Canonical Precedence",
-        "master > core rules > active profile > activated addons/templates > ticket",
-        "## 2) Deterministic Activation",
-        "## 3) Fail-Closed for Required",
-        "## 4) Surface Ownership and Conflict Safety",
-        "BLOCKED-ADDON-CONFLICT:<surface>",
-        "## 7) SESSION_STATE Versioning and Isolation",
-        "BLOCKED-STATE-OUTDATED",
-        "## 10) Regression Gates (CI Required)",
-        "governance-lint",
-        "pytest -m governance",
-        "template quality gate",
-        "PASS: all 10 criteria are satisfied and enforced by required CI checks.",
-    ]
-    missing_sla = [token for token in sla_required_tokens if token not in sla]
-    if missing_sla:
-        issues.append(f"STABILITY_SLA.md: missing required tokens {missing_sla}")
+    schema = json.loads(schema_path.read_text())
+    schema_version = schema.get("version", "")
 
-    master_required_tokens = [
-        "`STABILITY_SLA.md`",
-        "normative Go/No-Go contract",
-        "Stability sync note (binding): governance release/readiness decisions MUST also satisfy `STABILITY_SLA.md`.",
-        "4. Activated templates/addon rulebooks (manifest-driven)",
-        "Profile selection is kernel-enforced",
-    ]
-    missing_master = [token for token in master_required_tokens if token not in master]
-    if missing_master:
-        issues.append(f"master.md: missing stability SLA integration tokens {missing_master}")
+    rulesets_dir = ROOT / "rulesets"
+    if not rulesets_dir.exists():
+        return
 
-    rules_required_tokens = [
-        "Governance release stability is normatively defined by `STABILITY_SLA.md`",
-        "Release/readiness decisions MUST satisfy `STABILITY_SLA.md` invariants; conflicts are resolved fail-closed.",
-        "4) activated addon rulebooks (including templates and shared governance add-ons)",
-        "Master Prompt > Core Rulebook > Active Profile Rulebook > Activated Addon/Template Rulebooks > Ticket > Repo docs",
-        "provide a ranked shortlist of plausible profiles with brief evidence per candidate",
-        "request explicit selection using a single targeted numbered prompt",
-        "0=abort/none",
-    ]
-    missing_rules = [token for token in rules_required_tokens if token not in rules]
-    if missing_rules:
-        issues.append(f"rules.md: missing stability SLA integration tokens {missing_rules}")
-
-    if "Master Prompt > Core Rulebook > Profile Rulebook > Ticket > Repo docs" in rules:
-        issues.append("rules.md: contains legacy precedence fragment without addon/template layer")
-
-    ci_required_tokens = [
-        "governance-lint:",
-        "validate-governance:",
-        "governance-e2e:",
-        "pytest -q -m governance",
-        "pytest -q -m e2e_governance",
-        "release-readiness:",
-        "needs: [conventional-pr-title, governance-lint, spec-guards, test-installer, validate-governance, governance-e2e, build-artifacts]",
-    ]
-    missing_ci = [token for token in ci_required_tokens if token not in ci]
-    if missing_ci:
-        issues.append(f".github/workflows/ci.yml: missing SLA-aligned required gate tokens {missing_ci}")
-
-
-def check_factory_contract_alignment(issues: list[str]) -> None:
-    new_addon = read_text(ROOT / "docs" / "_archive" / "new_addon.md")
-    new_profile = read_text(ROOT / "docs" / "_archive" / "new_profile.md")
-    factory_json = read_text(ROOT / "governance" / "assets" / "catalogs" / "PROFILE_ADDON_FACTORY_CONTRACT.json")
-
-    addon_required_tokens = [
-        "owns_surfaces",
-        "touches_surfaces",
-        "capabilities_any",
-        "capabilities_all",
-        "phase semantics MUST reference canonical `master.md` phase labels",
-        "SESSION_STATE.AddonsEvidence.<addon_key>",
-        "SESSION_STATE.RepoFacts.CapabilityEvidence",
-        "SESSION_STATE.Diagnostics.ReasonPayloads",
-        "tracking keys are audit/trace pointers (map entries), not activation signals",
-    ]
-    missing_addon = [token for token in addon_required_tokens if token not in new_addon]
-    if missing_addon:
-        issues.append(f"docs/_archive/new_addon.md: missing factory alignment tokens {missing_addon}")
-
-    profile_required_tokens = [
-        "applicability_signals",
-        "MUST NOT be used as profile-selection activation logic",
-        "Preferred: `profiles/rules_<profile_key>.md`",
-        "Accepted legacy alias: `profiles/rules.<profile_key>.md`",
-        "phase semantics MUST reference canonical `master.md` phase labels",
-        "SESSION_STATE.AddonsEvidence.<addon_key>",
-        "SESSION_STATE.RepoFacts.CapabilityEvidence",
-        "SESSION_STATE.Diagnostics.ReasonPayloads",
-        "tracking keys are audit/trace pointers (map entries), not activation signals",
-    ]
-    missing_profile = [token for token in profile_required_tokens if token not in new_profile]
-    if missing_profile:
-        issues.append(f"docs/_archive/new_profile.md: missing factory alignment tokens {missing_profile}")
-
-    json_required_tokens = [
-        '"requiredAddonManifestFields"',
-        '"owns_surfaces"',
-        '"touches_surfaces"',
-        '"recommendedAddonManifestFields"',
-        '"capabilities_any"',
-        '"capabilities_all"',
-    ]
-    missing_json = [token for token in json_required_tokens if token not in factory_json]
-    if missing_json:
-        issues.append(f"governance/PROFILE_ADDON_FACTORY_CONTRACT.json: missing factory alignment tokens {missing_json}")
-
-
-def check_governance_reason_contract_alignment(issues: list[str]) -> None:
-    audit = read_text(ROOT / "governance" / "assets" / "catalogs" / "audit.md")
-    persist = read_text(ROOT / "governance" / "entrypoints" / "persist_workspace_artifacts.py")
-    bridge = ROOT / "governance" / "entrypoints" / "map_audit_to_canonical.py"
-    bridge_map = ROOT / "governance" / "assets" / "catalogs" / "AUDIT_REASON_CANONICAL_MAP.json"
-
-    audit_required_tokens = [
-        "Reason key semantics (binding):",
-        "audit-only governance keys",
-        "They are NOT canonical governance `reason_code` values",
-        "MUST NOT be written into `SESSION_STATE.Diagnostics.ReasonPayloads.reason_code`",
-        "auditReasonKey `BR_MISSING_SESSION_GATE_STATE`",
-        "auditReasonKey `BR_MISSING_RULEBOOK_RESOLUTION`",
-        "auditReasonKey `BR_SCOPE_ARTIFACT_MISSING`",
-        "governance/entrypoints/map_audit_to_canonical.py --input <audit-report.json>",
-        "governance/assets/catalogs/AUDIT_REASON_CANONICAL_MAP.json",
-    ]
-    missing_audit = [token for token in audit_required_tokens if token not in audit]
-    if missing_audit:
-        issues.append(f"governance/audit.md: missing reason-key boundary tokens {missing_audit}")
-
-    persist_required_tokens = [
-        '"status": "blocked"',
-        '"reason_code": "BLOCKED-WORKSPACE-PERSISTENCE"',
-        '"missing_evidence"',
-        '"recovery_steps"',
-        '"required_operator_action"',
-        '"feedback_required"',
-        '"next_command"',
-    ]
-    missing_persist = [token for token in persist_required_tokens if token not in persist]
-    if missing_persist:
-        issues.append(f"governance/entrypoints/persist_workspace_artifacts.py: missing quiet blocked payload tokens {missing_persist}")
-
-    if not bridge.exists():
-        issues.append("governance/map_audit_to_canonical.py: missing deterministic audit->canonical bridge script")
-    else:
-        bridge_text = read_text(bridge)
-        bridge_required_tokens = [
-            "opencode.audit-canonical-bridge.v1",
-            "--strict-unmapped",
-            "WARN-UNMAPPED-AUDIT-REASON",
-        ]
-        missing_bridge = [token for token in bridge_required_tokens if token not in bridge_text]
-        if missing_bridge:
-            issues.append(f"governance/map_audit_to_canonical.py: missing bridge tokens {missing_bridge}")
-
-    if not bridge_map.exists():
-        issues.append("governance/AUDIT_REASON_CANONICAL_MAP.json: missing canonical mapping source")
-    else:
-        map_text = read_text(bridge_map)
-        map_required_tokens = [
-            '"$schema": "opencode.audit-reason-map.v1"',
-            '"BR_MISSING_SESSION_GATE_STATE"',
-            '"BR_MISSING_RULEBOOK_RESOLUTION"',
-            '"BR_SCOPE_ARTIFACT_MISSING"',
-            '"default_unmapped": "WARN-UNMAPPED-AUDIT-REASON"',
-        ]
-        missing_map = [token for token in map_required_tokens if token not in map_text]
-        if missing_map:
-            issues.append(f"governance/AUDIT_REASON_CANONICAL_MAP.json: missing mapping tokens {missing_map}")
-
-
-def check_start_evidence_boundaries(issues: list[str]) -> None:
-    start = read_text(ROOT / "BOOTSTRAP.md")
-    binding_helper = read_text(ROOT / "governance" / "entrypoints" / "bootstrap_binding_evidence.py")
-    start_bundle = "\n".join([start, binding_helper])
-
-    required_in_start = [
-        "Fallback computed payloads remain debug-only (`nonEvidence`).",
-        "Helper output is operational convenience status only and is not canonical repo identity evidence.",
-        "Bootstrap gates, evidence requirements, and blocked reasons are kernel-enforced",
-        "governance/assets/config/bootstrap_policy.yaml",
-    ]
-    missing_required = [token for token in required_in_start if token not in start]
-
-    token_alternatives = [
-        ["'reason_code':'BLOCKED-MISSING-BINDING-FILE'", '"reason_code": "BLOCKED-MISSING-BINDING-FILE"'],
-        ["'reason_code':'BLOCKED-VARIABLE-RESOLUTION'", '"reason_code": "BLOCKED-VARIABLE-RESOLUTION"'],
-        [
-            "'missing_evidence':['${COMMANDS_HOME}/governance.paths.json (installer-owned binding evidence)']",
-            '"${COMMANDS_HOME}/governance.paths.json (installer-owned binding evidence)"',
-        ],
-        ["'next_command':'opencode-governance-bootstrap'", '"next_command": "opencode-governance-bootstrap"'],
-        ["'nonEvidence':'debug-only'", '"nonEvidence": "debug-only"'],
-    ]
-    for choices in token_alternatives:
-        if not any(token in start_bundle for token in choices):
-            missing_required.append(choices[0])
-
-    if missing_required:
-        issues.append(f"BOOTSTRAP.md: missing evidence-boundary tokens {missing_required}")
-
-    forbidden_tokens = [
-        "Treat it as **evidence**.",
-        "# last resort: compute the same payload that the installer would write",
-        "or provide operator binding evidence plus filesystem proof artifacts",
-        "paste the full file contents for master.md, rules.md, and the selected profile.",
-    ]
-    found_forbidden = [token for token in forbidden_tokens if token in start]
-    if found_forbidden:
-        issues.append(f"BOOTSTRAP.md: contains forbidden fallback-evidence tokens {found_forbidden}")
+    for yaml_file in rulesets_dir.glob("**/*.yml"):
+        try:
+            rulebook = yaml.safe_load(yaml_file.read_text())
+            validator = Draft202012Validator(schema)
+            errors = list(validator.iter_errors(rulebook))
+            if errors:
+                for error in errors:
+                    issues.append(f"{yaml_file.relative_to(ROOT)}: schema violation at {error.json_path}: {error.message}")
+            elif schema_version:
+                # Check schema_version compatibility (major version must match)
+                rb_schema_ver = (rulebook.get("metadata") or {}).get("schema_version", "")
+                if not rb_schema_ver:
+                    issues.append(f"{yaml_file.relative_to(ROOT)}: missing metadata.schema_version")
+                else:
+                    schema_major = schema_version.split(".")[0]
+                    rb_major = rb_schema_ver.split(".")[0]
+                    if schema_major != rb_major:
+                        issues.append(
+                            f"{yaml_file.relative_to(ROOT)}: schema_version mismatch: "
+                            f"rulebook targets {rb_schema_ver} but schema is {schema_version}"
+                        )
+        except Exception as e:
+            issues.append(f"{yaml_file.relative_to(ROOT)}: failed to parse: {e}")
 
 
 def check_md_rails_only_tripwire(issues: list[str]) -> None:
@@ -1085,240 +552,222 @@ def check_md_rails_only_tripwire(issues: list[str]) -> None:
         issues.append("md_lint failed: " + (detail if detail else "unknown failure"))
 
 
-def check_unified_next_action_footer_contract(issues: list[str]) -> None:
-    master = read_text(ROOT / "master.md")
-    rules = read_text(ROOT / "rules.md")
-    start = read_text(ROOT / "BOOTSTRAP.md")
+# ---------------------------------------------------------------------------
+# Rescued SSOT checks — structural JSON/Python validation only (no MD reads)
+# ---------------------------------------------------------------------------
 
-    master_required = [
-        "#### Unified Next Action Footer (Presentation Advisory)",
-        "[NEXT-ACTION]",
-        "Status: <normal|degraded|draft|blocked>",
-        "Next: <single concrete next action>",
-        "Why: <one-sentence rationale>",
-        "Command: <exact next command or \"none\">",
-    ]
-    rules_required = [
-        "### 7.3.1 Unified Next Action Footer (Presentation Advisory)",
-        "[NEXT-ACTION]",
-        "Footer values MUST be consistent with `SESSION_STATE.Mode`, `SESSION_STATE.Next`, and any emitted reason payloads.",
-    ]
-    start_required = [
-        "End every response with `[NEXT-ACTION]` footer (`Status`, `Next`, `Why`, `Command`) per `master.md` (also required in COMPAT mode)",
-    ]
+def check_response_envelope_schema_keys(issues: list[str]) -> None:
+    """Structural check on RESPONSE_ENVELOPE_SCHEMA.json (rescued from check_response_envelope_schema_contract)."""
+    schema_path = ROOT / "governance" / "assets" / "catalogs" / "RESPONSE_ENVELOPE_SCHEMA.json"
+    if not schema_path.exists():
+        issues.append("governance/RESPONSE_ENVELOPE_SCHEMA.json: file missing")
+        return
 
-    missing_master = [t for t in master_required if t not in master]
-    missing_rules = [t for t in rules_required if t not in rules]
-    missing_start = [t for t in start_required if t not in start]
-    if missing_master:
-        issues.append(f"master.md: missing unified next-action footer tokens {missing_master}")
-    if missing_rules:
-        issues.append(f"rules.md: missing unified next-action footer tokens {missing_rules}")
-    if missing_start:
-        issues.append(f"BOOTSTRAP.md: missing unified next-action footer tokens {missing_start}")
+    try:
+        schema = json.loads(read_text(schema_path))
+    except json.JSONDecodeError as exc:
+        issues.append(f"governance/RESPONSE_ENVELOPE_SCHEMA.json: invalid JSON: {exc}")
+        return
+
+    # Check $id
+    expected_id = "opencode.governance.response-envelope.v1"
+    actual_id = schema.get("$id", "")
+    if actual_id != expected_id:
+        issues.append(
+            f"governance/RESPONSE_ENVELOPE_SCHEMA.json: expected $id={expected_id!r}, found {actual_id!r}"
+        )
+
+    # Check required property keys
+    properties = schema.get("properties", {})
+    required_properties = ["status", "session_state", "next_action", "snapshot", "reason_payload", "quick_fix_commands"]
+    missing = [k for k in required_properties if k not in properties]
+    if missing:
+        issues.append(f"governance/RESPONSE_ENVELOPE_SCHEMA.json: missing property keys {missing}")
 
 
-def check_standard_blocker_envelope_contract(issues: list[str]) -> None:
-    master = read_text(ROOT / "master.md")
-    rules = read_text(ROOT / "rules.md")
-    start = read_text(ROOT / "BOOTSTRAP.md")
+def check_factory_contract_json_keys(issues: list[str]) -> None:
+    """Structural check on PROFILE_ADDON_FACTORY_CONTRACT.json (rescued from check_factory_contract_alignment)."""
+    contract_path = ROOT / "governance" / "assets" / "catalogs" / "PROFILE_ADDON_FACTORY_CONTRACT.json"
+    if not contract_path.exists():
+        issues.append("governance/PROFILE_ADDON_FACTORY_CONTRACT.json: file missing")
+        return
 
-    master_required = [
-        "Machine-readable blocker envelope (mandatory):",
+    try:
+        contract = json.loads(read_text(contract_path))
+    except json.JSONDecodeError as exc:
+        issues.append(f"governance/PROFILE_ADDON_FACTORY_CONTRACT.json: invalid JSON: {exc}")
+        return
+
+    # Check top-level keys
+    required_keys = ["requiredAddonManifestFields", "recommendedAddonManifestFields"]
+    missing_top = [k for k in required_keys if k not in contract]
+    if missing_top:
+        issues.append(f"governance/PROFILE_ADDON_FACTORY_CONTRACT.json: missing top-level keys {missing_top}")
+        return
+
+    # Check required fields contain owns_surfaces, touches_surfaces
+    required_fields = contract.get("requiredAddonManifestFields", [])
+    if not isinstance(required_fields, list):
+        required_fields = []
+    for field in ["owns_surfaces", "touches_surfaces"]:
+        if field not in required_fields:
+            issues.append(
+                f"governance/PROFILE_ADDON_FACTORY_CONTRACT.json: requiredAddonManifestFields missing '{field}'"
+            )
+
+    # Check recommended fields contain capabilities_any, capabilities_all
+    recommended_fields = contract.get("recommendedAddonManifestFields", [])
+    if not isinstance(recommended_fields, list):
+        recommended_fields = []
+    for field in ["capabilities_any", "capabilities_all"]:
+        if field not in recommended_fields:
+            issues.append(
+                f"governance/PROFILE_ADDON_FACTORY_CONTRACT.json: recommendedAddonManifestFields missing '{field}'"
+            )
+
+
+def check_governance_reason_ssot_alignment(issues: list[str]) -> None:
+    """SSOT alignment for governance reason contracts (rescued from check_governance_reason_contract_alignment).
+
+    Validates:
+    1. persist_workspace_artifacts.py — _PERSISTENCE_REQUIRED_TOKENS membership
+    2. map_audit_to_canonical.py — LEGACY_DEFAULT_UNMAPPED_AUDIT_REASON constant + code tokens
+    3. AUDIT_REASON_CANONICAL_MAP.json — structural keys
+    """
+    # 1. Persistence tokens
+    try:
+        from governance.entrypoints.persist_workspace_artifacts import _PERSISTENCE_REQUIRED_TOKENS
+    except ImportError as exc:
+        issues.append(f"governance/persist_workspace_artifacts.py: import failed: {exc}")
+        _PERSISTENCE_REQUIRED_TOKENS = ()
+
+    required_persistence_tokens = [
         '"status": "blocked"',
-        '"reason_code": "BLOCKED-..."',
-        '"missing_evidence": ["..."]',
-        '"recovery_steps": ["..."]',
-        '"next_command": "..."',
+        '"reason_code": "BLOCKED-WORKSPACE-PERSISTENCE"',
+        '"missing_evidence"',
+        '"recovery_steps"',
+        '"next_command"',
     ]
-    rules_required = [
-        "### 7.3.2 Standard Blocker Output Envelope (Kernel-Enforced)",
-        "`status = blocked`",
-        "`reason_code` (`BLOCKED-*`)",
-        "`missing_evidence` (array)",
-        "`recovery_steps` (array, max 3)",
-        "`next_command` (single actionable command or `none`)",
-        "deterministically ordered (priority-first, then lexicographic)",
-    ]
-    start_required = [
-        "If blocked, include the standard blocker envelope (`status`, `reason_code`, `missing_evidence`, `recovery_steps`, `next_command`) when host constraints allow",
-    ]
+    for token in required_persistence_tokens:
+        if token not in _PERSISTENCE_REQUIRED_TOKENS:
+            issues.append(
+                f"governance/persist_workspace_artifacts.py: _PERSISTENCE_REQUIRED_TOKENS missing {token!r}"
+            )
 
-    missing_master = [t for t in master_required if t not in master]
-    missing_rules = [t for t in rules_required if t not in rules]
-    missing_start = [t for t in start_required if t not in start]
-    if missing_master:
-        issues.append(f"master.md: missing blocker envelope tokens {missing_master}")
-    if missing_rules:
-        issues.append(f"rules.md: missing blocker envelope tokens {missing_rules}")
-    if missing_start:
-        issues.append(f"BOOTSTRAP.md: missing blocker envelope tokens {missing_start}")
+    # 2. Audit-to-canonical bridge
+    try:
+        from governance.entrypoints.map_audit_to_canonical import LEGACY_DEFAULT_UNMAPPED_AUDIT_REASON
+    except ImportError as exc:
+        issues.append(f"governance/map_audit_to_canonical.py: import failed: {exc}")
+        LEGACY_DEFAULT_UNMAPPED_AUDIT_REASON = None
 
+    if LEGACY_DEFAULT_UNMAPPED_AUDIT_REASON is not None:
+        if LEGACY_DEFAULT_UNMAPPED_AUDIT_REASON != "WARN-UNMAPPED-AUDIT-REASON":
+            issues.append(
+                f"governance/map_audit_to_canonical.py: LEGACY_DEFAULT_UNMAPPED_AUDIT_REASON "
+                f"expected 'WARN-UNMAPPED-AUDIT-REASON', found {LEGACY_DEFAULT_UNMAPPED_AUDIT_REASON!r}"
+            )
 
-def check_start_mode_banner_contract(issues: list[str]) -> None:
-    master = read_text(ROOT / "master.md")
-    rules = read_text(ROOT / "rules.md")
-    start = read_text(ROOT / "BOOTSTRAP.md")
+    # Text search on .py file for code-level tokens (code is authority, not prose)
+    bridge_path = ROOT / "governance" / "entrypoints" / "map_audit_to_canonical.py"
+    if bridge_path.exists():
+        bridge_text = read_text(bridge_path)
+        code_tokens = ["--strict-unmapped", "opencode.audit-canonical-bridge.v1"]
+        missing_code = [t for t in code_tokens if t not in bridge_text]
+        if missing_code:
+            issues.append(f"governance/map_audit_to_canonical.py: missing code tokens {missing_code}")
+    else:
+        issues.append("governance/map_audit_to_canonical.py: file missing")
 
-    master_required = [
-        "### 2.4.1 Session Start Mode Banner (Kernel-Enforced)",
-        "[START-MODE] Cold Start - reason:",
-        "[START-MODE] Warm Start - reason:",
-        "`Cold Start` when discovery/cache artifacts are absent or invalid.",
-        "`Warm Start` only when cache/digest/memory artifacts are present and valid",
-    ]
-    rules_required = [
-        "### 7.3.3 Cold/Warm Start Banner (Presentation Advisory)",
-        "[START-MODE] Cold Start - reason:",
-        "[START-MODE] Warm Start - reason:",
-        "Banner decision MUST be evidence-backed",
-    ]
-    start_required = [
-        "At session start, include exactly one start-mode banner based on discovery artifact validity evidence:",
-        "[START-MODE] Cold Start - reason:",
-        "[START-MODE] Warm Start - reason:",
-    ]
+    # 3. AUDIT_REASON_CANONICAL_MAP.json — structural check
+    map_path = ROOT / "governance" / "assets" / "catalogs" / "AUDIT_REASON_CANONICAL_MAP.json"
+    if not map_path.exists():
+        issues.append("governance/AUDIT_REASON_CANONICAL_MAP.json: file missing")
+        return
 
-    missing_master = [t for t in master_required if t not in master]
-    missing_rules = [t for t in rules_required if t not in rules]
-    missing_start = [t for t in start_required if t not in start]
-    if missing_master:
-        issues.append(f"master.md: missing start-mode banner tokens {missing_master}")
-    if missing_rules:
-        issues.append(f"rules.md: missing start-mode banner tokens {missing_rules}")
-    if missing_start:
-        issues.append(f"BOOTSTRAP.md: missing start-mode banner tokens {missing_start}")
+    try:
+        map_data = json.loads(read_text(map_path))
+    except json.JSONDecodeError as exc:
+        issues.append(f"governance/AUDIT_REASON_CANONICAL_MAP.json: invalid JSON: {exc}")
+        return
 
+    # Check $schema key
+    if map_data.get("$schema") != "opencode.audit-reason-map.v1":
+        issues.append(
+            f"governance/AUDIT_REASON_CANONICAL_MAP.json: expected $schema='opencode.audit-reason-map.v1', "
+            f"found {map_data.get('$schema')!r}"
+        )
 
-def check_confidence_impact_snapshot_contract(issues: list[str]) -> None:
-    master = read_text(ROOT / "master.md")
-    rules = read_text(ROOT / "rules.md")
-    start = read_text(ROOT / "BOOTSTRAP.md")
+    # Check mappings keys
+    mappings = map_data.get("mappings", {})
+    required_mappings = ["BR_MISSING_SESSION_GATE_STATE", "BR_MISSING_RULEBOOK_RESOLUTION", "BR_SCOPE_ARTIFACT_MISSING"]
+    missing_mappings = [k for k in required_mappings if k not in mappings]
+    if missing_mappings:
+        issues.append(f"governance/AUDIT_REASON_CANONICAL_MAP.json: missing mapping keys {missing_mappings}")
 
-    master_required = [
-        "#### Confidence + Impact Snapshot (Presentation Advisory)",
-        "[SNAPSHOT]",
-        "Confidence: <0-100>%",
-        "Risk: <LOW|MEDIUM|HIGH>",
-        "Scope: <repo path/module/component or \"global\">",
-    ]
-    rules_required = [
-        "### 7.3.4 Confidence + Impact Snapshot (Presentation Advisory)",
-        "[SNAPSHOT]",
-        "Snapshot values MUST be consistent with `SESSION_STATE`",
-    ]
-    start_required = [
-        "Include `[SNAPSHOT]` block (`Confidence`, `Risk`, `Scope`) with values aligned to current `SESSION_STATE`.",
-    ]
-
-    missing_master = [t for t in master_required if t not in master]
-    missing_rules = [t for t in rules_required if t not in rules]
-    missing_start = [t for t in start_required if t not in start]
-    if missing_master:
-        issues.append(f"master.md: missing confidence-impact snapshot tokens {missing_master}")
-    if missing_rules:
-        issues.append(f"rules.md: missing confidence-impact snapshot tokens {missing_rules}")
-    if missing_start:
-        issues.append(f"BOOTSTRAP.md: missing confidence-impact snapshot tokens {missing_start}")
+    # Check default_unmapped
+    if map_data.get("default_unmapped") != "WARN-UNMAPPED-AUDIT-REASON":
+        issues.append(
+            f"governance/AUDIT_REASON_CANONICAL_MAP.json: expected default_unmapped='WARN-UNMAPPED-AUDIT-REASON', "
+            f"found {map_data.get('default_unmapped')!r}"
+        )
 
 
-def check_quick_fix_commands_contract(issues: list[str]) -> None:
-    master = read_text(ROOT / "master.md")
-    rules = read_text(ROOT / "rules.md")
-    start = read_text(ROOT / "BOOTSTRAP.md")
+def check_bootstrap_binding_evidence_reason_codes(issues: list[str]) -> None:
+    """Verify bootstrap_binding_evidence.py emits registered reason codes (rescued from check_start_evidence_boundaries)."""
+    try:
+        from governance.domain.reason_codes import (
+            BLOCKED_MISSING_BINDING_FILE,
+            BLOCKED_VARIABLE_RESOLUTION,
+            is_registered_reason_code,
+        )
+    except ImportError as exc:
+        issues.append(f"governance/domain/reason_codes.py: import failed: {exc}")
+        return
 
-    master_required = [
-        "Quick-fix commands (mandatory for blockers):",
-        "QuickFixCommands",
-        "1-3 copy-paste-ready commands",
-        'QuickFixCommands: ["none"]',
-        "Command coherence rule: `[NEXT-ACTION].Command`, blocker `next_command`, and `QuickFixCommands[0]` MUST be identical",
-    ]
-    rules_required = [
-        "### 7.3.5 Quick-Fix Commands for Blockers (Presentation Advisory)",
-        "`QuickFixCommands` with 1-3 exact copy-paste commands aligned to the active `reason_code`.",
-        'output `QuickFixCommands: ["none"]`.',
-        "Command coherence rule: `[NEXT-ACTION].Command`, blocker `next_command`, and `QuickFixCommands[0]` MUST match exactly",
-    ]
-    start_required = [
-        "If blocked, include `QuickFixCommands` with 1-3 copy-paste commands (or `[\"none\"]` if not command-driven) when host constraints allow.",
-    ]
+    # Verify codes are in canonical registry
+    for code_name, code_value in [
+        ("BLOCKED_MISSING_BINDING_FILE", BLOCKED_MISSING_BINDING_FILE),
+        ("BLOCKED_VARIABLE_RESOLUTION", BLOCKED_VARIABLE_RESOLUTION),
+    ]:
+        if not is_registered_reason_code(code_value):
+            issues.append(
+                f"governance/domain/reason_codes.py: {code_name} ({code_value!r}) not in canonical registry"
+            )
 
-    missing_master = [t for t in master_required if t not in master]
-    missing_rules = [t for t in rules_required if t not in rules]
-    missing_start = [t for t in start_required if t not in start]
-    if missing_master:
-        issues.append(f"master.md: missing quick-fix command tokens {missing_master}")
-    if missing_rules:
-        issues.append(f"rules.md: missing quick-fix command tokens {missing_rules}")
-    if missing_start:
-        issues.append(f"BOOTSTRAP.md: missing quick-fix command tokens {missing_start}")
+    # Text search bootstrap_binding_evidence.py to verify it actually emits those codes
+    binding_path = ROOT / "governance" / "entrypoints" / "bootstrap_binding_evidence.py"
+    if not binding_path.exists():
+        issues.append("governance/entrypoints/bootstrap_binding_evidence.py: file missing")
+        return
+
+    binding_text = read_text(binding_path)
+    for code_value in [BLOCKED_MISSING_BINDING_FILE, BLOCKED_VARIABLE_RESOLUTION]:
+        if code_value not in binding_text:
+            issues.append(
+                f"governance/entrypoints/bootstrap_binding_evidence.py: does not emit reason code {code_value!r}"
+            )
 
 
-def check_architect_autopilot_lifecycle_contract(issues: list[str]) -> None:
-    master = read_text(ROOT / "master.md")
-    rules = read_text(ROOT / "rules.md")
-    start = read_text(ROOT / "BOOTSTRAP.md")
-    schema = read_text(ROOT / "SESSION_STATE_SCHEMA.md")
-
-    master_required = [
-        "### 2.4.2 Architect-Only Autopilot Lifecycle (Policy)",
-        "`SESSION_STATE.OutputMode`: `ARCHITECT | IMPLEMENT | VERIFY`",
-        "Default after `/master` is `ARCHITECT`.",
-        "BLOCKED-START-REQUIRED",
-    ]
-    rules_required = [
-        "### 7.3.6 Architect-Only Autopilot Lifecycle (Policy)",
-        "`SESSION_STATE.OutputMode`: `ARCHITECT | IMPLEMENT | VERIFY`",
-        "`/master` before valid bootstrap evidence may produce `BLOCKED-START-REQUIRED`",
-        "`IMPLEMENT` mode requires explicit operator trigger (`Implement now`).",
-        "`VERIFY` mode is evidence reconciliation only.",
-    ]
-    start_required = [
-        "Bootstrap Process",
-        "governance.paths.json",
-    ]
-
-    missing_master = [t for t in master_required if t not in master]
-    missing_rules = [t for t in rules_required if t not in rules]
-    missing_start = [t for t in start_required if t not in start]
-    if missing_master:
-        issues.append(f"master.md: missing architect-autopilot lifecycle tokens {missing_master}")
-    if missing_rules:
-        issues.append(f"rules.md: missing architect-autopilot lifecycle tokens {missing_rules}")
-    if missing_start:
-        issues.append(f"BOOTSTRAP.md: missing architect-autopilot lifecycle tokens {missing_start}")
-
-    schema_required = [
-        "`SESSION_STATE.OutputMode` (enum; see Section 4.1)",
-        "## 4.1 OutputMode (enum)",
-        "`ARCHITECT`",
-        "`IMPLEMENT`",
-        "`VERIFY`",
-        "If `OutputMode = ARCHITECT`, `DecisionSurface` MUST be present",
-    ]
-    missing_schema = [t for t in schema_required if t not in schema]
-    if missing_schema:
-        issues.append(f"SESSION_STATE_SCHEMA.md: missing architect-autopilot lifecycle tokens {missing_schema}")
-
+# ---------------------------------------------------------------------------
+# main()
+# ---------------------------------------------------------------------------
 
 def main() -> int:
-    if os.environ.get("OPENCODE_DOC_RAILS_ONLY", "1") == "1":
-        print("Governance lint OK (docs rails-only mode)")
-        return 0
-    parser = argparse.ArgumentParser(description="Validate governance documentation and contract consistency.")
+    parser = argparse.ArgumentParser(description="Validate governance SSOT contracts (schema, JSON, Python).")
     parser.add_argument(
         "--output",
         type=Path,
         default=ROOT / "governance" / "governance_lint_report.json",
-        help="Output path for JSON report (default: governance/assets/catalogs/governance_lint_report.json).",
+        help="Output path for JSON report (default: governance/governance_lint_report.json).",
     )
     parser.add_argument("-v", "--verbose", action="store_true", help="Show all issues even on success.")
+    parser.add_argument("--skip-yaml", action="store_true", help="Skip YAML schema validation")
     args = parser.parse_args()
 
     issues: list[str] = []
-    check_master_priority_uniqueness(issues)
-    check_anchor_presence(issues)
+
+    # --- SSOT guard (subprocess) ---
     try:
         proc = subprocess.run(
             [sys.executable, str(ROOT / "scripts" / "ssot_guard.py")],
@@ -1334,34 +783,33 @@ def main() -> int:
                 issues.append(proc.stderr.strip())
     except Exception as exc:
         issues.append(f"SSOT guard check failed to run: {exc}")
+
+    # --- YAML schema validation ---
+    if not args.skip_yaml:
+        check_yaml_rulebook_schema(issues)
+
+    # --- Addon manifest / catalog checks ---
     check_manifest_contract(issues)
     check_required_addon_references(issues)
+
+    # --- Template quality ---
     check_template_quality_gate(issues)
+
+    # --- JSON contract structural checks ---
     check_workflow_template_factory_contract(issues)
     check_customer_script_catalog_contract(issues)
     check_customer_markdown_exclusion_policy(issues)
     check_security_gate_contract(issues)
-    check_stability_sla_contract(issues)
-    check_factory_contract_alignment(issues)
-    check_governance_reason_contract_alignment(issues)
-    check_start_evidence_boundaries(issues)
-    check_md_rails_only_tripwire(issues)
-    check_unified_next_action_footer_contract(issues)
-    check_standard_blocker_envelope_contract(issues)
-    check_start_mode_banner_contract(issues)
-    check_confidence_impact_snapshot_contract(issues)
-    check_quick_fix_commands_contract(issues)
-    check_architect_autopilot_lifecycle_contract(issues)
-    check_trusted_rulebook_discovery_contract(issues)
-    check_addon_catalog_boundary_contract(issues)
-    check_response_envelope_schema_contract(issues)
-    check_rulebook_load_evidence_fail_closed_contract(issues)
     check_response_contract_validator_presence(issues)
-    check_phase2_repo_root_defaulting_contract(issues)
-    check_phase21_ticket_goal_deferral_contract(issues)
-    check_phase15_repo_code_evidence_contract(issues)
-    check_host_constraint_compat_mode_contract(issues)
-    check_session_state_fenced_yaml_contract(issues)
+
+    # --- Rescued SSOT checks (JSON + Python imports, no MD) ---
+    check_response_envelope_schema_keys(issues)
+    check_factory_contract_json_keys(issues)
+    check_governance_reason_ssot_alignment(issues)
+    check_bootstrap_binding_evidence_reason_codes(issues)
+
+    # --- MD rails-only tripwire (verifies MD does NOT have authority) ---
+    check_md_rails_only_tripwire(issues)
 
     # Build report
     report = {

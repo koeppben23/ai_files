@@ -1,0 +1,160 @@
+kind: profile
+metadata:
+  id: profile.python-excellence
+  name: Python Excellence Rulebook
+  version: '1.0'
+  schema_version: '1.0.0'
+  status: active
+activation:
+  type: manifest
+  conditions:
+  - field: addon.pythonExcellence
+    operator: equals
+    value: true
+phase_integration:
+  phases:
+  - phase_2
+  - phase_4
+  - phase_5
+  - phase_6
+  required_outputs:
+  - python_excellence_checklist
+  - pattern_violations
+  required_checks:
+  - ruff_check
+  - mypy_strict
+  - pytest_coverage
+evidence_contract:
+  required_artifacts:
+  - SESSION_STATE.AddonsEvidence.pythonExcellence.status
+  required_fields:
+  - status
+  acceptance_rules:
+  - field: status
+    condition: equals
+    error_message: pythonExcellence status must be loaded|skipped|missing-rulebook
+verification_commands:
+- cmd: ruff check .
+  purpose: Format and lint check
+  expected_exit_code: 0
+- cmd: mypy --strict src/
+  purpose: Type checking
+  expected_exit_code: 0
+- cmd: pytest tests/ --cov=src --cov-report=term-missing
+  purpose: Test execution with coverage
+patterns:
+- id: PAT-PY01
+  title: Dependency Injection via Constructor
+  enforces:
+  - testability
+  - explicit_dependencies
+  code_example:
+    language: python
+    code: "class UserService:\n    def __init__(self, repository: UserRepository, clock: ClockPort):\n        self._repository = repository\n        self._clock = clock\n"
+  rationale: Enables unit testing without monkeypatching
+- id: PAT-PY02
+  title: In-Memory Fakes Over Mocks
+  enforces:
+  - behavioral_testing
+  - reuse
+  code_example:
+    language: python
+    code: "class InMemoryUserRepository(UserRepository):\n    def __init__(self):\n        self._users = {}\n"
+  rationale: Fakes test actual behavior
+- id: PAT-PY03
+  title: Fixed Time in Tests
+  enforces:
+  - deterministic_tests
+  code_example:
+    language: python
+    code: "FIXED_TIME = datetime(2026, 1, 31, tzinfo=timezone.utc)\nclass FakeClock(ClockPort):\n    def now(self):\n        return FIXED_TIME\n"
+  rationale: Deterministic tests without flakiness
+- id: PAT-PY04
+  title: Domain Models Without Framework Dependencies
+  enforces:
+  - portability
+  - testability
+  code_example:
+    language: python
+    code: "@dataclass(frozen=True)\nclass User:\n    id: UserId\n    name: str\n"
+  rationale: Domain logic testable without frameworks
+- id: PAT-PY05
+  title: Explicit Error Types
+  enforces:
+  - proper_error_handling
+  code_example:
+    language: python
+    code: "class ValidationError(DomainError):\n    pass\n"
+  rationale: Explicit error handling
+anti_patterns:
+- id: AP-PY-EXCEL-01
+  title: Fat Handler
+  detects:
+  - business_logic_in_handlers
+  recovery: Extract to service layer
+- id: AP-PY-EXCEL-02
+  title: Nondeterministic Time
+  detects:
+  - datetime_now_without_injection
+  recovery: Inject ClockPort
+- id: AP-PY-EXCEL-03
+  title: Mock Overuse
+  detects:
+  - excessive_mocking
+  recovery: Create in-memory fakes
+- id: AP-PY-EXCEL-04
+  title: Framework in Domain
+  detects:
+  - pydantic_sqlalchemy_in_domain
+  recovery: Pure Python domain models
+- id: AP-PY-EXCEL-05
+  title: Missing Type Annotations
+  detects:
+  - implicit_return_types
+  recovery: Add explicit type annotations
+- id: AP-PY-EXCEL-06
+  title: Circular Imports
+  detects:
+  - import_cycles
+  recovery: Restructure to eliminate cycles
+- id: AP-PY-EXCEL-07
+  title: Async Without Boundaries
+  detects:
+  - blocking_io_in_async
+  recovery: Use async-native libraries
+- id: AP-PY-EXCEL-08
+  title: Mutable Global State
+  detects:
+  - module_level_mutable
+  recovery: Use dependency injection
+warning_codes:
+- code: WARN-PYTHON-EXCEL-MOCK-OVERUSE
+  triggers:
+  - mock_count_greater_than_assertions
+  recovery: Replace mocks with in-memory fakes
+- code: WARN-PYTHON-EXCEL-MISSING-TYPES
+  triggers:
+  - missing_return_type_annotation
+  recovery: Add explicit return types
+- code: WARN-PYTHON-EXCEL-FRAMEWORK-IN-DOMAIN
+  triggers:
+  - domain_imports_framework
+  recovery: Move framework code to repository layer
+- code: WARN-PYTHON-EXCEL-ASYNC-MIXING
+  triggers:
+  - sync_call_in_async_function
+  recovery: Use asyncio.to_thread or async library
+references:
+- id: ref_1
+  target: profile.principal-excellence
+  type: rulebook
+- id: ref_2
+  target: profile.risk-tiering
+  type: rulebook
+- id: ref_3
+  target: profile.scorecard-calibration
+  type: rulebook
+- id: ref_4
+  target: profiles/addons/pythonExcellence.addon.yml
+  type: schema
+decision_trees: []

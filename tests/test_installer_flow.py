@@ -378,10 +378,14 @@ def test_install_fail_closed_on_source_symlink(tmp_path: Path):
     if not hasattr(os, "symlink"):
         pytest.skip("symlink not supported on this platform")
 
+    # Run install from the source directory
     source_dir = tmp_path / "source-with-symlink"
     source_dir.mkdir(parents=True, exist_ok=True)
     (source_dir / "governance").mkdir(parents=True, exist_ok=True)
-    (source_dir / "governance" / "VERSION").write_text("1.1.0-RC.1\n", encoding="utf-8")
+    (source_dir / "VERSION").write_text("1.1.0-RC.2\n", encoding="utf-8")
+    (source_dir / "rulesets").mkdir(parents=True, exist_ok=True)
+    (source_dir / "rulesets" / "core").mkdir(parents=True, exist_ok=True)
+    (source_dir / "rulesets" / "core" / "rules.yml").write_text("rules: {}", encoding="utf-8")
     (source_dir / "rules.md").write_text("# rules\n", encoding="utf-8")
     (source_dir / "BOOTSTRAP.md").write_text("# bootstrap\n", encoding="utf-8")
 
@@ -393,14 +397,23 @@ def test_install_fail_closed_on_source_symlink(tmp_path: Path):
         pytest.skip("symlink creation unavailable on this platform")
 
     config_root = tmp_path / "opencode-config-symlink-block"
+    
+    # Dry run with source directory
+    r = run_install([
+        "--dry-run",
+        "--source-dir", str(source_dir),
+        "--config-root", str(config_root),
+    ])
+    assert r.returncode == 0, f"dry-run failed:\n{r.stderr}\n{r.stdout}"
+
+    # Fresh install
     r = run_install([
         "--force",
         "--no-backup",
-        "--source-dir",
-        str(source_dir),
-        "--config-root",
-        str(config_root),
+        "--source-dir", str(source_dir),
+        "--config-root", str(config_root),
     ])
+    # Live install should fail-closed due to symlink in source-dir
     assert r.returncode == 2, "installer must fail-closed when source contains symlink/reparse points"
     assert "Unsafe source symlinks/reparse-points detected" in (r.stderr + r.stdout)
 

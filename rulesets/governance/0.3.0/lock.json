@@ -1,0 +1,201 @@
+{
+  "schema": "governance-ruleset-lock.v2",
+  "ruleset_id": "governance",
+  "version": "0.3.0",
+  "deterministic": true,
+  "source_type": "yaml",
+  "resolved_profiles": [
+    "rulesets/profiles/rules.backend-java-kafka-templates.yml",
+    "rulesets/profiles/rules.backend-java-templates.yml",
+    "rulesets/profiles/rules.backend-java.yml",
+    "rulesets/profiles/rules.backend-python-templates.yml",
+    "rulesets/profiles/rules.backend-python.yml",
+    "rulesets/profiles/rules.cucumber-bdd.yml",
+    "rulesets/profiles/rules.docs-governance.yml",
+    "rulesets/profiles/rules.fallback-minimum.yml",
+    "rulesets/profiles/rules.frontend-angular-nx-templates.yml",
+    "rulesets/profiles/rules.frontend-angular-nx.yml",
+    "rulesets/profiles/rules.frontend-cypress-testing.yml",
+    "rulesets/profiles/rules.frontend-openapi-ts-client.yml",
+    "rulesets/profiles/rules.java-excellence.yml",
+    "rulesets/profiles/rules.openapi-contracts.yml",
+    "rulesets/profiles/rules.postgres-liquibase.yml",
+    "rulesets/profiles/rules.principal-excellence.yml",
+    "rulesets/profiles/rules.python-excellence.yml",
+    "rulesets/profiles/rules.risk-tiering.yml",
+    "rulesets/profiles/rules.scorecard-calibration.yml",
+    "rulesets/profiles/rules.user-max-quality.yml"
+  ],
+  "resolved_addons": [
+    "profiles/addons/angularNxTemplates.addon.yml",
+    "profiles/addons/backendJavaTemplates.addon.yml",
+    "profiles/addons/backendPythonTemplates.addon.yml",
+    "profiles/addons/cucumber.addon.yml",
+    "profiles/addons/dbLiquibase.addon.yml",
+    "profiles/addons/docsGovernance.addon.yml",
+    "profiles/addons/frontendCypress.addon.yml",
+    "profiles/addons/frontendOpenApiTsClient.addon.yml",
+    "profiles/addons/javaExcellence.addon.yml",
+    "profiles/addons/kafka.addon.yml",
+    "profiles/addons/openapi.addon.yml",
+    "profiles/addons/principalExcellence.addon.yml",
+    "profiles/addons/pythonExcellence.addon.yml",
+    "profiles/addons/riskTiering.addon.yml",
+    "profiles/addons/scorecardCalibration.addon.yml",
+    "profiles/addons/userMaxQuality.addon.yml"
+  ],
+  "resolved_core_rulebooks": [
+    "rulesets/core/rules.yml"
+  ],
+  "source_files": [
+    {
+      "path": "profiles/addons/angularNxTemplates.addon.yml",
+      "sha256": "11ded01a41f8e071968971605edc7990b41928f244a03fb92b8f43faec24ccb1"
+    },
+    {
+      "path": "profiles/addons/backendJavaTemplates.addon.yml",
+      "sha256": "86907a370bf5e748bd1e6fb241ece93c7fcf326a32df956f1804b03175f6e693"
+    },
+    {
+      "path": "profiles/addons/backendPythonTemplates.addon.yml",
+      "sha256": "f5ce849496fc3de86c9022684a1a9a1844c2733149fb9814ef013ebe84954e15"
+    },
+    {
+      "path": "profiles/addons/cucumber.addon.yml",
+      "sha256": "ed38c4cc94099a82f993cb571f6c77d4a7d86f5cdf86543c5c6ee4b77c86e6d0"
+    },
+    {
+      "path": "profiles/addons/dbLiquibase.addon.yml",
+      "sha256": "2e7ab9562b6e37e32a1b024433e273fdc5d37bea63d6cd664242eb5f4c9444ec"
+    },
+    {
+      "path": "profiles/addons/docsGovernance.addon.yml",
+      "sha256": "ae7b86f72b94fe4dcae781f80f58d17b7e4b08f2f1dab78f7524e68bacd928d2"
+    },
+    {
+      "path": "profiles/addons/frontendCypress.addon.yml",
+      "sha256": "a578bb16d9c94cda8c5b0b3913a1f4318081d3c2d36c7d0dee7e7517b25c118e"
+    },
+    {
+      "path": "profiles/addons/frontendOpenApiTsClient.addon.yml",
+      "sha256": "2196d630e90c0d25f898271e14fb7052ce533c0a1e74dc8d6d0f20e60db9f798"
+    },
+    {
+      "path": "profiles/addons/javaExcellence.addon.yml",
+      "sha256": "ec3ab364fd1803007fcfb89c4f51e6b58a0437c4d66d235bdc2360dffff7374b"
+    },
+    {
+      "path": "profiles/addons/kafka.addon.yml",
+      "sha256": "e14b547506649e707f8325105aeda41af951b2d5cee557fa936903ba8aa8c9b6"
+    },
+    {
+      "path": "profiles/addons/openapi.addon.yml",
+      "sha256": "ce43d5a6be9e0b3d65ca7a1a0eef8b044486cfc46492f18e82b624a645995399"
+    },
+    {
+      "path": "profiles/addons/principalExcellence.addon.yml",
+      "sha256": "34a3b019a7a029259c9b74b7a32f3371398c72962e7de30f2b8623f660c3bd2b"
+    },
+    {
+      "path": "profiles/addons/pythonExcellence.addon.yml",
+      "sha256": "c539ee84897d71ed7269cd59de89207c3326e82be083196c6eb7dbf1164be4a6"
+    },
+    {
+      "path": "profiles/addons/riskTiering.addon.yml",
+      "sha256": "1c40b9fd4676ae3c1b0432ba503725607a23dbeb1e18dba6f49c1a0c2df0da7a"
+    },
+    {
+      "path": "profiles/addons/scorecardCalibration.addon.yml",
+      "sha256": "c0fecb3392f536e3af50a91578677240ed1b431ebb1be71f81461a4d827ffe6d"
+    },
+    {
+      "path": "profiles/addons/userMaxQuality.addon.yml",
+      "sha256": "9797dd120f5c48f0ee39474318789c52b4fb4c661e842638df2ff50b53b28c77"
+    },
+    {
+      "path": "rulesets/core/rules.yml",
+      "sha256": "d7f5ee51ac5f91fa4c6783c0c4958e7339ecbbace8dba2bd943b7302830bb133"
+    },
+    {
+      "path": "rulesets/profiles/rules.backend-java-kafka-templates.yml",
+      "sha256": "ab6a0baf1f0a78dca6b7edbac7b11b6c84e8dedb79b50a279c7b85fde80c0002"
+    },
+    {
+      "path": "rulesets/profiles/rules.backend-java-templates.yml",
+      "sha256": "5061e55651a039d31ed64970d825be75ce770b3976cde6468b57f2f747177661"
+    },
+    {
+      "path": "rulesets/profiles/rules.backend-java.yml",
+      "sha256": "054aecb37da7e1cec3ea577baf916d2455e0427ac04ba5b2a6bae38ef4840ed7"
+    },
+    {
+      "path": "rulesets/profiles/rules.backend-python-templates.yml",
+      "sha256": "cdcc8afad7a0d94b7e174f664c1cd6ec0d39d381e051886e9e87cb5cf96be063"
+    },
+    {
+      "path": "rulesets/profiles/rules.backend-python.yml",
+      "sha256": "3e40caf6526db7821f1e6cd0510d7d5a44b4cd1e4a13d8a722c1cc92074b8e3b"
+    },
+    {
+      "path": "rulesets/profiles/rules.cucumber-bdd.yml",
+      "sha256": "0507eef2a66d716c2162ed791375537c372f7a9ab172dd57c9a0ea767cf0d714"
+    },
+    {
+      "path": "rulesets/profiles/rules.docs-governance.yml",
+      "sha256": "acb4b9f407785713946e327128b76e3070bf271153d8c3985566d3675acecc07"
+    },
+    {
+      "path": "rulesets/profiles/rules.fallback-minimum.yml",
+      "sha256": "669894704ab520a5c81d91e5d44331eb44841a59126f47255b7bb1e2156492c9"
+    },
+    {
+      "path": "rulesets/profiles/rules.frontend-angular-nx-templates.yml",
+      "sha256": "cccc2d512e1d598f85ab49fac459aad29764236696065bf080e64919e6f614e5"
+    },
+    {
+      "path": "rulesets/profiles/rules.frontend-angular-nx.yml",
+      "sha256": "ceef1c19a9e03cc19fec394769cbcc6bfbdf56f9d540eb7f0c828e116854145c"
+    },
+    {
+      "path": "rulesets/profiles/rules.frontend-cypress-testing.yml",
+      "sha256": "8c1301443d0558df0d5a9e7b808dd6c810e4a66ee334fedc604ffda08a5acc8a"
+    },
+    {
+      "path": "rulesets/profiles/rules.frontend-openapi-ts-client.yml",
+      "sha256": "30371641c5014a436ca22f5f00b91a3cbca207d6975bbf9713bab8b0b583dfdd"
+    },
+    {
+      "path": "rulesets/profiles/rules.java-excellence.yml",
+      "sha256": "d0f88e57afe772933ac33650fb685a5146d315645d2801a7b168a52905afdab7"
+    },
+    {
+      "path": "rulesets/profiles/rules.openapi-contracts.yml",
+      "sha256": "c4774dcd888f431165a4c9de0a172b3be00cea273425a023657b5010c2861e90"
+    },
+    {
+      "path": "rulesets/profiles/rules.postgres-liquibase.yml",
+      "sha256": "bacc39c95dc3ee7901eae71f0ba168dabba8be6d2eee16126f993af6dba7d34a"
+    },
+    {
+      "path": "rulesets/profiles/rules.principal-excellence.yml",
+      "sha256": "d7a235d01074bbf1dd30b05b2bf7adc2ed3a47009c8bc57e0d86a8da59c0603d"
+    },
+    {
+      "path": "rulesets/profiles/rules.python-excellence.yml",
+      "sha256": "9b2d2e1c23860d9865256b40f5647c01973af3a6541dbb1065a4401a2563f5ec"
+    },
+    {
+      "path": "rulesets/profiles/rules.risk-tiering.yml",
+      "sha256": "d70c7b3e6b209f6bbc97fc2467ec55bc7d0ad03facba76715a3e894934a1cccf"
+    },
+    {
+      "path": "rulesets/profiles/rules.scorecard-calibration.yml",
+      "sha256": "b93c494cd7b70f841164bb964d899d4c0258dadda5f95ad1b8740b7812dcb7de"
+    },
+    {
+      "path": "rulesets/profiles/rules.user-max-quality.yml",
+      "sha256": "72d98cc89d4b02263d08496bfda2df18ec80d6c6204792014dbc05a473ad9f1a"
+    }
+  ],
+  "conflicts": []
+}
