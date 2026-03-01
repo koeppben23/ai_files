@@ -45,11 +45,17 @@ def test_build_ruleset_lock_outputs_hash_artifacts(tmp_path: Path):
     hashes = json.loads((base / "hashes.json").read_text(encoding="utf-8"))
 
     assert manifest["schema"] in ("governance-ruleset-manifest.v1", "governance-ruleset-manifest.v2")
-    assert lock["schema"] == "governance-ruleset-lock.v1"
+    assert lock["schema"] in ("governance-ruleset-lock.v1", "governance-ruleset-lock.v2")
     assert lock["deterministic"] is True
     assert manifest["source_file_count"] == len(manifest["source_files"])
     assert lock["source_files"] == manifest["source_files"]
-    assert lock["resolved_core_rulebooks"] == ["master.md", "rules.md", "BOOTSTRAP.md"]
+    # v2 resolves core rulebooks from rulesets/core/*.yml
+    assert "rulesets/core/rules.yml" in lock["resolved_core_rulebooks"]
+    assert all(
+        p.startswith("rulesets/core/") and p.endswith(".yml")
+        for p in lock["resolved_core_rulebooks"]
+    )
+    assert len(lock["resolved_core_rulebooks"]) >= 1
     assert hashes["ruleset_hash"] == payload["ruleset_hash"]
 
 

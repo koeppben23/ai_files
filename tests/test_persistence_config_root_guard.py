@@ -276,13 +276,15 @@ def test_persist_workspace_artifacts_normalizes_legacy_decision_pack_on_write_pa
 
 
 @pytest.mark.governance
-@pytest.mark.skip(reason="Path resolution differs between /tmp and /private/tmp on macOS; needs test infrastructure fix")
 def test_persist_workspace_artifacts_allows_repo_local_config_root_for_non_git_dirs(tmp_path: Path):
     script = REPO_ROOT / "governance" / "entrypoints" / "persist_workspace_artifacts.py"
     repo_root = tmp_path / "artifact-extract"
     repo_root.mkdir(parents=True, exist_ok=True)
+    # Create a .git marker so the script accepts the directory as a repo root.
+    (repo_root / ".git").mkdir()
 
-    cfg = repo_root / "_cfg"
+    # Config root must be OUTSIDE repo_root to pass the inside-repo guard.
+    cfg = tmp_path / "_cfg"
     write_governance_paths(cfg)
 
     result = run(

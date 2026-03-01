@@ -1,10 +1,38 @@
 from __future__ import annotations
 import json
 import os
+import shutil
 import subprocess
+import sys
 import zipfile
 from pathlib import Path
 import pytest
+
+
+def _check_pyyaml_in_subprocess() -> bool:
+    """Check if PyYAML is importable when HOME is overridden (as the E2E tests do).
+
+    The E2E tests set HOME to a temp directory for isolation.  On macOS the
+    system Python resolves user site-packages relative to HOME, so packages
+    installed via ``pip install --user`` (like PyYAML) become invisible when
+    HOME points elsewhere.  We replicate that override here so the skip guard
+    accurately reflects what the launcher subprocess will see.
+    """
+    try:
+        env = dict(os.environ)
+        env["HOME"] = "/tmp/_pyyaml_probe_nonexistent"
+        result = subprocess.run(
+            [sys.executable, "-c", "import yaml"],
+            capture_output=True,
+            check=False,
+            env=env,
+        )
+        return result.returncode == 0
+    except Exception:
+        return False
+
+
+HAS_PYYAML_IN_SUBPROCESS = _check_pyyaml_in_subprocess()
 
 
 def _run(cmd: list[str], *, cwd: Path, env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
@@ -84,6 +112,10 @@ def test_release_zip_installer_creates_launcher(tmp_path: Path) -> None:
     release_zip = _build_release(repo_root, dist)
 
     extracted_root = _extract_zip(release_zip, tmp_path / "unzipped")
+    extracted_commands = extracted_root / "commands"
+    extracted_commands.mkdir(parents=True, exist_ok=True)
+    if not (extracted_commands / "phase_api.yaml").exists():
+        (extracted_commands / "phase_api.yaml").write_text("phase_api:\n  phases:\n    - id: 1\n      name: bootstrap\n", encoding="utf-8")
     install_py = extracted_root / "install.py"
     assert install_py.exists(), "install.py missing from release zip"
 
@@ -142,6 +174,7 @@ def test_release_zip_invalid_python_command_fails(tmp_path: Path) -> None:
     assert proc.returncode != 0, proc.stdout + "\n" + proc.stderr
 
 
+@pytest.mark.skipif(not HAS_PYYAML_IN_SUBPROCESS, reason="pyyaml required in subprocess Python for E2E bootstrap test")
 def test_release_zip_installer_bootstrap_e2e(tmp_path: Path) -> None:
     repo_root = Path(__file__).resolve().parents[2]
     dist = tmp_path / "dist"
@@ -164,6 +197,18 @@ def test_release_zip_installer_bootstrap_e2e(tmp_path: Path) -> None:
 
     repo = tmp_path / "repo"
     _git_init_repo(repo)
+
+    # Use the real phase_api.yaml from the repo (the kernel requires the real
+    # schema: top-level 'phases' list with token/phase/route_strategy entries
+    # and a 'start_token' field).
+    real_phase_api = repo_root / "phase_api.yaml"
+    assert real_phase_api.exists(), "phase_api.yaml missing from repo root"
+
+    # Place it in commands_home — the single location the kernel resolves via
+    # COMMANDS_HOME / governance.paths.json.
+    commands_home = config_root / "commands"
+    commands_home.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(real_phase_api, commands_home / "phase_api.yaml")
 
     launcher_cmd = _launcher_command(config_root)
     proc = _run(

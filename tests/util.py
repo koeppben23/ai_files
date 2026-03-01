@@ -76,10 +76,10 @@ def read_text(path: Path) -> str:
 def write_governance_paths(config_root: Path, *, workspaces_home: Path | None = None) -> Path:
     """Create minimal installer-owned governance.paths.json for tests."""
 
-    root = config_root.resolve()
+    root = Path(os.path.normpath(os.path.abspath(config_root)))
     commands = root / "commands"
     governance = commands / "governance"
-    workspaces = (workspaces_home.resolve() if workspaces_home is not None else (root / "workspaces").resolve())
+    workspaces = (Path(os.path.normpath(os.path.abspath(workspaces_home))) if workspaces_home is not None else (root / "workspaces"))
     payload = {
         "schema": "opencode-governance.paths.v1",
         "paths": {

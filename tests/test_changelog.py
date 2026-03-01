@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import re
-import os
 
 import pytest
 
@@ -31,15 +30,10 @@ def test_changelog_exists_and_has_required_sections():
 
 @pytest.mark.release
 def test_changelog_has_some_content_for_current_version():
-    # Enforce bullet content only for tag builds (real releases).
-    ref = os.getenv("GITHUB_REF", "")
-    if not ref.startswith("refs/tags/v"):
-        pytest.skip("Changelog bullet requirement enforced only on tag builds")
-
     ver = _governance_version()
     text = read_text(REPO_ROOT / "CHANGELOG.md")
     m = re.search(
-        rf"^##\s*\[{re.escape(ver)}\].*$\n(?P<body>.*?)(?=^##\s*\[|\Z)",
+        rf"^##\s*\[{re.escape(ver)}\][^\n]*$\n(?P<body>.*?)(?=^##\s*\[|\Z)",
         text,
         flags=re.MULTILINE | re.DOTALL,
     )
