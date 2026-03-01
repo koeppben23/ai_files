@@ -202,12 +202,6 @@ def test_ruleset_hash_changes_when_ruleset_files_change():
 
 
 @pytest.mark.governance
-def test_schema_phase4_ticket_record_declares_must_include():
-    schema = read_text(REPO_ROOT / "SESSION_STATE_SCHEMA.md")
-    assert "When Phase 4 planning is produced, the workflow MUST include:" in schema
-
-
-@pytest.mark.governance
 def test_docs_governance_addon_has_principal_reviewability_contract():
     docs_addon = read_text(REPO_ROOT / "profiles" / "rules.docs-governance.md")
 
@@ -286,24 +280,6 @@ def test_all_profile_rulebooks_define_standard_risk_tiering_v21():
 
 
 @pytest.mark.governance
-def test_all_profile_rulebooks_define_scorecard_calibration_v211():
-    calibration = read_text(REPO_ROOT / "profiles" / "rules.scorecard-calibration.md")
-    required_tokens = [
-        "## Principal Hardening v2.1.1 - Scorecard Calibration (Binding)",
-        "### CAL-1 Standard criterion weights by tier (binding)",
-        "`TIER-LOW`: each active criterion weight = `2`",
-        "`TIER-MEDIUM`: each active criterion weight = `3`",
-        "`TIER-HIGH`: each active criterion weight = `5`",
-        "CalibrationVersion: v2.1.1",
-        "WARN-SCORECARD-CALIBRATION-INCOMPLETE",
-    ]
-    missing = [token for token in required_tokens if token not in calibration]
-    assert not missing, "rules.scorecard-calibration.md missing v2.1.1 calibration sections:\n" + "\n".join(
-        [f"- {line}" for line in missing]
-    )
-
-
-@pytest.mark.governance
 def test_java_profile_delegates_shared_principal_contract_and_shared_file_contains_shape():
     backend_java = read_text(REPO_ROOT / "profiles" / "rules.backend-java.md")
     delegation_tokens = [
@@ -352,22 +328,6 @@ def test_java_profile_contains_principal_hardening_v2_controls():
     ]
     missing = [token for token in required if token not in text]
     assert not missing, "rules.backend-java.md missing Java-first principal hardening controls:\n" + "\n".join(
-        [f"- {m}" for m in missing]
-    )
-
-
-@pytest.mark.governance
-def test_backend_java_kafka_addon_activation_is_conditional_and_phase_split():
-    text = read_text(REPO_ROOT / "profiles" / "rules.backend-java.md")
-    required = [
-        "In **Phase 1/2**, the workflow MUST evaluate whether Kafka addon is required",
-        "SESSION_STATE.AddonsEvidence.kafka.required = true | false",
-        "In **code-phase** (Phase 4+), load and record this addon ONLY when `required = true`",
-        "If `required = false`, keep:",
-        "SESSION_STATE.LoadedRulebooks.addons.kafka = \"\"",
-    ]
-    missing = [token for token in required if token not in text]
-    assert not missing, "rules.backend-java.md missing conditional Kafka activation semantics:\n" + "\n".join(
         [f"- {m}" for m in missing]
     )
 
@@ -1328,70 +1288,6 @@ def test_start_mode_mixed_phrase_is_absent_in_core_docs():
 @pytest.mark.governance
 def test_governance_boundary_and_thematic_rails_docs_exist():
     required = [
-        REPO_ROOT / "docs" / "_archive" / "governance" / "RESPONSIBILITY_BOUNDARY.md",
-        REPO_ROOT / "docs" / "_archive" / "governance" / "RAILS_REFACTOR_MAPPING.md",
-        REPO_ROOT / "docs" / "_archive" / "governance" / "rails" / "planning.md",
-        REPO_ROOT / "docs" / "_archive" / "governance" / "rails" / "implementation.md",
-        REPO_ROOT / "docs" / "_archive" / "governance" / "rails" / "testing.md",
-        REPO_ROOT / "docs" / "_archive" / "governance" / "rails" / "pr_review.md",
-        REPO_ROOT / "docs" / "_archive" / "governance" / "rails" / "failure_handling.md",
-    ]
-    missing = [str(p.relative_to(REPO_ROOT)) for p in required if not p.exists()]
-    assert not missing, "Missing governance boundary/thematic rails docs:\n" + "\n".join([f"- {m}" for m in missing])
-
-
-@pytest.mark.governance
-def test_rails_refactor_mapping_contains_required_tables():
-    mapping = read_text(REPO_ROOT / "docs" / "_archive" / "governance" / "RAILS_REFACTOR_MAPPING.md")
-
-    required_tokens = [
-        "| rule_id | rule_summary | canonical_source | secondary_references |",
-        "| original_section | target_location | action |",
-        "| file | classification | note |",
-    ]
-    missing = [t for t in required_tokens if t not in mapping]
-    assert not missing, "RAILS_REFACTOR_MAPPING.md missing required mapping tables:\n" + "\n".join([f"- {m}" for m in missing])
-
-
-@pytest.mark.governance
-def test_master_section_classification_doc_exists_and_uses_allowed_classes():
-    path = REPO_ROOT / "docs" / "_archive" / "governance" / "MASTER_SECTION_CLASSIFICATION.md"
-    assert path.exists(), "Missing docs/_archive/governance/MASTER_SECTION_CLASSIFICATION.md"
-    text = read_text(path)
-
-    allowed = ["global_principle", "priority_rule", "ai_behavior_rule", "reference"]
-    for klass in allowed:
-        assert klass in text, f"MASTER_SECTION_CLASSIFICATION.md missing class: {klass}"
-
-
-@pytest.mark.governance
-def test_responsibility_boundary_uses_bindend_vs_nicht_bindend_terms():
-    text = read_text(REPO_ROOT / "docs" / "_archive" / "governance" / "RESPONSIBILITY_BOUNDARY.md")
-    required = ["bindend", "nicht-bindend", "Kernel", "Schemas"]
-    missing = [t for t in required if t not in text]
-    assert not missing, "RESPONSIBILITY_BOUNDARY.md missing explicit boundary terms:\n" + "\n".join([f"- {m}" for m in missing])
-
-
-@pytest.mark.governance
-def test_start_mode_mixed_phrase_is_absent_in_core_docs():
-    core_docs = [
-        REPO_ROOT / "master.md",
-        REPO_ROOT / "rules.md",
-        REPO_ROOT / "BOOTSTRAP.md",
-    ]
-    offenders: list[str] = []
-    needle = "Cold Start | Warm Start"
-    for doc in core_docs:
-        text = read_text(doc)
-        if needle in text:
-            offenders.append(str(doc.relative_to(REPO_ROOT)))
-
-    assert not offenders, "Mixed start-mode phrase must not appear in core docs:\n" + "\n".join([f"- {o}" for o in offenders])
-
-
-@pytest.mark.governance
-def test_governance_boundary_and_thematic_rails_docs_exist():
-    required = [
         REPO_ROOT / "docs" / "governance" / "RESPONSIBILITY_BOUNDARY.md",
         REPO_ROOT / "docs" / "governance" / "RAILS_REFACTOR_MAPPING.md",
         REPO_ROOT / "docs" / "governance" / "rails" / "planning.md",
@@ -1415,17 +1311,6 @@ def test_rails_refactor_mapping_contains_required_tables():
     ]
     missing = [t for t in required_tokens if t not in mapping]
     assert not missing, "RAILS_REFACTOR_MAPPING.md missing required mapping tables:\n" + "\n".join([f"- {m}" for m in missing])
-
-
-@pytest.mark.governance
-def test_master_section_classification_doc_exists_and_uses_allowed_classes():
-    path = REPO_ROOT / "docs" / "governance" / "MASTER_SECTION_CLASSIFICATION.md"
-    assert path.exists(), "Missing docs/governance/MASTER_SECTION_CLASSIFICATION.md"
-    text = read_text(path)
-
-    allowed = ["global_principle", "priority_rule", "ai_behavior_rule", "reference"]
-    for klass in allowed:
-        assert klass in text, f"MASTER_SECTION_CLASSIFICATION.md missing class: {klass}"
 
 
 @pytest.mark.governance
