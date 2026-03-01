@@ -36,6 +36,197 @@ def test_governance_lint_script_exists_and_passes():
     assert r.returncode == 0, f"governance_lint failed:\n{r.stdout}\n{r.stderr}"
 
 
+# ---------------------------------------------------------------------------
+# Negative tests for check_yaml_rulebook_schema lint function
+# ---------------------------------------------------------------------------
+
+def _import_governance_lint():
+    """Import governance_lint.py as a module for unit-level testing."""
+    spec = importlib.util.spec_from_file_location(
+        "governance_lint", str(REPO_ROOT / "scripts" / "governance_lint.py")
+    )
+    assert spec is not None and spec.loader is not None
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def _write_schema(schema_dir: Path, version: str = "1.0.0") -> None:
+    """Write a minimal rulebook JSON schema to schema_dir/rulebook.schema.json."""
+    schema = {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "version": version,
+        "type": "object",
+        "required": ["kind", "metadata"],
+        "properties": {
+            "kind": {"type": "string", "enum": ["core", "profile"]},
+            "metadata": {
+                "type": "object",
+                "required": ["id", "name", "version", "status", "schema_version"],
+                "properties": {
+                    "id": {"type": "string"},
+                    "name": {"type": "string"},
+                    "version": {"type": "string"},
+                    "status": {"type": "string"},
+                    "schema_version": {"type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$"},
+                },
+            },
+        },
+    }
+    schema_dir.mkdir(parents=True, exist_ok=True)
+    (schema_dir / "rulebook.schema.json").write_text(
+        json.dumps(schema, indent=2), encoding="utf-8"
+    )
+
+
+def _write_yml(path: Path, content: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content, encoding="utf-8")
+
+
+@pytest.mark.governance
+def test_lint_detects_invalid_yaml_type(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """check_yaml_rulebook_schema flags YAML with wrong type for 'kind'."""
+    lint = _import_governance_lint()
+    fake_root = tmp_path / "repo"
+    _write_schema(fake_root / "schemas")
+    _write_yml(
+        fake_root / "rulesets" / "core" / "bad.yml",
+        "kind: 999\nmetadata:\n  id: core.rules\n",
+    )
+    monkeypatch.setattr(lint, "ROOT", fake_root)
+
+    issues: list[str] = []
+    lint.check_yaml_rulebook_schema(issues)
+    assert any("schema violation" in i for i in issues), f"Expected schema violation, got: {issues}"
+
+
+@pytest.mark.governance
+def test_lint_detects_missing_schema_version(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """check_yaml_rulebook_schema flags YAML missing metadata.schema_version.
+
+    The JSON schema itself requires schema_version, so this surfaces as a
+    schema violation (required-property error) rather than the lint's own
+    'missing metadata.schema_version' fallback.
+    """
+    lint = _import_governance_lint()
+    fake_root = tmp_path / "repo"
+    _write_schema(fake_root / "schemas")
+    _write_yml(
+        fake_root / "rulesets" / "profiles" / "test.yml",
+        (
+            "kind: profile\n"
+            "metadata:\n"
+            "  id: profile.test\n"
+            "  name: Test\n"
+            "  version: '1.0'\n"
+            "  status: active\n"
+        ),
+    )
+    monkeypatch.setattr(lint, "ROOT", fake_root)
+
+    issues: list[str] = []
+    lint.check_yaml_rulebook_schema(issues)
+    assert any("schema_version" in i for i in issues), f"Expected schema_version issue, got: {issues}"
+
+
+@pytest.mark.governance
+def test_lint_detects_schema_version_major_mismatch(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """check_yaml_rulebook_schema flags major version mismatch between rulebook and schema."""
+    lint = _import_governance_lint()
+    fake_root = tmp_path / "repo"
+    _write_schema(fake_root / "schemas", version="1.0.0")
+    _write_yml(
+        fake_root / "rulesets" / "profiles" / "test.yml",
+        (
+            "kind: profile\n"
+            "metadata:\n"
+            "  id: profile.test\n"
+            "  name: Test\n"
+            "  version: '1.0'\n"
+            "  schema_version: '2.0.0'\n"
+            "  status: active\n"
+        ),
+    )
+    monkeypatch.setattr(lint, "ROOT", fake_root)
+
+    issues: list[str] = []
+    lint.check_yaml_rulebook_schema(issues)
+    assert any("schema_version mismatch" in i for i in issues), f"Expected mismatch, got: {issues}"
+
+
+@pytest.mark.governance
+def test_lint_detects_missing_schema_version_via_lint_fallback(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """check_yaml_rulebook_schema's own missing-version check fires when schema is permissive."""
+    lint = _import_governance_lint()
+    fake_root = tmp_path / "repo"
+    # Use a permissive schema that does NOT require schema_version
+    permissive_schema = {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "version": "1.0.0",
+        "type": "object",
+        "properties": {
+            "kind": {"type": "string"},
+            "metadata": {"type": "object"},
+        },
+    }
+    (fake_root / "schemas").mkdir(parents=True)
+    (fake_root / "schemas" / "rulebook.schema.json").write_text(
+        json.dumps(permissive_schema), encoding="utf-8"
+    )
+    _write_yml(
+        fake_root / "rulesets" / "profiles" / "test.yml",
+        "kind: profile\nmetadata:\n  id: profile.test\n  name: Test\n",
+    )
+    monkeypatch.setattr(lint, "ROOT", fake_root)
+
+    issues: list[str] = []
+    lint.check_yaml_rulebook_schema(issues)
+    assert any("missing metadata.schema_version" in i for i in issues), f"Expected lint fallback, got: {issues}"
+
+
+@pytest.mark.governance
+def test_lint_detects_unparseable_yaml(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """check_yaml_rulebook_schema flags YAML that cannot be parsed."""
+    lint = _import_governance_lint()
+    fake_root = tmp_path / "repo"
+    _write_schema(fake_root / "schemas")
+    _write_yml(
+        fake_root / "rulesets" / "core" / "broken.yml",
+        ":\n  - [\n  invalid: yaml: content\n",
+    )
+    monkeypatch.setattr(lint, "ROOT", fake_root)
+
+    issues: list[str] = []
+    lint.check_yaml_rulebook_schema(issues)
+    assert any("failed to parse" in i for i in issues), f"Expected parse failure, got: {issues}"
+
+
+@pytest.mark.governance
+def test_lint_passes_valid_rulebook(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """check_yaml_rulebook_schema reports no issues for a valid rulebook."""
+    lint = _import_governance_lint()
+    fake_root = tmp_path / "repo"
+    _write_schema(fake_root / "schemas")
+    _write_yml(
+        fake_root / "rulesets" / "profiles" / "valid.yml",
+        (
+            "kind: profile\n"
+            "metadata:\n"
+            "  id: profile.valid\n"
+            "  name: Valid Profile\n"
+            "  version: '1.0'\n"
+            "  schema_version: '1.0.0'\n"
+            "  status: active\n"
+        ),
+    )
+    monkeypatch.setattr(lint, "ROOT", fake_root)
+
+    issues: list[str] = []
+    lint.check_yaml_rulebook_schema(issues)
+    assert not issues, f"Expected no issues, got: {issues}"
+
+
 @pytest.mark.governance
 def test_blocked_consistency_schema_vs_catalog():
     schema = read_text(REPO_ROOT / "SESSION_STATE_SCHEMA.md")
