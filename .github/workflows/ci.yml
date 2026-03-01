@@ -159,6 +159,9 @@ jobs:
       - name: Run governance lint
         run: |
           python scripts/governance_lint.py
+      - name: Check rulebook schema version compatibility
+        run: |
+          python scripts/migrate_rulebook_schema.py --check
 
   # ----------------------------------
   # Job 0: Spec Guards (Fail-fast)
