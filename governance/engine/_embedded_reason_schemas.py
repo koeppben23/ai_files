@@ -165,4 +165,36 @@ EMBEDDED_REASON_SCHEMAS: Final[dict[str, dict[str, object]]] = {
         "type": "object",
         "additionalProperties": True,
     },
+    "governance/assets/schemas/strict_exit_blocked.v1.schema.json": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "title": "Strict Exit Blocked Payload",
+        "description": "Schema for the strict-exit gate blocked payload emitted when PolicyMode.principal_strict is active and one or more critical criteria fail.",
+        "type": "object",
+        "required": ["blocked", "criteria", "reason_codes", "summary"],
+        "additionalProperties": False,
+        "properties": {
+            "blocked": {"type": "boolean"},
+            "criteria": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "required": ["criterion_key", "artifact_kind", "critical", "verdict", "reason_code", "detail"],
+                    "additionalProperties": False,
+                    "properties": {
+                        "criterion_key": {"type": "string"},
+                        "artifact_kind": {"type": "string"},
+                        "critical": {"type": "boolean"},
+                        "verdict": {"type": "string", "enum": ["blocked", "not_verified", "warn", "ok"]},
+                        "reason_code": {"type": "string"},
+                        "detail": {"type": "string"},
+                    },
+                },
+            },
+            "reason_codes": {
+                "type": "array",
+                "items": {"type": "string", "pattern": "^(BLOCKED-|NOT_VERIFIED-|WARN-)"},
+            },
+            "summary": {"type": "string"},
+        },
+    },
 }

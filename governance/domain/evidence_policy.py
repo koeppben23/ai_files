@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 import re
-from typing import Mapping
+from typing import Final, Mapping
 
 
 EVIDENCE_CLASS_DEFAULT_TTL_SECONDS: dict[str, int] = {
@@ -13,6 +13,45 @@ EVIDENCE_CLASS_DEFAULT_TTL_SECONDS: dict[str, int] = {
     "runtime_diagnostic": 24 * 60 * 60,
     "operator_provided": 24 * 60 * 60,
 }
+
+
+# ---------------------------------------------------------------------------
+# Artifact-kind → freshness class mapping
+# ---------------------------------------------------------------------------
+# Maps logical artifact kinds (used in YAML ``pass_criteria.artifact_kind``)
+# to the evidence_class that governs their TTL.  This keeps evidence_policy.py
+# as the single source of truth for freshness rules while YAML contracts only
+# declare *which* artifacts are required.
+ARTIFACT_KIND_FRESHNESS_CLASS: Final[dict[str, str]] = {
+    # Identity / preflight — zero-TTL (must be live)
+    "repo_identity": "identity_signal",
+    "model_identity": "identity_signal",
+    "preflight_signal": "preflight_probe",
+    # Gate artefacts — 24 h TTL
+    "test_quality_gate": "gate_evidence",
+    "business_rules_gate": "gate_evidence",
+    "rollback_safety_gate": "gate_evidence",
+    "risk_tier_assessment": "gate_evidence",
+    "scorecard_calibration": "gate_evidence",
+    "principal_quality_claims": "gate_evidence",
+    # Runtime diagnostics — 24 h TTL
+    "runtime_log": "runtime_diagnostic",
+    "runtime_metrics": "runtime_diagnostic",
+    # Operator-supplied overrides — 24 h TTL
+    "operator_override": "operator_provided",
+    "manual_attestation": "operator_provided",
+}
+
+
+def resolve_freshness_class(artifact_kind: str) -> str:
+    """Return the evidence_class governing *artifact_kind*'s TTL.
+
+    Falls back to ``"gate_evidence"`` for unknown artifact kinds so that
+    callers always get a valid class with a sensible default TTL.
+    """
+    return ARTIFACT_KIND_FRESHNESS_CLASS.get(
+        artifact_kind.strip().lower(), "gate_evidence"
+    )
 
 
 def canonical_claim_evidence_id(claim: str) -> str:

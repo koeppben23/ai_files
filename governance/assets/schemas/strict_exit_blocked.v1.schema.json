@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "governance/schemas/strict_exit_blocked.v1.schema.json",
+  "title": "Strict Exit Blocked Payload",
+  "description": "Schema for the strict-exit gate blocked payload emitted when PolicyMode.principal_strict is active and one or more critical criteria fail.",
+  "type": "object",
+  "required": ["blocked", "criteria", "reason_codes", "summary"],
+  "additionalProperties": false,
+  "properties": {
+    "blocked": {
+      "type": "boolean",
+      "description": "True when at least one criterion has verdict 'blocked'."
+    },
+    "criteria": {
+      "type": "array",
+      "description": "Per-criterion evaluation results.",
+      "items": {
+        "$ref": "#/$defs/criterion_result"
+      }
+    },
+    "reason_codes": {
+      "type": "array",
+      "description": "Deduplicated reason codes emitted by the evaluation (excludes 'none').",
+      "items": {
+        "type": "string",
+        "pattern": "^(BLOCKED-|NOT_VERIFIED-|WARN-)"
+      }
+    },
+    "summary": {
+      "type": "string",
+      "description": "Human-readable aggregate summary."
+    }
+  },
+  "$defs": {
+    "criterion_result": {
+      "type": "object",
+      "required": ["criterion_key", "artifact_kind", "critical", "verdict", "reason_code", "detail"],
+      "additionalProperties": false,
+      "properties": {
+        "criterion_key": {
+          "type": "string",
+          "description": "Unique key identifying the pass_criteria entry."
+        },
+        "artifact_kind": {
+          "type": "string",
+          "description": "The evidence artifact kind evaluated."
+        },
+        "critical": {
+          "type": "boolean",
+          "description": "Whether this criterion is critical (blocking when failed in strict mode)."
+        },
+        "verdict": {
+          "type": "string",
+          "enum": ["blocked", "not_verified", "warn", "ok"],
+          "description": "Evaluation verdict per the blocking-grade decision matrix."
+        },
+        "reason_code": {
+          "type": "string",
+          "description": "Canonical reason code or 'none'."
+        },
+        "detail": {
+          "type": "string",
+          "description": "Human-readable detail about the evaluation outcome."
+        }
+      }
+    }
+  }
+}

@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from governance.domain.models.policy_mode import PolicyMode
+
 
 @dataclass(frozen=True)
 class CommitFlags:
@@ -19,3 +21,4 @@ class SessionState:
     flags: CommitFlags = field(default_factory=CommitFlags)
     loaded_rulebooks: dict[str, Any] = field(default_factory=dict)
     decision_surface: dict[str, Any] = field(default_factory=dict)
+    policy_mode: PolicyMode = field(default_factory=PolicyMode)

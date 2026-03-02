@@ -374,6 +374,52 @@ Allowed values:
 - If `ConfidenceLevel < 70`, the session is in `DRAFT` or a blocked state (not `NORMAL` or `DEGRADED`).
 - When the session is in a blocked state, `Next` starts with `BLOCKED-` and names the minimal unblock requirement.
 
+## 4.0.1 PolicyMode (orthogonal enforcement flag)
+
+`SESSION_STATE.PolicyMode` is an optional object that controls the principal-strict enforcement pipeline.
+It is **orthogonal** to `Mode` and `OperatingMode` and may be set independently.
+
+```yaml
+SESSION_STATE:
+  PolicyMode:
+    principal_strict: true  # or false (default)
+```
+
+### Fields
+
+- `principal_strict` (boolean, default `false`): When `true`, the strict-exit gate enforces the blocking-grade decision matrix on phase transitions.
+
+### Derivation (fail-closed)
+
+The effective `principal_strict` flag is derived in precedence order:
+1. Tenant-level policy override (`policy_strict`)
+2. Session/operator override (`override_strict`)
+3. Profile-level default (`profile_strict`)
+
+**Fail-closed**: If *any* source declares `strict=true`, the result is `true`.
+This is intentionally NOT coupled to addon load status. If strict is requested but required addons are missing, the gate will BLOCK (not silently downgrade).
+
+### Blocking-Grade Decision Matrix (when `principal_strict = true`)
+
+```
+                    | missing       | stale          | below_threshold |
+--------------------+---------------+----------------+-----------------+
+critical: true      | BLOCKED       | BLOCKED        | BLOCKED         |
+critical: false     | NOT_VERIFIED  | NOT_VERIFIED   | WARN            |
+```
+
+When `principal_strict = false`, all verdicts downgrade to `WARN`.
+
+### Reason Codes
+
+- `BLOCKED-STRICT-EVIDENCE-MISSING` -- critical evidence missing in strict mode
+- `BLOCKED-STRICT-EVIDENCE-STALE` -- critical evidence stale in strict mode
+- `BLOCKED-STRICT-THRESHOLD` -- critical evidence below threshold in strict mode
+- `NOT_VERIFIED-STRICT-EVIDENCE-STALE` -- non-critical evidence stale in strict mode
+- `NOT_VERIFIED-STRICT-EVIDENCE-MISSING` -- non-critical evidence missing in strict mode
+
+---
+
 ## 4.1 OutputMode (enum)
 
 Allowed values:

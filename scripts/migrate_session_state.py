@@ -44,7 +44,7 @@ def _read_json_document(path: Path) -> dict[str, Any]:
     return payload
 
 
-def migrate_session_state_file(path: Path, *, engine_version: str = "1.1.0") -> tuple[int, dict[str, Any]]:
+def migrate_session_state_file(path: Path, *, engine_version: str = "1.2.0") -> tuple[int, dict[str, Any]]:
     """Migrate one file to canonical SESSION_STATE fields.
 
     Returns `(exit_code, result_payload)` where exit code follows this contract:
@@ -107,7 +107,7 @@ def main(argv: list[str] | None = None) -> int:
         help="Base workspaces directory used with --workspace (default: workspaces).",
     )
     parser.add_argument("--file", default=None, help="Explicit SESSION_STATE file path.")
-    parser.add_argument("--engine-version", default="1.1.0", help="Engine version recorded in migration metadata.")
+    parser.add_argument("--engine-version", default="1.2.0", help="Engine version recorded in migration metadata.")
 
     args = parser.parse_args(argv)
 
