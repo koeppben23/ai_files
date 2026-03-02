@@ -381,7 +381,7 @@ def test_e2e_short_intent_goldens_are_stable():
     payload = json.loads(read_text(fixture))
 
     assert payload.get("$schema") == "opencode.ux-intent-goldens.v1"
-    assert payload.get("version") == "1"
+    assert payload.get("version") == "1.0.0"
     cases = payload.get("cases")
     assert isinstance(cases, list) and cases, "UX intent goldens must define at least one case"
 

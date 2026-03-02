@@ -1,6 +1,6 @@
 {
   "schema": "governance.customer-markdown-exclude.v1",
-  "catalog_version": 1,
+  "version": "1.0.0",
   "release_excluded_markdown": [
     "docs/_archive/BINDING_MIGRATION_MAP.md",
     "docs/_archive/BOOTSTRAP_MIGRATION.md",

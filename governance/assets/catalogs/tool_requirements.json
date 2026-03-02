@@ -1,6 +1,6 @@
 {
   "schema": "opencode-tool-requirements.v1",
-  "version": "1.1",
+  "version": "1.1.0",
   "description": "Canonical external command inventory for bootstrap preflight.",
   "smart_retry": {
     "path_snapshot_policy": "fresh-per-start",

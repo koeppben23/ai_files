@@ -50,6 +50,7 @@ EMBEDDED_REASON_CODE_TO_SCHEMA_REF: Final[dict[str, str]] = {
     "BLOCKED-PERMISSION-DENIED": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
     "BLOCKED-EXEC-DISALLOWED": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
     "BLOCKED-FINGERPRINT-MISMATCH": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
+    "BLOCKED-INTEGRITY-FAILED": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
     "BLOCKED-REPO-ROOT-NOT-DETECTABLE": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
     "BLOCKED-LEGACY-DECISION-PACK-FORMAT": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
     "BLOCKED-INVALID-NEXT-ACTION": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
