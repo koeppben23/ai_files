@@ -3,8 +3,9 @@ metadata:
   id: profile.python-excellence
   name: Python Excellence Rulebook
   version: '1.0'
-  schema_version: '1.0.0'
+  schema_version: 1.1.0
   status: active
+  description: ''
 activation:
   type: manifest
   conditions:
@@ -50,7 +51,9 @@ patterns:
   - explicit_dependencies
   code_example:
     language: python
-    code: "class UserService:\n    def __init__(self, repository: UserRepository, clock: ClockPort):\n        self._repository = repository\n        self._clock = clock\n"
+    code: "class UserService:\n    def __init__(self, repository: UserRepository,\
+      \ clock: ClockPort):\n        self._repository = repository\n        self._clock\
+      \ = clock\n"
   rationale: Enables unit testing without monkeypatching
 - id: PAT-PY02
   title: In-Memory Fakes Over Mocks
@@ -59,7 +62,8 @@ patterns:
   - reuse
   code_example:
     language: python
-    code: "class InMemoryUserRepository(UserRepository):\n    def __init__(self):\n        self._users = {}\n"
+    code: "class InMemoryUserRepository(UserRepository):\n    def __init__(self):\n\
+      \        self._users = {}\n"
   rationale: Fakes test actual behavior
 - id: PAT-PY03
   title: Fixed Time in Tests
@@ -67,7 +71,8 @@ patterns:
   - deterministic_tests
   code_example:
     language: python
-    code: "FIXED_TIME = datetime(2026, 1, 31, tzinfo=timezone.utc)\nclass FakeClock(ClockPort):\n    def now(self):\n        return FIXED_TIME\n"
+    code: "FIXED_TIME = datetime(2026, 1, 31, tzinfo=timezone.utc)\nclass FakeClock(ClockPort):\n\
+      \    def now(self):\n        return FIXED_TIME\n"
   rationale: Deterministic tests without flakiness
 - id: PAT-PY04
   title: Domain Models Without Framework Dependencies

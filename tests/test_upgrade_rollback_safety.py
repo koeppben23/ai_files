@@ -257,4 +257,4 @@ def test_new_build_produces_backward_compatible_artifact_structure(tmp_path: Pat
 
     # New builds also include rulebook_schema_version (upgrade from older releases)
     assert "rulebook_schema_version" in manifest
-    assert manifest["rulebook_schema_version"] == "1.0.0"
+    assert manifest["rulebook_schema_version"] == "1.1.0"

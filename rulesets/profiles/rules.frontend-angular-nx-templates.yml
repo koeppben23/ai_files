@@ -3,8 +3,9 @@ metadata:
   id: profile.frontend-angular-nx-templates
   name: Frontend Angular + Nx Templates (ADDON)
   version: '1.0'
-  schema_version: '1.0.0'
+  schema_version: 1.1.0
   status: active
+  description: ''
 phase_integration:
   phases:
   - phase_2
