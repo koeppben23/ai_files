@@ -1,7 +1,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from datetime import datetime
+from typing import Any, Mapping, Sequence
+
+from governance.domain.strict_exit_evaluator import (
+    StrictExitResult,
+    evaluate_strict_exit,
+)
 
 
 @dataclass(frozen=True)
@@ -37,3 +43,25 @@ def rulebook_gate(*, target_phase: str, loaded_rulebooks: dict[str, Any]) -> Gat
     if not loaded_rulebooks.get("core") or not loaded_rulebooks.get("profile"):
         return GateResult(ok=False, code="RULEBOOKS_INCOMPLETE", reason="core/profile rulebooks required")
     return GateResult(ok=True, code="OK", reason="rulebook gate satisfied")
+
+
+def strict_exit_gate(
+    *,
+    pass_criteria: Sequence[Mapping[str, object]],
+    evidence_map: Mapping[str, Mapping[str, object]],
+    risk_tier: str = "unknown",
+    now_utc: datetime,
+    principal_strict: bool,
+) -> StrictExitResult:
+    """Evaluate the strict-exit gate for a phase transition.
+
+    Delegates to the domain evaluator.  This thin wrapper lives in gate_policy
+    so all gate functions share a single import surface for the engine layer.
+    """
+    return evaluate_strict_exit(
+        pass_criteria=pass_criteria,
+        evidence_map=evidence_map,
+        risk_tier=risk_tier,
+        now_utc=now_utc,
+        principal_strict=principal_strict,
+    )

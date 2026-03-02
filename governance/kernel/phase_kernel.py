@@ -12,6 +12,9 @@ from governance.infrastructure.adapters.logging.event_sink import write_jsonl_ev
 from governance.infrastructure.binding_evidence_resolver import BindingEvidenceResolver
 from governance.infrastructure.logging.global_error_handler import emit_error_event
 
+from governance.engine.gate_evaluator import evaluate_strict_exit_gate
+from governance.engine import reason_codes
+
 from .phase_api_spec import PhaseApiSpec, PhaseApiSpecError, PhaseSpecEntry, load_phase_api
 
 
@@ -702,6 +705,58 @@ def execute(
             source="phase-exit-evidence-missing",
             reason=exit_reason,
         )
+
+    # ── Strict-exit gate (principal_strict enforcement) ──────────
+    _policy_mode = state.get("PolicyMode")
+    _principal_strict = (
+        isinstance(_policy_mode, Mapping)
+        and _policy_mode.get("principal_strict") is True
+    )
+    _phase_exit_contract = state.get("phase_exit_contract")
+    if isinstance(_phase_exit_contract, list) and _phase_exit_contract:
+        # Build pass_criteria matching the current phase token
+        _phase_key = f"phase_{chosen_token.replace('.', '_')}"
+        _criteria: list[Mapping[str, object]] = []
+        for _pec in _phase_exit_contract:
+            if isinstance(_pec, Mapping) and str(_pec.get("phase", "")) == _phase_key:
+                raw_criteria = _pec.get("pass_criteria")
+                if isinstance(raw_criteria, list):
+                    for c in raw_criteria:
+                        if isinstance(c, Mapping):
+                            _criteria.append(c)
+        if _criteria:
+            _evidence_map: dict[str, Mapping[str, object]] = {}
+            _build_evidence = state.get("BuildEvidence")
+            if isinstance(_build_evidence, Mapping):
+                items = _build_evidence.get("items")
+                if isinstance(items, list):
+                    for item in items:
+                        if isinstance(item, Mapping):
+                            ak = item.get("artifact_kind")
+                            if isinstance(ak, str) and ak.strip():
+                                _evidence_map[ak.strip()] = item
+            _risk_tiering = state.get("RiskTiering")
+            _risk_tier = "unknown"
+            if isinstance(_risk_tiering, Mapping):
+                _rt = _risk_tiering.get("ActiveTier")
+                if isinstance(_rt, str) and _rt.strip():
+                    _risk_tier = _rt.strip().lower().replace("tier-", "")
+            _strict_result = evaluate_strict_exit_gate(
+                pass_criteria=_criteria,
+                evidence_map=_evidence_map,
+                risk_tier=_risk_tier,
+                principal_strict=_principal_strict,
+            )
+            if _strict_result.blocked:
+                _reason_codes_str = ", ".join(_strict_result.reason_codes) if _strict_result.reason_codes else reason_codes.BLOCKED_UNSPECIFIED
+                return _blocked_result(
+                    phase=entry.phase,
+                    token=chosen_token,
+                    active_gate="Strict Exit Gate",
+                    next_gate_condition=f"PHASE_BLOCKED: {_strict_result.summary}",
+                    source="strict-exit-gate",
+                    reason=f"strict-exit-gate: {_reason_codes_str}",
+                )
 
     next_token, source, override_active_gate, override_next_condition = _select_transition(entry, state)
     resolved_phase = entry.phase
