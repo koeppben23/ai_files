@@ -147,3 +147,73 @@ def test_tenant_config_validates_against_schema(tmp_path: Path):
         "default_profile": "profile.python-safety",
     }
     assert list(validator.iter_errors(valid_config)) == []
+
+
+@pytest.mark.governance
+def test_load_workspace_config_returns_none_when_env_not_set(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """load_workspace_config returns None when OPENCODE_WORKSPACE_CONFIG is not set."""
+    monkeypatch.delenv("OPENCODE_WORKSPACE_CONFIG", raising=False)
+    from governance.infrastructure.tenant_config import load_workspace_config
+    assert load_workspace_config() is None
+
+
+@pytest.mark.governance
+def test_load_workspace_config_parses_valid_config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """load_workspace_config returns WorkspaceConfig when valid."""
+    config_file = tmp_path / "workspace.yaml"
+    config_file.write_text(json.dumps({
+        "version": "1.0.0",
+        "tenant_id": "workspace-1",
+        "default_profile": "profile.java-excellence",
+    }))
+    monkeypatch.setenv("OPENCODE_WORKSPACE_CONFIG", str(config_file))
+    from governance.infrastructure.tenant_config import load_workspace_config
+    config = load_workspace_config()
+    assert config is not None
+    assert config.tenant_id == "workspace-1"
+    assert config.default_profile == "profile.java-excellence"
+
+
+@pytest.mark.governance
+def test_get_profile_override_prefers_workspace_over_tenant(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """get_profile_override returns workspace profile when both are set."""
+    tenant_file = tmp_path / "tenant.yaml"
+    tenant_file.write_text(json.dumps({
+        "version": "1.0.0",
+        "tenant_id": "tenant-1",
+        "default_profile": "profile.python-safety",
+    }))
+    workspace_file = tmp_path / "workspace.yaml"
+    workspace_file.write_text(json.dumps({
+        "version": "1.0.0",
+        "tenant_id": "workspace-1",
+        "default_profile": "profile.java-excellence",
+    }))
+    monkeypatch.setenv("OPENCODE_TENANT_CONFIG", str(tenant_file))
+    monkeypatch.setenv("OPENCODE_WORKSPACE_CONFIG", str(workspace_file))
+    from governance.infrastructure.tenant_config import get_profile_override
+    assert get_profile_override() == "java-excellence"
+
+
+@pytest.mark.governance
+def test_get_profile_override_returns_tenant_when_no_workspace(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """get_profile_override returns tenant profile when workspace not set."""
+    tenant_file = tmp_path / "tenant.yaml"
+    tenant_file.write_text(json.dumps({
+        "version": "1.0.0",
+        "tenant_id": "tenant-1",
+        "default_profile": "profile.python-safety",
+    }))
+    monkeypatch.setenv("OPENCODE_TENANT_CONFIG", str(tenant_file))
+    monkeypatch.delenv("OPENCODE_WORKSPACE_CONFIG", raising=False)
+    from governance.infrastructure.tenant_config import get_profile_override
+    assert get_profile_override() == "python-safety"
+
+
+@pytest.mark.governance
+def test_get_profile_override_returns_none_when_no_config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """get_profile_override returns None when no config is set."""
+    monkeypatch.delenv("OPENCODE_TENANT_CONFIG", raising=False)
+    monkeypatch.delenv("OPENCODE_WORKSPACE_CONFIG", raising=False)
+    from governance.infrastructure.tenant_config import get_profile_override
+    assert get_profile_override() is None
