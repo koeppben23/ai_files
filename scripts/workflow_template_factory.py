@@ -150,7 +150,7 @@ def run_check(*, repo_root: Path, catalog_rel: Path) -> tuple[int, dict[str, obj
         {
             "status": "OK",
             "schema": payload.get("schema"),
-            "catalog_version": payload.get("catalog_version"),
+            "version": payload.get("version"),
             "template_count": len(entries),
             "template_keys": [entry["template_key"] for entry in entries],
         },

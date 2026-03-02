@@ -1,6 +1,6 @@
 {
   "schema": "governance.workflow-template-catalog.v1",
-  "catalog_version": 1,
+  "version": "1.0.0",
   "templates": [
     {
       "template_key": "governance-golden-baseline-update",

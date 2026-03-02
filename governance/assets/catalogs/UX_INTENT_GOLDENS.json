@@ -1,6 +1,6 @@
 {
   "$schema": "opencode.ux-intent-goldens.v1",
-  "version": "1",
+  "version": "1.0.0",
   "cases": [
     {
       "id": "where-am-i-warn",

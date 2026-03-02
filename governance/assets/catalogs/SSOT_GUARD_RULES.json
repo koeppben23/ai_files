@@ -1,6 +1,6 @@
 {
   "schema": "governance.ssot-guard-rules.v1",
-  "version": 1,
+  "version": "1.0.0",
   "policy": {
     "owner": "kernel",
     "default_md_role": "reference-only",
