@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://governance.opencode.ai/schemas/tenant-config/v1.0.0/tenant_config.schema.json",
+  "version": "1.0.0",
+  "title": "Tenant Configuration",
+  "description": "Tenant-level configuration overlay for governance profile and addon selection.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "Semver of this tenant config schema."
+    },
+    "tenant_id": {
+      "type": "string",
+      "description": "Unique identifier for this tenant."
+    },
+    "default_profile": {
+      "type": "string",
+      "pattern": "^profile\\.[a-z][a-z0-9-]*$",
+      "description": "Default profile to use for this tenant (e.g., 'profile.python-safety')."
+    },
+    "allowed_addons": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "List of addon IDs that this tenant is allowed to use."
+    },
+    "blocked_addons": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "List of addon IDs that are blocked for this tenant."
+    },
+    "audit_verbosity": {
+      "type": "string",
+      "enum": ["minimal", "standard", "verbose"],
+      "default": "standard",
+      "description": "Audit verbosity level for this tenant."
+    }
+  },
+  "required": ["version", "tenant_id", "default_profile"]
+}
