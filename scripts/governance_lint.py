@@ -556,6 +556,87 @@ def check_md_rails_only_tripwire(issues: list[str]) -> None:
 # Rescued SSOT checks — structural JSON/Python validation only (no MD reads)
 # ---------------------------------------------------------------------------
 
+# Catalog files that carry a version field.
+# Files without a version field (pure schemas/contracts) are excluded.
+_SCHEMA_CONTRACT_FILES = {
+    "AUDIT_REPORT_SCHEMA.json",
+    "GITHUB_ACTIONS_TEMPLATE_FACTORY_CONTRACT.json",
+    "PROFILE_ADDON_FACTORY_CONTRACT.json",
+    "RESPONSE_ENVELOPE_SCHEMA.json",
+    "RUN_SUMMARY_SCHEMA.json",
+}
+
+_SEMVER3_RE = re.compile(r"^\d+\.\d+\.\d+$")
+_LEGACY_VERSION_KEYS = {"catalog_version", "policy_version"}
+
+
+def check_catalog_version_format(issues: list[str]) -> None:
+    """Enforce semver-3 version format and canonical field name across catalogs.
+
+    Codifies Cluster 1 invariants as a permanent lint gate:
+    - All versioned catalogs must have a top-level 'version' field in X.Y.Z format
+    - Legacy key names (catalog_version, policy_version) must not be present
+    """
+    catalogs_dir = ROOT / "governance" / "assets" / "catalogs"
+    if not catalogs_dir.is_dir():
+        issues.append("governance/assets/catalogs: directory not found")
+        return
+
+    for path in sorted(catalogs_dir.glob("*.json")):
+        if path.name in _SCHEMA_CONTRACT_FILES:
+            continue
+
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError) as exc:
+            issues.append(f"{path.name}: failed to read: {exc}")
+            continue
+
+        if not isinstance(data, dict):
+            issues.append(f"{path.name}: expected JSON object at top level")
+            continue
+
+        # Check for legacy keys
+        for legacy_key in _LEGACY_VERSION_KEYS:
+            if legacy_key in data:
+                issues.append(f"{path.name}: uses legacy key '{legacy_key}' — rename to 'version'")
+
+        # Check version field
+        version = data.get("version")
+        if version is None:
+            issues.append(f"{path.name}: missing 'version' field")
+            continue
+
+        if not isinstance(version, str):
+            issues.append(f"{path.name}: 'version' must be a string, got {type(version).__name__}")
+            continue
+
+        if not _SEMVER3_RE.match(version):
+            issues.append(f"{path.name}: 'version' must be semver-3 (X.Y.Z), got '{version}'")
+
+
+def check_artifact_hash_integrity(issues: list[str]) -> None:
+    """Verify hashes.json consistency for all governance releases.
+
+    Codifies Cluster 3 invariants as a permanent lint gate:
+    - hashes.json in each release must match actual file hashes
+    - Catches stale hashes during development
+    """
+    releases_dir = ROOT / "rulesets" / "governance"
+    if not releases_dir.is_dir():
+        return  # No releases to check — not an error
+
+    try:
+        from governance.infrastructure.artifact_integrity import verify_all_releases
+    except ImportError as exc:
+        issues.append(f"artifact_integrity module unavailable: {exc}")
+        return
+
+    results = verify_all_releases(releases_dir)
+    for result in results:
+        if not result.passed:
+            issues.append(f"hash integrity: {result.summary}")
+
 def check_response_envelope_schema_keys(issues: list[str]) -> None:
     """Structural check on RESPONSE_ENVELOPE_SCHEMA.json (rescued from check_response_envelope_schema_contract)."""
     schema_path = ROOT / "governance" / "assets" / "catalogs" / "RESPONSE_ENVELOPE_SCHEMA.json"
@@ -807,6 +888,10 @@ def main() -> int:
     check_factory_contract_json_keys(issues)
     check_governance_reason_ssot_alignment(issues)
     check_bootstrap_binding_evidence_reason_codes(issues)
+
+    # --- Cluster 1+3 invariant enforcement ---
+    check_catalog_version_format(issues)
+    check_artifact_hash_integrity(issues)
 
     # --- MD rails-only tripwire (verifies MD does NOT have authority) ---
     check_md_rails_only_tripwire(issues)
