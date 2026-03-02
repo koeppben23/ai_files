@@ -7,6 +7,7 @@ from typing import Any, Mapping, Sequence, cast
 import uuid
 
 from governance.application.dto.phase_next_action_contract import contains_ticket_prompt
+from governance.domain.strict_exit_evaluator import StrictExitResult
 from governance.domain.phase_state_machine import phase_rank
 from governance.infrastructure.adapters.logging.event_sink import write_jsonl_event
 from governance.infrastructure.binding_evidence_resolver import BindingEvidenceResolver
@@ -43,6 +44,7 @@ class KernelResult:
     spec_loaded_at: str
     log_paths: dict[str, str]
     event_id: str
+    strict_exit_result: StrictExitResult | None = None
 
 
 def _utc_now() -> str:
@@ -675,7 +677,10 @@ def execute(
             spec_loaded_at=spec.loaded_at,
             log_paths=result_paths,
             event_id=event_id,
+            strict_exit_result=strict_exit_result,
         )
+
+    strict_exit_result: StrictExitResult | None = None
 
     if phase_rank(chosen_token or "") >= phase_rank("2") and not workspace_ready:
         return _blocked_result(
@@ -875,6 +880,7 @@ def execute(
                 risk_tier=_risk_tier,
                 principal_strict=_principal_strict,
             )
+            strict_exit_result = _strict_result
             if _strict_result.blocked:
                 _reason_codes_str = _strict_result.reason_codes[0] if _strict_result.reason_codes else reason_codes.BLOCKED_UNSPECIFIED
                 _strict_detail = asdict(_strict_result)
@@ -977,6 +983,7 @@ def execute(
         spec_loaded_at=spec.loaded_at,
         log_paths=result_paths,
         event_id=event_id,
+        strict_exit_result=strict_exit_result,
     )
 
 

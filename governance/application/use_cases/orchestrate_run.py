@@ -764,7 +764,7 @@ def run_engine_orchestrator(
         activation_hash=activation_hash,
         reason_payload=reason_payload,
         missing_evidence=stale_required_evidence if stale_required_evidence else missing_evidence,
-        strict_exit_result=None,
+        strict_exit_result=routed_phase.strict_exit_result,
         repo_doc_evidence=repo_doc_evidence,
         precedence_events=tuple(precedence_events),
         prompt_events=tuple(prompt_events),
