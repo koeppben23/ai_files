@@ -17,13 +17,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Final, Literal, Mapping, Sequence
+from typing import Any, Callable, Final, Literal, Mapping, Sequence
+import math
 
 from governance.domain.evidence_policy import (
-    EVIDENCE_CLASS_DEFAULT_TTL_SECONDS,
     is_stale,
     parse_observed_at,
-    resolve_freshness_class,
     resolve_ttl_seconds,
 )
 from governance.domain.reason_codes import (
@@ -72,7 +71,7 @@ class StrictExitResult:
 # Each resolver takes (artifact_kind, evidence_value, risk_tier) and returns
 # (passed: bool, detail: str).
 
-_ThresholdResolver = Any  # callable[[str, object, str], tuple[bool, str]]
+_ThresholdResolver = Callable[[str, object, str], tuple[bool, str]]
 
 
 def _resolve_dynamic_by_risk_tier(
@@ -98,11 +97,15 @@ def _resolve_dynamic_by_risk_tier(
 
     if isinstance(evidence_value, (int, float)):
         numeric = float(evidence_value)
+        if not math.isfinite(numeric):
+            return False, f"non-finite value: {numeric!r}"
     elif isinstance(evidence_value, str):
         try:
             numeric = float(evidence_value.strip().rstrip("%"))
         except ValueError:
             return False, f"non-numeric evidence value: {evidence_value!r}"
+        if not math.isfinite(numeric):
+            return False, f"non-finite value: {numeric!r}"
     else:
         return False, f"unsupported evidence type: {type(evidence_value).__name__}"
 
@@ -170,8 +173,7 @@ def _evaluate_criterion(
         )
 
     # 2. Check staleness
-    freshness_class = resolve_freshness_class(artifact_kind)
-    ttl = EVIDENCE_CLASS_DEFAULT_TTL_SECONDS.get(freshness_class, 24 * 60 * 60)
+    ttl = resolve_ttl_seconds(evidence)
     observed_at = parse_observed_at(evidence.get("observed_at"))
     if is_stale(observed_at=observed_at, ttl_seconds=ttl, now_utc=now_utc):
         if not principal_strict:
@@ -336,8 +338,10 @@ def evaluate_strict_exit(
     elif any(r.verdict == "warn" for r in results):
         warn_criteria = [r for r in results if r.verdict == "warn"]
         summary = f"strict-exit WARN: {len(warn_criteria)} criterion/criteria warned"
-    else:
+    elif results:
         summary = "strict-exit OK: all criteria satisfied"
+    else:
+        summary = "strict-exit OK: no criteria defined"
 
     return StrictExitResult(
         blocked=blocked,

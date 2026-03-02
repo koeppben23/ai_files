@@ -748,7 +748,7 @@ def execute(
                 principal_strict=_principal_strict,
             )
             if _strict_result.blocked:
-                _reason_codes_str = ", ".join(_strict_result.reason_codes) if _strict_result.reason_codes else reason_codes.BLOCKED_UNSPECIFIED
+                _reason_codes_str = _strict_result.reason_codes[0] if _strict_result.reason_codes else reason_codes.BLOCKED_UNSPECIFIED
                 return _blocked_result(
                     phase=entry.phase,
                     token=chosen_token,

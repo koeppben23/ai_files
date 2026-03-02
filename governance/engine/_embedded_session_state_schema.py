@@ -25,7 +25,7 @@ def _load_schema() -> dict[str, object]:
 
 _HARDCODED_FALLBACK_SCHEMA: dict[str, object] = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "$id": "governance/assets/schemas/session_state.core.v1.schema.json",
+    "$id": "governance/schemas/session_state.core.v1.schema.json",
     "title": "SESSION_STATE Core Schema",
     "description": "Core structural validation for SESSION_STATE documents after Phase 1 bootstrap.",
     "type": "object",

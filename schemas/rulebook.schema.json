@@ -351,14 +351,17 @@
         },
         "pass_criteria": {
           "type": "array",
+          "minItems": 1,
           "items": { "$ref": "#/$defs/pass_criterion" }
         },
         "blocking_conditions": {
           "type": "array",
+          "minItems": 1,
           "items": { "$ref": "#/$defs/blocking_condition" }
         },
         "evidence_freshness": {
           "type": "array",
+          "minItems": 1,
           "items": { "$ref": "#/$defs/evidence_freshness_entry" }
         }
       }
@@ -380,9 +383,14 @@
         },
         "threshold_resolver": {
           "type": "string",
-          "description": "Dot-path to a registered Python resolver function for dynamic thresholds."
+          "description": "Name of a registered threshold resolver (e.g. 'dynamic_by_risk_tier')."
         }
-      }
+      },
+      "dependentRequired": {
+        "threshold_mode": ["threshold_resolver"],
+        "threshold_resolver": ["threshold_mode"]
+      },
+      "not": { "required": ["threshold", "threshold_mode"] }
     },
 
     "blocking_condition": {
