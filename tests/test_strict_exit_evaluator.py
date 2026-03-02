@@ -325,8 +325,7 @@ class TestAggregation:
             principal_strict=True,
             now_utc=NOW,
         )
-        assert len(result.reason_codes) == 2
-        assert all(rc == BLOCKED_STRICT_EVIDENCE_MISSING for rc in result.reason_codes)
+        assert result.reason_codes == (BLOCKED_STRICT_EVIDENCE_MISSING,)
 
 
 # -----------------------------------------------------------------------
@@ -484,7 +483,7 @@ class TestPrimaryReasonCodeDeterminism:
     """reason_codes[0] is the primary code -- stable criterion order."""
 
     def test_multi_criterion_two_blocked_codes_first_is_primary(self) -> None:
-        """Two BLOCKED criteria -> reason_codes[0] is the first criterion's code."""
+        """Primary reason code is stable even when duplicates collapse."""
         result = evaluate_strict_exit(
             pass_criteria=[
                 _criterion("test_quality_gate", critical=True),
@@ -495,7 +494,7 @@ class TestPrimaryReasonCodeDeterminism:
             now_utc=NOW,
         )
         assert result.blocked is True
-        assert len(result.reason_codes) == 2
+        assert len(result.reason_codes) == 1
         # First code corresponds to the first criterion (stable order)
         assert result.reason_codes[0] == BLOCKED_STRICT_EVIDENCE_MISSING
 
@@ -656,3 +655,34 @@ class TestDetailField:
             now_utc=NOW,
         )
         assert result.criteria[0].detail == "all checks passed"
+
+
+class TestReasonCodeAggregation:
+    """Strict-exit reason code aggregation remains deterministic and compact."""
+
+    def test_reason_codes_are_deduplicated_with_stable_order(self) -> None:
+        result = evaluate_strict_exit(
+            pass_criteria=[
+                _criterion("artifact-a", critical=True),
+                _criterion("artifact-b", critical=True),
+                _criterion("artifact-c", critical=True),
+            ],
+            evidence_map={"artifact-c": _evidence(STALE_TS)},
+            principal_strict=True,
+            now_utc=NOW,
+        )
+
+        assert result.reason_codes == (
+            BLOCKED_STRICT_EVIDENCE_MISSING,
+            BLOCKED_STRICT_EVIDENCE_STALE,
+        )
+
+    def test_single_reason_code_case_is_unchanged(self) -> None:
+        result = evaluate_strict_exit(
+            pass_criteria=[_criterion("artifact-a", critical=True)],
+            evidence_map={},
+            principal_strict=True,
+            now_utc=NOW,
+        )
+
+        assert result.reason_codes == (BLOCKED_STRICT_EVIDENCE_MISSING,)
