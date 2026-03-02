@@ -471,8 +471,9 @@ def _deduplicate_criteria(
             if existing_val is None and new_val is None:
                 continue
             if existing_val != new_val:
+                value_set = sorted({repr(existing_val), repr(new_val)})
                 incompatible_fields.append(
-                    f"{field}: {existing_val!r} vs {new_val!r}"
+                    f"{field} in {{{', '.join(value_set)}}}"
                 )
 
         if incompatible_fields:
@@ -499,7 +500,7 @@ def _deduplicate_criteria(
 
     return _CriteriaDedupeResult(
         criteria=list(seen.values()),
-        conflicts=conflicts,
+        conflicts=sorted(conflicts),
         had_duplicates=had_duplicates,
     )
 
