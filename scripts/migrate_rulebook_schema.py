@@ -55,6 +55,27 @@ MigrationFn = Callable[[dict], dict]
 MIGRATIONS: dict[tuple[str, str], MigrationFn] = {}
 
 
+# ---------------------------------------------------------------------------
+# Migration: 1.0.0 → 1.1.0
+# ---------------------------------------------------------------------------
+# Adds optional metadata.description field (empty string default).
+# Bumps schema_version from 1.0.0 to 1.1.0.
+
+
+def _migrate_1_0_0_to_1_1_0(rb: dict) -> dict:
+    """Add metadata.description and bump schema_version to 1.1.0."""
+    rb = dict(rb)
+    meta = dict(rb.get("metadata", {}))
+    meta["schema_version"] = "1.1.0"
+    if "description" not in meta:
+        meta["description"] = ""
+    rb["metadata"] = meta
+    return rb
+
+
+MIGRATIONS[("1.0.0", "1.1.0")] = _migrate_1_0_0_to_1_1_0
+
+
 def _get_schema_version() -> str:
     """Read current schema version from rulebook.schema.json."""
     schema_path = ROOT / "schemas" / "rulebook.schema.json"

@@ -3,8 +3,9 @@ metadata:
   id: profile.backend-java
   name: Backend Java Profile Rulebook (v2.2)
   version: '1.0'
-  schema_version: '1.0.0'
+  schema_version: 1.1.0
   status: active
+  description: ''
 phase_integration:
   phases:
   - phase_1
@@ -19,7 +20,8 @@ anti_patterns:
 - id: AP-J01
   title: 'Pattern:'
   detects:
-  - '`if`/`switch` statements in controller methods that branch on domain state rather than HTTP concerns (content negotiation, auth).
+  - '`if`/`switch` statements in controller methods that branch on domain state rather
+    than HTTP concerns (content negotiation, auth).
 
 
     ---'
@@ -27,7 +29,8 @@ anti_patterns:
 - id: AP-J02
   title: 'Pattern:'
   detects:
-  - 'Entity classes with no methods beyond getters/setters/constructors; services with inline validation/calculation that belongs to one entity.
+  - 'Entity classes with no methods beyond getters/setters/constructors; services
+    with inline validation/calculation that belongs to one entity.
 
 
     ---'
@@ -35,7 +38,8 @@ anti_patterns:
 - id: AP-J03
   title: 'Pattern:'
   detects:
-  - 'Direct calls to `Instant.now()`, `System.currentTimeMillis()`, `Thread.sleep()`, or `UUID.randomUUID()` in test code without injectable seams.
+  - 'Direct calls to `Instant.now()`, `System.currentTimeMillis()`, `Thread.sleep()`,
+    or `UUID.randomUUID()` in test code without injectable seams.
 
 
     ---'
@@ -43,7 +47,8 @@ anti_patterns:
 - id: AP-J04
   title: 'Pattern:'
   detects:
-  - 'Controller return types or `@RequestBody` types that are `@Entity`-annotated classes.
+  - 'Controller return types or `@RequestBody` types that are `@Entity`-annotated
+    classes.
 
 
     ---'
@@ -51,7 +56,8 @@ anti_patterns:
 - id: AP-J05
   title: 'Pattern:'
   detects:
-  - '`catch` blocks that only log without rethrowing, wrapping, or returning an error response.
+  - '`catch` blocks that only log without rethrowing, wrapping, or returning an error
+    response.
 
 
     ---'
@@ -75,7 +81,8 @@ anti_patterns:
 - id: AP-J08
   title: 'Pattern:'
   detects:
-  - 'Heavy use of Mockito `verify(...)` with exact call counts and argument matchers, without corresponding behavioral assertions.
+  - 'Heavy use of Mockito `verify(...)` with exact call counts and argument matchers,
+    without corresponding behavioral assertions.
 
 
     ---'
@@ -83,7 +90,8 @@ anti_patterns:
 - id: AP-J09
   title: 'Pattern:'
   detects:
-  - '`@Transactional` methods that call `RestTemplate`, `WebClient`, `KafkaTemplate`, or similar external clients.
+  - '`@Transactional` methods that call `RestTemplate`, `WebClient`, `KafkaTemplate`,
+    or similar external clients.
 
 
     ---'
@@ -91,7 +99,8 @@ anti_patterns:
 - id: AP-J10
   title: 'Pattern:'
   detects:
-  - '`@Data` on entities/domain objects; public setters on business-critical fields; scattered `entity.setField(...)` calls outside domain methods.
+  - '`@Data` on entities/domain objects; public setters on business-critical fields;
+    scattered `entity.setField(...)` calls outside domain methods.
 
 
     ---'
