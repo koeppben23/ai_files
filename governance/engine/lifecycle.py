@@ -12,11 +12,14 @@ from governance.infrastructure.artifact_integrity import verify_ruleset_integrit
 from governance.infrastructure.fs_atomic import atomic_write_json
 
 
+MAX_ROLLBACK_DEPTH = 5
+
+
 def _read_paths_document(paths_file: Path) -> dict[str, Any]:
     """Load governance paths document or initialize default structure."""
 
     if not paths_file.exists():
-        return {"paths": {}, "engineLifecycle": {"active": {}, "previous": {}, "audit_trail": []}}
+        return {"paths": {}, "engineLifecycle": {"active": {}, "previous_stack": [], "audit_trail": []}}
     payload = json.loads(paths_file.read_text(encoding="utf-8"))
     if not isinstance(payload, dict):
         raise ValueError("governance.paths.json must be a JSON object")
@@ -28,8 +31,15 @@ def _read_paths_document(paths_file: Path) -> dict[str, Any]:
         payload["engineLifecycle"] = lifecycle
     if not isinstance(lifecycle.get("active"), dict):
         lifecycle["active"] = {}
-    if not isinstance(lifecycle.get("previous"), dict):
-        lifecycle["previous"] = {}
+    
+    # Backward compatibility: convert legacy "previous" dict to "previous_stack"
+    legacy_previous = lifecycle.get("previous")
+    if isinstance(legacy_previous, dict) and legacy_previous:
+        lifecycle["previous_stack"] = [legacy_previous]
+        del lifecycle["previous"]
+    
+    if not isinstance(lifecycle.get("previous_stack"), list):
+        lifecycle["previous_stack"] = []
     if not isinstance(lifecycle.get("audit_trail"), list):
         lifecycle["audit_trail"] = []
     return payload
@@ -67,12 +77,14 @@ def stage_engine_activation(
     payload = _read_paths_document(paths_file)
     lifecycle = payload["engineLifecycle"]
     active = dict(lifecycle["active"])
-    previous = dict(lifecycle["previous"])
+    previous_stack = list(lifecycle["previous_stack"])
 
     if active:
-        previous = active
+        previous_stack.append(active)
+        if len(previous_stack) > MAX_ROLLBACK_DEPTH:
+            previous_stack = previous_stack[-MAX_ROLLBACK_DEPTH:]
 
-    lifecycle["previous"] = previous
+    lifecycle["previous_stack"] = previous_stack
     lifecycle["active"] = {
         "version": engine_version,
         "sha256": engine_sha256,
@@ -84,7 +96,7 @@ def stage_engine_activation(
             "type": "activation_staged",
             "observed_at": observed_at,
             "active_version": engine_version,
-            "previous_version": previous.get("version", ""),
+            "stack_depth": len(previous_stack),
         }
     )
     _atomic_write_json(paths_file, payload)
@@ -103,28 +115,30 @@ def rollback_engine_activation(
     payload = _read_paths_document(paths_file)
     lifecycle = payload["engineLifecycle"]
     active = dict(lifecycle.get("active", {}))
-    previous = dict(lifecycle.get("previous", {}))
+    previous_stack = list(lifecycle.get("previous_stack", []))
 
-    if not previous:
+    if not previous_stack:
         lifecycle["audit_trail"].append(
             {
                 "type": "automatic_rollback_skipped",
                 "observed_at": observed_at,
                 "trigger": trigger,
-                "reason": "no_previous_pointer",
+                "reason": "empty_stack",
             }
         )
         _atomic_write_json(paths_file, payload)
         return payload
 
-    lifecycle["active"] = previous
-    lifecycle["previous"] = active
+    recovered = previous_stack.pop()
+    lifecycle["previous_stack"] = previous_stack
+    lifecycle["active"] = recovered
     lifecycle["audit_trail"].append(
         {
             "type": "automatic_rollback",
             "observed_at": observed_at,
             "trigger": trigger,
-            "recovered_version": previous.get("version", ""),
+            "recovered_version": recovered.get("version", ""),
+            "remaining_stack_depth": len(previous_stack),
             "deviation": {
                 "type": "DEVIATION",
                 "scope": "engine_lifecycle",
