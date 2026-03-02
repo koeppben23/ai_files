@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Mapping
 
+from governance.domain.strict_exit_evaluator import StrictExitResult
 from governance.kernel.phase_kernel import RuntimeContext, api_in_scope as _api_in_scope, execute
 from governance.kernel.phase_kernel import _external_api_artifacts, _openapi_signal
 
@@ -21,6 +22,7 @@ class RoutedPhase:
     spec_loaded_at: str = ""
     log_paths: dict[str, str] | None = None
     event_id: str = ""
+    strict_exit_result: StrictExitResult | None = None
 
 
 def route_phase(
@@ -55,6 +57,7 @@ def route_phase(
         spec_loaded_at=result.spec_loaded_at,
         log_paths=result.log_paths,
         event_id=result.event_id,
+        strict_exit_result=result.strict_exit_result,
     )
 
 
