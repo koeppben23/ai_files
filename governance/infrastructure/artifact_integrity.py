@@ -50,7 +50,11 @@ class VerificationResult:
 
 
 def _sha256(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()
+    # Normalize CRLF → LF before hashing so that hashes are identical on
+    # Windows (where git may checkout with CRLF) and Unix (LF).  The stored
+    # hashes in hashes.json were generated from LF content.
+    data = path.read_bytes().replace(b"\r\n", b"\n")
+    return hashlib.sha256(data).hexdigest()
 
 
 # Files that must be present and hash-verified in every governance release.
