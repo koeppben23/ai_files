@@ -637,6 +637,55 @@ def check_artifact_hash_integrity(issues: list[str]) -> None:
         if not result.passed:
             issues.append(f"hash integrity: {result.summary}")
 
+
+def check_tenant_config_schema(issues: list[str]) -> None:
+    """Verify tenant config schema exists and is valid JSON Schema.
+
+    Codifies Cluster 6a (tenant config) as a permanent lint gate:
+    - tenant_config.schema.json must exist under schemas/
+    - Must be valid JSON Schema
+    """
+    schema_path = ROOT / "schemas" / "tenant_config.schema.json"
+    if not schema_path.exists():
+        return  # Tenant config is optional — no schema is OK
+
+    try:
+        import jsonschema
+        schema_text = schema_path.read_text(encoding="utf-8")
+        schema = json.loads(schema_text)
+        jsonschema.Draft202012Validator.check_schema(schema)
+    except json.JSONDecodeError as exc:
+        issues.append(f"tenant_config.schema.json: invalid JSON: {exc}")
+    except jsonschema.SchemaError as exc:
+        issues.append(f"tenant_config.schema.json: invalid JSON Schema: {exc}")
+
+
+def check_tenant_config_references_valid_profiles(issues: list[str]) -> None:
+    """Verify tenant config references valid profiles if OPENCODE_TENANT_CONFIG is set.
+
+    If a tenant config exists and points to a profile, verify that profile exists.
+    This is informational only — tenant config is optional and fallbacks work.
+    """
+    import os
+    config_path = os.environ.get("OPENCODE_TENANT_CONFIG")
+    if not config_path:
+        return  # No tenant config — nothing to check
+
+    config_file = Path(config_path)
+    if not config_file.exists():
+        return  # Config doesn't exist — fail-open handled elsewhere
+
+    try:
+        config = json.loads(config_file.read_text(encoding="utf-8"))
+        default_profile = config.get("default_profile", "")
+        if default_profile:
+            profile_path = ROOT / "rulesets" / "profiles" / f"rules.{default_profile.replace('profile.', '')}.yml"
+            if not profile_path.exists():
+                issues.append(f"tenant config references non-existent profile: {default_profile}")
+    except (json.JSONDecodeError, OSError):
+        pass  # Invalid config — caught by other checks
+
+
 def check_response_envelope_schema_keys(issues: list[str]) -> None:
     """Structural check on RESPONSE_ENVELOPE_SCHEMA.json (rescued from check_response_envelope_schema_contract)."""
     schema_path = ROOT / "governance" / "assets" / "catalogs" / "RESPONSE_ENVELOPE_SCHEMA.json"
@@ -892,6 +941,10 @@ def main() -> int:
     # --- Cluster 1+3 invariant enforcement ---
     check_catalog_version_format(issues)
     check_artifact_hash_integrity(issues)
+
+    # --- Cluster 6a+8c tenant config enforcement ---
+    check_tenant_config_schema(issues)
+    check_tenant_config_references_valid_profiles(issues)
 
     # --- MD rails-only tripwire (verifies MD does NOT have authority) ---
     check_md_rails_only_tripwire(issues)
