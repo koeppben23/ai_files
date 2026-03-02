@@ -105,6 +105,45 @@ Get-Content "$env:USERPROFILE\.config\opencode\commands\logs\error.log.jsonl"
 
 ### Phase Progress
 
+## Upgrading Governance
+
+For detailed upgrade/rollback procedures, see the
+[Operator Runbook](docs/operator-runbook.md).
+
+### Quick Upgrade
+
+```bash
+# 1. Pre-upgrade health check
+python scripts/validate_rulebook.py --all \
+  && python scripts/governance_lint.py \
+  && python scripts/migrate_rulebook_schema.py --check
+
+# 2. Backup
+cp -r rulesets/ rulesets.bak/
+
+# 3. Dry run
+python scripts/migrate_rulebook_schema.py --dry-run
+
+# 4. Apply migration
+python scripts/migrate_rulebook_schema.py --target-version <VERSION>
+
+# 5. Post-upgrade verification
+python scripts/validate_rulebook.py --all \
+  && python scripts/governance_lint.py \
+  && python scripts/migrate_rulebook_schema.py --check
+```
+
+### Quick Rollback
+
+If post-upgrade verification fails:
+
+```bash
+cp -r rulesets.bak/ rulesets/
+python scripts/migrate_rulebook_schema.py --check
+```
+
+Current rollback depth: **1 level** (engine pointer swap).
+
 ## Next Steps
 
 1. **Bootstrap guide**: [BOOTSTRAP.md](BOOTSTRAP.md)
@@ -112,6 +151,7 @@ Get-Content "$env:USERPROFILE\.config\opencode\commands\logs\error.log.jsonl"
 3. **Security model**: [docs/security-gates.md](docs/security-gates.md)
 4. **Install layout**: [docs/install-layout.md](docs/install-layout.md)
 5. **Governance invariants**: [docs/governance_invariants.md](docs/governance_invariants.md)
+6. **Operator runbook**: [docs/operator-runbook.md](docs/operator-runbook.md)
 
 ## Getting Help
 

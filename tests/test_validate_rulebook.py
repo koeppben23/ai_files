@@ -250,3 +250,99 @@ def test_main_all_with_invalid_fails(tmp_path: Path):
 
     exit_code = mod.main(["--all", "--repo-root", str(root)])
     assert exit_code == 1
+
+
+# ---------------------------------------------------------------------------
+# --json output tests (Cluster 5)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.governance
+def test_json_flag_produces_valid_json(tmp_path: Path):
+    """--json flag produces valid, parseable JSON output."""
+    root = tmp_path / "repo"
+    _write_schema(root)
+    _write_yml(root / "rulesets" / "core" / "a.yml", _valid_yml(kind="core"))
+
+    result = _run(["--all", "--json", "--repo-root", str(root)])
+    assert result.returncode == 0, f"stderr={result.stderr}"
+    report = json.loads(result.stdout)  # must not raise
+    assert isinstance(report, dict)
+
+
+@pytest.mark.governance
+def test_json_output_contains_required_fields(tmp_path: Path):
+    """JSON output contains schema, timestamp, files_checked, files_valid, files_invalid, results."""
+    root = tmp_path / "repo"
+    _write_schema(root)
+    _write_yml(root / "rulesets" / "profiles" / "a.yml", _valid_yml())
+    _write_yml(root / "rulesets" / "profiles" / "b.yml", _valid_yml())
+
+    result = _run(["--all", "--json", "--repo-root", str(root)])
+    assert result.returncode == 0, f"stderr={result.stderr}"
+    report = json.loads(result.stdout)
+
+    assert report["schema"] == "governance.validate-rulebook-report.v1"
+    assert "timestamp" in report
+    assert report["files_checked"] == 2
+    assert report["files_valid"] == 2
+    assert report["files_invalid"] == 0
+    assert isinstance(report["results"], list)
+    assert len(report["results"]) == 2
+    for entry in report["results"]:
+        assert "file" in entry
+        assert entry["valid"] is True
+        assert entry["errors"] == []
+
+
+@pytest.mark.governance
+def test_json_errors_match_human_readable_count(tmp_path: Path):
+    """JSON error count matches what the human-readable output would report."""
+    root = tmp_path / "repo"
+    _write_schema(root)
+    _write_yml(root / "rulesets" / "profiles" / "good.yml", _valid_yml())
+    _write_yml(root / "rulesets" / "profiles" / "bad.yml", "kind: 999\nmetadata: {}\n")
+
+    result = _run(["--all", "--json", "--repo-root", str(root)])
+    assert result.returncode == 1
+    report = json.loads(result.stdout)
+
+    assert report["files_checked"] == 2
+    assert report["files_invalid"] == 1
+    assert report["files_valid"] == 1
+
+    invalid_entries = [r for r in report["results"] if not r["valid"]]
+    assert len(invalid_entries) == 1
+    assert len(invalid_entries[0]["errors"]) > 0
+    # Each error must have path and message
+    for err in invalid_entries[0]["errors"]:
+        assert "path" in err
+        assert "message" in err
+
+
+@pytest.mark.governance
+def test_json_with_all_real_repo():
+    """--json --all on the real repo produces valid structured output."""
+    result = _run(["--all", "--json"])
+    assert result.returncode == 0, f"stderr={result.stderr}"
+    report = json.loads(result.stdout)
+
+    assert report["schema"] == "governance.validate-rulebook-report.v1"
+    assert report["files_checked"] == 21
+    assert report["files_valid"] == 21
+    assert report["files_invalid"] == 0
+    assert len(report["results"]) == 21
+
+
+@pytest.mark.governance
+def test_default_output_unchanged_no_json_flag(tmp_path: Path):
+    """Without --json, output is human-readable (backward compat)."""
+    root = tmp_path / "repo"
+    _write_schema(root)
+    _write_yml(root / "rulesets" / "profiles" / "a.yml", _valid_yml())
+
+    result = _run(["--all", "--repo-root", str(root)])
+    assert result.returncode == 0, f"stderr={result.stderr}"
+    # Human-readable output contains "OK" summary, NOT JSON braces
+    assert "OK" in result.stdout
+    assert result.stdout.strip()[0] != "{", "Default output should NOT be JSON"

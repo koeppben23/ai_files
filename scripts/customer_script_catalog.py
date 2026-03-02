@@ -92,7 +92,7 @@ def run_check(*, repo_root: Path, catalog_rel: Path) -> tuple[int, dict[str, obj
         {
             "status": "OK",
             "schema": CATALOG_SCHEMA,
-            "catalog_version": payload.get("catalog_version"),
+            "version": payload.get("version"),
             "script_count": len(entries),
             "customer_relevant_count": len(customer),
             "ship_in_release_count": len(shipped),

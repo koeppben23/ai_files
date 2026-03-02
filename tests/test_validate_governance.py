@@ -1782,3 +1782,86 @@ def test_profile_rulebooks_include_standard_operational_wrapper_headings():
     assert not offenders, "Profile rulebooks missing standard operational headings:\n" + "\n".join(
         [f"- {r}" for r in offenders]
     )
+
+
+# ---------------------------------------------------------------------------
+# Cluster 8 — Lint enforcement for version format + hash integrity
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.governance
+def test_lint_catches_catalog_with_non_semver3_version(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """check_catalog_version_format flags catalogs with non-semver-3 version."""
+    lint = _import_governance_lint()
+    fake_root = tmp_path / "repo"
+    catalogs = fake_root / "governance" / "assets" / "catalogs"
+    catalogs.mkdir(parents=True)
+    (catalogs / "MY_CATALOG.json").write_text(
+        json.dumps({"schema": "test.v1", "version": "1.0"}),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(lint, "ROOT", fake_root)
+
+    issues: list[str] = []
+    lint.check_catalog_version_format(issues)
+    assert any("semver-3" in i and "1.0" in i for i in issues), f"Expected semver-3 violation, got: {issues}"
+
+
+@pytest.mark.governance
+def test_lint_catches_catalog_with_legacy_version_key(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """check_catalog_version_format flags catalogs using catalog_version instead of version."""
+    lint = _import_governance_lint()
+    fake_root = tmp_path / "repo"
+    catalogs = fake_root / "governance" / "assets" / "catalogs"
+    catalogs.mkdir(parents=True)
+    (catalogs / "MY_CATALOG.json").write_text(
+        json.dumps({"schema": "test.v1", "catalog_version": 1, "version": "1.0.0"}),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(lint, "ROOT", fake_root)
+
+    issues: list[str] = []
+    lint.check_catalog_version_format(issues)
+    assert any("legacy key" in i and "catalog_version" in i for i in issues), f"Expected legacy key warning, got: {issues}"
+
+
+@pytest.mark.governance
+def test_lint_catches_stale_hashes_json(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """check_artifact_hash_integrity flags releases with stale hashes.json."""
+    lint = _import_governance_lint()
+    fake_root = tmp_path / "repo"
+
+    release_dir = fake_root / "rulesets" / "governance" / "0.1.0"
+    release_dir.mkdir(parents=True)
+
+    manifest = release_dir / "manifest.json"
+    lock = release_dir / "lock.json"
+    manifest.write_text('{"version": "0.1.0"}', encoding="utf-8")
+    lock.write_text('{"files": []}', encoding="utf-8")
+
+    # Write hashes.json with WRONG hashes (stale)
+    import hashlib
+    (release_dir / "hashes.json").write_text(
+        json.dumps({
+            "manifest.json": "0000000000000000000000000000000000000000000000000000000000000000",
+            "lock.json": "0000000000000000000000000000000000000000000000000000000000000000",
+        }),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(lint, "ROOT", fake_root)
+
+    issues: list[str] = []
+    lint.check_artifact_hash_integrity(issues)
+    assert any("integrity FAILED" in i for i in issues), f"Expected hash integrity failure, got: {issues}"
+
+
+@pytest.mark.governance
+def test_lint_passes_clean_version_and_hash_state():
+    """Both version format and hash integrity checks pass on the real repo."""
+    lint = _import_governance_lint()
+
+    issues: list[str] = []
+    lint.check_catalog_version_format(issues)
+    lint.check_artifact_hash_integrity(issues)
+    assert not issues, f"Expected clean state, got: {issues}"

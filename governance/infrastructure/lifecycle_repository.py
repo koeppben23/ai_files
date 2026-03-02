@@ -17,13 +17,14 @@ class EngineLifecycleRepository:
     def __init__(self, paths_file: Path):
         self.paths_file = paths_file
 
-    def stage_activation(self, *, engine_version: str, engine_sha256: str, ruleset_hash: str, now_utc: datetime | None = None) -> LifecycleState:
+    def stage_activation(self, *, engine_version: str, engine_sha256: str, ruleset_hash: str, now_utc: datetime | None = None, ruleset_dir: Path | None = None) -> LifecycleState:
         payload = stage_engine_activation(
             paths_file=self.paths_file,
             engine_version=engine_version,
             engine_sha256=engine_sha256,
             ruleset_hash=ruleset_hash,
             now_utc=now_utc,
+            ruleset_dir=ruleset_dir,
         )
         return LifecycleState(payload=payload)
 
