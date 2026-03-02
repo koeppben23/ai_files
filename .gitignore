@@ -3,5 +3,7 @@ dist/
  .pytest_cache/
  .venv/
  .DS_Store
+ logs/*.jsonl
+ governance/governance_lint_report.json
  !.gitignore
  !husky.sh
