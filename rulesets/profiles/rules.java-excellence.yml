@@ -3,8 +3,9 @@ metadata:
   id: profile.java-excellence
   name: Java Excellence Rulebook
   version: '1.0'
-  schema_version: '1.0.0'
+  schema_version: 1.1.0
   status: active
+  description: ''
 phase_integration:
   phases:
   - phase_4
@@ -19,60 +20,136 @@ patterns:
   enforces: []
   code_example:
     language: java
-    code: "// GOOD\n@Service\npublic class UserService {\n    private final UserRepository userRepository;\n    private final Clock clock;\n\n    public UserService(UserRepository userRepository, Clock clock) {\n        this.userRepository = userRepository;\n        this.clock = clock;\n    }\n\n    public User createUser(CreateUserCommand command) {\n        User user = User.create(command.name(), clock.instant());\n        return userRepository.save(user);\n    }\n}\n\n// BAD - field injection\n@Service\npublic class UserService {\n    @Autowired\n    private UserRepository userRepository;  // Hidden dependency\n\n    @Autowired\n    private Clock clock;  // Cannot be final\n}"
-  rationale: Explicit dependencies; enables unit testing without Spring context; `final` fields for immutability.
+    code: "// GOOD\n@Service\npublic class UserService {\n    private final UserRepository\
+      \ userRepository;\n    private final Clock clock;\n\n    public UserService(UserRepository\
+      \ userRepository, Clock clock) {\n        this.userRepository = userRepository;\n\
+      \        this.clock = clock;\n    }\n\n    public User createUser(CreateUserCommand\
+      \ command) {\n        User user = User.create(command.name(), clock.instant());\n\
+      \        return userRepository.save(user);\n    }\n}\n\n// BAD - field injection\n\
+      @Service\npublic class UserService {\n    @Autowired\n    private UserRepository\
+      \ userRepository;  // Hidden dependency\n\n    @Autowired\n    private Clock\
+      \ clock;  // Cannot be final\n}"
+  rationale: Explicit dependencies; enables unit testing without Spring context; `final`
+    fields for immutability.
 - id: PAT-J02
   title: 'Pattern:'
   enforces: []
   code_example:
     language: java
-    code: "// GOOD - rich domain\n@Entity\npublic class User {\n    @Id\n    private Long id;\n    private String name;\n    private Instant createdAt;\n    private UserStatus status;\n\n    protected User() {}  // JPA only\n\n    public static User create(String name, Instant createdAt) {\n        if (name == null || name.isBlank()) {\n            throw new ValidationException(\"name must not be blank\");\n        }\n        User user = new User();\n        user.id = null;  // Generated\n        user.name = name;\n        user.createdAt = createdAt;\n        user.status = UserStatus.ACTIVE;\n        return user;\n    }\n\n    public void deactivate(String reason) {\n        if (this.status == UserStatus.DEACTIVATED) {\n            throw new IllegalStateException(\"User already deactivated\");\n        }\n        this.status = UserStatus.DEACTIVATED;\n    }\n\n    public boolean isActive() {\n        return this.status == UserStatus.ACTIVE;\n    }\n}\n\n// BAD - anemic domain\n@Entity\n\
-      @Data  // Only getters/setters\npublic class User {\n    private Long id;\n    private String name;\n    private Instant createdAt;\n    private UserStatus status;\n    // No behavior - all logic in service\n}"
-  rationale: Invariants enforced at the entity; single source of truth for business rules; testable in isolation.
+    code: "// GOOD - rich domain\n@Entity\npublic class User {\n    @Id\n    private\
+      \ Long id;\n    private String name;\n    private Instant createdAt;\n    private\
+      \ UserStatus status;\n\n    protected User() {}  // JPA only\n\n    public static\
+      \ User create(String name, Instant createdAt) {\n        if (name == null ||\
+      \ name.isBlank()) {\n            throw new ValidationException(\"name must not\
+      \ be blank\");\n        }\n        User user = new User();\n        user.id\
+      \ = null;  // Generated\n        user.name = name;\n        user.createdAt =\
+      \ createdAt;\n        user.status = UserStatus.ACTIVE;\n        return user;\n\
+      \    }\n\n    public void deactivate(String reason) {\n        if (this.status\
+      \ == UserStatus.DEACTIVATED) {\n            throw new IllegalStateException(\"\
+      User already deactivated\");\n        }\n        this.status = UserStatus.DEACTIVATED;\n\
+      \    }\n\n    public boolean isActive() {\n        return this.status == UserStatus.ACTIVE;\n\
+      \    }\n}\n\n// BAD - anemic domain\n@Entity\n@Data  // Only getters/setters\n\
+      public class User {\n    private Long id;\n    private String name;\n    private\
+      \ Instant createdAt;\n    private UserStatus status;\n    // No behavior - all\
+      \ logic in service\n}"
+  rationale: Invariants enforced at the entity; single source of truth for business
+    rules; testable in isolation.
 - id: PAT-J03
   title: 'Pattern:'
   enforces: []
   code_example:
     language: java
-    code: "// GOOD\n@RestController\n@RequestMapping(\"/users\")\npublic class UserController {\n    private final UserService userService;\n    private final UserMapper userMapper;\n\n    @PostMapping\n    public ResponseEntity<UserResponse> create(@Valid @RequestBody CreateUserRequest request) {\n        CreateUserCommand command = userMapper.toCommand(request);\n        User user = userService.createUser(command);\n        UserResponse response = userMapper.toResponse(user);\n        return ResponseEntity.status(201).body(response);\n    }\n}\n\n@Component\npublic class UserMapper {\n    public CreateUserCommand toCommand(CreateUserRequest request) {\n        return new CreateUserCommand(request.name());\n    }\n\n    public UserResponse toResponse(User user) {\n        return new UserResponse(\n            user.getId(),\n            user.getName(),\n            user.getCreatedAt(),\n            user.getStatus()\n        );\n    }\n}\n\n// BAD - entity exposure\n@RestController\npublic\
-      \ class UserController {\n    @PostMapping\n    public User create(@RequestBody User user) {  // Entity as request/response\n        return userRepository.save(user);  // Lazy loading issues, contract coupling\n    }\n}"
-  rationale: Decouples API contract from persistence; prevents lazy-loading issues; explicit field selection.
+    code: "// GOOD\n@RestController\n@RequestMapping(\"/users\")\npublic class UserController\
+      \ {\n    private final UserService userService;\n    private final UserMapper\
+      \ userMapper;\n\n    @PostMapping\n    public ResponseEntity<UserResponse> create(@Valid\
+      \ @RequestBody CreateUserRequest request) {\n        CreateUserCommand command\
+      \ = userMapper.toCommand(request);\n        User user = userService.createUser(command);\n\
+      \        UserResponse response = userMapper.toResponse(user);\n        return\
+      \ ResponseEntity.status(201).body(response);\n    }\n}\n\n@Component\npublic\
+      \ class UserMapper {\n    public CreateUserCommand toCommand(CreateUserRequest\
+      \ request) {\n        return new CreateUserCommand(request.name());\n    }\n\
+      \n    public UserResponse toResponse(User user) {\n        return new UserResponse(\n\
+      \            user.getId(),\n            user.getName(),\n            user.getCreatedAt(),\n\
+      \            user.getStatus()\n        );\n    }\n}\n\n// BAD - entity exposure\n\
+      @RestController\npublic class UserController {\n    @PostMapping\n    public\
+      \ User create(@RequestBody User user) {  // Entity as request/response\n   \
+      \     return userRepository.save(user);  // Lazy loading issues, contract coupling\n\
+      \    }\n}"
+  rationale: Decouples API contract from persistence; prevents lazy-loading issues;
+    explicit field selection.
 - id: PAT-J04
   title: 'Pattern:'
   enforces: []
   code_example:
     language: java
-    code: "// GOOD - production\n@Service\npublic class UserService {\n    private final Clock clock;\n\n    public UserService(Clock clock) {\n        this.clock = clock;\n    }\n\n    public User createUser(String name) {\n        return User.create(name, clock.instant());\n    }\n}\n\n// GOOD - test\nclass UserServiceTest {\n    private static final Instant FIXED_TIME = Instant.parse(\"2026-01-31T12:00:00Z\");\n    private static final Clock FIXED_CLOCK = Clock.fixed(FIXED_TIME, ZoneOffset.UTC);\n\n    @Test\n    void createUser_setsCreatedAt() {\n        var service = new UserService(FIXED_CLOCK, fakeRepository);\n        var user = service.createUser(\"Alice\");\n        assertThat(user.getCreatedAt()).isEqualTo(FIXED_TIME);\n    }\n}\n\n// BAD - Instant.now() in production\npublic User createUser(String name) {\n    return User.create(name, Instant.now());  // Untestable\n}"
+    code: "// GOOD - production\n@Service\npublic class UserService {\n    private\
+      \ final Clock clock;\n\n    public UserService(Clock clock) {\n        this.clock\
+      \ = clock;\n    }\n\n    public User createUser(String name) {\n        return\
+      \ User.create(name, clock.instant());\n    }\n}\n\n// GOOD - test\nclass UserServiceTest\
+      \ {\n    private static final Instant FIXED_TIME = Instant.parse(\"2026-01-31T12:00:00Z\"\
+      );\n    private static final Clock FIXED_CLOCK = Clock.fixed(FIXED_TIME, ZoneOffset.UTC);\n\
+      \n    @Test\n    void createUser_setsCreatedAt() {\n        var service = new\
+      \ UserService(FIXED_CLOCK, fakeRepository);\n        var user = service.createUser(\"\
+      Alice\");\n        assertThat(user.getCreatedAt()).isEqualTo(FIXED_TIME);\n\
+      \    }\n}\n\n// BAD - Instant.now() in production\npublic User createUser(String\
+      \ name) {\n    return User.create(name, Instant.now());  // Untestable\n}"
   rationale: Deterministic tests; reproducible failures; no time-dependent flakiness.
 - id: PAT-J05
   title: 'Pattern:'
   enforces: []
   code_example:
     language: java
-    code: "// GOOD\npublic class UserNotFoundException extends RuntimeException {\n    public UserNotFoundException(Long userId) {\n        super(\"User not found: \" + userId);\n    }\n}\n\npublic class ValidationException extends RuntimeException {\n    private final String field;\n\n    public ValidationException(String field, String message) {\n        super(message);\n        this.field = field;\n    }\n}\n\n@RestControllerAdvice\npublic class GlobalExceptionHandler {\n    @ExceptionHandler(UserNotFoundException.class)\n    public ResponseEntity<ErrorResponse> handleUserNotFound(UserNotFoundException e) {\n        return ResponseEntity.status(404)\n            .body(new ErrorResponse(\"USER_NOT_FOUND\", e.getMessage()));\n    }\n\n    @ExceptionHandler(ValidationException.class)\n    public ResponseEntity<ErrorResponse> handleValidation(ValidationException e) {\n        return ResponseEntity.status(400)\n            .body(new ErrorResponse(\"VALIDATION_ERROR\", e.getMessage(), e.getField()));\n\
-      \    }\n}\n\n// BAD\ntry {\n    // ...\n} catch (Exception e) {\n    log.error(\"Error: {}\", e.getMessage());  // Swallowed, no recovery\n}"
-  rationale: Explicit error handling; proper HTTP status codes; errors are part of the API contract.
+    code: "// GOOD\npublic class UserNotFoundException extends RuntimeException {\n\
+      \    public UserNotFoundException(Long userId) {\n        super(\"User not found:\
+      \ \" + userId);\n    }\n}\n\npublic class ValidationException extends RuntimeException\
+      \ {\n    private final String field;\n\n    public ValidationException(String\
+      \ field, String message) {\n        super(message);\n        this.field = field;\n\
+      \    }\n}\n\n@RestControllerAdvice\npublic class GlobalExceptionHandler {\n\
+      \    @ExceptionHandler(UserNotFoundException.class)\n    public ResponseEntity<ErrorResponse>\
+      \ handleUserNotFound(UserNotFoundException e) {\n        return ResponseEntity.status(404)\n\
+      \            .body(new ErrorResponse(\"USER_NOT_FOUND\", e.getMessage()));\n\
+      \    }\n\n    @ExceptionHandler(ValidationException.class)\n    public ResponseEntity<ErrorResponse>\
+      \ handleValidation(ValidationException e) {\n        return ResponseEntity.status(400)\n\
+      \            .body(new ErrorResponse(\"VALIDATION_ERROR\", e.getMessage(), e.getField()));\n\
+      \    }\n}\n\n// BAD\ntry {\n    // ...\n} catch (Exception e) {\n    log.error(\"\
+      Error: {}\", e.getMessage());  // Swallowed, no recovery\n}"
+  rationale: Explicit error handling; proper HTTP status codes; errors are part of
+    the API contract.
 - id: PAT-J06
   title: 'Pattern:'
   enforces: []
   code_example:
     language: java
-    code: "// GOOD - behavioral\nclass UserServiceTest {\n    @Test\n    void createUser_withValidInput_persistsUser() {\n        var command = new CreateUserCommand(\"Alice\");\n        var user = userService.createUser(command);\n        assertThat(user.getName()).isEqualTo(\"Alice\");\n        assertThat(user.isActive()).isTrue();\n        assertThat(fakeRepository.findById(user.getId())).isPresent();\n    }\n\n    @Test\n    void createUser_withBlankName_throwsValidationException() {\n        var command = new CreateUserCommand(\"\");\n        assertThatThrownBy(() -> userService.createUser(command))\n            .isInstanceOf(ValidationException.class)\n            .hasMessageContaining(\"name must not be blank\");\n    }\n}\n\n// BAD - overspecified\n@Test\nvoid createUser_callsRepository() {\n    userService.createUser(command);\n    verify(userRepository, times(1)).save(any());  // Tests implementation, not behavior\n}"
-  rationale: Tests survive refactoring; verify actual requirements, not implementation choices.
+    code: "// GOOD - behavioral\nclass UserServiceTest {\n    @Test\n    void createUser_withValidInput_persistsUser()\
+      \ {\n        var command = new CreateUserCommand(\"Alice\");\n        var user\
+      \ = userService.createUser(command);\n        assertThat(user.getName()).isEqualTo(\"\
+      Alice\");\n        assertThat(user.isActive()).isTrue();\n        assertThat(fakeRepository.findById(user.getId())).isPresent();\n\
+      \    }\n\n    @Test\n    void createUser_withBlankName_throwsValidationException()\
+      \ {\n        var command = new CreateUserCommand(\"\");\n        assertThatThrownBy(()\
+      \ -> userService.createUser(command))\n            .isInstanceOf(ValidationException.class)\n\
+      \            .hasMessageContaining(\"name must not be blank\");\n    }\n}\n\n\
+      // BAD - overspecified\n@Test\nvoid createUser_callsRepository() {\n    userService.createUser(command);\n\
+      \    verify(userRepository, times(1)).save(any());  // Tests implementation,\
+      \ not behavior\n}"
+  rationale: Tests survive refactoring; verify actual requirements, not implementation
+    choices.
 anti_patterns:
 - id: AP-J-EXCEL-01
   title: 'Pattern:'
   detects:
   - '`if`/`switch` statements in controllers branching on domain state.'
-  recovery: 'Extract to service layer; controller only maps request → command, calls service, maps response.
+  recovery: 'Extract to service layer; controller only maps request → command, calls
+    service, maps response.
 
 
     ---'
 - id: AP-J-EXCEL-02
   title: 'Pattern:'
   detects:
-  - Entity classes with no business methods; services with validation that belongs in entities.
-  recovery: 'Move invariants and behavior to entities; services orchestrate use cases only.
+  - Entity classes with no business methods; services with validation that belongs
+    in entities.
+  recovery: 'Move invariants and behavior to entities; services orchestrate use cases
+    only.
 
 
     ---'

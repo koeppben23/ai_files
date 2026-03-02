@@ -3,8 +3,9 @@ metadata:
   id: profile.fallback-minimum
   name: Fallback Minimum Profile Rulebook
   version: '1.0'
-  schema_version: '1.0.0'
+  schema_version: 1.1.0
   status: active
+  description: ''
 activation:
   type: fallback
   conditions:

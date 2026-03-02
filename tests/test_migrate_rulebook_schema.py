@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import sys
 from pathlib import Path
 
 import pytest
@@ -236,3 +237,152 @@ def test_main_target_version_required_without_check():
     with pytest.raises(SystemExit) as exc_info:
         mod.main([])
     assert exc_info.value.code == 2
+
+
+# ---------------------------------------------------------------------------
+# Phase A.3 — Real migration 1.0.0 → 1.1.0
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.governance
+def test_migrate_1_0_0_to_1_1_0_adds_description(monkeypatch: pytest.MonkeyPatch):
+    """1.0.0 → 1.1.0 migration adds metadata.description and bumps schema_version."""
+    mod = _import_migrate()
+    rb = {
+        "kind": "profile",
+        "metadata": {
+            "id": "profile.test",
+            "name": "Test Profile",
+            "version": "1.0",
+            "status": "active",
+            "schema_version": "1.0.0",
+        },
+    }
+    result, log = mod.migrate_rulebook(rb, "1.1.0")
+    assert result["metadata"]["schema_version"] == "1.1.0"
+    assert result["metadata"]["description"] == ""
+    assert any("migrated 1.0.0 -> 1.1.0" in msg for msg in log)
+
+
+@pytest.mark.governance
+def test_migrate_1_0_0_to_1_1_0_preserves_existing_fields(monkeypatch: pytest.MonkeyPatch):
+    """1.0.0 → 1.1.0 migration preserves all existing metadata fields."""
+    mod = _import_migrate()
+    rb = {
+        "kind": "core",
+        "metadata": {
+            "id": "core.rules",
+            "name": "Core Rules",
+            "version": "1.0",
+            "status": "active",
+            "schema_version": "1.0.0",
+        },
+        "authority_index": {"entries": []},
+    }
+    result, log = mod.migrate_rulebook(rb, "1.1.0")
+    assert result["metadata"]["id"] == "core.rules"
+    assert result["metadata"]["name"] == "Core Rules"
+    assert result["metadata"]["version"] == "1.0"
+    assert result["metadata"]["status"] == "active"
+    assert result["kind"] == "core"
+    assert result["authority_index"] == {"entries": []}
+
+
+@pytest.mark.governance
+def test_migrate_1_0_0_to_1_1_0_dry_run_no_writes(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """--dry-run with --target-version 1.1.0 does not modify files."""
+    mod = _import_migrate()
+    fake_root = tmp_path / "repo"
+    _write_schema(fake_root, "1.1.0")
+    yml_path = fake_root / "rulesets" / "profiles" / "test.yml"
+    _write_yml(yml_path, _valid_yml("1.0.0"))
+    original = yml_path.read_text()
+    monkeypatch.setattr(mod, "ROOT", fake_root)
+
+    exit_code = mod.main(["--target-version", "1.1.0", "--dry-run"])
+    assert exit_code == 0
+    assert yml_path.read_text() == original
+
+
+@pytest.mark.governance
+def test_migrate_1_0_0_to_1_1_0_writes_on_apply(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """--target-version 1.1.0 (no --dry-run) writes migrated content to disk."""
+    mod = _import_migrate()
+    fake_root = tmp_path / "repo"
+    _write_schema(fake_root, "1.1.0")
+    yml_path = fake_root / "rulesets" / "profiles" / "test.yml"
+    _write_yml(yml_path, _valid_yml("1.0.0"))
+    monkeypatch.setattr(mod, "ROOT", fake_root)
+
+    exit_code = mod.main(["--target-version", "1.1.0"])
+    assert exit_code == 0
+
+    import yaml
+    migrated = yaml.safe_load(yml_path.read_text())
+    assert migrated["metadata"]["schema_version"] == "1.1.0"
+    assert migrated["metadata"]["description"] == ""
+
+
+@pytest.mark.governance
+def test_check_passes_after_migration(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """--check passes after migrating rulebooks to 1.1.0."""
+    mod = _import_migrate()
+    fake_root = tmp_path / "repo"
+    _write_schema(fake_root, "1.1.0")
+    yml_path = fake_root / "rulesets" / "profiles" / "test.yml"
+    _write_yml(yml_path, _valid_yml("1.0.0"))
+    monkeypatch.setattr(mod, "ROOT", fake_root)
+
+    # Migrate first
+    assert mod.main(["--target-version", "1.1.0"]) == 0
+    # Then check — should pass (same major version)
+    assert mod.check_all() == 0
+
+
+@pytest.mark.governance
+def test_schema_validates_migrated_rulebook(tmp_path: Path):
+    """Migrated 1.1.0 rulebook passes JSON Schema validation."""
+    mod = _import_migrate()
+    import jsonschema
+    schema_path = REPO_ROOT / "schemas" / "rulebook.schema.json"
+    schema = json.loads(schema_path.read_text())
+
+    rb = {
+        "kind": "profile",
+        "metadata": {
+            "id": "profile.test",
+            "name": "Test Profile",
+            "version": "1.0",
+            "status": "deprecated",
+            "schema_version": "1.0.0",
+        },
+    }
+    result, _log = mod.migrate_rulebook(rb, "1.1.0")
+    jsonschema.validate(result, schema)
+
+
+@pytest.mark.governance
+def test_main_check_on_real_repo_after_migration():
+    """--check on the real repository passes after 1.0.0 → 1.1.0 migration.
+
+    This test runs against the actual repo (no tmp_path) to verify that
+    all 21 rulebooks have been migrated and are compatible with the
+    current schema version.
+    """
+    mod = _import_migrate()
+    assert mod.main(["--check"]) == 0
+
+
+@pytest.mark.governance
+def test_build_ruleset_lock_succeeds_after_migration():
+    """build_ruleset_lock.py still succeeds after schema migration."""
+    import subprocess
+    result = subprocess.run(
+        [
+            sys.executable, str(REPO_ROOT / "scripts" / "build_ruleset_lock.py"),
+            "--ruleset-id", "governance",
+            "--version", "0.4.0",
+        ],
+        capture_output=True, text=True, cwd=str(REPO_ROOT),
+    )
+    assert result.returncode == 0, f"build_ruleset_lock.py failed:\n{result.stdout}\n{result.stderr}"
