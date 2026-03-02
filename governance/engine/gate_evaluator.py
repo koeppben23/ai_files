@@ -25,6 +25,11 @@ from governance.engine.reason_codes import (
     is_registered_reason_code,
 )
 
+from governance.domain.strict_exit_evaluator import (
+    StrictExitResult,
+    evaluate_strict_exit,
+)
+
 GateStatus = Literal["blocked", "warn", "ok", "not_verified"]
 P53Status = Literal["pending", "pass", "pass-with-exceptions", "fail"]
 P54Status = Literal["pending", "compliant", "compliant-with-exceptions", "gap-detected", "not-applicable"]
@@ -212,9 +217,9 @@ def evaluate_p54_business_rules_gate(
     if isinstance(business_rules, Mapping):
         rules_list = business_rules.get("Rules") or business_rules.get("rules")
         if isinstance(rules_list, list):
-            total_rules = len(rules_list)
             for rule in rules_list:
                 if isinstance(rule, Mapping):
+                    total_rules += 1
                     rule_id = rule.get("id") or rule.get("BR-ID") or ""
                     covered = rule.get("covered") or rule.get("implemented") or rule.get("tested")
                     if covered is True or covered == "true":
@@ -442,4 +447,28 @@ def evaluate_p6_prerequisites(
         p53_passed=p53_passed,
         p54_compliant=p54_compliant,
         p56_approved=p56_approved,
+    )
+
+
+def evaluate_strict_exit_gate(
+    *,
+    pass_criteria: list[Mapping[str, object]],
+    evidence_map: Mapping[str, Mapping[str, object]],
+    risk_tier: str = "unknown",
+    principal_strict: bool,
+) -> StrictExitResult:
+    """Engine-layer entry point for the strict-exit gate.
+
+    Integrates after P5.3/P5.4/P5.6/P6 gates, before phase transition.
+    Only blocks when ``principal_strict`` is ``True`` and critical evidence
+    criteria fail.
+    """
+    from datetime import datetime, timezone
+
+    return evaluate_strict_exit(
+        pass_criteria=pass_criteria,
+        evidence_map=evidence_map,
+        risk_tier=risk_tier,
+        now_utc=datetime.now(timezone.utc),
+        principal_strict=principal_strict,
     )

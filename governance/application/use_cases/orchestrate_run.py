@@ -13,6 +13,7 @@ from typing import Any, Mapping
 from governance.domain.evidence_policy import extract_verified_claim_evidence_ids
 from governance.domain.integrity import build_activation_hash, build_ruleset_hash
 from governance.domain.policy_precedence import resolve_widening_precedence
+from governance.domain.strict_exit_evaluator import StrictExitResult
 from governance.domain.reason_codes import (
     BLOCKED_ENGINE_SELFCHECK,
     BLOCKED_ACTIVATION_HASH_MISMATCH,
@@ -128,6 +129,7 @@ class EngineOrchestratorOutput:
     activation_hash: str
     reason_payload: dict[str, object]
     missing_evidence: tuple[str, ...]
+    strict_exit_result: StrictExitResult | None
     repo_doc_evidence: RepoDocEvidence | None
     precedence_events: tuple[dict[str, object], ...]
     prompt_events: tuple[dict[str, object], ...]
@@ -762,6 +764,7 @@ def run_engine_orchestrator(
         activation_hash=activation_hash,
         reason_payload=reason_payload,
         missing_evidence=stale_required_evidence if stale_required_evidence else missing_evidence,
+        strict_exit_result=None,
         repo_doc_evidence=repo_doc_evidence,
         precedence_events=tuple(precedence_events),
         prompt_events=tuple(prompt_events),

@@ -79,7 +79,7 @@ class SessionStateRepository:
         path: Path,
         *,
         rollout_phase: int = ROLLOUT_PHASE_DUAL_READ,
-        engine_version: str = "1.1.0",
+        engine_version: str = "1.2.0",
         legacy_compat_mode: bool | None = None,
     ):
         self.path = path

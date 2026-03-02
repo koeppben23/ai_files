@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Mapping, cast
+from typing import Any, Mapping, Sequence, cast
 import uuid
 
 from governance.application.dto.phase_next_action_contract import contains_ticket_prompt
@@ -11,6 +11,9 @@ from governance.domain.phase_state_machine import phase_rank
 from governance.infrastructure.adapters.logging.event_sink import write_jsonl_event
 from governance.infrastructure.binding_evidence_resolver import BindingEvidenceResolver
 from governance.infrastructure.logging.global_error_handler import emit_error_event
+
+from governance.engine.gate_evaluator import evaluate_strict_exit_gate
+from governance.engine import reason_codes
 
 from .phase_api_spec import PhaseApiSpec, PhaseApiSpecError, PhaseSpecEntry, load_phase_api
 
@@ -413,6 +416,94 @@ def _emit_phase_event(log_paths: Mapping[str, Path], event: dict[str, object]) -
     }
 
 
+@dataclass(frozen=True)
+class _CriteriaDedupeResult:
+    """Result of deduplicating pass_criteria by criterion_key."""
+
+    criteria: list[Mapping[str, object]]
+    conflicts: list[str]  # Human-readable conflict descriptions
+    had_duplicates: bool
+
+
+def _deduplicate_criteria(
+    raw_criteria: Sequence[Mapping[str, object]],
+) -> _CriteriaDedupeResult:
+    """Deduplicate pass_criteria by ``criterion_key``, merging to strictest.
+
+    Compatible duplicates (same ``artifact_kind``, same resolver config)
+    are merged with strictest-wins semantics:
+    * ``critical``: ``True`` wins over ``False``.
+    * ``threshold`` (static): higher value wins (= stricter minimum).
+
+    Incompatible duplicates (different ``artifact_kind``, different
+    ``threshold_mode`` or ``threshold_resolver``) are flagged as conflicts.
+    The caller decides how to handle conflicts (block vs. warn).
+    """
+    seen: dict[str, dict[str, object]] = {}   # criterion_key → merged entry
+    conflicts: list[str] = []
+    had_duplicates = False
+
+    # Fields that must be identical for compatibility.
+    _COMPAT_FIELDS = ("artifact_kind", "threshold_mode", "threshold_resolver")
+
+    for criterion in raw_criteria:
+        key = str(criterion.get("criterion_key", "")).strip()
+        if not key:
+            # No criterion_key → pass through unmodified (not dedup-able).
+            key = f"__anonymous_{id(criterion)}"
+            seen[key] = dict(criterion)
+            continue
+
+        if key not in seen:
+            seen[key] = dict(criterion)
+            continue
+
+        # Duplicate detected.
+        had_duplicates = True
+        existing = seen[key]
+
+        # Check compatibility on identity-fields.
+        incompatible_fields: list[str] = []
+        for field in _COMPAT_FIELDS:
+            existing_val = existing.get(field)
+            new_val = criterion.get(field)
+            # Treat None/missing as equivalent.
+            if existing_val is None and new_val is None:
+                continue
+            if existing_val != new_val:
+                incompatible_fields.append(
+                    f"{field}: {existing_val!r} vs {new_val!r}"
+                )
+
+        if incompatible_fields:
+            detail = "; ".join(incompatible_fields)
+            conflicts.append(
+                f"criterion_key={key!r}: incompatible definitions — {detail}"
+            )
+            # Keep the existing entry; conflict is flagged for the caller.
+            continue
+
+        # Compatible duplicate → merge to strictest.
+        # critical: True wins.
+        if criterion.get("critical") is True:
+            existing["critical"] = True
+
+        # threshold (static): higher = stricter minimum.
+        new_threshold = criterion.get("threshold")
+        old_threshold = existing.get("threshold")
+        if isinstance(new_threshold, (int, float)) and isinstance(old_threshold, (int, float)):
+            if new_threshold > old_threshold:
+                existing["threshold"] = new_threshold
+        elif isinstance(new_threshold, (int, float)) and old_threshold is None:
+            existing["threshold"] = new_threshold
+
+    return _CriteriaDedupeResult(
+        criteria=list(seen.values()),
+        conflicts=conflicts,
+        had_duplicates=had_duplicates,
+    )
+
+
 def execute(
     *,
     current_token: str,
@@ -526,23 +617,26 @@ def execute(
         },
     )
 
-    def _blocked_result(*, phase: str, token: str, active_gate: str, next_gate_condition: str, source: str, reason: str) -> KernelResult:
+    def _blocked_result(*, phase: str, token: str, active_gate: str, next_gate_condition: str, source: str, reason: str, detail: dict[str, object] | None = None) -> KernelResult:
+        event_payload: dict[str, object] = {
+            "schema": "opencode.phase-flow.v1",
+            "ts_utc": _utc_now(),
+            "event_id": event_id,
+            "event": "PHASE_BLOCKED",
+            "source": _normalize_source(source),
+            "phase": phase,
+            "phase_token": token,
+            "next_token": token,
+            "status": "BLOCKED",
+            "reason": reason,
+            "spec_hash": spec.stable_hash,
+            "spec_path": str(spec.path),
+        }
+        if detail is not None:
+            event_payload["strict_exit_detail"] = detail
         written, result_paths = _emit_phase_event(
             log_paths,
-            {
-                "schema": "opencode.phase-flow.v1",
-                "ts_utc": _utc_now(),
-                "event_id": event_id,
-                "event": "PHASE_BLOCKED",
-                "source": _normalize_source(source),
-                "phase": phase,
-                "phase_token": token,
-                "next_token": token,
-                "status": "BLOCKED",
-                "reason": reason,
-                "spec_hash": spec.stable_hash,
-                "spec_path": str(spec.path),
-            },
+            event_payload,
         )
         if not written:
             emit_error_event(
@@ -702,6 +796,110 @@ def execute(
             source="phase-exit-evidence-missing",
             reason=exit_reason,
         )
+
+    # ── Strict-exit gate (principal_strict enforcement) ──────────
+    _policy_mode = state.get("PolicyMode")
+    _principal_strict = (
+        isinstance(_policy_mode, Mapping)
+        and _policy_mode.get("principal_strict") is True
+    )
+    _phase_exit_contract = state.get("phase_exit_contract")
+    if isinstance(_phase_exit_contract, list) and _phase_exit_contract:
+        # Build pass_criteria matching the current phase token
+        _phase_key = f"phase_{chosen_token.replace('.', '_')}"
+        _criteria: list[Mapping[str, object]] = []
+        for _pec in _phase_exit_contract:
+            if isinstance(_pec, Mapping) and str(_pec.get("phase", "")) == _phase_key:
+                raw_criteria = _pec.get("pass_criteria")
+                if isinstance(raw_criteria, list):
+                    for c in raw_criteria:
+                        if isinstance(c, Mapping):
+                            _criteria.append(c)
+        if _criteria:
+            # ── Deduplicate criteria from multiple profiles ──────
+            _dedup = _deduplicate_criteria(_criteria)
+            if _dedup.conflicts and _principal_strict:
+                # Incompatible duplicate definitions under strict mode
+                # are contract conflicts → fail-closed.
+                _conflict_summary = "; ".join(_dedup.conflicts)
+                return _blocked_result(
+                    phase=entry.phase,
+                    token=chosen_token,
+                    active_gate="Strict Exit Gate",
+                    next_gate_condition=(
+                        f"PHASE_BLOCKED: {reason_codes.BLOCKED_STRICT_CONTRACT_MISSING} "
+                        f"(contract conflict: {_conflict_summary})"
+                    ),
+                    source="strict-exit-gate",
+                    reason=(
+                        f"strict-exit-gate: {reason_codes.BLOCKED_STRICT_CONTRACT_MISSING}"
+                    ),
+                    detail={
+                        "conflict_type": "incompatible_criteria_definitions",
+                        "conflicts": _dedup.conflicts,
+                    },
+                )
+            elif _dedup.conflicts:
+                # Non-strict mode: warn but continue with deduplicated set.
+                emit_error_event(
+                    severity="warning",
+                    code="CRITERIA_CONFLICT",
+                    message=(
+                        f"Duplicate criterion_key definitions with "
+                        f"incompatible values (non-strict, continuing): "
+                        f"{'; '.join(_dedup.conflicts)}"
+                    ),
+                )
+            _criteria = _dedup.criteria
+
+            _evidence_map: dict[str, Mapping[str, object]] = {}
+            _build_evidence = state.get("BuildEvidence")
+            if isinstance(_build_evidence, Mapping):
+                items = _build_evidence.get("items")
+                if isinstance(items, list):
+                    for item in items:
+                        if isinstance(item, Mapping):
+                            ak = item.get("artifact_kind")
+                            if isinstance(ak, str) and ak.strip():
+                                _evidence_map[ak.strip()] = item
+            _risk_tiering = state.get("RiskTiering")
+            _risk_tier = "unknown"
+            if isinstance(_risk_tiering, Mapping):
+                _rt = _risk_tiering.get("ActiveTier")
+                if isinstance(_rt, str) and _rt.strip():
+                    _risk_tier = _rt.strip().lower().replace("tier-", "")
+            _strict_result = evaluate_strict_exit_gate(
+                pass_criteria=_criteria,
+                evidence_map=_evidence_map,
+                risk_tier=_risk_tier,
+                principal_strict=_principal_strict,
+            )
+            if _strict_result.blocked:
+                _reason_codes_str = _strict_result.reason_codes[0] if _strict_result.reason_codes else reason_codes.BLOCKED_UNSPECIFIED
+                _strict_detail = asdict(_strict_result)
+                # Convert tuples to lists for JSON serialisation fidelity.
+                _strict_detail["criteria"] = [asdict(c) for c in _strict_result.criteria]
+                _strict_detail["reason_codes"] = list(_strict_result.reason_codes)
+                return _blocked_result(
+                    phase=entry.phase,
+                    token=chosen_token,
+                    active_gate="Strict Exit Gate",
+                    next_gate_condition=f"PHASE_BLOCKED: {_strict_result.summary}",
+                    source="strict-exit-gate",
+                    reason=f"strict-exit-gate: {_reason_codes_str}",
+                    detail=_strict_detail,
+                )
+        elif _principal_strict:
+            # Fail-closed: principal_strict is active but no criteria
+            # are defined for this phase — block the transition.
+            return _blocked_result(
+                phase=entry.phase,
+                token=chosen_token,
+                active_gate="Strict Exit Gate",
+                next_gate_condition=f"PHASE_BLOCKED: {reason_codes.BLOCKED_STRICT_CONTRACT_MISSING}",
+                source="strict-exit-gate",
+                reason=f"strict-exit-gate: {reason_codes.BLOCKED_STRICT_CONTRACT_MISSING}",
+            )
 
     next_token, source, override_active_gate, override_next_condition = _select_transition(entry, state)
     resolved_phase = entry.phase

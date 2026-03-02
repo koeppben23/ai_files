@@ -411,6 +411,71 @@ blocked_reasons:
       - "Or use variable-based path expression"
     message_template: "Degenerate target path. Provide complete path."
 
+  # Strict-exit enforcement (principal_strict mode)
+  BLOCKED-STRICT-EVIDENCE-MISSING:
+    reason_code: "BLOCKED-STRICT-EVIDENCE-MISSING"
+    surface: "state"
+    category: "gate"
+    trigger_description: "Critical pass criterion requires evidence that is entirely missing under principal_strict mode"
+    required_inputs:
+      - "Missing evidence artifact for the failing criterion"
+    quick_fix_commands:
+      - "Provide required evidence artifact"
+    resume_pointer: "Phase exit gate (strict-exit)"
+    recovery_steps:
+      - "Identify missing artifact from strict-exit result"
+      - "Collect or regenerate the required evidence"
+      - "Re-run phase transition"
+    message_template: "Strict exit blocked: missing evidence for {criterion}."
+
+  BLOCKED-STRICT-EVIDENCE-STALE:
+    reason_code: "BLOCKED-STRICT-EVIDENCE-STALE"
+    surface: "state"
+    category: "gate"
+    trigger_description: "Critical pass criterion evidence is stale (exceeds TTL) under principal_strict mode"
+    required_inputs:
+      - "Fresh evidence artifact for the failing criterion"
+    quick_fix_commands:
+      - "Refresh stale evidence artifact"
+    resume_pointer: "Phase exit gate (strict-exit)"
+    recovery_steps:
+      - "Identify stale artifact from strict-exit result"
+      - "Refresh the evidence within the allowed TTL"
+      - "Re-run phase transition"
+    message_template: "Strict exit blocked: stale evidence for {criterion}."
+
+  BLOCKED-STRICT-THRESHOLD:
+    reason_code: "BLOCKED-STRICT-THRESHOLD"
+    surface: "state"
+    category: "gate"
+    trigger_description: "Critical pass criterion score is below dynamic threshold under principal_strict mode"
+    required_inputs:
+      - "Improved score or evidence for the failing criterion"
+    quick_fix_commands:
+      - "Address criterion deficiency and re-evaluate"
+    resume_pointer: "Phase exit gate (strict-exit)"
+    recovery_steps:
+      - "Identify failing criterion from strict-exit result"
+      - "Improve score to meet or exceed the dynamic threshold"
+      - "Re-run phase transition"
+    message_template: "Strict exit blocked: threshold not met for {criterion}."
+
+  BLOCKED-STRICT-CONTRACT-MISSING:
+    reason_code: "BLOCKED-STRICT-CONTRACT-MISSING"
+    surface: "state"
+    category: "gate"
+    trigger_description: "principal_strict is active but no pass criteria are defined for the current phase (fail-closed)"
+    required_inputs:
+      - "phase_exit_contract entry with pass_criteria for the target phase"
+    quick_fix_commands:
+      - "Define pass_criteria in phase_exit_contract or disable principal_strict"
+    resume_pointer: "Phase exit gate (strict-exit)"
+    recovery_steps:
+      - "Add pass_criteria for the target phase in the phase_exit_contract"
+      - "Or disable principal_strict mode if strict enforcement is not required"
+      - "Re-run phase transition"
+    message_template: "Strict exit blocked: no contract criteria defined for phase {phase} under principal_strict mode."
+
 # Quick Fix Command Templates (Kernel-Enforced)
 quick_fix_templates:
   start: "opencode-governance-bootstrap"
