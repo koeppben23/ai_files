@@ -3,6 +3,8 @@
 Loads tenant configuration from the path specified by OPENCODE_TENANT_CONFIG
 environment variable. Falls back gracefully (fail-open) to auto-detection
 if the variable is not set or the file is invalid.
+
+Workspace-level overrides can be specified via OPENCODE_WORKSPACE_CONFIG.
 """
 
 from __future__ import annotations
@@ -15,6 +17,7 @@ from typing import Any
 
 
 TENANT_CONFIG_ENV = "OPENCODE_TENANT_CONFIG"
+WORKSPACE_CONFIG_ENV = "OPENCODE_WORKSPACE_CONFIG"
 TENANT_CONFIG_SCHEMA_VERSION = "1.0.0"
 
 
@@ -93,3 +96,69 @@ def get_default_profile() -> str | None:
     """
     config = load_tenant_config()
     return config.profile_id if config else None
+
+
+def load_workspace_config() -> TenantConfig | None:
+    """Load workspace-level configuration override.
+
+    Workspace config takes precedence over tenant config.
+    Specified via OPENCODE_WORKSPACE_CONFIG environment variable.
+
+    Returns:
+        TenantConfig if OPENCODE_WORKSPACE_CONFIG is set and valid,
+        None otherwise (fallback to tenant config or auto-detection).
+    """
+    config_path = os.environ.get(WORKSPACE_CONFIG_ENV)
+    if not config_path:
+        return None
+
+    path = Path(config_path)
+    if not path.exists():
+        return None
+
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return None
+
+    if not isinstance(data, dict):
+        return None
+
+    if data.get("version") != TENANT_CONFIG_SCHEMA_VERSION:
+        return None
+
+    required = ("tenant_id", "default_profile")
+    if not all(data.get(k) for k in required):
+        return None
+
+    allowed = data.get("allowed_addons", [])
+    blocked = data.get("blocked_addons", [])
+    audit = data.get("audit_verbosity", "standard")
+
+    return TenantConfig(
+        tenant_id=data["tenant_id"],
+        default_profile=data["default_profile"],
+        allowed_addons=tuple(allowed) if isinstance(allowed, list) else (),
+        blocked_addons=tuple(blocked) if isinstance(blocked, list) else (),
+        audit_verbosity=audit if audit in ("minimal", "standard", "verbose") else "standard",
+    )
+
+
+def get_profile_override() -> str | None:
+    """Get profile override, checking workspace first, then tenant.
+
+    Priority order:
+    1. OPENCODE_WORKSPACE_CONFIG (workspace-level, highest priority)
+    2. OPENCODE_TENANT_CONFIG (tenant-level)
+    3. None (fallback to auto-detection)
+
+    Returns:
+        Profile ID if any override is configured, None otherwise.
+    """
+    workspace = load_workspace_config()
+    if workspace:
+        return workspace.profile_id
+    tenant = load_tenant_config()
+    if tenant:
+        return tenant.profile_id
+    return None

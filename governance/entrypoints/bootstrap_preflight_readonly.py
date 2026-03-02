@@ -28,6 +28,7 @@ if _COMMANDS_HOME not in sys.path:
 
 from governance.entrypoints.command_profiles import render_command_profiles
 from governance.entrypoints.write_policy import writes_allowed, EFFECTIVE_MODE
+from governance.infrastructure.tenant_config import load_tenant_config, get_profile_override
 from governance.application.use_cases.phase_router import route_phase
 from governance.application.use_cases.session_state_helpers import with_kernel_result
 from governance.domain.phase_state_machine import normalize_phase_token, phase_rank
@@ -926,6 +927,16 @@ def _hydrate_transition_state(document: dict[str, object], *, repo_fingerprint: 
             inventory = {}
         inventory["Status"] = "completed" if api_in_scope(state) else "not-applicable"
         state["APIInventory"] = inventory
+
+    profile_override = get_profile_override()
+    if profile_override:
+        current_profile = state.get("ActiveProfile")
+        if current_profile is None or current_profile == "":
+            source = "workspace-config" if os.environ.get("OPENCODE_WORKSPACE_CONFIG") else "tenant-config"
+            tenant = load_tenant_config()
+            state["ActiveProfile"] = f"profile.{profile_override}"
+            state["ProfileSource"] = source
+            state["ProfileEvidence"] = f"{source}://{tenant.tenant_id if tenant else 'unknown'}/profile.{profile_override}"
 
     document["SESSION_STATE"] = state
     return document
