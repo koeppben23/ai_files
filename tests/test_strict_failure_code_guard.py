@@ -68,3 +68,34 @@ class TestFailureCodeGuard:
             f"Duplicate failure_codes found:\n"
             + "\n".join(f"  - {d}" for d in duplicates)
         )
+
+    def test_pass_criteria_use_criterion_key_not_criterion_id(self) -> None:
+        """v1.2.0 schema renamed criterion_id → criterion_key and
+        evidence_artifact → artifact_kind.  No YAML may use the old names."""
+        violations: list[str] = []
+        for yml_path in SHARED_YAMLS:
+            doc = yaml.safe_load(yml_path.read_text(encoding="utf-8"))
+            if not isinstance(doc, dict):
+                continue
+            for contract in doc.get("phase_exit_contract") or []:
+                phase = contract.get("phase", "?")
+                for criterion in contract.get("pass_criteria") or []:
+                    if "criterion_id" in criterion:
+                        violations.append(
+                            f"{yml_path.name} ({phase}): "
+                            "uses deprecated 'criterion_id' — must be 'criterion_key'"
+                        )
+                    if "evidence_artifact" in criterion:
+                        violations.append(
+                            f"{yml_path.name} ({phase}): "
+                            "uses deprecated 'evidence_artifact' — must be 'artifact_kind'"
+                        )
+                    if "criterion_key" not in criterion:
+                        violations.append(
+                            f"{yml_path.name} ({phase}): "
+                            "pass_criterion missing required 'criterion_key'"
+                        )
+        assert violations == [], (
+            "Deprecated or missing fields in pass_criteria:\n"
+            + "\n".join(f"  - {v}" for v in violations)
+        )

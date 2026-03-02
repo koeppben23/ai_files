@@ -459,3 +459,198 @@ class TestSummary:
             now_utc=NOW,
         )
         assert "WARN" in result.summary
+
+    def test_empty_criteria_distinct_summary(self) -> None:
+        """Empty criteria -> distinct 'no criteria defined' summary."""
+        result = evaluate_strict_exit(
+            pass_criteria=[],
+            evidence_map={},
+            principal_strict=True,
+            now_utc=NOW,
+        )
+        assert result.blocked is False
+        assert "no criteria defined" in result.summary
+        assert result.summary != "strict-exit OK: all criteria satisfied"
+
+
+# -----------------------------------------------------------------------
+# T-M4: Primary reason code determinism
+# -----------------------------------------------------------------------
+
+
+class TestPrimaryReasonCodeDeterminism:
+    """reason_codes[0] is the primary code -- stable criterion order."""
+
+    def test_multi_criterion_two_blocked_codes_first_is_primary(self) -> None:
+        """Two BLOCKED criteria -> reason_codes[0] is the first criterion's code."""
+        result = evaluate_strict_exit(
+            pass_criteria=[
+                _criterion("test_quality_gate", critical=True),
+                _criterion("rollback_safety_gate", critical=True),
+            ],
+            evidence_map={},
+            principal_strict=True,
+            now_utc=NOW,
+        )
+        assert result.blocked is True
+        assert len(result.reason_codes) == 2
+        # First code corresponds to the first criterion (stable order)
+        assert result.reason_codes[0] == BLOCKED_STRICT_EVIDENCE_MISSING
+
+
+# -----------------------------------------------------------------------
+# T-edge: Edge cases for threshold resolution and evidence handling
+# -----------------------------------------------------------------------
+
+
+class TestEdgeCases:
+    """Edge cases: non-finite values, None observed_at, empty strings."""
+
+    def test_float_inf_rejected(self) -> None:
+        """float('inf') must be rejected by threshold resolver."""
+        result = evaluate_strict_exit(
+            pass_criteria=[
+                _criterion(
+                    "test_quality_gate",
+                    critical=True,
+                    threshold_mode="dynamic_by_risk_tier",
+                    threshold_resolver="dynamic_by_risk_tier",
+                )
+            ],
+            evidence_map={"test_quality_gate": _evidence(FRESH_TS, value=float("inf"))},
+            principal_strict=True,
+            now_utc=NOW,
+        )
+        assert result.blocked is True
+        assert result.criteria[0].reason_code == BLOCKED_STRICT_THRESHOLD
+        assert "non-finite" in result.criteria[0].detail
+
+    def test_float_nan_rejected(self) -> None:
+        """float('nan') must be rejected by threshold resolver."""
+        result = evaluate_strict_exit(
+            pass_criteria=[
+                _criterion(
+                    "test_quality_gate",
+                    critical=True,
+                    threshold_mode="dynamic_by_risk_tier",
+                    threshold_resolver="dynamic_by_risk_tier",
+                )
+            ],
+            evidence_map={"test_quality_gate": _evidence(FRESH_TS, value=float("nan"))},
+            principal_strict=True,
+            now_utc=NOW,
+        )
+        assert result.blocked is True
+        assert result.criteria[0].reason_code == BLOCKED_STRICT_THRESHOLD
+        assert "non-finite" in result.criteria[0].detail
+
+    def test_observed_at_none_is_stale(self) -> None:
+        """Evidence with observed_at=None -> treated as stale."""
+        result = evaluate_strict_exit(
+            pass_criteria=[_criterion("test_quality_gate", critical=True)],
+            evidence_map={"test_quality_gate": {"observed_at": None}},
+            principal_strict=True,
+            now_utc=NOW,
+        )
+        assert result.blocked is True
+        assert result.criteria[0].reason_code == BLOCKED_STRICT_EVIDENCE_STALE
+
+    def test_observed_at_empty_string_is_stale(self) -> None:
+        """Evidence with observed_at='' -> treated as stale."""
+        result = evaluate_strict_exit(
+            pass_criteria=[_criterion("test_quality_gate", critical=True)],
+            evidence_map={"test_quality_gate": {"observed_at": ""}},
+            principal_strict=True,
+            now_utc=NOW,
+        )
+        assert result.blocked is True
+        assert result.criteria[0].reason_code == BLOCKED_STRICT_EVIDENCE_STALE
+
+    def test_evidence_value_none_unsupported_type(self) -> None:
+        """evidence_value=None -> unsupported type (not numeric)."""
+        result = evaluate_strict_exit(
+            pass_criteria=[
+                _criterion(
+                    "test_quality_gate",
+                    critical=True,
+                    threshold_mode="dynamic_by_risk_tier",
+                    threshold_resolver="dynamic_by_risk_tier",
+                )
+            ],
+            evidence_map={"test_quality_gate": {"observed_at": FRESH_TS, "value": None}},
+            principal_strict=True,
+            now_utc=NOW,
+        )
+        assert result.blocked is True
+        assert result.criteria[0].reason_code == BLOCKED_STRICT_THRESHOLD
+
+    def test_risk_tier_unknown_uses_default_threshold(self) -> None:
+        """risk_tier='unknown' -> default threshold (40%)."""
+        result = evaluate_strict_exit(
+            pass_criteria=[
+                _criterion(
+                    "test_quality_gate",
+                    critical=True,
+                    threshold_mode="dynamic_by_risk_tier",
+                    threshold_resolver="dynamic_by_risk_tier",
+                )
+            ],
+            evidence_map={"test_quality_gate": _evidence(FRESH_TS, value=50.0)},
+            risk_tier="unknown",
+            principal_strict=True,
+            now_utc=NOW,
+        )
+        # Default threshold for unknown = 40%, 50 >= 40 -> pass
+        assert result.blocked is False
+
+    def test_criterion_key_differs_from_artifact_kind(self) -> None:
+        """criterion_key and artifact_kind can be different values."""
+        result = evaluate_strict_exit(
+            pass_criteria=[{
+                "criterion_key": "MY-CUSTOM-KEY",
+                "artifact_kind": "test_quality_gate",
+                "critical": True,
+            }],
+            evidence_map={"test_quality_gate": _evidence(FRESH_TS, value=100)},
+            principal_strict=True,
+            now_utc=NOW,
+        )
+        assert result.criteria[0].criterion_key == "MY-CUSTOM-KEY"
+        assert result.criteria[0].artifact_kind == "test_quality_gate"
+        assert result.criteria[0].verdict == "ok"
+
+
+# -----------------------------------------------------------------------
+# T-detail: Assert detail field in results
+# -----------------------------------------------------------------------
+
+
+class TestDetailField:
+    """Assert that the detail field contains meaningful information."""
+
+    def test_blocked_missing_has_detail(self) -> None:
+        result = evaluate_strict_exit(
+            pass_criteria=[_criterion("test_quality_gate", critical=True)],
+            evidence_map={},
+            principal_strict=True,
+            now_utc=NOW,
+        )
+        assert result.criteria[0].detail == "critical evidence missing"
+
+    def test_blocked_stale_has_detail(self) -> None:
+        result = evaluate_strict_exit(
+            pass_criteria=[_criterion("test_quality_gate", critical=True)],
+            evidence_map={"test_quality_gate": _evidence(STALE_TS)},
+            principal_strict=True,
+            now_utc=NOW,
+        )
+        assert result.criteria[0].detail == "critical evidence stale"
+
+    def test_ok_has_detail(self) -> None:
+        result = evaluate_strict_exit(
+            pass_criteria=[_criterion("test_quality_gate", critical=True)],
+            evidence_map={"test_quality_gate": _evidence(FRESH_TS, value=100)},
+            principal_strict=True,
+            now_utc=NOW,
+        )
+        assert result.criteria[0].detail == "all checks passed"
