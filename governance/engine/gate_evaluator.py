@@ -219,6 +219,17 @@ def evaluate_p54_business_rules_gate(
         if isinstance(rules_list, list):
             for rule in rules_list:
                 if isinstance(rule, Mapping):
+                    has_rule_id = False
+                    for key in ("id", "BR-ID"):
+                        value = rule.get(key)
+                        if isinstance(value, str) and value.strip():
+                            has_rule_id = True
+                            break
+                    has_coverage_signal = any(
+                        key in rule for key in ("covered", "implemented", "tested")
+                    )
+                    if not has_rule_id and not has_coverage_signal:
+                        continue
                     total_rules += 1
                     rule_id = rule.get("id") or rule.get("BR-ID") or ""
                     covered = rule.get("covered") or rule.get("implemented") or rule.get("tested")
