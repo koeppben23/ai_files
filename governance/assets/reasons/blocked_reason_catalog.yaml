@@ -460,6 +460,22 @@ blocked_reasons:
       - "Re-run phase transition"
     message_template: "Strict exit blocked: threshold not met for {criterion}."
 
+  BLOCKED-STRICT-CONTRACT-MISSING:
+    reason_code: "BLOCKED-STRICT-CONTRACT-MISSING"
+    surface: "state"
+    category: "gate"
+    trigger_description: "principal_strict is active but no pass criteria are defined for the current phase (fail-closed)"
+    required_inputs:
+      - "phase_exit_contract entry with pass_criteria for the target phase"
+    quick_fix_commands:
+      - "Define pass_criteria in phase_exit_contract or disable principal_strict"
+    resume_pointer: "Phase exit gate (strict-exit)"
+    recovery_steps:
+      - "Add pass_criteria for the target phase in the phase_exit_contract"
+      - "Or disable principal_strict mode if strict enforcement is not required"
+      - "Re-run phase transition"
+    message_template: "Strict exit blocked: no contract criteria defined for phase {phase} under principal_strict mode."
+
 # Quick Fix Command Templates (Kernel-Enforced)
 quick_fix_templates:
   start: "opencode-governance-bootstrap"

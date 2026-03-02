@@ -345,32 +345,3 @@ def evaluate_strict_exit(
         reason_codes=reason_codes,
         summary=summary,
     )
-
-
-# ---------------------------------------------------------------------------
-# principal_strict derivation (fail-closed)
-# ---------------------------------------------------------------------------
-
-def resolve_principal_strict(
-    *,
-    profile_strict: bool | None = None,
-    override_strict: bool | None = None,
-    policy_strict: bool | None = None,
-) -> bool:
-    """Derive the effective ``principal_strict`` flag.
-
-    Resolution order (highest precedence first):
-        1. ``policy_strict``  — tenant-level policy override
-        2. ``override_strict`` — session/operator override
-        3. ``profile_strict``  — profile-level default
-
-    **Fail-closed**: If *any* source declares strict=True, the result is True.
-    This is intentionally NOT coupled to addon load status — if strict is
-    requested but required addons are missing, the gate will BLOCK
-    (not silently downgrade).
-    """
-    sources = [s for s in (policy_strict, override_strict, profile_strict) if s is not None]
-    if not sources:
-        return False
-    # Fail-closed: any True → True
-    return any(sources)

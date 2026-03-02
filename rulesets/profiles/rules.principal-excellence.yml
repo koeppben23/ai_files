@@ -44,19 +44,19 @@ verification_commands: []
 phase_exit_contract:
 - phase: phase_5
   pass_criteria:
-  - criterion_id: PRINCIPAL-QUALITY-CLAIMS-EVIDENCED
+  - criterion_key: PRINCIPAL-QUALITY-CLAIMS-EVIDENCED
     critical: true
-    evidence_artifact: principal_quality_claims
+    artifact_kind: principal_quality_claims
     threshold_mode: dynamic_by_risk_tier
     threshold_resolver: dynamic_by_risk_tier
-  - criterion_id: PRINCIPAL-DETERMINISM-AND-TEST-RIGOR
+  - criterion_key: PRINCIPAL-DETERMINISM-AND-TEST-RIGOR
     critical: true
-    evidence_artifact: test_quality_gate
+    artifact_kind: test_quality_gate
     threshold_mode: dynamic_by_risk_tier
     threshold_resolver: dynamic_by_risk_tier
-  - criterion_id: PRINCIPAL-ROLLBACK-OR-RECOVERY-READY
+  - criterion_key: PRINCIPAL-ROLLBACK-OR-RECOVERY-READY
     critical: true
-    evidence_artifact: rollback_safety_gate
+    artifact_kind: rollback_safety_gate
   blocking_conditions:
   - condition_id: BC-PE-MISSING-CRITICAL
     when: missing
@@ -87,15 +87,15 @@ phase_exit_contract:
     freshness_class: gate_evidence
 - phase: phase_6
   pass_criteria:
-  - criterion_id: PRINCIPAL-QUALITY-CLAIMS-EVIDENCED
+  - criterion_key: PRINCIPAL-QUALITY-CLAIMS-EVIDENCED
     critical: true
-    evidence_artifact: principal_quality_claims
-  - criterion_id: PRINCIPAL-DETERMINISM-AND-TEST-RIGOR
+    artifact_kind: principal_quality_claims
+  - criterion_key: PRINCIPAL-DETERMINISM-AND-TEST-RIGOR
     critical: true
-    evidence_artifact: test_quality_gate
-  - criterion_id: PRINCIPAL-ROLLBACK-OR-RECOVERY-READY
+    artifact_kind: test_quality_gate
+  - criterion_key: PRINCIPAL-ROLLBACK-OR-RECOVERY-READY
     critical: true
-    evidence_artifact: rollback_safety_gate
+    artifact_kind: rollback_safety_gate
   blocking_conditions:
   - condition_id: BC-PE-P6-MISSING-CRITICAL
     when: missing

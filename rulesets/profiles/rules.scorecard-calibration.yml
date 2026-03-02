@@ -49,12 +49,12 @@ verification_commands: []
 phase_exit_contract:
 - phase: phase_4
   pass_criteria:
-  - criterion_id: CAL-1-STANDARD-WEIGHTS
+  - criterion_key: CAL-1-STANDARD-WEIGHTS
     critical: false
-    evidence_artifact: scorecard_calibration
-  - criterion_id: CAL-2-CRITICAL-FLAG-NORMALIZATION
+    artifact_kind: scorecard_calibration
+  - criterion_key: CAL-2-CRITICAL-FLAG-NORMALIZATION
     critical: true
-    evidence_artifact: scorecard_calibration
+    artifact_kind: scorecard_calibration
   blocking_conditions:
   - condition_id: BC-SC-P4-MISSING-CRITICAL
     when: missing
@@ -69,14 +69,14 @@ phase_exit_contract:
     freshness_class: gate_evidence
 - phase: phase_5
   pass_criteria:
-  - criterion_id: CAL-3-TIER-SCORE-THRESHOLDS
+  - criterion_key: CAL-3-TIER-SCORE-THRESHOLDS
     critical: true
-    evidence_artifact: scorecard_calibration
+    artifact_kind: scorecard_calibration
     threshold_mode: dynamic_by_risk_tier
     threshold_resolver: dynamic_by_risk_tier
-  - criterion_id: CAL-4-CROSS-ADDON-COMPARABILITY
+  - criterion_key: CAL-4-CROSS-ADDON-COMPARABILITY
     critical: false
-    evidence_artifact: scorecard_calibration
+    artifact_kind: scorecard_calibration
   blocking_conditions:
   - condition_id: BC-SC-P5-MISSING-CRITICAL
     when: missing
@@ -99,12 +99,12 @@ phase_exit_contract:
     freshness_class: gate_evidence
 - phase: phase_6
   pass_criteria:
-  - criterion_id: CAL-5-SESSION-STATE-CALIBRATION-EVIDENCE
+  - criterion_key: CAL-5-SESSION-STATE-CALIBRATION-EVIDENCE
     critical: true
-    evidence_artifact: scorecard_calibration
-  - criterion_id: CAL-6-CALIBRATION-WARNING-CODE
+    artifact_kind: scorecard_calibration
+  - criterion_key: CAL-6-CALIBRATION-WARNING-CODE
     critical: false
-    evidence_artifact: scorecard_calibration
+    artifact_kind: scorecard_calibration
   blocking_conditions:
   - condition_id: BC-SC-P6-MISSING-CRITICAL
     when: missing

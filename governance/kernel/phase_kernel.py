@@ -757,6 +757,17 @@ def execute(
                     source="strict-exit-gate",
                     reason=f"strict-exit-gate: {_reason_codes_str}",
                 )
+        elif _principal_strict:
+            # Fail-closed: principal_strict is active but no criteria
+            # are defined for this phase — block the transition.
+            return _blocked_result(
+                phase=entry.phase,
+                token=chosen_token,
+                active_gate="Strict Exit Gate",
+                next_gate_condition=f"PHASE_BLOCKED: {reason_codes.BLOCKED_STRICT_CONTRACT_MISSING}",
+                source="strict-exit-gate",
+                reason=f"strict-exit-gate: {reason_codes.BLOCKED_STRICT_CONTRACT_MISSING}",
+            )
 
     next_token, source, override_active_gate, override_next_condition = _select_transition(entry, state)
     resolved_phase = entry.phase

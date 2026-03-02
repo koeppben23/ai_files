@@ -366,12 +366,12 @@
 
     "pass_criterion": {
       "type": "object",
-      "required": ["criterion_id", "critical", "evidence_artifact"],
+      "required": ["criterion_key", "critical", "artifact_kind"],
       "additionalProperties": false,
       "properties": {
-        "criterion_id": { "type": "string" },
+        "criterion_key": { "type": "string" },
         "critical": { "type": "boolean" },
-        "evidence_artifact": { "type": "string" },
+        "artifact_kind": { "type": "string" },
         "threshold": { "type": "number", "description": "Static threshold value. Mutually exclusive with threshold_mode." },
         "threshold_mode": {
           "type": "string",

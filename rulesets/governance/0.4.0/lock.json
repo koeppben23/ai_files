@@ -178,7 +178,7 @@
     },
     {
       "path": "rulesets/profiles/rules.principal-excellence.yml",
-      "sha256": "e7dc15ba7f68d9f2ddd1fce46eccf8c8edc45a85d09219247b163b293125a2dc"
+      "sha256": "d549b28af45dde8e782691b30c375ad1ffd1368c30ab5a03a2351245b9fb9d6c"
     },
     {
       "path": "rulesets/profiles/rules.python-excellence.yml",
@@ -186,11 +186,11 @@
     },
     {
       "path": "rulesets/profiles/rules.risk-tiering.yml",
-      "sha256": "9445082ead54e10a29876f5f1878f6de459d2a0cf5ff3e872712093518b3d6ca"
+      "sha256": "67edaa4af0522f1b75843e827e1c3698f426d15d891a25dbf192953a3667521f"
     },
     {
       "path": "rulesets/profiles/rules.scorecard-calibration.yml",
-      "sha256": "d68b5860f87a25b40b860126ae68a4eb17076b18fc984854e27f73f3341b6be2"
+      "sha256": "b137aa64b7d6f483c38d7b2e60364acc277cec0748df0b82ac81216dfab8f9a5"
     },
     {
       "path": "rulesets/profiles/rules.user-max-quality.yml",

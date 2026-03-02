@@ -46,12 +46,12 @@ verification_commands: []
 phase_exit_contract:
 - phase: phase_2
   pass_criteria:
-  - criterion_id: RTN-1-CANONICAL-TIER-ASSIGNED
+  - criterion_key: RTN-1-CANONICAL-TIER-ASSIGNED
     critical: true
-    evidence_artifact: risk_tier_assessment
-  - criterion_id: RTN-4-SESSION-STATE-SHAPE
+    artifact_kind: risk_tier_assessment
+  - criterion_key: RTN-4-SESSION-STATE-SHAPE
     critical: false
-    evidence_artifact: risk_tier_assessment
+    artifact_kind: risk_tier_assessment
   blocking_conditions:
   - condition_id: BC-RT-MISSING-CRITICAL
     when: missing
@@ -66,14 +66,14 @@ phase_exit_contract:
     freshness_class: gate_evidence
 - phase: phase_5
   pass_criteria:
-  - criterion_id: RTN-2-TIER-EVIDENCE-MINIMUMS
+  - criterion_key: RTN-2-TIER-EVIDENCE-MINIMUMS
     critical: true
-    evidence_artifact: risk_tier_assessment
+    artifact_kind: risk_tier_assessment
     threshold_mode: dynamic_by_risk_tier
     threshold_resolver: dynamic_by_risk_tier
-  - criterion_id: RTN-3-TIER-GATE-DECISION
+  - criterion_key: RTN-3-TIER-GATE-DECISION
     critical: true
-    evidence_artifact: risk_tier_assessment
+    artifact_kind: risk_tier_assessment
   blocking_conditions:
   - condition_id: BC-RT-P5-MISSING-CRITICAL
     when: missing
@@ -92,9 +92,9 @@ phase_exit_contract:
     freshness_class: gate_evidence
 - phase: phase_6
   pass_criteria:
-  - criterion_id: RTN-5-UNRESOLVED-TIER-REPORTED
+  - criterion_key: RTN-5-UNRESOLVED-TIER-REPORTED
     critical: false
-    evidence_artifact: risk_tier_assessment
+    artifact_kind: risk_tier_assessment
   blocking_conditions:
   - condition_id: BC-RT-P6-MISSING-NONCRIT
     when: missing

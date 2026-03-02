@@ -7,7 +7,7 @@ Covers the full blocking-grade decision matrix:
 critical: true      | BLOCKED       | BLOCKED        | BLOCKED         |
 critical: false     | NOT_VERIFIED  | NOT_VERIFIED   | WARN            |
 
-Plus non-strict mode (everything → WARN/OK) and resolve_principal_strict().
+Plus non-strict mode (everything -> WARN/OK) and resolve_principal_strict().
 """
 
 from datetime import datetime, timedelta, timezone
@@ -27,8 +27,8 @@ from governance.domain.strict_exit_evaluator import (
     StrictExitResult,
     evaluate_strict_exit,
     get_threshold_resolver,
-    resolve_principal_strict,
 )
+from governance.domain.models.policy_mode import resolve_principal_strict
 
 NOW = datetime(2026, 3, 1, 12, 0, 0, tzinfo=timezone.utc)
 FRESH_TS = (NOW - timedelta(hours=1)).isoformat()
