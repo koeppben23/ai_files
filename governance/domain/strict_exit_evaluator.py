@@ -319,9 +319,16 @@ def evaluate_strict_exit(
         )
 
     blocked = any(r.verdict == "blocked" for r in results)
-    reason_codes = tuple(
-        r.reason_code for r in results if r.reason_code != REASON_CODE_NONE
-    )
+    deduplicated_reason_codes: list[str] = []
+    seen_reason_codes: set[str] = set()
+    for result in results:
+        if result.reason_code == REASON_CODE_NONE:
+            continue
+        if result.reason_code in seen_reason_codes:
+            continue
+        deduplicated_reason_codes.append(result.reason_code)
+        seen_reason_codes.add(result.reason_code)
+    reason_codes = tuple(deduplicated_reason_codes)
 
     if blocked:
         blocked_criteria = [r for r in results if r.verdict == "blocked"]
