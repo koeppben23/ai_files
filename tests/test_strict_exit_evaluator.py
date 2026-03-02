@@ -10,6 +10,8 @@ critical: false     | NOT_VERIFIED  | NOT_VERIFIED   | WARN            |
 Plus non-strict mode (everything -> WARN/OK) and resolve_principal_strict().
 """
 
+from __future__ import annotations
+
 from datetime import datetime, timedelta, timezone
 
 import pytest

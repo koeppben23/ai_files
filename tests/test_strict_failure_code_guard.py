@@ -7,9 +7,9 @@ cannot recognise or route.
 from __future__ import annotations
 
 from pathlib import Path
+import re
 
 import pytest
-import yaml
 
 from governance.domain.reason_codes import CANONICAL_REASON_CODES
 
@@ -20,16 +20,101 @@ SHARED_YAMLS = sorted(
 
 
 def _extract_failure_codes(path: Path) -> list[str]:
-    """Extract all ``failure_codes[].code`` values from a YAML rulebook."""
-    text = path.read_text(encoding="utf-8")
-    doc = yaml.safe_load(text)
-    if not isinstance(doc, dict):
-        return []
+    """Extract ``failure_codes[].code`` values from rulebook YAML text.
+
+    The spec-guards CI lane installs only ``pytest`` for speed, so this parser
+    intentionally avoids external YAML dependencies.
+    """
+    lines = path.read_text(encoding="utf-8").splitlines()
+    in_failure_codes = False
     codes: list[str] = []
-    for entry in doc.get("failure_codes") or []:
-        if isinstance(entry, dict) and "code" in entry:
-            codes.append(str(entry["code"]).strip())
+
+    for line in lines:
+        if re.match(r"^failure_codes:\s*$", line):
+            in_failure_codes = True
+            continue
+        if not in_failure_codes:
+            continue
+        if line and not line.startswith(" ") and not line.startswith("-"):
+            break
+
+        match = re.match(r"^\s*-\s*code:\s*(\S.*?)\s*$", line)
+        if match:
+            codes.append(match.group(1).strip().strip('"').strip("'"))
+
     return codes
+
+
+def _collect_pass_criteria_violations(path: Path) -> list[str]:
+    """Validate pass_criteria entries in constrained rulebook YAML layout."""
+    lines = path.read_text(encoding="utf-8").splitlines()
+    violations: list[str] = []
+
+    current_phase = "?"
+    in_pass_criteria = False
+    pass_indent = -1
+
+    item_active = False
+    item_has_criterion_key = False
+
+    def flush_item() -> None:
+        nonlocal item_active, item_has_criterion_key
+        if item_active and not item_has_criterion_key:
+            violations.append(
+                f"{path.name} ({current_phase}): pass_criterion missing required 'criterion_key'"
+            )
+        item_active = False
+        item_has_criterion_key = False
+
+    for raw in lines:
+        phase_match = re.match(r"^\s*-\s*phase:\s*(\S.*?)\s*$", raw)
+        if phase_match:
+            flush_item()
+            current_phase = phase_match.group(1).strip().strip('"').strip("'")
+            in_pass_criteria = False
+            pass_indent = -1
+            continue
+
+        if not in_pass_criteria:
+            pass_match = re.match(r"^(\s*)pass_criteria:\s*$", raw)
+            if pass_match:
+                in_pass_criteria = True
+                pass_indent = len(pass_match.group(1))
+                flush_item()
+            continue
+
+        # Leaving the pass_criteria block (dedent to same-or-less indent)
+        if raw.strip() and (len(raw) - len(raw.lstrip(" "))) <= pass_indent:
+            flush_item()
+            in_pass_criteria = False
+            pass_indent = -1
+            continue
+
+        item_match = re.match(r"^\s*-\s*criterion_key:\s*(\S.*?)\s*$", raw)
+        if item_match:
+            flush_item()
+            item_active = True
+            item_has_criterion_key = True
+            continue
+
+        # New list item under pass_criteria that is not criterion_key.
+        if re.match(r"^\s*-\s*\S", raw):
+            flush_item()
+            item_active = True
+
+        if "criterion_id:" in raw:
+            violations.append(
+                f"{path.name} ({current_phase}): uses deprecated 'criterion_id' — must be 'criterion_key'"
+            )
+        if "evidence_artifact:" in raw:
+            violations.append(
+                f"{path.name} ({current_phase}): uses deprecated 'evidence_artifact' — must be 'artifact_kind'"
+            )
+        if "criterion_key:" in raw:
+            item_has_criterion_key = True
+
+    flush_item()
+    return violations
 
 
 @pytest.mark.governance
@@ -74,27 +159,7 @@ class TestFailureCodeGuard:
         evidence_artifact → artifact_kind.  No YAML may use the old names."""
         violations: list[str] = []
         for yml_path in SHARED_YAMLS:
-            doc = yaml.safe_load(yml_path.read_text(encoding="utf-8"))
-            if not isinstance(doc, dict):
-                continue
-            for contract in doc.get("phase_exit_contract") or []:
-                phase = contract.get("phase", "?")
-                for criterion in contract.get("pass_criteria") or []:
-                    if "criterion_id" in criterion:
-                        violations.append(
-                            f"{yml_path.name} ({phase}): "
-                            "uses deprecated 'criterion_id' — must be 'criterion_key'"
-                        )
-                    if "evidence_artifact" in criterion:
-                        violations.append(
-                            f"{yml_path.name} ({phase}): "
-                            "uses deprecated 'evidence_artifact' — must be 'artifact_kind'"
-                        )
-                    if "criterion_key" not in criterion:
-                        violations.append(
-                            f"{yml_path.name} ({phase}): "
-                            "pass_criterion missing required 'criterion_key'"
-                        )
+            violations.extend(_collect_pass_criteria_violations(yml_path))
         assert violations == [], (
             "Deprecated or missing fields in pass_criteria:\n"
             + "\n".join(f"  - {v}" for v in violations)

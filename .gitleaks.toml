@@ -30,3 +30,13 @@ stopwords = [
   "reason_key",
   "ERR-",
 ]
+
+[[allowlists]]
+description = "Rulebook criterion identifiers are governance metadata"
+paths = [
+  '''rulesets/profiles/.*\.yml$''',
+]
+regexTarget = "match"
+regexes = [
+  '''criterion_key:\s*[A-Z0-9-]+''',
+]
