@@ -13,7 +13,7 @@ from governance.infrastructure.adapters.logging.event_sink import write_jsonl_ev
 from governance.infrastructure.binding_evidence_resolver import BindingEvidenceResolver
 from governance.infrastructure.logging.global_error_handler import emit_error_event
 
-from governance.engine.gate_evaluator import evaluate_strict_exit_gate
+from governance.engine.gate_evaluator import evaluate_p6_prerequisites, evaluate_strict_exit_gate
 from governance.engine import reason_codes
 
 from .phase_api_spec import PhaseApiSpec, PhaseApiSpecError, PhaseSpecEntry, load_phase_api
@@ -237,6 +237,18 @@ def _rollback_required(state: Mapping[str, object]) -> bool:
         if isinstance(required, bool):
             return required
     return False
+
+
+def _rollback_safety_applies(state: Mapping[str, object]) -> bool:
+    touched_surface = state.get("TouchedSurface")
+    if isinstance(touched_surface, Mapping):
+        schema_planned = touched_surface.get("SchemaPlanned")
+        if isinstance(schema_planned, list) and len(schema_planned) > 0:
+            return True
+        contracts_planned = touched_surface.get("ContractsPlanned")
+        if isinstance(contracts_planned, list) and len(contracts_planned) > 0:
+            return True
+    return _rollback_required(state)
 
 
 def _normalize_token(value: str, spec: PhaseApiSpec) -> str:
@@ -802,6 +814,32 @@ def execute(
             source="phase-exit-evidence-missing",
             reason=exit_reason,
         )
+
+    if chosen_token == "6":
+        _p6_prereq = evaluate_p6_prerequisites(
+            session_state=state,
+            phase_1_5_executed=_phase_1_5_executed(state),
+            rollback_safety_applies=_rollback_safety_applies(state),
+        )
+        if not _p6_prereq.passed:
+            return _blocked_result(
+                phase=entry.phase,
+                token=chosen_token,
+                active_gate="Implementation QA Prerequisite Gate",
+                next_gate_condition=f"PHASE_BLOCKED: {reason_codes.BLOCKED_P6_PREREQUISITES_NOT_MET}",
+                source="p6-prerequisite-gate",
+                reason=f"p6-prerequisite-gate: {reason_codes.BLOCKED_P6_PREREQUISITES_NOT_MET}",
+                detail={
+                    "p6_prerequisites": {
+                        "passed": _p6_prereq.passed,
+                        "reason_code": _p6_prereq.reason_code,
+                        "p5_architecture_approved": _p6_prereq.p5_architecture_approved,
+                        "p53_passed": _p6_prereq.p53_passed,
+                        "p54_compliant": _p6_prereq.p54_compliant,
+                        "p56_approved": _p6_prereq.p56_approved,
+                    },
+                },
+            )
 
     # ── Strict-exit gate (principal_strict enforcement) ──────────
     _policy_mode = state.get("PolicyMode")
