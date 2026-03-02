@@ -2,6 +2,7 @@
   "schema": "governance-ruleset-manifest.v2",
   "ruleset_id": "governance",
   "version": "0.4.0",
+  "rulebook_schema_version": "1.2.0",
   "source_type": "yaml",
   "profile_count": 20,
   "addon_count": 16,
@@ -74,169 +75,169 @@
     },
     {
       "path": "rulesets/core/rules.yml",
-      "sha256": "d7f5ee51ac5f91fa4c6783c0c4958e7339ecbbace8dba2bd943b7302830bb133"
+      "sha256": "d7859aa7104afa29d48d17c53d833b07a42e2f2bfb63c1f98669969eb33f52b7"
     },
     {
       "path": "rulesets/profiles/rules.backend-java-kafka-templates.yml",
-      "sha256": "ab6a0baf1f0a78dca6b7edbac7b11b6c84e8dedb79b50a279c7b85fde80c0002"
+      "sha256": "b4a645e45b43958385faf877d348e9cb474bf8fd7a7b96ce55053fc792a97e30"
     },
     {
       "path": "rulesets/profiles/rules.backend-java-templates.yml",
-      "sha256": "5061e55651a039d31ed64970d825be75ce770b3976cde6468b57f2f747177661"
+      "sha256": "1a6fcf0aae868ea523a85f242f68db8dd0a238ea02f6c8664859d74170a8dfe1"
     },
     {
       "path": "rulesets/profiles/rules.backend-java.yml",
-      "sha256": "054aecb37da7e1cec3ea577baf916d2455e0427ac04ba5b2a6bae38ef4840ed7"
+      "sha256": "8ceea146040dc2f2e2794acd204119b6f27ca1b0d9c88d0b7ad96e9d1806c3dc"
     },
     {
       "path": "rulesets/profiles/rules.backend-python-templates.yml",
-      "sha256": "cdcc8afad7a0d94b7e174f664c1cd6ec0d39d381e051886e9e87cb5cf96be063"
+      "sha256": "51fdecd4cac0d151ff714be83c5220064b827b496bb57c917710ac3ab039bcee"
     },
     {
       "path": "rulesets/profiles/rules.backend-python.yml",
-      "sha256": "3e40caf6526db7821f1e6cd0510d7d5a44b4cd1e4a13d8a722c1cc92074b8e3b"
+      "sha256": "0eb633d8b7feba5b0e5edcbefaf981b4ee470acf07e9c84bdd3c700c3b458b21"
     },
     {
       "path": "rulesets/profiles/rules.cucumber-bdd.yml",
-      "sha256": "0507eef2a66d716c2162ed791375537c372f7a9ab172dd57c9a0ea767cf0d714"
+      "sha256": "b9adaf15e2054c7c7e2211ad0d5f7488f9bd27cc758601783542fb58167313da"
     },
     {
       "path": "rulesets/profiles/rules.docs-governance.yml",
-      "sha256": "acb4b9f407785713946e327128b76e3070bf271153d8c3985566d3675acecc07"
+      "sha256": "f5b2730248adcceb12216f04736d8129c27c316d0a5b4acfe15437951f317d09"
     },
     {
       "path": "rulesets/profiles/rules.fallback-minimum.yml",
-      "sha256": "669894704ab520a5c81d91e5d44331eb44841a59126f47255b7bb1e2156492c9"
+      "sha256": "f46d0684727f74b7adcb99811d65179384c7c985873712c788a54a54d9810b71"
     },
     {
       "path": "rulesets/profiles/rules.frontend-angular-nx-templates.yml",
-      "sha256": "cccc2d512e1d598f85ab49fac459aad29764236696065bf080e64919e6f614e5"
+      "sha256": "4ba56b4d754d7bcc26a6c518cd210372639684042d3fdbba7ddb556be8d7d159"
     },
     {
       "path": "rulesets/profiles/rules.frontend-angular-nx.yml",
-      "sha256": "ceef1c19a9e03cc19fec394769cbcc6bfbdf56f9d540eb7f0c828e116854145c"
+      "sha256": "57e0a6d9f956740494ddb275378b0d4b0663b4dffc909589ee4fb4ff2f97de44"
     },
     {
       "path": "rulesets/profiles/rules.frontend-cypress-testing.yml",
-      "sha256": "8c1301443d0558df0d5a9e7b808dd6c810e4a66ee334fedc604ffda08a5acc8a"
+      "sha256": "30723b68bd3da022cc893d5f5054b88f0e3faa93573ab5a69361266b73e72ffd"
     },
     {
       "path": "rulesets/profiles/rules.frontend-openapi-ts-client.yml",
-      "sha256": "30371641c5014a436ca22f5f00b91a3cbca207d6975bbf9713bab8b0b583dfdd"
+      "sha256": "7be5dea0e60446f8a4c9038faa88c220b0dea819490743f744da82380474c8bb"
     },
     {
       "path": "rulesets/profiles/rules.java-excellence.yml",
-      "sha256": "d0f88e57afe772933ac33650fb685a5146d315645d2801a7b168a52905afdab7"
+      "sha256": "1da82720313221fc2e1e33a503f8c020dcecaa1fbf9c44a72515cb6ebd842326"
     },
     {
       "path": "rulesets/profiles/rules.openapi-contracts.yml",
-      "sha256": "c4774dcd888f431165a4c9de0a172b3be00cea273425a023657b5010c2861e90"
+      "sha256": "0b4456de26ba6e7e8d5be8ac6343dd6efe2de49aaa1fde4acec8e8e4239d9526"
     },
     {
       "path": "rulesets/profiles/rules.postgres-liquibase.yml",
-      "sha256": "bacc39c95dc3ee7901eae71f0ba168dabba8be6d2eee16126f993af6dba7d34a"
+      "sha256": "1e7dd7dfc1bdbd5428306f6f7534e8876e4d45fa3a7198e3123f0756fe8e3cc0"
     },
     {
       "path": "rulesets/profiles/rules.principal-excellence.yml",
-      "sha256": "d7a235d01074bbf1dd30b05b2bf7adc2ed3a47009c8bc57e0d86a8da59c0603d"
+      "sha256": "e7dc15ba7f68d9f2ddd1fce46eccf8c8edc45a85d09219247b163b293125a2dc"
     },
     {
       "path": "rulesets/profiles/rules.python-excellence.yml",
-      "sha256": "9b2d2e1c23860d9865256b40f5647c01973af3a6541dbb1065a4401a2563f5ec"
+      "sha256": "1f375c68240c9f75a178bc533033918a7c0328fd277ae1c08643ff759eeef8e3"
     },
     {
       "path": "rulesets/profiles/rules.risk-tiering.yml",
-      "sha256": "d70c7b3e6b209f6bbc97fc2467ec55bc7d0ad03facba76715a3e894934a1cccf"
+      "sha256": "9445082ead54e10a29876f5f1878f6de459d2a0cf5ff3e872712093518b3d6ca"
     },
     {
       "path": "rulesets/profiles/rules.scorecard-calibration.yml",
-      "sha256": "b93c494cd7b70f841164bb964d899d4c0258dadda5f95ad1b8740b7812dcb7de"
+      "sha256": "d68b5860f87a25b40b860126ae68a4eb17076b18fc984854e27f73f3341b6be2"
     },
     {
       "path": "rulesets/profiles/rules.user-max-quality.yml",
-      "sha256": "72d98cc89d4b02263d08496bfda2df18ec80d6c6204792014dbc05a473ad9f1a"
+      "sha256": "a2cacb527726e19a4fcb318eff927f7313c975f7ce3a1f1b7739604fee3b2bbf"
     }
   ],
   "profiles": [
     {
       "path": "rulesets/profiles/rules.backend-java-kafka-templates.yml",
-      "sha256": "ab6a0baf1f0a78dca6b7edbac7b11b6c84e8dedb79b50a279c7b85fde80c0002"
+      "sha256": "b4a645e45b43958385faf877d348e9cb474bf8fd7a7b96ce55053fc792a97e30"
     },
     {
       "path": "rulesets/profiles/rules.backend-java-templates.yml",
-      "sha256": "5061e55651a039d31ed64970d825be75ce770b3976cde6468b57f2f747177661"
+      "sha256": "1a6fcf0aae868ea523a85f242f68db8dd0a238ea02f6c8664859d74170a8dfe1"
     },
     {
       "path": "rulesets/profiles/rules.backend-java.yml",
-      "sha256": "054aecb37da7e1cec3ea577baf916d2455e0427ac04ba5b2a6bae38ef4840ed7"
+      "sha256": "8ceea146040dc2f2e2794acd204119b6f27ca1b0d9c88d0b7ad96e9d1806c3dc"
     },
     {
       "path": "rulesets/profiles/rules.backend-python-templates.yml",
-      "sha256": "cdcc8afad7a0d94b7e174f664c1cd6ec0d39d381e051886e9e87cb5cf96be063"
+      "sha256": "51fdecd4cac0d151ff714be83c5220064b827b496bb57c917710ac3ab039bcee"
     },
     {
       "path": "rulesets/profiles/rules.backend-python.yml",
-      "sha256": "3e40caf6526db7821f1e6cd0510d7d5a44b4cd1e4a13d8a722c1cc92074b8e3b"
+      "sha256": "0eb633d8b7feba5b0e5edcbefaf981b4ee470acf07e9c84bdd3c700c3b458b21"
     },
     {
       "path": "rulesets/profiles/rules.cucumber-bdd.yml",
-      "sha256": "0507eef2a66d716c2162ed791375537c372f7a9ab172dd57c9a0ea767cf0d714"
+      "sha256": "b9adaf15e2054c7c7e2211ad0d5f7488f9bd27cc758601783542fb58167313da"
     },
     {
       "path": "rulesets/profiles/rules.docs-governance.yml",
-      "sha256": "acb4b9f407785713946e327128b76e3070bf271153d8c3985566d3675acecc07"
+      "sha256": "f5b2730248adcceb12216f04736d8129c27c316d0a5b4acfe15437951f317d09"
     },
     {
       "path": "rulesets/profiles/rules.fallback-minimum.yml",
-      "sha256": "669894704ab520a5c81d91e5d44331eb44841a59126f47255b7bb1e2156492c9"
+      "sha256": "f46d0684727f74b7adcb99811d65179384c7c985873712c788a54a54d9810b71"
     },
     {
       "path": "rulesets/profiles/rules.frontend-angular-nx-templates.yml",
-      "sha256": "cccc2d512e1d598f85ab49fac459aad29764236696065bf080e64919e6f614e5"
+      "sha256": "4ba56b4d754d7bcc26a6c518cd210372639684042d3fdbba7ddb556be8d7d159"
     },
     {
       "path": "rulesets/profiles/rules.frontend-angular-nx.yml",
-      "sha256": "ceef1c19a9e03cc19fec394769cbcc6bfbdf56f9d540eb7f0c828e116854145c"
+      "sha256": "57e0a6d9f956740494ddb275378b0d4b0663b4dffc909589ee4fb4ff2f97de44"
     },
     {
       "path": "rulesets/profiles/rules.frontend-cypress-testing.yml",
-      "sha256": "8c1301443d0558df0d5a9e7b808dd6c810e4a66ee334fedc604ffda08a5acc8a"
+      "sha256": "30723b68bd3da022cc893d5f5054b88f0e3faa93573ab5a69361266b73e72ffd"
     },
     {
       "path": "rulesets/profiles/rules.frontend-openapi-ts-client.yml",
-      "sha256": "30371641c5014a436ca22f5f00b91a3cbca207d6975bbf9713bab8b0b583dfdd"
+      "sha256": "7be5dea0e60446f8a4c9038faa88c220b0dea819490743f744da82380474c8bb"
     },
     {
       "path": "rulesets/profiles/rules.java-excellence.yml",
-      "sha256": "d0f88e57afe772933ac33650fb685a5146d315645d2801a7b168a52905afdab7"
+      "sha256": "1da82720313221fc2e1e33a503f8c020dcecaa1fbf9c44a72515cb6ebd842326"
     },
     {
       "path": "rulesets/profiles/rules.openapi-contracts.yml",
-      "sha256": "c4774dcd888f431165a4c9de0a172b3be00cea273425a023657b5010c2861e90"
+      "sha256": "0b4456de26ba6e7e8d5be8ac6343dd6efe2de49aaa1fde4acec8e8e4239d9526"
     },
     {
       "path": "rulesets/profiles/rules.postgres-liquibase.yml",
-      "sha256": "bacc39c95dc3ee7901eae71f0ba168dabba8be6d2eee16126f993af6dba7d34a"
+      "sha256": "1e7dd7dfc1bdbd5428306f6f7534e8876e4d45fa3a7198e3123f0756fe8e3cc0"
     },
     {
       "path": "rulesets/profiles/rules.principal-excellence.yml",
-      "sha256": "d7a235d01074bbf1dd30b05b2bf7adc2ed3a47009c8bc57e0d86a8da59c0603d"
+      "sha256": "e7dc15ba7f68d9f2ddd1fce46eccf8c8edc45a85d09219247b163b293125a2dc"
     },
     {
       "path": "rulesets/profiles/rules.python-excellence.yml",
-      "sha256": "9b2d2e1c23860d9865256b40f5647c01973af3a6541dbb1065a4401a2563f5ec"
+      "sha256": "1f375c68240c9f75a178bc533033918a7c0328fd277ae1c08643ff759eeef8e3"
     },
     {
       "path": "rulesets/profiles/rules.risk-tiering.yml",
-      "sha256": "d70c7b3e6b209f6bbc97fc2467ec55bc7d0ad03facba76715a3e894934a1cccf"
+      "sha256": "9445082ead54e10a29876f5f1878f6de459d2a0cf5ff3e872712093518b3d6ca"
     },
     {
       "path": "rulesets/profiles/rules.scorecard-calibration.yml",
-      "sha256": "b93c494cd7b70f841164bb964d899d4c0258dadda5f95ad1b8740b7812dcb7de"
+      "sha256": "d68b5860f87a25b40b860126ae68a4eb17076b18fc984854e27f73f3341b6be2"
     },
     {
       "path": "rulesets/profiles/rules.user-max-quality.yml",
-      "sha256": "72d98cc89d4b02263d08496bfda2df18ec80d6c6204792014dbc05a473ad9f1a"
+      "sha256": "a2cacb527726e19a4fcb318eff927f7313c975f7ce3a1f1b7739604fee3b2bbf"
     }
   ],
   "addons": [
@@ -308,7 +309,7 @@
   "core_rulebooks": [
     {
       "path": "rulesets/core/rules.yml",
-      "sha256": "d7f5ee51ac5f91fa4c6783c0c4958e7339ecbbace8dba2bd943b7302830bb133"
+      "sha256": "d7859aa7104afa29d48d17c53d833b07a42e2f2bfb63c1f98669969eb33f52b7"
     }
   ]
 }

@@ -196,6 +196,18 @@ _HARDCODED_FALLBACK_SCHEMA: dict[str, object] = {
                     },
                     "additionalProperties": False,
                 },
+                "PolicyMode": {
+                    "type": "object",
+                    "description": "Principal-strict enforcement policy flags. Orthogonal to OperatingMode.",
+                    "properties": {
+                        "principal_strict": {
+                            "type": "boolean",
+                            "description": "When true, the strict-exit gate enforces the blocking-grade decision matrix on phase transitions. Fail-closed: if true and required addons are missing, the gate BLOCKs (no silent downgrade).",
+                            "default": False,
+                        },
+                    },
+                    "additionalProperties": False,
+                },
                 "BuildEvidence": {
                     "type": "object",
                     "properties": {

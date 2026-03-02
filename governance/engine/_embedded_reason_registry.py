@@ -64,6 +64,12 @@ EMBEDDED_REASON_CODE_TO_SCHEMA_REF: Final[dict[str, str]] = {
     "BLOCKED-PIPELINE-INTERACTIVE": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
     "BLOCKED-PIPELINE-HUMAN-ASSIST": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
     "BLOCKED-PIPELINE-PROMPT-BUDGET": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
+    # Strict-exit enforcement
+    "BLOCKED-STRICT-EVIDENCE-MISSING": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
+    "BLOCKED-STRICT-EVIDENCE-STALE": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
+    "BLOCKED-STRICT-THRESHOLD": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
+    "NOT_VERIFIED-STRICT-EVIDENCE-STALE": "governance/assets/schemas/reason_payload_advisory.v1.json",
+    "NOT_VERIFIED-STRICT-EVIDENCE-MISSING": "governance/assets/schemas/reason_payload_advisory.v1.json",
     # Install subsystem
     "BLOCKED-INSTALL-PRECHECK-MISSING-SOURCE": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
     "BLOCKED-INSTALL-VERSION-MISSING": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
