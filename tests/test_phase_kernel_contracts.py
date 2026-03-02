@@ -177,6 +177,89 @@ phases:
     assert rows[-1]["event"] == "PHASE_BLOCKED"
 
 
+@pytest.mark.governance
+def test_kernel_blocks_phase_6_when_p6_prerequisites_fail(tmp_path: Path) -> None:
+    """Phase 6 entry is blocked when P6 prerequisites are not met."""
+    commands_home = tmp_path / "commands"
+    _write_phase_api(commands_home)
+
+    doc = {
+        "SESSION_STATE": {
+            "Phase": "6-PostFlight",
+            "PersistenceCommitted": True,
+            "WorkspaceReadyGateCommitted": True,
+            "WorkspaceArtifactsCommitted": True,
+            "PointerVerified": True,
+            "LoadedRulebooks": {"core": "${COMMANDS_HOME}/master.md"},
+            "RulebookLoadEvidence": {"core": "${COMMANDS_HOME}/master.md"},
+            "AddonsEvidence": {},
+            "Gates": {
+                "P5-Architecture": "pending",
+                "P5.3-TestQuality": "pending",
+            },
+        }
+    }
+
+    result = execute(
+        current_token="6",
+        session_state_doc=doc,
+        runtime_ctx=RuntimeContext(
+            requested_active_gate="Post Flight",
+            requested_next_gate_condition="Continue",
+            repo_is_git_root=True,
+            commands_home=commands_home,
+            workspaces_home=tmp_path / "workspaces",
+            config_root=tmp_path / "cfg",
+        ),
+    )
+
+    assert result.status == "BLOCKED"
+    assert result.source == "p6-prerequisite-gate"
+    assert "BLOCKED-P6-PREREQUISITES-NOT-MET" in result.next_gate_condition
+
+
+@pytest.mark.governance
+def test_kernel_allows_phase_6_when_p6_prerequisites_pass(tmp_path: Path) -> None:
+    """Phase 6 entry continues when all wired P6 prerequisites are satisfied."""
+    commands_home = tmp_path / "commands"
+    _write_phase_api(commands_home)
+
+    doc = {
+        "SESSION_STATE": {
+            "Phase": "6-PostFlight",
+            "PersistenceCommitted": True,
+            "WorkspaceReadyGateCommitted": True,
+            "WorkspaceArtifactsCommitted": True,
+            "PointerVerified": True,
+            "LoadedRulebooks": {"core": "${COMMANDS_HOME}/master.md"},
+            "RulebookLoadEvidence": {"core": "${COMMANDS_HOME}/master.md"},
+            "AddonsEvidence": {},
+            "BusinessRules": {"Inventory": {"sha256": "abc123"}},
+            "Gates": {
+                "P5-Architecture": "approved",
+                "P5.3-TestQuality": "pass",
+                "P5.4-BusinessRules": "compliant",
+            },
+        }
+    }
+
+    result = execute(
+        current_token="6",
+        session_state_doc=doc,
+        runtime_ctx=RuntimeContext(
+            requested_active_gate="Post Flight",
+            requested_next_gate_condition="Continue",
+            repo_is_git_root=True,
+            commands_home=commands_home,
+            workspaces_home=tmp_path / "workspaces",
+            config_root=tmp_path / "cfg",
+        ),
+    )
+
+    assert result.status == "OK"
+    assert result.phase == "6-PostFlight"
+
+
 # ────────────────────────────────────────────────────────────────────
 # M6 Bug #2 — Criteria deduplication unit tests
 # ────────────────────────────────────────────────────────────────────

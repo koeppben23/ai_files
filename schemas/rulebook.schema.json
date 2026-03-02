@@ -372,10 +372,10 @@
       "required": ["criterion_key", "critical", "artifact_kind"],
       "additionalProperties": false,
       "properties": {
-        "criterion_key": { "type": "string" },
+        "criterion_key": { "type": "string", "minLength": 1 },
         "critical": { "type": "boolean" },
-        "artifact_kind": { "type": "string" },
-        "threshold": { "type": "number", "description": "Static threshold value. Mutually exclusive with threshold_mode." },
+        "artifact_kind": { "type": "string", "minLength": 1 },
+        "threshold": { "type": "number", "minimum": 0, "description": "Static threshold value." },
         "threshold_mode": {
           "type": "string",
           "enum": ["static", "dynamic_by_risk_tier"],
@@ -383,14 +383,39 @@
         },
         "threshold_resolver": {
           "type": "string",
+          "minLength": 1,
           "description": "Name of a registered threshold resolver (e.g. 'dynamic_by_risk_tier')."
         }
       },
-      "dependentRequired": {
-        "threshold_mode": ["threshold_resolver"],
-        "threshold_resolver": ["threshold_mode"]
-      },
-      "not": { "required": ["threshold", "threshold_mode"] }
+      "allOf": [
+        {
+          "if": {
+            "properties": { "threshold_mode": { "const": "dynamic_by_risk_tier" } },
+            "required": ["threshold_mode"]
+          },
+          "then": {
+            "required": ["threshold_resolver"],
+            "not": { "required": ["threshold"] }
+          }
+        },
+        {
+          "if": {
+            "properties": { "threshold_mode": { "const": "static" } },
+            "required": ["threshold_mode"]
+          },
+          "then": {
+            "required": ["threshold"],
+            "not": { "required": ["threshold_resolver"] }
+          }
+        },
+        {
+          "if": { "required": ["threshold_resolver"] },
+          "then": {
+            "properties": { "threshold_mode": { "const": "dynamic_by_risk_tier" } },
+            "required": ["threshold_mode"]
+          }
+        }
+      ]
     },
 
     "blocking_condition": {
@@ -421,7 +446,7 @@
       "required": ["artifact_kind", "freshness_class"],
       "additionalProperties": false,
       "properties": {
-        "artifact_kind": { "type": "string" },
+        "artifact_kind": { "type": "string", "minLength": 1 },
         "freshness_class": {
           "type": "string",
           "enum": ["identity_signal", "preflight_probe", "gate_evidence", "runtime_diagnostic", "operator_provided"],
