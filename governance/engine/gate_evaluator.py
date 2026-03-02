@@ -217,9 +217,9 @@ def evaluate_p54_business_rules_gate(
     if isinstance(business_rules, Mapping):
         rules_list = business_rules.get("Rules") or business_rules.get("rules")
         if isinstance(rules_list, list):
-            total_rules = len(rules_list)
             for rule in rules_list:
                 if isinstance(rule, Mapping):
+                    total_rules += 1
                     rule_id = rule.get("id") or rule.get("BR-ID") or ""
                     covered = rule.get("covered") or rule.get("implemented") or rule.get("tested")
                     if covered is True or covered == "true":

@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Mapping, cast
+from typing import Any, Mapping, Sequence, cast
 import uuid
 
 from governance.application.dto.phase_next_action_contract import contains_ticket_prompt
@@ -416,6 +416,94 @@ def _emit_phase_event(log_paths: Mapping[str, Path], event: dict[str, object]) -
     }
 
 
+@dataclass(frozen=True)
+class _CriteriaDedupeResult:
+    """Result of deduplicating pass_criteria by criterion_key."""
+
+    criteria: list[Mapping[str, object]]
+    conflicts: list[str]  # Human-readable conflict descriptions
+    had_duplicates: bool
+
+
+def _deduplicate_criteria(
+    raw_criteria: Sequence[Mapping[str, object]],
+) -> _CriteriaDedupeResult:
+    """Deduplicate pass_criteria by ``criterion_key``, merging to strictest.
+
+    Compatible duplicates (same ``artifact_kind``, same resolver config)
+    are merged with strictest-wins semantics:
+    * ``critical``: ``True`` wins over ``False``.
+    * ``threshold`` (static): higher value wins (= stricter minimum).
+
+    Incompatible duplicates (different ``artifact_kind``, different
+    ``threshold_mode`` or ``threshold_resolver``) are flagged as conflicts.
+    The caller decides how to handle conflicts (block vs. warn).
+    """
+    seen: dict[str, dict[str, object]] = {}   # criterion_key → merged entry
+    conflicts: list[str] = []
+    had_duplicates = False
+
+    # Fields that must be identical for compatibility.
+    _COMPAT_FIELDS = ("artifact_kind", "threshold_mode", "threshold_resolver")
+
+    for criterion in raw_criteria:
+        key = str(criterion.get("criterion_key", "")).strip()
+        if not key:
+            # No criterion_key → pass through unmodified (not dedup-able).
+            key = f"__anonymous_{id(criterion)}"
+            seen[key] = dict(criterion)
+            continue
+
+        if key not in seen:
+            seen[key] = dict(criterion)
+            continue
+
+        # Duplicate detected.
+        had_duplicates = True
+        existing = seen[key]
+
+        # Check compatibility on identity-fields.
+        incompatible_fields: list[str] = []
+        for field in _COMPAT_FIELDS:
+            existing_val = existing.get(field)
+            new_val = criterion.get(field)
+            # Treat None/missing as equivalent.
+            if existing_val is None and new_val is None:
+                continue
+            if existing_val != new_val:
+                incompatible_fields.append(
+                    f"{field}: {existing_val!r} vs {new_val!r}"
+                )
+
+        if incompatible_fields:
+            detail = "; ".join(incompatible_fields)
+            conflicts.append(
+                f"criterion_key={key!r}: incompatible definitions — {detail}"
+            )
+            # Keep the existing entry; conflict is flagged for the caller.
+            continue
+
+        # Compatible duplicate → merge to strictest.
+        # critical: True wins.
+        if criterion.get("critical") is True:
+            existing["critical"] = True
+
+        # threshold (static): higher = stricter minimum.
+        new_threshold = criterion.get("threshold")
+        old_threshold = existing.get("threshold")
+        if isinstance(new_threshold, (int, float)) and isinstance(old_threshold, (int, float)):
+            if new_threshold > old_threshold:
+                existing["threshold"] = new_threshold
+        elif isinstance(new_threshold, (int, float)) and old_threshold is None:
+            existing["threshold"] = new_threshold
+
+    return _CriteriaDedupeResult(
+        criteria=list(seen.values()),
+        conflicts=conflicts,
+        had_duplicates=had_duplicates,
+    )
+
+
 def execute(
     *,
     current_token: str,
@@ -728,6 +816,42 @@ def execute(
                         if isinstance(c, Mapping):
                             _criteria.append(c)
         if _criteria:
+            # ── Deduplicate criteria from multiple profiles ──────
+            _dedup = _deduplicate_criteria(_criteria)
+            if _dedup.conflicts and _principal_strict:
+                # Incompatible duplicate definitions under strict mode
+                # are contract conflicts → fail-closed.
+                _conflict_summary = "; ".join(_dedup.conflicts)
+                return _blocked_result(
+                    phase=entry.phase,
+                    token=chosen_token,
+                    active_gate="Strict Exit Gate",
+                    next_gate_condition=(
+                        f"PHASE_BLOCKED: {reason_codes.BLOCKED_STRICT_CONTRACT_MISSING} "
+                        f"(contract conflict: {_conflict_summary})"
+                    ),
+                    source="strict-exit-gate",
+                    reason=(
+                        f"strict-exit-gate: {reason_codes.BLOCKED_STRICT_CONTRACT_MISSING}"
+                    ),
+                    detail={
+                        "conflict_type": "incompatible_criteria_definitions",
+                        "conflicts": _dedup.conflicts,
+                    },
+                )
+            elif _dedup.conflicts:
+                # Non-strict mode: warn but continue with deduplicated set.
+                emit_error_event(
+                    severity="warning",
+                    code="CRITERIA_CONFLICT",
+                    message=(
+                        f"Duplicate criterion_key definitions with "
+                        f"incompatible values (non-strict, continuing): "
+                        f"{'; '.join(_dedup.conflicts)}"
+                    ),
+                )
+            _criteria = _dedup.criteria
+
             _evidence_map: dict[str, Mapping[str, object]] = {}
             _build_evidence = state.get("BuildEvidence")
             if isinstance(_build_evidence, Mapping):
