@@ -227,6 +227,13 @@
       "remediation_hint": "Re-bootstrap session state from current repo root."
     },
     {
+      "code": "BLOCKED-INTEGRITY-FAILED",
+      "severity": "blocked",
+      "payload_schema_ref": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Governance release artifact SHA256 hash does not match stored hashes.json. File may be corrupted or tampered with.",
+      "remediation_hint": "Rebuild governance release artifacts with build_ruleset_lock.py or restore from a known-good release."
+    },
+    {
       "code": "BLOCKED-REPO-ROOT-NOT-DETECTABLE",
       "severity": "blocked",
       "payload_schema_ref": "governance/assets/schemas/reason_payload_blocked_core.v1.json",

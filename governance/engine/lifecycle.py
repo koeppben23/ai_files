@@ -7,6 +7,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+from governance.domain.reason_codes import BLOCKED_INTEGRITY_FAILED
+from governance.infrastructure.artifact_integrity import verify_ruleset_integrity
 from governance.infrastructure.fs_atomic import atomic_write_json
 
 
@@ -46,8 +48,20 @@ def stage_engine_activation(
     engine_sha256: str,
     ruleset_hash: str,
     now_utc: datetime | None = None,
+    ruleset_dir: Path | None = None,
 ) -> dict[str, Any]:
-    """Stage one active engine pointer update with rollbackable previous pointer."""
+    """Stage one active engine pointer update with rollbackable previous pointer.
+
+    If ``ruleset_dir`` is provided, SHA256 integrity of manifest.json and
+    lock.json is verified against hashes.json before activation proceeds.
+    Verification failure is fail-closed: raises ``RuntimeError``.
+    """
+
+    # ── Integrity gate (fail-closed) ───────────────────────────────────
+    if ruleset_dir is not None:
+        result = verify_ruleset_integrity(ruleset_dir)
+        if not result.passed:
+            raise RuntimeError(f"{BLOCKED_INTEGRITY_FAILED}: {result.summary}")
 
     observed_at = (now_utc or datetime.now(timezone.utc)).isoformat(timespec="seconds")
     payload = _read_paths_document(paths_file)
