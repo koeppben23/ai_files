@@ -8,7 +8,9 @@ from pathlib import Path
 import pytest
 
 from governance.engine.adapters import ExecResult, HostCapabilities, OperatingMode
+from governance.application.use_cases.phase_router import RoutedPhase
 from governance.application.repo_identity_service import derive_repo_identity
+from governance.domain.strict_exit_evaluator import CriterionResult, StrictExitResult
 from governance.engine.orchestrator import run_engine_orchestrator
 from governance.infrastructure.persist_confirmation_store import record_persist_confirmation
 from governance.engine.reason_codes import (
@@ -1390,3 +1392,71 @@ def test_orchestrator_blocks_on_fingerprint_cross_wire(tmp_path: Path):
 
     assert out.parity["status"] == "blocked"
     assert out.parity["reason_code"] == "BLOCKED-FINGERPRINT-MISMATCH"
+
+
+@pytest.mark.governance
+def test_orchestrator_propagates_strict_exit_result(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+    """Strict-exit evaluation details are exposed on orchestrator output."""
+    repo_root = _make_git_root(tmp_path / "repo")
+    adapter = StubAdapter(
+        env={"OPENCODE_REPO_ROOT": str(repo_root)},
+        cwd_path=repo_root,
+        caps=HostCapabilities(
+            cwd_trust="trusted",
+            fs_read_commands_home=True,
+            fs_write_config_root=True,
+            fs_write_commands_home=True,
+            fs_write_workspaces_home=True,
+            fs_write_repo_root=True,
+            exec_allowed=True,
+            git_available=True,
+        ),
+    )
+
+    strict_result = StrictExitResult(
+        blocked=False,
+        criteria=(
+            CriterionResult(
+                criterion_key="TEST-CRITERION",
+                artifact_kind="test_artifact",
+                critical=True,
+                verdict="ok",
+                reason_code=REASON_CODE_NONE,
+                detail="all checks passed",
+            ),
+        ),
+        reason_codes=(),
+        summary="strict-exit OK: all criteria satisfied",
+    )
+
+    def _fake_route_phase(**_: object) -> RoutedPhase:
+        return RoutedPhase(
+            phase="5-Architecture",
+            next_token="6",
+            active_gate="Implementation QA Prerequisite Gate",
+            next_gate_condition="Proceed",
+            workspace_ready=True,
+            source="spec-next",
+            status="OK",
+            spec_hash="abc",
+            spec_path="phase_api.yaml",
+            spec_loaded_at="2026-01-01T00:00:00+00:00",
+            log_paths={"phase_flow": "flow.log.jsonl", "workspace_events": "events.jsonl"},
+            event_id="evt-test",
+            strict_exit_result=strict_result,
+        )
+
+    monkeypatch.setattr(
+        "governance.application.use_cases.orchestrate_run.route_phase",
+        _fake_route_phase,
+    )
+
+    out = run_engine_orchestrator(
+        adapter=adapter,
+        phase="5-Architecture",
+        active_gate="Architecture Gate",
+        mode="OK",
+        next_gate_condition="continue",
+    )
+
+    assert out.strict_exit_result == strict_result

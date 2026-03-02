@@ -238,6 +238,22 @@ class TestDeduplicateCriteriaUnit:
         assert "artifact_kind" in result.conflicts[0]
         assert result.had_duplicates is True
 
+    def test_conflict_text_is_order_invariant(self) -> None:
+        """Conflict description must be deterministic independent of input order."""
+        a_then_b = [
+            {"criterion_key": "C", "critical": True, "artifact_kind": "alpha"},
+            {"criterion_key": "C", "critical": True, "artifact_kind": "beta"},
+        ]
+        b_then_a = [
+            {"criterion_key": "C", "critical": True, "artifact_kind": "beta"},
+            {"criterion_key": "C", "critical": True, "artifact_kind": "alpha"},
+        ]
+
+        result_a_then_b = _deduplicate_criteria(a_then_b)
+        result_b_then_a = _deduplicate_criteria(b_then_a)
+
+        assert result_a_then_b.conflicts == result_b_then_a.conflicts
+
     def test_incompatible_resolver_flagged_as_conflict(self) -> None:
         """Same key but different threshold_resolver = conflict."""
         criteria = [

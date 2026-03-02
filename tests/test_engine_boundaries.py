@@ -238,6 +238,54 @@ def test_p54_gate_non_mapping_non_string_items_are_ignored():
 
 
 @pytest.mark.governance
+def test_p54_gate_ignores_malformed_mapping_items() -> None:
+    """Malformed mapping items must not inflate the denominator."""
+
+    session_state = {
+        "BusinessRules": {
+            "Rules": [
+                {"id": "BR-1", "covered": True},
+                {},
+                {"foo": "bar"},
+                "BR-3-legacy",
+            ]
+        }
+    }
+    result = evaluate_p54_business_rules_gate(
+        session_state=session_state,
+        phase_1_5_executed=True,
+    )
+    assert result.total_business_rules == 2
+    assert result.covered_business_rules == 2
+    assert result.status == "pending"
+
+
+@pytest.mark.governance
+def test_p54_gate_mapping_validity_boundaries() -> None:
+    """Mapping validity rules for P5.4 counting are explicit and stable."""
+
+    session_state = {
+        "BusinessRules": {
+            "Rules": [
+                {"covered": True},      # valid (coverage signal), covered
+                {"covered": False},     # valid (coverage signal), uncovered
+                {"id": "BR-123"},      # valid (non-empty id), uncovered
+                {"id": ""},            # invalid id, no coverage signal -> ignored
+                {"foo": "bar"},        # malformed -> ignored
+            ]
+        }
+    }
+    result = evaluate_p54_business_rules_gate(
+        session_state=session_state,
+        phase_1_5_executed=True,
+    )
+    assert result.total_business_rules == 3
+    assert result.covered_business_rules == 1
+    assert result.uncovered_rules == ("", "BR-123")
+    assert result.status == "gap-detected"
+
+
+@pytest.mark.governance
 def test_p56_gate_not_applicable_when_no_schema_or_contracts():
     """P5.6 is N/A if nothing touched that needs rollback."""
 
