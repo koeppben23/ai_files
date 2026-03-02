@@ -414,3 +414,38 @@ def process_untrusted_input(source: str, data: Any) -> ValidationResult:
 - `docs/MD_PYTHON_POLICY.md` - Schienen vs Leitplanken
 - `governance/domain/trust_levels.py` - Trust classification
 - `governance/infrastructure/input_validation.py` - Validation pipeline
+- `governance/infrastructure/artifact_integrity.py` - Runtime hash verification
+
+## Artifact Integrity Verification
+
+**Added:** Phase A.2, Cluster 3
+**Module:** `governance/infrastructure/artifact_integrity.py`
+**Integration:** `governance/engine/lifecycle.py:stage_engine_activation()`
+
+### What It Protects Against
+
+| Threat | Protected | Mechanism |
+|--------|-----------|-----------|
+| Accidental file corruption | YES | SHA256 hash comparison |
+| Naive tampering (modify lock.json, forget hashes.json) | YES | Cross-file hash verification |
+| Build pipeline inconsistencies | YES | Deterministic hash at build + verify at activation |
+| Stale artifacts from interrupted builds | YES | Hash mismatch detection |
+
+### What It Does NOT Protect Against
+
+| Threat | Protected | Why Not |
+|--------|-----------|---------|
+| Attacker controls both lock.json AND hashes.json | NO | Both files are unsigned; attacker can recompute consistent hashes |
+| Supply-chain attacks at build/release level | NO | Build pipeline itself is the trust root; compromised build → compromised hashes |
+| Runtime memory tampering | NO | Out of scope for file-level integrity |
+
+### How It Works
+
+1. **At build time:** `scripts/build_ruleset_lock.py` computes SHA256 hashes of `manifest.json` and `lock.json`, writes them to `hashes.json`.
+2. **At activation time:** `stage_engine_activation()` calls `verify_ruleset_integrity()` when `ruleset_dir` is provided. The verifier recomputes SHA256 of `manifest.json` and `lock.json` and compares against stored hashes.
+3. **Fail-closed:** If any hash mismatches, the activation is refused with `BLOCKED-INTEGRITY-FAILED`. The previous active pointer is NOT modified.
+4. **Backward compatible:** When `ruleset_dir` is not provided (legacy callers), no integrity check is performed.
+
+### Future: Signature Verification
+
+For protection against sophisticated attackers who control both artifact files and hashes, cryptographic signature verification (Cosign/Sigstore) would be required. This already exists in CI workflows but is NOT verified at runtime. Runtime signature verification requires the `cosign` binary on every user machine and is a separate future decision, not part of the current integrity checking scope.

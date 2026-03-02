@@ -1,6 +1,6 @@
 {
   "schema": "governance.security-gate-policy.v1",
-  "policy_version": 1,
+  "version": "1.0.0",
   "session_state_evidence_key": "SESSION_STATE.BuildEvidence.Security",
   "block_on_severities": [
     "critical",
