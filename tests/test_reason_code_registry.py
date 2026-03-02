@@ -44,6 +44,13 @@ def test_reason_code_registry_contains_wave_a_baseline_codes():
     assert reason_codes.WARN_SESSION_STATE_LEGACY_COMPAT_MODE in reason_codes.CANONICAL_REASON_CODES
     assert reason_codes.NOT_VERIFIED_MISSING_EVIDENCE in reason_codes.CANONICAL_REASON_CODES
     assert reason_codes.NOT_VERIFIED_EVIDENCE_STALE in reason_codes.CANONICAL_REASON_CODES
+    # Strict-exit enforcement codes (principal_strict mode)
+    assert reason_codes.BLOCKED_STRICT_EVIDENCE_MISSING in reason_codes.CANONICAL_REASON_CODES
+    assert reason_codes.BLOCKED_STRICT_EVIDENCE_STALE in reason_codes.CANONICAL_REASON_CODES
+    assert reason_codes.BLOCKED_STRICT_THRESHOLD in reason_codes.CANONICAL_REASON_CODES
+    assert reason_codes.BLOCKED_STRICT_CONTRACT_MISSING in reason_codes.CANONICAL_REASON_CODES
+    assert reason_codes.NOT_VERIFIED_STRICT_EVIDENCE_STALE in reason_codes.CANONICAL_REASON_CODES
+    assert reason_codes.NOT_VERIFIED_STRICT_EVIDENCE_MISSING in reason_codes.CANONICAL_REASON_CODES
     assert len(reason_codes.CANONICAL_REASON_CODES) == len(set(reason_codes.CANONICAL_REASON_CODES))
 
 

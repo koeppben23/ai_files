@@ -346,3 +346,59 @@ def test_default_output_unchanged_no_json_flag(tmp_path: Path):
     # Human-readable output contains "OK" summary, NOT JSON braces
     assert "OK" in result.stdout
     assert result.stdout.strip()[0] != "{", "Default output should NOT be JSON"
+
+
+# ---------------------------------------------------------------------------
+# Schema version compatibility tests (v1.1.0 / v1.2.0)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.governance
+def test_schema_v1_2_accepts_v1_1_document(tmp_path: Path):
+    """Schema v1.2.0 accepts documents declaring schema_version 1.1.0 (same major)."""
+    mod = _import_validate()
+    root = tmp_path / "repo"
+    _write_schema(root, version="1.2.0")
+    schema = json.loads((root / "schemas" / "rulebook.schema.json").read_text())
+
+    yml = root / "compat.yml"
+    _write_yml(yml, _valid_yml(schema_version="1.1.0"))
+    issues = mod.validate_file(yml, schema)
+    assert issues == [], f"Expected no issues, got: {issues}"
+
+
+@pytest.mark.governance
+def test_schema_v1_2_accepts_v1_2_document(tmp_path: Path):
+    """Schema v1.2.0 accepts documents declaring schema_version 1.2.0."""
+    mod = _import_validate()
+    root = tmp_path / "repo"
+    _write_schema(root, version="1.2.0")
+    schema = json.loads((root / "schemas" / "rulebook.schema.json").read_text())
+
+    yml = root / "match.yml"
+    _write_yml(yml, _valid_yml(schema_version="1.2.0"))
+    issues = mod.validate_file(yml, schema)
+    assert issues == [], f"Expected no issues, got: {issues}"
+
+
+@pytest.mark.governance
+def test_schema_v1_2_rejects_v2_document(tmp_path: Path):
+    """Schema v1.2.0 rejects documents with a different major version."""
+    mod = _import_validate()
+    root = tmp_path / "repo"
+    _write_schema(root, version="1.2.0")
+    schema = json.loads((root / "schemas" / "rulebook.schema.json").read_text())
+
+    yml = root / "mismatch.yml"
+    _write_yml(yml, _valid_yml(schema_version="2.0.0"))
+    issues = mod.validate_file(yml, schema)
+    assert any("incompatible major version" in i for i in issues)
+
+
+@pytest.mark.governance
+def test_real_repo_all_21_yamls_pass_with_mixed_versions():
+    """--all on real repo passes: 4 YAMLs at 1.2.0 + 17 at 1.1.0."""
+    result = _run(["--all"])
+    assert result.returncode == 0, f"stdout={result.stdout}\nstderr={result.stderr}"
+    assert "OK" in result.stdout
+    assert "21 file(s)" in result.stdout

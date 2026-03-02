@@ -166,6 +166,78 @@ def test_p54_gate_passes_when_coverage_above_70_percent():
 
 
 @pytest.mark.governance
+def test_p54_gate_mixed_mapping_and_string_rules_counts_correctly():
+    """M6 regression: mixed Mapping+str rules must not double-count.
+
+    Scenario: 4 rules total (2 Mappings, 2 bare strings).
+      - Mapping BR-1: covered=True   → counted, covered
+      - Mapping BR-2: covered=False  → counted, uncovered
+      - String "BR-3-legacy"         → counted, assumed covered
+      - String "BR-4-legacy"         → counted, assumed covered
+
+    Correct: total=4, covered=3, coverage=75.0% → above 70% → "pending"
+    Old bug: total=6 (len(4) + 2 str increments), coverage=50% → "gap-detected"
+    """
+
+    session_state = {
+        "BusinessRules": {
+            "Rules": [
+                {"id": "BR-1", "covered": True},
+                {"id": "BR-2", "covered": False},
+                "BR-3-legacy",
+                "BR-4-legacy",
+            ]
+        }
+    }
+    result = evaluate_p54_business_rules_gate(
+        session_state=session_state, phase_1_5_executed=True,
+    )
+    # Exact numerics prove the fix — not just pass/fail.
+    assert result.total_business_rules == 4, (
+        f"Expected 4 total rules, got {result.total_business_rules} "
+        f"(double-count bug if 6)"
+    )
+    assert result.covered_business_rules == 3, (
+        f"Expected 3 covered rules, got {result.covered_business_rules}"
+    )
+    assert result.uncovered_rules == ("BR-2",)
+    # 75% coverage is above 70% threshold → must NOT block.
+    assert result.status == "pending", (
+        f"Expected 'pending' (75% >= 70%), got '{result.status}' "
+        f"(double-count bug would yield 50% → 'gap-detected')"
+    )
+    assert result.reason_code == REASON_CODE_NONE
+
+
+@pytest.mark.governance
+def test_p54_gate_non_mapping_non_string_items_are_ignored():
+    """Items that are neither Mapping nor str should not be counted.
+
+    This ensures the explicit-counting approach is robust against
+    unexpected rule types (e.g. int, None) in the rules list.
+    """
+
+    session_state = {
+        "BusinessRules": {
+            "Rules": [
+                {"id": "BR-1", "covered": True},
+                {"id": "BR-2", "covered": True},
+                42,       # int — should be ignored
+                None,     # None — should be ignored
+                "BR-5",   # str — counted as covered
+            ]
+        }
+    }
+    result = evaluate_p54_business_rules_gate(
+        session_state=session_state, phase_1_5_executed=True,
+    )
+    # Only 2 Mappings + 1 string = 3 total, all covered → 100%
+    assert result.total_business_rules == 3
+    assert result.covered_business_rules == 3
+    assert result.status == "pending"
+
+
+@pytest.mark.governance
 def test_p56_gate_not_applicable_when_no_schema_or_contracts():
     """P5.6 is N/A if nothing touched that needs rollback."""
 
