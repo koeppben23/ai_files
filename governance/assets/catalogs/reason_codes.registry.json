@@ -474,28 +474,28 @@
     {
       "code": "BLOCKED-STRICT-EVIDENCE-MISSING",
       "severity": "blocked",
-      "payload_schema_ref": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
+      "payload_schema_ref": "governance/assets/schemas/strict_exit_blocked.v1.schema.json",
       "description": "Critical pass criterion requires evidence that is entirely missing under principal_strict mode.",
       "remediation_hint": "Provide the missing evidence artifact for the failing criterion."
     },
     {
       "code": "BLOCKED-STRICT-EVIDENCE-STALE",
       "severity": "blocked",
-      "payload_schema_ref": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
+      "payload_schema_ref": "governance/assets/schemas/strict_exit_blocked.v1.schema.json",
       "description": "Critical pass criterion evidence is stale (exceeds TTL) under principal_strict mode.",
       "remediation_hint": "Refresh the stale evidence artifact within the allowed TTL."
     },
     {
       "code": "BLOCKED-STRICT-THRESHOLD",
       "severity": "blocked",
-      "payload_schema_ref": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
+      "payload_schema_ref": "governance/assets/schemas/strict_exit_blocked.v1.schema.json",
       "description": "Critical pass criterion score is below dynamic threshold under principal_strict mode.",
       "remediation_hint": "Improve score to meet or exceed the dynamic threshold for the failing criterion."
     },
     {
       "code": "BLOCKED-STRICT-CONTRACT-MISSING",
       "severity": "blocked",
-      "payload_schema_ref": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
+      "payload_schema_ref": "governance/assets/schemas/strict_exit_blocked.v1.schema.json",
       "description": "principal_strict is active but no pass criteria are defined for the current phase. Fail-closed: transition is blocked.",
       "remediation_hint": "Define pass_criteria for this phase in the phase_exit_contract, or disable principal_strict mode."
     }

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping, cast
@@ -529,23 +529,26 @@ def execute(
         },
     )
 
-    def _blocked_result(*, phase: str, token: str, active_gate: str, next_gate_condition: str, source: str, reason: str) -> KernelResult:
+    def _blocked_result(*, phase: str, token: str, active_gate: str, next_gate_condition: str, source: str, reason: str, detail: dict[str, object] | None = None) -> KernelResult:
+        event_payload: dict[str, object] = {
+            "schema": "opencode.phase-flow.v1",
+            "ts_utc": _utc_now(),
+            "event_id": event_id,
+            "event": "PHASE_BLOCKED",
+            "source": _normalize_source(source),
+            "phase": phase,
+            "phase_token": token,
+            "next_token": token,
+            "status": "BLOCKED",
+            "reason": reason,
+            "spec_hash": spec.stable_hash,
+            "spec_path": str(spec.path),
+        }
+        if detail is not None:
+            event_payload["strict_exit_detail"] = detail
         written, result_paths = _emit_phase_event(
             log_paths,
-            {
-                "schema": "opencode.phase-flow.v1",
-                "ts_utc": _utc_now(),
-                "event_id": event_id,
-                "event": "PHASE_BLOCKED",
-                "source": _normalize_source(source),
-                "phase": phase,
-                "phase_token": token,
-                "next_token": token,
-                "status": "BLOCKED",
-                "reason": reason,
-                "spec_hash": spec.stable_hash,
-                "spec_path": str(spec.path),
-            },
+            event_payload,
         )
         if not written:
             emit_error_event(
@@ -749,6 +752,10 @@ def execute(
             )
             if _strict_result.blocked:
                 _reason_codes_str = _strict_result.reason_codes[0] if _strict_result.reason_codes else reason_codes.BLOCKED_UNSPECIFIED
+                _strict_detail = asdict(_strict_result)
+                # Convert tuples to lists for JSON serialisation fidelity.
+                _strict_detail["criteria"] = [asdict(c) for c in _strict_result.criteria]
+                _strict_detail["reason_codes"] = list(_strict_result.reason_codes)
                 return _blocked_result(
                     phase=entry.phase,
                     token=chosen_token,
@@ -756,6 +763,7 @@ def execute(
                     next_gate_condition=f"PHASE_BLOCKED: {_strict_result.summary}",
                     source="strict-exit-gate",
                     reason=f"strict-exit-gate: {_reason_codes_str}",
+                    detail=_strict_detail,
                 )
         elif _principal_strict:
             # Fail-closed: principal_strict is active but no criteria

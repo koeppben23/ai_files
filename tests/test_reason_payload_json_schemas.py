@@ -8,6 +8,10 @@ import pytest
 import governance.engine.reason_payload as reason_payload
 from governance.engine.reason_codes import (
     BLOCKED_EXEC_DISALLOWED,
+    BLOCKED_STRICT_CONTRACT_MISSING,
+    BLOCKED_STRICT_EVIDENCE_MISSING,
+    BLOCKED_STRICT_EVIDENCE_STALE,
+    BLOCKED_STRICT_THRESHOLD,
     INTERACTIVE_REQUIRED_IN_PIPELINE,
     POLICY_PRECEDENCE_APPLIED,
     PROMPT_BUDGET_EXCEEDED,
@@ -21,12 +25,42 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 SCHEMA_DIR = REPO_ROOT / "governance" / "assets" / "schemas"
 
 
+# -- Fixtures: strict-exit payloads ------------------------------------------
+
+_VALID_STRICT_EXIT_CONTEXT: dict[str, object] = {
+    "blocked": True,
+    "criteria": [
+        {
+            "criterion_key": "unit_test_coverage",
+            "artifact_kind": "test_coverage",
+            "critical": True,
+            "verdict": "blocked",
+            "reason_code": "BLOCKED-STRICT-EVIDENCE-MISSING",
+            "detail": "No evidence artifact found for test_coverage.",
+        },
+    ],
+    "reason_codes": ["BLOCKED-STRICT-EVIDENCE-MISSING"],
+    "summary": "1 of 1 criteria blocked",
+}
+
+
 def test_reason_payload_schemas_are_strict():
     schema_files = sorted(SCHEMA_DIR.glob("reason_payload_*.json"))
     assert schema_files, "expected reason payload schema files"
     for path in schema_files:
         payload = json.loads(path.read_text(encoding="utf-8"))
         assert payload.get("additionalProperties") is False, f"schema must be strict: {path.name}"
+
+
+def test_strict_exit_schema_is_strict():
+    """strict_exit_blocked.v1.schema.json must enforce additionalProperties: false."""
+    path = SCHEMA_DIR / "strict_exit_blocked.v1.schema.json"
+    assert path.exists(), "strict_exit_blocked.v1.schema.json missing"
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    assert payload.get("additionalProperties") is False, "strict_exit schema must be strict"
+    # criterion_result items must also be strict
+    criterion_def = payload.get("$defs", {}).get("criterion_result", {})
+    assert criterion_def.get("additionalProperties") is False, "criterion_result must be strict"
 
 
 @pytest.mark.parametrize(
@@ -99,6 +133,11 @@ def test_reason_payload_schemas_are_strict():
                 "pointers": ["policy:write_scope"],
             },
         ),
+        # Strict-exit enforcement payloads (GAP-3)
+        (BLOCKED_STRICT_EVIDENCE_MISSING, _VALID_STRICT_EXIT_CONTEXT),
+        (BLOCKED_STRICT_EVIDENCE_STALE, _VALID_STRICT_EXIT_CONTEXT),
+        (BLOCKED_STRICT_THRESHOLD, _VALID_STRICT_EXIT_CONTEXT),
+        (BLOCKED_STRICT_CONTRACT_MISSING, _VALID_STRICT_EXIT_CONTEXT),
     ],
 )
 def test_reason_context_validates_against_registered_schema(reason_code: str, context: dict[str, object]):
@@ -124,6 +163,27 @@ def test_reason_context_validates_against_registered_schema(reason_code: str, co
                     "host_perm_hash": "sha256:h",
                     "doc_hash": "sha256:d",
                 },
+            },
+        ),
+        # Strict-exit: missing required fields
+        (BLOCKED_STRICT_EVIDENCE_MISSING, {"blocked": True}),
+        # Strict-exit: criterion with invalid verdict enum
+        (
+            BLOCKED_STRICT_THRESHOLD,
+            {
+                "blocked": True,
+                "criteria": [
+                    {
+                        "criterion_key": "k",
+                        "artifact_kind": "a",
+                        "critical": True,
+                        "verdict": "invalid_verdict",
+                        "reason_code": "BLOCKED-STRICT-THRESHOLD",
+                        "detail": "d",
+                    },
+                ],
+                "reason_codes": ["BLOCKED-STRICT-THRESHOLD"],
+                "summary": "s",
             },
         ),
     ],
@@ -177,4 +237,21 @@ def test_reason_context_schema_missing_error_is_canonical(monkeypatch: pytest.Mo
                 "doc_hash": "sha256:abc",
                 "classification_rule_id": "repo_doc_unsafe_skip_tests",
             },
+        )
+
+
+def test_blocked_strict_codes_bound_to_strict_exit_schema():
+    """All 4 BLOCKED-STRICT-* codes must map to the strict_exit schema, not blocked_core."""
+    from governance.engine._embedded_reason_registry import EMBEDDED_REASON_CODE_TO_SCHEMA_REF
+
+    strict_codes = [
+        BLOCKED_STRICT_EVIDENCE_MISSING,
+        BLOCKED_STRICT_EVIDENCE_STALE,
+        BLOCKED_STRICT_THRESHOLD,
+        BLOCKED_STRICT_CONTRACT_MISSING,
+    ]
+    expected_ref = "governance/assets/schemas/strict_exit_blocked.v1.schema.json"
+    for code in strict_codes:
+        assert EMBEDDED_REASON_CODE_TO_SCHEMA_REF.get(code) == expected_ref, (
+            f"{code} must be bound to {expected_ref}"
         )

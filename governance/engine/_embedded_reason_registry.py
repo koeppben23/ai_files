@@ -65,10 +65,10 @@ EMBEDDED_REASON_CODE_TO_SCHEMA_REF: Final[dict[str, str]] = {
     "BLOCKED-PIPELINE-HUMAN-ASSIST": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
     "BLOCKED-PIPELINE-PROMPT-BUDGET": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
     # Strict-exit enforcement
-    "BLOCKED-STRICT-EVIDENCE-MISSING": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
-    "BLOCKED-STRICT-EVIDENCE-STALE": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
-    "BLOCKED-STRICT-THRESHOLD": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
-    "BLOCKED-STRICT-CONTRACT-MISSING": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
+    "BLOCKED-STRICT-EVIDENCE-MISSING": "governance/assets/schemas/strict_exit_blocked.v1.schema.json",
+    "BLOCKED-STRICT-EVIDENCE-STALE": "governance/assets/schemas/strict_exit_blocked.v1.schema.json",
+    "BLOCKED-STRICT-THRESHOLD": "governance/assets/schemas/strict_exit_blocked.v1.schema.json",
+    "BLOCKED-STRICT-CONTRACT-MISSING": "governance/assets/schemas/strict_exit_blocked.v1.schema.json",
     "NOT_VERIFIED-STRICT-EVIDENCE-STALE": "governance/assets/schemas/reason_payload_advisory.v1.json",
     "NOT_VERIFIED-STRICT-EVIDENCE-MISSING": "governance/assets/schemas/reason_payload_advisory.v1.json",
     # Install subsystem
