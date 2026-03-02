@@ -170,6 +170,15 @@ NOT_VERIFIED_MISSING_EVIDENCE: Final[str] = "NOT_VERIFIED-MISSING-EVIDENCE"
 NOT_VERIFIED_EVIDENCE_STALE: Final[str] = "NOT_VERIFIED-EVIDENCE-STALE"
 
 # ---------------------------------------------------------------------------
+# Strict-exit enforcement codes (principal_strict mode)
+# ---------------------------------------------------------------------------
+BLOCKED_STRICT_EVIDENCE_MISSING: Final[str] = "BLOCKED-STRICT-EVIDENCE-MISSING"
+BLOCKED_STRICT_EVIDENCE_STALE: Final[str] = "BLOCKED-STRICT-EVIDENCE-STALE"
+BLOCKED_STRICT_THRESHOLD: Final[str] = "BLOCKED-STRICT-THRESHOLD"
+NOT_VERIFIED_STRICT_EVIDENCE_STALE: Final[str] = "NOT_VERIFIED-STRICT-EVIDENCE-STALE"
+NOT_VERIFIED_STRICT_EVIDENCE_MISSING: Final[str] = "NOT_VERIFIED-STRICT-EVIDENCE-MISSING"
+
+# ---------------------------------------------------------------------------
 # Operational / informational codes
 # ---------------------------------------------------------------------------
 REPO_DOC_UNSAFE_DIRECTIVE: Final[str] = "REPO-DOC-UNSAFE-DIRECTIVE"
@@ -335,6 +344,12 @@ CANONICAL_REASON_CODES: Final[tuple[str, ...]] = (
     # NOT_VERIFIED
     NOT_VERIFIED_MISSING_EVIDENCE,
     NOT_VERIFIED_EVIDENCE_STALE,
+    # Strict-exit enforcement (principal_strict mode)
+    BLOCKED_STRICT_EVIDENCE_MISSING,
+    BLOCKED_STRICT_EVIDENCE_STALE,
+    BLOCKED_STRICT_THRESHOLD,
+    NOT_VERIFIED_STRICT_EVIDENCE_STALE,
+    NOT_VERIFIED_STRICT_EVIDENCE_MISSING,
     # Operational
     REPO_DOC_UNSAFE_DIRECTIVE,
     REPO_CONSTRAINT_WIDENING,

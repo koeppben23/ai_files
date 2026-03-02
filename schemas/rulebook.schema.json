@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://governance.opencode.ai/schemas/rulebook/v1.1.0/rulebook.schema.json",
-  "version": "1.1.0",
+  "$id": "https://governance.opencode.ai/schemas/rulebook/v1.2.0/rulebook.schema.json",
+  "version": "1.2.0",
   "title": "Governance Rulebook",
   "type": "object",
   "required": ["kind", "metadata"],
@@ -40,7 +40,17 @@
       "type": "array",
       "items": { "$ref": "#/$defs/typed_reference" }
     },
-    "authority_index": { "$ref": "#/$defs/authority_index" }
+    "authority_index": { "$ref": "#/$defs/authority_index" },
+    "phase_exit_contract": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/phase_exit_contract_entry" },
+      "description": "Per-phase exit conditions with pass criteria, blocking conditions, and evidence freshness requirements."
+    },
+    "failure_codes": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/failure_code_ref" },
+      "description": "References to canonical reason codes used by this rulebook's blocking conditions."
+    }
   },
   "allOf": [
     { 
@@ -326,6 +336,101 @@
               "source": { "type": "string" }
             }
           }
+        }
+      }
+    },
+
+    "phase_exit_contract_entry": {
+      "type": "object",
+      "required": ["phase", "pass_criteria"],
+      "additionalProperties": false,
+      "properties": {
+        "phase": {
+          "type": "string",
+          "pattern": "^phase_[0-9](_[0-9])?$"
+        },
+        "pass_criteria": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/pass_criterion" }
+        },
+        "blocking_conditions": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/blocking_condition" }
+        },
+        "evidence_freshness": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/evidence_freshness_entry" }
+        }
+      }
+    },
+
+    "pass_criterion": {
+      "type": "object",
+      "required": ["criterion_id", "critical", "evidence_artifact"],
+      "additionalProperties": false,
+      "properties": {
+        "criterion_id": { "type": "string" },
+        "critical": { "type": "boolean" },
+        "evidence_artifact": { "type": "string" },
+        "threshold": { "type": "number", "description": "Static threshold value. Mutually exclusive with threshold_mode." },
+        "threshold_mode": {
+          "type": "string",
+          "enum": ["static", "dynamic_by_risk_tier"],
+          "description": "How the threshold is resolved. 'static' uses the threshold field; 'dynamic_by_risk_tier' delegates to threshold_resolver."
+        },
+        "threshold_resolver": {
+          "type": "string",
+          "description": "Dot-path to a registered Python resolver function for dynamic thresholds."
+        }
+      }
+    },
+
+    "blocking_condition": {
+      "type": "object",
+      "required": ["condition_id", "when", "applies_to_severity", "failure_code"],
+      "additionalProperties": false,
+      "properties": {
+        "condition_id": { "type": "string" },
+        "when": {
+          "type": "string",
+          "enum": ["missing", "stale", "below_threshold"]
+        },
+        "applies_to_severity": {
+          "type": "string",
+          "enum": ["critical", "non_critical", "all"],
+          "description": "Which criteria severity this condition applies to. 'critical' = only critical:true criteria."
+        },
+        "failure_code": {
+          "type": "string",
+          "pattern": "^(BLOCKED|NOT_VERIFIED|WARN)-",
+          "description": "Must reference a canonical code from reason_codes.py."
+        }
+      }
+    },
+
+    "evidence_freshness_entry": {
+      "type": "object",
+      "required": ["artifact_kind", "freshness_class"],
+      "additionalProperties": false,
+      "properties": {
+        "artifact_kind": { "type": "string" },
+        "freshness_class": {
+          "type": "string",
+          "enum": ["identity_signal", "preflight_probe", "gate_evidence", "runtime_diagnostic", "operator_provided"],
+          "description": "Maps to TTL defaults in evidence_policy.py EVIDENCE_CLASS_DEFAULT_TTL_SECONDS."
+        }
+      }
+    },
+
+    "failure_code_ref": {
+      "type": "object",
+      "required": ["code"],
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "type": "string",
+          "pattern": "^(BLOCKED|NOT_VERIFIED|WARN)-",
+          "description": "Reference to a canonical reason code. Authority is reason_codes.py."
         }
       }
     }
