@@ -89,7 +89,7 @@ class TestSSOTPipelineE2E:
         assert lock["source_files"] == manifest["source_files"]
 
         # v2 schema version tracking
-        assert manifest["rulebook_schema_version"] == "1.1.0"
+        assert manifest["rulebook_schema_version"] == "1.2.0"
 
         # Hash integrity
         assert hashes["ruleset_hash"] == payload["ruleset_hash"]
