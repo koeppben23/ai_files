@@ -20,6 +20,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -121,6 +122,10 @@ def main(argv: list[str] | None = None) -> int:
         "--repo-root", type=Path, default=None,
         help="Repository root (default: auto-detect from script location)",
     )
+    parser.add_argument(
+        "--json", action="store_true", dest="json_output",
+        help="Output structured JSON report (schema: governance.validate-rulebook-report.v1)",
+    )
     args = parser.parse_args(argv)
 
     root = args.repo_root.resolve() if args.repo_root else REPO_ROOT
@@ -146,28 +151,59 @@ def main(argv: list[str] | None = None) -> int:
     # Validate
     total = 0
     failed = 0
+    results: list[dict] = []
     for path in files:
         total += 1
         issues = validate_file(path, schema)
+        rel = str(path.relative_to(root) if path.is_relative_to(root) else path)
+
         if issues:
             failed += 1
-            rel = path.relative_to(root) if path.is_relative_to(root) else path
-            print(f"FAIL {rel}")
+            # Build structured error entries
+            errors = []
             for issue in issues:
-                print(issue)
-            print()
-        else:
-            rel = path.relative_to(root) if path.is_relative_to(root) else path
-            print(f"  OK {rel}")
+                stripped = issue.strip()
+                # Parse "$.path: message" format from validate_file
+                if ": " in stripped and stripped.startswith("$"):
+                    colon_idx = stripped.index(": ")
+                    errors.append({
+                        "path": stripped[:colon_idx],
+                        "message": stripped[colon_idx + 2:],
+                    })
+                else:
+                    errors.append({"path": "$", "message": stripped})
+            results.append({"file": rel, "valid": False, "errors": errors})
 
-    # Summary
-    print(f"\n{'=' * 50}")
-    if failed:
-        print(f"FAILED: {failed}/{total} file(s) have validation errors")
-        return 1
+            if not args.json_output:
+                print(f"FAIL {rel}")
+                for issue in issues:
+                    print(issue)
+                print()
+        else:
+            results.append({"file": rel, "valid": True, "errors": []})
+            if not args.json_output:
+                print(f"  OK {rel}")
+
+    # Output
+    if args.json_output:
+        report = {
+            "schema": "governance.validate-rulebook-report.v1",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "files_checked": total,
+            "files_valid": total - failed,
+            "files_invalid": failed,
+            "results": results,
+        }
+        print(json.dumps(report, indent=2))
     else:
-        print(f"OK: {total} file(s) validated successfully")
-        return 0
+        # Human-readable summary
+        print(f"\n{'=' * 50}")
+        if failed:
+            print(f"FAILED: {failed}/{total} file(s) have validation errors")
+        else:
+            print(f"OK: {total} file(s) validated successfully")
+
+    return 1 if failed else 0
 
 
 if __name__ == "__main__":
