@@ -416,6 +416,13 @@
       "remediation_hint": "Complete all prerequisite gates before entering Phase 6 Implementation QA."
     },
     {
+      "code": "BLOCKED-P6-PLAN-COMPLIANCE-MAJOR",
+      "severity": "blocked",
+      "payload_schema_ref": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Major deviation between plan-record and actual implementation detected at Phase 6 entry (pipeline mode hard-block).",
+      "remediation_hint": "Review plan-record.json against actual changes. Update plan or resolve deviations before Phase 6."
+    },
+    {
       "code": "BLOCKED-PIPELINE-INTERACTIVE",
       "severity": "blocked",
       "payload_schema_ref": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
@@ -969,6 +976,13 @@
       "payload_schema_ref": "governance/assets/schemas/reason_payload_advisory.v1.json",
       "description": "SESSION_STATE document failed schema or invariant validation.",
       "remediation_hint": "Fix schema violations or invariant errors. Run schema validation for details."
+    },
+    {
+      "code": "WARN-P6-PLAN-COMPLIANCE-DRIFT",
+      "severity": "warn",
+      "payload_schema_ref": "governance/assets/schemas/reason_payload_advisory.v1.json",
+      "description": "Plan-vs-implementation drift detected at Phase 6 entry (non-blocking warning).",
+      "remediation_hint": "Review plan-record.json against actual changes. Minor drift is acceptable; update plan if needed."
     }
   ]
 }
