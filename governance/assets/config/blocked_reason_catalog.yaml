@@ -303,6 +303,25 @@ blocked_reasons:
       - "Construct valid option set"
     message_template: "Decision gate missing required input."
 
+  BLOCKED-P6-PREREQUISITES-NOT-MET:
+    reason_code: "BLOCKED-P6-PREREQUISITES-NOT-MET"
+    surface: "state"
+    category: "gate"
+    trigger_description: "Phase 6 transition attempted before required upstream gate prerequisites are satisfied"
+    required_inputs:
+      - "P5-Architecture gate approved"
+      - "P5.3-TestQuality gate passed"
+    quick_fix_commands:
+      - "Set required P5 gate states and re-run phase transition"
+    resume_pointer: "Phase 6 - Implementation QA Prerequisite Gate"
+    recovery_steps:
+      - "Approve architecture gate outcome"
+      - "Ensure test quality gate reports pass"
+      - "If business rules apply, ensure P5.4 is compliant"
+      - "If rollback safety applies, ensure P5.6 is approved"
+      - "Re-run phase transition"
+    message_template: "Phase 6 blocked: prerequisites not met. Satisfy required P5 gate outcomes."
+
   BLOCKED-ADDON-CONFLICT:
     reason_code: "BLOCKED-ADDON-CONFLICT"
     surface: "addons"
