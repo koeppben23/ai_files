@@ -444,3 +444,58 @@ def test_uninstall_dry_run_does_not_remove_workspace_state(tmp_path: Path):
     assert state["ws/SESSION_STATE.json"].exists(), "dry-run must not delete workspace SESSION_STATE"
     assert state["ws/plan-record.json"].exists(), "dry-run must not delete plan-record.json"
     assert state["ws/plan-record-archive"].exists(), "dry-run must not delete plan-record-archive/"
+
+
+@pytest.mark.installer
+def test_uninstall_preserves_opencode_json(tmp_path: Path):
+    """opencode.json must NEVER be deleted on uninstall.
+
+    opencode.json is user/team configuration that may be shared across
+    team members and checked into version control.  It must survive both
+    manifest-based and fallback uninstall paths.
+    """
+    config_root = tmp_path / "opencode-config-preserve-oj"
+
+    r = run_install(["--force", "--no-backup", "--config-root", str(config_root)])
+    assert r.returncode == 0, f"install failed:\n{r.stderr}\n{r.stdout}"
+
+    # The installer creates/merges opencode.json during install.
+    # If it doesn't exist yet (e.g. minimal fixture), create one manually.
+    oj = config_root / "opencode.json"
+    if not oj.exists():
+        oj.write_text('{"customInstructions": ["commands/master.md"]}', encoding="utf-8")
+    assert oj.exists(), "pre-condition: opencode.json must exist before uninstall"
+
+    r = run_install(["--uninstall", "--force", "--config-root", str(config_root)])
+    assert r.returncode == 0, f"uninstall failed:\n{r.stderr}\n{r.stdout}"
+
+    assert oj.exists(), (
+        "opencode.json must be preserved after uninstall — "
+        "it is user/team configuration that other users may depend on"
+    )
+
+
+@pytest.mark.installer
+def test_uninstall_preserves_opencode_json_fallback_path(tmp_path: Path):
+    """opencode.json must also survive the fallback (no-manifest) uninstall path."""
+    config_root = tmp_path / "opencode-config-preserve-oj-fallback"
+
+    r = run_install(["--force", "--no-backup", "--config-root", str(config_root)])
+    assert r.returncode == 0, f"install failed:\n{r.stderr}\n{r.stdout}"
+
+    oj = config_root / "opencode.json"
+    if not oj.exists():
+        oj.write_text('{"customInstructions": ["commands/master.md"]}', encoding="utf-8")
+    assert oj.exists(), "pre-condition: opencode.json must exist before uninstall"
+
+    # Remove manifest to force fallback path
+    manifest = config_root / "INSTALL_MANIFEST.json"
+    if manifest.exists():
+        manifest.unlink()
+
+    r = run_install(["--uninstall", "--force", "--config-root", str(config_root)])
+    # Fallback path exits with 0 on success
+    assert oj.exists(), (
+        "opencode.json must be preserved after fallback uninstall — "
+        "it is user/team configuration that other users may depend on"
+    )

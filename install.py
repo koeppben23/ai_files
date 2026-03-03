@@ -1934,8 +1934,12 @@ def uninstall(
 ) -> int:
     print(f"🧹 Uninstall from: {plan.commands_dir}")
 
-    # opencode.json is installer-initialized but intentionally preserved on uninstall.
-    # Uninstall removes installer-owned runtime files based on manifest (or conservative fallback).
+    # ── IMPORTANT: opencode.json is NEVER deleted on uninstall ───────────
+    # opencode.json is a user/team configuration file that may be shared
+    # across team members and checked into version control. It is created or
+    # merged during install but intentionally preserved on uninstall so that
+    # other users who depend on it are not affected.
+    # Neither delete_targets() nor purge_runtime_state() touch this file.
 
     def collect_known_installer_targets() -> list[Path]:
         targets: list[Path] = []
@@ -2044,7 +2048,8 @@ def uninstall(
 
         # Deduplicate while preserving order
         targets = list(dict.fromkeys(targets))
-        # intentionally NOT deleting opencode.json (preserved even when installer-managed)
+        # intentionally NOT deleting opencode.json — it is user/team
+        # configuration that must survive uninstall (see docstring above).
 
         rc = delete_targets(targets, plan, dry_run=dry_run)
         if not keep_error_logs:
@@ -2361,11 +2366,23 @@ def purge_runtime_state(config_root: Path, dry_run: bool) -> int:
     Safety:
       - Only known governance artifact patterns are removed.
       - Non-matching user files are preserved.
+      - opencode.json is NEVER removed — it is user configuration shared across
+        team members and must survive uninstall/reinstall cycles.
       - Empty workspace directories are cleaned up after purge.
     """
     print("\n🧾 Purging runtime workspace state ...")
 
     errors = 0
+
+    # ── Safety: opencode.json must NEVER be deleted ──────────────────────
+    # opencode.json is user/team configuration (checked into repos, shared
+    # across team members). It is NOT a runtime artifact. Assert that it
+    # cannot accidentally appear in any removal list maintained here.
+    _oj = config_root / OPENCODE_JSON_NAME
+    assert OPENCODE_JSON_NAME not in {
+        "governance.activation_intent.json",
+        "SESSION_STATE.json",
+    }, "opencode.json must never be a config-root purge target"
 
     # 1. activation_intent.json at config root level
     activation_intent = config_root / "governance.activation_intent.json"
@@ -2410,6 +2427,10 @@ def purge_runtime_state(config_root: Path, dry_run: bool) -> int:
         "business-rules.md",
         "plan-record.json",
     ]
+
+    assert OPENCODE_JSON_NAME not in workspace_artifact_names, (
+        "opencode.json must never appear in workspace_artifact_names"
+    )
 
     # Known workspace subdirectories to remove as trees
     workspace_subtree_names = [

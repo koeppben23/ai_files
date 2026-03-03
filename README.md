@@ -76,8 +76,11 @@ By default, uninstall removes:
 - Workspace state: `governance.activation_intent.json`, `SESSION_STATE.json` (global pointer + per-workspace), all workspace artifacts (`--keep-workspace-state` to preserve)
 - Empty directories: `workspaces/`, `bin/`, `.installer-backups/`, `logs/`
 
-Preserved on uninstall:
-- User configuration file (always preserved)
+**Always preserved on uninstall** (never deleted):
+- opencode.json — User/team configuration file shared across team members.
+  This file may be checked into version control and is depended upon by other
+  users. It is intentionally preserved so that uninstall/reinstall cycles do
+  not disrupt team workflows.
 - `governance.paths.json` (unless `--purge-paths-file` is passed)
 - Non-governance user-owned files
 

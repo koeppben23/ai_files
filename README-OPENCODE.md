@@ -75,6 +75,11 @@ ${PYTHON_COMMAND} $env:USERPROFILE\.config\opencode\commands\scripts\render_resp
 
 Uninstall removes all governance runtime state in addition to installed files.
 
+**Important:** opencode.json is **never** deleted on uninstall. It is user/team
+configuration that may be shared across team members and checked into version
+control. Other users who depend on this file are not affected by
+uninstall/reinstall cycles.
+
 Runtime state files removed on uninstall:
 - `${CONFIG_ROOT}/governance.activation_intent.json` (activation intent)
 - `${CONFIG_ROOT}/SESSION_STATE.json` (global active workspace pointer)
@@ -95,3 +100,8 @@ Use `--keep-workspace-state` to preserve workspace state during uninstall (e.g.,
 ```bash
 python install.py --uninstall --force --keep-workspace-state
 ```
+
+Always preserved on uninstall (never deleted):
+- opencode.json — user/team configuration (may be shared via version control)
+- `governance.paths.json` (unless `--purge-paths-file` is explicitly passed)
+- Non-governance user-owned files
