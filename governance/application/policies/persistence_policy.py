@@ -19,6 +19,7 @@ ARTIFACT_REPO_DIGEST = "REPO_DIGEST_FILE"
 ARTIFACT_DECISION_PACK = "REPO_DECISION_PACK_FILE"
 ARTIFACT_BUSINESS_RULES = "REPO_BUSINESS_RULES_FILE"
 ARTIFACT_WORKSPACE_MEMORY = "WORKSPACE_MEMORY_FILE"
+ARTIFACT_PLAN_RECORD = "PLAN_RECORD_FILE"
 
 
 _ARTIFACT_KEY_TO_KIND = {
@@ -27,6 +28,7 @@ _ARTIFACT_KEY_TO_KIND = {
     "decision_pack": ARTIFACT_DECISION_PACK,
     "business_rules_inventory": ARTIFACT_BUSINESS_RULES,
     "workspace_memory": ARTIFACT_WORKSPACE_MEMORY,
+    "plan_record": ARTIFACT_PLAN_RECORD,
 }
 
 _DEFAULT_ALLOWED_PHASES = {
@@ -35,6 +37,7 @@ _DEFAULT_ALLOWED_PHASES = {
     ARTIFACT_DECISION_PACK: frozenset({"2.1"}),
     ARTIFACT_BUSINESS_RULES: frozenset({"1.5"}),
     ARTIFACT_WORKSPACE_MEMORY: frozenset({"2", "4", "5", "6"}),
+    ARTIFACT_PLAN_RECORD: frozenset({"4", "5"}),
 }
 
 _ALLOWED_PHASES_BY_ARTIFACT: dict[str, frozenset[str]] = dict(_DEFAULT_ALLOWED_PHASES)
@@ -150,6 +153,11 @@ def can_write(inputs: PersistencePolicyInput) -> PersistencePolicyDecision:
             return PersistencePolicyDecision(False, PERSIST_CONFIRMATION_REQUIRED, "workspace-memory-confirmation-required")
         if confirmation != expected:
             return PersistencePolicyDecision(False, PERSIST_CONFIRMATION_INVALID, "workspace-memory-confirmation-must-be-exact")
+        return PersistencePolicyDecision(True, REASON_CODE_NONE, "allowed")
+
+    if artifact == ARTIFACT_PLAN_RECORD:
+        if not _phase_allowed(artifact, phase_token):
+            return PersistencePolicyDecision(False, PERSIST_PHASE_MISMATCH, "plan-record-requires-phase-4-or-5")
         return PersistencePolicyDecision(True, REASON_CODE_NONE, "allowed")
 
     # Fail-closed: unknown artifacts must not become implicitly "allowed".

@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any, Mapping
 from governance.application.policies.persistence_policy import (
     ARTIFACT_BUSINESS_RULES,
     ARTIFACT_DECISION_PACK,
+    ARTIFACT_PLAN_RECORD,
     ARTIFACT_REPO_CACHE,
     ARTIFACT_REPO_DIGEST,
     ARTIFACT_WORKSPACE_MEMORY,
@@ -58,6 +59,8 @@ def _artifact_kind_from_target_variable(target_variable: str | None) -> str | No
         return ARTIFACT_BUSINESS_RULES
     if target_variable == "WORKSPACE_MEMORY_FILE":
         return ARTIFACT_WORKSPACE_MEMORY
+    if target_variable == "PLAN_RECORD_FILE":
+        return ARTIFACT_PLAN_RECORD
     return None
 
 
