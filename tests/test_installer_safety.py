@@ -185,6 +185,7 @@ def _seed_workspace_state(config_root: Path) -> dict[str, Path]:
         "workspace-memory.yaml",
         "decision-pack.md",
         "business-rules.md",
+        "business-rules-status.md",
         "plan-record.json",
     ]
     for name in artifact_names:
@@ -271,6 +272,7 @@ def test_uninstall_removes_all_workspace_artifacts(tmp_path: Path):
         "ws/workspace-memory.yaml",
         "ws/decision-pack.md",
         "ws/business-rules.md",
+        "ws/business-rules-status.md",
         "ws/plan-record.json",
     ]
     for key in artifact_keys:

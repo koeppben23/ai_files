@@ -48,9 +48,20 @@ def _minimal_session_state(**overrides) -> dict[str, object]:
             "workspace_ready_gate_committed": True,
             "WorkspaceArtifactsCommitted": True,
             "PointerVerified": True,
-            "LoadedRulebooks": {"core": "${COMMANDS_HOME}/master.md", "profile": "", "templates": "", "addons": {}},
-            "RulebookLoadEvidence": {"core": "${COMMANDS_HOME}/master.md"},
-            "AddonsEvidence": {},
+            "ActiveProfile": "profile.fallback-minimum",
+            "LoadedRulebooks": {
+                "core": "${COMMANDS_HOME}/rules.md",
+                "profile": "${COMMANDS_HOME}/rulesets/profiles/rules.fallback-minimum.yml",
+                "templates": "${COMMANDS_HOME}/master.md",
+                "addons": {
+                    "riskTiering": "${COMMANDS_HOME}/rulesets/profiles/rules.risk-tiering.yml",
+                },
+            },
+            "RulebookLoadEvidence": {
+                "core": "${COMMANDS_HOME}/rules.md",
+                "profile": "${COMMANDS_HOME}/rulesets/profiles/rules.fallback-minimum.yml",
+            },
+            "AddonsEvidence": {"riskTiering": {"status": "loaded"}},
             "RepoDiscovery": {
                 "Completed": True,
                 "RepoCacheFile": "${WORKSPACES_HOME}/repo-cache.yaml",
@@ -258,6 +269,7 @@ class TestPhase3ARouting:
         assert result.phase == "4"
         assert result.source == "phase-3a-not-applicable-to-phase4"
         assert "not-applicable" in result.next_gate_condition
+        assert "/continue" in result.next_gate_condition
 
     def test_phase_3a_with_apis_routes_to_3b1(self):
         """When Phase 3A has APIs in scope, route to Phase 3B-1 for logical validation."""
@@ -324,6 +336,38 @@ class TestPhase3BRouting:
         )
         assert result.phase == "4"
         assert result.source == "phase-3b2-to-4"
+        assert "/continue" in result.next_gate_condition
+
+
+@pytest.mark.governance
+class TestPhase4Routing:
+    def test_phase_4_stays_until_ticket_or_task_is_present(self):
+        doc = _minimal_session_state(phase="4")
+        result = route_phase(
+            requested_phase="4",
+            requested_active_gate="Ticket Input Gate",
+            requested_next_gate_condition="Collect ticket",
+            session_state_document=doc,
+            repo_is_git_root=True,
+        )
+        assert result.phase == "4"
+        assert result.source == "phase-4-awaiting-ticket-intake"
+
+    def test_phase_4_routes_to_5_when_ticket_digest_present(self):
+        doc = _minimal_session_state(
+            phase="4",
+            TicketRecordDigest="Test Strategy: add integration coverage",
+            FeatureComplexity={"Class": "STANDARD", "Reason": "ticket-provided", "PlanningDepth": "standard"},
+        )
+        result = route_phase(
+            requested_phase="4",
+            requested_active_gate="Ticket Input Gate",
+            requested_next_gate_condition="Collect ticket",
+            session_state_document=doc,
+            repo_is_git_root=True,
+        )
+        assert result.phase == "5-Implementation"
+        assert result.source == "phase-4-to-5-ticket-intake"
 
 
 @pytest.mark.governance

@@ -129,10 +129,19 @@ def _rulebook_gate_passed(state: Mapping[str, object]) -> tuple[bool, str]:
     if not isinstance(core, str) or not core.strip():
         return False, "core rulebook not loaded"
     active_profile = state.get("ActiveProfile")
-    if isinstance(active_profile, str) and active_profile.strip():
-        profile = loaded_rulebooks.get("profile")
-        if not isinstance(profile, str) or not profile.strip():
-            return False, f"profile rulebook '{active_profile}' not loaded"
+    if not isinstance(active_profile, str) or not active_profile.strip():
+        return False, "active profile not set"
+    profile = loaded_rulebooks.get("profile")
+    if not isinstance(profile, str) or not profile.strip():
+        return False, f"profile rulebook '{active_profile}' not loaded"
+    addons = loaded_rulebooks.get("addons")
+    if not isinstance(addons, Mapping) or not addons:
+        return False, "addon rulebook not loaded"
+    if not any(isinstance(value, str) and value.strip() for value in addons.values()):
+        return False, "addon rulebook not loaded"
+    addons_evidence = state.get("AddonsEvidence")
+    if not isinstance(addons_evidence, Mapping) or not addons_evidence:
+        return False, "addon evidence missing"
     return True, "ok"
 
 
@@ -339,19 +348,53 @@ def _validate_exit(entry: PhaseSpecEntry, state: Mapping[str, object]) -> tuple[
 
 
 def _validate_phase_1_3_foundation(state: Mapping[str, object]) -> tuple[bool, str]:
-    for key_path in ("LoadedRulebooks.core", "RulebookLoadEvidence.core", "AddonsEvidence"):
+    for key_path in (
+        "LoadedRulebooks.core",
+        "LoadedRulebooks.profile",
+        "RulebookLoadEvidence.core",
+        "RulebookLoadEvidence.profile",
+        "ActiveProfile",
+        "AddonsEvidence",
+    ):
         value = _read_nested_key(state, key_path)
         if value is None:
             return False, f"missing phase-1.3 evidence key: {key_path}"
         if isinstance(value, str) and not value.strip():
             return False, f"empty phase-1.3 evidence key: {key_path}"
+    addons = _read_nested_key(state, "LoadedRulebooks.addons")
+    if not isinstance(addons, Mapping) or not addons:
+        return False, "missing phase-1.3 evidence key: LoadedRulebooks.addons"
+    if not any(isinstance(value, str) and value.strip() for value in addons.values()):
+        return False, "empty phase-1.3 evidence key: LoadedRulebooks.addons"
     return True, "ok"
+
+
+def _ticket_or_task_recorded(state: Mapping[str, object]) -> bool:
+    for key in ("TicketRecordDigest", "TaskRecordDigest", "Ticket", "Task"):
+        value = state.get(key)
+        if isinstance(value, str) and value.strip():
+            return True
+    feature_complexity = state.get("FeatureComplexity")
+    if isinstance(feature_complexity, Mapping):
+        cls = feature_complexity.get("Class")
+        reason = feature_complexity.get("Reason")
+        depth = feature_complexity.get("PlanningDepth")
+        if all(isinstance(token, str) and token.strip() for token in (cls, reason, depth)):
+            return True
+    return False
 
 
 def _select_transition(entry: PhaseSpecEntry, state: Mapping[str, object]) -> tuple[str | None, str, str | None, str | None]:
     if entry.transitions:
         for transition in entry.transitions:
             when = transition.when.strip().lower()
+            if when in {"ticket_present", "ticket_intake_complete"} and _ticket_or_task_recorded(state):
+                return (
+                    transition.next_token,
+                    transition.source,
+                    transition.active_gate,
+                    transition.next_gate_condition,
+                )
             if when == "business_rules_execute" and not _business_rules_discovery_resolved(state):
                 return (
                     transition.next_token,

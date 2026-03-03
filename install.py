@@ -2358,6 +2358,7 @@ def purge_runtime_state(config_root: Path, dry_run: bool) -> int:
       - <config_root>/workspaces/*/workspace-memory.yaml
       - <config_root>/workspaces/*/decision-pack.md
       - <config_root>/workspaces/*/business-rules.md
+      - <config_root>/workspaces/*/business-rules-status.md
       - <config_root>/workspaces/*/plan-record.json
       - <config_root>/workspaces/*/plan-record-archive/ (directory tree)
       - <config_root>/workspaces/*/evidence/ (directory tree)
@@ -2425,6 +2426,7 @@ def purge_runtime_state(config_root: Path, dry_run: bool) -> int:
         "workspace-memory.yaml",
         "decision-pack.md",
         "business-rules.md",
+        "business-rules-status.md",
         "plan-record.json",
     ]
 

@@ -89,6 +89,10 @@ HOOK_STATUS_OK = "ok"
 HOOK_STATUS_BLOCKED = "blocked"
 HOOK_STATUS_FAILED = "failed"
 
+DEFAULT_ACTIVE_PROFILE_ID = "fallback-minimum"
+DEFAULT_ADDON_KEY = "riskTiering"
+DEFAULT_ADDON_RULEBOOK = "rules.risk-tiering.yml"
+
 FAILURE_STAGE_INIT = "init"
 FAILURE_STAGE_WRITES_ALLOWED = "writes_allowed"
 FAILURE_STAGE_REPO_ROOT = "repo_root"
@@ -522,15 +526,31 @@ def _normalize_hook_failure_reason(proc: subprocess.CompletedProcess[str], resul
 
 def _canonical_hook_status(*, raw_status: object, reason_code: str, returncode: int) -> str:
     token = str(raw_status or "").strip().lower()
+    if returncode != 0:
+        if reason_code.startswith("BLOCKED-"):
+            return HOOK_STATUS_BLOCKED
+        return HOOK_STATUS_FAILED
     if token == HOOK_STATUS_OK:
         return HOOK_STATUS_OK
     if token not in {HOOK_STATUS_OK, HOOK_STATUS_BLOCKED, HOOK_STATUS_FAILED}:
         token = HOOK_STATUS_FAILED
     if reason_code.startswith("BLOCKED-"):
         return HOOK_STATUS_BLOCKED
-    if returncode != 0 and token == HOOK_STATUS_OK:
-        return HOOK_STATUS_FAILED
     return token
+
+
+def _clear_stale_failure_metadata(payload: dict[str, object]) -> None:
+    for key in (
+        "failure_stage",
+        "reason_code",
+        "stderr_snippet",
+        "log_path",
+        "stderr",
+        "stdout",
+        "hook_failure_stage",
+        "hook_log_path",
+    ):
+        payload.pop(key, None)
 
 
 def run_persistence_hook() -> dict[str, object]:
@@ -645,44 +665,50 @@ def run_persistence_hook() -> dict[str, object]:
         **parsed_payload,
         **base_payload,
         "hook_invoked": True,
-        "failure_stage": FAILURE_STAGE_SUBPROCESS,
     }
     if not isinstance(result.get("repo_fingerprint"), str):
         result["repo_fingerprint"] = ""
 
-    if parsed_payload.get("reason") == "hook-output-not-json":
-        result["failure_stage"] = FAILURE_STAGE_PARSE
-    elif proc.returncode != 0:
-        result["failure_stage"] = FAILURE_STAGE_SUBPROCESS
-    elif str(result.get("workspacePersistenceHook", "")).strip().lower() != HOOK_STATUS_OK:
-        result["failure_stage"] = FAILURE_STAGE_HOOK_PAYLOAD
-
-    reason_code, inferred_stage = _normalize_hook_failure_reason(proc, result)
-    result["reason_code"] = reason_code
+    raw_reason_code = str(result.get("reason_code") or "").strip()
     result["workspacePersistenceHook"] = _canonical_hook_status(
         raw_status=result.get("workspacePersistenceHook"),
-        reason_code=reason_code,
+        reason_code=raw_reason_code,
         returncode=proc.returncode,
     )
 
-    if str(result.get("workspacePersistenceHook", "")).strip().lower() != HOOK_STATUS_OK:
-        if str(result.get("failure_stage", "")).strip() in {"", FAILURE_STAGE_INIT, FAILURE_STAGE_SUBPROCESS}:
-            result["failure_stage"] = inferred_stage
-        log_path = _emit_persistence_gate_failure(
-            code=reason_code,
-            message="Persistence hook module dispatch failed.",
-            expected="python -m governance.entrypoints.bootstrap_persistence_hook exits with code 0",
-            observed={
-                "returncode": proc.returncode,
-                "stderr": (proc.stderr or "").strip()[:500],
-                "stdout": (proc.stdout or "").strip()[:500],
-                "payload_reason": str(result.get("reason") or ""),
-            },
-            remediation="Run the hook command directly and inspect returned reason_code/reason payload.",
-            repo_fingerprint=(str(result.get("repo_fingerprint") or "") or None),
-        )
-        result["stderr_snippet"] = (proc.stderr or "").strip()[:500]
-        result["log_path"] = str(log_path)
+    hook_status = str(result.get("workspacePersistenceHook", "")).strip().lower()
+    if hook_status == HOOK_STATUS_OK:
+        _clear_stale_failure_metadata(result)
+        if output_mode != "silent":
+            print(json.dumps(result, ensure_ascii=True))
+        return result
+
+    result["failure_stage"] = FAILURE_STAGE_SUBPROCESS
+    if parsed_payload.get("reason") == "hook-output-not-json":
+        result["failure_stage"] = FAILURE_STAGE_PARSE
+    elif hook_status != HOOK_STATUS_OK:
+        result["failure_stage"] = FAILURE_STAGE_HOOK_PAYLOAD if proc.returncode == 0 else FAILURE_STAGE_SUBPROCESS
+
+    reason_code, inferred_stage = _normalize_hook_failure_reason(proc, result)
+    result["reason_code"] = reason_code
+
+    if str(result.get("failure_stage", "")).strip() in {"", FAILURE_STAGE_INIT, FAILURE_STAGE_SUBPROCESS}:
+        result["failure_stage"] = inferred_stage
+    log_path = _emit_persistence_gate_failure(
+        code=reason_code,
+        message="Persistence hook module dispatch failed.",
+        expected="python -m governance.entrypoints.bootstrap_persistence_hook exits with code 0",
+        observed={
+            "returncode": proc.returncode,
+            "stderr": (proc.stderr or "").strip()[:500],
+            "stdout": (proc.stdout or "").strip()[:500],
+            "payload_reason": str(result.get("reason") or ""),
+        },
+        remediation="Run the hook command directly and inspect returned reason_code/reason payload.",
+        repo_fingerprint=(str(result.get("repo_fingerprint") or "") or None),
+    )
+    result["stderr_snippet"] = (proc.stderr or "").strip()[:500]
+    result["log_path"] = str(log_path)
 
     if output_mode != "silent":
         print(json.dumps(result, ensure_ascii=True))
@@ -838,9 +864,38 @@ def _activation_intent_evidence() -> tuple[str, str, str]:
     return canonical_path, sha256, scope
 
 
+def _canonical_profile_id(raw: object) -> str:
+    token = str(raw or "").strip()
+    if not token:
+        return ""
+    if token.startswith("profile."):
+        token = token[len("profile.") :]
+    return token
+
+
+def _profile_rulebook_path_token(profile_id: str) -> str:
+    return f"${{COMMANDS_HOME}}/rulesets/profiles/rules.{profile_id}.yml"
+
+
+def _addon_rulebook_path_token() -> str:
+    return f"${{COMMANDS_HOME}}/rulesets/profiles/{DEFAULT_ADDON_RULEBOOK}"
+
+
 def _hydrate_transition_state(document: dict[str, object], *, repo_fingerprint: str, requested_token: str) -> dict[str, object]:
     state = _root_state(document)
     state["phase_transition_evidence"] = True
+
+    profile_override = _canonical_profile_id(get_profile_override())
+    profile_id = profile_override or DEFAULT_ACTIVE_PROFILE_ID
+    state["ActiveProfile"] = f"profile.{profile_id}"
+    if profile_override:
+        source = "workspace-config" if os.environ.get("OPENCODE_WORKSPACE_CONFIG") else "tenant-config"
+        tenant = load_tenant_config()
+        state["ProfileSource"] = source
+        state["ProfileEvidence"] = f"{source}://{tenant.tenant_id if tenant else 'unknown'}/profile.{profile_id}"
+    else:
+        state.setdefault("ProfileSource", "bootstrap-default")
+        state.setdefault("ProfileEvidence", f"bootstrap-default://profile.{profile_id}")
 
     intent_path, intent_sha, intent_scope = _activation_intent_evidence()
     state.setdefault(
@@ -858,14 +913,20 @@ def _hydrate_transition_state(document: dict[str, object], *, repo_fingerprint: 
         intent.setdefault("EffectiveScope", intent_scope)
 
     if phase_rank(requested_token) >= phase_rank("1.3"):
+        profile_loaded = True
+        addon_loaded = True
         loaded = state.get("LoadedRulebooks")
         if not isinstance(loaded, dict):
             loaded = {}
         if not isinstance(loaded.get("core"), str) or not str(loaded.get("core") or "").strip():
             loaded["core"] = "${COMMANDS_HOME}/rules.md"
-        loaded.setdefault("profile", "")
-        loaded.setdefault("templates", "")
-        loaded.setdefault("addons", {})
+        loaded["profile"] = _profile_rulebook_path_token(profile_id) if profile_loaded else ""
+        loaded["templates"] = "${COMMANDS_HOME}/master.md"
+        addons_loaded = loaded.get("addons")
+        if not isinstance(addons_loaded, dict):
+            addons_loaded = {}
+        addons_loaded[DEFAULT_ADDON_KEY] = _addon_rulebook_path_token() if addon_loaded else ""
+        loaded["addons"] = addons_loaded
         state["LoadedRulebooks"] = loaded
 
         evidence = state.get("RulebookLoadEvidence")
@@ -873,11 +934,23 @@ def _hydrate_transition_state(document: dict[str, object], *, repo_fingerprint: 
             evidence = {}
         if not isinstance(evidence.get("core"), str) or not str(evidence.get("core") or "").strip() or str(evidence.get("core")) == "deferred":
             evidence["core"] = "${COMMANDS_HOME}/rules.md"
-        evidence.setdefault("profile", "deferred")
-        evidence.setdefault("templates", "deferred")
-        evidence.setdefault("addons", {})
+        evidence["profile"] = loaded["profile"] if loaded["profile"] else "missing"
+        evidence["templates"] = loaded["templates"]
+        addons_evidence = evidence.get("addons")
+        if not isinstance(addons_evidence, dict):
+            addons_evidence = {}
+        addons_evidence[DEFAULT_ADDON_KEY] = loaded["addons"].get(DEFAULT_ADDON_KEY) or "missing"
+        evidence["addons"] = addons_evidence
         state["RulebookLoadEvidence"] = evidence
-        state.setdefault("AddonsEvidence", {})
+        addon_runtime = state.get("AddonsEvidence")
+        if not isinstance(addon_runtime, dict):
+            addon_runtime = {}
+        addon_runtime[DEFAULT_ADDON_KEY] = {
+            "status": "loaded" if addon_loaded else "missing",
+            "path": _addon_rulebook_path_token(),
+            "source": "bootstrap-baseline",
+        }
+        state["AddonsEvidence"] = addon_runtime
 
     if phase_rank(requested_token) >= phase_rank("2"):
         repo_home = WORKSPACES_HOME / repo_fingerprint if WORKSPACES_HOME is not None else None
@@ -927,16 +1000,6 @@ def _hydrate_transition_state(document: dict[str, object], *, repo_fingerprint: 
             inventory = {}
         inventory["Status"] = "completed" if api_in_scope(state) else "not-applicable"
         state["APIInventory"] = inventory
-
-    profile_override = get_profile_override()
-    if profile_override:
-        current_profile = state.get("ActiveProfile")
-        if current_profile is None or current_profile == "":
-            source = "workspace-config" if os.environ.get("OPENCODE_WORKSPACE_CONFIG") else "tenant-config"
-            tenant = load_tenant_config()
-            state["ActiveProfile"] = f"profile.{profile_override}"
-            state["ProfileSource"] = source
-            state["ProfileEvidence"] = f"{source}://{tenant.tenant_id if tenant else 'unknown'}/profile.{profile_override}"
 
     document["SESSION_STATE"] = state
     return document
