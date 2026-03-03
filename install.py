@@ -834,6 +834,30 @@ def collect_customer_docs_files(source_dir: Path) -> list[Path]:
     )
 
 
+GOVERNANCE_DOCS_DIR_NAME = "docs/governance"
+
+
+def collect_governance_docs_files(source_dir: Path) -> list[Path]:
+    """Collect governance documentation from docs/governance/ directory.
+
+    These files (e.g. governance_schemas.md, doc_lint.md) are heavily
+    referenced by master.md and rules.md but were previously not installed.
+    """
+
+    gov_docs_dir = source_dir / "docs" / "governance"
+    if not gov_docs_dir.exists() or not gov_docs_dir.is_dir():
+        return []
+    return sorted(
+        [
+            p
+            for p in gov_docs_dir.rglob("*.md")
+            if p.is_file()
+            and not p.is_symlink()
+            and not _is_forbidden_metadata_path(p, source_dir)
+        ]
+    )
+
+
 def collect_customer_script_files(source_dir: Path, *, strict: bool) -> list[Path]:
     """Collect customer-relevant scripts listed in governance/CUSTOMER_SCRIPT_CATALOG.json."""
 
@@ -1207,6 +1231,101 @@ def load_manifest(manifest_path: Path) -> dict | None:
         return None
 
 
+# ---------------------------------------------------------------------------
+# OpenCode Desktop bridge: opencode.json instructions + continue.md injection
+# ---------------------------------------------------------------------------
+
+OPENCODE_JSON_NAME = "opencode.json"
+OPENCODE_INSTRUCTIONS = [
+    "commands/master.md",
+    "commands/rules.md",
+    "commands/SESSION_STATE_SCHEMA.md",
+]
+
+SESSION_READER_PLACEHOLDER = "{{SESSION_READER_PATH}}"
+
+
+def ensure_opencode_json(config_root: Path, *, dry_run: bool) -> dict:
+    """Generate or merge ``opencode.json`` with governance instructions.
+
+    - If the file does not exist, create it with the ``instructions`` array.
+    - If it exists, merge: add missing instruction entries without removing
+      existing ones or touching other user keys.
+
+    Returns a status dict for logging.
+    """
+    target = config_root / OPENCODE_JSON_NAME
+
+    if target.exists():
+        try:
+            existing = json.loads(target.read_text(encoding="utf-8"))
+            if not isinstance(existing, dict):
+                existing = {}
+        except Exception:
+            existing = {}
+
+        current = existing.get("instructions")
+        if not isinstance(current, list):
+            current = []
+        merged = list(current)
+        for entry in OPENCODE_INSTRUCTIONS:
+            if entry not in merged:
+                merged.append(entry)
+        existing["instructions"] = merged
+
+        if dry_run:
+            print(f"  [DRY-RUN] merge instructions into {target}")
+            return {"status": "planned-merge", "dst": str(target)}
+
+        target.write_text(
+            json.dumps(existing, indent=2, ensure_ascii=False) + "\n",
+            encoding="utf-8",
+        )
+        return {"status": "merged", "dst": str(target)}
+
+    payload = {"instructions": list(OPENCODE_INSTRUCTIONS)}
+    if dry_run:
+        print(f"  [DRY-RUN] create {target}")
+        return {"status": "planned-create", "dst": str(target)}
+
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(
+        json.dumps(payload, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+    return {"status": "created", "dst": str(target)}
+
+
+def inject_session_reader_path(commands_dir: Path, *, dry_run: bool) -> dict:
+    """Replace ``{{SESSION_READER_PATH}}`` in installed ``continue.md``.
+
+    The placeholder is replaced with the concrete absolute path to
+    ``session_reader.py`` so the LLM can invoke the governance kernel
+    deterministically (no PYTHONPATH or model-dependent file discovery needed).
+
+    Returns a status dict for logging.
+    """
+    continue_md = commands_dir / "continue.md"
+    if not continue_md.exists():
+        return {"status": "skipped-missing", "dst": str(continue_md)}
+
+    content = continue_md.read_text(encoding="utf-8")
+    if SESSION_READER_PLACEHOLDER not in content:
+        return {"status": "skipped-no-placeholder", "dst": str(continue_md)}
+
+    reader_path = commands_dir / "governance" / "entrypoints" / "session_reader.py"
+    concrete_path = str(reader_path)
+
+    new_content = content.replace(SESSION_READER_PLACEHOLDER, concrete_path)
+
+    if dry_run:
+        print(f"  [DRY-RUN] inject session_reader path into {continue_md}")
+        return {"status": "planned-inject", "dst": str(continue_md)}
+
+    continue_md.write_text(new_content, encoding="utf-8")
+    return {"status": "injected", "dst": str(continue_md)}
+
+
 def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool) -> int:
     ok, missing, unsafe_symlinks = precheck_source(plan.source_dir)
     # Allow dry-run to bypass safety gating for unsafe symlinks to enable planning
@@ -1521,6 +1640,32 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
     else:
         print("\nℹ️  No customer-relevant documentation found (skipping).")
 
+    # copy governance documentation (docs/governance/*.md — referenced by master.md/rules.md)
+    gov_docs_files = collect_governance_docs_files(plan.source_dir)
+    if gov_docs_files:
+        print("\n📋 Copying governance documentation to commands/docs/governance/ ...")
+        for gd in gov_docs_files:
+            rel = gd.relative_to(plan.source_dir)
+            dst = plan.commands_dir / rel
+            entry = copy_with_optional_backup(
+                src=gd,
+                dst=dst,
+                backup_enabled=backup_enabled,
+                backup_root=backup_root,
+                dry_run=dry_run,
+                overwrite=force,
+            )
+            copied_entries.append(entry)
+            status = entry["status"]
+            if status in ("planned-copy", "copied"):
+                print(f"  ✅ {rel} ({status})")
+            elif status == "skipped-exists":
+                print(f"  ⏭️  {rel} exists (use --force to overwrite)")
+            else:
+                print(f"  ⚠️  {rel} missing (skipping)")
+    else:
+        print("\nℹ️  No governance documentation found under docs/governance/ (skipping).")
+
     # copy governance runtime package (state machine execution modules)
     runtime_files = collect_governance_runtime_files(plan.source_dir)
     if runtime_files:
@@ -1672,6 +1817,23 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
         eprint("Recovery: remove forbidden artifacts and rerun installer.")
         return 3
 
+    # --- OpenCode Desktop bridge: opencode.json + session reader path injection ---
+    print("\n🔗 Configuring OpenCode Desktop governance bridge...")
+    ojs = ensure_opencode_json(plan.config_root, dry_run=dry_run)
+    print(f"  opencode.json: {ojs['status']}")
+
+    srp = inject_session_reader_path(plan.commands_dir, dry_run=dry_run)
+    print(f"  continue.md session_reader path: {srp['status']}")
+
+    # If session reader path was injected, update the SHA256 in copied_entries
+    # so the manifest reflects the post-injection content.
+    if srp["status"] == "injected":
+        injected_path = srp["dst"]
+        for entry in copied_entries:
+            if entry.get("dst") == injected_path and Path(injected_path).exists():
+                entry["sha256"] = sha256_file(Path(injected_path))
+                break
+
     # manifest: store only entries that were actually copied/planned
     installed_files = []
     for e in copied_entries:
@@ -1805,6 +1967,11 @@ def uninstall(
 
         # Customer docs from current source snapshot
         for src in collect_customer_docs_files(plan.source_dir):
+            rel = src.relative_to(plan.source_dir)
+            targets.append(plan.commands_dir / rel)
+
+        # Governance documentation from current source snapshot
+        for src in collect_governance_docs_files(plan.source_dir):
             rel = src.relative_to(plan.source_dir)
             targets.append(plan.commands_dir / rel)
 
