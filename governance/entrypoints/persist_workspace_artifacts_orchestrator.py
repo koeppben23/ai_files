@@ -10,7 +10,7 @@ Artifacts Created:
     - repo-map-digest.md: Architecture summary, modules, entry points
     - decision-pack.md: Decision records from discovery
     - workspace-memory.yaml: Persistent memory for patterns and decisions
-    - business-rules.md: Business rules inventory (if Phase 1.5 completed)
+    - business-rules.md: Business rules inventory (always materialized)
     - business-rules-status.md: Business rules outcome status (always written)
 
 Fingerprint Derivation:
@@ -43,6 +43,7 @@ if __package__ in {None, ""}:
 
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -251,7 +252,7 @@ except ImportError:
                 f"ID: DP-{date_compact}-001",
                 "Status: automatic",
                 "Action: Persist business-rules outcome as extracted|skipped|not-applicable|deferred.",
-                "Policy: business-rules.md is written only when outcome is extracted.",
+                "Policy: business-rules.md is always written and refreshed from persisted outcome.",
                 "What would change it: scope evidence or Phase 1.5 extraction state.",
                 "",
             ]
@@ -316,7 +317,7 @@ _PERSISTENCE_DECISION_PACK_BASELINE = (
     "D-001: Record Business Rules bootstrap outcome",
     "Status: automatic",
     "Action: Persist business-rules outcome as extracted|skipped|not-applicable|deferred.",
-    "Policy: business-rules.md is written only when outcome is extracted.",
+    "Policy: business-rules.md is always written and refreshed from persisted outcome.",
 )
 
 from governance.entrypoints.error_handler_bridge import (
@@ -455,6 +456,9 @@ try:
     from governance.infrastructure.workspace_paths import plan_record_path, plan_record_archive_dir
     _PLAN_RECORD_AVAILABLE = True
 except Exception:
+    PlanRecordRepository = None  # type: ignore[assignment]
+    plan_record_path = None  # type: ignore[assignment]
+    plan_record_archive_dir = None  # type: ignore[assignment]
     _PLAN_RECORD_AVAILABLE = False
 
 try:
@@ -977,31 +981,8 @@ def _render_workspace_memory(*, date: str, repo_name: str, repo_fingerprint: str
 
 
 def _should_write_business_rules_inventory(session: dict[str, Any] | None) -> bool:
-    if not isinstance(session, dict):
-        return False
-
-    scope = session.get("Scope")
-    business_rules_scope = ""
-    if isinstance(scope, dict):
-        raw = scope.get("BusinessRules")
-        if isinstance(raw, str):
-            business_rules_scope = raw.strip().lower()
-
-    business_rules = session.get("BusinessRules")
-    if isinstance(business_rules, dict):
-        status = business_rules.get("InventoryFileStatus")
-        if isinstance(status, str) and status.strip().lower() == "write-requested":
-            return True
-
-    active_gate = session.get("active_gate")
-    if isinstance(active_gate, str) and "business_rules_persist" in active_gate.strip().lower():
-        return True
-
-    phase = session.get("Phase")
-    if isinstance(phase, str) and phase.strip().upper().startswith("1.5"):
-        return True
-
-    return business_rules_scope == "extracted"
+    # Contract: always materialize a visible business-rules inventory file.
+    return True
 
 
 def _render_business_rules_inventory(*, date: str, repo_name: str) -> str:
@@ -1037,15 +1018,39 @@ def _render_business_rules_status(*, date: str, repo_name: str, outcome: str, so
             "",
             f"Outcome: {outcome}",
             f"OutcomeSource: {source}",
-            "InventoryPolicy: business-rules.md is written only when outcome is extracted.",
+            "InventoryPolicy: business-rules.md is always written and refreshed from persisted outcome.",
             f"Last Updated: {date}",
             "",
             "ExpectedArtifacts:",
             "- business-rules-status.md (always)",
-            "- business-rules.md (outcome=extracted only)",
+            "- business-rules.md (always)",
             "",
         ]
     )
+
+
+def _parse_business_rules_lines(content: str) -> list[str]:
+    rules: list[str] = []
+    for line in content.splitlines():
+        token = line.strip()
+        if token.startswith("- ") and len(token) > 2:
+            rules.append(token[2:].strip())
+    return rules
+
+
+def _business_rules_inventory_evidence(
+    *,
+    inventory_path: Path,
+    fallback_content: str,
+    dry_run: bool,
+) -> tuple[str, list[str]]:
+    if not dry_run and inventory_path.exists() and inventory_path.is_file():
+        text = inventory_path.read_text(encoding="utf-8")
+    else:
+        text = fallback_content
+    normalized = text if text.endswith("\n") else text + "\n"
+    sha = hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+    return sha, _parse_business_rules_lines(text)
 
 
 def _write_text(path: Path, content: str, *, dry_run: bool, read_only: bool) -> None:
@@ -1148,6 +1153,8 @@ def _update_session_state(
     repo_map_digest_action: str,
     decision_pack_action: str,
     workspace_memory_action: str,
+    business_rules_inventory_sha256: str,
+    business_rules_rules: list[str],
     read_only: bool,
 ) -> str:
     data = _load_json(session_path)
@@ -1202,14 +1209,18 @@ def _update_session_state(
         inventory["Outcome"] = outcome
         inventory["OutcomeSource"] = outcome_source
         inventory["InventoryFileStatus"] = _action_to_status(business_rules_inventory_action)
-        if outcome in {"extracted", "deferred"}:
-            inventory["InventoryFilePath"] = "${REPO_BUSINESS_RULES_FILE}"
+        inventory["InventoryFilePath"] = "${REPO_BUSINESS_RULES_FILE}"
         if business_rules_inventory_action == "created":
             inventory["InventoryFileMode"] = "create"
         elif business_rules_inventory_action in {"overwritten", "kept"}:
             inventory["InventoryFileMode"] = "update"
         else:
             inventory.setdefault("InventoryFileMode", "unknown")
+        inventory["Rules"] = list(business_rules_rules)
+        inventory["Inventory"] = {
+            "sha256": business_rules_inventory_sha256,
+            "count": len(business_rules_rules),
+        }
 
     if dry_run:
         return "updated-dry-run"
@@ -1682,11 +1693,12 @@ def main() -> int:
     should_write_business_rules = _should_write_business_rules_inventory(session)
     business_rules_action = "not-applicable"
     business_rules_bootstrap_event = "not-emitted"
+    business_rules_inventory_content = _render_business_rules_inventory(date=today, repo_name=repo_name)
     if should_write_business_rules:
         try:
             business_rules_action = _upsert_artifact(
                 path=business_rules_path,
-                create_content=_render_business_rules_inventory(date=today, repo_name=repo_name),
+                create_content=business_rules_inventory_content,
                 append_content=None,
                 force=args.force,
                 dry_run=args.dry_run,
@@ -1730,6 +1742,12 @@ def main() -> int:
                 expected_constraint="Business rules inventory persists to ${REPO_BUSINESS_RULES_FILE}",
                 remediation="Persist the same content manually to ${REPO_BUSINESS_RULES_FILE} and rerun helper.",
             )
+
+    business_rules_sha256, business_rules_rules = _business_rules_inventory_evidence(
+        inventory_path=business_rules_path,
+        fallback_content=business_rules_inventory_content,
+        dry_run=args.dry_run,
+    )
 
     business_rules_outcome, business_rules_outcome_source = _resolve_business_rules_outcome(
         session=session,
@@ -1790,7 +1808,15 @@ def main() -> int:
     # If plan-record.json doesn't exist but SESSION_STATE has Phase 4 data
     # (FeatureComplexity), create an initial plan record via backfill.
     plan_record_action = "not-applicable"
-    if _PLAN_RECORD_AVAILABLE and isinstance(session, dict) and not args.dry_run and not read_only:
+    if (
+        _PLAN_RECORD_AVAILABLE
+        and callable(plan_record_path)
+        and callable(plan_record_archive_dir)
+        and PlanRecordRepository is not None
+        and isinstance(session, dict)
+        and not args.dry_run
+        and not read_only
+    ):
         pr_path = plan_record_path(repo_home.parent, repo_fingerprint)
         pr_archive = plan_record_archive_dir(repo_home.parent, repo_fingerprint)
         repo = PlanRecordRepository(pr_path, pr_archive)
@@ -1894,6 +1920,8 @@ def main() -> int:
             repo_map_digest_action=actions["repoMapDigest"],
             decision_pack_action=actions["decisionPack"],
             workspace_memory_action=actions["workspaceMemory"],
+            business_rules_inventory_sha256=business_rules_sha256,
+            business_rules_rules=business_rules_rules,
             read_only=read_only,
         )
         if session_update == "invalid-session-shape":

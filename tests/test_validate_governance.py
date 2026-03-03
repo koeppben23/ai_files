@@ -1236,10 +1236,12 @@ def test_workspace_persistence_backfill_writes_business_rules_status_for_not_app
     payload = json.loads(r.stdout)
     assert payload.get("status") == "ok"
     assert (workspace / "business-rules-status.md").exists()
-    assert not (workspace / "business-rules.md").exists()
+    assert (workspace / "business-rules.md").exists()
 
     status_text = (workspace / "business-rules-status.md").read_text(encoding="utf-8")
     assert "Outcome: not-applicable" in status_text
+    inventory_text = (workspace / "business-rules.md").read_text(encoding="utf-8")
+    assert "Business Rules" in inventory_text
 
 
 @pytest.mark.governance
@@ -1689,7 +1691,7 @@ def test_backfill_decision_pack_includes_phase_15_prompt_decision():
         "D-001: Record Business Rules bootstrap outcome",
         "Status: automatic",
         "Action: Persist business-rules outcome as extracted|skipped|not-applicable|deferred.",
-        "Policy: business-rules.md is written only when outcome is extracted.",
+        "Policy: business-rules.md is always written and refreshed from persisted outcome.",
     ]
     missing = [token for token in required_tokens if token not in text]
     assert not missing, "persist_workspace_artifacts.py missing Phase 1.5 decision-pack baseline tokens:\n" + "\n".join(

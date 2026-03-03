@@ -8,6 +8,26 @@ import pytest
 from governance.kernel.phase_kernel import RuntimeContext, execute, _deduplicate_criteria
 
 
+RULEBOOK_BASE = {
+    "ActiveProfile": "profile.fallback-minimum",
+    "LoadedRulebooks": {
+        "core": "${COMMANDS_HOME}/rules.md",
+        "profile": "${COMMANDS_HOME}/rulesets/profiles/rules.fallback-minimum.yml",
+        "templates": "${COMMANDS_HOME}/master.md",
+        "addons": {
+            "riskTiering": "${COMMANDS_HOME}/rulesets/profiles/rules.risk-tiering.yml",
+        },
+    },
+    "RulebookLoadEvidence": {
+        "core": "${COMMANDS_HOME}/rules.md",
+        "profile": "${COMMANDS_HOME}/rulesets/profiles/rules.fallback-minimum.yml",
+    },
+    "AddonsEvidence": {
+        "riskTiering": {"status": "loaded"},
+    },
+}
+
+
 def _write_phase_api(commands_home: Path) -> None:
     repo_spec = Path(__file__).resolve().parents[1] / "phase_api.yaml"
     commands_home.mkdir(parents=True, exist_ok=True)
@@ -49,9 +69,7 @@ def test_kernel_routes_2_1_to_1_5_when_business_rules_unresolved(tmp_path: Path)
             "WorkspaceReadyGateCommitted": True,
             "WorkspaceArtifactsCommitted": True,
             "PointerVerified": True,
-            "LoadedRulebooks": {"core": "${COMMANDS_HOME}/master.md"},
-            "RulebookLoadEvidence": {"core": "${COMMANDS_HOME}/master.md"},
-            "AddonsEvidence": {},
+            **RULEBOOK_BASE,
         }
     }
     result = execute(
@@ -82,9 +100,7 @@ def test_kernel_routes_2_1_to_1_5_when_business_rules_execute_decision_set(tmp_p
             "WorkspaceReadyGateCommitted": True,
             "WorkspaceArtifactsCommitted": True,
             "PointerVerified": True,
-            "LoadedRulebooks": {"core": "${COMMANDS_HOME}/master.md"},
-            "RulebookLoadEvidence": {"core": "${COMMANDS_HOME}/master.md"},
-            "AddonsEvidence": {},
+            **RULEBOOK_BASE,
             "BusinessRules": {"Decision": "execute"},
         }
     }
@@ -190,9 +206,7 @@ def test_kernel_blocks_phase_6_when_p6_prerequisites_fail(tmp_path: Path) -> Non
             "WorkspaceReadyGateCommitted": True,
             "WorkspaceArtifactsCommitted": True,
             "PointerVerified": True,
-            "LoadedRulebooks": {"core": "${COMMANDS_HOME}/master.md"},
-            "RulebookLoadEvidence": {"core": "${COMMANDS_HOME}/master.md"},
-            "AddonsEvidence": {},
+            **RULEBOOK_BASE,
             "Gates": {
                 "P5-Architecture": "pending",
                 "P5.3-TestQuality": "pending",
@@ -231,9 +245,7 @@ def test_kernel_allows_phase_6_when_p6_prerequisites_pass(tmp_path: Path) -> Non
             "WorkspaceReadyGateCommitted": True,
             "WorkspaceArtifactsCommitted": True,
             "PointerVerified": True,
-            "LoadedRulebooks": {"core": "${COMMANDS_HOME}/master.md"},
-            "RulebookLoadEvidence": {"core": "${COMMANDS_HOME}/master.md"},
-            "AddonsEvidence": {},
+            **RULEBOOK_BASE,
             "BusinessRules": {"Inventory": {"sha256": "abc123"}},
             "Gates": {
                 "P5-Architecture": "approved",
@@ -258,6 +270,42 @@ def test_kernel_allows_phase_6_when_p6_prerequisites_pass(tmp_path: Path) -> Non
 
     assert result.status == "OK"
     assert result.phase == "6-PostFlight"
+
+
+@pytest.mark.governance
+def test_kernel_phase_4_advances_to_5_when_ticket_evidence_present(tmp_path: Path) -> None:
+    commands_home = tmp_path / "commands"
+    _write_phase_api(commands_home)
+
+    doc = {
+        "SESSION_STATE": {
+            "Phase": "4",
+            "PersistenceCommitted": True,
+            "WorkspaceReadyGateCommitted": True,
+            "WorkspaceArtifactsCommitted": True,
+            "PointerVerified": True,
+            **RULEBOOK_BASE,
+            "TicketRecordDigest": "Context: user-provided task\nTest Strategy: add regression coverage",
+            "FeatureComplexity": {"Class": "STANDARD", "Reason": "ticket-present", "PlanningDepth": "standard"},
+        }
+    }
+
+    result = execute(
+        current_token="4",
+        session_state_doc=doc,
+        runtime_ctx=RuntimeContext(
+            requested_active_gate="Ticket Input Gate",
+            requested_next_gate_condition="Collect ticket and planning constraints.",
+            repo_is_git_root=True,
+            commands_home=commands_home,
+            workspaces_home=tmp_path / "workspaces",
+            config_root=tmp_path / "cfg",
+        ),
+    )
+
+    assert result.status == "OK"
+    assert result.phase == "5-Implementation"
+    assert result.source == "phase-4-to-5-ticket-intake"
 
 
 # ────────────────────────────────────────────────────────────────────
@@ -423,9 +471,7 @@ def test_kernel_strict_exit_deduplicates_criteria(tmp_path: Path) -> None:
             "WorkspaceReadyGateCommitted": True,
             "WorkspaceArtifactsCommitted": True,
             "PointerVerified": True,
-            "LoadedRulebooks": {"core": "${COMMANDS_HOME}/master.md"},
-            "RulebookLoadEvidence": {"core": "${COMMANDS_HOME}/master.md"},
-            "AddonsEvidence": {},
+            **RULEBOOK_BASE,
             # Phase 1.3 foundation prerequisites.
             "BusinessRules": {"Decision": "skip", "Scope": "none"},
             "ExternalApiArtifacts": {},
@@ -530,9 +576,7 @@ def test_kernel_strict_exit_blocks_on_incompatible_criteria_conflict(tmp_path: P
             "WorkspaceReadyGateCommitted": True,
             "WorkspaceArtifactsCommitted": True,
             "PointerVerified": True,
-            "LoadedRulebooks": {"core": "${COMMANDS_HOME}/master.md"},
-            "RulebookLoadEvidence": {"core": "${COMMANDS_HOME}/master.md"},
-            "AddonsEvidence": {},
+            **RULEBOOK_BASE,
             "BusinessRules": {"Decision": "skip", "Scope": "none"},
             "ExternalApiArtifacts": {},
             "PolicyMode": {"principal_strict": True},

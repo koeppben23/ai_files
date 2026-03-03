@@ -89,6 +89,10 @@ HOOK_STATUS_OK = "ok"
 HOOK_STATUS_BLOCKED = "blocked"
 HOOK_STATUS_FAILED = "failed"
 
+DEFAULT_ACTIVE_PROFILE_ID = "fallback-minimum"
+DEFAULT_ADDON_KEY = "riskTiering"
+DEFAULT_ADDON_RULEBOOK = "rules.risk-tiering.yml"
+
 FAILURE_STAGE_INIT = "init"
 FAILURE_STAGE_WRITES_ALLOWED = "writes_allowed"
 FAILURE_STAGE_REPO_ROOT = "repo_root"
@@ -860,9 +864,38 @@ def _activation_intent_evidence() -> tuple[str, str, str]:
     return canonical_path, sha256, scope
 
 
+def _canonical_profile_id(raw: object) -> str:
+    token = str(raw or "").strip()
+    if not token:
+        return ""
+    if token.startswith("profile."):
+        token = token[len("profile.") :]
+    return token
+
+
+def _profile_rulebook_path_token(profile_id: str) -> str:
+    return f"${{COMMANDS_HOME}}/rulesets/profiles/rules.{profile_id}.yml"
+
+
+def _addon_rulebook_path_token() -> str:
+    return f"${{COMMANDS_HOME}}/rulesets/profiles/{DEFAULT_ADDON_RULEBOOK}"
+
+
 def _hydrate_transition_state(document: dict[str, object], *, repo_fingerprint: str, requested_token: str) -> dict[str, object]:
     state = _root_state(document)
     state["phase_transition_evidence"] = True
+
+    profile_override = _canonical_profile_id(get_profile_override())
+    profile_id = profile_override or DEFAULT_ACTIVE_PROFILE_ID
+    state["ActiveProfile"] = f"profile.{profile_id}"
+    if profile_override:
+        source = "workspace-config" if os.environ.get("OPENCODE_WORKSPACE_CONFIG") else "tenant-config"
+        tenant = load_tenant_config()
+        state["ProfileSource"] = source
+        state["ProfileEvidence"] = f"{source}://{tenant.tenant_id if tenant else 'unknown'}/profile.{profile_id}"
+    else:
+        state.setdefault("ProfileSource", "bootstrap-default")
+        state.setdefault("ProfileEvidence", f"bootstrap-default://profile.{profile_id}")
 
     intent_path, intent_sha, intent_scope = _activation_intent_evidence()
     state.setdefault(
@@ -880,14 +913,20 @@ def _hydrate_transition_state(document: dict[str, object], *, repo_fingerprint: 
         intent.setdefault("EffectiveScope", intent_scope)
 
     if phase_rank(requested_token) >= phase_rank("1.3"):
+        profile_loaded = True
+        addon_loaded = True
         loaded = state.get("LoadedRulebooks")
         if not isinstance(loaded, dict):
             loaded = {}
         if not isinstance(loaded.get("core"), str) or not str(loaded.get("core") or "").strip():
             loaded["core"] = "${COMMANDS_HOME}/rules.md"
-        loaded.setdefault("profile", "")
-        loaded.setdefault("templates", "")
-        loaded.setdefault("addons", {})
+        loaded["profile"] = _profile_rulebook_path_token(profile_id) if profile_loaded else ""
+        loaded["templates"] = "${COMMANDS_HOME}/master.md"
+        addons_loaded = loaded.get("addons")
+        if not isinstance(addons_loaded, dict):
+            addons_loaded = {}
+        addons_loaded[DEFAULT_ADDON_KEY] = _addon_rulebook_path_token() if addon_loaded else ""
+        loaded["addons"] = addons_loaded
         state["LoadedRulebooks"] = loaded
 
         evidence = state.get("RulebookLoadEvidence")
@@ -895,11 +934,23 @@ def _hydrate_transition_state(document: dict[str, object], *, repo_fingerprint: 
             evidence = {}
         if not isinstance(evidence.get("core"), str) or not str(evidence.get("core") or "").strip() or str(evidence.get("core")) == "deferred":
             evidence["core"] = "${COMMANDS_HOME}/rules.md"
-        evidence.setdefault("profile", "deferred")
-        evidence.setdefault("templates", "deferred")
-        evidence.setdefault("addons", {})
+        evidence["profile"] = loaded["profile"] if loaded["profile"] else "missing"
+        evidence["templates"] = loaded["templates"]
+        addons_evidence = evidence.get("addons")
+        if not isinstance(addons_evidence, dict):
+            addons_evidence = {}
+        addons_evidence[DEFAULT_ADDON_KEY] = loaded["addons"].get(DEFAULT_ADDON_KEY) or "missing"
+        evidence["addons"] = addons_evidence
         state["RulebookLoadEvidence"] = evidence
-        state.setdefault("AddonsEvidence", {})
+        addon_runtime = state.get("AddonsEvidence")
+        if not isinstance(addon_runtime, dict):
+            addon_runtime = {}
+        addon_runtime[DEFAULT_ADDON_KEY] = {
+            "status": "loaded" if addon_loaded else "missing",
+            "path": _addon_rulebook_path_token(),
+            "source": "bootstrap-baseline",
+        }
+        state["AddonsEvidence"] = addon_runtime
 
     if phase_rank(requested_token) >= phase_rank("2"):
         repo_home = WORKSPACES_HOME / repo_fingerprint if WORKSPACES_HOME is not None else None
@@ -949,16 +1000,6 @@ def _hydrate_transition_state(document: dict[str, object], *, repo_fingerprint: 
             inventory = {}
         inventory["Status"] = "completed" if api_in_scope(state) else "not-applicable"
         state["APIInventory"] = inventory
-
-    profile_override = get_profile_override()
-    if profile_override:
-        current_profile = state.get("ActiveProfile")
-        if current_profile is None or current_profile == "":
-            source = "workspace-config" if os.environ.get("OPENCODE_WORKSPACE_CONFIG") else "tenant-config"
-            tenant = load_tenant_config()
-            state["ActiveProfile"] = f"profile.{profile_override}"
-            state["ProfileSource"] = source
-            state["ProfileEvidence"] = f"{source}://{tenant.tenant_id if tenant else 'unknown'}/profile.{profile_override}"
 
     document["SESSION_STATE"] = state
     return document

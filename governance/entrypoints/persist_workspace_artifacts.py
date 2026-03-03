@@ -53,7 +53,7 @@ _PERSISTENCE_REQUIRED_TOKENS = (
     "D-001: Record Business Rules bootstrap outcome",
     "Status: automatic",
     "Action: Persist business-rules outcome as extracted|skipped|not-applicable|deferred.",
-    "Policy: business-rules.md is written only when outcome is extracted.",
+    "Policy: business-rules.md is always written and refreshed from persisted outcome.",
     "ERR-BUSINESS-RULES-PERSIST-WRITE-FAILED",
     'business_rules_action = "write-requested"',
     '"status": "blocked"',

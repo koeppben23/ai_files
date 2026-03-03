@@ -281,3 +281,21 @@ def test_kernel_continuation_missing_session_state_includes_recovery_evidence(mo
     assert payload.get("recovery_action")
     assert payload.get("next_command")
     assert payload.get("hook_log_path") == "/tmp/error.log.jsonl"
+
+
+@pytest.mark.governance
+def test_hydrate_transition_state_sets_mandatory_profile_and_addon_evidence():
+    module = _load_module_with_env({"CI": ""})
+    document = {"SESSION_STATE": {}}
+
+    hydrated = module._hydrate_transition_state(
+        document,
+        repo_fingerprint="abc123def456abc123def456",
+        requested_token="1.3",
+    )
+    state = hydrated["SESSION_STATE"]
+
+    assert state["ActiveProfile"] == "profile.fallback-minimum"
+    assert state["LoadedRulebooks"]["profile"].endswith("rules.fallback-minimum.yml")
+    assert state["LoadedRulebooks"]["addons"]["riskTiering"].endswith("rules.risk-tiering.yml")
+    assert state["AddonsEvidence"]["riskTiering"]["status"] == "loaded"
