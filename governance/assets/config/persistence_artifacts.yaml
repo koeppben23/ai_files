@@ -148,6 +148,27 @@ artifacts:
       - "Mode"
       - "session_run_id"
 
+  # Plan Record
+  plan_record:
+    artifact_id: "plan_record"
+    target_variable: "${PLAN_RECORD_FILE}"
+    description: "Versioned implementation plan record with full audit trail"
+    phase_window:
+      write_allowed: ["phase_4", "phase_5"]
+      overwrite_allowed: ["phase_4", "phase_5"]
+    write_behavior:
+      mode: "append_version"
+      format: "json"
+      encoding: "utf-8"
+      schema: "plan_record.v1.schema.json"
+    failure_handling:
+      on_write_failure: "WARN_CONTINUE"
+      block_on_failure: false
+    required_keys:
+      - "schema_version"
+      - "repo_fingerprint"
+      - "versions"
+
 # Write Failure Behaviors (Kernel-Enforced)
 write_failure_behaviors:
   emit_write_requested:

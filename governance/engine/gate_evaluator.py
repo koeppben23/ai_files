@@ -20,8 +20,10 @@ from governance.engine.reason_codes import (
     BLOCKED_P5_3_TEST_QUALITY_GATE,
     BLOCKED_P5_4_BUSINESS_RULES_GATE,
     BLOCKED_P5_6_ROLLBACK_SAFETY_GATE,
+    BLOCKED_P6_PLAN_COMPLIANCE_MAJOR,
     BLOCKED_P6_PREREQUISITES_NOT_MET,
     REASON_CODE_NONE,
+    WARN_P6_PLAN_COMPLIANCE_DRIFT,
     is_registered_reason_code,
 )
 
@@ -30,11 +32,17 @@ from governance.domain.strict_exit_evaluator import (
     evaluate_strict_exit,
 )
 
+from governance.application.use_cases.validate_plan_compliance import (
+    PlanComplianceReport,
+    validate_plan_compliance,
+)
+
 GateStatus = Literal["blocked", "warn", "ok", "not_verified"]
 P53Status = Literal["pending", "pass", "pass-with-exceptions", "fail"]
 P54Status = Literal["pending", "compliant", "compliant-with-exceptions", "gap-detected", "not-applicable"]
 P56Status = Literal["pending", "approved", "rejected", "not-applicable"]
 P6Status = Literal["pending", "ready-for-pr", "fix-required"]
+P6ComplianceStatus = Literal["compliant", "drift-detected", "major-deviation", "no-plan"]
 
 
 P54_MIN_COVERAGE_PERCENT = 70.0
@@ -93,6 +101,26 @@ class P6PrerequisiteEvaluation:
     p53_passed: bool
     p54_compliant: bool | None  # None if Phase 1.5 not executed
     p56_approved: bool | None    # None if rollback safety not applicable
+
+
+@dataclass(frozen=True)
+class P6PlanComplianceEvaluation:
+    """Result contract for plan-vs-implementation compliance at Phase 6 entry.
+
+    Automatically evaluated when entering Phase 6. Compares the persisted
+    plan-record against actual implementation evidence.
+
+    Tiered results:
+    - compliant: no significant deviations
+    - drift-detected: minor deviations (WARN, non-blocking)
+    - major-deviation: blocks in pipeline mode, override-able in user mode
+    - no-plan: no plan record available (WARN only)
+    """
+
+    status: P6ComplianceStatus
+    reason_code: str
+    report: PlanComplianceReport
+    blocked: bool
 
 
 def evaluate_gate(
@@ -458,6 +486,82 @@ def evaluate_p6_prerequisites(
         p53_passed=p53_passed,
         p54_compliant=p54_compliant,
         p56_approved=p56_approved,
+    )
+
+
+def evaluate_p6_plan_compliance(
+    *,
+    plan_record: Mapping[str, object] | None,
+    actual_files_changed: list[str],
+    actual_contracts_changed: list[str] | None = None,
+    test_files_found: list[str] | None = None,
+    mode: str = "user",
+) -> P6PlanComplianceEvaluation:
+    """Evaluate plan-vs-implementation compliance at Phase 6 entry.
+
+    Runs automatically when entering Phase 6.  Compares the persisted
+    plan-record (touched_surface, test_strategy, contracts) against actual
+    implementation evidence.
+
+    Only precise checks are performed (files, contracts, tests).  No
+    heuristic checks (rollback, NFR) to avoid false positives.
+
+    Tiered enforcement:
+    - Pipeline mode: ``major-deviation`` is a hard block.
+    - User mode: ``major-deviation`` is a WARN (override-able).
+    - ``drift-detected`` and ``no-plan`` are always WARN only.
+
+    Args:
+        plan_record: The loaded plan-record.json dict (or None).
+        actual_files_changed: Files actually changed (e.g. from git diff).
+        actual_contracts_changed: API/contract files changed (optional).
+        test_files_found: Test files found in the changeset (optional).
+        mode: Operating mode (``"user"`` or ``"pipeline"``).
+
+    Returns:
+        P6PlanComplianceEvaluation with status, reason code, full report,
+        and blocked flag.
+    """
+    report = validate_plan_compliance(
+        plan_record=plan_record,
+        actual_files_changed=actual_files_changed,
+        actual_contracts_changed=actual_contracts_changed,
+        test_files_found=test_files_found,
+    )
+
+    status: P6ComplianceStatus = report.status  # type: ignore[assignment]
+
+    if status == "compliant":
+        return P6PlanComplianceEvaluation(
+            status="compliant",
+            reason_code=REASON_CODE_NONE,
+            report=report,
+            blocked=False,
+        )
+
+    if status == "no-plan":
+        return P6PlanComplianceEvaluation(
+            status="no-plan",
+            reason_code=WARN_P6_PLAN_COMPLIANCE_DRIFT,
+            report=report,
+            blocked=False,
+        )
+
+    if status == "major-deviation":
+        is_pipeline = mode.strip().lower() == "pipeline"
+        return P6PlanComplianceEvaluation(
+            status="major-deviation",
+            reason_code=BLOCKED_P6_PLAN_COMPLIANCE_MAJOR if is_pipeline else WARN_P6_PLAN_COMPLIANCE_DRIFT,
+            report=report,
+            blocked=is_pipeline,
+        )
+
+    # drift-detected
+    return P6PlanComplianceEvaluation(
+        status="drift-detected",
+        reason_code=WARN_P6_PLAN_COMPLIANCE_DRIFT,
+        report=report,
+        blocked=False,
     )
 
 
