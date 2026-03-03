@@ -11,6 +11,8 @@ from pathlib import Path
 
 import pytest
 
+from install import inject_session_reader_path
+
 
 def _check_pyyaml_in_subprocess() -> bool:
     try:
@@ -86,6 +88,25 @@ def _read_jsonl(path: Path) -> list[dict[str, object]]:
     return rows
 
 
+def _extract_continue_first_step_command(commands_home: Path) -> str:
+    continue_md = commands_home / "continue.md"
+    text = continue_md.read_text(encoding="utf-8")
+    in_bash_block = False
+    for raw in text.splitlines():
+        line = raw.strip()
+        if line.lower() == "```bash":
+            in_bash_block = True
+            continue
+        if in_bash_block and line == "```":
+            break
+        if not in_bash_block:
+            continue
+        if not line or line.startswith("#"):
+            continue
+        return line
+    return ""
+
+
 def _git_init_repo(repo: Path) -> None:
     repo.mkdir(parents=True, exist_ok=True)
     subprocess.run(["git", "init"], cwd=str(repo), check=True)
@@ -126,7 +147,14 @@ def _materialize_commands_bundle_from_checkout(*, checkout_root: Path, commands_
         src = checkout_root / dirname
         if src.exists():
             shutil.copytree(src, commands_home / dirname, dirs_exist_ok=True)
-    for filename in ("master.md", "rules.md", "QUALITY_INDEX.md", "CONFLICT_RESOLUTION.md", "phase_api.yaml"):
+    for filename in (
+        "master.md",
+        "rules.md",
+        "continue.md",
+        "QUALITY_INDEX.md",
+        "CONFLICT_RESOLUTION.md",
+        "phase_api.yaml",
+    ):
         src = checkout_root / filename
         if src.exists():
             shutil.copy2(src, commands_home / filename)
@@ -152,6 +180,7 @@ def test_bootstrap_preflight_persists_workspace_and_pointer(tmp_path: Path) -> N
 
     _materialize_commands_bundle_from_checkout(checkout_root=checkout_root, commands_home=commands_home)
     _write_governance_paths(commands_home, workspaces_home, config_root)
+    inject_session_reader_path(commands_home, python_command=sys.executable, dry_run=False)
 
     repo = tmp_path / "repo"
     _git_init_repo(repo)
@@ -263,6 +292,7 @@ def test_bootstrap_preflight_blocks_when_force_read_only(tmp_path: Path) -> None
 
     _materialize_commands_bundle_from_checkout(checkout_root=checkout_root, commands_home=commands_home)
     _write_governance_paths(commands_home, workspaces_home, config_root)
+    inject_session_reader_path(commands_home, python_command=sys.executable, dry_run=False)
 
     repo = tmp_path / "repo"
     _git_init_repo(repo)
@@ -290,3 +320,62 @@ def test_bootstrap_preflight_blocks_when_force_read_only(tmp_path: Path) -> None
 
     entries = [p for p in workspaces_home.glob("*") if p.is_dir()]
     assert entries == []
+
+
+@pytest.mark.e2e_governance
+@pytest.mark.skipif(not HAS_PYYAML_IN_SUBPROCESS, reason="pyyaml required in subprocess Python for E2E persistence test")
+def test_continue_first_step_executes_after_bootstrap(tmp_path: Path) -> None:
+    checkout_root = Path(__file__).resolve().parents[1]
+
+    home = tmp_path / "home"
+    config_root = home / ".config" / "opencode"
+    commands_home = config_root / "commands"
+    workspaces_home = config_root / "workspaces"
+    workspaces_home.mkdir(parents=True, exist_ok=True)
+
+    _materialize_commands_bundle_from_checkout(checkout_root=checkout_root, commands_home=commands_home)
+    _write_governance_paths(commands_home, workspaces_home, config_root)
+    inject_session_reader_path(commands_home, python_command=sys.executable, dry_run=False)
+
+    repo = tmp_path / "repo"
+    _git_init_repo(repo)
+
+    env = dict(os.environ)
+    env["HOME"] = str(home)
+    env["USERPROFILE"] = str(home)
+    env["CI"] = ""
+    env["OPENCODE_CONFIG_ROOT"] = str(config_root)
+    env["COMMANDS_HOME"] = str(commands_home)
+    env.pop("OPENCODE_FORCE_READ_ONLY", None)
+    user_site = site.getusersitepackages()
+    if user_site:
+        env["PYTHONPATH"] = os.pathsep.join(
+            [part for part in (user_site, env.get("PYTHONPATH", "")) if part]
+        )
+
+    launcher = _bootstrap_launcher(checkout_root)
+    proc = _run(
+        launcher + ["--repo-root", str(repo), "--config-root", str(config_root)],
+        cwd=repo,
+        env=env,
+    )
+    assert proc.returncode == 0, proc.stdout + "\n" + proc.stderr
+
+    command = _extract_continue_first_step_command(commands_home)
+    assert command, "continue.md must contain a runnable MANDATORY FIRST STEP command"
+
+    run_continue = subprocess.run(
+        command,
+        cwd=str(repo),
+        env=env,
+        shell=True,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert run_continue.returncode == 0, run_continue.stdout + "\n" + run_continue.stderr
+
+    lines = [line.strip() for line in run_continue.stdout.splitlines() if line.strip()]
+    assert any(line.startswith("status:") for line in lines), run_continue.stdout
+    assert "status: OK" in run_continue.stdout
+    assert "status: ERROR" not in run_continue.stdout

@@ -56,6 +56,12 @@ def test_customer_install_bundle_build_outputs_expected_files():
         missing = [str(path) for path in required_local if not path.exists()]
         assert not missing, f"Missing bundle files: {missing}"
 
+        install_ps1 = (bundle_dir / "install" / "install.ps1").read_text(encoding="utf-8")
+        assert "Get-Command py" in install_ps1
+        assert "Get-Command python3" in install_ps1
+        assert "Get-Command python" in install_ps1
+        assert "& py -3 $installPy @InstallArgs" in install_ps1
+
         manifest = json.loads((bundle_dir / "BUNDLE_MANIFEST.json").read_text(encoding="utf-8"))
         assert manifest["schema"] == "governance.customer-install-bundle.v1"
         assert manifest["governance_version"] == version

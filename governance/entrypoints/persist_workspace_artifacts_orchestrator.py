@@ -45,6 +45,8 @@ import argparse
 import json
 import os
 import re
+import shlex
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -576,7 +578,35 @@ def _resolve_python_command(paths: dict[str, Any]) -> str:
     raw = paths.get("pythonCommand")
     if isinstance(raw, str) and raw.strip():
         return raw.strip()
-    return str(sys.executable or "python")
+    return str(sys.executable)
+
+
+def _python_argv_from_command(python_cmd: str) -> list[str]:
+    token = str(python_cmd or "").strip()
+    if token:
+        try:
+            parts = [part for part in shlex.split(token, posix=False) if part]
+        except Exception:
+            parts = [token]
+        head = parts[0]
+        if os.path.isabs(head):
+            if Path(head).exists():
+                return parts
+        elif shutil.which(head):
+            return parts
+
+    if os.name == "nt" and shutil.which("py") is not None:
+        return ["py", "-3"]
+
+    for candidate in [str(sys.executable), "python3", "python"]:
+        if candidate == str(sys.executable):
+            if candidate:
+                return [candidate]
+            continue
+        if shutil.which(candidate) is not None:
+            return [candidate]
+
+    return [str(sys.executable)]
 
 
 def _resolve_repo_root_strict(
@@ -1176,13 +1206,7 @@ def _bootstrap_missing_session_state(
     if not helper.exists():
         return False, "missing-bootstrap-helper"
 
-    token = str(python_cmd or "").strip()
-    if token == "py -3":
-        python_argv = ["py", "-3"]
-    elif token == "python -3":
-        python_argv = ["python", "-3"]
-    else:
-        python_argv = [token] if token else [str(sys.executable or "python")]
+    python_argv = _python_argv_from_command(python_cmd)
     cmd = [
         *python_argv,
         str(helper),
