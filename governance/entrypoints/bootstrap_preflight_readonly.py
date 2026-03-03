@@ -956,12 +956,18 @@ def run_kernel_continuation(hook_result: Mapping[str, object]) -> dict[str, obje
     repo_fingerprint = str(hook_result.get("repo_fingerprint") or "").strip()
     session_path = _session_state_file_path(repo_fingerprint)
     if session_path is None or not session_path.exists():
+        next_cmd = bootstrap_command(repo_fingerprint if repo_fingerprint else None)
         payload: dict[str, object] = {
             "kernelContinuation": "blocked",
             "reason": "missing-session-state",
             "reason_code": "BLOCKED-WORKSPACE-PERSISTENCE",
             "repo_fingerprint": repo_fingerprint,
             "session_state_path": str(session_path) if session_path is not None else "",
+            "hook_reason": str(hook_result.get("reason") or ""),
+            "hook_failure_stage": str(hook_result.get("failure_stage") or ""),
+            "hook_log_path": str(hook_result.get("log_path") or ""),
+            "recovery_action": "Re-run the local bootstrap launcher; if it still fails, run the bootstrap command directly and inspect the returned reason/log path.",
+            "next_command": next_cmd,
         }
         return dict(payload)
 

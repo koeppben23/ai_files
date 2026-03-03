@@ -210,7 +210,15 @@ if (-not (Test-Path $installPy)) {{
   throw "install.py not found at expected path: $installPy"
 }}
 
-& python $installPy @InstallArgs
+if (Get-Command py -ErrorAction SilentlyContinue) {{
+  & py -3 $installPy @InstallArgs
+}} elseif (Get-Command python3 -ErrorAction SilentlyContinue) {{
+  & python3 $installPy @InstallArgs
+}} elseif (Get-Command python -ErrorAction SilentlyContinue) {{
+  & python $installPy @InstallArgs
+}} else {{
+  throw "No Python interpreter found (tried: py -3, python3, python)."
+}}
 if ($LASTEXITCODE -ne 0) {{
   exit $LASTEXITCODE
 }}
