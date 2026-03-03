@@ -10,6 +10,8 @@ from pathlib import Path
 
 import pytest
 
+from governance.domain import reason_codes
+
 from .util import REPO_ROOT, read_text, run, write_governance_paths
 
 
@@ -232,11 +234,88 @@ def test_blocked_consistency_schema_vs_catalog():
     schema = read_text(REPO_ROOT / "SESSION_STATE_SCHEMA.md")
     catalog = read_text(REPO_ROOT / "governance" / "assets" / "reasons" / "blocked_reason_catalog.yaml")
 
-    s = set(re.findall(r"BLOCKED-[A-Z-]+", schema))
-    c = set(re.findall(r"BLOCKED-[A-Z-]+", catalog))
+    s = set(re.findall(r"BLOCKED-[A-Z0-9-]+", schema))
+    c = set(re.findall(r"BLOCKED-[A-Z0-9-]+", catalog))
 
     missing_in_catalog = s - c
     assert not missing_in_catalog, f"Missing in blocked_reason_catalog.yaml: {sorted(missing_in_catalog)}"
+
+
+def _blocked_codes_from_catalog_text(catalog_text: str) -> set[str]:
+    return set(re.findall(r"^\s{2}(BLOCKED-[A-Z0-9-]+):\s*$", catalog_text, flags=re.MULTILINE))
+
+
+def _blocked_entry_block(catalog_text: str, code: str) -> str:
+    marker = f"  {code}:"
+    start = catalog_text.find(marker)
+    assert start != -1, f"missing catalog entry for {code}"
+    next_marker = "\n  BLOCKED-"
+    next_pos = catalog_text.find(next_marker, start + len(marker))
+    if next_pos == -1:
+        return catalog_text[start:].strip()
+    return catalog_text[start:next_pos].strip()
+
+
+@pytest.mark.governance
+def test_blocked_catalogs_have_exact_same_blocked_code_set():
+    reasons_catalog = read_text(REPO_ROOT / "governance" / "assets" / "reasons" / "blocked_reason_catalog.yaml")
+    config_catalog = read_text(REPO_ROOT / "governance" / "assets" / "config" / "blocked_reason_catalog.yaml")
+
+    reasons_codes = _blocked_codes_from_catalog_text(reasons_catalog)
+    config_codes = _blocked_codes_from_catalog_text(config_catalog)
+    assert reasons_codes == config_codes, (
+        "blocked catalog code sets diverge: "
+        f"missing_in_reasons={sorted(config_codes - reasons_codes)}, "
+        f"missing_in_config={sorted(reasons_codes - config_codes)}"
+    )
+
+
+@pytest.mark.governance
+def test_both_blocked_catalogs_cover_catalog_governed_domain_and_registry_blocked_codes():
+    reasons_catalog = read_text(REPO_ROOT / "governance" / "assets" / "reasons" / "blocked_reason_catalog.yaml")
+    config_catalog = read_text(REPO_ROOT / "governance" / "assets" / "config" / "blocked_reason_catalog.yaml")
+    reasons_codes = _blocked_codes_from_catalog_text(reasons_catalog)
+    config_codes = _blocked_codes_from_catalog_text(config_catalog)
+
+    schema_text = read_text(REPO_ROOT / "SESSION_STATE_SCHEMA.md")
+    schema_blocked = set(re.findall(r"BLOCKED-[A-Z0-9-]+", schema_text))
+    catalog_governed_expected = schema_blocked | {"BLOCKED-P6-PREREQUISITES-NOT-MET"}
+
+    domain_blocked = {code for code in reason_codes.CANONICAL_REASON_CODES if code.startswith("BLOCKED-")}
+    registry = json.loads((REPO_ROOT / "governance" / "assets" / "catalogs" / "reason_codes.registry.json").read_text(encoding="utf-8"))
+    blocked_entries = registry.get("blocked_reasons")
+    assert isinstance(blocked_entries, list), "blocked_reasons must be an array"
+    registry_blocked = {
+        str(entry.get("code"))
+        for entry in blocked_entries
+        if isinstance(entry, dict) and isinstance(entry.get("code"), str) and str(entry.get("code")).startswith("BLOCKED-")
+    }
+
+    missing_in_domain = sorted(catalog_governed_expected - domain_blocked)
+    missing_in_registry = sorted(catalog_governed_expected - registry_blocked)
+    assert not missing_in_domain, f"catalog-governed BLOCKED codes missing in domain reason codes: {missing_in_domain}"
+    assert not missing_in_registry, f"catalog-governed BLOCKED codes missing in registry: {missing_in_registry}"
+
+    missing_in_reasons = sorted(catalog_governed_expected - reasons_codes)
+    missing_in_config = sorted(catalog_governed_expected - config_codes)
+    assert not missing_in_reasons, f"catalog-governed BLOCKED codes missing in assets/reasons catalog: {missing_in_reasons}"
+    assert not missing_in_config, f"catalog-governed BLOCKED codes missing in assets/config catalog: {missing_in_config}"
+
+
+@pytest.mark.governance
+def test_blocked_catalog_entries_match_semantic_fields_between_catalogs():
+    reasons_catalog = read_text(REPO_ROOT / "governance" / "assets" / "reasons" / "blocked_reason_catalog.yaml")
+    config_catalog = read_text(REPO_ROOT / "governance" / "assets" / "config" / "blocked_reason_catalog.yaml")
+    shared_codes = _blocked_codes_from_catalog_text(reasons_catalog) & _blocked_codes_from_catalog_text(config_catalog)
+
+    mismatches: list[str] = []
+    for code in sorted(shared_codes):
+        reasons_block = _blocked_entry_block(reasons_catalog, code).replace("\r\n", "\n")
+        config_block = _blocked_entry_block(config_catalog, code).replace("\r\n", "\n")
+        if reasons_block != config_block:
+            mismatches.append(code)
+
+    assert not mismatches, f"blocked catalog semantic drift detected for codes: {mismatches}"
 
 
 @pytest.mark.governance
