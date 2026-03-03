@@ -19,6 +19,7 @@ def test_md_lint_runs_in_ci_mode_and_reports_json():
         REPO_ROOT / "master.md",
         REPO_ROOT / "rules.md",
         REPO_ROOT / "continue.md",
+        REPO_ROOT / "review.md",
         REPO_ROOT / "docs" / "_archive" / "resume.md",
         REPO_ROOT / "docs" / "_archive" / "resume_prompt.md",
         REPO_ROOT / "docs" / "_archive" / "new_profile.md",

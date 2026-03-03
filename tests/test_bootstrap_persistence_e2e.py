@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from install import inject_session_reader_path
+from install import inject_session_reader_path, inject_session_reader_path_for_command
 
 
 def _check_pyyaml_in_subprocess() -> bool:
@@ -88,9 +88,9 @@ def _read_jsonl(path: Path) -> list[dict[str, object]]:
     return rows
 
 
-def _extract_continue_first_step_command(commands_home: Path) -> str:
-    continue_md = commands_home / "continue.md"
-    text = continue_md.read_text(encoding="utf-8")
+def _extract_first_step_command(commands_home: Path, command_markdown: str) -> str:
+    command_md = commands_home / command_markdown
+    text = command_md.read_text(encoding="utf-8")
     in_bash_block = False
     for raw in text.splitlines():
         line = raw.strip()
@@ -151,6 +151,7 @@ def _materialize_commands_bundle_from_checkout(*, checkout_root: Path, commands_
         "master.md",
         "rules.md",
         "continue.md",
+        "review.md",
         "QUALITY_INDEX.md",
         "CONFLICT_RESOLUTION.md",
         "phase_api.yaml",
@@ -181,6 +182,12 @@ def test_bootstrap_preflight_persists_workspace_and_pointer(tmp_path: Path) -> N
     _materialize_commands_bundle_from_checkout(checkout_root=checkout_root, commands_home=commands_home)
     _write_governance_paths(commands_home, workspaces_home, config_root)
     inject_session_reader_path(commands_home, python_command=sys.executable, dry_run=False)
+    inject_session_reader_path_for_command(
+        commands_home,
+        command_markdown="review.md",
+        python_command=sys.executable,
+        dry_run=False,
+    )
 
     repo = tmp_path / "repo"
     _git_init_repo(repo)
@@ -300,6 +307,12 @@ def test_bootstrap_preflight_blocks_when_force_read_only(tmp_path: Path) -> None
     _materialize_commands_bundle_from_checkout(checkout_root=checkout_root, commands_home=commands_home)
     _write_governance_paths(commands_home, workspaces_home, config_root)
     inject_session_reader_path(commands_home, python_command=sys.executable, dry_run=False)
+    inject_session_reader_path_for_command(
+        commands_home,
+        command_markdown="review.md",
+        python_command=sys.executable,
+        dry_run=False,
+    )
 
     repo = tmp_path / "repo"
     _git_init_repo(repo)
@@ -343,6 +356,12 @@ def test_continue_first_step_executes_after_bootstrap(tmp_path: Path) -> None:
     _materialize_commands_bundle_from_checkout(checkout_root=checkout_root, commands_home=commands_home)
     _write_governance_paths(commands_home, workspaces_home, config_root)
     inject_session_reader_path(commands_home, python_command=sys.executable, dry_run=False)
+    inject_session_reader_path_for_command(
+        commands_home,
+        command_markdown="review.md",
+        python_command=sys.executable,
+        dry_run=False,
+    )
 
     repo = tmp_path / "repo"
     _git_init_repo(repo)
@@ -368,8 +387,11 @@ def test_continue_first_step_executes_after_bootstrap(tmp_path: Path) -> None:
     )
     assert proc.returncode == 0, proc.stdout + "\n" + proc.stderr
 
-    command = _extract_continue_first_step_command(commands_home)
+    command = _extract_first_step_command(commands_home, "continue.md")
     assert command, "continue.md must contain a runnable MANDATORY FIRST STEP command"
+
+    review_command = _extract_first_step_command(commands_home, "review.md")
+    assert review_command, "review.md must contain a runnable MANDATORY FIRST STEP command"
 
     run_continue = subprocess.run(
         command,
