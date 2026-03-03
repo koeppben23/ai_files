@@ -279,6 +279,36 @@ def test_uninstall_fallback_manifest_missing(tmp_path: Path):
 
 
 @pytest.mark.installer
+def test_install_keeps_backup_and_metadata_artifacts_outside_commands_payload(tmp_path: Path):
+    config_root = tmp_path / "opencode-config-hygiene"
+
+    first = run_install(["--force", "--config-root", str(config_root)])
+    assert first.returncode == 0, f"initial install failed:\n{first.stderr}\n{first.stdout}"
+
+    commands_dir = _commands_dir(config_root)
+    target = commands_dir / "master.md"
+    assert target.exists(), f"expected installed file missing: {target}"
+    target.write_text("modified\n", encoding="utf-8")
+    (commands_dir / ".DS_Store").write_text("meta", encoding="utf-8")
+
+    second = run_install(["--force", "--config-root", str(config_root)])
+    assert second.returncode == 0, f"reinstall failed:\n{second.stderr}\n{second.stdout}"
+
+    assert not (commands_dir / "_backup").exists(), "commands/_backup must not exist after install"
+    assert not (commands_dir / ".DS_Store").exists(), "commands/.DS_Store must be removed by hygiene guard"
+
+    backup_root = config_root / ".installer-backups"
+    assert backup_root.exists(), "backup root should exist outside commands/"
+
+    backup_files = sorted(p for p in backup_root.rglob("*") if p.is_file())
+    assert backup_files, "expected backup files after overwrite install"
+    assert any(p.name == "master.md" for p in backup_files), "expected backup of overwritten master.md"
+    for path in backup_files:
+        rel = path.relative_to(backup_root).as_posix()
+        assert not rel.startswith("Users/"), f"backup path leaked host absolute segments: {rel}"
+
+
+@pytest.mark.installer
 def test_launcher_uses_installed_runtime_and_config_root_env(tmp_path: Path):
     config_root = tmp_path / "opencode-config-custom"
     r = run_install(["--force", "--no-backup", "--config-root", str(config_root)])
