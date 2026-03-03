@@ -333,13 +333,113 @@ class BootstrapPersistenceService:
             intent_sha256=activation_intent_sha256,
             intent_effective_scope=activation_intent_scope,
         )
-        self._fs.write_text_atomic(session_state_file, _canonical_json(final_state))
+        merged_final_state = _merge_final_session_state(
+            existing_text=self._fs.read_text(session_state_file),
+            fallback_state=final_state,
+            repo_fingerprint=payload.repo_identity.fingerprint,
+            persistence_committed=True,
+            workspace_ready_committed=True,
+            workspace_artifacts_committed=True,
+            pointer_verified=pointer_verified_final,
+            bootstrap_present=True,
+            bootstrap_satisfied=True,
+            bootstrap_evidence="bootstrap-completed",
+            effective_mode=payload.effective_mode,
+            write_policy_reasons=payload.write_policy_reasons,
+            activation_intent_valid=activation_intent_valid,
+            intent_path=f"${{CONFIG_ROOT}}/{ACTIVATION_INTENT_FILE}",
+            intent_sha256=activation_intent_sha256,
+            intent_effective_scope=activation_intent_scope,
+        )
+        self._fs.write_text_atomic(session_state_file, _canonical_json(merged_final_state))
         write_actions["session_state_final"] = "written"
         return BootstrapResult(ok=True, gate_code="OK", write_actions=write_actions, error_events=tuple(errors))
 
 
 def _canonical_json(data: object) -> str:
     return json.dumps(data, sort_keys=True, separators=(",", ":"), ensure_ascii=True) + "\n"
+
+
+def _merge_final_session_state(
+    *,
+    existing_text: str,
+    fallback_state: dict[str, object],
+    repo_fingerprint: str,
+    persistence_committed: bool,
+    workspace_ready_committed: bool,
+    workspace_artifacts_committed: bool,
+    pointer_verified: bool,
+    bootstrap_present: bool,
+    bootstrap_satisfied: bool,
+    bootstrap_evidence: str,
+    effective_mode: str,
+    write_policy_reasons: tuple[str, ...],
+    activation_intent_valid: bool,
+    intent_path: str,
+    intent_sha256: str,
+    intent_effective_scope: str,
+) -> dict[str, object]:
+    try:
+        parsed = json.loads(existing_text)
+    except Exception:
+        parsed = None
+
+    if not isinstance(parsed, dict):
+        return fallback_state
+
+    session = parsed.get("SESSION_STATE")
+    if not isinstance(session, dict):
+        return fallback_state
+
+    fallback_session = fallback_state.get("SESSION_STATE")
+    if isinstance(fallback_session, dict):
+        session["Phase"] = fallback_session.get("Phase")
+        session["phase"] = fallback_session.get("Phase")
+        session["Mode"] = fallback_session.get("Mode")
+        session["Next"] = fallback_session.get("Next")
+        session.setdefault("OutputMode", fallback_session.get("OutputMode"))
+
+    session["RepoFingerprint"] = repo_fingerprint
+    session["PersistenceCommitted"] = persistence_committed
+    session["WorkspaceReadyGateCommitted"] = workspace_ready_committed
+    session["WorkspaceArtifactsCommitted"] = workspace_artifacts_committed
+
+    bootstrap = session.get("Bootstrap")
+    bootstrap_block = dict(bootstrap) if isinstance(bootstrap, dict) else {}
+    bootstrap_block["Present"] = bootstrap_present
+    bootstrap_block["Satisfied"] = bootstrap_satisfied
+    bootstrap_block["Evidence"] = bootstrap_evidence
+    session["Bootstrap"] = bootstrap_block
+
+    activation = session.get("ActivationIntent")
+    activation_block = dict(activation) if isinstance(activation, dict) else {}
+    activation_block["FilePath"] = intent_path
+    activation_block["Schema"] = "opencode-activation-intent.v1"
+    activation_block["Status"] = "valid" if activation_intent_valid else "missing"
+    activation_block["AutoSatisfied"] = bool(activation_intent_valid)
+    activation_block["DiscoveryScope"] = "full" if activation_intent_valid else "unknown"
+    session["ActivationIntent"] = activation_block
+
+    intent = session.get("Intent")
+    intent_block = dict(intent) if isinstance(intent, dict) else {}
+    intent_block["Path"] = intent_path
+    intent_block["Sha256"] = intent_sha256
+    intent_block["EffectiveScope"] = intent_effective_scope
+    session["Intent"] = intent_block
+
+    session["writePolicy"] = {
+        "mode": effective_mode,
+        "reasons": list(write_policy_reasons),
+    }
+    session["CommitFlags"] = {
+        "PersistenceCommitted": persistence_committed,
+        "WorkspaceReadyGateCommitted": workspace_ready_committed,
+        "WorkspaceArtifactsCommitted": workspace_artifacts_committed,
+        "PointerVerified": pointer_verified,
+    }
+
+    parsed["SESSION_STATE"] = session
+    return parsed
 
 
 def _is_valid_pointer_payload(
