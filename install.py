@@ -1930,6 +1930,7 @@ def uninstall(
     force: bool,
     purge_paths_file: bool,
     keep_error_logs: bool,
+    keep_workspace_state: bool,
 ) -> int:
     print(f"🧹 Uninstall from: {plan.commands_dir}")
 
@@ -2048,6 +2049,8 @@ def uninstall(
         rc = delete_targets(targets, plan, dry_run=dry_run)
         if not keep_error_logs:
             rc = max(rc, purge_runtime_error_logs(plan.config_root, dry_run=dry_run))
+        if not keep_workspace_state:
+            rc = max(rc, purge_runtime_state(plan.config_root, dry_run=dry_run))
         return rc
 
     # manifest-based targets
@@ -2106,6 +2109,9 @@ def uninstall(
     if not keep_error_logs:
         rc = max(rc, purge_runtime_error_logs(plan.config_root, dry_run=dry_run))
 
+    if not keep_workspace_state:
+        rc = max(rc, purge_runtime_state(plan.config_root, dry_run=dry_run))
+
     # remove manifest last (if everything went OK-ish)
     if dry_run:
         print(f"  [DRY-RUN] rm {plan.manifest_path}")
@@ -2133,6 +2139,8 @@ def uninstall(
         plan.commands_dir / "_backup",
         plan.config_root / "bin",
         plan.config_root / "workspaces",
+        plan.config_root / ".installer-backups",
+        plan.config_root / "logs",
     ]
     for d in cleanup_dirs:
         try_remove_empty_dir(d, dry_run=dry_run)
@@ -2331,6 +2339,127 @@ def purge_runtime_error_logs(config_root: Path, dry_run: bool) -> int:
         try_remove_empty_dir(repo_logs, dry_run=dry_run)
 
     return 0 if errors == 0 else 6
+
+
+def purge_runtime_state(config_root: Path, dry_run: bool) -> int:
+    """
+    Remove governance runtime state files created during bootstrap/persistence:
+      - <config_root>/governance.activation_intent.json
+      - <config_root>/SESSION_STATE.json (global active pointer)
+      - <config_root>/workspaces/*/SESSION_STATE.json
+      - <config_root>/workspaces/*/repo-identity-map.yaml
+      - <config_root>/workspaces/*/repo-cache.yaml
+      - <config_root>/workspaces/*/repo-map-digest.md
+      - <config_root>/workspaces/*/workspace-memory.yaml
+      - <config_root>/workspaces/*/decision-pack.md
+      - <config_root>/workspaces/*/business-rules.md
+      - <config_root>/workspaces/*/plan-record.json
+      - <config_root>/workspaces/*/plan-record-archive/ (directory tree)
+      - <config_root>/workspaces/*/evidence/ (directory tree)
+      - <config_root>/workspaces/*/.lock/ (directory tree)
+
+    Safety:
+      - Only known governance artifact patterns are removed.
+      - Non-matching user files are preserved.
+      - Empty workspace directories are cleaned up after purge.
+    """
+    print("\n🧾 Purging runtime workspace state ...")
+
+    errors = 0
+
+    # 1. activation_intent.json at config root level
+    activation_intent = config_root / "governance.activation_intent.json"
+    if activation_intent.exists():
+        if dry_run:
+            print(f"  [DRY-RUN] rm {activation_intent}")
+        else:
+            try:
+                activation_intent.unlink()
+                print(f"  ✅ Removed: {activation_intent.name}")
+            except Exception as e:
+                eprint(f"  ❌ Failed removing {activation_intent}: {e}")
+                errors += 1
+
+    # 2. Global SESSION_STATE pointer at config root level
+    global_pointer = config_root / "SESSION_STATE.json"
+    if global_pointer.exists():
+        if dry_run:
+            print(f"  [DRY-RUN] rm {global_pointer}")
+        else:
+            try:
+                global_pointer.unlink()
+                print(f"  ✅ Removed: {global_pointer.name}")
+            except Exception as e:
+                eprint(f"  ❌ Failed removing {global_pointer}: {e}")
+                errors += 1
+
+    # 3. Per-workspace artifacts
+    workspaces = config_root / "workspaces"
+    if not workspaces.exists():
+        print("  ℹ️  No workspaces directory found.")
+        return 0 if errors == 0 else 7
+
+    # Known workspace artifact file patterns (flat files inside workspace dirs)
+    workspace_artifact_names = [
+        "SESSION_STATE.json",
+        "repo-identity-map.yaml",
+        "repo-cache.yaml",
+        "repo-map-digest.md",
+        "workspace-memory.yaml",
+        "decision-pack.md",
+        "business-rules.md",
+        "plan-record.json",
+    ]
+
+    # Known workspace subdirectories to remove as trees
+    workspace_subtree_names = [
+        "plan-record-archive",
+        "evidence",
+        ".lock",
+    ]
+
+    touched_workspace_dirs: set[Path] = set()
+    for ws_dir in workspaces.iterdir():
+        if not ws_dir.is_dir():
+            continue
+        touched_workspace_dirs.add(ws_dir)
+
+        # Remove known flat artifact files
+        for name in workspace_artifact_names:
+            artifact = ws_dir / name
+            if artifact.exists() and artifact.is_file():
+                if dry_run:
+                    print(f"  [DRY-RUN] rm {artifact}")
+                else:
+                    try:
+                        artifact.unlink()
+                        print(f"  ✅ Removed: {ws_dir.name}/{name}")
+                    except Exception as e:
+                        eprint(f"  ❌ Failed removing {artifact}: {e}")
+                        errors += 1
+
+        # Remove known subdirectory trees
+        for subtree_name in workspace_subtree_names:
+            subtree = ws_dir / subtree_name
+            if subtree.exists() and subtree.is_dir():
+                if dry_run:
+                    print(f"  [DRY-RUN] rmtree {subtree}")
+                else:
+                    try:
+                        shutil.rmtree(subtree)
+                        print(f"  ✅ Removed tree: {ws_dir.name}/{subtree_name}/")
+                    except Exception as e:
+                        eprint(f"  ❌ Failed removing tree {subtree}: {e}")
+                        errors += 1
+
+    # 4. Remove empty workspace dirs (leaf -> parent)
+    for ws_dir in sorted(touched_workspace_dirs, key=lambda p: len(p.parts), reverse=True):
+        try_remove_empty_dir(ws_dir, dry_run=dry_run)
+
+    # Try removing the workspaces dir itself if now empty
+    try_remove_empty_dir(workspaces, dry_run=dry_run)
+
+    return 0 if errors == 0 else 7
 
 
 def try_remove_empty_dir(d: Path, dry_run: bool) -> None:
@@ -2667,6 +2796,11 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         action="store_true",
         help="On uninstall: preserve runtime error logs under <config_root>/commands/logs and <config_root>/workspaces/*/logs (legacy <config_root>/logs paths may still exist).",
     )
+    p.add_argument(
+        "--keep-workspace-state",
+        action="store_true",
+        help="On uninstall: preserve workspace state (SESSION_STATE.json, governance.activation_intent.json, workspace artifacts, and the global SESSION_STATE pointer).",
+    )
     p.add_argument("--version", action="store_true", help="Show installer and governance version, then exit.")
     p.add_argument("--status", action="store_true", help="Show installation status (read-only), then exit.")
     p.add_argument("--health", action="store_true", help="Run read-only health probes and show compact status, then exit.")
@@ -2722,6 +2856,7 @@ def main(argv: list[str]) -> int:
             force=args.force,
             purge_paths_file=args.purge_paths_file,
             keep_error_logs=args.keep_error_logs,
+            keep_workspace_state=args.keep_workspace_state,
         )
 
     # install flow

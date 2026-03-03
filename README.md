@@ -57,3 +57,34 @@ Expected outcome:
 - `BLOCKED-VARIABLE-RESOLUTION`: check resolved config root/path bindings against `docs/install-layout.md`.
 - `BLOCKED-REPO-IDENTITY-RESOLUTION`: ensure repository is a git checkout and `git` is available in `PATH`.
 - `NOT_VERIFIED-MISSING-EVIDENCE`: provide missing evidence artifacts and rerun the gate.
+
+## Uninstall
+
+The installer supports a complete uninstall that removes all governance-owned files:
+
+```bash
+# macOS / Linux (full uninstall)
+python install.py --uninstall --force
+
+# Windows
+python install.py --uninstall --force
+```
+
+By default, uninstall removes:
+- All installer-owned files (manifest-based or conservative fallback)
+- Runtime error logs (`--keep-error-logs` to preserve)
+- Workspace state: `governance.activation_intent.json`, `SESSION_STATE.json` (global pointer + per-workspace), all workspace artifacts (`--keep-workspace-state` to preserve)
+- Empty directories: `workspaces/`, `bin/`, `.installer-backups/`, `logs/`
+
+Preserved on uninstall:
+- User configuration file (always preserved)
+- `governance.paths.json` (unless `--purge-paths-file` is passed)
+- Non-governance user-owned files
+
+| Flag | Effect |
+|------|--------|
+| `--force` | Skip interactive confirmation |
+| `--dry-run` | Show what would be removed without deleting |
+| `--keep-error-logs` | Preserve runtime error log files |
+| `--keep-workspace-state` | Preserve `governance.activation_intent.json`, all `SESSION_STATE.json` files, workspace artifacts |
+| `--purge-paths-file` | Also remove `governance.paths.json` |

@@ -70,3 +70,28 @@ ${PYTHON_COMMAND} $env:USERPROFILE\.config\opencode\commands\scripts\render_resp
 - `BLOCKED-VARIABLE-RESOLUTION`: validate config-root/path binding resolution (`docs/install-layout.md`).
 - `BLOCKED-REPO-IDENTITY-RESOLUTION`: ensure current directory is a git repo and `git` is available in `PATH`.
 - `NOT_VERIFIED-MISSING-EVIDENCE` or `NOT_VERIFIED-EVIDENCE-STALE`: refresh/provide evidence and rerun.
+
+## Uninstall and State Cleanup
+
+Uninstall removes all governance runtime state in addition to installed files.
+
+Runtime state files removed on uninstall:
+- `${CONFIG_ROOT}/governance.activation_intent.json` (activation intent)
+- `${CONFIG_ROOT}/SESSION_STATE.json` (global active workspace pointer)
+- `${WORKSPACES_HOME}/<fingerprint>/SESSION_STATE.json` (per-workspace state)
+- `${WORKSPACES_HOME}/<fingerprint>/repo-identity-map.yaml`
+- `${WORKSPACES_HOME}/<fingerprint>/repo-cache.yaml`
+- `${WORKSPACES_HOME}/<fingerprint>/workspace-memory.yaml`
+- `${WORKSPACES_HOME}/<fingerprint>/decision-pack.md`
+- `${WORKSPACES_HOME}/<fingerprint>/business-rules.md`
+- `${WORKSPACES_HOME}/<fingerprint>/plan-record.json`
+- `${WORKSPACES_HOME}/<fingerprint>/plan-record-archive/` (archived plan records)
+- `${WORKSPACES_HOME}/<fingerprint>/evidence/` (evidence directory)
+- `${WORKSPACES_HOME}/<fingerprint>/.lock/` (workspace locks)
+- `${WORKSPACES_HOME}/<fingerprint>/repo-map-digest.md`
+
+Use `--keep-workspace-state` to preserve workspace state during uninstall (e.g., for reinstall without losing session history):
+
+```bash
+python install.py --uninstall --force --keep-workspace-state
+```
