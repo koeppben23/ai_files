@@ -1,5 +1,19 @@
 # Governance Continue
 
+<!-- GOVERNANCE KERNEL BRIDGE — sole exception to rails-only constraint in this file -->
+## MANDATORY FIRST STEP
+
+Before responding, execute the following command to load the current governance session state:
+
+```bash
+python "{{SESSION_READER_PATH}}"
+```
+
+Use the YAML output as your governance context for the response below.
+If the command fails, report the error verbatim and stop.
+
+---
+
 Continue uses canonical `SESSION_STATE` from `SESSION_STATE_SCHEMA.md`.
 
 Rails-only scope:
