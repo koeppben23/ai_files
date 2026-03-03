@@ -87,3 +87,16 @@ def test_docs_do_not_claim_markdown_runtime_authority() -> None:
             if pattern.search(text):
                 violations.append(f"{rel}: {pattern.pattern}")
     assert not violations, f"markdown runtime-authority drift found: {violations}"
+
+
+def test_install_layout_doc_has_required_structure() -> None:
+    root = Path(__file__).resolve().parents[1]
+    text = (root / "docs" / "install-layout.md").read_text(encoding="utf-8")
+    required_markers = [
+        "# Install Layout",
+        "## Canonical Path Variables",
+        "## Installed Layout (Canonical Shape)",
+        "## Customer-Facing Installed Assets",
+    ]
+    missing = [marker for marker in required_markers if marker not in text]
+    assert not missing, f"docs/install-layout.md missing required markers: {missing}"

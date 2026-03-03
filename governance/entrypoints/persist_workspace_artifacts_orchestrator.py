@@ -244,12 +244,12 @@ except ImportError:
         return "\n".join(
             [
                 f"## Decision Pack — {date}",
-                "D-001: Apply Phase 1.5 Business Rules bootstrap policy",
+                "D-001: Record Business Rules bootstrap outcome",
                 f"ID: DP-{date_compact}-001",
                 "Status: automatic",
-                "Action: Auto-run lightweight Phase 1.5 bootstrap when business-rules inventory is missing.",
-                "Policy: no questions before Phase 4; use activation intent defaults.",
-                "What would change it: activation intent or mode policy disables auto bootstrap.",
+                "Action: Persist business-rules outcome as extracted|skipped|not-applicable|deferred.",
+                "Policy: business-rules.md is written only when outcome is extracted.",
+                "What would change it: scope evidence or Phase 1.5 extraction state.",
                 "",
             ]
         )
@@ -310,10 +310,10 @@ except ImportError:
 # Keep baseline decision-pack text discoverable in this orchestrator module
 # for governance contract checks.
 _PERSISTENCE_DECISION_PACK_BASELINE = (
-    "D-001: Apply Phase 1.5 Business Rules bootstrap policy",
+    "D-001: Record Business Rules bootstrap outcome",
     "Status: automatic",
-    "Action: Auto-run lightweight Phase 1.5 bootstrap when business-rules inventory is missing.",
-    "Policy: no questions before Phase 4; use activation intent defaults.",
+    "Action: Persist business-rules outcome as extracted|skipped|not-applicable|deferred.",
+    "Policy: business-rules.md is written only when outcome is extracted.",
 )
 
 from governance.entrypoints.error_handler_bridge import (
@@ -1119,18 +1119,30 @@ def _update_session_state(
         if isinstance(raw, str):
             business_rules_scope = raw.strip().lower()
 
-    if business_rules_scope == "extracted" or business_rules_inventory_written:
-        ss.setdefault("BusinessRules", {})
-        if isinstance(ss["BusinessRules"], dict):
-            inventory = ss["BusinessRules"]
+    outcome = "deferred"
+    if business_rules_scope in {"extracted", "skipped", "not-applicable", "deferred"}:
+        outcome = business_rules_scope
+    elif business_rules_inventory_written or business_rules_inventory_action in {"created", "overwritten", "kept"}:
+        outcome = "extracted"
+    elif business_rules_inventory_action in {"write-requested", "blocked-read-only"}:
+        outcome = "deferred"
+    else:
+        outcome = "skipped"
+
+    ss.setdefault("BusinessRules", {})
+    if isinstance(ss["BusinessRules"], dict):
+        inventory = ss["BusinessRules"]
+        inventory["Outcome"] = outcome
+        inventory["OutcomeSource"] = "scope" if business_rules_scope else "persistence-helper"
+        inventory["InventoryFileStatus"] = _action_to_status(business_rules_inventory_action)
+        if outcome in {"extracted", "deferred"}:
             inventory["InventoryFilePath"] = "${REPO_BUSINESS_RULES_FILE}"
-            inventory["InventoryFileStatus"] = _action_to_status(business_rules_inventory_action)
-            if business_rules_inventory_action == "created":
-                inventory["InventoryFileMode"] = "create"
-            elif business_rules_inventory_action in {"overwritten", "kept"}:
-                inventory["InventoryFileMode"] = "update"
-            else:
-                inventory.setdefault("InventoryFileMode", "unknown")
+        if business_rules_inventory_action == "created":
+            inventory["InventoryFileMode"] = "create"
+        elif business_rules_inventory_action in {"overwritten", "kept"}:
+            inventory["InventoryFileMode"] = "update"
+        else:
+            inventory.setdefault("InventoryFileMode", "unknown")
 
     if dry_run:
         return "updated-dry-run"

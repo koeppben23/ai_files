@@ -1300,7 +1300,7 @@ def test_workspace_persistence_normalizes_legacy_decision_pack_and_emits_event(t
     assert actions.get("decisionPackNormalizationEvent") == "written"
 
     decision_text = decision_file.read_text(encoding="utf-8")
-    assert "D-001: Apply Phase 1.5 Business Rules bootstrap policy" in decision_text
+    assert "D-001: Record Business Rules bootstrap outcome" in decision_text
     assert "Status: automatic" in decision_text
     assert "A) Yes" not in decision_text
     assert "B) No" not in decision_text
@@ -1627,10 +1627,10 @@ def test_canonical_response_envelope_schema_contract_is_defined():
 def test_backfill_decision_pack_includes_phase_15_prompt_decision():
     text = read_text(REPO_ROOT / "governance" / "entrypoints" / "persist_workspace_artifacts.py")
     required_tokens = [
-        "D-001: Apply Phase 1.5 Business Rules bootstrap policy",
+        "D-001: Record Business Rules bootstrap outcome",
         "Status: automatic",
-        "Action: Auto-run lightweight Phase 1.5 bootstrap when business-rules inventory is missing.",
-        "Policy: no questions before Phase 4; use activation intent defaults.",
+        "Action: Persist business-rules outcome as extracted|skipped|not-applicable|deferred.",
+        "Policy: business-rules.md is written only when outcome is extracted.",
     ]
     missing = [token for token in required_tokens if token not in text]
     assert not missing, "persist_workspace_artifacts.py missing Phase 1.5 decision-pack baseline tokens:\n" + "\n".join(

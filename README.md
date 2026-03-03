@@ -10,7 +10,11 @@
 - Install from the customer bundle (`install.sh` or `install.ps1`)
 - Verify installation with the bundle installer `--status`
 - Run the local bootstrap launcher to start a governed session (with `--repo-root`)
-- Continue an active session with `/continue` or `/resume`
+- Use `--verbose` on bootstrap when you need step-by-step flow output
+- Open OpenCode Desktop in the same repository and run `/continue`
+- Use `/resume` only for explicit interrupted-session recovery
+
+For OpenCode Desktop lifecycle and command details, see `README-OPENCODE.md`.
 
 Bundle install (example):
 
