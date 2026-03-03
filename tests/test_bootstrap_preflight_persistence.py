@@ -226,3 +226,26 @@ def test_resolve_repo_root_for_hook_prefers_env_repo_root(tmp_path: Path, monkey
     assert resolved == repo_root
     assert source == "env"
     assert probe.get("ok") is True
+
+
+@pytest.mark.governance
+def test_kernel_continuation_missing_session_state_includes_recovery_evidence(monkeypatch: pytest.MonkeyPatch):
+    module = _load_module_with_env({"CI": ""})
+    monkeypatch.setattr(module, "_session_state_file_path", lambda _fp: Path("/tmp/nonexistent-session-state.json"))
+
+    payload = module.run_kernel_continuation(
+        {
+            "workspacePersistenceHook": "ok",
+            "repo_fingerprint": "abc123def456abc123def456",
+            "reason": "bootstrap-completed",
+            "failure_stage": "",
+            "log_path": "/tmp/error.log.jsonl",
+        }
+    )
+
+    assert payload["kernelContinuation"] == "blocked"
+    assert payload["reason"] == "missing-session-state"
+    assert payload["reason_code"] == "BLOCKED-WORKSPACE-PERSISTENCE"
+    assert payload.get("recovery_action")
+    assert payload.get("next_command")
+    assert payload.get("hook_log_path") == "/tmp/error.log.jsonl"
