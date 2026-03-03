@@ -1936,39 +1936,13 @@ def uninstall(
     # opencode.json is installer-initialized but intentionally preserved on uninstall.
     # Uninstall removes installer-owned runtime files based on manifest (or conservative fallback).
 
-    manifest = load_manifest(plan.manifest_path)
-    if not manifest:
-        print(f"⚠️  Manifest not found or invalid: {plan.manifest_path}")
-        print("    For safety, uninstall requires a valid manifest (so we only delete what was installed).")
-        print("    Options:")
-        print("      - Re-run install once (will recreate manifest), then --uninstall")
-        print("      - Or use --force to perform a conservative best-effort delete of known filenames only")
-        if not force and not dry_run:
-            safe_log_error(
-                reason_key="ERR-UNINSTALL-MANIFEST-MISSING",
-                message="Uninstall blocked: manifest missing and --force not provided.",
-                config_root=plan.config_root,
-                phase="installer",
-                gate="uninstall",
-                mode="repo-aware",
-                repo_fingerprint=None,
-                command="install.py",
-                component="installer-uninstall",
-                observed_value={"manifestPath": str(plan.manifest_path)},
-                expected_constraint="Valid INSTALL_MANIFEST.json or --force fallback",
-                remediation="Re-run install once to recreate manifest, or rerun uninstall with --force.",
-                action="block",
-                result="blocked",
-                reason_namespace="installer-internal",
-            )
-            return 4
-
-        # Conservative fallback: delete only installer-owned files resolvable from this source tree.
+    def collect_known_installer_targets() -> list[Path]:
         targets: list[Path] = []
 
         # Root command files from current source snapshot
         for src in collect_command_root_files(plan.source_dir):
             targets.append(plan.commands_dir / src.name)
+
         # Ensure placeholder rules.yml (if any) is also targeted for uninstall
         root_rules = plan.commands_dir / "rules.yml"
         if root_rules.exists():
@@ -2008,7 +1982,7 @@ def uninstall(
             rel = src.relative_to(plan.source_dir)
             targets.append(plan.commands_dir / rel)
 
-        # Customer scripts and workflow templates from current source snapshot (best-effort in fallback mode).
+        # Customer scripts and workflow templates from current source snapshot.
         try:
             for src in collect_customer_script_files(plan.source_dir, strict=False):
                 rel = src.relative_to(plan.source_dir)
@@ -2035,6 +2009,37 @@ def uninstall(
             targets.append(plan.governance_paths_path)
 
         targets.append(plan.config_root / "INSTALL_HEALTH.json")
+        return targets
+
+    manifest = load_manifest(plan.manifest_path)
+    if not manifest:
+        print(f"⚠️  Manifest not found or invalid: {plan.manifest_path}")
+        print("    For safety, uninstall requires a valid manifest (so we only delete what was installed).")
+        print("    Options:")
+        print("      - Re-run install once (will recreate manifest), then --uninstall")
+        print("      - Or use --force to perform a conservative best-effort delete of known filenames only")
+        if not force and not dry_run:
+            safe_log_error(
+                reason_key="ERR-UNINSTALL-MANIFEST-MISSING",
+                message="Uninstall blocked: manifest missing and --force not provided.",
+                config_root=plan.config_root,
+                phase="installer",
+                gate="uninstall",
+                mode="repo-aware",
+                repo_fingerprint=None,
+                command="install.py",
+                component="installer-uninstall",
+                observed_value={"manifestPath": str(plan.manifest_path)},
+                expected_constraint="Valid INSTALL_MANIFEST.json or --force fallback",
+                remediation="Re-run install once to recreate manifest, or rerun uninstall with --force.",
+                action="block",
+                result="blocked",
+                reason_namespace="installer-internal",
+            )
+            return 4
+
+        # Conservative fallback: delete installer-owned files resolvable from source tree.
+        targets = collect_known_installer_targets()
 
         # Deduplicate while preserving order
         targets = list(dict.fromkeys(targets))
@@ -2067,6 +2072,13 @@ def uninstall(
         # Explicit operator request: remove machine-specific binding even if it pre-existed.
         targets.append(plan.governance_paths_path)
     targets.append(plan.config_root / "INSTALL_HEALTH.json")
+
+    # Also include known installer-owned files by source snapshot to cover legacy
+    # manifests that are missing entries (e.g., historical skipped-exists paths).
+    targets.extend(collect_known_installer_targets())
+
+    # Deduplicate while preserving order.
+    targets = list(dict.fromkeys(targets))
 
     if not targets:
         print("ℹ️  Manifest contains no installed files. Nothing to uninstall.")
@@ -2124,7 +2136,6 @@ def uninstall(
     ]
     for d in cleanup_dirs:
         try_remove_empty_dir(d, dry_run=dry_run)
-    try_remove_empty_dir(plan.commands_dir, dry_run=dry_run)
 
     # Cleanup any placeholder created during uninstall (e.g., rules.yml) across the commands tree
     try:
