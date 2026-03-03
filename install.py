@@ -1317,17 +1317,30 @@ def inject_session_reader_path(
     content = continue_md.read_text(encoding="utf-8")
     has_reader_placeholder = SESSION_READER_PLACEHOLDER in content
     has_python_placeholder = PYTHON_COMMAND_PLACEHOLDER in content
-    if not has_reader_placeholder and not has_python_placeholder:
-        return {"status": "skipped-no-placeholder", "dst": str(continue_md)}
-
     reader_path = commands_dir / "governance" / "entrypoints" / "session_reader.py"
     concrete_path = str(reader_path)
 
     new_content = content
-    if has_reader_placeholder:
-        new_content = new_content.replace(SESSION_READER_PLACEHOLDER, concrete_path)
-    if has_python_placeholder:
-        new_content = new_content.replace(PYTHON_COMMAND_PLACEHOLDER, python_command)
+    if has_reader_placeholder or has_python_placeholder:
+        if has_reader_placeholder:
+            new_content = new_content.replace(SESSION_READER_PLACEHOLDER, concrete_path)
+        if has_python_placeholder:
+            new_content = new_content.replace(PYTHON_COMMAND_PLACEHOLDER, python_command)
+    else:
+        legacy_pattern = re.compile(
+            r"(?m)^(?P<indent>\s*)(?:python(?:3)?|py(?:\s+-3)?)\s+[\"\'][^\"\']*session_reader\.py[\"\']\s*$"
+        )
+        if legacy_pattern.search(content):
+            new_content = legacy_pattern.sub(
+                lambda m: f"{m.group('indent')}{python_command} \"{concrete_path}\"",
+                content,
+                count=1,
+            )
+        else:
+            return {"status": "skipped-no-placeholder", "dst": str(continue_md)}
+
+    if new_content == content:
+        return {"status": "skipped-no-placeholder", "dst": str(continue_md)}
 
     if dry_run:
         print(f"  [DRY-RUN] inject session_reader path into {continue_md}")
