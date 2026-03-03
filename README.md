@@ -14,6 +14,8 @@
 - Open OpenCode Desktop in the same repository and run `/continue`
 - Use `/resume` only for explicit interrupted-session recovery
 
+For OpenCode Desktop lifecycle and command details, see `README-OPENCODE.md`.
+
 Bundle install (example):
 
 ```bash
