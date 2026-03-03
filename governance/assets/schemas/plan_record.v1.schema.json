@@ -1,0 +1,351 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "governance/schemas/plan_record.v1.schema.json",
+  "title": "Plan Record Schema",
+  "description": "Persistent, machine-readable record of Phase 4 implementation plans with full version history, lifecycle management, and audit trail.",
+  "type": "object",
+  "required": ["schema_version", "repo_fingerprint", "status", "versions"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1.0.0",
+      "description": "Schema version for migration compatibility"
+    },
+    "repo_fingerprint": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{24}$",
+      "description": "Canonical 24-hex repo identity hash"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["active", "finalized", "archived"],
+      "description": "Lifecycle status: active during Phase 4/5, finalized at Phase 6 exit, archived when rotated"
+    },
+    "finalized_at": {
+      "type": ["string", "null"],
+      "format": "date-time",
+      "description": "ISO-8601 timestamp when the plan was finalized (null while active)"
+    },
+    "finalized_by_session": {
+      "type": ["string", "null"],
+      "description": "Session run ID that finalized this plan (null while active)"
+    },
+    "finalized_phase": {
+      "type": ["string", "null"],
+      "description": "Phase at which finalization occurred, typically '6'"
+    },
+    "outcome": {
+      "type": ["string", "null"],
+      "enum": ["completed", "abandoned", "superseded", null],
+      "description": "Outcome of the plan lifecycle (null while active)"
+    },
+    "versions": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/PlanVersion" },
+      "description": "Ordered list of plan versions; each iteration appends a new entry"
+    }
+  },
+  "$defs": {
+    "PlanVersion": {
+      "type": "object",
+      "required": [
+        "version",
+        "timestamp",
+        "phase",
+        "session_run_id",
+        "content_hash",
+        "trigger",
+        "feature_complexity",
+        "ticket_record",
+        "nfr_checklist",
+        "test_strategy"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "version": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Monotonically increasing version number starting at 1"
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO-8601 timestamp of this version's creation"
+        },
+        "phase": {
+          "type": "string",
+          "description": "Governance phase when this version was created (e.g. '4', '5')"
+        },
+        "session_run_id": {
+          "type": "string",
+          "description": "Session run ID that produced this version"
+        },
+        "content_hash": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$",
+          "description": "SHA-256 hash of the PlanVersion object (excluding content_hash itself) for integrity verification"
+        },
+        "supersedes": {
+          "type": ["integer", "null"],
+          "minimum": 1,
+          "description": "Version number this entry supersedes; null for the initial version"
+        },
+        "trigger": {
+          "type": "string",
+          "enum": [
+            "initial",
+            "self_review_revision",
+            "p5_feedback_revision",
+            "manual_revision",
+            "backfill"
+          ],
+          "description": "Event that triggered this plan version"
+        },
+        "feature_complexity": {
+          "$ref": "#/$defs/FeatureComplexity"
+        },
+        "ticket_record": {
+          "$ref": "#/$defs/TicketRecord"
+        },
+        "nfr_checklist": {
+          "$ref": "#/$defs/NFRChecklist"
+        },
+        "test_strategy": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Ordered list of test plan lines"
+        },
+        "touched_surface": {
+          "oneOf": [
+            { "$ref": "#/$defs/TouchedSurface" },
+            { "type": "null" }
+          ],
+          "description": "Planned file/contract/schema changes (null if not provided)"
+        },
+        "rollback_strategy": {
+          "oneOf": [
+            { "$ref": "#/$defs/RollbackStrategy" },
+            { "type": "null" }
+          ],
+          "description": "Rollback plan (null if not applicable)"
+        },
+        "architecture_options": {
+          "oneOf": [
+            {
+              "type": "array",
+              "items": { "$ref": "#/$defs/ArchitectureOption" }
+            },
+            { "type": "null" }
+          ],
+          "description": "A/B/C architecture options with trade-offs (null if trivial decision)"
+        },
+        "mandatory_review_matrix": {
+          "oneOf": [
+            { "type": "object" },
+            { "type": "null" }
+          ],
+          "description": "Mandatory review matrix from ticket classification (null if not applicable)"
+        },
+        "codebase_context_applied": {
+          "oneOf": [
+            { "type": "object" },
+            { "type": "null" }
+          ],
+          "description": "Codebase context reuse evidence (null if not applicable)"
+        },
+        "review_feedback_ref": {
+          "oneOf": [
+            { "$ref": "#/$defs/ReviewFeedbackRef" },
+            { "type": "null" }
+          ],
+          "description": "Reference to the review feedback that triggered this revision (null for initial/backfill)"
+        }
+      }
+    },
+    "FeatureComplexity": {
+      "type": "object",
+      "required": ["class", "reason", "planning_depth"],
+      "additionalProperties": false,
+      "properties": {
+        "class": {
+          "type": "string",
+          "enum": ["SIMPLE-CRUD", "REFACTORING", "MODIFICATION", "COMPLEX", "STANDARD"],
+          "description": "Complexity classification from the Phase 4 decision tree"
+        },
+        "reason": {
+          "type": "string",
+          "description": "One-line evidence-based justification"
+        },
+        "planning_depth": {
+          "type": "string",
+          "enum": ["minimal", "standard", "full", "maximum"],
+          "description": "Planning depth determined by complexity class"
+        }
+      }
+    },
+    "TicketRecord": {
+      "type": "object",
+      "required": ["context", "decision", "rationale", "consequences", "rollback"],
+      "additionalProperties": false,
+      "properties": {
+        "context": {
+          "type": "string",
+          "description": "1-2 line problem/change context"
+        },
+        "decision": {
+          "type": "string",
+          "description": "1 line chosen approach"
+        },
+        "rationale": {
+          "type": "string",
+          "description": "1 line why this approach"
+        },
+        "consequences": {
+          "type": "string",
+          "description": "1 line impact/trade-offs"
+        },
+        "rollback": {
+          "type": "string",
+          "description": "Feature flag / backout steps / reversible migration / 'no rollback needed'"
+        },
+        "open_questions": {
+          "type": ["string", "null"],
+          "description": "Optional open questions (null if none)"
+        }
+      }
+    },
+    "NFRChecklist": {
+      "type": "object",
+      "required": [
+        "security_privacy",
+        "observability",
+        "performance",
+        "migration_compatibility",
+        "rollback_release_safety"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "security_privacy":        { "$ref": "#/$defs/NFRItem" },
+        "observability":           { "$ref": "#/$defs/NFRItem" },
+        "performance":             { "$ref": "#/$defs/NFRItem" },
+        "migration_compatibility": { "$ref": "#/$defs/NFRItem" },
+        "rollback_release_safety": { "$ref": "#/$defs/NFRItem" }
+      }
+    },
+    "NFRItem": {
+      "type": "object",
+      "required": ["status", "detail"],
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["OK", "N/A", "Risk", "Needs decision"],
+          "description": "Assessment status"
+        },
+        "detail": {
+          "type": "string",
+          "description": "One-sentence explanation"
+        }
+      }
+    },
+    "TouchedSurface": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "files_planned": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Planned files to create or modify"
+        },
+        "contracts_planned": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Planned API/contract changes"
+        },
+        "schema_planned": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Planned schema/migration changes"
+        }
+      }
+    },
+    "RollbackStrategy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "type": "string",
+          "description": "Rollback mechanism type (e.g. 'feature-flag', 'migration-reverse', 'deploy-previous')"
+        },
+        "steps": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Ordered rollback steps"
+        },
+        "data_migration_reversible": {
+          "type": "boolean",
+          "description": "Whether data migrations can be reversed"
+        },
+        "risk": {
+          "type": "string",
+          "description": "Residual rollback risk assessment"
+        }
+      }
+    },
+    "ArchitectureOption": {
+      "type": "object",
+      "required": ["id", "description", "tradeoffs"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Option identifier (e.g. 'A', 'B', 'C')"
+        },
+        "description": {
+          "type": "string",
+          "description": "One-line option description"
+        },
+        "tradeoffs": {
+          "type": "string",
+          "description": "Trade-off analysis"
+        },
+        "test_impact": {
+          "type": ["string", "null"],
+          "description": "Impact on test strategy (null if none)"
+        },
+        "recommended": {
+          "type": "boolean",
+          "description": "Whether this is the recommended option"
+        }
+      }
+    },
+    "ReviewFeedbackRef": {
+      "type": "object",
+      "required": ["iteration", "issues", "suggestions", "status"],
+      "additionalProperties": false,
+      "properties": {
+        "iteration": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Review iteration that produced this feedback"
+        },
+        "issues": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Blocking issues from the review"
+        },
+        "suggestions": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Non-blocking suggestions from the review"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["approved", "rejected", "needs-human"],
+          "description": "Review decision that triggered the revision"
+        }
+      }
+    }
+  }
+}

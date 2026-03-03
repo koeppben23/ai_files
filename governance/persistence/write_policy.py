@@ -25,6 +25,7 @@ _ALLOWED_CANONICAL_VARIABLES = frozenset(
         "COMMANDS_HOME",
         "CONFIG_ROOT",
         "OPENCODE_HOME",
+        "PLAN_RECORD_FILE",
         "PROFILES_HOME",
         "REPO_BUSINESS_RULES_FILE",
         "REPO_CACHE_FILE",
