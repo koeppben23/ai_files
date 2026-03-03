@@ -60,12 +60,14 @@ cd customer-install-bundle-v1
 After bootstrap succeeds, open OpenCode Desktop in the same repository and start with `/continue`.
 This reuses the persisted session state from bootstrap and avoids duplicate initialization.
 If `/continue` lands at Phase 4 (Ticket Intake), start in Plan Mode for every new ticket/task.
+Use `/review` in Phase 4 when you want review-only output at lead/staff depth (no implementation).
 
 | Command | Purpose |
 |---------|---------|
 | `~/.config/opencode/bin/opencode-governance-bootstrap --repo-root /abs/path/to/repo` | Bootstrap session (required) |
 | `%USERPROFILE%\.config\opencode\bin\opencode-governance-bootstrap.cmd --repo-root C:\path\to\repo` | Bootstrap session (Windows) |
 | `/continue` | Standard Desktop entrypoint after bootstrap |
+| `/review` | Review-only command for lead/staff PR/ticket feedback at Phase 4 |
 | `./install/install.sh` | Install/update governance (macOS/Linux, from bundle) |
 | `./install/install.sh --status` | Check installation (macOS/Linux, from bundle) |
 | `./install/install.sh --smoketest` | Run installation smoketest (macOS/Linux, from bundle) |

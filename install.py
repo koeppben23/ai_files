@@ -145,6 +145,7 @@ CORE_COMMAND_FILES = {
     "rules.md",
     "BOOTSTRAP.md",
     "continue.md",
+    "review.md",
     "docs/_archive/resume.md",
     "docs/_archive/resume_prompt.md",
     "docs/_archive/new_profile.md",
@@ -1231,7 +1232,7 @@ def load_manifest(manifest_path: Path) -> dict | None:
 
 
 # ---------------------------------------------------------------------------
-# OpenCode Desktop bridge: opencode.json instructions + continue.md injection
+# OpenCode Desktop bridge: opencode.json instructions + command template injection
 # ---------------------------------------------------------------------------
 
 OPENCODE_JSON_NAME = "opencode.json"
@@ -1296,13 +1297,14 @@ def ensure_opencode_json(config_root: Path, *, dry_run: bool) -> dict:
     return {"status": "created", "dst": str(target)}
 
 
-def inject_session_reader_path(
+def inject_session_reader_path_for_command(
     commands_dir: Path,
     *,
+    command_markdown: str,
     python_command: str,
     dry_run: bool,
 ) -> dict:
-    """Replace placeholders in installed ``continue.md``.
+    """Replace placeholders in installed command markdown template.
 
     The placeholder is replaced with the concrete absolute path to
     ``session_reader.py`` so the LLM can invoke the governance kernel
@@ -1310,11 +1312,11 @@ def inject_session_reader_path(
 
     Returns a status dict for logging.
     """
-    continue_md = commands_dir / "continue.md"
-    if not continue_md.exists():
-        return {"status": "skipped-missing", "dst": str(continue_md)}
+    command_md = commands_dir / command_markdown
+    if not command_md.exists():
+        return {"status": "skipped-missing", "dst": str(command_md)}
 
-    content = continue_md.read_text(encoding="utf-8")
+    content = command_md.read_text(encoding="utf-8")
     has_reader_placeholder = SESSION_READER_PLACEHOLDER in content
     has_python_placeholder = PYTHON_COMMAND_PLACEHOLDER in content
     reader_path = commands_dir / "governance" / "entrypoints" / "session_reader.py"
@@ -1337,17 +1339,32 @@ def inject_session_reader_path(
                 count=1,
             )
         else:
-            return {"status": "skipped-no-placeholder", "dst": str(continue_md)}
+            return {"status": "skipped-no-placeholder", "dst": str(command_md)}
 
     if new_content == content:
-        return {"status": "skipped-no-placeholder", "dst": str(continue_md)}
+        return {"status": "skipped-no-placeholder", "dst": str(command_md)}
 
     if dry_run:
-        print(f"  [DRY-RUN] inject session_reader path into {continue_md}")
-        return {"status": "planned-inject", "dst": str(continue_md)}
+        print(f"  [DRY-RUN] inject session_reader path into {command_md}")
+        return {"status": "planned-inject", "dst": str(command_md)}
 
-    continue_md.write_text(new_content, encoding="utf-8")
-    return {"status": "injected", "dst": str(continue_md)}
+    command_md.write_text(new_content, encoding="utf-8")
+    return {"status": "injected", "dst": str(command_md)}
+
+
+def inject_session_reader_path(
+    commands_dir: Path,
+    *,
+    python_command: str,
+    dry_run: bool,
+) -> dict:
+    """Backwards-compatible injector for ``continue.md``."""
+    return inject_session_reader_path_for_command(
+        commands_dir,
+        command_markdown="continue.md",
+        python_command=python_command,
+        dry_run=dry_run,
+    )
 
 
 def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool) -> int:
@@ -1851,17 +1868,29 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
         fallback=sys.executable,
         strict=False,
     )
-    srp = inject_session_reader_path(
-        plan.commands_dir,
-        python_command=binding_python,
-        dry_run=dry_run,
-    )
-    print(f"  continue.md session_reader path: {srp['status']}")
+    template_injections = {
+        "continue.md": inject_session_reader_path_for_command(
+            plan.commands_dir,
+            command_markdown="continue.md",
+            python_command=binding_python,
+            dry_run=dry_run,
+        ),
+        "review.md": inject_session_reader_path_for_command(
+            plan.commands_dir,
+            command_markdown="review.md",
+            python_command=binding_python,
+            dry_run=dry_run,
+        ),
+    }
+    print(f"  continue.md session_reader path: {template_injections['continue.md']['status']}")
+    print(f"  review.md session_reader path: {template_injections['review.md']['status']}")
 
     # If session reader path was injected, update the SHA256 in copied_entries
     # so the manifest reflects the post-injection content.
-    if srp["status"] == "injected":
-        injected_path = srp["dst"]
+    for injection in template_injections.values():
+        if injection["status"] != "injected":
+            continue
+        injected_path = injection["dst"]
         for entry in copied_entries:
             if entry.get("dst") == injected_path and Path(injected_path).exists():
                 entry["sha256"] = sha256_file(Path(injected_path))
