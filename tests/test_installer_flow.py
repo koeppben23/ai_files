@@ -42,6 +42,8 @@ def _iter_manifest_entries(files_obj, commands: Path):
     """
     base = commands.resolve()
     bin_base = (commands.parent / "bin").resolve()
+    config_base = commands.parent.resolve()
+    allowed_config_files = {config_base / "INSTALL_HEALTH.json"}
 
     def assert_under_base(p: Path, label: str) -> None:
         p = p.resolve()
@@ -52,7 +54,10 @@ def _iter_manifest_entries(files_obj, commands: Path):
             try:
                 p.relative_to(bin_base)
             except ValueError:
-                raise AssertionError(f"{label} escapes commands/bin dir: {p} (base={base}, bin={bin_base})")
+                if p not in allowed_config_files:
+                    raise AssertionError(
+                        f"{label} escapes commands/bin dir: {p} (base={base}, bin={bin_base})"
+                    )
         assert p.exists(), f"{label} missing on disk: {p}"
 
     def looks_like_sha256(s: object) -> bool:
@@ -237,6 +242,7 @@ def test_full_install_reinstall_uninstall_flow(tmp_path: Path):
         commands / "BOOTSTRAP.md",
         manifest,
         paths_file,  # this should be removed for a normal install-owned paths file
+        config_root / "INSTALL_HEALTH.json",
     ]
     still = [str(p) for p in must_be_gone if p.exists()]
     assert not still, f"Uninstall left artifacts behind: {still}"
@@ -249,6 +255,8 @@ def test_full_install_reinstall_uninstall_flow(tmp_path: Path):
     if bin_dir.exists():
         bin_leftovers = [p for p in bin_dir.rglob("*") if p.is_file()]
         assert not bin_leftovers, f"Bin dir not empty after uninstall: {[p.name for p in bin_leftovers[:25]]}"
+
+    assert (config_root / "opencode.json").exists(), "opencode.json must be preserved on uninstall"
 
 
 @pytest.mark.installer
@@ -353,6 +361,24 @@ def test_preexisting_paths_file_preserved_when_skipped(tmp_path: Path):
         r = run_install(["--uninstall", "--force", "--purge-paths-file", "--config-root", str(config_root)])
         assert r.returncode == 0
         assert not paths.exists(), "--purge-paths-file should remove governance.paths.json"
+
+
+@pytest.mark.installer
+def test_uninstall_preserves_existing_opencode_json(tmp_path: Path):
+    config_root = tmp_path / "opencode-config-opencode-json"
+    config_root.mkdir(parents=True, exist_ok=True)
+    opencode_json = config_root / "opencode.json"
+    opencode_json.write_text('{"instructions": ["custom/start.md"]}\n', encoding="utf-8")
+
+    r = run_install(["--force", "--no-backup", "--config-root", str(config_root)])
+    assert r.returncode == 0, f"install failed:\n{r.stderr}\n{r.stdout}"
+
+    r = run_install(["--uninstall", "--force", "--config-root", str(config_root)])
+    assert r.returncode == 0, f"uninstall failed:\n{r.stderr}\n{r.stdout}"
+
+    assert opencode_json.exists(), "opencode.json must remain after uninstall"
+    payload = json.loads(read_text(opencode_json))
+    assert "custom/start.md" in payload.get("instructions", [])
 
 
 @pytest.mark.installer

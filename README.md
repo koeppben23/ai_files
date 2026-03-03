@@ -12,6 +12,7 @@
 - Run the local bootstrap launcher to start a governed session (with `--repo-root`)
 - Use `--verbose` on bootstrap when you need step-by-step flow output
 - Open OpenCode Desktop in the same repository and run `/continue`
+- At Phase 4 (Ticket Intake), use Plan Mode first for every new ticket/task before implementation
 - Use `/resume` only for explicit interrupted-session recovery
 
 For OpenCode Desktop lifecycle and command details, see `README-OPENCODE.md`.
