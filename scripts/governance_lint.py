@@ -511,6 +511,7 @@ def check_md_rails_only_tripwire(issues: list[str]) -> None:
         ROOT / "rules.md",
         ROOT / "BOOTSTRAP.md",
         ROOT / "continue.md",
+        ROOT / "review.md",
         ROOT / "docs" / "_archive" / "resume.md",
         ROOT / "docs" / "_archive" / "resume_prompt.md",
         ROOT / "docs" / "_archive" / "new_profile.md",

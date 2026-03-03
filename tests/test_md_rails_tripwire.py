@@ -18,6 +18,7 @@ def test_md_rails_tripwire_operational_markers_absent():
         REPO_ROOT / "master.md",
         REPO_ROOT / "rules.md",
         REPO_ROOT / "continue.md",
+        REPO_ROOT / "review.md",
         REPO_ROOT / "docs" / "_archive" / "resume.md",
         REPO_ROOT / "docs" / "_archive" / "resume_prompt.md",
         REPO_ROOT / "docs" / "_archive" / "new_profile.md",
