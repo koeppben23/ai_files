@@ -250,6 +250,7 @@ def test_full_install_reinstall_uninstall_flow(tmp_path: Path):
     if commands.exists():
         leftovers = [p for p in commands.rglob("*") if p.is_file()]
         assert not leftovers, f"Commands dir not empty after uninstall: {[p.name for p in leftovers[:25]]}"
+    assert commands.exists(), "commands directory must remain after uninstall"
 
     bin_dir = config_root / "bin"
     if bin_dir.exists():
@@ -379,6 +380,34 @@ def test_uninstall_preserves_existing_opencode_json(tmp_path: Path):
     assert opencode_json.exists(), "opencode.json must remain after uninstall"
     payload = json.loads(read_text(opencode_json))
     assert "custom/start.md" in payload.get("instructions", [])
+
+
+@pytest.mark.installer
+def test_uninstall_removes_docs_and_governance_even_with_manifest_drift(tmp_path: Path):
+    config_root = tmp_path / "opencode-config-manifest-drift"
+    r = run_install(["--force", "--no-backup", "--config-root", str(config_root)])
+    assert r.returncode == 0, f"install failed:\n{r.stderr}\n{r.stdout}"
+
+    commands = _commands_dir(config_root)
+    manifest_path = _manifest_path(config_root)
+    payload = json.loads(read_text(manifest_path))
+    files = payload.get("files", [])
+    assert isinstance(files, list)
+    payload["files"] = [
+        e
+        for e in files
+        if not str(e.get("rel", "")).startswith("docs/")
+        and not str(e.get("rel", "")).startswith("governance/")
+    ]
+    manifest_path.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+
+    r = run_install(["--uninstall", "--force", "--config-root", str(config_root)])
+    assert r.returncode == 0, f"uninstall failed:\n{r.stderr}\n{r.stdout}"
+
+    doc_leftovers = [p.as_posix() for p in (commands / "docs").rglob("*") if p.is_file()] if (commands / "docs").exists() else []
+    gov_leftovers = [p.as_posix() for p in (commands / "governance").rglob("*") if p.is_file()] if (commands / "governance").exists() else []
+    assert not doc_leftovers, f"docs files left behind after uninstall: {doc_leftovers[:20]}"
+    assert not gov_leftovers, f"governance files left behind after uninstall: {gov_leftovers[:20]}"
 
 
 @pytest.mark.installer

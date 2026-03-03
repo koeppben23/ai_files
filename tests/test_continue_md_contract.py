@@ -155,6 +155,19 @@ class TestInjectSessionReaderPath:
         result = inject_session_reader_path(commands_dir, python_command="python3", dry_run=False)
         assert result["status"] == "skipped-no-placeholder"
 
+    def test_legacy_python_reader_command_is_upgraded(self, commands_dir: Path) -> None:
+        continue_md = commands_dir / "continue.md"
+        legacy_reader = commands_dir / "governance" / "entrypoints" / "session_reader.py"
+        continue_md.write_text(
+            f"# Governance Continue\npython \"{legacy_reader}\"\n",
+            encoding="utf-8",
+        )
+
+        result = inject_session_reader_path(commands_dir, python_command="python3", dry_run=False)
+        assert result["status"] == "injected"
+        content = continue_md.read_text(encoding="utf-8")
+        assert f'python3 "{legacy_reader}"' in content
+
     def test_preserves_other_content(self, commands_dir: Path) -> None:
         """Other content in continue.md is not altered."""
         self._write_template(commands_dir)
