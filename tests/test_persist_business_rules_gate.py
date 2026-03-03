@@ -81,3 +81,31 @@ def test_business_rules_outcome_is_persisted_when_inventory_not_applicable(tmp_p
     assert rules["Outcome"] == "not-applicable"
     assert rules["InventoryFileStatus"] == "unknown"
     assert rules["OutcomeSource"] == "scope"
+
+
+@pytest.mark.governance
+def test_resolve_python_command_prefers_binding_value() -> None:
+    module = _load_orchestrator_module()
+    resolved = module._resolve_python_command({"pythonCommand": "py -3"})
+    assert resolved == "py -3"
+
+
+@pytest.mark.governance
+def test_resolve_python_command_falls_back_to_sys_executable() -> None:
+    module = _load_orchestrator_module()
+    resolved = module._resolve_python_command({})
+    assert resolved == str(module.sys.executable)
+
+
+@pytest.mark.governance
+def test_python_argv_from_command_uses_sys_executable_when_python_alias_missing(monkeypatch: pytest.MonkeyPatch) -> None:
+    module = _load_orchestrator_module()
+
+    def _fake_which(name: str):
+        if name == "python":
+            return None
+        return f"/usr/bin/{name}"
+
+    monkeypatch.setattr(module.shutil, "which", _fake_which)
+    argv = module._python_argv_from_command("python")
+    assert argv == [str(module.sys.executable)]
