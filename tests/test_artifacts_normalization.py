@@ -10,7 +10,7 @@ def test_normalize_legacy_decision_pack_ab_prompts() -> None:
     assert "A) Yes" not in updated
     assert "B) No" not in updated
     assert "Status: automatic" in updated
-    assert "Action: Auto-run lightweight Phase 1.5 bootstrap" in updated
+    assert "Action: Persist business-rules outcome as extracted|skipped|not-applicable|deferred." in updated
 
 
 def test_legacy_decision_pack_prompt_detection() -> None:

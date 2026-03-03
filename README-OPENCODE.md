@@ -1,9 +1,11 @@
 
 ## OpenCode Lifecycle
 
+Back to install and bundle overview: `README.md`.
+
 - Bootstrap: Use local launcher (`~/.config/opencode/bin/opencode-governance-bootstrap --repo-root /abs/path/to/repo`)
 - Windows launcher: `%USERPROFILE%\.config\opencode\bin\opencode-governance-bootstrap.cmd --repo-root C:\path\to\repo`
-- `/continue`: execute the next deterministic step from session state
+- After bootstrap, open OpenCode Desktop in the same repo and run `/continue`
 - `/resume`: continue an interrupted session deterministically
 - `/audit`: read-only governance report flow
 
