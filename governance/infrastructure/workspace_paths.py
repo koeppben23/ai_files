@@ -107,6 +107,34 @@ def business_rules_path(workspaces_home: Path, repo_fingerprint: str) -> Path:
     return workspaces_home / repo_fingerprint / "business-rules.md"
 
 
+def plan_record_path(workspaces_home: Path, repo_fingerprint: str) -> Path:
+    """Get the path to a repository's plan-record.json file.
+
+    Args:
+        workspaces_home: The base workspaces directory.
+        repo_fingerprint: The canonical 24-hex fingerprint.
+
+    Returns:
+        Path to ${WORKSPACES_HOME}/${fingerprint}/plan-record.json
+    """
+    return workspaces_home / repo_fingerprint / "plan-record.json"
+
+
+def plan_record_archive_dir(workspaces_home: Path, repo_fingerprint: str) -> Path:
+    """Get the path to the plan-record archive directory.
+
+    Finalized plan records are rotated here when a new cycle begins.
+
+    Args:
+        workspaces_home: The base workspaces directory.
+        repo_fingerprint: The canonical 24-hex fingerprint.
+
+    Returns:
+        Path to ${WORKSPACES_HOME}/${fingerprint}/plan-record-archive/
+    """
+    return workspaces_home / repo_fingerprint / "plan-record-archive"
+
+
 def repo_identity_map_path(workspaces_home: Path, repo_fingerprint: str) -> Path:
     return workspaces_home / repo_fingerprint / "repo-identity-map.yaml"
 
@@ -126,6 +154,7 @@ def locks_dir(workspaces_home: Path, repo_fingerprint: str) -> Path:
 PHASE2_ARTIFACTS = ["repo-cache.yaml", "repo-map-digest.md", "workspace-memory.yaml"]
 PHASE21_ARTIFACTS = ["decision-pack.md"]
 PHASE15_ARTIFACTS = ["business-rules.md"]
+PHASE4_ARTIFACTS = ["plan-record.json"]
 
 
 def all_phase_artifact_paths(workspaces_home: Path, repo_fingerprint: str) -> dict[str, Path]:
@@ -136,6 +165,7 @@ def all_phase_artifact_paths(workspaces_home: Path, repo_fingerprint: str) -> di
         "workspace_memory": workspace_memory_path(workspaces_home, repo_fingerprint),
         "decision_pack": decision_pack_path(workspaces_home, repo_fingerprint),
         "business_rules": business_rules_path(workspaces_home, repo_fingerprint),
+        "plan_record": plan_record_path(workspaces_home, repo_fingerprint),
     }
 
 
