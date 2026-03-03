@@ -128,6 +128,12 @@
       "how_to_fix": "Model identity source must be one of: binding_env, host_capability, provider_metadata, process_env, llm_context, user_input, inferred, unresolved.",
       "copy_paste_command": null,
       "docs_link": "docs/MODEL_IDENTITY_RESOLUTION.md#trust-categories"
+    },
+    "BLOCKED-P6-PREREQUISITES-NOT-MET": {
+      "summary": "Phase 6 prerequisites are not satisfied",
+      "how_to_fix": "Complete required P5 outcomes before entering Phase 6: architecture approved, P5.3 pass, and applicable P5.4/P5.6 compliance.",
+      "copy_paste_command": null,
+      "docs_link": "docs/operator-runbook.md#49-phase-gates"
     }
   },
   "default_unmapped": {

@@ -120,7 +120,7 @@ GOVERNANCE_ASSETS_DIR_NAME = "governance/assets"
 # Governance runtime package copied into <config_root>/commands/governance/**
 GOVERNANCE_RUNTIME_DIR_NAME = "governance"
 
-FORBIDDEN_METADATA_SEGMENTS = {"__MACOSX", "__pycache__"}
+FORBIDDEN_METADATA_SEGMENTS = {"__MACOSX", "__pycache__", "_backup"}
 FORBIDDEN_METADATA_FILENAMES = {".DS_Store", "Icon\r"}
 
 MANIFEST_NAME = "INSTALL_MANIFEST.json"
@@ -692,6 +692,66 @@ def _is_forbidden_metadata_path(path: Path, source_root: Path) -> bool:
         return True
     return False
 
+
+def _is_forbidden_installed_path(path: Path, commands_dir: Path) -> bool:
+    """Return True when installed path is forbidden in customer payload."""
+
+    try:
+        rel = path.resolve().relative_to(commands_dir.resolve())
+    except Exception:
+        return False
+    if any(part == "_backup" for part in rel.parts):
+        return True
+    if any(part in FORBIDDEN_METADATA_SEGMENTS for part in rel.parts):
+        return True
+    if any(part.startswith("._") for part in rel.parts):
+        return True
+    if rel.name in FORBIDDEN_METADATA_FILENAMES:
+        return True
+    return False
+
+
+def enforce_commands_hygiene(*, commands_dir: Path, dry_run: bool) -> tuple[list[str], list[str]]:
+    """Remove forbidden installer artifacts from commands/ and report residual violations."""
+
+    if not commands_dir.exists() or not commands_dir.is_dir():
+        return ([], [])
+
+    removed: list[str] = []
+
+    backup_dir = commands_dir / "_backup"
+    if backup_dir.exists():
+        rel = str(backup_dir.relative_to(commands_dir)).replace("\\", "/")
+        removed.append(rel)
+        if dry_run:
+            print(f"  [DRY-RUN] rm -rf {backup_dir}")
+        else:
+            shutil.rmtree(backup_dir, ignore_errors=True)
+
+    for path in sorted(commands_dir.rglob("*")):
+        if not path.exists() or path.is_dir():
+            continue
+        if not _is_forbidden_installed_path(path, commands_dir):
+            continue
+        rel = str(path.relative_to(commands_dir)).replace("\\", "/")
+        removed.append(rel)
+        if dry_run:
+            print(f"  [DRY-RUN] rm {path}")
+            continue
+        try:
+            path.unlink()
+        except Exception:
+            pass
+
+    violations: list[str] = []
+    for path in sorted(commands_dir.rglob("*")):
+        if not _is_forbidden_installed_path(path, commands_dir):
+            continue
+        rel = str(path.relative_to(commands_dir)).replace("\\", "/")
+        violations.append(rel)
+
+    return (sorted(dict.fromkeys(removed)), sorted(dict.fromkeys(violations)))
+
 def collect_command_root_files(source_dir: Path) -> list[Path]:
     """
     Collect root-level governance files to copy into <config_root>/commands/.
@@ -1025,7 +1085,7 @@ def install_governance_paths_file(
 
 
 def backup_file(dst: Path, backup_root: Path, dry_run: bool) -> Path:
-    rel = confirm_relative(dst)
+    rel = confirm_relative(dst, base_root=backup_root.parent)
     backup_path = backup_root / rel
     if dry_run:
         print(f"  [DRY-RUN] backup {dst} -> {backup_path}")
@@ -1035,19 +1095,16 @@ def backup_file(dst: Path, backup_root: Path, dry_run: bool) -> Path:
     return backup_path
 
 
-def confirm_relative(path: Path) -> Path:
+def confirm_relative(path: Path, *, base_root: Path) -> Path:
     """
-    Create a relative-ish path fragment for backups by stripping drive/root.
+    Create a constrained relative path fragment for backups.
     """
-    p = path
-    parts = list(p.parts)
-    # On Windows, first part can be drive like 'C:\\'
-    # We'll drop anchor parts and keep a safe relative representation.
-    if p.is_absolute():
-        # Drop root/drive and keep tail
-        tail = parts[1:] if len(parts) > 1 else parts
-        return Path(*tail)
-    return Path(*parts)
+    p = path.resolve()
+    base = base_root.resolve()
+    try:
+        return p.relative_to(base)
+    except Exception:
+        return Path("external") / p.name
 
 
 def copy_with_optional_backup(
@@ -1202,7 +1259,7 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
     launcher_entries = create_launcher(plan, dry_run=dry_run, force=force)
 
     # backup root
-    backup_root = plan.commands_dir / "_backup" / now_ts()
+    backup_root = plan.config_root / ".installer-backups" / now_ts()
 
     # determine governance version from kernel-owned metadata
     # governance version may live in root VERSION or governance/VERSION
@@ -1599,6 +1656,22 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
             eprint(f"  - {m}")
         return 3
 
+    print("\n🧹 Enforcing commands payload hygiene...")
+    removed_entries, hygiene_violations = enforce_commands_hygiene(
+        commands_dir=plan.commands_dir,
+        dry_run=dry_run,
+    )
+    if removed_entries:
+        preview = ", ".join(removed_entries[:6])
+        suffix = "" if len(removed_entries) <= 6 else ", ..."
+        print(f"  ✅ removed forbidden payload artifacts: {preview}{suffix}")
+    if hygiene_violations:
+        eprint("❌ Install payload hygiene failed. Forbidden artifacts remain under commands/:")
+        for rel in hygiene_violations:
+            eprint(f"  - {rel}")
+        eprint("Recovery: remove forbidden artifacts and rerun installer.")
+        return 3
+
     # manifest: store only entries that were actually copied/planned
     installed_files = []
     for e in copied_entries:
@@ -1652,6 +1725,7 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
     print(f"Commands dir: {plan.commands_dir}")
     print("Next: run the local bootstrap launcher:")
     print(f"  {plan.config_root}/bin/opencode-governance-bootstrap")
+    print("Then open OpenCode Desktop in this repository and run /continue.")
     return 0
 
 
