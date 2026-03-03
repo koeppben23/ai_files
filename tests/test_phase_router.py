@@ -258,6 +258,7 @@ class TestPhase3ARouting:
         assert result.phase == "4"
         assert result.source == "phase-3a-not-applicable-to-phase4"
         assert "not-applicable" in result.next_gate_condition
+        assert "/continue" in result.next_gate_condition
 
     def test_phase_3a_with_apis_routes_to_3b1(self):
         """When Phase 3A has APIs in scope, route to Phase 3B-1 for logical validation."""
@@ -324,6 +325,7 @@ class TestPhase3BRouting:
         )
         assert result.phase == "4"
         assert result.source == "phase-3b2-to-4"
+        assert "/continue" in result.next_gate_condition
 
 
 @pytest.mark.governance

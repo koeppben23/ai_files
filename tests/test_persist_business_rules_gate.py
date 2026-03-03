@@ -84,6 +84,27 @@ def test_business_rules_outcome_is_persisted_when_inventory_not_applicable(tmp_p
 
 
 @pytest.mark.governance
+def test_business_rules_status_renderer_reports_visible_status_for_not_applicable():
+    module = _load_orchestrator_module()
+
+    outcome, source = module._resolve_business_rules_outcome(
+        session={"Scope": {"BusinessRules": "not-applicable"}},
+        business_rules_inventory_written=False,
+        business_rules_inventory_action="not-applicable",
+    )
+    content = module._render_business_rules_status(
+        date="2026-03-03",
+        repo_name="demo",
+        outcome=outcome,
+        source=source,
+    )
+
+    assert "Outcome: not-applicable" in content
+    assert "business-rules-status.md (always)" in content
+    assert "business-rules.md (outcome=extracted only)" in content
+
+
+@pytest.mark.governance
 def test_resolve_python_command_prefers_binding_value() -> None:
     module = _load_orchestrator_module()
     resolved = module._resolve_python_command({"pythonCommand": "py -3"})

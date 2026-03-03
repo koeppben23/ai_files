@@ -39,6 +39,7 @@ _PERSISTENCE_REQUIRED_TOKENS = (
     "decision-pack.md",
     "workspace-memory.yaml",
     "business-rules.md",
+    "business-rules-status.md",
     "${REPO_CACHE_FILE}",
     "${REPO_DIGEST_FILE}",
     "${REPO_DECISION_PACK_FILE}",

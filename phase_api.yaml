@@ -103,7 +103,7 @@ phases:
         next: "4"
         source: "phase-3a-not-applicable-to-phase4"
         active_gate: "Ticket Input Gate"
-        next_gate_condition: "Phase 3A completed with not-applicable (no APIs detected); wait for ticket input at Phase 4 via /ticket paste"
+        next_gate_condition: "Phase 3A completed with not-applicable (no APIs detected); resume via /continue and provide ticket/task input in chat at Phase 4"
       - when: default
         next: "3B-1"
         source: "phase-3a-to-3b1"
@@ -136,7 +136,7 @@ phases:
         next: "4"
         source: "phase-3b2-to-4"
         active_gate: "Ticket Input Gate"
-        next_gate_condition: "Phase 3B-2 complete; wait for ticket input at Phase 4 via /ticket paste"
+        next_gate_condition: "Phase 3B-2 complete; resume via /continue and provide ticket/task input in chat at Phase 4"
 
   - token: "4"
     phase: "4"

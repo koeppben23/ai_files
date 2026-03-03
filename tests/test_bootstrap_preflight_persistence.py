@@ -155,6 +155,8 @@ def test_run_persistence_hook_delegates_to_hook_module(capsys: pytest.CaptureFix
 
     assert result["workspacePersistenceHook"] == "ok"
     assert result["repo_fingerprint"] == "testfingerprint123456"
+    assert "reason_code" not in result
+    assert "failure_stage" not in result
     assert result["bootstrap_hook_command"] == f"{module.sys.executable} -m governance.entrypoints.bootstrap_persistence_hook"
     assert result["cwd"]
     assert result["repo_root_detected"] == str(repo_root)
@@ -164,6 +166,36 @@ def test_run_persistence_hook_delegates_to_hook_module(capsys: pytest.CaptureFix
     assert call_args["cwd"] == str(repo_root)
     expected_prefix = str(repo_root) + module.os.pathsep + str(module.COMMANDS_HOME)
     assert str(call_args["env"].get("PYTHONPATH", "")).startswith(expected_prefix)
+
+
+@pytest.mark.governance
+def test_run_persistence_hook_clears_stale_failure_metadata_on_success():
+    module = _load_module_with_env({"CI": ""})
+
+    repo_root = REPO_ROOT
+    mock_proc = MagicMock()
+    mock_proc.returncode = 0
+    mock_proc.stdout = json.dumps(
+        {
+            "workspacePersistenceHook": "ok",
+            "reason": "bootstrap-completed",
+            "repo_fingerprint": "testfingerprint123456",
+            "reason_code": "BLOCKED-WORKSPACE-PERSISTENCE",
+            "failure_stage": "subprocess",
+            "stderr": "stale-stderr",
+        }
+    )
+    mock_proc.stderr = ""
+
+    with patch.object(module, "_resolve_repo_root_for_hook", return_value=(repo_root, "git", {"ok": True})):
+        with patch.object(module.subprocess, "run", return_value=mock_proc):
+            result = module.run_persistence_hook()
+
+    assert result["workspacePersistenceHook"] == "ok"
+    assert result["reason"] == "bootstrap-completed"
+    assert "reason_code" not in result
+    assert "failure_stage" not in result
+    assert "stderr" not in result
 
 
 @pytest.mark.governance

@@ -1052,6 +1052,7 @@ def test_workspace_persistence_backfill_script_exists_and_defines_required_targe
         "decision-pack.md",
         "workspace-memory.yaml",
         "business-rules.md",
+        "business-rules-status.md",
         "${REPO_CACHE_FILE}",
         "${REPO_DIGEST_FILE}",
         "${REPO_DECISION_PACK_FILE}",
@@ -1181,6 +1182,64 @@ def test_workspace_persistence_backfill_writes_business_rules_when_phase15_extra
     assert payload.get("workspacePersistenceHook") == "skipped"
     assert payload.get("read_only") is True
     assert not (workspace / "business-rules.md").exists()
+
+
+@pytest.mark.governance
+def test_workspace_persistence_backfill_writes_business_rules_status_for_not_applicable(tmp_path: Path):
+    script = REPO_ROOT / "governance" / "entrypoints" / "persist_workspace_artifacts.py"
+    cfg = tmp_path / "opencode-config"
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir(parents=True, exist_ok=True)
+    (repo_root / ".git").mkdir(parents=True, exist_ok=True)
+    repo_fp = "b2c3d4e5f6a1b2c3d4e5f6aa"
+    write_governance_paths(cfg)
+
+    workspace = cfg / "workspaces" / repo_fp
+    workspace.mkdir(parents=True, exist_ok=True)
+    session_file = workspace / "SESSION_STATE.json"
+    session_payload = {
+        "SESSION_STATE": {
+            "Phase": "2.1-DecisionPack",
+            "Mode": "NORMAL",
+            "ConfidenceLevel": 80,
+            "Next": "4",
+            "Scope": {
+                "Repository": "Demo Repo",
+                "RepositoryType": "governance-rulebook-repo",
+                "BusinessRules": "not-applicable",
+            },
+            "BusinessRules": {
+                "Decision": "skip",
+                "InventoryFileStatus": "not-applicable",
+            },
+            "ActiveProfile": "docs-governance",
+            "ProfileEvidence": "user-explicit",
+        }
+    }
+    session_file.write_text(json.dumps(session_payload, indent=2, ensure_ascii=True) + "\n", encoding="utf-8")
+
+    r = run(
+        [
+            sys.executable,
+            str(script),
+            "--repo-fingerprint",
+            repo_fp,
+            "--repo-root",
+            str(repo_root),
+            "--config-root",
+            str(cfg),
+            "--quiet",
+        ]
+    )
+    assert r.returncode == 0, f"persist_workspace_artifacts.py failed:\nSTDERR:\n{r.stderr}\nSTDOUT:\n{r.stdout}"
+
+    payload = json.loads(r.stdout)
+    assert payload.get("status") == "ok"
+    assert (workspace / "business-rules-status.md").exists()
+    assert not (workspace / "business-rules.md").exists()
+
+    status_text = (workspace / "business-rules-status.md").read_text(encoding="utf-8")
+    assert "Outcome: not-applicable" in status_text
 
 
 @pytest.mark.governance

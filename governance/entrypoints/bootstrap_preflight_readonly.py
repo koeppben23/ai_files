@@ -522,15 +522,31 @@ def _normalize_hook_failure_reason(proc: subprocess.CompletedProcess[str], resul
 
 def _canonical_hook_status(*, raw_status: object, reason_code: str, returncode: int) -> str:
     token = str(raw_status or "").strip().lower()
+    if returncode != 0:
+        if reason_code.startswith("BLOCKED-"):
+            return HOOK_STATUS_BLOCKED
+        return HOOK_STATUS_FAILED
     if token == HOOK_STATUS_OK:
         return HOOK_STATUS_OK
     if token not in {HOOK_STATUS_OK, HOOK_STATUS_BLOCKED, HOOK_STATUS_FAILED}:
         token = HOOK_STATUS_FAILED
     if reason_code.startswith("BLOCKED-"):
         return HOOK_STATUS_BLOCKED
-    if returncode != 0 and token == HOOK_STATUS_OK:
-        return HOOK_STATUS_FAILED
     return token
+
+
+def _clear_stale_failure_metadata(payload: dict[str, object]) -> None:
+    for key in (
+        "failure_stage",
+        "reason_code",
+        "stderr_snippet",
+        "log_path",
+        "stderr",
+        "stdout",
+        "hook_failure_stage",
+        "hook_log_path",
+    ):
+        payload.pop(key, None)
 
 
 def run_persistence_hook() -> dict[str, object]:
@@ -645,44 +661,50 @@ def run_persistence_hook() -> dict[str, object]:
         **parsed_payload,
         **base_payload,
         "hook_invoked": True,
-        "failure_stage": FAILURE_STAGE_SUBPROCESS,
     }
     if not isinstance(result.get("repo_fingerprint"), str):
         result["repo_fingerprint"] = ""
 
-    if parsed_payload.get("reason") == "hook-output-not-json":
-        result["failure_stage"] = FAILURE_STAGE_PARSE
-    elif proc.returncode != 0:
-        result["failure_stage"] = FAILURE_STAGE_SUBPROCESS
-    elif str(result.get("workspacePersistenceHook", "")).strip().lower() != HOOK_STATUS_OK:
-        result["failure_stage"] = FAILURE_STAGE_HOOK_PAYLOAD
-
-    reason_code, inferred_stage = _normalize_hook_failure_reason(proc, result)
-    result["reason_code"] = reason_code
+    raw_reason_code = str(result.get("reason_code") or "").strip()
     result["workspacePersistenceHook"] = _canonical_hook_status(
         raw_status=result.get("workspacePersistenceHook"),
-        reason_code=reason_code,
+        reason_code=raw_reason_code,
         returncode=proc.returncode,
     )
 
-    if str(result.get("workspacePersistenceHook", "")).strip().lower() != HOOK_STATUS_OK:
-        if str(result.get("failure_stage", "")).strip() in {"", FAILURE_STAGE_INIT, FAILURE_STAGE_SUBPROCESS}:
-            result["failure_stage"] = inferred_stage
-        log_path = _emit_persistence_gate_failure(
-            code=reason_code,
-            message="Persistence hook module dispatch failed.",
-            expected="python -m governance.entrypoints.bootstrap_persistence_hook exits with code 0",
-            observed={
-                "returncode": proc.returncode,
-                "stderr": (proc.stderr or "").strip()[:500],
-                "stdout": (proc.stdout or "").strip()[:500],
-                "payload_reason": str(result.get("reason") or ""),
-            },
-            remediation="Run the hook command directly and inspect returned reason_code/reason payload.",
-            repo_fingerprint=(str(result.get("repo_fingerprint") or "") or None),
-        )
-        result["stderr_snippet"] = (proc.stderr or "").strip()[:500]
-        result["log_path"] = str(log_path)
+    hook_status = str(result.get("workspacePersistenceHook", "")).strip().lower()
+    if hook_status == HOOK_STATUS_OK:
+        _clear_stale_failure_metadata(result)
+        if output_mode != "silent":
+            print(json.dumps(result, ensure_ascii=True))
+        return result
+
+    result["failure_stage"] = FAILURE_STAGE_SUBPROCESS
+    if parsed_payload.get("reason") == "hook-output-not-json":
+        result["failure_stage"] = FAILURE_STAGE_PARSE
+    elif hook_status != HOOK_STATUS_OK:
+        result["failure_stage"] = FAILURE_STAGE_HOOK_PAYLOAD if proc.returncode == 0 else FAILURE_STAGE_SUBPROCESS
+
+    reason_code, inferred_stage = _normalize_hook_failure_reason(proc, result)
+    result["reason_code"] = reason_code
+
+    if str(result.get("failure_stage", "")).strip() in {"", FAILURE_STAGE_INIT, FAILURE_STAGE_SUBPROCESS}:
+        result["failure_stage"] = inferred_stage
+    log_path = _emit_persistence_gate_failure(
+        code=reason_code,
+        message="Persistence hook module dispatch failed.",
+        expected="python -m governance.entrypoints.bootstrap_persistence_hook exits with code 0",
+        observed={
+            "returncode": proc.returncode,
+            "stderr": (proc.stderr or "").strip()[:500],
+            "stdout": (proc.stdout or "").strip()[:500],
+            "payload_reason": str(result.get("reason") or ""),
+        },
+        remediation="Run the hook command directly and inspect returned reason_code/reason payload.",
+        repo_fingerprint=(str(result.get("repo_fingerprint") or "") or None),
+    )
+    result["stderr_snippet"] = (proc.stderr or "").strip()[:500]
+    result["log_path"] = str(log_path)
 
     if output_mode != "silent":
         print(json.dumps(result, ensure_ascii=True))

@@ -11,6 +11,7 @@ Artifacts Created:
     - decision-pack.md: Decision records from discovery
     - workspace-memory.yaml: Persistent memory for patterns and decisions
     - business-rules.md: Business rules inventory (if Phase 1.5 completed)
+    - business-rules-status.md: Business rules outcome status (always written)
 
 Fingerprint Derivation:
     The repository fingerprint can be derived from:
@@ -1007,6 +1008,46 @@ def _render_business_rules_inventory(*, date: str, repo_name: str) -> str:
     return render_business_rules_inventory(date=date, repo_name=repo_name)
 
 
+def _resolve_business_rules_outcome(
+    *,
+    session: dict[str, object] | None,
+    business_rules_inventory_written: bool,
+    business_rules_inventory_action: str,
+) -> tuple[str, str]:
+    scope = session.get("Scope") if isinstance(session, dict) else None
+    business_rules_scope = ""
+    if isinstance(scope, dict):
+        raw = scope.get("BusinessRules")
+        if isinstance(raw, str):
+            business_rules_scope = raw.strip().lower()
+
+    if business_rules_scope in {"extracted", "skipped", "not-applicable", "deferred"}:
+        return business_rules_scope, "scope"
+    if business_rules_inventory_written or business_rules_inventory_action in {"created", "overwritten", "kept"}:
+        return "extracted", "persistence-helper"
+    if business_rules_inventory_action in {"write-requested", "blocked-read-only"}:
+        return "deferred", "persistence-helper"
+    return "skipped", "persistence-helper"
+
+
+def _render_business_rules_status(*, date: str, repo_name: str, outcome: str, source: str) -> str:
+    return "\n".join(
+        [
+            f"# Business Rules Status - {repo_name}",
+            "",
+            f"Outcome: {outcome}",
+            f"OutcomeSource: {source}",
+            "InventoryPolicy: business-rules.md is written only when outcome is extracted.",
+            f"Last Updated: {date}",
+            "",
+            "ExpectedArtifacts:",
+            "- business-rules-status.md (always)",
+            "- business-rules.md (outcome=extracted only)",
+            "",
+        ]
+    )
+
+
 def _write_text(path: Path, content: str, *, dry_run: bool, read_only: bool) -> None:
     if read_only or dry_run:
         return
@@ -1149,28 +1190,17 @@ def _update_session_state(
         ss["WorkspaceMemoryFile"]["TargetPath"] = "${WORKSPACE_MEMORY_FILE}"
         ss["WorkspaceMemoryFile"]["FileStatus"] = _action_to_status(workspace_memory_action)
 
-    scope = ss.get("Scope")
-    business_rules_scope = ""
-    if isinstance(scope, dict):
-        raw = scope.get("BusinessRules")
-        if isinstance(raw, str):
-            business_rules_scope = raw.strip().lower()
-
-    outcome = "deferred"
-    if business_rules_scope in {"extracted", "skipped", "not-applicable", "deferred"}:
-        outcome = business_rules_scope
-    elif business_rules_inventory_written or business_rules_inventory_action in {"created", "overwritten", "kept"}:
-        outcome = "extracted"
-    elif business_rules_inventory_action in {"write-requested", "blocked-read-only"}:
-        outcome = "deferred"
-    else:
-        outcome = "skipped"
+    outcome, outcome_source = _resolve_business_rules_outcome(
+        session=ss,
+        business_rules_inventory_written=business_rules_inventory_written,
+        business_rules_inventory_action=business_rules_inventory_action,
+    )
 
     ss.setdefault("BusinessRules", {})
     if isinstance(ss["BusinessRules"], dict):
         inventory = ss["BusinessRules"]
         inventory["Outcome"] = outcome
-        inventory["OutcomeSource"] = "scope" if business_rules_scope else "persistence-helper"
+        inventory["OutcomeSource"] = outcome_source
         inventory["InventoryFileStatus"] = _action_to_status(business_rules_inventory_action)
         if outcome in {"extracted", "deferred"}:
             inventory["InventoryFilePath"] = "${REPO_BUSINESS_RULES_FILE}"
@@ -1629,6 +1659,7 @@ def main() -> int:
     decision_path = repo_home / "decision-pack.md"
     memory_path = repo_home / "workspace-memory.yaml"
     business_rules_path = repo_home / "business-rules.md"
+    business_rules_status_path = repo_home / "business-rules-status.md"
 
     cache_content = _render_repo_cache(
         date=today,
@@ -1700,6 +1731,25 @@ def main() -> int:
                 remediation="Persist the same content manually to ${REPO_BUSINESS_RULES_FILE} and rerun helper.",
             )
 
+    business_rules_outcome, business_rules_outcome_source = _resolve_business_rules_outcome(
+        session=session,
+        business_rules_inventory_written=(business_rules_action in {"created", "kept", "overwritten"}),
+        business_rules_inventory_action=business_rules_action,
+    )
+    business_rules_status_action = _upsert_artifact(
+        path=business_rules_status_path,
+        create_content=_render_business_rules_status(
+            date=today,
+            repo_name=repo_name,
+            outcome=business_rules_outcome,
+            source=business_rules_outcome_source,
+        ),
+        append_content=None,
+        force=args.force,
+        dry_run=args.dry_run,
+        read_only=read_only,
+    )
+
     actions = run_backfill(
         specs=[
             ArtifactSpec(
@@ -1733,6 +1783,7 @@ def main() -> int:
         normalize_existing=lambda p, d: _normalize_legacy_placeholder_phrasing(p, dry_run=d, read_only=read_only),
     )
     actions["businessRulesInventory"] = business_rules_action
+    actions["businessRulesStatus"] = business_rules_status_action
     actions["businessRulesBootstrapEvent"] = business_rules_bootstrap_event
 
     # -- Plan-record backfill -----------------------------------------------
