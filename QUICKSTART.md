@@ -59,6 +59,7 @@ cd customer-install-bundle-v1
 
 After bootstrap succeeds, open OpenCode Desktop in the same repository and start with `/continue`.
 This reuses the persisted session state from bootstrap and avoids duplicate initialization.
+If `/continue` lands at Phase 4 (Ticket Intake), start in Plan Mode for every new ticket/task.
 
 | Command | Purpose |
 |---------|---------|
