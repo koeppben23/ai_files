@@ -7,6 +7,7 @@ Back to install and bundle overview: `README.md`.
 - Windows launcher: `%USERPROFILE%\.config\opencode\bin\opencode-governance-bootstrap.cmd --repo-root C:\path\to\repo`
 - After bootstrap, open OpenCode Desktop in the same repo and run `/continue`
 - At Phase 4 (Ticket Intake Gate), enter Plan Mode first for any new ticket/task
+- `/review`: Phase 4 review-only path for lead/staff quality PR or ticket review with paste-ready comments
 - `/resume`: continue an interrupted session deterministically
 - `/audit`: read-only governance report flow
 

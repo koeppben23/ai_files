@@ -34,6 +34,7 @@ ${COMMANDS_HOME}/
   rules.md
   BOOTSTRAP.md
   continue.md
+  review.md
   docs/_archive/resume.md
   README.md
   README-RULES.md
