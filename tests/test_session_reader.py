@@ -259,6 +259,33 @@ class TestReadSessionSnapshotSuccess:
         assert result["status"] == "OK"
         assert result["phase"] == "2"
 
+    def test_enveloped_session_state_fields(self, fake_config: Path) -> None:
+        """Canonical envelope under SESSION_STATE is extracted correctly."""
+        ws_state = _write_pointer(fake_config)
+        _write_workspace_state(ws_state, {
+            "SESSION_STATE": {
+                "Phase": "4",
+                "Next": "4",
+                "Mode": "IN_PROGRESS",
+                "OutputMode": "ARCHITECT",
+                "active_gate": "Ticket Input Gate",
+                "next_gate_condition": "wait for ticket input",
+                "ticket_intake_ready": False,
+                "Gates": {"P5.3-TestQuality": "blocked"},
+            }
+        })
+
+        result = read_session_snapshot(commands_home=fake_config / "commands")
+        assert result["status"] == "OK"
+        assert result["phase"] == "4"
+        assert result["next"] == "4"
+        assert result["mode"] == "IN_PROGRESS"
+        assert result["output_mode"] == "ARCHITECT"
+        assert result["active_gate"] == "Ticket Input Gate"
+        assert result["next_gate_condition"] == "wait for ticket input"
+        assert result["ticket_intake_ready"] == "false"
+        assert result["gates_blocked"] == ["P5.3-TestQuality"]
+
 
 # ---------------------------------------------------------------------------
 # Unit tests — format_snapshot

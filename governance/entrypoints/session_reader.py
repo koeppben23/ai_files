@@ -147,18 +147,23 @@ def read_session_snapshot(commands_home: Path | None = None) -> dict:
         }
 
     # --- 4. Extract minimal fields ---
+    # Canonical documents store runtime fields under "SESSION_STATE".
+    # Support both nested and top-level conventions while preferring nested.
+    nested = state.get("SESSION_STATE")
+    state_view = nested if isinstance(nested, dict) else state
+
     # Support both PascalCase and snake_case field conventions.
-    phase = state.get("Phase") or state.get("phase") or "unknown"
-    next_phase = state.get("Next") or state.get("next") or "unknown"
-    mode = state.get("Mode") or state.get("mode") or "unknown"
-    status = state.get("status") or "OK"
-    output_mode = state.get("OutputMode") or state.get("output_mode") or "unknown"
-    active_gate = state.get("active_gate") or "none"
-    next_gate_condition = state.get("next_gate_condition") or "none"
-    ticket_intake_ready = state.get("ticket_intake_ready", False)
+    phase = state_view.get("Phase") or state_view.get("phase") or state.get("Phase") or state.get("phase") or "unknown"
+    next_phase = state_view.get("Next") or state_view.get("next") or state.get("Next") or state.get("next") or "unknown"
+    mode = state_view.get("Mode") or state_view.get("mode") or state.get("Mode") or state.get("mode") or "unknown"
+    status = state_view.get("status") or state.get("status") or "OK"
+    output_mode = state_view.get("OutputMode") or state_view.get("output_mode") or state.get("OutputMode") or state.get("output_mode") or "unknown"
+    active_gate = state_view.get("active_gate") or state.get("active_gate") or "none"
+    next_gate_condition = state_view.get("next_gate_condition") or state.get("next_gate_condition") or "none"
+    ticket_intake_ready = state_view.get("ticket_intake_ready", state.get("ticket_intake_ready", False))
 
     # Collect blocked gates from the Gates dict.
-    gates = state.get("Gates") or {}
+    gates = state_view.get("Gates") or state.get("Gates") or {}
     gates_blocked = [k for k, v in gates.items() if str(v).lower() == "blocked"] if isinstance(gates, dict) else []
 
     return {
