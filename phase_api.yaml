@@ -48,7 +48,10 @@ phases:
     route_strategy: "stay"
     exit_required_keys:
       - LoadedRulebooks.core
+      - LoadedRulebooks.profile
       - RulebookLoadEvidence.core
+      - RulebookLoadEvidence.profile
+      - ActiveProfile
       - AddonsEvidence
 
   - token: "2"
@@ -103,7 +106,7 @@ phases:
         next: "4"
         source: "phase-3a-not-applicable-to-phase4"
         active_gate: "Ticket Input Gate"
-        next_gate_condition: "Phase 3A completed with not-applicable (no APIs detected); wait for ticket input at Phase 4 via /ticket paste"
+        next_gate_condition: "Phase 3A completed with not-applicable (no APIs detected); resume via /continue and provide ticket/task input in chat at Phase 4"
       - when: default
         next: "3B-1"
         source: "phase-3a-to-3b1"
@@ -136,14 +139,25 @@ phases:
         next: "4"
         source: "phase-3b2-to-4"
         active_gate: "Ticket Input Gate"
-        next_gate_condition: "Phase 3B-2 complete; wait for ticket input at Phase 4 via /ticket paste"
+        next_gate_condition: "Phase 3B-2 complete; resume via /continue and provide ticket/task input in chat at Phase 4"
 
   - token: "4"
     phase: "4"
     active_gate: "Ticket Input Gate"
     next_gate_condition: "Collect ticket and planning constraints."
     next: "5"
-    route_strategy: "stay"
+    route_strategy: "next"
+    transitions:
+      - when: ticket_present
+        next: "5"
+        source: "phase-4-to-5-ticket-intake"
+        active_gate: "Implementation Gate"
+        next_gate_condition: "Ticket/task evidence captured; continue to Phase 5 implementation gate"
+      - when: default
+        next: "4"
+        source: "phase-4-awaiting-ticket-intake"
+        active_gate: "Ticket Input Gate"
+        next_gate_condition: "Provide ticket/task details to continue from Phase 4 to Phase 5"
 
   - token: "5"
     phase: "5-Implementation"

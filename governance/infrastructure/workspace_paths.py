@@ -107,6 +107,19 @@ def business_rules_path(workspaces_home: Path, repo_fingerprint: str) -> Path:
     return workspaces_home / repo_fingerprint / "business-rules.md"
 
 
+def business_rules_status_path(workspaces_home: Path, repo_fingerprint: str) -> Path:
+    """Get the path to a repository's business-rules-status.md file.
+
+    Args:
+        workspaces_home: The base workspaces directory.
+        repo_fingerprint: The canonical 24-hex fingerprint.
+
+    Returns:
+        Path to ${WORKSPACES_HOME}/${fingerprint}/business-rules-status.md
+    """
+    return workspaces_home / repo_fingerprint / "business-rules-status.md"
+
+
 def plan_record_path(workspaces_home: Path, repo_fingerprint: str) -> Path:
     """Get the path to a repository's plan-record.json file.
 
@@ -153,7 +166,7 @@ def locks_dir(workspaces_home: Path, repo_fingerprint: str) -> Path:
 
 PHASE2_ARTIFACTS = ["repo-cache.yaml", "repo-map-digest.md", "workspace-memory.yaml"]
 PHASE21_ARTIFACTS = ["decision-pack.md"]
-PHASE15_ARTIFACTS = ["business-rules.md"]
+PHASE15_ARTIFACTS = ["business-rules.md", "business-rules-status.md"]
 PHASE4_ARTIFACTS = ["plan-record.json"]
 
 
@@ -165,6 +178,7 @@ def all_phase_artifact_paths(workspaces_home: Path, repo_fingerprint: str) -> di
         "workspace_memory": workspace_memory_path(workspaces_home, repo_fingerprint),
         "decision_pack": decision_pack_path(workspaces_home, repo_fingerprint),
         "business_rules": business_rules_path(workspaces_home, repo_fingerprint),
+        "business_rules_status": business_rules_status_path(workspaces_home, repo_fingerprint),
         "plan_record": plan_record_path(workspaces_home, repo_fingerprint),
     }
 

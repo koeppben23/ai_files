@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from pathlib import Path
+import json
 
 from governance.application.ports.process_runner import ProcessResult
 from governance.application.ports.process_runner import ProcessRunnerPort
@@ -23,6 +24,27 @@ class _FakeRunner(ProcessRunnerPort):
     def run(self, argv: list[str], env: dict[str, str] | None = None) -> ProcessResult:
         _ = (argv, env)
         return ProcessResult(returncode=self.returncode, stdout="{}", stderr="")
+
+
+class _BackfillMutatingRunner(ProcessRunnerPort):
+    def __init__(self, fs: InMemoryFS, session_state_file: str) -> None:
+        self._fs = fs
+        self._session_state_file = Path(session_state_file)
+
+    def run(self, argv: list[str], env: dict[str, str] | None = None) -> ProcessResult:
+        _ = (argv, env)
+        payload = json.loads(self._fs.read_text(self._session_state_file))
+        session = payload["SESSION_STATE"]
+        session["Phase"] = "4"
+        session["Next"] = "4"
+        session["ticket_intake_ready"] = True
+        session["BusinessRules"] = {
+            "Decision": "skip",
+            "Inventory": {"sha256": "abc123", "count": 2},
+            "Rules": ["rule-one", "rule-two"],
+        }
+        self._fs.write_text_atomic(self._session_state_file, json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True) + "\n")
+        return ProcessResult(returncode=0, stdout="{}", stderr="")
 
 
 class _FakeLogger:
@@ -117,6 +139,48 @@ def test_bootstrap_commits_only_after_all_checks() -> None:
     assert result.ok is True
     assert result.gate_code == "OK"
     assert result.write_actions.get("session_state_final") == "written"
+
+
+def test_bootstrap_preserves_backfill_business_rules_and_resets_phase_entrypoint() -> None:
+    payload = _payload()
+    fs = InMemoryFS()
+    for artifact in payload.required_artifacts:
+        fs.write_text_atomic(Path(artifact), "ok")
+    logger = _FakeLogger()
+    service = BootstrapPersistenceService(
+        fs=fs,
+        runner=_BackfillMutatingRunner(fs, payload.layout.session_state_file),
+        logger=logger,
+    )
+
+    result = service.run(payload, datetime.now(timezone.utc).isoformat(timespec="seconds"))
+
+    assert result.ok is True
+    state = json.loads(fs.read_text(Path(payload.layout.session_state_file)))
+    session = state["SESSION_STATE"]
+    assert session.get("Phase") == "1.2-ActivationIntent"
+    business = session.get("BusinessRules", {})
+    assert business.get("Inventory", {}).get("sha256") == "abc123"
+    assert business.get("Rules") == ["rule-one", "rule-two"]
+    commit_flags = session.get("CommitFlags", {})
+    assert commit_flags.get("PointerVerified") is True
+
+
+def test_bootstrap_merge_falls_back_when_session_state_is_invalid_json() -> None:
+    payload = _payload()
+    fs = InMemoryFS()
+    for artifact in payload.required_artifacts:
+        fs.write_text_atomic(Path(artifact), "ok")
+    logger = _FakeLogger()
+    service = BootstrapPersistenceService(fs=fs, runner=_FakeRunner(returncode=0), logger=logger)
+    # Corrupt initial session to trigger fallback path.
+    fs.write_text_atomic(Path(payload.layout.session_state_file), "{not-json\n")
+
+    result = service.run(payload, datetime.now(timezone.utc).isoformat(timespec="seconds"))
+
+    assert result.ok is True
+    state = json.loads(fs.read_text(Path(payload.layout.session_state_file)))
+    assert state["SESSION_STATE"].get("PersistenceCommitted") is True
 
 
 def test_bootstrap_fails_closed_when_required_artifacts_missing() -> None:
