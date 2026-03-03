@@ -450,6 +450,13 @@ except Exception:
                 temp_path.unlink(missing_ok=True)
 
 try:
+    from governance.infrastructure.plan_record_repository import PlanRecordRepository
+    from governance.infrastructure.workspace_paths import plan_record_path, plan_record_archive_dir
+    _PLAN_RECORD_AVAILABLE = True
+except Exception:
+    _PLAN_RECORD_AVAILABLE = False
+
+try:
     from governance.application.repo_identity_service import canonicalize_origin_url, derive_repo_identity
 except Exception:
     import hashlib
@@ -1727,6 +1734,43 @@ def main() -> int:
     )
     actions["businessRulesInventory"] = business_rules_action
     actions["businessRulesBootstrapEvent"] = business_rules_bootstrap_event
+
+    # -- Plan-record backfill -----------------------------------------------
+    # If plan-record.json doesn't exist but SESSION_STATE has Phase 4 data
+    # (FeatureComplexity), create an initial plan record via backfill.
+    plan_record_action = "not-applicable"
+    if _PLAN_RECORD_AVAILABLE and isinstance(session, dict) and not args.dry_run and not read_only:
+        pr_path = plan_record_path(repo_home.parent, repo_fingerprint)
+        pr_archive = plan_record_archive_dir(repo_home.parent, repo_fingerprint)
+        repo = PlanRecordRepository(pr_path, pr_archive)
+        if repo.load() is None and session.get("FeatureComplexity"):
+            try:
+                run_id = workspace_lock.lock_id if workspace_lock is not None else "orchestrator"
+                result = repo.backfill_from_session_state(
+                    session,
+                    repo_fingerprint=repo_fingerprint,
+                    session_run_id=run_id,
+                )
+                plan_record_action = "backfilled" if result.ok else f"skipped:{result.reason}"
+            except Exception as exc:
+                plan_record_action = f"backfill-error:{str(exc)[:120]}"
+                safe_log_error(
+                    reason_key="ERR-PLAN-RECORD-BACKFILL-FAILED",
+                    message=f"Plan-record backfill failed: {exc}",
+                    config_root=config_root,
+                    phase="4",
+                    gate="PERSISTENCE",
+                    mode="repo-aware",
+                    repo_fingerprint=repo_fingerprint,
+                    command="persist_workspace_artifacts.py",
+                    component="plan-record-backfill",
+                    observed_value={"error": str(exc)[:240]},
+                    expected_constraint="Plan-record backfill from SESSION_STATE succeeds",
+                    remediation="Inspect plan-record.json and SESSION_STATE for consistency.",
+                )
+        elif repo.load() is not None:
+            plan_record_action = "exists"
+    actions["planRecord"] = plan_record_action
     decision_pack_normalization_event = "not-emitted"
     if actions.get("decisionPack") == "normalized":
         decision_pack_normalization_event = _append_jsonl_event(
