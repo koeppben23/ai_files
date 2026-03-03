@@ -36,8 +36,14 @@ cd customer-install-bundle-v1
 # macOS / Linux
 ~/.config/opencode/bin/opencode-governance-bootstrap --repo-root /absolute/path/to/your-repo
 
+# Optional: verbose bootstrap flow
+~/.config/opencode/bin/opencode-governance-bootstrap --repo-root /absolute/path/to/your-repo --verbose
+
 # Windows
 %USERPROFILE%\.config\opencode\bin\opencode-governance-bootstrap.cmd --repo-root C:\path\to\your-repo
+
+# Optional: verbose bootstrap flow
+%USERPROFILE%\.config\opencode\bin\opencode-governance-bootstrap.cmd --repo-root C:\path\to\your-repo --verbose
 ```
 
 **Expected output:**
@@ -49,13 +55,16 @@ cd customer-install-bundle-v1
 | Repo not detected | Provide `--repo-root /path/to/repo` |
 | Not a Git repository | Initialize git or provide `--repo-root` to a valid Git repo |
 
-## Step 3: First Governed Task (2 minutes)
+## Step 3: Open Desktop and Continue (2 minutes)
+
+After bootstrap succeeds, open OpenCode Desktop in the same repository and start with `/continue`.
+This reuses the persisted session state from bootstrap and avoids duplicate initialization.
 
 | Command | Purpose |
 |---------|---------|
 | `~/.config/opencode/bin/opencode-governance-bootstrap --repo-root /abs/path/to/repo` | Bootstrap session (required) |
 | `%USERPROFILE%\.config\opencode\bin\opencode-governance-bootstrap.cmd --repo-root C:\path\to\repo` | Bootstrap session (Windows) |
-| `/continue` | Resume active session |
+| `/continue` | Standard Desktop entrypoint after bootstrap |
 | `./install/install.sh` | Install/update governance (macOS/Linux, from bundle) |
 | `./install/install.sh --status` | Check installation (macOS/Linux, from bundle) |
 | `./install/install.sh --smoketest` | Run installation smoketest (macOS/Linux, from bundle) |
@@ -68,6 +77,7 @@ cd customer-install-bundle-v1
 **Start new work:**
 ```bash
 ~/.config/opencode/bin/opencode-governance-bootstrap --repo-root /absolute/path/to/your-repo
+# Open OpenCode Desktop in /absolute/path/to/your-repo
 /continue
 "Implement now"
 ```

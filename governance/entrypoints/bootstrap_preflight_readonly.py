@@ -1064,6 +1064,10 @@ def run_kernel_continuation(hook_result: Mapping[str, object]) -> dict[str, obje
         "source": str(last_result.get("source") or ""),
         "hops": hops,
     }
+    if phase_rank(resolved_token) >= phase_rank("4"):
+        payload["next_step"] = "Open OpenCode Desktop in this repository and run /continue"
+    else:
+        payload["next_step"] = "Rerun the local bootstrap launcher until Phase 4 is reached"
     return payload
 
 
