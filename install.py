@@ -11,8 +11,9 @@ Features:
 - manifest tracking (INSTALL_MANIFEST.json)
 
 NOTE:
-- This installer does NOT generate opencode.json (to avoid schema validation errors).
- - Instead it generates an installer-owned sidecar: commands/governance.paths.json for bootstrap.
+- This installer creates/merges opencode.json instructions for Desktop guidance,
+  but uninstall intentionally preserves opencode.json.
+- It generates installer-owned sidecar bindings at commands/governance.paths.json for bootstrap.
 - Installer governance use `ERR-*` reason keys as installer-internal keys; they are not canonical
   governance `reason_code` values (`BLOCKED-*|WARN-*|NOT_VERIFIED-*`).
 """
@@ -271,18 +272,6 @@ def create_launcher(plan: InstallPlan, dry_run: bool, force: bool) -> list[dict]
             shutil.copy2(f, dst)
         print(f"  ✅ {cli_dest}")
 
-        # Copy governance runtime into commands/governance for bootstrap hook.
-        governance_dest = plan.commands_dir / "governance"
-        if governance_dest.exists():
-            shutil.rmtree(governance_dest)
-        governance_dest.mkdir(parents=True, exist_ok=True)
-        for f in sorted(GOVERNANCE_SOURCE_DIR.rglob("*.py")):
-            rel = f.relative_to(GOVERNANCE_SOURCE_DIR)
-            dst = governance_dest / rel
-            dst.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(f, dst)
-        print(f"  ✅ {governance_dest}")
-
         # Launcher generation deferred until governance.paths.json is written.
 
     for f in sorted(cli_source.rglob("*.py")):
@@ -365,6 +354,16 @@ def create_launcher(plan: InstallPlan, dry_run: bool, force: bool) -> list[dict]
         import json
         health_path.write_text(json.dumps(health_data, indent=2, ensure_ascii=True), encoding="utf-8")
         print(f"  ✅ {health_path}")
+
+    created_entries.append(
+        {
+            "dst": str(health_path.resolve()) if not dry_run else str(health_path),
+            "rel": "INSTALL_HEALTH.json",
+            "rel_base": "config",
+            "status": "planned-copy" if dry_run else "copied",
+            "src": "generated",
+        }
+    )
 
     return created_entries
 
@@ -1243,6 +1242,7 @@ OPENCODE_INSTRUCTIONS = [
 ]
 
 SESSION_READER_PLACEHOLDER = "{{SESSION_READER_PATH}}"
+PYTHON_COMMAND_PLACEHOLDER = "{{PYTHON_COMMAND}}"
 
 
 def ensure_opencode_json(config_root: Path, *, dry_run: bool) -> dict:
@@ -1296,8 +1296,13 @@ def ensure_opencode_json(config_root: Path, *, dry_run: bool) -> dict:
     return {"status": "created", "dst": str(target)}
 
 
-def inject_session_reader_path(commands_dir: Path, *, dry_run: bool) -> dict:
-    """Replace ``{{SESSION_READER_PATH}}`` in installed ``continue.md``.
+def inject_session_reader_path(
+    commands_dir: Path,
+    *,
+    python_command: str,
+    dry_run: bool,
+) -> dict:
+    """Replace placeholders in installed ``continue.md``.
 
     The placeholder is replaced with the concrete absolute path to
     ``session_reader.py`` so the LLM can invoke the governance kernel
@@ -1310,13 +1315,19 @@ def inject_session_reader_path(commands_dir: Path, *, dry_run: bool) -> dict:
         return {"status": "skipped-missing", "dst": str(continue_md)}
 
     content = continue_md.read_text(encoding="utf-8")
-    if SESSION_READER_PLACEHOLDER not in content:
+    has_reader_placeholder = SESSION_READER_PLACEHOLDER in content
+    has_python_placeholder = PYTHON_COMMAND_PLACEHOLDER in content
+    if not has_reader_placeholder and not has_python_placeholder:
         return {"status": "skipped-no-placeholder", "dst": str(continue_md)}
 
     reader_path = commands_dir / "governance" / "entrypoints" / "session_reader.py"
     concrete_path = str(reader_path)
 
-    new_content = content.replace(SESSION_READER_PLACEHOLDER, concrete_path)
+    new_content = content
+    if has_reader_placeholder:
+        new_content = new_content.replace(SESSION_READER_PLACEHOLDER, concrete_path)
+    if has_python_placeholder:
+        new_content = new_content.replace(PYTHON_COMMAND_PLACEHOLDER, python_command)
 
     if dry_run:
         print(f"  [DRY-RUN] inject session_reader path into {continue_md}")
@@ -1822,7 +1833,16 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
     ojs = ensure_opencode_json(plan.config_root, dry_run=dry_run)
     print(f"  opencode.json: {ojs['status']}")
 
-    srp = inject_session_reader_path(plan.commands_dir, dry_run=dry_run)
+    binding_python = _resolve_python_executable(
+        plan.governance_paths_path,
+        fallback=sys.executable,
+        strict=False,
+    )
+    srp = inject_session_reader_path(
+        plan.commands_dir,
+        python_command=binding_python,
+        dry_run=dry_run,
+    )
     print(f"  continue.md session_reader path: {srp['status']}")
 
     # If session reader path was injected, update the SHA256 in copied_entries
@@ -1900,8 +1920,8 @@ def uninstall(
 ) -> int:
     print(f"🧹 Uninstall from: {plan.commands_dir}")
 
-    # We never manage opencode.json. Uninstall only removes installer-owned files under commands/,
-    # based on the manifest (or conservative fallback).
+    # opencode.json is installer-initialized but intentionally preserved on uninstall.
+    # Uninstall removes installer-owned runtime files based on manifest (or conservative fallback).
 
     manifest = load_manifest(plan.manifest_path)
     if not manifest:
@@ -2001,9 +2021,11 @@ def uninstall(
         if purge_paths_file:
             targets.append(plan.governance_paths_path)
 
+        targets.append(plan.config_root / "INSTALL_HEALTH.json")
+
         # Deduplicate while preserving order
         targets = list(dict.fromkeys(targets))
-        # intentionally NOT deleting opencode.json (never managed by this installer)
+        # intentionally NOT deleting opencode.json (preserved even when installer-managed)
 
         rc = delete_targets(targets, plan, dry_run=dry_run)
         if not keep_error_logs:
@@ -2031,6 +2053,7 @@ def uninstall(
     if purge_paths_file:
         # Explicit operator request: remove machine-specific binding even if it pre-existed.
         targets.append(plan.governance_paths_path)
+    targets.append(plan.config_root / "INSTALL_HEALTH.json")
 
     if not targets:
         print("ℹ️  Manifest contains no installed files. Nothing to uninstall.")
@@ -2073,13 +2096,17 @@ def uninstall(
     cleanup_dirs = [
         plan.commands_dir / "profiles" / "addons",
         plan.commands_dir / "profiles",
+        plan.commands_dir / "rulesets" / "core",
+        plan.commands_dir / "rulesets",
         plan.commands_dir / "templates" / "github-actions",
         plan.commands_dir / "templates",
         plan.commands_dir / "scripts",
         plan.commands_dir / "governance",
+        plan.commands_dir / "cli",
         plan.commands_dir / "logs",
         plan.commands_dir / "docs",
         plan.commands_dir / "_backup",
+        plan.config_root / "bin",
         plan.config_root / "workspaces",
     ]
     for d in cleanup_dirs:
@@ -2101,24 +2128,29 @@ def uninstall(
 
 def delete_targets(targets: Iterable[Path], plan: InstallPlan, dry_run: bool) -> int:
     errors = 0
+    allowed_config_files = {
+        (plan.config_root / "INSTALL_HEALTH.json").resolve(),
+    }
     for t in targets:
-        # Safety guard: only delete within commands_dir or config_root/bin.
+        # Safety guard: only delete installer-owned locations.
         try:
             t_resolved = t.resolve()
             commands_resolved = plan.commands_dir.resolve()
             bin_resolved = (plan.config_root / "bin").resolve()
             
-            # Allow deletion in commands_dir or in config_root/bin.
+            # Allow deletion in commands_dir, config_root/bin, or explicit installer-owned config files.
             allowed_bases = [commands_resolved, bin_resolved]
             is_under_allowed = any(
                 base_resolved in t_resolved.parents or t_resolved == base_resolved
                 for base_resolved in allowed_bases
             )
+            if t_resolved in allowed_config_files:
+                is_under_allowed = True
             
             if not is_under_allowed:
                 safe_log_error(
                     reason_key="ERR-UNINSTALL-PATH-ESCAPE-REFUSED",
-                    message="Refused deletion outside commands/bin directory.",
+                    message="Refused deletion outside installer-owned directories/files.",
                     config_root=plan.config_root,
                     phase="installer",
                     gate="uninstall-safety",
@@ -2127,7 +2159,10 @@ def delete_targets(targets: Iterable[Path], plan: InstallPlan, dry_run: bool) ->
                     command="install.py",
                     component="installer-delete-guard",
                     observed_value={"target": str(t), "resolvedTarget": str(t_resolved)},
-                    expected_constraint=f"Target must be under {commands_resolved} or {bin_resolved}",
+                    expected_constraint=(
+                        f"Target must be under {commands_resolved}, {bin_resolved}, "
+                        f"or in explicit installer-owned config files"
+                    ),
                     remediation="Inspect manifest/targets and rerun uninstall.",
                     action="block",
                     result="blocked",

@@ -6,7 +6,7 @@
 Before responding, execute the following command to load the current governance session state:
 
 ```bash
-python "{{SESSION_READER_PATH}}"
+{{PYTHON_COMMAND}} "{{SESSION_READER_PATH}}"
 ```
 
 Use the YAML output as your governance context for the response below.

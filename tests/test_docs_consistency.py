@@ -100,3 +100,15 @@ def test_install_layout_doc_has_required_structure() -> None:
     ]
     missing = [marker for marker in required_markers if marker not in text]
     assert not missing, f"docs/install-layout.md missing required markers: {missing}"
+
+
+def test_desktop_phase4_plan_mode_guidance_is_present() -> None:
+    root = Path(__file__).resolve().parents[1]
+    required = {
+        "README.md": "Phase 4",
+        "README-OPENCODE.md": "Plan Mode",
+        "QUICKSTART.md": "Phase 4",
+    }
+    for rel, token in required.items():
+        text = (root / rel).read_text(encoding="utf-8")
+        assert token in text, f"missing Phase 4 Plan Mode guidance in {rel}: {token}"
