@@ -654,7 +654,7 @@ class TestP2GovernanceSchemasCleanup:
     def test_no_stale_root_path(self) -> None:
         """Must not reference the old root-level path."""
         content = self._content()
-        # Check that `governance/RESPONSE_ENVELOPE_SCHEMA.json` without
+        # Check that `governance/assets/catalogs/RESPONSE_ENVELOPE_SCHEMA.json` without
         # `assets/catalogs/` prefix does NOT appear.
         lines = content.split("\n")
         for line in lines:
