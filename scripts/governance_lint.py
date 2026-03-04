@@ -512,10 +512,10 @@ def check_md_rails_only_tripwire(issues: list[str]) -> None:
         ROOT / "BOOTSTRAP.md",
         ROOT / "continue.md",
         ROOT / "review.md",
-        ROOT / "docs" / "_archive" / "resume.md",
-        ROOT / "docs" / "_archive" / "resume_prompt.md",
-        ROOT / "docs" / "_archive" / "new_profile.md",
-        ROOT / "docs" / "_archive" / "new_addon.md",
+        ROOT / "docs" / "resume.md",
+        ROOT / "docs" / "resume_prompt.md",
+        ROOT / "docs" / "new_profile.md",
+        ROOT / "docs" / "new_addon.md",
         ROOT / "BOOTSTRAP.md",
     ]
     files.extend(sorted((ROOT / "profiles").glob("rules*.md")))

@@ -412,8 +412,6 @@ def process_untrusted_input(source: str, data: Any) -> ValidationResult:
 
 - `docs/THREAT_MODEL.md` - Attack surfaces and scenarios
 - `docs/MD_PYTHON_POLICY.md` - Schienen vs Leitplanken
-- `governance/domain/trust_levels.py` - Trust classification
-- `governance/infrastructure/input_validation.py` - Validation pipeline
 - `governance/infrastructure/artifact_integrity.py` - Runtime hash verification
 
 ## Artifact Integrity Verification

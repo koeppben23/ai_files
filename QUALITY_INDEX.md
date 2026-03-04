@@ -32,7 +32,7 @@ For any non-trivial change, evidence SHOULD exist for:
 
 ## Usage
 - Must be considered before declaring work "done".
-- Must be satisfied before Phase 5 code emission in strict workflows.
+- Must be satisfied before declaring implementation readiness in strict workflows.
 
 ---
 

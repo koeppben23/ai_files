@@ -67,7 +67,7 @@ not deliver optimal results there:
 
 ### 2.2 Technology Scope
 
-* ❌ Non-Java stacks
+* ❌ Stacks without a governance profile (profiles exist for Java, Python, Angular/Nx, Cypress, OpenAPI contracts)
 * ❌ Frontend-heavy applications as the primary focus (UI-first, rapid iteration without stable artifacts/contracts)
 * ❌ Script- or notebook-based development
 * ❌ Unstructured monorepos without clear ownership or bounded component scope

@@ -147,10 +147,10 @@ CORE_COMMAND_FILES = {
     "continue.md",
     "review.md",
     "ticket.md",
-    "docs/_archive/resume.md",
-    "docs/_archive/resume_prompt.md",
-    "docs/_archive/new_profile.md",
-    "docs/_archive/new_addon.md",
+    "docs/resume.md",
+    "docs/resume_prompt.md",
+    "docs/new_profile.md",
+    "docs/new_addon.md",
     "QUALITY_INDEX.md",
     "CONFLICT_RESOLUTION.md",
     "SCOPE-AND-CONTEXT.md",
@@ -1241,6 +1241,7 @@ OPENCODE_INSTRUCTIONS = [
     "commands/master.md",
     "commands/rules.md",
     "commands/SESSION_STATE_SCHEMA.md",
+    "commands/README-OPENCODE.md",
 ]
 
 SESSION_READER_PLACEHOLDER = "{{SESSION_READER_PATH}}"

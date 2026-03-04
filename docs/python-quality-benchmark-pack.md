@@ -1,7 +1,7 @@
 # Python Quality Benchmark Pack
 
 Date: 2026-02-11
-Source: `governance/PYTHON_QUALITY_BENCHMARK_PACK.json`
+Source: `governance/assets/catalogs/PYTHON_QUALITY_BENCHMARK_PACK.json`
 Profile target: `backend-python` + required addon `backendPythonTemplates`
 
 ## Goal
@@ -65,7 +65,7 @@ Runner helper:
 
 ```bash
 ${PYTHON_COMMAND} scripts/run_quality_benchmark.py \
-  --pack governance/PYTHON_QUALITY_BENCHMARK_PACK.json \
+  --pack governance/assets/catalogs/PYTHON_QUALITY_BENCHMARK_PACK.json \
   --observed-claim claim/tests-green \
   --observed-claim claim/static-clean \
   --observed-claim claim/no-drift \

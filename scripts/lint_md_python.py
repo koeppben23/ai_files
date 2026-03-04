@@ -71,7 +71,7 @@ EXECUTION_CONTROL_PATTERNS = [
 
 ALLOWLIST_DIRS = {
     "docs/MD_PYTHON_POLICY.md",  # This document describes the patterns
-    "docs/MD_VIOLATION_ANALYSIS.md",  # Documents violations (examples)
+    "docs/_archive/MD_VIOLATION_ANALYSIS.md",  # Documents violations (examples); archived
 }
 
 EXEMPTION_PATTERNS = [
