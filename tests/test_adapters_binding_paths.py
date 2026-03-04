@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 
 import pytest
@@ -16,7 +17,7 @@ def _write_binding(config_root: Path, *, commands_home: Path, workspaces_home: P
             "configRoot": str(config_root),
             "commandsHome": str(commands_home),
             "workspacesHome": str(workspaces_home),
-            "pythonCommand": "python3",
+            "pythonCommand": sys.executable,
         },
     }
     (config_root / "commands").mkdir(parents=True, exist_ok=True)
@@ -140,7 +141,7 @@ def test_adapter_rejects_relative_binding_paths(monkeypatch: pytest.MonkeyPatch,
             "configRoot": str(cfg),
             "commandsHome": "./commands",
             "workspacesHome": "./workspaces",
-            "pythonCommand": "python3",
+            "pythonCommand": sys.executable,
         },
     }
     (cfg / "commands" / "governance.paths.json").write_text(json.dumps(payload), encoding="utf-8")

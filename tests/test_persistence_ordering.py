@@ -28,7 +28,7 @@ def _binding_evidence(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
             "configRoot": str(cfg),
             "commandsHome": str(commands_home),
             "workspacesHome": str(workspaces_home),
-            "pythonCommand": "python3",
+            "pythonCommand": sys.executable,
         },
     }
     (commands_home / "governance.paths.json").write_text(json.dumps(payload), encoding="utf-8")
