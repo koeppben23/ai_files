@@ -2163,6 +2163,10 @@ def uninstall(
 
     rc = delete_targets(targets, plan, dry_run=dry_run)
 
+    # Manifest-backed uninstall can safely clear stale installer trees that may
+    # survive due to historical path drift (for example legacy "governnce/").
+    rc = max(rc, purge_manifest_leftover_trees(plan.commands_dir, dry_run=dry_run))
+
     if not keep_error_logs:
         rc = max(rc, purge_runtime_error_logs(plan.config_root, dry_run=dry_run))
 
@@ -2213,6 +2217,39 @@ def uninstall(
 
     print("\n✅ Uninstall complete.")
     return rc
+
+
+def purge_manifest_leftover_trees(commands_dir: Path, dry_run: bool) -> int:
+    """Remove stale files under installer-owned trees after manifest uninstall."""
+
+    errors = 0
+    legacy_trees = [
+        commands_dir / "docs",
+        commands_dir / "governance",
+        commands_dir / "governnce",
+    ]
+
+    for root in legacy_trees:
+        if not root.exists() or not root.is_dir():
+            continue
+
+        for item in sorted(root.rglob("*"), key=lambda p: len(p.parts), reverse=True):
+            if item.is_file() or item.is_symlink():
+                if dry_run:
+                    print(f"  [DRY-RUN] rm {item}")
+                else:
+                    try:
+                        item.unlink()
+                        print(f"  ✅ Removed stale file: {item}")
+                    except Exception as e:
+                        eprint(f"  ❌ Failed removing stale file {item}: {e}")
+                        errors += 1
+            elif item.is_dir():
+                try_remove_empty_dir(item, dry_run=dry_run)
+
+        try_remove_empty_dir(root, dry_run=dry_run)
+
+    return 0 if errors == 0 else 8
 
 
 def delete_targets(targets: Iterable[Path], plan: InstallPlan, dry_run: bool) -> int:

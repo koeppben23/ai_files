@@ -398,7 +398,7 @@ class TestPhase4Routing:
             session_state_document=doc,
             repo_is_git_root=True,
         )
-        assert result.phase == "5-Implementation"
+        assert result.phase == "5-ArchitectureReview"
         assert result.source == "phase-4-to-5-ticket-intake"
 
 

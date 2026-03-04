@@ -135,6 +135,20 @@ class EngineOrchestratorOutput:
     prompt_events: tuple[dict[str, object], ...]
 
 
+def _phase5_review_pending_architecture(
+    *,
+    phase: str,
+    session_state_document: Mapping[str, object] | None,
+) -> bool:
+    if phase_token(phase) != "5":
+        return False
+    state = session_state_root(session_state_document)
+    gates = state.get("Gates")
+    if not isinstance(gates, Mapping):
+        return True
+    return str(gates.get("P5-Architecture") or "").strip().lower() != "approved"
+
+
 def run_engine_orchestrator(
     *,
     adapter: HostAdapter,
@@ -425,7 +439,17 @@ def run_engine_orchestrator(
             interactive_required = True
             why_interactive_required = persistence_phase_gate.reason
 
-    if not gate_blocked and phase_token(phase) == "4" and is_code_output_request(requested_action):
+    if (
+        not gate_blocked
+        and is_code_output_request(requested_action)
+        and (
+            phase_token(phase) == "4"
+            or _phase5_review_pending_architecture(
+                phase=phase,
+                session_state_document=session_state_document,
+            )
+        )
+    ):
         gate_blocked = True
         gate_reason_code = BLOCKED_STATE_OUTDATED
 
@@ -622,7 +646,7 @@ def run_engine_orchestrator(
             "requested_action": requested_action or "none",
             "phase": phase,
             "active_gate": active_gate,
-            "policy": "phase-4-planning-only-no-code-output",
+            "policy": "phase-4-5-review-no-code-output-before-p5-architecture",
             "pointers": [target_path],
         }
     elif parity["reason_code"] == BLOCKED_FINGERPRINT_MISMATCH:

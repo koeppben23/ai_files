@@ -28,7 +28,8 @@ File-based input:
 Notes:
 - `/continue` and `/review` are read-only rails.
 - Ticket files or chat text do not change phase by themselves.
-- Phase 4 exits only after persisted intake evidence is written.
+- Running the intake command writes evidence and reroutes from Phase 4 into the Phase 5 review gate path.
+- Intake reroute is not implementation approval; code-producing output remains blocked until Phase 5 gates are approved.
 
 Copyright © 2026 Benjamin Fuchs.
 All rights reserved. See LICENSE.
