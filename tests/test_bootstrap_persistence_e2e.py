@@ -152,6 +152,7 @@ def _materialize_commands_bundle_from_checkout(*, checkout_root: Path, commands_
         "rules.md",
         "continue.md",
         "review.md",
+        "ticket.md",
         "QUALITY_INDEX.md",
         "CONFLICT_RESOLUTION.md",
         "phase_api.yaml",
@@ -254,13 +255,15 @@ def test_bootstrap_preflight_persists_workspace_and_pointer(tmp_path: Path) -> N
     assert ss.get("RepoDiscovery", {}).get("Completed") is True
     assert ss.get("DecisionPack", {}).get("FilePath") == "${REPO_DECISION_PACK_FILE}"
     assert ss.get("APIInventory", {}).get("Status") == "not-applicable"
-    assert (workspace / "business-rules.md").exists()
+    assert not (workspace / "business-rules.md").exists()
     assert (workspace / "business-rules-status.md").exists()
     business_rules = ss.get("BusinessRules", {})
     inventory = business_rules.get("Inventory", {}) if isinstance(business_rules, dict) else {}
     assert isinstance(inventory.get("sha256"), str) and inventory.get("sha256")
     rules = business_rules.get("Rules") if isinstance(business_rules, dict) else None
-    assert isinstance(rules, list)
+    assert rules == []
+    assert business_rules.get("Outcome") == "not-applicable"
+    assert business_rules.get("ExecutionEvidence") is True
 
     events = _read_jsonl(workspace / "events.jsonl")
     phase_tokens = [str(event.get("phase_token") or "") for event in events]

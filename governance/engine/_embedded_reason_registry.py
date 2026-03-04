@@ -60,6 +60,7 @@ EMBEDDED_REASON_CODE_TO_SCHEMA_REF: Final[dict[str, str]] = {
     "BLOCKED-P5-3-TEST-QUALITY-GATE": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
     "BLOCKED-P5-4-BUSINESS-RULES-GATE": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
     "BLOCKED-P5-6-ROLLBACK-SAFETY-GATE": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
+    "BLOCKED-P4-INTAKE-MISSING-EVIDENCE": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
     "BLOCKED-P6-PREREQUISITES-NOT-MET": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
     "BLOCKED-P6-PLAN-COMPLIANCE-MAJOR": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
     "BLOCKED-PIPELINE-INTERACTIVE": "governance/assets/schemas/reason_payload_blocked_core.v1.json",

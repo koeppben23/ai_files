@@ -21,7 +21,7 @@ def normalize_legacy_placeholder_phrasing(text: str) -> Tuple[str, bool]:
         "D-001: Run Phase 1.5 (Business Rules Discovery) now?": "D-001: Record Business Rules bootstrap outcome",
         "A) Yes": "Status: automatic",
         "B) No": "Action: Persist business-rules outcome as extracted|skipped|not-applicable|deferred.",
-        "Recommendation: A (run lightweight Phase 1.5 to establish initial domain evidence)": "Policy: business-rules.md is always written and refreshed from persisted outcome.",
+        "Recommendation: A (run lightweight Phase 1.5 to establish initial domain evidence)": "Policy: business-rules-status.md is always written; business-rules.md is written only when outcome=extracted with extractor evidence.",
         "What would change it: keep B only when operator explicitly defers business-rules discovery": "What would change it: scope evidence or Phase 1.5 extraction state.",
     }
     updated = text

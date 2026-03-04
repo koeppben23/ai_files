@@ -519,6 +519,7 @@ The following BLOCKED pointers are canonical and SHOULD be used when applicable:
 - `BLOCKED-MISSING-PROFILE`
 - `BLOCKED-AMBIGUOUS-PROFILE`
 - `BLOCKED-MISSING-DECISION`
+- `BLOCKED-P4-INTAKE-MISSING-EVIDENCE`
 - `BLOCKED-MISSING-TEMPLATES`
 - `BLOCKED-MISSING-RULEBOOK:<file>`
 - `BLOCKED-MISSING-ADDON:<addon_key>` (required when `addon_class = required` and the triggered rulebook is missing)
