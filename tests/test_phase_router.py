@@ -214,6 +214,20 @@ class TestPhase2And1Routing:
         assert result.phase == "1.5-BusinessRules"
         assert result.source == "phase-1.5-routing-required"
 
+    def test_phase_2_1_requires_phase_1_5_when_only_p54_not_applicable_gate_exists(self):
+        doc = _minimal_session_state(
+            Gates={"P5.4-BusinessRules": "not-applicable"},
+        )
+        result = route_phase(
+            requested_phase="2.1",
+            requested_active_gate="",
+            requested_next_gate_condition="Continue",
+            session_state_document=doc,
+            repo_is_git_root=True,
+        )
+        assert result.phase == "1.5-BusinessRules"
+        assert result.source == "phase-1.5-routing-required"
+
     def test_phase_2_1_routes_to_3a_even_with_apis(self):
         """After Phase 2.1 with APIs detected, route to Phase 3A (same path, 3A decides next step)."""
         doc = _minimal_session_state(

@@ -204,11 +204,6 @@ def _business_rules_discovery_resolved(state: Mapping[str, object]) -> bool:
         return True
     if br_scope == "unresolved":
         return False
-    gates = state.get("Gates")
-    if isinstance(gates, Mapping):
-        p54 = gates.get("P5.4-BusinessRules")
-        if isinstance(p54, str) and p54.strip().lower() == "not-applicable":
-            return True
     return False
 
 
