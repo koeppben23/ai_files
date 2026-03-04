@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -21,7 +22,7 @@ def _seed_binding(tmp_path: Path, monkeypatch) -> tuple[Path, str]:
             "configRoot": str(cfg),
             "commandsHome": str(commands_home),
             "workspacesHome": str(workspaces_home),
-            "pythonCommand": "python3",
+            "pythonCommand": sys.executable,
         },
     }
     (commands_home / "governance.paths.json").write_text(json.dumps(payload), encoding="utf-8")
@@ -40,9 +41,20 @@ def test_bootstrap_autopilot_happy_until_phase_2_1(tmp_path: Path, monkeypatch) 
             "WorkspaceReadyGateCommitted": True,
             "WorkspaceArtifactsCommitted": True,
             "PointerVerified": True,
-            "LoadedRulebooks": {"core": "${COMMANDS_HOME}/master.md"},
-            "RulebookLoadEvidence": {"core": "${COMMANDS_HOME}/master.md"},
-            "AddonsEvidence": {},
+            "ActiveProfile": "profile.fallback-minimum",
+            "LoadedRulebooks": {
+                "core": "${COMMANDS_HOME}/master.md",
+                "profile": "${COMMANDS_HOME}/rulesets/profiles/rules.fallback-minimum.yml",
+                "templates": "${COMMANDS_HOME}/master.md",
+                "addons": {
+                    "riskTiering": "${COMMANDS_HOME}/rulesets/profiles/rules.risk-tiering.yml",
+                },
+            },
+            "RulebookLoadEvidence": {
+                "core": "${COMMANDS_HOME}/master.md",
+                "profile": "${COMMANDS_HOME}/rulesets/profiles/rules.fallback-minimum.yml",
+            },
+            "AddonsEvidence": {"riskTiering": {"status": "loaded"}},
             "Intent": {"Path": "intent.md", "Sha256": "abc", "EffectiveScope": "repo"},
             "RepoDiscovery": {
                 "Completed": True,

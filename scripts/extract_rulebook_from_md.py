@@ -349,7 +349,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.validate:
         try:
             import jsonschema
-            schema = json.loads(Path("schemas/rulebook.schema.json").read_text())
+            schema = json.loads(Path("schemas/rulebook.schema.json").read_text(encoding="utf-8"))
             jsonschema.validate(extracted, schema)
             print("Schema validation: PASSED")
         except ImportError:

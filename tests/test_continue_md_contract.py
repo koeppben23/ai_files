@@ -2,19 +2,23 @@
 
 Validates:
 - Source template contains {{SESSION_READER_PATH}} placeholder
-- Source template contains MANDATORY FIRST STEP section
+- Source template contains Resume Session State section with three-tier fallback
 - inject_session_reader_path() replaces placeholder with concrete path
 - Injected path points to governance/entrypoints/session_reader.py
 - Dry-run mode does not modify the file
 - Missing continue.md is handled gracefully
 - Already-injected file (no placeholder) is skipped
+- Fallback tiers (preferred command, user-paste, proceed without) are present
 
 Copyright 2026 Benjamin Fuchs. All rights reserved. See LICENSE.
 """
 from __future__ import annotations
 
 import os
+import sys
 from pathlib import Path
+
+import re
 
 import pytest
 
@@ -24,6 +28,11 @@ from install import (
     inject_session_reader_path,
 )
 from tests.util import REPO_ROOT
+
+# Platform-aware python command for inject tests.  These tests do string
+# substitution only (no execution), but using sys.executable avoids confusion
+# when reading test output on Windows where ``python3`` does not exist.
+_TEST_PYTHON_CMD = sys.executable
 
 
 # ---------------------------------------------------------------------------
@@ -50,17 +59,17 @@ class TestSourceTemplate:
             "This is replaced at install time with the bound python command."
         )
 
-    def test_mandatory_first_step_present(self) -> None:
-        """Source template must contain the MANDATORY FIRST STEP section."""
-        assert "MANDATORY FIRST STEP" in self.content, (
-            "continue.md must contain a 'MANDATORY FIRST STEP' section. "
-            "This instructs the LLM to invoke session_reader.py before responding."
+    def test_resume_session_state_present(self) -> None:
+        """Source template must contain the Resume Session State section."""
+        assert "Resume Session State" in self.content, (
+            "continue.md must contain a 'Resume Session State' section. "
+            "This instructs the LLM to load session state before responding."
         )
 
     def test_governance_kernel_bridge_comment(self) -> None:
         """Source template must contain the sole-exception comment."""
         assert "sole exception" in self.content.lower(), (
-            "continue.md must document that the MANDATORY FIRST STEP is the "
+            "continue.md must document that the kernel bridge is the "
             "sole exception to the rails-only constraint."
         )
 
@@ -70,10 +79,132 @@ class TestSourceTemplate:
             "continue.md must invoke session_reader.py via the bound python placeholder"
         )
 
-    def test_error_handling_instruction(self) -> None:
-        """Source template must instruct the LLM to handle errors."""
-        assert "error" in self.content.lower() and "stop" in self.content.lower(), (
-            "continue.md must instruct the LLM to report errors and stop"
+    def test_fallback_instructions_present(self) -> None:
+        """Source template must contain fallback paths for environments that cannot execute commands."""
+        assert "command cannot be executed" in self.content.lower(), (
+            "continue.md must contain a fallback instruction for when the command cannot be executed"
+        )
+        assert "no snapshot is available" in self.content.lower(), (
+            "continue.md must contain a fallback instruction for when no snapshot is available"
+        )
+
+    def test_no_hard_stop_semantics(self) -> None:
+        """Source template must not contain hard-stop wording that causes model refusals."""
+        content_lower = self.content.lower()
+        assert "mandatory first step" not in content_lower, (
+            "continue.md must not use 'MANDATORY FIRST STEP' — this triggers model refusals"
+        )
+        assert not ("report" in content_lower and "error" in content_lower and "stop" in content_lower), (
+            "continue.md must not use 'report the error verbatim and stop' — this creates dead-end paths"
+        )
+
+    def test_preferred_command_wording(self) -> None:
+        """Source template must use 'Preferred:' wording for the command execution tier."""
+        assert "preferred:" in self.content.lower(), (
+            "continue.md must use 'Preferred:' wording to frame command execution as the ideal path"
+        )
+
+    def test_minimum_snapshot_fields_documented(self) -> None:
+        """Fallback instructions must mention the minimum required snapshot fields."""
+        for field in ("phase", "next", "active_gate", "next_gate_condition"):
+            assert field in self.content, (
+                f"continue.md fallback must mention required snapshot field '{field}'"
+            )
+
+    def test_bash_code_block_present(self) -> None:
+        """Source template must contain a ```bash code block for _extract_first_step_command()."""
+        assert "```bash" in self.content, (
+            "continue.md must contain a ```bash code block. "
+            "This is required by _extract_first_step_command() in E2E tests "
+            "and by LLM tool-use parsing."
+        )
+        assert "```" in self.content[self.content.index("```bash") + 7:], (
+            "continue.md bash code block must be properly closed with ```"
+        )
+
+    def test_three_tier_fallback_ordering(self) -> None:
+        """The three tiers must appear in order: preferred command, user paste, proceed without."""
+        preferred_pos = self.content.lower().find("preferred:")
+        paste_pos = self.content.lower().find("command cannot be executed")
+        proceed_pos = self.content.lower().find("no snapshot is available")
+        assert preferred_pos < paste_pos < proceed_pos, (
+            "continue.md must present the three fallback tiers in order: "
+            "preferred command, user paste, proceed without"
+        )
+
+
+# ---------------------------------------------------------------------------
+# Model-refusal prevention tests
+# ---------------------------------------------------------------------------
+
+class TestNoModelRefusalPatterns:
+    """Verify both command templates are free of patterns that trigger model refusals.
+
+    These tests scan continue.md and review.md for wording patterns known to
+    cause Claude Opus, Codex, and similar models to refuse execution or dead-end
+    the conversation.
+    """
+
+    # Patterns known to trigger refusals or dead-ends in LLMs
+    REFUSAL_PATTERNS: list[tuple[str, str]] = [
+        (r"\bMANDATORY\b", "MANDATORY triggers trust-violation refusals in security-conscious models"),
+        (r"\breport\b.*\berror\b.*\bstop\b", "'report error and stop' creates dead-end paths with no recovery"),
+        (r"\bMUST\s+stop\b", "'MUST stop' is a hard dead-end with no fallback"),
+        (r"\bexecute\s+or\s+stop\b", "'execute or stop' binary forces model refusals"),
+    ]
+
+    TEMPLATES = ("continue.md", "review.md")
+
+    @pytest.fixture(autouse=True)
+    def _load_templates(self) -> None:
+        self.contents: dict[str, str] = {}
+        for name in self.TEMPLATES:
+            path = REPO_ROOT / name
+            assert path.exists(), f"{name} must exist in repo root"
+            self.contents[name] = path.read_text(encoding="utf-8")
+
+    @pytest.mark.parametrize("template_name", TEMPLATES)
+    def test_no_refusal_trigger_patterns(self, template_name: str) -> None:
+        """Template must not contain any known model-refusal trigger patterns."""
+        content = self.contents[template_name]
+        for pattern, reason in self.REFUSAL_PATTERNS:
+            assert not re.search(pattern, content, re.IGNORECASE), (
+                f"{template_name} contains refusal-trigger pattern /{pattern}/: {reason}"
+            )
+
+    @pytest.mark.parametrize("template_name", TEMPLATES)
+    def test_recovery_path_exists(self, template_name: str) -> None:
+        """Template must offer a recovery path for every failure mode."""
+        content_lower = self.contents[template_name].lower()
+        # Must have at least two fallback tiers beyond the preferred command
+        assert "command cannot be executed" in content_lower, (
+            f"{template_name} must provide a fallback for command execution failure"
+        )
+        assert "no snapshot is available" in content_lower, (
+            f"{template_name} must provide a fallback for missing snapshot"
+        )
+
+    @pytest.mark.parametrize("template_name", TEMPLATES)
+    def test_templates_share_identical_fallback_block(self, template_name: str) -> None:
+        """Both templates must share identical fallback semantics (same bridge section)."""
+        # Extract the bridge section: from the HTML comment to the --- separator
+        content = self.contents[template_name]
+        bridge_start = content.find("<!-- GOVERNANCE KERNEL BRIDGE")
+        bridge_end = content.find("\n---\n", bridge_start)
+        assert bridge_start >= 0 and bridge_end >= 0, (
+            f"{template_name} must contain the kernel bridge section delimited by --- separator"
+        )
+
+    def test_continue_and_review_share_bridge_block(self) -> None:
+        """continue.md and review.md must have identical kernel bridge blocks."""
+        bridges = {}
+        for name in self.TEMPLATES:
+            content = self.contents[name]
+            bridge_start = content.find("<!-- GOVERNANCE KERNEL BRIDGE")
+            bridge_end = content.find("\n---\n", bridge_start)
+            bridges[name] = content[bridge_start:bridge_end]
+        assert bridges["continue.md"] == bridges["review.md"], (
+            "continue.md and review.md must share identical kernel bridge sections"
         )
 
 
@@ -96,7 +227,7 @@ class TestInjectSessionReaderPath:
         continue_md = commands_dir / "continue.md"
         content = (
             "# Governance Continue\n"
-            "## MANDATORY FIRST STEP\n"
+            "## Resume Session State\n"
             f'{PYTHON_COMMAND_PLACEHOLDER} "{SESSION_READER_PLACEHOLDER}"\n'
             "Use the YAML output.\n"
         )
@@ -106,7 +237,7 @@ class TestInjectSessionReaderPath:
     def test_replaces_placeholder(self, commands_dir: Path) -> None:
         """Placeholder is replaced with concrete path."""
         self._write_template(commands_dir)
-        result = inject_session_reader_path(commands_dir, python_command="python3", dry_run=False)
+        result = inject_session_reader_path(commands_dir, python_command=_TEST_PYTHON_CMD, dry_run=False)
         assert result["status"] == "injected"
 
         content = (commands_dir / "continue.md").read_text(encoding="utf-8")
@@ -116,7 +247,7 @@ class TestInjectSessionReaderPath:
     def test_injected_path_is_correct(self, commands_dir: Path) -> None:
         """Injected path points to governance/entrypoints/session_reader.py."""
         self._write_template(commands_dir)
-        inject_session_reader_path(commands_dir, python_command="python3", dry_run=False)
+        inject_session_reader_path(commands_dir, python_command=_TEST_PYTHON_CMD, dry_run=False)
 
         content = (commands_dir / "continue.md").read_text(encoding="utf-8")
         expected_path = str(commands_dir / "governance" / "entrypoints" / "session_reader.py")
@@ -125,7 +256,7 @@ class TestInjectSessionReaderPath:
     def test_injected_path_is_absolute(self, commands_dir: Path) -> None:
         """Injected path is an absolute path."""
         self._write_template(commands_dir)
-        inject_session_reader_path(commands_dir, python_command="python3", dry_run=False)
+        inject_session_reader_path(commands_dir, python_command=_TEST_PYTHON_CMD, dry_run=False)
 
         content = (commands_dir / "continue.md").read_text(encoding="utf-8")
         # The path should be absolute — starts with / on Unix or drive letter on Windows
@@ -138,13 +269,13 @@ class TestInjectSessionReaderPath:
         continue_md = self._write_template(commands_dir)
         original = continue_md.read_text(encoding="utf-8")
 
-        result = inject_session_reader_path(commands_dir, python_command="python3", dry_run=True)
+        result = inject_session_reader_path(commands_dir, python_command=_TEST_PYTHON_CMD, dry_run=True)
         assert result["status"] == "planned-inject"
         assert continue_md.read_text(encoding="utf-8") == original
 
     def test_missing_continue_md(self, commands_dir: Path) -> None:
         """Missing continue.md is handled gracefully."""
-        result = inject_session_reader_path(commands_dir, python_command="python3", dry_run=False)
+        result = inject_session_reader_path(commands_dir, python_command=_TEST_PYTHON_CMD, dry_run=False)
         assert result["status"] == "skipped-missing"
 
     def test_no_placeholder_skipped(self, commands_dir: Path) -> None:
@@ -152,7 +283,7 @@ class TestInjectSessionReaderPath:
         continue_md = commands_dir / "continue.md"
         continue_md.write_text("# Already injected\npython /concrete/path\n", encoding="utf-8")
 
-        result = inject_session_reader_path(commands_dir, python_command="python3", dry_run=False)
+        result = inject_session_reader_path(commands_dir, python_command=_TEST_PYTHON_CMD, dry_run=False)
         assert result["status"] == "skipped-no-placeholder"
 
     def test_legacy_python_reader_command_is_upgraded(self, commands_dir: Path) -> None:
@@ -163,28 +294,29 @@ class TestInjectSessionReaderPath:
             encoding="utf-8",
         )
 
-        result = inject_session_reader_path(commands_dir, python_command="python3", dry_run=False)
+        result = inject_session_reader_path(commands_dir, python_command=_TEST_PYTHON_CMD, dry_run=False)
         assert result["status"] == "injected"
         content = continue_md.read_text(encoding="utf-8")
-        assert f'python3 "{legacy_reader}"' in content
+        assert f'{_TEST_PYTHON_CMD}' in content
+        assert str(legacy_reader) in content
 
     def test_preserves_other_content(self, commands_dir: Path) -> None:
         """Other content in continue.md is not altered."""
         self._write_template(commands_dir)
-        inject_session_reader_path(commands_dir, python_command="python3", dry_run=False)
+        inject_session_reader_path(commands_dir, python_command=_TEST_PYTHON_CMD, dry_run=False)
 
         content = (commands_dir / "continue.md").read_text(encoding="utf-8")
         assert "# Governance Continue" in content
-        assert "## MANDATORY FIRST STEP" in content
+        assert "## Resume Session State" in content
         assert "Use the YAML output." in content
 
     def test_idempotent(self, commands_dir: Path) -> None:
         """Running twice produces the same result (second run is a no-op)."""
         self._write_template(commands_dir)
-        inject_session_reader_path(commands_dir, python_command="python3", dry_run=False)
+        inject_session_reader_path(commands_dir, python_command=_TEST_PYTHON_CMD, dry_run=False)
         content_after_first = (commands_dir / "continue.md").read_text(encoding="utf-8")
 
-        result = inject_session_reader_path(commands_dir, python_command="python3", dry_run=False)
+        result = inject_session_reader_path(commands_dir, python_command=_TEST_PYTHON_CMD, dry_run=False)
         assert result["status"] == "skipped-no-placeholder"
         content_after_second = (commands_dir / "continue.md").read_text(encoding="utf-8")
         assert content_after_first == content_after_second
@@ -194,3 +326,82 @@ class TestInjectSessionReaderPath:
         inject_session_reader_path(commands_dir, python_command="py -3", dry_run=False)
         content = (commands_dir / "continue.md").read_text(encoding="utf-8")
         assert 'py -3 "' in content
+
+
+# ---------------------------------------------------------------------------
+# Python command quoting tests for inject_session_reader_path_for_command
+# ---------------------------------------------------------------------------
+
+class TestPythonCommandQuoting:
+    """Verify that inject_session_reader_path_for_command quotes python paths correctly.
+
+    The installer must:
+    - Quote single-token paths that contain spaces (e.g. Program Files)
+    - NOT double-quote already-quoted paths
+    - NOT quote paths without spaces
+    - NOT quote multi-token commands like 'py -3' as a single unit
+    """
+
+    @pytest.fixture()
+    def commands_dir(self, tmp_path: Path) -> Path:
+        cmd = tmp_path / "commands"
+        cmd.mkdir()
+        (cmd / "governance" / "entrypoints").mkdir(parents=True)
+        return cmd
+
+    def _write_template(self, commands_dir: Path, name: str = "continue.md") -> Path:
+        md = commands_dir / name
+        md.write_text(
+            f'{PYTHON_COMMAND_PLACEHOLDER} "{SESSION_READER_PLACEHOLDER}"\n',
+            encoding="utf-8",
+        )
+        return md
+
+    def test_path_with_spaces_gets_quoted(self, commands_dir: Path) -> None:
+        """A single-token path containing spaces must be wrapped in double quotes."""
+        self._write_template(commands_dir)
+        python_cmd = r"C:\Program Files\Python311\python.exe"
+        inject_session_reader_path(commands_dir, python_command=python_cmd, dry_run=False)
+        content = (commands_dir / "continue.md").read_text(encoding="utf-8")
+        assert f'"{python_cmd}"' in content, (
+            "Single-token path with spaces must be quoted"
+        )
+
+    def test_already_quoted_path_not_double_quoted(self, commands_dir: Path) -> None:
+        """An already-quoted path must not be double-quoted."""
+        self._write_template(commands_dir)
+        python_cmd = r'"C:\Program Files\Python311\python.exe"'
+        inject_session_reader_path(commands_dir, python_command=python_cmd, dry_run=False)
+        content = (commands_dir / "continue.md").read_text(encoding="utf-8")
+        # Must appear exactly once — no extra layer of quotes
+        assert content.count(r'"C:\Program Files\Python311\python.exe"') == 1, (
+            "Already-quoted path must not be double-quoted"
+        )
+
+    def test_path_without_spaces_not_quoted(self, commands_dir: Path) -> None:
+        """A simple path without spaces must NOT be quoted."""
+        self._write_template(commands_dir)
+        python_cmd = r"C:\Python311\python.exe"
+        inject_session_reader_path(commands_dir, python_command=python_cmd, dry_run=False)
+        content = (commands_dir / "continue.md").read_text(encoding="utf-8")
+        # The python command should appear without wrapping quotes
+        assert f'{python_cmd} "' in content, (
+            "Path without spaces must not be quoted"
+        )
+        # Verify it does NOT have an extra layer of quotes
+        assert f'"{python_cmd}"' not in content, (
+            "Path without spaces must not be wrapped in quotes"
+        )
+
+    def test_multi_token_command_not_quoted(self, commands_dir: Path) -> None:
+        """A multi-token command like 'py -3' must NOT be quoted as a single unit."""
+        self._write_template(commands_dir)
+        python_cmd = "py -3"
+        inject_session_reader_path(commands_dir, python_command=python_cmd, dry_run=False)
+        content = (commands_dir / "continue.md").read_text(encoding="utf-8")
+        assert 'py -3 "' in content, (
+            "Multi-token command must appear unquoted"
+        )
+        assert '"py -3"' not in content, (
+            "Multi-token command must NOT be quoted as a single unit"
+        )

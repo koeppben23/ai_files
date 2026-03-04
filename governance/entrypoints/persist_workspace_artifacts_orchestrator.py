@@ -1897,7 +1897,12 @@ def main() -> int:
                 ],
                 "required_operator_action": "normalize decision-pack markdown to non-interactive format",
                 "feedback_required": "reply with rerun result after normalization",
-                "next_command": f"{python_cmd} governance/entrypoints/persist_workspace_artifacts.py --repo-fingerprint {repo_fingerprint} --config-root {config_root}",
+                "next_command": _preferred_shell_command(render_command_profiles([
+                    python_cmd,
+                    "governance/entrypoints/persist_workspace_artifacts.py",
+                    "--repo-fingerprint", repo_fingerprint,
+                    "--config-root", str(config_root),
+                ])),
             }
             if workspace_lock is not None:
                 workspace_lock.release()

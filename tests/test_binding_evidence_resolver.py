@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 
 import pytest
@@ -44,7 +45,7 @@ def test_binding_resolver_keeps_canonical_source(tmp_path: Path):
             "configRoot": str(tmp_path),
             "commandsHome": str(tmp_path / "commands"),
             "workspacesHome": str(tmp_path / "workspaces"),
-            "pythonCommand": "python3",
+            "pythonCommand": sys.executable,
         },
     }
     (tmp_path / "commands" / "governance.paths.json").write_text(json.dumps(payload), encoding="utf-8")
@@ -67,7 +68,7 @@ def test_binding_resolver_accepts_legacy_schema_for_backward_compat(tmp_path: Pa
             "configRoot": str(tmp_path),
             "commandsHome": str(commands),
             "workspacesHome": str(tmp_path / "workspaces"),
-            "pythonCommand": "python3",
+            "pythonCommand": sys.executable,
         },
     }
     (commands / "governance.paths.json").write_text(json.dumps(payload), encoding="utf-8")
@@ -96,7 +97,7 @@ def test_binding_resolver_rejects_non_string_command_profiles(tmp_path: Path):
         "paths": {
             "commandsHome": str(commands),
             "workspacesHome": str(tmp_path / "workspaces"),
-            "pythonCommand": "python3",
+            "pythonCommand": sys.executable,
         },
         "commandProfiles": {"safe": {"cmd": "python3"}},
     }

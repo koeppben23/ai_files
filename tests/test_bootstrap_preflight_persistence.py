@@ -157,7 +157,13 @@ def test_run_persistence_hook_delegates_to_hook_module(capsys: pytest.CaptureFix
     assert result["repo_fingerprint"] == "testfingerprint123456"
     assert "reason_code" not in result
     assert "failure_stage" not in result
-    assert result["bootstrap_hook_command"] == f"{module.sys.executable} -m governance.entrypoints.bootstrap_persistence_hook"
+    # The hook_command is platform-quoted (e.g. paths with spaces get quoted).
+    # Verify the essential components are present regardless of quoting.
+    hook_cmd = result["bootstrap_hook_command"]
+    assert module.sys.executable.replace('"', '') in hook_cmd.replace('"', ''), (
+        f"hook command must reference python executable: {hook_cmd}"
+    )
+    assert "-m governance.entrypoints.bootstrap_persistence_hook" in hook_cmd
     assert result["cwd"]
     assert result["repo_root_detected"] == str(repo_root)
     run_args = mock_run.call_args.args[0]

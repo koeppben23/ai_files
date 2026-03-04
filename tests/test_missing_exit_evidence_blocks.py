@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 
 from governance.kernel.phase_kernel import RuntimeContext, execute
@@ -19,7 +20,7 @@ def _prepare_binding(tmp_path: Path, monkeypatch) -> tuple[Path, str]:
             "configRoot": str(cfg),
             "commandsHome": str(commands_home),
             "workspacesHome": str(workspaces_home),
-            "pythonCommand": "python3",
+            "pythonCommand": sys.executable,
         },
     }
     (commands_home / "governance.paths.json").write_text(json.dumps(payload), encoding="utf-8")

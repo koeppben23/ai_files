@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import json
+import sys
 
 import governance.infrastructure.logging.error_logs as error_logs
 
@@ -62,7 +63,7 @@ def test_resolve_paths_full_returns_commands_home(tmp_path: Path) -> None:
             "configRoot": str(cfg),
             "commandsHome": str(commands_home),
             "workspacesHome": str(workspaces_home),
-            "pythonCommand": "python3",
+            "pythonCommand": sys.executable,
         },
     }
     (commands_home / "governance.paths.json").write_text(json.dumps(payload), encoding="utf-8")

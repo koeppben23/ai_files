@@ -388,10 +388,10 @@ def test_continue_first_step_executes_after_bootstrap(tmp_path: Path) -> None:
     assert proc.returncode == 0, proc.stdout + "\n" + proc.stderr
 
     command = _extract_first_step_command(commands_home, "continue.md")
-    assert command, "continue.md must contain a runnable MANDATORY FIRST STEP command"
+    assert command, "continue.md must contain a runnable session-reader command in a bash block"
 
     review_command = _extract_first_step_command(commands_home, "review.md")
-    assert review_command, "review.md must contain a runnable MANDATORY FIRST STEP command"
+    assert review_command, "review.md must contain a runnable session-reader command in a bash block"
 
     run_continue = subprocess.run(
         command,

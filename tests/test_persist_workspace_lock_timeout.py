@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -41,7 +42,7 @@ def test_persist_workspace_lock_timeout_emits_gate_failure(tmp_path: Path):
         with patch.object(
             module,
             "resolve_binding_config",
-            return_value=(cfg, {"workspacesHome": str(workspaces), "pythonCommand": "python3"}, cfg / "commands" / "governance.paths.json"),
+            return_value=(cfg, {"workspacesHome": str(workspaces), "pythonCommand": sys.executable}, cfg / "commands" / "governance.paths.json"),
         ):
             with patch.object(module, "_resolve_repo_fingerprint", return_value=(args.repo_fingerprint, "arg", "explicit")):
                 with patch.object(module, "_read_only", return_value=False):

@@ -50,7 +50,7 @@ def _run(cmd: list[str], *, cwd: Path, env: dict[str, str] | None = None) -> sub
 
 
 def _python_executable() -> str:
-    return os.environ.get("PYTHON", "python3")
+    return os.environ.get("PYTHON", sys.executable)
 
 
 def _git_init_repo(repo: Path) -> None:

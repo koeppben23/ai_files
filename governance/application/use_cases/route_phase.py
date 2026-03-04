@@ -20,6 +20,8 @@ class RoutePhaseInput:
     target_phase: str | None
     loaded_rulebooks: dict[str, object]
     persistence_state: dict[str, object]
+    active_profile: str | None = None
+    addons_evidence: dict[str, object] | None = None
 
 
 class RoutePhaseService:
@@ -35,7 +37,12 @@ class RoutePhaseService:
                 next_action="fix-persistence",
             )
 
-        rulebooks = rulebook_gate(target_phase=target, loaded_rulebooks=payload.loaded_rulebooks)
+        rulebooks = rulebook_gate(
+            target_phase=target,
+            loaded_rulebooks=payload.loaded_rulebooks,
+            active_profile=payload.active_profile,
+            addons_evidence=payload.addons_evidence,
+        )
         if not rulebooks.ok:
             return RoutedPhase(
                 phase=target,
