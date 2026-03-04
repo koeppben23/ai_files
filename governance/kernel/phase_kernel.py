@@ -188,6 +188,9 @@ def _business_rules_scope(state: Mapping[str, object]) -> str:
 def _business_rules_discovery_resolved(state: Mapping[str, object]) -> bool:
     business_rules = state.get("BusinessRules")
     if isinstance(business_rules, Mapping):
+        execution_evidence = business_rules.get("ExecutionEvidence")
+        if isinstance(execution_evidence, bool) and execution_evidence:
+            return True
         decision = business_rules.get("Decision")
         if isinstance(decision, str) and decision.strip().lower() == "skip":
             return True
@@ -195,8 +198,10 @@ def _business_rules_discovery_resolved(state: Mapping[str, object]) -> bool:
         if isinstance(inventory_status, str) and inventory_status.strip().lower() in {"written", "unchanged", "normalized"}:
             return True
     br_scope = _business_rules_scope(state)
-    if br_scope in {"not-applicable", "extracted", "skipped"}:
+    if br_scope in {"not-applicable", "extracted", "skipped", "deferred"}:
         return True
+    if br_scope == "unresolved":
+        return False
     gates = state.get("Gates")
     if isinstance(gates, Mapping):
         p54 = gates.get("P5.4-BusinessRules")
@@ -216,8 +221,8 @@ def _phase_1_5_executed(state: Mapping[str, object]) -> bool:
         executed = business_rules.get("Executed")
         if isinstance(executed, bool) and executed:
             return True
-    inventory = _read_nested_key(state, "BusinessRules.Inventory.sha256")
-    if isinstance(inventory, str) and inventory.strip():
+    execution_evidence = _read_nested_key(state, "BusinessRules.ExecutionEvidence")
+    if isinstance(execution_evidence, bool) and execution_evidence:
         return True
     return False
 

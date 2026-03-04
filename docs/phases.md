@@ -59,7 +59,7 @@ when host permissions allow it in the current operating mode. In pipeline mode, 
 | Phase 2 | `repo-map-digest.md` | `${REPO_DIGEST_FILE}` (`[REPO-MAP-DIGEST-FILE]`) | Written after successful digest generation. |
 | Phase 2 | `workspace-memory.yaml` (observations/patterns) | `${WORKSPACE_MEMORY_FILE}` (`[WORKSPACE-MEMORY-FILE]`) | Allowed for observational writeback when discovery evidence is sufficient. |
 | Phase 2.1 | `decision-pack.md` | `${REPO_DECISION_PACK_FILE}` (`[DECISION-PACK-FILE]`) | Written when at least one decision/default is produced. |
-| Phase 1.5+ | `business-rules.md` | `${REPO_BUSINESS_RULES_FILE}` (`[BR-INVENTORY-FILE]`) | Always materialized; refreshed from persisted BusinessRules outcome/evidence. |
+| Phase 1.5+ | `business-rules.md` | `${REPO_BUSINESS_RULES_FILE}` (`[BR-INVENTORY-FILE]`) | Written only when BusinessRules outcome is `extracted` with extractor evidence; otherwise status is tracked in `business-rules-status.md`. |
 | Phase 5 (conditional) | `workspace-memory.yaml` (decisions/defaults) | `${WORKSPACE_MEMORY_FILE}` (`[WORKSPACE-MEMORY-FILE]`) | Only when Phase 5 is approved and user confirms exactly: `Persist to workspace memory: YES`. |
 
 ## Canonical Flow

@@ -10,7 +10,7 @@ Artifacts Created:
     - repo-map-digest.md: Architecture summary, modules, entry points
     - decision-pack.md: Decision records from discovery
     - workspace-memory.yaml: Persistent memory for patterns and decisions
-    - business-rules.md: Business rules inventory (always materialized)
+    - business-rules.md: Business rules inventory (only when extraction outcome is extracted)
     - business-rules-status.md: Business rules outcome status (always written)
 
 Fingerprint Derivation:
@@ -252,7 +252,7 @@ except ImportError:
                 f"ID: DP-{date_compact}-001",
                 "Status: automatic",
                 "Action: Persist business-rules outcome as extracted|skipped|not-applicable|deferred.",
-                "Policy: business-rules.md is always written and refreshed from persisted outcome.",
+                "Policy: business-rules-status.md is always written; business-rules.md is written only when outcome=extracted with extractor evidence.",
                 "What would change it: scope evidence or Phase 1.5 extraction state.",
                 "",
             ]
@@ -317,7 +317,7 @@ _PERSISTENCE_DECISION_PACK_BASELINE = (
     "D-001: Record Business Rules bootstrap outcome",
     "Status: automatic",
     "Action: Persist business-rules outcome as extracted|skipped|not-applicable|deferred.",
-    "Policy: business-rules.md is always written and refreshed from persisted outcome.",
+    "Policy: business-rules-status.md is always written; business-rules.md is written only when outcome=extracted with extractor evidence.",
 )
 
 from governance.entrypoints.error_handler_bridge import (
@@ -980,19 +980,74 @@ def _render_workspace_memory(*, date: str, repo_name: str, repo_fingerprint: str
     return render_workspace_memory(date=date, repo_name=repo_name, repo_fingerprint=repo_fingerprint)
 
 
-def _should_write_business_rules_inventory(session: dict[str, Any] | None) -> bool:
-    # Contract: always materialize a visible business-rules inventory file.
-    return True
+def _business_rules_extraction_evidence(session: dict[str, Any] | None) -> bool:
+    if not isinstance(session, dict):
+        return False
+    business_rules = session.get("BusinessRules")
+    if not isinstance(business_rules, dict):
+        return False
+    execution = business_rules.get("Execution")
+    if isinstance(execution, dict):
+        completed = execution.get("Completed")
+        if isinstance(completed, bool) and completed:
+            return True
+    executed = business_rules.get("Executed")
+    if isinstance(executed, bool) and executed:
+        return True
+    return False
+
+
+def _should_write_business_rules_inventory(*, outcome: str, extraction_evidence: bool) -> bool:
+    return outcome == "extracted" and extraction_evidence
 
 
 def _render_business_rules_inventory(*, date: str, repo_name: str) -> str:
     return render_business_rules_inventory(date=date, repo_name=repo_name)
 
 
+def _render_business_rules_inventory_extracted(
+    *,
+    date: str,
+    repo_name: str,
+    rules: list[str],
+    evidence_paths: list[str],
+    extractor_version: str,
+) -> str:
+    lines = [
+        f"# Business Rules Inventory - {repo_name}",
+        "",
+        "SchemaVersion: BRINV-1",
+        "Placeholder: false",
+        "Source: Phase 1.5 Business Rules Discovery",
+        f"ExtractorVersion: {extractor_version}",
+        f"Last Updated: {date}",
+        "Scope: global",
+        "",
+    ]
+    for index, rule in enumerate(rules, start=1):
+        identifier = f"BR-{index:03d}"
+        lines.extend(
+            [
+                f"## {identifier}",
+                "Status: EXTRACTED",
+                f"Rule: {rule}",
+                "",
+            ]
+        )
+    if evidence_paths:
+        lines.append("## Evidence")
+        for token in evidence_paths:
+            lines.append(f"- {token}")
+        lines.append("")
+    return "\n".join(lines)
+
+
 def _resolve_business_rules_outcome(
     *,
     session: dict[str, object] | None,
-    business_rules_inventory_written: bool,
+    extractor_ran: bool,
+    extracted_rule_count: int,
+    extraction_evidence: bool,
     business_rules_inventory_action: str,
 ) -> tuple[str, str]:
     scope = session.get("Scope") if isinstance(session, dict) else None
@@ -1002,28 +1057,46 @@ def _resolve_business_rules_outcome(
         if isinstance(raw, str):
             business_rules_scope = raw.strip().lower()
 
-    if business_rules_scope in {"extracted", "skipped", "not-applicable", "deferred"}:
+    if business_rules_scope in {"extracted", "skipped", "not-applicable", "deferred", "unresolved"}:
         return business_rules_scope, "scope"
-    if business_rules_inventory_written or business_rules_inventory_action in {"created", "overwritten", "kept"}:
-        return "extracted", "persistence-helper"
+    if extractor_ran and extracted_rule_count > 0 and extraction_evidence:
+        return "extracted", "extractor"
+    if extractor_ran and extracted_rule_count == 0:
+        return "not-applicable", "extractor"
     if business_rules_inventory_action in {"write-requested", "blocked-read-only"}:
         return "deferred", "persistence-helper"
-    return "skipped", "persistence-helper"
+    return "unresolved", "persistence-helper"
 
 
-def _render_business_rules_status(*, date: str, repo_name: str, outcome: str, source: str) -> str:
+def _render_business_rules_status(
+    *,
+    date: str,
+    repo_name: str,
+    outcome: str,
+    source: str,
+    source_phase: str,
+    execution_evidence: bool,
+    extractor_version: str,
+    rules_hash: str,
+) -> str:
+    inventory_written = "yes" if outcome == "extracted" and execution_evidence else "no"
+    hash_token = rules_hash if rules_hash else "none"
     return "\n".join(
         [
             f"# Business Rules Status - {repo_name}",
             "",
             f"Outcome: {outcome}",
             f"OutcomeSource: {source}",
-            "InventoryPolicy: business-rules.md is always written and refreshed from persisted outcome.",
+            f"SourcePhase: {source_phase}",
+            f"ExecutionEvidence: {'true' if execution_evidence else 'false'}",
+            f"ExtractorVersion: {extractor_version}",
+            f"RulesHash: {hash_token}",
+            "InventoryPolicy: business-rules-status.md is always written; business-rules.md is written only when outcome=extracted with extractor evidence.",
             f"Last Updated: {date}",
             "",
             "ExpectedArtifacts:",
             "- business-rules-status.md (always)",
-            "- business-rules.md (always)",
+            f"- business-rules.md (written: {inventory_written})",
             "",
         ]
     )
@@ -1035,7 +1108,85 @@ def _parse_business_rules_lines(content: str) -> list[str]:
         token = line.strip()
         if token.startswith("- ") and len(token) > 2:
             rules.append(token[2:].strip())
+            continue
+        if token.startswith("Rule:"):
+            rule = token[len("Rule:") :].strip()
+            if rule:
+                rules.append(rule)
     return rules
+
+
+_BUSINESS_RULES_EXTRACTOR_VERSION = "deterministic-br-v1"
+_BUSINESS_RULES_INCLUDE_SUFFIXES = {
+    ".md",
+    ".txt",
+    ".rst",
+    ".py",
+    ".js",
+    ".ts",
+    ".tsx",
+    ".java",
+    ".cs",
+    ".go",
+    ".c",
+    ".cc",
+    ".cpp",
+    ".cxx",
+    ".h",
+    ".hpp",
+    ".yaml",
+    ".yml",
+}
+_BUSINESS_RULES_IGNORED_DIRS = {
+    ".git",
+    "node_modules",
+    ".venv",
+    "venv",
+    "dist",
+    "build",
+    "__pycache__",
+    ".mypy_cache",
+    ".pytest_cache",
+}
+_BUSINESS_RULE_ID_PATTERN = re.compile(r"\b(BR-[A-Za-z0-9_-]+)\b\s*[:\-]\s*(.+)\Z")
+
+
+def _extract_business_rules_from_repo(repo_root: Path) -> tuple[list[str], list[str], bool]:
+    extracted: list[str] = []
+    evidence_paths: list[str] = []
+    seen = set()
+    try:
+        for current_root, dirs, files in os.walk(repo_root):
+            dirs[:] = [d for d in dirs if d not in _BUSINESS_RULES_IGNORED_DIRS]
+            root_path = Path(current_root)
+            for filename in files:
+                suffix = Path(filename).suffix.lower()
+                if suffix not in _BUSINESS_RULES_INCLUDE_SUFFIXES:
+                    continue
+                file_path = root_path / filename
+                try:
+                    text = file_path.read_text(encoding="utf-8")
+                except Exception:
+                    continue
+                relative = str(file_path.relative_to(repo_root))
+                for line_no, raw_line in enumerate(text.splitlines(), start=1):
+                    probe = raw_line.strip()
+                    if not probe:
+                        continue
+                    match = _BUSINESS_RULE_ID_PATTERN.search(probe)
+                    if not match:
+                        continue
+                    rule_id = match.group(1).strip()
+                    rule_body = match.group(2).strip()
+                    rule_value = f"{rule_id}: {rule_body}" if rule_body else rule_id
+                    if rule_value in seen:
+                        continue
+                    seen.add(rule_value)
+                    extracted.append(rule_value)
+                    evidence_paths.append(f"{relative}:{line_no}")
+    except Exception:
+        return [], [], False
+    return extracted, evidence_paths, True
 
 
 def _business_rules_inventory_evidence(
@@ -1147,7 +1298,9 @@ def _update_session_state(
     *,
     session_path: Path,
     dry_run: bool,
-    business_rules_inventory_written: bool,
+    extractor_ran: bool,
+    extracted_rule_count: int,
+    extraction_evidence: bool,
     business_rules_inventory_action: str,
     repo_cache_action: str,
     repo_map_digest_action: str,
@@ -1155,6 +1308,9 @@ def _update_session_state(
     workspace_memory_action: str,
     business_rules_inventory_sha256: str,
     business_rules_rules: list[str],
+    business_rules_source_phase: str,
+    business_rules_extractor_version: str,
+    business_rules_evidence_paths: list[str],
     read_only: bool,
 ) -> str:
     data = _load_json(session_path)
@@ -1199,15 +1355,24 @@ def _update_session_state(
 
     outcome, outcome_source = _resolve_business_rules_outcome(
         session=ss,
-        business_rules_inventory_written=business_rules_inventory_written,
+        extractor_ran=extractor_ran,
+        extracted_rule_count=extracted_rule_count,
+        extraction_evidence=extraction_evidence,
         business_rules_inventory_action=business_rules_inventory_action,
     )
+
+    scope = ss.get("Scope")
+    if isinstance(scope, dict):
+        scope["BusinessRules"] = outcome
 
     ss.setdefault("BusinessRules", {})
     if isinstance(ss["BusinessRules"], dict):
         inventory = ss["BusinessRules"]
         inventory["Outcome"] = outcome
         inventory["OutcomeSource"] = outcome_source
+        inventory["SourcePhase"] = business_rules_source_phase
+        inventory["ExecutionEvidence"] = bool(extraction_evidence)
+        inventory["ExtractorVersion"] = business_rules_extractor_version
         inventory["InventoryFileStatus"] = _action_to_status(business_rules_inventory_action)
         inventory["InventoryFilePath"] = "${REPO_BUSINESS_RULES_FILE}"
         if business_rules_inventory_action == "created":
@@ -1221,6 +1386,7 @@ def _update_session_state(
             "sha256": business_rules_inventory_sha256,
             "count": len(business_rules_rules),
         }
+        inventory["Evidence"] = list(business_rules_evidence_paths)
 
     if dry_run:
         return "updated-dry-run"
@@ -1690,10 +1856,25 @@ def main() -> int:
     memory_content = _render_workspace_memory(
         date=today, repo_name=repo_name, repo_fingerprint=repo_fingerprint
     )
-    should_write_business_rules = _should_write_business_rules_inventory(session)
+    extracted_rules, extracted_evidence_paths, extractor_ran = _extract_business_rules_from_repo(repo_root)
+    extraction_evidence = extractor_ran
+    extracted_rule_count = len(extracted_rules)
+    business_rules_inventory_content = _render_business_rules_inventory(date=today, repo_name=repo_name)
+    business_rules_outcome_hint = "extracted" if extracted_rule_count > 0 else "not-applicable"
+    should_write_business_rules = _should_write_business_rules_inventory(
+        outcome=business_rules_outcome_hint,
+        extraction_evidence=extraction_evidence,
+    )
+    if should_write_business_rules:
+        business_rules_inventory_content = _render_business_rules_inventory_extracted(
+            date=today,
+            repo_name=repo_name,
+            rules=extracted_rules,
+            evidence_paths=extracted_evidence_paths,
+            extractor_version=_BUSINESS_RULES_EXTRACTOR_VERSION,
+        )
     business_rules_action = "not-applicable"
     business_rules_bootstrap_event = "not-emitted"
-    business_rules_inventory_content = _render_business_rules_inventory(date=today, repo_name=repo_name)
     if should_write_business_rules:
         try:
             business_rules_action = _upsert_artifact(
@@ -1708,11 +1889,13 @@ def main() -> int:
                 business_rules_bootstrap_event = _append_jsonl_event(
                     repo_home / "events.jsonl",
                     {
-                        "event": "business-rules-bootstrapped",
+                        "event": "business-rules-extracted",
                         "observed_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
                         "phase": "1.5-BusinessRules",
                         "repo_fingerprint": repo_fingerprint,
-                        "status": "placeholder-created",
+                        "status": "extracted",
+                        "extractor_version": _BUSINESS_RULES_EXTRACTOR_VERSION,
+                        "rule_count": extracted_rule_count,
                         "target": str(business_rules_path),
                     },
                     dry_run=args.dry_run,
@@ -1743,15 +1926,24 @@ def main() -> int:
                 remediation="Persist the same content manually to ${REPO_BUSINESS_RULES_FILE} and rerun helper.",
             )
 
-    business_rules_sha256, business_rules_rules = _business_rules_inventory_evidence(
-        inventory_path=business_rules_path,
-        fallback_content=business_rules_inventory_content,
-        dry_run=args.dry_run,
-    )
+    business_rules_sha256 = ""
+    business_rules_rules: list[str] = []
+    if should_write_business_rules:
+        business_rules_sha256, business_rules_rules = _business_rules_inventory_evidence(
+            inventory_path=business_rules_path,
+            fallback_content=business_rules_inventory_content,
+            dry_run=args.dry_run,
+        )
+    elif extractor_ran:
+        canonical_extraction = json.dumps(extracted_rules, ensure_ascii=True, sort_keys=True, separators=(",", ":"))
+        business_rules_sha256 = hashlib.sha256(canonical_extraction.encode("utf-8")).hexdigest()
+        business_rules_rules = list(extracted_rules)
 
     business_rules_outcome, business_rules_outcome_source = _resolve_business_rules_outcome(
         session=session,
-        business_rules_inventory_written=(business_rules_action in {"created", "kept", "overwritten"}),
+        extractor_ran=extractor_ran,
+        extracted_rule_count=extracted_rule_count,
+        extraction_evidence=extraction_evidence,
         business_rules_inventory_action=business_rules_action,
     )
     business_rules_status_action = _upsert_artifact(
@@ -1761,6 +1953,10 @@ def main() -> int:
             repo_name=repo_name,
             outcome=business_rules_outcome,
             source=business_rules_outcome_source,
+            source_phase="1.5-BusinessRules" if extractor_ran else "2.1-DecisionPack",
+            execution_evidence=extraction_evidence,
+            extractor_version=_BUSINESS_RULES_EXTRACTOR_VERSION,
+            rules_hash=business_rules_sha256,
         ),
         append_content=None,
         force=args.force,
@@ -1917,9 +2113,9 @@ def main() -> int:
         session_update = _update_session_state(
             session_path=session_path,
             dry_run=args.dry_run,
-            business_rules_inventory_written=(
-                business_rules_action in {"created", "kept", "overwritten"}
-            ),
+            extractor_ran=extractor_ran,
+            extracted_rule_count=extracted_rule_count,
+            extraction_evidence=extraction_evidence,
             business_rules_inventory_action=business_rules_action,
             repo_cache_action=actions["repoCache"],
             repo_map_digest_action=actions["repoMapDigest"],
@@ -1927,6 +2123,9 @@ def main() -> int:
             workspace_memory_action=actions["workspaceMemory"],
             business_rules_inventory_sha256=business_rules_sha256,
             business_rules_rules=business_rules_rules,
+            business_rules_source_phase="1.5-BusinessRules" if extractor_ran else "2.1-DecisionPack",
+            business_rules_extractor_version=_BUSINESS_RULES_EXTRACTOR_VERSION,
+            business_rules_evidence_paths=extracted_evidence_paths,
             read_only=read_only,
         )
         if session_update == "invalid-session-shape":

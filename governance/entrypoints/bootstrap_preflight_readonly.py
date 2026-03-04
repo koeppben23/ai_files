@@ -92,6 +92,12 @@ HOOK_STATUS_FAILED = "failed"
 DEFAULT_ACTIVE_PROFILE_ID = "fallback-minimum"
 DEFAULT_ADDON_KEY = "riskTiering"
 DEFAULT_ADDON_RULEBOOK = "rules.risk-tiering.yml"
+SUPPORTED_PROFILE_IDS = {
+    "backend-python",
+    "backend-java",
+    "frontend-angular-nx",
+    DEFAULT_ACTIVE_PROFILE_ID,
+}
 
 FAILURE_STAGE_INIT = "init"
 FAILURE_STAGE_WRITES_ALLOWED = "writes_allowed"
@@ -941,6 +947,137 @@ def _canonical_profile_id(raw: object) -> str:
     return token
 
 
+def _safe_read(path: Path) -> str:
+    try:
+        return path.read_text(encoding="utf-8")
+    except Exception:
+        return ""
+
+
+def _detect_repo_profile(repo_root: Path | None) -> dict[str, object]:
+    if repo_root is None or not repo_root.exists():
+        return {
+            "profile_id": DEFAULT_ACTIVE_PROFILE_ID,
+            "profile_source": "repo-fallback",
+            "profile_evidence": "repo-signals://unavailable",
+            "repository_type": "unknown",
+            "detection_confidence": "low",
+        }
+
+    scores: dict[str, int] = {
+        "python": 0,
+        "java": 0,
+        "csharp": 0,
+        "cpp": 0,
+        "angular": 0,
+    }
+    evidence: dict[str, list[str]] = {key: [] for key in scores}
+
+    strong_name_markers = {
+        "python": {"pyproject.toml", "requirements.txt", "requirements-dev.txt", "setup.py", "setup.cfg", "pytest.ini"},
+        "java": {"pom.xml", "build.gradle", "build.gradle.kts"},
+        "csharp": {"global.json", "nuget.config"},
+        "cpp": {"cmakelists.txt", "makefile"},
+        "angular": {"angular.json", "nx.json"},
+    }
+
+    max_files = 12000
+    seen_files = 0
+    ignored_dirs = {
+        ".git",
+        "node_modules",
+        ".venv",
+        "venv",
+        "dist",
+        "build",
+        "__pycache__",
+        ".mypy_cache",
+        ".pytest_cache",
+    }
+
+    for current_root, dirs, files in os.walk(repo_root):
+        dirs[:] = [d for d in dirs if d not in ignored_dirs]
+        root_path = Path(current_root)
+        for filename in files:
+            seen_files += 1
+            if seen_files > max_files:
+                break
+            lower_name = filename.lower()
+            path = root_path / filename
+
+            for ecosystem, markers in strong_name_markers.items():
+                if lower_name in markers:
+                    scores[ecosystem] += 3
+                    if len(evidence[ecosystem]) < 8:
+                        evidence[ecosystem].append(str(path.relative_to(repo_root)))
+
+            suffix = path.suffix.lower()
+            if suffix == ".py":
+                scores["python"] += 1
+            elif suffix == ".java":
+                scores["java"] += 1
+            elif suffix == ".cs":
+                scores["csharp"] += 1
+            elif suffix in {".c", ".cc", ".cpp", ".cxx", ".h", ".hpp"}:
+                scores["cpp"] += 1
+
+            if lower_name.endswith(".csproj") or lower_name.endswith(".sln"):
+                scores["csharp"] += 3
+                if len(evidence["csharp"]) < 8:
+                    evidence["csharp"].append(str(path.relative_to(repo_root)))
+
+            if lower_name == "package.json":
+                package_json = _safe_read(path)
+                if "@angular/core" in package_json or "@nrwl/angular" in package_json:
+                    scores["angular"] += 3
+                    if len(evidence["angular"]) < 8:
+                        evidence["angular"].append(str(path.relative_to(repo_root)))
+        if seen_files > max_files:
+            break
+
+    ranked = sorted(scores.items(), key=lambda item: item[1], reverse=True)
+    top_key, top_score = ranked[0]
+    second_score = ranked[1][1] if len(ranked) > 1 else 0
+
+    repository_type = "unknown"
+    profile_id = DEFAULT_ACTIVE_PROFILE_ID
+    profile_source = "repo-fallback"
+    confidence = "low"
+
+    if top_score > 0 and second_score > 0 and (top_score - second_score) <= 1:
+        repository_type = "polyglot"
+        profile_source = "ambiguous"
+        confidence = "low"
+    elif top_score >= 4 and (top_score - second_score) >= 2:
+        repository_type = top_key
+        profile_source = "auto-detected-single"
+        confidence = "high" if top_score >= 8 else "medium"
+        profile_map = {
+            "python": "backend-python",
+            "java": "backend-java",
+            "angular": "frontend-angular-nx",
+            "csharp": DEFAULT_ACTIVE_PROFILE_ID,
+            "cpp": DEFAULT_ACTIVE_PROFILE_ID,
+        }
+        candidate = profile_map.get(top_key, DEFAULT_ACTIVE_PROFILE_ID)
+        profile_id = candidate if candidate in SUPPORTED_PROFILE_IDS else DEFAULT_ACTIVE_PROFILE_ID
+    elif top_score > 0:
+        repository_type = top_key
+        profile_source = "repo-fallback"
+        confidence = "low"
+
+    top_evidence = ",".join(evidence[top_key][:3]) if top_key in evidence else "none"
+    profile_evidence = f"repo-signals://{repository_type};top={top_key}:{top_score};second={second_score};markers={top_evidence}"
+
+    return {
+        "profile_id": profile_id,
+        "profile_source": profile_source,
+        "profile_evidence": profile_evidence,
+        "repository_type": repository_type,
+        "detection_confidence": confidence,
+    }
+
+
 def _profile_rulebook_path_token(profile_id: str) -> str:
     return f"${{COMMANDS_HOME}}/rulesets/profiles/rules.{profile_id}.yml"
 
@@ -949,12 +1086,22 @@ def _addon_rulebook_path_token() -> str:
     return f"${{COMMANDS_HOME}}/rulesets/profiles/{DEFAULT_ADDON_RULEBOOK}"
 
 
-def _hydrate_transition_state(document: dict[str, object], *, repo_fingerprint: str, requested_token: str) -> dict[str, object]:
+def _hydrate_transition_state(
+    document: dict[str, object],
+    *,
+    repo_fingerprint: str,
+    requested_token: str,
+    repo_root: Path | None = None,
+) -> dict[str, object]:
     state = _root_state(document)
     state["phase_transition_evidence"] = True
 
     profile_override = _canonical_profile_id(get_profile_override())
-    profile_id = profile_override or DEFAULT_ACTIVE_PROFILE_ID
+    detection = _detect_repo_profile(repo_root)
+    detected_profile_id = str(detection.get("profile_id") or DEFAULT_ACTIVE_PROFILE_ID)
+    profile_id = profile_override or detected_profile_id
+    if profile_id not in SUPPORTED_PROFILE_IDS:
+        profile_id = DEFAULT_ACTIVE_PROFILE_ID
     state["ActiveProfile"] = f"profile.{profile_id}"
     if profile_override:
         source = "workspace-config" if os.environ.get("OPENCODE_WORKSPACE_CONFIG") else "tenant-config"
@@ -962,8 +1109,9 @@ def _hydrate_transition_state(document: dict[str, object], *, repo_fingerprint: 
         state["ProfileSource"] = source
         state["ProfileEvidence"] = f"{source}://{tenant.tenant_id if tenant else 'unknown'}/profile.{profile_id}"
     else:
-        state.setdefault("ProfileSource", "bootstrap-default")
-        state.setdefault("ProfileEvidence", f"bootstrap-default://profile.{profile_id}")
+        state["ProfileSource"] = str(detection.get("profile_source") or "repo-fallback")
+        state["ProfileEvidence"] = str(detection.get("profile_evidence") or f"repo-signals://profile.{profile_id}")
+    state["DetectionConfidence"] = str(detection.get("detection_confidence") or "low")
 
     intent_path, intent_sha, intent_scope = _activation_intent_evidence()
     state.setdefault(
@@ -1043,23 +1191,47 @@ def _hydrate_transition_state(document: dict[str, object], *, repo_fingerprint: 
         state.setdefault("RepoMapDigestFile", {"FilePath": "${REPO_DIGEST_FILE}", "FileStatus": "written" if digest_exists else "unknown"})
         state.setdefault("DecisionPack", {"FilePath": "${REPO_DECISION_PACK_FILE}", "FileStatus": "written"})
         state.setdefault("WorkspaceMemoryFile", {"TargetPath": "${WORKSPACE_MEMORY_FILE}", "FileStatus": "written"})
+        scope_obj = state.get("Scope")
+        if not isinstance(scope_obj, dict):
+            scope_obj = {}
+        scope_obj["RepositoryType"] = str(detection.get("repository_type") or scope_obj.get("RepositoryType") or "unknown")
+        state["Scope"] = scope_obj
 
     if phase_rank(requested_token) >= phase_rank("2.1"):
         scope = state.get("Scope")
         if not isinstance(scope, dict):
             scope = {}
-        scope["BusinessRules"] = "skipped"
+        business_rules = state.get("BusinessRules")
+        if not isinstance(business_rules, dict):
+            business_rules = {}
+        business_rules_outcome = str(business_rules.get("Outcome") or "").strip().lower()
+        execution_evidence = business_rules.get("ExecutionEvidence")
+        if isinstance(execution_evidence, bool) and execution_evidence and business_rules_outcome in {
+            "extracted",
+            "not-applicable",
+            "deferred",
+            "skipped",
+        }:
+            scope["BusinessRules"] = business_rules_outcome
+        current_scope = str(scope.get("BusinessRules") or "").strip().lower()
+        if current_scope not in {"extracted", "not-applicable", "deferred", "skipped"}:
+            scope["BusinessRules"] = "unresolved"
         state["Scope"] = scope
 
         gates = state.get("Gates")
         if isinstance(gates, dict):
-            gates["P5.4-BusinessRules"] = "not-applicable"
+            if str(scope.get("BusinessRules") or "") == "extracted":
+                gates["P5.4-BusinessRules"] = gates.get("P5.4-BusinessRules") or "pending"
+            else:
+                gates["P5.4-BusinessRules"] = "not-applicable"
 
-        business_rules = state.get("BusinessRules")
-        if not isinstance(business_rules, dict):
-            business_rules = {}
-        business_rules["Decision"] = "skip"
-        business_rules.setdefault("InventoryFileStatus", "not-applicable")
+        if str(scope.get("BusinessRules") or "") == "unresolved":
+            business_rules["Decision"] = "pending"
+            business_rules.setdefault("ExecutionEvidence", False)
+            business_rules.setdefault("InventoryFileStatus", "unknown")
+        else:
+            business_rules.setdefault("Decision", "skip")
+            business_rules.setdefault("InventoryFileStatus", "not-applicable")
         state["BusinessRules"] = business_rules
 
     if requested_token == "3A":
@@ -1085,6 +1257,12 @@ def run_kernel_continuation(hook_result: Mapping[str, object]) -> dict[str, obje
         }
         return dict(payload)
     repo_fingerprint = str(hook_result.get("repo_fingerprint") or "").strip()
+    repo_root_value = str(hook_result.get("repo_root_detected") or "").strip()
+    repo_root: Path | None = None
+    if repo_root_value:
+        candidate = Path(repo_root_value)
+        if candidate.is_absolute() and candidate.exists():
+            repo_root = candidate
     session_path = _session_state_file_path(repo_fingerprint)
     if session_path is None or not session_path.exists():
         next_cmd = bootstrap_command(repo_fingerprint if repo_fingerprint else None)
@@ -1135,7 +1313,12 @@ def run_kernel_continuation(hook_result: Mapping[str, object]) -> dict[str, obje
     resolved_token = normalize_phase_token(current_phase) or ""
     while hops < max_hops:
         hops += 1
-        document = _hydrate_transition_state(document, repo_fingerprint=repo_fingerprint, requested_token=requested_token)
+        document = _hydrate_transition_state(
+            document,
+            repo_fingerprint=repo_fingerprint,
+            requested_token=requested_token,
+            repo_root=repo_root,
+        )
         state = _root_state(document)
         requested_active_gate = str(state.get("active_gate") or state.get("ActiveGate") or "Automatic routing")
         requested_next_gate_condition = str(

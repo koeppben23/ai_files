@@ -121,6 +121,42 @@ def test_kernel_routes_2_1_to_1_5_when_business_rules_execute_decision_set(tmp_p
     assert result.source == "phase-1.5-routing-required"
 
 
+def test_kernel_routes_2_1_to_1_5_when_business_rules_scope_unresolved(tmp_path: Path) -> None:
+    commands_home = tmp_path / "commands"
+    _write_phase_api(commands_home)
+
+    doc = {
+        "SESSION_STATE": {
+            "Phase": "2.1-DecisionPack",
+            "PersistenceCommitted": True,
+            "WorkspaceReadyGateCommitted": True,
+            "WorkspaceArtifactsCommitted": True,
+            "PointerVerified": True,
+            **RULEBOOK_BASE,
+            "Scope": {"BusinessRules": "unresolved"},
+            "BusinessRules": {
+                "Inventory": {"sha256": "synthetic-hash"},
+                "ExecutionEvidence": False,
+            },
+        }
+    }
+    result = execute(
+        current_token="2.1",
+        session_state_doc=doc,
+        runtime_ctx=RuntimeContext(
+            requested_active_gate="Decision Pack",
+            requested_next_gate_condition="Continue",
+            repo_is_git_root=True,
+            commands_home=commands_home,
+            workspaces_home=tmp_path / "workspaces",
+            config_root=tmp_path / "cfg",
+        ),
+    )
+
+    assert result.phase == "1.5-BusinessRules"
+    assert result.source == "phase-1.5-routing-required"
+
+
 def test_kernel_blocks_phase_1_3_when_exit_evidence_missing(tmp_path: Path) -> None:
     commands_home = tmp_path / "commands"
     _write_phase_api(commands_home)
