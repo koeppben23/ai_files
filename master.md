@@ -186,7 +186,9 @@ Code-generation gating is kernel- and schema-owned. See `${COMMANDS_HOME}/phase_
 Additionally, any mandatory gates defined in `rules.md` (e.g., Contract & Schema Evolution Gate, Change Matrix Verification)
 MUST be explicitly passed when applicable.
 P5.3 is a CRITICAL quality gate that must be satisfied before concluding readiness for PR (P6).
-Code-producing output is permitted during Phase 5 only for drafting and iterating on tests and implementation; final output remains blocked until all Phase 5 gates pass.
+Code-producing output is NOT permitted during Phase 5.
+Phase 5 is exclusively a review gate: architecture review, test-strategy review, and quality-gate evaluation.
+Implementation (code, tests, configuration) begins only after all Phase 5 gates have passed and the session transitions to Phase 6.
 Clarification:
 - Phase 5/6 code-output constraints and gate sequencing are kernel- and schema-owned.
   See `${COMMANDS_HOME}/phase_api.yaml` and `SESSION_STATE_SCHEMA.md`.

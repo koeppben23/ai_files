@@ -20,8 +20,9 @@ Use the YAML output as your governance context for the response below. Do not in
 
 ---
 
-`/review` is a Phase 4 review-only rail for PR or ticket review.
-It is optimized for lead/staff review depth and does not perform implementation.
+`/review` is a read-only rail entrypoint for PR or ticket review.
+It surfaces during Phase 4 but the authoritative review gate is kernel- and phase-model-owned (see `phase_api.yaml` and `phases.md` Phase 5 Review Gate).
+This rail is optimized for lead/staff review depth and does not perform implementation.
 
 Review scope:
 - architecture fit and contract integrity

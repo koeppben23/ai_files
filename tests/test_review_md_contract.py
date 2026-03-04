@@ -174,14 +174,21 @@ def test_review_provenance_context_present() -> None:
 
 @pytest.mark.governance
 def test_review_phase4_entrypoint_documented() -> None:
-    """review.md must document that it is a Phase 4 review-only rail."""
+    """review.md must document /review as a read-only rail entrypoint, with gate authority in the kernel."""
     review_path = REPO_ROOT / "review.md"
     content = review_path.read_text(encoding="utf-8")
     assert "Phase 4" in content, (
-        "review.md must document that /review is a Phase 4 entrypoint"
+        "review.md must document that /review surfaces during Phase 4"
     )
-    assert "review-only" in content.lower(), (
-        "review.md must document that /review is review-only (no implementation)"
+    assert "read-only rail entrypoint" in content, (
+        "review.md must describe /review as a read-only rail entrypoint"
+    )
+    content_lower = content.lower()
+    assert "authoritative review gate" in content_lower, (
+        "review.md must clarify the authoritative review gate is kernel-owned, not the rail itself"
+    )
+    assert "does not perform implementation" in content_lower, (
+        "review.md must state the rail does not perform implementation"
     )
 
 

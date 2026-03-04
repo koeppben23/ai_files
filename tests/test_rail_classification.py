@@ -395,11 +395,18 @@ class TestMasterMdContentGuards:
         )
 
     def test_phase5_code_output_explicitly_scoped(self) -> None:
-        """master.md must explicitly scope when code output is permitted in Phase 5."""
+        """master.md must explicitly prohibit code output during Phase 5."""
         content_lower = self.content.lower()
-        assert "drafting and iterating" in content_lower or "drafting/iterating" in content_lower, (
-            "master.md must explicitly state that code output during Phase 5 "
-            "is limited to drafting and iterating"
+        assert "not permitted during phase 5" in content_lower, (
+            "master.md must explicitly state that code-producing output is "
+            "NOT permitted during Phase 5"
+        )
+        assert "review gate" in content_lower, (
+            "master.md must frame Phase 5 as exclusively a review gate"
+        )
+        assert "phase 6" in content_lower, (
+            "master.md must state implementation begins after Phase 5 gates pass "
+            "and the session transitions to Phase 6"
         )
 
 
