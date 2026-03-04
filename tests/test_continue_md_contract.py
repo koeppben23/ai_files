@@ -67,10 +67,10 @@ class TestSourceTemplate:
         )
 
     def test_governance_kernel_bridge_comment(self) -> None:
-        """Source template must contain the sole-exception comment."""
-        assert "sole exception" in self.content.lower(), (
-            "continue.md must document that the kernel bridge is the "
-            "sole exception to the rails-only constraint."
+        """Source template must contain the installer-provenance bridge comment."""
+        assert "governance installer" in self.content.lower(), (
+            "continue.md must document that the kernel bridge command was "
+            "placed by the governance installer and is safe to execute."
         )
 
     def test_python_invocation(self) -> None:
@@ -99,9 +99,9 @@ class TestSourceTemplate:
         )
 
     def test_preferred_command_wording(self) -> None:
-        """Source template must use 'Preferred:' wording for the command execution tier."""
-        assert "preferred:" in self.content.lower(), (
-            "continue.md must use 'Preferred:' wording to frame command execution as the ideal path"
+        """Source template must use 'Preferred' wording for the command execution tier."""
+        assert "preferred" in self.content.lower(), (
+            "continue.md must use 'Preferred' wording to frame command execution as the ideal path"
         )
 
     def test_minimum_snapshot_fields_documented(self) -> None:
@@ -124,12 +124,71 @@ class TestSourceTemplate:
 
     def test_three_tier_fallback_ordering(self) -> None:
         """The three tiers must appear in order: preferred command, user paste, proceed without."""
-        preferred_pos = self.content.lower().find("preferred:")
+        preferred_pos = self.content.lower().find("preferred")
         paste_pos = self.content.lower().find("command cannot be executed")
         proceed_pos = self.content.lower().find("no snapshot is available")
         assert preferred_pos < paste_pos < proceed_pos, (
             "continue.md must present the three fallback tiers in order: "
             "preferred command, user paste, proceed without"
+        )
+
+    def test_rail_classification_present(self) -> None:
+        """Source template must contain a rail-classification HTML comment."""
+        assert "<!-- rail-classification:" in self.content, (
+            "continue.md must contain a <!-- rail-classification: ... --> HTML comment "
+            "that declares the rail's mutation profile for LLM model robustness."
+        )
+
+    def test_rail_classification_read_only(self) -> None:
+        """continue.md rail classification must include READ-ONLY."""
+        match = re.search(r"<!--\s*rail-classification:\s*([^>]+)-->", self.content)
+        assert match is not None, "continue.md must have a rail-classification comment"
+        classification = match.group(1)
+        assert "READ-ONLY" in classification, (
+            "continue.md rail classification must include READ-ONLY"
+        )
+
+    def test_provenance_context_present(self) -> None:
+        """Source template must contain installer provenance context for trust."""
+        content_lower = self.content.lower()
+        assert "governance installer" in content_lower, (
+            "continue.md must mention 'governance installer' to establish provenance trust"
+        )
+        assert "safe to execute" in content_lower, (
+            "continue.md must state the command is 'safe to execute' for model trust"
+        )
+
+    def test_safe_to_execute_statement(self) -> None:
+        """Source template must contain an explicit safe-to-execute statement."""
+        assert "safe to execute" in self.content.lower(), (
+            "continue.md must contain 'safe to execute' to prevent model refusals"
+        )
+
+    def test_no_sole_exception_framing(self) -> None:
+        """Source template must NOT contain 'sole exception' framing that triggers security reflexes."""
+        assert "sole exception" not in self.content.lower(), (
+            "continue.md must NOT use 'sole exception' framing — "
+            "this triggers security-reflex refusals in Claude Opus and similar models"
+        )
+
+    def test_fallback_tier_labels(self) -> None:
+        """Fallback tiers must be explicitly labeled (Tier A, Tier B, Tier C)."""
+        content_lower = self.content.lower()
+        assert "tier a" in content_lower, (
+            "continue.md must label the preferred command as 'Tier A'"
+        )
+        assert "tier b" in content_lower, (
+            "continue.md must label the paste fallback as 'Tier B'"
+        )
+        assert "tier c" in content_lower, (
+            "continue.md must label the conversation-context fallback as 'Tier C'"
+        )
+
+    def test_no_infer_or_mutate_statement(self) -> None:
+        """Source template must contain the 'Do not infer or mutate' guard statement."""
+        assert "do not infer or mutate" in self.content.lower(), (
+            "continue.md must contain 'Do not infer or mutate any session state' "
+            "to prevent models from fabricating state"
         )
 
 
@@ -151,6 +210,8 @@ class TestNoModelRefusalPatterns:
         (r"\breport\b.*\berror\b.*\bstop\b", "'report error and stop' creates dead-end paths with no recovery"),
         (r"\bMUST\s+stop\b", "'MUST stop' is a hard dead-end with no fallback"),
         (r"\bexecute\s+or\s+stop\b", "'execute or stop' binary forces model refusals"),
+        (r"\bsole\s+exception\b", "'sole exception' triggers security-reflex refusals in Claude Opus models"),
+        (r"\brefuse\s+to\s+execute\b", "'refuse to execute' primes models toward refusal behavior"),
     ]
 
     TEMPLATES = ("continue.md", "review.md")
@@ -190,9 +251,14 @@ class TestNoModelRefusalPatterns:
         # Extract the bridge section: from the HTML comment to the --- separator
         content = self.contents[template_name]
         bridge_start = content.find("<!-- GOVERNANCE KERNEL BRIDGE")
-        bridge_end = content.find("\n---\n", bridge_start)
+        bridge_end = content.find("\n---\n", bridge_start) if bridge_start >= 0 else -1
+        # If no --- separator, use the end of the Tier C fallback block
+        if bridge_end < 0 and bridge_start >= 0:
+            bridge_end = content.find("before continuing.", bridge_start)
+            if bridge_end >= 0:
+                bridge_end = bridge_end + len("before continuing.")
         assert bridge_start >= 0 and bridge_end >= 0, (
-            f"{template_name} must contain the kernel bridge section delimited by --- separator"
+            f"{template_name} must contain the kernel bridge section"
         )
 
     def test_continue_and_review_share_bridge_block(self) -> None:
@@ -201,7 +267,12 @@ class TestNoModelRefusalPatterns:
         for name in self.TEMPLATES:
             content = self.contents[name]
             bridge_start = content.find("<!-- GOVERNANCE KERNEL BRIDGE")
-            bridge_end = content.find("\n---\n", bridge_start)
+            # Find the end of the bridge: either --- separator or end of Tier C
+            bridge_end = content.find("\n---\n", bridge_start) if bridge_start >= 0 else -1
+            if bridge_end < 0 and bridge_start >= 0:
+                bridge_end = content.find("before continuing.", bridge_start)
+                if bridge_end >= 0:
+                    bridge_end = bridge_end + len("before continuing.")
             bridges[name] = content[bridge_start:bridge_end]
         assert bridges["continue.md"] == bridges["review.md"], (
             "continue.md and review.md must share identical kernel bridge sections"

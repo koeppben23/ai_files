@@ -19,10 +19,10 @@ def test_md_rails_tripwire_operational_markers_absent():
         REPO_ROOT / "rules.md",
         REPO_ROOT / "continue.md",
         REPO_ROOT / "review.md",
-        REPO_ROOT / "docs" / "_archive" / "resume.md",
-        REPO_ROOT / "docs" / "_archive" / "resume_prompt.md",
-        REPO_ROOT / "docs" / "_archive" / "new_profile.md",
-        REPO_ROOT / "docs" / "_archive" / "new_addon.md",
+        REPO_ROOT / "docs" / "resume.md",
+        REPO_ROOT / "docs" / "resume_prompt.md",
+        REPO_ROOT / "docs" / "new_profile.md",
+        REPO_ROOT / "docs" / "new_addon.md",
         REPO_ROOT / "BOOTSTRAP.md",
     ]
     files.extend(sorted((REPO_ROOT / "profiles").glob("rules*.md")))

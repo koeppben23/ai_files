@@ -1,6 +1,9 @@
 # Governance Ticket
 
+<!-- rail-classification: MUTATING, GATE-EVALUATION -->
+
 Use this command to persist Phase-4 intake evidence.
+Chat text or a file path alone does not change phase or pass any gate; the intake command below must be executed to write evidence and reroute state.
 
 Two accepted inputs:
 - ticket/task text in chat
@@ -29,7 +32,7 @@ Notes:
 - `/continue` and `/review` are read-only rails.
 - Ticket files or chat text do not change phase by themselves.
 - Running the intake command writes evidence and reroutes from Phase 4 into the Phase 5 review gate path.
-- Intake reroute is not implementation approval; code-producing output remains blocked until Phase 5 gates are approved.
+- Intake reroute is not implementation approval; code-producing output remains blocked until Phase 5 gates are approved and session transitions to Phase 6.
 
 Copyright © 2026 Benjamin Fuchs.
 All rights reserved. See LICENSE.
