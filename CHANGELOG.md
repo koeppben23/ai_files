@@ -120,7 +120,7 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
 - Add guided profile-selection behavior for ambiguous detection: system now emits ranked profile suggestions with evidence and requests explicit numbered selection (`1..n`, including `fallback-minimum`) while remaining fail-closed (`BLOCKED-AMBIGUOUS-PROFILE`) until clarified.
 - Add UX execution contracts for deterministic operator flow: unified `[NEXT-ACTION]` footer, standardized blocked envelope fields, startup `[START-MODE]` banner, `[SNAPSHOT]` confidence/risk/scope block, and blocker `QuickFixCommands` guidance.
 - Tighten UX contract coherence: add `0=abort/none` profile-choice escape, require command-field consistency across `[NEXT-ACTION]`/`next_command`/`QuickFixCommands[0]`, and require deterministic ordering for `missing_evidence`/`recovery_steps`.
-- Add Architect-only Autopilot lifecycle contract (bootstrap -> `/master` -> `Implement now` -> `Ingest evidence`) with explicit output-mode enum (`ARCHITECT|IMPLEMENT|VERIFY`) and fail-closed `/master` start-order gate (`BLOCKED-START-REQUIRED`).
+- Add Architect-only Autopilot lifecycle contract (bootstrap -> `/master` -> `Switch to IMPLEMENT mode` -> `Ingest evidence`) with explicit output-mode enum (`ARCHITECT|IMPLEMENT|VERIFY`) and fail-closed `/master` start-order gate (`BLOCKED-START-REQUIRED`).
 - Tighten `start.md` evidence boundaries: missing installer-owned `governance.paths.json` now yields explicit blocked fallback semantics (`BLOCKED-MISSING-BINDING-FILE`) and marks computed path payloads as non-evidence debug output.
 - Clarify `start.md` auto-persistence identity semantics so helper output is operational status only and cannot be treated as canonical repo identity evidence.
 - Align governance factory contracts (`docs/new_addon.md`, `docs/new_profile.md`, `PROFILE_ADDON_FACTORY_CONTRACT.json`) with current canonical runtime policy: required surface ownership fields, capability-first manifest guidance, preferred profile filename pattern (`rules_<profile_key>.md`), canonical SESSION_STATE evidence paths, and clarified tracking/audit semantics.
@@ -228,7 +228,7 @@ This project follows **Keep a Changelog** and **Semantic Versioning**.
 - Strengthen workflow guarantees for shared modularization in installer/e2e tests (shared addons copied, manifest-listed, and advisory-missing behavior verified as non-blocking).
 - Harden profile auto-detection semantics: profile candidate selection now explicitly excludes addon-referenced and shared governance rulebooks.
 - Normalize footer/marker consistency across `profiles/rules*.md` after modularization (remove mid-file end markers, align copyright placement/style).
-- Add a canonical structured response envelope schema contract (`governance/RESPONSE_ENVELOPE_SCHEMA.json`) and wire bootstrap/core rulebooks to require schema-aligned output fields.
+- Add a canonical structured response envelope schema contract (`governance/assets/catalogs/RESPONSE_ENVELOPE_SCHEMA.json`) and wire bootstrap/core rulebooks to require schema-aligned output fields.
 - Narrow shared governance advisory addon activation signals from unbounded `**/*` to explicit governance entry signals (`master.md`) for cleaner capability/signal semantics.
 - Clarify `CONFLICT_RESOLUTION.md` mapping so P-levels are conflict classifiers/tie-breakers only and never a second precedence model over `master.md`.
 

@@ -61,4 +61,4 @@ After bundle install, customer-usable assets are available under `<config_root>/
 - `profiles/`: profile rulebooks and addon manifests
 - `governance/`: schemas, benchmark packs, and helper governance
 
-Markdown shipping exclusions are controlled by `governance/CUSTOMER_MARKDOWN_EXCLUDE.json`.
+Markdown shipping exclusions are controlled by `governance/assets/catalogs/CUSTOMER_MARKDOWN_EXCLUDE.json`.

@@ -24,7 +24,7 @@ Doc-lint standard: `docs/governance/doc_lint.md`.
 Authoritative sources by area (see rulesets/core/rules.yml for machine-readable authoritative data):
 - Routing/validation/transitions: `${COMMANDS_HOME}/phase_api.yaml` and `governance/kernel/*`
 - Session-state shape and invariants: `SESSION_STATE_SCHEMA.md` and `governance/assets/schemas/*`
-- Response envelope and presentation shape: `governance/RESPONSE_ENVELOPE_SCHEMA.json`
+- Response envelope and presentation shape: `governance/assets/catalogs/RESPONSE_ENVELOPE_SCHEMA.json`
 - Blocked reason catalog: `governance/assets/reasons/blocked_reason_catalog.yaml`
 - Persistence artifacts and targets: `governance/assets/config/persistence_artifacts.yaml`
 - Build verification and evidence rules: `docs/governance/governance_schemas.md`
@@ -158,7 +158,7 @@ Fast Path is an efficiency optimization, not a correctness shortcut.
 ### 7.3.1 Unified Next Action Footer (Presentation Advisory)
 
 Responses should expose exactly one actionable next step.
-Exact envelope/format is schema-owned. See `governance/RESPONSE_ENVELOPE_SCHEMA.json`.
+Exact envelope/format is schema-owned. See `governance/assets/catalogs/RESPONSE_ENVELOPE_SCHEMA.json`.
 
 ### 7.3.2 Standard Blocker Output Envelope (Kernel-Enforced)
 
@@ -173,12 +173,12 @@ Exact banner rendering is renderer/schema-owned.
 ### 7.3.4 Confidence + Impact Snapshot (Presentation Advisory)
 
 Responses may include a compact confidence/risk/scope summary.
-Exact shape is schema-owned. See `SESSION_STATE_SCHEMA.md` and `governance/RESPONSE_ENVELOPE_SCHEMA.json`.
+Exact shape is schema-owned. See `SESSION_STATE_SCHEMA.md` and `governance/assets/catalogs/RESPONSE_ENVELOPE_SCHEMA.json`.
 
 ### 7.3.5 Quick-Fix Commands for Blockers (Presentation Advisory)
 
 Quick-fix guidance and fields are schema- and kernel-owned.
-See `governance/RESPONSE_ENVELOPE_SCHEMA.json`.
+See `governance/assets/catalogs/RESPONSE_ENVELOPE_SCHEMA.json`.
 
 ### 7.3.6 Architect-Only Autopilot Lifecycle (Policy)
 
@@ -186,7 +186,7 @@ Lifecycle and output mode rules are kernel-owned. See `${COMMANDS_HOME}/phase_ap
 
 ### 7.3.7 Canonical Response Envelope Schema (Presentation Advisory)
 
-- `governance/RESPONSE_ENVELOPE_SCHEMA.json`
+- `governance/assets/catalogs/RESPONSE_ENVELOPE_SCHEMA.json`
 - `docs/governance/governance_schemas.md` (schema IDs and drafts)
 
 ### 7.3.8 Host Constraint Compatibility Mode (Kernel-Enforced)
@@ -204,7 +204,7 @@ Preflight output contract is kernel- and schema-owned. See `governance.preflight
 ### 7.3.11 Deterministic Status + Next Step Contract (Kernel-Enforced)
 
 Status vocabulary and next-step contracts are kernel- and schema-owned.
-See `governance/engine/session_state_invariants.py` and `governance/RESPONSE_ENVELOPE_SCHEMA.json`.
+See `governance/engine/session_state_invariants.py` and `governance/assets/catalogs/RESPONSE_ENVELOPE_SCHEMA.json`.
 
 ### 7.3.12 Session Transition Invariants (Kernel-Enforced)
 
@@ -214,7 +214,7 @@ See `governance/engine/session_state_invariants.py` and `SESSION_STATE_SCHEMA.md
 ### 7.3.13 Smart Retry + Restart Guidance (Kernel-Enforced)
 
 Retry/restart guidance is kernel-owned and may be surfaced to operators.
-Canonical fields live in schema/kernel. See `bootstrap_preflight_readonly.py` and `governance/RESPONSE_ENVELOPE_SCHEMA.json`.
+Canonical fields live in schema/kernel. See `bootstrap_preflight_readonly.py` and `governance/assets/catalogs/RESPONSE_ENVELOPE_SCHEMA.json`.
 
 ### 7.3.14 Phase Progress + Warn/Blocked Separation (Kernel-Enforced)
 
@@ -225,7 +225,7 @@ Exact projection of phase/gate/progress is schema/kernel-owned.
 
 Hosts may operate in strict or compatibility presentation modes.
 Presentation mode must not change gate/evidence semantics.
-Exact mode-specific output requirements are schema-owned. See `governance/RESPONSE_ENVELOPE_SCHEMA.json`.
+Exact mode-specific output requirements are schema-owned. See `governance/assets/catalogs/RESPONSE_ENVELOPE_SCHEMA.json`.
 
 ### 7.3.16 Operator-First Brief/Detail Layering (Presentation Advisory)
 
@@ -245,7 +245,7 @@ See `governance/assets/catalogs/UX_INTENT_GOLDENS.json`.
 ### 7.3.19 Short-Intent Routing for Operator Questions (Presentation Advisory)
 
 Conversational routing and persona behavior are renderer/catalog-owned.
-See `${COMMANDS_HOME}/phase_api.yaml` and `governance/RESPONSE_ENVELOPE_SCHEMA.json`.
+See `${COMMANDS_HOME}/phase_api.yaml` and `governance/assets/catalogs/RESPONSE_ENVELOPE_SCHEMA.json`.
 
 ### 7.3.20 Operator Persona Response Modes (Presentation Advisory)
 
@@ -331,7 +331,7 @@ See `${COMMANDS_HOME}/phase_api.yaml` and `governance/assets/reasons/blocked_rea
 ## 7.12 Operator Explain Contracts (Core, Binding)
 
 Explain-command inputs, read-only guarantees, and output shape are kernel- and schema-owned.
-See `${COMMANDS_HOME}/phase_api.yaml` and `governance/RESPONSE_ENVELOPE_SCHEMA.json`.
+See `${COMMANDS_HOME}/phase_api.yaml` and `governance/assets/catalogs/RESPONSE_ENVELOPE_SCHEMA.json`.
 
 ## 7.13 Proof-Carrying Explain Output (Core, Binding)
 
@@ -411,4 +411,3 @@ Override fields and recording requirements are kernel- and schema-owned.
 See `${COMMANDS_HOME}/phase_api.yaml` and `SESSION_STATE_SCHEMA.md`.
 
 ---
-
