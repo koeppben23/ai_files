@@ -805,3 +805,136 @@ class TestP2StaleFileDeletions:
             assert "MASTER_SECTION_CLASSIFICATION.md" not in content, (
                 f"Dangling reference in {p.relative_to(REPO_ROOT)}"
             )
+
+
+# ===================================================================
+# 8. Archive move guard: active rails live in docs/, not docs/_archive/
+#
+#    resume.md, resume_prompt.md, new_profile.md, new_addon.md were
+#    moved from docs/_archive/ to docs/ because they are actively
+#    referenced by install.py, governance_lint.py, tests, and runtime
+#    catalogs.  These guards prevent regression.
+# ===================================================================
+
+_ACTIVE_RAILS_MOVED_FROM_ARCHIVE = [
+    "resume.md",
+    "resume_prompt.md",
+    "new_profile.md",
+    "new_addon.md",
+]
+
+# Source files (Python, JSON) that should reference docs/<file> NOT docs/_archive/<file>
+# Excludes: CHANGELOG.md (historical refs are fine), archived files themselves, __pycache__
+_SOURCE_GLOBS = ["**/*.py", "**/*.json"]
+
+# Files where archive paths for the 4 moved files are NEVER legitimate
+# (we scan all .py and .json files)
+
+
+class TestArchiveMoveHappy:
+    """The 4 active rails must exist at docs/ after the move."""
+
+    @pytest.mark.parametrize("filename", _ACTIVE_RAILS_MOVED_FROM_ARCHIVE)
+    def test_active_rail_exists_at_docs(self, filename: str) -> None:
+        target = DOCS / filename
+        assert target.exists(), f"Active rail missing at docs/{filename}"
+        assert target.stat().st_size > 0, f"docs/{filename} is empty"
+
+    @pytest.mark.parametrize("filename", _ACTIVE_RAILS_MOVED_FROM_ARCHIVE)
+    def test_active_rail_is_readable_markdown(self, filename: str) -> None:
+        """Each moved file must be valid UTF-8 with meaningful content."""
+        content = (DOCS / filename).read_text(encoding="utf-8")
+        # Must have substantive content (at least 50 chars)
+        assert len(content.strip()) >= 50, (
+            f"docs/{filename} has insufficient content ({len(content.strip())} chars)"
+        )
+
+
+class TestArchiveMoveBad:
+    """The 4 active rails must NOT still exist at docs/_archive/."""
+
+    @pytest.mark.parametrize("filename", _ACTIVE_RAILS_MOVED_FROM_ARCHIVE)
+    def test_active_rail_not_in_archive(self, filename: str) -> None:
+        stale = REPO_ROOT / "docs" / "_archive" / filename
+        assert not stale.exists(), (
+            f"Stale copy still at docs/_archive/{filename} — should have been moved to docs/"
+        )
+
+
+class TestArchiveMoveEdge:
+    """No source file should reference docs/_archive/ paths for the moved files."""
+
+    @pytest.mark.parametrize("filename", _ACTIVE_RAILS_MOVED_FROM_ARCHIVE)
+    def test_no_stale_archive_refs_in_source(self, filename: str) -> None:
+        """Python and JSON source files must not reference the old archive path."""
+        stale_pattern = f"docs/_archive/{filename}"
+        violations: list[str] = []
+        for glob_pat in _SOURCE_GLOBS:
+            for p in REPO_ROOT.rglob(glob_pat):
+                # Skip __pycache__, .git, node_modules
+                rel = str(p.relative_to(REPO_ROOT))
+                if any(skip in rel for skip in ("__pycache__", ".git", "node_modules")):
+                    continue
+                try:
+                    content = p.read_text(encoding="utf-8", errors="replace")
+                except Exception:
+                    continue
+                if stale_pattern in content:
+                    violations.append(rel)
+        assert not violations, (
+            f"Stale archive ref 'docs/_archive/{filename}' found in: {violations}"
+        )
+
+    def test_customer_exclude_has_no_moved_files(self) -> None:
+        """CUSTOMER_MARKDOWN_EXCLUDE.json must not list the moved files."""
+        content = _read("governance/assets/catalogs/CUSTOMER_MARKDOWN_EXCLUDE.json")
+        for filename in _ACTIVE_RAILS_MOVED_FROM_ARCHIVE:
+            assert f"_archive/{filename}" not in content, (
+                f"CUSTOMER_MARKDOWN_EXCLUDE.json still lists archived path for {filename}"
+            )
+            # They shouldn't be excluded at all — they're active
+            assert f"docs/{filename}" not in content, (
+                f"CUSTOMER_MARKDOWN_EXCLUDE.json should not exclude active rail docs/{filename}"
+            )
+
+
+class TestArchiveMoveCorner:
+    """Corner-case guards for the archive move."""
+
+    def test_install_py_references_docs_path(self) -> None:
+        """install.py must reference docs/<file> for all 4 moved files."""
+        content = _read("install.py")
+        for filename in _ACTIVE_RAILS_MOVED_FROM_ARCHIVE:
+            assert f"docs/{filename}" in content, (
+                f"install.py missing reference to docs/{filename}"
+            )
+
+    def test_governance_lint_references_docs_path(self) -> None:
+        """governance_lint.py must reference docs/<file> for all 4 moved files."""
+        content = _read("scripts/governance_lint.py")
+        for filename in _ACTIVE_RAILS_MOVED_FROM_ARCHIVE:
+            # Accepts both string literal and Path construction forms
+            has_string_ref = f"docs/{filename}" in content
+            has_path_ref = f'"docs" / "{filename}"' in content
+            assert has_string_ref or has_path_ref, (
+                f"governance_lint.py missing reference to docs/{filename}"
+            )
+
+    def test_reason_remediation_map_uses_docs_path(self) -> None:
+        """REASON_REMEDIATION_MAP.json must not use _archive paths for moved files."""
+        content = _read("governance/assets/catalogs/REASON_REMEDIATION_MAP.json")
+        for filename in _ACTIVE_RAILS_MOVED_FROM_ARCHIVE:
+            assert f"_archive/{filename}" not in content, (
+                f"REASON_REMEDIATION_MAP.json uses stale archive path for {filename}"
+            )
+
+    def test_archive_directory_still_has_other_files(self) -> None:
+        """docs/_archive/ should still exist with other legitimately archived files."""
+        archive = REPO_ROOT / "docs" / "_archive"
+        assert archive.is_dir(), "docs/_archive/ directory should still exist"
+        remaining = list(archive.glob("*.md"))
+        assert len(remaining) > 0, "docs/_archive/ should still contain archived files"
+        # None of the moved files should be among them
+        remaining_names = {p.name for p in remaining}
+        for filename in _ACTIVE_RAILS_MOVED_FROM_ARCHIVE:
+            assert filename not in remaining_names
