@@ -31,6 +31,13 @@
       "tier": "essential"
     },
     {
+      "path": "scripts/governance_session_new.py",
+      "purpose": "Initialize a fresh phase-4 governance work run",
+      "customer_relevant": true,
+      "ship_in_release": true,
+      "tier": "advanced"
+    },
+    {
       "path": "scripts/migrate_session_state.py",
       "purpose": "Migrate session-state payloads across contract versions",
       "customer_relevant": true,
