@@ -1,16 +1,19 @@
 # Governance Continue
 
 <!-- GOVERNANCE KERNEL BRIDGE — sole exception to rails-only constraint in this file -->
-## MANDATORY FIRST STEP
+## Resume Session State
 
-Before responding, execute the following command to load the current governance session state:
+Preferred: load the current governance session state using the following read-only command, if local command execution is allowed in your environment:
 
 ```bash
 {{PYTHON_COMMAND}} "{{SESSION_READER_PATH}}"
 ```
 
 Use the YAML output as your governance context for the response below.
-If the command fails, report the error verbatim and stop.
+
+**If the command cannot be executed** (e.g., sandboxed environment, model policy, or tool error), ask the user to paste the output of the command above — or a snapshot containing at least `phase`, `next`, `active_gate`, and `next_gate_condition`.
+
+**If no snapshot is available**, proceed using only the context visible in the current conversation and state your assumptions explicitly before continuing.
 
 ---
 

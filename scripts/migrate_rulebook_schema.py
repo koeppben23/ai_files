@@ -79,7 +79,7 @@ MIGRATIONS[("1.0.0", "1.1.0")] = _migrate_1_0_0_to_1_1_0
 def _get_schema_version() -> str:
     """Read current schema version from rulebook.schema.json."""
     schema_path = ROOT / "schemas" / "rulebook.schema.json"
-    schema = json.loads(schema_path.read_text())
+    schema = json.loads(schema_path.read_text(encoding="utf-8"))
     return schema.get("version", "unknown")
 
 
@@ -145,7 +145,7 @@ def check_all(target_version: str | None = None) -> int:
     issues: list[str] = []
     count = 0
     for yml in sorted(rulesets_dir.glob("**/*.yml")):
-        rb = yaml.safe_load(yml.read_text())
+        rb = yaml.safe_load(yml.read_text(encoding="utf-8"))
         sv = (rb.get("metadata") or {}).get("schema_version", "")
         count += 1
         if not sv:
@@ -192,7 +192,7 @@ def main(argv: list[str] | None = None) -> int:
     errors = 0
     for yml in sorted(rulesets_dir.glob("**/*.yml")):
         total += 1
-        rb = yaml.safe_load(yml.read_text())
+        rb = yaml.safe_load(yml.read_text(encoding="utf-8"))
         result, log = migrate_rulebook(rb, target)
 
         prefix = f"  {yml.relative_to(ROOT)}:"
@@ -207,7 +207,7 @@ def main(argv: list[str] | None = None) -> int:
                 migrated += 1
 
         if not args.dry_run and any("migrated" in m for m in log):
-            yml.write_text(yaml.dump(result, default_flow_style=False, sort_keys=False, allow_unicode=True))
+            yml.write_text(yaml.dump(result, default_flow_style=False, sort_keys=False, allow_unicode=True), encoding="utf-8")
 
     mode = "DRY-RUN" if args.dry_run else "APPLIED"
     print(f"\n{mode}: {migrated} migrated, {total - migrated - errors} unchanged, {errors} errors")

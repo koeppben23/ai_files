@@ -469,7 +469,7 @@ def check_yaml_rulebook_schema(issues: list[str]) -> None:
     if not schema_path.exists():
         return
 
-    schema = json.loads(schema_path.read_text())
+    schema = json.loads(schema_path.read_text(encoding="utf-8"))
     schema_version = schema.get("version", "")
 
     rulesets_dir = ROOT / "rulesets"
@@ -478,7 +478,7 @@ def check_yaml_rulebook_schema(issues: list[str]) -> None:
 
     for yaml_file in rulesets_dir.glob("**/*.yml"):
         try:
-            rulebook = yaml.safe_load(yaml_file.read_text())
+            rulebook = yaml.safe_load(yaml_file.read_text(encoding="utf-8"))
             validator = Draft202012Validator(schema)
             errors = list(validator.iter_errors(rulebook))
             if errors:

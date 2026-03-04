@@ -22,28 +22,10 @@ def test_end_to_end_windows_wrapper_smoke():
             deterministic_paths_file=False,
         )
 
-        # Create necessary dirs
-        installer.ensure_dirs(config_root, dry_run=False)
-
-        (config_root / "commands").mkdir(parents=True, exist_ok=True)
-        phase_src = REPO_ROOT / "phase_api.yaml"
-        if not phase_src.exists():
-            raise AssertionError("phase_api.yaml missing from repo root")
-        phase_dst = config_root / "commands" / "phase_api.yaml"
-        if not phase_dst.exists():
-            phase_dst.write_bytes(phase_src.read_bytes())
-
-        # Create launcher (installs wrappers into runtime bin)
-        created = installer.create_launcher(plan, dry_run=False, force=False)
-        paths_file = plan.governance_paths_path
-        if not paths_file.exists():
-            installer.install_governance_paths_file(
-                plan,
-                dry_run=False,
-                force=True,
-                backup_enabled=False,
-                backup_root=config_root,
-            )
+        # Run the full installer so that the governance runtime, launcher,
+        # paths file, phase_api.yaml, and all other artifacts are in place.
+        rc = installer.install(plan, dry_run=False, force=True, backup_enabled=False)
+        assert rc == 0, f"installer.install() returned {rc}"
 
         wrapper_path = config_root / "bin" / "opencode-governance-bootstrap.cmd"
         assert wrapper_path.exists(), f"Windows wrapper not installed: {wrapper_path}"

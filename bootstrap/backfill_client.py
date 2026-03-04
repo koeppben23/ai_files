@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Optional
+import shlex
 import subprocess
 import json
 import sys
@@ -25,6 +26,25 @@ class BackfillSummary:
         }
 
 
+def _python_argv(python_cmd: Optional[str]) -> list[str]:
+    """Turn a python command string into a proper argv list.
+
+    Handles multi-token commands like ``py -3`` by splitting them via
+    ``shlex.split`` so they are not passed as a single list element
+    (which would cause an OS "file not found" error).
+    """
+    if not python_cmd:
+        return [sys.executable]
+    token = python_cmd.strip()
+    if not token:
+        return [sys.executable]
+    try:
+        parts = [p for p in shlex.split(token, posix=False) if p]
+    except ValueError:
+        parts = [token]
+    return parts or [sys.executable]
+
+
 def run_backfill_subprocess(
     repo_fingerprint: str,
     config_root: Path,
@@ -46,7 +66,7 @@ def run_backfill_subprocess(
         )
     
     cmd = [
-        python_cmd or sys.executable,
+        *_python_argv(python_cmd),
         str(helper),
         "--repo-fingerprint",
         repo_fingerprint,

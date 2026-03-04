@@ -25,9 +25,20 @@ def test_kernel_writes_flow_and_workspace_events(tmp_path: Path) -> None:
             "WorkspaceReadyGateCommitted": True,
             "WorkspaceArtifactsCommitted": True,
             "PointerVerified": True,
-            "LoadedRulebooks": {"core": "${COMMANDS_HOME}/master.md"},
-            "RulebookLoadEvidence": {"core": "${COMMANDS_HOME}/master.md"},
-            "AddonsEvidence": {},
+            "ActiveProfile": "profile.fallback-minimum",
+            "LoadedRulebooks": {
+                "core": "${COMMANDS_HOME}/master.md",
+                "profile": "${COMMANDS_HOME}/rulesets/profiles/rules.fallback-minimum.yml",
+                "templates": "${COMMANDS_HOME}/master.md",
+                "addons": {
+                    "riskTiering": "${COMMANDS_HOME}/rulesets/profiles/rules.risk-tiering.yml",
+                },
+            },
+            "RulebookLoadEvidence": {
+                "core": "${COMMANDS_HOME}/master.md",
+                "profile": "${COMMANDS_HOME}/rulesets/profiles/rules.fallback-minimum.yml",
+            },
+            "AddonsEvidence": {"riskTiering": {"status": "loaded"}},
         }
     }
 
@@ -65,9 +76,20 @@ def test_kernel_writes_phase_not_applicable_event(tmp_path: Path) -> None:
             "WorkspaceReadyGateCommitted": True,
             "WorkspaceArtifactsCommitted": True,
             "PointerVerified": True,
-            "LoadedRulebooks": {"core": "${COMMANDS_HOME}/master.md"},
-            "RulebookLoadEvidence": {"core": "${COMMANDS_HOME}/master.md"},
-            "AddonsEvidence": {},
+            "ActiveProfile": "profile.fallback-minimum",
+            "LoadedRulebooks": {
+                "core": "${COMMANDS_HOME}/master.md",
+                "profile": "${COMMANDS_HOME}/rulesets/profiles/rules.fallback-minimum.yml",
+                "templates": "${COMMANDS_HOME}/master.md",
+                "addons": {
+                    "riskTiering": "${COMMANDS_HOME}/rulesets/profiles/rules.risk-tiering.yml",
+                },
+            },
+            "RulebookLoadEvidence": {
+                "core": "${COMMANDS_HOME}/master.md",
+                "profile": "${COMMANDS_HOME}/rulesets/profiles/rules.fallback-minimum.yml",
+            },
+            "AddonsEvidence": {"riskTiering": {"status": "loaded"}},
             "APIInventory": {"Status": "not-applicable"},
             "Scope": {"BusinessRules": "not-applicable"},
         }

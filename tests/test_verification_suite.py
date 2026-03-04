@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 
 import pytest
@@ -43,7 +44,7 @@ def _kernel_binding_evidence(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) ->
             "configRoot": str(cfg),
             "commandsHome": str(commands_home),
             "workspacesHome": str(workspaces_home),
-            "pythonCommand": "python3",
+            "pythonCommand": sys.executable,
         },
     }
     (commands_home / "governance.paths.json").write_text(json.dumps(payload), encoding="utf-8")

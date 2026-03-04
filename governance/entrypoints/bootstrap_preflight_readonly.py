@@ -210,7 +210,56 @@ def _load_tool_catalog() -> dict[str, object]:
 
 
 def _normalize_tool_command(token: str) -> str:
-    return token.replace("${PYTHON_COMMAND}", PYTHON_COMMAND).strip()
+    """Replace ``${PYTHON_COMMAND}`` with the resolved python path.
+
+    If the resolved path contains spaces (e.g.
+    ``C:\\Program Files\\Python311\\python.exe``) it is wrapped in
+    double-quotes so that :func:`_split_verify_command` can keep it as
+    a single argv token.  Multi-token commands like ``py -3`` never
+    contain path separators so they remain unquoted.
+    """
+    cmd = PYTHON_COMMAND
+    if " " in cmd and not cmd.startswith('"') and ("\\" in cmd or "/" in cmd):
+        cmd = f'"{cmd}"'
+    return token.replace("${PYTHON_COMMAND}", cmd).strip()
+
+
+def _split_verify_command(verify_command: str) -> list[str]:
+    """Split a verify_command string into a safe argv list.
+
+    Uses simple whitespace splitting which is sufficient for the verify
+    commands in the tool catalog (e.g. ``git --version``,
+    ``python --version``).  Paths with spaces from ``${PYTHON_COMMAND}``
+    substitution are handled by keeping quoted tokens intact: if the first
+    character is a double-quote, the token extends to the closing quote.
+    """
+    token = str(verify_command or "").strip()
+    if not token:
+        return []
+    # Simple parser: respect double-quoted segments for paths with spaces
+    parts: list[str] = []
+    i = 0
+    n = len(token)
+    while i < n:
+        # skip whitespace
+        while i < n and token[i] in (' ', '\t'):
+            i += 1
+        if i >= n:
+            break
+        if token[i] == '"':
+            # quoted segment
+            j = token.find('"', i + 1)
+            if j < 0:
+                j = n
+            parts.append(token[i + 1 : j])
+            i = j + 1
+        else:
+            j = i
+            while j < n and token[j] not in (' ', '\t'):
+                j += 1
+            parts.append(token[i:j])
+            i = j
+    return parts
 
 
 def _tool_inventory() -> tuple[list[str], list[str], list[dict[str, str]]]:
@@ -251,10 +300,13 @@ def _tool_inventory() -> tuple[list[str], list[str], list[dict[str, str]]]:
 def _probe_tool_version(verify_command: str) -> str | None:
     if not verify_command:
         return None
+    argv = _split_verify_command(verify_command)
+    if not argv:
+        return None
     try:
         proc = subprocess.run(
-            verify_command,
-            shell=True,
+            argv,
+            shell=False,
             text=True,
             capture_output=True,
             check=False,
@@ -377,9 +429,24 @@ def emit_permission_probes() -> None:
     )
 
 
+def _python_command_argv() -> list[str]:
+    """Split :data:`PYTHON_COMMAND` into a proper argv prefix.
+
+    Multi-token commands like ``py -3`` must become ``["py", "-3"]``
+    so that :func:`render_command_profiles` quotes each token
+    individually rather than treating ``"py -3"`` as a single
+    executable name.  Single-path values like
+    ``C:\\Python311\\python.exe`` stay as one element.
+
+    The function does **not** use ``shlex.split`` because the
+    architecture guard forbids it in this file.
+    """
+    return _split_verify_command(PYTHON_COMMAND) or [sys.executable]
+
+
 def bootstrap_command_argv(repo_fp: str | None) -> list[str]:
     repo_value = repo_fp if repo_fp else "<repo_fingerprint>"
-    return [PYTHON_COMMAND, "-m", "governance.entrypoints.bootstrap_session_state", "--repo-fingerprint", repo_value]
+    return [*_python_command_argv(), "-m", "governance.entrypoints.bootstrap_session_state", "--repo-fingerprint", repo_value]
 
 
 def bootstrap_command(repo_fp: str | None) -> str:
@@ -557,7 +624,8 @@ def run_persistence_hook() -> dict[str, object]:
     output_mode = os.getenv("OPENCODE_BOOTSTRAP_OUTPUT", "final").strip().lower()
     mode = _effective_mode()
     hook_argv = [sys.executable, "-m", "governance.entrypoints.bootstrap_persistence_hook"]
-    hook_command = " ".join(hook_argv)
+    _hook_profiles = render_command_profiles(hook_argv)
+    hook_command = str(_hook_profiles.get("cmd" if os.name == "nt" else "bash") or " ".join(hook_argv))
 
     if not writes_allowed():
         log_path = _emit_persistence_gate_failure(
