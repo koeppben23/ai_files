@@ -84,7 +84,10 @@ If the model cannot execute the session-reader command (e.g., sandboxed environm
 ~/.config/opencode/bin/opencode-governance-bootstrap --repo-root /absolute/path/to/your-repo
 # Open OpenCode Desktop in /absolute/path/to/your-repo
 /continue
-"Implement now"
+"<ticket/task text>"
+/ticket
+/review
+# After P5 gates are approved: implement changes
 ```
 
 **Debug a blocked run:**
