@@ -187,18 +187,20 @@ def _business_rules_scope(state: Mapping[str, object]) -> str:
 
 def _business_rules_discovery_resolved(state: Mapping[str, object]) -> bool:
     business_rules = state.get("BusinessRules")
+    execution_evidence = False
+    outcome = ""
     if isinstance(business_rules, Mapping):
-        execution_evidence = business_rules.get("ExecutionEvidence")
-        if isinstance(execution_evidence, bool) and execution_evidence:
-            return True
-        decision = business_rules.get("Decision")
-        if isinstance(decision, str) and decision.strip().lower() == "skip":
-            return True
-        inventory_status = business_rules.get("InventoryFileStatus")
-        if isinstance(inventory_status, str) and inventory_status.strip().lower() in {"written", "unchanged", "normalized"}:
-            return True
+        evidence_token = business_rules.get("ExecutionEvidence")
+        execution_evidence = isinstance(evidence_token, bool) and evidence_token
+        outcome_token = business_rules.get("Outcome")
+        if isinstance(outcome_token, str):
+            outcome = outcome_token.strip().lower()
+
+    if execution_evidence and outcome in {"extracted", "not-applicable", "deferred", "skipped"}:
+        return True
+
     br_scope = _business_rules_scope(state)
-    if br_scope in {"not-applicable", "extracted", "skipped", "deferred"}:
+    if execution_evidence and br_scope in {"not-applicable", "extracted", "skipped", "deferred"}:
         return True
     if br_scope == "unresolved":
         return False
