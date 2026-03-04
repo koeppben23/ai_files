@@ -564,6 +564,14 @@ class TestPhaseGatePrerequisitesInvariant:
         errors = validate_phase_gate_prerequisites(state)
         assert errors == ()
 
+    def test_phase5_architecture_review_skips_code_prereq_check(self):
+        state: dict[str, object] = {
+            "Phase": "5-ArchitectureReview",
+            "Gates": {"P5-Architecture": "pending"},
+        }
+        errors = validate_phase_gate_prerequisites(state)
+        assert errors == ()
+
     def test_code_step_without_p5_approved(self):
         state: dict[str, object] = {
             "Phase": "5",

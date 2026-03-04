@@ -1315,7 +1315,7 @@ def test_orchestrator_user_blocks_without_confirmation_evidence_and_writes_nothi
 
 
 @pytest.mark.governance
-def test_orchestrator_blocks_code_output_requests_in_phase4(tmp_path: Path):
+def test_orchestrator_bad_blocks_code_output_requests_in_phase4(tmp_path: Path):
     repo_root = _make_git_root(tmp_path / "repo")
     adapter = StubAdapter(
         env={"OPENCODE_REPO_ROOT": str(repo_root)},
@@ -1338,15 +1338,137 @@ def test_orchestrator_blocks_code_output_requests_in_phase4(tmp_path: Path):
         active_gate="Planning",
         mode="OK",
         next_gate_condition="Plan approved",
-        session_state_document={"SESSION_STATE": {"phase": "4-Planning", "PersistenceCommitted": True, "workspace_ready_gate_committed": True, "WorkspaceArtifactsCommitted": True, "PointerVerified": True, "phase_transition_evidence": True}},
-        requested_action="implement now",
+        session_state_document={
+            "SESSION_STATE": {
+                "phase": "4-Planning",
+                "PersistenceCommitted": True,
+                "workspace_ready_gate_committed": True,
+                "WorkspaceArtifactsCommitted": True,
+                "PointerVerified": True,
+                "phase_transition_evidence": True,
+                "ActiveProfile": "profile.fallback-minimum",
+                "LoadedRulebooks": {
+                    "core": "rules.md",
+                    "profile": "rules.profile.yml",
+                    "addons": {"riskTiering": "rules.addon.yml"},
+                },
+                "RulebookLoadEvidence": {
+                    "core": "rules.md",
+                    "profile": "rules.profile.yml",
+                },
+                "AddonsEvidence": {"riskTiering": {"status": "loaded"}},
+            }
+        },
+        requested_action="write production code",
     )
 
-    # Phase 4 may or may not block code output depending on configuration
-    # The test verifies the orchestrator handles the request
-    assert out.parity["status"] in {"ok", "blocked"}
-    if out.parity["status"] == "blocked":
-        assert out.parity["reason_code"] == "BLOCKED-STATE-OUTDATED"
+    assert out.parity["status"] == "blocked"
+    assert out.parity["reason_code"] == "BLOCKED-STATE-OUTDATED"
+
+
+@pytest.mark.governance
+def test_orchestrator_corner_blocks_code_output_in_phase5_review_when_p5_arch_pending(tmp_path: Path):
+    repo_root = _make_git_root(tmp_path / "repo")
+    adapter = StubAdapter(
+        env={"OPENCODE_REPO_ROOT": str(repo_root)},
+        cwd_path=repo_root,
+        caps=HostCapabilities(
+            cwd_trust="trusted",
+            fs_read_commands_home=True,
+            fs_write_config_root=True,
+            fs_write_commands_home=True,
+            fs_write_workspaces_home=True,
+            fs_write_repo_root=True,
+            exec_allowed=True,
+            git_available=True,
+        ),
+    )
+
+    out = run_engine_orchestrator(
+        adapter=adapter,
+        phase="5-ArchitectureReview",
+        active_gate="Architecture Review Gate",
+        mode="OK",
+        next_gate_condition="Continue review",
+        session_state_document={
+            "SESSION_STATE": {
+                "phase": "5-ArchitectureReview",
+                "PersistenceCommitted": True,
+                "workspace_ready_gate_committed": True,
+                "WorkspaceArtifactsCommitted": True,
+                "PointerVerified": True,
+                "phase_transition_evidence": True,
+                "ActiveProfile": "profile.fallback-minimum",
+                "LoadedRulebooks": {
+                    "core": "rules.md",
+                    "profile": "rules.profile.yml",
+                    "addons": {"riskTiering": "rules.addon.yml"},
+                },
+                "RulebookLoadEvidence": {
+                    "core": "rules.md",
+                    "profile": "rules.profile.yml",
+                },
+                "AddonsEvidence": {"riskTiering": {"status": "loaded"}},
+                "Gates": {"P5-Architecture": "pending"},
+            }
+        },
+        requested_action="write production code",
+    )
+
+    assert out.parity["status"] == "blocked"
+    assert out.parity["reason_code"] == "BLOCKED-STATE-OUTDATED"
+
+
+@pytest.mark.governance
+def test_orchestrator_happy_allows_code_output_after_p5_architecture_approved(tmp_path: Path):
+    repo_root = _make_git_root(tmp_path / "repo")
+    adapter = StubAdapter(
+        env={"OPENCODE_REPO_ROOT": str(repo_root)},
+        cwd_path=repo_root,
+        caps=HostCapabilities(
+            cwd_trust="trusted",
+            fs_read_commands_home=True,
+            fs_write_config_root=True,
+            fs_write_commands_home=True,
+            fs_write_workspaces_home=True,
+            fs_write_repo_root=True,
+            exec_allowed=True,
+            git_available=True,
+        ),
+    )
+
+    out = run_engine_orchestrator(
+        adapter=adapter,
+        phase="5-ArchitectureReview",
+        active_gate="Architecture Review Gate",
+        mode="OK",
+        next_gate_condition="Architecture gate approved",
+        session_state_document={
+            "SESSION_STATE": {
+                "phase": "5-ArchitectureReview",
+                "PersistenceCommitted": True,
+                "workspace_ready_gate_committed": True,
+                "WorkspaceArtifactsCommitted": True,
+                "PointerVerified": True,
+                "phase_transition_evidence": True,
+                "ActiveProfile": "profile.fallback-minimum",
+                "LoadedRulebooks": {
+                    "core": "rules.md",
+                    "profile": "rules.profile.yml",
+                    "addons": {"riskTiering": "rules.addon.yml"},
+                },
+                "RulebookLoadEvidence": {
+                    "core": "rules.md",
+                    "profile": "rules.profile.yml",
+                },
+                "AddonsEvidence": {"riskTiering": {"status": "loaded"}},
+                "Gates": {"P5-Architecture": "approved"},
+            }
+        },
+        requested_action="write production code",
+    )
+
+    assert out.parity["status"] == "ok"
 
 
 @pytest.mark.governance
