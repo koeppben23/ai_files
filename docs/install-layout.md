@@ -35,7 +35,7 @@ ${COMMANDS_HOME}/
   BOOTSTRAP.md
   continue.md
   review.md
-  docs/_archive/resume.md
+  docs/resume.md
   README.md
   README-RULES.md
   README-OPENCODE.md

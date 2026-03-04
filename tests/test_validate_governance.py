@@ -822,7 +822,7 @@ def test_addon_rulebooks_use_scorecard_calibration_v211():
 @pytest.mark.governance
 def test_factory_commands_exist_and_define_principal_generation_contracts():
     targets = {
-        "docs/_archive/new_profile.md": [
+        "docs/new_profile.md": [
             "# Governance Factory - New Profile",
             "## Required Input (Binding)",
             "## Generation Contract (Binding)",
@@ -843,7 +843,7 @@ def test_factory_commands_exist_and_define_principal_generation_contracts():
             "Examples (GOOD/BAD)",
             "Troubleshooting with at least 3 concrete symptom->cause->fix entries",
         ],
-        "docs/_archive/new_addon.md": [
+        "docs/new_addon.md": [
             "# Governance Factory - New Addon",
             "## Required Input (Binding)",
             "## Manifest Contract (Binding)",
