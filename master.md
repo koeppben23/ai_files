@@ -17,7 +17,7 @@ Doc-lint standard: `docs/governance/doc_lint.md`.
 Authoritative sources by area (see rulesets/core/rules.yml for machine-readable authoritative data):
 - Routing/validation/transitions: `${COMMANDS_HOME}/phase_api.yaml` and `governance/kernel/*`
 - Session-state shape and invariants: `SESSION_STATE_SCHEMA.md` and `governance/assets/schemas/*`
-- Response envelope and presentation shape: `governance/RESPONSE_ENVELOPE_SCHEMA.json`
+- Response envelope and presentation shape: `governance/assets/catalogs/RESPONSE_ENVELOPE_SCHEMA.json`
 - Blocked reason catalog: `governance/assets/reasons/blocked_reason_catalog.yaml`
 - Bootstrap gating policy: `governance/assets/config/bootstrap_policy.yaml`
 - Path validation rules: `governance/engine/session_state_invariants.py`
@@ -212,7 +212,7 @@ See `${COMMANDS_HOME}/phase_api.yaml` and `SESSION_STATE_SCHEMA.md`.
 ### 2.2.2 Operator Explain Contracts (Binding, read-only)
 
 Explain-command output shape and read-only guarantees are kernel- and schema-owned.
-See `${COMMANDS_HOME}/phase_api.yaml` and `governance/RESPONSE_ENVELOPE_SCHEMA.json`.
+See `${COMMANDS_HOME}/phase_api.yaml` and `governance/assets/catalogs/RESPONSE_ENVELOPE_SCHEMA.json`.
 
 ---
 
@@ -220,7 +220,7 @@ See `${COMMANDS_HOME}/phase_api.yaml` and `governance/RESPONSE_ENVELOPE_SCHEMA.j
 #### Clarification Format for Ambiguity (Policy)
 
 Clarification format is rail-only guidance. Canonical decision UX is kernel-owned.
-See `${COMMANDS_HOME}/phase_api.yaml` and `governance/RESPONSE_ENVELOPE_SCHEMA.json`.
+See `${COMMANDS_HOME}/phase_api.yaml` and `governance/assets/catalogs/RESPONSE_ENVELOPE_SCHEMA.json`.
 
 #### Confidence bands for Auto-Advance (Policy)
 
@@ -230,20 +230,20 @@ See `${COMMANDS_HOME}/phase_api.yaml` and `SESSION_STATE_SCHEMA.md`.
 #### BLOCKED — Recovery Playbook (Output Format)
 
 Blocked output shape and recovery semantics are schema- and kernel-owned.
-See `governance/RESPONSE_ENVELOPE_SCHEMA.json` and `governance/assets/reasons/blocked_reason_catalog.yaml`.
+See `governance/assets/catalogs/RESPONSE_ENVELOPE_SCHEMA.json` and `governance/assets/reasons/blocked_reason_catalog.yaml`.
 
 #### Unified Next Action Footer (Presentation Advisory)
 
-Presentation conventions are rail-only. See `governance/RESPONSE_ENVELOPE_SCHEMA.json`.
+Presentation conventions are rail-only. See `governance/assets/catalogs/RESPONSE_ENVELOPE_SCHEMA.json`.
 
 #### Confidence + Impact Snapshot (Presentation Advisory)
 
-Snapshot fields are schema-owned. See `SESSION_STATE_SCHEMA.md` and `governance/RESPONSE_ENVELOPE_SCHEMA.json`.
+Snapshot fields are schema-owned. See `SESSION_STATE_SCHEMA.md` and `governance/assets/catalogs/RESPONSE_ENVELOPE_SCHEMA.json`.
 
 #### Definition: Explicit gates (Auto-Advance stops)
 
 Explicit gate behavior, outputs, and operator prompts are kernel- and schema-owned.
-See `governance.phase5.gates.v1`, `governance.phase6.qa.v1`, and `governance/RESPONSE_ENVELOPE_SCHEMA.json`.
+See `governance.phase5.gates.v1`, `governance.phase6.qa.v1`, and `governance/assets/catalogs/RESPONSE_ENVELOPE_SCHEMA.json`.
 
 ---
 
@@ -251,7 +251,7 @@ See `governance.phase5.gates.v1`, `governance.phase6.qa.v1`, and `governance/RES
 ### 2.4.1 Session Start Mode Banner (Kernel-Enforced)
 
 Session start banner format and evidence requirements are kernel-owned.
-See `governance/RESPONSE_ENVELOPE_SCHEMA.json` and `SESSION_STATE_SCHEMA.md`.
+See `governance/assets/catalogs/RESPONSE_ENVELOPE_SCHEMA.json` and `SESSION_STATE_SCHEMA.md`.
 
 ### 2.4.2 Architect-Only Autopilot Lifecycle (Policy)
 
@@ -371,12 +371,12 @@ See `${COMMANDS_HOME}/phase_api.yaml` and `SESSION_STATE_SCHEMA.md`.
 ### PHASE 3B-1 — API Logical Validation (Spec-Level)
 
 Spec validation rules, blocked conditions, and output shape are kernel- and schema-owned.
-See `${COMMANDS_HOME}/phase_api.yaml` and `governance/RESPONSE_ENVELOPE_SCHEMA.json`.
+See `${COMMANDS_HOME}/phase_api.yaml` and `governance/assets/catalogs/RESPONSE_ENVELOPE_SCHEMA.json`.
 
 ### PHASE 3B-2 — Contract Validation (Spec ↔ Code)
 
 Contract validation rules, non-blocking conditions, and output shape are kernel- and schema-owned.
-See `${COMMANDS_HOME}/phase_api.yaml` and `governance/RESPONSE_ENVELOPE_SCHEMA.json`.
+See `${COMMANDS_HOME}/phase_api.yaml` and `governance/assets/catalogs/RESPONSE_ENVELOPE_SCHEMA.json`.
 
 ---
 
@@ -384,7 +384,7 @@ See `${COMMANDS_HOME}/phase_api.yaml` and `governance/RESPONSE_ENVELOPE_SCHEMA.j
 
 0. **Phase-4 Entry: Deterministic initialization (BINDING)**
    - Phase-4 entry sequencing, rulebook activation, workspace memory handling, and required outputs are kernel- and schema-owned.
-   - See `${COMMANDS_HOME}/phase_api.yaml`, `SESSION_STATE_SCHEMA.md`, and `governance/RESPONSE_ENVELOPE_SCHEMA.json`.
+   - See `${COMMANDS_HOME}/phase_api.yaml`, `SESSION_STATE_SCHEMA.md`, and `governance/assets/catalogs/RESPONSE_ENVELOPE_SCHEMA.json`.
 
 1. **Understand the requirement:**
    * Parse ticket description
@@ -447,7 +447,7 @@ See `docs/governance/governance_schemas.md` and the schema registry for the auth
 If CONFIDENCE LEVEL < 70% OR if multiple plausible implementations exist, the workflow may ask for clarification using the mandatory format (Section 2.3).
 
 Example clarification format is kernel- and schema-owned.
-See `${COMMANDS_HOME}/phase_api.yaml` and `governance/RESPONSE_ENVELOPE_SCHEMA.json`.
+See `${COMMANDS_HOME}/phase_api.yaml` and `governance/assets/catalogs/RESPONSE_ENVELOPE_SCHEMA.json`.
 
 **Phase 4 exit conditions:**
 * Success: Plan created, CONFIDENCE ≥ 70% → Proceed to Phase 5
@@ -486,7 +486,7 @@ See `${COMMANDS_HOME}/phase_api.yaml` and `SESSION_STATE_SCHEMA.md`.
 
   **Output format (schema: governance.phase5.gates.v1):**
 
-See `docs/governance/governance_schemas.md` and `governance/RESPONSE_ENVELOPE_SCHEMA.json` for the authoritative gate output shape.
+See `docs/governance/governance_schemas.md` and `governance/assets/catalogs/RESPONSE_ENVELOPE_SCHEMA.json` for the authoritative gate output shape.
 
 **Phase 5 gate results:**
 * `architecture-approved`: Plan is sound, proceed to Phase 5.3
@@ -501,7 +501,7 @@ See `${COMMANDS_HOME}/phase_api.yaml` and `SESSION_STATE_SCHEMA.md`.
 
  **Output format (schema: governance.phase5.gates.v1):**
 
-See `docs/governance/governance_schemas.md` and `governance/RESPONSE_ENVELOPE_SCHEMA.json` for the authoritative gate output shape.
+See `docs/governance/governance_schemas.md` and `governance/assets/catalogs/RESPONSE_ENVELOPE_SCHEMA.json` for the authoritative gate output shape.
 
 **Phase 5.3 gate results:**
 * `test-quality-pass`: Tests are sufficient, proceed to Phase 6 (Implementation QA)
@@ -509,7 +509,7 @@ See `docs/governance/governance_schemas.md` and `governance/RESPONSE_ENVELOPE_SC
 ### PHASE 5.4 — Business Rules Compliance (only if Phase 1.5 executed)
 
 Business rules compliance checks, gap handling, and output format are kernel- and schema-owned.
-See `${COMMANDS_HOME}/phase_api.yaml`, `SESSION_STATE_SCHEMA.md`, and `governance/RESPONSE_ENVELOPE_SCHEMA.json`.
+See `${COMMANDS_HOME}/phase_api.yaml`, `SESSION_STATE_SCHEMA.md`, and `governance/assets/catalogs/RESPONSE_ENVELOPE_SCHEMA.json`.
 
 ---
 
@@ -545,7 +545,7 @@ See `${COMMANDS_HOME}/phase_api.yaml` and `SESSION_STATE_SCHEMA.md`.
 
 **Verification obligations (Rail-only Guidance):**
 Verification obligations, change-matrix updates, and review-of-review checks are kernel- and schema-owned.
-See `${COMMANDS_HOME}/phase_api.yaml`, `SESSION_STATE_SCHEMA.md`, and `governance/RESPONSE_ENVELOPE_SCHEMA.json`.
+See `${COMMANDS_HOME}/phase_api.yaml`, `SESSION_STATE_SCHEMA.md`, and `governance/assets/catalogs/RESPONSE_ENVELOPE_SCHEMA.json`.
 
 #### Build Verification Output Contract (Presentation Advisory, schema: governance.phase6.qa.v1)
 
@@ -567,4 +567,3 @@ Response/output constraints are defined in `rules.md` and authoritative schemas.
 `master.md` does not redefine response shape.
 
 ---
-

@@ -431,7 +431,7 @@ Allowed values:
 **Invariants**
 - Default after `/master` is `ARCHITECT`.
 - If `OutputMode = ARCHITECT`, `DecisionSurface` MUST be present and code-producing full diffs are forbidden.
-- `IMPLEMENT` mode requires explicit operator trigger (e.g., `Implement now`).
+- `IMPLEMENT` mode requires explicit operator trigger (e.g., `Switch to IMPLEMENT mode`).
 - `VERIFY` mode is evidence reconciliation only (claim upgrade/reject), not a codegen trigger.
 
 Recommended calibration (rubric; clamp 0–100):

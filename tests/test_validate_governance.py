@@ -1650,7 +1650,7 @@ def test_responsibility_boundary_uses_bindend_vs_nicht_bindend_terms():
 @pytest.mark.governance
 def test_canonical_response_envelope_schema_contract_is_defined():
     schema_path = REPO_ROOT / "governance" / "assets" / "catalogs" / "RESPONSE_ENVELOPE_SCHEMA.json"
-    assert schema_path.exists(), "Missing governance/RESPONSE_ENVELOPE_SCHEMA.json"
+    assert schema_path.exists(), "Missing governance/assets/catalogs/RESPONSE_ENVELOPE_SCHEMA.json"
     schema_text = read_text(schema_path)
 
     schema_required = [

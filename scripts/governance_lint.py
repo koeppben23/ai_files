@@ -370,7 +370,7 @@ def check_customer_script_catalog_contract(issues: list[str]) -> None:
 def check_customer_markdown_exclusion_policy(issues: list[str]) -> None:
     policy_path = ROOT / "governance" / "assets" / "catalogs" / "CUSTOMER_MARKDOWN_EXCLUDE.json"
     if not policy_path.exists():
-        issues.append("governance/CUSTOMER_MARKDOWN_EXCLUDE.json: missing markdown exclusion policy")
+        issues.append("governance/assets/catalogs/CUSTOMER_MARKDOWN_EXCLUDE.json: missing markdown exclusion policy")
         return
 
     payload = read_text(policy_path)
@@ -381,7 +381,7 @@ def check_customer_markdown_exclusion_policy(issues: list[str]) -> None:
     missing = [token for token in required_tokens if token not in payload]
     if missing:
         issues.append(
-            "governance/CUSTOMER_MARKDOWN_EXCLUDE.json: missing required tokens "
+            "governance/assets/catalogs/CUSTOMER_MARKDOWN_EXCLUDE.json: missing required tokens "
             f"{missing}"
         )
 
@@ -691,13 +691,13 @@ def check_response_envelope_schema_keys(issues: list[str]) -> None:
     """Structural check on RESPONSE_ENVELOPE_SCHEMA.json (rescued from check_response_envelope_schema_contract)."""
     schema_path = ROOT / "governance" / "assets" / "catalogs" / "RESPONSE_ENVELOPE_SCHEMA.json"
     if not schema_path.exists():
-        issues.append("governance/RESPONSE_ENVELOPE_SCHEMA.json: file missing")
+        issues.append("governance/assets/catalogs/RESPONSE_ENVELOPE_SCHEMA.json: file missing")
         return
 
     try:
         schema = json.loads(read_text(schema_path))
     except json.JSONDecodeError as exc:
-        issues.append(f"governance/RESPONSE_ENVELOPE_SCHEMA.json: invalid JSON: {exc}")
+        issues.append(f"governance/assets/catalogs/RESPONSE_ENVELOPE_SCHEMA.json: invalid JSON: {exc}")
         return
 
     # Check $id
@@ -705,7 +705,7 @@ def check_response_envelope_schema_keys(issues: list[str]) -> None:
     actual_id = schema.get("$id", "")
     if actual_id != expected_id:
         issues.append(
-            f"governance/RESPONSE_ENVELOPE_SCHEMA.json: expected $id={expected_id!r}, found {actual_id!r}"
+            f"governance/assets/catalogs/RESPONSE_ENVELOPE_SCHEMA.json: expected $id={expected_id!r}, found {actual_id!r}"
         )
 
     # Check required property keys
@@ -713,7 +713,7 @@ def check_response_envelope_schema_keys(issues: list[str]) -> None:
     required_properties = ["status", "session_state", "next_action", "snapshot", "reason_payload", "quick_fix_commands"]
     missing = [k for k in required_properties if k not in properties]
     if missing:
-        issues.append(f"governance/RESPONSE_ENVELOPE_SCHEMA.json: missing property keys {missing}")
+        issues.append(f"governance/assets/catalogs/RESPONSE_ENVELOPE_SCHEMA.json: missing property keys {missing}")
 
 
 def check_factory_contract_json_keys(issues: list[str]) -> None:

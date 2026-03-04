@@ -170,7 +170,7 @@ def print_report(results: dict[str, Any]) -> None:
         print("Next steps:")
         print("  1. Run opencode-governance-bootstrap to begin a governance session")
         print("  2. Provide a task description")
-        print("  3. Say 'Implement now' to proceed with implementation")
+        print("  3. Switch to IMPLEMENT mode to proceed with implementation")
     else:
         print("STATUS: ✗ SETUP REQUIRED")
         print()

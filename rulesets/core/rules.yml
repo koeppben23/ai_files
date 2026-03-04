@@ -13,7 +13,7 @@ authority_index:
   - area: Session-state shape and invariants
     source: SESSION_STATE_SCHEMA.md
   - area: Response envelope and presentation shape
-    source: governance/RESPONSE_ENVELOPE_SCHEMA.json
+    source: governance/assets/catalogs/RESPONSE_ENVELOPE_SCHEMA.json
   - area: Blocked reason catalog
     source: governance/assets/reasons/blocked_reason_catalog.yaml
   - area: Persistence artifacts and targets
@@ -66,7 +66,7 @@ references:
   target: SESSION_STATE_SCHEMA.md
   type: schema
 - id: ref_3
-  target: governance/RESPONSE_ENVELOPE_SCHEMA.json
+  target: governance/assets/catalogs/RESPONSE_ENVELOPE_SCHEMA.json
   type: schema
 - id: ref_4
   target: docs/governance/governance_schemas.md
