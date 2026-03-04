@@ -127,7 +127,8 @@ def test_python_argv_from_command_uses_sys_executable_when_python_alias_missing(
     module = _load_orchestrator_module()
 
     def _fake_which(name: str):
-        if name == "python":
+        # Simulate no python, no py launcher — force fallback to sys.executable
+        if name in ("python", "py"):
             return None
         return f"/usr/bin/{name}"
 
