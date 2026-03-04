@@ -9,12 +9,12 @@
         "status": "WARN",
         "phase": "2",
         "active_gate": "2-profile-detection",
-        "next": "Implement now"
+        "next": "Switch to IMPLEMENT mode"
       },
       "expected": [
         "status: WARN",
         "phase/gate: 2 / 2-profile-detection",
-        "next: Implement now"
+        "next: Switch to IMPLEMENT mode"
       ]
     },
     {

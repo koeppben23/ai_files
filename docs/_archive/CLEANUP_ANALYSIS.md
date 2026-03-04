@@ -54,7 +54,7 @@ Status: ...
 Dies definiert das Output-Format in master.md.
 
 **Richtig:**
-- Output-Format in `governance/RESPONSE_ENVELOPE_SCHEMA.json` oder Kernel-Code
+- Output-Format in `governance/assets/catalogs/RESPONSE_ENVELOPE_SCHEMA.json` oder Kernel-Code
 - master.md verweist nur auf das Schema: "Output MUST conform to RESPONSE_ENVELOPE_SCHEMA"
 
 ### 3. "OpenCode-only" Missverständlich
