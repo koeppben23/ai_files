@@ -6,16 +6,16 @@ This matrix lists machine-readable benchmark packs for active governance profile
 
 ## Benchmark packs
 
-- `governance/BACKEND_JAVA_QUALITY_BENCHMARK_PACK.json`
-- `governance/PYTHON_QUALITY_BENCHMARK_PACK.json`
-- `governance/FRONTEND_ANGULAR_NX_QUALITY_BENCHMARK_PACK.json`
-- `governance/OPENAPI_CONTRACTS_QUALITY_BENCHMARK_PACK.json`
-- `governance/CUCUMBER_BDD_QUALITY_BENCHMARK_PACK.json`
-- `governance/POSTGRES_LIQUIBASE_QUALITY_BENCHMARK_PACK.json`
-- `governance/FRONTEND_CYPRESS_TESTING_QUALITY_BENCHMARK_PACK.json`
-- `governance/FRONTEND_OPENAPI_TS_CLIENT_QUALITY_BENCHMARK_PACK.json`
-- `governance/DOCS_GOVERNANCE_QUALITY_BENCHMARK_PACK.json`
-- `governance/FALLBACK_MINIMUM_QUALITY_BENCHMARK_PACK.json`
+- `governance/assets/catalogs/BACKEND_JAVA_QUALITY_BENCHMARK_PACK.json`
+- `governance/assets/catalogs/PYTHON_QUALITY_BENCHMARK_PACK.json`
+- `governance/assets/catalogs/FRONTEND_ANGULAR_NX_QUALITY_BENCHMARK_PACK.json`
+- `governance/assets/catalogs/OPENAPI_CONTRACTS_QUALITY_BENCHMARK_PACK.json`
+- `governance/assets/catalogs/CUCUMBER_BDD_QUALITY_BENCHMARK_PACK.json`
+- `governance/assets/catalogs/POSTGRES_LIQUIBASE_QUALITY_BENCHMARK_PACK.json`
+- `governance/assets/catalogs/FRONTEND_CYPRESS_TESTING_QUALITY_BENCHMARK_PACK.json`
+- `governance/assets/catalogs/FRONTEND_OPENAPI_TS_CLIENT_QUALITY_BENCHMARK_PACK.json`
+- `governance/assets/catalogs/DOCS_GOVERNANCE_QUALITY_BENCHMARK_PACK.json`
+- `governance/assets/catalogs/FALLBACK_MINIMUM_QUALITY_BENCHMARK_PACK.json`
 
 ## Common contract
 
