@@ -146,6 +146,7 @@ CORE_COMMAND_FILES = {
     "BOOTSTRAP.md",
     "continue.md",
     "review.md",
+    "ticket.md",
     "docs/_archive/resume.md",
     "docs/_archive/resume_prompt.md",
     "docs/_archive/new_profile.md",
@@ -1896,9 +1897,16 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
             python_command=binding_python,
             dry_run=dry_run,
         ),
+        "ticket.md": inject_session_reader_path_for_command(
+            plan.commands_dir,
+            command_markdown="ticket.md",
+            python_command=binding_python,
+            dry_run=dry_run,
+        ),
     }
     print(f"  continue.md session_reader path: {template_injections['continue.md']['status']}")
     print(f"  review.md session_reader path: {template_injections['review.md']['status']}")
+    print(f"  ticket.md session_reader path: {template_injections['ticket.md']['status']}")
 
     # If session reader path was injected, update the SHA256 in copied_entries
     # so the manifest reflects the post-injection content.

@@ -409,6 +409,13 @@
       "remediation_hint": "Provide RollbackStrategy with DataMigrationReversible=true or explicit safety steps."
     },
     {
+      "code": "BLOCKED-P4-INTAKE-MISSING-EVIDENCE",
+      "severity": "blocked",
+      "payload_schema_ref": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Phase 4 intake evidence is missing or incomplete for deterministic routing.",
+      "remediation_hint": "Persist canonical ticket/task input with matching digest via the Phase 4 intake bridge."
+    },
+    {
       "code": "BLOCKED-P6-PREREQUISITES-NOT-MET",
       "severity": "blocked",
       "payload_schema_ref": "governance/assets/schemas/reason_payload_blocked_core.v1.json",

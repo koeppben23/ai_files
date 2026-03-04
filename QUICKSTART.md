@@ -69,6 +69,7 @@ If the model cannot execute the session-reader command (e.g., sandboxed environm
 | `%USERPROFILE%\.config\opencode\bin\opencode-governance-bootstrap.cmd --repo-root C:\path\to\repo` | Bootstrap session (Windows) |
 | `/continue` | Standard Desktop entrypoint after bootstrap |
 | `/review` | Review-only command for lead/staff PR/ticket feedback at Phase 4 |
+| `/ticket` | Persist ticket/task intake evidence and reroute from Phase 4 |
 | `./install/install.sh` | Install/update governance (macOS/Linux, from bundle) |
 | `./install/install.sh --status` | Check installation (macOS/Linux, from bundle) |
 | `./install/install.sh --smoketest` | Run installation smoketest (macOS/Linux, from bundle) |

@@ -73,7 +73,7 @@ def test_phase_router_routes_openapi_from_phase21_to_3a():
         requested_phase="2.1-DecisionPack",
         requested_active_gate="Decision Pack",
         requested_next_gate_condition="Proceed",
-        session_state_document={"SESSION_STATE": {"PersistenceCommitted": True, "workspace_ready_gate_committed": True, "WorkspaceArtifactsCommitted": True, "PointerVerified": True, **RULEBOOK_BASE, "RepoDiscovery": {"Completed": True, "RepoCacheFile": "cache", "RepoMapDigestFile": "digest"}, "repo_capabilities": ["openapi"], "Scope": {"BusinessRules": "not-applicable"}}},
+        session_state_document={"SESSION_STATE": {"PersistenceCommitted": True, "workspace_ready_gate_committed": True, "WorkspaceArtifactsCommitted": True, "PointerVerified": True, **RULEBOOK_BASE, "RepoDiscovery": {"Completed": True, "RepoCacheFile": "cache", "RepoMapDigestFile": "digest"}, "repo_capabilities": ["openapi"], "Scope": {"BusinessRules": "not-applicable"}, "BusinessRules": {"Outcome": "not-applicable", "ExecutionEvidence": True}}},
         repo_is_git_root=True,
     )
     assert routed.phase == "3A-API-Inventory"

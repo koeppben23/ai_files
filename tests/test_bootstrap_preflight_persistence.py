@@ -305,3 +305,73 @@ def test_hydrate_transition_state_sets_mandatory_profile_and_addon_evidence():
     assert state["LoadedRulebooks"]["profile"].endswith("rules.fallback-minimum.yml")
     assert state["LoadedRulebooks"]["addons"]["riskTiering"].endswith("rules.risk-tiering.yml")
     assert state["AddonsEvidence"]["riskTiering"]["status"] == "loaded"
+
+
+@pytest.mark.governance
+def test_detect_repo_profile_python_repo_high_confidence(tmp_path: Path):
+    module = _load_module_with_env({"CI": ""})
+    (tmp_path / "pyproject.toml").write_text("[project]\nname='demo'\n", encoding="utf-8")
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "app.py").write_text("print('x')\n", encoding="utf-8")
+    (tmp_path / "pytest.ini").write_text("[pytest]\n", encoding="utf-8")
+
+    detected = module._detect_repo_profile(tmp_path)
+
+    assert detected["repository_type"] == "python"
+    assert detected["profile_id"] == "backend-python"
+    assert detected["profile_source"] == "auto-detected-single"
+    assert detected["detection_confidence"] in {"high", "medium"}
+
+
+@pytest.mark.governance
+def test_detect_repo_profile_conflict_defaults_to_ambiguous(tmp_path: Path):
+    module = _load_module_with_env({"CI": ""})
+    (tmp_path / "pyproject.toml").write_text("[project]\nname='demo'\n", encoding="utf-8")
+    (tmp_path / "pom.xml").write_text("<project/>\n", encoding="utf-8")
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "app.py").write_text("print('x')\n", encoding="utf-8")
+    (tmp_path / "src" / "Main.java").write_text("class Main {}\n", encoding="utf-8")
+
+    detected = module._detect_repo_profile(tmp_path)
+
+    assert detected["repository_type"] in {"polyglot", "python", "java"}
+    assert detected["profile_id"] in {"fallback-minimum", "backend-python", "backend-java"}
+    if detected["repository_type"] == "polyglot":
+        assert detected["profile_source"] == "ambiguous"
+        assert detected["profile_id"] == "fallback-minimum"
+
+
+@pytest.mark.governance
+def test_hydrate_transition_state_marks_business_rules_unresolved_when_no_evidence(tmp_path: Path):
+    module = _load_module_with_env({"CI": ""})
+    (tmp_path / "README.md").write_text("demo\n", encoding="utf-8")
+    document = {"SESSION_STATE": {"Scope": {}}}
+
+    hydrated = module._hydrate_transition_state(
+        document,
+        repo_fingerprint="abc123def456abc123def456",
+        requested_token="2.1",
+        repo_root=tmp_path,
+    )
+    state = hydrated["SESSION_STATE"]
+
+    assert state["Scope"]["BusinessRules"] == "unresolved"
+    assert state["BusinessRules"]["ExecutionEvidence"] is False
+
+
+@pytest.mark.governance
+def test_hydrate_transition_state_detects_java_repo_type(tmp_path: Path):
+    module = _load_module_with_env({"CI": ""})
+    (tmp_path / "pom.xml").write_text("<project/>\n", encoding="utf-8")
+    document = {"SESSION_STATE": {}}
+
+    hydrated = module._hydrate_transition_state(
+        document,
+        repo_fingerprint="abc123def456abc123def456",
+        requested_token="2",
+        repo_root=tmp_path,
+    )
+    state = hydrated["SESSION_STATE"]
+
+    assert state["Scope"]["RepositoryType"] == "java"
+    assert state["DetectionConfidence"] in {"medium", "high", "low"}
