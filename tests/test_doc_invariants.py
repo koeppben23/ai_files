@@ -570,3 +570,238 @@ class TestCrossFileReviewConsistency:
             "Cross-file /review framing violations:\n" +
             "\n".join(f"  - {v}" for v in violations)
         )
+
+
+# ===========================================================================
+# P2 structural cleanup guard tests
+# ===========================================================================
+
+
+class TestP2AuditMdBindingLabel:
+    """Guard: audit.md must not use bare 'binding' labels."""
+
+    AUDIT_PATH = "governance/assets/catalogs/audit.md"
+
+    def _audit_content(self) -> str:
+        return _read(self.AUDIT_PATH)
+
+    # -- Happy --
+    def test_normative_label_present_reason_key(self) -> None:
+        content = self._audit_content()
+        assert "Reason key semantics (normative for audit scope):" in content
+
+    def test_normative_label_present_deterministic_bridge(self) -> None:
+        content = self._audit_content()
+        assert "Deterministic bridge (normative for audit scope):" in content
+
+    def test_normative_label_present_abuse_resistance(self) -> None:
+        content = self._audit_content()
+        assert "Normative for audit scope; Read-Only Diagnostics" in content
+
+    # -- Bad --
+    def test_no_bare_binding_parenthetical(self) -> None:
+        """'(binding)' or '(Binding)' must not appear."""
+        content = self._audit_content().lower()
+        assert "(binding)" not in content, (
+            "audit.md still contains bare '(binding)' label"
+        )
+
+    def test_no_binding_semicolon_label(self) -> None:
+        """'Binding;' must not appear as a section label."""
+        content = self._audit_content()
+        assert "Binding;" not in content
+
+    # -- Edge --
+    def test_binding_word_in_prose_allowed(self) -> None:
+        """The word 'binding' may still appear in prose (e.g. 'non-binding')."""
+        # This is an edge case: we only forbid the parenthetical label usage.
+        content = self._audit_content()
+        # The word "binding" in "non-binding" or prose is acceptable
+        # We just confirm the file is parseable and our label check works
+        assert "normative for audit scope" in content.lower()
+
+    # -- Corner --
+    def test_audit_md_still_read_only_command(self) -> None:
+        """audit.md must retain Read-Only semantics."""
+        content = self._audit_content()
+        assert "Read-Only" in content
+
+
+class TestP2GovernanceSchemasCleanup:
+    """Guard: governance_schemas.md Draft label removed; path corrected."""
+
+    SCHEMAS_PATH = "docs/governance/governance_schemas.md"
+
+    def _content(self) -> str:
+        return _read(self.SCHEMAS_PATH)
+
+    # -- Happy --
+    def test_heading_has_no_draft_label(self) -> None:
+        content = self._content()
+        first_line = content.split("\n")[0]
+        assert first_line.strip() == "# Governance Schemas"
+
+    def test_response_envelope_path_corrected(self) -> None:
+        content = self._content()
+        assert "governance/assets/catalogs/RESPONSE_ENVELOPE_SCHEMA.json" in content
+
+    # -- Bad --
+    def test_no_draft_in_heading(self) -> None:
+        content = self._content()
+        first_line = content.split("\n")[0]
+        assert "(Draft)" not in first_line
+
+    def test_no_stale_root_path(self) -> None:
+        """Must not reference the old root-level path."""
+        content = self._content()
+        # Check that `governance/RESPONSE_ENVELOPE_SCHEMA.json` without
+        # `assets/catalogs/` prefix does NOT appear.
+        lines = content.split("\n")
+        for line in lines:
+            if "RESPONSE_ENVELOPE_SCHEMA.json" in line:
+                assert "assets/catalogs/" in line, (
+                    f"Stale path found: {line.strip()}"
+                )
+
+    # -- Edge --
+    def test_schema_version_labels_preserved(self) -> None:
+        content = self._content()
+        assert "governance.schemas.v1" in content
+
+    # -- Corner --
+    def test_file_not_empty(self) -> None:
+        content = self._content()
+        assert len(content.strip()) > 50
+
+
+class TestP2CustomerInstallBundleStructure:
+    """Guard: customer-install-bundle-v1.md has H1 and no truncated sections."""
+
+    BUNDLE_PATH = "docs/customer-install-bundle-v1.md"
+
+    def _content(self) -> str:
+        return _read(self.BUNDLE_PATH)
+
+    # -- Happy --
+    def test_has_h1_heading(self) -> None:
+        content = self._content()
+        assert content.startswith("# Customer Install Bundle")
+
+    def test_github_release_section_not_empty(self) -> None:
+        content = self._content()
+        idx = content.find("## GitHub release pipeline")
+        assert idx != -1, "Missing '## GitHub release pipeline' section"
+        after = content[idx + len("## GitHub release pipeline"):].strip()
+        assert len(after) > 5, "GitHub release pipeline section is empty/truncated"
+
+    # -- Bad --
+    def test_no_headingless_start(self) -> None:
+        content = self._content()
+        assert content.strip()[0] == "#", "File must start with a heading"
+
+    # -- Edge --
+    def test_install_sh_section_present(self) -> None:
+        content = self._content()
+        assert "install/install.sh" in content
+
+    def test_install_ps1_section_present(self) -> None:
+        content = self._content()
+        assert "install/install.ps1" in content
+
+    # -- Corner --
+    def test_ci_release_path_section_present(self) -> None:
+        content = self._content()
+        assert "## CI release path" in content
+
+
+class TestP2TicketPhase6Precision:
+    """Guard: ticket.md specifies Phase 6 transition."""
+
+    TICKET_PATH = "ticket.md"
+
+    def _content(self) -> str:
+        return _read(self.TICKET_PATH)
+
+    # -- Happy --
+    def test_phase_6_transition_mentioned(self) -> None:
+        content = self._content()
+        assert "transitions to Phase 6" in content
+
+    # -- Bad --
+    def test_no_ambiguous_approved_only(self) -> None:
+        """Must not say 'gates are approved' without mentioning Phase 6."""
+        content = self._content()
+        for line in content.split("\n"):
+            if "gates are approved" in line:
+                assert "Phase 6" in line, (
+                    f"Line mentions gate approval without Phase 6 target: {line.strip()}"
+                )
+
+    # -- Edge --
+    def test_read_only_rails_statement_preserved(self) -> None:
+        content = self._content()
+        assert "/continue` and `/review` are read-only rails" in content
+
+    # -- Corner --
+    def test_intake_reroute_disclaimer_preserved(self) -> None:
+        content = self._content()
+        assert "Intake reroute is not implementation approval" in content
+
+
+class TestP2StaleFileDeletions:
+    """Guard: stale files must not reappear after deletion."""
+
+    _DELETED_FILES = [
+        "docs/governance/MASTER_SECTION_CLASSIFICATION.md",
+        "docs/governance-customer-scripts.md",
+        "ARCHITECTURE_MIGRATION_STATUS.md",
+        "docs/governance/RAILS_REFACTOR_MAPPING.md",
+    ]
+
+    _MOVED_TO_ARCHIVE = [
+        ("docs/MD_VIOLATION_ANALYSIS.md", "docs/_archive/MD_VIOLATION_ANALYSIS.md"),
+    ]
+
+    # -- Happy --
+    @pytest.mark.parametrize("relpath", _DELETED_FILES)
+    def test_deleted_file_does_not_exist(self, relpath: str) -> None:
+        p = REPO_ROOT / relpath
+        assert not p.exists(), f"Stale file should have been deleted: {relpath}"
+
+    @pytest.mark.parametrize("old,new", _MOVED_TO_ARCHIVE)
+    def test_archived_file_moved(self, old: str, new: str) -> None:
+        assert not (REPO_ROOT / old).exists(), f"Original should not exist: {old}"
+        assert (REPO_ROOT / new).exists(), f"Archive copy missing: {new}"
+
+    # -- Bad --
+    def test_readme_rules_no_rails_refactor_ref(self) -> None:
+        """README-RULES.md must not reference deleted RAILS_REFACTOR_MAPPING.md."""
+        content = _read("README-RULES.md")
+        assert "RAILS_REFACTOR_MAPPING" not in content
+
+    def test_lint_md_python_uses_archive_path(self) -> None:
+        """lint_md_python.py must reference the archived path."""
+        content = _read("scripts/lint_md_python.py")
+        assert "docs/_archive/MD_VIOLATION_ANALYSIS.md" in content
+        assert '"docs/MD_VIOLATION_ANALYSIS.md"' not in content
+
+    def test_fix_md_authority_uses_archive_path(self) -> None:
+        """fix_md_authority_language.py must reference the archived path."""
+        content = _read("scripts/fix_md_authority_language.py")
+        assert "docs/_archive/MD_VIOLATION_ANALYSIS.md" in content
+        assert '"docs/MD_VIOLATION_ANALYSIS.md"' not in content
+
+    # -- Edge --
+    def test_archive_directory_exists(self) -> None:
+        assert (REPO_ROOT / "docs" / "_archive").is_dir()
+
+    # -- Corner --
+    def test_no_dangling_refs_to_master_section_classification(self) -> None:
+        """No non-archived MD file should reference the deleted file."""
+        for p in REPO_ROOT.rglob("*.md"):
+            if "_archive" in str(p):
+                continue
+            content = p.read_text(encoding="utf-8", errors="replace")
+            assert "MASTER_SECTION_CLASSIFICATION.md" not in content, (
+                f"Dangling reference in {p.relative_to(REPO_ROOT)}"
+            )

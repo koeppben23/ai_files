@@ -1620,7 +1620,6 @@ def test_start_mode_mixed_phrase_is_absent_in_core_docs():
 def test_governance_boundary_and_thematic_rails_docs_exist():
     required = [
         REPO_ROOT / "docs" / "governance" / "RESPONSIBILITY_BOUNDARY.md",
-        REPO_ROOT / "docs" / "governance" / "RAILS_REFACTOR_MAPPING.md",
         REPO_ROOT / "docs" / "governance" / "rails" / "planning.md",
         REPO_ROOT / "docs" / "governance" / "rails" / "implementation.md",
         REPO_ROOT / "docs" / "governance" / "rails" / "testing.md",
@@ -1632,16 +1631,12 @@ def test_governance_boundary_and_thematic_rails_docs_exist():
 
 
 @pytest.mark.governance
-def test_rails_refactor_mapping_contains_required_tables():
-    mapping = read_text(REPO_ROOT / "docs" / "governance" / "RAILS_REFACTOR_MAPPING.md")
-
-    required_tokens = [
-        "| rule_id | rule_summary | canonical_source | secondary_references |",
-        "| original_section | target_location | action |",
-        "| file | classification | note |",
-    ]
-    missing = [t for t in required_tokens if t not in mapping]
-    assert not missing, "RAILS_REFACTOR_MAPPING.md missing required mapping tables:\n" + "\n".join([f"- {m}" for m in missing])
+def test_rails_refactor_mapping_removed():
+    """RAILS_REFACTOR_MAPPING.md was deleted as stale; verify it stays removed."""
+    path = REPO_ROOT / "docs" / "governance" / "RAILS_REFACTOR_MAPPING.md"
+    assert not path.exists(), (
+        f"RAILS_REFACTOR_MAPPING.md should have been deleted but still exists at {path}"
+    )
 
 
 @pytest.mark.governance

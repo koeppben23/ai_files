@@ -1,4 +1,4 @@
-# Governance Schemas (Draft)
+# Governance Schemas
 
 schema: governance.schemas.v1
 
@@ -7,7 +7,7 @@ schema: governance.schemas.v1
 schema: governance.response_envelope.v1
 
 Reference:
-- `governance/RESPONSE_ENVELOPE_SCHEMA.json`
+- `governance/assets/catalogs/RESPONSE_ENVELOPE_SCHEMA.json`
 
 ## Compact Mode (Presentation)
 

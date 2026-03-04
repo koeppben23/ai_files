@@ -1,3 +1,5 @@
+# Customer Install Bundle (v1)
+
 - `install/install.sh`
   - validates checksum of `governance-<version>.zip` against `artifacts/SHA256SUMS.txt`
   - extracts zip to temporary local folder
@@ -19,3 +21,5 @@
 4. upload `dist/*` as `governance-dist` artifact
 
 ## GitHub release pipeline
+
+> Placeholder — release pipeline steps to be documented when CI/CD is finalized.

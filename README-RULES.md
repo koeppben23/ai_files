@@ -11,7 +11,6 @@ It does not define independent runtime behavior.
 - Core technical rulebook: `rules.md`
 - Session-state schema: `SESSION_STATE_SCHEMA.md`
 - Responsibility boundary: `docs/governance/RESPONSIBILITY_BOUNDARY.md`
-- Rails refactor mapping: `docs/governance/RAILS_REFACTOR_MAPPING.md`
 
 ## Audience
 
