@@ -84,8 +84,11 @@ If the model cannot execute the session-reader command (e.g., sandboxed environm
 ~/.config/opencode/bin/opencode-governance-bootstrap --repo-root /absolute/path/to/your-repo
 # Open OpenCode Desktop in /absolute/path/to/your-repo
 /continue
+# If /continue lands at Phase 4 (Ticket Intake), enter Plan Mode first
+# Provide ticket/task text in chat
 "<ticket/task text>"
 /ticket
+# Plan Mode continues until plan is approved; then exit Plan Mode
 /review
 # After P5 gates are approved: implement changes
 ```

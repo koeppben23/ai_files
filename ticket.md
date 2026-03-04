@@ -1,6 +1,9 @@
 # Governance Ticket
 
+<!-- rail-classification: MUTATING, GATE-EVALUATION -->
+
 Use this command to persist Phase-4 intake evidence.
+Chat text or a file path alone does not change phase or pass any gate; the intake command below must be executed to write evidence and reroute state.
 
 Two accepted inputs:
 - ticket/task text in chat

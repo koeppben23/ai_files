@@ -1241,6 +1241,7 @@ OPENCODE_INSTRUCTIONS = [
     "commands/master.md",
     "commands/rules.md",
     "commands/SESSION_STATE_SCHEMA.md",
+    "commands/README-OPENCODE.md",
 ]
 
 SESSION_READER_PLACEHOLDER = "{{SESSION_READER_PATH}}"
