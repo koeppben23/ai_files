@@ -108,6 +108,7 @@ Runtime state files removed on uninstall:
 - `${WORKSPACES_HOME}/<fingerprint>/workspace-memory.yaml`
 - `${WORKSPACES_HOME}/<fingerprint>/decision-pack.md`
 - `${WORKSPACES_HOME}/<fingerprint>/business-rules.md`
+- `${WORKSPACES_HOME}/<fingerprint>/business-rules-status.md`
 - `${WORKSPACES_HOME}/<fingerprint>/plan-record.json`
 - `${WORKSPACES_HOME}/<fingerprint>/plan-record-archive/` (archived plan records)
 - `${WORKSPACES_HOME}/<fingerprint>/evidence/` (evidence directory)

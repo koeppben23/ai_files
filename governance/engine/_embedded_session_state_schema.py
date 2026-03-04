@@ -84,7 +84,7 @@ _HARDCODED_FALLBACK_SCHEMA: dict[str, object] = {
                         "Repository": {"type": "string"},
                         "RepositoryType": {"type": "string"},
                         "ExternalAPIs": {"type": "array", "items": {"type": "string"}},
-                        "BusinessRules": {"type": "string", "enum": ["not-applicable", "pending", "extracted"]},
+                        "BusinessRules": {"type": "string", "enum": ["not-applicable", "pending", "extracted", "deferred", "skipped", "unresolved"]},
                     },
                     "additionalProperties": True,
                 },

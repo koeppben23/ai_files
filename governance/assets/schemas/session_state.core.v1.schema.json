@@ -90,7 +90,7 @@
             },
             "BusinessRules": {
               "type": "string",
-              "enum": ["not-applicable", "pending", "extracted"]
+              "enum": ["not-applicable", "pending", "extracted", "deferred", "skipped", "unresolved"]
             }
           },
           "additionalProperties": true

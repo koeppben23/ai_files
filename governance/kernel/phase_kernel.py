@@ -187,21 +187,23 @@ def _business_rules_scope(state: Mapping[str, object]) -> str:
 
 def _business_rules_discovery_resolved(state: Mapping[str, object]) -> bool:
     business_rules = state.get("BusinessRules")
+    execution_evidence = False
+    outcome = ""
     if isinstance(business_rules, Mapping):
-        decision = business_rules.get("Decision")
-        if isinstance(decision, str) and decision.strip().lower() == "skip":
-            return True
-        inventory_status = business_rules.get("InventoryFileStatus")
-        if isinstance(inventory_status, str) and inventory_status.strip().lower() in {"written", "unchanged", "normalized"}:
-            return True
-    br_scope = _business_rules_scope(state)
-    if br_scope in {"not-applicable", "extracted", "skipped"}:
+        evidence_token = business_rules.get("ExecutionEvidence")
+        execution_evidence = isinstance(evidence_token, bool) and evidence_token
+        outcome_token = business_rules.get("Outcome")
+        if isinstance(outcome_token, str):
+            outcome = outcome_token.strip().lower()
+
+    if execution_evidence and outcome in {"extracted", "not-applicable", "deferred", "skipped"}:
         return True
-    gates = state.get("Gates")
-    if isinstance(gates, Mapping):
-        p54 = gates.get("P5.4-BusinessRules")
-        if isinstance(p54, str) and p54.strip().lower() == "not-applicable":
-            return True
+
+    br_scope = _business_rules_scope(state)
+    if execution_evidence and br_scope in {"not-applicable", "extracted", "skipped", "deferred"}:
+        return True
+    if br_scope == "unresolved":
+        return False
     return False
 
 
@@ -216,8 +218,8 @@ def _phase_1_5_executed(state: Mapping[str, object]) -> bool:
         executed = business_rules.get("Executed")
         if isinstance(executed, bool) and executed:
             return True
-    inventory = _read_nested_key(state, "BusinessRules.Inventory.sha256")
-    if isinstance(inventory, str) and inventory.strip():
+    execution_evidence = _read_nested_key(state, "BusinessRules.ExecutionEvidence")
+    if isinstance(execution_evidence, bool) and execution_evidence:
         return True
     return False
 
@@ -370,17 +372,24 @@ def _validate_phase_1_3_foundation(state: Mapping[str, object]) -> tuple[bool, s
 
 
 def _ticket_or_task_recorded(state: Mapping[str, object]) -> bool:
-    for key in ("TicketRecordDigest", "TaskRecordDigest", "Ticket", "Task"):
-        value = state.get(key)
-        if isinstance(value, str) and value.strip():
-            return True
-    feature_complexity = state.get("FeatureComplexity")
-    if isinstance(feature_complexity, Mapping):
-        cls = feature_complexity.get("Class")
-        reason = feature_complexity.get("Reason")
-        depth = feature_complexity.get("PlanningDepth")
-        if all(isinstance(token, str) and token.strip() for token in (cls, reason, depth)):
-            return True
+    ticket = state.get("Ticket")
+    ticket_digest = state.get("TicketRecordDigest")
+    task = state.get("Task")
+    task_digest = state.get("TaskRecordDigest")
+
+    has_ticket = isinstance(ticket, str) and bool(ticket.strip())
+    has_ticket_digest = isinstance(ticket_digest, str) and bool(ticket_digest.strip())
+    has_task = isinstance(task, str) and bool(task.strip())
+    has_task_digest = isinstance(task_digest, str) and bool(task_digest.strip())
+
+    if has_ticket and has_ticket_digest:
+        return True
+    if has_task and has_task_digest:
+        return True
+
+    # Legacy compatibility: digest-only states remain routable.
+    if has_ticket_digest or has_task_digest:
+        return True
     return False
 
 

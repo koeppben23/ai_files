@@ -134,6 +134,12 @@
       "how_to_fix": "Complete required P5 outcomes before entering Phase 6: architecture approved, P5.3 pass, and applicable P5.4/P5.6 compliance.",
       "copy_paste_command": null,
       "docs_link": "docs/operator-runbook.md#49-phase-gates"
+    },
+    "BLOCKED-P4-INTAKE-MISSING-EVIDENCE": {
+      "summary": "Phase 4 intake evidence missing",
+      "how_to_fix": "Persist canonical ticket/task input with matching digest using phase4_intake_persist, then rerun routing.",
+      "copy_paste_command": "${PYTHON_COMMAND} -m governance.entrypoints.phase4_intake_persist --ticket-text \"<ticket>\"",
+      "docs_link": "docs/phases.md#phase-4"
     }
   },
   "default_unmapped": {

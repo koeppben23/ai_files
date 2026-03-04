@@ -172,6 +172,7 @@ class TestPhase2And1Routing:
         """After Phase 2.1 with business rules resolved, ALWAYS route to Phase 3A (per docs/phases.md)."""
         doc = _minimal_session_state(
             Scope={"BusinessRules": "not-applicable"},
+            BusinessRules={"Outcome": "not-applicable", "ExecutionEvidence": True},
         )
         result = route_phase(
             requested_phase="2.1",
@@ -184,9 +185,10 @@ class TestPhase2And1Routing:
         assert result.source == "phase-2.1-to-3a"
         assert "3A" in result.next_gate_condition
 
-    def test_phase_2_1_skips_phase_1_5_when_business_rules_inventory_exists(self):
+    def test_phase_2_1_skips_phase_1_5_when_business_rules_outcome_has_execution_evidence(self):
         doc = _minimal_session_state(
-            BusinessRules={"InventoryFileStatus": "written"},
+            Scope={"BusinessRules": "not-applicable"},
+            BusinessRules={"Outcome": "not-applicable", "ExecutionEvidence": True},
         )
         result = route_phase(
             requested_phase="2.1",
@@ -198,10 +200,39 @@ class TestPhase2And1Routing:
         assert result.phase == "3A-API-Inventory"
         assert result.source == "phase-2.1-to-3a"
 
+    def test_phase_2_1_requires_phase_1_5_when_only_inventory_file_status_exists(self):
+        doc = _minimal_session_state(
+            BusinessRules={"InventoryFileStatus": "written"},
+        )
+        result = route_phase(
+            requested_phase="2.1",
+            requested_active_gate="",
+            requested_next_gate_condition="Continue",
+            session_state_document=doc,
+            repo_is_git_root=True,
+        )
+        assert result.phase == "1.5-BusinessRules"
+        assert result.source == "phase-1.5-routing-required"
+
+    def test_phase_2_1_requires_phase_1_5_when_only_p54_not_applicable_gate_exists(self):
+        doc = _minimal_session_state(
+            Gates={"P5.4-BusinessRules": "not-applicable"},
+        )
+        result = route_phase(
+            requested_phase="2.1",
+            requested_active_gate="",
+            requested_next_gate_condition="Continue",
+            session_state_document=doc,
+            repo_is_git_root=True,
+        )
+        assert result.phase == "1.5-BusinessRules"
+        assert result.source == "phase-1.5-routing-required"
+
     def test_phase_2_1_routes_to_3a_even_with_apis(self):
         """After Phase 2.1 with APIs detected, route to Phase 3A (same path, 3A decides next step)."""
         doc = _minimal_session_state(
             Scope={"BusinessRules": "not-applicable"},
+            BusinessRules={"Outcome": "not-applicable", "ExecutionEvidence": True},
             AddonsEvidence={"openapi": {"detected": True}},
         )
         result = route_phase(
@@ -376,7 +407,7 @@ class TestPhase5Routing:
     def test_phase_5_3_routes_to_5_4_when_business_rules_executed(self):
         doc = _minimal_session_state(
             phase="5.3",
-            BusinessRules={"Decision": "execute", "Inventory": {"sha256": "abc"}},
+            BusinessRules={"Decision": "execute", "Inventory": {"sha256": "abc"}, "ExecutionEvidence": True},
         )
         result = route_phase(
             requested_phase="5.3",
