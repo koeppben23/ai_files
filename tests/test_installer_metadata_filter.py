@@ -31,6 +31,7 @@ def test_installer_collectors_exclude_filesystem_metadata(tmp_path: Path):
     (source / "governance" / "engine").mkdir(parents=True, exist_ok=True)
     (source / "governance" / "__MACOSX").mkdir(parents=True, exist_ok=True)
     (source / "scripts").mkdir(parents=True, exist_ok=True)
+    (source / ".opencode" / "plugins").mkdir(parents=True, exist_ok=True)
     (source / "templates" / "github-actions").mkdir(parents=True, exist_ok=True)
 
     # valid files
@@ -47,6 +48,7 @@ def test_installer_collectors_exclude_filesystem_metadata(tmp_path: Path):
     )
     (source / "governance" / "engine" / "orchestrator.py").write_text("pass\n", encoding="utf-8")
     (source / "scripts" / "workflow_template_factory.py").write_text("print('ok')\n", encoding="utf-8")
+    (source / ".opencode" / "plugins" / "new_work_session_plugin.py").write_text("print('plugin')\n", encoding="utf-8")
     (source / "templates" / "github-actions" / "template_catalog.json").write_text(
         '{"schema":"governance.workflow-template-catalog.v1","templates":[{"file":"templates/github-actions/governance-sample.yml"}]}\n',
         encoding="utf-8",
@@ -60,6 +62,7 @@ def test_installer_collectors_exclude_filesystem_metadata(tmp_path: Path):
     (source / "governance" / "__MACOSX" / "file.py").write_text("meta", encoding="utf-8")
     (source / "governance" / "engine" / "._orchestrator.py").write_text("meta", encoding="utf-8")
     (source / "scripts" / "._workflow_template_factory.py").write_text("meta", encoding="utf-8")
+    (source / ".opencode" / "plugins" / ".DS_Store").write_text("meta", encoding="utf-8")
     (source / "templates" / "github-actions" / ".DS_Store").write_text("meta", encoding="utf-8")
 
     root_files = module.collect_command_root_files(source)
@@ -67,6 +70,7 @@ def test_installer_collectors_exclude_filesystem_metadata(tmp_path: Path):
     addon_files = module.collect_profile_addon_manifests(source)
     runtime_files = module.collect_governance_runtime_files(source)
     customer_script_files = module.collect_customer_script_files(source, strict=True)
+    plugin_files = module.collect_opencode_plugin_files(source)
     workflow_template_files = module.collect_workflow_template_files(source, strict=True)
 
     assert [p.relative_to(source).as_posix() for p in root_files] == ["master.md"]
@@ -79,6 +83,9 @@ def test_installer_collectors_exclude_filesystem_metadata(tmp_path: Path):
     ]
     assert [p.relative_to(source).as_posix() for p in customer_script_files] == [
         "scripts/workflow_template_factory.py"
+    ]
+    assert [p.relative_to(source).as_posix() for p in plugin_files] == [
+        ".opencode/plugins/new_work_session_plugin.py"
     ]
     assert [p.relative_to(source).as_posix() for p in workflow_template_files] == [
         "templates/github-actions/governance-sample.yml",

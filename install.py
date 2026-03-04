@@ -111,6 +111,10 @@ TEMPLATES_DIR_NAME = "templates"
 TEMPLATE_CATALOG_REL = Path("templates/github-actions/template_catalog.json")
 TEMPLATE_CATALOG_SCHEMA = "governance.workflow-template-catalog.v1"
 
+# Optional OpenCode plugins copied into <config_root>/plugins/**
+OPENCODE_PLUGIN_SOURCE_DIR = Path(".opencode/plugins")
+OPENCODE_PLUGINS_DIR_NAME = "plugins"
+
 # Customer script catalog controlling which scripts are shipped for customers
 CUSTOMER_SCRIPT_CATALOG_REL = Path("governance/assets/catalogs/CUSTOMER_SCRIPT_CATALOG.json")
 CUSTOMER_SCRIPT_CATALOG_SCHEMA = "governance.customer-script-catalog.v1"
@@ -226,6 +230,7 @@ def ensure_dirs(config_root: Path, dry_run: bool) -> None:
     dirs = [
         config_root,
         config_root / "bin",
+        config_root / OPENCODE_PLUGINS_DIR_NAME,
         config_root / "commands",
         config_root / "commands" / "scripts",
         config_root / "commands" / "templates",
@@ -674,6 +679,12 @@ def collect_unsafe_source_symlinks(source_dir: Path) -> list[str]:
     templates_dir = source_dir / TEMPLATES_DIR_NAME
     if templates_dir.exists():
         for p in templates_dir.rglob("*"):
+            if p.is_symlink():
+                unsafe.add(str(p.relative_to(source_dir)).replace("\\", "/"))
+
+    plugins_dir = source_dir / OPENCODE_PLUGIN_SOURCE_DIR
+    if plugins_dir.exists():
+        for p in plugins_dir.rglob("*"):
             if p.is_symlink():
                 unsafe.add(str(p.relative_to(source_dir)).replace("\\", "/"))
 
@@ -1199,6 +1210,19 @@ def collect_profile_addon_manifests(source_dir: Path) -> list[Path]:
         [
             p
             for p in profiles_src_dir.rglob("*.addon.yml")
+            if p.is_file() and not p.is_symlink() and not _is_forbidden_metadata_path(p, source_dir)
+        ]
+    )
+
+
+def collect_opencode_plugin_files(source_dir: Path) -> list[Path]:
+    plugins_src_dir = source_dir / OPENCODE_PLUGIN_SOURCE_DIR
+    if not plugins_src_dir.exists():
+        return []
+    return sorted(
+        [
+            p
+            for p in plugins_src_dir.rglob("*.py")
             if p.is_file() and not p.is_symlink() and not _is_forbidden_metadata_path(p, source_dir)
         ]
     )
@@ -1843,6 +1867,36 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
         else:
             print(f"  ⚠️  {rel} missing (skipping)")
 
+    # copy optional OpenCode plugins to global plugins dir
+    plugin_files = collect_opencode_plugin_files(plan.source_dir)
+    if plugin_files:
+        print("\n📋 Copying OpenCode plugins to config/plugins/ ...")
+        plugins_dst_root = plan.config_root / OPENCODE_PLUGINS_DIR_NAME
+        for pf in plugin_files:
+            rel = pf.relative_to(plan.source_dir)
+            rel_plugin = rel.relative_to(OPENCODE_PLUGIN_SOURCE_DIR)
+            dst = plugins_dst_root / rel_plugin
+            entry = copy_with_optional_backup(
+                src=pf,
+                dst=dst,
+                backup_enabled=backup_enabled,
+                backup_root=backup_root,
+                dry_run=dry_run,
+                overwrite=force,
+            )
+            entry["rel"] = str((Path(OPENCODE_PLUGINS_DIR_NAME) / rel_plugin).as_posix())
+            entry["rel_base"] = "config"
+            copied_entries.append(entry)
+            status = entry["status"]
+            if status in ("planned-copy", "copied"):
+                print(f"  ✅ {rel} -> {entry['rel']} ({status})")
+            elif status == "skipped-exists":
+                print(f"  ⏭️  {rel} exists (use --force to overwrite)")
+            else:
+                print(f"  ⚠️  {rel} missing (skipping)")
+    else:
+        print("\nℹ️  No OpenCode plugins found under .opencode/plugins/ (skipping).")
+
     # validation (critical installed files)
     print("\n🔍 Validating installation...")
     # YAML rulebooks are authoritative; MD files are optional guidance
@@ -1925,11 +1979,16 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
     for e in copied_entries:
         if e["status"] not in ("copied", "planned-copy", "patched", "planned-patch"):
             continue
+        rel_base = str(e.get("rel_base") or "commands")
+        rel_value = e.get("rel")
+        if not rel_value:
+            base_dir = plan.config_root if rel_base == "config" else plan.commands_dir
+            rel_value = str(Path(e["dst"]).resolve().relative_to(base_dir.resolve())) if "dst" in e else None
         installed_files.append(
             {
                 "dst": e["dst"],
-                "rel": str(Path(e["dst"]).resolve().relative_to(plan.commands_dir.resolve())) if "dst" in e else None,
-                "rel_base": "commands",
+                "rel": rel_value,
+                "rel_base": rel_base,
                 "src": e["src"],
                 "sha256": e.get("sha256", "unknown"),
                 "backup": e.get("backup"),
@@ -2054,6 +2113,12 @@ def uninstall(
                 targets.append(plan.commands_dir / rel)
         except Exception:
             pass
+
+        # OpenCode plugins copied under config_root/plugins
+        for src in collect_opencode_plugin_files(plan.source_dir):
+            rel = src.relative_to(plan.source_dir)
+            rel_plugin = rel.relative_to(OPENCODE_PLUGIN_SOURCE_DIR)
+            targets.append(plan.config_root / OPENCODE_PLUGINS_DIR_NAME / rel_plugin)
 
         # Launcher scripts in bin/
         bin_dir = plan.config_root / "bin"
@@ -2201,6 +2266,7 @@ def uninstall(
         plan.commands_dir / "_backup",
         plan.config_root / "bin",
         plan.config_root / "workspaces",
+        plan.config_root / OPENCODE_PLUGINS_DIR_NAME,
         plan.config_root / ".installer-backups",
         plan.config_root / "logs",
     ]
@@ -2264,9 +2330,11 @@ def delete_targets(targets: Iterable[Path], plan: InstallPlan, dry_run: bool) ->
             t_resolved = t.resolve()
             commands_resolved = plan.commands_dir.resolve()
             bin_resolved = (plan.config_root / "bin").resolve()
+            plugins_resolved = (plan.config_root / OPENCODE_PLUGINS_DIR_NAME).resolve()
             
-            # Allow deletion in commands_dir, config_root/bin, or explicit installer-owned config files.
-            allowed_bases = [commands_resolved, bin_resolved]
+            # Allow deletion in commands_dir, config_root/bin, config_root/plugins,
+            # or explicit installer-owned config files.
+            allowed_bases = [commands_resolved, bin_resolved, plugins_resolved]
             is_under_allowed = any(
                 base_resolved in t_resolved.parents or t_resolved == base_resolved
                 for base_resolved in allowed_bases
@@ -2287,7 +2355,7 @@ def delete_targets(targets: Iterable[Path], plan: InstallPlan, dry_run: bool) ->
                     component="installer-delete-guard",
                     observed_value={"target": str(t), "resolvedTarget": str(t_resolved)},
                     expected_constraint=(
-                        f"Target must be under {commands_resolved}, {bin_resolved}, "
+                        f"Target must be under {commands_resolved}, {bin_resolved}, {plugins_resolved}, "
                         f"or in explicit installer-owned config files"
                     ),
                     remediation="Inspect manifest/targets and rerun uninstall.",

@@ -44,6 +44,7 @@ def _iter_manifest_entries(files_obj, commands: Path):
     bin_base = (commands.parent / "bin").resolve()
     config_base = commands.parent.resolve()
     allowed_config_files = {config_base / "INSTALL_HEALTH.json"}
+    plugins_base = (commands.parent / "plugins").resolve()
 
     def assert_under_base(p: Path, label: str) -> None:
         p = p.resolve()
@@ -54,10 +55,14 @@ def _iter_manifest_entries(files_obj, commands: Path):
             try:
                 p.relative_to(bin_base)
             except ValueError:
-                if p not in allowed_config_files:
-                    raise AssertionError(
-                        f"{label} escapes commands/bin dir: {p} (base={base}, bin={bin_base})"
-                    )
+                try:
+                    p.relative_to(plugins_base)
+                except ValueError:
+                    if p not in allowed_config_files:
+                        raise AssertionError(
+                            f"{label} escapes commands/bin/plugins dirs: {p} "
+                            f"(base={base}, bin={bin_base}, plugins={plugins_base})"
+                        )
         assert p.exists(), f"{label} missing on disk: {p}"
 
     def looks_like_sha256(s: object) -> bool:
@@ -149,6 +154,7 @@ def test_full_install_reinstall_uninstall_flow(tmp_path: Path):
         commands / "scripts" / "rulebook_factory.py",
         commands / "templates" / "github-actions" / "template_catalog.json",
         commands / "templates" / "github-actions" / "governance-pr-gate-shadow-live-verify.yml",
+        config_root / "plugins" / "new_work_session_plugin.py",
         manifest,
         paths_file,
     ]
@@ -240,6 +246,7 @@ def test_full_install_reinstall_uninstall_flow(tmp_path: Path):
         commands / "master.md",
         commands / "rules.md",
         commands / "BOOTSTRAP.md",
+        config_root / "plugins" / "new_work_session_plugin.py",
         manifest,
         paths_file,  # this should be removed for a normal install-owned paths file
         config_root / "INSTALL_HEALTH.json",
