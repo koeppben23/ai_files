@@ -411,6 +411,35 @@ def test_uninstall_removes_docs_and_governance_even_with_manifest_drift(tmp_path
 
 
 @pytest.mark.installer
+def test_uninstall_purges_legacy_governnce_and_docs_leftovers(tmp_path: Path):
+    config_root = tmp_path / "opencode-config-legacy-governnce"
+    r = run_install(["--force", "--no-backup", "--config-root", str(config_root)])
+    assert r.returncode == 0, f"install failed:\n{r.stderr}\n{r.stdout}"
+
+    commands = _commands_dir(config_root)
+    legacy = commands / "governnce" / "nested"
+    docs_extra = commands / "docs" / "legacy"
+    gov_extra = commands / "governance" / "legacy"
+    legacy.mkdir(parents=True, exist_ok=True)
+    docs_extra.mkdir(parents=True, exist_ok=True)
+    gov_extra.mkdir(parents=True, exist_ok=True)
+
+    (legacy / "leftover.txt").write_text("old typo dir\n", encoding="utf-8")
+    (docs_extra / "leftover.md").write_text("old docs\n", encoding="utf-8")
+    (gov_extra / "leftover.py").write_text("print('old')\n", encoding="utf-8")
+
+    r = run_install(["--uninstall", "--force", "--config-root", str(config_root)])
+    assert r.returncode == 0, f"uninstall failed:\n{r.stderr}\n{r.stdout}"
+
+    assert not (commands / "governnce").exists(), "legacy commands/governnce tree should be removed"
+
+    docs_leftovers = [p.as_posix() for p in (commands / "docs").rglob("*") if p.is_file()] if (commands / "docs").exists() else []
+    gov_leftovers = [p.as_posix() for p in (commands / "governance").rglob("*") if p.is_file()] if (commands / "governance").exists() else []
+    assert not docs_leftovers, f"docs files left behind after uninstall: {docs_leftovers[:20]}"
+    assert not gov_leftovers, f"governance files left behind after uninstall: {gov_leftovers[:20]}"
+
+
+@pytest.mark.installer
 def test_install_patches_existing_installer_owned_paths_with_missing_keys_without_force(tmp_path: Path):
     config_root = tmp_path / "opencode-config-paths-patch"
     commands = _commands_dir(config_root)
