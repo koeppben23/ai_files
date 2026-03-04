@@ -28,8 +28,8 @@ def _relative_posix(path: Path, root: Path) -> str:
 
 def validate_against_schema(rulebook_path: Path, schema_path: Path) -> list[str]:
     """Validate a YAML rulebook against the JSON schema."""
-    schema = json.loads(schema_path.read_text())
-    rulebook = yaml.safe_load(rulebook_path.read_text())
+    schema = json.loads(schema_path.read_text(encoding="utf-8"))
+    rulebook = yaml.safe_load(rulebook_path.read_text(encoding="utf-8"))
     
     from jsonschema import Draft202012Validator
     validator = Draft202012Validator(schema)
@@ -86,7 +86,7 @@ def build_ruleset_artifacts_v2(*, repo_root: Path, ruleset_id: str, version: str
         raise ValueError(f"schema validation failed:\n" + "\n".join(validation_errors))
     
     # Extract schema version from schema file for manifest
-    schema_data = json.loads(schema_path.read_text())
+    schema_data = json.loads(schema_path.read_text(encoding="utf-8"))
     rulebook_schema_version = schema_data.get("version", "unknown")
     
     addons = _collect_files(repo_root / "profiles" / "addons", "*.addon.yml")

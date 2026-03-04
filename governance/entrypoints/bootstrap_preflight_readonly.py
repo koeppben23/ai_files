@@ -210,7 +210,18 @@ def _load_tool_catalog() -> dict[str, object]:
 
 
 def _normalize_tool_command(token: str) -> str:
-    return token.replace("${PYTHON_COMMAND}", PYTHON_COMMAND).strip()
+    """Replace ``${PYTHON_COMMAND}`` with the resolved python path.
+
+    If the resolved path contains spaces (e.g.
+    ``C:\\Program Files\\Python311\\python.exe``) it is wrapped in
+    double-quotes so that :func:`_split_verify_command` can keep it as
+    a single argv token.  Multi-token commands like ``py -3`` never
+    contain path separators so they remain unquoted.
+    """
+    cmd = PYTHON_COMMAND
+    if " " in cmd and not cmd.startswith('"') and ("\\" in cmd or "/" in cmd):
+        cmd = f'"{cmd}"'
+    return token.replace("${PYTHON_COMMAND}", cmd).strip()
 
 
 def _split_verify_command(verify_command: str) -> list[str]:
@@ -418,9 +429,24 @@ def emit_permission_probes() -> None:
     )
 
 
+def _python_command_argv() -> list[str]:
+    """Split :data:`PYTHON_COMMAND` into a proper argv prefix.
+
+    Multi-token commands like ``py -3`` must become ``["py", "-3"]``
+    so that :func:`render_command_profiles` quotes each token
+    individually rather than treating ``"py -3"`` as a single
+    executable name.  Single-path values like
+    ``C:\\Python311\\python.exe`` stay as one element.
+
+    The function does **not** use ``shlex.split`` because the
+    architecture guard forbids it in this file.
+    """
+    return _split_verify_command(PYTHON_COMMAND) or [sys.executable]
+
+
 def bootstrap_command_argv(repo_fp: str | None) -> list[str]:
     repo_value = repo_fp if repo_fp else "<repo_fingerprint>"
-    return [PYTHON_COMMAND, "-m", "governance.entrypoints.bootstrap_session_state", "--repo-fingerprint", repo_value]
+    return [*_python_command_argv(), "-m", "governance.entrypoints.bootstrap_session_state", "--repo-fingerprint", repo_value]
 
 
 def bootstrap_command(repo_fp: str | None) -> str:

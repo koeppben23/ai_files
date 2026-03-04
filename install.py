@@ -1536,7 +1536,7 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
     if governance_phase.exists():
         try:
             phase_yaml_target.parent.mkdir(parents=True, exist_ok=True)
-            phase_yaml_target.write_text(governance_phase.read_text(), encoding="utf-8")
+            phase_yaml_target.write_text(governance_phase.read_text(encoding="utf-8"), encoding="utf-8")
             print(f"  ✅ Copied governance phase_api.yaml to {phase_yaml_target}")
         except Exception:
             pass
@@ -1564,7 +1564,7 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
             if cand.exists():
                 try:
                     phase_yaml_target.parent.mkdir(parents=True, exist_ok=True)
-                    phase_yaml_target.write_text(cand.read_text(), encoding="utf-8")
+                    phase_yaml_target.write_text(cand.read_text(encoding="utf-8"), encoding="utf-8")
                     print(f"  ✅ Copied missing phase_api.yaml to {phase_yaml_target}")
                     break
                 except Exception:
