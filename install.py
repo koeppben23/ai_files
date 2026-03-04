@@ -1322,19 +1322,34 @@ def inject_session_reader_path_for_command(
     reader_path = commands_dir / "governance" / "entrypoints" / "session_reader.py"
     concrete_path = str(reader_path)
 
+    # Quote the python command if it is a single-token path that contains
+    # spaces (e.g. 'C:\Program Files\Python311\python.exe').
+    # Multi-token commands like 'py -3' must NOT be quoted as a unit.
+    safe_python = python_command
+    if " " in safe_python and not (safe_python.startswith('"') and safe_python.endswith('"')):
+        # Distinguish a single filesystem path with spaces from a multi-token
+        # command.  shlex.split cannot reliably tell these apart because an
+        # unquoted space is always a word boundary.  Instead, use a simple
+        # heuristic: if the value contains a path separator (/ or \) it is
+        # almost certainly a single path, not a multi-arg command.  True
+        # multi-token commands like 'py -3' never contain path separators.
+        _has_path_sep = ('\\' in safe_python or '/' in safe_python)
+        if _has_path_sep:
+            safe_python = f'"{safe_python}"'
+
     new_content = content
     if has_reader_placeholder or has_python_placeholder:
         if has_reader_placeholder:
             new_content = new_content.replace(SESSION_READER_PLACEHOLDER, concrete_path)
         if has_python_placeholder:
-            new_content = new_content.replace(PYTHON_COMMAND_PLACEHOLDER, python_command)
+            new_content = new_content.replace(PYTHON_COMMAND_PLACEHOLDER, safe_python)
     else:
         legacy_pattern = re.compile(
             r"(?m)^(?P<indent>\s*)(?:python(?:3)?|py(?:\s+-3)?)\s+[\"\'][^\"\']*session_reader\.py[\"\']\s*$"
         )
         if legacy_pattern.search(content):
             new_content = legacy_pattern.sub(
-                lambda m: f"{m.group('indent')}{python_command} \"{concrete_path}\"",
+                lambda m: f"{m.group('indent')}{safe_python} \"{concrete_path}\"",
                 content,
                 count=1,
             )

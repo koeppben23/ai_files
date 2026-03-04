@@ -213,6 +213,44 @@ def _normalize_tool_command(token: str) -> str:
     return token.replace("${PYTHON_COMMAND}", PYTHON_COMMAND).strip()
 
 
+def _split_verify_command(verify_command: str) -> list[str]:
+    """Split a verify_command string into a safe argv list.
+
+    Uses simple whitespace splitting which is sufficient for the verify
+    commands in the tool catalog (e.g. ``git --version``,
+    ``python --version``).  Paths with spaces from ``${PYTHON_COMMAND}``
+    substitution are handled by keeping quoted tokens intact: if the first
+    character is a double-quote, the token extends to the closing quote.
+    """
+    token = str(verify_command or "").strip()
+    if not token:
+        return []
+    # Simple parser: respect double-quoted segments for paths with spaces
+    parts: list[str] = []
+    i = 0
+    n = len(token)
+    while i < n:
+        # skip whitespace
+        while i < n and token[i] in (' ', '\t'):
+            i += 1
+        if i >= n:
+            break
+        if token[i] == '"':
+            # quoted segment
+            j = token.find('"', i + 1)
+            if j < 0:
+                j = n
+            parts.append(token[i + 1 : j])
+            i = j + 1
+        else:
+            j = i
+            while j < n and token[j] not in (' ', '\t'):
+                j += 1
+            parts.append(token[i:j])
+            i = j
+    return parts
+
+
 def _tool_inventory() -> tuple[list[str], list[str], list[dict[str, str]]]:
     payload = _load_tool_catalog()
     required_now: list[str] = []
@@ -251,10 +289,13 @@ def _tool_inventory() -> tuple[list[str], list[str], list[dict[str, str]]]:
 def _probe_tool_version(verify_command: str) -> str | None:
     if not verify_command:
         return None
+    argv = _split_verify_command(verify_command)
+    if not argv:
+        return None
     try:
         proc = subprocess.run(
-            verify_command,
-            shell=True,
+            argv,
+            shell=False,
             text=True,
             capture_output=True,
             check=False,
@@ -557,7 +598,8 @@ def run_persistence_hook() -> dict[str, object]:
     output_mode = os.getenv("OPENCODE_BOOTSTRAP_OUTPUT", "final").strip().lower()
     mode = _effective_mode()
     hook_argv = [sys.executable, "-m", "governance.entrypoints.bootstrap_persistence_hook"]
-    hook_command = " ".join(hook_argv)
+    _hook_profiles = render_command_profiles(hook_argv)
+    hook_command = str(_hook_profiles.get("cmd" if os.name == "nt" else "bash") or " ".join(hook_argv))
 
     if not writes_allowed():
         log_path = _emit_persistence_gate_failure(
