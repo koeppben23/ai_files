@@ -189,6 +189,7 @@ def test_release_archives_layout_and_contents_policy(built_artifacts):
         # - profiles/addons/*.addon.yml
         # - governance/entrypoints/*.py runtime helpers
         # - cli/*.py local bootstrap runtime package
+        # - .opencode/plugins/*.py desktop session hooks
         # - scripts/*.py listed in CUSTOMER_SCRIPT_CATALOG ship_in_release
         # - templates/github-actions/*.yml listed in workflow template catalog
         for n in files:
@@ -207,6 +208,8 @@ def test_release_archives_layout_and_contents_policy(built_artifacts):
             if rel.startswith("bootstrap/") and Path(name).suffix.lower() == ".py":
                 continue
             if rel.startswith("cli/") and Path(name).suffix.lower() == ".py":
+                continue
+            if rel.startswith(".opencode/plugins/") and Path(name).suffix.lower() == ".py":
                 continue
             if rel == "governance/VERSION":
                 continue
