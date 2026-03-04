@@ -67,9 +67,20 @@ def test_phase_router_allows_phase_2_1_with_persistence_committed() -> None:
             "WorkspaceReadyGateCommitted": True,
             "WorkspaceArtifactsCommitted": True,
             "PointerVerified": True,
-            "LoadedRulebooks": {"core": "${COMMANDS_HOME}/master.md"},
-            "RulebookLoadEvidence": {"core": "${COMMANDS_HOME}/master.md"},
-            "AddonsEvidence": {},
+            "ActiveProfile": "profile.fallback-minimum",
+            "LoadedRulebooks": {
+                "core": "${COMMANDS_HOME}/master.md",
+                "profile": "${COMMANDS_HOME}/rulesets/profiles/rules.fallback-minimum.yml",
+                "templates": "${COMMANDS_HOME}/master.md",
+                "addons": {
+                    "riskTiering": "${COMMANDS_HOME}/rulesets/profiles/rules.risk-tiering.yml",
+                },
+            },
+            "RulebookLoadEvidence": {
+                "core": "${COMMANDS_HOME}/master.md",
+                "profile": "${COMMANDS_HOME}/rulesets/profiles/rules.fallback-minimum.yml",
+            },
+            "AddonsEvidence": {"riskTiering": {"status": "loaded"}},
             "RepoDiscovery": {"Completed": True, "RepoCacheFile": "cache", "RepoMapDigestFile": "digest"},
             "phase_transition_evidence": True,
         }

@@ -4,6 +4,7 @@ Copyright 2026 Benjamin Fuchs. All rights reserved. See LICENSE.
 """
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 import pytest
@@ -14,6 +15,9 @@ from install import (
     inject_session_reader_path_for_command,
 )
 from tests.util import REPO_ROOT
+
+# Platform-aware python command for inject tests (string substitution only).
+_TEST_PYTHON_CMD = sys.executable
 
 
 @pytest.mark.governance
@@ -43,6 +47,21 @@ def test_review_template_no_hard_stop_semantics() -> None:
 
 
 @pytest.mark.governance
+def test_review_template_bash_code_block_present() -> None:
+    """review.md must contain a ```bash code block for _extract_first_step_command()."""
+    review_path = REPO_ROOT / "review.md"
+    content = review_path.read_text(encoding="utf-8")
+    assert "```bash" in content, (
+        "review.md must contain a ```bash code block. "
+        "This is required by _extract_first_step_command() in E2E tests "
+        "and by LLM tool-use parsing."
+    )
+    assert "```" in content[content.index("```bash") + 7:], (
+        "review.md bash code block must be properly closed with ```"
+    )
+
+
+@pytest.mark.governance
 def test_review_template_three_tier_fallback() -> None:
     """review.md must contain the three-tier fallback contract."""
     review_path = REPO_ROOT / "review.md"
@@ -67,6 +86,17 @@ def test_review_template_three_tier_fallback() -> None:
 
 
 @pytest.mark.governance
+def test_review_template_minimum_snapshot_fields_documented() -> None:
+    """Fallback instructions in review.md must mention the minimum required snapshot fields."""
+    review_path = REPO_ROOT / "review.md"
+    content = review_path.read_text(encoding="utf-8")
+    for field in ("phase", "next", "active_gate", "next_gate_condition"):
+        assert field in content, (
+            f"review.md fallback must mention required snapshot field '{field}'"
+        )
+
+
+@pytest.mark.governance
 def test_review_injection_replaces_placeholders(tmp_path: Path) -> None:
     commands_dir = tmp_path / "commands"
     (commands_dir / "governance" / "entrypoints").mkdir(parents=True)
@@ -83,7 +113,7 @@ def test_review_injection_replaces_placeholders(tmp_path: Path) -> None:
     result = inject_session_reader_path_for_command(
         commands_dir,
         command_markdown="review.md",
-        python_command="python3",
+        python_command=_TEST_PYTHON_CMD,
         dry_run=False,
     )
     assert result["status"] == "injected"

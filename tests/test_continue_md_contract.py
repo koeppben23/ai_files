@@ -15,6 +15,7 @@ Copyright 2026 Benjamin Fuchs. All rights reserved. See LICENSE.
 from __future__ import annotations
 
 import os
+import sys
 from pathlib import Path
 
 import re
@@ -27,6 +28,11 @@ from install import (
     inject_session_reader_path,
 )
 from tests.util import REPO_ROOT
+
+# Platform-aware python command for inject tests.  These tests do string
+# substitution only (no execution), but using sys.executable avoids confusion
+# when reading test output on Windows where ``python3`` does not exist.
+_TEST_PYTHON_CMD = sys.executable
 
 
 # ---------------------------------------------------------------------------
@@ -104,6 +110,17 @@ class TestSourceTemplate:
             assert field in self.content, (
                 f"continue.md fallback must mention required snapshot field '{field}'"
             )
+
+    def test_bash_code_block_present(self) -> None:
+        """Source template must contain a ```bash code block for _extract_first_step_command()."""
+        assert "```bash" in self.content, (
+            "continue.md must contain a ```bash code block. "
+            "This is required by _extract_first_step_command() in E2E tests "
+            "and by LLM tool-use parsing."
+        )
+        assert "```" in self.content[self.content.index("```bash") + 7:], (
+            "continue.md bash code block must be properly closed with ```"
+        )
 
     def test_three_tier_fallback_ordering(self) -> None:
         """The three tiers must appear in order: preferred command, user paste, proceed without."""
@@ -220,7 +237,7 @@ class TestInjectSessionReaderPath:
     def test_replaces_placeholder(self, commands_dir: Path) -> None:
         """Placeholder is replaced with concrete path."""
         self._write_template(commands_dir)
-        result = inject_session_reader_path(commands_dir, python_command="python3", dry_run=False)
+        result = inject_session_reader_path(commands_dir, python_command=_TEST_PYTHON_CMD, dry_run=False)
         assert result["status"] == "injected"
 
         content = (commands_dir / "continue.md").read_text(encoding="utf-8")
@@ -230,7 +247,7 @@ class TestInjectSessionReaderPath:
     def test_injected_path_is_correct(self, commands_dir: Path) -> None:
         """Injected path points to governance/entrypoints/session_reader.py."""
         self._write_template(commands_dir)
-        inject_session_reader_path(commands_dir, python_command="python3", dry_run=False)
+        inject_session_reader_path(commands_dir, python_command=_TEST_PYTHON_CMD, dry_run=False)
 
         content = (commands_dir / "continue.md").read_text(encoding="utf-8")
         expected_path = str(commands_dir / "governance" / "entrypoints" / "session_reader.py")
@@ -239,7 +256,7 @@ class TestInjectSessionReaderPath:
     def test_injected_path_is_absolute(self, commands_dir: Path) -> None:
         """Injected path is an absolute path."""
         self._write_template(commands_dir)
-        inject_session_reader_path(commands_dir, python_command="python3", dry_run=False)
+        inject_session_reader_path(commands_dir, python_command=_TEST_PYTHON_CMD, dry_run=False)
 
         content = (commands_dir / "continue.md").read_text(encoding="utf-8")
         # The path should be absolute — starts with / on Unix or drive letter on Windows
@@ -252,13 +269,13 @@ class TestInjectSessionReaderPath:
         continue_md = self._write_template(commands_dir)
         original = continue_md.read_text(encoding="utf-8")
 
-        result = inject_session_reader_path(commands_dir, python_command="python3", dry_run=True)
+        result = inject_session_reader_path(commands_dir, python_command=_TEST_PYTHON_CMD, dry_run=True)
         assert result["status"] == "planned-inject"
         assert continue_md.read_text(encoding="utf-8") == original
 
     def test_missing_continue_md(self, commands_dir: Path) -> None:
         """Missing continue.md is handled gracefully."""
-        result = inject_session_reader_path(commands_dir, python_command="python3", dry_run=False)
+        result = inject_session_reader_path(commands_dir, python_command=_TEST_PYTHON_CMD, dry_run=False)
         assert result["status"] == "skipped-missing"
 
     def test_no_placeholder_skipped(self, commands_dir: Path) -> None:
@@ -266,7 +283,7 @@ class TestInjectSessionReaderPath:
         continue_md = commands_dir / "continue.md"
         continue_md.write_text("# Already injected\npython /concrete/path\n", encoding="utf-8")
 
-        result = inject_session_reader_path(commands_dir, python_command="python3", dry_run=False)
+        result = inject_session_reader_path(commands_dir, python_command=_TEST_PYTHON_CMD, dry_run=False)
         assert result["status"] == "skipped-no-placeholder"
 
     def test_legacy_python_reader_command_is_upgraded(self, commands_dir: Path) -> None:
@@ -277,15 +294,16 @@ class TestInjectSessionReaderPath:
             encoding="utf-8",
         )
 
-        result = inject_session_reader_path(commands_dir, python_command="python3", dry_run=False)
+        result = inject_session_reader_path(commands_dir, python_command=_TEST_PYTHON_CMD, dry_run=False)
         assert result["status"] == "injected"
         content = continue_md.read_text(encoding="utf-8")
-        assert f'python3 "{legacy_reader}"' in content
+        assert f'{_TEST_PYTHON_CMD}' in content
+        assert str(legacy_reader) in content
 
     def test_preserves_other_content(self, commands_dir: Path) -> None:
         """Other content in continue.md is not altered."""
         self._write_template(commands_dir)
-        inject_session_reader_path(commands_dir, python_command="python3", dry_run=False)
+        inject_session_reader_path(commands_dir, python_command=_TEST_PYTHON_CMD, dry_run=False)
 
         content = (commands_dir / "continue.md").read_text(encoding="utf-8")
         assert "# Governance Continue" in content
@@ -295,10 +313,10 @@ class TestInjectSessionReaderPath:
     def test_idempotent(self, commands_dir: Path) -> None:
         """Running twice produces the same result (second run is a no-op)."""
         self._write_template(commands_dir)
-        inject_session_reader_path(commands_dir, python_command="python3", dry_run=False)
+        inject_session_reader_path(commands_dir, python_command=_TEST_PYTHON_CMD, dry_run=False)
         content_after_first = (commands_dir / "continue.md").read_text(encoding="utf-8")
 
-        result = inject_session_reader_path(commands_dir, python_command="python3", dry_run=False)
+        result = inject_session_reader_path(commands_dir, python_command=_TEST_PYTHON_CMD, dry_run=False)
         assert result["status"] == "skipped-no-placeholder"
         content_after_second = (commands_dir / "continue.md").read_text(encoding="utf-8")
         assert content_after_first == content_after_second
@@ -308,3 +326,82 @@ class TestInjectSessionReaderPath:
         inject_session_reader_path(commands_dir, python_command="py -3", dry_run=False)
         content = (commands_dir / "continue.md").read_text(encoding="utf-8")
         assert 'py -3 "' in content
+
+
+# ---------------------------------------------------------------------------
+# Python command quoting tests for inject_session_reader_path_for_command
+# ---------------------------------------------------------------------------
+
+class TestPythonCommandQuoting:
+    """Verify that inject_session_reader_path_for_command quotes python paths correctly.
+
+    The installer must:
+    - Quote single-token paths that contain spaces (e.g. Program Files)
+    - NOT double-quote already-quoted paths
+    - NOT quote paths without spaces
+    - NOT quote multi-token commands like 'py -3' as a single unit
+    """
+
+    @pytest.fixture()
+    def commands_dir(self, tmp_path: Path) -> Path:
+        cmd = tmp_path / "commands"
+        cmd.mkdir()
+        (cmd / "governance" / "entrypoints").mkdir(parents=True)
+        return cmd
+
+    def _write_template(self, commands_dir: Path, name: str = "continue.md") -> Path:
+        md = commands_dir / name
+        md.write_text(
+            f'{PYTHON_COMMAND_PLACEHOLDER} "{SESSION_READER_PLACEHOLDER}"\n',
+            encoding="utf-8",
+        )
+        return md
+
+    def test_path_with_spaces_gets_quoted(self, commands_dir: Path) -> None:
+        """A single-token path containing spaces must be wrapped in double quotes."""
+        self._write_template(commands_dir)
+        python_cmd = r"C:\Program Files\Python311\python.exe"
+        inject_session_reader_path(commands_dir, python_command=python_cmd, dry_run=False)
+        content = (commands_dir / "continue.md").read_text(encoding="utf-8")
+        assert f'"{python_cmd}"' in content, (
+            "Single-token path with spaces must be quoted"
+        )
+
+    def test_already_quoted_path_not_double_quoted(self, commands_dir: Path) -> None:
+        """An already-quoted path must not be double-quoted."""
+        self._write_template(commands_dir)
+        python_cmd = r'"C:\Program Files\Python311\python.exe"'
+        inject_session_reader_path(commands_dir, python_command=python_cmd, dry_run=False)
+        content = (commands_dir / "continue.md").read_text(encoding="utf-8")
+        # Must appear exactly once — no extra layer of quotes
+        assert content.count(r'"C:\Program Files\Python311\python.exe"') == 1, (
+            "Already-quoted path must not be double-quoted"
+        )
+
+    def test_path_without_spaces_not_quoted(self, commands_dir: Path) -> None:
+        """A simple path without spaces must NOT be quoted."""
+        self._write_template(commands_dir)
+        python_cmd = r"C:\Python311\python.exe"
+        inject_session_reader_path(commands_dir, python_command=python_cmd, dry_run=False)
+        content = (commands_dir / "continue.md").read_text(encoding="utf-8")
+        # The python command should appear without wrapping quotes
+        assert f'{python_cmd} "' in content, (
+            "Path without spaces must not be quoted"
+        )
+        # Verify it does NOT have an extra layer of quotes
+        assert f'"{python_cmd}"' not in content, (
+            "Path without spaces must not be wrapped in quotes"
+        )
+
+    def test_multi_token_command_not_quoted(self, commands_dir: Path) -> None:
+        """A multi-token command like 'py -3' must NOT be quoted as a single unit."""
+        self._write_template(commands_dir)
+        python_cmd = "py -3"
+        inject_session_reader_path(commands_dir, python_command=python_cmd, dry_run=False)
+        content = (commands_dir / "continue.md").read_text(encoding="utf-8")
+        assert 'py -3 "' in content, (
+            "Multi-token command must appear unquoted"
+        )
+        assert '"py -3"' not in content, (
+            "Multi-token command must NOT be quoted as a single unit"
+        )
