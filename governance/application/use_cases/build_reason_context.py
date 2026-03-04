@@ -123,7 +123,7 @@ def build_reason_context(
             "requested_action": requested_action or "none",
             "phase": phase,
             "active_gate": active_gate,
-            "policy": "phase-4-planning-only-no-code-output",
+            "policy": "phase-4-5-review-no-code-output-before-p5-architecture",
             "pointers": [target_path],
         }
     elif parity_reason_code == BLOCKED_FINGERPRINT_MISMATCH:

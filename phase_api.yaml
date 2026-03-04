@@ -151,8 +151,8 @@ phases:
       - when: ticket_present
         next: "5"
         source: "phase-4-to-5-ticket-intake"
-        active_gate: "Implementation Gate"
-        next_gate_condition: "Ticket/task evidence captured; continue to Phase 5 implementation gate"
+        active_gate: "Architecture Review Gate"
+        next_gate_condition: "Ticket/task evidence captured; continue to Phase 5 architecture review gate"
       - when: default
         next: "4"
         source: "phase-4-awaiting-ticket-intake"
@@ -160,9 +160,9 @@ phases:
         next_gate_condition: "Provide ticket/task details to continue from Phase 4 to Phase 5"
 
   - token: "5"
-    phase: "5-Implementation"
-    active_gate: "Implementation Gate"
-    next_gate_condition: "Execute implementation with governance evidence."
+    phase: "5-ArchitectureReview"
+    active_gate: "Architecture Review Gate"
+    next_gate_condition: "Review the Phase 4 plan; re-enter manually after plan revisions until P5 gates are approved."
     next: "5.3"
     route_strategy: "stay"
 

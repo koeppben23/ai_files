@@ -99,7 +99,8 @@ def test_phase4_intake_good_chat_text_routes_to_phase5(tmp_path: Path, monkeypat
     assert isinstance(state["TicketRecordDigest"], str) and state["TicketRecordDigest"]
     assert state["phase4_intake_evidence"] is True
     assert state["phase4_intake_source"] == "phase4-intake-bridge"
-    assert str(state.get("Phase") or "").startswith("5")
+    assert state["Phase"] == "5-ArchitectureReview"
+    assert state["active_gate"] == "Architecture Review Gate"
 
 
 @pytest.mark.governance
@@ -119,7 +120,8 @@ def test_phase4_intake_good_file_input_routes_to_phase5(tmp_path: Path, monkeypa
     state = payload["SESSION_STATE"]
     assert state["Ticket"] == "Implement from file"
     assert isinstance(state["TicketRecordDigest"], str) and state["TicketRecordDigest"]
-    assert str(state.get("Phase") or "").startswith("5")
+    assert state["Phase"] == "5-ArchitectureReview"
+    assert state["active_gate"] == "Architecture Review Gate"
 
 
 @pytest.mark.governance

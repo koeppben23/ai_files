@@ -332,7 +332,10 @@ def validate_phase_gate_prerequisites(state: Mapping[str, object]) -> tuple[str,
 
     errors: list[str] = []
 
-    if phase.startswith("5") and phase not in ("5", "5-Architecture"):
+    phase_normalized = phase.strip().lower()
+    is_phase5_review = phase_normalized in {"5", "5-architecture", "5-architecturereview", "5-review"}
+
+    if phase.startswith("5") and not is_phase5_review:
         if isinstance(gates, dict):
             p5_arch = gates.get("P5-Architecture")
             if p5_arch != "approved":
