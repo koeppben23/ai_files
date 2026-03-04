@@ -15,6 +15,7 @@
 - At Phase 4 (Ticket Intake), use Plan Mode first for every new ticket/task before implementation
 - At Phase 4, use `/review` when you need a lead/staff review-only pass with paste-ready PR feedback
 - Use `/resume` only for explicit interrupted-session recovery
+- If the model cannot execute the session-reader command, it will ask for a pasted snapshot (see `README-OPENCODE.md`)
 
 For OpenCode Desktop lifecycle and command details, see `README-OPENCODE.md`.
 

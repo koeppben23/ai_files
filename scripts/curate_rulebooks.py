@@ -12,7 +12,7 @@ from typing import Optional, List, Dict, Any
 
 def curate_rulebook(path: Path) -> Dict[str, Any]:
     """Apply curation fixes to a rulebook YAML."""
-    data = yaml.safe_load(path.read_text())
+    data = yaml.safe_load(path.read_text(encoding="utf-8"))
     
     if data is None:
         return data
@@ -101,12 +101,12 @@ def main(argv: list[str] | None = None) -> int:
     
     curated = 0
     for yaml_file in sorted(profiles_dir.glob("*.yml")):
-        original = yaml_file.read_text()
+        original = yaml_file.read_text(encoding="utf-8")
         curated_data = curate_rulebook(yaml_file)
         curated_yaml = yaml.dump(curated_data, sort_keys=False, allow_unicode=True, default_flow_style=False, width=1000)
         
         if original != curated_yaml:
-            yaml_file.write_text(curated_yaml)
+            yaml_file.write_text(curated_yaml, encoding="utf-8")
             curated += 1
             print(f"Curated: {yaml_file.name}")
     

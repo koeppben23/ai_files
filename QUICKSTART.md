@@ -61,6 +61,7 @@ After bootstrap succeeds, open OpenCode Desktop in the same repository and start
 This reuses the persisted session state from bootstrap and avoids duplicate initialization.
 If `/continue` lands at Phase 4 (Ticket Intake), start in Plan Mode for every new ticket/task.
 Use `/review` in Phase 4 when you want review-only output at lead/staff depth (no implementation).
+If the model cannot execute the session-reader command (e.g., sandboxed environment), it will ask you to paste the command output or proceed with conversation context only.
 
 | Command | Purpose |
 |---------|---------|

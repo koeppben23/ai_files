@@ -72,6 +72,24 @@ ${PYTHON_COMMAND} $env:USERPROFILE\.config\opencode\commands\scripts\render_resp
 - `BLOCKED-REPO-IDENTITY-RESOLUTION`: ensure current directory is a git repo and `git` is available in `PATH`.
 - `NOT_VERIFIED-MISSING-EVIDENCE` or `NOT_VERIFIED-EVIDENCE-STALE`: refresh/provide evidence and rerun.
 
+## Model Cannot Execute the Session-Reader Command
+
+`/continue` and `/review` use a three-tier resume contract:
+
+| Tier | Trigger | Behavior |
+|------|---------|----------|
+| Preferred | Model can execute local commands | Runs the `session_reader.py` command from the bash block |
+| Fallback A | Sandboxed environment or model policy prevents execution | Asks the user to paste session-reader output or a snapshot with `phase`, `next`, `active_gate`, `next_gate_condition` |
+| Fallback B | No snapshot available | Proceeds using conversation context only; states assumptions explicitly |
+
+**Compatibility matrix:**
+
+| Model | Windows | macOS / Linux |
+|-------|---------|---------------|
+| Claude Opus | Preferred or Fallback A/B | Preferred or Fallback A/B |
+| Codex | Fallback A or B (sandboxed) | Fallback A or B (sandboxed) |
+| OpenCode Desktop | Preferred (local execution) | Preferred (local execution) |
+
 ## Uninstall and State Cleanup
 
 Uninstall removes all governance runtime state in addition to installed files.
