@@ -402,6 +402,8 @@ def _should_include_file(
     # Local bootstrap runtime package.
     if rel.startswith("cli/") and p.suffix.lower() == ".py":
         return True
+    if rel.startswith(".opencode/plugins/") and p.suffix.lower() == ".py":
+        return True
     if rel == "governance/VERSION":
         return True
     if rel.startswith("docs/"):
@@ -433,6 +435,7 @@ def collect_release_files(
     Allowlist strategy:
       - include: install.py, LICENSE*, LICENCE*, *.md, *.json,
         profiles/addons/*.addon.yml, governance/** (runtime),
+        .opencode/plugins/*.py,
         scripts listed in governance/assets/catalogs/CUSTOMER_SCRIPT_CATALOG.json with ship_in_release=true,
         workflow template .yml files listed in templates/github-actions/template_catalog.json
       - exclude: .git, .github, dist, tests, caches
