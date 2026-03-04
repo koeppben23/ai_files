@@ -303,6 +303,23 @@ blocked_reasons:
       - "Construct valid option set"
     message_template: "Decision gate missing required input."
 
+  BLOCKED-P4-INTAKE-MISSING-EVIDENCE:
+    reason_code: "BLOCKED-P4-INTAKE-MISSING-EVIDENCE"
+    surface: "state"
+    category: "gate"
+    trigger_description: "Phase 4 intake evidence is missing or incomplete for deterministic routing"
+    required_inputs:
+      - "Canonical ticket or task text"
+      - "Matching TicketRecordDigest and/or TaskRecordDigest"
+    quick_fix_commands:
+      - "${PYTHON_COMMAND} -m governance.entrypoints.phase4_intake_persist --ticket-text \"...\""
+    resume_pointer: "Phase 4 - Ticket Input Gate"
+    recovery_steps:
+      - "Provide non-empty ticket or task input"
+      - "Persist intake via phase4_intake_persist"
+      - "Re-run phase routing"
+    message_template: "Phase 4 blocked: intake evidence missing. Persist canonical ticket/task with matching digest."
+
   BLOCKED-P6-PREREQUISITES-NOT-MET:
     reason_code: "BLOCKED-P6-PREREQUISITES-NOT-MET"
     surface: "state"

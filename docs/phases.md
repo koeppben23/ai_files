@@ -132,6 +132,14 @@ Phase 3 API validation is **optional** and does NOT block code generation. The g
 | P5.6-RollbackSafety | 5.6 | Conditional | When rollback-sensitive changes exist |
 | P6-ImplementationQA | 6 | Unconditional | Requires `ready-for-pr` |
 
+## Phase 4 Intake Contract
+
+- Inputs may come from chat text or a ticket file path, but both must use the same local intake writer.
+- Phase progression is unlocked only by persisted intake evidence (`Ticket`/`Task` with matching digest fields).
+- `phase4_intake_evidence=true` is supporting metadata and never sufficient by itself.
+- `/continue` and `/review` remain read-only rails and do not mutate intake state.
+- `FeatureComplexity` can be persisted as supporting metadata but does not unlock Phase 4 on its own.
+
 ## Key SESSION_STATE Fields by Phase
 
 | Phase | Key SESSION_STATE Additions |

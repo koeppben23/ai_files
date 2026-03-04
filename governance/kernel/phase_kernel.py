@@ -375,17 +375,24 @@ def _validate_phase_1_3_foundation(state: Mapping[str, object]) -> tuple[bool, s
 
 
 def _ticket_or_task_recorded(state: Mapping[str, object]) -> bool:
-    for key in ("TicketRecordDigest", "TaskRecordDigest", "Ticket", "Task"):
-        value = state.get(key)
-        if isinstance(value, str) and value.strip():
-            return True
-    feature_complexity = state.get("FeatureComplexity")
-    if isinstance(feature_complexity, Mapping):
-        cls = feature_complexity.get("Class")
-        reason = feature_complexity.get("Reason")
-        depth = feature_complexity.get("PlanningDepth")
-        if all(isinstance(token, str) and token.strip() for token in (cls, reason, depth)):
-            return True
+    ticket = state.get("Ticket")
+    ticket_digest = state.get("TicketRecordDigest")
+    task = state.get("Task")
+    task_digest = state.get("TaskRecordDigest")
+
+    has_ticket = isinstance(ticket, str) and bool(ticket.strip())
+    has_ticket_digest = isinstance(ticket_digest, str) and bool(ticket_digest.strip())
+    has_task = isinstance(task, str) and bool(task.strip())
+    has_task_digest = isinstance(task_digest, str) and bool(task_digest.strip())
+
+    if has_ticket and has_ticket_digest:
+        return True
+    if has_task and has_task_digest:
+        return True
+
+    # Legacy compatibility: digest-only states remain routable.
+    if has_ticket_digest or has_task_digest:
+        return True
     return False
 
 

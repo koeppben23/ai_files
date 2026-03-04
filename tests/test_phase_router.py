@@ -376,7 +376,7 @@ class TestPhase5Routing:
     def test_phase_5_3_routes_to_5_4_when_business_rules_executed(self):
         doc = _minimal_session_state(
             phase="5.3",
-            BusinessRules={"Decision": "execute", "Inventory": {"sha256": "abc"}},
+            BusinessRules={"Decision": "execute", "Inventory": {"sha256": "abc"}, "ExecutionEvidence": True},
         )
         result = route_phase(
             requested_phase="5.3",

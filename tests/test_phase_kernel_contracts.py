@@ -157,6 +157,75 @@ def test_kernel_routes_2_1_to_1_5_when_business_rules_scope_unresolved(tmp_path:
     assert result.source == "phase-1.5-routing-required"
 
 
+def test_kernel_phase4_does_not_route_with_intake_metadata_only(tmp_path: Path) -> None:
+    commands_home = tmp_path / "commands"
+    _write_phase_api(commands_home)
+
+    doc = {
+        "SESSION_STATE": {
+            "Phase": "4",
+            "PersistenceCommitted": True,
+            "WorkspaceReadyGateCommitted": True,
+            "WorkspaceArtifactsCommitted": True,
+            "PointerVerified": True,
+            **RULEBOOK_BASE,
+            "phase4_intake_evidence": True,
+            "phase4_intake_source": "phase4-intake-bridge",
+        }
+    }
+    result = execute(
+        current_token="4",
+        session_state_doc=doc,
+        runtime_ctx=RuntimeContext(
+            requested_active_gate="Ticket Input Gate",
+            requested_next_gate_condition="Collect ticket",
+            repo_is_git_root=True,
+            commands_home=commands_home,
+            workspaces_home=tmp_path / "workspaces",
+            config_root=tmp_path / "cfg",
+        ),
+    )
+
+    assert result.phase == "4"
+    assert result.source == "phase-4-awaiting-ticket-intake"
+
+
+def test_kernel_phase4_does_not_route_with_feature_complexity_only(tmp_path: Path) -> None:
+    commands_home = tmp_path / "commands"
+    _write_phase_api(commands_home)
+
+    doc = {
+        "SESSION_STATE": {
+            "Phase": "4",
+            "PersistenceCommitted": True,
+            "WorkspaceReadyGateCommitted": True,
+            "WorkspaceArtifactsCommitted": True,
+            "PointerVerified": True,
+            **RULEBOOK_BASE,
+            "FeatureComplexity": {
+                "Class": "STANDARD",
+                "Reason": "classified",
+                "PlanningDepth": "standard",
+            },
+        }
+    }
+    result = execute(
+        current_token="4",
+        session_state_doc=doc,
+        runtime_ctx=RuntimeContext(
+            requested_active_gate="Ticket Input Gate",
+            requested_next_gate_condition="Collect ticket",
+            repo_is_git_root=True,
+            commands_home=commands_home,
+            workspaces_home=tmp_path / "workspaces",
+            config_root=tmp_path / "cfg",
+        ),
+    )
+
+    assert result.phase == "4"
+    assert result.source == "phase-4-awaiting-ticket-intake"
+
+
 def test_kernel_blocks_phase_1_3_when_exit_evidence_missing(tmp_path: Path) -> None:
     commands_home = tmp_path / "commands"
     _write_phase_api(commands_home)

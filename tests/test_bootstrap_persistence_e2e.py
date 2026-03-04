@@ -152,6 +152,7 @@ def _materialize_commands_bundle_from_checkout(*, checkout_root: Path, commands_
         "rules.md",
         "continue.md",
         "review.md",
+        "ticket.md",
         "QUALITY_INDEX.md",
         "CONFLICT_RESOLUTION.md",
         "phase_api.yaml",
