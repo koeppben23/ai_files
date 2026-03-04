@@ -40,12 +40,12 @@ Rules:
   - `AllowedNextActions` as numbered list
   - `[/AUDIT-SUMMARY]`
 
-Reason key semantics (binding):
+Reason key semantics (normative for audit scope):
 - `AUDIT_REPORT.status.reasonKeys` and other audit report `*ReasonKey` fields are audit-only governance keys.
 - They are NOT canonical governance `reason_code` values and MUST NOT be written into `SESSION_STATE.Diagnostics.ReasonPayloads.reason_code` without explicit mapping.
 - If a bridge to canonical workflow reasons is needed, map audit keys to canonical `BLOCKED-*|WARN-*|NOT_VERIFIED-*` codes explicitly.
 
-Deterministic bridge (binding):
+Deterministic bridge (normative for audit scope):
 - Use `governance/entrypoints/map_audit_to_canonical.py --input <audit-report.json>` for deterministic audit-key to canonical reason-code mapping.
 - Canonical mapping source: `governance/assets/catalogs/AUDIT_REASON_CANONICAL_MAP.json`.
 
@@ -70,7 +70,7 @@ No other SESSION_STATE fields may be modified.
 
 ---
 
-## ABUSE-RESISTANCE (Binding; Read-Only Diagnostics)
+## ABUSE-RESISTANCE (Normative for audit scope; Read-Only Diagnostics)
 
 The `/audit` command MUST NOT be used as a governance override.
 It is diagnostic only.

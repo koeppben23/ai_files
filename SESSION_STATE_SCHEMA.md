@@ -1,6 +1,6 @@
 # SESSION_STATE_SCHEMA.md (Canonical Contract)
 
-This document defines the **canonical SESSION_STATE contract** used by `master.md`, `continue.md`, and `docs/_archive/resume.md`.
+This document defines the **canonical SESSION_STATE contract** used by `master.md`, `continue.md`, and `docs/resume.md`.
 It exists to prevent **session state drift** across models and sessions and to make gates **enforceable**.
 
 Normative language (MUST / SHOULD / MAY) is binding.

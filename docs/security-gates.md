@@ -15,7 +15,7 @@ Scanners included:
 
 ## Policy source
 
-- `governance/SECURITY_GATE_POLICY.json`
+- `governance/assets/catalogs/SECURITY_GATE_POLICY.json`
 
 Key policy controls:
 
@@ -31,7 +31,7 @@ The final policy gate aggregates all scanner summaries with:
 
 ```bash
 ${PYTHON_COMMAND} scripts/evaluate_security_evidence.py \
-  --policy governance/SECURITY_GATE_POLICY.json \
+  --policy governance/assets/catalogs/SECURITY_GATE_POLICY.json \
   --input governance/security-evidence/<scanner>.summary.json \
   --output governance/security-evidence/security_summary.json
 ```
