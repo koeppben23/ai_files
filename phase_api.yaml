@@ -162,7 +162,7 @@ phases:
   - token: "5"
     phase: "5-ArchitectureReview"
     active_gate: "Plan Record Preparation Gate"
-    next_gate_condition: "Create and persist a Phase 5 plan-record draft before architecture review; then complete required internal self-review iterations before advancing to Phase 5.3."
+    next_gate_condition: "Create and persist a Phase 5 plan-record draft before architecture review; then run deterministic internal plan self-review (max 3, early-stop only on unchanged digest) before advancing to Phase 5.3."
     next: "5.3"
     route_strategy: "stay"
     transitions:
@@ -175,12 +175,12 @@ phases:
         next: "5"
         source: "phase-5-self-review-required"
         active_gate: "Architecture Review Gate"
-        next_gate_condition: "Plan record is present. Complete the minimum internal self-review iterations before advancing to Phase 5.3."
+        next_gate_condition: "Plan record is present. Continue deterministic internal self-review until completion condition is met (max 3, or unchanged digest after minimum iterations)."
       - when: self_review_iterations_met
         next: "5.3"
         source: "phase-5-architecture-review-ready"
         active_gate: "Architecture Review Gate"
-        next_gate_condition: "Plan record and minimum internal self-review iterations are complete. Proceed to Phase 5.3 test-quality gate."
+        next_gate_condition: "Plan review loop complete (hard-stop at max iterations or early-stop on unchanged digest after minimum iterations). Proceed to Phase 5.3 test-quality gate."
       - when: default
         next: "5"
         source: "phase-5-plan-record-prep-default"
@@ -291,5 +291,21 @@ phases:
   - token: "6"
     phase: "6-PostFlight"
     active_gate: "Post Flight"
-    next_gate_condition: "Finalize and report execution outcomes."
+    next_gate_condition: "Implement, run deterministic internal implementation review loop (max 3, early-stop only on unchanged digest), then present evidence for final user review."
     route_strategy: "stay"
+    transitions:
+      - when: implementation_review_pending
+        next: "6"
+        source: "phase-6-implementation-review-required"
+        active_gate: "Implementation Internal Review"
+        next_gate_condition: "Complete deterministic internal implementation review iterations (max 3). Early-stop is only allowed when digest is unchanged after minimum iterations."
+      - when: implementation_review_complete
+        next: "6"
+        source: "phase-6-ready-for-user-review"
+        active_gate: "Evidence Presentation Gate"
+        next_gate_condition: "Implementation review loop is complete. Present evidence and wait for user final review decision."
+      - when: default
+        next: "6"
+        source: "phase-6-implementation-review-required"
+        active_gate: "Implementation Internal Review"
+        next_gate_condition: "Complete internal implementation review iterations (max 3) before presenting final evidence."
