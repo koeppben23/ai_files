@@ -7,8 +7,8 @@ import json
 from pathlib import Path
 from typing import Any, Mapping
 
-from governance.engine.audit_readout_contract import validate_audit_readout_v1
-from governance.engine.canonical_json import canonical_json_hash
+from governance.domain.audit_readout_contract import validate_audit_readout_v1
+from governance.domain.canonical_json import canonical_json_hash
 
 POINTER_SCHEMA = "opencode-session-pointer.v1"
 _LEGACY_POINTER_SCHEMA = "active-session-pointer.v1"
@@ -74,13 +74,13 @@ def _parse_jsonl(path: Path) -> list[dict[str, object]]:
     return rows
 
 
-def _event_with_required_fields(event: Mapping[str, object]) -> dict[str, object] | None:
+def _event_with_required_fields(event: Mapping[str, object]) -> Mapping[str, object] | None:
     required = ("event", "observed_at", "repo_fingerprint", "session_id", "run_id")
     for key in required:
         value = event.get(key)
         if not isinstance(value, str) or not value.strip():
             return None
-    normalized = {key: str(event[key]).strip() for key in required}
+    normalized: dict[str, object] = {key: str(event[key]).strip() for key in required}
     optional = (
         "reason",
         "new_run_id",
