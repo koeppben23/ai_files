@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
+import json
 from pathlib import Path
 from typing import Any, Mapping, Sequence, cast
 import uuid
@@ -225,6 +226,53 @@ def _phase_1_5_executed(state: Mapping[str, object]) -> bool:
     return False
 
 
+def _plan_record_versions_from_state(state: Mapping[str, object]) -> int:
+    for key in ("plan_record_versions", "PlanRecordVersions"):
+        value = state.get(key)
+        if isinstance(value, bool):
+            continue
+        if isinstance(value, int):
+            return max(0, value)
+        if isinstance(value, str):
+            probe = value.strip()
+            if probe.isdigit():
+                return int(probe)
+    return -1
+
+
+def _plan_record_versions_from_workspace(*, workspaces_home: Path | None, repo_fingerprint: str) -> int:
+    if workspaces_home is None or not repo_fingerprint:
+        return 0
+    plan_record_path = workspaces_home / repo_fingerprint / "plan-record.json"
+    if not plan_record_path.is_file():
+        return 0
+    try:
+        payload = json.loads(plan_record_path.read_text(encoding="utf-8"))
+    except Exception:
+        return 0
+    if not isinstance(payload, Mapping):
+        return 0
+    versions = payload.get("versions")
+    if isinstance(versions, list):
+        return len(versions)
+    return 0
+
+
+def _plan_record_versions(
+    *,
+    state: Mapping[str, object],
+    workspaces_home: Path | None,
+    repo_fingerprint: str,
+) -> int:
+    versions = _plan_record_versions_from_state(state)
+    if versions >= 0:
+        return versions
+    return _plan_record_versions_from_workspace(
+        workspaces_home=workspaces_home,
+        repo_fingerprint=repo_fingerprint,
+    )
+
+
 def _technical_debt_proposed(state: Mapping[str, object]) -> bool:
     for key in ("TechnicalDebtProposed", "technical_debt_proposed"):
         value = state.get(key)
@@ -394,8 +442,19 @@ def _ticket_or_task_recorded(state: Mapping[str, object]) -> bool:
     return False
 
 
-def _select_transition(entry: PhaseSpecEntry, state: Mapping[str, object]) -> tuple[str | None, str, str | None, str | None]:
+def _select_transition(
+    entry: PhaseSpecEntry,
+    state: Mapping[str, object],
+    *,
+    workspaces_home: Path | None,
+    repo_fingerprint: str,
+) -> tuple[str | None, str, str | None, str | None]:
     if entry.transitions:
+        plan_record_versions = _plan_record_versions(
+            state=state,
+            workspaces_home=workspaces_home,
+            repo_fingerprint=repo_fingerprint,
+        )
         for transition in entry.transitions:
             when = transition.when.strip().lower()
             if when in {"ticket_present", "ticket_intake_complete"} and _ticket_or_task_recorded(state):
@@ -434,6 +493,20 @@ def _select_transition(entry: PhaseSpecEntry, state: Mapping[str, object]) -> tu
                     transition.next_gate_condition,
                 )
             if when == "rollback_required" and _rollback_required(state):
+                return (
+                    transition.next_token,
+                    transition.source,
+                    transition.active_gate,
+                    transition.next_gate_condition,
+                )
+            if when == "plan_record_missing" and plan_record_versions < 1:
+                return (
+                    transition.next_token,
+                    transition.source,
+                    transition.active_gate,
+                    transition.next_gate_condition,
+                )
+            if when == "plan_record_present" and plan_record_versions >= 1:
                 return (
                     transition.next_token,
                     transition.source,
@@ -1002,7 +1075,12 @@ def execute(
                 reason=f"strict-exit-gate: {reason_codes.BLOCKED_STRICT_CONTRACT_MISSING}",
             )
 
-    next_token, source, override_active_gate, override_next_condition = _select_transition(entry, state)
+    next_token, source, override_active_gate, override_next_condition = _select_transition(
+        entry,
+        state,
+        workspaces_home=workspaces_home,
+        repo_fingerprint=repo_fingerprint,
+    )
     resolved_phase = entry.phase
     resolved_active_gate = override_active_gate or entry.active_gate or runtime_ctx.requested_active_gate
     resolved_next_condition = override_next_condition or entry.next_gate_condition or runtime_ctx.requested_next_gate_condition

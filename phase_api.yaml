@@ -151,8 +151,8 @@ phases:
       - when: ticket_present
         next: "5"
         source: "phase-4-to-5-ticket-intake"
-        active_gate: "Architecture Review Gate"
-        next_gate_condition: "Ticket/task evidence captured; continue to Phase 5 architecture review gate"
+        active_gate: "Plan Record Preparation Gate"
+        next_gate_condition: "Ticket/task evidence captured; continue to Phase 5 plan-record preparation before architecture review"
       - when: default
         next: "4"
         source: "phase-4-awaiting-ticket-intake"
@@ -161,10 +161,26 @@ phases:
 
   - token: "5"
     phase: "5-ArchitectureReview"
-    active_gate: "Architecture Review Gate"
-    next_gate_condition: "Review the Phase 4 plan; re-enter manually after plan revisions until P5 gates are approved."
+    active_gate: "Plan Record Preparation Gate"
+    next_gate_condition: "Create and persist a Phase 5 plan-record draft before architecture review; once v1 exists, run iterative architecture review until P5 gates are approved."
     next: "5.3"
     route_strategy: "stay"
+    transitions:
+      - when: plan_record_missing
+        next: "5"
+        source: "phase-5-plan-record-prep-required"
+        active_gate: "Plan Record Preparation Gate"
+        next_gate_condition: "Plan record v1 is required. Produce a plan draft and persist plan-record evidence before architecture review."
+      - when: plan_record_present
+        next: "5.3"
+        source: "phase-5-architecture-review-ready"
+        active_gate: "Architecture Review Gate"
+        next_gate_condition: "Plan record is present. Review the current plan version and iterate until P5 gates are approved."
+      - when: default
+        next: "5"
+        source: "phase-5-plan-record-prep-default"
+        active_gate: "Plan Record Preparation Gate"
+        next_gate_condition: "Plan record evidence not found. Stay in Phase 5 and create plan-record v1 before architecture review."
     output_policy:
       allowed_output_classes:
         - plan
