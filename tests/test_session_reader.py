@@ -346,6 +346,68 @@ class TestMain:
         captured = capsys.readouterr()
         assert "error:" in captured.out
 
+    def test_audit_mode_outputs_json_payload(self, fake_config: Path, capsys: pytest.CaptureFixture) -> None:
+        ws_state = _write_pointer(fake_config)
+        _write_workspace_state(
+            ws_state,
+            {
+                "SESSION_STATE": {
+                    "session_run_id": "work-2",
+                    "Phase": "4",
+                    "Next": "5",
+                    "active_gate": "Ticket Input Gate",
+                    "phase4_intake_updated_at": "2026-03-05T20:34:32Z",
+                }
+            },
+        )
+
+        snapshot = {
+            "schema": "governance.work-run.snapshot.v1",
+            "archived_at": "2026-03-05T20:30:00Z",
+            "repo_fingerprint": "abc123",
+            "session_run_id": "work-1",
+            "source_phase": "6-PostFlight",
+            "source_active_gate": "Post Flight",
+            "source_next": "6",
+            "ticket_digest": None,
+            "task_digest": None,
+            "plan_record_digest": None,
+            "impl_digest": None,
+            "session_state": {"Phase": "6-PostFlight"},
+        }
+        snapshot_path = ws_state.parent / "work_runs" / "work-1.json"
+        snapshot_path.parent.mkdir(parents=True, exist_ok=True)
+        snapshot_path.write_text(json.dumps(snapshot), encoding="utf-8")
+
+        from governance.engine.canonical_json import canonical_json_hash
+
+        digest = canonical_json_hash(snapshot)
+        (ws_state.parent / "events.jsonl").write_text(
+            json.dumps(
+                {
+                    "event": "new_work_session_created",
+                    "observed_at": "2026-03-05T20:34:32Z",
+                    "repo_fingerprint": "abc123",
+                    "session_id": "sess-1",
+                    "run_id": "work-1",
+                    "new_run_id": "work-2",
+                    "snapshot_path": str(snapshot_path),
+                    "snapshot_digest": digest,
+                    "phase": "4",
+                    "next": "5",
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        rc = main(["--commands-home", str(fake_config / "commands"), "--audit"])
+        assert rc == 0
+        captured = capsys.readouterr()
+        payload = json.loads(captured.out)
+        assert payload["contract_version"] == "AUDIT_READOUT_SPEC.v1"
+        assert payload["integrity"]["snapshot_ref_present"] is True
+
 
 # ---------------------------------------------------------------------------
 # Self-bootstrap test
