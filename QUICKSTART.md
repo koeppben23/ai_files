@@ -68,6 +68,7 @@ If the model cannot execute the session-reader command (e.g., sandboxed environm
 | `~/.config/opencode/bin/opencode-governance-bootstrap --repo-root /abs/path/to/repo` | Bootstrap session (required) |
 | `%USERPROFILE%\.config\opencode\bin\opencode-governance-bootstrap.cmd --repo-root C:\path\to\repo` | Bootstrap session (Windows) |
 | `/continue` | Standard Desktop entrypoint after bootstrap |
+| `/audit-readout` | Read-only audit snapshot (`AUDIT_READOUT_SPEC.v1`) |
 | `python3 -m governance.entrypoints.new_work_session --trigger-source cli --quiet` | Start a fresh Phase-4 work run in the same repo |
 | `python3 scripts/governance_session_new.py --trigger-source pipeline --quiet` | Pipeline wrapper for fresh Phase-4 work run |
 | `/review` | Read-only rail entrypoint for lead/staff PR/ticket feedback |
