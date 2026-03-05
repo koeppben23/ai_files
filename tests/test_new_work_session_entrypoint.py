@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from governance.entrypoints import new_work_session
+from governance.domain.canonical_json import canonical_json_hash
 
 
 def _write_json(path: Path, payload: dict) -> None:
@@ -109,6 +110,15 @@ class TestNewWorkSessionEntrypoint:
         assert archived, "previous run snapshot must be archived"
         archived_payload = json.loads(archived[0].read_text(encoding="utf-8"))
         assert archived_payload["session_run_id"] == "run-old-001"
+        assert archived_payload["source_active_gate"] == "Architecture Review Gate"
+        assert archived_payload["source_next"] == "5.3"
+        assert "ticket_digest" in archived_payload
+        assert "task_digest" in archived_payload
+
+        events = [json.loads(line) for line in (session_path.parent / "events.jsonl").read_text(encoding="utf-8").splitlines() if line.strip()]
+        created = [e for e in events if e.get("event") == "new_work_session_created"][-1]
+        assert created["snapshot_path"] == str(archived[0])
+        assert created["snapshot_digest"] == canonical_json_hash(archived_payload)
 
     # -- Bad --
     def test_returns_blocked_when_pointer_is_missing(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
@@ -133,6 +143,21 @@ class TestNewWorkSessionEntrypoint:
         payload = json.loads(capsys.readouterr().out.strip())
         assert payload["status"] == "blocked"
 
+    def test_writes_failure_marker_event_when_runtime_reset_fails(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+        config_root, session_path, _ = _setup_workspace(tmp_path)
+        session_path.write_text(json.dumps({}, ensure_ascii=True), encoding="utf-8")
+        monkeypatch.setenv("OPENCODE_CONFIG_ROOT", str(config_root))
+
+        code = new_work_session.main(["--quiet"])
+        assert code == 2
+        payload = json.loads(capsys.readouterr().out.strip())
+        assert payload["reason"] == "new-work-session-init-failed"
+
+        events = [json.loads(line) for line in (session_path.parent / "events.jsonl").read_text(encoding="utf-8").splitlines() if line.strip()]
+        failed = [e for e in events if e.get("event") == "new_work_session_init_failed"]
+        assert failed, "failure marker event must be appended"
+        assert failed[-1]["reason"] == "new-work-session-init-failed"
+
     # -- Edge --
     def test_dedupes_rapid_duplicate_trigger(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
         config_root, session_path, _ = _setup_workspace(tmp_path)
@@ -152,6 +177,9 @@ class TestNewWorkSessionEntrypoint:
         events = (session_path.parent / "events.jsonl").read_text(encoding="utf-8")
         assert "new_work_session_created" in events
         assert "new_work_session_deduped" in events
+        parsed = [json.loads(line) for line in events.splitlines() if line.strip()]
+        deduped = [e for e in parsed if e.get("event") == "new_work_session_deduped"][-1]
+        assert deduped["reason"] == "recent-duplicate-trigger"
 
     def test_bypasses_dedupe_when_state_is_not_fresh_phase4_run(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
         config_root, session_path, _ = _setup_workspace(tmp_path)
