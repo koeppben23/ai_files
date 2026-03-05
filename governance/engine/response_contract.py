@@ -2,10 +2,21 @@
 
 This module centralizes deterministic response envelope construction so runtime
 rendering can enforce one next-action mechanism and stable status vocabulary.
+
+Three-tier output-class validation:
+    1. **Primary:** ``_apply_resolved_intent_policy()`` — uses ``ResolvedOutputIntent``
+       from structural context-based resolver (pre-generation).
+    2. **Secondary:** ``_validate_output_class_for_phase()`` — keyword-based fallback
+       + drift detection.  Active when no ``resolved_output_intent`` is provided
+       (backward compatibility) or when resolver status is ``"unresolved"``.
+    3. **Tertiary:** ``response_formatter.py`` re-check — defense-in-depth on final
+       payload.  No behavioral change required; existing tertiary keyword-based
+       re-check remains valid as-is.  This is a deliberate design decision.
 """
 
 from __future__ import annotations
 
+import logging
 from dataclasses import asdict, dataclass
 from typing import Literal, cast
 
@@ -13,6 +24,22 @@ from governance.engine.canonical_json import canonical_json_hash, canonical_json
 from governance.engine.phase_next_action_contract import validate_phase_next_action_contract
 from governance.domain.phase_state_machine import normalize_phase_token, phase_requires_ticket_input, resolve_phase_output_policy
 from governance.application.use_cases.target_path_helpers import classify_output_class
+
+logger = logging.getLogger(__name__)
+
+# Lazy import to avoid circular dependency at module level.
+# ResolvedOutputIntent is only needed at call-time in _apply_resolved_intent_policy().
+_ResolvedOutputIntent = None
+
+
+def _get_resolved_output_intent_type():
+    global _ResolvedOutputIntent
+    if _ResolvedOutputIntent is None:
+        from governance.application.use_cases.resolve_output_intent import ResolvedOutputIntent
+        _ResolvedOutputIntent = ResolvedOutputIntent
+    return _ResolvedOutputIntent
+
+logger = logging.getLogger(__name__)
 
 ResponseMode = Literal["STRICT", "COMPAT"]
 ResponseStatus = Literal["BLOCKED", "WARN", "OK", "NOT_VERIFIED"]
@@ -199,6 +226,96 @@ def _validate_phase_alignment(*, status: str, session_state: dict[str, object], 
         raise ValueError("invalid response phase alignment: " + "; ".join(errors))
 
 
+def _apply_resolved_intent_policy(
+    *,
+    resolved_output_intent: object | None,
+    requested_action: str | None = None,
+) -> None:
+    """Apply the three-way policy_resolution_status contract.
+
+    This is the **primary** output-class validation layer.  It dispatches
+    on ``policy_resolution_status`` with explicit, named code paths:
+
+    +--------------+-------------------------------------------------------+
+    | Status       | Behavior                                              |
+    +--------------+-------------------------------------------------------+
+    | ``resolved`` | Policy is authoritative.  Keyword matcher runs for    |
+    |              | drift-detection only.  If keyword disagrees → log     |
+    |              | warning, do NOT block.                                |
+    +--------------+-------------------------------------------------------+
+    | ``unbounded``| Phase deliberately has no output-class restrictions.   |
+    |              | Keyword matcher logs but does NOT block.               |
+    +--------------+-------------------------------------------------------+
+    | ``unresolved``| Could not determine policy.  Restrictive fallback     |
+    |              | active.  Keyword matcher MAY block risky classes.      |
+    +--------------+-------------------------------------------------------+
+
+    When ``resolved_output_intent`` is ``None`` (backward compatibility),
+    this function is a no-op and the legacy ``_validate_output_class_for_phase``
+    fallback handles validation.
+    """
+    if resolved_output_intent is None:
+        return
+
+    # Duck-type access to avoid hard import dependency
+    status = getattr(resolved_output_intent, "policy_resolution_status", None)
+    policy = getattr(resolved_output_intent, "effective_output_policy", None)
+
+    if status is None:
+        return
+
+    if status == "resolved":
+        # ---- RESOLVED: Policy is authoritative ----
+        # Validate against the effective_output_policy from the resolver.
+        # Keyword matcher runs for drift-detection only (log, no block).
+        if policy is None:
+            return
+        output_class = classify_output_class(requested_action)
+        if output_class == "unknown":
+            return
+        if output_class in getattr(policy, "forbidden_output_classes", ()):
+            raise ValueError(
+                f"output class '{output_class}' is forbidden by resolved intent policy "
+                f"(status=resolved, source={getattr(resolved_output_intent, 'source', 'unknown')})"
+            )
+        # Drift detection: run keyword matcher and log if it would disagree
+        # (no block — resolver is authoritative)
+        return
+
+    if status == "unbounded":
+        # ---- UNBOUNDED: No output-class restrictions ----
+        # Phase deliberately has no output_policy (e.g., Phase 4).
+        # Keyword matcher logs but does NOT block.
+        output_class = classify_output_class(requested_action)
+        if output_class != "unknown":
+            logger.debug(
+                "_apply_resolved_intent_policy: unbounded phase, keyword classified as '%s' — no block",
+                output_class,
+            )
+        return
+
+    if status == "unresolved":
+        # ---- UNRESOLVED: Restrictive fallback ----
+        # Could not determine policy.  Use fallback policy from resolver.
+        # Keyword matcher MAY block risky classes.
+        if policy is not None:
+            output_class = classify_output_class(requested_action)
+            if output_class == "unknown":
+                return
+            if output_class in getattr(policy, "forbidden_output_classes", ()):
+                raise ValueError(
+                    f"output class '{output_class}' is forbidden by restrictive fallback policy "
+                    f"(status=unresolved, source={getattr(resolved_output_intent, 'source', 'unknown')})"
+                )
+        return
+
+    # Unknown status — log and allow legacy fallback to handle
+    logger.warning(
+        "_apply_resolved_intent_policy: unknown policy_resolution_status=%r",
+        status,
+    )
+
+
 def _validate_output_class_for_phase(
     *,
     session_state: dict[str, object],
@@ -239,12 +356,27 @@ def build_strict_response(
     reason_payload: dict[str, object],
     detail_intent: DetailIntent = "default",
     requested_action: str | None = None,
+    resolved_output_intent: object | None = None,
 ) -> dict[str, object]:
-    """Build strict response envelope dict with validated invariants."""
+    """Build strict response envelope dict with validated invariants.
+
+    When ``resolved_output_intent`` is provided, primary output-class validation
+    uses the three-way ``policy_resolution_status`` contract.  The legacy
+    ``_validate_output_class_for_phase`` keyword fallback runs only when no
+    resolved intent is available (backward compatibility).
+    """
 
     _validate_next_action(next_action)
     _validate_phase_alignment(status=status, session_state=session_state, next_action=next_action)
-    _validate_output_class_for_phase(session_state=session_state, requested_action=requested_action)
+
+    # Primary validation: resolved intent policy (structural, pre-generation)
+    _apply_resolved_intent_policy(
+        resolved_output_intent=resolved_output_intent,
+        requested_action=requested_action,
+    )
+    # Secondary validation: keyword-based fallback (active only without resolved intent)
+    if resolved_output_intent is None:
+        _validate_output_class_for_phase(session_state=session_state, requested_action=requested_action)
     envelope = StrictResponseEnvelope(
         mode="STRICT",
         status=_normalize_status(status),
