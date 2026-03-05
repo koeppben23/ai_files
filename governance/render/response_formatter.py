@@ -11,6 +11,8 @@ from governance.application.dto.phase_next_action_contract import (
     phase_requires_ticket_input,
     validate_phase_next_action_contract,
 )
+from governance.domain.phase_state_machine import resolve_phase_output_policy
+from governance.application.use_cases.target_path_helpers import classify_output_class
 
 
 OutputFormat = Literal["auto", "markdown", "plain", "json"]
@@ -106,6 +108,18 @@ def _enforce_phase_contract(payload: dict[str, Any]) -> None:
     )
     if errors:
         raise ValueError("invalid phase/next_action contract: " + "; ".join(errors))
+
+    # Defense-in-depth: validate output class against phase output policy (SSOT: phase_api.yaml)
+    if phase_token:
+        policy = resolve_phase_output_policy(phase_token)
+        if policy is not None:
+            requested_action = str(next_text or "").strip() if next_text else None
+            output_class = classify_output_class(requested_action)
+            if output_class != "unknown" and output_class in policy.forbidden_output_classes:
+                raise ValueError(
+                    f"defense-in-depth: output class '{output_class}' forbidden in phase {phase_token} "
+                    f"(phase_api.yaml output_policy)"
+                )
 
 
 def _render_markdown(payload: dict[str, Any]) -> str:

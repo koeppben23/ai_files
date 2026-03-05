@@ -11,7 +11,8 @@ from typing import Literal, cast
 
 from governance.engine.canonical_json import canonical_json_hash, canonical_json_text
 from governance.engine.phase_next_action_contract import validate_phase_next_action_contract
-from governance.domain.phase_state_machine import normalize_phase_token, phase_requires_ticket_input
+from governance.domain.phase_state_machine import normalize_phase_token, phase_requires_ticket_input, resolve_phase_output_policy
+from governance.application.use_cases.target_path_helpers import classify_output_class
 
 ResponseMode = Literal["STRICT", "COMPAT"]
 ResponseStatus = Literal["BLOCKED", "WARN", "OK", "NOT_VERIFIED"]
@@ -198,6 +199,37 @@ def _validate_phase_alignment(*, status: str, session_state: dict[str, object], 
         raise ValueError("invalid response phase alignment: " + "; ".join(errors))
 
 
+def _validate_output_class_for_phase(
+    *,
+    session_state: dict[str, object],
+    requested_action: str | None = None,
+) -> None:
+    """Validate that the requested action's output class is permitted for the current phase.
+
+    Resolves output policy from phase_api.yaml (SSOT).  If the phase has no
+    output_policy, validation passes (no restriction).  If the resolved output
+    class is in forbidden_output_classes, the response is rejected.
+    """
+    phase_value = _extract_session_value(session_state, "phase", "Phase", default="")
+    phase_token = normalize_phase_token(phase_value)
+    if not phase_token:
+        return
+
+    policy = resolve_phase_output_policy(phase_token)
+    if policy is None:
+        return
+
+    output_class = classify_output_class(requested_action)
+    if output_class == "unknown":
+        return
+
+    if output_class in policy.forbidden_output_classes:
+        raise ValueError(
+            f"output class '{output_class}' is forbidden in phase {phase_token} "
+            f"(policy: phase_api.yaml output_policy.forbidden_output_classes)"
+        )
+
+
 def build_strict_response(
     *,
     status: str,
@@ -206,11 +238,13 @@ def build_strict_response(
     snapshot: Snapshot,
     reason_payload: dict[str, object],
     detail_intent: DetailIntent = "default",
+    requested_action: str | None = None,
 ) -> dict[str, object]:
     """Build strict response envelope dict with validated invariants."""
 
     _validate_next_action(next_action)
     _validate_phase_alignment(status=status, session_state=session_state, next_action=next_action)
+    _validate_output_class_for_phase(session_state=session_state, requested_action=requested_action)
     envelope = StrictResponseEnvelope(
         mode="STRICT",
         status=_normalize_status(status),
