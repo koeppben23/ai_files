@@ -36,6 +36,12 @@ def _derive_commands_home() -> Path:
     return Path(__file__).resolve().parents[2]
 
 
+def _ensure_commands_home_on_syspath(commands_home: Path) -> None:
+    root = str(commands_home)
+    if root and root not in sys.path:
+        sys.path.insert(0, root)
+
+
 def _read_json(path: Path) -> dict:
     """Read and parse a JSON file. Raises on any failure."""
     raw = path.read_text(encoding="utf-8")
@@ -217,13 +223,53 @@ def format_snapshot(snapshot: dict) -> str:
 def main(argv: list[str] | None = None) -> int:
     """CLI entry point."""
     commands_home: Path | None = None
+    audit_mode = False
+    tail_count = 25
     args = argv if argv is not None else sys.argv[1:]
-    if args and args[0] == "--commands-home":
-        if len(args) < 2:
+
+    idx = 0
+    while idx < len(args):
+        arg = args[idx]
+        if arg == "--commands-home":
+            if idx + 1 >= len(args):
+                print("status: ERROR", file=sys.stdout)
+                print("error: --commands-home requires a path argument", file=sys.stdout)
+                return 1
+            commands_home = Path(args[idx + 1])
+            idx += 2
+            continue
+        if arg == "--audit":
+            audit_mode = True
+            idx += 1
+            continue
+        if arg == "--tail-count":
+            if idx + 1 >= len(args):
+                print("status: ERROR", file=sys.stdout)
+                print("error: --tail-count requires an integer argument", file=sys.stdout)
+                return 1
+            try:
+                tail_count = int(args[idx + 1])
+            except ValueError:
+                print("status: ERROR", file=sys.stdout)
+                print("error: --tail-count must be an integer", file=sys.stdout)
+                return 1
+            idx += 2
+            continue
+        idx += 1
+
+    if audit_mode:
+        home = commands_home if commands_home is not None else _derive_commands_home()
+        _ensure_commands_home_on_syspath(home)
+        try:
+            from governance.application.use_cases.audit_readout_builder import build_audit_readout
+
+            payload = build_audit_readout(commands_home=home, tail_count=tail_count)
+        except Exception as exc:
             print("status: ERROR", file=sys.stdout)
-            print("error: --commands-home requires a path argument", file=sys.stdout)
+            print(f"error: {exc}", file=sys.stdout)
             return 1
-        commands_home = Path(args[1])
+        sys.stdout.write(json.dumps(payload, ensure_ascii=True, indent=2) + "\n")
+        return 0
 
     snapshot = read_session_snapshot(commands_home=commands_home)
     sys.stdout.write(format_snapshot(snapshot))
