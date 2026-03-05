@@ -92,7 +92,7 @@ def classify_output_class(requested_action: str | None) -> OutputClass:
     """
     action = (requested_action or "").strip().lower()
     if not action:
-        return "unknown"
+        return "implementation"
 
     # Check forbidden classes first (implementation-adjacent) — order matters
     # for fail-closed behavior

@@ -314,10 +314,10 @@ class TestClassifyOutputClass:
         from governance.application.use_cases.target_path_helpers import classify_output_class
         assert classify_output_class("risk analysis of migration") == "risk_analysis"
 
-    def test_empty_returns_unknown(self) -> None:
+    def test_empty_fails_closed_to_implementation(self) -> None:
         from governance.application.use_cases.target_path_helpers import classify_output_class
-        assert classify_output_class("") == "unknown"
-        assert classify_output_class(None) == "unknown"
+        assert classify_output_class("") == "implementation"
+        assert classify_output_class(None) == "implementation"
 
     def test_unrecognized_action_fails_closed(self) -> None:
         """Unrecognized actions must fail-closed to 'implementation'."""

@@ -9,7 +9,7 @@ import uuid
 
 from governance.application.dto.phase_next_action_contract import contains_ticket_prompt
 from governance.domain.strict_exit_evaluator import StrictExitResult
-from governance.domain.phase_state_machine import phase_rank
+from governance.domain.phase_state_machine import phase_rank, resolve_phase_output_policy
 from governance.infrastructure.adapters.logging.event_sink import write_jsonl_event
 from governance.infrastructure.binding_evidence_resolver import BindingEvidenceResolver
 from governance.infrastructure.logging.global_error_handler import emit_error_event
@@ -442,6 +442,59 @@ def _ticket_or_task_recorded(state: Mapping[str, object]) -> bool:
     return False
 
 
+def _coerce_non_negative_int(value: object) -> int | None:
+    if isinstance(value, bool):
+        return int(value)
+    if isinstance(value, int):
+        return value if value >= 0 else 0
+    if isinstance(value, str):
+        raw = value.strip()
+        if not raw:
+            return None
+        if raw.isdigit():
+            return int(raw)
+    return None
+
+
+def _phase5_self_review_iterations(state: Mapping[str, object]) -> int:
+    for key_path in (
+        "Phase5Review.iteration",
+        "Phase5Review.Iteration",
+        "Phase5Review.rounds_completed",
+        "Phase5Review.RoundsCompleted",
+        "phase5_self_review_iterations",
+        "phase5SelfReviewIterations",
+        "self_review_iterations",
+    ):
+        value = _read_nested_key(state, key_path)
+        parsed = _coerce_non_negative_int(value)
+        if parsed is not None:
+            return parsed
+    return 0
+
+
+def _phase5_min_self_review_iterations(entry: PhaseSpecEntry) -> int:
+    policy = resolve_phase_output_policy(entry.token)
+    if policy is None:
+        return 0
+    return max(0, int(policy.plan_discipline.min_self_review_iterations))
+
+
+def _phase5_self_review_iterations_met(
+    *,
+    entry: PhaseSpecEntry,
+    state: Mapping[str, object],
+    plan_record_versions: int,
+) -> bool:
+    if plan_record_versions < 1:
+        return False
+    required = _phase5_min_self_review_iterations(entry)
+    if required == 0:
+        return True
+    completed = _phase5_self_review_iterations(state)
+    return completed >= required
+
+
 def _select_transition(
     entry: PhaseSpecEntry,
     state: Mapping[str, object],
@@ -507,6 +560,28 @@ def _select_transition(
                     transition.next_gate_condition,
                 )
             if when == "plan_record_present" and plan_record_versions >= 1:
+                return (
+                    transition.next_token,
+                    transition.source,
+                    transition.active_gate,
+                    transition.next_gate_condition,
+                )
+            if when == "self_review_iterations_pending" and not _phase5_self_review_iterations_met(
+                entry=entry,
+                state=state,
+                plan_record_versions=plan_record_versions,
+            ):
+                return (
+                    transition.next_token,
+                    transition.source,
+                    transition.active_gate,
+                    transition.next_gate_condition,
+                )
+            if when == "self_review_iterations_met" and _phase5_self_review_iterations_met(
+                entry=entry,
+                state=state,
+                plan_record_versions=plan_record_versions,
+            ):
                 return (
                     transition.next_token,
                     transition.source,

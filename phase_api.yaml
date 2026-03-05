@@ -162,7 +162,7 @@ phases:
   - token: "5"
     phase: "5-ArchitectureReview"
     active_gate: "Plan Record Preparation Gate"
-    next_gate_condition: "Create and persist a Phase 5 plan-record draft before architecture review; once v1 exists, run iterative architecture review until P5 gates are approved."
+    next_gate_condition: "Create and persist a Phase 5 plan-record draft before architecture review; then complete required internal self-review iterations before advancing to Phase 5.3."
     next: "5.3"
     route_strategy: "stay"
     transitions:
@@ -171,16 +171,21 @@ phases:
         source: "phase-5-plan-record-prep-required"
         active_gate: "Plan Record Preparation Gate"
         next_gate_condition: "Plan record v1 is required. Produce a plan draft and persist plan-record evidence before architecture review."
-      - when: plan_record_present
+      - when: self_review_iterations_pending
+        next: "5"
+        source: "phase-5-self-review-required"
+        active_gate: "Architecture Review Gate"
+        next_gate_condition: "Plan record is present. Complete the minimum internal self-review iterations before advancing to Phase 5.3."
+      - when: self_review_iterations_met
         next: "5.3"
         source: "phase-5-architecture-review-ready"
         active_gate: "Architecture Review Gate"
-        next_gate_condition: "Plan record is present. Review the current plan version and iterate until P5 gates are approved."
+        next_gate_condition: "Plan record and minimum internal self-review iterations are complete. Proceed to Phase 5.3 test-quality gate."
       - when: default
         next: "5"
         source: "phase-5-plan-record-prep-default"
-        active_gate: "Plan Record Preparation Gate"
-        next_gate_condition: "Plan record evidence not found. Stay in Phase 5 and create plan-record v1 before architecture review."
+        active_gate: "Architecture Review Gate"
+        next_gate_condition: "Stay in Phase 5 until plan-record evidence and required internal self-review iterations are complete."
     output_policy:
       allowed_output_classes:
         - plan
