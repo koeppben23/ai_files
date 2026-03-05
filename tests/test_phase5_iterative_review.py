@@ -95,6 +95,40 @@ class TestPhase5ReviewFeedback:
 
 
 @pytest.mark.governance
+def test_initial_review_state_tracks_plan_record_digest():
+    state = create_initial_review_state(
+        operating_mode="user",
+        plan_record_digest="sha256:abc123",
+    )
+    assert state.plan_record_digest == "sha256:abc123"
+    payload = state.to_dict()
+    assert payload["plan_record_digest"] == "sha256:abc123"
+
+
+@pytest.mark.governance
+def test_phase5_review_result_references_plan_version_and_digest():
+    feedback = Phase5ReviewFeedback(
+        iteration=1,
+        issues=(),
+        suggestions=(),
+        questions=(),
+        status="approved",
+    )
+    state = Phase5ReviewState(
+        iteration=1,
+        feedback_history=(feedback,),
+        final_status="approved",
+        plan_version=2,
+        plan_record_digest="sha256:def456",
+        operating_mode="user",
+    )
+    result = finalize_review(state)
+    payload = result.to_dict()
+    assert payload["plan_version"] == 2
+    assert payload["plan_record_digest"] == "sha256:def456"
+
+
+@pytest.mark.governance
 class TestPhase5ReviewStateUserMode:
     """Tests for Phase5ReviewState in USER mode (human escalation enabled)."""
 
