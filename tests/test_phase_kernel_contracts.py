@@ -769,3 +769,112 @@ def test_kernel_strict_exit_blocks_on_incompatible_criteria_conflict(tmp_path: P
     assert result.source == "strict-exit-gate"
     # The block reason must mention contract conflict.
     assert "contract conflict" in (result.next_gate_condition or "").lower()
+
+
+# ---------------------------------------------------------------------------
+# route_strategy surfacing on KernelResult
+# ---------------------------------------------------------------------------
+
+class TestKernelResultRouteStrategy:
+    """Verify that KernelResult surfaces route_strategy from phase_api.yaml."""
+
+    def test_phase_5_stay_strategy_surfaced(self, tmp_path: Path) -> None:
+        """Happy: Phase 5 (route_strategy=stay) is surfaced on KernelResult."""
+        commands_home = tmp_path / "commands"
+        _write_phase_api(commands_home)
+        doc = {
+            "SESSION_STATE": {
+                "Phase": "5-Review",
+                "PersistenceCommitted": True,
+                "WorkspaceReadyGateCommitted": True,
+                "WorkspaceArtifactsCommitted": True,
+                "PointerVerified": True,
+                **RULEBOOK_BASE,
+            }
+        }
+        result = execute(
+            current_token="5",
+            session_state_doc=doc,
+            runtime_ctx=RuntimeContext(
+                requested_active_gate="Architecture Gate",
+                requested_next_gate_condition="Continue",
+                repo_is_git_root=True,
+                commands_home=commands_home,
+                workspaces_home=tmp_path / "workspaces",
+                config_root=tmp_path / "cfg",
+            ),
+        )
+        assert result.route_strategy == "stay"
+
+    def test_phase_4_next_strategy_surfaced(self, tmp_path: Path) -> None:
+        """Happy: Phase 4 (route_strategy=next) is surfaced on KernelResult."""
+        commands_home = tmp_path / "commands"
+        _write_phase_api(commands_home)
+        doc = {
+            "SESSION_STATE": {
+                "Phase": "4-Intake",
+                "PersistenceCommitted": True,
+                "WorkspaceReadyGateCommitted": True,
+                "WorkspaceArtifactsCommitted": True,
+                "PointerVerified": True,
+                **RULEBOOK_BASE,
+            }
+        }
+        result = execute(
+            current_token="4",
+            session_state_doc=doc,
+            runtime_ctx=RuntimeContext(
+                requested_active_gate="Entry Gate",
+                requested_next_gate_condition="pick a ticket",
+                repo_is_git_root=True,
+                commands_home=commands_home,
+                workspaces_home=tmp_path / "workspaces",
+                config_root=tmp_path / "cfg",
+            ),
+        )
+        assert result.route_strategy == "next"
+
+    def test_blocked_early_returns_empty_route_strategy(self, tmp_path: Path) -> None:
+        """Edge: Blocked result before spec load → route_strategy is empty string."""
+        result = execute(
+            current_token="2.1",
+            session_state_doc={"SESSION_STATE": {}},
+            runtime_ctx=RuntimeContext(
+                requested_active_gate="Decision Pack",
+                requested_next_gate_condition="Continue",
+                repo_is_git_root=True,
+                commands_home=tmp_path / "commands",
+                workspaces_home=tmp_path / "workspaces",
+                config_root=tmp_path / "cfg",
+            ),
+        )
+        assert result.status == "BLOCKED"
+        assert result.route_strategy == ""
+
+    def test_route_strategy_is_string_type(self, tmp_path: Path) -> None:
+        """Corner: route_strategy is always a string, never None."""
+        commands_home = tmp_path / "commands"
+        _write_phase_api(commands_home)
+        doc = {
+            "SESSION_STATE": {
+                "Phase": "4-Intake",
+                "PersistenceCommitted": True,
+                "WorkspaceReadyGateCommitted": True,
+                "WorkspaceArtifactsCommitted": True,
+                "PointerVerified": True,
+                **RULEBOOK_BASE,
+            }
+        }
+        result = execute(
+            current_token="4",
+            session_state_doc=doc,
+            runtime_ctx=RuntimeContext(
+                requested_active_gate="Entry Gate",
+                requested_next_gate_condition="pick a ticket",
+                repo_is_git_root=True,
+                commands_home=commands_home,
+                workspaces_home=tmp_path / "workspaces",
+                config_root=tmp_path / "cfg",
+            ),
+        )
+        assert isinstance(result.route_strategy, str)
