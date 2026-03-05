@@ -112,7 +112,7 @@ TEMPLATE_CATALOG_REL = Path("templates/github-actions/template_catalog.json")
 TEMPLATE_CATALOG_SCHEMA = "governance.workflow-template-catalog.v1"
 
 # Optional OpenCode plugins copied into <config_root>/plugins/**
-OPENCODE_PLUGIN_SOURCE_DIR = Path(".opencode/plugins")
+OPENCODE_PLUGIN_SOURCE_DIR = Path("governance/artifacts/opencode-plugins")
 OPENCODE_PLUGINS_DIR_NAME = "plugins"
 
 # Customer script catalog controlling which scripts are shipped for customers
@@ -811,6 +811,7 @@ def collect_governance_runtime_files(source_dir: Path) -> list[Path]:
             p
             for p in runtime_dir.rglob("*")
             if p.is_file() and not p.is_symlink() and not _is_forbidden_metadata_path(p, source_dir)
+            if not str(p.relative_to(source_dir)).replace("\\", "/").startswith(str(OPENCODE_PLUGIN_SOURCE_DIR).replace("\\", "/") + "/")
         ]
     )
 
@@ -1223,7 +1224,8 @@ def collect_opencode_plugin_files(source_dir: Path) -> list[Path]:
     return sorted(
         [
             p
-            for p in plugins_src_dir.rglob("*.py")
+            for p in plugins_src_dir.rglob("*")
+            if p.suffix.lower() in {".mjs", ".js"}
             if p.is_file() and not p.is_symlink() and not _is_forbidden_metadata_path(p, source_dir)
         ]
     )
@@ -1896,7 +1898,7 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
             else:
                 print(f"  ⚠️  {rel} missing (skipping)")
     else:
-        print("\nℹ️  No OpenCode plugins found under .opencode/plugins/ (skipping).")
+        print("\nℹ️  No OpenCode plugins found under governance/artifacts/opencode-plugins/ (skipping).")
 
     # validation (critical installed files)
     print("\n🔍 Validating installation...")
