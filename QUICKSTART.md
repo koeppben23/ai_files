@@ -120,6 +120,7 @@ Get-Content "$env:USERPROFILE\.config\opencode\commands\logs\error.log.jsonl"
 
 - Always use the local launcher: `%USERPROFILE%\.config\opencode\bin\opencode-governance-bootstrap.cmd --repo-root C:\path\to\your-repo`
 - The launcher uses the correct Python interpreter from installation
+- If the desktop plugin cannot find Python in `PATH`, set `OPENCODE_PYTHON` to the full interpreter path (for example `C:\Python313\python.exe`)
 
 ### macOS / Linux
 
