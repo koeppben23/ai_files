@@ -1,4 +1,11 @@
-"""Deterministic formatter for governance response envelopes."""
+"""Deterministic formatter for governance response envelopes.
+
+Phase 3 (Response Intent Resolver) note:
+    This module was deliberately unchanged during the resolver implementation.
+    The existing tertiary keyword-based re-check in ``_enforce_phase_contract``
+    remains valid as defense-in-depth and does not conflict with the upstream
+    intent resolution in ``resolve_output_intent.py``.
+"""
 
 from __future__ import annotations
 

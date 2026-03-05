@@ -27,20 +27,6 @@ from governance.application.use_cases.target_path_helpers import classify_output
 
 logger = logging.getLogger(__name__)
 
-# Lazy import to avoid circular dependency at module level.
-# ResolvedOutputIntent is only needed at call-time in _apply_resolved_intent_policy().
-_ResolvedOutputIntent = None
-
-
-def _get_resolved_output_intent_type():
-    global _ResolvedOutputIntent
-    if _ResolvedOutputIntent is None:
-        from governance.application.use_cases.resolve_output_intent import ResolvedOutputIntent
-        _ResolvedOutputIntent = ResolvedOutputIntent
-    return _ResolvedOutputIntent
-
-logger = logging.getLogger(__name__)
-
 ResponseMode = Literal["STRICT", "COMPAT"]
 ResponseStatus = Literal["BLOCKED", "WARN", "OK", "NOT_VERIFIED"]
 DecisionOutcome = Literal["ALLOW", "BLOCKED"]
