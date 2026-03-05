@@ -86,7 +86,7 @@ If the model cannot execute the session-reader command (e.g., sandboxed environm
 ```bash
 ~/.config/opencode/bin/opencode-governance-bootstrap --repo-root /absolute/path/to/your-repo
 # Open OpenCode Desktop in /absolute/path/to/your-repo
-# Desktop New Session triggers .opencode/plugins/new_work_session_plugin.py
+# Desktop New Session triggers ~/.config/opencode/plugins/audit-new-session.mjs (global plugin)
 /continue
 # If /continue lands at Phase 4 (Ticket Intake), enter Plan Mode first
 # Provide ticket/task text in chat
