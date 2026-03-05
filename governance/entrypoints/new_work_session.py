@@ -17,6 +17,7 @@ if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).absolute().parents[2]))
 
 from governance.infrastructure.binding_evidence_resolver import BindingEvidenceResolver
+from governance.domain.canonical_json import canonical_json_hash
 try:
     from governance.entrypoints.workspace_lock import acquire_workspace_lock
 except Exception:
@@ -307,6 +308,7 @@ def main(argv: list[str] | None = None) -> int:
                     "trigger_source": trigger_source,
                     "session_id": session_id,
                     "run_id": run_id,
+                    "reason": "recent-duplicate-trigger",
                 },
             )
             payload = _payload(
@@ -334,9 +336,17 @@ def main(argv: list[str] | None = None) -> int:
             "repo_fingerprint": repo_fingerprint,
             "session_run_id": archive_id,
             "source_phase": old_phase,
+            "source_active_gate": str(state.get("active_gate") or ""),
+            "source_next": str(state.get("Next") or state.get("next") or ""),
+            "ticket_digest": state.get("TicketRecordDigest"),
+            "task_digest": state.get("TaskRecordDigest"),
+            "plan_record_digest": state.get("PlanRecordDigest") or state.get("plan_record_digest"),
+            "impl_digest": state.get("ImplementationDigest") or state.get("implementation_digest"),
             "session_state": deepcopy(state),
         }
-        _write_json_atomic(archive_dir / f"{archive_id}.json", archive_payload)
+        snapshot_path = archive_dir / f"{archive_id}.json"
+        _write_json_atomic(snapshot_path, archive_payload)
+        snapshot_digest = canonical_json_hash(archive_payload)
 
         new_run_id = _new_run_id()
         _reset_for_new_work(state, new_run_id=new_run_id, observed_at=observed_at)
@@ -356,6 +366,8 @@ def main(argv: list[str] | None = None) -> int:
                 "new_run_id": new_run_id,
                 "phase": "4",
                 "next": "5",
+                "snapshot_path": str(snapshot_path),
+                "snapshot_digest": snapshot_digest,
             },
         )
         _record_guard(
@@ -366,6 +378,22 @@ def main(argv: list[str] | None = None) -> int:
             observed_at=observed_at,
         )
     except Exception as exc:
+        try:
+            _append_jsonl(
+                session_path.parent / "events.jsonl",
+                {
+                    "event": "new_work_session_init_failed",
+                    "observed_at": observed_at,
+                    "repo_fingerprint": repo_fingerprint,
+                    "trigger_source": trigger_source,
+                    "session_id": session_id,
+                    "run_id": "",
+                    "reason": "new-work-session-init-failed",
+                    "error": str(exc),
+                },
+            )
+        except Exception:
+            pass
         payload = _payload(
             "blocked",
             reason="new-work-session-init-failed",
