@@ -1303,6 +1303,7 @@ def run_kernel_continuation(hook_result: Mapping[str, object]) -> dict[str, obje
         return dict(payload)
 
     state = _root_state(document)
+    state["phase_transition_evidence"] = True
     preflight = state.get("Preflight")
     if not isinstance(preflight, dict):
         preflight = {}
