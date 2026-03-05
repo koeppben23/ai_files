@@ -149,6 +149,7 @@ CORE_COMMAND_FILES = {
     "rules.md",
     "BOOTSTRAP.md",
     "continue.md",
+    "audit-readout.md",
     "review.md",
     "ticket.md",
     "docs/resume.md",
@@ -1946,6 +1947,12 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
             python_command=binding_python,
             dry_run=dry_run,
         ),
+        "audit-readout.md": inject_session_reader_path_for_command(
+            plan.commands_dir,
+            command_markdown="audit-readout.md",
+            python_command=binding_python,
+            dry_run=dry_run,
+        ),
         "review.md": inject_session_reader_path_for_command(
             plan.commands_dir,
             command_markdown="review.md",
@@ -1960,6 +1967,7 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
         ),
     }
     print(f"  continue.md session_reader path: {template_injections['continue.md']['status']}")
+    print(f"  audit-readout.md session_reader path: {template_injections['audit-readout.md']['status']}")
     print(f"  review.md session_reader path: {template_injections['review.md']['status']}")
     print(f"  ticket.md session_reader path: {template_injections['ticket.md']['status']}")
 
