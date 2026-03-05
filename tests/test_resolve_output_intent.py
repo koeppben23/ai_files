@@ -464,6 +464,25 @@ class TestConflictPrecedence:
             requested_action="review the architecture",
         )  # Should not raise
 
+    def test_unresolved_contract_blocks_impl_but_allows_review_and_plan(self) -> None:
+        """Phase policy unresolved must block implementation but allow review/plan classes."""
+        intent = resolve_output_intent(phase_token="99", route_strategy="stay")
+
+        with pytest.raises(ValueError, match="forbidden.*restrictive fallback"):
+            _apply_resolved_intent_policy(
+                resolved_output_intent=intent,
+                requested_action="implement the feature",
+            )
+
+        _apply_resolved_intent_policy(
+            resolved_output_intent=intent,
+            requested_action="review architecture",
+        )
+        _apply_resolved_intent_policy(
+            resolved_output_intent=intent,
+            requested_action="plan migration approach",
+        )
+
     def test_unresolved_blocks_patch(self) -> None:
         """Bad: unresolved + patch action → blocked by restrictive fallback."""
         intent = resolve_output_intent(phase_token="99", route_strategy="stay")
