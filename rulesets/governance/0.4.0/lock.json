@@ -114,7 +114,7 @@
     },
     {
       "path": "rulesets/core/rules.yml",
-      "sha256": "d7859aa7104afa29d48d17c53d833b07a42e2f2bfb63c1f98669969eb33f52b7"
+      "sha256": "9a8bb0b2fd4b24655468daf85bf40b8aaf16c3fadb87939c59e42686bc40e2ff"
     },
     {
       "path": "rulesets/profiles/rules.backend-java-kafka-templates.yml",

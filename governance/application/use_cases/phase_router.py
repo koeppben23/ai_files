@@ -23,6 +23,7 @@ class RoutedPhase:
     log_paths: dict[str, str] | None = None
     event_id: str = ""
     strict_exit_result: StrictExitResult | None = None
+    route_strategy: str = ""
 
 
 def route_phase(
@@ -58,6 +59,7 @@ def route_phase(
         log_paths=result.log_paths,
         event_id=result.event_id,
         strict_exit_result=result.strict_exit_result,
+        route_strategy=result.route_strategy,
     )
 
 
