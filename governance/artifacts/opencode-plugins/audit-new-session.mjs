@@ -1,9 +1,21 @@
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 
 const seen = new Set();
+const MAX_LOG_BYTES = 64 * 1024;
 
 function asString(value) {
   return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function capAppend(buffer, chunk) {
+  if (buffer.length >= MAX_LOG_BYTES) {
+    return buffer;
+  }
+  const next = buffer + String(chunk);
+  if (next.length <= MAX_LOG_BYTES) {
+    return next;
+  }
+  return next.slice(0, MAX_LOG_BYTES);
 }
 
 function extractSessionId(event) {
@@ -29,6 +41,40 @@ function extractRepoRoot(event, client) {
   return process.cwd();
 }
 
+function canRun(cmd, args = []) {
+  try {
+    const result = spawnSync(cmd, args, { stdio: "ignore" });
+    return result.status === 0;
+  } catch {
+    return false;
+  }
+}
+
+function resolvePython() {
+  const override = asString(process.env.OPENCODE_PYTHON);
+  if (override) {
+    return { cmd: override, args: [] };
+  }
+
+  if (process.platform === "win32") {
+    if (canRun("py", ["-3", "-V"])) {
+      return { cmd: "py", args: ["-3"] };
+    }
+    if (canRun("python", ["-V"])) {
+      return { cmd: "python", args: [] };
+    }
+    return null;
+  }
+
+  if (canRun("python3", ["-V"])) {
+    return { cmd: "python3", args: [] };
+  }
+  if (canRun("python", ["-V"])) {
+    return { cmd: "python", args: [] };
+  }
+  return null;
+}
+
 function log(client, message) {
   try {
     client?.app?.log?.(message);
@@ -37,8 +83,9 @@ function log(client, message) {
   }
 }
 
-function runInitializer({ cwd, sessionId, reason, onExit, onError }) {
+function runInitializer({ cwd, python, sessionId, reason, onExit, onError }) {
   const args = [
+    ...python.args,
     "-m",
     "governance.entrypoints.new_work_session",
     "--trigger-source",
@@ -53,7 +100,7 @@ function runInitializer({ cwd, sessionId, reason, onExit, onError }) {
     args.push("--reason", reason);
   }
 
-  const child = spawn("python3", args, {
+  const child = spawn(python.cmd, args, {
     cwd,
     stdio: ["ignore", "pipe", "pipe"],
   });
@@ -61,10 +108,10 @@ function runInitializer({ cwd, sessionId, reason, onExit, onError }) {
   let stdout = "";
   let stderr = "";
   child.stdout?.on("data", (chunk) => {
-    stdout += String(chunk);
+    stdout = capAppend(stdout, chunk);
   });
   child.stderr?.on("data", (chunk) => {
-    stderr += String(chunk);
+    stderr = capAppend(stderr, chunk);
   });
   child.on("error", onError);
   child.on("close", (code) => {
@@ -80,18 +127,31 @@ export const AuditNewSession = async ({ client }) => {
       }
 
       const sessionId = extractSessionId(event);
-      if (sessionId && seen.has(sessionId)) {
-        return;
-      }
-      if (sessionId) {
+      if (!sessionId) {
+        log(client, "[audit] session.created missing session_id; proceeding without dedupe");
+      } else {
+        if (seen.has(sessionId)) {
+          return;
+        }
         seen.add(sessionId);
       }
 
       const cwd = extractRepoRoot(event, client);
+      if (!asString(event?.repo_root) && !asString(event?.repoRoot)) {
+        log(client, `[audit] session.created missing repo_root; fallback cwd=${cwd}`);
+      }
+
+      const python = resolvePython();
+      if (!python) {
+        log(client, "[audit] no python interpreter found (set OPENCODE_PYTHON); skipping new_work_session");
+        return;
+      }
+
       const reason = asString(event.reason);
 
       runInitializer({
         cwd,
+        python,
         sessionId,
         reason,
         onExit: (code, out, err) => {
@@ -108,3 +168,5 @@ export const AuditNewSession = async ({ client }) => {
     },
   };
 };
+
+export default AuditNewSession;
