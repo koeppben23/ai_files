@@ -153,6 +153,33 @@ class TestNewWorkSessionEntrypoint:
         assert "new_work_session_created" in events
         assert "new_work_session_deduped" in events
 
+    def test_bypasses_dedupe_when_state_is_not_fresh_phase4_run(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+        config_root, session_path, _ = _setup_workspace(tmp_path)
+        monkeypatch.setenv("OPENCODE_CONFIG_ROOT", str(config_root))
+
+        first = new_work_session.main(["--trigger-source", "desktop-plugin", "--session-id", "sess-stale", "--quiet"])
+        first_payload = json.loads(capsys.readouterr().out.strip())
+        first_run_id = first_payload["run_id"]
+        assert first == 0
+
+        doc = json.loads(session_path.read_text(encoding="utf-8"))
+        state = doc["SESSION_STATE"]
+        state["Phase"] = "5-ArchitectureReview"
+        state["phase"] = "5-ArchitectureReview"
+        state["Next"] = "5.3"
+        state["active_gate"] = "Architecture Review Gate"
+        session_path.write_text(json.dumps(doc, ensure_ascii=True), encoding="utf-8")
+
+        second = new_work_session.main(["--trigger-source", "desktop-plugin", "--session-id", "sess-stale", "--quiet"])
+        second_payload = json.loads(capsys.readouterr().out.strip())
+        assert second == 0
+        assert second_payload["reason"] == "new-work-session-created"
+        assert second_payload["run_id"] != first_run_id
+
+        events = (session_path.parent / "events.jsonl").read_text(encoding="utf-8")
+        assert "new_work_session_dedupe_bypassed" in events
+        assert events.count("new_work_session_created") >= 2
+
     # -- Corner --
     def test_initializes_when_legacy_run_id_is_missing(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
         config_root, session_path, _ = _setup_workspace(tmp_path)
