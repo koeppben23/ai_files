@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+from typing import Any, Mapping
 from unittest.mock import patch
 
 import pytest
@@ -48,7 +49,7 @@ from governance.engine.response_contract import (
 # Fixtures
 # ---------------------------------------------------------------------------
 
-def _make_phase_api_phases() -> list[dict]:
+def _make_phase_api_phases() -> list[Mapping[str, Any]]:
     """Return a minimal phase_api.yaml phases list with output_policy on token 5."""
     return [
         {"token": "0", "phase": "0-Init", "route_strategy": "next"},
@@ -166,6 +167,31 @@ class TestResolverDirectPolicy:
         assert pd.first_output_is_draft is True
         assert pd.draft_not_review_ready is True
         assert pd.min_self_review_iterations == 1
+
+    def test_token_5_plan_record_preparation_gate_restricts_output_classes(self) -> None:
+        """Phase 5 prep gate allows only plan authoring classes."""
+        result = resolve_output_intent(
+            phase_token="5",
+            route_strategy="stay",
+            active_gate="Plan Record Preparation Gate",
+        )
+        assert result.policy_resolution_status == "resolved"
+        assert result.effective_output_policy is not None
+        assert set(result.effective_output_policy.allowed_output_classes) == {
+            "plan",
+            "consolidated_review_plan",
+        }
+        assert "implementation" in result.effective_output_policy.forbidden_output_classes
+
+    def test_token_5_architecture_review_gate_keeps_full_phase5_policy(self) -> None:
+        """Phase 5 architecture review gate keeps full SSOT policy."""
+        result = resolve_output_intent(
+            phase_token="5",
+            route_strategy="stay",
+            active_gate="Architecture Review Gate",
+        )
+        assert result.effective_output_policy is not None
+        assert "review" in result.effective_output_policy.allowed_output_classes
 
     def test_fallback_classification_not_used_for_resolved(self) -> None:
         """Happy: Resolved intent does NOT use fallback classification."""

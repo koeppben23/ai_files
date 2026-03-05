@@ -360,6 +360,52 @@ def test_hydrate_transition_state_marks_business_rules_unresolved_when_no_eviden
 
 
 @pytest.mark.governance
+def test_hydrate_transition_state_normalizes_business_rules_decision_for_extracted(tmp_path: Path):
+    module = _load_module_with_env({"CI": ""})
+    (tmp_path / "README.md").write_text("demo\n", encoding="utf-8")
+    document = {
+        "SESSION_STATE": {
+            "Scope": {"BusinessRules": "extracted"},
+            "BusinessRules": {
+                "Decision": "skip",
+                "Outcome": "extracted",
+                "ExecutionEvidence": True,
+                "InventoryFileStatus": "written",
+            },
+        }
+    }
+
+    hydrated = module._hydrate_transition_state(
+        document,
+        repo_fingerprint="abc123def456abc123def456",
+        requested_token="2.1",
+        repo_root=tmp_path,
+    )
+    state = hydrated["SESSION_STATE"]
+
+    assert state["Scope"]["BusinessRules"] == "extracted"
+    assert state["BusinessRules"]["Outcome"] == "extracted"
+    assert state["BusinessRules"]["Decision"] == "execute"
+
+
+@pytest.mark.governance
+def test_hydrate_transition_state_does_not_force_phase_transition_evidence(tmp_path: Path):
+    module = _load_module_with_env({"CI": ""})
+    (tmp_path / "README.md").write_text("demo\n", encoding="utf-8")
+    document = {"SESSION_STATE": {}}
+
+    hydrated = module._hydrate_transition_state(
+        document,
+        repo_fingerprint="abc123def456abc123def456",
+        requested_token="2",
+        repo_root=tmp_path,
+    )
+    state = hydrated["SESSION_STATE"]
+
+    assert state["phase_transition_evidence"] is False
+
+
+@pytest.mark.governance
 def test_hydrate_transition_state_detects_java_repo_type(tmp_path: Path):
     module = _load_module_with_env({"CI": ""})
     (tmp_path / "pom.xml").write_text("<project/>\n", encoding="utf-8")

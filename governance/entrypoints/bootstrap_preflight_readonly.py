@@ -92,6 +92,7 @@ HOOK_STATUS_FAILED = "failed"
 DEFAULT_ACTIVE_PROFILE_ID = "fallback-minimum"
 DEFAULT_ADDON_KEY = "riskTiering"
 DEFAULT_ADDON_RULEBOOK = "rules.risk-tiering.yml"
+_BUSINESS_RULES_RESOLVED_OUTCOMES = {"extracted", "not-applicable", "deferred", "skipped"}
 SUPPORTED_PROFILE_IDS = {
     "backend-python",
     "backend-java",
@@ -1086,6 +1087,40 @@ def _addon_rulebook_path_token() -> str:
     return f"${{COMMANDS_HOME}}/rulesets/profiles/{DEFAULT_ADDON_RULEBOOK}"
 
 
+def _normalize_business_rules_state(state: dict[str, object]) -> None:
+    scope = state.get("Scope")
+    if not isinstance(scope, dict):
+        scope = {}
+
+    business_rules = state.get("BusinessRules")
+    if not isinstance(business_rules, dict):
+        business_rules = {}
+
+    outcome = str(business_rules.get("Outcome") or "").strip().lower()
+    evidence = business_rules.get("ExecutionEvidence")
+    if isinstance(evidence, bool) and evidence and outcome in _BUSINESS_RULES_RESOLVED_OUTCOMES:
+        scope["BusinessRules"] = outcome
+
+    current_scope = str(scope.get("BusinessRules") or "").strip().lower()
+    if current_scope not in _BUSINESS_RULES_RESOLVED_OUTCOMES:
+        scope["BusinessRules"] = "unresolved"
+        business_rules["Decision"] = "pending"
+        business_rules.setdefault("ExecutionEvidence", False)
+        business_rules.setdefault("InventoryFileStatus", "unknown")
+    else:
+        normalized = str(scope.get("BusinessRules") or "").strip().lower()
+        business_rules["Outcome"] = normalized
+        if normalized == "extracted":
+            business_rules["Decision"] = "execute"
+            business_rules.setdefault("InventoryFileStatus", "unknown")
+        else:
+            business_rules["Decision"] = "skip"
+            business_rules.setdefault("InventoryFileStatus", "not-applicable")
+
+    state["Scope"] = scope
+    state["BusinessRules"] = business_rules
+
+
 def _hydrate_transition_state(
     document: dict[str, object],
     *,
@@ -1094,7 +1129,7 @@ def _hydrate_transition_state(
     repo_root: Path | None = None,
 ) -> dict[str, object]:
     state = _root_state(document)
-    state["phase_transition_evidence"] = True
+    state.setdefault("phase_transition_evidence", False)
 
     profile_override = _canonical_profile_id(get_profile_override())
     detection = _detect_repo_profile(repo_root)
@@ -1198,25 +1233,10 @@ def _hydrate_transition_state(
         state["Scope"] = scope_obj
 
     if phase_rank(requested_token) >= phase_rank("2.1"):
+        _normalize_business_rules_state(state)
         scope = state.get("Scope")
         if not isinstance(scope, dict):
             scope = {}
-        business_rules = state.get("BusinessRules")
-        if not isinstance(business_rules, dict):
-            business_rules = {}
-        business_rules_outcome = str(business_rules.get("Outcome") or "").strip().lower()
-        execution_evidence = business_rules.get("ExecutionEvidence")
-        if isinstance(execution_evidence, bool) and execution_evidence and business_rules_outcome in {
-            "extracted",
-            "not-applicable",
-            "deferred",
-            "skipped",
-        }:
-            scope["BusinessRules"] = business_rules_outcome
-        current_scope = str(scope.get("BusinessRules") or "").strip().lower()
-        if current_scope not in {"extracted", "not-applicable", "deferred", "skipped"}:
-            scope["BusinessRules"] = "unresolved"
-        state["Scope"] = scope
 
         gates = state.get("Gates")
         if isinstance(gates, dict):
@@ -1224,15 +1244,6 @@ def _hydrate_transition_state(
                 gates["P5.4-BusinessRules"] = gates.get("P5.4-BusinessRules") or "pending"
             else:
                 gates["P5.4-BusinessRules"] = "not-applicable"
-
-        if str(scope.get("BusinessRules") or "") == "unresolved":
-            business_rules["Decision"] = "pending"
-            business_rules.setdefault("ExecutionEvidence", False)
-            business_rules.setdefault("InventoryFileStatus", "unknown")
-        else:
-            business_rules.setdefault("Decision", "skip")
-            business_rules.setdefault("InventoryFileStatus", "not-applicable")
-        state["BusinessRules"] = business_rules
 
     if requested_token == "3A":
         inventory = state.get("APIInventory")
