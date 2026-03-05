@@ -154,7 +154,7 @@ def test_full_install_reinstall_uninstall_flow(tmp_path: Path):
         commands / "scripts" / "rulebook_factory.py",
         commands / "templates" / "github-actions" / "template_catalog.json",
         commands / "templates" / "github-actions" / "governance-pr-gate-shadow-live-verify.yml",
-        config_root / "plugins" / "new_work_session_plugin.py",
+        config_root / "plugins" / "audit-new-session.mjs",
         manifest,
         paths_file,
     ]
@@ -246,7 +246,7 @@ def test_full_install_reinstall_uninstall_flow(tmp_path: Path):
         commands / "master.md",
         commands / "rules.md",
         commands / "BOOTSTRAP.md",
-        config_root / "plugins" / "new_work_session_plugin.py",
+        config_root / "plugins" / "audit-new-session.mjs",
         manifest,
         paths_file,  # this should be removed for a normal install-owned paths file
         config_root / "INSTALL_HEALTH.json",
