@@ -20,11 +20,13 @@ def test_plugin_uses_node_builtins_and_spawn_args_array() -> None:
 
     assert "from \"node:child_process\"" in content
     assert "spawn(" in content
+    assert "spawnSync(" in content
     assert "exec(" not in content
     assert '"-m"' in content
     assert '"governance.entrypoints.new_work_session"' in content
     assert '"--trigger-source"' in content
     assert '"desktop-plugin"' in content
+    assert "OPENCODE_PYTHON" in content
 
 
 @pytest.mark.governance
@@ -39,3 +41,5 @@ def test_plugin_listens_only_to_session_created_and_handles_field_variants() -> 
     assert "event.repo_root" in content
     assert "event.repoRoot" in content
     assert "process.cwd()" in content
+    assert "export default AuditNewSession" in content
+    assert "MAX_LOG_BYTES" in content
