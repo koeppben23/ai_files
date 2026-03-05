@@ -521,9 +521,554 @@ def test_kernel_phase5_routes_to_architecture_review_when_plan_record_present(tm
 
     assert result.status == "OK"
     assert result.phase == "5-ArchitectureReview"
+    assert result.next_token == "5"
+    assert result.active_gate == "Architecture Review Gate"
+    assert result.source == "phase-5-self-review-required"
+
+
+@pytest.mark.governance
+def test_happy_phase5_early_stop_on_unchanged_plan_digest_after_first_iteration(tmp_path: Path) -> None:
+    commands_home = tmp_path / "commands"
+    _write_phase_api(commands_home)
+
+    doc = {
+        "SESSION_STATE": {
+            "Phase": "5-ArchitectureReview",
+            "PersistenceCommitted": True,
+            "WorkspaceReadyGateCommitted": True,
+            "WorkspaceArtifactsCommitted": True,
+            "PointerVerified": True,
+            **RULEBOOK_BASE,
+            "TicketRecordDigest": "ticket-digest",
+            "plan_record_versions": 1,
+            "Phase5Review": {
+                "iteration": 1,
+                "prev_plan_digest": "sha256:plan-v1",
+                "curr_plan_digest": "sha256:plan-v1",
+            },
+        }
+    }
+
+    result = execute(
+        current_token="5",
+        session_state_doc=doc,
+        runtime_ctx=RuntimeContext(
+            requested_active_gate="Architecture Review Gate",
+            requested_next_gate_condition="Continue",
+            repo_is_git_root=True,
+            commands_home=commands_home,
+            workspaces_home=tmp_path / "workspaces",
+            config_root=tmp_path / "cfg",
+        ),
+    )
+
+    assert result.status == "OK"
+    assert result.phase == "5-ArchitectureReview"
     assert result.next_token == "5.3"
     assert result.active_gate == "Architecture Review Gate"
     assert result.source == "phase-5-architecture-review-ready"
+
+
+@pytest.mark.governance
+def test_edge_phase5_hard_stop_on_max_iterations_even_when_digest_changes(tmp_path: Path) -> None:
+    commands_home = tmp_path / "commands"
+    _write_phase_api(commands_home)
+
+    doc = {
+        "SESSION_STATE": {
+            "Phase": "5-ArchitectureReview",
+            "PersistenceCommitted": True,
+            "WorkspaceReadyGateCommitted": True,
+            "WorkspaceArtifactsCommitted": True,
+            "PointerVerified": True,
+            **RULEBOOK_BASE,
+            "TicketRecordDigest": "ticket-digest",
+            "plan_record_versions": 1,
+            "Phase5Review": {
+                "iteration": 3,
+                "prev_plan_digest": "sha256:plan-v2",
+                "curr_plan_digest": "sha256:plan-v3",
+            },
+        }
+    }
+
+    result = execute(
+        current_token="5",
+        session_state_doc=doc,
+        runtime_ctx=RuntimeContext(
+            requested_active_gate="Architecture Review Gate",
+            requested_next_gate_condition="Continue",
+            repo_is_git_root=True,
+            commands_home=commands_home,
+            workspaces_home=tmp_path / "workspaces",
+            config_root=tmp_path / "cfg",
+        ),
+    )
+
+    assert result.status == "OK"
+    assert result.phase == "5-ArchitectureReview"
+    assert result.next_token == "5.3"
+    assert result.source == "phase-5-architecture-review-ready"
+
+
+@pytest.mark.governance
+def test_bad_phase5_first_iteration_without_previous_digest_cannot_early_stop(tmp_path: Path) -> None:
+    commands_home = tmp_path / "commands"
+    _write_phase_api(commands_home)
+
+    doc = {
+        "SESSION_STATE": {
+            "Phase": "5-ArchitectureReview",
+            "PersistenceCommitted": True,
+            "WorkspaceReadyGateCommitted": True,
+            "WorkspaceArtifactsCommitted": True,
+            "PointerVerified": True,
+            **RULEBOOK_BASE,
+            "TicketRecordDigest": "ticket-digest",
+            "plan_record_versions": 1,
+            "Phase5Review": {
+                "iteration": 1,
+                "curr_plan_digest": "sha256:plan-v1",
+            },
+        }
+    }
+
+    result = execute(
+        current_token="5",
+        session_state_doc=doc,
+        runtime_ctx=RuntimeContext(
+            requested_active_gate="Architecture Review Gate",
+            requested_next_gate_condition="Continue",
+            repo_is_git_root=True,
+            commands_home=commands_home,
+            workspaces_home=tmp_path / "workspaces",
+            config_root=tmp_path / "cfg",
+        ),
+    )
+
+    assert result.status == "OK"
+    assert result.phase == "5-ArchitectureReview"
+    assert result.next_token == "5"
+    assert result.source == "phase-5-self-review-required"
+
+
+@pytest.mark.governance
+def test_kernel_phase6_stays_until_implementation_review_complete(tmp_path: Path) -> None:
+    commands_home = tmp_path / "commands"
+    _write_phase_api(commands_home)
+
+    doc = {
+        "SESSION_STATE": {
+            "Phase": "6-PostFlight",
+            "PersistenceCommitted": True,
+            "WorkspaceReadyGateCommitted": True,
+            "WorkspaceArtifactsCommitted": True,
+            "PointerVerified": True,
+            **RULEBOOK_BASE,
+            "ImplementationReview": {
+                "iteration": 0,
+                "max_iterations": 3,
+            },
+            "Gates": {
+                "P5-Architecture": "approved",
+                "P5.3-TestQuality": "pass",
+            },
+        }
+    }
+
+    result = execute(
+        current_token="6",
+        session_state_doc=doc,
+        runtime_ctx=RuntimeContext(
+            requested_active_gate="Post Flight",
+            requested_next_gate_condition="Continue",
+            repo_is_git_root=True,
+            commands_home=commands_home,
+            workspaces_home=tmp_path / "workspaces",
+            config_root=tmp_path / "cfg",
+        ),
+    )
+
+    assert result.status == "OK"
+    assert result.phase == "6-PostFlight"
+    assert result.next_token == "6"
+    assert result.source == "phase-6-implementation-review-required"
+
+
+@pytest.mark.governance
+def test_kernel_phase6_ready_for_user_review_after_three_iterations(tmp_path: Path) -> None:
+    commands_home = tmp_path / "commands"
+    _write_phase_api(commands_home)
+
+    doc = {
+        "SESSION_STATE": {
+            "Phase": "6-PostFlight",
+            "PersistenceCommitted": True,
+            "WorkspaceReadyGateCommitted": True,
+            "WorkspaceArtifactsCommitted": True,
+            "PointerVerified": True,
+            **RULEBOOK_BASE,
+            "ImplementationReview": {
+                "iteration": 3,
+                "prev_impl_digest": "sha256:impl-v2",
+                "curr_impl_digest": "sha256:impl-v3",
+            },
+            "Gates": {
+                "P5-Architecture": "approved",
+                "P5.3-TestQuality": "pass",
+            },
+        }
+    }
+
+    result = execute(
+        current_token="6",
+        session_state_doc=doc,
+        runtime_ctx=RuntimeContext(
+            requested_active_gate="Post Flight",
+            requested_next_gate_condition="Continue",
+            repo_is_git_root=True,
+            commands_home=commands_home,
+            workspaces_home=tmp_path / "workspaces",
+            config_root=tmp_path / "cfg",
+        ),
+    )
+
+    assert result.status == "OK"
+    assert result.phase == "6-PostFlight"
+    assert result.next_token == "6"
+    assert result.source == "phase-6-ready-for-user-review"
+
+
+@pytest.mark.governance
+def test_corner_phase6_allows_early_stop_on_unchanged_implementation_digest(tmp_path: Path) -> None:
+    commands_home = tmp_path / "commands"
+    _write_phase_api(commands_home)
+
+    doc = {
+        "SESSION_STATE": {
+            "Phase": "6-PostFlight",
+            "PersistenceCommitted": True,
+            "WorkspaceReadyGateCommitted": True,
+            "WorkspaceArtifactsCommitted": True,
+            "PointerVerified": True,
+            **RULEBOOK_BASE,
+            "ImplementationReview": {
+                "iteration": 1,
+                "prev_impl_digest": "sha256:impl-v1",
+                "curr_impl_digest": "sha256:impl-v1",
+            },
+            "Gates": {
+                "P5-Architecture": "approved",
+                "P5.3-TestQuality": "pass",
+            },
+        }
+    }
+
+    result = execute(
+        current_token="6",
+        session_state_doc=doc,
+        runtime_ctx=RuntimeContext(
+            requested_active_gate="Post Flight",
+            requested_next_gate_condition="Continue",
+            repo_is_git_root=True,
+            commands_home=commands_home,
+            workspaces_home=tmp_path / "workspaces",
+            config_root=tmp_path / "cfg",
+        ),
+    )
+
+    assert result.status == "OK"
+    assert result.phase == "6-PostFlight"
+    assert result.source == "phase-6-ready-for-user-review"
+
+
+@pytest.mark.governance
+def test_bad_phase6_first_iteration_without_previous_digest_cannot_early_stop(tmp_path: Path) -> None:
+    commands_home = tmp_path / "commands"
+    _write_phase_api(commands_home)
+
+    doc = {
+        "SESSION_STATE": {
+            "Phase": "6-PostFlight",
+            "PersistenceCommitted": True,
+            "WorkspaceReadyGateCommitted": True,
+            "WorkspaceArtifactsCommitted": True,
+            "PointerVerified": True,
+            **RULEBOOK_BASE,
+            "ImplementationReview": {
+                "iteration": 1,
+                "curr_impl_digest": "sha256:impl-v1",
+            },
+            "Gates": {
+                "P5-Architecture": "approved",
+                "P5.3-TestQuality": "pass",
+            },
+        }
+    }
+
+    result = execute(
+        current_token="6",
+        session_state_doc=doc,
+        runtime_ctx=RuntimeContext(
+            requested_active_gate="Post Flight",
+            requested_next_gate_condition="Continue",
+            repo_is_git_root=True,
+            commands_home=commands_home,
+            workspaces_home=tmp_path / "workspaces",
+            config_root=tmp_path / "cfg",
+        ),
+    )
+
+    assert result.status == "OK"
+    assert result.phase == "6-PostFlight"
+    assert result.source == "phase-6-implementation-review-required"
+
+
+@pytest.mark.governance
+def test_edge_phase5_iteration_above_max_is_treated_as_hard_stop(tmp_path: Path) -> None:
+    commands_home = tmp_path / "commands"
+    _write_phase_api(commands_home)
+
+    doc = {
+        "SESSION_STATE": {
+            "Phase": "5-ArchitectureReview",
+            "PersistenceCommitted": True,
+            "WorkspaceReadyGateCommitted": True,
+            "WorkspaceArtifactsCommitted": True,
+            "PointerVerified": True,
+            **RULEBOOK_BASE,
+            "TicketRecordDigest": "ticket-digest",
+            "plan_record_versions": 1,
+            "Phase5Review": {
+                "iteration": 99,
+                "max_iterations": 3,
+                "prev_plan_digest": "sha256:plan-v9",
+                "curr_plan_digest": "sha256:plan-v10",
+            },
+        }
+    }
+
+    result = execute(
+        current_token="5",
+        session_state_doc=doc,
+        runtime_ctx=RuntimeContext(
+            requested_active_gate="Architecture Review Gate",
+            requested_next_gate_condition="Continue",
+            repo_is_git_root=True,
+            commands_home=commands_home,
+            workspaces_home=tmp_path / "workspaces",
+            config_root=tmp_path / "cfg",
+        ),
+    )
+
+    assert result.status == "OK"
+    assert result.next_token == "5.3"
+    assert result.source == "phase-5-architecture-review-ready"
+
+
+@pytest.mark.governance
+def test_edge_phase6_iteration_above_max_is_treated_as_hard_stop(tmp_path: Path) -> None:
+    commands_home = tmp_path / "commands"
+    _write_phase_api(commands_home)
+
+    doc = {
+        "SESSION_STATE": {
+            "Phase": "6-PostFlight",
+            "PersistenceCommitted": True,
+            "WorkspaceReadyGateCommitted": True,
+            "WorkspaceArtifactsCommitted": True,
+            "PointerVerified": True,
+            **RULEBOOK_BASE,
+            "ImplementationReview": {
+                "iteration": 99,
+                "max_iterations": 3,
+                "prev_impl_digest": "sha256:impl-v9",
+                "curr_impl_digest": "sha256:impl-v10",
+            },
+            "Gates": {
+                "P5-Architecture": "approved",
+                "P5.3-TestQuality": "pass",
+            },
+        }
+    }
+
+    result = execute(
+        current_token="6",
+        session_state_doc=doc,
+        runtime_ctx=RuntimeContext(
+            requested_active_gate="Post Flight",
+            requested_next_gate_condition="Continue",
+            repo_is_git_root=True,
+            commands_home=commands_home,
+            workspaces_home=tmp_path / "workspaces",
+            config_root=tmp_path / "cfg",
+        ),
+    )
+
+    assert result.status == "OK"
+    assert result.next_token == "6"
+    assert result.source == "phase-6-ready-for-user-review"
+
+
+@pytest.mark.governance
+def test_replay_determinism_for_digest_based_review_decision(tmp_path: Path) -> None:
+    commands_home = tmp_path / "commands"
+    _write_phase_api(commands_home)
+
+    doc = {
+        "SESSION_STATE": {
+            "Phase": "5-ArchitectureReview",
+            "PersistenceCommitted": True,
+            "WorkspaceReadyGateCommitted": True,
+            "WorkspaceArtifactsCommitted": True,
+            "PointerVerified": True,
+            **RULEBOOK_BASE,
+            "TicketRecordDigest": "ticket-digest",
+            "plan_record_versions": 1,
+            "Phase5Review": {
+                "iteration": 1,
+                "prev_plan_digest": "sha256:plan-v1",
+                "curr_plan_digest": "sha256:plan-v1",
+            },
+        }
+    }
+
+    first = execute(
+        current_token="5",
+        session_state_doc=doc,
+        runtime_ctx=RuntimeContext(
+            requested_active_gate="Architecture Review Gate",
+            requested_next_gate_condition="Continue",
+            repo_is_git_root=True,
+            commands_home=commands_home,
+            workspaces_home=tmp_path / "workspaces",
+            config_root=tmp_path / "cfg",
+        ),
+    )
+    second = execute(
+        current_token="5",
+        session_state_doc=doc,
+        runtime_ctx=RuntimeContext(
+            requested_active_gate="Architecture Review Gate",
+            requested_next_gate_condition="Continue",
+            repo_is_git_root=True,
+            commands_home=commands_home,
+            workspaces_home=tmp_path / "workspaces",
+            config_root=tmp_path / "cfg",
+        ),
+    )
+
+    assert first.phase == second.phase
+    assert first.next_token == second.next_token
+    assert first.active_gate == second.active_gate
+    assert first.next_gate_condition == second.next_gate_condition
+    assert first.source == second.source
+
+
+@pytest.mark.governance
+def test_e2eish_phase_path_from_ticket_to_phase6_review_ready(tmp_path: Path) -> None:
+    commands_home = tmp_path / "commands"
+    _write_phase_api(commands_home)
+    runtime = RuntimeContext(
+        requested_active_gate="",
+        requested_next_gate_condition="Continue",
+        repo_is_git_root=True,
+        commands_home=commands_home,
+        workspaces_home=tmp_path / "workspaces",
+        config_root=tmp_path / "cfg",
+    )
+
+    phase4_doc = {
+        "SESSION_STATE": {
+            "Phase": "4",
+            "PersistenceCommitted": True,
+            "WorkspaceReadyGateCommitted": True,
+            "WorkspaceArtifactsCommitted": True,
+            "PointerVerified": True,
+            **RULEBOOK_BASE,
+            "Ticket": "Implement deterministic review loops",
+            "TicketRecordDigest": "sha256:ticket-v1",
+        }
+    }
+    r4 = execute(current_token="4", session_state_doc=phase4_doc, runtime_ctx=runtime)
+    assert r4.source == "phase-4-to-5-ticket-intake"
+    assert r4.next_token == "5"
+
+    phase5_prep_doc = {
+        "SESSION_STATE": {
+            "Phase": "5-ArchitectureReview",
+            "PersistenceCommitted": True,
+            "WorkspaceReadyGateCommitted": True,
+            "WorkspaceArtifactsCommitted": True,
+            "PointerVerified": True,
+            **RULEBOOK_BASE,
+            "TicketRecordDigest": "sha256:ticket-v1",
+            "plan_record_versions": 0,
+        }
+    }
+    r5prep = execute(current_token="5", session_state_doc=phase5_prep_doc, runtime_ctx=runtime)
+    assert r5prep.source == "phase-5-plan-record-prep-required"
+    assert r5prep.active_gate == "Plan Record Preparation Gate"
+
+    phase5_review_done_doc = {
+        "SESSION_STATE": {
+            "Phase": "5-ArchitectureReview",
+            "PersistenceCommitted": True,
+            "WorkspaceReadyGateCommitted": True,
+            "WorkspaceArtifactsCommitted": True,
+            "PointerVerified": True,
+            **RULEBOOK_BASE,
+            "TicketRecordDigest": "sha256:ticket-v1",
+            "plan_record_versions": 1,
+            "Phase5Review": {
+                "iteration": 1,
+                "prev_plan_digest": "sha256:plan-v1",
+                "curr_plan_digest": "sha256:plan-v1",
+            },
+        }
+    }
+    r5done = execute(current_token="5", session_state_doc=phase5_review_done_doc, runtime_ctx=runtime)
+    assert r5done.source == "phase-5-architecture-review-ready"
+    assert r5done.next_token == "5.3"
+
+    phase53_doc = {
+        "SESSION_STATE": {
+            "Phase": "5.3-TestQuality",
+            "PersistenceCommitted": True,
+            "WorkspaceReadyGateCommitted": True,
+            "WorkspaceArtifactsCommitted": True,
+            "PointerVerified": True,
+            **RULEBOOK_BASE,
+            "TechnicalDebt": {"Proposed": False},
+            "RollbackRequired": False,
+        }
+    }
+    r53 = execute(current_token="5.3", session_state_doc=phase53_doc, runtime_ctx=runtime)
+    assert r53.source == "phase-5.3-to-6"
+    assert r53.next_token == "6"
+
+    phase6_doc = {
+        "SESSION_STATE": {
+            "Phase": "6-PostFlight",
+            "PersistenceCommitted": True,
+            "WorkspaceReadyGateCommitted": True,
+            "WorkspaceArtifactsCommitted": True,
+            "PointerVerified": True,
+            **RULEBOOK_BASE,
+            "Gates": {
+                "P5-Architecture": "approved",
+                "P5.3-TestQuality": "pass",
+            },
+            "ImplementationReview": {
+                "iteration": 1,
+                "prev_impl_digest": "sha256:impl-v1",
+                "curr_impl_digest": "sha256:impl-v1",
+            },
+        }
+    }
+    r6 = execute(current_token="6", session_state_doc=phase6_doc, runtime_ctx=runtime)
+    assert r6.source == "phase-6-ready-for-user-review"
+    assert r6.active_gate == "Evidence Presentation Gate"
 
 
 # ────────────────────────────────────────────────────────────────────

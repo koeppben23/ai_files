@@ -87,12 +87,13 @@ def classify_output_class(requested_action: str | None) -> OutputClass:
     """Classify a requested action into a semantic output class.
 
     Uses structural keyword matching against output class categories defined
-    in phase_api.yaml.  Fail-closed: unrecognized actions default to
-    'implementation' (the most restrictive classification) to prevent bypass.
+    in phase_api.yaml. Empty actions default to the safest review-class to
+    avoid accidental escalation; unrecognized non-empty actions remain
+    fail-closed as implementation to prevent synonym bypass.
     """
     action = (requested_action or "").strip().lower()
     if not action:
-        return "unknown"
+        return "review"
 
     # Check forbidden classes first (implementation-adjacent) — order matters
     # for fail-closed behavior
