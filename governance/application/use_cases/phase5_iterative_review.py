@@ -75,6 +75,7 @@ class Phase5ReviewState:
     feedback_history: tuple[Phase5ReviewFeedback, ...]
     final_status: FinalStatus
     plan_version: int = 1
+    plan_record_digest: str = ""
     operating_mode: OperatingMode = "user"
     started_at: str = ""              # Injected from infrastructure layer
     completed_at: str = ""            # Injected from infrastructure layer
@@ -125,6 +126,7 @@ class Phase5ReviewState:
             "iteration": self.iteration,
             "max_iterations": self.max_iterations,
             "plan_version": self.plan_version,
+            "plan_record_digest": self.plan_record_digest,
             "operating_mode": self.operating_mode,
             "final_status": self.final_status,
             "started_at": self.started_at,
@@ -155,6 +157,8 @@ class Phase5ReviewResult:
             "escalated_to_human": self.escalated_to_human,
             "rejected_no_human": self.rejected_no_human,
             "iterations_used": self.iterations_used,
+            "plan_version": self.review_state.plan_version,
+            "plan_record_digest": self.review_state.plan_record_digest,
             "escalation_reason": self.escalation_reason,
             "rejection_reason": self.rejection_reason,
             "final_feedback": self.final_feedback.to_dict() if self.final_feedback else None,
@@ -163,6 +167,7 @@ class Phase5ReviewResult:
 
 def create_initial_review_state(
     operating_mode: OperatingMode = "user",
+    plan_record_digest: str = "",
 ) -> Phase5ReviewState:
     """Create a fresh Phase 5 review state."""
     return Phase5ReviewState(
@@ -170,6 +175,7 @@ def create_initial_review_state(
         feedback_history=(),
         final_status="pending",
         plan_version=1,
+        plan_record_digest=plan_record_digest,
         operating_mode=operating_mode,
     )
 
@@ -257,6 +263,7 @@ def record_review_feedback(
         feedback_history=state.feedback_history + (feedback,),
         final_status=final_status,
         plan_version=state.plan_version,
+        plan_record_digest=state.plan_record_digest,
         operating_mode=state.operating_mode,
         started_at=state.started_at,
         completed_at=final_completed_at,
@@ -270,6 +277,7 @@ def increment_plan_version(state: Phase5ReviewState) -> Phase5ReviewState:
         feedback_history=state.feedback_history,
         final_status=state.final_status,
         plan_version=state.plan_version + 1,
+        plan_record_digest=state.plan_record_digest,
         operating_mode=state.operating_mode,
         started_at=state.started_at,
         completed_at=state.completed_at,
@@ -399,6 +407,7 @@ def format_review_summary(state: Phase5ReviewState) -> str:
         f"- **Operating Mode:** {state.operating_mode}",
         f"- **Iterations:** {state.iteration}/{state.max_iterations}",
         f"- **Plan Versions:** {state.plan_version}",
+        f"- **Plan Record Digest:** {state.plan_record_digest or 'missing'}",
         f"- **Status:** {state.final_status}",
         f"- **Total Issues Found:** {state.total_issues_found}",
         f"- **Total Suggestions:** {state.total_suggestions_found}",

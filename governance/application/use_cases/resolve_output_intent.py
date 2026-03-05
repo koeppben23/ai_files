@@ -38,6 +38,18 @@ from governance.domain.phase_state_machine import (
 logger = logging.getLogger(__name__)
 
 
+_PLAN_RECORD_PREPARATION_GATE = "plan record preparation gate"
+_PHASE5_PREPARATION_POLICY = PhaseOutputPolicy(
+    allowed_output_classes=("plan", "consolidated_review_plan"),
+    forbidden_output_classes=("implementation", "patch", "diff", "code_delivery"),
+    plan_discipline=PlanDiscipline(
+        first_output_is_draft=True,
+        draft_not_review_ready=True,
+        min_self_review_iterations=1,
+    ),
+)
+
+
 # ---------------------------------------------------------------------------
 # Type definitions
 # ---------------------------------------------------------------------------
@@ -184,6 +196,7 @@ def resolve_output_intent(
     """
     token = (phase_token or "").strip()
     strategy = (route_strategy or "").strip().lower()
+    gate = (active_gate or "").strip().lower()
 
     # Infer primary intent (token-based, driftfree)
     primary_intent = _infer_primary_intent(token)
@@ -192,6 +205,8 @@ def resolve_output_intent(
     if token:
         policy = resolve_phase_output_policy(token)
         if policy is not None:
+            if token == "5" and gate == _PLAN_RECORD_PREPARATION_GATE:
+                policy = _PHASE5_PREPARATION_POLICY
             logger.debug(
                 "resolve_output_intent: phase_token=%s → resolved (phase_api_policy)",
                 token,

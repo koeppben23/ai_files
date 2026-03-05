@@ -411,6 +411,7 @@ def test_kernel_phase_4_advances_to_5_when_ticket_evidence_present(tmp_path: Pat
     assert result.status == "OK"
     assert result.phase == "5-ArchitectureReview"
     assert result.source == "phase-4-to-5-ticket-intake"
+    assert result.active_gate == "Plan Record Preparation Gate"
 
 
 @pytest.mark.governance
@@ -447,6 +448,82 @@ def test_kernel_edge_normalizes_legacy_5_implementation_label_to_review_phase(tm
 
     assert result.status == "OK"
     assert result.phase == "5-ArchitectureReview"
+
+
+@pytest.mark.governance
+def test_kernel_phase5_requires_plan_record_before_architecture_review(tmp_path: Path) -> None:
+    commands_home = tmp_path / "commands"
+    _write_phase_api(commands_home)
+
+    doc = {
+        "SESSION_STATE": {
+            "Phase": "5-ArchitectureReview",
+            "PersistenceCommitted": True,
+            "WorkspaceReadyGateCommitted": True,
+            "WorkspaceArtifactsCommitted": True,
+            "PointerVerified": True,
+            **RULEBOOK_BASE,
+            "TicketRecordDigest": "ticket-digest",
+            "plan_record_versions": 0,
+        }
+    }
+
+    result = execute(
+        current_token="5",
+        session_state_doc=doc,
+        runtime_ctx=RuntimeContext(
+            requested_active_gate="Architecture Review Gate",
+            requested_next_gate_condition="Continue",
+            repo_is_git_root=True,
+            commands_home=commands_home,
+            workspaces_home=tmp_path / "workspaces",
+            config_root=tmp_path / "cfg",
+        ),
+    )
+
+    assert result.status == "OK"
+    assert result.phase == "5-ArchitectureReview"
+    assert result.next_token == "5"
+    assert result.active_gate == "Plan Record Preparation Gate"
+    assert result.source == "phase-5-plan-record-prep-required"
+
+
+@pytest.mark.governance
+def test_kernel_phase5_routes_to_architecture_review_when_plan_record_present(tmp_path: Path) -> None:
+    commands_home = tmp_path / "commands"
+    _write_phase_api(commands_home)
+
+    doc = {
+        "SESSION_STATE": {
+            "Phase": "5-ArchitectureReview",
+            "PersistenceCommitted": True,
+            "WorkspaceReadyGateCommitted": True,
+            "WorkspaceArtifactsCommitted": True,
+            "PointerVerified": True,
+            **RULEBOOK_BASE,
+            "TicketRecordDigest": "ticket-digest",
+            "plan_record_versions": 1,
+        }
+    }
+
+    result = execute(
+        current_token="5",
+        session_state_doc=doc,
+        runtime_ctx=RuntimeContext(
+            requested_active_gate="Plan Record Preparation Gate",
+            requested_next_gate_condition="Create plan",
+            repo_is_git_root=True,
+            commands_home=commands_home,
+            workspaces_home=tmp_path / "workspaces",
+            config_root=tmp_path / "cfg",
+        ),
+    )
+
+    assert result.status == "OK"
+    assert result.phase == "5-ArchitectureReview"
+    assert result.next_token == "5.3"
+    assert result.active_gate == "Architecture Review Gate"
+    assert result.source == "phase-5-architecture-review-ready"
 
 
 # ────────────────────────────────────────────────────────────────────
