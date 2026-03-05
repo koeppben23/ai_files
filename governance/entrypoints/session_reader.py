@@ -20,8 +20,6 @@ import os
 import sys
 from pathlib import Path
 
-from governance.application.use_cases.audit_readout_builder import build_audit_readout
-
 # ---------------------------------------------------------------------------
 # Schema / version constants
 # ---------------------------------------------------------------------------
@@ -36,6 +34,12 @@ def _derive_commands_home() -> Path:
     So commands_home = parents[2] relative to __file__.
     """
     return Path(__file__).resolve().parents[2]
+
+
+def _ensure_commands_home_on_syspath(commands_home: Path) -> None:
+    root = str(commands_home)
+    if root and root not in sys.path:
+        sys.path.insert(0, root)
 
 
 def _read_json(path: Path) -> dict:
@@ -255,7 +259,10 @@ def main(argv: list[str] | None = None) -> int:
 
     if audit_mode:
         home = commands_home if commands_home is not None else _derive_commands_home()
+        _ensure_commands_home_on_syspath(home)
         try:
+            from governance.application.use_cases.audit_readout_builder import build_audit_readout
+
             payload = build_audit_readout(commands_home=home, tail_count=tail_count)
         except Exception as exc:
             print("status: ERROR", file=sys.stdout)
