@@ -54,7 +54,7 @@ Current mutable working state from `SESSION_STATE.json`.
 - `updated_at`
 
 **Time format**
-- `updated_at` MUST be RFC3339 UTC (e.g., `2026-03-05T20:34:32Z`).
+- `updated_at` MUST be RFC3339 UTC and MUST end with `Z` (e.g., `2026-03-05T20:34:32Z`).
 
 ### `last_snapshot`
 Metadata for the most recently archived immutable run snapshot in `work_runs/`.
@@ -67,7 +67,7 @@ Metadata for the most recently archived immutable run snapshot in `work_runs/`.
 - `run_id`
 
 **Time format**
-- `archived_at` MUST be RFC3339 UTC.
+- `archived_at` MUST be RFC3339 UTC and MUST end with `Z`.
 
 ### `chain`
 Tail of the append-only event chain from `events.jsonl`.
@@ -83,7 +83,7 @@ Each event item MUST include:
 - `session_id`
 - `run_id`
 
-`observed_at` MUST be RFC3339 UTC.
+`observed_at` MUST be RFC3339 UTC and MUST end with `Z`.
 
 Events SHOULD include (when present in tail):
 - `new_work_session_created`
@@ -132,8 +132,10 @@ Every archived snapshot MUST include:
 ### Canonicalization MUST
 - UTF-8 encoding
 - Object keys sorted
-- No insignificant whitespace
+- No insignificant whitespace (minified JSON)
 - Stable JSON number representation
+- `null` MUST be serialized as JSON `null`
+- Missing fields MUST remain omitted (not auto-materialized as `null`)
 
 ### Hash MUST
 - Algorithm: SHA-256
@@ -168,9 +170,19 @@ MUST include:
 
 (For v1, **both** `snapshot_path` and `snapshot_digest` are mandatory.)
 
+Scope: this requirement applies to every emitted `new_work_session_created` event.
+
 ### `new_work_session_deduped` / `new_work_session_dedupe_bypassed`
 MUST include:
 - `reason` (string; canonical reasons preferred)
+
+`snapshot_path` and `snapshot_digest` are OPTIONAL on dedupe/bypass events.
+If present, they MUST reference an existing immutable snapshot.
+
+### Failure markers
+If snapshot-write or reset cannot be completed, implementations MUST NOT emit
+`new_work_session_created` for that attempt. They SHOULD emit a detectable
+failure marker event with a canonical reason.
 
 ### Append-only
 - `events.jsonl` MUST be append-only. No in-place edits.
