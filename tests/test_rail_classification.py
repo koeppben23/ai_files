@@ -42,6 +42,10 @@ RAIL_FILES: dict[str, dict[str, object]] = {
         "required_tokens": {"READ-ONLY", "NO-STATE-CHANGE"},
         "forbidden_tokens": {"MUTATING"},
     },
+    "audit-readout.md": {
+        "required_tokens": {"READ-ONLY", "OUTPUT-ONLY", "NO-STATE-CHANGE"},
+        "forbidden_tokens": {"MUTATING"},
+    },
     "review.md": {
         "required_tokens": {"READ-ONLY", "GATE-EVALUATION", "NO-STATE-CHANGE"},
         "forbidden_tokens": {"MUTATING"},
