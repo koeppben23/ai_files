@@ -12,6 +12,7 @@ from governance.application.use_cases.phase_router import RoutedPhase
 from governance.application.repo_identity_service import derive_repo_identity
 from governance.domain.strict_exit_evaluator import CriterionResult, StrictExitResult
 from governance.engine.orchestrator import run_engine_orchestrator
+from governance.application.use_cases.resolve_output_intent import ResolvedOutputIntent
 from governance.infrastructure.persist_confirmation_store import record_persist_confirmation
 from governance.engine.reason_codes import (
     BLOCKED_ENGINE_SELFCHECK,
@@ -1582,3 +1583,225 @@ def test_orchestrator_propagates_strict_exit_result(monkeypatch: pytest.MonkeyPa
     )
 
     assert out.strict_exit_result == strict_result
+
+
+# ---------------------------------------------------------------------------
+# Phase 3.9: resolved_output_intent on EngineOrchestratorOutput DTO
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.governance
+def test_orchestrator_happy_populates_resolved_output_intent(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
+):
+    """[Happy] Every orchestrator output MUST have resolved_output_intent populated."""
+
+    repo_root = _make_git_root(tmp_path / "repo")
+    adapter = StubAdapter(
+        env={"OPENCODE_REPO_ROOT": str(repo_root)},
+        cwd_path=repo_root,
+        caps=HostCapabilities(
+            cwd_trust="trusted",
+            fs_read_commands_home=True,
+            fs_write_config_root=True,
+            fs_write_commands_home=True,
+            fs_write_workspaces_home=True,
+            fs_write_repo_root=True,
+            exec_allowed=True,
+            git_available=True,
+        ),
+    )
+
+    def _fake_route_phase(**_: object) -> RoutedPhase:
+        return RoutedPhase(
+            phase="4-Planning",
+            next_token="5",
+            active_gate="Planning",
+            next_gate_condition="Plan approved",
+            workspace_ready=True,
+            source="spec-next",
+            status="OK",
+            spec_hash="abc",
+            spec_path="phase_api.yaml",
+            spec_loaded_at="2026-01-01T00:00:00+00:00",
+            log_paths={"phase_flow": "flow.log.jsonl", "workspace_events": "events.jsonl"},
+            event_id="evt-p4",
+            route_strategy="next",
+        )
+
+    monkeypatch.setattr(
+        "governance.application.use_cases.orchestrate_run.route_phase",
+        _fake_route_phase,
+    )
+
+    out = run_engine_orchestrator(
+        adapter=adapter,
+        phase="4-Planning",
+        active_gate="Planning",
+        mode="OK",
+        next_gate_condition="Plan approved",
+    )
+
+    assert out.resolved_output_intent is not None
+    assert isinstance(out.resolved_output_intent, ResolvedOutputIntent)
+    assert out.resolved_output_intent.primary_intent == "collect_input"
+    assert out.resolved_output_intent.source in {
+        "phase_api_policy",
+        "structural_inference",
+        "fail_closed_fallback",
+    }
+
+
+@pytest.mark.governance
+def test_orchestrator_corner_phase5_has_resolved_policy_status(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
+):
+    """[Corner] Phase 5 has explicit output_policy → status MUST be 'resolved'."""
+
+    repo_root = _make_git_root(tmp_path / "repo")
+    adapter = StubAdapter(
+        env={"OPENCODE_REPO_ROOT": str(repo_root)},
+        cwd_path=repo_root,
+        caps=HostCapabilities(
+            cwd_trust="trusted",
+            fs_read_commands_home=True,
+            fs_write_config_root=True,
+            fs_write_commands_home=True,
+            fs_write_workspaces_home=True,
+            fs_write_repo_root=True,
+            exec_allowed=True,
+            git_available=True,
+        ),
+    )
+
+    def _fake_route_phase(**_: object) -> RoutedPhase:
+        return RoutedPhase(
+            phase="5-ArchitectureReview",
+            next_token="5.3",
+            active_gate="Architecture Review Gate",
+            next_gate_condition="Continue review",
+            workspace_ready=True,
+            source="spec-stay",
+            status="OK",
+            spec_hash="abc",
+            spec_path="phase_api.yaml",
+            spec_loaded_at="2026-01-01T00:00:00+00:00",
+            log_paths={"phase_flow": "flow.log.jsonl", "workspace_events": "events.jsonl"},
+            event_id="evt-p5",
+            route_strategy="stay",
+        )
+
+    monkeypatch.setattr(
+        "governance.application.use_cases.orchestrate_run.route_phase",
+        _fake_route_phase,
+    )
+
+    out = run_engine_orchestrator(
+        adapter=adapter,
+        phase="5-ArchitectureReview",
+        active_gate="Architecture Review Gate",
+        mode="OK",
+        next_gate_condition="Continue review",
+    )
+
+    intent = out.resolved_output_intent
+    assert intent is not None
+    assert intent.policy_resolution_status == "resolved"
+    assert intent.source == "phase_api_policy"
+    assert intent.primary_intent == "review_architecture"
+    assert intent.effective_output_policy is not None
+
+
+@pytest.mark.governance
+def test_orchestrator_edge_unbounded_phase_has_no_effective_policy(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
+):
+    """[Edge] Phases without output_policy → status 'unbounded', no effective policy."""
+
+    repo_root = _make_git_root(tmp_path / "repo")
+    adapter = StubAdapter(
+        env={"OPENCODE_REPO_ROOT": str(repo_root)},
+        cwd_path=repo_root,
+        caps=HostCapabilities(
+            cwd_trust="trusted",
+            fs_read_commands_home=True,
+            fs_write_config_root=True,
+            fs_write_commands_home=True,
+            fs_write_workspaces_home=True,
+            fs_write_repo_root=True,
+            exec_allowed=True,
+            git_available=True,
+        ),
+    )
+
+    def _fake_route_phase(**_: object) -> RoutedPhase:
+        return RoutedPhase(
+            phase="2-Discovery",
+            next_token="3A",
+            active_gate="Discovery",
+            next_gate_condition="continue",
+            workspace_ready=True,
+            source="spec-stay",
+            status="OK",
+            spec_hash="abc",
+            spec_path="phase_api.yaml",
+            spec_loaded_at="2026-01-01T00:00:00+00:00",
+            log_paths={"phase_flow": "flow.log.jsonl", "workspace_events": "events.jsonl"},
+            event_id="evt-p2",
+            route_strategy="stay",
+        )
+
+    monkeypatch.setattr(
+        "governance.application.use_cases.orchestrate_run.route_phase",
+        _fake_route_phase,
+    )
+
+    out = run_engine_orchestrator(
+        adapter=adapter,
+        phase="2-Discovery",
+        active_gate="Discovery",
+        mode="OK",
+        next_gate_condition="continue",
+    )
+
+    intent = out.resolved_output_intent
+    assert intent is not None
+    assert intent.policy_resolution_status == "unbounded"
+    assert intent.source == "structural_inference"
+    assert intent.effective_output_policy is None
+    assert intent.primary_intent == "repo_discovery"
+
+
+@pytest.mark.governance
+def test_orchestrator_bad_blocked_early_still_has_resolved_intent(tmp_path: Path):
+    """[Bad] Even blocked runs (e.g., exec disallowed) populate resolved_output_intent."""
+
+    repo_root = _make_git_root(tmp_path / "repo")
+    adapter = StubAdapter(
+        env={"OPENCODE_REPO_ROOT": str(repo_root)},
+        cwd_path=repo_root,
+        caps=HostCapabilities(
+            cwd_trust="trusted",
+            fs_read_commands_home=True,
+            fs_write_config_root=True,
+            fs_write_commands_home=True,
+            fs_write_workspaces_home=True,
+            fs_write_repo_root=True,
+            exec_allowed=False,
+            git_available=True,
+        ),
+    )
+
+    out = run_engine_orchestrator(
+        adapter=adapter,
+        phase="1.1-Bootstrap",
+        active_gate="Persistence Preflight",
+        mode="OK",
+        next_gate_condition="Persistence helper execution completed",
+    )
+
+    assert out.parity["status"] == "blocked"
+    assert out.parity["reason_code"] == "BLOCKED-EXEC-DISALLOWED"
+    # Even blocked outputs should have resolved_output_intent populated
+    assert out.resolved_output_intent is not None
+    assert isinstance(out.resolved_output_intent, ResolvedOutputIntent)

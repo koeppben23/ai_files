@@ -165,6 +165,25 @@ phases:
     next_gate_condition: "Review the Phase 4 plan; re-enter manually after plan revisions until P5 gates are approved."
     next: "5.3"
     route_strategy: "stay"
+    output_policy:
+      allowed_output_classes:
+        - plan
+        - review
+        - risk_analysis
+        - test_strategy
+        - gate_check
+        - rollback_plan
+        - review_questions
+        - consolidated_review_plan
+      forbidden_output_classes:
+        - implementation
+        - patch
+        - diff
+        - code_delivery
+      plan_discipline:
+        first_output_is_draft: true
+        draft_not_review_ready: true
+        min_self_review_iterations: 1
 
   - token: "5.3"
     phase: "5.3-TestQuality"

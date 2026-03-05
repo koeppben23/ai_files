@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Literal, cast
+from dataclasses import dataclass, field
+from typing import Any, Callable, Literal, Mapping, cast
 import re
 
 
@@ -152,4 +152,125 @@ PHASE_RANK: dict[str, int] = {
 def phase_rank(token: str) -> int:
     """Return the numeric rank for a phase token, or -1 if unknown."""
     return PHASE_RANK.get(token, -1)
+
+
+# ---------------------------------------------------------------------------
+# Phase output policy (loaded from phase_api.yaml SSOT)
+# ---------------------------------------------------------------------------
+
+@dataclass(frozen=True)
+class PlanDiscipline:
+    first_output_is_draft: bool = False
+    draft_not_review_ready: bool = False
+    min_self_review_iterations: int = 0
+
+
+@dataclass(frozen=True)
+class PhaseOutputPolicy:
+    allowed_output_classes: tuple[str, ...]
+    forbidden_output_classes: tuple[str, ...]
+    plan_discipline: PlanDiscipline = field(default_factory=PlanDiscipline)
+
+
+_PHASE_OUTPUT_POLICY_CACHE: dict[str, PhaseOutputPolicy | None] = {}
+_PHASE_API_RAW_CACHE: dict[str, Any] = {}
+
+# Pluggable loader for phase_api.yaml phases data.
+# Infrastructure layer sets this via set_phase_api_loader().
+# Returns list of phase entry mappings from phase_api.yaml.
+_phase_api_loader: Callable[[], list[Mapping[str, Any]]] | None = None
+
+
+def set_phase_api_loader(loader: Callable[[], list[Mapping[str, Any]]]) -> None:
+    """Register infrastructure-provided loader for phase_api.yaml phases data."""
+    global _phase_api_loader
+    _phase_api_loader = loader
+    # Invalidate cache when loader changes
+    _PHASE_OUTPUT_POLICY_CACHE.clear()
+    _PHASE_API_RAW_CACHE.clear()
+
+
+def _load_phase_api_raw() -> list[Mapping[str, Any]]:
+    """Load phases list via registered loader.  Cached after first call."""
+    if "phases" in _PHASE_API_RAW_CACHE:
+        return _PHASE_API_RAW_CACHE["phases"]
+
+    global _phase_api_loader
+    if _phase_api_loader is None:
+        # Auto-configure from infrastructure layer on first access
+        try:
+            from governance.infrastructure.phase_api_output_policy_loader import configure_phase_output_policy_loader
+            configure_phase_output_policy_loader()
+        except ImportError:
+            pass
+
+    if _phase_api_loader is None:
+        _PHASE_API_RAW_CACHE["phases"] = []
+        return []
+
+    phases = _phase_api_loader()
+    _PHASE_API_RAW_CACHE["phases"] = phases
+    return phases
+
+
+def _parse_output_policy(raw: Mapping[str, Any]) -> PhaseOutputPolicy:
+    """Parse an output_policy block from a phase entry."""
+    allowed = raw.get("allowed_output_classes", ())
+    forbidden = raw.get("forbidden_output_classes", ())
+    pd_raw = raw.get("plan_discipline", {})
+    plan_discipline = PlanDiscipline(
+        first_output_is_draft=bool(pd_raw.get("first_output_is_draft", False)),
+        draft_not_review_ready=bool(pd_raw.get("draft_not_review_ready", False)),
+        min_self_review_iterations=int(pd_raw.get("min_self_review_iterations", 0)),
+    )
+    return PhaseOutputPolicy(
+        allowed_output_classes=tuple(str(c).strip() for c in allowed),
+        forbidden_output_classes=tuple(str(c).strip() for c in forbidden),
+        plan_discipline=plan_discipline,
+    )
+
+
+def resolve_phase_output_policy(phase_token: str) -> PhaseOutputPolicy | None:
+    """Resolve output policy for a phase token from phase_api.yaml.
+
+    Inheritance: 5.* tokens inherit from token "5" unless they define their
+    own output_policy.  Returns None if no output_policy exists for the token.
+    """
+    if phase_token in _PHASE_OUTPUT_POLICY_CACHE:
+        return _PHASE_OUTPUT_POLICY_CACHE[phase_token]
+
+    phases = _load_phase_api_raw()
+    # Build token -> output_policy map
+    token_policy_raw: dict[str, Mapping[str, Any]] = {}
+    for entry in phases:
+        if not isinstance(entry, Mapping):
+            continue
+        tok = str(entry.get("token", "")).strip()
+        op = entry.get("output_policy")
+        if tok and isinstance(op, Mapping):
+            token_policy_raw[tok] = op
+
+    # Direct lookup
+    if phase_token in token_policy_raw:
+        policy = _parse_output_policy(token_policy_raw[phase_token])
+        _PHASE_OUTPUT_POLICY_CACHE[phase_token] = policy
+        return policy
+
+    # Inheritance: 5.* inherits from "5"
+    match = re.match(r"^(\d+)\.", phase_token)
+    if match:
+        parent_token = match.group(1)
+        if parent_token in token_policy_raw:
+            policy = _parse_output_policy(token_policy_raw[parent_token])
+            _PHASE_OUTPUT_POLICY_CACHE[phase_token] = policy
+            return policy
+
+    _PHASE_OUTPUT_POLICY_CACHE[phase_token] = None
+    return None
+
+
+def clear_phase_output_policy_cache() -> None:
+    """Clear cached output policy data (for testing)."""
+    _PHASE_OUTPUT_POLICY_CACHE.clear()
+    _PHASE_API_RAW_CACHE.clear()
 

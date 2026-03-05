@@ -45,6 +45,7 @@ class KernelResult:
     log_paths: dict[str, str]
     event_id: str
     strict_exit_result: StrictExitResult | None = None
+    route_strategy: str = ""
 
 
 def _utc_now() -> str:
@@ -728,6 +729,7 @@ def execute(
             commands_home=commands_home,
             context={"phase": phase, "phase_token": token, "source": source, "next_gate_condition": next_gate_condition},
         )
+        _blocked_entry = spec.entries.get(token)
         return KernelResult(
             phase=phase,
             next_token=token,
@@ -742,6 +744,7 @@ def execute(
             log_paths=result_paths,
             event_id=event_id,
             strict_exit_result=strict_exit_result,
+            route_strategy=_blocked_entry.route_strategy if _blocked_entry is not None else "",
         )
 
     strict_exit_result: StrictExitResult | None = None
@@ -780,6 +783,7 @@ def execute(
             spec_loaded_at=spec.loaded_at,
             log_paths={},
             event_id=event_id,
+            route_strategy=entry.route_strategy,
         )
 
     if requested_token and persisted_token and requested_token != persisted_token:
@@ -1074,6 +1078,7 @@ def execute(
         log_paths=result_paths,
         event_id=event_id,
         strict_exit_result=strict_exit_result,
+        route_strategy=entry.route_strategy,
     )
 
 

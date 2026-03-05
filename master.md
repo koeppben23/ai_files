@@ -189,6 +189,17 @@ P5.3 is a CRITICAL quality gate that must be satisfied before concluding readine
 Code-producing output is NOT permitted during Phase 5.
 Phase 5 is exclusively a review gate: architecture review, test-strategy review, and quality-gate evaluation.
 Implementation (code, tests, configuration) begins only after all Phase 5 gates have passed and the session transitions to Phase 6.
+**Rule A — Implementation-Intent Prohibition (Phase 5):**
+Output classified as `implementation`, `patch`, `diff`, or `code_delivery` is forbidden during Phase 5.
+This prohibition covers both code artifacts and implementation-intent language (e.g., offering to implement, proposing to deliver diffs, or suggesting to start coding).
+The canonical list of allowed and forbidden output classes is kernel-owned.
+See `${COMMANDS_HOME}/phase_api.yaml` under `output_policy` on token `"5"`.
+All Phase 5 sub-tokens (5.3, 5.4, 5.5, 5.6) inherit this policy unless they define their own `output_policy` override.
+**Rule B — Plan Self-Review Requirement (Phase 5):**
+The first plan output in Phase 5 is a draft.
+Before presenting any plan as review-ready to the user, at least one internal self-review iteration is required to consolidate, verify completeness, and check for gaps.
+The minimum number of self-review iterations is kernel-owned.
+See `${COMMANDS_HOME}/phase_api.yaml` under `output_policy.plan_discipline.min_self_review_iterations` on token `"5"`.
 Clarification:
 - Phase 5/6 code-output constraints and gate sequencing are kernel- and schema-owned.
   See `${COMMANDS_HOME}/phase_api.yaml` and `SESSION_STATE_SCHEMA.md`.
@@ -465,6 +476,8 @@ See `${COMMANDS_HOME}/phase_api.yaml` and `SESSION_STATE_SCHEMA.md`.
  0. **Phase 5 gating and fast-path behavior (Kernel-Enforced):**
     Gate sequencing, fast-path scope, rollback safety evaluation, and scorecard requirements are kernel- and schema-owned.
     See `${COMMANDS_HOME}/phase_api.yaml` and `SESSION_STATE_SCHEMA.md`.
+    **Output class restrictions and plan self-review discipline** are enforced by `output_policy` on token `"5"` in `phase_api.yaml`.
+    See Rule A (implementation-intent prohibition) and Rule B (plan self-review requirement) in the Output Rule section above.
 
 1. **Architectural review:**
    * Does the plan follow the repository's architecture pattern?

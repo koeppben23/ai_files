@@ -86,6 +86,10 @@ from governance.application.use_cases.resolve_operating_mode import (
     resolve_effective_operating_mode,
     has_required_mode_capabilities,
 )
+from governance.application.use_cases.resolve_output_intent import (
+    ResolvedOutputIntent,
+    resolve_output_intent,
+)
 from governance.application.use_cases.target_path_helpers import (
     VARIABLE_CAPTURE,
     extract_target_variable,
@@ -133,6 +137,7 @@ class EngineOrchestratorOutput:
     repo_doc_evidence: RepoDocEvidence | None
     precedence_events: tuple[dict[str, object], ...]
     prompt_events: tuple[dict[str, object], ...]
+    resolved_output_intent: ResolvedOutputIntent | None = None
 
 
 def _phase5_review_pending_architecture(
@@ -290,6 +295,13 @@ def run_engine_orchestrator(
     phase = routed_phase.phase
     active_gate = routed_phase.active_gate
     next_gate_condition = routed_phase.next_gate_condition
+
+    # Resolve output intent from structural context (primary classification layer)
+    resolved_intent = resolve_output_intent(
+        phase_token=phase_token(phase) or "",
+        route_strategy=routed_phase.route_strategy,
+        active_gate=active_gate,
+    )
 
     write_policy = evaluate_target_path(target_path)
     pack_lock_checked = False
@@ -792,4 +804,5 @@ def run_engine_orchestrator(
         repo_doc_evidence=repo_doc_evidence,
         precedence_events=tuple(precedence_events),
         prompt_events=tuple(prompt_events),
+        resolved_output_intent=resolved_intent,
     )
