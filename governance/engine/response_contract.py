@@ -243,6 +243,10 @@ def _apply_resolved_intent_policy(
     if resolved_output_intent is None:
         return
 
+    action_text = (requested_action or "").strip()
+    if not action_text:
+        return
+
     # Duck-type access to avoid hard import dependency
     status = getattr(resolved_output_intent, "policy_resolution_status", None)
     policy = getattr(resolved_output_intent, "effective_output_policy", None)
@@ -256,7 +260,7 @@ def _apply_resolved_intent_policy(
         # Keyword matcher runs for drift-detection only (log, no block).
         if policy is None:
             return
-        output_class = classify_output_class(requested_action)
+        output_class = classify_output_class(action_text)
         if output_class == "unknown":
             return
         if output_class in getattr(policy, "forbidden_output_classes", ()):
@@ -272,7 +276,7 @@ def _apply_resolved_intent_policy(
         # ---- UNBOUNDED: No output-class restrictions ----
         # Phase deliberately has no output_policy (e.g., Phase 4).
         # Keyword matcher logs but does NOT block.
-        output_class = classify_output_class(requested_action)
+        output_class = classify_output_class(action_text)
         if output_class != "unknown":
             logger.debug(
                 "_apply_resolved_intent_policy: unbounded phase, keyword classified as '%s' — no block",
@@ -285,7 +289,7 @@ def _apply_resolved_intent_policy(
         # Could not determine policy.  Use fallback policy from resolver.
         # Keyword matcher MAY block risky classes.
         if policy is not None:
-            output_class = classify_output_class(requested_action)
+            output_class = classify_output_class(action_text)
             if output_class == "unknown":
                 return
             if output_class in getattr(policy, "forbidden_output_classes", ()):

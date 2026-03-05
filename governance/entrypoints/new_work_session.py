@@ -202,6 +202,32 @@ def _record_guard(
     _write_json_atomic(guard_path, payload)
 
 
+def _state_is_fresh_phase4_run(state: Mapping[str, object], *, run_id: str) -> bool:
+    if not run_id:
+        return False
+    current_run_id = str(state.get("session_run_id") or "").strip()
+    if current_run_id != run_id:
+        return False
+
+    phase = str(state.get("Phase") or state.get("phase") or "").strip()
+    if phase != "4":
+        return False
+
+    next_token = str(state.get("Next") or "").strip()
+    if next_token != "5":
+        return False
+
+    active_gate = str(state.get("active_gate") or "").strip()
+    if active_gate != "Ticket Input Gate":
+        return False
+
+    intake_evidence = state.get("phase4_intake_evidence")
+    if intake_evidence is not False:
+        return False
+
+    return True
+
+
 def _payload(status: str, **kwargs: object) -> dict[str, object]:
     out: dict[str, object] = {"status": status}
     out.update(kwargs)
@@ -249,6 +275,25 @@ def main(argv: list[str] | None = None) -> int:
             session_id=session_id,
             ttl_seconds=max(1, int(args.dedupe_window_seconds)),
         )
+        if is_duplicate:
+            last_guard = guard_doc.get("last")
+            last_guard_map = last_guard if isinstance(last_guard, dict) else {}
+            run_id = str(last_guard_map.get("run_id") or state.get("session_run_id") or "")
+            if not _state_is_fresh_phase4_run(state, run_id=run_id):
+                _append_jsonl(
+                    session_path.parent / "events.jsonl",
+                    {
+                        "event": "new_work_session_dedupe_bypassed",
+                        "observed_at": observed_at,
+                        "repo_fingerprint": repo_fingerprint,
+                        "trigger_source": trigger_source,
+                        "session_id": session_id,
+                        "run_id": run_id,
+                        "reason": "state-not-phase4-fresh-run",
+                    },
+                )
+                is_duplicate = False
+
         if is_duplicate:
             last_guard = guard_doc.get("last")
             last_guard_map = last_guard if isinstance(last_guard, dict) else {}

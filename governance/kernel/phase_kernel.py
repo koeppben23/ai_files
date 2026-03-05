@@ -9,7 +9,7 @@ import uuid
 
 from governance.application.dto.phase_next_action_contract import contains_ticket_prompt
 from governance.domain.strict_exit_evaluator import StrictExitResult
-from governance.domain.phase_state_machine import phase_rank
+from governance.domain.phase_state_machine import phase_rank, resolve_phase_output_policy
 from governance.infrastructure.adapters.logging.event_sink import write_jsonl_event
 from governance.infrastructure.binding_evidence_resolver import BindingEvidenceResolver
 from governance.infrastructure.logging.global_error_handler import emit_error_event
@@ -442,6 +442,197 @@ def _ticket_or_task_recorded(state: Mapping[str, object]) -> bool:
     return False
 
 
+def _coerce_non_negative_int(value: object) -> int | None:
+    if isinstance(value, bool):
+        return int(value)
+    if isinstance(value, int):
+        return value if value >= 0 else 0
+    if isinstance(value, str):
+        raw = value.strip()
+        if not raw:
+            return None
+        if raw.isdigit():
+            return int(raw)
+    return None
+
+
+def _read_non_empty_text(state: Mapping[str, object], *key_paths: str) -> str | None:
+    for key_path in key_paths:
+        value = _read_nested_key(state, key_path)
+        if isinstance(value, str):
+            text = value.strip()
+            if text:
+                return text
+    return None
+
+
+def _phase5_self_review_iterations(state: Mapping[str, object]) -> int:
+    for key_path in (
+        "Phase5Review.iteration",
+        "Phase5Review.Iteration",
+        "Phase5Review.rounds_completed",
+        "Phase5Review.RoundsCompleted",
+        "phase5_self_review_iterations",
+        "phase5SelfReviewIterations",
+        "self_review_iterations",
+    ):
+        value = _read_nested_key(state, key_path)
+        parsed = _coerce_non_negative_int(value)
+        if parsed is not None:
+            return parsed
+    return 0
+
+
+def _phase5_max_review_iterations(state: Mapping[str, object]) -> int:
+    for key_path in (
+        "Phase5Review.max_iterations",
+        "Phase5Review.MaxIterations",
+        "phase5_max_review_iterations",
+        "phase5MaxReviewIterations",
+    ):
+        value = _read_nested_key(state, key_path)
+        parsed = _coerce_non_negative_int(value)
+        if parsed is not None and parsed >= 1:
+            return min(parsed, 3)
+    return 3
+
+
+def _phase5_revision_delta(state: Mapping[str, object]) -> str:
+    prev_digest = _read_non_empty_text(
+        state,
+        "Phase5Review.prev_plan_digest",
+        "Phase5Review.PrevPlanDigest",
+        "phase5_prev_plan_digest",
+        "phase5PrevPlanDigest",
+    )
+    curr_digest = _read_non_empty_text(
+        state,
+        "Phase5Review.curr_plan_digest",
+        "Phase5Review.CurrPlanDigest",
+        "phase5_curr_plan_digest",
+        "phase5CurrPlanDigest",
+    )
+    if prev_digest and curr_digest and prev_digest == curr_digest:
+        return "none"
+    return "changed"
+
+
+def _phase6_review_iterations(state: Mapping[str, object]) -> int:
+    for key_path in (
+        "ImplementationReview.iteration",
+        "ImplementationReview.Iteration",
+        "phase6_review_iterations",
+        "phase6ReviewIterations",
+    ):
+        value = _read_nested_key(state, key_path)
+        parsed = _coerce_non_negative_int(value)
+        if parsed is not None:
+            return parsed
+    return 0
+
+
+def _phase6_max_review_iterations(state: Mapping[str, object]) -> int:
+    for key_path in (
+        "ImplementationReview.max_iterations",
+        "ImplementationReview.MaxIterations",
+        "phase6_max_review_iterations",
+        "phase6MaxReviewIterations",
+    ):
+        value = _read_nested_key(state, key_path)
+        parsed = _coerce_non_negative_int(value)
+        if parsed is not None and parsed >= 1:
+            return min(parsed, 3)
+    return 3
+
+
+def _phase6_min_review_iterations(state: Mapping[str, object]) -> int:
+    for key_path in (
+        "ImplementationReview.min_self_review_iterations",
+        "ImplementationReview.MinSelfReviewIterations",
+        "phase6_min_self_review_iterations",
+        "phase6MinSelfReviewIterations",
+    ):
+        value = _read_nested_key(state, key_path)
+        parsed = _coerce_non_negative_int(value)
+        if parsed is not None and parsed >= 1:
+            return min(parsed, 3)
+    return 1
+
+
+def _phase6_revision_delta(state: Mapping[str, object]) -> str:
+    prev_digest = _read_non_empty_text(
+        state,
+        "ImplementationReview.prev_impl_digest",
+        "ImplementationReview.PrevImplDigest",
+        "phase6_prev_impl_digest",
+        "phase6PrevImplDigest",
+    )
+    curr_digest = _read_non_empty_text(
+        state,
+        "ImplementationReview.curr_impl_digest",
+        "ImplementationReview.CurrImplDigest",
+        "phase6_curr_impl_digest",
+        "phase6CurrImplDigest",
+    )
+    if prev_digest and curr_digest and prev_digest == curr_digest:
+        return "none"
+    return "changed"
+
+
+def _phase5_review_loop_complete(
+    *,
+    entry: PhaseSpecEntry,
+    state: Mapping[str, object],
+    plan_record_versions: int,
+) -> bool:
+    if plan_record_versions < 1:
+        return False
+
+    iteration = _phase5_self_review_iterations(state)
+    max_iterations = _phase5_max_review_iterations(state)
+    min_iterations = max(1, _phase5_min_self_review_iterations(entry))
+    revision_delta = _phase5_revision_delta(state)
+
+    if iteration >= max_iterations:
+        return True
+    if iteration >= min_iterations and revision_delta == "none":
+        return True
+    return False
+
+
+def _phase6_internal_review_complete(state: Mapping[str, object]) -> bool:
+    iterations = _phase6_review_iterations(state)
+    max_iterations = _phase6_max_review_iterations(state)
+    min_iterations = _phase6_min_review_iterations(state)
+    revision_delta = _phase6_revision_delta(state)
+
+    if iterations >= max_iterations:
+        return True
+    if iterations >= min_iterations and revision_delta == "none":
+        return True
+    return False
+
+
+def _phase5_min_self_review_iterations(entry: PhaseSpecEntry) -> int:
+    policy = resolve_phase_output_policy(entry.token)
+    if policy is None:
+        return 0
+    return max(0, int(policy.plan_discipline.min_self_review_iterations))
+
+
+def _phase5_self_review_iterations_met(
+    *,
+    entry: PhaseSpecEntry,
+    state: Mapping[str, object],
+    plan_record_versions: int,
+) -> bool:
+    return _phase5_review_loop_complete(
+        entry=entry,
+        state=state,
+        plan_record_versions=plan_record_versions,
+    )
+
+
 def _select_transition(
     entry: PhaseSpecEntry,
     state: Mapping[str, object],
@@ -507,6 +698,42 @@ def _select_transition(
                     transition.next_gate_condition,
                 )
             if when == "plan_record_present" and plan_record_versions >= 1:
+                return (
+                    transition.next_token,
+                    transition.source,
+                    transition.active_gate,
+                    transition.next_gate_condition,
+                )
+            if when == "self_review_iterations_pending" and not _phase5_self_review_iterations_met(
+                entry=entry,
+                state=state,
+                plan_record_versions=plan_record_versions,
+            ):
+                return (
+                    transition.next_token,
+                    transition.source,
+                    transition.active_gate,
+                    transition.next_gate_condition,
+                )
+            if when == "self_review_iterations_met" and _phase5_self_review_iterations_met(
+                entry=entry,
+                state=state,
+                plan_record_versions=plan_record_versions,
+            ):
+                return (
+                    transition.next_token,
+                    transition.source,
+                    transition.active_gate,
+                    transition.next_gate_condition,
+                )
+            if when == "implementation_review_pending" and not _phase6_internal_review_complete(state):
+                return (
+                    transition.next_token,
+                    transition.source,
+                    transition.active_gate,
+                    transition.next_gate_condition,
+                )
+            if when == "implementation_review_complete" and _phase6_internal_review_complete(state):
                 return (
                     transition.next_token,
                     transition.source,

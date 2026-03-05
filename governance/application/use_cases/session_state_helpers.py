@@ -5,6 +5,90 @@ from __future__ import annotations
 from typing import Any, Mapping
 
 
+def _coerce_non_negative_int(value: object) -> int | None:
+    if isinstance(value, bool):
+        return int(value)
+    if isinstance(value, int):
+        return value if value >= 0 else 0
+    if isinstance(value, str):
+        raw = value.strip()
+        if raw.isdigit():
+            return int(raw)
+    return None
+
+
+def _read_first_int(mapping: Mapping[str, object], keys: tuple[str, ...]) -> int | None:
+    for key in keys:
+        if key in mapping:
+            parsed = _coerce_non_negative_int(mapping.get(key))
+            if parsed is not None:
+                return parsed
+    return None
+
+
+def _clamp_review_iteration_fields(
+    *,
+    state: dict[str, object],
+    block_key: str,
+    block_iteration_keys: tuple[str, ...],
+    block_max_keys: tuple[str, ...],
+    top_iteration_keys: tuple[str, ...],
+    top_max_keys: tuple[str, ...],
+) -> None:
+    block_obj = state.get(block_key)
+    block = dict(block_obj) if isinstance(block_obj, Mapping) else None
+
+    block_iteration = _read_first_int(block, block_iteration_keys) if block is not None else None
+    top_iteration = _read_first_int(state, top_iteration_keys)
+    iteration = block_iteration if block_iteration is not None else (top_iteration if top_iteration is not None else None)
+    if iteration is None:
+        return
+
+    block_max = _read_first_int(block, block_max_keys) if block is not None else None
+    top_max = _read_first_int(state, top_max_keys)
+    max_iterations = block_max if block_max is not None else (top_max if top_max is not None else 3)
+    max_iterations = min(max(1, max_iterations), 3)
+    clamped_iteration = min(max(0, iteration), max_iterations)
+
+    if block is None:
+        block = {}
+    block["iteration"] = clamped_iteration
+    block["max_iterations"] = max_iterations
+    for key in block_iteration_keys:
+        if key in block:
+            block[key] = clamped_iteration
+    for key in block_max_keys:
+        if key in block:
+            block[key] = max_iterations
+    state[block_key] = block
+
+    for key in top_iteration_keys:
+        if key in state:
+            state[key] = clamped_iteration
+    for key in top_max_keys:
+        if key in state:
+            state[key] = max_iterations
+
+
+def _normalize_review_iteration_invariants(state: dict[str, object]) -> None:
+    _clamp_review_iteration_fields(
+        state=state,
+        block_key="Phase5Review",
+        block_iteration_keys=("iteration", "Iteration", "rounds_completed", "RoundsCompleted"),
+        block_max_keys=("max_iterations", "MaxIterations"),
+        top_iteration_keys=("phase5_self_review_iterations", "phase5SelfReviewIterations", "self_review_iterations"),
+        top_max_keys=("phase5_max_review_iterations", "phase5MaxReviewIterations"),
+    )
+    _clamp_review_iteration_fields(
+        state=state,
+        block_key="ImplementationReview",
+        block_iteration_keys=("iteration", "Iteration"),
+        block_max_keys=("max_iterations", "MaxIterations"),
+        top_iteration_keys=("phase6_review_iterations", "phase6ReviewIterations"),
+        top_max_keys=("phase6_max_review_iterations", "phase6MaxReviewIterations"),
+    )
+
+
 def session_state_root(session_state_document: Mapping[str, object] | None) -> Mapping[str, object]:
     if session_state_document is None:
         return {}
@@ -120,6 +204,7 @@ def with_kernel_result(
     kernel_block["PhaseApiLoadedAt"] = spec_loaded_at
     kernel_block["LastPhaseEventId"] = event_id
     ss["Kernel"] = kernel_block
+    _normalize_review_iteration_invariants(ss)
 
     state["SESSION_STATE"] = ss
     return state
