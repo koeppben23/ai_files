@@ -164,6 +164,26 @@ def locks_dir(workspaces_home: Path, repo_fingerprint: str) -> Path:
     return workspaces_home / repo_fingerprint / "locks"
 
 
+def runs_dir(workspaces_home: Path, repo_fingerprint: str) -> Path:
+    return workspace_root(workspaces_home, repo_fingerprint) / "runs"
+
+
+def run_dir(workspaces_home: Path, repo_fingerprint: str, run_id: str) -> Path:
+    return runs_dir(workspaces_home, repo_fingerprint) / run_id
+
+
+def run_session_state_path(workspaces_home: Path, repo_fingerprint: str, run_id: str) -> Path:
+    return run_dir(workspaces_home, repo_fingerprint, run_id) / "SESSION_STATE.json"
+
+
+def run_plan_record_path(workspaces_home: Path, repo_fingerprint: str, run_id: str) -> Path:
+    return run_dir(workspaces_home, repo_fingerprint, run_id) / "plan-record.json"
+
+
+def run_metadata_path(workspaces_home: Path, repo_fingerprint: str, run_id: str) -> Path:
+    return run_dir(workspaces_home, repo_fingerprint, run_id) / "metadata.json"
+
+
 PHASE2_ARTIFACTS = ["repo-cache.yaml", "repo-map-digest.md", "workspace-memory.yaml"]
 PHASE21_ARTIFACTS = ["decision-pack.md"]
 PHASE15_ARTIFACTS = ["business-rules.md", "business-rules-status.md"]

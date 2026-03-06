@@ -17,8 +17,8 @@ if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).absolute().parents[2]))
 
 from governance.infrastructure.binding_evidence_resolver import BindingEvidenceResolver
-from governance.domain.canonical_json import canonical_json_hash
 from governance.engine.sanitization import apply_fresh_start_business_rules_neutralization
+from governance.infrastructure.work_run_archive import archive_active_run
 try:
     from governance.entrypoints.workspace_lock import acquire_workspace_lock
 except Exception:
@@ -328,33 +328,18 @@ def main(argv: list[str] | None = None) -> int:
             return 0
 
         previous_run_id = str(state.get("session_run_id") or "")
-        old_phase = str(state.get("Phase") or state.get("phase") or "")
-
-        archive_dir = session_path.parent / "work_runs"
-        archive_dir.mkdir(parents=True, exist_ok=True)
         archive_id = previous_run_id or f"legacy-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}"
-        archive_payload = {
-            "schema": "governance.work-run.snapshot.v1",
-            "archived_at": observed_at,
-            "repo_fingerprint": repo_fingerprint,
-            "session_run_id": archive_id,
-            "source_phase": old_phase,
-            "source_active_gate": str(state.get("active_gate") or ""),
-            "source_next": str(state.get("Next") or state.get("next") or ""),
-            "ticket_digest": state.get("TicketRecordDigest"),
-            "task_digest": state.get("TaskRecordDigest"),
-            "plan_record_digest": state.get("PlanRecordDigest") or state.get("plan_record_digest"),
-            "impl_digest": state.get("ImplementationDigest") or state.get("implementation_digest"),
-            "session_state": deepcopy(state),
-        }
-        snapshot_path = archive_dir / f"{archive_id}.json"
-        _write_json_atomic(snapshot_path, archive_payload)
-        snapshot_digest = canonical_json_hash(archive_payload)
+        archived = archive_active_run(
+            workspaces_home=workspaces_home,
+            repo_fingerprint=repo_fingerprint,
+            run_id=archive_id,
+            observed_at=observed_at,
+            session_state_document=deepcopy(document),
+            state_view=deepcopy(state),
+            write_json_atomic=_write_json_atomic,
+        )
 
         new_run_id = _new_run_id()
-        _reset_for_new_work(state, new_run_id=new_run_id, observed_at=observed_at)
-        document["SESSION_STATE"] = state
-        _write_json_atomic(session_path, document)
 
         _append_jsonl(
             session_path.parent / "events.jsonl",
@@ -369,10 +354,14 @@ def main(argv: list[str] | None = None) -> int:
                 "new_run_id": new_run_id,
                 "phase": "4",
                 "next": "5",
-                "snapshot_path": str(snapshot_path),
-                "snapshot_digest": snapshot_digest,
+                "snapshot_path": str(archived.snapshot_path),
+                "snapshot_digest": archived.snapshot_digest,
             },
         )
+
+        _reset_for_new_work(state, new_run_id=new_run_id, observed_at=observed_at)
+        document["SESSION_STATE"] = state
+        _write_json_atomic(session_path, document)
         _record_guard(
             guard_path,
             trigger_source=trigger_source,

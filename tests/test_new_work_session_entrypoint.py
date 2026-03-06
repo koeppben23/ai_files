@@ -125,19 +125,23 @@ class TestNewWorkSessionEntrypoint:
         assert "Rules" not in state["BusinessRules"]
         assert "Evidence" not in state["BusinessRules"]
 
-        archived = sorted((session_path.parent / "work_runs").glob("*.json"))
-        assert archived, "previous run snapshot must be archived"
-        archived_payload = json.loads(archived[0].read_text(encoding="utf-8"))
-        assert archived_payload["session_run_id"] == "run-old-001"
-        assert archived_payload["source_active_gate"] == "Architecture Review Gate"
-        assert archived_payload["source_next"] == "5.3"
-        assert "ticket_digest" in archived_payload
-        assert "task_digest" in archived_payload
+        archived_dir = session_path.parent / "runs" / "run-old-001"
+        assert archived_dir.is_dir(), "previous run snapshot directory must be archived"
+        archived_state = json.loads((archived_dir / "SESSION_STATE.json").read_text(encoding="utf-8"))
+        archived_meta = json.loads((archived_dir / "metadata.json").read_text(encoding="utf-8"))
+        assert archived_state["SESSION_STATE"]["session_run_id"] == "run-old-001"
+        assert archived_meta["run_id"] == "run-old-001"
+        assert archived_meta["source_active_gate"] == "Architecture Review Gate"
+        assert archived_meta["source_next"] == "5.3"
+        assert archived_meta["snapshot_digest_scope"] == "session_state"
+        assert archived_meta["archived_files"]["session_state"] is True
+        assert archived_meta["archived_files"]["plan_record"] is False
+        assert "events.jsonl" not in {p.name for p in archived_dir.iterdir()}
 
         events = [json.loads(line) for line in (session_path.parent / "events.jsonl").read_text(encoding="utf-8").splitlines() if line.strip()]
         created = [e for e in events if e.get("event") == "new_work_session_created"][-1]
-        assert created["snapshot_path"] == str(archived[0])
-        assert created["snapshot_digest"] == canonical_json_hash(archived_payload)
+        assert created["snapshot_path"] == str(archived_dir / "SESSION_STATE.json")
+        assert created["snapshot_digest"] == canonical_json_hash(archived_state)
 
     # -- Bad --
     def test_returns_blocked_when_pointer_is_missing(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
@@ -227,6 +231,52 @@ class TestNewWorkSessionEntrypoint:
         assert "new_work_session_dedupe_bypassed" in events
         assert events.count("new_work_session_created") >= 2
 
+    def test_archives_plan_record_when_present(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+        config_root, session_path, fingerprint = _setup_workspace(tmp_path)
+        plan_record = {
+            "schema": "governance.plan-record.v1",
+            "status": "active",
+            "versions": [{"version": 1, "content": "v1"}],
+        }
+        (session_path.parent / "plan-record.json").write_text(json.dumps(plan_record, ensure_ascii=True), encoding="utf-8")
+        monkeypatch.setenv("OPENCODE_CONFIG_ROOT", str(config_root))
+
+        code = new_work_session.main(["--trigger-source", "cli", "--quiet"])
+        assert code == 0
+        _ = json.loads(capsys.readouterr().out.strip())
+
+        archived_dir = session_path.parent / "runs" / "run-old-001"
+        archived_plan = archived_dir / "plan-record.json"
+        assert archived_plan.is_file()
+        assert json.loads(archived_plan.read_text(encoding="utf-8")) == plan_record
+        archived_meta = json.loads((archived_dir / "metadata.json").read_text(encoding="utf-8"))
+        assert archived_meta["archived_files"]["plan_record"] is True
+
+    def test_does_not_emit_created_event_or_reset_when_archive_write_fails(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+        config_root, session_path, _ = _setup_workspace(tmp_path)
+        before = json.loads(session_path.read_text(encoding="utf-8"))
+        monkeypatch.setenv("OPENCODE_CONFIG_ROOT", str(config_root))
+
+        real_writer = new_work_session._write_json_atomic
+
+        def _boom(path: Path, payload: dict[str, object] | object) -> None:
+            if str(path).endswith("/runs/run-old-001/SESSION_STATE.json"):
+                raise RuntimeError("disk-full")
+            real_writer(path, payload)  # type: ignore[arg-type]
+
+        monkeypatch.setattr(new_work_session, "_write_json_atomic", _boom)
+
+        code = new_work_session.main(["--trigger-source", "cli", "--quiet"])
+        assert code == 2
+        payload = json.loads(capsys.readouterr().out.strip())
+        assert payload["reason"] == "new-work-session-init-failed"
+
+        after = json.loads(session_path.read_text(encoding="utf-8"))
+        assert after == before
+        events = [json.loads(line) for line in (session_path.parent / "events.jsonl").read_text(encoding="utf-8").splitlines() if line.strip()]
+        assert not [e for e in events if e.get("event") == "new_work_session_created"]
+        assert [e for e in events if e.get("event") == "new_work_session_init_failed"]
+
     # -- Corner --
     def test_initializes_when_legacy_run_id_is_missing(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
         config_root, session_path, _ = _setup_workspace(tmp_path)
@@ -239,5 +289,31 @@ class TestNewWorkSessionEntrypoint:
         assert code == 0
         _ = json.loads(capsys.readouterr().out.strip())
 
-        archived = sorted((session_path.parent / "work_runs").glob("legacy-*.json"))
+        archived = sorted((session_path.parent / "runs").glob("legacy-*"))
         assert archived, "legacy sessions without run id must still be archived"
+
+    def test_archived_run_directories_are_immutable_across_multiple_runs(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+        config_root, session_path, _ = _setup_workspace(tmp_path)
+        monkeypatch.setenv("OPENCODE_CONFIG_ROOT", str(config_root))
+
+        first = new_work_session.main(["--trigger-source", "desktop-plugin", "--session-id", "sess-a", "--quiet"])
+        assert first == 0
+        first_payload = json.loads(capsys.readouterr().out.strip())
+        first_new_run = str(first_payload["run_id"])
+        first_archived = session_path.parent / "runs" / "run-old-001" / "SESSION_STATE.json"
+        first_snapshot = json.loads(first_archived.read_text(encoding="utf-8"))
+
+        state_doc = json.loads(session_path.read_text(encoding="utf-8"))
+        state_doc["SESSION_STATE"]["Phase"] = "5-ArchitectureReview"
+        state_doc["SESSION_STATE"]["phase"] = "5-ArchitectureReview"
+        state_doc["SESSION_STATE"]["active_gate"] = "Architecture Review Gate"
+        state_doc["SESSION_STATE"]["Next"] = "5.3"
+        session_path.write_text(json.dumps(state_doc, ensure_ascii=True), encoding="utf-8")
+
+        second = new_work_session.main(["--trigger-source", "desktop-plugin", "--session-id", "sess-a", "--quiet"])
+        assert second == 0
+        second_payload = json.loads(capsys.readouterr().out.strip())
+        second_archived = session_path.parent / "runs" / first_new_run / "SESSION_STATE.json"
+        assert second_archived.is_file()
+        assert json.loads(first_archived.read_text(encoding="utf-8")) == first_snapshot
+        assert str(second_payload["run_id"]) != first_new_run
