@@ -83,13 +83,15 @@ jobs:
           if [[ "${ALLOW_EMPTY_CHANGELOG}" == "true" ]]; then
             args+=(--allow-empty-changelog)
           fi
-          python3 scripts/release.py "${args[@]}"
+          python scripts/release.py "${args[@]}"
 
       - name: Validate release gates before push
         run: |
           set -euo pipefail
-          python3 scripts/governance_lint.py
-          pytest -q -m release
+          python -m pip install --upgrade pip
+          python -m pip install pytest
+          python scripts/governance_lint.py
+          python -m pytest -q -m release
 
       - name: Push release commit and tag
         env:
