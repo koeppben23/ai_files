@@ -258,12 +258,14 @@ def test_bootstrap_preflight_persists_workspace_and_pointer(tmp_path: Path) -> N
     assert not (workspace / "business-rules.md").exists()
     assert (workspace / "business-rules-status.md").exists()
     business_rules = ss.get("BusinessRules", {})
-    inventory = business_rules.get("Inventory", {}) if isinstance(business_rules, dict) else {}
-    assert isinstance(inventory.get("sha256"), str) and inventory.get("sha256")
-    rules = business_rules.get("Rules") if isinstance(business_rules, dict) else None
-    assert rules == []
-    assert business_rules.get("Outcome") == "not-applicable"
-    assert business_rules.get("ExecutionEvidence") is True
+    assert ss.get("phase_transition_evidence") is False
+    assert ss.get("Scope", {}).get("BusinessRules") == "unresolved"
+    assert business_rules.get("Decision") == "pending"
+    assert business_rules.get("Outcome") == "unresolved"
+    assert business_rules.get("ExecutionEvidence") is False
+    assert business_rules.get("InventoryFileStatus") == "unknown"
+    assert "Rules" not in business_rules
+    assert "Evidence" not in business_rules
 
     events = _read_jsonl(workspace / "events.jsonl")
     phase_tokens = [str(event.get("phase_token") or "") for event in events]

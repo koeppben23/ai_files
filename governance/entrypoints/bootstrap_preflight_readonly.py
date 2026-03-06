@@ -32,6 +32,7 @@ from governance.infrastructure.tenant_config import load_tenant_config, get_prof
 from governance.application.use_cases.phase_router import route_phase
 from governance.application.use_cases.session_state_helpers import with_kernel_result
 from governance.domain.phase_state_machine import normalize_phase_token, phase_rank
+from governance.engine.sanitization import apply_fresh_start_business_rules_neutralization
 from governance.kernel.phase_kernel import api_in_scope
 from governance.infrastructure.binding_evidence_resolver import BindingEvidenceResolver
 
@@ -1097,16 +1098,28 @@ def _normalize_business_rules_state(state: dict[str, object]) -> None:
         business_rules = {}
 
     outcome = str(business_rules.get("Outcome") or "").strip().lower()
+    decision = str(business_rules.get("Decision") or "").strip().lower()
+    inventory_status = str(business_rules.get("InventoryFileStatus") or "").strip().lower()
     evidence = business_rules.get("ExecutionEvidence")
-    if isinstance(evidence, bool) and evidence and outcome in _BUSINESS_RULES_RESOLVED_OUTCOMES:
+    extracted_consistent = (
+        outcome == "extracted"
+        and decision == "execute"
+        and inventory_status == "written"
+    )
+    if isinstance(evidence, bool) and evidence and outcome in _BUSINESS_RULES_RESOLVED_OUTCOMES and (
+        outcome != "extracted" or extracted_consistent
+    ):
         scope["BusinessRules"] = outcome
 
     current_scope = str(scope.get("BusinessRules") or "").strip().lower()
-    if current_scope not in _BUSINESS_RULES_RESOLVED_OUTCOMES:
+    if current_scope == "extracted" and not extracted_consistent:
         scope["BusinessRules"] = "unresolved"
-        business_rules["Decision"] = "pending"
-        business_rules.setdefault("ExecutionEvidence", False)
-        business_rules.setdefault("InventoryFileStatus", "unknown")
+        current_scope = "unresolved"
+    if current_scope not in _BUSINESS_RULES_RESOLVED_OUTCOMES:
+        state["Scope"] = scope
+        state["BusinessRules"] = business_rules
+        apply_fresh_start_business_rules_neutralization(state)
+        return
     else:
         normalized = str(scope.get("BusinessRules") or "").strip().lower()
         business_rules["Outcome"] = normalized
@@ -1382,6 +1395,19 @@ def run_kernel_continuation(hook_result: Mapping[str, object]) -> dict[str, obje
         requested_token = next_token
 
     document = _apply_ticket_intake_readiness(document, phase_token=resolved_token)
+    final_state = _root_state(document)
+    final_state["phase_transition_evidence"] = False
+    final_phase = str(final_state.get("Phase") or final_state.get("phase") or "").strip()
+    has_ticket = bool(str(final_state.get("Ticket") or "").strip())
+    has_task = bool(str(final_state.get("Task") or "").strip())
+    has_ticket_digest = bool(str(final_state.get("TicketRecordDigest") or "").strip())
+    has_task_digest = bool(str(final_state.get("TaskRecordDigest") or "").strip())
+    if final_phase == "4" and not (has_ticket or has_task or has_ticket_digest or has_task_digest):
+        final_state["phase4_intake_source"] = "bootstrap"
+        final_state["phase4_intake_evidence"] = False
+        final_state["phase4_intake_updated_at"] = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+        final_state["phase_transition_evidence"] = False
+        apply_fresh_start_business_rules_neutralization(final_state)
     _write_json_document(session_path, document)
     payload = {
         "kernelContinuation": "ok" if str(last_result.get("status") or "") == "OK" else "blocked",

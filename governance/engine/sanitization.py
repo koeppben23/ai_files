@@ -43,3 +43,49 @@ def sanitize_for_output(payload: Any) -> Any:
                 out[key_s] = sanitize_for_output(value)
         return out
     return payload
+
+
+_BUSINESS_RULES_REFERENCE_KEYS = {
+    "Rules",
+    "Evidence",
+    "EvidenceRefs",
+    "EvidencePaths",
+    "ReferencePaths",
+    "References",
+    "SourceFiles",
+}
+
+
+def apply_fresh_start_business_rules_neutralization(state: dict[str, Any]) -> None:
+    """Normalize BusinessRules to a fail-closed fresh-start state.
+
+    This helper intentionally handles only BusinessRules-related normalization.
+    Callers manage transition-level fields (for example phase_transition_evidence)
+    in their own context.
+    """
+
+    scope_obj = state.get("Scope")
+    scope = dict(scope_obj) if isinstance(scope_obj, dict) else {}
+    scope["BusinessRules"] = "unresolved"
+    state["Scope"] = scope
+
+    business_obj = state.get("BusinessRules")
+    business_rules = dict(business_obj) if isinstance(business_obj, dict) else {}
+
+    for key in _BUSINESS_RULES_REFERENCE_KEYS:
+        business_rules.pop(key, None)
+
+    business_rules.pop("InventoryFilePath", None)
+    business_rules["Decision"] = "pending"
+    business_rules["Outcome"] = "unresolved"
+    business_rules["ExecutionEvidence"] = False
+    business_rules["InventoryLoaded"] = False
+    business_rules["InventoryFileStatus"] = "unknown"
+    business_rules["InventoryFileMode"] = "unknown"
+    business_rules["ExtractedCount"] = 0
+    business_rules["Inventory"] = {
+        "sha256": "0" * 64,
+        "count": 0,
+    }
+
+    state["BusinessRules"] = business_rules
