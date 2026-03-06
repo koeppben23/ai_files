@@ -356,7 +356,12 @@ def test_hydrate_transition_state_marks_business_rules_unresolved_when_no_eviden
     state = hydrated["SESSION_STATE"]
 
     assert state["Scope"]["BusinessRules"] == "unresolved"
+    assert state["BusinessRules"]["Decision"] == "pending"
+    assert state["BusinessRules"]["Outcome"] == "unresolved"
     assert state["BusinessRules"]["ExecutionEvidence"] is False
+    assert state["BusinessRules"]["InventoryFileStatus"] == "unknown"
+    assert "Rules" not in state["BusinessRules"]
+    assert "Evidence" not in state["BusinessRules"]
 
 
 @pytest.mark.governance
@@ -367,7 +372,7 @@ def test_hydrate_transition_state_normalizes_business_rules_decision_for_extract
         "SESSION_STATE": {
             "Scope": {"BusinessRules": "extracted"},
             "BusinessRules": {
-                "Decision": "skip",
+                "Decision": "execute",
                 "Outcome": "extracted",
                 "ExecutionEvidence": True,
                 "InventoryFileStatus": "written",
@@ -386,6 +391,39 @@ def test_hydrate_transition_state_normalizes_business_rules_decision_for_extract
     assert state["Scope"]["BusinessRules"] == "extracted"
     assert state["BusinessRules"]["Outcome"] == "extracted"
     assert state["BusinessRules"]["Decision"] == "execute"
+
+
+@pytest.mark.governance
+def test_hydrate_transition_state_rejects_extracted_without_written_inventory(tmp_path: Path):
+    module = _load_module_with_env({"CI": ""})
+    (tmp_path / "README.md").write_text("demo\n", encoding="utf-8")
+    document = {
+        "SESSION_STATE": {
+            "Scope": {"BusinessRules": "extracted"},
+            "BusinessRules": {
+                "Decision": "execute",
+                "Outcome": "extracted",
+                "ExecutionEvidence": True,
+                "InventoryFileStatus": "unknown",
+                "Rules": ["BR-1: stale"],
+                "Evidence": ["docs/rules.md:1"],
+            },
+        }
+    }
+
+    hydrated = module._hydrate_transition_state(
+        document,
+        repo_fingerprint="abc123def456abc123def456",
+        requested_token="2.1",
+        repo_root=tmp_path,
+    )
+    state = hydrated["SESSION_STATE"]
+
+    assert state["Scope"]["BusinessRules"] == "unresolved"
+    assert state["BusinessRules"]["ExecutionEvidence"] is False
+    assert state["BusinessRules"]["InventoryFileStatus"] == "unknown"
+    assert "Rules" not in state["BusinessRules"]
+    assert "Evidence" not in state["BusinessRules"]
 
 
 @pytest.mark.governance

@@ -408,6 +408,60 @@ class TestFullInvariantValidation:
         errors = validate_session_state_invariants(doc)
         assert "missing_session_state_key" in errors
 
+    def test_fresh_phase4_start_requires_fail_closed_business_rules(self):
+        doc: dict[str, object] = {
+            "SESSION_STATE": {
+                "Phase": "4",
+                "phase": "4",
+                "Mode": "IN_PROGRESS",
+                "active_gate": "Ticket Input Gate",
+                "phase4_intake_source": "new-work-session",
+                "Ticket": None,
+                "Task": None,
+                "TicketRecordDigest": None,
+                "TaskRecordDigest": None,
+                "phase_transition_evidence": True,
+                "Scope": {"BusinessRules": "extracted"},
+                "BusinessRules": {
+                    "Decision": "execute",
+                    "Outcome": "extracted",
+                    "ExecutionEvidence": True,
+                    "InventoryFileStatus": "written",
+                    "Rules": ["BR-1: stale"],
+                    "Evidence": ["docs/rules.md:1"],
+                },
+            }
+        }
+
+        errors = validate_session_state_invariants(doc)
+        assert "fresh_phase4_phase_transition_evidence_not_false" in errors
+        assert "fresh_phase4_scope_business_rules_not_unresolved" in errors
+        assert "fresh_phase4_execution_evidence_not_false" in errors
+        assert "fresh_phase4_inventory_file_status_written" in errors
+        assert "fresh_phase4_outcome_extracted" in errors
+        assert "fresh_phase4_rules_references_present" in errors
+        assert "fresh_phase4_evidence_references_present" in errors
+
+    def test_non_fresh_phase4_context_skips_fresh_start_invariant(self):
+        doc: dict[str, object] = {
+            "SESSION_STATE": {
+                "Phase": "4",
+                "active_gate": "Plan Record Preparation Gate",
+                "phase4_intake_source": "phase4-intake-bridge",
+                "Ticket": "T-123",
+                "phase_transition_evidence": True,
+                "Scope": {"BusinessRules": "extracted"},
+                "BusinessRules": {
+                    "ExecutionEvidence": True,
+                    "InventoryFileStatus": "written",
+                    "Outcome": "extracted",
+                },
+            }
+        }
+
+        errors = validate_session_state_invariants(doc)
+        assert "fresh_phase4_phase_transition_evidence_not_false" not in errors
+
 
 @pytest.mark.governance
 class TestPathInvariantValidation:

@@ -18,6 +18,7 @@ if __package__ in {None, ""}:
 
 from governance.infrastructure.binding_evidence_resolver import BindingEvidenceResolver
 from governance.domain.canonical_json import canonical_json_hash
+from governance.engine.sanitization import apply_fresh_start_business_rules_neutralization
 try:
     from governance.entrypoints.workspace_lock import acquire_workspace_lock
 except Exception:
@@ -105,6 +106,7 @@ def _reset_for_new_work(
     state["phase4_intake_evidence"] = False
     state["phase4_intake_source"] = "new-work-session"
     state["phase4_intake_updated_at"] = observed_at
+    state["phase_transition_evidence"] = False
 
     state["Phase"] = "4"
     state["phase"] = "4"
@@ -113,6 +115,7 @@ def _reset_for_new_work(
     state["status"] = "OK"
     state["active_gate"] = "Ticket Input Gate"
     state["next_gate_condition"] = "Collect ticket and planning constraints (or run /review for review-only lead/staff feedback)."
+    apply_fresh_start_business_rules_neutralization(state)
 
     gates = state.get("Gates")
     base_gates: dict[str, str] = {

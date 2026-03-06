@@ -165,6 +165,7 @@ def validate_session_state_invariants(session_state_document: Mapping[str, objec
     errors.extend(validate_p5_approved_architecture_decisions(state))
     errors.extend(validate_phase_gate_prerequisites(state))
     errors.extend(validate_gate_artifacts_integrity(state))
+    errors.extend(validate_fresh_phase4_start_business_rules(state))
 
     return tuple(errors)
 
@@ -395,5 +396,67 @@ def validate_gate_artifacts_integrity(state: Mapping[str, object]) -> tuple[str,
             gate_status = gates.get(gate_key)
             if gate_status in ("approved", "pass", "pass-with-exceptions", "compliant", "compliant-with-exceptions"):
                 errors.append(f"gate_{gate_key.lower().replace('-', '_')}_approved_with_missing_artifacts")
+
+    return tuple(errors)
+
+
+def _is_fresh_phase4_start_context(state: Mapping[str, object]) -> bool:
+    phase = str(state.get("Phase") or state.get("phase") or "").strip()
+    if phase != "4":
+        return False
+
+    active_gate = str(state.get("active_gate") or state.get("ActiveGate") or "").strip()
+    if active_gate != "Ticket Input Gate":
+        return False
+
+    intake_source = str(state.get("phase4_intake_source") or "").strip().lower()
+    if intake_source not in {"new-work-session", "bootstrap", "bootstrap-preflight"}:
+        return False
+
+    has_ticket = bool(str(state.get("Ticket") or "").strip())
+    has_task = bool(str(state.get("Task") or "").strip())
+    has_ticket_digest = bool(str(state.get("TicketRecordDigest") or "").strip())
+    has_task_digest = bool(str(state.get("TaskRecordDigest") or "").strip())
+    return not (has_ticket or has_task or has_ticket_digest or has_task_digest)
+
+
+def validate_fresh_phase4_start_business_rules(state: Mapping[str, object]) -> tuple[str, ...]:
+    """Fresh phase-4 starts must be fail-closed and BusinessRules-neutral."""
+    if not _is_fresh_phase4_start_context(state):
+        return ()
+
+    errors: list[str] = []
+
+    if state.get("phase_transition_evidence") is not False:
+        errors.append("fresh_phase4_phase_transition_evidence_not_false")
+
+    scope = state.get("Scope")
+    if not isinstance(scope, Mapping) or str(scope.get("BusinessRules") or "").strip().lower() != "unresolved":
+        errors.append("fresh_phase4_scope_business_rules_not_unresolved")
+
+    business_rules = state.get("BusinessRules")
+    if not isinstance(business_rules, Mapping):
+        errors.append("fresh_phase4_business_rules_missing")
+        return tuple(errors)
+
+    execution_evidence = business_rules.get("ExecutionEvidence")
+    if execution_evidence is not False:
+        errors.append("fresh_phase4_execution_evidence_not_false")
+
+    inventory_status = str(business_rules.get("InventoryFileStatus") or "").strip().lower()
+    if inventory_status == "written":
+        errors.append("fresh_phase4_inventory_file_status_written")
+
+    outcome = str(business_rules.get("Outcome") or "").strip().lower()
+    if outcome == "extracted":
+        errors.append("fresh_phase4_outcome_extracted")
+
+    rules = business_rules.get("Rules")
+    if isinstance(rules, list) and len(rules) > 0:
+        errors.append("fresh_phase4_rules_references_present")
+
+    evidence = business_rules.get("Evidence")
+    if isinstance(evidence, list) and len(evidence) > 0:
+        errors.append("fresh_phase4_evidence_references_present")
 
     return tuple(errors)
