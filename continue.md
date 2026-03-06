@@ -23,6 +23,9 @@ Use the YAML output as your governance context for the response below. Do not in
 Continue uses canonical `SESSION_STATE` from `SESSION_STATE_SCHEMA.md`.
 Free chat remains available for normal interaction; use `/continue` when official governance-state materialization is required.
 
+**Free-text guard (Fix 1.4b):**
+Free-text like "go", "weiter", "proceed", "mach weiter", or any other natural-language continuation prompt is **not** a rail command. It must NEVER trigger the materialize command above or any authoritative state write. Only the explicit `/continue` rail invocation is permitted to materialize state. If the user sends free-text that implies continuation, respond conversationally without executing any governance commands.
+
 Rails-only scope:
 - output structure and quality checklist only
 - informational references to kernel-managed decisions
