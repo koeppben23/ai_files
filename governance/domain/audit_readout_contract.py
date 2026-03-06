@@ -62,11 +62,19 @@ AUDIT_READOUT_SCHEMA_V1: dict[str, object] = {
         },
         "integrity": {
             "type": "object",
-            "required": ["snapshot_ref_present", "run_id_consistent", "monotonic_timestamps"],
+            "required": [
+                "snapshot_ref_present",
+                "run_id_consistent",
+                "monotonic_timestamps",
+                "active_run_pointer_consistent",
+                "reactivation_chain_consistent",
+            ],
             "properties": {
                 "snapshot_ref_present": {"type": "boolean"},
                 "run_id_consistent": {"type": "boolean"},
                 "monotonic_timestamps": {"type": "boolean"},
+                "active_run_pointer_consistent": {"type": "boolean"},
+                "reactivation_chain_consistent": {"type": "boolean"},
                 "notes": {
                     "type": "array",
                     "items": {"type": "string"},
@@ -95,6 +103,10 @@ def validate_audit_readout_v1(payload: Mapping[str, object]) -> list[str]:
                 digest = event.get("snapshot_digest")
                 if not isinstance(digest, str) or _SHA256_HEX_RE.match(digest) is None:
                     errors.append(f"$.chain.events[{idx}].snapshot_digest:required-for-created")
+            if event_type == "work_session_reactivated":
+                reactivated_run_id = event.get("reactivated_run_id")
+                if not isinstance(reactivated_run_id, str) or not reactivated_run_id.strip():
+                    errors.append(f"$.chain.events[{idx}].reactivated_run_id:required-for-reactivation")
             if event_type in {"new_work_session_deduped", "new_work_session_dedupe_bypassed"}:
                 reason = event.get("reason")
                 if not isinstance(reason, str) or not reason.strip():
