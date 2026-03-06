@@ -172,6 +172,56 @@ def with_workspace_ready_gate(
     return state
 
 
+def _auto_propagate_gates(
+    ss: dict[str, object],
+    *,
+    status: str,
+    next_token: str | None,
+) -> None:
+    """Conservatively upgrade Gates dict entries based on authoritative kernel evidence.
+
+    Policy (Fix 2.1):
+    - Only runs when kernel status is OK (authoritative outcome).
+    - Only upgrades from "pending" — never overwrites a gate that has already
+      been evaluated to a non-pending terminal status.
+    - Uses ``next_token`` rank to infer which upstream gates must have been
+      cleared by the kernel's phase transition logic.
+
+    Gate-to-phase mapping (derived from ``phase_api.yaml`` topology):
+    - P5-Architecture  → cleared when session reaches token 5.3 or later.
+    - P5.3-TestQuality → cleared when session reaches token 5.4, 5.5, 5.6, or 6.
+    - P5.4-BusinessRules → NOT auto-propagated (conditional on Phase 1.5;
+      handled by ``bootstrap_preflight``).
+    - P5.5-TechnicalDebt → NOT auto-propagated (informational only).
+    - P5.6-RollbackSafety → NOT auto-propagated (conditional on schema/contract
+      touch surface; handled by ``bootstrap_preflight`` + ``gate_evaluator``).
+    - P6-ImplementationQA → NOT auto-propagated (requires explicit completion).
+    """
+    from governance.domain.phase_state_machine import phase_rank
+
+    if status != "OK" or not next_token:
+        return
+
+    gates_obj = ss.get("Gates")
+    if not isinstance(gates_obj, dict):
+        return
+    gates: dict[str, object] = gates_obj
+
+    token_rank = phase_rank(next_token)
+    if token_rank < 0:
+        return
+
+    # P5-Architecture: session at 5.3+ implies architecture review passed.
+    if token_rank >= phase_rank("5.3"):
+        if str(gates.get("P5-Architecture", "")).strip().lower() == "pending":
+            gates["P5-Architecture"] = "approved"
+
+    # P5.3-TestQuality: session at 5.4+ or 6 implies test quality gate passed.
+    if token_rank >= phase_rank("5.4"):
+        if str(gates.get("P5.3-TestQuality", "")).strip().lower() == "pending":
+            gates["P5.3-TestQuality"] = "pass"
+
+
 def with_kernel_result(
     session_state_document: Mapping[str, object] | None,
     *,
@@ -216,6 +266,7 @@ def with_kernel_result(
         ss["plan_record_versions"] = versions
         ss["PlanRecordVersions"] = versions
     _normalize_review_iteration_invariants(ss)
+    _auto_propagate_gates(ss, status=status, next_token=next_token)
 
     state["SESSION_STATE"] = ss
     return state

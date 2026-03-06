@@ -49,6 +49,7 @@ class KernelResult:
     route_strategy: str = ""
     plan_record_status: str = "unknown"
     plan_record_versions: int = 0
+    transition_evidence_met: bool = False
 
 
 def _utc_now() -> str:
@@ -821,11 +822,36 @@ def _deduplicate_criteria(
     )
 
 
+def evaluate_readonly(
+    *,
+    current_token: str,
+    session_state_doc: Mapping[str, object] | None,
+    runtime_ctx: RuntimeContext,
+) -> KernelResult:
+    """Side-effect-free kernel evaluation.
+
+    Returns the same ``KernelResult`` as ``execute()`` but guarantees:
+    - No file writes (no JSONL events, no error logs, no directory creation)
+    - No global state mutations
+    - Safe to call from read-only UX paths (session_reader readout)
+
+    The ``log_paths`` field in the result may contain empty strings when
+    events would normally be written but were suppressed.
+    """
+    return execute(
+        current_token=current_token,
+        session_state_doc=session_state_doc,
+        runtime_ctx=runtime_ctx,
+        readonly=True,
+    )
+
+
 def execute(
     *,
     current_token: str,
     session_state_doc: Mapping[str, object] | None,
     runtime_ctx: RuntimeContext,
+    readonly: bool = False,
 ) -> KernelResult:
     state = _session_state(session_state_doc)
     commands_home, workspaces_home, config_root, binding_ok, binding_issues = _resolve_paths(runtime_ctx)
@@ -837,16 +863,17 @@ def execute(
     if not binding_ok:
         issue_text = ", ".join(binding_issues) if binding_issues else "binding evidence missing"
         log_paths = _resolve_flow_paths(commands_home, workspaces_home, repo_fingerprint)
-        emit_error_event(
-            severity="CRITICAL",
-            code="BINDING_EVIDENCE_INVALID",
-            message=issue_text,
-            repo_fingerprint=repo_fingerprint or None,
-            config_root=config_root,
-            workspaces_home=workspaces_home,
-            commands_home=commands_home,
-            context={"issues": binding_issues},
-        )
+        if not readonly:
+            emit_error_event(
+                severity="CRITICAL",
+                code="BINDING_EVIDENCE_INVALID",
+                message=issue_text,
+                repo_fingerprint=repo_fingerprint or None,
+                config_root=config_root,
+                workspaces_home=workspaces_home,
+                commands_home=commands_home,
+                context={"issues": binding_issues},
+            )
         return KernelResult(
             phase="1.1-Bootstrap",
             next_token="1.1",
@@ -869,33 +896,34 @@ def execute(
     except PhaseApiSpecError as exc:
         log_paths = _resolve_flow_paths(commands_home, workspaces_home, repo_fingerprint)
         phase_api_path = str(commands_home / "phase_api.yaml") if commands_home is not None else ""
-        _emit_phase_event(
-            log_paths,
-            {
-                "schema": "opencode.phase-flow.v1",
-                "ts_utc": _utc_now(),
-                "event_id": event_id,
-                "event": "PHASE_BLOCKED",
-                "source": _normalize_source("phase-api-missing"),
-                "phase": "1.1-Bootstrap",
-                "phase_token": "1.1",
-                "next_token": "1.1",
-                "status": "BLOCKED",
-                "reason": str(exc),
-                "spec_path": phase_api_path,
-                "spec_hash": "",
-            },
-        )
-        emit_error_event(
-            severity="CRITICAL",
-            code="PHASE_API_MISSING",
-            message=str(exc),
-            repo_fingerprint=repo_fingerprint or None,
-            config_root=config_root,
-            workspaces_home=workspaces_home,
-            commands_home=commands_home,
-            context={"phase_api_path": phase_api_path},
-        )
+        if not readonly:
+            _emit_phase_event(
+                log_paths,
+                {
+                    "schema": "opencode.phase-flow.v1",
+                    "ts_utc": _utc_now(),
+                    "event_id": event_id,
+                    "event": "PHASE_BLOCKED",
+                    "source": _normalize_source("phase-api-missing"),
+                    "phase": "1.1-Bootstrap",
+                    "phase_token": "1.1",
+                    "next_token": "1.1",
+                    "status": "BLOCKED",
+                    "reason": str(exc),
+                    "spec_path": phase_api_path,
+                    "spec_hash": "",
+                },
+            )
+            emit_error_event(
+                severity="CRITICAL",
+                code="PHASE_API_MISSING",
+                message=str(exc),
+                repo_fingerprint=repo_fingerprint or None,
+                config_root=config_root,
+                workspaces_home=workspaces_home,
+                commands_home=commands_home,
+                context={"phase_api_path": phase_api_path},
+            )
         return KernelResult(
             phase="1.1-Bootstrap",
             next_token="1.1",
@@ -924,21 +952,22 @@ def execute(
 
     workspace_ready, workspace_reason = _persistence_gate_passed(state)
 
-    _emit_phase_event(
-        log_paths,
-        {
-            "schema": "opencode.phase-flow.v1",
-            "ts_utc": _utc_now(),
-            "event_id": event_id,
-            "event": "PHASE_STARTED",
-            "source": "kernel",
-            "phase": spec.entries[chosen_token].phase,
-            "phase_token": chosen_token,
-            "status": "STARTED",
-            "spec_hash": spec.stable_hash,
-            "spec_path": str(spec.path),
-        },
-    )
+    if not readonly:
+        _emit_phase_event(
+            log_paths,
+            {
+                "schema": "opencode.phase-flow.v1",
+                "ts_utc": _utc_now(),
+                "event_id": event_id,
+                "event": "PHASE_STARTED",
+                "source": "kernel",
+                "phase": spec.entries[chosen_token].phase,
+                "phase_token": chosen_token,
+                "status": "STARTED",
+                "spec_hash": spec.stable_hash,
+                "spec_path": str(spec.path),
+            },
+        )
 
     def _blocked_result(*, phase: str, token: str, active_gate: str, next_gate_condition: str, source: str, reason: str, detail: dict[str, object] | None = None) -> KernelResult:
         event_payload: dict[str, object] = {
@@ -957,33 +986,40 @@ def execute(
         }
         if detail is not None:
             event_payload["strict_exit_detail"] = detail
-        written, result_paths = _emit_phase_event(
-            log_paths,
-            event_payload,
-        )
-        if not written:
+        if readonly:
+            # Readonly mode: skip all file writes, produce empty log paths
+            result_paths: dict[str, str] = {
+                "phase_flow": str(log_paths.get("commands_flow") or ""),
+                "workspace_events": "",
+            }
+        else:
+            written, result_paths = _emit_phase_event(
+                log_paths,
+                event_payload,
+            )
+            if not written:
+                emit_error_event(
+                    severity="CRITICAL",
+                    code="PHASE_FLOW_LOG_WRITE_FAILED",
+                    message="unable to write phase flow log",
+                    repo_fingerprint=repo_fingerprint or None,
+                    config_root=config_root,
+                    workspaces_home=workspaces_home,
+                    commands_home=commands_home,
+                    context={"phase": phase, "source": source},
+                )
+                next_gate_condition = "PHASE_BLOCKED: flow log write failed"
+                source = "flow-log-write-failed"
             emit_error_event(
-                severity="CRITICAL",
-                code="PHASE_FLOW_LOG_WRITE_FAILED",
-                message="unable to write phase flow log",
+                severity="HIGH",
+                code="PHASE_BLOCKED",
+                message=reason,
                 repo_fingerprint=repo_fingerprint or None,
                 config_root=config_root,
                 workspaces_home=workspaces_home,
                 commands_home=commands_home,
-                context={"phase": phase, "source": source},
+                context={"phase": phase, "phase_token": token, "source": source, "next_gate_condition": next_gate_condition},
             )
-            next_gate_condition = "PHASE_BLOCKED: flow log write failed"
-            source = "flow-log-write-failed"
-        emit_error_event(
-            severity="HIGH",
-            code="PHASE_BLOCKED",
-            message=reason,
-            repo_fingerprint=repo_fingerprint or None,
-            config_root=config_root,
-            workspaces_home=workspaces_home,
-            commands_home=commands_home,
-            context={"phase": phase, "phase_token": token, "source": source, "next_gate_condition": next_gate_condition},
-        )
         _blocked_entry = spec.entries.get(token)
         return KernelResult(
             phase=phase,
@@ -1002,6 +1038,7 @@ def execute(
             route_strategy=_blocked_entry.route_strategy if _blocked_entry is not None else "",
             plan_record_status=plan_record_signal.status,
             plan_record_versions=plan_record_signal.versions,
+            transition_evidence_met=_transition_has_evidence(state),
         )
 
     strict_exit_result: StrictExitResult | None = None
@@ -1043,6 +1080,7 @@ def execute(
             route_strategy=entry.route_strategy,
             plan_record_status=plan_record_signal.status,
             plan_record_versions=plan_record_signal.versions,
+            transition_evidence_met=_transition_has_evidence(state),
         )
 
     if requested_token and persisted_token and requested_token != persisted_token:
@@ -1200,15 +1238,16 @@ def execute(
                 )
             elif _dedup.conflicts:
                 # Non-strict mode: warn but continue with deduplicated set.
-                emit_error_event(
-                    severity="warning",
-                    code="CRITERIA_CONFLICT",
-                    message=(
-                        f"Duplicate criterion_key definitions with "
-                        f"incompatible values (non-strict, continuing): "
-                        f"{'; '.join(_dedup.conflicts)}"
-                    ),
-                )
+                if not readonly:
+                    emit_error_event(
+                        severity="warning",
+                        code="CRITERIA_CONFLICT",
+                        message=(
+                            f"Duplicate criterion_key definitions with "
+                            f"incompatible values (non-strict, continuing): "
+                            f"{'; '.join(_dedup.conflicts)}"
+                        ),
+                    )
             _criteria = _dedup.criteria
 
             _evidence_map: dict[str, Mapping[str, object]] = {}
@@ -1313,19 +1352,25 @@ def execute(
     if source not in ("kernel", "spec-next", "transition", "not_applicable"):
         event_payload["transition_rule"] = source
 
-    written, result_paths = _emit_phase_event(
-        log_paths,
-        event_payload,
-    )
-    if not written:
-        return _blocked_result(
-            phase=resolved_phase,
-            token=chosen_token,
-            active_gate=resolved_active_gate,
-            next_gate_condition="PHASE_BLOCKED: flow log write failed",
-            source="flow-log-write-failed",
-            reason="flow-log-write-failed",
+    if readonly:
+        result_paths = {
+            "phase_flow": str(log_paths.get("commands_flow") or ""),
+            "workspace_events": str(log_paths.get("workspace_events") or ""),
+        }
+    else:
+        written, result_paths = _emit_phase_event(
+            log_paths,
+            event_payload,
         )
+        if not written:
+            return _blocked_result(
+                phase=resolved_phase,
+                token=chosen_token,
+                active_gate=resolved_active_gate,
+                next_gate_condition="PHASE_BLOCKED: flow log write failed",
+                source="flow-log-write-failed",
+                reason="flow-log-write-failed",
+            )
 
     return KernelResult(
         phase=resolved_phase,
@@ -1344,7 +1389,8 @@ def execute(
         route_strategy=entry.route_strategy,
         plan_record_status=plan_record_signal.status,
         plan_record_versions=plan_record_signal.versions,
+        transition_evidence_met=_transition_has_evidence(state),
     )
 
 
-__all__ = ["KernelResult", "RuntimeContext", "api_in_scope", "execute"]
+__all__ = ["KernelResult", "RuntimeContext", "api_in_scope", "evaluate_readonly", "execute"]
