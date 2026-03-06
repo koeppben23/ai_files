@@ -20,6 +20,7 @@ import os
 import sys
 import tempfile
 from pathlib import Path
+from typing import Any
 
 # ---------------------------------------------------------------------------
 # Schema / version constants
@@ -126,10 +127,16 @@ def _session_state_view(state: dict) -> dict:
     return nested if isinstance(nested, dict) else state
 
 
-def _materialize_authoritative_state(*, commands_home: Path, config_root: Path, pointer: dict, session_path: Path, state_doc: dict) -> dict:
-    from governance.application.use_cases.session_state_helpers import with_kernel_result
+def _build_runtime_context(
+    *, commands_home: Path, config_root: Path, pointer: dict, state_doc: dict,
+) -> tuple[str, Any]:
+    """Build a RuntimeContext and resolved phase token from session state.
+
+    Returns (requested_phase, RuntimeContext).  Shared by both the
+    materialise (write) and readonly-eval (read) code paths.
+    """
     from governance.domain.phase_state_machine import normalize_phase_token
-    from governance.kernel.phase_kernel import RuntimeContext, execute
+    from governance.kernel.phase_kernel import RuntimeContext
 
     state_view = _session_state_view(state_doc)
     requested_phase = normalize_phase_token(
@@ -157,18 +164,33 @@ def _materialize_authoritative_state(*, commands_home: Path, config_root: Path, 
         or ""
     ).strip() or None
 
+    ctx = RuntimeContext(
+        requested_active_gate=requested_active_gate,
+        requested_next_gate_condition=requested_next_gate_condition,
+        repo_is_git_root=True,
+        live_repo_fingerprint=repo_fingerprint,
+        commands_home=commands_home,
+        workspaces_home=config_root / "workspaces",
+        config_root=config_root,
+    )
+    return requested_phase, ctx
+
+
+def _materialize_authoritative_state(*, commands_home: Path, config_root: Path, pointer: dict, session_path: Path, state_doc: dict) -> dict:
+    from governance.application.use_cases.session_state_helpers import with_kernel_result
+    from governance.kernel.phase_kernel import execute
+
+    requested_phase, ctx = _build_runtime_context(
+        commands_home=commands_home,
+        config_root=config_root,
+        pointer=pointer,
+        state_doc=state_doc,
+    )
+
     result = execute(
         current_token=requested_phase,
         session_state_doc=state_doc,
-        runtime_ctx=RuntimeContext(
-            requested_active_gate=requested_active_gate,
-            requested_next_gate_condition=requested_next_gate_condition,
-            repo_is_git_root=True,
-            live_repo_fingerprint=repo_fingerprint,
-            commands_home=commands_home,
-            workspaces_home=config_root / "workspaces",
-            config_root=config_root,
-        ),
+        runtime_ctx=ctx,
     )
 
     materialized = dict(
@@ -265,6 +287,30 @@ def read_session_snapshot(commands_home: Path | None = None, *, materialize: boo
                 "error": f"Materialization failed: {exc}",
             }
 
+    # --- 3b. Readonly kernel evaluation for non-materialize readout ---
+    # When not materializing we still want *fresh* phase / gate / status
+    # values computed by the kernel rather than stale persisted fields.
+    # evaluate_readonly() is guaranteed side-effect-free (Fix 1.1 / 1.2).
+    kernel_result = None
+    if not materialize:
+        try:
+            from governance.kernel.phase_kernel import evaluate_readonly
+
+            requested_phase, ctx = _build_runtime_context(
+                commands_home=commands_home,
+                config_root=config_root,
+                pointer=pointer,
+                state_doc=state,
+            )
+            kernel_result = evaluate_readonly(
+                current_token=requested_phase,
+                session_state_doc=state,
+                runtime_ctx=ctx,
+            )
+        except Exception:
+            # Graceful degradation -- fall back to persisted state.
+            kernel_result = None
+
     # --- 4. Extract minimal fields ---
     # Canonical documents store runtime fields under "SESSION_STATE".
     # Support both nested and top-level conventions while preferring nested.
@@ -280,6 +326,17 @@ def read_session_snapshot(commands_home: Path | None = None, *, materialize: boo
     next_gate_condition = state_view.get("next_gate_condition") or state.get("next_gate_condition") or "none"
     ticket_intake_ready = state_view.get("ticket_intake_ready", state.get("ticket_intake_ready", False))
 
+    # Override kernel-authoritative fields with fresh readonly eval when
+    # available.  This ensures the readout always reflects the kernel's
+    # current evaluation rather than stale persisted values (Fix 1.2).
+    if kernel_result is not None:
+        phase = kernel_result.phase
+        status = kernel_result.status
+        active_gate = kernel_result.active_gate
+        next_gate_condition = kernel_result.next_gate_condition
+        if kernel_result.next_token:
+            next_phase = kernel_result.next_token
+
     # Collect blocked gates from the Gates dict.
     gates = state_view.get("Gates") or state.get("Gates") or {}
     gates_blocked = [k for k, v in gates.items() if str(v).lower() == "blocked"] if isinstance(gates, dict) else []
@@ -288,6 +345,11 @@ def read_session_snapshot(commands_home: Path | None = None, *, materialize: boo
         state=state_view if isinstance(state_view, dict) else {},
         plan_record_file=session_path.parent / "plan-record.json",
     )
+
+    # Prefer plan-record signal from kernel when available (already resolved
+    # inside execute / evaluate_readonly with the same inputs).
+    plan_status = kernel_result.plan_record_status if kernel_result is not None else signal.status
+    plan_versions = kernel_result.plan_record_versions if kernel_result is not None else signal.versions
 
     return {
         "schema": SNAPSHOT_SCHEMA,
@@ -300,8 +362,8 @@ def read_session_snapshot(commands_home: Path | None = None, *, materialize: boo
         "next_gate_condition": _safe_str(next_gate_condition),
         "ticket_intake_ready": _safe_str(ticket_intake_ready),
         "gates_blocked": gates_blocked,
-        "plan_record_status": signal.status,
-        "plan_record_versions": signal.versions,
+        "plan_record_status": plan_status,
+        "plan_record_versions": plan_versions,
         "commands_home": str(commands_home),
     }
 

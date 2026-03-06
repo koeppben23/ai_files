@@ -7,6 +7,7 @@ Validates:
 - CLI interface (--commands-home override, exit codes)
 - Self-bootstrapping path derivation
 - Cross-platform path handling
+- Readonly kernel evaluation enrichment (Fix 1.2)
 
 Copyright 2026 Benjamin Fuchs. All rights reserved. See LICENSE.
 """
@@ -16,6 +17,7 @@ import json
 import os
 import textwrap
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -72,6 +74,18 @@ def _write_pointer(config_root: Path, *, workspace_fp: str = "abc123") -> Path:
 def _write_workspace_state(ws_state: Path, state: dict) -> None:
     """Write workspace SESSION_STATE.json."""
     ws_state.write_text(json.dumps(state), encoding="utf-8")
+
+
+def _mock_readonly_unavailable():
+    """Patch evaluate_readonly to raise, triggering graceful degradation.
+
+    Used in tests that validate field extraction from persisted state
+    without needing a full kernel setup (phase_api.yaml, etc.).
+    """
+    return patch(
+        "governance.kernel.phase_kernel.evaluate_readonly",
+        side_effect=RuntimeError("kernel not available in test"),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -192,7 +206,8 @@ class TestReadSessionSnapshotSuccess:
             "OutputMode": "structured",
             "Gates": {"readiness": "open", "quality": "blocked"},
         })
-        result = read_session_snapshot(commands_home=fake_config / "commands")
+        with _mock_readonly_unavailable():
+            result = read_session_snapshot(commands_home=fake_config / "commands")
         assert result["status"] == "OK"
         assert result["schema"] == SNAPSHOT_SCHEMA
         assert result["phase"] == "4"
@@ -216,7 +231,8 @@ class TestReadSessionSnapshotSuccess:
             "ticket_intake_ready": True,
             "Gates": {},
         })
-        result = read_session_snapshot(commands_home=fake_config / "commands")
+        with _mock_readonly_unavailable():
+            result = read_session_snapshot(commands_home=fake_config / "commands")
         assert result["status"] == "IN_PROGRESS"
         assert result["phase"] == "4"
         assert result["next"] == "5"
@@ -227,7 +243,8 @@ class TestReadSessionSnapshotSuccess:
         """Missing optional fields get sane defaults."""
         ws_state = _write_pointer(fake_config)
         _write_workspace_state(ws_state, {"status": "OK"})
-        result = read_session_snapshot(commands_home=fake_config / "commands")
+        with _mock_readonly_unavailable():
+            result = read_session_snapshot(commands_home=fake_config / "commands")
         assert result["phase"] == "unknown"
         assert result["next"] == "unknown"
         assert result["mode"] == "unknown"
@@ -238,7 +255,8 @@ class TestReadSessionSnapshotSuccess:
         ws_state = _write_pointer(fake_config)
         _write_workspace_state(ws_state, {"status": "OK"})
         commands_home = fake_config / "commands"
-        result = read_session_snapshot(commands_home=commands_home)
+        with _mock_readonly_unavailable():
+            result = read_session_snapshot(commands_home=commands_home)
         assert result["commands_home"] == str(commands_home)
 
     def test_relative_path_fallback(self, fake_config: Path) -> None:
@@ -255,7 +273,8 @@ class TestReadSessionSnapshotSuccess:
         (fake_config / "SESSION_STATE.json").write_text(
             json.dumps(pointer), encoding="utf-8"
         )
-        result = read_session_snapshot(commands_home=fake_config / "commands")
+        with _mock_readonly_unavailable():
+            result = read_session_snapshot(commands_home=fake_config / "commands")
         assert result["status"] == "OK"
         assert result["phase"] == "2"
 
@@ -275,7 +294,8 @@ class TestReadSessionSnapshotSuccess:
             }
         })
 
-        result = read_session_snapshot(commands_home=fake_config / "commands")
+        with _mock_readonly_unavailable():
+            result = read_session_snapshot(commands_home=fake_config / "commands")
         assert result["status"] == "OK"
         assert result["phase"] == "4"
         assert result["next"] == "4"
@@ -304,7 +324,8 @@ class TestReadSessionSnapshotSuccess:
             encoding="utf-8",
         )
 
-        result = read_session_snapshot(commands_home=fake_config / "commands")
+        with _mock_readonly_unavailable():
+            result = read_session_snapshot(commands_home=fake_config / "commands")
         assert result["plan_record_status"] == "draft"
         assert result["plan_record_versions"] == 1
 
@@ -321,9 +342,219 @@ class TestReadSessionSnapshotSuccess:
             },
         )
 
-        result = read_session_snapshot(commands_home=fake_config / "commands")
+        with _mock_readonly_unavailable():
+            result = read_session_snapshot(commands_home=fake_config / "commands")
         assert result["plan_record_status"] == "active"
         assert result["plan_record_versions"] == 1
+
+
+# ---------------------------------------------------------------------------
+# Fix 1.2 — Readonly kernel evaluation enrichment
+# ---------------------------------------------------------------------------
+
+class TestReadonlyKernelEvalEnrichment:
+    """Validates that read_session_snapshot enriches non-materialize readouts
+    with fresh kernel evaluation results (Fix 1.2)."""
+
+    def test_happy_readonly_eval_overrides_stale_persisted_fields(self, fake_config: Path) -> None:
+        """When kernel eval succeeds, snapshot fields come from KernelResult."""
+        ws_state = _write_pointer(fake_config)
+        _write_workspace_state(ws_state, {
+            "Phase": "4",
+            "status": "OK",
+            "active_gate": "stale-gate",
+            "next_gate_condition": "stale-condition",
+        })
+
+        from governance.kernel.phase_kernel import KernelResult
+
+        fake_result = KernelResult(
+            phase="5",
+            next_token="5.3",
+            active_gate="Architecture Review Gate",
+            next_gate_condition="Resume via /continue",
+            workspace_ready=True,
+            source="test-source",
+            status="OK",
+            spec_hash="abc123",
+            spec_path="/fake/spec.yaml",
+            spec_loaded_at="2026-03-06T00:00:00Z",
+            log_paths={"phase_flow": "", "workspace_events": ""},
+            event_id="evt-test-001",
+            plan_record_status="active",
+            plan_record_versions=2,
+        )
+
+        with patch(
+            "governance.kernel.phase_kernel.evaluate_readonly",
+            return_value=fake_result,
+        ):
+            result = read_session_snapshot(commands_home=fake_config / "commands")
+
+        # Kernel-authoritative fields must come from the KernelResult.
+        assert result["phase"] == "5"
+        assert result["status"] == "OK"
+        assert result["active_gate"] == "Architecture Review Gate"
+        assert result["next_gate_condition"] == "Resume via /continue"
+        assert result["next"] == "5.3"
+        assert result["plan_record_status"] == "active"
+        assert result["plan_record_versions"] == 2
+
+    def test_corner_graceful_degradation_on_kernel_error(self, fake_config: Path) -> None:
+        """When kernel eval raises, snapshot falls back to persisted state."""
+        ws_state = _write_pointer(fake_config)
+        _write_workspace_state(ws_state, {
+            "Phase": "4",
+            "Next": "5",
+            "status": "OK",
+            "active_gate": "Ticket Input Gate",
+            "next_gate_condition": "collect ticket",
+        })
+
+        with _mock_readonly_unavailable():
+            result = read_session_snapshot(commands_home=fake_config / "commands")
+
+        # Should fall back to persisted values, not crash.
+        assert result["phase"] == "4"
+        assert result["status"] == "OK"
+        assert result["active_gate"] == "Ticket Input Gate"
+        assert result["next_gate_condition"] == "collect ticket"
+
+    def test_edge_materialize_mode_does_not_trigger_readonly_eval(self, fake_config: Path) -> None:
+        """Materialize mode uses execute() (write), never evaluate_readonly()."""
+        ws_state = _write_pointer(fake_config)
+        repo_fp = "abc123"
+        pointer = {
+            "schema": POINTER_SCHEMA,
+            "activeRepoFingerprint": repo_fp,
+            "activeSessionStateFile": str(ws_state),
+        }
+        (fake_config / "SESSION_STATE.json").write_text(json.dumps(pointer), encoding="utf-8")
+
+        _write_workspace_state(ws_state, {
+            "SESSION_STATE": {
+                "Phase": "4",
+                "status": "OK",
+                "active_gate": "Ticket Input Gate",
+                "next_gate_condition": "Collect ticket and planning constraints",
+                "ActiveProfile": "profile.fallback-minimum",
+                "PersistenceCommitted": True,
+                "WorkspaceReadyGateCommitted": True,
+                "WorkspaceArtifactsCommitted": True,
+                "PointerVerified": True,
+                "LoadedRulebooks": {
+                    "core": "rulesets/core/rules.yml",
+                    "profile": "rulesets/profiles/rules.fallback-minimum.yml",
+                    "addons": {"riskTiering": "rulesets/profiles/rules.risk-tiering.yml"},
+                },
+                "RulebookLoadEvidence": {
+                    "core": "rulesets/core/rules.yml",
+                    "profile": "rulesets/profiles/rules.fallback-minimum.yml",
+                },
+                "AddonsEvidence": {"riskTiering": {"status": "loaded"}},
+            }
+        })
+
+        commands_home = fake_config / "commands"
+        (commands_home / "phase_api.yaml").write_text(
+            (Path(__file__).resolve().parent.parent / "phase_api.yaml").read_text(encoding="utf-8"),
+            encoding="utf-8",
+        )
+        (commands_home / "governance.paths.json").write_text(
+            json.dumps({
+                "schema": "opencode-governance.paths.v1",
+                "paths": {
+                    "commandsHome": str(commands_home),
+                    "workspacesHome": str(fake_config / "workspaces"),
+                    "configRoot": str(fake_config),
+                    "pythonCommand": "python3",
+                },
+            }),
+            encoding="utf-8",
+        )
+
+        # If evaluate_readonly were called, this mock would raise and fail the test.
+        with patch(
+            "governance.kernel.phase_kernel.evaluate_readonly",
+            side_effect=AssertionError("evaluate_readonly must NOT be called in materialize mode"),
+        ):
+            result = read_session_snapshot(commands_home=commands_home, materialize=True)
+
+        # Should succeed via execute() path, not evaluate_readonly().
+        assert result["status"] != "ERROR"
+
+    def test_bad_kernel_returns_blocked_status(self, fake_config: Path) -> None:
+        """When kernel eval returns BLOCKED, snapshot reflects BLOCKED."""
+        ws_state = _write_pointer(fake_config)
+        _write_workspace_state(ws_state, {
+            "Phase": "4",
+            "status": "OK",
+            "active_gate": "stale-gate",
+        })
+
+        from governance.kernel.phase_kernel import KernelResult
+
+        blocked_result = KernelResult(
+            phase="1.1-Bootstrap",
+            next_token="1.1",
+            active_gate="Workspace Ready Gate",
+            next_gate_condition="BLOCKED: missing phase_api.yaml",
+            workspace_ready=False,
+            source="blocked-bootstrap",
+            status="BLOCKED",
+            spec_hash="",
+            spec_path="",
+            spec_loaded_at="",
+            log_paths={"phase_flow": "", "workspace_events": ""},
+            event_id="evt-blocked-001",
+            plan_record_status="absent",
+            plan_record_versions=0,
+        )
+
+        with patch(
+            "governance.kernel.phase_kernel.evaluate_readonly",
+            return_value=blocked_result,
+        ):
+            result = read_session_snapshot(commands_home=fake_config / "commands")
+
+        assert result["status"] == "BLOCKED"
+        assert result["phase"] == "1.1-Bootstrap"
+        assert result["active_gate"] == "Workspace Ready Gate"
+        assert "BLOCKED" in result["next_gate_condition"]
+
+    def test_readonly_eval_does_not_write_to_disk(self, fake_config: Path) -> None:
+        """The readonly code path must never call _write_json_atomic."""
+        ws_state = _write_pointer(fake_config)
+        _write_workspace_state(ws_state, {"Phase": "4", "status": "OK"})
+        original_content = ws_state.read_text(encoding="utf-8")
+
+        from governance.kernel.phase_kernel import KernelResult
+
+        fake_result = KernelResult(
+            phase="5",
+            next_token="5.3",
+            active_gate="Architecture Review Gate",
+            next_gate_condition="Resume via /continue",
+            workspace_ready=True,
+            source="test",
+            status="OK",
+            spec_hash="abc",
+            spec_path="/fake",
+            spec_loaded_at="2026-03-06T00:00:00Z",
+            log_paths={"phase_flow": "", "workspace_events": ""},
+            event_id="evt-test",
+            plan_record_status="active",
+            plan_record_versions=1,
+        )
+
+        with patch(
+            "governance.kernel.phase_kernel.evaluate_readonly",
+            return_value=fake_result,
+        ):
+            read_session_snapshot(commands_home=fake_config / "commands")
+
+        # The workspace state file must not have been modified.
+        assert ws_state.read_text(encoding="utf-8") == original_content
 
 
 # ---------------------------------------------------------------------------
@@ -367,7 +598,8 @@ class TestMain:
     def test_success_exit_code(self, fake_config: Path, capsys: pytest.CaptureFixture) -> None:
         ws_state = _write_pointer(fake_config)
         _write_workspace_state(ws_state, {"Phase": "4", "status": "OK"})
-        rc = main(["--commands-home", str(fake_config / "commands")])
+        with _mock_readonly_unavailable():
+            rc = main(["--commands-home", str(fake_config / "commands")])
         assert rc == 0
         captured = capsys.readouterr()
         assert "status: OK" in captured.out
@@ -721,6 +953,7 @@ class TestCrossPlatform:
         (fake_config / "SESSION_STATE.json").write_text(
             json.dumps(pointer), encoding="utf-8"
         )
-        result = read_session_snapshot(commands_home=fake_config / "commands")
+        with _mock_readonly_unavailable():
+            result = read_session_snapshot(commands_home=fake_config / "commands")
         assert result["status"] == "OK"
         assert result["phase"] == "3"
