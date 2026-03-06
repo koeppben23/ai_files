@@ -470,6 +470,222 @@ class TestMain:
         assert payload["contract_version"] == "AUDIT_READOUT_SPEC.v1"
         assert payload["integrity"]["snapshot_ref_present"] is True
 
+    def test_materialize_mode_updates_phase5_gate_and_emits_continue_action(
+        self,
+        fake_config: Path,
+        capsys: pytest.CaptureFixture,
+    ) -> None:
+        ws_state = _write_pointer(fake_config)
+        repo_fp = "abc123"
+        pointer = {
+            "schema": POINTER_SCHEMA,
+            "activeRepoFingerprint": repo_fp,
+            "activeSessionStateFile": str(ws_state),
+        }
+        (fake_config / "SESSION_STATE.json").write_text(json.dumps(pointer), encoding="utf-8")
+
+        _write_workspace_state(
+            ws_state,
+            {
+                "SESSION_STATE": {
+                    "Phase": "5-ArchitectureReview",
+                    "Next": "5",
+                    "active_gate": "Plan Record Preparation Gate",
+                    "next_gate_condition": "Ticket/task evidence captured; continue to Phase 5 plan-record preparation before architecture review",
+                    "status": "OK",
+                    "ActiveProfile": "profile.fallback-minimum",
+                    "TicketRecordDigest": "sha256:ticket-v1",
+                    "PersistenceCommitted": True,
+                    "WorkspaceReadyGateCommitted": True,
+                    "WorkspaceArtifactsCommitted": True,
+                    "PointerVerified": True,
+                    "LoadedRulebooks": {
+                        "core": "rulesets/core/rules.yml",
+                        "profile": "rulesets/profiles/rules.fallback-minimum.yml",
+                        "addons": {
+                            "riskTiering": "rulesets/profiles/rules.risk-tiering.yml",
+                        },
+                    },
+                    "RulebookLoadEvidence": {
+                        "core": "rulesets/core/rules.yml",
+                        "profile": "rulesets/profiles/rules.fallback-minimum.yml",
+                    },
+                    "AddonsEvidence": {
+                        "riskTiering": {"status": "loaded"},
+                    },
+                }
+            },
+        )
+
+        commands_home = fake_config / "commands"
+        (commands_home / "phase_api.yaml").write_text(
+            (Path(__file__).resolve().parent.parent / "phase_api.yaml").read_text(encoding="utf-8"),
+            encoding="utf-8",
+        )
+        (commands_home / "governance.paths.json").write_text(
+            json.dumps(
+                {
+                    "schema": "opencode-governance.paths.v1",
+                    "paths": {
+                        "commandsHome": str(commands_home),
+                        "workspacesHome": str(fake_config / "workspaces"),
+                        "configRoot": str(fake_config),
+                        "pythonCommand": "python3",
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        (ws_state.parent / "plan-record.json").write_text(
+            json.dumps({"status": "active", "versions": [{"version": 1}]}, ensure_ascii=True),
+            encoding="utf-8",
+        )
+
+        rc = main(["--commands-home", str(commands_home), "--materialize"])
+        assert rc == 0
+        output = capsys.readouterr().out
+        assert "active_gate: Architecture Review Gate" in output
+        assert output.strip().endswith("Next action: run /continue.")
+
+        updated_state = json.loads(ws_state.read_text(encoding="utf-8"))["SESSION_STATE"]
+        assert updated_state["active_gate"] == "Architecture Review Gate"
+        assert updated_state["PlanRecordStatus"] == "active"
+        assert updated_state["PlanRecordVersions"] == 1
+
+    def test_materialize_mode_phase5_missing_plan_record_stays_prep_without_continue_hint(
+        self,
+        fake_config: Path,
+        capsys: pytest.CaptureFixture,
+    ) -> None:
+        ws_state = _write_pointer(fake_config)
+        _write_workspace_state(
+            ws_state,
+            {
+                "SESSION_STATE": {
+                    "Phase": "5-ArchitectureReview",
+                    "Next": "5",
+                    "active_gate": "Architecture Review Gate",
+                    "next_gate_condition": "Continue",
+                    "status": "OK",
+                    "ActiveProfile": "profile.fallback-minimum",
+                    "TicketRecordDigest": "sha256:ticket-v1",
+                    "PersistenceCommitted": True,
+                    "WorkspaceReadyGateCommitted": True,
+                    "WorkspaceArtifactsCommitted": True,
+                    "PointerVerified": True,
+                    "LoadedRulebooks": {
+                        "core": "rulesets/core/rules.yml",
+                        "profile": "rulesets/profiles/rules.fallback-minimum.yml",
+                        "addons": {
+                            "riskTiering": "rulesets/profiles/rules.risk-tiering.yml",
+                        },
+                    },
+                    "RulebookLoadEvidence": {
+                        "core": "rulesets/core/rules.yml",
+                        "profile": "rulesets/profiles/rules.fallback-minimum.yml",
+                    },
+                    "AddonsEvidence": {
+                        "riskTiering": {"status": "loaded"},
+                    },
+                }
+            },
+        )
+
+        commands_home = fake_config / "commands"
+        (commands_home / "phase_api.yaml").write_text(
+            (Path(__file__).resolve().parent.parent / "phase_api.yaml").read_text(encoding="utf-8"),
+            encoding="utf-8",
+        )
+        (commands_home / "governance.paths.json").write_text(
+            json.dumps(
+                {
+                    "schema": "opencode-governance.paths.v1",
+                    "paths": {
+                        "commandsHome": str(commands_home),
+                        "workspacesHome": str(fake_config / "workspaces"),
+                        "configRoot": str(fake_config),
+                        "pythonCommand": "python3",
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        rc = main(["--commands-home", str(commands_home), "--materialize"])
+        assert rc == 0
+        output = capsys.readouterr().out
+        assert "active_gate: Plan Record Preparation Gate" in output
+        assert not output.strip().endswith("Next action: run /continue.")
+
+        updated_state = json.loads(ws_state.read_text(encoding="utf-8"))["SESSION_STATE"]
+        assert updated_state["active_gate"] == "Plan Record Preparation Gate"
+        assert updated_state["PlanRecordVersions"] == 0
+
+    def test_materialize_mode_phase4_ticket_intake_does_not_emit_continue_hint(
+        self,
+        fake_config: Path,
+        capsys: pytest.CaptureFixture,
+    ) -> None:
+        ws_state = _write_pointer(fake_config)
+        _write_workspace_state(
+            ws_state,
+            {
+                "SESSION_STATE": {
+                    "Phase": "4",
+                    "Next": "5",
+                    "active_gate": "Ticket Input Gate",
+                    "next_gate_condition": "Collect ticket and planning constraints",
+                    "status": "OK",
+                    "ActiveProfile": "profile.fallback-minimum",
+                    "PersistenceCommitted": True,
+                    "WorkspaceReadyGateCommitted": True,
+                    "WorkspaceArtifactsCommitted": True,
+                    "PointerVerified": True,
+                    "LoadedRulebooks": {
+                        "core": "rulesets/core/rules.yml",
+                        "profile": "rulesets/profiles/rules.fallback-minimum.yml",
+                        "addons": {
+                            "riskTiering": "rulesets/profiles/rules.risk-tiering.yml",
+                        },
+                    },
+                    "RulebookLoadEvidence": {
+                        "core": "rulesets/core/rules.yml",
+                        "profile": "rulesets/profiles/rules.fallback-minimum.yml",
+                    },
+                    "AddonsEvidence": {
+                        "riskTiering": {"status": "loaded"},
+                    },
+                }
+            },
+        )
+
+        commands_home = fake_config / "commands"
+        (commands_home / "phase_api.yaml").write_text(
+            (Path(__file__).resolve().parent.parent / "phase_api.yaml").read_text(encoding="utf-8"),
+            encoding="utf-8",
+        )
+        (commands_home / "governance.paths.json").write_text(
+            json.dumps(
+                {
+                    "schema": "opencode-governance.paths.v1",
+                    "paths": {
+                        "commandsHome": str(commands_home),
+                        "workspacesHome": str(fake_config / "workspaces"),
+                        "configRoot": str(fake_config),
+                        "pythonCommand": "python3",
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        rc = main(["--commands-home", str(commands_home), "--materialize"])
+        assert rc == 0
+        output = capsys.readouterr().out
+        assert "active_gate: Ticket Input Gate" in output
+        assert not output.strip().endswith("Next action: run /continue.")
+
 
 # ---------------------------------------------------------------------------
 # Self-bootstrap test

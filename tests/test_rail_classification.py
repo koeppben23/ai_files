@@ -39,8 +39,8 @@ CONTRADICTORY_PAIRS = [
 # Expected classifications per rail file (source of truth for guards)
 RAIL_FILES: dict[str, dict[str, object]] = {
     "continue.md": {
-        "required_tokens": {"READ-ONLY", "NO-STATE-CHANGE"},
-        "forbidden_tokens": {"MUTATING"},
+        "required_tokens": {"MUTATING", "GATE-EVALUATION"},
+        "forbidden_tokens": {"READ-ONLY", "NO-STATE-CHANGE"},
     },
     "audit-readout.md": {
         "required_tokens": {"READ-ONLY", "OUTPUT-ONLY", "NO-STATE-CHANGE"},

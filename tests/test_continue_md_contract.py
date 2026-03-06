@@ -139,13 +139,13 @@ class TestSourceTemplate:
             "that declares the rail's mutation profile for LLM model robustness."
         )
 
-    def test_rail_classification_read_only(self) -> None:
-        """continue.md rail classification must include READ-ONLY."""
+    def test_rail_classification_mutating(self) -> None:
+        """continue.md rail classification must include MUTATING."""
         match = re.search(r"<!--\s*rail-classification:\s*([^>]+)-->", self.content)
         assert match is not None, "continue.md must have a rail-classification comment"
         classification = match.group(1)
-        assert "READ-ONLY" in classification, (
-            "continue.md rail classification must include READ-ONLY"
+        assert "MUTATING" in classification, (
+            "continue.md rail classification must include MUTATING"
         )
 
     def test_provenance_context_present(self) -> None:
@@ -184,11 +184,11 @@ class TestSourceTemplate:
             "continue.md must label the conversation-context fallback as 'Tier C'"
         )
 
-    def test_no_infer_or_mutate_statement(self) -> None:
-        """Source template must contain the 'Do not infer or mutate' guard statement."""
-        assert "do not infer or mutate" in self.content.lower(), (
-            "continue.md must contain 'Do not infer or mutate any session state' "
-            "to prevent models from fabricating state"
+    def test_materialization_guard_statement(self) -> None:
+        """Source template must contain the materialization-only state mutation guard."""
+        lower = self.content.lower()
+        assert "do not infer or mutate" in lower and "beyond what the kernel materialization command persists" in lower, (
+            "continue.md must limit mutation scope to kernel materialization only"
         )
 
 
@@ -261,8 +261,8 @@ class TestNoModelRefusalPatterns:
             f"{template_name} must contain the kernel bridge section"
         )
 
-    def test_continue_and_review_share_bridge_block(self) -> None:
-        """continue.md and review.md must have identical kernel bridge blocks."""
+    def test_continue_and_review_have_distinct_bridge_semantics(self) -> None:
+        """continue.md and review.md bridge blocks must differ (mutating vs read-only)."""
         bridges = {}
         for name in self.TEMPLATES:
             content = self.contents[name]
@@ -274,8 +274,8 @@ class TestNoModelRefusalPatterns:
                 if bridge_end >= 0:
                     bridge_end = bridge_end + len("before continuing.")
             bridges[name] = content[bridge_start:bridge_end]
-        assert bridges["continue.md"] == bridges["review.md"], (
-            "continue.md and review.md must share identical kernel bridge sections"
+        assert bridges["continue.md"] != bridges["review.md"], (
+            "continue.md and review.md must differ because /continue materializes state while /review is read-only"
         )
 
 
