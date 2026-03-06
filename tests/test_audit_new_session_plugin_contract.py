@@ -19,6 +19,7 @@ def test_plugin_uses_node_builtins_and_spawn_args_array() -> None:
     content = path.read_text(encoding="utf-8")
 
     assert "from \"node:child_process\"" in content
+    assert "from \"node:fs\"" in content
     assert "spawn(" in content
     assert "spawnSync(" in content
     assert "exec(" not in content
@@ -35,11 +36,14 @@ def test_plugin_listens_only_to_session_created_and_handles_field_variants() -> 
     content = path.read_text(encoding="utf-8")
 
     assert "event.type !== \"session.created\"" in content
-    assert "event.session_id" in content
+    assert "event.type === \"file.watcher.updated\"" in content
+    assert "event.properties" in content
+    assert "info?.id" in content
+    assert "info?.directory" in content
     assert "event.sessionId" in content
-    assert "event.id" in content
-    assert "event.repo_root" in content
-    assert "event.repoRoot" in content
+    assert "event.session_id" in content
+    assert "looksRepoPlausible" in content
+    assert "OPENCODE_AUDIT_DEBUG" in content
     assert "process.cwd()" in content
     assert "export default AuditNewSession" in content
     assert "MAX_LOG_BYTES" in content
