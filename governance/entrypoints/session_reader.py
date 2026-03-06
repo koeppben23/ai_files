@@ -210,6 +210,16 @@ def _materialize_authoritative_state(*, commands_home: Path, config_root: Path, 
             plan_record_versions=result.plan_record_versions,
         )
     )
+
+    # Auto-grant phase_transition_evidence when the kernel successfully
+    # evaluates a forward transition (Fix 2.0 / Ergänzung C).
+    # This prevents /continue self-loops where evidence stays False
+    # because only bootstrap_preflight used to set it.
+    if result.status == "OK" and result.route_strategy == "next":
+        ss = materialized.get("SESSION_STATE")
+        if isinstance(ss, dict):
+            ss["phase_transition_evidence"] = True
+
     _write_json_atomic(session_path, materialized)
     return materialized
 
@@ -353,6 +363,21 @@ def read_session_snapshot(commands_home: Path | None = None, *, materialize: boo
         if kernel_result.next_token:
             next_phase = kernel_result.next_token
 
+    # Resolve phase_transition_evidence visibility (Fix 2.0 / Ergänzung C).
+    # Prefer the kernel's evaluated signal; fall back to persisted state.
+    if kernel_result is not None:
+        transition_evidence_met = kernel_result.transition_evidence_met
+    else:
+        raw_evidence = state_view.get("phase_transition_evidence", state.get("phase_transition_evidence"))
+        if isinstance(raw_evidence, bool):
+            transition_evidence_met = raw_evidence
+        elif isinstance(raw_evidence, str):
+            transition_evidence_met = bool(raw_evidence.strip())
+        elif isinstance(raw_evidence, list):
+            transition_evidence_met = len(raw_evidence) > 0
+        else:
+            transition_evidence_met = False
+
     # Collect blocked gates from the Gates dict.
     gates = state_view.get("Gates") or state.get("Gates") or {}
     gates_blocked = [k for k, v in gates.items() if str(v).lower() == "blocked"] if isinstance(gates, dict) else []
@@ -367,7 +392,20 @@ def read_session_snapshot(commands_home: Path | None = None, *, materialize: boo
     plan_status = kernel_result.plan_record_status if kernel_result is not None else signal.status
     plan_versions = kernel_result.plan_record_versions if kernel_result is not None else signal.versions
 
-    return {
+    # Diagnostic hint when evidence is missing and the kernel blocked on it
+    # (Fix 2.0 / Ergänzung C).  This makes the invisible transition condition
+    # visible so users understand why /continue self-loops.
+    transition_evidence_hint = ""
+    if not transition_evidence_met:
+        _source = kernel_result.source if kernel_result is not None else ""
+        _ngc = str(next_gate_condition).lower()
+        if _source == "phase-transition-evidence-required" or "transition evidence" in _ngc:
+            transition_evidence_hint = (
+                "phase_transition_evidence is False — forward phase jump blocked. "
+                "Run /continue to let the kernel auto-grant evidence when gate conditions are met."
+            )
+
+    snapshot: dict = {
         "schema": SNAPSHOT_SCHEMA,
         "status": _safe_str(status),
         "phase": _safe_str(phase),
@@ -377,11 +415,15 @@ def read_session_snapshot(commands_home: Path | None = None, *, materialize: boo
         "active_gate": _safe_str(active_gate),
         "next_gate_condition": _safe_str(next_gate_condition),
         "ticket_intake_ready": _safe_str(ticket_intake_ready),
+        "phase_transition_evidence": transition_evidence_met,
         "gates_blocked": gates_blocked,
         "plan_record_status": plan_status,
         "plan_record_versions": plan_versions,
         "commands_home": str(commands_home),
     }
+    if transition_evidence_hint:
+        snapshot["transition_evidence_hint"] = transition_evidence_hint
+    return snapshot
 
 
 def format_snapshot(snapshot: dict) -> str:

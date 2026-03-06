@@ -49,6 +49,7 @@ class KernelResult:
     route_strategy: str = ""
     plan_record_status: str = "unknown"
     plan_record_versions: int = 0
+    transition_evidence_met: bool = False
 
 
 def _utc_now() -> str:
@@ -1037,6 +1038,7 @@ def execute(
             route_strategy=_blocked_entry.route_strategy if _blocked_entry is not None else "",
             plan_record_status=plan_record_signal.status,
             plan_record_versions=plan_record_signal.versions,
+            transition_evidence_met=_transition_has_evidence(state),
         )
 
     strict_exit_result: StrictExitResult | None = None
@@ -1078,6 +1080,7 @@ def execute(
             route_strategy=entry.route_strategy,
             plan_record_status=plan_record_signal.status,
             plan_record_versions=plan_record_signal.versions,
+            transition_evidence_met=_transition_has_evidence(state),
         )
 
     if requested_token and persisted_token and requested_token != persisted_token:
@@ -1386,6 +1389,7 @@ def execute(
         route_strategy=entry.route_strategy,
         plan_record_status=plan_record_signal.status,
         plan_record_versions=plan_record_signal.versions,
+        transition_evidence_met=_transition_has_evidence(state),
     )
 
 
