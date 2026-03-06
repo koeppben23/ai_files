@@ -2,13 +2,13 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
-import json
 from pathlib import Path
 from typing import Any, Mapping, Sequence, cast
 import uuid
 
 from governance.application.dto.phase_next_action_contract import contains_ticket_prompt
 from governance.domain.strict_exit_evaluator import StrictExitResult
+from governance.infrastructure.plan_record_state import resolve_plan_record_signal
 from governance.domain.phase_state_machine import phase_rank, resolve_phase_output_policy
 from governance.infrastructure.adapters.logging.event_sink import write_jsonl_event
 from governance.infrastructure.binding_evidence_resolver import BindingEvidenceResolver
@@ -47,6 +47,8 @@ class KernelResult:
     event_id: str
     strict_exit_result: StrictExitResult | None = None
     route_strategy: str = ""
+    plan_record_status: str = "unknown"
+    plan_record_versions: int = 0
 
 
 def _utc_now() -> str:
@@ -224,53 +226,6 @@ def _phase_1_5_executed(state: Mapping[str, object]) -> bool:
     if isinstance(execution_evidence, bool) and execution_evidence:
         return True
     return False
-
-
-def _plan_record_versions_from_state(state: Mapping[str, object]) -> int:
-    for key in ("plan_record_versions", "PlanRecordVersions"):
-        value = state.get(key)
-        if isinstance(value, bool):
-            continue
-        if isinstance(value, int):
-            return max(0, value)
-        if isinstance(value, str):
-            probe = value.strip()
-            if probe.isdigit():
-                return int(probe)
-    return -1
-
-
-def _plan_record_versions_from_workspace(*, workspaces_home: Path | None, repo_fingerprint: str) -> int:
-    if workspaces_home is None or not repo_fingerprint:
-        return 0
-    plan_record_path = workspaces_home / repo_fingerprint / "plan-record.json"
-    if not plan_record_path.is_file():
-        return 0
-    try:
-        payload = json.loads(plan_record_path.read_text(encoding="utf-8"))
-    except Exception:
-        return 0
-    if not isinstance(payload, Mapping):
-        return 0
-    versions = payload.get("versions")
-    if isinstance(versions, list):
-        return len(versions)
-    return 0
-
-
-def _plan_record_versions(
-    *,
-    state: Mapping[str, object],
-    workspaces_home: Path | None,
-    repo_fingerprint: str,
-) -> int:
-    versions = _plan_record_versions_from_state(state)
-    if versions >= 0:
-        return versions
-    return _plan_record_versions_from_workspace(
-        workspaces_home=workspaces_home,
-        repo_fingerprint=repo_fingerprint,
-    )
 
 
 def _technical_debt_proposed(state: Mapping[str, object]) -> bool:
@@ -637,15 +592,9 @@ def _select_transition(
     entry: PhaseSpecEntry,
     state: Mapping[str, object],
     *,
-    workspaces_home: Path | None,
-    repo_fingerprint: str,
+    plan_record_versions: int,
 ) -> tuple[str | None, str, str | None, str | None]:
     if entry.transitions:
-        plan_record_versions = _plan_record_versions(
-            state=state,
-            workspaces_home=workspaces_home,
-            repo_fingerprint=repo_fingerprint,
-        )
         for transition in entry.transitions:
             when = transition.when.strip().lower()
             if when in {"ticket_present", "ticket_intake_complete"} and _ticket_or_task_recorded(state):
@@ -881,6 +830,8 @@ def execute(
     state = _session_state(session_state_doc)
     commands_home, workspaces_home, config_root, binding_ok, binding_issues = _resolve_paths(runtime_ctx)
     repo_fingerprint = runtime_ctx.live_repo_fingerprint or _extract_fingerprint(state)
+    plan_record_file = workspaces_home / repo_fingerprint / "plan-record.json" if workspaces_home is not None and repo_fingerprint else None
+    plan_record_signal = resolve_plan_record_signal(state=state, plan_record_file=plan_record_file)
     event_id = uuid.uuid4().hex
 
     if not binding_ok:
@@ -909,6 +860,8 @@ def execute(
             spec_loaded_at="",
             log_paths={"phase_flow": str(log_paths.get("commands_flow") or ""), "workspace_events": ""},
             event_id=event_id,
+            plan_record_status=plan_record_signal.status,
+            plan_record_versions=plan_record_signal.versions,
         )
 
     try:
@@ -956,6 +909,8 @@ def execute(
             spec_loaded_at="",
             log_paths={"phase_flow": str(log_paths.get("commands_flow") or ""), "workspace_events": ""},
             event_id=event_id,
+            plan_record_status=plan_record_signal.status,
+            plan_record_versions=plan_record_signal.versions,
         )
 
     persisted_phase = _extract_phase(state)
@@ -1045,6 +1000,8 @@ def execute(
             event_id=event_id,
             strict_exit_result=strict_exit_result,
             route_strategy=_blocked_entry.route_strategy if _blocked_entry is not None else "",
+            plan_record_status=plan_record_signal.status,
+            plan_record_versions=plan_record_signal.versions,
         )
 
     strict_exit_result: StrictExitResult | None = None
@@ -1084,6 +1041,8 @@ def execute(
             log_paths={},
             event_id=event_id,
             route_strategy=entry.route_strategy,
+            plan_record_status=plan_record_signal.status,
+            plan_record_versions=plan_record_signal.versions,
         )
 
     if requested_token and persisted_token and requested_token != persisted_token:
@@ -1305,8 +1264,7 @@ def execute(
     next_token, source, override_active_gate, override_next_condition = _select_transition(
         entry,
         state,
-        workspaces_home=workspaces_home,
-        repo_fingerprint=repo_fingerprint,
+        plan_record_versions=plan_record_signal.versions,
     )
     resolved_phase = entry.phase
     resolved_active_gate = override_active_gate or entry.active_gate or runtime_ctx.requested_active_gate
@@ -1384,6 +1342,8 @@ def execute(
         event_id=event_id,
         strict_exit_result=strict_exit_result,
         route_strategy=entry.route_strategy,
+        plan_record_status=plan_record_signal.status,
+        plan_record_versions=plan_record_signal.versions,
     )
 
 
