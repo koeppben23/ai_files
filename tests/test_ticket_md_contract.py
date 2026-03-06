@@ -16,7 +16,7 @@ def test_ticket_md_exists_and_documents_intake_bridge() -> None:
     content = ticket_path.read_text(encoding="utf-8")
     assert "phase4_intake_persist" in content
     assert PYTHON_COMMAND_PLACEHOLDER in content
-    assert "read-only rails" in content
+    assert "/review` is read-only; `/continue` is the kernel-owned state materialization rail" in content
 
 
 @pytest.mark.governance

@@ -18,6 +18,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+import tempfile
 from pathlib import Path
 
 # ---------------------------------------------------------------------------
@@ -51,6 +52,19 @@ def _read_json(path: Path) -> dict:
     return data
 
 
+def _write_json_atomic(path: Path, payload: dict) -> None:
+    text = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True) + "\n"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, temp_path = tempfile.mkstemp(dir=str(path.parent), prefix=f".{path.name}.", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(text)
+        os.replace(temp_path, path)
+    finally:
+        if os.path.exists(temp_path):
+            os.unlink(temp_path)
+
+
 def _safe_str(value: object) -> str:
     """Coerce a value to a YAML-safe scalar string."""
     if value is None:
@@ -75,7 +89,139 @@ def _quote_if_needed(value: str) -> str:
     return value
 
 
-def read_session_snapshot(commands_home: Path | None = None) -> dict:
+def _resolve_session_document(commands_home: Path) -> tuple[Path, dict, Path, dict]:
+    config_root = commands_home.parent
+    pointer_path = config_root / "SESSION_STATE.json"
+    if not pointer_path.exists():
+        raise RuntimeError(f"No session pointer at {pointer_path}")
+
+    try:
+        pointer = _read_json(pointer_path)
+    except Exception as exc:
+        raise RuntimeError(f"Invalid session pointer JSON: {exc}") from exc
+    if pointer.get("schema") not in (POINTER_SCHEMA, "active-session-pointer.v1"):
+        raise RuntimeError(f"Unknown pointer schema: {pointer.get('schema')}")
+
+    session_file_raw = pointer.get("activeSessionStateFile")
+    if not session_file_raw:
+        rel = pointer.get("activeSessionStateRelativePath")
+        if rel:
+            session_file_raw = str(config_root / rel)
+    if not session_file_raw:
+        raise RuntimeError("Pointer contains no session state file path")
+
+    session_path = Path(session_file_raw)
+    if not session_path.exists():
+        raise RuntimeError(f"Workspace session state missing: {session_path}")
+
+    try:
+        state = _read_json(session_path)
+    except Exception as exc:
+        raise RuntimeError(f"Invalid workspace session state JSON: {exc}") from exc
+    return config_root, pointer, session_path, state
+
+
+def _session_state_view(state: dict) -> dict:
+    nested = state.get("SESSION_STATE")
+    return nested if isinstance(nested, dict) else state
+
+
+def _materialize_authoritative_state(*, commands_home: Path, config_root: Path, pointer: dict, session_path: Path, state_doc: dict) -> dict:
+    from governance.application.use_cases.session_state_helpers import with_kernel_result
+    from governance.domain.phase_state_machine import normalize_phase_token
+    from governance.kernel.phase_kernel import RuntimeContext, execute
+
+    state_view = _session_state_view(state_doc)
+    requested_phase = normalize_phase_token(
+        state_view.get("Phase")
+        or state_view.get("phase")
+        or state_doc.get("Phase")
+        or state_doc.get("phase")
+        or "4"
+    ) or "4"
+
+    requested_active_gate = str(
+        state_view.get("active_gate")
+        or state_doc.get("active_gate")
+        or "Ticket Input Gate"
+    )
+    requested_next_gate_condition = str(
+        state_view.get("next_gate_condition")
+        or state_doc.get("next_gate_condition")
+        or "Continue automatic phase routing"
+    )
+    repo_fingerprint = str(
+        pointer.get("activeRepoFingerprint")
+        or state_view.get("RepoFingerprint")
+        or state_view.get("repo_fingerprint")
+        or ""
+    ).strip() or None
+
+    result = execute(
+        current_token=requested_phase,
+        session_state_doc=state_doc,
+        runtime_ctx=RuntimeContext(
+            requested_active_gate=requested_active_gate,
+            requested_next_gate_condition=requested_next_gate_condition,
+            repo_is_git_root=True,
+            live_repo_fingerprint=repo_fingerprint,
+            commands_home=commands_home,
+            workspaces_home=config_root / "workspaces",
+            config_root=config_root,
+        ),
+    )
+
+    materialized = dict(
+        with_kernel_result(
+            state_doc,
+            phase=result.phase,
+            next_token=result.next_token,
+            active_gate=result.active_gate,
+            next_gate_condition=result.next_gate_condition,
+            status=result.status,
+            spec_hash=result.spec_hash,
+            spec_path=result.spec_path,
+            spec_loaded_at=result.spec_loaded_at,
+            log_paths=result.log_paths,
+            event_id=result.event_id,
+            plan_record_status=result.plan_record_status,
+            plan_record_versions=result.plan_record_versions,
+        )
+    )
+    _write_json_atomic(session_path, materialized)
+    return materialized
+
+
+def _should_emit_continue_next_action(snapshot: dict) -> bool:
+    status = str(snapshot.get("status", "")).strip().lower()
+    if status in {"", "error", "blocked"}:
+        return False
+
+    next_condition = str(snapshot.get("next_gate_condition", "")).strip().lower()
+    if "/continue" in next_condition or "resume via /continue" in next_condition:
+        return True
+
+    if any(
+        token in next_condition
+        for token in (
+            "provide ticket/task",
+            "collect ticket",
+            "create and persist",
+            "produce a plan draft",
+            "load required rulebooks",
+            "phase_blocked",
+        )
+    ):
+        return False
+
+    phase = str(snapshot.get("phase", "")).strip().lower()
+    active_gate = str(snapshot.get("active_gate", "")).strip().lower()
+    if phase.startswith("5") and active_gate == "architecture review gate":
+        return True
+    return False
+
+
+def read_session_snapshot(commands_home: Path | None = None, *, materialize: bool = False) -> dict:
     """Read the current governance session state and return a snapshot dict.
 
     Parameters
@@ -94,71 +240,35 @@ def read_session_snapshot(commands_home: Path | None = None) -> dict:
     _ensure_commands_home_on_syspath(commands_home)
     from governance.infrastructure.plan_record_state import resolve_plan_record_signal
 
-    config_root = commands_home.parent
-
-    # --- 1. Locate and read the global pointer ---
-    pointer_path = config_root / "SESSION_STATE.json"
-    if not pointer_path.exists():
-        return {
-            "schema": SNAPSHOT_SCHEMA,
-            "status": "ERROR",
-            "error": f"No session pointer at {pointer_path}",
-        }
-
     try:
-        pointer = _read_json(pointer_path)
+        config_root, pointer, session_path, state = _resolve_session_document(commands_home)
     except Exception as exc:
         return {
             "schema": SNAPSHOT_SCHEMA,
             "status": "ERROR",
-            "error": f"Invalid session pointer JSON: {exc}",
+            "error": str(exc),
         }
 
-    if pointer.get("schema") not in (POINTER_SCHEMA, "active-session-pointer.v1"):
-        return {
-            "schema": SNAPSHOT_SCHEMA,
-            "status": "ERROR",
-            "error": f"Unknown pointer schema: {pointer.get('schema')}",
-        }
-
-    # --- 2. Resolve workspace SESSION_STATE path ---
-    session_file_raw = pointer.get("activeSessionStateFile")
-    if not session_file_raw:
-        # Fallback: construct from relative path
-        rel = pointer.get("activeSessionStateRelativePath")
-        if rel:
-            session_file_raw = str(config_root / rel)
-
-    if not session_file_raw:
-        return {
-            "schema": SNAPSHOT_SCHEMA,
-            "status": "ERROR",
-            "error": "Pointer contains no session state file path",
-        }
-
-    session_path = Path(session_file_raw)
-    if not session_path.exists():
-        return {
-            "schema": SNAPSHOT_SCHEMA,
-            "status": "ERROR",
-            "error": f"Workspace session state missing: {session_path}",
-        }
-
-    # --- 3. Read workspace SESSION_STATE ---
-    try:
-        state = _read_json(session_path)
-    except Exception as exc:
-        return {
-            "schema": SNAPSHOT_SCHEMA,
-            "status": "ERROR",
-            "error": f"Invalid workspace session state JSON: {exc}",
-        }
+    if materialize:
+        try:
+            state = _materialize_authoritative_state(
+                commands_home=commands_home,
+                config_root=config_root,
+                pointer=pointer,
+                session_path=session_path,
+                state_doc=state,
+            )
+        except Exception as exc:
+            return {
+                "schema": SNAPSHOT_SCHEMA,
+                "status": "ERROR",
+                "error": f"Materialization failed: {exc}",
+            }
 
     # --- 4. Extract minimal fields ---
     # Canonical documents store runtime fields under "SESSION_STATE".
     # Support both nested and top-level conventions while preferring nested.
-    nested = state.get("SESSION_STATE")
-    state_view = nested if isinstance(nested, dict) else state
+    state_view = _session_state_view(state)
 
     # Support both PascalCase and snake_case field conventions.
     phase = state_view.get("Phase") or state_view.get("phase") or state.get("Phase") or state.get("phase") or "unknown"
@@ -213,6 +323,7 @@ def main(argv: list[str] | None = None) -> int:
     """CLI entry point."""
     commands_home: Path | None = None
     audit_mode = False
+    materialize_mode = False
     tail_count = 25
     args = argv if argv is not None else sys.argv[1:]
 
@@ -229,6 +340,10 @@ def main(argv: list[str] | None = None) -> int:
             continue
         if arg == "--audit":
             audit_mode = True
+            idx += 1
+            continue
+        if arg == "--materialize":
+            materialize_mode = True
             idx += 1
             continue
         if arg == "--tail-count":
@@ -260,8 +375,11 @@ def main(argv: list[str] | None = None) -> int:
         sys.stdout.write(json.dumps(payload, ensure_ascii=True, indent=2) + "\n")
         return 0
 
-    snapshot = read_session_snapshot(commands_home=commands_home)
-    sys.stdout.write(format_snapshot(snapshot))
+    snapshot = read_session_snapshot(commands_home=commands_home, materialize=materialize_mode)
+    rendered = format_snapshot(snapshot)
+    if materialize_mode and _should_emit_continue_next_action(snapshot):
+        rendered = rendered + "Next action: run /continue.\n"
+    sys.stdout.write(rendered)
     return 0 if snapshot.get("status") != "ERROR" else 1
 
 
