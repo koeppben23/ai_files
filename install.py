@@ -1270,6 +1270,8 @@ OPENCODE_INSTRUCTIONS = [
     "commands/SESSION_STATE_SCHEMA.md",
     "commands/README-OPENCODE.md",
 ]
+OPENCODE_PLUGIN_KEY = "plugin"
+OPENCODE_PLUGIN_RELATIVE = f"{OPENCODE_PLUGINS_DIR_NAME}/audit-new-session.mjs"
 
 SESSION_READER_PLACEHOLDER = "{{SESSION_READER_PATH}}"
 PYTHON_COMMAND_PLACEHOLDER = "{{PYTHON_COMMAND}}"
@@ -1285,6 +1287,8 @@ def ensure_opencode_json(config_root: Path, *, dry_run: bool) -> dict:
     Returns a status dict for logging.
     """
     target = config_root / OPENCODE_JSON_NAME
+
+    plugin_uri = (config_root / OPENCODE_PLUGIN_RELATIVE).resolve().as_uri()
 
     if target.exists():
         try:
@@ -1303,6 +1307,14 @@ def ensure_opencode_json(config_root: Path, *, dry_run: bool) -> dict:
                 merged.append(entry)
         existing["instructions"] = merged
 
+        plugins_current = existing.get(OPENCODE_PLUGIN_KEY)
+        if not isinstance(plugins_current, list):
+            plugins_current = []
+        plugins_merged = list(plugins_current)
+        if plugin_uri not in plugins_merged:
+            plugins_merged.append(plugin_uri)
+        existing[OPENCODE_PLUGIN_KEY] = plugins_merged
+
         if dry_run:
             print(f"  [DRY-RUN] merge instructions into {target}")
             return {"status": "planned-merge", "dst": str(target)}
@@ -1313,7 +1325,10 @@ def ensure_opencode_json(config_root: Path, *, dry_run: bool) -> dict:
         )
         return {"status": "merged", "dst": str(target)}
 
-    payload = {"instructions": list(OPENCODE_INSTRUCTIONS)}
+    payload = {
+        "instructions": list(OPENCODE_INSTRUCTIONS),
+        OPENCODE_PLUGIN_KEY: [plugin_uri],
+    }
     if dry_run:
         print(f"  [DRY-RUN] create {target}")
         return {"status": "planned-create", "dst": str(target)}
@@ -1324,6 +1339,33 @@ def ensure_opencode_json(config_root: Path, *, dry_run: bool) -> dict:
         encoding="utf-8",
     )
     return {"status": "created", "dst": str(target)}
+
+
+def remove_installer_plugin_from_opencode_json(config_root: Path, *, dry_run: bool) -> dict:
+    target = config_root / OPENCODE_JSON_NAME
+    if not target.exists():
+        return {"status": "skipped-missing", "dst": str(target)}
+
+    payload = _load_json(target)
+    if payload is None:
+        return {"status": "skipped-invalid", "dst": str(target)}
+
+    current = payload.get(OPENCODE_PLUGIN_KEY)
+    if not isinstance(current, list):
+        return {"status": "skipped-no-plugin-array", "dst": str(target)}
+
+    plugin_uri = (config_root / OPENCODE_PLUGIN_RELATIVE).resolve().as_uri()
+    kept = [entry for entry in current if str(entry) != plugin_uri]
+    if len(kept) == len(current):
+        return {"status": "skipped-not-present", "dst": str(target)}
+
+    payload[OPENCODE_PLUGIN_KEY] = kept
+    if dry_run:
+        print(f"  [DRY-RUN] remove installer plugin entry from {target}")
+        return {"status": "planned-remove-plugin", "dst": str(target)}
+
+    target.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    return {"status": "removed-plugin", "dst": str(target)}
 
 
 def inject_session_reader_path_for_command(
@@ -2184,6 +2226,8 @@ def uninstall(
             rc = max(rc, purge_runtime_error_logs(plan.config_root, dry_run=dry_run))
         if not keep_workspace_state:
             rc = max(rc, purge_runtime_state(plan.config_root, dry_run=dry_run))
+        opencode_cleanup = remove_installer_plugin_from_opencode_json(plan.config_root, dry_run=dry_run)
+        print(f"  opencode.json plugin cleanup: {opencode_cleanup['status']}")
         return rc
 
     # manifest-based targets
@@ -2291,6 +2335,9 @@ def uninstall(
                 print(f"  🧹 Removed placeholder: {f}")
     except Exception:
         pass
+
+    opencode_cleanup = remove_installer_plugin_from_opencode_json(plan.config_root, dry_run=dry_run)
+    print(f"  opencode.json plugin cleanup: {opencode_cleanup['status']}")
 
     print("\n✅ Uninstall complete.")
     return rc
