@@ -184,6 +184,10 @@ def run_metadata_path(workspaces_home: Path, repo_fingerprint: str, run_id: str)
     return run_dir(workspaces_home, repo_fingerprint, run_id) / "metadata.json"
 
 
+def current_run_path(workspaces_home: Path, repo_fingerprint: str) -> Path:
+    return workspace_root(workspaces_home, repo_fingerprint) / "current_run.json"
+
+
 PHASE2_ARTIFACTS = ["repo-cache.yaml", "repo-map-digest.md", "workspace-memory.yaml"]
 PHASE21_ARTIFACTS = ["decision-pack.md"]
 PHASE15_ARTIFACTS = ["business-rules.md", "business-rules-status.md"]
