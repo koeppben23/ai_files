@@ -17,6 +17,7 @@ from governance.domain.models.repo_identity import RepoIdentity
 from governance.domain.policies.write_policy import compute_write_policy
 
 from governance.domain.errors.events import ErrorEvent
+from governance.engine.sanitization import apply_fresh_start_business_rules_neutralization
 
 
 ACTIVATION_INTENT_FILE = "governance.activation_intent.json"
@@ -437,6 +438,9 @@ def _merge_final_session_state(
         "WorkspaceArtifactsCommitted": workspace_artifacts_committed,
         "PointerVerified": pointer_verified,
     }
+
+    apply_fresh_start_business_rules_neutralization(session)
+    session["phase_transition_evidence"] = False
 
     parsed["SESSION_STATE"] = session
     return parsed

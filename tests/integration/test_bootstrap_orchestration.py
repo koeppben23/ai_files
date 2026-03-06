@@ -141,7 +141,7 @@ def test_bootstrap_commits_only_after_all_checks() -> None:
     assert result.write_actions.get("session_state_final") == "written"
 
 
-def test_bootstrap_preserves_backfill_business_rules_and_resets_phase_entrypoint() -> None:
+def test_bootstrap_resets_backfill_business_rules_to_fail_closed_start_state() -> None:
     payload = _payload()
     fs = InMemoryFS()
     for artifact in payload.required_artifacts:
@@ -160,8 +160,14 @@ def test_bootstrap_preserves_backfill_business_rules_and_resets_phase_entrypoint
     session = state["SESSION_STATE"]
     assert session.get("Phase") == "1.2-ActivationIntent"
     business = session.get("BusinessRules", {})
-    assert business.get("Inventory", {}).get("sha256") == "abc123"
-    assert business.get("Rules") == ["rule-one", "rule-two"]
+    assert session.get("phase_transition_evidence") is False
+    assert session.get("Scope", {}).get("BusinessRules") == "unresolved"
+    assert business.get("Decision") == "pending"
+    assert business.get("Outcome") == "unresolved"
+    assert business.get("ExecutionEvidence") is False
+    assert business.get("InventoryFileStatus") == "unknown"
+    assert "Rules" not in business
+    assert business.get("Inventory", {}).get("sha256") == "0" * 64
     commit_flags = session.get("CommitFlags", {})
     assert commit_flags.get("PointerVerified") is True
 
