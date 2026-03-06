@@ -14,7 +14,7 @@ def _valid_payload() -> dict[str, object]:
             "updated_at": "2026-03-05T20:34:32Z",
         },
         "last_snapshot": {
-            "snapshot_path": "/tmp/work_runs/work-0.json",
+            "snapshot_path": "/tmp/runs/work-0/SESSION_STATE.json",
             "snapshot_digest": "a" * 64,
             "archived_at": "2026-03-05T20:30:00Z",
             "source_phase": "6-PostFlight",
@@ -30,7 +30,7 @@ def _valid_payload() -> dict[str, object]:
                     "session_id": "sess",
                     "run_id": "work-0",
                     "new_run_id": "work-1",
-                    "snapshot_path": "/tmp/work_runs/work-0.json",
+                    "snapshot_path": "/tmp/runs/work-0/SESSION_STATE.json",
                     "snapshot_digest": "a" * 64,
                 }
             ],
@@ -39,6 +39,8 @@ def _valid_payload() -> dict[str, object]:
             "snapshot_ref_present": True,
             "run_id_consistent": True,
             "monotonic_timestamps": True,
+            "active_run_pointer_consistent": True,
+            "reactivation_chain_consistent": True,
             "notes": [],
         },
     }
@@ -50,7 +52,12 @@ def test_happy_valid_payload_has_no_errors() -> None:
 
 def test_bad_created_event_requires_snapshot_refs() -> None:
     payload = _valid_payload()
-    event = payload["chain"]["events"][0]
+    chain = payload["chain"]
+    assert isinstance(chain, dict)
+    events = chain.get("events")
+    assert isinstance(events, list)
+    event = events[0]
+    assert isinstance(event, dict)
     del event["snapshot_path"]
     del event["snapshot_digest"]
     errors = validate_audit_readout_v1(payload)
@@ -60,7 +67,9 @@ def test_bad_created_event_requires_snapshot_refs() -> None:
 
 def test_bad_dedupe_event_requires_reason() -> None:
     payload = _valid_payload()
-    payload["chain"]["events"] = [
+    chain = payload["chain"]
+    assert isinstance(chain, dict)
+    chain["events"] = [
         {
             "event": "new_work_session_deduped",
             "observed_at": "2026-03-05T20:34:32Z",
@@ -75,6 +84,26 @@ def test_bad_dedupe_event_requires_reason() -> None:
 
 def test_bad_timestamp_without_z_suffix_is_rejected() -> None:
     payload = _valid_payload()
-    payload["active"]["updated_at"] = "2026-03-05T20:34:32+00:00"
+    active = payload["active"]
+    assert isinstance(active, dict)
+    active["updated_at"] = "2026-03-05T20:34:32+00:00"
     errors = validate_audit_readout_v1(payload)
     assert any("$.active.updated_at:pattern" in e for e in errors)
+
+
+def test_bad_reactivation_event_requires_reactivated_run_id() -> None:
+    payload = _valid_payload()
+    chain = payload["chain"]
+    assert isinstance(chain, dict)
+    chain["events"] = [
+        {
+            "event": "work_session_reactivated",
+            "observed_at": "2026-03-05T20:34:32Z",
+            "repo_fingerprint": "fp",
+            "session_id": "sess",
+            "run_id": "work-2",
+            "previous_run_id": "work-2",
+        }
+    ]
+    errors = validate_audit_readout_v1(payload)
+    assert any("reactivated_run_id:required-for-reactivation" in e for e in errors)
