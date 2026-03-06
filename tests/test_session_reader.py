@@ -31,6 +31,7 @@ from governance.entrypoints.session_reader import (
     _safe_str,
     _format_list,
     _quote_if_needed,
+    _should_emit_continue_next_action,
 )
 
 
@@ -558,6 +559,104 @@ class TestReadonlyKernelEvalEnrichment:
 
 
 # ---------------------------------------------------------------------------
+# Fix 1.3 — Symmetric next-action logic
+# ---------------------------------------------------------------------------
+
+class TestSymmetricNextAction:
+    """Validates the symmetric _should_emit_continue_next_action logic (Fix 1.3)."""
+
+    def test_happy_explicit_continue_mention(self) -> None:
+        """Explicit '/continue' in condition always triggers the hint."""
+        assert _should_emit_continue_next_action({
+            "status": "OK",
+            "next_gate_condition": "Phase 3A completed; resume via /continue",
+        }) is True
+
+    def test_happy_phase5_review_loop(self) -> None:
+        """Phase 5 review loop without explicit /continue still emits hint."""
+        assert _should_emit_continue_next_action({
+            "status": "OK",
+            "phase": "5-ArchitectureReview",
+            "active_gate": "Architecture Review Gate",
+            "next_gate_condition": "Plan record is present. Continue deterministic internal self-review.",
+        }) is True
+
+    def test_happy_phase6_implementation_loop(self) -> None:
+        """Phase 6 implementation review loop emits hint symmetrically."""
+        assert _should_emit_continue_next_action({
+            "status": "OK",
+            "phase": "6-PostFlight",
+            "active_gate": "Implementation Internal Review",
+            "next_gate_condition": "Complete deterministic internal implementation review iterations.",
+        }) is True
+
+    def test_happy_phase5_plan_record_prep(self) -> None:
+        """Plan Record Preparation Gate emits hint (user needs /continue to produce plan)."""
+        assert _should_emit_continue_next_action({
+            "status": "OK",
+            "phase": "5-ArchitectureReview",
+            "active_gate": "Plan Record Preparation Gate",
+            "next_gate_condition": "Continue",
+        }) is True
+
+    def test_corner_error_status_never_emits(self) -> None:
+        """Error status suppresses the hint regardless of condition."""
+        assert _should_emit_continue_next_action({
+            "status": "ERROR",
+            "next_gate_condition": "Resume via /continue",
+        }) is False
+
+    def test_corner_blocked_status_never_emits(self) -> None:
+        """Blocked status suppresses the hint."""
+        assert _should_emit_continue_next_action({
+            "status": "BLOCKED",
+            "next_gate_condition": "Resume via /continue",
+        }) is False
+
+    def test_edge_ticket_intake_does_not_emit(self) -> None:
+        """Ticket intake gate requires /ticket, not /continue."""
+        assert _should_emit_continue_next_action({
+            "status": "OK",
+            "next_gate_condition": "Collect ticket and planning constraints",
+        }) is False
+
+    def test_edge_provide_ticket_does_not_emit(self) -> None:
+        """'Provide ticket/task' pattern suppresses the hint."""
+        assert _should_emit_continue_next_action({
+            "status": "OK",
+            "next_gate_condition": "Provide ticket/task details to continue",
+        }) is False
+
+    def test_edge_blocked_condition_suppresses(self) -> None:
+        """'BLOCKED' in condition text suppresses the hint even if status is OK."""
+        assert _should_emit_continue_next_action({
+            "status": "OK",
+            "next_gate_condition": "BLOCKED_PHASE_API_MISSING: phase_api.yaml is required.",
+        }) is False
+
+    def test_bad_empty_status_does_not_emit(self) -> None:
+        """Empty status string suppresses the hint."""
+        assert _should_emit_continue_next_action({
+            "status": "",
+            "next_gate_condition": "Continue",
+        }) is False
+
+    def test_edge_wait_for_pattern_suppresses(self) -> None:
+        """'wait for' in condition suppresses the hint."""
+        assert _should_emit_continue_next_action({
+            "status": "OK",
+            "next_gate_condition": "wait for user final review decision",
+        }) is False
+
+    def test_edge_bootstrap_pattern_suppresses(self) -> None:
+        """'run bootstrap' pattern suppresses the hint."""
+        assert _should_emit_continue_next_action({
+            "status": "OK",
+            "next_gate_condition": "Run bootstrap before governance execution.",
+        }) is False
+
+
+# ---------------------------------------------------------------------------
 # Unit tests — format_snapshot
 # ---------------------------------------------------------------------------
 
@@ -785,11 +884,17 @@ class TestMain:
         assert updated_state["PlanRecordStatus"] == "active"
         assert updated_state["PlanRecordVersions"] == 1
 
-    def test_materialize_mode_phase5_missing_plan_record_stays_prep_without_continue_hint(
+    def test_materialize_mode_phase5_missing_plan_record_stays_prep_with_continue_hint(
         self,
         fake_config: Path,
         capsys: pytest.CaptureFixture,
     ) -> None:
+        """Phase 5 Plan Record Preparation Gate emits /continue hint (Fix 1.3).
+
+        When the plan record is missing the user must run /continue to trigger
+        the kernel to produce a plan draft.  The symmetric next-action logic
+        now correctly emits the hint for this gate.
+        """
         ws_state = _write_pointer(fake_config)
         _write_workspace_state(
             ws_state,
@@ -848,7 +953,8 @@ class TestMain:
         assert rc == 0
         output = capsys.readouterr().out
         assert "active_gate: Plan Record Preparation Gate" in output
-        assert not output.strip().endswith("Next action: run /continue.")
+        # Fix 1.3: symmetric logic now correctly emits /continue for this gate.
+        assert output.strip().endswith("Next action: run /continue.")
 
         updated_state = json.loads(ws_state.read_text(encoding="utf-8"))["SESSION_STATE"]
         assert updated_state["active_gate"] == "Plan Record Preparation Gate"

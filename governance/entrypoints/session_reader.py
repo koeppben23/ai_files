@@ -215,14 +215,27 @@ def _materialize_authoritative_state(*, commands_home: Path, config_root: Path, 
 
 
 def _should_emit_continue_next_action(snapshot: dict) -> bool:
+    """Determine whether to append 'Next action: run /continue.' to output.
+
+    The rule is symmetric across all phases (Fix 1.3):
+    1. Never emit when status is error/blocked.
+    2. Never emit when the kernel signals a user-input gate (ticket intake,
+       plan draft, rulebook load, etc.) — those require /ticket or manual action.
+    3. Always emit when the condition explicitly contains '/continue'.
+    4. Otherwise emit for any OK-status snapshot where the condition does
+       not match a known user-input or blocking pattern.
+    """
     status = str(snapshot.get("status", "")).strip().lower()
     if status in {"", "error", "blocked"}:
         return False
 
     next_condition = str(snapshot.get("next_gate_condition", "")).strip().lower()
+
+    # Explicit /continue mention is an unconditional yes.
     if "/continue" in next_condition or "resume via /continue" in next_condition:
         return True
 
+    # Conditions that require user-provided input or are explicitly blocked.
     if any(
         token in next_condition
         for token in (
@@ -232,15 +245,18 @@ def _should_emit_continue_next_action(snapshot: dict) -> bool:
             "produce a plan draft",
             "load required rulebooks",
             "phase_blocked",
+            "blocked",
+            "wait for",
+            "run bootstrap",
         )
     ):
         return False
 
-    phase = str(snapshot.get("phase", "")).strip().lower()
-    active_gate = str(snapshot.get("active_gate", "")).strip().lower()
-    if phase.startswith("5") and active_gate == "architecture review gate":
-        return True
-    return False
+    # For any other non-error, non-blocked state the user should /continue
+    # to re-enter the kernel and advance.  This covers Phase 5 review loops,
+    # Phase 6 implementation loops, and all intermediate stay-strategy phases
+    # symmetrically without hardcoding specific phase/gate combinations.
+    return True
 
 
 def read_session_snapshot(commands_home: Path | None = None, *, materialize: bool = False) -> dict:
