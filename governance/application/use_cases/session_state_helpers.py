@@ -185,6 +185,8 @@ def with_kernel_result(
     spec_loaded_at: str,
     log_paths: Mapping[str, str] | None,
     event_id: str,
+    plan_record_status: str | None = None,
+    plan_record_versions: int | None = None,
 ) -> Mapping[str, object]:
     state: dict[str, object] = dict(session_state_document or {})
     root = state.get("SESSION_STATE")
@@ -204,6 +206,15 @@ def with_kernel_result(
     kernel_block["PhaseApiLoadedAt"] = spec_loaded_at
     kernel_block["LastPhaseEventId"] = event_id
     ss["Kernel"] = kernel_block
+    if isinstance(plan_record_status, str):
+        status_text = plan_record_status.strip() or "unknown"
+        ss["plan_record_status"] = status_text
+        ss["PlanRecordStatus"] = status_text
+    if plan_record_versions is not None:
+        parsed_versions = _coerce_non_negative_int(plan_record_versions)
+        versions = parsed_versions if parsed_versions is not None else 0
+        ss["plan_record_versions"] = versions
+        ss["PlanRecordVersions"] = versions
     _normalize_review_iteration_invariants(ss)
 
     state["SESSION_STATE"] = ss

@@ -91,6 +91,8 @@ def read_session_snapshot(commands_home: Path | None = None) -> dict:
     """
     if commands_home is None:
         commands_home = _derive_commands_home()
+    _ensure_commands_home_on_syspath(commands_home)
+    from governance.infrastructure.plan_record_state import resolve_plan_record_signal
 
     config_root = commands_home.parent
 
@@ -172,23 +174,10 @@ def read_session_snapshot(commands_home: Path | None = None) -> dict:
     gates = state_view.get("Gates") or state.get("Gates") or {}
     gates_blocked = [k for k, v in gates.items() if str(v).lower() == "blocked"] if isinstance(gates, dict) else []
 
-    # Plan-record status (if available in workspace)
-    plan_record_status = "unknown"
-    plan_record_versions = 0
-    try:
-        workspace_dir = session_path.parent
-        pr_file = workspace_dir / "plan-record.json"
-        if pr_file.is_file():
-            import json as _json
-            _pr = _json.loads(pr_file.read_text(encoding="utf-8"))
-            if isinstance(_pr, dict):
-                plan_record_status = str(_pr.get("status", "unknown"))
-                _versions = _pr.get("versions", [])
-                plan_record_versions = len(_versions) if isinstance(_versions, list) else 0
-        else:
-            plan_record_status = "absent"
-    except Exception:
-        plan_record_status = "error"
+    signal = resolve_plan_record_signal(
+        state=state_view if isinstance(state_view, dict) else {},
+        plan_record_file=session_path.parent / "plan-record.json",
+    )
 
     return {
         "schema": SNAPSHOT_SCHEMA,
@@ -201,8 +190,8 @@ def read_session_snapshot(commands_home: Path | None = None) -> dict:
         "next_gate_condition": _safe_str(next_gate_condition),
         "ticket_intake_ready": _safe_str(ticket_intake_ready),
         "gates_blocked": gates_blocked,
-        "plan_record_status": plan_record_status,
-        "plan_record_versions": plan_record_versions,
+        "plan_record_status": signal.status,
+        "plan_record_versions": signal.versions,
         "commands_home": str(commands_home),
     }
 

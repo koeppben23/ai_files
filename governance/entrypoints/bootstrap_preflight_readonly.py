@@ -1380,6 +1380,8 @@ def run_kernel_continuation(hook_result: Mapping[str, object]) -> dict[str, obje
                 spec_loaded_at=routed.spec_loaded_at,
                 log_paths=routed.log_paths,
                 event_id=routed.event_id,
+                plan_record_status=routed.plan_record_status,
+                plan_record_versions=routed.plan_record_versions,
             )
         )
 

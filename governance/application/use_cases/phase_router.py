@@ -24,6 +24,8 @@ class RoutedPhase:
     event_id: str = ""
     strict_exit_result: StrictExitResult | None = None
     route_strategy: str = ""
+    plan_record_status: str = "unknown"
+    plan_record_versions: int = 0
 
 
 def route_phase(
@@ -60,6 +62,8 @@ def route_phase(
         event_id=result.event_id,
         strict_exit_result=result.strict_exit_result,
         route_strategy=result.route_strategy,
+        plan_record_status=result.plan_record_status,
+        plan_record_versions=result.plan_record_versions,
     )
 
 

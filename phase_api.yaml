@@ -162,7 +162,7 @@ phases:
   - token: "5"
     phase: "5-ArchitectureReview"
     active_gate: "Plan Record Preparation Gate"
-    next_gate_condition: "Create and persist a Phase 5 plan-record draft before architecture review; then run deterministic internal plan self-review (max 3, early-stop only on unchanged digest) before advancing to Phase 5.3."
+    next_gate_condition: "When plan_record_versions < 1, create and persist plan-record v1 in Plan Record Preparation Gate. When plan_record_versions >= 1, stay in Architecture Review Gate until deterministic internal self-review completes before advancing to Phase 5.3."
     next: "5.3"
     route_strategy: "stay"
     transitions:
