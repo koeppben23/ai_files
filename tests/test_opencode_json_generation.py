@@ -21,7 +21,10 @@ import pytest
 from install import (
     OPENCODE_JSON_NAME,
     OPENCODE_INSTRUCTIONS,
+    OPENCODE_PLUGIN_KEY,
+    OPENCODE_PLUGIN_RELATIVE,
     ensure_opencode_json,
+    remove_installer_plugin_from_opencode_json,
 )
 
 
@@ -60,6 +63,12 @@ class TestFreshInstall:
         data = _read_opencode_json(config_root)
         assert "instructions" in data
         assert data["instructions"] == list(OPENCODE_INSTRUCTIONS)
+
+    def test_adds_plugin_entry(self, config_root: Path) -> None:
+        ensure_opencode_json(config_root, dry_run=False)
+        data = _read_opencode_json(config_root)
+        expected_plugin_uri = (config_root / OPENCODE_PLUGIN_RELATIVE).resolve().as_uri()
+        assert data[OPENCODE_PLUGIN_KEY] == [expected_plugin_uri]
 
     def test_instructions_are_relative_paths(self, config_root: Path) -> None:
         """All instruction entries are relative paths starting with 'commands/'."""
@@ -105,6 +114,20 @@ class TestMergeExisting:
         assert data["theme"] == "dark"
         assert data["editor"] == "vim"
         assert "instructions" in data
+
+    def test_plugin_merge_is_minimal_invasive(self, config_root: Path) -> None:
+        existing = {
+            "instructions": ["commands/master.md"],
+            OPENCODE_PLUGIN_KEY: ["file:///custom/other-plugin.mjs"],
+        }
+        target = config_root / OPENCODE_JSON_NAME
+        target.write_text(json.dumps(existing), encoding="utf-8")
+
+        ensure_opencode_json(config_root, dry_run=False)
+        data = _read_opencode_json(config_root)
+        expected_plugin_uri = (config_root / OPENCODE_PLUGIN_RELATIVE).resolve().as_uri()
+        assert data[OPENCODE_PLUGIN_KEY][0] == "file:///custom/other-plugin.mjs"
+        assert expected_plugin_uri in data[OPENCODE_PLUGIN_KEY]
 
     def test_adds_missing_entries(self, config_root: Path) -> None:
         """Missing instruction entries are appended to existing array."""
@@ -165,6 +188,13 @@ class TestIdempotency:
         assert result["status"] == "merged"
         data = _read_opencode_json(config_root)
         assert data["instructions"] == list(OPENCODE_INSTRUCTIONS)
+
+    def test_plugin_entry_not_duplicated(self, config_root: Path) -> None:
+        ensure_opencode_json(config_root, dry_run=False)
+        ensure_opencode_json(config_root, dry_run=False)
+        data = _read_opencode_json(config_root)
+        expected_plugin_uri = (config_root / OPENCODE_PLUGIN_RELATIVE).resolve().as_uri()
+        assert data[OPENCODE_PLUGIN_KEY].count(expected_plugin_uri) == 1
 
 
 # ---------------------------------------------------------------------------
@@ -231,3 +261,20 @@ class TestEdgeCases:
         result = ensure_opencode_json(deep_root, dry_run=False)
         assert result["status"] == "created"
         assert (deep_root / OPENCODE_JSON_NAME).exists()
+
+
+class TestPluginCleanup:
+    def test_cleanup_removes_only_installer_plugin_entry(self, config_root: Path) -> None:
+        ensure_opencode_json(config_root, dry_run=False)
+        target = config_root / OPENCODE_JSON_NAME
+        payload = _read_opencode_json(config_root)
+        payload[OPENCODE_PLUGIN_KEY].insert(0, "file:///custom/keep.mjs")
+        target.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+
+        result = remove_installer_plugin_from_opencode_json(config_root, dry_run=False)
+        assert result["status"] == "removed-plugin"
+
+        data = _read_opencode_json(config_root)
+        expected_plugin_uri = (config_root / OPENCODE_PLUGIN_RELATIVE).resolve().as_uri()
+        assert "file:///custom/keep.mjs" in data[OPENCODE_PLUGIN_KEY]
+        assert expected_plugin_uri not in data[OPENCODE_PLUGIN_KEY]

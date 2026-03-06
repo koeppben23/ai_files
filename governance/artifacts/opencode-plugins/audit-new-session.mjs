@@ -1,7 +1,28 @@
 import { spawn, spawnSync } from "node:child_process";
+import { appendFileSync, existsSync, statSync } from "node:fs";
+import { dirname, join } from "node:path";
 
 const seen = new Set();
 const MAX_LOG_BYTES = 64 * 1024;
+const DEBUG_ENABLED = process.env.OPENCODE_AUDIT_DEBUG === "1";
+
+function debugLog(message) {
+  if (!DEBUG_ENABLED) {
+    return;
+  }
+  const configured = asString(process.env.OPENCODE_AUDIT_DEBUG_LOG);
+  const home = asString(process.env.HOME) ?? asString(process.env.USERPROFILE);
+  const fallback = home ? join(home, ".config", "opencode", "logs", "audit-new-session.debug.log") : null;
+  const target = configured ?? fallback;
+  if (!target) {
+    return;
+  }
+  try {
+    appendFileSync(target, `${new Date().toISOString()} ${message}\n`, "utf8");
+  } catch {
+    // debug-only best effort
+  }
+}
 
 function asString(value) {
   return typeof value === "string" && value.trim() ? value.trim() : null;
@@ -22,23 +43,77 @@ function extractSessionId(event) {
   if (!event || typeof event !== "object") {
     return null;
   }
-  return asString(event.session_id) ?? asString(event.sessionId) ?? asString(event.id);
+  const props = event.properties && typeof event.properties === "object" ? event.properties : null;
+  const info = props && typeof props.info === "object" ? props.info : null;
+  return (
+    asString(info?.id) ??
+    asString(event.sessionId) ??
+    asString(event.session_id) ??
+    asString(event.id)
+  );
+}
+
+function isExistingDir(pathValue) {
+  const value = asString(pathValue);
+  if (!value) {
+    return false;
+  }
+  try {
+    if (!existsSync(value)) {
+      return false;
+    }
+    return statSync(value).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+function looksRepoPlausible(pathValue) {
+  if (!isExistingDir(pathValue)) {
+    return false;
+  }
+  const markers = [".git", "governance", "governance.paths.json", "pyproject.toml", "package.json"];
+  for (const marker of markers) {
+    try {
+      if (existsSync(join(pathValue, marker))) {
+        return true;
+      }
+    } catch {
+      // continue
+    }
+  }
+  return false;
 }
 
 function extractRepoRoot(event, client) {
-  if (event && typeof event === "object") {
-    const fromEvent = asString(event.repo_root) ?? asString(event.repoRoot);
-    if (fromEvent) {
-      return fromEvent;
+  const props = event && typeof event === "object" && event.properties && typeof event.properties === "object"
+    ? event.properties
+    : null;
+  const info = props && typeof props.info === "object" ? props.info : null;
+  const candidates = [
+    { source: "event.properties.info.directory", value: asString(info?.directory), fallback: false },
+    { source: "event.properties.directory", value: asString(props?.directory), fallback: false },
+    { source: "client.repo_root", value: asString(client?.repo_root) ?? asString(client?.repoRoot) ?? asString(client?.cwd), fallback: false },
+    { source: "process.cwd", value: process.cwd(), fallback: true },
+  ];
+
+  for (const candidate of candidates) {
+    const value = asString(candidate.value);
+    if (!value || !isExistingDir(value)) {
+      continue;
     }
-  }
-  if (client && typeof client === "object") {
-    const fromClient = asString(client.repo_root) ?? asString(client.repoRoot) ?? asString(client.cwd);
-    if (fromClient) {
-      return fromClient;
+    if (!candidate.fallback) {
+      if (!looksRepoPlausible(value)) {
+        debugLog(`[audit] cwd warning source=${candidate.source} path=${value} repo_plausible=false`);
+      }
+      return { cwd: value, source: candidate.source, usedFallback: false };
     }
+    if (looksRepoPlausible(value)) {
+      return { cwd: value, source: candidate.source, usedFallback: true };
+    }
+    return { cwd: null, source: candidate.source, usedFallback: true };
   }
-  return process.cwd();
+  return { cwd: null, source: "none", usedFallback: false };
 }
 
 function canRun(cmd, args = []) {
@@ -53,24 +128,54 @@ function canRun(cmd, args = []) {
 function resolvePython() {
   const override = asString(process.env.OPENCODE_PYTHON);
   if (override) {
-    return { cmd: override, args: [] };
+    return {
+      command: override,
+      argvPrefix: [],
+      source: "OPENCODE_PYTHON",
+      platform: process.platform,
+      usedOverride: true,
+    };
   }
 
   if (process.platform === "win32") {
     if (canRun("py", ["-3", "-V"])) {
-      return { cmd: "py", args: ["-3"] };
+      return {
+        command: "py",
+        argvPrefix: ["-3"],
+        source: "py -3",
+        platform: "win32",
+        usedOverride: false,
+      };
     }
     if (canRun("python", ["-V"])) {
-      return { cmd: "python", args: [] };
+      return {
+        command: "python",
+        argvPrefix: [],
+        source: "python",
+        platform: "win32",
+        usedOverride: false,
+      };
     }
     return null;
   }
 
   if (canRun("python3", ["-V"])) {
-    return { cmd: "python3", args: [] };
+    return {
+      command: "python3",
+      argvPrefix: [],
+      source: "python3",
+      platform: process.platform,
+      usedOverride: false,
+    };
   }
   if (canRun("python", ["-V"])) {
-    return { cmd: "python", args: [] };
+    return {
+      command: "python",
+      argvPrefix: [],
+      source: "python",
+      platform: process.platform,
+      usedOverride: false,
+    };
   }
   return null;
 }
@@ -85,7 +190,7 @@ function log(client, message) {
 
 function runInitializer({ cwd, python, sessionId, reason, onExit, onError }) {
   const args = [
-    ...python.args,
+    ...python.argvPrefix,
     "-m",
     "governance.entrypoints.new_work_session",
     "--trigger-source",
@@ -100,7 +205,7 @@ function runInitializer({ cwd, python, sessionId, reason, onExit, onError }) {
     args.push("--reason", reason);
   }
 
-  const child = spawn(python.cmd, args, {
+  const child = spawn(python.command, args, {
     cwd,
     stdio: ["ignore", "pipe", "pipe"],
   });
@@ -122,7 +227,13 @@ function runInitializer({ cwd, python, sessionId, reason, onExit, onError }) {
 export const AuditNewSession = async ({ client }) => {
   return {
     event: async ({ event }) => {
-      if (!event || event.type !== "session.created") {
+      if (!event) {
+        return;
+      }
+      if (event.type === "file.watcher.updated") {
+        return;
+      }
+      if (event.type !== "session.created") {
         return;
       }
 
@@ -136,9 +247,13 @@ export const AuditNewSession = async ({ client }) => {
         seen.add(sessionId);
       }
 
-      const cwd = extractRepoRoot(event, client);
-      if (!asString(event?.repo_root) && !asString(event?.repoRoot)) {
-        log(client, `[audit] session.created missing repo_root; fallback cwd=${cwd}`);
+      const cwdResolution = extractRepoRoot(event, client);
+      if (!cwdResolution.cwd) {
+        log(client, "[audit] no plausible cwd resolved; skipping new_work_session");
+        return;
+      }
+      if (cwdResolution.usedFallback) {
+        log(client, `[audit] cwd fallback source=${cwdResolution.source} cwd=${cwdResolution.cwd}`);
       }
 
       const python = resolvePython();
@@ -146,11 +261,12 @@ export const AuditNewSession = async ({ client }) => {
         log(client, "[audit] no python interpreter found (set OPENCODE_PYTHON); skipping new_work_session");
         return;
       }
+      debugLog(`[audit] resolver source=${python.source} command=${python.command} cwd_source=${cwdResolution.source}`);
 
-      const reason = asString(event.reason);
+      const reason = asString(event.reason) ?? asString(event?.properties?.info?.reason);
 
       runInitializer({
-        cwd,
+        cwd: cwdResolution.cwd,
         python,
         sessionId,
         reason,

@@ -387,6 +387,9 @@ def test_uninstall_preserves_existing_opencode_json(tmp_path: Path):
     assert opencode_json.exists(), "opencode.json must remain after uninstall"
     payload = json.loads(read_text(opencode_json))
     assert "custom/start.md" in payload.get("instructions", [])
+    plugin_entries = payload.get("plugin", [])
+    assert isinstance(plugin_entries, list)
+    assert all("audit-new-session.mjs" not in str(entry) for entry in plugin_entries)
 
 
 @pytest.mark.installer
