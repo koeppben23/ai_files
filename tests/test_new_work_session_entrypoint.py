@@ -67,6 +67,7 @@ def _setup_workspace(tmp_path: Path, *, phase: str = "5-ArchitectureReview") -> 
                 "Task": "old task",
                 "TicketRecordDigest": "ticket-old",
                 "TaskRecordDigest": "task-old",
+                "phase4_intake_source": "phase4-intake-bridge",
                 "Gates": {
                     "P5-Architecture": "approved",
                     "P5.3-TestQuality": "pass",
@@ -74,6 +75,16 @@ def _setup_workspace(tmp_path: Path, *, phase: str = "5-ArchitectureReview") -> 
                     "P5.5-TechnicalDebt": "approved",
                     "P5.6-RollbackSafety": "approved",
                     "P6-ImplementationQA": "pending",
+                },
+                "Scope": {"BusinessRules": "extracted"},
+                "BusinessRules": {
+                    "Decision": "execute",
+                    "Outcome": "extracted",
+                    "ExecutionEvidence": True,
+                    "InventoryFileStatus": "written",
+                    "Rules": ["BR-7: must preserve old behavior"],
+                    "Evidence": ["docs/rules.md:10"],
+                    "Inventory": {"sha256": "abc123", "count": 1},
                 },
                 "ArchitectureDecisions": [{"Status": "approved"}],
             }
@@ -102,9 +113,17 @@ class TestNewWorkSessionEntrypoint:
         assert state["TicketRecordDigest"] is None
         assert state["TaskRecordDigest"] is None
         assert state["phase4_intake_evidence"] is False
+        assert state["phase_transition_evidence"] is False
         assert state["Gates"]["P5-Architecture"] == "pending"
         assert state["ActiveProfile"] == "profile.backend-python"
         assert state["session_run_id"] != "run-old-001"
+        assert state["Scope"]["BusinessRules"] == "unresolved"
+        assert state["BusinessRules"]["Decision"] == "pending"
+        assert state["BusinessRules"]["Outcome"] == "unresolved"
+        assert state["BusinessRules"]["ExecutionEvidence"] is False
+        assert state["BusinessRules"]["InventoryFileStatus"] != "written"
+        assert "Rules" not in state["BusinessRules"]
+        assert "Evidence" not in state["BusinessRules"]
 
         archived = sorted((session_path.parent / "work_runs").glob("*.json"))
         assert archived, "previous run snapshot must be archived"
