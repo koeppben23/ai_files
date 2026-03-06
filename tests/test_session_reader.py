@@ -400,27 +400,50 @@ class TestMain:
             },
         )
 
-        snapshot = {
-            "schema": "governance.work-run.snapshot.v1",
-            "archived_at": "2026-03-05T20:30:00Z",
-            "repo_fingerprint": "abc123",
-            "session_run_id": "work-1",
-            "source_phase": "6-PostFlight",
-            "source_active_gate": "Post Flight",
-            "source_next": "6",
-            "ticket_digest": None,
-            "task_digest": None,
-            "plan_record_digest": None,
-            "impl_digest": None,
-            "session_state": {"Phase": "6-PostFlight"},
+        snapshot_doc = {
+            "SESSION_STATE": {
+                "session_run_id": "work-1",
+                "Phase": "6-PostFlight",
+                "active_gate": "Post Flight",
+                "Next": "6",
+            }
         }
-        snapshot_path = ws_state.parent / "work_runs" / "work-1.json"
+        snapshot_path = ws_state.parent / "runs" / "work-1" / "SESSION_STATE.json"
         snapshot_path.parent.mkdir(parents=True, exist_ok=True)
-        snapshot_path.write_text(json.dumps(snapshot), encoding="utf-8")
+        snapshot_path.write_text(json.dumps(snapshot_doc), encoding="utf-8")
 
         from governance.engine.canonical_json import canonical_json_hash
 
-        digest = canonical_json_hash(snapshot)
+        digest = canonical_json_hash(snapshot_doc)
+        (ws_state.parent / "runs" / "work-1" / "metadata.json").write_text(
+            json.dumps(
+                {
+                    "schema": "governance.work-run.snapshot.v2",
+                    "repo_fingerprint": "abc123",
+                    "run_id": "work-1",
+                    "archived_at": "2026-03-05T20:30:00Z",
+                    "source_phase": "6-PostFlight",
+                    "source_active_gate": "Post Flight",
+                    "source_next": "6",
+                    "snapshot_digest": digest,
+                    "snapshot_digest_scope": "session_state",
+                    "archived_files": {"session_state": True, "plan_record": False},
+                }
+            ),
+            encoding="utf-8",
+        )
+        (ws_state.parent / "current_run.json").write_text(
+            json.dumps(
+                {
+                    "schema": "governance.current-run-pointer.v1",
+                    "repo_fingerprint": "abc123",
+                    "active_run_id": "work-2",
+                    "updated_at": "2026-03-05T20:34:32Z",
+                    "activation_reason": "new-work-session",
+                }
+            ),
+            encoding="utf-8",
+        )
         (ws_state.parent / "events.jsonl").write_text(
             json.dumps(
                 {
