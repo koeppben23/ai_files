@@ -839,7 +839,7 @@ class TestRunLifecycleReset:
     def test_new_session_archives_previous_run(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        """Happy: Previous run is archived to work_runs/ before reset."""
+        """Happy: Previous run is archived to runs/<run_id>/ before reset."""
         config_root, session_path, _ = _setup_workspace(tmp_path, phase="6-PostFlight")
         monkeypatch.setenv("OPENCODE_CONFIG_ROOT", str(config_root))
 
@@ -847,10 +847,10 @@ class TestRunLifecycleReset:
         assert code == 0
         _ = capsys.readouterr()
 
-        archived = sorted((session_path.parent / "work_runs").glob("*.json"))
-        assert archived, "previous run snapshot must be archived"
-        archived_payload = json.loads(archived[0].read_text(encoding="utf-8"))
-        assert archived_payload["session_run_id"] == "run-old-001"
+        archived = session_path.parent / "runs" / "run-old-001" / "SESSION_STATE.json"
+        assert archived.is_file(), "previous run snapshot must be archived"
+        archived_payload = json.loads(archived.read_text(encoding="utf-8"))
+        assert archived_payload["SESSION_STATE"]["session_run_id"] == "run-old-001"
 
     def test_new_session_clears_all_artifacts_and_gates(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
