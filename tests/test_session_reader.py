@@ -31,7 +31,9 @@ from governance.entrypoints.session_reader import (
     _safe_str,
     _format_list,
     _quote_if_needed,
+    _coerce_int,
     _should_emit_continue_next_action,
+    _resolve_next_action_line,
 )
 
 
@@ -801,11 +803,12 @@ class TestMain:
         assert payload["contract_version"] == "AUDIT_READOUT_SPEC.v1"
         assert payload["integrity"]["snapshot_ref_present"] is True
 
-    def test_materialize_mode_updates_phase5_gate_and_emits_continue_action(
+    def test_materialize_mode_updates_phase5_gate_and_emits_chat_action_when_review_pending(
         self,
         fake_config: Path,
         capsys: pytest.CaptureFixture,
     ) -> None:
+        """Phase 5 with self_review_iterations_met=False emits 'continue in chat' (Fix 3.2)."""
         ws_state = _write_pointer(fake_config)
         repo_fp = "abc123"
         pointer = {
@@ -877,23 +880,25 @@ class TestMain:
         assert rc == 0
         output = capsys.readouterr().out
         assert "active_gate: Architecture Review Gate" in output
-        assert output.strip().endswith("Next action: run /continue.")
+        # Fix 3.2 (B7): self_review_iterations_met is False (iteration=0 < max=3),
+        # so the user should work in chat, not re-run /continue.
+        assert output.strip().endswith("Next action: continue in chat with the active gate work.")
 
         updated_state = json.loads(ws_state.read_text(encoding="utf-8"))["SESSION_STATE"]
         assert updated_state["active_gate"] == "Architecture Review Gate"
         assert updated_state["PlanRecordStatus"] == "active"
         assert updated_state["PlanRecordVersions"] == 1
 
-    def test_materialize_mode_phase5_missing_plan_record_stays_prep_with_continue_hint(
+    def test_materialize_mode_phase5_missing_plan_record_stays_prep_with_chat_hint(
         self,
         fake_config: Path,
         capsys: pytest.CaptureFixture,
     ) -> None:
-        """Phase 5 Plan Record Preparation Gate emits /continue hint (Fix 1.3).
+        """Phase 5 Plan Record Preparation Gate emits chat hint when iterations pending (Fix 3.2).
 
-        When the plan record is missing the user must run /continue to trigger
-        the kernel to produce a plan draft.  The symmetric next-action logic
-        now correctly emits the hint for this gate.
+        When the plan record is missing the kernel stays at the Preparation
+        Gate.  With self_review_iterations_met=False the user should continue
+        in chat doing gate work, not re-run /continue which would self-loop.
         """
         ws_state = _write_pointer(fake_config)
         _write_workspace_state(
@@ -953,8 +958,8 @@ class TestMain:
         assert rc == 0
         output = capsys.readouterr().out
         assert "active_gate: Plan Record Preparation Gate" in output
-        # Fix 1.3: symmetric logic now correctly emits /continue for this gate.
-        assert output.strip().endswith("Next action: run /continue.")
+        # Fix 3.2 (B7): iterations not met -> chat action, not /continue.
+        assert output.strip().endswith("Next action: continue in chat with the active gate work.")
 
         updated_state = json.loads(ws_state.read_text(encoding="utf-8"))["SESSION_STATE"]
         assert updated_state["active_gate"] == "Plan Record Preparation Gate"
@@ -1467,3 +1472,372 @@ class TestTransitionEvidenceAutoGrant:
         persisted = json.loads(ws_state.read_text(encoding="utf-8"))
         ss = persisted.get("SESSION_STATE", persisted)
         assert ss.get("phase_transition_evidence") is not True
+
+
+# ---------------------------------------------------------------------------
+# Fix 3.x — B6-B8 renderer diagnostics
+# ---------------------------------------------------------------------------
+
+class TestCoerceInt:
+    """Unit tests for _coerce_int helper (Fix 3.1)."""
+
+    def test_none(self) -> None:
+        assert _coerce_int(None) == 0
+
+    def test_int(self) -> None:
+        assert _coerce_int(3) == 3
+
+    def test_str(self) -> None:
+        assert _coerce_int("2") == 2
+
+    def test_negative_clamped(self) -> None:
+        assert _coerce_int(-1) == 0
+
+    def test_invalid_str(self) -> None:
+        assert _coerce_int("abc") == 0
+
+    def test_bool_true(self) -> None:
+        # bool is int subclass in Python; True -> 1
+        assert _coerce_int(True) == 1
+
+
+class TestPhase5SelfReviewDiagnostics:
+    """Fix 3.1 (B6): Phase 5 self-review state visible in snapshot.
+
+    Required tests:
+    - test_missing_self_review_iterations_met_visible_in_snapshot
+    - test_fulfilled_self_review_sets_next_correctly
+    """
+
+    def test_missing_self_review_iterations_met_visible_in_snapshot(
+        self,
+        fake_config: Path,
+    ) -> None:
+        """When Phase5Review shows 0/3 iterations, snapshot has met=false."""
+        ws_state = _write_pointer(fake_config)
+        _write_workspace_state(ws_state, {
+            "SESSION_STATE": {
+                "Phase": "5-ArchitectureReview",
+                "status": "OK",
+                "active_gate": "Architecture Review Gate",
+                "Phase5Review": {
+                    "iteration": 0,
+                    "max_iterations": 3,
+                },
+            }
+        })
+
+        with _mock_readonly_unavailable():
+            result = read_session_snapshot(commands_home=fake_config / "commands")
+
+        assert result["phase5_self_review_iterations"] == 0
+        assert result["phase5_max_review_iterations"] == 3
+        assert result["phase5_revision_delta"] == "changed"
+        assert result["self_review_iterations_met"] is False
+
+    def test_fulfilled_self_review_sets_met_true(
+        self,
+        fake_config: Path,
+    ) -> None:
+        """When iteration >= max_iterations, self_review_iterations_met is True."""
+        ws_state = _write_pointer(fake_config)
+        _write_workspace_state(ws_state, {
+            "SESSION_STATE": {
+                "Phase": "5-ArchitectureReview",
+                "status": "OK",
+                "active_gate": "Architecture Review Gate",
+                "Phase5Review": {
+                    "iteration": 3,
+                    "max_iterations": 3,
+                },
+            }
+        })
+
+        with _mock_readonly_unavailable():
+            result = read_session_snapshot(commands_home=fake_config / "commands")
+
+        assert result["phase5_self_review_iterations"] == 3
+        assert result["phase5_max_review_iterations"] == 3
+        assert result["self_review_iterations_met"] is True
+
+    def test_revision_delta_none_with_min_iterations_sets_met_true(
+        self,
+        fake_config: Path,
+    ) -> None:
+        """When iteration >= 1 and revision_delta == 'none', met is True."""
+        ws_state = _write_pointer(fake_config)
+        _write_workspace_state(ws_state, {
+            "SESSION_STATE": {
+                "Phase": "5-ArchitectureReview",
+                "status": "OK",
+                "Phase5Review": {
+                    "iteration": 1,
+                    "max_iterations": 3,
+                    "prev_plan_digest": "sha256:abc",
+                    "curr_plan_digest": "sha256:abc",
+                },
+            }
+        })
+
+        with _mock_readonly_unavailable():
+            result = read_session_snapshot(commands_home=fake_config / "commands")
+
+        assert result["phase5_revision_delta"] == "none"
+        assert result["self_review_iterations_met"] is True
+
+    def test_no_phase5_fields_for_non_phase5(
+        self,
+        fake_config: Path,
+    ) -> None:
+        """Phase 4 snapshot must NOT contain phase5 self-review fields."""
+        ws_state = _write_pointer(fake_config)
+        _write_workspace_state(ws_state, {
+            "Phase": "4",
+            "status": "OK",
+        })
+
+        with _mock_readonly_unavailable():
+            result = read_session_snapshot(commands_home=fake_config / "commands")
+
+        assert "phase5_self_review_iterations" not in result
+        assert "self_review_iterations_met" not in result
+
+    def test_pascal_case_phase5_review_keys(
+        self,
+        fake_config: Path,
+    ) -> None:
+        """PascalCase keys in Phase5Review block are recognized."""
+        ws_state = _write_pointer(fake_config)
+        _write_workspace_state(ws_state, {
+            "SESSION_STATE": {
+                "Phase": "5-ArchitectureReview",
+                "status": "OK",
+                "Phase5Review": {
+                    "Iteration": 2,
+                    "MaxIterations": 3,
+                    "PrevPlanDigest": "sha256:aaa",
+                    "CurrPlanDigest": "sha256:bbb",
+                },
+            }
+        })
+
+        with _mock_readonly_unavailable():
+            result = read_session_snapshot(commands_home=fake_config / "commands")
+
+        assert result["phase5_self_review_iterations"] == 2
+        assert result["phase5_max_review_iterations"] == 3
+        assert result["phase5_revision_delta"] == "changed"
+        assert result["self_review_iterations_met"] is False
+
+
+class TestMissingTransitionEvidenceDiagnosed:
+    """Fix 2.0 + 3.2: Missing phase_transition_evidence is diagnosed.
+
+    Required test:
+    - test_missing_phase_transition_evidence_diagnosed
+    """
+
+    def test_missing_phase_transition_evidence_diagnosed(
+        self,
+        fake_config: Path,
+    ) -> None:
+        """When kernel source is 'phase-transition-evidence-required', snapshot has hint."""
+        ws_state = _write_pointer(fake_config)
+        _write_workspace_state(ws_state, {"Phase": "5", "status": "OK"})
+
+        from governance.kernel.phase_kernel import KernelResult
+
+        blocked_result = KernelResult(
+            phase="5-ArchitectureReview",
+            next_token="5",
+            active_gate="Architecture Review Gate",
+            next_gate_condition="PHASE_BLOCKED: transition evidence required",
+            workspace_ready=True,
+            source="phase-transition-evidence-required",
+            status="BLOCKED",
+            spec_hash="abc",
+            spec_path="/fake",
+            spec_loaded_at="2026-03-06T00:00:00Z",
+            log_paths={"phase_flow": "", "workspace_events": ""},
+            event_id="evt-diag-001",
+            plan_record_status="active",
+            plan_record_versions=1,
+            transition_evidence_met=False,
+        )
+
+        with patch(
+            "governance.kernel.phase_kernel.evaluate_readonly",
+            return_value=blocked_result,
+        ):
+            result = read_session_snapshot(commands_home=fake_config / "commands")
+
+        assert result["phase_transition_evidence"] is False
+        assert "transition_evidence_hint" in result
+        assert "phase_transition_evidence is False" in result["transition_evidence_hint"]
+
+
+class TestResolveNextActionLine:
+    """Fix 3.2 (B7): _resolve_next_action_line distinguishes /continue vs chat work.
+
+    Required tests:
+    - test_next_action_line_chat_for_gate_work
+    - test_next_action_line_continue_for_materialization
+    - test_no_stale_next_gate_condition
+    """
+
+    def test_next_action_line_continue_for_materialization(self) -> None:
+        """OK status + no blocking indicators -> 'run /continue'."""
+        snapshot = {
+            "status": "OK",
+            "phase": "6-PostFlight",
+            "next_gate_condition": "Complete deterministic internal implementation review iterations.",
+        }
+        assert _resolve_next_action_line(snapshot) == "Next action: run /continue."
+
+    def test_next_action_line_chat_for_gate_work_evidence_hint(self) -> None:
+        """When transition_evidence_hint is present -> 'continue in chat'."""
+        snapshot = {
+            "status": "OK",
+            "phase": "5-ArchitectureReview",
+            "next_gate_condition": "Resume via /continue",
+            "transition_evidence_hint": "phase_transition_evidence is False — forward phase jump blocked.",
+        }
+        assert _resolve_next_action_line(snapshot) == "Next action: continue in chat with the active gate work."
+
+    def test_next_action_line_chat_for_phase5_review_pending(self) -> None:
+        """Phase 5 with self_review_iterations_met=False -> 'continue in chat'."""
+        snapshot = {
+            "status": "OK",
+            "phase": "5-ArchitectureReview",
+            "next_gate_condition": "Continue review",
+            "self_review_iterations_met": False,
+        }
+        assert _resolve_next_action_line(snapshot) == "Next action: continue in chat with the active gate work."
+
+    def test_next_action_line_continue_for_phase5_review_met(self) -> None:
+        """Phase 5 with self_review_iterations_met=True -> 'run /continue'."""
+        snapshot = {
+            "status": "OK",
+            "phase": "5-ArchitectureReview",
+            "next_gate_condition": "Continue review",
+            "self_review_iterations_met": True,
+        }
+        assert _resolve_next_action_line(snapshot) == "Next action: run /continue."
+
+    def test_no_stale_next_gate_condition(self) -> None:
+        """Blocked status never emits any action line."""
+        snapshot = {
+            "status": "BLOCKED",
+            "phase": "5-ArchitectureReview",
+            "next_gate_condition": "BLOCKED: stale condition",
+        }
+        assert _resolve_next_action_line(snapshot) == ""
+
+    def test_empty_for_ticket_intake(self) -> None:
+        """Ticket intake condition returns empty (needs /ticket, not /continue)."""
+        snapshot = {
+            "status": "OK",
+            "phase": "4",
+            "next_gate_condition": "Collect ticket and planning constraints",
+        }
+        assert _resolve_next_action_line(snapshot) == ""
+
+
+class TestRouteTargetExplanation:
+    """Fix 3.3 (B8): Route target is explained for intermediate next tokens.
+
+    Required test:
+    - test_route_target_explained_for_intermediate_next
+    """
+
+    def test_route_target_explained_for_intermediate_next(
+        self,
+        fake_config: Path,
+    ) -> None:
+        """When kernel evaluates route_strategy=next, snapshot explains the route target."""
+        ws_state = _write_pointer(fake_config)
+        _write_workspace_state(ws_state, {"Phase": "5", "status": "OK"})
+
+        from governance.kernel.phase_kernel import KernelResult
+
+        next_result = KernelResult(
+            phase="5-ArchitectureReview",
+            next_token="5.3",
+            active_gate="Architecture Review Gate",
+            next_gate_condition="Resume via /continue",
+            workspace_ready=True,
+            source="spec-next",
+            status="OK",
+            spec_hash="abc",
+            spec_path="/fake/spec.yaml",
+            spec_loaded_at="2026-03-06T00:00:00Z",
+            log_paths={"phase_flow": "", "workspace_events": ""},
+            event_id="evt-route-001",
+            route_strategy="next",
+            plan_record_status="active",
+            plan_record_versions=1,
+            transition_evidence_met=True,
+        )
+
+        with patch(
+            "governance.kernel.phase_kernel.evaluate_readonly",
+            return_value=next_result,
+        ):
+            result = read_session_snapshot(commands_home=fake_config / "commands")
+
+        assert result["route_target"] == "5.3"
+        assert result["route_strategy"] == "next"
+        assert "intermediate target" in result["route_explanation"]
+        assert "5.3" in result["route_explanation"]
+
+    def test_no_route_explanation_for_stay_strategy(
+        self,
+        fake_config: Path,
+    ) -> None:
+        """When kernel evaluates route_strategy=stay, no route explanation fields."""
+        ws_state = _write_pointer(fake_config)
+        _write_workspace_state(ws_state, {"Phase": "5", "status": "OK"})
+
+        from governance.kernel.phase_kernel import KernelResult
+
+        stay_result = KernelResult(
+            phase="5-ArchitectureReview",
+            next_token="5",
+            active_gate="Architecture Review Gate",
+            next_gate_condition="Continue review",
+            workspace_ready=True,
+            source="stay",
+            status="OK",
+            spec_hash="abc",
+            spec_path="/fake/spec.yaml",
+            spec_loaded_at="2026-03-06T00:00:00Z",
+            log_paths={"phase_flow": "", "workspace_events": ""},
+            event_id="evt-route-002",
+            route_strategy="stay",
+            plan_record_status="active",
+            plan_record_versions=1,
+            transition_evidence_met=False,
+        )
+
+        with patch(
+            "governance.kernel.phase_kernel.evaluate_readonly",
+            return_value=stay_result,
+        ):
+            result = read_session_snapshot(commands_home=fake_config / "commands")
+
+        assert "route_target" not in result
+        assert "route_explanation" not in result
+
+    def test_no_route_explanation_when_kernel_unavailable(
+        self,
+        fake_config: Path,
+    ) -> None:
+        """Without kernel eval, no route explanation fields appear."""
+        ws_state = _write_pointer(fake_config)
+        _write_workspace_state(ws_state, {"Phase": "5", "status": "OK"})
+
+        with _mock_readonly_unavailable():
+            result = read_session_snapshot(commands_home=fake_config / "commands")
+
+        assert "route_target" not in result
+        assert "route_explanation" not in result

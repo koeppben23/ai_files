@@ -82,6 +82,17 @@ def _format_list(items: list) -> str:
     return "[" + ", ".join(_safe_str(i) for i in items) + "]"
 
 
+def _coerce_int(value: object) -> int:
+    """Coerce a value to a non-negative int, defaulting to 0."""
+    if value is None:
+        return 0
+    try:
+        result = int(value)  # type: ignore[arg-type]
+        return max(0, result)
+    except (TypeError, ValueError):
+        return 0
+
+
 def _quote_if_needed(value: str) -> str:
     """Wrap value in double quotes if it contains YAML-special characters."""
     if any(c in value for c in (":", "#", "'", '"', "{", "}", "[", "]", ",", "&", "*", "?", "|", "-", "<", ">", "=", "!", "%", "@", "`")):
@@ -269,6 +280,54 @@ def _should_emit_continue_next_action(snapshot: dict) -> bool:
     return True
 
 
+# -- Blocking patterns that indicate the user should work in chat, not run /continue.
+_GATE_WORK_PATTERNS: tuple[str, ...] = (
+    "phase-transition-evidence-required",
+    "phase-5-self-review-required",
+    "implementation-review-pending",
+)
+
+
+def _resolve_next_action_line(snapshot: dict) -> str:
+    """Return the appropriate next-action guidance line (Fix 3.2 / B7).
+
+    Two possible outputs:
+    1. ``"Next action: run /continue."``
+       — when kernel materialization would advance the phase or trigger an
+         internal kernel operation (e.g. plan generation, gate propagation).
+    2. ``"Next action: continue in chat with the active gate work."``
+       — when the user should do work in the conversation (gate work,
+         self-review iterations) rather than blindly re-running /continue.
+    3. ``""`` (empty string) — when no next-action hint is appropriate
+       (error, blocked, or user-input gates).
+
+    The distinction prevents /continue self-loops (B7) where the system
+    recommends /continue but nothing changes because the user hasn't done
+    the required gate work yet.
+    """
+    if not _should_emit_continue_next_action(snapshot):
+        return ""
+
+    # If the snapshot carries a kernel source (from Fix 2.0's transition
+    # evidence hint or from the readonly eval), check whether the source
+    # indicates the user must do gate work rather than re-materialize.
+    _hint = str(snapshot.get("transition_evidence_hint", "")).strip()
+    if _hint:
+        # Evidence is blocking — user must do gate work, not /continue.
+        return "Next action: continue in chat with the active gate work."
+
+    # Check the self_review_iterations_met flag from Fix 3.1 (B6).
+    # If iterations are NOT met and phase is 5, the user should do
+    # review work in chat, not re-run /continue which would self-loop.
+    phase_str = str(snapshot.get("phase", "")).strip()
+    if phase_str.startswith("5"):
+        review_met = snapshot.get("self_review_iterations_met", True)
+        if review_met is False:
+            return "Next action: continue in chat with the active gate work."
+
+    return "Next action: run /continue."
+
+
 def read_session_snapshot(commands_home: Path | None = None, *, materialize: bool = False) -> dict:
     """Read the current governance session state and return a snapshot dict.
 
@@ -423,6 +482,64 @@ def read_session_snapshot(commands_home: Path | None = None, *, materialize: boo
     }
     if transition_evidence_hint:
         snapshot["transition_evidence_hint"] = transition_evidence_hint
+
+    # --- Fix 3.1 (B6): Phase 5 self-review diagnostics ---
+    # Surface kernel-owned exit conditions so users can see WHY an exit
+    # from the Architecture Review Gate is not yet possible.
+    phase_str = _safe_str(phase)
+    if phase_str.startswith("5"):
+        p5_review = state_view.get("Phase5Review") or state.get("Phase5Review") or {}
+        if isinstance(p5_review, dict):
+            _iter = _coerce_int(
+                p5_review.get("iteration")
+                or p5_review.get("Iteration")
+                or p5_review.get("rounds_completed")
+                or p5_review.get("RoundsCompleted")
+                or state_view.get("phase5_self_review_iterations")
+                or state_view.get("self_review_iterations")
+            )
+            _max = _coerce_int(
+                p5_review.get("max_iterations")
+                or p5_review.get("MaxIterations")
+                or state_view.get("phase5_max_review_iterations")
+            )
+            _prev = str(
+                p5_review.get("prev_plan_digest")
+                or p5_review.get("PrevPlanDigest")
+                or ""
+            ).strip()
+            _curr = str(
+                p5_review.get("curr_plan_digest")
+                or p5_review.get("CurrPlanDigest")
+                or ""
+            ).strip()
+            if _prev and _curr and _prev == _curr:
+                _delta = "none"
+            else:
+                _delta = "changed"
+        else:
+            _iter, _max, _delta = 0, 3, "changed"
+
+        _max = _max if _max >= 1 else 3
+        _met = _iter >= _max or (_iter >= 1 and _delta == "none")
+
+        snapshot["phase5_self_review_iterations"] = _iter
+        snapshot["phase5_max_review_iterations"] = _max
+        snapshot["phase5_revision_delta"] = _delta
+        snapshot["self_review_iterations_met"] = _met
+
+    # --- Fix 3.3 (B8): Route target explanation for intermediate next tokens ---
+    # When the kernel evaluates a route_strategy="next" with a next_token,
+    # the user needs to understand that the target is an intermediate routing
+    # step, not a stable phase the system will remain in.
+    if kernel_result is not None and kernel_result.route_strategy == "next" and kernel_result.next_token:
+        snapshot["route_target"] = kernel_result.next_token
+        snapshot["route_strategy"] = "next"
+        snapshot["route_explanation"] = (
+            f"Kernel routes to {kernel_result.next_token}; "
+            "this is an intermediate target, not a stable state."
+        )
+
     return snapshot
 
 
@@ -497,8 +614,10 @@ def main(argv: list[str] | None = None) -> int:
 
     snapshot = read_session_snapshot(commands_home=commands_home, materialize=materialize_mode)
     rendered = format_snapshot(snapshot)
-    if materialize_mode and _should_emit_continue_next_action(snapshot):
-        rendered = rendered + "Next action: run /continue.\n"
+    if materialize_mode:
+        action_line = _resolve_next_action_line(snapshot)
+        if action_line:
+            rendered = rendered + action_line + "\n"
     sys.stdout.write(rendered)
     return 0 if snapshot.get("status") != "ERROR" else 1
 
