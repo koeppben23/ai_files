@@ -352,6 +352,187 @@ class TestReadSessionSnapshotSuccess:
 
 
 # ---------------------------------------------------------------------------
+# Fix 3.5 (B5) — Draft vs persisted plan-record label
+# ---------------------------------------------------------------------------
+
+class TestPlanRecordLabel:
+    """Fix 3.5 (B5): plan_record_label distinguishes working drafts from
+    persisted plan-record versions.
+
+    Test paths:
+    - Happy: versions >= 1 + active status -> "persisted plan-record vN"
+    - Happy: versions == 0 + absent status -> "working draft (not yet persisted)"
+    - Corner: status "error" with versions >= 1 -> still "working draft"
+    - Corner: status "unknown" with versions >= 1 -> still "working draft"
+    - Edge: kernel result overrides persisted values
+    - Bad: versions is a non-integer -> coerced to 0 -> "working draft"
+    """
+
+    def test_happy_persisted_with_active_status(
+        self,
+        fake_config: Path,
+    ) -> None:
+        """Active status + versions >= 1 -> persisted label."""
+        ws_state = _write_pointer(fake_config)
+        _write_workspace_state(ws_state, {
+            "SESSION_STATE": {
+                "Phase": "5-ArchitectureReview",
+                "status": "OK",
+                "plan_record_status": "active",
+                "plan_record_versions": 3,
+            }
+        })
+
+        with _mock_readonly_unavailable():
+            result = read_session_snapshot(commands_home=fake_config / "commands")
+
+        assert result["plan_record_label"] == "persisted plan-record v3"
+
+    def test_happy_working_draft_when_absent(
+        self,
+        fake_config: Path,
+    ) -> None:
+        """Absent status + versions == 0 -> working draft."""
+        ws_state = _write_pointer(fake_config)
+        _write_workspace_state(ws_state, {
+            "SESSION_STATE": {
+                "Phase": "4",
+                "status": "OK",
+            }
+        })
+
+        with _mock_readonly_unavailable():
+            result = read_session_snapshot(commands_home=fake_config / "commands")
+
+        assert result["plan_record_label"] == "working draft (not yet persisted)"
+
+    def test_corner_error_status_with_versions_is_draft(
+        self,
+        fake_config: Path,
+    ) -> None:
+        """Error status -> working draft even if versions > 0."""
+        ws_state = _write_pointer(fake_config)
+        _write_workspace_state(ws_state, {
+            "SESSION_STATE": {
+                "Phase": "5",
+                "status": "OK",
+                "plan_record_status": "error",
+                "plan_record_versions": 2,
+            }
+        })
+
+        with _mock_readonly_unavailable():
+            result = read_session_snapshot(commands_home=fake_config / "commands")
+
+        assert result["plan_record_label"] == "working draft (not yet persisted)"
+
+    def test_corner_unknown_status_with_versions_is_draft(
+        self,
+        fake_config: Path,
+    ) -> None:
+        """Unknown status -> working draft even if versions > 0."""
+        ws_state = _write_pointer(fake_config)
+        _write_workspace_state(ws_state, {
+            "SESSION_STATE": {
+                "Phase": "5",
+                "status": "OK",
+                "plan_record_status": "unknown",
+                "plan_record_versions": 1,
+            }
+        })
+
+        with _mock_readonly_unavailable():
+            result = read_session_snapshot(commands_home=fake_config / "commands")
+
+        assert result["plan_record_label"] == "working draft (not yet persisted)"
+
+    def test_edge_kernel_result_determines_label(
+        self,
+        fake_config: Path,
+    ) -> None:
+        """When kernel result provides plan_record_status/versions, label uses those."""
+        ws_state = _write_pointer(fake_config)
+        _write_workspace_state(ws_state, {
+            "Phase": "5",
+            "status": "OK",
+            "plan_record_status": "absent",
+            "plan_record_versions": 0,
+        })
+
+        from governance.kernel.phase_kernel import KernelResult
+
+        kernel_with_plan = KernelResult(
+            phase="5-ArchitectureReview",
+            next_token="5.3",
+            active_gate="Architecture Review Gate",
+            next_gate_condition="Resume via /continue",
+            workspace_ready=True,
+            source="spec-next",
+            status="OK",
+            spec_hash="abc",
+            spec_path="/fake/spec.yaml",
+            spec_loaded_at="2026-03-06T00:00:00Z",
+            log_paths={"phase_flow": "", "workspace_events": ""},
+            event_id="evt-b5-001",
+            route_strategy="next",
+            plan_record_status="active",
+            plan_record_versions=2,
+            transition_evidence_met=True,
+        )
+
+        with patch(
+            "governance.kernel.phase_kernel.evaluate_readonly",
+            return_value=kernel_with_plan,
+        ):
+            result = read_session_snapshot(commands_home=fake_config / "commands")
+
+        assert result["plan_record_label"] == "persisted plan-record v2"
+
+    def test_bad_non_integer_versions_coerced_to_draft(
+        self,
+        fake_config: Path,
+    ) -> None:
+        """Non-integer versions -> coerced to 0 -> working draft."""
+        ws_state = _write_pointer(fake_config)
+        _write_workspace_state(ws_state, {
+            "SESSION_STATE": {
+                "Phase": "5",
+                "status": "OK",
+                "plan_record_status": "active",
+                "plan_record_versions": "not-a-number",
+            }
+        })
+
+        with _mock_readonly_unavailable():
+            result = read_session_snapshot(commands_home=fake_config / "commands")
+
+        assert result["plan_record_label"] == "working draft (not yet persisted)"
+
+    def test_happy_draft_status_with_versions_is_persisted(
+        self,
+        fake_config: Path,
+    ) -> None:
+        """Draft status + versions >= 1 -> persisted (draft is a valid non-error status)."""
+        ws_state = _write_pointer(fake_config)
+        plan_record_file = ws_state.parent / "plan-record.json"
+        plan_record_file.write_text(
+            json.dumps({"status": "draft", "versions": [{"v": 1}]}),
+            encoding="utf-8",
+        )
+        _write_workspace_state(ws_state, {
+            "SESSION_STATE": {
+                "Phase": "5-ArchitectureReview",
+                "status": "OK",
+            }
+        })
+
+        with _mock_readonly_unavailable():
+            result = read_session_snapshot(commands_home=fake_config / "commands")
+
+        assert result["plan_record_label"] == "persisted plan-record v1"
+
+
+# ---------------------------------------------------------------------------
 # Fix 1.2 — Readonly kernel evaluation enrichment
 # ---------------------------------------------------------------------------
 

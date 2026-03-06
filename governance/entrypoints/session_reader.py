@@ -473,6 +473,16 @@ def read_session_snapshot(commands_home: Path | None = None, *, materialize: boo
                 "Run /continue to let the kernel auto-grant evidence when gate conditions are met."
             )
 
+    # --- Fix 3.5 (B5): Draft vs persisted plan-record label ---
+    # Distinguish "working draft" (chat-only, no persisted file) from
+    # "persisted plan-record vN" to prevent users mistaking chat drafts
+    # for official governance evidence.
+    _plan_versions_int = _coerce_int(plan_versions)
+    if _plan_versions_int >= 1 and str(plan_status).lower() not in ("absent", "error", "unknown", ""):
+        plan_record_label = f"persisted plan-record v{_plan_versions_int}"
+    else:
+        plan_record_label = "working draft (not yet persisted)"
+
     snapshot: dict = {
         "schema": SNAPSHOT_SCHEMA,
         "status": _safe_str(status),
@@ -487,6 +497,7 @@ def read_session_snapshot(commands_home: Path | None = None, *, materialize: boo
         "gates_blocked": gates_blocked,
         "plan_record_status": plan_status,
         "plan_record_versions": plan_versions,
+        "plan_record_label": plan_record_label,
         "commands_home": str(commands_home),
     }
     if transition_evidence_hint:
