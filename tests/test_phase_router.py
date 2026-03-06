@@ -404,6 +404,37 @@ class TestPhase4Routing:
 
 @pytest.mark.governance
 class TestPhase5Routing:
+    def test_phase_5_routes_to_architecture_review_gate_when_plan_record_version_present(self):
+        doc = _minimal_session_state(
+            phase="5",
+            plan_record_versions=1,
+        )
+        result = route_phase(
+            requested_phase="5",
+            requested_active_gate="Plan Record Preparation Gate",
+            requested_next_gate_condition="Continue",
+            session_state_document=doc,
+            repo_is_git_root=True,
+        )
+        assert result.phase == "5-ArchitectureReview"
+        assert result.active_gate == "Architecture Review Gate"
+        assert result.plan_record_versions == 1
+
+    def test_phase_5_stays_in_plan_prep_when_plan_record_status_active_but_version_missing(self):
+        doc = _minimal_session_state(
+            phase="5",
+            plan_record_status="active",
+        )
+        result = route_phase(
+            requested_phase="5",
+            requested_active_gate="Architecture Review Gate",
+            requested_next_gate_condition="Continue",
+            session_state_document=doc,
+            repo_is_git_root=True,
+        )
+        assert result.phase == "5-ArchitectureReview"
+        assert result.active_gate == "Plan Record Preparation Gate"
+
     def test_phase_5_3_routes_to_5_4_when_business_rules_executed(self):
         doc = _minimal_session_state(
             phase="5.3",

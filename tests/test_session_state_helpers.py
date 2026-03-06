@@ -86,3 +86,27 @@ def test_with_kernel_result_clamps_implementation_iteration_to_max() -> None:
     assert isinstance(impl_review, dict)
     assert impl_review["iteration"] == 2
     assert impl_review["max_iterations"] == 2
+
+
+def test_with_kernel_result_writes_plan_record_gate_materialization_fields() -> None:
+    updated = with_kernel_result(
+        {"SESSION_STATE": {}},
+        phase="5-ArchitectureReview",
+        next_token="5",
+        active_gate="Architecture Review Gate",
+        next_gate_condition="Continue self-review loop",
+        status="OK",
+        spec_hash="deadbeef",
+        spec_path="/tmp/commands/phase_api.yaml",
+        spec_loaded_at="2026-02-24T19:00:00+00:00",
+        log_paths={},
+        event_id="evt-4",
+        plan_record_status="active",
+        plan_record_versions=1,
+    )
+    state = updated["SESSION_STATE"]
+    assert isinstance(state, dict)
+    assert state["plan_record_status"] == "active"
+    assert state["PlanRecordStatus"] == "active"
+    assert state["plan_record_versions"] == 1
+    assert state["PlanRecordVersions"] == 1
