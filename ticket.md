@@ -29,7 +29,7 @@ File-based input:
 ```
 
 Notes:
-- `/continue` and `/review` are read-only rails.
+- `/review` is read-only; `/continue` is the kernel-owned state materialization rail.
 - Ticket files or chat text do not change phase by themselves.
 - Running the intake command writes evidence and reroutes from Phase 4 into the Phase 5 review gate path.
 - Intake reroute is not implementation approval; code-producing output remains blocked until Phase 5 gates are approved and session transitions to Phase 6.

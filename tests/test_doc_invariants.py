@@ -738,9 +738,9 @@ class TestP2TicketPhase6Precision:
                 )
 
     # -- Edge --
-    def test_read_only_rails_statement_preserved(self) -> None:
+    def test_continue_review_rail_statement_preserved(self) -> None:
         content = self._content()
-        assert "/continue` and `/review` are read-only rails" in content
+        assert "/review` is read-only; `/continue` is the kernel-owned state materialization rail" in content
 
     # -- Corner --
     def test_intake_reroute_disclaimer_preserved(self) -> None:
