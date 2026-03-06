@@ -74,7 +74,7 @@ def _parse_jsonl(path: Path) -> list[dict[str, object]]:
     return rows
 
 
-def _event_with_required_fields(event: Mapping[str, object]) -> Mapping[str, object] | None:
+def _event_with_required_fields(event: Mapping[str, object]) -> dict[str, object] | None:
     required = ("event", "observed_at", "repo_fingerprint", "session_id", "run_id")
     for key in required:
         value = event.get(key)
@@ -85,6 +85,7 @@ def _event_with_required_fields(event: Mapping[str, object]) -> Mapping[str, obj
         "reason",
         "new_run_id",
         "previous_run_id",
+        "reactivated_run_id",
         "phase",
         "next",
         "snapshot_path",
@@ -97,39 +98,121 @@ def _event_with_required_fields(event: Mapping[str, object]) -> Mapping[str, obj
     return normalized
 
 
-def _list_snapshot_files(workspace_dir: Path) -> list[Path]:
-    runs_dir = workspace_dir / "work_runs"
-    if not runs_dir.exists() or not runs_dir.is_dir():
-        return []
-    return sorted(
-        [path for path in runs_dir.glob("*.json") if path.is_file()],
-        key=lambda p: (p.stat().st_mtime, str(p)),
-    )
-
-
-def _build_last_snapshot(workspace_dir: Path) -> tuple[dict[str, object], list[str]]:
+def _read_current_run_pointer(workspace_dir: Path) -> tuple[str, list[str]]:
     notes: list[str] = []
-    files = _list_snapshot_files(workspace_dir)
-    if not files:
+    pointer_path = workspace_dir / "current_run.json"
+    if not pointer_path.exists():
+        notes.append("missing-current-run-pointer")
+        return "", notes
+    try:
+        payload = _read_json(pointer_path)
+    except Exception:
+        notes.append("invalid-current-run-pointer")
+        return "", notes
+
+    run_id = str(payload.get("active_run_id") or "").strip()
+    if not run_id:
+        notes.append("missing-current-run-id")
+    return run_id, notes
+
+
+def _list_run_archives(workspace_dir: Path) -> tuple[list[dict[str, object]], list[str]]:
+    notes: list[str] = []
+    runs_dir = workspace_dir / "runs"
+    if not runs_dir.exists() or not runs_dir.is_dir():
+        notes.append("missing-runs-directory")
+        return [], notes
+
+    archives: list[dict[str, object]] = []
+    for entry in sorted([path for path in runs_dir.iterdir() if path.is_dir()], key=lambda p: p.name):
+        run_id = entry.name
+        metadata_path = entry / "metadata.json"
+        snapshot_path = entry / "SESSION_STATE.json"
+        if not metadata_path.exists():
+            notes.append(f"run-metadata-missing:{run_id}")
+            continue
+        if not snapshot_path.exists():
+            notes.append(f"run-session-state-missing:{run_id}")
+            continue
+        try:
+            metadata = _read_json(metadata_path)
+        except Exception:
+            notes.append(f"run-metadata-invalid:{run_id}")
+            continue
+        try:
+            snapshot_document = _read_json(snapshot_path)
+        except Exception:
+            notes.append(f"run-session-state-invalid:{run_id}")
+            continue
+
+        metadata_run_id = str(metadata.get("run_id") or run_id).strip() or run_id
+        digest = str(metadata.get("snapshot_digest") or "").strip()
+        archived_at = str(metadata.get("archived_at") or "").strip()
+        source_phase = str(metadata.get("source_phase") or "unknown").strip() or "unknown"
+
+        if not digest:
+            notes.append(f"run-snapshot-digest-missing:{run_id}")
+            digest = canonical_json_hash(snapshot_document)
+        if not archived_at:
+            notes.append(f"run-archived-at-missing:{run_id}")
+            archived_at = "1970-01-01T00:00:00Z"
+
+        archives.append(
+            {
+                "run_id": metadata_run_id,
+                "snapshot_path": str(snapshot_path),
+                "snapshot_digest": digest,
+                "archived_at": archived_at,
+                "source_phase": source_phase,
+            }
+        )
+
+    return archives, notes
+
+
+def _build_last_snapshot(
+    *,
+    events: list[dict[str, object]],
+    active_run_id: str,
+    run_archives: list[dict[str, object]],
+) -> tuple[dict[str, object], list[str]]:
+    notes: list[str] = []
+    if not run_archives:
         return {
             "snapshot_path": "none",
             "snapshot_digest": "0" * 64,
             "archived_at": "1970-01-01T00:00:00Z",
             "source_phase": "none",
             "run_id": "none",
-        }, ["missing-work-run-snapshot"]
+        }, ["missing-run-archive-snapshot"]
 
-    path = files[-1]
-    payload = _read_json(path)
-    digest = canonical_json_hash(payload)
+    by_run_id = {str(item.get("run_id") or ""): item for item in run_archives}
 
-    return {
-        "snapshot_path": str(path),
-        "snapshot_digest": digest,
-        "archived_at": str(payload.get("archived_at") or "1970-01-01T00:00:00Z"),
-        "source_phase": str(payload.get("source_phase") or "unknown"),
-        "run_id": str(payload.get("session_run_id") or "unknown"),
-    }, notes
+    for event in reversed(events):
+        if str(event.get("event") or "") != "new_work_session_created":
+            continue
+        snapshot_run_id = str(event.get("run_id") or "").strip()
+        if not snapshot_run_id or snapshot_run_id == active_run_id:
+            continue
+        archive = by_run_id.get(snapshot_run_id)
+        if archive is None:
+            notes.append(f"created-event-references-missing-run:{snapshot_run_id}")
+            continue
+        return dict(archive), notes
+
+    notes.append("last-snapshot-derived-from-archive-fallback")
+    candidate_archives = [item for item in run_archives if str(item.get("run_id") or "") != active_run_id]
+    source = candidate_archives if candidate_archives else run_archives
+
+    def _key(item: Mapping[str, object]) -> tuple[datetime, str]:
+        raw = str(item.get("archived_at") or "")
+        try:
+            parsed = datetime.strptime(raw, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+        except Exception:
+            parsed = datetime.fromtimestamp(0, tz=timezone.utc)
+        return parsed, str(item.get("snapshot_path") or "")
+
+    return dict(sorted(source, key=_key)[-1]), notes
 
 
 def _timestamps_monotonic(events: list[dict[str, object]], *, last_snapshot: Mapping[str, object]) -> tuple[bool, list[str]]:
@@ -177,10 +260,18 @@ def _run_id_consistent(active: Mapping[str, object], events: list[dict[str, obje
 
     active_run_id = str(active.get("run_id") or "")
     last = events[-1]
-    if str(last.get("event") or "") == "new_work_session_created":
+    last_event_type = str(last.get("event") or "")
+    if last_event_type == "new_work_session_created":
         expected = str(last.get("new_run_id") or "")
         if active_run_id != expected:
             notes.append("active-run-id-mismatch-created-event")
+            return False, notes
+        return True, notes
+
+    if last_event_type == "work_session_reactivated":
+        expected = str(last.get("reactivated_run_id") or "")
+        if active_run_id != expected:
+            notes.append("active-run-id-mismatch-reactivation-event")
             return False, notes
         return True, notes
 
@@ -204,6 +295,51 @@ def _snapshot_ref_present(events: list[dict[str, object]], *, last_snapshot: Map
             return True, notes
     notes.append("missing-created-event-snapshot-reference")
     return False, notes
+
+
+def _active_run_pointer_consistent(active: Mapping[str, object], *, pointer_run_id: str) -> tuple[bool, list[str]]:
+    notes: list[str] = []
+    active_run_id = str(active.get("run_id") or "").strip()
+    if not pointer_run_id:
+        notes.append("missing-current-run-pointer")
+        return False, notes
+    if pointer_run_id != active_run_id:
+        notes.append("current-run-pointer-mismatch")
+        return False, notes
+    return True, notes
+
+
+def _reactivation_chain_consistent(
+    active: Mapping[str, object],
+    *,
+    pointer_run_id: str,
+    events: list[dict[str, object]],
+    run_archives: list[dict[str, object]],
+) -> tuple[bool, list[str]]:
+    notes: list[str] = []
+    run_ids = {str(item.get("run_id") or "") for item in run_archives}
+    reactivations = [event for event in events if str(event.get("event") or "") == "work_session_reactivated"]
+    if not reactivations:
+        return True, notes
+
+    for event in reactivations:
+        run_id = str(event.get("reactivated_run_id") or "").strip()
+        if not run_id:
+            notes.append("reactivation-event-missing-run-id")
+            return False, notes
+        if run_id not in run_ids:
+            notes.append(f"reactivation-event-run-missing:{run_id}")
+            return False, notes
+
+    last = reactivations[-1]
+    expected = str(last.get("reactivated_run_id") or "").strip()
+    if expected != str(active.get("run_id") or "").strip():
+        notes.append("active-run-id-mismatch-last-reactivation")
+        return False, notes
+    if pointer_run_id and pointer_run_id != expected:
+        notes.append("pointer-run-id-mismatch-last-reactivation")
+        return False, notes
+    return True, notes
 
 
 def build_audit_readout(
@@ -243,8 +379,6 @@ def build_audit_readout(
         "updated_at": _extract_updated_at(state, session_path=session_path),
     }
 
-    last_snapshot, snapshot_notes = _build_last_snapshot(session_path.parent)
-
     events_raw = _parse_jsonl(session_path.parent / "events.jsonl")
     normalized_events: list[dict[str, object]] = []
     for event in events_raw:
@@ -253,9 +387,24 @@ def build_audit_readout(
             normalized_events.append(normalized)
     tail = normalized_events[-max(0, int(tail_count)):]
 
+    pointer_run_id, pointer_notes = _read_current_run_pointer(session_path.parent)
+    run_archives, archive_notes = _list_run_archives(session_path.parent)
+    last_snapshot, snapshot_notes = _build_last_snapshot(
+        events=tail,
+        active_run_id=str(active.get("run_id") or ""),
+        run_archives=run_archives,
+    )
+
     snapshot_ref_present, snapshot_ref_notes = _snapshot_ref_present(tail, last_snapshot=last_snapshot)
     run_id_consistent, run_id_notes = _run_id_consistent(active, tail)
     monotonic_timestamps, monotonic_notes = _timestamps_monotonic(tail, last_snapshot=last_snapshot)
+    pointer_consistent, pointer_integrity_notes = _active_run_pointer_consistent(active, pointer_run_id=pointer_run_id)
+    reactivation_consistent, reactivation_notes = _reactivation_chain_consistent(
+        active,
+        pointer_run_id=pointer_run_id,
+        events=tail,
+        run_archives=run_archives,
+    )
 
     payload = {
         "contract_version": "AUDIT_READOUT_SPEC.v1",
@@ -269,7 +418,16 @@ def build_audit_readout(
             "snapshot_ref_present": snapshot_ref_present,
             "run_id_consistent": run_id_consistent,
             "monotonic_timestamps": monotonic_timestamps,
-            "notes": snapshot_notes + snapshot_ref_notes + run_id_notes + monotonic_notes,
+            "active_run_pointer_consistent": pointer_consistent,
+            "reactivation_chain_consistent": reactivation_consistent,
+            "notes": archive_notes
+            + pointer_notes
+            + pointer_integrity_notes
+            + snapshot_notes
+            + snapshot_ref_notes
+            + run_id_notes
+            + monotonic_notes
+            + reactivation_notes,
         },
     }
 
