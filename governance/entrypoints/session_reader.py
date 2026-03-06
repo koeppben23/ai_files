@@ -325,6 +325,15 @@ def _resolve_next_action_line(snapshot: dict) -> str:
         if review_met is False:
             return "Next action: continue in chat with the active gate work."
 
+    # Check the implementation_review_complete flag from Fix 3.4 (B13).
+    # If review is NOT complete and phase is 6, the user should do
+    # implementation review work in chat, not re-run /continue which
+    # would self-loop.
+    if phase_str.startswith("6"):
+        review_complete = snapshot.get("implementation_review_complete", True)
+        if review_complete is False:
+            return "Next action: continue in chat with the active gate work."
+
     return "Next action: run /continue."
 
 
@@ -527,6 +536,61 @@ def read_session_snapshot(commands_home: Path | None = None, *, materialize: boo
         snapshot["phase5_max_review_iterations"] = _max
         snapshot["phase5_revision_delta"] = _delta
         snapshot["self_review_iterations_met"] = _met
+
+    # --- Fix 3.4 (B13): Phase 6 implementation-review diagnostics ---
+    # Surface kernel-owned exit conditions for the Phase 6 internal
+    # implementation review loop, mirroring the Phase 5 self-review block.
+    # Without this, users cannot see iteration progress or exit criteria.
+    if phase_str.startswith("6"):
+        p6_review = state_view.get("ImplementationReview") or state.get("ImplementationReview") or {}
+        if isinstance(p6_review, dict):
+            _p6_iter = _coerce_int(
+                p6_review.get("iteration")
+                or p6_review.get("Iteration")
+                or state_view.get("phase6_review_iterations")
+                or state_view.get("phase6ReviewIterations")
+            )
+            _p6_max = _coerce_int(
+                p6_review.get("max_iterations")
+                or p6_review.get("MaxIterations")
+                or state_view.get("phase6_max_review_iterations")
+                or state_view.get("phase6MaxReviewIterations")
+            )
+            _p6_min = _coerce_int(
+                p6_review.get("min_self_review_iterations")
+                or p6_review.get("MinSelfReviewIterations")
+                or state_view.get("phase6_min_self_review_iterations")
+                or state_view.get("phase6MinSelfReviewIterations")
+            )
+            _p6_prev = str(
+                p6_review.get("prev_impl_digest")
+                or p6_review.get("PrevImplDigest")
+                or ""
+            ).strip()
+            _p6_curr = str(
+                p6_review.get("curr_impl_digest")
+                or p6_review.get("CurrImplDigest")
+                or ""
+            ).strip()
+            if _p6_prev and _p6_curr and _p6_prev == _p6_curr:
+                _p6_delta = "none"
+            else:
+                _p6_delta = "changed"
+        else:
+            _p6_iter, _p6_max, _p6_min, _p6_delta = 0, 3, 1, "changed"
+
+        _p6_max = _p6_max if _p6_max >= 1 else 3
+        _p6_min = max(1, min(_p6_min, _p6_max)) if _p6_min >= 1 else 1
+        _p6_complete = (
+            _p6_iter >= _p6_max
+            or (_p6_iter >= _p6_min and _p6_delta == "none")
+        )
+
+        snapshot["phase6_review_iterations"] = _p6_iter
+        snapshot["phase6_max_review_iterations"] = _p6_max
+        snapshot["phase6_min_review_iterations"] = _p6_min
+        snapshot["phase6_revision_delta"] = _p6_delta
+        snapshot["implementation_review_complete"] = _p6_complete
 
     # --- Fix 3.3 (B8): Route target explanation for intermediate next tokens ---
     # When the kernel evaluates a route_strategy="next" with a next_token,

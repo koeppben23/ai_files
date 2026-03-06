@@ -1841,3 +1841,319 @@ class TestRouteTargetExplanation:
 
         assert "route_target" not in result
         assert "route_explanation" not in result
+
+
+class TestPhase6ImplementationReviewDiagnostics:
+    """Fix 3.4 (B13): Phase 6 implementation-review exit diagnostics.
+
+    Surface kernel-owned exit conditions for the Phase 6 internal review
+    loop so users can see iteration progress, revision delta, and
+    completion status — mirroring the Phase 5 self-review diagnostics.
+
+    Test paths:
+    - Happy: iteration 2/3 with changed delta -> not complete
+    - Happy: iteration 3/3 -> complete (max reached)
+    - Happy: iteration 1/3 with delta=none -> complete (early-stop)
+    - Corner: PascalCase keys in ImplementationReview block
+    - Corner: top-level flat keys (phase6_review_iterations, etc.)
+    - Corner: non-Phase-6 snapshot does not contain phase6 fields
+    - Corner: min_review_iterations floor clamped
+    - Edge: missing ImplementationReview block defaults gracefully
+    - Edge: ImplementationReview is not a dict -> defaults
+    - Bad: non-integer iteration values coerced to 0
+    """
+
+    def test_happy_not_complete_iterations_below_max(
+        self,
+        fake_config: Path,
+    ) -> None:
+        """Iteration 2 of 3 with changed delta -> not complete."""
+        ws_state = _write_pointer(fake_config)
+        _write_workspace_state(ws_state, {
+            "SESSION_STATE": {
+                "Phase": "6-PostFlight",
+                "status": "OK",
+                "ImplementationReview": {
+                    "iteration": 2,
+                    "max_iterations": 3,
+                    "min_self_review_iterations": 1,
+                    "prev_impl_digest": "sha256:aaa",
+                    "curr_impl_digest": "sha256:bbb",
+                },
+            }
+        })
+
+        with _mock_readonly_unavailable():
+            result = read_session_snapshot(commands_home=fake_config / "commands")
+
+        assert result["phase6_review_iterations"] == 2
+        assert result["phase6_max_review_iterations"] == 3
+        assert result["phase6_min_review_iterations"] == 1
+        assert result["phase6_revision_delta"] == "changed"
+        assert result["implementation_review_complete"] is False
+
+    def test_happy_complete_max_reached(
+        self,
+        fake_config: Path,
+    ) -> None:
+        """Iteration 3 of 3 -> complete regardless of delta."""
+        ws_state = _write_pointer(fake_config)
+        _write_workspace_state(ws_state, {
+            "SESSION_STATE": {
+                "Phase": "6-PostFlight",
+                "status": "OK",
+                "ImplementationReview": {
+                    "iteration": 3,
+                    "max_iterations": 3,
+                    "min_self_review_iterations": 1,
+                    "prev_impl_digest": "sha256:aaa",
+                    "curr_impl_digest": "sha256:bbb",
+                },
+            }
+        })
+
+        with _mock_readonly_unavailable():
+            result = read_session_snapshot(commands_home=fake_config / "commands")
+
+        assert result["phase6_review_iterations"] == 3
+        assert result["phase6_max_review_iterations"] == 3
+        assert result["phase6_revision_delta"] == "changed"
+        assert result["implementation_review_complete"] is True
+
+    def test_happy_early_stop_delta_none(
+        self,
+        fake_config: Path,
+    ) -> None:
+        """Iteration 1 with unchanged digest -> complete (early-stop)."""
+        ws_state = _write_pointer(fake_config)
+        _write_workspace_state(ws_state, {
+            "SESSION_STATE": {
+                "Phase": "6-PostFlight",
+                "status": "OK",
+                "ImplementationReview": {
+                    "iteration": 1,
+                    "max_iterations": 3,
+                    "min_self_review_iterations": 1,
+                    "prev_impl_digest": "sha256:abc",
+                    "curr_impl_digest": "sha256:abc",
+                },
+            }
+        })
+
+        with _mock_readonly_unavailable():
+            result = read_session_snapshot(commands_home=fake_config / "commands")
+
+        assert result["phase6_revision_delta"] == "none"
+        assert result["implementation_review_complete"] is True
+
+    def test_corner_pascal_case_keys(
+        self,
+        fake_config: Path,
+    ) -> None:
+        """PascalCase keys in ImplementationReview block are recognized."""
+        ws_state = _write_pointer(fake_config)
+        _write_workspace_state(ws_state, {
+            "SESSION_STATE": {
+                "Phase": "6-PostFlight",
+                "status": "OK",
+                "ImplementationReview": {
+                    "Iteration": 2,
+                    "MaxIterations": 3,
+                    "MinSelfReviewIterations": 2,
+                    "PrevImplDigest": "sha256:aaa",
+                    "CurrImplDigest": "sha256:bbb",
+                },
+            }
+        })
+
+        with _mock_readonly_unavailable():
+            result = read_session_snapshot(commands_home=fake_config / "commands")
+
+        assert result["phase6_review_iterations"] == 2
+        assert result["phase6_max_review_iterations"] == 3
+        assert result["phase6_min_review_iterations"] == 2
+        assert result["phase6_revision_delta"] == "changed"
+        assert result["implementation_review_complete"] is False
+
+    def test_corner_flat_top_level_keys(
+        self,
+        fake_config: Path,
+    ) -> None:
+        """Top-level flat keys (phase6_review_iterations, etc.) are recognized."""
+        ws_state = _write_pointer(fake_config)
+        _write_workspace_state(ws_state, {
+            "SESSION_STATE": {
+                "Phase": "6-PostFlight",
+                "status": "OK",
+                "phase6_review_iterations": 1,
+                "phase6_max_review_iterations": 2,
+                "phase6_min_self_review_iterations": 1,
+            }
+        })
+
+        with _mock_readonly_unavailable():
+            result = read_session_snapshot(commands_home=fake_config / "commands")
+
+        assert result["phase6_review_iterations"] == 1
+        assert result["phase6_max_review_iterations"] == 2
+        # No digests -> delta is "changed"
+        assert result["phase6_revision_delta"] == "changed"
+        assert result["implementation_review_complete"] is False
+
+    def test_corner_no_phase6_fields_for_non_phase6(
+        self,
+        fake_config: Path,
+    ) -> None:
+        """Phase 4 snapshot must NOT contain phase6 implementation-review fields."""
+        ws_state = _write_pointer(fake_config)
+        _write_workspace_state(ws_state, {
+            "Phase": "4",
+            "status": "OK",
+        })
+
+        with _mock_readonly_unavailable():
+            result = read_session_snapshot(commands_home=fake_config / "commands")
+
+        assert "phase6_review_iterations" not in result
+        assert "implementation_review_complete" not in result
+
+    def test_corner_min_review_clamped(
+        self,
+        fake_config: Path,
+    ) -> None:
+        """min_review_iterations is clamped between 1 and max_iterations."""
+        ws_state = _write_pointer(fake_config)
+        _write_workspace_state(ws_state, {
+            "SESSION_STATE": {
+                "Phase": "6-PostFlight",
+                "status": "OK",
+                "ImplementationReview": {
+                    "iteration": 1,
+                    "max_iterations": 2,
+                    "min_self_review_iterations": 5,  # exceeds max -> clamped to 2
+                    "prev_impl_digest": "sha256:abc",
+                    "curr_impl_digest": "sha256:abc",
+                },
+            }
+        })
+
+        with _mock_readonly_unavailable():
+            result = read_session_snapshot(commands_home=fake_config / "commands")
+
+        assert result["phase6_min_review_iterations"] == 2  # clamped to max
+        # iteration 1 < clamped_min 2, delta=none, but min not met
+        assert result["implementation_review_complete"] is False
+
+    def test_edge_missing_review_block_defaults(
+        self,
+        fake_config: Path,
+    ) -> None:
+        """Missing ImplementationReview block -> sensible defaults."""
+        ws_state = _write_pointer(fake_config)
+        _write_workspace_state(ws_state, {
+            "SESSION_STATE": {
+                "Phase": "6-PostFlight",
+                "status": "OK",
+            }
+        })
+
+        with _mock_readonly_unavailable():
+            result = read_session_snapshot(commands_home=fake_config / "commands")
+
+        assert result["phase6_review_iterations"] == 0
+        assert result["phase6_max_review_iterations"] == 3  # default
+        assert result["phase6_min_review_iterations"] == 1  # default
+        assert result["phase6_revision_delta"] == "changed"
+        assert result["implementation_review_complete"] is False
+
+    def test_edge_review_block_not_dict_defaults(
+        self,
+        fake_config: Path,
+    ) -> None:
+        """ImplementationReview set to a non-dict -> sensible defaults."""
+        ws_state = _write_pointer(fake_config)
+        _write_workspace_state(ws_state, {
+            "SESSION_STATE": {
+                "Phase": "6-PostFlight",
+                "status": "OK",
+                "ImplementationReview": "invalid",
+            }
+        })
+
+        with _mock_readonly_unavailable():
+            result = read_session_snapshot(commands_home=fake_config / "commands")
+
+        assert result["phase6_review_iterations"] == 0
+        assert result["phase6_max_review_iterations"] == 3
+        assert result["implementation_review_complete"] is False
+
+    def test_bad_non_integer_iteration_coerced(
+        self,
+        fake_config: Path,
+    ) -> None:
+        """Non-integer values in iteration fields coerced to 0."""
+        ws_state = _write_pointer(fake_config)
+        _write_workspace_state(ws_state, {
+            "SESSION_STATE": {
+                "Phase": "6-PostFlight",
+                "status": "OK",
+                "ImplementationReview": {
+                    "iteration": "not-a-number",
+                    "max_iterations": "also-bad",
+                },
+            }
+        })
+
+        with _mock_readonly_unavailable():
+            result = read_session_snapshot(commands_home=fake_config / "commands")
+
+        assert result["phase6_review_iterations"] == 0
+        assert result["phase6_max_review_iterations"] == 3  # fallback since 0 < 1
+        assert result["implementation_review_complete"] is False
+
+
+class TestPhase6NextActionLine:
+    """Fix 3.4 (B13): _resolve_next_action_line handles Phase 6 review loop.
+
+    When implementation_review_complete is False, the next-action should
+    guide to chat work, not /continue (which would self-loop).
+    """
+
+    def test_chat_work_when_review_incomplete(self) -> None:
+        """Phase 6 with implementation_review_complete=False -> chat."""
+        snapshot = {
+            "status": "OK",
+            "phase": "6-PostFlight",
+            "next_gate_condition": "Complete implementation review iterations.",
+            "implementation_review_complete": False,
+        }
+        assert _resolve_next_action_line(snapshot) == "Next action: continue in chat with the active gate work."
+
+    def test_continue_when_review_complete(self) -> None:
+        """Phase 6 with implementation_review_complete=True -> /continue."""
+        snapshot = {
+            "status": "OK",
+            "phase": "6-PostFlight",
+            "next_gate_condition": "Present evidence for final user review.",
+            "implementation_review_complete": True,
+        }
+        assert _resolve_next_action_line(snapshot) == "Next action: run /continue."
+
+    def test_continue_when_review_field_absent(self) -> None:
+        """Phase 6 without implementation_review_complete field -> default /continue."""
+        snapshot = {
+            "status": "OK",
+            "phase": "6-PostFlight",
+            "next_gate_condition": "Present evidence for final user review.",
+        }
+        assert _resolve_next_action_line(snapshot) == "Next action: run /continue."
+
+    def test_empty_for_blocked_phase6(self) -> None:
+        """Phase 6 with BLOCKED status -> no action line."""
+        snapshot = {
+            "status": "BLOCKED",
+            "phase": "6-PostFlight",
+            "next_gate_condition": "BLOCKED: prerequisites not met",
+            "implementation_review_complete": False,
+        }
+        assert _resolve_next_action_line(snapshot) == ""
