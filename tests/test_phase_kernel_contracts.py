@@ -34,6 +34,16 @@ def _write_phase_api(commands_home: Path) -> None:
     (commands_home / "phase_api.yaml").write_text(repo_spec.read_text(encoding="utf-8"), encoding="utf-8")
 
 
+def _write_plan_record(workspaces_home: Path, repo_fingerprint: str, *, status: str, versions: int) -> None:
+    workspace = workspaces_home / repo_fingerprint
+    workspace.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "status": status,
+        "versions": [{"version": idx + 1} for idx in range(max(0, versions))],
+    }
+    (workspace / "plan-record.json").write_text(json.dumps(payload), encoding="utf-8")
+
+
 def test_phase_api_start_token_is_bootstrap_entrypoint() -> None:
     repo_spec = Path(__file__).resolve().parents[1] / "phase_api.yaml"
     text = repo_spec.read_text(encoding="utf-8")
@@ -524,6 +534,159 @@ def test_kernel_phase5_routes_to_architecture_review_when_plan_record_present(tm
     assert result.next_token == "5"
     assert result.active_gate == "Architecture Review Gate"
     assert result.source == "phase-5-self-review-required"
+
+
+@pytest.mark.governance
+def test_kernel_phase5_uses_workspace_plan_record_when_state_versions_are_stale(tmp_path: Path) -> None:
+    commands_home = tmp_path / "commands"
+    workspaces_home = tmp_path / "workspaces"
+    _write_phase_api(commands_home)
+    repo_fingerprint = "abc123def456abc123def456"
+    _write_plan_record(workspaces_home, repo_fingerprint, status="active", versions=1)
+
+    doc = {
+        "SESSION_STATE": {
+            "Phase": "5-ArchitectureReview",
+            "PersistenceCommitted": True,
+            "WorkspaceReadyGateCommitted": True,
+            "WorkspaceArtifactsCommitted": True,
+            "PointerVerified": True,
+            **RULEBOOK_BASE,
+            "RepoFingerprint": repo_fingerprint,
+            "TicketRecordDigest": "ticket-digest",
+            "plan_record_versions": 0,
+            "plan_record_status": "active",
+        }
+    }
+
+    result = execute(
+        current_token="5",
+        session_state_doc=doc,
+        runtime_ctx=RuntimeContext(
+            requested_active_gate="Plan Record Preparation Gate",
+            requested_next_gate_condition="Create plan",
+            repo_is_git_root=True,
+            commands_home=commands_home,
+            workspaces_home=workspaces_home,
+            config_root=tmp_path / "cfg",
+        ),
+    )
+
+    assert result.status == "OK"
+    assert result.active_gate == "Architecture Review Gate"
+    assert result.plan_record_versions == 1
+    assert result.plan_record_status == "active"
+
+
+@pytest.mark.governance
+def test_kernel_phase5_status_active_without_valid_versions_stays_in_plan_prep(tmp_path: Path) -> None:
+    commands_home = tmp_path / "commands"
+    _write_phase_api(commands_home)
+
+    doc = {
+        "SESSION_STATE": {
+            "Phase": "5-ArchitectureReview",
+            "PersistenceCommitted": True,
+            "WorkspaceReadyGateCommitted": True,
+            "WorkspaceArtifactsCommitted": True,
+            "PointerVerified": True,
+            **RULEBOOK_BASE,
+            "TicketRecordDigest": "ticket-digest",
+            "plan_record_status": "active",
+            "plan_record_versions": "invalid",
+        }
+    }
+
+    result = execute(
+        current_token="5",
+        session_state_doc=doc,
+        runtime_ctx=RuntimeContext(
+            requested_active_gate="Architecture Review Gate",
+            requested_next_gate_condition="Continue",
+            repo_is_git_root=True,
+            commands_home=commands_home,
+            workspaces_home=tmp_path / "workspaces",
+            config_root=tmp_path / "cfg",
+        ),
+    )
+
+    assert result.status == "OK"
+    assert result.active_gate == "Plan Record Preparation Gate"
+    assert result.plan_record_versions == 0
+
+
+@pytest.mark.governance
+def test_kernel_phase5_accepts_string_plan_record_versions(tmp_path: Path) -> None:
+    commands_home = tmp_path / "commands"
+    _write_phase_api(commands_home)
+
+    doc = {
+        "SESSION_STATE": {
+            "Phase": "5-ArchitectureReview",
+            "PersistenceCommitted": True,
+            "WorkspaceReadyGateCommitted": True,
+            "WorkspaceArtifactsCommitted": True,
+            "PointerVerified": True,
+            **RULEBOOK_BASE,
+            "TicketRecordDigest": "ticket-digest",
+            "plan_record_versions": "1",
+        }
+    }
+
+    result = execute(
+        current_token="5",
+        session_state_doc=doc,
+        runtime_ctx=RuntimeContext(
+            requested_active_gate="Plan Record Preparation Gate",
+            requested_next_gate_condition="Continue",
+            repo_is_git_root=True,
+            commands_home=commands_home,
+            workspaces_home=tmp_path / "workspaces",
+            config_root=tmp_path / "cfg",
+        ),
+    )
+
+    assert result.status == "OK"
+    assert result.active_gate == "Architecture Review Gate"
+    assert result.plan_record_versions == 1
+
+
+@pytest.mark.governance
+def test_kernel_phase5_routing_is_deterministic_for_identical_input(tmp_path: Path) -> None:
+    commands_home = tmp_path / "commands"
+    _write_phase_api(commands_home)
+
+    doc = {
+        "SESSION_STATE": {
+            "Phase": "5-ArchitectureReview",
+            "PersistenceCommitted": True,
+            "WorkspaceReadyGateCommitted": True,
+            "WorkspaceArtifactsCommitted": True,
+            "PointerVerified": True,
+            **RULEBOOK_BASE,
+            "TicketRecordDigest": "ticket-digest",
+            "plan_record_versions": 2,
+            "Phase5Review": {
+                "iteration": 0,
+            },
+        }
+    }
+    runtime = RuntimeContext(
+        requested_active_gate="Plan Record Preparation Gate",
+        requested_next_gate_condition="Continue",
+        repo_is_git_root=True,
+        commands_home=commands_home,
+        workspaces_home=tmp_path / "workspaces",
+        config_root=tmp_path / "cfg",
+    )
+
+    first = execute(current_token="5", session_state_doc=doc, runtime_ctx=runtime)
+    second = execute(current_token="5", session_state_doc=doc, runtime_ctx=runtime)
+
+    assert first.active_gate == second.active_gate
+    assert first.next_gate_condition == second.next_gate_condition
+    assert first.next_token == second.next_token
+    assert first.source == second.source
 
 
 @pytest.mark.governance

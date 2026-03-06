@@ -286,6 +286,45 @@ class TestReadSessionSnapshotSuccess:
         assert result["ticket_intake_ready"] == "false"
         assert result["gates_blocked"] == ["P5.3-TestQuality"]
 
+    def test_plan_record_signal_prefers_workspace_file_when_present(self, fake_config: Path) -> None:
+        ws_state = _write_pointer(fake_config)
+        _write_workspace_state(
+            ws_state,
+            {
+                "SESSION_STATE": {
+                    "Phase": "5-ArchitectureReview",
+                    "active_gate": "Architecture Review Gate",
+                    "plan_record_status": "active",
+                    "plan_record_versions": 2,
+                }
+            },
+        )
+        (ws_state.parent / "plan-record.json").write_text(
+            json.dumps({"status": "draft", "versions": [{"version": 1}]}),
+            encoding="utf-8",
+        )
+
+        result = read_session_snapshot(commands_home=fake_config / "commands")
+        assert result["plan_record_status"] == "draft"
+        assert result["plan_record_versions"] == 1
+
+    def test_plan_record_signal_uses_state_when_workspace_file_absent(self, fake_config: Path) -> None:
+        ws_state = _write_pointer(fake_config)
+        _write_workspace_state(
+            ws_state,
+            {
+                "SESSION_STATE": {
+                    "Phase": "5-ArchitectureReview",
+                    "plan_record_status": "active",
+                    "plan_record_versions": "1",
+                }
+            },
+        )
+
+        result = read_session_snapshot(commands_home=fake_config / "commands")
+        assert result["plan_record_status"] == "active"
+        assert result["plan_record_versions"] == 1
+
 
 # ---------------------------------------------------------------------------
 # Unit tests — format_snapshot
