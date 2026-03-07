@@ -1061,6 +1061,8 @@ class TestMain:
         assert rc == 0
         output = capsys.readouterr().out
         assert "active_gate: Architecture Review Gate" in output
+        assert "next_gate_condition: \"Phase 5 self-review status: iteration=0/3" in output
+        assert "Ticket/task evidence captured; continue to Phase 5 plan-record preparation before architecture review" not in output
         # Fix 3.2 (B7): self_review_iterations_met is False (iteration=0 < max=3),
         # so the user should work in chat, not re-run /continue.
         assert output.strip().endswith("Next action: continue in chat with the active gate work.")
@@ -1070,16 +1072,15 @@ class TestMain:
         assert updated_state["PlanRecordStatus"] == "active"
         assert updated_state["PlanRecordVersions"] == 1
 
-    def test_materialize_mode_phase5_missing_plan_record_stays_prep_with_chat_hint(
+    def test_materialize_mode_phase5_missing_plan_record_stays_prep_with_plan_action(
         self,
         fake_config: Path,
         capsys: pytest.CaptureFixture,
     ) -> None:
-        """Phase 5 Plan Record Preparation Gate emits chat hint when iterations pending (Fix 3.2).
+        """Phase 5 Plan Record Preparation Gate recommends /plan when evidence is missing.
 
         When the plan record is missing the kernel stays at the Preparation
-        Gate.  With self_review_iterations_met=False the user should continue
-        in chat doing gate work, not re-run /continue which would self-loop.
+        Gate. The next action must be the explicit persist rail, not /continue.
         """
         ws_state = _write_pointer(fake_config)
         _write_workspace_state(
@@ -1139,8 +1140,7 @@ class TestMain:
         assert rc == 0
         output = capsys.readouterr().out
         assert "active_gate: Plan Record Preparation Gate" in output
-        # Fix 3.2 (B7): iterations not met -> chat action, not /continue.
-        assert output.strip().endswith("Next action: continue in chat with the active gate work.")
+        assert output.strip().endswith("Next action: run /plan.")
 
         updated_state = json.loads(ws_state.read_text(encoding="utf-8"))["SESSION_STATE"]
         assert updated_state["active_gate"] == "Plan Record Preparation Gate"
@@ -1894,6 +1894,19 @@ class TestResolveNextActionLine:
             "self_review_iterations_met": False,
         }
         assert _resolve_next_action_line(snapshot) == "Next action: continue in chat with the active gate work."
+
+    def test_next_action_line_plan_for_phase5_plan_prep_without_persisted_record(self) -> None:
+        """Phase 5 prep gate with absent plan record must recommend /plan, not /continue."""
+        snapshot = {
+            "status": "OK",
+            "phase": "5-ArchitectureReview",
+            "active_gate": "Plan Record Preparation Gate",
+            "next_gate_condition": "Create and persist plan-record evidence",
+            "plan_record_status": "absent",
+            "plan_record_versions": 0,
+            "self_review_iterations_met": False,
+        }
+        assert _resolve_next_action_line(snapshot) == "Next action: run /plan."
 
     def test_next_action_line_continue_for_phase5_review_met(self) -> None:
         """Phase 5 with self_review_iterations_met=True -> 'run /continue'."""

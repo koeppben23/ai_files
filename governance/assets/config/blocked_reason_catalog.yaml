@@ -320,6 +320,23 @@ blocked_reasons:
       - "Re-run phase routing"
     message_template: "Phase 4 blocked: intake evidence missing. Persist canonical ticket/task with matching digest."
 
+  BLOCKED-P5-PLAN-RECORD-PERSIST:
+    reason_code: "BLOCKED-P5-PLAN-RECORD-PERSIST"
+    surface: "state"
+    category: "gate"
+    trigger_description: "Phase 5 plan-record evidence is missing, unreadable, or failed to persist"
+    required_inputs:
+      - "Canonical Phase 5 plan record text"
+      - "Matching plan record digest/version evidence"
+    quick_fix_commands:
+      - "${PYTHON_COMMAND} -m governance.entrypoints.phase5_plan_record_persist --plan-text \"...\""
+    resume_pointer: "Phase 5 - Plan Record Preparation Gate"
+    recovery_steps:
+      - "Provide non-empty plan record content"
+      - "Persist plan record via phase5_plan_record_persist"
+      - "Re-run /continue materialization"
+    message_template: "Phase 5 blocked: plan-record evidence missing. Persist canonical plan record before architecture review."
+
   BLOCKED-P6-PREREQUISITES-NOT-MET:
     reason_code: "BLOCKED-P6-PREREQUISITES-NOT-MET"
     surface: "state"
