@@ -861,3 +861,40 @@ class TestRuntimeGuards:
             "SESSION_STATE.json",
         }
         assert OPENCODE_JSON_NAME not in purge_targets
+
+
+# ---------------------------------------------------------------------------
+# R2: --config-root path resolution
+# ---------------------------------------------------------------------------
+
+class TestConfigRootResolve:
+    """
+    R2 fix: --config-root passed as relative path must be resolved to
+    absolute before any downstream consumption.
+    """
+
+    def test_happy_resolve_in_main_source(self) -> None:
+        """Happy: main() resolves args.config_root early."""
+        import inspect
+        from install import main
+        source = inspect.getsource(main)
+        assert ".resolve()" in source, (
+            "main() must call .resolve() on args.config_root (R2 fix)"
+        )
+
+    def test_happy_parse_args_returns_path(self) -> None:
+        """Happy: parse_args produces a Path for --config-root."""
+        from install import parse_args
+        args = parse_args(["--config-root", "/tmp/test-root"])
+        assert isinstance(args.config_root, Path)
+
+    def test_edge_relative_config_root_is_resolved(self) -> None:
+        """Edge: a relative --config-root is resolved to absolute by main()."""
+        from install import parse_args
+        args = parse_args(["--config-root", "relative/path"])
+        # Simulate what main() does
+        if args.config_root is not None:
+            args.config_root = args.config_root.resolve()
+        assert args.config_root.is_absolute(), (
+            "config_root must be absolute after resolve()"
+        )

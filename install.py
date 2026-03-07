@@ -3061,6 +3061,12 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
 def main(argv: list[str]) -> int:
     args = parse_args(argv)
 
+    # R2 fix: resolve --config-root to absolute path early, before any
+    # downstream code consumes it. Relative paths from CLI would otherwise
+    # produce inconsistent governance.paths.json entries.
+    if args.config_root is not None:
+        args.config_root = args.config_root.resolve()
+
     # --version: show version and exit (read-only)
     if args.version:
         print(f"Installer Version: {VERSION}")
