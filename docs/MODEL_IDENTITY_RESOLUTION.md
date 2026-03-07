@@ -1,3 +1,4 @@
+<!-- rail-classification: HYBRID, MODEL-IDENTITY -->
 # Model Identity Resolution Strategy
 
 ## Problem

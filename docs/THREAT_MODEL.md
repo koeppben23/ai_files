@@ -1,3 +1,4 @@
+<!-- rail-classification: THREAT-SURFACE, READ-ONLY -->
 # Threat Model — Governance System
 
 **Version:** 1.0

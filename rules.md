@@ -1,16 +1,17 @@
+<!-- rail-classification: CONSTRAINT-SET, CROSS-PHASE -->
 This document defines **stack-agnostic, non-negotiable** technical, quality, evidence, and output rules.
 Operator guidance semantics (phases, session-state presentation, hybrid mode, priorities, gates) are described in the **Master Prompt** (`master.md`). Runtime routing and control-plane behavior are kernel-owned (`phase_api.yaml` + `governance/kernel/*`).
 
-Authority boundary: Schemas, validators, and kernel code are authoritative. This Markdown is not SSOT and does not define runtime truth. It provides constraint intent and allowable interpretation boundaries only, and must point to authoritative sources for any behavior, format, or state. When in doubt, follow the schema/validator/kernel reference.
+Authority boundary: Schemas, validators, and kernel code (`governance/kernel/*`) are the runtime SSOT. This Markdown is not SSOT and does not define runtime truth. It provides constraint intent and allowable interpretation boundaries only, and must point to SSOT sources for any behavior, format, or state. When in doubt, follow the schema/validator/kernel reference.
 
-Default: any section labeled Kernel-Enforced or Binding is reference-only; the SSOT/kernel behavior is authoritative.
+Default: any section labeled Kernel-Enforced or Binding is reference-only; the SSOT (`governance/kernel/*` and `governance/assets/schemas/*`) behavior wins.
 Governance release stability is normatively defined by `STABILITY_SLA.md` and is release-blocking when unmet.
 
 
 State-machine alignment note:
 - Runtime orchestration logic is implemented in `governance/engine/*` and response projection logic in `governance/render/*`.
 - This file states core constraints and evidence intent, not low-level runtime implementation details.
-- If a conflict is suspected, defer to the authoritative kernel/schema sources and report it.
+- If a conflict is suspected, defer to the SSOT kernel/schema sources (`governance/kernel/*`, `governance/assets/schemas/*`) and report it.
 
 This Core Rulebook is:
 - **secondary to the Master Prompt for AI guidance semantics**
@@ -19,9 +20,9 @@ This Core Rulebook is:
 
 Doc-lint standard: `docs/governance/doc_lint.md`.
 
-## Authority Index (Rail-only Guidance - See rulesets/core/rules.yml for authoritative data)
+## Authority Index (Rail-only Guidance - See `rulesets/core/rules.yml` for authoritative data)
 
-Authoritative sources by area (see rulesets/core/rules.yml for machine-readable authoritative data):
+SSOT sources by area (see `rulesets/core/rules.yml` for machine-readable data):
 - Routing/validation/transitions: `${COMMANDS_HOME}/phase_api.yaml` and `governance/kernel/*`
 - Session-state shape and invariants: `SESSION_STATE_SCHEMA.md` and `governance/assets/schemas/*`
 - Response envelope and presentation shape: `governance/assets/catalogs/RESPONSE_ENVELOPE_SCHEMA.json`
@@ -52,7 +53,7 @@ Rules:
 2) If the plan expands beyond the Working Set, the workflow MUST update `TouchedSurface` accordingly.
 
 Additional binding:
-3) Touched surface governs review depth, security sanity checks, and Fast Path eligibility (kernel-owned).
+3) Touched surface governs review depth, security sanity checks, and Fast Path eligibility (kernel-owned; see `${COMMANDS_HOME}/phase_api.yaml`).
 
 ## 3. Archive Artifacts & Technical Access
 
@@ -122,8 +123,7 @@ Evidence precedence is kernel-owned. See `docs/governance/RESPONSIBILITY_BOUNDAR
 - if evidence is not possible, the workflow MUST explicitly say:
   > "Not provable with the provided artifacts."
 
-**Stable reference alternatives and placement rules are schema- and kernel-owned.**
-See `docs/governance/governance_schemas.md` and `${COMMANDS_HOME}/phase_api.yaml`.
+**Stable reference alternatives and placement rules are schema- and kernel-owned (see `docs/governance/governance_schemas.md` and `${COMMANDS_HOME}/phase_api.yaml`).**
 
 ### 6.2 Light Evidence Mode (Explicit Exception Only)
 
@@ -177,8 +177,7 @@ Exact shape is schema-owned. See `SESSION_STATE_SCHEMA.md` and `governance/asset
 
 ### 7.3.5 Quick-Fix Commands for Blockers (Presentation Advisory)
 
-Quick-fix guidance and fields are schema- and kernel-owned.
-See `governance/assets/catalogs/RESPONSE_ENVELOPE_SCHEMA.json`.
+Quick-fix guidance and fields are schema- and kernel-owned (see `governance/assets/catalogs/RESPONSE_ENVELOPE_SCHEMA.json`).
 
 ### 7.3.6 Architect-Only Autopilot Lifecycle (Policy)
 
@@ -213,13 +212,12 @@ See `governance/engine/session_state_invariants.py` and `SESSION_STATE_SCHEMA.md
 
 ### 7.3.13 Smart Retry + Restart Guidance (Kernel-Enforced)
 
-Retry/restart guidance is kernel-owned and may be surfaced to operators.
-Canonical fields live in schema/kernel. See `bootstrap_preflight_readonly.py` and `governance/assets/catalogs/RESPONSE_ENVELOPE_SCHEMA.json`.
+Retry/restart guidance is kernel-owned and may be surfaced to operators (see `bootstrap_preflight_readonly.py` and `governance/assets/catalogs/RESPONSE_ENVELOPE_SCHEMA.json`).
 
 ### 7.3.14 Phase Progress + Warn/Blocked Separation (Kernel-Enforced)
 
 Required-gate missing evidence must be treated as blocked, not warn.
-Exact projection of phase/gate/progress is schema/kernel-owned.
+Exact projection of phase/gate/progress is schema- and kernel-owned (see `SESSION_STATE_SCHEMA.md`).
 
 ### 7.3.15 Output Modes (Presentation Advisory)
 
@@ -279,13 +277,11 @@ See `${COMMANDS_HOME}/phase_api.yaml` and `docs/governance/governance_schemas.md
 
 ### 7.7.1 Mandatory Review Matrix (MRM) (Core, Binding)
 
-MRM structure, risk tiers, and evidence requirements are schema- and kernel-owned.
-See `docs/governance/governance_schemas.md` and `${COMMANDS_HOME}/phase_api.yaml`.
+MRM structure, risk tiers, and evidence requirements are schema- and kernel-owned (see `docs/governance/governance_schemas.md` and `${COMMANDS_HOME}/phase_api.yaml`).
 
 ### 7.7.2 Gate Review Scorecard (Core, Binding)
 
-Scorecard format and gate evaluation rules are schema- and kernel-owned.
-See `docs/governance/governance_schemas.md` and `${COMMANDS_HOME}/phase_api.yaml`.
+Scorecard format and gate evaluation rules are schema- and kernel-owned (see `docs/governance/governance_schemas.md` and `${COMMANDS_HOME}/phase_api.yaml`).
 
 ### 7.7.3 Cross-Repository Impact Enforcement (Core, Binding)
 
@@ -302,13 +298,11 @@ See `${COMMANDS_HOME}/phase_api.yaml` and `docs/governance/governance_schemas.md
   If the repo already defines an appropriate domain type/value object for the value, you MUST use it.
 - External boundary layers (controllers/handlers/adapters) MUST NOT contain business rules; they MAY validate input shape and map to domain models.
 
-Output obligation (planning + Phase 5) is schema- and kernel-owned.
-See `docs/governance/governance_schemas.md` and `${COMMANDS_HOME}/phase_api.yaml`.
+Output obligation (planning + Phase 5) is schema- and kernel-owned (see `docs/governance/governance_schemas.md` and `${COMMANDS_HOME}/phase_api.yaml`).
 
 ## 7.9 Test Design Contract (Core, Binding)
 
-Test design constraints and determinism expectations are schema- and kernel-owned.
-See `${COMMANDS_HOME}/phase_api.yaml` and `docs/governance/governance_schemas.md`.
+Test design constraints and determinism expectations are schema- and kernel-owned (see `${COMMANDS_HOME}/phase_api.yaml` and `docs/governance/governance_schemas.md`).
 
 ## 7.10 Conventional Branch/Commit Contract (Core, Binding)
 

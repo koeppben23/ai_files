@@ -1,7 +1,8 @@
+<!-- rail-classification: GUIDANCE, MULTI-PHASE -->
 - Deterministic activation summary: `RepoFacts -> Capabilities -> Packs/Profile -> activation_hash/ruleset_hash -> Gate`.
 - This file is operator guidance and should avoid duplicating low-level algorithmic details that are contract-tested in code.
 
-Authority boundary: Schemas, validators, and kernel code are authoritative. This Markdown is not SSOT and does not define runtime truth. It provides operator guidance only and must reference authoritative sources for any behavior, format, or state. When in doubt, follow the schema/validator/kernel reference.
+Authority boundary: Schemas, validators, and kernel code (`governance/kernel/*`) are the runtime SSOT. This Markdown is not SSOT and does not define runtime truth. It provides operator guidance only and must reference SSOT sources for any behavior, format, or state. When in doubt, follow the schema/validator/kernel reference.
 
 SSOT: `${COMMANDS_HOME}/phase_api.yaml` is the only truth for routing, execution, and validation.
 Kernel: `governance/kernel/*` is the only control-plane implementation.
@@ -12,9 +13,9 @@ Phase `1.3` is mandatory before every phase `>=2`.
 
 Doc-lint standard: `docs/governance/doc_lint.md`.
 
-## Authority Index (Rail-only Guidance - See rulesets/core/rules.yml for authoritative data)
+## Authority Index (Rail-only Guidance - See `rulesets/core/rules.yml` for authoritative data)
 
-Authoritative sources by area (see rulesets/core/rules.yml for machine-readable authoritative data):
+SSOT sources by area (see `rulesets/core/rules.yml` for machine-readable data):
 - Routing/validation/transitions: `${COMMANDS_HOME}/phase_api.yaml` and `governance/kernel/*`
 - Session-state shape and invariants: `SESSION_STATE_SCHEMA.md` and `governance/assets/schemas/*`
 - Response envelope and presentation shape: `governance/assets/catalogs/RESPONSE_ENVELOPE_SCHEMA.json`
@@ -33,18 +34,17 @@ Terminology (docs-owned explanatory):
 - **Evidence-Gates** are evidence prerequisites required to claim a gate outcome; a Plan-Gate may be
   logically satisfied but still **blocked** if evidence is missing.
 
-When blocked, kernel-owned state and reason codes apply.
-See `governance/assets/reasons/blocked_reason_catalog.yaml` for authoritative blocked reasons.
+When blocked, kernel-owned state and reason codes apply (see `governance/assets/reasons/blocked_reason_catalog.yaml`).
 
 ### Recovery
 - Operator must restate the bootstrap declaration explicitly.
 
 ## GLOBAL PATH VARIABLES (Rail-only Guidance)
 
-Path variables, resolution rules, and persistence topology are kernel- and schema-owned.
+Path variables, resolution rules, and persistence topology are kernel- and schema-owned (see `SESSION_STATE_SCHEMA.md` and `governance/assets/schemas/*`).
 This markdown section is a rail-only summary for operators.
 
-Authoritative sources:
+SSOT sources:
 - Path and persistence schema: `SESSION_STATE_SCHEMA.md` and `governance/assets/schemas/*`
 - Path invariants and validation: `governance/engine/session_state_invariants.py`
 - Blocked reason catalog: `governance/assets/reasons/blocked_reason_catalog.yaml`
@@ -53,8 +53,8 @@ Operator guidance (docs-owned explanatory):
 - Always express paths using canonical variables in outputs.
 - Treat absolute host paths as evidence-only, not canonical.
 
-Command inventory, preflight, identity evidence collection, and persistence targets are kernel- and schema-owned.
-Authoritative sources:
+Command inventory, preflight, identity evidence collection, and persistence targets are kernel- and schema-owned (see `governance/assets/catalogs/tool_requirements.json` and `governance/engine/session_state_invariants.py`).
+SSOT sources:
 - Command inventory and tooling policy: `governance/assets/catalogs/tool_requirements.json`
 - Preflight schema: `docs/governance/governance_schemas.md` (`governance.preflight.v1`)
 - Path invariants and persistence rules: `governance/engine/session_state_invariants.py`
@@ -85,7 +85,7 @@ Auto-selection may persist profile choice and evidence in session state; see `SE
 Core rulebook activation outputs are kernel- and schema-owned.
 See `${COMMANDS_HOME}/phase_api.yaml` and `SESSION_STATE_SCHEMA.md`.
 
-#### Execution Constraints (Kernel-Owned)
+#### Execution Constraints (see `${COMMANDS_HOME}/phase_api.yaml`)
 
 Phase constraints are kernel- and schema-owned.
 See `${COMMANDS_HOME}/phase_api.yaml`.
@@ -192,14 +192,12 @@ Implementation (code, tests, configuration) begins only after all Phase 5 gates 
 **Rule A — Implementation-Intent Prohibition (Phase 5):**
 Output classified as `implementation`, `patch`, `diff`, or `code_delivery` is forbidden during Phase 5.
 This prohibition covers both code artifacts and implementation-intent language (e.g., offering to implement, proposing to deliver diffs, or suggesting to start coding).
-The canonical list of allowed and forbidden output classes is kernel-owned.
-See `${COMMANDS_HOME}/phase_api.yaml` under `output_policy` on token `"5"`.
+The canonical list of allowed and forbidden output classes is kernel-owned (see `${COMMANDS_HOME}/phase_api.yaml` under `output_policy` on token `"5"`).
 All Phase 5 sub-tokens (5.3, 5.4, 5.5, 5.6) inherit this policy unless they define their own `output_policy` override.
 **Rule B — Plan Self-Review Requirement (Phase 5):**
 The first plan output in Phase 5 is a draft.
 Before presenting any plan as review-ready to the user, at least one internal self-review iteration is required to consolidate, verify completeness, and check for gaps.
-The minimum number of self-review iterations is kernel-owned.
-See `${COMMANDS_HOME}/phase_api.yaml` under `output_policy.plan_discipline.min_self_review_iterations` on token `"5"`.
+The minimum number of self-review iterations is kernel-owned (see `${COMMANDS_HOME}/phase_api.yaml` under `output_policy.plan_discipline.min_self_review_iterations` on token `"5"`).
 Clarification:
 - Phase 5/6 code-output constraints and gate sequencing are kernel- and schema-owned.
   See `${COMMANDS_HOME}/phase_api.yaml` and `SESSION_STATE_SCHEMA.md`.
@@ -230,18 +228,15 @@ See `${COMMANDS_HOME}/phase_api.yaml` and `governance/assets/catalogs/RESPONSE_E
 
 #### Clarification Format for Ambiguity (Policy)
 
-Clarification format is rail-only guidance. Canonical decision UX is kernel-owned.
-See `${COMMANDS_HOME}/phase_api.yaml` and `governance/assets/catalogs/RESPONSE_ENVELOPE_SCHEMA.json`.
+Clarification format is rail-only guidance. Canonical decision UX is kernel-owned (see `${COMMANDS_HOME}/phase_api.yaml` and `governance/assets/catalogs/RESPONSE_ENVELOPE_SCHEMA.json`).
 
 #### Confidence bands for Auto-Advance (Policy)
 
-Confidence thresholds and auto-advance rules are kernel-owned.
-See `${COMMANDS_HOME}/phase_api.yaml` and `SESSION_STATE_SCHEMA.md`.
+Confidence thresholds and auto-advance rules are kernel-owned (see `${COMMANDS_HOME}/phase_api.yaml` and `SESSION_STATE_SCHEMA.md`).
 
 #### BLOCKED — Recovery Playbook (Output Format)
 
-Blocked output shape and recovery semantics are schema- and kernel-owned.
-See `governance/assets/catalogs/RESPONSE_ENVELOPE_SCHEMA.json` and `governance/assets/reasons/blocked_reason_catalog.yaml`.
+Blocked output shape and recovery semantics are schema- and kernel-owned (see `governance/assets/catalogs/RESPONSE_ENVELOPE_SCHEMA.json` and `governance/assets/reasons/blocked_reason_catalog.yaml`).
 
 #### Unified Next Action Footer (Presentation Advisory)
 
@@ -261,16 +256,14 @@ See `governance.phase5.gates.v1`, `governance.phase6.qa.v1`, and `governance/ass
 
 ### 2.4.1 Session Start Mode Banner (Kernel-Enforced)
 
-Session start banner format and evidence requirements are kernel-owned.
-See `governance/assets/catalogs/RESPONSE_ENVELOPE_SCHEMA.json` and `SESSION_STATE_SCHEMA.md`.
+Session start banner format and evidence requirements are kernel-owned (see `governance/assets/catalogs/RESPONSE_ENVELOPE_SCHEMA.json` and `SESSION_STATE_SCHEMA.md`).
 
 ### 2.4.2 Architect-Only Autopilot Lifecycle (Policy)
 
 bootstrap invocation guard (Rail-only Guidance):
 - Workflow MUST NOT ask operator to rerun the local bootstrap launcher in the same turn.
 
-Execution mode enum and blocked reasons are schema- and kernel-owned.
-See `SESSION_STATE_SCHEMA.md` and `governance/assets/reasons/blocked_reason_catalog.yaml`.
+Execution mode enum and blocked reasons are schema- and kernel-owned (see `SESSION_STATE_SCHEMA.md` and `governance/assets/reasons/blocked_reason_catalog.yaml`).
 
 Detailed lifecycle routing and mode transition behavior is maintained outside `master.md`:
 - Kernel/config contracts for binding behavior
@@ -291,8 +284,7 @@ See release/automation rules in `docs/releasing.md` and repo tooling (if present
 
 ## 3. SESSION STATE (REQUIRED)
 
-Session-state shape, output modes, and required fields are schema- and kernel-owned.
-See `SESSION_STATE_SCHEMA.md`, `governance/assets/schemas/session_state.core.v1.schema.json`, and `${COMMANDS_HOME}/phase_api.yaml`.
+Session-state shape, output modes, and required fields are schema- and kernel-owned (see `SESSION_STATE_SCHEMA.md`, `governance/assets/schemas/session_state.core.v1.schema.json`, and `${COMMANDS_HOME}/phase_api.yaml`).
 
 ---
 
@@ -402,7 +394,7 @@ See `${COMMANDS_HOME}/phase_api.yaml` and `governance/assets/catalogs/RESPONSE_E
    * Identify affected components (based on Phase 2 discovery)
    * Identify affected APIs (based on Phase 3 analysis)
    * Identify affected business rules (based on Phase 1.5, if executed)
-   * Cross-reference findings with the Codebase Context summary (kernel-owned).
+   * Cross-reference findings with the Codebase Context summary (kernel-owned; see `${COMMANDS_HOME}/phase_api.yaml`).
 
 1a. **Classify Feature Complexity (Decision Tree — Binding):**
 
@@ -576,7 +568,7 @@ Canonical matrix schema/template is external. See `docs/governance/governance_sc
 
 ## 6. RESPONSE RULES
 
-Response/output constraints are defined in `rules.md` and authoritative schemas.
+Response/output constraints are defined in `rules.md` and `governance/assets/schemas/*`.
 `master.md` does not redefine response shape.
 
 ---
