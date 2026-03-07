@@ -344,6 +344,7 @@ def create_launcher(plan: InstallPlan, dry_run: bool, force: bool) -> list[dict]
 
     git_available = shutil.which("git") is not None
     launcher_present = launcher_unix.exists() or launcher_win.exists()
+    python_binding_file = bin_dir / "PYTHON_BINDING"
 
     health_data = {
         "schema": "opencode-install-health.v1",
@@ -352,9 +353,10 @@ def create_launcher(plan: InstallPlan, dry_run: bool, force: bool) -> list[dict]
         "configRoot": _path_for_json(plan.config_root),
         "commandsHome": commands_home,
         "workspacesHome": workspaces_home,
-        "pythonExecutable": python_exe,
+        "pythonExecutable": _path_for_json(Path(python_exe)),
         "bindingFilePresent": binding_path.exists(),
         "bindingSchemaOk": binding_ok,
+        "pythonBindingFilePresent": python_binding_file.exists(),
         "launcherPresent": launcher_present,
         "gitAvailable": git_available,
     }
@@ -406,6 +408,13 @@ def _resolve_python_executable(binding_path: Path, *, fallback: str, strict: boo
 
 
 def _launcher_template_unix(*, python_exe: str, config_root: Path) -> str:
+    """Generate Unix launcher with fail-closed Python resolution.
+
+    Resolution cascade (python-binding-contract.v1 §3):
+      1. Baked PYTHON_BIN (hardcoded at install time)
+      2. PYTHON_BINDING file  (bin/PYTHON_BINDING, one line)
+      3. Fail-closed: exit 1, NO silent PATH probing
+    """
     return "\n".join(
         [
             "#!/usr/bin/env bash",
@@ -419,7 +428,24 @@ def _launcher_template_unix(*, python_exe: str, config_root: Path) -> str:
             "export OPENCODE_REPO_ROOT",
             "export COMMANDS_HOME",
             "export PYTHONPATH",
+            "",
+            "# --- Python resolution cascade (python-binding-contract.v1 §3) ---",
             f"PYTHON_BIN=\"{python_exe}\"",
+            "if [ ! -x \"${PYTHON_BIN}\" ] 2>/dev/null; then",
+            "    BINDING_FILE=\"${SCRIPT_DIR}/PYTHON_BINDING\"",
+            "    if [ -f \"${BINDING_FILE}\" ]; then",
+            "        read -r PYTHON_BIN < \"${BINDING_FILE}\"",
+            "    fi",
+            "fi",
+            "if [ ! -x \"${PYTHON_BIN}\" ] 2>/dev/null; then",
+            "    echo \"FATAL: No valid Python interpreter found.\" >&2",
+            "    echo \"  Baked path: {python_exe}\" >&2",
+            "    echo \"  PYTHON_BINDING: ${SCRIPT_DIR}/PYTHON_BINDING\" >&2",
+            "    echo \"  Re-run install.py to rebind.\" >&2",
+            "    exit 1",
+            "fi",
+            "export OPENCODE_PYTHON=\"${PYTHON_BIN}\"",
+            "",
             "exec \"${PYTHON_BIN}\" -m governance.entrypoints.bootstrap_executor \"$@\"",
             "",
         ]
@@ -427,6 +453,13 @@ def _launcher_template_unix(*, python_exe: str, config_root: Path) -> str:
 
 
 def _launcher_template_windows(*, python_exe: str, config_root: Path) -> str:
+    """Generate Windows launcher with fail-closed Python resolution.
+
+    Resolution cascade (python-binding-contract.v1 §3):
+      1. Baked PYTHON_EXE (hardcoded at install time)
+      2. PYTHON_BINDING file  (bin\\PYTHON_BINDING, one line)
+      3. Fail-closed: exit /b 1, NO silent PATH probing
+    """
     return "\n".join(
         [
             "@echo off",
@@ -441,29 +474,57 @@ def _launcher_template_windows(*, python_exe: str, config_root: Path) -> str:
             ")",
             "set \"COMMANDS_HOME=%OPENCODE_CONFIG_ROOT%\\commands\"",
             "set \"OPENCODE_HOME=%OPENCODE_CONFIG_ROOT%\"",
-            f"set \"PYTHON_EXE={python_exe}\"",
             "set \"PYTHONPATH=%COMMANDS_HOME%;%COMMANDS_HOME%\\governance;!PYTHONPATH!\"",
             "set \"OPENCODE_INTERNAL_BOOTSTRAP_CONFIG_ROOT=%OPENCODE_CONFIG_ROOT%\"",
             "set \"OPENCODE_BOOTSTRAP_BINDING_PATH=%COMMANDS_HOME%\\governance.paths.json\"",
             "if defined OPENCODE_REPO_ROOT (",
             "    set \"PYTHONPATH=%OPENCODE_REPO_ROOT%;%PYTHONPATH%\"",
             ")",
-            "set \"OPENCODE_CONFIG_ROOT=%OPENCODE_CONFIG_ROOT%\"",
-            "set \"OPENCODE_REPO_ROOT=%OPENCODE_REPO_ROOT%\"",
-            "set \"COMMANDS_HOME=%COMMANDS_HOME%\"",
-            "set \"PYTHONPATH=%PYTHONPATH%\"",
+            "",
+            "rem --- Python resolution cascade (python-binding-contract.v1 §3) ---",
+            f"set \"PYTHON_EXE={python_exe}\"",
+            "if not exist \"!PYTHON_EXE!\" (",
+            "    set \"BINDING_FILE=%SCRIPT_DIR%PYTHON_BINDING\"",
+            "    if exist \"!BINDING_FILE!\" (",
+            "        set /p PYTHON_EXE=<\"!BINDING_FILE!\"",
+            "    )",
+            ")",
+            "if not exist \"!PYTHON_EXE!\" (",
+            "    echo FATAL: No valid Python interpreter found. >&2",
+            f"    echo   Baked path: {python_exe} >&2",
+            "    echo   PYTHON_BINDING: %SCRIPT_DIR%PYTHON_BINDING >&2",
+            "    echo   Re-run install.py to rebind. >&2",
+            "    exit /b 1",
+            ")",
+            "set \"OPENCODE_PYTHON=!PYTHON_EXE!\"",
+            "",
             "if not defined OPENCODE_BOOTSTRAP_VERBOSE (",
             "    set \"OPENCODE_BOOTSTRAP_VERBOSE=0\"",
             ")",
             "if not defined OPENCODE_BOOTSTRAP_OUTPUT (",
             "    set \"OPENCODE_BOOTSTRAP_OUTPUT=final\"",
             ")",
-            "\"%PYTHON_EXE%\" -m governance.entrypoints.bootstrap_executor %*",
+            "\"!PYTHON_EXE!\" -m governance.entrypoints.bootstrap_executor %*",
             "set \"WRAPPER_EXIT=%ERRORLEVEL%\"",
             "endlocal & exit /b %WRAPPER_EXIT%",
             "",
         ]
     )
+
+
+def _write_python_binding_file(bin_dir: Path, python_exe: str) -> Path:
+    """Write the PYTHON_BINDING artifact: a single-line plain-text file
+    containing the absolute POSIX-normalized interpreter path.
+
+    This is the secondary resolution source for launchers (after baked
+    PYTHON_BIN) and the primary file-based source for the plugin.
+    See python-binding-contract.v1 Section 2.2.
+    """
+    binding_file = bin_dir / "PYTHON_BINDING"
+    # Always POSIX-normalized absolute path
+    posix_path = Path(python_exe).resolve().as_posix()
+    binding_file.write_text(posix_path + "\n", encoding="utf-8")
+    return binding_file
 
 
 def _write_launcher_wrappers(
@@ -479,6 +540,18 @@ def _write_launcher_wrappers(
         python_exec = _resolve_python_executable(binding_path, fallback=python_exe, strict=True)
     except RuntimeError as exc:
         raise RuntimeError(f"Invalid pythonCommand in governance.paths.json: {exc}")
+
+    bin_dir = dest_unix.parent  # bin/
+
+    # Write PYTHON_BINDING artifact (python-binding-contract.v1 §2.2)
+    binding_file = _write_python_binding_file(bin_dir, python_exec)
+    created.append({
+        "dst": str(binding_file.resolve()),
+        "rel": str(binding_file.relative_to(plan.config_root)),
+        "rel_base": "config",
+        "src": "generated",
+        "status": "generated",
+    })
 
     unix_payload = _launcher_template_unix(python_exe=python_exec, config_root=plan.config_root)
     win_payload = _launcher_template_windows(python_exe=python_exec, config_root=plan.config_root)
@@ -496,7 +569,15 @@ def _write_launcher_wrappers(
 def _planned_launcher_entries(*, plan: InstallPlan, bin_dir: Path) -> list[dict]:
     launcher_unix = bin_dir / "opencode-governance-bootstrap"
     launcher_win = bin_dir / "opencode-governance-bootstrap.cmd"
+    binding_file = bin_dir / "PYTHON_BINDING"
     return [
+        {
+            "dst": str(binding_file),
+            "rel": str(binding_file.relative_to(plan.config_root)),
+            "rel_base": "config",
+            "status": "planned-copy",
+            "src": "generated",
+        },
         {
             "dst": str(launcher_unix),
             "rel": str(launcher_unix.relative_to(plan.config_root)),
@@ -1019,7 +1100,7 @@ def build_governance_paths_payload(config_root: Path, *, deterministic: bool) ->
     governance_home = commands_home / "governance"
     workspaces_home = config_root / "workspaces"
     global_error_logs_home = commands_home / ERROR_LOGS_DIR_NAME
-    python_command = sys.executable
+    python_command = _path_for_json(Path(sys.executable))
 
     doc = {
         "schema": GOVERNANCE_PATHS_SCHEMA,

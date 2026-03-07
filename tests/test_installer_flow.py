@@ -1057,12 +1057,10 @@ class TestPosixPathSerialization:
         assert result[0] == "/" or result[1] == ":", "Must be absolute"
 
     def test_happy_governance_paths_payload_uses_posix(self, tmp_path: Path) -> None:
-        """Happy: build_governance_paths_payload emits POSIX paths."""
+        """Happy: build_governance_paths_payload emits POSIX paths for ALL keys."""
         from install import build_governance_paths_payload
         doc = build_governance_paths_payload(tmp_path, deterministic=True)
         for key, value in doc["paths"].items():
-            if key == "pythonCommand":
-                continue  # sys.executable is platform-native
             assert "\\" not in value, (
                 f"paths.{key} contains backslash: {value}"
             )
@@ -1086,3 +1084,158 @@ class TestPosixPathSerialization:
         )
         rel = payload.get("activeSessionStateRelativePath", "")
         assert "\\" not in rel, f"Relative path has backslashes: {rel}"
+
+
+# ---------------------------------------------------------------------------
+# Commit 10: PYTHON_BINDING artifact + launcher fallback (R5/Policy)
+# ---------------------------------------------------------------------------
+
+class TestPythonBindingArtifact:
+    """
+    R5/Policy fix: installer writes bin/PYTHON_BINDING (single-line, plain text,
+    absolute POSIX path). Launchers use a fail-closed cascade:
+      baked PYTHON_BIN -> PYTHON_BINDING file -> exit 1.
+    See python-binding-contract.v1 §2.2 and §3.
+    """
+
+    def test_happy_write_python_binding_file(self, tmp_path: Path) -> None:
+        """Happy: _write_python_binding_file creates a single-line file."""
+        import sys
+        from install import _write_python_binding_file
+        bin_dir = tmp_path / "bin"
+        bin_dir.mkdir()
+        result = _write_python_binding_file(bin_dir, sys.executable)
+        assert result.exists()
+        assert result.name == "PYTHON_BINDING"
+        content = result.read_text(encoding="utf-8").strip()
+        # Must be non-empty, single line, no backslashes
+        assert content, "PYTHON_BINDING must not be empty"
+        assert "\n" not in content, "PYTHON_BINDING must be single line"
+        assert "\\" not in content, "PYTHON_BINDING must use POSIX slashes"
+
+    def test_happy_binding_file_contains_posix_absolute(self, tmp_path: Path) -> None:
+        """Happy: PYTHON_BINDING content is POSIX-absolute."""
+        import sys
+        from install import _write_python_binding_file
+        bin_dir = tmp_path / "bin"
+        bin_dir.mkdir()
+        _write_python_binding_file(bin_dir, sys.executable)
+        content = (bin_dir / "PYTHON_BINDING").read_text(encoding="utf-8").strip()
+        # Absolute: starts with / or drive letter like C:/
+        assert content[0] == "/" or content[1] == ":", f"Not absolute: {content}"
+
+    def test_happy_binding_file_written_during_install(self, tmp_path: Path) -> None:
+        """Happy: full install produces bin/PYTHON_BINDING."""
+        config_root = tmp_path / "config"
+        r = run_install(["--force", "--no-backup", "--config-root", str(config_root)])
+        assert r.returncode == 0, f"Install failed:\n{r.stdout}\n{r.stderr}"
+        binding_file = config_root / "bin" / "PYTHON_BINDING"
+        assert binding_file.exists(), (
+            f"bin/PYTHON_BINDING not found after install.\nstdout:\n{r.stdout}"
+        )
+        content = binding_file.read_text(encoding="utf-8").strip()
+        assert content, "PYTHON_BINDING must not be empty"
+        assert "\\" not in content, "Must be POSIX path"
+
+    def test_happy_health_reports_binding_file(self, tmp_path: Path) -> None:
+        """Happy: INSTALL_HEALTH.json includes pythonBindingFilePresent."""
+        config_root = tmp_path / "config"
+        r = run_install(["--force", "--no-backup", "--config-root", str(config_root)])
+        assert r.returncode == 0, f"Install failed:\n{r.stdout}\n{r.stderr}"
+        health_path = config_root / "INSTALL_HEALTH.json"
+        assert health_path.exists()
+        data = json.loads(health_path.read_text(encoding="utf-8"))
+        assert "pythonBindingFilePresent" in data, (
+            "INSTALL_HEALTH.json must contain pythonBindingFilePresent"
+        )
+        assert data["pythonBindingFilePresent"] is True
+
+    def test_happy_unix_launcher_has_binding_fallback(self, tmp_path: Path) -> None:
+        """Happy: Unix launcher template contains PYTHON_BINDING fallback cascade."""
+        config_root = tmp_path / "config"
+        r = run_install(["--force", "--no-backup", "--config-root", str(config_root)])
+        assert r.returncode == 0, f"Install failed:\n{r.stdout}\n{r.stderr}"
+        launcher = config_root / "bin" / "opencode-governance-bootstrap"
+        assert launcher.exists()
+        content = launcher.read_text(encoding="utf-8")
+        assert "PYTHON_BINDING" in content, "Unix launcher must reference PYTHON_BINDING"
+        assert "FATAL: No valid Python interpreter" in content, (
+            "Unix launcher must have fail-closed message"
+        )
+        assert "OPENCODE_PYTHON" in content, (
+            "Unix launcher must export OPENCODE_PYTHON"
+        )
+
+    def test_happy_win_launcher_has_binding_fallback(self, tmp_path: Path) -> None:
+        """Happy: Windows launcher template contains PYTHON_BINDING fallback cascade."""
+        config_root = tmp_path / "config"
+        r = run_install(["--force", "--no-backup", "--config-root", str(config_root)])
+        assert r.returncode == 0, f"Install failed:\n{r.stdout}\n{r.stderr}"
+        launcher = config_root / "bin" / "opencode-governance-bootstrap.cmd"
+        assert launcher.exists()
+        content = launcher.read_text(encoding="utf-8")
+        assert "PYTHON_BINDING" in content, "Win launcher must reference PYTHON_BINDING"
+        assert "FATAL: No valid Python interpreter" in content, (
+            "Win launcher must have fail-closed message"
+        )
+        assert "OPENCODE_PYTHON" in content, (
+            "Win launcher must export OPENCODE_PYTHON"
+        )
+
+    def test_happy_python_command_posix_in_paths_json(self, tmp_path: Path) -> None:
+        """Happy: pythonCommand in governance.paths.json is POSIX-normalized."""
+        from install import build_governance_paths_payload
+        doc = build_governance_paths_payload(tmp_path, deterministic=True)
+        python_cmd = doc["paths"]["pythonCommand"]
+        assert "\\" not in python_cmd, (
+            f"pythonCommand contains backslash: {python_cmd}"
+        )
+
+    def test_corner_binding_file_trailing_newline(self, tmp_path: Path) -> None:
+        """Corner: PYTHON_BINDING file ends with newline for POSIX compliance."""
+        import sys
+        from install import _write_python_binding_file
+        bin_dir = tmp_path / "bin"
+        bin_dir.mkdir()
+        _write_python_binding_file(bin_dir, sys.executable)
+        raw = (bin_dir / "PYTHON_BINDING").read_text(encoding="utf-8")
+        assert raw.endswith("\n"), "PYTHON_BINDING must end with newline"
+        # Only one line of content
+        lines = raw.strip().split("\n")
+        assert len(lines) == 1, f"Expected 1 line, got {len(lines)}"
+
+    def test_edge_unix_launcher_no_path_probing(self, tmp_path: Path) -> None:
+        """Edge: Unix launcher must NOT contain 'which' or PATH probing."""
+        from install import _launcher_template_unix
+        content = _launcher_template_unix(
+            python_exe="/usr/bin/python3",
+            config_root=tmp_path,
+        )
+        assert "which " not in content.lower(), "Launcher must not probe PATH with which"
+        assert "command -v" not in content, "Launcher must not probe PATH with command -v"
+
+    def test_edge_win_launcher_no_path_probing(self, tmp_path: Path) -> None:
+        """Edge: Windows launcher must NOT contain 'where' or PATH probing."""
+        from install import _launcher_template_windows
+        content = _launcher_template_windows(
+            python_exe="C:/Python311/python.exe",
+            config_root=tmp_path,
+        )
+        assert "where " not in content.lower(), "Launcher must not probe PATH with where"
+
+    def test_bad_binding_file_consistency_with_paths_json(self, tmp_path: Path) -> None:
+        """Bad path guard: PYTHON_BINDING and governance.paths.json pythonCommand must agree."""
+        config_root = tmp_path / "config"
+        r = run_install(["--force", "--no-backup", "--config-root", str(config_root)])
+        assert r.returncode == 0, f"Install failed:\n{r.stdout}\n{r.stderr}"
+        # Read both sources
+        binding_file = config_root / "bin" / "PYTHON_BINDING"
+        paths_file = config_root / "commands" / "governance.paths.json"
+        assert binding_file.exists() and paths_file.exists()
+        binding_value = binding_file.read_text(encoding="utf-8").strip()
+        paths_data = json.loads(paths_file.read_text(encoding="utf-8"))
+        paths_value = paths_data["paths"]["pythonCommand"]
+        # Both must be the same POSIX-normalized absolute path
+        assert binding_value == paths_value, (
+            f"PYTHON_BINDING ({binding_value}) != pythonCommand ({paths_value})"
+        )
