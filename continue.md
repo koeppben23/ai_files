@@ -1,47 +1,58 @@
 # Governance Continue
 
 <!-- rail-classification: MUTATING, GATE-EVALUATION -->
-## Resume Session State
 
-Use this command to materialize and print the current governance session state for this repository.
+## Purpose
 
-Preferred (Tier A): materialize and then read the current governance session state using the following command:
+`/continue` materializes and prints the current governance session state for this repository.
+The command is mutating — it writes a materialization event.
+Continue uses canonical `SESSION_STATE` from `SESSION_STATE_SCHEMA.md`.
+
+## Commands by platform
 
 ```bash
 PATH="{{BIN_DIR}}:$PATH" opencode-governance-bootstrap --session-reader --materialize
 ```
 
-Use the YAML output as your governance context for the response below. Do not infer additional state beyond the materialized output.
+```powershell
+$env:Path = "{{BIN_DIR}};" + $env:Path; opencode-governance-bootstrap --session-reader --materialize
+```
 
-**Fallback (Tier B) — if the command cannot be executed** (e.g., sandboxed environment, model policy, or tool error), ask the user to paste the YAML output or a snapshot containing at least `phase`, `next`, `active_gate`, and `next_gate_condition`.
+## If execution is unavailable
 
-**Fallback (Tier C) — if no snapshot is available**, proceed using only the context visible in the current conversation and state your assumptions explicitly before continuing.
+If the command cannot be executed (e.g., sandboxed environment, model policy, or tool error), ask the user to paste the YAML output or a snapshot containing at least `phase`, `next`, `active_gate`, and `next_gate_condition`.
 
----
+If no snapshot is available, proceed using only the context visible in the current conversation and state assumptions explicitly before continuing.
 
-Continue uses canonical `SESSION_STATE` from `SESSION_STATE_SCHEMA.md`.
+## Interpretation scope
+
+Use the YAML output as governance context for the response below. Do not infer additional state beyond the materialized output.
+
 Free chat remains available for normal interaction; use `/continue` when official governance-state materialization is required.
-
-**Free-text guard (Fix 1.4b):**
-Free-text like "go", "weiter", "proceed", "mach weiter", or any other natural-language continuation prompt is **not** a rail command. It does not trigger the materialize command above or any state write. Only the explicit `/continue` rail invocation is permitted to materialize state. If the user sends free-text that implies continuation, respond conversationally without executing any governance commands.
 
 Rails-only scope:
 - output structure and quality checklist only
 - informational references to kernel-managed decisions
 - no local execution policy directives
 
-Output checklist:
+Kernel references (informational):
+- discovery/re-discovery behavior is kernel-managed (see `governance/kernel/*`)
+- blocked/degraded routing is kernel-managed (see `governance/kernel/*`)
+- fast-path scope changes are kernel-managed (see `governance/kernel/*`)
+- active profile resolution is kernel-managed (see `governance/kernel/*`)
+
+## Response shape
+
 - reflect current `SESSION_STATE.phase` and `SESSION_STATE.next`
 - include delta-only progress for the active step
 - if kernel reports a blocker or warning, render it with concise evidence and one recovery action
 - keep profile context stable in the response narrative; do not redefine profile selection semantics here
 - when the next correct step is official governance-state materialization, the final line must be exactly: `Next action: run /continue.`
 
-Kernel references (informational):
-- discovery/re-discovery behavior is kernel-managed
-- blocked/degraded routing is kernel-managed
-- fast-path scope changes are kernel-managed
-- active profile resolution is kernel-managed
+---
+
+**Free-text guard (Fix 1.4b):**
+Free-text like "go", "weiter", "proceed", "mach weiter", or any other natural-language continuation prompt is **not** a rail command. It does not trigger the materialize command above or any state write. Only the explicit `/continue` rail invocation is permitted to materialize state. If the user sends free-text that implies continuation, respond conversationally without executing any governance commands.
 
 Copyright © 2026 Benjamin Fuchs.
 All rights reserved. See LICENSE.

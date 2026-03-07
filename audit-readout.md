@@ -1,29 +1,35 @@
 # Governance Audit Readout
 
 <!-- rail-classification: READ-ONLY, OUTPUT-ONLY, NO-STATE-CHANGE -->
-## Read Audit Snapshot
 
-The command below is a read-only audit reader.
-It prints an `AUDIT_READOUT_SPEC.v1` JSON payload and does not modify files.
+## Purpose
 
-Preferred (Tier A): load the current audit readout using the following read-only command:
+`/audit-readout` is a read-only rail entrypoint.
+The command below prints an `AUDIT_READOUT_SPEC.v1` JSON payload and does not modify any files.
+It reports `active`, `last_snapshot`, `chain`, and `integrity` per `governance/docs/AUDIT_READOUT_SPEC.md`.
+
+## Commands by platform
 
 ```bash
 PATH="{{BIN_DIR}}:$PATH" opencode-governance-bootstrap --session-reader --audit --tail-count 25
 ```
 
+```powershell
+$env:Path = "{{BIN_DIR}};" + $env:Path; opencode-governance-bootstrap --session-reader --audit --tail-count 25
+```
+
+## If execution is unavailable
+
+If the command cannot be executed (e.g., sandboxed environment, model policy, or tool error), ask the user to paste the command output.
+
+If no snapshot is available, proceed using only the context visible in the current conversation and state assumptions explicitly.
+
+## Interpretation scope
+
 Use the JSON output as audit context for the response below. Do not infer additional state beyond the materialized output.
 
-**Fallback (Tier B) — if the command cannot be executed** (e.g., sandboxed environment, model policy, or tool error), ask the user to paste the command output.
+## Response shape
 
-**Fallback (Tier C) — if no snapshot is available**, proceed using only the context visible in the current conversation and state assumptions explicitly.
-
----
-
-`/audit-readout` is a read-only rail entrypoint.
-It reports `active`, `last_snapshot`, `chain`, and `integrity` per `governance/docs/AUDIT_READOUT_SPEC.md`.
-
-Output checklist:
 - include `contract_version`
 - include `active.run_id`, `active.phase`, and `active.active_gate`
 - include `last_snapshot.snapshot_path` and `last_snapshot.snapshot_digest`

@@ -1,26 +1,34 @@
 # Governance Review
 
 <!-- rail-classification: READ-ONLY, GATE-EVALUATION, NO-STATE-CHANGE -->
-## Resume Session State
 
-The command below is a read-only session reader. It prints the current session state as YAML and does not modify any files.
+## Purpose
 
-Preferred (Tier A): load the current governance session state using the following read-only command:
+`/review` is a read-only rail entrypoint for PR or ticket review.
+The command below prints the current session state as YAML and does not modify any files.
+It reads materialized review/session state and does not perform implementation changes.
+
+## Commands by platform
 
 ```bash
 PATH="{{BIN_DIR}}:$PATH" opencode-governance-bootstrap --session-reader
 ```
 
-Use the YAML output as your governance context for the response below. Do not infer or mutate any session state.
+```powershell
+$env:Path = "{{BIN_DIR}};" + $env:Path; opencode-governance-bootstrap --session-reader
+```
 
-**Fallback (Tier B) — if the command cannot be executed** (e.g., sandboxed environment, model policy, or tool error), ask the user to paste the YAML output or a snapshot containing at least `phase`, `next`, `active_gate`, and `next_gate_condition`.
+## If execution is unavailable
 
-**Fallback (Tier C) — if no snapshot is available**, proceed using only the context visible in the current conversation and state your assumptions explicitly before continuing.
+If the command cannot be executed (e.g., sandboxed environment, model policy, or tool error), ask the user to paste the YAML output or a snapshot containing at least `phase`, `next`, `active_gate`, and `next_gate_condition`.
 
----
+If no snapshot is available, proceed using only the context visible in the current conversation and state assumptions explicitly before continuing.
 
-`/review` is a read-only rail entrypoint for PR or ticket review.
-It surfaces during Phase 4 but the authoritative review gate is kernel- and phase-model-owned (see `phase_api.yaml` and `phases.md` Phase 5 Review Gate).
+## Interpretation scope
+
+Use the YAML output as governance context for the response below. Do not infer or mutate any session state.
+
+The review gate state is defined by the materialized session output. It surfaces during Phase 4 but the review gate is phase-model-owned (see `phase_api.yaml` and `phases.md` Phase 5 Review Gate).
 This rail is optimized for lead/staff review depth and does not perform implementation.
 Phase 5 output class restrictions (forbidden: implementation, patch, diff, code_delivery) and plan self-review discipline are defined in `phase_api.yaml` `output_policy` on token `"5"` and explained in `master.md` Rule A and Rule B.
 
@@ -31,7 +39,8 @@ Review scope:
 - rollback, migration, and observability impact
 - maintainability and long-term cost
 
-Output contract:
+## Response shape
+
 - give a clear verdict: `approve` or `request changes`
 - list findings with severity: `blocker`, `high`, `medium`, `low`
 - include concise evidence and one concrete action per finding
