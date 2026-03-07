@@ -1248,12 +1248,29 @@ def _load_json(path: Path) -> dict | None:
 
 
 def load_manifest(manifest_path: Path) -> dict | None:
+    """Load and validate INSTALL_MANIFEST.json.
+
+    Returns the parsed dict only if:
+    - file exists and is valid JSON
+    - top-level value is a dict
+    - schema field matches MANIFEST_SCHEMA
+    - 'files' key is present and is a dict
+
+    Returns None for any validation failure (R9 safety gate).
+    """
     if not manifest_path.exists():
         return None
     try:
-        return json.loads(manifest_path.read_text(encoding="utf-8"))
+        data = json.loads(manifest_path.read_text(encoding="utf-8"))
     except Exception:
         return None
+    if not isinstance(data, dict):
+        return None
+    if data.get("schema") != MANIFEST_SCHEMA:
+        return None
+    if not isinstance(data.get("files"), dict):
+        return None
+    return data
 
 
 # ---------------------------------------------------------------------------

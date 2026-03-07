@@ -898,3 +898,74 @@ class TestConfigRootResolve:
         assert args.config_root.is_absolute(), (
             "config_root must be absolute after resolve()"
         )
+
+
+# ---------------------------------------------------------------------------
+# R9: manifest type and schema validation
+# ---------------------------------------------------------------------------
+
+class TestManifestValidation:
+    """
+    R9 fix: load_manifest must validate type, schema, and 'files' key
+    before returning data. Malformed or tampered manifests must be rejected.
+    """
+
+    def test_happy_valid_manifest_loads(self, tmp_path: Path) -> None:
+        """Happy: well-formed manifest is loaded successfully."""
+        from install import load_manifest, MANIFEST_SCHEMA
+        mf = tmp_path / "INSTALL_MANIFEST.json"
+        mf.write_text(json.dumps({
+            "schema": MANIFEST_SCHEMA,
+            "files": {"a.py": {"sha256": "abc123"}},
+        }), encoding="utf-8")
+        result = load_manifest(mf)
+        assert result is not None
+        assert "files" in result
+
+    def test_bad_missing_file_returns_none(self, tmp_path: Path) -> None:
+        """Bad: nonexistent file returns None."""
+        from install import load_manifest
+        assert load_manifest(tmp_path / "nonexistent.json") is None
+
+    def test_bad_invalid_json_returns_none(self, tmp_path: Path) -> None:
+        """Bad: invalid JSON returns None."""
+        from install import load_manifest
+        mf = tmp_path / "INSTALL_MANIFEST.json"
+        mf.write_text("{not valid json", encoding="utf-8")
+        assert load_manifest(mf) is None
+
+    def test_bad_non_dict_returns_none(self, tmp_path: Path) -> None:
+        """Bad: JSON array instead of dict returns None."""
+        from install import load_manifest
+        mf = tmp_path / "INSTALL_MANIFEST.json"
+        mf.write_text('[1, 2, 3]', encoding="utf-8")
+        assert load_manifest(mf) is None
+
+    def test_bad_wrong_schema_returns_none(self, tmp_path: Path) -> None:
+        """Bad: wrong schema version returns None."""
+        from install import load_manifest
+        mf = tmp_path / "INSTALL_MANIFEST.json"
+        mf.write_text(json.dumps({
+            "schema": "99.99",
+            "files": {},
+        }), encoding="utf-8")
+        assert load_manifest(mf) is None
+
+    def test_bad_missing_files_key_returns_none(self, tmp_path: Path) -> None:
+        """Bad: missing 'files' key returns None."""
+        from install import load_manifest, MANIFEST_SCHEMA
+        mf = tmp_path / "INSTALL_MANIFEST.json"
+        mf.write_text(json.dumps({
+            "schema": MANIFEST_SCHEMA,
+        }), encoding="utf-8")
+        assert load_manifest(mf) is None
+
+    def test_bad_files_not_dict_returns_none(self, tmp_path: Path) -> None:
+        """Bad: 'files' is a list instead of dict returns None."""
+        from install import load_manifest, MANIFEST_SCHEMA
+        mf = tmp_path / "INSTALL_MANIFEST.json"
+        mf.write_text(json.dumps({
+            "schema": MANIFEST_SCHEMA,
+            "files": ["not", "a", "dict"],
+        }), encoding="utf-8")
+        assert load_manifest(mf) is None
