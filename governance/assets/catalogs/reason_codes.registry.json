@@ -416,6 +416,13 @@
       "remediation_hint": "Persist canonical ticket/task input with matching digest via the Phase 4 intake bridge."
     },
     {
+      "code": "BLOCKED-P5-PLAN-RECORD-PERSIST",
+      "severity": "blocked",
+      "payload_schema_ref": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Phase 5 plan-record evidence is missing, unreadable, or failed to persist.",
+      "remediation_hint": "Persist Phase 5 plan-record evidence via the plan persist bridge, then rerun materialization."
+    },
+    {
       "code": "BLOCKED-P6-PREREQUISITES-NOT-MET",
       "severity": "blocked",
       "payload_schema_ref": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
