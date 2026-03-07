@@ -75,7 +75,7 @@ def test_phase_rank_unknown_returns_negative_one() -> None:
 @pytest.mark.governance
 def test_phase_rank_map_covers_all_normalized_tokens() -> None:
     examples = [
-        "1", "1.1-Bootstrap", "1.2-RuleLoading", "1.3-AddonScan", "1.5-BusinessRules",
+        "1", "1.1-Bootstrap", "1.2-ActivationIntent", "1.3-AddonScan", "1.5-BusinessRules",
         "2-Discovery", "2.1", "3A-API-Inventory", "3B-1 contract", "3B-2 contract",
         "4-Plan", "5-TestGen", "5.3", "5.4", "5.5", "5.6", "6-PR",
     ]
