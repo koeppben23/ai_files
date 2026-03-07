@@ -334,9 +334,12 @@ class TestRailsToPaths:
         for fname in self.RAIL_FILES_WITH_LAUNCHER:
             content = _read_source(REPO_ROOT / fname)
             has_bin_dir_placeholder = self.BIN_DIR_PLACEHOLDER in content
-            # A resolved bin dir looks like an absolute path before opencode-governance-bootstrap
+            # A resolved bin dir looks like an absolute path before opencode-governance-bootstrap.
+            # Match both POSIX and Windows installed rail formats:
+            #   POSIX: PATH="/abs/path:$PATH" opencode-governance-bootstrap
+            #   Windows: set "PATH=C:/abs/path;%PATH%" && opencode-governance-bootstrap.cmd
             has_resolved = bool(re.search(
-                r'PATH="(/[^"]+|[A-Za-z]:\\[^"]+):\$PATH"\s+opencode-governance-bootstrap',
+                r'PATH="(/[^"]+|[A-Za-z]:[/\\][^"]+)[;:][^"]*"\s+(?:&&\s+)?opencode-governance-bootstrap',
                 content,
             ))
             if has_bin_dir_placeholder and has_resolved:

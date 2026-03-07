@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import re
 from pathlib import Path
 
@@ -66,3 +67,8 @@ def test_audit_readout_md_injection_replaces_placeholders(tmp_path: Path) -> Non
     assert BIN_DIR_PLACEHOLDER not in content
     assert "/home/user/.config/opencode/bin" in content
     assert "--audit --tail-count 25" in content
+    if os.name == "nt":
+        assert "```cmd" in content
+        assert "opencode-governance-bootstrap.cmd" in content
+    else:
+        assert "```bash" in content

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import pytest
@@ -44,4 +45,7 @@ def test_ticket_md_bin_dir_placeholder_is_injected(tmp_path: Path) -> None:
     content = command_md.read_text(encoding="utf-8")
     assert "{{BIN_DIR}}" not in content
     assert "/usr/local/governance/bin" in content
-    assert "opencode-governance-bootstrap --entrypoint governance.entrypoints.phase4_intake_persist" in content
+    if os.name == "nt":
+        assert "opencode-governance-bootstrap.cmd --entrypoint governance.entrypoints.phase4_intake_persist" in content
+    else:
+        assert "opencode-governance-bootstrap --entrypoint governance.entrypoints.phase4_intake_persist" in content

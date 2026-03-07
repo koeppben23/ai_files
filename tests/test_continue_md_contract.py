@@ -324,7 +324,7 @@ class TestInjectBinDir:
         assert "/home/user/.config/opencode/bin" in content
 
     def test_injected_command_is_complete(self, commands_dir: Path) -> None:
-        """After injection, the full launcher command is present."""
+        """After injection, the full launcher command is present (platform-specific)."""
         self._write_launcher_template(commands_dir)
         inject_session_reader_path_for_command(
             commands_dir,
@@ -333,7 +333,12 @@ class TestInjectBinDir:
             dry_run=False,
         )
         content = (commands_dir / "continue.md").read_text(encoding="utf-8")
-        assert 'PATH="/opt/governance/bin:$PATH" opencode-governance-bootstrap --session-reader --materialize' in content
+        if os.name == "nt":
+            assert 'set "PATH=/opt/governance/bin;%PATH%" && opencode-governance-bootstrap.cmd --session-reader --materialize' in content
+            assert "```cmd" in content
+        else:
+            assert 'PATH="/opt/governance/bin:$PATH" opencode-governance-bootstrap --session-reader --materialize' in content
+            assert "```bash" in content
 
     def test_dry_run_no_change(self, commands_dir: Path) -> None:
         """Dry run does not modify the file."""
@@ -362,7 +367,17 @@ class TestInjectBinDir:
     def test_no_placeholder_skipped(self, commands_dir: Path) -> None:
         """File without placeholder is skipped."""
         continue_md = commands_dir / "continue.md"
-        continue_md.write_text("# Already injected\nPATH=/concrete/bin:$PATH opencode-governance-bootstrap\n", encoding="utf-8")
+        # Use platform-appropriate "already injected" content
+        if os.name == "nt":
+            continue_md.write_text(
+                '# Already injected\nset "PATH=C:/concrete/bin;%PATH%" && opencode-governance-bootstrap.cmd\n',
+                encoding="utf-8",
+            )
+        else:
+            continue_md.write_text(
+                "# Already injected\nPATH=/concrete/bin:$PATH opencode-governance-bootstrap\n",
+                encoding="utf-8",
+            )
 
         result = inject_session_reader_path_for_command(
             commands_dir,

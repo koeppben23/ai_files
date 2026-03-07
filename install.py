@@ -1558,6 +1558,20 @@ def inject_session_reader_path_for_command(
     # --- Primary: BIN_DIR placeholder (launcher-era rails) ---
     has_bin_dir_placeholder = BIN_DIR_PLACEHOLDER in content
     if has_bin_dir_placeholder and bin_dir is not None:
+        # Platform-aware rail injection (python-binding-contract.v1.md §4.2):
+        # Rails are installed as platform-specific — the installer writes only
+        # the block matching the target OS.
+        if os.name == "nt":
+            # Windows: transform bash syntax to cmd syntax
+            #   ```bash  →  ```cmd
+            #   PATH="<bin>:$PATH" opencode-governance-bootstrap  →
+            #   set "PATH=<bin>;%PATH%" && opencode-governance-bootstrap.cmd
+            new_content = new_content.replace("```bash", "```cmd")
+            new_content = re.sub(
+                r'PATH="([^"]*?):\$PATH"\s+opencode-governance-bootstrap',
+                r'set "PATH=\1;%PATH%" && opencode-governance-bootstrap.cmd',
+                new_content,
+            )
         new_content = new_content.replace(BIN_DIR_PLACEHOLDER, bin_dir)
 
     # --- Legacy: PYTHON_COMMAND / SESSION_READER_PATH placeholders ---

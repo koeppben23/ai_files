@@ -4,6 +4,7 @@ Copyright 2026 Benjamin Fuchs. All rights reserved. See LICENSE.
 """
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
@@ -125,7 +126,10 @@ def test_review_injection_replaces_bin_dir(tmp_path: Path) -> None:
     content = review_md.read_text(encoding="utf-8")
     assert BIN_DIR_PLACEHOLDER not in content
     assert concrete_bin in content
-    assert "opencode-governance-bootstrap --session-reader" in content
+    if os.name == "nt":
+        assert "opencode-governance-bootstrap.cmd --session-reader" in content
+    else:
+        assert "opencode-governance-bootstrap --session-reader" in content
 
 
 @pytest.mark.governance
