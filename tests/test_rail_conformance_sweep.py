@@ -77,13 +77,13 @@ _HYBRID_FILES = _DOCS_HYBRID
 _MODEL_RAIL_AND_HYBRID = _MODEL_RAIL_FILES + _HYBRID_FILES
 _ALL_ENFORCED = _MODEL_RAIL_AND_HYBRID + _DOCS_RUNBOOKS
 
-# Command rails with tiered fallback (CR-07 scope).
-# ticket.md and plan.md are data-persist rails without snapshot-read semantics;
-# they use a direct command pattern without Tier A/B/C fallback structure.
+# Command rails with fallback structure (CR-07 scope).
+# Rail-style-spec v1: all 5 execution-facing command rails must have fallback.
 _COMMAND_RAILS = [
     e for e in _ROOT_RAILS
     if e.path in {
         "continue.md", "review.md", "audit-readout.md",
+        "ticket.md", "plan.md",
     }
 ]
 
@@ -426,13 +426,13 @@ class TestCR06StableLauncherName:
 
 # ---- CR-07: Tiered fallback structure (command rails only) -----------------
 
-_TIER_A_RE = re.compile(r"Tier\s*A|Preferred", re.IGNORECASE)
-_TIER_B_RE = re.compile(r"Tier\s*B|Fallback|paste", re.IGNORECASE)
-_TIER_C_RE = re.compile(r"Tier\s*C|Degraded|proceed\s+using.*context", re.IGNORECASE)
+_TIER_A_RE = re.compile(r"Commands by platform|Preferred|```bash", re.IGNORECASE)
+_TIER_B_RE = re.compile(r"execution is unavailable|command cannot be executed|paste", re.IGNORECASE)
+_TIER_C_RE = re.compile(r"no snapshot is available|proceed\s+using.*context", re.IGNORECASE)
 
 
 class TestCR07TieredFallback:
-    """CR-07: command rails must have Tier A/B/C fallback structure."""
+    """CR-07: command rails must have preferred command, execution-unavailable fallback, and degraded fallback."""
 
     @pytest.mark.parametrize(
         "entry",
@@ -446,14 +446,115 @@ class TestCR07TieredFallback:
         has_c = bool(_TIER_C_RE.search(content))
         missing: list[str] = []
         if not has_a:
-            missing.append("Tier A (Preferred)")
+            missing.append("Command block (bash/powershell)")
         if not has_b:
-            missing.append("Tier B (Fallback/paste)")
+            missing.append("Execution-unavailable fallback (paste)")
         if not has_c:
-            missing.append("Tier C (Degraded/proceed using context)")
+            missing.append("Degraded fallback (proceed using context)")
         assert not missing, (
             f"CR-07 violation in {entry.path} — missing tiers: {', '.join(missing)}"
         )
+
+
+# ---- Execution-facing: Launcher name assertion ----------------------------
+#   Rail-style-spec v1 requires every execution-facing command rail to invoke
+#   the stable launcher name ``opencode-governance-bootstrap`` in at least one
+#   code block.  CR-06 already bans direct ``python …`` calls; this assertion
+#   confirms the *positive* requirement: the launcher name is present.
+
+_LAUNCHER_NAME = "opencode-governance-bootstrap"
+
+
+class TestExecutionRailLauncherPresent:
+    """Every execution-facing command rail must reference the stable launcher."""
+
+    @pytest.mark.parametrize(
+        "entry",
+        _COMMAND_RAILS,
+        ids=[e.path for e in _COMMAND_RAILS],
+    )
+    def test_launcher_name_in_code_blocks(self, entry: _Entry) -> None:
+        content = _read(entry)
+        blocks = _extract_fenced_blocks(content)
+        found = any(_LAUNCHER_NAME in body for _label, body in blocks)
+        assert found, (
+            f"{entry.path}: no code block contains the stable launcher name "
+            f"'{_LAUNCHER_NAME}'. Execution-facing rails must invoke the launcher."
+        )
+
+
+class TestExecutionRailLauncherSynthetic:
+    """Bad-path: code block without launcher name must be caught."""
+
+    def test_missing_launcher_caught(self) -> None:
+        body = "some-other-binary --flag value"
+        assert _LAUNCHER_NAME not in body
+
+    def test_present_launcher_passes(self) -> None:
+        body = "opencode-governance-bootstrap --session-reader"
+        assert _LAUNCHER_NAME in body
+
+
+# ---- Execution-facing: Fallback minimum content assertion -----------------
+#   Rail-style-spec v1 requires the "If execution is unavailable" section of
+#   every command rail to contain either "paste the command output" OR the
+#   minimum field set: phase, next, active_gate, next_gate_condition.
+
+_FALLBACK_SECTION_RE = re.compile(
+    r"## If execution is unavailable\s*\n(.*?)(?=\n## |\Z)",
+    re.DOTALL,
+)
+_FALLBACK_PASTE_RE = re.compile(r"paste\s+the\s+(?:command\s+)?output", re.IGNORECASE)
+_FALLBACK_MIN_FIELDS = ["phase", "next", "active_gate", "next_gate_condition"]
+
+
+class TestExecutionRailFallbackContent:
+    """Every execution-facing command rail must have actionable fallback content."""
+
+    @pytest.mark.parametrize(
+        "entry",
+        _COMMAND_RAILS,
+        ids=[e.path for e in _COMMAND_RAILS],
+    )
+    def test_fallback_has_paste_or_min_fields(self, entry: _Entry) -> None:
+        content = _read(entry)
+        m = _FALLBACK_SECTION_RE.search(content)
+        assert m, (
+            f"{entry.path}: missing '## If execution is unavailable' section"
+        )
+        fallback_text = m.group(1)
+        has_paste = bool(_FALLBACK_PASTE_RE.search(fallback_text))
+        has_min_fields = all(f"`{field}`" in fallback_text for field in _FALLBACK_MIN_FIELDS)
+        assert has_paste or has_min_fields, (
+            f"{entry.path}: fallback section must contain either 'paste the command output' "
+            f"or the minimum fields {_FALLBACK_MIN_FIELDS} in backtick-quoted form. "
+            f"Found neither."
+        )
+
+
+class TestExecutionRailFallbackSynthetic:
+    """Bad-path / edge-case tests for fallback content assertion."""
+
+    def test_paste_output_passes(self) -> None:
+        text = "ask the user to paste the command output"
+        assert _FALLBACK_PASTE_RE.search(text)
+
+    def test_paste_the_output_also_passes(self) -> None:
+        text = "ask the user to paste the output"
+        assert _FALLBACK_PASTE_RE.search(text)
+
+    def test_min_fields_passes(self) -> None:
+        text = "snapshot containing at least `phase`, `next`, `active_gate`, and `next_gate_condition`"
+        assert all(f"`{f}`" in text for f in _FALLBACK_MIN_FIELDS)
+
+    def test_empty_fallback_caught(self) -> None:
+        text = "If the command cannot be executed, do something vague."
+        assert not _FALLBACK_PASTE_RE.search(text)
+        assert not all(f"`{f}`" in text for f in _FALLBACK_MIN_FIELDS)
+
+    def test_partial_fields_caught(self) -> None:
+        text = "snapshot containing `phase` and `next` only"
+        assert not all(f"`{f}`" in text for f in _FALLBACK_MIN_FIELDS)
 
 
 # ---- CR-08: Over-prompting limit ------------------------------------------

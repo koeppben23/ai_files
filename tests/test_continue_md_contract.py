@@ -55,18 +55,18 @@ class TestSourceTemplate:
             "This is replaced at install time with the concrete bin/ directory path."
         )
 
-    def test_resume_session_state_present(self) -> None:
-        """Source template must contain the Resume Session State section."""
-        assert "Resume Session State" in self.content, (
-            "continue.md must contain a 'Resume Session State' section. "
-            "This instructs the LLM to load session state before responding."
+    def test_purpose_section_present(self) -> None:
+        """Source template must contain a Purpose section."""
+        assert "## Purpose" in self.content, (
+            "continue.md must contain a '## Purpose' section. "
+            "This instructs the LLM about the command's function."
         )
 
     def test_governance_kernel_bridge_comment(self) -> None:
         """Source template must contain descriptive command-purpose statement."""
-        assert "use this command to materialize and print" in self.content.lower(), (
+        assert "materializes and prints" in self.content.lower(), (
             "continue.md must contain a descriptive statement explaining "
-            "the command's purpose (materialize and print session state)."
+            "the command's purpose (materializes and prints session state)."
         )
 
     def test_launcher_invocation(self) -> None:
@@ -101,9 +101,10 @@ class TestSourceTemplate:
         )
 
     def test_preferred_command_wording(self) -> None:
-        """Source template must use 'Preferred' wording for the command execution tier."""
-        assert "preferred" in self.content.lower(), (
-            "continue.md must use 'Preferred' wording to frame command execution as the ideal path"
+        """Source template must present the command as the primary execution path."""
+        content_lower = self.content.lower()
+        assert "commands by platform" in content_lower, (
+            "continue.md must have a 'Commands by platform' section"
         )
 
     def test_minimum_snapshot_fields_documented(self) -> None:
@@ -125,13 +126,13 @@ class TestSourceTemplate:
         )
 
     def test_three_tier_fallback_ordering(self) -> None:
-        """The three tiers must appear in order: preferred command, user paste, proceed without."""
-        preferred_pos = self.content.lower().find("preferred")
+        """The three tiers must appear in order: command block, paste fallback, proceed without."""
+        commands_pos = self.content.lower().find("commands by platform")
         paste_pos = self.content.lower().find("command cannot be executed")
         proceed_pos = self.content.lower().find("no snapshot is available")
-        assert preferred_pos < paste_pos < proceed_pos, (
+        assert commands_pos < paste_pos < proceed_pos, (
             "continue.md must present the three fallback tiers in order: "
-            "preferred command, user paste, proceed without"
+            "command block, user paste, proceed without"
         )
 
     def test_rail_classification_present(self) -> None:
@@ -153,8 +154,8 @@ class TestSourceTemplate:
     def test_provenance_context_present(self) -> None:
         """Source template must contain descriptive context for the session command."""
         content_lower = self.content.lower()
-        assert "materialize and print" in content_lower, (
-            "continue.md must describe the command purpose (materialize and print)"
+        assert "materializes and prints" in content_lower, (
+            "continue.md must describe the command purpose (materializes and prints)"
         )
         assert "do not infer additional state" in content_lower, (
             "continue.md must contain a state-inference guard"
@@ -175,22 +176,26 @@ class TestSourceTemplate:
         )
 
     def test_fallback_tier_labels(self) -> None:
-        """Fallback tiers must be explicitly labeled (Tier A, Tier B, Tier C)."""
+        """Fallback tiers must use neutral rail-style-spec v1 labels (no Tier A/B/C)."""
         content_lower = self.content.lower()
-        assert "tier a" in content_lower, (
-            "continue.md must label the preferred command as 'Tier A'"
+        assert "tier a" not in content_lower, (
+            "continue.md must not use pressure-based 'Tier A' labeling (rail-style-spec v1)"
         )
-        assert "tier b" in content_lower, (
-            "continue.md must label the paste fallback as 'Tier B'"
+        assert "tier b" not in content_lower, (
+            "continue.md must not use pressure-based 'Tier B' labeling (rail-style-spec v1)"
         )
-        assert "tier c" in content_lower, (
-            "continue.md must label the conversation-context fallback as 'Tier C'"
+        assert "tier c" not in content_lower, (
+            "continue.md must not use pressure-based 'Tier C' labeling (rail-style-spec v1)"
+        )
+        assert "if execution is unavailable" in content_lower or "command cannot be executed" in content_lower, (
+            "continue.md must use neutral fallback phrasing per rail-style-spec v1"
         )
 
     def test_materialization_guard_statement(self) -> None:
         """Source template must contain the state-inference guard."""
         lower = self.content.lower()
-        assert "do not infer additional state beyond the materialized output" in lower, (
+        assert "do not infer additional state beyond the materialized output" in lower or \
+               "do not infer additional state" in lower, (
             "continue.md must limit inference scope to materialized output only"
         )
 
@@ -250,32 +255,32 @@ class TestNoModelRefusalPatterns:
 
     @pytest.mark.parametrize("template_name", TEMPLATES)
     def test_templates_share_identical_fallback_block(self, template_name: str) -> None:
-        """Both templates must share identical fallback semantics (same tiered fallback section)."""
-        # Extract the fallback section: from the Tier B fallback to the --- separator
+        """Both templates must share identical fallback semantics (execution-unavailable section)."""
         content = self.contents[template_name]
-        fallback_start = content.find("**Fallback (Tier B)")
-        fallback_end = content.find("\n---\n", fallback_start) if fallback_start >= 0 else -1
-        # If no --- separator, use the end of the Tier C fallback block
+        # Rail-style-spec v1: fallback starts with "If execution is unavailable" or
+        # "command cannot be executed" section
+        fallback_start = content.find("## If execution is unavailable")
+        if fallback_start < 0:
+            fallback_start = content.lower().find("command cannot be executed")
+        fallback_end = content.find("\n## ", fallback_start + 1) if fallback_start >= 0 else -1
         if fallback_end < 0 and fallback_start >= 0:
-            fallback_end = content.find("before continuing.", fallback_start)
+            fallback_end = content.find("state assumptions explicitly", fallback_start)
             if fallback_end >= 0:
-                fallback_end = fallback_end + len("before continuing.")
+                fallback_end = fallback_end + len("state assumptions explicitly")
         assert fallback_start >= 0 and fallback_end >= 0, (
-            f"{template_name} must contain the tiered fallback section"
+            f"{template_name} must contain the execution-unavailable fallback section"
         )
 
     def test_continue_and_review_have_distinct_bridge_semantics(self) -> None:
-        """continue.md and review.md session sections must differ (mutating vs read-only)."""
+        """continue.md and review.md Purpose sections must differ (mutating vs read-only)."""
         sections = {}
         for name in self.TEMPLATES:
             content = self.contents[name]
-            section_start = content.find("## Resume Session State")
-            # Find the end: the --- separator
-            section_end = content.find("\n---\n", section_start) if section_start >= 0 else -1
+            section_start = content.find("## Purpose")
+            # Find the end: next ## section
+            section_end = content.find("\n## ", section_start + 1) if section_start >= 0 else -1
             if section_end < 0 and section_start >= 0:
-                section_end = content.find("before continuing.", section_start)
-                if section_end >= 0:
-                    section_end = section_end + len("before continuing.")
+                section_end = len(content)
             sections[name] = content[section_start:section_end]
         assert sections["continue.md"] != sections["review.md"], (
             "continue.md and review.md must differ because /continue materializes state while /review is read-only"

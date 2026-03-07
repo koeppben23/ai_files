@@ -31,7 +31,7 @@ def test_review_template_contains_required_placeholders_and_contract() -> None:
     assert BIN_DIR_PLACEHOLDER in content
     assert "opencode-governance-bootstrap" in content
     assert "--session-reader" in content
-    assert "Resume Session State" in content
+    assert "## Purpose" in content
     assert "lead/staff" in content.lower()
     assert "paste-ready" in content.lower()
 
@@ -71,7 +71,9 @@ def test_review_template_three_tier_fallback() -> None:
     content = review_path.read_text(encoding="utf-8")
     content_lower = content.lower()
 
-    assert "preferred" in content_lower, "review.md must use 'Preferred' wording"
+    assert "preferred" in content_lower or "commands by platform" in content_lower, (
+        "review.md must have a command section"
+    )
     assert "command cannot be executed" in content_lower, (
         "review.md must contain fallback for command execution failure"
     )
@@ -79,11 +81,13 @@ def test_review_template_three_tier_fallback() -> None:
         "review.md must contain fallback for missing snapshot"
     )
 
-    # Ordering: preferred < paste < proceed
-    preferred_pos = content_lower.find("preferred:")
+    # Ordering: commands section < paste < proceed
+    commands_pos = content_lower.find("commands by platform")
+    if commands_pos < 0:
+        commands_pos = content_lower.find("preferred:")
     paste_pos = content_lower.find("command cannot be executed")
     proceed_pos = content_lower.find("no snapshot is available")
-    assert preferred_pos < paste_pos < proceed_pos, (
+    assert commands_pos < paste_pos < proceed_pos, (
         "review.md must present the three fallback tiers in order"
     )
 
@@ -201,8 +205,8 @@ def test_review_provenance_context_present() -> None:
     """review.md must contain descriptive context and NOT contain trust-triggering language."""
     review_path = REPO_ROOT / "review.md"
     content = review_path.read_text(encoding="utf-8").lower()
-    assert "read-only session reader" in content, (
-        "review.md must describe the command as a read-only session reader"
+    assert "read-only rail entrypoint" in content, (
+        "review.md must describe the command as a read-only rail entrypoint"
     )
     assert "safe to execute" not in content, (
         "review.md must NOT contain 'safe to execute' — trust-triggering language"
@@ -224,8 +228,8 @@ def test_review_phase4_entrypoint_documented() -> None:
         "review.md must describe /review as a read-only rail entrypoint"
     )
     content_lower = content.lower()
-    assert "authoritative review gate" in content_lower, (
-        "review.md must clarify the authoritative review gate is kernel-owned, not the rail itself"
+    assert "review gate" in content_lower, (
+        "review.md must clarify the review gate is phase-model-owned, not the rail itself"
     )
     assert "does not perform implementation" in content_lower, (
         "review.md must state the rail does not perform implementation"

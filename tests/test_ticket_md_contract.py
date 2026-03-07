@@ -18,7 +18,12 @@ def test_ticket_md_exists_and_documents_intake_bridge() -> None:
     assert "phase4_intake_persist" in content
     assert BIN_DIR_PLACEHOLDER in content
     assert "opencode-governance-bootstrap" in content
-    assert "/review` is read-only; `/continue` is the state materialization rail" in content
+    assert "/review` is read-only" in content or "`/review` is read-only" in content, (
+        "ticket.md must state that /review is read-only"
+    )
+    assert "/continue` is the state materialization rail" in content, (
+        "ticket.md must state that /continue is the state materialization rail"
+    )
 
 
 @pytest.mark.governance

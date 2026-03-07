@@ -18,7 +18,10 @@ def test_plan_md_exists_and_documents_plan_persist_bridge() -> None:
     assert "phase5_plan_record_persist" in content
     assert BIN_DIR_PLACEHOLDER in content
     assert "opencode-governance-bootstrap" in content
-    assert "Only the explicit `/plan` rail invocation" in content
+    assert "Only the explicit `/plan` rail invocation" in content or \
+           "only the explicit `/plan` rail invocation" in content.lower(), (
+        "plan.md must require explicit /plan invocation"
+    )
 
 
 @pytest.mark.governance
