@@ -6,24 +6,33 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import sys
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Mapping
+from typing import Mapping, Sequence
 
 if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).absolute().parents[2]))
 
 from governance.application.use_cases.phase_router import route_phase
 from governance.application.use_cases.session_state_helpers import with_kernel_result
+from governance.domain import reason_codes
 from governance.domain.phase_state_machine import normalize_phase_token
 from governance.infrastructure.binding_evidence_resolver import BindingEvidenceResolver
 from governance.infrastructure.plan_record_repository import PlanRecordRepository
 from governance.infrastructure.workspace_paths import plan_record_archive_dir, plan_record_path
 
 
-BLOCKED_P5_PLAN_RECORD_PERSIST = "BLOCKED-P5-PLAN-RECORD-PERSIST"
+BLOCKED_P5_PLAN_RECORD_PERSIST = reason_codes.BLOCKED_P5_PLAN_RECORD_PERSIST
+_PHASE5_REVIEW_MAX_ITERATIONS = 3
+_PHASE5_REVIEW_MIN_ITERATIONS = 1
+
+
+def _phase_token(value: str) -> str:
+    token = normalize_phase_token(value)
+    return token or ""
 
 
 def _read_text(path: Path) -> str:
@@ -105,6 +114,179 @@ def _payload(status: str, **kwargs: object) -> dict[str, object]:
     return out
 
 
+def _as_int(value: object, fallback: int) -> int:
+    if isinstance(value, bool):
+        return int(value)
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str):
+        probe = value.strip()
+        if probe.isdigit():
+            return int(probe)
+    return fallback
+
+
+def _as_list(value: object) -> list[object]:
+    if isinstance(value, list):
+        return value
+    return []
+
+
+def _contains_ticket_or_task_evidence(state: Mapping[str, object]) -> bool:
+    fields = (
+        "TicketRecordDigest",
+        "ticket_record_digest",
+        "TaskRecordDigest",
+        "task_record_digest",
+    )
+    for key in fields:
+        value = state.get(key)
+        if isinstance(value, str) and value.strip():
+            return True
+    return False
+
+
+def _extract_headings(text: str) -> set[str]:
+    headings: set[str] = set()
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not stripped.startswith("#"):
+            continue
+        heading_text = stripped.lstrip("#").strip().lower()
+        if heading_text:
+            headings.add(heading_text)
+    return headings
+
+
+def _normalize_label(label: str) -> str:
+    lowered = label.lower()
+    lowered = re.sub(r"\s+", " ", lowered).strip()
+    return lowered
+
+
+def _collect_findings(plan_text: str) -> list[str]:
+    required_sections: tuple[str, ...] = (
+        "zielbild",
+        "soll-flow",
+        "state-machine",
+        "blocker-taxonomie",
+        "audit",
+        "go/no-go",
+    )
+    headings = {_normalize_label(entry) for entry in _extract_headings(plan_text)}
+    findings: list[str] = []
+    for section in required_sections:
+        if section not in headings:
+            findings.append(f"missing-section:{section}")
+    if "reason code" not in plan_text.lower() and "reason_code" not in plan_text.lower():
+        findings.append("missing-reason-code-contract")
+    return findings
+
+
+def _template_for_finding(finding: str) -> str:
+    if finding.startswith("missing-section:"):
+        section = finding.split(":", 1)[1]
+        if section == "zielbild":
+            return "## Zielbild\n- `/plan` orchestriert create -> self-review -> revise -> finalize/block ohne manuelle Chat-Schleife."
+        if section == "soll-flow":
+            return "## Soll-Flow\n1. Persist plan_record vN.\n2. Fuehre internen Self-Review-Loop bis Exit-Kriterium aus.\n3. Materialisiere offiziellen Phase-5-Abschlussstatus oder blocker."  # noqa: E501
+        if section == "state-machine":
+            return "## State-Machine\n- `plan_persisted`, `self_review_in_progress`, `revision_applied`, `phase5_completed`, `phase5_blocked`."
+        if section == "blocker-taxonomie":
+            return "## Blocker-Taxonomie\n- Kernel-owned reason_code erforderlich; freier Text ist nur Evidence, nicht Primarsignal."
+        if section == "audit":
+            return "## Audit\n- Iterationsfelder: input_digest, iteration, findings_summary, revision_delta, plan_record_version, outcome, reason_code/completion_status."  # noqa: E501
+        if section == "go/no-go":
+            return "## Go/No-Go\n- `/plan` liefert finalen Plan oder echten Blocker ohne Zwischenstopp; max. 3 Iterationen."
+    if finding == "missing-reason-code-contract":
+        return "## Reason-Code Contract\n- Blocker muessen einen kanonischen `reason_code` tragen."
+    return ""
+
+
+def _revise_plan(plan_text: str, findings: Sequence[str], iteration: int) -> str:
+    revised = plan_text
+    additions: list[str] = []
+    for finding in findings:
+        snippet = _template_for_finding(finding)
+        if snippet:
+            additions.append(snippet)
+    if additions:
+        revised = revised.rstrip() + "\n\n" + "\n\n".join(additions)
+
+    # Test hook to guarantee max-iteration hard-stop behavior deterministically.
+    if "[[force-drift]]" in plan_text.lower():
+        revised = revised.rstrip() + f"\n\n<!-- phase5-review-iteration:{iteration} -->"
+
+    return _canonicalize_text(revised)
+
+
+def _run_internal_phase5_self_review(plan_text: str) -> dict[str, object]:
+    current_text = _canonicalize_text(plan_text)
+    if not current_text:
+        return {
+            "blocked": True,
+            "reason": "empty-plan-after-canonicalization",
+            "reason_code": reason_codes.BLOCKED_P5_PLAN_EMPTY,
+            "recovery_action": "provide non-empty plan text via --plan-text or --plan-file",
+        }
+
+    iteration = 0
+    prev_digest = _digest(current_text)
+    final_digest = prev_digest
+    revision_delta = "none"
+    findings_summary: list[str] = []
+    audit_rows: list[dict[str, object]] = []
+
+    while iteration < _PHASE5_REVIEW_MAX_ITERATIONS:
+        iteration += 1
+        findings = _collect_findings(current_text)
+        revised_text = _revise_plan(current_text, findings, iteration)
+        current_digest = _digest(revised_text)
+        revision_delta = "none" if current_digest == prev_digest else "changed"
+        findings_summary = findings or ["none"]
+
+        review_met = (
+            iteration >= _PHASE5_REVIEW_MAX_ITERATIONS
+            or (iteration >= _PHASE5_REVIEW_MIN_ITERATIONS and revision_delta == "none")
+        )
+        outcome = "completed" if review_met else "revised"
+        completion_status = "phase5-complete" if review_met else "phase5-in-progress"
+
+        audit_rows.append(
+            {
+                "input_digest": f"sha256:{prev_digest}",
+                "iteration": iteration,
+                "findings_summary": findings_summary,
+                "revision_delta": revision_delta,
+                "outcome": outcome,
+                "completion_status": completion_status,
+                "plan_digest": f"sha256:{current_digest}",
+            }
+        )
+
+        current_text = revised_text
+        final_digest = current_digest
+        if review_met:
+            break
+        prev_digest = current_digest
+
+    return {
+        "blocked": False,
+        "final_plan_text": current_text,
+        "iterations": iteration,
+        "max_iterations": _PHASE5_REVIEW_MAX_ITERATIONS,
+        "min_iterations": _PHASE5_REVIEW_MIN_ITERATIONS,
+        "revision_delta": revision_delta,
+        "self_review_iterations_met": True,
+        "phase5_completed": True,
+        "completion_status": "phase5-completed",
+        "prev_digest": f"sha256:{prev_digest}",
+        "curr_digest": f"sha256:{final_digest}",
+        "findings_summary": findings_summary,
+        "audit_rows": audit_rows,
+    }
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Persist Phase-5 plan record evidence and reroute kernel state")
     parser.add_argument("--plan-text", default="", help="Plan record text input")
@@ -150,6 +332,42 @@ def main(argv: list[str] | None = None) -> int:
         session_run_id = str(state.get("session_run_id") or state.get("SessionRunId") or "")
         plan_digest = _digest(plan_text)
 
+        token_before = _phase_token(phase_before)
+        if token_before != "5":
+            payload = _payload(
+                "blocked",
+                reason_code=reason_codes.BLOCKED_P5_PHASE_MISMATCH,
+                reason="phase5-plan-persist-not-allowed-outside-phase5",
+                observed=phase_before,
+                recovery_action="run /ticket to enter Phase 5 first, then retry /plan",
+            )
+            print(json.dumps(payload, ensure_ascii=True))
+            return 2
+
+        if not _contains_ticket_or_task_evidence(state):
+            payload = _payload(
+                "blocked",
+                reason_code=reason_codes.BLOCKED_P5_TICKET_EVIDENCE_MISSING,
+                reason="missing-ticket-intake-evidence",
+                recovery_action="persist ticket/task evidence via /ticket before /plan",
+            )
+            print(json.dumps(payload, ensure_ascii=True))
+            return 2
+
+        review_result = _run_internal_phase5_self_review(plan_text)
+        if review_result.get("blocked") is True:
+            payload = _payload(
+                "blocked",
+                reason_code=str(review_result.get("reason_code") or BLOCKED_P5_PLAN_RECORD_PERSIST),
+                reason=str(review_result.get("reason") or "phase5-self-review-blocked"),
+                recovery_action=str(review_result.get("recovery_action") or "revise plan input and rerun /plan"),
+            )
+            print(json.dumps(payload, ensure_ascii=True))
+            return 2
+
+        final_plan_text = str(review_result.get("final_plan_text") or plan_text)
+        review_digest = _digest(final_plan_text)
+
         workspace_home = session_path.parent
         repo = PlanRecordRepository(
             path=plan_record_path(workspace_home.parent, repo_fingerprint),
@@ -178,9 +396,83 @@ def main(argv: list[str] | None = None) -> int:
             print(json.dumps(payload, ensure_ascii=True))
             return 2
 
-        state["phase5_plan_record_digest"] = f"sha256:{plan_digest}"
+        latest_version = write_result.version or 1
+        if final_plan_text != plan_text:
+            revised_write = repo.append_version(
+                {
+                    "timestamp": _now_iso(),
+                    "phase": str(state.get("Phase") or "5-ArchitectureReview"),
+                    "session_run_id": session_run_id,
+                    "trigger": "phase5-self-review-loop",
+                    "plan_record_text": final_plan_text,
+                    "plan_record_digest": f"sha256:{review_digest}",
+                    "review": {
+                        "iterations": _as_int(review_result.get("iterations"), 0),
+                        "max_iterations": _as_int(review_result.get("max_iterations"), _PHASE5_REVIEW_MAX_ITERATIONS),
+                        "revision_delta": str(review_result.get("revision_delta") or "changed"),
+                        "completion_status": str(review_result.get("completion_status") or "phase5-completed"),
+                        "findings_summary": _as_list(review_result.get("findings_summary")),
+                    },
+                },
+                phase=phase_before or "5",
+                mode=mode,
+                repo_fingerprint=repo_fingerprint,
+            )
+            if not revised_write.ok:
+                payload = _payload(
+                    "blocked",
+                    reason_code=reason_codes.BLOCKED_P5_REVIEW_PERSIST_FAILED,
+                    reason=revised_write.reason,
+                    recovery_action="review loop could not persist revised plan-record evidence; rerun /plan",
+                )
+                print(json.dumps(payload, ensure_ascii=True))
+                return 2
+            latest_version = revised_write.version or latest_version
+
+        state["phase5_plan_record_digest"] = f"sha256:{review_digest}"
         state["phase5_plan_record_updated_at"] = _now_iso()
         state["phase5_plan_record_source"] = "phase5-plan-record-rail"
+        state["phase5_completed"] = bool(review_result.get("phase5_completed"))
+        state["phase5_state"] = "phase5_completed"
+        state["Phase5State"] = "phase5_completed"
+        state["phase5_completion_status"] = str(review_result.get("completion_status") or "phase5-completed")
+        state["phase5_blocker_code"] = "none"
+        state["self_review_iterations_met"] = bool(review_result.get("self_review_iterations_met"))
+        state["phase5_self_review_iterations"] = _as_int(review_result.get("iterations"), 0)
+        state["phase5_max_review_iterations"] = _as_int(review_result.get("max_iterations"), _PHASE5_REVIEW_MAX_ITERATIONS)
+        state["phase5_revision_delta"] = str(review_result.get("revision_delta") or "changed")
+        state["Phase5Review"] = {
+            "iteration": _as_int(review_result.get("iterations"), 0),
+            "max_iterations": _as_int(review_result.get("max_iterations"), _PHASE5_REVIEW_MAX_ITERATIONS),
+            "min_iterations": _as_int(review_result.get("min_iterations"), _PHASE5_REVIEW_MIN_ITERATIONS),
+            "prev_plan_digest": str(review_result.get("prev_digest") or f"sha256:{plan_digest}"),
+            "curr_plan_digest": str(review_result.get("curr_digest") or f"sha256:{review_digest}"),
+            "revision_delta": str(review_result.get("revision_delta") or "changed"),
+            "self_review_iterations_met": bool(review_result.get("self_review_iterations_met")),
+            "completion_status": str(review_result.get("completion_status") or "phase5-completed"),
+        }
+
+        for row in _as_list(review_result.get("audit_rows")):
+            if not isinstance(row, Mapping):
+                continue
+            _append_jsonl(
+                session_path.parent / "events.jsonl",
+                {
+                    "event": "phase5-self-review-iteration",
+                    "observed_at": _now_iso(),
+                    "repo_fingerprint": repo_fingerprint,
+                    "phase": "5-ArchitectureReview",
+                    "input_digest": str(row.get("input_digest") or ""),
+                    "iteration": _as_int(row.get("iteration"), 0),
+                    "findings_summary": _as_list(row.get("findings_summary")),
+                    "revision_delta": str(row.get("revision_delta") or "changed"),
+                    "plan_record_version": latest_version,
+                    "outcome": str(row.get("outcome") or "unknown"),
+                    "completion_status": str(row.get("completion_status") or "phase5-in-progress"),
+                    "reason_code": "none",
+                    "plan_digest": str(row.get("plan_digest") or ""),
+                },
+            )
 
         routed = route_phase(
             requested_phase=normalize_phase_token(str(state.get("Phase") or "5")) or "5",
@@ -216,9 +508,13 @@ def main(argv: list[str] | None = None) -> int:
                 "repo_fingerprint": repo_fingerprint,
                 "phase_before": phase_before,
                 "phase_after": routed.phase,
-                "plan_record_digest": f"sha256:{plan_digest}",
-                "plan_record_version": write_result.version,
+                "plan_record_digest": f"sha256:{review_digest}",
+                "plan_record_version": latest_version,
                 "source": "phase5-plan-record-rail",
+                "phase5_completed": bool(review_result.get("phase5_completed")),
+                "self_review_iterations_met": bool(review_result.get("self_review_iterations_met")),
+                "self_review_iterations": _as_int(review_result.get("iterations"), 0),
+                "phase5_revision_delta": str(review_result.get("revision_delta") or "changed"),
             },
         )
     except Exception as exc:
@@ -241,7 +537,12 @@ def main(argv: list[str] | None = None) -> int:
         phase_after=routed.phase,
         next_token=str(routed.next_token or ""),
         active_gate=routed.active_gate,
-        plan_record_version=write_result.version,
+        plan_record_version=latest_version,
+        phase5_completed=bool(review_result.get("phase5_completed")),
+        self_review_iterations=_as_int(review_result.get("iterations"), 0),
+        max_iterations=_as_int(review_result.get("max_iterations"), _PHASE5_REVIEW_MAX_ITERATIONS),
+        revision_delta=str(review_result.get("revision_delta") or "changed"),
+        self_review_iterations_met=bool(review_result.get("self_review_iterations_met")),
     )
     if args.quiet:
         print(json.dumps(payload, ensure_ascii=True))
