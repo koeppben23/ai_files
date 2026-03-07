@@ -217,20 +217,21 @@ class TestPythonResolutionOrder:
 class TestRailInjection:
     """Validate rail injection invariants from contract section 4."""
 
-    INJECTION_TARGETS = ["continue.md", "review.md", "plan.md", "ticket.md"]
+    INJECTION_TARGETS = ["continue.md", "review.md", "plan.md", "ticket.md", "audit-readout.md"]
 
     def test_happy_injection_targets_exist(self):
-        """Happy: All 4 rail injection target source files exist in repo."""
+        """Happy: All 5 rail injection target source files exist in repo."""
         # In the source tree, these live at REPO_ROOT directly
         missing = [f for f in self.INJECTION_TARGETS
                    if not (REPO_ROOT / f).is_file()]
         assert not missing, f"Rail injection targets missing: {missing}"
 
     def test_happy_placeholders_in_source(self):
-        """Happy: install.py contains both placeholder patterns."""
+        """Happy: install.py contains BIN_DIR placeholder pattern (and legacy patterns)."""
         install_src = (REPO_ROOT / "install.py").read_text(encoding="utf-8")
-        assert "{{SESSION_READER_PATH}}" in install_src or "SESSION_READER_PATH" in install_src
-        assert "{{PYTHON_COMMAND}}" in install_src or "PYTHON_COMMAND" in install_src
+        assert "{{BIN_DIR}}" in install_src or "BIN_DIR_PLACEHOLDER" in install_src
+        # Legacy patterns should still be defined for backwards compatibility
+        assert "SESSION_READER_PATH" in install_src or "PYTHON_COMMAND" in install_src
 
     def test_happy_injection_function_exists(self):
         """Happy: inject_session_reader_path_for_command exists in install.py."""
@@ -238,16 +239,18 @@ class TestRailInjection:
         assert "def inject_session_reader_path" in install_src or "inject_session_reader" in install_src
 
     def test_corner_injection_targets_have_placeholders_or_resolved_paths(self):
-        """Corner: Each rail source file has either a placeholder or a resolved Python invocation."""
+        """Corner: Each rail source file has a BIN_DIR placeholder or a resolved launcher invocation."""
         for fname in self.INJECTION_TARGETS:
             fpath = REPO_ROOT / fname
             if not fpath.is_file():
                 continue  # file-existence is tested separately
             content = fpath.read_text(encoding="utf-8")
-            has_placeholder = "{{SESSION_READER_PATH}}" in content or "{{PYTHON_COMMAND}}" in content
+            has_bin_dir = "{{BIN_DIR}}" in content
+            has_launcher = "opencode-governance-bootstrap" in content
+            has_legacy = "{{SESSION_READER_PATH}}" in content or "{{PYTHON_COMMAND}}" in content
             has_resolved = "session_reader" in content.lower() or "python" in content.lower()
-            assert has_placeholder or has_resolved, \
-                f"{fname} has neither placeholder nor resolved session reader reference"
+            assert has_bin_dir or has_launcher or has_legacy or has_resolved, \
+                f"{fname} has neither BIN_DIR placeholder, launcher reference, nor resolved path"
 
     def test_edge_python_quoting_logic_in_source(self):
         """Edge: install.py has path-quoting logic for Python commands with spaces."""
@@ -265,13 +268,18 @@ class TestUninstallGuarantee:
     """Validate the opencode.json never-delete guarantee from contract section 5."""
 
     def test_happy_three_protection_sites(self):
-        """Happy: install.py has at least 2 assert-based protection sites for OPENCODE_JSON_NAME."""
+        """Happy: install.py has at least 2 runtime guard sites for OPENCODE_JSON_NAME."""
+        import re
         install_src = (REPO_ROOT / "install.py").read_text(encoding="utf-8")
-        # Find assert statements that reference OPENCODE_JSON_NAME
-        assert_lines = [line.strip() for line in install_src.splitlines()
-                        if "assert" in line and "OPENCODE_JSON" in line]
-        assert len(assert_lines) >= 2, (
-            f"Expected >=2 assertion sites for OPENCODE_JSON_NAME, found {len(assert_lines)}: {assert_lines}"
+        # R14 replaced assert-based guards with RuntimeError guards that survive -O mode.
+        # Find if-guard + raise RuntimeError patterns referencing OPENCODE_JSON_NAME.
+        guard_count = len(re.findall(
+            r"if\s+OPENCODE_JSON_NAME\b.*?raise\s+RuntimeError",
+            install_src,
+            re.DOTALL,
+        ))
+        assert guard_count >= 2, (
+            f"Expected >=2 RuntimeError guard sites for OPENCODE_JSON_NAME, found {guard_count}"
         )
 
     def test_happy_opencode_json_name_constant(self):
@@ -282,10 +290,9 @@ class TestUninstallGuarantee:
     def test_bad_opencode_json_not_in_delete_targets(self):
         """Bad: opencode.json must not appear in any deletion target list."""
         install_src = (REPO_ROOT / "install.py").read_text(encoding="utf-8")
-        # Find lines with explicit delete/remove operations
-        # The assertions in install.py enforce this — we verify the assertions exist
-        assert_present = "assert" in install_src and "OPENCODE_JSON" in install_src
-        assert assert_present, "Missing assertion protecting opencode.json from deletion"
+        # The runtime guards in install.py enforce this — we verify the guards exist
+        guard_present = "RuntimeError" in install_src and "OPENCODE_JSON" in install_src
+        assert guard_present, "Missing RuntimeError guard protecting opencode.json from deletion"
 
     def test_bad_plugin_removal_function_exists(self):
         """Bad: Plugin URI removal function must exist (plugin is removed, file is not)."""

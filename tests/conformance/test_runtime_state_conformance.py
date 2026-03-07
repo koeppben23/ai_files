@@ -307,12 +307,17 @@ class TestPurgeRules:
                 "purge_runtime_state should use allowlist, not glob patterns"
 
     def test_bad_opencode_json_never_purged(self):
-        """Bad: opencode.json must be protected from purge."""
+        """Bad: opencode.json must be protected from purge by runtime guards."""
+        import re
         install_src = (REPO_ROOT / "install.py").read_text(encoding="utf-8")
-        assert_lines = [line for line in install_src.splitlines()
-                        if "assert" in line and "OPENCODE_JSON" in line]
-        assert len(assert_lines) >= 1, \
-            "No assertion protecting opencode.json from purge"
+        # R14 replaced assert-based guards with RuntimeError guards that survive -O mode.
+        guard_count = len(re.findall(
+            r"if\s+OPENCODE_JSON_NAME\b.*?raise\s+RuntimeError",
+            install_src,
+            re.DOTALL,
+        ))
+        assert guard_count >= 1, \
+            "No RuntimeError guard protecting opencode.json from purge"
 
 
 # ---------------------------------------------------------------------------

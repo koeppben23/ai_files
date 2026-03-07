@@ -331,13 +331,19 @@ class TestUninstallRetention:
     """Validate uninstall/retention invariants from contract section 5."""
 
     def test_happy_opencode_json_never_delete_assertions_in_source(self):
-        """Happy: install.py contains the opencode.json never-delete assertions."""
+        """Happy: install.py contains runtime guards protecting opencode.json from deletion."""
         install_src = (REPO_ROOT / "install.py").read_text(encoding="utf-8")
-        # Contract says 3 assertion sites protect opencode.json
+        # Contract says protection sites guard opencode.json
         assert "OPENCODE_JSON_NAME" in install_src, "OPENCODE_JSON_NAME constant missing"
-        # At least 2 assert statements mentioning OPENCODE_JSON_NAME
-        assert_count = install_src.count("assert") 
-        assert assert_count >= 2, f"Expected >=2 assert statements, found {assert_count}"
+        # At least 2 runtime guard sites (raise RuntimeError) mentioning OPENCODE_JSON_NAME
+        # (R14 replaced assert-based guards with runtime guards that survive -O mode)
+        import re
+        guard_count = len(re.findall(
+            r"if\s+OPENCODE_JSON_NAME\b.*?raise\s+RuntimeError",
+            install_src,
+            re.DOTALL,
+        ))
+        assert guard_count >= 2, f"Expected >=2 RuntimeError guard sites for OPENCODE_JSON_NAME, found {guard_count}"
 
     def test_happy_purge_uses_allowlist(self):
         """Happy: purge_runtime_state uses an allowlist, not a glob delete."""

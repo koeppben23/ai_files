@@ -19,13 +19,13 @@ Deterministic persist flow:
 Recommended local command (chat text input):
 
 ```bash
-{{PYTHON_COMMAND}} -m governance.entrypoints.phase5_plan_record_persist --plan-text "<plan text>" --quiet
+PATH="{{BIN_DIR}}:$PATH" opencode-governance-bootstrap --entrypoint governance.entrypoints.phase5_plan_record_persist --plan-text "<plan text>" --quiet
 ```
 
 File-based input:
 
 ```bash
-{{PYTHON_COMMAND}} -m governance.entrypoints.phase5_plan_record_persist --plan-file "/absolute/path/to/plan.md" --quiet
+PATH="{{BIN_DIR}}:$PATH" opencode-governance-bootstrap --entrypoint governance.entrypoints.phase5_plan_record_persist --plan-file "/absolute/path/to/plan.md" --quiet
 ```
 
 Notes:

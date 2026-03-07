@@ -260,37 +260,37 @@ class TestLauncherToEntrypoints:
 class TestRailsToPaths:
     """Validate that rail files reference valid paths and placeholders."""
 
-    # Rail injection targets and their expected placeholder patterns
-    RAIL_FILES_WITH_SESSION_READER = ["continue.md", "review.md"]
-    RAIL_FILES_WITH_PYTHON_ONLY = ["plan.md", "ticket.md"]
-    ALL_RAIL_FILES = RAIL_FILES_WITH_SESSION_READER + RAIL_FILES_WITH_PYTHON_ONLY
+    # All rail injection targets including audit-readout
+    RAIL_FILES_WITH_LAUNCHER = ["continue.md", "review.md", "audit-readout.md"]
+    RAIL_FILES_WITH_ENTRYPOINT = ["plan.md", "ticket.md"]
+    ALL_RAIL_FILES = RAIL_FILES_WITH_LAUNCHER + RAIL_FILES_WITH_ENTRYPOINT
 
-    SESSION_READER_PLACEHOLDER = "{{SESSION_READER_PATH}}"
-    PYTHON_COMMAND_PLACEHOLDER = "{{PYTHON_COMMAND}}"
+    BIN_DIR_PLACEHOLDER = "{{BIN_DIR}}"
 
     def test_happy_all_rail_files_exist(self):
-        """Happy: All 4 rail injection target files exist at repo root."""
+        """Happy: All 5 rail injection target files exist at repo root."""
         missing = [f for f in self.ALL_RAIL_FILES if not (REPO_ROOT / f).is_file()]
         assert not missing, f"Rail files missing: {missing}"
 
-    def test_happy_session_reader_rails_have_placeholder_or_resolved(self):
-        """Happy: continue.md and review.md have SESSION_READER_PATH placeholder or resolved path."""
-        for fname in self.RAIL_FILES_WITH_SESSION_READER:
+    def test_happy_launcher_rails_have_bin_dir_or_resolved(self):
+        """Happy: Launcher rails have BIN_DIR placeholder or resolved opencode-governance-bootstrap."""
+        for fname in self.RAIL_FILES_WITH_LAUNCHER:
             content = _read_source(REPO_ROOT / fname)
-            has_placeholder = self.SESSION_READER_PLACEHOLDER in content
-            has_resolved = "session_reader" in content.lower()
-            assert has_placeholder or has_resolved, (
-                f"{fname} missing both SESSION_READER_PATH placeholder and resolved reference"
+            has_placeholder = self.BIN_DIR_PLACEHOLDER in content
+            has_launcher = "opencode-governance-bootstrap" in content
+            assert has_placeholder or has_launcher, (
+                f"{fname} missing both BIN_DIR placeholder and launcher reference"
             )
 
-    def test_happy_all_rails_have_python_command_reference(self):
-        """Happy: All rail files reference {{PYTHON_COMMAND}} or a resolved python command."""
+    def test_happy_all_rails_have_launcher_or_python_reference(self):
+        """Happy: All rail files reference BIN_DIR/launcher or a resolved python command."""
         for fname in self.ALL_RAIL_FILES:
             content = _read_source(REPO_ROOT / fname)
-            has_placeholder = self.PYTHON_COMMAND_PLACEHOLDER in content
+            has_bin_dir = self.BIN_DIR_PLACEHOLDER in content
+            has_launcher = "opencode-governance-bootstrap" in content
             has_python = "python" in content.lower()
-            assert has_placeholder or has_python, (
-                f"{fname} missing both PYTHON_COMMAND placeholder and resolved reference"
+            assert has_bin_dir or has_launcher or has_python, (
+                f"{fname} missing BIN_DIR placeholder, launcher reference, and resolved python reference"
             )
 
     def test_happy_plan_invokes_phase5_module(self):
@@ -322,31 +322,31 @@ class TestRailsToPaths:
         ]
         assert not missing, f"Rail files reference non-existent modules: {missing}"
 
-    def test_corner_session_reader_placeholder_in_install(self):
-        """Corner: install.py defines SESSION_READER_PLACEHOLDER constant."""
+    def test_corner_bin_dir_placeholder_in_install(self):
+        """Corner: install.py defines BIN_DIR_PLACEHOLDER constant."""
         install_src = _read_source(REPO_ROOT / "install.py")
-        assert "SESSION_READER_PLACEHOLDER" in install_src or "SESSION_READER_PATH" in install_src
+        assert "BIN_DIR_PLACEHOLDER" in install_src or "BIN_DIR" in install_src
 
     def test_edge_no_mixed_placeholder_and_resolved_in_same_rail(self):
-        """Edge: A rail file should not have both an unresolved placeholder AND a resolved path
-        for the same variable (indicates partial injection)."""
-        for fname in self.RAIL_FILES_WITH_SESSION_READER:
+        """Edge: A rail file should not have both an unresolved BIN_DIR placeholder AND a resolved
+        absolute bin path (indicates partial injection)."""
+        for fname in self.RAIL_FILES_WITH_LAUNCHER:
             content = _read_source(REPO_ROOT / fname)
-            has_sr_placeholder = self.SESSION_READER_PLACEHOLDER in content
-            # A resolved session reader path looks like an absolute path to session_reader.py
-            has_sr_resolved = bool(re.search(
-                r'["\'][A-Za-z]:\\.*?session_reader\.py["\']|["\']/.*?session_reader\.py["\']',
+            has_bin_dir_placeholder = self.BIN_DIR_PLACEHOLDER in content
+            # A resolved bin dir looks like an absolute path before opencode-governance-bootstrap
+            has_resolved = bool(re.search(
+                r'PATH="(/[^"]+|[A-Za-z]:\\[^"]+):\$PATH"\s+opencode-governance-bootstrap',
                 content,
             ))
-            if has_sr_placeholder and has_sr_resolved:
+            if has_bin_dir_placeholder and has_resolved:
                 pytest.fail(
-                    f"{fname} has both unresolved placeholder AND resolved session_reader path — "
+                    f"{fname} has both unresolved BIN_DIR placeholder AND resolved bin path — "
                     f"partial injection detected"
                 )
 
     def test_bad_no_broken_placeholder_syntax(self):
-        """Bad: No rail file has malformed placeholders like {SESSION_READER_PATH} (single brace)."""
-        single_brace_pattern = re.compile(r"(?<!\{)\{(SESSION_READER_PATH|PYTHON_COMMAND)\}(?!\})")
+        """Bad: No rail file has malformed placeholders like {BIN_DIR} (single brace)."""
+        single_brace_pattern = re.compile(r"(?<!\{)\{(BIN_DIR|SESSION_READER_PATH|PYTHON_COMMAND)\}(?!\})")
         for fname in self.ALL_RAIL_FILES:
             content = _read_source(REPO_ROOT / fname)
             match = single_brace_pattern.search(content)

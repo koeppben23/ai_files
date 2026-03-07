@@ -19,13 +19,13 @@ Deterministic intake flow:
 Recommended local command (chat text input):
 
 ```bash
-{{PYTHON_COMMAND}} -m governance.entrypoints.phase4_intake_persist --ticket-text "<ticket text>" --quiet
+PATH="{{BIN_DIR}}:$PATH" opencode-governance-bootstrap --entrypoint governance.entrypoints.phase4_intake_persist --ticket-text "<ticket text>" --quiet
 ```
 
 File-based input:
 
 ```bash
-{{PYTHON_COMMAND}} -m governance.entrypoints.phase4_intake_persist --ticket-file "/absolute/path/to/ticket.md" --quiet
+PATH="{{BIN_DIR}}:$PATH" opencode-governance-bootstrap --entrypoint governance.entrypoints.phase4_intake_persist --ticket-file "/absolute/path/to/ticket.md" --quiet
 ```
 
 Notes:

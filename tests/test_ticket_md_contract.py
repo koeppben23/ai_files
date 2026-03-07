@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from install import PYTHON_COMMAND_PLACEHOLDER, inject_session_reader_path_for_command
+from install import BIN_DIR_PLACEHOLDER, inject_session_reader_path_for_command
 
 from .util import REPO_ROOT
 
@@ -15,18 +15,21 @@ def test_ticket_md_exists_and_documents_intake_bridge() -> None:
     assert ticket_path.exists(), "ticket.md must exist in repo root"
     content = ticket_path.read_text(encoding="utf-8")
     assert "phase4_intake_persist" in content
-    assert PYTHON_COMMAND_PLACEHOLDER in content
+    assert BIN_DIR_PLACEHOLDER in content
+    assert "opencode-governance-bootstrap" in content
     assert "/review` is read-only; `/continue` is the kernel-owned state materialization rail" in content
 
 
 @pytest.mark.governance
-def test_ticket_md_python_placeholder_is_injected(tmp_path: Path) -> None:
+def test_ticket_md_bin_dir_placeholder_is_injected(tmp_path: Path) -> None:
     commands_dir = tmp_path / "commands"
     commands_dir.mkdir(parents=True, exist_ok=True)
     command_md = commands_dir / "ticket.md"
     command_md.write_text(
         "```bash\n"
-        f"{PYTHON_COMMAND_PLACEHOLDER} -m governance.entrypoints.phase4_intake_persist --ticket-text \"x\"\n"
+        f'PATH="{BIN_DIR_PLACEHOLDER}:$PATH" opencode-governance-bootstrap '
+        "--entrypoint governance.entrypoints.phase4_intake_persist "
+        '--ticket-text "x"\n'
         "```\n",
         encoding="utf-8",
     )
@@ -34,10 +37,11 @@ def test_ticket_md_python_placeholder_is_injected(tmp_path: Path) -> None:
     result = inject_session_reader_path_for_command(
         commands_dir,
         command_markdown="ticket.md",
-        python_command="/usr/bin/python3",
+        bin_dir="/usr/local/governance/bin",
         dry_run=False,
     )
     assert result["status"] == "injected"
     content = command_md.read_text(encoding="utf-8")
-    assert "{{PYTHON_COMMAND}}" not in content
-    assert "/usr/bin/python3 -m governance.entrypoints.phase4_intake_persist" in content
+    assert "{{BIN_DIR}}" not in content
+    assert "/usr/local/governance/bin" in content
+    assert "opencode-governance-bootstrap --entrypoint governance.entrypoints.phase4_intake_persist" in content

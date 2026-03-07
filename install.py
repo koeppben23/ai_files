@@ -408,12 +408,17 @@ def _resolve_python_executable(binding_path: Path, *, fallback: str, strict: boo
 
 
 def _launcher_template_unix(*, python_exe: str, config_root: Path) -> str:
-    """Generate Unix launcher with fail-closed Python resolution.
+    """Generate Unix launcher with fail-closed Python resolution and subcommand routing.
 
     Resolution cascade (python-binding-contract.v1 §3):
       1. Baked PYTHON_BIN (hardcoded at install time)
       2. PYTHON_BINDING file  (bin/PYTHON_BINDING, one line)
       3. Fail-closed: exit 1, NO silent PATH probing
+
+    Subcommand routing (python-binding-contract.v1 §4):
+      --session-reader [args]    -> session_reader.py entrypoint
+      --entrypoint <mod> [args]  -> arbitrary governance module via -m
+      (default / no subcommand)  -> bootstrap_executor
     """
     return "\n".join(
         [
@@ -439,26 +444,45 @@ def _launcher_template_unix(*, python_exe: str, config_root: Path) -> str:
             "fi",
             "if [ ! -x \"${PYTHON_BIN}\" ] 2>/dev/null; then",
             "    echo \"FATAL: No valid Python interpreter found.\" >&2",
-            "    echo \"  Baked path: {python_exe}\" >&2",
+            f"    echo \"  Baked path: {python_exe}\" >&2",
             "    echo \"  PYTHON_BINDING: ${SCRIPT_DIR}/PYTHON_BINDING\" >&2",
             "    echo \"  Re-run install.py to rebind.\" >&2",
             "    exit 1",
             "fi",
             "export OPENCODE_PYTHON=\"${PYTHON_BIN}\"",
             "",
-            "exec \"${PYTHON_BIN}\" -m governance.entrypoints.bootstrap_executor \"$@\"",
+            "# --- Subcommand routing (python-binding-contract.v1 §4) ---",
+            "case \"${1:-}\" in",
+            "    --session-reader)",
+            "        shift",
+            "        exec \"${PYTHON_BIN}\" \"${COMMANDS_HOME}/governance/entrypoints/session_reader.py\" \"$@\"",
+            "        ;;",
+            "    --entrypoint)",
+            "        shift",
+            "        MODULE=\"$1\"; shift",
+            "        exec \"${PYTHON_BIN}\" -m \"${MODULE}\" \"$@\"",
+            "        ;;",
+            "    *)",
+            "        exec \"${PYTHON_BIN}\" -m governance.entrypoints.bootstrap_executor \"$@\"",
+            "        ;;",
+            "esac",
             "",
         ]
     )
 
 
 def _launcher_template_windows(*, python_exe: str, config_root: Path) -> str:
-    """Generate Windows launcher with fail-closed Python resolution.
+    """Generate Windows launcher with fail-closed Python resolution and subcommand routing.
 
     Resolution cascade (python-binding-contract.v1 §3):
       1. Baked PYTHON_EXE (hardcoded at install time)
       2. PYTHON_BINDING file  (bin\\PYTHON_BINDING, one line)
       3. Fail-closed: exit /b 1, NO silent PATH probing
+
+    Subcommand routing (python-binding-contract.v1 §4):
+      --session-reader [args]    -> session_reader.py entrypoint
+      --entrypoint <mod> [args]  -> arbitrary governance module via -m
+      (default / no subcommand)  -> bootstrap_executor
     """
     return "\n".join(
         [
@@ -503,6 +527,22 @@ def _launcher_template_windows(*, python_exe: str, config_root: Path) -> str:
             ")",
             "if not defined OPENCODE_BOOTSTRAP_OUTPUT (",
             "    set \"OPENCODE_BOOTSTRAP_OUTPUT=final\"",
+            ")",
+            "",
+            "rem --- Subcommand routing (python-binding-contract.v1 §4) ---",
+            "if \"%~1\"==\"--session-reader\" (",
+            "    shift",
+            "    \"!PYTHON_EXE!\" \"%COMMANDS_HOME%\\governance\\entrypoints\\session_reader.py\" %*",
+            "    set \"WRAPPER_EXIT=%ERRORLEVEL%\"",
+            "    endlocal & exit /b %WRAPPER_EXIT%",
+            ")",
+            "if \"%~1\"==\"--entrypoint\" (",
+            "    shift",
+            "    set \"MODULE=%~1\"",
+            "    shift",
+            "    \"!PYTHON_EXE!\" -m !MODULE! %*",
+            "    set \"WRAPPER_EXIT=%ERRORLEVEL%\"",
+            "    endlocal & exit /b %WRAPPER_EXIT%",
             ")",
             "\"!PYTHON_EXE!\" -m governance.entrypoints.bootstrap_executor %*",
             "set \"WRAPPER_EXIT=%ERRORLEVEL%\"",
@@ -1382,6 +1422,7 @@ OPENCODE_PLUGIN_RELATIVE = f"{OPENCODE_PLUGINS_DIR_NAME}/audit-new-session.mjs"
 
 SESSION_READER_PLACEHOLDER = "{{SESSION_READER_PATH}}"
 PYTHON_COMMAND_PLACEHOLDER = "{{PYTHON_COMMAND}}"
+BIN_DIR_PLACEHOLDER = "{{BIN_DIR}}"
 
 
 def ensure_opencode_json(config_root: Path, *, dry_run: bool) -> dict:
@@ -1491,14 +1532,19 @@ def inject_session_reader_path_for_command(
     commands_dir: Path,
     *,
     command_markdown: str,
-    python_command: str,
+    python_command: str | None = None,
+    bin_dir: str | None = None,
     dry_run: bool,
 ) -> dict:
     """Replace placeholders in installed command markdown template.
 
-    The placeholder is replaced with the concrete absolute path to
-    ``session_reader.py`` so the LLM can invoke the governance kernel
-    deterministically (no PYTHONPATH or model-dependent file discovery needed).
+    Primary mode (bin_dir): Replaces ``{{BIN_DIR}}`` with the concrete
+    absolute path to the ``bin/`` directory so the launcher-based rail
+    invocation resolves deterministically.
+
+    Legacy mode (python_command): Replaces ``{{PYTHON_COMMAND}}`` and
+    ``{{SESSION_READER_PATH}}`` for backwards compatibility with older
+    rail templates that have not yet migrated to the launcher pattern.
 
     Returns a status dict for logging.
     """
@@ -1507,42 +1553,62 @@ def inject_session_reader_path_for_command(
         return {"status": "skipped-missing", "dst": str(command_md)}
 
     content = command_md.read_text(encoding="utf-8")
+    new_content = content
+
+    # --- Primary: BIN_DIR placeholder (launcher-era rails) ---
+    has_bin_dir_placeholder = BIN_DIR_PLACEHOLDER in content
+    if has_bin_dir_placeholder and bin_dir is not None:
+        new_content = new_content.replace(BIN_DIR_PLACEHOLDER, bin_dir)
+
+    # --- Legacy: PYTHON_COMMAND / SESSION_READER_PATH placeholders ---
     has_reader_placeholder = SESSION_READER_PLACEHOLDER in content
     has_python_placeholder = PYTHON_COMMAND_PLACEHOLDER in content
-    reader_path = commands_dir / "governance" / "entrypoints" / "session_reader.py"
-    concrete_path = str(reader_path)
 
-    # Quote the python command if it is a single-token path that contains
-    # spaces (e.g. 'C:\Program Files\Python311\python.exe').
-    # Multi-token commands like 'py -3' must NOT be quoted as a unit.
-    safe_python = python_command
-    if " " in safe_python and not (safe_python.startswith('"') and safe_python.endswith('"')):
-        # Distinguish a single filesystem path with spaces from a multi-token
-        # command.  shlex.split cannot reliably tell these apart because an
-        # unquoted space is always a word boundary.  Instead, use a simple
-        # heuristic: if the value contains a path separator (/ or \) it is
-        # almost certainly a single path, not a multi-arg command.  True
-        # multi-token commands like 'py -3' never contain path separators.
-        _has_path_sep = ('\\' in safe_python or '/' in safe_python)
-        if _has_path_sep:
-            safe_python = f'"{safe_python}"'
+    if (has_reader_placeholder or has_python_placeholder) and python_command is not None:
+        reader_path = commands_dir / "governance" / "entrypoints" / "session_reader.py"
+        concrete_path = str(reader_path)
 
-    new_content = content
-    if has_reader_placeholder or has_python_placeholder:
+        # Quote the python command if it is a single-token path that contains
+        # spaces (e.g. 'C:\Program Files\Python311\python.exe').
+        # Multi-token commands like 'py -3' must NOT be quoted as a unit.
+        safe_python = python_command
+        if " " in safe_python and not (safe_python.startswith('"') and safe_python.endswith('"')):
+            # Distinguish a single filesystem path with spaces from a multi-token
+            # command.  shlex.split cannot reliably tell these apart because an
+            # unquoted space is always a word boundary.  Instead, use a simple
+            # heuristic: if the value contains a path separator (/ or \) it is
+            # almost certainly a single path, not a multi-arg command.  True
+            # multi-token commands like 'py -3' never contain path separators.
+            _has_path_sep = ('\\' in safe_python or '/' in safe_python)
+            if _has_path_sep:
+                safe_python = f'"{safe_python}"'
+
         if has_reader_placeholder:
             new_content = new_content.replace(SESSION_READER_PLACEHOLDER, concrete_path)
         if has_python_placeholder:
             new_content = new_content.replace(PYTHON_COMMAND_PLACEHOLDER, safe_python)
-    else:
-        legacy_pattern = re.compile(
-            r"(?m)^(?P<indent>\s*)(?:python(?:3)?|py(?:\s+-3)?)\s+[\"\'][^\"\']*session_reader\.py[\"\']\s*$"
-        )
-        if legacy_pattern.search(content):
-            new_content = legacy_pattern.sub(
-                lambda m: f"{m.group('indent')}{safe_python} \"{concrete_path}\"",
-                content,
-                count=1,
+    elif not has_bin_dir_placeholder and not has_reader_placeholder and not has_python_placeholder:
+        # No known placeholders — attempt legacy regex fallback
+        if python_command is not None:
+            reader_path = commands_dir / "governance" / "entrypoints" / "session_reader.py"
+            concrete_path = str(reader_path)
+            safe_python = python_command
+            if " " in safe_python and not (safe_python.startswith('"') and safe_python.endswith('"')):
+                _has_path_sep = ('\\' in safe_python or '/' in safe_python)
+                if _has_path_sep:
+                    safe_python = f'"{safe_python}"'
+
+            legacy_pattern = re.compile(
+                r"(?m)^(?P<indent>\s*)(?:python(?:3)?|py(?:\s+-3)?)\s+[\"\'][^\"\']*session_reader\.py[\"\']\s*$"
             )
+            if legacy_pattern.search(new_content):
+                new_content = legacy_pattern.sub(
+                    lambda m: f"{m.group('indent')}{safe_python} \"{concrete_path}\"",
+                    new_content,
+                    count=1,
+                )
+            else:
+                return {"status": "skipped-no-placeholder", "dst": str(command_md)}
         else:
             return {"status": "skipped-no-placeholder", "dst": str(command_md)}
 
@@ -1550,7 +1616,7 @@ def inject_session_reader_path_for_command(
         return {"status": "skipped-no-placeholder", "dst": str(command_md)}
 
     if dry_run:
-        print(f"  [DRY-RUN] inject session_reader path into {command_md}")
+        print(f"  [DRY-RUN] inject rail paths into {command_md}")
         return {"status": "planned-inject", "dst": str(command_md)}
 
     command_md.write_text(new_content, encoding="utf-8")
@@ -2105,43 +2171,49 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
         fallback=sys.executable,
         strict=False,
     )
+    concrete_bin_dir = _path_for_json(plan.config_root / "bin")
     template_injections = {
         "continue.md": inject_session_reader_path_for_command(
             plan.commands_dir,
             command_markdown="continue.md",
+            bin_dir=concrete_bin_dir,
             python_command=binding_python,
             dry_run=dry_run,
         ),
         "audit-readout.md": inject_session_reader_path_for_command(
             plan.commands_dir,
             command_markdown="audit-readout.md",
+            bin_dir=concrete_bin_dir,
             python_command=binding_python,
             dry_run=dry_run,
         ),
         "review.md": inject_session_reader_path_for_command(
             plan.commands_dir,
             command_markdown="review.md",
+            bin_dir=concrete_bin_dir,
             python_command=binding_python,
             dry_run=dry_run,
         ),
         "ticket.md": inject_session_reader_path_for_command(
             plan.commands_dir,
             command_markdown="ticket.md",
+            bin_dir=concrete_bin_dir,
             python_command=binding_python,
             dry_run=dry_run,
         ),
         "plan.md": inject_session_reader_path_for_command(
             plan.commands_dir,
             command_markdown="plan.md",
+            bin_dir=concrete_bin_dir,
             python_command=binding_python,
             dry_run=dry_run,
         ),
     }
-    print(f"  continue.md session_reader path: {template_injections['continue.md']['status']}")
-    print(f"  audit-readout.md session_reader path: {template_injections['audit-readout.md']['status']}")
-    print(f"  review.md session_reader path: {template_injections['review.md']['status']}")
-    print(f"  ticket.md session_reader path: {template_injections['ticket.md']['status']}")
-    print(f"  plan.md session_reader path: {template_injections['plan.md']['status']}")
+    print(f"  continue.md rail injection: {template_injections['continue.md']['status']}")
+    print(f"  audit-readout.md rail injection: {template_injections['audit-readout.md']['status']}")
+    print(f"  review.md rail injection: {template_injections['review.md']['status']}")
+    print(f"  ticket.md rail injection: {template_injections['ticket.md']['status']}")
+    print(f"  plan.md rail injection: {template_injections['plan.md']['status']}")
 
     # If session reader path was injected, update the SHA256 in copied_entries
     # so the manifest reflects the post-injection content.

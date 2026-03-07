@@ -10,13 +10,14 @@ from pathlib import Path
 import pytest
 
 from install import (
+    BIN_DIR_PLACEHOLDER,
     PYTHON_COMMAND_PLACEHOLDER,
     SESSION_READER_PLACEHOLDER,
     inject_session_reader_path_for_command,
 )
 from tests.util import REPO_ROOT
 
-# Platform-aware python command for inject tests (string substitution only).
+# Platform-aware python command for legacy inject tests (string substitution only).
 _TEST_PYTHON_CMD = sys.executable
 
 
@@ -26,8 +27,9 @@ def test_review_template_contains_required_placeholders_and_contract() -> None:
     assert review_path.exists(), "review.md must exist in repo root"
     content = review_path.read_text(encoding="utf-8")
 
-    assert SESSION_READER_PLACEHOLDER in content
-    assert PYTHON_COMMAND_PLACEHOLDER in content
+    assert BIN_DIR_PLACEHOLDER in content
+    assert "opencode-governance-bootstrap" in content
+    assert "--session-reader" in content
     assert "Resume Session State" in content
     assert "lead/staff" in content.lower()
     assert "paste-ready" in content.lower()
@@ -97,7 +99,38 @@ def test_review_template_minimum_snapshot_fields_documented() -> None:
 
 
 @pytest.mark.governance
-def test_review_injection_replaces_placeholders(tmp_path: Path) -> None:
+def test_review_injection_replaces_bin_dir(tmp_path: Path) -> None:
+    """Primary path: BIN_DIR placeholder is replaced with concrete bin dir."""
+    commands_dir = tmp_path / "commands"
+    commands_dir.mkdir(parents=True)
+    review_md = commands_dir / "review.md"
+    review_md.write_text(
+        (
+            "# Governance Review\n"
+            "## Resume Session State\n"
+            f'PATH="{BIN_DIR_PLACEHOLDER}:$PATH" opencode-governance-bootstrap --session-reader\n'
+        ),
+        encoding="utf-8",
+    )
+
+    concrete_bin = "/opt/governance/bin"
+    result = inject_session_reader_path_for_command(
+        commands_dir,
+        command_markdown="review.md",
+        bin_dir=concrete_bin,
+        dry_run=False,
+    )
+    assert result["status"] == "injected"
+
+    content = review_md.read_text(encoding="utf-8")
+    assert BIN_DIR_PLACEHOLDER not in content
+    assert concrete_bin in content
+    assert "opencode-governance-bootstrap --session-reader" in content
+
+
+@pytest.mark.governance
+def test_review_injection_legacy_replaces_placeholders(tmp_path: Path) -> None:
+    """Legacy path: PYTHON_COMMAND/SESSION_READER_PATH placeholders still work."""
     commands_dir = tmp_path / "commands"
     (commands_dir / "governance" / "entrypoints").mkdir(parents=True)
     review_md = commands_dir / "review.md"

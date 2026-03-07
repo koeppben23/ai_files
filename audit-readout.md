@@ -10,7 +10,7 @@ It prints an `AUDIT_READOUT_SPEC.v1` JSON payload and does not modify files.
 Preferred (Tier A): load the current audit readout using the following read-only command:
 
 ```bash
-{{PYTHON_COMMAND}} "{{SESSION_READER_PATH}}" --audit --tail-count 25
+PATH="{{BIN_DIR}}:$PATH" opencode-governance-bootstrap --session-reader --audit --tail-count 25
 ```
 
 Use the JSON output as audit context for the response below. Do not infer or mutate any session state.
