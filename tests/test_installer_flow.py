@@ -819,3 +819,45 @@ class TestSymlinkGuards:
 
         with pytest.raises(RuntimeError, match="symlink"):
             create_launcher(plan, dry_run=False, force=True)
+
+
+# ---------------------------------------------------------------------------
+# R14: assert -> runtime guards
+# ---------------------------------------------------------------------------
+
+class TestRuntimeGuards:
+    """
+    R14 fix: production safety checks must use if/raise RuntimeError instead
+    of assert (which is stripped under python -O).
+    """
+
+    def test_happy_no_assert_statements_in_install(self) -> None:
+        """Happy: install.py has no bare assert statements (all converted to if/raise)."""
+        source_path = Path(__file__).resolve().parents[1] / "install.py"
+        lines = source_path.read_text(encoding="utf-8").splitlines()
+        asserts = [
+            (i, line.strip()) for i, line in enumerate(lines, 1)
+            if line.lstrip().startswith("assert ")
+            and not line.lstrip().startswith("assert isinstance")  # redundant but harmless type narrows
+        ]
+        assert not asserts, (
+            f"install.py still uses bare assert at line(s): "
+            + ", ".join(f"{ln}" for ln, _ in asserts)
+        )
+
+    def test_happy_opencode_json_safety_guard_present(self) -> None:
+        """Happy: OPENCODE_JSON_NAME safety check uses RuntimeError, not assert."""
+        source_path = Path(__file__).resolve().parents[1] / "install.py"
+        source = source_path.read_text(encoding="utf-8")
+        assert 'raise RuntimeError' in source and 'OPENCODE_JSON_NAME' in source, (
+            "opencode.json safety guard must use raise RuntimeError"
+        )
+
+    def test_edge_opencode_json_is_not_purge_target(self) -> None:
+        """Edge: OPENCODE_JSON_NAME constant is never in the purge set."""
+        from install import OPENCODE_JSON_NAME
+        purge_targets = {
+            "governance.activation_intent.json",
+            "SESSION_STATE.json",
+        }
+        assert OPENCODE_JSON_NAME not in purge_targets

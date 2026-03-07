@@ -1054,7 +1054,7 @@ def install_governance_paths_file(
         existing = _load_json(dst)
         if existing and existing.get("schema") == GOVERNANCE_PATHS_SCHEMA and isinstance(existing.get("paths"), dict):
             existing_paths = existing["paths"]
-            assert isinstance(existing_paths, dict)
+            # existing_paths is guaranteed dict by the isinstance check above
 
             missing_keys: list[str] = []
             for k, v in desired_doc["paths"].items():
@@ -2598,13 +2598,15 @@ def purge_runtime_state(config_root: Path, dry_run: bool) -> int:
 
     # ── Safety: opencode.json must NEVER be deleted ──────────────────────
     # opencode.json is user/team configuration (checked into repos, shared
-    # across team members). It is NOT a runtime artifact. Assert that it
-    # cannot accidentally appear in any removal list maintained here.
-    _oj = config_root / OPENCODE_JSON_NAME
-    assert OPENCODE_JSON_NAME not in {
+    # across team members). It is NOT a runtime artifact. Verify at runtime
+    # that it cannot accidentally appear in any removal list maintained here.
+    if OPENCODE_JSON_NAME in {
         "governance.activation_intent.json",
         "SESSION_STATE.json",
-    }, "opencode.json must never be a config-root purge target"
+    }:
+        raise RuntimeError(
+            f"CRITICAL: {OPENCODE_JSON_NAME} must never be a config-root purge target"
+        )
 
     # 1. activation_intent.json at config root level
     activation_intent = config_root / "governance.activation_intent.json"
@@ -2651,9 +2653,10 @@ def purge_runtime_state(config_root: Path, dry_run: bool) -> int:
         "plan-record.json",
     ]
 
-    assert OPENCODE_JSON_NAME not in workspace_artifact_names, (
-        "opencode.json must never appear in workspace_artifact_names"
-    )
+    if OPENCODE_JSON_NAME in workspace_artifact_names:
+        raise RuntimeError(
+            f"CRITICAL: {OPENCODE_JSON_NAME} must never appear in workspace_artifact_names"
+        )
 
     # Known workspace subdirectories to remove as trees
     workspace_subtree_names = [
