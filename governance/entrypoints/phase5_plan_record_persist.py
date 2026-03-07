@@ -18,13 +18,14 @@ if __package__ in {None, ""}:
 
 from governance.application.use_cases.phase_router import route_phase
 from governance.application.use_cases.session_state_helpers import with_kernel_result
+from governance.domain import reason_codes
 from governance.domain.phase_state_machine import normalize_phase_token
 from governance.infrastructure.binding_evidence_resolver import BindingEvidenceResolver
 from governance.infrastructure.plan_record_repository import PlanRecordRepository
 from governance.infrastructure.workspace_paths import plan_record_archive_dir, plan_record_path
 
 
-BLOCKED_P5_PLAN_RECORD_PERSIST = "BLOCKED-P5-PLAN-RECORD-PERSIST"
+BLOCKED_P5_PLAN_RECORD_PERSIST = reason_codes.BLOCKED_P5_PLAN_RECORD_PERSIST
 _PHASE5_REVIEW_MAX_ITERATIONS = 3
 _PHASE5_REVIEW_MIN_ITERATIONS = 1
 
@@ -225,7 +226,7 @@ def _run_internal_phase5_self_review(plan_text: str) -> dict[str, object]:
         return {
             "blocked": True,
             "reason": "empty-plan-after-canonicalization",
-            "reason_code": BLOCKED_P5_PLAN_RECORD_PERSIST,
+            "reason_code": reason_codes.BLOCKED_P5_PLAN_EMPTY,
             "recovery_action": "provide non-empty plan text via --plan-text or --plan-file",
         }
 
@@ -335,7 +336,7 @@ def main(argv: list[str] | None = None) -> int:
         if token_before != "5":
             payload = _payload(
                 "blocked",
-                reason_code=BLOCKED_P5_PLAN_RECORD_PERSIST,
+                reason_code=reason_codes.BLOCKED_P5_PHASE_MISMATCH,
                 reason="phase5-plan-persist-not-allowed-outside-phase5",
                 observed=phase_before,
                 recovery_action="run /ticket to enter Phase 5 first, then retry /plan",
@@ -346,7 +347,7 @@ def main(argv: list[str] | None = None) -> int:
         if not _contains_ticket_or_task_evidence(state):
             payload = _payload(
                 "blocked",
-                reason_code=BLOCKED_P5_PLAN_RECORD_PERSIST,
+                reason_code=reason_codes.BLOCKED_P5_TICKET_EVIDENCE_MISSING,
                 reason="missing-ticket-intake-evidence",
                 recovery_action="persist ticket/task evidence via /ticket before /plan",
             )
@@ -420,7 +421,7 @@ def main(argv: list[str] | None = None) -> int:
             if not revised_write.ok:
                 payload = _payload(
                     "blocked",
-                    reason_code=revised_write.reason_code,
+                    reason_code=reason_codes.BLOCKED_P5_REVIEW_PERSIST_FAILED,
                     reason=revised_write.reason,
                     recovery_action="review loop could not persist revised plan-record evidence; rerun /plan",
                 )
@@ -432,7 +433,10 @@ def main(argv: list[str] | None = None) -> int:
         state["phase5_plan_record_updated_at"] = _now_iso()
         state["phase5_plan_record_source"] = "phase5-plan-record-rail"
         state["phase5_completed"] = bool(review_result.get("phase5_completed"))
+        state["phase5_state"] = "phase5_completed"
+        state["Phase5State"] = "phase5_completed"
         state["phase5_completion_status"] = str(review_result.get("completion_status") or "phase5-completed")
+        state["phase5_blocker_code"] = "none"
         state["self_review_iterations_met"] = bool(review_result.get("self_review_iterations_met"))
         state["phase5_self_review_iterations"] = _as_int(review_result.get("iterations"), 0)
         state["phase5_max_review_iterations"] = _as_int(review_result.get("max_iterations"), _PHASE5_REVIEW_MAX_ITERATIONS)

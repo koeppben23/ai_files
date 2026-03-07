@@ -473,6 +473,37 @@ def _phase5_revision_delta(state: Mapping[str, object]) -> str:
     return "changed"
 
 
+def _phase5_state_value(state: Mapping[str, object]) -> str:
+    value = _read_non_empty_text(state, "phase5_state", "Phase5State", "Phase5Review.completion_status")
+    return value.lower() if value else ""
+
+
+def _phase5_blocker_code(state: Mapping[str, object]) -> str:
+    value = _read_non_empty_text(
+        state,
+        "phase5_blocker_code",
+        "Phase5BlockerCode",
+        "Phase5Review.blocker_code",
+        "Phase5Review.reason_code",
+    )
+    return value if value else "none"
+
+
+def _phase5_completed_explicit(state: Mapping[str, object]) -> bool:
+    for key_path in ("phase5_completed", "Phase5Completed", "Phase5Review.self_review_iterations_met"):
+        value = _read_nested_key(state, key_path)
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str):
+            normalized = value.strip().lower()
+            if normalized in {"true", "1", "yes"}:
+                return True
+            if normalized in {"false", "0", "no"}:
+                return False
+    state_value = _phase5_state_value(state)
+    return state_value in {"phase5_completed", "phase5-complete", "phase5-completed"}
+
+
 def _phase6_review_iterations(state: Mapping[str, object]) -> int:
     for key_path in (
         "ImplementationReview.iteration",
@@ -544,6 +575,12 @@ def _phase5_review_loop_complete(
     if plan_record_versions < 1:
         return False
 
+    state_value = _phase5_state_value(state)
+    if state_value == "phase5_blocked":
+        return False
+    if _phase5_completed_explicit(state):
+        return True
+
     iteration = _phase5_self_review_iterations(state)
     max_iterations = _phase5_max_review_iterations(state)
     min_iterations = max(1, _phase5_min_self_review_iterations(entry))
@@ -610,6 +647,15 @@ def _phase5_gate_condition(
         )
 
     if gate == "architecture review gate":
+        state_value = _phase5_state_value(state)
+        if state_value == "phase5_blocked":
+            blocker_code = _phase5_blocker_code(state)
+            return (
+                "Phase 5 self-review is blocked. "
+                f"reason_code={blocker_code}. "
+                "Apply the recorded recovery action and rerun /plan."
+            )
+
         iteration = _phase5_self_review_iterations(state)
         max_iterations = _phase5_max_review_iterations(state)
         max_iterations = max_iterations if max_iterations >= 1 else 3
@@ -620,14 +666,23 @@ def _phase5_gate_condition(
             plan_record_versions=plan_record_versions,
         )
         if review_met:
+            completion_status = _read_non_empty_text(
+                state,
+                "phase5_completion_status",
+                "Phase5Review.completion_status",
+            )
+            completion_note = (
+                f", completion_status={completion_status}" if completion_status else ""
+            )
             action = "Proceed to Phase 5.3 test-quality gate."
         else:
             action = "Continue architecture self-review until completion criteria are met."
+            completion_note = ""
         return (
             "Phase 5 self-review status: "
             f"iteration={iteration}/{max_iterations}, "
             f"revision_delta={revision_delta}, "
-            f"self_review_iterations_met={str(review_met).lower()}. "
+            f"self_review_iterations_met={str(review_met).lower()}{completion_note}. "
             f"{action}"
         )
 

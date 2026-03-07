@@ -105,6 +105,8 @@ def test_phase5_plan_persist_good_chat_text_persists_and_routes(tmp_path: Path, 
     assert state["phase5_completed"] is True
     assert state["self_review_iterations_met"] is True
     assert state["phase5_self_review_iterations"] >= 1
+    assert state["phase5_state"] == "phase5_completed"
+    assert state["phase5_blocker_code"] == "none"
 
     plan_record = json.loads((session_path.parent / "plan-record.json").read_text(encoding="utf-8"))
     assert plan_record["status"] == "active"
@@ -170,7 +172,7 @@ def test_phase5_plan_persist_bad_missing_ticket_evidence_blocked(
     rc = module.main(["--plan-text", "Architecture plan", "--quiet"])
     assert rc == 2
     blocked = json.loads(capsys.readouterr().out.strip())
-    assert blocked["reason_code"] == "BLOCKED-P5-PLAN-RECORD-PERSIST"
+    assert blocked["reason_code"] == "BLOCKED-P5-TICKET-EVIDENCE-MISSING"
     assert blocked["reason"] == "missing-ticket-intake-evidence"
 
 
@@ -192,7 +194,7 @@ def test_phase5_plan_persist_bad_outside_phase5_blocked(
     rc = module.main(["--plan-text", "Architecture plan", "--quiet"])
     assert rc == 2
     blocked = json.loads(capsys.readouterr().out.strip())
-    assert blocked["reason_code"] == "BLOCKED-P5-PLAN-RECORD-PERSIST"
+    assert blocked["reason_code"] == "BLOCKED-P5-PHASE-MISMATCH"
     assert blocked["reason"] == "phase5-plan-persist-not-allowed-outside-phase5"
 
 
