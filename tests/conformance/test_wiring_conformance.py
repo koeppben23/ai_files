@@ -33,6 +33,7 @@ ALL_CONTRACTS = {
     "install-layout-migration.v1.md": None,           # planned, conformance_suite: TBD
     "opencode-integration-contract.v1.md": "tests/conformance/test_opencode_integration_conformance.py",
     "runtime-state-contract.v1.md": "tests/conformance/test_runtime_state_conformance.py",
+    "python-binding-contract.v1.md": "tests/conformance/test_binding_conformance.py",
 }
 
 # Contracts with active conformance suites
