@@ -589,6 +589,51 @@ def _phase5_self_review_iterations_met(
     )
 
 
+def _phase5_gate_condition(
+    *,
+    entry: PhaseSpecEntry,
+    state: Mapping[str, object],
+    plan_record_versions: int,
+    active_gate: str,
+    fallback: str,
+) -> str:
+    gate = active_gate.strip().lower()
+    if gate == "plan record preparation gate":
+        if plan_record_versions < 1:
+            return (
+                "Plan record v1 missing (plan_record_versions=0). "
+                "Persist plan-record evidence via /plan before architecture review."
+            )
+        return (
+            "Plan record evidence is present. Continue in the Architecture Review Gate "
+            "for deterministic internal self-review."
+        )
+
+    if gate == "architecture review gate":
+        iteration = _phase5_self_review_iterations(state)
+        max_iterations = _phase5_max_review_iterations(state)
+        max_iterations = max_iterations if max_iterations >= 1 else 3
+        revision_delta = _phase5_revision_delta(state)
+        review_met = _phase5_self_review_iterations_met(
+            entry=entry,
+            state=state,
+            plan_record_versions=plan_record_versions,
+        )
+        if review_met:
+            action = "Proceed to Phase 5.3 test-quality gate."
+        else:
+            action = "Continue architecture self-review until completion criteria are met."
+        return (
+            "Phase 5 self-review status: "
+            f"iteration={iteration}/{max_iterations}, "
+            f"revision_delta={revision_delta}, "
+            f"self_review_iterations_met={str(review_met).lower()}. "
+            f"{action}"
+        )
+
+    return fallback
+
+
 def _select_transition(
     entry: PhaseSpecEntry,
     state: Mapping[str, object],
@@ -1060,13 +1105,27 @@ def execute(
         and not (persisted_token == "1.2" and workspace_ready)
     ):
         entry = spec.entries[persisted_token]
-        persisted_gate = _state_text(state, "active_gate", "ActiveGate") or entry.active_gate or runtime_ctx.requested_active_gate
-        persisted_condition = _state_text(state, "next_gate_condition", "NextGateCondition")
-        if not persisted_condition:
-            persisted_condition = runtime_ctx.requested_next_gate_condition or entry.next_gate_condition
+        monotonic_next_token, _, monotonic_gate, monotonic_condition = _select_transition(
+            entry,
+            state,
+            plan_record_versions=plan_record_signal.versions,
+        )
+        persisted_gate = monotonic_gate or entry.active_gate or runtime_ctx.requested_active_gate
+        persisted_condition = monotonic_condition or entry.next_gate_condition or runtime_ctx.requested_next_gate_condition
+        if entry.route_strategy == "next" and monotonic_next_token and monotonic_next_token in spec.entries and monotonic_gate is None:
+            next_entry = spec.entries[monotonic_next_token]
+            persisted_gate = next_entry.active_gate or persisted_gate
+        if entry.token == "5":
+            persisted_condition = _phase5_gate_condition(
+                entry=entry,
+                state=state,
+                plan_record_versions=plan_record_signal.versions,
+                active_gate=persisted_gate,
+                fallback=persisted_condition,
+            )
         return KernelResult(
             phase=entry.phase,
-            next_token=persisted_token,
+            next_token=monotonic_next_token or persisted_token,
             active_gate=persisted_gate,
             next_gate_condition=_sanitize_ticket_progression(phase=entry.phase, next_gate_condition=persisted_condition),
             workspace_ready=workspace_ready,
@@ -1309,14 +1368,20 @@ def execute(
     resolved_active_gate = override_active_gate or entry.active_gate or runtime_ctx.requested_active_gate
     resolved_next_condition = override_next_condition or entry.next_gate_condition or runtime_ctx.requested_next_gate_condition
 
-    if entry.route_strategy == "stay" and runtime_ctx.requested_next_gate_condition.strip():
-        resolved_next_condition = runtime_ctx.requested_next_gate_condition.strip()
-
     if entry.route_strategy == "next" and next_token and next_token in spec.entries:
         next_entry = spec.entries[next_token]
         resolved_phase = next_entry.phase
         if override_active_gate is None:
             resolved_active_gate = next_entry.active_gate or resolved_active_gate
+
+    if entry.token == "5":
+        resolved_next_condition = _phase5_gate_condition(
+            entry=entry,
+            state=state,
+            plan_record_versions=plan_record_signal.versions,
+            active_gate=resolved_active_gate,
+            fallback=resolved_next_condition,
+        )
 
     resolved_phase_for_event = entry.phase
 

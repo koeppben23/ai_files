@@ -35,6 +35,7 @@ from governance.domain.model_identity import (
     ModelIdentitySource,
     TrustLevel,
     infer_context_limit,
+    is_known_model_id,
 )
 from governance.domain.reason_codes import (
     BLOCKED_MODEL_CONTEXT_LIMIT_INVALID,
@@ -179,12 +180,67 @@ def resolve_model_identity(
         )
     
     if mode == "pipeline":
+        context_limit_raw = os.environ.get("OPENCODE_MODEL_CONTEXT_LIMIT", "").strip()
+        if not context_limit_raw:
+            return ModelIdentityResolutionResult(
+                identity=None,
+                blocked=True,
+                reason_code=BLOCKED_MODEL_CONTEXT_LIMIT_REQUIRED,
+                reason_message="Pipeline mode requires explicit OPENCODE_MODEL_CONTEXT_LIMIT from binding_env",
+                precedence_chain=precedence_chain,
+                event_path=event_path,
+                evidence_path=evidence_path,
+            )
+        try:
+            parsed_context_limit = int(context_limit_raw)
+        except ValueError:
+            return ModelIdentityResolutionResult(
+                identity=None,
+                blocked=True,
+                reason_code=BLOCKED_MODEL_CONTEXT_LIMIT_INVALID,
+                reason_message="OPENCODE_MODEL_CONTEXT_LIMIT must be an integer in pipeline mode",
+                precedence_chain=precedence_chain,
+                event_path=event_path,
+                evidence_path=evidence_path,
+            )
+        if parsed_context_limit <= 0:
+            reason_code = (
+                BLOCKED_MODEL_CONTEXT_LIMIT_REQUIRED
+                if parsed_context_limit == 0
+                else BLOCKED_MODEL_CONTEXT_LIMIT_INVALID
+            )
+            reason_message = (
+                "Pipeline mode requires OPENCODE_MODEL_CONTEXT_LIMIT > 0"
+                if parsed_context_limit == 0
+                else "context_limit cannot be negative"
+            )
+            return ModelIdentityResolutionResult(
+                identity=None,
+                blocked=True,
+                reason_code=reason_code,
+                reason_message=reason_message,
+                precedence_chain=precedence_chain,
+                event_path=event_path,
+                evidence_path=evidence_path,
+            )
+
         if identity.context_limit <= 0:
             return ModelIdentityResolutionResult(
                 identity=None,
                 blocked=True,
                 reason_code=BLOCKED_MODEL_CONTEXT_LIMIT_REQUIRED,
                 reason_message="Pipeline mode requires explicit context_limit from binding_env",
+                precedence_chain=precedence_chain,
+                event_path=event_path,
+                evidence_path=evidence_path,
+            )
+
+        if not is_known_model_id(identity.model_id):
+            return ModelIdentityResolutionResult(
+                identity=None,
+                blocked=True,
+                reason_code=BLOCKED_MODEL_IDENTITY_UNTRUSTED,
+                reason_message="Pipeline mode requires canonical known model identity from binding_env",
                 precedence_chain=precedence_chain,
                 event_path=event_path,
                 evidence_path=evidence_path,

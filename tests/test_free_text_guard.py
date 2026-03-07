@@ -348,7 +348,7 @@ class TestCorruptedStateNoWrites:
 # ---------------------------------------------------------------------------
 
 class TestRailDocFreeTextGuard:
-    """Verify that continue.md and ticket.md contain the free-text guard contract.
+    """Verify that continue.md, ticket.md, and plan.md contain the free-text guard contract.
 
     These are tripwire tests: if someone removes the guard language from the
     rail docs, these tests will fail and flag the regression.
@@ -358,10 +358,11 @@ class TestRailDocFreeTextGuard:
 
     @pytest.fixture(autouse=True)
     def _load_rail_docs(self) -> None:
-        """Load continue.md and ticket.md from the repo root."""
+        """Load continue.md, ticket.md, and plan.md from the repo root."""
         repo_root = Path(__file__).resolve().parent.parent
         self.continue_md = (repo_root / "continue.md").read_text(encoding="utf-8")
         self.ticket_md = (repo_root / "ticket.md").read_text(encoding="utf-8")
+        self.plan_md = (repo_root / "plan.md").read_text(encoding="utf-8")
 
     def test_continue_md_has_free_text_guard(self) -> None:
         """continue.md must contain the free-text guard section."""
@@ -417,6 +418,34 @@ class TestRailDocFreeTextGuard:
         lower = self.ticket_md.lower()
         assert "/ticket" in lower and "explicit" in lower, (
             "ticket.md must require explicit /ticket invocation"
+        )
+
+    def test_plan_md_has_free_text_guard(self) -> None:
+        """plan.md must contain the free-text guard section."""
+        lower = self.plan_md.lower()
+        assert "free-text guard" in lower, (
+            "plan.md is missing the 'Free-text guard' section header"
+        )
+        for term in self.FREE_TEXT_TERMS:
+            assert term in lower, (
+                f"plan.md free-text guard must mention '{term}'"
+            )
+        assert "not" in lower and "rail command" in lower, (
+            "plan.md must state that free-text is not a rail command"
+        )
+
+    def test_plan_md_prohibits_persist_from_freetext(self) -> None:
+        """plan.md must explicitly prohibit plan persist from free-text."""
+        lower = self.plan_md.lower()
+        assert "never trigger" in lower or "must never trigger" in lower, (
+            "plan.md must state that free-text must NEVER trigger plan persist"
+        )
+
+    def test_plan_md_only_explicit_rail_invocation(self) -> None:
+        """plan.md must require explicit /plan rail invocation."""
+        lower = self.plan_md.lower()
+        assert "/plan" in lower and "explicit" in lower, (
+            "plan.md must require explicit /plan invocation"
         )
 
 

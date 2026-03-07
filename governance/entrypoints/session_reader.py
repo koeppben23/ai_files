@@ -305,6 +305,17 @@ def _resolve_next_action_line(snapshot: dict) -> str:
     recommends /continue but nothing changes because the user hasn't done
     the required gate work yet.
     """
+    phase_str = str(snapshot.get("phase", "")).strip()
+    active_gate = str(snapshot.get("active_gate", "")).strip().lower()
+    plan_status = str(snapshot.get("plan_record_status", "")).strip().lower()
+    plan_versions = _coerce_int(snapshot.get("plan_record_versions"))
+
+    # Phase 5 plan-record prep is an explicit write gate: /continue must NOT
+    # be recommended before the plan record exists.
+    if phase_str.startswith("5") and active_gate == "plan record preparation gate":
+        if plan_versions < 1 or plan_status in {"", "absent", "error", "unknown"}:
+            return "Next action: run /plan."
+
     if not _should_emit_continue_next_action(snapshot):
         return ""
 
@@ -319,7 +330,6 @@ def _resolve_next_action_line(snapshot: dict) -> str:
     # Check the self_review_iterations_met flag from Fix 3.1 (B6).
     # If iterations are NOT met and phase is 5, the user should do
     # review work in chat, not re-run /continue which would self-loop.
-    phase_str = str(snapshot.get("phase", "")).strip()
     if phase_str.startswith("5"):
         review_met = snapshot.get("self_review_iterations_met", True)
         if review_met is False:

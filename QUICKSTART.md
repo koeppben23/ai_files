@@ -73,6 +73,7 @@ If the model cannot execute the session-reader command (e.g., sandboxed environm
 | `python3 scripts/governance_session_new.py --trigger-source pipeline --quiet` | Pipeline wrapper for fresh Phase-4 work run |
 | `/review` | Read-only rail entrypoint for lead/staff PR/ticket feedback |
 | `/ticket` | Persist ticket/task intake evidence and reroute from Phase 4 |
+| `/plan` | Persist Phase-5 plan-record evidence before architecture review |
 | `./install/install.sh` | Install/update governance (macOS/Linux, from bundle) |
 | `./install/install.sh --status` | Check installation (macOS/Linux, from bundle) |
 | `./install/install.sh --smoketest` | Run installation smoketest (macOS/Linux, from bundle) |
@@ -92,6 +93,8 @@ If the model cannot execute the session-reader command (e.g., sandboxed environm
 # Provide ticket/task text in chat
 "<ticket/task text>"
 /ticket
+# Persist Phase-5 plan record when the gate asks for it
+/plan
 # Plan Mode continues until plan is approved; then exit Plan Mode
 /review
 # After P5 gates are approved: implement changes
