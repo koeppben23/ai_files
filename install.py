@@ -1305,12 +1305,24 @@ def ensure_opencode_json(config_root: Path, *, dry_run: bool) -> dict:
     plugin_uri = (config_root / OPENCODE_PLUGIN_RELATIVE).resolve().as_uri()
 
     if target.exists():
+        raw_text = target.read_text(encoding="utf-8")
+        corrupt = False
         try:
-            existing = json.loads(target.read_text(encoding="utf-8"))
+            existing = json.loads(raw_text)
             if not isinstance(existing, dict):
+                corrupt = True
                 existing = {}
         except Exception:
+            corrupt = True
             existing = {}
+
+        # R6 fix: backup corrupt opencode.json before overwriting
+        if corrupt and not dry_run:
+            backup_name = target.with_suffix(".json.corrupt-backup")
+            try:
+                backup_name.write_text(raw_text, encoding="utf-8")
+            except Exception:
+                pass  # best-effort backup
 
         current = existing.get("instructions")
         if not isinstance(current, list):

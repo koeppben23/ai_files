@@ -969,3 +969,53 @@ class TestManifestValidation:
             "files": ["not", "a", "dict"],
         }), encoding="utf-8")
         assert load_manifest(mf) is None
+
+
+# ---------------------------------------------------------------------------
+# R6: backup corrupt opencode.json before overwrite
+# ---------------------------------------------------------------------------
+
+class TestOpencodeJsonBackup:
+    """
+    R6 fix: if opencode.json is corrupt (invalid JSON or non-dict),
+    the original content must be backed up before overwriting.
+    """
+
+    def test_happy_valid_json_no_backup(self, tmp_path: Path) -> None:
+        """Happy: valid opencode.json is merged without creating backup."""
+        from install import ensure_opencode_json
+        target = tmp_path / "opencode.json"
+        target.write_text('{"instructions": []}', encoding="utf-8")
+        ensure_opencode_json(tmp_path, dry_run=False)
+        backup = target.with_suffix(".json.corrupt-backup")
+        assert not backup.exists(), "No backup for valid JSON"
+
+    def test_bad_corrupt_json_creates_backup(self, tmp_path: Path) -> None:
+        """Bad: corrupt JSON triggers backup before overwrite."""
+        from install import ensure_opencode_json
+        target = tmp_path / "opencode.json"
+        corrupt_content = "{this is not valid json"
+        target.write_text(corrupt_content, encoding="utf-8")
+        ensure_opencode_json(tmp_path, dry_run=False)
+        backup = target.with_suffix(".json.corrupt-backup")
+        assert backup.exists(), "Corrupt opencode.json must be backed up"
+        assert backup.read_text(encoding="utf-8") == corrupt_content
+
+    def test_bad_non_dict_json_creates_backup(self, tmp_path: Path) -> None:
+        """Bad: JSON array triggers backup before overwrite."""
+        from install import ensure_opencode_json
+        target = tmp_path / "opencode.json"
+        non_dict_content = '["not", "a", "dict"]'
+        target.write_text(non_dict_content, encoding="utf-8")
+        ensure_opencode_json(tmp_path, dry_run=False)
+        backup = target.with_suffix(".json.corrupt-backup")
+        assert backup.exists(), "Non-dict opencode.json must be backed up"
+
+    def test_edge_dry_run_no_backup(self, tmp_path: Path) -> None:
+        """Edge: dry-run does NOT create backup file."""
+        from install import ensure_opencode_json
+        target = tmp_path / "opencode.json"
+        target.write_text("{bad json", encoding="utf-8")
+        ensure_opencode_json(tmp_path, dry_run=True)
+        backup = target.with_suffix(".json.corrupt-backup")
+        assert not backup.exists(), "Dry-run must not create backup"
