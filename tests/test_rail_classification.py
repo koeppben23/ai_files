@@ -54,6 +54,10 @@ RAIL_FILES: dict[str, dict[str, object]] = {
         "required_tokens": {"MUTATING", "GATE-EVALUATION"},
         "forbidden_tokens": {"READ-ONLY", "NO-STATE-CHANGE"},
     },
+    "plan.md": {
+        "required_tokens": {"MUTATING", "GATE-EVALUATION"},
+        "forbidden_tokens": {"READ-ONLY", "NO-STATE-CHANGE"},
+    },
 }
 
 CLASSIFICATION_RE = re.compile(r"<!--\s*rail-classification:\s*([^>]+)-->")

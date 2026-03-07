@@ -152,6 +152,7 @@ CORE_COMMAND_FILES = {
     "audit-readout.md",
     "review.md",
     "ticket.md",
+    "plan.md",
     "docs/resume.md",
     "docs/resume_prompt.md",
     "docs/new_profile.md",
@@ -2009,11 +2010,18 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
             python_command=binding_python,
             dry_run=dry_run,
         ),
+        "plan.md": inject_session_reader_path_for_command(
+            plan.commands_dir,
+            command_markdown="plan.md",
+            python_command=binding_python,
+            dry_run=dry_run,
+        ),
     }
     print(f"  continue.md session_reader path: {template_injections['continue.md']['status']}")
     print(f"  audit-readout.md session_reader path: {template_injections['audit-readout.md']['status']}")
     print(f"  review.md session_reader path: {template_injections['review.md']['status']}")
     print(f"  ticket.md session_reader path: {template_injections['ticket.md']['status']}")
+    print(f"  plan.md session_reader path: {template_injections['plan.md']['status']}")
 
     # If session reader path was injected, update the SHA256 in copied_entries
     # so the manifest reflects the post-injection content.

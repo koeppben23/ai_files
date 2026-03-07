@@ -201,6 +201,8 @@ KNOWN_CONTEXT_LIMITS: dict[str, int] = {
     "gpt-4-32k": 32768,
     "gpt-4": 8192,
     "gpt-3.5-turbo": 16385,
+    "gpt-5-codex": 200000,
+    "codex": 200000,
     
     # Google
     "gemini-1.5-pro": 1048576,
@@ -232,10 +234,19 @@ def infer_context_limit(model_id: str) -> int:
         stacklevel=2,
     )
     model_lower = model_id.lower()
-    
-    # Check patterns in order of specificity
-    # More specific patterns should be checked first
+    return _match_known_context_limit(model_lower)
+
+
+def is_known_model_id(model_id: str) -> bool:
+    """Return True when model_id matches a canonical known-model pattern."""
+    return _match_known_context_limit(model_id.lower()) > 0
+
+
+def _match_known_context_limit(model_lower: str) -> int:
+    # Check patterns in order of specificity.
+    # More specific patterns should be checked first.
     ordered_patterns = [
+        ("gpt-5-codex", 200000),
         ("gpt-4-turbo", 128000),
         ("gpt-4o-mini", 128000),
         ("gpt-4o", 128000),
@@ -250,6 +261,7 @@ def infer_context_limit(model_id: str) -> int:
         ("gemini-1.5-flash", 1048576),
         ("gemini-pro", 32760),
         ("gpt-3.5-turbo", 16385),
+        ("codex", 200000),
         ("llama-3-70b", 8192),
         ("llama-2-70b", 4096),
         ("mistral-large", 32000),

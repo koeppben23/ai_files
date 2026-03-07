@@ -137,7 +137,9 @@ Phase 3 API validation is **optional** and does NOT block code generation. The g
 - Inputs may come from chat text or a ticket file path, but both must use the same local intake writer.
 - Phase progression is unlocked only by persisted intake evidence (`Ticket`/`Task` with matching digest fields).
 - `phase4_intake_evidence=true` is supporting metadata and never sufficient by itself.
-- `/continue` and `/review` remain read-only rails and do not mutate intake state.
+- `/ticket` is the mutating intake rail for Phase 4 evidence persistence.
+- `/plan` is the mutating plan-record rail for Phase 5 evidence persistence.
+- `/continue` and `/review` remain read-only rails and do not mutate intake/plan evidence.
 - `FeatureComplexity` can be persisted as supporting metadata but does not unlock Phase 4 on its own.
 
 ## Key SESSION_STATE Fields by Phase

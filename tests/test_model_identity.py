@@ -8,6 +8,7 @@ import pytest
 from governance.domain.model_identity import (
     ModelIdentity,
     infer_context_limit,
+    is_known_model_id,
     validate_model_identity,
 )
 from governance.infrastructure.model_identity_resolver import resolve_from_environment
@@ -118,6 +119,22 @@ class TestInferContextLimit:
     def test_returns_zero_for_unknown(self):
         limit = infer_context_limit("unknown-model-xyz")
         assert limit == 0
+
+    def test_infers_codex_context_limit(self):
+        limit = infer_context_limit("openai/gpt-5-codex")
+        assert limit == 200000
+
+
+@pytest.mark.governance
+class TestKnownModelId:
+    def test_known_for_opus(self):
+        assert is_known_model_id("claude-3-opus-20240229") is True
+
+    def test_known_for_codex(self):
+        assert is_known_model_id("openai/gpt-5-codex") is True
+
+    def test_unknown_model_false(self):
+        assert is_known_model_id("mystery-model-xyz") is False
 
 
 @pytest.mark.governance
