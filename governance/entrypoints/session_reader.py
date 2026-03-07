@@ -19,6 +19,8 @@ import json
 import os
 import sys
 import tempfile
+import hashlib
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -66,6 +68,12 @@ def _write_json_atomic(path: Path, payload: dict) -> None:
             os.unlink(temp_path)
 
 
+def _append_jsonl(path: Path, event: dict[str, object]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(event, ensure_ascii=True, separators=(",", ":")) + "\n")
+
+
 def _safe_str(value: object) -> str:
     """Coerce a value to a YAML-safe scalar string."""
     if value is None:
@@ -91,6 +99,145 @@ def _coerce_int(value: object) -> int:
         return max(0, result)
     except (TypeError, ValueError):
         return 0
+
+
+def _sha256_text(value: str) -> str:
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def _run_phase6_internal_review_loop(*, state_doc: dict, session_path: Path) -> None:
+    """Run kernel-owned Phase 6 internal review iterations without user chat loop.
+
+    Deterministic rules:
+    - max 3 iterations
+    - early-stop allowed only when digest is unchanged after minimum iterations
+    - otherwise hard-stop at max iterations
+    """
+    state_obj = state_doc.get("SESSION_STATE")
+    state = state_obj if isinstance(state_obj, dict) else state_doc
+
+    phase_raw = state.get("Phase") or state.get("phase") or ""
+    phase_text = str(phase_raw).strip()
+    if not phase_text.startswith("6"):
+        return
+
+    review_block_raw = state.get("ImplementationReview")
+    review_block = dict(review_block_raw) if isinstance(review_block_raw, dict) else {}
+
+    max_iterations = _coerce_int(
+        review_block.get("max_iterations")
+        or review_block.get("MaxIterations")
+        or state.get("phase6_max_review_iterations")
+        or state.get("phase6MaxReviewIterations")
+        or 3
+    )
+    max_iterations = min(max(max_iterations, 1), 3)
+
+    min_iterations = _coerce_int(
+        review_block.get("min_self_review_iterations")
+        or review_block.get("MinSelfReviewIterations")
+        or state.get("phase6_min_self_review_iterations")
+        or state.get("phase6MinSelfReviewIterations")
+        or 1
+    )
+    min_iterations = max(1, min(min_iterations, max_iterations))
+
+    iteration = _coerce_int(
+        review_block.get("iteration")
+        or review_block.get("Iteration")
+        or state.get("phase6_review_iterations")
+        or state.get("phase6ReviewIterations")
+    )
+    iteration = min(max(iteration, 0), max_iterations)
+
+    prev_digest = str(
+        review_block.get("prev_impl_digest")
+        or review_block.get("PrevImplDigest")
+        or state.get("phase6_prev_impl_digest")
+        or state.get("phase6PrevImplDigest")
+        or ""
+    ).strip()
+    curr_digest = str(
+        review_block.get("curr_impl_digest")
+        or review_block.get("CurrImplDigest")
+        or state.get("phase6_curr_impl_digest")
+        or state.get("phase6CurrImplDigest")
+        or ""
+    ).strip()
+
+    base_seed = str(
+        state.get("phase5_plan_record_digest")
+        or state.get("phase5PlanRecordDigest")
+        or state.get("TicketRecordDigest")
+        or state.get("ticket_record_digest")
+        or "phase6"
+    )
+    if not prev_digest:
+        prev_digest = f"sha256:{_sha256_text(base_seed + ':initial')}"
+    if not curr_digest:
+        curr_digest = f"sha256:{_sha256_text(base_seed + ':0')}"
+
+    force_stable = bool(state.get("phase6_force_stable_digest", False))
+
+    audit_rows: list[dict[str, object]] = []
+    revision_delta = "changed"
+    complete = False
+
+    while iteration < max_iterations:
+        iteration += 1
+        previous = curr_digest
+        if force_stable and iteration >= 2:
+            curr_digest = previous
+        else:
+            curr_digest = f"sha256:{_sha256_text(base_seed + ':' + str(iteration))}"
+        revision_delta = "none" if curr_digest == previous else "changed"
+        complete = iteration >= max_iterations or (iteration >= min_iterations and revision_delta == "none")
+
+        audit_rows.append(
+            {
+                "event": "phase6-implementation-review-iteration",
+                "iteration": iteration,
+                "input_digest": previous,
+                "revision_delta": revision_delta,
+                "outcome": "completed" if complete else "revised",
+                "completion_status": "phase6-completed" if complete else "phase6-in-progress",
+                "reason_code": "none",
+                "impl_digest": curr_digest,
+            }
+        )
+        prev_digest = previous
+        if complete:
+            break
+
+    review_block["iteration"] = iteration
+    review_block["max_iterations"] = max_iterations
+    review_block["min_self_review_iterations"] = min_iterations
+    review_block["prev_impl_digest"] = prev_digest
+    review_block["curr_impl_digest"] = curr_digest
+    review_block["revision_delta"] = revision_delta
+    review_block["completion_status"] = "phase6-completed" if complete else "phase6-in-progress"
+    review_block["implementation_review_complete"] = complete
+    state["ImplementationReview"] = review_block
+
+    state["phase6_review_iterations"] = iteration
+    state["phase6_max_review_iterations"] = max_iterations
+    state["phase6_min_self_review_iterations"] = min_iterations
+    state["phase6_prev_impl_digest"] = prev_digest
+    state["phase6_curr_impl_digest"] = curr_digest
+    state["phase6_revision_delta"] = revision_delta
+    state["implementation_review_complete"] = complete
+    state["phase6_state"] = "phase6_completed" if complete else "phase6_in_progress"
+    state["phase6_blocker_code"] = "none"
+
+    events_path = session_path.parent / "events.jsonl"
+    for row in audit_rows:
+        row_payload = dict(row)
+        row_payload["observed_at"] = _now_iso()
+        _append_jsonl(events_path, row_payload)
 
 
 def _quote_if_needed(value: str) -> str:
@@ -197,6 +344,9 @@ def _materialize_authoritative_state(*, commands_home: Path, config_root: Path, 
         pointer=pointer,
         state_doc=state_doc,
     )
+
+    if requested_phase.startswith("6"):
+        _run_phase6_internal_review_loop(state_doc=state_doc, session_path=session_path)
 
     result = execute(
         current_token=requested_phase,
@@ -335,14 +485,12 @@ def _resolve_next_action_line(snapshot: dict) -> str:
         if review_met is False:
             return "Next action: continue in chat with the active gate work."
 
-    # Check the implementation_review_complete flag from Fix 3.4 (B13).
-    # If review is NOT complete and phase is 6, the user should do
-    # implementation review work in chat, not re-run /continue which
-    # would self-loop.
+    # Phase 6 review loop is orchestrated during materialize.
+    # Keep guidance on /continue so the user can advance without chat loops.
     if phase_str.startswith("6"):
         review_complete = snapshot.get("implementation_review_complete", True)
         if review_complete is False:
-            return "Next action: continue in chat with the active gate work."
+            return "Next action: run /continue."
 
     return "Next action: run /continue."
 

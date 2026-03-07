@@ -1028,6 +1028,10 @@ class TestMain:
                     "AddonsEvidence": {
                         "riskTiering": {"status": "loaded"},
                     },
+                    "Gates": {
+                        "P5-Architecture": "approved",
+                        "P5.3-TestQuality": "pass",
+                    },
                 }
             },
         )
@@ -1111,6 +1115,10 @@ class TestMain:
                     },
                     "AddonsEvidence": {
                         "riskTiering": {"status": "loaded"},
+                    },
+                    "Gates": {
+                        "P5-Architecture": "approved",
+                        "P5.3-TestQuality": "pass",
                     },
                 }
             },
@@ -1209,6 +1217,77 @@ class TestMain:
         output = capsys.readouterr().out
         assert "active_gate: Ticket Input Gate" in output
         assert not output.strip().endswith("Next action: run /continue.")
+
+    def test_materialize_mode_phase6_runs_internal_review_loop_without_chat_interaction(
+        self,
+        fake_config: Path,
+        capsys: pytest.CaptureFixture,
+    ) -> None:
+        ws_state = _write_pointer(fake_config)
+        _write_workspace_state(
+            ws_state,
+            {
+                "SESSION_STATE": {
+                    "Phase": "6-PostFlight",
+                    "Next": "6",
+                    "active_gate": "Post Flight",
+                    "next_gate_condition": "Implement, run deterministic internal implementation review loop, then present evidence.",
+                    "status": "OK",
+                    "ActiveProfile": "profile.fallback-minimum",
+                    "TicketRecordDigest": "sha256:ticket-v1",
+                    "phase5_plan_record_digest": "sha256:plan-v1",
+                    "PersistenceCommitted": True,
+                    "WorkspaceReadyGateCommitted": True,
+                    "WorkspaceArtifactsCommitted": True,
+                    "PointerVerified": True,
+                    "LoadedRulebooks": {
+                        "core": "rulesets/core/rules.yml",
+                        "profile": "rulesets/profiles/rules.fallback-minimum.yml",
+                        "addons": {
+                            "riskTiering": "rulesets/profiles/rules.risk-tiering.yml",
+                        },
+                    },
+                    "RulebookLoadEvidence": {
+                        "core": "rulesets/core/rules.yml",
+                        "profile": "rulesets/profiles/rules.fallback-minimum.yml",
+                    },
+                    "AddonsEvidence": {
+                        "riskTiering": {"status": "loaded"},
+                    },
+                }
+            },
+        )
+
+        commands_home = fake_config / "commands"
+        (commands_home / "phase_api.yaml").write_text(
+            (Path(__file__).resolve().parent.parent / "phase_api.yaml").read_text(encoding="utf-8"),
+            encoding="utf-8",
+        )
+        (commands_home / "governance.paths.json").write_text(
+            json.dumps(
+                {
+                    "schema": "opencode-governance.paths.v1",
+                    "paths": {
+                        "commandsHome": str(commands_home),
+                        "workspacesHome": str(fake_config / "workspaces"),
+                        "configRoot": str(fake_config),
+                        "pythonCommand": "python3",
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        rc = main(["--commands-home", str(commands_home), "--materialize"])
+        assert rc == 0
+        output = capsys.readouterr().out
+        assert "implementation_review_complete: true" in output
+        assert "continue in chat with the active gate work" not in output
+
+        updated_state = json.loads(ws_state.read_text(encoding="utf-8"))["SESSION_STATE"]
+        assert updated_state["implementation_review_complete"] is True
+        assert updated_state["phase6_review_iterations"] == 3
+        assert updated_state["phase6_state"] == "phase6_completed"
 
 
 # ---------------------------------------------------------------------------
@@ -2309,19 +2388,18 @@ class TestPhase6ImplementationReviewDiagnostics:
 class TestPhase6NextActionLine:
     """Fix 3.4 (B13): _resolve_next_action_line handles Phase 6 review loop.
 
-    When implementation_review_complete is False, the next-action should
-    guide to chat work, not /continue (which would self-loop).
+    Phase 6 loops are now materialized by /continue, so guidance remains /continue.
     """
 
     def test_chat_work_when_review_incomplete(self) -> None:
-        """Phase 6 with implementation_review_complete=False -> chat."""
+        """Phase 6 with implementation_review_complete=False -> /continue."""
         snapshot = {
             "status": "OK",
             "phase": "6-PostFlight",
             "next_gate_condition": "Complete implementation review iterations.",
             "implementation_review_complete": False,
         }
-        assert _resolve_next_action_line(snapshot) == "Next action: continue in chat with the active gate work."
+        assert _resolve_next_action_line(snapshot) == "Next action: run /continue."
 
     def test_continue_when_review_complete(self) -> None:
         """Phase 6 with implementation_review_complete=True -> /continue."""
