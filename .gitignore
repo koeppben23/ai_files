@@ -4,6 +4,7 @@ dist/
  .venv/
  .DS_Store
  logs/*.jsonl
+ logs/
  governance/governance_lint_report.json
  !.gitignore
  !husky.sh

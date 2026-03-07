@@ -87,6 +87,41 @@ def _load_error_logger() -> Callable[..., object]:
 
 safe_log_error = _load_error_logger()
 
+
+def _emit_install_flow_event(
+    commands_home: Path,
+    *,
+    event_type: str,
+    gov_version: str | None,
+    installer_version: str,
+    dry_run: bool,
+) -> bool:
+    """Write a flow log event to <commands_home>/logs/flow.log.jsonl.
+
+    Self-contained (no governance imports) so the installer can always log.
+    Returns True on success, False on failure (never raises).
+    """
+    if dry_run:
+        return False
+    log_path = commands_home / ERROR_LOGS_DIR_NAME / "flow.log.jsonl"
+    event = {
+        "event": event_type,
+        "installerVersion": installer_version,
+        "governanceVersion": gov_version or "unknown",
+        "timestamp": datetime.now().isoformat(timespec="seconds"),
+        "platform": platform.system(),
+    }
+    try:
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        line = json.dumps(event, ensure_ascii=True, separators=(",", ":")) + "\n"
+        with log_path.open("a", encoding="utf-8", newline="\n") as fh:
+            fh.write(line)
+            fh.flush()
+        return True
+    except Exception:
+        return False
+
+
 VERSION = "1.1.0-RC.2"
 # Files copied into <config_root>/commands
 # Strategy: copy (almost) all repo-root governance artifacts that are relevant at runtime.
@@ -249,6 +284,7 @@ def ensure_dirs(config_root: Path, dry_run: bool) -> None:
         config_root / "commands" / "templates" / "github-actions",
         config_root / "commands" / "profiles",
         config_root / "commands" / "profiles" / "addons",
+        config_root / "commands" / ERROR_LOGS_DIR_NAME,
         config_root / "workspaces",
     ]
     for d in dirs:
@@ -2289,6 +2325,15 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
     print(f"\n🧾 Writing manifest: {plan.manifest_path.name}")
     write_manifest(plan.manifest_path, manifest, dry_run=dry_run)
 
+    # Emit initial install flow event so logs/ is not empty after install
+    _emit_install_flow_event(
+        plan.commands_dir,
+        event_type="install-complete",
+        gov_version=gov_ver,
+        installer_version=VERSION,
+        dry_run=dry_run,
+    )
+
     print("\n" + "=" * 60)
     if dry_run:
         print("✅ DRY-RUN complete (no changes were made).")
@@ -2702,7 +2747,10 @@ def purge_runtime_error_logs(config_root: Path, dry_run: bool) -> int:
     """
     Remove installer/runtime-owned error log files:
       - <config_root>/commands/logs/error.log.jsonl
+      - <config_root>/commands/logs/flow.log.jsonl
+      - <config_root>/commands/logs/boot.log.jsonl
       - <config_root>/workspaces/*/logs/error.log.jsonl
+      - <config_root>/workspaces/*/logs/flow.log.jsonl
       - legacy: <config_root>/logs/errors-*.jsonl
       - legacy: <config_root>/logs/errors-index.json
       - legacy: <config_root>/workspaces/*/logs/errors-*.jsonl
@@ -2720,9 +2768,12 @@ def purge_runtime_error_logs(config_root: Path, dry_run: bool) -> int:
                 *list((config_root / ERROR_LOGS_DIR_NAME).glob("errors-*.jsonl")),
                 *list((config_root / ERROR_LOGS_DIR_NAME).glob("errors-index.json")),
                 *list((config_root / "commands" / ERROR_LOGS_DIR_NAME).glob("error.log.jsonl")),
+                *list((config_root / "commands" / ERROR_LOGS_DIR_NAME).glob("flow.log.jsonl")),
+                *list((config_root / "commands" / ERROR_LOGS_DIR_NAME).glob("boot.log.jsonl")),
                 *list((config_root / "workspaces").glob("*/logs/errors-*.jsonl")),
                 *list((config_root / "workspaces").glob("*/logs/errors-index.json")),
                 *list((config_root / "workspaces").glob("*/logs/error.log.jsonl")),
+                *list((config_root / "workspaces").glob("*/logs/flow.log.jsonl")),
             ]
         )
     )
