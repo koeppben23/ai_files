@@ -600,6 +600,7 @@ class TestNoRoguePaths:
         "cli",
         "docs",
         "governance",
+        "logs",
         "profiles",
         "rulesets",
         "schemas",

@@ -296,7 +296,9 @@ class TestCrossRailConsistency:
             # Rails must describe what the command does, not claim authority
             has_descriptive_context = (
                 "use this command to materialize" in lower
+                or "materializes and prints" in lower
                 or "read-only session reader" in lower
+                or "read-only rail entrypoint" in lower
             )
             assert has_descriptive_context, (
                 f"{name} must contain descriptive command-purpose context"

@@ -89,20 +89,42 @@ def _read_jsonl(path: Path) -> list[dict[str, object]]:
 
 
 def _extract_first_step_command(commands_home: Path, command_markdown: str) -> str:
+    """Extract the first executable command from a fenced code block.
+
+    After install-time injection the block may be ``bash``, ``cmd``, or
+    ``powershell``.  The function strips any ``PATH``-preamble (bash
+    ``PATH="...":$PATH`` or cmd ``set "PATH=...;%PATH%" &&``) so that the
+    returned string is the bare launcher invocation.  The caller is expected
+    to ensure the launcher is already on ``PATH`` via the subprocess env.
+    """
     command_md = commands_home / command_markdown
     text = command_md.read_text(encoding="utf-8")
-    in_bash_block = False
+    in_code_block = False
     for raw in text.splitlines():
         line = raw.strip()
-        if line.lower() == "```bash":
-            in_bash_block = True
+        # Accept bash, cmd, or powershell fenced blocks — the installer
+        # rewrites ```bash → ```cmd on Windows.
+        if line.lower() in ("```bash", "```cmd", "```powershell"):
+            in_code_block = True
             continue
-        if in_bash_block and line == "```":
+        if in_code_block and line == "```":
             break
-        if not in_bash_block:
+        if not in_code_block:
             continue
-        if not line or line.startswith("#"):
+        if not line or line.startswith("#") or line.startswith("REM "):
             continue
+        # Strip PATH-preamble so the caller controls PATH via env dict.
+        # bash:  PATH="/some/dir:$PATH" opencode-governance-bootstrap ...
+        # cmd:   set "PATH=/some/dir;%PATH%" && opencode-governance-bootstrap.cmd ...
+        import re as _re
+        # cmd pattern: set "PATH=...;%PATH%" && <command>
+        m = _re.match(r'^set\s+"PATH=[^"]*"\s*&&\s*(.+)$', line, _re.IGNORECASE)
+        if m:
+            return m.group(1).strip()
+        # bash pattern: PATH="....:$PATH" <command>
+        m = _re.match(r'^PATH="[^"]*"\s+(.+)$', line)
+        if m:
+            return m.group(1).strip()
         return line
     return ""
 
@@ -182,11 +204,13 @@ def test_bootstrap_preflight_persists_workspace_and_pointer(tmp_path: Path) -> N
 
     _materialize_commands_bundle_from_checkout(checkout_root=checkout_root, commands_home=commands_home)
     _write_governance_paths(commands_home, workspaces_home, config_root)
-    inject_session_reader_path(commands_home, python_command=sys.executable, dry_run=False)
+    _bin_dir = str(checkout_root / "bin")
+    inject_session_reader_path(commands_home, python_command=sys.executable, bin_dir=_bin_dir, dry_run=False)
     inject_session_reader_path_for_command(
         commands_home,
         command_markdown="review.md",
         python_command=sys.executable,
+        bin_dir=_bin_dir,
         dry_run=False,
     )
 
@@ -311,11 +335,13 @@ def test_bootstrap_preflight_blocks_when_force_read_only(tmp_path: Path) -> None
 
     _materialize_commands_bundle_from_checkout(checkout_root=checkout_root, commands_home=commands_home)
     _write_governance_paths(commands_home, workspaces_home, config_root)
-    inject_session_reader_path(commands_home, python_command=sys.executable, dry_run=False)
+    _bin_dir = str(checkout_root / "bin")
+    inject_session_reader_path(commands_home, python_command=sys.executable, bin_dir=_bin_dir, dry_run=False)
     inject_session_reader_path_for_command(
         commands_home,
         command_markdown="review.md",
         python_command=sys.executable,
+        bin_dir=_bin_dir,
         dry_run=False,
     )
 
@@ -360,11 +386,13 @@ def test_continue_first_step_executes_after_bootstrap(tmp_path: Path) -> None:
 
     _materialize_commands_bundle_from_checkout(checkout_root=checkout_root, commands_home=commands_home)
     _write_governance_paths(commands_home, workspaces_home, config_root)
-    inject_session_reader_path(commands_home, python_command=sys.executable, dry_run=False)
+    _bin_dir = str(checkout_root / "bin")
+    inject_session_reader_path(commands_home, python_command=sys.executable, bin_dir=_bin_dir, dry_run=False)
     inject_session_reader_path_for_command(
         commands_home,
         command_markdown="review.md",
         python_command=sys.executable,
+        bin_dir=_bin_dir,
         dry_run=False,
     )
 
@@ -378,6 +406,9 @@ def test_continue_first_step_executes_after_bootstrap(tmp_path: Path) -> None:
     env["OPENCODE_CONFIG_ROOT"] = str(config_root)
     env["COMMANDS_HOME"] = str(commands_home)
     env.pop("OPENCODE_FORCE_READ_ONLY", None)
+    # Ensure the launcher is resolvable on PATH — _extract_first_step_command
+    # strips the PATH-preamble so the test controls PATH via env.
+    env["PATH"] = _bin_dir + os.pathsep + env.get("PATH", "")
     user_site = site.getusersitepackages()
     if user_site:
         env["PYTHONPATH"] = os.pathsep.join(
@@ -393,10 +424,10 @@ def test_continue_first_step_executes_after_bootstrap(tmp_path: Path) -> None:
     assert proc.returncode == 0, proc.stdout + "\n" + proc.stderr
 
     command = _extract_first_step_command(commands_home, "continue.md")
-    assert command, "continue.md must contain a runnable session-reader command in a bash block"
+    assert command, "continue.md must contain a runnable session-reader command in a code block"
 
     review_command = _extract_first_step_command(commands_home, "review.md")
-    assert review_command, "review.md must contain a runnable session-reader command in a bash block"
+    assert review_command, "review.md must contain a runnable session-reader command in a code block"
 
     run_continue = subprocess.run(
         command,

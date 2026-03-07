@@ -1677,6 +1677,7 @@ def inject_session_reader_path(
     commands_dir: Path,
     *,
     python_command: str,
+    bin_dir: str | None = None,
     dry_run: bool,
 ) -> dict:
     """Backwards-compatible injector for ``continue.md``."""
@@ -1684,6 +1685,7 @@ def inject_session_reader_path(
         commands_dir,
         command_markdown="continue.md",
         python_command=python_command,
+        bin_dir=bin_dir,
         dry_run=dry_run,
     )
 
