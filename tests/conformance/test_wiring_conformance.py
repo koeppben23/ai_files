@@ -431,11 +431,11 @@ class TestPluginToRuntime:
 class TestRuntimeToWorkspace:
     """Validate that runtime workspace path functions produce consistent results."""
 
-    def test_happy_all_artifact_paths_under_workspace_root(self):
+    def test_happy_all_artifact_paths_under_workspace_root(self, tmp_path):
         """Happy: Every artifact path resolves under workspaces_home/fingerprint."""
         from governance.infrastructure import workspace_paths as wp
 
-        ws_home = Path("/tmp/workspaces")
+        ws_home = tmp_path / "workspaces"
         fp = "a" * 24
         root = wp.workspace_root(ws_home, fp)
 
@@ -455,30 +455,30 @@ class TestRuntimeToWorkspace:
                 escaped.append(f"{fn.__name__} -> {p}")
         assert not escaped, f"Artifacts escape workspace root: {escaped}"
 
-    def test_happy_workspace_root_deterministic(self):
+    def test_happy_workspace_root_deterministic(self, tmp_path):
         """Happy: workspace_root returns same result for same inputs."""
         from governance.infrastructure import workspace_paths as wp
 
-        ws_home = Path("/tmp/workspaces")
+        ws_home = tmp_path / "workspaces"
         fp = "b" * 24
         r1 = wp.workspace_root(ws_home, fp)
         r2 = wp.workspace_root(ws_home, fp)
         assert r1 == r2
 
-    def test_happy_global_pointer_at_config_root(self):
+    def test_happy_global_pointer_at_config_root(self, tmp_path):
         """Happy: global_pointer_path is at config root level."""
         from governance.infrastructure import workspace_paths as wp
 
-        config_root = Path("/tmp/opencode")
+        config_root = tmp_path / "opencode"
         ptr = wp.global_pointer_path(config_root)
         assert ptr.parent == config_root
         assert ptr.name == "SESSION_STATE.json"
 
-    def test_happy_phase_artifact_lists_match_functions(self):
+    def test_happy_phase_artifact_lists_match_functions(self, tmp_path):
         """Happy: PHASE*_ARTIFACTS constants reference real artifact filenames."""
         from governance.infrastructure import workspace_paths as wp
 
-        ws_home = Path("/tmp/ws")
+        ws_home = tmp_path / "ws"
         fp = "c" * 24
 
         # Collect all artifact filenames from path functions
@@ -501,11 +501,11 @@ class TestRuntimeToWorkspace:
                     f"Phase artifact {artifact_name!r} not produced by any path function"
                 )
 
-    def test_corner_run_artifacts_under_runs_dir(self):
+    def test_corner_run_artifacts_under_runs_dir(self, tmp_path):
         """Corner: Run-scoped artifacts are all under runs/<run_id>/."""
         from governance.infrastructure import workspace_paths as wp
 
-        ws_home = Path("/tmp/ws")
+        ws_home = tmp_path / "ws"
         fp = "d" * 24
         run_id = "run-001"
         runs = wp.runs_dir(ws_home, fp)
@@ -522,11 +522,11 @@ class TestRuntimeToWorkspace:
             except ValueError:
                 pytest.fail(f"Run artifact {p} escapes runs_dir {runs}")
 
-    def test_bad_no_artifact_named_opencode_json(self):
+    def test_bad_no_artifact_named_opencode_json(self, tmp_path):
         """Bad: opencode.json must never be a workspace artifact."""
         from governance.infrastructure import workspace_paths as wp
 
-        ws_home = Path("/tmp/ws")
+        ws_home = tmp_path / "ws"
         fp = "e" * 24
         artifacts = wp.all_phase_artifact_paths(ws_home, fp)
         names = {p.name for p in artifacts.values()}

@@ -160,11 +160,11 @@ class TestWorkspaceArtifactLayout:
         missing = expected_functions - {name for name in dir(wp) if callable(getattr(wp, name, None))}
         assert not missing, f"Missing path functions in workspace_paths.py: {missing}"
 
-    def test_happy_path_functions_return_under_workspace_root(self):
+    def test_happy_path_functions_return_under_workspace_root(self, tmp_path):
         """Happy: All artifact paths resolve under workspaces_home/fingerprint."""
         from governance.infrastructure import workspace_paths as wp
 
-        ws_home = Path("/tmp/workspaces")
+        ws_home = tmp_path / "workspaces"
         fp = "a" * 24
         root = wp.workspace_root(ws_home, fp)
 
@@ -193,40 +193,40 @@ class TestWorkspaceArtifactLayout:
                 escaped.append(f"{fn.__name__} -> {p}")
         assert not escaped, f"Artifacts escape workspace root: {escaped}"
 
-    def test_happy_global_pointer_at_config_root(self):
+    def test_happy_global_pointer_at_config_root(self, tmp_path):
         """Happy: global_pointer_path resolves directly under config root."""
         from governance.infrastructure import workspace_paths as wp
 
-        config_root = Path("/tmp/opencode-home")
+        config_root = tmp_path / "opencode-home"
         ptr = wp.global_pointer_path(config_root)
         assert ptr.parent == config_root, f"Pointer not at config root: {ptr}"
         assert ptr.name == "SESSION_STATE.json"
 
-    def test_corner_fingerprint_24_hex_boundary(self):
+    def test_corner_fingerprint_24_hex_boundary(self, tmp_path):
         """Corner: Fingerprint at exactly 24 hex chars is accepted."""
         from governance.infrastructure import workspace_paths as wp
 
         fp_min = "0" * 24
         fp_max = "f" * 24
-        ws_home = Path("/tmp/ws")
+        ws_home = tmp_path / "ws"
         # Should not raise
         wp.workspace_root(ws_home, fp_min)
         wp.workspace_root(ws_home, fp_max)
 
-    def test_edge_workspace_root_path_segments(self):
+    def test_edge_workspace_root_path_segments(self, tmp_path):
         """Edge: workspace_root produces exactly workspaces_home / fingerprint."""
         from governance.infrastructure import workspace_paths as wp
 
-        ws_home = Path("/tmp/workspaces")
+        ws_home = tmp_path / "workspaces"
         fp = "ab" * 12
         root = wp.workspace_root(ws_home, fp)
         assert root == ws_home / fp
 
-    def test_bad_artifact_names_match_contract(self):
+    def test_bad_artifact_names_match_contract(self, tmp_path):
         """Bad path detection: artifact filename constants match contract specification."""
         from governance.infrastructure import workspace_paths as wp
 
-        ws_home = Path("/tmp/ws")
+        ws_home = tmp_path / "ws"
         fp = "c" * 24
         # Expected filenames from contract section 3
         expected_names = {
@@ -272,22 +272,22 @@ class TestPointerArchitecture:
         from governance.infrastructure.session_pointer import CANONICAL_POINTER_SCHEMA
         assert CANONICAL_POINTER_SCHEMA == "opencode-session-pointer.v1"
 
-    def test_happy_pointer_payload_has_required_keys(self):
+    def test_happy_pointer_payload_has_required_keys(self, tmp_path):
         """Happy: build_pointer_payload produces the three canonical keys."""
         from governance.infrastructure.session_pointer import build_pointer_payload
 
         fp = "a" * 24
-        config_root = Path("/tmp/config")
+        config_root = tmp_path / "config"
         ws_home = config_root / "workspaces"
         ss = ws_home / fp / "SESSION_STATE.json"
         payload = build_pointer_payload(fp, session_state_file=ss, config_root=config_root)
         for key in ("schema", "activeRepoFingerprint", "activeSessionStateRelativePath"):
             assert key in payload, f"Missing pointer key: {key}"
 
-    def test_happy_pointer_is_not_state(self):
+    def test_happy_pointer_is_not_state(self, tmp_path):
         """Happy: Global pointer is named SESSION_STATE.json but is a routing pointer."""
         from governance.infrastructure.workspace_paths import global_pointer_path
-        ptr = global_pointer_path(Path("/tmp/cfg"))
+        ptr = global_pointer_path(tmp_path / "cfg")
         assert ptr.name == "SESSION_STATE.json", "Global pointer filename changed"
 
     def test_corner_legacy_pointer_schema_recognized(self):
@@ -308,7 +308,7 @@ class TestPointerArchitecture:
         from governance.infrastructure.session_pointer import is_valid_pointer
         assert not is_valid_pointer({"activeRepoFingerprint": "a" * 24})
 
-    def test_bad_pointer_with_wrong_rel_path_is_invalid(self):
+    def test_bad_pointer_with_wrong_rel_path_is_invalid(self, tmp_path):
         """Bad: Pointer with incorrect relative path is rejected."""
         from governance.infrastructure.session_pointer import is_valid_pointer
 
@@ -316,7 +316,7 @@ class TestPointerArchitecture:
         payload = {
             "schema": "opencode-session-pointer.v1",
             "activeRepoFingerprint": fp,
-            "activeSessionStateFile": f"/tmp/config/workspaces/{fp}/SESSION_STATE.json",
+            "activeSessionStateFile": str(tmp_path / "config" / "workspaces" / fp / "SESSION_STATE.json"),
             "activeSessionStateRelativePath": "wrong/path/SESSION_STATE.json",
         }
         assert not is_valid_pointer(payload)
@@ -369,12 +369,12 @@ class TestUninstallRetention:
         missing = [f for f in flat_files if f not in install_src]
         assert not missing, f"Flat files missing from install.py purge: {missing}"
 
-    def test_bad_opencode_json_not_in_workspace_artifact_names(self):
+    def test_bad_opencode_json_not_in_workspace_artifact_names(self, tmp_path):
         """Bad: opencode.json must NEVER appear in workspace artifact purge targets."""
         # This mirrors the runtime assertion in install.py
         from governance.infrastructure import workspace_paths as wp
 
-        ws_home = Path("/tmp/ws")
+        ws_home = tmp_path / "ws"
         fp = "a" * 24
         artifact_paths = wp.all_phase_artifact_paths(ws_home, fp)
         artifact_names = {p.name for p in artifact_paths.values()}

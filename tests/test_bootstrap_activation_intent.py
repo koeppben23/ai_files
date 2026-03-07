@@ -38,22 +38,22 @@ class DummyLogger:
 def _payload(*, mode: str) -> BootstrapInput:
     return BootstrapInput(
         repo_identity=RepoIdentity(
-            repo_root="/tmp/repo",
+            repo_root="/mock/repo",
             fingerprint="abcdef0123456789abcdef01",
             repo_name="repo",
             source="test",
         ),
         binding=Binding(
-            config_root="/tmp/config",
-            commands_home="/tmp/config/commands",
-            workspaces_home="/tmp/config/workspaces",
+            config_root="/mock/config",
+            commands_home="/mock/config/commands",
+            workspaces_home="/mock/config/workspaces",
             python_command="python3",
         ),
         layout=WorkspaceLayout(
-            repo_home="/tmp/config/workspaces/abcdef0123456789abcdef01",
-            session_state_file="/tmp/config/workspaces/abcdef0123456789abcdef01/SESSION_STATE.json",
-            identity_map_file="/tmp/config/workspaces/abcdef0123456789abcdef01/repo-identity-map.yaml",
-            pointer_file="/tmp/config/SESSION_STATE.json",
+            repo_home="/mock/config/workspaces/abcdef0123456789abcdef01",
+            session_state_file="/mock/config/workspaces/abcdef0123456789abcdef01/SESSION_STATE.json",
+            identity_map_file="/mock/config/workspaces/abcdef0123456789abcdef01/repo-identity-map.yaml",
+            pointer_file="/mock/config/SESSION_STATE.json",
         ),
         required_artifacts=(),
         effective_mode=mode,
@@ -71,7 +71,7 @@ def test_bootstrap_creates_default_activation_intent_in_user_mode():
 
     assert result.ok is True
     assert result.write_actions.get("activation_intent") == "created-default"
-    path = f"/tmp/config/{ACTIVATION_INTENT_FILE}"
+    path = f"/mock/config/{ACTIVATION_INTENT_FILE}"
     assert fs.exists(Path(path)) is True
     payload = json.loads(fs.read_text(Path(path)))
     assert payload.get("schema") == "opencode-activation-intent.v1"
@@ -94,7 +94,7 @@ def test_bootstrap_rejects_activation_intent_without_discovery_scope():
     logger = DummyLogger()
     service = BootstrapPersistenceService(fs=fs, runner=DummyRunner(), logger=logger)  # type: ignore[arg-type]
 
-    path = Path(f"/tmp/config/{ACTIVATION_INTENT_FILE}")
+    path = Path(f"/mock/config/{ACTIVATION_INTENT_FILE}")
     fs.write_text_atomic(
         path,
         json.dumps(

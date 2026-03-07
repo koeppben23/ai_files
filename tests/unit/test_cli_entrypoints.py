@@ -24,7 +24,7 @@ def test_backfill_cli_dry_run_returns_zero() -> None:
     code = backfill_main(
         [
             "--artifact",
-            "repoCache=/tmp/repo-cache.yaml",
+            "repoCache=/mock/repo-cache.yaml",
             "--dry-run",
             "--require-phase2",
         ]
@@ -42,9 +42,9 @@ def test_bootstrap_cli_force_read_only_blocks_nonzero() -> None:
             "--repo-name",
             "repo",
             "--config-root",
-            "/tmp/cfg",
+            "/mock/cfg",
             "--workspaces-home",
-            "/tmp/ws",
+            "/mock/ws",
             "--force-read-only",
         ]
     )

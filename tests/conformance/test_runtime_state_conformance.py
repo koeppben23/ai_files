@@ -123,11 +123,11 @@ class TestContractRefValidation:
 class TestStateClassification:
     """Validate that the classification taxonomy is complete and consistent."""
 
-    def test_happy_all_workspace_paths_classified(self):
+    def test_happy_all_workspace_paths_classified(self, tmp_path):
         """Happy: Every artifact from workspace_paths.py has a classification entry."""
         from governance.infrastructure import workspace_paths as wp
 
-        ws_home = Path("/tmp/ws")
+        ws_home = tmp_path / "ws"
         fp = "a" * 24
         unclassified = []
         for fn_name, expected_filename in WORKSPACE_PATHS_FUNCTIONS.items():
@@ -198,10 +198,10 @@ class TestStateClassification:
 class TestPointerSemantics:
     """Validate pointer semantics policy from contract section 2."""
 
-    def test_happy_global_pointer_is_routing_only(self):
+    def test_happy_global_pointer_is_routing_only(self, tmp_path):
         """Happy: Global pointer file is named SESSION_STATE.json (routing pointer)."""
         from governance.infrastructure.workspace_paths import global_pointer_path
-        ptr = global_pointer_path(Path("/tmp/cfg"))
+        ptr = global_pointer_path(tmp_path / "cfg")
         assert ptr.name == "SESSION_STATE.json"
 
     def test_happy_pointer_schema_is_v1(self):
@@ -209,30 +209,30 @@ class TestPointerSemantics:
         from governance.infrastructure.session_pointer import CANONICAL_POINTER_SCHEMA
         assert CANONICAL_POINTER_SCHEMA == "opencode-session-pointer.v1"
 
-    def test_happy_pointer_keys_match_contract(self):
+    def test_happy_pointer_keys_match_contract(self, tmp_path):
         """Happy: build_pointer_payload produces all contract-specified keys."""
         from governance.infrastructure.session_pointer import build_pointer_payload
 
         fp = "b" * 24
-        config = Path("/tmp/config")
+        config = tmp_path / "config"
         ss = config / "workspaces" / fp / "SESSION_STATE.json"
         payload = build_pointer_payload(fp, session_state_file=ss, config_root=config)
         assert payload["schema"] == "opencode-session-pointer.v1"
         assert payload["activeRepoFingerprint"] == fp
         assert "activeSessionStateRelativePath" in payload
 
-    def test_happy_workspace_state_is_separate_from_pointer(self):
+    def test_happy_workspace_state_is_separate_from_pointer(self, tmp_path):
         """Happy: Workspace state path differs from global pointer path."""
         from governance.infrastructure import workspace_paths as wp
 
-        config_root = Path("/tmp/cfg")
+        config_root = tmp_path / "cfg"
         ws_home = config_root / "workspaces"
         fp = "c" * 24
         pointer = wp.global_pointer_path(config_root)
         ws_state = wp.session_state_path(ws_home, fp)
         assert pointer != ws_state, "Global pointer and workspace state must be different paths"
 
-    def test_corner_legacy_schema_migration(self):
+    def test_corner_legacy_schema_migration(self, tmp_path):
         """Corner: parse_pointer_payload accepts legacy schema and produces canonical keys."""
         from governance.infrastructure.session_pointer import parse_pointer_payload
 
@@ -240,7 +240,7 @@ class TestPointerSemantics:
         legacy_payload = {
             "schema": "active-session-pointer.v1",
             "repo_fingerprint": fp,
-            "active_session_state_file": f"/tmp/config/workspaces/{fp}/SESSION_STATE.json",
+            "active_session_state_file": str(tmp_path / "config" / "workspaces" / fp / "SESSION_STATE.json"),
             "active_session_state_relative_path": f"workspaces/{fp}/SESSION_STATE.json",
         }
         result = parse_pointer_payload(legacy_payload)
@@ -328,11 +328,11 @@ class TestPurgeRules:
 class TestArtifactCompleteness:
     """Validate the artifact completeness invariant from contract section 4."""
 
-    def test_happy_all_path_functions_have_classifications(self):
+    def test_happy_all_path_functions_have_classifications(self, tmp_path):
         """Happy: Every workspace_paths function output is in the classification table."""
         from governance.infrastructure import workspace_paths as wp
 
-        ws_home = Path("/tmp/ws")
+        ws_home = tmp_path / "ws"
         fp = "e" * 24
         unclassified = []
         for fn_name, expected_filename in WORKSPACE_PATHS_FUNCTIONS.items():

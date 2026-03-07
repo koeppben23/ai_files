@@ -882,10 +882,10 @@ class TestConfigRootResolve:
             "main() must call .resolve() on args.config_root (R2 fix)"
         )
 
-    def test_happy_parse_args_returns_path(self) -> None:
+    def test_happy_parse_args_returns_path(self, tmp_path: Path) -> None:
         """Happy: parse_args produces a Path for --config-root."""
         from install import parse_args
-        args = parse_args(["--config-root", "/tmp/test-root"])
+        args = parse_args(["--config-root", str(tmp_path / "test-root")])
         assert isinstance(args.config_root, Path)
 
     def test_edge_relative_config_root_is_resolved(self) -> None:

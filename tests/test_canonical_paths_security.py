@@ -17,4 +17,4 @@ def test_validate_no_traversal_does_not_use_prefix_match(tmp_path: Path) -> None
 @pytest.mark.governance
 def test_ensure_absolute_no_traversal_rejects_parent_walk() -> None:
     with pytest.raises(ValueError):
-        ensure_absolute_no_traversal(Path("/tmp/a/../b"))
+        ensure_absolute_no_traversal(Path("/mock/a/../b"))
