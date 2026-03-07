@@ -69,6 +69,58 @@ class TestResolveModelIdentity:
         assert result.identity is not None
         assert result.identity.source == "binding_env"
         assert result.identity.is_trusted_for_audit() is True
+
+    def test_pipeline_mode_blocks_binding_env_without_explicit_context_limit(self, monkeypatch, tmp_path):
+        binding_file = tmp_path / "governance.paths.json"
+        binding_file.write_text("{}")
+
+        monkeypatch.setenv("OPENCODE_MODEL_PROVIDER", "anthropic")
+        monkeypatch.setenv("OPENCODE_MODEL_ID", "claude-3-opus")
+        monkeypatch.delenv("OPENCODE_MODEL_CONTEXT_LIMIT", raising=False)
+        monkeypatch.setenv("OPENCODE_BINDING_FILE", str(binding_file))
+
+        result = resolve_model_identity(
+            mode="pipeline",
+            workspaces_home=tmp_path,
+        )
+
+        assert result.blocked is True
+        assert result.reason_code == BLOCKED_MODEL_CONTEXT_LIMIT_REQUIRED
+
+    def test_pipeline_mode_accepts_codex_binding_env(self, monkeypatch, tmp_path):
+        binding_file = tmp_path / "governance.paths.json"
+        binding_file.write_text("{}")
+
+        monkeypatch.setenv("OPENCODE_MODEL_PROVIDER", "openai")
+        monkeypatch.setenv("OPENCODE_MODEL_ID", "openai/gpt-5-codex")
+        monkeypatch.setenv("OPENCODE_MODEL_CONTEXT_LIMIT", "200000")
+        monkeypatch.setenv("OPENCODE_BINDING_FILE", str(binding_file))
+
+        result = resolve_model_identity(
+            mode="pipeline",
+            workspaces_home=tmp_path,
+        )
+
+        assert result.blocked is False
+        assert result.identity is not None
+        assert result.identity.source == "binding_env"
+
+    def test_pipeline_mode_blocks_unknown_model_even_with_binding(self, monkeypatch, tmp_path):
+        binding_file = tmp_path / "governance.paths.json"
+        binding_file.write_text("{}")
+
+        monkeypatch.setenv("OPENCODE_MODEL_PROVIDER", "openai")
+        monkeypatch.setenv("OPENCODE_MODEL_ID", "unknown-model-xyz")
+        monkeypatch.setenv("OPENCODE_MODEL_CONTEXT_LIMIT", "64000")
+        monkeypatch.setenv("OPENCODE_BINDING_FILE", str(binding_file))
+
+        result = resolve_model_identity(
+            mode="pipeline",
+            workspaces_home=tmp_path,
+        )
+
+        assert result.blocked is True
+        assert result.reason_code == BLOCKED_MODEL_IDENTITY_UNTRUSTED
     
     def test_negative_context_limit_blocked_in_all_modes(self, monkeypatch, tmp_path):
         binding_file = tmp_path / "governance.paths.json"
