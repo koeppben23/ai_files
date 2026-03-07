@@ -1289,6 +1289,164 @@ class TestMain:
         assert updated_state["phase6_review_iterations"] == 3
         assert updated_state["phase6_state"] == "phase6_completed"
 
+    def test_corner_materialize_mode_phase6_early_stop_on_stable_digest(
+        self,
+        fake_config: Path,
+        capsys: pytest.CaptureFixture,
+    ) -> None:
+        ws_state = _write_pointer(fake_config)
+        _write_workspace_state(
+            ws_state,
+            {
+                "SESSION_STATE": {
+                    "Phase": "6-PostFlight",
+                    "Next": "6",
+                    "active_gate": "Post Flight",
+                    "next_gate_condition": "Complete implementation review iterations.",
+                    "status": "OK",
+                    "ActiveProfile": "profile.fallback-minimum",
+                    "TicketRecordDigest": "sha256:ticket-v1",
+                    "phase5_plan_record_digest": "sha256:plan-v1",
+                    "phase6_force_stable_digest": True,
+                    "ImplementationReview": {
+                        "iteration": 0,
+                        "max_iterations": 3,
+                        "min_self_review_iterations": 1,
+                    },
+                    "PersistenceCommitted": True,
+                    "WorkspaceReadyGateCommitted": True,
+                    "WorkspaceArtifactsCommitted": True,
+                    "PointerVerified": True,
+                    "LoadedRulebooks": {
+                        "core": "rulesets/core/rules.yml",
+                        "profile": "rulesets/profiles/rules.fallback-minimum.yml",
+                        "addons": {
+                            "riskTiering": "rulesets/profiles/rules.risk-tiering.yml",
+                        },
+                    },
+                    "RulebookLoadEvidence": {
+                        "core": "rulesets/core/rules.yml",
+                        "profile": "rulesets/profiles/rules.fallback-minimum.yml",
+                    },
+                    "AddonsEvidence": {
+                        "riskTiering": {"status": "loaded"},
+                    },
+                    "Gates": {
+                        "P5-Architecture": "approved",
+                        "P5.3-TestQuality": "pass",
+                    },
+                }
+            },
+        )
+
+        commands_home = fake_config / "commands"
+        (commands_home / "phase_api.yaml").write_text(
+            (Path(__file__).resolve().parent.parent / "phase_api.yaml").read_text(encoding="utf-8"),
+            encoding="utf-8",
+        )
+        (commands_home / "governance.paths.json").write_text(
+            json.dumps(
+                {
+                    "schema": "opencode-governance.paths.v1",
+                    "paths": {
+                        "commandsHome": str(commands_home),
+                        "workspacesHome": str(fake_config / "workspaces"),
+                        "configRoot": str(fake_config),
+                        "pythonCommand": "python3",
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        rc = main(["--commands-home", str(commands_home), "--materialize"])
+        assert rc == 0
+        output = capsys.readouterr().out
+        assert "implementation_review_complete: true" in output
+
+        updated_state = json.loads(ws_state.read_text(encoding="utf-8"))["SESSION_STATE"]
+        assert updated_state["phase6_review_iterations"] == 2
+        assert updated_state["phase6_revision_delta"] == "none"
+        assert updated_state["implementation_review_complete"] is True
+
+    def test_edge_materialize_mode_phase6_clamps_iteration_bounds(
+        self,
+        fake_config: Path,
+        capsys: pytest.CaptureFixture,
+    ) -> None:
+        ws_state = _write_pointer(fake_config)
+        _write_workspace_state(
+            ws_state,
+            {
+                "SESSION_STATE": {
+                    "Phase": "6-PostFlight",
+                    "Next": "6",
+                    "active_gate": "Post Flight",
+                    "next_gate_condition": "Complete implementation review iterations.",
+                    "status": "OK",
+                    "ActiveProfile": "profile.fallback-minimum",
+                    "TicketRecordDigest": "sha256:ticket-v1",
+                    "phase5_plan_record_digest": "sha256:plan-v1",
+                    "ImplementationReview": {
+                        "iteration": "not-a-number",
+                        "max_iterations": 99,
+                        "min_self_review_iterations": 99,
+                    },
+                    "PersistenceCommitted": True,
+                    "WorkspaceReadyGateCommitted": True,
+                    "WorkspaceArtifactsCommitted": True,
+                    "PointerVerified": True,
+                    "LoadedRulebooks": {
+                        "core": "rulesets/core/rules.yml",
+                        "profile": "rulesets/profiles/rules.fallback-minimum.yml",
+                        "addons": {
+                            "riskTiering": "rulesets/profiles/rules.risk-tiering.yml",
+                        },
+                    },
+                    "RulebookLoadEvidence": {
+                        "core": "rulesets/core/rules.yml",
+                        "profile": "rulesets/profiles/rules.fallback-minimum.yml",
+                    },
+                    "AddonsEvidence": {
+                        "riskTiering": {"status": "loaded"},
+                    },
+                    "Gates": {
+                        "P5-Architecture": "approved",
+                        "P5.3-TestQuality": "pass",
+                    },
+                }
+            },
+        )
+
+        commands_home = fake_config / "commands"
+        (commands_home / "phase_api.yaml").write_text(
+            (Path(__file__).resolve().parent.parent / "phase_api.yaml").read_text(encoding="utf-8"),
+            encoding="utf-8",
+        )
+        (commands_home / "governance.paths.json").write_text(
+            json.dumps(
+                {
+                    "schema": "opencode-governance.paths.v1",
+                    "paths": {
+                        "commandsHome": str(commands_home),
+                        "workspacesHome": str(fake_config / "workspaces"),
+                        "configRoot": str(fake_config),
+                        "pythonCommand": "python3",
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        rc = main(["--commands-home", str(commands_home), "--materialize"])
+        assert rc == 0
+        _ = capsys.readouterr().out
+
+        updated_state = json.loads(ws_state.read_text(encoding="utf-8"))["SESSION_STATE"]
+        assert updated_state["phase6_max_review_iterations"] == 3
+        assert updated_state["phase6_min_self_review_iterations"] == 3
+        assert updated_state["phase6_review_iterations"] == 3
+
 
 # ---------------------------------------------------------------------------
 # Self-bootstrap test
