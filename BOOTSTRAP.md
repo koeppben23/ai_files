@@ -1,11 +1,14 @@
 <!-- rail-classification: MUTATING, BOOTSTRAP -->
-### Optional flags
 
-```bash
-opencode-governance-bootstrap --repo-root /path/to/repo --config-root /path/to/opencode-config
-```
+# Governance Bootstrap
 
-## Installation First
+## Purpose
+
+`opencode-governance-bootstrap` initializes or resumes a governance session for the current repository.
+It creates the session state file, writes the initial audit event, and prepares the governance environment.
+
+## Installation
+
 If the launcher is not available, run the installer first:
 
 ```bash
@@ -18,17 +21,38 @@ If the launcher is not available, run the installer first:
 .\install\install.ps1
 ```
 
-This creates (including installer-generated launcher wrappers):
+This creates the launcher wrapper and adds it to the configured binary directory.
 
-Run the installer:
+## Commands by platform
+
 ```bash
-# macOS / Linux (from extracted bundle)
-./install/install.sh
+opencode-governance-bootstrap
 ```
 
 ```powershell
-# Windows (from extracted bundle)
-.\install\install.ps1
+opencode-governance-bootstrap
 ```
 
-### "Repository root not found"
+### Optional flags
+
+```bash
+opencode-governance-bootstrap --repo-root /path/to/repo --config-root /path/to/opencode-config
+```
+
+```powershell
+opencode-governance-bootstrap --repo-root C:\path\to\repo --config-root C:\path\to\opencode-config
+```
+
+## If execution is unavailable
+
+If the bootstrap command cannot be executed, verify that the installer has been run
+and that the launcher is on your `PATH`. If the launcher is still not available,
+run the install script manually (see Installation above).
+
+## Repository root not found
+
+If the bootstrap command reports "Repository root not found":
+
+- verify you are inside the target repository
+- rerun from the repository root
+- if needed, provide the repository root path explicitly via `--repo-root`
