@@ -194,14 +194,17 @@ def test_review_rail_classification_includes_gate_evaluation() -> None:
 
 @pytest.mark.governance
 def test_review_provenance_context_present() -> None:
-    """review.md must contain installer provenance context for trust."""
+    """review.md must contain descriptive context and NOT contain trust-triggering language."""
     review_path = REPO_ROOT / "review.md"
     content = review_path.read_text(encoding="utf-8").lower()
-    assert "governance installer" in content, (
-        "review.md must mention 'governance installer' to establish provenance trust"
+    assert "read-only session reader" in content, (
+        "review.md must describe the command as a read-only session reader"
     )
-    assert "safe to execute" in content, (
-        "review.md must state the command is 'safe to execute' for model trust"
+    assert "safe to execute" not in content, (
+        "review.md must NOT contain 'safe to execute' — trust-triggering language"
+    )
+    assert "governance installer" not in content, (
+        "review.md must NOT contain 'governance installer' — trust-triggering language"
     )
 
 

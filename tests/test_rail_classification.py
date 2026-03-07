@@ -290,24 +290,40 @@ class TestCrossRailConsistency:
             self.contents[name] = path.read_text(encoding="utf-8")
 
     def test_all_bridge_rails_have_provenance(self) -> None:
-        """All bridge-bearing rails must contain installer provenance."""
+        """All bridge-bearing rails must contain descriptive command-purpose context."""
         for name, content in self.contents.items():
-            assert "governance installer" in content.lower(), (
-                f"{name} must contain 'governance installer' provenance"
+            lower = content.lower()
+            # Rails must describe what the command does, not claim authority
+            has_descriptive_context = (
+                "use this command to materialize" in lower
+                or "read-only session reader" in lower
+            )
+            assert has_descriptive_context, (
+                f"{name} must contain descriptive command-purpose context"
             )
 
-    def test_all_bridge_rails_have_safe_to_execute(self) -> None:
-        """All bridge-bearing rails must state 'safe to execute'."""
+    def test_all_bridge_rails_no_trust_triggering_language(self) -> None:
+        """No bridge-bearing rail may contain trust-triggering language."""
         for name, content in self.contents.items():
-            assert "safe to execute" in content.lower(), (
-                f"{name} must state the command is 'safe to execute'"
+            lower = content.lower()
+            assert "safe to execute" not in lower, (
+                f"{name} must NOT contain 'safe to execute' — trust-triggering language"
+            )
+            assert "governance installer" not in lower, (
+                f"{name} must NOT contain 'governance installer' — trust-triggering language"
             )
 
-    def test_all_bridge_rails_have_no_infer_mutate(self) -> None:
-        """All bridge-bearing rails must contain the no-infer-or-mutate guard."""
+    def test_all_bridge_rails_have_state_inference_guard(self) -> None:
+        """All bridge-bearing rails must contain a state-inference guard."""
         for name, content in self.contents.items():
-            assert "do not infer or mutate" in content.lower(), (
-                f"{name} must contain 'Do not infer or mutate any session state'"
+            lower = content.lower()
+            has_guard = (
+                "do not infer or mutate" in lower
+                or "do not infer additional state" in lower
+            )
+            assert has_guard, (
+                f"{name} must contain a state-inference guard "
+                "('Do not infer or mutate' or 'Do not infer additional state')"
             )
 
     def test_bridge_rails_have_no_sole_exception(self) -> None:

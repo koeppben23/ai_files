@@ -29,13 +29,13 @@ PATH="{{BIN_DIR}}:$PATH" opencode-governance-bootstrap --entrypoint governance.e
 ```
 
 Notes:
-- `/continue` is the kernel-owned state materialization rail.
+- `/continue` is the state materialization rail.
 - Plan drafts in chat do not pass the Plan Record Preparation Gate by themselves.
 - Run this persist command first when `active_gate` is `Plan Record Preparation Gate` and `plan_record_status` is absent.
 - After successful persist, run `/continue` to materialize gate advancement.
 
 **Free-text guard (Fix 1.4b):**
-Free-text like "go", "weiter", "proceed", "mach weiter", or any other natural-language prompt is **not** a rail command. It must NEVER trigger the plan persist command above, `/continue`, or any authoritative state write. Only the explicit `/plan` rail invocation is permitted to persist Phase-5 plan-record evidence. If the user sends free-text that implies plan submission, ask them to invoke `/plan` explicitly.
+Free-text like "go", "weiter", "proceed", "mach weiter", or any other natural-language prompt is **not** a rail command. It does not trigger the plan persist command above, `/continue`, or any state write. Only the explicit `/plan` rail invocation is permitted to persist Phase-5 plan-record evidence. If the user sends free-text that implies plan submission, ask them to invoke `/plan` explicitly.
 
 Copyright © 2026 Benjamin Fuchs.
 All rights reserved. See LICENSE.

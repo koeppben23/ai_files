@@ -20,8 +20,10 @@ def test_audit_readout_md_exists_and_has_bridge_contract() -> None:
     assert BIN_DIR_PLACEHOLDER in content
     assert "opencode-governance-bootstrap" in content
     assert "--session-reader" in content
-    assert "safe to execute" in content.lower()
-    assert "do not infer or mutate any session state" in content.lower()
+    assert "safe to execute" not in content.lower(), (
+        "audit-readout.md must NOT contain 'safe to execute' — trust-triggering language"
+    )
+    assert "do not infer additional state beyond the materialized output" in content.lower()
 
 
 @pytest.mark.governance

@@ -63,10 +63,10 @@ class TestSourceTemplate:
         )
 
     def test_governance_kernel_bridge_comment(self) -> None:
-        """Source template must contain the installer-provenance bridge comment."""
-        assert "governance installer" in self.content.lower(), (
-            "continue.md must document that the kernel bridge command was "
-            "placed by the governance installer and is safe to execute."
+        """Source template must contain descriptive command-purpose statement."""
+        assert "use this command to materialize and print" in self.content.lower(), (
+            "continue.md must contain a descriptive statement explaining "
+            "the command's purpose (materialize and print session state)."
         )
 
     def test_launcher_invocation(self) -> None:
@@ -151,19 +151,20 @@ class TestSourceTemplate:
         )
 
     def test_provenance_context_present(self) -> None:
-        """Source template must contain installer provenance context for trust."""
+        """Source template must contain descriptive context for the session command."""
         content_lower = self.content.lower()
-        assert "governance installer" in content_lower, (
-            "continue.md must mention 'governance installer' to establish provenance trust"
+        assert "materialize and print" in content_lower, (
+            "continue.md must describe the command purpose (materialize and print)"
         )
-        assert "safe to execute" in content_lower, (
-            "continue.md must state the command is 'safe to execute' for model trust"
+        assert "do not infer additional state" in content_lower, (
+            "continue.md must contain a state-inference guard"
         )
 
     def test_safe_to_execute_statement(self) -> None:
-        """Source template must contain an explicit safe-to-execute statement."""
-        assert "safe to execute" in self.content.lower(), (
-            "continue.md must contain 'safe to execute' to prevent model refusals"
+        """Source template must NOT contain 'safe to execute' — trust-triggering language."""
+        assert "safe to execute" not in self.content.lower(), (
+            "continue.md must NOT contain 'safe to execute' — "
+            "this is trust-triggering language that causes model refusals"
         )
 
     def test_no_sole_exception_framing(self) -> None:
@@ -187,10 +188,10 @@ class TestSourceTemplate:
         )
 
     def test_materialization_guard_statement(self) -> None:
-        """Source template must contain the materialization-only state mutation guard."""
+        """Source template must contain the state-inference guard."""
         lower = self.content.lower()
-        assert "do not infer or mutate" in lower and "beyond what the kernel materialization command persists" in lower, (
-            "continue.md must limit mutation scope to kernel materialization only"
+        assert "do not infer additional state beyond the materialized output" in lower, (
+            "continue.md must limit inference scope to materialized output only"
         )
 
 
@@ -249,34 +250,34 @@ class TestNoModelRefusalPatterns:
 
     @pytest.mark.parametrize("template_name", TEMPLATES)
     def test_templates_share_identical_fallback_block(self, template_name: str) -> None:
-        """Both templates must share identical fallback semantics (same bridge section)."""
-        # Extract the bridge section: from the HTML comment to the --- separator
+        """Both templates must share identical fallback semantics (same tiered fallback section)."""
+        # Extract the fallback section: from the Tier B fallback to the --- separator
         content = self.contents[template_name]
-        bridge_start = content.find("<!-- GOVERNANCE KERNEL BRIDGE")
-        bridge_end = content.find("\n---\n", bridge_start) if bridge_start >= 0 else -1
+        fallback_start = content.find("**Fallback (Tier B)")
+        fallback_end = content.find("\n---\n", fallback_start) if fallback_start >= 0 else -1
         # If no --- separator, use the end of the Tier C fallback block
-        if bridge_end < 0 and bridge_start >= 0:
-            bridge_end = content.find("before continuing.", bridge_start)
-            if bridge_end >= 0:
-                bridge_end = bridge_end + len("before continuing.")
-        assert bridge_start >= 0 and bridge_end >= 0, (
-            f"{template_name} must contain the kernel bridge section"
+        if fallback_end < 0 and fallback_start >= 0:
+            fallback_end = content.find("before continuing.", fallback_start)
+            if fallback_end >= 0:
+                fallback_end = fallback_end + len("before continuing.")
+        assert fallback_start >= 0 and fallback_end >= 0, (
+            f"{template_name} must contain the tiered fallback section"
         )
 
     def test_continue_and_review_have_distinct_bridge_semantics(self) -> None:
-        """continue.md and review.md bridge blocks must differ (mutating vs read-only)."""
-        bridges = {}
+        """continue.md and review.md session sections must differ (mutating vs read-only)."""
+        sections = {}
         for name in self.TEMPLATES:
             content = self.contents[name]
-            bridge_start = content.find("<!-- GOVERNANCE KERNEL BRIDGE")
-            # Find the end of the bridge: either --- separator or end of Tier C
-            bridge_end = content.find("\n---\n", bridge_start) if bridge_start >= 0 else -1
-            if bridge_end < 0 and bridge_start >= 0:
-                bridge_end = content.find("before continuing.", bridge_start)
-                if bridge_end >= 0:
-                    bridge_end = bridge_end + len("before continuing.")
-            bridges[name] = content[bridge_start:bridge_end]
-        assert bridges["continue.md"] != bridges["review.md"], (
+            section_start = content.find("## Resume Session State")
+            # Find the end: the --- separator
+            section_end = content.find("\n---\n", section_start) if section_start >= 0 else -1
+            if section_end < 0 and section_start >= 0:
+                section_end = content.find("before continuing.", section_start)
+                if section_end >= 0:
+                    section_end = section_end + len("before continuing.")
+            sections[name] = content[section_start:section_end]
+        assert sections["continue.md"] != sections["review.md"], (
             "continue.md and review.md must differ because /continue materializes state while /review is read-only"
         )
 
