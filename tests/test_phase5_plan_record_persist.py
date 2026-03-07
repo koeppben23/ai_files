@@ -144,3 +144,62 @@ def test_phase5_plan_persist_bad_missing_evidence_blocked(
     assert rc == 2
     payload = json.loads(capsys.readouterr().out.strip())
     assert payload["reason_code"] == "BLOCKED-P5-PLAN-RECORD-PERSIST"
+
+
+@pytest.mark.governance
+def test_phase5_plan_persist_corner_file_input_wins_over_text(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    module = _load_module()
+    config_root, commands_home, session_path, _ = _write_fixture_state(tmp_path)
+    monkeypatch.setenv("OPENCODE_CONFIG_ROOT", str(config_root))
+    monkeypatch.setenv("COMMANDS_HOME", str(commands_home))
+
+    plan_file = tmp_path / "plan.md"
+    plan_file.write_text("plan from file content", encoding="utf-8")
+
+    rc = module.main([
+        "--plan-text",
+        "plan from text content",
+        "--plan-file",
+        str(plan_file),
+        "--quiet",
+    ])
+    assert rc == 0
+
+    plan_record = json.loads((session_path.parent / "plan-record.json").read_text(encoding="utf-8"))
+    assert plan_record["versions"][0]["plan_record_text"] == "plan from file content"
+
+
+@pytest.mark.governance
+def test_phase5_plan_persist_edge_canonicalizes_crlf_and_blank_lines(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    module = _load_module()
+    config_root, commands_home, session_path, _ = _write_fixture_state(tmp_path)
+    monkeypatch.setenv("OPENCODE_CONFIG_ROOT", str(config_root))
+    monkeypatch.setenv("COMMANDS_HOME", str(commands_home))
+
+    rc = module.main(["--plan-text", "\r\n\r\nLine A\r\nLine B\r\n\r\n", "--quiet"])
+    assert rc == 0
+
+    plan_record = json.loads((session_path.parent / "plan-record.json").read_text(encoding="utf-8"))
+    assert plan_record["versions"][0]["plan_record_text"] == "Line A\nLine B"
+
+
+@pytest.mark.governance
+def test_phase5_plan_persist_bad_missing_active_repo_pointer_blocked(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+):
+    module = _load_module()
+    config_root, commands_home, _, _ = _write_fixture_state(tmp_path)
+    pointer_path = config_root / "SESSION_STATE.json"
+    pointer_payload = json.loads(pointer_path.read_text(encoding="utf-8"))
+    pointer_payload["activeRepoFingerprint"] = ""
+    pointer_path.write_text(json.dumps(pointer_payload, indent=2), encoding="utf-8")
+
+    monkeypatch.setenv("OPENCODE_CONFIG_ROOT", str(config_root))
+    monkeypatch.setenv("COMMANDS_HOME", str(commands_home))
+
+    rc = module.main(["--plan-text", "Plan exists", "--quiet"])
+    assert rc == 2
+    payload = json.loads(capsys.readouterr().out.strip())
+    assert payload["reason_code"] == "BLOCKED-P5-PLAN-RECORD-PERSIST"

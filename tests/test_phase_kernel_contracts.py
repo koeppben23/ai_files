@@ -664,6 +664,51 @@ def test_kernel_phase5_prep_gate_condition_explicitly_requires_plan_persist(tmp_
 
 
 @pytest.mark.governance
+def test_kernel_phase5_ignores_stale_requested_gate_fields_and_recomputes_current_round(tmp_path: Path) -> None:
+    commands_home = tmp_path / "commands"
+    _write_phase_api(commands_home)
+
+    stale_phase4_condition = (
+        "Ticket/task evidence captured; continue to Phase 5 plan-record preparation before architecture review"
+    )
+    doc = {
+        "SESSION_STATE": {
+            "Phase": "5-ArchitectureReview",
+            "PersistenceCommitted": True,
+            "WorkspaceReadyGateCommitted": True,
+            "WorkspaceArtifactsCommitted": True,
+            "PointerVerified": True,
+            **RULEBOOK_BASE,
+            "TicketRecordDigest": "ticket-digest",
+            "plan_record_versions": 0,
+            # stale persisted fields from a previous run
+            "active_gate": "Architecture Review Gate",
+            "next_gate_condition": stale_phase4_condition,
+            "Phase5Review": {"iteration": 0},
+        }
+    }
+
+    result = execute(
+        current_token="5",
+        session_state_doc=doc,
+        runtime_ctx=RuntimeContext(
+            requested_active_gate="Architecture Review Gate",
+            requested_next_gate_condition=stale_phase4_condition,
+            repo_is_git_root=True,
+            commands_home=commands_home,
+            workspaces_home=tmp_path / "workspaces",
+            config_root=tmp_path / "cfg",
+        ),
+    )
+
+    assert result.status == "OK"
+    assert result.next_token == "5"
+    assert result.active_gate == "Plan Record Preparation Gate"
+    assert "Persist plan-record evidence via /plan" in result.next_gate_condition
+    assert "Ticket/task evidence captured" not in result.next_gate_condition
+
+
+@pytest.mark.governance
 def test_kernel_phase5_status_active_without_valid_versions_stays_in_plan_prep(tmp_path: Path) -> None:
     commands_home = tmp_path / "commands"
     _write_phase_api(commands_home)
