@@ -304,22 +304,10 @@ def create_launcher(plan: InstallPlan, dry_run: bool, force: bool) -> list[dict]
     binding_path = plan.commands_dir / "governance.paths.json"
 
     binding_ok = False
-    if not plan.skip_paths_file:
-        if dry_run:
-            print(f"  [DRY-RUN] write {binding_path}")
-        else:
-            binding_payload = {
-                "schema": GOVERNANCE_PATHS_SCHEMA,
-                "generatedAt": datetime.now().isoformat(timespec="seconds"),
-                "paths": {
-                    "configRoot": str(plan.config_root),
-                    "commandsHome": str(plan.commands_dir),
-                    "workspacesHome": str(plan.config_root / "workspaces"),
-                    "pythonCommand": sys.executable,
-                },
-                "commandProfiles": {},
-            }
-            binding_path.write_text(json.dumps(binding_payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    # NOTE: governance.paths.json is now written exclusively by
+    # install_governance_paths_file() (single SSOT writer, see C1 fix).
+    # The validation read below still runs to populate binding_ok for
+    # INSTALL_HEALTH.json.
 
     if not dry_run:
         try:
@@ -1027,6 +1015,7 @@ def build_governance_paths_payload(config_root: Path, *, deterministic: bool) ->
             "workspaceErrorLogsHomeTemplate": norm(workspaces_home / "<repo_fingerprint>" / "logs"),
             "pythonCommand": python_command,
         },
+        "commandProfiles": {},
     }
     if not deterministic:
         doc["generatedAt"] = datetime.now().isoformat(timespec="seconds")
@@ -1502,11 +1491,33 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
     print("Ensuring directory structure...")
     ensure_dirs(plan.config_root, dry_run=dry_run)
 
-    print("\nCreating local bootstrap launcher...")
-    launcher_entries = create_launcher(plan, dry_run=dry_run, force=force)
-
     # backup root
     backup_root = plan.config_root / ".installer-backups" / now_ts()
+
+    copied_entries: list[dict] = []
+
+    # governance paths bootstrap MUST run before create_launcher() because
+    # _write_launcher_wrappers reads governance.paths.json for pythonCommand.
+    # Single SSOT writer – see C1 fix.
+    if plan.skip_paths_file:
+        print("\n⚙️  Governance paths bootstrap skipped (--skip-paths-file).")
+    else:
+        print("\n⚙️  Governance paths (governance.paths.json) bootstrap ...")
+        paths_entry = install_governance_paths_file(
+            plan=plan,
+            dry_run=dry_run,
+            force=force,
+            backup_enabled=backup_enabled,
+            backup_root=backup_root,
+        )
+        if paths_entry["status"] == "skipped-exists":
+            print("  ⏭️  governance.paths.json exists (use --force to overwrite)")
+        else:
+            print(f"  ✅ governance.paths.json ({paths_entry['status']})")
+            copied_entries.append(paths_entry)
+
+    print("\nCreating local bootstrap launcher...")
+    launcher_entries = create_launcher(plan, dry_run=dry_run, force=force)
 
     # determine governance version from kernel-owned metadata
     # governance version may live in root VERSION or governance/VERSION
@@ -1539,26 +1550,6 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
         eprint("")
         eprint("Add the version to VERSION and rerun install.")
         return 2
-
-    copied_entries: list[dict] = []
-
-    # governance paths bootstrap (optional but recommended)
-    if plan.skip_paths_file:
-        print("\n⚙️  Governance paths bootstrap skipped (--skip-paths-file).")
-    else:
-        print("\n⚙️  Governance paths (governance.paths.json) bootstrap ...")
-        paths_entry = install_governance_paths_file(
-            plan=plan,
-            dry_run=dry_run,
-            force=force,
-            backup_enabled=backup_enabled,
-            backup_root=backup_root,
-        )
-        if paths_entry["status"] == "skipped-exists":
-            print("  ⏭️  governance.paths.json exists (use --force to overwrite)")
-        else:
-            print(f"  ✅ governance.paths.json ({paths_entry['status']})")
-            copied_entries.append(paths_entry)
 
     # copy main files
     print("\n📋 Copying governance files to commands/ ...")

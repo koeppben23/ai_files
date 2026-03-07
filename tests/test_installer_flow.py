@@ -200,6 +200,12 @@ def test_full_install_reinstall_uninstall_flow(tmp_path: Path):
     python_command = str(p["paths"].get("pythonCommand", "")).strip()
     assert python_command, "governance.paths.json paths.pythonCommand must be non-empty"
 
+    # C1 SSOT: commandProfiles must be present (single writer guarantee)
+    assert "commandProfiles" in p, (
+        "governance.paths.json missing 'commandProfiles' key – "
+        "single SSOT writer (build_governance_paths_payload) must emit it"
+    )
+
     # Capture hashes before reinstall (ignore variable files)
     ignore_names = {"governance.paths.json", MANIFEST_NAME}
     before = {}
@@ -673,3 +679,69 @@ def test_install_distribution_contains_required_normative_files_and_addon_rulebo
     assert not missing_rulebooks, "Installed addon manifests reference missing rulebooks:\n" + "\n".join(
         [f"- {m}" for m in missing_rulebooks]
     )
+
+
+# ---------------------------------------------------------------------------
+# C1 SSOT: build_governance_paths_payload is the single writer authority
+# ---------------------------------------------------------------------------
+
+class TestGovernancePathsSSOT:
+    """
+    C1 fix: governance.paths.json must be written by exactly one code path
+    (build_governance_paths_payload → install_governance_paths_file).
+    These tests verify the payload shape and key completeness.
+    """
+
+    def test_happy_payload_contains_command_profiles(self, tmp_path: Path) -> None:
+        """Happy: build_governance_paths_payload includes commandProfiles key."""
+        from install import build_governance_paths_payload
+        doc = build_governance_paths_payload(tmp_path, deterministic=True)
+        assert "commandProfiles" in doc, "commandProfiles must be in payload"
+        assert isinstance(doc["commandProfiles"], dict)
+
+    def test_happy_payload_contains_all_required_path_keys(self, tmp_path: Path) -> None:
+        """Happy: payload contains every path key consumers depend on."""
+        from install import build_governance_paths_payload
+        doc = build_governance_paths_payload(tmp_path, deterministic=True)
+        required = {
+            "configRoot", "commandsHome", "profilesHome", "governanceHome",
+            "workspacesHome", "globalErrorLogsHome",
+            "workspaceErrorLogsHomeTemplate", "pythonCommand",
+        }
+        missing = required - set(doc["paths"].keys())
+        assert not missing, f"Missing path keys: {missing}"
+
+    def test_happy_payload_schema_matches_constant(self, tmp_path: Path) -> None:
+        """Happy: schema field uses the canonical schema constant."""
+        from install import build_governance_paths_payload, GOVERNANCE_PATHS_SCHEMA
+        doc = build_governance_paths_payload(tmp_path, deterministic=True)
+        assert doc["schema"] == GOVERNANCE_PATHS_SCHEMA
+
+    def test_happy_deterministic_omits_generated_at(self, tmp_path: Path) -> None:
+        """Happy: deterministic=True omits volatile generatedAt timestamp."""
+        from install import build_governance_paths_payload
+        doc = build_governance_paths_payload(tmp_path, deterministic=True)
+        assert "generatedAt" not in doc
+
+    def test_happy_non_deterministic_includes_generated_at(self, tmp_path: Path) -> None:
+        """Happy: deterministic=False includes generatedAt timestamp."""
+        from install import build_governance_paths_payload
+        doc = build_governance_paths_payload(tmp_path, deterministic=False)
+        assert "generatedAt" in doc
+
+    def test_edge_no_duplicate_write_in_create_launcher(self) -> None:
+        """Edge: create_launcher must NOT contain a governance.paths.json write."""
+        import inspect
+        from install import create_launcher
+        source = inspect.getsource(create_launcher)
+        # The old Site 1 write used binding_payload with write_text on binding_path
+        assert "binding_payload" not in source, (
+            "create_launcher still contains Site 1 governance.paths.json write – "
+            "C1 SSOT violation"
+        )
+
+    def test_corner_command_profiles_is_empty_dict(self, tmp_path: Path) -> None:
+        """Corner: commandProfiles defaults to empty dict (no profiles at install time)."""
+        from install import build_governance_paths_payload
+        doc = build_governance_paths_payload(tmp_path, deterministic=True)
+        assert doc["commandProfiles"] == {}
