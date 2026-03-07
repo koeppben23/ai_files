@@ -745,3 +745,77 @@ class TestGovernancePathsSSOT:
         from install import build_governance_paths_payload
         doc = build_governance_paths_payload(tmp_path, deterministic=True)
         assert doc["commandProfiles"] == {}
+
+
+# ---------------------------------------------------------------------------
+# C3: symlink guards before shutil.rmtree
+# ---------------------------------------------------------------------------
+
+class TestSymlinkGuards:
+    """
+    C3 fix: every shutil.rmtree call in install.py must be preceded by an
+    is_symlink() check to prevent symlink-escape attacks.
+    """
+
+    def test_happy_create_launcher_has_symlink_guard(self) -> None:
+        """Happy: create_launcher checks is_symlink before rmtree."""
+        import inspect
+        from install import create_launcher
+        source = inspect.getsource(create_launcher)
+        assert "is_symlink()" in source, (
+            "create_launcher must check is_symlink() before shutil.rmtree (C3 guard)"
+        )
+
+    def test_happy_all_rmtree_sites_guarded(self) -> None:
+        """Happy: every shutil.rmtree in install.py is preceded by is_symlink check."""
+        source_path = Path(__file__).resolve().parents[1] / "install.py"
+        lines = source_path.read_text(encoding="utf-8").splitlines()
+        rmtree_lines = [
+            (i, line) for i, line in enumerate(lines, 1)
+            if "shutil.rmtree" in line and not line.lstrip().startswith("#")
+        ]
+        unguarded: list[int] = []
+        for lineno, _line in rmtree_lines:
+            # Check the preceding 10 lines for an is_symlink guard
+            window = lines[max(0, lineno - 11): lineno - 1]
+            if not any("is_symlink()" in w for w in window):
+                unguarded.append(lineno)
+        assert not unguarded, (
+            f"shutil.rmtree at line(s) {unguarded} missing is_symlink() guard (C3)"
+        )
+
+    @pytest.mark.skipif(
+        not hasattr(os, "symlink") or os.name == "nt",
+        reason="symlink creation unavailable on this platform without privileges",
+    )
+    def test_edge_create_launcher_refuses_symlink_cli_dest(self, tmp_path: Path) -> None:
+        """Edge: create_launcher raises if cli_dest is a symlink."""
+        from install import create_launcher, build_plan
+        # Create minimal source dir with required files
+        src = tmp_path / "src"
+        src.mkdir()
+        (src / "VERSION").write_text("1.0.0", encoding="utf-8")
+        (src / "rules.yml").write_text("", encoding="utf-8")
+        cli_src = src / "cli"
+        cli_src.mkdir()
+        (cli_src / "__init__.py").write_text("", encoding="utf-8")
+
+        config_root = tmp_path / "config"
+        config_root.mkdir(parents=True)
+
+        plan = build_plan(
+            source_dir=src,
+            config_root=config_root,
+            skip_paths_file=True,
+            deterministic_paths_file=False,
+        )
+
+        # Replace cli dest with a symlink
+        real_dir = tmp_path / "real_target"
+        real_dir.mkdir()
+        cli_dest = plan.commands_dir / "cli"
+        cli_dest.parent.mkdir(parents=True, exist_ok=True)
+        os.symlink(real_dir, cli_dest)
+
+        with pytest.raises(RuntimeError, match="symlink"):
+            create_launcher(plan, dry_run=False, force=True)

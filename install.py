@@ -272,6 +272,10 @@ def create_launcher(plan: InstallPlan, dry_run: bool, force: bool) -> list[dict]
         )
     else:
         if cli_dest.exists():
+            if cli_dest.is_symlink():
+                raise RuntimeError(
+                    f"Refusing to remove {cli_dest}: path is a symlink (C3 safety guard)"
+                )
             shutil.rmtree(cli_dest)
         cli_dest.mkdir(parents=True, exist_ok=True)
         for f in sorted(cli_source.rglob("*.py")):
@@ -723,12 +727,15 @@ def enforce_commands_hygiene(*, commands_dir: Path, dry_run: bool) -> tuple[list
 
     backup_dir = commands_dir / "_backup"
     if backup_dir.exists():
-        rel = str(backup_dir.relative_to(commands_dir)).replace("\\", "/")
-        removed.append(rel)
-        if dry_run:
-            print(f"  [DRY-RUN] rm -rf {backup_dir}")
+        if backup_dir.is_symlink():
+            removed.append(f"{str(backup_dir.relative_to(commands_dir)).replace(chr(92), '/')} [SYMLINK-SKIPPED]")
         else:
-            shutil.rmtree(backup_dir, ignore_errors=True)
+            rel = str(backup_dir.relative_to(commands_dir)).replace("\\", "/")
+            removed.append(rel)
+            if dry_run:
+                print(f"  [DRY-RUN] rm -rf {backup_dir}")
+            else:
+                shutil.rmtree(backup_dir, ignore_errors=True)
 
     for path in sorted(commands_dir.rglob("*")):
         if not path.exists() or path.is_dir():
@@ -2679,6 +2686,9 @@ def purge_runtime_state(config_root: Path, dry_run: bool) -> int:
         for subtree_name in workspace_subtree_names:
             subtree = ws_dir / subtree_name
             if subtree.exists() and subtree.is_dir():
+                if subtree.is_symlink():
+                    eprint(f"  ⚠️  Skipping symlink: {ws_dir.name}/{subtree_name}/ (C3 safety guard)")
+                    continue
                 if dry_run:
                     print(f"  [DRY-RUN] rmtree {subtree}")
                 else:
