@@ -946,6 +946,91 @@ def test_bad_phase5_first_iteration_without_previous_digest_cannot_early_stop(tm
 
 
 @pytest.mark.governance
+def test_phase5_explicit_completed_state_advances_even_without_iteration_digests(tmp_path: Path) -> None:
+    commands_home = tmp_path / "commands"
+    _write_phase_api(commands_home)
+
+    doc = {
+        "SESSION_STATE": {
+            "Phase": "5-ArchitectureReview",
+            "PersistenceCommitted": True,
+            "WorkspaceReadyGateCommitted": True,
+            "WorkspaceArtifactsCommitted": True,
+            "PointerVerified": True,
+            **RULEBOOK_BASE,
+            "TicketRecordDigest": "ticket-digest",
+            "plan_record_versions": 1,
+            "phase5_completed": True,
+            "phase5_state": "phase5_completed",
+            "phase5_completion_status": "phase5-completed",
+            "Phase5Review": {
+                "iteration": 0,
+            },
+        }
+    }
+
+    result = execute(
+        current_token="5",
+        session_state_doc=doc,
+        runtime_ctx=RuntimeContext(
+            requested_active_gate="Architecture Review Gate",
+            requested_next_gate_condition="Continue",
+            repo_is_git_root=True,
+            commands_home=commands_home,
+            workspaces_home=tmp_path / "workspaces",
+            config_root=tmp_path / "cfg",
+        ),
+    )
+
+    assert result.status == "OK"
+    assert result.next_token == "5.3"
+    assert result.source == "phase-5-architecture-review-ready"
+    assert "completion_status=phase5-completed" in result.next_gate_condition
+
+
+@pytest.mark.governance
+def test_phase5_blocked_state_stays_in_architecture_review_and_emits_reason_code(tmp_path: Path) -> None:
+    commands_home = tmp_path / "commands"
+    _write_phase_api(commands_home)
+
+    doc = {
+        "SESSION_STATE": {
+            "Phase": "5-ArchitectureReview",
+            "PersistenceCommitted": True,
+            "WorkspaceReadyGateCommitted": True,
+            "WorkspaceArtifactsCommitted": True,
+            "PointerVerified": True,
+            **RULEBOOK_BASE,
+            "TicketRecordDigest": "ticket-digest",
+            "plan_record_versions": 1,
+            "phase5_state": "phase5_blocked",
+            "phase5_blocker_code": "BLOCKED-P5-TICKET-EVIDENCE-MISSING",
+            "Phase5Review": {
+                "iteration": 1,
+            },
+        }
+    }
+
+    result = execute(
+        current_token="5",
+        session_state_doc=doc,
+        runtime_ctx=RuntimeContext(
+            requested_active_gate="Architecture Review Gate",
+            requested_next_gate_condition="Continue",
+            repo_is_git_root=True,
+            commands_home=commands_home,
+            workspaces_home=tmp_path / "workspaces",
+            config_root=tmp_path / "cfg",
+        ),
+    )
+
+    assert result.status == "OK"
+    assert result.next_token == "5"
+    assert result.source == "phase-5-self-review-required"
+    assert "reason_code=BLOCKED-P5-TICKET-EVIDENCE-MISSING" in result.next_gate_condition
+
+
+@pytest.mark.governance
 def test_kernel_phase6_stays_until_implementation_review_complete(tmp_path: Path) -> None:
     commands_home = tmp_path / "commands"
     _write_phase_api(commands_home)

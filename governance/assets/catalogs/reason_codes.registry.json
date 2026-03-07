@@ -423,6 +423,34 @@
       "remediation_hint": "Persist Phase 5 plan-record evidence via the plan persist bridge, then rerun materialization."
     },
     {
+      "code": "BLOCKED-P5-PHASE-MISMATCH",
+      "severity": "blocked",
+      "payload_schema_ref": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Phase 5 plan persistence was requested outside Phase 5.",
+      "remediation_hint": "Run /ticket to enter Phase 5, then rerun /plan."
+    },
+    {
+      "code": "BLOCKED-P5-TICKET-EVIDENCE-MISSING",
+      "severity": "blocked",
+      "payload_schema_ref": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Phase 5 plan persistence requires persisted ticket/task evidence.",
+      "remediation_hint": "Persist canonical ticket/task evidence via /ticket before running /plan."
+    },
+    {
+      "code": "BLOCKED-P5-PLAN-EMPTY",
+      "severity": "blocked",
+      "payload_schema_ref": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Phase 5 plan text is empty after canonicalization.",
+      "remediation_hint": "Provide non-empty plan text or a valid plan file and rerun /plan."
+    },
+    {
+      "code": "BLOCKED-P5-REVIEW-PERSIST-FAILED",
+      "severity": "blocked",
+      "payload_schema_ref": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Phase 5 internal self-review revision failed to persist.",
+      "remediation_hint": "Resolve plan-record persistence issues and rerun /plan."
+    },
+    {
       "code": "BLOCKED-P6-PREREQUISITES-NOT-MET",
       "severity": "blocked",
       "payload_schema_ref": "governance/assets/schemas/reason_payload_blocked_core.v1.json",

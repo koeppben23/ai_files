@@ -22,7 +22,7 @@ Session resolution note (repo-aware):
 - Runtime SHOULD resolve current session through `${SESSION_STATE_POINTER_FILE}` and then load repo-scoped `${SESSION_STATE_FILE}`.
 - If pointer exists but target repo session cannot be resolved, treat as missing session state and return `BLOCKED`.
 
-If `[SESSION_STATE]` is missing, the command MUST stop with `BLOCKED` and request it.
+If `[SESSION_STATE]` is missing, the command MUST return `status.state=blocked` and request the missing state.
 
 ---
 
