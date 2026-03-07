@@ -58,6 +58,16 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 GOVERNANCE_SOURCE_DIR = SCRIPT_DIR / "governance"
 
 
+def _path_for_json(p: Path) -> str:
+    """R3: Canonical POSIX-absolute path string for JSON serialization.
+
+    All paths written to JSON files (governance.paths.json, INSTALL_HEALTH.json)
+    are POSIX-normalized absolute strings (forward slashes, resolved symlinks).
+    Consumers convert to OS-native paths at read time.
+    """
+    return p.resolve().as_posix()
+
+
 def _load_error_logger() -> Callable[..., object]:
     helper = GOVERNANCE_SOURCE_DIR / "entrypoints" / "error_logs.py"
     if not helper.exists():
@@ -256,8 +266,8 @@ def create_launcher(plan: InstallPlan, dry_run: bool, force: bool) -> list[dict]
 
     bin_dir = plan.config_root / "bin"
     python_exe = sys.executable
-    commands_home = str(plan.commands_dir)
-    workspaces_home = str(plan.config_root / "workspaces")
+    commands_home = _path_for_json(plan.commands_dir)
+    workspaces_home = _path_for_json(plan.config_root / "workspaces")
 
     # Copy cli/ package to commands_home so launcher has a local runtime.
     cli_source = SCRIPT_DIR / "cli"
@@ -339,7 +349,7 @@ def create_launcher(plan: InstallPlan, dry_run: bool, force: bool) -> list[dict]
         "schema": "opencode-install-health.v1",
         "installerVersion": VERSION,
         "generatedAt": datetime.now().isoformat(timespec="seconds"),
-        "configRoot": str(plan.config_root),
+        "configRoot": _path_for_json(plan.config_root),
         "commandsHome": commands_home,
         "workspacesHome": workspaces_home,
         "pythonExecutable": python_exe,
@@ -1001,7 +1011,8 @@ def build_governance_paths_payload(config_root: Path, *, deterministic: bool) ->
     The local bootstrap launcher loads this file via shell output injection to avoid interactive path binding.
     """
     def norm(p: Path) -> str:
-        return str(p)
+        """R3: POSIX-normalized absolute path string for JSON serialization."""
+        return _path_for_json(p)
 
     commands_home = config_root / "commands"
     profiles_home = commands_home / "profiles"
@@ -1254,7 +1265,7 @@ def load_manifest(manifest_path: Path) -> dict | None:
     - file exists and is valid JSON
     - top-level value is a dict
     - schema field matches MANIFEST_SCHEMA
-    - 'files' key is present and is a dict
+    - 'files' key is present and is a list or dict
 
     Returns None for any validation failure (R9 safety gate).
     """
@@ -1268,7 +1279,8 @@ def load_manifest(manifest_path: Path) -> dict | None:
         return None
     if data.get("schema") != MANIFEST_SCHEMA:
         return None
-    if not isinstance(data.get("files"), dict):
+    files = data.get("files")
+    if not isinstance(files, (dict, list)):
         return None
     return data
 
@@ -2102,8 +2114,8 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
         "installerVersion": VERSION,
         "governanceVersion": gov_ver,
         "installedAt": datetime.now().isoformat(timespec="seconds"),
-        "configRoot": str(plan.config_root),
-        "commandsDir": str(plan.commands_dir),
+        "configRoot": _path_for_json(plan.config_root),
+        "commandsDir": _path_for_json(plan.commands_dir),
         "files": installed_files,
     }
 

@@ -961,14 +961,25 @@ class TestManifestValidation:
         assert load_manifest(mf) is None
 
     def test_bad_files_not_dict_returns_none(self, tmp_path: Path) -> None:
-        """Bad: 'files' is a list instead of dict returns None."""
+        """Bad: 'files' is a string instead of dict/list returns None."""
         from install import load_manifest, MANIFEST_SCHEMA
         mf = tmp_path / "INSTALL_MANIFEST.json"
         mf.write_text(json.dumps({
             "schema": MANIFEST_SCHEMA,
-            "files": ["not", "a", "dict"],
+            "files": "not-a-collection",
         }), encoding="utf-8")
         assert load_manifest(mf) is None
+
+    def test_happy_files_as_list_accepted(self, tmp_path: Path) -> None:
+        """Happy: 'files' as list is accepted (installer uses list format)."""
+        from install import load_manifest, MANIFEST_SCHEMA
+        mf = tmp_path / "INSTALL_MANIFEST.json"
+        mf.write_text(json.dumps({
+            "schema": MANIFEST_SCHEMA,
+            "files": [{"dst": "a.py", "sha256": "abc"}],
+        }), encoding="utf-8")
+        result = load_manifest(mf)
+        assert result is not None
 
 
 # ---------------------------------------------------------------------------
@@ -1019,3 +1030,59 @@ class TestOpencodeJsonBackup:
         ensure_opencode_json(tmp_path, dry_run=True)
         backup = target.with_suffix(".json.corrupt-backup")
         assert not backup.exists(), "Dry-run must not create backup"
+
+
+# ---------------------------------------------------------------------------
+# R3: POSIX path serialization in JSON
+# ---------------------------------------------------------------------------
+
+class TestPosixPathSerialization:
+    """
+    R3 fix: all paths in JSON artifacts must be POSIX-normalized absolute
+    strings (forward slashes, resolved). OS-native conversion at read time.
+    """
+
+    def test_happy_path_for_json_returns_posix(self, tmp_path: Path) -> None:
+        """Happy: _path_for_json returns POSIX absolute string."""
+        from install import _path_for_json
+        result = _path_for_json(tmp_path / "subdir")
+        assert "/" in result or result.startswith("/"), "Must use forward slashes"
+        assert "\\" not in result, "Must not contain backslashes"
+
+    def test_happy_path_for_json_is_absolute(self, tmp_path: Path) -> None:
+        """Happy: _path_for_json returns absolute path."""
+        from install import _path_for_json
+        result = _path_for_json(tmp_path / "subdir")
+        # On Windows, as_posix() produces e.g. C:/Users/... which is absolute
+        assert result[0] == "/" or result[1] == ":", "Must be absolute"
+
+    def test_happy_governance_paths_payload_uses_posix(self, tmp_path: Path) -> None:
+        """Happy: build_governance_paths_payload emits POSIX paths."""
+        from install import build_governance_paths_payload
+        doc = build_governance_paths_payload(tmp_path, deterministic=True)
+        for key, value in doc["paths"].items():
+            if key == "pythonCommand":
+                continue  # sys.executable is platform-native
+            assert "\\" not in value, (
+                f"paths.{key} contains backslash: {value}"
+            )
+
+    def test_happy_norm_delegates_to_path_for_json(self) -> None:
+        """Happy: norm() in build_governance_paths_payload uses _path_for_json."""
+        import inspect
+        from install import build_governance_paths_payload
+        source = inspect.getsource(build_governance_paths_payload)
+        assert "_path_for_json" in source, (
+            "norm() must delegate to _path_for_json"
+        )
+
+    def test_edge_session_pointer_uses_posix(self) -> None:
+        """Edge: session_pointer emits POSIX paths in payload."""
+        from governance.infrastructure.session_pointer import build_pointer_payload
+        payload = build_pointer_payload(
+            repo_fingerprint="abc123def456abc123def456",
+            session_state_file=Path("/fake/config/workspaces/abc123def456abc123def456/SESSION_STATE.json"),
+            config_root=Path("/fake/config"),
+        )
+        rel = payload.get("activeSessionStateRelativePath", "")
+        assert "\\" not in rel, f"Relative path has backslashes: {rel}"
