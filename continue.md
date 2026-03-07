@@ -20,7 +20,7 @@ $env:Path = "{{BIN_DIR}};" + $env:Path; opencode-governance-bootstrap --session-
 
 ## If execution is unavailable
 
-If the command cannot be executed (e.g., sandboxed environment, model policy, or tool error), ask the user to paste the YAML output or a snapshot containing at least `phase`, `next`, `active_gate`, and `next_gate_condition`.
+If the command cannot be executed, ask the user to paste the YAML output or a snapshot containing at least `phase`, `next`, `active_gate`, and `next_gate_condition`.
 
 If no snapshot is available, proceed using only the context visible in the current conversation and state assumptions explicitly before continuing.
 
@@ -28,18 +28,7 @@ If no snapshot is available, proceed using only the context visible in the curre
 
 Use the YAML output as governance context for the response below. Do not infer additional state beyond the materialized output.
 
-Free chat remains available for normal interaction; use `/continue` when official governance-state materialization is required.
-
-Rails-only scope:
-- output structure and quality checklist only
-- informational references to kernel-managed decisions
-- no local execution policy directives
-
-Kernel references (informational):
-- discovery/re-discovery behavior is kernel-managed (see `governance/kernel/*`)
-- blocked/degraded routing is kernel-managed (see `governance/kernel/*`)
-- fast-path scope changes are kernel-managed (see `governance/kernel/*`)
-- active profile resolution is kernel-managed (see `governance/kernel/*`)
+Free chat remains available; use `/continue` when governance-state materialization is required.
 
 ## Response shape
 
@@ -47,7 +36,7 @@ Kernel references (informational):
 - include delta-only progress for the active step
 - if kernel reports a blocker or warning, render it with concise evidence and one recovery action
 - keep profile context stable in the response narrative; do not redefine profile selection semantics here
-- when the next correct step is official governance-state materialization, the final line must be exactly: `Next action: run /continue.`
+- if the next step requires governance-state materialization, suggest running `/continue`
 
 ---
 
