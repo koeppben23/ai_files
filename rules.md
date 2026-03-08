@@ -37,12 +37,12 @@ Rules:
 
 - In ambiguity, stay in planning mode or return blocked before code-producing work.
 - Active profile and activation evidence must be recorded in session state.
-- Rulebook precedence, merge, and activation behavior are kernel-owned.
+- Rulebook precedence, merge, and activation behavior are kernel-owned in `governance/kernel/*`.
 
 ## Review and quality constraints
 
 - Security and privacy checks are minimum sanity checks, not a full security review.
-- Cross-repo impact, scorecard, and review-of-review checks follow kernel-owned gate contracts.
+- Cross-repo impact, scorecard, and review-of-review checks follow kernel-owned gate contracts in `governance/kernel/*`.
 - Business logic belongs in domain models/domain type boundaries, not adapters.
 - Test design must remain deterministic and evidence-backed.
 
@@ -76,7 +76,7 @@ Rules:
 
 ### Evidence ladder
 
-Evidence precedence is kernel-owned; this file preserves the rule intent.
+Evidence precedence is kernel-owned in `governance/kernel/*`; this file preserves the rule intent.
 
 ### Strict evidence mode (default)
 

@@ -285,6 +285,17 @@ def _session_state_view(state: dict) -> dict:
     return nested if isinstance(nested, dict) else state
 
 
+def _transition_evidence_truthy(state_view: dict, state_doc: dict) -> bool:
+    raw = state_view.get("phase_transition_evidence", state_doc.get("phase_transition_evidence"))
+    if isinstance(raw, bool):
+        return raw
+    if isinstance(raw, str):
+        return bool(raw.strip())
+    if isinstance(raw, list):
+        return len(raw) > 0
+    return False
+
+
 def _build_runtime_context(
     *, commands_home: Path, config_root: Path, pointer: dict, state_doc: dict,
 ) -> tuple[str, Any]:
@@ -293,17 +304,37 @@ def _build_runtime_context(
     Returns (requested_phase, RuntimeContext).  Shared by both the
     materialise (write) and readonly-eval (read) code paths.
     """
-    from governance.domain.phase_state_machine import normalize_phase_token
+    from governance.domain.phase_state_machine import normalize_phase_token, phase_rank
     from governance.kernel.phase_kernel import RuntimeContext
 
     state_view = _session_state_view(state_doc)
-    requested_phase = normalize_phase_token(
+    persisted_phase = normalize_phase_token(
         state_view.get("Phase")
         or state_view.get("phase")
         or state_doc.get("Phase")
         or state_doc.get("phase")
         or "4"
     ) or "4"
+
+    requested_phase = persisted_phase
+    next_token = normalize_phase_token(
+        state_view.get("Next")
+        or state_view.get("next")
+        or state_doc.get("Next")
+        or state_doc.get("next")
+        or ""
+    )
+
+    # Phase 5 is a stay-strategy gate that may advertise next=5.3 even when
+    # state remains on token 5. If transition evidence is present, treat the
+    # advertised next token as the execution target to prevent /continue loops.
+    if (
+        persisted_phase == "5"
+        and next_token == "5.3"
+        and _transition_evidence_truthy(state_view, state_doc)
+        and phase_rank(next_token) > phase_rank(persisted_phase)
+    ):
+        requested_phase = next_token
 
     requested_active_gate = str(
         state_view.get("active_gate")
@@ -484,6 +515,15 @@ def _resolve_next_action_line(snapshot: dict) -> str:
         review_met = snapshot.get("self_review_iterations_met", True)
         if review_met is False:
             return "Next action: continue in chat with the active gate work."
+        next_token = str(snapshot.get("next", "")).strip()
+        if review_met is True and next_token == "5.3":
+            return "Next action: execute Phase 5.3 test-quality review, then run /continue."
+        if phase_str.startswith("5.4"):
+            return "Next action: complete Phase 5.4 business-rules validation, then run /continue."
+        if phase_str.startswith("5.5"):
+            return "Next action: complete Phase 5.5 technical-debt review, then run /continue."
+        if phase_str.startswith("5.6"):
+            return "Next action: complete Phase 5.6 rollback-safety checks, then run /continue."
 
     # Phase 6 review loop is orchestrated during materialize.
     # Keep guidance on /continue so the user can advance without chat loops.

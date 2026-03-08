@@ -14,6 +14,7 @@ Launcher-first operator/model flow for starting and continuing governed OpenCode
 2. Open OpenCode Desktop in the same repository.
 3. Run `/continue`.
 4. If `/continue` lands at Phase 4, run `/ticket`, then `/plan`.
+   This is Plan Mode intake and persists Phase-4 ticket/plan evidence.
 5. Use `/review` as the read-only rail entrypoint for quality review.
 6. Use `/audit-readout` for a read-only audit snapshot.
 
