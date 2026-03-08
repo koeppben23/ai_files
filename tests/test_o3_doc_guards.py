@@ -334,6 +334,7 @@ class TestLauncherSurfaceBad:
     @pytest.mark.parametrize("relpath", _ACTIVE_PATHS)
     def test_no_entrypoint_module_surface_in_active_paths(self, relpath: str) -> None:
         content = _read(relpath)
+        assert "--entrypoint" not in content
         assert "--entrypoint governance.entrypoints." not in content
         assert "governance.entrypoints.phase4_intake_persist" not in content
         assert "governance.entrypoints.phase5_plan_record_persist" not in content
@@ -349,9 +350,11 @@ class TestLauncherSurfaceCorner:
 
 
 class TestLauncherSurfaceEdge:
-    """Edge: compatibility marker exists while entrypoint remains supported."""
+    """Edge: final launcher contract has no legacy entrypoint surface."""
 
-    def test_binding_contract_marks_entrypoint_compatibility_only(self) -> None:
+    def test_binding_contract_has_final_subcommand_surface(self) -> None:
         content = _read("docs/contracts/python-binding-contract.v1.md")
-        assert "compatibility-supported for exactly one" in content
-        assert "compatibility-only" in content
+        assert "--ticket-persist" in content
+        assert "--plan-persist" in content
+        assert "--session-reader" in content
+        assert "--entrypoint" not in content

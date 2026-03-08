@@ -1259,9 +1259,15 @@ class TestRepoLauncherContractDrift:
     def test_corner_repo_wrappers_support_canonical_subcommands(self) -> None:
         unix_content = (REPO_ROOT / "bin" / "opencode-governance-bootstrap").read_text(encoding="utf-8")
         win_content = (REPO_ROOT / "bin" / "opencode-governance-bootstrap.cmd").read_text(encoding="utf-8")
-        for token in ["--ticket-persist", "--plan-persist", "--entrypoint"]:
+        for token in ["--ticket-persist", "--plan-persist", "--session-reader"]:
             assert token in unix_content
             assert token in win_content
+
+    def test_bad_repo_wrappers_forbid_legacy_entrypoint_surface(self) -> None:
+        unix_content = (REPO_ROOT / "bin" / "opencode-governance-bootstrap").read_text(encoding="utf-8")
+        win_content = (REPO_ROOT / "bin" / "opencode-governance-bootstrap.cmd").read_text(encoding="utf-8")
+        assert "--entrypoint" not in unix_content
+        assert "--entrypoint" not in win_content
 
     def test_edge_repo_wrappers_forbid_primary_path_probing(self) -> None:
         unix_content = (REPO_ROOT / "bin" / "opencode-governance-bootstrap").read_text(encoding="utf-8")
