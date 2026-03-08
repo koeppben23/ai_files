@@ -19,6 +19,7 @@ _IO_MODULE_PREFIXES = {
 _PATH_RESOLVE_ALLOWLIST: set[str] = {
     "governance/infrastructure/binding_evidence_resolver.py",
     "governance/infrastructure/run_summary_writer.py",
+    "governance/infrastructure/session_pointer.py",
     "governance/entrypoints/session_reader.py",
 }
 

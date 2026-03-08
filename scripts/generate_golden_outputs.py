@@ -106,7 +106,12 @@ def generate_golden_outputs(*, repo_root: Path, output_dir: Path) -> None:
         encoding="utf-8",
     )
     previous_home = os.environ.get("HOME")
+    previous_userprofile = os.environ.get("USERPROFILE")
+    previous_config_root = os.environ.get("OPENCODE_CONFIG_ROOT")
+    resolved_config_root = str(config_root.resolve())
     os.environ["HOME"] = str(binding_root.resolve())
+    os.environ["USERPROFILE"] = str(binding_root.resolve())
+    os.environ["OPENCODE_CONFIG_ROOT"] = resolved_config_root
 
     adapter = ScriptAdapter(
         env={
@@ -187,6 +192,14 @@ def generate_golden_outputs(*, repo_root: Path, output_dir: Path) -> None:
             os.environ.pop("HOME", None)
         else:
             os.environ["HOME"] = previous_home
+        if previous_userprofile is None:
+            os.environ.pop("USERPROFILE", None)
+        else:
+            os.environ["USERPROFILE"] = previous_userprofile
+        if previous_config_root is None:
+            os.environ.pop("OPENCODE_CONFIG_ROOT", None)
+        else:
+            os.environ["OPENCODE_CONFIG_ROOT"] = previous_config_root
 
 
 def main(argv: list[str] | None = None) -> int:

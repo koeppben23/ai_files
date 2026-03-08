@@ -86,12 +86,12 @@ def build_pointer_payload(
         payload["updatedAt"] = updated_at
     
     if session_state_file is not None:
-        payload["activeSessionStateFile"] = str(session_state_file)
+        payload["activeSessionStateFile"] = session_state_file.resolve().as_posix()
         
         if config_root is not None:
             try:
                 rel_path = session_state_file.relative_to(config_root)
-                payload["activeSessionStateRelativePath"] = str(rel_path)
+                payload["activeSessionStateRelativePath"] = rel_path.as_posix()
             except ValueError:
                 pass
     else:

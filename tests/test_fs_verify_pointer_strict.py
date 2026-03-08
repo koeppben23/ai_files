@@ -30,7 +30,7 @@ def test_verify_pointer_rejects_relative_path_mismatch(tmp_path: Path) -> None:
             {
                 "schema": "opencode-session-pointer.v1",
                 "activeRepoFingerprint": "a1b2c3d4e5f6a1b2c3d4e5f6",
-                "activeSessionStateFile": "/tmp/workspaces/a1b2c3d4e5f6a1b2c3d4e5f6/SESSION_STATE.json",
+                "activeSessionStateFile": "/mock/workspaces/a1b2c3d4e5f6a1b2c3d4e5f6/SESSION_STATE.json",
                 "activeSessionStateRelativePath": "workspaces/ffffffffffffffffffffffff/SESSION_STATE.json",
             }
         ),

@@ -1,3 +1,4 @@
+<!-- rail-classification: SECURITY-BOUNDARY, READ-ONLY -->
 # Security Model — Trusted vs Untrusted Sources
 
 **Version:** 1.0

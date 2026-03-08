@@ -1,6 +1,7 @@
 import { spawn, spawnSync } from "node:child_process";
-import { appendFileSync, existsSync, statSync } from "node:fs";
+import { appendFileSync, existsSync, readFileSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const seen = new Set();
 const MAX_LOG_BYTES = 64 * 1024;
@@ -125,7 +126,62 @@ function canRun(cmd, args = []) {
   }
 }
 
+/**
+ * Attempt to locate the PYTHON_BINDING file written by the installer.
+ *
+ * Discovery order:
+ * 1. Derive config_root from the plugin's own installed location
+ *    (plugin lives at <config_root>/plugins/audit-new-session.mjs,
+ *     so config_root = dirname(dirname(thisFile))).
+ * 2. Well-known default: ~/.config/opencode/bin/PYTHON_BINDING
+ *
+ * Returns the absolute interpreter path string, or null.
+ */
+function resolveBindingFile() {
+  const candidates = [];
+
+  // 1. Derive from own installed location
+  try {
+    const thisFile = fileURLToPath(import.meta.url);
+    const pluginsDir = dirname(thisFile);           // <config_root>/plugins
+    const configRoot = dirname(pluginsDir);          // <config_root>
+    candidates.push(join(configRoot, "bin", "PYTHON_BINDING"));
+  } catch {
+    // import.meta.url not usable (e.g., bundled or eval context)
+  }
+
+  // 2. Well-known default location
+  const home = asString(process.env.HOME) ?? asString(process.env.USERPROFILE);
+  if (home) {
+    candidates.push(join(home, ".config", "opencode", "bin", "PYTHON_BINDING"));
+  }
+
+  for (const candidatePath of candidates) {
+    try {
+      if (!existsSync(candidatePath)) {
+        continue;
+      }
+      const raw = readFileSync(candidatePath, "utf8").trim();
+      if (!raw) {
+        debugLog(`[audit] PYTHON_BINDING empty at ${candidatePath}`);
+        continue;
+      }
+      // Contract: single line, absolute path
+      if (raw.includes("\n")) {
+        debugLog(`[audit] PYTHON_BINDING malformed (multi-line) at ${candidatePath}`);
+        continue;
+      }
+      debugLog(`[audit] PYTHON_BINDING resolved from ${candidatePath}: ${raw}`);
+      return raw;
+    } catch (err) {
+      debugLog(`[audit] PYTHON_BINDING read error at ${candidatePath}: ${err}`);
+    }
+  }
+  return null;
+}
+
 function resolvePython() {
+  // Priority 1: Explicit environment override (contract §4.3, priority 1)
   const override = asString(process.env.OPENCODE_PYTHON);
   if (override) {
     return {
@@ -134,26 +190,53 @@ function resolvePython() {
       source: "OPENCODE_PYTHON",
       platform: process.platform,
       usedOverride: true,
+      degraded: false,
     };
   }
+
+  // Priority 2: PYTHON_BINDING file (contract §4.3, priority 2)
+  const boundPath = resolveBindingFile();
+  if (boundPath) {
+    // PYTHON_BINDING uses POSIX paths; on Windows convert forward slashes
+    // to native backslashes for spawn compatibility.
+    const nativePath = process.platform === "win32"
+      ? boundPath.replace(/\//g, "\\")
+      : boundPath;
+    return {
+      command: nativePath,
+      argvPrefix: [],
+      source: "PYTHON_BINDING",
+      platform: process.platform,
+      usedOverride: false,
+      degraded: false,
+    };
+  }
+
+  // Priority 3: Degraded PATH probing fallback (contract §4.3, priority 3)
+  // WARNING: This path is only used when no installation binding exists
+  // (e.g., fresh clone without install). The resolved interpreter may differ
+  // from the installed binding.
+  debugLog("[audit] PYTHON_BINDING not found; falling back to degraded PATH probing");
 
   if (process.platform === "win32") {
     if (canRun("py", ["-3", "-V"])) {
       return {
         command: "py",
         argvPrefix: ["-3"],
-        source: "py -3",
+        source: "py -3 (degraded)",
         platform: "win32",
         usedOverride: false,
+        degraded: true,
       };
     }
     if (canRun("python", ["-V"])) {
       return {
         command: "python",
         argvPrefix: [],
-        source: "python",
+        source: "python (degraded)",
         platform: "win32",
         usedOverride: false,
+        degraded: true,
       };
     }
     return null;
@@ -163,18 +246,20 @@ function resolvePython() {
     return {
       command: "python3",
       argvPrefix: [],
-      source: "python3",
+      source: "python3 (degraded)",
       platform: process.platform,
       usedOverride: false,
+      degraded: true,
     };
   }
   if (canRun("python", ["-V"])) {
     return {
       command: "python",
       argvPrefix: [],
-      source: "python",
+      source: "python (degraded)",
       platform: process.platform,
       usedOverride: false,
+      degraded: true,
     };
   }
   return null;
@@ -260,6 +345,9 @@ export const AuditNewSession = async ({ client }) => {
       if (!python) {
         log(client, "[audit] no python interpreter found (set OPENCODE_PYTHON); skipping new_work_session");
         return;
+      }
+      if (python.degraded) {
+        log(client, `[audit] WARNING: using degraded PATH fallback (source=${python.source}); interpreter may differ from installed binding`);
       }
       debugLog(`[audit] resolver source=${python.source} command=${python.command} cwd_source=${cwdResolution.source}`);
 

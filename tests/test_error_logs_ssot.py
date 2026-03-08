@@ -8,7 +8,7 @@ import governance.infrastructure.logging.error_logs as error_logs
 
 
 def test_write_error_event_uses_ssot_error_log_path(monkeypatch) -> None:
-    cfg = Path("/tmp/opencode-config")
+    cfg = Path("/mock/opencode-config")
     ws = cfg / "workspaces"
     fp = "88b39b036804c534a1b2c3d4"
 
@@ -32,7 +32,7 @@ def test_write_error_event_uses_ssot_error_log_path(monkeypatch) -> None:
 
 
 def test_write_error_event_does_not_use_legacy_indexer(monkeypatch) -> None:
-    cfg = Path("/tmp/opencode-config")
+    cfg = Path("/mock/opencode-config")
     ws = cfg / "workspaces"
     fp = "88b39b036804c534a1b2c3d4"
 

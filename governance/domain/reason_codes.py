@@ -103,6 +103,13 @@ BLOCKED_INSTALL_VERSION_MISSING: Final[str] = "BLOCKED-INSTALL-VERSION-MISSING"
 BLOCKED_INSTALL_CONFIG_ROOT_INVALID: Final[str] = "BLOCKED-INSTALL-CONFIG-ROOT-INVALID"
 
 # ---------------------------------------------------------------------------
+# Kernel BLOCKED codes — contract drift
+# ---------------------------------------------------------------------------
+BLOCKED_CONTRACT_LAYOUT_DRIFT: Final[str] = "BLOCKED-CONTRACT-LAYOUT-DRIFT"
+BLOCKED_CONTRACT_RUNTIME_DRIFT: Final[str] = "BLOCKED-CONTRACT-RUNTIME-DRIFT"
+BLOCKED_CONTRACT_OPENCODE_DRIFT: Final[str] = "BLOCKED-CONTRACT-OPENCODE-DRIFT"
+
+# ---------------------------------------------------------------------------
 # Profile/addon BLOCKED codes (profiles/*.md)
 # ---------------------------------------------------------------------------
 BLOCKED_MISSING_DB_VERSION: Final[str] = "BLOCKED-MISSING-DB-VERSION"
@@ -297,6 +304,10 @@ CANONICAL_REASON_CODES: Final[tuple[str, ...]] = (
     BLOCKED_INSTALL_PRECHECK_MISSING_SOURCE,
     BLOCKED_INSTALL_VERSION_MISSING,
     BLOCKED_INSTALL_CONFIG_ROOT_INVALID,
+    # Contract drift
+    BLOCKED_CONTRACT_LAYOUT_DRIFT,
+    BLOCKED_CONTRACT_RUNTIME_DRIFT,
+    BLOCKED_CONTRACT_OPENCODE_DRIFT,
     # Profile/addon BLOCKED
     BLOCKED_MISSING_DB_VERSION,
     BLOCKED_FORMAT_UNDEFINED,

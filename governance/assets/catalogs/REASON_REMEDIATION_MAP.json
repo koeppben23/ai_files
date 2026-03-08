@@ -6,7 +6,7 @@
     "BLOCKED-MISSING-COMMANDS-HOME": {
       "summary": "commands_home is missing or invalid",
       "how_to_fix": "Set COMMANDS_HOME environment variable or repair binding evidence in governance.paths.json.",
-      "copy_paste_command": "export COMMANDS_HOME=/path/to/commands",
+      "copy_paste_command": "export COMMANDS_HOME=/path/to/commands  # Unix; Windows cmd: set COMMANDS_HOME=C:\\path\\to\\commands",
       "docs_link": "docs/installation.md#commands-home"
     },
     "BLOCKED-MISSING-BINDING-FILE": {
@@ -48,13 +48,13 @@
     "BLOCKED-WORKSPACE-PERSISTENCE": {
       "summary": "Workspace persistence blocked",
       "how_to_fix": "Unset OPENCODE_FORCE_READ_ONLY and verify write permissions for commands/workspaces paths.",
-      "copy_paste_command": "unset OPENCODE_FORCE_READ_ONLY",
+      "copy_paste_command": "unset OPENCODE_FORCE_READ_ONLY  # Unix; Windows cmd: set OPENCODE_FORCE_READ_ONLY=",
       "docs_link": "master.md#persistence"
     },
     "BLOCKED-REPO-IDENTITY-MISMATCH": {
       "summary": "Repository identity mismatch",
       "how_to_fix": "Workspace fingerprint does not match current repository. Re-bootstrap identity via kernel or remove existing workspace cache.",
-      "copy_paste_command": "rm -rf ~/.config/opencode/workspaces/<fingerprint> && opencode-governance-bootstrap",
+      "copy_paste_command": "rm -rf ~/.config/opencode/workspaces/<fingerprint> && opencode-governance-bootstrap  # Unix; Windows cmd: rmdir /s /q %USERPROFILE%\\.config\\opencode\\workspaces\\<fingerprint> && opencode-governance-bootstrap.cmd",
       "docs_link": "master.md#repo-identity"
     },
     "PERSIST-CONFIRMATION-REQUIRED": {

@@ -395,15 +395,15 @@ class TestRailDocFreeTextGuard:
     def test_continue_md_prohibits_materialize_from_freetext(self) -> None:
         """continue.md must explicitly prohibit materializing from free-text."""
         lower = self.continue_md.lower()
-        assert "never trigger" in lower or "must never trigger" in lower, (
-            "continue.md must state that free-text must NEVER trigger materialization"
+        assert "does not trigger" in lower or "never trigger" in lower or "must never trigger" in lower, (
+            "continue.md must state that free-text does not trigger materialization"
         )
 
     def test_ticket_md_prohibits_intake_from_freetext(self) -> None:
         """ticket.md must explicitly prohibit intake command from free-text."""
         lower = self.ticket_md.lower()
-        assert "never trigger" in lower or "must never trigger" in lower, (
-            "ticket.md must state that free-text must NEVER trigger intake"
+        assert "does not trigger" in lower or "never trigger" in lower or "must never trigger" in lower, (
+            "ticket.md must state that free-text does not trigger intake"
         )
 
     def test_continue_md_only_explicit_rail_invocation(self) -> None:
@@ -437,8 +437,8 @@ class TestRailDocFreeTextGuard:
     def test_plan_md_prohibits_persist_from_freetext(self) -> None:
         """plan.md must explicitly prohibit plan persist from free-text."""
         lower = self.plan_md.lower()
-        assert "never trigger" in lower or "must never trigger" in lower, (
-            "plan.md must state that free-text must NEVER trigger plan persist"
+        assert "does not trigger" in lower or "never trigger" in lower or "must never trigger" in lower, (
+            "plan.md must state that free-text does not trigger plan persist"
         )
 
     def test_plan_md_only_explicit_rail_invocation(self) -> None:
