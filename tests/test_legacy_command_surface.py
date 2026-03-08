@@ -95,3 +95,12 @@ class TestLegacyCommandSurfaceMigration:
             content = _read(relpath)
             assert "governance.entrypoints.phase4_intake_persist" not in content
             assert "governance.entrypoints.phase5_plan_record_persist" not in content
+
+    def test_bad_blocked_catalogs_must_not_use_resume_pointer_key(self) -> None:
+        for relpath in [
+            "governance/assets/reasons/blocked_reason_catalog.yaml",
+            "governance/assets/config/blocked_reason_catalog.yaml",
+        ]:
+            content = _read(relpath)
+            assert "resume_pointer:" not in content
+            assert "next_command_pointer:" in content

@@ -65,7 +65,7 @@ During Phase `1.1-Bootstrap`, the session MUST include:
 ### Invariants
 
 - `SESSION_STATE.Next` MUST be set at the end of every phase output.
-- When resuming, output a Resume Summary that describes the next intended kernel action from `SESSION_STATE.Next`.
+- When continuing, output a Continuation Summary that describes the next intended kernel action from `SESSION_STATE.Next`.
 - Every response containing `SESSION_STATE` MUST end with a terminal summary line:
   - `NEXT_STEP: <value of SESSION_STATE.Next>`
   - This line MUST appear after the `SESSION_STATE` block and be the last assistant-authored line.
@@ -1220,16 +1220,16 @@ Validation rules (Binding when the file exists):
 
 ---
 
-## 17. Resume Integrity (Canonical)
+## 17. Continuation Integrity (Canonical)
 
-Resume MUST NOT reinterpret or mutate past decisions.
+Continuation MUST NOT reinterpret or mutate past decisions.
 
 Recommended structure:
 
 ```yaml
 SESSION_STATE:
-  Resume:
-    Source: initial | continue | resume
+  Continuation:
+    Source: initial | continue | compat_alias
     LockedFields:
       - ActiveProfile
       - ArchitectureDecisions
@@ -1238,10 +1238,10 @@ SESSION_STATE:
 ```
 
 Binding:
-- If `Resume.Source = resume`, then fields in `LockedFields` MUST NOT change.
+- If `Continuation.Source = compat_alias`, then fields in `LockedFields` MUST NOT change.
 - If a locked field change is detected, the workflow enters:
   - a blocked state
-  - `SESSION_STATE.Next` set to `BLOCKED-RESUME-STATE-VIOLATION`
+  - `SESSION_STATE.Next` set to `BLOCKED-RESUME-STATE-VIOLATION` (legacy code name retained for compatibility)
 
 ## Contract Tokens (Lint-Excluded)
 
@@ -1257,7 +1257,7 @@ Activation decisions in Phase 1.4/Phase 4 entry MUST be capability-first with ha
 
 - No gate may pass with missing required artifacts.
 - No code-producing step may execute unless upstream gates allow it.
-- Resume MUST NOT reinterpret past decisions.
+- Continuation MUST NOT reinterpret past decisions.
 - Evidence level bounds allowed claims.
 
 Copyright © 2026 Benjamin Fuchs.
