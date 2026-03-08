@@ -14,7 +14,7 @@ def _valid_payload() -> dict[str, object]:
             "updated_at": "2026-03-05T20:34:32Z",
         },
         "last_snapshot": {
-            "snapshot_path": "/tmp/runs/work-0/SESSION_STATE.json",
+            "snapshot_path": "/mock/runs/work-0/SESSION_STATE.json",
             "snapshot_digest": "a" * 64,
             "archived_at": "2026-03-05T20:30:00Z",
             "source_phase": "6-PostFlight",
@@ -30,7 +30,7 @@ def _valid_payload() -> dict[str, object]:
                     "session_id": "sess",
                     "run_id": "work-0",
                     "new_run_id": "work-1",
-                    "snapshot_path": "/tmp/runs/work-0/SESSION_STATE.json",
+                    "snapshot_path": "/mock/runs/work-0/SESSION_STATE.json",
                     "snapshot_digest": "a" * 64,
                 }
             ],

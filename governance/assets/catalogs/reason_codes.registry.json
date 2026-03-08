@@ -547,6 +547,27 @@
       "payload_schema_ref": "governance/assets/schemas/strict_exit_blocked.v1.schema.json",
       "description": "principal_strict is active but no pass criteria are defined for the current phase. Fail-closed: transition is blocked.",
       "remediation_hint": "Define pass_criteria for this phase in the phase_exit_contract, or disable principal_strict mode."
+    },
+    {
+      "code": "BLOCKED-CONTRACT-LAYOUT-DRIFT",
+      "severity": "blocked",
+      "payload_schema_ref": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Installed file tree does not match install-layout-contract.v_current — missing artifacts, unexpected files, or wrong ownership.",
+      "remediation_hint": "Re-run installer to regenerate missing artifacts and restore layout conformance."
+    },
+    {
+      "code": "BLOCKED-CONTRACT-RUNTIME-DRIFT",
+      "severity": "blocked",
+      "payload_schema_ref": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Runtime state invariants from runtime-state-contract.v1 are violated — pointer semantics, artifact classification, or backup/purge rules breached.",
+      "remediation_hint": "Verify SESSION_STATE.json pointer and workspace integrity, then re-run installer if needed."
+    },
+    {
+      "code": "BLOCKED-CONTRACT-OPENCODE-DRIFT",
+      "severity": "blocked",
+      "payload_schema_ref": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
+      "description": "opencode.json integration invariants from opencode-integration-contract.v1 are violated — merge ownership, plugin lifecycle, or uninstall guarantees breached.",
+      "remediation_hint": "Re-run installer to regenerate opencode.json with correct merge ownership and plugin paths."
     }
   ],
   "audit_events": [

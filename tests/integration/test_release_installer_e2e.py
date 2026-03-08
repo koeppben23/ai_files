@@ -20,7 +20,7 @@ def _check_pyyaml_in_subprocess() -> bool:
     """
     try:
         env = dict(os.environ)
-        env["HOME"] = "/tmp/_pyyaml_probe_nonexistent"
+        env["HOME"] = "/mock/_pyyaml_probe_nonexistent"
         result = subprocess.run(
             [sys.executable, "-c", "import yaml"],
             capture_output=True,

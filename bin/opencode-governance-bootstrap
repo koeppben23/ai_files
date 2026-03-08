@@ -28,4 +28,18 @@ except Exception:
   fi
 fi
 
-exec "${PYTHON_BIN}" -m governance.entrypoints.bootstrap_executor "$@"
+# --- Subcommand routing (python-binding-contract.v1 §4) ---
+case "${1:-}" in
+    --session-reader)
+        shift
+        exec "${PYTHON_BIN}" "${COMMANDS_HOME}/governance/entrypoints/session_reader.py" "$@"
+        ;;
+    --entrypoint)
+        shift
+        MODULE="$1"; shift
+        exec "${PYTHON_BIN}" -m "${MODULE}" "$@"
+        ;;
+    *)
+        exec "${PYTHON_BIN}" -m governance.entrypoints.bootstrap_executor "$@"
+        ;;
+esac

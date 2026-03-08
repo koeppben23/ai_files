@@ -7,7 +7,7 @@ Back to install and bundle overview: `README.md`.
 - Windows launcher: `%USERPROFILE%\.config\opencode\bin\opencode-governance-bootstrap.cmd --repo-root C:\path\to\repo`
 - After bootstrap, open OpenCode Desktop in the same repo and run `/continue`
 - At Phase 4 (Ticket Intake Gate), enter Plan Mode first for any new ticket/task
-- `/review`: read-only rail entrypoint for lead/staff quality PR or ticket review with paste-ready comments (authoritative review gate is Phase 5 in the kernel/phase model)
+- `/review`: read-only rail entrypoint for lead/staff quality PR or ticket review with paste-ready comments
 - `/resume`: continue an interrupted session deterministically
 - `/audit`: read-only governance report flow
 
@@ -32,38 +32,10 @@ ${PYTHON_COMMAND} $env:USERPROFILE\.config\opencode\commands\scripts\migrate_ses
 ```
 
 Use `--dry-run` when validating changes before writing.
-## 60-Second OpenCode Verification
 
-```bash
-# macOS / Linux
-./install/install.sh --status
-${PYTHON_COMMAND} ~/.config/opencode/commands/governance/entrypoints/bootstrap_session_state.py --repo-fingerprint <repo_fingerprint> --dry-run
-```
+## If execution is unavailable
 
-```powershell
-# Windows
-.\install\install.ps1 --status
-${PYTHON_COMMAND} $env:USERPROFILE\.config\opencode\commands\governance\entrypoints\bootstrap_session_state.py --repo-fingerprint <repo_fingerprint> --dry-run
-```
-
-Then run the local bootstrap launcher and confirm bootstrap succeeds without binding/identity blockers.
-Response rendering quick check:
-
-```bash
-# macOS / Linux
-${PYTHON_COMMAND} ~/.config/opencode/commands/scripts/render_response_envelope.py --input response.json --format markdown
-${PYTHON_COMMAND} ~/.config/opencode/commands/scripts/render_response_envelope.py --input response.json --format plain
-${PYTHON_COMMAND} ~/.config/opencode/commands/scripts/render_response_envelope.py --input response.json --format json
-```
-
-```powershell
-# Windows
-${PYTHON_COMMAND} $env:USERPROFILE\.config\opencode\commands\scripts\render_response_envelope.py --input response.json --format markdown
-${PYTHON_COMMAND} $env:USERPROFILE\.config\opencode\commands\scripts\render_response_envelope.py --input response.json --format plain
-${PYTHON_COMMAND} $env:USERPROFILE\.config\opencode\commands\scripts\render_response_envelope.py --input response.json --format json
-```
-
-`--format auto` is the default and resolves to plain for interactive TTY sessions (stable across Windows/macOS/Linux terminals) and JSON for non-interactive execution.
+If the command cannot be executed, the model asks the user to paste the command output.
 
 ## Troubleshooting
 
@@ -71,24 +43,6 @@ ${PYTHON_COMMAND} $env:USERPROFILE\.config\opencode\commands\scripts\render_resp
 - `BLOCKED-VARIABLE-RESOLUTION`: validate config-root/path binding resolution (`docs/install-layout.md`).
 - `BLOCKED-REPO-IDENTITY-RESOLUTION`: ensure current directory is a git repo and `git` is available in `PATH`.
 - `NOT_VERIFIED-MISSING-EVIDENCE` or `NOT_VERIFIED-EVIDENCE-STALE`: refresh/provide evidence and rerun.
-
-## Model Cannot Execute the Session-Reader Command
-
-`/continue` and `/review` use a three-tier resume contract:
-
-| Tier | Trigger | Behavior |
-|------|---------|----------|
-| Preferred | Model can execute local commands | Runs the `session_reader.py` command from the bash block |
-| Fallback A | Sandboxed environment or model policy prevents execution | Asks the user to paste session-reader output or a snapshot with `phase`, `next`, `active_gate`, `next_gate_condition` |
-| Fallback B | No snapshot available | Proceeds using conversation context only; states assumptions explicitly |
-
-**Compatibility matrix:**
-
-| Model | Windows | macOS / Linux |
-|-------|---------|---------------|
-| Claude Opus | Preferred or Fallback A/B | Preferred or Fallback A/B |
-| Codex | Fallback A or B (sandboxed) | Fallback A or B (sandboxed) |
-| OpenCode Desktop | Preferred (local execution) | Preferred (local execution) |
 
 ## Uninstall and State Cleanup
 

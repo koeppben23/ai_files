@@ -55,7 +55,7 @@ def _make_phase_api_phases() -> list[Mapping[str, Any]]:
         {"token": "0", "phase": "0-Init", "route_strategy": "next"},
         {"token": "1", "phase": "1-Bootstrap", "route_strategy": "next"},
         {"token": "1.1", "phase": "1.1-Bootstrap", "route_strategy": "next"},
-        {"token": "1.2", "phase": "1.2-Bootstrap", "route_strategy": "next"},
+        {"token": "1.2", "phase": "1.2-ActivationIntent", "route_strategy": "next"},
         {"token": "1.5", "phase": "1.5-Bootstrap", "route_strategy": "next"},
         {"token": "2", "phase": "2-Discover", "route_strategy": "next"},
         {"token": "2.1", "phase": "2.1-DecisionPack", "route_strategy": "next"},

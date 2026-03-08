@@ -58,6 +58,20 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 GOVERNANCE_SOURCE_DIR = SCRIPT_DIR / "governance"
 
 
+def _path_for_json(p: Path) -> str:
+    """R3: Canonical POSIX-absolute path string for JSON serialization.
+
+    All paths written to JSON files (governance.paths.json, INSTALL_HEALTH.json)
+    are POSIX-normalized absolute strings (forward slashes, resolved symlinks).
+    Consumers convert to OS-native paths at read time.
+    """
+    # Use lexical absolute normalization instead of Path.resolve().
+    # resolve() can fail on Windows for template segments like
+    # "<repo_fingerprint>", which are valid placeholders in installer payloads.
+    normalized = os.path.normpath(os.path.abspath(str(p.expanduser())))
+    return Path(normalized).as_posix()
+
+
 def _load_error_logger() -> Callable[..., object]:
     helper = GOVERNANCE_SOURCE_DIR / "entrypoints" / "error_logs.py"
     if not helper.exists():
@@ -76,6 +90,41 @@ def _load_error_logger() -> Callable[..., object]:
 
 
 safe_log_error = _load_error_logger()
+
+
+def _emit_install_flow_event(
+    commands_home: Path,
+    *,
+    event_type: str,
+    gov_version: str | None,
+    installer_version: str,
+    dry_run: bool,
+) -> bool:
+    """Write a flow log event to <commands_home>/logs/flow.log.jsonl.
+
+    Self-contained (no governance imports) so the installer can always log.
+    Returns True on success, False on failure (never raises).
+    """
+    if dry_run:
+        return False
+    log_path = commands_home / ERROR_LOGS_DIR_NAME / "flow.log.jsonl"
+    event = {
+        "event": event_type,
+        "installerVersion": installer_version,
+        "governanceVersion": gov_version or "unknown",
+        "timestamp": datetime.now().isoformat(timespec="seconds"),
+        "platform": platform.system(),
+    }
+    try:
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        line = json.dumps(event, ensure_ascii=True, separators=(",", ":")) + "\n"
+        with log_path.open("a", encoding="utf-8", newline="\n") as fh:
+            fh.write(line)
+            fh.flush()
+        return True
+    except Exception:
+        return False
+
 
 VERSION = "1.1.0-RC.2"
 # Files copied into <config_root>/commands
@@ -239,6 +288,7 @@ def ensure_dirs(config_root: Path, dry_run: bool) -> None:
         config_root / "commands" / "templates" / "github-actions",
         config_root / "commands" / "profiles",
         config_root / "commands" / "profiles" / "addons",
+        config_root / "commands" / ERROR_LOGS_DIR_NAME,
         config_root / "workspaces",
     ]
     for d in dirs:
@@ -256,8 +306,8 @@ def create_launcher(plan: InstallPlan, dry_run: bool, force: bool) -> list[dict]
 
     bin_dir = plan.config_root / "bin"
     python_exe = sys.executable
-    commands_home = str(plan.commands_dir)
-    workspaces_home = str(plan.config_root / "workspaces")
+    commands_home = _path_for_json(plan.commands_dir)
+    workspaces_home = _path_for_json(plan.config_root / "workspaces")
 
     # Copy cli/ package to commands_home so launcher has a local runtime.
     cli_source = SCRIPT_DIR / "cli"
@@ -272,6 +322,10 @@ def create_launcher(plan: InstallPlan, dry_run: bool, force: bool) -> list[dict]
         )
     else:
         if cli_dest.exists():
+            if cli_dest.is_symlink():
+                raise RuntimeError(
+                    f"Refusing to remove {cli_dest}: path is a symlink (C3 safety guard)"
+                )
             shutil.rmtree(cli_dest)
         cli_dest.mkdir(parents=True, exist_ok=True)
         for f in sorted(cli_source.rglob("*.py")):
@@ -304,22 +358,10 @@ def create_launcher(plan: InstallPlan, dry_run: bool, force: bool) -> list[dict]
     binding_path = plan.commands_dir / "governance.paths.json"
 
     binding_ok = False
-    if not plan.skip_paths_file:
-        if dry_run:
-            print(f"  [DRY-RUN] write {binding_path}")
-        else:
-            binding_payload = {
-                "schema": GOVERNANCE_PATHS_SCHEMA,
-                "generatedAt": datetime.now().isoformat(timespec="seconds"),
-                "paths": {
-                    "configRoot": str(plan.config_root),
-                    "commandsHome": str(plan.commands_dir),
-                    "workspacesHome": str(plan.config_root / "workspaces"),
-                    "pythonCommand": sys.executable,
-                },
-                "commandProfiles": {},
-            }
-            binding_path.write_text(json.dumps(binding_payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    # NOTE: governance.paths.json is now written exclusively by
+    # install_governance_paths_file() (single SSOT writer, see C1 fix).
+    # The validation read below still runs to populate binding_ok for
+    # INSTALL_HEALTH.json.
 
     if not dry_run:
         try:
@@ -342,17 +384,19 @@ def create_launcher(plan: InstallPlan, dry_run: bool, force: bool) -> list[dict]
 
     git_available = shutil.which("git") is not None
     launcher_present = launcher_unix.exists() or launcher_win.exists()
+    python_binding_file = bin_dir / "PYTHON_BINDING"
 
     health_data = {
         "schema": "opencode-install-health.v1",
         "installerVersion": VERSION,
         "generatedAt": datetime.now().isoformat(timespec="seconds"),
-        "configRoot": str(plan.config_root),
+        "configRoot": _path_for_json(plan.config_root),
         "commandsHome": commands_home,
         "workspacesHome": workspaces_home,
-        "pythonExecutable": python_exe,
+        "pythonExecutable": _path_for_json(Path(python_exe)),
         "bindingFilePresent": binding_path.exists(),
         "bindingSchemaOk": binding_ok,
+        "pythonBindingFilePresent": python_binding_file.exists(),
         "launcherPresent": launcher_present,
         "gitAvailable": git_available,
     }
@@ -404,6 +448,18 @@ def _resolve_python_executable(binding_path: Path, *, fallback: str, strict: boo
 
 
 def _launcher_template_unix(*, python_exe: str, config_root: Path) -> str:
+    """Generate Unix launcher with fail-closed Python resolution and subcommand routing.
+
+    Resolution cascade (python-binding-contract.v1 §3):
+      1. Baked PYTHON_BIN (hardcoded at install time)
+      2. PYTHON_BINDING file  (bin/PYTHON_BINDING, one line)
+      3. Fail-closed: exit 1, NO silent PATH probing
+
+    Subcommand routing (python-binding-contract.v1 §4):
+      --session-reader [args]    -> session_reader.py entrypoint
+      --entrypoint <mod> [args]  -> arbitrary governance module via -m
+      (default / no subcommand)  -> bootstrap_executor
+    """
     return "\n".join(
         [
             "#!/usr/bin/env bash",
@@ -417,14 +473,57 @@ def _launcher_template_unix(*, python_exe: str, config_root: Path) -> str:
             "export OPENCODE_REPO_ROOT",
             "export COMMANDS_HOME",
             "export PYTHONPATH",
+            "",
+            "# --- Python resolution cascade (python-binding-contract.v1 §3) ---",
             f"PYTHON_BIN=\"{python_exe}\"",
-            "exec \"${PYTHON_BIN}\" -m governance.entrypoints.bootstrap_executor \"$@\"",
+            "if [ ! -x \"${PYTHON_BIN}\" ] 2>/dev/null; then",
+            "    BINDING_FILE=\"${SCRIPT_DIR}/PYTHON_BINDING\"",
+            "    if [ -f \"${BINDING_FILE}\" ]; then",
+            "        read -r PYTHON_BIN < \"${BINDING_FILE}\"",
+            "    fi",
+            "fi",
+            "if [ ! -x \"${PYTHON_BIN}\" ] 2>/dev/null; then",
+            "    echo \"FATAL: No valid Python interpreter found.\" >&2",
+            f"    echo \"  Baked path: {python_exe}\" >&2",
+            "    echo \"  PYTHON_BINDING: ${SCRIPT_DIR}/PYTHON_BINDING\" >&2",
+            "    echo \"  Re-run install.py to rebind.\" >&2",
+            "    exit 1",
+            "fi",
+            "export OPENCODE_PYTHON=\"${PYTHON_BIN}\"",
+            "",
+            "# --- Subcommand routing (python-binding-contract.v1 §4) ---",
+            "case \"${1:-}\" in",
+            "    --session-reader)",
+            "        shift",
+            "        exec \"${PYTHON_BIN}\" \"${COMMANDS_HOME}/governance/entrypoints/session_reader.py\" \"$@\"",
+            "        ;;",
+            "    --entrypoint)",
+            "        shift",
+            "        MODULE=\"$1\"; shift",
+            "        exec \"${PYTHON_BIN}\" -m \"${MODULE}\" \"$@\"",
+            "        ;;",
+            "    *)",
+            "        exec \"${PYTHON_BIN}\" -m governance.entrypoints.bootstrap_executor \"$@\"",
+            "        ;;",
+            "esac",
             "",
         ]
     )
 
 
 def _launcher_template_windows(*, python_exe: str, config_root: Path) -> str:
+    """Generate Windows launcher with fail-closed Python resolution and subcommand routing.
+
+    Resolution cascade (python-binding-contract.v1 §3):
+      1. Baked PYTHON_EXE (hardcoded at install time)
+      2. PYTHON_BINDING file  (bin\\PYTHON_BINDING, one line)
+      3. Fail-closed: exit /b 1, NO silent PATH probing
+
+    Subcommand routing (python-binding-contract.v1 §4):
+      --session-reader [args]    -> session_reader.py entrypoint
+      --entrypoint <mod> [args]  -> arbitrary governance module via -m
+      (default / no subcommand)  -> bootstrap_executor
+    """
     return "\n".join(
         [
             "@echo off",
@@ -439,29 +538,73 @@ def _launcher_template_windows(*, python_exe: str, config_root: Path) -> str:
             ")",
             "set \"COMMANDS_HOME=%OPENCODE_CONFIG_ROOT%\\commands\"",
             "set \"OPENCODE_HOME=%OPENCODE_CONFIG_ROOT%\"",
-            f"set \"PYTHON_EXE={python_exe}\"",
             "set \"PYTHONPATH=%COMMANDS_HOME%;%COMMANDS_HOME%\\governance;!PYTHONPATH!\"",
             "set \"OPENCODE_INTERNAL_BOOTSTRAP_CONFIG_ROOT=%OPENCODE_CONFIG_ROOT%\"",
             "set \"OPENCODE_BOOTSTRAP_BINDING_PATH=%COMMANDS_HOME%\\governance.paths.json\"",
             "if defined OPENCODE_REPO_ROOT (",
             "    set \"PYTHONPATH=%OPENCODE_REPO_ROOT%;%PYTHONPATH%\"",
             ")",
-            "set \"OPENCODE_CONFIG_ROOT=%OPENCODE_CONFIG_ROOT%\"",
-            "set \"OPENCODE_REPO_ROOT=%OPENCODE_REPO_ROOT%\"",
-            "set \"COMMANDS_HOME=%COMMANDS_HOME%\"",
-            "set \"PYTHONPATH=%PYTHONPATH%\"",
+            "",
+            "rem --- Python resolution cascade (python-binding-contract.v1 §3) ---",
+            f"set \"PYTHON_EXE={python_exe}\"",
+            "if not exist \"!PYTHON_EXE!\" (",
+            "    set \"BINDING_FILE=%SCRIPT_DIR%PYTHON_BINDING\"",
+            "    if exist \"!BINDING_FILE!\" (",
+            "        set /p PYTHON_EXE=<\"!BINDING_FILE!\"",
+            "    )",
+            ")",
+            "if not exist \"!PYTHON_EXE!\" (",
+            "    echo FATAL: No valid Python interpreter found. >&2",
+            f"    echo   Baked path: {python_exe} >&2",
+            "    echo   PYTHON_BINDING: %SCRIPT_DIR%PYTHON_BINDING >&2",
+            "    echo   Re-run install.py to rebind. >&2",
+            "    exit /b 1",
+            ")",
+            "set \"OPENCODE_PYTHON=!PYTHON_EXE!\"",
+            "",
             "if not defined OPENCODE_BOOTSTRAP_VERBOSE (",
             "    set \"OPENCODE_BOOTSTRAP_VERBOSE=0\"",
             ")",
             "if not defined OPENCODE_BOOTSTRAP_OUTPUT (",
             "    set \"OPENCODE_BOOTSTRAP_OUTPUT=final\"",
             ")",
-            "\"%PYTHON_EXE%\" -m governance.entrypoints.bootstrap_executor %*",
+            "",
+            "rem --- Subcommand routing (python-binding-contract.v1 §4) ---",
+            "if \"%~1\"==\"--session-reader\" (",
+            "    shift",
+            "    \"!PYTHON_EXE!\" \"%COMMANDS_HOME%\\governance\\entrypoints\\session_reader.py\" %*",
+            "    set \"WRAPPER_EXIT=%ERRORLEVEL%\"",
+            "    endlocal & exit /b %WRAPPER_EXIT%",
+            ")",
+            "if \"%~1\"==\"--entrypoint\" (",
+            "    shift",
+            "    set \"MODULE=%~1\"",
+            "    shift",
+            "    \"!PYTHON_EXE!\" -m !MODULE! %*",
+            "    set \"WRAPPER_EXIT=%ERRORLEVEL%\"",
+            "    endlocal & exit /b %WRAPPER_EXIT%",
+            ")",
+            "\"!PYTHON_EXE!\" -m governance.entrypoints.bootstrap_executor %*",
             "set \"WRAPPER_EXIT=%ERRORLEVEL%\"",
             "endlocal & exit /b %WRAPPER_EXIT%",
             "",
         ]
     )
+
+
+def _write_python_binding_file(bin_dir: Path, python_exe: str) -> Path:
+    """Write the PYTHON_BINDING artifact: a single-line plain-text file
+    containing the absolute POSIX-normalized interpreter path.
+
+    This is the secondary resolution source for launchers (after baked
+    PYTHON_BIN) and the primary file-based source for the plugin.
+    See python-binding-contract.v1 Section 2.2.
+    """
+    binding_file = bin_dir / "PYTHON_BINDING"
+    # Always POSIX-normalized absolute path
+    posix_path = Path(python_exe).resolve().as_posix()
+    binding_file.write_text(posix_path + "\n", encoding="utf-8")
+    return binding_file
 
 
 def _write_launcher_wrappers(
@@ -477,6 +620,18 @@ def _write_launcher_wrappers(
         python_exec = _resolve_python_executable(binding_path, fallback=python_exe, strict=True)
     except RuntimeError as exc:
         raise RuntimeError(f"Invalid pythonCommand in governance.paths.json: {exc}")
+
+    bin_dir = dest_unix.parent  # bin/
+
+    # Write PYTHON_BINDING artifact (python-binding-contract.v1 §2.2)
+    binding_file = _write_python_binding_file(bin_dir, python_exec)
+    created.append({
+        "dst": str(binding_file.resolve()),
+        "rel": str(binding_file.relative_to(plan.config_root)),
+        "rel_base": "config",
+        "src": "generated",
+        "status": "generated",
+    })
 
     unix_payload = _launcher_template_unix(python_exe=python_exec, config_root=plan.config_root)
     win_payload = _launcher_template_windows(python_exe=python_exec, config_root=plan.config_root)
@@ -494,7 +649,15 @@ def _write_launcher_wrappers(
 def _planned_launcher_entries(*, plan: InstallPlan, bin_dir: Path) -> list[dict]:
     launcher_unix = bin_dir / "opencode-governance-bootstrap"
     launcher_win = bin_dir / "opencode-governance-bootstrap.cmd"
+    binding_file = bin_dir / "PYTHON_BINDING"
     return [
+        {
+            "dst": str(binding_file),
+            "rel": str(binding_file.relative_to(plan.config_root)),
+            "rel_base": "config",
+            "status": "planned-copy",
+            "src": "generated",
+        },
         {
             "dst": str(launcher_unix),
             "rel": str(launcher_unix.relative_to(plan.config_root)),
@@ -735,12 +898,15 @@ def enforce_commands_hygiene(*, commands_dir: Path, dry_run: bool) -> tuple[list
 
     backup_dir = commands_dir / "_backup"
     if backup_dir.exists():
-        rel = str(backup_dir.relative_to(commands_dir)).replace("\\", "/")
-        removed.append(rel)
-        if dry_run:
-            print(f"  [DRY-RUN] rm -rf {backup_dir}")
+        if backup_dir.is_symlink():
+            removed.append(f"{str(backup_dir.relative_to(commands_dir)).replace(chr(92), '/')} [SYMLINK-SKIPPED]")
         else:
-            shutil.rmtree(backup_dir, ignore_errors=True)
+            rel = str(backup_dir.relative_to(commands_dir)).replace("\\", "/")
+            removed.append(rel)
+            if dry_run:
+                print(f"  [DRY-RUN] rm -rf {backup_dir}")
+            else:
+                shutil.rmtree(backup_dir, ignore_errors=True)
 
     for path in sorted(commands_dir.rglob("*")):
         if not path.exists() or path.is_dir():
@@ -1006,14 +1172,15 @@ def build_governance_paths_payload(config_root: Path, *, deterministic: bool) ->
     The local bootstrap launcher loads this file via shell output injection to avoid interactive path binding.
     """
     def norm(p: Path) -> str:
-        return str(p)
+        """R3: POSIX-normalized absolute path string for JSON serialization."""
+        return _path_for_json(p)
 
     commands_home = config_root / "commands"
     profiles_home = commands_home / "profiles"
     governance_home = commands_home / "governance"
     workspaces_home = config_root / "workspaces"
     global_error_logs_home = commands_home / ERROR_LOGS_DIR_NAME
-    python_command = sys.executable
+    python_command = _path_for_json(Path(sys.executable))
 
     doc = {
         "schema": GOVERNANCE_PATHS_SCHEMA,
@@ -1027,6 +1194,7 @@ def build_governance_paths_payload(config_root: Path, *, deterministic: bool) ->
             "workspaceErrorLogsHomeTemplate": norm(workspaces_home / "<repo_fingerprint>" / "logs"),
             "pythonCommand": python_command,
         },
+        "commandProfiles": {},
     }
     if not deterministic:
         doc["generatedAt"] = datetime.now().isoformat(timespec="seconds")
@@ -1058,7 +1226,7 @@ def install_governance_paths_file(
         existing = _load_json(dst)
         if existing and existing.get("schema") == GOVERNANCE_PATHS_SCHEMA and isinstance(existing.get("paths"), dict):
             existing_paths = existing["paths"]
-            assert isinstance(existing_paths, dict)
+            # existing_paths is guaranteed dict by the isinstance check above
 
             missing_keys: list[str] = []
             for k, v in desired_doc["paths"].items():
@@ -1252,12 +1420,30 @@ def _load_json(path: Path) -> dict | None:
 
 
 def load_manifest(manifest_path: Path) -> dict | None:
+    """Load and validate INSTALL_MANIFEST.json.
+
+    Returns the parsed dict only if:
+    - file exists and is valid JSON
+    - top-level value is a dict
+    - schema field matches MANIFEST_SCHEMA
+    - 'files' key is present and is a list or dict
+
+    Returns None for any validation failure (R9 safety gate).
+    """
     if not manifest_path.exists():
         return None
     try:
-        return json.loads(manifest_path.read_text(encoding="utf-8"))
+        data = json.loads(manifest_path.read_text(encoding="utf-8"))
     except Exception:
         return None
+    if not isinstance(data, dict):
+        return None
+    if data.get("schema") != MANIFEST_SCHEMA:
+        return None
+    files = data.get("files")
+    if not isinstance(files, (dict, list)):
+        return None
+    return data
 
 
 # ---------------------------------------------------------------------------
@@ -1276,6 +1462,7 @@ OPENCODE_PLUGIN_RELATIVE = f"{OPENCODE_PLUGINS_DIR_NAME}/audit-new-session.mjs"
 
 SESSION_READER_PLACEHOLDER = "{{SESSION_READER_PATH}}"
 PYTHON_COMMAND_PLACEHOLDER = "{{PYTHON_COMMAND}}"
+BIN_DIR_PLACEHOLDER = "{{BIN_DIR}}"
 
 
 def ensure_opencode_json(config_root: Path, *, dry_run: bool) -> dict:
@@ -1292,12 +1479,24 @@ def ensure_opencode_json(config_root: Path, *, dry_run: bool) -> dict:
     plugin_uri = (config_root / OPENCODE_PLUGIN_RELATIVE).resolve().as_uri()
 
     if target.exists():
+        raw_text = target.read_text(encoding="utf-8")
+        corrupt = False
         try:
-            existing = json.loads(target.read_text(encoding="utf-8"))
+            existing = json.loads(raw_text)
             if not isinstance(existing, dict):
+                corrupt = True
                 existing = {}
         except Exception:
+            corrupt = True
             existing = {}
+
+        # R6 fix: backup corrupt opencode.json before overwriting
+        if corrupt and not dry_run:
+            backup_name = target.with_suffix(".json.corrupt-backup")
+            try:
+                backup_name.write_text(raw_text, encoding="utf-8")
+            except Exception:
+                pass  # best-effort backup
 
         current = existing.get("instructions")
         if not isinstance(current, list):
@@ -1373,14 +1572,19 @@ def inject_session_reader_path_for_command(
     commands_dir: Path,
     *,
     command_markdown: str,
-    python_command: str,
+    python_command: str | None = None,
+    bin_dir: str | None = None,
     dry_run: bool,
 ) -> dict:
     """Replace placeholders in installed command markdown template.
 
-    The placeholder is replaced with the concrete absolute path to
-    ``session_reader.py`` so the LLM can invoke the governance kernel
-    deterministically (no PYTHONPATH or model-dependent file discovery needed).
+    Primary mode (bin_dir): Replaces ``{{BIN_DIR}}`` with the concrete
+    absolute path to the ``bin/`` directory so the launcher-based rail
+    invocation resolves deterministically.
+
+    Legacy mode (python_command): Replaces ``{{PYTHON_COMMAND}}`` and
+    ``{{SESSION_READER_PATH}}`` for backwards compatibility with older
+    rail templates that have not yet migrated to the launcher pattern.
 
     Returns a status dict for logging.
     """
@@ -1389,42 +1593,76 @@ def inject_session_reader_path_for_command(
         return {"status": "skipped-missing", "dst": str(command_md)}
 
     content = command_md.read_text(encoding="utf-8")
+    new_content = content
+
+    # --- Primary: BIN_DIR placeholder (launcher-era rails) ---
+    has_bin_dir_placeholder = BIN_DIR_PLACEHOLDER in content
+    if has_bin_dir_placeholder and bin_dir is not None:
+        # Platform-aware rail injection (python-binding-contract.v1.md §4.2):
+        # Rails are installed as platform-specific — the installer writes only
+        # the block matching the target OS.
+        if os.name == "nt":
+            # Windows: transform bash syntax to cmd syntax
+            #   ```bash  →  ```cmd
+            #   PATH="<bin>:$PATH" opencode-governance-bootstrap  →
+            #   set "PATH=<bin>;%PATH%" && opencode-governance-bootstrap.cmd
+            new_content = new_content.replace("```bash", "```cmd")
+            new_content = re.sub(
+                r'PATH="([^"]*?):\$PATH"\s+opencode-governance-bootstrap',
+                r'set "PATH=\1;%PATH%" && opencode-governance-bootstrap.cmd',
+                new_content,
+            )
+        new_content = new_content.replace(BIN_DIR_PLACEHOLDER, bin_dir)
+
+    # --- Legacy: PYTHON_COMMAND / SESSION_READER_PATH placeholders ---
     has_reader_placeholder = SESSION_READER_PLACEHOLDER in content
     has_python_placeholder = PYTHON_COMMAND_PLACEHOLDER in content
-    reader_path = commands_dir / "governance" / "entrypoints" / "session_reader.py"
-    concrete_path = str(reader_path)
 
-    # Quote the python command if it is a single-token path that contains
-    # spaces (e.g. 'C:\Program Files\Python311\python.exe').
-    # Multi-token commands like 'py -3' must NOT be quoted as a unit.
-    safe_python = python_command
-    if " " in safe_python and not (safe_python.startswith('"') and safe_python.endswith('"')):
-        # Distinguish a single filesystem path with spaces from a multi-token
-        # command.  shlex.split cannot reliably tell these apart because an
-        # unquoted space is always a word boundary.  Instead, use a simple
-        # heuristic: if the value contains a path separator (/ or \) it is
-        # almost certainly a single path, not a multi-arg command.  True
-        # multi-token commands like 'py -3' never contain path separators.
-        _has_path_sep = ('\\' in safe_python or '/' in safe_python)
-        if _has_path_sep:
-            safe_python = f'"{safe_python}"'
+    if (has_reader_placeholder or has_python_placeholder) and python_command is not None:
+        reader_path = commands_dir / "governance" / "entrypoints" / "session_reader.py"
+        concrete_path = str(reader_path)
 
-    new_content = content
-    if has_reader_placeholder or has_python_placeholder:
+        # Quote the python command if it is a single-token path that contains
+        # spaces (e.g. 'C:\Program Files\Python311\python.exe').
+        # Multi-token commands like 'py -3' must NOT be quoted as a unit.
+        safe_python = python_command
+        if " " in safe_python and not (safe_python.startswith('"') and safe_python.endswith('"')):
+            # Distinguish a single filesystem path with spaces from a multi-token
+            # command.  shlex.split cannot reliably tell these apart because an
+            # unquoted space is always a word boundary.  Instead, use a simple
+            # heuristic: if the value contains a path separator (/ or \) it is
+            # almost certainly a single path, not a multi-arg command.  True
+            # multi-token commands like 'py -3' never contain path separators.
+            _has_path_sep = ('\\' in safe_python or '/' in safe_python)
+            if _has_path_sep:
+                safe_python = f'"{safe_python}"'
+
         if has_reader_placeholder:
             new_content = new_content.replace(SESSION_READER_PLACEHOLDER, concrete_path)
         if has_python_placeholder:
             new_content = new_content.replace(PYTHON_COMMAND_PLACEHOLDER, safe_python)
-    else:
-        legacy_pattern = re.compile(
-            r"(?m)^(?P<indent>\s*)(?:python(?:3)?|py(?:\s+-3)?)\s+[\"\'][^\"\']*session_reader\.py[\"\']\s*$"
-        )
-        if legacy_pattern.search(content):
-            new_content = legacy_pattern.sub(
-                lambda m: f"{m.group('indent')}{safe_python} \"{concrete_path}\"",
-                content,
-                count=1,
+    elif not has_bin_dir_placeholder and not has_reader_placeholder and not has_python_placeholder:
+        # No known placeholders — attempt legacy regex fallback
+        if python_command is not None:
+            reader_path = commands_dir / "governance" / "entrypoints" / "session_reader.py"
+            concrete_path = str(reader_path)
+            safe_python = python_command
+            if " " in safe_python and not (safe_python.startswith('"') and safe_python.endswith('"')):
+                _has_path_sep = ('\\' in safe_python or '/' in safe_python)
+                if _has_path_sep:
+                    safe_python = f'"{safe_python}"'
+
+            legacy_pattern = re.compile(
+                r"(?m)^(?P<indent>\s*)(?:python(?:3)?|py(?:\s+-3)?)\s+[\"\'][^\"\']*session_reader\.py[\"\']\s*$"
             )
+            if legacy_pattern.search(new_content):
+                new_content = legacy_pattern.sub(
+                    lambda m: f"{m.group('indent')}{safe_python} \"{concrete_path}\"",
+                    new_content,
+                    count=1,
+                )
+            else:
+                return {"status": "skipped-no-placeholder", "dst": str(command_md)}
         else:
             return {"status": "skipped-no-placeholder", "dst": str(command_md)}
 
@@ -1432,7 +1670,7 @@ def inject_session_reader_path_for_command(
         return {"status": "skipped-no-placeholder", "dst": str(command_md)}
 
     if dry_run:
-        print(f"  [DRY-RUN] inject session_reader path into {command_md}")
+        print(f"  [DRY-RUN] inject rail paths into {command_md}")
         return {"status": "planned-inject", "dst": str(command_md)}
 
     command_md.write_text(new_content, encoding="utf-8")
@@ -1443,6 +1681,7 @@ def inject_session_reader_path(
     commands_dir: Path,
     *,
     python_command: str,
+    bin_dir: str | None = None,
     dry_run: bool,
 ) -> dict:
     """Backwards-compatible injector for ``continue.md``."""
@@ -1450,6 +1689,7 @@ def inject_session_reader_path(
         commands_dir,
         command_markdown="continue.md",
         python_command=python_command,
+        bin_dir=bin_dir,
         dry_run=dry_run,
     )
 
@@ -1502,11 +1742,33 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
     print("Ensuring directory structure...")
     ensure_dirs(plan.config_root, dry_run=dry_run)
 
-    print("\nCreating local bootstrap launcher...")
-    launcher_entries = create_launcher(plan, dry_run=dry_run, force=force)
-
     # backup root
     backup_root = plan.config_root / ".installer-backups" / now_ts()
+
+    copied_entries: list[dict] = []
+
+    # governance paths bootstrap MUST run before create_launcher() because
+    # _write_launcher_wrappers reads governance.paths.json for pythonCommand.
+    # Single SSOT writer – see C1 fix.
+    if plan.skip_paths_file:
+        print("\n⚙️  Governance paths bootstrap skipped (--skip-paths-file).")
+    else:
+        print("\n⚙️  Governance paths (governance.paths.json) bootstrap ...")
+        paths_entry = install_governance_paths_file(
+            plan=plan,
+            dry_run=dry_run,
+            force=force,
+            backup_enabled=backup_enabled,
+            backup_root=backup_root,
+        )
+        if paths_entry["status"] == "skipped-exists":
+            print("  ⏭️  governance.paths.json exists (use --force to overwrite)")
+        else:
+            print(f"  ✅ governance.paths.json ({paths_entry['status']})")
+            copied_entries.append(paths_entry)
+
+    print("\nCreating local bootstrap launcher...")
+    launcher_entries = create_launcher(plan, dry_run=dry_run, force=force)
 
     # determine governance version from kernel-owned metadata
     # governance version may live in root VERSION or governance/VERSION
@@ -1539,26 +1801,6 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
         eprint("")
         eprint("Add the version to VERSION and rerun install.")
         return 2
-
-    copied_entries: list[dict] = []
-
-    # governance paths bootstrap (optional but recommended)
-    if plan.skip_paths_file:
-        print("\n⚙️  Governance paths bootstrap skipped (--skip-paths-file).")
-    else:
-        print("\n⚙️  Governance paths (governance.paths.json) bootstrap ...")
-        paths_entry = install_governance_paths_file(
-            plan=plan,
-            dry_run=dry_run,
-            force=force,
-            backup_enabled=backup_enabled,
-            backup_root=backup_root,
-        )
-        if paths_entry["status"] == "skipped-exists":
-            print("  ⏭️  governance.paths.json exists (use --force to overwrite)")
-        else:
-            print(f"  ✅ governance.paths.json ({paths_entry['status']})")
-            copied_entries.append(paths_entry)
 
     # copy main files
     print("\n📋 Copying governance files to commands/ ...")
@@ -1985,43 +2227,49 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
         fallback=sys.executable,
         strict=False,
     )
+    concrete_bin_dir = _path_for_json(plan.config_root / "bin")
     template_injections = {
         "continue.md": inject_session_reader_path_for_command(
             plan.commands_dir,
             command_markdown="continue.md",
+            bin_dir=concrete_bin_dir,
             python_command=binding_python,
             dry_run=dry_run,
         ),
         "audit-readout.md": inject_session_reader_path_for_command(
             plan.commands_dir,
             command_markdown="audit-readout.md",
+            bin_dir=concrete_bin_dir,
             python_command=binding_python,
             dry_run=dry_run,
         ),
         "review.md": inject_session_reader_path_for_command(
             plan.commands_dir,
             command_markdown="review.md",
+            bin_dir=concrete_bin_dir,
             python_command=binding_python,
             dry_run=dry_run,
         ),
         "ticket.md": inject_session_reader_path_for_command(
             plan.commands_dir,
             command_markdown="ticket.md",
+            bin_dir=concrete_bin_dir,
             python_command=binding_python,
             dry_run=dry_run,
         ),
         "plan.md": inject_session_reader_path_for_command(
             plan.commands_dir,
             command_markdown="plan.md",
+            bin_dir=concrete_bin_dir,
             python_command=binding_python,
             dry_run=dry_run,
         ),
     }
-    print(f"  continue.md session_reader path: {template_injections['continue.md']['status']}")
-    print(f"  audit-readout.md session_reader path: {template_injections['audit-readout.md']['status']}")
-    print(f"  review.md session_reader path: {template_injections['review.md']['status']}")
-    print(f"  ticket.md session_reader path: {template_injections['ticket.md']['status']}")
-    print(f"  plan.md session_reader path: {template_injections['plan.md']['status']}")
+    print(f"  continue.md rail injection: {template_injections['continue.md']['status']}")
+    print(f"  audit-readout.md rail injection: {template_injections['audit-readout.md']['status']}")
+    print(f"  review.md rail injection: {template_injections['review.md']['status']}")
+    print(f"  ticket.md rail injection: {template_injections['ticket.md']['status']}")
+    print(f"  plan.md rail injection: {template_injections['plan.md']['status']}")
 
     # If session reader path was injected, update the SHA256 in copied_entries
     # so the manifest reflects the post-injection content.
@@ -2075,13 +2323,22 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
         "installerVersion": VERSION,
         "governanceVersion": gov_ver,
         "installedAt": datetime.now().isoformat(timespec="seconds"),
-        "configRoot": str(plan.config_root),
-        "commandsDir": str(plan.commands_dir),
+        "configRoot": _path_for_json(plan.config_root),
+        "commandsDir": _path_for_json(plan.commands_dir),
         "files": installed_files,
     }
 
     print(f"\n🧾 Writing manifest: {plan.manifest_path.name}")
     write_manifest(plan.manifest_path, manifest, dry_run=dry_run)
+
+    # Emit initial install flow event so logs/ is not empty after install
+    _emit_install_flow_event(
+        plan.commands_dir,
+        event_type="install-complete",
+        gov_version=gov_ver,
+        installer_version=VERSION,
+        dry_run=dry_run,
+    )
 
     print("\n" + "=" * 60)
     if dry_run:
@@ -2496,7 +2753,10 @@ def purge_runtime_error_logs(config_root: Path, dry_run: bool) -> int:
     """
     Remove installer/runtime-owned error log files:
       - <config_root>/commands/logs/error.log.jsonl
+      - <config_root>/commands/logs/flow.log.jsonl
+      - <config_root>/commands/logs/boot.log.jsonl
       - <config_root>/workspaces/*/logs/error.log.jsonl
+      - <config_root>/workspaces/*/logs/flow.log.jsonl
       - legacy: <config_root>/logs/errors-*.jsonl
       - legacy: <config_root>/logs/errors-index.json
       - legacy: <config_root>/workspaces/*/logs/errors-*.jsonl
@@ -2514,9 +2774,12 @@ def purge_runtime_error_logs(config_root: Path, dry_run: bool) -> int:
                 *list((config_root / ERROR_LOGS_DIR_NAME).glob("errors-*.jsonl")),
                 *list((config_root / ERROR_LOGS_DIR_NAME).glob("errors-index.json")),
                 *list((config_root / "commands" / ERROR_LOGS_DIR_NAME).glob("error.log.jsonl")),
+                *list((config_root / "commands" / ERROR_LOGS_DIR_NAME).glob("flow.log.jsonl")),
+                *list((config_root / "commands" / ERROR_LOGS_DIR_NAME).glob("boot.log.jsonl")),
                 *list((config_root / "workspaces").glob("*/logs/errors-*.jsonl")),
                 *list((config_root / "workspaces").glob("*/logs/errors-index.json")),
                 *list((config_root / "workspaces").glob("*/logs/error.log.jsonl")),
+                *list((config_root / "workspaces").glob("*/logs/flow.log.jsonl")),
             ]
         )
     )
@@ -2600,13 +2863,15 @@ def purge_runtime_state(config_root: Path, dry_run: bool) -> int:
 
     # ── Safety: opencode.json must NEVER be deleted ──────────────────────
     # opencode.json is user/team configuration (checked into repos, shared
-    # across team members). It is NOT a runtime artifact. Assert that it
-    # cannot accidentally appear in any removal list maintained here.
-    _oj = config_root / OPENCODE_JSON_NAME
-    assert OPENCODE_JSON_NAME not in {
+    # across team members). It is NOT a runtime artifact. Verify at runtime
+    # that it cannot accidentally appear in any removal list maintained here.
+    if OPENCODE_JSON_NAME in {
         "governance.activation_intent.json",
         "SESSION_STATE.json",
-    }, "opencode.json must never be a config-root purge target"
+    }:
+        raise RuntimeError(
+            f"CRITICAL: {OPENCODE_JSON_NAME} must never be a config-root purge target"
+        )
 
     # 1. activation_intent.json at config root level
     activation_intent = config_root / "governance.activation_intent.json"
@@ -2653,9 +2918,10 @@ def purge_runtime_state(config_root: Path, dry_run: bool) -> int:
         "plan-record.json",
     ]
 
-    assert OPENCODE_JSON_NAME not in workspace_artifact_names, (
-        "opencode.json must never appear in workspace_artifact_names"
-    )
+    if OPENCODE_JSON_NAME in workspace_artifact_names:
+        raise RuntimeError(
+            f"CRITICAL: {OPENCODE_JSON_NAME} must never appear in workspace_artifact_names"
+        )
 
     # Known workspace subdirectories to remove as trees
     workspace_subtree_names = [
@@ -2688,6 +2954,9 @@ def purge_runtime_state(config_root: Path, dry_run: bool) -> int:
         for subtree_name in workspace_subtree_names:
             subtree = ws_dir / subtree_name
             if subtree.exists() and subtree.is_dir():
+                if subtree.is_symlink():
+                    eprint(f"  ⚠️  Skipping symlink: {ws_dir.name}/{subtree_name}/ (C3 safety guard)")
+                    continue
                 if dry_run:
                     print(f"  [DRY-RUN] rmtree {subtree}")
                 else:
@@ -3056,6 +3325,12 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
 
 def main(argv: list[str]) -> int:
     args = parse_args(argv)
+
+    # R2 fix: resolve --config-root to absolute path early, before any
+    # downstream code consumes it. Relative paths from CLI would otherwise
+    # produce inconsistent governance.paths.json entries.
+    if args.config_root is not None:
+        args.config_root = args.config_root.resolve()
 
     # --version: show version and exit (read-only)
     if args.version:
