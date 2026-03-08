@@ -28,9 +28,7 @@ If no snapshot is available, proceed using only the context visible in the curre
 
 Use the YAML output as governance context for the response below. Do not infer or mutate any session state.
 
-Read the current review gate from the materialized session output. It surfaces during Phase 4; gate definitions are in `phase_api.yaml`.
-This rail is optimized for lead/staff review depth and does not perform implementation.
-Phase 5 output class restrictions (forbidden: implementation, patch, diff, code_delivery) and plan self-review discipline are defined in `phase_api.yaml` `output_policy` on token `"5"` and explained in `master.md` Rule A and Rule B.
+Read the current review gate from the materialized session output. Gate definitions and Phase 5 output class restrictions are in `phase_api.yaml`.
 
 Review scope:
 - architecture fit and contract integrity
@@ -42,8 +40,7 @@ Review scope:
 ## Response shape
 
 - give a clear verdict: `approve` or `request changes`
-- list findings with severity: `blocker`, `high`, `medium`, `low`
-- include concise evidence and one concrete action per finding
+- list findings with severity and one concrete action per finding
 - provide paste-ready PR comments (one per blocker/high + one summary)
 
 Quality bar:

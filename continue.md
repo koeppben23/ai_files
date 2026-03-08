@@ -6,7 +6,6 @@
 
 `/continue` materializes and prints the current governance session state for this repository.
 The command is mutating — it writes a materialization event.
-Continue uses canonical `SESSION_STATE` from `SESSION_STATE_SCHEMA.md`.
 
 ## Commands by platform
 
@@ -26,17 +25,13 @@ If no snapshot is available, proceed using only the context visible in the curre
 
 ## Interpretation scope
 
-Use the YAML output as governance context for the response below. Do not infer additional state beyond the materialized output.
-
-Free chat remains available; use `/continue` when governance-state materialization is required.
+Use the YAML output as governance context for the response below. Do not infer or mutate any session state beyond the materialized output.
 
 ## Response shape
 
 - reflect current `SESSION_STATE.phase` and `SESSION_STATE.next`
 - include delta-only progress for the active step
 - if kernel reports a blocker or warning, render it with concise evidence and one recovery action
-- keep profile context stable in the response narrative; do not redefine profile selection semantics here
-- if the next step requires governance-state materialization, suggest running `/continue`
 
 ---
 
