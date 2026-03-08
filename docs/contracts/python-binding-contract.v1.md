@@ -129,38 +129,17 @@ Launchers support subcommand routing:
 | `--session-reader [flags]` | `session_reader.py` with passthrough flags |
 | `--ticket-persist [flags]` | `governance.entrypoints.phase4_intake_persist` (canonical public surface) |
 | `--plan-persist [flags]` | `governance.entrypoints.phase5_plan_record_persist` (canonical public surface) |
-| `--entrypoint <module> [flags]` | `python -m <module>` with passthrough flags |
 | *(default)* | `governance.entrypoints.bootstrap_executor` |
 
-### 4.1.1 Launcher surface deprecation policy
-
-The canonical launcher surface is the productized subcommand interface.
-
-`--entrypoint <module>` remains compatibility-supported for exactly one
-versioned bundle release after canonical subcommands are introduced.
-
-Documentation switches immediately to canonical subcommands.
-
-`--entrypoint <module>` may be removed in the following versioned bundle release.
-
-Compatibility window closure declaration:
-- The required versioned bundle release containing compatibility support has shipped.
-- Removal of `--entrypoint <module>` is now approved for this release line.
+### 4.1.1 Final launcher surface
 
 Canonical subcommands for active operator workflows are:
 - `--ticket-persist`
 - `--plan-persist`
 - `--session-reader`
 
-`--entrypoint <module>` is compatibility-only and must not be presented as a
-primary user-facing surface in active rails, quickstart content, or support docs.
-
-Allowlist for `--entrypoint` references:
-- `install.py` launcher templates
-- `bin/opencode-governance-bootstrap`
-- `bin/opencode-governance-bootstrap.cmd`
-- this contract file (`docs/contracts/python-binding-contract.v1.md`)
-- explicit migration/deprecation notes only
+Legacy compatibility path note:
+- `--entrypoint <module>` has been removed from launcher routing in this release line.
 
 ### 4.2 Rails (Markdown Command Templates)
 
