@@ -385,7 +385,7 @@
       "severity": "blocked",
       "payload_schema_ref": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
       "description": "A recovery routine is required to proceed (explicit recovery gate).",
-      "remediation_hint": "Run /resume or the defined recovery routine and re-validate SESSION_STATE."
+      "remediation_hint": "Run /continue or the defined recovery routine and re-validate SESSION_STATE."
     },
     {
       "code": "BLOCKED-P5-3-TEST-QUALITY-GATE",

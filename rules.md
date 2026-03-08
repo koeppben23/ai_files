@@ -46,6 +46,21 @@ Rules:
 - Business logic belongs in domain models/domain type boundaries, not adapters.
 - Test design must remain deterministic and evidence-backed.
 
+## Mode mandates
+
+### Authoring mandate
+
+- Produce the smallest correct solution that satisfies active contract constraints.
+- Stay within documented public surface boundaries and avoid unsupported workflow invention.
+- Prefer deterministic, testable paths over speculative optimization.
+
+### Review mandate
+
+- Attempt to falsify before approving; do not assume correctness without evidence.
+- Confirm only claims backed by code, contracts, tests, or explicit architecture policy.
+- Actively check for contract drift, logic gaps, cross-OS risk, silent fallback leakage, and test gaps.
+- Prefer fail-closed outcomes when evidence is incomplete.
+
 ## Traceability
 
 - Ticket records and business-rules traces must be attributable and current.

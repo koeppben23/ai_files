@@ -15,18 +15,32 @@ if not defined OPENCODE_REPO_ROOT (
 
 set "COMMANDS_HOME=%OPENCODE_CONFIG_ROOT%\commands"
 set "OPENCODE_HOME=%OPENCODE_CONFIG_ROOT%"
-
-set "PYTHON_EXE=%PYTHON%"
-if not defined PYTHON_EXE (
-    set "PYTHON_EXE=python"
-)
-
 set "PYTHONPATH=%COMMANDS_HOME%;%COMMANDS_HOME%\governance;!PYTHONPATH!"
 set "OPENCODE_INTERNAL_BOOTSTRAP_CONFIG_ROOT=%OPENCODE_CONFIG_ROOT%"
 set "OPENCODE_BOOTSTRAP_BINDING_PATH=%COMMANDS_HOME%\governance.paths.json"
 if defined OPENCODE_REPO_ROOT (
     set "PYTHONPATH=%OPENCODE_REPO_ROOT%;%PYTHONPATH%"
 )
+
+rem --- Python resolution cascade (python-binding-contract.v1 §3) ---
+set "BINDING_FILE=%SCRIPT_DIR%PYTHON_BINDING"
+set "PYTHON_EXE=%OPENCODE_PYTHON%"
+if defined PYTHON_EXE if not exist "!PYTHON_EXE!" (
+    set "PYTHON_EXE="
+)
+if not defined PYTHON_EXE (
+    if exist "!BINDING_FILE!" (
+        set /p PYTHON_EXE=<"!BINDING_FILE!"
+    )
+)
+if not exist "!PYTHON_EXE!" (
+    echo FATAL: No valid Python interpreter found. >&2
+    echo   Baked path: %OPENCODE_PYTHON% >&2
+    echo   PYTHON_BINDING: %SCRIPT_DIR%PYTHON_BINDING >&2
+    echo   Re-run install.py to rebind. >&2
+    exit /b 1
+)
+set "OPENCODE_PYTHON=!PYTHON_EXE!"
 
 set "OPENCODE_CONFIG_ROOT=%OPENCODE_CONFIG_ROOT%"
 set "OPENCODE_REPO_ROOT=%OPENCODE_REPO_ROOT%"
@@ -46,8 +60,21 @@ if "%~1"=="--session-reader" (
     set "WRAPPER_EXIT=%ERRORLEVEL%"
     endlocal & exit /b %WRAPPER_EXIT%
 )
+if "%~1"=="--ticket-persist" (
+    shift
+    "!PYTHON_EXE!" -m governance.entrypoints.phase4_intake_persist %*
+    set "WRAPPER_EXIT=%ERRORLEVEL%"
+    endlocal & exit /b %WRAPPER_EXIT%
+)
+if "%~1"=="--plan-persist" (
+    shift
+    "!PYTHON_EXE!" -m governance.entrypoints.phase5_plan_record_persist %*
+    set "WRAPPER_EXIT=%ERRORLEVEL%"
+    endlocal & exit /b %WRAPPER_EXIT%
+)
 if "%~1"=="--entrypoint" (
     shift
+    rem Compatibility path (deprecated after one versioned bundle release)
     set "MODULE=%~1"
     shift
     "!PYTHON_EXE!" -m !MODULE! %*

@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/usr/bin/env bash
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -12,21 +12,21 @@ export OPENCODE_REPO_ROOT
 export COMMANDS_HOME
 export PYTHONPATH
 
-PYTHON_BIN="$(command -v python3 || command -v python)"
-if [ -n "${PYTHON_BIN}" ] && [ -f "${COMMANDS_HOME}/governance.paths.json" ]; then
-  PYTHON_FROM_BINDING="$(${PYTHON_BIN} -c 'import json,os,sys
-p=os.path.join(os.environ.get("COMMANDS_HOME",""),"governance.paths.json")
-try:
-    data=json.load(open(p, "r", encoding="utf-8"))
-    v=data.get("paths",{}).get("pythonCommand","")
-    print(v)
-except Exception:
-    pass
-' 2>/dev/null || true)"
-  if [ -n "${PYTHON_FROM_BINDING}" ]; then
-    PYTHON_BIN="${PYTHON_FROM_BINDING}"
-  fi
+# --- Python resolution cascade (python-binding-contract.v1 §3) ---
+PYTHON_BIN="${OPENCODE_PYTHON:-}"
+BINDING_FILE="${SCRIPT_DIR}/PYTHON_BINDING"
+if [ -z "${PYTHON_BIN}" ] && [ -f "${BINDING_FILE}" ]; then
+    read -r PYTHON_BIN < "${BINDING_FILE}"
 fi
+
+if [ ! -x "${PYTHON_BIN}" ] 2>/dev/null; then
+    echo "FATAL: No valid Python interpreter found." >&2
+    echo "  Baked path: ${OPENCODE_PYTHON:-<unset>}" >&2
+    echo "  PYTHON_BINDING: ${SCRIPT_DIR}/PYTHON_BINDING" >&2
+    echo "  Re-run install.py to rebind." >&2
+    exit 1
+fi
+export OPENCODE_PYTHON="${PYTHON_BIN}"
 
 # --- Subcommand routing (python-binding-contract.v1 §4) ---
 case "${1:-}" in
@@ -34,8 +34,17 @@ case "${1:-}" in
         shift
         exec "${PYTHON_BIN}" "${COMMANDS_HOME}/governance/entrypoints/session_reader.py" "$@"
         ;;
+    --ticket-persist)
+        shift
+        exec "${PYTHON_BIN}" -m governance.entrypoints.phase4_intake_persist "$@"
+        ;;
+    --plan-persist)
+        shift
+        exec "${PYTHON_BIN}" -m governance.entrypoints.phase5_plan_record_persist "$@"
+        ;;
     --entrypoint)
         shift
+        # Compatibility path (deprecated after one versioned bundle release)
         MODULE="$1"; shift
         exec "${PYTHON_BIN}" -m "${MODULE}" "$@"
         ;;

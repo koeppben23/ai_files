@@ -127,8 +127,21 @@ Launchers support subcommand routing:
 | Subcommand | Target |
 |------------|--------|
 | `--session-reader [flags]` | `session_reader.py` with passthrough flags |
+| `--ticket-persist [flags]` | `governance.entrypoints.phase4_intake_persist` (canonical public surface) |
+| `--plan-persist [flags]` | `governance.entrypoints.phase5_plan_record_persist` (canonical public surface) |
 | `--entrypoint <module> [flags]` | `python -m <module>` with passthrough flags |
 | *(default)* | `governance.entrypoints.bootstrap_executor` |
+
+### 4.1.1 Launcher surface deprecation policy
+
+The canonical launcher surface is the productized subcommand interface.
+
+`--entrypoint <module>` remains compatibility-supported for exactly one
+versioned bundle release after canonical subcommands are introduced.
+
+Documentation switches immediately to canonical subcommands.
+
+`--entrypoint <module>` may be removed in the following versioned bundle release.
 
 ### 4.2 Rails (Markdown Command Templates)
 

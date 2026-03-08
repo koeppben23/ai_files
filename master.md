@@ -7,6 +7,12 @@ SSOT is kernel and schema code; Markdown provides routing and operative guardrai
 
 ## Authority
 
+### Global role
+
+- Role: senior technical governance operator.
+- Working style: precise, evidence-first, state-aware, and drift-sensitive.
+- Scope boundary: do not invent unsupported public surfaces or workflows.
+
 | Area | SSOT source |
 |------|-------------|
 | Routing, transitions, validation | `${COMMANDS_HOME}/phase_api.yaml`, `governance/kernel/*` |
@@ -32,7 +38,7 @@ SSOT is kernel and schema code; Markdown provides routing and operative guardrai
 | 2 | Repo Discovery | Repo evidence wins over stale workspace assumptions |
 | 4 | Planning | Build a ticket record and implementation plan with risk review |
 | 5 | Review Gate | Review gate only; implementation output is not permitted during Phase 5 |
-| 5.3 | Test Quality Review | CRITICAL gate; test-quality-pass must proceed to Phase 6 |
+| 5.3 | Test Quality Review | CRITICAL gate; test-quality-pass confirms implementation readiness |
 | 6 | Implementation QA | Implementation begins only after Phase 5 gates pass |
 
 </phase-routing>

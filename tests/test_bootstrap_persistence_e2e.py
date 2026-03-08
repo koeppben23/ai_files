@@ -223,6 +223,7 @@ def test_bootstrap_preflight_persists_workspace_and_pointer(tmp_path: Path) -> N
     env["CI"] = ""
     env["OPENCODE_CONFIG_ROOT"] = str(config_root)
     env["COMMANDS_HOME"] = str(commands_home)
+    env["OPENCODE_PYTHON"] = sys.executable
     env.pop("OPENCODE_FORCE_READ_ONLY", None)
     user_site = site.getusersitepackages()
     if user_site:
@@ -355,6 +356,7 @@ def test_bootstrap_preflight_blocks_when_force_read_only(tmp_path: Path) -> None
     env["OPENCODE_FORCE_READ_ONLY"] = "1"
     env["OPENCODE_CONFIG_ROOT"] = str(config_root)
     env["COMMANDS_HOME"] = str(commands_home)
+    env["OPENCODE_PYTHON"] = sys.executable
     user_site = site.getusersitepackages()
     if user_site:
         env["PYTHONPATH"] = os.pathsep.join(
@@ -405,6 +407,7 @@ def test_continue_first_step_executes_after_bootstrap(tmp_path: Path) -> None:
     env["CI"] = ""
     env["OPENCODE_CONFIG_ROOT"] = str(config_root)
     env["COMMANDS_HOME"] = str(commands_home)
+    env["OPENCODE_PYTHON"] = sys.executable
     env.pop("OPENCODE_FORCE_READ_ONLY", None)
     # Ensure the launcher is resolvable on PATH — _extract_first_step_command
     # strips the PATH-preamble so the test controls PATH via env.
