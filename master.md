@@ -45,16 +45,10 @@ SSOT is kernel and schema code; Markdown provides routing and operative guardrai
 - If bootstrap prerequisites are missing, emit `BLOCKED` and ask for the minimum missing evidence.
 - Persist artifacts under `${CONFIG_ROOT}`-derived workspace paths, never inside repo working tree.
 
-## Addon rules
-
-- `addon_class = required` blocks with `BLOCKED-MISSING-ADDON` when missing.
-- `addon_class = advisory` does not block when missing.
-- Addon activation, delta reload, and conflict behavior stay kernel-owned.
-
 ## Planning discipline
 
 - Planning output includes ticket record, options, recommendation, and confidence.
-- If confidence is below 70% or ambiguity remains, request clarification before implementation.
+- If ambiguity remains, request clarification before implementation.
 
 ## Phase 5 review gate discipline
 
@@ -74,11 +68,6 @@ Rule B - plan self-review requirement:
 
 - Architecture review verifies conventions, dependency integrity, and risk posture.
 - Phase 5.3 is CRITICAL and `test-quality-pass` must proceed to Phase 6.
-
-## Cognitive complexity check
-
-- method: <= 15
-- nested levels: <= 3
 
 </operative-constraints>
 

@@ -48,7 +48,7 @@ Rules:
 
 ## Traceability
 
-- Ticket records, decision packs, and business-rules traces must be attributable and current.
+- Ticket records and business-rules traces must be attributable and current.
 - Build and test evidence must map to the active gate decision.
 
 </operative-constraints>
@@ -71,16 +71,6 @@ Evidence precedence is kernel-owned; this file preserves the rule intent.
 Gate artifacts must be complete enough to justify each gate outcome.
 
 </evidence-rules>
-
----
-
-<operative-constraints>
-
-## Fast path awareness
-
-Fast Path is an efficiency optimization, not a correctness shortcut.
-
-</operative-constraints>
 
 ---
 
