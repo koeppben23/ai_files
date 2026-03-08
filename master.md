@@ -185,7 +185,7 @@ If CONFIDENCE LEVEL < 70% OR if multiple plausible implementations exist, ask fo
 
 ## Phase 5 — Review Gate
 
-Code-producing output is NOT permitted during Phase 5.
+Code-producing output is not permitted during Phase 5.
 Phase 5 is exclusively a review gate: architecture review, test-strategy review, and quality-gate evaluation.
 Implementation (code, tests, configuration) begins only after all Phase 5 gates have passed and the session transitions to Phase 6.
 
