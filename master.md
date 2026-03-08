@@ -1,574 +1,297 @@
 <!-- rail-classification: GUIDANCE, MULTI-PHASE -->
-- Deterministic activation summary: `RepoFacts -> Capabilities -> Packs/Profile -> activation_hash/ruleset_hash -> Gate`.
-- This file is operator guidance and should avoid duplicating low-level algorithmic details that are contract-tested in code.
 
-Authority boundary: Schemas, validators, and kernel code (`governance/kernel/*`) are the runtime SSOT. This Markdown is not SSOT and does not define runtime truth. It provides operator guidance only and must reference SSOT sources for any behavior, format, or state. When in doubt, follow the schema/validator/kernel reference.
+This file is operator guidance for the governance phase model.
+It does not define runtime truth; it references SSOT sources for behavior, format, and state.
 
 SSOT: `${COMMANDS_HOME}/phase_api.yaml` is the only truth for routing, execution, and validation.
 Kernel: `governance/kernel/*` is the only control-plane implementation.
 MD files are AI rails/guidance only and are never routing-binding.
 Phase `1.3` is mandatory before every phase `>=2`.
-- Schema IDs are versioned (`schema: governance.<area>.<name>.v1`).
-- Compact presentation schema is optional: `governance.compact_mode.v1`.
 
+Schema IDs are versioned (`schema: governance.<area>.<name>.v1`).
 Doc-lint standard: `docs/governance/doc_lint.md`.
 
-## Authority Index (Rail-only Guidance - See `rulesets/core/rules.yml` for authoritative data)
+## Authority Index
 
-SSOT sources by area (see `rulesets/core/rules.yml` for machine-readable data):
-- Routing/validation/transitions: `${COMMANDS_HOME}/phase_api.yaml` and `governance/kernel/*`
-- Session-state shape and invariants: `SESSION_STATE_SCHEMA.md` and `governance/assets/schemas/*`
-- Response envelope and presentation shape: `governance/assets/catalogs/RESPONSE_ENVELOPE_SCHEMA.json`
-- Blocked reason catalog: `governance/assets/reasons/blocked_reason_catalog.yaml`
-- Bootstrap gating policy: `governance/assets/config/bootstrap_policy.yaml`
-- Path validation rules: `governance/engine/session_state_invariants.py`
+All routing, validation, transitions, state shape, and presentation are kernel- and schema-owned.
+This section is the single consolidated reference; individual phase sections do not repeat SSOT pointers.
 
+| Area | SSOT source |
+|------|-------------|
+| Routing / validation / transitions | `${COMMANDS_HOME}/phase_api.yaml` and `governance/kernel/*` |
+| Session-state shape and invariants | `SESSION_STATE_SCHEMA.md` and `governance/assets/schemas/*` |
+| Response envelope and presentation | `governance/assets/catalogs/RESPONSE_ENVELOPE_SCHEMA.json` |
+| Blocked reason catalog | `governance/assets/reasons/blocked_reason_catalog.yaml` |
+| Bootstrap gating policy | `governance/assets/config/bootstrap_policy.yaml` |
+| Path validation rules | `governance/engine/session_state_invariants.py` |
+| Command inventory / tooling policy | `governance/assets/catalogs/tool_requirements.json` |
+| Rulebook data (machine-readable) | `rulesets/core/rules.yml` |
 
-## PHASE 0 — BOOTSTRAP (CONDITIONAL)
+---
 
+## Phase Routing Table
+
+All phases are kernel-enforced from `${COMMANDS_HOME}/phase_api.yaml`.
+Gate sequencing, transitions, and blocked conditions are kernel-owned; see `${COMMANDS_HOME}/phase_api.yaml`.
+
+| Phase | Name | Key constraint |
+|-------|------|----------------|
+| 0 | Bootstrap | Conditional; operator must restate bootstrap declaration if blocked |
+| 1.2 | Profile Detection | Profile selection is kernel-enforced; persists profile choice in session state |
+| 1.3 | Core Rules Activation | Mandatory before every phase >=2; execution constraints in phase_api.yaml |
+| 1.4 | Templates & Addons | Addon catalog at `${PROFILES_HOME}/addons/*.addon.yml`; see addon rules below |
+| 1.5 | Business Rules Discovery | Conditional; extraction/inventory/persistence are kernel-owned |
+| 2 | Repo Discovery | Repo evidence, workspace memory, decision pack; persistence gate mandatory |
+| 3A | API Inventory | External artifacts; inputs/outputs/transitions are kernel-owned |
+| 3B-1 | API Logical Validation | Spec-level; validation rules in phase_api.yaml |
+| 3B-2 | Contract Validation | Spec-to-code; non-blocking conditions in phase_api.yaml |
+| 4 | Planning | Deterministic initialization, ticket record, implementation plan, risk review |
+| 5 | Review | Review gate only; no implementation output; see Phase 5 rules below |
+| 5.3 | Test Quality Review | CRITICAL gate; must pass before proceed to Phase 6 |
+| 5.4 | Business Rules Compliance | Only if Phase 1.5 executed |
+| 6 | Implementation QA | Self-review gate; prerequisites and verification are kernel-owned |
+
+---
+
+## Phase 0 — Bootstrap
 
 > **BLOCKED — Bootstrap not satisfied**
 
-Terminology (docs-owned explanatory):
+Terminology:
 - **Plan-Gates** are explicit decision gates that control whether code-producing output is described.
-- **Evidence-Gates** are evidence prerequisites required to claim a gate outcome; a Plan-Gate may be
-  logically satisfied but still **blocked** if evidence is missing.
+- **Evidence-Gates** are evidence prerequisites required to claim a gate outcome; a Plan-Gate may be logically satisfied but still **blocked** if evidence is missing.
 
-When blocked, kernel-owned state and reason codes apply (see `governance/assets/reasons/blocked_reason_catalog.yaml`).
+Recovery: Operator must restate the bootstrap declaration explicitly.
 
-### Recovery
-- Operator must restate the bootstrap declaration explicitly.
+---
 
-## GLOBAL PATH VARIABLES (Rail-only Guidance)
+## Global Path Variables
 
-Path variables, resolution rules, and persistence topology are kernel- and schema-owned (see `SESSION_STATE_SCHEMA.md` and `governance/assets/schemas/*`).
-This markdown section is a rail-only summary for operators.
-
-SSOT sources:
-- Path and persistence schema: `SESSION_STATE_SCHEMA.md` and `governance/assets/schemas/*`
-- Path invariants and validation: `governance/engine/session_state_invariants.py`
-- Blocked reason catalog: `governance/assets/reasons/blocked_reason_catalog.yaml`
-
-Operator guidance (docs-owned explanatory):
+Operator guidance:
 - Always express paths using canonical variables in outputs.
 - Treat absolute host paths as evidence-only, not canonical.
-
-Command inventory, preflight, identity evidence collection, and persistence targets are kernel- and schema-owned (see `governance/assets/catalogs/tool_requirements.json` and `governance/engine/session_state_invariants.py`).
-SSOT sources:
-- Command inventory and tooling policy: `governance/assets/catalogs/tool_requirements.json`
-- Preflight schema: `docs/governance/governance_schemas.md` (`governance.preflight.v1`)
-- Path invariants and persistence rules: `governance/engine/session_state_invariants.py`
-- Session-state schema: `SESSION_STATE_SCHEMA.md`
-Operator guidance (docs-owned explanatory):
 - Prefer host-side evidence collection when available; avoid destructive commands.
 - Persist governance artifacts under `${CONFIG_ROOT}`-derived workspace paths, never inside the repo.
 
-consolidated, model-stable, hybrid-capable, pragmatic,
-with architecture, contract, debt & QA gates
-  - QUALITY_INDEX.md
-  - CONFLICT_RESOLUTION.md
+---
 
-Bootstrap session-state shape is schema-owned.
-See `SESSION_STATE_SCHEMA.md` and `governance/assets/schemas/session_state.core.v1.schema.json`.
-  
-### Phase 1.2: Profile Detection
+## Phase 1.4 — Addon Rules
 
-> **Routing:** Kernel-enforced from `${COMMANDS_HOME}/phase_api.yaml`.
+Addon catalog: addons are discovered by scanning `${PROFILES_HOME}/addons/*.addon.yml`.
+Manifest contract: `governance/assets/catalogs/PROFILE_ADDON_FACTORY_CONTRACT.json`.
 
-Profile selection is kernel-enforced.
-Auto-selection may persist profile choice and evidence in session state; see `SESSION_STATE_SCHEMA.md`.
+Rules:
+- `addon_class = required` — kernel blocks with `BLOCKED-MISSING-ADDON` if addon is missing.
+- `addon_class = advisory` — kernel continues without blocking when addon is missing.
+- Addons may be re-evaluated on re-entry to ensure deterministic activation.
+- Addon activation and blocking semantics are kernel-owned. See `${COMMANDS_HOME}/phase_api.yaml` and `rules.md` anchor `RULEBOOK-PRECEDENCE-POLICY`.
 
-### Phase 1.3: Core Rules Activation
+Merge behavior:
+- Canonical conflict precedence is defined once in Section 1 (`PRIORITY ORDER`) and is not redefined here.
+- Templates/addons refine generation and test structure but do not override master/core/profile constraints.
+- Phase-4 re-entry performs delta evaluation and reloads only changed rulebooks/addons.
 
-> **Routing:** Kernel-enforced from `${COMMANDS_HOME}/phase_api.yaml`.
-
-Core rulebook activation outputs are kernel- and schema-owned.
-See `${COMMANDS_HOME}/phase_api.yaml` and `SESSION_STATE_SCHEMA.md`.
-
-#### Execution Constraints (see `${COMMANDS_HOME}/phase_api.yaml`)
-
-Phase constraints are kernel- and schema-owned.
-See `${COMMANDS_HOME}/phase_api.yaml`.
-
-
-### Phase 1.4: Templates & Addons Activation
-Activation Steps (Informational):
-
-> **Note:** Activation preconditions and failure handling are kernel-enforced.
-> See `governance/assets/reasons/blocked_reason_catalog.yaml` for authoritative reasons.
-
-Activation steps and session-state mutations are kernel- and schema-owned.
-See `${COMMANDS_HOME}/phase_api.yaml` and `SESSION_STATE_SCHEMA.md`.
-
-   Addon catalog (informational):
-   - Addons are discovered dynamically by scanning addon manifests located at:
-   - `${PROFILES_HOME}/addons/*.addon.yml`
-   - Manifest contract is schema-owned. See `governance/assets/catalogs/PROFILE_ADDON_FACTORY_CONTRACT.json`.
-
-   Rules (informational):
-   - Manifest field `addon_class` (`required` | `advisory`) declares addon enforcement mode.
-   - `addon_class = required` -> kernel blocks with `BLOCKED-MISSING-ADDON` if addon is missing.
-   - `addon_class = advisory` -> kernel continues without blocking when addon is missing.
-   - Addons may be re-evaluated on re-entry to ensure deterministic activation.
-   - Addon activation and blocking semantics are kernel-owned. See `${COMMANDS_HOME}/phase_api.yaml` and `rules.md` anchor `RULEBOOK-PRECEDENCE-POLICY`.
-
-   Kafka addon example: see addon manifest and rulebook for details.
-
-4) Merge behavior (non-precedence)
-   - Canonical conflict precedence is defined once in Section 1 (`PRIORITY ORDER`) and MUST NOT be redefined here.
-   - Templates/addons MUST be followed when loaded; they refine generation and test structure but MUST NOT override master/core/profile constraints.
-   - Re-entry optimization: Phase-4 re-entry MUST perform delta evaluation (what changed since last activation)
-     and reload only changed rulebooks/addons.
-    - Activation delta determinism is kernel-owned. See `governance/kernel/*` and session-state schema.
-
-Output obligation (BINDING):
-- At Phase 4 entry, output includes a short activation summary (schema-owned).
- 
-### Data sources (non-precedence)
-
-* Operational rules (technical, architectural) are defined in:
-  - `rules.md` (core technical rulebook)
-  - the active profile rulebook (kernel-selected; see `${COMMANDS_HOME}/phase_api.yaml`)
-* Top-tier quality definition and deterministic conflict handling are defined in:
-  - `QUALITY_INDEX.md` (canonical top-tier index; no new rules)
-  - `CONFLICT_RESOLUTION.md` (priority model for contradictions)
-- `workspace repo bucket` = `${REPO_HOME}` under `${WORKSPACES_HOME}/<repo_fingerprint>` (outside repo working tree).
-
-This governance system is single-user and MUST NOT require repo-working-tree-local governance or persistent artifacts.
-Persistence and rulebook loading are kernel- and schema-owned. See `${COMMANDS_HOME}/phase_api.yaml` and `SESSION_STATE_SCHEMA.md`.
-
-#### Step 1 (Phase 1.3): Resolve Core Rulebook (rules.md)
-
-Lookup paths are kernel-owned. See `${COMMANDS_HOME}/phase_api.yaml`.
-
-#### Step 1b (Phase 1.1): Resolve Top-Tier Index & Conflict Model (QUALITY_INDEX.md, CONFLICT_RESOLUTION.md)
-
-These files are required in the same governance installation scope as `master.md`.
-
-Missing top-tier files behavior is kernel-owned. See `${COMMANDS_HOME}/phase_api.yaml` and blocked reason catalog.
-
-Top-tier load evidence obligation is schema-owned. See `SESSION_STATE_SCHEMA.md`.
-
-Reference lookup paths are kernel-owned. See `${COMMANDS_HOME}/phase_api.yaml`.
-3. Context: manually provided (planning-only)
-
-#### Step 2: Load Profile Rulebook (AUTO-DETECTION ADDED)
-
-Profile selection is kernel-enforced.
-Auto-selection may persist profile choice and evidence in session state; see `SESSION_STATE_SCHEMA.md`.
+Output obligation: At Phase 4 entry, output includes a short activation summary.
 
 ---
 
-## OPENAPI CODEGEN (GENERATED DTOs) — CONTRACT VALIDATION SUPPORT (BINDING)
+## Data Sources
 
-OpenAPI codegen scanning rules are kernel-owned. See `${COMMANDS_HOME}/phase_api.yaml`.
+* Operational rules: `rules.md` (core technical rulebook) and the active profile rulebook (kernel-selected).
+* Top-tier quality: `QUALITY_INDEX.md` (canonical index) and `CONFLICT_RESOLUTION.md` (priority model).
 
-### PURPOSE
+Preference rules:
+1. Prefer existing repo conventions (frameworks, patterns, libs, naming, folder layout) if evidence-backed.
+2. Prefer additive over breaking changes in any contract/schema surface.
+3. Prefer minimal coherent change sets that keep diffs reviewable.
+4. Prefer the narrowest safe scope (smallest component/module) when a repo is large.
+5. If required evidence is missing for a gate decision, stop and request the minimal command output/artifact.
 
-2) **Repo conventions win** for style/tooling choices **only if** they do not weaken gates/evidence/scope lock.
-3) If the conflict still cannot be resolved deterministically, record a risk and stop (BLOCKED) with a targeted question.
-
-Addon/template conflict handling is kernel- and schema-owned.
-See `${COMMANDS_HOME}/phase_api.yaml` and `governance/assets/reasons/blocked_reason_catalog.yaml`.
-
-### Rulebook Load Evidence (BINDING)
-
-Rulebook load evidence rules and blocking behavior are kernel- and schema-owned.
-See `${COMMANDS_HOME}/phase_api.yaml`, `SESSION_STATE_SCHEMA.md`, and `governance/assets/reasons/blocked_reason_catalog.yaml`.
+This governance system is single-user and does not require repo-working-tree-local governance or persistent artifacts.
 
 ---
 
-- `5.6` is evaluated inside `5` and applies when rollback safety is relevant.
+## Phase 2 — Repo Discovery
 
-**Output Rule for Code Generation:**
-Code-generation gating is kernel- and schema-owned. See `${COMMANDS_HOME}/phase_api.yaml` and `SESSION_STATE_SCHEMA.md`.
+Before repository discovery, if running under OpenCode (repository provided or indexed), check whether a persisted RepoMapDigest file exists and load it as context.
+Repository evidence wins when contradictions occur; record as Risks.
 
-Additionally, any mandatory gates defined in `rules.md` (e.g., Contract & Schema Evolution Gate, Change Matrix Verification)
-MUST be explicitly passed when applicable.
-P5.3 is a CRITICAL quality gate that must be satisfied before concluding readiness for PR (P6).
-Code-producing output is NOT permitted during Phase 5.
-Phase 5 is exclusively a review gate: architecture review, test-strategy review, and quality-gate evaluation.
-Implementation (code, tests, configuration) begins only after all Phase 5 gates have passed and the session transitions to Phase 6.
-**Rule A — Implementation-Intent Prohibition (Phase 5):**
-Output classified as `implementation`, `patch`, `diff`, or `code_delivery` is forbidden during Phase 5.
-This prohibition covers both code artifacts and implementation-intent language (e.g., offering to implement, proposing to deliver diffs, or suggesting to start coding).
-The canonical list of allowed and forbidden output classes is kernel-owned (see `${COMMANDS_HOME}/phase_api.yaml` under `output_policy` on token `"5"`).
-All Phase 5 sub-tokens (5.3, 5.4, 5.5, 5.6) inherit this policy unless they define their own `output_policy` override.
-**Rule B — Plan Self-Review Requirement (Phase 5):**
-The first plan output in Phase 5 is a draft.
-Before presenting any plan as review-ready to the user, at least one internal self-review iteration is required to consolidate, verify completeness, and check for gaps.
-The minimum number of self-review iterations is kernel-owned (see `${COMMANDS_HOME}/phase_api.yaml` under `output_policy.plan_discipline.min_self_review_iterations` on token `"5"`).
-Clarification:
-- Phase 5/6 code-output constraints and gate sequencing are kernel- and schema-owned.
-  See `${COMMANDS_HOME}/phase_api.yaml` and `SESSION_STATE_SCHEMA.md`.
- 
----
+Workspace memory is supportive defaults only; repository evidence always wins.
 
-* "/explain-activation" (read-only activation report) → execute explain contract in Section 2.2.2
-
-Override constraints (Rail-only Guidance):
-Skip-validation rules and blocked behavior are kernel- and schema-owned.
-See `${COMMANDS_HOME}/phase_api.yaml`.
-
-Phase-skip restrictions are kernel- and schema-owned.
-See `${COMMANDS_HOME}/phase_api.yaml`.
-
-### 2.2.1 Operator Reload Contract (Kernel-Enforced)
-
-Reload routing, state updates, and continuation behavior are kernel- and schema-owned.
-See `${COMMANDS_HOME}/phase_api.yaml` and `SESSION_STATE_SCHEMA.md`.
-
-### 2.2.2 Operator Explain Contracts (Binding, read-only)
-
-Explain-command output shape and read-only guarantees are kernel- and schema-owned.
-See `${COMMANDS_HOME}/phase_api.yaml` and `governance/assets/catalogs/RESPONSE_ENVELOPE_SCHEMA.json`.
+Fast Path: apply only when safety is provable (signature/head match).
 
 ---
 
+## OpenAPI Codegen — Contract Validation Support
 
-#### Clarification Format for Ambiguity (Policy)
+Purpose:
+- Repo conventions win for style/tooling choices only if they do not weaken gates/evidence/scope lock.
+- If a conflict cannot be resolved deterministically, record a risk and stop (BLOCKED) with a targeted question.
 
-Clarification format is rail-only guidance. Canonical decision UX is kernel-owned (see `${COMMANDS_HOME}/phase_api.yaml` and `governance/assets/catalogs/RESPONSE_ENVELOPE_SCHEMA.json`).
-
-#### Confidence bands for Auto-Advance (Policy)
-
-Confidence thresholds and auto-advance rules are kernel-owned (see `${COMMANDS_HOME}/phase_api.yaml` and `SESSION_STATE_SCHEMA.md`).
-
-#### BLOCKED — Recovery Playbook (Output Format)
-
-Blocked output shape and recovery semantics are schema- and kernel-owned (see `governance/assets/catalogs/RESPONSE_ENVELOPE_SCHEMA.json` and `governance/assets/reasons/blocked_reason_catalog.yaml`).
-
-#### Unified Next Action Footer (Presentation Advisory)
-
-Presentation conventions are rail-only. See `governance/assets/catalogs/RESPONSE_ENVELOPE_SCHEMA.json`.
-
-#### Confidence + Impact Snapshot (Presentation Advisory)
-
-Snapshot fields are schema-owned. See `SESSION_STATE_SCHEMA.md` and `governance/assets/catalogs/RESPONSE_ENVELOPE_SCHEMA.json`.
-
-#### Definition: Explicit gates (Auto-Advance stops)
-
-Explicit gate behavior, outputs, and operator prompts are kernel- and schema-owned.
-See `governance.phase5.gates.v1`, `governance.phase6.qa.v1`, and `governance/assets/catalogs/RESPONSE_ENVELOPE_SCHEMA.json`.
+Rulebook load evidence: blocking behavior is kernel-owned. See `${COMMANDS_HOME}/phase_api.yaml`.
 
 ---
 
+## Phase 4 — Planning
 
-### 2.4.1 Session Start Mode Banner (Kernel-Enforced)
-
-Session start banner format and evidence requirements are kernel-owned (see `governance/assets/catalogs/RESPONSE_ENVELOPE_SCHEMA.json` and `SESSION_STATE_SCHEMA.md`).
-
-### 2.4.2 Architect-Only Autopilot Lifecycle (Policy)
-
-bootstrap invocation guard (Rail-only Guidance):
-- Workflow MUST NOT ask operator to rerun the local bootstrap launcher in the same turn.
-
-Execution mode enum and blocked reasons are schema- and kernel-owned (see `SESSION_STATE_SCHEMA.md` and `governance/assets/reasons/blocked_reason_catalog.yaml`).
-
-Detailed lifecycle routing and mode transition behavior is maintained outside `master.md`:
-- Kernel/config contracts for binding behavior
-1) **Prefer existing repo conventions** (frameworks, patterns, libs, naming, folder layout) if evidence-backed.
-2) **Prefer additive over breaking changes** in any contract/schema surface.
-3) **Prefer minimal coherent change sets** that keep diffs reviewable.
-4) **Prefer the narrowest safe scope** (smallest component/module) when a repo is large; scope recording is kernel- and schema-owned.
-5) If required evidence is missing for a gate decision, stop and request the minimal command output/artifact (no speculative gate passes).
-
-Auto-advance continues until:
-
-### 2.6 Conventional Git Naming Contract (Binding when Git operations are requested)
-
-Commit/branch naming policy is tool- and workflow-owned.
-See release/automation rules in `docs/releasing.md` and repo tooling (if present).
-
----
-
-## 3. SESSION STATE (REQUIRED)
-
-Session-state shape, output modes, and required fields are schema- and kernel-owned (see `SESSION_STATE_SCHEMA.md`, `governance/assets/schemas/session_state.core.v1.schema.json`, and `${COMMANDS_HOME}/phase_api.yaml`).
-
----
-
-## 4. PHASE 1 TOKEN OUTPUT (BINDING)
-
-Phase tokenization and `SESSION_STATE.Next` semantics are kernel- and schema-owned.
-See `${COMMANDS_HOME}/phase_api.yaml` and `SESSION_STATE_SCHEMA.md`.
-
----
-
-
-If contradictions occur, repository evidence ALWAYS wins and MUST be recorded as Risks.
-
-Repo cache handling is kernel- and schema-owned. See `SESSION_STATE_SCHEMA.md` and `${COMMANDS_HOME}/phase_api.yaml`.
-
-Before performing repository discovery, if the workflow is running under OpenCode
-(repository provided or indexed via OpenCode), the workflow MUST check whether a
-persisted RepoMapDigest file exists and load it as context.
-
-RepoMapDigest handling is kernel- and schema-owned. See `SESSION_STATE_SCHEMA.md` and `${COMMANDS_HOME}/phase_api.yaml`.
-
-#### Load Existing Workspace Memory (Kernel-Managed, Read-Before-Use)
-
-- Stabilize repo-specific conventions and reduce drift across ticket sessions.
-- Workspace Memory is supportive defaults only; repository evidence always wins.
-
-Workspace memory handling is kernel- and schema-owned. See `SESSION_STATE_SCHEMA.md` and `${COMMANDS_HOME}/phase_api.yaml`.
-
-#### Fast Path (Optional, Conservative)
-
-- Reduce repeated discovery across ticket sessions.
-- Apply ONLY when safety is provable (signature/head match).
-
-Fast Path eligibility and repo signature computation are kernel-owned. See `${COMMANDS_HOME}/phase_api.yaml`.
-
-Phase 2 discovery actions and Codebase Context are kernel- and schema-owned.
-See `${COMMANDS_HOME}/phase_api.yaml` and `SESSION_STATE_SCHEMA.md`.
-
-3b. **Resolve Build Toolchain (Kernel-Enforced):**
-
-Build-toolchain resolution and any `SESSION_STATE.BuildToolchain` fields are kernel- and schema-owned.
-See `${COMMANDS_HOME}/phase_api.yaml` and `SESSION_STATE_SCHEMA.md` for authoritative behavior.
-
-4. **Verify against profile:**
-
-Profile mismatch handling is kernel- and schema-owned. See `${COMMANDS_HOME}/phase_api.yaml`.
-
-#### Phase-Coupled Persistence Gate (Mandatory)
-
-Persistence gates and file outputs are kernel- and schema-owned.
-See `${COMMANDS_HOME}/phase_api.yaml` and `SESSION_STATE_SCHEMA.md`.
-
-RepoMapDigest persistence and workspace memory format are kernel- and schema-owned.
-See `${COMMANDS_HOME}/phase_api.yaml` and `SESSION_STATE_SCHEMA.md`.
-
-Phase 2.1 (Decision Pack) is kernel-owned. See `${COMMANDS_HOME}/phase_api.yaml`.
-
-#### Load Existing Decision Pack (Kernel-Managed, Read-Before-Write)
-
-Decision pack format, lifecycle, and session-state updates are kernel- and schema-owned.
-See `${COMMANDS_HOME}/phase_api.yaml` and `SESSION_STATE_SCHEMA.md`.
-
-#### Persist Decision Pack (Kernel-Enforced, Mandatory After Phase 2.1)
-
-Decision pack persistence is kernel- and schema-owned. See `${COMMANDS_HOME}/phase_api.yaml` and `SESSION_STATE_SCHEMA.md`.
-
-Phase 2 exit conditions are kernel-owned. See `${COMMANDS_HOME}/phase_api.yaml`.
-
----
-
-### PHASE 1.5 — Business Rules Discovery (Conditional)
-
-Execution timing and re-entry rules are kernel-owned. See `${COMMANDS_HOME}/phase_api.yaml`.
-
-#### Business Rules Inventory (Kernel-Enforced)
-
-Business rules extraction, inventory format, persistence, and exit conditions are kernel- and schema-owned.
-See `${COMMANDS_HOME}/phase_api.yaml`, `SESSION_STATE_SCHEMA.md`, and `governance/assets/config/persistence_artifacts.yaml`.
-
----
-
-### PHASE 3A — API Inventory (External Artifacts)
-
-API inventory inputs, outputs, and transitions are kernel- and schema-owned.
-See `${COMMANDS_HOME}/phase_api.yaml` and `SESSION_STATE_SCHEMA.md`.
-
-### PHASE 3B-1 — API Logical Validation (Spec-Level)
-
-Spec validation rules, blocked conditions, and output shape are kernel- and schema-owned.
-See `${COMMANDS_HOME}/phase_api.yaml` and `governance/assets/catalogs/RESPONSE_ENVELOPE_SCHEMA.json`.
-
-### PHASE 3B-2 — Contract Validation (Spec ↔ Code)
-
-Contract validation rules, non-blocking conditions, and output shape are kernel- and schema-owned.
-See `${COMMANDS_HOME}/phase_api.yaml` and `governance/assets/catalogs/RESPONSE_ENVELOPE_SCHEMA.json`.
-
----
-
-
-
-0. **Phase-4 Entry: Deterministic initialization (BINDING)**
-   - Phase-4 entry sequencing, rulebook activation, workspace memory handling, and required outputs are kernel- and schema-owned.
-   - See `${COMMANDS_HOME}/phase_api.yaml`, `SESSION_STATE_SCHEMA.md`, and `governance/assets/catalogs/RESPONSE_ENVELOPE_SCHEMA.json`.
+0. **Phase-4 Entry:** Deterministic initialization; rulebook activation, workspace memory, required outputs are kernel-owned (`${COMMANDS_HOME}/phase_api.yaml`).
 
 1. **Understand the requirement:**
    * Parse ticket description
-   * Identify affected components (based on Phase 2 discovery)
-   * Identify affected APIs (based on Phase 3 analysis)
-   * Identify affected business rules (based on Phase 1.5, if executed)
-   * Cross-reference findings with the Codebase Context summary (kernel-owned; see `${COMMANDS_HOME}/phase_api.yaml`).
+   * Identify affected components (Phase 2 discovery), APIs (Phase 3 analysis), and business rules (Phase 1.5, if executed)
+   * Cross-reference findings with the Codebase Context summary.
 
-1a. **Classify Feature Complexity (Decision Tree — Binding):**
+1a. **Classify Feature Complexity** (decision tree, binding):
+    Classification fields, planning depth, and recording targets are kernel-owned (`${COMMANDS_HOME}/phase_api.yaml`).
 
-   |      Test strategy: Profile-prescribed test pyramid.
-   ```
-
-   Classification fields, planning depth implications, and recording targets are kernel- and schema-owned.
-   See `${COMMANDS_HOME}/phase_api.yaml` and `SESSION_STATE_SCHEMA.md`.
-
-2. **Produce Ticket Record (Mini-ADR + NFR Checklist) — REQUIRED:**
-   The goal is to reduce user cognitive load and make the ticket’s key trade-offs explicit.
-   **NFR checklist constraints (Rail-only Guidance):**
+2. **Produce Ticket Record (Mini-ADR + NFR Checklist):**
+   **NFR checklist constraints:**
    - Cover at least: Security/Privacy, Observability, Performance, Migration/Compatibility, Rollback/Release safety.
-   - Each item must be one short line: `OK | N/A | Risk | Needs decision` + one sentence.
-    - If anything is `Risk` or `Needs decision`, record it via kernel- and schema-owned risk/blocker fields.
+   - Each item: `OK | N/A | Risk | Needs decision` + one sentence.
 
-   **Architecture Options (A/B/C) constraints (Rail-only Guidance):**
-   - REQUIRED whenever the plan involves any non-trivial decision surface (examples: boundaries, persistence approach,
-   - MUST list at least **Option A** and **Option B** (Option C optional).
-   - Each option MUST include: one-line description, key trade-offs (perf/complexity/operability/risk), and test impact.
-   - MUST end with an explicit **Recommendation** (one option) + confidence (0–100) + what evidence could change the decision.
-    - The final choice recording is kernel- and schema-owned.
+   **Architecture Options (A/B/C) constraints:**
+   - Required whenever the plan involves any non-trivial decision surface.
+   - At least Option A and Option B (Option C optional).
+   - Each option: one-line description, key trade-offs (perf/complexity/operability/risk), test impact.
+   - End with explicit Recommendation + confidence (0–100) + what evidence could change the decision.
 
 3. **Create implementation plan:**
    * List all files to be created/modified
    * List all API changes (if contract changes)
    * Estimate complexity (simple, medium, complex)
 
-    **Test strategy constraints (Rail-only Guidance):**
-    Test strategy requirements and format are kernel- and schema-owned.
-    See `${COMMANDS_HOME}/phase_api.yaml` and `docs/governance/governance_schemas.md`.
-
-   **Mandatory Review Matrix constraints (Rail-only Guidance):**
-   - The MRM is kernel- and schema-owned. See `${COMMANDS_HOME}/phase_api.yaml` and `SESSION_STATE_SCHEMA.md`.
-
-   Touched-surface tracking and Fast Path evaluation are kernel- and schema-owned.
-   See `${COMMANDS_HOME}/phase_api.yaml` and `SESSION_STATE_SCHEMA.md`.
-
 4. **Identify risks:**
    * Breaking changes (API, database, etc.)
-   - If evidence missing, output `MISSING_EVIDENCE: <id>` and stop
-   - The Risk Review is a format requirement, not an execution procedure
+   - If evidence missing, output `MISSING_EVIDENCE: <id>` and stop.
+   - The Risk Review is a format requirement, not an execution procedure.
 
-   Self-review evidence, iteration behavior, and any build-toolchain awareness are kernel- and schema-owned.
-   See `${COMMANDS_HOME}/phase_api.yaml` and `SESSION_STATE_SCHEMA.md`.
-
- **Output format (schema: governance.phase4.plan.v1):**
-
-See `docs/governance/governance_schemas.md` and the schema registry for the authoritative plan output shape.
-
- **Phase 4 clarification scenarios:**
-
-If CONFIDENCE LEVEL < 70% OR if multiple plausible implementations exist, the workflow may ask for clarification using the mandatory format (Section 2.3).
-
-Example clarification format is kernel- and schema-owned.
-See `${COMMANDS_HOME}/phase_api.yaml` and `governance/assets/catalogs/RESPONSE_ENVELOPE_SCHEMA.json`.
+**Phase 4 clarification scenarios:**
+If CONFIDENCE LEVEL < 70% OR if multiple plausible implementations exist, ask for clarification.
 
 **Phase 4 exit conditions:**
-* Success: Plan created, CONFIDENCE ≥ 70% → Proceed to Phase 5
+* Success: Plan created, CONFIDENCE >= 70% -> Proceed to Phase 5.
 
-### Session size control (long sessions)
+---
 
-Session compression, preserved fields, and summary targets are kernel- and schema-owned.
-See `${COMMANDS_HOME}/phase_api.yaml` and `SESSION_STATE_SCHEMA.md`.
+## Phase 5 — Review Gate
 
-### PHASE 5 — Lead Architect Review (Gatekeeper)
+Code-producing output is NOT permitted during Phase 5.
+Phase 5 is exclusively a review gate: architecture review, test-strategy review, and quality-gate evaluation.
+Implementation (code, tests, configuration) begins only after all Phase 5 gates have passed and the session transitions to Phase 6.
 
+**Rule A — Implementation-Intent Prohibition (Phase 5):**
+Output classified as `implementation`, `patch`, `diff`, or `code_delivery` is forbidden during Phase 5.
+This covers both code artifacts and implementation-intent language.
+The canonical list of allowed and forbidden output classes is kernel-owned (see `${COMMANDS_HOME}/phase_api.yaml` under `output_policy` on token `"5"`).
+All Phase 5 sub-tokens (5.3, 5.4, 5.5, 5.6) inherit this policy unless they define their own `output_policy` override.
+
+**Rule B — Plan Self-Review Requirement (Phase 5):**
+The first plan output in Phase 5 is a draft.
+Before presenting any plan as review-ready, at least one internal self-review iteration is required.
+The minimum number of self-review iterations is kernel-owned (see `${COMMANDS_HOME}/phase_api.yaml` under `output_policy.plan_discipline.min_self_review_iterations` on token `"5"`).
+
+Phase 5/6 code-output constraints and gate sequencing are kernel-owned; see `${COMMANDS_HOME}/phase_api.yaml`.
 
 **Actions:**
 
- 0. **Phase 5 gating and fast-path behavior (Kernel-Enforced):**
-    Gate sequencing, fast-path scope, rollback safety evaluation, and scorecard requirements are kernel- and schema-owned.
-    See `${COMMANDS_HOME}/phase_api.yaml` and `SESSION_STATE_SCHEMA.md`.
-    **Output class restrictions and plan self-review discipline** are enforced by `output_policy` on token `"5"` in `phase_api.yaml`.
-    See Rule A (implementation-intent prohibition) and Rule B (plan self-review requirement) in the Output Rule section above.
+0. **Phase 5 gating and fast-path behavior:**
+   Gate sequencing, fast-path scope, rollback safety evaluation, and scorecard requirements are kernel-owned (`${COMMANDS_HOME}/phase_api.yaml`).
+   Output class restrictions and plan self-review discipline are enforced by `output_policy` on token `"5"` in `phase_api.yaml`.
 
 1. **Architectural review:**
    * Does the plan follow the repository's architecture pattern?
    * Are dependencies clean (no circular dependencies)?
    * Is the plan consistent with existing conventions?
-   
- 1.5 **Ticket Record & NFR sanity check (REQUIRED):**
-   Ticket record/NFR checks, rollback safety expectations, and associated state recording are kernel- and schema-owned.
-   See `${COMMANDS_HOME}/phase_api.yaml` and `SESSION_STATE_SCHEMA.md`.
 
- 2. **API contract review (if API changes):**
-    Contract review rules and cross-repo impact recording are kernel- and schema-owned.
-    See `${COMMANDS_HOME}/phase_api.yaml` and `SESSION_STATE_SCHEMA.md`.
+1.5 **Ticket Record & NFR sanity check** (required):
+    Ticket record/NFR checks, rollback safety, and state recording are kernel-owned (`${COMMANDS_HOME}/phase_api.yaml`).
 
-3. **Database schema review (if schema changes):**
+2. **API contract review** (if API changes):
+   Contract review rules and cross-repo impact recording are kernel-owned (`${COMMANDS_HOME}/phase_api.yaml`).
+
+3. **Database schema review** (if schema changes):
    * Are migrations reversible (if possible)?
    * Are validations complete?
    * Are state transitions correct?
 
-  **Output format (schema: governance.phase5.gates.v1):**
-
-See `docs/governance/governance_schemas.md` and `governance/assets/catalogs/RESPONSE_ENVELOPE_SCHEMA.json` for the authoritative gate output shape.
-
 **Phase 5 gate results:**
-* `architecture-approved`: Plan is sound, proceed to Phase 5.3
+* `architecture-approved`: Plan is sound, proceed to Phase 5.3.
 
-#### Workspace Memory writeback (Decisions/Defaults) — Binding
+### Phase 5.3 — Test Quality Review (CRITICAL Gate)
 
-Workspace memory writeback eligibility, format, and state updates are kernel- and schema-owned.
-See `${COMMANDS_HOME}/phase_api.yaml` and `SESSION_STATE_SCHEMA.md`.
-
-### PHASE 5.3 — Test Quality Review (CRITICAL Gate)
-
-
- **Output format (schema: governance.phase5.gates.v1):**
-
-See `docs/governance/governance_schemas.md` and `governance/assets/catalogs/RESPONSE_ENVELOPE_SCHEMA.json` for the authoritative gate output shape.
-
-**Phase 5.3 gate results:**
-* `test-quality-pass`: Tests are sufficient, proceed to Phase 6 (Implementation QA)
-
-### PHASE 5.4 — Business Rules Compliance (only if Phase 1.5 executed)
-
-Business rules compliance checks, gap handling, and output format are kernel- and schema-owned.
-See `${COMMANDS_HOME}/phase_api.yaml`, `SESSION_STATE_SCHEMA.md`, and `governance/assets/catalogs/RESPONSE_ENVELOPE_SCHEMA.json`.
+Phase 5.3 gate results:
+* `test-quality-pass`: Tests are sufficient, proceed to Phase 6 (Implementation QA).
 
 ---
 
+## Cognitive Complexity Check
 
-**Output:**
-
-Domain model quality reporting is kernel- and schema-owned.
-See `docs/governance/governance_schemas.md`.
-
-### Code Complexity Checks (Phase 5.7 — internal check)
-
-}
-```
-
-Refactoring hints and complexity warning formats are kernel- and schema-owned.
-See `docs/governance/governance_schemas.md`.
-
-### Cognitive Complexity Check
-
-* method: ≤ 15 (WARNING)
-* nested levels: ≤ 3 (HIGH-RISK WARNING if >3)
-
-Complexity report output shape is kernel- and schema-owned.
-See `docs/governance/governance_schemas.md`.
+* method: <= 15 (WARNING)
+* nested levels: <= 3 (HIGH-RISK WARNING if >3)
 
 ---
 
-### PHASE 6 — Implementation QA (Self-Review Gate)
+## Phase 6 — Implementation QA
 
-**Binding prerequisites:**
-Gate prerequisites and readiness checks are kernel- and schema-owned.
-See `${COMMANDS_HOME}/phase_api.yaml` and `SESSION_STATE_SCHEMA.md`.
+Binding prerequisites: gate prerequisites and readiness checks are kernel-owned (`${COMMANDS_HOME}/phase_api.yaml`).
 
-**Verification obligations (Rail-only Guidance):**
-Verification obligations, change-matrix updates, and review-of-review checks are kernel- and schema-owned.
-See `${COMMANDS_HOME}/phase_api.yaml`, `SESSION_STATE_SCHEMA.md`, and `governance/assets/catalogs/RESPONSE_ENVELOPE_SCHEMA.json`.
-
-#### Build Verification Output Contract (Presentation Advisory, schema: governance.phase6.qa.v1)
-
-Build verification commands, evidence fields, and output requirements are kernel- and schema-owned.
-See `${COMMANDS_HOME}/phase_api.yaml`, `SESSION_STATE_SCHEMA.md`, and `docs/governance/governance_schemas.md`.
+Verification obligations: change-matrix updates and review-of-review checks are kernel-owned (`${COMMANDS_HOME}/phase_api.yaml`).
 
 ---
 
-## 5. CHANGE MATRIX (Kernel-Enforced)
+## Change Matrix
 
 Every cross-cutting ticket requires a change matrix across planning/review.
-Canonical matrix schema/template is external. See `docs/governance/governance_schemas.md`.
+Canonical matrix schema/template: `docs/governance/governance_schemas.md`.
 
 ---
 
-## 6. RESPONSE RULES
+## Response Rules
 
 Response/output constraints are defined in `rules.md` and `governance/assets/schemas/*`.
 `master.md` does not redefine response shape.
+
+---
+
+## Operator Commands
+
+* "/explain-activation" (read-only activation report)
+
+Override constraints:
+- Skip-validation rules and blocked behavior are kernel-owned; see `${COMMANDS_HOME}/phase_api.yaml`.
+- Phase-skip restrictions are kernel-owned; see `${COMMANDS_HOME}/phase_api.yaml`.
+
+### Reload Contract
+
+Reload routing, state updates, and continuation behavior are kernel-owned (`${COMMANDS_HOME}/phase_api.yaml`).
+
+### Explain Contracts
+
+Explain-command output shape and read-only guarantees are kernel-owned (`${COMMANDS_HOME}/phase_api.yaml`).
+
+---
+
+## Session Policies
+
+### Clarification Format for Ambiguity
+
+Canonical decision UX is kernel-owned; see `${COMMANDS_HOME}/phase_api.yaml`.
+
+### BLOCKED — Recovery Playbook
+
+Blocked output shape and recovery semantics are kernel-owned; see `governance/assets/reasons/blocked_reason_catalog.yaml`.
+
+### Bootstrap Invocation Guard
+
+Workflow does not ask operator to rerun the local bootstrap launcher in the same turn.
+
+### Git Naming Contract
+
+Commit/branch naming policy is tool- and workflow-owned.
+See release/automation rules in `docs/releasing.md` and repo tooling (if present).
+
+### Session Size Control
+
+Session compression, preserved fields, and summary targets are kernel-owned; see `${COMMANDS_HOME}/phase_api.yaml`.
 
 ---
