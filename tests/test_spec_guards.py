@@ -139,3 +139,42 @@ def test_markdown_local_links_resolve_offline():
                 continue
 
             assert tp.exists(), f"Broken local link in {rel}: ({raw}) -> {tp}"
+
+
+@pytest.mark.spec
+def test_entrypoint_surface_restricted_to_compatibility_allowlist():
+    allowlist = {
+        "install.py",
+        "bin/opencode-governance-bootstrap",
+        "bin/opencode-governance-bootstrap.cmd",
+        "docs/contracts/python-binding-contract.v1.md",
+    }
+    violations: list[str] = []
+    for rel in git_ls_files():
+        if rel.startswith("tests/"):
+            continue
+        path = REPO_ROOT / rel
+        try:
+            text = read_text(path)
+        except Exception:
+            continue
+        if "--entrypoint" in text and rel not in allowlist:
+            violations.append(rel)
+
+    assert not violations, (
+        "--entrypoint surface may only appear in compatibility allowlist files:\n"
+        + "\n".join(f"- {v}" for v in sorted(violations))
+    )
+
+
+@pytest.mark.spec
+def test_entrypoint_compatibility_allowlist_stays_present():
+    required = [
+        "install.py",
+        "bin/opencode-governance-bootstrap",
+        "bin/opencode-governance-bootstrap.cmd",
+        "docs/contracts/python-binding-contract.v1.md",
+    ]
+    for rel in required:
+        text = read_text(REPO_ROOT / rel)
+        assert "--entrypoint" in text, f"compatibility surface missing from {rel}"
