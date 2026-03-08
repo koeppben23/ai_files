@@ -107,6 +107,28 @@ class TestGuidanceHeadingCaps:
         )
 
 
+class TestGuidanceAuthorityDensity:
+    """Keep authority language sparse and operational."""
+
+    def test_master_kernel_owned_density_cap(self) -> None:
+        text = _read(_MASTER).lower()
+        assert text.count("kernel-owned") <= 12, (
+            "master.md repeats 'kernel-owned' too often; keep authority language sparse"
+        )
+
+    def test_rules_kernel_owned_density_cap(self) -> None:
+        text = _read(_RULES).lower()
+        assert text.count("kernel-owned") <= 12, (
+            "rules.md repeats 'kernel-owned' too often; keep authority language sparse"
+        )
+
+    def test_master_critical_emphasis_cap(self) -> None:
+        text = _read(_MASTER)
+        assert text.count("CRITICAL") <= 2, (
+            "master.md overuses CRITICAL emphasis; keep emphatic language minimal"
+        )
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 # 2.  OPERATIVE PRESERVATION — key rules must survive refactor
 # ═══════════════════════════════════════════════════════════════════════════
