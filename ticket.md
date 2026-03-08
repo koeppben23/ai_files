@@ -13,11 +13,10 @@ Two accepted inputs:
 - a local file path containing ticket/task text
 
 Deterministic intake flow:
-1. read input
-2. canonicalize text
-3. persist `Ticket`/`Task` and matching digest(s) in active `SESSION_STATE`
-4. append intake audit event
-5. reroute kernel state
+1. normalize input
+2. persist evidence
+3. append audit event
+4. reroute state
 
 ## Commands by platform
 
@@ -49,15 +48,13 @@ If no snapshot is available, proceed using only the context visible in the curre
 
 ## Interpretation scope
 
-- `/review` is read-only; `/continue` is the state materialization rail.
-- Ticket files or chat text do not change phase by themselves.
-- Running the intake command writes evidence and reroutes from Phase 4 into the Phase 5 review gate path.
-- Intake reroute is not implementation approval; code-producing output remains blocked until Phase 5 gates are approved and session transitions to Phase 6.
+- Ticket files or chat text do not change phase by themselves; the intake command must run.
+- Intake reroute writes evidence and advances from Phase 4 into the Phase 5 review gate path.
+- Intake reroute is not implementation approval; code-producing output remains blocked until Phase 6.
 
 ## Response shape
 
-- report current `phase` and `next` after intake persist
-- report `active_gate` and `next_gate_condition`
+- report current `phase`, `next`, `active_gate`, and `next_gate_condition` after intake
 - if the intake command succeeded, confirm evidence was written and state was rerouted
 - if a blocker or warning is present, render it with concise evidence and one recovery action
 

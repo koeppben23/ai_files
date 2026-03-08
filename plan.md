@@ -13,11 +13,10 @@ Two accepted inputs:
 - a local file path containing plan text
 
 Deterministic persist flow:
-1. read input
-2. canonicalize text
-3. append plan-record version evidence in active workspace
-4. append plan persist audit event
-5. reroute kernel state
+1. normalize input
+2. persist evidence
+3. append audit event
+4. reroute state
 
 ## Commands by platform
 
@@ -49,15 +48,13 @@ If no snapshot is available, proceed using only the context visible in the curre
 
 ## Interpretation scope
 
-- `/continue` is the state materialization rail.
-- Plan drafts in chat do not pass the Plan Record Preparation Gate by themselves.
-- Run this persist command first when `active_gate` is `Plan Record Preparation Gate` and `plan_record_status` is absent.
+- Plan drafts in chat do not pass the Plan Record Preparation Gate by themselves; the persist command must run.
 - After successful persist, run `/continue` to materialize gate advancement.
+- This rail persists plan-record evidence; it does not perform implementation.
 
 ## Response shape
 
-- report current `phase` and `next` after plan persist
-- report `active_gate` and `next_gate_condition`
+- report current `phase`, `next`, `active_gate`, and `next_gate_condition` after persist
 - if the persist command succeeded, confirm evidence was written and state was rerouted
 - if a blocker or warning is present, render it with concise evidence and one recovery action
 
