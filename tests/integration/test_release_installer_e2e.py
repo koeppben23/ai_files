@@ -4,6 +4,7 @@ import os
 import shutil
 import subprocess
 import sys
+import tempfile
 import zipfile
 from pathlib import Path
 import pytest
@@ -20,14 +21,15 @@ def _check_pyyaml_in_subprocess() -> bool:
     """
     try:
         env = dict(os.environ)
-        env["HOME"] = "/mock/_pyyaml_probe_nonexistent"
-        result = subprocess.run(
-            [sys.executable, "-c", "import yaml"],
-            capture_output=True,
-            check=False,
-            env=env,
-        )
-        return result.returncode == 0
+        with tempfile.TemporaryDirectory(prefix="pyyaml_probe_home_") as probe_home:
+            env["HOME"] = probe_home
+            result = subprocess.run(
+                [sys.executable, "-c", "import yaml"],
+                capture_output=True,
+                check=False,
+                env=env,
+            )
+            return result.returncode == 0
     except Exception:
         return False
 

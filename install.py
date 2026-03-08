@@ -611,8 +611,8 @@ def _write_python_binding_file(bin_dir: Path, python_exe: str) -> Path:
     See python-binding-contract.v1 Section 2.2.
     """
     binding_file = bin_dir / "PYTHON_BINDING"
-    # Always POSIX-normalized absolute path
-    posix_path = Path(python_exe).resolve().as_posix()
+    # Always POSIX-normalized absolute path (match governance.paths.json normalization)
+    posix_path = Path(os.path.normpath(os.path.abspath(str(Path(python_exe).expanduser())))).as_posix()
     binding_file.write_text(posix_path + "\n", encoding="utf-8")
     return binding_file
 

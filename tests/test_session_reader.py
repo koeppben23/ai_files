@@ -1154,6 +1154,88 @@ class TestMain:
         assert updated_state["active_gate"] == "Plan Record Preparation Gate"
         assert updated_state["PlanRecordVersions"] == 0
 
+    def test_materialize_mode_phase5_ready_uses_next_token_and_clears_p53_gate(
+        self,
+        fake_config: Path,
+    ) -> None:
+        """When Phase 5 is review-complete, materialize must not stall at token 5.
+
+        Regression guard: if Phase is still 5-ArchitectureReview but Next already
+        points to 5.3 with transition evidence present, /continue must execute the
+        next token path and clear P5.3-TestQuality from pending.
+        """
+        ws_state = _write_pointer(fake_config)
+        _write_workspace_state(
+            ws_state,
+            {
+                "SESSION_STATE": {
+                    "Phase": "5-ArchitectureReview",
+                    "Next": "5.3",
+                    "active_gate": "Architecture Review Gate",
+                    "next_gate_condition": "Proceed to Phase 5.3 test-quality gate.",
+                    "status": "OK",
+                    "phase_transition_evidence": True,
+                    "ActiveProfile": "profile.fallback-minimum",
+                    "TicketRecordDigest": "sha256:ticket-v1",
+                    "PersistenceCommitted": True,
+                    "WorkspaceReadyGateCommitted": True,
+                    "WorkspaceArtifactsCommitted": True,
+                    "PointerVerified": True,
+                    "LoadedRulebooks": {
+                        "core": "rulesets/core/rules.yml",
+                        "profile": "rulesets/profiles/rules.fallback-minimum.yml",
+                        "addons": {
+                            "riskTiering": "rulesets/profiles/rules.risk-tiering.yml",
+                        },
+                    },
+                    "RulebookLoadEvidence": {
+                        "core": "rulesets/core/rules.yml",
+                        "profile": "rulesets/profiles/rules.fallback-minimum.yml",
+                    },
+                    "AddonsEvidence": {
+                        "riskTiering": {"status": "loaded"},
+                    },
+                    "TechnicalDebt": {"Proposed": False},
+                    "RollbackRequired": False,
+                    "Gates": {
+                        "P5-Architecture": "approved",
+                        "P5.3-TestQuality": "pending",
+                    },
+                }
+            },
+        )
+
+        commands_home = fake_config / "commands"
+        (commands_home / "phase_api.yaml").write_text(
+            (Path(__file__).resolve().parent.parent / "phase_api.yaml").read_text(encoding="utf-8"),
+            encoding="utf-8",
+        )
+        (commands_home / "governance.paths.json").write_text(
+            json.dumps(
+                {
+                    "schema": "opencode-governance.paths.v1",
+                    "paths": {
+                        "commandsHome": str(commands_home),
+                        "workspacesHome": str(fake_config / "workspaces"),
+                        "configRoot": str(fake_config),
+                        "pythonCommand": "python3",
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        (ws_state.parent / "plan-record.json").write_text(
+            json.dumps({"status": "active", "versions": [{"version": 1}]}, ensure_ascii=True),
+            encoding="utf-8",
+        )
+
+        snapshot = read_session_snapshot(commands_home=commands_home, materialize=True)
+
+        assert snapshot["phase"] == "6-PostFlight"
+        assert snapshot["next"] == "6"
+        persisted = json.loads(ws_state.read_text(encoding="utf-8"))["SESSION_STATE"]
+        assert persisted["Gates"]["P5.3-TestQuality"] == "pass"
+
     def test_materialize_mode_phase4_ticket_intake_does_not_emit_continue_hint(
         self,
         fake_config: Path,
@@ -1368,6 +1450,92 @@ class TestMain:
         assert updated_state["phase6_review_iterations"] == 2
         assert updated_state["phase6_revision_delta"] == "none"
         assert updated_state["implementation_review_complete"] is True
+
+    def test_materialize_mode_phase6_normalizes_stale_completion_flags(
+        self,
+        fake_config: Path,
+        capsys: pytest.CaptureFixture,
+    ) -> None:
+        """Phase 6 should not keep stale in-progress flags once iterations are complete."""
+        ws_state = _write_pointer(fake_config)
+        _write_workspace_state(
+            ws_state,
+            {
+                "SESSION_STATE": {
+                    "Phase": "6-PostFlight",
+                    "Next": "6",
+                    "active_gate": "Evidence Presentation Gate",
+                    "next_gate_condition": "Implementation review loop is complete.",
+                    "status": "OK",
+                    "phase6_review_iterations": 3,
+                    "phase6_max_review_iterations": 3,
+                    "phase6_min_self_review_iterations": 1,
+                    "phase6_revision_delta": "changed",
+                    "implementation_review_complete": False,
+                    "phase6_state": "phase6_in_progress",
+                    "ImplementationReview": {
+                        "iteration": 3,
+                        "max_iterations": 3,
+                        "min_self_review_iterations": 1,
+                        "completion_status": "phase6-in-progress",
+                        "implementation_review_complete": False,
+                    },
+                    "ActiveProfile": "profile.fallback-minimum",
+                    "TicketRecordDigest": "sha256:ticket-v1",
+                    "phase5_plan_record_digest": "sha256:plan-v1",
+                    "PersistenceCommitted": True,
+                    "WorkspaceReadyGateCommitted": True,
+                    "WorkspaceArtifactsCommitted": True,
+                    "PointerVerified": True,
+                    "LoadedRulebooks": {
+                        "core": "rulesets/core/rules.yml",
+                        "profile": "rulesets/profiles/rules.fallback-minimum.yml",
+                        "addons": {
+                            "riskTiering": "rulesets/profiles/rules.risk-tiering.yml",
+                        },
+                    },
+                    "RulebookLoadEvidence": {
+                        "core": "rulesets/core/rules.yml",
+                        "profile": "rulesets/profiles/rules.fallback-minimum.yml",
+                    },
+                    "AddonsEvidence": {
+                        "riskTiering": {"status": "loaded"},
+                    },
+                }
+            },
+        )
+
+        commands_home = fake_config / "commands"
+        (commands_home / "phase_api.yaml").write_text(
+            (Path(__file__).resolve().parent.parent / "phase_api.yaml").read_text(encoding="utf-8"),
+            encoding="utf-8",
+        )
+        (commands_home / "governance.paths.json").write_text(
+            json.dumps(
+                {
+                    "schema": "opencode-governance.paths.v1",
+                    "paths": {
+                        "commandsHome": str(commands_home),
+                        "workspacesHome": str(fake_config / "workspaces"),
+                        "configRoot": str(fake_config),
+                        "pythonCommand": "python3",
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        rc = main(["--commands-home", str(commands_home), "--materialize"])
+        assert rc == 0
+        output = capsys.readouterr().out
+        assert "implementation_review_complete: true" in output
+
+        updated_state = json.loads(ws_state.read_text(encoding="utf-8"))["SESSION_STATE"]
+        assert updated_state["implementation_review_complete"] is True
+        assert updated_state["phase6_state"] == "phase6_completed"
+        review = updated_state["ImplementationReview"]
+        assert review["completion_status"] == "phase6-completed"
+        assert review["implementation_review_complete"] is True
 
     def test_edge_materialize_mode_phase6_clamps_iteration_bounds(
         self,
@@ -2155,6 +2323,19 @@ class TestResolveNextActionLine:
         }
         assert _resolve_next_action_line(snapshot) == "Next action: run /continue."
 
+    def test_next_action_line_explicit_p53_guidance_at_handoff(self) -> None:
+        """Phase 5 handoff to 5.3 must tell users to perform test-quality work."""
+        snapshot = {
+            "status": "OK",
+            "phase": "5-ArchitectureReview",
+            "next": "5.3",
+            "next_gate_condition": "Proceed to Phase 5.3 test-quality gate.",
+            "self_review_iterations_met": True,
+        }
+        assert _resolve_next_action_line(snapshot) == (
+            "Next action: execute Phase 5.3 test-quality review, then run /continue."
+        )
+
     def test_no_stale_next_gate_condition(self) -> None:
         """Blocked status never emits any action line."""
         snapshot = {
@@ -2163,6 +2344,42 @@ class TestResolveNextActionLine:
             "next_gate_condition": "BLOCKED: stale condition",
         }
         assert _resolve_next_action_line(snapshot) == ""
+
+    def test_next_action_line_explicit_p54_guidance(self) -> None:
+        """Phase 5.4 should emit explicit business-rules guidance."""
+        snapshot = {
+            "status": "OK",
+            "phase": "5.4-BusinessRules",
+            "next": "5.5",
+            "next_gate_condition": "Business rules validation complete; technical debt proposed",
+        }
+        assert _resolve_next_action_line(snapshot) == (
+            "Next action: complete Phase 5.4 business-rules validation, then run /continue."
+        )
+
+    def test_next_action_line_explicit_p55_guidance(self) -> None:
+        """Phase 5.5 should emit explicit technical-debt guidance."""
+        snapshot = {
+            "status": "OK",
+            "phase": "5.5-TechnicalDebt",
+            "next": "5.6",
+            "next_gate_condition": "Technical debt recorded; rollback checks required",
+        }
+        assert _resolve_next_action_line(snapshot) == (
+            "Next action: complete Phase 5.5 technical-debt review, then run /continue."
+        )
+
+    def test_next_action_line_explicit_p56_guidance(self) -> None:
+        """Phase 5.6 should emit explicit rollback-safety guidance."""
+        snapshot = {
+            "status": "OK",
+            "phase": "5.6-RollbackSafety",
+            "next": "6",
+            "next_gate_condition": "Rollback safety checks complete; proceed to post-flight",
+        }
+        assert _resolve_next_action_line(snapshot) == (
+            "Next action: complete Phase 5.6 rollback-safety checks, then run /continue."
+        )
 
     def test_empty_for_ticket_intake(self) -> None:
         """Ticket intake condition returns empty (needs /ticket, not /continue)."""
