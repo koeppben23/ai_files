@@ -1,4 +1,4 @@
-# /audit — Self-Audit & Diagnostics (Read-Only)
+# /audit-readout — Self-Audit & Diagnostics (Read-Only)
 
 ## PURPOSE (Descriptive)
 Run a deterministic, read-only governance pass over the current session.
@@ -72,7 +72,7 @@ No other SESSION_STATE fields may be modified.
 
 ## ABUSE-RESISTANCE (Normative for audit scope; Read-Only Diagnostics)
 
-The `/audit` command MUST NOT be used as a governance override.
+The `/audit-readout` command MUST NOT be used as a governance override.
 It is diagnostic only.
 
 ### AR-1 — No gate bypass
@@ -84,8 +84,8 @@ It is diagnostic only.
 - If evidence is not explicitly present, mark as `absent`, `unknown`, or `theoretical-only` (never upgrade by inference).
 
 ### AR-3 — No workflow control mutation
-- `/audit` MUST NOT modify `Phase`, `Gates`, or `Next`.
-- If `[SESSION_STATE]` is ambiguous or incomplete, `/audit` MUST return `status.state=blocked` and request missing state, without creating or repairing it.
+- `/audit-readout` MUST NOT modify `Phase`, `Gates`, or `Next`.
+- If `[SESSION_STATE]` is ambiguous or incomplete, `/audit-readout` MUST return `status.state=blocked` and request missing state, without creating or repairing it.
 
 ### AR-4 — No repo-local writes
 - Audit report persistence MUST write only to workspace paths under `${WORKSPACES_HOME}` (never the repository).

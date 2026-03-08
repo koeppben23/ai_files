@@ -32,6 +32,17 @@ class TestLegacyCommandSurfaceMigration:
         assert "continue via /continue" in content
         assert "resume via /continue" not in content
 
+    def test_happy_audit_catalog_uses_audit_readout_vocabulary(self) -> None:
+        content = _read("governance/assets/catalogs/audit.md")
+        assert "/audit-readout" in content
+        assert "The `/audit` command" not in content
+        assert "- `/audit` MUST NOT" not in content
+
+    def test_happy_operator_runbook_uses_continue_for_recovery(self) -> None:
+        content = _read("docs/operator-runbook.md")
+        assert "Run `/continue`" in content
+        assert "Run `/resume`" not in content
+
     def test_bad_no_active_resume_or_short_audit_in_target_surfaces(self) -> None:
         files = [
             "governance/assets/reasons/blocked_reason_catalog.yaml",

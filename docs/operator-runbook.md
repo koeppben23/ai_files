@@ -263,7 +263,7 @@ Data sources merged below:
 | `BLOCKED-INVALID-NEXT-ACTION` | Response contract validation rejected `next_action` for current phase/gate. | Use `next_action.type=command` before phase 4 and rerun response rendering. |
 | `BLOCKED-GOLDEN-BASELINE-MODIFIED-IN-PR` | Golden baseline files were modified in a PR, risking regression masking. | Revert baseline modifications or get explicit approval. |
 | `BLOCKED-2-REPO-DISCOVERY` | Phase 2 (Repo Discovery) could not complete. | Ensure valid repo context and retry discovery. |
-| `BLOCKED-R` | A recovery routine is required to proceed (explicit recovery gate). | Run `/resume` or the defined recovery routine and re-validate `SESSION_STATE`. |
+| `BLOCKED-R` | A recovery routine is required to proceed (explicit recovery gate). | Run `/continue` or the defined recovery routine and re-validate `SESSION_STATE`. |
 
 ### 4.11 Parameterized Prefixes
 

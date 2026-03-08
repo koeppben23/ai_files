@@ -54,7 +54,7 @@ ${CONFIG_ROOT}/
     review.md
     plan.md
     ticket.md
-    docs/resume.md
+    docs/resume.md               # Legacy compatibility alias for /continue guidance
     README.md
     README-RULES.md
     README-OPENCODE.md

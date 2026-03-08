@@ -35,7 +35,7 @@ ${COMMANDS_HOME}/
   BOOTSTRAP.md
   continue.md
   review.md
-  docs/resume.md
+  docs/resume.md                 # legacy compatibility alias for /continue guidance
   README.md
   README-RULES.md
   README-OPENCODE.md
