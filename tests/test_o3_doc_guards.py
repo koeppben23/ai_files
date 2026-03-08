@@ -241,7 +241,7 @@ class TestReadmeAuthorityHappy:
 class TestO3SurfaceBad:
     """Prevent regression to deprecated command and entrypoint surfaces."""
 
-    _DOCS = ["README-OPENCODE.md", "QUICKSTART.md", "README.md"]
+    _DOCS = ["README-OPENCODE.md", "QUICKSTART.md", "README.md", "docs/operator-runbook.md"]
 
     @pytest.mark.parametrize("relpath", _DOCS)
     def test_no_direct_governance_entrypoint_calls(self, relpath: str) -> None:
@@ -260,7 +260,7 @@ class TestO3SurfaceBad:
     @pytest.mark.parametrize("relpath", _DOCS)
     def test_no_audit_short_command(self, relpath: str) -> None:
         content = _read(relpath)
-        assert re.search(r"(?<!-readout)\b/audit\b", content) is None, (
+        assert re.search(r"/audit(?![-a-zA-Z0-9_])", content) is None, (
             f"{relpath} must not include deprecated /audit command"
         )
 
@@ -286,3 +286,21 @@ class TestO3SurfaceHappy:
         required = ["/continue", "/ticket", "/plan", "/review", "/audit-readout"]
         for cmd in required:
             assert cmd in content, f"Missing expected command in O3 docs: {cmd}"
+
+
+class TestO3ActiveCatalogGuards:
+    """Ensure active governance catalogs do not regress to legacy command wording."""
+
+    _ACTIVE_CATALOGS = [
+        "governance/assets/reasons/blocked_reason_catalog.yaml",
+        "governance/assets/config/blocked_reason_catalog.yaml",
+        "governance/assets/catalogs/reason_codes.registry.json",
+        "SESSION_STATE_SCHEMA.md",
+        "phase_api.yaml",
+    ]
+
+    @pytest.mark.parametrize("relpath", _ACTIVE_CATALOGS)
+    def test_no_resume_pointer_or_reload_alias(self, relpath: str) -> None:
+        content = _read(relpath)
+        assert "resume_pointer" not in content
+        assert "/reload-addons" not in content
