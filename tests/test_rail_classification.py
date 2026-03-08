@@ -407,11 +407,11 @@ class TestMasterMdContentGuards:
             "replace with explicit positive statement about what IS permitted"
         )
 
-    def test_p53_gate_result_has_explicit_target(self) -> None:
-        """P5.3 test-quality-pass must specify explicit phase target."""
-        assert "proceed to Phase 6" in self.content, (
-            "master.md test-quality-pass gate result must specify "
-            "'proceed to Phase 6' (not ambiguous 'proceed')"
+    def test_p53_gate_result_is_readiness_gate(self) -> None:
+        """P5.3 test-quality-pass must be framed as implementation readiness."""
+        assert "implementation readiness" in self.content, (
+            "master.md test-quality-pass gate result must frame P5.3 as "
+            "implementation readiness"
         )
 
     def test_p53_critical_gate_documented(self) -> None:

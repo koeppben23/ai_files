@@ -67,7 +67,7 @@ Rule B - plan self-review requirement:
 ## Review and quality checkpoints
 
 - Architecture review verifies conventions, dependency integrity, and risk posture.
-- Phase 5.3 is CRITICAL and `test-quality-pass` must proceed to Phase 6.
+- Phase 5.3 is CRITICAL and confirms implementation readiness.
 
 </operative-constraints>
 

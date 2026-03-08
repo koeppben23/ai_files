@@ -157,7 +157,7 @@ class TestOperativePreservationMaster:
 
     def test_phase53_critical_gate(self) -> None:
         assert "CRITICAL" in self.text
-        assert "proceed to Phase 6" in self.text
+        assert "implementation readiness" in self.text
 
     def test_confidence_clarification(self) -> None:
         assert "confidence" in self.lower
