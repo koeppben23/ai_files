@@ -407,11 +407,11 @@ class TestMasterMdContentGuards:
             "replace with explicit positive statement about what IS permitted"
         )
 
-    def test_p53_gate_result_has_explicit_target(self) -> None:
-        """P5.3 test-quality-pass must specify explicit phase target."""
-        assert "proceed to Phase 6" in self.content, (
-            "master.md test-quality-pass gate result must specify "
-            "'proceed to Phase 6' (not ambiguous 'proceed')"
+    def test_p53_gate_result_is_readiness_gate(self) -> None:
+        """P5.3 test-quality-pass must be framed as implementation readiness."""
+        assert "implementation readiness" in self.content, (
+            "master.md test-quality-pass gate result must frame P5.3 as "
+            "implementation readiness"
         )
 
     def test_p53_critical_gate_documented(self) -> None:
@@ -442,7 +442,7 @@ class TestMasterMdContentGuards:
 
 
 class TestQuickstartContentGuards:
-    """Verify QUICKSTART.md example drift fix is in place."""
+    """Verify QUICKSTART.md stays in compact 4-step mode."""
 
     @pytest.fixture(autouse=True)
     def _load_quickstart(self) -> None:
@@ -450,33 +450,30 @@ class TestQuickstartContentGuards:
         assert self.path.exists()
         self.content = self.path.read_text(encoding="utf-8")
 
-    def test_start_new_work_mentions_plan_mode(self) -> None:
-        """'Start new work' example must mention Plan Mode."""
-        # Find the 'Start new work' section
-        start_idx = self.content.find("Start new work")
-        assert start_idx >= 0, "QUICKSTART.md must contain 'Start new work' section"
-        # Find the next section or end of file
-        next_section_idx = self.content.find("**Debug", start_idx)
-        if next_section_idx < 0:
-            next_section_idx = len(self.content)
-        section = self.content[start_idx:next_section_idx]
-        assert "plan mode" in section.lower(), (
-            "QUICKSTART.md 'Start new work' example must mention Plan Mode step. "
-            "Line 62 mandates Plan Mode for new tickets but the example was missing it."
+    def test_step4_focuses_on_desktop_entrypoint(self) -> None:
+        """Step 4 should stay minimal: Desktop + /continue + doc handoff."""
+        start_idx = self.content.find("## Step 4")
+        assert start_idx >= 0, "QUICKSTART.md must contain Step 4"
+        output_codes_idx = self.content.find("## Output Codes")
+        assert output_codes_idx > start_idx, "QUICKSTART.md must keep Output Codes after Step 4"
+        section = self.content[start_idx:output_codes_idx].lower()
+        assert "opencode desktop" in section and "`/continue`" in section, (
+            "QUICKSTART.md Step 4 must center desktop startup with /continue"
+        )
+        assert "readme-opencode.md" in section, (
+            "QUICKSTART.md Step 4 must hand off rail/lifecycle detail to README-OPENCODE.md"
         )
 
-    def test_workflow_order_in_example(self) -> None:
-        """'Start new work' example must show correct workflow order."""
-        start_idx = self.content.find("Start new work")
-        assert start_idx >= 0
-        next_section_idx = self.content.find("**Debug", start_idx)
-        if next_section_idx < 0:
-            next_section_idx = len(self.content)
-        section = self.content[start_idx:next_section_idx]
-        # /continue must appear before /ticket
-        continue_pos = section.find("/continue")
-        ticket_pos = section.find("/ticket")
-        review_pos = section.find("/review")
-        assert continue_pos < ticket_pos < review_pos, (
-            "QUICKSTART.md example must show /continue before /ticket before /review"
+    def test_step4_avoids_runbook_overhang(self) -> None:
+        """Step 4 must avoid policy/runbook detail."""
+        start_idx = self.content.find("## Step 4")
+        output_codes_idx = self.content.find("## Output Codes")
+        assert start_idx >= 0 and output_codes_idx > start_idx
+        section = self.content[start_idx:output_codes_idx].lower()
+
+        assert "plan mode" not in section, (
+            "QUICKSTART.md Step 4 should avoid Phase-4 plan-mode policy detail"
+        )
+        assert "| command | purpose |" not in section, (
+            "QUICKSTART.md Step 4 should not include a command runbook table"
         )
