@@ -342,7 +342,7 @@ Allowed values:
 
 - `1` (rules loading)
 - `1.1-Bootstrap` (minimal bootstrap / initial rule loading)
-- `1.2-ProfileDetection` (profile detection after repo discovery)
+- `1.2-ActivationIntent` (activation intent after repo discovery)
 - `1.3-CoreRulesActivation` (core rules activation at Phase 4 entry)
 - `2` (repository discovery)
 - `2.1-DecisionPack` (decision pack distillation)

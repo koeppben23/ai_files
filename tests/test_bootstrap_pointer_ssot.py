@@ -275,7 +275,7 @@ class TestSchemaDriftElimination:
             "repo_fingerprint": "a1b2c3d4e5f6a1b2c3d4e5f6",
             "session_id": "test-session",
             "workspace_ready": True,
-            "active_session_state_file": "/tmp/workspaces/a1b2c3d4e5f6a1b2c3d4e5f6/SESSION_STATE.json",
+            "active_session_state_file": "/mock/workspaces/a1b2c3d4e5f6a1b2c3d4e5f6/SESSION_STATE.json",
             "updated_at": "2026-02-21T20:00:00Z",
         }
         pointer_file.write_text(json.dumps(legacy_data))
@@ -296,7 +296,7 @@ class TestSchemaDriftElimination:
         canonical_data = {
             "schema": CANONICAL_POINTER_SCHEMA,
             "activeRepoFingerprint": "a1b2c3d4e5f6a1b2c3d4e5f6",
-            "activeSessionStateFile": "/tmp/workspaces/a1b2c3d4e5f6a1b2c3d4e5f6/SESSION_STATE.json",
+            "activeSessionStateFile": "/mock/workspaces/a1b2c3d4e5f6a1b2c3d4e5f6/SESSION_STATE.json",
             "activeSessionStateRelativePath": "workspaces/a1b2c3d4e5f6a1b2c3d4e5f6/SESSION_STATE.json",
             "updatedAt": "2026-02-21T20:00:00Z",
         }

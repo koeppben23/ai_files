@@ -260,7 +260,7 @@ class TestNewWorkSessionEntrypoint:
         real_writer = new_work_session._write_json_atomic
 
         def _boom(path: Path, payload: dict[str, object] | object) -> None:
-            if str(path).endswith("/runs/run-old-001/SESSION_STATE.json"):
+            if str(path).replace("\\", "/").endswith("/runs/run-old-001/SESSION_STATE.json"):
                 raise RuntimeError("disk-full")
             real_writer(path, payload)  # type: ignore[arg-type]
 

@@ -82,6 +82,10 @@ EMBEDDED_REASON_CODE_TO_SCHEMA_REF: Final[dict[str, str]] = {
     "BLOCKED-INSTALL-PRECHECK-MISSING-SOURCE": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
     "BLOCKED-INSTALL-VERSION-MISSING": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
     "BLOCKED-INSTALL-CONFIG-ROOT-INVALID": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
+    # Contract drift
+    "BLOCKED-CONTRACT-LAYOUT-DRIFT": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
+    "BLOCKED-CONTRACT-RUNTIME-DRIFT": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
+    "BLOCKED-CONTRACT-OPENCODE-DRIFT": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
     # Model identity
     "BLOCKED-MODEL-IDENTITY-UNTRUSTED": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
     "BLOCKED-MODEL-CONTEXT-LIMIT-REQUIRED": "governance/assets/schemas/reason_payload_blocked_core.v1.json",

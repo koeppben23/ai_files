@@ -1,3 +1,4 @@
+<!-- rail-classification: FACTORY-COMMAND, MUTATING -->
 # Governance Factory - New Profile
 
 Purpose (binding):

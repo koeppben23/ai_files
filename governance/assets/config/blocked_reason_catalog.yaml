@@ -529,6 +529,66 @@ blocked_reasons:
       - "Re-run phase transition"
     message_template: "Strict exit blocked: no contract criteria defined for phase {phase} under principal_strict mode."
 
+  # ---------------------------------------------------------------------------
+  # Contract drift — install layout
+  # ---------------------------------------------------------------------------
+  BLOCKED-CONTRACT-LAYOUT-DRIFT:
+    reason_code: "BLOCKED-CONTRACT-LAYOUT-DRIFT"
+    surface: "gate"
+    category: "gate"
+    trigger_description: "Installed file tree does not match install-layout-contract.v_current — missing artifacts, unexpected files, or wrong ownership."
+    required_inputs:
+      - "install-layout-contract.v_current.md in docs/contracts/"
+      - "Binding evidence from governance.paths.json"
+    quick_fix_commands:
+      - "${PYTHON_COMMAND} install.py"
+    resume_pointer: "Install-layout conformance gate"
+    recovery_steps:
+      - "Run the installer to regenerate missing artifacts"
+      - "Remove unexpected files that violate the contract"
+      - "Verify governance.paths.json binding evidence is valid"
+    message_template: "Install layout contract drift detected: {drift_detail}. Re-run installer to restore conformance."
+
+  # ---------------------------------------------------------------------------
+  # Contract drift — runtime state
+  # ---------------------------------------------------------------------------
+  BLOCKED-CONTRACT-RUNTIME-DRIFT:
+    reason_code: "BLOCKED-CONTRACT-RUNTIME-DRIFT"
+    surface: "gate"
+    category: "gate"
+    trigger_description: "Runtime state invariants from runtime-state-contract.v1 are violated — pointer semantics, artifact classification, or backup/purge rules breached."
+    required_inputs:
+      - "runtime-state-contract.v1.md in docs/contracts/"
+      - "SESSION_STATE.json pointer and workspace artifacts"
+    quick_fix_commands:
+      - "${PYTHON_COMMAND} install.py"
+    resume_pointer: "Runtime-state conformance gate"
+    recovery_steps:
+      - "Verify SESSION_STATE.json pointer resolves to a valid workspace"
+      - "Ensure canonical artifacts exist and derived artifacts are regenerable"
+      - "Re-run installer if pointer or workspace structure is corrupted"
+    message_template: "Runtime state contract drift detected: {drift_detail}. Verify pointer and workspace integrity."
+
+  # ---------------------------------------------------------------------------
+  # Contract drift — opencode integration
+  # ---------------------------------------------------------------------------
+  BLOCKED-CONTRACT-OPENCODE-DRIFT:
+    reason_code: "BLOCKED-CONTRACT-OPENCODE-DRIFT"
+    surface: "gate"
+    category: "gate"
+    trigger_description: "opencode.json integration invariants from opencode-integration-contract.v1 are violated — merge ownership, plugin lifecycle, or uninstall guarantees breached."
+    required_inputs:
+      - "opencode-integration-contract.v1.md in docs/contracts/"
+      - "opencode.json at config root"
+    quick_fix_commands:
+      - "${PYTHON_COMMAND} install.py"
+    resume_pointer: "OpenCode-integration conformance gate"
+    recovery_steps:
+      - "Re-run installer to regenerate opencode.json with correct merge ownership"
+      - "Verify plugin paths resolve and rail injection order is correct"
+      - "Confirm opencode.json is not deleted on uninstall (retention guarantee)"
+    message_template: "OpenCode integration contract drift detected: {drift_detail}. Re-run installer to restore conformance."
+
 # Quick Fix Command Templates (Kernel-Enforced)
 quick_fix_templates:
   start: "opencode-governance-bootstrap"

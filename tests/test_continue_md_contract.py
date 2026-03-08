@@ -1,14 +1,14 @@
 """Tests for continue.md contract — template placeholder and installed path injection.
 
 Validates:
-- Source template contains {{SESSION_READER_PATH}} placeholder
+- Source template contains {{BIN_DIR}} placeholder for launcher-based invocation
 - Source template contains Resume Session State section with three-tier fallback
-- inject_session_reader_path() replaces placeholder with concrete path
-- Injected path points to governance/entrypoints/session_reader.py
+- inject_session_reader_path_for_command() replaces {{BIN_DIR}} with concrete path
 - Dry-run mode does not modify the file
 - Missing continue.md is handled gracefully
 - Already-injected file (no placeholder) is skipped
 - Fallback tiers (preferred command, user-paste, proceed without) are present
+- Legacy {{PYTHON_COMMAND}} / {{SESSION_READER_PATH}} injection still works
 
 Copyright 2026 Benjamin Fuchs. All rights reserved. See LICENSE.
 """
@@ -23,15 +23,15 @@ import re
 import pytest
 
 from install import (
+    BIN_DIR_PLACEHOLDER,
     PYTHON_COMMAND_PLACEHOLDER,
     SESSION_READER_PLACEHOLDER,
     inject_session_reader_path,
+    inject_session_reader_path_for_command,
 )
 from tests.util import REPO_ROOT
 
-# Platform-aware python command for inject tests.  These tests do string
-# substitution only (no execution), but using sys.executable avoids confusion
-# when reading test output on Windows where ``python3`` does not exist.
+# Platform-aware python command for legacy inject tests.
 _TEST_PYTHON_CMD = sys.executable
 
 
@@ -49,34 +49,36 @@ class TestSourceTemplate:
         self.content = self.source_path.read_text(encoding="utf-8")
 
     def test_placeholder_present(self) -> None:
-        """Source template must contain placeholders for python and session reader path."""
-        assert SESSION_READER_PLACEHOLDER in self.content, (
-            f"continue.md must contain '{SESSION_READER_PLACEHOLDER}' placeholder. "
-            "This is replaced at install time with the concrete path."
-        )
-        assert PYTHON_COMMAND_PLACEHOLDER in self.content, (
-            f"continue.md must contain '{PYTHON_COMMAND_PLACEHOLDER}' placeholder. "
-            "This is replaced at install time with the bound python command."
+        """Source template must contain {{BIN_DIR}} placeholder for launcher invocation."""
+        assert BIN_DIR_PLACEHOLDER in self.content, (
+            f"continue.md must contain '{BIN_DIR_PLACEHOLDER}' placeholder. "
+            "This is replaced at install time with the concrete bin/ directory path."
         )
 
-    def test_resume_session_state_present(self) -> None:
-        """Source template must contain the Resume Session State section."""
-        assert "Resume Session State" in self.content, (
-            "continue.md must contain a 'Resume Session State' section. "
-            "This instructs the LLM to load session state before responding."
+    def test_purpose_section_present(self) -> None:
+        """Source template must contain a Purpose section."""
+        assert "## Purpose" in self.content, (
+            "continue.md must contain a '## Purpose' section. "
+            "This instructs the LLM about the command's function."
         )
 
     def test_governance_kernel_bridge_comment(self) -> None:
-        """Source template must contain the installer-provenance bridge comment."""
-        assert "governance installer" in self.content.lower(), (
-            "continue.md must document that the kernel bridge command was "
-            "placed by the governance installer and is safe to execute."
+        """Source template must contain descriptive command-purpose statement."""
+        assert "materializes and prints" in self.content.lower(), (
+            "continue.md must contain a descriptive statement explaining "
+            "the command's purpose (materializes and prints session state)."
         )
 
-    def test_python_invocation(self) -> None:
-        """Source template must invoke the reader through the bound python placeholder."""
-        assert f"{PYTHON_COMMAND_PLACEHOLDER} \"" in self.content or PYTHON_COMMAND_PLACEHOLDER in self.content, (
-            "continue.md must invoke session_reader.py via the bound python placeholder"
+    def test_launcher_invocation(self) -> None:
+        """Source template must invoke via opencode-governance-bootstrap launcher."""
+        assert "opencode-governance-bootstrap" in self.content, (
+            "continue.md must invoke session reader via the opencode-governance-bootstrap launcher"
+        )
+        assert "--session-reader" in self.content, (
+            "continue.md must use --session-reader subcommand"
+        )
+        assert "--materialize" in self.content, (
+            "continue.md must pass --materialize flag for state materialization"
         )
 
     def test_fallback_instructions_present(self) -> None:
@@ -99,9 +101,10 @@ class TestSourceTemplate:
         )
 
     def test_preferred_command_wording(self) -> None:
-        """Source template must use 'Preferred' wording for the command execution tier."""
-        assert "preferred" in self.content.lower(), (
-            "continue.md must use 'Preferred' wording to frame command execution as the ideal path"
+        """Source template must present the command as the primary execution path."""
+        content_lower = self.content.lower()
+        assert "commands by platform" in content_lower, (
+            "continue.md must have a 'Commands by platform' section"
         )
 
     def test_minimum_snapshot_fields_documented(self) -> None:
@@ -123,13 +126,13 @@ class TestSourceTemplate:
         )
 
     def test_three_tier_fallback_ordering(self) -> None:
-        """The three tiers must appear in order: preferred command, user paste, proceed without."""
-        preferred_pos = self.content.lower().find("preferred")
+        """The three tiers must appear in order: command block, paste fallback, proceed without."""
+        commands_pos = self.content.lower().find("commands by platform")
         paste_pos = self.content.lower().find("command cannot be executed")
         proceed_pos = self.content.lower().find("no snapshot is available")
-        assert preferred_pos < paste_pos < proceed_pos, (
+        assert commands_pos < paste_pos < proceed_pos, (
             "continue.md must present the three fallback tiers in order: "
-            "preferred command, user paste, proceed without"
+            "command block, user paste, proceed without"
         )
 
     def test_rail_classification_present(self) -> None:
@@ -149,19 +152,20 @@ class TestSourceTemplate:
         )
 
     def test_provenance_context_present(self) -> None:
-        """Source template must contain installer provenance context for trust."""
+        """Source template must contain descriptive context for the session command."""
         content_lower = self.content.lower()
-        assert "governance installer" in content_lower, (
-            "continue.md must mention 'governance installer' to establish provenance trust"
+        assert "materializes and prints" in content_lower, (
+            "continue.md must describe the command purpose (materializes and prints)"
         )
-        assert "safe to execute" in content_lower, (
-            "continue.md must state the command is 'safe to execute' for model trust"
+        assert "do not infer or mutate" in content_lower, (
+            "continue.md must contain a state-inference guard"
         )
 
     def test_safe_to_execute_statement(self) -> None:
-        """Source template must contain an explicit safe-to-execute statement."""
-        assert "safe to execute" in self.content.lower(), (
-            "continue.md must contain 'safe to execute' to prevent model refusals"
+        """Source template must NOT contain 'safe to execute' — trust-triggering language."""
+        assert "safe to execute" not in self.content.lower(), (
+            "continue.md must NOT contain 'safe to execute' — "
+            "this is trust-triggering language that causes model refusals"
         )
 
     def test_no_sole_exception_framing(self) -> None:
@@ -172,23 +176,28 @@ class TestSourceTemplate:
         )
 
     def test_fallback_tier_labels(self) -> None:
-        """Fallback tiers must be explicitly labeled (Tier A, Tier B, Tier C)."""
+        """Fallback tiers must use neutral rail-style-spec v1 labels (no Tier A/B/C)."""
         content_lower = self.content.lower()
-        assert "tier a" in content_lower, (
-            "continue.md must label the preferred command as 'Tier A'"
+        assert "tier a" not in content_lower, (
+            "continue.md must not use pressure-based 'Tier A' labeling (rail-style-spec v1)"
         )
-        assert "tier b" in content_lower, (
-            "continue.md must label the paste fallback as 'Tier B'"
+        assert "tier b" not in content_lower, (
+            "continue.md must not use pressure-based 'Tier B' labeling (rail-style-spec v1)"
         )
-        assert "tier c" in content_lower, (
-            "continue.md must label the conversation-context fallback as 'Tier C'"
+        assert "tier c" not in content_lower, (
+            "continue.md must not use pressure-based 'Tier C' labeling (rail-style-spec v1)"
+        )
+        assert "if execution is unavailable" in content_lower or "command cannot be executed" in content_lower, (
+            "continue.md must use neutral fallback phrasing per rail-style-spec v1"
         )
 
     def test_materialization_guard_statement(self) -> None:
-        """Source template must contain the materialization-only state mutation guard."""
+        """Source template must contain the state-inference guard."""
         lower = self.content.lower()
-        assert "do not infer or mutate" in lower and "beyond what the kernel materialization command persists" in lower, (
-            "continue.md must limit mutation scope to kernel materialization only"
+        assert "do not infer additional state beyond the materialized output" in lower or \
+               "do not infer additional state" in lower or \
+               "do not infer or mutate" in lower, (
+            "continue.md must limit inference scope to materialized output only"
         )
 
 
@@ -247,40 +256,181 @@ class TestNoModelRefusalPatterns:
 
     @pytest.mark.parametrize("template_name", TEMPLATES)
     def test_templates_share_identical_fallback_block(self, template_name: str) -> None:
-        """Both templates must share identical fallback semantics (same bridge section)."""
-        # Extract the bridge section: from the HTML comment to the --- separator
+        """Both templates must share identical fallback semantics (execution-unavailable section)."""
         content = self.contents[template_name]
-        bridge_start = content.find("<!-- GOVERNANCE KERNEL BRIDGE")
-        bridge_end = content.find("\n---\n", bridge_start) if bridge_start >= 0 else -1
-        # If no --- separator, use the end of the Tier C fallback block
-        if bridge_end < 0 and bridge_start >= 0:
-            bridge_end = content.find("before continuing.", bridge_start)
-            if bridge_end >= 0:
-                bridge_end = bridge_end + len("before continuing.")
-        assert bridge_start >= 0 and bridge_end >= 0, (
-            f"{template_name} must contain the kernel bridge section"
+        # Rail-style-spec v1: fallback starts with "If execution is unavailable" or
+        # "command cannot be executed" section
+        fallback_start = content.find("## If execution is unavailable")
+        if fallback_start < 0:
+            fallback_start = content.lower().find("command cannot be executed")
+        fallback_end = content.find("\n## ", fallback_start + 1) if fallback_start >= 0 else -1
+        if fallback_end < 0 and fallback_start >= 0:
+            fallback_end = content.find("state assumptions explicitly", fallback_start)
+            if fallback_end >= 0:
+                fallback_end = fallback_end + len("state assumptions explicitly")
+        assert fallback_start >= 0 and fallback_end >= 0, (
+            f"{template_name} must contain the execution-unavailable fallback section"
         )
 
     def test_continue_and_review_have_distinct_bridge_semantics(self) -> None:
-        """continue.md and review.md bridge blocks must differ (mutating vs read-only)."""
-        bridges = {}
+        """continue.md and review.md Purpose sections must differ (mutating vs read-only)."""
+        sections = {}
         for name in self.TEMPLATES:
             content = self.contents[name]
-            bridge_start = content.find("<!-- GOVERNANCE KERNEL BRIDGE")
-            # Find the end of the bridge: either --- separator or end of Tier C
-            bridge_end = content.find("\n---\n", bridge_start) if bridge_start >= 0 else -1
-            if bridge_end < 0 and bridge_start >= 0:
-                bridge_end = content.find("before continuing.", bridge_start)
-                if bridge_end >= 0:
-                    bridge_end = bridge_end + len("before continuing.")
-            bridges[name] = content[bridge_start:bridge_end]
-        assert bridges["continue.md"] != bridges["review.md"], (
+            section_start = content.find("## Purpose")
+            # Find the end: next ## section
+            section_end = content.find("\n## ", section_start + 1) if section_start >= 0 else -1
+            if section_end < 0 and section_start >= 0:
+                section_end = len(content)
+            sections[name] = content[section_start:section_end]
+        assert sections["continue.md"] != sections["review.md"], (
             "continue.md and review.md must differ because /continue materializes state while /review is read-only"
         )
 
 
 # ---------------------------------------------------------------------------
-# inject_session_reader_path() unit tests
+# inject BIN_DIR (launcher-era) unit tests
+# ---------------------------------------------------------------------------
+
+class TestInjectBinDir:
+    """Tests for {{BIN_DIR}} injection via inject_session_reader_path_for_command()."""
+
+    @pytest.fixture()
+    def commands_dir(self, tmp_path: Path) -> Path:
+        cmd = tmp_path / "commands"
+        cmd.mkdir()
+        return cmd
+
+    def _write_launcher_template(self, commands_dir: Path) -> Path:
+        """Write a continue.md with the {{BIN_DIR}} launcher pattern."""
+        continue_md = commands_dir / "continue.md"
+        content = (
+            "# Governance Continue\n"
+            "## Resume Session State\n"
+            "```bash\n"
+            f'PATH="{BIN_DIR_PLACEHOLDER}:$PATH" opencode-governance-bootstrap --session-reader --materialize\n'
+            "```\n"
+            "Use the YAML output.\n"
+        )
+        continue_md.write_text(content, encoding="utf-8")
+        return continue_md
+
+    def test_replaces_bin_dir_placeholder(self, commands_dir: Path) -> None:
+        """{{BIN_DIR}} is replaced with concrete bin/ path."""
+        self._write_launcher_template(commands_dir)
+        result = inject_session_reader_path_for_command(
+            commands_dir,
+            command_markdown="continue.md",
+            bin_dir="/home/user/.config/opencode/bin",
+            dry_run=False,
+        )
+        assert result["status"] == "injected"
+        content = (commands_dir / "continue.md").read_text(encoding="utf-8")
+        assert BIN_DIR_PLACEHOLDER not in content
+        assert "/home/user/.config/opencode/bin" in content
+
+    def test_injected_command_is_complete(self, commands_dir: Path) -> None:
+        """After injection, the full launcher command is present (platform-specific)."""
+        self._write_launcher_template(commands_dir)
+        inject_session_reader_path_for_command(
+            commands_dir,
+            command_markdown="continue.md",
+            bin_dir="/opt/governance/bin",
+            dry_run=False,
+        )
+        content = (commands_dir / "continue.md").read_text(encoding="utf-8")
+        if os.name == "nt":
+            assert 'set "PATH=/opt/governance/bin;%PATH%" && opencode-governance-bootstrap.cmd --session-reader --materialize' in content
+            assert "```cmd" in content
+        else:
+            assert 'PATH="/opt/governance/bin:$PATH" opencode-governance-bootstrap --session-reader --materialize' in content
+            assert "```bash" in content
+
+    def test_dry_run_no_change(self, commands_dir: Path) -> None:
+        """Dry run does not modify the file."""
+        continue_md = self._write_launcher_template(commands_dir)
+        original = continue_md.read_text(encoding="utf-8")
+
+        result = inject_session_reader_path_for_command(
+            commands_dir,
+            command_markdown="continue.md",
+            bin_dir="/some/bin",
+            dry_run=True,
+        )
+        assert result["status"] == "planned-inject"
+        assert continue_md.read_text(encoding="utf-8") == original
+
+    def test_missing_file(self, commands_dir: Path) -> None:
+        """Missing file is handled gracefully."""
+        result = inject_session_reader_path_for_command(
+            commands_dir,
+            command_markdown="continue.md",
+            bin_dir="/some/bin",
+            dry_run=False,
+        )
+        assert result["status"] == "skipped-missing"
+
+    def test_no_placeholder_skipped(self, commands_dir: Path) -> None:
+        """File without placeholder is skipped."""
+        continue_md = commands_dir / "continue.md"
+        # Use platform-appropriate "already injected" content
+        if os.name == "nt":
+            continue_md.write_text(
+                '# Already injected\nset "PATH=C:/concrete/bin;%PATH%" && opencode-governance-bootstrap.cmd\n',
+                encoding="utf-8",
+            )
+        else:
+            continue_md.write_text(
+                "# Already injected\nPATH=/concrete/bin:$PATH opencode-governance-bootstrap\n",
+                encoding="utf-8",
+            )
+
+        result = inject_session_reader_path_for_command(
+            commands_dir,
+            command_markdown="continue.md",
+            bin_dir="/some/bin",
+            dry_run=False,
+        )
+        assert result["status"] == "skipped-no-placeholder"
+
+    def test_preserves_other_content(self, commands_dir: Path) -> None:
+        """Other content in continue.md is not altered."""
+        self._write_launcher_template(commands_dir)
+        inject_session_reader_path_for_command(
+            commands_dir,
+            command_markdown="continue.md",
+            bin_dir="/opt/bin",
+            dry_run=False,
+        )
+        content = (commands_dir / "continue.md").read_text(encoding="utf-8")
+        assert "# Governance Continue" in content
+        assert "## Resume Session State" in content
+        assert "Use the YAML output." in content
+
+    def test_idempotent(self, commands_dir: Path) -> None:
+        """Running twice produces the same result (second run is a no-op)."""
+        self._write_launcher_template(commands_dir)
+        inject_session_reader_path_for_command(
+            commands_dir,
+            command_markdown="continue.md",
+            bin_dir="/opt/bin",
+            dry_run=False,
+        )
+        content_after_first = (commands_dir / "continue.md").read_text(encoding="utf-8")
+
+        result = inject_session_reader_path_for_command(
+            commands_dir,
+            command_markdown="continue.md",
+            bin_dir="/opt/bin",
+            dry_run=False,
+        )
+        assert result["status"] == "skipped-no-placeholder"
+        content_after_second = (commands_dir / "continue.md").read_text(encoding="utf-8")
+        assert content_after_first == content_after_second
+
+
+# ---------------------------------------------------------------------------
+# Legacy inject_session_reader_path() unit tests (backwards compatibility)
 # ---------------------------------------------------------------------------
 
 class TestInjectSessionReaderPath:

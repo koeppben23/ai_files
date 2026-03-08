@@ -1,3 +1,4 @@
+<!-- rail-classification: HYBRID, RELEASE-SIGNING -->
 # Release Security Model
 
 This note defines the release-signing threat model and deterministic verification contract.

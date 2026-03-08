@@ -39,6 +39,21 @@ if not defined OPENCODE_BOOTSTRAP_OUTPUT (
     set "OPENCODE_BOOTSTRAP_OUTPUT=final"
 )
 
-"%PYTHON_EXE%" -m governance.entrypoints.bootstrap_executor %*
+rem --- Subcommand routing (python-binding-contract.v1 §4) ---
+if "%~1"=="--session-reader" (
+    shift
+    "!PYTHON_EXE!" "%COMMANDS_HOME%\governance\entrypoints\session_reader.py" %*
+    set "WRAPPER_EXIT=%ERRORLEVEL%"
+    endlocal & exit /b %WRAPPER_EXIT%
+)
+if "%~1"=="--entrypoint" (
+    shift
+    set "MODULE=%~1"
+    shift
+    "!PYTHON_EXE!" -m !MODULE! %*
+    set "WRAPPER_EXIT=%ERRORLEVEL%"
+    endlocal & exit /b %WRAPPER_EXIT%
+)
+"!PYTHON_EXE!" -m governance.entrypoints.bootstrap_executor %*
 set "WRAPPER_EXIT=%ERRORLEVEL%"
 endlocal & exit /b %WRAPPER_EXIT%
