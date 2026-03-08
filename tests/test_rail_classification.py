@@ -442,7 +442,7 @@ class TestMasterMdContentGuards:
 
 
 class TestQuickstartContentGuards:
-    """Verify QUICKSTART.md example drift fix is in place."""
+    """Verify QUICKSTART.md stays in compact 4-step mode."""
 
     @pytest.fixture(autouse=True)
     def _load_quickstart(self) -> None:
@@ -450,33 +450,24 @@ class TestQuickstartContentGuards:
         assert self.path.exists()
         self.content = self.path.read_text(encoding="utf-8")
 
-    def test_start_new_work_mentions_plan_mode(self) -> None:
-        """'Start new work' example must mention Plan Mode."""
-        # Find the 'Start new work' section
-        start_idx = self.content.find("Start new work")
-        assert start_idx >= 0, "QUICKSTART.md must contain 'Start new work' section"
-        # Find the next section or end of file
-        next_section_idx = self.content.find("**Debug", start_idx)
-        if next_section_idx < 0:
-            next_section_idx = len(self.content)
-        section = self.content[start_idx:next_section_idx]
+    def test_step4_mentions_plan_mode(self) -> None:
+        """Step 4 must still mention Plan Mode at Phase 4."""
+        start_idx = self.content.find("## Step 4")
+        assert start_idx >= 0, "QUICKSTART.md must contain Step 4"
+        section = self.content[start_idx:]
         assert "plan mode" in section.lower(), (
-            "QUICKSTART.md 'Start new work' example must mention Plan Mode step. "
-            "Line 62 mandates Plan Mode for new tickets but the example was missing it."
+            "QUICKSTART.md Step 4 must mention Plan Mode for Phase 4 ticket intake"
         )
 
-    def test_workflow_order_in_example(self) -> None:
-        """'Start new work' example must show correct workflow order."""
-        start_idx = self.content.find("Start new work")
-        assert start_idx >= 0
-        next_section_idx = self.content.find("**Debug", start_idx)
-        if next_section_idx < 0:
-            next_section_idx = len(self.content)
-        section = self.content[start_idx:next_section_idx]
-        # /continue must appear before /ticket
-        continue_pos = section.find("/continue")
-        ticket_pos = section.find("/ticket")
-        review_pos = section.find("/review")
+    def test_command_order_in_table(self) -> None:
+        """Command table must keep continue -> ticket -> review progression."""
+        table_start = self.content.find("| Command | Purpose |")
+        assert table_start >= 0, "QUICKSTART.md must include command table"
+        section = self.content[table_start:]
+        continue_pos = section.find("`/continue`")
+        ticket_pos = section.find("`/ticket`")
+        review_pos = section.find("`/review`")
+        assert continue_pos >= 0 and ticket_pos >= 0 and review_pos >= 0
         assert continue_pos < ticket_pos < review_pos, (
-            "QUICKSTART.md example must show /continue before /ticket before /review"
+            "QUICKSTART.md command table must list /continue before /ticket before /review"
         )

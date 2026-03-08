@@ -115,14 +115,15 @@ class TestReadmeOpencodeCorner:
 
 
 class TestQuickstartHappy:
-    """QUICKSTART.md must stay focused on the three-step flow."""
+    """QUICKSTART.md must stay focused on the four-step flow."""
 
-    def test_three_steps_present(self) -> None:
-        """QUICKSTART.md must have Install, Bootstrap, and Continue steps."""
+    def test_four_steps_present(self) -> None:
+        """QUICKSTART.md must have Install, Verify, Bootstrap, and Continue steps."""
         content = _read("QUICKSTART.md")
         assert "## Step 1:" in content
         assert "## Step 2:" in content
         assert "## Step 3:" in content
+        assert "## Step 4:" in content
 
 
 class TestQuickstartBad:
@@ -146,7 +147,7 @@ class TestQuickstartBad:
 
 
 class TestQuickstartEdge:
-    """Edge: density cap and launcher-first in workflow."""
+    """Edge: density cap and launcher-first quickstart examples."""
 
     def test_density_cap(self) -> None:
         """QUICKSTART.md must not exceed 130 lines."""
@@ -157,41 +158,30 @@ class TestQuickstartEdge:
             "Compress or move content to operator docs."
         )
 
-    def test_start_new_work_has_launcher(self) -> None:
-        """'Start new work' section must reference the launcher."""
+    def test_bootstrap_step_has_launcher(self) -> None:
+        """Step 3 bootstrap section must reference the launcher."""
         content = _read("QUICKSTART.md")
-        start = content.find("Start new work")
+        start = content.find("## Step 3:")
         assert start >= 0
-        next_section = content.find("**Debug", start)
+        next_section = content.find("## Step 4:", start)
         if next_section < 0:
             next_section = len(content)
         section = content[start:next_section]
         assert "opencode-governance-bootstrap" in section, (
-            "QUICKSTART.md 'Start new work' section must reference "
+            "QUICKSTART.md bootstrap section must reference "
             "the launcher (opencode-governance-bootstrap)"
         )
 
 
 class TestQuickstartCorner:
-    """Corner: no direct python entrypoint calls in workflow section."""
+    """Corner: no runbook overhang in quickstart."""
 
-    def test_no_direct_python_in_workflow(self) -> None:
-        """'Start new work' section must NOT contain direct python calls."""
+    def test_no_runbook_overhang_sections(self) -> None:
+        """QUICKSTART.md must not contain workflow/debug/runbook overhang."""
         content = _read("QUICKSTART.md")
-        start = content.find("Start new work")
-        assert start >= 0
-        next_section = content.find("**Debug", start)
-        if next_section < 0:
-            next_section = len(content)
-        section = content[start:next_section]
-        assert "python3 -m" not in section, (
-            "QUICKSTART.md 'Start new work' must not use python3 -m — "
-            "use launcher equivalent"
-        )
-        assert "python scripts/" not in section, (
-            "QUICKSTART.md 'Start new work' must not use python scripts/ — "
-            "use launcher equivalent"
-        )
+        assert "### Common Workflows" not in content
+        assert "Debug blocked run" not in content
+        assert "Operator runbook" not in content
 
 
 # ===================================================================

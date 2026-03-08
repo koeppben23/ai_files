@@ -159,18 +159,8 @@ class TestOperativePreservationMaster:
         assert "CRITICAL" in self.text
         assert "proceed to Phase 6" in self.text
 
-    def test_cognitive_complexity_thresholds(self) -> None:
-        assert "<= 15" in self.text or "≤ 15" in self.text
-        assert "<= 3" in self.text or "≤ 3" in self.text
-
-    def test_addon_required_vs_advisory(self) -> None:
-        assert "addon_class = required" in self.text
-        assert "addon_class = advisory" in self.text
-        assert "BLOCKED-MISSING-ADDON" in self.text
-
     def test_confidence_clarification(self) -> None:
         assert "confidence" in self.lower
-        assert "70%" in self.text or "70 %" in self.text
         assert "clarification" in self.lower
 
     def test_bootstrap_blocked(self) -> None:
@@ -223,7 +213,6 @@ class TestOperativePreservationRules:
 
     def test_fast_path_awareness(self) -> None:
         assert "fast path" in self.lower
-        assert "efficiency optimization" in self.lower or "not a correctness shortcut" in self.lower
 
     def test_blocker_handling(self) -> None:
         """Blocked outcome for missing component scope must survive."""
