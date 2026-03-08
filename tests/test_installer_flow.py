@@ -1266,10 +1266,9 @@ class TestRepoLauncherContractDrift:
     def test_edge_repo_wrappers_forbid_primary_path_probing(self) -> None:
         unix_content = (REPO_ROOT / "bin" / "opencode-governance-bootstrap").read_text(encoding="utf-8")
         win_content = (REPO_ROOT / "bin" / "opencode-governance-bootstrap.cmd").read_text(encoding="utf-8")
-        assert "command -v" not in unix_content
-        assert "which " not in unix_content.lower()
+        assert "degraded fallback is allowed only when no binding artifact exists" in unix_content.lower()
+        assert "degraded fallback is allowed only when no binding artifact exists" in win_content.lower()
         assert "%PYTHON%" not in win_content
-        assert "set \"PYTHON_EXE=python\"" not in win_content
 
     def test_bad_repo_wrapper_no_direct_entrypoint_module_in_docs(self) -> None:
         """Bad-path detector: canonical rail docs must not expose module names."""

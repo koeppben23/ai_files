@@ -14,12 +14,22 @@ export PYTHONPATH
 
 # --- Python resolution cascade (python-binding-contract.v1 §3) ---
 PYTHON_BIN="${OPENCODE_PYTHON:-/usr/bin/python3}"
+BINDING_FILE="${SCRIPT_DIR}/PYTHON_BINDING"
 if [ ! -x "${PYTHON_BIN}" ] 2>/dev/null; then
-    BINDING_FILE="${SCRIPT_DIR}/PYTHON_BINDING"
     if [ -f "${BINDING_FILE}" ]; then
         read -r PYTHON_BIN < "${BINDING_FILE}"
     fi
 fi
+
+# Degraded fallback is allowed only when no binding artifact exists.
+if [ ! -x "${PYTHON_BIN}" ] 2>/dev/null && [ ! -f "${BINDING_FILE}" ]; then
+    if command -v python3 >/dev/null 2>&1; then
+        PYTHON_BIN="$(command -v python3)"
+    elif command -v python >/dev/null 2>&1; then
+        PYTHON_BIN="$(command -v python)"
+    fi
+fi
+
 if [ ! -x "${PYTHON_BIN}" ] 2>/dev/null; then
     echo "FATAL: No valid Python interpreter found." >&2
     echo "  Baked path: ${OPENCODE_PYTHON:-/usr/bin/python3}" >&2
