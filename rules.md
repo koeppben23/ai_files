@@ -17,6 +17,8 @@ State-machine alignment:
 Schema IDs are versioned (`schema: governance.<area>.<name>.v1`).
 Doc-lint standard: `docs/governance/doc_lint.md`.
 
+<authority>
+
 ## Authority Index
 
 All routing, validation, transitions, state shape, and presentation are kernel- and schema-owned.
@@ -32,7 +34,11 @@ This section is the single consolidated reference; individual sections do not re
 | Build verification and evidence | `docs/governance/governance_schemas.md` |
 | Rulebook data (machine-readable) | `rulesets/core/rules.yml` |
 
+</authority>
+
 ---
+
+<operative-constraints>
 
 ## 0. Governance Scope Model
 
@@ -98,7 +104,11 @@ Addon surface ownership and conflict handling are kernel- and schema-owned; see 
 
 Activation decisions and capability handling are kernel- and schema-owned; see `${COMMANDS_HOME}/phase_api.yaml`.
 
+</operative-constraints>
+
 ---
+
+<evidence-rules>
 
 ## 6. Evidence Rules
 
@@ -121,20 +131,26 @@ Gate artifact completeness is kernel- and schema-owned; see `SESSION_STATE_SCHEM
 
 Contract/schema gate details are kernel- and schema-owned; see `${COMMANDS_HOME}/phase_api.yaml`.
 
----
-
-## 6.x Phase Semantics
+### Phase Semantics
 
 Phase semantics are kernel- and schema-owned; see `${COMMANDS_HOME}/phase_api.yaml`.
 
+</evidence-rules>
+
 ---
+
+<operative-constraints>
 
 ## 7.x Fast Path Awareness
 
 Fast Path behavior is kernel-owned; see `${COMMANDS_HOME}/phase_api.yaml`.
 Fast Path is an efficiency optimization, not a correctness shortcut.
 
+</operative-constraints>
+
 ---
+
+<presentation-advisory>
 
 ## 7.3 Presentation Advisory (Consolidated)
 
@@ -210,36 +226,24 @@ See `docs/releasing.md` and repository tooling (if present).
 Governance-change PR operator-impact note (recommended):
 - For pull requests that change governance rulebooks/contracts, PR body should include a compact section.
 
-## 7.11 Operator Reload Contract
+</presentation-advisory>
+
+---
+
+<operative-constraints>
+
+## Operator Command Contracts
 
 Reload execution, state updates, and continuation behavior are kernel- and schema-owned; see `${COMMANDS_HOME}/phase_api.yaml`.
-
-### Bootstrap Re-invocation Loop Guard
-
 Bootstrap re-invocation loop guard behavior is kernel- and schema-owned; see `${COMMANDS_HOME}/phase_api.yaml`.
-
-## 7.12 Operator Explain Contracts
-
 Explain-command inputs, read-only guarantees, and output shape are kernel- and schema-owned; see `${COMMANDS_HOME}/phase_api.yaml`.
+Explain output (proof-carrying) shape is kernel- and schema-owned; see `${COMMANDS_HOME}/phase_api.yaml`.
 
-## 7.13 Proof-Carrying Explain Output
-
-Explain output shape is kernel- and schema-owned; see `${COMMANDS_HOME}/phase_api.yaml`.
-
-## 7.14 Evidence Scope and Ticket Isolation Guards
+## Evidence & Activation Guards
 
 Evidence isolation rules are kernel- and schema-owned; see `SESSION_STATE_SCHEMA.md`.
-
-## 7.15 Deterministic Activation Delta Contract
-
 Activation delta invariants are kernel-owned; see `governance/engine/session_state_invariants.py`.
-
-## 7.16 Toolchain Pinning Evidence Policy
-
 Toolchain evidence policy is kernel-owned; see `${COMMANDS_HOME}/phase_api.yaml`.
-
-## 7.17 Rulebook Load Evidence Gate
-
 Rulebook load evidence gate is kernel- and schema-owned; see `SESSION_STATE_SCHEMA.md`.
 
 ---
@@ -248,25 +252,11 @@ Rulebook load evidence gate is kernel- and schema-owned; see `SESSION_STATE_SCHE
 
 Traceability format is schema-owned; see `docs/governance/governance_schemas.md`.
 
-### Ticket Record
-
-Ticket record format and fields are schema-owned; see `SESSION_STATE_SCHEMA.md` and `docs/governance/governance_schemas.md`.
-
-### Business Rules Traceability
-
-Business rules traceability, BR register shape, coverage reporting, and gap handling are kernel- and schema-owned; see `${COMMANDS_HOME}/phase_api.yaml`.
-
-### Business Rules Inventory File
-
-Business rules inventory location, format, lifecycle, and persistence are kernel- and schema-owned; see `${COMMANDS_HOME}/phase_api.yaml` and `governance/assets/config/persistence_artifacts.yaml`.
-
-### Decision Pack File
-
-Decision Pack location, format, lifecycle, and persistence are kernel- and schema-owned; see `${COMMANDS_HOME}/phase_api.yaml` and `governance/assets/config/persistence_artifacts.yaml`.
-
-### RepoMapDigest File
-
-RepoMapDigest location, format, lifecycle, and persistence are kernel- and schema-owned; see `${COMMANDS_HOME}/phase_api.yaml` and `governance/assets/config/persistence_artifacts.yaml`.
+- **Ticket Record:** format and fields are schema-owned; see `SESSION_STATE_SCHEMA.md` and `docs/governance/governance_schemas.md`.
+- **Business Rules Traceability:** BR register shape, coverage reporting, and gap handling are kernel- and schema-owned; see `${COMMANDS_HOME}/phase_api.yaml`.
+- **Business Rules Inventory File:** location, format, lifecycle, and persistence are kernel- and schema-owned; see `${COMMANDS_HOME}/phase_api.yaml` and `governance/assets/config/persistence_artifacts.yaml`.
+- **Decision Pack File:** location, format, lifecycle, and persistence are kernel- and schema-owned; see `${COMMANDS_HOME}/phase_api.yaml` and `governance/assets/config/persistence_artifacts.yaml`.
+- **RepoMapDigest File:** location, format, lifecycle, and persistence are kernel- and schema-owned; see `${COMMANDS_HOME}/phase_api.yaml` and `governance/assets/config/persistence_artifacts.yaml`.
 
 ---
 
@@ -282,5 +272,7 @@ Test-quality expectations and gate requirements are kernel- and schema-owned; se
 
 Profile & scope override handling:
 Override fields and recording requirements are kernel- and schema-owned; see `${COMMANDS_HOME}/phase_api.yaml`.
+
+</operative-constraints>
 
 ---

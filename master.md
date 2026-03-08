@@ -11,6 +11,8 @@ Phase `1.3` is mandatory before every phase `>=2`.
 Schema IDs are versioned (`schema: governance.<area>.<name>.v1`).
 Doc-lint standard: `docs/governance/doc_lint.md`.
 
+<authority>
+
 ## Authority Index
 
 All routing, validation, transitions, state shape, and presentation are kernel- and schema-owned.
@@ -27,7 +29,11 @@ This section is the single consolidated reference; individual phase sections do 
 | Command inventory / tooling policy | `governance/assets/catalogs/tool_requirements.json` |
 | Rulebook data (machine-readable) | `rulesets/core/rules.yml` |
 
+</authority>
+
 ---
+
+<phase-routing>
 
 ## Phase Routing Table
 
@@ -51,7 +57,11 @@ Gate sequencing, transitions, and blocked conditions are kernel-owned; see `${CO
 | 5.4 | Business Rules Compliance | Only if Phase 1.5 executed |
 | 6 | Implementation QA | Self-review gate; prerequisites and verification are kernel-owned |
 
+</phase-routing>
+
 ---
+
+<operative-constraints>
 
 ## Phase 0 — Bootstrap
 
@@ -244,7 +254,11 @@ Verification obligations: change-matrix updates and review-of-review checks are 
 Every cross-cutting ticket requires a change matrix across planning/review.
 Canonical matrix schema/template: `docs/governance/governance_schemas.md`.
 
+</operative-constraints>
+
 ---
+
+<presentation-advisory>
 
 ## Response Rules
 
@@ -293,5 +307,7 @@ See release/automation rules in `docs/releasing.md` and repo tooling (if present
 ### Session Size Control
 
 Session compression, preserved fields, and summary targets are kernel-owned; see `${COMMANDS_HOME}/phase_api.yaml`.
+
+</presentation-advisory>
 
 ---
