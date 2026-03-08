@@ -72,15 +72,6 @@ if "%~1"=="--plan-persist" (
     set "WRAPPER_EXIT=%ERRORLEVEL%"
     endlocal & exit /b %WRAPPER_EXIT%
 )
-if "%~1"=="--entrypoint" (
-    shift
-    rem Compatibility-only path (deprecated after one versioned bundle release)
-    set "MODULE=%~1"
-    shift
-    "!PYTHON_EXE!" -m !MODULE! %*
-    set "WRAPPER_EXIT=%ERRORLEVEL%"
-    endlocal & exit /b %WRAPPER_EXIT%
-)
 "!PYTHON_EXE!" -m governance.entrypoints.bootstrap_executor %*
 set "WRAPPER_EXIT=%ERRORLEVEL%"
 endlocal & exit /b %WRAPPER_EXIT%

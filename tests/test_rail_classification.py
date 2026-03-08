@@ -252,8 +252,8 @@ class TestRailClassificationLegacySurfaceGuard:
         plan = (REPO_ROOT / "plan.md").read_text(encoding="utf-8")
         assert "--ticket-persist" in ticket
         assert "--plan-persist" in plan
-        assert "--entrypoint governance.entrypoints." not in ticket
-        assert "--entrypoint governance.entrypoints." not in plan
+        assert "--entrypoint" not in ticket
+        assert "--entrypoint" not in plan
 
     def test_extract_classification_empty_value(self) -> None:
         """Classification with empty value between delimiters returns empty list."""
