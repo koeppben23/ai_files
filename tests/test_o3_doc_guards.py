@@ -241,3 +241,58 @@ class TestReadmeAuthorityHappy:
                     f"README.md /review line must not contain 'authoritative' — "
                     f"authority language removed in O3-F3: {line.strip()}"
                 )
+
+
+# ===================================================================
+# 5. Cross-doc O3 surface guards
+# ===================================================================
+
+
+class TestO3SurfaceBad:
+    """Prevent regression to deprecated command and entrypoint surfaces."""
+
+    _DOCS = ["README-OPENCODE.md", "QUICKSTART.md", "README.md"]
+
+    @pytest.mark.parametrize("relpath", _DOCS)
+    def test_no_direct_governance_entrypoint_calls(self, relpath: str) -> None:
+        content = _read(relpath)
+        assert "governance.entrypoints." not in content, (
+            f"{relpath} must not include direct governance.entrypoints.* calls"
+        )
+
+    @pytest.mark.parametrize("relpath", _DOCS)
+    def test_no_resume_command(self, relpath: str) -> None:
+        content = _read(relpath)
+        assert "/resume" not in content, (
+            f"{relpath} must not include deprecated /resume command"
+        )
+
+    @pytest.mark.parametrize("relpath", _DOCS)
+    def test_no_audit_short_command(self, relpath: str) -> None:
+        content = _read(relpath)
+        assert re.search(r"(?<!-readout)\b/audit\b", content) is None, (
+            f"{relpath} must not include deprecated /audit command"
+        )
+
+
+class TestO3SurfaceEdge:
+    """Enforce launcher-first examples and avoid user-absolute primaries."""
+
+    def test_no_absolute_primary_launcher_paths(self) -> None:
+        combined = "\n".join(_read(p) for p in ["README-OPENCODE.md", "QUICKSTART.md"])
+        assert "~/.config/opencode/bin/" not in combined
+        assert "%USERPROFILE%\\.config\\opencode\\bin\\" not in combined
+
+    def test_launcher_command_present(self) -> None:
+        combined = "\n".join(_read(p) for p in ["README-OPENCODE.md", "QUICKSTART.md", "README.md"])
+        assert "opencode-governance-bootstrap" in combined
+
+
+class TestO3SurfaceHappy:
+    """Current command surfaces remain discoverable."""
+
+    def test_current_commands_present(self) -> None:
+        content = "\n".join(_read(p) for p in ["README-OPENCODE.md", "QUICKSTART.md"])
+        required = ["/continue", "/ticket", "/plan", "/review", "/audit-readout"]
+        for cmd in required:
+            assert cmd in content, f"Missing expected command in O3 docs: {cmd}"
