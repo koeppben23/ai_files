@@ -26,6 +26,7 @@ SSOT is kernel and schema code; Markdown provides routing and operative guardrai
 | Phase | Name | Key constraint |
 |------|------|----------------|
 | 0 | Bootstrap | If prerequisites are missing, return BLOCKED and request restatement |
+| 1.2 | Profile Detection | Profile selection is kernel-enforced |
 | 1.3 | Core Rules Activation | Mandatory before every phase >=2 |
 | 1.4 | Templates and Addons | Activation and merge behavior are kernel-owned |
 | 2 | Repo Discovery | Repo evidence wins over stale workspace assumptions |
