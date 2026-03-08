@@ -28,27 +28,38 @@ cd customer-install-bundle-v1
 | Path not found | Ensure the bundle directory exists and is extracted |
 | Binding file missing | Rerun the installer from the bundle |
 
-## Step 2: Bootstrap Session (1 minute)
+## Step 2: Verify installation
 
 ```bash
 # macOS / Linux
-~/.config/opencode/bin/opencode-governance-bootstrap --repo-root /absolute/path/to/your-repo
+./install/install.sh --status
 ```
 
 ```powershell
 # Windows
-%USERPROFILE%\.config\opencode\bin\opencode-governance-bootstrap.cmd --repo-root C:\path\to\your-repo
+.\install\install.ps1 --status
+```
+
+## Step 3: Bootstrap session (1 minute)
+
+```bash
+# macOS / Linux
+opencode-governance-bootstrap --repo-root <repo-root>
+```
+
+```powershell
+# Windows
+opencode-governance-bootstrap.cmd --repo-root <repo-root>
 ```
 
 Use `--verbose` for step-by-step bootstrap output.
-If the desktop plugin cannot find Python in `PATH`, set `OPENCODE_PYTHON` to the full interpreter path.
 
 | Error | Fix |
 |-------|-----|
 | Launcher not found | Run the installer from the bundle first |
 | Repo not detected | Provide `--repo-root /path/to/repo` |
 
-## Step 3: Open Desktop and Continue
+## Step 4: Open Desktop and continue
 
 After bootstrap succeeds, open OpenCode Desktop in the same repository and start with `/continue`.
 If `/continue` lands at Phase 4 (Ticket Intake), enter Plan Mode first for every new ticket/task.
@@ -67,7 +78,7 @@ If the command cannot be executed, the model asks the user to paste the command 
 
 **Start new work:**
 ```bash
-~/.config/opencode/bin/opencode-governance-bootstrap --repo-root /absolute/path/to/your-repo
+opencode-governance-bootstrap --repo-root <repo-root>
 # Open OpenCode Desktop
 /continue
 # If /continue lands at Phase 4 (Ticket Intake), enter Plan Mode first
@@ -80,20 +91,15 @@ If the command cannot be executed, the model asks the user to paste the command 
 # After P5 gates are approved: implement changes
 ```
 
-```bash
-# Non-interactive new work run (CLI/Pipeline)
-~/.config/opencode/bin/opencode-governance-bootstrap --entrypoint governance.entrypoints.new_work_session --trigger-source pipeline --reason "nightly run" --quiet
-```
-
-**Debug a blocked run:**
+**Debug blocked run:**
 ```bash
 # macOS / Linux
-cat ~/.config/opencode/commands/logs/error.log.jsonl
+cat "${CONFIG_ROOT}/commands/logs/error.log.jsonl"
 ```
 
 ```powershell
 # Windows
-Get-Content "$env:USERPROFILE\.config\opencode\commands\logs\error.log.jsonl"
+Get-Content "$env:CONFIG_ROOT\commands\logs\error.log.jsonl"
 ```
 
 ## Output Codes
@@ -111,9 +117,3 @@ Get-Content "$env:USERPROFILE\.config\opencode\commands\logs\error.log.jsonl"
 3. **Operator runbook**: [docs/operator-runbook.md](docs/operator-runbook.md)
 
 For upgrade, rollback, and advanced operations, see the [Operator Runbook](docs/operator-runbook.md).
-
----
-SSOT: `${COMMANDS_HOME}/phase_api.yaml` is the only truth for routing, execution, and validation.
-Kernel: `governance/kernel/*` is the only control-plane implementation.
-MD files are AI rails/guidance only and are never routing-binding.
-Phase `1.3` is mandatory before every phase `>=2`.
