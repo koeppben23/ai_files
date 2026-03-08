@@ -25,18 +25,19 @@ if defined OPENCODE_REPO_ROOT (
 rem --- Python resolution cascade (python-binding-contract.v1 §3) ---
 set "BINDING_FILE=%SCRIPT_DIR%PYTHON_BINDING"
 set "PYTHON_EXE=%OPENCODE_PYTHON%"
-if not defined PYTHON_EXE (
-    set "PYTHON_EXE=C:/Python313/python.exe"
+if defined PYTHON_EXE if not exist "!PYTHON_EXE!" (
+    set "PYTHON_EXE="
 )
-if not exist "!PYTHON_EXE!" (
+if not defined PYTHON_EXE (
     if exist "!BINDING_FILE!" (
         set /p PYTHON_EXE=<"!BINDING_FILE!"
     )
 )
 
 set "PYTHON_CMD="
+set "PYTHON_ARGS="
 if exist "!PYTHON_EXE!" (
-    set "PYTHON_CMD=\"!PYTHON_EXE!\""
+    set "PYTHON_CMD=!PYTHON_EXE!"
 )
 
 rem Degraded fallback is allowed only when no binding artifact exists.
@@ -44,21 +45,27 @@ if not defined PYTHON_CMD (
     if not exist "!BINDING_FILE!" (
         if defined pythonLocation (
             if exist "%pythonLocation%\python.exe" (
-                set "PYTHON_CMD=\"%pythonLocation%\python.exe\""
+                set "PYTHON_CMD=%pythonLocation%\python.exe"
             )
         )
         if not defined PYTHON_CMD (
-            python -c "import sys" >nul 2>&1 && set "PYTHON_CMD=python"
+            python -c "import sys" >nul 2>&1 && (
+                set "PYTHON_CMD=python"
+                set "PYTHON_ARGS="
+            )
         )
         if not defined PYTHON_CMD (
-            py -3 -c "import sys" >nul 2>&1 && set "PYTHON_CMD=py -3"
+            py -3 -c "import sys" >nul 2>&1 && (
+                set "PYTHON_CMD=py"
+                set "PYTHON_ARGS=-3"
+            )
         )
     )
 )
 
 if not defined PYTHON_CMD (
     echo FATAL: No valid Python interpreter found. >&2
-    echo   Baked path: C:/Python313/python.exe >&2
+    echo   Baked path: %OPENCODE_PYTHON% >&2
     echo   PYTHON_BINDING: %SCRIPT_DIR%PYTHON_BINDING >&2
     echo   Re-run install.py to rebind. >&2
     exit /b 1
@@ -79,19 +86,19 @@ if not defined OPENCODE_BOOTSTRAP_OUTPUT (
 rem --- Subcommand routing (python-binding-contract.v1 §4) ---
 if "%~1"=="--session-reader" (
     shift
-    !PYTHON_CMD! "%COMMANDS_HOME%\governance\entrypoints\session_reader.py" %*
+    call "!PYTHON_CMD!" !PYTHON_ARGS! "%COMMANDS_HOME%\governance\entrypoints\session_reader.py" %*
     set "WRAPPER_EXIT=%ERRORLEVEL%"
     endlocal & exit /b %WRAPPER_EXIT%
 )
 if "%~1"=="--ticket-persist" (
     shift
-    !PYTHON_CMD! -m governance.entrypoints.phase4_intake_persist %*
+    call "!PYTHON_CMD!" !PYTHON_ARGS! -m governance.entrypoints.phase4_intake_persist %*
     set "WRAPPER_EXIT=%ERRORLEVEL%"
     endlocal & exit /b %WRAPPER_EXIT%
 )
 if "%~1"=="--plan-persist" (
     shift
-    !PYTHON_CMD! -m governance.entrypoints.phase5_plan_record_persist %*
+    call "!PYTHON_CMD!" !PYTHON_ARGS! -m governance.entrypoints.phase5_plan_record_persist %*
     set "WRAPPER_EXIT=%ERRORLEVEL%"
     endlocal & exit /b %WRAPPER_EXIT%
 )
@@ -100,10 +107,10 @@ if "%~1"=="--entrypoint" (
     rem Compatibility path (deprecated after one versioned bundle release)
     set "MODULE=%~1"
     shift
-    !PYTHON_CMD! -m !MODULE! %*
+    call "!PYTHON_CMD!" !PYTHON_ARGS! -m !MODULE! %*
     set "WRAPPER_EXIT=%ERRORLEVEL%"
     endlocal & exit /b %WRAPPER_EXIT%
 )
-!PYTHON_CMD! -m governance.entrypoints.bootstrap_executor %*
+call "!PYTHON_CMD!" !PYTHON_ARGS! -m governance.entrypoints.bootstrap_executor %*
 set "WRAPPER_EXIT=%ERRORLEVEL%"
 endlocal & exit /b %WRAPPER_EXIT%
