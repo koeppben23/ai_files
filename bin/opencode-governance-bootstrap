@@ -19,19 +19,6 @@ if [ -z "${PYTHON_BIN}" ] && [ -f "${BINDING_FILE}" ]; then
     read -r PYTHON_BIN < "${BINDING_FILE}"
 fi
 
-# Degraded fallback is allowed only when no binding artifact exists.
-if [ ! -x "${PYTHON_BIN}" ] 2>/dev/null && [ ! -f "${BINDING_FILE}" ]; then
-    if [ -n "${pythonLocation:-}" ] && [ -x "${pythonLocation}/bin/python" ]; then
-        PYTHON_BIN="${pythonLocation}/bin/python"
-    elif [ -n "${pythonLocation:-}" ] && [ -x "${pythonLocation}/bin/python3" ]; then
-        PYTHON_BIN="${pythonLocation}/bin/python3"
-    elif command -v python >/dev/null 2>&1; then
-        PYTHON_BIN="$(command -v python)"
-    elif command -v python3 >/dev/null 2>&1; then
-        PYTHON_BIN="$(command -v python3)"
-    fi
-fi
-
 if [ ! -x "${PYTHON_BIN}" ] 2>/dev/null; then
     echo "FATAL: No valid Python interpreter found." >&2
     echo "  Baked path: ${OPENCODE_PYTHON:-<unset>}" >&2
