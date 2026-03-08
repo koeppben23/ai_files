@@ -17,7 +17,7 @@ policy:
   audit_on_change: "POLICY_PRECEDENCE_APPLIED"
 
 # Blocked Reason Catalog (Kernel-Enforced)
-# Each reason defines: trigger conditions, required inputs, recovery steps, resume pointer
+# Each reason defines: trigger conditions, required inputs, recovery steps, next command pointer
 blocked_reasons:
 
   # Bootstrap Errors
@@ -75,11 +75,11 @@ blocked_reasons:
       - "Valid rules.md file"
     quick_fix_commands:
       - "Verify ${PROFILES_HOME}/rules.md exists"
-    resume_pointer: "/reload-addons"
+    resume_pointer: "/continue"
     recovery_steps:
       - "Verify rules.md exists in canonical location"
       - "Check file permissions and encoding"
-      - "Run /reload-addons to retry"
+      - "Run /continue to retry rulebook activation"
     message_template: "Core rulebook load failed. Verify rules.md exists."
 
   BLOCKED-MISSING-RULEBOOK:
@@ -91,10 +91,10 @@ blocked_reasons:
       - "Missing rulebook file"
     quick_fix_commands:
       - "Check if {file} exists"
-    resume_pointer: "/reload-addons"
+    resume_pointer: "/continue"
     recovery_steps:
       - "Create or restore the missing rulebook file"
-      - "Run /reload-addons to retry"
+      - "Run /continue to retry rulebook activation"
     message_template: "Missing rulebook: {file}."
 
   BLOCKED-MISSING-PROFILE:
@@ -105,12 +105,12 @@ blocked_reasons:
     required_inputs:
       - "Profile selection"
     quick_fix_commands:
-      - "/reload-addons"
-    resume_pointer: "/reload-addons"
+      - "/continue"
+    resume_pointer: "/continue"
     recovery_steps:
       - "Select a profile explicitly"
       - "Verify profile rulebook exists"
-      - "Run /reload-addons to retry"
+      - "Run /continue to retry rulebook activation"
     message_template: "Profile missing. Select profile or verify rulebook."
 
   BLOCKED-MISSING-TEMPLATES:
@@ -122,10 +122,10 @@ blocked_reasons:
       - "Templates rulebook"
     quick_fix_commands:
       - "Check if templates rulebook exists"
-    resume_pointer: "/reload-addons"
+    resume_pointer: "/continue"
     recovery_steps:
       - "Verify templates rulebook exists for active profile"
-      - "Run /reload-addons to retry"
+      - "Run /continue to retry rulebook activation"
     message_template: "Templates rulebook missing for profile."
 
   BLOCKED-MISSING-ADDON:
@@ -137,11 +137,11 @@ blocked_reasons:
       - "Addon rulebook"
     quick_fix_commands:
       - "Check if addon manifest and rulebook exist"
-    resume_pointer: "/reload-addons"
+    resume_pointer: "/continue"
     recovery_steps:
       - "Verify addon manifest in ${PROFILES_HOME}/addons/"
       - "Verify addon rulebook exists"
-      - "Run /reload-addons to retry"
+      - "Run /continue to retry rulebook activation"
     message_template: "Required addon {addon_key} missing."
 
   # Profile Detection
@@ -185,7 +185,7 @@ blocked_reasons:
       - "Load evidence (path/tool output/hash)"
     quick_fix_commands:
       - "Verify rulebook accessibility"
-    resume_pointer: "/reload-addons"
+    resume_pointer: "/continue"
     recovery_steps:
       - "Verify rulebook file exists and is readable"
       - "Provide explicit load evidence if host tools unavailable"
@@ -312,11 +312,11 @@ blocked_reasons:
       - "Canonical ticket or task text"
       - "Matching TicketRecordDigest and/or TaskRecordDigest"
     quick_fix_commands:
-      - "${PYTHON_COMMAND} -m governance.entrypoints.phase4_intake_persist --ticket-text \"...\""
+      - "opencode-governance-bootstrap --ticket-persist --ticket-text \"...\""
     resume_pointer: "Phase 4 - Ticket Input Gate"
     recovery_steps:
       - "Provide non-empty ticket or task input"
-      - "Persist intake via phase4_intake_persist"
+      - "Persist intake via --ticket-persist"
       - "Re-run phase routing"
     message_template: "Phase 4 blocked: intake evidence missing. Persist canonical ticket/task with matching digest."
 
@@ -329,11 +329,11 @@ blocked_reasons:
       - "Canonical Phase 5 plan record text"
       - "Matching plan record digest/version evidence"
     quick_fix_commands:
-      - "${PYTHON_COMMAND} -m governance.entrypoints.phase5_plan_record_persist --plan-text \"...\""
+      - "opencode-governance-bootstrap --plan-persist --plan-text \"...\""
     resume_pointer: "Phase 5 - Plan Record Preparation Gate"
     recovery_steps:
       - "Provide non-empty plan record content"
-      - "Persist plan record via phase5_plan_record_persist"
+      - "Persist plan record via --plan-persist"
       - "Re-run /continue materialization"
     message_template: "Phase 5 blocked: plan-record evidence missing. Persist canonical plan record before architecture review."
 
@@ -592,7 +592,7 @@ blocked_reasons:
 # Quick Fix Command Templates (Kernel-Enforced)
 quick_fix_templates:
   start: "opencode-governance-bootstrap"
-  reload_addons: "/reload-addons"
+  reload_addons: "/continue"
   install: "${PYTHON_COMMAND} install.py"
   check_file: "Check if {path} exists"
   verify_permissions: "Verify file permissions and encoding"

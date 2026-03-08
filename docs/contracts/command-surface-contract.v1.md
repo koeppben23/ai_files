@@ -20,6 +20,7 @@ These are the only canonical active surfaces for continuation and audit operatio
 - `/resume` is deprecated and not an active command surface.
 - `/audit` is deprecated and not an active command surface.
 - Active rails, phase text, schema examples, reason catalogs, and remediation hints MUST NOT recommend deprecated aliases as normal actions.
+- Active rails, phase text, schema examples, reason catalogs, and remediation hints MUST use canonical continuation/audit surfaces (`/continue`, `/audit-readout`) instead of legacy helper verbs.
 
 ## Compatibility boundary
 

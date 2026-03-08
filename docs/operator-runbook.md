@@ -168,12 +168,12 @@ Data sources merged below:
 | Code | Description | Remediation |
 |------|-------------|-------------|
 | `BLOCKED-MISSING-CORE-RULES` | Core rules file (`rules.md`) could not be loaded. | Restore `rules.md` at the expected governance path. Run installer repair if needed. |
-| `BLOCKED-RULEBOOK-LOAD-FAILED` | Core rulebook load failed at Phase 4 entry. | Verify `rules.md` exists and is readable. Run `/reload-addons` to retry. |
+| `BLOCKED-RULEBOOK-LOAD-FAILED` | Core rulebook load failed at Phase 4 entry. | Verify `rules.md` exists and is readable. Run `/continue` to retry. |
 | `BLOCKED-MISSING-RULEBOOK` | Unresolved top-tier rulebook file blocks activation. | Install or restore the missing rulebook at `${COMMANDS_HOME}/` or `${PROFILES_HOME}/`. |
-| `BLOCKED-MISSING-PROFILE` | Required active profile is missing and cannot be resolved. | Select a valid profile or provide profile evidence. Run `/reload-addons`. |
+| `BLOCKED-MISSING-PROFILE` | Required active profile is missing and cannot be resolved. | Select a valid profile or provide profile evidence. Run `/continue`. |
 | `BLOCKED-AMBIGUOUS-PROFILE` | Profile resolution is non-deterministic due to ambiguity. | Select a profile from the ranked shortlist explicitly. |
-| `BLOCKED-MISSING-TEMPLATES` | Required templates cannot be resolved or loaded. | Verify templates rulebook exists for the active profile. Run `/reload-addons`. |
-| `BLOCKED-MISSING-ADDON` | Required addon rulebook is missing and cannot be loaded. | Verify addon manifest in `${PROFILES_HOME}/addons/`. Run `/reload-addons`. |
+| `BLOCKED-MISSING-TEMPLATES` | Required templates cannot be resolved or loaded. | Verify templates rulebook exists for the active profile. Run `/continue`. |
+| `BLOCKED-MISSING-ADDON` | Required addon rulebook is missing and cannot be loaded. | Verify addon manifest in `${PROFILES_HOME}/addons/`. Run `/continue`. |
 | `BLOCKED-ADDON-CONFLICT` | Activated addons have conflicting ownership or constraints. | Review addon manifests — ensure `owns_surfaces` is unique per surface. Deactivate or merge conflicting addons. |
 | `BLOCKED-MISSING-DECISION` | No valid decision options can be produced for the current gate. | Provide required decision evidence or inputs. |
 | `BLOCKED-RULEBOOK-EVIDENCE-MISSING` | Required evidence for rulebook claims is missing. | Verify rulebook file accessibility. Provide explicit load evidence if host tools unavailable. |

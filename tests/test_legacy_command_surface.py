@@ -79,3 +79,19 @@ class TestLegacyCommandSurfaceMigration:
             assert "resume_prompt.md" not in content, (
                 f"Active surface references deprecated resume template in {relpath}"
             )
+
+    def test_bad_active_surfaces_must_not_recommend_reload_addons(self) -> None:
+        for relpath in self._ACTIVE_SURFACES:
+            content = _read(relpath)
+            assert "/reload-addons" not in content, (
+                f"Active surface references non-canonical reload command in {relpath}"
+            )
+
+    def test_bad_blocked_catalogs_must_not_use_raw_entrypoint_quick_fixes(self) -> None:
+        for relpath in [
+            "governance/assets/reasons/blocked_reason_catalog.yaml",
+            "governance/assets/config/blocked_reason_catalog.yaml",
+        ]:
+            content = _read(relpath)
+            assert "governance.entrypoints.phase4_intake_persist" not in content
+            assert "governance.entrypoints.phase5_plan_record_persist" not in content
