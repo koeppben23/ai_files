@@ -304,3 +304,54 @@ class TestO3ActiveCatalogGuards:
         content = _read(relpath)
         assert "resume_pointer" not in content
         assert "/reload-addons" not in content
+
+
+class TestLauncherSurfaceHappy:
+    """Happy: active rails and docs use canonical launcher subcommands."""
+
+    def test_ticket_and_plan_use_canonical_subcommands(self) -> None:
+        ticket = _read("ticket.md")
+        plan = _read("plan.md")
+        assert "--ticket-persist" in ticket
+        assert "--plan-persist" in plan
+
+
+class TestLauncherSurfaceBad:
+    """Bad: active paths must not expose module-name launcher surface."""
+
+    _ACTIVE_PATHS = [
+        "README.md",
+        "README-OPENCODE.md",
+        "QUICKSTART.md",
+        "ticket.md",
+        "plan.md",
+        "docs/operator-runbook.md",
+        "SESSION_STATE_SCHEMA.md",
+        "phase_api.yaml",
+        "governance/assets/catalogs/REASON_REMEDIATION_MAP.json",
+    ]
+
+    @pytest.mark.parametrize("relpath", _ACTIVE_PATHS)
+    def test_no_entrypoint_module_surface_in_active_paths(self, relpath: str) -> None:
+        content = _read(relpath)
+        assert "--entrypoint governance.entrypoints." not in content
+        assert "governance.entrypoints.phase4_intake_persist" not in content
+        assert "governance.entrypoints.phase5_plan_record_persist" not in content
+
+
+class TestLauncherSurfaceCorner:
+    """Corner: secondary support catalogs still use launcher subcommands."""
+
+    def test_reason_remediation_map_uses_launcher_subcommands(self) -> None:
+        content = _read("governance/assets/catalogs/REASON_REMEDIATION_MAP.json")
+        assert "opencode-governance-bootstrap --ticket-persist" in content
+        assert "opencode-governance-bootstrap --plan-persist" in content
+
+
+class TestLauncherSurfaceEdge:
+    """Edge: compatibility marker exists while entrypoint remains supported."""
+
+    def test_binding_contract_marks_entrypoint_compatibility_only(self) -> None:
+        content = _read("docs/contracts/python-binding-contract.v1.md")
+        assert "compatibility-supported for exactly one" in content
+        assert "compatibility-only" in content

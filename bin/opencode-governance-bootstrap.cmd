@@ -74,7 +74,7 @@ if "%~1"=="--plan-persist" (
 )
 if "%~1"=="--entrypoint" (
     shift
-    rem Compatibility path (deprecated after one versioned bundle release)
+    rem Compatibility-only path (deprecated after one versioned bundle release)
     set "MODULE=%~1"
     shift
     "!PYTHON_EXE!" -m !MODULE! %*

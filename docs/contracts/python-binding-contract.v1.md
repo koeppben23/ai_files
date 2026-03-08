@@ -143,6 +143,21 @@ Documentation switches immediately to canonical subcommands.
 
 `--entrypoint <module>` may be removed in the following versioned bundle release.
 
+Canonical subcommands for active operator workflows are:
+- `--ticket-persist`
+- `--plan-persist`
+- `--session-reader`
+
+`--entrypoint <module>` is compatibility-only and must not be presented as a
+primary user-facing surface in active rails, quickstart content, or support docs.
+
+Allowlist for `--entrypoint` references:
+- `install.py` launcher templates
+- `bin/opencode-governance-bootstrap`
+- `bin/opencode-governance-bootstrap.cmd`
+- this contract file (`docs/contracts/python-binding-contract.v1.md`)
+- explicit migration/deprecation notes only
+
 ### 4.2 Rails (Markdown Command Templates)
 
 Rails invoke the launcher by its stable command name `opencode-governance-bootstrap`,
