@@ -65,7 +65,11 @@ def _path_for_json(p: Path) -> str:
     are POSIX-normalized absolute strings (forward slashes, resolved symlinks).
     Consumers convert to OS-native paths at read time.
     """
-    return p.resolve().as_posix()
+    # Use lexical absolute normalization instead of Path.resolve().
+    # resolve() can fail on Windows for template segments like
+    # "<repo_fingerprint>", which are valid placeholders in installer payloads.
+    normalized = os.path.normpath(os.path.abspath(str(p.expanduser())))
+    return Path(normalized).as_posix()
 
 
 def _load_error_logger() -> Callable[..., object]:
