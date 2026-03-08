@@ -15,7 +15,8 @@ def test_plan_md_exists_and_documents_plan_persist_bridge() -> None:
     plan_path = REPO_ROOT / "plan.md"
     assert plan_path.exists(), "plan.md must exist in repo root"
     content = plan_path.read_text(encoding="utf-8")
-    assert "phase5_plan_record_persist" in content
+    assert "--plan-persist" in content
+    assert "phase5_plan_record_persist" not in content
     assert BIN_DIR_PLACEHOLDER in content
     assert "opencode-governance-bootstrap" in content
     assert "Only the explicit `/plan` rail invocation" in content or \
@@ -32,7 +33,7 @@ def test_plan_md_bin_dir_placeholder_is_injected(tmp_path: Path) -> None:
     command_md.write_text(
         "```bash\n"
         f'PATH="{BIN_DIR_PLACEHOLDER}:$PATH" opencode-governance-bootstrap '
-        "--entrypoint governance.entrypoints.phase5_plan_record_persist "
+        "--plan-persist "
         '--plan-text "x"\n'
         "```\n",
         encoding="utf-8",
@@ -49,6 +50,6 @@ def test_plan_md_bin_dir_placeholder_is_injected(tmp_path: Path) -> None:
     assert "{{BIN_DIR}}" not in content
     assert "/usr/local/governance/bin" in content
     if os.name == "nt":
-        assert "opencode-governance-bootstrap.cmd --entrypoint governance.entrypoints.phase5_plan_record_persist" in content
+        assert "opencode-governance-bootstrap.cmd --plan-persist" in content
     else:
-        assert "opencode-governance-bootstrap --entrypoint governance.entrypoints.phase5_plan_record_persist" in content
+        assert "opencode-governance-bootstrap --plan-persist" in content
