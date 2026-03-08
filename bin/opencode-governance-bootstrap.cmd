@@ -42,9 +42,9 @@ if exist "!PYTHON_EXE!" (
 rem Degraded fallback is allowed only when no binding artifact exists.
 if not defined PYTHON_CMD (
     if not exist "!BINDING_FILE!" (
-        py -3 -c "import sys" >nul 2>&1 && set "PYTHON_CMD=py -3"
+        python -c "import sys" >nul 2>&1 && set "PYTHON_CMD=python"
         if not defined PYTHON_CMD (
-            python -c "import sys" >nul 2>&1 && set "PYTHON_CMD=python"
+            py -3 -c "import sys" >nul 2>&1 && set "PYTHON_CMD=py -3"
         )
     )
 )
