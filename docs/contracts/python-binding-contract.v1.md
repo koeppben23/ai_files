@@ -143,6 +143,10 @@ Documentation switches immediately to canonical subcommands.
 
 `--entrypoint <module>` may be removed in the following versioned bundle release.
 
+Compatibility window closure declaration:
+- The required versioned bundle release containing compatibility support has shipped.
+- Removal of `--entrypoint <module>` is now approved for this release line.
+
 Canonical subcommands for active operator workflows are:
 - `--ticket-persist`
 - `--plan-persist`
