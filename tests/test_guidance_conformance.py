@@ -220,6 +220,42 @@ class TestOperativePreservationRules:
         assert "component scope" in self.lower
 
 
+class TestRoleMandateConformance:
+    """Ensure concise role definition and dual mandates stay enforced."""
+
+    def test_happy_master_global_role_present(self) -> None:
+        text = _read(_MASTER).lower()
+        assert "global role" in text
+        assert "senior technical governance operator" in text
+        assert "evidence-first" in text
+        assert "drift-sensitive" in text
+
+    def test_happy_rules_dual_mandates_present(self) -> None:
+        text = _read(_RULES).lower()
+        assert "authoring mandate" in text
+        assert "review mandate" in text
+        assert "smallest correct solution" in text
+        assert "attempt to falsify before approving" in text
+
+    def test_corner_review_mandate_quality_focus(self) -> None:
+        text = _read(_RULES).lower()
+        required = [
+            "contract drift",
+            "cross-os",
+            "silent fallback",
+            "test gaps",
+            "fail-closed",
+        ]
+        for token in required:
+            assert token in text, f"rules.md review mandate missing token: {token}"
+
+    def test_bad_persona_inflation_forbidden(self) -> None:
+        combined = (_read(_MASTER) + "\n" + _read(_RULES)).lower()
+        forbidden = ["20+ years", "world-class", "elite developer"]
+        for token in forbidden:
+            assert token not in combined, f"Persona inflation token must be absent: {token}"
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 # 3.  BAD-PATH / SYNTHETIC TESTS
 # ═══════════════════════════════════════════════════════════════════════════

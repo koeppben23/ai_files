@@ -23,21 +23,21 @@ Deterministic intake flow:
 Chat text input:
 
 ```bash
-PATH="{{BIN_DIR}}:$PATH" opencode-governance-bootstrap --entrypoint governance.entrypoints.phase4_intake_persist --ticket-text "<ticket text>" --quiet
+PATH="{{BIN_DIR}}:$PATH" opencode-governance-bootstrap --ticket-persist --ticket-text "<ticket text>" --quiet
 ```
 
 ```powershell
-$env:Path = "{{BIN_DIR}};" + $env:Path; opencode-governance-bootstrap --entrypoint governance.entrypoints.phase4_intake_persist --ticket-text "<ticket text>" --quiet
+$env:Path = "{{BIN_DIR}};" + $env:Path; opencode-governance-bootstrap --ticket-persist --ticket-text "<ticket text>" --quiet
 ```
 
 File-based input:
 
 ```bash
-PATH="{{BIN_DIR}}:$PATH" opencode-governance-bootstrap --entrypoint governance.entrypoints.phase4_intake_persist --ticket-file "/absolute/path/to/ticket.md" --quiet
+PATH="{{BIN_DIR}}:$PATH" opencode-governance-bootstrap --ticket-persist --ticket-file "/absolute/path/to/ticket.md" --quiet
 ```
 
 ```powershell
-$env:Path = "{{BIN_DIR}};" + $env:Path; opencode-governance-bootstrap --entrypoint governance.entrypoints.phase4_intake_persist --ticket-file "C:\absolute\path\to\ticket.md" --quiet
+$env:Path = "{{BIN_DIR}};" + $env:Path; opencode-governance-bootstrap --ticket-persist --ticket-file "C:\absolute\path\to\ticket.md" --quiet
 ```
 
 ## If execution is unavailable

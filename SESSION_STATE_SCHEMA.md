@@ -1,6 +1,6 @@
 # SESSION_STATE_SCHEMA.md (Canonical Contract)
 
-This document defines the **canonical SESSION_STATE contract** used by `master.md`, `continue.md`, and `docs/resume.md`.
+This document defines the **canonical SESSION_STATE contract** used by `master.md`, `continue.md`, and `audit-readout.md`.
 It exists to prevent **session state drift** across models and sessions and to make gates **enforceable**.
 
 Normative language (MUST / SHOULD / MAY) is binding.
@@ -32,7 +32,7 @@ The assistant MUST output **FULL** if any of these apply:
 
 1) The current step is an **explicit gate** (Phase 5 / 5.3 / 5.4 / 5.5 / 5.6 / 6).
 2) `SESSION_STATE.Mode` indicates a blocked state.
-3) A reviewer/audit request requires it (e.g., “show full session state”).
+3) A reviewer or `/audit-readout` request requires it (e.g., "show full session state").
 4) Phase 2 just completed (repo discovery) and this is the first time `RepoMapDigest` is produced.
 5) `SESSION_STATE.ConfidenceLevel < 70` (DRAFT/BLOCKED; expanded state required to resolve ambiguity safely).
 
@@ -178,7 +178,7 @@ Other paths (chat/command, documentation, convenience wrappers) MUST NOT set it.
 
 ## 2.1 Optional Diagnostics Keys (Self-Audit)
 
-The session state MAY include a governance pointer block for the most recent `/audit` run.
+The session state MAY include a governance pointer block for the most recent `/audit-readout` run.
 This block is **descriptive only** and MUST NOT be interpreted as normative authority.
 
 ### 2.1.0 Reason Payloads (machine-readable, binding when reason codes are emitted)
@@ -191,7 +191,7 @@ Required payload fields per entry:
 - `surface` (enum: `build|tests|static|addons|profile|state|contracts|security|performance|other`)
 - `signals_used` (array of strings)
 - `recovery_steps` (array of strings; 1..3 concrete steps)
-- `next_command` (string; e.g., `/reload-addons`, `opencode-governance-bootstrap`, `/resume`)
+- `next_command` (string; e.g., `/reload-addons`, `opencode-governance-bootstrap`, `/continue`)
 
 ### 2.1.1 `SESSION_STATE.Audit.LastRun` (optional)
 
@@ -206,7 +206,7 @@ If present, it MUST follow this shape:
 
 ### 2.1.2 Mutation constraints (binding)
 
-`/audit` MUST be read-only with respect to workflow control fields.
+`/audit-readout` MUST be read-only with respect to workflow control fields.
 It MUST NOT modify any of:
 - `SESSION_STATE.Phase`
 - `SESSION_STATE.Mode`
@@ -215,8 +215,8 @@ It MUST NOT modify any of:
 - `SESSION_STATE.Gates`
 - any discovery, plan, or evidence fields
 
-If `/audit` writes to `SESSION_STATE`, it MAY update **only** `SESSION_STATE.Audit.LastRun.*`.
-`/audit` MUST NOT influence or change gate statuses; it may only report them.
+If `/audit-readout` writes to `SESSION_STATE`, it MAY update **only** `SESSION_STATE.Audit.LastRun.*`.
+`/audit-readout` MUST NOT influence or change gate statuses; it may only report them.
 
 ### 2.1.3 Path invariants for `ReportRef` (binding)
 

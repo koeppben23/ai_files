@@ -160,6 +160,7 @@ def isolated_env(tmp_path: Path):
     env["CI"] = ""
     env["OPENCODE_CONFIG_ROOT"] = str(config_root)
     env["COMMANDS_HOME"] = str(commands_home)
+    env["OPENCODE_PYTHON"] = sys.executable
     env.pop("OPENCODE_FORCE_READ_ONLY", None)
     user_site = site.getusersitepackages()
     if user_site:

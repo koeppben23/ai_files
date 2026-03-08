@@ -294,19 +294,24 @@ class TestRailsToPaths:
                 f"{fname} missing BIN_DIR placeholder, launcher reference, and resolved python reference"
             )
 
-    def test_happy_plan_invokes_phase5_module(self):
-        """Happy: plan.md references governance.entrypoints.phase5_plan_record_persist."""
+    def test_happy_plan_uses_canonical_plan_subcommand(self):
+        """Happy: plan.md uses canonical --plan-persist launcher surface."""
         content = _read_source(REPO_ROOT / "plan.md")
-        assert "governance.entrypoints.phase5_plan_record_persist" in content, (
-            "plan.md does not reference phase5_plan_record_persist module"
+        assert "--plan-persist" in content, (
+            "plan.md must use canonical --plan-persist subcommand"
         )
 
-    def test_happy_ticket_invokes_phase4_module(self):
-        """Happy: ticket.md references governance.entrypoints.phase4_intake_persist."""
+    def test_happy_ticket_uses_canonical_ticket_subcommand(self):
+        """Happy: ticket.md uses canonical --ticket-persist launcher surface."""
         content = _read_source(REPO_ROOT / "ticket.md")
-        assert "governance.entrypoints.phase4_intake_persist" in content, (
-            "ticket.md does not reference phase4_intake_persist module"
+        assert "--ticket-persist" in content, (
+            "ticket.md must use canonical --ticket-persist subcommand"
         )
+
+    def test_corner_legacy_entrypoint_not_in_primary_rails(self):
+        """Corner: docs switched immediately to canonical subcommands."""
+        combined = _read_source(REPO_ROOT / "plan.md") + "\n" + _read_source(REPO_ROOT / "ticket.md")
+        assert "--entrypoint governance.entrypoints." not in combined
 
     def test_happy_referenced_modules_exist(self):
         """Happy: All -m module references in rail files resolve to real files."""
