@@ -460,7 +460,6 @@ def _launcher_template_unix(*, python_exe: str, config_root: Path) -> str:
       --session-reader [args]    -> session_reader.py entrypoint
       --ticket-persist [args]    -> phase4_intake_persist entrypoint (canonical)
       --plan-persist [args]      -> phase5_plan_record_persist entrypoint (canonical)
-      --entrypoint <mod> [args]  -> compatibility-only module passthrough (deprecated)
       (default / no subcommand)  -> bootstrap_executor
     """
     return "\n".join(
@@ -508,12 +507,6 @@ def _launcher_template_unix(*, python_exe: str, config_root: Path) -> str:
             "        shift",
             "        exec \"${PYTHON_BIN}\" -m governance.entrypoints.phase5_plan_record_persist \"$@\"",
             "        ;;",
-            "    --entrypoint)",
-            "        shift",
-            "        # Compatibility path (deprecated after one versioned bundle release)",
-            "        MODULE=\"$1\"; shift",
-            "        exec \"${PYTHON_BIN}\" -m \"${MODULE}\" \"$@\"",
-            "        ;;",
             "    *)",
             "        exec \"${PYTHON_BIN}\" -m governance.entrypoints.bootstrap_executor \"$@\"",
             "        ;;",
@@ -535,7 +528,6 @@ def _launcher_template_windows(*, python_exe: str, config_root: Path) -> str:
       --session-reader [args]    -> session_reader.py entrypoint
       --ticket-persist [args]    -> phase4_intake_persist entrypoint (canonical)
       --plan-persist [args]      -> phase5_plan_record_persist entrypoint (canonical)
-      --entrypoint <mod> [args]  -> compatibility-only module passthrough (deprecated)
       (default / no subcommand)  -> bootstrap_executor
     """
     return "\n".join(
@@ -599,15 +591,6 @@ def _launcher_template_windows(*, python_exe: str, config_root: Path) -> str:
             "if \"%~1\"==\"--plan-persist\" (",
             "    shift",
             "    \"!PYTHON_EXE!\" -m governance.entrypoints.phase5_plan_record_persist %*",
-            "    set \"WRAPPER_EXIT=%ERRORLEVEL%\"",
-            "    endlocal & exit /b %WRAPPER_EXIT%",
-            ")",
-            "if \"%~1\"==\"--entrypoint\" (",
-            "    shift",
-            "    rem Compatibility path (deprecated after one versioned bundle release)",
-            "    set \"MODULE=%~1\"",
-            "    shift",
-            "    \"!PYTHON_EXE!\" -m !MODULE! %*",
             "    set \"WRAPPER_EXIT=%ERRORLEVEL%\"",
             "    endlocal & exit /b %WRAPPER_EXIT%",
             ")",

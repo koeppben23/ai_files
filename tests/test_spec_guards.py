@@ -142,13 +142,7 @@ def test_markdown_local_links_resolve_offline():
 
 
 @pytest.mark.spec
-def test_entrypoint_surface_restricted_to_compatibility_allowlist():
-    allowlist = {
-        "install.py",
-        "bin/opencode-governance-bootstrap",
-        "bin/opencode-governance-bootstrap.cmd",
-        "docs/contracts/python-binding-contract.v1.md",
-    }
+def test_entrypoint_surface_removed_repo_wide():
     violations: list[str] = []
     for rel in git_ls_files():
         if rel.startswith("tests/"):
@@ -158,23 +152,19 @@ def test_entrypoint_surface_restricted_to_compatibility_allowlist():
             text = read_text(path)
         except Exception:
             continue
-        if "--entrypoint" in text and rel not in allowlist:
+        if "--entrypoint" in text:
             violations.append(rel)
 
     assert not violations, (
-        "--entrypoint surface may only appear in compatibility allowlist files:\n"
+        "--entrypoint surface must be fully removed outside tests:\n"
         + "\n".join(f"- {v}" for v in sorted(violations))
     )
 
 
 @pytest.mark.spec
-def test_entrypoint_compatibility_allowlist_stays_present():
-    required = [
-        "install.py",
-        "bin/opencode-governance-bootstrap",
-        "bin/opencode-governance-bootstrap.cmd",
-        "docs/contracts/python-binding-contract.v1.md",
-    ]
-    for rel in required:
-        text = read_text(REPO_ROOT / rel)
-        assert "--entrypoint" in text, f"compatibility surface missing from {rel}"
+def test_launcher_contract_declares_final_surface_only():
+    text = read_text(REPO_ROOT / "docs/contracts/python-binding-contract.v1.md")
+    assert "--session-reader" in text
+    assert "--ticket-persist" in text
+    assert "--plan-persist" in text
+    assert "--entrypoint" not in text
