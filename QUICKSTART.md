@@ -55,18 +55,9 @@ Use `--verbose` for step-by-step bootstrap output.
 
 ## Step 4: Open Desktop and continue
 
-After bootstrap succeeds, open OpenCode Desktop in the same repository and start with `/continue`.
-If `/continue` lands at Phase 4 (Ticket Intake), enter Plan Mode first for every new ticket/task.
-Use `/review` as a read-only rail entrypoint for lead/staff depth feedback.
+After bootstrap succeeds, open OpenCode Desktop in the same repository and run `/continue`.
 If the command cannot be executed, the model asks the user to paste the command output.
-
-| Command | Purpose |
-|---------|---------|
-| `/continue` | Standard Desktop entrypoint after bootstrap |
-| `/ticket` | Persist ticket/task intake evidence |
-| `/plan` | Persist Phase-5 plan-record evidence |
-| `/review` | Read-only rail entrypoint for lead/staff PR/ticket feedback |
-| `/audit-readout` | Read-only audit snapshot (`AUDIT_READOUT_SPEC.v1`) |
+For rail details and lifecycle behavior, use `README-OPENCODE.md`.
 
 ## Output Codes
 
