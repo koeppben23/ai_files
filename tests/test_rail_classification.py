@@ -247,6 +247,14 @@ class TestRailClassificationLegacySurfaceGuard:
         assert "resume.md" not in RAIL_FILES
         assert "audit.md" not in RAIL_FILES
 
+    def test_canonical_persist_subcommands_used_in_mutating_rails(self) -> None:
+        ticket = (REPO_ROOT / "ticket.md").read_text(encoding="utf-8")
+        plan = (REPO_ROOT / "plan.md").read_text(encoding="utf-8")
+        assert "--ticket-persist" in ticket
+        assert "--plan-persist" in plan
+        assert "--entrypoint governance.entrypoints." not in ticket
+        assert "--entrypoint governance.entrypoints." not in plan
+
     def test_extract_classification_empty_value(self) -> None:
         """Classification with empty value between delimiters returns empty list."""
         content = "<!-- rail-classification:  -->"

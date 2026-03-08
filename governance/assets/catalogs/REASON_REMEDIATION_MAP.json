@@ -137,14 +137,14 @@
     },
     "BLOCKED-P4-INTAKE-MISSING-EVIDENCE": {
       "summary": "Phase 4 intake evidence missing",
-      "how_to_fix": "Persist canonical ticket/task input with matching digest using phase4_intake_persist, then rerun routing.",
-      "copy_paste_command": "${PYTHON_COMMAND} -m governance.entrypoints.phase4_intake_persist --ticket-text \"<ticket>\"",
+      "how_to_fix": "Persist canonical ticket/task input with matching digest via the productized launcher subcommand, then rerun routing.",
+      "copy_paste_command": "opencode-governance-bootstrap --ticket-persist --ticket-text \"<ticket>\"",
       "docs_link": "docs/phases.md#phase-4"
     },
     "BLOCKED-P5-PLAN-RECORD-PERSIST": {
       "summary": "Phase 5 plan-record evidence missing or persist failed",
-      "how_to_fix": "Persist canonical plan-record evidence using phase5_plan_record_persist, then rerun /continue materialization.",
-      "copy_paste_command": "${PYTHON_COMMAND} -m governance.entrypoints.phase5_plan_record_persist --plan-text \"<plan>\"",
+      "how_to_fix": "Persist canonical plan-record evidence via the productized launcher subcommand, then rerun /continue materialization.",
+      "copy_paste_command": "opencode-governance-bootstrap --plan-persist --plan-text \"<plan>\"",
       "docs_link": "docs/phases.md#phase-5"
     }
   },

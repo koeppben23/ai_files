@@ -44,7 +44,7 @@ case "${1:-}" in
         ;;
     --entrypoint)
         shift
-        # Compatibility path (deprecated after one versioned bundle release)
+        # Compatibility-only path (deprecated after one versioned bundle release)
         MODULE="$1"; shift
         exec "${PYTHON_BIN}" -m "${MODULE}" "$@"
         ;;
