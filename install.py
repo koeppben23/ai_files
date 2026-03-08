@@ -460,7 +460,7 @@ def _launcher_template_unix(*, python_exe: str, config_root: Path) -> str:
       --session-reader [args]    -> session_reader.py entrypoint
       --ticket-persist [args]    -> phase4_intake_persist entrypoint (canonical)
       --plan-persist [args]      -> phase5_plan_record_persist entrypoint (canonical)
-      --entrypoint <mod> [args]  -> arbitrary governance module via -m
+      --entrypoint <mod> [args]  -> compatibility-only module passthrough (deprecated)
       (default / no subcommand)  -> bootstrap_executor
     """
     return "\n".join(
@@ -535,7 +535,7 @@ def _launcher_template_windows(*, python_exe: str, config_root: Path) -> str:
       --session-reader [args]    -> session_reader.py entrypoint
       --ticket-persist [args]    -> phase4_intake_persist entrypoint (canonical)
       --plan-persist [args]      -> phase5_plan_record_persist entrypoint (canonical)
-      --entrypoint <mod> [args]  -> arbitrary governance module via -m
+      --entrypoint <mod> [args]  -> compatibility-only module passthrough (deprecated)
       (default / no subcommand)  -> bootstrap_executor
     """
     return "\n".join(
