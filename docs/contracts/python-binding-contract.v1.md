@@ -138,9 +138,6 @@ Canonical subcommands for active operator workflows are:
 - `--plan-persist`
 - `--session-reader`
 
-Legacy compatibility path note:
-- `--entrypoint <module>` has been removed from launcher routing in this release line.
-
 ### 4.2 Rails (Markdown Command Templates)
 
 Rails invoke the launcher by its stable command name `opencode-governance-bootstrap`,
