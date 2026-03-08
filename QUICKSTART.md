@@ -1,3 +1,8 @@
+SSOT: `${COMMANDS_HOME}/phase_api.yaml` is the only truth for routing, execution, and validation.
+Kernel: `governance/kernel/*` is the only control-plane implementation.
+MD files are AI rails/guidance only and are never routing-binding.
+Phase `1.3` is mandatory before every phase `>=2`.
+
 ## Step 1: Install (2 minutes)
 
 ```bash
@@ -56,6 +61,7 @@ Use `--verbose` for step-by-step bootstrap output.
 ## Step 4: Open Desktop and continue
 
 After bootstrap succeeds, open OpenCode Desktop in the same repository and run `/continue`.
+If `/continue` lands in Phase 4, run `/ticket` and then `/plan`.
 If the command cannot be executed, the model asks the user to paste the command output.
 For rail details and lifecycle behavior, use `README-OPENCODE.md`.
 
