@@ -241,7 +241,7 @@ class TestReadmeAuthorityHappy:
 class TestO3SurfaceBad:
     """Prevent regression to deprecated command and entrypoint surfaces."""
 
-    _DOCS = ["README-OPENCODE.md", "QUICKSTART.md", "README.md"]
+    _DOCS = ["README-OPENCODE.md", "QUICKSTART.md", "README.md", "docs/operator-runbook.md"]
 
     @pytest.mark.parametrize("relpath", _DOCS)
     def test_no_direct_governance_entrypoint_calls(self, relpath: str) -> None:
@@ -260,7 +260,7 @@ class TestO3SurfaceBad:
     @pytest.mark.parametrize("relpath", _DOCS)
     def test_no_audit_short_command(self, relpath: str) -> None:
         content = _read(relpath)
-        assert re.search(r"(?<!-readout)\b/audit\b", content) is None, (
+        assert re.search(r"/audit(?![-a-zA-Z0-9_])", content) is None, (
             f"{relpath} must not include deprecated /audit command"
         )
 

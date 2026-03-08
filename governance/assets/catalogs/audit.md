@@ -1,5 +1,7 @@
 # /audit-readout — Self-Audit & Diagnostics (Read-Only)
 
+Legacy filename note: this file remains `audit.md` for compatibility, but the active command surface is `/audit-readout`.
+
 ## PURPOSE (Descriptive)
 Run a deterministic, read-only governance pass over the current session.
 This command MUST NOT:

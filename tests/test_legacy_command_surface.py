@@ -12,6 +12,19 @@ def _read(relpath: str) -> str:
 class TestLegacyCommandSurfaceMigration:
     """Guard active surfaces against /resume and /audit legacy drift."""
 
+    _ACTIVE_SURFACES = [
+        "governance/assets/reasons/blocked_reason_catalog.yaml",
+        "governance/assets/config/blocked_reason_catalog.yaml",
+        "governance/assets/catalogs/reason_codes.registry.json",
+        "SESSION_STATE_SCHEMA.md",
+        "phase_api.yaml",
+        "governance/assets/catalogs/audit.md",
+        "docs/operator-runbook.md",
+        "README.md",
+        "README-OPENCODE.md",
+        "QUICKSTART.md",
+    ]
+
     def test_happy_reason_catalogs_use_continue(self) -> None:
         files = [
             "governance/assets/reasons/blocked_reason_catalog.yaml",
@@ -43,19 +56,26 @@ class TestLegacyCommandSurfaceMigration:
         assert "Run `/continue`" in content
         assert "Run `/resume`" not in content
 
+    def test_happy_contract_defines_canonical_command_surfaces(self) -> None:
+        content = _read("docs/contracts/command-surface-contract.v1.md")
+        assert "Session continuation surface: `/continue`" in content
+        assert "Audit read-only surface: `/audit-readout`" in content
+        assert "`/resume` is deprecated" in content
+        assert "`/audit` is deprecated" in content
+
     def test_bad_no_active_resume_or_short_audit_in_target_surfaces(self) -> None:
-        files = [
-            "governance/assets/reasons/blocked_reason_catalog.yaml",
-            "governance/assets/config/blocked_reason_catalog.yaml",
-            "governance/assets/catalogs/reason_codes.registry.json",
-            "SESSION_STATE_SCHEMA.md",
-            "phase_api.yaml",
-        ]
-        for relpath in files:
+        for relpath in self._ACTIVE_SURFACES:
             content = _read(relpath)
             assert re.search(r"(?<!docs)/resume(?!\.md)", content) is None, (
                 f"Deprecated /resume command surface found in {relpath}"
             )
-            assert re.search(r"(?<!-readout)\b/audit\b", content) is None, (
+            assert re.search(r"/audit(?![-a-zA-Z0-9_])", content) is None, (
                 f"Deprecated /audit surface found in {relpath}"
+            )
+
+    def test_bad_active_surfaces_must_not_recommend_resume_templates(self) -> None:
+        for relpath in self._ACTIVE_SURFACES:
+            content = _read(relpath)
+            assert "resume_prompt.md" not in content, (
+                f"Active surface references deprecated resume template in {relpath}"
             )

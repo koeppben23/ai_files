@@ -36,6 +36,7 @@ ${COMMANDS_HOME}/
   continue.md
   review.md
   docs/resume.md                 # legacy compatibility alias for /continue guidance
+  docs/resume_prompt.md          # deprecated template alias (use /continue)
   README.md
   README-RULES.md
   README-OPENCODE.md
