@@ -157,7 +157,7 @@ class TestSourceTemplate:
         assert "materializes and prints" in content_lower, (
             "continue.md must describe the command purpose (materializes and prints)"
         )
-        assert "do not infer additional state" in content_lower, (
+        assert "do not infer or mutate" in content_lower, (
             "continue.md must contain a state-inference guard"
         )
 
@@ -195,7 +195,8 @@ class TestSourceTemplate:
         """Source template must contain the state-inference guard."""
         lower = self.content.lower()
         assert "do not infer additional state beyond the materialized output" in lower or \
-               "do not infer additional state" in lower, (
+               "do not infer additional state" in lower or \
+               "do not infer or mutate" in lower, (
             "continue.md must limit inference scope to materialized output only"
         )
 

@@ -141,8 +141,10 @@ class TestDocConsistencyHappy:
 
     def test_review_md_references_output_policy(self) -> None:
         content = _read("review.md")
-        assert "output_policy" in content or "Rule A" in content, (
-            "review.md must reference output_policy or Rule A/B"
+        assert "output_policy" in content or "Rule A" in content or \
+               "output class restrictions" in content, (
+            "review.md must reference output policy (output_policy, Rule A, "
+            "or output class restrictions)"
         )
 
     def test_review_md_no_full_policy_duplication(self) -> None:

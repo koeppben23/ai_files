@@ -87,6 +87,16 @@ _COMMAND_RAILS = [
     }
 ]
 
+# Execution rails (state-changing or gate-evaluating) — R1/R2 compression scope.
+# audit-readout.md is output-only and has different density expectations.
+_EXECUTION_RAILS = [
+    e for e in _ROOT_RAILS
+    if e.path in {
+        "continue.md", "review.md",
+        "ticket.md", "plan.md",
+    }
+]
+
 # ───────────────────────────────────────────────────────────────────────────
 # Helpers
 # ───────────────────────────────────────────────────────────────────────────
@@ -795,3 +805,136 @@ class TestCR06Synthetic:
 
     def test_launcher_passes(self) -> None:
         assert not _DIRECT_PYTHON_RE.search("opencode-governance-bootstrap install")
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 5.  EXECUTION-RAIL DENSITY GUARDS
+# ═══════════════════════════════════════════════════════════════════════════
+#   These guards enforce operative minimalism on execution-facing rails.
+#   They are additive to CR-01..CR-09 (no duplication).
+
+_HEADING_RE = re.compile(r"^#{1,6}\s")
+_BULLET_RE = re.compile(r"^\s*[-*]\s")
+_RESPONSE_SHAPE_SECTION_RE = re.compile(
+    r"## Response shape\s*\n(.*?)(?=\n## |\n---|\n[A-Z][^\n]*:\s*\n|\Z)",
+    re.DOTALL,
+)
+
+# Density caps — intentionally generous; tighten after guidance-core refactor
+_MAX_HEADINGS_PER_RAIL = 8
+_MAX_LINES_PER_RAIL = 75
+_MAX_RESPONSE_SHAPE_BULLETS = 4
+
+# Guidance vocabulary banned from execution-facing rails
+_GUIDANCE_VOCAB_RE = re.compile(
+    r"\bkernel-owned\b|\bschema-owned\b|\bkernel- and schema-owned\b",
+    re.IGNORECASE,
+)
+
+
+class TestExecutionRailDensity:
+    """Density guards: execution rails must stay at operative minimum."""
+
+    @pytest.mark.parametrize(
+        "entry",
+        _EXECUTION_RAILS,
+        ids=[e.path for e in _EXECUTION_RAILS],
+    )
+    def test_max_headings(self, entry: _Entry) -> None:
+        content = _read(entry)
+        heading_count = sum(1 for line in _lines(content) if _HEADING_RE.match(line))
+        assert heading_count <= _MAX_HEADINGS_PER_RAIL, (
+            f"{entry.path}: {heading_count} headings exceeds cap of "
+            f"{_MAX_HEADINGS_PER_RAIL}. Execution rails must stay minimal."
+        )
+
+    @pytest.mark.parametrize(
+        "entry",
+        _EXECUTION_RAILS,
+        ids=[e.path for e in _EXECUTION_RAILS],
+    )
+    def test_max_total_lines(self, entry: _Entry) -> None:
+        content = _read(entry)
+        line_count = len(_lines(content))
+        assert line_count <= _MAX_LINES_PER_RAIL, (
+            f"{entry.path}: {line_count} lines exceeds cap of "
+            f"{_MAX_LINES_PER_RAIL}. Execution rails must stay compact."
+        )
+
+    @pytest.mark.parametrize(
+        "entry",
+        _EXECUTION_RAILS,
+        ids=[e.path for e in _EXECUTION_RAILS],
+    )
+    def test_max_response_shape_bullets(self, entry: _Entry) -> None:
+        content = _read(entry)
+        m = _RESPONSE_SHAPE_SECTION_RE.search(content)
+        if m is None:
+            pytest.skip(f"{entry.path}: no Response shape section found")
+        section_text = m.group(1)
+        bullet_count = sum(1 for line in section_text.splitlines() if _BULLET_RE.match(line))
+        assert bullet_count <= _MAX_RESPONSE_SHAPE_BULLETS, (
+            f"{entry.path}: Response shape has {bullet_count} bullets, "
+            f"exceeds cap of {_MAX_RESPONSE_SHAPE_BULLETS}."
+        )
+
+    @pytest.mark.parametrize(
+        "entry",
+        _EXECUTION_RAILS,
+        ids=[e.path for e in _EXECUTION_RAILS],
+    )
+    def test_no_guidance_vocabulary(self, entry: _Entry) -> None:
+        content = _read(entry)
+        # Strip fenced code blocks (command examples may contain anything)
+        stripped = _strip_fenced_blocks(content)
+        violations: list[str] = []
+        for i, line in enumerate(_lines(stripped), 1):
+            if _GUIDANCE_VOCAB_RE.search(line):
+                violations.append(f"  {entry.path}:{i}: {line.strip()}")
+        assert not violations, (
+            f"Execution rails must not use guidance vocabulary "
+            f"(kernel-owned, schema-owned):\n" + "\n".join(violations)
+        )
+
+
+class TestExecutionRailFreeTextGuard:
+    """Every mutating execution rail must have a free-text guard."""
+
+    _MUTATING_RAILS = [
+        e for e in _EXECUTION_RAILS
+        if e.path in {"continue.md", "ticket.md", "plan.md"}
+    ]
+
+    @pytest.mark.parametrize(
+        "entry",
+        _MUTATING_RAILS,
+        ids=[e.path for e in _MUTATING_RAILS],
+    )
+    def test_free_text_guard_present(self, entry: _Entry) -> None:
+        content = _read(entry)
+        assert "free-text guard" in content.lower(), (
+            f"{entry.path}: mutating execution rail must contain a free-text guard"
+        )
+
+
+class TestExecutionRailDensitySynthetic:
+    """Synthetic tests for density guard helpers."""
+
+    def test_heading_regex_matches(self) -> None:
+        assert _HEADING_RE.match("## Purpose")
+        assert _HEADING_RE.match("### Sub heading")
+        assert not _HEADING_RE.match("Not a heading")
+
+    def test_bullet_regex_matches(self) -> None:
+        assert _BULLET_RE.match("- item one")
+        assert _BULLET_RE.match("  * nested item")
+        assert not _BULLET_RE.match("plain text")
+
+    def test_guidance_vocab_caught(self) -> None:
+        assert _GUIDANCE_VOCAB_RE.search("This is kernel-owned behavior")
+        assert _GUIDANCE_VOCAB_RE.search("Format is schema-owned")
+        assert _GUIDANCE_VOCAB_RE.search("X is kernel- and schema-owned")
+
+    def test_guidance_vocab_clean(self) -> None:
+        assert not _GUIDANCE_VOCAB_RE.search("Use the YAML output as governance context")
+        assert not _GUIDANCE_VOCAB_RE.search("The command is mutating")

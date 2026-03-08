@@ -725,7 +725,9 @@ class TestP2TicketPhase6Precision:
     # -- Happy --
     def test_phase_6_transition_mentioned(self) -> None:
         content = self._content()
-        assert "transitions to Phase 6" in content
+        assert "Phase 6" in content, (
+            "ticket.md must reference Phase 6 (implementation gate)"
+        )
 
     # -- Bad --
     def test_no_ambiguous_approved_only(self) -> None:
@@ -740,7 +742,13 @@ class TestP2TicketPhase6Precision:
     # -- Edge --
     def test_continue_review_rail_statement_preserved(self) -> None:
         content = self._content()
-        assert "/review` is read-only; `/continue` is the state materialization rail" in content
+        # R2 compressed this into Interpretation scope; the key semantic is
+        # that ticket.md clarifies text alone doesn't change phase.
+        assert "do not change phase" in content.lower() or \
+               "does not change phase" in content.lower() or \
+               "do not change phase by themselves" in content.lower(), (
+            "ticket.md must clarify that text alone does not change phase"
+        )
 
     # -- Corner --
     def test_intake_reroute_disclaimer_preserved(self) -> None:

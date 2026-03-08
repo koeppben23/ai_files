@@ -18,11 +18,12 @@ def test_ticket_md_exists_and_documents_intake_bridge() -> None:
     assert "phase4_intake_persist" in content
     assert BIN_DIR_PLACEHOLDER in content
     assert "opencode-governance-bootstrap" in content
-    assert "/review` is read-only" in content or "`/review` is read-only" in content, (
-        "ticket.md must state that /review is read-only"
+    # R2 compressed cross-rail references; verify intake semantics instead
+    assert "mutating" in content.lower() or "writes evidence" in content.lower(), (
+        "ticket.md must clarify it is a mutating/evidence-writing rail"
     )
-    assert "/continue` is the state materialization rail" in content, (
-        "ticket.md must state that /continue is the state materialization rail"
+    assert "Phase 5" in content or "review gate" in content.lower(), (
+        "ticket.md must reference the review gate path after intake"
     )
 
 
