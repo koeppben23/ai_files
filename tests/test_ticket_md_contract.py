@@ -15,7 +15,8 @@ def test_ticket_md_exists_and_documents_intake_bridge() -> None:
     ticket_path = REPO_ROOT / "ticket.md"
     assert ticket_path.exists(), "ticket.md must exist in repo root"
     content = ticket_path.read_text(encoding="utf-8")
-    assert "phase4_intake_persist" in content
+    assert "--ticket-persist" in content
+    assert "phase4_intake_persist" not in content
     assert BIN_DIR_PLACEHOLDER in content
     assert "opencode-governance-bootstrap" in content
     # R2 compressed cross-rail references; verify intake semantics instead
@@ -35,7 +36,7 @@ def test_ticket_md_bin_dir_placeholder_is_injected(tmp_path: Path) -> None:
     command_md.write_text(
         "```bash\n"
         f'PATH="{BIN_DIR_PLACEHOLDER}:$PATH" opencode-governance-bootstrap '
-        "--entrypoint governance.entrypoints.phase4_intake_persist "
+        "--ticket-persist "
         '--ticket-text "x"\n'
         "```\n",
         encoding="utf-8",
@@ -52,6 +53,6 @@ def test_ticket_md_bin_dir_placeholder_is_injected(tmp_path: Path) -> None:
     assert "{{BIN_DIR}}" not in content
     assert "/usr/local/governance/bin" in content
     if os.name == "nt":
-        assert "opencode-governance-bootstrap.cmd --entrypoint governance.entrypoints.phase4_intake_persist" in content
+        assert "opencode-governance-bootstrap.cmd --ticket-persist" in content
     else:
-        assert "opencode-governance-bootstrap --entrypoint governance.entrypoints.phase4_intake_persist" in content
+        assert "opencode-governance-bootstrap --ticket-persist" in content

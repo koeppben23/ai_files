@@ -379,12 +379,12 @@ blocked_reasons:
     required_inputs:
       - "Confirmation to run recovery"
     quick_fix_commands:
-      - "/resume"
+      - "/continue"
     resume_pointer: "Phase 4 - Step 0"
     recovery_steps:
-      - "Run /resume with current evidence"
+      - "Run /continue with current evidence"
       - "Re-validate SESSION_STATE"
-    message_template: "Recovery required. Run /resume."
+    message_template: "Recovery required. Run /continue."
 
   BLOCKED-RESUME-STATE-VIOLATION:
     reason_code: "BLOCKED-RESUME-STATE-VIOLATION"

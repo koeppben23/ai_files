@@ -1241,6 +1241,47 @@ class TestPythonBindingArtifact:
         )
 
 
+class TestRepoLauncherContractDrift:
+    """Guard checked-in launcher wrappers against contract drift."""
+
+    def test_happy_repo_unix_wrapper_uses_binding_cascade(self) -> None:
+        content = (REPO_ROOT / "bin" / "opencode-governance-bootstrap").read_text(encoding="utf-8")
+        assert "PYTHON_BINDING" in content
+        assert "FATAL: No valid Python interpreter found" in content
+        assert "OPENCODE_PYTHON" in content
+
+    def test_happy_repo_windows_wrapper_uses_binding_cascade(self) -> None:
+        content = (REPO_ROOT / "bin" / "opencode-governance-bootstrap.cmd").read_text(encoding="utf-8")
+        assert "PYTHON_BINDING" in content
+        assert "FATAL: No valid Python interpreter found" in content
+        assert "OPENCODE_PYTHON" in content
+
+    def test_corner_repo_wrappers_support_canonical_subcommands(self) -> None:
+        unix_content = (REPO_ROOT / "bin" / "opencode-governance-bootstrap").read_text(encoding="utf-8")
+        win_content = (REPO_ROOT / "bin" / "opencode-governance-bootstrap.cmd").read_text(encoding="utf-8")
+        for token in ["--ticket-persist", "--plan-persist", "--entrypoint"]:
+            assert token in unix_content
+            assert token in win_content
+
+    def test_edge_repo_wrappers_forbid_primary_path_probing(self) -> None:
+        unix_content = (REPO_ROOT / "bin" / "opencode-governance-bootstrap").read_text(encoding="utf-8")
+        win_content = (REPO_ROOT / "bin" / "opencode-governance-bootstrap.cmd").read_text(encoding="utf-8")
+        assert "command -v python" not in unix_content
+        assert "command -v python3" not in unix_content
+        assert "pythonLocation" not in unix_content
+        assert "%pythonLocation%\\python.exe" not in win_content
+        assert "python -c \"import sys\"" not in win_content
+        assert "py -3 -c \"import sys\"" not in win_content
+        assert "%PYTHON%" not in win_content
+
+    def test_bad_repo_wrapper_no_direct_entrypoint_module_in_docs(self) -> None:
+        """Bad-path detector: canonical rail docs must not expose module names."""
+        plan_content = (REPO_ROOT / "plan.md").read_text(encoding="utf-8")
+        ticket_content = (REPO_ROOT / "ticket.md").read_text(encoding="utf-8")
+        combined = (plan_content + "\n" + ticket_content)
+        assert "--entrypoint governance.entrypoints." not in combined
+
+
 # ---------------------------------------------------------------------------
 # P1-C: Install-time logs directory and initial flow log event
 # ---------------------------------------------------------------------------

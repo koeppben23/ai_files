@@ -457,6 +457,8 @@ def _launcher_template_unix(*, python_exe: str, config_root: Path) -> str:
 
     Subcommand routing (python-binding-contract.v1 §4):
       --session-reader [args]    -> session_reader.py entrypoint
+      --ticket-persist [args]    -> phase4_intake_persist entrypoint (canonical)
+      --plan-persist [args]      -> phase5_plan_record_persist entrypoint (canonical)
       --entrypoint <mod> [args]  -> arbitrary governance module via -m
       (default / no subcommand)  -> bootstrap_executor
     """
@@ -497,8 +499,17 @@ def _launcher_template_unix(*, python_exe: str, config_root: Path) -> str:
             "        shift",
             "        exec \"${PYTHON_BIN}\" \"${COMMANDS_HOME}/governance/entrypoints/session_reader.py\" \"$@\"",
             "        ;;",
+            "    --ticket-persist)",
+            "        shift",
+            "        exec \"${PYTHON_BIN}\" -m governance.entrypoints.phase4_intake_persist \"$@\"",
+            "        ;;",
+            "    --plan-persist)",
+            "        shift",
+            "        exec \"${PYTHON_BIN}\" -m governance.entrypoints.phase5_plan_record_persist \"$@\"",
+            "        ;;",
             "    --entrypoint)",
             "        shift",
+            "        # Compatibility path (deprecated after one versioned bundle release)",
             "        MODULE=\"$1\"; shift",
             "        exec \"${PYTHON_BIN}\" -m \"${MODULE}\" \"$@\"",
             "        ;;",
@@ -521,6 +532,8 @@ def _launcher_template_windows(*, python_exe: str, config_root: Path) -> str:
 
     Subcommand routing (python-binding-contract.v1 §4):
       --session-reader [args]    -> session_reader.py entrypoint
+      --ticket-persist [args]    -> phase4_intake_persist entrypoint (canonical)
+      --plan-persist [args]      -> phase5_plan_record_persist entrypoint (canonical)
       --entrypoint <mod> [args]  -> arbitrary governance module via -m
       (default / no subcommand)  -> bootstrap_executor
     """
@@ -576,8 +589,21 @@ def _launcher_template_windows(*, python_exe: str, config_root: Path) -> str:
             "    set \"WRAPPER_EXIT=%ERRORLEVEL%\"",
             "    endlocal & exit /b %WRAPPER_EXIT%",
             ")",
+            "if \"%~1\"==\"--ticket-persist\" (",
+            "    shift",
+            "    \"!PYTHON_EXE!\" -m governance.entrypoints.phase4_intake_persist %*",
+            "    set \"WRAPPER_EXIT=%ERRORLEVEL%\"",
+            "    endlocal & exit /b %WRAPPER_EXIT%",
+            ")",
+            "if \"%~1\"==\"--plan-persist\" (",
+            "    shift",
+            "    \"!PYTHON_EXE!\" -m governance.entrypoints.phase5_plan_record_persist %*",
+            "    set \"WRAPPER_EXIT=%ERRORLEVEL%\"",
+            "    endlocal & exit /b %WRAPPER_EXIT%",
+            ")",
             "if \"%~1\"==\"--entrypoint\" (",
             "    shift",
+            "    rem Compatibility path (deprecated after one versioned bundle release)",
             "    set \"MODULE=%~1\"",
             "    shift",
             "    \"!PYTHON_EXE!\" -m !MODULE! %*",

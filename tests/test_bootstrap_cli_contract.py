@@ -89,6 +89,7 @@ def test_cli_contract_requires_repo_root(tmp_path: Path) -> None:
     env = dict(os.environ)
     env["OPENCODE_CONFIG_ROOT"] = str(tmp_path / "config")
     env["COMMANDS_HOME"] = str(tmp_path / "config" / "commands")
+    env["OPENCODE_PYTHON"] = sys.executable
     env["HOME"] = str(tmp_path / "home")
     env["USERPROFILE"] = str(tmp_path / "home")
     proc = _run(launcher, cwd=tmp_path, env=env)
@@ -102,6 +103,7 @@ def test_cli_contract_rejects_invalid_repo_root(tmp_path: Path) -> None:
     env = dict(os.environ)
     env["OPENCODE_CONFIG_ROOT"] = str(tmp_path / "config")
     env["COMMANDS_HOME"] = str(tmp_path / "config" / "commands")
+    env["OPENCODE_PYTHON"] = sys.executable
     env["HOME"] = str(tmp_path / "home")
     env["USERPROFILE"] = str(tmp_path / "home")
     proc = _run(launcher + ["--repo-root", str(tmp_path / "missing")], cwd=tmp_path, env=env)
@@ -129,6 +131,7 @@ def test_cli_contract_uses_repo_root_and_config_root(tmp_path: Path) -> None:
     env["CI"] = ""
     env["OPENCODE_CONFIG_ROOT"] = str(config_root)
     env["COMMANDS_HOME"] = str(commands_home)
+    env["OPENCODE_PYTHON"] = sys.executable
     user_site = site.getusersitepackages()
     if user_site:
         env["PYTHONPATH"] = os.pathsep.join(

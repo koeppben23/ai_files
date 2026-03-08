@@ -23,21 +23,21 @@ Deterministic persist flow:
 Chat text input:
 
 ```bash
-PATH="{{BIN_DIR}}:$PATH" opencode-governance-bootstrap --entrypoint governance.entrypoints.phase5_plan_record_persist --plan-text "<plan text>" --quiet
+PATH="{{BIN_DIR}}:$PATH" opencode-governance-bootstrap --plan-persist --plan-text "<plan text>" --quiet
 ```
 
 ```powershell
-$env:Path = "{{BIN_DIR}};" + $env:Path; opencode-governance-bootstrap --entrypoint governance.entrypoints.phase5_plan_record_persist --plan-text "<plan text>" --quiet
+$env:Path = "{{BIN_DIR}};" + $env:Path; opencode-governance-bootstrap --plan-persist --plan-text "<plan text>" --quiet
 ```
 
 File-based input:
 
 ```bash
-PATH="{{BIN_DIR}}:$PATH" opencode-governance-bootstrap --entrypoint governance.entrypoints.phase5_plan_record_persist --plan-file "/absolute/path/to/plan.md" --quiet
+PATH="{{BIN_DIR}}:$PATH" opencode-governance-bootstrap --plan-persist --plan-file "/absolute/path/to/plan.md" --quiet
 ```
 
 ```powershell
-$env:Path = "{{BIN_DIR}};" + $env:Path; opencode-governance-bootstrap --entrypoint governance.entrypoints.phase5_plan_record_persist --plan-file "C:\absolute\path\to\plan.md" --quiet
+$env:Path = "{{BIN_DIR}};" + $env:Path; opencode-governance-bootstrap --plan-persist --plan-file "C:\absolute\path\to\plan.md" --quiet
 ```
 
 ## If execution is unavailable
