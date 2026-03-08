@@ -20,7 +20,7 @@ $env:Path = "{{BIN_DIR}};" + $env:Path; opencode-governance-bootstrap --session-
 
 ## If execution is unavailable
 
-If the command cannot be executed (e.g., sandboxed environment, model policy, or tool error), ask the user to paste the command output.
+If the command cannot be executed, ask the user to paste the command output.
 
 If no snapshot is available, proceed using only the context visible in the current conversation and state assumptions explicitly.
 

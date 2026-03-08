@@ -45,9 +45,8 @@ opencode-governance-bootstrap --repo-root C:\path\to\repo --config-root C:\path\
 
 ## If execution is unavailable
 
-If the bootstrap command cannot be executed, verify that the installer has been run
-and that the launcher is on your `PATH`. If the launcher is still not available,
-run the install script manually (see Installation above).
+If the bootstrap command cannot be executed, ask the user to verify that the installer
+has been run and that the launcher is on `PATH`.
 
 ## Repository root not found
 

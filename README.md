@@ -13,7 +13,7 @@
 - Use `--verbose` on bootstrap when you need step-by-step flow output
 - Open OpenCode Desktop in the same repository and run `/continue`
 - At Phase 4 (Ticket Intake), use Plan Mode first for every new ticket/task before implementation
-- Use `/review` as a read-only rail entrypoint when you need a lead/staff review pass with paste-ready PR feedback (the authoritative review gate is Phase 5 in the kernel/phase model)
+- Use `/review` as a read-only rail entrypoint when you need a lead/staff review pass with paste-ready PR feedback
 - Use `/resume` only for explicit interrupted-session recovery
 - If the model cannot execute the session-reader command, it will ask for a pasted snapshot (see `README-OPENCODE.md`)
 
