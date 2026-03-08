@@ -17,7 +17,7 @@ policy:
   audit_on_change: "POLICY_PRECEDENCE_APPLIED"
 
 # Blocked Reason Catalog (Kernel-Enforced)
-# Each reason defines: trigger conditions, required inputs, recovery steps, resume pointer
+# Each reason defines: trigger conditions, required inputs, recovery steps, next command pointer
 blocked_reasons:
 
   # Bootstrap Errors
@@ -30,7 +30,7 @@ blocked_reasons:
       - "Explicit bootstrap declaration restatement"
     quick_fix_commands:
       - "opencode-governance-bootstrap"
-    resume_pointer: "opencode-governance-bootstrap"
+    next_command_pointer: "opencode-governance-bootstrap"
     recovery_steps:
       - "Restate the bootstrap declaration explicitly"
       - "Run the local bootstrap launcher to re-validate bootstrap"
@@ -45,7 +45,7 @@ blocked_reasons:
       - "Valid /start evidence"
     quick_fix_commands:
       - "opencode-governance-bootstrap"
-    resume_pointer: "opencode-governance-bootstrap"
+    next_command_pointer: "opencode-governance-bootstrap"
     recovery_steps:
       - "Run the local bootstrap launcher to gather bootstrap evidence"
     message_template: "Bootstrap evidence required. Run the local bootstrap launcher first."
@@ -59,7 +59,7 @@ blocked_reasons:
       - "Valid governance.paths.json"
     quick_fix_commands:
       - "${PYTHON_COMMAND} install.py"
-    resume_pointer: "opencode-governance-bootstrap"
+    next_command_pointer: "opencode-governance-bootstrap"
     recovery_steps:
       - "Run install.py to generate binding file"
       - "Verify governance.paths.json exists in ${COMMANDS_HOME}"
@@ -75,11 +75,11 @@ blocked_reasons:
       - "Valid rules.md file"
     quick_fix_commands:
       - "Verify ${PROFILES_HOME}/rules.md exists"
-    resume_pointer: "/reload-addons"
+    next_command_pointer: "/continue"
     recovery_steps:
       - "Verify rules.md exists in canonical location"
       - "Check file permissions and encoding"
-      - "Run /reload-addons to retry"
+      - "Run /continue to retry rulebook activation"
     message_template: "Core rulebook load failed. Verify rules.md exists."
 
   BLOCKED-MISSING-RULEBOOK:
@@ -91,10 +91,10 @@ blocked_reasons:
       - "Missing rulebook file"
     quick_fix_commands:
       - "Check if {file} exists"
-    resume_pointer: "/reload-addons"
+    next_command_pointer: "/continue"
     recovery_steps:
       - "Create or restore the missing rulebook file"
-      - "Run /reload-addons to retry"
+      - "Run /continue to retry rulebook activation"
     message_template: "Missing rulebook: {file}."
 
   BLOCKED-MISSING-PROFILE:
@@ -105,12 +105,12 @@ blocked_reasons:
     required_inputs:
       - "Profile selection"
     quick_fix_commands:
-      - "/reload-addons"
-    resume_pointer: "/reload-addons"
+      - "/continue"
+    next_command_pointer: "/continue"
     recovery_steps:
       - "Select a profile explicitly"
       - "Verify profile rulebook exists"
-      - "Run /reload-addons to retry"
+      - "Run /continue to retry rulebook activation"
     message_template: "Profile missing. Select profile or verify rulebook."
 
   BLOCKED-MISSING-TEMPLATES:
@@ -122,10 +122,10 @@ blocked_reasons:
       - "Templates rulebook"
     quick_fix_commands:
       - "Check if templates rulebook exists"
-    resume_pointer: "/reload-addons"
+    next_command_pointer: "/continue"
     recovery_steps:
       - "Verify templates rulebook exists for active profile"
-      - "Run /reload-addons to retry"
+      - "Run /continue to retry rulebook activation"
     message_template: "Templates rulebook missing for profile."
 
   BLOCKED-MISSING-ADDON:
@@ -137,11 +137,11 @@ blocked_reasons:
       - "Addon rulebook"
     quick_fix_commands:
       - "Check if addon manifest and rulebook exist"
-    resume_pointer: "/reload-addons"
+    next_command_pointer: "/continue"
     recovery_steps:
       - "Verify addon manifest in ${PROFILES_HOME}/addons/"
       - "Verify addon rulebook exists"
-      - "Run /reload-addons to retry"
+      - "Run /continue to retry rulebook activation"
     message_template: "Required addon {addon_key} missing."
 
   # Profile Detection
@@ -154,7 +154,7 @@ blocked_reasons:
       - "Explicit profile selection"
     quick_fix_commands:
       - "Select profile: 1=<recommended> | 2=<alt> | 3=<alt> | 4=fallback-minimum | 0=abort"
-    resume_pointer: "opencode-governance-bootstrap"
+    next_command_pointer: "opencode-governance-bootstrap"
     recovery_steps:
       - "Select a profile from the ranked shortlist"
       - "Provide explicit profile selection"
@@ -170,7 +170,7 @@ blocked_reasons:
       - "Missing evidence"
     quick_fix_commands:
       - "opencode-governance-bootstrap"
-    resume_pointer: "opencode-governance-bootstrap"
+    next_command_pointer: "opencode-governance-bootstrap"
     recovery_steps:
       - "Provide the missing evidence"
       - "Run the local bootstrap launcher to re-gather evidence"
@@ -185,7 +185,7 @@ blocked_reasons:
       - "Load evidence (path/tool output/hash)"
     quick_fix_commands:
       - "Verify rulebook accessibility"
-    resume_pointer: "/reload-addons"
+    next_command_pointer: "/continue"
     recovery_steps:
       - "Verify rulebook file exists and is readable"
       - "Provide explicit load evidence if host tools unavailable"
@@ -201,7 +201,7 @@ blocked_reasons:
       - "Investigation of hash/activation mismatch"
     quick_fix_commands:
       - "Clear cache and re-run the bootstrap launcher"
-    resume_pointer: "opencode-governance-bootstrap"
+    next_command_pointer: "opencode-governance-bootstrap"
     recovery_steps:
       - "Clear SESSION_STATE cache"
       - "Re-run the local bootstrap launcher to re-activate"
@@ -218,7 +218,7 @@ blocked_reasons:
       - "Fresh session state"
     quick_fix_commands:
       - "opencode-governance-bootstrap --fresh"
-    resume_pointer: "opencode-governance-bootstrap"
+    next_command_pointer: "opencode-governance-bootstrap"
     recovery_steps:
       - "Start fresh session with the local bootstrap launcher --fresh"
       - "Or provide updated session state"
@@ -234,7 +234,7 @@ blocked_reasons:
       - "None (configuration error)"
     quick_fix_commands:
       - "Fix pipeline configuration"
-    resume_pointer: "N/A"
+    next_command_pointer: "/continue"
     recovery_steps:
       - "Pipeline mode cannot request human interaction"
       - "Fix the configuration that triggered this block"
@@ -249,7 +249,7 @@ blocked_reasons:
       - "None (configuration error)"
     quick_fix_commands:
       - "Fix pipeline configuration"
-    resume_pointer: "N/A"
+    next_command_pointer: "/continue"
     recovery_steps:
       - "Pipeline mode cannot request human approval"
       - "Fix the configuration that triggered this block"
@@ -265,7 +265,7 @@ blocked_reasons:
       - "Fix for engine configuration"
     quick_fix_commands:
       - "Verify engine configuration"
-    resume_pointer: "opencode-governance-bootstrap"
+    next_command_pointer: "opencode-governance-bootstrap"
     recovery_steps:
       - "Verify policy-bound config files exist"
       - "Verify YAML parser is available"
@@ -282,7 +282,7 @@ blocked_reasons:
       - "Valid rules.md file"
     quick_fix_commands:
       - "Run installer repair to restore core rulebooks"
-    resume_pointer: "Phase 1.3 - Core Rules Activation"
+    next_command_pointer: "/continue"
     recovery_steps:
       - "Run installer to restore rulebooks"
       - "Verify rules.md exists under ${COMMANDS_HOME}"
@@ -297,7 +297,7 @@ blocked_reasons:
       - "Missing decision input/evidence"
     quick_fix_commands:
       - "Provide the required decision input"
-    resume_pointer: "Active decision phase"
+    next_command_pointer: "/continue"
     recovery_steps:
       - "Provide minimal missing decision input"
       - "Construct valid option set"
@@ -312,11 +312,11 @@ blocked_reasons:
       - "Canonical ticket or task text"
       - "Matching TicketRecordDigest and/or TaskRecordDigest"
     quick_fix_commands:
-      - "${PYTHON_COMMAND} -m governance.entrypoints.phase4_intake_persist --ticket-text \"...\""
-    resume_pointer: "Phase 4 - Ticket Input Gate"
+      - "opencode-governance-bootstrap --ticket-persist --ticket-text \"...\""
+    next_command_pointer: "/continue"
     recovery_steps:
       - "Provide non-empty ticket or task input"
-      - "Persist intake via phase4_intake_persist"
+      - "Persist intake via --ticket-persist"
       - "Re-run phase routing"
     message_template: "Phase 4 blocked: intake evidence missing. Persist canonical ticket/task with matching digest."
 
@@ -329,11 +329,11 @@ blocked_reasons:
       - "Canonical Phase 5 plan record text"
       - "Matching plan record digest/version evidence"
     quick_fix_commands:
-      - "${PYTHON_COMMAND} -m governance.entrypoints.phase5_plan_record_persist --plan-text \"...\""
-    resume_pointer: "Phase 5 - Plan Record Preparation Gate"
+      - "opencode-governance-bootstrap --plan-persist --plan-text \"...\""
+    next_command_pointer: "/continue"
     recovery_steps:
       - "Provide non-empty plan record content"
-      - "Persist plan record via phase5_plan_record_persist"
+      - "Persist plan record via --plan-persist"
       - "Re-run /continue materialization"
     message_template: "Phase 5 blocked: plan-record evidence missing. Persist canonical plan record before architecture review."
 
@@ -347,7 +347,7 @@ blocked_reasons:
       - "P5.3-TestQuality gate passed"
     quick_fix_commands:
       - "Set required P5 gate states and re-run phase transition"
-    resume_pointer: "Phase 6 - Implementation QA Prerequisite Gate"
+    next_command_pointer: "/continue"
     recovery_steps:
       - "Approve architecture gate outcome"
       - "Ensure test quality gate reports pass"
@@ -365,7 +365,7 @@ blocked_reasons:
       - "Conflict resolution selection"
     quick_fix_commands:
       - "Select authoritative addon/template constraint"
-    resume_pointer: "Phase 4 - Step 0"
+    next_command_pointer: "/continue"
     recovery_steps:
       - "Select authoritative constraint"
       - "Or narrow component scope"
@@ -380,7 +380,7 @@ blocked_reasons:
       - "Confirmation to run recovery"
     quick_fix_commands:
       - "/continue"
-    resume_pointer: "Phase 4 - Step 0"
+    next_command_pointer: "/continue"
     recovery_steps:
       - "Run /continue with current evidence"
       - "Re-validate SESSION_STATE"
@@ -395,7 +395,7 @@ blocked_reasons:
       - "Permission to reset/repair invalid state"
     quick_fix_commands:
       - "Delete invalid state file and opencode-governance-bootstrap"
-    resume_pointer: "Phase 0 - Bootstrap (State Repair)"
+    next_command_pointer: "opencode-governance-bootstrap"
     recovery_steps:
       - "Collect current state as evidence"
       - "Repair to minimal valid state or delete"
@@ -411,7 +411,7 @@ blocked_reasons:
       - "Fix or remove invalid memory file"
     quick_fix_commands:
       - "Remove ${WORKSPACE_MEMORY_FILE}"
-    resume_pointer: "Phase 4 - Step 0"
+    next_command_pointer: "/continue"
     recovery_steps:
       - "Fix the YAML file"
       - "Or remove it to proceed"
@@ -426,7 +426,7 @@ blocked_reasons:
       - "Installer repair"
     quick_fix_commands:
       - "${PYTHON_COMMAND} install.py"
-    resume_pointer: "Phase 0 - Bootstrap"
+    next_command_pointer: "opencode-governance-bootstrap"
     recovery_steps:
       - "Determine OS-specific config root"
       - "Verify COMMANDS_HOME exists"
@@ -443,7 +443,7 @@ blocked_reasons:
       - "Valid path without OS-specific patterns"
     quick_fix_commands:
       - "Use variable-based path expression"
-    resume_pointer: "N/A"
+    next_command_pointer: "/continue"
     recovery_steps:
       - "Replace OS-specific path with variable expression"
       - "Use ${CONFIG_ROOT} instead of absolute path"
@@ -458,7 +458,7 @@ blocked_reasons:
       - "Valid multi-segment path"
     quick_fix_commands:
       - "Provide complete target path"
-    resume_pointer: "N/A"
+    next_command_pointer: "/continue"
     recovery_steps:
       - "Provide complete path with multiple segments"
       - "Or use variable-based path expression"
@@ -474,7 +474,7 @@ blocked_reasons:
       - "Missing evidence artifact for the failing criterion"
     quick_fix_commands:
       - "Provide required evidence artifact"
-    resume_pointer: "Phase exit gate (strict-exit)"
+    next_command_pointer: "/continue"
     recovery_steps:
       - "Identify missing artifact from strict-exit result"
       - "Collect or regenerate the required evidence"
@@ -490,7 +490,7 @@ blocked_reasons:
       - "Fresh evidence artifact for the failing criterion"
     quick_fix_commands:
       - "Refresh stale evidence artifact"
-    resume_pointer: "Phase exit gate (strict-exit)"
+    next_command_pointer: "/continue"
     recovery_steps:
       - "Identify stale artifact from strict-exit result"
       - "Refresh the evidence within the allowed TTL"
@@ -506,7 +506,7 @@ blocked_reasons:
       - "Improved score or evidence for the failing criterion"
     quick_fix_commands:
       - "Address criterion deficiency and re-evaluate"
-    resume_pointer: "Phase exit gate (strict-exit)"
+    next_command_pointer: "/continue"
     recovery_steps:
       - "Identify failing criterion from strict-exit result"
       - "Improve score to meet or exceed the dynamic threshold"
@@ -522,7 +522,7 @@ blocked_reasons:
       - "phase_exit_contract entry with pass_criteria for the target phase"
     quick_fix_commands:
       - "Define pass_criteria in phase_exit_contract or disable principal_strict"
-    resume_pointer: "Phase exit gate (strict-exit)"
+    next_command_pointer: "/continue"
     recovery_steps:
       - "Add pass_criteria for the target phase in the phase_exit_contract"
       - "Or disable principal_strict mode if strict enforcement is not required"
@@ -542,7 +542,7 @@ blocked_reasons:
       - "Binding evidence from governance.paths.json"
     quick_fix_commands:
       - "${PYTHON_COMMAND} install.py"
-    resume_pointer: "Install-layout conformance gate"
+    next_command_pointer: "opencode-governance-bootstrap"
     recovery_steps:
       - "Run the installer to regenerate missing artifacts"
       - "Remove unexpected files that violate the contract"
@@ -562,7 +562,7 @@ blocked_reasons:
       - "SESSION_STATE.json pointer and workspace artifacts"
     quick_fix_commands:
       - "${PYTHON_COMMAND} install.py"
-    resume_pointer: "Runtime-state conformance gate"
+    next_command_pointer: "opencode-governance-bootstrap"
     recovery_steps:
       - "Verify SESSION_STATE.json pointer resolves to a valid workspace"
       - "Ensure canonical artifacts exist and derived artifacts are regenerable"
@@ -582,7 +582,7 @@ blocked_reasons:
       - "opencode.json at config root"
     quick_fix_commands:
       - "${PYTHON_COMMAND} install.py"
-    resume_pointer: "OpenCode-integration conformance gate"
+    next_command_pointer: "opencode-governance-bootstrap"
     recovery_steps:
       - "Re-run installer to regenerate opencode.json with correct merge ownership"
       - "Verify plugin paths resolve and rail injection order is correct"
@@ -592,7 +592,7 @@ blocked_reasons:
 # Quick Fix Command Templates (Kernel-Enforced)
 quick_fix_templates:
   start: "opencode-governance-bootstrap"
-  reload_addons: "/reload-addons"
+  reload_addons: "/continue"
   install: "${PYTHON_COMMAND} install.py"
   check_file: "Check if {path} exists"
   verify_permissions: "Verify file permissions and encoding"

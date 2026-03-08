@@ -54,7 +54,8 @@ ${CONFIG_ROOT}/
     review.md
     plan.md
     ticket.md
-    docs/resume.md
+    docs/resume.md               # Legacy compatibility alias for /continue guidance
+    docs/resume_prompt.md        # Legacy template alias (deprecated; use /continue)
     README.md
     README-RULES.md
     README-OPENCODE.md
