@@ -280,7 +280,7 @@
       "severity": "blocked",
       "payload_schema_ref": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
       "description": "Core rulebook load failed at Phase 4 entry.",
-      "remediation_hint": "Restore rulebook files and rerun /reload-addons."
+      "remediation_hint": "Restore rulebook files and rerun /continue."
     },
     {
       "code": "BLOCKED-MISSING-PROFILE",

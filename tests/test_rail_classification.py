@@ -239,6 +239,14 @@ class TestRailClassificationCorner:
         tokens = _extract_classification(content)
         assert tokens is None
 
+
+class TestRailClassificationLegacySurfaceGuard:
+    """Legacy command aliases must not appear as active rail entries."""
+
+    def test_legacy_alias_rails_not_classified_as_active(self) -> None:
+        assert "resume.md" not in RAIL_FILES
+        assert "audit.md" not in RAIL_FILES
+
     def test_extract_classification_empty_value(self) -> None:
         """Classification with empty value between delimiters returns empty list."""
         content = "<!-- rail-classification:  -->"

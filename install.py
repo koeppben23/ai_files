@@ -202,6 +202,7 @@ CORE_COMMAND_FILES = {
     "review.md",
     "ticket.md",
     "plan.md",
+    # Deprecated compatibility aliases; active continuation surface is /continue.
     "docs/resume.md",
     "docs/resume_prompt.md",
     "docs/new_profile.md",
