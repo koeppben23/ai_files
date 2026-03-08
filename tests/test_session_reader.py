@@ -1451,6 +1451,92 @@ class TestMain:
         assert updated_state["phase6_revision_delta"] == "none"
         assert updated_state["implementation_review_complete"] is True
 
+    def test_materialize_mode_phase6_normalizes_stale_completion_flags(
+        self,
+        fake_config: Path,
+        capsys: pytest.CaptureFixture,
+    ) -> None:
+        """Phase 6 should not keep stale in-progress flags once iterations are complete."""
+        ws_state = _write_pointer(fake_config)
+        _write_workspace_state(
+            ws_state,
+            {
+                "SESSION_STATE": {
+                    "Phase": "6-PostFlight",
+                    "Next": "6",
+                    "active_gate": "Evidence Presentation Gate",
+                    "next_gate_condition": "Implementation review loop is complete.",
+                    "status": "OK",
+                    "phase6_review_iterations": 3,
+                    "phase6_max_review_iterations": 3,
+                    "phase6_min_self_review_iterations": 1,
+                    "phase6_revision_delta": "changed",
+                    "implementation_review_complete": False,
+                    "phase6_state": "phase6_in_progress",
+                    "ImplementationReview": {
+                        "iteration": 3,
+                        "max_iterations": 3,
+                        "min_self_review_iterations": 1,
+                        "completion_status": "phase6-in-progress",
+                        "implementation_review_complete": False,
+                    },
+                    "ActiveProfile": "profile.fallback-minimum",
+                    "TicketRecordDigest": "sha256:ticket-v1",
+                    "phase5_plan_record_digest": "sha256:plan-v1",
+                    "PersistenceCommitted": True,
+                    "WorkspaceReadyGateCommitted": True,
+                    "WorkspaceArtifactsCommitted": True,
+                    "PointerVerified": True,
+                    "LoadedRulebooks": {
+                        "core": "rulesets/core/rules.yml",
+                        "profile": "rulesets/profiles/rules.fallback-minimum.yml",
+                        "addons": {
+                            "riskTiering": "rulesets/profiles/rules.risk-tiering.yml",
+                        },
+                    },
+                    "RulebookLoadEvidence": {
+                        "core": "rulesets/core/rules.yml",
+                        "profile": "rulesets/profiles/rules.fallback-minimum.yml",
+                    },
+                    "AddonsEvidence": {
+                        "riskTiering": {"status": "loaded"},
+                    },
+                }
+            },
+        )
+
+        commands_home = fake_config / "commands"
+        (commands_home / "phase_api.yaml").write_text(
+            (Path(__file__).resolve().parent.parent / "phase_api.yaml").read_text(encoding="utf-8"),
+            encoding="utf-8",
+        )
+        (commands_home / "governance.paths.json").write_text(
+            json.dumps(
+                {
+                    "schema": "opencode-governance.paths.v1",
+                    "paths": {
+                        "commandsHome": str(commands_home),
+                        "workspacesHome": str(fake_config / "workspaces"),
+                        "configRoot": str(fake_config),
+                        "pythonCommand": "python3",
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        rc = main(["--commands-home", str(commands_home), "--materialize"])
+        assert rc == 0
+        output = capsys.readouterr().out
+        assert "implementation_review_complete: true" in output
+
+        updated_state = json.loads(ws_state.read_text(encoding="utf-8"))["SESSION_STATE"]
+        assert updated_state["implementation_review_complete"] is True
+        assert updated_state["phase6_state"] == "phase6_completed"
+        review = updated_state["ImplementationReview"]
+        assert review["completion_status"] == "phase6-completed"
+        assert review["implementation_review_complete"] is True
+
     def test_edge_materialize_mode_phase6_clamps_iteration_bounds(
         self,
         fake_config: Path,

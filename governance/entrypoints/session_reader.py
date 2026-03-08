@@ -184,8 +184,8 @@ def _run_phase6_internal_review_loop(*, state_doc: dict, session_path: Path) -> 
     force_stable = bool(state.get("phase6_force_stable_digest", False))
 
     audit_rows: list[dict[str, object]] = []
-    revision_delta = "changed"
-    complete = False
+    revision_delta = "none" if (prev_digest and curr_digest and prev_digest == curr_digest) else "changed"
+    complete = iteration >= max_iterations or (iteration >= min_iterations and revision_delta == "none")
 
     while iteration < max_iterations:
         iteration += 1
@@ -238,6 +238,100 @@ def _run_phase6_internal_review_loop(*, state_doc: dict, session_path: Path) -> 
         row_payload = dict(row)
         row_payload["observed_at"] = _now_iso()
         _append_jsonl(events_path, row_payload)
+
+
+def _sync_phase6_completion_fields(*, state_doc: dict) -> None:
+    """Normalize Phase 6 completion fields to a consistent, derived truth.
+
+    This prevents drift where gate text reports completed review while persisted
+    completion flags remain stale from pre-Phase-6 values.
+    """
+    state_obj = state_doc.get("SESSION_STATE")
+    state = state_obj if isinstance(state_obj, dict) else state_doc
+
+    phase_raw = state.get("Phase") or state.get("phase") or ""
+    phase_text = str(phase_raw).strip()
+    if not phase_text.startswith("6"):
+        return
+
+    review_block_raw = state.get("ImplementationReview")
+    review_block = dict(review_block_raw) if isinstance(review_block_raw, dict) else {}
+
+    iteration = _coerce_int(
+        review_block.get("iteration")
+        or review_block.get("Iteration")
+        or state.get("phase6_review_iterations")
+        or state.get("phase6ReviewIterations")
+    )
+    max_iterations = _coerce_int(
+        review_block.get("max_iterations")
+        or review_block.get("MaxIterations")
+        or state.get("phase6_max_review_iterations")
+        or state.get("phase6MaxReviewIterations")
+        or 3
+    )
+    min_iterations = _coerce_int(
+        review_block.get("min_self_review_iterations")
+        or review_block.get("MinSelfReviewIterations")
+        or state.get("phase6_min_self_review_iterations")
+        or state.get("phase6MinSelfReviewIterations")
+        or 1
+    )
+
+    max_iterations = max(1, max_iterations)
+    min_iterations = max(1, min(min_iterations if min_iterations >= 1 else 1, max_iterations))
+
+    prev_digest = str(
+        review_block.get("prev_impl_digest")
+        or review_block.get("PrevImplDigest")
+        or state.get("phase6_prev_impl_digest")
+        or state.get("phase6PrevImplDigest")
+        or ""
+    ).strip()
+    curr_digest = str(
+        review_block.get("curr_impl_digest")
+        or review_block.get("CurrImplDigest")
+        or state.get("phase6_curr_impl_digest")
+        or state.get("phase6CurrImplDigest")
+        or ""
+    ).strip()
+    if prev_digest and curr_digest and prev_digest == curr_digest:
+        revision_delta = "none"
+    else:
+        revision_delta = str(
+            review_block.get("revision_delta")
+            or review_block.get("RevisionDelta")
+            or state.get("phase6_revision_delta")
+            or state.get("phase6RevisionDelta")
+            or "changed"
+        ).strip().lower()
+        if revision_delta not in {"none", "changed"}:
+            revision_delta = "changed"
+
+    complete = iteration >= max_iterations or (iteration >= min_iterations and revision_delta == "none")
+
+    review_block["iteration"] = iteration
+    review_block["max_iterations"] = max_iterations
+    review_block["min_self_review_iterations"] = min_iterations
+    if prev_digest:
+        review_block["prev_impl_digest"] = prev_digest
+    if curr_digest:
+        review_block["curr_impl_digest"] = curr_digest
+    review_block["revision_delta"] = revision_delta
+    review_block["completion_status"] = "phase6-completed" if complete else "phase6-in-progress"
+    review_block["implementation_review_complete"] = complete
+    state["ImplementationReview"] = review_block
+
+    state["phase6_review_iterations"] = iteration
+    state["phase6_max_review_iterations"] = max_iterations
+    state["phase6_min_self_review_iterations"] = min_iterations
+    if prev_digest:
+        state["phase6_prev_impl_digest"] = prev_digest
+    if curr_digest:
+        state["phase6_curr_impl_digest"] = curr_digest
+    state["phase6_revision_delta"] = revision_delta
+    state["implementation_review_complete"] = complete
+    state["phase6_state"] = "phase6_completed" if complete else "phase6_in_progress"
 
 
 def _quote_if_needed(value: str) -> str:
@@ -411,6 +505,8 @@ def _materialize_authoritative_state(*, commands_home: Path, config_root: Path, 
         ss = materialized.get("SESSION_STATE")
         if isinstance(ss, dict):
             ss["phase_transition_evidence"] = True
+
+    _sync_phase6_completion_fields(state_doc=materialized)
 
     _write_json_atomic(session_path, materialized)
     return materialized
