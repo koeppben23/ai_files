@@ -22,6 +22,7 @@ import pytest
 
 from governance.kernel.phase_kernel import RuntimeContext, execute
 from governance.engine.gate_evaluator import (
+    evaluate_p54_business_rules_gate,
     evaluate_p55_technical_debt_gate,
     evaluate_p6_prerequisites,
     can_promote_to_phase6,
@@ -959,6 +960,89 @@ class TestGateSpecificReasonCodes:
             session_state=state, phase_1_5_executed=False, rollback_safety_applies=False,
         )
         assert result.reason_code == "BLOCKED-P5-5-TECHNICAL-DEBT-GATE"
+
+
+class TestP54BusinessRulesGateWiring:
+    """P5.4 should derive from hydrated BusinessRules state, not stale gates."""
+
+    def test_happy_extracted_hydrated_state_is_compliant(self) -> None:
+        state = {
+            "BusinessRules": {
+                "Outcome": "extracted",
+                "ExecutionEvidence": True,
+                "InventoryLoaded": True,
+                "ExtractedCount": 3,
+            },
+            "Gates": {"P5.4-BusinessRules": "pending"},
+        }
+        result = evaluate_p54_business_rules_gate(
+            session_state=state,
+            phase_1_5_executed=True,
+        )
+        assert result.status == "compliant"
+        assert result.reason_code == "none"
+
+    def test_corner_not_applicable_with_evidence_passes(self) -> None:
+        state = {
+            "BusinessRules": {
+                "Outcome": "not-applicable",
+                "ExecutionEvidence": True,
+                "InventoryLoaded": False,
+                "ExtractedCount": 0,
+            }
+        }
+        result = evaluate_p54_business_rules_gate(
+            session_state=state,
+            phase_1_5_executed=True,
+        )
+        assert result.status == "not-applicable"
+
+    def test_edge_phase_1_5_not_executed_is_not_applicable(self) -> None:
+        state = {"BusinessRules": {"Outcome": "extracted", "ExecutionEvidence": True, "InventoryLoaded": True, "ExtractedCount": 2}}
+        result = evaluate_p54_business_rules_gate(
+            session_state=state,
+            phase_1_5_executed=False,
+        )
+        assert result.status == "not-applicable"
+
+    def test_bad_extracted_without_inventory_is_gap_detected(self) -> None:
+        state = {
+            "BusinessRules": {
+                "Outcome": "extracted",
+                "ExecutionEvidence": True,
+                "InventoryLoaded": False,
+                "ExtractedCount": 0,
+            }
+        }
+        result = evaluate_p54_business_rules_gate(
+            session_state=state,
+            phase_1_5_executed=True,
+        )
+        assert result.status == "gap-detected"
+        assert result.reason_code == "BLOCKED-P5-4-BUSINESS-RULES-GATE"
+
+    def test_p6_prerequisites_use_evaluated_p54_over_stale_gate(self) -> None:
+        state = {
+            "Gates": {
+                "P5-Architecture": "approved",
+                "P5.3-TestQuality": "pass",
+                "P5.4-BusinessRules": "pending",
+                "P5.5-TechnicalDebt": "approved",
+            },
+            "BusinessRules": {
+                "Outcome": "extracted",
+                "ExecutionEvidence": True,
+                "InventoryLoaded": True,
+                "ExtractedCount": 2,
+            },
+        }
+        result = evaluate_p6_prerequisites(
+            session_state=state,
+            phase_1_5_executed=True,
+            rollback_safety_applies=False,
+        )
+        assert result.p54_compliant is True
+        assert result.passed is True
 
     def test_p56_specific_reason_code(self) -> None:
         state = {"Gates": {
