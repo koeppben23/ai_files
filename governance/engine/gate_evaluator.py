@@ -114,6 +114,7 @@ class P6PrerequisiteEvaluation:
     p54_compliant: bool | None  # None if Phase 1.5 not executed
     p55_approved: bool | None   # None never used — always checked (not-applicable is terminal)
     p56_approved: bool | None    # None if rollback safety not applicable
+    first_open_gate: str | None = None  # deterministic first-open-gate in priority order
 
 
 @dataclass(frozen=True)
@@ -560,6 +561,20 @@ def evaluate_p6_prerequisites(
         all_passed = all_passed and p56_approved
 
     if not all_passed:
+        # Determine the first open gate in deterministic priority order:
+        # P5.3 → P5.4 → P5.5 → P5.6 (with P5-Architecture checked first).
+        first_open: str | None = None
+        if not p5_architecture_approved:
+            first_open = "P5-Architecture"
+        elif not p53_passed:
+            first_open = "P5.3-TestQuality"
+        elif phase_1_5_executed and p54_compliant is not None and not p54_compliant:
+            first_open = "P5.4-BusinessRules"
+        elif not p55_approved:
+            first_open = "P5.5-TechnicalDebt"
+        elif rollback_safety_applies and p56_approved is not None and not p56_approved:
+            first_open = "P5.6-RollbackSafety"
+
         return P6PrerequisiteEvaluation(
             passed=False,
             reason_code=BLOCKED_P6_PREREQUISITES_NOT_MET,
@@ -568,6 +583,7 @@ def evaluate_p6_prerequisites(
             p54_compliant=p54_compliant,
             p55_approved=p55_approved,
             p56_approved=p56_approved,
+            first_open_gate=first_open,
         )
 
     return P6PrerequisiteEvaluation(

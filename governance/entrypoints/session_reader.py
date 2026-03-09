@@ -360,22 +360,44 @@ def _normalize_phase6_p5_state(*, state_doc: dict) -> None:
         gates = {}
         state["Gates"] = gates
 
-    _REQUIRED_TERMINAL = {
-        "P5-Architecture": ("approved",),
-        "P5.3-TestQuality": ("pass", "pass-with-exceptions"),
-        "P5.5-TechnicalDebt": ("approved", "not-applicable"),
-    }
+    # Mandatory P5 gates in deterministic priority order.
+    # P5.4 and P5.6 are conditionally required (Phase 1.5 / rollback safety)
+    # but normalization checks the full set — a missing conditional gate that
+    # was never applicable will already be absent from the Gates dict and is
+    # ignored here.  Only gates that *exist but are not terminal* are flagged.
+    _REQUIRED_TERMINAL = (
+        ("P5.3-TestQuality", ("pass", "pass-with-exceptions")),
+        ("P5.4-BusinessRules", ("compliant", "compliant-with-exceptions", "not-applicable")),
+        ("P5.5-TechnicalDebt", ("approved", "not-applicable")),
+        ("P5.6-RollbackSafety", ("approved", "not-applicable")),
+    )
 
-    patched_keys: list[str] = []
-    for gate_key, terminal_values in _REQUIRED_TERMINAL.items():
+    # P5-Architecture is always required.
+    _ARCH_TERMINAL = ("approved",)
+
+    open_gates: list[str] = []
+
+    # Check P5-Architecture first (always required).
+    arch_value = gates.get("P5-Architecture")
+    if arch_value is not None and arch_value not in _ARCH_TERMINAL:
+        open_gates.append("P5-Architecture")
+
+    for gate_key, terminal_values in _REQUIRED_TERMINAL:
         current = gates.get(gate_key)
+        # Skip gates that are absent — they may be conditionally
+        # not-applicable (e.g. P5.4 when Phase 1.5 was not executed).
+        if current is None:
+            continue
         if current not in terminal_values:
-            gates[gate_key] = "not-applicable"
-            patched_keys.append(gate_key)
+            open_gates.append(gate_key)
 
-    if patched_keys:
+    if open_gates:
+        # Fail-closed: flag the inconsistency with the first open gate
+        # so downstream consumers can reroute the user.  Do NOT silently
+        # back-fill to "not-applicable" — that masks open gates.
         state["_p6_state_normalization"] = {
-            "patched_gates": patched_keys,
+            "open_gates": open_gates,
+            "first_open_gate": open_gates[0],
             "reason": "WARN-P6-STATE-INCONSISTENCY",
         }
 

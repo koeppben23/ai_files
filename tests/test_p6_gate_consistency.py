@@ -536,18 +536,22 @@ class TestNormalizePhase6P5State:
     """_normalize_phase6_p5_state() patches missing gate values."""
 
     def test_patches_missing_p55_gate(self) -> None:
+        """When P5.5 is absent, the gate is not in Gates dict at all —
+        normalization skips absent gates (they're conditionally not-applicable).
+        Only gates PRESENT with non-terminal values are flagged."""
         state_doc = {"SESSION_STATE": {
             "Phase": "6-PostFlight",
             "Gates": {
                 "P5-Architecture": "approved",
                 "P5.3-TestQuality": "pass",
-                # P5.5 missing
+                # P5.5 absent — normalization skips absent gates
             },
         }}
         _normalize_phase6_p5_state(state_doc=state_doc)
-        gates = state_doc["SESSION_STATE"]["Gates"]
-        assert gates["P5.5-TechnicalDebt"] == "not-applicable"
-        assert "_p6_state_normalization" in state_doc["SESSION_STATE"]
+        # Absent gates are NOT patched — only present non-terminal gates are flagged.
+        assert "P5.5-TechnicalDebt" not in state_doc["SESSION_STATE"]["Gates"]
+        # No inconsistency flagged because all present gates are terminal.
+        assert "_p6_state_normalization" not in state_doc["SESSION_STATE"]
 
     def test_does_not_patch_when_gates_present(self) -> None:
         state_doc = {"SESSION_STATE": {
@@ -567,12 +571,16 @@ class TestNormalizePhase6P5State:
         assert "P5.5-TechnicalDebt" not in state_doc["SESSION_STATE"].get("Gates", {})
 
     def test_creates_gates_dict_if_missing(self) -> None:
+        """When Gates key is missing entirely, normalization creates
+        the dict but does NOT populate absent gates.  The empty Gates dict
+        has no present non-terminal values to flag."""
         state_doc = {"SESSION_STATE": {"Phase": "6-PostFlight"}}
         _normalize_phase6_p5_state(state_doc=state_doc)
         assert "Gates" in state_doc["SESSION_STATE"]
         gates = state_doc["SESSION_STATE"]["Gates"]
-        assert gates["P5-Architecture"] == "not-applicable"
-        assert gates["P5.5-TechnicalDebt"] == "not-applicable"
+        # Empty dict — no gates were present, so nothing to flag.
+        assert len(gates) == 0
+        assert "_p6_state_normalization" not in state_doc["SESSION_STATE"]
 
 
 # ===========================================================================
@@ -609,3 +617,222 @@ class TestEvidencePresentationGateGuidance:
             "next_gate_condition": "Submit final review decision via /review-decision (approve | changes_requested | reject).",
         }
         assert _should_emit_continue_next_action(snapshot) is False
+
+
+# ===========================================================================
+# 9. REGRESSION: _normalize_phase6_p5_state() fail-closed semantics
+# ===========================================================================
+
+class TestNormalizePhase6P5StateFailClosed:
+    """Verify fail-closed normalization: present non-terminal gates are
+    flagged (not silently back-filled to not-applicable)."""
+
+    def test_present_non_terminal_gate_is_flagged(self) -> None:
+        """A gate with a non-terminal value (e.g. 'pending') is flagged."""
+        state_doc = {"SESSION_STATE": {
+            "Phase": "6-PostFlight",
+            "Gates": {
+                "P5-Architecture": "approved",
+                "P5.3-TestQuality": "pending",  # non-terminal
+                "P5.5-TechnicalDebt": "approved",
+            },
+        }}
+        _normalize_phase6_p5_state(state_doc=state_doc)
+        norm = state_doc["SESSION_STATE"]["_p6_state_normalization"]
+        assert "P5.3-TestQuality" in norm["open_gates"]
+        assert norm["first_open_gate"] == "P5.3-TestQuality"
+        # Gate value is NOT overwritten.
+        assert state_doc["SESSION_STATE"]["Gates"]["P5.3-TestQuality"] == "pending"
+
+    def test_multiple_open_gates_reported_in_order(self) -> None:
+        """All non-terminal gates are listed; first_open_gate is deterministic."""
+        state_doc = {"SESSION_STATE": {
+            "Phase": "6-PostFlight",
+            "Gates": {
+                "P5-Architecture": "pending",
+                "P5.3-TestQuality": "fail",
+                "P5.4-BusinessRules": "gap-detected",
+                "P5.5-TechnicalDebt": "rejected",
+                "P5.6-RollbackSafety": "rejected",
+            },
+        }}
+        _normalize_phase6_p5_state(state_doc=state_doc)
+        norm = state_doc["SESSION_STATE"]["_p6_state_normalization"]
+        assert norm["first_open_gate"] == "P5-Architecture"
+        assert len(norm["open_gates"]) >= 4
+
+    def test_all_gates_terminal_no_flag(self) -> None:
+        """When every present gate is terminal, no normalization flag."""
+        state_doc = {"SESSION_STATE": {
+            "Phase": "6-PostFlight",
+            "Gates": {
+                "P5-Architecture": "approved",
+                "P5.3-TestQuality": "pass-with-exceptions",
+                "P5.4-BusinessRules": "compliant",
+                "P5.5-TechnicalDebt": "not-applicable",
+                "P5.6-RollbackSafety": "approved",
+            },
+        }}
+        _normalize_phase6_p5_state(state_doc=state_doc)
+        assert "_p6_state_normalization" not in state_doc["SESSION_STATE"]
+
+    def test_p54_not_applicable_is_terminal(self) -> None:
+        state_doc = {"SESSION_STATE": {
+            "Phase": "6-PostFlight",
+            "Gates": {
+                "P5-Architecture": "approved",
+                "P5.3-TestQuality": "pass",
+                "P5.4-BusinessRules": "not-applicable",
+                "P5.5-TechnicalDebt": "approved",
+            },
+        }}
+        _normalize_phase6_p5_state(state_doc=state_doc)
+        assert "_p6_state_normalization" not in state_doc["SESSION_STATE"]
+
+
+# ===========================================================================
+# 10. REGRESSION: evaluate_p6_prerequisites() first-open-gate
+# ===========================================================================
+
+class TestP6PrerequisitesFirstOpenGate:
+    """Verify deterministic first-open-gate extraction."""
+
+    def test_first_open_gate_is_p53(self) -> None:
+        state = {"Gates": {
+            "P5-Architecture": "approved",
+            "P5.3-TestQuality": "fail",
+            "P5.5-TechnicalDebt": "rejected",
+        }}
+        result = evaluate_p6_prerequisites(
+            session_state=state, phase_1_5_executed=False, rollback_safety_applies=False,
+        )
+        assert result.first_open_gate == "P5.3-TestQuality"
+
+    def test_first_open_gate_is_p54(self) -> None:
+        state = {"Gates": {
+            "P5-Architecture": "approved",
+            "P5.3-TestQuality": "pass",
+            "P5.4-BusinessRules": "gap-detected",
+            "P5.5-TechnicalDebt": "approved",
+        }}
+        result = evaluate_p6_prerequisites(
+            session_state=state, phase_1_5_executed=True, rollback_safety_applies=False,
+        )
+        assert result.first_open_gate == "P5.4-BusinessRules"
+
+    def test_first_open_gate_is_p55(self) -> None:
+        state = {"Gates": {
+            "P5-Architecture": "approved",
+            "P5.3-TestQuality": "pass",
+            "P5.5-TechnicalDebt": "rejected",
+        }}
+        result = evaluate_p6_prerequisites(
+            session_state=state, phase_1_5_executed=False, rollback_safety_applies=False,
+        )
+        assert result.first_open_gate == "P5.5-TechnicalDebt"
+
+    def test_first_open_gate_is_p56(self) -> None:
+        state = {"Gates": {
+            "P5-Architecture": "approved",
+            "P5.3-TestQuality": "pass",
+            "P5.5-TechnicalDebt": "approved",
+            "P5.6-RollbackSafety": "rejected",
+        }}
+        result = evaluate_p6_prerequisites(
+            session_state=state, phase_1_5_executed=False, rollback_safety_applies=True,
+        )
+        assert result.first_open_gate == "P5.6-RollbackSafety"
+
+    def test_first_open_gate_is_p5_architecture(self) -> None:
+        state = {"Gates": {
+            "P5-Architecture": "pending",
+            "P5.3-TestQuality": "fail",
+            "P5.5-TechnicalDebt": "rejected",
+        }}
+        result = evaluate_p6_prerequisites(
+            session_state=state, phase_1_5_executed=False, rollback_safety_applies=False,
+        )
+        assert result.first_open_gate == "P5-Architecture"
+
+    def test_all_passed_no_first_open_gate(self) -> None:
+        state = {"Gates": {
+            "P5-Architecture": "approved",
+            "P5.3-TestQuality": "pass",
+            "P5.5-TechnicalDebt": "approved",
+        }}
+        result = evaluate_p6_prerequisites(
+            session_state=state, phase_1_5_executed=False, rollback_safety_applies=False,
+        )
+        assert result.passed is True
+        assert result.first_open_gate is None
+
+
+# ===========================================================================
+# 11. REGRESSION: phase_kernel surfaces specific first open gate
+# ===========================================================================
+
+class TestKernelSurfacesFirstOpenGate:
+    """Kernel P6 blocking message includes the specific first open gate."""
+
+    def test_kernel_p6_block_includes_first_open_gate(self, tmp_path: Path) -> None:
+        ctx = _make_ctx(tmp_path)
+        state = _make_phase6_state(
+            gates={
+                "P5-Architecture": "approved",
+                "P5.3-TestQuality": "fail",  # first open gate
+                "P5.5-TechnicalDebt": "approved",
+            }
+        )
+        result = execute(
+            current_token="6",
+            session_state_doc={"SESSION_STATE": state},
+            runtime_ctx=ctx,
+        )
+        assert result.status == "BLOCKED"
+        assert "P5.3-TestQuality" in result.next_gate_condition
+
+    def test_kernel_p6_block_p55_specific(self, tmp_path: Path) -> None:
+        ctx = _make_ctx(tmp_path)
+        state = _make_phase6_state(
+            gates={
+                "P5-Architecture": "approved",
+                "P5.3-TestQuality": "pass",
+                "P5.4-BusinessRules": "compliant",
+                "P5.5-TechnicalDebt": "rejected",
+            }
+        )
+        result = execute(
+            current_token="6",
+            session_state_doc={"SESSION_STATE": state},
+            runtime_ctx=ctx,
+        )
+        assert result.status == "BLOCKED"
+        assert "P5.5-TechnicalDebt" in result.next_gate_condition
+
+
+# ===========================================================================
+# 12. REGRESSION: review_decision_persist approve writes terminal fields
+# ===========================================================================
+
+class TestReviewDecisionApproveTerminalFields:
+    """approve writes active_gate and next_gate_condition into state."""
+
+    def test_approve_writes_active_gate(self, tmp_path: Path) -> None:
+        state = _make_phase6_state()
+        session_path = _write_session(tmp_path, state)
+        apply_review_decision(decision="approve", session_path=session_path)
+
+        doc = json.loads(session_path.read_text(encoding="utf-8"))
+        ss = doc["SESSION_STATE"]
+        assert ss["active_gate"] == "Workflow Complete"
+        assert "No further action" in ss["next_gate_condition"]
+        assert ss["phase6_state"] == "phase6_completed"
+
+    def test_changes_requested_does_not_write_terminal_fields(self, tmp_path: Path) -> None:
+        state = _make_phase6_state()
+        session_path = _write_session(tmp_path, state)
+        apply_review_decision(decision="changes_requested", session_path=session_path)
+
+        doc = json.loads(session_path.read_text(encoding="utf-8"))
+        ss = doc["SESSION_STATE"]
+        assert ss.get("active_gate") != "Workflow Complete"

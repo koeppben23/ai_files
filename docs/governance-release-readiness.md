@@ -12,7 +12,9 @@ Authoritative runtime truth remains in kernel code, schemas, and tests.
 - `next=5.3` is treated as an intermediate route target in readout.
 - `phase_transition_evidence` controls jump eligibility to Phase 6.
 - P5 review evidence auto-propagates to `Gates.P5-Architecture` and `Gates.P5.3-TestQuality`.
+- `Gates.P5.5-TechnicalDebt` is always checked for Phase 6 entry (`approved` or `not-applicable`).
 - Phase 6 review status is visible via `iteration`, `min`, `max`, `delta`, and `implementation_review_complete`.
+- `/review-decision` is the mutating rail for Phase 6 final review decisions (`approve`, `changes_requested`, `reject`).
 
 ## Coverage Matrix (B1-B14 / C1-C4)
 
@@ -66,4 +68,4 @@ Authoritative runtime truth remains in kernel code, schemas, and tests.
 - No stale gate/readout divergence in snapshots.
 - Free-text guard behavior validated.
 - Model identity matrix (Opus/Codex) validated with fail-closed negatives.
-- Rails docs and operator docs updated for `/continue`, `/ticket`, `/plan` semantics.
+- Rails docs and operator docs updated for `/continue`, `/ticket`, `/plan`, `/review-decision` semantics.

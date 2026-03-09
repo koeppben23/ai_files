@@ -42,7 +42,10 @@ Phase `1.3` is mandatory before every phase `>=2`.
 | 4 | Planning | Build a ticket record and implementation plan with risk review |
 | 5 | Review Gate | Review gate only; implementation output is not permitted during Phase 5 |
 | 5.3 | Test Quality Review | CRITICAL gate; test-quality-pass confirms implementation readiness |
-| 6 | Implementation QA | Implementation begins only after Phase 5 gates pass |
+| 5.4 | Business Rules Compliance | Mandatory only if Phase 1.5 executed |
+| 5.5 | Technical Debt Proposal | Always checked; `approved` or `not-applicable` required for Phase 6 |
+| 5.6 | Rollback Safety | Required when rollback-sensitive changes exist |
+| 6 | Implementation QA | Implementation begins only after Phase 5 gates pass; `/review-decision` controls final outcome |
 
 </phase-routing>
 

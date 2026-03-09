@@ -142,6 +142,12 @@ def apply_review_decision(
     if normalized == "approve":
         state["workflow_complete"] = True
         state["WorkflowComplete"] = True
+        # Write terminal surfacing fields so downstream consumers
+        # (session_reader, phase_api) can derive completion without
+        # re-running the kernel.
+        state["active_gate"] = "Workflow Complete"
+        state["next_gate_condition"] = "Workflow approved. No further action required."
+        state["phase6_state"] = "phase6_completed"
     elif normalized == "changes_requested":
         # Loop-reset: clear review completion so the internal review restarts
         state["implementation_review_complete"] = False
