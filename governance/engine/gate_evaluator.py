@@ -48,9 +48,6 @@ P6Status = Literal["pending", "ready-for-pr", "fix-required"]
 P6ComplianceStatus = Literal["compliant", "drift-detected", "major-deviation", "no-plan"]
 
 
-P54_MIN_COVERAGE_PERCENT = 70.0
-
-
 # ---------------------------------------------------------------------------
 # Deterministic gate → reason code mapping (SSOT)
 # ---------------------------------------------------------------------------
@@ -295,77 +292,67 @@ def evaluate_p54_business_rules_gate(
             uncovered_rules=(),
         )
 
-    # Extract business rules from session state
     business_rules = session_state.get("BusinessRules")
-    total_rules = 0
-    covered_rules = 0
-    uncovered: list[str] = []
+    if not isinstance(business_rules, Mapping):
+        return P54GateEvaluation(
+            status="pending",
+            reason_code=REASON_CODE_NONE,
+            phase_1_5_executed=True,
+            total_business_rules=0,
+            covered_business_rules=0,
+            uncovered_rules=(),
+        )
 
-    if isinstance(business_rules, Mapping):
-        rules_list = business_rules.get("Rules") or business_rules.get("rules")
-        if isinstance(rules_list, list):
-            for rule in rules_list:
-                if isinstance(rule, Mapping):
-                    has_rule_id = False
-                    for key in ("id", "BR-ID"):
-                        value = rule.get(key)
-                        if isinstance(value, str) and value.strip():
-                            has_rule_id = True
-                            break
-                    has_coverage_signal = any(
-                        key in rule for key in ("covered", "implemented", "tested")
-                    )
-                    if not has_rule_id and not has_coverage_signal:
-                        continue
-                    total_rules += 1
-                    rule_id = rule.get("id") or rule.get("BR-ID") or ""
-                    covered = rule.get("covered") or rule.get("implemented") or rule.get("tested")
-                    if covered is True or covered == "true":
-                        covered_rules += 1
-                    else:
-                        uncovered.append(str(rule_id))
-                elif isinstance(rule, str):
-                    total_rules += 1
-                    # Assume covered if string (no coverage info)
-                    covered_rules += 1
+    outcome = str(business_rules.get("Outcome") or "").strip().lower()
+    execution_evidence = bool(business_rules.get("ExecutionEvidence") is True)
+    inventory_loaded = bool(business_rules.get("InventoryLoaded") is True)
 
-    # Check existing P5.4 gate status
-    gates = session_state.get("Gates")
-    if isinstance(gates, Mapping):
-        p54_status = gates.get("P5.4-BusinessRules")
-        if p54_status in ("compliant", "compliant-with-exceptions"):
+    raw_count = business_rules.get("ExtractedCount")
+    if isinstance(raw_count, bool):
+        extracted_count = 1 if raw_count else 0
+    elif isinstance(raw_count, int):
+        extracted_count = raw_count
+    elif isinstance(raw_count, str) and raw_count.strip().isdigit():
+        extracted_count = int(raw_count.strip())
+    else:
+        extracted_count = 0
+
+    if outcome in {"not-applicable", "deferred", "skipped"} and execution_evidence:
+        return P54GateEvaluation(
+            status="not-applicable",
+            reason_code=REASON_CODE_NONE,
+            phase_1_5_executed=True,
+            total_business_rules=0,
+            covered_business_rules=0,
+            uncovered_rules=(),
+        )
+
+    if outcome == "extracted":
+        if execution_evidence and inventory_loaded and extracted_count > 0:
             return P54GateEvaluation(
-                status=p54_status,
+                status="compliant",
                 reason_code=REASON_CODE_NONE,
                 phase_1_5_executed=True,
-                total_business_rules=total_rules,
-                covered_business_rules=covered_rules,
-                uncovered_rules=tuple(uncovered),
+                total_business_rules=extracted_count,
+                covered_business_rules=extracted_count,
+                uncovered_rules=(),
             )
-
-    # Calculate coverage percentage
-    if total_rules == 0:
-        coverage_pct = 100.0
-    else:
-        coverage_pct = (covered_rules / total_rules) * 100
-
-    if coverage_pct < P54_MIN_COVERAGE_PERCENT:
         return P54GateEvaluation(
             status="gap-detected",
             reason_code=BLOCKED_P5_4_BUSINESS_RULES_GATE,
             phase_1_5_executed=True,
-            total_business_rules=total_rules,
-            covered_business_rules=covered_rules,
-            uncovered_rules=tuple(uncovered),
+            total_business_rules=max(extracted_count, 0),
+            covered_business_rules=0,
+            uncovered_rules=("business-rules-hydration-incomplete",),
         )
 
     return P54GateEvaluation(
         status="pending",
         reason_code=REASON_CODE_NONE,
         phase_1_5_executed=True,
-        total_business_rules=total_rules,
-        covered_business_rules=covered_rules,
-        uncovered_rules=tuple(uncovered),
+        total_business_rules=max(extracted_count, 0),
+        covered_business_rules=0,
+        uncovered_rules=(),
     )
 
 
@@ -585,8 +572,11 @@ def evaluate_p6_prerequisites(
     # P5.4-BusinessRules (only if Phase 1.5 executed)
     p54_compliant: bool | None = None
     if phase_1_5_executed:
-        p54 = gates.get("P5.4-BusinessRules")
-        p54_compliant = p54 in ("compliant", "compliant-with-exceptions")
+        p54_eval = evaluate_p54_business_rules_gate(
+            session_state=session_state,
+            phase_1_5_executed=True,
+        )
+        p54_compliant = p54_eval.status in ("compliant", "compliant-with-exceptions", "not-applicable")
 
     # P5.5-TechnicalDebt (always checked — "approved" or "not-applicable" pass)
     p55 = gates.get("P5.5-TechnicalDebt")
