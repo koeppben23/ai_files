@@ -34,16 +34,18 @@ from governance.infrastructure.logging.global_error_handler import (
 # Helpers
 # ---------------------------------------------------------------------------
 
-_ORIGINAL_CONTEXT: dict = {}
-
-
 @pytest.fixture(autouse=True)
 def _reset_error_context():
-    """Snapshot and restore _ERROR_CONTEXT around every test."""
-    _ORIGINAL_CONTEXT.update(geh._ERROR_CONTEXT)
+    """Snapshot and restore _ERROR_CONTEXT around every test.
+
+    Uses a *local* copy so that state from earlier tests (or the
+    conftest-level ``_isolate_error_context`` fixture) is never
+    accidentally persisted across tests via a module-level dict.
+    """
+    snapshot = geh._ERROR_CONTEXT.copy()
     yield
     geh._ERROR_CONTEXT.clear()
-    geh._ERROR_CONTEXT.update(_ORIGINAL_CONTEXT)
+    geh._ERROR_CONTEXT.update(snapshot)
 
 
 def _set_ctx(*, fp: str | None = None, ws: Path | None = None, cmd: Path | None = None) -> None:

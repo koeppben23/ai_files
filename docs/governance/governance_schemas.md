@@ -74,6 +74,7 @@ schema: governance.phase5.gates.v1
     "P5-Architecture": "architecture-approved|architecture-rejected",
     "P5.3-TestQuality": "pass|pass-with-exceptions|fail",
     "P5.4-BusinessRules": "compliant|compliant-with-exceptions|not-applicable|gap-detected",
+    "P5.5-TechnicalDebt": "approved|not-applicable|rejected",
     "P5.6-RollbackSafety": "approved|not-applicable|rejected"
   }
 }

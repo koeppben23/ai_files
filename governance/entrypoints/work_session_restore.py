@@ -6,7 +6,6 @@ import argparse
 import json
 import os
 import sys
-import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Mapping
@@ -17,6 +16,7 @@ if __package__ in {None, ""}:
 from governance.domain.canonical_json import canonical_json_hash
 from governance.infrastructure.binding_evidence_resolver import BindingEvidenceResolver
 from governance.infrastructure.current_run_pointer import read_active_run_id, write_current_run_pointer
+from governance.infrastructure.fs_atomic import atomic_write_text
 from governance.infrastructure.workspace_paths import run_dir
 
 try:
@@ -31,15 +31,7 @@ def _now_iso() -> str:
 
 def _write_json_atomic(path: Path, payload: Mapping[str, object]) -> None:
     text = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True) + "\n"
-    path.parent.mkdir(parents=True, exist_ok=True)
-    fd, temp_path = tempfile.mkstemp(dir=str(path.parent), prefix=f".{path.name}.", suffix=".tmp")
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as handle:
-            handle.write(text)
-        os.replace(temp_path, path)
-    finally:
-        if os.path.exists(temp_path):
-            os.unlink(temp_path)
+    atomic_write_text(path, text)
 
 
 def _append_jsonl(path: Path, event: Mapping[str, object]) -> None:

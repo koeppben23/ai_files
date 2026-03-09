@@ -294,6 +294,21 @@ phases:
     next_gate_condition: "Implement, run deterministic internal implementation review loop (max 3, early-stop only on unchanged digest), then present evidence for final user review."
     route_strategy: "stay"
     transitions:
+      - when: workflow_approved
+        next: "6"
+        source: "phase-6-workflow-complete"
+        active_gate: "Workflow Complete"
+        next_gate_condition: "Workflow approved. All gates passed and final review decision is approve. No further action required."
+      - when: review_changes_requested
+        next: "6"
+        source: "phase-6-changes-requested-loop-reset"
+        active_gate: "Implementation Internal Review"
+        next_gate_condition: "Changes requested by reviewer. Implementation review reset — address feedback, then run /continue to restart the internal review loop."
+      - when: review_rejected
+        next: "4"
+        source: "phase-6-rejected-to-phase4"
+        active_gate: "Ticket Input Gate"
+        next_gate_condition: "Review rejected. Workflow returned to Phase 4 for re-planning. Provide updated ticket/task details to restart."
       - when: implementation_review_pending
         next: "6"
         source: "phase-6-implementation-review-required"
@@ -303,7 +318,7 @@ phases:
         next: "6"
         source: "phase-6-ready-for-user-review"
         active_gate: "Evidence Presentation Gate"
-        next_gate_condition: "Implementation review loop is complete. Present evidence and wait for user final review decision."
+        next_gate_condition: "Implementation review loop is complete. Present evidence and submit final review decision via /review-decision (approve | changes_requested | reject)."
       - when: default
         next: "6"
         source: "phase-6-implementation-review-required"

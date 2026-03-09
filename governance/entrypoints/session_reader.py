@@ -334,6 +334,87 @@ def _sync_phase6_completion_fields(*, state_doc: dict) -> None:
     state["phase6_state"] = "phase6_completed" if complete else "phase6_in_progress"
 
 
+def _normalize_phase6_p5_state(*, state_doc: dict) -> None:
+    """Detect and correct inconsistent Phase 6 / P5 gate state (fail-closed).
+
+    If ``phase=6`` but one or more P5 gates are still in a non-terminal
+    status, this function **resets** the document to a consistent P5 state
+    rather than silently papering over the inconsistency.
+
+    Fail-closed reset writes:
+    - ``phase6_state = "phase5_in_progress"``
+    - ``implementation_review_complete = false``
+    - ``workflow_complete`` / ``WorkflowComplete`` removed
+    - ``active_gate`` set to the first open P5 gate
+
+    A ``_p6_state_normalization`` warning marker is written for auditability
+    but no admin-alert is raised.
+
+    The gate ordering and terminal-value definitions are imported from
+    ``gate_evaluator`` (SSOT) so normalization never diverges from the
+    promotion check.
+    """
+    from governance.engine.gate_evaluator import (
+        P5_GATE_PRIORITY_ORDER,
+        P5_GATE_TERMINAL_VALUES,
+        reason_code_for_gate,
+    )
+
+    state_obj = state_doc.get("SESSION_STATE")
+    state = state_obj if isinstance(state_obj, dict) else state_doc
+
+    phase_raw = state.get("Phase") or state.get("phase") or ""
+    phase_text = str(phase_raw).strip()
+    if not phase_text.startswith("6"):
+        return
+
+    gates = state.get("Gates")
+    if not isinstance(gates, dict):
+        gates = {}
+        state["Gates"] = gates
+
+    # Walk the canonical gate priority order from gate_evaluator (SSOT).
+    # Only gates that *exist but are not terminal* are considered open.
+    # Absent gates are skipped — they may be conditionally not-applicable.
+    open_gates: list[str] = []
+    for gate_key in P5_GATE_PRIORITY_ORDER:
+        terminal_values = P5_GATE_TERMINAL_VALUES.get(gate_key, ())
+        current = gates.get(gate_key)
+        if current is None:
+            continue
+        if current not in terminal_values:
+            open_gates.append(gate_key)
+
+    if not open_gates:
+        return
+
+    first_open = open_gates[0]
+    blocking_reason_code = reason_code_for_gate(first_open)
+
+    # ── Fail-closed reset: bring the document back to a P5-consistent
+    #    snapshot so no mixed Phase-6 / open-P5 state is visible.  ──
+    state["phase6_state"] = "phase5_in_progress"
+    state["implementation_review_complete"] = False
+    state.pop("workflow_complete", None)
+    state.pop("WorkflowComplete", None)
+    state["active_gate"] = first_open
+
+    # Also clean up the ImplementationReview block to prevent stale
+    # Phase-6 iteration fields from leaking into the reset snapshot.
+    review_block = state.get("ImplementationReview")
+    if isinstance(review_block, dict):
+        review_block["implementation_review_complete"] = False
+
+    # Write the warning marker for auditability (not an admin-alert).
+    state["_p6_state_normalization"] = {
+        "open_gates": open_gates,
+        "first_open_gate": first_open,
+        "reason": "WARN-P6-STATE-INCONSISTENCY",
+        "blocking_reason_code": blocking_reason_code,
+        "action": "fail-closed-reset-to-p5",
+    }
+
+
 def _quote_if_needed(value: str) -> str:
     """Wrap value in double quotes if it contains YAML-special characters."""
     if any(c in value for c in (":", "#", "'", '"', "{", "}", "[", "]", ",", "&", "*", "?", "|", "-", "<", ">", "=", "!", "%", "@", "`")):
@@ -507,6 +588,7 @@ def _materialize_authoritative_state(*, commands_home: Path, config_root: Path, 
             ss["phase_transition_evidence"] = True
 
     _sync_phase6_completion_fields(state_doc=materialized)
+    _normalize_phase6_p5_state(state_doc=materialized)
 
     _write_json_atomic(session_path, materialized)
     return materialized
@@ -532,6 +614,10 @@ def _should_emit_continue_next_action(snapshot: dict) -> bool:
     # Explicit /continue mention is an unconditional yes.
     if "/continue" in next_condition or "resume via /continue" in next_condition:
         return True
+
+    # Evidence Presentation Gate directs user to /review-decision, not /continue.
+    if "/review-decision" in next_condition:
+        return False
 
     # Conditions that require user-provided input or are explicitly blocked.
     if any(
@@ -593,6 +679,15 @@ def _resolve_next_action_line(snapshot: dict) -> str:
         if plan_versions < 1 or plan_status in {"", "absent", "error", "unknown"}:
             return "Next action: run /plan."
 
+    # Phase 6 special gates are handled before the generic guard because
+    # _should_emit_continue_next_action returns False for /review-decision
+    # conditions — but we still need to emit the /review-decision guidance.
+    if phase_str.startswith("6"):
+        if active_gate == "workflow complete":
+            return ""
+        if active_gate == "evidence presentation gate":
+            return "Next action: submit final review decision via /review-decision (approve | changes_requested | reject)."
+
     if not _should_emit_continue_next_action(snapshot):
         return ""
 
@@ -623,6 +718,8 @@ def _resolve_next_action_line(snapshot: dict) -> str:
 
     # Phase 6 review loop is orchestrated during materialize.
     # Keep guidance on /continue so the user can advance without chat loops.
+    # Note: workflow_complete and evidence_presentation_gate are handled above
+    # before the _should_emit_continue_next_action guard.
     if phase_str.startswith("6"):
         review_complete = snapshot.get("implementation_review_complete", True)
         if review_complete is False:

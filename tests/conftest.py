@@ -8,6 +8,30 @@ import pytest
 from tests.util import REPO_ROOT
 
 
+_ERROR_CONTEXT_DEFAULTS: dict = {
+    "repo_fingerprint": None,
+    "repo_root": None,
+    "config_root": None,
+    "commands_home": None,
+    "workspaces_home": None,
+    "phase": "unknown",
+    "command": "unknown",
+}
+
+
+@pytest.fixture(autouse=True)
+def _isolate_error_context():
+    """Prevent _ERROR_CONTEXT state leaking between tests."""
+    import governance.infrastructure.logging.global_error_handler as geh
+
+    original = geh._ERROR_CONTEXT.copy()
+    geh._ERROR_CONTEXT.clear()
+    geh._ERROR_CONTEXT.update(_ERROR_CONTEXT_DEFAULTS)
+    yield
+    geh._ERROR_CONTEXT.clear()
+    geh._ERROR_CONTEXT.update(original)
+
+
 @pytest.fixture(autouse=True, scope="session")
 def _configure_binding_evidence(tmp_path_factory: pytest.TempPathFactory):
     """Provide canonical binding evidence for tests."""

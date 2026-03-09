@@ -41,15 +41,10 @@ cd customer-install-bundle-v1
 
 ## Step 3: Bootstrap session (1 minute)
 
-The installer places the launcher at:
+The installer places the `opencode-governance-bootstrap` launcher in a platform-specific config directory.
+Add that directory to your shell PATH, then invoke the launcher by name.
 
-- **macOS / Linux:** `~/.config/opencode/bin/opencode-governance-bootstrap`
-- **Windows:** `%USERPROFILE%\.config\opencode\bin\opencode-governance-bootstrap.cmd`
-
-The launcher is **not** added to your shell PATH automatically.
-You can either add the directory to PATH once, or invoke the launcher by its full path each time.
-
-### Option A: Add to PATH (recommended — run once per shell session)
+### Set PATH (run once per shell session)
 
 ```bash
 # macOS / Linux (bash / zsh)
@@ -66,7 +61,7 @@ $env:Path = "$env:USERPROFILE\.config\opencode\bin;" + $env:Path
 set "PATH=%USERPROFILE%\.config\opencode\bin;%PATH%"
 ```
 
-After setting PATH, run the bootstrap:
+### Run the bootstrap
 
 ```bash
 # macOS / Linux
@@ -83,41 +78,19 @@ opencode-governance-bootstrap --repo-root C:\path\to\repo
 opencode-governance-bootstrap.cmd --repo-root C:\path\to\repo
 ```
 
-### Option B: Invoke by full path (no PATH change needed)
-
-```bash
-# macOS / Linux (bash / zsh)
-~/.config/opencode/bin/opencode-governance-bootstrap --repo-root /path/to/repo
-```
-
-```powershell
-# Windows (PowerShell)
-& "$env:USERPROFILE\.config\opencode\bin\opencode-governance-bootstrap.cmd" --repo-root C:\path\to\repo
-```
-
-```cmd
-:: Windows (cmd.exe)
-"%USERPROFILE%\.config\opencode\bin\opencode-governance-bootstrap.cmd" --repo-root C:\path\to\repo
-```
-
-### Concrete example (Windows cmd.exe)
-
-```cmd
-"%USERPROFILE%\.config\opencode\bin\opencode-governance-bootstrap.cmd" --repo-root C:\work\ai_files
-```
-
 Use `--verbose` for step-by-step bootstrap output.
 
 | Error | Fix |
 |-------|-----|
 | Launcher not found | Run the installer from the bundle first |
 | Repo not detected | Provide `--repo-root /path/to/repo` |
-| `opencode-governance-bootstrap` is not recognized | The launcher is not on PATH — use the full path or set PATH as shown above |
+| `opencode-governance-bootstrap` is not recognized | The launcher is not on PATH — set PATH as shown above |
 
 ## Step 4: Open Desktop and continue
 
 After bootstrap succeeds, open OpenCode Desktop in the same repository and run `/continue`.
 If `/continue` lands in Phase 4, run `/ticket` and then `/plan`.
+Use `/review` as a read-only rail entrypoint for quality feedback. At Phase 6, run `/review-decision` for the final review decision.
 If the command cannot be executed, the model asks the user to paste the command output.
 For rail details and lifecycle behavior, use `README-OPENCODE.md`.
 

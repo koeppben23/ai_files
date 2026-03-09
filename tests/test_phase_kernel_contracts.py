@@ -366,6 +366,7 @@ def test_kernel_allows_phase_6_when_p6_prerequisites_pass(tmp_path: Path) -> Non
                 "P5-Architecture": "approved",
                 "P5.3-TestQuality": "pass",
                 "P5.4-BusinessRules": "compliant",
+                "P5.5-TechnicalDebt": "approved",
             },
         }
     }
@@ -1050,6 +1051,7 @@ def test_kernel_phase6_stays_until_implementation_review_complete(tmp_path: Path
             "Gates": {
                 "P5-Architecture": "approved",
                 "P5.3-TestQuality": "pass",
+                "P5.5-TechnicalDebt": "approved",
             },
         }
     }
@@ -1094,6 +1096,7 @@ def test_kernel_phase6_ready_for_user_review_after_three_iterations(tmp_path: Pa
             "Gates": {
                 "P5-Architecture": "approved",
                 "P5.3-TestQuality": "pass",
+                "P5.5-TechnicalDebt": "approved",
             },
         }
     }
@@ -1138,6 +1141,7 @@ def test_corner_phase6_allows_early_stop_on_unchanged_implementation_digest(tmp_
             "Gates": {
                 "P5-Architecture": "approved",
                 "P5.3-TestQuality": "pass",
+                "P5.5-TechnicalDebt": "approved",
             },
         }
     }
@@ -1180,6 +1184,7 @@ def test_bad_phase6_first_iteration_without_previous_digest_cannot_early_stop(tm
             "Gates": {
                 "P5-Architecture": "approved",
                 "P5.3-TestQuality": "pass",
+                "P5.5-TechnicalDebt": "approved",
             },
         }
     }
@@ -1266,6 +1271,7 @@ def test_edge_phase6_iteration_above_max_is_treated_as_hard_stop(tmp_path: Path)
             "Gates": {
                 "P5-Architecture": "approved",
                 "P5.3-TestQuality": "pass",
+                "P5.5-TechnicalDebt": "approved",
             },
         }
     }
@@ -1436,6 +1442,7 @@ def test_e2eish_phase_path_from_ticket_to_phase6_review_ready(tmp_path: Path) ->
             "Gates": {
                 "P5-Architecture": "approved",
                 "P5.3-TestQuality": "pass",
+                "P5.5-TechnicalDebt": "approved",
             },
             "ImplementationReview": {
                 "iteration": 1,
