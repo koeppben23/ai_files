@@ -259,7 +259,7 @@ phases:
 
   - token: "5.5"
     phase: "5.5-TechnicalDebt"
-    active_gate: "Technical Debt Gate"
+    active_gate: "Technical Debt Review"
     next_gate_condition: "Capture and control technical debt."
     next: "5.6"
     route_strategy: "next"
@@ -267,7 +267,7 @@ phases:
       - when: rollback_required
         next: "5.6"
         source: "phase-5.5-to-5.6"
-        active_gate: "Rollback Safety Gate"
+        active_gate: "Rollback Safety Review"
         next_gate_condition: "Technical debt recorded; rollback checks required"
       - when: default
         next: "6"
@@ -277,7 +277,7 @@ phases:
 
   - token: "5.6"
     phase: "5.6-RollbackSafety"
-    active_gate: "Rollback Safety Gate"
+    active_gate: "Rollback Safety Review"
     next_gate_condition: "Ensure rollback strategy is available when required."
     next: "6"
     route_strategy: "next"

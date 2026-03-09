@@ -334,6 +334,109 @@ def _sync_phase6_completion_fields(*, state_doc: dict) -> None:
     state["phase6_state"] = "phase6_completed" if complete else "phase6_in_progress"
 
 
+def _canonicalize_legacy_p5x_surface(*, state_doc: dict) -> None:
+    """Normalize legacy Phase-5 architecture surface to canonical P5.x states.
+
+    Older snapshots may expose open P5.x gates through
+    ``phase=5-ArchitectureReview`` with legacy gate labels. Canonicalize those
+    to the explicit user-facing P5.x phases so /continue does not stay stuck on
+    the generic architecture-review surface.
+    """
+    state_obj = state_doc.get("SESSION_STATE")
+    state = state_obj if isinstance(state_obj, dict) else state_doc
+
+    phase_text = str(state.get("Phase") or state.get("phase") or "").strip()
+    if phase_text != "5-ArchitectureReview":
+        return
+
+    next_token = str(state.get("Next") or state.get("next") or "").strip()
+    active_gate = str(state.get("active_gate") or "").strip().lower()
+    ngc = str(state.get("next_gate_condition") or "").strip().upper()
+
+    target: tuple[str, str, str] | None = None
+
+    if (
+        next_token == "5.4"
+        or "BLOCKED-P5-4-BUSINESS-RULES-GATE" in ngc
+        or active_gate in {"business rules compliance gate", "business rules validation"}
+    ):
+        target = ("5.4-BusinessRules", "5.4", "Business Rules Validation")
+    elif (
+        next_token == "5.5"
+        or "BLOCKED-P5-5-TECHNICAL-DEBT-GATE" in ngc
+        or active_gate in {"technical debt gate", "technical debt review"}
+    ):
+        target = ("5.5-TechnicalDebt", "5.5", "Technical Debt Review")
+    elif (
+        next_token == "5.6"
+        or "BLOCKED-P5-6-ROLLBACK-SAFETY-GATE" in ngc
+        or active_gate in {"rollback safety gate", "rollback safety review"}
+    ):
+        target = ("5.6-RollbackSafety", "5.6", "Rollback Safety Review")
+
+    if target is None:
+        return
+
+    canonical_phase, canonical_next, canonical_gate = target
+    state["Phase"] = canonical_phase
+    state["phase"] = canonical_phase
+    state["Next"] = canonical_next
+    state["next"] = canonical_next
+    state["active_gate"] = canonical_gate
+
+    marker = state.get("_p6_state_normalization")
+    if isinstance(marker, dict):
+        marker["corrected_phase"] = canonical_phase
+        marker["corrected_next"] = canonical_next
+        marker["corrected_active_gate"] = canonical_gate
+
+
+def _sync_conditional_p5_gate_states(*, state_doc: dict) -> None:
+    """Synchronize conditional P5 gate states from evaluator SSOT.
+
+    Pending-only policy: write only when a gate is currently pending so prior
+    non-pending operator decisions are preserved.
+    """
+    state_obj = state_doc.get("SESSION_STATE")
+    state = state_obj if isinstance(state_obj, dict) else state_doc
+    gates = state.get("Gates")
+    if not isinstance(gates, dict):
+        return
+
+    try:
+        from governance.engine.gate_evaluator import (
+            evaluate_p54_business_rules_gate,
+            evaluate_p55_technical_debt_gate,
+            evaluate_p56_rollback_safety_gate,
+        )
+        from governance.kernel.phase_kernel import _phase_1_5_executed
+    except Exception:
+        return
+
+    p54_eval = evaluate_p54_business_rules_gate(
+        session_state=state,
+        phase_1_5_executed=_phase_1_5_executed(state),
+    )
+    if str(gates.get("P5.4-BusinessRules", "")).strip().lower() == "pending":
+        if p54_eval.status in {
+            "compliant",
+            "compliant-with-exceptions",
+            "not-applicable",
+            "gap-detected",
+        }:
+            gates["P5.4-BusinessRules"] = p54_eval.status
+
+    p55_eval = evaluate_p55_technical_debt_gate(session_state=state)
+    if str(gates.get("P5.5-TechnicalDebt", "")).strip().lower() == "pending":
+        if p55_eval.status in {"approved", "not-applicable", "rejected"}:
+            gates["P5.5-TechnicalDebt"] = p55_eval.status
+
+    p56_eval = evaluate_p56_rollback_safety_gate(session_state=state)
+    if str(gates.get("P5.6-RollbackSafety", "")).strip().lower() == "pending":
+        if p56_eval.status in {"approved", "not-applicable", "rejected"}:
+            gates["P5.6-RollbackSafety"] = p56_eval.status
+
+
 def _normalize_phase6_p5_state(*, state_doc: dict, events_path: Path | None = None) -> None:
     """Detect and correct inconsistent Phase 6 / P5 gate state (fail-closed).
 
@@ -392,10 +495,10 @@ def _normalize_phase6_p5_state(*, state_doc: dict, events_path: Path | None = No
     blocking_reason_code = reason_code_for_gate(first_open)
 
     gate_to_phase_next: dict[str, tuple[str, str, str]] = {
-        "P5.3-TestQuality": ("5-ArchitectureReview", "5.3", "Test Quality Gate"),
-        "P5.4-BusinessRules": ("5-ArchitectureReview", "5.4", "Business Rules Compliance Gate"),
-        "P5.5-TechnicalDebt": ("5-ArchitectureReview", "5.5", "Technical Debt Gate"),
-        "P5.6-RollbackSafety": ("5-ArchitectureReview", "5.6", "Rollback Safety Gate"),
+        "P5.3-TestQuality": ("5.3-TestQuality", "5.3", "Test Quality Gate"),
+        "P5.4-BusinessRules": ("5.4-BusinessRules", "5.4", "Business Rules Validation"),
+        "P5.5-TechnicalDebt": ("5.5-TechnicalDebt", "5.5", "Technical Debt Review"),
+        "P5.6-RollbackSafety": ("5.6-RollbackSafety", "5.6", "Rollback Safety Review"),
         "P5-Architecture": ("5-ArchitectureReview", "5", "Architecture Review Gate"),
     }
     corrected_phase, corrected_next, corrected_gate = gate_to_phase_next.get(
@@ -419,7 +522,7 @@ def _normalize_phase6_p5_state(*, state_doc: dict, events_path: Path | None = No
     state["active_gate"] = corrected_gate
     state["next_gate_condition"] = (
         f"Phase 6 promotion blocked: {blocking_reason_code}. "
-        f"Complete {corrected_gate} via /plan before continuing."
+        f"Complete {corrected_gate} and run /continue."
     )
 
     # Also clean up the ImplementationReview block to prevent stale
@@ -592,6 +695,8 @@ def _materialize_authoritative_state(*, commands_home: Path, config_root: Path, 
     from governance.application.use_cases.session_state_helpers import with_kernel_result
     from governance.kernel.phase_kernel import execute
 
+    _canonicalize_legacy_p5x_surface(state_doc=state_doc)
+
     requested_phase, ctx = _build_runtime_context(
         commands_home=commands_home,
         config_root=config_root,
@@ -635,6 +740,7 @@ def _materialize_authoritative_state(*, commands_home: Path, config_root: Path, 
         if isinstance(ss, dict):
             ss["phase_transition_evidence"] = True
 
+    _sync_conditional_p5_gate_states(state_doc=materialized)
     _sync_phase6_completion_fields(state_doc=materialized)
     _normalize_phase6_p5_state(
         state_doc=materialized,
@@ -739,6 +845,25 @@ def _resolve_next_action_line(snapshot: dict) -> str:
         if active_gate == "evidence presentation gate":
             return "Next action: submit final review decision via /review-decision (approve | changes_requested | reject)."
 
+    # Gate-specific P5.x guidance must run before the generic
+    # _should_emit_continue_next_action() guard so blocked conditions can
+    # still emit an actionable /plan recovery command.
+    if phase_str.startswith("5.4"):
+        p54_status = str(snapshot.get("p54_evaluated_status", "")).strip().lower()
+        if p54_status in {"compliant", "compliant-with-exceptions", "not-applicable"}:
+            return "Next action: run /continue."
+        return "Next action: run /plan with explicit business-rules compliance evidence."
+    if phase_str.startswith("5.5"):
+        p55_status = str(snapshot.get("p55_evaluated_status", "")).strip().lower()
+        if p55_status in {"approved", "not-applicable"}:
+            return "Next action: run /continue."
+        return "Next action: run /plan with explicit technical-debt review evidence."
+    if phase_str.startswith("5.6"):
+        p56_status = str(snapshot.get("p56_evaluated_status", "")).strip().lower()
+        if p56_status in {"approved", "not-applicable"}:
+            return "Next action: run /continue."
+        return "Next action: run /plan with explicit rollback-safety evidence."
+
     if not _should_emit_continue_next_action(snapshot):
         return ""
 
@@ -760,13 +885,6 @@ def _resolve_next_action_line(snapshot: dict) -> str:
         next_token = str(snapshot.get("next", "")).strip()
         if review_met is True and next_token == "5.3":
             return "Next action: execute Phase 5.3 test-quality review, then run /continue."
-        if phase_str.startswith("5.4"):
-            return "Next action: complete Phase 5.4 business-rules validation, then run /continue."
-        if phase_str.startswith("5.5"):
-            return "Next action: complete Phase 5.5 technical-debt review, then run /continue."
-        if phase_str.startswith("5.6"):
-            return "Next action: complete Phase 5.6 rollback-safety checks, then run /continue."
-
     # Phase 6 review loop is orchestrated during materialize.
     # Keep guidance on /continue so the user can advance without chat loops.
     # Note: workflow_complete and evidence_presentation_gate are handled above
@@ -806,6 +924,8 @@ def read_session_snapshot(commands_home: Path | None = None, *, materialize: boo
             "status": "ERROR",
             "error": str(exc),
         }
+
+    _canonicalize_legacy_p5x_surface(state_doc=state)
 
     if materialize:
         try:
@@ -892,6 +1012,31 @@ def read_session_snapshot(commands_home: Path | None = None, *, materialize: boo
     gates = state_view.get("Gates") or state.get("Gates") or {}
     gates_blocked = [k for k, v in gates.items() if str(v).lower() == "blocked"] if isinstance(gates, dict) else []
 
+    p54_evaluated_status = "unknown"
+    p55_evaluated_status = "unknown"
+    p56_evaluated_status = "unknown"
+    try:
+        from governance.engine.gate_evaluator import (
+            evaluate_p54_business_rules_gate,
+            evaluate_p55_technical_debt_gate,
+            evaluate_p56_rollback_safety_gate,
+        )
+        from governance.kernel.phase_kernel import _phase_1_5_executed
+
+        _state_for_eval = state_view if isinstance(state_view, dict) else {}
+        _phase15 = _phase_1_5_executed(_state_for_eval)
+        p54_eval = evaluate_p54_business_rules_gate(
+            session_state=_state_for_eval,
+            phase_1_5_executed=_phase15,
+        )
+        p55_eval = evaluate_p55_technical_debt_gate(session_state=_state_for_eval)
+        p56_eval = evaluate_p56_rollback_safety_gate(session_state=_state_for_eval)
+        p54_evaluated_status = str(p54_eval.status)
+        p55_evaluated_status = str(p55_eval.status)
+        p56_evaluated_status = str(p56_eval.status)
+    except Exception:
+        pass
+
     signal = resolve_plan_record_signal(
         state=state_view if isinstance(state_view, dict) else {},
         plan_record_file=session_path.parent / "plan-record.json",
@@ -941,6 +1086,9 @@ def read_session_snapshot(commands_home: Path | None = None, *, materialize: boo
         "plan_record_versions": plan_versions,
         "plan_record_label": plan_record_label,
         "commands_home": str(commands_home),
+        "p54_evaluated_status": p54_evaluated_status,
+        "p55_evaluated_status": p55_evaluated_status,
+        "p56_evaluated_status": p56_evaluated_status,
     }
     if transition_evidence_hint:
         snapshot["transition_evidence_hint"] = transition_evidence_hint
