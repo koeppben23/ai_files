@@ -335,18 +335,31 @@ def _sync_phase6_completion_fields(*, state_doc: dict) -> None:
 
 
 def _normalize_phase6_p5_state(*, state_doc: dict) -> None:
-    """Detect and correct inconsistent Phase 6 / P5 gate state.
+    """Detect and correct inconsistent Phase 6 / P5 gate state (fail-closed).
 
-    If ``phase=6`` but one or more P5 gates are still pending (not in a
-    terminal status), this function back-fills the missing gate values to
-    ``"not-applicable"`` and emits a ``WARN-P6-STATE-INCONSISTENCY``
-    warning so the inconsistency is visible in audit logs without
-    blocking the user.
+    If ``phase=6`` but one or more P5 gates are still in a non-terminal
+    status, this function **resets** the document to a consistent P5 state
+    rather than silently papering over the inconsistency.
 
-    This is a normalization safety-net — under correct workflow the gates
-    are always set before Phase 6 entry, but legacy / manually-edited
-    state documents may have gaps.
+    Fail-closed reset writes:
+    - ``phase6_state = "phase5_in_progress"``
+    - ``implementation_review_complete = false``
+    - ``workflow_complete`` / ``WorkflowComplete`` removed
+    - ``active_gate`` set to the first open P5 gate
+
+    A ``_p6_state_normalization`` warning marker is written for auditability
+    but no admin-alert is raised.
+
+    The gate ordering and terminal-value definitions are imported from
+    ``gate_evaluator`` (SSOT) so normalization never diverges from the
+    promotion check.
     """
+    from governance.engine.gate_evaluator import (
+        P5_GATE_PRIORITY_ORDER,
+        P5_GATE_TERMINAL_VALUES,
+        reason_code_for_gate,
+    )
+
     state_obj = state_doc.get("SESSION_STATE")
     state = state_obj if isinstance(state_obj, dict) else state_doc
 
@@ -360,46 +373,46 @@ def _normalize_phase6_p5_state(*, state_doc: dict) -> None:
         gates = {}
         state["Gates"] = gates
 
-    # Mandatory P5 gates in deterministic priority order.
-    # P5.4 and P5.6 are conditionally required (Phase 1.5 / rollback safety)
-    # but normalization checks the full set — a missing conditional gate that
-    # was never applicable will already be absent from the Gates dict and is
-    # ignored here.  Only gates that *exist but are not terminal* are flagged.
-    _REQUIRED_TERMINAL = (
-        ("P5.3-TestQuality", ("pass", "pass-with-exceptions")),
-        ("P5.4-BusinessRules", ("compliant", "compliant-with-exceptions", "not-applicable")),
-        ("P5.5-TechnicalDebt", ("approved", "not-applicable")),
-        ("P5.6-RollbackSafety", ("approved", "not-applicable")),
-    )
-
-    # P5-Architecture is always required.
-    _ARCH_TERMINAL = ("approved",)
-
+    # Walk the canonical gate priority order from gate_evaluator (SSOT).
+    # Only gates that *exist but are not terminal* are considered open.
+    # Absent gates are skipped — they may be conditionally not-applicable.
     open_gates: list[str] = []
-
-    # Check P5-Architecture first (always required).
-    arch_value = gates.get("P5-Architecture")
-    if arch_value is not None and arch_value not in _ARCH_TERMINAL:
-        open_gates.append("P5-Architecture")
-
-    for gate_key, terminal_values in _REQUIRED_TERMINAL:
+    for gate_key in P5_GATE_PRIORITY_ORDER:
+        terminal_values = P5_GATE_TERMINAL_VALUES.get(gate_key, ())
         current = gates.get(gate_key)
-        # Skip gates that are absent — they may be conditionally
-        # not-applicable (e.g. P5.4 when Phase 1.5 was not executed).
         if current is None:
             continue
         if current not in terminal_values:
             open_gates.append(gate_key)
 
-    if open_gates:
-        # Fail-closed: flag the inconsistency with the first open gate
-        # so downstream consumers can reroute the user.  Do NOT silently
-        # back-fill to "not-applicable" — that masks open gates.
-        state["_p6_state_normalization"] = {
-            "open_gates": open_gates,
-            "first_open_gate": open_gates[0],
-            "reason": "WARN-P6-STATE-INCONSISTENCY",
-        }
+    if not open_gates:
+        return
+
+    first_open = open_gates[0]
+    blocking_reason_code = reason_code_for_gate(first_open)
+
+    # ── Fail-closed reset: bring the document back to a P5-consistent
+    #    snapshot so no mixed Phase-6 / open-P5 state is visible.  ──
+    state["phase6_state"] = "phase5_in_progress"
+    state["implementation_review_complete"] = False
+    state.pop("workflow_complete", None)
+    state.pop("WorkflowComplete", None)
+    state["active_gate"] = first_open
+
+    # Also clean up the ImplementationReview block to prevent stale
+    # Phase-6 iteration fields from leaking into the reset snapshot.
+    review_block = state.get("ImplementationReview")
+    if isinstance(review_block, dict):
+        review_block["implementation_review_complete"] = False
+
+    # Write the warning marker for auditability (not an admin-alert).
+    state["_p6_state_normalization"] = {
+        "open_gates": open_gates,
+        "first_open_gate": first_open,
+        "reason": "WARN-P6-STATE-INCONSISTENCY",
+        "blocking_reason_code": blocking_reason_code,
+        "action": "fail-closed-reset-to-p5",
+    }
 
 
 def _quote_if_needed(value: str) -> str:

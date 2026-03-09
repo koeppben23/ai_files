@@ -1341,20 +1341,23 @@ def execute(
             rollback_safety_applies=_rollback_safety_applies(state),
         )
         if not _can_promote:
-            # Surface the specific first open gate in priority order
-            # instead of a generic "prerequisites not met" message.
+            # Surface the evaluator's gate-specific reason code (SSOT).
+            # The evaluator already sets reason_code to the specific
+            # gate-level code (e.g. BLOCKED-P5-3-TEST-QUALITY-GATE)
+            # based on first_open_gate.
             _first_open = _p6_prereq.first_open_gate
+            _blocking_reason_code = _p6_prereq.reason_code
             if _first_open:
-                _block_reason = f"{reason_codes.BLOCKED_P6_PREREQUISITES_NOT_MET}: first open gate is {_first_open}"
+                _block_detail = f"{_blocking_reason_code}: first open gate is {_first_open}"
             else:
-                _block_reason = reason_codes.BLOCKED_P6_PREREQUISITES_NOT_MET
+                _block_detail = _blocking_reason_code
             return _blocked_result(
                 phase=entry.phase,
                 token=chosen_token,
                 active_gate="Implementation QA Prerequisite Gate",
-                next_gate_condition=f"PHASE_BLOCKED: {_block_reason}",
+                next_gate_condition=f"PHASE_BLOCKED: {_block_detail}",
                 source="p6-prerequisite-gate",
-                reason=f"p6-prerequisite-gate: {_block_reason}",
+                reason=f"p6-prerequisite-gate: {_block_detail}",
                 detail={
                     "p6_prerequisites": {
                         "passed": _p6_prereq.passed,

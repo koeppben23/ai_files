@@ -51,6 +51,51 @@ P6ComplianceStatus = Literal["compliant", "drift-detected", "major-deviation", "
 P54_MIN_COVERAGE_PERCENT = 70.0
 
 
+# ---------------------------------------------------------------------------
+# Deterministic gate → reason code mapping (SSOT)
+# ---------------------------------------------------------------------------
+# Used by evaluate_p6_prerequisites (and indirectly by _normalize_phase6_p5_state
+# in session_reader) so that both surfaces derive the blocking reason code from
+# the same canonical mapping.
+_GATE_TO_REASON_CODE: dict[str, str] = {
+    "P5-Architecture": BLOCKED_P6_PREREQUISITES_NOT_MET,  # no gate-specific code for arch
+    "P5.3-TestQuality": BLOCKED_P5_3_TEST_QUALITY_GATE,
+    "P5.4-BusinessRules": BLOCKED_P5_4_BUSINESS_RULES_GATE,
+    "P5.5-TechnicalDebt": BLOCKED_P5_5_TECHNICAL_DEBT_GATE,
+    "P5.6-RollbackSafety": BLOCKED_P5_6_ROLLBACK_SAFETY_GATE,
+}
+
+# Deterministic priority order for P5 prerequisite gate checks.
+# This is the single-source-of-truth ordering used by both
+# evaluate_p6_prerequisites() and exposed for session_reader normalization.
+P5_GATE_PRIORITY_ORDER: tuple[str, ...] = (
+    "P5-Architecture",
+    "P5.3-TestQuality",
+    "P5.4-BusinessRules",
+    "P5.5-TechnicalDebt",
+    "P5.6-RollbackSafety",
+)
+
+# Terminal gate values per gate key (SSOT).
+# session_reader._normalize_phase6_p5_state() imports this to avoid
+# maintaining a parallel definition.
+P5_GATE_TERMINAL_VALUES: dict[str, tuple[str, ...]] = {
+    "P5-Architecture": ("approved",),
+    "P5.3-TestQuality": ("pass", "pass-with-exceptions"),
+    "P5.4-BusinessRules": ("compliant", "compliant-with-exceptions", "not-applicable"),
+    "P5.5-TechnicalDebt": ("approved", "not-applicable"),
+    "P5.6-RollbackSafety": ("approved", "not-applicable"),
+}
+
+
+def reason_code_for_gate(gate_key: str) -> str:
+    """Return the specific blocking reason code for a P5 gate key.
+
+    Falls back to ``BLOCKED_P6_PREREQUISITES_NOT_MET`` for unknown gates.
+    """
+    return _GATE_TO_REASON_CODE.get(gate_key, BLOCKED_P6_PREREQUISITES_NOT_MET)
+
+
 @dataclass(frozen=True)
 class GateEvaluation:
     """Result contract for one gate evaluation."""
@@ -562,7 +607,7 @@ def evaluate_p6_prerequisites(
 
     if not all_passed:
         # Determine the first open gate in deterministic priority order:
-        # P5.3 → P5.4 → P5.5 → P5.6 (with P5-Architecture checked first).
+        # P5-Architecture → P5.3 → P5.4 → P5.5 → P5.6
         first_open: str | None = None
         if not p5_architecture_approved:
             first_open = "P5-Architecture"
@@ -575,9 +620,14 @@ def evaluate_p6_prerequisites(
         elif rollback_safety_applies and p56_approved is not None and not p56_approved:
             first_open = "P5.6-RollbackSafety"
 
+        # Use the gate-specific blocking reason code (SSOT via
+        # _GATE_TO_REASON_CODE) so callers can surface a precise blocker
+        # without re-interpreting first_open_gate themselves.
+        blocking_reason = reason_code_for_gate(first_open) if first_open else BLOCKED_P6_PREREQUISITES_NOT_MET
+
         return P6PrerequisiteEvaluation(
             passed=False,
-            reason_code=BLOCKED_P6_PREREQUISITES_NOT_MET,
+            reason_code=blocking_reason,
             p5_architecture_approved=p5_architecture_approved,
             p53_passed=p53_passed,
             p54_compliant=p54_compliant,

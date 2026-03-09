@@ -237,7 +237,8 @@ class TestP6PrerequisitesWithP55:
         )
         assert result.passed is False
         assert result.p55_approved is False
-        assert result.reason_code == "BLOCKED-P6-PREREQUISITES-NOT-MET"
+        # P5.5 is the first open gate → gate-specific reason code (Fix 2 SSOT).
+        assert result.reason_code == "BLOCKED-P5-5-TECHNICAL-DEBT-GATE"
 
     def test_p55_not_applicable_allows_p6(self) -> None:
         state = {"Gates": {
@@ -323,6 +324,7 @@ class TestKernelP55BlocksPhase6:
             gates={
                 "P5-Architecture": "approved",
                 "P5.3-TestQuality": "pass",
+                "P5.4-BusinessRules": "compliant",  # satisfy P5.4 (fixture has ExecutionEvidence)
                 # P5.5 missing!
             }
         )
@@ -332,7 +334,8 @@ class TestKernelP55BlocksPhase6:
             runtime_ctx=ctx,
         )
         assert result.status == "BLOCKED"
-        assert "BLOCKED-P6-PREREQUISITES-NOT-MET" in result.next_gate_condition
+        # P5.5 is the first open gate → gate-specific reason code in condition.
+        assert "BLOCKED-P5-5-TECHNICAL-DEBT-GATE" in result.next_gate_condition
 
     def test_kernel_allows_phase6_with_p55_approved(self, tmp_path: Path) -> None:
         ctx = _make_ctx(tmp_path)
@@ -367,6 +370,7 @@ class TestReviewDecisionApprove:
         ss = doc["SESSION_STATE"]
         assert ss["workflow_complete"] is True
         assert ss["WorkflowComplete"] is True
+        assert ss["implementation_review_complete"] is True
         assert ss["UserReviewDecision"]["decision"] == "approve"
 
     def test_approve_writes_audit_event(self, tmp_path: Path) -> None:
@@ -423,6 +427,10 @@ class TestReviewDecisionReject:
         assert ss["Phase"] == "4"
         assert ss["phase_transition_evidence"] is False
         assert ss.get("workflow_complete") is None
+        # Fix 4: reject sets active_gate and next_gate_condition, clears phase6_state.
+        assert ss["active_gate"] == "Ticket Input Gate"
+        assert "rejected" in ss["next_gate_condition"].lower()
+        assert "phase6_state" not in ss
 
 
 class TestReviewDecisionBadPaths:
@@ -627,10 +635,16 @@ class TestNormalizePhase6P5StateFailClosed:
     """Verify fail-closed normalization: present non-terminal gates are
     flagged (not silently back-filled to not-applicable)."""
 
-    def test_present_non_terminal_gate_is_flagged(self) -> None:
-        """A gate with a non-terminal value (e.g. 'pending') is flagged."""
+    def test_present_non_terminal_gate_is_flagged_and_state_reset(self) -> None:
+        """A gate with a non-terminal value (e.g. 'pending') triggers
+        fail-closed reset: phase6_state, implementation_review_complete,
+        active_gate are written; workflow_complete is removed."""
         state_doc = {"SESSION_STATE": {
             "Phase": "6-PostFlight",
+            "phase6_state": "implementation_review_pending",
+            "implementation_review_complete": True,
+            "workflow_complete": True,
+            "WorkflowComplete": True,
             "Gates": {
                 "P5-Architecture": "approved",
                 "P5.3-TestQuality": "pending",  # non-terminal
@@ -638,14 +652,24 @@ class TestNormalizePhase6P5StateFailClosed:
             },
         }}
         _normalize_phase6_p5_state(state_doc=state_doc)
-        norm = state_doc["SESSION_STATE"]["_p6_state_normalization"]
+        ss = state_doc["SESSION_STATE"]
+        norm = ss["_p6_state_normalization"]
         assert "P5.3-TestQuality" in norm["open_gates"]
         assert norm["first_open_gate"] == "P5.3-TestQuality"
+        assert norm["blocking_reason_code"] == "BLOCKED-P5-3-TEST-QUALITY-GATE"
+        assert norm["action"] == "fail-closed-reset-to-p5"
         # Gate value is NOT overwritten.
-        assert state_doc["SESSION_STATE"]["Gates"]["P5.3-TestQuality"] == "pending"
+        assert ss["Gates"]["P5.3-TestQuality"] == "pending"
+        # Fail-closed reset fields:
+        assert ss["phase6_state"] == "phase5_in_progress"
+        assert ss["implementation_review_complete"] is False
+        assert ss["active_gate"] == "P5.3-TestQuality"
+        assert "workflow_complete" not in ss
+        assert "WorkflowComplete" not in ss
 
     def test_multiple_open_gates_reported_in_order(self) -> None:
-        """All non-terminal gates are listed; first_open_gate is deterministic."""
+        """All non-terminal gates are listed; first_open_gate is deterministic.
+        Fail-closed reset active_gate matches first_open_gate."""
         state_doc = {"SESSION_STATE": {
             "Phase": "6-PostFlight",
             "Gates": {
@@ -657,9 +681,16 @@ class TestNormalizePhase6P5StateFailClosed:
             },
         }}
         _normalize_phase6_p5_state(state_doc=state_doc)
-        norm = state_doc["SESSION_STATE"]["_p6_state_normalization"]
+        ss = state_doc["SESSION_STATE"]
+        norm = ss["_p6_state_normalization"]
         assert norm["first_open_gate"] == "P5-Architecture"
         assert len(norm["open_gates"]) >= 4
+        # P5-Architecture has no gate-specific code — falls back to generic.
+        assert norm["blocking_reason_code"] == "BLOCKED-P6-PREREQUISITES-NOT-MET"
+        assert norm["action"] == "fail-closed-reset-to-p5"
+        # Fail-closed reset:
+        assert ss["phase6_state"] == "phase5_in_progress"
+        assert ss["active_gate"] == "P5-Architecture"
 
     def test_all_gates_terminal_no_flag(self) -> None:
         """When every present gate is terminal, no normalization flag."""
@@ -827,6 +858,13 @@ class TestReviewDecisionApproveTerminalFields:
         assert ss["active_gate"] == "Workflow Complete"
         assert "No further action" in ss["next_gate_condition"]
         assert ss["phase6_state"] == "phase6_completed"
+        # Fix 4: approve also writes implementation_review_complete and
+        # syncs ImplementationReview block.
+        assert ss["implementation_review_complete"] is True
+        review_block = ss.get("ImplementationReview")
+        assert isinstance(review_block, dict)
+        assert review_block["implementation_review_complete"] is True
+        assert review_block["completion_status"] == "phase6-completed"
 
     def test_changes_requested_does_not_write_terminal_fields(self, tmp_path: Path) -> None:
         state = _make_phase6_state()
@@ -836,3 +874,195 @@ class TestReviewDecisionApproveTerminalFields:
         doc = json.loads(session_path.read_text(encoding="utf-8"))
         ss = doc["SESSION_STATE"]
         assert ss.get("active_gate") != "Workflow Complete"
+
+
+# ===========================================================================
+# 13. Gate-specific reason codes (Fix 2 / Fix 3)
+# ===========================================================================
+
+class TestGateSpecificReasonCodes:
+    """evaluate_p6_prerequisites() returns gate-specific reason_code based
+    on first_open_gate, not generic BLOCKED-P6-PREREQUISITES-NOT-MET."""
+
+    def test_p53_specific_reason_code(self) -> None:
+        state = {"Gates": {
+            "P5-Architecture": "approved",
+            "P5.3-TestQuality": "fail",
+            "P5.5-TechnicalDebt": "approved",
+        }}
+        result = evaluate_p6_prerequisites(
+            session_state=state, phase_1_5_executed=False, rollback_safety_applies=False,
+        )
+        assert result.reason_code == "BLOCKED-P5-3-TEST-QUALITY-GATE"
+
+    def test_p54_specific_reason_code(self) -> None:
+        state = {"Gates": {
+            "P5-Architecture": "approved",
+            "P5.3-TestQuality": "pass",
+            "P5.4-BusinessRules": "gap-detected",
+            "P5.5-TechnicalDebt": "approved",
+        }}
+        result = evaluate_p6_prerequisites(
+            session_state=state, phase_1_5_executed=True, rollback_safety_applies=False,
+        )
+        assert result.reason_code == "BLOCKED-P5-4-BUSINESS-RULES-GATE"
+
+    def test_p55_specific_reason_code(self) -> None:
+        state = {"Gates": {
+            "P5-Architecture": "approved",
+            "P5.3-TestQuality": "pass",
+            "P5.5-TechnicalDebt": "rejected",
+        }}
+        result = evaluate_p6_prerequisites(
+            session_state=state, phase_1_5_executed=False, rollback_safety_applies=False,
+        )
+        assert result.reason_code == "BLOCKED-P5-5-TECHNICAL-DEBT-GATE"
+
+    def test_p56_specific_reason_code(self) -> None:
+        state = {"Gates": {
+            "P5-Architecture": "approved",
+            "P5.3-TestQuality": "pass",
+            "P5.5-TechnicalDebt": "approved",
+            "P5.6-RollbackSafety": "rejected",
+        }}
+        result = evaluate_p6_prerequisites(
+            session_state=state, phase_1_5_executed=False, rollback_safety_applies=True,
+        )
+        assert result.reason_code == "BLOCKED-P5-6-ROLLBACK-SAFETY-GATE"
+
+    def test_p5_architecture_falls_back_to_generic(self) -> None:
+        """P5-Architecture has no gate-specific code — uses the generic fallback."""
+        state = {"Gates": {
+            "P5-Architecture": "pending",
+            "P5.3-TestQuality": "pass",
+            "P5.5-TechnicalDebt": "approved",
+        }}
+        result = evaluate_p6_prerequisites(
+            session_state=state, phase_1_5_executed=False, rollback_safety_applies=False,
+        )
+        assert result.reason_code == "BLOCKED-P6-PREREQUISITES-NOT-MET"
+
+
+# ===========================================================================
+# 14. Kernel surfaces gate-specific reason code (Fix 3)
+# ===========================================================================
+
+class TestKernelGateSpecificReasonCode:
+    """Kernel P6 blocking uses the evaluator's gate-specific reason code."""
+
+    def test_kernel_p53_gate_specific_in_condition(self, tmp_path: Path) -> None:
+        ctx = _make_ctx(tmp_path)
+        state = _make_phase6_state(
+            gates={
+                "P5-Architecture": "approved",
+                "P5.3-TestQuality": "fail",
+                "P5.5-TechnicalDebt": "approved",
+            }
+        )
+        result = execute(
+            current_token="6",
+            session_state_doc={"SESSION_STATE": state},
+            runtime_ctx=ctx,
+        )
+        assert result.status == "BLOCKED"
+        assert "BLOCKED-P5-3-TEST-QUALITY-GATE" in result.next_gate_condition
+
+    def test_kernel_architecture_uses_generic(self, tmp_path: Path) -> None:
+        ctx = _make_ctx(tmp_path)
+        state = _make_phase6_state(
+            gates={
+                "P5-Architecture": "pending",
+                "P5.3-TestQuality": "pass",
+                "P5.5-TechnicalDebt": "approved",
+            }
+        )
+        result = execute(
+            current_token="6",
+            session_state_doc={"SESSION_STATE": state},
+            runtime_ctx=ctx,
+        )
+        assert result.status == "BLOCKED"
+        assert "BLOCKED-P6-PREREQUISITES-NOT-MET" in result.next_gate_condition
+
+
+# ===========================================================================
+# 15. SSOT: normalization imports from gate_evaluator (cross-cutting)
+# ===========================================================================
+
+class TestNormalizationSSOT:
+    """Verify normalization uses the same gate ordering and terminal values
+    as evaluate_p6_prerequisites() (SSOT cross-cutting constraint)."""
+
+    def test_normalization_uses_gate_evaluator_ordering(self) -> None:
+        """P5-Architecture is checked before P5.3 in normalization
+        (matching evaluator priority order)."""
+        state_doc = {"SESSION_STATE": {
+            "Phase": "6-PostFlight",
+            "Gates": {
+                "P5-Architecture": "pending",  # non-terminal
+                "P5.3-TestQuality": "fail",     # also non-terminal
+            },
+        }}
+        _normalize_phase6_p5_state(state_doc=state_doc)
+        ss = state_doc["SESSION_STATE"]
+        # First open gate should be P5-Architecture (comes first in SSOT ordering).
+        assert ss["_p6_state_normalization"]["first_open_gate"] == "P5-Architecture"
+        assert ss["active_gate"] == "P5-Architecture"
+
+    def test_normalization_reason_code_matches_evaluator(self) -> None:
+        """The blocking_reason_code from normalization matches what the
+        evaluator would produce for the same first_open_gate."""
+        state_doc = {"SESSION_STATE": {
+            "Phase": "6-PostFlight",
+            "Gates": {
+                "P5-Architecture": "approved",
+                "P5.3-TestQuality": "pass",
+                "P5.5-TechnicalDebt": "rejected",  # first open
+            },
+        }}
+        _normalize_phase6_p5_state(state_doc=state_doc)
+        norm = state_doc["SESSION_STATE"]["_p6_state_normalization"]
+        # Both normalization and evaluator should use BLOCKED-P5-5-TECHNICAL-DEBT-GATE.
+        eval_result = evaluate_p6_prerequisites(
+            session_state=state_doc["SESSION_STATE"],
+            phase_1_5_executed=False,
+            rollback_safety_applies=False,
+        )
+        assert norm["blocking_reason_code"] == eval_result.reason_code
+
+    def test_normalization_cleans_implementation_review_block(self) -> None:
+        """Fail-closed reset also cleans the ImplementationReview block."""
+        state_doc = {"SESSION_STATE": {
+            "Phase": "6-PostFlight",
+            "Gates": {
+                "P5-Architecture": "approved",
+                "P5.3-TestQuality": "pending",
+            },
+            "ImplementationReview": {
+                "iteration": 3,
+                "implementation_review_complete": True,
+            },
+        }}
+        _normalize_phase6_p5_state(state_doc=state_doc)
+        review = state_doc["SESSION_STATE"]["ImplementationReview"]
+        assert review["implementation_review_complete"] is False
+
+
+# ===========================================================================
+# 16. Reject terminal surface (Fix 4)
+# ===========================================================================
+
+class TestReviewDecisionRejectTerminalSurface:
+    """reject writes active_gate, next_gate_condition, clears phase6_state."""
+
+    def test_reject_sets_active_gate_and_condition(self, tmp_path: Path) -> None:
+        state = _make_phase6_state(extra={"phase6_state": "implementation_review_pending"})
+        session_path = _write_session(tmp_path, state)
+        apply_review_decision(decision="reject", session_path=session_path)
+
+        doc = json.loads(session_path.read_text(encoding="utf-8"))
+        ss = doc["SESSION_STATE"]
+        assert ss["active_gate"] == "Ticket Input Gate"
+        assert "rejected" in ss["next_gate_condition"].lower()
+        assert "phase6_state" not in ss
+        assert ss.get("implementation_review_complete") is None

@@ -148,6 +148,13 @@ def apply_review_decision(
         state["active_gate"] = "Workflow Complete"
         state["next_gate_condition"] = "Workflow approved. No further action required."
         state["phase6_state"] = "phase6_completed"
+        state["implementation_review_complete"] = True
+        # Ensure ImplementationReview block is also consistent.
+        review_block = state.get("ImplementationReview")
+        if isinstance(review_block, dict):
+            review_block["implementation_review_complete"] = True
+            review_block["completion_status"] = "phase6-completed"
+            state["ImplementationReview"] = review_block
     elif normalized == "changes_requested":
         # Loop-reset: clear review completion so the internal review restarts
         state["implementation_review_complete"] = False
@@ -165,13 +172,18 @@ def apply_review_decision(
         state.pop("workflow_complete", None)
         state.pop("WorkflowComplete", None)
     elif normalized == "reject":
-        # Return to Phase 4
+        # Return to Phase 4 with a consistent visible return path.
         state["Phase"] = "4"
+        state["active_gate"] = "Ticket Input Gate"
+        state["next_gate_condition"] = (
+            "Review rejected. Provide updated ticket/task details to restart."
+        )
         state["phase_transition_evidence"] = False
         # Clear Phase 6 state
         state.pop("workflow_complete", None)
         state.pop("WorkflowComplete", None)
         state.pop("implementation_review_complete", None)
+        state.pop("phase6_state", None)
 
     # Persist
     _write_json_atomic(session_path, state_doc)
