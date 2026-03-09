@@ -60,6 +60,8 @@ EMBEDDED_REASON_CODE_TO_SCHEMA_REF: Final[dict[str, str]] = {
     "BLOCKED-P5-3-TEST-QUALITY-GATE": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
     "BLOCKED-P5-4-BUSINESS-RULES-GATE": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
     "BLOCKED-P5-6-ROLLBACK-SAFETY-GATE": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
+    "BLOCKED-P5-5-TECHNICAL-DEBT-GATE": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
+    "BLOCKED-REVIEW-DECISION-INVALID": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
     "BLOCKED-P4-INTAKE-MISSING-EVIDENCE": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
     "BLOCKED-P5-PLAN-RECORD-PERSIST": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
     "BLOCKED-P5-PHASE-MISMATCH": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
@@ -168,6 +170,7 @@ EMBEDDED_REASON_CODE_TO_SCHEMA_REF: Final[dict[str, str]] = {
     "WARN-LIQUIBASE-DATA-MIGRATION-UNVERIFIED": "governance/assets/schemas/reason_payload_advisory.v1.json",
     "WARN-SESSION-STATE-SCHEMA-VIOLATION": "governance/assets/schemas/reason_payload_advisory.v1.json",
     "WARN-P6-PLAN-COMPLIANCE-DRIFT": "governance/assets/schemas/reason_payload_advisory.v1.json",
+    "WARN-P6-STATE-INCONSISTENCY": "governance/assets/schemas/reason_payload_advisory.v1.json",
     # Audit events
     "REPO-CONSTRAINT-UNSUPPORTED": "governance/assets/schemas/reason_payload_repo_constraint_unsupported.v1.json",
     "POLICY-PRECEDENCE-APPLIED": "governance/assets/schemas/reason_payload_policy_precedence.v1.json",

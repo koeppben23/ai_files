@@ -252,8 +252,10 @@ Data sources merged below:
 |------|-------------|-------------|
 | `BLOCKED-P5-3-TEST-QUALITY-GATE` | Phase 4 plan missing required Test Strategy subsection. | Add Test Strategy subsection to Phase 4 plan and re-evaluate P5.3 gate. |
 | `BLOCKED-P5-4-BUSINESS-RULES-GATE` | Business rules coverage gap detected (>30% uncovered). | Ensure at least 70% of discovered business rules have coverage evidence. |
+| `BLOCKED-P5-5-TECHNICAL-DEBT-GATE` | P5.5 Technical Debt gate not approved before Phase 6 entry. | Set `Gates["P5.5-TechnicalDebt"]` to `approved` or `not-applicable` and re-evaluate. |
 | `BLOCKED-P5-6-ROLLBACK-SAFETY-GATE` | Rollback strategy missing or incomplete for schema/contract changes. | Provide `RollbackStrategy` with `DataMigrationReversible=true` or explicit safety steps. |
-| `BLOCKED-P6-PREREQUISITES-NOT-MET` | P6 prerequisites not satisfied: P5 approval, P5.3 pass, P5.4/P5.6 compliance missing. | Complete all prerequisite gates before entering Phase 6 Implementation QA. |
+| `BLOCKED-REVIEW-DECISION-INVALID` | Review decision submitted via `/review-decision` is invalid or not recognized. | Provide a valid review decision: `approve`, `changes_requested`, or `reject`. |
+| `BLOCKED-P6-PREREQUISITES-NOT-MET` | P6 prerequisites not satisfied: P5 approval, P5.3 pass, P5.5 approval, P5.4/P5.6 compliance missing. | Complete all prerequisite gates before entering Phase 6 Implementation QA. |
 
 ### 4.10 Other Codes
 

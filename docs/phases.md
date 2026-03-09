@@ -69,9 +69,11 @@ when host permissions allow it in the current operating mode. In pipeline mode, 
 After 2.1: resolve Phase 1.5 decision (explicit request/explicit skip/A-B decision).
 Once 1.5 is resolved: if APIs are in scope, run 3A -> 3B-1 -> 3B-2; otherwise go to 4.
 Main execution path: 4 -> 5 -> 5.3 -> 6.
-5.4 is mandatory only if 1.5 executed.
-5.5 is optional and only when explicitly proposed.
-5.6 is evaluated inside 5 and is required when rollback safety applies.
+5.4 is mandatory only if 1.5 executed.   (5.3 -> 5.4 -> ... -> 6)
+5.5 is always checked but may be not-applicable.  (5.3/5.4 -> 5.5 -> ... -> 6)
+5.6 is required when rollback safety applies.  (5.3/5.4/5.5 -> 5.6 -> 6)
+Phase 6 internal: Implementation Internal Review (max 3 iterations)
+  -> Evidence Presentation Gate -> /review-decision (approve|changes_requested|reject).
 ```
 
 ## Phase 3 Routing (API Detection)
@@ -117,7 +119,35 @@ Phase 5 review state may be tracked in `SESSION_STATE.Gates.*` and any optional 
 - `Gates.P5-Architecture = architecture-approved`
 - `Gates.P5.3-TestQuality = pass|pass-with-exceptions`
 - `Gates.P5.4-BusinessRules = compliant|compliant-with-exceptions` (only if Phase 1.5 executed)
+- `Gates.P5.5-TechnicalDebt = approved|not-applicable` (always checked)
 - `Gates.P5.6-RollbackSafety = approved|not-applicable` (when rollback safety applies)
+
+## Phase 6 Review Decision
+
+Phase 6 contains an internal loop and a final review decision mechanism:
+
+### Implementation Internal Review (autonomous)
+
+```
+Phase 6 entry (prerequisites validated)
+  -> Implementation Internal Review (up to 3 iterations)
+     - Each iteration compares prev_impl_digest vs curr_impl_digest
+     - Early-stop when digest is unchanged (no revision delta)
+     - Hard-stop when max iterations reached
+  -> Evidence Presentation Gate (review complete)
+```
+
+### Review Decision (operator-driven)
+
+At the Evidence Presentation Gate, the operator must run `/review-decision` with one of:
+
+| Decision | Effect |
+|----------|--------|
+| `approve` | Workflow Complete — terminal state within Phase 6 (`workflow_complete=true`) |
+| `changes_requested` | Loop-reset within Phase 6 — `implementation_review_complete` reset to `false`, new review cycle begins |
+| `reject` | Back to Phase 4 — restart from planning (Ticket Input Gate) |
+
+**Key:** `/continue` does NOT advance past the Evidence Presentation Gate. The operator must explicitly run `/review-decision`.
 
 ## Gate Requirements for Code Generation
 
@@ -128,7 +158,7 @@ Phase 3 API validation is **optional** and does NOT block code generation. The g
 | P5-Architecture | 5 | Unconditional | Requires `approved` status (after iterative review) |
 | P5.3-TestQuality | 5.3 | Unconditional | Requires `pass` or `pass-with-exceptions` |
 | P5.4-BusinessRules | 5.4 | Conditional | Only if Phase 1.5 was executed |
-| P5.5-TechnicalDebt | 5.5 | Optional | Only when explicitly proposed |
+| P5.5-TechnicalDebt | 5.5 | Unconditional | Always checked; `approved` or `not-applicable` required |
 | P5.6-RollbackSafety | 5.6 | Conditional | When rollback-sensitive changes exist |
 | P6-ImplementationQA | 6 | Unconditional | Requires `ready-for-pr` |
 

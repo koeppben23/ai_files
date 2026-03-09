@@ -1,11 +1,10 @@
 from __future__ import annotations
 
 import json
-import os
-import tempfile
 from pathlib import Path
 from typing import Mapping
 
+from governance.infrastructure.fs_atomic import atomic_write_text
 from governance.infrastructure.workspace_paths import current_run_path
 
 _POINTER_SCHEMA = "governance.current-run-pointer.v1"
@@ -13,15 +12,7 @@ _POINTER_SCHEMA = "governance.current-run-pointer.v1"
 
 def _write_json_atomic(path: Path, payload: Mapping[str, object]) -> None:
     text = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True) + "\n"
-    path.parent.mkdir(parents=True, exist_ok=True)
-    fd, temp_path = tempfile.mkstemp(dir=str(path.parent), prefix=f".{path.name}.", suffix=".tmp")
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as handle:
-            handle.write(text)
-        os.replace(temp_path, path)
-    finally:
-        if os.path.exists(temp_path):
-            os.unlink(temp_path)
+    atomic_write_text(path, text)
 
 
 def read_active_run_id(*, workspaces_home: Path, repo_fingerprint: str) -> str:

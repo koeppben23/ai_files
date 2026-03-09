@@ -363,6 +363,7 @@ class TestPhase5SubGraph:
             Gates={
                 "P5-Architecture": "approved",
                 "P5.3-TestQuality": "pass",
+                "P5.5-TechnicalDebt": "approved",
             },
         )
         assert result.status == "OK"
@@ -444,6 +445,7 @@ class TestMonotonicEnforcement:
             Gates={
                 "P5-Architecture": "approved",
                 "P5.3-TestQuality": "pass",
+                "P5.5-TechnicalDebt": "approved",
             },
         )
         assert result.phase == "6-PostFlight"
@@ -602,6 +604,7 @@ class TestP6PrerequisiteGate:
             Gates={
                 "P5-Architecture": "approved",
                 "P5.3-TestQuality": "pass-with-exceptions",
+                "P5.5-TechnicalDebt": "approved",
             },
         )
         assert result.status == "OK"
@@ -650,6 +653,7 @@ class TestP6PrerequisiteGate:
             Gates={
                 "P5-Architecture": "approved",
                 "P5.3-TestQuality": "pass",
+                "P5.5-TechnicalDebt": "approved",
                 "P5.6-RollbackSafety": "pending",
             },
         )

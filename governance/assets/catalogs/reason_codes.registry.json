@@ -409,6 +409,20 @@
       "remediation_hint": "Provide RollbackStrategy with DataMigrationReversible=true or explicit safety steps."
     },
     {
+      "code": "BLOCKED-P5-5-TECHNICAL-DEBT-GATE",
+      "severity": "blocked",
+      "payload_schema_ref": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
+      "description": "P5.5 Technical Debt gate not approved before Phase 6 entry.",
+      "remediation_hint": "Set Gates[\"P5.5-TechnicalDebt\"] to \"approved\" or \"not-applicable\" and re-evaluate."
+    },
+    {
+      "code": "BLOCKED-REVIEW-DECISION-INVALID",
+      "severity": "blocked",
+      "payload_schema_ref": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Review decision submitted via /review-decision is invalid or not recognized.",
+      "remediation_hint": "Provide a valid review decision: approve, changes_requested, or reject."
+    },
+    {
       "code": "BLOCKED-P4-INTAKE-MISSING-EVIDENCE",
       "severity": "blocked",
       "payload_schema_ref": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
@@ -1046,6 +1060,13 @@
       "payload_schema_ref": "governance/assets/schemas/reason_payload_advisory.v1.json",
       "description": "Plan-vs-implementation drift detected at Phase 6 entry (non-blocking warning).",
       "remediation_hint": "Review plan-record.json against actual changes. Minor drift is acceptable; update plan if needed."
+    },
+    {
+      "code": "WARN-P6-STATE-INCONSISTENCY",
+      "severity": "warn",
+      "payload_schema_ref": "governance/assets/schemas/reason_payload_advisory.v1.json",
+      "description": "Phase 6 state inconsistency detected: P5 gates were missing and auto-normalized.",
+      "remediation_hint": "Verify SESSION_STATE integrity. Missing P5 gates were set to not-applicable during normalization."
     }
   ]
 }

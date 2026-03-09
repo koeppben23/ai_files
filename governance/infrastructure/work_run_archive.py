@@ -1,14 +1,13 @@
 from __future__ import annotations
 
 import json
-import os
 import shutil
-import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Mapping
 
 from governance.domain.canonical_json import canonical_json_hash
+from governance.infrastructure.fs_atomic import atomic_write_text
 from governance.infrastructure.workspace_paths import (
     plan_record_path,
     run_dir,
@@ -29,15 +28,7 @@ class WorkRunArchiveResult:
 
 def _write_json_atomic(path: Path, payload: Mapping[str, object]) -> None:
     text = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True) + "\n"
-    path.parent.mkdir(parents=True, exist_ok=True)
-    fd, temp_path = tempfile.mkstemp(dir=str(path.parent), prefix=f".{path.name}.", suffix=".tmp")
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as handle:
-            handle.write(text)
-        os.replace(temp_path, path)
-    finally:
-        if os.path.exists(temp_path):
-            os.unlink(temp_path)
+    atomic_write_text(path, text)
 
 
 def archive_active_run(
