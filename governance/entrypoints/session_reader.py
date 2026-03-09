@@ -334,6 +334,63 @@ def _sync_phase6_completion_fields(*, state_doc: dict) -> None:
     state["phase6_state"] = "phase6_completed" if complete else "phase6_in_progress"
 
 
+def _canonicalize_legacy_p5x_surface(*, state_doc: dict) -> None:
+    """Normalize legacy Phase-5 architecture surface to canonical P5.x states.
+
+    Older snapshots may expose open P5.x gates through
+    ``phase=5-ArchitectureReview`` with legacy gate labels. Canonicalize those
+    to the explicit user-facing P5.x phases so /continue does not stay stuck on
+    the generic architecture-review surface.
+    """
+    state_obj = state_doc.get("SESSION_STATE")
+    state = state_obj if isinstance(state_obj, dict) else state_doc
+
+    phase_text = str(state.get("Phase") or state.get("phase") or "").strip()
+    if phase_text != "5-ArchitectureReview":
+        return
+
+    next_token = str(state.get("Next") or state.get("next") or "").strip()
+    active_gate = str(state.get("active_gate") or "").strip().lower()
+    ngc = str(state.get("next_gate_condition") or "").strip().upper()
+
+    target: tuple[str, str, str] | None = None
+
+    if (
+        next_token == "5.4"
+        or "BLOCKED-P5-4-BUSINESS-RULES-GATE" in ngc
+        or active_gate in {"business rules compliance gate", "business rules validation"}
+    ):
+        target = ("5.4-BusinessRules", "5.4", "Business Rules Validation")
+    elif (
+        next_token == "5.5"
+        or "BLOCKED-P5-5-TECHNICAL-DEBT-GATE" in ngc
+        or active_gate in {"technical debt gate", "technical debt review"}
+    ):
+        target = ("5.5-TechnicalDebt", "5.5", "Technical Debt Review")
+    elif (
+        next_token == "5.6"
+        or "BLOCKED-P5-6-ROLLBACK-SAFETY-GATE" in ngc
+        or active_gate in {"rollback safety gate", "rollback safety review"}
+    ):
+        target = ("5.6-RollbackSafety", "5.6", "Rollback Safety Review")
+
+    if target is None:
+        return
+
+    canonical_phase, canonical_next, canonical_gate = target
+    state["Phase"] = canonical_phase
+    state["phase"] = canonical_phase
+    state["Next"] = canonical_next
+    state["next"] = canonical_next
+    state["active_gate"] = canonical_gate
+
+    marker = state.get("_p6_state_normalization")
+    if isinstance(marker, dict):
+        marker["corrected_phase"] = canonical_phase
+        marker["corrected_next"] = canonical_next
+        marker["corrected_active_gate"] = canonical_gate
+
+
 def _sync_conditional_p5_gate_states(*, state_doc: dict) -> None:
     """Synchronize conditional P5 gate states from evaluator SSOT.
 
@@ -638,6 +695,8 @@ def _materialize_authoritative_state(*, commands_home: Path, config_root: Path, 
     from governance.application.use_cases.session_state_helpers import with_kernel_result
     from governance.kernel.phase_kernel import execute
 
+    _canonicalize_legacy_p5x_surface(state_doc=state_doc)
+
     requested_phase, ctx = _build_runtime_context(
         commands_home=commands_home,
         config_root=config_root,
@@ -865,6 +924,8 @@ def read_session_snapshot(commands_home: Path | None = None, *, materialize: boo
             "status": "ERROR",
             "error": str(exc),
         }
+
+    _canonicalize_legacy_p5x_surface(state_doc=state)
 
     if materialize:
         try:

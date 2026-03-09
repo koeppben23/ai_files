@@ -34,6 +34,7 @@ from governance.entrypoints.review_decision_persist import (
     VALID_DECISIONS,
 )
 from governance.entrypoints.session_reader import (
+    _canonicalize_legacy_p5x_surface,
     _sync_conditional_p5_gate_states,
     _normalize_phase6_p5_state,
     _resolve_next_action_line,
@@ -842,6 +843,56 @@ class TestConditionalP5GateSync:
         }}
         _sync_conditional_p5_gate_states(state_doc=state_doc)
         assert state_doc["SESSION_STATE"]["Gates"]["P5.4-BusinessRules"] == "gap-detected"
+
+
+class TestCanonicalizeLegacyP5xSurface:
+    def test_happy_p54_legacy_surface_is_canonicalized(self) -> None:
+        state_doc = {"SESSION_STATE": {
+            "Phase": "5-ArchitectureReview",
+            "phase": "5-ArchitectureReview",
+            "Next": "5.4",
+            "active_gate": "Business Rules Compliance Gate",
+            "next_gate_condition": "Phase 6 promotion blocked: BLOCKED-P5-4-BUSINESS-RULES-GATE",
+        }}
+        _canonicalize_legacy_p5x_surface(state_doc=state_doc)
+        ss = state_doc["SESSION_STATE"]
+        assert ss["Phase"] == "5.4-BusinessRules"
+        assert ss["Next"] == "5.4"
+        assert ss["active_gate"] == "Business Rules Validation"
+
+    def test_edge_p55_legacy_surface_is_canonicalized(self) -> None:
+        state_doc = {"SESSION_STATE": {
+            "Phase": "5-ArchitectureReview",
+            "Next": "5.5",
+            "active_gate": "Technical Debt Gate",
+        }}
+        _canonicalize_legacy_p5x_surface(state_doc=state_doc)
+        ss = state_doc["SESSION_STATE"]
+        assert ss["Phase"] == "5.5-TechnicalDebt"
+        assert ss["Next"] == "5.5"
+        assert ss["active_gate"] == "Technical Debt Review"
+
+    def test_corner_non_legacy_phase_unchanged(self) -> None:
+        state_doc = {"SESSION_STATE": {
+            "Phase": "5.4-BusinessRules",
+            "Next": "5.4",
+            "active_gate": "Business Rules Validation",
+        }}
+        _canonicalize_legacy_p5x_surface(state_doc=state_doc)
+        ss = state_doc["SESSION_STATE"]
+        assert ss["Phase"] == "5.4-BusinessRules"
+        assert ss["active_gate"] == "Business Rules Validation"
+
+    def test_bad_unknown_legacy_gate_keeps_architecture_surface(self) -> None:
+        state_doc = {"SESSION_STATE": {
+            "Phase": "5-ArchitectureReview",
+            "Next": "5",
+            "active_gate": "Architecture Review Gate",
+        }}
+        _canonicalize_legacy_p5x_surface(state_doc=state_doc)
+        ss = state_doc["SESSION_STATE"]
+        assert ss["Phase"] == "5-ArchitectureReview"
+        assert ss["active_gate"] == "Architecture Review Gate"
 
     def test_p54_not_applicable_is_terminal(self) -> None:
         state_doc = {"SESSION_STATE": {
