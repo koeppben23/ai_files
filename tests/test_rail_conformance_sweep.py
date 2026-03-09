@@ -44,6 +44,7 @@ _ROOT_RAILS: list[_Entry] = [
     _Entry("audit-readout.md", "model-rail"),
     _Entry("ticket.md", "model-rail"),
     _Entry("plan.md", "model-rail"),
+    _Entry("review-decision.md", "model-rail"),
     _Entry("master.md", "model-rail"),
     _Entry("rules.md", "model-rail"),
     _Entry("BOOTSTRAP.md", "model-rail"),
@@ -78,12 +79,12 @@ _MODEL_RAIL_AND_HYBRID = _MODEL_RAIL_FILES + _HYBRID_FILES
 _ALL_ENFORCED = _MODEL_RAIL_AND_HYBRID + _DOCS_RUNBOOKS
 
 # Command rails with fallback structure (CR-07 scope).
-# Rail-style-spec v1: all 5 execution-facing command rails must have fallback.
+# Rail-style-spec v1: all execution-facing command rails must have fallback.
 _COMMAND_RAILS = [
     e for e in _ROOT_RAILS
     if e.path in {
         "continue.md", "review.md", "audit-readout.md",
-        "ticket.md", "plan.md",
+        "ticket.md", "plan.md", "review-decision.md",
     }
 ]
 
@@ -93,7 +94,7 @@ _EXECUTION_RAILS = [
     e for e in _ROOT_RAILS
     if e.path in {
         "continue.md", "review.md",
-        "ticket.md", "plan.md",
+        "ticket.md", "plan.md", "review-decision.md",
     }
 ]
 
@@ -201,7 +202,7 @@ class TestRegressionGuard:
     _MONITORED_ROOTS = [
         # root-level .md files that could be model-rails
         (".", {"continue.md", "review.md", "audit-readout.md", "ticket.md",
-               "plan.md", "master.md", "rules.md", "BOOTSTRAP.md"}),
+               "plan.md", "review-decision.md", "master.md", "rules.md", "BOOTSTRAP.md"}),
     ]
 
     def test_no_unregistered_model_rail_in_root(self) -> None:

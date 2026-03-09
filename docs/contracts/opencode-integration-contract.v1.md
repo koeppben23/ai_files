@@ -118,6 +118,7 @@ Rail injection is applied to installed command markdown templates:
 - `review.md`
 - `plan.md`
 - `ticket.md`
+- `review-decision.md`
 
 ### 4.3 Python Command Quoting
 

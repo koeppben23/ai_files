@@ -72,6 +72,12 @@ if "%~1"=="--plan-persist" (
     set "WRAPPER_EXIT=%ERRORLEVEL%"
     endlocal & exit /b %WRAPPER_EXIT%
 )
+if "%~1"=="--review-decision-persist" (
+    shift
+    "!PYTHON_EXE!" -m governance.entrypoints.review_decision_persist %*
+    set "WRAPPER_EXIT=%ERRORLEVEL%"
+    endlocal & exit /b %WRAPPER_EXIT%
+)
 "!PYTHON_EXE!" -m governance.entrypoints.bootstrap_executor %*
 set "WRAPPER_EXIT=%ERRORLEVEL%"
 endlocal & exit /b %WRAPPER_EXIT%

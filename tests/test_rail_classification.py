@@ -58,6 +58,10 @@ RAIL_FILES: dict[str, dict[str, object]] = {
         "required_tokens": {"MUTATING", "GATE-EVALUATION"},
         "forbidden_tokens": {"READ-ONLY", "NO-STATE-CHANGE"},
     },
+    "review-decision.md": {
+        "required_tokens": {"MUTATING", "GATE-EVALUATION"},
+        "forbidden_tokens": {"READ-ONLY", "NO-STATE-CHANGE"},
+    },
 }
 
 CLASSIFICATION_RE = re.compile(r"<!--\s*rail-classification:\s*([^>]+)-->")
@@ -250,10 +254,13 @@ class TestRailClassificationLegacySurfaceGuard:
     def test_canonical_persist_subcommands_used_in_mutating_rails(self) -> None:
         ticket = (REPO_ROOT / "ticket.md").read_text(encoding="utf-8")
         plan = (REPO_ROOT / "plan.md").read_text(encoding="utf-8")
+        review_decision = (REPO_ROOT / "review-decision.md").read_text(encoding="utf-8")
         assert "--ticket-persist" in ticket
         assert "--plan-persist" in plan
+        assert "--review-decision-persist" in review_decision
         assert "--entrypoint" not in ticket
         assert "--entrypoint" not in plan
+        assert "--entrypoint" not in review_decision
 
     def test_extract_classification_empty_value(self) -> None:
         """Classification with empty value between delimiters returns empty list."""

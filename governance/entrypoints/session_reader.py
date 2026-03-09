@@ -334,7 +334,7 @@ def _sync_phase6_completion_fields(*, state_doc: dict) -> None:
     state["phase6_state"] = "phase6_completed" if complete else "phase6_in_progress"
 
 
-def _normalize_phase6_p5_state(*, state_doc: dict) -> None:
+def _normalize_phase6_p5_state(*, state_doc: dict, events_path: Path | None = None) -> None:
     """Detect and correct inconsistent Phase 6 / P5 gate state (fail-closed).
 
     If ``phase=6`` but one or more P5 gates are still in a non-terminal
@@ -347,7 +347,7 @@ def _normalize_phase6_p5_state(*, state_doc: dict) -> None:
     - ``workflow_complete`` / ``WorkflowComplete`` removed
     - ``active_gate`` set to the first open P5 gate
 
-    A ``_p6_state_normalization`` warning marker is written for auditability
+    A warning marker and an audit event are written for auditability,
     but no admin-alert is raised.
 
     The gate ordering and terminal-value definitions are imported from
@@ -391,13 +391,36 @@ def _normalize_phase6_p5_state(*, state_doc: dict) -> None:
     first_open = open_gates[0]
     blocking_reason_code = reason_code_for_gate(first_open)
 
+    gate_to_phase_next: dict[str, tuple[str, str, str]] = {
+        "P5.3-TestQuality": ("5-ArchitectureReview", "5.3", "Test Quality Gate"),
+        "P5.4-BusinessRules": ("5-ArchitectureReview", "5.4", "Business Rules Compliance Gate"),
+        "P5.5-TechnicalDebt": ("5-ArchitectureReview", "5.5", "Technical Debt Gate"),
+        "P5.6-RollbackSafety": ("5-ArchitectureReview", "5.6", "Rollback Safety Gate"),
+        "P5-Architecture": ("5-ArchitectureReview", "5", "Architecture Review Gate"),
+    }
+    corrected_phase, corrected_next, corrected_gate = gate_to_phase_next.get(
+        first_open,
+        ("5-ArchitectureReview", "5", "Architecture Review Gate"),
+    )
+
+    original_phase = str(state.get("Phase") or state.get("phase") or "")
+    original_next = str(state.get("Next") or state.get("next") or "")
+
     # ── Fail-closed reset: bring the document back to a P5-consistent
     #    snapshot so no mixed Phase-6 / open-P5 state is visible.  ──
+    state["Phase"] = corrected_phase
+    state["phase"] = corrected_phase
+    state["Next"] = corrected_next
+    state["next"] = corrected_next
     state["phase6_state"] = "phase5_in_progress"
     state["implementation_review_complete"] = False
     state.pop("workflow_complete", None)
     state.pop("WorkflowComplete", None)
-    state["active_gate"] = first_open
+    state["active_gate"] = corrected_gate
+    state["next_gate_condition"] = (
+        f"Phase 6 promotion blocked: {blocking_reason_code}. "
+        f"Complete {corrected_gate} via /plan before continuing."
+    )
 
     # Also clean up the ImplementationReview block to prevent stale
     # Phase-6 iteration fields from leaking into the reset snapshot.
@@ -412,7 +435,32 @@ def _normalize_phase6_p5_state(*, state_doc: dict) -> None:
         "reason": "WARN-P6-STATE-INCONSISTENCY",
         "blocking_reason_code": blocking_reason_code,
         "action": "fail-closed-reset-to-p5",
+        "original_phase": original_phase,
+        "original_next": original_next,
+        "corrected_phase": corrected_phase,
+        "corrected_next": corrected_next,
+        "corrected_active_gate": corrected_gate,
     }
+
+    if events_path is not None:
+        _append_jsonl(
+            events_path,
+            {
+                "schema": "opencode.state-normalization.v1",
+                "event": "P6_STATE_NORMALIZED",
+                "observed_at": _now_iso(),
+                "reason_code": "WARN-P6-STATE-INCONSISTENCY",
+                "blocking_reason_code": blocking_reason_code,
+                "first_open_gate": first_open,
+                "open_gates": open_gates,
+                "original_phase": original_phase,
+                "original_next": original_next,
+                "corrected_phase": corrected_phase,
+                "corrected_next": corrected_next,
+                "corrected_active_gate": corrected_gate,
+                "action": "fail-closed-reset-to-p5",
+            },
+        )
 
 
 def _quote_if_needed(value: str) -> str:
@@ -588,7 +636,10 @@ def _materialize_authoritative_state(*, commands_home: Path, config_root: Path, 
             ss["phase_transition_evidence"] = True
 
     _sync_phase6_completion_fields(state_doc=materialized)
-    _normalize_phase6_p5_state(state_doc=materialized)
+    _normalize_phase6_p5_state(
+        state_doc=materialized,
+        events_path=session_path.parent / "events.jsonl",
+    )
 
     _write_json_atomic(session_path, materialized)
     return materialized
