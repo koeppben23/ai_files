@@ -114,7 +114,9 @@ def test_review_injection_replaces_bin_dir(tmp_path: Path) -> None:
         (
             "# Governance Review\n"
             "## Resume Session State\n"
+            "```bash\n"
             f'PATH="{BIN_DIR_PLACEHOLDER}:$PATH" opencode-governance-bootstrap --session-reader\n'
+            "```\n"
         ),
         encoding="utf-8",
     )
@@ -131,10 +133,14 @@ def test_review_injection_replaces_bin_dir(tmp_path: Path) -> None:
     content = review_md.read_text(encoding="utf-8")
     assert BIN_DIR_PLACEHOLDER not in content
     assert concrete_bin in content
+    # Bash block is always preserved (OpenCode's LLM tool runner uses bash
+    # even on Windows via Git Bash / WSL).
+    assert "opencode-governance-bootstrap --session-reader" in content
+    assert "```bash" in content
     if os.name == "nt":
+        # On Windows a cmd block is appended after the bash block.
+        assert "```cmd" in content
         assert "opencode-governance-bootstrap.cmd --session-reader" in content
-    else:
-        assert "opencode-governance-bootstrap --session-reader" in content
 
 
 @pytest.mark.governance

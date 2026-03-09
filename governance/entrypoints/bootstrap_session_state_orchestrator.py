@@ -328,6 +328,9 @@ class _GovernanceFSAdapter:
     def exists(self, path: Path) -> bool:
         return path.exists()
 
+    def mkdir_p(self, path: Path) -> None:
+        path.mkdir(parents=True, exist_ok=True)
+
 
 class _GovernanceRunnerAdapter:
     class _Result:

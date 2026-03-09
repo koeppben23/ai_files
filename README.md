@@ -35,12 +35,68 @@ cd customer-install-bundle-v1
 
 ## Start a governed session
 
-1. Run bootstrap launcher with repo root:
-   - `opencode-governance-bootstrap --repo-root <repo-root>`
-   - `opencode-governance-bootstrap.cmd --repo-root <repo-root>`
-2. Open OpenCode Desktop in the same repository and run `/continue`.
-3. For new work at Phase 4, run `/ticket`, then `/plan`.
-4. Use `/review` as a read-only rail entrypoint for review-depth feedback.
+### Prerequisites: make the launcher reachable
+
+The installer places the launcher at `~/.config/opencode/bin/` (macOS/Linux) or
+`%USERPROFILE%\.config\opencode\bin\` (Windows). It is **not** added to PATH automatically.
+
+Either add the directory to PATH once per shell session, or invoke the launcher by its full path.
+
+**Add to PATH (run once per shell session):**
+
+```bash
+# macOS / Linux (bash / zsh)
+export PATH="$HOME/.config/opencode/bin:$PATH"
+```
+
+```powershell
+# Windows (PowerShell)
+$env:Path = "$env:USERPROFILE\.config\opencode\bin;" + $env:Path
+```
+
+```cmd
+:: Windows (cmd.exe)
+set "PATH=%USERPROFILE%\.config\opencode\bin;%PATH%"
+```
+
+### Run bootstrap
+
+After PATH is set (or using the full path), run:
+
+```bash
+# macOS / Linux
+opencode-governance-bootstrap --repo-root /path/to/repo
+```
+
+```powershell
+# Windows (PowerShell)
+opencode-governance-bootstrap --repo-root C:\path\to\repo
+```
+
+```cmd
+:: Windows (cmd.exe)
+opencode-governance-bootstrap.cmd --repo-root C:\path\to\repo
+```
+
+**Without PATH — invoke by full path:**
+
+```bash
+~/.config/opencode/bin/opencode-governance-bootstrap --repo-root /path/to/repo
+```
+
+```powershell
+& "$env:USERPROFILE\.config\opencode\bin\opencode-governance-bootstrap.cmd" --repo-root C:\path\to\repo
+```
+
+```cmd
+"%USERPROFILE%\.config\opencode\bin\opencode-governance-bootstrap.cmd" --repo-root C:\path\to\repo
+```
+
+### Continue in OpenCode
+
+1. Open OpenCode Desktop in the same repository and run `/continue`.
+2. For new work at Phase 4, run `/ticket`, then `/plan`.
+3. Use `/review` as a read-only rail entrypoint for review-depth feedback.
 
 ## Docs and troubleshooting
 
