@@ -403,6 +403,7 @@ def test_p6_prerequisites_passes_when_all_gates_satisfied():
             "P5-Architecture": "approved",
             "P5.3-TestQuality": "pass",
             "P5.4-BusinessRules": "compliant",
+            "P5.5-TechnicalDebt": "approved",
             "P5.6-RollbackSafety": "approved",
         }
     }

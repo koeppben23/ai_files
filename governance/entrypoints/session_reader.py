@@ -334,6 +334,52 @@ def _sync_phase6_completion_fields(*, state_doc: dict) -> None:
     state["phase6_state"] = "phase6_completed" if complete else "phase6_in_progress"
 
 
+def _normalize_phase6_p5_state(*, state_doc: dict) -> None:
+    """Detect and correct inconsistent Phase 6 / P5 gate state.
+
+    If ``phase=6`` but one or more P5 gates are still pending (not in a
+    terminal status), this function back-fills the missing gate values to
+    ``"not-applicable"`` and emits a ``WARN-P6-STATE-INCONSISTENCY``
+    warning so the inconsistency is visible in audit logs without
+    blocking the user.
+
+    This is a normalization safety-net — under correct workflow the gates
+    are always set before Phase 6 entry, but legacy / manually-edited
+    state documents may have gaps.
+    """
+    state_obj = state_doc.get("SESSION_STATE")
+    state = state_obj if isinstance(state_obj, dict) else state_doc
+
+    phase_raw = state.get("Phase") or state.get("phase") or ""
+    phase_text = str(phase_raw).strip()
+    if not phase_text.startswith("6"):
+        return
+
+    gates = state.get("Gates")
+    if not isinstance(gates, dict):
+        gates = {}
+        state["Gates"] = gates
+
+    _REQUIRED_TERMINAL = {
+        "P5-Architecture": ("approved",),
+        "P5.3-TestQuality": ("pass", "pass-with-exceptions"),
+        "P5.5-TechnicalDebt": ("approved", "not-applicable"),
+    }
+
+    patched_keys: list[str] = []
+    for gate_key, terminal_values in _REQUIRED_TERMINAL.items():
+        current = gates.get(gate_key)
+        if current not in terminal_values:
+            gates[gate_key] = "not-applicable"
+            patched_keys.append(gate_key)
+
+    if patched_keys:
+        state["_p6_state_normalization"] = {
+            "patched_gates": patched_keys,
+            "reason": "WARN-P6-STATE-INCONSISTENCY",
+        }
+
+
 def _quote_if_needed(value: str) -> str:
     """Wrap value in double quotes if it contains YAML-special characters."""
     if any(c in value for c in (":", "#", "'", '"', "{", "}", "[", "]", ",", "&", "*", "?", "|", "-", "<", ">", "=", "!", "%", "@", "`")):
@@ -507,6 +553,7 @@ def _materialize_authoritative_state(*, commands_home: Path, config_root: Path, 
             ss["phase_transition_evidence"] = True
 
     _sync_phase6_completion_fields(state_doc=materialized)
+    _normalize_phase6_p5_state(state_doc=materialized)
 
     _write_json_atomic(session_path, materialized)
     return materialized
@@ -532,6 +579,10 @@ def _should_emit_continue_next_action(snapshot: dict) -> bool:
     # Explicit /continue mention is an unconditional yes.
     if "/continue" in next_condition or "resume via /continue" in next_condition:
         return True
+
+    # Evidence Presentation Gate directs user to /review-decision, not /continue.
+    if "/review-decision" in next_condition:
+        return False
 
     # Conditions that require user-provided input or are explicitly blocked.
     if any(
@@ -593,6 +644,15 @@ def _resolve_next_action_line(snapshot: dict) -> str:
         if plan_versions < 1 or plan_status in {"", "absent", "error", "unknown"}:
             return "Next action: run /plan."
 
+    # Phase 6 special gates are handled before the generic guard because
+    # _should_emit_continue_next_action returns False for /review-decision
+    # conditions — but we still need to emit the /review-decision guidance.
+    if phase_str.startswith("6"):
+        if active_gate == "workflow complete":
+            return ""
+        if active_gate == "evidence presentation gate":
+            return "Next action: submit final review decision via /review-decision (approve | changes_requested | reject)."
+
     if not _should_emit_continue_next_action(snapshot):
         return ""
 
@@ -623,6 +683,8 @@ def _resolve_next_action_line(snapshot: dict) -> str:
 
     # Phase 6 review loop is orchestrated during materialize.
     # Keep guidance on /continue so the user can advance without chat loops.
+    # Note: workflow_complete and evidence_presentation_gate are handled above
+    # before the _should_emit_continue_next_action guard.
     if phase_str.startswith("6"):
         review_complete = snapshot.get("implementation_review_complete", True)
         if review_complete is False:

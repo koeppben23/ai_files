@@ -6,6 +6,7 @@ behavior remains unchanged until explicit engine activation in later waves.
 Gate checks implemented:
 - P5.3 Test Quality Gate: Verifies Phase 4 plan includes Test Strategy
 - P5.4 Business Rules Compliance: If Phase 1.5 executed, verify BR coverage
+- P5.5 Technical Debt Gate: Always checked — approved or not-applicable pass
 - P5.6 Rollback Safety: If schema/contracts touched, verify rollback strategy
 - P6 Prerequisites: Verify all upstream gates passed before Phase 6
 """
@@ -19,6 +20,7 @@ from governance.engine.reason_codes import (
     BLOCKED_UNSPECIFIED,
     BLOCKED_P5_3_TEST_QUALITY_GATE,
     BLOCKED_P5_4_BUSINESS_RULES_GATE,
+    BLOCKED_P5_5_TECHNICAL_DEBT_GATE,
     BLOCKED_P5_6_ROLLBACK_SAFETY_GATE,
     BLOCKED_P6_PLAN_COMPLIANCE_MAJOR,
     BLOCKED_P6_PREREQUISITES_NOT_MET,
@@ -41,6 +43,7 @@ GateStatus = Literal["blocked", "warn", "ok", "not_verified"]
 P53Status = Literal["pending", "pass", "pass-with-exceptions", "fail"]
 P54Status = Literal["pending", "compliant", "compliant-with-exceptions", "gap-detected", "not-applicable"]
 P56Status = Literal["pending", "approved", "rejected", "not-applicable"]
+P55Status = Literal["pending", "approved", "rejected", "not-applicable"]
 P6Status = Literal["pending", "ready-for-pr", "fix-required"]
 P6ComplianceStatus = Literal["compliant", "drift-detected", "major-deviation", "no-plan"]
 
@@ -80,6 +83,15 @@ class P54GateEvaluation:
 
 
 @dataclass(frozen=True)
+class P55GateEvaluation:
+    """Result contract for P5.5 Technical Debt Gate."""
+
+    status: P55Status
+    reason_code: str
+    technical_debt_proposed: bool
+
+
+@dataclass(frozen=True)
 class P56GateEvaluation:
     """Result contract for P5.6 Rollback Safety Gate."""
 
@@ -100,6 +112,7 @@ class P6PrerequisiteEvaluation:
     p5_architecture_approved: bool
     p53_passed: bool
     p54_compliant: bool | None  # None if Phase 1.5 not executed
+    p55_approved: bool | None   # None never used — always checked (not-applicable is terminal)
     p56_approved: bool | None    # None if rollback safety not applicable
 
 
@@ -409,6 +422,77 @@ def evaluate_p56_rollback_safety_gate(
     )
 
 
+def evaluate_p55_technical_debt_gate(
+    *,
+    session_state: Mapping[str, object],
+) -> P55GateEvaluation:
+    """Evaluate P5.5 Technical Debt Gate.
+
+    Engine policy:
+    - Always checked (not conditional).
+    - Gate status ``"approved"`` or ``"not-applicable"`` are terminal pass states.
+    - ``"rejected"`` blocks Phase 6 promotion.
+
+    Args:
+        session_state: The SESSION_STATE document
+
+    Returns:
+        P55GateEvaluation with status and details.
+    """
+    # Check whether technical debt was proposed at all
+    technical_debt_proposed = False
+    for key in ("TechnicalDebtProposed", "technical_debt_proposed"):
+        value = session_state.get(key)
+        if isinstance(value, bool):
+            technical_debt_proposed = value
+            break
+    if not technical_debt_proposed:
+        technical_debt = session_state.get("TechnicalDebt")
+        if isinstance(technical_debt, Mapping):
+            proposed = technical_debt.get("Proposed")
+            if isinstance(proposed, bool):
+                technical_debt_proposed = proposed
+
+    # Check existing P5.5 gate status
+    gates = session_state.get("Gates")
+    if isinstance(gates, Mapping):
+        p55_status = gates.get("P5.5-TechnicalDebt")
+        if p55_status == "approved":
+            return P55GateEvaluation(
+                status="approved",
+                reason_code=REASON_CODE_NONE,
+                technical_debt_proposed=technical_debt_proposed,
+            )
+        if p55_status == "not-applicable":
+            return P55GateEvaluation(
+                status="not-applicable",
+                reason_code=REASON_CODE_NONE,
+                technical_debt_proposed=technical_debt_proposed,
+            )
+        if p55_status == "rejected":
+            return P55GateEvaluation(
+                status="rejected",
+                reason_code=BLOCKED_P5_5_TECHNICAL_DEBT_GATE,
+                technical_debt_proposed=technical_debt_proposed,
+            )
+
+    # No explicit gate status yet — if no technical debt was proposed,
+    # the gate is not-applicable (terminal pass).
+    if not technical_debt_proposed:
+        return P55GateEvaluation(
+            status="not-applicable",
+            reason_code=REASON_CODE_NONE,
+            technical_debt_proposed=False,
+        )
+
+    # Technical debt proposed but gate not yet evaluated → pending
+    return P55GateEvaluation(
+        status="pending",
+        reason_code=REASON_CODE_NONE,
+        technical_debt_proposed=True,
+    )
+
+
 def evaluate_p6_prerequisites(
     *,
     session_state: Mapping[str, object],
@@ -421,6 +505,7 @@ def evaluate_p6_prerequisites(
     - P5-Architecture must be approved.
     - P5.3-TestQuality must be pass or pass-with-exceptions.
     - If Phase 1.5 executed: P5.4-BusinessRules must be compliant or compliant-with-exceptions.
+    - P5.5-TechnicalDebt must be approved or not-applicable (always checked).
     - If rollback safety applies: P5.6-RollbackSafety must be approved or not-applicable.
 
     Args:
@@ -439,6 +524,7 @@ def evaluate_p6_prerequisites(
             p5_architecture_approved=False,
             p53_passed=False,
             p54_compliant=None,
+            p55_approved=False,
             p56_approved=None,
         )
 
@@ -456,6 +542,10 @@ def evaluate_p6_prerequisites(
         p54 = gates.get("P5.4-BusinessRules")
         p54_compliant = p54 in ("compliant", "compliant-with-exceptions")
 
+    # P5.5-TechnicalDebt (always checked — "approved" or "not-applicable" pass)
+    p55 = gates.get("P5.5-TechnicalDebt")
+    p55_approved = p55 in ("approved", "not-applicable")
+
     # P5.6-RollbackSafety (only if rollback safety applies)
     p56_approved: bool | None = None
     if rollback_safety_applies:
@@ -463,7 +553,7 @@ def evaluate_p6_prerequisites(
         p56_approved = p56 in ("approved", "not-applicable")
 
     # Check all prerequisites
-    all_passed = p5_architecture_approved and p53_passed
+    all_passed = p5_architecture_approved and p53_passed and p55_approved
     if phase_1_5_executed and p54_compliant is not None:
         all_passed = all_passed and p54_compliant
     if rollback_safety_applies and p56_approved is not None:
@@ -476,6 +566,7 @@ def evaluate_p6_prerequisites(
             p5_architecture_approved=p5_architecture_approved,
             p53_passed=p53_passed,
             p54_compliant=p54_compliant,
+            p55_approved=p55_approved,
             p56_approved=p56_approved,
         )
 
@@ -485,8 +576,28 @@ def evaluate_p6_prerequisites(
         p5_architecture_approved=p5_architecture_approved,
         p53_passed=p53_passed,
         p54_compliant=p54_compliant,
+        p55_approved=p55_approved,
         p56_approved=p56_approved,
     )
+
+
+def can_promote_to_phase6(
+    *,
+    session_state: Mapping[str, object],
+    phase_1_5_executed: bool,
+    rollback_safety_applies: bool,
+) -> tuple[bool, P6PrerequisiteEvaluation]:
+    """Single source of truth wrapper for Phase 6 promotion eligibility.
+
+    Returns ``(can_promote, evaluation)`` — the caller should use the
+    ``P6PrerequisiteEvaluation`` for detail logging / blocking reasons.
+    """
+    evaluation = evaluate_p6_prerequisites(
+        session_state=session_state,
+        phase_1_5_executed=phase_1_5_executed,
+        rollback_safety_applies=rollback_safety_applies,
+    )
+    return evaluation.passed, evaluation
 
 
 def evaluate_p6_plan_compliance(

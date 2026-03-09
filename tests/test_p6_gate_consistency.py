@@ -1,0 +1,611 @@
+"""Tests for Phase 6 gate consistency, P5.5 prerequisite, and review decision rail.
+
+Covers:
+1. P5.5 TechnicalDebt gate blocks Phase 6 when pending/rejected
+2. P5.5 not-applicable / approved allows Phase 6 promotion
+3. can_promote_to_phase6() is SSOT wrapper
+4. /review-decision approve → workflow_complete terminal state
+5. /review-decision changes_requested → Phase 6 loop-reset
+6. /review-decision reject → Phase 4 return
+7. /review-decision invalid input → error
+8. /review-decision outside Phase 6 → error
+9. Evidence Presentation Gate guidance points to /review-decision
+10. _normalize_phase6_p5_state() patches missing gates
+11. Kernel routes workflow_approved / review_changes_requested / review_rejected transitions
+"""
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+import pytest
+
+from governance.kernel.phase_kernel import RuntimeContext, execute
+from governance.engine.gate_evaluator import (
+    evaluate_p55_technical_debt_gate,
+    evaluate_p6_prerequisites,
+    can_promote_to_phase6,
+    P55GateEvaluation,
+    P6PrerequisiteEvaluation,
+)
+from governance.entrypoints.review_decision_persist import (
+    apply_review_decision,
+    VALID_DECISIONS,
+)
+from governance.entrypoints.session_reader import (
+    _normalize_phase6_p5_state,
+    _resolve_next_action_line,
+    _should_emit_continue_next_action,
+)
+
+
+# ---------------------------------------------------------------------------
+# Shared test fixtures
+# ---------------------------------------------------------------------------
+
+RULEBOOK_BASE = {
+    "ActiveProfile": "profile.fallback-minimum",
+    "LoadedRulebooks": {
+        "core": "${COMMANDS_HOME}/rules.md",
+        "profile": "${COMMANDS_HOME}/rulesets/profiles/rules.fallback-minimum.yml",
+        "templates": "${COMMANDS_HOME}/master.md",
+        "addons": {
+            "riskTiering": "${COMMANDS_HOME}/rulesets/profiles/rules.risk-tiering.yml",
+        },
+    },
+    "RulebookLoadEvidence": {
+        "core": "${COMMANDS_HOME}/rules.md",
+        "profile": "${COMMANDS_HOME}/rulesets/profiles/rules.fallback-minimum.yml",
+    },
+    "AddonsEvidence": {
+        "riskTiering": {"status": "loaded"},
+    },
+}
+
+PERSISTENCE_BASE = {
+    "PersistenceCommitted": True,
+    "WorkspaceReadyGateCommitted": True,
+    "WorkspaceArtifactsCommitted": True,
+    "PointerVerified": True,
+}
+
+ALL_P5_GATES_PASSED = {
+    "P5-Architecture": "approved",
+    "P5.3-TestQuality": "pass",
+    "P5.4-BusinessRules": "compliant",
+    "P5.5-TechnicalDebt": "approved",
+}
+
+
+def _write_phase_api(commands_home: Path) -> None:
+    repo_spec = Path(__file__).resolve().parents[1] / "phase_api.yaml"
+    commands_home.mkdir(parents=True, exist_ok=True)
+    (commands_home / "phase_api.yaml").write_text(
+        repo_spec.read_text(encoding="utf-8"), encoding="utf-8"
+    )
+
+
+def _write_plan_record(workspaces_home: Path, fingerprint: str) -> None:
+    workspace = workspaces_home / fingerprint
+    workspace.mkdir(parents=True, exist_ok=True)
+    payload = {"status": "persisted", "versions": [{"version": 1}]}
+    (workspace / "plan-record.json").write_text(
+        json.dumps(payload), encoding="utf-8"
+    )
+
+
+def _make_phase6_state(*, gates: dict | None = None, extra: dict | None = None) -> dict:
+    """Build a SESSION_STATE document already in Phase 6."""
+    state = {
+        "Phase": "6-PostFlight",
+        **PERSISTENCE_BASE,
+        **RULEBOOK_BASE,
+        "Gates": gates or dict(ALL_P5_GATES_PASSED),
+        "phase_transition_evidence": True,
+        "TicketRecordDigest": "sha256:abc",
+        "Ticket": "TASK-1",
+        "Intent.Path": "/intent",
+        "Intent.Sha256": "sha256:intent",
+        "Intent.EffectiveScope": "full",
+        "RepoDiscovery.Completed": True,
+        "RepoDiscovery.RepoCacheFile": "/cache",
+        "RepoDiscovery.RepoMapDigestFile": "/digest",
+        "APIInventory.Status": "not-applicable",
+        "BusinessRules": {
+            "ExecutionEvidence": True,
+            "Outcome": "not-applicable",
+        },
+        "ImplementationReview": {
+            "iteration": 2,
+            "max_iterations": 3,
+            "min_self_review_iterations": 1,
+            "revision_delta": "none",
+        },
+    }
+    if extra:
+        state.update(extra)
+    return state
+
+
+def _make_ctx(tmp_path: Path, fingerprint: str = "fp-test") -> RuntimeContext:
+    commands_home = tmp_path / "commands"
+    _write_phase_api(commands_home)
+    workspaces_home = tmp_path / "workspaces"
+    _write_plan_record(workspaces_home, fingerprint)
+    return RuntimeContext(
+        requested_active_gate="Post Flight",
+        requested_next_gate_condition="Continue",
+        repo_is_git_root=True,
+        commands_home=commands_home,
+        workspaces_home=workspaces_home,
+        config_root=tmp_path / "cfg",
+        live_repo_fingerprint=fingerprint,
+    )
+
+
+def _write_session(tmp_path: Path, state: dict) -> Path:
+    """Write a SESSION_STATE.json file and return its path."""
+    session_path = tmp_path / "SESSION_STATE.json"
+    doc = {"SESSION_STATE": state}
+    session_path.write_text(json.dumps(doc), encoding="utf-8")
+    return session_path
+
+
+# ===========================================================================
+# 1. P5.5 Technical Debt Gate — evaluate_p55_technical_debt_gate()
+# ===========================================================================
+
+class TestP55TechnicalDebtGate:
+    """Tests for the standalone P5.5 gate evaluator."""
+
+    def test_approved_gate_passes(self) -> None:
+        state = {"Gates": {"P5.5-TechnicalDebt": "approved"}}
+        result = evaluate_p55_technical_debt_gate(session_state=state)
+        assert result.status == "approved"
+        assert result.reason_code == "none"
+
+    def test_not_applicable_gate_passes(self) -> None:
+        state = {"Gates": {"P5.5-TechnicalDebt": "not-applicable"}}
+        result = evaluate_p55_technical_debt_gate(session_state=state)
+        assert result.status == "not-applicable"
+        assert result.reason_code == "none"
+
+    def test_rejected_gate_blocks(self) -> None:
+        state = {"Gates": {"P5.5-TechnicalDebt": "rejected"}}
+        result = evaluate_p55_technical_debt_gate(session_state=state)
+        assert result.status == "rejected"
+        assert result.reason_code == "BLOCKED-P5-5-TECHNICAL-DEBT-GATE"
+
+    def test_no_gate_no_debt_proposed_is_not_applicable(self) -> None:
+        state: dict = {"Gates": {}}
+        result = evaluate_p55_technical_debt_gate(session_state=state)
+        assert result.status == "not-applicable"
+        assert result.technical_debt_proposed is False
+
+    def test_no_gate_debt_proposed_is_pending(self) -> None:
+        state = {"Gates": {}, "TechnicalDebtProposed": True}
+        result = evaluate_p55_technical_debt_gate(session_state=state)
+        assert result.status == "pending"
+        assert result.technical_debt_proposed is True
+
+    def test_no_gates_dict_at_all(self) -> None:
+        """Edge case: Gates key missing entirely."""
+        state = {"TechnicalDebt": {"Proposed": True}}
+        result = evaluate_p55_technical_debt_gate(session_state=state)
+        assert result.status == "pending"
+        assert result.technical_debt_proposed is True
+
+    def test_technical_debt_nested_proposed(self) -> None:
+        """TechnicalDebt.Proposed=True variant."""
+        state: dict = {"Gates": {}, "TechnicalDebt": {"Proposed": True}}
+        result = evaluate_p55_technical_debt_gate(session_state=state)
+        assert result.status == "pending"
+        assert result.technical_debt_proposed is True
+
+
+# ===========================================================================
+# 2. P6 Prerequisites — P5.5 now always checked
+# ===========================================================================
+
+class TestP6PrerequisitesWithP55:
+    """Verify that evaluate_p6_prerequisites() checks P5.5."""
+
+    def test_all_gates_passed_including_p55(self) -> None:
+        state = {"Gates": {
+            "P5-Architecture": "approved",
+            "P5.3-TestQuality": "pass",
+            "P5.5-TechnicalDebt": "approved",
+        }}
+        result = evaluate_p6_prerequisites(
+            session_state=state,
+            phase_1_5_executed=False,
+            rollback_safety_applies=False,
+        )
+        assert result.passed is True
+        assert result.p55_approved is True
+
+    def test_p55_missing_blocks_p6(self) -> None:
+        """P5.5 not set → p55_approved=False → blocks."""
+        state = {"Gates": {
+            "P5-Architecture": "approved",
+            "P5.3-TestQuality": "pass",
+        }}
+        result = evaluate_p6_prerequisites(
+            session_state=state,
+            phase_1_5_executed=False,
+            rollback_safety_applies=False,
+        )
+        assert result.passed is False
+        assert result.p55_approved is False
+        assert result.reason_code == "BLOCKED-P6-PREREQUISITES-NOT-MET"
+
+    def test_p55_not_applicable_allows_p6(self) -> None:
+        state = {"Gates": {
+            "P5-Architecture": "approved",
+            "P5.3-TestQuality": "pass-with-exceptions",
+            "P5.5-TechnicalDebt": "not-applicable",
+        }}
+        result = evaluate_p6_prerequisites(
+            session_state=state,
+            phase_1_5_executed=False,
+            rollback_safety_applies=False,
+        )
+        assert result.passed is True
+        assert result.p55_approved is True
+
+    def test_p55_rejected_blocks_p6(self) -> None:
+        state = {"Gates": {
+            "P5-Architecture": "approved",
+            "P5.3-TestQuality": "pass",
+            "P5.5-TechnicalDebt": "rejected",
+        }}
+        result = evaluate_p6_prerequisites(
+            session_state=state,
+            phase_1_5_executed=False,
+            rollback_safety_applies=False,
+        )
+        assert result.passed is False
+        assert result.p55_approved is False
+
+    def test_no_gates_mapping_blocks(self) -> None:
+        """Edge: Gates key is not a mapping."""
+        result = evaluate_p6_prerequisites(
+            session_state={"Gates": "invalid"},
+            phase_1_5_executed=False,
+            rollback_safety_applies=False,
+        )
+        assert result.passed is False
+        assert result.p55_approved is False
+
+
+# ===========================================================================
+# 3. can_promote_to_phase6() wrapper
+# ===========================================================================
+
+class TestCanPromoteToPhase6:
+    """can_promote_to_phase6() is the single source of truth wrapper."""
+
+    def test_returns_tuple(self) -> None:
+        state = {"Gates": {
+            "P5-Architecture": "approved",
+            "P5.3-TestQuality": "pass",
+            "P5.5-TechnicalDebt": "approved",
+        }}
+        can_promote, evaluation = can_promote_to_phase6(
+            session_state=state,
+            phase_1_5_executed=False,
+            rollback_safety_applies=False,
+        )
+        assert can_promote is True
+        assert isinstance(evaluation, P6PrerequisiteEvaluation)
+
+    def test_blocked_returns_false(self) -> None:
+        state = {"Gates": {"P5-Architecture": "approved"}}
+        can_promote, evaluation = can_promote_to_phase6(
+            session_state=state,
+            phase_1_5_executed=False,
+            rollback_safety_applies=False,
+        )
+        assert can_promote is False
+        assert evaluation.passed is False
+
+
+# ===========================================================================
+# 4. Kernel: P5.5 blocks Phase 6 entry
+# ===========================================================================
+
+class TestKernelP55BlocksPhase6:
+    """The kernel blocks Phase 6 when P5.5 is missing/rejected."""
+
+    def test_kernel_blocks_phase6_without_p55(self, tmp_path: Path) -> None:
+        ctx = _make_ctx(tmp_path)
+        state = _make_phase6_state(
+            gates={
+                "P5-Architecture": "approved",
+                "P5.3-TestQuality": "pass",
+                # P5.5 missing!
+            }
+        )
+        result = execute(
+            current_token="6",
+            session_state_doc={"SESSION_STATE": state},
+            runtime_ctx=ctx,
+        )
+        assert result.status == "BLOCKED"
+        assert "BLOCKED-P6-PREREQUISITES-NOT-MET" in result.next_gate_condition
+
+    def test_kernel_allows_phase6_with_p55_approved(self, tmp_path: Path) -> None:
+        ctx = _make_ctx(tmp_path)
+        state = _make_phase6_state()
+        result = execute(
+            current_token="6",
+            session_state_doc={"SESSION_STATE": state},
+            runtime_ctx=ctx,
+        )
+        assert result.status == "OK"
+
+
+# ===========================================================================
+# 5. Review Decision Entrypoint — apply_review_decision()
+# ===========================================================================
+
+class TestReviewDecisionApprove:
+    """approve → workflow_complete terminal state."""
+
+    def test_approve_sets_workflow_complete(self, tmp_path: Path) -> None:
+        state = _make_phase6_state()
+        session_path = _write_session(tmp_path, state)
+        result = apply_review_decision(
+            decision="approve",
+            session_path=session_path,
+        )
+        assert result["status"] == "ok"
+        assert result["decision"] == "approve"
+
+        # Verify persisted state
+        doc = json.loads(session_path.read_text(encoding="utf-8"))
+        ss = doc["SESSION_STATE"]
+        assert ss["workflow_complete"] is True
+        assert ss["WorkflowComplete"] is True
+        assert ss["UserReviewDecision"]["decision"] == "approve"
+
+    def test_approve_writes_audit_event(self, tmp_path: Path) -> None:
+        state = _make_phase6_state()
+        session_path = _write_session(tmp_path, state)
+        events_path = tmp_path / "events.jsonl"
+        apply_review_decision(
+            decision="approve",
+            session_path=session_path,
+            events_path=events_path,
+            rationale="Looks good",
+        )
+        assert events_path.exists()
+        event = json.loads(events_path.read_text(encoding="utf-8").strip())
+        assert event["event"] == "REVIEW_DECISION"
+        assert event["decision"] == "approve"
+        assert event["rationale"] == "Looks good"
+
+
+class TestReviewDecisionChangesRequested:
+    """changes_requested → Phase 6 loop-reset."""
+
+    def test_changes_requested_resets_review(self, tmp_path: Path) -> None:
+        state = _make_phase6_state(extra={"implementation_review_complete": True})
+        session_path = _write_session(tmp_path, state)
+        result = apply_review_decision(
+            decision="changes_requested",
+            session_path=session_path,
+        )
+        assert result["status"] == "ok"
+
+        doc = json.loads(session_path.read_text(encoding="utf-8"))
+        ss = doc["SESSION_STATE"]
+        assert ss["implementation_review_complete"] is False
+        assert ss["phase6_review_iterations"] == 0
+        assert ss.get("workflow_complete") is None
+        assert ss["UserReviewDecision"]["decision"] == "changes_requested"
+
+
+class TestReviewDecisionReject:
+    """reject → back to Phase 4."""
+
+    def test_reject_returns_to_phase4(self, tmp_path: Path) -> None:
+        state = _make_phase6_state()
+        session_path = _write_session(tmp_path, state)
+        result = apply_review_decision(
+            decision="reject",
+            session_path=session_path,
+        )
+        assert result["status"] == "ok"
+
+        doc = json.loads(session_path.read_text(encoding="utf-8"))
+        ss = doc["SESSION_STATE"]
+        assert ss["Phase"] == "4"
+        assert ss["phase_transition_evidence"] is False
+        assert ss.get("workflow_complete") is None
+
+
+class TestReviewDecisionBadPaths:
+    """Invalid decision, wrong phase, missing session."""
+
+    def test_invalid_decision_rejected(self, tmp_path: Path) -> None:
+        state = _make_phase6_state()
+        session_path = _write_session(tmp_path, state)
+        result = apply_review_decision(
+            decision="maybe",
+            session_path=session_path,
+        )
+        assert result["status"] == "error"
+        assert "BLOCKED-REVIEW-DECISION-INVALID" in str(result.get("reason_code", ""))
+
+    def test_wrong_phase_rejected(self, tmp_path: Path) -> None:
+        state = {
+            "Phase": "5-ArchitectureReview",
+            **PERSISTENCE_BASE,
+            **RULEBOOK_BASE,
+        }
+        session_path = _write_session(tmp_path, state)
+        result = apply_review_decision(
+            decision="approve",
+            session_path=session_path,
+        )
+        assert result["status"] == "error"
+        assert "Phase 6" in str(result.get("message", ""))
+
+    def test_missing_session_file(self, tmp_path: Path) -> None:
+        result = apply_review_decision(
+            decision="approve",
+            session_path=tmp_path / "does_not_exist.json",
+        )
+        assert result["status"] == "error"
+
+    def test_empty_decision_string(self, tmp_path: Path) -> None:
+        state = _make_phase6_state()
+        session_path = _write_session(tmp_path, state)
+        result = apply_review_decision(
+            decision="  ",
+            session_path=session_path,
+        )
+        assert result["status"] == "error"
+
+
+# ===========================================================================
+# 6. Kernel: review decision routing transitions
+# ===========================================================================
+
+class TestKernelReviewDecisionRouting:
+    """Kernel routes based on UserReviewDecision and workflow_complete."""
+
+    def test_workflow_approved_routes_to_workflow_complete(self, tmp_path: Path) -> None:
+        ctx = _make_ctx(tmp_path)
+        state = _make_phase6_state(extra={
+            "workflow_complete": True,
+            "WorkflowComplete": True,
+            "UserReviewDecision": {"decision": "approve"},
+        })
+        result = execute(
+            current_token="6",
+            session_state_doc={"SESSION_STATE": state},
+            runtime_ctx=ctx,
+        )
+        assert result.status == "OK"
+        assert result.active_gate == "Workflow Complete"
+
+    def test_changes_requested_routes_to_implementation_review(self, tmp_path: Path) -> None:
+        ctx = _make_ctx(tmp_path)
+        state = _make_phase6_state(extra={
+            "UserReviewDecision": {"decision": "changes_requested"},
+            "implementation_review_complete": False,
+            "ImplementationReview": {
+                "iteration": 0,
+                "max_iterations": 3,
+                "min_self_review_iterations": 1,
+                "revision_delta": "changed",
+                "implementation_review_complete": False,
+            },
+        })
+        result = execute(
+            current_token="6",
+            session_state_doc={"SESSION_STATE": state},
+            runtime_ctx=ctx,
+        )
+        assert result.status == "OK"
+        # After reset, review is pending so it should go to Implementation Internal Review
+        assert result.active_gate == "Implementation Internal Review"
+
+    def test_reject_routes_to_phase4(self, tmp_path: Path) -> None:
+        ctx = _make_ctx(tmp_path)
+        state = _make_phase6_state(extra={
+            "UserReviewDecision": {"decision": "reject"},
+        })
+        result = execute(
+            current_token="6",
+            session_state_doc={"SESSION_STATE": state},
+            runtime_ctx=ctx,
+        )
+        assert result.status == "OK"
+        # reject transition routes to Phase 4
+        assert result.next_token == "4"
+
+
+# ===========================================================================
+# 7. Session Reader: _normalize_phase6_p5_state
+# ===========================================================================
+
+class TestNormalizePhase6P5State:
+    """_normalize_phase6_p5_state() patches missing gate values."""
+
+    def test_patches_missing_p55_gate(self) -> None:
+        state_doc = {"SESSION_STATE": {
+            "Phase": "6-PostFlight",
+            "Gates": {
+                "P5-Architecture": "approved",
+                "P5.3-TestQuality": "pass",
+                # P5.5 missing
+            },
+        }}
+        _normalize_phase6_p5_state(state_doc=state_doc)
+        gates = state_doc["SESSION_STATE"]["Gates"]
+        assert gates["P5.5-TechnicalDebt"] == "not-applicable"
+        assert "_p6_state_normalization" in state_doc["SESSION_STATE"]
+
+    def test_does_not_patch_when_gates_present(self) -> None:
+        state_doc = {"SESSION_STATE": {
+            "Phase": "6-PostFlight",
+            "Gates": {
+                "P5-Architecture": "approved",
+                "P5.3-TestQuality": "pass",
+                "P5.5-TechnicalDebt": "approved",
+            },
+        }}
+        _normalize_phase6_p5_state(state_doc=state_doc)
+        assert "_p6_state_normalization" not in state_doc["SESSION_STATE"]
+
+    def test_no_op_for_non_phase6(self) -> None:
+        state_doc = {"SESSION_STATE": {"Phase": "5-ArchitectureReview", "Gates": {}}}
+        _normalize_phase6_p5_state(state_doc=state_doc)
+        assert "P5.5-TechnicalDebt" not in state_doc["SESSION_STATE"].get("Gates", {})
+
+    def test_creates_gates_dict_if_missing(self) -> None:
+        state_doc = {"SESSION_STATE": {"Phase": "6-PostFlight"}}
+        _normalize_phase6_p5_state(state_doc=state_doc)
+        assert "Gates" in state_doc["SESSION_STATE"]
+        gates = state_doc["SESSION_STATE"]["Gates"]
+        assert gates["P5-Architecture"] == "not-applicable"
+        assert gates["P5.5-TechnicalDebt"] == "not-applicable"
+
+
+# ===========================================================================
+# 8. Session Reader: Evidence Presentation Gate guidance
+# ===========================================================================
+
+class TestEvidencePresentationGateGuidance:
+    """_resolve_next_action_line directs to /review-decision at Evidence Presentation Gate."""
+
+    def test_evidence_gate_recommends_review_decision(self) -> None:
+        snapshot = {
+            "phase": "6-PostFlight",
+            "active_gate": "Evidence Presentation Gate",
+            "status": "OK",
+            "next_gate_condition": "Present evidence and submit via /review-decision.",
+            "implementation_review_complete": True,
+        }
+        line = _resolve_next_action_line(snapshot)
+        assert "/review-decision" in line
+
+    def test_workflow_complete_returns_empty(self) -> None:
+        snapshot = {
+            "phase": "6-PostFlight",
+            "active_gate": "Workflow Complete",
+            "status": "OK",
+            "next_gate_condition": "Workflow approved.",
+        }
+        line = _resolve_next_action_line(snapshot)
+        assert line == ""
+
+    def test_should_not_emit_continue_for_review_decision(self) -> None:
+        snapshot = {
+            "status": "OK",
+            "next_gate_condition": "Submit final review decision via /review-decision (approve | changes_requested | reject).",
+        }
+        assert _should_emit_continue_next_action(snapshot) is False

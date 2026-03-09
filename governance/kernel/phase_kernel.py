@@ -14,7 +14,7 @@ from governance.infrastructure.adapters.logging.event_sink import write_jsonl_ev
 from governance.infrastructure.binding_evidence_resolver import BindingEvidenceResolver
 from governance.infrastructure.logging.global_error_handler import emit_error_event
 
-from governance.engine.gate_evaluator import evaluate_p6_prerequisites, evaluate_strict_exit_gate
+from governance.engine.gate_evaluator import evaluate_p6_prerequisites, can_promote_to_phase6, evaluate_strict_exit_gate
 from governance.engine import reason_codes
 
 from .phase_api_spec import PhaseApiSpec, PhaseApiSpecError, PhaseSpecEntry, load_phase_api
@@ -606,6 +606,37 @@ def _phase6_internal_review_complete(state: Mapping[str, object]) -> bool:
     return False
 
 
+def _user_review_decision(state: Mapping[str, object]) -> str:
+    """Read the user's final review decision from SESSION_STATE.
+
+    Returns one of ``"approve"``, ``"changes_requested"``, ``"reject"``,
+    or ``""`` if no decision has been recorded.
+    """
+    decision = state.get("UserReviewDecision")
+    if isinstance(decision, Mapping):
+        value = decision.get("decision")
+        if isinstance(value, str):
+            normalized = value.strip().lower()
+            if normalized in {"approve", "changes_requested", "reject"}:
+                return normalized
+    for key in ("user_review_decision", "UserReviewDecision"):
+        value = state.get(key)
+        if isinstance(value, str):
+            normalized = value.strip().lower()
+            if normalized in {"approve", "changes_requested", "reject"}:
+                return normalized
+    return ""
+
+
+def _workflow_complete(state: Mapping[str, object]) -> bool:
+    """Check if the workflow has been marked complete (approve decision applied)."""
+    for key in ("workflow_complete", "WorkflowComplete"):
+        value = state.get(key)
+        if isinstance(value, bool):
+            return value
+    return False
+
+
 def _phase5_min_self_review_iterations(entry: PhaseSpecEntry) -> int:
     policy = resolve_phase_output_policy(entry.token)
     if policy is None:
@@ -777,6 +808,27 @@ def _select_transition(
                     transition.next_gate_condition,
                 )
             if when == "implementation_review_pending" and not _phase6_internal_review_complete(state):
+                return (
+                    transition.next_token,
+                    transition.source,
+                    transition.active_gate,
+                    transition.next_gate_condition,
+                )
+            if when == "workflow_approved" and _workflow_complete(state):
+                return (
+                    transition.next_token,
+                    transition.source,
+                    transition.active_gate,
+                    transition.next_gate_condition,
+                )
+            if when == "review_changes_requested" and _user_review_decision(state) == "changes_requested":
+                return (
+                    transition.next_token,
+                    transition.source,
+                    transition.active_gate,
+                    transition.next_gate_condition,
+                )
+            if when == "review_rejected" and _user_review_decision(state) == "reject":
                 return (
                     transition.next_token,
                     transition.source,
@@ -1283,12 +1335,12 @@ def execute(
         )
 
     if chosen_token == "6":
-        _p6_prereq = evaluate_p6_prerequisites(
+        _can_promote, _p6_prereq = can_promote_to_phase6(
             session_state=state,
             phase_1_5_executed=_phase_1_5_executed(state),
             rollback_safety_applies=_rollback_safety_applies(state),
         )
-        if not _p6_prereq.passed:
+        if not _can_promote:
             return _blocked_result(
                 phase=entry.phase,
                 token=chosen_token,
@@ -1303,6 +1355,7 @@ def execute(
                         "p5_architecture_approved": _p6_prereq.p5_architecture_approved,
                         "p53_passed": _p6_prereq.p53_passed,
                         "p54_compliant": _p6_prereq.p54_compliant,
+                        "p55_approved": _p6_prereq.p55_approved,
                         "p56_approved": _p6_prereq.p56_approved,
                     },
                 },
