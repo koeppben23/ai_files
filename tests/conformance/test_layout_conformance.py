@@ -88,6 +88,7 @@ class TestInstalledTreeShape:
         "BOOTSTRAP.md",
         "continue.md",
         "review.md",
+        "review-decision.md",
         "plan.md",
         "ticket.md",
         "README.md",

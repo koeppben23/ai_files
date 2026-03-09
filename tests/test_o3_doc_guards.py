@@ -312,8 +312,10 @@ class TestLauncherSurfaceHappy:
     def test_ticket_and_plan_use_canonical_subcommands(self) -> None:
         ticket = _read("ticket.md")
         plan = _read("plan.md")
+        review_decision = _read("review-decision.md")
         assert "--ticket-persist" in ticket
         assert "--plan-persist" in plan
+        assert "--review-decision-persist" in review_decision
 
 
 class TestLauncherSurfaceBad:
@@ -325,6 +327,7 @@ class TestLauncherSurfaceBad:
         "QUICKSTART.md",
         "ticket.md",
         "plan.md",
+        "review-decision.md",
         "docs/operator-runbook.md",
         "SESSION_STATE_SCHEMA.md",
         "phase_api.yaml",
@@ -356,5 +359,6 @@ class TestLauncherSurfaceEdge:
         content = _read("docs/contracts/python-binding-contract.v1.md")
         assert "--ticket-persist" in content
         assert "--plan-persist" in content
+        assert "--review-decision-persist" in content
         assert "--session-reader" in content
         assert "--entrypoint" not in content

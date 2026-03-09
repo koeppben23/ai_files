@@ -41,7 +41,7 @@ in `cross-agent-rail-spec.v1.md` Section 2 and remains authoritative for CR-01 t
 
 | Surface Type | Definition | Rail Style Spec Applicability |
 |---|---|---|
-| `execution-facing` | Command rails that an LLM invokes to materialize, mutate, or read governance state. Files: `continue.md`, `review.md`, `audit-readout.md`, `ticket.md`, `plan.md` | **Full** — must implement all 5 mandatory blocks (Section 3) |
+| `execution-facing` | Command rails that an LLM invokes to materialize, mutate, or read governance state. Files: `continue.md`, `review.md`, `audit-readout.md`, `ticket.md`, `plan.md`, `review-decision.md` | **Full** — must implement all 5 mandatory blocks (Section 3) |
 | `bootstrap-facing` | Onboarding/install rails that an LLM or user runs once to set up the governance environment. Files: `BOOTSTRAP.md` | **Structural** — must have Purpose, Commands by platform, and If execution unavailable blocks. Interpretation scope and Response shape are optional. |
 | `guidance` | Behavioral guidance documents consumed by the LLM for cross-phase reasoning. Files: `master.md`, `rules.md` | **Not in scope** — reviewed separately under the guidance-language cleanup track |
 | `passive-doc` | Reference docs, schemas, changelogs, READMEs — not LLM-directive | **Not in scope** — monitoring only |
