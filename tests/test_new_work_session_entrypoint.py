@@ -143,6 +143,30 @@ class TestNewWorkSessionEntrypoint:
         assert created["snapshot_path"] == str(archived_dir / "SESSION_STATE.json")
         assert created["snapshot_digest"] == canonical_json_hash(archived_state)
 
+    def test_rehydrates_business_rules_from_workspace_artifacts(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+        config_root, session_path, _ = _setup_workspace(tmp_path)
+        workspace = session_path.parent
+        (workspace / "business-rules-status.md").write_text(
+            "Outcome: extracted\nExecutionEvidence: true\n",
+            encoding="utf-8",
+        )
+        (workspace / "business-rules.md").write_text(
+            "Rule: BR-900: audit entries are immutable\n",
+            encoding="utf-8",
+        )
+        monkeypatch.setenv("OPENCODE_CONFIG_ROOT", str(config_root))
+
+        code = new_work_session.main(["--trigger-source", "cli", "--session-id", "sess-rehydrate", "--quiet"])
+        assert code == 0
+        _ = json.loads(capsys.readouterr().out.strip())
+
+        state = json.loads(session_path.read_text(encoding="utf-8"))["SESSION_STATE"]
+        assert state["Scope"]["BusinessRules"] == "extracted"
+        assert state["BusinessRules"]["Outcome"] == "extracted"
+        assert state["BusinessRules"]["ExecutionEvidence"] is True
+        assert state["BusinessRules"]["InventoryLoaded"] is True
+        assert state["BusinessRules"]["ExtractedCount"] == 1
+
     # -- Bad --
     def test_returns_blocked_when_pointer_is_missing(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
         config_root = tmp_path / "config"
