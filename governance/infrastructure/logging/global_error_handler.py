@@ -71,8 +71,6 @@ def _candidate_log_paths(
     ws = workspaces_home if workspaces_home is not None else _ERROR_CONTEXT.get("workspaces_home")
     if repo_fingerprint is not None:
         fp = repo_fingerprint
-    elif any(v is not None for v in (commands_home, workspaces_home)):
-        fp = None
     else:
         fp = _ERROR_CONTEXT.get("repo_fingerprint")
 

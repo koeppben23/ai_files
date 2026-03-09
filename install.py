@@ -1611,15 +1611,33 @@ def inject_session_reader_path_for_command(
         # Platform-aware rail injection (python-binding-contract.v1.md §4.2):
         # Rails are installed as platform-specific — the installer writes only
         # the block matching the target OS.
-        if os.name == "nt":
-            # Windows: transform bash syntax to cmd syntax
-            #   ```bash  →  ```cmd
-            #   PATH="<bin>:$PATH" opencode-governance-bootstrap  →
-            #   set "PATH=<bin>;%PATH%" && opencode-governance-bootstrap.cmd
-            new_content = new_content.replace("```bash", "```cmd")
+        if os.name == "nt" and "```cmd" not in new_content:
+            # Windows: keep the bash block intact (OpenCode's LLM tool runner
+            # uses bash even on Windows via Git Bash / WSL) and *append* a cmd
+            # block immediately after the bash code fence for native Windows
+            # terminal invocation.
+            #
+            # The guard above (``"```cmd" not in new_content``) ensures
+            # idempotency — re-running the installer will not duplicate the
+            # cmd block.
+            def _append_cmd_block(m: re.Match) -> str:
+                bash_block = m.group(0)
+                bin_path = m.group(1)
+                trailing = m.group(2) or ""
+                cmd_block = (
+                    "```cmd\n"
+                    f'set "PATH={bin_path};%PATH%" && opencode-governance-bootstrap.cmd'
+                    f"{trailing}\n"
+                    "```"
+                )
+                return f"{bash_block}\n\n{cmd_block}"
+
             new_content = re.sub(
-                r'PATH="([^"]*?):\$PATH"\s+opencode-governance-bootstrap',
-                r'set "PATH=\1;%PATH%" && opencode-governance-bootstrap.cmd',
+                r'```bash\n'
+                r'PATH="([^"]*?):\$PATH"\s+opencode-governance-bootstrap'
+                r'([ \t][^\n]*)?\n'
+                r'```',
+                _append_cmd_block,
                 new_content,
             )
         new_content = new_content.replace(BIN_DIR_PLACEHOLDER, bin_dir)
