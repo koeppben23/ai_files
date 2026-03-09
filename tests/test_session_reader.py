@@ -2346,39 +2346,72 @@ class TestResolveNextActionLine:
         assert _resolve_next_action_line(snapshot) == ""
 
     def test_next_action_line_explicit_p54_guidance(self) -> None:
-        """Phase 5.4 should emit explicit business-rules guidance."""
+        """Phase 5.4 with satisfied evidence should recommend /continue."""
         snapshot = {
             "status": "OK",
             "phase": "5.4-BusinessRules",
             "next": "5.5",
             "next_gate_condition": "Business rules validation complete; technical debt proposed",
+            "p54_evaluated_status": "compliant",
+        }
+        assert _resolve_next_action_line(snapshot) == "Next action: run /continue."
+
+    def test_next_action_line_p54_missing_evidence_recommends_plan(self) -> None:
+        snapshot = {
+            "status": "OK",
+            "phase": "5.4-BusinessRules",
+            "next": "5.4",
+            "next_gate_condition": "Phase 6 promotion blocked: BLOCKED-P5-4-BUSINESS-RULES-GATE",
+            "p54_evaluated_status": "gap-detected",
         }
         assert _resolve_next_action_line(snapshot) == (
-            "Next action: complete Phase 5.4 business-rules validation, then run /continue."
+            "Next action: run /plan with explicit business-rules compliance evidence."
         )
 
     def test_next_action_line_explicit_p55_guidance(self) -> None:
-        """Phase 5.5 should emit explicit technical-debt guidance."""
+        """Phase 5.5 with satisfied evidence should recommend /continue."""
         snapshot = {
             "status": "OK",
             "phase": "5.5-TechnicalDebt",
             "next": "5.6",
             "next_gate_condition": "Technical debt recorded; rollback checks required",
+            "p55_evaluated_status": "approved",
+        }
+        assert _resolve_next_action_line(snapshot) == "Next action: run /continue."
+
+    def test_next_action_line_p55_missing_evidence_recommends_plan(self) -> None:
+        snapshot = {
+            "status": "OK",
+            "phase": "5.5-TechnicalDebt",
+            "next": "5.5",
+            "next_gate_condition": "Technical debt review incomplete",
+            "p55_evaluated_status": "pending",
         }
         assert _resolve_next_action_line(snapshot) == (
-            "Next action: complete Phase 5.5 technical-debt review, then run /continue."
+            "Next action: run /plan with explicit technical-debt review evidence."
         )
 
     def test_next_action_line_explicit_p56_guidance(self) -> None:
-        """Phase 5.6 should emit explicit rollback-safety guidance."""
+        """Phase 5.6 with satisfied evidence should recommend /continue."""
         snapshot = {
             "status": "OK",
             "phase": "5.6-RollbackSafety",
             "next": "6",
             "next_gate_condition": "Rollback safety checks complete; proceed to post-flight",
+            "p56_evaluated_status": "not-applicable",
+        }
+        assert _resolve_next_action_line(snapshot) == "Next action: run /continue."
+
+    def test_next_action_line_p56_missing_evidence_recommends_plan(self) -> None:
+        snapshot = {
+            "status": "OK",
+            "phase": "5.6-RollbackSafety",
+            "next": "5.6",
+            "next_gate_condition": "Rollback safety evidence incomplete",
+            "p56_evaluated_status": "pending",
         }
         assert _resolve_next_action_line(snapshot) == (
-            "Next action: complete Phase 5.6 rollback-safety checks, then run /continue."
+            "Next action: run /plan with explicit rollback-safety evidence."
         )
 
     def test_empty_for_ticket_intake(self) -> None:

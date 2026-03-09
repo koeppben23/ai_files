@@ -49,7 +49,9 @@ If no snapshot is available, proceed using only the context visible in the curre
 ## Interpretation scope
 
 - Plan drafts in chat do not pass the Plan Record Preparation Gate by themselves; the persist command must run.
-- After successful persist, run `/continue` to materialize gate advancement.
+- After successful persist, follow the emitted `Next action` exactly:
+  - run `/plan` when gate evidence is still missing
+  - run `/continue` when evidence is present and only materialization is pending
 - This rail persists plan-record evidence; it does not perform implementation.
 
 ## Response shape
