@@ -34,6 +34,7 @@ from governance.entrypoints.review_decision_persist import (
     VALID_DECISIONS,
 )
 from governance.entrypoints.session_reader import (
+    _sync_conditional_p5_gate_states,
     _normalize_phase6_p5_state,
     _resolve_next_action_line,
     _should_emit_continue_next_action,
@@ -662,7 +663,7 @@ class TestNormalizePhase6P5StateFailClosed:
         # Gate value is NOT overwritten.
         assert ss["Gates"]["P5.3-TestQuality"] == "pending"
         # Fail-closed reset fields:
-        assert ss["Phase"] == "5-ArchitectureReview"
+        assert ss["Phase"] == "5.3-TestQuality"
         assert ss["Next"] == "5.3"
         assert ss["phase6_state"] == "phase5_in_progress"
         assert ss["implementation_review_complete"] is False
@@ -712,7 +713,7 @@ class TestNormalizePhase6P5StateFailClosed:
         assert norm["reason"] == "WARN-P6-STATE-INCONSISTENCY"
         assert norm["original_phase"] == "6-PostFlight"
         assert norm["original_next"] == "6"
-        assert norm["corrected_phase"] == "5-ArchitectureReview"
+        assert norm["corrected_phase"] == "5.3-TestQuality"
         assert norm["corrected_next"] == "5.3"
         assert norm["corrected_active_gate"] == "Test Quality Gate"
 
@@ -732,8 +733,43 @@ class TestNormalizePhase6P5StateFailClosed:
         assert event["event"] == "P6_STATE_NORMALIZED"
         assert event["reason_code"] == "WARN-P6-STATE-INCONSISTENCY"
         assert event["first_open_gate"] == "P5.5-TechnicalDebt"
-        assert event["corrected_phase"] == "5-ArchitectureReview"
+        assert event["corrected_phase"] == "5.5-TechnicalDebt"
         assert event["corrected_next"] == "5.5"
+
+    def test_fail_closed_routes_p54_to_canonical_phase(self) -> None:
+        state_doc = {"SESSION_STATE": {
+            "Phase": "6-PostFlight",
+            "Next": "6",
+            "Gates": {
+                "P5-Architecture": "approved",
+                "P5.3-TestQuality": "pass",
+                "P5.4-BusinessRules": "pending",
+                "P5.5-TechnicalDebt": "approved",
+            },
+        }}
+        _normalize_phase6_p5_state(state_doc=state_doc)
+        ss = state_doc["SESSION_STATE"]
+        assert ss["Phase"] == "5.4-BusinessRules"
+        assert ss["Next"] == "5.4"
+        assert ss["active_gate"] == "Business Rules Validation"
+
+    def test_fail_closed_routes_p56_to_canonical_phase(self) -> None:
+        state_doc = {"SESSION_STATE": {
+            "Phase": "6-PostFlight",
+            "Next": "6",
+            "Gates": {
+                "P5-Architecture": "approved",
+                "P5.3-TestQuality": "pass",
+                "P5.4-BusinessRules": "compliant",
+                "P5.5-TechnicalDebt": "approved",
+                "P5.6-RollbackSafety": "pending",
+            },
+        }}
+        _normalize_phase6_p5_state(state_doc=state_doc)
+        ss = state_doc["SESSION_STATE"]
+        assert ss["Phase"] == "5.6-RollbackSafety"
+        assert ss["Next"] == "5.6"
+        assert ss["active_gate"] == "Rollback Safety Review"
 
     def test_all_gates_terminal_no_flag(self) -> None:
         """When every present gate is terminal, no normalization flag."""
@@ -749,6 +785,63 @@ class TestNormalizePhase6P5StateFailClosed:
         }}
         _normalize_phase6_p5_state(state_doc=state_doc)
         assert "_p6_state_normalization" not in state_doc["SESSION_STATE"]
+
+
+class TestConditionalP5GateSync:
+    def test_happy_sync_p54_pending_to_compliant(self) -> None:
+        state_doc = {"SESSION_STATE": {
+            "BusinessRules": {
+                "Outcome": "extracted",
+                "ExecutionEvidence": True,
+                "InventoryLoaded": True,
+                "ExtractedCount": 5,
+            },
+            "Gates": {
+                "P5.4-BusinessRules": "pending",
+                "P5.5-TechnicalDebt": "pending",
+                "P5.6-RollbackSafety": "pending",
+            },
+        }}
+        _sync_conditional_p5_gate_states(state_doc=state_doc)
+        ss = state_doc["SESSION_STATE"]
+        assert ss["Gates"]["P5.4-BusinessRules"] == "compliant"
+        assert ss["Gates"]["P5.5-TechnicalDebt"] == "not-applicable"
+        assert ss["Gates"]["P5.6-RollbackSafety"] == "not-applicable"
+
+    def test_edge_sync_keeps_non_pending_value(self) -> None:
+        state_doc = {"SESSION_STATE": {
+            "BusinessRules": {
+                "Outcome": "extracted",
+                "ExecutionEvidence": True,
+                "InventoryLoaded": True,
+                "ExtractedCount": 2,
+            },
+            "Gates": {
+                "P5.4-BusinessRules": "rejected",
+            },
+        }}
+        _sync_conditional_p5_gate_states(state_doc=state_doc)
+        assert state_doc["SESSION_STATE"]["Gates"]["P5.4-BusinessRules"] == "rejected"
+
+    def test_corner_sync_without_gates_dict_is_noop(self) -> None:
+        state_doc = {"SESSION_STATE": {"BusinessRules": {"Outcome": "extracted"}}}
+        _sync_conditional_p5_gate_states(state_doc=state_doc)
+        assert "Gates" not in state_doc["SESSION_STATE"]
+
+    def test_bad_sync_p54_pending_to_gap_detected(self) -> None:
+        state_doc = {"SESSION_STATE": {
+            "BusinessRules": {
+                "Outcome": "extracted",
+                "ExecutionEvidence": True,
+                "InventoryLoaded": False,
+                "ExtractedCount": 0,
+            },
+            "Gates": {
+                "P5.4-BusinessRules": "pending",
+            },
+        }}
+        _sync_conditional_p5_gate_states(state_doc=state_doc)
+        assert state_doc["SESSION_STATE"]["Gates"]["P5.4-BusinessRules"] == "gap-detected"
 
     def test_p54_not_applicable_is_terminal(self) -> None:
         state_doc = {"SESSION_STATE": {
