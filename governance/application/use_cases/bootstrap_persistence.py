@@ -217,6 +217,9 @@ class BootstrapPersistenceService:
             write_policy_reasons=payload.write_policy_reasons,
             created_at=created_at,
             intent_path=f"${{CONFIG_ROOT}}/{ACTIVATION_INTENT_FILE}",
+            activation_intent_valid=activation_intent_valid,
+            intent_sha256=activation_intent_sha256,
+            intent_effective_scope=activation_intent_scope,
         )
         session_state_file = Path(payload.layout.session_state_file)
         identity_map_file = Path(payload.layout.identity_map_file)
