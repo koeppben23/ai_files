@@ -63,6 +63,7 @@ if str(SCRIPT_DIR.parent) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR.parent))
 
 from governance.entrypoints.write_policy import EFFECTIVE_MODE, is_write_allowed, writes_allowed
+from governance.engine.business_rules_hydration import hydrate_business_rules_state_from_artifacts
 try:
     from artifacts.backfill import (
         ArtifactSpec as ArtifactSpec,  # type: ignore[no-redef]
@@ -1387,6 +1388,12 @@ def _update_session_state(
             "count": len(business_rules_rules),
         }
         inventory["Evidence"] = list(business_rules_evidence_paths)
+
+    hydrate_business_rules_state_from_artifacts(
+        state=ss,
+        status_path=session_path.parent / "business-rules-status.md",
+        inventory_path=session_path.parent / "business-rules.md",
+    )
 
     if dry_run:
         return "updated-dry-run"

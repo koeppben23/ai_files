@@ -17,6 +17,7 @@ if __package__ in {None, ""}:
 
 from governance.infrastructure.binding_evidence_resolver import BindingEvidenceResolver
 from governance.engine.sanitization import apply_fresh_start_business_rules_neutralization
+from governance.engine.business_rules_hydration import hydrate_business_rules_state_from_artifacts
 from governance.infrastructure.fs_atomic import atomic_write_text
 from governance.infrastructure.work_run_archive import archive_active_run
 try:
@@ -89,6 +90,7 @@ def _reset_for_new_work(
     *,
     new_run_id: str,
     observed_at: str,
+    workspace_path: Path,
 ) -> None:
     state["session_run_id"] = new_run_id
     state["Ticket"] = None
@@ -108,6 +110,11 @@ def _reset_for_new_work(
     state["active_gate"] = "Ticket Input Gate"
     state["next_gate_condition"] = "Collect ticket and planning constraints (or run /review for review-only lead/staff feedback)."
     apply_fresh_start_business_rules_neutralization(state)
+    hydrate_business_rules_state_from_artifacts(
+        state=state,
+        status_path=workspace_path / "business-rules-status.md",
+        inventory_path=workspace_path / "business-rules.md",
+    )
 
     gates = state.get("Gates")
     base_gates: dict[str, str] = {
@@ -351,7 +358,12 @@ def main(argv: list[str] | None = None) -> int:
             },
         )
 
-        _reset_for_new_work(state, new_run_id=new_run_id, observed_at=observed_at)
+        _reset_for_new_work(
+            state,
+            new_run_id=new_run_id,
+            observed_at=observed_at,
+            workspace_path=session_path.parent,
+        )
         document["SESSION_STATE"] = state
         _write_json_atomic(session_path, document)
         _record_guard(
