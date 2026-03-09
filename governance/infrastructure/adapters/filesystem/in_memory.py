@@ -6,6 +6,7 @@ from pathlib import Path
 class InMemoryFS:
     def __init__(self) -> None:
         self._data: dict[str, str] = {}
+        self._dirs: set[str] = set()
 
     def write_text_atomic(self, path: Path, content: str) -> None:
         self._data[str(path)] = content
@@ -18,3 +19,10 @@ class InMemoryFS:
 
     def write_text(self, path: Path, content: str) -> None:
         self._data[str(path)] = content
+
+    def mkdir_p(self, path: Path) -> None:
+        self._dirs.add(str(path))
+
+    def dir_exists(self, path: Path) -> bool:
+        """Test-only helper to check if mkdir_p was called for a path."""
+        return str(path) in self._dirs

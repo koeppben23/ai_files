@@ -217,6 +217,9 @@ class BootstrapPersistenceService:
             write_policy_reasons=payload.write_policy_reasons,
             created_at=created_at,
             intent_path=f"${{CONFIG_ROOT}}/{ACTIVATION_INTENT_FILE}",
+            activation_intent_valid=activation_intent_valid,
+            intent_sha256=activation_intent_sha256,
+            intent_effective_scope=activation_intent_scope,
         )
         session_state_file = Path(payload.layout.session_state_file)
         identity_map_file = Path(payload.layout.identity_map_file)
@@ -231,6 +234,14 @@ class BootstrapPersistenceService:
         }
         self._fs.write_text_atomic(identity_map_file, _canonical_json(identity_map))
         write_actions["identity_map"] = "written"
+
+        # Ensure workspace-scoped subdirectories exist so that downstream
+        # consumers (error logger, run archiver) find them without needing
+        # to create them lazily.
+        workspace_root = Path(payload.layout.repo_home)
+        self._fs.mkdir_p(workspace_root / "logs")
+        self._fs.mkdir_p(workspace_root / "runs")
+        write_actions["workspace_dirs"] = "ensured"
 
         if payload.no_commit:
             write_actions["no_commit"] = "true"
