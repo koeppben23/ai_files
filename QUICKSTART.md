@@ -41,14 +41,69 @@ cd customer-install-bundle-v1
 
 ## Step 3: Bootstrap session (1 minute)
 
+The installer places the launcher at:
+
+- **macOS / Linux:** `~/.config/opencode/bin/opencode-governance-bootstrap`
+- **Windows:** `%USERPROFILE%\.config\opencode\bin\opencode-governance-bootstrap.cmd`
+
+The launcher is **not** added to your shell PATH automatically.
+You can either add the directory to PATH once, or invoke the launcher by its full path each time.
+
+### Option A: Add to PATH (recommended — run once per shell session)
+
 ```bash
-# macOS / Linux
-opencode-governance-bootstrap --repo-root <repo-root>
+# macOS / Linux (bash / zsh)
+export PATH="$HOME/.config/opencode/bin:$PATH"
 ```
 
 ```powershell
-# Windows
-opencode-governance-bootstrap.cmd --repo-root <repo-root>
+# Windows (PowerShell)
+$env:Path = "$env:USERPROFILE\.config\opencode\bin;" + $env:Path
+```
+
+```cmd
+:: Windows (cmd.exe)
+set "PATH=%USERPROFILE%\.config\opencode\bin;%PATH%"
+```
+
+After setting PATH, run the bootstrap:
+
+```bash
+# macOS / Linux
+opencode-governance-bootstrap --repo-root /path/to/repo
+```
+
+```powershell
+# Windows (PowerShell)
+opencode-governance-bootstrap --repo-root C:\path\to\repo
+```
+
+```cmd
+:: Windows (cmd.exe)
+opencode-governance-bootstrap.cmd --repo-root C:\path\to\repo
+```
+
+### Option B: Invoke by full path (no PATH change needed)
+
+```bash
+# macOS / Linux (bash / zsh)
+~/.config/opencode/bin/opencode-governance-bootstrap --repo-root /path/to/repo
+```
+
+```powershell
+# Windows (PowerShell)
+& "$env:USERPROFILE\.config\opencode\bin\opencode-governance-bootstrap.cmd" --repo-root C:\path\to\repo
+```
+
+```cmd
+:: Windows (cmd.exe)
+"%USERPROFILE%\.config\opencode\bin\opencode-governance-bootstrap.cmd" --repo-root C:\path\to\repo
+```
+
+### Concrete example (Windows cmd.exe)
+
+```cmd
+"%USERPROFILE%\.config\opencode\bin\opencode-governance-bootstrap.cmd" --repo-root C:\work\ai_files
 ```
 
 Use `--verbose` for step-by-step bootstrap output.
@@ -57,6 +112,7 @@ Use `--verbose` for step-by-step bootstrap output.
 |-------|-----|
 | Launcher not found | Run the installer from the bundle first |
 | Repo not detected | Provide `--repo-root /path/to/repo` |
+| `opencode-governance-bootstrap` is not recognized | The launcher is not on PATH — use the full path or set PATH as shown above |
 
 ## Step 4: Open Desktop and continue
 
