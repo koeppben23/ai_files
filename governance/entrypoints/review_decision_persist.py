@@ -18,8 +18,8 @@ Copyright 2026 Benjamin Fuchs. All rights reserved. See LICENSE.
 """
 from __future__ import annotations
 
+import argparse
 import json
-import os
 import sys
 import uuid
 from datetime import datetime, timezone
@@ -30,6 +30,7 @@ if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).absolute().parents[2]))
 
 from governance.domain import reason_codes
+from governance.infrastructure.binding_evidence_resolver import BindingEvidenceResolver
 from governance.infrastructure.adapters.logging.event_sink import write_jsonl_event
 from governance.infrastructure.fs_atomic import atomic_write_text
 
@@ -67,6 +68,33 @@ def _payload(status: str, **kwargs: object) -> dict[str, object]:
     out: dict[str, object] = {"status": status}
     out.update(kwargs)
     return out
+
+
+def _resolve_active_session_path() -> tuple[Path, Path]:
+    """Resolve active workspace session + events path from global pointer."""
+    resolver = BindingEvidenceResolver()
+    evidence = getattr(resolver, "resolve")(mode="user")
+    if evidence.config_root is None or evidence.workspaces_home is None:
+        raise RuntimeError("binding unavailable")
+
+    pointer_path = evidence.config_root / "SESSION_STATE.json"
+    pointer = _load_json(pointer_path)
+    fingerprint = str(pointer.get("activeRepoFingerprint") or "").strip()
+    if not fingerprint:
+        raise RuntimeError("activeRepoFingerprint missing")
+
+    active_state = str(pointer.get("activeSessionStateFile") or "").strip()
+    if active_state:
+        session_path = Path(active_state)
+    else:
+        session_path = evidence.workspaces_home / fingerprint / "SESSION_STATE.json"
+    if not session_path.is_absolute():
+        raise RuntimeError("activeSessionStateFile must be absolute")
+    if not session_path.exists():
+        raise RuntimeError("active session missing")
+
+    events_path = session_path.parent / "events.jsonl"
+    return session_path, events_path
 
 
 def apply_review_decision(
@@ -211,3 +239,50 @@ def _next_action_hint(decision: str) -> str:
     if decision == "reject":
         return "Review rejected. Workflow returned to Phase 4. Provide updated ticket/task details to restart."
     return ""
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        description="Persist final /review-decision (approve | changes_requested | reject)"
+    )
+    parser.add_argument(
+        "--decision",
+        required=True,
+        help="Final review decision: approve | changes_requested | reject",
+    )
+    parser.add_argument(
+        "--note",
+        default="",
+        help="Optional decision note (non-mutating metadata)",
+    )
+    parser.add_argument(
+        "--quiet",
+        action="store_true",
+        help="Emit JSON payload only",
+    )
+    args = parser.parse_args(argv)
+
+    try:
+        session_path, events_path = _resolve_active_session_path()
+        payload = apply_review_decision(
+            decision=str(args.decision),
+            session_path=session_path,
+            events_path=events_path,
+            rationale=str(args.note),
+        )
+    except Exception as exc:
+        payload = _payload(
+            "error",
+            reason_code=BLOCKED_REVIEW_DECISION_INVALID,
+            message=f"review-decision persist failed: {exc}",
+        )
+
+    status = str(payload.get("status") or "error").strip().lower()
+    print(json.dumps(payload, ensure_ascii=True))
+    if status == "ok":
+        return 0
+    return 2
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

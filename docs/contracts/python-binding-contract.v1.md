@@ -129,6 +129,7 @@ Launchers support subcommand routing:
 | `--session-reader [flags]` | `session_reader.py` with passthrough flags |
 | `--ticket-persist [flags]` | `governance.entrypoints.phase4_intake_persist` (canonical public surface) |
 | `--plan-persist [flags]` | `governance.entrypoints.phase5_plan_record_persist` (canonical public surface) |
+| `--review-decision-persist [flags]` | `governance.entrypoints.review_decision_persist` (canonical public surface) |
 | *(default)* | `governance.entrypoints.bootstrap_executor` |
 
 ### 4.1.1 Final launcher surface
@@ -136,6 +137,7 @@ Launchers support subcommand routing:
 Canonical subcommands for active operator workflows are:
 - `--ticket-persist`
 - `--plan-persist`
+- `--review-decision-persist`
 - `--session-reader`
 
 ### 4.2 Rails (Markdown Command Templates)

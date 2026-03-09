@@ -52,6 +52,7 @@ ${CONFIG_ROOT}/
     BOOTSTRAP.md
     continue.md
     review.md
+    review-decision.md
     plan.md
     ticket.md
     docs/resume.md               # Legacy compatibility alias for /continue guidance

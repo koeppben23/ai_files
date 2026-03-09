@@ -263,13 +263,13 @@ class TestRailsToPaths:
 
     # All rail injection targets including audit-readout
     RAIL_FILES_WITH_LAUNCHER = ["continue.md", "review.md", "audit-readout.md"]
-    RAIL_FILES_WITH_ENTRYPOINT = ["plan.md", "ticket.md"]
+    RAIL_FILES_WITH_ENTRYPOINT = ["plan.md", "ticket.md", "review-decision.md"]
     ALL_RAIL_FILES = RAIL_FILES_WITH_LAUNCHER + RAIL_FILES_WITH_ENTRYPOINT
 
     BIN_DIR_PLACEHOLDER = "{{BIN_DIR}}"
 
     def test_happy_all_rail_files_exist(self):
-        """Happy: All 5 rail injection target files exist at repo root."""
+        """Happy: All rail injection target files exist at repo root."""
         missing = [f for f in self.ALL_RAIL_FILES if not (REPO_ROOT / f).is_file()]
         assert not missing, f"Rail files missing: {missing}"
 
@@ -308,9 +308,22 @@ class TestRailsToPaths:
             "ticket.md must use canonical --ticket-persist subcommand"
         )
 
+    def test_happy_review_decision_uses_canonical_subcommand(self):
+        """Happy: review-decision.md uses canonical --review-decision-persist launcher surface."""
+        content = _read_source(REPO_ROOT / "review-decision.md")
+        assert "--review-decision-persist" in content, (
+            "review-decision.md must use canonical --review-decision-persist subcommand"
+        )
+
     def test_corner_legacy_entrypoint_not_in_primary_rails(self):
         """Corner: docs switched immediately to canonical subcommands."""
-        combined = _read_source(REPO_ROOT / "plan.md") + "\n" + _read_source(REPO_ROOT / "ticket.md")
+        combined = (
+            _read_source(REPO_ROOT / "plan.md")
+            + "\n"
+            + _read_source(REPO_ROOT / "ticket.md")
+            + "\n"
+            + _read_source(REPO_ROOT / "review-decision.md")
+        )
         assert "--entrypoint governance.entrypoints." not in combined
 
     def test_happy_referenced_modules_exist(self):
@@ -560,6 +573,7 @@ class TestNoRoguePaths:
         "review.md",
         "plan.md",
         "ticket.md",
+        "review-decision.md",
         "audit-readout.md",
         "README.md",
         "README-RULES.md",
@@ -679,7 +693,7 @@ class TestNoRoguePaths:
         - Relative references within installed tree
         """
         entrypoints_dir = REPO_ROOT / "governance" / "entrypoints"
-        rail_files = ["continue.md", "review.md", "plan.md", "ticket.md"]
+        rail_files = ["continue.md", "review.md", "plan.md", "ticket.md", "review-decision.md"]
 
         for fname in rail_files:
             content = _read_source(REPO_ROOT / fname)

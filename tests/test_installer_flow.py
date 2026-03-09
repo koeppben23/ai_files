@@ -1259,7 +1259,7 @@ class TestRepoLauncherContractDrift:
     def test_corner_repo_wrappers_support_canonical_subcommands(self) -> None:
         unix_content = (REPO_ROOT / "bin" / "opencode-governance-bootstrap").read_text(encoding="utf-8")
         win_content = (REPO_ROOT / "bin" / "opencode-governance-bootstrap.cmd").read_text(encoding="utf-8")
-        for token in ["--ticket-persist", "--plan-persist", "--session-reader"]:
+        for token in ["--ticket-persist", "--plan-persist", "--review-decision-persist", "--session-reader"]:
             assert token in unix_content
             assert token in win_content
 

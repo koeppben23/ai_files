@@ -661,9 +661,12 @@ class TestNormalizePhase6P5StateFailClosed:
         # Gate value is NOT overwritten.
         assert ss["Gates"]["P5.3-TestQuality"] == "pending"
         # Fail-closed reset fields:
+        assert ss["Phase"] == "5-ArchitectureReview"
+        assert ss["Next"] == "5.3"
         assert ss["phase6_state"] == "phase5_in_progress"
         assert ss["implementation_review_complete"] is False
-        assert ss["active_gate"] == "P5.3-TestQuality"
+        assert ss["active_gate"] == "Test Quality Gate"
+        assert "Test Quality Gate" in ss["next_gate_condition"]
         assert "workflow_complete" not in ss
         assert "WorkflowComplete" not in ss
 
@@ -689,8 +692,47 @@ class TestNormalizePhase6P5StateFailClosed:
         assert norm["blocking_reason_code"] == "BLOCKED-P6-PREREQUISITES-NOT-MET"
         assert norm["action"] == "fail-closed-reset-to-p5"
         # Fail-closed reset:
+        assert ss["Phase"] == "5-ArchitectureReview"
+        assert ss["Next"] == "5"
         assert ss["phase6_state"] == "phase5_in_progress"
-        assert ss["active_gate"] == "P5-Architecture"
+        assert ss["active_gate"] == "Architecture Review Gate"
+
+    def test_normalization_writes_context_fields(self) -> None:
+        state_doc = {"SESSION_STATE": {
+            "Phase": "6-PostFlight",
+            "Next": "6",
+            "Gates": {
+                "P5-Architecture": "approved",
+                "P5.3-TestQuality": "pending",
+            },
+        }}
+        _normalize_phase6_p5_state(state_doc=state_doc)
+        norm = state_doc["SESSION_STATE"]["_p6_state_normalization"]
+        assert norm["reason"] == "WARN-P6-STATE-INCONSISTENCY"
+        assert norm["original_phase"] == "6-PostFlight"
+        assert norm["original_next"] == "6"
+        assert norm["corrected_phase"] == "5-ArchitectureReview"
+        assert norm["corrected_next"] == "5.3"
+        assert norm["corrected_active_gate"] == "Test Quality Gate"
+
+    def test_normalization_writes_warning_event_when_events_path_provided(self, tmp_path: Path) -> None:
+        state_doc = {"SESSION_STATE": {
+            "Phase": "6-PostFlight",
+            "Next": "6",
+            "Gates": {
+                "P5-Architecture": "approved",
+                "P5.5-TechnicalDebt": "rejected",
+            },
+        }}
+        events_path = tmp_path / "events.jsonl"
+        _normalize_phase6_p5_state(state_doc=state_doc, events_path=events_path)
+        assert events_path.exists()
+        event = json.loads(events_path.read_text(encoding="utf-8").splitlines()[-1])
+        assert event["event"] == "P6_STATE_NORMALIZED"
+        assert event["reason_code"] == "WARN-P6-STATE-INCONSISTENCY"
+        assert event["first_open_gate"] == "P5.5-TechnicalDebt"
+        assert event["corrected_phase"] == "5-ArchitectureReview"
+        assert event["corrected_next"] == "5.5"
 
     def test_all_gates_terminal_no_flag(self) -> None:
         """When every present gate is terminal, no normalization flag."""
@@ -1007,7 +1049,7 @@ class TestNormalizationSSOT:
         ss = state_doc["SESSION_STATE"]
         # First open gate should be P5-Architecture (comes first in SSOT ordering).
         assert ss["_p6_state_normalization"]["first_open_gate"] == "P5-Architecture"
-        assert ss["active_gate"] == "P5-Architecture"
+        assert ss["active_gate"] == "Architecture Review Gate"
 
     def test_normalization_reason_code_matches_evaluator(self) -> None:
         """The blocking_reason_code from normalization matches what the

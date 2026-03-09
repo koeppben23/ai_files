@@ -167,4 +167,5 @@ def test_launcher_contract_declares_final_surface_only():
     assert "--session-reader" in text
     assert "--ticket-persist" in text
     assert "--plan-persist" in text
+    assert "--review-decision-persist" in text
     assert "--entrypoint" not in text

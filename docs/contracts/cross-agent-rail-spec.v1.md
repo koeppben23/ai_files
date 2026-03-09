@@ -58,6 +58,7 @@ Is the file an LLM behavioral instruction or command template?
 | `audit-readout.md` | model-rail | `READ-ONLY, OUTPUT-ONLY, NO-STATE-CHANGE` |
 | `ticket.md` | model-rail | `MUTATING, GATE-EVALUATION` |
 | `plan.md` | model-rail | `MUTATING, GATE-EVALUATION` |
+| `review-decision.md` | model-rail | `MUTATING, GATE-EVALUATION` |
 | `master.md` | model-rail | `GUIDANCE, MULTI-PHASE` |
 | `rules.md` | model-rail | `CONSTRAINT-SET, CROSS-PHASE` |
 | `BOOTSTRAP.md` | model-rail | `MUTATING, BOOTSTRAP` |
@@ -204,7 +205,7 @@ of model-rail files, excluding lines starting with `# EXAMPLE ONLY`.
 ### CR-07 — Tiered Fallback Structure
 
 **Scope:** model-rail (command rails only: continue.md, review.md, audit-readout.md,
-ticket.md, plan.md)
+ticket.md, plan.md, review-decision.md)
 
 Every command rail that includes a shell command block must provide a three-tier
 fallback structure:
