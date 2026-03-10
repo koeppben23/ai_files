@@ -240,6 +240,16 @@ def verify_run_archive(run_root: Path) -> Tuple[bool, Dict[str, bool], Optional[
     if provenance_launcher != "governance.entrypoints.new_work_session":
         return False, results, f"Invalid provenance launcher: {provenance_launcher}"
 
+    binding = provenance.get("binding")
+    if not isinstance(binding, dict):
+        return False, results, "provenance-record.json missing binding map"
+    binding_repo = str(binding.get("repo_fingerprint") or "").strip()
+    binding_session_run_id = str(binding.get("session_run_id") or "").strip()
+    if binding_repo != manifest_repo:
+        return False, results, "provenance binding repo_fingerprint mismatch"
+    if binding_session_run_id != run_id:
+        return False, results, "provenance binding session_run_id mismatch"
+
     timestamps = provenance.get("timestamps")
     if not isinstance(timestamps, dict):
         return False, results, "provenance-record.json missing timestamps map"

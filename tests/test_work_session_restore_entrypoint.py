@@ -81,6 +81,10 @@ def _write_archive_run(workspace: Path, run_id: str, phase: str, next_token: str
             "repo_fingerprint": "abc123def456abc123def456",
             "run_id": run_id,
             "trigger": "new_work_session_created",
+            "binding": {
+                "repo_fingerprint": "abc123def456abc123def456",
+                "session_run_id": run_id,
+            },
             "launcher": "governance.entrypoints.new_work_session",
             "timestamps": {"materialized_at": "2026-01-01T00:00:00Z"},
         },
