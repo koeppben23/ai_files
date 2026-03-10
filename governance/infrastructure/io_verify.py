@@ -165,6 +165,8 @@ def verify_run_archive(run_root: Path) -> Tuple[bool, Dict[str, bool], Optional[
             return False, results, "Finalized run must have integrity_status=passed"
         if not isinstance(finalized_at, str) or not finalized_at.strip():
             return False, results, "Finalized run must have finalized_at"
+        if not _RFC3339_UTC_Z_RE.match(finalized_at.strip()):
+            return False, results, f"Invalid finalized_at format: {finalized_at}"
         if finalization_errors is not None:
             return False, results, "Finalized run must not include finalization_errors"
     elif run_status == "failed":
@@ -191,6 +193,10 @@ def verify_run_archive(run_root: Path) -> Tuple[bool, Dict[str, bool], Optional[
         return False, results, "run-manifest.json missing materialized_at"
     if not archived_at_metadata:
         return False, results, "metadata.json missing archived_at"
+    if not _RFC3339_UTC_Z_RE.match(materialized_at_manifest):
+        return False, results, f"Invalid run-manifest materialized_at format: {materialized_at_manifest}"
+    if not _RFC3339_UTC_Z_RE.match(archived_at_metadata):
+        return False, results, f"Invalid metadata archived_at format: {archived_at_metadata}"
     if materialized_at_manifest != archived_at_metadata:
         return False, results, "materialized_at/archived_at mismatch between run-manifest and metadata"
 
@@ -256,6 +262,8 @@ def verify_run_archive(run_root: Path) -> Tuple[bool, Dict[str, bool], Optional[
     materialized_at = timestamps.get("materialized_at")
     if not isinstance(materialized_at, str) or not materialized_at.strip():
         return False, results, "provenance-record.json missing timestamps.materialized_at"
+    if not _RFC3339_UTC_Z_RE.match(materialized_at.strip()):
+        return False, results, f"Invalid provenance materialized_at format: {materialized_at}"
     if str(materialized_at).strip() != materialized_at_manifest:
         return False, results, "materialized_at mismatch between run-manifest and provenance"
 

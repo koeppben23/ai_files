@@ -197,6 +197,32 @@ def test_verify_rejects_provenance_binding_mismatch(tmp_path: Path) -> None:
     assert "provenance binding session_run_id mismatch" in message
 
 
+def test_verify_rejects_non_utc_z_timestamps(tmp_path: Path) -> None:
+    workspaces_home = tmp_path / "workspaces"
+    fingerprint = "abc123def456abc123def456"
+    state = {"session_run_id": "run-ts-format", "Phase": "6-PostFlight", "active_gate": "Post Flight", "Next": "6"}
+
+    archive_active_run(
+        workspaces_home=workspaces_home,
+        repo_fingerprint=fingerprint,
+        run_id="run-ts-format",
+        observed_at="2026-03-10T16:10:00Z",
+        session_state_document={"SESSION_STATE": state},
+        state_view=state,
+    )
+
+    run_root = workspaces_home / fingerprint / "runs" / "run-ts-format"
+    manifest = json.loads((run_root / "run-manifest.json").read_text(encoding="utf-8"))
+    manifest["finalized_at"] = "2026-03-10T16:10:00+00:00"
+    (run_root / "run-manifest.json").write_text(json.dumps(manifest, ensure_ascii=True), encoding="utf-8")
+    _recompute_checksums(run_root)
+
+    ok, _, message = verify_run_archive(run_root)
+    assert ok is False
+    assert isinstance(message, str)
+    assert "Invalid finalized_at format" in message
+
+
 def test_verify_rejects_malformed_archive_json_payloads(tmp_path: Path) -> None:
     workspaces_home = tmp_path / "workspaces"
     fingerprint = "abc123def456abc123def456"
