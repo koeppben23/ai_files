@@ -472,3 +472,33 @@ def test_verify_rejects_archived_files_presence_mismatch(tmp_path: Path) -> None
     assert ok is False
     assert isinstance(message, str)
     assert "archived_files mismatch for pr-record.json" in message
+
+
+def test_verify_rejects_present_optional_artifact_without_checksum(tmp_path: Path) -> None:
+    workspaces_home = tmp_path / "workspaces"
+    fingerprint = "abc123def456abc123def456"
+    state = {"session_run_id": "run-optional-checksum", "Phase": "6-PostFlight", "active_gate": "Post Flight", "Next": "6"}
+
+    archive_active_run(
+        workspaces_home=workspaces_home,
+        repo_fingerprint=fingerprint,
+        run_id="run-optional-checksum",
+        observed_at="2026-03-10T15:20:00Z",
+        session_state_document={"SESSION_STATE": state},
+        state_view=state,
+    )
+
+    run_root = workspaces_home / fingerprint / "runs" / "run-optional-checksum"
+    (run_root / "pr-record.json").write_text(json.dumps({"schema": "governance.pr-record.v1", "title": "x", "body": "y"}), encoding="utf-8")
+    metadata = json.loads((run_root / "metadata.json").read_text(encoding="utf-8"))
+    archived_files = metadata.get("archived_files")
+    assert isinstance(archived_files, dict)
+    archived_files["pr_record"] = True
+    metadata["archived_files"] = archived_files
+    (run_root / "metadata.json").write_text(json.dumps(metadata, ensure_ascii=True), encoding="utf-8")
+    _recompute_checksums(run_root)
+
+    ok, _, message = verify_run_archive(run_root)
+    assert ok is False
+    assert isinstance(message, str)
+    assert "Present artifact not checksummed: pr-record.json" in message

@@ -313,6 +313,14 @@ def verify_run_archive(run_root: Path) -> Tuple[bool, Dict[str, bool], Optional[
         if filename not in files:
             return False, results, f"Required artifact not checksummed: {filename}"
 
+    present_optional = [
+        "plan-record.json",
+        "pr-record.json",
+    ]
+    for filename in present_optional:
+        if (run_root / filename).is_file() and filename not in files:
+            return False, results, f"Present artifact not checksummed: {filename}"
+
     return True, results, None
 
 
