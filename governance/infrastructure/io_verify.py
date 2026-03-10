@@ -1,7 +1,11 @@
 import hashlib
 import json
+import re
 from pathlib import Path
 from typing import Dict, Optional, Tuple
+
+
+_RFC3339_UTC_Z_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
 
 
 def verify_pointer(pointer_path: Path, expected_fingerprint: str) -> Tuple[bool, Optional[str]]:
@@ -377,6 +381,12 @@ def verify_repository_manifest(runs_root: Path, *, expected_repo_fingerprint: Op
             False,
             f"repository manifest fingerprint mismatch: expected {expected_repo_fingerprint}, got {repo_fingerprint}",
         )
+
+    created_at = str(payload.get("created_at") or "").strip()
+    if not created_at:
+        return False, "repository-manifest.json missing created_at"
+    if not _RFC3339_UTC_Z_RE.match(created_at):
+        return False, f"Invalid repository manifest created_at format: {created_at}"
 
     topology = payload.get("storage_topology")
     if not isinstance(topology, dict):
