@@ -318,6 +318,17 @@ def _snapshot_ref_present(events: list[dict[str, object]], *, last_snapshot: Map
     return False, notes
 
 
+def _snapshot_quality(last_snapshot: Mapping[str, object]) -> list[str]:
+    notes: list[str] = []
+    run_status = str(last_snapshot.get("run_status") or "unknown").strip()
+    integrity_status = str(last_snapshot.get("integrity_status") or "unknown").strip()
+    if run_status != "finalized":
+        notes.append(f"snapshot-run-not-finalized:{run_status or 'unknown'}")
+    if integrity_status != "passed":
+        notes.append(f"snapshot-integrity-not-passed:{integrity_status or 'unknown'}")
+    return notes
+
+
 def _active_run_pointer_consistent(active: Mapping[str, object], *, pointer_run_id: str) -> tuple[bool, list[str]]:
     notes: list[str] = []
     active_run_id = str(active.get("run_id") or "").strip()
@@ -419,6 +430,7 @@ def build_audit_readout(
     snapshot_ref_present, snapshot_ref_notes = _snapshot_ref_present(tail, last_snapshot=last_snapshot)
     run_id_consistent, run_id_notes = _run_id_consistent(active, tail)
     monotonic_timestamps, monotonic_notes = _timestamps_monotonic(tail, last_snapshot=last_snapshot)
+    snapshot_quality_notes = _snapshot_quality(last_snapshot)
     pointer_consistent, pointer_integrity_notes = _active_run_pointer_consistent(active, pointer_run_id=pointer_run_id)
     reactivation_consistent, reactivation_notes = _reactivation_chain_consistent(
         active,
@@ -446,6 +458,7 @@ def build_audit_readout(
             + pointer_integrity_notes
             + snapshot_notes
             + snapshot_ref_notes
+            + snapshot_quality_notes
             + run_id_notes
             + monotonic_notes
             + reactivation_notes,

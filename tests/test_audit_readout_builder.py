@@ -457,6 +457,8 @@ def test_archive_without_manifest_or_checksums_emits_notes(tmp_path: Path) -> No
     assert isinstance(notes, list)
     assert "run-manifest-missing:work-1" in notes
     assert "run-checksums-missing:work-1" in notes
+    assert "snapshot-run-not-finalized:unknown" in notes
+    assert "snapshot-integrity-not-passed:unknown" in notes
 
 
 def test_last_snapshot_includes_run_and_integrity_status(tmp_path: Path) -> None:
@@ -534,6 +536,12 @@ def test_last_snapshot_includes_run_and_integrity_status(tmp_path: Path) -> None
 
     payload = build_audit_readout(commands_home=commands_home)
     snapshot = payload.get("last_snapshot")
+    integrity = payload.get("integrity")
     assert isinstance(snapshot, dict)
+    assert isinstance(integrity, dict)
     assert snapshot["run_status"] == "finalized"
     assert snapshot["integrity_status"] == "passed"
+    notes = integrity.get("notes")
+    assert isinstance(notes, list)
+    assert "snapshot-run-not-finalized:unknown" not in notes
+    assert "snapshot-integrity-not-passed:unknown" not in notes
