@@ -424,6 +424,12 @@ def verify_repository_manifest(runs_root: Path, *, expected_repo_fingerprint: Op
         return False, "repository-manifest.json missing repo_fingerprint"
     if not _REPO_FINGERPRINT_RE.match(repo_fingerprint):
         return False, f"Invalid repository manifest repo_fingerprint format: {repo_fingerprint}"
+    parent_fingerprint = runs_root.parent.name
+    if _REPO_FINGERPRINT_RE.match(parent_fingerprint) and repo_fingerprint != parent_fingerprint:
+        return (
+            False,
+            f"repository manifest fingerprint/path mismatch: expected {parent_fingerprint}, got {repo_fingerprint}",
+        )
     if expected_repo_fingerprint and repo_fingerprint != expected_repo_fingerprint:
         return (
             False,

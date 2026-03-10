@@ -367,6 +367,16 @@ def test_verify_repository_manifest_contract(tmp_path: Path) -> None:
     manifest["repo_fingerprint"] = "abc123def456abc123def456"
     (runs_root / "repository-manifest.json").write_text(json.dumps(manifest, ensure_ascii=True), encoding="utf-8")
 
+    manifest["repo_fingerprint"] = "ffffffffffffffffffffffff"
+    (runs_root / "repository-manifest.json").write_text(json.dumps(manifest, ensure_ascii=True), encoding="utf-8")
+    ok, message = verify_repository_manifest(runs_root)
+    assert ok is False
+    assert isinstance(message, str)
+    assert "fingerprint/path mismatch" in message
+
+    manifest["repo_fingerprint"] = "abc123def456abc123def456"
+    (runs_root / "repository-manifest.json").write_text(json.dumps(manifest, ensure_ascii=True), encoding="utf-8")
+
     manifest["storage_topology"]["audit_runs_root"] = "workspaces/<fingerprint>/archives"
     (runs_root / "repository-manifest.json").write_text(json.dumps(manifest, ensure_ascii=True), encoding="utf-8")
     ok, message = verify_repository_manifest(runs_root, expected_repo_fingerprint="abc123def456abc123def456")

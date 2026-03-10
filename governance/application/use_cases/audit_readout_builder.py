@@ -463,7 +463,8 @@ def build_audit_readout(
         run_archives=run_archives,
     )
     run_archives_verified = not any(
-        note.startswith("run-verify-failed:") for note in archive_notes
+        note.startswith("run-verify-failed:") or note.startswith("repository-manifest-invalid:")
+        for note in archive_notes
     )
 
     payload = {
