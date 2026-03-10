@@ -75,6 +75,9 @@ def verify_run_archive(run_root: Path) -> Tuple[bool, Dict[str, bool], Optional[
     checksums_payload = json.loads((run_root / "checksums.json").read_text(encoding="utf-8"))
     if not isinstance(checksums_payload, dict):
         return False, results, "Invalid checksums.json payload"
+    checksum_schema = str(checksums_payload.get("schema") or "").strip()
+    if checksum_schema != "governance.run-checksums.v1":
+        return False, results, f"Invalid checksums schema: {checksum_schema}"
 
     files = checksums_payload.get("files")
     if not isinstance(files, dict):
