@@ -90,4 +90,52 @@ def verify_run_archive(run_root: Path) -> Tuple[bool, Dict[str, bool], Optional[
         if actual != expected_digest:
             return False, results, f"Checksum mismatch: {rel_name}"
 
+    manifest = json.loads((run_root / "run-manifest.json").read_text(encoding="utf-8"))
+    if not isinstance(manifest, dict):
+        return False, results, "Invalid run-manifest.json payload"
+
+    run_status = str(manifest.get("run_status") or "").strip()
+    record_status = str(manifest.get("record_status") or "").strip()
+    integrity_status = str(manifest.get("integrity_status") or "").strip()
+    finalized_at = manifest.get("finalized_at")
+    required_artifacts = manifest.get("required_artifacts")
+
+    allowed_run_status = {"in_progress", "materialized", "finalized", "failed", "invalidated"}
+    allowed_record_status = {"draft", "finalized", "superseded", "invalidated"}
+    if run_status not in allowed_run_status:
+        return False, results, f"Invalid run_status: {run_status}"
+    if record_status not in allowed_record_status:
+        return False, results, f"Invalid record_status: {record_status}"
+
+    if run_status == "finalized":
+        if integrity_status != "passed":
+            return False, results, "Finalized run must have integrity_status=passed"
+        if not isinstance(finalized_at, str) or not finalized_at.strip():
+            return False, results, "Finalized run must have finalized_at"
+
+    if not isinstance(required_artifacts, dict):
+        return False, results, "run-manifest.json missing required_artifacts map"
+    for artifact_name, required_flag in required_artifacts.items():
+        if not isinstance(artifact_name, str) or not isinstance(required_flag, bool):
+            return False, results, "required_artifacts has invalid entries"
+        if not required_flag:
+            continue
+        filename = artifact_name.replace("_", "-") + ".json"
+        if artifact_name == "session_state":
+            filename = "SESSION_STATE.json"
+        if artifact_name == "metadata":
+            filename = "metadata.json"
+        if artifact_name == "checksums":
+            filename = "checksums.json"
+        if artifact_name == "run_manifest":
+            filename = "run-manifest.json"
+        if artifact_name == "provenance":
+            filename = "provenance-record.json"
+        if not (run_root / filename).is_file():
+            return False, results, f"Required artifact missing: {filename}"
+        if filename == "checksums.json":
+            continue
+        if filename not in files:
+            return False, results, f"Required artifact not checksummed: {filename}"
+
     return True, results, None

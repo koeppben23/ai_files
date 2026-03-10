@@ -1,9 +1,24 @@
 from __future__ import annotations
 
+import hashlib
+import json
 from pathlib import Path
 
 from governance.infrastructure.io_verify import verify_run_archive
 from governance.infrastructure.work_run_archive import archive_active_run
+
+
+def _recompute_checksums(run_root: Path) -> None:
+    files = {}
+    for name in [
+        "SESSION_STATE.json",
+        "metadata.json",
+        "run-manifest.json",
+        "provenance-record.json",
+    ]:
+        files[name] = "sha256:" + hashlib.sha256((run_root / name).read_bytes()).hexdigest()
+    payload = {"schema": "governance.run-checksums.v1", "files": files}
+    (run_root / "checksums.json").write_text(json.dumps(payload, ensure_ascii=True), encoding="utf-8")
 
 
 def test_verify_detects_tamper_and_incomplete_runs(tmp_path: Path) -> None:
@@ -30,3 +45,15 @@ def test_verify_detects_tamper_and_incomplete_runs(tmp_path: Path) -> None:
     assert ok is False
     assert isinstance(message, str)
     assert "Checksum mismatch" in message
+
+    manifest = json.loads((run_root / "run-manifest.json").read_text(encoding="utf-8"))
+    manifest["run_status"] = "finalized"
+    manifest["integrity_status"] = "failed"
+    manifest["finalized_at"] = ""
+    (run_root / "run-manifest.json").write_text(json.dumps(manifest, ensure_ascii=True), encoding="utf-8")
+    _recompute_checksums(run_root)
+
+    ok, _, message = verify_run_archive(run_root)
+    assert ok is False
+    assert isinstance(message, str)
+    assert "integrity_status=passed" in message
