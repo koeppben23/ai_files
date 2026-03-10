@@ -72,7 +72,10 @@ def verify_run_archive(run_root: Path) -> Tuple[bool, Dict[str, bool], Optional[
         missing = [name for name, present in results.items() if not present]
         return False, results, f"Missing run artifacts: {', '.join(missing)}"
 
-    checksums_payload = json.loads((run_root / "checksums.json").read_text(encoding="utf-8"))
+    try:
+        checksums_payload = json.loads((run_root / "checksums.json").read_text(encoding="utf-8"))
+    except Exception as exc:
+        return False, results, f"Failed to parse checksums.json: {exc}"
     if not isinstance(checksums_payload, dict):
         return False, results, "Invalid checksums.json payload"
     checksum_schema = str(checksums_payload.get("schema") or "").strip()
@@ -93,21 +96,30 @@ def verify_run_archive(run_root: Path) -> Tuple[bool, Dict[str, bool], Optional[
         if actual != expected_digest:
             return False, results, f"Checksum mismatch: {rel_name}"
 
-    manifest = json.loads((run_root / "run-manifest.json").read_text(encoding="utf-8"))
+    try:
+        manifest = json.loads((run_root / "run-manifest.json").read_text(encoding="utf-8"))
+    except Exception as exc:
+        return False, results, f"Failed to parse run-manifest.json: {exc}"
     if not isinstance(manifest, dict):
         return False, results, "Invalid run-manifest.json payload"
     manifest_schema = str(manifest.get("schema") or "").strip()
     if manifest_schema != "governance.run-manifest.v1":
         return False, results, f"Invalid run-manifest schema: {manifest_schema}"
 
-    metadata = json.loads((run_root / "metadata.json").read_text(encoding="utf-8"))
+    try:
+        metadata = json.loads((run_root / "metadata.json").read_text(encoding="utf-8"))
+    except Exception as exc:
+        return False, results, f"Failed to parse metadata.json: {exc}"
     if not isinstance(metadata, dict):
         return False, results, "Invalid metadata.json payload"
     metadata_schema = str(metadata.get("schema") or "").strip()
     if metadata_schema != "governance.work-run.snapshot.v2":
         return False, results, f"Invalid metadata schema: {metadata_schema}"
 
-    provenance = json.loads((run_root / "provenance-record.json").read_text(encoding="utf-8"))
+    try:
+        provenance = json.loads((run_root / "provenance-record.json").read_text(encoding="utf-8"))
+    except Exception as exc:
+        return False, results, f"Failed to parse provenance-record.json: {exc}"
     if not isinstance(provenance, dict):
         return False, results, "Invalid provenance-record.json payload"
     provenance_schema = str(provenance.get("schema") or "").strip()

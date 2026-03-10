@@ -166,3 +166,26 @@ def test_verify_rejects_invalid_manifest_metadata_provenance_schema(tmp_path: Pa
     assert ok is False
     assert isinstance(message, str)
     assert "Invalid provenance schema" in message
+
+
+def test_verify_rejects_malformed_archive_json_payloads(tmp_path: Path) -> None:
+    workspaces_home = tmp_path / "workspaces"
+    fingerprint = "abc123def456abc123def456"
+    state = {"session_run_id": "run-malformed", "Phase": "6-PostFlight", "active_gate": "Post Flight", "Next": "6"}
+
+    archive_active_run(
+        workspaces_home=workspaces_home,
+        repo_fingerprint=fingerprint,
+        run_id="run-malformed",
+        observed_at="2026-03-10T13:55:00Z",
+        session_state_document={"SESSION_STATE": state},
+        state_view=state,
+    )
+
+    run_root = workspaces_home / fingerprint / "runs" / "run-malformed"
+
+    (run_root / "checksums.json").write_text("{", encoding="utf-8")
+    ok, _, message = verify_run_archive(run_root)
+    assert ok is False
+    assert isinstance(message, str)
+    assert "Failed to parse checksums.json" in message
