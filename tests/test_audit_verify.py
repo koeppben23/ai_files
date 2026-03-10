@@ -296,3 +296,29 @@ def test_verify_rejects_failed_run_without_failure_reason(tmp_path: Path) -> Non
     assert ok is False
     assert isinstance(message, str)
     assert "failure_reason" in message
+
+
+def test_verify_rejects_materialized_timestamp_mismatch(tmp_path: Path) -> None:
+    workspaces_home = tmp_path / "workspaces"
+    fingerprint = "abc123def456abc123def456"
+    state = {"session_run_id": "run-ts", "Phase": "6-PostFlight", "active_gate": "Post Flight", "Next": "6"}
+
+    archive_active_run(
+        workspaces_home=workspaces_home,
+        repo_fingerprint=fingerprint,
+        run_id="run-ts",
+        observed_at="2026-03-10T14:30:00Z",
+        session_state_document={"SESSION_STATE": state},
+        state_view=state,
+    )
+
+    run_root = workspaces_home / fingerprint / "runs" / "run-ts"
+    manifest = json.loads((run_root / "run-manifest.json").read_text(encoding="utf-8"))
+    manifest["materialized_at"] = "2026-03-10T14:31:00Z"
+    (run_root / "run-manifest.json").write_text(json.dumps(manifest, ensure_ascii=True), encoding="utf-8")
+    _recompute_checksums(run_root)
+
+    ok, _, message = verify_run_archive(run_root)
+    assert ok is False
+    assert isinstance(message, str)
+    assert "materialized_at/archived_at mismatch" in message

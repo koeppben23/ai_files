@@ -149,6 +149,15 @@ def verify_run_archive(run_root: Path) -> Tuple[bool, Dict[str, bool], Optional[
         if not isinstance(finalized_at, str) or not finalized_at.strip():
             return False, results, "Finalized run must have finalized_at"
 
+    materialized_at_manifest = str(manifest.get("materialized_at") or "").strip()
+    archived_at_metadata = str(metadata.get("archived_at") or "").strip()
+    if not materialized_at_manifest:
+        return False, results, "run-manifest.json missing materialized_at"
+    if not archived_at_metadata:
+        return False, results, "metadata.json missing archived_at"
+    if materialized_at_manifest != archived_at_metadata:
+        return False, results, "materialized_at/archived_at mismatch between run-manifest and metadata"
+
     if not isinstance(required_artifacts, dict):
         return False, results, "run-manifest.json missing required_artifacts map"
 
@@ -197,6 +206,8 @@ def verify_run_archive(run_root: Path) -> Tuple[bool, Dict[str, bool], Optional[
     materialized_at = timestamps.get("materialized_at")
     if not isinstance(materialized_at, str) or not materialized_at.strip():
         return False, results, "provenance-record.json missing timestamps.materialized_at"
+    if str(materialized_at).strip() != materialized_at_manifest:
+        return False, results, "materialized_at mismatch between run-manifest and provenance"
 
     archive_status = str(metadata.get("archive_status") or "").strip()
     finalization_reason = metadata.get("finalization_reason")
