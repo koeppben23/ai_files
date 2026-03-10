@@ -3,15 +3,26 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import importlib
 import json
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Dict, Mapping, Optional, Tuple
 
 from governance.domain.audit_readout_contract import validate_audit_readout_v1
 from governance.domain.canonical_json import canonical_json_hash
 
 POINTER_SCHEMA = "opencode-session-pointer.v1"
 _LEGACY_POINTER_SCHEMA = "active-session-pointer.v1"
+
+
+def _verify_repository_manifest_proxy(runs_dir: Path, *, expected_repo_fingerprint: str) -> Tuple[bool, Optional[str]]:
+    module = importlib.import_module("governance.infrastructure.io_verify")
+    return module.verify_repository_manifest(runs_dir, expected_repo_fingerprint=expected_repo_fingerprint)
+
+
+def _verify_run_archive_proxy(run_dir: Path) -> Tuple[bool, Dict[str, bool], Optional[str]]:
+    module = importlib.import_module("governance.infrastructure.io_verify")
+    return module.verify_run_archive(run_dir)
 
 
 def _read_json(path: Path) -> dict[str, object]:
@@ -118,16 +129,26 @@ def _read_current_run_pointer(workspace_dir: Path) -> tuple[str, list[str]]:
 
 def _list_run_archives(workspace_dir: Path) -> tuple[list[dict[str, object]], list[str]]:
     notes: list[str] = []
-    runs_dir = workspace_dir / "runs"
+    runs_dir = workspace_dir.parent / "governance-records" / workspace_dir.name / "runs"
     if not runs_dir.exists() or not runs_dir.is_dir():
         notes.append("missing-runs-directory")
         return [], notes
+
+    fingerprint_hint = workspace_dir.name
+    repo_manifest_ok, repo_manifest_message = _verify_repository_manifest_proxy(
+        runs_dir,
+        expected_repo_fingerprint=fingerprint_hint,
+    )
+    if not repo_manifest_ok:
+        notes.append(f"repository-manifest-invalid:{repo_manifest_message or 'unknown'}")
 
     archives: list[dict[str, object]] = []
     for entry in sorted([path for path in runs_dir.iterdir() if path.is_dir()], key=lambda p: p.name):
         run_id = entry.name
         metadata_path = entry / "metadata.json"
         snapshot_path = entry / "SESSION_STATE.json"
+        run_manifest_path = entry / "run-manifest.json"
+        checksums_path = entry / "checksums.json"
         if not metadata_path.exists():
             notes.append(f"run-metadata-missing:{run_id}")
             continue
@@ -149,6 +170,25 @@ def _list_run_archives(workspace_dir: Path) -> tuple[list[dict[str, object]], li
         digest = str(metadata.get("snapshot_digest") or "").strip()
         archived_at = str(metadata.get("archived_at") or "").strip()
         source_phase = str(metadata.get("source_phase") or "unknown").strip() or "unknown"
+        run_status = "unknown"
+        integrity_status = "unknown"
+
+        if run_manifest_path.exists():
+            try:
+                run_manifest = _read_json(run_manifest_path)
+                run_status = str(run_manifest.get("run_status") or "unknown").strip() or "unknown"
+                integrity_status = str(run_manifest.get("integrity_status") or "unknown").strip() or "unknown"
+            except Exception:
+                notes.append(f"run-manifest-invalid:{run_id}")
+        else:
+            notes.append(f"run-manifest-missing:{run_id}")
+
+        if not checksums_path.exists():
+            notes.append(f"run-checksums-missing:{run_id}")
+
+        verify_ok, _, verify_message = _verify_run_archive_proxy(entry)
+        if not verify_ok:
+            notes.append(f"run-verify-failed:{run_id}:{verify_message or 'unknown'}")
 
         if not digest:
             notes.append(f"run-snapshot-digest-missing:{run_id}")
@@ -164,6 +204,8 @@ def _list_run_archives(workspace_dir: Path) -> tuple[list[dict[str, object]], li
                 "snapshot_digest": digest,
                 "archived_at": archived_at,
                 "source_phase": source_phase,
+                "run_status": run_status,
+                "integrity_status": integrity_status,
             }
         )
 
@@ -184,6 +226,8 @@ def _build_last_snapshot(
             "archived_at": "1970-01-01T00:00:00Z",
             "source_phase": "none",
             "run_id": "none",
+            "run_status": "unknown",
+            "integrity_status": "unknown",
         }, ["missing-run-archive-snapshot"]
 
     by_run_id = {str(item.get("run_id") or ""): item for item in run_archives}
@@ -297,6 +341,17 @@ def _snapshot_ref_present(events: list[dict[str, object]], *, last_snapshot: Map
     return False, notes
 
 
+def _snapshot_quality(last_snapshot: Mapping[str, object]) -> list[str]:
+    notes: list[str] = []
+    run_status = str(last_snapshot.get("run_status") or "unknown").strip()
+    integrity_status = str(last_snapshot.get("integrity_status") or "unknown").strip()
+    if run_status != "finalized":
+        notes.append(f"snapshot-run-not-finalized:{run_status or 'unknown'}")
+    if integrity_status != "passed":
+        notes.append(f"snapshot-integrity-not-passed:{integrity_status or 'unknown'}")
+    return notes
+
+
 def _active_run_pointer_consistent(active: Mapping[str, object], *, pointer_run_id: str) -> tuple[bool, list[str]]:
     notes: list[str] = []
     active_run_id = str(active.get("run_id") or "").strip()
@@ -398,12 +453,18 @@ def build_audit_readout(
     snapshot_ref_present, snapshot_ref_notes = _snapshot_ref_present(tail, last_snapshot=last_snapshot)
     run_id_consistent, run_id_notes = _run_id_consistent(active, tail)
     monotonic_timestamps, monotonic_notes = _timestamps_monotonic(tail, last_snapshot=last_snapshot)
+    snapshot_quality_notes = _snapshot_quality(last_snapshot)
+    snapshot_quality_ok = len(snapshot_quality_notes) == 0
     pointer_consistent, pointer_integrity_notes = _active_run_pointer_consistent(active, pointer_run_id=pointer_run_id)
     reactivation_consistent, reactivation_notes = _reactivation_chain_consistent(
         active,
         pointer_run_id=pointer_run_id,
         events=tail,
         run_archives=run_archives,
+    )
+    run_archives_verified = not any(
+        note.startswith("run-verify-failed:") or note.startswith("repository-manifest-invalid:")
+        for note in archive_notes
     )
 
     payload = {
@@ -420,11 +481,14 @@ def build_audit_readout(
             "monotonic_timestamps": monotonic_timestamps,
             "active_run_pointer_consistent": pointer_consistent,
             "reactivation_chain_consistent": reactivation_consistent,
+            "snapshot_quality_ok": snapshot_quality_ok,
+            "run_archives_verified": run_archives_verified,
             "notes": archive_notes
             + pointer_notes
             + pointer_integrity_notes
             + snapshot_notes
             + snapshot_ref_notes
+            + snapshot_quality_notes
             + run_id_notes
             + monotonic_notes
             + reactivation_notes,

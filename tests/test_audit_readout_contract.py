@@ -19,6 +19,8 @@ def _valid_payload() -> dict[str, object]:
             "archived_at": "2026-03-05T20:30:00Z",
             "source_phase": "6-PostFlight",
             "run_id": "work-0",
+            "run_status": "finalized",
+            "integrity_status": "passed",
         },
         "chain": {
             "tail_count": 1,
@@ -41,6 +43,8 @@ def _valid_payload() -> dict[str, object]:
             "monotonic_timestamps": True,
             "active_run_pointer_consistent": True,
             "reactivation_chain_consistent": True,
+            "snapshot_quality_ok": True,
+            "run_archives_verified": True,
             "notes": [],
         },
     }
