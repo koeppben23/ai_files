@@ -22,7 +22,7 @@ def test_run_manifest_contains_lifecycle_fields(tmp_path: Path) -> None:
 
     manifest_path = workspaces_home / fingerprint / "runs" / "run-lifecycle" / "run-manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    assert manifest["run_status"] == "materialized"
-    assert manifest["record_status"] == "draft"
-    assert manifest["finalized_at"] is None
-    assert manifest["integrity_status"] == "pending"
+    assert manifest["run_status"] == "finalized"
+    assert manifest["record_status"] == "finalized"
+    assert manifest["finalized_at"] == "2026-03-10T10:10:00Z"
+    assert manifest["integrity_status"] == "passed"

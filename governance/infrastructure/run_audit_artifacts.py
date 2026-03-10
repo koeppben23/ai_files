@@ -46,8 +46,8 @@ def build_run_manifest(
     source_gate: str,
     source_next: str,
     run_type: str,
-    has_plan_record: bool,
-    has_pr_record: bool,
+    requires_plan_record: bool,
+    requires_pr_record: bool,
 ) -> dict[str, object]:
     return {
         "schema": "governance.run-manifest.v1",
@@ -67,11 +67,70 @@ def build_run_manifest(
             "run_manifest": True,
             "metadata": True,
             "provenance": True,
-            "plan_record": has_plan_record,
-            "pr_record": has_pr_record,
+            "plan_record": requires_plan_record,
+            "pr_record": requires_pr_record,
             "checksums": True,
         },
     }
+
+
+def classify_run_type(state_view: Mapping[str, object]) -> str:
+    pr_title = str(state_view.get("PullRequestTitle") or state_view.get("pr_title") or "").strip()
+    pr_body = str(state_view.get("PullRequestBody") or state_view.get("pr_body") or "").strip()
+    if pr_title or pr_body:
+        return "pr"
+
+    plan_digest = str(state_view.get("PlanRecordDigest") or state_view.get("plan_record_digest") or "").strip()
+    plan_status = str(state_view.get("plan_record_status") or state_view.get("PlanRecordStatus") or "").strip().lower()
+    plan_versions = state_view.get("plan_record_versions")
+    if plan_digest or plan_status in {"active", "finalized", "archived"}:
+        return "plan"
+    if isinstance(plan_versions, int) and plan_versions > 0:
+        return "plan"
+    return "analysis"
+
+
+def finalize_run_manifest(
+    manifest: Mapping[str, object],
+    *,
+    observed_at: str,
+    has_plan_record: bool,
+    has_pr_record: bool,
+    integrity_status: str,
+) -> dict[str, object]:
+    out = dict(manifest)
+    required = manifest.get("required_artifacts")
+    required_map = dict(required) if isinstance(required, Mapping) else {}
+
+    missing: list[str] = []
+    if bool(required_map.get("plan_record")) and not has_plan_record:
+        missing.append("plan_record")
+    if bool(required_map.get("pr_record")) and not has_pr_record:
+        missing.append("pr_record")
+
+    if integrity_status != "passed":
+        out["run_status"] = "failed"
+        out["record_status"] = "invalidated"
+        out["integrity_status"] = "failed"
+        out["finalized_at"] = None
+        if missing:
+            out["finalization_errors"] = [f"missing-required-artifact:{item}" for item in missing]
+        return out
+
+    if missing:
+        out["run_status"] = "failed"
+        out["record_status"] = "invalidated"
+        out["integrity_status"] = "failed"
+        out["finalized_at"] = None
+        out["finalization_errors"] = [f"missing-required-artifact:{item}" for item in missing]
+        return out
+
+    out["run_status"] = "finalized"
+    out["record_status"] = "finalized"
+    out["integrity_status"] = "passed"
+    out["finalized_at"] = observed_at
+    out.pop("finalization_errors", None)
+    return out
 
 
 def build_provenance_record(
