@@ -46,6 +46,8 @@ def test_verify_detects_tamper_and_incomplete_runs(tmp_path: Path) -> None:
     assert isinstance(message, str)
     assert "Checksum mismatch" in message
 
+    (run_root / "SESSION_STATE.json").write_text(json.dumps({"SESSION_STATE": state}, ensure_ascii=True), encoding="utf-8")
+
     manifest = json.loads((run_root / "run-manifest.json").read_text(encoding="utf-8"))
     manifest["run_status"] = "finalized"
     manifest["integrity_status"] = "failed"

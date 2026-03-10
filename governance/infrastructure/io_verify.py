@@ -4,6 +4,8 @@ import re
 from pathlib import Path
 from typing import Dict, Optional, Tuple
 
+from governance.domain.canonical_json import canonical_json_hash
+
 
 _RFC3339_UTC_Z_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
 
@@ -131,6 +133,23 @@ def verify_run_archive(run_root: Path) -> Tuple[bool, Dict[str, bool], Optional[
     metadata_schema = str(metadata.get("schema") or "").strip()
     if metadata_schema != "governance.work-run.snapshot.v2":
         return False, results, f"Invalid metadata schema: {metadata_schema}"
+
+    try:
+        session_state_document = json.loads((run_root / "SESSION_STATE.json").read_text(encoding="utf-8"))
+    except Exception as exc:
+        return False, results, f"Failed to parse SESSION_STATE.json: {exc}"
+    if not isinstance(session_state_document, dict):
+        return False, results, "Invalid SESSION_STATE.json payload"
+
+    snapshot_scope = str(metadata.get("snapshot_digest_scope") or "").strip()
+    snapshot_digest = str(metadata.get("snapshot_digest") or "").strip()
+    if snapshot_scope != "session_state":
+        return False, results, f"Invalid snapshot_digest_scope: {snapshot_scope}"
+    if not snapshot_digest:
+        return False, results, "metadata.json missing snapshot_digest"
+    computed_snapshot_digest = canonical_json_hash(session_state_document)
+    if snapshot_digest != computed_snapshot_digest:
+        return False, results, "snapshot_digest mismatch for SESSION_STATE.json"
 
     try:
         provenance = json.loads((run_root / "provenance-record.json").read_text(encoding="utf-8"))

@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from governance.entrypoints import work_session_restore
+from governance.domain.canonical_json import canonical_json_hash
 
 
 def _write_json(path: Path, payload: dict) -> None:
@@ -20,19 +21,17 @@ def _sha256_file(path: Path) -> str:
 
 def _write_archive_run(workspace: Path, run_id: str, phase: str, next_token: str, gate: str) -> None:
     run_root = workspace / "runs" / run_id
-    _write_json(
-        run_root / "SESSION_STATE.json",
-        {
-            "SESSION_STATE": {
-                "RepoFingerprint": "abc123def456abc123def456",
-                "session_run_id": run_id,
-                "Phase": phase,
-                "phase": phase,
-                "Next": next_token,
-                "active_gate": gate,
-            }
-        },
-    )
+    session_state_doc = {
+        "SESSION_STATE": {
+            "RepoFingerprint": "abc123def456abc123def456",
+            "session_run_id": run_id,
+            "Phase": phase,
+            "phase": phase,
+            "Next": next_token,
+            "active_gate": gate,
+        }
+    }
+    _write_json(run_root / "SESSION_STATE.json", session_state_doc)
     _write_json(
         run_root / "metadata.json",
         {
@@ -40,6 +39,8 @@ def _write_archive_run(workspace: Path, run_id: str, phase: str, next_token: str
             "repo_fingerprint": "abc123def456abc123def456",
             "run_id": run_id,
             "archived_at": "2026-01-01T00:00:00Z",
+            "snapshot_digest": canonical_json_hash(session_state_doc),
+            "snapshot_digest_scope": "session_state",
             "archive_status": "materialized",
             "archived_files": {
                 "session_state": True,
