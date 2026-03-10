@@ -638,6 +638,19 @@ def _phase6_evidence_presentation_gate_active(state: Mapping[str, object]) -> bo
     return False
 
 
+def _phase6_rework_clarification_pending(state: Mapping[str, object]) -> bool:
+    """Return True when Phase 6 is waiting for rework clarification."""
+
+    phase6_state = str(state.get("phase6_state") or "").strip().lower()
+    if phase6_state == "phase6_changes_requested":
+        return True
+    for key in ("active_gate", "ActiveGate", "Gate"):
+        value = state.get(key)
+        if isinstance(value, str) and value.strip().lower() == "rework clarification gate":
+            return True
+    return False
+
+
 def _workflow_complete(state: Mapping[str, object]) -> bool:
     """Check if the workflow has been marked complete (approve decision applied)."""
     for key in ("workflow_complete", "WorkflowComplete"):
@@ -811,6 +824,13 @@ def _select_transition(
                 state=state,
                 plan_record_versions=plan_record_versions,
             ):
+                return (
+                    transition.next_token,
+                    transition.source,
+                    transition.active_gate,
+                    transition.next_gate_condition,
+                )
+            if when == "rework_clarification_pending" and _phase6_rework_clarification_pending(state):
                 return (
                     transition.next_token,
                     transition.source,
