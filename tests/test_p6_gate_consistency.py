@@ -414,6 +414,7 @@ class TestReviewDecisionChangesRequested:
         assert ss["active_gate"] == "Rework Clarification Gate"
         assert ss["phase6_state"] == "phase6_changes_requested"
         assert "Clarify requested changes" in ss["next_gate_condition"]
+        assert ss["rework_clarification_consumed"] is False
         assert ss.get("workflow_complete") is None
         assert ss["UserReviewDecision"]["decision"] == "changes_requested"
 
@@ -636,6 +637,29 @@ class TestKernelReviewDecisionRouting:
         )
         assert result.status == "OK"
         assert result.active_gate == "Rework Clarification Gate"
+
+    def test_edge_consumed_rework_state_does_not_reenter_clarification_gate(self, tmp_path: Path) -> None:
+        ctx = _make_ctx(tmp_path)
+        state = _make_phase6_state(extra={
+            "active_gate": "Post Flight",
+            "phase6_state": "phase6_changes_requested",
+            "rework_clarification_consumed": True,
+            "implementation_review_complete": False,
+            "ImplementationReview": {
+                "iteration": 0,
+                "max_iterations": 3,
+                "min_self_review_iterations": 1,
+                "revision_delta": "changed",
+                "implementation_review_complete": False,
+            },
+        })
+        result = execute(
+            current_token="6",
+            session_state_doc={"SESSION_STATE": state},
+            runtime_ctx=ctx,
+        )
+        assert result.status == "OK"
+        assert result.active_gate == "Implementation Internal Review"
 
 
 # ===========================================================================

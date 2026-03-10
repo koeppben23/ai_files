@@ -144,7 +144,7 @@ At the Evidence Presentation Gate, the operator must run `/review-decision` with
 | Decision | Effect |
 |----------|--------|
 | `approve` | Workflow Complete — terminal state within Phase 6 (`workflow_complete=true`) |
-| `changes_requested` | Loop-reset within Phase 6 — `implementation_review_complete` reset to `false`, new review cycle begins |
+| `changes_requested` | Enter `Rework Clarification Gate` in Phase 6 — clarify in chat first, then run exactly one directed rail (`/ticket`, `/plan`, or `/continue`) |
 | `reject` | Back to Phase 4 — restart from planning (Ticket Input Gate) |
 
 **Key:** `/continue` does NOT advance past the Evidence Presentation Gate. The operator must explicitly run `/review-decision`.
