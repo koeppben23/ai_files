@@ -1,4 +1,5 @@
 import json
+import hashlib
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
@@ -56,3 +57,37 @@ def verify_artifacts(workspace_root: Path) -> Tuple[bool, Dict[str, bool], Optio
         return True, results, None
     missing = [k for k, v in results.items() if not v]
     return False, results, f"Missing artifacts: {', '.join(missing)}"
+
+
+def verify_run_archive(run_root: Path) -> Tuple[bool, Dict[str, bool], Optional[str]]:
+    required = [
+        "SESSION_STATE.json",
+        "metadata.json",
+        "run-manifest.json",
+        "provenance-record.json",
+        "checksums.json",
+    ]
+    results: Dict[str, bool] = {name: (run_root / name).is_file() for name in required}
+    if not all(results.values()):
+        missing = [name for name, present in results.items() if not present]
+        return False, results, f"Missing run artifacts: {', '.join(missing)}"
+
+    checksums_payload = json.loads((run_root / "checksums.json").read_text(encoding="utf-8"))
+    if not isinstance(checksums_payload, dict):
+        return False, results, "Invalid checksums.json payload"
+
+    files = checksums_payload.get("files")
+    if not isinstance(files, dict):
+        return False, results, "checksums.json missing files map"
+
+    for rel_name, expected_digest in files.items():
+        if not isinstance(rel_name, str) or not isinstance(expected_digest, str):
+            return False, results, "checksums.json contains invalid entry"
+        candidate = run_root / rel_name
+        if not candidate.is_file():
+            return False, results, f"Checksum target missing: {rel_name}"
+        actual = "sha256:" + hashlib.sha256(candidate.read_bytes()).hexdigest()
+        if actual != expected_digest:
+            return False, results, f"Checksum mismatch: {rel_name}"
+
+    return True, results, None

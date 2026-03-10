@@ -184,6 +184,26 @@ def run_metadata_path(workspaces_home: Path, repo_fingerprint: str, run_id: str)
     return run_dir(workspaces_home, repo_fingerprint, run_id) / "metadata.json"
 
 
+def run_manifest_path(workspaces_home: Path, repo_fingerprint: str, run_id: str) -> Path:
+    return run_dir(workspaces_home, repo_fingerprint, run_id) / "run-manifest.json"
+
+
+def run_checksums_path(workspaces_home: Path, repo_fingerprint: str, run_id: str) -> Path:
+    return run_dir(workspaces_home, repo_fingerprint, run_id) / "checksums.json"
+
+
+def run_provenance_path(workspaces_home: Path, repo_fingerprint: str, run_id: str) -> Path:
+    return run_dir(workspaces_home, repo_fingerprint, run_id) / "provenance-record.json"
+
+
+def run_pr_record_path(workspaces_home: Path, repo_fingerprint: str, run_id: str) -> Path:
+    return run_dir(workspaces_home, repo_fingerprint, run_id) / "pr-record.json"
+
+
+def repository_manifest_path(workspaces_home: Path, repo_fingerprint: str) -> Path:
+    return runs_dir(workspaces_home, repo_fingerprint) / "repository-manifest.json"
+
+
 def current_run_path(workspaces_home: Path, repo_fingerprint: str) -> Path:
     return workspace_root(workspaces_home, repo_fingerprint) / "current_run.json"
 
