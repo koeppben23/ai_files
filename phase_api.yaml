@@ -157,7 +157,7 @@ phases:
         next: "4"
         source: "phase-4-awaiting-ticket-intake"
         active_gate: "Ticket Input Gate"
-        next_gate_condition: "Provide ticket/task details to continue from Phase 4 to Phase 5"
+        next_gate_condition: "Provide ticket/task details to continue from Phase 4 to Phase 5, or run /review to enter the review path"
 
   - token: "5"
     phase: "5-ArchitectureReview"

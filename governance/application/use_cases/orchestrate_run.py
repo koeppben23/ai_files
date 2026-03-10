@@ -140,18 +140,17 @@ class EngineOrchestratorOutput:
     resolved_output_intent: ResolvedOutputIntent | None = None
 
 
-def _phase5_review_pending_architecture(
-    *,
-    phase: str,
-    session_state_document: Mapping[str, object] | None,
-) -> bool:
-    if phase_token(phase) != "5":
-        return False
-    state = session_state_root(session_state_document)
-    gates = state.get("Gates")
-    if not isinstance(gates, Mapping):
+def _code_output_blocked_before_phase6(*, phase: str) -> bool:
+    """Return True when code-producing actions must be blocked.
+
+    Governance contract: code-producing output is blocked until Phase 6.
+    Unknown phase tokens fail closed and are also treated as blocked.
+    """
+
+    token = phase_token(phase)
+    if not token:
         return True
-    return str(gates.get("P5-Architecture") or "").strip().lower() != "approved"
+    return token != "6"
 
 
 def run_engine_orchestrator(
@@ -268,6 +267,8 @@ def run_engine_orchestrator(
                         repo_fingerprint=state_fingerprint or live_fingerprint,
                         committed=bool(getattr(gate, "ok", False)),
                     )
+
+    requested_phase_value = phase
 
     routed_phase = route_phase(
         requested_phase=phase,
@@ -456,13 +457,7 @@ def run_engine_orchestrator(
     if (
         not gate_blocked
         and is_code_output_request(requested_action)
-        and (
-            phase_token(phase) == "4"
-            or _phase5_review_pending_architecture(
-                phase=phase,
-                session_state_document=session_state_document,
-            )
-        )
+        and _code_output_blocked_before_phase6(phase=requested_phase_value)
     ):
         gate_blocked = True
         gate_reason_code = BLOCKED_STATE_OUTDATED

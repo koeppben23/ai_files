@@ -2414,14 +2414,85 @@ class TestResolveNextActionLine:
             "Next action: run /plan with explicit rollback-safety evidence."
         )
 
-    def test_empty_for_ticket_intake(self) -> None:
-        """Ticket intake condition returns empty (needs /ticket, not /continue)."""
+    def test_phase4_ticket_intake_surfaces_both_paths(self) -> None:
+        """Phase 4 ticket intake must surface both /ticket and /review paths."""
+        snapshot = {
+            "status": "OK",
+            "phase": "4",
+            "active_gate": "Ticket Input Gate",
+            "next_gate_condition": "Collect ticket and planning constraints",
+        }
+        assert _resolve_next_action_line(snapshot) == (
+            "Next action: run /ticket with the ticket/task details to enter the development path. "
+            "Alternative: run /review to enter the review path."
+        )
+
+    def test_happy_workflow_complete_emits_terminal_next_action(self) -> None:
+        """Happy: workflow complete always emits an explicit terminal recommendation."""
+        snapshot = {
+            "status": "OK",
+            "phase": "6-PostFlight",
+            "active_gate": "Workflow Complete",
+            "next_gate_condition": "Workflow approved.",
+        }
+        assert _resolve_next_action_line(snapshot) == (
+            "Next action: governance workflow is complete; no further governance command is required."
+        )
+
+    def test_corner_workflow_complete_gate_name_is_case_insensitive(self) -> None:
+        """Corner: mixed-case gate labels still emit terminal recommendation."""
+        snapshot = {
+            "status": "OK",
+            "phase": "6-PostFlight",
+            "active_gate": "wOrKfLoW cOmPlEtE",
+            "next_gate_condition": "Workflow approved.",
+        }
+        assert _resolve_next_action_line(snapshot) == (
+            "Next action: governance workflow is complete; no further governance command is required."
+        )
+
+    def test_edge_ticket_intake_without_active_gate_still_suppresses_continue(self) -> None:
+        """Edge: ticket intake wording without active_gate never recommends /continue."""
         snapshot = {
             "status": "OK",
             "phase": "4",
             "next_gate_condition": "Collect ticket and planning constraints",
         }
         assert _resolve_next_action_line(snapshot) == ""
+
+    def test_bad_error_status_workflow_complete_emits_no_recommendation(self) -> None:
+        """Bad: error status suppresses recommendation even at workflow complete gate."""
+        snapshot = {
+            "status": "ERROR",
+            "phase": "6-PostFlight",
+            "active_gate": "Workflow Complete",
+            "next_gate_condition": "Workflow approved.",
+        }
+        assert _resolve_next_action_line(snapshot) == ""
+
+
+class TestMaterializeOutputActionLine:
+    """Ensure action guidance is printed as the final line in materialize mode."""
+
+    def test_happy_terminal_recommendation_is_last_line(self, capsys: pytest.CaptureFixture) -> None:
+        snapshot = {
+            "schema": SNAPSHOT_SCHEMA,
+            "status": "OK",
+            "phase": "6-PostFlight",
+            "next": "6",
+            "active_gate": "Workflow Complete",
+            "next_gate_condition": "Workflow approved.",
+        }
+        with patch(
+            "governance.entrypoints.session_reader.read_session_snapshot",
+            return_value=snapshot,
+        ):
+            rc = main(["--materialize"])
+        assert rc == 0
+        output = capsys.readouterr().out
+        assert output.strip().endswith(
+            "Next action: governance workflow is complete; no further governance command is required."
+        )
 
 
 class TestRouteTargetExplanation:

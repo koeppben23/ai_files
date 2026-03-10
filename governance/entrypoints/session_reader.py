@@ -826,9 +826,13 @@ def _resolve_next_action_line(snapshot: dict) -> str:
     the required gate work yet.
     """
     phase_str = str(snapshot.get("phase", "")).strip()
+    status = str(snapshot.get("status", "")).strip().lower()
     active_gate = str(snapshot.get("active_gate", "")).strip().lower()
     plan_status = str(snapshot.get("plan_record_status", "")).strip().lower()
     plan_versions = _coerce_int(snapshot.get("plan_record_versions"))
+
+    if status in {"", "error", "blocked"}:
+        return ""
 
     # Phase 5 plan-record prep is an explicit write gate: /continue must NOT
     # be recommended before the plan record exists.
@@ -841,7 +845,7 @@ def _resolve_next_action_line(snapshot: dict) -> str:
     # conditions — but we still need to emit the /review-decision guidance.
     if phase_str.startswith("6"):
         if active_gate == "workflow complete":
-            return ""
+            return "Next action: governance workflow is complete; no further governance command is required."
         if active_gate == "evidence presentation gate":
             return "Next action: submit final review decision via /review-decision (approve | changes_requested | reject)."
 
@@ -863,6 +867,19 @@ def _resolve_next_action_line(snapshot: dict) -> str:
         if p56_status in {"approved", "not-applicable"}:
             return "Next action: run /continue."
         return "Next action: run /plan with explicit rollback-safety evidence."
+
+    # Phase 4 ticket intake has two explicit operator paths. Surface both,
+    # instead of returning an empty next-action line, so operators do not
+    # miss the /review route.
+    if (
+        phase_str.startswith("4")
+        and status not in {"", "error", "blocked"}
+        and active_gate == "ticket input gate"
+    ):
+        return (
+            "Next action: run /ticket with the ticket/task details to enter the development path. "
+            "Alternative: run /review to enter the review path."
+        )
 
     if not _should_emit_continue_next_action(snapshot):
         return ""

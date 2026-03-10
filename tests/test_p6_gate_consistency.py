@@ -612,7 +612,7 @@ class TestEvidencePresentationGateGuidance:
         line = _resolve_next_action_line(snapshot)
         assert "/review-decision" in line
 
-    def test_workflow_complete_returns_empty(self) -> None:
+    def test_workflow_complete_returns_terminal_next_action(self) -> None:
         snapshot = {
             "phase": "6-PostFlight",
             "active_gate": "Workflow Complete",
@@ -620,7 +620,9 @@ class TestEvidencePresentationGateGuidance:
             "next_gate_condition": "Workflow approved.",
         }
         line = _resolve_next_action_line(snapshot)
-        assert line == ""
+        assert line == (
+            "Next action: governance workflow is complete; no further governance command is required."
+        )
 
     def test_should_not_emit_continue_for_review_decision(self) -> None:
         snapshot = {
