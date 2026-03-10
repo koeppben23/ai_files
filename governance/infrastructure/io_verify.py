@@ -143,6 +143,7 @@ def verify_run_archive(run_root: Path) -> Tuple[bool, Dict[str, bool], Optional[
     run_type = str(manifest.get("run_type") or "").strip()
     integrity_status = str(manifest.get("integrity_status") or "").strip()
     finalized_at = manifest.get("finalized_at")
+    finalization_errors = manifest.get("finalization_errors")
     required_artifacts = manifest.get("required_artifacts")
 
     allowed_run_status = {"in_progress", "materialized", "finalized", "failed", "invalidated"}
@@ -160,6 +161,8 @@ def verify_run_archive(run_root: Path) -> Tuple[bool, Dict[str, bool], Optional[
             return False, results, "Finalized run must have integrity_status=passed"
         if not isinstance(finalized_at, str) or not finalized_at.strip():
             return False, results, "Finalized run must have finalized_at"
+        if finalization_errors is not None:
+            return False, results, "Finalized run must not include finalization_errors"
     elif run_status == "failed":
         if integrity_status != "failed":
             return False, results, "Failed run must have integrity_status=failed"
@@ -167,6 +170,11 @@ def verify_run_archive(run_root: Path) -> Tuple[bool, Dict[str, bool], Optional[
             return False, results, "Failed run must not have finalized_at"
         if record_status != "invalidated":
             return False, results, "Failed run must have record_status=invalidated"
+        if not isinstance(finalization_errors, list) or not finalization_errors:
+            return False, results, "Failed run must include non-empty finalization_errors"
+        for item in finalization_errors:
+            if not isinstance(item, str) or not item.strip():
+                return False, results, "finalization_errors must contain non-empty strings"
     elif run_status == "materialized":
         if integrity_status != "pending":
             return False, results, "Materialized run must have integrity_status=pending"
