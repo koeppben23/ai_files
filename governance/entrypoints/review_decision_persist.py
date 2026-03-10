@@ -220,6 +220,8 @@ def apply_review_decision(
     elif normalized == "reject":
         # Return to Phase 4 with a consistent visible return path.
         state["Phase"] = "4"
+        state["phase"] = "4"
+        state["next"] = "4"
         state["active_gate"] = "Ticket Input Gate"
         state["next_gate_condition"] = (
             "Review rejected. Provide updated ticket/task details to restart."
@@ -261,9 +263,13 @@ def _next_action_hint(decision: str) -> str:
     if decision == "approve":
         return "Workflow complete. No further action required."
     if decision == "changes_requested":
-        return "Changes requested. Address feedback, then run /continue to restart the implementation review loop."
+        return (
+            "Changes requested. A guided clarification conversation should start now "
+            "(what failed, expected outcome, acceptance checks); after clarifications, run /continue "
+            "to restart the implementation review loop."
+        )
     if decision == "reject":
-        return "Review rejected. Workflow returned to Phase 4. Provide updated ticket/task details to restart."
+        return "Review rejected. Workflow returned to Phase 4 Ticket Input Gate. Run /ticket with updated ticket/task details to restart."
     return ""
 
 

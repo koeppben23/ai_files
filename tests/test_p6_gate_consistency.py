@@ -429,12 +429,29 @@ class TestReviewDecisionReject:
         doc = json.loads(session_path.read_text(encoding="utf-8"))
         ss = doc["SESSION_STATE"]
         assert ss["Phase"] == "4"
+        assert ss["phase"] == "4"
+        assert ss["next"] == "4"
         assert ss["phase_transition_evidence"] is False
         assert ss.get("workflow_complete") is None
         # Fix 4: reject sets active_gate and next_gate_condition, clears phase6_state.
         assert ss["active_gate"] == "Ticket Input Gate"
         assert "rejected" in ss["next_gate_condition"].lower()
         assert "phase6_state" not in ss
+
+    def test_reject_overwrites_stale_lowercase_phase_to_4(self, tmp_path: Path) -> None:
+        state = _make_phase6_state(extra={"phase": "6-PostFlight", "next": "6"})
+        session_path = _write_session(tmp_path, state)
+        result = apply_review_decision(
+            decision="reject",
+            session_path=session_path,
+        )
+        assert result["status"] == "ok"
+
+        doc = json.loads(session_path.read_text(encoding="utf-8"))
+        ss = doc["SESSION_STATE"]
+        assert ss["Phase"] == "4"
+        assert ss["phase"] == "4"
+        assert ss["next"] == "4"
 
 
 class TestReviewDecisionBadPaths:

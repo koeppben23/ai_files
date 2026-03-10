@@ -90,7 +90,9 @@ Use `--verbose` for step-by-step bootstrap output.
 
 After bootstrap succeeds, open OpenCode Desktop in the same repository and run `/continue`.
 If `/continue` lands in Phase 4, run `/ticket` and then `/plan`; alternatively run `/review` to enter the review path.
-Use `/review` as a read-only rail entrypoint for quality feedback. At Phase 6, run `/review-decision` for the final review decision.
+Use `/review` as a read-only rail entrypoint for quality feedback. At Phase 6, run `/review-decision <approve|changes_requested|reject>` for the final decision.
+If you choose `changes_requested`, continue through a controlled Phase-6 correction loop after clarifying what failed and what must change.
+If you choose `reject`, the workflow returns to Phase 4 Ticket Input Gate; restart with `/ticket` and updated scope.
 If the command cannot be executed, the model asks the user to paste the command output.
 For rail details and lifecycle behavior, use `README-OPENCODE.md`.
 

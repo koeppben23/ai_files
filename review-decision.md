@@ -40,8 +40,10 @@ If no snapshot is available, proceed using only the context visible in the curre
 - Valid only at Phase 6 Evidence Presentation Gate.
 - The reviewed evidence must be presented before final decision submission.
 - `approve` moves to Workflow Complete.
-- `changes_requested` resets the Phase 6 implementation review loop.
-- `reject` routes back to Phase 4 Ticket Input Gate.
+- `changes_requested` resets the Phase 6 implementation review loop. Immediate change details are not required in the command.
+- After `changes_requested`, start a guided clarification conversation (what failed, expected outcome, acceptance checks) before resuming implementation.
+- `reject` routes back to Phase 4 Ticket Input Gate and invalidates the current path.
+- After `reject`, continue with `/ticket` and updated ticket/task scope. This is a controlled restart, not a Phase-6 iteration.
 
 ## Response shape
 
