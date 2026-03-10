@@ -221,6 +221,28 @@ def verify_run_archive(run_root: Path) -> Tuple[bool, Dict[str, bool], Optional[
     if str(materialized_at).strip() != materialized_at_manifest:
         return False, results, "materialized_at mismatch between run-manifest and provenance"
 
+    archived_files = metadata.get("archived_files")
+    if not isinstance(archived_files, dict):
+        return False, results, "metadata.json missing archived_files map"
+    expected_archived_keys = {
+        "session_state",
+        "plan_record",
+        "pr_record",
+        "run_manifest",
+        "provenance_record",
+        "checksums",
+    }
+    archived_keys = set(archived_files.keys())
+    if archived_keys != expected_archived_keys:
+        missing = sorted(expected_archived_keys - archived_keys)
+        extra = sorted(archived_keys - expected_archived_keys)
+        return False, results, f"archived_files key mismatch: missing={missing}, extra={extra}"
+    for key, value in archived_files.items():
+        if not isinstance(key, str) or not isinstance(value, bool):
+            return False, results, "archived_files has invalid entries"
+    if archived_files.get("session_state") is not True:
+        return False, results, "archived_files.session_state must be true"
+
     archive_status = str(metadata.get("archive_status") or "").strip()
     finalization_reason = metadata.get("finalization_reason")
     failure_reason = metadata.get("failure_reason")

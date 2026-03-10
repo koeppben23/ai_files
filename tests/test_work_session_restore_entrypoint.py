@@ -41,6 +41,14 @@ def _write_archive_run(workspace: Path, run_id: str, phase: str, next_token: str
             "run_id": run_id,
             "archived_at": "2026-01-01T00:00:00Z",
             "archive_status": "materialized",
+            "archived_files": {
+                "session_state": True,
+                "plan_record": False,
+                "pr_record": False,
+                "run_manifest": True,
+                "provenance_record": True,
+                "checksums": True,
+            },
         },
     )
     _write_json(
