@@ -129,7 +129,7 @@ def _read_current_run_pointer(workspace_dir: Path) -> tuple[str, list[str]]:
 
 def _list_run_archives(workspace_dir: Path) -> tuple[list[dict[str, object]], list[str]]:
     notes: list[str] = []
-    runs_dir = workspace_dir / "runs"
+    runs_dir = workspace_dir.parent / "governance-records" / workspace_dir.name / "runs"
     if not runs_dir.exists() or not runs_dir.is_dir():
         notes.append("missing-runs-directory")
         return [], notes

@@ -30,7 +30,7 @@ def test_archive_failure_persists_failed_run_state(tmp_path: Path) -> None:
             state_view=state,
         )
 
-    run_root = workspaces_home / fingerprint / "runs" / "run-fail"
+    run_root = workspaces_home / "governance-records" / fingerprint / "runs" / "run-fail"
     manifest = json.loads((run_root / "run-manifest.json").read_text(encoding="utf-8"))
     metadata = json.loads((run_root / "metadata.json").read_text(encoding="utf-8"))
     assert manifest["run_status"] == "failed"

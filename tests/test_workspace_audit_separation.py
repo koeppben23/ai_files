@@ -25,9 +25,9 @@ def test_runtime_purge_does_not_touch_audit_runs(tmp_path: Path) -> None:
 
     (workspace / "SESSION_STATE.json").write_text(json.dumps({"SESSION_STATE": state}, ensure_ascii=True), encoding="utf-8")
     (workspace / "events.jsonl").write_text("{}\n", encoding="utf-8")
-    assert (workspace / "runs" / "run-sep" / "run-manifest.json").is_file()
+    assert (workspaces_home / "governance-records" / fingerprint / "runs" / "run-sep" / "run-manifest.json").is_file()
 
     removed = purge_runtime_artifacts(workspace)
     assert "SESSION_STATE.json" in removed
     assert "events.jsonl" not in removed
-    assert (workspace / "runs" / "run-sep" / "run-manifest.json").is_file()
+    assert (workspaces_home / "governance-records" / fingerprint / "runs" / "run-sep" / "run-manifest.json").is_file()

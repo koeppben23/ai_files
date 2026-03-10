@@ -29,7 +29,7 @@ def build_repository_manifest(*, repo_fingerprint: str, observed_at: str) -> dic
         "created_at": observed_at,
         "storage_topology": {
             "runtime_root": "workspaces/<fingerprint>",
-            "audit_runs_root": "workspaces/<fingerprint>/runs",
+            "audit_runs_root": "governance-records/<fingerprint>/runs",
         },
     }
 

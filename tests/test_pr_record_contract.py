@@ -20,7 +20,7 @@ def test_pr_record_required_only_for_pr_runs(tmp_path: Path) -> None:
         session_state_document={"SESSION_STATE": plan_state},
         state_view=plan_state,
     )
-    assert not (workspaces_home / fingerprint / "runs" / "run-plan" / "pr-record.json").exists()
+    assert not (workspaces_home / "governance-records" / fingerprint / "runs" / "run-plan" / "pr-record.json").exists()
 
     pr_state = {
         "session_run_id": "run-pr",
@@ -38,7 +38,7 @@ def test_pr_record_required_only_for_pr_runs(tmp_path: Path) -> None:
         session_state_document={"SESSION_STATE": pr_state},
         state_view=pr_state,
     )
-    assert (workspaces_home / fingerprint / "runs" / "run-pr" / "pr-record.json").is_file()
+    assert (workspaces_home / "governance-records" / fingerprint / "runs" / "run-pr" / "pr-record.json").is_file()
 
 
 def test_plan_run_requires_plan_record_for_finalization(tmp_path: Path) -> None:

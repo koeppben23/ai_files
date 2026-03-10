@@ -26,7 +26,7 @@ def test_archive_writes_provenance_record_with_required_fields(tmp_path: Path) -
         state_view=state,
     )
 
-    record_path = workspaces_home / fingerprint / "runs" / "run-prov" / "provenance-record.json"
+    record_path = workspaces_home / "governance-records" / fingerprint / "runs" / "run-prov" / "provenance-record.json"
     record = json.loads(record_path.read_text(encoding="utf-8"))
     assert record["schema"] == "governance.provenance-record.v1"
     assert record["repo_fingerprint"] == fingerprint

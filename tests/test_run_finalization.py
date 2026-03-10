@@ -20,7 +20,7 @@ def test_run_manifest_contains_lifecycle_fields(tmp_path: Path) -> None:
         state_view=state,
     )
 
-    manifest_path = workspaces_home / fingerprint / "runs" / "run-lifecycle" / "run-manifest.json"
+    manifest_path = workspaces_home / "governance-records" / fingerprint / "runs" / "run-lifecycle" / "run-manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     assert manifest["run_status"] == "finalized"
     assert manifest["record_status"] == "finalized"

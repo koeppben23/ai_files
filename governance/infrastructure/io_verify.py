@@ -450,7 +450,7 @@ def verify_repository_manifest(runs_root: Path, *, expected_repo_fingerprint: Op
     audit_runs_root = str(topology.get("audit_runs_root") or "").strip()
     if runtime_root != "workspaces/<fingerprint>":
         return False, f"Invalid runtime_root in repository manifest: {runtime_root}"
-    if audit_runs_root != "workspaces/<fingerprint>/runs":
+    if audit_runs_root != "governance-records/<fingerprint>/runs":
         return False, f"Invalid audit_runs_root in repository manifest: {audit_runs_root}"
 
     return True, None

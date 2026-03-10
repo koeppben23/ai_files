@@ -165,7 +165,7 @@ def locks_dir(workspaces_home: Path, repo_fingerprint: str) -> Path:
 
 
 def runs_dir(workspaces_home: Path, repo_fingerprint: str) -> Path:
-    return workspace_root(workspaces_home, repo_fingerprint) / "runs"
+    return workspaces_home / "governance-records" / repo_fingerprint / "runs"
 
 
 def run_dir(workspaces_home: Path, repo_fingerprint: str, run_id: str) -> Path:

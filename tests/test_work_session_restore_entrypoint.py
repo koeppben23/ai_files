@@ -15,12 +15,16 @@ def _write_json(path: Path, payload: dict) -> None:
     path.write_text(json.dumps(payload, ensure_ascii=True), encoding="utf-8")
 
 
+def _runs_root(workspace: Path) -> Path:
+    return workspace.parent / "governance-records" / workspace.name / "runs"
+
+
 def _sha256_file(path: Path) -> str:
     return "sha256:" + hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def _write_archive_run(workspace: Path, run_id: str, phase: str, next_token: str, gate: str) -> None:
-    run_root = workspace / "runs" / run_id
+    run_root = _runs_root(workspace) / run_id
     session_state_doc = {
         "SESSION_STATE": {
             "RepoFingerprint": "abc123def456abc123def456",
@@ -193,7 +197,7 @@ class TestWorkSessionRestoreEntrypoint:
         assert payload["reason"] == "work-session-reactivated"
 
         active_state = json.loads((workspace / "SESSION_STATE.json").read_text(encoding="utf-8"))
-        archived_state = json.loads((workspace / "runs" / "work-1" / "SESSION_STATE.json").read_text(encoding="utf-8"))
+        archived_state = json.loads((_runs_root(workspace) / "work-1" / "SESSION_STATE.json").read_text(encoding="utf-8"))
         assert active_state == archived_state
 
         pointer = json.loads((workspace / "current_run.json").read_text(encoding="utf-8"))
@@ -254,7 +258,7 @@ class TestWorkSessionRestoreEntrypoint:
         before_state = (workspace / "SESSION_STATE.json").read_text(encoding="utf-8")
         before_pointer = (workspace / "current_run.json").read_text(encoding="utf-8")
 
-        (workspace / "runs" / "work-1" / "SESSION_STATE.json").write_text('{"tampered":true}', encoding="utf-8")
+        (_runs_root(workspace) / "work-1" / "SESSION_STATE.json").write_text('{"tampered":true}', encoding="utf-8")
 
         code = work_session_restore.main(["--mode", "reactivate", "--run-id", "work-1", "--quiet"])
         assert code == 2

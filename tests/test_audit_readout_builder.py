@@ -14,6 +14,10 @@ from governance.infrastructure.work_run_archive import archive_active_run
 _FP = "abc123def456abc123def456"
 
 
+def _runs_root(workspace: Path) -> Path:
+    return workspace.parent / "governance-records" / workspace.name / "runs"
+
+
 def _write_json(path: Path, payload: Mapping[str, object]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, ensure_ascii=True), encoding="utf-8")
@@ -42,7 +46,7 @@ def _write_run_archive(
     source_phase: str,
     state_phase: str,
 ) -> tuple[Path, str]:
-    run_dir = workspace / "runs" / run_id
+    run_dir = _runs_root(workspace) / run_id
     snapshot_doc = {
         "SESSION_STATE": {
             "session_run_id": run_id,
@@ -208,9 +212,9 @@ def test_edge_reactivation_keeps_last_snapshot_from_created_chain(tmp_path: Path
                         "run_id": "work-1",
                         "previous_run_id": "work-4",
                         "reactivated_run_id": "work-1",
-                        "snapshot_path": str(workspace / "runs" / "work-1" / "SESSION_STATE.json"),
+                        "snapshot_path": str(_runs_root(workspace) / "work-1" / "SESSION_STATE.json"),
                         "snapshot_digest": canonical_json_hash(
-                            json.loads((workspace / "runs" / "work-1" / "SESSION_STATE.json").read_text(encoding="utf-8"))
+                            json.loads((_runs_root(workspace) / "work-1" / "SESSION_STATE.json").read_text(encoding="utf-8"))
                         ),
                     }
                 ),
@@ -274,9 +278,9 @@ def test_bad_pointer_mismatch_sets_integrity_false(tmp_path: Path) -> None:
                 "session_id": "sess-1",
                 "run_id": "work-1",
                 "new_run_id": "work-2",
-                "snapshot_path": str(workspace / "runs" / "work-1" / "SESSION_STATE.json"),
+                "snapshot_path": str(_runs_root(workspace) / "work-1" / "SESSION_STATE.json"),
                 "snapshot_digest": canonical_json_hash(
-                    json.loads((workspace / "runs" / "work-1" / "SESSION_STATE.json").read_text(encoding="utf-8"))
+                    json.loads((_runs_root(workspace) / "work-1" / "SESSION_STATE.json").read_text(encoding="utf-8"))
                 ),
             }
         )
@@ -446,9 +450,9 @@ def test_archive_without_manifest_or_checksums_emits_notes(tmp_path: Path) -> No
                 "session_id": "sess-1",
                 "run_id": "work-1",
                 "new_run_id": "work-2",
-                "snapshot_path": str(workspace / "runs" / "work-1" / "SESSION_STATE.json"),
+                "snapshot_path": str(_runs_root(workspace) / "work-1" / "SESSION_STATE.json"),
                 "snapshot_digest": canonical_json_hash(
-                    json.loads((workspace / "runs" / "work-1" / "SESSION_STATE.json").read_text(encoding="utf-8"))
+                    json.loads((_runs_root(workspace) / "work-1" / "SESSION_STATE.json").read_text(encoding="utf-8"))
                 ),
             }
         )
@@ -503,7 +507,7 @@ def test_last_snapshot_includes_run_and_integrity_status(tmp_path: Path) -> None
         state_phase="6-PostFlight",
     )
     _write_json(
-        workspace / "runs" / "work-1" / "run-manifest.json",
+        _runs_root(workspace) / "work-1" / "run-manifest.json",
         {
             "schema": "governance.run-manifest.v1",
             "repo_fingerprint": "fp",
@@ -534,9 +538,9 @@ def test_last_snapshot_includes_run_and_integrity_status(tmp_path: Path) -> None
                 "session_id": "sess-1",
                 "run_id": "work-1",
                 "new_run_id": "work-2",
-                "snapshot_path": str(workspace / "runs" / "work-1" / "SESSION_STATE.json"),
+                "snapshot_path": str(_runs_root(workspace) / "work-1" / "SESSION_STATE.json"),
                 "snapshot_digest": canonical_json_hash(
-                    json.loads((workspace / "runs" / "work-1" / "SESSION_STATE.json").read_text(encoding="utf-8"))
+                    json.loads((_runs_root(workspace) / "work-1" / "SESSION_STATE.json").read_text(encoding="utf-8"))
                 ),
             }
         )
@@ -605,7 +609,7 @@ def test_verified_archive_does_not_emit_run_verify_failed_note(tmp_path: Path) -
         },
     )
 
-    snapshot_doc = json.loads((workspace / "runs" / "work-1" / "SESSION_STATE.json").read_text(encoding="utf-8"))
+    snapshot_doc = json.loads((_runs_root(workspace) / "work-1" / "SESSION_STATE.json").read_text(encoding="utf-8"))
     (workspace / "events.jsonl").write_text(
         json.dumps(
             {
@@ -615,7 +619,7 @@ def test_verified_archive_does_not_emit_run_verify_failed_note(tmp_path: Path) -
                 "session_id": "sess-1",
                 "run_id": "work-1",
                 "new_run_id": "work-2",
-                "snapshot_path": str(workspace / "runs" / "work-1" / "SESSION_STATE.json"),
+                "snapshot_path": str(_runs_root(workspace) / "work-1" / "SESSION_STATE.json"),
                 "snapshot_digest": canonical_json_hash(snapshot_doc),
             }
         )

@@ -28,10 +28,18 @@ def test_archive_writes_repository_and_run_manifest(tmp_path: Path) -> None:
     )
 
     assert result.run_id == "run-1"
-    repository_manifest = json.loads((workspace / "runs" / "repository-manifest.json").read_text(encoding="utf-8"))
+    repository_manifest = json.loads(
+        (workspace.parent / "governance-records" / workspace.name / "runs" / "repository-manifest.json").read_text(
+            encoding="utf-8"
+        )
+    )
     assert repository_manifest["schema"] == "governance.repository-manifest.v1"
 
-    run_manifest = json.loads((workspace / "runs" / "run-1" / "run-manifest.json").read_text(encoding="utf-8"))
+    run_manifest = json.loads(
+        (workspace.parent / "governance-records" / workspace.name / "runs" / "run-1" / "run-manifest.json").read_text(
+            encoding="utf-8"
+        )
+    )
     assert run_manifest["schema"] == "governance.run-manifest.v1"
     assert run_manifest["run_id"] == "run-1"
     assert run_manifest["required_artifacts"]["session_state"] is True
@@ -51,7 +59,7 @@ def test_repository_manifest_is_stable_across_multiple_archives(tmp_path: Path) 
         session_state_document={"SESSION_STATE": state},
         state_view=state,
     )
-    manifest_path = workspaces_home / fingerprint / "runs" / "repository-manifest.json"
+    manifest_path = workspaces_home / "governance-records" / fingerprint / "runs" / "repository-manifest.json"
     first_manifest = manifest_path.read_text(encoding="utf-8")
 
     state2 = {"session_run_id": "run-2", "Phase": "4", "active_gate": "Ticket Input Gate", "Next": "5"}

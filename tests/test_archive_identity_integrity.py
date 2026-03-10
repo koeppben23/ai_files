@@ -35,7 +35,7 @@ def test_verify_rejects_finalized_run_without_finalization_reason(tmp_path: Path
         state_view=state,
     )
 
-    run_root = workspaces_home / fingerprint / "runs" / "run-meta"
+    run_root = workspaces_home / "governance-records" / fingerprint / "runs" / "run-meta"
     metadata = json.loads((run_root / "metadata.json").read_text(encoding="utf-8"))
     metadata.pop("finalization_reason", None)
     (run_root / "metadata.json").write_text(json.dumps(metadata, ensure_ascii=True), encoding="utf-8")
@@ -61,7 +61,7 @@ def test_verify_rejects_invalid_run_type_and_provenance_launcher(tmp_path: Path)
         state_view=state,
     )
 
-    run_root = workspaces_home / fingerprint / "runs" / "run-prov-contract"
+    run_root = workspaces_home / "governance-records" / fingerprint / "runs" / "run-prov-contract"
     manifest = json.loads((run_root / "run-manifest.json").read_text(encoding="utf-8"))
     manifest["run_type"] = "unknown"
     (run_root / "run-manifest.json").write_text(json.dumps(manifest, ensure_ascii=True), encoding="utf-8")
