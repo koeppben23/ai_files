@@ -137,6 +137,7 @@ def test_happy_build_audit_readout_uses_runs_and_pointer(tmp_path: Path) -> None
     assert integrity["run_id_consistent"] is True
     assert integrity["active_run_pointer_consistent"] is True
     assert integrity["reactivation_chain_consistent"] is True
+    assert integrity["snapshot_quality_ok"] is False
 
 
 def test_edge_reactivation_keeps_last_snapshot_from_created_chain(tmp_path: Path) -> None:
@@ -459,6 +460,7 @@ def test_archive_without_manifest_or_checksums_emits_notes(tmp_path: Path) -> No
     assert "run-checksums-missing:work-1" in notes
     assert "snapshot-run-not-finalized:unknown" in notes
     assert "snapshot-integrity-not-passed:unknown" in notes
+    assert integrity["snapshot_quality_ok"] is False
 
 
 def test_last_snapshot_includes_run_and_integrity_status(tmp_path: Path) -> None:
@@ -545,3 +547,4 @@ def test_last_snapshot_includes_run_and_integrity_status(tmp_path: Path) -> None
     assert isinstance(notes, list)
     assert "snapshot-run-not-finalized:unknown" not in notes
     assert "snapshot-integrity-not-passed:unknown" not in notes
+    assert integrity["snapshot_quality_ok"] is True

@@ -43,6 +43,7 @@ def _valid_payload() -> dict[str, object]:
             "monotonic_timestamps": True,
             "active_run_pointer_consistent": True,
             "reactivation_chain_consistent": True,
+            "snapshot_quality_ok": True,
             "notes": [],
         },
     }

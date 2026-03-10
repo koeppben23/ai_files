@@ -431,6 +431,7 @@ def build_audit_readout(
     run_id_consistent, run_id_notes = _run_id_consistent(active, tail)
     monotonic_timestamps, monotonic_notes = _timestamps_monotonic(tail, last_snapshot=last_snapshot)
     snapshot_quality_notes = _snapshot_quality(last_snapshot)
+    snapshot_quality_ok = len(snapshot_quality_notes) == 0
     pointer_consistent, pointer_integrity_notes = _active_run_pointer_consistent(active, pointer_run_id=pointer_run_id)
     reactivation_consistent, reactivation_notes = _reactivation_chain_consistent(
         active,
@@ -453,6 +454,7 @@ def build_audit_readout(
             "monotonic_timestamps": monotonic_timestamps,
             "active_run_pointer_consistent": pointer_consistent,
             "reactivation_chain_consistent": reactivation_consistent,
+            "snapshot_quality_ok": snapshot_quality_ok,
             "notes": archive_notes
             + pointer_notes
             + pointer_integrity_notes
