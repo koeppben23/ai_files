@@ -44,6 +44,7 @@ def _valid_payload() -> dict[str, object]:
             "active_run_pointer_consistent": True,
             "reactivation_chain_consistent": True,
             "snapshot_quality_ok": True,
+            "run_archives_verified": True,
             "notes": [],
         },
     }

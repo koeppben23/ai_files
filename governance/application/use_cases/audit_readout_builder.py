@@ -452,6 +452,9 @@ def build_audit_readout(
         events=tail,
         run_archives=run_archives,
     )
+    run_archives_verified = not any(
+        note.startswith("run-verify-failed:") for note in archive_notes
+    )
 
     payload = {
         "contract_version": "AUDIT_READOUT_SPEC.v1",
@@ -468,6 +471,7 @@ def build_audit_readout(
             "active_run_pointer_consistent": pointer_consistent,
             "reactivation_chain_consistent": reactivation_consistent,
             "snapshot_quality_ok": snapshot_quality_ok,
+            "run_archives_verified": run_archives_verified,
             "notes": archive_notes
             + pointer_notes
             + pointer_integrity_notes

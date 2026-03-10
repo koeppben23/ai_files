@@ -85,6 +85,7 @@ AUDIT_READOUT_SCHEMA_V1: dict[str, object] = {
                 "active_run_pointer_consistent",
                 "reactivation_chain_consistent",
                 "snapshot_quality_ok",
+                "run_archives_verified",
             ],
             "properties": {
                 "snapshot_ref_present": {"type": "boolean"},
@@ -93,6 +94,7 @@ AUDIT_READOUT_SCHEMA_V1: dict[str, object] = {
                 "active_run_pointer_consistent": {"type": "boolean"},
                 "reactivation_chain_consistent": {"type": "boolean"},
                 "snapshot_quality_ok": {"type": "boolean"},
+                "run_archives_verified": {"type": "boolean"},
                 "notes": {
                     "type": "array",
                     "items": {"type": "string"},
