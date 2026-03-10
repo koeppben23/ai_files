@@ -142,10 +142,14 @@ def verify_run_archive(run_root: Path) -> Tuple[bool, Dict[str, bool], Optional[
         return False, results, "repo_fingerprint mismatch across run-manifest/metadata/provenance"
 
     archive_status = str(metadata.get("archive_status") or "").strip()
+    finalization_reason = metadata.get("finalization_reason")
     if run_status == "finalized" and archive_status and archive_status != "finalized":
         return False, results, f"archive_status mismatch for finalized run: {archive_status}"
     if run_status == "failed" and archive_status and archive_status != "failed":
         return False, results, f"archive_status mismatch for failed run: {archive_status}"
+    if run_status == "finalized":
+        if not isinstance(finalization_reason, str) or not finalization_reason.strip():
+            return False, results, "Finalized metadata must include finalization_reason"
 
     for artifact_name, required_flag in required_artifacts.items():
         if not isinstance(artifact_name, str) or not isinstance(required_flag, bool):
