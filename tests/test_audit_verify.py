@@ -223,6 +223,43 @@ def test_verify_rejects_non_utc_z_timestamps(tmp_path: Path) -> None:
     assert "Invalid finalized_at format" in message
 
 
+def test_verify_rejects_required_artifact_not_marked_archived(tmp_path: Path) -> None:
+    workspaces_home = tmp_path / "workspaces"
+    fingerprint = "abc123def456abc123def456"
+    state = {
+        "session_run_id": "run-required-archive",
+        "Phase": "6-PostFlight",
+        "active_gate": "Evidence Presentation Gate",
+        "Next": "6",
+        "PullRequestTitle": "feat: demo",
+        "PullRequestBody": "## Summary\n- demo",
+    }
+
+    archive_active_run(
+        workspaces_home=workspaces_home,
+        repo_fingerprint=fingerprint,
+        run_id="run-required-archive",
+        observed_at="2026-03-10T16:20:00Z",
+        session_state_document={"SESSION_STATE": state},
+        state_view=state,
+    )
+
+    run_root = workspaces_home / fingerprint / "runs" / "run-required-archive"
+    metadata = json.loads((run_root / "metadata.json").read_text(encoding="utf-8"))
+    archived_files = metadata.get("archived_files")
+    assert isinstance(archived_files, dict)
+    archived_files["pr_record"] = False
+    metadata["archived_files"] = archived_files
+    (run_root / "pr-record.json").unlink()
+    (run_root / "metadata.json").write_text(json.dumps(metadata, ensure_ascii=True), encoding="utf-8")
+    _recompute_checksums(run_root)
+
+    ok, _, message = verify_run_archive(run_root)
+    assert ok is False
+    assert isinstance(message, str)
+    assert "required pr_record must be archived" in message
+
+
 def test_verify_rejects_malformed_archive_json_payloads(tmp_path: Path) -> None:
     workspaces_home = tmp_path / "workspaces"
     fingerprint = "abc123def456abc123def456"

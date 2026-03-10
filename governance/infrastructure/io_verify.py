@@ -330,6 +330,8 @@ def verify_run_archive(run_root: Path) -> Tuple[bool, Dict[str, bool], Optional[
 
     plan_required = bool(required_artifacts.get("plan_record"))
     pr_required = bool(required_artifacts.get("pr_record"))
+    plan_archived = bool(archived_files.get("plan_record"))
+    pr_archived = bool(archived_files.get("pr_record"))
     if run_type == "plan":
         if not plan_required or pr_required:
             return False, results, "plan run_type requires plan_record=true and pr_record=false"
@@ -339,6 +341,10 @@ def verify_run_archive(run_root: Path) -> Tuple[bool, Dict[str, bool], Optional[
     elif run_type == "analysis":
         if plan_required or pr_required:
             return False, results, "analysis run_type requires plan_record=false and pr_record=false"
+    if plan_required and not plan_archived:
+        return False, results, "required plan_record must be archived"
+    if pr_required and not pr_archived:
+        return False, results, "required pr_record must be archived"
 
     for artifact_name, required_flag in required_artifacts.items():
         if not isinstance(artifact_name, str) or not isinstance(required_flag, bool):
