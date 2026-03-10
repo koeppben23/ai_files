@@ -199,6 +199,10 @@ def verify_run_archive(run_root: Path) -> Tuple[bool, Dict[str, bool], Optional[
         missing = sorted(expected_artifact_keys - required_keys)
         extra = sorted(required_keys - expected_artifact_keys)
         return False, results, f"required_artifacts key mismatch: missing={missing}, extra={extra}"
+    baseline_required_true = ["session_state", "run_manifest", "metadata", "provenance", "checksums"]
+    for key in baseline_required_true:
+        if required_artifacts.get(key) is not True:
+            return False, results, f"required_artifacts.{key} must be true"
 
     run_id = run_root.name
     manifest_run_id = str(manifest.get("run_id") or "").strip()
@@ -254,6 +258,10 @@ def verify_run_archive(run_root: Path) -> Tuple[bool, Dict[str, bool], Optional[
             return False, results, "archived_files has invalid entries"
     if archived_files.get("session_state") is not True:
         return False, results, "archived_files.session_state must be true"
+    baseline_archived_true = ["run_manifest", "provenance_record", "checksums"]
+    for key in baseline_archived_true:
+        if archived_files.get(key) is not True:
+            return False, results, f"archived_files.{key} must be true"
 
     archived_file_to_name = {
         "session_state": "SESSION_STATE.json",
