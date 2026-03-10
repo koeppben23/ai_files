@@ -14,7 +14,7 @@ Launcher-first operator/model flow for starting and continuing governed OpenCode
 2. Open OpenCode Desktop in the same repository.
 3. Run `/continue`.
 4. If `/continue` lands at Phase 4, run `/ticket`, then `/plan`.
-   Alternative path: run `/review` to enter the review path.
+   Alternative path: run `/review` for read-only review feedback (no state change).
    `/ticket` is Plan Mode intake and persists Phase-4 ticket/plan evidence.
 5. Use `/review` as the read-only rail entrypoint for quality review.
 6. At Phase 6 Evidence Presentation Gate, run `/review-decision <approve|changes_requested|reject>`.

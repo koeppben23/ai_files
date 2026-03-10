@@ -430,6 +430,7 @@ class TestReviewDecisionReject:
         ss = doc["SESSION_STATE"]
         assert ss["Phase"] == "4"
         assert ss["phase"] == "4"
+        assert ss["Next"] == "4"
         assert ss["next"] == "4"
         assert ss["phase_transition_evidence"] is False
         assert ss.get("workflow_complete") is None
@@ -451,6 +452,7 @@ class TestReviewDecisionReject:
         ss = doc["SESSION_STATE"]
         assert ss["Phase"] == "4"
         assert ss["phase"] == "4"
+        assert ss["Next"] == "4"
         assert ss["next"] == "4"
 
 
@@ -565,6 +567,52 @@ class TestKernelReviewDecisionRouting:
         assert result.status == "OK"
         # reject transition routes to Phase 4
         assert result.next_token == "4"
+
+    def test_edge_stale_reject_in_non_evidence_gate_does_not_reroute_to_phase4(self, tmp_path: Path) -> None:
+        ctx = _make_ctx(tmp_path)
+        state = _make_phase6_state(extra={
+            "active_gate": "Implementation Internal Review",
+            "UserReviewDecision": {"decision": "reject"},
+            "implementation_review_complete": False,
+            "ImplementationReview": {
+                "iteration": 0,
+                "max_iterations": 3,
+                "min_self_review_iterations": 1,
+                "revision_delta": "changed",
+                "implementation_review_complete": False,
+            },
+        })
+        result = execute(
+            current_token="6",
+            session_state_doc={"SESSION_STATE": state},
+            runtime_ctx=ctx,
+        )
+        assert result.status == "OK"
+        assert result.next_token == "6"
+        assert result.active_gate == "Implementation Internal Review"
+
+    def test_corner_stale_changes_requested_in_non_evidence_gate_keeps_phase6_progression(self, tmp_path: Path) -> None:
+        ctx = _make_ctx(tmp_path)
+        state = _make_phase6_state(extra={
+            "active_gate": "Post Flight",
+            "UserReviewDecision": {"decision": "changes_requested"},
+            "implementation_review_complete": True,
+            "ImplementationReview": {
+                "iteration": 3,
+                "max_iterations": 3,
+                "min_self_review_iterations": 1,
+                "revision_delta": "none",
+                "implementation_review_complete": True,
+            },
+        })
+        result = execute(
+            current_token="6",
+            session_state_doc={"SESSION_STATE": state},
+            runtime_ctx=ctx,
+        )
+        assert result.status == "OK"
+        assert result.next_token == "6"
+        assert result.active_gate == "Evidence Presentation Gate"
 
 
 # ===========================================================================

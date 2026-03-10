@@ -106,7 +106,7 @@ phases:
         next: "4"
         source: "phase-3a-not-applicable-to-phase4"
         active_gate: "Ticket Input Gate"
-        next_gate_condition: "Phase 3A completed with not-applicable (no APIs detected); continue via /continue, then provide ticket/task input or run /review at Phase 4"
+        next_gate_condition: "Phase 3A completed with not-applicable (no APIs detected); continue via /continue, then provide ticket/task input or run /review for read-only feedback at Phase 4"
       - when: default
         next: "3B-1"
         source: "phase-3a-to-3b1"
@@ -139,12 +139,12 @@ phases:
         next: "4"
         source: "phase-3b2-to-4"
         active_gate: "Ticket Input Gate"
-        next_gate_condition: "Phase 3B-2 complete; continue via /continue, then provide ticket/task input or run /review at Phase 4"
+        next_gate_condition: "Phase 3B-2 complete; continue via /continue, then provide ticket/task input or run /review for read-only feedback at Phase 4"
 
   - token: "4"
     phase: "4"
     active_gate: "Ticket Input Gate"
-    next_gate_condition: "Collect ticket and planning constraints (or run /review for review-only lead/staff feedback)."
+    next_gate_condition: "Collect ticket and planning constraints (or run /review for read-only feedback with no state change)."
     next: "5"
     route_strategy: "next"
     transitions:
@@ -157,7 +157,7 @@ phases:
         next: "4"
         source: "phase-4-awaiting-ticket-intake"
         active_gate: "Ticket Input Gate"
-        next_gate_condition: "Provide ticket/task details to continue from Phase 4 to Phase 5, or run /review to enter the review path"
+        next_gate_condition: "Provide ticket/task details to continue from Phase 4 to Phase 5, or run /review for read-only review feedback (no state change)"
 
   - token: "5"
     phase: "5-ArchitectureReview"

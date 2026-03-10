@@ -221,6 +221,7 @@ def apply_review_decision(
         # Return to Phase 4 with a consistent visible return path.
         state["Phase"] = "4"
         state["phase"] = "4"
+        state["Next"] = "4"
         state["next"] = "4"
         state["active_gate"] = "Ticket Input Gate"
         state["next_gate_condition"] = (

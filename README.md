@@ -95,7 +95,7 @@ opencode-governance-bootstrap.cmd --repo-root C:\path\to\repo
 ### Continue in OpenCode
 
 1. Open OpenCode Desktop in the same repository and run `/continue`.
-2. For new work at Phase 4, run `/ticket`, then `/plan`; alternatively run `/review` to enter the review path.
+2. For new work at Phase 4, run `/ticket`, then `/plan`; alternatively run `/review` for read-only review feedback (no state change).
 3. Use `/review` as a read-only rail entrypoint for review-depth feedback.
 4. At Phase 6 Evidence Presentation Gate, run `/review-decision <approve|changes_requested|reject>` (for example `/review-decision approve`).
 5. If you choose `changes_requested`, the workflow stays in a controlled Phase-6 correction loop; gather clarifications first, then continue.
