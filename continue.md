@@ -32,6 +32,7 @@ Use the YAML output as governance context for the response below. Do not infer o
 - reflect current `SESSION_STATE.phase` and `SESSION_STATE.next`
 - include delta-only progress for the active step
 - if kernel reports a blocker or warning, render it with concise evidence and one recovery action
+- end with one explicit `Next action:` line as the final output line (including terminal states)
 
 ---
 

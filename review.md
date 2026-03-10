@@ -7,6 +7,7 @@
 `/review` is a read-only rail entrypoint for PR or ticket review.
 The command below prints the current session state as YAML and does not modify any files.
 It reads materialized review/session state and does not perform implementation changes.
+It does not reroute phase state and does not replace `/review-decision`.
 
 ## Commands by platform
 
@@ -39,7 +40,7 @@ Review scope:
 
 ## Response shape
 
-- give a clear verdict: `approve` or `request changes`
+- give a clear verdict aligned to final decision tokens: `approve` or `changes_requested`
 - list findings with severity and one concrete action per finding
 - provide paste-ready PR comments (one per blocker/high + one summary)
 
