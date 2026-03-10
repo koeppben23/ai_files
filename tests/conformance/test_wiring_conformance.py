@@ -452,29 +452,33 @@ class TestPluginToRuntime:
 class TestRuntimeToWorkspace:
     """Validate that runtime workspace path functions produce consistent results."""
 
-    def test_happy_all_artifact_paths_under_workspace_root(self, tmp_path):
-        """Happy: Every artifact path resolves under workspaces_home/fingerprint."""
+    def test_happy_all_artifact_paths_under_workspace_or_audit_root(self, tmp_path):
+        """Happy: Runtime paths resolve under workspace, audit paths under governance-records."""
         from governance.infrastructure import workspace_paths as wp
 
         ws_home = tmp_path / "workspaces"
         fp = "a" * 24
         root = wp.workspace_root(ws_home, fp)
 
-        fns = [
+        runtime_fns = [
             wp.session_state_path, wp.repo_cache_path, wp.repo_map_digest_path,
             wp.workspace_memory_path, wp.decision_pack_path, wp.business_rules_path,
             wp.business_rules_status_path, wp.plan_record_path, wp.plan_record_archive_dir,
             wp.repo_identity_map_path, wp.current_run_path, wp.evidence_dir,
-            wp.locks_dir, wp.runs_dir,
+            wp.locks_dir,
         ]
         escaped = []
-        for fn in fns:
+        for fn in runtime_fns:
             p = fn(ws_home, fp)
             try:
                 p.relative_to(root)
             except ValueError:
                 escaped.append(f"{fn.__name__} -> {p}")
         assert not escaped, f"Artifacts escape workspace root: {escaped}"
+
+        audit_root = ws_home / "governance-records" / fp
+        runs = wp.runs_dir(ws_home, fp)
+        assert runs.relative_to(audit_root)
 
     def test_happy_workspace_root_deterministic(self, tmp_path):
         """Happy: workspace_root returns same result for same inputs."""

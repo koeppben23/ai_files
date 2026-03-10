@@ -30,13 +30,29 @@ AUDIT_READOUT_SCHEMA_V1: dict[str, object] = {
         },
         "last_snapshot": {
             "type": "object",
-            "required": ["snapshot_path", "snapshot_digest", "archived_at", "source_phase", "run_id"],
+            "required": [
+                "snapshot_path",
+                "snapshot_digest",
+                "archived_at",
+                "source_phase",
+                "run_id",
+                "run_status",
+                "integrity_status",
+            ],
             "properties": {
                 "snapshot_path": {"type": "string", "minLength": 1},
                 "snapshot_digest": {"type": "string", "pattern": _SHA256_HEX_RE.pattern},
                 "archived_at": {"type": "string", "pattern": _RFC3339_UTC_Z_RE.pattern},
                 "source_phase": {"type": "string", "minLength": 1},
                 "run_id": {"type": "string", "minLength": 1},
+                "run_status": {
+                    "type": "string",
+                    "enum": ["in_progress", "materialized", "finalized", "failed", "invalidated", "unknown"],
+                },
+                "integrity_status": {
+                    "type": "string",
+                    "enum": ["pending", "passed", "failed", "unknown"],
+                },
             },
         },
         "chain": {
@@ -68,6 +84,8 @@ AUDIT_READOUT_SCHEMA_V1: dict[str, object] = {
                 "monotonic_timestamps",
                 "active_run_pointer_consistent",
                 "reactivation_chain_consistent",
+                "snapshot_quality_ok",
+                "run_archives_verified",
             ],
             "properties": {
                 "snapshot_ref_present": {"type": "boolean"},
@@ -75,6 +93,8 @@ AUDIT_READOUT_SCHEMA_V1: dict[str, object] = {
                 "monotonic_timestamps": {"type": "boolean"},
                 "active_run_pointer_consistent": {"type": "boolean"},
                 "reactivation_chain_consistent": {"type": "boolean"},
+                "snapshot_quality_ok": {"type": "boolean"},
+                "run_archives_verified": {"type": "boolean"},
                 "notes": {
                     "type": "array",
                     "items": {"type": "string"},

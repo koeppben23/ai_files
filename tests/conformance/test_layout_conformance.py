@@ -161,15 +161,15 @@ class TestWorkspaceArtifactLayout:
         missing = expected_functions - {name for name in dir(wp) if callable(getattr(wp, name, None))}
         assert not missing, f"Missing path functions in workspace_paths.py: {missing}"
 
-    def test_happy_path_functions_return_under_workspace_root(self, tmp_path):
-        """Happy: All artifact paths resolve under workspaces_home/fingerprint."""
+    def test_happy_path_functions_return_under_workspace_or_audit_root(self, tmp_path):
+        """Happy: Runtime paths resolve under workspace, audit paths under governance-records."""
         from governance.infrastructure import workspace_paths as wp
 
         ws_home = tmp_path / "workspaces"
         fp = "a" * 24
         root = wp.workspace_root(ws_home, fp)
 
-        artifact_fns = [
+        runtime_artifact_fns = [
             wp.session_state_path,
             wp.repo_cache_path,
             wp.repo_map_digest_path,
@@ -183,16 +183,19 @@ class TestWorkspaceArtifactLayout:
             wp.current_run_path,
             wp.evidence_dir,
             wp.locks_dir,
-            wp.runs_dir,
         ]
         escaped = []
-        for fn in artifact_fns:
+        for fn in runtime_artifact_fns:
             p = fn(ws_home, fp)
             try:
                 p.relative_to(root)
             except ValueError:
                 escaped.append(f"{fn.__name__} -> {p}")
         assert not escaped, f"Artifacts escape workspace root: {escaped}"
+
+        audit_root = ws_home / "governance-records" / fp
+        runs = wp.runs_dir(ws_home, fp)
+        assert runs.relative_to(audit_root)
 
     def test_happy_global_pointer_at_config_root(self, tmp_path):
         """Happy: global_pointer_path resolves directly under config root."""

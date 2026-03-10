@@ -922,14 +922,14 @@ class TestMain:
                 "Next": "6",
             }
         }
-        snapshot_path = ws_state.parent / "runs" / "work-1" / "SESSION_STATE.json"
+        snapshot_path = ws_state.parent.parent / "governance-records" / ws_state.parent.name / "runs" / "work-1" / "SESSION_STATE.json"
         snapshot_path.parent.mkdir(parents=True, exist_ok=True)
         snapshot_path.write_text(json.dumps(snapshot_doc), encoding="utf-8")
 
         from governance.engine.canonical_json import canonical_json_hash
 
         digest = canonical_json_hash(snapshot_doc)
-        (ws_state.parent / "runs" / "work-1" / "metadata.json").write_text(
+        (ws_state.parent.parent / "governance-records" / ws_state.parent.name / "runs" / "work-1" / "metadata.json").write_text(
             json.dumps(
                 {
                     "schema": "governance.work-run.snapshot.v2",

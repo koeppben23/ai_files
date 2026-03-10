@@ -17,6 +17,7 @@ from governance.domain.canonical_json import canonical_json_hash
 from governance.infrastructure.binding_evidence_resolver import BindingEvidenceResolver
 from governance.infrastructure.current_run_pointer import read_active_run_id, write_current_run_pointer
 from governance.infrastructure.fs_atomic import atomic_write_text
+from governance.infrastructure.io_verify import verify_run_archive
 from governance.infrastructure.workspace_paths import run_dir
 
 try:
@@ -132,6 +133,35 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     run_root = run_dir(workspaces_home, repo_fingerprint, run_id)
+
+    if not run_root.exists() or not run_root.is_dir():
+        print(
+            json.dumps(
+                _payload(
+                    "blocked",
+                    reason="run-archive-unavailable",
+                    observed=f"run archive missing: {run_root}",
+                    recovery_action="verify runs/<run_id>/SESSION_STATE.json exists and is valid JSON",
+                ),
+                ensure_ascii=True,
+            )
+        )
+        return 2
+
+    archive_ok, _, archive_verify_message = verify_run_archive(run_root)
+    if not archive_ok:
+        print(
+            json.dumps(
+                _payload(
+                    "blocked",
+                    reason="run-archive-integrity-failed",
+                    observed=archive_verify_message or "archive verify failed",
+                    recovery_action="repair or recreate the archived run before reactivation",
+                ),
+                ensure_ascii=True,
+            )
+        )
+        return 2
 
     try:
         archived_doc, archived_plan_doc, archived_session_path, archived_session_run_id = _read_run_archive(run_root=run_root)

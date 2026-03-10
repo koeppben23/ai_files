@@ -851,7 +851,7 @@ class TestRunLifecycleReset:
         assert code == 0
         _ = capsys.readouterr()
 
-        archived = session_path.parent / "runs" / "run-old-001" / "SESSION_STATE.json"
+        archived = session_path.parent.parent / "governance-records" / session_path.parent.name / "runs" / "run-old-001" / "SESSION_STATE.json"
         assert archived.is_file(), "previous run snapshot must be archived"
         archived_payload = json.loads(archived.read_text(encoding="utf-8"))
         assert archived_payload["SESSION_STATE"]["session_run_id"] == "run-old-001"
