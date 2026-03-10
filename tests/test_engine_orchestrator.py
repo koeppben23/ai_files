@@ -1421,7 +1421,7 @@ def test_orchestrator_corner_blocks_code_output_in_phase5_review_when_p5_arch_pe
 
 
 @pytest.mark.governance
-def test_orchestrator_happy_allows_code_output_after_p5_architecture_approved(tmp_path: Path):
+def test_orchestrator_edge_blocks_ambiguous_free_text_even_when_p5_architecture_approved(tmp_path: Path):
     repo_root = _make_git_root(tmp_path / "repo")
     adapter = StubAdapter(
         env={"OPENCODE_REPO_ROOT": str(repo_root)},
@@ -1466,10 +1466,147 @@ def test_orchestrator_happy_allows_code_output_after_p5_architecture_approved(tm
                 "Gates": {"P5-Architecture": "approved"},
             }
         },
+        requested_action="mach das",
+    )
+
+    assert out.parity["status"] == "blocked"
+    assert out.parity["reason_code"] == "BLOCKED-STATE-OUTDATED"
+
+
+@pytest.mark.governance
+def test_orchestrator_corner_blocks_code_output_in_phase54_even_when_gate_is_compliant(tmp_path: Path):
+    repo_root = _make_git_root(tmp_path / "repo")
+    adapter = StubAdapter(
+        env={"OPENCODE_REPO_ROOT": str(repo_root)},
+        cwd_path=repo_root,
+        caps=HostCapabilities(
+            cwd_trust="trusted",
+            fs_read_commands_home=True,
+            fs_write_config_root=True,
+            fs_write_commands_home=True,
+            fs_write_workspaces_home=True,
+            fs_write_repo_root=True,
+            exec_allowed=True,
+            git_available=True,
+        ),
+    )
+
+    out = run_engine_orchestrator(
+        adapter=adapter,
+        phase="5.4-BusinessRules",
+        active_gate="Business Rules Validation",
+        mode="OK",
+        next_gate_condition="Business rules validation complete; proceed to post-flight",
+        session_state_document={
+            "SESSION_STATE": {
+                "phase": "5.4-BusinessRules",
+                "PersistenceCommitted": True,
+                "workspace_ready_gate_committed": True,
+                "WorkspaceArtifactsCommitted": True,
+                "PointerVerified": True,
+                "phase_transition_evidence": True,
+                "ActiveProfile": "profile.fallback-minimum",
+                "LoadedRulebooks": {
+                    "core": "rules.md",
+                    "profile": "rules.profile.yml",
+                    "addons": {"riskTiering": "rules.addon.yml"},
+                },
+                "RulebookLoadEvidence": {
+                    "core": "rules.md",
+                    "profile": "rules.profile.yml",
+                },
+                "AddonsEvidence": {"riskTiering": {"status": "loaded"}},
+                "Gates": {"P5.4-BusinessRules": "approved"},
+            }
+        },
+        requested_action="write production code",
+    )
+
+    assert out.parity["status"] == "blocked"
+    assert out.parity["reason_code"] == "BLOCKED-STATE-OUTDATED"
+
+
+@pytest.mark.governance
+def test_orchestrator_happy_allows_code_output_in_phase6(tmp_path: Path):
+    repo_root = _make_git_root(tmp_path / "repo")
+    adapter = StubAdapter(
+        env={"OPENCODE_REPO_ROOT": str(repo_root)},
+        cwd_path=repo_root,
+        caps=HostCapabilities(
+            cwd_trust="trusted",
+            fs_read_commands_home=True,
+            fs_write_config_root=True,
+            fs_write_commands_home=True,
+            fs_write_workspaces_home=True,
+            fs_write_repo_root=True,
+            exec_allowed=True,
+            git_available=True,
+        ),
+    )
+
+    out = run_engine_orchestrator(
+        adapter=adapter,
+        phase="6-PostFlight",
+        active_gate="Post Flight",
+        mode="OK",
+        next_gate_condition="Complete deterministic internal implementation review iterations.",
+        session_state_document={
+            "SESSION_STATE": {
+                "phase": "6-PostFlight",
+                "PersistenceCommitted": True,
+                "workspace_ready_gate_committed": True,
+                "WorkspaceArtifactsCommitted": True,
+                "PointerVerified": True,
+                "phase_transition_evidence": True,
+                "ActiveProfile": "profile.fallback-minimum",
+                "LoadedRulebooks": {
+                    "core": "rules.md",
+                    "profile": "rules.profile.yml",
+                    "addons": {"riskTiering": "rules.addon.yml"},
+                },
+                "RulebookLoadEvidence": {
+                    "core": "rules.md",
+                    "profile": "rules.profile.yml",
+                },
+                "AddonsEvidence": {"riskTiering": {"status": "loaded"}},
+            }
+        },
         requested_action="write production code",
     )
 
     assert out.parity["status"] == "ok"
+
+
+@pytest.mark.governance
+def test_orchestrator_bad_unknown_phase_fails_closed_for_code_output(tmp_path: Path):
+    repo_root = _make_git_root(tmp_path / "repo")
+    adapter = StubAdapter(
+        env={"OPENCODE_REPO_ROOT": str(repo_root)},
+        cwd_path=repo_root,
+        caps=HostCapabilities(
+            cwd_trust="trusted",
+            fs_read_commands_home=True,
+            fs_write_config_root=True,
+            fs_write_commands_home=True,
+            fs_write_workspaces_home=True,
+            fs_write_repo_root=True,
+            exec_allowed=True,
+            git_available=True,
+        ),
+    )
+
+    out = run_engine_orchestrator(
+        adapter=adapter,
+        phase="phase-unknown",
+        active_gate="Unknown",
+        mode="OK",
+        next_gate_condition="unknown",
+        session_state_document={"SESSION_STATE": {"phase": "phase-unknown"}},
+        requested_action="write production code",
+    )
+
+    assert out.parity["status"] == "blocked"
+    assert out.parity["reason_code"] == "BLOCKED-STATE-OUTDATED"
 
 
 @pytest.mark.governance
