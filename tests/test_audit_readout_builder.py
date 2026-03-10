@@ -11,6 +11,9 @@ from governance.domain.canonical_json import canonical_json_hash
 from governance.infrastructure.work_run_archive import archive_active_run
 
 
+_FP = "abc123def456abc123def456"
+
+
 def _write_json(path: Path, payload: Mapping[str, object]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, ensure_ascii=True), encoding="utf-8")
@@ -19,7 +22,7 @@ def _write_json(path: Path, payload: Mapping[str, object]) -> None:
 def _setup_workspace(tmp_path: Path) -> tuple[Path, Path, Path]:
     config_root = tmp_path / "config"
     commands_home = config_root / "commands"
-    workspace = config_root / "workspaces" / "fp"
+    workspace = config_root / "workspaces" / _FP
     commands_home.mkdir(parents=True)
     workspace.mkdir(parents=True)
 
@@ -55,7 +58,7 @@ def _write_run_archive(
         run_dir / "metadata.json",
         {
             "schema": "governance.work-run.snapshot.v2",
-            "repo_fingerprint": "fp",
+            "repo_fingerprint": workspace.name,
             "run_id": run_id,
             "archived_at": archived_at,
             "source_phase": source_phase,
@@ -583,7 +586,7 @@ def test_verified_archive_does_not_emit_run_verify_failed_note(tmp_path: Path) -
 
     archive_active_run(
         workspaces_home=config_root / "workspaces",
-        repo_fingerprint="fp",
+        repo_fingerprint=workspace.name,
         run_id="work-1",
         observed_at="2026-03-05T20:30:00Z",
         session_state_document={

@@ -145,7 +145,7 @@ def build_provenance_record(
         "policy_fingerprint": str(state_view.get("spec_hash") or state_view.get("SpecHash") or ""),
         "binding": {
             "repo_fingerprint": repo_fingerprint,
-            "session_run_id": str(state_view.get("session_run_id") or ""),
+            "session_run_id": str(state_view.get("session_run_id") or run_id),
         },
         "launcher": "governance.entrypoints.new_work_session",
         "timestamps": {
