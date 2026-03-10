@@ -325,7 +325,7 @@ def main(argv: list[str] | None = None) -> int:
         # /plan may be the directed exit rail from Phase-6 rework clarification.
         # Consume clarification state first, then force deterministic Phase-5
         # plan-record entry to avoid self-looping back into clarification.
-        if consume_rework_clarification_state(state, consumed_by="plan"):
+        if consume_rework_clarification_state(state, consumed_by="plan", consumed_at=_now_iso()):
             state["Phase"] = "5-ArchitectureReview"
             state["phase"] = "5-ArchitectureReview"
             state["Next"] = "5"

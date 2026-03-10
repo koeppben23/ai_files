@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
 from typing import Literal, Mapping, MutableMapping
 
 ReworkOutcome = Literal["scope_change", "plan_change", "clarification_only", "insufficient"]
@@ -147,7 +146,12 @@ def is_rework_clarification_active(state: Mapping[str, object]) -> bool:
     return False
 
 
-def consume_rework_clarification_state(state: MutableMapping[str, object], *, consumed_by: str) -> bool:
+def consume_rework_clarification_state(
+    state: MutableMapping[str, object],
+    *,
+    consumed_by: str,
+    consumed_at: str = "",
+) -> bool:
     """Consume clarification state after a valid /ticket or /plan action.
 
     Returns True when state was consumed, False when nothing was active.
@@ -168,7 +172,5 @@ def consume_rework_clarification_state(state: MutableMapping[str, object], *, co
     state.pop("user_review_decision", None)
     state["rework_clarification_consumed"] = True
     state["rework_clarification_consumed_by"] = consumed_by
-    state["rework_clarification_consumed_at"] = (
-        datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
-    )
+    state["rework_clarification_consumed_at"] = str(consumed_at or "set")
     return True

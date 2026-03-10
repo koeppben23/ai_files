@@ -169,7 +169,7 @@ def main(argv: list[str] | None = None) -> int:
         # When /ticket is executed from Phase-6 rework clarification,
         # consume clarification state and force deterministic Phase-4 re-entry
         # before routing into the development path.
-        if consume_rework_clarification_state(state, consumed_by="ticket"):
+        if consume_rework_clarification_state(state, consumed_by="ticket", consumed_at=_now_iso()):
             state["Phase"] = "4"
             state["phase"] = "4"
             state["Next"] = "4"
