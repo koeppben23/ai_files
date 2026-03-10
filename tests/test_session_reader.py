@@ -2453,6 +2453,19 @@ class TestResolveNextActionLine:
             "Next action: governance workflow is complete; no further governance command is required."
         )
 
+    def test_happy_rework_clarification_gate_prompts_chat_first(self) -> None:
+        """changes_requested gate asks for chat clarification before rail choice."""
+        snapshot = {
+            "status": "OK",
+            "phase": "6-PostFlight",
+            "active_gate": "Rework Clarification Gate",
+            "next_gate_condition": "Clarify requested changes in chat, then run directed next rail.",
+        }
+        assert _resolve_next_action_line(snapshot) == (
+            "Next action: describe what must be adjusted in chat; after clarification, run exactly one "
+            "directed rail (/ticket, /plan, or /continue)."
+        )
+
     def test_edge_ticket_intake_without_active_gate_still_suppresses_continue(self) -> None:
         """Edge: ticket intake wording without active_gate never recommends /continue."""
         snapshot = {

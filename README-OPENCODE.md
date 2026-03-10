@@ -19,8 +19,8 @@ Launcher-first operator/model flow for starting and continuing governed OpenCode
 5. Use `/review` as the read-only rail entrypoint for quality review.
 6. At Phase 6 Evidence Presentation Gate, run `/review-decision <approve|changes_requested|reject>`.
    Example: `/review-decision approve`.
-7. `changes_requested` restarts the controlled Phase-6 correction loop; collect clarifications before implementation continues.
-8. `reject` must route back to Phase 4 Ticket Input Gate; restart with `/ticket` and updated scope.
+7. `changes_requested` enters `Rework Clarification Gate`; clarify requested changes in chat, then run exactly one directed rail (`/ticket`, `/plan`, or `/continue`).
+8. `reject` routes back to Phase 4 Ticket Input Gate; primary next action is `/ticket` with updated scope (alternative: `/review` for read-only feedback).
 9. Use `/audit-readout` for a read-only audit snapshot.
 
 Runtime persistence is repo-scoped under `${WORKSPACES_HOME}/<repo_fingerprint>/...` with global pointer `${SESSION_STATE_POINTER_FILE}`.
