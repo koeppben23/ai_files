@@ -94,6 +94,14 @@ def verify_run_archive(run_root: Path) -> Tuple[bool, Dict[str, bool], Optional[
     if not isinstance(manifest, dict):
         return False, results, "Invalid run-manifest.json payload"
 
+    metadata = json.loads((run_root / "metadata.json").read_text(encoding="utf-8"))
+    if not isinstance(metadata, dict):
+        return False, results, "Invalid metadata.json payload"
+
+    provenance = json.loads((run_root / "provenance-record.json").read_text(encoding="utf-8"))
+    if not isinstance(provenance, dict):
+        return False, results, "Invalid provenance-record.json payload"
+
     run_status = str(manifest.get("run_status") or "").strip()
     record_status = str(manifest.get("record_status") or "").strip()
     integrity_status = str(manifest.get("integrity_status") or "").strip()
@@ -115,6 +123,30 @@ def verify_run_archive(run_root: Path) -> Tuple[bool, Dict[str, bool], Optional[
 
     if not isinstance(required_artifacts, dict):
         return False, results, "run-manifest.json missing required_artifacts map"
+
+    run_id = run_root.name
+    manifest_run_id = str(manifest.get("run_id") or "").strip()
+    metadata_run_id = str(metadata.get("run_id") or "").strip()
+    provenance_run_id = str(provenance.get("run_id") or "").strip()
+    if manifest_run_id != run_id:
+        return False, results, f"run_id mismatch in run-manifest.json: expected {run_id}, got {manifest_run_id}"
+    if metadata_run_id != run_id:
+        return False, results, f"run_id mismatch in metadata.json: expected {run_id}, got {metadata_run_id}"
+    if provenance_run_id != run_id:
+        return False, results, f"run_id mismatch in provenance-record.json: expected {run_id}, got {provenance_run_id}"
+
+    manifest_repo = str(manifest.get("repo_fingerprint") or "").strip()
+    metadata_repo = str(metadata.get("repo_fingerprint") or "").strip()
+    provenance_repo = str(provenance.get("repo_fingerprint") or "").strip()
+    if not manifest_repo or manifest_repo != metadata_repo or metadata_repo != provenance_repo:
+        return False, results, "repo_fingerprint mismatch across run-manifest/metadata/provenance"
+
+    archive_status = str(metadata.get("archive_status") or "").strip()
+    if run_status == "finalized" and archive_status and archive_status != "finalized":
+        return False, results, f"archive_status mismatch for finalized run: {archive_status}"
+    if run_status == "failed" and archive_status and archive_status != "failed":
+        return False, results, f"archive_status mismatch for failed run: {archive_status}"
+
     for artifact_name, required_flag in required_artifacts.items():
         if not isinstance(artifact_name, str) or not isinstance(required_flag, bool):
             return False, results, "required_artifacts has invalid entries"

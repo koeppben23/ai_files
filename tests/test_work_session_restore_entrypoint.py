@@ -37,7 +37,9 @@ def _write_archive_run(workspace: Path, run_id: str, phase: str, next_token: str
         run_root / "metadata.json",
         {
             "schema": "governance.work-run.snapshot.v2",
+            "repo_fingerprint": "abc123def456abc123def456",
             "run_id": run_id,
+            "archive_status": "materialized",
         },
     )
     _write_json(

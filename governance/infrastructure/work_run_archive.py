@@ -169,7 +169,7 @@ def archive_active_run(
         checksums_path = run_checksums_path(workspaces_home, repo_fingerprint, archived_run_id)
         writer(checksums_path, build_checksums(checksum_inputs))
 
-        integrity_ok, _, _ = verify_run_archive(archive_root)
+        integrity_ok, _, integrity_message = verify_run_archive(archive_root)
         finalized_manifest = finalize_run_manifest(
             run_manifest,
             observed_at=observed_at,
@@ -179,21 +179,19 @@ def archive_active_run(
         )
         manifest_path = run_manifest_path(workspaces_home, repo_fingerprint, archived_run_id)
         writer(manifest_path, finalized_manifest)
-        checksum_inputs["run-manifest.json"] = manifest_path
-        writer(checksums_path, build_checksums(checksum_inputs))
-        integrity_ok, _, _ = verify_run_archive(archive_root)
-        if not integrity_ok:
-            raise RuntimeError("run archive integrity verify failed")
         if str(finalized_manifest.get("run_status") or "") != "finalized":
             raise RuntimeError("run archive failed finalization guards")
 
         metadata["archive_status"] = "finalized"
         metadata["finalization_reason"] = "all-required-artifacts-present-and-verified"
         writer(metadata_path, metadata)
+        checksum_inputs["run-manifest.json"] = manifest_path
         writer(checksums_path, build_checksums(checksum_inputs))
-        integrity_ok, _, _ = verify_run_archive(archive_root)
+        integrity_ok, _, integrity_message = verify_run_archive(archive_root)
         if not integrity_ok:
-            raise RuntimeError("run archive integrity verify failed after metadata finalization")
+            raise RuntimeError(
+                f"run archive integrity verify failed after metadata finalization: {integrity_message or 'unknown'}"
+            )
     except Exception as exc:
         error_message = str(exc)
         try:
