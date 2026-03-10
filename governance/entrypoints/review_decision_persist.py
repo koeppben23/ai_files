@@ -202,6 +202,16 @@ def apply_review_decision(
             review_block["completion_status"] = "phase6-completed"
             state["ImplementationReview"] = review_block
     elif normalized == "changes_requested":
+        # Enter explicit clarification gate before any further rail is chosen.
+        state["Phase"] = "6-PostFlight"
+        state["phase"] = "6-PostFlight"
+        state["Next"] = "6"
+        state["next"] = "6"
+        state["active_gate"] = "Rework Clarification Gate"
+        state["next_gate_condition"] = (
+            "Clarify requested changes in chat, then run directed next rail."
+        )
+
         # Loop-reset: clear review completion so the internal review restarts
         state["implementation_review_complete"] = False
         review_block = state.get("ImplementationReview")
@@ -213,7 +223,7 @@ def apply_review_decision(
             state["ImplementationReview"] = review_block
         state["phase6_review_iterations"] = 0
         state["phase6_revision_delta"] = "changed"
-        state["phase6_state"] = "phase6_in_progress"
+        state["phase6_state"] = "phase6_changes_requested"
         # Clear any previous workflow_complete flag
         state.pop("workflow_complete", None)
         state.pop("WorkflowComplete", None)
@@ -265,12 +275,15 @@ def _next_action_hint(decision: str) -> str:
         return "Workflow complete. No further action required."
     if decision == "changes_requested":
         return (
-            "Changes requested. A guided clarification conversation should start now "
-            "(what failed, expected outcome, acceptance checks); after clarifications, run /continue "
-            "to restart the implementation review loop."
+            "Changes requested. Describe what must be adjusted; after clarification, run exactly one "
+            "directed next rail (/ticket, /plan, or /continue)."
         )
     if decision == "reject":
-        return "Review rejected. Workflow returned to Phase 4 Ticket Input Gate. Run /ticket with updated ticket/task details to restart."
+        return (
+            "Review rejected. Workflow returned to Phase 4 Ticket Input Gate. "
+            "Next action: run /ticket with the revised task details. "
+            "Alternative: run /review for read-only review before re-entering the development path."
+        )
     return ""
 
 

@@ -858,6 +858,11 @@ def _resolve_next_action_line(snapshot: dict) -> str:
     if phase_str.startswith("6"):
         if active_gate == "workflow complete":
             return "Next action: governance workflow is complete; no further governance command is required."
+        if active_gate == "rework clarification gate":
+            return (
+                "Next action: describe what must be adjusted in chat; after clarification, run exactly one "
+                "directed rail (/ticket, /plan, or /continue)."
+            )
         if active_gate == "evidence presentation gate":
             return (
                 "Next action: run /review-decision <approve|changes_requested|reject> "

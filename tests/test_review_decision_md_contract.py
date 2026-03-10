@@ -21,6 +21,8 @@ def test_review_decision_md_exists_and_documents_canonical_surface() -> None:
     assert "opencode-governance-bootstrap" in content
     assert "decision=approve|changes_requested|reject" in content
     assert "No default is allowed" in content
+    assert "Rework Clarification Gate" in content
+    assert "/ticket` when scope/task/assignment changes" in content
 
 
 @pytest.mark.governance

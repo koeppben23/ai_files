@@ -98,8 +98,8 @@ opencode-governance-bootstrap.cmd --repo-root C:\path\to\repo
 2. For new work at Phase 4, run `/ticket`, then `/plan`; alternatively run `/review` for read-only review feedback (no state change).
 3. Use `/review` as a read-only rail entrypoint for review-depth feedback.
 4. At Phase 6 Evidence Presentation Gate, run `/review-decision <approve|changes_requested|reject>` (for example `/review-decision approve`).
-5. If you choose `changes_requested`, the workflow stays in a controlled Phase-6 correction loop; gather clarifications first, then continue.
-6. If you choose `reject`, the workflow must return to Phase 4 Ticket Input Gate; restart with `/ticket` and updated scope.
+5. If you choose `changes_requested`, the workflow enters `Rework Clarification Gate`; clarify requested changes in chat first, then run exactly one directed rail (`/ticket`, `/plan`, or `/continue`).
+6. If you choose `reject`, the workflow returns to Phase 4 Ticket Input Gate; primary next action is `/ticket` with updated scope (alternative: `/review` for read-only feedback).
 
 ## Docs and troubleshooting
 

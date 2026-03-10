@@ -405,11 +405,15 @@ class TestReviewDecisionChangesRequested:
             session_path=session_path,
         )
         assert result["status"] == "ok"
+        assert "directed next rail" in str(result.get("next_action", ""))
 
         doc = json.loads(session_path.read_text(encoding="utf-8"))
         ss = doc["SESSION_STATE"]
         assert ss["implementation_review_complete"] is False
         assert ss["phase6_review_iterations"] == 0
+        assert ss["active_gate"] == "Rework Clarification Gate"
+        assert ss["phase6_state"] == "phase6_changes_requested"
+        assert "Clarify requested changes" in ss["next_gate_condition"]
         assert ss.get("workflow_complete") is None
         assert ss["UserReviewDecision"]["decision"] == "changes_requested"
 
@@ -425,6 +429,8 @@ class TestReviewDecisionReject:
             session_path=session_path,
         )
         assert result["status"] == "ok"
+        assert "Next action: run /ticket" in str(result.get("next_action", ""))
+        assert "Alternative: run /review" in str(result.get("next_action", ""))
 
         doc = json.loads(session_path.read_text(encoding="utf-8"))
         ss = doc["SESSION_STATE"]
@@ -532,9 +538,11 @@ class TestKernelReviewDecisionRouting:
         assert result.status == "OK"
         assert result.active_gate == "Workflow Complete"
 
-    def test_changes_requested_routes_to_implementation_review(self, tmp_path: Path) -> None:
+    def test_changes_requested_routes_to_rework_clarification_gate(self, tmp_path: Path) -> None:
         ctx = _make_ctx(tmp_path)
         state = _make_phase6_state(extra={
+            "active_gate": "Evidence Presentation Gate",
+            "phase6_state": "phase6_changes_requested",
             "UserReviewDecision": {"decision": "changes_requested"},
             "implementation_review_complete": False,
             "ImplementationReview": {
@@ -551,8 +559,7 @@ class TestKernelReviewDecisionRouting:
             runtime_ctx=ctx,
         )
         assert result.status == "OK"
-        # After reset, review is pending so it should go to Implementation Internal Review
-        assert result.active_gate == "Implementation Internal Review"
+        assert result.active_gate == "Rework Clarification Gate"
 
     def test_reject_routes_to_phase4(self, tmp_path: Path) -> None:
         ctx = _make_ctx(tmp_path)
@@ -613,6 +620,22 @@ class TestKernelReviewDecisionRouting:
         assert result.status == "OK"
         assert result.next_token == "6"
         assert result.active_gate == "Evidence Presentation Gate"
+
+    def test_happy_rework_pending_state_keeps_clarification_gate(self, tmp_path: Path) -> None:
+        ctx = _make_ctx(tmp_path)
+        state = _make_phase6_state(extra={
+            "active_gate": "Rework Clarification Gate",
+            "phase6_state": "phase6_changes_requested",
+            "implementation_review_complete": False,
+            "UserReviewDecision": {"decision": "changes_requested"},
+        })
+        result = execute(
+            current_token="6",
+            session_state_doc={"SESSION_STATE": state},
+            runtime_ctx=ctx,
+        )
+        assert result.status == "OK"
+        assert result.active_gate == "Rework Clarification Gate"
 
 
 # ===========================================================================
