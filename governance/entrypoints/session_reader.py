@@ -731,6 +731,14 @@ def _materialize_authoritative_state(*, commands_home: Path, config_root: Path, 
         )
     )
 
+    ss = materialized.get("SESSION_STATE")
+    if isinstance(ss, dict):
+        source = str(result.source or "").strip().lower()
+        phase_after = str(result.phase or "").strip()
+        if source in {"phase-6-changes-requested-loop-reset", "phase-6-rejected-to-phase4"} or not phase_after.startswith("6"):
+            ss.pop("UserReviewDecision", None)
+            ss.pop("user_review_decision", None)
+
     # Auto-grant phase_transition_evidence when the kernel successfully
     # evaluates a forward transition (Fix 2.0 / Ergänzung C).
     # This prevents /continue self-loops where evidence stays False
@@ -826,9 +834,17 @@ def _resolve_next_action_line(snapshot: dict) -> str:
     the required gate work yet.
     """
     phase_str = str(snapshot.get("phase", "")).strip()
+    status = str(snapshot.get("status", "")).strip().lower()
     active_gate = str(snapshot.get("active_gate", "")).strip().lower()
     plan_status = str(snapshot.get("plan_record_status", "")).strip().lower()
     plan_versions = _coerce_int(snapshot.get("plan_record_versions"))
+
+    if status in {"", "error", "blocked"}:
+        if status == "blocked":
+            return "Next action: resolve the reported blocker evidence, then run /continue."
+        if status == "error":
+            return "Next action: resolve the reported error and rerun /continue."
+        return "Next action: run /continue."
 
     # Phase 5 plan-record prep is an explicit write gate: /continue must NOT
     # be recommended before the plan record exists.
@@ -841,9 +857,12 @@ def _resolve_next_action_line(snapshot: dict) -> str:
     # conditions — but we still need to emit the /review-decision guidance.
     if phase_str.startswith("6"):
         if active_gate == "workflow complete":
-            return ""
+            return "Next action: governance workflow is complete; no further governance command is required."
         if active_gate == "evidence presentation gate":
-            return "Next action: submit final review decision via /review-decision (approve | changes_requested | reject)."
+            return (
+                "Next action: run /review-decision <approve|changes_requested|reject> "
+                "(example: /review-decision approve)."
+            )
 
     # Gate-specific P5.x guidance must run before the generic
     # _should_emit_continue_next_action() guard so blocked conditions can
@@ -852,17 +871,30 @@ def _resolve_next_action_line(snapshot: dict) -> str:
         p54_status = str(snapshot.get("p54_evaluated_status", "")).strip().lower()
         if p54_status in {"compliant", "compliant-with-exceptions", "not-applicable"}:
             return "Next action: run /continue."
-        return "Next action: run /plan with explicit business-rules compliance evidence."
+        return "Next action: continue in chat with the active gate work."
     if phase_str.startswith("5.5"):
         p55_status = str(snapshot.get("p55_evaluated_status", "")).strip().lower()
         if p55_status in {"approved", "not-applicable"}:
             return "Next action: run /continue."
-        return "Next action: run /plan with explicit technical-debt review evidence."
+        return "Next action: continue in chat with the active gate work."
     if phase_str.startswith("5.6"):
         p56_status = str(snapshot.get("p56_evaluated_status", "")).strip().lower()
         if p56_status in {"approved", "not-applicable"}:
             return "Next action: run /continue."
-        return "Next action: run /plan with explicit rollback-safety evidence."
+        return "Next action: continue in chat with the active gate work."
+
+    # Phase 4 ticket intake has two explicit operator paths. Surface both,
+    # instead of returning an empty next-action line, so operators do not
+    # miss the /review route.
+    if (
+        phase_str.startswith("4")
+        and status not in {"", "error", "blocked"}
+        and active_gate == "ticket input gate"
+    ):
+        return (
+            "Next action: run /ticket with the ticket/task details to enter the development path. "
+            "Alternative: run /review for read-only review feedback (no state change)."
+        )
 
     if not _should_emit_continue_next_action(snapshot):
         return ""

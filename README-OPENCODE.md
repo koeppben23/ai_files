@@ -14,10 +14,14 @@ Launcher-first operator/model flow for starting and continuing governed OpenCode
 2. Open OpenCode Desktop in the same repository.
 3. Run `/continue`.
 4. If `/continue` lands at Phase 4, run `/ticket`, then `/plan`.
-   This is Plan Mode intake and persists Phase-4 ticket/plan evidence.
+   Alternative path: run `/review` for read-only review feedback (no state change).
+   `/ticket` is Plan Mode intake and persists Phase-4 ticket/plan evidence.
 5. Use `/review` as the read-only rail entrypoint for quality review.
-6. At Phase 6 Evidence Presentation Gate, run `/review-decision` to submit the final review decision (`approve`, `changes_requested`, or `reject`).
-7. Use `/audit-readout` for a read-only audit snapshot.
+6. At Phase 6 Evidence Presentation Gate, run `/review-decision <approve|changes_requested|reject>`.
+   Example: `/review-decision approve`.
+7. `changes_requested` restarts the controlled Phase-6 correction loop; collect clarifications before implementation continues.
+8. `reject` must route back to Phase 4 Ticket Input Gate; restart with `/ticket` and updated scope.
+9. Use `/audit-readout` for a read-only audit snapshot.
 
 Runtime persistence is repo-scoped under `${WORKSPACES_HOME}/<repo_fingerprint>/...` with global pointer `${SESSION_STATE_POINTER_FILE}`.
 Path-binding bootstrap depends on `${CONFIG_ROOT}/commands/governance.paths.json`.

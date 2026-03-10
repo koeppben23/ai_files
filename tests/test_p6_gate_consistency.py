@@ -101,6 +101,7 @@ def _make_phase6_state(*, gates: dict | None = None, extra: dict | None = None) 
     """Build a SESSION_STATE document already in Phase 6."""
     state = {
         "Phase": "6-PostFlight",
+        "active_gate": "Evidence Presentation Gate",
         **PERSISTENCE_BASE,
         **RULEBOOK_BASE,
         "Gates": gates or dict(ALL_P5_GATES_PASSED),
@@ -428,12 +429,31 @@ class TestReviewDecisionReject:
         doc = json.loads(session_path.read_text(encoding="utf-8"))
         ss = doc["SESSION_STATE"]
         assert ss["Phase"] == "4"
+        assert ss["phase"] == "4"
+        assert ss["Next"] == "4"
+        assert ss["next"] == "4"
         assert ss["phase_transition_evidence"] is False
         assert ss.get("workflow_complete") is None
         # Fix 4: reject sets active_gate and next_gate_condition, clears phase6_state.
         assert ss["active_gate"] == "Ticket Input Gate"
         assert "rejected" in ss["next_gate_condition"].lower()
         assert "phase6_state" not in ss
+
+    def test_reject_overwrites_stale_lowercase_phase_to_4(self, tmp_path: Path) -> None:
+        state = _make_phase6_state(extra={"phase": "6-PostFlight", "next": "6"})
+        session_path = _write_session(tmp_path, state)
+        result = apply_review_decision(
+            decision="reject",
+            session_path=session_path,
+        )
+        assert result["status"] == "ok"
+
+        doc = json.loads(session_path.read_text(encoding="utf-8"))
+        ss = doc["SESSION_STATE"]
+        assert ss["Phase"] == "4"
+        assert ss["phase"] == "4"
+        assert ss["Next"] == "4"
+        assert ss["next"] == "4"
 
 
 class TestReviewDecisionBadPaths:
@@ -478,6 +498,16 @@ class TestReviewDecisionBadPaths:
             session_path=session_path,
         )
         assert result["status"] == "error"
+
+    def test_phase6_without_evidence_presentation_gate_rejected(self, tmp_path: Path) -> None:
+        state = _make_phase6_state(extra={"active_gate": "Post Flight"})
+        session_path = _write_session(tmp_path, state)
+        result = apply_review_decision(
+            decision="approve",
+            session_path=session_path,
+        )
+        assert result["status"] == "error"
+        assert "Evidence Presentation Gate" in str(result.get("message", ""))
 
 
 # ===========================================================================
@@ -537,6 +567,52 @@ class TestKernelReviewDecisionRouting:
         assert result.status == "OK"
         # reject transition routes to Phase 4
         assert result.next_token == "4"
+
+    def test_edge_stale_reject_in_non_evidence_gate_does_not_reroute_to_phase4(self, tmp_path: Path) -> None:
+        ctx = _make_ctx(tmp_path)
+        state = _make_phase6_state(extra={
+            "active_gate": "Implementation Internal Review",
+            "UserReviewDecision": {"decision": "reject"},
+            "implementation_review_complete": False,
+            "ImplementationReview": {
+                "iteration": 0,
+                "max_iterations": 3,
+                "min_self_review_iterations": 1,
+                "revision_delta": "changed",
+                "implementation_review_complete": False,
+            },
+        })
+        result = execute(
+            current_token="6",
+            session_state_doc={"SESSION_STATE": state},
+            runtime_ctx=ctx,
+        )
+        assert result.status == "OK"
+        assert result.next_token == "6"
+        assert result.active_gate == "Implementation Internal Review"
+
+    def test_corner_stale_changes_requested_in_non_evidence_gate_keeps_phase6_progression(self, tmp_path: Path) -> None:
+        ctx = _make_ctx(tmp_path)
+        state = _make_phase6_state(extra={
+            "active_gate": "Post Flight",
+            "UserReviewDecision": {"decision": "changes_requested"},
+            "implementation_review_complete": True,
+            "ImplementationReview": {
+                "iteration": 3,
+                "max_iterations": 3,
+                "min_self_review_iterations": 1,
+                "revision_delta": "none",
+                "implementation_review_complete": True,
+            },
+        })
+        result = execute(
+            current_token="6",
+            session_state_doc={"SESSION_STATE": state},
+            runtime_ctx=ctx,
+        )
+        assert result.status == "OK"
+        assert result.next_token == "6"
+        assert result.active_gate == "Evidence Presentation Gate"
 
 
 # ===========================================================================
@@ -612,7 +688,7 @@ class TestEvidencePresentationGateGuidance:
         line = _resolve_next_action_line(snapshot)
         assert "/review-decision" in line
 
-    def test_workflow_complete_returns_empty(self) -> None:
+    def test_workflow_complete_returns_terminal_next_action(self) -> None:
         snapshot = {
             "phase": "6-PostFlight",
             "active_gate": "Workflow Complete",
@@ -620,7 +696,9 @@ class TestEvidencePresentationGateGuidance:
             "next_gate_condition": "Workflow approved.",
         }
         line = _resolve_next_action_line(snapshot)
-        assert line == ""
+        assert line == (
+            "Next action: governance workflow is complete; no further governance command is required."
+        )
 
     def test_should_not_emit_continue_for_review_decision(self) -> None:
         snapshot = {

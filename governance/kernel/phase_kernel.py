@@ -628,6 +628,16 @@ def _user_review_decision(state: Mapping[str, object]) -> str:
     return ""
 
 
+def _phase6_evidence_presentation_gate_active(state: Mapping[str, object]) -> bool:
+    """Return True only when Phase 6 Evidence Presentation Gate is active."""
+
+    for key in ("active_gate", "ActiveGate", "Gate"):
+        value = state.get(key)
+        if isinstance(value, str) and value.strip().lower() == "evidence presentation gate":
+            return True
+    return False
+
+
 def _workflow_complete(state: Mapping[str, object]) -> bool:
     """Check if the workflow has been marked complete (approve decision applied)."""
     for key in ("workflow_complete", "WorkflowComplete"):
@@ -821,14 +831,22 @@ def _select_transition(
                     transition.active_gate,
                     transition.next_gate_condition,
                 )
-            if when == "review_changes_requested" and _user_review_decision(state) == "changes_requested":
+            if (
+                when == "review_changes_requested"
+                and _phase6_evidence_presentation_gate_active(state)
+                and _user_review_decision(state) == "changes_requested"
+            ):
                 return (
                     transition.next_token,
                     transition.source,
                     transition.active_gate,
                     transition.next_gate_condition,
                 )
-            if when == "review_rejected" and _user_review_decision(state) == "reject":
+            if (
+                when == "review_rejected"
+                and _phase6_evidence_presentation_gate_active(state)
+                and _user_review_decision(state) == "reject"
+            ):
                 return (
                     transition.next_token,
                     transition.source,

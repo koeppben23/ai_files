@@ -35,6 +35,17 @@ def test_review_template_contains_required_placeholders_and_contract() -> None:
     # R1 compressed audience labels (lead/staff); verify review-specific content instead
     assert "review" in content.lower()
     assert "paste-ready" in content.lower()
+    assert "does not reroute phase state" in content.lower()
+    assert "changes_requested" in content
+
+
+@pytest.mark.governance
+def test_phase4_review_reference_is_explicitly_read_only_no_state_change() -> None:
+    """phase_api wording for Phase 4 /review must be explicit about no state mutation."""
+    phase_api_path = REPO_ROOT / "phase_api.yaml"
+    assert phase_api_path.exists(), "phase_api.yaml must exist in repo root"
+    content = phase_api_path.read_text(encoding="utf-8").lower()
+    assert "run /review for read-only feedback with no state change" in content
 
 
 @pytest.mark.governance
