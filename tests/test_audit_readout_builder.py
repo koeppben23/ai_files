@@ -8,6 +8,14 @@ import pytest
 
 from governance.application.use_cases.audit_readout_builder import build_audit_readout
 from governance.domain.canonical_json import canonical_json_hash
+from governance.infrastructure.work_run_archive import archive_active_run
+
+
+_FP = "abc123def456abc123def456"
+
+
+def _runs_root(workspace: Path) -> Path:
+    return workspace.parent / "governance-records" / workspace.name / "runs"
 
 
 def _write_json(path: Path, payload: Mapping[str, object]) -> None:
@@ -18,7 +26,7 @@ def _write_json(path: Path, payload: Mapping[str, object]) -> None:
 def _setup_workspace(tmp_path: Path) -> tuple[Path, Path, Path]:
     config_root = tmp_path / "config"
     commands_home = config_root / "commands"
-    workspace = config_root / "workspaces" / "fp"
+    workspace = config_root / "workspaces" / _FP
     commands_home.mkdir(parents=True)
     workspace.mkdir(parents=True)
 
@@ -38,7 +46,7 @@ def _write_run_archive(
     source_phase: str,
     state_phase: str,
 ) -> tuple[Path, str]:
-    run_dir = workspace / "runs" / run_id
+    run_dir = _runs_root(workspace) / run_id
     snapshot_doc = {
         "SESSION_STATE": {
             "session_run_id": run_id,
@@ -54,7 +62,7 @@ def _write_run_archive(
         run_dir / "metadata.json",
         {
             "schema": "governance.work-run.snapshot.v2",
-            "repo_fingerprint": "fp",
+            "repo_fingerprint": workspace.name,
             "run_id": run_id,
             "archived_at": archived_at,
             "source_phase": source_phase,
@@ -137,6 +145,8 @@ def test_happy_build_audit_readout_uses_runs_and_pointer(tmp_path: Path) -> None
     assert integrity["run_id_consistent"] is True
     assert integrity["active_run_pointer_consistent"] is True
     assert integrity["reactivation_chain_consistent"] is True
+    assert integrity["snapshot_quality_ok"] is False
+    assert integrity["run_archives_verified"] is False
 
 
 def test_edge_reactivation_keeps_last_snapshot_from_created_chain(tmp_path: Path) -> None:
@@ -202,9 +212,9 @@ def test_edge_reactivation_keeps_last_snapshot_from_created_chain(tmp_path: Path
                         "run_id": "work-1",
                         "previous_run_id": "work-4",
                         "reactivated_run_id": "work-1",
-                        "snapshot_path": str(workspace / "runs" / "work-1" / "SESSION_STATE.json"),
+                        "snapshot_path": str(_runs_root(workspace) / "work-1" / "SESSION_STATE.json"),
                         "snapshot_digest": canonical_json_hash(
-                            json.loads((workspace / "runs" / "work-1" / "SESSION_STATE.json").read_text(encoding="utf-8"))
+                            json.loads((_runs_root(workspace) / "work-1" / "SESSION_STATE.json").read_text(encoding="utf-8"))
                         ),
                     }
                 ),
@@ -268,9 +278,9 @@ def test_bad_pointer_mismatch_sets_integrity_false(tmp_path: Path) -> None:
                 "session_id": "sess-1",
                 "run_id": "work-1",
                 "new_run_id": "work-2",
-                "snapshot_path": str(workspace / "runs" / "work-1" / "SESSION_STATE.json"),
+                "snapshot_path": str(_runs_root(workspace) / "work-1" / "SESSION_STATE.json"),
                 "snapshot_digest": canonical_json_hash(
-                    json.loads((workspace / "runs" / "work-1" / "SESSION_STATE.json").read_text(encoding="utf-8"))
+                    json.loads((_runs_root(workspace) / "work-1" / "SESSION_STATE.json").read_text(encoding="utf-8"))
                 ),
             }
         )
@@ -397,3 +407,231 @@ def test_replay_determinism_same_input_same_output(tmp_path: Path) -> None:
     first = build_audit_readout(commands_home=commands_home)
     second = build_audit_readout(commands_home=commands_home)
     assert first == second
+
+
+def test_archive_without_manifest_or_checksums_emits_notes(tmp_path: Path) -> None:
+    commands_home, _, workspace = _setup_workspace(tmp_path)
+    _write_json(
+        workspace / "SESSION_STATE.json",
+        {
+            "SESSION_STATE": {
+                "session_run_id": "work-2",
+                "Phase": "4",
+                "Next": "5",
+                "active_gate": "Ticket Input Gate",
+                "phase4_intake_updated_at": "2026-03-05T20:34:32Z",
+            }
+        },
+    )
+    _write_json(
+        workspace / "current_run.json",
+        {
+            "schema": "governance.current-run-pointer.v1",
+            "repo_fingerprint": "fp",
+            "active_run_id": "work-2",
+            "updated_at": "2026-03-05T20:34:32Z",
+            "activation_reason": "new-work-session",
+        },
+    )
+    _write_run_archive(
+        workspace,
+        run_id="work-1",
+        archived_at="2026-03-05T20:30:00Z",
+        source_phase="6-PostFlight",
+        state_phase="6-PostFlight",
+    )
+
+    (workspace / "events.jsonl").write_text(
+        json.dumps(
+            {
+                "event": "new_work_session_created",
+                "observed_at": "2026-03-05T20:34:32Z",
+                "repo_fingerprint": "fp",
+                "session_id": "sess-1",
+                "run_id": "work-1",
+                "new_run_id": "work-2",
+                "snapshot_path": str(_runs_root(workspace) / "work-1" / "SESSION_STATE.json"),
+                "snapshot_digest": canonical_json_hash(
+                    json.loads((_runs_root(workspace) / "work-1" / "SESSION_STATE.json").read_text(encoding="utf-8"))
+                ),
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    payload = build_audit_readout(commands_home=commands_home)
+    integrity = payload.get("integrity")
+    assert isinstance(integrity, dict)
+    notes = integrity.get("notes")
+    assert isinstance(notes, list)
+    assert any(note.startswith("repository-manifest-invalid:") for note in notes)
+    assert "run-manifest-missing:work-1" in notes
+    assert "run-checksums-missing:work-1" in notes
+    assert any(note.startswith("run-verify-failed:work-1:") for note in notes)
+    assert "snapshot-run-not-finalized:unknown" in notes
+    assert "snapshot-integrity-not-passed:unknown" in notes
+    assert integrity["snapshot_quality_ok"] is False
+    assert integrity["run_archives_verified"] is False
+
+
+def test_last_snapshot_includes_run_and_integrity_status(tmp_path: Path) -> None:
+    commands_home, _, workspace = _setup_workspace(tmp_path)
+    _write_json(
+        workspace / "SESSION_STATE.json",
+        {
+            "SESSION_STATE": {
+                "session_run_id": "work-2",
+                "Phase": "4",
+                "Next": "5",
+                "active_gate": "Ticket Input Gate",
+                "phase4_intake_updated_at": "2026-03-05T20:34:32Z",
+            }
+        },
+    )
+    _write_json(
+        workspace / "current_run.json",
+        {
+            "schema": "governance.current-run-pointer.v1",
+            "repo_fingerprint": "fp",
+            "active_run_id": "work-2",
+            "updated_at": "2026-03-05T20:34:32Z",
+            "activation_reason": "new-work-session",
+        },
+    )
+    _write_run_archive(
+        workspace,
+        run_id="work-1",
+        archived_at="2026-03-05T20:30:00Z",
+        source_phase="6-PostFlight",
+        state_phase="6-PostFlight",
+    )
+    _write_json(
+        _runs_root(workspace) / "work-1" / "run-manifest.json",
+        {
+            "schema": "governance.run-manifest.v1",
+            "repo_fingerprint": "fp",
+            "run_id": "work-1",
+            "run_type": "analysis",
+            "run_status": "finalized",
+            "record_status": "finalized",
+            "integrity_status": "passed",
+            "finalized_at": "2026-03-05T20:30:00Z",
+            "required_artifacts": {
+                "session_state": True,
+                "run_manifest": True,
+                "metadata": True,
+                "provenance": True,
+                "plan_record": False,
+                "pr_record": False,
+                "checksums": True,
+            },
+        },
+    )
+
+    (workspace / "events.jsonl").write_text(
+        json.dumps(
+            {
+                "event": "new_work_session_created",
+                "observed_at": "2026-03-05T20:34:32Z",
+                "repo_fingerprint": "fp",
+                "session_id": "sess-1",
+                "run_id": "work-1",
+                "new_run_id": "work-2",
+                "snapshot_path": str(_runs_root(workspace) / "work-1" / "SESSION_STATE.json"),
+                "snapshot_digest": canonical_json_hash(
+                    json.loads((_runs_root(workspace) / "work-1" / "SESSION_STATE.json").read_text(encoding="utf-8"))
+                ),
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    payload = build_audit_readout(commands_home=commands_home)
+    snapshot = payload.get("last_snapshot")
+    integrity = payload.get("integrity")
+    assert isinstance(snapshot, dict)
+    assert isinstance(integrity, dict)
+    assert snapshot["run_status"] == "finalized"
+    assert snapshot["integrity_status"] == "passed"
+    notes = integrity.get("notes")
+    assert isinstance(notes, list)
+    assert "snapshot-run-not-finalized:unknown" not in notes
+    assert "snapshot-integrity-not-passed:unknown" not in notes
+    assert integrity["snapshot_quality_ok"] is True
+    assert integrity["run_archives_verified"] is False
+
+
+def test_verified_archive_does_not_emit_run_verify_failed_note(tmp_path: Path) -> None:
+    commands_home, config_root, workspace = _setup_workspace(tmp_path)
+    _write_json(
+        workspace / "SESSION_STATE.json",
+        {
+            "SESSION_STATE": {
+                "session_run_id": "work-2",
+                "Phase": "4",
+                "Next": "5",
+                "active_gate": "Ticket Input Gate",
+                "phase4_intake_updated_at": "2026-03-05T20:34:32Z",
+            }
+        },
+    )
+    _write_json(
+        workspace / "current_run.json",
+        {
+            "schema": "governance.current-run-pointer.v1",
+            "repo_fingerprint": "fp",
+            "active_run_id": "work-2",
+            "updated_at": "2026-03-05T20:34:32Z",
+            "activation_reason": "new-work-session",
+        },
+    )
+
+    archive_active_run(
+        workspaces_home=config_root / "workspaces",
+        repo_fingerprint=workspace.name,
+        run_id="work-1",
+        observed_at="2026-03-05T20:30:00Z",
+        session_state_document={
+            "SESSION_STATE": {
+                "session_run_id": "work-1",
+                "Phase": "6-PostFlight",
+                "active_gate": "Evidence Presentation Gate",
+                "Next": "6",
+            }
+        },
+        state_view={
+            "session_run_id": "work-1",
+            "Phase": "6-PostFlight",
+            "active_gate": "Evidence Presentation Gate",
+            "Next": "6",
+        },
+    )
+
+    snapshot_doc = json.loads((_runs_root(workspace) / "work-1" / "SESSION_STATE.json").read_text(encoding="utf-8"))
+    (workspace / "events.jsonl").write_text(
+        json.dumps(
+            {
+                "event": "new_work_session_created",
+                "observed_at": "2026-03-05T20:34:32Z",
+                "repo_fingerprint": "fp",
+                "session_id": "sess-1",
+                "run_id": "work-1",
+                "new_run_id": "work-2",
+                "snapshot_path": str(_runs_root(workspace) / "work-1" / "SESSION_STATE.json"),
+                "snapshot_digest": canonical_json_hash(snapshot_doc),
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    payload = build_audit_readout(commands_home=commands_home)
+    integrity = payload.get("integrity")
+    assert isinstance(integrity, dict)
+    notes = integrity.get("notes")
+    assert isinstance(notes, list)
+    assert not any(note.startswith("repository-manifest-invalid:") for note in notes)
+    assert not any(note.startswith("run-verify-failed:work-1:") for note in notes)
+    assert integrity["run_archives_verified"] is True
