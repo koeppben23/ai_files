@@ -3,16 +3,26 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import importlib
 import json
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Dict, Mapping, Optional, Tuple
 
 from governance.domain.audit_readout_contract import validate_audit_readout_v1
 from governance.domain.canonical_json import canonical_json_hash
-from governance.infrastructure.io_verify import verify_repository_manifest, verify_run_archive
 
 POINTER_SCHEMA = "opencode-session-pointer.v1"
 _LEGACY_POINTER_SCHEMA = "active-session-pointer.v1"
+
+
+def _verify_repository_manifest_proxy(runs_dir: Path, *, expected_repo_fingerprint: str) -> Tuple[bool, Optional[str]]:
+    module = importlib.import_module("governance.infrastructure.io_verify")
+    return module.verify_repository_manifest(runs_dir, expected_repo_fingerprint=expected_repo_fingerprint)
+
+
+def _verify_run_archive_proxy(run_dir: Path) -> Tuple[bool, Dict[str, bool], Optional[str]]:
+    module = importlib.import_module("governance.infrastructure.io_verify")
+    return module.verify_run_archive(run_dir)
 
 
 def _read_json(path: Path) -> dict[str, object]:
@@ -125,7 +135,7 @@ def _list_run_archives(workspace_dir: Path) -> tuple[list[dict[str, object]], li
         return [], notes
 
     fingerprint_hint = workspace_dir.name
-    repo_manifest_ok, repo_manifest_message = verify_repository_manifest(
+    repo_manifest_ok, repo_manifest_message = _verify_repository_manifest_proxy(
         runs_dir,
         expected_repo_fingerprint=fingerprint_hint,
     )
@@ -176,7 +186,7 @@ def _list_run_archives(workspace_dir: Path) -> tuple[list[dict[str, object]], li
         if not checksums_path.exists():
             notes.append(f"run-checksums-missing:{run_id}")
 
-        verify_ok, _, verify_message = verify_run_archive(entry)
+        verify_ok, _, verify_message = _verify_run_archive_proxy(entry)
         if not verify_ok:
             notes.append(f"run-verify-failed:{run_id}:{verify_message or 'unknown'}")
 
