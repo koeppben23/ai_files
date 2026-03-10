@@ -86,6 +86,18 @@ def verify_run_archive(run_root: Path) -> Tuple[bool, Dict[str, bool], Optional[
     if not isinstance(files, dict):
         return False, results, "checksums.json missing files map"
 
+    allowed_checksum_targets = {
+        "SESSION_STATE.json",
+        "metadata.json",
+        "run-manifest.json",
+        "provenance-record.json",
+        "plan-record.json",
+        "pr-record.json",
+    }
+    for rel_name in files.keys():
+        if rel_name not in allowed_checksum_targets:
+            return False, results, f"checksums.json contains unsupported file entry: {rel_name}"
+
     for rel_name, expected_digest in files.items():
         if not isinstance(rel_name, str) or not isinstance(expected_digest, str):
             return False, results, "checksums.json contains invalid entry"

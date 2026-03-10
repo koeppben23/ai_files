@@ -502,3 +502,31 @@ def test_verify_rejects_present_optional_artifact_without_checksum(tmp_path: Pat
     assert ok is False
     assert isinstance(message, str)
     assert "Present artifact not checksummed: pr-record.json" in message
+
+
+def test_verify_rejects_unsupported_checksum_file_entry(tmp_path: Path) -> None:
+    workspaces_home = tmp_path / "workspaces"
+    fingerprint = "abc123def456abc123def456"
+    state = {"session_run_id": "run-bad-checksum-entry", "Phase": "6-PostFlight", "active_gate": "Post Flight", "Next": "6"}
+
+    archive_active_run(
+        workspaces_home=workspaces_home,
+        repo_fingerprint=fingerprint,
+        run_id="run-bad-checksum-entry",
+        observed_at="2026-03-10T15:30:00Z",
+        session_state_document={"SESSION_STATE": state},
+        state_view=state,
+    )
+
+    run_root = workspaces_home / fingerprint / "runs" / "run-bad-checksum-entry"
+    checksums = json.loads((run_root / "checksums.json").read_text(encoding="utf-8"))
+    files = checksums.get("files")
+    assert isinstance(files, dict)
+    files["unknown.json"] = "sha256:" + "0" * 64
+    checksums["files"] = files
+    (run_root / "checksums.json").write_text(json.dumps(checksums, ensure_ascii=True), encoding="utf-8")
+
+    ok, _, message = verify_run_archive(run_root)
+    assert ok is False
+    assert isinstance(message, str)
+    assert "unsupported file entry" in message
