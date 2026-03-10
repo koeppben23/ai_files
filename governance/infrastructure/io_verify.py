@@ -148,6 +148,18 @@ def verify_run_archive(run_root: Path) -> Tuple[bool, Dict[str, bool], Optional[
             return False, results, "Finalized run must have integrity_status=passed"
         if not isinstance(finalized_at, str) or not finalized_at.strip():
             return False, results, "Finalized run must have finalized_at"
+    elif run_status == "failed":
+        if integrity_status != "failed":
+            return False, results, "Failed run must have integrity_status=failed"
+        if isinstance(finalized_at, str) and finalized_at.strip():
+            return False, results, "Failed run must not have finalized_at"
+        if record_status != "invalidated":
+            return False, results, "Failed run must have record_status=invalidated"
+    elif run_status == "materialized":
+        if integrity_status != "pending":
+            return False, results, "Materialized run must have integrity_status=pending"
+        if isinstance(finalized_at, str) and finalized_at.strip():
+            return False, results, "Materialized run must not have finalized_at"
 
     materialized_at_manifest = str(manifest.get("materialized_at") or "").strip()
     archived_at_metadata = str(metadata.get("archived_at") or "").strip()
