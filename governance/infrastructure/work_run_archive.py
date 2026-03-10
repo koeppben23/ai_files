@@ -62,7 +62,19 @@ def archive_active_run(
     archive_root = run_dir(workspaces_home, repo_fingerprint, archived_run_id)
 
     if archive_root.exists():
-        raise RuntimeError(f"run archive already exists: {archive_root}")
+        existing_manifest = archive_root / "run-manifest.json"
+        if existing_manifest.exists() and existing_manifest.is_file():
+            try:
+                existing_payload = json.loads(existing_manifest.read_text(encoding="utf-8"))
+            except Exception:
+                existing_payload = {}
+            existing_status = str(existing_payload.get("run_status") or "").strip()
+            if existing_status == "failed":
+                shutil.rmtree(archive_root, ignore_errors=True)
+            else:
+                raise RuntimeError(f"run archive already exists: {archive_root}")
+        else:
+            raise RuntimeError(f"run archive already exists: {archive_root}")
     archive_root.mkdir(parents=True, exist_ok=False)
 
     try:
@@ -170,8 +182,56 @@ def archive_active_run(
             raise RuntimeError("run archive integrity verify failed")
         if str(finalized_manifest.get("run_status") or "") != "finalized":
             raise RuntimeError("run archive failed finalization guards")
-    except Exception:
-        shutil.rmtree(archive_root, ignore_errors=True)
+    except Exception as exc:
+        error_message = str(exc)
+        try:
+            fail_metadata = {
+                "schema": "governance.work-run.snapshot.v2",
+                "repo_fingerprint": repo_fingerprint,
+                "run_id": archived_run_id,
+                "archived_at": observed_at,
+                "source_phase": str(state_view.get("Phase") or state_view.get("phase") or ""),
+                "source_active_gate": str(state_view.get("active_gate") or ""),
+                "source_next": str(state_view.get("Next") or state_view.get("next") or ""),
+                "snapshot_digest": "",
+                "snapshot_digest_scope": "session_state",
+                "archived_files": {
+                    "session_state": False,
+                    "plan_record": False,
+                    "pr_record": False,
+                },
+                "archive_status": "failed",
+                "failure_reason": error_message,
+            }
+            _write_json_atomic(run_metadata_path(workspaces_home, repo_fingerprint, archived_run_id), fail_metadata)
+
+            fail_manifest = {
+                "schema": "governance.run-manifest.v1",
+                "repo_fingerprint": repo_fingerprint,
+                "run_id": archived_run_id,
+                "run_type": "analysis",
+                "materialized_at": observed_at,
+                "source_phase": str(state_view.get("Phase") or state_view.get("phase") or ""),
+                "source_active_gate": str(state_view.get("active_gate") or ""),
+                "source_next": str(state_view.get("Next") or state_view.get("next") or ""),
+                "run_status": "failed",
+                "record_status": "invalidated",
+                "finalized_at": None,
+                "integrity_status": "failed",
+                "required_artifacts": {
+                    "session_state": True,
+                    "run_manifest": True,
+                    "metadata": True,
+                    "provenance": True,
+                    "plan_record": False,
+                    "pr_record": False,
+                    "checksums": True,
+                },
+                "finalization_errors": [f"archive-error:{error_message}"],
+            }
+            _write_json_atomic(run_manifest_path(workspaces_home, repo_fingerprint, archived_run_id), fail_manifest)
+        except Exception:
+            pass
         raise
 
     return WorkRunArchiveResult(

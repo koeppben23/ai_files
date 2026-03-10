@@ -301,6 +301,13 @@ class TestNewWorkSessionEntrypoint:
         assert not [e for e in events if e.get("event") == "new_work_session_created"]
         assert [e for e in events if e.get("event") == "new_work_session_init_failed"]
 
+        failed_run = session_path.parent / "runs" / "run-old-001"
+        manifest = json.loads((failed_run / "run-manifest.json").read_text(encoding="utf-8"))
+        metadata = json.loads((failed_run / "metadata.json").read_text(encoding="utf-8"))
+        assert manifest["run_status"] == "failed"
+        assert manifest["record_status"] == "invalidated"
+        assert metadata["archive_status"] == "failed"
+
     # -- Corner --
     def test_initializes_when_legacy_run_id_is_missing(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
         config_root, session_path, _ = _setup_workspace(tmp_path)
@@ -341,3 +348,31 @@ class TestNewWorkSessionEntrypoint:
         assert second_archived.is_file()
         assert json.loads(first_archived.read_text(encoding="utf-8")) == first_snapshot
         assert str(second_payload["run_id"]) != first_new_run
+
+    def test_retry_reuses_failed_archive_slot_after_partial_failure(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+        config_root, session_path, _ = _setup_workspace(tmp_path)
+        monkeypatch.setenv("OPENCODE_CONFIG_ROOT", str(config_root))
+
+        real_writer = new_work_session._write_json_atomic
+
+        def _boom_once(path: Path, payload: dict[str, object] | object) -> None:
+            if str(path).replace("\\", "/").endswith("/runs/run-old-001/SESSION_STATE.json"):
+                raise RuntimeError("disk-full")
+            real_writer(path, payload)  # type: ignore[arg-type]
+
+        monkeypatch.setattr(new_work_session, "_write_json_atomic", _boom_once)
+        first_code = new_work_session.main(["--trigger-source", "cli", "--quiet"])
+        assert first_code == 2
+        _ = json.loads(capsys.readouterr().out.strip())
+
+        failed_manifest = json.loads((session_path.parent / "runs" / "run-old-001" / "run-manifest.json").read_text(encoding="utf-8"))
+        assert failed_manifest["run_status"] == "failed"
+
+        monkeypatch.setattr(new_work_session, "_write_json_atomic", real_writer)
+        second_code = new_work_session.main(["--trigger-source", "cli", "--quiet"])
+        assert second_code == 0
+        payload = json.loads(capsys.readouterr().out.strip())
+        assert payload["reason"] == "new-work-session-created"
+
+        repaired_archive = session_path.parent / "runs" / "run-old-001" / "SESSION_STATE.json"
+        assert repaired_archive.is_file()
