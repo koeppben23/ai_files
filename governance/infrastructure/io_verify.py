@@ -217,3 +217,43 @@ def verify_run_archive(run_root: Path) -> Tuple[bool, Dict[str, bool], Optional[
             return False, results, f"Required artifact not checksummed: {filename}"
 
     return True, results, None
+
+
+def verify_repository_manifest(runs_root: Path, *, expected_repo_fingerprint: Optional[str] = None) -> Tuple[bool, Optional[str]]:
+    manifest_path = runs_root / "repository-manifest.json"
+    if not manifest_path.is_file():
+        return False, f"Missing repository manifest: {manifest_path.name}"
+
+    try:
+        payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        return False, f"Failed to parse repository-manifest.json: {exc}"
+
+    if not isinstance(payload, dict):
+        return False, "Invalid repository-manifest.json payload"
+
+    schema = str(payload.get("schema") or "").strip()
+    if schema != "governance.repository-manifest.v1":
+        return False, f"Invalid repository manifest schema: {schema}"
+
+    repo_fingerprint = str(payload.get("repo_fingerprint") or "").strip()
+    if not repo_fingerprint:
+        return False, "repository-manifest.json missing repo_fingerprint"
+    if expected_repo_fingerprint and repo_fingerprint != expected_repo_fingerprint:
+        return (
+            False,
+            f"repository manifest fingerprint mismatch: expected {expected_repo_fingerprint}, got {repo_fingerprint}",
+        )
+
+    topology = payload.get("storage_topology")
+    if not isinstance(topology, dict):
+        return False, "repository-manifest.json missing storage_topology"
+
+    runtime_root = str(topology.get("runtime_root") or "").strip()
+    audit_runs_root = str(topology.get("audit_runs_root") or "").strip()
+    if runtime_root != "workspaces/<fingerprint>":
+        return False, f"Invalid runtime_root in repository manifest: {runtime_root}"
+    if audit_runs_root != "workspaces/<fingerprint>/runs":
+        return False, f"Invalid audit_runs_root in repository manifest: {audit_runs_root}"
+
+    return True, None

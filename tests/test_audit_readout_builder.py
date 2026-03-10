@@ -457,6 +457,7 @@ def test_archive_without_manifest_or_checksums_emits_notes(tmp_path: Path) -> No
     assert isinstance(integrity, dict)
     notes = integrity.get("notes")
     assert isinstance(notes, list)
+    assert any(note.startswith("repository-manifest-invalid:") for note in notes)
     assert "run-manifest-missing:work-1" in notes
     assert "run-checksums-missing:work-1" in notes
     assert any(note.startswith("run-verify-failed:work-1:") for note in notes)
@@ -621,4 +622,5 @@ def test_verified_archive_does_not_emit_run_verify_failed_note(tmp_path: Path) -
     assert isinstance(integrity, dict)
     notes = integrity.get("notes")
     assert isinstance(notes, list)
+    assert not any(note.startswith("repository-manifest-invalid:") for note in notes)
     assert not any(note.startswith("run-verify-failed:work-1:") for note in notes)

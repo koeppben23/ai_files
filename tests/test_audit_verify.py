@@ -4,7 +4,7 @@ import hashlib
 import json
 from pathlib import Path
 
-from governance.infrastructure.io_verify import verify_run_archive
+from governance.infrastructure.io_verify import verify_repository_manifest, verify_run_archive
 from governance.infrastructure.work_run_archive import archive_active_run
 
 
@@ -189,3 +189,28 @@ def test_verify_rejects_malformed_archive_json_payloads(tmp_path: Path) -> None:
     assert ok is False
     assert isinstance(message, str)
     assert "Failed to parse checksums.json" in message
+
+
+def test_verify_repository_manifest_contract(tmp_path: Path) -> None:
+    runs_root = tmp_path / "workspaces" / "abc123def456abc123def456" / "runs"
+    runs_root.mkdir(parents=True)
+
+    ok, message = verify_repository_manifest(runs_root, expected_repo_fingerprint="abc123def456abc123def456")
+    assert ok is False
+    assert isinstance(message, str)
+    assert "Missing repository manifest" in message
+
+    manifest = {
+        "schema": "governance.repository-manifest.v1",
+        "repo_fingerprint": "abc123def456abc123def456",
+        "created_at": "2026-03-10T14:00:00Z",
+        "storage_topology": {
+            "runtime_root": "workspaces/<fingerprint>",
+            "audit_runs_root": "workspaces/<fingerprint>/runs",
+        },
+    }
+    (runs_root / "repository-manifest.json").write_text(json.dumps(manifest, ensure_ascii=True), encoding="utf-8")
+
+    ok, message = verify_repository_manifest(runs_root, expected_repo_fingerprint="abc123def456abc123def456")
+    assert ok is True
+    assert message is None

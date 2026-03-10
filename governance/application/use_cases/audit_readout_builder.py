@@ -9,7 +9,7 @@ from typing import Any, Mapping
 
 from governance.domain.audit_readout_contract import validate_audit_readout_v1
 from governance.domain.canonical_json import canonical_json_hash
-from governance.infrastructure.io_verify import verify_run_archive
+from governance.infrastructure.io_verify import verify_repository_manifest, verify_run_archive
 
 POINTER_SCHEMA = "opencode-session-pointer.v1"
 _LEGACY_POINTER_SCHEMA = "active-session-pointer.v1"
@@ -123,6 +123,14 @@ def _list_run_archives(workspace_dir: Path) -> tuple[list[dict[str, object]], li
     if not runs_dir.exists() or not runs_dir.is_dir():
         notes.append("missing-runs-directory")
         return [], notes
+
+    fingerprint_hint = workspace_dir.name
+    repo_manifest_ok, repo_manifest_message = verify_repository_manifest(
+        runs_dir,
+        expected_repo_fingerprint=fingerprint_hint,
+    )
+    if not repo_manifest_ok:
+        notes.append(f"repository-manifest-invalid:{repo_manifest_message or 'unknown'}")
 
     archives: list[dict[str, object]] = []
     for entry in sorted([path for path in runs_dir.iterdir() if path.is_dir()], key=lambda p: p.name):
