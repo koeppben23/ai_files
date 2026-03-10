@@ -201,6 +201,9 @@ def apply_review_decision(
             review_block["implementation_review_complete"] = True
             review_block["completion_status"] = "phase6-completed"
             state["ImplementationReview"] = review_block
+        state.pop("rework_clarification_consumed", None)
+        state.pop("rework_clarification_consumed_by", None)
+        state.pop("rework_clarification_consumed_at", None)
     elif normalized == "changes_requested":
         # Enter explicit clarification gate before any further rail is chosen.
         state["Phase"] = "6-PostFlight"
@@ -211,6 +214,9 @@ def apply_review_decision(
         state["next_gate_condition"] = (
             "Clarify requested changes in chat, then run directed next rail."
         )
+        state["rework_clarification_consumed"] = False
+        state.pop("rework_clarification_consumed_by", None)
+        state.pop("rework_clarification_consumed_at", None)
 
         # Loop-reset: clear review completion so the internal review restarts
         state["implementation_review_complete"] = False
@@ -243,6 +249,9 @@ def apply_review_decision(
         state.pop("WorkflowComplete", None)
         state.pop("implementation_review_complete", None)
         state.pop("phase6_state", None)
+        state.pop("rework_clarification_consumed", None)
+        state.pop("rework_clarification_consumed_by", None)
+        state.pop("rework_clarification_consumed_at", None)
 
     # Persist
     _write_json_atomic(session_path, state_doc)

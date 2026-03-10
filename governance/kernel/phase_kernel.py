@@ -641,6 +641,13 @@ def _phase6_evidence_presentation_gate_active(state: Mapping[str, object]) -> bo
 def _phase6_rework_clarification_pending(state: Mapping[str, object]) -> bool:
     """Return True when Phase 6 is waiting for rework clarification."""
 
+    consumed = state.get("rework_clarification_consumed")
+    if isinstance(consumed, bool) and consumed:
+        return False
+
+    if isinstance(consumed, str) and consumed.strip().lower() in {"true", "1", "yes"}:
+        return False
+
     phase6_state = str(state.get("phase6_state") or "").strip().lower()
     if phase6_state == "phase6_changes_requested":
         return True

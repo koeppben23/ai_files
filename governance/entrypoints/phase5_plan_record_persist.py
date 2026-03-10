@@ -16,6 +16,7 @@ if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).absolute().parents[2]))
 
 from governance.application.use_cases.phase_router import route_phase
+from governance.application.use_cases.rework_clarification import consume_rework_clarification_state
 from governance.application.use_cases.session_state_helpers import with_kernel_result
 from governance.domain import reason_codes
 from governance.domain.phase_state_machine import normalize_phase_token
@@ -320,11 +321,24 @@ def main(argv: list[str] | None = None) -> int:
             raise RuntimeError("SESSION_STATE root missing")
 
         phase_before = str(state.get("Phase") or "")
+
+        # /plan may be the directed exit rail from Phase-6 rework clarification.
+        # Consume clarification state first, then force deterministic Phase-5
+        # plan-record entry to avoid self-looping back into clarification.
+        if consume_rework_clarification_state(state, consumed_by="plan", consumed_at=_now_iso()):
+            state["Phase"] = "5-ArchitectureReview"
+            state["phase"] = "5-ArchitectureReview"
+            state["Next"] = "5"
+            state["next"] = "5"
+            state["active_gate"] = "Plan Record Preparation Gate"
+            state["next_gate_condition"] = "Persist plan record evidence"
+
         mode = str(state.get("Mode") or "IN_PROGRESS")
+        phase_for_write = str(state.get("Phase") or phase_before or "5")
         session_run_id = str(state.get("session_run_id") or state.get("SessionRunId") or "")
         plan_digest = _digest(plan_text)
 
-        token_before = _phase_token(phase_before)
+        token_before = _phase_token(str(state.get("Phase") or phase_before))
         if token_before != "5":
             payload = _payload(
                 "blocked",
@@ -366,18 +380,18 @@ def main(argv: list[str] | None = None) -> int:
             archive_dir=plan_record_archive_dir(workspace_home.parent, repo_fingerprint),
         )
         write_result = repo.append_version(
-            {
-                "timestamp": _now_iso(),
-                "phase": str(state.get("Phase") or "5-ArchitectureReview"),
-                "session_run_id": session_run_id,
-                "trigger": "phase5-plan-record-rail",
-                "plan_record_text": plan_text,
-                "plan_record_digest": f"sha256:{plan_digest}",
-            },
-            phase=phase_before or "5",
-            mode=mode,
-            repo_fingerprint=repo_fingerprint,
-        )
+                {
+                    "timestamp": _now_iso(),
+                    "phase": str(state.get("Phase") or "5-ArchitectureReview"),
+                    "session_run_id": session_run_id,
+                    "trigger": "phase5-plan-record-rail",
+                    "plan_record_text": plan_text,
+                    "plan_record_digest": f"sha256:{plan_digest}",
+                },
+                phase=phase_for_write,
+                mode=mode,
+                repo_fingerprint=repo_fingerprint,
+            )
         if not write_result.ok:
             payload = _payload(
                 "blocked",
@@ -406,7 +420,7 @@ def main(argv: list[str] | None = None) -> int:
                         "findings_summary": _as_list(review_result.get("findings_summary")),
                     },
                 },
-                phase=phase_before or "5",
+                phase=phase_for_write,
                 mode=mode,
                 repo_fingerprint=repo_fingerprint,
             )

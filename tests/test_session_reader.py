@@ -2454,7 +2454,7 @@ class TestResolveNextActionLine:
         )
 
     def test_happy_rework_clarification_gate_prompts_chat_first(self) -> None:
-        """changes_requested gate asks for chat clarification before rail choice."""
+        """changes_requested gate asks for clarification and does not emit a rail."""
         snapshot = {
             "status": "OK",
             "phase": "6-PostFlight",
@@ -2462,9 +2462,36 @@ class TestResolveNextActionLine:
             "next_gate_condition": "Clarify requested changes in chat, then run directed next rail.",
         }
         assert _resolve_next_action_line(snapshot) == (
-            "Next action: describe what must be adjusted in chat; after clarification, run exactly one "
-            "directed rail (/ticket, /plan, or /continue)."
+            "Clarification needed: what exactly must be adjusted (scope/task, plan/approach, "
+            "or clarification-only)?"
         )
+
+    def test_happy_rework_clarification_scope_change_routes_to_ticket(self) -> None:
+        snapshot = {
+            "status": "OK",
+            "phase": "6-PostFlight",
+            "active_gate": "Rework Clarification Gate",
+            "rework_clarification_input": "Scope anpassen, neue Anforderungen aufnehmen.",
+        }
+        assert _resolve_next_action_line(snapshot) == "Next action: run /ticket with the revised task details."
+
+    def test_corner_rework_clarification_plan_change_routes_to_plan(self) -> None:
+        snapshot = {
+            "status": "OK",
+            "phase": "6-PostFlight",
+            "active_gate": "Rework Clarification Gate",
+            "rework_clarification_input": "Scope bleibt, aber die Architektur im Plan muss geaendert werden.",
+        }
+        assert _resolve_next_action_line(snapshot) == "Next action: run /plan with the updated plan details."
+
+    def test_edge_rework_clarification_clarify_only_routes_to_continue(self) -> None:
+        snapshot = {
+            "status": "OK",
+            "phase": "6-PostFlight",
+            "active_gate": "Rework Clarification Gate",
+            "rework_clarification_input": "Nur die Begruendung klarer erklaeren.",
+        }
+        assert _resolve_next_action_line(snapshot) == "Next action: run /continue."
 
     def test_edge_ticket_intake_without_active_gate_still_suppresses_continue(self) -> None:
         """Edge: ticket intake wording without active_gate never recommends /continue."""
