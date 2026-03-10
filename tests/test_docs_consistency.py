@@ -112,3 +112,10 @@ def test_desktop_phase4_plan_mode_guidance_is_present() -> None:
     for rel, token in required.items():
         text = (root / rel).read_text(encoding="utf-8")
         assert token in text, f"missing Phase 4 Plan Mode guidance in {rel}: {token}"
+
+
+def test_phase6_changes_requested_docs_match_rework_clarification_model() -> None:
+    root = Path(__file__).resolve().parents[1]
+    phases = (root / "docs" / "phases.md").read_text(encoding="utf-8")
+    assert "Rework Clarification Gate" in phases
+    assert "Loop-reset within Phase 6" not in phases

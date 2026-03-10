@@ -859,9 +859,29 @@ def _resolve_next_action_line(snapshot: dict) -> str:
         if active_gate == "workflow complete":
             return "Next action: governance workflow is complete; no further governance command is required."
         if active_gate == "rework clarification gate":
+            from governance.application.use_cases.rework_clarification import (
+                classify_rework_clarification,
+                derive_next_rail,
+            )
+
+            clarification_text = str(
+                snapshot.get("rework_clarification_input")
+                or snapshot.get("rework_clarification_text")
+                or snapshot.get("rework_clarification_note")
+                or ""
+            ).strip()
+            outcome = classify_rework_clarification(clarification_text)
+            rail = derive_next_rail(outcome)
+
+            if rail == "/ticket":
+                return "Next action: run /ticket with the revised task details."
+            if rail == "/plan":
+                return "Next action: run /plan with the updated plan details."
+            if rail == "/continue":
+                return "Next action: run /continue."
             return (
-                "Next action: describe what must be adjusted in chat; after clarification, run exactly one "
-                "directed rail (/ticket, /plan, or /continue)."
+                "Clarification needed: what exactly must be adjusted (scope/task, plan/approach, "
+                "or clarification-only)?"
             )
         if active_gate == "evidence presentation gate":
             return (
@@ -1126,6 +1146,11 @@ def read_session_snapshot(commands_home: Path | None = None, *, materialize: boo
         "p54_evaluated_status": p54_evaluated_status,
         "p55_evaluated_status": p55_evaluated_status,
         "p56_evaluated_status": p56_evaluated_status,
+        "rework_clarification_input": _safe_str(
+            state_view.get("rework_clarification_input")
+            or state_view.get("ReworkClarificationInput")
+            or ""
+        ),
     }
     if transition_evidence_hint:
         snapshot["transition_evidence_hint"] = transition_evidence_hint

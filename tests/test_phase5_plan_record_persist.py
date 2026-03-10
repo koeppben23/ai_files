@@ -199,6 +199,41 @@ def test_phase5_plan_persist_bad_outside_phase5_blocked(
 
 
 @pytest.mark.governance
+def test_phase5_plan_persist_happy_consumes_rework_clarification_state(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    module = _load_module()
+    config_root, commands_home, session_path, _ = _write_fixture_state(tmp_path)
+    payload = json.loads(session_path.read_text(encoding="utf-8"))
+    state = payload["SESSION_STATE"]
+    state["Phase"] = "6-PostFlight"
+    state["phase"] = "6-PostFlight"
+    state["active_gate"] = "Rework Clarification Gate"
+    state["phase6_state"] = "phase6_changes_requested"
+    state["next_gate_condition"] = "Clarify requested changes in chat, then run directed next rail."
+    state["UserReviewDecision"] = {"decision": "changes_requested"}
+    session_path.write_text(json.dumps(payload, indent=2, ensure_ascii=True) + "\n", encoding="utf-8")
+
+    monkeypatch.setenv("OPENCODE_CONFIG_ROOT", str(config_root))
+    monkeypatch.setenv("COMMANDS_HOME", str(commands_home))
+
+    rc = module.main([
+        "--plan-text",
+        "## Zielbild\n## Soll-Flow\n## State-Machine\n## Blocker-Taxonomie\n## Audit\n## Go/No-Go\nReason code",
+        "--quiet",
+    ])
+    assert rc == 0
+
+    updated = json.loads(session_path.read_text(encoding="utf-8"))["SESSION_STATE"]
+    assert updated["active_gate"] != "Rework Clarification Gate"
+    assert updated.get("phase6_state") != "phase6_changes_requested"
+    assert updated.get("UserReviewDecision") is None
+    assert updated["rework_clarification_consumed"] is True
+    assert updated["rework_clarification_consumed_by"] == "plan"
+
+
+@pytest.mark.governance
 def test_phase5_plan_persist_corner_file_input_wins_over_text(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     module = _load_module()
     config_root, commands_home, session_path, _ = _write_fixture_state(tmp_path)

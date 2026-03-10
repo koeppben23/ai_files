@@ -172,3 +172,31 @@ def test_phase4_intake_corner_feature_complexity_only_blocked(tmp_path: Path, mo
     assert rc == 2
     payload = json.loads(capsys.readouterr().out.strip())
     assert payload["reason_code"] == "BLOCKED-P4-INTAKE-MISSING-EVIDENCE"
+
+
+@pytest.mark.governance
+def test_phase4_intake_happy_consumes_rework_clarification_state(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    module = _load_module()
+    config_root, commands_home, session_path, _ = _write_fixture_state(tmp_path)
+    payload = json.loads(session_path.read_text(encoding="utf-8"))
+    state = payload["SESSION_STATE"]
+    state["Phase"] = "6-PostFlight"
+    state["active_gate"] = "Rework Clarification Gate"
+    state["phase6_state"] = "phase6_changes_requested"
+    state["next_gate_condition"] = "Clarify requested changes in chat, then run directed next rail."
+    state["UserReviewDecision"] = {"decision": "changes_requested"}
+    session_path.write_text(json.dumps(payload, indent=2, ensure_ascii=True) + "\n", encoding="utf-8")
+
+    monkeypatch.setenv("OPENCODE_CONFIG_ROOT", str(config_root))
+    monkeypatch.setenv("COMMANDS_HOME", str(commands_home))
+
+    rc = module.main(["--ticket-text", "Reworked scope after clarification", "--quiet"])
+    assert rc == 0
+
+    updated = json.loads(session_path.read_text(encoding="utf-8"))["SESSION_STATE"]
+    assert updated["Phase"] == "5-ArchitectureReview"
+    assert updated["active_gate"] == "Plan Record Preparation Gate"
+    assert updated.get("phase6_state") is None
+    assert updated.get("UserReviewDecision") is None
+    assert updated["rework_clarification_consumed"] is True
+    assert updated["rework_clarification_consumed_by"] == "ticket"
