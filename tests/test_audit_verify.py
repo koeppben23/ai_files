@@ -388,3 +388,29 @@ def test_verify_rejects_failed_run_with_finalized_at(tmp_path: Path) -> None:
     assert ok is False
     assert isinstance(message, str)
     assert "Failed run must not have finalized_at" in message
+
+
+def test_verify_rejects_conflicting_metadata_reasons(tmp_path: Path) -> None:
+    workspaces_home = tmp_path / "workspaces"
+    fingerprint = "abc123def456abc123def456"
+    state = {"session_run_id": "run-reasons", "Phase": "6-PostFlight", "active_gate": "Post Flight", "Next": "6"}
+
+    archive_active_run(
+        workspaces_home=workspaces_home,
+        repo_fingerprint=fingerprint,
+        run_id="run-reasons",
+        observed_at="2026-03-10T14:50:00Z",
+        session_state_document={"SESSION_STATE": state},
+        state_view=state,
+    )
+
+    run_root = workspaces_home / fingerprint / "runs" / "run-reasons"
+    metadata = json.loads((run_root / "metadata.json").read_text(encoding="utf-8"))
+    metadata["failure_reason"] = "should-not-exist-on-finalized"
+    (run_root / "metadata.json").write_text(json.dumps(metadata, ensure_ascii=True), encoding="utf-8")
+    _recompute_checksums(run_root)
+
+    ok, _, message = verify_run_archive(run_root)
+    assert ok is False
+    assert isinstance(message, str)
+    assert "Finalized metadata must not include failure_reason" in message
