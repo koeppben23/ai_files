@@ -243,6 +243,20 @@ def verify_run_archive(run_root: Path) -> Tuple[bool, Dict[str, bool], Optional[
     if archived_files.get("session_state") is not True:
         return False, results, "archived_files.session_state must be true"
 
+    archived_file_to_name = {
+        "session_state": "SESSION_STATE.json",
+        "plan_record": "plan-record.json",
+        "pr_record": "pr-record.json",
+        "run_manifest": "run-manifest.json",
+        "provenance_record": "provenance-record.json",
+        "checksums": "checksums.json",
+    }
+    for key, filename in archived_file_to_name.items():
+        expected_present = bool(archived_files.get(key))
+        actual_present = (run_root / filename).is_file()
+        if expected_present != actual_present:
+            return False, results, f"archived_files mismatch for {filename}: expected={expected_present}, actual={actual_present}"
+
     archive_status = str(metadata.get("archive_status") or "").strip()
     finalization_reason = metadata.get("finalization_reason")
     failure_reason = metadata.get("failure_reason")
