@@ -96,14 +96,23 @@ def verify_run_archive(run_root: Path) -> Tuple[bool, Dict[str, bool], Optional[
     manifest = json.loads((run_root / "run-manifest.json").read_text(encoding="utf-8"))
     if not isinstance(manifest, dict):
         return False, results, "Invalid run-manifest.json payload"
+    manifest_schema = str(manifest.get("schema") or "").strip()
+    if manifest_schema != "governance.run-manifest.v1":
+        return False, results, f"Invalid run-manifest schema: {manifest_schema}"
 
     metadata = json.loads((run_root / "metadata.json").read_text(encoding="utf-8"))
     if not isinstance(metadata, dict):
         return False, results, "Invalid metadata.json payload"
+    metadata_schema = str(metadata.get("schema") or "").strip()
+    if metadata_schema != "governance.work-run.snapshot.v2":
+        return False, results, f"Invalid metadata schema: {metadata_schema}"
 
     provenance = json.loads((run_root / "provenance-record.json").read_text(encoding="utf-8"))
     if not isinstance(provenance, dict):
         return False, results, "Invalid provenance-record.json payload"
+    provenance_schema = str(provenance.get("schema") or "").strip()
+    if provenance_schema != "governance.provenance-record.v1":
+        return False, results, f"Invalid provenance schema: {provenance_schema}"
 
     run_status = str(manifest.get("run_status") or "").strip()
     record_status = str(manifest.get("record_status") or "").strip()

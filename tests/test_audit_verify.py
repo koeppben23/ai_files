@@ -118,3 +118,51 @@ def test_verify_rejects_invalid_checksums_schema(tmp_path: Path) -> None:
     assert ok is False
     assert isinstance(message, str)
     assert "Invalid checksums schema" in message
+
+
+def test_verify_rejects_invalid_manifest_metadata_provenance_schema(tmp_path: Path) -> None:
+    workspaces_home = tmp_path / "workspaces"
+    fingerprint = "abc123def456abc123def456"
+    state = {"session_run_id": "run-schema", "Phase": "6-PostFlight", "active_gate": "Post Flight", "Next": "6"}
+
+    archive_active_run(
+        workspaces_home=workspaces_home,
+        repo_fingerprint=fingerprint,
+        run_id="run-schema",
+        observed_at="2026-03-10T13:50:00Z",
+        session_state_document={"SESSION_STATE": state},
+        state_view=state,
+    )
+
+    run_root = workspaces_home / fingerprint / "runs" / "run-schema"
+
+    manifest = json.loads((run_root / "run-manifest.json").read_text(encoding="utf-8"))
+    manifest["schema"] = "governance.run-manifest.v0"
+    (run_root / "run-manifest.json").write_text(json.dumps(manifest, ensure_ascii=True), encoding="utf-8")
+    _recompute_checksums(run_root)
+    ok, _, message = verify_run_archive(run_root)
+    assert ok is False
+    assert isinstance(message, str)
+    assert "Invalid run-manifest schema" in message
+
+    manifest["schema"] = "governance.run-manifest.v1"
+    (run_root / "run-manifest.json").write_text(json.dumps(manifest, ensure_ascii=True), encoding="utf-8")
+    metadata = json.loads((run_root / "metadata.json").read_text(encoding="utf-8"))
+    metadata["schema"] = "governance.work-run.snapshot.v1"
+    (run_root / "metadata.json").write_text(json.dumps(metadata, ensure_ascii=True), encoding="utf-8")
+    _recompute_checksums(run_root)
+    ok, _, message = verify_run_archive(run_root)
+    assert ok is False
+    assert isinstance(message, str)
+    assert "Invalid metadata schema" in message
+
+    metadata["schema"] = "governance.work-run.snapshot.v2"
+    (run_root / "metadata.json").write_text(json.dumps(metadata, ensure_ascii=True), encoding="utf-8")
+    provenance = json.loads((run_root / "provenance-record.json").read_text(encoding="utf-8"))
+    provenance["schema"] = "governance.provenance-record.v0"
+    (run_root / "provenance-record.json").write_text(json.dumps(provenance, ensure_ascii=True), encoding="utf-8")
+    _recompute_checksums(run_root)
+    ok, _, message = verify_run_archive(run_root)
+    assert ok is False
+    assert isinstance(message, str)
+    assert "Invalid provenance schema" in message
