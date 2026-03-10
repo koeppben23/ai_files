@@ -1,0 +1,76 @@
+# Access Control Policy Configuration
+#
+# SSOT Status: POLICY-BOUND
+# Contract Version: ACCESS_CONTROL.v1
+#
+# Defines role-based access control for audit artifacts.
+# Used by regulated customers to enforce who can read, export, or purge data.
+#
+# Precedence: engine master policy > activation > mode-policy > host > repo
+
+# Policy Metadata
+policy:
+  version: "1.0.0"
+  contract_version: "ACCESS_CONTROL.v1"
+  precedence_level: "engine_master_policy"
+  pack_locked: true
+  audit_on_change: "POLICY_PRECEDENCE_APPLIED"
+
+# Roles
+roles:
+  - id: "operator"
+    description: "System operator with full access in non-regulated mode"
+    default_classification_level: "internal"
+  - id: "auditor"
+    description: "External or internal auditor with read and verify access"
+    default_classification_level: "internal"
+  - id: "compliance_officer"
+    description: "Compliance officer with full access including retention management"
+    default_classification_level: "restricted"
+  - id: "system"
+    description: "Automated system operations"
+    default_classification_level: "internal"
+  - id: "readonly"
+    description: "Read-only user with limited metadata access"
+    default_classification_level: "public"
+
+# Actions
+actions:
+  - id: "read_archive"
+    description: "Read raw archive data"
+  - id: "export_archive"
+    description: "Export full (unredacted) archive"
+  - id: "verify_archive"
+    description: "Run integrity verification"
+  - id: "purge_archive"
+    description: "Permanently delete archive data"
+  - id: "read_failure_report"
+    description: "Read failure report details"
+  - id: "export_redacted"
+    description: "Export redacted archive"
+  - id: "modify_retention"
+    description: "Modify retention policy settings"
+  - id: "view_classification"
+    description: "View field classification metadata"
+  - id: "override_redaction"
+    description: "Override field redaction rules"
+
+# Regulated Mode Constraints
+regulated_mode:
+  blocked_actions:
+    - role: "operator"
+      action: "purge_archive"
+      reason: "Purge blocked in regulated mode for operators"
+  required_actions:
+    - role: "compliance_officer"
+      action: "modify_retention"
+      reason: "Retention modification only available in regulated mode"
+    - role: "compliance_officer"
+      action: "override_redaction"
+      reason: "Redaction override only available in regulated mode (audit-logged)"
+
+# Default Deny Policy (fail-closed)
+default_policy:
+  decision: "deny"
+  reason: "No explicit permission — fail-closed"
+  audit_log_required: true

@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "governance/schemas/classification.v1.schema.json",
+  "title": "Data Classification Schema",
+  "description": "Defines the field-level data classification catalog for regulated audit exports. Each entry maps an artifact field to a classification level and redaction strategy.",
+  "type": "object",
+  "required": ["contract_version", "default_classification", "field_classifications"],
+  "additionalProperties": false,
+  "properties": {
+    "contract_version": {
+      "type": "string",
+      "const": "DATA_CLASSIFICATION.v1",
+      "description": "Classification contract version"
+    },
+    "default_classification": {
+      "$ref": "#/$defs/FieldClassificationEntry"
+    },
+    "field_classifications": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/FieldClassificationEntry" },
+      "description": "Ordered list of field classification entries"
+    }
+  },
+  "$defs": {
+    "FieldClassificationEntry": {
+      "type": "object",
+      "required": ["field_path", "artifact", "level", "redaction", "description"],
+      "additionalProperties": false,
+      "properties": {
+        "field_path": {
+          "type": "string",
+          "minLength": 1,
+          "description": "JSON field path within the artifact"
+        },
+        "artifact": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Artifact filename (e.g. 'metadata.json')"
+        },
+        "level": {
+          "type": "string",
+          "enum": ["public", "internal", "confidential", "restricted"],
+          "description": "Classification level"
+        },
+        "redaction": {
+          "type": "string",
+          "enum": ["none", "hash", "mask", "remove", "truncate"],
+          "description": "Redaction strategy for export"
+        },
+        "description": {
+          "type": "string",
+          "description": "Human-readable description of the field's content"
+        },
+        "pii": {
+          "type": "boolean",
+          "description": "Whether this field may contain personally identifiable information"
+        },
+        "audit_relevant": {
+          "type": "boolean",
+          "description": "Whether this field is relevant for audit compliance"
+        }
+      }
+    }
+  }
+}
