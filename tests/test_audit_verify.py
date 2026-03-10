@@ -215,6 +215,13 @@ def test_verify_repository_manifest_contract(tmp_path: Path) -> None:
     assert ok is True
     assert message is None
 
+    manifest["storage_topology"]["audit_runs_root"] = "workspaces/<fingerprint>/archives"
+    (runs_root / "repository-manifest.json").write_text(json.dumps(manifest, ensure_ascii=True), encoding="utf-8")
+    ok, message = verify_repository_manifest(runs_root, expected_repo_fingerprint="abc123def456abc123def456")
+    assert ok is False
+    assert isinstance(message, str)
+    assert "Invalid audit_runs_root" in message
+
 
 def test_verify_rejects_required_artifacts_key_and_run_type_mismatch(tmp_path: Path) -> None:
     workspaces_home = tmp_path / "workspaces"
