@@ -152,6 +152,21 @@ def verify_run_archive(run_root: Path) -> Tuple[bool, Dict[str, bool], Optional[
     if not isinstance(required_artifacts, dict):
         return False, results, "run-manifest.json missing required_artifacts map"
 
+    expected_artifact_keys = {
+        "session_state",
+        "run_manifest",
+        "metadata",
+        "provenance",
+        "plan_record",
+        "pr_record",
+        "checksums",
+    }
+    required_keys = set(required_artifacts.keys())
+    if required_keys != expected_artifact_keys:
+        missing = sorted(expected_artifact_keys - required_keys)
+        extra = sorted(required_keys - expected_artifact_keys)
+        return False, results, f"required_artifacts key mismatch: missing={missing}, extra={extra}"
+
     run_id = run_root.name
     manifest_run_id = str(manifest.get("run_id") or "").strip()
     metadata_run_id = str(metadata.get("run_id") or "").strip()
@@ -192,6 +207,18 @@ def verify_run_archive(run_root: Path) -> Tuple[bool, Dict[str, bool], Optional[
     if run_status == "finalized":
         if not isinstance(finalization_reason, str) or not finalization_reason.strip():
             return False, results, "Finalized metadata must include finalization_reason"
+
+    plan_required = bool(required_artifacts.get("plan_record"))
+    pr_required = bool(required_artifacts.get("pr_record"))
+    if run_type == "plan":
+        if not plan_required or pr_required:
+            return False, results, "plan run_type requires plan_record=true and pr_record=false"
+    elif run_type == "pr":
+        if not pr_required or plan_required:
+            return False, results, "pr run_type requires pr_record=true and plan_record=false"
+    elif run_type == "analysis":
+        if plan_required or pr_required:
+            return False, results, "analysis run_type requires plan_record=false and pr_record=false"
 
     for artifact_name, required_flag in required_artifacts.items():
         if not isinstance(artifact_name, str) or not isinstance(required_flag, bool):
