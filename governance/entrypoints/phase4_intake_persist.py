@@ -15,6 +15,7 @@ if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).absolute().parents[2]))
 
 from governance.application.use_cases.phase_router import route_phase
+from governance.application.use_cases.rework_clarification import consume_rework_clarification_state
 from governance.application.use_cases.session_state_helpers import with_kernel_result
 from governance.domain.phase_state_machine import normalize_phase_token
 from governance.infrastructure.binding_evidence_resolver import BindingEvidenceResolver
@@ -164,6 +165,18 @@ def main(argv: list[str] | None = None) -> int:
             raise RuntimeError("SESSION_STATE root missing")
 
         phase_before = str(state.get("Phase") or "")
+
+        # When /ticket is executed from Phase-6 rework clarification,
+        # consume clarification state and force deterministic Phase-4 re-entry
+        # before routing into the development path.
+        if consume_rework_clarification_state(state, consumed_by="ticket"):
+            state["Phase"] = "4"
+            state["phase"] = "4"
+            state["Next"] = "4"
+            state["next"] = "4"
+            state["active_gate"] = "Ticket Input Gate"
+            state["next_gate_condition"] = "Collect ticket and planning constraints"
+
         if ticket:
             state["Ticket"] = ticket
             state["TicketRecordDigest"] = _digest(ticket, kind="ticket")
