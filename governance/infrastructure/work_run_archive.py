@@ -121,7 +121,11 @@ def archive_active_run(
                 "session_state": True,
                 "plan_record": archived_plan,
                 "pr_record": archived_pr,
+                "run_manifest": True,
+                "provenance_record": True,
+                "checksums": True,
             },
+            "archive_status": "materialized",
         }
         metadata_path = run_metadata_path(workspaces_home, repo_fingerprint, archived_run_id)
         writer(metadata_path, metadata)
@@ -182,6 +186,14 @@ def archive_active_run(
             raise RuntimeError("run archive integrity verify failed")
         if str(finalized_manifest.get("run_status") or "") != "finalized":
             raise RuntimeError("run archive failed finalization guards")
+
+        metadata["archive_status"] = "finalized"
+        metadata["finalization_reason"] = "all-required-artifacts-present-and-verified"
+        writer(metadata_path, metadata)
+        writer(checksums_path, build_checksums(checksum_inputs))
+        integrity_ok, _, _ = verify_run_archive(archive_root)
+        if not integrity_ok:
+            raise RuntimeError("run archive integrity verify failed after metadata finalization")
     except Exception as exc:
         error_message = str(exc)
         try:
