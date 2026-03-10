@@ -8,6 +8,7 @@ from governance.domain.canonical_json import canonical_json_hash
 
 
 _RFC3339_UTC_Z_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
+_REPO_FINGERPRINT_RE = re.compile(r"^[0-9a-f]{24}$")
 
 
 def verify_pointer(pointer_path: Path, expected_fingerprint: str) -> Tuple[bool, Optional[str]]:
@@ -257,6 +258,8 @@ def verify_run_archive(run_root: Path) -> Tuple[bool, Dict[str, bool], Optional[
     provenance_repo = str(provenance.get("repo_fingerprint") or "").strip()
     if not manifest_repo or manifest_repo != metadata_repo or metadata_repo != provenance_repo:
         return False, results, "repo_fingerprint mismatch across run-manifest/metadata/provenance"
+    if not _REPO_FINGERPRINT_RE.match(manifest_repo):
+        return False, results, f"Invalid repo_fingerprint format: {manifest_repo}"
 
     provenance_trigger = str(provenance.get("trigger") or "").strip()
     provenance_launcher = str(provenance.get("launcher") or "").strip()
@@ -419,6 +422,8 @@ def verify_repository_manifest(runs_root: Path, *, expected_repo_fingerprint: Op
     repo_fingerprint = str(payload.get("repo_fingerprint") or "").strip()
     if not repo_fingerprint:
         return False, "repository-manifest.json missing repo_fingerprint"
+    if not _REPO_FINGERPRINT_RE.match(repo_fingerprint):
+        return False, f"Invalid repository manifest repo_fingerprint format: {repo_fingerprint}"
     if expected_repo_fingerprint and repo_fingerprint != expected_repo_fingerprint:
         return (
             False,

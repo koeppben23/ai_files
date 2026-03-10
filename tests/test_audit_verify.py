@@ -199,6 +199,44 @@ def test_verify_rejects_provenance_binding_mismatch(tmp_path: Path) -> None:
     assert "provenance binding session_run_id mismatch" in message
 
 
+def test_verify_rejects_invalid_run_repo_fingerprint_format(tmp_path: Path) -> None:
+    workspaces_home = tmp_path / "workspaces"
+    fingerprint = "abc123def456abc123def456"
+    state = {"session_run_id": "run-fp-format", "Phase": "6-PostFlight", "active_gate": "Post Flight", "Next": "6"}
+
+    archive_active_run(
+        workspaces_home=workspaces_home,
+        repo_fingerprint=fingerprint,
+        run_id="run-fp-format",
+        observed_at="2026-03-10T16:30:00Z",
+        session_state_document={"SESSION_STATE": state},
+        state_view=state,
+    )
+
+    run_root = workspaces_home / fingerprint / "runs" / "run-fp-format"
+    manifest = json.loads((run_root / "run-manifest.json").read_text(encoding="utf-8"))
+    metadata = json.loads((run_root / "metadata.json").read_text(encoding="utf-8"))
+    provenance = json.loads((run_root / "provenance-record.json").read_text(encoding="utf-8"))
+    binding = provenance.get("binding")
+    assert isinstance(binding, dict)
+
+    manifest["repo_fingerprint"] = "BAD"
+    metadata["repo_fingerprint"] = "BAD"
+    provenance["repo_fingerprint"] = "BAD"
+    binding["repo_fingerprint"] = "BAD"
+    provenance["binding"] = binding
+
+    (run_root / "run-manifest.json").write_text(json.dumps(manifest, ensure_ascii=True), encoding="utf-8")
+    (run_root / "metadata.json").write_text(json.dumps(metadata, ensure_ascii=True), encoding="utf-8")
+    (run_root / "provenance-record.json").write_text(json.dumps(provenance, ensure_ascii=True), encoding="utf-8")
+    _recompute_checksums(run_root)
+
+    ok, _, message = verify_run_archive(run_root)
+    assert ok is False
+    assert isinstance(message, str)
+    assert "Invalid repo_fingerprint format" in message
+
+
 def test_verify_rejects_non_utc_z_timestamps(tmp_path: Path) -> None:
     workspaces_home = tmp_path / "workspaces"
     fingerprint = "abc123def456abc123def456"
@@ -317,6 +355,16 @@ def test_verify_repository_manifest_contract(tmp_path: Path) -> None:
     assert "created_at format" in message
 
     manifest["created_at"] = "2026-03-10T14:00:00Z"
+    (runs_root / "repository-manifest.json").write_text(json.dumps(manifest, ensure_ascii=True), encoding="utf-8")
+
+    manifest["repo_fingerprint"] = "NOTHEX"
+    (runs_root / "repository-manifest.json").write_text(json.dumps(manifest, ensure_ascii=True), encoding="utf-8")
+    ok, message = verify_repository_manifest(runs_root, expected_repo_fingerprint="abc123def456abc123def456")
+    assert ok is False
+    assert isinstance(message, str)
+    assert "repo_fingerprint format" in message
+
+    manifest["repo_fingerprint"] = "abc123def456abc123def456"
     (runs_root / "repository-manifest.json").write_text(json.dumps(manifest, ensure_ascii=True), encoding="utf-8")
 
     manifest["storage_topology"]["audit_runs_root"] = "workspaces/<fingerprint>/archives"
