@@ -14,9 +14,6 @@ RUNTIME_PURGE_SAFE_FILES = {
     "repo-map-digest.md",
     "workspace-memory.yaml",
     "decision-pack.md",
-    "business-rules.md",
-    "business-rules-status.md",
-    "events.jsonl",
     "current_run.json",
 }
 

@@ -376,3 +376,24 @@ class TestNewWorkSessionEntrypoint:
 
         repaired_archive = session_path.parent / "runs" / "run-old-001" / "SESSION_STATE.json"
         assert repaired_archive.is_file()
+
+    def test_runtime_purge_removes_stale_runtime_files_only(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+        config_root, session_path, _ = _setup_workspace(tmp_path)
+        workspace = session_path.parent
+        monkeypatch.setenv("OPENCODE_CONFIG_ROOT", str(config_root))
+
+        (workspace / "repo-cache.yaml").write_text("old", encoding="utf-8")
+        (workspace / "workspace-memory.yaml").write_text("old", encoding="utf-8")
+        (workspace / "decision-pack.md").write_text("old", encoding="utf-8")
+        (workspace / "notes.tmp").write_text("keep", encoding="utf-8")
+
+        code = new_work_session.main(["--trigger-source", "cli", "--quiet"])
+        assert code == 0
+        payload = json.loads(capsys.readouterr().out.strip())
+        assert payload["reason"] == "new-work-session-created"
+
+        assert not (workspace / "repo-cache.yaml").exists()
+        assert not (workspace / "workspace-memory.yaml").exists()
+        assert not (workspace / "decision-pack.md").exists()
+        assert (workspace / "notes.tmp").exists()
+        assert (workspace / "runs" / "run-old-001" / "run-manifest.json").is_file()

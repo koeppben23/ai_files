@@ -19,6 +19,7 @@ from governance.infrastructure.binding_evidence_resolver import BindingEvidenceR
 from governance.engine.sanitization import apply_fresh_start_business_rules_neutralization
 from governance.engine.business_rules_hydration import hydrate_business_rules_state_from_artifacts
 from governance.infrastructure.fs_atomic import atomic_write_text
+from governance.infrastructure.run_audit_artifacts import purge_runtime_artifacts
 from governance.infrastructure.work_run_archive import archive_active_run
 try:
     from governance.entrypoints.workspace_lock import acquire_workspace_lock
@@ -337,6 +338,7 @@ def main(argv: list[str] | None = None) -> int:
             state_view=deepcopy(state),
             write_json_atomic=_write_json_atomic,
         )
+        purged_runtime_files = purge_runtime_artifacts(session_path.parent)
 
         new_run_id = _new_run_id()
 
@@ -355,6 +357,7 @@ def main(argv: list[str] | None = None) -> int:
                 "next": "5",
                 "snapshot_path": str(archived.snapshot_path),
                 "snapshot_digest": archived.snapshot_digest,
+                "runtime_purge_files": purged_runtime_files,
             },
         )
 
