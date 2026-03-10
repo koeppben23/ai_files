@@ -302,8 +302,13 @@ phases:
       - when: review_changes_requested
         next: "6"
         source: "phase-6-changes-requested-loop-reset"
-        active_gate: "Implementation Internal Review"
-        next_gate_condition: "Changes requested by reviewer. Implementation review reset — address feedback, then run /continue to restart the internal review loop."
+        active_gate: "Rework Clarification Gate"
+        next_gate_condition: "Changes requested by reviewer. Clarify requested changes in chat, then run the directed next rail (/ticket, /plan, or /continue)."
+      - when: rework_clarification_pending
+        next: "6"
+        source: "phase-6-rework-clarification-required"
+        active_gate: "Rework Clarification Gate"
+        next_gate_condition: "Clarification is still required. Describe requested changes in chat; then run exactly one directed rail (/ticket, /plan, or /continue)."
       - when: review_rejected
         next: "4"
         source: "phase-6-rejected-to-phase4"
