@@ -104,16 +104,20 @@ def verify_run_archive(run_root: Path) -> Tuple[bool, Dict[str, bool], Optional[
 
     run_status = str(manifest.get("run_status") or "").strip()
     record_status = str(manifest.get("record_status") or "").strip()
+    run_type = str(manifest.get("run_type") or "").strip()
     integrity_status = str(manifest.get("integrity_status") or "").strip()
     finalized_at = manifest.get("finalized_at")
     required_artifacts = manifest.get("required_artifacts")
 
     allowed_run_status = {"in_progress", "materialized", "finalized", "failed", "invalidated"}
     allowed_record_status = {"draft", "finalized", "superseded", "invalidated"}
+    allowed_run_types = {"analysis", "plan", "pr"}
     if run_status not in allowed_run_status:
         return False, results, f"Invalid run_status: {run_status}"
     if record_status not in allowed_record_status:
         return False, results, f"Invalid record_status: {record_status}"
+    if run_type not in allowed_run_types:
+        return False, results, f"Invalid run_type: {run_type}"
 
     if run_status == "finalized":
         if integrity_status != "passed":
@@ -140,6 +144,20 @@ def verify_run_archive(run_root: Path) -> Tuple[bool, Dict[str, bool], Optional[
     provenance_repo = str(provenance.get("repo_fingerprint") or "").strip()
     if not manifest_repo or manifest_repo != metadata_repo or metadata_repo != provenance_repo:
         return False, results, "repo_fingerprint mismatch across run-manifest/metadata/provenance"
+
+    provenance_trigger = str(provenance.get("trigger") or "").strip()
+    provenance_launcher = str(provenance.get("launcher") or "").strip()
+    if provenance_trigger != "new_work_session_created":
+        return False, results, f"Invalid provenance trigger: {provenance_trigger}"
+    if provenance_launcher != "governance.entrypoints.new_work_session":
+        return False, results, f"Invalid provenance launcher: {provenance_launcher}"
+
+    timestamps = provenance.get("timestamps")
+    if not isinstance(timestamps, dict):
+        return False, results, "provenance-record.json missing timestamps map"
+    materialized_at = timestamps.get("materialized_at")
+    if not isinstance(materialized_at, str) or not materialized_at.strip():
+        return False, results, "provenance-record.json missing timestamps.materialized_at"
 
     archive_status = str(metadata.get("archive_status") or "").strip()
     finalization_reason = metadata.get("finalization_reason")

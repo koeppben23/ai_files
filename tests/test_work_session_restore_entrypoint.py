@@ -48,6 +48,7 @@ def _write_archive_run(workspace: Path, run_id: str, phase: str, next_token: str
             "schema": "governance.run-manifest.v1",
             "repo_fingerprint": "abc123def456abc123def456",
             "run_id": run_id,
+            "run_type": "analysis",
             "run_status": "materialized",
             "record_status": "draft",
             "finalized_at": None,
@@ -69,6 +70,9 @@ def _write_archive_run(workspace: Path, run_id: str, phase: str, next_token: str
             "schema": "governance.provenance-record.v1",
             "repo_fingerprint": "abc123def456abc123def456",
             "run_id": run_id,
+            "trigger": "new_work_session_created",
+            "launcher": "governance.entrypoints.new_work_session",
+            "timestamps": {"materialized_at": "2026-01-01T00:00:00Z"},
         },
     )
 
