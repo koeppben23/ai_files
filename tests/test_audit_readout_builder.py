@@ -8,6 +8,7 @@ import pytest
 
 from governance.application.use_cases.audit_readout_builder import build_audit_readout
 from governance.domain.canonical_json import canonical_json_hash
+from governance.infrastructure.work_run_archive import archive_active_run
 
 
 def _write_json(path: Path, payload: Mapping[str, object]) -> None:
@@ -458,6 +459,7 @@ def test_archive_without_manifest_or_checksums_emits_notes(tmp_path: Path) -> No
     assert isinstance(notes, list)
     assert "run-manifest-missing:work-1" in notes
     assert "run-checksums-missing:work-1" in notes
+    assert any(note.startswith("run-verify-failed:work-1:") for note in notes)
     assert "snapshot-run-not-finalized:unknown" in notes
     assert "snapshot-integrity-not-passed:unknown" in notes
     assert integrity["snapshot_quality_ok"] is False
@@ -548,3 +550,75 @@ def test_last_snapshot_includes_run_and_integrity_status(tmp_path: Path) -> None
     assert "snapshot-run-not-finalized:unknown" not in notes
     assert "snapshot-integrity-not-passed:unknown" not in notes
     assert integrity["snapshot_quality_ok"] is True
+
+
+def test_verified_archive_does_not_emit_run_verify_failed_note(tmp_path: Path) -> None:
+    commands_home, config_root, workspace = _setup_workspace(tmp_path)
+    _write_json(
+        workspace / "SESSION_STATE.json",
+        {
+            "SESSION_STATE": {
+                "session_run_id": "work-2",
+                "Phase": "4",
+                "Next": "5",
+                "active_gate": "Ticket Input Gate",
+                "phase4_intake_updated_at": "2026-03-05T20:34:32Z",
+            }
+        },
+    )
+    _write_json(
+        workspace / "current_run.json",
+        {
+            "schema": "governance.current-run-pointer.v1",
+            "repo_fingerprint": "fp",
+            "active_run_id": "work-2",
+            "updated_at": "2026-03-05T20:34:32Z",
+            "activation_reason": "new-work-session",
+        },
+    )
+
+    archive_active_run(
+        workspaces_home=config_root / "workspaces",
+        repo_fingerprint="fp",
+        run_id="work-1",
+        observed_at="2026-03-05T20:30:00Z",
+        session_state_document={
+            "SESSION_STATE": {
+                "session_run_id": "work-1",
+                "Phase": "6-PostFlight",
+                "active_gate": "Evidence Presentation Gate",
+                "Next": "6",
+            }
+        },
+        state_view={
+            "session_run_id": "work-1",
+            "Phase": "6-PostFlight",
+            "active_gate": "Evidence Presentation Gate",
+            "Next": "6",
+        },
+    )
+
+    snapshot_doc = json.loads((workspace / "runs" / "work-1" / "SESSION_STATE.json").read_text(encoding="utf-8"))
+    (workspace / "events.jsonl").write_text(
+        json.dumps(
+            {
+                "event": "new_work_session_created",
+                "observed_at": "2026-03-05T20:34:32Z",
+                "repo_fingerprint": "fp",
+                "session_id": "sess-1",
+                "run_id": "work-1",
+                "new_run_id": "work-2",
+                "snapshot_path": str(workspace / "runs" / "work-1" / "SESSION_STATE.json"),
+                "snapshot_digest": canonical_json_hash(snapshot_doc),
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    payload = build_audit_readout(commands_home=commands_home)
+    integrity = payload.get("integrity")
+    assert isinstance(integrity, dict)
+    notes = integrity.get("notes")
+    assert isinstance(notes, list)
+    assert not any(note.startswith("run-verify-failed:work-1:") for note in notes)

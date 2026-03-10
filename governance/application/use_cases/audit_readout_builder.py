@@ -9,6 +9,7 @@ from typing import Any, Mapping
 
 from governance.domain.audit_readout_contract import validate_audit_readout_v1
 from governance.domain.canonical_json import canonical_json_hash
+from governance.infrastructure.io_verify import verify_run_archive
 
 POINTER_SCHEMA = "opencode-session-pointer.v1"
 _LEGACY_POINTER_SCHEMA = "active-session-pointer.v1"
@@ -166,6 +167,10 @@ def _list_run_archives(workspace_dir: Path) -> tuple[list[dict[str, object]], li
 
         if not checksums_path.exists():
             notes.append(f"run-checksums-missing:{run_id}")
+
+        verify_ok, _, verify_message = verify_run_archive(entry)
+        if not verify_ok:
+            notes.append(f"run-verify-failed:{run_id}:{verify_message or 'unknown'}")
 
         if not digest:
             notes.append(f"run-snapshot-digest-missing:{run_id}")
