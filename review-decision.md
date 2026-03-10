@@ -12,6 +12,13 @@ Accepted input contract:
 - `decision=approve|changes_requested|reject` (required)
 - `note=<text>` (optional)
 
+Slash usage in chat:
+- `/review-decision approve`
+- `/review-decision changes_requested`
+- `/review-decision reject`
+
+No default is allowed. If `decision` is missing, do not persist and return a validation error.
+
 ## Commands by platform
 
 ```bash
@@ -31,6 +38,7 @@ If no snapshot is available, proceed using only the context visible in the curre
 ## Interpretation scope
 
 - Valid only at Phase 6 Evidence Presentation Gate.
+- The reviewed evidence must be presented before final decision submission.
 - `approve` moves to Workflow Complete.
 - `changes_requested` resets the Phase 6 implementation review loop.
 - `reject` routes back to Phase 4 Ticket Input Gate.

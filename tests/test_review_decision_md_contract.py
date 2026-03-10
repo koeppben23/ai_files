@@ -20,6 +20,7 @@ def test_review_decision_md_exists_and_documents_canonical_surface() -> None:
     assert BIN_DIR_PLACEHOLDER in content
     assert "opencode-governance-bootstrap" in content
     assert "decision=approve|changes_requested|reject" in content
+    assert "No default is allowed" in content
 
 
 @pytest.mark.governance

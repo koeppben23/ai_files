@@ -70,6 +70,21 @@ def _payload(status: str, **kwargs: object) -> dict[str, object]:
     return out
 
 
+def _is_evidence_presentation_gate(state: Mapping[str, object]) -> bool:
+    """Return True when Phase-6 Evidence Presentation Gate is active."""
+
+    candidates = (
+        state.get("active_gate"),
+        state.get("ActiveGate"),
+        state.get("Gate"),
+    )
+    for value in candidates:
+        text = str(value or "").strip().lower()
+        if text == "evidence presentation gate":
+            return True
+    return False
+
+
 def _resolve_active_session_path() -> tuple[Path, Path]:
     """Resolve active workspace session + events path from global pointer."""
     resolver = BindingEvidenceResolver()
@@ -145,6 +160,17 @@ def apply_review_decision(
             "error",
             reason_code=BLOCKED_REVIEW_DECISION_INVALID,
             message=f"Review decision only allowed in Phase 6. Current phase: {phase_text}",
+        )
+
+    if not _is_evidence_presentation_gate(state):
+        return _payload(
+            "error",
+            reason_code=BLOCKED_REVIEW_DECISION_INVALID,
+            message=(
+                "Review decision requires Phase 6 Evidence Presentation Gate. "
+                "Run /continue until active_gate is 'Evidence Presentation Gate', then run "
+                "/review-decision <approve|changes_requested|reject>."
+            ),
         )
 
     event_id = uuid.uuid4().hex

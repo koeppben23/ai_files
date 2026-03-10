@@ -847,7 +847,10 @@ def _resolve_next_action_line(snapshot: dict) -> str:
         if active_gate == "workflow complete":
             return "Next action: governance workflow is complete; no further governance command is required."
         if active_gate == "evidence presentation gate":
-            return "Next action: submit final review decision via /review-decision (approve | changes_requested | reject)."
+            return (
+                "Next action: run /review-decision <approve|changes_requested|reject> "
+                "(example: /review-decision approve)."
+            )
 
     # Gate-specific P5.x guidance must run before the generic
     # _should_emit_continue_next_action() guard so blocked conditions can

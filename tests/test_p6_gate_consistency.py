@@ -101,6 +101,7 @@ def _make_phase6_state(*, gates: dict | None = None, extra: dict | None = None) 
     """Build a SESSION_STATE document already in Phase 6."""
     state = {
         "Phase": "6-PostFlight",
+        "active_gate": "Evidence Presentation Gate",
         **PERSISTENCE_BASE,
         **RULEBOOK_BASE,
         "Gates": gates or dict(ALL_P5_GATES_PASSED),
@@ -478,6 +479,16 @@ class TestReviewDecisionBadPaths:
             session_path=session_path,
         )
         assert result["status"] == "error"
+
+    def test_phase6_without_evidence_presentation_gate_rejected(self, tmp_path: Path) -> None:
+        state = _make_phase6_state(extra={"active_gate": "Post Flight"})
+        session_path = _write_session(tmp_path, state)
+        result = apply_review_decision(
+            decision="approve",
+            session_path=session_path,
+        )
+        assert result["status"] == "error"
+        assert "Evidence Presentation Gate" in str(result.get("message", ""))
 
 
 # ===========================================================================

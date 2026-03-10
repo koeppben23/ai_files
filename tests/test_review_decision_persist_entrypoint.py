@@ -11,6 +11,7 @@ def _write_session(path: Path, *, phase: str = "6-PostFlight") -> None:
         "schema": "opencode-session-state.v1",
         "SESSION_STATE": {
             "Phase": phase,
+            "active_gate": "Evidence Presentation Gate",
             "Gates": {
                 "P5-Architecture": "approved",
                 "P5.3-TestQuality": "pass",
@@ -93,3 +94,12 @@ def test_main_edge_resolver_failure_returns_error(monkeypatch, capsys) -> None:
     assert rc == 2
     assert out["status"] == "error"
     assert out["reason_code"] == "BLOCKED-REVIEW-DECISION-INVALID"
+
+
+def test_main_bad_missing_decision_argument_raises_system_exit() -> None:
+    try:
+        entrypoint.main(["--quiet"])
+    except SystemExit as exc:
+        assert exc.code == 2
+    else:
+        raise AssertionError("expected argparse SystemExit for missing --decision")
