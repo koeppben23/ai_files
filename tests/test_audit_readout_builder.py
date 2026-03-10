@@ -397,3 +397,63 @@ def test_replay_determinism_same_input_same_output(tmp_path: Path) -> None:
     first = build_audit_readout(commands_home=commands_home)
     second = build_audit_readout(commands_home=commands_home)
     assert first == second
+
+
+def test_archive_without_manifest_or_checksums_emits_notes(tmp_path: Path) -> None:
+    commands_home, _, workspace = _setup_workspace(tmp_path)
+    _write_json(
+        workspace / "SESSION_STATE.json",
+        {
+            "SESSION_STATE": {
+                "session_run_id": "work-2",
+                "Phase": "4",
+                "Next": "5",
+                "active_gate": "Ticket Input Gate",
+                "phase4_intake_updated_at": "2026-03-05T20:34:32Z",
+            }
+        },
+    )
+    _write_json(
+        workspace / "current_run.json",
+        {
+            "schema": "governance.current-run-pointer.v1",
+            "repo_fingerprint": "fp",
+            "active_run_id": "work-2",
+            "updated_at": "2026-03-05T20:34:32Z",
+            "activation_reason": "new-work-session",
+        },
+    )
+    _write_run_archive(
+        workspace,
+        run_id="work-1",
+        archived_at="2026-03-05T20:30:00Z",
+        source_phase="6-PostFlight",
+        state_phase="6-PostFlight",
+    )
+
+    (workspace / "events.jsonl").write_text(
+        json.dumps(
+            {
+                "event": "new_work_session_created",
+                "observed_at": "2026-03-05T20:34:32Z",
+                "repo_fingerprint": "fp",
+                "session_id": "sess-1",
+                "run_id": "work-1",
+                "new_run_id": "work-2",
+                "snapshot_path": str(workspace / "runs" / "work-1" / "SESSION_STATE.json"),
+                "snapshot_digest": canonical_json_hash(
+                    json.loads((workspace / "runs" / "work-1" / "SESSION_STATE.json").read_text(encoding="utf-8"))
+                ),
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    payload = build_audit_readout(commands_home=commands_home)
+    integrity = payload.get("integrity")
+    assert isinstance(integrity, dict)
+    notes = integrity.get("notes")
+    assert isinstance(notes, list)
+    assert "run-manifest-missing:work-1" in notes
+    assert "run-checksums-missing:work-1" in notes

@@ -128,6 +128,8 @@ def _list_run_archives(workspace_dir: Path) -> tuple[list[dict[str, object]], li
         run_id = entry.name
         metadata_path = entry / "metadata.json"
         snapshot_path = entry / "SESSION_STATE.json"
+        run_manifest_path = entry / "run-manifest.json"
+        checksums_path = entry / "checksums.json"
         if not metadata_path.exists():
             notes.append(f"run-metadata-missing:{run_id}")
             continue
@@ -149,6 +151,21 @@ def _list_run_archives(workspace_dir: Path) -> tuple[list[dict[str, object]], li
         digest = str(metadata.get("snapshot_digest") or "").strip()
         archived_at = str(metadata.get("archived_at") or "").strip()
         source_phase = str(metadata.get("source_phase") or "unknown").strip() or "unknown"
+        run_status = "unknown"
+        integrity_status = "unknown"
+
+        if run_manifest_path.exists():
+            try:
+                run_manifest = _read_json(run_manifest_path)
+                run_status = str(run_manifest.get("run_status") or "unknown").strip() or "unknown"
+                integrity_status = str(run_manifest.get("integrity_status") or "unknown").strip() or "unknown"
+            except Exception:
+                notes.append(f"run-manifest-invalid:{run_id}")
+        else:
+            notes.append(f"run-manifest-missing:{run_id}")
+
+        if not checksums_path.exists():
+            notes.append(f"run-checksums-missing:{run_id}")
 
         if not digest:
             notes.append(f"run-snapshot-digest-missing:{run_id}")
@@ -164,6 +181,8 @@ def _list_run_archives(workspace_dir: Path) -> tuple[list[dict[str, object]], li
                 "snapshot_digest": digest,
                 "archived_at": archived_at,
                 "source_phase": source_phase,
+                "run_status": run_status,
+                "integrity_status": integrity_status,
             }
         )
 
