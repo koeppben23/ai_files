@@ -203,6 +203,8 @@ def _build_last_snapshot(
             "archived_at": "1970-01-01T00:00:00Z",
             "source_phase": "none",
             "run_id": "none",
+            "run_status": "unknown",
+            "integrity_status": "unknown",
         }, ["missing-run-archive-snapshot"]
 
     by_run_id = {str(item.get("run_id") or ""): item for item in run_archives}

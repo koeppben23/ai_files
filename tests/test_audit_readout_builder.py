@@ -457,3 +457,83 @@ def test_archive_without_manifest_or_checksums_emits_notes(tmp_path: Path) -> No
     assert isinstance(notes, list)
     assert "run-manifest-missing:work-1" in notes
     assert "run-checksums-missing:work-1" in notes
+
+
+def test_last_snapshot_includes_run_and_integrity_status(tmp_path: Path) -> None:
+    commands_home, _, workspace = _setup_workspace(tmp_path)
+    _write_json(
+        workspace / "SESSION_STATE.json",
+        {
+            "SESSION_STATE": {
+                "session_run_id": "work-2",
+                "Phase": "4",
+                "Next": "5",
+                "active_gate": "Ticket Input Gate",
+                "phase4_intake_updated_at": "2026-03-05T20:34:32Z",
+            }
+        },
+    )
+    _write_json(
+        workspace / "current_run.json",
+        {
+            "schema": "governance.current-run-pointer.v1",
+            "repo_fingerprint": "fp",
+            "active_run_id": "work-2",
+            "updated_at": "2026-03-05T20:34:32Z",
+            "activation_reason": "new-work-session",
+        },
+    )
+    _write_run_archive(
+        workspace,
+        run_id="work-1",
+        archived_at="2026-03-05T20:30:00Z",
+        source_phase="6-PostFlight",
+        state_phase="6-PostFlight",
+    )
+    _write_json(
+        workspace / "runs" / "work-1" / "run-manifest.json",
+        {
+            "schema": "governance.run-manifest.v1",
+            "repo_fingerprint": "fp",
+            "run_id": "work-1",
+            "run_type": "analysis",
+            "run_status": "finalized",
+            "record_status": "finalized",
+            "integrity_status": "passed",
+            "finalized_at": "2026-03-05T20:30:00Z",
+            "required_artifacts": {
+                "session_state": True,
+                "run_manifest": True,
+                "metadata": True,
+                "provenance": True,
+                "plan_record": False,
+                "pr_record": False,
+                "checksums": True,
+            },
+        },
+    )
+
+    (workspace / "events.jsonl").write_text(
+        json.dumps(
+            {
+                "event": "new_work_session_created",
+                "observed_at": "2026-03-05T20:34:32Z",
+                "repo_fingerprint": "fp",
+                "session_id": "sess-1",
+                "run_id": "work-1",
+                "new_run_id": "work-2",
+                "snapshot_path": str(workspace / "runs" / "work-1" / "SESSION_STATE.json"),
+                "snapshot_digest": canonical_json_hash(
+                    json.loads((workspace / "runs" / "work-1" / "SESSION_STATE.json").read_text(encoding="utf-8"))
+                ),
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    payload = build_audit_readout(commands_home=commands_home)
+    snapshot = payload.get("last_snapshot")
+    assert isinstance(snapshot, dict)
+    assert snapshot["run_status"] == "finalized"
+    assert snapshot["integrity_status"] == "passed"
