@@ -36,3 +36,33 @@ def test_archive_writes_repository_and_run_manifest(tmp_path: Path) -> None:
     assert run_manifest["run_id"] == "run-1"
     assert run_manifest["required_artifacts"]["session_state"] is True
     assert run_manifest["required_artifacts"]["checksums"] is True
+
+
+def test_repository_manifest_is_stable_across_multiple_archives(tmp_path: Path) -> None:
+    workspaces_home = tmp_path / "workspaces"
+    fingerprint = "abc123def456abc123def456"
+    state = {"session_run_id": "run-1", "Phase": "6-PostFlight", "active_gate": "Post Flight", "Next": "6"}
+
+    archive_active_run(
+        workspaces_home=workspaces_home,
+        repo_fingerprint=fingerprint,
+        run_id="run-1",
+        observed_at="2026-03-10T12:45:00Z",
+        session_state_document={"SESSION_STATE": state},
+        state_view=state,
+    )
+    manifest_path = workspaces_home / fingerprint / "runs" / "repository-manifest.json"
+    first_manifest = manifest_path.read_text(encoding="utf-8")
+
+    state2 = {"session_run_id": "run-2", "Phase": "4", "active_gate": "Ticket Input Gate", "Next": "5"}
+    archive_active_run(
+        workspaces_home=workspaces_home,
+        repo_fingerprint=fingerprint,
+        run_id="run-2",
+        observed_at="2026-03-10T12:50:00Z",
+        session_state_document={"SESSION_STATE": state2},
+        state_view=state2,
+    )
+    second_manifest = manifest_path.read_text(encoding="utf-8")
+
+    assert first_manifest == second_manifest
