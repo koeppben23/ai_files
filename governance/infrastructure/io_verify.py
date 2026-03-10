@@ -200,6 +200,7 @@ def verify_run_archive(run_root: Path) -> Tuple[bool, Dict[str, bool], Optional[
 
     archive_status = str(metadata.get("archive_status") or "").strip()
     finalization_reason = metadata.get("finalization_reason")
+    failure_reason = metadata.get("failure_reason")
     if run_status == "finalized" and archive_status and archive_status != "finalized":
         return False, results, f"archive_status mismatch for finalized run: {archive_status}"
     if run_status == "failed" and archive_status and archive_status != "failed":
@@ -207,6 +208,9 @@ def verify_run_archive(run_root: Path) -> Tuple[bool, Dict[str, bool], Optional[
     if run_status == "finalized":
         if not isinstance(finalization_reason, str) or not finalization_reason.strip():
             return False, results, "Finalized metadata must include finalization_reason"
+    if run_status == "failed":
+        if not isinstance(failure_reason, str) or not failure_reason.strip():
+            return False, results, "Failed metadata must include failure_reason"
 
     plan_required = bool(required_artifacts.get("plan_record"))
     pr_required = bool(required_artifacts.get("pr_record"))
