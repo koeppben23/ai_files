@@ -7,8 +7,9 @@ at the Evidence Presentation Gate in Phase 6.
 Behaviour by decision:
 - **approve**: sets ``workflow_complete=True``, ``active_gate="Workflow Complete"``
   — terminal state within Phase 6, no new token.
-- **changes_requested**: resets ``implementation_review_complete=False`` for a
-  Phase 6 loop-reset. The internal review iterations restart.
+- **changes_requested**: enters ``active_gate=Rework Clarification Gate`` and
+  keeps implementation output blocked until chat clarification yields exactly
+  one directed next rail (``/ticket`` | ``/plan`` | ``/continue``).
 - **reject**: transitions back to Phase 4 with ``active_gate="Ticket Input Gate"``.
 
 All decisions are written to ``SESSION_STATE["UserReviewDecision"]`` and an

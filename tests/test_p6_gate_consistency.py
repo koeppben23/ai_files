@@ -5,7 +5,7 @@ Covers:
 2. P5.5 not-applicable / approved allows Phase 6 promotion
 3. can_promote_to_phase6() is SSOT wrapper
 4. /review-decision approve → workflow_complete terminal state
-5. /review-decision changes_requested → Phase 6 loop-reset
+5. /review-decision changes_requested → Rework Clarification Gate in Phase 6
 6. /review-decision reject → Phase 4 return
 7. /review-decision invalid input → error
 8. /review-decision outside Phase 6 → error
@@ -395,7 +395,7 @@ class TestReviewDecisionApprove:
 
 
 class TestReviewDecisionChangesRequested:
-    """changes_requested → Phase 6 loop-reset."""
+    """changes_requested → Rework Clarification Gate."""
 
     def test_changes_requested_resets_review(self, tmp_path: Path) -> None:
         state = _make_phase6_state(extra={"implementation_review_complete": True})
