@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Callable, Mapping
 
 from governance.domain.canonical_json import canonical_json_hash
+from governance.domain.access_control import Action, AccessDecision, Role, evaluate_access
 from governance.infrastructure.fs_atomic import atomic_write_text
 from governance.infrastructure.io_verify import verify_run_archive
 from governance.infrastructure.run_audit_artifacts import (
@@ -72,6 +73,33 @@ def _regulated_finalization_guard(
     approval_status = str(state_view.get("approval_status") or "").strip().lower()
     if requires_human_approval and approval_status != "approved":
         return False, "regulated mode requires approved human approval before finalization"
+    if requires_human_approval:
+        role_raw = str(state_view.get("role") or state_view.get("actor_role") or "operator").strip().lower()
+        approver_raw = str(state_view.get("approver_role") or "").strip().lower()
+
+        try:
+            initiator_role = Role(role_raw)
+        except ValueError:
+            return False, f"regulated mode finalization denied: unknown initiator role '{role_raw}'"
+
+        approver_role: Role | None = None
+        if approver_raw:
+            try:
+                approver_role = Role(approver_raw)
+            except ValueError:
+                return False, f"regulated mode finalization denied: unknown approver role '{approver_raw}'"
+
+        access = evaluate_access(
+            role=initiator_role,
+            action=Action.FINALIZE_RUN,
+            regulated_mode_active=True,
+            approver_role=approver_role,
+        )
+        if access.decision != AccessDecision.ALLOW:
+            return False, (
+                "regulated mode finalization denied: "
+                f"{access.reason}; approval={access.approval_reason}"
+            )
     return True, "regulated-mode-guard-passed"
 
 
