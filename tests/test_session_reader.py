@@ -2529,6 +2529,15 @@ class TestResolveNextActionLine:
             "Next action: run /implementation-decision <approve|changes_requested|reject>."
         )
 
+    def test_happy_implementation_review_complete_routes_to_continue(self) -> None:
+        snapshot = {
+            "status": "OK",
+            "phase": "6-PostFlight",
+            "active_gate": "Implementation Review Complete",
+            "next_gate_condition": "Run /continue to materialize presentation gate.",
+        }
+        assert _resolve_next_action_line(snapshot) == "Next action: run /continue."
+
     def test_happy_implementation_rework_gate_routes_to_implement_when_clarified(self) -> None:
         snapshot = {
             "status": "OK",

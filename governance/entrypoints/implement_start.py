@@ -396,13 +396,16 @@ def start_implementation(
     fixed_findings: list[dict[str, str]] = []
     loop_notes: list[str] = []
     quality_stable = False
+    stage_history: list[str] = ["Implementation Execution In Progress"]
 
     while iteration < max_iterations:
         iteration += 1
         current_digest = _hash_files(changed_files, repo_root)
+        stage_history.append("Implementation Self Review")
         findings = _review_iteration(plan_text=plan_text, changed_files=changed_files, repo_root=repo_root)
         critical = [f for f in findings if str(f.get("severity")) == "critical"]
         if critical:
+            stage_history.append("Implementation Revision")
             fixed, remaining = _apply_iteration_revision(
                 findings=critical,
                 changed_files=changed_files,
@@ -419,6 +422,7 @@ def start_implementation(
             previous_digest = current_digest
             continue
 
+        stage_history.append("Implementation Verification")
         if previous_digest and previous_digest == current_digest and iteration >= min_iterations:
             quality_stable = True
             revision_delta = "stabilized"
@@ -471,13 +475,15 @@ def start_implementation(
     state["implementation_open_findings"] = open_serialized
     state["implementation_loop_notes"] = loop_notes
     state["implementation_hard_blockers"] = open_serialized
+    state["implementation_substate_history"] = stage_history
 
     if quality_stable:
-        state["active_gate"] = "Implementation Presentation Gate"
+        state["active_gate"] = "Implementation Review Complete"
         state["next_gate_condition"] = (
-            "Implementation package is ready for external decision. "
-            "Run /implementation-decision <approve|changes_requested|reject>."
+            "Internal implementation review loop is complete. "
+            "Run /continue to materialize the Implementation Presentation Gate."
         )
+        state["implementation_review_complete_state"] = True
         state["implementation_package_presented"] = True
         state["implementation_package_review_object"] = "Implemented result review"
         state["implementation_package_plan_reference"] = "latest approved plan record"
@@ -490,6 +496,7 @@ def start_implementation(
             "plan-conformance heuristic",
         ]
         state["implementation_package_stability"] = "stable"
+        stage_history.append("Implementation Review Complete")
     else:
         state["active_gate"] = "Implementation Blocked"
         state["next_gate_condition"] = (
@@ -506,7 +513,7 @@ def start_implementation(
         "event_id": event_id,
         "event": "IMPLEMENTATION_STARTED",
         "phase": phase_text,
-        "active_gate": "Implementation Started",
+        "active_gate": str(state.get("active_gate") or "Implementation Blocked"),
         "decision": decision or "approve",
         "plan_record_versions": signal.versions,
         "actor": state["implementation_started_by"],
@@ -545,11 +552,12 @@ def start_implementation(
         implementation_review_iterations=iteration,
         implementation_max_review_iterations=max_iterations,
         implementation_revision_delta=revision_delta,
+        implementation_substate_history=stage_history,
         implementation_findings_fixed=fixed_serialized,
         implementation_open_findings=open_serialized,
         implementation_quality_stable=quality_stable,
         next_action=(
-            "run /implementation-decision <approve|changes_requested|reject>."
+            "run /continue."
             if quality_stable
             else "resolve implementation blockers, then run /implement."
         ),

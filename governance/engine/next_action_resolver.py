@@ -159,6 +159,7 @@ def resolve_next_action(snapshot: Mapping[str, object]) -> NextActionRender:
             "implementation self review",
             "implementation revision",
             "implementation verification",
+            "implementation review complete",
         }:
             return NextActionRender(
                 command="/continue",

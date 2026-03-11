@@ -1312,6 +1312,16 @@ def read_session_snapshot(commands_home: Path | None = None, *, materialize: boo
             or ("stable" if bool(state_view.get("implementation_quality_stable")) else "unstable")
         )
 
+    if phase_str.startswith("6") and str(active_gate).strip().lower() == "implementation review complete":
+        snapshot["implementation_substate_history"] = state_view.get("implementation_substate_history") or []
+        snapshot["implementation_review_summary"] = _safe_str(
+            state_view.get("implementation_execution_summary")
+            or "Internal implementation review loop completed."
+        )
+        snapshot["implementation_decision_availability"] = (
+            "External implementation decision is not yet available until the Implementation Presentation Gate is materialized."
+        )
+
     return snapshot
 
 

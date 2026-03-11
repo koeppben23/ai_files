@@ -58,15 +58,17 @@ def test_main_happy_implement_start(monkeypatch, tmp_path: Path, capsys) -> None
     assert rc == 0
     assert out["status"] == "ok"
     assert out["implementation_started"] is True
-    assert out["active_gate"] == "Implementation Presentation Gate"
+    assert out["active_gate"] == "Implementation Review Complete"
     assert out["implementation_quality_stable"] is True
     assert out["implementation_changed_files"]
-    assert out["next_action"].startswith("run /implementation-decision")
+    assert out["next_action"] == "run /continue."
+    assert "Implementation Self Review" in out["implementation_substate_history"]
+    assert "Implementation Verification" in out["implementation_substate_history"]
     persisted = json.loads(session_path.read_text(encoding="utf-8"))
     ss = persisted["SESSION_STATE"]
     assert ss["implementation_authorized"] is True
     assert ss["implementation_started"] is True
-    assert ss["active_gate"] == "Implementation Presentation Gate"
+    assert ss["active_gate"] == "Implementation Review Complete"
     assert ss["implementation_package_presented"] is True
     assert (tmp_path / ".governance" / "implementation" / "execution_patch.py").exists()
 
