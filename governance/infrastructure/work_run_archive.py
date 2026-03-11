@@ -8,6 +8,7 @@ from typing import Callable, Mapping
 
 from governance.domain.canonical_json import canonical_json_hash
 from governance.domain.access_control import Action, AccessDecision, Role, evaluate_access
+from governance.domain.operating_profile import runtime_mode_to_operating_profile
 from governance.infrastructure.fs_atomic import atomic_write_text
 from governance.infrastructure.io_verify import verify_run_archive
 from governance.infrastructure.run_audit_artifacts import (
@@ -114,6 +115,52 @@ def _regulated_finalization_guard(
     return True, "regulated-mode-guard-passed"
 
 
+def _derive_resolved_operating_mode(state_view: Mapping[str, object]) -> str:
+    explicit = str(
+        state_view.get("resolvedOperatingMode")
+        or state_view.get("resolved_operating_mode")
+        or ""
+    ).strip().lower()
+    if explicit in {"solo", "team", "regulated"}:
+        return explicit
+    runtime_mode = str(
+        state_view.get("effective_operating_mode")
+        or state_view.get("operating_mode")
+        or state_view.get("Mode")
+        or "user"
+    ).strip().lower()
+    return runtime_mode_to_operating_profile(runtime_mode)
+
+
+def _derive_verify_policy_version(state_view: Mapping[str, object]) -> str:
+    token = str(
+        state_view.get("verifyPolicyVersion")
+        or state_view.get("verify_policy_version")
+        or "v1"
+    ).strip()
+    return token or "v1"
+
+
+def _with_operating_mode_evidence(
+    session_state_document: Mapping[str, object],
+    *,
+    resolved_operating_mode: str,
+    verify_policy_version: str,
+) -> Mapping[str, object]:
+    document = dict(session_state_document)
+    root = document.get("SESSION_STATE")
+    if isinstance(root, Mapping):
+        ss = dict(root)
+    else:
+        ss = {}
+    ss["resolved_operating_mode"] = resolved_operating_mode
+    ss["resolvedOperatingMode"] = resolved_operating_mode
+    ss["verify_policy_version"] = verify_policy_version
+    ss["verifyPolicyVersion"] = verify_policy_version
+    document["SESSION_STATE"] = ss
+    return document
+
+
 def archive_active_run(
     *,
     workspaces_home: Path,
@@ -152,6 +199,14 @@ def archive_active_run(
     archive_root.mkdir(parents=True, exist_ok=False)
 
     try:
+        resolved_operating_mode = _derive_resolved_operating_mode(state_view)
+        verify_policy_version = _derive_verify_policy_version(state_view)
+        archived_session_state_document = _with_operating_mode_evidence(
+            session_state_document,
+            resolved_operating_mode=resolved_operating_mode,
+            verify_policy_version=verify_policy_version,
+        )
+
         canonical_remote_url_digest = canonical_json_hash({"remote": str(state_view.get("remote_url") or "")})
         repository_manifest = repository_manifest_path(workspaces_home, repo_fingerprint)
         if not repository_manifest.exists():
@@ -176,8 +231,8 @@ def archive_active_run(
             repo_slug=repo_slug,
             observed_at=observed_at,
         )
-        writer(archived_state_path, session_state_document)
-        state_digest = canonical_json_hash(session_state_document)
+        writer(archived_state_path, archived_session_state_document)
+        state_digest = canonical_json_hash(archived_session_state_document)
 
         archived_plan = False
         active_plan_path = plan_record_path(workspaces_home, repo_fingerprint)
@@ -319,6 +374,8 @@ def archive_active_run(
             session_id=str(state_view.get("session_run_id") or archived_run_id),
             requires_plan_record=(run_type == "plan"),
             requires_pr_record=(run_type == "pr"),
+            resolved_operating_mode=resolved_operating_mode,
+            verify_policy_version=verify_policy_version,
         )
         writer(
             run_manifest_path(

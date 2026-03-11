@@ -143,6 +143,8 @@ def build_run_manifest(
     session_id: str,
     requires_plan_record: bool,
     requires_pr_record: bool,
+    resolved_operating_mode: str,
+    verify_policy_version: str,
 ) -> dict[str, object]:
     return {
         "schema": "governance.run-manifest.v1",
@@ -162,6 +164,8 @@ def build_run_manifest(
         "source_phase": source_phase,
         "source_active_gate": source_gate,
         "source_next": source_next,
+        "resolvedOperatingMode": resolved_operating_mode,
+        "verifyPolicyVersion": verify_policy_version,
         "run_status": "in_progress",
         "record_status": "draft",
         "finalized_at": None,
