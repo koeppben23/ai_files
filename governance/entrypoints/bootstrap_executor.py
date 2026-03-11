@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+from datetime import datetime, timezone
 from governance.application.use_cases.repo_policy_setup import write_repo_operating_mode_policy
 
 try:
@@ -89,7 +90,11 @@ def main() -> int:
 
     if selected_profile is not None:
         try:
-            policy_path = write_repo_operating_mode_policy(repo_root=repo_root, profile=selected_profile)
+            policy_path = write_repo_operating_mode_policy(
+                repo_root=repo_root,
+                profile=selected_profile,
+                now_utc=datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
+            )
         except Exception as exc:
             print(f"failed to set repo operating mode: {exc}", file=sys.stderr)
             return 2

@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
 import json
 from pathlib import Path
 
 from governance.application.repo_identity_service import derive_repo_identity
 
 
-def write_repo_operating_mode_policy(*, repo_root: Path, profile: str) -> Path:
+def write_repo_operating_mode_policy(*, repo_root: Path, profile: str, now_utc: str) -> Path:
     profile_token = str(profile or "").strip().lower()
     if profile_token not in {"solo", "team", "regulated"}:
         raise ValueError("profile must be one of: solo, team, regulated")
@@ -25,7 +24,9 @@ def write_repo_operating_mode_policy(*, repo_root: Path, profile: str) -> Path:
             existing_created_at = str(existing_payload.get("createdAt") or "").strip()
 
     identity = derive_repo_identity(repo_root, canonical_remote=None, git_dir=None)
-    created_at = existing_created_at or datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    created_at = existing_created_at or str(now_utc).strip()
+    if not created_at:
+        raise ValueError("now_utc must be non-empty")
 
     payload = {
         "schema": "opencode-governance-repo-policy.v1",
