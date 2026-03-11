@@ -675,6 +675,51 @@ def _implementation_started(state: Mapping[str, object]) -> bool:
     return False
 
 
+def _implementation_execution_in_progress(state: Mapping[str, object]) -> bool:
+    status = str(
+        state.get("implementation_execution_status")
+        or _read_nested_key(state, "implementation_execution_status")
+        or ""
+    ).strip().lower()
+    return status in {"in_progress", "self_review", "revision", "verification"}
+
+
+def _implementation_presentation_ready(state: Mapping[str, object]) -> bool:
+    gate = str(state.get("active_gate") or "").strip().lower()
+    if gate == "implementation presentation gate":
+        return True
+    presented = state.get("implementation_package_presented")
+    stable = state.get("implementation_quality_stable")
+    return bool(presented) and bool(stable)
+
+
+def _implementation_blocked(state: Mapping[str, object]) -> bool:
+    gate = str(state.get("active_gate") or "").strip().lower()
+    if gate == "implementation blocked":
+        return True
+    status = str(state.get("implementation_execution_status") or "").strip().lower()
+    if status == "blocked":
+        return True
+    blockers = state.get("implementation_hard_blockers")
+    return isinstance(blockers, list) and len(blockers) > 0
+
+
+def _implementation_rework_clarification_pending(state: Mapping[str, object]) -> bool:
+    gate = str(state.get("active_gate") or "").strip().lower()
+    if gate == "implementation rework clarification gate":
+        return True
+    required = state.get("implementation_rework_clarification_required")
+    return bool(required)
+
+
+def _implementation_accepted(state: Mapping[str, object]) -> bool:
+    gate = str(state.get("active_gate") or "").strip().lower()
+    if gate == "implementation accepted":
+        return True
+    accepted = state.get("implementation_accepted")
+    return bool(accepted)
+
+
 def _phase5_min_self_review_iterations(entry: PhaseSpecEntry) -> int:
     policy = resolve_phase_output_policy(entry.token)
     if policy is None:
@@ -853,6 +898,41 @@ def _select_transition(
                     transition.next_gate_condition,
                 )
             if when == "implementation_review_pending" and not _phase6_internal_review_complete(state):
+                return (
+                    transition.next_token,
+                    transition.source,
+                    transition.active_gate,
+                    transition.next_gate_condition,
+                )
+            if when == "implementation_accepted" and _implementation_accepted(state):
+                return (
+                    transition.next_token,
+                    transition.source,
+                    transition.active_gate,
+                    transition.next_gate_condition,
+                )
+            if when == "implementation_blocked" and _implementation_blocked(state):
+                return (
+                    transition.next_token,
+                    transition.source,
+                    transition.active_gate,
+                    transition.next_gate_condition,
+                )
+            if when == "implementation_rework_clarification_pending" and _implementation_rework_clarification_pending(state):
+                return (
+                    transition.next_token,
+                    transition.source,
+                    transition.active_gate,
+                    transition.next_gate_condition,
+                )
+            if when == "implementation_presentation_ready" and _implementation_presentation_ready(state):
+                return (
+                    transition.next_token,
+                    transition.source,
+                    transition.active_gate,
+                    transition.next_gate_condition,
+                )
+            if when == "implementation_execution_in_progress" and _implementation_execution_in_progress(state):
                 return (
                     transition.next_token,
                     transition.source,

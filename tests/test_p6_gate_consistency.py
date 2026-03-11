@@ -125,6 +125,9 @@ def _make_phase6_state(*, gates: dict | None = None, extra: dict | None = None) 
             "min_self_review_iterations": 1,
             "revision_delta": "none",
         },
+        "review_package_presented": True,
+        "review_package_plan_body_present": True,
+        "review_package_review_object": "Final Phase-6 implementation review decision",
     }
     if extra:
         state.update(extra)
@@ -405,7 +408,7 @@ class TestReviewDecisionChangesRequested:
             session_path=session_path,
         )
         assert result["status"] == "ok"
-        assert "directed next rail" in str(result.get("next_action", ""))
+        assert "describe the requested changes" in str(result.get("next_action", ""))
 
         doc = json.loads(session_path.read_text(encoding="utf-8"))
         ss = doc["SESSION_STATE"]
@@ -430,8 +433,7 @@ class TestReviewDecisionReject:
             session_path=session_path,
         )
         assert result["status"] == "ok"
-        assert "Next action: run /ticket" in str(result.get("next_action", ""))
-        assert "Alternative: run /review" in str(result.get("next_action", ""))
+        assert "run /ticket" in str(result.get("next_action", ""))
 
         doc = json.loads(session_path.read_text(encoding="utf-8"))
         ss = doc["SESSION_STATE"]

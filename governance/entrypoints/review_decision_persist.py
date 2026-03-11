@@ -86,6 +86,42 @@ def _is_evidence_presentation_gate(state: Mapping[str, object]) -> bool:
     return False
 
 
+def _review_package_ready(state: Mapping[str, object]) -> tuple[bool, str]:
+    def _as_int(value: object, fallback: int) -> int:
+        try:
+            if isinstance(value, bool):
+                return int(value)
+            if isinstance(value, int):
+                return value
+            return int(str(value).strip())
+        except Exception:
+            return fallback
+
+    review_complete = bool(state.get("implementation_review_complete"))
+    if not review_complete:
+        block = state.get("ImplementationReview")
+        if isinstance(block, Mapping):
+            review_complete = bool(block.get("implementation_review_complete"))
+            if not review_complete:
+                revision_delta = str(block.get("revision_delta") or "").strip().lower()
+                iteration = _as_int(block.get("iteration"), 0)
+                min_iterations = _as_int(block.get("min_self_review_iterations"), 1)
+                review_complete = iteration >= min_iterations and revision_delta == "none"
+    package_presented = bool(state.get("review_package_presented"))
+    plan_body_present = bool(state.get("review_package_plan_body_present"))
+    review_object = str(state.get("review_package_review_object") or "").strip()
+
+    if not review_complete:
+        return False, "implementation_review_complete=false"
+    if not package_presented:
+        return False, "review_package_presented=false"
+    if not plan_body_present:
+        return False, "review_package_plan_body_present=false"
+    if not review_object:
+        return False, "review_package_review_object=missing"
+    return True, "ready"
+
+
 def _resolve_active_session_path() -> tuple[Path, Path]:
     """Resolve active workspace session + events path from global pointer."""
     resolver = BindingEvidenceResolver()
@@ -174,6 +210,17 @@ def apply_review_decision(
             ),
         )
 
+    package_ready, package_reason = _review_package_ready(state)
+    if not package_ready:
+        return _payload(
+            "error",
+            reason_code=BLOCKED_REVIEW_DECISION_INVALID,
+            message=(
+                "Review decision is not yet allowed: review package is incomplete "
+                f"({package_reason}). Run /continue until the full review package is presented."
+            ),
+        )
+
     event_id = uuid.uuid4().hex
     ts = _now_iso()
 
@@ -189,6 +236,8 @@ def apply_review_decision(
     if normalized == "approve":
         state["workflow_complete"] = True
         state["WorkflowComplete"] = True
+        state["governance_status"] = "complete"
+        state["implementation_status"] = "authorized"
         state["implementation_authorized"] = True
         state["next_action_command"] = "/implement"
         # Write terminal surfacing fields so downstream consumers
@@ -280,6 +329,10 @@ def apply_review_decision(
         "ok",
         decision=normalized,
         event_id=event_id,
+        next_phase=str(state.get("Phase") or state.get("phase") or ""),
+        next_gate=str(state.get("active_gate") or ""),
+        governance_status=str(state.get("governance_status") or ""),
+        implementation_status=str(state.get("implementation_status") or ""),
         next_action=_next_action_hint(normalized),
     )
 
@@ -287,18 +340,11 @@ def apply_review_decision(
 def _next_action_hint(decision: str) -> str:
     """Return a human-readable next action hint for the applied decision."""
     if decision == "approve":
-        return "Governance complete. Implementation authorized. Next action: run /implement."
+        return "run /implement."
     if decision == "changes_requested":
-        return (
-            "Changes requested. Describe what must be adjusted; after clarification, run exactly one "
-            "directed next rail (/ticket, /plan, or /continue)."
-        )
+        return "describe the requested changes in chat."
     if decision == "reject":
-        return (
-            "Review rejected. Workflow returned to Phase 4 Ticket Input Gate. "
-            "Next action: run /ticket with the revised task details. "
-            "Alternative: run /review for read-only review before re-entering the development path."
-        )
+        return "run /ticket with revised task details."
     return ""
 
 

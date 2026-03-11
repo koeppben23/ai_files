@@ -116,7 +116,7 @@ class TestNewWorkSessionEntrypoint:
 
         state = json.loads(session_path.read_text(encoding="utf-8"))["SESSION_STATE"]
         assert state["Phase"] == "4"
-        assert state["Next"] == "5"
+        assert state["Next"] == "4"
         assert state["Ticket"] is None
         assert state["Task"] is None
         assert state["TicketRecordDigest"] is None

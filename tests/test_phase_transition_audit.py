@@ -790,7 +790,7 @@ class TestRunLifecycleReset:
         state = json.loads(session_path.read_text(encoding="utf-8"))["SESSION_STATE"]
         assert state["Phase"] == "4"
         assert state["phase"] == "4"
-        assert state["Next"] == "5"
+        assert state["Next"] == "4"
         assert state["Ticket"] is None
         assert state["Task"] is None
 
@@ -1134,7 +1134,7 @@ class TestCLILifecycleEntrypoint:
 
         state = json.loads(session_path.read_text(encoding="utf-8"))["SESSION_STATE"]
         assert state["Phase"] == "4"
-        assert state["Next"] == "5"
+        assert state["Next"] == "4"
 
     def test_cli_entrypoint_returns_exit_code_2_without_pointer(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
