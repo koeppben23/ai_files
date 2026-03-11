@@ -4,10 +4,15 @@
 
 ## Purpose
 
-`/implement` persists the governance-to-implementation handoff after approved Phase 6 review.
-The command is mutating - it writes implementation-start audit/state evidence.
+`/implement` starts execution of the approved implementation plan after approved Phase 6 governance review.
+The command is mutating - it writes execution, internal review-loop, and implementation-package evidence.
 
-`/implement` does not automatically execute code changes, start CI, or create PRs.
+`/implement` runs a deterministic implementation loop:
+- load approved plan
+- start repository changes
+- run internal implementation self-review
+- apply targeted revisions when needed
+- verify and either present implementation package or fail closed with blockers
 
 ## Commands by platform
 
@@ -28,19 +33,19 @@ If no snapshot is available, proceed using only the context visible in the curre
 ## Interpretation scope
 
 - Valid only after final review decision `approve` (Workflow Complete).
-- Persists `implementation_started` handoff evidence and updates active gate/readout.
-- Does not perform implementation work by itself.
+- Starts implementation execution and internal review/revision/verification loop.
+- Ends in `Implementation Presentation Gate` (decision-ready) or `Implementation Blocked`.
 
 ## Response shape
 
 - report current `phase`, `next`, `active_gate`, and `next_gate_condition` after persist
-- if the command succeeded, confirm implementation-start evidence was written
+- if the command succeeded, confirm implementation execution evidence was written
 - if validation fails, render concise evidence and one recovery action
 
 ---
 
 **Free-text guard:**
-Free text like "go", "start implementing", "weiter", or similar natural-language prompts is **not** a rail command. It does not persist implementation-start state. Only the explicit `/implement` rail invocation is permitted to write implementation-start evidence.
+Free text like "go", "start implementing", "weiter", or similar natural-language prompts is **not** a rail command. It does not persist implementation execution state. Only the explicit `/implement` rail invocation is permitted to write implementation execution evidence.
 
 Copyright © 2026 Benjamin Fuchs.
 All rights reserved. See LICENSE.

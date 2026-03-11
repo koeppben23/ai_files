@@ -154,6 +154,54 @@ def resolve_next_action(snapshot: Mapping[str, object]) -> NextActionRender:
                 kind="implementation",
                 reason="implementation-running",
             )
+        if gate in {
+            "implementation execution in progress",
+            "implementation self review",
+            "implementation revision",
+            "implementation verification",
+        }:
+            return NextActionRender(
+                command="/continue",
+                label="run /continue.",
+                kind="normal",
+                reason="implementation-loop-progress",
+            )
+        if gate == "implementation blocked":
+            return NextActionRender(
+                command="/implement",
+                label="resolve implementation blockers, then run /implement.",
+                kind="blocked",
+                reason="implementation-blocked",
+            )
+        if gate == "implementation presentation gate":
+            return NextActionRender(
+                command="/implementation-decision",
+                label="run /implementation-decision <approve|changes_requested|reject>.",
+                kind="normal",
+                reason="implementation-decision-available",
+            )
+        if gate == "implementation rework clarification gate":
+            text = str(snapshot.get("implementation_rework_clarification_input") or "").strip()
+            if text:
+                return NextActionRender(
+                    command="/implement",
+                    label="run /implement.",
+                    kind="normal",
+                    reason="implementation-rework-clarified",
+                )
+            return NextActionRender(
+                command="chat",
+                label="describe requested implementation changes in chat.",
+                kind="blocked",
+                reason="implementation-rework-clarification-required",
+            )
+        if gate == "implementation accepted":
+            return NextActionRender(
+                command="delivery",
+                label="continue delivery workflow for the accepted implementation result.",
+                kind="terminal",
+                reason="implementation-accepted",
+            )
         if gate == "evidence presentation gate":
             return NextActionRender(
                 command="/review-decision",
@@ -208,6 +256,13 @@ def resolve_next_action(snapshot: Mapping[str, object]) -> NextActionRender:
                 label="run /review-decision <approve|changes_requested|reject>.",
                 kind="normal",
                 reason="decision-available",
+            )
+        if "implementation-decision" in next_condition:
+            return NextActionRender(
+                command="/implementation-decision",
+                label="run /implementation-decision <approve|changes_requested|reject>.",
+                kind="normal",
+                reason="implementation-decision-by-condition",
             )
 
         return NextActionRender(

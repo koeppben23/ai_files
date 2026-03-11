@@ -58,11 +58,17 @@ def test_main_happy_implement_start(monkeypatch, tmp_path: Path, capsys) -> None
     assert rc == 0
     assert out["status"] == "ok"
     assert out["implementation_started"] is True
+    assert out["active_gate"] == "Implementation Presentation Gate"
+    assert out["implementation_quality_stable"] is True
+    assert out["implementation_changed_files"]
+    assert out["next_action"].startswith("run /implementation-decision")
     persisted = json.loads(session_path.read_text(encoding="utf-8"))
     ss = persisted["SESSION_STATE"]
     assert ss["implementation_authorized"] is True
     assert ss["implementation_started"] is True
-    assert ss["active_gate"] == "Implementation Started"
+    assert ss["active_gate"] == "Implementation Presentation Gate"
+    assert ss["implementation_package_presented"] is True
+    assert (tmp_path / ".governance" / "implementation" / "execution_patch.py").exists()
 
 
 def test_main_bad_without_approve(monkeypatch, tmp_path: Path, capsys) -> None:
@@ -100,3 +106,57 @@ def test_main_bad_missing_plan_record(monkeypatch, tmp_path: Path, capsys) -> No
 
     assert rc == 2
     assert out["status"] == "error"
+
+
+def test_main_blocked_when_forced_blocker_marker(monkeypatch, tmp_path: Path, capsys) -> None:
+    session_path = tmp_path / "SESSION_STATE.json"
+    events_path = tmp_path / "events.jsonl"
+    _write_session(session_path)
+    payload = {
+        "status": "active",
+        "versions": [
+            {
+                "version": 1,
+                "plan_record_text": "Approved execution plan [[force-implementation-blocker]]",
+            }
+        ],
+    }
+    (tmp_path / "plan-record.json").write_text(json.dumps(payload, ensure_ascii=True), encoding="utf-8")
+
+    monkeypatch.setattr(entrypoint, "_resolve_active_session_path", lambda: (session_path, events_path))
+
+    rc = entrypoint.main(["--quiet"])
+    out = json.loads(capsys.readouterr().out.strip())
+    assert rc == 0
+    assert out["status"] == "ok"
+    assert out["active_gate"] == "Implementation Blocked"
+    assert out["implementation_quality_stable"] is False
+    assert out["implementation_open_findings"]
+    assert "resolve implementation blockers" in out["next_action"]
+
+
+def test_main_corner_applies_target_patch_when_plan_mentions_file(monkeypatch, tmp_path: Path, capsys) -> None:
+    session_path = tmp_path / "SESSION_STATE.json"
+    events_path = tmp_path / "events.jsonl"
+    _write_session(session_path)
+    target = tmp_path / "service.py"
+    target.write_text("def run():\n    return True\n", encoding="utf-8")
+    payload = {
+        "status": "active",
+        "versions": [
+            {
+                "version": 1,
+                "plan_record_text": "Update service.py and apply first implementation step",
+            }
+        ],
+    }
+    (tmp_path / "plan-record.json").write_text(json.dumps(payload, ensure_ascii=True), encoding="utf-8")
+
+    monkeypatch.setattr(entrypoint, "_resolve_active_session_path", lambda: (session_path, events_path))
+
+    rc = entrypoint.main(["--quiet"])
+    out = json.loads(capsys.readouterr().out.strip())
+    assert rc == 0
+    assert out["status"] == "ok"
+    assert "service.py" in "\n".join(out["implementation_changed_files"])
+    assert "governance-implement:" in target.read_text(encoding="utf-8")

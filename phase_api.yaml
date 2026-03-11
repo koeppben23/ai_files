@@ -294,6 +294,31 @@ phases:
     next_gate_condition: "Review loop in progress. Complete deterministic internal implementation review iterations before final decision becomes available."
     route_strategy: "stay"
     transitions:
+      - when: implementation_accepted
+        next: "6"
+        source: "phase-6-implementation-accepted"
+        active_gate: "Implementation Accepted"
+        next_gate_condition: "Implemented result accepted. Continue with delivery workflow."
+      - when: implementation_blocked
+        next: "6"
+        source: "phase-6-implementation-blocked"
+        active_gate: "Implementation Blocked"
+        next_gate_condition: "Implementation blocked by unresolved critical findings. Resolve blockers and rerun /implement."
+      - when: implementation_rework_clarification_pending
+        next: "6"
+        source: "phase-6-implementation-rework-clarification"
+        active_gate: "Implementation Rework Clarification Gate"
+        next_gate_condition: "Clarify implementation rework in chat, then run /implement to apply revisions."
+      - when: implementation_presentation_ready
+        next: "6"
+        source: "phase-6-implementation-presentation-ready"
+        active_gate: "Implementation Presentation Gate"
+        next_gate_condition: "Implementation package is ready. Submit /implementation-decision <approve|changes_requested|reject>."
+      - when: implementation_execution_in_progress
+        next: "6"
+        source: "phase-6-implementation-execution"
+        active_gate: "Implementation Execution In Progress"
+        next_gate_condition: "Implementation execution and internal review loop are running."
       - when: implementation_started
         next: "6"
         source: "phase-6-implementation-started"

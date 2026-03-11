@@ -1885,3 +1885,131 @@ class TestKernelResultRouteStrategy:
             ),
         )
         assert isinstance(result.route_strategy, str)
+
+
+def test_phase6_routes_to_implementation_presentation_gate_when_package_ready(tmp_path: Path) -> None:
+    commands_home = tmp_path / "commands"
+    _write_phase_api(commands_home)
+    repo = "repo-impl-package"
+    _write_plan_record(tmp_path / "workspaces", repo, status="active", versions=2)
+
+    doc = {
+        "SESSION_STATE": {
+            "Phase": "6-PostFlight",
+            "Next": "6",
+            "RepoFingerprint": repo,
+            "PersistenceCommitted": True,
+            "WorkspaceReadyGateCommitted": True,
+            "WorkspaceArtifactsCommitted": True,
+            "PointerVerified": True,
+            "Gates": {
+                "P5-Architecture": "approved",
+                "P5.3-TestQuality": "pass",
+                "P5.5-TechnicalDebt": "approved",
+            },
+            "implementation_package_presented": True,
+            "implementation_quality_stable": True,
+            "implementation_execution_status": "review_complete",
+            "implementation_changed_files": [".governance/implementation/execution_patch.py"],
+            **RULEBOOK_BASE,
+        }
+    }
+    result = execute(
+        current_token="6",
+        session_state_doc=doc,
+        runtime_ctx=RuntimeContext(
+            requested_active_gate="Implementation Internal Review",
+            requested_next_gate_condition="Continue",
+            repo_is_git_root=True,
+            commands_home=commands_home,
+            workspaces_home=tmp_path / "workspaces",
+            config_root=tmp_path / "cfg",
+        ),
+    )
+
+    assert result.active_gate == "Implementation Presentation Gate"
+    assert result.source == "phase-6-implementation-presentation-ready"
+
+
+def test_phase6_routes_to_implementation_blocked_when_blockers_present(tmp_path: Path) -> None:
+    commands_home = tmp_path / "commands"
+    _write_phase_api(commands_home)
+    repo = "repo-impl-blocked"
+    _write_plan_record(tmp_path / "workspaces", repo, status="active", versions=2)
+
+    doc = {
+        "SESSION_STATE": {
+            "Phase": "6-PostFlight",
+            "Next": "6",
+            "RepoFingerprint": repo,
+            "PersistenceCommitted": True,
+            "WorkspaceReadyGateCommitted": True,
+            "WorkspaceArtifactsCommitted": True,
+            "PointerVerified": True,
+            "Gates": {
+                "P5-Architecture": "approved",
+                "P5.3-TestQuality": "pass",
+                "P5.5-TechnicalDebt": "approved",
+            },
+            "implementation_execution_status": "blocked",
+            "implementation_hard_blockers": ["critical:IMPLEMENTATION-FOO:blocked"],
+            **RULEBOOK_BASE,
+        }
+    }
+    result = execute(
+        current_token="6",
+        session_state_doc=doc,
+        runtime_ctx=RuntimeContext(
+            requested_active_gate="Implementation Internal Review",
+            requested_next_gate_condition="Continue",
+            repo_is_git_root=True,
+            commands_home=commands_home,
+            workspaces_home=tmp_path / "workspaces",
+            config_root=tmp_path / "cfg",
+        ),
+    )
+
+    assert result.active_gate == "Implementation Blocked"
+    assert result.source == "phase-6-implementation-blocked"
+
+
+def test_phase6_routes_to_implementation_accepted_after_external_decision(tmp_path: Path) -> None:
+    commands_home = tmp_path / "commands"
+    _write_phase_api(commands_home)
+    repo = "repo-impl-accepted"
+    _write_plan_record(tmp_path / "workspaces", repo, status="active", versions=2)
+
+    doc = {
+        "SESSION_STATE": {
+            "Phase": "6-PostFlight",
+            "Next": "6",
+            "RepoFingerprint": repo,
+            "PersistenceCommitted": True,
+            "WorkspaceReadyGateCommitted": True,
+            "WorkspaceArtifactsCommitted": True,
+            "PointerVerified": True,
+            "Gates": {
+                "P5-Architecture": "approved",
+                "P5.3-TestQuality": "pass",
+                "P5.5-TechnicalDebt": "approved",
+            },
+            "implementation_accepted": True,
+            "implementation_status": "accepted",
+            **RULEBOOK_BASE,
+        }
+    }
+    result = execute(
+        current_token="6",
+        session_state_doc=doc,
+        runtime_ctx=RuntimeContext(
+            requested_active_gate="Implementation Internal Review",
+            requested_next_gate_condition="Continue",
+            repo_is_git_root=True,
+            commands_home=commands_home,
+            workspaces_home=tmp_path / "workspaces",
+            config_root=tmp_path / "cfg",
+        ),
+    )
+
+    assert result.active_gate == "Implementation Accepted"
+    assert result.source == "phase-6-implementation-accepted"

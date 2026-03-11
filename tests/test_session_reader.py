@@ -2518,6 +2518,37 @@ class TestResolveNextActionLine:
         }
         assert _resolve_next_action_line(snapshot) == "Next action: describe the requested changes in chat."
 
+    def test_happy_implementation_presentation_gate_routes_to_implementation_decision(self) -> None:
+        snapshot = {
+            "status": "OK",
+            "phase": "6-PostFlight",
+            "active_gate": "Implementation Presentation Gate",
+            "next_gate_condition": "Implementation package is ready. Submit /implementation-decision.",
+        }
+        assert _resolve_next_action_line(snapshot) == (
+            "Next action: run /implementation-decision <approve|changes_requested|reject>."
+        )
+
+    def test_happy_implementation_rework_gate_routes_to_implement_when_clarified(self) -> None:
+        snapshot = {
+            "status": "OK",
+            "phase": "6-PostFlight",
+            "active_gate": "Implementation Rework Clarification Gate",
+            "implementation_rework_clarification_input": "Please align API response shape.",
+        }
+        assert _resolve_next_action_line(snapshot) == "Next action: run /implement."
+
+    def test_bad_implementation_blocked_requires_resolve_then_implement(self) -> None:
+        snapshot = {
+            "status": "OK",
+            "phase": "6-PostFlight",
+            "active_gate": "Implementation Blocked",
+            "next_gate_condition": "Implementation blocked by unresolved findings.",
+        }
+        assert _resolve_next_action_line(snapshot) == (
+            "Next action: resolve implementation blockers, then run /implement."
+        )
+
     def test_happy_rework_clarification_scope_change_routes_to_ticket(self) -> None:
         snapshot = {
             "status": "OK",

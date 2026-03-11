@@ -11,33 +11,32 @@ from .util import REPO_ROOT
 
 
 @pytest.mark.governance
-def test_implement_md_exists_and_documents_canonical_surface() -> None:
-    path = REPO_ROOT / "implement.md"
-    assert path.exists(), "implement.md must exist in repo root"
+def test_implementation_decision_md_exists_and_documents_surface() -> None:
+    path = REPO_ROOT / "implementation-decision.md"
+    assert path.exists(), "implementation-decision.md must exist in repo root"
     content = path.read_text(encoding="utf-8")
-    assert "--implement-start" in content
+    assert "--implementation-decision-persist" in content
     assert BIN_DIR_PLACEHOLDER in content
     assert "opencode-governance-bootstrap" in content
-    assert "starts execution of the approved implementation plan" in content
-    assert "run internal implementation self-review" in content
+    assert "Implementation Presentation Gate" in content
 
 
 @pytest.mark.governance
-def test_implement_md_bin_dir_placeholder_is_injected(tmp_path: Path) -> None:
+def test_implementation_decision_md_bin_dir_placeholder_is_injected(tmp_path: Path) -> None:
     commands_dir = tmp_path / "commands"
     commands_dir.mkdir(parents=True, exist_ok=True)
-    command_md = commands_dir / "implement.md"
+    command_md = commands_dir / "implementation-decision.md"
     command_md.write_text(
         "```bash\n"
         f'PATH="{BIN_DIR_PLACEHOLDER}:$PATH" opencode-governance-bootstrap '
-        '--implement-start --quiet\n'
+        '--implementation-decision-persist --decision "approve" --quiet\n'
         "```\n",
         encoding="utf-8",
     )
 
     result = inject_session_reader_path_for_command(
         commands_dir,
-        command_markdown="implement.md",
+        command_markdown="implementation-decision.md",
         bin_dir="/usr/local/governance/bin",
         dry_run=False,
     )
@@ -46,6 +45,6 @@ def test_implement_md_bin_dir_placeholder_is_injected(tmp_path: Path) -> None:
     assert "{{BIN_DIR}}" not in content
     assert "/usr/local/governance/bin" in content
     if os.name == "nt":
-        assert "opencode-governance-bootstrap.cmd --implement-start" in content
+        assert "opencode-governance-bootstrap.cmd --implementation-decision-persist" in content
     else:
-        assert "opencode-governance-bootstrap --implement-start" in content
+        assert "opencode-governance-bootstrap --implementation-decision-persist" in content

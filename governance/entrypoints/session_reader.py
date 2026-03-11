@@ -1146,6 +1146,11 @@ def read_session_snapshot(commands_home: Path | None = None, *, materialize: boo
             or state_view.get("ReworkClarificationInput")
             or ""
         ),
+        "implementation_rework_clarification_input": _safe_str(
+            state_view.get("implementation_rework_clarification_input")
+            or state_view.get("ImplementationReworkClarificationInput")
+            or ""
+        ),
     }
     if transition_evidence_hint:
         snapshot["transition_evidence_hint"] = transition_evidence_hint
@@ -1289,6 +1294,22 @@ def read_session_snapshot(commands_home: Path | None = None, *, materialize: boo
         )
         snapshot["phase6_decision_availability"] = (
             "A final review decision is not yet available because the review package has not been fully presented."
+        )
+
+    if phase_str.startswith("6") and str(active_gate).strip().lower() == "implementation presentation gate":
+        snapshot["implementation_package_review_object"] = _safe_str(
+            state_view.get("implementation_package_review_object") or "Implemented result review"
+        )
+        snapshot["implementation_package_plan_reference"] = _safe_str(
+            state_view.get("implementation_package_plan_reference") or "latest approved plan record"
+        )
+        snapshot["implementation_package_changed_files"] = state_view.get("implementation_package_changed_files") or state_view.get("implementation_changed_files") or []
+        snapshot["implementation_package_findings_fixed"] = state_view.get("implementation_package_findings_fixed") or state_view.get("implementation_findings_fixed") or []
+        snapshot["implementation_package_findings_open"] = state_view.get("implementation_package_findings_open") or state_view.get("implementation_open_findings") or []
+        snapshot["implementation_package_checks"] = state_view.get("implementation_package_checks") or []
+        snapshot["implementation_package_stability"] = _safe_str(
+            state_view.get("implementation_package_stability")
+            or ("stable" if bool(state_view.get("implementation_quality_stable")) else "unstable")
         )
 
     return snapshot
