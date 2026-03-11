@@ -1127,29 +1127,24 @@ def read_session_snapshot(commands_home: Path | None = None, *, materialize: boo
     else:
         plan_record_label = "working draft (not yet persisted)"
 
-    effective_operating_mode = _safe_str(
-        state_view.get("effective_operating_mode")
-        or state_view.get("operating_mode")
-        or "unknown"
-    ).lower()
+    from governance.domain.operating_profile import derive_mode_evidence
 
-    resolved_operating_mode = _safe_str(
-        state_view.get("resolved_operating_mode")
-        or state_view.get("resolvedOperatingMode")
-        or ""
-    ).lower()
-    if not resolved_operating_mode:
-        resolved_operating_mode = {
-            "user": "solo",
-            "pipeline": "team",
-            "agents_strict": "regulated",
-            "system": "team",
-        }.get(effective_operating_mode, "solo")
-
-    verify_policy_version = _safe_str(
-        state_view.get("verify_policy_version")
-        or state_view.get("verifyPolicyVersion")
-        or "v1"
+    effective_operating_mode, resolved_operating_mode, verify_policy_version = derive_mode_evidence(
+        effective_operating_mode=_safe_str(
+            state_view.get("effective_operating_mode")
+            or state_view.get("operating_mode")
+            or "unknown"
+        ),
+        resolved_operating_mode=_safe_str(
+            state_view.get("resolved_operating_mode")
+            or state_view.get("resolvedOperatingMode")
+            or ""
+        ),
+        verify_policy_version=_safe_str(
+            state_view.get("verify_policy_version")
+            or state_view.get("verifyPolicyVersion")
+            or "v1"
+        ),
     )
 
     snapshot: dict = {
