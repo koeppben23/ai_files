@@ -237,6 +237,9 @@ def with_kernel_result(
     event_id: str,
     plan_record_status: str | None = None,
     plan_record_versions: int | None = None,
+    effective_operating_mode: str | None = None,
+    resolved_operating_mode: str | None = None,
+    verify_policy_version: str | None = None,
 ) -> Mapping[str, object]:
     state: dict[str, object] = dict(session_state_document or {})
     root = state.get("SESSION_STATE")
@@ -265,6 +268,21 @@ def with_kernel_result(
         versions = parsed_versions if parsed_versions is not None else 0
         ss["plan_record_versions"] = versions
         ss["PlanRecordVersions"] = versions
+
+    if isinstance(effective_operating_mode, str) and effective_operating_mode.strip():
+        effective_mode = effective_operating_mode.strip().lower()
+        ss["effective_operating_mode"] = effective_mode
+
+    if isinstance(resolved_operating_mode, str) and resolved_operating_mode.strip():
+        resolved_mode = resolved_operating_mode.strip().lower()
+        ss["resolved_operating_mode"] = resolved_mode
+        ss["resolvedOperatingMode"] = resolved_mode
+
+    if isinstance(verify_policy_version, str) and verify_policy_version.strip():
+        policy_version = verify_policy_version.strip()
+        ss["verify_policy_version"] = policy_version
+        ss["verifyPolicyVersion"] = policy_version
+
     _normalize_review_iteration_invariants(ss)
     _auto_propagate_gates(ss, status=status, next_token=next_token)
 

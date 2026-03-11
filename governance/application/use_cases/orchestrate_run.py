@@ -216,6 +216,13 @@ def run_engine_orchestrator(
     capabilities_hash = caps.stable_hash()
     requested_mode = resolve_effective_operating_mode(adapter, requested_operating_mode)
     effective_mode = requested_mode
+    resolved_operating_mode = runtime_mode_to_operating_profile(effective_mode)
+    state_root = session_state_root(session_state_document)
+    verify_policy_version = str(
+        state_root.get("verifyPolicyVersion")
+        or state_root.get("verify_policy_version")
+        or "v1"
+    ).strip() or "v1"
     # mode_downgraded/mode_deviation retained for backward compatibility in output
     mode_downgraded = False
     mode_deviation: Any | None = None
@@ -295,6 +302,9 @@ def run_engine_orchestrator(
         event_id=routed_phase.event_id,
         plan_record_status=routed_phase.plan_record_status,
         plan_record_versions=routed_phase.plan_record_versions,
+        effective_operating_mode=effective_mode,
+        resolved_operating_mode=resolved_operating_mode,
+        verify_policy_version=verify_policy_version,
     )
 
     phase = routed_phase.phase
@@ -790,7 +800,7 @@ def run_engine_orchestrator(
         runtime=runtime,
         parity=parity,
         effective_operating_mode=effective_mode,
-        resolved_operating_mode=runtime_mode_to_operating_profile(effective_mode),
+        resolved_operating_mode=resolved_operating_mode,
         capabilities_hash=capabilities_hash,
         mode_downgraded=mode_downgraded,
         pack_lock_checked=pack_lock_checked,
