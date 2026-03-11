@@ -143,6 +143,15 @@ consistency_rules:
       - "provenance-record.json"
     archived_at:
       - "metadata.json"
+  run_manifest_governance_fields:
+    required:
+      - "resolvedOperatingMode"
+      - "verifyPolicyVersion"
+    resolved_operating_mode_allowed:
+      - "solo"
+      - "team"
+      - "regulated"
+    verify_policy_version_pattern: "^v[0-9]+$"
 
 # Integrity Verification
 integrity:
