@@ -24,6 +24,7 @@ from pathlib import Path
 from typing import Any, Mapping, Optional, Sequence
 
 from governance.domain.classification import ClassificationLevel
+from governance.engine.sanitization import sanitize_for_output
 from governance.domain.retention import (
     ArchiveExportManifest,
     ArchiveFormat,
@@ -220,11 +221,15 @@ def export_finalized_bundle(
                 if apply_redaction and filename.endswith(".json"):
                     # Load, redact, write
                     doc = json.loads(src.read_text(encoding="utf-8"))
+                    sanitized_doc = sanitize_for_output(doc)
                     redacted = redact_archive(
-                        {filename: doc},
+                        {filename: sanitized_doc},
                         max_level=redaction_max_level,
                     )
                     atomic_write_json(export_path / filename, redacted[filename])
+                elif filename.endswith(".json"):
+                    doc = json.loads(src.read_text(encoding="utf-8"))
+                    atomic_write_json(export_path / filename, sanitize_for_output(doc))
                 else:
                     shutil.copy2(src, export_path / filename)
                 files_included.append(filename)

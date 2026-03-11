@@ -68,6 +68,18 @@ def _create_finalized_archive(base: Path) -> Path:
     (archive_path / "provenance-record.json").write_text(
         json.dumps({"provenance": "test"}), encoding="utf-8"
     )
+    (archive_path / "ticket-record.json").write_text(
+        json.dumps({"schema": "governance.ticket-record.v1"}), encoding="utf-8"
+    )
+    (archive_path / "review-decision-record.json").write_text(
+        json.dumps({"schema": "governance.review-decision-record.v1"}), encoding="utf-8"
+    )
+    (archive_path / "outcome-record.json").write_text(
+        json.dumps({"schema": "governance.outcome-record.v1"}), encoding="utf-8"
+    )
+    (archive_path / "evidence-index.json").write_text(
+        json.dumps({"schema": "governance.evidence-index.v1"}), encoding="utf-8"
+    )
     (archive_path / "checksums.json").write_text(
         json.dumps({"files": {}}), encoding="utf-8"
     )
@@ -248,6 +260,33 @@ class TestExportFinalizedBundleHappy:
 
         with pytest.raises(AttributeError):
             manifest.run_id = "changed"  # type: ignore[misc]
+
+    def test_export_sanitizes_secret_like_json_fields(self, tmp_path: Path):
+        archive = _create_finalized_archive(tmp_path)
+        export_path = tmp_path / "export"
+        (archive / "metadata.json").write_text(
+            json.dumps(
+                {
+                    "created_at": _EXPORTED_AT,
+                    "api_key": "top-secret-token",
+                    "remote": "https://user:password@example.com/repo.git",
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        export_finalized_bundle(
+            archive_path=archive,
+            export_path=export_path,
+            repo_fingerprint=_FINGERPRINT,
+            run_id=_RUN_ID,
+            exported_at=_EXPORTED_AT,
+            exported_by=_EXPORTED_BY,
+        )
+
+        exported = json.loads((export_path / "metadata.json").read_text(encoding="utf-8"))
+        assert exported["api_key"] == "***"
+        assert "***@" in str(exported["remote"])
 
 
 class TestRestoreFromBundleHappy:
