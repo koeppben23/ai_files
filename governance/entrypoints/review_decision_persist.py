@@ -189,11 +189,16 @@ def apply_review_decision(
     if normalized == "approve":
         state["workflow_complete"] = True
         state["WorkflowComplete"] = True
+        state["implementation_authorized"] = True
+        state["next_action_command"] = "/implement"
         # Write terminal surfacing fields so downstream consumers
         # (session_reader, phase_api) can derive completion without
         # re-running the kernel.
         state["active_gate"] = "Workflow Complete"
-        state["next_gate_condition"] = "Workflow approved. No further action required."
+        state["next_gate_condition"] = (
+            "Workflow approved. Governance is complete and implementation is authorized. "
+            "Run /implement to start the implementation phase."
+        )
         state["phase6_state"] = "phase6_completed"
         state["implementation_review_complete"] = True
         # Ensure ImplementationReview block is also consistent.
@@ -282,7 +287,7 @@ def apply_review_decision(
 def _next_action_hint(decision: str) -> str:
     """Return a human-readable next action hint for the applied decision."""
     if decision == "approve":
-        return "Workflow complete. No further action required."
+        return "Governance complete. Implementation authorized. Next action: run /implement."
     if decision == "changes_requested":
         return (
             "Changes requested. Describe what must be adjusted; after clarification, run exactly one "

@@ -45,6 +45,7 @@ _ROOT_RAILS: list[_Entry] = [
     _Entry("ticket.md", "model-rail"),
     _Entry("plan.md", "model-rail"),
     _Entry("review-decision.md", "model-rail"),
+    _Entry("implement.md", "model-rail"),
     _Entry("master.md", "model-rail"),
     _Entry("rules.md", "model-rail"),
     _Entry("BOOTSTRAP.md", "model-rail"),
@@ -84,7 +85,7 @@ _COMMAND_RAILS = [
     e for e in _ROOT_RAILS
     if e.path in {
         "continue.md", "review.md", "audit-readout.md",
-        "ticket.md", "plan.md", "review-decision.md",
+        "ticket.md", "plan.md", "review-decision.md", "implement.md",
     }
 ]
 
@@ -94,7 +95,7 @@ _EXECUTION_RAILS = [
     e for e in _ROOT_RAILS
     if e.path in {
         "continue.md", "review.md",
-        "ticket.md", "plan.md", "review-decision.md",
+        "ticket.md", "plan.md", "review-decision.md", "implement.md",
     }
 ]
 
@@ -202,7 +203,7 @@ class TestRegressionGuard:
     _MONITORED_ROOTS = [
         # root-level .md files that could be model-rails
         (".", {"continue.md", "review.md", "audit-readout.md", "ticket.md",
-               "plan.md", "review-decision.md", "master.md", "rules.md", "BOOTSTRAP.md"}),
+               "plan.md", "review-decision.md", "implement.md", "master.md", "rules.md", "BOOTSTRAP.md"}),
     ]
 
     def test_no_unregistered_model_rail_in_root(self) -> None:

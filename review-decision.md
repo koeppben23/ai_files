@@ -39,7 +39,7 @@ If no snapshot is available, proceed using only the context visible in the curre
 
 - Valid only at Phase 6 Evidence Presentation Gate.
 - The reviewed evidence must be presented before final decision submission.
-- `approve` moves to Workflow Complete.
+- `approve` moves to Workflow Complete, marks implementation as authorized, and sets the next explicit rail to `/implement`.
 - `changes_requested` persists the decision and enters `Rework Clarification Gate`. Immediate change details are not required in the command.
 - After `changes_requested`, start a guided clarification conversation in chat. No additional rail is required before this clarification.
 - `reject` routes back to Phase 4 Ticket Input Gate and invalidates the current path.

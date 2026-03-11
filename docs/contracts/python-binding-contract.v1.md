@@ -130,6 +130,7 @@ Launchers support subcommand routing:
 | `--ticket-persist [flags]` | `governance.entrypoints.phase4_intake_persist` (canonical public surface) |
 | `--plan-persist [flags]` | `governance.entrypoints.phase5_plan_record_persist` (canonical public surface) |
 | `--review-decision-persist [flags]` | `governance.entrypoints.review_decision_persist` (canonical public surface) |
+| `--implement-start [flags]` | `governance.entrypoints.implement_start` (canonical public surface) |
 | *(default)* | `governance.entrypoints.bootstrap_executor` |
 
 ### 4.1.1 Final launcher surface
@@ -138,6 +139,7 @@ Canonical subcommands for active operator workflows are:
 - `--ticket-persist`
 - `--plan-persist`
 - `--review-decision-persist`
+- `--implement-start`
 - `--session-reader`
 
 Canonical bootstrap setup command:
