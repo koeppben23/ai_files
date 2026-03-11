@@ -177,6 +177,7 @@ class TestExportFinalizedBundleHappy:
         assert manifest.exported_at == _EXPORTED_AT
         assert manifest.exported_by == _EXPORTED_BY
         assert manifest.redaction_applied is False
+        assert manifest.bundle_manifest_hash.startswith("sha256:")
 
     def test_export_includes_all_required_files(self, tmp_path: Path):
         archive = _create_finalized_archive(tmp_path)
@@ -212,6 +213,7 @@ class TestExportFinalizedBundleHappy:
         data = json.loads(manifest_file.read_text(encoding="utf-8"))
         assert data["schema"] == EXPORT_MANIFEST_SCHEMA
         assert data["repo_fingerprint"] == _FINGERPRINT
+        assert str(data.get("bundle_manifest_hash", "")).startswith("sha256:")
 
     def test_export_includes_optional_files_when_present(self, tmp_path: Path):
         archive = _create_finalized_archive_with_optionals(tmp_path)

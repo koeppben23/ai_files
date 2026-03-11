@@ -118,6 +118,7 @@ class ArchiveExportManifest:
     checksums_verified: bool
     redaction_applied: bool
     redaction_max_level: str
+    bundle_manifest_hash: str
 
 
 @dataclass(frozen=True)

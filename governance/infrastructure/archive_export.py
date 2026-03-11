@@ -20,11 +20,13 @@ from __future__ import annotations
 
 import json
 import shutil
+import hashlib
 from pathlib import Path
 from typing import Any, Mapping, Optional, Sequence
 
 from governance.domain.classification import ClassificationLevel
 from governance.engine.sanitization import sanitize_for_output
+from governance.domain.canonical_json import canonical_json_text
 from governance.domain.retention import (
     ArchiveExportManifest,
     ArchiveFormat,
@@ -65,6 +67,17 @@ OPTIONAL_EXPORT_FILES = frozenset({
 
 #: All known archive files
 ALL_EXPORT_FILES = REQUIRED_EXPORT_FILES | OPTIONAL_EXPORT_FILES
+
+
+def _compute_bundle_manifest_hash(export_path: Path, files_included: Sequence[str]) -> str:
+    file_digests: dict[str, str] = {}
+    for name in sorted(files_included):
+        payload = (export_path / name).read_bytes()
+        file_digests[name] = "sha256:" + hashlib.sha256(payload).hexdigest()
+    bundle_manifest = {
+        "files": file_digests,
+    }
+    return "sha256:" + hashlib.sha256(canonical_json_text(bundle_manifest).encode("utf-8")).hexdigest()
 
 
 # ---------------------------------------------------------------------------
@@ -248,6 +261,7 @@ def export_finalized_bundle(
             checksums_verified=True,
             redaction_applied=apply_redaction,
             redaction_max_level=redaction_max_level.value,
+            bundle_manifest_hash=_compute_bundle_manifest_hash(export_path, files_included),
         )
 
         manifest_dict = {
@@ -262,6 +276,7 @@ def export_finalized_bundle(
             "checksums_verified": manifest.checksums_verified,
             "redaction_applied": manifest.redaction_applied,
             "redaction_max_level": manifest.redaction_max_level,
+            "bundle_manifest_hash": manifest.bundle_manifest_hash,
         }
 
         atomic_write_json(export_path / "export-manifest.json", manifest_dict)
