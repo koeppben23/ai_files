@@ -36,6 +36,13 @@ _PROFILE_ALIASES: dict[str, OperatingProfile] = {
     "system": "team",
 }
 
+_RUNTIME_MODE_TO_PROFILE: dict[str, OperatingProfile] = {
+    "user": "solo",
+    "pipeline": "team",
+    "agents_strict": "regulated",
+    "system": "team",
+}
+
 _TRUSTED_ENFORCEMENT_SOURCES: frozenset[str] = frozenset(
     {
         "ci",
@@ -72,6 +79,14 @@ def normalize_operating_profile(mode: str | None) -> OperatingProfile | None:
     if not token:
         return None
     return _PROFILE_ALIASES.get(token)
+
+
+def runtime_mode_to_operating_profile(mode: str) -> OperatingProfile:
+    token = str(mode).strip().lower()
+    normalized = normalize_operating_profile(token)
+    if normalized is not None:
+        return normalized
+    return _RUNTIME_MODE_TO_PROFILE.get(token, "solo")
 
 
 def max_operating_profile(*modes: OperatingProfile | None) -> OperatingProfile:
