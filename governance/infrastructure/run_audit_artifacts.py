@@ -162,7 +162,7 @@ def build_run_manifest(
         "source_phase": source_phase,
         "source_active_gate": source_gate,
         "source_next": source_next,
-        "run_status": "materialized",
+        "run_status": "in_progress",
         "record_status": "draft",
         "finalized_at": None,
         "finalized_by": None,
@@ -244,6 +244,41 @@ def finalize_run_manifest(
     out["finalized_by"] = "governance.finalizer"
     out["content_hash"] = _stable_json_hash(out)
     out.pop("finalization_errors", None)
+    return out
+
+
+def mark_run_manifest_materialized(
+    manifest: Mapping[str, object],
+    *,
+    observed_at: str,
+) -> dict[str, object]:
+    out = dict(manifest)
+    out["run_status"] = "materialized"
+    out["record_status"] = "draft"
+    out["integrity_status"] = "pending"
+    out["materialized_at"] = observed_at
+    out["finalized_at"] = None
+    out["finalized_by"] = None
+    out.pop("finalization_errors", None)
+    out["content_hash"] = _stable_json_hash(out)
+    return out
+
+
+def invalidate_run_manifest(
+    manifest: Mapping[str, object],
+    *,
+    observed_at: str,
+    reason: str,
+    superseded: bool,
+) -> dict[str, object]:
+    out = dict(manifest)
+    out["run_status"] = "invalidated"
+    out["record_status"] = "superseded" if superseded else "invalidated"
+    out["integrity_status"] = "failed"
+    out["finalized_at"] = None
+    out["finalized_by"] = "governance.invalidator"
+    out["finalization_errors"] = [f"invalidated:{reason.strip() or 'manual'}"]
+    out["content_hash"] = _stable_json_hash(out)
     return out
 
 

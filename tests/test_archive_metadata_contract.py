@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from governance.infrastructure.workspace_paths import run_dir
 from governance.infrastructure.work_run_archive import archive_active_run
 
 
@@ -25,7 +26,7 @@ def test_archive_metadata_tracks_materialization_and_finalization(tmp_path: Path
         state_view=state,
     )
 
-    metadata = json.loads((workspaces_home / "governance-records" / fingerprint / "runs" / "run-meta" / "metadata.json").read_text(encoding="utf-8"))
+    metadata = json.loads((run_dir(workspaces_home, fingerprint, "run-meta") / "metadata.json").read_text(encoding="utf-8"))
     assert metadata["archive_status"] == "finalized"
     assert metadata["finalization_reason"] == "all-required-artifacts-present-and-verified"
     assert metadata["archived_files"]["run_manifest"] is True

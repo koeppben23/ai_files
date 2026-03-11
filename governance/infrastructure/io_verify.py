@@ -321,6 +321,11 @@ def verify_run_archive(run_root: Path) -> Tuple[bool, Dict[str, bool], Optional[
             return False, results, "Materialized run must have integrity_status=pending"
         if isinstance(finalized_at, str) and finalized_at.strip():
             return False, results, "Materialized run must not have finalized_at"
+    elif run_status == "invalidated":
+        if integrity_status != "failed":
+            return False, results, "Invalidated run must have integrity_status=failed"
+        if record_status not in {"invalidated", "superseded"}:
+            return False, results, "Invalidated run must have record_status invalidated or superseded"
 
     materialized_at_manifest = str(manifest.get("materialized_at") or "").strip()
     archived_at_metadata = str(metadata.get("archived_at") or "").strip()
@@ -477,13 +482,15 @@ def verify_run_archive(run_root: Path) -> Tuple[bool, Dict[str, bool], Optional[
     archive_status = str(metadata.get("archive_status") or "").strip()
     finalization_reason = metadata.get("finalization_reason")
     failure_reason = metadata.get("failure_reason")
-    allowed_archive_status = {"materialized", "finalized", "failed"}
+    allowed_archive_status = {"materialized", "finalized", "failed", "invalidated"}
     if archive_status not in allowed_archive_status:
         return False, results, f"Invalid archive_status: {archive_status}"
     if run_status == "finalized" and archive_status and archive_status != "finalized":
         return False, results, f"archive_status mismatch for finalized run: {archive_status}"
     if run_status == "failed" and archive_status and archive_status != "failed":
         return False, results, f"archive_status mismatch for failed run: {archive_status}"
+    if run_status == "invalidated" and archive_status and archive_status != "invalidated":
+        return False, results, f"archive_status mismatch for invalidated run: {archive_status}"
     if run_status == "finalized":
         if not isinstance(finalization_reason, str) or not finalization_reason.strip():
             return False, results, "Finalized metadata must include finalization_reason"
@@ -494,6 +501,9 @@ def verify_run_archive(run_root: Path) -> Tuple[bool, Dict[str, bool], Optional[
             return False, results, "Failed metadata must include failure_reason"
         if isinstance(finalization_reason, str) and finalization_reason.strip():
             return False, results, "Failed metadata must not include finalization_reason"
+    if run_status == "invalidated":
+        if not isinstance(failure_reason, str) or not failure_reason.strip():
+            return False, results, "Invalidated metadata must include failure_reason"
 
     plan_required = bool(required_artifacts.get("plan_record"))
     pr_required = bool(required_artifacts.get("pr_record"))

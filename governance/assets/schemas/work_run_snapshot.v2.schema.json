@@ -59,7 +59,7 @@
         "checksums": {"type": "boolean"}
       }
     },
-    "archive_status": {"type": "string", "enum": ["materialized", "finalized", "failed"]},
+    "archive_status": {"type": "string", "enum": ["materialized", "finalized", "failed", "invalidated"]},
     "finalization_reason": {"type": "string"},
     "failure_reason": {"type": "string"}
   }

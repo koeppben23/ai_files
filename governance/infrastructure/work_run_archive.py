@@ -16,6 +16,8 @@ from governance.infrastructure.run_audit_artifacts import (
     build_evidence_index,
     build_finalization_record,
     finalize_run_manifest,
+    invalidate_run_manifest,
+    mark_run_manifest_materialized,
     build_outcome_record,
     build_pr_record,
     build_provenance_record,
@@ -55,6 +57,13 @@ class WorkRunArchiveResult:
 
 
 def _write_json_atomic(path: Path, payload: Mapping[str, object]) -> None:
+    if path.exists():
+        raise FileExistsError(f"write-once violation: {path}")
+    text = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True) + "\n"
+    atomic_write_text(path, text)
+
+
+def _rewrite_json_atomic(path: Path, payload: Mapping[str, object]) -> None:
     text = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True) + "\n"
     atomic_write_text(path, text)
 
@@ -321,6 +330,17 @@ def archive_active_run(
             ),
             run_manifest,
         )
+        materialized_manifest = mark_run_manifest_materialized(run_manifest, observed_at=observed_at)
+        _rewrite_json_atomic(
+            run_manifest_path(
+                workspaces_home,
+                repo_fingerprint,
+                archived_run_id,
+                repo_slug=repo_slug,
+                observed_at=observed_at,
+            ),
+            materialized_manifest,
+        )
 
         workspace_digest = canonical_json_hash({"workspace_path": str(workspaces_home / repo_fingerprint)})
         writer(
@@ -431,7 +451,7 @@ def archive_active_run(
             repo_slug=repo_slug,
             observed_at=observed_at,
         )
-        writer(manifest_path, finalized_manifest)
+        _rewrite_json_atomic(manifest_path, finalized_manifest)
         if str(finalized_manifest.get("run_status") or "") != "finalized":
             errors = finalized_manifest.get("finalization_errors")
             if isinstance(errors, list) and errors:
@@ -440,7 +460,7 @@ def archive_active_run(
 
         metadata["archive_status"] = "finalized"
         metadata["finalization_reason"] = "all-required-artifacts-present-and-verified"
-        writer(metadata_path, metadata)
+        _rewrite_json_atomic(metadata_path, metadata)
         checksums_payload = build_checksums(checksum_inputs)
         finalization_record = build_finalization_record(
             repo_fingerprint=repo_fingerprint,
@@ -461,7 +481,7 @@ def archive_active_run(
         writer(finalization_record_path, finalization_record)
         checksum_inputs["run-manifest.json"] = manifest_path
         checksum_inputs["finalization-record.json"] = finalization_record_path
-        writer(checksums_path, build_checksums(checksum_inputs))
+        _rewrite_json_atomic(checksums_path, build_checksums(checksum_inputs))
         integrity_ok, _, integrity_message = verify_run_archive(archive_root)
         if not integrity_ok:
             raise RuntimeError(
@@ -495,7 +515,7 @@ def archive_active_run(
                 "archive_status": "failed",
                 "failure_reason": error_message,
             }
-            _write_json_atomic(
+            _rewrite_json_atomic(
                 run_metadata_path(
                     workspaces_home,
                     repo_fingerprint,
@@ -534,7 +554,7 @@ def archive_active_run(
                 },
                 "finalization_errors": [f"archive-error:{error_message}"],
             }
-            _write_json_atomic(
+            _rewrite_json_atomic(
                 run_manifest_path(
                     workspaces_home,
                     repo_fingerprint,
@@ -556,3 +576,46 @@ def archive_active_run(
         archived_plan_record=archived_plan,
         archived_pr_record=archived_pr,
     )
+
+
+def invalidate_archived_run(
+    *,
+    workspaces_home: Path,
+    repo_fingerprint: str,
+    run_id: str,
+    observed_at: str,
+    reason: str,
+    superseded: bool = True,
+) -> Path:
+    run_root = run_dir(workspaces_home, repo_fingerprint, run_id)
+    manifest_path = run_root / "run-manifest.json"
+    metadata_path = run_root / "metadata.json"
+    if not manifest_path.is_file() or not metadata_path.is_file():
+        raise RuntimeError("cannot invalidate missing archive artifacts")
+
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if not isinstance(manifest, dict):
+        raise RuntimeError("invalid run-manifest payload")
+    invalidated_manifest = invalidate_run_manifest(
+        manifest,
+        observed_at=observed_at,
+        reason=reason,
+        superseded=superseded,
+    )
+    _rewrite_json_atomic(manifest_path, invalidated_manifest)
+
+    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    if not isinstance(metadata, dict):
+        raise RuntimeError("invalid metadata payload")
+    metadata["archive_status"] = "invalidated"
+    metadata.pop("finalization_reason", None)
+    metadata["failure_reason"] = f"invalidated:{reason.strip() or 'manual'}"
+    _rewrite_json_atomic(metadata_path, metadata)
+
+    checksum_inputs = {
+        entry.name: entry
+        for entry in run_root.glob("*.json")
+        if entry.is_file() and entry.name != "checksums.json"
+    }
+    _rewrite_json_atomic(run_root / "checksums.json", build_checksums(checksum_inputs))
+    return run_root
