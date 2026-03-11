@@ -144,8 +144,13 @@ def test_happy_build_audit_readout_uses_runs_and_pointer(tmp_path: Path) -> None
     assert isinstance(last_snapshot, dict)
     assert payload["contract_version"] == "AUDIT_READOUT_SPEC.v1"
     assert active["run_id"] == "work-2"
+    assert active["effective_operating_mode"] == "unknown"
+    assert active["resolved_operating_mode"] == "solo"
+    assert active["verify_policy_version"] == "v1"
     assert last_snapshot["run_id"] == "work-1"
     assert last_snapshot["snapshot_digest"] == snapshot_digest
+    assert last_snapshot["resolved_operating_mode"] == "solo"
+    assert last_snapshot["verify_policy_version"] == "v1"
     assert integrity["snapshot_ref_present"] is True
     assert integrity["run_id_consistent"] is True
     assert integrity["active_run_pointer_consistent"] is True
@@ -238,7 +243,9 @@ def test_edge_reactivation_keeps_last_snapshot_from_created_chain(tmp_path: Path
     assert isinstance(last_snapshot, dict)
     assert isinstance(integrity, dict)
     assert active["run_id"] == "work-1"
+    assert active["verify_policy_version"] == "v1"
     assert last_snapshot["run_id"] == "work-3"
+    assert last_snapshot["resolved_operating_mode"] == "solo"
     assert integrity["reactivation_chain_consistent"] is True
 
 

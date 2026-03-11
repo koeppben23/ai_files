@@ -72,6 +72,8 @@ def _write_archive_run(workspace: Path, run_id: str, phase: str, next_token: str
             "record_status": "draft",
             "finalized_at": None,
             "integrity_status": "pending",
+            "resolvedOperatingMode": "solo",
+            "verifyPolicyVersion": "v1",
             "required_artifacts": {
                 "session_state": True,
                 "run_manifest": True,
@@ -280,6 +282,8 @@ class TestWorkSessionRestoreEntrypoint:
         assert payload["reason"] == "work-session-revisit"
         assert payload["run_id"] == "work-1"
         assert payload["phase"] == "5-ArchitectureReview"
+        assert payload["resolved_operating_mode"] == "solo"
+        assert payload["verify_policy_version"] == "v1"
 
         after = (workspace / "events.jsonl").read_text(encoding="utf-8") if (workspace / "events.jsonl").exists() else ""
         assert after == before
