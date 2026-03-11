@@ -1165,6 +1165,9 @@ def read_session_snapshot(commands_home: Path | None = None, *, materialize: boo
         "effective_operating_mode": effective_operating_mode,
         "resolved_operating_mode": resolved_operating_mode,
         "verify_policy_version": verify_policy_version,
+        "operating_mode_resolution": state_view.get("operating_mode_resolution")
+        or state_view.get("operatingModeResolution")
+        or {},
         "commands_home": str(commands_home),
         "p54_evaluated_status": p54_evaluated_status,
         "p55_evaluated_status": p55_evaluated_status,

@@ -240,6 +240,8 @@ def with_kernel_result(
     effective_operating_mode: str | None = None,
     resolved_operating_mode: str | None = None,
     verify_policy_version: str | None = None,
+    operating_mode_resolution: Mapping[str, object] | None = None,
+    break_glass: Mapping[str, object] | None = None,
 ) -> Mapping[str, object]:
     state: dict[str, object] = dict(session_state_document or {})
     root = state.get("SESSION_STATE")
@@ -282,6 +284,14 @@ def with_kernel_result(
         policy_version = verify_policy_version.strip()
         ss["verify_policy_version"] = policy_version
         ss["verifyPolicyVersion"] = policy_version
+
+    if isinstance(operating_mode_resolution, Mapping):
+        ss["operating_mode_resolution"] = dict(operating_mode_resolution)
+        ss["operatingModeResolution"] = dict(operating_mode_resolution)
+
+    if isinstance(break_glass, Mapping):
+        ss["break_glass"] = dict(break_glass)
+        ss["breakGlass"] = dict(break_glass)
 
     _normalize_review_iteration_invariants(ss)
     _auto_propagate_gates(ss, status=status, next_token=next_token)

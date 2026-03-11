@@ -133,6 +133,8 @@ def test_with_kernel_result_writes_operating_mode_and_verify_policy_fields() -> 
         effective_operating_mode="pipeline",
         resolved_operating_mode="team",
         verify_policy_version="v1",
+        operating_mode_resolution={"resolutionState": "resolved", "errorCode": None, "fallbackApplied": False},
+        break_glass={"status": "inactive"},
     )
     state = updated["SESSION_STATE"]
     assert isinstance(state, dict)
@@ -141,6 +143,8 @@ def test_with_kernel_result_writes_operating_mode_and_verify_policy_fields() -> 
     assert state["resolvedOperatingMode"] == "team"
     assert state["verify_policy_version"] == "v1"
     assert state["verifyPolicyVersion"] == "v1"
+    assert state["operating_mode_resolution"]["resolutionState"] == "resolved"
+    assert state["break_glass"]["status"] == "inactive"
 
 
 # ---------------------------------------------------------------------------

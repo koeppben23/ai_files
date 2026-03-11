@@ -74,6 +74,12 @@ def _write_archive_run(workspace: Path, run_id: str, phase: str, next_token: str
             "integrity_status": "pending",
             "resolvedOperatingMode": "solo",
             "verifyPolicyVersion": "v1",
+            "operatingModeResolution": {
+                "resolutionState": "resolved",
+                "errorCode": None,
+                "fallbackApplied": False,
+            },
+            "breakGlass": {},
             "required_artifacts": {
                 "session_state": True,
                 "run_manifest": True,
