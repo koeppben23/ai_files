@@ -46,6 +46,11 @@ def _write_json_atomic(path: Path, payload: Mapping[str, object]) -> None:
     atomic_write_text(path, text)
 
 
+def _write_text_atomic(path: Path, text: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    atomic_write_text(path, text)
+
+
 def _append_event(path: Path, event: dict[str, object]) -> bool:
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -152,7 +157,7 @@ def _write_execution_code_artifact(repo_root: Path, plan_text: str, work_queue: 
         "\\n"
         f"{queue_preview}\\n"
     )
-    out_file.write_text(content, encoding="utf-8")
+    _write_text_atomic(out_file, content)
     return out_file
 
 
@@ -167,7 +172,7 @@ def _apply_target_file_patch(repo_root: Path, target: Path, *, note: str) -> Non
     text = target.read_text(encoding="utf-8", errors="ignore")
     if "governance-implement:" in text:
         return
-    target.write_text(text.rstrip("\n") + patch_line, encoding="utf-8")
+    _write_text_atomic(target, text.rstrip("\n") + patch_line)
 
 
 def _hash_files(paths: list[Path], repo_root: Path) -> str:
@@ -246,7 +251,7 @@ def _apply_iteration_revision(
                 "    \"\"\"Auto-repaired execute function.\"\"\"\n"
                 "    return [\"apply approved implementation step\"]\n"
             )
-            artifact.write_text(text, encoding="utf-8")
+            _write_text_atomic(artifact, text)
             fixed.append(finding)
             continue
         if code == "IMPLEMENTATION-NO-CHANGES":
@@ -254,9 +259,9 @@ def _apply_iteration_revision(
             out_dir = repo_root / ".governance" / "implementation"
             out_dir.mkdir(parents=True, exist_ok=True)
             fallback = out_dir / "execution_fallback.py"
-            fallback.write_text(
+            _write_text_atomic(
+                fallback,
                 "def execution_fallback() -> str:\n    return 'fallback implementation artifact'\n",
-                encoding="utf-8",
             )
             changed_files.append(fallback)
             fixed.append(finding)
