@@ -294,11 +294,16 @@ phases:
     next_gate_condition: "Implement, run deterministic internal implementation review loop (max 3, early-stop only on unchanged digest), then present evidence for final user review."
     route_strategy: "stay"
     transitions:
+      - when: implementation_started
+        next: "6"
+        source: "phase-6-implementation-started"
+        active_gate: "Implementation Started"
+        next_gate_condition: "Implementation phase started from approved governance handoff. Proceed with repository changes and execution work."
       - when: workflow_approved
         next: "6"
         source: "phase-6-workflow-complete"
         active_gate: "Workflow Complete"
-        next_gate_condition: "Workflow approved. All gates passed and final review decision is approve. No further action required."
+        next_gate_condition: "Workflow approved. Governance is complete and implementation is authorized. Run /implement to start the implementation phase."
       - when: review_changes_requested
         next: "6"
         source: "phase-6-changes-requested-loop-reset"

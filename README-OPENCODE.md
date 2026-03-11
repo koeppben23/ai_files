@@ -22,7 +22,8 @@ Launcher-first operator/model flow for starting and continuing governed OpenCode
    Example: `/review-decision approve`.
 7. `changes_requested` enters `Rework Clarification Gate`; clarify requested changes in chat, then run exactly one directed rail (`/ticket`, `/plan`, or `/continue`).
 8. `reject` routes back to Phase 4 Ticket Input Gate; primary next action is `/ticket` with updated scope (alternative: `/review` for read-only feedback).
-9. Use `/audit-readout` for a read-only audit snapshot.
+9. After `approve`, run `/implement` to persist the implementation start handoff (this does not auto-run code changes).
+10. Use `/audit-readout` for a read-only audit snapshot.
 
 Runtime persistence is repo-scoped under `${WORKSPACES_HOME}/<repo_fingerprint>/...` with global pointer `${SESSION_STATE_POINTER_FILE}`.
 Path-binding bootstrap depends on `${CONFIG_ROOT}/commands/governance.paths.json`.

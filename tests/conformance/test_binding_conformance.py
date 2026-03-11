@@ -272,7 +272,7 @@ class TestLauncherResolution:
 class TestRailsBindingCompliance:
     """Validate rails invoke launcher by stable name, never embed Python paths (§4.2)."""
 
-    RAIL_FILES = ["continue.md", "review.md", "audit-readout.md", "plan.md", "ticket.md", "review-decision.md"]
+    RAIL_FILES = ["continue.md", "review.md", "audit-readout.md", "plan.md", "ticket.md", "review-decision.md", "implement.md"]
 
     def test_happy_rails_use_launcher_stable_name(self) -> None:
         """Happy: All rails reference opencode-governance-bootstrap."""
@@ -555,7 +555,7 @@ class TestCrossComponentConsistency:
 
     def test_happy_rails_use_launcher_not_python_directly(self) -> None:
         """Happy: All 5 rails invoke opencode-governance-bootstrap, not python."""
-        rail_files = ["continue.md", "review.md", "audit-readout.md", "plan.md", "ticket.md", "review-decision.md"]
+        rail_files = ["continue.md", "review.md", "audit-readout.md", "plan.md", "ticket.md", "review-decision.md", "implement.md"]
         for fname in rail_files:
             path = REPO_ROOT / fname
             if not path.exists():
@@ -567,7 +567,7 @@ class TestCrossComponentConsistency:
 
     def test_bad_no_independent_python_probing_in_rails(self) -> None:
         """Bad: Rails must never independently probe for Python interpreters."""
-        rail_files = ["continue.md", "review.md", "audit-readout.md", "plan.md", "ticket.md", "review-decision.md"]
+        rail_files = ["continue.md", "review.md", "audit-readout.md", "plan.md", "ticket.md", "review-decision.md", "implement.md"]
         for fname in rail_files:
             path = REPO_ROOT / fname
             if not path.exists():

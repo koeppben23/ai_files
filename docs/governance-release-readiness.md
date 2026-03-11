@@ -15,6 +15,7 @@ Authoritative runtime truth remains in kernel code, schemas, and tests.
 - `Gates.P5.5-TechnicalDebt` is always checked for Phase 6 entry (`approved` or `not-applicable`).
 - Phase 6 review status is visible via `iteration`, `min`, `max`, `delta`, and `implementation_review_complete`.
 - `/review-decision` is the mutating rail for Phase 6 final review decisions (`approve`, `changes_requested`, `reject`).
+- After `approve`, `/implement` is the mutating handoff rail that persists implementation start (no auto-execution).
 
 ## Coverage Matrix (B1-B14 / C1-C4)
 

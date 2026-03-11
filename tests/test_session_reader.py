@@ -278,7 +278,7 @@ class TestReadSessionSnapshotSuccess:
         _write_workspace_state(ws_state, {"status": "OK"})
         with _mock_readonly_unavailable():
             result = read_session_snapshot(commands_home=fake_config / "commands")
-        assert result["effective_operating_mode"] == "unknown"
+        assert result["effective_operating_mode"] == "solo"
         assert result["resolved_operating_mode"] == "solo"
         assert result["verify_policy_version"] == "v1"
 
@@ -290,6 +290,38 @@ class TestReadSessionSnapshotSuccess:
         with _mock_readonly_unavailable():
             result = read_session_snapshot(commands_home=commands_home)
         assert result["commands_home"] == str(commands_home)
+
+    def test_evidence_presentation_gate_includes_review_brief(self, fake_config: Path) -> None:
+        ws_state = _write_pointer(fake_config)
+        _write_workspace_state(ws_state, {
+            "status": "OK",
+            "Phase": "6-PostFlight",
+            "active_gate": "Evidence Presentation Gate",
+            "Ticket": "Ticket summary example",
+            "ImplementationReview": {
+                "iteration": 2,
+                "max_iterations": 3,
+                "min_self_review_iterations": 1,
+                "prev_impl_digest": "sha256:a",
+                "curr_impl_digest": "sha256:b",
+            },
+            "plan_record_versions": 2,
+        })
+        (ws_state.parent / "plan-record.json").write_text(
+            json.dumps({
+                "status": "active",
+                "versions": [{"version": 1}, {"version": 2, "plan_record_text": "Plan summary example"}],
+            }),
+            encoding="utf-8",
+        )
+        with _mock_readonly_unavailable():
+            result = read_session_snapshot(commands_home=fake_config / "commands")
+        assert result["review_brief_review_object"]
+        assert result["review_brief_ticket_summary"] == "Ticket summary example"
+        assert "Plan summary example" in result["review_brief_plan_summary"]
+        assert result["review_brief_evidence_summary"]
+        assert result["review_brief_loop_status"]
+        assert result["review_brief_decision_semantics"]
 
     def test_relative_path_fallback(self, fake_config: Path) -> None:
         """Pointer with only activeSessionStateRelativePath still works."""
@@ -2467,7 +2499,7 @@ class TestResolveNextActionLine:
             "next_gate_condition": "Workflow approved.",
         }
         assert _resolve_next_action_line(snapshot) == (
-            "Next action: governance workflow is complete; no further governance command is required."
+            "Next action: run /implement."
         )
 
     def test_corner_workflow_complete_gate_name_is_case_insensitive(self) -> None:
@@ -2479,7 +2511,7 @@ class TestResolveNextActionLine:
             "next_gate_condition": "Workflow approved.",
         }
         assert _resolve_next_action_line(snapshot) == (
-            "Next action: governance workflow is complete; no further governance command is required."
+            "Next action: run /implement."
         )
 
     def test_happy_rework_clarification_gate_prompts_chat_first(self) -> None:
@@ -2491,8 +2523,7 @@ class TestResolveNextActionLine:
             "next_gate_condition": "Clarify requested changes in chat, then run directed next rail.",
         }
         assert _resolve_next_action_line(snapshot) == (
-            "Clarification needed: what exactly must be adjusted (scope/task, plan/approach, "
-            "or clarification-only)?"
+            "Next action: describe the requested adjustments in chat so exactly one rail can be directed."
         )
 
     def test_happy_rework_clarification_scope_change_routes_to_ticket(self) -> None:
@@ -2529,7 +2560,7 @@ class TestResolveNextActionLine:
             "phase": "4",
             "next_gate_condition": "Collect ticket and planning constraints",
         }
-        assert _resolve_next_action_line(snapshot) == ""
+        assert _resolve_next_action_line(snapshot) == "Next action: continue in chat with the active gate work."
 
     def test_bad_error_status_workflow_complete_emits_no_recommendation(self) -> None:
         """Bad: error status emits explicit error recovery recommendation."""
@@ -2564,7 +2595,7 @@ class TestMaterializeOutputActionLine:
         assert rc == 0
         output = capsys.readouterr().out
         assert output.strip().endswith(
-            "Next action: governance workflow is complete; no further governance command is required."
+            "Next action: run /implement."
         )
 
 

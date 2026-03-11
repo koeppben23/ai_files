@@ -667,6 +667,14 @@ def _workflow_complete(state: Mapping[str, object]) -> bool:
     return False
 
 
+def _implementation_started(state: Mapping[str, object]) -> bool:
+    for key in ("implementation_started", "ImplementationStarted"):
+        value = state.get(key)
+        if isinstance(value, bool):
+            return value
+    return False
+
+
 def _phase5_min_self_review_iterations(entry: PhaseSpecEntry) -> int:
     policy = resolve_phase_output_policy(entry.token)
     if policy is None:
@@ -852,6 +860,13 @@ def _select_transition(
                     transition.next_gate_condition,
                 )
             if when == "workflow_approved" and _workflow_complete(state):
+                return (
+                    transition.next_token,
+                    transition.source,
+                    transition.active_gate,
+                    transition.next_gate_condition,
+                )
+            if when == "implementation_started" and _implementation_started(state):
                 return (
                     transition.next_token,
                     transition.source,
