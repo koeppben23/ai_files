@@ -8,6 +8,7 @@ return deterministic non-success results instead of silent no-ops.
 from __future__ import annotations
 
 from dataclasses import dataclass
+import hmac
 import hashlib
 from typing import Callable
 
@@ -88,8 +89,58 @@ def execute_recovery(
     return RecoveryExecutionResult(primary, False, False, "unsupported recovery strategy", token)
 
 
+def validate_resume_token(
+    *,
+    resume_token: str,
+    run_id: str,
+    repo_fingerprint: str,
+    observed_at: str,
+) -> bool:
+    expected = build_resume_token(
+        run_id=run_id,
+        repo_fingerprint=repo_fingerprint,
+        observed_at=observed_at,
+    )
+    return hmac.compare_digest(resume_token, expected)
+
+
+def resume_recovery(
+    *,
+    report: FailureReport,
+    observed_at: str,
+    resume_token: str,
+    retry_by_overwrite: Callable[[], bool] | None = None,
+    invalidate_and_rearchive: Callable[[], bool] | None = None,
+    escalate_to_operator: Callable[[str], bool] | None = None,
+) -> RecoveryExecutionResult:
+    token_ok = validate_resume_token(
+        resume_token=resume_token,
+        run_id=report.run_id,
+        repo_fingerprint=report.repo_fingerprint,
+        observed_at=observed_at,
+    )
+    if not token_ok:
+        return RecoveryExecutionResult(
+            strategy=RecoveryStrategy.NO_RECOVERY,
+            attempted=False,
+            succeeded=False,
+            message="invalid resume token",
+            resume_token=resume_token,
+        )
+
+    return execute_recovery(
+        report=report,
+        observed_at=observed_at,
+        retry_by_overwrite=retry_by_overwrite,
+        invalidate_and_rearchive=invalidate_and_rearchive,
+        escalate_to_operator=escalate_to_operator,
+    )
+
+
 __all__ = [
     "RecoveryExecutionResult",
     "build_resume_token",
     "execute_recovery",
+    "validate_resume_token",
+    "resume_recovery",
 ]

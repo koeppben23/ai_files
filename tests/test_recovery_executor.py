@@ -8,6 +8,8 @@ from governance.domain.failure_model import (
 from governance.infrastructure.recovery_executor import (
     build_resume_token,
     execute_recovery,
+    resume_recovery,
+    validate_resume_token,
 )
 
 
@@ -112,3 +114,60 @@ def test_no_recovery_actions_fail_closed() -> None:
     result = execute_recovery(report=report, observed_at="2026-03-11T09:07:00Z")
     assert result.strategy == RecoveryStrategy.NO_RECOVERY
     assert result.succeeded is False
+
+
+def test_validate_resume_token_true_for_matching_payload() -> None:
+    token = build_resume_token(
+        run_id="run-1",
+        repo_fingerprint="abc123def456abc123def456",
+        observed_at="2026-03-11T09:08:00Z",
+    )
+    assert validate_resume_token(
+        resume_token=token,
+        run_id="run-1",
+        repo_fingerprint="abc123def456abc123def456",
+        observed_at="2026-03-11T09:08:00Z",
+    ) is True
+
+
+def test_resume_recovery_executes_when_token_valid() -> None:
+    report = _report(strategy=RecoveryStrategy.RETRY_BY_OVERWRITE)
+    token = build_resume_token(
+        run_id=report.run_id,
+        repo_fingerprint=report.repo_fingerprint,
+        observed_at="2026-03-11T09:09:00Z",
+    )
+    called = {"value": False}
+
+    def _hook() -> bool:
+        called["value"] = True
+        return True
+
+    result = resume_recovery(
+        report=report,
+        observed_at="2026-03-11T09:09:00Z",
+        resume_token=token,
+        retry_by_overwrite=_hook,
+    )
+    assert called["value"] is True
+    assert result.succeeded is True
+
+
+def test_resume_recovery_fails_closed_on_invalid_token() -> None:
+    report = _report(strategy=RecoveryStrategy.RETRY_BY_OVERWRITE)
+    called = {"value": False}
+
+    def _hook() -> bool:
+        called["value"] = True
+        return True
+
+    result = resume_recovery(
+        report=report,
+        observed_at="2026-03-11T09:10:00Z",
+        resume_token="resume::run-1::badbadbadbadbadbadba",
+        retry_by_overwrite=_hook,
+    )
+    assert called["value"] is False
+    assert result.attempted is False
+    assert result.succeeded is False
+    assert result.message == "invalid resume token"
