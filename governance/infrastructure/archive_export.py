@@ -60,6 +60,7 @@ REQUIRED_EXPORT_FILES = frozenset({
 OPTIONAL_EXPORT_FILES = frozenset({
     "plan-record.json",
     "pr-record.json",
+    "finalization-record.json",
 })
 
 #: All known archive files

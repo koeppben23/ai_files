@@ -20,6 +20,7 @@ def _recompute_checksums(run_root: Path) -> None:
         "review-decision-record.json",
         "outcome-record.json",
         "evidence-index.json",
+        "finalization-record.json",
         "plan-record.json",
         "pr-record.json",
     ]:

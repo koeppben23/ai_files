@@ -5,18 +5,16 @@ import json
 from pathlib import Path
 
 from governance.infrastructure.io_verify import verify_run_archive
+from governance.infrastructure.workspace_paths import run_dir
 from governance.infrastructure.work_run_archive import archive_active_run
 
 
 def _recompute_checksums(run_root: Path) -> None:
     files = {}
-    for name in [
-        "SESSION_STATE.json",
-        "metadata.json",
-        "run-manifest.json",
-        "provenance-record.json",
-    ]:
-        files[name] = "sha256:" + hashlib.sha256((run_root / name).read_bytes()).hexdigest()
+    for candidate in sorted(run_root.glob("*.json")):
+        if candidate.name == "checksums.json":
+            continue
+        files[candidate.name] = "sha256:" + hashlib.sha256(candidate.read_bytes()).hexdigest()
     payload = {"schema": "governance.run-checksums.v1", "files": files}
     (run_root / "checksums.json").write_text(json.dumps(payload, ensure_ascii=True), encoding="utf-8")
 
@@ -35,7 +33,7 @@ def test_verify_rejects_finalized_run_without_finalization_reason(tmp_path: Path
         state_view=state,
     )
 
-    run_root = workspaces_home / "governance-records" / fingerprint / "runs" / "run-meta"
+    run_root = run_dir(workspaces_home, fingerprint, "run-meta")
     metadata = json.loads((run_root / "metadata.json").read_text(encoding="utf-8"))
     metadata.pop("finalization_reason", None)
     (run_root / "metadata.json").write_text(json.dumps(metadata, ensure_ascii=True), encoding="utf-8")
@@ -61,7 +59,7 @@ def test_verify_rejects_invalid_run_type_and_provenance_launcher(tmp_path: Path)
         state_view=state,
     )
 
-    run_root = workspaces_home / "governance-records" / fingerprint / "runs" / "run-prov-contract"
+    run_root = run_dir(workspaces_home, fingerprint, "run-prov-contract")
     manifest = json.loads((run_root / "run-manifest.json").read_text(encoding="utf-8"))
     manifest["run_type"] = "unknown"
     (run_root / "run-manifest.json").write_text(json.dumps(manifest, ensure_ascii=True), encoding="utf-8")

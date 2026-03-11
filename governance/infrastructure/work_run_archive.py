@@ -14,6 +14,7 @@ from governance.infrastructure.run_audit_artifacts import (
     build_checksums,
     classify_run_type,
     build_evidence_index,
+    build_finalization_record,
     finalize_run_manifest,
     build_outcome_record,
     build_pr_record,
@@ -28,6 +29,7 @@ from governance.infrastructure.workspace_paths import (
     repository_manifest_path,
     run_checksums_path,
     run_evidence_index_path,
+    run_finalization_record_path,
     plan_record_path,
     run_dir,
     run_outcome_record_path,
@@ -439,7 +441,26 @@ def archive_active_run(
         metadata["archive_status"] = "finalized"
         metadata["finalization_reason"] = "all-required-artifacts-present-and-verified"
         writer(metadata_path, metadata)
+        checksums_payload = build_checksums(checksum_inputs)
+        finalization_record = build_finalization_record(
+            repo_fingerprint=repo_fingerprint,
+            repo_slug=repo_slug,
+            run_id=archived_run_id,
+            observed_at=observed_at,
+            finalized_manifest=finalized_manifest,
+            checksums_payload=checksums_payload,
+            finalization_reason="all-required-artifacts-present-and-verified",
+        )
+        finalization_record_path = run_finalization_record_path(
+            workspaces_home,
+            repo_fingerprint,
+            archived_run_id,
+            repo_slug=repo_slug,
+            observed_at=observed_at,
+        )
+        writer(finalization_record_path, finalization_record)
         checksum_inputs["run-manifest.json"] = manifest_path
+        checksum_inputs["finalization-record.json"] = finalization_record_path
         writer(checksums_path, build_checksums(checksum_inputs))
         integrity_ok, _, integrity_message = verify_run_archive(archive_root)
         if not integrity_ok:

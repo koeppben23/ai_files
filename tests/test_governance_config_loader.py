@@ -74,7 +74,7 @@ class TestSchemaLoadingHappy:
 
     def test_load_all_governance_schemas_returns_expected_set(self):
         schemas = load_all_governance_schemas()
-        assert len(schemas) == 16
+        assert len(schemas) == 17
         assert "audit_contract.v1.schema.json" in schemas
         assert "failure_report.v1.schema.json" in schemas
         assert "plan_record.v1.schema.json" in schemas
@@ -86,6 +86,7 @@ class TestSchemaLoadingHappy:
         assert "review_decision_record.v1.schema.json" in schemas
         assert "outcome_record.v1.schema.json" in schemas
         assert "evidence_index.v1.schema.json" in schemas
+        assert "finalization_record.v1.schema.json" in schemas
         assert "pr_record.v1.schema.json" in schemas
         assert "provenance_record.v1.schema.json" in schemas
 

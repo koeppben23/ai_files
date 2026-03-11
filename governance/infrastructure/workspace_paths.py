@@ -400,6 +400,23 @@ def run_evidence_index_path(
     ) / "evidence-index.json"
 
 
+def run_finalization_record_path(
+    workspaces_home: Path,
+    repo_fingerprint: str,
+    run_id: str,
+    *,
+    repo_slug: str | None = None,
+    observed_at: str | None = None,
+) -> Path:
+    return run_dir(
+        workspaces_home,
+        repo_fingerprint,
+        run_id,
+        repo_slug=repo_slug,
+        observed_at=observed_at,
+    ) / "finalization-record.json"
+
+
 def repository_manifest_path(workspaces_home: Path, repo_fingerprint: str) -> Path:
     return runs_dir(workspaces_home, repo_fingerprint) / "repository-manifest.json"
 

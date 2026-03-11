@@ -192,6 +192,7 @@ class TestDomainJsonSchemaConsistency:
             "governance.review-decision-record.v1": "review_decision_record.v1.schema.json",
             "governance.outcome-record.v1": "outcome_record.v1.schema.json",
             "governance.evidence-index.v1": "evidence_index.v1.schema.json",
+            "governance.finalization-record.v1": "finalization_record.v1.schema.json",
             "governance.run-checksums.v1": "run_checksums.v1.schema.json",
             "governance.repository-manifest.v1": "repository_manifest.v1.schema.json",
         }

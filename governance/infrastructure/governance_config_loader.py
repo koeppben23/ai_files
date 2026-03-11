@@ -93,6 +93,7 @@ def load_all_governance_schemas() -> dict[str, dict[str, Any]]:
         "review_decision_record.v1.schema.json",
         "outcome_record.v1.schema.json",
         "evidence_index.v1.schema.json",
+        "finalization_record.v1.schema.json",
         "pr_record.v1.schema.json",
         "provenance_record.v1.schema.json",
     ]

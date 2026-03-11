@@ -141,6 +141,7 @@ def verify_run_archive(run_root: Path) -> Tuple[bool, Dict[str, bool], Optional[
         "review-decision-record.json",
         "outcome-record.json",
         "evidence-index.json",
+        "finalization-record.json",
         "plan-record.json",
         "pr-record.json",
     }
@@ -247,6 +248,23 @@ def verify_run_archive(run_root: Path) -> Tuple[bool, Dict[str, bool], Optional[
         )
         if pr_error:
             return False, results, pr_error
+
+    optional_finalization_record = run_root / "finalization-record.json"
+    if optional_finalization_record.is_file():
+        try:
+            finalization_payload = json.loads(optional_finalization_record.read_text(encoding="utf-8"))
+        except Exception as exc:
+            return False, results, f"Failed to parse finalization-record.json: {exc}"
+        if not isinstance(finalization_payload, dict):
+            return False, results, "Invalid finalization-record.json payload"
+        finalization_error = _verify_common_artifact_header(
+            finalization_payload,
+            expected_schema="governance.finalization-record.v1",
+            expected_artifact_type="finalization_record",
+            artifact_label="finalization-record.json",
+        )
+        if finalization_error:
+            return False, results, finalization_error
 
     run_status = str(manifest.get("run_status") or "").strip()
     record_status = str(manifest.get("record_status") or "").strip()
@@ -510,6 +528,7 @@ def verify_run_archive(run_root: Path) -> Tuple[bool, Dict[str, bool], Optional[
     present_optional = [
         "plan-record.json",
         "pr-record.json",
+        "finalization-record.json",
     ]
     for filename in present_optional:
         if (run_root / filename).is_file() and filename not in files:

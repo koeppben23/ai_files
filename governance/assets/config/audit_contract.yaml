@@ -32,6 +32,7 @@ run_archive:
   optional_files:
     - "plan-record.json"
     - "pr-record.json"
+    - "finalization-record.json"
   expected_schemas:
     run-manifest.json: "governance.run-manifest.v1"
     metadata.json: "governance.work-run.snapshot.v2"
@@ -40,6 +41,7 @@ run_archive:
     review-decision-record.json: "governance.review-decision-record.v1"
     outcome-record.json: "governance.outcome-record.v1"
     evidence-index.json: "governance.evidence-index.v1"
+    finalization-record.json: "governance.finalization-record.v1"
     checksums.json: "governance.run-checksums.v1"
     repository-manifest.json: "governance.repository-manifest.v1"
 

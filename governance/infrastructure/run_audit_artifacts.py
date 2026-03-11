@@ -496,6 +496,51 @@ def build_evidence_index(
     )
 
 
+def build_finalization_record(
+    *,
+    repo_fingerprint: str,
+    repo_slug: str,
+    run_id: str,
+    observed_at: str,
+    finalized_manifest: Mapping[str, object],
+    checksums_payload: Mapping[str, object],
+    finalization_reason: str,
+) -> dict[str, object]:
+    session_id = str(finalized_manifest.get("session_id") or run_id)
+    digest_payload = {
+        "run_id": run_id,
+        "manifest": dict(finalized_manifest),
+        "checksums": checksums_payload.get("files"),
+    }
+    errors_raw = finalized_manifest.get("finalization_errors")
+    errors_list = [str(item) for item in errors_raw] if isinstance(errors_raw, list) else []
+    payload = {
+        "run_status": str(finalized_manifest.get("run_status") or ""),
+        "manifest_record_status": str(finalized_manifest.get("record_status") or ""),
+        "manifest_integrity_status": str(finalized_manifest.get("integrity_status") or ""),
+        "finalization_reason": finalization_reason,
+        "finalization_errors": errors_list,
+        "bundle_manifest_hash": _stable_json_hash(digest_payload),
+    }
+    return _artifact_header(
+        schema="governance.finalization-record.v1",
+        artifact_type="finalization_record",
+        artifact_id=f"finalization::{run_id}",
+        run_id=run_id,
+        session_id=session_id,
+        repo_slug=repo_slug,
+        repo_fingerprint=repo_fingerprint,
+        created_at=observed_at,
+        created_by_component="governance.infrastructure.work_run_archive",
+        classification="internal",
+        integrity_status="passed",
+        record_status="finalized",
+        finalized_at=observed_at,
+        finalized_by="governance.finalizer",
+        payload=payload,
+    )
+
+
 def build_checksums(files: Mapping[str, Path]) -> dict[str, object]:
     digests: dict[str, str] = {}
     for name, path in files.items():

@@ -68,6 +68,7 @@ REQUIRED_ARCHIVE_FILES: FrozenSet[str] = frozenset({
 OPTIONAL_ARCHIVE_FILES: FrozenSet[str] = frozenset({
     "plan-record.json",
     "pr-record.json",
+    "finalization-record.json",
 })
 
 #: All allowed files in a run archive (required + optional)
@@ -82,6 +83,7 @@ EXPECTED_SCHEMAS: Mapping[str, str] = {
     "review-decision-record.json": "governance.review-decision-record.v1",
     "outcome-record.json": "governance.outcome-record.v1",
     "evidence-index.json": "governance.evidence-index.v1",
+    "finalization-record.json": "governance.finalization-record.v1",
     "checksums.json": "governance.run-checksums.v1",
     "repository-manifest.json": "governance.repository-manifest.v1",
 }

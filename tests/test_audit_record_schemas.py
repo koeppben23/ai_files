@@ -26,6 +26,7 @@ _SCHEMA_PATHS = {
     "review-decision-record.json": Path("governance/assets/schemas/review_decision_record.v1.schema.json"),
     "outcome-record.json": Path("governance/assets/schemas/outcome_record.v1.schema.json"),
     "evidence-index.json": Path("governance/assets/schemas/evidence_index.v1.schema.json"),
+    "finalization-record.json": Path("governance/assets/schemas/finalization_record.v1.schema.json"),
     "pr-record.json": Path("governance/assets/schemas/pr_record.v1.schema.json"),
     "provenance-record.json": Path("governance/assets/schemas/provenance_record.v1.schema.json"),
 }

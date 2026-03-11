@@ -96,6 +96,9 @@ def _create_finalized_archive_with_optionals(base: Path) -> Path:
     (archive_path / "pr-record.json").write_text(
         json.dumps({"pr": "test"}), encoding="utf-8"
     )
+    (archive_path / "finalization-record.json").write_text(
+        json.dumps({"schema": "governance.finalization-record.v1"}), encoding="utf-8"
+    )
     return archive_path
 
 

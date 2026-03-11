@@ -31,6 +31,7 @@ def test_archive_materializes_ticket_review_outcome_and_evidence_records(tmp_pat
     assert (run_root / "review-decision-record.json").is_file()
     assert (run_root / "outcome-record.json").is_file()
     assert (run_root / "evidence-index.json").is_file()
+    assert (run_root / "finalization-record.json").is_file()
 
 
 def test_core_artifacts_include_common_contract_header_fields(tmp_path: Path) -> None:
