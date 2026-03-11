@@ -9,6 +9,41 @@ from governance.domain.canonical_json import canonical_json_hash
 
 _RFC3339_UTC_Z_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
 _REPO_FINGERPRINT_RE = re.compile(r"^[0-9a-f]{24}$")
+_SHA256_WITH_PREFIX_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
+
+
+def _verify_common_artifact_header(
+    payload: dict,
+    *,
+    expected_schema: str,
+    expected_artifact_type: str,
+    artifact_label: str,
+) -> Optional[str]:
+    schema = str(payload.get("schema") or "").strip()
+    if schema != expected_schema:
+        return f"Invalid {artifact_label} schema: {schema}"
+    if str(payload.get("schema_version") or "").strip() != "v1":
+        return f"Invalid {artifact_label} schema_version"
+    if str(payload.get("artifact_type") or "").strip() != expected_artifact_type:
+        return f"Invalid {artifact_label} artifact_type"
+    if not str(payload.get("artifact_id") or "").strip():
+        return f"{artifact_label} missing artifact_id"
+    if not str(payload.get("session_id") or "").strip():
+        return f"{artifact_label} missing session_id"
+    if not str(payload.get("repo_slug") or "").strip():
+        return f"{artifact_label} missing repo_slug"
+    if not str(payload.get("created_by_component") or "").strip():
+        return f"{artifact_label} missing created_by_component"
+    if not str(payload.get("classification") or "").strip():
+        return f"{artifact_label} missing classification"
+    if str(payload.get("integrity_status") or "").strip() not in {"pending", "passed", "failed"}:
+        return f"Invalid {artifact_label} integrity_status"
+    if str(payload.get("record_status") or "").strip() not in {"draft", "finalized", "superseded", "invalidated"}:
+        return f"Invalid {artifact_label} record_status"
+    content_hash = str(payload.get("content_hash") or "").strip()
+    if not _SHA256_WITH_PREFIX_RE.match(content_hash):
+        return f"Invalid {artifact_label} content_hash"
+    return None
 
 
 def verify_pointer(pointer_path: Path, expected_fingerprint: str) -> Tuple[bool, Optional[str]]:
@@ -166,9 +201,35 @@ def verify_run_archive(run_root: Path) -> Tuple[bool, Dict[str, bool], Optional[
         return False, results, f"Failed to parse provenance-record.json: {exc}"
     if not isinstance(provenance, dict):
         return False, results, "Invalid provenance-record.json payload"
-    provenance_schema = str(provenance.get("schema") or "").strip()
-    if provenance_schema != "governance.provenance-record.v1":
-        return False, results, f"Invalid provenance schema: {provenance_schema}"
+    provenance_header_error = _verify_common_artifact_header(
+        provenance,
+        expected_schema="governance.provenance-record.v1",
+        expected_artifact_type="provenance_record",
+        artifact_label="provenance-record.json",
+    )
+    if provenance_header_error:
+        return False, results, provenance_header_error
+
+    for filename, expected_schema, expected_artifact_type in [
+        ("ticket-record.json", "governance.ticket-record.v1", "ticket_record"),
+        ("review-decision-record.json", "governance.review-decision-record.v1", "review_decision_record"),
+        ("outcome-record.json", "governance.outcome-record.v1", "outcome_record"),
+        ("evidence-index.json", "governance.evidence-index.v1", "evidence_index"),
+    ]:
+        try:
+            artifact_payload = json.loads((run_root / filename).read_text(encoding="utf-8"))
+        except Exception as exc:
+            return False, results, f"Failed to parse {filename}: {exc}"
+        if not isinstance(artifact_payload, dict):
+            return False, results, f"Invalid {filename} payload"
+        artifact_error = _verify_common_artifact_header(
+            artifact_payload,
+            expected_schema=expected_schema,
+            expected_artifact_type=expected_artifact_type,
+            artifact_label=filename,
+        )
+        if artifact_error:
+            return False, results, artifact_error
 
     run_status = str(manifest.get("run_status") or "").strip()
     record_status = str(manifest.get("record_status") or "").strip()
@@ -456,6 +517,29 @@ def verify_repository_manifest(runs_root: Path, *, expected_repo_fingerprint: Op
     schema = str(payload.get("schema") or "").strip()
     if schema != "governance.repository-manifest.v1":
         return False, f"Invalid repository manifest schema: {schema}"
+    if str(payload.get("schema_version") or "").strip() != "v1":
+        return False, "repository-manifest.json missing schema_version=v1"
+    if str(payload.get("artifact_type") or "").strip() != "repository_manifest":
+        return False, "repository-manifest.json missing artifact_type=repository_manifest"
+    if not str(payload.get("artifact_id") or "").strip():
+        return False, "repository-manifest.json missing artifact_id"
+
+    repo_slug = str(payload.get("repo_slug") or "").strip()
+    if not repo_slug:
+        return False, "repository-manifest.json missing repo_slug"
+
+    canonical_remote_url_digest = str(payload.get("canonical_remote_url_digest") or "").strip()
+    if not canonical_remote_url_digest:
+        return False, "repository-manifest.json missing canonical_remote_url_digest"
+    if not re.match(r"^(sha256:)?[0-9a-f]{64}$", canonical_remote_url_digest):
+        return False, "repository-manifest.json invalid canonical_remote_url_digest"
+
+    if not str(payload.get("default_branch") or "").strip():
+        return False, "repository-manifest.json missing default_branch"
+    if not str(payload.get("tenant_context") or "").strip():
+        return False, "repository-manifest.json missing tenant_context"
+    if not str(payload.get("repository_classification") or "").strip():
+        return False, "repository-manifest.json missing repository_classification"
 
     repo_fingerprint = str(payload.get("repo_fingerprint") or "").strip()
     if not repo_fingerprint:
