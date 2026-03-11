@@ -34,4 +34,6 @@ def test_archive_writes_finalization_record_with_bundle_hash(tmp_path: Path) -> 
     assert record["schema"] == "governance.finalization-record.v1"
     assert record["artifact_type"] == "finalization_record"
     assert record["run_status"] == "finalized"
+    assert record["resolvedOperatingMode"] == "solo"
+    assert record["verifyPolicyVersion"] == "v1"
     assert record["bundle_manifest_hash"].startswith("sha256:")

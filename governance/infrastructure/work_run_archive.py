@@ -527,6 +527,8 @@ def archive_active_run(
             finalized_manifest=finalized_manifest,
             checksums_payload=checksums_payload,
             finalization_reason="all-required-artifacts-present-and-verified",
+            resolved_operating_mode=resolved_operating_mode,
+            verify_policy_version=verify_policy_version,
         )
         finalization_record_path = run_finalization_record_path(
             workspaces_home,

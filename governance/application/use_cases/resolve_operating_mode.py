@@ -35,7 +35,7 @@ def _profile_to_runtime_mode(profile: str) -> "OperatingMode":
 def resolve_effective_operating_mode(adapter: "HostAdapter", requested: "OperatingMode | None") -> "OperatingMode":
     """Resolve operating mode with deterministic precedence."""
 
-    if requested is not None:
+    if requested is not None and requested not in {"user"}:
         return requested
 
     env = adapter.environment()
@@ -71,6 +71,10 @@ def resolve_effective_operating_mode(adapter: "HostAdapter", requested: "Operati
     if ci and ci not in {"0", "false", "no", "off"} and floor_profile is None:
         floor_profile = "team"
 
+    break_glass_expires_at = str(env.get("OPENCODE_BREAK_GLASS_EXPIRES_AT", "")).strip() or None
+    break_glass_reason_code = str(env.get("OPENCODE_BREAK_GLASS_REASON_CODE", "")).strip() or None
+    break_glass_now_utc = str(env.get("OPENCODE_CURRENT_TIME_UTC", "")).strip() or None
+
     try:
         resolved = resolve_operating_profile(
             requested_operating_mode=requested_profile,
@@ -79,6 +83,9 @@ def resolve_effective_operating_mode(adapter: "HostAdapter", requested: "Operati
             enforced_operating_mode=enforced_profile,
             enforced_source=enforced_source,
             floor_operating_mode=floor_profile,
+            break_glass_expires_at=break_glass_expires_at,
+            break_glass_reason_code=break_glass_reason_code,
+            break_glass_now_utc=break_glass_now_utc,
         )
     except OperatingProfileError:
         return "pipeline"

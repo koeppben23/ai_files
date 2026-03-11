@@ -6,6 +6,7 @@ import pytest
 
 from governance.application.use_cases.resolve_operating_mode import resolve_effective_operating_mode
 from governance.domain.operating_profile import (
+    BREAK_GLASS_EXPIRED,
     FORBIDDEN_DOWNSHIFT,
     PROFILE_FLOOR_VIOLATION,
     UNTRUSTED_ENFORCEMENT_SOURCE,
@@ -146,3 +147,42 @@ def test_derive_mode_evidence_canonicalizes_explicit_resolved_alias():
     assert effective == "unknown"
     assert resolved == "regulated"
     assert verify == "v3"
+
+
+@pytest.mark.governance
+def test_resolve_operating_profile_allows_temporary_break_glass_downshift():
+    out = resolve_operating_profile(
+        requested_operating_mode="solo",
+        repo_operating_mode="team",
+        init_operating_mode="team",
+        enforced_operating_mode=None,
+        enforced_source=None,
+        floor_operating_mode=None,
+        break_glass_reason_code="incident-mitigation",
+        break_glass_expires_at="2999-01-01T00:00:00Z",
+        break_glass_now_utc="2026-01-01T00:00:00Z",
+    )
+    assert out.resolved_operating_mode == "solo"
+
+
+@pytest.mark.governance
+def test_resolve_operating_profile_blocks_expired_break_glass_downshift():
+    with pytest.raises(OperatingProfileError) as exc:
+        resolve_operating_profile(
+            requested_operating_mode="solo",
+            repo_operating_mode="team",
+            init_operating_mode="team",
+            enforced_operating_mode=None,
+            enforced_source=None,
+            floor_operating_mode=None,
+            break_glass_reason_code="incident-mitigation",
+            break_glass_expires_at="2020-01-01T00:00:00Z",
+            break_glass_now_utc="2026-01-01T00:00:00Z",
+        )
+    assert exc.value.code == BREAK_GLASS_EXPIRED
+
+
+@pytest.mark.governance
+def test_resolve_effective_operating_mode_blocks_ci_downshift_to_user():
+    adapter = _Adapter(env={"CI": "true"}, default_mode="user")
+    assert resolve_effective_operating_mode(adapter, requested="user") == "pipeline"  # type: ignore[arg-type]

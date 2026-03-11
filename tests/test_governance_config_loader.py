@@ -28,6 +28,7 @@ from governance.infrastructure.governance_config_loader import (
     validate_config_structure,
     validate_policy_metadata,
     validate_retention_config,
+    validate_operating_mode_policy_matrix_config,
 )
 
 
@@ -74,7 +75,7 @@ class TestSchemaLoadingHappy:
 
     def test_load_all_governance_schemas_returns_expected_set(self):
         schemas = load_all_governance_schemas()
-        assert len(schemas) == 17
+        assert len(schemas) == 18
         assert "audit_contract.v1.schema.json" in schemas
         assert "failure_report.v1.schema.json" in schemas
         assert "plan_record.v1.schema.json" in schemas
@@ -89,6 +90,7 @@ class TestSchemaLoadingHappy:
         assert "finalization_record.v1.schema.json" in schemas
         assert "pr_record.v1.schema.json" in schemas
         assert "provenance_record.v1.schema.json" in schemas
+        assert "operating_mode_policy_matrix.v1.schema.json" in schemas
 
     def test_schema_caching(self):
         s1 = load_schema("audit_contract.v1.schema.json")
@@ -122,9 +124,10 @@ class TestConfigLoadingHappy:
 
     def test_load_all_governance_configs_returns_four(self):
         configs = load_all_governance_configs()
-        assert len(configs) == 4
+        assert len(configs) == 5
         assert "audit_contract.yaml" in configs
         assert "retention_policy.yaml" in configs
+        assert "operating_mode_policy_matrix.yaml" in configs
 
     def test_config_caching(self):
         c1 = load_config("audit_contract.yaml")
@@ -153,6 +156,11 @@ class TestValidationHappy:
     def test_validate_retention_config(self):
         config = load_config("retention_policy.yaml")
         errors = validate_retention_config(config)
+        assert errors == []
+
+    def test_validate_operating_mode_policy_matrix_config(self):
+        config = load_config("operating_mode_policy_matrix.yaml")
+        errors = validate_operating_mode_policy_matrix_config(config)
         assert errors == []
 
     def test_validate_all_governance_configs_all_pass(self):

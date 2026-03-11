@@ -96,6 +96,7 @@ def load_all_governance_schemas() -> dict[str, dict[str, Any]]:
         "finalization_record.v1.schema.json",
         "pr_record.v1.schema.json",
         "provenance_record.v1.schema.json",
+        "operating_mode_policy_matrix.v1.schema.json",
     ]
     result: dict[str, dict[str, Any]] = {}
     for name in governance_names:
@@ -147,6 +148,7 @@ def load_all_governance_configs() -> dict[str, dict[str, Any]]:
         "classification_policy.yaml",
         "access_control_policy.yaml",
         "retention_policy.yaml",
+        "operating_mode_policy_matrix.yaml",
     ]
     result: dict[str, dict[str, Any]] = {}
     for name in governance_names:
@@ -231,6 +233,33 @@ def validate_retention_config(config: Mapping[str, Any]) -> list[str]:
     return errors
 
 
+def validate_operating_mode_policy_matrix_config(config: Mapping[str, Any]) -> list[str]:
+    """Validate operating_mode_policy_matrix.yaml structure."""
+    errors = validate_policy_metadata(config)
+    errors.extend(validate_config_structure(config, required_keys=("policy", "profiles")))
+    profiles = config.get("profiles")
+    if not isinstance(profiles, dict):
+        errors.append("profiles must be mapping")
+        return errors
+    for profile in ("solo", "team", "regulated"):
+        node = profiles.get(profile)
+        if not isinstance(node, dict):
+            errors.append(f"profiles.{profile} missing")
+            continue
+        required_fields = (
+            "audit_depth",
+            "approval_context",
+            "evidence_completeness",
+            "classification_redaction",
+            "retention_restore_hold",
+            "verify_failure_semantics",
+        )
+        for field in required_fields:
+            if field not in node:
+                errors.append(f"profiles.{profile}.{field} missing")
+    return errors
+
+
 def validate_all_governance_configs() -> dict[str, list[str]]:
     """Load and validate all governance configs.
 
@@ -242,6 +271,7 @@ def validate_all_governance_configs() -> dict[str, list[str]]:
         "classification_policy.yaml": validate_classification_config,
         "access_control_policy.yaml": validate_access_control_config,
         "retention_policy.yaml": validate_retention_config,
+        "operating_mode_policy_matrix.yaml": validate_operating_mode_policy_matrix_config,
     }
     results: dict[str, list[str]] = {}
     for name, validator in validators.items():
@@ -276,6 +306,7 @@ __all__ = [
     "validate_classification_config",
     "validate_access_control_config",
     "validate_retention_config",
+    "validate_operating_mode_policy_matrix_config",
     "validate_all_governance_configs",
     "clear_caches",
 ]
