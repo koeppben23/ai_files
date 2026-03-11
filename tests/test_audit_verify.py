@@ -15,8 +15,16 @@ def _recompute_checksums(run_root: Path) -> None:
         "metadata.json",
         "run-manifest.json",
         "provenance-record.json",
+        "ticket-record.json",
+        "review-decision-record.json",
+        "outcome-record.json",
+        "evidence-index.json",
+        "plan-record.json",
+        "pr-record.json",
     ]:
-        files[name] = "sha256:" + hashlib.sha256((run_root / name).read_bytes()).hexdigest()
+        candidate = run_root / name
+        if candidate.is_file():
+            files[name] = "sha256:" + hashlib.sha256(candidate.read_bytes()).hexdigest()
     payload = {"schema": "governance.run-checksums.v1", "files": files}
     (run_root / "checksums.json").write_text(json.dumps(payload, ensure_ascii=True), encoding="utf-8")
 
@@ -687,6 +695,12 @@ def test_verify_rejects_present_optional_artifact_without_checksum(tmp_path: Pat
     metadata["archived_files"] = archived_files
     (run_root / "metadata.json").write_text(json.dumps(metadata, ensure_ascii=True), encoding="utf-8")
     _recompute_checksums(run_root)
+    checksums = json.loads((run_root / "checksums.json").read_text(encoding="utf-8"))
+    files = checksums.get("files")
+    assert isinstance(files, dict)
+    files.pop("pr-record.json", None)
+    checksums["files"] = files
+    (run_root / "checksums.json").write_text(json.dumps(checksums, ensure_ascii=True), encoding="utf-8")
 
     ok, _, message = verify_run_archive(run_root)
     assert ok is False

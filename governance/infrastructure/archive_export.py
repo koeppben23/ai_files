@@ -48,6 +48,10 @@ REQUIRED_EXPORT_FILES = frozenset({
     "metadata.json",
     "run-manifest.json",
     "provenance-record.json",
+    "ticket-record.json",
+    "review-decision-record.json",
+    "outcome-record.json",
+    "evidence-index.json",
     "checksums.json",
 })
 

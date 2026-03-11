@@ -72,6 +72,10 @@ def verify_run_archive(run_root: Path) -> Tuple[bool, Dict[str, bool], Optional[
         "metadata.json",
         "run-manifest.json",
         "provenance-record.json",
+        "ticket-record.json",
+        "review-decision-record.json",
+        "outcome-record.json",
+        "evidence-index.json",
         "checksums.json",
     ]
     results: Dict[str, bool] = {name: (run_root / name).is_file() for name in required}
@@ -98,6 +102,10 @@ def verify_run_archive(run_root: Path) -> Tuple[bool, Dict[str, bool], Optional[
         "metadata.json",
         "run-manifest.json",
         "provenance-record.json",
+        "ticket-record.json",
+        "review-decision-record.json",
+        "outcome-record.json",
+        "evidence-index.json",
         "plan-record.json",
         "pr-record.json",
     }
@@ -227,6 +235,10 @@ def verify_run_archive(run_root: Path) -> Tuple[bool, Dict[str, bool], Optional[
         "session_state",
         "run_manifest",
         "metadata",
+        "ticket_record",
+        "review_decision_record",
+        "outcome_record",
+        "evidence_index",
         "provenance",
         "plan_record",
         "pr_record",
@@ -237,7 +249,17 @@ def verify_run_archive(run_root: Path) -> Tuple[bool, Dict[str, bool], Optional[
         missing = sorted(expected_artifact_keys - required_keys)
         extra = sorted(required_keys - expected_artifact_keys)
         return False, results, f"required_artifacts key mismatch: missing={missing}, extra={extra}"
-    baseline_required_true = ["session_state", "run_manifest", "metadata", "provenance", "checksums"]
+    baseline_required_true = [
+        "session_state",
+        "run_manifest",
+        "metadata",
+        "ticket_record",
+        "review_decision_record",
+        "outcome_record",
+        "evidence_index",
+        "provenance",
+        "checksums",
+    ]
     for key in baseline_required_true:
         if required_artifacts.get(key) is not True:
             return False, results, f"required_artifacts.{key} must be true"
@@ -296,6 +318,10 @@ def verify_run_archive(run_root: Path) -> Tuple[bool, Dict[str, bool], Optional[
         "session_state",
         "plan_record",
         "pr_record",
+        "ticket_record",
+        "review_decision_record",
+        "outcome_record",
+        "evidence_index",
         "run_manifest",
         "provenance_record",
         "checksums",
@@ -310,7 +336,15 @@ def verify_run_archive(run_root: Path) -> Tuple[bool, Dict[str, bool], Optional[
             return False, results, "archived_files has invalid entries"
     if archived_files.get("session_state") is not True:
         return False, results, "archived_files.session_state must be true"
-    baseline_archived_true = ["run_manifest", "provenance_record", "checksums"]
+    baseline_archived_true = [
+        "ticket_record",
+        "review_decision_record",
+        "outcome_record",
+        "evidence_index",
+        "run_manifest",
+        "provenance_record",
+        "checksums",
+    ]
     for key in baseline_archived_true:
         if archived_files.get(key) is not True:
             return False, results, f"archived_files.{key} must be true"
@@ -319,6 +353,10 @@ def verify_run_archive(run_root: Path) -> Tuple[bool, Dict[str, bool], Optional[
         "session_state": "SESSION_STATE.json",
         "plan_record": "plan-record.json",
         "pr_record": "pr-record.json",
+        "ticket_record": "ticket-record.json",
+        "review_decision_record": "review-decision-record.json",
+        "outcome_record": "outcome-record.json",
+        "evidence_index": "evidence-index.json",
         "run_manifest": "run-manifest.json",
         "provenance_record": "provenance-record.json",
         "checksums": "checksums.json",

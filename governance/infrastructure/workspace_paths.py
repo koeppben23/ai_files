@@ -200,6 +200,22 @@ def run_pr_record_path(workspaces_home: Path, repo_fingerprint: str, run_id: str
     return run_dir(workspaces_home, repo_fingerprint, run_id) / "pr-record.json"
 
 
+def run_ticket_record_path(workspaces_home: Path, repo_fingerprint: str, run_id: str) -> Path:
+    return run_dir(workspaces_home, repo_fingerprint, run_id) / "ticket-record.json"
+
+
+def run_review_decision_record_path(workspaces_home: Path, repo_fingerprint: str, run_id: str) -> Path:
+    return run_dir(workspaces_home, repo_fingerprint, run_id) / "review-decision-record.json"
+
+
+def run_outcome_record_path(workspaces_home: Path, repo_fingerprint: str, run_id: str) -> Path:
+    return run_dir(workspaces_home, repo_fingerprint, run_id) / "outcome-record.json"
+
+
+def run_evidence_index_path(workspaces_home: Path, repo_fingerprint: str, run_id: str) -> Path:
+    return run_dir(workspaces_home, repo_fingerprint, run_id) / "evidence-index.json"
+
+
 def repository_manifest_path(workspaces_home: Path, repo_fingerprint: str) -> Path:
     return runs_dir(workspaces_home, repo_fingerprint) / "repository-manifest.json"
 

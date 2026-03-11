@@ -57,6 +57,10 @@ REQUIRED_ARCHIVE_FILES: FrozenSet[str] = frozenset({
     "metadata.json",
     "run-manifest.json",
     "provenance-record.json",
+    "ticket-record.json",
+    "review-decision-record.json",
+    "outcome-record.json",
+    "evidence-index.json",
     "checksums.json",
 })
 
@@ -74,6 +78,10 @@ EXPECTED_SCHEMAS: Mapping[str, str] = {
     "run-manifest.json": "governance.run-manifest.v1",
     "metadata.json": "governance.work-run.snapshot.v2",
     "provenance-record.json": "governance.provenance-record.v1",
+    "ticket-record.json": "governance.ticket-record.v1",
+    "review-decision-record.json": "governance.review-decision-record.v1",
+    "outcome-record.json": "governance.outcome-record.v1",
+    "evidence-index.json": "governance.evidence-index.v1",
     "checksums.json": "governance.run-checksums.v1",
     "repository-manifest.json": "governance.repository-manifest.v1",
 }
@@ -81,23 +89,27 @@ EXPECTED_SCHEMAS: Mapping[str, str] = {
 #: Required keys in the required_artifacts map of a run manifest
 REQUIRED_ARTIFACT_KEYS: FrozenSet[str] = frozenset({
     "session_state", "run_manifest", "metadata",
+    "ticket_record", "review_decision_record", "outcome_record", "evidence_index",
     "provenance", "plan_record", "pr_record", "checksums",
 })
 
 #: Artifact keys that must always be True in required_artifacts
 BASELINE_REQUIRED_TRUE: FrozenSet[str] = frozenset({
-    "session_state", "run_manifest", "metadata", "provenance", "checksums",
+    "session_state", "run_manifest", "metadata", "ticket_record", "review_decision_record",
+    "outcome_record", "evidence_index", "provenance", "checksums",
 })
 
 #: Required keys in the archived_files map of metadata
 REQUIRED_ARCHIVED_FILE_KEYS: FrozenSet[str] = frozenset({
     "session_state", "plan_record", "pr_record",
+    "ticket_record", "review_decision_record", "outcome_record", "evidence_index",
     "run_manifest", "provenance_record", "checksums",
 })
 
 #: Archived file keys that must always be True
 BASELINE_ARCHIVED_TRUE: FrozenSet[str] = frozenset({
-    "session_state", "run_manifest", "provenance_record", "checksums",
+    "session_state", "ticket_record", "review_decision_record", "outcome_record", "evidence_index",
+    "run_manifest", "provenance_record", "checksums",
 })
 
 _RFC3339_UTC_Z_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")

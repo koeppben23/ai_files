@@ -72,7 +72,8 @@ class TestAuditContractConstants:
 
     def test_required_archive_files_complete(self) -> None:
         expected = {"SESSION_STATE.json", "metadata.json", "run-manifest.json",
-                    "provenance-record.json", "checksums.json"}
+                    "provenance-record.json", "ticket-record.json", "review-decision-record.json",
+                    "outcome-record.json", "evidence-index.json", "checksums.json"}
         assert REQUIRED_ARCHIVE_FILES == frozenset(expected)
 
     def test_optional_files_are_plan_and_pr(self) -> None:
@@ -386,6 +387,10 @@ class TestRequiredArtifactKeysInvariants:
             "session_state": True,
             "run_manifest": True,
             "metadata": True,
+            "ticket_record": True,
+            "review_decision_record": True,
+            "outcome_record": True,
+            "evidence_index": True,
             "provenance": True,
             "plan_record": False,
             "pr_record": False,
@@ -411,6 +416,10 @@ class TestRequiredArtifactKeysInvariants:
             "session_state": False,  # must be True
             "run_manifest": True,
             "metadata": True,
+            "ticket_record": True,
+            "review_decision_record": True,
+            "outcome_record": True,
+            "evidence_index": True,
             "provenance": True,
             "plan_record": False,
             "pr_record": False,
@@ -433,6 +442,10 @@ class TestArchivedFileKeysInvariants:
             "session_state": True,
             "plan_record": False,
             "pr_record": False,
+            "ticket_record": True,
+            "review_decision_record": True,
+            "outcome_record": True,
+            "evidence_index": True,
             "run_manifest": True,
             "provenance_record": True,
             "checksums": True,
