@@ -145,3 +145,136 @@ def test_cli_contract_uses_repo_root_and_config_root(tmp_path: Path) -> None:
     )
     assert proc.returncode == 0, proc.stdout + "\n" + proc.stderr
     assert (config_root / "SESSION_STATE.json").exists()
+
+
+@pytest.mark.e2e_governance
+def test_cli_help_exposes_init_profile_and_alias(tmp_path: Path) -> None:
+    checkout_root = Path(__file__).resolve().parents[1]
+    launcher = _bootstrap_launcher(checkout_root)
+    env = dict(os.environ)
+    env["OPENCODE_PYTHON"] = sys.executable
+    env["COMMANDS_HOME"] = str(checkout_root)
+    env["OPENCODE_CONFIG_ROOT"] = str(checkout_root)
+    proc = _run(launcher + ["--help"], cwd=tmp_path, env=env)
+    assert proc.returncode == 0
+    text = (proc.stdout or "") + (proc.stderr or "")
+    assert "init" in text
+    assert "--profile" in text
+    assert "--set-operating-mode" in text
+
+
+@pytest.mark.e2e_governance
+def test_cli_init_profile_writes_repo_policy(tmp_path: Path) -> None:
+    checkout_root = Path(__file__).resolve().parents[1]
+    launcher = _bootstrap_launcher(checkout_root)
+
+    home = tmp_path / "home"
+    config_root = home / ".config" / "opencode"
+    commands_home = config_root / "commands"
+    workspaces_home = config_root / "workspaces"
+    _materialize_commands_bundle_from_checkout(checkout_root=checkout_root, commands_home=commands_home)
+    _write_governance_paths(config_root=config_root, commands_home=commands_home, workspaces_home=workspaces_home)
+
+    repo = tmp_path / "repo"
+    _git_init_repo(repo)
+
+    env = dict(os.environ)
+    env["HOME"] = str(home)
+    env["USERPROFILE"] = str(home)
+    env["OPENCODE_CONFIG_ROOT"] = str(config_root)
+    env["COMMANDS_HOME"] = str(commands_home)
+    env["OPENCODE_PYTHON"] = sys.executable
+    env["CI"] = ""
+    user_site = site.getusersitepackages()
+    if user_site:
+        env["PYTHONPATH"] = os.pathsep.join([part for part in (user_site, env.get("PYTHONPATH", "")) if part])
+
+    proc = _run(
+        launcher + ["init", "--profile", "solo", "--repo-root", str(repo), "--config-root", str(config_root)],
+        cwd=repo,
+        env=env,
+    )
+    assert proc.returncode == 0, proc.stdout + "\n" + proc.stderr
+    policy_path = repo / ".opencode" / "governance-repo-policy.json"
+    assert policy_path.exists()
+    payload = json.loads(policy_path.read_text(encoding="utf-8"))
+    assert payload["operatingMode"] == "solo"
+    assert payload["schema"] == "opencode-governance-repo-policy.v1"
+    assert "repoOperatingMode = solo" in proc.stdout
+
+
+@pytest.mark.e2e_governance
+def test_cli_alias_set_operating_mode_updates_existing_policy(tmp_path: Path) -> None:
+    checkout_root = Path(__file__).resolve().parents[1]
+    launcher = _bootstrap_launcher(checkout_root)
+
+    home = tmp_path / "home"
+    config_root = home / ".config" / "opencode"
+    commands_home = config_root / "commands"
+    workspaces_home = config_root / "workspaces"
+    _materialize_commands_bundle_from_checkout(checkout_root=checkout_root, commands_home=commands_home)
+    _write_governance_paths(config_root=config_root, commands_home=commands_home, workspaces_home=workspaces_home)
+
+    repo = tmp_path / "repo"
+    _git_init_repo(repo)
+    policy_path = repo / ".opencode" / "governance-repo-policy.json"
+    policy_path.parent.mkdir(parents=True, exist_ok=True)
+    policy_path.write_text(
+        json.dumps(
+            {
+                "schema": "opencode-governance-repo-policy.v1",
+                "repoFingerprint": "",
+                "operatingMode": "solo",
+                "source": "manual",
+                "createdAt": "2020-01-01T00:00:00Z",
+            },
+            ensure_ascii=True,
+            sort_keys=True,
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    env = dict(os.environ)
+    env["HOME"] = str(home)
+    env["USERPROFILE"] = str(home)
+    env["OPENCODE_CONFIG_ROOT"] = str(config_root)
+    env["COMMANDS_HOME"] = str(commands_home)
+    env["OPENCODE_PYTHON"] = sys.executable
+    env["CI"] = ""
+    user_site = site.getusersitepackages()
+    if user_site:
+        env["PYTHONPATH"] = os.pathsep.join([part for part in (user_site, env.get("PYTHONPATH", "")) if part])
+
+    proc = _run(
+        launcher + ["--set-operating-mode", "regulated", "--repo-root", str(repo), "--config-root", str(config_root)],
+        cwd=repo,
+        env=env,
+    )
+    assert proc.returncode == 0, proc.stdout + "\n" + proc.stderr
+    payload = json.loads(policy_path.read_text(encoding="utf-8"))
+    assert payload["operatingMode"] == "regulated"
+    assert payload["createdAt"] == "2020-01-01T00:00:00Z"
+
+
+@pytest.mark.e2e_governance
+def test_cli_init_rejects_invalid_profile_value(tmp_path: Path) -> None:
+    checkout_root = Path(__file__).resolve().parents[1]
+    launcher = _bootstrap_launcher(checkout_root)
+    repo = tmp_path / "repo"
+    _git_init_repo(repo)
+    env = dict(os.environ)
+    proc = _run(launcher + ["init", "--profile", "invalid", "--repo-root", str(repo)], cwd=repo, env=env)
+    assert proc.returncode != 0
+
+
+@pytest.mark.e2e_governance
+def test_cli_profile_without_init_is_rejected(tmp_path: Path) -> None:
+    checkout_root = Path(__file__).resolve().parents[1]
+    launcher = _bootstrap_launcher(checkout_root)
+    repo = tmp_path / "repo"
+    _git_init_repo(repo)
+    env = dict(os.environ)
+    proc = _run(launcher + ["--profile", "solo", "--repo-root", str(repo)], cwd=repo, env=env)
+    assert proc.returncode != 0

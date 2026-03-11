@@ -61,35 +61,43 @@ set "PATH=%USERPROFILE%\.config\opencode\bin;%PATH%"
 
 ### Run bootstrap
 
-After PATH is set (or using the full path), run:
+After PATH is set (or using the full path), run the canonical setup command:
 
 ```bash
 # macOS / Linux
-opencode-governance-bootstrap --repo-root /path/to/repo
+opencode-governance-bootstrap init --profile solo --repo-root /path/to/repo
 ```
 
 ```powershell
 # Windows (PowerShell)
-opencode-governance-bootstrap --repo-root C:\path\to\repo
+opencode-governance-bootstrap init --profile solo --repo-root C:\path\to\repo
 ```
 
 ```cmd
 :: Windows (cmd.exe)
-opencode-governance-bootstrap.cmd --repo-root C:\path\to\repo
+opencode-governance-bootstrap.cmd init --profile solo --repo-root C:\path\to\repo
+```
+
+Profiles: `solo`, `team`, `regulated`.
+
+Optional administrative alias (same behavior):
+
+```bash
+opencode-governance-bootstrap --set-operating-mode solo --repo-root /path/to/repo
 ```
 
 **Without PATH — invoke by full path:**
 
 ```bash
-~/.config/opencode/bin/opencode-governance-bootstrap --repo-root /path/to/repo
+~/.config/opencode/bin/opencode-governance-bootstrap init --profile solo --repo-root /path/to/repo
 ```
 
 ```powershell
-& "$env:USERPROFILE\.config\opencode\bin\opencode-governance-bootstrap.cmd" --repo-root C:\path\to\repo
+& "$env:USERPROFILE\.config\opencode\bin\opencode-governance-bootstrap.cmd" init --profile solo --repo-root C:\path\to\repo
 ```
 
 ```cmd
-"%USERPROFILE%\.config\opencode\bin\opencode-governance-bootstrap.cmd" --repo-root C:\path\to\repo
+"%USERPROFILE%\.config\opencode\bin\opencode-governance-bootstrap.cmd" init --profile solo --repo-root C:\path\to\repo
 ```
 
 ### Continue in OpenCode

@@ -65,17 +65,25 @@ set "PATH=%USERPROFILE%\.config\opencode\bin;%PATH%"
 
 ```bash
 # macOS / Linux
-opencode-governance-bootstrap --repo-root /path/to/repo
+opencode-governance-bootstrap init --profile solo --repo-root /path/to/repo
 ```
 
 ```powershell
 # Windows (PowerShell)
-opencode-governance-bootstrap --repo-root C:\path\to\repo
+opencode-governance-bootstrap init --profile solo --repo-root C:\path\to\repo
 ```
 
 ```cmd
 :: Windows (cmd.exe)
-opencode-governance-bootstrap.cmd --repo-root C:\path\to\repo
+opencode-governance-bootstrap.cmd init --profile solo --repo-root C:\path\to\repo
+```
+
+Profiles: `solo`, `team`, `regulated`.
+
+Optional alias (administrative surface, same semantics):
+
+```bash
+opencode-governance-bootstrap --set-operating-mode solo --repo-root /path/to/repo
 ```
 
 Use `--verbose` for step-by-step bootstrap output.
