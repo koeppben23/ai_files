@@ -76,8 +76,10 @@ class TestAuditContractConstants:
                     "outcome-record.json", "evidence-index.json", "checksums.json"}
         assert REQUIRED_ARCHIVE_FILES == frozenset(expected)
 
-    def test_optional_files_are_plan_and_pr(self) -> None:
-        assert OPTIONAL_ARCHIVE_FILES == frozenset({"plan-record.json", "pr-record.json"})
+    def test_optional_files_are_plan_pr_and_finalization(self) -> None:
+        assert OPTIONAL_ARCHIVE_FILES == frozenset(
+            {"plan-record.json", "pr-record.json", "finalization-record.json"}
+        )
 
     def test_allowed_is_union_of_required_and_optional(self) -> None:
         assert ALLOWED_ARCHIVE_FILES == REQUIRED_ARCHIVE_FILES | OPTIONAL_ARCHIVE_FILES

@@ -18,6 +18,7 @@ import pytest
 
 from governance.infrastructure.io_verify import verify_run_archive
 from governance.infrastructure.work_run_archive import archive_active_run
+from governance.infrastructure.workspace_paths import run_dir
 from governance.domain.audit_contract import (
     validate_repo_fingerprint,
     validate_timestamp,
@@ -50,7 +51,7 @@ def _archive_minimal_run(tmp_path: Path, run_id: str = "run-sec-1") -> Path:
         session_state_document={"SESSION_STATE": state},
         state_view=state,
     )
-    return workspaces_home / "governance-records" / _FINGERPRINT / "runs" / run_id
+    return run_dir(workspaces_home, _FINGERPRINT, run_id)
 
 
 # ---------------------------------------------------------------------------
