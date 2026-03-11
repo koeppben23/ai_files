@@ -238,13 +238,15 @@ def verify_run_archive(run_root: Path) -> Tuple[bool, Dict[str, bool], Optional[
             return False, results, artifact_error
 
     optional_pr_record = run_root / "pr-record.json"
+    pr_payload: Optional[dict] = None
     if optional_pr_record.is_file():
         try:
-            pr_payload = json.loads(optional_pr_record.read_text(encoding="utf-8"))
+            parsed_pr_payload = json.loads(optional_pr_record.read_text(encoding="utf-8"))
         except Exception as exc:
             return False, results, f"Failed to parse pr-record.json: {exc}"
-        if not isinstance(pr_payload, dict):
+        if not isinstance(parsed_pr_payload, dict):
             return False, results, "Invalid pr-record.json payload"
+        pr_payload = parsed_pr_payload
         pr_error = _verify_common_artifact_header(
             pr_payload,
             expected_schema="governance.pr-record.v1",
@@ -568,6 +570,16 @@ def verify_run_archive(run_root: Path) -> Tuple[bool, Dict[str, bool], Optional[
         actual_bundle_hash = str(finalization_payload.get("bundle_manifest_hash") or "").strip()
         if actual_bundle_hash != expected_bundle_hash:
             return False, results, "finalization-record bundle_manifest_hash mismatch"
+        metadata_finalization_reason = str(metadata.get("finalization_reason") or "").strip()
+        record_finalization_reason = str(finalization_payload.get("finalization_reason") or "").strip()
+        if metadata_finalization_reason != record_finalization_reason:
+            return False, results, "finalization-record finalization_reason mismatch"
+
+    if run_type == "pr" and pr_payload is not None and run_status == "finalized":
+        requires_human_approval = bool(pr_payload.get("requires_human_approval"))
+        approval_status = str(pr_payload.get("approval_status") or "").strip().lower()
+        if requires_human_approval and approval_status != "approved":
+            return False, results, "finalized pr-record requires approval_status=approved when human approval is required"
 
     return True, results, None
 

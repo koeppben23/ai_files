@@ -886,6 +886,94 @@ def test_verify_rejects_finalization_record_with_bundle_hash_mismatch(tmp_path: 
     assert "bundle_manifest_hash mismatch" in message
 
 
+def test_verify_rejects_finalization_record_reason_mismatch(tmp_path: Path) -> None:
+    workspaces_home = tmp_path / "workspaces"
+    fingerprint = "abc123def456abc123def456"
+    state = {
+        "session_run_id": "run-finalization-reason-mismatch",
+        "Phase": "6-PostFlight",
+        "active_gate": "Evidence Presentation Gate",
+        "Next": "6",
+    }
+
+    archive_active_run(
+        workspaces_home=workspaces_home,
+        repo_fingerprint=fingerprint,
+        run_id="run-finalization-reason-mismatch",
+        observed_at="2026-03-11T13:57:00Z",
+        session_state_document={"SESSION_STATE": state},
+        state_view=state,
+    )
+
+    run_root = _run_root(workspaces_home, fingerprint, "run-finalization-reason-mismatch")
+    payload = json.loads((run_root / "finalization-record.json").read_text(encoding="utf-8"))
+    payload["finalization_reason"] = "tampered-reason"
+    (run_root / "finalization-record.json").write_text(json.dumps(payload, ensure_ascii=True), encoding="utf-8")
+    _recompute_checksums(run_root)
+
+    ok, _, message = verify_run_archive(run_root)
+    assert ok is False
+    assert isinstance(message, str)
+    assert "finalization_reason mismatch" in message
+
+
+def test_verify_rejects_finalized_pr_record_pending_approval(tmp_path: Path) -> None:
+    workspaces_home = tmp_path / "workspaces"
+    fingerprint = "abc123def456abc123def456"
+    state = {
+        "session_run_id": "run-pr-approval-mismatch",
+        "Phase": "6-PostFlight",
+        "active_gate": "Evidence Presentation Gate",
+        "Next": "6",
+        "PullRequestTitle": "feat: approval invariant",
+        "PullRequestBody": "body",
+        "requires_human_approval": True,
+        "approval_status": "approved",
+        "regulated_mode_state": "active",
+        "role": "operator",
+        "approver_role": "approver",
+    }
+
+    archive_active_run(
+        workspaces_home=workspaces_home,
+        repo_fingerprint=fingerprint,
+        run_id="run-pr-approval-mismatch",
+        observed_at="2026-03-11T13:58:00Z",
+        session_state_document={"SESSION_STATE": state},
+        state_view=state,
+    )
+
+    run_root = _run_root(workspaces_home, fingerprint, "run-pr-approval-mismatch")
+    pr_payload = json.loads((run_root / "pr-record.json").read_text(encoding="utf-8"))
+    pr_payload["approval_status"] = "pending"
+    (run_root / "pr-record.json").write_text(json.dumps(pr_payload, ensure_ascii=True), encoding="utf-8")
+    _recompute_checksums(run_root)
+
+    manifest = json.loads((run_root / "run-manifest.json").read_text(encoding="utf-8"))
+    checksums = json.loads((run_root / "checksums.json").read_text(encoding="utf-8"))
+    files = checksums.get("files")
+    assert isinstance(files, dict)
+    checksums_without_finalization = {k: v for k, v in files.items() if k != "finalization-record.json"}
+    expected_bundle_payload = {
+        "run_id": "run-pr-approval-mismatch",
+        "manifest": manifest,
+        "checksums": checksums_without_finalization,
+    }
+    raw = json.dumps(expected_bundle_payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+    finalization_payload = json.loads((run_root / "finalization-record.json").read_text(encoding="utf-8"))
+    finalization_payload["bundle_manifest_hash"] = "sha256:" + hashlib.sha256(raw.encode("utf-8")).hexdigest()
+    (run_root / "finalization-record.json").write_text(
+        json.dumps(finalization_payload, ensure_ascii=True),
+        encoding="utf-8",
+    )
+    _recompute_checksums(run_root)
+
+    ok, _, message = verify_run_archive(run_root)
+    assert ok is False
+    assert isinstance(message, str)
+    assert "requires approval_status=approved" in message
+
+
 def test_verify_rejects_required_artifact_baseline_false(tmp_path: Path) -> None:
     workspaces_home = tmp_path / "workspaces"
     fingerprint = "abc123def456abc123def456"
