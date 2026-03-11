@@ -9,8 +9,9 @@ Launcher-first operator/model flow for starting and continuing governed OpenCode
 ### Lifecycle
 
 1. Bootstrap workspace context:
-   - macOS/Linux: `opencode-governance-bootstrap --repo-root <repo-root>`
-   - Windows: `opencode-governance-bootstrap.cmd --repo-root <repo-root>`
+   - macOS/Linux: `opencode-governance-bootstrap init --profile <solo|team|regulated> --repo-root <repo-root>`
+   - Windows: `opencode-governance-bootstrap.cmd init --profile <solo|team|regulated> --repo-root <repo-root>`
+   - optional alias (same semantics): `--set-operating-mode <solo|team|regulated>`
 2. Open OpenCode Desktop in the same repository.
 3. Run `/continue`.
 4. If `/continue` lands at Phase 4, run `/ticket`, then `/plan`.
