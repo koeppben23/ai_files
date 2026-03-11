@@ -116,6 +116,19 @@ class TestRedactDocumentHappy:
         # INTERNAL > PUBLIC → redacted
         assert result["repo_fingerprint"] != "abc"
 
+    def test_pii_session_state_fields_are_redacted_below_restricted(self):
+        doc = {
+            "PullRequestTitle": "Customer Account Migration",
+            "PullRequestBody": "Contains customer identifiers and rollout details",
+        }
+        result = redact_document(
+            "SESSION_STATE.json",
+            doc,
+            max_level=ClassificationLevel.INTERNAL,
+        )
+        assert result["PullRequestTitle"] != doc["PullRequestTitle"]
+        assert result["PullRequestBody"] == "[REMOVED]"
+
 
 # ===================================================================
 # Happy path — redact_archive
