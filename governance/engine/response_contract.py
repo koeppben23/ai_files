@@ -23,6 +23,7 @@ from typing import Literal, cast
 from governance.engine.canonical_json import canonical_json_hash, canonical_json_text
 from governance.engine.phase_next_action_contract import validate_phase_next_action_contract
 from governance.domain.phase_state_machine import normalize_phase_token, phase_requires_ticket_input, resolve_phase_output_policy
+from governance.domain.operating_profile import derive_mode_evidence
 from governance.application.use_cases.target_path_helpers import classify_output_class
 
 logger = logging.getLogger(__name__)
@@ -136,30 +137,25 @@ def build_session_snapshot(
         else 0
     )
 
-    effective_mode = _extract_session_value(
-        session_state,
-        "effective_operating_mode",
-        "Mode",
-        default="unknown",
-    ).lower()
-
-    resolved_mode = _extract_session_value(
-        session_state,
-        "resolved_operating_mode",
-        default="",
-    ).lower()
-    if not resolved_mode:
-        resolved_mode = {
-            "user": "solo",
-            "pipeline": "team",
-            "agents_strict": "regulated",
-            "system": "team",
-        }.get(effective_mode, "solo")
+    effective_mode, resolved_mode, _ = derive_mode_evidence(
+        effective_operating_mode=_extract_session_value(
+            session_state,
+            "effective_operating_mode",
+            "Mode",
+            default="unknown",
+        ),
+        resolved_operating_mode=_extract_session_value(
+            session_state,
+            "resolved_operating_mode",
+            default="",
+        ),
+        verify_policy_version=None,
+    )
 
     snapshot = {
         "phase": _extract_session_value(session_state, "phase", "Phase", default="unknown"),
         "effective_operating_mode": effective_mode,
-        "resolved_operating_mode": resolved_mode,
+        "resolved_operating_mode": str(resolved_mode),
         "active_gate.status": _normalize_status(status),
         "active_gate.decision_outcome": _decision_outcome_for_status(status),
         "active_gate.reason_code": reason_code,

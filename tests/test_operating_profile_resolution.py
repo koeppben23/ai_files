@@ -10,6 +10,7 @@ from governance.domain.operating_profile import (
     PROFILE_FLOOR_VIOLATION,
     UNTRUSTED_ENFORCEMENT_SOURCE,
     OperatingProfileError,
+    derive_mode_evidence,
     runtime_mode_to_operating_profile,
     resolve_operating_profile,
 )
@@ -121,3 +122,27 @@ def test_runtime_mode_to_operating_profile_mapping_is_canonical():
     assert runtime_mode_to_operating_profile("user") == "solo"
     assert runtime_mode_to_operating_profile("pipeline") == "team"
     assert runtime_mode_to_operating_profile("agents_strict") == "regulated"
+
+
+@pytest.mark.governance
+def test_derive_mode_evidence_normalizes_and_defaults():
+    effective, resolved, verify = derive_mode_evidence(
+        effective_operating_mode="pipeline",
+        resolved_operating_mode="",
+        verify_policy_version="",
+    )
+    assert effective == "pipeline"
+    assert resolved == "team"
+    assert verify == "v1"
+
+
+@pytest.mark.governance
+def test_derive_mode_evidence_canonicalizes_explicit_resolved_alias():
+    effective, resolved, verify = derive_mode_evidence(
+        effective_operating_mode="unknown",
+        resolved_operating_mode="agents_strict",
+        verify_policy_version="v3",
+    )
+    assert effective == "unknown"
+    assert resolved == "regulated"
+    assert verify == "v3"

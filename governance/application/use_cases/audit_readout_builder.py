@@ -10,7 +10,7 @@ from typing import Any, Dict, Mapping, Optional, Tuple
 
 from governance.domain.audit_readout_contract import validate_audit_readout_v1
 from governance.domain.canonical_json import canonical_json_hash
-from governance.domain.operating_profile import runtime_mode_to_operating_profile
+from governance.domain.operating_profile import derive_mode_evidence
 
 POINTER_SCHEMA = "opencode-session-pointer.v1"
 _LEGACY_POINTER_SCHEMA = "active-session-pointer.v1"
@@ -52,12 +52,12 @@ def _state_text(state: Mapping[str, object], *keys: str) -> str:
 
 
 def _extract_mode_fields(state: Mapping[str, object]) -> tuple[str, str, str]:
-    effective = _state_text(state, "effective_operating_mode", "operating_mode").lower() or "unknown"
-    resolved = _state_text(state, "resolved_operating_mode", "resolvedOperatingMode").lower()
-    if not resolved:
-        resolved = runtime_mode_to_operating_profile(effective)
-    verify_policy_version = _state_text(state, "verify_policy_version", "verifyPolicyVersion") or "v1"
-    return effective, resolved, verify_policy_version
+    effective, resolved, verify_policy_version = derive_mode_evidence(
+        effective_operating_mode=_state_text(state, "effective_operating_mode", "operating_mode"),
+        resolved_operating_mode=_state_text(state, "resolved_operating_mode", "resolvedOperatingMode"),
+        verify_policy_version=_state_text(state, "verify_policy_version", "verifyPolicyVersion"),
+    )
+    return effective, str(resolved), verify_policy_version
 
 
 def _as_rfc3339_z(dt: datetime) -> str:
