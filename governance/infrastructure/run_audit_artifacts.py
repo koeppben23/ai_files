@@ -258,6 +258,10 @@ def build_provenance_record(
     repository_state_digest: str,
 ) -> dict[str, object]:
     session_id = str(state_view.get("session_run_id") or run_id)
+    model_context_raw = state_view.get("model_context")
+    model_context = model_context_raw if isinstance(model_context_raw, dict) else {}
+    approval_context_raw = state_view.get("approval_context")
+    approval_context = approval_context_raw if isinstance(approval_context_raw, dict) else {}
     payload = {
         "trigger": "new_work_session_created",
         "trigger_type": "new_work_session_created",
@@ -274,8 +278,8 @@ def build_provenance_record(
         "started_at": str(state_view.get("started_at") or observed_at),
         "ended_at": observed_at,
         "result": str(state_view.get("result") or "success"),
-        "model_context": str(state_view.get("model_context") or ""),
-        "approval_context": str(state_view.get("approval_context") or ""),
+        "model_context": model_context,
+        "approval_context": approval_context,
         "ci_job_ref": str(state_view.get("ci_job_ref") or ""),
         "correlation_id": str(state_view.get("correlation_id") or run_id),
         "policy_fingerprint": str(state_view.get("spec_hash") or state_view.get("SpecHash") or ""),
