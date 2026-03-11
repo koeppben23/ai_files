@@ -83,7 +83,7 @@ from governance.application.policies.persistence_policy import (
 )
 from governance.application.use_cases.phase_router import route_phase
 from governance.application.use_cases.resolve_operating_mode import (
-    resolve_effective_operating_mode,
+    resolve_operating_mode_result,
     has_required_mode_capabilities,
 )
 from governance.application.use_cases.resolve_output_intent import (
@@ -113,9 +113,6 @@ from governance.application.use_cases.build_reason_context import (
     build_reason_context,
     build_orchestrator_reason_payload,
 )
-from governance.domain.operating_profile import runtime_mode_to_operating_profile
-
-
 @dataclass(frozen=True)
 class EngineOrchestratorOutput:
     """Deterministic output payload for one orchestrated engine run."""
@@ -126,6 +123,7 @@ class EngineOrchestratorOutput:
     parity: dict[str, str]
     effective_operating_mode: OperatingMode
     resolved_operating_mode: str
+    operating_mode_resolution: dict[str, object]
     capabilities_hash: str
     mode_downgraded: bool
     pack_lock_checked: bool
@@ -214,9 +212,10 @@ def run_engine_orchestrator(
 
     caps = adapter.capabilities()
     capabilities_hash = caps.stable_hash()
-    requested_mode = resolve_effective_operating_mode(adapter, requested_operating_mode)
+    mode_resolution = resolve_operating_mode_result(adapter, requested_operating_mode)
+    requested_mode = mode_resolution.effective_operating_mode
     effective_mode = requested_mode
-    resolved_operating_mode = runtime_mode_to_operating_profile(effective_mode)
+    resolved_operating_mode = mode_resolution.resolved_operating_mode
     state_root = session_state_root(session_state_document)
     verify_policy_version = str(
         state_root.get("verifyPolicyVersion")
@@ -230,6 +229,9 @@ def run_engine_orchestrator(
 
     gate_blocked = False
     gate_reason_code = REASON_CODE_NONE
+    if mode_resolution.resolution_state == "blocked":
+        gate_blocked = True
+        gate_reason_code = str(mode_resolution.error_code or BLOCKED_OPERATING_MODE_REQUIRED)
     if requested_mode != "user" and not has_required_mode_capabilities(requested_mode, caps):
         gate_blocked = True
         gate_reason_code = BLOCKED_OPERATING_MODE_REQUIRED
@@ -305,6 +307,8 @@ def run_engine_orchestrator(
         effective_operating_mode=effective_mode,
         resolved_operating_mode=resolved_operating_mode,
         verify_policy_version=verify_policy_version,
+        operating_mode_resolution=mode_resolution.as_dict(),
+        break_glass=mode_resolution.break_glass,
     )
 
     phase = routed_phase.phase
@@ -801,6 +805,7 @@ def run_engine_orchestrator(
         parity=parity,
         effective_operating_mode=effective_mode,
         resolved_operating_mode=resolved_operating_mode,
+        operating_mode_resolution=mode_resolution.as_dict(),
         capabilities_hash=capabilities_hash,
         mode_downgraded=mode_downgraded,
         pack_lock_checked=pack_lock_checked,

@@ -301,6 +301,17 @@ def verify_run_archive(run_root: Path) -> Tuple[bool, Dict[str, bool], Optional[
     manifest_verify_policy_version = str(manifest.get("verifyPolicyVersion") or "").strip()
     if not re.fullmatch(r"v[0-9]+", manifest_verify_policy_version):
         return False, results, f"Invalid run-manifest verifyPolicyVersion: {manifest_verify_policy_version}"
+    manifest_resolution = manifest.get("operatingModeResolution")
+    if not isinstance(manifest_resolution, dict):
+        return False, results, "run-manifest missing operatingModeResolution"
+    manifest_break_glass = manifest.get("breakGlass")
+    if not isinstance(manifest_break_glass, dict):
+        return False, results, "run-manifest missing breakGlass"
+    if manifest_break_glass:
+        for required_key in ("actor", "timestamp", "reason_code", "rationale", "scope", "expires_at"):
+            value = str(manifest_break_glass.get(required_key) or "").strip()
+            if not value:
+                return False, results, f"run-manifest breakGlass missing {required_key}"
     results["resolvedOperatingMode"] = True
     results["verifyPolicyVersion"] = True
 
@@ -327,6 +338,12 @@ def verify_run_archive(run_root: Path) -> Tuple[bool, Dict[str, bool], Optional[
         return False, results, "resolvedOperatingMode mismatch between run-manifest and SESSION_STATE"
     if session_verify_policy_version != manifest_verify_policy_version:
         return False, results, "verifyPolicyVersion mismatch between run-manifest and SESSION_STATE"
+    session_mode_resolution = session_state.get("operatingModeResolution") or session_state.get("operating_mode_resolution") or {}
+    if isinstance(session_mode_resolution, dict):
+        session_state_resolution_state = str(session_mode_resolution.get("resolutionState") or "").strip()
+        manifest_resolution_state = str(manifest_resolution.get("resolutionState") or "").strip()
+        if manifest_resolution_state and session_state_resolution_state and session_state_resolution_state != manifest_resolution_state:
+            return False, results, "operatingModeResolution.resolutionState mismatch"
 
     if run_status == "finalized":
         if integrity_status != "passed":
@@ -606,6 +623,14 @@ def verify_run_archive(run_root: Path) -> Tuple[bool, Dict[str, bool], Optional[
         finalization_verify_policy_version = str(finalization_payload.get("verifyPolicyVersion") or "").strip()
         if finalization_verify_policy_version != manifest_verify_policy_version:
             return False, results, "finalization-record verifyPolicyVersion mismatch"
+        finalization_resolution = finalization_payload.get("operatingModeResolution")
+        if not isinstance(finalization_resolution, dict):
+            return False, results, "finalization-record missing operatingModeResolution"
+        finalization_break_glass = finalization_payload.get("breakGlass")
+        if not isinstance(finalization_break_glass, dict):
+            return False, results, "finalization-record missing breakGlass"
+        if finalization_break_glass != manifest_break_glass:
+            return False, results, "finalization-record breakGlass mismatch"
         checksums_without_finalization = {
             key: value
             for key, value in files.items()
