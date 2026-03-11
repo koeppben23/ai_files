@@ -301,6 +301,8 @@ def verify_run_archive(run_root: Path) -> Tuple[bool, Dict[str, bool], Optional[
     manifest_verify_policy_version = str(manifest.get("verifyPolicyVersion") or "").strip()
     if not re.fullmatch(r"v[0-9]+", manifest_verify_policy_version):
         return False, results, f"Invalid run-manifest verifyPolicyVersion: {manifest_verify_policy_version}"
+    results["resolvedOperatingMode"] = True
+    results["verifyPolicyVersion"] = True
 
     session_state_root = session_state_document.get("SESSION_STATE")
     session_state = session_state_root if isinstance(session_state_root, dict) else session_state_document
@@ -598,6 +600,12 @@ def verify_run_archive(run_root: Path) -> Tuple[bool, Dict[str, bool], Optional[
         finalization_integrity_status = str(finalization_payload.get("manifest_integrity_status") or "").strip()
         if finalization_integrity_status != integrity_status:
             return False, results, "finalization-record manifest_integrity_status mismatch"
+        finalization_resolved_mode = str(finalization_payload.get("resolvedOperatingMode") or "").strip().lower()
+        if finalization_resolved_mode != manifest_resolved_mode:
+            return False, results, "finalization-record resolvedOperatingMode mismatch"
+        finalization_verify_policy_version = str(finalization_payload.get("verifyPolicyVersion") or "").strip()
+        if finalization_verify_policy_version != manifest_verify_policy_version:
+            return False, results, "finalization-record verifyPolicyVersion mismatch"
         checksums_without_finalization = {
             key: value
             for key, value in files.items()
