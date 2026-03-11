@@ -2,14 +2,11 @@
 from __future__ import annotations
 
 import argparse
-import json
 import os
 from pathlib import Path
 import subprocess
 import sys
-from datetime import datetime, timezone
-
-from governance.application.repo_identity_service import derive_repo_identity
+from governance.application.use_cases.repo_policy_setup import write_repo_operating_mode_policy
 
 try:
     from governance.infrastructure.path_contract import normalize_absolute_path
@@ -47,37 +44,6 @@ def _validate_config_root(raw: str) -> Path:
     if not config_root.exists() or not config_root.is_dir():
         raise ValueError("config_root: path does not exist or is not a directory")
     return config_root
-
-
-def _write_repo_operating_mode_policy(*, repo_root: Path, profile: str) -> Path:
-    profile_token = str(profile or "").strip().lower()
-    if profile_token not in {"solo", "team", "regulated"}:
-        raise ValueError("profile must be one of: solo, team, regulated")
-
-    policy_path = repo_root / ".opencode" / "governance-repo-policy.json"
-    policy_path.parent.mkdir(parents=True, exist_ok=True)
-
-    existing_created_at = ""
-    if policy_path.exists() and policy_path.is_file():
-        try:
-            existing_payload = json.loads(policy_path.read_text(encoding="utf-8"))
-        except Exception as exc:  # pragma: no cover - defensive parse guard
-            raise ValueError(f"existing repo policy is invalid JSON: {exc}") from exc
-        if isinstance(existing_payload, dict):
-            existing_created_at = str(existing_payload.get("createdAt") or "").strip()
-
-    identity = derive_repo_identity(repo_root, canonical_remote=None, git_dir=None)
-    created_at = existing_created_at or datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
-
-    payload = {
-        "schema": "opencode-governance-repo-policy.v1",
-        "repoFingerprint": str(identity.fingerprint or ""),
-        "operatingMode": profile_token,
-        "source": "bootstrap-cli-init",
-        "createdAt": created_at,
-    }
-    policy_path.write_text(json.dumps(payload, ensure_ascii=True, sort_keys=True, indent=2) + "\n", encoding="utf-8")
-    return policy_path
 
 
 def main() -> int:
@@ -123,7 +89,7 @@ def main() -> int:
 
     if selected_profile is not None:
         try:
-            policy_path = _write_repo_operating_mode_policy(repo_root=repo_root, profile=selected_profile)
+            policy_path = write_repo_operating_mode_policy(repo_root=repo_root, profile=selected_profile)
         except Exception as exc:
             print(f"failed to set repo operating mode: {exc}", file=sys.stderr)
             return 2
