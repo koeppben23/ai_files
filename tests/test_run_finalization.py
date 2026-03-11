@@ -27,6 +27,8 @@ def test_run_manifest_contains_lifecycle_fields(tmp_path: Path) -> None:
     assert manifest["record_status"] == "finalized"
     assert manifest["finalized_at"] == "2026-03-10T10:10:00Z"
     assert manifest["integrity_status"] == "passed"
+    assert manifest["resolvedOperatingMode"] == "solo"
+    assert manifest["verifyPolicyVersion"] == "v1"
 
 
 def test_regulated_mode_blocks_pr_finalization_without_approval(tmp_path: Path) -> None:

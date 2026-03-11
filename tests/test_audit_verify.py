@@ -50,6 +50,7 @@ def test_verify_detects_tamper_and_incomplete_runs(tmp_path: Path) -> None:
     )
 
     run_root = _run_root(workspaces_home, fingerprint, "run-verify")
+    original_session_state = (run_root / "SESSION_STATE.json").read_text(encoding="utf-8")
     ok, _, message = verify_run_archive(run_root)
     assert ok is True
     assert message is None
@@ -60,7 +61,7 @@ def test_verify_detects_tamper_and_incomplete_runs(tmp_path: Path) -> None:
     assert isinstance(message, str)
     assert "Checksum mismatch" in message
 
-    (run_root / "SESSION_STATE.json").write_text(json.dumps({"SESSION_STATE": state}, ensure_ascii=True), encoding="utf-8")
+    (run_root / "SESSION_STATE.json").write_text(original_session_state, encoding="utf-8")
 
     manifest = json.loads((run_root / "run-manifest.json").read_text(encoding="utf-8"))
     manifest["run_status"] = "finalized"
@@ -1030,3 +1031,67 @@ def test_verify_rejects_archived_files_baseline_false(tmp_path: Path) -> None:
     assert ok is False
     assert isinstance(message, str)
     assert "archived_files.checksums must be true" in message
+
+
+def test_verify_rejects_manifest_resolved_operating_mode_mismatch(tmp_path: Path) -> None:
+    workspaces_home = tmp_path / "workspaces"
+    fingerprint = "abc123def456abc123def456"
+    state = {
+        "session_run_id": "run-resolved-mode-mismatch",
+        "Phase": "6-PostFlight",
+        "active_gate": "Post Flight",
+        "Next": "6",
+        "resolvedOperatingMode": "solo",
+    }
+
+    archive_active_run(
+        workspaces_home=workspaces_home,
+        repo_fingerprint=fingerprint,
+        run_id="run-resolved-mode-mismatch",
+        observed_at="2026-03-11T14:20:00Z",
+        session_state_document={"SESSION_STATE": state},
+        state_view=state,
+    )
+
+    run_root = _run_root(workspaces_home, fingerprint, "run-resolved-mode-mismatch")
+    manifest = json.loads((run_root / "run-manifest.json").read_text(encoding="utf-8"))
+    manifest["resolvedOperatingMode"] = "team"
+    (run_root / "run-manifest.json").write_text(json.dumps(manifest, ensure_ascii=True), encoding="utf-8")
+    _recompute_checksums(run_root)
+
+    ok, _, message = verify_run_archive(run_root)
+    assert ok is False
+    assert isinstance(message, str)
+    assert "resolvedOperatingMode mismatch" in message
+
+
+def test_verify_rejects_manifest_verify_policy_version_mismatch(tmp_path: Path) -> None:
+    workspaces_home = tmp_path / "workspaces"
+    fingerprint = "abc123def456abc123def456"
+    state = {
+        "session_run_id": "run-verify-policy-mismatch",
+        "Phase": "6-PostFlight",
+        "active_gate": "Post Flight",
+        "Next": "6",
+        "verifyPolicyVersion": "v1",
+    }
+
+    archive_active_run(
+        workspaces_home=workspaces_home,
+        repo_fingerprint=fingerprint,
+        run_id="run-verify-policy-mismatch",
+        observed_at="2026-03-11T14:21:00Z",
+        session_state_document={"SESSION_STATE": state},
+        state_view=state,
+    )
+
+    run_root = _run_root(workspaces_home, fingerprint, "run-verify-policy-mismatch")
+    manifest = json.loads((run_root / "run-manifest.json").read_text(encoding="utf-8"))
+    manifest["verifyPolicyVersion"] = "v2"
+    (run_root / "run-manifest.json").write_text(json.dumps(manifest, ensure_ascii=True), encoding="utf-8")
+    _recompute_checksums(run_root)
+
+    ok, _, message = verify_run_archive(run_root)
+    assert ok is False
+    assert isinstance(message, str)
+    assert "verifyPolicyVersion mismatch" in message
