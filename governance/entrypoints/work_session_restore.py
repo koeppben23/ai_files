@@ -14,7 +14,7 @@ if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).absolute().parents[2]))
 
 from governance.domain.canonical_json import canonical_json_hash
-from governance.domain.operating_profile import runtime_mode_to_operating_profile
+from governance.domain.operating_profile import derive_mode_evidence
 from governance.infrastructure.binding_evidence_resolver import BindingEvidenceResolver
 from governance.infrastructure.current_run_pointer import read_active_run_id, write_current_run_pointer
 from governance.infrastructure.fs_atomic import atomic_write_text
@@ -88,12 +88,12 @@ def _payload(status: str, **kwargs: object) -> dict[str, object]:
 
 
 def _extract_mode_fields(state: Mapping[str, object]) -> tuple[str, str, str]:
-    effective = str(state.get("effective_operating_mode") or state.get("operating_mode") or "unknown").strip().lower() or "unknown"
-    resolved = str(state.get("resolved_operating_mode") or state.get("resolvedOperatingMode") or "").strip().lower()
-    if not resolved:
-        resolved = runtime_mode_to_operating_profile(effective)
-    verify_policy = str(state.get("verify_policy_version") or state.get("verifyPolicyVersion") or "v1").strip() or "v1"
-    return effective, resolved, verify_policy
+    effective, resolved, verify_policy = derive_mode_evidence(
+        effective_operating_mode=str(state.get("effective_operating_mode") or state.get("operating_mode") or "unknown"),
+        resolved_operating_mode=str(state.get("resolved_operating_mode") or state.get("resolvedOperatingMode") or ""),
+        verify_policy_version=str(state.get("verify_policy_version") or state.get("verifyPolicyVersion") or "v1"),
+    )
+    return effective, str(resolved), verify_policy
 
 
 def _read_run_archive(*, run_root: Path) -> tuple[dict[str, object], dict[str, object] | None, Path, str]:

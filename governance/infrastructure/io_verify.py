@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Dict, Mapping, Optional, Tuple
 
 from governance.domain.canonical_json import canonical_json_hash
-from governance.domain.operating_profile import runtime_mode_to_operating_profile
+from governance.domain.operating_profile import derive_mode_evidence
 
 
 _RFC3339_UTC_Z_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
@@ -304,26 +304,25 @@ def verify_run_archive(run_root: Path) -> Tuple[bool, Dict[str, bool], Optional[
 
     session_state_root = session_state_document.get("SESSION_STATE")
     session_state = session_state_root if isinstance(session_state_root, dict) else session_state_document
-    session_resolved_mode = str(
-        session_state.get("resolvedOperatingMode")
-        or session_state.get("resolved_operating_mode")
-        or ""
-    ).strip().lower()
-    if not session_resolved_mode:
-        fallback_runtime_mode = str(
+    _, session_resolved_mode, session_verify_policy_version = derive_mode_evidence(
+        effective_operating_mode=str(
             session_state.get("effective_operating_mode")
             or session_state.get("operating_mode")
             or "user"
-        ).strip().lower()
-        session_resolved_mode = runtime_mode_to_operating_profile(fallback_runtime_mode)
-    if session_resolved_mode != manifest_resolved_mode:
+        ),
+        resolved_operating_mode=str(
+            session_state.get("resolvedOperatingMode")
+            or session_state.get("resolved_operating_mode")
+            or ""
+        ),
+        verify_policy_version=str(
+            session_state.get("verifyPolicyVersion")
+            or session_state.get("verify_policy_version")
+            or "v1"
+        ),
+    )
+    if str(session_resolved_mode) != manifest_resolved_mode:
         return False, results, "resolvedOperatingMode mismatch between run-manifest and SESSION_STATE"
-
-    session_verify_policy_version = str(
-        session_state.get("verifyPolicyVersion")
-        or session_state.get("verify_policy_version")
-        or "v1"
-    ).strip() or "v1"
     if session_verify_policy_version != manifest_verify_policy_version:
         return False, results, "verifyPolicyVersion mismatch between run-manifest and SESSION_STATE"
 

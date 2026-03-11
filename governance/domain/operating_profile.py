@@ -89,6 +89,26 @@ def runtime_mode_to_operating_profile(mode: str) -> OperatingProfile:
     return _RUNTIME_MODE_TO_PROFILE.get(token, "solo")
 
 
+def derive_mode_evidence(
+    *,
+    effective_operating_mode: str | None,
+    resolved_operating_mode: str | None,
+    verify_policy_version: str | None,
+) -> tuple[str, OperatingProfile, str]:
+    effective = str(effective_operating_mode or "").strip().lower() or "unknown"
+
+    resolved_token = str(resolved_operating_mode or "").strip().lower()
+    if resolved_token:
+        normalized_resolved = normalize_operating_profile(resolved_token)
+        if normalized_resolved is None:
+            normalized_resolved = runtime_mode_to_operating_profile(resolved_token)
+    else:
+        normalized_resolved = runtime_mode_to_operating_profile(effective)
+
+    verify_policy = str(verify_policy_version or "").strip() or "v1"
+    return effective, normalized_resolved, verify_policy
+
+
 def max_operating_profile(*modes: OperatingProfile | None) -> OperatingProfile:
     present: list[OperatingProfile] = [m for m in modes if m is not None]
     if not present:
