@@ -1128,3 +1128,65 @@ def test_verify_rejects_finalization_record_mode_version_mismatch(tmp_path: Path
     assert ok is False
     assert isinstance(message, str)
     assert "finalization-record resolvedOperatingMode mismatch" in message
+
+
+def test_verify_rejects_finalization_record_verify_policy_mismatch(tmp_path: Path) -> None:
+    workspaces_home = tmp_path / "workspaces"
+    fingerprint = "abc123def456abc123def456"
+    state = {
+        "session_run_id": "run-finalization-verify-policy-mismatch",
+        "Phase": "6-PostFlight",
+        "active_gate": "Post Flight",
+        "Next": "6",
+        "resolvedOperatingMode": "solo",
+        "verifyPolicyVersion": "v1",
+    }
+
+    archive_active_run(
+        workspaces_home=workspaces_home,
+        repo_fingerprint=fingerprint,
+        run_id="run-finalization-verify-policy-mismatch",
+        observed_at="2026-03-11T14:23:00Z",
+        session_state_document={"SESSION_STATE": state},
+        state_view=state,
+    )
+
+    run_root = _run_root(workspaces_home, fingerprint, "run-finalization-verify-policy-mismatch")
+    payload = json.loads((run_root / "finalization-record.json").read_text(encoding="utf-8"))
+    payload["verifyPolicyVersion"] = "v2"
+    (run_root / "finalization-record.json").write_text(json.dumps(payload, ensure_ascii=True), encoding="utf-8")
+    _recompute_checksums(run_root)
+
+    ok, _, message = verify_run_archive(run_root)
+    assert ok is False
+    assert isinstance(message, str)
+    assert "finalization-record verifyPolicyVersion mismatch" in message
+
+
+def test_verify_reports_mode_and_verify_policy_checks(tmp_path: Path) -> None:
+    workspaces_home = tmp_path / "workspaces"
+    fingerprint = "abc123def456abc123def456"
+    state = {
+        "session_run_id": "run-verify-result-keys",
+        "Phase": "6-PostFlight",
+        "active_gate": "Post Flight",
+        "Next": "6",
+        "resolvedOperatingMode": "solo",
+        "verifyPolicyVersion": "v1",
+    }
+
+    archive_active_run(
+        workspaces_home=workspaces_home,
+        repo_fingerprint=fingerprint,
+        run_id="run-verify-result-keys",
+        observed_at="2026-03-11T14:24:00Z",
+        session_state_document={"SESSION_STATE": state},
+        state_view=state,
+    )
+
+    run_root = _run_root(workspaces_home, fingerprint, "run-verify-result-keys")
+    ok, results, message = verify_run_archive(run_root)
+    assert ok is True
+    assert message is None
+    assert results.get("resolvedOperatingMode") is True
+    assert results.get("verifyPolicyVersion") is True
