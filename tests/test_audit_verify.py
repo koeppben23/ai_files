@@ -1095,3 +1095,36 @@ def test_verify_rejects_manifest_verify_policy_version_mismatch(tmp_path: Path) 
     assert ok is False
     assert isinstance(message, str)
     assert "verifyPolicyVersion mismatch" in message
+
+
+def test_verify_rejects_finalization_record_mode_version_mismatch(tmp_path: Path) -> None:
+    workspaces_home = tmp_path / "workspaces"
+    fingerprint = "abc123def456abc123def456"
+    state = {
+        "session_run_id": "run-finalization-mode-version-mismatch",
+        "Phase": "6-PostFlight",
+        "active_gate": "Post Flight",
+        "Next": "6",
+        "resolvedOperatingMode": "solo",
+        "verifyPolicyVersion": "v1",
+    }
+
+    archive_active_run(
+        workspaces_home=workspaces_home,
+        repo_fingerprint=fingerprint,
+        run_id="run-finalization-mode-version-mismatch",
+        observed_at="2026-03-11T14:22:00Z",
+        session_state_document={"SESSION_STATE": state},
+        state_view=state,
+    )
+
+    run_root = _run_root(workspaces_home, fingerprint, "run-finalization-mode-version-mismatch")
+    payload = json.loads((run_root / "finalization-record.json").read_text(encoding="utf-8"))
+    payload["resolvedOperatingMode"] = "team"
+    (run_root / "finalization-record.json").write_text(json.dumps(payload, ensure_ascii=True), encoding="utf-8")
+    _recompute_checksums(run_root)
+
+    ok, _, message = verify_run_archive(run_root)
+    assert ok is False
+    assert isinstance(message, str)
+    assert "finalization-record resolvedOperatingMode mismatch" in message

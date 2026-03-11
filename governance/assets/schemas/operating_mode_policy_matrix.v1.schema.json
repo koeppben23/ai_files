@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "governance/assets/schemas/operating_mode_policy_matrix.v1.schema.json",
+  "title": "Operating Mode Policy Matrix v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["policy", "profiles"],
+  "properties": {
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "contract_version", "precedence_level", "pack_locked"],
+      "properties": {
+        "version": {"type": "string", "minLength": 1},
+        "contract_version": {"const": "OPERATING_MODE_POLICY_MATRIX.v1"},
+        "precedence_level": {"type": "string", "minLength": 1},
+        "pack_locked": {"const": true}
+      }
+    },
+    "profiles": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["solo", "team", "regulated"],
+      "properties": {
+        "solo": {"$ref": "#/$defs/ProfilePolicy"},
+        "team": {"$ref": "#/$defs/ProfilePolicy"},
+        "regulated": {"$ref": "#/$defs/ProfilePolicy"}
+      }
+    }
+  },
+  "$defs": {
+    "ProfilePolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "audit_depth",
+        "approval_context",
+        "evidence_completeness",
+        "classification_redaction",
+        "retention_restore_hold",
+        "verify_failure_semantics"
+      ],
+      "properties": {
+        "audit_depth": {"type": "string", "minLength": 1},
+        "approval_context": {"type": "string", "minLength": 1},
+        "evidence_completeness": {"type": "string", "minLength": 1},
+        "classification_redaction": {"type": "string", "minLength": 1},
+        "retention_restore_hold": {"type": "string", "minLength": 1},
+        "verify_failure_semantics": {"type": "string", "minLength": 1}
+      }
+    }
+  }
+}
