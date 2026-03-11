@@ -719,6 +719,8 @@ class TestGovernancePipelineCorner:
 
         assert result.governance_passed is False
         assert "failure_report" in summary
+        assert "suggested_recovery_strategy" in summary
+        assert str(summary.get("recovery_resume_token", "")).startswith(f"resume::{_RUN_ID}::")
 
 
 class TestGovernanceExportCorner:

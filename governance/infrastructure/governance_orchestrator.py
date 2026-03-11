@@ -78,6 +78,7 @@ from governance.infrastructure.archive_export import (
     ArchiveExportManifest,
 )
 from governance.infrastructure.redaction import redact_archive
+from governance.infrastructure.recovery_executor import build_resume_token
 
 
 # ---------------------------------------------------------------------------
@@ -476,6 +477,14 @@ def build_governance_summary(
 
     if result.failure_report is not None:
         summary["failure_report"] = failure_report_to_dict(result.failure_report)
+        actions = result.failure_report.recovery_actions
+        if actions:
+            summary["suggested_recovery_strategy"] = actions[0].strategy.value
+        summary["recovery_resume_token"] = build_resume_token(
+            run_id=result.run_id,
+            repo_fingerprint=result.repo_fingerprint,
+            observed_at=result.observed_at,
+        )
 
     return summary
 
