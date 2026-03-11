@@ -158,19 +158,19 @@ def _normalize_label(label: str) -> str:
 
 
 def _collect_findings(plan_text: str) -> list[str]:
-    required_sections: tuple[str, ...] = (
-        "zielbild",
-        "soll-flow",
-        "state-machine",
-        "blocker-taxonomie",
-        "audit",
-        "go/no-go",
-    )
+    section_aliases: dict[str, tuple[str, ...]] = {
+        "target-state": ("target-state", "zielbild"),
+        "target-flow": ("target-flow", "soll-flow"),
+        "state-machine": ("state-machine",),
+        "blocker-taxonomy": ("blocker-taxonomy", "blocker-taxonomie"),
+        "audit": ("audit",),
+        "go-no-go": ("go/no-go",),
+    }
     headings = {_normalize_label(entry) for entry in _extract_headings(plan_text)}
     findings: list[str] = []
-    for section in required_sections:
-        if section not in headings:
-            findings.append(f"missing-section:{section}")
+    for canonical, aliases in section_aliases.items():
+        if not any(alias in headings for alias in aliases):
+            findings.append(f"missing-section:{canonical}")
     if "reason code" not in plan_text.lower() and "reason_code" not in plan_text.lower():
         findings.append("missing-reason-code-contract")
     return findings
@@ -179,20 +179,20 @@ def _collect_findings(plan_text: str) -> list[str]:
 def _template_for_finding(finding: str) -> str:
     if finding.startswith("missing-section:"):
         section = finding.split(":", 1)[1]
-        if section == "zielbild":
-            return "## Zielbild\n- `/plan` orchestriert create -> self-review -> revise -> finalize/block ohne manuelle Chat-Schleife."
-        if section == "soll-flow":
-            return "## Soll-Flow\n1. Persist plan_record vN.\n2. Fuehre internen Self-Review-Loop bis Exit-Kriterium aus.\n3. Materialisiere offiziellen Phase-5-Abschlussstatus oder blocker."  # noqa: E501
+        if section == "target-state":
+            return "## Target-State\n- `/plan` orchestrates create -> self-review -> revise -> finalize/block without a manual chat loop."
+        if section == "target-flow":
+            return "## Target-Flow\n1. Persist plan_record vN.\n2. Run the internal self-review loop until the exit criterion is met.\n3. Materialize the official Phase-5 completion status or blocker."  # noqa: E501
         if section == "state-machine":
             return "## State-Machine\n- `plan_persisted`, `self_review_in_progress`, `revision_applied`, `phase5_completed`, `phase5_blocked`."
-        if section == "blocker-taxonomie":
-            return "## Blocker-Taxonomie\n- Kernel-owned reason_code erforderlich; freier Text ist nur Evidence, nicht Primarsignal."
+        if section == "blocker-taxonomy":
+            return "## Blocker-Taxonomy\n- A kernel-owned reason_code is required; free text is evidence only, not the primary signal."
         if section == "audit":
-            return "## Audit\n- Iterationsfelder: input_digest, iteration, findings_summary, revision_delta, plan_record_version, outcome, reason_code/completion_status."  # noqa: E501
-        if section == "go/no-go":
-            return "## Go/No-Go\n- `/plan` liefert finalen Plan oder echten Blocker ohne Zwischenstopp; max. 3 Iterationen."
+            return "## Audit\n- Iteration fields: input_digest, iteration, findings_summary, revision_delta, plan_record_version, outcome, reason_code/completion_status."  # noqa: E501
+        if section == "go-no-go":
+            return "## Go/No-Go\n- `/plan` returns a final plan or a real blocker without an intermediate stop; max. 3 iterations."
     if finding == "missing-reason-code-contract":
-        return "## Reason-Code Contract\n- Blocker muessen einen kanonischen `reason_code` tragen."
+        return "## Reason-Code Contract\n- Blockers must carry a canonical `reason_code`."
     return ""
 
 
@@ -541,7 +541,9 @@ def main(argv: list[str] | None = None) -> int:
         session_state_path=str(session_path),
         phase_before=phase_before,
         phase_after=routed.phase,
-        next_token=str(routed.next_token or ""),
+        next_phase=str(routed.phase or ""),
+        next_gate=routed.active_gate,
+        next_action="run /continue.",
         active_gate=routed.active_gate,
         plan_record_version=latest_version,
         phase5_completed=bool(review_result.get("phase5_completed")),

@@ -45,6 +45,7 @@ _ROOT_RAILS: list[_Entry] = [
     _Entry("ticket.md", "model-rail"),
     _Entry("plan.md", "model-rail"),
     _Entry("review-decision.md", "model-rail"),
+    _Entry("implementation-decision.md", "model-rail"),
     _Entry("implement.md", "model-rail"),
     _Entry("master.md", "model-rail"),
     _Entry("rules.md", "model-rail"),
@@ -85,7 +86,7 @@ _COMMAND_RAILS = [
     e for e in _ROOT_RAILS
     if e.path in {
         "continue.md", "review.md", "audit-readout.md",
-        "ticket.md", "plan.md", "review-decision.md", "implement.md",
+        "ticket.md", "plan.md", "review-decision.md", "implementation-decision.md", "implement.md",
     }
 ]
 
@@ -95,7 +96,7 @@ _EXECUTION_RAILS = [
     e for e in _ROOT_RAILS
     if e.path in {
         "continue.md", "review.md",
-        "ticket.md", "plan.md", "review-decision.md", "implement.md",
+        "ticket.md", "plan.md", "review-decision.md", "implementation-decision.md", "implement.md",
     }
 ]
 

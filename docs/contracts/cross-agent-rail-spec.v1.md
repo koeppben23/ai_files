@@ -59,6 +59,7 @@ Is the file an LLM behavioral instruction or command template?
 | `ticket.md` | model-rail | `MUTATING, GATE-EVALUATION` |
 | `plan.md` | model-rail | `MUTATING, GATE-EVALUATION` |
 | `review-decision.md` | model-rail | `MUTATING, GATE-EVALUATION` |
+| `implementation-decision.md` | model-rail | `MUTATING, GATE-EVALUATION` |
 | `master.md` | model-rail | `GUIDANCE, MULTI-PHASE` |
 | `rules.md` | model-rail | `CONSTRAINT-SET, CROSS-PHASE` |
 | `BOOTSTRAP.md` | model-rail | `MUTATING, BOOTSTRAP` |

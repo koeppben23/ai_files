@@ -32,7 +32,7 @@ class TestNewWorkSessionCliPath:
 
         state = json.loads(session_path.read_text(encoding="utf-8"))["SESSION_STATE"]
         assert state["Phase"] == "4"
-        assert state["Next"] == "5"
+        assert state["Next"] == "4"
 
     # -- Bad --
     def test_script_wrapper_forwards_failure_exit_code(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -62,7 +62,7 @@ class TestNewWorkSessionCliPath:
         desktop_state = json.loads(desktop_state_path.read_text(encoding="utf-8"))["SESSION_STATE"]
 
         assert cli_state["Phase"] == desktop_state["Phase"] == "4"
-        assert cli_state["Next"] == desktop_state["Next"] == "5"
+        assert cli_state["Next"] == desktop_state["Next"] == "4"
         assert cli_state["Ticket"] == desktop_state["Ticket"] is None
         assert cli_state["Task"] == desktop_state["Task"] is None
 
