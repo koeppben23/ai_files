@@ -140,6 +140,14 @@ Canonical subcommands for active operator workflows are:
 - `--review-decision-persist`
 - `--session-reader`
 
+Canonical bootstrap setup command:
+
+- `opencode-governance-bootstrap init --profile <solo|team|regulated> --repo-root <repo-root>`
+
+Optional alias (same semantics, administrative alternative):
+
+- `opencode-governance-bootstrap --set-operating-mode <solo|team|regulated> --repo-root <repo-root>`
+
 ### 4.2 Rails (Markdown Command Templates)
 
 Rails invoke the launcher by its stable command name `opencode-governance-bootstrap`,
