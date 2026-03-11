@@ -51,6 +51,7 @@ from governance.domain.classification import (
 )
 from governance.domain.failure_model import (
     FailureReport,
+    RecoveryStrategy,
     build_failure_report,
     failure_report_to_dict,
 )
@@ -78,7 +79,11 @@ from governance.infrastructure.archive_export import (
     ArchiveExportManifest,
 )
 from governance.infrastructure.redaction import redact_archive
-from governance.infrastructure.recovery_executor import build_resume_token
+from governance.infrastructure.recovery_executor import (
+    RecoveryExecutionResult,
+    build_resume_token,
+    resume_recovery,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -489,10 +494,44 @@ def build_governance_summary(
     return summary
 
 
+def execute_failure_recovery(
+    *,
+    result: GovernancePipelineResult,
+    observed_at: str,
+    resume_token: str,
+    retry_by_overwrite: Optional[Any] = None,
+    invalidate_and_rearchive: Optional[Any] = None,
+    escalate_to_operator: Optional[Any] = None,
+) -> RecoveryExecutionResult:
+    if result.failure_report is None:
+        token = build_resume_token(
+            run_id=result.run_id,
+            repo_fingerprint=result.repo_fingerprint,
+            observed_at=observed_at,
+        )
+        return RecoveryExecutionResult(
+            strategy=RecoveryStrategy.NO_RECOVERY,
+            attempted=False,
+            succeeded=False,
+            message="no failure report available for recovery",
+            resume_token=token,
+        )
+
+    return resume_recovery(
+        report=result.failure_report,
+        observed_at=observed_at,
+        resume_token=resume_token,
+        retry_by_overwrite=retry_by_overwrite,
+        invalidate_and_rearchive=invalidate_and_rearchive,
+        escalate_to_operator=escalate_to_operator,
+    )
+
+
 __all__ = [
     "GovernancePipelineResult",
     "validate_archive_contract",
     "run_governance_pipeline",
     "governance_export",
     "build_governance_summary",
+    "execute_failure_recovery",
 ]

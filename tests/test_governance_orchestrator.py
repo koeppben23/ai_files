@@ -41,10 +41,12 @@ from governance.infrastructure.archive_export import (
 from governance.infrastructure.governance_orchestrator import (
     GovernancePipelineResult,
     build_governance_summary,
+    execute_failure_recovery,
     governance_export,
     run_governance_pipeline,
     validate_archive_contract,
 )
+from governance.infrastructure.recovery_executor import build_resume_token
 
 
 # ---------------------------------------------------------------------------
@@ -721,6 +723,82 @@ class TestGovernancePipelineCorner:
         assert "failure_report" in summary
         assert "suggested_recovery_strategy" in summary
         assert str(summary.get("recovery_resume_token", "")).startswith(f"resume::{_RUN_ID}::")
+
+
+class TestFailureRecoveryCorner:
+    def test_execute_failure_recovery_without_failure_report(self, tmp_path: Path):
+        archive = _create_finalized_archive(tmp_path)
+        result = run_governance_pipeline(
+            archive_path=archive,
+            repo_fingerprint=_FINGERPRINT,
+            run_id=_RUN_ID,
+            observed_at=_OBSERVED_AT,
+        )
+
+        execution = execute_failure_recovery(
+            result=result,
+            observed_at=_OBSERVED_AT,
+            resume_token="resume::unused::token",
+        )
+        assert execution.strategy.value == "no_recovery"
+        assert execution.attempted is False
+        assert execution.succeeded is False
+
+    def test_execute_failure_recovery_fails_closed_for_invalid_token(self, tmp_path: Path):
+        result = run_governance_pipeline(
+            archive_path=tmp_path / "missing",
+            repo_fingerprint=_FINGERPRINT,
+            run_id=_RUN_ID,
+            observed_at=_OBSERVED_AT,
+        )
+
+        execution = execute_failure_recovery(
+            result=result,
+            observed_at=_OBSERVED_AT,
+            resume_token="resume::bad::token",
+        )
+        assert execution.attempted is False
+        assert execution.succeeded is False
+        assert execution.message == "invalid resume token"
+
+    def test_execute_failure_recovery_runs_primary_strategy_hook(self, tmp_path: Path):
+        result = run_governance_pipeline(
+            archive_path=tmp_path / "missing",
+            repo_fingerprint=_FINGERPRINT,
+            run_id=_RUN_ID,
+            observed_at=_OBSERVED_AT,
+        )
+        token = build_resume_token(
+            run_id=_RUN_ID,
+            repo_fingerprint=_FINGERPRINT,
+            observed_at=_OBSERVED_AT,
+        )
+
+        called = {"retry": False, "rearchive": False, "escalate": False}
+
+        def _retry() -> bool:
+            called["retry"] = True
+            return True
+
+        def _rearchive() -> bool:
+            called["rearchive"] = True
+            return True
+
+        def _escalate(_token: str) -> bool:
+            called["escalate"] = True
+            return True
+
+        execution = execute_failure_recovery(
+            result=result,
+            observed_at=_OBSERVED_AT,
+            resume_token=token,
+            retry_by_overwrite=_retry,
+            invalidate_and_rearchive=_rearchive,
+            escalate_to_operator=_escalate,
+        )
+        assert any(called.values())
+        assert execution.attempted is True
+        assert execution.succeeded is True
 
 
 class TestGovernanceExportCorner:
