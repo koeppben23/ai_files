@@ -253,6 +253,29 @@ class TestReadSessionSnapshotSuccess:
         assert result["mode"] == "unknown"
         assert result["active_gate"] == "none"
 
+    def test_operating_mode_fields_passthrough(self, fake_config: Path) -> None:
+        ws_state = _write_pointer(fake_config)
+        _write_workspace_state(ws_state, {
+            "status": "OK",
+            "effective_operating_mode": "pipeline",
+            "resolvedOperatingMode": "team",
+            "verifyPolicyVersion": "v2",
+        })
+        with _mock_readonly_unavailable():
+            result = read_session_snapshot(commands_home=fake_config / "commands")
+        assert result["effective_operating_mode"] == "pipeline"
+        assert result["resolved_operating_mode"] == "team"
+        assert result["verify_policy_version"] == "v2"
+
+    def test_operating_mode_fields_default_when_missing(self, fake_config: Path) -> None:
+        ws_state = _write_pointer(fake_config)
+        _write_workspace_state(ws_state, {"status": "OK"})
+        with _mock_readonly_unavailable():
+            result = read_session_snapshot(commands_home=fake_config / "commands")
+        assert result["effective_operating_mode"] == "unknown"
+        assert result["resolved_operating_mode"] == "solo"
+        assert result["verify_policy_version"] == "v1"
+
     def test_commands_home_in_snapshot(self, fake_config: Path) -> None:
         """Snapshot includes the resolved commands_home path."""
         ws_state = _write_pointer(fake_config)
