@@ -22,6 +22,7 @@ def test_review_decision_md_exists_and_documents_canonical_surface() -> None:
     assert "decision=approve|changes_requested|reject" in content
     assert "No default is allowed" in content
     assert "Rework Clarification Gate" in content
+    assert "implementation as authorized" in content or "implementation is authorized" in content
     assert "/ticket` when scope/task/assignment changes" in content
 
 

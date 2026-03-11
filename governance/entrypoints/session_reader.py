@@ -22,7 +22,7 @@ import tempfile
 import hashlib
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
 # ---------------------------------------------------------------------------
 # Schema / version constants
@@ -107,6 +107,43 @@ def _sha256_text(value: str) -> str:
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def _truncate_text(value: object, *, limit: int = 180) -> str:
+    text = str(value or "").strip().replace("\n", " ")
+    text = " ".join(text.split())
+    if not text:
+        return "none"
+    if len(text) <= limit:
+        return text
+    return text[: limit - 3].rstrip() + "..."
+
+
+def _build_ticket_summary(state_view: Mapping[str, object]) -> str:
+    ticket = _truncate_text(state_view.get("Ticket"))
+    task = _truncate_text(state_view.get("Task"))
+    if ticket != "none":
+        return ticket
+    if task != "none":
+        return task
+    return "none"
+
+
+def _build_plan_summary(*, state_view: Mapping[str, object], session_path: Path) -> str:
+    try:
+        plan_record_path = session_path.parent / "plan-record.json"
+        if plan_record_path.is_file():
+            payload = _read_json(plan_record_path)
+            versions = payload.get("versions")
+            if isinstance(versions, list) and versions:
+                latest = versions[-1] if isinstance(versions[-1], dict) else {}
+                if isinstance(latest, dict):
+                    text = _truncate_text(latest.get("plan_record_text"))
+                    if text != "none":
+                        return text
+    except Exception:
+        pass
+    return _truncate_text(state_view.get("phase5_plan_record_digest"))
 
 
 def _run_phase6_internal_review_loop(*, state_doc: dict, session_path: Path) -> None:
@@ -857,7 +894,12 @@ def _resolve_next_action_line(snapshot: dict) -> str:
     # conditions — but we still need to emit the /review-decision guidance.
     if phase_str.startswith("6"):
         if active_gate == "workflow complete":
-            return "Next action: governance workflow is complete; no further governance command is required."
+            return "Next action: run /implement."
+        if active_gate == "implementation started":
+            return (
+                "Next action: proceed with repository changes and execution work; "
+                "no further governance command is required until the next review checkpoint."
+            )
         if active_gate == "rework clarification gate":
             from governance.application.use_cases.rework_clarification import (
                 classify_rework_clarification,
@@ -879,10 +921,7 @@ def _resolve_next_action_line(snapshot: dict) -> str:
                 return "Next action: run /plan with the updated plan details."
             if rail == "/continue":
                 return "Next action: run /continue."
-            return (
-                "Clarification needed: what exactly must be adjusted (scope/task, plan/approach, "
-                "or clarification-only)?"
-            )
+            return "Next action: describe the requested adjustments in chat so exactly one rail can be directed."
         if active_gate == "evidence presentation gate":
             return (
                 "Next action: run /review-decision <approve|changes_requested|reject> "
@@ -922,7 +961,7 @@ def _resolve_next_action_line(snapshot: dict) -> str:
         )
 
     if not _should_emit_continue_next_action(snapshot):
-        return ""
+        return "Next action: continue in chat with the active gate work."
 
     # If the snapshot carries a kernel source (from Fix 2.0's transition
     # evidence hint or from the readonly eval), check whether the source
@@ -1147,6 +1186,14 @@ def read_session_snapshot(commands_home: Path | None = None, *, materialize: boo
         ),
     )
 
+    operating_mode_resolution = (
+        state_view.get("operating_mode_resolution")
+        or state_view.get("operatingModeResolution")
+        or {}
+    )
+    if isinstance(operating_mode_resolution, dict) and not operating_mode_resolution:
+        operating_mode_resolution = "none"
+
     snapshot: dict = {
         "schema": SNAPSHOT_SCHEMA,
         "status": _safe_str(status),
@@ -1165,9 +1212,7 @@ def read_session_snapshot(commands_home: Path | None = None, *, materialize: boo
         "effective_operating_mode": effective_operating_mode,
         "resolved_operating_mode": resolved_operating_mode,
         "verify_policy_version": verify_policy_version,
-        "operating_mode_resolution": state_view.get("operating_mode_resolution")
-        or state_view.get("operatingModeResolution")
-        or {},
+        "operating_mode_resolution": operating_mode_resolution,
         "commands_home": str(commands_home),
         "p54_evaluated_status": p54_evaluated_status,
         "p55_evaluated_status": p55_evaluated_status,
@@ -1181,10 +1226,23 @@ def read_session_snapshot(commands_home: Path | None = None, *, materialize: boo
     if transition_evidence_hint:
         snapshot["transition_evidence_hint"] = transition_evidence_hint
 
+    phase_str = _safe_str(phase)
+    if phase_str.startswith("6") and str(active_gate).strip().lower() == "evidence presentation gate":
+        snapshot["review_brief_review_object"] = "Final Phase-6 implementation review decision"
+        snapshot["review_brief_ticket_summary"] = _build_ticket_summary(state_view)
+        snapshot["review_brief_plan_summary"] = _build_plan_summary(
+            state_view=state_view,
+            session_path=session_path,
+        )
+        snapshot["review_brief_decision_semantics"] = (
+            "approve=governance complete + implementation authorized; "
+            "changes_requested=enter rework clarification gate; "
+            "reject=return to phase 4 ticket input gate"
+        )
+
     # --- Fix 3.1 (B6): Phase 5 self-review diagnostics ---
     # Surface kernel-owned exit conditions so users can see WHY an exit
     # from the Architecture Review Gate is not yet possible.
-    phase_str = _safe_str(phase)
     if phase_str.startswith("5"):
         p5_review = state_view.get("Phase5Review") or state.get("Phase5Review") or {}
         if isinstance(p5_review, dict):
@@ -1280,6 +1338,17 @@ def read_session_snapshot(commands_home: Path | None = None, *, materialize: boo
         snapshot["phase6_min_review_iterations"] = _p6_min
         snapshot["phase6_revision_delta"] = _p6_delta
         snapshot["implementation_review_complete"] = _p6_complete
+
+    if phase_str.startswith("6") and str(active_gate).strip().lower() == "evidence presentation gate":
+        snapshot["review_brief_evidence_summary"] = (
+            f"plan_record_versions={_coerce_int(plan_versions)}, "
+            f"implementation_review_complete={str(snapshot.get('implementation_review_complete', False)).lower()}"
+        )
+        snapshot["review_brief_loop_status"] = (
+            f"iterations={_coerce_int(snapshot.get('phase6_review_iterations'))}/"
+            f"{_coerce_int(snapshot.get('phase6_max_review_iterations') or 3)}, "
+            f"revision_delta={_safe_str(snapshot.get('phase6_revision_delta') or 'changed')}"
+        )
 
     # --- Fix 3.3 (B8): Route target explanation for intermediate next tokens ---
     # When the kernel evaluates a route_strategy="next" with a next_token,

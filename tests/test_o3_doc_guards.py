@@ -313,9 +313,11 @@ class TestLauncherSurfaceHappy:
         ticket = _read("ticket.md")
         plan = _read("plan.md")
         review_decision = _read("review-decision.md")
+        implement = _read("implement.md")
         assert "--ticket-persist" in ticket
         assert "--plan-persist" in plan
         assert "--review-decision-persist" in review_decision
+        assert "--implement-start" in implement
 
 
 class TestLauncherSurfaceBad:
@@ -328,6 +330,7 @@ class TestLauncherSurfaceBad:
         "ticket.md",
         "plan.md",
         "review-decision.md",
+        "implement.md",
         "docs/operator-runbook.md",
         "SESSION_STATE_SCHEMA.md",
         "phase_api.yaml",
