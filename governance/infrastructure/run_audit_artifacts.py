@@ -324,6 +324,10 @@ def build_pr_record(
     if not title and not body:
         return None
     session_id = str(state_view.get("session_run_id") or run_id)
+    regulated_mode_state = str(state_view.get("regulated_mode_state") or state_view.get("regulated_mode") or "").strip().lower()
+    regulated_mode_active = regulated_mode_state in {"active", "transitioning", "true", "1", "yes"}
+    requires_human_approval = bool(state_view.get("requires_human_approval", regulated_mode_active))
+    approval_status = str(state_view.get("approval_status") or ("pending" if requires_human_approval else "not-required"))
     payload = {
         "title": title,
         "body": body,
@@ -342,8 +346,8 @@ def build_pr_record(
         "pr_url": str(state_view.get("pr_url") or ""),
         "change_scope_summary": str(state_view.get("change_scope_summary") or ""),
         "risk_classification": str(state_view.get("risk_classification") or "unknown"),
-        "requires_human_approval": bool(state_view.get("requires_human_approval", False)),
-        "approval_status": str(state_view.get("approval_status") or "not-required"),
+        "requires_human_approval": requires_human_approval,
+        "approval_status": approval_status,
     }
     return _artifact_header(
         schema="governance.pr-record.v1",

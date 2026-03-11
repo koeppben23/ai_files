@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 
+from governance.infrastructure.run_audit_artifacts import build_pr_record
 from governance.infrastructure.workspace_paths import run_dir
 from governance.infrastructure.work_run_archive import archive_active_run
 
@@ -63,3 +64,23 @@ def test_plan_run_requires_plan_record_for_finalization(tmp_path: Path) -> None:
             session_state_document={"SESSION_STATE": plan_state},
             state_view=plan_state,
         )
+
+
+def test_pr_record_defaults_to_pending_human_approval_in_regulated_mode(tmp_path: Path) -> None:
+    fingerprint = "abc123def456abc123def456"
+    pr_state = {
+        "session_run_id": "run-pr-regulated-default",
+        "PullRequestTitle": "feat: regulated default",
+        "PullRequestBody": "body",
+        "regulated_mode_state": "active",
+    }
+    record = build_pr_record(
+        state_view=pr_state,
+        repo_fingerprint=fingerprint,
+        run_id="run-pr-regulated-default",
+        repo_slug=fingerprint,
+        observed_at="2026-03-11T14:05:00Z",
+    )
+    assert isinstance(record, dict)
+    assert record["requires_human_approval"] is True
+    assert record["approval_status"] == "pending"
