@@ -24,6 +24,8 @@
     "source_next",
     "resolvedOperatingMode",
     "verifyPolicyVersion",
+    "operatingModeResolution",
+    "breakGlass",
     "run_status",
     "record_status",
     "finalized_at",
@@ -51,6 +53,8 @@
     "source_next": {"type": "string"},
     "resolvedOperatingMode": {"type": "string", "enum": ["solo", "team", "regulated"]},
     "verifyPolicyVersion": {"type": "string", "pattern": "^v[0-9]+$"},
+    "operatingModeResolution": {"type": "object"},
+    "breakGlass": {"type": "object"},
     "run_status": {"type": "string", "enum": ["in_progress", "materialized", "finalized", "failed", "invalidated"]},
     "record_status": {"type": "string", "enum": ["draft", "finalized", "superseded", "invalidated"]},
     "finalized_at": {

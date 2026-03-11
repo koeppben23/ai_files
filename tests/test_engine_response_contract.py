@@ -42,6 +42,9 @@ def test_build_strict_response_produces_deterministic_envelope():
     assert set(payload["session_state"].keys()) == set(SESSION_SNAPSHOT_WHITELIST)
     assert payload["session_state"]["activation_hash"] == "ab" * 32
     assert payload["session_state"]["resolved_operating_mode"] == "solo"
+    assert payload["session_state"]["operating_mode_resolution.state"] == "resolved"
+    assert payload["session_state"]["operating_mode_resolution.error_code"] == "none"
+    assert payload["session_state"]["operating_mode_resolution.fallback_applied"] is False
     assert payload["session_state"]["active_gate.status"] == "OK"
     assert payload["session_state"]["active_gate.decision_outcome"] == "ALLOW"
     assert "session_state_full" not in payload

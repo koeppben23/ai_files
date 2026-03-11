@@ -145,6 +145,8 @@ def build_run_manifest(
     requires_pr_record: bool,
     resolved_operating_mode: str,
     verify_policy_version: str,
+    operating_mode_resolution: Mapping[str, object] | None = None,
+    break_glass: Mapping[str, object] | None = None,
 ) -> dict[str, object]:
     return {
         "schema": "governance.run-manifest.v1",
@@ -166,6 +168,8 @@ def build_run_manifest(
         "source_next": source_next,
         "resolvedOperatingMode": resolved_operating_mode,
         "verifyPolicyVersion": verify_policy_version,
+        "operatingModeResolution": dict(operating_mode_resolution or {}),
+        "breakGlass": dict(break_glass or {}),
         "run_status": "in_progress",
         "record_status": "draft",
         "finalized_at": None,
@@ -550,6 +554,8 @@ def build_finalization_record(
     finalization_reason: str,
     resolved_operating_mode: str,
     verify_policy_version: str,
+    operating_mode_resolution: Mapping[str, object] | None = None,
+    break_glass: Mapping[str, object] | None = None,
 ) -> dict[str, object]:
     session_id = str(finalized_manifest.get("session_id") or run_id)
     digest_payload = {
@@ -565,6 +571,8 @@ def build_finalization_record(
         "manifest_integrity_status": str(finalized_manifest.get("integrity_status") or ""),
         "resolvedOperatingMode": resolved_operating_mode,
         "verifyPolicyVersion": verify_policy_version,
+        "operatingModeResolution": dict(operating_mode_resolution or {}),
+        "breakGlass": dict(break_glass or {}),
         "finalization_reason": finalization_reason,
         "finalization_errors": errors_list,
         "bundle_manifest_hash": _stable_json_hash(digest_payload),

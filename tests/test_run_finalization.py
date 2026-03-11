@@ -29,6 +29,8 @@ def test_run_manifest_contains_lifecycle_fields(tmp_path: Path) -> None:
     assert manifest["integrity_status"] == "passed"
     assert manifest["resolvedOperatingMode"] == "solo"
     assert manifest["verifyPolicyVersion"] == "v1"
+    assert isinstance(manifest["operatingModeResolution"], dict)
+    assert isinstance(manifest["breakGlass"], dict)
 
 
 def test_regulated_mode_blocks_pr_finalization_without_approval(tmp_path: Path) -> None:

@@ -20,6 +20,7 @@ from governance.domain.errors.events import ErrorEvent
 
 
 ACTIVATION_INTENT_FILE = "governance.activation_intent.json"
+REPO_POLICY_RELATIVE_PATH = ".opencode/governance-repo-policy.json"
 
 
 def _default_activation_intent() -> dict[str, object]:
@@ -206,6 +207,22 @@ class BootstrapPersistenceService:
             )
             self._logger.write(event)
             return BootstrapResult(ok=False, gate_code=event.code, write_actions=write_actions, error_events=(event,))
+
+        repo_policy_path = repo_root / REPO_POLICY_RELATIVE_PATH
+        if not self._fs.exists(repo_policy_path):
+            self._fs.mkdir_p(repo_policy_path.parent)
+            default_repo_mode = "team" if payload.effective_mode in {"pipeline", "agents_strict"} else "solo"
+            repo_policy = {
+                "schema": "opencode-governance-repo-policy.v1",
+                "repoFingerprint": payload.repo_identity.fingerprint,
+                "operatingMode": default_repo_mode,
+                "source": "bootstrap-init",
+                "createdAt": created_at,
+            }
+            self._fs.write_text_atomic(repo_policy_path, _canonical_json(repo_policy))
+            write_actions["repo_policy"] = "created"
+        else:
+            write_actions["repo_policy"] = "present"
 
         initial_state = _session_state_payload(
             repo_fingerprint=payload.repo_identity.fingerprint,

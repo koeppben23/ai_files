@@ -20,6 +20,7 @@ import pytest
 
 from governance.application.use_cases.bootstrap_persistence import (
     ACTIVATION_INTENT_FILE,
+    REPO_POLICY_RELATIVE_PATH,
     BootstrapInput,
     BootstrapPersistenceService,
 )
@@ -196,6 +197,19 @@ class TestHappyPath:
         ai = state["SESSION_STATE"]["ActivationIntent"]
         assert ai["Status"] == "valid"
         assert ai["AutoSatisfied"] is True
+
+    def test_bootstrap_writes_repo_operating_mode_policy(self):
+        fs = InMemoryFS()
+        _seed_valid_intent(fs)
+        svc = BootstrapPersistenceService(fs=fs, runner=_DummyRunner(), logger=_DummyLogger())  # type: ignore[arg-type]
+
+        result = svc.run(_payload(mode="user", no_commit=True), _now())
+
+        assert result.ok is True
+        raw = fs.read_text(Path("/mock/repo") / REPO_POLICY_RELATIVE_PATH)
+        policy = json.loads(raw)
+        assert policy["schema"] == "opencode-governance-repo-policy.v1"
+        assert policy["operatingMode"] == "solo"
 
 
 # ---------------------------------------------------------------------------

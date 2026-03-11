@@ -1190,3 +1190,69 @@ def test_verify_reports_mode_and_verify_policy_checks(tmp_path: Path) -> None:
     assert message is None
     assert results.get("resolvedOperatingMode") is True
     assert results.get("verifyPolicyVersion") is True
+
+
+def test_verify_rejects_manifest_without_operating_mode_resolution(tmp_path: Path) -> None:
+    workspaces_home = tmp_path / "workspaces"
+    fingerprint = "abc123def456abc123def456"
+    state = {
+        "session_run_id": "run-resolution-missing",
+        "Phase": "6-PostFlight",
+        "active_gate": "Post Flight",
+        "Next": "6",
+    }
+    archive_active_run(
+        workspaces_home=workspaces_home,
+        repo_fingerprint=fingerprint,
+        run_id="run-resolution-missing",
+        observed_at="2026-03-11T14:25:00Z",
+        session_state_document={"SESSION_STATE": state},
+        state_view=state,
+    )
+    run_root = _run_root(workspaces_home, fingerprint, "run-resolution-missing")
+    manifest = json.loads((run_root / "run-manifest.json").read_text(encoding="utf-8"))
+    manifest.pop("operatingModeResolution", None)
+    (run_root / "run-manifest.json").write_text(json.dumps(manifest, ensure_ascii=True), encoding="utf-8")
+    _recompute_checksums(run_root)
+    ok, _, message = verify_run_archive(run_root)
+    assert ok is False
+    assert isinstance(message, str)
+    assert "operatingModeResolution" in message
+
+
+def test_verify_rejects_manifest_break_glass_missing_actor(tmp_path: Path) -> None:
+    workspaces_home = tmp_path / "workspaces"
+    fingerprint = "abc123def456abc123def456"
+    state = {
+        "session_run_id": "run-breakglass-invalid",
+        "Phase": "6-PostFlight",
+        "active_gate": "Post Flight",
+        "Next": "6",
+        "breakGlass": {
+            "actor": "ops.lead",
+            "timestamp": "2026-03-11T14:25:00Z",
+            "reason_code": "incident",
+            "rationale": "emergency",
+            "scope": "repo:core",
+            "expires_at": "2026-03-12T14:25:00Z",
+        },
+    }
+    archive_active_run(
+        workspaces_home=workspaces_home,
+        repo_fingerprint=fingerprint,
+        run_id="run-breakglass-invalid",
+        observed_at="2026-03-11T14:25:00Z",
+        session_state_document={"SESSION_STATE": state},
+        state_view=state,
+    )
+    run_root = _run_root(workspaces_home, fingerprint, "run-breakglass-invalid")
+    manifest = json.loads((run_root / "run-manifest.json").read_text(encoding="utf-8"))
+    break_glass = dict(manifest.get("breakGlass") or {})
+    break_glass.pop("actor", None)
+    manifest["breakGlass"] = break_glass
+    (run_root / "run-manifest.json").write_text(json.dumps(manifest, ensure_ascii=True), encoding="utf-8")
+    _recompute_checksums(run_root)
+    ok, _, message = verify_run_archive(run_root)
+    assert ok is False
+    assert isinstance(message, str)
+    assert "breakGlass missing actor" in message

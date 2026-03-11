@@ -97,6 +97,8 @@ def load_all_governance_schemas() -> dict[str, dict[str, Any]]:
         "pr_record.v1.schema.json",
         "provenance_record.v1.schema.json",
         "operating_mode_policy_matrix.v1.schema.json",
+        "repo_governance_policy.v1.schema.json",
+        "break_glass_record.v1.schema.json",
     ]
     result: dict[str, dict[str, Any]] = {}
     for name in governance_names:

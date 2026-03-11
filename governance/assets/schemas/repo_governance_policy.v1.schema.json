@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "governance/assets/schemas/repo_governance_policy.v1.schema.json",
+  "title": "Repo Governance Policy v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "repoFingerprint",
+    "operatingMode",
+    "source",
+    "createdAt"
+  ],
+  "properties": {
+    "schema": {"const": "opencode-governance-repo-policy.v1"},
+    "repoFingerprint": {"type": "string", "pattern": "^[0-9a-f]{24}$"},
+    "operatingMode": {"type": "string", "enum": ["solo", "team", "regulated"]},
+    "source": {"type": "string", "minLength": 1},
+    "createdAt": {"type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:Z|[+\\-]\\d{2}:\\d{2})$"}
+  }
+}
