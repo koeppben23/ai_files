@@ -153,13 +153,13 @@ Data sources merged below:
 | Code | Description | Remediation |
 |------|-------------|-------------|
 | `BLOCKED-BOOTSTRAP-NOT-SATISFIED` | Bootstrap gates are not satisfied; kernel cannot proceed. | Run the local bootstrap launcher to complete bootstrap evidence collection. |
-| `BLOCKED-START-REQUIRED` | Valid bootstrap evidence is required before governance execution. | Run `opencode-governance-bootstrap`. |
+| `BLOCKED-START-REQUIRED` | Valid bootstrap evidence is required before governance execution. | Run `opencode-governance-bootstrap init --profile <solo\|team\|regulated> --repo-root <repo>`. |
 | `BLOCKED-MISSING-BINDING-FILE` | Installer-owned binding evidence file (`governance.paths.json`) is missing. | Run `python install.py` to create the binding file at `${COMMANDS_HOME}/governance.paths.json`. |
 | `BLOCKED-MISSING-COMMANDS-HOME` | `commands_home` is missing, empty, or invalid. | Set `COMMANDS_HOME` environment variable or repair binding evidence: `export COMMANDS_HOME=/path/to/commands`. |
-| `BLOCKED-VARIABLE-RESOLUTION` | Required canonical variables could not be resolved deterministically. | Run `opencode-governance-bootstrap`. Check that `${USER_HOME}`, `${CONFIG_ROOT}`, `${COMMANDS_HOME}` resolve correctly. |
-| `BLOCKED-MISSING-EVIDENCE` | Required activation evidence is missing for deterministic resolution. | Check `SESSION_STATE.Diagnostics.ReasonPayloads` for specifics. Run `opencode-governance-bootstrap` to re-gather evidence. |
-| `BLOCKED-STATE-OUTDATED` | Persisted session state is stale for current deterministic contract. | Run `opencode-governance-bootstrap --fresh` to start a fresh session. |
-| `BLOCKED-RESUME-STATE-VIOLATION` | Persisted `SESSION_STATE` violates the canonical schema on resume. | Delete invalid state file and run `opencode-governance-bootstrap`. |
+| `BLOCKED-VARIABLE-RESOLUTION` | Required canonical variables could not be resolved deterministically. | Run `opencode-governance-bootstrap init --profile <solo\|team\|regulated> --repo-root <repo>`. Check that `${USER_HOME}`, `${CONFIG_ROOT}`, `${COMMANDS_HOME}` resolve correctly. |
+| `BLOCKED-MISSING-EVIDENCE` | Required activation evidence is missing for deterministic resolution. | Check `SESSION_STATE.Diagnostics.ReasonPayloads` for specifics. Run `opencode-governance-bootstrap init --profile <solo\|team\|regulated> --repo-root <repo>` to re-gather evidence. |
+| `BLOCKED-STATE-OUTDATED` | Persisted session state is stale for current deterministic contract. | Run `opencode-governance-bootstrap init --profile <solo\|team\|regulated> --repo-root <repo>` to refresh bootstrap state. |
+| `BLOCKED-RESUME-STATE-VIOLATION` | Persisted `SESSION_STATE` violates the canonical schema on resume. | Delete invalid state file and run `opencode-governance-bootstrap init --profile <solo\|team\|regulated> --repo-root <repo>`. |
 | `BLOCKED-WORKSPACE-PERSISTENCE` | Workspace persistence contract failed for required artifacts. | Run `unset OPENCODE_FORCE_READ_ONLY` and verify write permissions for commands/workspaces paths. |
 | `BLOCKED-WORKSPACE-MEMORY-INVALID` | Workspace memory state is invalid or corrupted. | Fix the YAML file or remove `${WORKSPACE_MEMORY_FILE}` and retry. |
 
@@ -193,7 +193,7 @@ Data sources merged below:
 
 | Code | Description | Remediation |
 |------|-------------|-------------|
-| `BLOCKED-ENGINE-SELFCHECK` | Engine selfcheck failed and runtime activation is blocked. | Verify policy-bound config files exist and YAML parser is available. Run `opencode-governance-bootstrap`. |
+| `BLOCKED-ENGINE-SELFCHECK` | Engine selfcheck failed and runtime activation is blocked. | Verify policy-bound config files exist and YAML parser is available. Run `opencode-governance-bootstrap init --profile <solo\|team\|regulated> --repo-root <repo>`. |
 | `BLOCKED-REPO-IDENTITY-RESOLUTION` | Repository identity could not be resolved under active policy. | Provide git identity evidence or run from a valid repository root. |
 | `BLOCKED-REPO-ROOT-NOT-DETECTABLE` | Repository root cannot be resolved deterministically. | Set `OPENCODE_REPO_ROOT` or pass explicit `--repo-root` pointing to a valid Git root. |
 | `BLOCKED-SYSTEM-MODE-REQUIRED` | Requested surface requires stricter system mode. | Switch to system mode or narrow requested operation scope. |

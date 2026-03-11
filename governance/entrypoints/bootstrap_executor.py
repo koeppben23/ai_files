@@ -6,6 +6,8 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+from datetime import datetime, timezone
+from governance.application.use_cases.repo_policy_setup import write_repo_operating_mode_policy
 
 try:
     from governance.infrastructure.path_contract import normalize_absolute_path
@@ -50,9 +52,23 @@ def main() -> int:
         prog="opencode-governance-bootstrap",
         description="Execute bootstrap preflight until ready for Phase 4",
     )
+    parser.add_argument("command", nargs="?", choices=("init",), help="Bootstrap command (recommended: init)")
     parser.add_argument("--config-root", help="Path to OpenCode config root", required=False)
     parser.add_argument("--repo-root", help="Path to repository root", required=True)
+    parser.add_argument("--profile", choices=("solo", "team", "regulated"), help="Operating mode profile for init")
+    parser.add_argument(
+        "--set-operating-mode",
+        choices=("solo", "team", "regulated"),
+        help="Alias for setting repo operating mode (admin alternative)",
+    )
     args = parser.parse_args()
+
+    if args.profile and args.command != "init":
+        parser.error("--profile is supported with 'init' (recommended canonical setup path)")
+
+    selected_profile = str(args.profile or args.set_operating_mode or "").strip().lower() or None
+    if args.command == "init" and selected_profile is None:
+        parser.error("init requires --profile {solo,team,regulated}")
 
     try:
         repo_root = _validate_repo_root(args.repo_root)
@@ -71,6 +87,20 @@ def main() -> int:
         env["COMMANDS_HOME"] = str(config_root / "commands")
 
     env["OPENCODE_REPO_ROOT"] = str(repo_root)
+
+    if selected_profile is not None:
+        try:
+            policy_path = write_repo_operating_mode_policy(
+                repo_root=repo_root,
+                profile=selected_profile,
+                now_utc=datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
+            )
+        except Exception as exc:
+            print(f"failed to set repo operating mode: {exc}", file=sys.stderr)
+            return 2
+        print(f"repoOperatingMode = {selected_profile}")
+        print(f"resolvedOperatingMode default = {selected_profile}")
+        print(f"policyPath = {policy_path}")
 
     ret = subprocess.run(
         [sys.executable, "-m", "governance.entrypoints.bootstrap_preflight_readonly"],

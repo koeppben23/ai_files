@@ -35,51 +35,62 @@ This creates the launcher wrapper and adds it to the configured binary directory
 ```bash
 # macOS / Linux (bash / zsh)
 export PATH="$HOME/.config/opencode/bin:$PATH"
-opencode-governance-bootstrap
+opencode-governance-bootstrap init --profile solo --repo-root /path/to/repo
 ```
 
 ```powershell
 # Windows (PowerShell)
 $env:Path = "$env:USERPROFILE\.config\opencode\bin;" + $env:Path
-opencode-governance-bootstrap
+opencode-governance-bootstrap init --profile solo --repo-root C:\path\to\repo
 ```
 
 ```cmd
 :: Windows (cmd.exe)
 set "PATH=%USERPROFILE%\.config\opencode\bin;%PATH%"
-opencode-governance-bootstrap.cmd
+opencode-governance-bootstrap.cmd init --profile solo --repo-root C:\path\to\repo
 ```
 
 ### Without PATH — invoke by full path
 
 ```bash
 # macOS / Linux (bash / zsh)
-~/.config/opencode/bin/opencode-governance-bootstrap
+~/.config/opencode/bin/opencode-governance-bootstrap init --profile solo --repo-root /path/to/repo
 ```
 
 ```powershell
 # Windows (PowerShell)
-& "$env:USERPROFILE\.config\opencode\bin\opencode-governance-bootstrap.cmd"
+& "$env:USERPROFILE\.config\opencode\bin\opencode-governance-bootstrap.cmd" init --profile solo --repo-root C:\path\to\repo
 ```
 
 ```cmd
 :: Windows (cmd.exe)
-"%USERPROFILE%\.config\opencode\bin\opencode-governance-bootstrap.cmd"
+"%USERPROFILE%\.config\opencode\bin\opencode-governance-bootstrap.cmd" init --profile solo --repo-root C:\path\to\repo
 ```
 
 ### Optional flags
 
 ```bash
-opencode-governance-bootstrap --repo-root /path/to/repo --config-root /path/to/opencode-config
+opencode-governance-bootstrap init --profile team --repo-root /path/to/repo --config-root /path/to/opencode-config
 ```
 
 ```powershell
-opencode-governance-bootstrap --repo-root C:\path\to\repo --config-root C:\path\to\opencode-config
+opencode-governance-bootstrap init --profile team --repo-root C:\path\to\repo --config-root C:\path\to\opencode-config
 ```
 
 ```cmd
-opencode-governance-bootstrap.cmd --repo-root C:\path\to\repo --config-root C:\path\to\opencode-config
+opencode-governance-bootstrap.cmd init --profile team --repo-root C:\path\to\repo --config-root C:\path\to\opencode-config
 ```
+
+### Operating mode setup surface
+
+- Canonical setup path: `init --profile <solo|team|regulated>`
+- Optional alias (administrative): `--set-operating-mode <solo|team|regulated>`
+
+On success, bootstrap prints:
+
+- `repoOperatingMode = <profile>`
+- `resolvedOperatingMode default = <profile>`
+- `policyPath = <repo>/.opencode/governance-repo-policy.json`
 
 ## If execution is unavailable
 
