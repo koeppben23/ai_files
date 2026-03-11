@@ -206,6 +206,7 @@ def finalize_run_manifest(
     has_plan_record: bool,
     has_pr_record: bool,
     integrity_status: str,
+    integrity_error: str = "",
 ) -> dict[str, object]:
     out = dict(manifest)
     required = manifest.get("required_artifacts")
@@ -224,6 +225,8 @@ def finalize_run_manifest(
         out["finalized_at"] = None
         if missing:
             out["finalization_errors"] = [f"missing-required-artifact:{item}" for item in missing]
+        elif integrity_error.strip():
+            out["finalization_errors"] = [f"integrity-guard:{integrity_error.strip()}"]
         return out
 
     if missing:

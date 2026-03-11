@@ -56,6 +56,25 @@ def _write_json_atomic(path: Path, payload: Mapping[str, object]) -> None:
     atomic_write_text(path, text)
 
 
+def _regulated_mode_active(state_view: Mapping[str, object]) -> bool:
+    state = str(state_view.get("regulated_mode_state") or state_view.get("regulated_mode") or "").strip().lower()
+    return state in {"active", "transitioning", "true", "1", "yes"}
+
+
+def _regulated_finalization_guard(
+    *,
+    state_view: Mapping[str, object],
+    run_type: str,
+) -> tuple[bool, str]:
+    if not _regulated_mode_active(state_view):
+        return True, "regulated-mode-inactive"
+    requires_human_approval = bool(state_view.get("requires_human_approval", run_type == "pr"))
+    approval_status = str(state_view.get("approval_status") or "").strip().lower()
+    if requires_human_approval and approval_status != "approved":
+        return False, "regulated mode requires approved human approval before finalization"
+    return True, "regulated-mode-guard-passed"
+
+
 def archive_active_run(
     *,
     workspaces_home: Path,
@@ -363,12 +382,17 @@ def archive_active_run(
         writer(checksums_path, build_checksums(checksum_inputs))
 
         integrity_ok, _, integrity_message = verify_run_archive(archive_root)
+        guard_ok, guard_reason = _regulated_finalization_guard(state_view=state_view, run_type=run_type)
+        if not guard_ok:
+            integrity_ok = False
+            integrity_message = guard_reason
         finalized_manifest = finalize_run_manifest(
             run_manifest,
             observed_at=observed_at,
             has_plan_record=archived_plan,
             has_pr_record=archived_pr,
             integrity_status="passed" if integrity_ok else "failed",
+            integrity_error=str(integrity_message or ""),
         )
         manifest_path = run_manifest_path(
             workspaces_home,
@@ -379,6 +403,9 @@ def archive_active_run(
         )
         writer(manifest_path, finalized_manifest)
         if str(finalized_manifest.get("run_status") or "") != "finalized":
+            errors = finalized_manifest.get("finalization_errors")
+            if isinstance(errors, list) and errors:
+                raise RuntimeError(f"run archive failed finalization guards: {errors[0]}")
             raise RuntimeError("run archive failed finalization guards")
 
         metadata["archive_status"] = "finalized"
@@ -408,6 +435,13 @@ def archive_active_run(
                     "session_state": False,
                     "plan_record": False,
                     "pr_record": False,
+                    "ticket_record": False,
+                    "review_decision_record": False,
+                    "outcome_record": False,
+                    "evidence_index": False,
+                    "run_manifest": False,
+                    "provenance_record": False,
+                    "checksums": False,
                 },
                 "archive_status": "failed",
                 "failure_reason": error_message,

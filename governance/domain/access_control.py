@@ -30,6 +30,9 @@ class Role(Enum):
     """Roles that can interact with the governance audit system."""
     OPERATOR = "operator"
     AUDITOR = "auditor"
+    REVIEWER = "reviewer"
+    APPROVER = "approver"
+    ADMIN = "admin"
     COMPLIANCE_OFFICER = "compliance_officer"
     SYSTEM = "system"
     READONLY = "readonly"
@@ -46,6 +49,9 @@ class Action(Enum):
     MODIFY_RETENTION = "modify_retention"
     VIEW_CLASSIFICATION = "view_classification"
     OVERRIDE_REDACTION = "override_redaction"
+    FINALIZE_RUN = "finalize_run"
+    INVALIDATE_RUN = "invalidate_run"
+    APPROVE_HUMAN_GATE = "approve_human_gate"
 
 
 class AccessDecision(Enum):
@@ -76,6 +82,9 @@ class AccessEvaluation:
     action: Action
     reason: str
     regulated_mode_active: bool = False
+    requires_human_approval: bool = False
+    approval_satisfied: bool = True
+    approval_reason: str = ""
 
 
 # ---------------------------------------------------------------------------
@@ -114,6 +123,10 @@ PERMISSIONS: Mapping[str, Permission] = {
         role=Role.OPERATOR, action=Action.VIEW_CLASSIFICATION,
         description="Operator can view field classifications",
     ),
+    "operator:finalize_run": Permission(
+        role=Role.OPERATOR, action=Action.FINALIZE_RUN,
+        description="Operator can finalize an in-progress run",
+    ),
 
     # Auditor — read + verify + export (redacted)
     "auditor:read_archive": Permission(
@@ -135,6 +148,24 @@ PERMISSIONS: Mapping[str, Permission] = {
     "auditor:view_classification": Permission(
         role=Role.AUDITOR, action=Action.VIEW_CLASSIFICATION,
         description="Auditor can view field classifications",
+    ),
+
+    # Reviewer — verification + decision preparation
+    "reviewer:read_archive": Permission(
+        role=Role.REVIEWER, action=Action.READ_ARCHIVE,
+        description="Reviewer can read archive data",
+    ),
+    "reviewer:verify_archive": Permission(
+        role=Role.REVIEWER, action=Action.VERIFY_ARCHIVE,
+        description="Reviewer can verify archive integrity",
+    ),
+    "reviewer:read_failure_report": Permission(
+        role=Role.REVIEWER, action=Action.READ_FAILURE_REPORT,
+        description="Reviewer can read failure reports",
+    ),
+    "reviewer:view_classification": Permission(
+        role=Role.REVIEWER, action=Action.VIEW_CLASSIFICATION,
+        description="Reviewer can view field classifications",
     ),
 
     # Compliance Officer — full read + export + retention management
@@ -171,6 +202,76 @@ PERMISSIONS: Mapping[str, Permission] = {
         role=Role.COMPLIANCE_OFFICER, action=Action.OVERRIDE_REDACTION,
         requires_regulated_mode=True, requires_audit_log=True,
         description="Compliance officer can override redaction (audit-logged)",
+    ),
+
+    # Approver — four-eyes approval role
+    "approver:read_archive": Permission(
+        role=Role.APPROVER, action=Action.READ_ARCHIVE,
+        description="Approver can read archive data",
+    ),
+    "approver:verify_archive": Permission(
+        role=Role.APPROVER, action=Action.VERIFY_ARCHIVE,
+        description="Approver can verify archive integrity",
+    ),
+    "approver:read_failure_report": Permission(
+        role=Role.APPROVER, action=Action.READ_FAILURE_REPORT,
+        description="Approver can read failure reports",
+    ),
+    "approver:view_classification": Permission(
+        role=Role.APPROVER, action=Action.VIEW_CLASSIFICATION,
+        description="Approver can view classification metadata",
+    ),
+    "approver:approve_human_gate": Permission(
+        role=Role.APPROVER, action=Action.APPROVE_HUMAN_GATE,
+        description="Approver can satisfy four-eyes gate in regulated mode",
+    ),
+
+    # Admin — full governance control plane access
+    "admin:read_archive": Permission(
+        role=Role.ADMIN, action=Action.READ_ARCHIVE,
+        description="Admin can read archive data",
+    ),
+    "admin:export_archive": Permission(
+        role=Role.ADMIN, action=Action.EXPORT_ARCHIVE,
+        description="Admin can export full archives",
+    ),
+    "admin:verify_archive": Permission(
+        role=Role.ADMIN, action=Action.VERIFY_ARCHIVE,
+        description="Admin can verify archive integrity",
+    ),
+    "admin:purge_archive": Permission(
+        role=Role.ADMIN, action=Action.PURGE_ARCHIVE,
+        description="Admin can purge archives (subject to regulated controls)",
+    ),
+    "admin:read_failure_report": Permission(
+        role=Role.ADMIN, action=Action.READ_FAILURE_REPORT,
+        description="Admin can read failure reports",
+    ),
+    "admin:export_redacted": Permission(
+        role=Role.ADMIN, action=Action.EXPORT_REDACTED,
+        description="Admin can export redacted archives",
+    ),
+    "admin:modify_retention": Permission(
+        role=Role.ADMIN, action=Action.MODIFY_RETENTION,
+        requires_regulated_mode=True,
+        description="Admin can modify retention policies in regulated mode",
+    ),
+    "admin:view_classification": Permission(
+        role=Role.ADMIN, action=Action.VIEW_CLASSIFICATION,
+        description="Admin can view classification metadata",
+    ),
+    "admin:override_redaction": Permission(
+        role=Role.ADMIN, action=Action.OVERRIDE_REDACTION,
+        requires_regulated_mode=True,
+        description="Admin can override redaction in regulated mode",
+    ),
+    "admin:finalize_run": Permission(
+        role=Role.ADMIN, action=Action.FINALIZE_RUN,
+        description="Admin can finalize runs",
+    ),
+    "admin:invalidate_run": Permission(
+        role=Role.ADMIN, action=Action.INVALIDATE_RUN,
+        description="Admin can invalidate runs",
     ),
 
     # System — automated operations
@@ -210,13 +311,47 @@ PERMISSIONS: Mapping[str, Permission] = {
 #: Actions that are forbidden when regulated mode is active
 REGULATED_MODE_BLOCKED_ACTIONS: FrozenSet[str] = frozenset({
     "operator:purge_archive",
+    "admin:purge_archive",
 })
 
 #: Actions that require regulated mode to be active
 REGULATED_MODE_REQUIRED_ACTIONS: FrozenSet[str] = frozenset({
     "compliance_officer:modify_retention",
     "compliance_officer:override_redaction",
+    "admin:modify_retention",
+    "admin:override_redaction",
 })
+
+
+HUMAN_APPROVAL_REQUIRED_ACTIONS: FrozenSet[Action] = frozenset({
+    Action.EXPORT_ARCHIVE,
+    Action.PURGE_ARCHIVE,
+    Action.INVALIDATE_RUN,
+    Action.FINALIZE_RUN,
+})
+
+
+def evaluate_four_eyes(
+    *,
+    initiator_role: Role,
+    approver_role: Role | None,
+    action: Action,
+    regulated_mode_active: bool,
+) -> tuple[bool, str]:
+    if not regulated_mode_active or action not in HUMAN_APPROVAL_REQUIRED_ACTIONS:
+        return True, "four-eyes not required"
+    if approver_role is None:
+        return False, "missing independent approver role"
+    if approver_role == initiator_role:
+        return False, "four-eyes violation: approver must differ from initiator"
+    approver_allowed = evaluate_access(
+        role=approver_role,
+        action=Action.APPROVE_HUMAN_GATE,
+        regulated_mode_active=regulated_mode_active,
+    )
+    if approver_allowed.decision != AccessDecision.ALLOW:
+        return False, f"approver role {approver_role.value} cannot approve human gate"
+    return True, "four-eyes satisfied"
 
 
 # ---------------------------------------------------------------------------
@@ -228,6 +363,7 @@ def evaluate_access(
     role: Role,
     action: Action,
     regulated_mode_active: bool = False,
+    approver_role: Role | None = None,
 ) -> AccessEvaluation:
     """Evaluate whether a role is allowed to perform an action.
 
@@ -251,6 +387,9 @@ def evaluate_access(
             action=action,
             reason=f"No permission defined for {key}",
             regulated_mode_active=regulated_mode_active,
+            requires_human_approval=(regulated_mode_active and action in HUMAN_APPROVAL_REQUIRED_ACTIONS),
+            approval_satisfied=False,
+            approval_reason="permission missing",
         )
 
     # Check regulated-mode-blocked actions
@@ -261,6 +400,9 @@ def evaluate_access(
             action=action,
             reason=f"Action {action.value} blocked in regulated mode for {role.value}",
             regulated_mode_active=regulated_mode_active,
+            requires_human_approval=(action in HUMAN_APPROVAL_REQUIRED_ACTIONS),
+            approval_satisfied=False,
+            approval_reason="blocked in regulated mode",
         )
 
     # Check regulated-mode-required actions
@@ -271,6 +413,28 @@ def evaluate_access(
             action=action,
             reason=f"Action {action.value} requires regulated mode for {role.value}",
             regulated_mode_active=regulated_mode_active,
+            requires_human_approval=False,
+            approval_satisfied=False,
+            approval_reason="regulated mode required",
+        )
+
+    approval_required = regulated_mode_active and action in HUMAN_APPROVAL_REQUIRED_ACTIONS
+    approval_ok, approval_reason = evaluate_four_eyes(
+        initiator_role=role,
+        approver_role=approver_role,
+        action=action,
+        regulated_mode_active=regulated_mode_active,
+    )
+    if approval_required and not approval_ok:
+        return AccessEvaluation(
+            decision=AccessDecision.DENY,
+            role=role,
+            action=action,
+            reason=f"Action {action.value} requires independent approval in regulated mode",
+            regulated_mode_active=regulated_mode_active,
+            requires_human_approval=True,
+            approval_satisfied=False,
+            approval_reason=approval_reason,
         )
 
     return AccessEvaluation(
@@ -279,6 +443,9 @@ def evaluate_access(
         action=action,
         reason=f"Allowed by permission {key}",
         regulated_mode_active=regulated_mode_active,
+        requires_human_approval=approval_required,
+        approval_satisfied=approval_ok,
+        approval_reason=approval_reason,
     )
 
 
@@ -302,6 +469,8 @@ __all__ = [
     "PERMISSIONS",
     "REGULATED_MODE_BLOCKED_ACTIONS",
     "REGULATED_MODE_REQUIRED_ACTIONS",
+    "HUMAN_APPROVAL_REQUIRED_ACTIONS",
+    "evaluate_four_eyes",
     "evaluate_access",
     "get_role_permissions",
     "get_action_roles",

@@ -586,6 +586,43 @@ class TestGovernanceExportEdge:
         assert manifest is None
         assert result is not None
 
+    def test_regulated_export_requires_independent_approver(self, tmp_path: Path):
+        archive = _create_finalized_archive(tmp_path)
+        export_path = tmp_path / "export"
+
+        result, manifest = governance_export(
+            archive_path=archive,
+            export_path=export_path,
+            repo_fingerprint=_FINGERPRINT,
+            run_id=_RUN_ID,
+            exported_at=_OBSERVED_AT,
+            exported_by="test-operator",
+            role=Role.OPERATOR,
+            regulated_mode_config=_ACTIVE_REGULATED_CONFIG,
+        )
+
+        assert manifest is None
+        assert result.governance_passed is False
+
+    def test_regulated_export_allows_with_approver_role(self, tmp_path: Path):
+        archive = _create_finalized_archive(tmp_path)
+        export_path = tmp_path / "export"
+
+        result, manifest = governance_export(
+            archive_path=archive,
+            export_path=export_path,
+            repo_fingerprint=_FINGERPRINT,
+            run_id=_RUN_ID,
+            exported_at=_OBSERVED_AT,
+            exported_by="test-operator",
+            role=Role.OPERATOR,
+            approver_role=Role.APPROVER,
+            regulated_mode_config=_ACTIVE_REGULATED_CONFIG,
+        )
+
+        assert result.governance_passed is True
+        assert manifest is not None
+
 
 class TestValidateArchiveContractEdge:
     """Edge: contract validation boundary cases."""

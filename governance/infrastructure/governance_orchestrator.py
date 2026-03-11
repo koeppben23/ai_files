@@ -240,6 +240,7 @@ def run_governance_pipeline(
     regulated_mode_config: RegulatedModeConfig = DEFAULT_CONFIG,
     role: Role = Role.SYSTEM,
     action: Action = Action.VERIFY_ARCHIVE,
+    approver_role: Role | None = None,
     classification_level: str = "internal",
     archived_at_days_ago: int = 0,
     legal_holds: Sequence[LegalHold] = (),
@@ -284,6 +285,7 @@ def run_governance_pipeline(
         role=role,
         action=action,
         regulated_mode_active=regulated_eval.is_active,
+        approver_role=approver_role,
     )
 
     # 4. Classification summary
@@ -364,6 +366,7 @@ def governance_export(
     exported_at: str,
     exported_by: str,
     role: Role = Role.OPERATOR,
+    approver_role: Role | None = None,
     regulated_mode_config: RegulatedModeConfig = DEFAULT_CONFIG,
     apply_redaction: bool = False,
     redaction_max_level: ClassificationLevel = ClassificationLevel.INTERNAL,
@@ -405,6 +408,7 @@ def governance_export(
         regulated_mode_config=regulated_mode_config,
         role=role,
         action=Action.EXPORT_ARCHIVE,
+        approver_role=approver_role,
         legal_holds=holds,
     )
 
@@ -417,6 +421,7 @@ def governance_export(
         role=role,
         action=Action.EXPORT_ARCHIVE,
         regulated_mode_active=regulated_eval.is_active,
+        approver_role=approver_role,
     )
     if export_access.decision == AccessDecision.DENY:
         return pipeline_result, None

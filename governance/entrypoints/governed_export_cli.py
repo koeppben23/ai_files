@@ -81,6 +81,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--run-id", required=True, help="Run identifier")
     parser.add_argument("--exported-by", required=True, help="Identity of the exporter")
     parser.add_argument("--role", type=_parse_role, default=Role.OPERATOR, help="Role performing the export")
+    parser.add_argument(
+        "--approver-role",
+        type=_parse_role,
+        default=None,
+        help="Independent approver role for four-eyes actions in regulated mode",
+    )
     parser.add_argument("--apply-redaction", action="store_true", help="Apply field-level redaction to export")
     parser.add_argument(
         "--redaction-max-level",
@@ -125,6 +131,7 @@ def main(argv: list[str] | None = None) -> int:
             exported_at=exported_at,
             exported_by=args.exported_by,
             role=args.role,
+            approver_role=args.approver_role,
             regulated_mode_config=regulated_mode_config,
             apply_redaction=args.apply_redaction,
             redaction_max_level=args.redaction_max_level,

@@ -19,7 +19,9 @@ from governance.domain.access_control import (
     PERMISSIONS,
     REGULATED_MODE_BLOCKED_ACTIONS,
     REGULATED_MODE_REQUIRED_ACTIONS,
+    HUMAN_APPROVAL_REQUIRED_ACTIONS,
     evaluate_access,
+    evaluate_four_eyes,
     get_role_permissions,
     get_action_roles,
 )
@@ -54,6 +56,18 @@ class TestEvaluateAccessHappy:
 
     def test_auditor_can_export_redacted(self):
         result = evaluate_access(role=Role.AUDITOR, action=Action.EXPORT_REDACTED)
+        assert result.decision == AccessDecision.ALLOW
+
+    def test_reviewer_can_verify(self):
+        result = evaluate_access(role=Role.REVIEWER, action=Action.VERIFY_ARCHIVE)
+        assert result.decision == AccessDecision.ALLOW
+
+    def test_approver_can_approve_human_gate(self):
+        result = evaluate_access(role=Role.APPROVER, action=Action.APPROVE_HUMAN_GATE, regulated_mode_active=True)
+        assert result.decision == AccessDecision.ALLOW
+
+    def test_admin_can_invalidate_run(self):
+        result = evaluate_access(role=Role.ADMIN, action=Action.INVALIDATE_RUN)
         assert result.decision == AccessDecision.ALLOW
 
     def test_compliance_officer_can_read(self):
@@ -179,13 +193,14 @@ class TestGetActionRolesHappy:
     def test_purge_only_operator(self):
         roles = get_action_roles(Action.PURGE_ARCHIVE)
         assert Role.OPERATOR in roles
+        assert Role.ADMIN in roles
         assert Role.AUDITOR not in roles
         assert Role.READONLY not in roles
 
     def test_override_redaction_only_compliance_officer(self):
         roles = get_action_roles(Action.OVERRIDE_REDACTION)
         assert Role.COMPLIANCE_OFFICER in roles
-        assert len(roles) == 1
+        assert Role.ADMIN in roles
 
 
 # ===================================================================
@@ -216,6 +231,37 @@ class TestEvaluateAccessEdge:
             regulated_mode_active=True,
         )
         assert result.decision == AccessDecision.ALLOW
+
+    def test_export_requires_four_eyes_in_regulated_mode(self):
+        result = evaluate_access(
+            role=Role.OPERATOR,
+            action=Action.EXPORT_ARCHIVE,
+            regulated_mode_active=True,
+        )
+        assert result.decision == AccessDecision.DENY
+        assert result.requires_human_approval is True
+        assert result.approval_satisfied is False
+
+    def test_export_allows_when_independent_approver_present(self):
+        result = evaluate_access(
+            role=Role.OPERATOR,
+            action=Action.EXPORT_ARCHIVE,
+            regulated_mode_active=True,
+            approver_role=Role.APPROVER,
+        )
+        assert result.decision == AccessDecision.ALLOW
+        assert result.requires_human_approval is True
+        assert result.approval_satisfied is True
+
+    def test_export_denied_when_approver_same_as_initiator(self):
+        result = evaluate_access(
+            role=Role.OPERATOR,
+            action=Action.EXPORT_ARCHIVE,
+            regulated_mode_active=True,
+            approver_role=Role.OPERATOR,
+        )
+        assert result.decision == AccessDecision.DENY
+        assert "four-eyes" in result.approval_reason
 
 
 class TestPermissionTableEdge:
@@ -337,3 +383,15 @@ class TestAccessControlInvariants:
     def test_regulated_required_actions_exist_in_permissions(self):
         for key in REGULATED_MODE_REQUIRED_ACTIONS:
             assert key in PERMISSIONS, f"Required action {key} not in PERMISSIONS"
+
+    def test_human_approval_actions_non_empty(self):
+        assert len(HUMAN_APPROVAL_REQUIRED_ACTIONS) >= 1
+
+    def test_four_eyes_helper_requires_independent_approver(self):
+        ok, _ = evaluate_four_eyes(
+            initiator_role=Role.OPERATOR,
+            approver_role=Role.OPERATOR,
+            action=Action.EXPORT_ARCHIVE,
+            regulated_mode_active=True,
+        )
+        assert ok is False
