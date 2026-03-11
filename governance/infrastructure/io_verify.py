@@ -2,7 +2,7 @@ import hashlib
 import json
 import re
 from pathlib import Path
-from typing import Dict, Optional, Tuple
+from typing import Dict, Mapping, Optional, Tuple
 
 from governance.domain.canonical_json import canonical_json_hash
 
@@ -44,6 +44,11 @@ def _verify_common_artifact_header(
     if not _SHA256_WITH_PREFIX_RE.match(content_hash):
         return f"Invalid {artifact_label} content_hash"
     return None
+
+
+def _stable_json_digest(payload: Mapping[str, object]) -> str:
+    raw = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+    return "sha256:" + hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
 def verify_pointer(pointer_path: Path, expected_fingerprint: str) -> Tuple[bool, Optional[str]]:
@@ -250,13 +255,15 @@ def verify_run_archive(run_root: Path) -> Tuple[bool, Dict[str, bool], Optional[
             return False, results, pr_error
 
     optional_finalization_record = run_root / "finalization-record.json"
+    finalization_payload: Optional[dict] = None
     if optional_finalization_record.is_file():
         try:
-            finalization_payload = json.loads(optional_finalization_record.read_text(encoding="utf-8"))
+            parsed_finalization_payload = json.loads(optional_finalization_record.read_text(encoding="utf-8"))
         except Exception as exc:
             return False, results, f"Failed to parse finalization-record.json: {exc}"
-        if not isinstance(finalization_payload, dict):
+        if not isinstance(parsed_finalization_payload, dict):
             return False, results, "Invalid finalization-record.json payload"
+        finalization_payload = parsed_finalization_payload
         finalization_error = _verify_common_artifact_header(
             finalization_payload,
             expected_schema="governance.finalization-record.v1",
@@ -293,6 +300,8 @@ def verify_run_archive(run_root: Path) -> Tuple[bool, Dict[str, bool], Optional[
             return False, results, f"Invalid finalized_at format: {finalized_at}"
         if finalization_errors is not None:
             return False, results, "Finalized run must not include finalization_errors"
+        if finalization_payload is None:
+            return False, results, "Finalized run must include finalization-record.json"
     elif run_status == "failed":
         if integrity_status != "failed":
             return False, results, "Failed run must have integrity_status=failed"
@@ -533,6 +542,32 @@ def verify_run_archive(run_root: Path) -> Tuple[bool, Dict[str, bool], Optional[
     for filename in present_optional:
         if (run_root / filename).is_file() and filename not in files:
             return False, results, f"Present artifact not checksummed: {filename}"
+
+    if run_status == "finalized" and finalization_payload is not None:
+        finalization_run_status = str(finalization_payload.get("run_status") or "").strip()
+        if finalization_run_status != run_status:
+            return False, results, "finalization-record run_status mismatch"
+        finalization_manifest_status = str(finalization_payload.get("manifest_record_status") or "").strip()
+        if finalization_manifest_status != record_status:
+            return False, results, "finalization-record manifest_record_status mismatch"
+        finalization_integrity_status = str(finalization_payload.get("manifest_integrity_status") or "").strip()
+        if finalization_integrity_status != integrity_status:
+            return False, results, "finalization-record manifest_integrity_status mismatch"
+        checksums_without_finalization = {
+            key: value
+            for key, value in files.items()
+            if key != "finalization-record.json"
+        }
+        expected_bundle_hash = _stable_json_digest(
+            {
+                "run_id": run_root.name,
+                "manifest": manifest,
+                "checksums": checksums_without_finalization,
+            }
+        )
+        actual_bundle_hash = str(finalization_payload.get("bundle_manifest_hash") or "").strip()
+        if actual_bundle_hash != expected_bundle_hash:
+            return False, results, "finalization-record bundle_manifest_hash mismatch"
 
     return True, results, None
 

@@ -826,6 +826,66 @@ def test_verify_rejects_unsupported_checksum_file_entry(tmp_path: Path) -> None:
     assert "unsupported file entry" in message
 
 
+def test_verify_rejects_finalized_run_without_finalization_record(tmp_path: Path) -> None:
+    workspaces_home = tmp_path / "workspaces"
+    fingerprint = "abc123def456abc123def456"
+    state = {
+        "session_run_id": "run-no-finalization-record",
+        "Phase": "6-PostFlight",
+        "active_gate": "Evidence Presentation Gate",
+        "Next": "6",
+    }
+
+    archive_active_run(
+        workspaces_home=workspaces_home,
+        repo_fingerprint=fingerprint,
+        run_id="run-no-finalization-record",
+        observed_at="2026-03-11T13:55:00Z",
+        session_state_document={"SESSION_STATE": state},
+        state_view=state,
+    )
+
+    run_root = _run_root(workspaces_home, fingerprint, "run-no-finalization-record")
+    (run_root / "finalization-record.json").unlink()
+    _recompute_checksums(run_root)
+
+    ok, _, message = verify_run_archive(run_root)
+    assert ok is False
+    assert isinstance(message, str)
+    assert "must include finalization-record.json" in message
+
+
+def test_verify_rejects_finalization_record_with_bundle_hash_mismatch(tmp_path: Path) -> None:
+    workspaces_home = tmp_path / "workspaces"
+    fingerprint = "abc123def456abc123def456"
+    state = {
+        "session_run_id": "run-finalization-hash-mismatch",
+        "Phase": "6-PostFlight",
+        "active_gate": "Evidence Presentation Gate",
+        "Next": "6",
+    }
+
+    archive_active_run(
+        workspaces_home=workspaces_home,
+        repo_fingerprint=fingerprint,
+        run_id="run-finalization-hash-mismatch",
+        observed_at="2026-03-11T13:56:00Z",
+        session_state_document={"SESSION_STATE": state},
+        state_view=state,
+    )
+
+    run_root = _run_root(workspaces_home, fingerprint, "run-finalization-hash-mismatch")
+    payload = json.loads((run_root / "finalization-record.json").read_text(encoding="utf-8"))
+    payload["bundle_manifest_hash"] = "sha256:" + "0" * 64
+    (run_root / "finalization-record.json").write_text(json.dumps(payload, ensure_ascii=True), encoding="utf-8")
+    _recompute_checksums(run_root)
+
+    ok, _, message = verify_run_archive(run_root)
+    assert ok is False
+    assert isinstance(message, str)
+    assert "bundle_manifest_hash mismatch" in message
+
+
 def test_verify_rejects_required_artifact_baseline_false(tmp_path: Path) -> None:
     workspaces_home = tmp_path / "workspaces"
     fingerprint = "abc123def456abc123def456"
