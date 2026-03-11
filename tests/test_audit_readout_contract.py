@@ -12,6 +12,9 @@ def _valid_payload() -> dict[str, object]:
             "active_gate": "Ticket Input Gate",
             "next": "5",
             "updated_at": "2026-03-05T20:34:32Z",
+            "effective_operating_mode": "pipeline",
+            "resolved_operating_mode": "team",
+            "verify_policy_version": "v1",
         },
         "last_snapshot": {
             "snapshot_path": "/mock/runs/work-0/SESSION_STATE.json",
@@ -21,6 +24,9 @@ def _valid_payload() -> dict[str, object]:
             "run_id": "work-0",
             "run_status": "finalized",
             "integrity_status": "passed",
+            "effective_operating_mode": "pipeline",
+            "resolved_operating_mode": "team",
+            "verify_policy_version": "v1",
         },
         "chain": {
             "tail_count": 1,
