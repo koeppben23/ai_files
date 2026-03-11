@@ -1127,6 +1127,31 @@ def read_session_snapshot(commands_home: Path | None = None, *, materialize: boo
     else:
         plan_record_label = "working draft (not yet persisted)"
 
+    effective_operating_mode = _safe_str(
+        state_view.get("effective_operating_mode")
+        or state_view.get("operating_mode")
+        or "unknown"
+    ).lower()
+
+    resolved_operating_mode = _safe_str(
+        state_view.get("resolved_operating_mode")
+        or state_view.get("resolvedOperatingMode")
+        or ""
+    ).lower()
+    if not resolved_operating_mode:
+        resolved_operating_mode = {
+            "user": "solo",
+            "pipeline": "team",
+            "agents_strict": "regulated",
+            "system": "team",
+        }.get(effective_operating_mode, "solo")
+
+    verify_policy_version = _safe_str(
+        state_view.get("verify_policy_version")
+        or state_view.get("verifyPolicyVersion")
+        or "v1"
+    )
+
     snapshot: dict = {
         "schema": SNAPSHOT_SCHEMA,
         "status": _safe_str(status),
@@ -1142,6 +1167,9 @@ def read_session_snapshot(commands_home: Path | None = None, *, materialize: boo
         "plan_record_status": plan_status,
         "plan_record_versions": plan_versions,
         "plan_record_label": plan_record_label,
+        "effective_operating_mode": effective_operating_mode,
+        "resolved_operating_mode": resolved_operating_mode,
+        "verify_policy_version": verify_policy_version,
         "commands_home": str(commands_home),
         "p54_evaluated_status": p54_evaluated_status,
         "p55_evaluated_status": p55_evaluated_status,
