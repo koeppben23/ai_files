@@ -22,6 +22,10 @@ def _write_session(path: Path, *, phase: str = "6-PostFlight") -> None:
             "ImplementationReview": {
                 "implementation_review_complete": True,
             },
+            "implementation_review_complete": True,
+            "review_package_presented": True,
+            "review_package_plan_body_present": True,
+            "review_package_review_object": "Final Phase-6 implementation review decision",
         },
     }
     path.write_text(json.dumps(payload, ensure_ascii=True), encoding="utf-8")

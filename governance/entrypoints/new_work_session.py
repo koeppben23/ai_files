@@ -113,7 +113,8 @@ def _reset_for_new_work(
 
     state["Phase"] = "4"
     state["phase"] = "4"
-    state["Next"] = "5"
+    state["Next"] = "4"
+    state["next"] = "4"
     state["Mode"] = "IN_PROGRESS"
     state["status"] = "OK"
     state["active_gate"] = "Ticket Input Gate"
@@ -226,7 +227,7 @@ def _state_is_fresh_phase4_run(state: Mapping[str, object], *, run_id: str) -> b
         return False
 
     next_token = str(state.get("Next") or "").strip()
-    if next_token != "5":
+    if next_token != "4":
         return False
 
     active_gate = str(state.get("active_gate") or "").strip()
@@ -377,7 +378,7 @@ def main(argv: list[str] | None = None) -> int:
                 "previous_run_id": previous_run_id,
                 "new_run_id": new_run_id,
                 "phase": "4",
-                "next": "5",
+                "next": "4",
                 "snapshot_path": str(archived.snapshot_path),
                 "snapshot_digest": archived.snapshot_digest,
                 "runtime_purge_files": purged_runtime_files,
@@ -438,7 +439,7 @@ def main(argv: list[str] | None = None) -> int:
         session_state_path=str(session_path),
         run_id=str(document["SESSION_STATE"].get("session_run_id") or ""),
         phase="4",
-        next_token="5",
+        next_token="4",
         active_gate="Ticket Input Gate",
     )
     print(json.dumps(payload, ensure_ascii=True))

@@ -231,8 +231,8 @@ phases:
       - when: default
         next: "6"
         source: "phase-5.3-to-6"
-        active_gate: "Post Flight"
-        next_gate_condition: "Phase 5 checks complete; proceed to post-flight"
+        active_gate: "Implementation Internal Review"
+        next_gate_condition: "Phase 5 checks complete; start internal implementation review."
 
   - token: "5.4"
     phase: "5.4-BusinessRules"
@@ -254,8 +254,8 @@ phases:
       - when: default
         next: "6"
         source: "phase-5.4-to-6"
-        active_gate: "Post Flight"
-        next_gate_condition: "Business rules validation complete; proceed to post-flight"
+        active_gate: "Implementation Internal Review"
+        next_gate_condition: "Business rules validation complete; start internal implementation review."
 
   - token: "5.5"
     phase: "5.5-TechnicalDebt"
@@ -272,8 +272,8 @@ phases:
       - when: default
         next: "6"
         source: "phase-5.5-to-6"
-        active_gate: "Post Flight"
-        next_gate_condition: "Technical debt review complete; proceed to post-flight"
+        active_gate: "Implementation Internal Review"
+        next_gate_condition: "Technical debt review complete; start internal implementation review."
 
   - token: "5.6"
     phase: "5.6-RollbackSafety"
@@ -285,13 +285,13 @@ phases:
       - when: default
         next: "6"
         source: "phase-5.6-to-6"
-        active_gate: "Post Flight"
-        next_gate_condition: "Rollback safety checks complete; proceed to post-flight"
+        active_gate: "Implementation Internal Review"
+        next_gate_condition: "Rollback safety checks complete; start internal implementation review."
 
   - token: "6"
     phase: "6-PostFlight"
-    active_gate: "Post Flight"
-    next_gate_condition: "Implement, run deterministic internal implementation review loop (max 3, early-stop only on unchanged digest), then present evidence for final user review."
+    active_gate: "Implementation Internal Review"
+    next_gate_condition: "Review loop in progress. Complete deterministic internal implementation review iterations before final decision becomes available."
     route_strategy: "stay"
     transitions:
       - when: implementation_started

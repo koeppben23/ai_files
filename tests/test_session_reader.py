@@ -316,12 +316,13 @@ class TestReadSessionSnapshotSuccess:
         )
         with _mock_readonly_unavailable():
             result = read_session_snapshot(commands_home=fake_config / "commands")
-        assert result["review_brief_review_object"]
-        assert result["review_brief_ticket_summary"] == "Ticket summary example"
-        assert "Plan summary example" in result["review_brief_plan_summary"]
-        assert result["review_brief_evidence_summary"]
-        assert result["review_brief_loop_status"]
-        assert result["review_brief_decision_semantics"]
+        assert result["review_package_review_object"]
+        assert result["review_package_ticket"] == "Ticket summary example"
+        assert "Plan summary example" in result["review_package_approved_plan_summary"]
+        assert "Plan summary example" in result["review_package_plan_body"]
+        assert result["review_package_evidence_summary"]
+        assert result["review_package_loop_status"]
+        assert result["review_package_decision_semantics"]
 
     def test_relative_path_fallback(self, fake_config: Path) -> None:
         """Pointer with only activeSessionStateRelativePath still works."""
@@ -1128,9 +1129,7 @@ class TestMain:
         assert "active_gate: Architecture Review Gate" in output
         assert "next_gate_condition: \"Phase 5 self-review status: iteration=0/3" in output
         assert "Ticket/task evidence captured; continue to Phase 5 plan-record preparation before architecture review" not in output
-        # Fix 3.2 (B7): self_review_iterations_met is False (iteration=0 < max=3),
-        # so the user should work in chat, not re-run /continue.
-        assert output.strip().endswith("Next action: continue in chat with the active gate work.")
+        assert output.strip().endswith("Next action: run /continue.")
 
         updated_state = json.loads(ws_state.read_text(encoding="utf-8"))["SESSION_STATE"]
         assert updated_state["active_gate"] == "Architecture Review Gate"
@@ -2349,7 +2348,7 @@ class TestResolveNextActionLine:
             "next_gate_condition": "Resume via /continue",
             "transition_evidence_hint": "phase_transition_evidence is False — forward phase jump blocked.",
         }
-        assert _resolve_next_action_line(snapshot) == "Next action: continue in chat with the active gate work."
+        assert _resolve_next_action_line(snapshot) == "Next action: run /continue."
 
     def test_next_action_line_chat_for_phase5_review_pending(self) -> None:
         """Phase 5 with self_review_iterations_met=False -> 'continue in chat'."""
@@ -2359,7 +2358,7 @@ class TestResolveNextActionLine:
             "next_gate_condition": "Continue review",
             "self_review_iterations_met": False,
         }
-        assert _resolve_next_action_line(snapshot) == "Next action: continue in chat with the active gate work."
+        assert _resolve_next_action_line(snapshot) == "Next action: run /continue."
 
     def test_next_action_line_plan_for_phase5_plan_prep_without_persisted_record(self) -> None:
         """Phase 5 prep gate with absent plan record must recommend /plan, not /continue."""
@@ -2393,9 +2392,7 @@ class TestResolveNextActionLine:
             "next_gate_condition": "Proceed to Phase 5.3 test-quality gate.",
             "self_review_iterations_met": True,
         }
-        assert _resolve_next_action_line(snapshot) == (
-            "Next action: execute Phase 5.3 test-quality review, then run /continue."
-        )
+        assert _resolve_next_action_line(snapshot) == "Next action: run /continue."
 
     def test_no_stale_next_gate_condition(self) -> None:
         """Blocked status emits explicit recovery next action."""
@@ -2428,7 +2425,7 @@ class TestResolveNextActionLine:
             "p54_evaluated_status": "gap-detected",
         }
         assert _resolve_next_action_line(snapshot) == (
-            "Next action: continue in chat with the active gate work."
+            "Next action: complete the active business-rules validation work in chat."
         )
 
     def test_next_action_line_explicit_p55_guidance(self) -> None:
@@ -2451,7 +2448,7 @@ class TestResolveNextActionLine:
             "p55_evaluated_status": "pending",
         }
         assert _resolve_next_action_line(snapshot) == (
-            "Next action: continue in chat with the active gate work."
+            "Next action: complete the active technical-debt validation work in chat."
         )
 
     def test_next_action_line_explicit_p56_guidance(self) -> None:
@@ -2474,7 +2471,7 @@ class TestResolveNextActionLine:
             "p56_evaluated_status": "pending",
         }
         assert _resolve_next_action_line(snapshot) == (
-            "Next action: continue in chat with the active gate work."
+            "Next action: complete the active rollback-safety validation work in chat."
         )
 
     def test_phase4_ticket_intake_surfaces_both_paths(self) -> None:
@@ -2485,10 +2482,7 @@ class TestResolveNextActionLine:
             "active_gate": "Ticket Input Gate",
             "next_gate_condition": "Collect ticket and planning constraints",
         }
-        assert _resolve_next_action_line(snapshot) == (
-            "Next action: run /ticket with the ticket/task details to enter the development path. "
-            "Alternative: run /review for read-only review feedback (no state change)."
-        )
+        assert _resolve_next_action_line(snapshot) == "Next action: run /ticket with the ticket/task details."
 
     def test_happy_workflow_complete_emits_terminal_next_action(self) -> None:
         """Happy: workflow complete always emits an explicit terminal recommendation."""
@@ -2522,9 +2516,7 @@ class TestResolveNextActionLine:
             "active_gate": "Rework Clarification Gate",
             "next_gate_condition": "Clarify requested changes in chat, then run directed next rail.",
         }
-        assert _resolve_next_action_line(snapshot) == (
-            "Next action: describe the requested adjustments in chat so exactly one rail can be directed."
-        )
+        assert _resolve_next_action_line(snapshot) == "Next action: describe the requested changes in chat."
 
     def test_happy_rework_clarification_scope_change_routes_to_ticket(self) -> None:
         snapshot = {
@@ -2560,7 +2552,7 @@ class TestResolveNextActionLine:
             "phase": "4",
             "next_gate_condition": "Collect ticket and planning constraints",
         }
-        assert _resolve_next_action_line(snapshot) == "Next action: continue in chat with the active gate work."
+        assert _resolve_next_action_line(snapshot) == "Next action: run /ticket with the ticket/task details."
 
     def test_bad_error_status_workflow_complete_emits_no_recommendation(self) -> None:
         """Bad: error status emits explicit error recovery recommendation."""
@@ -2571,7 +2563,7 @@ class TestResolveNextActionLine:
             "next_gate_condition": "Workflow approved.",
         }
         assert _resolve_next_action_line(snapshot) == (
-            "Next action: resolve the reported error and rerun /continue."
+            "Next action: resolve the reported error, then run /continue."
         )
 
 

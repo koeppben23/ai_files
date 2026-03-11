@@ -250,7 +250,9 @@ def main(argv: list[str] | None = None) -> int:
         session_state_path=str(session_path),
         phase_before=phase_before,
         phase_after=routed.phase,
-        next_token=str(routed.next_token or ""),
+        next_phase=str(routed.phase or ""),
+        next_gate=routed.active_gate,
+        next_action="run /continue.",
         active_gate=routed.active_gate,
     )
     if args.quiet:

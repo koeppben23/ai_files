@@ -24,6 +24,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping
 
+from governance.engine.next_action_resolver import resolve_next_action
+
 # ---------------------------------------------------------------------------
 # Schema / version constants
 # ---------------------------------------------------------------------------
@@ -144,6 +146,52 @@ def _build_plan_summary(*, state_view: Mapping[str, object], session_path: Path)
     except Exception:
         pass
     return _truncate_text(state_view.get("phase5_plan_record_digest"))
+
+
+def _build_plan_body(*, session_path: Path) -> str:
+    try:
+        plan_record_path = session_path.parent / "plan-record.json"
+        if not plan_record_path.is_file():
+            return "none"
+        payload = _read_json(plan_record_path)
+        versions = payload.get("versions")
+        if not isinstance(versions, list) or not versions:
+            return "none"
+        latest = versions[-1] if isinstance(versions[-1], dict) else {}
+        if not isinstance(latest, dict):
+            return "none"
+        text = str(latest.get("plan_record_text") or "").strip()
+        return text or "none"
+    except Exception:
+        return "none"
+
+
+def _persist_review_package_markers(*, state_doc: dict, session_path: Path) -> None:
+    state_obj = state_doc.get("SESSION_STATE")
+    state = state_obj if isinstance(state_obj, dict) else state_doc
+    phase = str(state.get("Phase") or state.get("phase") or "").strip()
+    gate = str(state.get("active_gate") or "").strip().lower()
+
+    if not phase.startswith("6") or gate != "evidence presentation gate":
+        return
+
+    plan_body = _build_plan_body(session_path=session_path)
+    state["review_package_review_object"] = "Final Phase-6 implementation review decision"
+    state["review_package_ticket"] = _build_ticket_summary(state)
+    state["review_package_approved_plan_summary"] = _build_plan_summary(
+        state_view=state,
+        session_path=session_path,
+    )
+    state["review_package_plan_body"] = plan_body
+    state["review_package_implementation_scope"] = "Implement the approved plan record in this repository."
+    state["review_package_constraints"] = "Governance guards remain active; implementation must follow the approved plan scope."
+    state["review_package_decision_semantics"] = (
+        "approve=governance complete + implementation authorized; "
+        "changes_requested=enter rework clarification gate; "
+        "reject=return to phase 4 ticket input gate"
+    )
+    state["review_package_presented"] = True
+    state["review_package_plan_body_present"] = plan_body != "none"
 
 
 def _run_phase6_internal_review_loop(*, state_doc: dict, session_path: Path) -> None:
@@ -791,6 +839,7 @@ def _materialize_authoritative_state(*, commands_home: Path, config_root: Path, 
         state_doc=materialized,
         events_path=session_path.parent / "events.jsonl",
     )
+    _persist_review_package_markers(state_doc=materialized, session_path=session_path)
 
     _write_json_atomic(session_path, materialized)
     return materialized
@@ -854,143 +903,8 @@ _GATE_WORK_PATTERNS: tuple[str, ...] = (
 
 
 def _resolve_next_action_line(snapshot: dict) -> str:
-    """Return the appropriate next-action guidance line (Fix 3.2 / B7).
-
-    Two possible outputs:
-    1. ``"Next action: run /continue."``
-       — when kernel materialization would advance the phase or trigger an
-         internal kernel operation (e.g. plan generation, gate propagation).
-    2. ``"Next action: continue in chat with the active gate work."``
-       — when the user should do work in the conversation (gate work,
-         self-review iterations) rather than blindly re-running /continue.
-    3. ``""`` (empty string) — when no next-action hint is appropriate
-       (error, blocked, or user-input gates).
-
-    The distinction prevents /continue self-loops (B7) where the system
-    recommends /continue but nothing changes because the user hasn't done
-    the required gate work yet.
-    """
-    phase_str = str(snapshot.get("phase", "")).strip()
-    status = str(snapshot.get("status", "")).strip().lower()
-    active_gate = str(snapshot.get("active_gate", "")).strip().lower()
-    plan_status = str(snapshot.get("plan_record_status", "")).strip().lower()
-    plan_versions = _coerce_int(snapshot.get("plan_record_versions"))
-
-    if status in {"", "error", "blocked"}:
-        if status == "blocked":
-            return "Next action: resolve the reported blocker evidence, then run /continue."
-        if status == "error":
-            return "Next action: resolve the reported error and rerun /continue."
-        return "Next action: run /continue."
-
-    # Phase 5 plan-record prep is an explicit write gate: /continue must NOT
-    # be recommended before the plan record exists.
-    if phase_str.startswith("5") and active_gate == "plan record preparation gate":
-        if plan_versions < 1 or plan_status in {"", "absent", "error", "unknown"}:
-            return "Next action: run /plan."
-
-    # Phase 6 special gates are handled before the generic guard because
-    # _should_emit_continue_next_action returns False for /review-decision
-    # conditions — but we still need to emit the /review-decision guidance.
-    if phase_str.startswith("6"):
-        if active_gate == "workflow complete":
-            return "Next action: run /implement."
-        if active_gate == "implementation started":
-            return (
-                "Next action: proceed with repository changes and execution work; "
-                "no further governance command is required until the next review checkpoint."
-            )
-        if active_gate == "rework clarification gate":
-            from governance.application.use_cases.rework_clarification import (
-                classify_rework_clarification,
-                derive_next_rail,
-            )
-
-            clarification_text = str(
-                snapshot.get("rework_clarification_input")
-                or snapshot.get("rework_clarification_text")
-                or snapshot.get("rework_clarification_note")
-                or ""
-            ).strip()
-            outcome = classify_rework_clarification(clarification_text)
-            rail = derive_next_rail(outcome)
-
-            if rail == "/ticket":
-                return "Next action: run /ticket with the revised task details."
-            if rail == "/plan":
-                return "Next action: run /plan with the updated plan details."
-            if rail == "/continue":
-                return "Next action: run /continue."
-            return "Next action: describe the requested adjustments in chat so exactly one rail can be directed."
-        if active_gate == "evidence presentation gate":
-            return (
-                "Next action: run /review-decision <approve|changes_requested|reject> "
-                "(example: /review-decision approve)."
-            )
-
-    # Gate-specific P5.x guidance must run before the generic
-    # _should_emit_continue_next_action() guard so blocked conditions can
-    # still emit an actionable /plan recovery command.
-    if phase_str.startswith("5.4"):
-        p54_status = str(snapshot.get("p54_evaluated_status", "")).strip().lower()
-        if p54_status in {"compliant", "compliant-with-exceptions", "not-applicable"}:
-            return "Next action: run /continue."
-        return "Next action: continue in chat with the active gate work."
-    if phase_str.startswith("5.5"):
-        p55_status = str(snapshot.get("p55_evaluated_status", "")).strip().lower()
-        if p55_status in {"approved", "not-applicable"}:
-            return "Next action: run /continue."
-        return "Next action: continue in chat with the active gate work."
-    if phase_str.startswith("5.6"):
-        p56_status = str(snapshot.get("p56_evaluated_status", "")).strip().lower()
-        if p56_status in {"approved", "not-applicable"}:
-            return "Next action: run /continue."
-        return "Next action: continue in chat with the active gate work."
-
-    # Phase 4 ticket intake has two explicit operator paths. Surface both,
-    # instead of returning an empty next-action line, so operators do not
-    # miss the /review route.
-    if (
-        phase_str.startswith("4")
-        and status not in {"", "error", "blocked"}
-        and active_gate == "ticket input gate"
-    ):
-        return (
-            "Next action: run /ticket with the ticket/task details to enter the development path. "
-            "Alternative: run /review for read-only review feedback (no state change)."
-        )
-
-    if not _should_emit_continue_next_action(snapshot):
-        return "Next action: continue in chat with the active gate work."
-
-    # If the snapshot carries a kernel source (from Fix 2.0's transition
-    # evidence hint or from the readonly eval), check whether the source
-    # indicates the user must do gate work rather than re-materialize.
-    _hint = str(snapshot.get("transition_evidence_hint", "")).strip()
-    if _hint:
-        # Evidence is blocking — user must do gate work, not /continue.
-        return "Next action: continue in chat with the active gate work."
-
-    # Check the self_review_iterations_met flag from Fix 3.1 (B6).
-    # If iterations are NOT met and phase is 5, the user should do
-    # review work in chat, not re-run /continue which would self-loop.
-    if phase_str.startswith("5"):
-        review_met = snapshot.get("self_review_iterations_met", True)
-        if review_met is False:
-            return "Next action: continue in chat with the active gate work."
-        next_token = str(snapshot.get("next", "")).strip()
-        if review_met is True and next_token == "5.3":
-            return "Next action: execute Phase 5.3 test-quality review, then run /continue."
-    # Phase 6 review loop is orchestrated during materialize.
-    # Keep guidance on /continue so the user can advance without chat loops.
-    # Note: workflow_complete and evidence_presentation_gate are handled above
-    # before the _should_emit_continue_next_action guard.
-    if phase_str.startswith("6"):
-        review_complete = snapshot.get("implementation_review_complete", True)
-        if review_complete is False:
-            return "Next action: run /continue."
-
-    return "Next action: run /continue."
+    render = resolve_next_action(snapshot)
+    return f"Next action: {render.label}"
 
 
 def read_session_snapshot(commands_home: Path | None = None, *, materialize: bool = False) -> dict:
@@ -1228,17 +1142,23 @@ def read_session_snapshot(commands_home: Path | None = None, *, materialize: boo
 
     phase_str = _safe_str(phase)
     if phase_str.startswith("6") and str(active_gate).strip().lower() == "evidence presentation gate":
-        snapshot["review_brief_review_object"] = "Final Phase-6 implementation review decision"
-        snapshot["review_brief_ticket_summary"] = _build_ticket_summary(state_view)
-        snapshot["review_brief_plan_summary"] = _build_plan_summary(
+        plan_body = _build_plan_body(session_path=session_path)
+        snapshot["review_package_review_object"] = "Final Phase-6 implementation review decision"
+        snapshot["review_package_ticket"] = _build_ticket_summary(state_view)
+        snapshot["review_package_approved_plan_summary"] = _build_plan_summary(
             state_view=state_view,
             session_path=session_path,
         )
-        snapshot["review_brief_decision_semantics"] = (
+        snapshot["review_package_plan_body"] = plan_body
+        snapshot["review_package_implementation_scope"] = "Implement the approved plan record in this repository."
+        snapshot["review_package_constraints"] = "Governance guards remain active; implementation must follow the approved plan scope."
+        snapshot["review_package_decision_semantics"] = (
             "approve=governance complete + implementation authorized; "
             "changes_requested=enter rework clarification gate; "
             "reject=return to phase 4 ticket input gate"
         )
+        snapshot["review_package_presented"] = True
+        snapshot["review_package_plan_body_present"] = plan_body != "none"
 
     # --- Fix 3.1 (B6): Phase 5 self-review diagnostics ---
     # Surface kernel-owned exit conditions so users can see WHY an exit
@@ -1340,14 +1260,25 @@ def read_session_snapshot(commands_home: Path | None = None, *, materialize: boo
         snapshot["implementation_review_complete"] = _p6_complete
 
     if phase_str.startswith("6") and str(active_gate).strip().lower() == "evidence presentation gate":
-        snapshot["review_brief_evidence_summary"] = (
+        snapshot["review_package_evidence_summary"] = (
             f"plan_record_versions={_coerce_int(plan_versions)}, "
             f"implementation_review_complete={str(snapshot.get('implementation_review_complete', False)).lower()}"
         )
-        snapshot["review_brief_loop_status"] = (
+        snapshot["review_package_loop_status"] = (
             f"iterations={_coerce_int(snapshot.get('phase6_review_iterations'))}/"
             f"{_coerce_int(snapshot.get('phase6_max_review_iterations') or 3)}, "
             f"revision_delta={_safe_str(snapshot.get('phase6_revision_delta') or 'changed')}"
+        )
+
+    if phase_str.startswith("6") and str(active_gate).strip().lower() == "implementation internal review":
+        snapshot["phase6_review_loop_status"] = (
+            f"Review loop in progress: iteration={_coerce_int(snapshot.get('phase6_review_iterations'))}/"
+            f"{_coerce_int(snapshot.get('phase6_max_review_iterations') or 3)}, "
+            f"min_required={_coerce_int(snapshot.get('phase6_min_review_iterations') or 1)}, "
+            f"revision_delta={_safe_str(snapshot.get('phase6_revision_delta') or 'changed')}"
+        )
+        snapshot["phase6_decision_availability"] = (
+            "A final review decision is not yet available because the review package has not been fully presented."
         )
 
     # --- Fix 3.3 (B8): Route target explanation for intermediate next tokens ---

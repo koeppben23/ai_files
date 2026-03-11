@@ -60,6 +60,38 @@ def _payload(status: str, **kwargs: object) -> dict[str, object]:
     return out
 
 
+def _latest_plan_text(plan_record_file: Path) -> str:
+    if not plan_record_file.exists():
+        return ""
+    payload = _load_json(plan_record_file)
+    versions = payload.get("versions")
+    if not isinstance(versions, list) or not versions:
+        return ""
+    latest = versions[-1] if isinstance(versions[-1], dict) else {}
+    if not isinstance(latest, dict):
+        return ""
+    return str(latest.get("plan_record_text") or "").strip()
+
+
+def _build_execution_work_queue(plan_text: str) -> list[str]:
+    queue: list[str] = []
+    for raw in plan_text.splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+        if line.startswith(("- ", "* ")):
+            queue.append(line[2:].strip())
+        elif line[:3].isdigit() and "." in line[:4]:
+            queue.append(line.split(".", 1)[1].strip())
+    if not queue:
+        queue = [
+            "Identify files affected by the approved plan",
+            "Apply the first implementation change set",
+            "Run focused verification for touched areas",
+        ]
+    return queue[:20]
+
+
 def _resolve_active_session_path() -> tuple[Path, Path]:
     resolver = BindingEvidenceResolver()
     evidence = getattr(resolver, "resolve")(mode="user")
@@ -158,9 +190,13 @@ def start_implementation(
 
     event_id = uuid.uuid4().hex
     ts = _now_iso()
+    plan_record_file = session_path.parent / "plan-record.json"
+    plan_text = _latest_plan_text(plan_record_file)
+    work_queue = _build_execution_work_queue(plan_text)
 
     state["implementation_authorized"] = True
     state["implementation_started"] = True
+    state["implementation_status"] = "in_progress"
     state["implementation_started_at"] = ts
     state["implementation_started_by"] = actor.strip() or "operator"
     state["implementation_start_note"] = note.strip()
@@ -172,6 +208,15 @@ def start_implementation(
     )
     state["Next"] = "6"
     state["next"] = "6"
+    state["implementation_execution_started"] = True
+    state["implementation_execution_status"] = "in_progress"
+    state["implementation_execution_summary"] = (
+        "Execution started from the approved plan record; work queue is materialized."
+    )
+    state["implementation_artifacts_expected"] = ["source changes", "tests", "review evidence"]
+    state["implementation_blockers"] = []
+    state["implementation_work_queue"] = work_queue
+    state["implementation_current_step"] = work_queue[0] if work_queue else "none"
 
     _write_json_atomic(session_path, state_doc)
 
@@ -186,6 +231,9 @@ def start_implementation(
         "plan_record_versions": signal.versions,
         "actor": state["implementation_started_by"],
         "note": state["implementation_start_note"],
+        "execution_status": "in_progress",
+        "work_queue_items": len(work_queue),
+        "current_step": state["implementation_current_step"],
     }
     if events_path is not None:
         _append_event(events_path, audit_event)
@@ -200,10 +248,14 @@ def start_implementation(
         implementation_authorized=True,
         implementation_started=True,
         implementation_started_at=ts,
-        next_action=(
-            "Implementation phase started. Proceed with repository changes and execution work; "
-            "no further governance command is required until the next review checkpoint."
-        ),
+        implementation_execution_started=True,
+        implementation_execution_status="in_progress",
+        implementation_execution_summary=state["implementation_execution_summary"],
+        implementation_artifacts_expected=state["implementation_artifacts_expected"],
+        implementation_blockers=[],
+        implementation_work_queue=work_queue,
+        implementation_current_step=state["implementation_current_step"],
+        next_action="continue implementation work on the approved plan.",
     )
 
 
