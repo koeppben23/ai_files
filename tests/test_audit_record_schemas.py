@@ -11,6 +11,7 @@ except ImportError:
     jsonschema = None  # type: ignore[assignment]
 
 from governance.infrastructure.workspace_paths import run_dir
+from governance.infrastructure.workspace_paths import repository_manifest_path
 from governance.infrastructure.work_run_archive import archive_active_run
 
 
@@ -98,3 +99,14 @@ class TestAuditRecordSchemaValidation:
 
         with pytest.raises(jsonschema.ValidationError):
             jsonschema.validate(payload, schema)
+
+    def test_repository_manifest_validates_against_schema(self, tmp_path: Path) -> None:
+        assert jsonschema is not None
+        workspaces_home = tmp_path / "workspaces"
+        _materialize_run(tmp_path)
+        payload = json.loads(
+            repository_manifest_path(workspaces_home, _FINGERPRINT).read_text(encoding="utf-8")
+        )
+        schema = _load_schema(Path("governance/assets/schemas/repository_manifest.v1.schema.json"))
+        jsonschema.Draft202012Validator.check_schema(schema)
+        jsonschema.validate(payload, schema)

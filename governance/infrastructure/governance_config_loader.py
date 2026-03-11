@@ -84,6 +84,8 @@ def load_all_governance_schemas() -> dict[str, dict[str, Any]]:
         "classification.v1.schema.json",
         "access_control.v1.schema.json",
         "retention_policy.v1.schema.json",
+        "plan_record.v1.schema.json",
+        "repository_manifest.v1.schema.json",
         "run_manifest.v1.schema.json",
         "work_run_snapshot.v2.schema.json",
         "run_checksums.v1.schema.json",
