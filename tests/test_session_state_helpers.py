@@ -117,6 +117,32 @@ def test_with_kernel_result_writes_plan_record_gate_materialization_fields() -> 
     assert state["PlanRecordVersions"] == 1
 
 
+def test_with_kernel_result_writes_operating_mode_and_verify_policy_fields() -> None:
+    updated = with_kernel_result(
+        {"SESSION_STATE": {}},
+        phase="5-ArchitectureReview",
+        next_token="5",
+        active_gate="Architecture Review Gate",
+        next_gate_condition="Continue self-review loop",
+        status="OK",
+        spec_hash="deadbeef",
+        spec_path="/mock/commands/phase_api.yaml",
+        spec_loaded_at="2026-02-24T19:00:00+00:00",
+        log_paths={},
+        event_id="evt-5",
+        effective_operating_mode="pipeline",
+        resolved_operating_mode="team",
+        verify_policy_version="v1",
+    )
+    state = updated["SESSION_STATE"]
+    assert isinstance(state, dict)
+    assert state["effective_operating_mode"] == "pipeline"
+    assert state["resolved_operating_mode"] == "team"
+    assert state["resolvedOperatingMode"] == "team"
+    assert state["verify_policy_version"] == "v1"
+    assert state["verifyPolicyVersion"] == "v1"
+
+
 # ---------------------------------------------------------------------------
 # Fix 2.1 — Conservative gate auto-propagation
 # ---------------------------------------------------------------------------

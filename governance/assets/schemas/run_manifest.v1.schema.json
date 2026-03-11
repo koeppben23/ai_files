@@ -22,6 +22,8 @@
     "source_phase",
     "source_active_gate",
     "source_next",
+    "resolvedOperatingMode",
+    "verifyPolicyVersion",
     "run_status",
     "record_status",
     "finalized_at",
@@ -47,6 +49,8 @@
     "source_phase": {"type": "string"},
     "source_active_gate": {"type": "string"},
     "source_next": {"type": "string"},
+    "resolvedOperatingMode": {"type": "string", "enum": ["solo", "team", "regulated"]},
+    "verifyPolicyVersion": {"type": "string", "pattern": "^v[0-9]+$"},
     "run_status": {"type": "string", "enum": ["in_progress", "materialized", "finalized", "failed", "invalidated"]},
     "record_status": {"type": "string", "enum": ["draft", "finalized", "superseded", "invalidated"]},
     "finalized_at": {
