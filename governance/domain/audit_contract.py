@@ -117,6 +117,20 @@ BASELINE_ARCHIVED_TRUE: FrozenSet[str] = frozenset({
 _RFC3339_UTC_Z_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
 _REPO_FINGERPRINT_RE = re.compile(r"^[0-9a-f]{24}$")
 _SHA256_PREFIXED_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
+VERIFY_POLICY_VERSION_RE = re.compile(r"^v[0-9]+$")
+
+#: Governance verification fields that must be present on run-manifest.json
+RUN_MANIFEST_GOVERNANCE_FIELDS: FrozenSet[str] = frozenset({
+    "resolvedOperatingMode",
+    "verifyPolicyVersion",
+})
+
+#: Allowed canonical operating profiles in persisted manifest artifacts.
+ALLOWED_RESOLVED_OPERATING_MODES: FrozenSet[str] = frozenset({
+    "solo",
+    "team",
+    "regulated",
+})
 
 
 # ---------------------------------------------------------------------------

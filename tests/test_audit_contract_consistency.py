@@ -26,6 +26,9 @@ from governance.domain.audit_contract import (
     BASELINE_REQUIRED_TRUE,
     REQUIRED_ARCHIVED_FILE_KEYS,
     BASELINE_ARCHIVED_TRUE,
+    RUN_MANIFEST_GOVERNANCE_FIELDS,
+    ALLOWED_RESOLVED_OPERATING_MODES,
+    VERIFY_POLICY_VERSION_RE,
     LIFECYCLE_INVARIANTS,
     RUN_TYPE_ARTIFACT_RULES,
     CONTRACT_VERSION,
@@ -152,6 +155,13 @@ class TestDomainYamlConsistency:
         yaml_baseline = set(config["artifact_rules"]["baseline_required_true"])
         assert yaml_baseline == BASELINE_REQUIRED_TRUE
 
+    def test_run_manifest_governance_fields_match(self, config: dict) -> None:
+        governance_fields = config["consistency_rules"]["run_manifest_governance_fields"]
+        assert set(governance_fields["required"]) == RUN_MANIFEST_GOVERNANCE_FIELDS
+        assert set(governance_fields["resolved_operating_mode_allowed"]) == ALLOWED_RESOLVED_OPERATING_MODES
+        pattern = str(governance_fields["verify_policy_version_pattern"])
+        assert VERIFY_POLICY_VERSION_RE.pattern == pattern
+
 
 # ---------------------------------------------------------------------------
 # Domain Model ↔ JSON Schema Consistency
@@ -200,6 +210,14 @@ class TestDomainJsonSchemaConsistency:
             schema_file = schema_file_by_id.get(schema_id)
             assert schema_file is not None, f"No schema file mapping for {schema_id}"
             assert (_SCHEMA_ROOT / schema_file).is_file(), f"Missing schema file: {schema_file}"
+
+    def test_run_manifest_schema_includes_governance_fields(self) -> None:
+        run_manifest_schema = _load_json(_SCHEMA_ROOT / "run_manifest.v1.schema.json")
+        required = set(run_manifest_schema.get("required", []))
+        assert RUN_MANIFEST_GOVERNANCE_FIELDS.issubset(required)
+        properties = run_manifest_schema.get("properties", {})
+        assert set(properties["resolvedOperatingMode"]["enum"]) == ALLOWED_RESOLVED_OPERATING_MODES
+        assert properties["verifyPolicyVersion"]["pattern"] == VERIFY_POLICY_VERSION_RE.pattern
 
 
 # ---------------------------------------------------------------------------
