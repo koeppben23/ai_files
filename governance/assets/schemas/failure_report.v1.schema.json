@@ -1,0 +1,150 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "governance/schemas/failure_report.v1.schema.json",
+  "title": "Failure Report Schema",
+  "description": "Defines the structure of a machine-readable failure report produced when a run archive operation fails. Used for regulated audit trail of failure events.",
+  "type": "object",
+  "required": [
+    "schema",
+    "contract_version",
+    "run_id",
+    "repo_fingerprint",
+    "observed_at",
+    "overall_severity",
+    "is_recoverable",
+    "failures",
+    "recovery_actions"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema": {
+      "type": "string",
+      "const": "governance.failure-report.v1",
+      "description": "Schema identifier for this document"
+    },
+    "contract_version": {
+      "type": "string",
+      "const": "FAILURE_MODEL.v1",
+      "description": "Failure model contract version"
+    },
+    "run_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The run ID that failed"
+    },
+    "repo_fingerprint": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{24}$",
+      "description": "Canonical 24-hex repo identity hash"
+    },
+    "observed_at": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$",
+      "description": "RFC3339 UTC Z timestamp when the failure was observed"
+    },
+    "overall_severity": {
+      "type": "string",
+      "enum": ["warn", "error", "fatal"],
+      "description": "Highest severity across all failures"
+    },
+    "is_recoverable": {
+      "type": "boolean",
+      "description": "Whether all failures are retryable"
+    },
+    "failures": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/FailureDetail" },
+      "description": "Ordered list of individual failure events"
+    },
+    "recovery_actions": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/RecoveryAction" },
+      "description": "Deduplicated recovery actions for the observed failure categories"
+    }
+  },
+  "$defs": {
+    "FailureDetail": {
+      "type": "object",
+      "required": ["category", "severity", "message"],
+      "additionalProperties": false,
+      "properties": {
+        "category": {
+          "type": "string",
+          "enum": [
+            "archive_write_error",
+            "integrity_check_failed",
+            "missing_required_artifact",
+            "schema_validation_failed",
+            "checksum_mismatch",
+            "timestamp_invariant_violated",
+            "cross_document_inconsistency",
+            "run_id_mismatch",
+            "repo_fingerprint_mismatch",
+            "finalization_guard_failed",
+            "duplicate_run_archive",
+            "atomic_write_failed",
+            "unknown"
+          ],
+          "description": "Failure category code"
+        },
+        "severity": {
+          "type": "string",
+          "enum": ["warn", "error", "fatal"],
+          "description": "Severity of this individual failure"
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Human-readable error message"
+        },
+        "artifact": {
+          "type": "string",
+          "description": "Artifact filename involved (empty if not artifact-specific)"
+        },
+        "field_path": {
+          "type": "string",
+          "description": "JSON field path within the artifact (empty if not field-specific)"
+        },
+        "expected": {
+          "type": "string",
+          "description": "Expected value (empty if not applicable)"
+        },
+        "actual": {
+          "type": "string",
+          "description": "Actual value (empty if not applicable)"
+        }
+      }
+    },
+    "RecoveryAction": {
+      "type": "object",
+      "required": ["strategy", "description", "retryable", "max_retries"],
+      "additionalProperties": false,
+      "properties": {
+        "strategy": {
+          "type": "string",
+          "enum": [
+            "retry_by_overwrite",
+            "manual_intervention",
+            "escalate_to_operator",
+            "invalidate_and_rearchive",
+            "no_recovery"
+          ],
+          "description": "Recovery strategy code"
+        },
+        "description": {
+          "type": "string",
+          "description": "Human-readable description of the recovery strategy"
+        },
+        "retryable": {
+          "type": "boolean",
+          "description": "Whether the failure can be retried"
+        },
+        "max_retries": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Maximum number of retry attempts"
+        }
+      }
+    }
+  }
+}

@@ -78,6 +78,12 @@ if "%~1"=="--review-decision-persist" (
     set "WRAPPER_EXIT=%ERRORLEVEL%"
     endlocal & exit /b %WRAPPER_EXIT%
 )
+if "%~1"=="--human-approval-persist" (
+    shift
+    "!PYTHON_EXE!" -m governance.entrypoints.human_approval_persist %*
+    set "WRAPPER_EXIT=%ERRORLEVEL%"
+    endlocal & exit /b %WRAPPER_EXIT%
+)
 "!PYTHON_EXE!" -m governance.entrypoints.bootstrap_executor %*
 set "WRAPPER_EXIT=%ERRORLEVEL%"
 endlocal & exit /b %WRAPPER_EXIT%

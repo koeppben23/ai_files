@@ -1,0 +1,128 @@
+# Retention Policy Configuration
+#
+# SSOT Status: POLICY-BOUND
+# Contract Version: RETENTION_POLICY.v1
+#
+# Defines audit record retention periods, legal hold rules, and deletion
+# guards for regulated customer compliance. Retention rules operate on
+# finalized run archives.
+#
+# Precedence: engine master policy > activation > mode-policy > host > repo
+
+# Policy Metadata
+policy:
+  version: "1.0.0"
+  contract_version: "RETENTION_POLICY.v1"
+  precedence_level: "engine_master_policy"
+  pack_locked: true
+  audit_on_change: "POLICY_PRECEDENCE_APPLIED"
+
+# Retention Periods (per classification level)
+retention_periods:
+  - classification_level: "public"
+    retention_class: "short"
+    minimum_days: 365
+    description: "Public data — 1 year minimum retention"
+  - classification_level: "internal"
+    retention_class: "standard"
+    minimum_days: 1095
+    description: "Internal data — 3 year minimum retention"
+  - classification_level: "confidential"
+    retention_class: "extended"
+    minimum_days: 2555
+    description: "Confidential data — 7 year minimum retention"
+  - classification_level: "restricted"
+    retention_class: "permanent"
+    minimum_days: 3650
+    description: "Restricted data — 10 year minimum retention (DATEV/GoBD level)"
+
+# Retention Classes
+retention_classes:
+  short:
+    minimum_days: 365
+    description: "Short-term retention (1 year)"
+  standard:
+    minimum_days: 1095
+    description: "Standard retention (3 years)"
+  extended:
+    minimum_days: 2555
+    description: "Extended retention (7 years, SOX/GoBD)"
+  permanent:
+    minimum_days: 3650
+    description: "Permanent retention (10+ years, DATEV)"
+
+# Compliance Framework Overrides
+# Framework minimum retention overrides the classification-level period
+# when the framework minimum is longer.
+framework_overrides:
+  DATEV:
+    minimum_days: 3650
+    description: "German DATEV — 10 year tax record retention"
+  GoBD:
+    minimum_days: 3650
+    description: "German GoBD — 10 year commercial/tax record retention"
+  BaFin:
+    minimum_days: 1825
+    description: "German BaFin — 5 year banking regulation retention"
+  SOX:
+    minimum_days: 2555
+    description: "US Sarbanes-Oxley — 7 year financial record retention"
+  GDPR:
+    minimum_days: 365
+    description: "EU GDPR — 1 year minimum (varies by purpose)"
+  Basel_III:
+    minimum_days: 1825
+    description: "International Basel III — 5 year banking retention"
+  ISO_27001:
+    minimum_days: 1095
+    description: "ISO 27001 — 3 year information security retention"
+
+# Regulated Mode Retention
+regulated_mode:
+  minimum_days: 3650
+  description: "When regulated mode is active, minimum 10-year retention applies regardless of classification level"
+  locked: true
+  reduction_blocked: true
+
+# Legal Hold Configuration
+legal_hold:
+  scope_types:
+    - "run"
+    - "repo"
+    - "all"
+  required_fields:
+    - "hold_id"
+    - "scope_type"
+    - "scope_value"
+    - "reason"
+    - "created_at"
+    - "created_by"
+  release_requires_fields:
+    - "released_at"
+    - "released_by"
+  description: "Legal holds suspend deletion for specified scope until explicitly released"
+
+# Deletion Guards
+deletion_guards:
+  check_order:
+    - "legal_hold"
+    - "regulated_mode"
+    - "retention_period"
+  fail_closed: true
+  description: "Deletion is only allowed when all guards pass. Unknown state blocks deletion."
+
+# Export Configuration
+export:
+  formats:
+    - "directory"
+    - "zip"
+  default_format: "directory"
+  require_finalized: true
+  require_checksums_verified: true
+  include_export_manifest: true
+  description: "Export produces a self-contained bundle with embedded checksums and manifest"
+
+# Default Fallback (fail-closed)
+default_retention:
+  minimum_days: 3650
+  description: "Unknown classification defaults to maximum retention (fail-closed)"

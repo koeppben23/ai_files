@@ -7,6 +7,7 @@ import pytest
 
 from governance.entrypoints import new_work_session
 from governance.domain.canonical_json import canonical_json_hash
+from governance.infrastructure.workspace_paths import run_dir
 
 
 def _write_json(path: Path, payload: dict) -> None:
@@ -16,6 +17,10 @@ def _write_json(path: Path, payload: dict) -> None:
 
 def _runs_root(session_path: Path) -> Path:
     return session_path.parent.parent / "governance-records" / session_path.parent.name / "runs"
+
+
+def _run_archive_dir(session_path: Path, run_id: str) -> Path:
+    return run_dir(session_path.parent.parent, session_path.parent.name, run_id)
 
 
 def _setup_workspace(tmp_path: Path, *, phase: str = "5-ArchitectureReview") -> tuple[Path, Path, str]:
@@ -129,7 +134,7 @@ class TestNewWorkSessionEntrypoint:
         assert "Rules" not in state["BusinessRules"]
         assert "Evidence" not in state["BusinessRules"]
 
-        archived_dir = _runs_root(session_path) / "run-old-001"
+        archived_dir = _run_archive_dir(session_path, "run-old-001")
         assert archived_dir.is_dir(), "previous run snapshot directory must be archived"
         archived_state = json.loads((archived_dir / "SESSION_STATE.json").read_text(encoding="utf-8"))
         archived_meta = json.loads((archived_dir / "metadata.json").read_text(encoding="utf-8"))
@@ -273,7 +278,7 @@ class TestNewWorkSessionEntrypoint:
         assert code == 0
         _ = json.loads(capsys.readouterr().out.strip())
 
-        archived_dir = _runs_root(session_path) / "run-old-001"
+        archived_dir = _run_archive_dir(session_path, "run-old-001")
         archived_plan = archived_dir / "plan-record.json"
         assert archived_plan.is_file()
         assert json.loads(archived_plan.read_text(encoding="utf-8")) == plan_record
@@ -288,7 +293,7 @@ class TestNewWorkSessionEntrypoint:
         real_writer = new_work_session._write_json_atomic
 
         def _boom(path: Path, payload: dict[str, object] | object) -> None:
-            if str(path).replace("\\", "/").endswith("/runs/run-old-001/SESSION_STATE.json"):
+            if str(path).replace("\\", "/").endswith("/run-old-001/SESSION_STATE.json"):
                 raise RuntimeError("disk-full")
             real_writer(path, payload)  # type: ignore[arg-type]
 
@@ -305,7 +310,7 @@ class TestNewWorkSessionEntrypoint:
         assert not [e for e in events if e.get("event") == "new_work_session_created"]
         assert [e for e in events if e.get("event") == "new_work_session_init_failed"]
 
-        failed_run = _runs_root(session_path) / "run-old-001"
+        failed_run = _run_archive_dir(session_path, "run-old-001")
         manifest = json.loads((failed_run / "run-manifest.json").read_text(encoding="utf-8"))
         metadata = json.loads((failed_run / "metadata.json").read_text(encoding="utf-8"))
         assert manifest["run_status"] == "failed"
@@ -324,7 +329,7 @@ class TestNewWorkSessionEntrypoint:
         assert code == 0
         _ = json.loads(capsys.readouterr().out.strip())
 
-        archived = sorted((_runs_root(session_path)).glob("legacy-*"))
+        archived = sorted((_runs_root(session_path)).rglob("legacy-*"))
         assert archived, "legacy sessions without run id must still be archived"
 
     def test_archived_run_directories_are_immutable_across_multiple_runs(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
@@ -335,7 +340,7 @@ class TestNewWorkSessionEntrypoint:
         assert first == 0
         first_payload = json.loads(capsys.readouterr().out.strip())
         first_new_run = str(first_payload["run_id"])
-        first_archived = _runs_root(session_path) / "run-old-001" / "SESSION_STATE.json"
+        first_archived = _run_archive_dir(session_path, "run-old-001") / "SESSION_STATE.json"
         first_snapshot = json.loads(first_archived.read_text(encoding="utf-8"))
 
         state_doc = json.loads(session_path.read_text(encoding="utf-8"))
@@ -348,7 +353,7 @@ class TestNewWorkSessionEntrypoint:
         second = new_work_session.main(["--trigger-source", "desktop-plugin", "--session-id", "sess-a", "--quiet"])
         assert second == 0
         second_payload = json.loads(capsys.readouterr().out.strip())
-        second_archived = _runs_root(session_path) / first_new_run / "SESSION_STATE.json"
+        second_archived = _run_archive_dir(session_path, first_new_run) / "SESSION_STATE.json"
         assert second_archived.is_file()
         assert json.loads(first_archived.read_text(encoding="utf-8")) == first_snapshot
         assert str(second_payload["run_id"]) != first_new_run
@@ -360,7 +365,7 @@ class TestNewWorkSessionEntrypoint:
         real_writer = new_work_session._write_json_atomic
 
         def _boom_once(path: Path, payload: dict[str, object] | object) -> None:
-            if str(path).replace("\\", "/").endswith("/runs/run-old-001/SESSION_STATE.json"):
+            if str(path).replace("\\", "/").endswith("/run-old-001/SESSION_STATE.json"):
                 raise RuntimeError("disk-full")
             real_writer(path, payload)  # type: ignore[arg-type]
 
@@ -369,7 +374,7 @@ class TestNewWorkSessionEntrypoint:
         assert first_code == 2
         _ = json.loads(capsys.readouterr().out.strip())
 
-        failed_manifest = json.loads((_runs_root(session_path) / "run-old-001" / "run-manifest.json").read_text(encoding="utf-8"))
+        failed_manifest = json.loads((_run_archive_dir(session_path, "run-old-001") / "run-manifest.json").read_text(encoding="utf-8"))
         assert failed_manifest["run_status"] == "failed"
 
         monkeypatch.setattr(new_work_session, "_write_json_atomic", real_writer)
@@ -378,7 +383,7 @@ class TestNewWorkSessionEntrypoint:
         payload = json.loads(capsys.readouterr().out.strip())
         assert payload["reason"] == "new-work-session-created"
 
-        repaired_archive = _runs_root(session_path) / "run-old-001" / "SESSION_STATE.json"
+        repaired_archive = _run_archive_dir(session_path, "run-old-001") / "SESSION_STATE.json"
         assert repaired_archive.is_file()
 
     def test_runtime_purge_removes_stale_runtime_files_only(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
@@ -400,4 +405,4 @@ class TestNewWorkSessionEntrypoint:
         assert not (workspace / "workspace-memory.yaml").exists()
         assert not (workspace / "decision-pack.md").exists()
         assert (workspace / "notes.tmp").exists()
-        assert (workspace.parent / "governance-records" / workspace.name / "runs" / "run-old-001" / "run-manifest.json").is_file()
+        assert (run_dir(workspace.parent, workspace.name, "run-old-001") / "run-manifest.json").is_file()

@@ -4,6 +4,7 @@ import hashlib
 import json
 from pathlib import Path
 
+from governance.infrastructure.workspace_paths import run_dir
 from governance.infrastructure.io_verify import verify_repository_manifest, verify_run_archive
 from governance.infrastructure.work_run_archive import archive_active_run
 
@@ -15,10 +16,23 @@ def _recompute_checksums(run_root: Path) -> None:
         "metadata.json",
         "run-manifest.json",
         "provenance-record.json",
+        "ticket-record.json",
+        "review-decision-record.json",
+        "outcome-record.json",
+        "evidence-index.json",
+        "finalization-record.json",
+        "plan-record.json",
+        "pr-record.json",
     ]:
-        files[name] = "sha256:" + hashlib.sha256((run_root / name).read_bytes()).hexdigest()
+        candidate = run_root / name
+        if candidate.is_file():
+            files[name] = "sha256:" + hashlib.sha256(candidate.read_bytes()).hexdigest()
     payload = {"schema": "governance.run-checksums.v1", "files": files}
     (run_root / "checksums.json").write_text(json.dumps(payload, ensure_ascii=True), encoding="utf-8")
+
+
+def _run_root(workspaces_home: Path, fingerprint: str, run_id: str) -> Path:
+    return run_dir(workspaces_home, fingerprint, run_id)
 
 
 def test_verify_detects_tamper_and_incomplete_runs(tmp_path: Path) -> None:
@@ -35,7 +49,7 @@ def test_verify_detects_tamper_and_incomplete_runs(tmp_path: Path) -> None:
         state_view=state,
     )
 
-    run_root = workspaces_home / "governance-records" / fingerprint / "runs" / "run-verify"
+    run_root = _run_root(workspaces_home, fingerprint, "run-verify")
     ok, _, message = verify_run_archive(run_root)
     assert ok is True
     assert message is None
@@ -75,7 +89,7 @@ def test_verify_detects_run_id_and_fingerprint_mismatch(tmp_path: Path) -> None:
         state_view=state,
     )
 
-    run_root = workspaces_home / "governance-records" / fingerprint / "runs" / "run-ids"
+    run_root = _run_root(workspaces_home, fingerprint, "run-ids")
     metadata = json.loads((run_root / "metadata.json").read_text(encoding="utf-8"))
     metadata["run_id"] = "other-run"
     (run_root / "metadata.json").write_text(json.dumps(metadata, ensure_ascii=True), encoding="utf-8")
@@ -111,7 +125,7 @@ def test_verify_rejects_invalid_checksums_schema(tmp_path: Path) -> None:
         state_view=state,
     )
 
-    run_root = workspaces_home / "governance-records" / fingerprint / "runs" / "run-checksum-schema"
+    run_root = _run_root(workspaces_home, fingerprint, "run-checksum-schema")
     checksums = json.loads((run_root / "checksums.json").read_text(encoding="utf-8"))
     checksums["schema"] = "governance.run-checksums.v0"
     (run_root / "checksums.json").write_text(json.dumps(checksums, ensure_ascii=True), encoding="utf-8")
@@ -136,7 +150,7 @@ def test_verify_rejects_invalid_manifest_metadata_provenance_schema(tmp_path: Pa
         state_view=state,
     )
 
-    run_root = workspaces_home / "governance-records" / fingerprint / "runs" / "run-schema"
+    run_root = _run_root(workspaces_home, fingerprint, "run-schema")
 
     manifest = json.loads((run_root / "run-manifest.json").read_text(encoding="utf-8"))
     manifest["schema"] = "governance.run-manifest.v0"
@@ -167,7 +181,7 @@ def test_verify_rejects_invalid_manifest_metadata_provenance_schema(tmp_path: Pa
     ok, _, message = verify_run_archive(run_root)
     assert ok is False
     assert isinstance(message, str)
-    assert "Invalid provenance schema" in message
+    assert "Invalid provenance-record.json schema" in message
 
 
 def test_verify_rejects_provenance_binding_mismatch(tmp_path: Path) -> None:
@@ -184,7 +198,7 @@ def test_verify_rejects_provenance_binding_mismatch(tmp_path: Path) -> None:
         state_view=state,
     )
 
-    run_root = workspaces_home / "governance-records" / fingerprint / "runs" / "run-binding"
+    run_root = _run_root(workspaces_home, fingerprint, "run-binding")
     provenance = json.loads((run_root / "provenance-record.json").read_text(encoding="utf-8"))
     binding = provenance.get("binding")
     assert isinstance(binding, dict)
@@ -213,7 +227,7 @@ def test_verify_rejects_invalid_run_repo_fingerprint_format(tmp_path: Path) -> N
         state_view=state,
     )
 
-    run_root = workspaces_home / "governance-records" / fingerprint / "runs" / "run-fp-format"
+    run_root = _run_root(workspaces_home, fingerprint, "run-fp-format")
     manifest = json.loads((run_root / "run-manifest.json").read_text(encoding="utf-8"))
     metadata = json.loads((run_root / "metadata.json").read_text(encoding="utf-8"))
     provenance = json.loads((run_root / "provenance-record.json").read_text(encoding="utf-8"))
@@ -251,7 +265,7 @@ def test_verify_rejects_non_utc_z_timestamps(tmp_path: Path) -> None:
         state_view=state,
     )
 
-    run_root = workspaces_home / "governance-records" / fingerprint / "runs" / "run-ts-format"
+    run_root = _run_root(workspaces_home, fingerprint, "run-ts-format")
     manifest = json.loads((run_root / "run-manifest.json").read_text(encoding="utf-8"))
     manifest["finalized_at"] = "2026-03-10T16:10:00+00:00"
     (run_root / "run-manifest.json").write_text(json.dumps(manifest, ensure_ascii=True), encoding="utf-8")
@@ -284,7 +298,7 @@ def test_verify_rejects_required_artifact_not_marked_archived(tmp_path: Path) ->
         state_view=state,
     )
 
-    run_root = workspaces_home / "governance-records" / fingerprint / "runs" / "run-required-archive"
+    run_root = _run_root(workspaces_home, fingerprint, "run-required-archive")
     metadata = json.loads((run_root / "metadata.json").read_text(encoding="utf-8"))
     archived_files = metadata.get("archived_files")
     assert isinstance(archived_files, dict)
@@ -314,7 +328,7 @@ def test_verify_rejects_malformed_archive_json_payloads(tmp_path: Path) -> None:
         state_view=state,
     )
 
-    run_root = workspaces_home / "governance-records" / fingerprint / "runs" / "run-malformed"
+    run_root = _run_root(workspaces_home, fingerprint, "run-malformed")
 
     (run_root / "checksums.json").write_text("{", encoding="utf-8")
     ok, _, message = verify_run_archive(run_root)
@@ -334,11 +348,19 @@ def test_verify_repository_manifest_contract(tmp_path: Path) -> None:
 
     manifest = {
         "schema": "governance.repository-manifest.v1",
+        "schema_version": "v1",
+        "artifact_type": "repository_manifest",
+        "artifact_id": "repository-manifest::abc123def456abc123def456",
         "repo_fingerprint": "abc123def456abc123def456",
+        "repo_slug": "example-repo",
         "created_at": "2026-03-10T14:00:00Z",
+        "canonical_remote_url_digest": "597fdccb99dffa28194b85f00c4e5841fcbac2a8677a3f50f215f1b11ebb3c2a",
+        "default_branch": "main",
+        "tenant_context": "default",
+        "repository_classification": "internal",
         "storage_topology": {
             "runtime_root": "workspaces/<fingerprint>",
-            "audit_runs_root": "governance-records/<fingerprint>/runs",
+            "audit_runs_root": "governance-records/<fingerprint>/runs/<repo_slug>/YYYY/YYYY-MM/YYYY-MM-DD/<run_id>",
         },
     }
     (runs_root / "repository-manifest.json").write_text(json.dumps(manifest, ensure_ascii=True), encoding="utf-8")
@@ -385,6 +407,34 @@ def test_verify_repository_manifest_contract(tmp_path: Path) -> None:
     assert "Invalid audit_runs_root" in message
 
 
+def test_verify_repository_manifest_rejects_missing_required_context_fields(tmp_path: Path) -> None:
+    runs_root = tmp_path / "workspaces" / "governance-records" / "abc123def456abc123def456" / "runs"
+    runs_root.mkdir(parents=True)
+
+    manifest = {
+        "schema": "governance.repository-manifest.v1",
+        "schema_version": "v1",
+        "artifact_type": "repository_manifest",
+        "artifact_id": "repository-manifest::abc123def456abc123def456",
+        "repo_fingerprint": "abc123def456abc123def456",
+        "repo_slug": "example-repo",
+        "created_at": "2026-03-10T14:00:00Z",
+        "default_branch": "main",
+        "tenant_context": "default",
+        "repository_classification": "internal",
+        "storage_topology": {
+            "runtime_root": "workspaces/<fingerprint>",
+            "audit_runs_root": "governance-records/<fingerprint>/runs/<repo_slug>/YYYY/YYYY-MM/YYYY-MM-DD/<run_id>",
+        },
+    }
+    (runs_root / "repository-manifest.json").write_text(json.dumps(manifest, ensure_ascii=True), encoding="utf-8")
+
+    ok, message = verify_repository_manifest(runs_root, expected_repo_fingerprint="abc123def456abc123def456")
+    assert ok is False
+    assert isinstance(message, str)
+    assert "canonical_remote_url_digest" in message
+
+
 def test_verify_rejects_required_artifacts_key_and_run_type_mismatch(tmp_path: Path) -> None:
     workspaces_home = tmp_path / "workspaces"
     fingerprint = "abc123def456abc123def456"
@@ -399,7 +449,7 @@ def test_verify_rejects_required_artifacts_key_and_run_type_mismatch(tmp_path: P
         state_view=state,
     )
 
-    run_root = workspaces_home / "governance-records" / fingerprint / "runs" / "run-artifacts"
+    run_root = _run_root(workspaces_home, fingerprint, "run-artifacts")
     manifest = json.loads((run_root / "run-manifest.json").read_text(encoding="utf-8"))
     required = manifest["required_artifacts"]
     assert isinstance(required, dict)
@@ -427,6 +477,32 @@ def test_verify_rejects_required_artifacts_key_and_run_type_mismatch(tmp_path: P
     assert "analysis run_type requires" in message
 
 
+def test_verify_rejects_invalid_common_header_in_ticket_record(tmp_path: Path) -> None:
+    workspaces_home = tmp_path / "workspaces"
+    fingerprint = "abc123def456abc123def456"
+    state = {"session_run_id": "run-ticket-header", "Phase": "6-PostFlight", "active_gate": "Post Flight", "Next": "6"}
+
+    archive_active_run(
+        workspaces_home=workspaces_home,
+        repo_fingerprint=fingerprint,
+        run_id="run-ticket-header",
+        observed_at="2026-03-10T14:07:00Z",
+        session_state_document={"SESSION_STATE": state},
+        state_view=state,
+    )
+
+    run_root = _run_root(workspaces_home, fingerprint, "run-ticket-header")
+    ticket = json.loads((run_root / "ticket-record.json").read_text(encoding="utf-8"))
+    ticket["content_hash"] = "badhash"
+    (run_root / "ticket-record.json").write_text(json.dumps(ticket, ensure_ascii=True), encoding="utf-8")
+    _recompute_checksums(run_root)
+
+    ok, _, message = verify_run_archive(run_root)
+    assert ok is False
+    assert isinstance(message, str)
+    assert "ticket-record.json content_hash" in message
+
+
 def test_verify_rejects_failed_run_without_failure_reason(tmp_path: Path) -> None:
     workspaces_home = tmp_path / "workspaces"
     fingerprint = "abc123def456abc123def456"
@@ -441,7 +517,7 @@ def test_verify_rejects_failed_run_without_failure_reason(tmp_path: Path) -> Non
         state_view=state,
     )
 
-    run_root = workspaces_home / "governance-records" / fingerprint / "runs" / "run-failure-reason"
+    run_root = _run_root(workspaces_home, fingerprint, "run-failure-reason")
     manifest = json.loads((run_root / "run-manifest.json").read_text(encoding="utf-8"))
     metadata = json.loads((run_root / "metadata.json").read_text(encoding="utf-8"))
 
@@ -477,7 +553,7 @@ def test_verify_rejects_materialized_run_with_non_pending_integrity(tmp_path: Pa
         state_view=state,
     )
 
-    run_root = workspaces_home / "governance-records" / fingerprint / "runs" / "run-materialized"
+    run_root = _run_root(workspaces_home, fingerprint, "run-materialized")
     manifest = json.loads((run_root / "run-manifest.json").read_text(encoding="utf-8"))
     manifest["run_status"] = "materialized"
     manifest["integrity_status"] = "passed"
@@ -506,7 +582,7 @@ def test_verify_rejects_materialized_timestamp_mismatch(tmp_path: Path) -> None:
         state_view=state,
     )
 
-    run_root = workspaces_home / "governance-records" / fingerprint / "runs" / "run-ts"
+    run_root = _run_root(workspaces_home, fingerprint, "run-ts")
     manifest = json.loads((run_root / "run-manifest.json").read_text(encoding="utf-8"))
     manifest["materialized_at"] = "2026-03-10T14:31:00Z"
     (run_root / "run-manifest.json").write_text(json.dumps(manifest, ensure_ascii=True), encoding="utf-8")
@@ -532,7 +608,7 @@ def test_verify_rejects_failed_run_with_finalized_at(tmp_path: Path) -> None:
         state_view=state,
     )
 
-    run_root = workspaces_home / "governance-records" / fingerprint / "runs" / "run-failed-finalized-at"
+    run_root = _run_root(workspaces_home, fingerprint, "run-failed-finalized-at")
     manifest = json.loads((run_root / "run-manifest.json").read_text(encoding="utf-8"))
     metadata = json.loads((run_root / "metadata.json").read_text(encoding="utf-8"))
 
@@ -568,7 +644,7 @@ def test_verify_rejects_conflicting_metadata_reasons(tmp_path: Path) -> None:
         state_view=state,
     )
 
-    run_root = workspaces_home / "governance-records" / fingerprint / "runs" / "run-reasons"
+    run_root = _run_root(workspaces_home, fingerprint, "run-reasons")
     metadata = json.loads((run_root / "metadata.json").read_text(encoding="utf-8"))
     metadata["failure_reason"] = "should-not-exist-on-finalized"
     (run_root / "metadata.json").write_text(json.dumps(metadata, ensure_ascii=True), encoding="utf-8")
@@ -594,7 +670,7 @@ def test_verify_rejects_finalized_run_with_finalization_errors(tmp_path: Path) -
         state_view=state,
     )
 
-    run_root = workspaces_home / "governance-records" / fingerprint / "runs" / "run-finalized-errors"
+    run_root = _run_root(workspaces_home, fingerprint, "run-finalized-errors")
     manifest = json.loads((run_root / "run-manifest.json").read_text(encoding="utf-8"))
     manifest["finalization_errors"] = ["should-not-exist"]
     (run_root / "run-manifest.json").write_text(json.dumps(manifest, ensure_ascii=True), encoding="utf-8")
@@ -620,7 +696,7 @@ def test_verify_rejects_invalid_archived_files_contract(tmp_path: Path) -> None:
         state_view=state,
     )
 
-    run_root = workspaces_home / "governance-records" / fingerprint / "runs" / "run-archived-files"
+    run_root = _run_root(workspaces_home, fingerprint, "run-archived-files")
     metadata = json.loads((run_root / "metadata.json").read_text(encoding="utf-8"))
     archived_files = metadata.get("archived_files")
     assert isinstance(archived_files, dict)
@@ -649,7 +725,7 @@ def test_verify_rejects_archived_files_presence_mismatch(tmp_path: Path) -> None
         state_view=state,
     )
 
-    run_root = workspaces_home / "governance-records" / fingerprint / "runs" / "run-archived-presence"
+    run_root = _run_root(workspaces_home, fingerprint, "run-archived-presence")
     metadata = json.loads((run_root / "metadata.json").read_text(encoding="utf-8"))
     archived_files = metadata.get("archived_files")
     assert isinstance(archived_files, dict)
@@ -678,8 +754,30 @@ def test_verify_rejects_present_optional_artifact_without_checksum(tmp_path: Pat
         state_view=state,
     )
 
-    run_root = workspaces_home / "governance-records" / fingerprint / "runs" / "run-optional-checksum"
-    (run_root / "pr-record.json").write_text(json.dumps({"schema": "governance.pr-record.v1", "title": "x", "body": "y"}), encoding="utf-8")
+    run_root = _run_root(workspaces_home, fingerprint, "run-optional-checksum")
+    (run_root / "pr-record.json").write_text(
+        json.dumps(
+            {
+                "schema": "governance.pr-record.v1",
+                "schema_version": "v1",
+                "artifact_type": "pr_record",
+                "artifact_id": "pr-record::run-optional-checksum",
+                "run_id": "run-optional-checksum",
+                "session_id": "run-optional-checksum",
+                "repo_slug": fingerprint,
+                "repo_fingerprint": fingerprint,
+                "created_at": "2026-03-10T15:20:00Z",
+                "created_by_component": "tests",
+                "content_hash": "sha256:" + "0" * 64,
+                "classification": "confidential",
+                "integrity_status": "pending",
+                "record_status": "finalized",
+                "title": "x",
+                "body": "y",
+            }
+        ),
+        encoding="utf-8",
+    )
     metadata = json.loads((run_root / "metadata.json").read_text(encoding="utf-8"))
     archived_files = metadata.get("archived_files")
     assert isinstance(archived_files, dict)
@@ -687,6 +785,12 @@ def test_verify_rejects_present_optional_artifact_without_checksum(tmp_path: Pat
     metadata["archived_files"] = archived_files
     (run_root / "metadata.json").write_text(json.dumps(metadata, ensure_ascii=True), encoding="utf-8")
     _recompute_checksums(run_root)
+    checksums = json.loads((run_root / "checksums.json").read_text(encoding="utf-8"))
+    files = checksums.get("files")
+    assert isinstance(files, dict)
+    files.pop("pr-record.json", None)
+    checksums["files"] = files
+    (run_root / "checksums.json").write_text(json.dumps(checksums, ensure_ascii=True), encoding="utf-8")
 
     ok, _, message = verify_run_archive(run_root)
     assert ok is False
@@ -708,7 +812,7 @@ def test_verify_rejects_unsupported_checksum_file_entry(tmp_path: Path) -> None:
         state_view=state,
     )
 
-    run_root = workspaces_home / "governance-records" / fingerprint / "runs" / "run-bad-checksum-entry"
+    run_root = _run_root(workspaces_home, fingerprint, "run-bad-checksum-entry")
     checksums = json.loads((run_root / "checksums.json").read_text(encoding="utf-8"))
     files = checksums.get("files")
     assert isinstance(files, dict)
@@ -720,6 +824,154 @@ def test_verify_rejects_unsupported_checksum_file_entry(tmp_path: Path) -> None:
     assert ok is False
     assert isinstance(message, str)
     assert "unsupported file entry" in message
+
+
+def test_verify_rejects_finalized_run_without_finalization_record(tmp_path: Path) -> None:
+    workspaces_home = tmp_path / "workspaces"
+    fingerprint = "abc123def456abc123def456"
+    state = {
+        "session_run_id": "run-no-finalization-record",
+        "Phase": "6-PostFlight",
+        "active_gate": "Evidence Presentation Gate",
+        "Next": "6",
+    }
+
+    archive_active_run(
+        workspaces_home=workspaces_home,
+        repo_fingerprint=fingerprint,
+        run_id="run-no-finalization-record",
+        observed_at="2026-03-11T13:55:00Z",
+        session_state_document={"SESSION_STATE": state},
+        state_view=state,
+    )
+
+    run_root = _run_root(workspaces_home, fingerprint, "run-no-finalization-record")
+    (run_root / "finalization-record.json").unlink()
+    _recompute_checksums(run_root)
+
+    ok, _, message = verify_run_archive(run_root)
+    assert ok is False
+    assert isinstance(message, str)
+    assert "must include finalization-record.json" in message
+
+
+def test_verify_rejects_finalization_record_with_bundle_hash_mismatch(tmp_path: Path) -> None:
+    workspaces_home = tmp_path / "workspaces"
+    fingerprint = "abc123def456abc123def456"
+    state = {
+        "session_run_id": "run-finalization-hash-mismatch",
+        "Phase": "6-PostFlight",
+        "active_gate": "Evidence Presentation Gate",
+        "Next": "6",
+    }
+
+    archive_active_run(
+        workspaces_home=workspaces_home,
+        repo_fingerprint=fingerprint,
+        run_id="run-finalization-hash-mismatch",
+        observed_at="2026-03-11T13:56:00Z",
+        session_state_document={"SESSION_STATE": state},
+        state_view=state,
+    )
+
+    run_root = _run_root(workspaces_home, fingerprint, "run-finalization-hash-mismatch")
+    payload = json.loads((run_root / "finalization-record.json").read_text(encoding="utf-8"))
+    payload["bundle_manifest_hash"] = "sha256:" + "0" * 64
+    (run_root / "finalization-record.json").write_text(json.dumps(payload, ensure_ascii=True), encoding="utf-8")
+    _recompute_checksums(run_root)
+
+    ok, _, message = verify_run_archive(run_root)
+    assert ok is False
+    assert isinstance(message, str)
+    assert "bundle_manifest_hash mismatch" in message
+
+
+def test_verify_rejects_finalization_record_reason_mismatch(tmp_path: Path) -> None:
+    workspaces_home = tmp_path / "workspaces"
+    fingerprint = "abc123def456abc123def456"
+    state = {
+        "session_run_id": "run-finalization-reason-mismatch",
+        "Phase": "6-PostFlight",
+        "active_gate": "Evidence Presentation Gate",
+        "Next": "6",
+    }
+
+    archive_active_run(
+        workspaces_home=workspaces_home,
+        repo_fingerprint=fingerprint,
+        run_id="run-finalization-reason-mismatch",
+        observed_at="2026-03-11T13:57:00Z",
+        session_state_document={"SESSION_STATE": state},
+        state_view=state,
+    )
+
+    run_root = _run_root(workspaces_home, fingerprint, "run-finalization-reason-mismatch")
+    payload = json.loads((run_root / "finalization-record.json").read_text(encoding="utf-8"))
+    payload["finalization_reason"] = "tampered-reason"
+    (run_root / "finalization-record.json").write_text(json.dumps(payload, ensure_ascii=True), encoding="utf-8")
+    _recompute_checksums(run_root)
+
+    ok, _, message = verify_run_archive(run_root)
+    assert ok is False
+    assert isinstance(message, str)
+    assert "finalization_reason mismatch" in message
+
+
+def test_verify_rejects_finalized_pr_record_pending_approval(tmp_path: Path) -> None:
+    workspaces_home = tmp_path / "workspaces"
+    fingerprint = "abc123def456abc123def456"
+    state = {
+        "session_run_id": "run-pr-approval-mismatch",
+        "Phase": "6-PostFlight",
+        "active_gate": "Evidence Presentation Gate",
+        "Next": "6",
+        "PullRequestTitle": "feat: approval invariant",
+        "PullRequestBody": "body",
+        "requires_human_approval": True,
+        "approval_status": "approved",
+        "regulated_mode_state": "active",
+        "role": "operator",
+        "approver_role": "approver",
+    }
+
+    archive_active_run(
+        workspaces_home=workspaces_home,
+        repo_fingerprint=fingerprint,
+        run_id="run-pr-approval-mismatch",
+        observed_at="2026-03-11T13:58:00Z",
+        session_state_document={"SESSION_STATE": state},
+        state_view=state,
+    )
+
+    run_root = _run_root(workspaces_home, fingerprint, "run-pr-approval-mismatch")
+    pr_payload = json.loads((run_root / "pr-record.json").read_text(encoding="utf-8"))
+    pr_payload["approval_status"] = "pending"
+    (run_root / "pr-record.json").write_text(json.dumps(pr_payload, ensure_ascii=True), encoding="utf-8")
+    _recompute_checksums(run_root)
+
+    manifest = json.loads((run_root / "run-manifest.json").read_text(encoding="utf-8"))
+    checksums = json.loads((run_root / "checksums.json").read_text(encoding="utf-8"))
+    files = checksums.get("files")
+    assert isinstance(files, dict)
+    checksums_without_finalization = {k: v for k, v in files.items() if k != "finalization-record.json"}
+    expected_bundle_payload = {
+        "run_id": "run-pr-approval-mismatch",
+        "manifest": manifest,
+        "checksums": checksums_without_finalization,
+    }
+    raw = json.dumps(expected_bundle_payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+    finalization_payload = json.loads((run_root / "finalization-record.json").read_text(encoding="utf-8"))
+    finalization_payload["bundle_manifest_hash"] = "sha256:" + hashlib.sha256(raw.encode("utf-8")).hexdigest()
+    (run_root / "finalization-record.json").write_text(
+        json.dumps(finalization_payload, ensure_ascii=True),
+        encoding="utf-8",
+    )
+    _recompute_checksums(run_root)
+
+    ok, _, message = verify_run_archive(run_root)
+    assert ok is False
+    assert isinstance(message, str)
+    assert "requires approval_status=approved" in message
 
 
 def test_verify_rejects_required_artifact_baseline_false(tmp_path: Path) -> None:
@@ -736,7 +988,7 @@ def test_verify_rejects_required_artifact_baseline_false(tmp_path: Path) -> None
         state_view=state,
     )
 
-    run_root = workspaces_home / "governance-records" / fingerprint / "runs" / "run-baseline-required"
+    run_root = _run_root(workspaces_home, fingerprint, "run-baseline-required")
     manifest = json.loads((run_root / "run-manifest.json").read_text(encoding="utf-8"))
     required = manifest.get("required_artifacts")
     assert isinstance(required, dict)
@@ -765,7 +1017,7 @@ def test_verify_rejects_archived_files_baseline_false(tmp_path: Path) -> None:
         state_view=state,
     )
 
-    run_root = workspaces_home / "governance-records" / fingerprint / "runs" / "run-baseline-archived"
+    run_root = _run_root(workspaces_home, fingerprint, "run-baseline-archived")
     metadata = json.loads((run_root / "metadata.json").read_text(encoding="utf-8"))
     archived_files = metadata.get("archived_files")
     assert isinstance(archived_files, dict)

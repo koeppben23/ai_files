@@ -1,0 +1,67 @@
+# Data Classification Policy Configuration
+#
+# SSOT Status: POLICY-BOUND
+# Contract Version: DATA_CLASSIFICATION.v1
+#
+# Defines data classification levels, redaction strategies, and field-level
+# classification rules for regulated customer audit exports.
+#
+# Precedence: engine master policy > activation > mode-policy > host > repo
+
+# Policy Metadata
+policy:
+  version: "1.0.0"
+  contract_version: "DATA_CLASSIFICATION.v1"
+  precedence_level: "engine_master_policy"
+  pack_locked: true
+  audit_on_change: "POLICY_PRECEDENCE_APPLIED"
+
+# Classification Levels (ordered by sensitivity)
+classification_levels:
+  - level: "public"
+    ordinal: 0
+    description: "Non-sensitive information, safe for external sharing"
+  - level: "internal"
+    ordinal: 1
+    description: "Internal operational data, not for external sharing"
+  - level: "confidential"
+    ordinal: 2
+    description: "Sensitive data requiring access controls (customer refs, digests)"
+  - level: "restricted"
+    ordinal: 3
+    description: "Highly sensitive data requiring strict access and redaction (implementation details, customer data)"
+
+# Redaction Strategies
+redaction_strategies:
+  none:
+    description: "No redaction applied"
+  hash:
+    description: "Replace value with SHA-256 hash prefix"
+    format: "[REDACTED:sha256:<first16hex>]"
+  mask:
+    description: "Mask value preserving last 4 characters"
+    format: "[REDACTED:...<last4>]"
+  remove:
+    description: "Replace value with removal marker"
+    format: "[REMOVED]"
+  truncate:
+    description: "Truncate to maximum 32 characters"
+    format: "<first32chars>[TRUNCATED]"
+
+# Default Classification (fail-closed)
+default_classification:
+  level: "internal"
+  redaction: "hash"
+  description: "Unclassified fields default to INTERNAL with hash redaction"
+
+# Export Profiles
+export_profiles:
+  public_audit:
+    max_level: "public"
+    description: "External audit — only public fields visible"
+  internal_audit:
+    max_level: "internal"
+    description: "Internal audit — public + internal fields visible"
+  full_audit:
+    max_level: "restricted"
+    description: "Full audit — all fields visible (requires authorized access)"

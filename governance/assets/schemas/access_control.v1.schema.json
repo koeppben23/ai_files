@@ -1,0 +1,139 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "governance/schemas/access_control.v1.schema.json",
+  "title": "Access Control Schema",
+  "description": "Defines the role-based access control model for audit artifacts. Used to validate access control policy configurations and access evaluation results.",
+  "type": "object",
+  "required": ["contract_version", "roles", "permissions", "default_policy"],
+  "additionalProperties": false,
+  "properties": {
+    "contract_version": {
+      "type": "string",
+      "const": "ACCESS_CONTROL.v1",
+      "description": "Access control contract version"
+    },
+    "roles": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/RoleDefinition" },
+      "description": "Available roles in the access control model"
+    },
+    "permissions": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/PermissionEntry" },
+      "description": "All defined role-action permissions"
+    },
+    "default_policy": {
+      "$ref": "#/$defs/DefaultPolicy"
+    }
+  },
+  "$defs": {
+    "RoleDefinition": {
+      "type": "object",
+      "required": ["id", "description"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "enum": ["operator", "auditor", "compliance_officer", "system", "readonly"],
+          "description": "Role identifier"
+        },
+        "description": {
+          "type": "string",
+          "description": "Human-readable role description"
+        },
+        "default_classification_level": {
+          "type": "string",
+          "enum": ["public", "internal", "confidential", "restricted"],
+          "description": "Default classification level this role can access"
+        }
+      }
+    },
+    "PermissionEntry": {
+      "type": "object",
+      "required": ["role", "action"],
+      "additionalProperties": false,
+      "properties": {
+        "role": {
+          "type": "string",
+          "enum": ["operator", "auditor", "compliance_officer", "system", "readonly"],
+          "description": "Role this permission applies to"
+        },
+        "action": {
+          "type": "string",
+          "enum": [
+            "read_archive",
+            "export_archive",
+            "verify_archive",
+            "purge_archive",
+            "read_failure_report",
+            "export_redacted",
+            "modify_retention",
+            "view_classification",
+            "override_redaction"
+          ],
+          "description": "Action this permission grants"
+        },
+        "requires_regulated_mode": {
+          "type": "boolean",
+          "description": "Whether this permission requires regulated mode to be active"
+        },
+        "requires_audit_log": {
+          "type": "boolean",
+          "description": "Whether exercising this permission must be audit-logged"
+        },
+        "description": {
+          "type": "string",
+          "description": "Human-readable permission description"
+        }
+      }
+    },
+    "DefaultPolicy": {
+      "type": "object",
+      "required": ["decision", "reason"],
+      "additionalProperties": false,
+      "properties": {
+        "decision": {
+          "type": "string",
+          "enum": ["deny"],
+          "description": "Default access decision (always deny — fail-closed)"
+        },
+        "reason": {
+          "type": "string",
+          "description": "Reason for the default deny"
+        },
+        "audit_log_required": {
+          "type": "boolean",
+          "description": "Whether denied attempts are audit-logged"
+        }
+      }
+    },
+    "AccessEvaluationResult": {
+      "type": "object",
+      "required": ["decision", "role", "action", "reason"],
+      "additionalProperties": false,
+      "properties": {
+        "decision": {
+          "type": "string",
+          "enum": ["allow", "deny"],
+          "description": "Access decision"
+        },
+        "role": {
+          "type": "string",
+          "description": "Role that requested access"
+        },
+        "action": {
+          "type": "string",
+          "description": "Action that was requested"
+        },
+        "reason": {
+          "type": "string",
+          "description": "Reason for the decision"
+        },
+        "regulated_mode_active": {
+          "type": "boolean",
+          "description": "Whether regulated mode was active during evaluation"
+        }
+      }
+    }
+  }
+}

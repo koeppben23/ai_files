@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "governance/assets/schemas/run_checksums.v1.schema.json",
+  "title": "Run Checksums v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "files"
+  ],
+  "properties": {
+    "schema": {"const": "governance.run-checksums.v1"},
+    "files": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "string",
+        "pattern": "^sha256:[0-9a-f]{64}$"
+      }
+    }
+  }
+}

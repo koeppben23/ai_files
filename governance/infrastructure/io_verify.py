@@ -2,13 +2,53 @@ import hashlib
 import json
 import re
 from pathlib import Path
-from typing import Dict, Optional, Tuple
+from typing import Dict, Mapping, Optional, Tuple
 
 from governance.domain.canonical_json import canonical_json_hash
 
 
 _RFC3339_UTC_Z_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
 _REPO_FINGERPRINT_RE = re.compile(r"^[0-9a-f]{24}$")
+_SHA256_WITH_PREFIX_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
+
+
+def _verify_common_artifact_header(
+    payload: dict,
+    *,
+    expected_schema: str,
+    expected_artifact_type: str,
+    artifact_label: str,
+) -> Optional[str]:
+    schema = str(payload.get("schema") or "").strip()
+    if schema != expected_schema:
+        return f"Invalid {artifact_label} schema: {schema}"
+    if str(payload.get("schema_version") or "").strip() != "v1":
+        return f"Invalid {artifact_label} schema_version"
+    if str(payload.get("artifact_type") or "").strip() != expected_artifact_type:
+        return f"Invalid {artifact_label} artifact_type"
+    if not str(payload.get("artifact_id") or "").strip():
+        return f"{artifact_label} missing artifact_id"
+    if not str(payload.get("session_id") or "").strip():
+        return f"{artifact_label} missing session_id"
+    if not str(payload.get("repo_slug") or "").strip():
+        return f"{artifact_label} missing repo_slug"
+    if not str(payload.get("created_by_component") or "").strip():
+        return f"{artifact_label} missing created_by_component"
+    if not str(payload.get("classification") or "").strip():
+        return f"{artifact_label} missing classification"
+    if str(payload.get("integrity_status") or "").strip() not in {"pending", "passed", "failed"}:
+        return f"Invalid {artifact_label} integrity_status"
+    if str(payload.get("record_status") or "").strip() not in {"draft", "finalized", "superseded", "invalidated"}:
+        return f"Invalid {artifact_label} record_status"
+    content_hash = str(payload.get("content_hash") or "").strip()
+    if not _SHA256_WITH_PREFIX_RE.match(content_hash):
+        return f"Invalid {artifact_label} content_hash"
+    return None
+
+
+def _stable_json_digest(payload: Mapping[str, object]) -> str:
+    raw = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+    return "sha256:" + hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
 def verify_pointer(pointer_path: Path, expected_fingerprint: str) -> Tuple[bool, Optional[str]]:
@@ -72,6 +112,10 @@ def verify_run_archive(run_root: Path) -> Tuple[bool, Dict[str, bool], Optional[
         "metadata.json",
         "run-manifest.json",
         "provenance-record.json",
+        "ticket-record.json",
+        "review-decision-record.json",
+        "outcome-record.json",
+        "evidence-index.json",
         "checksums.json",
     ]
     results: Dict[str, bool] = {name: (run_root / name).is_file() for name in required}
@@ -98,6 +142,11 @@ def verify_run_archive(run_root: Path) -> Tuple[bool, Dict[str, bool], Optional[
         "metadata.json",
         "run-manifest.json",
         "provenance-record.json",
+        "ticket-record.json",
+        "review-decision-record.json",
+        "outcome-record.json",
+        "evidence-index.json",
+        "finalization-record.json",
         "plan-record.json",
         "pr-record.json",
     }
@@ -158,9 +207,73 @@ def verify_run_archive(run_root: Path) -> Tuple[bool, Dict[str, bool], Optional[
         return False, results, f"Failed to parse provenance-record.json: {exc}"
     if not isinstance(provenance, dict):
         return False, results, "Invalid provenance-record.json payload"
-    provenance_schema = str(provenance.get("schema") or "").strip()
-    if provenance_schema != "governance.provenance-record.v1":
-        return False, results, f"Invalid provenance schema: {provenance_schema}"
+    provenance_header_error = _verify_common_artifact_header(
+        provenance,
+        expected_schema="governance.provenance-record.v1",
+        expected_artifact_type="provenance_record",
+        artifact_label="provenance-record.json",
+    )
+    if provenance_header_error:
+        return False, results, provenance_header_error
+
+    for filename, expected_schema, expected_artifact_type in [
+        ("ticket-record.json", "governance.ticket-record.v1", "ticket_record"),
+        ("review-decision-record.json", "governance.review-decision-record.v1", "review_decision_record"),
+        ("outcome-record.json", "governance.outcome-record.v1", "outcome_record"),
+        ("evidence-index.json", "governance.evidence-index.v1", "evidence_index"),
+    ]:
+        try:
+            artifact_payload = json.loads((run_root / filename).read_text(encoding="utf-8"))
+        except Exception as exc:
+            return False, results, f"Failed to parse {filename}: {exc}"
+        if not isinstance(artifact_payload, dict):
+            return False, results, f"Invalid {filename} payload"
+        artifact_error = _verify_common_artifact_header(
+            artifact_payload,
+            expected_schema=expected_schema,
+            expected_artifact_type=expected_artifact_type,
+            artifact_label=filename,
+        )
+        if artifact_error:
+            return False, results, artifact_error
+
+    optional_pr_record = run_root / "pr-record.json"
+    pr_payload: Optional[dict] = None
+    if optional_pr_record.is_file():
+        try:
+            parsed_pr_payload = json.loads(optional_pr_record.read_text(encoding="utf-8"))
+        except Exception as exc:
+            return False, results, f"Failed to parse pr-record.json: {exc}"
+        if not isinstance(parsed_pr_payload, dict):
+            return False, results, "Invalid pr-record.json payload"
+        pr_payload = parsed_pr_payload
+        pr_error = _verify_common_artifact_header(
+            pr_payload,
+            expected_schema="governance.pr-record.v1",
+            expected_artifact_type="pr_record",
+            artifact_label="pr-record.json",
+        )
+        if pr_error:
+            return False, results, pr_error
+
+    optional_finalization_record = run_root / "finalization-record.json"
+    finalization_payload: Optional[dict] = None
+    if optional_finalization_record.is_file():
+        try:
+            parsed_finalization_payload = json.loads(optional_finalization_record.read_text(encoding="utf-8"))
+        except Exception as exc:
+            return False, results, f"Failed to parse finalization-record.json: {exc}"
+        if not isinstance(parsed_finalization_payload, dict):
+            return False, results, "Invalid finalization-record.json payload"
+        finalization_payload = parsed_finalization_payload
+        finalization_error = _verify_common_artifact_header(
+            finalization_payload,
+            expected_schema="governance.finalization-record.v1",
+            expected_artifact_type="finalization_record",
+            artifact_label="finalization-record.json",
+        )
+        if finalization_error:
+            return False, results, finalization_error
 
     run_status = str(manifest.get("run_status") or "").strip()
     record_status = str(manifest.get("record_status") or "").strip()
@@ -189,6 +302,8 @@ def verify_run_archive(run_root: Path) -> Tuple[bool, Dict[str, bool], Optional[
             return False, results, f"Invalid finalized_at format: {finalized_at}"
         if finalization_errors is not None:
             return False, results, "Finalized run must not include finalization_errors"
+        if finalization_payload is None:
+            return False, results, "Finalized run must include finalization-record.json"
     elif run_status == "failed":
         if integrity_status != "failed":
             return False, results, "Failed run must have integrity_status=failed"
@@ -206,6 +321,11 @@ def verify_run_archive(run_root: Path) -> Tuple[bool, Dict[str, bool], Optional[
             return False, results, "Materialized run must have integrity_status=pending"
         if isinstance(finalized_at, str) and finalized_at.strip():
             return False, results, "Materialized run must not have finalized_at"
+    elif run_status == "invalidated":
+        if integrity_status != "failed":
+            return False, results, "Invalidated run must have integrity_status=failed"
+        if record_status not in {"invalidated", "superseded"}:
+            return False, results, "Invalidated run must have record_status invalidated or superseded"
 
     materialized_at_manifest = str(manifest.get("materialized_at") or "").strip()
     archived_at_metadata = str(metadata.get("archived_at") or "").strip()
@@ -227,6 +347,10 @@ def verify_run_archive(run_root: Path) -> Tuple[bool, Dict[str, bool], Optional[
         "session_state",
         "run_manifest",
         "metadata",
+        "ticket_record",
+        "review_decision_record",
+        "outcome_record",
+        "evidence_index",
         "provenance",
         "plan_record",
         "pr_record",
@@ -237,7 +361,17 @@ def verify_run_archive(run_root: Path) -> Tuple[bool, Dict[str, bool], Optional[
         missing = sorted(expected_artifact_keys - required_keys)
         extra = sorted(required_keys - expected_artifact_keys)
         return False, results, f"required_artifacts key mismatch: missing={missing}, extra={extra}"
-    baseline_required_true = ["session_state", "run_manifest", "metadata", "provenance", "checksums"]
+    baseline_required_true = [
+        "session_state",
+        "run_manifest",
+        "metadata",
+        "ticket_record",
+        "review_decision_record",
+        "outcome_record",
+        "evidence_index",
+        "provenance",
+        "checksums",
+    ]
     for key in baseline_required_true:
         if required_artifacts.get(key) is not True:
             return False, results, f"required_artifacts.{key} must be true"
@@ -296,6 +430,10 @@ def verify_run_archive(run_root: Path) -> Tuple[bool, Dict[str, bool], Optional[
         "session_state",
         "plan_record",
         "pr_record",
+        "ticket_record",
+        "review_decision_record",
+        "outcome_record",
+        "evidence_index",
         "run_manifest",
         "provenance_record",
         "checksums",
@@ -310,7 +448,15 @@ def verify_run_archive(run_root: Path) -> Tuple[bool, Dict[str, bool], Optional[
             return False, results, "archived_files has invalid entries"
     if archived_files.get("session_state") is not True:
         return False, results, "archived_files.session_state must be true"
-    baseline_archived_true = ["run_manifest", "provenance_record", "checksums"]
+    baseline_archived_true = [
+        "ticket_record",
+        "review_decision_record",
+        "outcome_record",
+        "evidence_index",
+        "run_manifest",
+        "provenance_record",
+        "checksums",
+    ]
     for key in baseline_archived_true:
         if archived_files.get(key) is not True:
             return False, results, f"archived_files.{key} must be true"
@@ -319,6 +465,10 @@ def verify_run_archive(run_root: Path) -> Tuple[bool, Dict[str, bool], Optional[
         "session_state": "SESSION_STATE.json",
         "plan_record": "plan-record.json",
         "pr_record": "pr-record.json",
+        "ticket_record": "ticket-record.json",
+        "review_decision_record": "review-decision-record.json",
+        "outcome_record": "outcome-record.json",
+        "evidence_index": "evidence-index.json",
         "run_manifest": "run-manifest.json",
         "provenance_record": "provenance-record.json",
         "checksums": "checksums.json",
@@ -332,13 +482,15 @@ def verify_run_archive(run_root: Path) -> Tuple[bool, Dict[str, bool], Optional[
     archive_status = str(metadata.get("archive_status") or "").strip()
     finalization_reason = metadata.get("finalization_reason")
     failure_reason = metadata.get("failure_reason")
-    allowed_archive_status = {"materialized", "finalized", "failed"}
+    allowed_archive_status = {"materialized", "finalized", "failed", "invalidated"}
     if archive_status not in allowed_archive_status:
         return False, results, f"Invalid archive_status: {archive_status}"
     if run_status == "finalized" and archive_status and archive_status != "finalized":
         return False, results, f"archive_status mismatch for finalized run: {archive_status}"
     if run_status == "failed" and archive_status and archive_status != "failed":
         return False, results, f"archive_status mismatch for failed run: {archive_status}"
+    if run_status == "invalidated" and archive_status and archive_status != "invalidated":
+        return False, results, f"archive_status mismatch for invalidated run: {archive_status}"
     if run_status == "finalized":
         if not isinstance(finalization_reason, str) or not finalization_reason.strip():
             return False, results, "Finalized metadata must include finalization_reason"
@@ -349,6 +501,9 @@ def verify_run_archive(run_root: Path) -> Tuple[bool, Dict[str, bool], Optional[
             return False, results, "Failed metadata must include failure_reason"
         if isinstance(finalization_reason, str) and finalization_reason.strip():
             return False, results, "Failed metadata must not include finalization_reason"
+    if run_status == "invalidated":
+        if not isinstance(failure_reason, str) or not failure_reason.strip():
+            return False, results, "Invalidated metadata must include failure_reason"
 
     plan_required = bool(required_artifacts.get("plan_record"))
     pr_required = bool(required_artifacts.get("pr_record"))
@@ -394,10 +549,47 @@ def verify_run_archive(run_root: Path) -> Tuple[bool, Dict[str, bool], Optional[
     present_optional = [
         "plan-record.json",
         "pr-record.json",
+        "finalization-record.json",
     ]
     for filename in present_optional:
         if (run_root / filename).is_file() and filename not in files:
             return False, results, f"Present artifact not checksummed: {filename}"
+
+    if run_status == "finalized" and finalization_payload is not None:
+        finalization_run_status = str(finalization_payload.get("run_status") or "").strip()
+        if finalization_run_status != run_status:
+            return False, results, "finalization-record run_status mismatch"
+        finalization_manifest_status = str(finalization_payload.get("manifest_record_status") or "").strip()
+        if finalization_manifest_status != record_status:
+            return False, results, "finalization-record manifest_record_status mismatch"
+        finalization_integrity_status = str(finalization_payload.get("manifest_integrity_status") or "").strip()
+        if finalization_integrity_status != integrity_status:
+            return False, results, "finalization-record manifest_integrity_status mismatch"
+        checksums_without_finalization = {
+            key: value
+            for key, value in files.items()
+            if key != "finalization-record.json"
+        }
+        expected_bundle_hash = _stable_json_digest(
+            {
+                "run_id": run_root.name,
+                "manifest": manifest,
+                "checksums": checksums_without_finalization,
+            }
+        )
+        actual_bundle_hash = str(finalization_payload.get("bundle_manifest_hash") or "").strip()
+        if actual_bundle_hash != expected_bundle_hash:
+            return False, results, "finalization-record bundle_manifest_hash mismatch"
+        metadata_finalization_reason = str(metadata.get("finalization_reason") or "").strip()
+        record_finalization_reason = str(finalization_payload.get("finalization_reason") or "").strip()
+        if metadata_finalization_reason != record_finalization_reason:
+            return False, results, "finalization-record finalization_reason mismatch"
+
+    if run_type == "pr" and pr_payload is not None and run_status == "finalized":
+        requires_human_approval = bool(pr_payload.get("requires_human_approval"))
+        approval_status = str(pr_payload.get("approval_status") or "").strip().lower()
+        if requires_human_approval and approval_status != "approved":
+            return False, results, "finalized pr-record requires approval_status=approved when human approval is required"
 
     return True, results, None
 
@@ -418,6 +610,29 @@ def verify_repository_manifest(runs_root: Path, *, expected_repo_fingerprint: Op
     schema = str(payload.get("schema") or "").strip()
     if schema != "governance.repository-manifest.v1":
         return False, f"Invalid repository manifest schema: {schema}"
+    if str(payload.get("schema_version") or "").strip() != "v1":
+        return False, "repository-manifest.json missing schema_version=v1"
+    if str(payload.get("artifact_type") or "").strip() != "repository_manifest":
+        return False, "repository-manifest.json missing artifact_type=repository_manifest"
+    if not str(payload.get("artifact_id") or "").strip():
+        return False, "repository-manifest.json missing artifact_id"
+
+    repo_slug = str(payload.get("repo_slug") or "").strip()
+    if not repo_slug:
+        return False, "repository-manifest.json missing repo_slug"
+
+    canonical_remote_url_digest = str(payload.get("canonical_remote_url_digest") or "").strip()
+    if not canonical_remote_url_digest:
+        return False, "repository-manifest.json missing canonical_remote_url_digest"
+    if not re.match(r"^(sha256:)?[0-9a-f]{64}$", canonical_remote_url_digest):
+        return False, "repository-manifest.json invalid canonical_remote_url_digest"
+
+    if not str(payload.get("default_branch") or "").strip():
+        return False, "repository-manifest.json missing default_branch"
+    if not str(payload.get("tenant_context") or "").strip():
+        return False, "repository-manifest.json missing tenant_context"
+    if not str(payload.get("repository_classification") or "").strip():
+        return False, "repository-manifest.json missing repository_classification"
 
     repo_fingerprint = str(payload.get("repo_fingerprint") or "").strip()
     if not repo_fingerprint:
@@ -450,7 +665,7 @@ def verify_repository_manifest(runs_root: Path, *, expected_repo_fingerprint: Op
     audit_runs_root = str(topology.get("audit_runs_root") or "").strip()
     if runtime_root != "workspaces/<fingerprint>":
         return False, f"Invalid runtime_root in repository manifest: {runtime_root}"
-    if audit_runs_root != "governance-records/<fingerprint>/runs":
+    if audit_runs_root != "governance-records/<fingerprint>/runs/<repo_slug>/YYYY/YYYY-MM/YYYY-MM-DD/<run_id>":
         return False, f"Invalid audit_runs_root in repository manifest: {audit_runs_root}"
 
     return True, None
