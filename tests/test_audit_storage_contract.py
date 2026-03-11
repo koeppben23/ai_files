@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from governance.infrastructure.workspace_paths import run_dir
 from governance.infrastructure.work_run_archive import archive_active_run
 
 
@@ -36,7 +37,7 @@ def test_archive_writes_repository_and_run_manifest(tmp_path: Path) -> None:
     assert repository_manifest["schema"] == "governance.repository-manifest.v1"
 
     run_manifest = json.loads(
-        (workspace.parent / "governance-records" / workspace.name / "runs" / "run-1" / "run-manifest.json").read_text(
+        (run_dir(workspaces_home, fingerprint, "run-1") / "run-manifest.json").read_text(
             encoding="utf-8"
         )
     )

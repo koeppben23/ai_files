@@ -1,0 +1,155 @@
+# Audit Storage Contract Policy Configuration
+#
+# SSOT Status: POLICY-BOUND
+# Contract Version: AUDIT_STORAGE_CONTRACT.v1
+#
+# This policy formalizes the audit storage contract for regulated customers
+# (DATEV/banking level). It codifies invariants that were previously implicit
+# in run_audit_artifacts.py, io_verify.py, and work_run_archive.py.
+#
+# Precedence: engine master policy > activation > mode-policy > host > repo
+
+# Policy Metadata
+policy:
+  version: "1.0.0"
+  contract_version: "AUDIT_STORAGE_CONTRACT.v1"
+  precedence_level: "engine_master_policy"
+  pack_locked: true
+  audit_on_change: "POLICY_PRECEDENCE_APPLIED"
+
+# Run Archive Structure
+run_archive:
+  required_files:
+    - "SESSION_STATE.json"
+    - "metadata.json"
+    - "run-manifest.json"
+    - "provenance-record.json"
+    - "ticket-record.json"
+    - "review-decision-record.json"
+    - "outcome-record.json"
+    - "evidence-index.json"
+    - "checksums.json"
+  optional_files:
+    - "plan-record.json"
+    - "pr-record.json"
+    - "finalization-record.json"
+  expected_schemas:
+    run-manifest.json: "governance.run-manifest.v1"
+    metadata.json: "governance.work-run.snapshot.v2"
+    provenance-record.json: "governance.provenance-record.v1"
+    ticket-record.json: "governance.ticket-record.v1"
+    review-decision-record.json: "governance.review-decision-record.v1"
+    outcome-record.json: "governance.outcome-record.v1"
+    evidence-index.json: "governance.evidence-index.v1"
+    finalization-record.json: "governance.finalization-record.v1"
+    checksums.json: "governance.run-checksums.v1"
+    repository-manifest.json: "governance.repository-manifest.v1"
+
+# Lifecycle Rules
+lifecycle_rules:
+  allowed_run_statuses:
+    - "in_progress"
+    - "materialized"
+    - "finalized"
+    - "failed"
+    - "invalidated"
+  allowed_record_statuses:
+    - "draft"
+    - "finalized"
+    - "superseded"
+    - "invalidated"
+  allowed_integrity_statuses:
+    - "pending"
+    - "passed"
+    - "failed"
+
+  # Invariant table: for each run_status, what is required/forbidden
+  invariants:
+    finalized:
+      expected_record_status: "finalized"
+      expected_integrity_status: "passed"
+      requires_finalized_at: true
+      forbids_finalized_at: false
+      requires_finalization_errors: false
+      forbids_finalization_errors: true
+    failed:
+      expected_record_status: "invalidated"
+      expected_integrity_status: "failed"
+      requires_finalized_at: false
+      forbids_finalized_at: true
+      requires_finalization_errors: true
+      forbids_finalization_errors: false
+    materialized:
+      expected_record_status: null
+      expected_integrity_status: "pending"
+      requires_finalized_at: false
+      forbids_finalized_at: true
+      requires_finalization_errors: false
+      forbids_finalization_errors: false
+
+# Artifact Rules
+artifact_rules:
+  allowed_run_types:
+    - "analysis"
+    - "plan"
+    - "pr"
+  run_type_requirements:
+    analysis:
+      plan_record_required: false
+      pr_record_required: false
+    plan:
+      plan_record_required: true
+      pr_record_required: false
+    pr:
+      plan_record_required: false
+      pr_record_required: true
+  required_artifact_keys:
+    - "session_state"
+    - "run_manifest"
+    - "metadata"
+    - "ticket_record"
+    - "review_decision_record"
+    - "outcome_record"
+    - "evidence_index"
+    - "provenance"
+    - "plan_record"
+    - "pr_record"
+    - "checksums"
+  baseline_required_true:
+    - "session_state"
+    - "run_manifest"
+    - "metadata"
+    - "ticket_record"
+    - "review_decision_record"
+    - "outcome_record"
+    - "evidence_index"
+    - "provenance"
+    - "checksums"
+
+# Cross-Document Consistency Rules
+consistency_rules:
+  run_id_must_match:
+    - "run-manifest.json"
+    - "metadata.json"
+    - "provenance-record.json"
+    - "directory_name"
+  repo_fingerprint_must_match:
+    - "run-manifest.json"
+    - "metadata.json"
+    - "provenance-record.json"
+  timestamp_must_match:
+    materialized_at:
+      - "run-manifest.json"
+      - "provenance-record.json"
+    archived_at:
+      - "metadata.json"
+
+# Integrity Verification
+integrity:
+  checksum_algorithm: "sha256"
+  checksum_prefix: "sha256:"
+  snapshot_digest_scope: "session_state"
+  snapshot_digest_algorithm: "canonical_json_hash"
+  repo_fingerprint_format: "^[0-9a-f]{24}$"
+  timestamp_format: "RFC3339_UTC_Z"
+  timestamp_pattern: "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
