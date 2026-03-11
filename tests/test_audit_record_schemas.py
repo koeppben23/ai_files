@@ -18,6 +18,9 @@ _FINGERPRINT = "abc123def456abc123def456"
 _OBSERVED_AT = "2026-03-11T12:00:00Z"
 
 _SCHEMA_PATHS = {
+    "run-manifest.json": Path("governance/assets/schemas/run_manifest.v1.schema.json"),
+    "metadata.json": Path("governance/assets/schemas/work_run_snapshot.v2.schema.json"),
+    "checksums.json": Path("governance/assets/schemas/run_checksums.v1.schema.json"),
     "ticket-record.json": Path("governance/assets/schemas/ticket_record.v1.schema.json"),
     "review-decision-record.json": Path("governance/assets/schemas/review_decision_record.v1.schema.json"),
     "outcome-record.json": Path("governance/assets/schemas/outcome_record.v1.schema.json"),
