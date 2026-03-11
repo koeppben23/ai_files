@@ -61,6 +61,7 @@ def test_engine_shadow_snapshot_is_available_and_reports_parity_fields(
     assert snapshot["selfcheck_ok"] is True
     assert snapshot["repo_context_source"].startswith("env:")
     assert snapshot["effective_operating_mode"] == "user"
+    assert snapshot["resolved_operating_mode"] == "solo"
     assert isinstance(snapshot["capabilities_hash"], str) and len(snapshot["capabilities_hash"]) == 16
     assert snapshot["mode_downgraded"] is False
     assert snapshot["deviation"] is None
@@ -89,3 +90,4 @@ def test_engine_shadow_snapshot_accepts_pipeline_operating_mode(
     snapshot = module.build_engine_shadow_snapshot()
     assert snapshot["available"] is True
     assert snapshot["effective_operating_mode"] in {"pipeline", "user"}
+    assert snapshot["resolved_operating_mode"] in {"team", "solo"}
