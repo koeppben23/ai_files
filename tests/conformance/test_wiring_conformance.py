@@ -202,6 +202,8 @@ class TestLauncherToEntrypoints:
         "session_reader.py",        # Rail injection target
         "phase4_intake_persist.py", # ticket.md invokes via -m
         "phase5_plan_record_persist.py",  # plan.md invokes via -m
+        "review_decision_persist.py",  # review-decision.md invokes via -m
+        "implement_start.py",      # implement.md invokes via -m
         "bootstrap_executor.py",    # Launcher entrypoint
     ]
 
@@ -263,7 +265,7 @@ class TestRailsToPaths:
 
     # All rail injection targets including audit-readout
     RAIL_FILES_WITH_LAUNCHER = ["continue.md", "review.md", "audit-readout.md"]
-    RAIL_FILES_WITH_ENTRYPOINT = ["plan.md", "ticket.md", "review-decision.md"]
+    RAIL_FILES_WITH_ENTRYPOINT = ["plan.md", "ticket.md", "review-decision.md", "implement.md"]
     ALL_RAIL_FILES = RAIL_FILES_WITH_LAUNCHER + RAIL_FILES_WITH_ENTRYPOINT
 
     BIN_DIR_PLACEHOLDER = "{{BIN_DIR}}"
@@ -578,6 +580,7 @@ class TestNoRoguePaths:
         "plan.md",
         "ticket.md",
         "review-decision.md",
+        "implement.md",
         "audit-readout.md",
         "README.md",
         "README-RULES.md",
@@ -615,6 +618,7 @@ class TestNoRoguePaths:
         ".git",
         ".github",
         ".husky",
+        ".opencode",
         ".pytest_cache",
         "artifacts",
         "bin",
@@ -697,7 +701,7 @@ class TestNoRoguePaths:
         - Relative references within installed tree
         """
         entrypoints_dir = REPO_ROOT / "governance" / "entrypoints"
-        rail_files = ["continue.md", "review.md", "plan.md", "ticket.md", "review-decision.md"]
+        rail_files = ["continue.md", "review.md", "plan.md", "ticket.md", "review-decision.md", "implement.md"]
 
         for fname in rail_files:
             content = _read_source(REPO_ROOT / fname)

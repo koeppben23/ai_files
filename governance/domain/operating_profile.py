@@ -139,6 +139,9 @@ def derive_mode_evidence(
     else:
         normalized_resolved = runtime_mode_to_operating_profile(effective)
 
+    if effective == "unknown" and normalized_resolved in {"solo", "team", "regulated"}:
+        effective = normalized_resolved
+
     verify_policy = str(verify_policy_version or "").strip() or "v1"
     return effective, normalized_resolved, verify_policy
 

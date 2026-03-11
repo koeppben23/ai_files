@@ -89,6 +89,7 @@ class TestInstalledTreeShape:
         "continue.md",
         "review.md",
         "review-decision.md",
+        "implement.md",
         "plan.md",
         "ticket.md",
         "README.md",

@@ -201,6 +201,7 @@ CORE_COMMAND_FILES = {
     "audit-readout.md",
     "review.md",
     "review-decision.md",
+    "implement.md",
     "ticket.md",
     "plan.md",
     # Deprecated compatibility aliases; active continuation surface is /continue.
@@ -462,6 +463,7 @@ def _launcher_template_unix(*, python_exe: str, config_root: Path) -> str:
       --ticket-persist [args]    -> phase4_intake_persist entrypoint (canonical)
       --plan-persist [args]      -> phase5_plan_record_persist entrypoint (canonical)
       --review-decision-persist [args] -> review_decision_persist entrypoint (canonical)
+      --implement-start [args]   -> implement_start entrypoint (canonical)
       (default / no subcommand)  -> bootstrap_executor
     """
     return "\n".join(
@@ -513,6 +515,10 @@ def _launcher_template_unix(*, python_exe: str, config_root: Path) -> str:
             "        shift",
             "        exec \"${PYTHON_BIN}\" -m governance.entrypoints.review_decision_persist \"$@\"",
             "        ;;",
+            "    --implement-start)",
+            "        shift",
+            "        exec \"${PYTHON_BIN}\" -m governance.entrypoints.implement_start \"$@\"",
+            "        ;;",
             "    *)",
             "        exec \"${PYTHON_BIN}\" -m governance.entrypoints.bootstrap_executor \"$@\"",
             "        ;;",
@@ -535,6 +541,7 @@ def _launcher_template_windows(*, python_exe: str, config_root: Path) -> str:
       --ticket-persist [args]    -> phase4_intake_persist entrypoint (canonical)
       --plan-persist [args]      -> phase5_plan_record_persist entrypoint (canonical)
       --review-decision-persist [args] -> review_decision_persist entrypoint (canonical)
+      --implement-start [args]   -> implement_start entrypoint (canonical)
       (default / no subcommand)  -> bootstrap_executor
     """
     return "\n".join(
@@ -604,6 +611,12 @@ def _launcher_template_windows(*, python_exe: str, config_root: Path) -> str:
             "if \"%~1\"==\"--review-decision-persist\" (",
             "    shift",
             "    \"!PYTHON_EXE!\" -m governance.entrypoints.review_decision_persist %*",
+            "    set \"WRAPPER_EXIT=%ERRORLEVEL%\"",
+            "    endlocal & exit /b %WRAPPER_EXIT%",
+            ")",
+            "if \"%~1\"==\"--implement-start\" (",
+            "    shift",
+            "    \"!PYTHON_EXE!\" -m governance.entrypoints.implement_start %*",
             "    set \"WRAPPER_EXIT=%ERRORLEVEL%\"",
             "    endlocal & exit /b %WRAPPER_EXIT%",
             ")",
@@ -2312,6 +2325,13 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
             python_command=binding_python,
             dry_run=dry_run,
         ),
+        "implement.md": inject_session_reader_path_for_command(
+            plan.commands_dir,
+            command_markdown="implement.md",
+            bin_dir=concrete_bin_dir,
+            python_command=binding_python,
+            dry_run=dry_run,
+        ),
     }
     print(f"  continue.md rail injection: {template_injections['continue.md']['status']}")
     print(f"  audit-readout.md rail injection: {template_injections['audit-readout.md']['status']}")
@@ -2319,6 +2339,7 @@ def install(plan: InstallPlan, dry_run: bool, force: bool, backup_enabled: bool)
     print(f"  ticket.md rail injection: {template_injections['ticket.md']['status']}")
     print(f"  plan.md rail injection: {template_injections['plan.md']['status']}")
     print(f"  review-decision.md rail injection: {template_injections['review-decision.md']['status']}")
+    print(f"  implement.md rail injection: {template_injections['implement.md']['status']}")
 
     # If session reader path was injected, update the SHA256 in copied_entries
     # so the manifest reflects the post-injection content.

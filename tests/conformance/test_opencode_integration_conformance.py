@@ -217,7 +217,7 @@ class TestPythonResolutionOrder:
 class TestRailInjection:
     """Validate rail injection invariants from contract section 4."""
 
-    INJECTION_TARGETS = ["continue.md", "review.md", "plan.md", "ticket.md", "review-decision.md", "audit-readout.md"]
+    INJECTION_TARGETS = ["continue.md", "review.md", "plan.md", "ticket.md", "review-decision.md", "implement.md", "audit-readout.md"]
 
     def test_happy_injection_targets_exist(self):
         """Happy: All rail injection target source files exist in repo."""

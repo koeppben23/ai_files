@@ -234,7 +234,7 @@ def test_derive_mode_evidence_canonicalizes_explicit_resolved_alias():
         resolved_operating_mode="agents_strict",
         verify_policy_version="v3",
     )
-    assert effective == "unknown"
+    assert effective == "regulated"
     assert resolved == "regulated"
     assert verify == "v3"
 

@@ -744,7 +744,7 @@ class TestEvidencePresentationGateGuidance:
         }
         line = _resolve_next_action_line(snapshot)
         assert line == (
-            "Next action: governance workflow is complete; no further governance command is required."
+            "Next action: run /implement."
         )
 
     def test_should_not_emit_continue_for_review_decision(self) -> None:
@@ -1168,7 +1168,7 @@ class TestReviewDecisionApproveTerminalFields:
         doc = json.loads(session_path.read_text(encoding="utf-8"))
         ss = doc["SESSION_STATE"]
         assert ss["active_gate"] == "Workflow Complete"
-        assert "No further action" in ss["next_gate_condition"]
+        assert "implementation is authorized" in ss["next_gate_condition"]
         assert ss["phase6_state"] == "phase6_completed"
         # Fix 4: approve also writes implementation_review_complete and
         # syncs ImplementationReview block.
