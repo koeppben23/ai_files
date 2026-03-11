@@ -6,6 +6,7 @@ Profiles are monotonic and represent governance hardness:
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from dataclasses import dataclass
 from typing import Literal
 
@@ -18,6 +19,7 @@ FORBIDDEN_DOWNSHIFT = "FORBIDDEN_DOWNSHIFT"
 UNTRUSTED_ENFORCEMENT_SOURCE = "UNTRUSTED_ENFORCEMENT_SOURCE"
 MISSING_OPERATING_MODE = "MISSING_OPERATING_MODE"
 PROFILE_FLOOR_VIOLATION = "PROFILE_FLOOR_VIOLATION"
+BREAK_GLASS_EXPIRED = "BREAK_GLASS_EXPIRED"
 
 _PROFILE_ORDER: dict[OperatingProfile, int] = {
     "solo": 1,
@@ -144,6 +146,9 @@ def resolve_operating_profile(
     enforced_operating_mode: str | None,
     enforced_source: str | None,
     floor_operating_mode: str | None,
+    break_glass_expires_at: str | None = None,
+    break_glass_reason_code: str | None = None,
+    break_glass_now_utc: str | None = None,
 ) -> OperatingProfileResolution:
     requested = normalize_operating_profile(requested_operating_mode)
     repo_default = normalize_operating_profile(repo_operating_mode)
@@ -175,9 +180,33 @@ def resolve_operating_profile(
             )
 
     base = max_operating_profile(repo_default, init_default)
-    resolved = max_operating_profile(base, trusted_enforcement, requested)
 
-    if requested is not None and is_downshift(base, requested):
+    break_glass_active = False
+    if break_glass_reason_code and str(break_glass_reason_code).strip():
+        expiry_token = str(break_glass_expires_at or "").strip()
+        if not expiry_token:
+            raise OperatingProfileError(BREAK_GLASS_EXPIRED, "Break-glass override requires expires_at")
+        try:
+            expiry = datetime.fromisoformat(expiry_token.replace("Z", "+00:00"))
+        except ValueError as exc:
+            raise OperatingProfileError(BREAK_GLASS_EXPIRED, "Break-glass expires_at is invalid") from exc
+        now_token = str(break_glass_now_utc or "").strip()
+        if not now_token:
+            raise OperatingProfileError(BREAK_GLASS_EXPIRED, "Break-glass override requires current UTC timestamp")
+        try:
+            now = datetime.fromisoformat(now_token.replace("Z", "+00:00"))
+        except ValueError as exc:
+            raise OperatingProfileError(BREAK_GLASS_EXPIRED, "Break-glass current UTC timestamp is invalid") from exc
+        now = now.astimezone(timezone.utc)
+        break_glass_active = expiry.astimezone(timezone.utc) > now
+        if not break_glass_active:
+            raise OperatingProfileError(BREAK_GLASS_EXPIRED, "Break-glass override has expired")
+
+    resolved = max_operating_profile(base, trusted_enforcement, requested)
+    if break_glass_active and requested is not None and is_downshift(base, requested):
+        resolved = requested
+
+    if requested is not None and is_downshift(base, requested) and not break_glass_active:
         raise OperatingProfileError(FORBIDDEN_DOWNSHIFT, "Requested profile downshifts below baseline")
 
     if floor is not None and not meets_floor(resolved, floor):

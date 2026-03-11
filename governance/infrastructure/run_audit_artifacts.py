@@ -548,6 +548,8 @@ def build_finalization_record(
     finalized_manifest: Mapping[str, object],
     checksums_payload: Mapping[str, object],
     finalization_reason: str,
+    resolved_operating_mode: str,
+    verify_policy_version: str,
 ) -> dict[str, object]:
     session_id = str(finalized_manifest.get("session_id") or run_id)
     digest_payload = {
@@ -561,6 +563,8 @@ def build_finalization_record(
         "run_status": str(finalized_manifest.get("run_status") or ""),
         "manifest_record_status": str(finalized_manifest.get("record_status") or ""),
         "manifest_integrity_status": str(finalized_manifest.get("integrity_status") or ""),
+        "resolvedOperatingMode": resolved_operating_mode,
+        "verifyPolicyVersion": verify_policy_version,
         "finalization_reason": finalization_reason,
         "finalization_errors": errors_list,
         "bundle_manifest_hash": _stable_json_hash(digest_payload),

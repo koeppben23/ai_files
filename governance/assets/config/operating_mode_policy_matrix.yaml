@@ -1,0 +1,30 @@
+# Operating Profile Policy Matrix (machine-readable)
+
+policy:
+  version: "1.0.0"
+  contract_version: "OPERATING_MODE_POLICY_MATRIX.v1"
+  precedence_level: "engine_master_policy"
+  pack_locked: true
+
+profiles:
+  solo:
+    audit_depth: "reduced"
+    approval_context: "self_ack_allowed"
+    evidence_completeness: "baseline"
+    classification_redaction: "warn"
+    retention_restore_hold: "best_effort"
+    verify_failure_semantics: "standard"
+  team:
+    audit_depth: "full"
+    approval_context: "role_visible"
+    evidence_completeness: "required"
+    classification_redaction: "enforced"
+    retention_restore_hold: "required"
+    verify_failure_semantics: "strict"
+  regulated:
+    audit_depth: "hardened"
+    approval_context: "sod_enforced"
+    evidence_completeness: "strict"
+    classification_redaction: "strict"
+    retention_restore_hold: "formalized"
+    verify_failure_semantics: "fail_closed"
