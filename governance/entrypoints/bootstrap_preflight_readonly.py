@@ -528,6 +528,7 @@ def build_engine_shadow_snapshot() -> dict[str, object]:
         "selfcheck_ok": output.runtime.selfcheck.ok,
         "repo_context_source": output.repo_context.source,
         "effective_operating_mode": output.effective_operating_mode,
+        "resolved_operating_mode": output.resolved_operating_mode,
         "capabilities_hash": output.capabilities_hash,
         "mode_downgraded": output.mode_downgraded,
         "deviation": (

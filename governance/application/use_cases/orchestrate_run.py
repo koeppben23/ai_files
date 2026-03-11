@@ -113,6 +113,7 @@ from governance.application.use_cases.build_reason_context import (
     build_reason_context,
     build_orchestrator_reason_payload,
 )
+from governance.domain.operating_profile import runtime_mode_to_operating_profile
 
 
 @dataclass(frozen=True)
@@ -124,6 +125,7 @@ class EngineOrchestratorOutput:
     runtime: Any
     parity: dict[str, str]
     effective_operating_mode: OperatingMode
+    resolved_operating_mode: str
     capabilities_hash: str
     mode_downgraded: bool
     pack_lock_checked: bool
@@ -788,6 +790,7 @@ def run_engine_orchestrator(
         runtime=runtime,
         parity=parity,
         effective_operating_mode=effective_mode,
+        resolved_operating_mode=runtime_mode_to_operating_profile(effective_mode),
         capabilities_hash=capabilities_hash,
         mode_downgraded=mode_downgraded,
         pack_lock_checked=pack_lock_checked,

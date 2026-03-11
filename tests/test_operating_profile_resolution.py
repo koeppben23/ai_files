@@ -10,6 +10,7 @@ from governance.domain.operating_profile import (
     PROFILE_FLOOR_VIOLATION,
     UNTRUSTED_ENFORCEMENT_SOURCE,
     OperatingProfileError,
+    runtime_mode_to_operating_profile,
     resolve_operating_profile,
 )
 from governance.engine.mode_repo_rules import canonicalize_operating_mode, resolve_env_operating_mode
@@ -106,10 +107,17 @@ def test_resolve_effective_operating_mode_uses_profile_inputs_from_env():
         },
         default_mode="user",
     )
-    assert resolve_effective_operating_mode(adapter, requested=None) == "pipeline"
+    assert resolve_effective_operating_mode(adapter, requested=None) == "pipeline"  # type: ignore[arg-type]
 
 
 @pytest.mark.governance
 def test_resolve_effective_operating_mode_keeps_explicit_legacy_request():
     adapter = _Adapter(env={"OPENCODE_ENFORCE_PROFILE": "regulated", "OPENCODE_ENFORCE_PROFILE_SOURCE": "ci"})
-    assert resolve_effective_operating_mode(adapter, requested="agents_strict") == "agents_strict"
+    assert resolve_effective_operating_mode(adapter, requested="agents_strict") == "agents_strict"  # type: ignore[arg-type]
+
+
+@pytest.mark.governance
+def test_runtime_mode_to_operating_profile_mapping_is_canonical():
+    assert runtime_mode_to_operating_profile("user") == "solo"
+    assert runtime_mode_to_operating_profile("pipeline") == "team"
+    assert runtime_mode_to_operating_profile("agents_strict") == "regulated"
