@@ -183,6 +183,23 @@ class TestDomainJsonSchemaConsistency:
         }
         assert required == expected
 
+    def test_expected_artifact_schemas_have_backing_schema_files(self) -> None:
+        schema_file_by_id = {
+            "governance.run-manifest.v1": "run_manifest.v1.schema.json",
+            "governance.work-run.snapshot.v2": "work_run_snapshot.v2.schema.json",
+            "governance.provenance-record.v1": "provenance_record.v1.schema.json",
+            "governance.ticket-record.v1": "ticket_record.v1.schema.json",
+            "governance.review-decision-record.v1": "review_decision_record.v1.schema.json",
+            "governance.outcome-record.v1": "outcome_record.v1.schema.json",
+            "governance.evidence-index.v1": "evidence_index.v1.schema.json",
+            "governance.run-checksums.v1": "run_checksums.v1.schema.json",
+            "governance.repository-manifest.v1": "repository_manifest.v1.schema.json",
+        }
+        for _, schema_id in EXPECTED_SCHEMAS.items():
+            schema_file = schema_file_by_id.get(schema_id)
+            assert schema_file is not None, f"No schema file mapping for {schema_id}"
+            assert (_SCHEMA_ROOT / schema_file).is_file(), f"Missing schema file: {schema_file}"
+
 
 # ---------------------------------------------------------------------------
 # Failure Model ↔ JSON Schema Consistency

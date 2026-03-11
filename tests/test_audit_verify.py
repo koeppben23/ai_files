@@ -754,7 +754,29 @@ def test_verify_rejects_present_optional_artifact_without_checksum(tmp_path: Pat
     )
 
     run_root = _run_root(workspaces_home, fingerprint, "run-optional-checksum")
-    (run_root / "pr-record.json").write_text(json.dumps({"schema": "governance.pr-record.v1", "title": "x", "body": "y"}), encoding="utf-8")
+    (run_root / "pr-record.json").write_text(
+        json.dumps(
+            {
+                "schema": "governance.pr-record.v1",
+                "schema_version": "v1",
+                "artifact_type": "pr_record",
+                "artifact_id": "pr-record::run-optional-checksum",
+                "run_id": "run-optional-checksum",
+                "session_id": "run-optional-checksum",
+                "repo_slug": fingerprint,
+                "repo_fingerprint": fingerprint,
+                "created_at": "2026-03-10T15:20:00Z",
+                "created_by_component": "tests",
+                "content_hash": "sha256:" + "0" * 64,
+                "classification": "confidential",
+                "integrity_status": "pending",
+                "record_status": "finalized",
+                "title": "x",
+                "body": "y",
+            }
+        ),
+        encoding="utf-8",
+    )
     metadata = json.loads((run_root / "metadata.json").read_text(encoding="utf-8"))
     archived_files = metadata.get("archived_files")
     assert isinstance(archived_files, dict)

@@ -231,6 +231,23 @@ def verify_run_archive(run_root: Path) -> Tuple[bool, Dict[str, bool], Optional[
         if artifact_error:
             return False, results, artifact_error
 
+    optional_pr_record = run_root / "pr-record.json"
+    if optional_pr_record.is_file():
+        try:
+            pr_payload = json.loads(optional_pr_record.read_text(encoding="utf-8"))
+        except Exception as exc:
+            return False, results, f"Failed to parse pr-record.json: {exc}"
+        if not isinstance(pr_payload, dict):
+            return False, results, "Invalid pr-record.json payload"
+        pr_error = _verify_common_artifact_header(
+            pr_payload,
+            expected_schema="governance.pr-record.v1",
+            expected_artifact_type="pr_record",
+            artifact_label="pr-record.json",
+        )
+        if pr_error:
+            return False, results, pr_error
+
     run_status = str(manifest.get("run_status") or "").strip()
     record_status = str(manifest.get("record_status") or "").strip()
     run_type = str(manifest.get("run_type") or "").strip()
