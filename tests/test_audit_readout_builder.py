@@ -144,7 +144,7 @@ def test_happy_build_audit_readout_uses_runs_and_pointer(tmp_path: Path) -> None
     assert isinstance(last_snapshot, dict)
     assert payload["contract_version"] == "AUDIT_READOUT_SPEC.v1"
     assert active["run_id"] == "work-2"
-    assert active["effective_operating_mode"] == "unknown"
+    assert active["effective_operating_mode"] == "solo"
     assert active["resolved_operating_mode"] == "solo"
     assert active["verify_policy_version"] == "v1"
     assert last_snapshot["run_id"] == "work-1"

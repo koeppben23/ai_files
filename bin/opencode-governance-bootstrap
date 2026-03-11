@@ -50,6 +50,10 @@ case "${1:-}" in
         shift
         exec "${PYTHON_BIN}" -m governance.entrypoints.implement_start "$@"
         ;;
+    --implementation-decision-persist)
+        shift
+        exec "${PYTHON_BIN}" -m governance.entrypoints.implementation_decision_persist "$@"
+        ;;
     --human-approval-persist)
         shift
         exec "${PYTHON_BIN}" -m governance.entrypoints.human_approval_persist "$@"

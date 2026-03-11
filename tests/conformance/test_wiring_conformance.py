@@ -580,6 +580,7 @@ class TestNoRoguePaths:
         "plan.md",
         "ticket.md",
         "review-decision.md",
+        "implementation-decision.md",
         "implement.md",
         "audit-readout.md",
         "README.md",
