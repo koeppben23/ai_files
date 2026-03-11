@@ -14,6 +14,7 @@ if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).absolute().parents[2]))
 
 from governance.domain.canonical_json import canonical_json_hash
+from governance.domain.operating_profile import runtime_mode_to_operating_profile
 from governance.infrastructure.binding_evidence_resolver import BindingEvidenceResolver
 from governance.infrastructure.current_run_pointer import read_active_run_id, write_current_run_pointer
 from governance.infrastructure.fs_atomic import atomic_write_text
@@ -84,6 +85,15 @@ def _payload(status: str, **kwargs: object) -> dict[str, object]:
     out: dict[str, object] = {"status": status}
     out.update(kwargs)
     return out
+
+
+def _extract_mode_fields(state: Mapping[str, object]) -> tuple[str, str, str]:
+    effective = str(state.get("effective_operating_mode") or state.get("operating_mode") or "unknown").strip().lower() or "unknown"
+    resolved = str(state.get("resolved_operating_mode") or state.get("resolvedOperatingMode") or "").strip().lower()
+    if not resolved:
+        resolved = runtime_mode_to_operating_profile(effective)
+    verify_policy = str(state.get("verify_policy_version") or state.get("verifyPolicyVersion") or "v1").strip() or "v1"
+    return effective, resolved, verify_policy
 
 
 def _read_run_archive(*, run_root: Path) -> tuple[dict[str, object], dict[str, object] | None, Path, str]:
@@ -183,6 +193,7 @@ def main(argv: list[str] | None = None) -> int:
     phase = str(state_view.get("Phase") or state_view.get("phase") or "")
     active_gate = str(state_view.get("active_gate") or "")
     next_token = str(state_view.get("Next") or state_view.get("next") or "")
+    effective_mode, resolved_mode, verify_policy_version = _extract_mode_fields(state_view)
     archived_digest = canonical_json_hash(archived_doc)
 
     if args.mode == "revisit":
@@ -195,6 +206,9 @@ def main(argv: list[str] | None = None) -> int:
             phase=phase,
             next=next_token,
             active_gate=active_gate,
+            effective_operating_mode=effective_mode,
+            resolved_operating_mode=resolved_mode,
+            verify_policy_version=verify_policy_version,
             snapshot_path=str(archived_session_path),
             snapshot_digest=archived_digest,
             plan_record_present=archived_plan_doc is not None,
@@ -280,6 +294,9 @@ def main(argv: list[str] | None = None) -> int:
         phase=phase,
         next=next_token,
         active_gate=active_gate,
+        effective_operating_mode=effective_mode,
+        resolved_operating_mode=resolved_mode,
+        verify_policy_version=verify_policy_version,
         current_run_pointer=str(pointer_path),
     )
     print(json.dumps(payload, ensure_ascii=True))

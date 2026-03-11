@@ -10,6 +10,7 @@ from typing import Any, Dict, Mapping, Optional, Tuple
 
 from governance.domain.audit_readout_contract import validate_audit_readout_v1
 from governance.domain.canonical_json import canonical_json_hash
+from governance.domain.operating_profile import runtime_mode_to_operating_profile
 
 POINTER_SCHEMA = "opencode-session-pointer.v1"
 _LEGACY_POINTER_SCHEMA = "active-session-pointer.v1"
@@ -48,6 +49,15 @@ def _state_text(state: Mapping[str, object], *keys: str) -> str:
         if isinstance(value, (int, float)) and not isinstance(value, bool):
             return str(value)
     return ""
+
+
+def _extract_mode_fields(state: Mapping[str, object]) -> tuple[str, str, str]:
+    effective = _state_text(state, "effective_operating_mode", "operating_mode").lower() or "unknown"
+    resolved = _state_text(state, "resolved_operating_mode", "resolvedOperatingMode").lower()
+    if not resolved:
+        resolved = runtime_mode_to_operating_profile(effective)
+    verify_policy_version = _state_text(state, "verify_policy_version", "verifyPolicyVersion") or "v1"
+    return effective, resolved, verify_policy_version
 
 
 def _as_rfc3339_z(dt: datetime) -> str:
@@ -170,6 +180,9 @@ def _list_run_archives(workspace_dir: Path) -> tuple[list[dict[str, object]], li
             notes.append(f"run-session-state-invalid:{run_id}")
             continue
 
+        state_view = _extract_state_view(snapshot_document)
+        effective_mode, resolved_mode, verify_policy_version = _extract_mode_fields(state_view)
+
         metadata_run_id = str(metadata.get("run_id") or run_id).strip() or run_id
         digest = str(metadata.get("snapshot_digest") or "").strip()
         archived_at = str(metadata.get("archived_at") or "").strip()
@@ -182,6 +195,12 @@ def _list_run_archives(workspace_dir: Path) -> tuple[list[dict[str, object]], li
                 run_manifest = _read_json(run_manifest_path)
                 run_status = str(run_manifest.get("run_status") or "unknown").strip() or "unknown"
                 integrity_status = str(run_manifest.get("integrity_status") or "unknown").strip() or "unknown"
+                manifest_resolved = str(run_manifest.get("resolvedOperatingMode") or "").strip().lower()
+                manifest_verify = str(run_manifest.get("verifyPolicyVersion") or "").strip()
+                if manifest_resolved:
+                    resolved_mode = manifest_resolved
+                if manifest_verify:
+                    verify_policy_version = manifest_verify
             except Exception:
                 notes.append(f"run-manifest-invalid:{run_id}")
         else:
@@ -210,6 +229,9 @@ def _list_run_archives(workspace_dir: Path) -> tuple[list[dict[str, object]], li
                 "source_phase": source_phase,
                 "run_status": run_status,
                 "integrity_status": integrity_status,
+                "effective_operating_mode": effective_mode,
+                "resolved_operating_mode": resolved_mode,
+                "verify_policy_version": verify_policy_version,
             }
         )
 
@@ -232,6 +254,9 @@ def _build_last_snapshot(
             "run_id": "none",
             "run_status": "unknown",
             "integrity_status": "unknown",
+            "effective_operating_mode": "unknown",
+            "resolved_operating_mode": "solo",
+            "verify_policy_version": "v1",
         }, ["missing-run-archive-snapshot"]
 
     by_run_id = {str(item.get("run_id") or ""): item for item in run_archives}
@@ -429,6 +454,7 @@ def build_audit_readout(
     session_path = Path(session_file_raw)
     state_document = _read_json(session_path)
     state = _extract_state_view(state_document)
+    active_effective_mode, active_resolved_mode, active_verify_policy_version = _extract_mode_fields(state)
 
     active = {
         "run_id": _state_text(state, "session_run_id") or "unknown",
@@ -436,6 +462,9 @@ def build_audit_readout(
         "active_gate": _state_text(state, "active_gate", "ActiveGate") or "unknown",
         "next": _state_text(state, "Next", "next") or "unknown",
         "updated_at": _extract_updated_at(state, session_path=session_path),
+        "effective_operating_mode": active_effective_mode,
+        "resolved_operating_mode": active_resolved_mode,
+        "verify_policy_version": active_verify_policy_version,
     }
 
     events_raw = _parse_jsonl(session_path.parent / "events.jsonl")

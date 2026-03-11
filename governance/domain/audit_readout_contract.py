@@ -19,13 +19,25 @@ AUDIT_READOUT_SCHEMA_V1: dict[str, object] = {
         "contract_version": {"type": "string", "const": "AUDIT_READOUT_SPEC.v1"},
         "active": {
             "type": "object",
-            "required": ["run_id", "phase", "active_gate", "next", "updated_at"],
+            "required": [
+                "run_id",
+                "phase",
+                "active_gate",
+                "next",
+                "updated_at",
+                "effective_operating_mode",
+                "resolved_operating_mode",
+                "verify_policy_version",
+            ],
             "properties": {
                 "run_id": {"type": "string", "minLength": 1},
                 "phase": {"type": "string", "minLength": 1},
                 "active_gate": {"type": "string", "minLength": 1},
                 "next": {"type": "string", "minLength": 1},
                 "updated_at": {"type": "string", "pattern": _RFC3339_UTC_Z_RE.pattern},
+                "effective_operating_mode": {"type": "string", "minLength": 1},
+                "resolved_operating_mode": {"type": "string", "enum": ["solo", "team", "regulated"]},
+                "verify_policy_version": {"type": "string", "pattern": "^v[0-9]+$"},
             },
         },
         "last_snapshot": {
@@ -38,6 +50,9 @@ AUDIT_READOUT_SCHEMA_V1: dict[str, object] = {
                 "run_id",
                 "run_status",
                 "integrity_status",
+                "effective_operating_mode",
+                "resolved_operating_mode",
+                "verify_policy_version",
             ],
             "properties": {
                 "snapshot_path": {"type": "string", "minLength": 1},
@@ -53,6 +68,9 @@ AUDIT_READOUT_SCHEMA_V1: dict[str, object] = {
                     "type": "string",
                     "enum": ["pending", "passed", "failed", "unknown"],
                 },
+                "effective_operating_mode": {"type": "string", "minLength": 1},
+                "resolved_operating_mode": {"type": "string", "enum": ["solo", "team", "regulated"]},
+                "verify_policy_version": {"type": "string", "pattern": "^v[0-9]+$"},
             },
         },
         "chain": {
