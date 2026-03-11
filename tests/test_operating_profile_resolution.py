@@ -4,12 +4,17 @@ from dataclasses import dataclass
 
 import pytest
 
-from governance.application.use_cases.resolve_operating_mode import resolve_effective_operating_mode
+from governance.application.use_cases.resolve_operating_mode import (
+    resolve_effective_operating_mode,
+    resolve_operating_mode_result,
+)
 from governance.domain.operating_profile import (
     BREAK_GLASS_EXPIRED,
+    BREAK_GLASS_INVALID,
     FORBIDDEN_DOWNSHIFT,
     PROFILE_FLOOR_VIOLATION,
     UNTRUSTED_ENFORCEMENT_SOURCE,
+    EnforcementContext,
     OperatingProfileError,
     derive_mode_evidence,
     runtime_mode_to_operating_profile,
@@ -38,6 +43,13 @@ def test_resolve_operating_profile_applies_precedence_and_monotonicity():
         init_operating_mode="solo",
         enforced_operating_mode="regulated",
         enforced_source="ci",
+        enforcement_context=EnforcementContext(
+            ci_active=True,
+            protected_pipeline=False,
+            regulated_pipeline=False,
+            repo_policy_bound=False,
+            org_policy_bound=False,
+        ),
         floor_operating_mode="team",
     )
     assert out.resolved_operating_mode == "regulated"
@@ -66,6 +78,13 @@ def test_resolve_operating_profile_blocks_untrusted_enforcement_in_regulated_con
             init_operating_mode="solo",
             enforced_operating_mode="regulated",
             enforced_source="shell",
+            enforcement_context=EnforcementContext(
+                ci_active=False,
+                protected_pipeline=False,
+                regulated_pipeline=False,
+                repo_policy_bound=False,
+                org_policy_bound=False,
+            ),
             floor_operating_mode="regulated",
         )
     assert exc.value.code == UNTRUSTED_ENFORCEMENT_SOURCE
@@ -105,6 +124,8 @@ def test_resolve_effective_operating_mode_uses_profile_inputs_from_env():
             "OPENCODE_REPO_OPERATING_MODE": "solo",
             "OPENCODE_ENFORCE_PROFILE": "regulated",
             "OPENCODE_ENFORCE_PROFILE_SOURCE": "ci",
+            "CI": "true",
+            "OPENCODE_REGULATED_PIPELINE": "1",
             "OPENCODE_PROFILE_FLOOR": "team",
         },
         default_mode="user",
@@ -116,6 +137,75 @@ def test_resolve_effective_operating_mode_uses_profile_inputs_from_env():
 def test_resolve_effective_operating_mode_keeps_explicit_legacy_request():
     adapter = _Adapter(env={"OPENCODE_ENFORCE_PROFILE": "regulated", "OPENCODE_ENFORCE_PROFILE_SOURCE": "ci"})
     assert resolve_effective_operating_mode(adapter, requested="agents_strict") == "agents_strict"  # type: ignore[arg-type]
+
+
+@pytest.mark.governance
+def test_untrusted_enforcement_claim_without_ci_signal_is_not_trusted():
+    adapter = _Adapter(
+        env={
+            "OPENCODE_ENFORCE_PROFILE": "regulated",
+            "OPENCODE_ENFORCE_PROFILE_SOURCE": "ci",
+            "OPENCODE_REPO_OPERATING_MODE": "regulated",
+            "OPENCODE_PROFILE_FLOOR": "regulated",
+            "OPENCODE_CURRENT_TIME_UTC": "2026-03-11T10:00:00Z",
+        },
+        default_mode="user",
+    )
+    out = resolve_operating_mode_result(adapter, requested=None)  # type: ignore[arg-type]
+    assert out.enforcement_trusted is False
+    assert out.enforcement_source == "ci"
+    assert out.fallback_applied is False
+    assert out.resolution_state == "blocked"
+    assert out.error_code == UNTRUSTED_ENFORCEMENT_SOURCE
+
+
+@pytest.mark.governance
+def test_trusted_ci_enforcement_promotes_to_team():
+    adapter = _Adapter(
+        env={
+            "CI": "true",
+            "OPENCODE_ENFORCE_PROFILE": "team",
+            "OPENCODE_ENFORCE_PROFILE_SOURCE": "ci",
+            "OPENCODE_REPO_OPERATING_MODE": "solo",
+            "OPENCODE_CURRENT_TIME_UTC": "2026-03-11T10:00:00Z",
+        },
+        default_mode="user",
+    )
+    out = resolve_operating_mode_result(adapter, requested=None)  # type: ignore[arg-type]
+    assert out.enforcement_trusted is True
+    assert out.resolved_operating_mode == "team"
+
+
+@pytest.mark.governance
+def test_regulated_pipeline_enforcement_requires_regulated_signal():
+    adapter = _Adapter(
+        env={
+            "CI": "true",
+            "OPENCODE_ENFORCE_PROFILE": "regulated",
+            "OPENCODE_ENFORCE_PROFILE_SOURCE": "regulated-pipeline",
+            "OPENCODE_REPO_OPERATING_MODE": "team",
+            "OPENCODE_PROFILE_FLOOR": "regulated",
+            "OPENCODE_CURRENT_TIME_UTC": "2026-03-11T10:00:00Z",
+        },
+        default_mode="pipeline",
+    )
+    out = resolve_operating_mode_result(adapter, requested=None)  # type: ignore[arg-type]
+    assert out.resolution_state == "blocked"
+    assert out.error_code == UNTRUSTED_ENFORCEMENT_SOURCE
+
+
+@pytest.mark.governance
+def test_repo_ssot_missing_after_deadline_blocks_resolution():
+    adapter = _Adapter(
+        env={
+            "OPENCODE_CURRENT_TIME_UTC": "2026-03-11T10:00:00Z",
+            "OPENCODE_REPO_OPERATING_MODE_BLOCK_AFTER_UTC": "2026-01-01T00:00:00Z",
+        },
+        default_mode="user",
+    )
+    out = resolve_operating_mode_result(adapter, requested=None)  # type: ignore[arg-type]
+    assert out.resolution_state == "blocked"
+    assert out.error_code == "MISSING_OPERATING_MODE"
 
 
 @pytest.mark.governance
@@ -161,6 +251,10 @@ def test_resolve_operating_profile_allows_temporary_break_glass_downshift():
         break_glass_reason_code="incident-mitigation",
         break_glass_expires_at="2999-01-01T00:00:00Z",
         break_glass_now_utc="2026-01-01T00:00:00Z",
+        break_glass_actor="ops.lead",
+        break_glass_timestamp="2026-01-01T00:00:00Z",
+        break_glass_rationale="incident containment",
+        break_glass_scope="repo:core",
     )
     assert out.resolved_operating_mode == "solo"
 
@@ -178,8 +272,33 @@ def test_resolve_operating_profile_blocks_expired_break_glass_downshift():
             break_glass_reason_code="incident-mitigation",
             break_glass_expires_at="2020-01-01T00:00:00Z",
             break_glass_now_utc="2026-01-01T00:00:00Z",
+            break_glass_actor="ops.lead",
+            break_glass_timestamp="2026-01-01T00:00:00Z",
+            break_glass_rationale="incident containment",
+            break_glass_scope="repo:core",
         )
     assert exc.value.code == BREAK_GLASS_EXPIRED
+
+
+@pytest.mark.governance
+def test_break_glass_missing_actor_is_invalid():
+    with pytest.raises(OperatingProfileError) as exc:
+        resolve_operating_profile(
+            requested_operating_mode="solo",
+            repo_operating_mode="team",
+            init_operating_mode="team",
+            enforced_operating_mode=None,
+            enforced_source=None,
+            floor_operating_mode=None,
+            break_glass_reason_code="incident-mitigation",
+            break_glass_expires_at="2999-01-01T00:00:00Z",
+            break_glass_now_utc="2026-01-01T00:00:00Z",
+            break_glass_actor="",
+            break_glass_timestamp="2026-01-01T00:00:00Z",
+            break_glass_rationale="incident containment",
+            break_glass_scope="repo:core",
+        )
+    assert exc.value.code == BREAK_GLASS_INVALID
 
 
 @pytest.mark.governance
@@ -229,5 +348,9 @@ def test_resolve_operating_profile_break_glass_requires_current_time():
             break_glass_reason_code="incident-mitigation",
             break_glass_expires_at="2999-01-01T00:00:00Z",
             break_glass_now_utc=None,
+            break_glass_actor="ops.lead",
+            break_glass_timestamp="2026-01-01T00:00:00Z",
+            break_glass_rationale="incident containment",
+            break_glass_scope="repo:core",
         )
     assert exc.value.code == BREAK_GLASS_EXPIRED

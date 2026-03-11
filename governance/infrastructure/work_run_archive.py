@@ -141,11 +141,27 @@ def _derive_verify_policy_version(state_view: Mapping[str, object]) -> str:
     return token or "v1"
 
 
+def _derive_operating_mode_resolution(state_view: Mapping[str, object]) -> dict[str, object]:
+    payload = state_view.get("operating_mode_resolution") or state_view.get("operatingModeResolution")
+    if isinstance(payload, Mapping):
+        return dict(payload)
+    return {}
+
+
+def _derive_break_glass(state_view: Mapping[str, object]) -> dict[str, object]:
+    payload = state_view.get("break_glass") or state_view.get("breakGlass")
+    if isinstance(payload, Mapping):
+        return dict(payload)
+    return {}
+
+
 def _with_operating_mode_evidence(
     session_state_document: Mapping[str, object],
     *,
     resolved_operating_mode: str,
     verify_policy_version: str,
+    operating_mode_resolution: Mapping[str, object] | None,
+    break_glass: Mapping[str, object] | None,
 ) -> Mapping[str, object]:
     document = dict(session_state_document)
     root = document.get("SESSION_STATE")
@@ -157,6 +173,10 @@ def _with_operating_mode_evidence(
     ss["resolvedOperatingMode"] = resolved_operating_mode
     ss["verify_policy_version"] = verify_policy_version
     ss["verifyPolicyVersion"] = verify_policy_version
+    ss["operating_mode_resolution"] = dict(operating_mode_resolution or {})
+    ss["operatingModeResolution"] = dict(operating_mode_resolution or {})
+    ss["break_glass"] = dict(break_glass or {})
+    ss["breakGlass"] = dict(break_glass or {})
     document["SESSION_STATE"] = ss
     return document
 
@@ -201,10 +221,14 @@ def archive_active_run(
     try:
         resolved_operating_mode = _derive_resolved_operating_mode(state_view)
         verify_policy_version = _derive_verify_policy_version(state_view)
+        operating_mode_resolution = _derive_operating_mode_resolution(state_view)
+        break_glass = _derive_break_glass(state_view)
         archived_session_state_document = _with_operating_mode_evidence(
             session_state_document,
             resolved_operating_mode=resolved_operating_mode,
             verify_policy_version=verify_policy_version,
+            operating_mode_resolution=operating_mode_resolution,
+            break_glass=break_glass,
         )
 
         canonical_remote_url_digest = canonical_json_hash({"remote": str(state_view.get("remote_url") or "")})
@@ -376,6 +400,8 @@ def archive_active_run(
             requires_pr_record=(run_type == "pr"),
             resolved_operating_mode=resolved_operating_mode,
             verify_policy_version=verify_policy_version,
+            operating_mode_resolution=operating_mode_resolution,
+            break_glass=break_glass,
         )
         writer(
             run_manifest_path(
@@ -529,6 +555,8 @@ def archive_active_run(
             finalization_reason="all-required-artifacts-present-and-verified",
             resolved_operating_mode=resolved_operating_mode,
             verify_policy_version=verify_policy_version,
+            operating_mode_resolution=operating_mode_resolution,
+            break_glass=break_glass,
         )
         finalization_record_path = run_finalization_record_path(
             workspaces_home,

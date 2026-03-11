@@ -26,6 +26,8 @@
     "manifest_integrity_status",
     "resolvedOperatingMode",
     "verifyPolicyVersion",
+    "operatingModeResolution",
+    "breakGlass",
     "finalization_reason",
     "finalization_errors",
     "bundle_manifest_hash"
@@ -52,6 +54,8 @@
     "manifest_integrity_status": {"type": "string"},
     "resolvedOperatingMode": {"type": "string", "enum": ["solo", "team", "regulated"]},
     "verifyPolicyVersion": {"type": "string", "pattern": "^v[0-9]+$"},
+    "operatingModeResolution": {"type": "object"},
+    "breakGlass": {"type": "object"},
     "finalization_reason": {"type": "string"},
     "finalization_errors": {"type": "array", "items": {"type": "string"}},
     "bundle_manifest_hash": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}

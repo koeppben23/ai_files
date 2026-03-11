@@ -38,6 +38,9 @@ SESSION_SNAPSHOT_WHITELIST = (
     "phase",
     "effective_operating_mode",
     "resolved_operating_mode",
+    "operating_mode_resolution.state",
+    "operating_mode_resolution.error_code",
+    "operating_mode_resolution.fallback_applied",
     "active_gate.status",
     "active_gate.decision_outcome",
     "active_gate.reason_code",
@@ -152,10 +155,16 @@ def build_session_snapshot(
         verify_policy_version=None,
     )
 
+    mode_resolution = session_state.get("operating_mode_resolution")
+    mode_resolution_dict = mode_resolution if isinstance(mode_resolution, dict) else {}
+
     snapshot = {
         "phase": _extract_session_value(session_state, "phase", "Phase", default="unknown"),
         "effective_operating_mode": effective_mode,
         "resolved_operating_mode": str(resolved_mode),
+        "operating_mode_resolution.state": str(mode_resolution_dict.get("resolutionState") or "resolved"),
+        "operating_mode_resolution.error_code": str(mode_resolution_dict.get("errorCode") or "none"),
+        "operating_mode_resolution.fallback_applied": bool(mode_resolution_dict.get("fallbackApplied", False)),
         "active_gate.status": _normalize_status(status),
         "active_gate.decision_outcome": _decision_outcome_for_status(status),
         "active_gate.reason_code": reason_code,

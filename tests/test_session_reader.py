@@ -260,12 +260,18 @@ class TestReadSessionSnapshotSuccess:
             "effective_operating_mode": "pipeline",
             "resolvedOperatingMode": "team",
             "verifyPolicyVersion": "v2",
+            "operatingModeResolution": {
+                "resolutionState": "resolved_with_fallback",
+                "errorCode": "MISSING_OPERATING_MODE",
+                "fallbackApplied": True,
+            },
         })
         with _mock_readonly_unavailable():
             result = read_session_snapshot(commands_home=fake_config / "commands")
         assert result["effective_operating_mode"] == "pipeline"
         assert result["resolved_operating_mode"] == "team"
         assert result["verify_policy_version"] == "v2"
+        assert result["operating_mode_resolution"]["resolutionState"] == "resolved_with_fallback"
 
     def test_operating_mode_fields_default_when_missing(self, fake_config: Path) -> None:
         ws_state = _write_pointer(fake_config)
