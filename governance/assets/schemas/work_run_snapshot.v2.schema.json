@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "governance/assets/schemas/work_run_snapshot.v2.schema.json",
+  "title": "Work Run Snapshot v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "repo_fingerprint",
+    "run_id",
+    "archived_at",
+    "source_phase",
+    "source_active_gate",
+    "source_next",
+    "snapshot_digest",
+    "snapshot_digest_scope",
+    "archived_files",
+    "archive_status"
+  ],
+  "properties": {
+    "schema": {"const": "governance.work-run.snapshot.v2"},
+    "repo_fingerprint": {"type": "string", "pattern": "^[0-9a-f]{24}$"},
+    "run_id": {"type": "string", "minLength": 1},
+    "archived_at": {"type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"},
+    "source_phase": {"type": "string"},
+    "source_active_gate": {"type": "string"},
+    "source_next": {"type": "string"},
+    "snapshot_digest": {"type": "string"},
+    "snapshot_digest_scope": {"const": "session_state"},
+    "ticket_digest": {},
+    "task_digest": {},
+    "plan_record_digest": {},
+    "impl_digest": {},
+    "archived_files": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "session_state",
+        "plan_record",
+        "pr_record",
+        "ticket_record",
+        "review_decision_record",
+        "outcome_record",
+        "evidence_index",
+        "run_manifest",
+        "provenance_record",
+        "checksums"
+      ],
+      "properties": {
+        "session_state": {"type": "boolean"},
+        "plan_record": {"type": "boolean"},
+        "pr_record": {"type": "boolean"},
+        "ticket_record": {"type": "boolean"},
+        "review_decision_record": {"type": "boolean"},
+        "outcome_record": {"type": "boolean"},
+        "evidence_index": {"type": "boolean"},
+        "run_manifest": {"type": "boolean"},
+        "provenance_record": {"type": "boolean"},
+        "checksums": {"type": "boolean"}
+      }
+    },
+    "archive_status": {"type": "string", "enum": ["materialized", "finalized", "failed", "invalidated"]},
+    "finalization_reason": {"type": "string"},
+    "failure_reason": {"type": "string"}
+  }
+}

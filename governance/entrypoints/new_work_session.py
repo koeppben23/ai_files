@@ -21,6 +21,14 @@ from governance.engine.business_rules_hydration import hydrate_business_rules_st
 from governance.infrastructure.fs_atomic import atomic_write_text
 from governance.infrastructure.run_audit_artifacts import purge_runtime_artifacts
 from governance.infrastructure.work_run_archive import archive_active_run
+from governance.infrastructure.workspace_paths import run_dir
+
+try:
+    from governance.infrastructure.governance_hooks import run_post_archive_governance as _run_post_archive_governance
+    _GOVERNANCE_AVAILABLE = True
+except Exception:
+    _run_post_archive_governance = None  # type: ignore[assignment]
+    _GOVERNANCE_AVAILABLE = False
 try:
     from governance.entrypoints.workspace_lock import acquire_workspace_lock
 except Exception:
@@ -338,6 +346,21 @@ def main(argv: list[str] | None = None) -> int:
             state_view=deepcopy(state),
             write_json_atomic=_write_json_atomic,
         )
+
+        # --- Governance pipeline hook (post-archive, pre-purge) ---
+        if _GOVERNANCE_AVAILABLE and _run_post_archive_governance is not None:
+            try:
+                _gov_result = _run_post_archive_governance(
+                    archive_path=run_dir(workspaces_home, repo_fingerprint, archive_id),
+                    repo_fingerprint=repo_fingerprint,
+                    run_id=archive_id,
+                    observed_at=observed_at,
+                    workspace_root=session_path.parent,
+                    events_path=session_path.parent / "events.jsonl",
+                )
+            except Exception:
+                pass  # governance hook is fail-open — never blocks session
+
         purged_runtime_files = purge_runtime_artifacts(session_path.parent)
 
         new_run_id = _new_run_id()

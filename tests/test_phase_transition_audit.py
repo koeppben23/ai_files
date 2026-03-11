@@ -28,6 +28,7 @@ import pytest
 
 from governance.kernel.phase_kernel import KernelResult, RuntimeContext, execute
 from governance.entrypoints import new_work_session
+from governance.infrastructure.workspace_paths import run_dir
 
 # ────────────────────────────────────────────────────────────────────
 # Shared fixtures and helpers
@@ -851,7 +852,7 @@ class TestRunLifecycleReset:
         assert code == 0
         _ = capsys.readouterr()
 
-        archived = session_path.parent.parent / "governance-records" / session_path.parent.name / "runs" / "run-old-001" / "SESSION_STATE.json"
+        archived = run_dir(session_path.parent.parent, session_path.parent.name, "run-old-001") / "SESSION_STATE.json"
         assert archived.is_file(), "previous run snapshot must be archived"
         archived_payload = json.loads(archived.read_text(encoding="utf-8"))
         assert archived_payload["SESSION_STATE"]["session_run_id"] == "run-old-001"

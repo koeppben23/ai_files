@@ -1,0 +1,204 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "governance.retention-policy.v1",
+  "title": "Retention Policy Schema",
+  "description": "JSON Schema for audit record retention policy, legal holds, archive export manifests, and restore validation. Contract version: RETENTION_POLICY.v1",
+  "type": "object",
+  "definitions": {
+    "retention_class": {
+      "type": "string",
+      "enum": ["short", "standard", "extended", "permanent"],
+      "description": "Retention classification tier"
+    },
+    "classification_level": {
+      "type": "string",
+      "enum": ["public", "internal", "confidential", "restricted"],
+      "description": "Data classification level"
+    },
+    "legal_hold_status": {
+      "type": "string",
+      "enum": ["none", "active", "released"],
+      "description": "Legal hold lifecycle status"
+    },
+    "deletion_decision": {
+      "type": "string",
+      "enum": ["allowed", "blocked_retention", "blocked_legal_hold", "blocked_regulated_mode"],
+      "description": "Result of deletion evaluation"
+    },
+    "archive_format": {
+      "type": "string",
+      "enum": ["directory", "zip"],
+      "description": "Archive export format"
+    },
+    "rfc3339_utc_z": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$",
+      "description": "RFC3339 UTC Z timestamp"
+    },
+    "repo_fingerprint": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{24}$",
+      "description": "Canonical 24-hex repository fingerprint"
+    },
+    "retention_period": {
+      "type": "object",
+      "properties": {
+        "classification_level": { "$ref": "#/definitions/classification_level" },
+        "retention_class": { "$ref": "#/definitions/retention_class" },
+        "minimum_days": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Minimum retention period in days"
+        },
+        "description": { "type": "string" }
+      },
+      "required": ["classification_level", "retention_class", "minimum_days"],
+      "additionalProperties": false
+    },
+    "legal_hold": {
+      "type": "object",
+      "properties": {
+        "schema": { "type": "string" },
+        "hold_id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Unique legal hold identifier"
+        },
+        "scope_type": {
+          "type": "string",
+          "enum": ["run", "repo", "all"],
+          "description": "Scope of the legal hold"
+        },
+        "scope_value": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Target value: run_id, repo_fingerprint, or '*'"
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Reason for the legal hold"
+        },
+        "status": { "$ref": "#/definitions/legal_hold_status" },
+        "created_at": { "$ref": "#/definitions/rfc3339_utc_z" },
+        "created_by": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Identity who created the hold"
+        },
+        "released_at": {
+          "type": "string",
+          "description": "Timestamp when hold was released (empty if active)"
+        },
+        "released_by": {
+          "type": "string",
+          "description": "Identity who released the hold (empty if active)"
+        }
+      },
+      "required": ["hold_id", "scope_type", "scope_value", "reason", "status", "created_at", "created_by"],
+      "additionalProperties": false
+    },
+    "deletion_evaluation": {
+      "type": "object",
+      "properties": {
+        "decision": { "$ref": "#/definitions/deletion_decision" },
+        "reason": { "type": "string" },
+        "blocking_hold_id": {
+          "type": "string",
+          "description": "ID of the legal hold blocking deletion (if applicable)"
+        },
+        "remaining_retention_days": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Days remaining in the retention period"
+        }
+      },
+      "required": ["decision", "reason"],
+      "additionalProperties": false
+    },
+    "retention_policy": {
+      "type": "object",
+      "properties": {
+        "version": { "type": "string" },
+        "contract_version": {
+          "type": "string",
+          "const": "RETENTION_POLICY.v1"
+        },
+        "default_retention_class": { "$ref": "#/definitions/retention_class" },
+        "periods": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/retention_period" },
+          "minItems": 1
+        },
+        "legal_holds": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/legal_hold" }
+        },
+        "regulated_mode_minimum_days": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": ["version", "contract_version", "default_retention_class", "periods", "regulated_mode_minimum_days"],
+      "additionalProperties": false
+    },
+    "archive_export_manifest": {
+      "type": "object",
+      "properties": {
+        "schema": {
+          "type": "string",
+          "const": "governance.archive-export-manifest.v1"
+        },
+        "repo_fingerprint": { "$ref": "#/definitions/repo_fingerprint" },
+        "run_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "exported_at": { "$ref": "#/definitions/rfc3339_utc_z" },
+        "exported_by": {
+          "type": "string",
+          "minLength": 1
+        },
+        "export_format": { "$ref": "#/definitions/archive_format" },
+        "source_archive_path": { "type": "string" },
+        "files_included": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 1
+        },
+        "checksums_verified": { "type": "boolean" },
+        "redaction_applied": { "type": "boolean" },
+        "redaction_max_level": { "$ref": "#/definitions/classification_level" }
+      },
+      "required": [
+        "schema", "repo_fingerprint", "run_id", "exported_at", "exported_by",
+        "export_format", "files_included", "checksums_verified",
+        "redaction_applied", "redaction_max_level"
+      ],
+      "additionalProperties": false
+    },
+    "restore_validation": {
+      "type": "object",
+      "properties": {
+        "is_valid": { "type": "boolean" },
+        "manifest_present": { "type": "boolean" },
+        "checksums_verified": { "type": "boolean" },
+        "files_complete": { "type": "boolean" },
+        "errors": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "required": ["is_valid", "manifest_present", "checksums_verified", "files_complete", "errors"],
+      "additionalProperties": false
+    }
+  },
+  "properties": {
+    "retention_policy": { "$ref": "#/definitions/retention_policy" },
+    "legal_hold": { "$ref": "#/definitions/legal_hold" },
+    "deletion_evaluation": { "$ref": "#/definitions/deletion_evaluation" },
+    "archive_export_manifest": { "$ref": "#/definitions/archive_export_manifest" },
+    "restore_validation": { "$ref": "#/definitions/restore_validation" }
+  },
+  "additionalProperties": false
+}

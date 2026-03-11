@@ -1,0 +1,157 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "governance/schemas/audit_contract.v1.schema.json",
+  "title": "Audit Storage Contract Schema",
+  "description": "Defines the formal audit storage contract for regulated customers. This schema documents the structure and invariants of run archives produced by the governance system.",
+  "type": "object",
+  "required": ["contract_version", "run_archive", "lifecycle_rules", "artifact_rules"],
+  "additionalProperties": false,
+  "properties": {
+    "contract_version": {
+      "type": "string",
+      "const": "AUDIT_STORAGE_CONTRACT.v1",
+      "description": "Contract version identifier"
+    },
+    "run_archive": {
+      "$ref": "#/$defs/RunArchiveContract"
+    },
+    "lifecycle_rules": {
+      "$ref": "#/$defs/LifecycleRules"
+    },
+    "artifact_rules": {
+      "$ref": "#/$defs/ArtifactRules"
+    }
+  },
+  "$defs": {
+    "RunArchiveContract": {
+      "type": "object",
+      "required": ["required_files", "optional_files", "expected_schemas"],
+      "additionalProperties": false,
+      "properties": {
+        "required_files": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 5,
+          "description": "Files that must be present in every finalized run archive"
+        },
+        "optional_files": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Files that may be present depending on run_type"
+        },
+        "expected_schemas": {
+          "type": "object",
+          "additionalProperties": { "type": "string" },
+          "description": "Map of artifact filename to expected schema identifier"
+        }
+      }
+    },
+    "LifecycleRules": {
+      "type": "object",
+      "required": ["allowed_run_statuses", "allowed_record_statuses", "allowed_integrity_statuses", "invariants"],
+      "additionalProperties": false,
+      "properties": {
+        "allowed_run_statuses": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "All valid run_status values"
+        },
+        "allowed_record_statuses": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "All valid record_status values"
+        },
+        "allowed_integrity_statuses": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "All valid integrity_status values"
+        },
+        "invariants": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/LifecycleInvariant" },
+          "description": "Invariant rules per run_status"
+        }
+      }
+    },
+    "LifecycleInvariant": {
+      "type": "object",
+      "required": [
+        "expected_record_status",
+        "expected_integrity_status",
+        "requires_finalized_at",
+        "forbids_finalized_at",
+        "requires_finalization_errors",
+        "forbids_finalization_errors"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "expected_record_status": {
+          "type": ["string", "null"],
+          "description": "Required record_status for this run_status (null = any)"
+        },
+        "expected_integrity_status": {
+          "type": ["string", "null"],
+          "description": "Required integrity_status for this run_status (null = any)"
+        },
+        "requires_finalized_at": {
+          "type": "boolean",
+          "description": "Whether finalized_at must be present"
+        },
+        "forbids_finalized_at": {
+          "type": "boolean",
+          "description": "Whether finalized_at must be absent"
+        },
+        "requires_finalization_errors": {
+          "type": "boolean",
+          "description": "Whether finalization_errors must be non-empty"
+        },
+        "forbids_finalization_errors": {
+          "type": "boolean",
+          "description": "Whether finalization_errors must be absent"
+        }
+      }
+    },
+    "ArtifactRules": {
+      "type": "object",
+      "required": ["allowed_run_types", "run_type_requirements", "required_artifact_keys", "baseline_required_true"],
+      "additionalProperties": false,
+      "properties": {
+        "allowed_run_types": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "All valid run_type values"
+        },
+        "run_type_requirements": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/RunTypeRequirement" },
+          "description": "Artifact requirements per run_type"
+        },
+        "required_artifact_keys": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Keys that must be present in required_artifacts map"
+        },
+        "baseline_required_true": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Artifact keys that must always be True"
+        }
+      }
+    },
+    "RunTypeRequirement": {
+      "type": "object",
+      "required": ["plan_record_required", "pr_record_required"],
+      "additionalProperties": false,
+      "properties": {
+        "plan_record_required": {
+          "type": "boolean",
+          "description": "Whether plan-record.json is required for this run_type"
+        },
+        "pr_record_required": {
+          "type": "boolean",
+          "description": "Whether pr-record.json is required for this run_type"
+        }
+      }
+    }
+  }
+}

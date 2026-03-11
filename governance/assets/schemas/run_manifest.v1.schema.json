@@ -1,0 +1,100 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "governance/assets/schemas/run_manifest.v1.schema.json",
+  "title": "Run Manifest v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "schema_version",
+    "artifact_type",
+    "artifact_id",
+    "repo_fingerprint",
+    "repo_slug",
+    "run_id",
+    "session_id",
+    "created_at",
+    "created_by_component",
+    "classification",
+    "content_hash",
+    "run_type",
+    "materialized_at",
+    "source_phase",
+    "source_active_gate",
+    "source_next",
+    "run_status",
+    "record_status",
+    "finalized_at",
+    "finalized_by",
+    "integrity_status",
+    "required_artifacts"
+  ],
+  "properties": {
+    "schema": {"const": "governance.run-manifest.v1"},
+    "schema_version": {"const": "v1"},
+    "artifact_type": {"const": "run_manifest"},
+    "artifact_id": {"type": "string", "minLength": 1},
+    "repo_fingerprint": {"type": "string", "pattern": "^[0-9a-f]{24}$"},
+    "repo_slug": {"type": "string", "minLength": 1},
+    "run_id": {"type": "string", "minLength": 1},
+    "session_id": {"type": "string", "minLength": 1},
+    "created_at": {"type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"},
+    "created_by_component": {"type": "string", "minLength": 1},
+    "classification": {"type": "string"},
+    "content_hash": {"type": "string"},
+    "run_type": {"type": "string", "enum": ["analysis", "plan", "pr"]},
+    "materialized_at": {"type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"},
+    "source_phase": {"type": "string"},
+    "source_active_gate": {"type": "string"},
+    "source_next": {"type": "string"},
+    "run_status": {"type": "string", "enum": ["in_progress", "materialized", "finalized", "failed", "invalidated"]},
+    "record_status": {"type": "string", "enum": ["draft", "finalized", "superseded", "invalidated"]},
+    "finalized_at": {
+      "oneOf": [
+        {"type": "null"},
+        {"type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"}
+      ]
+    },
+    "finalized_by": {
+      "oneOf": [
+        {"type": "null"},
+        {"type": "string", "minLength": 1}
+      ]
+    },
+    "integrity_status": {"type": "string", "enum": ["pending", "passed", "failed"]},
+    "required_artifacts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "session_state",
+        "run_manifest",
+        "metadata",
+        "ticket_record",
+        "review_decision_record",
+        "outcome_record",
+        "evidence_index",
+        "provenance",
+        "plan_record",
+        "pr_record",
+        "checksums"
+      ],
+      "properties": {
+        "session_state": {"type": "boolean"},
+        "run_manifest": {"type": "boolean"},
+        "metadata": {"type": "boolean"},
+        "ticket_record": {"type": "boolean"},
+        "review_decision_record": {"type": "boolean"},
+        "outcome_record": {"type": "boolean"},
+        "evidence_index": {"type": "boolean"},
+        "provenance": {"type": "boolean"},
+        "plan_record": {"type": "boolean"},
+        "pr_record": {"type": "boolean"},
+        "checksums": {"type": "boolean"}
+      }
+    },
+    "finalization_errors": {
+      "type": "array",
+      "items": {"type": "string"}
+    }
+  }
+}

@@ -13,6 +13,7 @@ workspace directory.
 """
 from __future__ import annotations
 
+from datetime import datetime
 from pathlib import Path
 
 
@@ -168,36 +169,252 @@ def runs_dir(workspaces_home: Path, repo_fingerprint: str) -> Path:
     return workspaces_home / "governance-records" / repo_fingerprint / "runs"
 
 
-def run_dir(workspaces_home: Path, repo_fingerprint: str, run_id: str) -> Path:
-    return runs_dir(workspaces_home, repo_fingerprint) / run_id
+def _date_segments(observed_at: str) -> tuple[str, str, str]:
+    if len(observed_at) >= 10:
+        day = observed_at[:10]
+        month = day[:7]
+        year = day[:4]
+        if day[4] == "-" and day[7] == "-":
+            return year, month, day
+    now = datetime.utcnow().strftime("%Y-%m-%d")
+    return now[:4], now[:7], now
 
 
-def run_session_state_path(workspaces_home: Path, repo_fingerprint: str, run_id: str) -> Path:
-    return run_dir(workspaces_home, repo_fingerprint, run_id) / "SESSION_STATE.json"
+def run_dir(
+    workspaces_home: Path,
+    repo_fingerprint: str,
+    run_id: str,
+    *,
+    repo_slug: str | None = None,
+    observed_at: str | None = None,
+) -> Path:
+    if repo_slug and observed_at:
+        year, month, day = _date_segments(observed_at)
+        return runs_dir(workspaces_home, repo_fingerprint) / repo_slug / year / month / day / run_id
+    legacy = runs_dir(workspaces_home, repo_fingerprint) / run_id
+    if legacy.exists():
+        return legacy
+    root = runs_dir(workspaces_home, repo_fingerprint)
+    for candidate in root.glob(f"*/*/*/*/{run_id}"):
+        if candidate.is_dir():
+            return candidate
+    return legacy
 
 
-def run_plan_record_path(workspaces_home: Path, repo_fingerprint: str, run_id: str) -> Path:
-    return run_dir(workspaces_home, repo_fingerprint, run_id) / "plan-record.json"
+def locate_run_dir(workspaces_home: Path, repo_fingerprint: str, run_id: str) -> Path:
+    legacy = run_dir(workspaces_home, repo_fingerprint, run_id)
+    if legacy.exists():
+        return legacy
+
+    root = runs_dir(workspaces_home, repo_fingerprint)
+    for candidate in root.glob(f"*/*/*/*/{run_id}"):
+        if candidate.is_dir():
+            return candidate
+    return legacy
 
 
-def run_metadata_path(workspaces_home: Path, repo_fingerprint: str, run_id: str) -> Path:
-    return run_dir(workspaces_home, repo_fingerprint, run_id) / "metadata.json"
+def run_session_state_path(
+    workspaces_home: Path,
+    repo_fingerprint: str,
+    run_id: str,
+    *,
+    repo_slug: str | None = None,
+    observed_at: str | None = None,
+) -> Path:
+    return run_dir(
+        workspaces_home,
+        repo_fingerprint,
+        run_id,
+        repo_slug=repo_slug,
+        observed_at=observed_at,
+    ) / "SESSION_STATE.json"
 
 
-def run_manifest_path(workspaces_home: Path, repo_fingerprint: str, run_id: str) -> Path:
-    return run_dir(workspaces_home, repo_fingerprint, run_id) / "run-manifest.json"
+def run_plan_record_path(
+    workspaces_home: Path,
+    repo_fingerprint: str,
+    run_id: str,
+    *,
+    repo_slug: str | None = None,
+    observed_at: str | None = None,
+) -> Path:
+    return run_dir(
+        workspaces_home,
+        repo_fingerprint,
+        run_id,
+        repo_slug=repo_slug,
+        observed_at=observed_at,
+    ) / "plan-record.json"
 
 
-def run_checksums_path(workspaces_home: Path, repo_fingerprint: str, run_id: str) -> Path:
-    return run_dir(workspaces_home, repo_fingerprint, run_id) / "checksums.json"
+def run_metadata_path(
+    workspaces_home: Path,
+    repo_fingerprint: str,
+    run_id: str,
+    *,
+    repo_slug: str | None = None,
+    observed_at: str | None = None,
+) -> Path:
+    return run_dir(
+        workspaces_home,
+        repo_fingerprint,
+        run_id,
+        repo_slug=repo_slug,
+        observed_at=observed_at,
+    ) / "metadata.json"
 
 
-def run_provenance_path(workspaces_home: Path, repo_fingerprint: str, run_id: str) -> Path:
-    return run_dir(workspaces_home, repo_fingerprint, run_id) / "provenance-record.json"
+def run_manifest_path(
+    workspaces_home: Path,
+    repo_fingerprint: str,
+    run_id: str,
+    *,
+    repo_slug: str | None = None,
+    observed_at: str | None = None,
+) -> Path:
+    return run_dir(
+        workspaces_home,
+        repo_fingerprint,
+        run_id,
+        repo_slug=repo_slug,
+        observed_at=observed_at,
+    ) / "run-manifest.json"
 
 
-def run_pr_record_path(workspaces_home: Path, repo_fingerprint: str, run_id: str) -> Path:
-    return run_dir(workspaces_home, repo_fingerprint, run_id) / "pr-record.json"
+def run_checksums_path(
+    workspaces_home: Path,
+    repo_fingerprint: str,
+    run_id: str,
+    *,
+    repo_slug: str | None = None,
+    observed_at: str | None = None,
+) -> Path:
+    return run_dir(
+        workspaces_home,
+        repo_fingerprint,
+        run_id,
+        repo_slug=repo_slug,
+        observed_at=observed_at,
+    ) / "checksums.json"
+
+
+def run_provenance_path(
+    workspaces_home: Path,
+    repo_fingerprint: str,
+    run_id: str,
+    *,
+    repo_slug: str | None = None,
+    observed_at: str | None = None,
+) -> Path:
+    return run_dir(
+        workspaces_home,
+        repo_fingerprint,
+        run_id,
+        repo_slug=repo_slug,
+        observed_at=observed_at,
+    ) / "provenance-record.json"
+
+
+def run_pr_record_path(
+    workspaces_home: Path,
+    repo_fingerprint: str,
+    run_id: str,
+    *,
+    repo_slug: str | None = None,
+    observed_at: str | None = None,
+) -> Path:
+    return run_dir(
+        workspaces_home,
+        repo_fingerprint,
+        run_id,
+        repo_slug=repo_slug,
+        observed_at=observed_at,
+    ) / "pr-record.json"
+
+
+def run_ticket_record_path(
+    workspaces_home: Path,
+    repo_fingerprint: str,
+    run_id: str,
+    *,
+    repo_slug: str | None = None,
+    observed_at: str | None = None,
+) -> Path:
+    return run_dir(
+        workspaces_home,
+        repo_fingerprint,
+        run_id,
+        repo_slug=repo_slug,
+        observed_at=observed_at,
+    ) / "ticket-record.json"
+
+
+def run_review_decision_record_path(
+    workspaces_home: Path,
+    repo_fingerprint: str,
+    run_id: str,
+    *,
+    repo_slug: str | None = None,
+    observed_at: str | None = None,
+) -> Path:
+    return run_dir(
+        workspaces_home,
+        repo_fingerprint,
+        run_id,
+        repo_slug=repo_slug,
+        observed_at=observed_at,
+    ) / "review-decision-record.json"
+
+
+def run_outcome_record_path(
+    workspaces_home: Path,
+    repo_fingerprint: str,
+    run_id: str,
+    *,
+    repo_slug: str | None = None,
+    observed_at: str | None = None,
+) -> Path:
+    return run_dir(
+        workspaces_home,
+        repo_fingerprint,
+        run_id,
+        repo_slug=repo_slug,
+        observed_at=observed_at,
+    ) / "outcome-record.json"
+
+
+def run_evidence_index_path(
+    workspaces_home: Path,
+    repo_fingerprint: str,
+    run_id: str,
+    *,
+    repo_slug: str | None = None,
+    observed_at: str | None = None,
+) -> Path:
+    return run_dir(
+        workspaces_home,
+        repo_fingerprint,
+        run_id,
+        repo_slug=repo_slug,
+        observed_at=observed_at,
+    ) / "evidence-index.json"
+
+
+def run_finalization_record_path(
+    workspaces_home: Path,
+    repo_fingerprint: str,
+    run_id: str,
+    *,
+    repo_slug: str | None = None,
+    observed_at: str | None = None,
+) -> Path:
+    return run_dir(
+        workspaces_home,
+        repo_fingerprint,
+        run_id,
+        repo_slug=repo_slug,
+        observed_at=observed_at,
+    ) / "finalization-record.json"
 
 
 def repository_manifest_path(workspaces_home: Path, repo_fingerprint: str) -> Path:
