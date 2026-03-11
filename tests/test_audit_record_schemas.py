@@ -22,6 +22,8 @@ _SCHEMA_PATHS = {
     "review-decision-record.json": Path("governance/assets/schemas/review_decision_record.v1.schema.json"),
     "outcome-record.json": Path("governance/assets/schemas/outcome_record.v1.schema.json"),
     "evidence-index.json": Path("governance/assets/schemas/evidence_index.v1.schema.json"),
+    "pr-record.json": Path("governance/assets/schemas/pr_record.v1.schema.json"),
+    "provenance-record.json": Path("governance/assets/schemas/provenance_record.v1.schema.json"),
 }
 
 
@@ -46,6 +48,10 @@ def _materialize_run(tmp_path: Path) -> Path:
         "review_decision_note": "looks good",
         "result": "success",
         "evidence_refs": ["docs/spec.md:10"],
+        "PullRequestTitle": "feat: schema coverage",
+        "PullRequestBody": "Adds artifact schemas",
+        "model_context": {"provider": "openai", "model": "gpt-5.3-codex"},
+        "approval_context": {"status": "approved", "approver_role": "approver"},
     }
     archive_active_run(
         workspaces_home=workspaces_home,
@@ -72,6 +78,7 @@ class TestAuditRecordSchemaFiles:
 @pytest.mark.skipif(jsonschema is None, reason="jsonschema not installed")
 class TestAuditRecordSchemaValidation:
     def test_materialized_records_validate_against_schemas(self, tmp_path: Path) -> None:
+        assert jsonschema is not None
         run_root = _materialize_run(tmp_path)
         for record_name, schema_path in _SCHEMA_PATHS.items():
             schema = _load_schema(schema_path)
@@ -80,6 +87,7 @@ class TestAuditRecordSchemaValidation:
             jsonschema.validate(payload, schema)
 
     def test_missing_required_field_is_rejected(self, tmp_path: Path) -> None:
+        assert jsonschema is not None
         run_root = _materialize_run(tmp_path)
         payload = json.loads((run_root / "ticket-record.json").read_text(encoding="utf-8"))
         schema = _load_schema(_SCHEMA_PATHS["ticket-record.json"])
