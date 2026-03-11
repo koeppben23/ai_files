@@ -41,6 +41,10 @@ DEFAULT_PROMPT_BUDGETS: dict[str, PromptBudget] = {
 
 def canonicalize_operating_mode(mode: str) -> str:
     token = str(mode).strip().lower()
+    if token == "solo":
+        return "user"
+    if token in {"team", "regulated"}:
+        return "pipeline"
     if token in {"user", "pipeline", "agents_strict", "system"}:
         return token
     return "invalid"
@@ -48,6 +52,9 @@ def canonicalize_operating_mode(mode: str) -> str:
 
 def resolve_env_operating_mode(env: Mapping[str, str] | None = None) -> str:
     source = env if env is not None else os.environ
+    profile_token = str(source.get("OPENCODE_OPERATING_PROFILE", "")).strip()
+    if profile_token:
+        return canonicalize_operating_mode(profile_token)
     token = str(source.get("OPENCODE_OPERATING_MODE", "")).strip()
     if token:
         return canonicalize_operating_mode(token)
