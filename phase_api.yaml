@@ -298,7 +298,7 @@ phases:
         next: "6"
         source: "phase-6-implementation-started"
         active_gate: "Implementation Started"
-        next_gate_condition: "Implementation phase started from approved governance handoff. Proceed with repository changes and execution work."
+        next_gate_condition: "Execution started on the approved implementation plan. Continue implementation work and produce repository artifacts."
       - when: workflow_approved
         next: "6"
         source: "phase-6-workflow-complete"

@@ -642,7 +642,7 @@ class TestReadonlyKernelEvalEnrichment:
         assert result["status"] == "OK"
         assert result["active_gate"] == "Architecture Review Gate"
         assert result["next_gate_condition"] == "Resume via /continue"
-        assert result["next"] == "5.3"
+        assert result["next"] == "5"
         assert result["plan_record_status"] == "active"
         assert result["plan_record_versions"] == 2
 
@@ -2633,10 +2633,10 @@ class TestRouteTargetExplanation:
         ):
             result = read_session_snapshot(commands_home=fake_config / "commands")
 
-        assert result["route_target"] == "5.3"
-        assert result["route_strategy"] == "next"
-        assert "intermediate target" in result["route_explanation"]
-        assert "5.3" in result["route_explanation"]
+        assert "route_target" not in result
+        assert "route_strategy" not in result
+        assert "route_explanation" not in result
+        assert result["next"] == "5"
 
     def test_no_route_explanation_for_stay_strategy(
         self,

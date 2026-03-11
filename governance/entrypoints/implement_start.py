@@ -203,8 +203,8 @@ def start_implementation(
     state["implementation_handoff_plan_record_versions"] = signal.versions
     state["active_gate"] = "Implementation Started"
     state["next_gate_condition"] = (
-        "Implementation phase started from approved governance handoff. "
-        "Proceed with repository changes and execution work."
+        "Execution started on the approved implementation plan. "
+        "Continue implementation work and produce repository artifacts."
     )
     state["Next"] = "6"
     state["next"] = "6"

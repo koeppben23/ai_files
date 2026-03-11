@@ -121,6 +121,16 @@ def _truncate_text(value: object, *, limit: int = 180) -> str:
     return text[: limit - 3].rstrip() + "..."
 
 
+def _public_next_token(value: object) -> str:
+    raw = _safe_str(value)
+    if not raw:
+        return ""
+    head = raw.split("-", 1)[0].strip()
+    if "." in head:
+        head = head.split(".", 1)[0]
+    return head
+
+
 def _build_ticket_summary(state_view: Mapping[str, object]) -> str:
     ticket = _truncate_text(state_view.get("Ticket"))
     task = _truncate_text(state_view.get("Task"))
@@ -1112,7 +1122,7 @@ def read_session_snapshot(commands_home: Path | None = None, *, materialize: boo
         "schema": SNAPSHOT_SCHEMA,
         "status": _safe_str(status),
         "phase": _safe_str(phase),
-        "next": _safe_str(next_phase),
+        "next": _public_next_token(next_phase),
         "mode": _safe_str(mode),
         "output_mode": _safe_str(output_mode),
         "active_gate": _safe_str(active_gate),
@@ -1279,18 +1289,6 @@ def read_session_snapshot(commands_home: Path | None = None, *, materialize: boo
         )
         snapshot["phase6_decision_availability"] = (
             "A final review decision is not yet available because the review package has not been fully presented."
-        )
-
-    # --- Fix 3.3 (B8): Route target explanation for intermediate next tokens ---
-    # When the kernel evaluates a route_strategy="next" with a next_token,
-    # the user needs to understand that the target is an intermediate routing
-    # step, not a stable phase the system will remain in.
-    if kernel_result is not None and kernel_result.route_strategy == "next" and kernel_result.next_token:
-        snapshot["route_target"] = kernel_result.next_token
-        snapshot["route_strategy"] = "next"
-        snapshot["route_explanation"] = (
-            f"Kernel routes to {kernel_result.next_token}; "
-            "this is an intermediate target, not a stable state."
         )
 
     return snapshot
