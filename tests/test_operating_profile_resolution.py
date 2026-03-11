@@ -186,3 +186,48 @@ def test_resolve_operating_profile_blocks_expired_break_glass_downshift():
 def test_resolve_effective_operating_mode_blocks_ci_downshift_to_user():
     adapter = _Adapter(env={"CI": "true"}, default_mode="user")
     assert resolve_effective_operating_mode(adapter, requested="user") == "pipeline"  # type: ignore[arg-type]
+
+
+@pytest.mark.governance
+def test_resolve_operating_profile_blocks_regulated_to_team_downshift():
+    with pytest.raises(OperatingProfileError) as exc:
+        resolve_operating_profile(
+            requested_operating_mode="team",
+            repo_operating_mode="regulated",
+            init_operating_mode="regulated",
+            enforced_operating_mode=None,
+            enforced_source=None,
+            floor_operating_mode=None,
+        )
+    assert exc.value.code == FORBIDDEN_DOWNSHIFT
+
+
+@pytest.mark.governance
+def test_resolve_operating_profile_blocks_regulated_to_solo_downshift():
+    with pytest.raises(OperatingProfileError) as exc:
+        resolve_operating_profile(
+            requested_operating_mode="solo",
+            repo_operating_mode="regulated",
+            init_operating_mode="regulated",
+            enforced_operating_mode=None,
+            enforced_source=None,
+            floor_operating_mode=None,
+        )
+    assert exc.value.code == FORBIDDEN_DOWNSHIFT
+
+
+@pytest.mark.governance
+def test_resolve_operating_profile_break_glass_requires_current_time():
+    with pytest.raises(OperatingProfileError) as exc:
+        resolve_operating_profile(
+            requested_operating_mode="solo",
+            repo_operating_mode="team",
+            init_operating_mode="team",
+            enforced_operating_mode=None,
+            enforced_source=None,
+            floor_operating_mode=None,
+            break_glass_reason_code="incident-mitigation",
+            break_glass_expires_at="2999-01-01T00:00:00Z",
+            break_glass_now_utc=None,
+        )
+    assert exc.value.code == BREAK_GLASS_EXPIRED
