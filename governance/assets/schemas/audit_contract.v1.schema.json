@@ -20,6 +20,9 @@
     },
     "artifact_rules": {
       "$ref": "#/$defs/ArtifactRules"
+    },
+    "consistency_rules": {
+      "$ref": "#/$defs/ConsistencyRules"
     }
   },
   "$defs": {
@@ -150,6 +153,45 @@
         "pr_record_required": {
           "type": "boolean",
           "description": "Whether pr-record.json is required for this run_type"
+        }
+      }
+    },
+    "ConsistencyRules": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "run_id_must_match": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "repo_fingerprint_must_match": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "timestamp_must_match": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        },
+        "run_manifest_governance_fields": {
+          "type": "object",
+          "required": ["required", "resolved_operating_mode_allowed", "verify_policy_version_pattern"],
+          "additionalProperties": false,
+          "properties": {
+            "required": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "resolved_operating_mode_allowed": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "verify_policy_version_pattern": {
+              "type": "string"
+            }
+          }
         }
       }
     }
