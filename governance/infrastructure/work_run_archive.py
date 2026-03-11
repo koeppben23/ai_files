@@ -68,7 +68,14 @@ def archive_active_run(
 ) -> WorkRunArchiveResult:
     writer = write_json_atomic or _write_json_atomic
     archived_run_id = run_id
-    archive_root = run_dir(workspaces_home, repo_fingerprint, archived_run_id)
+    repo_slug = resolve_repo_slug(state_view, repo_fingerprint)
+    archive_root = run_dir(
+        workspaces_home,
+        repo_fingerprint,
+        archived_run_id,
+        repo_slug=repo_slug,
+        observed_at=observed_at,
+    )
 
     if archive_root.exists():
         existing_manifest = archive_root / "run-manifest.json"
@@ -87,7 +94,6 @@ def archive_active_run(
     archive_root.mkdir(parents=True, exist_ok=False)
 
     try:
-        repo_slug = resolve_repo_slug(state_view, repo_fingerprint)
         canonical_remote_url_digest = canonical_json_hash({"remote": str(state_view.get("remote_url") or "")})
         repository_manifest = repository_manifest_path(workspaces_home, repo_fingerprint)
         if not repository_manifest.exists():
@@ -105,14 +111,29 @@ def archive_active_run(
                 ),
             )
 
-        archived_state_path = run_session_state_path(workspaces_home, repo_fingerprint, archived_run_id)
+        archived_state_path = run_session_state_path(
+            workspaces_home,
+            repo_fingerprint,
+            archived_run_id,
+            repo_slug=repo_slug,
+            observed_at=observed_at,
+        )
         writer(archived_state_path, session_state_document)
         state_digest = canonical_json_hash(session_state_document)
 
         archived_plan = False
         active_plan_path = plan_record_path(workspaces_home, repo_fingerprint)
         if active_plan_path.exists() and active_plan_path.is_file():
-            shutil.copy2(active_plan_path, run_plan_record_path(workspaces_home, repo_fingerprint, archived_run_id))
+            shutil.copy2(
+                active_plan_path,
+                run_plan_record_path(
+                    workspaces_home,
+                    repo_fingerprint,
+                    archived_run_id,
+                    repo_slug=repo_slug,
+                    observed_at=observed_at,
+                ),
+            )
             archived_plan = True
 
         run_type = classify_run_type(state_view)
@@ -125,7 +146,16 @@ def archive_active_run(
         )
         archived_pr = False
         if pr_record_doc is not None:
-            writer(run_pr_record_path(workspaces_home, repo_fingerprint, archived_run_id), pr_record_doc)
+            writer(
+                run_pr_record_path(
+                    workspaces_home,
+                    repo_fingerprint,
+                    archived_run_id,
+                    repo_slug=repo_slug,
+                    observed_at=observed_at,
+                ),
+                pr_record_doc,
+            )
             archived_pr = True
 
         ticket_record = build_ticket_record(
@@ -135,7 +165,16 @@ def archive_active_run(
             run_id=archived_run_id,
             observed_at=observed_at,
         )
-        writer(run_ticket_record_path(workspaces_home, repo_fingerprint, archived_run_id), ticket_record)
+        writer(
+            run_ticket_record_path(
+                workspaces_home,
+                repo_fingerprint,
+                archived_run_id,
+                repo_slug=repo_slug,
+                observed_at=observed_at,
+            ),
+            ticket_record,
+        )
 
         review_decision_record = build_review_decision_record(
             state_view=state_view,
@@ -145,7 +184,13 @@ def archive_active_run(
             observed_at=observed_at,
         )
         writer(
-            run_review_decision_record_path(workspaces_home, repo_fingerprint, archived_run_id),
+            run_review_decision_record_path(
+                workspaces_home,
+                repo_fingerprint,
+                archived_run_id,
+                repo_slug=repo_slug,
+                observed_at=observed_at,
+            ),
             review_decision_record,
         )
 
@@ -156,7 +201,16 @@ def archive_active_run(
             run_id=archived_run_id,
             observed_at=observed_at,
         )
-        writer(run_outcome_record_path(workspaces_home, repo_fingerprint, archived_run_id), outcome_record)
+        writer(
+            run_outcome_record_path(
+                workspaces_home,
+                repo_fingerprint,
+                archived_run_id,
+                repo_slug=repo_slug,
+                observed_at=observed_at,
+            ),
+            outcome_record,
+        )
 
         metadata = {
             "schema": "governance.work-run.snapshot.v2",
@@ -186,7 +240,13 @@ def archive_active_run(
             },
             "archive_status": "materialized",
         }
-        metadata_path = run_metadata_path(workspaces_home, repo_fingerprint, archived_run_id)
+        metadata_path = run_metadata_path(
+            workspaces_home,
+            repo_fingerprint,
+            archived_run_id,
+            repo_slug=repo_slug,
+            observed_at=observed_at,
+        )
         writer(metadata_path, metadata)
 
         run_manifest = build_run_manifest(
@@ -202,11 +262,26 @@ def archive_active_run(
             requires_plan_record=(run_type == "plan"),
             requires_pr_record=(run_type == "pr"),
         )
-        writer(run_manifest_path(workspaces_home, repo_fingerprint, archived_run_id), run_manifest)
+        writer(
+            run_manifest_path(
+                workspaces_home,
+                repo_fingerprint,
+                archived_run_id,
+                repo_slug=repo_slug,
+                observed_at=observed_at,
+            ),
+            run_manifest,
+        )
 
         workspace_digest = canonical_json_hash({"workspace_path": str(workspaces_home / repo_fingerprint)})
         writer(
-            run_provenance_path(workspaces_home, repo_fingerprint, archived_run_id),
+            run_provenance_path(
+                workspaces_home,
+                repo_fingerprint,
+                archived_run_id,
+                repo_slug=repo_slug,
+                observed_at=observed_at,
+            ),
             build_provenance_record(
                 repo_fingerprint=repo_fingerprint,
                 run_id=archived_run_id,
@@ -226,26 +301,65 @@ def archive_active_run(
             observed_at=observed_at,
             archived_files=metadata["archived_files"],
         )
-        writer(run_evidence_index_path(workspaces_home, repo_fingerprint, archived_run_id), evidence_index)
+        writer(
+            run_evidence_index_path(
+                workspaces_home,
+                repo_fingerprint,
+                archived_run_id,
+                repo_slug=repo_slug,
+                observed_at=observed_at,
+            ),
+            evidence_index,
+        )
 
         checksum_inputs: dict[str, Path] = {
             "SESSION_STATE.json": archived_state_path,
             "metadata.json": metadata_path,
-            "run-manifest.json": run_manifest_path(workspaces_home, repo_fingerprint, archived_run_id),
-            "provenance-record.json": run_provenance_path(workspaces_home, repo_fingerprint, archived_run_id),
-            "ticket-record.json": run_ticket_record_path(workspaces_home, repo_fingerprint, archived_run_id),
-            "review-decision-record.json": run_review_decision_record_path(workspaces_home, repo_fingerprint, archived_run_id),
-            "outcome-record.json": run_outcome_record_path(workspaces_home, repo_fingerprint, archived_run_id),
-            "evidence-index.json": run_evidence_index_path(workspaces_home, repo_fingerprint, archived_run_id),
+            "run-manifest.json": run_manifest_path(
+                workspaces_home, repo_fingerprint, archived_run_id, repo_slug=repo_slug, observed_at=observed_at
+            ),
+            "provenance-record.json": run_provenance_path(
+                workspaces_home, repo_fingerprint, archived_run_id, repo_slug=repo_slug, observed_at=observed_at
+            ),
+            "ticket-record.json": run_ticket_record_path(
+                workspaces_home, repo_fingerprint, archived_run_id, repo_slug=repo_slug, observed_at=observed_at
+            ),
+            "review-decision-record.json": run_review_decision_record_path(
+                workspaces_home, repo_fingerprint, archived_run_id, repo_slug=repo_slug, observed_at=observed_at
+            ),
+            "outcome-record.json": run_outcome_record_path(
+                workspaces_home, repo_fingerprint, archived_run_id, repo_slug=repo_slug, observed_at=observed_at
+            ),
+            "evidence-index.json": run_evidence_index_path(
+                workspaces_home, repo_fingerprint, archived_run_id, repo_slug=repo_slug, observed_at=observed_at
+            ),
         }
-        plan_path = run_plan_record_path(workspaces_home, repo_fingerprint, archived_run_id)
+        plan_path = run_plan_record_path(
+            workspaces_home,
+            repo_fingerprint,
+            archived_run_id,
+            repo_slug=repo_slug,
+            observed_at=observed_at,
+        )
         if plan_path.exists() and plan_path.is_file():
             checksum_inputs["plan-record.json"] = plan_path
-        pr_path = run_pr_record_path(workspaces_home, repo_fingerprint, archived_run_id)
+        pr_path = run_pr_record_path(
+            workspaces_home,
+            repo_fingerprint,
+            archived_run_id,
+            repo_slug=repo_slug,
+            observed_at=observed_at,
+        )
         if pr_path.exists() and pr_path.is_file():
             checksum_inputs["pr-record.json"] = pr_path
 
-        checksums_path = run_checksums_path(workspaces_home, repo_fingerprint, archived_run_id)
+        checksums_path = run_checksums_path(
+            workspaces_home,
+            repo_fingerprint,
+            archived_run_id,
+            repo_slug=repo_slug,
+            observed_at=observed_at,
+        )
         writer(checksums_path, build_checksums(checksum_inputs))
 
         integrity_ok, _, integrity_message = verify_run_archive(archive_root)
@@ -256,7 +370,13 @@ def archive_active_run(
             has_pr_record=archived_pr,
             integrity_status="passed" if integrity_ok else "failed",
         )
-        manifest_path = run_manifest_path(workspaces_home, repo_fingerprint, archived_run_id)
+        manifest_path = run_manifest_path(
+            workspaces_home,
+            repo_fingerprint,
+            archived_run_id,
+            repo_slug=repo_slug,
+            observed_at=observed_at,
+        )
         writer(manifest_path, finalized_manifest)
         if str(finalized_manifest.get("run_status") or "") != "finalized":
             raise RuntimeError("run archive failed finalization guards")
@@ -292,7 +412,16 @@ def archive_active_run(
                 "archive_status": "failed",
                 "failure_reason": error_message,
             }
-            _write_json_atomic(run_metadata_path(workspaces_home, repo_fingerprint, archived_run_id), fail_metadata)
+            _write_json_atomic(
+                run_metadata_path(
+                    workspaces_home,
+                    repo_fingerprint,
+                    archived_run_id,
+                    repo_slug=repo_slug,
+                    observed_at=observed_at,
+                ),
+                fail_metadata,
+            )
 
             fail_manifest = {
                 "schema": "governance.run-manifest.v1",
@@ -322,7 +451,16 @@ def archive_active_run(
                 },
                 "finalization_errors": [f"archive-error:{error_message}"],
             }
-            _write_json_atomic(run_manifest_path(workspaces_home, repo_fingerprint, archived_run_id), fail_manifest)
+            _write_json_atomic(
+                run_manifest_path(
+                    workspaces_home,
+                    repo_fingerprint,
+                    archived_run_id,
+                    repo_slug=repo_slug,
+                    observed_at=observed_at,
+                ),
+                fail_manifest,
+            )
         except Exception:
             pass
         raise

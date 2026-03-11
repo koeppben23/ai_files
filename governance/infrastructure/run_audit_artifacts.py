@@ -125,7 +125,7 @@ def build_repository_manifest(
         "repository_classification": repository_classification,
         "storage_topology": {
             "runtime_root": "workspaces/<fingerprint>",
-            "audit_runs_root": "governance-records/<fingerprint>/runs",
+            "audit_runs_root": "governance-records/<fingerprint>/runs/<repo_slug>/YYYY/YYYY-MM/YYYY-MM-DD/<run_id>",
         },
     }
 

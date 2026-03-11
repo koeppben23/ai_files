@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from governance.infrastructure.workspace_paths import run_dir
 from governance.infrastructure.work_run_archive import archive_active_run
 
 
@@ -25,7 +26,7 @@ def test_archive_materializes_ticket_review_outcome_and_evidence_records(tmp_pat
         state_view=state,
     )
 
-    run_root = workspaces_home / "governance-records" / fingerprint / "runs" / "run-full-artifacts"
+    run_root = run_dir(workspaces_home, fingerprint, "run-full-artifacts")
     assert (run_root / "ticket-record.json").is_file()
     assert (run_root / "review-decision-record.json").is_file()
     assert (run_root / "outcome-record.json").is_file()
@@ -53,7 +54,7 @@ def test_core_artifacts_include_common_contract_header_fields(tmp_path: Path) ->
         state_view=state,
     )
 
-    run_root = workspaces_home / "governance-records" / fingerprint / "runs" / "run-header-fields"
+    run_root = run_dir(workspaces_home, fingerprint, "run-header-fields")
     manifest = json.loads((run_root / "run-manifest.json").read_text(encoding="utf-8"))
     pr_record = json.loads((run_root / "pr-record.json").read_text(encoding="utf-8"))
     provenance = json.loads((run_root / "provenance-record.json").read_text(encoding="utf-8"))

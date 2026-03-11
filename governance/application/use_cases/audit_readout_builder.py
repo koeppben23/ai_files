@@ -142,8 +142,12 @@ def _list_run_archives(workspace_dir: Path) -> tuple[list[dict[str, object]], li
     if not repo_manifest_ok:
         notes.append(f"repository-manifest-invalid:{repo_manifest_message or 'unknown'}")
 
+    run_roots = sorted(
+        [path.parent for path in runs_dir.rglob("metadata.json")],
+        key=lambda p: str(p),
+    )
     archives: list[dict[str, object]] = []
-    for entry in sorted([path for path in runs_dir.iterdir() if path.is_dir()], key=lambda p: p.name):
+    for entry in run_roots:
         run_id = entry.name
         metadata_path = entry / "metadata.json"
         snapshot_path = entry / "SESSION_STATE.json"
