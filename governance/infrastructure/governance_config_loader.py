@@ -75,8 +75,8 @@ def load_all_governance_schemas() -> dict[str, dict[str, Any]]:
     """Load all governance-specific JSON schemas.
 
     Returns a dict mapping schema filename to parsed content.
-    Only loads schemas matching the governance naming pattern:
-    *_contract*, *failure*, *classification*, *access_control*, *retention*.
+    Loads governance control-plane schemas plus externally reviewed
+    audit artifact schemas.
     """
     governance_names = [
         "audit_contract.v1.schema.json",
@@ -84,6 +84,15 @@ def load_all_governance_schemas() -> dict[str, dict[str, Any]]:
         "classification.v1.schema.json",
         "access_control.v1.schema.json",
         "retention_policy.v1.schema.json",
+        "run_manifest.v1.schema.json",
+        "work_run_snapshot.v2.schema.json",
+        "run_checksums.v1.schema.json",
+        "ticket_record.v1.schema.json",
+        "review_decision_record.v1.schema.json",
+        "outcome_record.v1.schema.json",
+        "evidence_index.v1.schema.json",
+        "pr_record.v1.schema.json",
+        "provenance_record.v1.schema.json",
     ]
     result: dict[str, dict[str, Any]] = {}
     for name in governance_names:

@@ -72,11 +72,20 @@ class TestSchemaLoadingHappy:
         schema = load_schema("retention_policy.v1.schema.json")
         assert isinstance(schema, dict)
 
-    def test_load_all_governance_schemas_returns_five(self):
+    def test_load_all_governance_schemas_returns_expected_set(self):
         schemas = load_all_governance_schemas()
-        assert len(schemas) == 5
+        assert len(schemas) == 14
         assert "audit_contract.v1.schema.json" in schemas
         assert "failure_report.v1.schema.json" in schemas
+        assert "run_manifest.v1.schema.json" in schemas
+        assert "work_run_snapshot.v2.schema.json" in schemas
+        assert "run_checksums.v1.schema.json" in schemas
+        assert "ticket_record.v1.schema.json" in schemas
+        assert "review_decision_record.v1.schema.json" in schemas
+        assert "outcome_record.v1.schema.json" in schemas
+        assert "evidence_index.v1.schema.json" in schemas
+        assert "pr_record.v1.schema.json" in schemas
+        assert "provenance_record.v1.schema.json" in schemas
 
     def test_schema_caching(self):
         s1 = load_schema("audit_contract.v1.schema.json")
