@@ -238,6 +238,12 @@ class TestGetPiiFieldsBad:
         for f in result:
             assert f.pii is True
 
+    def test_catalog_contains_expected_pii_fields(self):
+        result = get_pii_fields()
+        keys = {f"{item.artifact}::{item.field_path}" for item in result}
+        assert "SESSION_STATE.json::PullRequestTitle" in keys
+        assert "SESSION_STATE.json::PullRequestBody" in keys
+
 
 # ===================================================================
 # Contract invariants

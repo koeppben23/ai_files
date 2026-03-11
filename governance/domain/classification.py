@@ -157,13 +157,13 @@ FIELD_CLASSIFICATIONS: Mapping[str, FieldClassification] = {
         field_path="PullRequestTitle", artifact="SESSION_STATE.json",
         level=ClassificationLevel.CONFIDENTIAL, redaction=RedactionStrategy.MASK,
         description="PR title (may contain customer-specific information)",
-        pii=False,
+        pii=True,
     ),
     "SESSION_STATE.json::PullRequestBody": FieldClassification(
         field_path="PullRequestBody", artifact="SESSION_STATE.json",
         level=ClassificationLevel.RESTRICTED, redaction=RedactionStrategy.REMOVE,
         description="PR body (may contain detailed implementation plans, customer data references)",
-        pii=False,
+        pii=True,
     ),
 }
 
