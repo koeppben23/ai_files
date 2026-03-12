@@ -15,6 +15,8 @@ import uuid
 import hashlib
 import re
 import os
+import subprocess
+import shlex
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Mapping
@@ -237,6 +239,35 @@ def _extract_hotspot_files(requirements: list[dict[str, object]], repo_root: Pat
     return files[:12]
 
 
+def _clean_replacement_token(value: str) -> str:
+    token = str(value or "").strip().strip('"\'`')
+    return " ".join(token.split())
+
+
+def _extract_literal_replacements(text: str) -> list[tuple[str, str]]:
+    patterns = (
+        r"nicht mehr\s+(?:im\s+ordner\s+)?(?P<old>[^,.;]+?),\s*sondern\s+(?:unter\s+)?(?P<new>[^.;]+)",
+        r"von\s+(?P<old>[^,.;]+?)\s+nach\s+(?P<new>[^.;]+)",
+        r"from\s+(?P<old>[^,.;]+?)\s+to\s+(?P<new>[^.;]+)",
+        r"move\s+(?P<old>[^,.;]+?)\s+to\s+(?P<new>[^.;]+)",
+    )
+    out: list[tuple[str, str]] = []
+    seen: set[tuple[str, str]] = set()
+    source = str(text or "")
+    for pattern in patterns:
+        for match in re.finditer(pattern, source, flags=re.IGNORECASE):
+            old = _clean_replacement_token(match.group("old"))
+            new = _clean_replacement_token(match.group("new"))
+            if not old or not new or old == new:
+                continue
+            pair = (old, new)
+            if pair in seen:
+                continue
+            seen.add(pair)
+            out.append(pair)
+    return out
+
+
 def _domain_changed_files(changed_files: list[Path], repo_root: Path) -> list[str]:
     domain: list[str] = []
     for path in changed_files:
@@ -247,7 +278,162 @@ def _domain_changed_files(changed_files: list[Path], repo_root: Path) -> list[st
     return domain
 
 
-def _write_execution_code_artifact(repo_root: Path, plan_text: str, work_queue: list[str]) -> Path:
+def _git_path_visible_in_status(repo_root: Path, rel_path: str) -> bool | None:
+    if not rel_path.strip():
+        return False
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(repo_root), "status", "--porcelain", "--", rel_path],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except OSError:
+        return None
+    if result.returncode != 0:
+        return None
+    return bool(str(result.stdout or "").strip())
+
+
+def _run_llm_edit_step(
+    *,
+    repo_root: Path,
+    state: Mapping[str, object],
+    ticket_text: str,
+    task_text: str,
+    plan_text: str,
+    required_hotspots: list[str],
+) -> dict[str, object]:
+    executor_cmd = str(os.environ.get("OPENCODE_IMPLEMENT_LLM_CMD") or "").strip()
+    if not executor_cmd:
+        return {
+            "ok": False,
+            "reason_code": "IMPLEMENTATION-LLM-EXECUTOR-NOT-CONFIGURED",
+            "message": "Set OPENCODE_IMPLEMENT_LLM_CMD to execute LLM-based repository edits.",
+            "changed_files": [],
+            "llm_step_executed": False,
+        }
+
+    implementation_dir = repo_root / ".governance" / "implementation"
+    implementation_dir.mkdir(parents=True, exist_ok=True)
+    context_file = implementation_dir / "llm_edit_context.json"
+    context = {
+        "schema": "opencode.implement.llm-context.v1",
+        "ticket": ticket_text,
+        "task": task_text,
+        "approved_plan": plan_text,
+        "required_hotspots": required_hotspots,
+        "phase": str(state.get("Phase") or state.get("phase") or ""),
+        "active_gate": str(state.get("active_gate") or ""),
+        "next_gate_condition": str(state.get("next_gate_condition") or ""),
+        "instruction": (
+            "Apply concrete code edits in the repository for the approved plan. "
+            "Do not only update .governance artifacts."
+        ),
+    }
+    _write_text_atomic(context_file, json.dumps(context, ensure_ascii=True, indent=2) + "\n")
+
+    final_cmd = executor_cmd
+    if "{context_file}" in final_cmd:
+        final_cmd = final_cmd.replace("{context_file}", shlex.quote(str(context_file)))
+
+    result = subprocess.run(
+        final_cmd,
+        shell=True,
+        cwd=str(repo_root),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    changed_files: list[str] = []
+    try:
+        probe = subprocess.run(
+            ["git", "-C", str(repo_root), "status", "--porcelain"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if probe.returncode == 0:
+            for raw in str(probe.stdout or "").splitlines():
+                if len(raw) < 4:
+                    continue
+                changed_files.append(raw[3:].strip())
+    except OSError:
+        changed_files = []
+
+    return {
+        "ok": result.returncode == 0,
+        "reason_code": "" if result.returncode == 0 else "IMPLEMENTATION-LLM-EXECUTOR-FAILED",
+        "message": "" if result.returncode == 0 else str(result.stderr or result.stdout or "").strip(),
+        "changed_files": changed_files,
+        "llm_step_executed": True,
+        "executor_command": executor_cmd,
+        "executor_return_code": int(result.returncode),
+    }
+
+
+def _run_targeted_checks(repo_root: Path, requirements: list[dict[str, object]]) -> dict[str, object]:
+    tests: list[str] = []
+    seen: set[str] = set()
+    for requirement in requirements:
+        acceptance = requirement.get("acceptance_tests")
+        if not isinstance(acceptance, list):
+            continue
+        for item in acceptance:
+            token = str(item or "").strip()
+            if not token or token in seen:
+                continue
+            seen.add(token)
+            tests.append(token)
+    if not tests:
+        return {
+            "ok": False,
+            "reason_code": "IMPLEMENTATION-CHECKS-MISSING",
+            "message": "No acceptance tests were defined in compiled requirements.",
+            "executed": [],
+            "failed": [],
+        }
+
+    command = ["python3", "-m", "pytest", "-q", *tests]
+    result = subprocess.run(command, cwd=str(repo_root), capture_output=True, text=True, check=False)
+    return {
+        "ok": result.returncode == 0,
+        "reason_code": "" if result.returncode == 0 else "IMPLEMENTATION-CHECKS-FAILED",
+        "message": "" if result.returncode == 0 else str(result.stdout or result.stderr or "").strip(),
+        "executed": tests,
+        "failed": [] if result.returncode == 0 else tests,
+        "return_code": int(result.returncode),
+    }
+
+
+def _diff_plan_coverage(
+    *,
+    repo_root: Path,
+    domain_changes: list[str],
+    replacements: list[tuple[str, str]],
+) -> tuple[bool, list[str]]:
+    evidence: list[str] = []
+    replacement_new = [new for _, new in replacements]
+    for rel in domain_changes:
+        result = subprocess.run(
+            ["git", "-C", str(repo_root), "diff", "--", rel],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode == 0:
+            body = str(result.stdout or "")
+        else:
+            path = repo_root / rel
+            body = path.read_text(encoding="utf-8", errors="ignore") if path.exists() else ""
+        for token in replacement_new:
+            if token and token in body:
+                evidence.append(f"{rel}:{token}")
+    return (len(evidence) > 0, evidence)
+
+
+def _write_execution_code_artifact(repo_root: Path, plan_text: str, work_queue: list[str]) -> tuple[Path, bool]:
     out_dir = repo_root / ".governance" / "implementation"
     out_dir.mkdir(parents=True, exist_ok=True)
     out_file = out_dir / "execution_patch.py"
@@ -267,11 +453,19 @@ def _write_execution_code_artifact(repo_root: Path, plan_text: str, work_queue: 
         "\\n"
         f"{queue_preview}\\n"
     )
+    before = out_file.read_text(encoding="utf-8", errors="ignore") if out_file.exists() else None
     _write_text_atomic(out_file, content)
-    return out_file
+    after = out_file.read_text(encoding="utf-8", errors="ignore")
+    return out_file, before != after
 
 
-def _apply_target_file_patch(repo_root: Path, target: Path, *, note: str) -> None:
+def _apply_target_file_patch(
+    repo_root: Path,
+    target: Path,
+    *,
+    note: str,
+    replacements: list[tuple[str, str]],
+) -> tuple[bool, bool]:
     suffix = target.suffix.lower()
     if suffix in {".py", ".sh", ".rb", ".pl"}:
         patch_line = f"\n# governance-implement: {note}\n"
@@ -280,9 +474,21 @@ def _apply_target_file_patch(repo_root: Path, target: Path, *, note: str) -> Non
     else:
         patch_line = f"\n# governance-implement: {note}\n"
     text = target.read_text(encoding="utf-8", errors="ignore")
+    updated = text
+    semantic_changed = False
+    for old, new in replacements:
+        if old in updated:
+            updated = updated.replace(old, new)
+            semantic_changed = True
+    if semantic_changed:
+        _write_text_atomic(target, updated)
+        return updated != text, True
+
     if "governance-implement:" in text:
-        return
-    _write_text_atomic(target, text.rstrip("\n") + patch_line)
+        return False, False
+    updated = text.rstrip("\n") + patch_line
+    _write_text_atomic(target, updated)
+    return updated != text, False
 
 
 def _hash_files(paths: list[Path], repo_root: Path) -> str:
@@ -302,6 +508,7 @@ def _review_iteration(
     changed_files: list[Path],
     repo_root: Path,
     required_hotspots: list[str],
+    semantic_changed_files: list[str],
 ) -> list[dict[str, str]]:
     findings: list[dict[str, str]] = []
     if not changed_files:
@@ -331,6 +538,31 @@ def _review_iteration(
                 "message": "No changed files match required code_hotspots from compiled requirements.",
             }
         )
+    if domain_changes and not semantic_changed_files:
+        findings.append(
+            {
+                "severity": "critical",
+                "reason_code": "IMPLEMENTATION-NO-SEMANTIC-MUTATION",
+                "message": "Domain files changed, but no plan-derived semantic replacement was applied.",
+            }
+        )
+    if domain_changes:
+        status_visible: list[bool] = []
+        status_unknown = False
+        for rel in domain_changes:
+            visible = _git_path_visible_in_status(repo_root, rel)
+            if visible is None:
+                status_unknown = True
+                break
+            status_visible.append(visible)
+        if not status_unknown and not any(status_visible):
+            findings.append(
+                {
+                    "severity": "critical",
+                    "reason_code": "IMPLEMENTATION-NOT-VISIBLE-IN-GIT-STATUS",
+                    "message": "Implementation changes are not visible via git status for domain files.",
+                }
+            )
 
     for path in changed_files:
         rel = str(Path(os.path.abspath(str(path))).relative_to(repo_root))
@@ -528,17 +760,52 @@ def start_implementation(
     work_queue = _build_execution_work_queue(plan_text, state, contract_titles)
     required_hotspot_files = _extract_hotspot_files(compiled_requirements, repo_root)
     required_hotspots_rel = [str(path.relative_to(repo_root)) for path in required_hotspot_files]
+    replacements = _extract_literal_replacements(
+        "\n".join([str(state.get("Ticket") or ""), str(state.get("Task") or ""), plan_text])
+    )
+
+    llm_result = _run_llm_edit_step(
+        repo_root=repo_root,
+        state=state,
+        ticket_text=str(state.get("Ticket") or ""),
+        task_text=str(state.get("Task") or ""),
+        plan_text=plan_text,
+        required_hotspots=required_hotspots_rel,
+    )
+    if not bool(llm_result.get("ok")):
+        return _payload(
+            "blocked",
+            reason_code=str(llm_result.get("reason_code") or "IMPLEMENTATION-LLM-EXECUTOR-FAILED"),
+            message=str(llm_result.get("message") or "LLM implementation executor failed."),
+            phase="6-PostFlight",
+            next="6",
+            active_gate="Implementation Blocked",
+            next_gate_condition="Implementation blocked before review loop; LLM edit step failed.",
+        )
 
     changed_files: list[Path] = []
-    execution_artifact = _write_execution_code_artifact(repo_root, plan_text, work_queue)
-    changed_files.append(execution_artifact)
+    semantic_changed_files: list[str] = []
+    execution_artifact, execution_artifact_changed = _write_execution_code_artifact(repo_root, plan_text, work_queue)
+    if execution_artifact_changed:
+        changed_files.append(execution_artifact)
     target_candidates = required_hotspot_files or _extract_candidate_files(
         "\n".join([str(state.get("Ticket") or ""), str(state.get("Task") or ""), plan_text]),
         repo_root,
     )
     for candidate in target_candidates:
-        _apply_target_file_patch(repo_root, candidate, note="approved-plan execution touched this file")
-        changed_files.append(candidate)
+        changed, semantic_changed = _apply_target_file_patch(
+            repo_root,
+            candidate,
+            note="approved-plan execution touched this file",
+            replacements=replacements,
+        )
+        if changed:
+            changed_files.append(candidate)
+            if semantic_changed:
+                semantic_changed_files.append(str(candidate.relative_to(repo_root)))
+
+    checks_result = _run_targeted_checks(repo_root, compiled_requirements)
+    checks_ok = bool(checks_result.get("ok"))
 
     max_iterations = 3
     min_iterations = 1
@@ -550,6 +817,7 @@ def start_implementation(
     loop_notes: list[str] = []
     quality_stable = False
     stage_history: list[str] = ["Implementation Execution In Progress"]
+    coverage_evidence_latest: list[str] = []
 
     while iteration < max_iterations:
         iteration += 1
@@ -560,7 +828,31 @@ def start_implementation(
             changed_files=changed_files,
             repo_root=repo_root,
             required_hotspots=required_hotspots_rel,
+            semantic_changed_files=semantic_changed_files,
         )
+        if not checks_ok:
+            findings.append(
+                {
+                    "severity": "critical",
+                    "reason_code": str(checks_result.get("reason_code") or "IMPLEMENTATION-CHECKS-FAILED"),
+                    "message": str(checks_result.get("message") or "Targeted implementation checks failed."),
+                }
+            )
+        domain_changes = _domain_changed_files(changed_files, repo_root)
+        plan_covered, coverage_evidence = _diff_plan_coverage(
+            repo_root=repo_root,
+            domain_changes=domain_changes,
+            replacements=replacements,
+        )
+        coverage_evidence_latest = coverage_evidence
+        if not plan_covered:
+            findings.append(
+                {
+                    "severity": "critical",
+                    "reason_code": "IMPLEMENTATION-PLAN-COVERAGE-MISSING",
+                    "message": "No plan-derived coverage evidence found in real repository diffs.",
+                }
+            )
         critical = [f for f in findings if str(f.get("severity")) == "critical"]
         if critical:
             stage_history.append("Implementation Revision")
@@ -601,6 +893,8 @@ def start_implementation(
         revision_delta = "max-reached-with-open-delta"
 
     changed_rel = [str(Path(os.path.abspath(str(p))).relative_to(repo_root)) for p in changed_files]
+    checks_executed_raw = checks_result.get("executed")
+    checks_executed = [str(item) for item in checks_executed_raw] if isinstance(checks_executed_raw, list) else []
     fixed_serialized = [_serialize_finding(f) for f in fixed_findings]
     open_serialized = [_serialize_finding(f) for f in open_findings]
     hard_reason_code = ""
@@ -631,7 +925,13 @@ def start_implementation(
     state["implementation_work_queue"] = work_queue
     state["implementation_current_step"] = work_queue[0] if work_queue else "none"
     state["implementation_changed_files"] = changed_rel
+    state["implementation_semantic_changed_files"] = semantic_changed_files
     state["implementation_required_hotspots"] = required_hotspots_rel
+    state["implementation_llm_step_executed"] = bool(llm_result.get("llm_step_executed"))
+    state["implementation_llm_executor_command"] = str(llm_result.get("executor_command") or "")
+    state["implementation_checks_executed"] = checks_executed
+    state["implementation_checks_ok"] = checks_ok
+    state["implementation_plan_coverage_evidence"] = coverage_evidence_latest
     state["execution_receipt"] = {
         "receipt_type": "execution_receipt",
         "requirement_scope": "R-IMPLEMENT-001",
@@ -644,6 +944,7 @@ def start_implementation(
         "source_command": "/implement",
         "changed_files": changed_rel,
         "checks_started": ["internal implementation self-review loop", "artifact integrity check"],
+        "checks_executed": checks_executed,
         "blocked_reason_code": hard_reason_code if not quality_stable else "none",
     }
     state["implementation_review_iterations"] = iteration
@@ -730,6 +1031,11 @@ def start_implementation(
         implementation_current_step=state["implementation_current_step"],
         implementation_required_hotspots=required_hotspots_rel,
         implementation_changed_files=changed_rel,
+        implementation_semantic_changed_files=semantic_changed_files,
+        implementation_llm_step_executed=bool(llm_result.get("llm_step_executed")),
+        implementation_checks_executed=checks_executed,
+        implementation_checks_ok=checks_ok,
+        implementation_plan_coverage_evidence=coverage_evidence_latest,
         implementation_review_iterations=iteration,
         implementation_max_review_iterations=max_iterations,
         implementation_revision_delta=revision_delta,
