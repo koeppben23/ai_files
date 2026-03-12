@@ -252,12 +252,16 @@ class BootstrapPersistenceService:
         self._fs.write_text_atomic(identity_map_file, _canonical_json(identity_map))
         write_actions["identity_map"] = "written"
 
-        # Ensure workspace-scoped subdirectories exist so that downstream
-        # consumers (error logger, run archiver) find them without needing
-        # to create them lazily.
+        # Ensure deterministic runtime/audit directory split exists so
+        # downstream consumers do not need lazy creation.
         workspace_root = Path(payload.layout.repo_home)
         self._fs.mkdir_p(workspace_root / "logs")
-        self._fs.mkdir_p(workspace_root / "runs")
+        self._fs.mkdir_p(
+            Path(payload.binding.workspaces_home)
+            / "governance-records"
+            / payload.repo_identity.fingerprint
+            / "runs"
+        )
         write_actions["workspace_dirs"] = "ensured"
 
         if payload.no_commit:
