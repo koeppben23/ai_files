@@ -464,6 +464,7 @@ def _launcher_template_unix(*, python_exe: str, config_root: Path) -> str:
       --plan-persist [args]      -> phase5_plan_record_persist entrypoint (canonical)
       --review-decision-persist [args] -> review_decision_persist entrypoint (canonical)
       --implement-start [args]   -> implement_start entrypoint (canonical)
+      --implementation-decision-persist [args] -> implementation_decision_persist entrypoint (canonical)
       (default / no subcommand)  -> bootstrap_executor
     """
     return "\n".join(
@@ -519,6 +520,10 @@ def _launcher_template_unix(*, python_exe: str, config_root: Path) -> str:
             "        shift",
             "        exec \"${PYTHON_BIN}\" -m governance.entrypoints.implement_start \"$@\"",
             "        ;;",
+            "    --implementation-decision-persist)",
+            "        shift",
+            "        exec \"${PYTHON_BIN}\" -m governance.entrypoints.implementation_decision_persist \"$@\"",
+            "        ;;",
             "    *)",
             "        exec \"${PYTHON_BIN}\" -m governance.entrypoints.bootstrap_executor \"$@\"",
             "        ;;",
@@ -542,6 +547,7 @@ def _launcher_template_windows(*, python_exe: str, config_root: Path) -> str:
       --plan-persist [args]      -> phase5_plan_record_persist entrypoint (canonical)
       --review-decision-persist [args] -> review_decision_persist entrypoint (canonical)
       --implement-start [args]   -> implement_start entrypoint (canonical)
+      --implementation-decision-persist [args] -> implementation_decision_persist entrypoint (canonical)
       (default / no subcommand)  -> bootstrap_executor
     """
     return "\n".join(
@@ -617,6 +623,12 @@ def _launcher_template_windows(*, python_exe: str, config_root: Path) -> str:
             "if \"%~1\"==\"--implement-start\" (",
             "    shift",
             "    \"!PYTHON_EXE!\" -m governance.entrypoints.implement_start %*",
+            "    set \"WRAPPER_EXIT=%ERRORLEVEL%\"",
+            "    endlocal & exit /b %WRAPPER_EXIT%",
+            ")",
+            "if \"%~1\"==\"--implementation-decision-persist\" (",
+            "    shift",
+            "    \"!PYTHON_EXE!\" -m governance.entrypoints.implementation_decision_persist %*",
             "    set \"WRAPPER_EXIT=%ERRORLEVEL%\"",
             "    endlocal & exit /b %WRAPPER_EXIT%",
             ")",

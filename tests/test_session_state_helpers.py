@@ -26,6 +26,7 @@ def test_with_kernel_result_writes_session_state_kernel_block() -> None:
     assert isinstance(state, dict)
     assert state["Phase"] == "3A-API-Inventory"
     assert state["Next"] == "3B-1"
+    assert state["next"] == "3B-1"
     assert state["status"] == "OK"
     assert state["log_paths"] == {"phase_flow": "/mock/commands/logs/flow.log.jsonl"}
     kernel = state["Kernel"]

@@ -70,7 +70,7 @@ def test_guided_corner_implementation_presentation_renders_result_blocks() -> No
     assert out.strip().endswith("Next action: run /implementation-decision <approve|changes_requested|reject>.")
 
 
-def test_guided_corner_implementation_presentation_requires_verify_when_matrix_missing() -> None:
+def test_guided_corner_implementation_presentation_routes_to_decision_when_matrix_missing() -> None:
     snapshot = {
         "status": "OK",
         "phase": "6-PostFlight",
@@ -79,7 +79,7 @@ def test_guided_corner_implementation_presentation_requires_verify_when_matrix_m
     }
 
     out = format_guided_snapshot(snapshot)
-    assert out.strip().endswith("Next action: run /verify-contracts.")
+    assert out.strip().endswith("Next action: run /implementation-decision <approve|changes_requested|reject>.")
 
 
 def test_guided_edge_phase_display_hides_internal_token_labels() -> None:

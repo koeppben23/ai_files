@@ -87,6 +87,20 @@ def _infer_segment_kind(text: str) -> str:
     return "required_behavior"
 
 
+def _is_governance_meta_segment(text: str) -> bool:
+    lower = text.lower()
+    tokens = (
+        " phase ",
+        " gate ",
+        "decision semantics",
+        "state-machine",
+        "review package",
+        "reason-code contract",
+    )
+    normalized = f" {lower} "
+    return any(token in normalized for token in tokens)
+
+
 def _segment_plan_text(plan_text: str) -> list[_Segment]:
     segments: list[_Segment] = []
     for line in _normalize_plan_lines(plan_text):
@@ -160,14 +174,28 @@ def _segment_notes(segments: list[_Segment]) -> tuple[str, ...]:
     return tuple(notes)
 
 
-def compile_plan_to_requirements(*, plan_text: str, scope_prefix: str = "PLAN") -> CompiledRequirements:
+def compile_plan_to_requirements(
+    *,
+    plan_text: str,
+    scope_prefix: str = "PLAN",
+    ticket_text: str = "",
+    task_text: str = "",
+) -> CompiledRequirements:
     """Compile plan bullet points into deterministic requirement skeletons.
 
     This compiler is intentionally strict and deterministic: each non-empty line
     in the plan body produces one atomic contract candidate.
     """
 
-    segments = _segment_plan_text(plan_text)
+    segments: list[_Segment] = []
+    for source in (ticket_text, task_text, plan_text):
+        for segment in _segment_plan_text(source):
+            if _is_governance_meta_segment(segment.text):
+                continue
+            segments.append(segment)
+    if not segments:
+        # fail open to preserve backward compatibility for legacy plans
+        segments = _segment_plan_text(plan_text)
     if not segments:
         return CompiledRequirements(
             requirements=(),
