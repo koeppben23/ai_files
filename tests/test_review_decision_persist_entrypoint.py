@@ -1,12 +1,25 @@
 from __future__ import annotations
 
 import json
+import hashlib
 from pathlib import Path
 
 from governance.entrypoints import review_decision_persist as entrypoint
 
 
 def _write_session(path: Path, *, phase: str = "6-PostFlight") -> None:
+    review_object = "Final Phase-6 implementation review decision"
+    digest_source = "|".join(
+        [
+            review_object,
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+        ]
+    )
     payload = {
         "schema": "opencode-session-state.v1",
         "SESSION_STATE": {
@@ -25,7 +38,12 @@ def _write_session(path: Path, *, phase: str = "6-PostFlight") -> None:
             "implementation_review_complete": True,
             "review_package_presented": True,
             "review_package_plan_body_present": True,
-            "review_package_review_object": "Final Phase-6 implementation review decision",
+            "review_package_review_object": review_object,
+            "review_package_presentation_receipt": {
+                "digest": hashlib.sha256(digest_source.encode("utf-8")).hexdigest(),
+                "presented_at": "2026-03-12T00:00:00Z",
+                "contract": "guided-ui.v1",
+            },
         },
     }
     path.write_text(json.dumps(payload, ensure_ascii=True), encoding="utf-8")

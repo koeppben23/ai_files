@@ -1,12 +1,26 @@
 from __future__ import annotations
 
 import json
+import hashlib
 from pathlib import Path
 
 from governance.entrypoints import implementation_decision_persist as entrypoint
 
 
 def _write_session(path: Path, *, gate: str = "Implementation Presentation Gate", open_findings: list[str] | None = None) -> None:
+    changed_files = [".governance/implementation/execution_patch.py"]
+    findings_open = open_findings or []
+    digest_source = "|".join(
+        [
+            "Implemented result review",
+            "latest approved plan record",
+            json.dumps(changed_files, ensure_ascii=True, sort_keys=True),
+            json.dumps([], ensure_ascii=True, sort_keys=True),
+            json.dumps(findings_open, ensure_ascii=True, sort_keys=True),
+            json.dumps([], ensure_ascii=True, sort_keys=True),
+            "stable",
+        ]
+    )
     payload = {
         "schema": "opencode-session-state.v1",
         "SESSION_STATE": {
@@ -14,8 +28,14 @@ def _write_session(path: Path, *, gate: str = "Implementation Presentation Gate"
             "active_gate": gate,
             "implementation_package_presented": True,
             "implementation_quality_stable": True,
-            "implementation_package_changed_files": [".governance/implementation/execution_patch.py"],
-            "implementation_open_findings": open_findings or [],
+            "implementation_package_changed_files": changed_files,
+            "implementation_open_findings": findings_open,
+            "implementation_package_stability": "stable",
+            "implementation_package_presentation_receipt": {
+                "digest": hashlib.sha256(digest_source.encode("utf-8")).hexdigest(),
+                "presented_at": "2026-03-12T00:00:00Z",
+                "contract": "guided-ui.v1",
+            },
             "implementation_status": "in_progress",
         },
     }

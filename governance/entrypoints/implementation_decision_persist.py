@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import sys
 import uuid
@@ -87,6 +88,24 @@ def _in_implementation_presentation_gate(state: Mapping[str, object]) -> bool:
 
 
 def _implementation_package_ready(state: Mapping[str, object]) -> tuple[bool, str]:
+    def _implementation_digest() -> str:
+        changed_files = state.get("implementation_package_changed_files") or state.get("implementation_changed_files") or []
+        findings_fixed = state.get("implementation_package_findings_fixed") or state.get("implementation_findings_fixed") or []
+        findings_open = state.get("implementation_package_findings_open") or state.get("implementation_open_findings") or []
+        checks = state.get("implementation_package_checks") or []
+        source = "|".join(
+            [
+                str(state.get("implementation_package_review_object") or "Implemented result review"),
+                str(state.get("implementation_package_plan_reference") or "latest approved plan record"),
+                json.dumps(changed_files, ensure_ascii=True, sort_keys=True),
+                json.dumps(findings_fixed, ensure_ascii=True, sort_keys=True),
+                json.dumps(findings_open, ensure_ascii=True, sort_keys=True),
+                json.dumps(checks, ensure_ascii=True, sort_keys=True),
+                str(state.get("implementation_package_stability") or ""),
+            ]
+        )
+        return hashlib.sha256(source.encode("utf-8")).hexdigest()
+
     presented = bool(state.get("implementation_package_presented"))
     stable = bool(state.get("implementation_quality_stable"))
     changed_files = state.get("implementation_package_changed_files") or state.get("implementation_changed_files")
@@ -96,6 +115,20 @@ def _implementation_package_ready(state: Mapping[str, object]) -> tuple[bool, st
         return False, "implementation_quality_stable=false"
     if not isinstance(changed_files, list) or not changed_files:
         return False, "implementation_changed_files=missing"
+    receipt = state.get("implementation_package_presentation_receipt")
+    if not isinstance(receipt, Mapping):
+        return False, "implementation_package_presentation_receipt=missing"
+    receipt_digest = str(receipt.get("digest") or "").strip()
+    receipt_contract = str(receipt.get("contract") or "").strip()
+    receipt_presented_at = str(receipt.get("presented_at") or "").strip()
+    if not receipt_digest:
+        return False, "implementation_package_presentation_receipt.digest=missing"
+    if receipt_contract != "guided-ui.v1":
+        return False, "implementation_package_presentation_receipt.contract!=guided-ui.v1"
+    if not receipt_presented_at:
+        return False, "implementation_package_presentation_receipt.presented_at=missing"
+    if receipt_digest != _implementation_digest():
+        return False, "implementation_package_presentation_receipt.digest_mismatch"
     return True, "ready"
 
 
@@ -204,7 +237,7 @@ def apply_implementation_decision(
 
     _write_json_atomic(session_path, state_doc)
 
-    audit_event = {
+    audit_event: dict[str, object] = {
         "schema": "opencode.implementation-decision.v1",
         "ts_utc": ts,
         "event_id": event_id,

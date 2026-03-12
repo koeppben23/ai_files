@@ -202,6 +202,54 @@ def _persist_review_package_markers(*, state_doc: dict, session_path: Path) -> N
     )
     state["review_package_presented"] = True
     state["review_package_plan_body_present"] = plan_body != "none"
+    receipt_source = "|".join(
+        [
+            str(state.get("review_package_review_object") or ""),
+            str(state.get("review_package_ticket") or ""),
+            str(state.get("review_package_approved_plan_summary") or ""),
+            str(state.get("review_package_plan_body") or ""),
+            str(state.get("review_package_implementation_scope") or ""),
+            str(state.get("review_package_constraints") or ""),
+            str(state.get("review_package_decision_semantics") or ""),
+        ]
+    )
+    state["review_package_presentation_receipt"] = {
+        "digest": _sha256_text(receipt_source),
+        "presented_at": _now_iso(),
+        "contract": "guided-ui.v1",
+    }
+
+
+def _persist_implementation_package_markers(*, state_doc: dict) -> None:
+    state_obj = state_doc.get("SESSION_STATE")
+    state = state_obj if isinstance(state_obj, dict) else state_doc
+    phase = str(state.get("Phase") or state.get("phase") or "").strip()
+    gate = str(state.get("active_gate") or "").strip().lower()
+    if not phase.startswith("6") or gate != "implementation presentation gate":
+        return
+
+    changed_files = state.get("implementation_package_changed_files") or state.get("implementation_changed_files") or []
+    findings_fixed = state.get("implementation_package_findings_fixed") or state.get("implementation_findings_fixed") or []
+    findings_open = state.get("implementation_package_findings_open") or state.get("implementation_open_findings") or []
+    checks = state.get("implementation_package_checks") or []
+
+    receipt_source = "|".join(
+        [
+            str(state.get("implementation_package_review_object") or "Implemented result review"),
+            str(state.get("implementation_package_plan_reference") or "latest approved plan record"),
+            json.dumps(changed_files, ensure_ascii=True, sort_keys=True),
+            json.dumps(findings_fixed, ensure_ascii=True, sort_keys=True),
+            json.dumps(findings_open, ensure_ascii=True, sort_keys=True),
+            json.dumps(checks, ensure_ascii=True, sort_keys=True),
+            str(state.get("implementation_package_stability") or ""),
+        ]
+    )
+    state["implementation_package_presented"] = True
+    state["implementation_package_presentation_receipt"] = {
+        "digest": _sha256_text(receipt_source),
+        "presented_at": _now_iso(),
+        "contract": "guided-ui.v1",
+    }
 
 
 def _run_phase6_internal_review_loop(*, state_doc: dict, session_path: Path) -> None:
@@ -850,6 +898,7 @@ def _materialize_authoritative_state(*, commands_home: Path, config_root: Path, 
         events_path=session_path.parent / "events.jsonl",
     )
     _persist_review_package_markers(state_doc=materialized, session_path=session_path)
+    _persist_implementation_package_markers(state_doc=materialized)
 
     _write_json_atomic(session_path, materialized)
     return materialized
@@ -1338,10 +1387,174 @@ def format_snapshot(snapshot: dict) -> str:
     return "\n".join(lines) + "\n"
 
 
+_GATE_PURPOSES: dict[str, str] = {
+    "ticket input gate": "Capture the concrete task before planning can proceed.",
+    "plan record preparation gate": "Persist the approved plan record before architecture review.",
+    "architecture review gate": "Run and complete internal architecture self-review.",
+    "business rules validation": "Validate business-rule compliance before implementation flow.",
+    "implementation internal review": "Run deterministic internal implementation review iterations.",
+    "evidence presentation gate": "Present the full governance review package for final decision.",
+    "workflow complete": "Governance approval is complete; implementation can start.",
+    "implementation execution in progress": "Implementation work is actively running.",
+    "implementation self review": "Inspect implementation quality and derive findings.",
+    "implementation revision": "Apply revisions from implementation review findings.",
+    "implementation verification": "Verify the revised implementation with checks.",
+    "implementation presentation gate": "Present implementation evidence for final implementation decision.",
+    "implementation blocked": "Execution is blocked by hard findings that must be resolved.",
+    "implementation rework clarification gate": "Clarify requested implementation changes before rerun.",
+    "implementation accepted": "Implementation outcome is accepted.",
+    "rework clarification gate": "Clarify requested governance changes before rerouting.",
+}
+
+
+def _section(lines: list[str], title: str) -> None:
+    if lines:
+        lines.append("")
+    lines.append(title)
+
+
+def _append_list(lines: list[str], prefix: str, items: object) -> None:
+    if not isinstance(items, list) or not items:
+        lines.append(f"- {prefix}: none")
+        return
+    lines.append(f"- {prefix}:")
+    for item in items:
+        lines.append(f"  - {str(item)}")
+
+
+def _render_current_state(snapshot: dict) -> list[str]:
+    phase = str(snapshot.get("phase") or "unknown")
+    gate = str(snapshot.get("active_gate") or "none")
+    purpose = _GATE_PURPOSES.get(gate.strip().lower(), "Guide the operator to the next deterministic governance step.")
+    return [
+        "Current state",
+        f"- Phase: {phase}",
+        f"- Active gate: {gate}",
+        f"- Gate purpose: {purpose}",
+    ]
+
+
+def _render_what_now(snapshot: dict) -> list[str]:
+    condition = str(snapshot.get("next_gate_condition") or "none")
+    return [
+        "What this means now",
+        f"- {condition}",
+    ]
+
+
+def _render_presented_review_content(snapshot: dict) -> list[str]:
+    gate = str(snapshot.get("active_gate") or "").strip().lower()
+    lines: list[str] = ["Presented review content"]
+    if gate == "evidence presentation gate":
+        lines.append(f"- Review object: {snapshot.get('review_package_review_object') or 'none'}")
+        lines.append(f"- Ticket: {snapshot.get('review_package_ticket') or 'none'}")
+        lines.append("- Approved plan for review:")
+        plan_body = str(snapshot.get("review_package_plan_body") or "none")
+        if plan_body.strip() and plan_body.strip().lower() != "none":
+            for raw in plan_body.splitlines():
+                text = raw.rstrip()
+                lines.append(f"  {text}" if text else "  ")
+        else:
+            lines.append("  none")
+        lines.append(f"- Evidence summary: {snapshot.get('review_package_evidence_summary') or 'none'}")
+        lines.append("- Decision semantics:")
+        lines.append("  - approve: governance complete and implementation authorized")
+        lines.append("  - changes_requested: enter rework clarification gate")
+        lines.append("  - reject: return to phase 4 ticket input gate")
+        return lines
+
+    if gate == "implementation presentation gate":
+        lines.append(f"- Implementation review object: {snapshot.get('implementation_package_review_object') or 'none'}")
+        lines.append(f"- Approved plan reference: {snapshot.get('implementation_package_plan_reference') or 'none'}")
+        _append_list(lines, "Changed files / artifact summary", snapshot.get("implementation_package_changed_files"))
+        _append_list(lines, "Findings fixed", snapshot.get("implementation_package_findings_fixed"))
+        _append_list(lines, "Findings open", snapshot.get("implementation_package_findings_open"))
+        _append_list(lines, "Verification evidence", snapshot.get("implementation_package_checks"))
+        lines.append(f"- Quality verdict: {snapshot.get('implementation_package_stability') or 'unknown'}")
+        lines.append("- Decision semantics:")
+        lines.append("  - approve: implementation accepted")
+        lines.append("  - changes_requested: implementation rework clarification")
+        lines.append("  - reject: implementation blocked")
+        return lines
+
+    lines.append("- No review presentation content is active in this gate.")
+    return lines
+
+
+def _render_execution_progress(snapshot: dict) -> list[str]:
+    lines = ["Execution progress"]
+    gate = str(snapshot.get("active_gate") or "").strip().lower()
+    if gate == "implementation internal review":
+        lines.append(
+            "- Internal review loop: "
+            f"iteration={_coerce_int(snapshot.get('phase6_review_iterations'))}/"
+            f"{_coerce_int(snapshot.get('phase6_max_review_iterations') or 3)}"
+        )
+        lines.append(f"- Revision delta: {snapshot.get('phase6_revision_delta') or 'changed'}")
+        lines.append(f"- Decision availability: {snapshot.get('phase6_decision_availability') or 'not yet available'}")
+        return lines
+
+    changed_files = snapshot.get("implementation_changed_files")
+    if isinstance(changed_files, list) and changed_files:
+        _append_list(lines, "Changed files", changed_files)
+    else:
+        lines.append("- No file-level execution evidence is available for this gate.")
+
+    if "implementation_execution_summary" in snapshot:
+        lines.append(f"- Execution summary: {snapshot.get('implementation_execution_summary')}")
+    return lines
+
+
+def _has_blocker(snapshot: dict) -> bool:
+    status = str(snapshot.get("status") or "").strip().lower()
+    if status in {"error", "blocked"}:
+        return True
+    gates_blocked = snapshot.get("gates_blocked")
+    if isinstance(gates_blocked, list) and gates_blocked:
+        return True
+    next_condition = str(snapshot.get("next_gate_condition") or "").strip().lower()
+    return "blocked" in next_condition or "error" in next_condition
+
+
+def _render_blocker(snapshot: dict) -> list[str]:
+    lines = ["Blocker"]
+    lines.append(f"- Status: {snapshot.get('status') or 'unknown'}")
+    lines.append(f"- Evidence: {snapshot.get('next_gate_condition') or 'No blocker detail provided.'}")
+    gates_blocked = snapshot.get("gates_blocked")
+    if isinstance(gates_blocked, list) and gates_blocked:
+        lines.append(f"- Blocked gates: {', '.join(str(g) for g in gates_blocked)}")
+    return lines
+
+
+def format_guided_snapshot(snapshot: dict) -> str:
+    lines: list[str] = []
+    lines.extend(_render_current_state(snapshot))
+    _section(lines, "What this means now")
+    lines.append(f"- {str(snapshot.get('next_gate_condition') or 'none')}")
+
+    gate = str(snapshot.get("active_gate") or "").strip().lower()
+    if _has_blocker(snapshot):
+        _section(lines, "Blocker")
+        lines.extend(_render_blocker(snapshot)[1:])
+    elif gate in {"evidence presentation gate", "implementation presentation gate"}:
+        _section(lines, "Presented review content")
+        lines.extend(_render_presented_review_content(snapshot)[1:])
+    else:
+        _section(lines, "Execution progress")
+        lines.extend(_render_execution_progress(snapshot)[1:])
+
+    action_line = _resolve_next_action_line(snapshot)
+    lines.append("")
+    lines.append(action_line)
+    return "\n".join(lines).rstrip() + "\n"
+
+
 def main(argv: list[str] | None = None) -> int:
     """CLI entry point."""
     commands_home: Path | None = None
     audit_mode = False
+    debug_mode = False
+    diagnose_mode = False
     materialize_mode = False
     tail_count = 25
     args = argv if argv is not None else sys.argv[1:]
@@ -1359,6 +1572,14 @@ def main(argv: list[str] | None = None) -> int:
             continue
         if arg == "--audit":
             audit_mode = True
+            idx += 1
+            continue
+        if arg == "--debug":
+            debug_mode = True
+            idx += 1
+            continue
+        if arg == "--diagnose":
+            diagnose_mode = True
             idx += 1
             continue
         if arg == "--materialize":
@@ -1395,11 +1616,14 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     snapshot = read_session_snapshot(commands_home=commands_home, materialize=materialize_mode)
-    rendered = format_snapshot(snapshot)
-    if materialize_mode:
-        action_line = _resolve_next_action_line(snapshot)
-        if action_line:
-            rendered = rendered + action_line + "\n"
+    if materialize_mode and not debug_mode and not diagnose_mode:
+        rendered = format_guided_snapshot(snapshot)
+    else:
+        rendered = format_snapshot(snapshot)
+        if materialize_mode:
+            action_line = _resolve_next_action_line(snapshot)
+            if action_line:
+                rendered = rendered + action_line + "\n"
     sys.stdout.write(rendered)
     return 0 if snapshot.get("status") != "ERROR" else 1
 
