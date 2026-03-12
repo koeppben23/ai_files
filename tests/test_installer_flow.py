@@ -1182,6 +1182,16 @@ class TestPythonBindingArtifact:
             "Win launcher must export OPENCODE_PYTHON"
         )
 
+    def test_corner_generated_launchers_include_implementation_decision_subcommand(self, tmp_path: Path) -> None:
+        """Corner: generated launchers expose every rail advertised by reader/docs."""
+        config_root = tmp_path / "config"
+        r = run_install(["--force", "--no-backup", "--config-root", str(config_root)])
+        assert r.returncode == 0, f"Install failed:\n{r.stdout}\n{r.stderr}"
+        unix_content = (config_root / "bin" / "opencode-governance-bootstrap").read_text(encoding="utf-8")
+        win_content = (config_root / "bin" / "opencode-governance-bootstrap.cmd").read_text(encoding="utf-8")
+        assert "--implementation-decision-persist" in unix_content
+        assert "--implementation-decision-persist" in win_content
+
     def test_happy_python_command_posix_in_paths_json(self, tmp_path: Path) -> None:
         """Happy: pythonCommand in governance.paths.json is POSIX-normalized."""
         from install import build_governance_paths_payload
@@ -1259,7 +1269,14 @@ class TestRepoLauncherContractDrift:
     def test_corner_repo_wrappers_support_canonical_subcommands(self) -> None:
         unix_content = (REPO_ROOT / "bin" / "opencode-governance-bootstrap").read_text(encoding="utf-8")
         win_content = (REPO_ROOT / "bin" / "opencode-governance-bootstrap.cmd").read_text(encoding="utf-8")
-        for token in ["--ticket-persist", "--plan-persist", "--review-decision-persist", "--implement-start", "--session-reader"]:
+        for token in [
+            "--ticket-persist",
+            "--plan-persist",
+            "--review-decision-persist",
+            "--implement-start",
+            "--implementation-decision-persist",
+            "--session-reader",
+        ]:
             assert token in unix_content
             assert token in win_content
 

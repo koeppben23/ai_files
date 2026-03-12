@@ -405,7 +405,12 @@ def main(argv: list[str] | None = None) -> int:
         final_plan_text = str(review_result.get("final_plan_text") or plan_text)
         review_digest = _digest(final_plan_text)
 
-        compiled = compile_plan_to_requirements(plan_text=final_plan_text, scope_prefix="PLAN")
+        compiled = compile_plan_to_requirements(
+            plan_text=final_plan_text,
+            scope_prefix="PLAN",
+            ticket_text=str(state.get("Ticket") or ""),
+            task_text=str(state.get("Task") or ""),
+        )
         compiled_requirements = [dict(item) for item in compiled.requirements]
         negative_contracts = [dict(item) for item in compiled.negative_contracts]
         verification_seed = [dict(item) for item in compiled.verification_seed]
@@ -565,6 +570,19 @@ def main(argv: list[str] | None = None) -> int:
                 plan_record_versions=routed.plan_record_versions,
             )
         )
+        state_after = document.get("SESSION_STATE")
+        if isinstance(state_after, dict):
+            active_gate_after = str(state_after.get("active_gate") or "").strip().lower()
+            if active_gate_after in {
+                "business rules validation",
+                "technical debt review",
+                "rollback safety review",
+            }:
+                state_after["phase5_completed"] = False
+                state_after["phase5_state"] = "phase5-in-progress"
+                state_after["Phase5State"] = "phase5-in-progress"
+                state_after["phase5_completion_status"] = "phase5-in-progress"
+                document["SESSION_STATE"] = state_after
         _write_json_atomic(session_path, document)
         _append_jsonl(
             session_path.parent / "events.jsonl",

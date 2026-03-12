@@ -1,0 +1,64 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+from governance.engine.business_rules_hydration import hydrate_business_rules_state_from_artifacts
+
+
+def _write(path: Path, text: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding="utf-8")
+
+
+def test_happy_hydration_accepts_valid_business_rules_inventory(tmp_path: Path) -> None:
+    status = tmp_path / "business-rules-status.md"
+    inv = tmp_path / "business-rules.md"
+    _write(status, "Outcome: extracted\nExecutionEvidence: true\n")
+    _write(inv, "- BR-001: Access must be checked\n- BR-002: Audit is mandatory\n")
+    state: dict[str, object] = {}
+
+    ok = hydrate_business_rules_state_from_artifacts(state=state, status_path=status, inventory_path=inv)
+
+    assert ok is True
+    business = state["BusinessRules"]
+    assert isinstance(business, dict)
+    assert business["ExtractedCount"] == 2
+
+
+def test_corner_hydration_rejects_non_rule_fragments(tmp_path: Path) -> None:
+    status = tmp_path / "business-rules-status.md"
+    inv = tmp_path / "business-rules.md"
+    _write(status, "Outcome: extracted\nExecutionEvidence: true\n")
+    _write(inv, "- tests/test_engine_boundaries.py:173\n- artifacts/writers/business_rules.py:12\n")
+    state: dict[str, object] = {}
+
+    ok = hydrate_business_rules_state_from_artifacts(state=state, status_path=status, inventory_path=inv)
+
+    assert ok is False
+
+
+def test_edge_hydration_accepts_rule_prefix_lines(tmp_path: Path) -> None:
+    status = tmp_path / "business-rules-status.md"
+    inv = tmp_path / "business-rules.md"
+    _write(status, "Outcome: extracted\nExecutionEvidence: true\n")
+    _write(inv, "Rule: BR-010: Invoices must remain immutable\n")
+    state: dict[str, object] = {}
+
+    ok = hydrate_business_rules_state_from_artifacts(state=state, status_path=status, inventory_path=inv)
+
+    assert ok is True
+    business = state["BusinessRules"]
+    assert isinstance(business, dict)
+    assert business["ExtractedCount"] == 1
+
+
+def test_bad_hydration_requires_execution_evidence_for_extracted(tmp_path: Path) -> None:
+    status = tmp_path / "business-rules-status.md"
+    inv = tmp_path / "business-rules.md"
+    _write(status, "Outcome: extracted\nExecutionEvidence: false\n")
+    _write(inv, "- BR-900: Audit entries are immutable\n")
+    state: dict[str, object] = {}
+
+    ok = hydrate_business_rules_state_from_artifacts(state=state, status_path=status, inventory_path=inv)
+
+    assert ok is False
