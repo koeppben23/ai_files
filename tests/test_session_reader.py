@@ -946,14 +946,16 @@ class TestMain:
             rc = main(["--commands-home", str(fake_config / "commands")])
         assert rc == 0
         captured = capsys.readouterr()
-        assert "status: OK" in captured.out
+        assert "Current state" in captured.out
+        assert "Next action:" in captured.out
 
     def test_error_exit_code(self, fake_config: Path, capsys: pytest.CaptureFixture) -> None:
         # No pointer file -> error
         rc = main(["--commands-home", str(fake_config / "commands")])
         assert rc == 1
         captured = capsys.readouterr()
-        assert "status: ERROR" in captured.out
+        assert "Blocker" in captured.out
+        assert captured.out.strip().splitlines()[-1].startswith("Next action: ")
 
     def test_missing_commands_home_arg(self, capsys: pytest.CaptureFixture) -> None:
         rc = main(["--commands-home"])
@@ -1126,8 +1128,8 @@ class TestMain:
         rc = main(["--commands-home", str(commands_home), "--materialize"])
         assert rc == 0
         output = capsys.readouterr().out
-        assert "active_gate: Architecture Review Gate" in output
-        assert "next_gate_condition: \"Phase 5 self-review status: iteration=0/3" in output
+        assert "- Active gate: Architecture Review Gate" in output
+        assert "Phase 5 self-review status: iteration=0/3" in output
         assert "Ticket/task evidence captured; continue to Phase 5 plan-record preparation before architecture review" not in output
         assert output.strip().endswith("Next action: run /continue.")
 
@@ -1207,7 +1209,7 @@ class TestMain:
         rc = main(["--commands-home", str(commands_home), "--materialize"])
         assert rc == 0
         output = capsys.readouterr().out
-        assert "active_gate: Plan Record Preparation Gate" in output
+        assert "- Active gate: Plan Record Preparation Gate" in output
         assert output.strip().endswith("Next action: run /plan.")
 
         updated_state = json.loads(ws_state.read_text(encoding="utf-8"))["SESSION_STATE"]
@@ -1357,7 +1359,7 @@ class TestMain:
         rc = main(["--commands-home", str(commands_home), "--materialize"])
         assert rc == 0
         output = capsys.readouterr().out
-        assert "active_gate: Ticket Input Gate" in output
+        assert "- Active gate: Ticket Input Gate" in output
         assert not output.strip().endswith("Next action: run /continue.")
 
     def test_materialize_mode_phase6_runs_internal_review_loop_without_chat_interaction(
@@ -1396,6 +1398,13 @@ class TestMain:
                     "AddonsEvidence": {
                         "riskTiering": {"status": "loaded"},
                     },
+                    "Gates": {
+                        "P5-Architecture": "approved",
+                        "P5.3-TestQuality": "pass",
+                        "P5.4-BusinessRules": "compliant",
+                        "P5.5-TechnicalDebt": "approved",
+                        "P5.6-RollbackSafety": "approved",
+                    },
                 }
             },
         )
@@ -1423,7 +1432,7 @@ class TestMain:
         rc = main(["--commands-home", str(commands_home), "--materialize"])
         assert rc == 0
         output = capsys.readouterr().out
-        assert "implementation_review_complete: true" in output
+        assert "Presented review content" in output
         assert "continue in chat with the active gate work" not in output
 
         updated_state = json.loads(ws_state.read_text(encoding="utf-8"))["SESSION_STATE"]
@@ -1476,6 +1485,9 @@ class TestMain:
                     "Gates": {
                         "P5-Architecture": "approved",
                         "P5.3-TestQuality": "pass",
+                        "P5.4-BusinessRules": "compliant",
+                        "P5.5-TechnicalDebt": "approved",
+                        "P5.6-RollbackSafety": "approved",
                     },
                 }
             },
@@ -1504,7 +1516,7 @@ class TestMain:
         rc = main(["--commands-home", str(commands_home), "--materialize"])
         assert rc == 0
         output = capsys.readouterr().out
-        assert "implementation_review_complete: true" in output
+        assert "Presented review content" in output
 
         updated_state = json.loads(ws_state.read_text(encoding="utf-8"))["SESSION_STATE"]
         assert updated_state["phase6_review_iterations"] == 2
@@ -1561,6 +1573,13 @@ class TestMain:
                     "AddonsEvidence": {
                         "riskTiering": {"status": "loaded"},
                     },
+                    "Gates": {
+                        "P5-Architecture": "approved",
+                        "P5.3-TestQuality": "pass",
+                        "P5.4-BusinessRules": "compliant",
+                        "P5.5-TechnicalDebt": "approved",
+                        "P5.6-RollbackSafety": "approved",
+                    },
                 }
             },
         )
@@ -1588,7 +1607,7 @@ class TestMain:
         rc = main(["--commands-home", str(commands_home), "--materialize"])
         assert rc == 0
         output = capsys.readouterr().out
-        assert "implementation_review_complete: true" in output
+        assert "Presented review content" in output
 
         updated_state = json.loads(ws_state.read_text(encoding="utf-8"))["SESSION_STATE"]
         assert updated_state["implementation_review_complete"] is True

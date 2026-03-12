@@ -20,6 +20,7 @@ Copyright 2026 Benjamin Fuchs. All rights reserved. See LICENSE.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import sys
 import uuid
@@ -87,6 +88,20 @@ def _is_evidence_presentation_gate(state: Mapping[str, object]) -> bool:
 
 
 def _review_package_ready(state: Mapping[str, object]) -> tuple[bool, str]:
+    def _review_digest() -> str:
+        source = "|".join(
+            [
+                str(state.get("review_package_review_object") or ""),
+                str(state.get("review_package_ticket") or ""),
+                str(state.get("review_package_approved_plan_summary") or ""),
+                str(state.get("review_package_plan_body") or ""),
+                str(state.get("review_package_implementation_scope") or ""),
+                str(state.get("review_package_constraints") or ""),
+                str(state.get("review_package_decision_semantics") or ""),
+            ]
+        )
+        return hashlib.sha256(source.encode("utf-8")).hexdigest()
+
     def _as_int(value: object, fallback: int) -> int:
         try:
             if isinstance(value, bool):
@@ -119,6 +134,28 @@ def _review_package_ready(state: Mapping[str, object]) -> tuple[bool, str]:
         return False, "review_package_plan_body_present=false"
     if not review_object:
         return False, "review_package_review_object=missing"
+    receipt = state.get("review_package_presentation_receipt")
+    if not isinstance(receipt, Mapping):
+        return False, "review_package_presentation_receipt=missing"
+    receipt_digest = str(receipt.get("digest") or "").strip()
+    receipt_contract = str(receipt.get("contract") or "").strip()
+    receipt_presented_at = str(receipt.get("presented_at") or "").strip()
+    receipt_materialization_id = str(receipt.get("materialization_event_id") or "").strip()
+    current_materialization_id = str(state.get("session_materialization_event_id") or "").strip()
+    if not receipt_digest:
+        return False, "review_package_presentation_receipt.digest=missing"
+    if receipt_contract != "guided-ui.v1":
+        return False, "review_package_presentation_receipt.contract!=guided-ui.v1"
+    if not receipt_presented_at:
+        return False, "review_package_presentation_receipt.presented_at=missing"
+    if not receipt_materialization_id:
+        return False, "review_package_presentation_receipt.materialization_event_id=missing"
+    if not current_materialization_id:
+        return False, "session_materialization_event_id=missing"
+    if receipt_materialization_id != current_materialization_id:
+        return False, "review_package_presentation_receipt.materialization_event_id_mismatch"
+    if receipt_digest != _review_digest():
+        return False, "review_package_presentation_receipt.digest_mismatch"
     return True, "ready"
 
 

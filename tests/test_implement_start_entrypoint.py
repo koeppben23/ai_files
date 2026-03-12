@@ -129,11 +129,12 @@ def test_main_blocked_when_forced_blocker_marker(monkeypatch, tmp_path: Path, ca
 
     rc = entrypoint.main(["--quiet"])
     out = json.loads(capsys.readouterr().out.strip())
-    assert rc == 0
-    assert out["status"] == "ok"
+    assert rc == 2
+    assert out["status"] == "blocked"
     assert out["active_gate"] == "Implementation Blocked"
     assert out["implementation_quality_stable"] is False
     assert out["implementation_open_findings"]
+    assert out["reason_code"]
     assert "resolve implementation blockers" in out["next_action"]
 
 

@@ -443,7 +443,8 @@ def test_continue_first_step_executes_after_bootstrap(tmp_path: Path) -> None:
     )
     assert run_continue.returncode == 0, run_continue.stdout + "\n" + run_continue.stderr
 
-    lines = [line.strip() for line in run_continue.stdout.splitlines() if line.strip()]
-    assert any(line.startswith("status:") for line in lines), run_continue.stdout
-    assert "status: OK" in run_continue.stdout
-    assert "status: ERROR" not in run_continue.stdout
+    output = run_continue.stdout
+    assert "Current state" in output
+    assert "What this means now" in output
+    assert "Next action:" in output
+    assert output.strip().splitlines()[-1].startswith("Next action: ")
