@@ -68,7 +68,7 @@ def test_runner_corner_missing_registry_method_is_unverified(tmp_path: Path, mon
     (repo / "README.md").write_text("ok\n", encoding="utf-8")
     monkeypatch.setattr(runner, "_run_pytest_node", lambda python_bin, repo_root, nodeid: True)
     result = runner.run_contract_verification(repo_root=repo)
-    assert result["status"] == "FAIL"
+    assert result["status"] == "UNVERIFIED"
     matrix_obj = result.get("matrix")
     assert isinstance(matrix_obj, dict)
     rows_obj = matrix_obj.get("completion_matrix")

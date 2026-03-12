@@ -9,8 +9,15 @@ from pathlib import Path
 from typing import Mapping
 
 from governance.contracts.registry import load_and_validate_contracts
+from governance.verification.behavioral_verifier import (
+    run_behavioral_verification,
+    run_receipts_verification,
+    run_user_surface_verification,
+)
 from governance.verification.completion_matrix import is_merge_allowed
+from governance.verification.live_flow_verifier import run_live_flow_verification
 from governance.verification.pipeline import run_verifier_pipeline
+from governance.verification.static_verifier import run_static_verification
 
 
 def _load_verification_registry(repo_root: Path) -> dict[str, object]:
@@ -34,47 +41,8 @@ def _run_pytest_node(python_bin: str, repo_root: Path, nodeid: str) -> bool:
     return completed.returncode == 0
 
 
-def _static_status(contract: Mapping[str, object], repo_root: Path) -> str:
-    hotspots = contract.get("code_hotspots")
-    if not isinstance(hotspots, list) or not hotspots:
-        return "FAIL"
-    for hotspot in hotspots:
-        path = repo_root / str(hotspot)
-        if not path.exists():
-            return "FAIL"
-    return "PASS"
-
-
-def _method_status(
-    *,
-    method: str,
-    contract: Mapping[str, object],
-    registry: Mapping[str, object],
-    python_bin: str,
-    repo_root: Path,
-    cache: dict[str, bool],
-) -> str:
-    required_methods = contract.get("verification_methods")
-    required = set(required_methods) if isinstance(required_methods, list) else set()
-    if method not in required:
-        return "PASS"
-
-    req_id = str(contract.get("id") or "").strip()
-    requirements = registry.get("requirements")
-    req_cfg = requirements.get(req_id) if isinstance(requirements, dict) else None
-    tests = req_cfg.get(method) if isinstance(req_cfg, dict) else None
-    if not isinstance(tests, list) or not tests:
-        return "UNVERIFIED"
-
-    for nodeid in tests:
-        node = str(nodeid).strip()
-        if not node:
-            return "FAIL"
-        if node not in cache:
-            cache[node] = _run_pytest_node(python_bin, repo_root, node)
-        if not cache[node]:
-            return "FAIL"
-    return "PASS"
+def _run_node(python_bin: str, repo_root: Path, nodeid: str) -> bool:
+    return _run_pytest_node(python_bin, repo_root, nodeid)
 
 
 def run_contract_verification(*, repo_root: Path, python_bin: str = sys.executable) -> dict[str, object]:
@@ -102,47 +70,39 @@ def run_contract_verification(*, repo_root: Path, python_bin: str = sys.executab
         }
     cache: dict[str, bool] = {}
 
-    static_results: dict[str, str] = {}
-    behavioral_results: dict[str, str] = {}
-    user_surface_results: dict[str, str] = {}
-    live_flow_results: dict[str, str] = {}
-    receipts_results: dict[str, str] = {}
-
-    for contract in loaded.contracts:
-        req_id = str(contract.get("id") or "").strip()
-        static_results[req_id] = _static_status(contract, repo_root)
-        behavioral_results[req_id] = _method_status(
-            method="behavioral_verification",
-            contract=contract,
-            registry=registry,
-            python_bin=python_bin,
-            repo_root=repo_root,
-            cache=cache,
-        )
-        user_surface_results[req_id] = _method_status(
-            method="user_surface_verification",
-            contract=contract,
-            registry=registry,
-            python_bin=python_bin,
-            repo_root=repo_root,
-            cache=cache,
-        )
-        live_flow_results[req_id] = _method_status(
-            method="live_flow_verification",
-            contract=contract,
-            registry=registry,
-            python_bin=python_bin,
-            repo_root=repo_root,
-            cache=cache,
-        )
-        receipts_results[req_id] = _method_status(
-            method="receipts_verification",
-            contract=contract,
-            registry=registry,
-            python_bin=python_bin,
-            repo_root=repo_root,
-            cache=cache,
-        )
+    static_results = run_static_verification(requirements=loaded.contracts, repo_root=repo_root)
+    behavioral_results = run_behavioral_verification(
+        requirements=loaded.contracts,
+        registry=registry,
+        python_bin=python_bin,
+        repo_root=repo_root,
+        cache=cache,
+        run_pytest_node=_run_node,
+    )
+    user_surface_results = run_user_surface_verification(
+        requirements=loaded.contracts,
+        registry=registry,
+        python_bin=python_bin,
+        repo_root=repo_root,
+        cache=cache,
+        run_pytest_node=_run_node,
+    )
+    live_flow_results = run_live_flow_verification(
+        requirements=loaded.contracts,
+        registry=registry,
+        python_bin=python_bin,
+        repo_root=repo_root,
+        cache=cache,
+        run_pytest_node=_run_node,
+    )
+    receipts_results = run_receipts_verification(
+        requirements=loaded.contracts,
+        registry=registry,
+        python_bin=python_bin,
+        repo_root=repo_root,
+        cache=cache,
+        run_pytest_node=_run_node,
+    )
 
     verifier_result = run_verifier_pipeline(
         requirements=loaded.contracts,
@@ -154,7 +114,7 @@ def run_contract_verification(*, repo_root: Path, python_bin: str = sys.executab
     )
     matrix_payload = verifier_result.matrix.to_dict()
     merge_allowed, reason = is_merge_allowed(matrix_payload)
-    status = "PASS" if merge_allowed else "FAIL"
+    status = str(matrix_payload.get("overall_status") or ("PASS" if merge_allowed else "FAIL")).upper()
     return {
         "status": status,
         "merge_allowed": merge_allowed,

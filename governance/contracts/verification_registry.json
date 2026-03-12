@@ -54,7 +54,7 @@
     },
     "R-COMPLETION-001": {
       "behavioral_verification": [
-        "tests/test_completion_matrix_contract.py::test_matrix_is_fail_when_any_requirement_is_unverified"
+        "tests/test_completion_matrix_contract.py::test_matrix_is_unverified_when_any_requirement_is_unverified"
       ],
       "user_surface_verification": [
         "tests/test_completion_matrix_contract.py::test_matrix_happy_all_pass"

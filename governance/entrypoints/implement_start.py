@@ -26,6 +26,7 @@ from governance.infrastructure.binding_evidence_resolver import BindingEvidenceR
 from governance.infrastructure.adapters.logging.event_sink import write_jsonl_event
 from governance.infrastructure.fs_atomic import atomic_write_text
 from governance.infrastructure.plan_record_state import resolve_plan_record_signal
+from governance.contracts.enforcement import require_complete_contracts
 
 BLOCKED_IMPLEMENT_START_INVALID = "BLOCKED-UNSPECIFIED"
 
@@ -333,6 +334,17 @@ def start_implementation(
     state_doc = _load_json(session_path)
     state_obj = state_doc.get("SESSION_STATE")
     state: dict[str, object] = state_obj if isinstance(state_obj, dict) else state_doc  # type: ignore[assignment]
+
+    enforcement = require_complete_contracts(
+        repo_root=Path(__file__).absolute().parents[2],
+        required_ids=("R-IMPLEMENT-001",),
+    )
+    if not enforcement.ok:
+        return _payload(
+            "error",
+            reason_code=BLOCKED_IMPLEMENT_START_INVALID,
+            message=f"{enforcement.reason}: {';'.join(enforcement.details)}",
+        )
 
     phase_text = str(state.get("Phase") or state.get("phase") or "").strip()
     if not phase_text.startswith("6"):

@@ -217,6 +217,7 @@ def _persist_review_package_markers(*, state_doc: dict, session_path: Path) -> N
     )
     rendered_at = _now_iso()
     session_id = str(state.get("session_run_id") or session_path.parent.name or "unknown-session")
+    state_revision = str(state.get("session_state_revision") or "")
     state["review_package_last_state_change_at"] = str(state.get("session_materialized_at") or rendered_at)
     state["review_package_presentation_receipt"] = build_presentation_receipt(
         receipt_type="governance_review_presentation_receipt",
@@ -226,7 +227,7 @@ def _persist_review_package_markers(*, state_doc: dict, session_path: Path) -> N
         render_event_id=str(state.get("session_materialization_event_id") or ""),
         gate="Evidence Presentation Gate",
         session_id=session_id,
-        state_revision=str(state.get("session_materialization_event_id") or ""),
+        state_revision=state_revision,
         source_command="/continue",
     )
 
@@ -258,6 +259,7 @@ def _persist_implementation_package_markers(*, state_doc: dict) -> None:
     state["implementation_package_presented"] = True
     rendered_at = _now_iso()
     session_id = str(state.get("session_run_id") or "unknown-session")
+    state_revision = str(state.get("session_state_revision") or "")
     state["implementation_package_last_state_change_at"] = str(state.get("session_materialized_at") or rendered_at)
     state["implementation_package_presentation_receipt"] = build_presentation_receipt(
         receipt_type="implementation_presentation_receipt",
@@ -267,7 +269,7 @@ def _persist_implementation_package_markers(*, state_doc: dict) -> None:
         render_event_id=str(state.get("session_materialization_event_id") or ""),
         gate="Implementation Presentation Gate",
         session_id=session_id,
-        state_revision=str(state.get("session_materialization_event_id") or ""),
+        state_revision=state_revision,
         source_command="/continue",
     )
 
@@ -915,6 +917,12 @@ def _materialize_authoritative_state(*, commands_home: Path, config_root: Path, 
     state_map = state_obj if isinstance(state_obj, dict) else materialized
     if not str(state_map.get("session_run_id") or "").strip():
         state_map["session_run_id"] = f"session-{uuid.uuid4().hex[:12]}"
+    current_revision = 0
+    try:
+        current_revision = int(str(state_map.get("session_state_revision") or "0").strip())
+    except ValueError:
+        current_revision = 0
+    state_map["session_state_revision"] = current_revision + 1
     state_map["session_materialization_event_id"] = f"mat-{uuid.uuid4().hex}"
     state_map["session_materialized_at"] = _now_iso()
 
