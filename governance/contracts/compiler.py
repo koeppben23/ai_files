@@ -16,6 +16,12 @@ class CompiledRequirements:
     notes: tuple[str, ...]
 
 
+@dataclass(frozen=True)
+class _Segment:
+    kind: str
+    text: str
+
+
 def _slug(text: str) -> str:
     cleaned = "".join(ch if ch.isalnum() else "-" for ch in text.lower()).strip("-")
     while "--" in cleaned:
@@ -23,22 +29,89 @@ def _slug(text: str) -> str:
     return cleaned[:48] or "requirement"
 
 
-def _lines(plan_text: str) -> list[str]:
-    return [line.strip() for line in str(plan_text or "").splitlines() if line.strip()]
+def _normalize_plan_lines(plan_text: str) -> list[str]:
+    lines: list[str] = []
+    for raw in str(plan_text or "").splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+        line = re.sub(r"^[-*]\s+", "", line)
+        line = re.sub(r"^\d+[.)]\s+", "", line)
+        line = re.sub(r"\s+", " ", line).strip()
+        if line:
+            lines.append(line)
+    return lines
 
 
 def _is_heading(line: str) -> bool:
-    return line.startswith("#")
+    if line.startswith("#"):
+        return True
+    lower = line.lower()
+    return lower in {
+        "required behavior",
+        "forbidden behavior",
+        "user-visible expectation",
+        "state expectation",
+        "code hotspots",
+        "verification methods",
+        "acceptance tests",
+        "done criteria",
+    }
 
 
-def _infer_methods(title: str, required: str, forbidden: str) -> list[str]:
+def _looks_like_forbidden(text: str) -> bool:
+    lower = text.lower().strip()
+    starts = (
+        "no ",
+        "never ",
+        "must not ",
+        "do not ",
+        "don't ",
+        "without ",
+        "forbid ",
+        "forbidden ",
+    )
+    return lower.startswith(starts)
+
+
+def _infer_segment_kind(text: str) -> str:
+    lower = text.lower()
+    if _looks_like_forbidden(text):
+        return "forbidden_behavior"
+    if any(token in lower for token in ("render", "visible", "output", "surface", "next action")):
+        return "user_visible_expectation"
+    if any(token in lower for token in ("receipt", "presentation", "evidence", "state", "persist", "matrix")):
+        return "state_expectation"
+    if any(token in lower for token in ("gate", "flow", "command", "/continue", "review", "implement")):
+        return "required_behavior"
+    return "required_behavior"
+
+
+def _segment_plan_text(plan_text: str) -> list[_Segment]:
+    segments: list[_Segment] = []
+    for line in _normalize_plan_lines(plan_text):
+        if _is_heading(line):
+            continue
+        atoms = [part.strip() for part in line.split(";") if part.strip()]
+        if not atoms:
+            continue
+        for atom in atoms:
+            segments.append(_Segment(kind=_infer_segment_kind(atom), text=atom))
+    return segments
+
+
+def _infer_methods(title: str, required: str, forbidden: str, segment_kind: str) -> list[str]:
     text = " ".join([title, required, forbidden]).lower()
     methods = {"static_verification", "behavioral_verification"}
-    if any(token in text for token in ("render", "visible", "output", "surface", "next action")):
+    if segment_kind == "user_visible_expectation" or any(
+        token in text for token in ("render", "visible", "output", "surface", "next action")
+    ):
         methods.add("user_surface_verification")
-    if any(token in text for token in ("flow", "gate", "decision", "implement", "review", "live")):
+    if any(token in text for token in ("flow", "gate", "decision", "implement", "review", "live", "command")):
         methods.add("live_flow_verification")
-    if any(token in text for token in ("receipt", "presentation", "decision")):
+    if segment_kind == "state_expectation" or any(
+        token in text for token in ("receipt", "presentation", "decision", "evidence")
+    ):
         methods.add("receipts_verification")
     return sorted(methods)
 
@@ -66,22 +139,25 @@ def _infer_hotspots(text: str) -> list[str]:
     return out
 
 
-def _atomic_candidates(plan_text: str) -> list[tuple[str, str]]:
-    lines = _lines(plan_text)
-    candidates: list[tuple[str, str]] = []
-    for line in lines:
-        if _is_heading(line):
-            continue
-        if line.startswith(("- ", "* ")):
-            text = line[2:].strip()
-        else:
-            text = re.sub(r"^\d+[.)]\s+", "", line).strip()
-        if not text:
-            continue
-        title = text
-        forbidden = f"forbid state: {text} not satisfied"
-        candidates.append((title, forbidden))
-    return candidates
+def _build_requirement_texts(segment: _Segment) -> tuple[str, str]:
+    title = segment.text
+    if segment.kind == "forbidden_behavior":
+        required = f"Prevent forbidden behavior: {title}"
+        forbidden = title
+    else:
+        required = f"Implement: {title}"
+        forbidden = f"forbid state: {title} not satisfied"
+    return required, forbidden
+
+
+def _segment_notes(segments: list[_Segment]) -> tuple[str, ...]:
+    counts: dict[str, int] = {}
+    for segment in segments:
+        counts[segment.kind] = counts.get(segment.kind, 0) + 1
+    ordered_kinds = sorted(counts.keys())
+    notes = [f"segments={len(segments)}"]
+    notes.extend(f"{kind}={counts[kind]}" for kind in ordered_kinds)
+    return tuple(notes)
 
 
 def compile_plan_to_requirements(*, plan_text: str, scope_prefix: str = "PLAN") -> CompiledRequirements:
@@ -91,8 +167,8 @@ def compile_plan_to_requirements(*, plan_text: str, scope_prefix: str = "PLAN") 
     in the plan body produces one atomic contract candidate.
     """
 
-    lines = _lines(plan_text)
-    if not lines:
+    segments = _segment_plan_text(plan_text)
+    if not segments:
         return CompiledRequirements(
             requirements=(),
             negative_contracts=(),
@@ -105,14 +181,13 @@ def compile_plan_to_requirements(*, plan_text: str, scope_prefix: str = "PLAN") 
     negative: list[dict[str, object]] = []
     verification_seed: list[dict[str, object]] = []
     completion_seed: list[dict[str, object]] = []
-    candidates = _atomic_candidates(plan_text)
-    for idx, (title, forbidden_desc) in enumerate(candidates, start=1):
+    for idx, segment in enumerate(segments, start=1):
+        title = segment.text
         digest = hashlib.sha256(f"{scope_prefix}|{idx}|{title}".encode("utf-8")).hexdigest()[:8]
         req_id = f"R-{scope_prefix}-{idx:03d}-{digest}".upper()
         slug = _slug(title)
-        required_behavior = f"Implement: {title}"
-        forbidden_behavior = forbidden_desc
-        methods = _infer_methods(title, required_behavior, forbidden_behavior)
+        required_behavior, forbidden_behavior = _build_requirement_texts(segment)
+        methods = _infer_methods(title, required_behavior, forbidden_behavior, segment.kind)
         acceptance_test = f"tests/test_contract_{slug}.py::test_{slug}"
         out.append(
             {
@@ -168,5 +243,5 @@ def compile_plan_to_requirements(*, plan_text: str, scope_prefix: str = "PLAN") 
         negative_contracts=tuple(negative),
         verification_seed=tuple(verification_seed),
         completion_seed=tuple(completion_seed),
-        notes=(),
+        notes=_segment_notes(segments),
     )
