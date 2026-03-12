@@ -107,6 +107,10 @@ def test_phase5_plan_persist_good_chat_text_persists_and_routes(tmp_path: Path, 
     assert state["phase5_self_review_iterations"] >= 1
     assert state["phase5_state"] == "phase5_completed"
     assert state["phase5_blocker_code"] == "none"
+    assert state["requirement_contracts_present"] is True
+    assert int(state["requirement_contracts_count"]) >= 1
+    assert str(state["requirement_contracts_digest"]).startswith("sha256:")
+    assert Path(str(state["requirement_contracts_source"])).exists()
 
     plan_record = json.loads((session_path.parent / "plan-record.json").read_text(encoding="utf-8"))
     assert plan_record["status"] == "active"

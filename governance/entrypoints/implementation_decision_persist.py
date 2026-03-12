@@ -175,6 +175,36 @@ def _has_open_critical_findings(state: Mapping[str, object]) -> bool:
     return False
 
 
+def _completion_matrix_ready_for_approve(state: Mapping[str, object]) -> tuple[bool, str]:
+    overall = str(
+        state.get("completion_matrix_overall_status")
+        or state.get("completion_matrix_status")
+        or ""
+    ).strip().upper()
+    if overall != "PASS":
+        return False, "completion_matrix_overall_status!=PASS"
+
+    receipt = state.get("completion_matrix_receipt")
+    if not isinstance(receipt, Mapping):
+        return False, "completion_matrix_receipt=missing"
+    if str(receipt.get("receipt_type") or "").strip() != "verification_receipt":
+        return False, "completion_matrix_receipt.receipt_type!=verification_receipt"
+    if str(receipt.get("status") or "").strip().upper() != "PASS":
+        return False, "completion_matrix_receipt.status!=PASS"
+
+    verified_at = str(state.get("completion_matrix_verified_at") or "").strip()
+    implementation_changed_at = str(
+        state.get("implementation_package_last_state_change_at")
+        or state.get("session_materialized_at")
+        or ""
+    ).strip()
+    if not verified_at:
+        return False, "completion_matrix_verified_at=missing"
+    if implementation_changed_at and verified_at < implementation_changed_at:
+        return False, "completion_matrix_verified_at_stale"
+    return True, "ready"
+
+
 def apply_implementation_decision(
     *,
     decision: str,
@@ -229,6 +259,17 @@ def apply_implementation_decision(
             reason_code=BLOCKED_IMPLEMENTATION_DECISION_INVALID,
             message="Implementation decision approve is blocked: critical findings remain open.",
         )
+    if normalized == "approve":
+        matrix_ready, matrix_reason = _completion_matrix_ready_for_approve(state)
+        if not matrix_ready:
+            return _payload(
+                "error",
+                reason_code=BLOCKED_IMPLEMENTATION_DECISION_INVALID,
+                message=(
+                    "Implementation decision approve is blocked: completion matrix verification is incomplete "
+                    f"({matrix_reason}). Run /verify-contracts first."
+                ),
+            )
 
     event_id = uuid.uuid4().hex
     ts = _now_iso()
