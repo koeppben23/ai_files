@@ -82,11 +82,22 @@ def _contracts_path(session_path: Path) -> Path:
     return session_path.parent / ".governance" / "contracts" / "compiled_requirements.json"
 
 
-def _persist_compiled_contracts(*, session_path: Path, compiled: list[dict[str, object]], generated_at: str) -> tuple[str, int]:
+def _persist_compiled_contracts(
+    *,
+    session_path: Path,
+    compiled: list[dict[str, object]],
+    negative_contracts: list[dict[str, object]],
+    verification_seed: list[dict[str, object]],
+    completion_seed: list[dict[str, object]],
+    generated_at: str,
+) -> tuple[str, int]:
     payload = {
         "schema": "governance-compiled-requirements.v1",
         "generated_at": generated_at,
         "requirements": compiled,
+        "negative_contracts": negative_contracts,
+        "verification_seed": verification_seed,
+        "completion_seed": completion_seed,
     }
     text = json.dumps(payload, ensure_ascii=True, sort_keys=True, separators=(",", ":")) + "\n"
     path = _contracts_path(session_path)
@@ -396,6 +407,9 @@ def main(argv: list[str] | None = None) -> int:
 
         compiled = compile_plan_to_requirements(plan_text=final_plan_text, scope_prefix="PLAN")
         compiled_requirements = [dict(item) for item in compiled.requirements]
+        negative_contracts = [dict(item) for item in compiled.negative_contracts]
+        verification_seed = [dict(item) for item in compiled.verification_seed]
+        completion_seed = [dict(item) for item in compiled.completion_seed]
         contract_validation = validate_requirement_contracts(compiled_requirements)
         if not contract_validation.ok:
             payload = _payload(
@@ -410,6 +424,9 @@ def main(argv: list[str] | None = None) -> int:
         contracts_digest, contracts_count = _persist_compiled_contracts(
             session_path=session_path,
             compiled=compiled_requirements,
+            negative_contracts=negative_contracts,
+            verification_seed=verification_seed,
+            completion_seed=completion_seed,
             generated_at=_now_iso(),
         )
 

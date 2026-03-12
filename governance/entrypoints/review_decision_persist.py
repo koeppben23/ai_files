@@ -32,6 +32,7 @@ if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).absolute().parents[2]))
 
 from governance.domain import reason_codes
+from governance.contracts.enforcement import require_complete_contracts
 from governance.receipts.match import ReceiptMatchContext, validate_receipt_match
 from governance.infrastructure.binding_evidence_resolver import BindingEvidenceResolver
 from governance.infrastructure.adapters.logging.event_sink import write_jsonl_event
@@ -141,20 +142,18 @@ def _review_package_ready(state: Mapping[str, object]) -> tuple[bool, str]:
     receipt_digest = str(receipt.get("digest") or "").strip()
     receipt_contract = str(receipt.get("contract") or "").strip()
     receipt_presented_at = str(receipt.get("presented_at") or "").strip()
-    receipt_materialization_id = str(receipt.get("materialization_event_id") or "").strip()
     current_materialization_id = str(state.get("session_materialization_event_id") or "").strip()
+    current_state_revision = str(state.get("session_state_revision") or "").strip()
     if not receipt_digest:
         return False, "review_package_presentation_receipt.digest=missing"
     if receipt_contract != "guided-ui.v1":
         return False, "review_package_presentation_receipt.contract!=guided-ui.v1"
     if not receipt_presented_at:
         return False, "review_package_presentation_receipt.presented_at=missing"
-    if not receipt_materialization_id:
-        return False, "review_package_presentation_receipt.materialization_event_id=missing"
     if not current_materialization_id:
         return False, "session_materialization_event_id=missing"
-    if receipt_materialization_id != current_materialization_id:
-        return False, "review_package_presentation_receipt.materialization_event_id_mismatch"
+    if not current_state_revision:
+        return False, "session_state_revision=missing"
 
     receipt_session_id = str(receipt.get("session_id") or "").strip()
     current_session_id = str(state.get("session_run_id") or "").strip()
@@ -172,7 +171,7 @@ def _review_package_ready(state: Mapping[str, object]) -> tuple[bool, str]:
             expected_gate="Evidence Presentation Gate",
             expected_digest=_review_digest(),
             expected_session_id=current_session_id,
-            expected_state_revision=current_materialization_id,
+            expected_state_revision=current_state_revision,
             expected_scope="R-REVIEW-DECISION-001",
             last_relevant_state_change_at=last_state_change_at,
         ),
@@ -252,6 +251,17 @@ def apply_review_decision(
     state_doc = _load_json(session_path)
     state_obj = state_doc.get("SESSION_STATE")
     state: dict[str, object] = state_obj if isinstance(state_obj, dict) else state_doc  # type: ignore[assignment]
+
+    enforcement = require_complete_contracts(
+        repo_root=Path(__file__).absolute().parents[2],
+        required_ids=("R-REVIEW-DECISION-001",),
+    )
+    if not enforcement.ok:
+        return _payload(
+            "error",
+            reason_code=BLOCKED_REVIEW_DECISION_INVALID,
+            message=f"{enforcement.reason}: {';'.join(enforcement.details)}",
+        )
 
     # Validate we are in Phase 6
     phase_raw = state.get("Phase") or state.get("phase") or ""

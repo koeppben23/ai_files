@@ -11,6 +11,8 @@ import uuid
 from dataclasses import dataclass
 from pathlib import Path
 
+from governance.contracts.enforcement import require_complete_contracts
+
 
 REASON_REMOTE_UNAVAILABLE = "BLOCKED-REVIEW-REMOTE-UNAVAILABLE"
 REASON_FETCH_FAILED = "BLOCKED-REVIEW-FETCH-FAILED"
@@ -116,6 +118,19 @@ def _analyze_repo(*, repo_root: Path, base_ref: str, head_ref: str, mode: str) -
 
 
 def analyze_pr(*, repo_root: Path, remote: str, base_branch: str, head_ref: str) -> ReviewResult:
+    enforcement = require_complete_contracts(repo_root=repo_root, required_ids=("R-REVIEW-PR-001",))
+    if not enforcement.ok:
+        return ReviewResult(
+            status="blocked",
+            mode="remote",
+            base_sha="",
+            head_sha="",
+            merge_base_sha="",
+            files_changed=0,
+            reason_code=REASON_BASE_UNRESOLVED,
+            message=f"{enforcement.reason}: {';'.join(enforcement.details)}",
+        )
+
     remote_base = f"refs/remotes/{remote}/{base_branch}"
     if _remote_available(repo_root=repo_root, remote=remote):
         head_tracking = f"refs/remotes/{remote}/_review_head_{uuid.uuid4().hex[:8]}"

@@ -5,6 +5,7 @@ import hashlib
 from pathlib import Path
 
 from governance.entrypoints import implementation_decision_persist as entrypoint
+from governance.contracts.enforcement import EnforcementResult, FAIL_CLOSED_MISSING_CONTRACT
 
 
 def _write_session(path: Path, *, gate: str = "Implementation Presentation Gate", open_findings: list[str] | None = None) -> None:
@@ -27,6 +28,7 @@ def _write_session(path: Path, *, gate: str = "Implementation Presentation Gate"
             "Phase": "6-PostFlight",
             "active_gate": gate,
             "session_materialization_event_id": "mat-abc",
+            "session_state_revision": 1,
             "session_materialized_at": "2026-03-12T00:00:00Z",
             "session_run_id": "sess-abc",
             "implementation_package_presented": True,
@@ -49,7 +51,7 @@ def _write_session(path: Path, *, gate: str = "Implementation Presentation Gate"
                 "render_event_id": "mat-abc",
                 "gate": "Implementation Presentation Gate",
                 "session_id": "sess-abc",
-                "state_revision": "mat-abc",
+                "state_revision": "1",
                 "source_command": "/continue",
                 "digest": hashlib.sha256(digest_source.encode("utf-8")).hexdigest(),
                 "presented_at": "2026-03-12T00:00:00Z",
@@ -163,3 +165,26 @@ def test_main_bad_approve_requires_completion_matrix(monkeypatch, tmp_path: Path
     assert rc == 2
     assert out["status"] == "error"
     assert "completion matrix verification is incomplete" in out["message"]
+
+
+def test_main_bad_fail_closed_when_required_contract_missing(monkeypatch, tmp_path: Path, capsys) -> None:
+    session_path = tmp_path / "SESSION_STATE.json"
+    events_path = tmp_path / "events.jsonl"
+    _write_session(session_path)
+
+    monkeypatch.setattr(entrypoint, "_resolve_active_session_path", lambda: (session_path, events_path))
+    monkeypatch.setattr(
+        entrypoint,
+        "require_complete_contracts",
+        lambda repo_root, required_ids: EnforcementResult(
+            ok=False,
+            reason=FAIL_CLOSED_MISSING_CONTRACT,
+            details=("missing_required_contract:R-IMPLEMENT-001",),
+        ),
+    )
+    rc = entrypoint.main(["--decision", "approve", "--quiet"])
+    out = json.loads(capsys.readouterr().out.strip())
+
+    assert rc == 2
+    assert out["status"] == "error"
+    assert FAIL_CLOSED_MISSING_CONTRACT in out["message"]
