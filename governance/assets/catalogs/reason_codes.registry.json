@@ -687,6 +687,41 @@
       "payload_schema_ref": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
       "description": "Decision receipt validation failed under strict match policy.",
       "remediation_hint": "Re-render presentation in current gate and rerun decision with a fresh matching receipt."
+    },
+    {
+      "code": "BLOCKED-REVIEW-REMOTE-UNAVAILABLE",
+      "severity": "blocked",
+      "payload_schema_ref": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
+      "description": "PR review comparison basis could not be validated deterministically.",
+      "remediation_hint": "Refresh remote refs or use isolated fallback with resolvable base/head refs and merge-base."
+    },
+    {
+      "code": "BLOCKED-REVIEW-FETCH-FAILED",
+      "severity": "blocked",
+      "payload_schema_ref": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
+      "description": "PR review comparison basis could not be validated deterministically.",
+      "remediation_hint": "Refresh remote refs or use isolated fallback with resolvable base/head refs and merge-base."
+    },
+    {
+      "code": "BLOCKED-REVIEW-BASE-UNRESOLVED",
+      "severity": "blocked",
+      "payload_schema_ref": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
+      "description": "PR review comparison basis could not be validated deterministically.",
+      "remediation_hint": "Refresh remote refs or use isolated fallback with resolvable base/head refs and merge-base."
+    },
+    {
+      "code": "BLOCKED-REVIEW-HEAD-UNRESOLVED",
+      "severity": "blocked",
+      "payload_schema_ref": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
+      "description": "PR review comparison basis could not be validated deterministically.",
+      "remediation_hint": "Refresh remote refs or use isolated fallback with resolvable base/head refs and merge-base."
+    },
+    {
+      "code": "BLOCKED-REVIEW-MERGE-BASE-UNRESOLVED",
+      "severity": "blocked",
+      "payload_schema_ref": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
+      "description": "PR review comparison basis could not be validated deterministically.",
+      "remediation_hint": "Refresh remote refs or use isolated fallback with resolvable base/head refs and merge-base."
     }
   ],
   "audit_events": [

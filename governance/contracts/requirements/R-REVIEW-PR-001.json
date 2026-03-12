@@ -1,0 +1,39 @@
+{
+  "id": "R-REVIEW-PR-001",
+  "title": "PR review comparison is remote-first with isolated local fallback",
+  "criticality": "release_blocking",
+  "owner_test": "tests/test_contract_seed_requirements.py::test_r_review_pr_001_owner",
+  "live_proof_key": "LP-REVIEW-PR-REMOTE-FIRST-001",
+  "required_behavior": [
+    "PR review resolves base/head against latest remote refs when remote is reachable",
+    "When remote is unavailable, comparison runs in isolated local worktree"
+  ],
+  "forbidden_behavior": [
+    "PR review proceeds with unresolved base/head refs",
+    "PR review proceeds when merge-base is unresolved",
+    "PR review silently degrades without isolated fallback"
+  ],
+  "user_visible_expectation": [
+    "User sees whether review ran in remote or isolated-local mode and the compared SHAs"
+  ],
+  "state_expectation": [
+    "review comparison mode and resolved base/head/merge-base are available"
+  ],
+  "code_hotspots": [
+    "governance/entrypoints/review_pr.py"
+  ],
+  "verification_methods": [
+    "static_verification",
+    "behavioral_verification",
+    "user_surface_verification",
+    "live_flow_verification"
+  ],
+  "acceptance_tests": [
+    "tests/test_review_pr_entrypoint.py::test_review_pr_happy_remote_first"
+  ],
+  "done_rule": {
+    "require_all_verifications_pass": true,
+    "fail_closed_on_missing_evidence": true,
+    "fail_on_forbidden_observation": true
+  }
+}

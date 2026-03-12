@@ -52,3 +52,10 @@ def test_r_merge_policy_001_owner() -> None:
     loaded = load_and_validate_contracts(root)
     target = next(c for c in loaded.contracts if c.get("id") == "R-MERGE-POLICY-001")
     assert target["owner_test"] == "tests/test_contract_seed_requirements.py::test_r_merge_policy_001_owner"
+
+
+def test_r_review_pr_001_owner() -> None:
+    root = Path(__file__).resolve().parents[1]
+    loaded = load_and_validate_contracts(root)
+    target = next(c for c in loaded.contracts if c.get("id") == "R-REVIEW-PR-001")
+    assert target["owner_test"] == "tests/test_contract_seed_requirements.py::test_r_review_pr_001_owner"

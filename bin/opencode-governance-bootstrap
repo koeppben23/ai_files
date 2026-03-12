@@ -34,6 +34,10 @@ case "${1:-}" in
         shift
         exec "${PYTHON_BIN}" "${COMMANDS_HOME}/governance/entrypoints/session_reader.py" "$@"
         ;;
+    --review-pr)
+        shift
+        exec "${PYTHON_BIN}" -m governance.entrypoints.review_pr "$@"
+        ;;
     --ticket-persist)
         shift
         exec "${PYTHON_BIN}" -m governance.entrypoints.phase4_intake_persist "$@"

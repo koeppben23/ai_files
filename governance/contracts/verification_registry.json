@@ -70,6 +70,19 @@
       "live_flow_verification": [
         "tests/test_ci_merge_policy.py::test_merge_blocked_when_any_requirement_unverified"
       ]
+    },
+    "R-REVIEW-PR-001": {
+      "behavioral_verification": [
+        "tests/test_review_pr_entrypoint.py::test_review_pr_happy_remote_first",
+        "tests/test_review_pr_entrypoint.py::test_review_pr_bad_remote_fetch_fails"
+      ],
+      "user_surface_verification": [
+        "tests/test_review_pr_entrypoint.py::test_review_pr_main_happy"
+      ],
+      "live_flow_verification": [
+        "tests/test_review_pr_entrypoint.py::test_review_pr_corner_remote_unavailable_uses_isolated_local",
+        "tests/test_review_pr_entrypoint.py::test_review_pr_edge_merge_base_unresolved_blocks"
+      ]
     }
   }
 }
