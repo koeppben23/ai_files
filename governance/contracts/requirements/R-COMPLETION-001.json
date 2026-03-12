@@ -1,0 +1,38 @@
+{
+  "id": "R-COMPLETION-001",
+  "title": "No completion without valid completion matrix",
+  "criticality": "release_blocking",
+  "owner_test": "tests/test_contract_seed_requirements.py::test_r_completion_001_owner",
+  "live_proof_key": "LP-COMPLETION-MATRIX-001",
+  "required_behavior": [
+    "Final completion status is derived only from completion matrix"
+  ],
+  "forbidden_behavior": [
+    "Prose-only completion claim without matrix",
+    "PASS status when any requirement is FAIL or UNVERIFIED"
+  ],
+  "user_visible_expectation": [
+    "User sees PASS/FAIL/UNVERIFIED with failing requirement ids"
+  ],
+  "state_expectation": [
+    "completion_matrix_present=true",
+    "overall_status_computed=true"
+  ],
+  "code_hotspots": [
+    "governance/verification/completion_matrix.py"
+  ],
+  "verification_methods": [
+    "static_verification",
+    "behavioral_verification",
+    "user_surface_verification",
+    "live_flow_verification"
+  ],
+  "acceptance_tests": [
+    "tests/test_completion_matrix_contract.py::test_matrix_is_fail_when_any_requirement_is_unverified"
+  ],
+  "done_rule": {
+    "require_all_verifications_pass": true,
+    "fail_closed_on_missing_evidence": true,
+    "fail_on_forbidden_observation": true
+  }
+}

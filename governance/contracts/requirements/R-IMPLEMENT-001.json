@@ -1,0 +1,38 @@
+{
+  "id": "R-IMPLEMENT-001",
+  "title": "No implement success without execution evidence or hard blocker",
+  "criticality": "release_blocking",
+  "owner_test": "tests/test_contract_seed_requirements.py::test_r_implement_001_owner",
+  "live_proof_key": "LP-IMPLEMENT-FAIL-CLOSED-001",
+  "required_behavior": [
+    "Implement rail emits execution evidence on success",
+    "Blocked execution returns reason code"
+  ],
+  "forbidden_behavior": [
+    "status ok when active gate is blocked",
+    "success without changed files or execution artifacts"
+  ],
+  "user_visible_expectation": [
+    "User sees concrete work evidence or explicit blocker"
+  ],
+  "state_expectation": [
+    "implementation_execution_evidence_present=true or implementation_hard_blockers>0"
+  ],
+  "code_hotspots": [
+    "governance/entrypoints/implement_start.py"
+  ],
+  "verification_methods": [
+    "static_verification",
+    "behavioral_verification",
+    "user_surface_verification",
+    "live_flow_verification"
+  ],
+  "acceptance_tests": [
+    "tests/test_implement_start_entrypoint.py::test_main_blocked_when_forced_blocker_marker"
+  ],
+  "done_rule": {
+    "require_all_verifications_pass": true,
+    "fail_closed_on_missing_evidence": true,
+    "fail_on_forbidden_observation": true
+  }
+}
