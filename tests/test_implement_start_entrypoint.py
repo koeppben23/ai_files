@@ -24,6 +24,8 @@ def _write_session(
                 "decision": decision,
             },
             "plan_record_versions": plan_record_versions,
+            "requirement_contracts_present": True,
+            "requirement_contracts_count": 3,
         },
     }
     path.write_text(json.dumps(payload, ensure_ascii=True), encoding="utf-8")
@@ -163,3 +165,22 @@ def test_main_corner_applies_target_patch_when_plan_mentions_file(monkeypatch, t
     assert out["status"] == "ok"
     assert "service.py" in "\n".join(out["implementation_changed_files"])
     assert "governance-implement:" in target.read_text(encoding="utf-8")
+
+
+def test_main_bad_missing_compiled_contracts_blocks(monkeypatch, tmp_path: Path, capsys) -> None:
+    session_path = tmp_path / "SESSION_STATE.json"
+    events_path = tmp_path / "events.jsonl"
+    _write_session(session_path)
+    payload = json.loads(session_path.read_text(encoding="utf-8"))
+    payload["SESSION_STATE"]["requirement_contracts_present"] = False
+    payload["SESSION_STATE"]["requirement_contracts_count"] = 0
+    session_path.write_text(json.dumps(payload, ensure_ascii=True), encoding="utf-8")
+    _write_plan_record(tmp_path / "plan-record.json")
+
+    monkeypatch.setattr(entrypoint, "_resolve_active_session_path", lambda: (session_path, events_path))
+    rc = entrypoint.main(["--quiet"])
+    out = json.loads(capsys.readouterr().out.strip())
+
+    assert rc == 2
+    assert out["status"] == "error"
+    assert "compiled requirement contracts" in out["message"]

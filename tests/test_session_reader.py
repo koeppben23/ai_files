@@ -2543,10 +2543,20 @@ class TestResolveNextActionLine:
             "phase": "6-PostFlight",
             "active_gate": "Implementation Presentation Gate",
             "next_gate_condition": "Implementation package is ready. Submit /implementation-decision.",
+            "completion_matrix_overall_status": "PASS",
         }
         assert _resolve_next_action_line(snapshot) == (
             "Next action: run /implementation-decision <approve|changes_requested|reject>."
         )
+
+    def test_happy_implementation_presentation_gate_requires_contract_verification_when_missing_matrix(self) -> None:
+        snapshot = {
+            "status": "OK",
+            "phase": "6-PostFlight",
+            "active_gate": "Implementation Presentation Gate",
+            "next_gate_condition": "Implementation package is ready. Submit /implementation-decision.",
+        }
+        assert _resolve_next_action_line(snapshot) == "Next action: run /verify-contracts."
 
     def test_happy_implementation_review_complete_routes_to_continue(self) -> None:
         snapshot = {

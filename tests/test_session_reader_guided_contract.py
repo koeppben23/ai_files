@@ -58,6 +58,7 @@ def test_guided_corner_implementation_presentation_renders_result_blocks() -> No
         "implementation_package_findings_open": [],
         "implementation_package_checks": ["pytest tests/test_review.py"],
         "implementation_package_stability": "stable",
+        "completion_matrix_overall_status": "PASS",
     }
 
     out = format_guided_snapshot(snapshot)
@@ -67,6 +68,18 @@ def test_guided_corner_implementation_presentation_renders_result_blocks() -> No
     assert "Findings fixed" in out
     assert "Verification evidence" in out
     assert out.strip().endswith("Next action: run /implementation-decision <approve|changes_requested|reject>.")
+
+
+def test_guided_corner_implementation_presentation_requires_verify_when_matrix_missing() -> None:
+    snapshot = {
+        "status": "OK",
+        "phase": "6-PostFlight",
+        "active_gate": "Implementation Presentation Gate",
+        "next_gate_condition": "Implementation package is ready.",
+    }
+
+    out = format_guided_snapshot(snapshot)
+    assert out.strip().endswith("Next action: run /verify-contracts.")
 
 
 def test_guided_edge_phase_display_hides_internal_token_labels() -> None:
