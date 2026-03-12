@@ -1,13 +1,12 @@
-"""Tests for Defects 3 & 4a: workspace logs/ and runs/ directories created at bootstrap.
+"""Tests for Defects 3 & 4a: runtime logs and archive runs directories are created.
 
 Defect 3: The workspace-scoped ``logs/`` directory was never created during
 bootstrap, causing the error logger to fall back to the global
 ``commands/logs`` path.
 
-Defect 4a: The workspace-scoped ``runs/`` directory was never created during
-bootstrap.  While ``archive_active_run()`` creates it lazily via
-``mkdir(parents=True)``, pre-creating it during bootstrap is a hardening
-measure that makes the workspace layout predictable from the start.
+Defect 4a: Archived runs must live under
+``workspaces/governance-records/<fp>/runs`` (not ``workspaces/<fp>/runs``).
+Bootstrap pre-creates this archive root to keep the layout deterministic.
 
 Both directories are now created via ``fs.mkdir_p()`` immediately after the
 initial SESSION_STATE and identity-map writes, before the ``no_commit``
@@ -56,7 +55,12 @@ _VALID_ACTIVATION_INTENT = {
     "single_dev_mode": True,
 }
 
-_WORKSPACE = "/mock/config/workspaces/abcdef0123456789abcdef01"
+_FP = "abcdef0123456789abcdef01"
+_WORKSPACE = f"/mock/config/workspaces/{_FP}"
+
+
+def _archive_runs_dir() -> Path:
+    return Path(f"/mock/config/workspaces/governance-records/{_FP}/runs")
 
 
 class _DummyRunner:
@@ -127,7 +131,7 @@ def _now() -> str:
 
 
 class TestHappyPath:
-    """Both logs/ and runs/ are created during a successful bootstrap."""
+    """Both logs/ and governance archive runs/ are created during bootstrap."""
 
     def test_logs_dir_created(self):
         fs = InMemoryFS()
@@ -139,7 +143,7 @@ class TestHappyPath:
         assert result.ok is True
         assert fs.dir_exists(Path(f"{_WORKSPACE}/logs"))
 
-    def test_runs_dir_created(self):
+    def test_archive_runs_dir_created(self):
         fs = InMemoryFS()
         _seed_valid_intent(fs)
         svc = BootstrapPersistenceService(fs=fs, runner=_DummyRunner(), logger=_DummyLogger())  # type: ignore[arg-type]
@@ -147,7 +151,7 @@ class TestHappyPath:
         result = svc.run(_payload(mode="user", no_commit=True), _now())
 
         assert result.ok is True
-        assert fs.dir_exists(Path(f"{_WORKSPACE}/runs"))
+        assert fs.dir_exists(_archive_runs_dir())
 
     def test_write_actions_records_workspace_dirs(self):
         fs = InMemoryFS()
@@ -169,7 +173,7 @@ class TestHappyPath:
 
         assert result.ok is True
         assert fs.dir_exists(Path(f"{_WORKSPACE}/logs"))
-        assert fs.dir_exists(Path(f"{_WORKSPACE}/runs"))
+        assert fs.dir_exists(_archive_runs_dir())
 
 
 # ---------------------------------------------------------------------------
@@ -189,7 +193,7 @@ class TestBadPath:
 
         assert result.ok is False
         assert not fs.dir_exists(Path(f"{_WORKSPACE}/logs"))
-        assert not fs.dir_exists(Path(f"{_WORKSPACE}/runs"))
+        assert not fs.dir_exists(_archive_runs_dir())
 
     def test_invalid_intent_no_dirs(self):
         """Invalid intent causes early exit before dir creation."""
@@ -202,7 +206,7 @@ class TestBadPath:
 
         assert result.ok is False
         assert not fs.dir_exists(Path(f"{_WORKSPACE}/logs"))
-        assert not fs.dir_exists(Path(f"{_WORKSPACE}/runs"))
+        assert not fs.dir_exists(_archive_runs_dir())
 
 
 # ---------------------------------------------------------------------------
@@ -224,18 +228,18 @@ class TestCornerCases:
         assert result.ok is True
         assert result.write_actions.get("no_commit") == "true"
         assert fs.dir_exists(Path(f"{_WORKSPACE}/logs"))
-        assert fs.dir_exists(Path(f"{_WORKSPACE}/runs"))
+        assert fs.dir_exists(_archive_runs_dir())
 
     def test_dirs_created_even_on_backfill_failure(self):
         """Backfill fails (non-zero exit) but the dirs were already created
         before backfill runs."""
         fs = InMemoryFS()
         _seed_valid_intent(fs)
-        svc = BootstrapPersistenceService(
+        svc = BootstrapPersistenceService(  # type: ignore[arg-type]
             fs=fs,
-            runner=_DummyRunner(returncode=1),
+            runner=_DummyRunner(returncode=1),  # pyright: ignore[reportArgumentType]
             logger=_DummyLogger(),
-        )  # type: ignore[arg-type]
+        )
 
         result = svc.run(
             _payload(mode="user", no_commit=False, skip_backfill=False),
@@ -246,7 +250,7 @@ class TestCornerCases:
         assert result.gate_code == "BACKFILL_NON_ZERO_EXIT"
         # Dirs were created before backfill
         assert fs.dir_exists(Path(f"{_WORKSPACE}/logs"))
-        assert fs.dir_exists(Path(f"{_WORKSPACE}/runs"))
+        assert fs.dir_exists(_archive_runs_dir())
 
     def test_dirs_created_even_on_missing_artifacts(self):
         """Required artifacts check fails but dirs were already created."""
@@ -267,7 +271,7 @@ class TestCornerCases:
         assert result.ok is False
         assert result.gate_code == "PHASE2_ARTIFACTS_MISSING"
         assert fs.dir_exists(Path(f"{_WORKSPACE}/logs"))
-        assert fs.dir_exists(Path(f"{_WORKSPACE}/runs"))
+        assert fs.dir_exists(_archive_runs_dir())
 
     def test_pipeline_mode_with_valid_intent_creates_dirs(self):
         """Pipeline mode with a valid intent must also create dirs."""
@@ -279,7 +283,7 @@ class TestCornerCases:
 
         assert result.ok is True
         assert fs.dir_exists(Path(f"{_WORKSPACE}/logs"))
-        assert fs.dir_exists(Path(f"{_WORKSPACE}/runs"))
+        assert fs.dir_exists(_archive_runs_dir())
 
 
 # ---------------------------------------------------------------------------
@@ -303,7 +307,7 @@ class TestEdgeCases:
         assert result1.ok is True
         assert result2.ok is True
         assert fs.dir_exists(Path(f"{_WORKSPACE}/logs"))
-        assert fs.dir_exists(Path(f"{_WORKSPACE}/runs"))
+        assert fs.dir_exists(_archive_runs_dir())
 
     def test_dirs_are_under_correct_workspace(self):
         """The dirs are created under the workspace root from the layout,
@@ -322,18 +326,18 @@ class TestEdgeCases:
         assert not fs.dir_exists(Path("/mock/config/workspaces/runs"))
         # SHOULD be under repo_home (the workspace root)
         assert fs.dir_exists(Path(f"{_WORKSPACE}/logs"))
-        assert fs.dir_exists(Path(f"{_WORKSPACE}/runs"))
+        assert fs.dir_exists(_archive_runs_dir())
+        assert not fs.dir_exists(Path(f"{_WORKSPACE}/runs"))
 
     def test_no_current_run_json_sentinel(self):
-        """Defect 4a hardening: runs/ is created but current_run.json is NOT
-        written (no contract basis for a sentinel value)."""
+        """Defect 4a hardening: archive runs root is created and no sentinel is written."""
         fs = InMemoryFS()
         _seed_valid_intent(fs)
         svc = BootstrapPersistenceService(fs=fs, runner=_DummyRunner(), logger=_DummyLogger())  # type: ignore[arg-type]
 
         svc.run(_payload(mode="user", no_commit=True), _now())
 
-        assert fs.dir_exists(Path(f"{_WORKSPACE}/runs"))
+        assert fs.dir_exists(_archive_runs_dir())
         assert not fs.exists(Path(f"{_WORKSPACE}/current_run.json"))
 
     def test_session_state_still_written_alongside_dirs(self):

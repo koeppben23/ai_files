@@ -29,6 +29,17 @@ from governance.infrastructure.plan_record_state import resolve_plan_record_sign
 from governance.contracts.enforcement import require_complete_contracts
 
 BLOCKED_IMPLEMENT_START_INVALID = "BLOCKED-UNSPECIFIED"
+_GOVERNANCE_META_TOKENS = (
+    "governance",
+    "phase",
+    "gate",
+    "review",
+    "plan record",
+    "decision semantics",
+    "state-machine",
+    "audit",
+    "reason-code",
+)
 
 
 def _now_iso() -> str:
@@ -80,23 +91,85 @@ def _latest_plan_text(plan_record_file: Path) -> str:
     return str(latest.get("plan_record_text") or "").strip()
 
 
-def _build_execution_work_queue(plan_text: str) -> list[str]:
-    queue: list[str] = []
-    for raw in plan_text.splitlines():
+def _contracts_path(session_path: Path, state: Mapping[str, object]) -> Path:
+    explicit = str(state.get("requirement_contracts_source") or "").strip()
+    if explicit:
+        candidate = Path(explicit)
+        if candidate.is_absolute():
+            return candidate
+        return session_path.parent / explicit
+    return session_path.parent / ".governance" / "contracts" / "compiled_requirements.json"
+
+
+def _load_compiled_requirements(session_path: Path, state: Mapping[str, object]) -> list[dict[str, object]]:
+    path = _contracts_path(session_path, state)
+    if not path.exists() or not path.is_file():
+        return []
+    try:
+        payload = _load_json(path)
+    except Exception:
+        return []
+    requirements = payload.get("requirements")
+    if not isinstance(requirements, list):
+        return []
+    out: list[dict[str, object]] = []
+    for item in requirements:
+        if isinstance(item, dict):
+            out.append(dict(item))
+    return out
+
+
+def _is_governance_meta(text: str) -> bool:
+    lower = text.strip().lower()
+    return any(token in lower for token in _GOVERNANCE_META_TOKENS)
+
+
+def _extract_action_lines(text: str) -> list[str]:
+    actions: list[str] = []
+    for raw in str(text or "").splitlines():
         line = raw.strip()
         if not line:
             continue
         if line.startswith(("- ", "* ")):
-            queue.append(line[2:].strip())
+            line = line[2:].strip()
         elif line[:3].isdigit() and "." in line[:4]:
-            queue.append(line.split(".", 1)[1].strip())
+            line = line.split(".", 1)[1].strip()
+        if line:
+            actions.append(line)
+    return actions
+
+
+def _build_execution_work_queue(plan_text: str, state: Mapping[str, object], contract_titles: list[str]) -> list[str]:
+    queue: list[str] = []
+
+    queue.extend(_extract_action_lines(str(state.get("Ticket") or "")))
+    queue.extend(_extract_action_lines(str(state.get("Task") or "")))
+
+    for title in contract_titles:
+        value = str(title).strip()
+        if value and not _is_governance_meta(value):
+            queue.append(value)
+
+    for line in _extract_action_lines(plan_text):
+        if not _is_governance_meta(line):
+            queue.append(line)
+
     if not queue:
         queue = [
-            "Identify files affected by the approved plan",
-            "Apply the first implementation change set",
+            "Identify files affected by ticket requirements",
+            "Apply implementation changes in repo target files",
             "Run focused verification for touched areas",
         ]
-    return queue[:20]
+
+    deduped: list[str] = []
+    seen: set[str] = set()
+    for item in queue:
+        key = " ".join(item.split()).lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(item)
+    return deduped[:20]
 
 
 def _repo_root(session_path: Path, state: Mapping[str, object]) -> Path:
@@ -136,6 +209,42 @@ def _extract_candidate_files(plan_text: str, repo_root: Path) -> list[Path]:
         if candidate.exists() and candidate.is_file():
             found.append(candidate)
     return found[:3]
+
+
+def _extract_hotspot_files(requirements: list[dict[str, object]], repo_root: Path) -> list[Path]:
+    seen: set[str] = set()
+    files: list[Path] = []
+    for requirement in requirements:
+        hotspots = requirement.get("code_hotspots")
+        if not isinstance(hotspots, list):
+            continue
+        for hotspot in hotspots:
+            token = str(hotspot or "").strip()
+            if not token or token.startswith(".."):
+                continue
+            path = Path(os.path.abspath(str(repo_root / token)))
+            try:
+                path.relative_to(repo_root)
+            except ValueError:
+                continue
+            if not path.exists() or not path.is_file():
+                continue
+            key = str(path)
+            if key in seen:
+                continue
+            seen.add(key)
+            files.append(path)
+    return files[:12]
+
+
+def _domain_changed_files(changed_files: list[Path], repo_root: Path) -> list[str]:
+    domain: list[str] = []
+    for path in changed_files:
+        rel = str(Path(os.path.abspath(str(path))).relative_to(repo_root))
+        if rel.startswith(".governance/"):
+            continue
+        domain.append(rel)
+    return domain
 
 
 def _write_execution_code_artifact(repo_root: Path, plan_text: str, work_queue: list[str]) -> Path:
@@ -187,7 +296,13 @@ def _hash_files(paths: list[Path], repo_root: Path) -> str:
     return h.hexdigest()
 
 
-def _review_iteration(*, plan_text: str, changed_files: list[Path], repo_root: Path) -> list[dict[str, str]]:
+def _review_iteration(
+    *,
+    plan_text: str,
+    changed_files: list[Path],
+    repo_root: Path,
+    required_hotspots: list[str],
+) -> list[dict[str, str]]:
     findings: list[dict[str, str]] = []
     if not changed_files:
         findings.append(
@@ -198,6 +313,24 @@ def _review_iteration(*, plan_text: str, changed_files: list[Path], repo_root: P
             }
         )
         return findings
+
+    domain_changes = _domain_changed_files(changed_files, repo_root)
+    if not domain_changes:
+        findings.append(
+            {
+                "severity": "critical",
+                "reason_code": "IMPLEMENTATION-NON_DOMAIN-CHANGES",
+                "message": "Implementation changed only governance artifacts and no repo domain files.",
+            }
+        )
+    if required_hotspots and not any(rel in set(required_hotspots) for rel in domain_changes):
+        findings.append(
+            {
+                "severity": "critical",
+                "reason_code": "IMPLEMENTATION-HOTSPOT-MISMATCH",
+                "message": "No changed files match required code_hotspots from compiled requirements.",
+            }
+        )
 
     for path in changed_files:
         rel = str(Path(os.path.abspath(str(path))).relative_to(repo_root))
@@ -253,18 +386,6 @@ def _apply_iteration_revision(
                 "    return [\"apply approved implementation step\"]\n"
             )
             _write_text_atomic(artifact, text)
-            fixed.append(finding)
-            continue
-        if code == "IMPLEMENTATION-NO-CHANGES":
-            # create a fallback artifact to recover from empty change-set
-            out_dir = repo_root / ".governance" / "implementation"
-            out_dir.mkdir(parents=True, exist_ok=True)
-            fallback = out_dir / "execution_fallback.py"
-            _write_text_atomic(
-                fallback,
-                "def execution_fallback() -> str:\n    return 'fallback implementation artifact'\n",
-            )
-            changed_files.append(fallback)
             fixed.append(finding)
             continue
         remaining.append(finding)
@@ -400,13 +521,22 @@ def start_implementation(
     ts = _now_iso()
     plan_record_file = session_path.parent / "plan-record.json"
     plan_text = _latest_plan_text(plan_record_file)
-    work_queue = _build_execution_work_queue(plan_text)
 
     repo_root = _repo_root(session_path, state)
+    compiled_requirements = _load_compiled_requirements(session_path, state)
+    contract_titles = [str(req.get("title") or "").strip() for req in compiled_requirements if isinstance(req, dict)]
+    work_queue = _build_execution_work_queue(plan_text, state, contract_titles)
+    required_hotspot_files = _extract_hotspot_files(compiled_requirements, repo_root)
+    required_hotspots_rel = [str(path.relative_to(repo_root)) for path in required_hotspot_files]
+
     changed_files: list[Path] = []
     execution_artifact = _write_execution_code_artifact(repo_root, plan_text, work_queue)
     changed_files.append(execution_artifact)
-    for candidate in _extract_candidate_files(plan_text, repo_root):
+    target_candidates = required_hotspot_files or _extract_candidate_files(
+        "\n".join([str(state.get("Ticket") or ""), str(state.get("Task") or ""), plan_text]),
+        repo_root,
+    )
+    for candidate in target_candidates:
         _apply_target_file_patch(repo_root, candidate, note="approved-plan execution touched this file")
         changed_files.append(candidate)
 
@@ -425,7 +555,12 @@ def start_implementation(
         iteration += 1
         current_digest = _hash_files(changed_files, repo_root)
         stage_history.append("Implementation Self Review")
-        findings = _review_iteration(plan_text=plan_text, changed_files=changed_files, repo_root=repo_root)
+        findings = _review_iteration(
+            plan_text=plan_text,
+            changed_files=changed_files,
+            repo_root=repo_root,
+            required_hotspots=required_hotspots_rel,
+        )
         critical = [f for f in findings if str(f.get("severity")) == "critical"]
         if critical:
             stage_history.append("Implementation Revision")
@@ -496,6 +631,7 @@ def start_implementation(
     state["implementation_work_queue"] = work_queue
     state["implementation_current_step"] = work_queue[0] if work_queue else "none"
     state["implementation_changed_files"] = changed_rel
+    state["implementation_required_hotspots"] = required_hotspots_rel
     state["execution_receipt"] = {
         "receipt_type": "execution_receipt",
         "requirement_scope": "R-IMPLEMENT-001",
@@ -592,6 +728,7 @@ def start_implementation(
         implementation_blockers=open_serialized,
         implementation_work_queue=work_queue,
         implementation_current_step=state["implementation_current_step"],
+        implementation_required_hotspots=required_hotspots_rel,
         implementation_changed_files=changed_rel,
         implementation_review_iterations=iteration,
         implementation_max_review_iterations=max_iterations,
