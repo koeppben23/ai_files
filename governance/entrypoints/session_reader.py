@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
 """Governance session reader -- self-bootstrapping entrypoint.
 
-Reads SESSION_STATE.json via the global pointer and outputs a minimal
-YAML-like snapshot to stdout for LLM consumption.
+Reads SESSION_STATE.json via the global pointer and emits the guided
+governance surface in normal mode. Debug, audit, and diagnostic views are
+explicit opt-in modes.
 
 Self-bootstrapping: this script resolves its own location to derive
 commands_home, then reads governance.paths.json for validation. No
 external PYTHONPATH setup is required.
 
-Output format: minimal key-value pairs (YAML-compatible), one per line.
+Normal mode output is the guided presentation used by operators. Debug and
+diagnostic modes emit a machine-readable key-value view for troubleshooting.
 On error: prints ``status: ERROR`` with a human-readable ``error:`` line.
 
 Copyright 2026 Benjamin Fuchs. All rights reserved. See LICENSE.
@@ -79,7 +81,7 @@ def _append_jsonl(path: Path, event: dict[str, object]) -> None:
 
 
 def _safe_str(value: object) -> str:
-    """Coerce a value to a YAML-safe scalar string."""
+    """Coerce a value to a stable scalar string for machine-readable output."""
     if value is None:
         return "null"
     if isinstance(value, bool):
@@ -88,7 +90,7 @@ def _safe_str(value: object) -> str:
 
 
 def _format_list(items: list) -> str:
-    """Format a list as a YAML inline sequence."""
+    """Format a list as an inline sequence for debug/diagnostic output."""
     if not items:
         return "[]"
     return "[" + ", ".join(_safe_str(i) for i in items) + "]"
@@ -732,7 +734,7 @@ def _normalize_phase6_p5_state(*, state_doc: dict, events_path: Path | None = No
 
 
 def _quote_if_needed(value: str) -> str:
-    """Wrap value in double quotes if it contains YAML-special characters."""
+    """Wrap value in double quotes when it includes key-value delimiters."""
     if any(c in value for c in (":", "#", "'", '"', "{", "}", "[", "]", ",", "&", "*", "?", "|", "-", "<", ">", "=", "!", "%", "@", "`")):
         escaped = value.replace("\\", "\\\\").replace('"', '\\"')
         return f'"{escaped}"'
@@ -1002,7 +1004,7 @@ def _resolve_next_action_line(snapshot: dict) -> str:
 
 
 def read_session_snapshot(commands_home: Path | None = None, *, materialize: bool = False) -> dict:
-    """Read the current governance session state and return a snapshot dict.
+    """Read governance session state and return the render source payload.
 
     Parameters
     ----------
@@ -1013,7 +1015,7 @@ def read_session_snapshot(commands_home: Path | None = None, *, materialize: boo
     Returns
     -------
     dict
-        Snapshot dict with at minimum ``schema`` and ``status`` keys.
+        Render source payload with at minimum ``schema`` and ``status`` keys.
     """
     if commands_home is None:
         commands_home = _derive_commands_home()
@@ -1071,7 +1073,7 @@ def read_session_snapshot(commands_home: Path | None = None, *, materialize: boo
             # Graceful degradation -- fall back to persisted state.
             kernel_result = None
 
-    # --- 4. Extract minimal fields ---
+    # --- 4. Extract canonical fields for guided and debug surfaces ---
     # Canonical documents store runtime fields under "SESSION_STATE".
     # Support both nested and top-level conventions while preferring nested.
     state_view = _session_state_view(state)
@@ -1410,7 +1412,7 @@ def read_session_snapshot(commands_home: Path | None = None, *, materialize: boo
 
 
 def format_snapshot(snapshot: dict) -> str:
-    """Format a snapshot dict as YAML-compatible key-value output."""
+    """Format debug/diagnostic key-value output (non-guided surface)."""
     lines = [f"# {SNAPSHOT_SCHEMA}"]
     for key, value in snapshot.items():
         if key == "schema":
