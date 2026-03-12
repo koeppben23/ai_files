@@ -3,7 +3,7 @@
   "title": "Exactly one canonical next action",
   "criticality": "release_blocking",
   "owner_test": "tests/test_contract_seed_requirements.py::test_r_next_action_001_owner",
-  "live_proof_key": "LP-CONTINUE-FOOTER-001",
+  "live_proof_key": "lp-next-action-footer",
   "required_behavior": [
     "Standard output contains exactly one line starting with 'Next action:'",
     "That line is the final operative line"

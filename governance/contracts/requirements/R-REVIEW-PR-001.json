@@ -3,7 +3,7 @@
   "title": "PR review comparison is remote-first with isolated local fallback",
   "criticality": "release_blocking",
   "owner_test": "tests/test_contract_seed_requirements.py::test_r_review_pr_001_owner",
-  "live_proof_key": "LP-REVIEW-PR-REMOTE-FIRST-001",
+  "live_proof_key": "lp-review-pr-remote-first",
   "required_behavior": [
     "PR review resolves base/head against latest remote refs when remote is reachable",
     "When remote is unavailable, comparison runs in isolated local worktree"

@@ -3,7 +3,7 @@
   "title": "No review decision without visible presentation receipt",
   "criticality": "release_blocking",
   "owner_test": "tests/test_contract_seed_requirements.py::test_r_review_decision_001_owner",
-  "live_proof_key": "LP-REVIEW-DECISION-GATE-001",
+  "live_proof_key": "lp-review-decision-receipt",
   "required_behavior": [
     "Review decision requires a valid presentation receipt for current gate and content"
   ],

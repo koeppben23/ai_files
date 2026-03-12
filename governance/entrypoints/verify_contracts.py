@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from governance.infrastructure.binding_evidence_resolver import BindingEvidenceResolver
+from governance.infrastructure.fs_atomic import atomic_write_text
 from governance.verification.runner import run_contract_verification
 
 
@@ -24,7 +25,7 @@ def _load_json(path: Path) -> dict[str, object]:
 
 
 def _write_json(path: Path, payload: dict[str, object]) -> None:
-    path.write_text(json.dumps(payload, ensure_ascii=True, sort_keys=True, separators=(",", ":")) + "\n", encoding="utf-8")
+    atomic_write_text(path, json.dumps(payload, ensure_ascii=True, sort_keys=True, separators=(",", ":")) + "\n")
 
 
 def _resolve_active_session_path() -> tuple[Path, Path]:

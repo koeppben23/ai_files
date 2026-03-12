@@ -3,7 +3,7 @@
   "title": "No completion without valid completion matrix",
   "criticality": "release_blocking",
   "owner_test": "tests/test_contract_seed_requirements.py::test_r_completion_001_owner",
-  "live_proof_key": "LP-COMPLETION-MATRIX-001",
+  "live_proof_key": "lp-completion-matrix-required",
   "required_behavior": [
     "Final completion status is derived only from completion matrix"
   ],

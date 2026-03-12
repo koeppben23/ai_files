@@ -3,7 +3,7 @@
   "title": "No YAML dump in normal mode presentation",
   "criticality": "release_blocking",
   "owner_test": "tests/test_contract_seed_requirements.py::test_r_output_001_owner",
-  "live_proof_key": "LP-CONTINUE-NO-YAML-001",
+  "live_proof_key": "lp-no-yaml-normal-output",
   "required_behavior": [
     "Normal mode renders guided sections only"
   ],

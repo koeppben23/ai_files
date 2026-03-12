@@ -3,7 +3,7 @@
   "title": "UNVERIFIED requirements are never mergeable",
   "criticality": "release_blocking",
   "owner_test": "tests/test_contract_seed_requirements.py::test_r_merge_policy_001_owner",
-  "live_proof_key": "LP-CI-MERGE-BLOCK-UNVERIFIED-001",
+  "live_proof_key": "lp-merge-block-unverified",
   "required_behavior": [
     "Merge policy blocks when any requirement is UNVERIFIED"
   ],

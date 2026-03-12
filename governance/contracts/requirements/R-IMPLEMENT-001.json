@@ -3,7 +3,7 @@
   "title": "No implement success without execution evidence or hard blocker",
   "criticality": "release_blocking",
   "owner_test": "tests/test_contract_seed_requirements.py::test_r_implement_001_owner",
-  "live_proof_key": "LP-IMPLEMENT-FAIL-CLOSED-001",
+  "live_proof_key": "lp-implement-fail-closed",
   "required_behavior": [
     "Implement rail emits execution evidence on success",
     "Blocked execution returns reason code"
