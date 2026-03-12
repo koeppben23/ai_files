@@ -20,6 +20,7 @@ import os
 import sys
 import tempfile
 import hashlib
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping
@@ -217,6 +218,7 @@ def _persist_review_package_markers(*, state_doc: dict, session_path: Path) -> N
         "digest": _sha256_text(receipt_source),
         "presented_at": _now_iso(),
         "contract": "guided-ui.v1",
+        "materialization_event_id": str(state.get("session_materialization_event_id") or ""),
     }
 
 
@@ -249,6 +251,7 @@ def _persist_implementation_package_markers(*, state_doc: dict) -> None:
         "digest": _sha256_text(receipt_source),
         "presented_at": _now_iso(),
         "contract": "guided-ui.v1",
+        "materialization_event_id": str(state.get("session_materialization_event_id") or ""),
     }
 
 
@@ -891,6 +894,11 @@ def _materialize_authoritative_state(*, commands_home: Path, config_root: Path, 
         if isinstance(ss, dict):
             ss["phase_transition_evidence"] = True
 
+    state_obj = materialized.get("SESSION_STATE")
+    state_map = state_obj if isinstance(state_obj, dict) else materialized
+    state_map["session_materialization_event_id"] = f"mat-{uuid.uuid4().hex}"
+    state_map["session_materialized_at"] = _now_iso()
+
     _sync_conditional_p5_gate_states(state_doc=materialized)
     _sync_phase6_completion_fields(state_doc=materialized)
     _normalize_phase6_p5_state(
@@ -1407,6 +1415,26 @@ _GATE_PURPOSES: dict[str, str] = {
 }
 
 
+def _display_phase(phase: object) -> str:
+    token = str(phase or "").strip()
+    lower = token.lower()
+    if lower == "4":
+        return "Phase 4 - Ticket Intake"
+    if lower.startswith("5.4"):
+        return "Phase 5 - Business Rules"
+    if lower.startswith("5.5"):
+        return "Phase 5 - Technical Debt"
+    if lower.startswith("5.6"):
+        return "Phase 5 - Rollback Safety"
+    if lower.startswith("5"):
+        return "Phase 5 - Architecture Review"
+    if lower.startswith("6"):
+        return "Phase 6 - Post Flight"
+    if lower.startswith("1"):
+        return "Phase 1 - Bootstrap"
+    return token or "unknown"
+
+
 def _section(lines: list[str], title: str) -> None:
     if lines:
         lines.append("")
@@ -1423,7 +1451,7 @@ def _append_list(lines: list[str], prefix: str, items: object) -> None:
 
 
 def _render_current_state(snapshot: dict) -> list[str]:
-    phase = str(snapshot.get("phase") or "unknown")
+    phase = _display_phase(snapshot.get("phase"))
     gate = str(snapshot.get("active_gate") or "none")
     purpose = _GATE_PURPOSES.get(gate.strip().lower(), "Guide the operator to the next deterministic governance step.")
     return [
@@ -1616,7 +1644,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     snapshot = read_session_snapshot(commands_home=commands_home, materialize=materialize_mode)
-    if materialize_mode and not debug_mode and not diagnose_mode:
+    if not audit_mode and not debug_mode and not diagnose_mode:
         rendered = format_guided_snapshot(snapshot)
     else:
         rendered = format_snapshot(snapshot)

@@ -140,12 +140,20 @@ def _review_package_ready(state: Mapping[str, object]) -> tuple[bool, str]:
     receipt_digest = str(receipt.get("digest") or "").strip()
     receipt_contract = str(receipt.get("contract") or "").strip()
     receipt_presented_at = str(receipt.get("presented_at") or "").strip()
+    receipt_materialization_id = str(receipt.get("materialization_event_id") or "").strip()
+    current_materialization_id = str(state.get("session_materialization_event_id") or "").strip()
     if not receipt_digest:
         return False, "review_package_presentation_receipt.digest=missing"
     if receipt_contract != "guided-ui.v1":
         return False, "review_package_presentation_receipt.contract!=guided-ui.v1"
     if not receipt_presented_at:
         return False, "review_package_presentation_receipt.presented_at=missing"
+    if not receipt_materialization_id:
+        return False, "review_package_presentation_receipt.materialization_event_id=missing"
+    if not current_materialization_id:
+        return False, "session_materialization_event_id=missing"
+    if receipt_materialization_id != current_materialization_id:
+        return False, "review_package_presentation_receipt.materialization_event_id_mismatch"
     if receipt_digest != _review_digest():
         return False, "review_package_presentation_receipt.digest_mismatch"
     return True, "ready"

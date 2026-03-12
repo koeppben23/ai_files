@@ -69,6 +69,20 @@ def test_guided_corner_implementation_presentation_renders_result_blocks() -> No
     assert out.strip().endswith("Next action: run /implementation-decision <approve|changes_requested|reject>.")
 
 
+def test_guided_edge_phase_display_hides_internal_token_labels() -> None:
+    snapshot = {
+        "status": "OK",
+        "phase": "5.4-BusinessRules",
+        "active_gate": "Business Rules Validation",
+        "next_gate_condition": "Phase 1.5 executed; Phase 5.4 is mandatory before proceeding",
+    }
+
+    out = format_guided_snapshot(snapshot)
+
+    assert "- Phase: Phase 5 - Business Rules" in out
+    assert "5.4-BusinessRules" not in out
+
+
 def test_guided_edge_materialize_normal_mode_has_no_yaml_dump(tmp_path: Path, capsys) -> None:
     config_root = tmp_path / "config_root"
     workspace = config_root / "workspaces" / "fp1"

@@ -946,14 +946,16 @@ class TestMain:
             rc = main(["--commands-home", str(fake_config / "commands")])
         assert rc == 0
         captured = capsys.readouterr()
-        assert "status: OK" in captured.out
+        assert "Current state" in captured.out
+        assert "Next action:" in captured.out
 
     def test_error_exit_code(self, fake_config: Path, capsys: pytest.CaptureFixture) -> None:
         # No pointer file -> error
         rc = main(["--commands-home", str(fake_config / "commands")])
         assert rc == 1
         captured = capsys.readouterr()
-        assert "status: ERROR" in captured.out
+        assert "Blocker" in captured.out
+        assert captured.out.strip().splitlines()[-1].startswith("Next action: ")
 
     def test_missing_commands_home_arg(self, capsys: pytest.CaptureFixture) -> None:
         rc = main(["--commands-home"])

@@ -25,6 +25,7 @@ def _write_session(path: Path, *, phase: str = "6-PostFlight") -> None:
         "SESSION_STATE": {
             "Phase": phase,
             "active_gate": "Evidence Presentation Gate",
+            "session_materialization_event_id": "mat-abc",
             "Gates": {
                 "P5-Architecture": "approved",
                 "P5.3-TestQuality": "pass",
@@ -43,6 +44,7 @@ def _write_session(path: Path, *, phase: str = "6-PostFlight") -> None:
                 "digest": hashlib.sha256(digest_source.encode("utf-8")).hexdigest(),
                 "presented_at": "2026-03-12T00:00:00Z",
                 "contract": "guided-ui.v1",
+                "materialization_event_id": "mat-abc",
             },
         },
     }

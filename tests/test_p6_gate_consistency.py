@@ -151,6 +151,7 @@ def _make_phase6_state(*, gates: dict | None = None, extra: dict | None = None) 
         },
         "review_package_presented": True,
         "review_package_plan_body_present": True,
+        "session_materialization_event_id": "mat-abc",
         "review_package_review_object": review_object,
         "review_package_ticket": review_ticket,
         "review_package_approved_plan_summary": review_summary,
@@ -162,6 +163,7 @@ def _make_phase6_state(*, gates: dict | None = None, extra: dict | None = None) 
             "digest": hashlib.sha256(digest_source.encode("utf-8")).hexdigest(),
             "presented_at": "2026-03-12T00:00:00Z",
             "contract": "guided-ui.v1",
+            "materialization_event_id": "mat-abc",
         },
     }
     if extra:

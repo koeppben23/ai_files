@@ -5,7 +5,7 @@
 ## Purpose
 
 `/review` is a read-only rail entrypoint for PR or ticket review.
-The command below prints the current session state as YAML and does not modify any files.
+The command below prints the current session state as guided governance output and does not modify any files.
 It reads materialized review/session state and does not perform implementation changes.
 It does not reroute phase state and does not replace `/review-decision`.
 
@@ -21,13 +21,13 @@ $env:Path = "{{BIN_DIR}};" + $env:Path; opencode-governance-bootstrap --session-
 
 ## If execution is unavailable
 
-If the command cannot be executed, ask the user to paste the YAML output or a snapshot containing at least `phase`, `next`, `active_gate`, and `next_gate_condition`.
+If the command cannot be executed, ask the user to paste the rendered output or a snapshot containing at least `phase`, `next`, `active_gate`, and `next_gate_condition`.
 
 If no snapshot is available, proceed using only the context visible in the current conversation and state assumptions explicitly before continuing.
 
 ## Interpretation scope
 
-Use the YAML output as governance context for the response below. Do not infer or mutate any session state.
+Use the rendered output as governance context for the response below. Do not infer or mutate any session state.
 
 Read the current review gate from the materialized session output. Gate definitions and Phase 5 output class restrictions are in `phase_api.yaml`.
 

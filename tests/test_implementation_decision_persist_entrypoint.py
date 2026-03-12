@@ -26,6 +26,7 @@ def _write_session(path: Path, *, gate: str = "Implementation Presentation Gate"
         "SESSION_STATE": {
             "Phase": "6-PostFlight",
             "active_gate": gate,
+            "session_materialization_event_id": "mat-abc",
             "implementation_package_presented": True,
             "implementation_quality_stable": True,
             "implementation_package_changed_files": changed_files,
@@ -35,6 +36,7 @@ def _write_session(path: Path, *, gate: str = "Implementation Presentation Gate"
                 "digest": hashlib.sha256(digest_source.encode("utf-8")).hexdigest(),
                 "presented_at": "2026-03-12T00:00:00Z",
                 "contract": "guided-ui.v1",
+                "materialization_event_id": "mat-abc",
             },
             "implementation_status": "in_progress",
         },
