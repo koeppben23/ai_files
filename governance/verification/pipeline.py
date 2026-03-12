@@ -36,5 +36,9 @@ def run_verifier_pipeline(
         }
 
     matrix = build_completion_matrix(requirements=requirements, verification_results=merged)
-    status = "PASS" if matrix.overall_status == "PASS" else "FAIL"
+    overall = str(matrix.overall_status or "FAIL").upper()
+    if overall in {"PASS", "FAIL", "UNVERIFIED"}:
+        status = overall
+    else:
+        status = "FAIL"
     return VerifierRunResult(matrix=matrix, status=status)
