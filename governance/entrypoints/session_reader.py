@@ -26,6 +26,7 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from governance.engine.next_action_resolver import resolve_next_action
+from governance.receipts.store import build_presentation_receipt
 
 # ---------------------------------------------------------------------------
 # Schema / version constants
@@ -214,12 +215,20 @@ def _persist_review_package_markers(*, state_doc: dict, session_path: Path) -> N
             str(state.get("review_package_decision_semantics") or ""),
         ]
     )
-    state["review_package_presentation_receipt"] = {
-        "digest": _sha256_text(receipt_source),
-        "presented_at": _now_iso(),
-        "contract": "guided-ui.v1",
-        "materialization_event_id": str(state.get("session_materialization_event_id") or ""),
-    }
+    rendered_at = _now_iso()
+    session_id = str(state.get("session_run_id") or session_path.parent.name or "unknown-session")
+    state["review_package_last_state_change_at"] = str(state.get("session_materialized_at") or rendered_at)
+    state["review_package_presentation_receipt"] = build_presentation_receipt(
+        receipt_type="governance_review_presentation_receipt",
+        requirement_scope="R-REVIEW-DECISION-001",
+        content_source=receipt_source,
+        rendered_at=rendered_at,
+        render_event_id=str(state.get("session_materialization_event_id") or ""),
+        gate="Evidence Presentation Gate",
+        session_id=session_id,
+        state_revision=str(state.get("session_materialization_event_id") or ""),
+        source_command="/continue",
+    )
 
 
 def _persist_implementation_package_markers(*, state_doc: dict) -> None:
@@ -247,12 +256,20 @@ def _persist_implementation_package_markers(*, state_doc: dict) -> None:
         ]
     )
     state["implementation_package_presented"] = True
-    state["implementation_package_presentation_receipt"] = {
-        "digest": _sha256_text(receipt_source),
-        "presented_at": _now_iso(),
-        "contract": "guided-ui.v1",
-        "materialization_event_id": str(state.get("session_materialization_event_id") or ""),
-    }
+    rendered_at = _now_iso()
+    session_id = str(state.get("session_run_id") or "unknown-session")
+    state["implementation_package_last_state_change_at"] = str(state.get("session_materialized_at") or rendered_at)
+    state["implementation_package_presentation_receipt"] = build_presentation_receipt(
+        receipt_type="implementation_presentation_receipt",
+        requirement_scope="R-IMPLEMENTATION-DECISION-001",
+        content_source=receipt_source,
+        rendered_at=rendered_at,
+        render_event_id=str(state.get("session_materialization_event_id") or ""),
+        gate="Implementation Presentation Gate",
+        session_id=session_id,
+        state_revision=str(state.get("session_materialization_event_id") or ""),
+        source_command="/continue",
+    )
 
 
 def _run_phase6_internal_review_loop(*, state_doc: dict, session_path: Path) -> None:
@@ -896,6 +913,8 @@ def _materialize_authoritative_state(*, commands_home: Path, config_root: Path, 
 
     state_obj = materialized.get("SESSION_STATE")
     state_map = state_obj if isinstance(state_obj, dict) else materialized
+    if not str(state_map.get("session_run_id") or "").strip():
+        state_map["session_run_id"] = f"session-{uuid.uuid4().hex[:12]}"
     state_map["session_materialization_event_id"] = f"mat-{uuid.uuid4().hex}"
     state_map["session_materialized_at"] = _now_iso()
 

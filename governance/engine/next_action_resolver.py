@@ -175,6 +175,17 @@ def resolve_next_action(snapshot: Mapping[str, object]) -> NextActionRender:
                 reason="implementation-blocked",
             )
         if gate == "implementation presentation gate":
+            matrix_status = _normalized_text(
+                snapshot.get("completion_matrix_overall_status")
+                or snapshot.get("completion_matrix_status")
+            )
+            if matrix_status != "pass":
+                return NextActionRender(
+                    command="/verify-contracts",
+                    label="run /verify-contracts.",
+                    kind="normal",
+                    reason="completion-matrix-required",
+                )
             return NextActionRender(
                 command="/implementation-decision",
                 label="run /implementation-decision <approve|changes_requested|reject>.",

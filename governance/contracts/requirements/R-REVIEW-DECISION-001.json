@@ -1,0 +1,41 @@
+{
+  "id": "R-REVIEW-DECISION-001",
+  "title": "No review decision without visible presentation receipt",
+  "criticality": "release_blocking",
+  "owner_test": "tests/test_contract_seed_requirements.py::test_r_review_decision_001_owner",
+  "live_proof_key": "lp-review-decision-receipt",
+  "required_behavior": [
+    "Review decision requires a valid presentation receipt for current gate and content"
+  ],
+  "forbidden_behavior": [
+    "Decision accepted without presentation receipt",
+    "Decision accepted with stale or mismatched receipt"
+  ],
+  "user_visible_expectation": [
+    "User sees the review object and full plan body before decision"
+  ],
+  "state_expectation": [
+    "review_package_presented=true",
+    "review_package_plan_body_present=true",
+    "review_presentation_receipt_valid=true"
+  ],
+  "code_hotspots": [
+    "governance/entrypoints/review_decision_persist.py",
+    "governance/entrypoints/session_reader.py"
+  ],
+  "verification_methods": [
+    "static_verification",
+    "behavioral_verification",
+    "user_surface_verification",
+    "live_flow_verification",
+    "receipts_verification"
+  ],
+  "acceptance_tests": [
+    "tests/test_review_decision_persist_entrypoint.py::test_apply_review_decision_errors_without_review_package_markers"
+  ],
+  "done_rule": {
+    "require_all_verifications_pass": true,
+    "fail_closed_on_missing_evidence": true,
+    "fail_on_forbidden_observation": true
+  }
+}

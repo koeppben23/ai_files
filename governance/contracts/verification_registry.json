@@ -1,0 +1,88 @@
+{
+  "schema": "governance-verification-registry.v1",
+  "requirements": {
+    "R-NEXT-ACTION-001": {
+      "behavioral_verification": [
+        "tests/test_session_reader_guided_contract.py::test_guided_bad_blocker_contains_blocker_section_and_single_next_action"
+      ],
+      "user_surface_verification": [
+        "tests/test_session_reader_guided_contract.py::test_guided_happy_evidence_presentation_contains_full_review_blocks"
+      ],
+      "live_flow_verification": [
+        "tests/test_bootstrap_persistence_e2e.py::test_continue_first_step_executes_after_bootstrap"
+      ]
+    },
+    "R-OUTPUT-001": {
+      "behavioral_verification": [
+        "tests/test_session_reader_guided_contract.py::test_guided_edge_materialize_normal_mode_has_no_yaml_dump"
+      ],
+      "user_surface_verification": [
+        "tests/test_session_reader_guided_contract.py::test_guided_edge_phase_display_hides_internal_token_labels"
+      ],
+      "live_flow_verification": [
+        "tests/test_bootstrap_persistence_e2e.py::test_continue_first_step_executes_after_bootstrap"
+      ],
+      "receipts_verification": [
+        "tests/test_receipt_match_rules.py::test_receipt_match_happy_path"
+      ]
+    },
+    "R-REVIEW-DECISION-001": {
+      "behavioral_verification": [
+        "tests/test_review_decision_persist_entrypoint.py::test_main_happy_approve"
+      ],
+      "user_surface_verification": [
+        "tests/test_session_reader_guided_contract.py::test_guided_happy_evidence_presentation_contains_full_review_blocks"
+      ],
+      "live_flow_verification": [
+        "tests/test_review_decision_persist_entrypoint.py::test_main_bad_stale_receipt_timestamp_blocks"
+      ],
+      "receipts_verification": [
+        "tests/test_receipt_match_rules.py::test_receipt_match_happy_path",
+        "tests/test_receipt_match_rules.py::test_receipt_match_corner_stale_timestamp_blocks"
+      ]
+    },
+    "R-IMPLEMENT-001": {
+      "behavioral_verification": [
+        "tests/test_implement_start_entrypoint.py::test_main_blocked_when_forced_blocker_marker"
+      ],
+      "user_surface_verification": [
+        "tests/test_session_reader_guided_contract.py::test_guided_corner_implementation_presentation_renders_result_blocks"
+      ],
+      "live_flow_verification": [
+        "tests/test_implement_start_entrypoint.py::test_main_happy_implement_start"
+      ]
+    },
+    "R-COMPLETION-001": {
+      "behavioral_verification": [
+        "tests/test_completion_matrix_contract.py::test_matrix_is_fail_when_any_requirement_is_unverified"
+      ],
+      "user_surface_verification": [
+        "tests/test_completion_matrix_contract.py::test_matrix_happy_all_pass"
+      ],
+      "live_flow_verification": [
+        "tests/test_verifier_pipeline_contract.py::test_verifier_pipeline_bad_missing_dimensions_defaults_unverified"
+      ]
+    },
+    "R-MERGE-POLICY-001": {
+      "behavioral_verification": [
+        "tests/test_completion_matrix_contract.py::test_merge_policy_blocks_when_overall_unverified"
+      ],
+      "live_flow_verification": [
+        "tests/test_ci_merge_policy.py::test_merge_blocked_when_any_requirement_unverified"
+      ]
+    },
+    "R-REVIEW-PR-001": {
+      "behavioral_verification": [
+        "tests/test_review_pr_entrypoint.py::test_review_pr_happy_remote_first",
+        "tests/test_review_pr_entrypoint.py::test_review_pr_bad_remote_fetch_fails"
+      ],
+      "user_surface_verification": [
+        "tests/test_review_pr_entrypoint.py::test_review_pr_main_happy"
+      ],
+      "live_flow_verification": [
+        "tests/test_review_pr_entrypoint.py::test_review_pr_corner_remote_unavailable_uses_isolated_local",
+        "tests/test_review_pr_entrypoint.py::test_review_pr_edge_merge_base_unresolved_blocks"
+      ]
+    }
+  }
+}

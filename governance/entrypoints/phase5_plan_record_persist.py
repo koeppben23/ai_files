@@ -18,6 +18,8 @@ if __package__ in {None, ""}:
 from governance.application.use_cases.phase_router import route_phase
 from governance.application.use_cases.rework_clarification import consume_rework_clarification_state
 from governance.application.use_cases.session_state_helpers import with_kernel_result
+from governance.contracts.compiler import compile_plan_to_requirements
+from governance.contracts.validator import validate_requirement_contracts
 from governance.domain import reason_codes
 from governance.domain.phase_state_machine import normalize_phase_token
 from governance.infrastructure.binding_evidence_resolver import BindingEvidenceResolver
@@ -74,6 +76,24 @@ def _append_jsonl(path: Path, event: Mapping[str, object]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a", encoding="utf-8") as handle:
         handle.write(json.dumps(dict(event), ensure_ascii=True, separators=(",", ":")) + "\n")
+
+
+def _contracts_path(session_path: Path) -> Path:
+    return session_path.parent / ".governance" / "contracts" / "compiled_requirements.json"
+
+
+def _persist_compiled_contracts(*, session_path: Path, compiled: list[dict[str, object]], generated_at: str) -> tuple[str, int]:
+    payload = {
+        "schema": "governance-compiled-requirements.v1",
+        "generated_at": generated_at,
+        "requirements": compiled,
+    }
+    text = json.dumps(payload, ensure_ascii=True, sort_keys=True, separators=(",", ":")) + "\n"
+    path = _contracts_path(session_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    atomic_write_text(path, text)
+    digest = _digest(text)
+    return digest, len(compiled)
 
 
 def _resolve_active_session_path() -> tuple[Path, str]:
@@ -374,6 +394,25 @@ def main(argv: list[str] | None = None) -> int:
         final_plan_text = str(review_result.get("final_plan_text") or plan_text)
         review_digest = _digest(final_plan_text)
 
+        compiled = compile_plan_to_requirements(plan_text=final_plan_text, scope_prefix="PLAN")
+        compiled_requirements = [dict(item) for item in compiled.requirements]
+        contract_validation = validate_requirement_contracts(compiled_requirements)
+        if not contract_validation.ok:
+            payload = _payload(
+                "blocked",
+                reason_code=reason_codes.BLOCKED_P5_PLAN_RECORD_PERSIST,
+                reason="plan-contract-compilation-failed",
+                observed=list(contract_validation.errors),
+                recovery_action="revise plan text so atomic requirement contracts validate, then rerun /plan",
+            )
+            print(json.dumps(payload, ensure_ascii=True))
+            return 2
+        contracts_digest, contracts_count = _persist_compiled_contracts(
+            session_path=session_path,
+            compiled=compiled_requirements,
+            generated_at=_now_iso(),
+        )
+
         workspace_home = session_path.parent
         repo = PlanRecordRepository(
             path=plan_record_path(workspace_home.parent, repo_fingerprint),
@@ -447,6 +486,10 @@ def main(argv: list[str] | None = None) -> int:
         state["phase5_self_review_iterations"] = _as_int(review_result.get("iterations"), 0)
         state["phase5_max_review_iterations"] = _as_int(review_result.get("max_iterations"), _PHASE5_REVIEW_MAX_ITERATIONS)
         state["phase5_revision_delta"] = str(review_result.get("revision_delta") or "changed")
+        state["requirement_contracts_present"] = contracts_count > 0
+        state["requirement_contracts_count"] = contracts_count
+        state["requirement_contracts_digest"] = f"sha256:{contracts_digest}"
+        state["requirement_contracts_source"] = str(_contracts_path(session_path))
         state["Phase5Review"] = {
             "iteration": _as_int(review_result.get("iterations"), 0),
             "max_iterations": _as_int(review_result.get("max_iterations"), _PHASE5_REVIEW_MAX_ITERATIONS),
@@ -521,6 +564,8 @@ def main(argv: list[str] | None = None) -> int:
                 "self_review_iterations_met": bool(review_result.get("self_review_iterations_met")),
                 "self_review_iterations": _as_int(review_result.get("iterations"), 0),
                 "phase5_revision_delta": str(review_result.get("revision_delta") or "changed"),
+                "requirement_contracts_count": contracts_count,
+                "requirement_contracts_digest": f"sha256:{contracts_digest}",
             },
         )
     except Exception as exc:
