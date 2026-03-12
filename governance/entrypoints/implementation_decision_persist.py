@@ -16,6 +16,7 @@ if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).absolute().parents[2]))
 
 from governance.domain import reason_codes
+from governance.receipts.match import ReceiptMatchContext, validate_receipt_match
 from governance.infrastructure.adapters.logging.event_sink import write_jsonl_event
 from governance.infrastructure.binding_evidence_resolver import BindingEvidenceResolver
 from governance.infrastructure.fs_atomic import atomic_write_text
@@ -135,6 +136,29 @@ def _implementation_package_ready(state: Mapping[str, object]) -> tuple[bool, st
         return False, "session_materialization_event_id=missing"
     if receipt_materialization_id != current_materialization_id:
         return False, "implementation_package_presentation_receipt.materialization_event_id_mismatch"
+
+    current_session_id = str(state.get("session_run_id") or "").strip()
+    if not current_session_id:
+        return False, "session_run_id=missing"
+    last_state_change_at = str(
+        state.get("implementation_package_last_state_change_at")
+        or state.get("session_materialized_at")
+        or ""
+    ).strip()
+    matched, reason = validate_receipt_match(
+        receipt=receipt,
+        context=ReceiptMatchContext(
+            expected_receipt_type="implementation_presentation_receipt",
+            expected_gate="Implementation Presentation Gate",
+            expected_digest=_implementation_digest(),
+            expected_session_id=current_session_id,
+            expected_state_revision=current_materialization_id,
+            expected_scope="R-IMPLEMENTATION-DECISION-001",
+            last_relevant_state_change_at=last_state_change_at,
+        ),
+    )
+    if not matched:
+        return False, f"implementation_package_presentation_receipt.match={reason}"
     if receipt_digest != _implementation_digest():
         return False, "implementation_package_presentation_receipt.digest_mismatch"
     return True, "ready"
