@@ -250,6 +250,7 @@ def with_kernel_result(
     ss["Phase"] = phase
     ss["phase"] = phase
     ss["Next"] = next_token or ""
+    ss["next"] = next_token or ""
     ss["active_gate"] = active_gate
     ss["next_gate_condition"] = next_gate_condition
     ss["status"] = status

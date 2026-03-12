@@ -146,6 +146,19 @@ def validate_reason_payloads_required(state: Mapping[str, object]) -> tuple[str,
     return ()
 
 
+def validate_next_field_sync(state: Mapping[str, object]) -> tuple[str, ...]:
+    """If both Next and next exist, they must be identical."""
+    has_next = "next" in state
+    has_Next = "Next" in state
+    if not has_next or not has_Next:
+        return ()
+    next_pascal = str(state.get("Next") or "").strip()
+    next_lower = str(state.get("next") or "").strip()
+    if next_pascal != next_lower:
+        return ("next_field_mismatch",)
+    return ()
+
+
 def validate_session_state_invariants(session_state_document: Mapping[str, object]) -> tuple[str, ...]:
     """Run all cross-field invariant validators and return all violations."""
     state = session_state_document.get("SESSION_STATE")
@@ -158,6 +171,7 @@ def validate_session_state_invariants(session_state_document: Mapping[str, objec
     errors.extend(validate_profile_source_blocked_invariant(state))
     errors.extend(validate_ticket_intake_ready_invariant(state))
     errors.extend(validate_reason_payloads_required(state))
+    errors.extend(validate_next_field_sync(state))
     errors.extend(validate_output_mode_architect_invariant(state))
     errors.extend(validate_rulebook_evidence_mirror(state))
     errors.extend(validate_addon_evidence_mirror(state))

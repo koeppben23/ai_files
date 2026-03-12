@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import re
 from pathlib import Path
 from typing import Any, MutableMapping
 
@@ -31,13 +32,31 @@ def _parse_inventory_rules(content: str) -> list[str]:
     for raw_line in content.splitlines():
         line = raw_line.strip()
         if line.startswith("- ") and len(line) > 2:
-            rules.append(line[2:].strip())
+            candidate = line[2:].strip()
+            if _is_valid_rule(candidate):
+                rules.append(candidate)
             continue
         if line.startswith("Rule:"):
             value = line[len("Rule:") :].strip()
-            if value:
+            if _is_valid_rule(value):
                 rules.append(value)
     return rules
+
+
+def _is_valid_rule(rule: str) -> bool:
+    token = " ".join(str(rule or "").strip().split())
+    if not token:
+        return False
+    if not re.match(r"^BR-[A-Za-z0-9._-]+:\s+\S", token):
+        return False
+    lower = token.lower()
+    if "tests/" in lower or "artifacts/" in lower:
+        return False
+    if re.search(r"\b[a-z0-9_/.-]+\.(py|js|ts|java|md):\d+", lower):
+        return False
+    if any(ch in token for ch in ("`", "[", "]")):
+        return False
+    return True
 
 
 def hydrate_business_rules_state_from_artifacts(

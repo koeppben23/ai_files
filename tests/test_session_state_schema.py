@@ -26,6 +26,7 @@ from governance.engine.session_state_invariants import (
     validate_gate_artifacts_integrity,
     validate_ticket_intake_ready_invariant,
     validate_session_state_invariants,
+    validate_next_field_sync,
 )
 
 
@@ -188,6 +189,15 @@ class TestInvariantValidators:
     def test_non_blocked_mode_skips_check(self):
         state: dict[str, object] = {"Mode": "NORMAL", "Next": "Continue"}
         assert validate_blocked_next_invariant(state) == ()
+
+    def test_next_fields_must_match_when_both_present(self):
+        state: dict[str, object] = {"Next": "6", "next": "4"}
+        errors = validate_next_field_sync(state)
+        assert "next_field_mismatch" in errors
+
+    def test_next_fields_sync_ok(self):
+        state: dict[str, object] = {"Next": "6", "next": "6"}
+        assert validate_next_field_sync(state) == ()
 
     def test_confidence_low_with_draft_ok(self):
         state: dict[str, object] = {"ConfidenceLevel": 50, "Mode": "DRAFT"}
