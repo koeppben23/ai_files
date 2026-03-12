@@ -445,6 +445,13 @@ def start_implementation(
     changed_rel = [str(Path(os.path.abspath(str(p))).relative_to(repo_root)) for p in changed_files]
     fixed_serialized = [_serialize_finding(f) for f in fixed_findings]
     open_serialized = [_serialize_finding(f) for f in open_findings]
+    hard_reason_code = ""
+    if open_serialized:
+        parts = str(open_serialized[0]).split(":", 2)
+        if len(parts) >= 2:
+            hard_reason_code = parts[1].strip()
+    if not hard_reason_code:
+        hard_reason_code = "IMPLEMENTATION-HARD-BLOCKER"
 
     state["implementation_authorized"] = True
     state["implementation_started"] = True
@@ -501,7 +508,7 @@ def start_implementation(
         state["active_gate"] = "Implementation Blocked"
         state["next_gate_condition"] = (
             "Implementation blocked by unresolved critical findings. "
-            "Resolve blockers and rerun /implement."
+            f"reason_code={hard_reason_code}. Resolve blockers and rerun /implement."
         )
         state["implementation_package_presented"] = False
 
@@ -531,8 +538,8 @@ def start_implementation(
     if events_path is not None:
         _append_event(events_path, audit_event)
 
-    return _payload(
-        "ok",
+    payload = _payload(
+        "ok" if quality_stable else "blocked",
         event_id=event_id,
         phase="6-PostFlight",
         next="6",
@@ -562,6 +569,9 @@ def start_implementation(
             else "resolve implementation blockers, then run /implement."
         ),
     )
+    if not quality_stable:
+        payload["reason_code"] = hard_reason_code
+    return payload
 
 
 def main(argv: list[str] | None = None) -> int:

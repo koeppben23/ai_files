@@ -16,6 +16,7 @@ Covers:
 from __future__ import annotations
 
 import json
+import hashlib
 from pathlib import Path
 
 import pytest
@@ -99,6 +100,29 @@ def _write_plan_record(workspaces_home: Path, fingerprint: str) -> None:
 
 def _make_phase6_state(*, gates: dict | None = None, extra: dict | None = None) -> dict:
     """Build a SESSION_STATE document already in Phase 6."""
+    review_object = "Final Phase-6 implementation review decision"
+    review_ticket = "TASK-1"
+    review_summary = "Approved plan summary"
+    review_plan_body = "Approved plan body"
+    review_scope = "Implement the approved plan record in this repository."
+    review_constraints = "Governance guards remain active; implementation must follow the approved plan scope."
+    review_semantics = (
+        "approve=governance complete + implementation authorized; "
+        "changes_requested=enter rework clarification gate; "
+        "reject=return to phase 4 ticket input gate"
+    )
+    digest_source = "|".join(
+        [
+            review_object,
+            review_ticket,
+            review_summary,
+            review_plan_body,
+            review_scope,
+            review_constraints,
+            review_semantics,
+        ]
+    )
+
     state = {
         "Phase": "6-PostFlight",
         "active_gate": "Evidence Presentation Gate",
@@ -127,7 +151,20 @@ def _make_phase6_state(*, gates: dict | None = None, extra: dict | None = None) 
         },
         "review_package_presented": True,
         "review_package_plan_body_present": True,
-        "review_package_review_object": "Final Phase-6 implementation review decision",
+        "session_materialization_event_id": "mat-abc",
+        "review_package_review_object": review_object,
+        "review_package_ticket": review_ticket,
+        "review_package_approved_plan_summary": review_summary,
+        "review_package_plan_body": review_plan_body,
+        "review_package_implementation_scope": review_scope,
+        "review_package_constraints": review_constraints,
+        "review_package_decision_semantics": review_semantics,
+        "review_package_presentation_receipt": {
+            "digest": hashlib.sha256(digest_source.encode("utf-8")).hexdigest(),
+            "presented_at": "2026-03-12T00:00:00Z",
+            "contract": "guided-ui.v1",
+            "materialization_event_id": "mat-abc",
+        },
     }
     if extra:
         state.update(extra)

@@ -6,6 +6,7 @@
 
 `/continue` materializes and prints the current governance session state for this repository.
 The command is mutating — it writes a materialization event.
+In normal mode the output is a guided user-facing readout, not a YAML field dump.
 
 ## Commands by platform
 
@@ -19,13 +20,13 @@ $env:Path = "{{BIN_DIR}};" + $env:Path; opencode-governance-bootstrap --session-
 
 ## If execution is unavailable
 
-If the command cannot be executed, ask the user to paste the YAML output or a snapshot containing at least `phase`, `next`, `active_gate`, and `next_gate_condition`.
+If the command cannot be executed, ask the user to paste the rendered output or a snapshot containing at least `phase`, `next`, `active_gate`, and `next_gate_condition`.
 
 If no snapshot is available, proceed using only the context visible in the current conversation and state assumptions explicitly before continuing.
 
 ## Interpretation scope
 
-Use the YAML output as governance context for the response below. Do not infer or mutate any session state beyond the materialized output.
+Use the rendered output as governance context for the response below. Do not infer or mutate any session state beyond the materialized output.
 
 ## Response shape
 
