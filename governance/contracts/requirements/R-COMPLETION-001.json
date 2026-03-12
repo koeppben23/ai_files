@@ -28,7 +28,7 @@
     "live_flow_verification"
   ],
   "acceptance_tests": [
-    "tests/test_completion_matrix_contract.py::test_matrix_is_fail_when_any_requirement_is_unverified"
+    "tests/test_completion_matrix_contract.py::test_matrix_is_unverified_when_any_requirement_is_unverified"
   ],
   "done_rule": {
     "require_all_verifications_pass": true,

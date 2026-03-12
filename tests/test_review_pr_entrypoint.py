@@ -7,11 +7,18 @@ from pathlib import Path
 from governance.entrypoints import review_pr
 
 
+class _EnforcementOk:
+    ok = True
+    reason = "ready"
+    details = ()
+
+
 def _cp(returncode: int, stdout: str = "", stderr: str = "") -> subprocess.CompletedProcess[str]:
     return subprocess.CompletedProcess(args=["git"], returncode=returncode, stdout=stdout, stderr=stderr)
 
 
 def test_review_pr_happy_remote_first(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setattr(review_pr, "require_complete_contracts", lambda repo_root, required_ids: _EnforcementOk())
     def fake_run(args: list[str], *, cwd: Path):
         joined = " ".join(args)
         if joined.startswith("ls-remote"):
@@ -36,6 +43,7 @@ def test_review_pr_happy_remote_first(monkeypatch, tmp_path: Path) -> None:
 
 
 def test_review_pr_bad_remote_fetch_fails(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setattr(review_pr, "require_complete_contracts", lambda repo_root, required_ids: _EnforcementOk())
     def fake_run(args: list[str], *, cwd: Path):
         joined = " ".join(args)
         if joined.startswith("ls-remote"):
@@ -51,6 +59,7 @@ def test_review_pr_bad_remote_fetch_fails(monkeypatch, tmp_path: Path) -> None:
 
 
 def test_review_pr_corner_remote_unavailable_uses_isolated_local(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setattr(review_pr, "require_complete_contracts", lambda repo_root, required_ids: _EnforcementOk())
     def fake_run(args: list[str], *, cwd: Path):
         joined = " ".join(args)
         if joined.startswith("ls-remote"):
@@ -78,6 +87,7 @@ def test_review_pr_corner_remote_unavailable_uses_isolated_local(monkeypatch, tm
 
 
 def test_review_pr_edge_merge_base_unresolved_blocks(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setattr(review_pr, "require_complete_contracts", lambda repo_root, required_ids: _EnforcementOk())
     def fake_run(args: list[str], *, cwd: Path):
         joined = " ".join(args)
         if joined.startswith("ls-remote"):
@@ -99,6 +109,7 @@ def test_review_pr_edge_merge_base_unresolved_blocks(monkeypatch, tmp_path: Path
 
 
 def test_review_pr_main_happy(monkeypatch, capsys, tmp_path: Path) -> None:
+    monkeypatch.setattr(review_pr, "require_complete_contracts", lambda repo_root, required_ids: _EnforcementOk())
     monkeypatch.setattr(
         review_pr,
         "analyze_pr",

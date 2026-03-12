@@ -28,7 +28,7 @@ def test_verifier_pipeline_bad_missing_dimensions_defaults_unverified() -> None:
         receipts_results={},
     )
     assert result.status == "FAIL"
-    assert result.matrix.overall_status == "FAIL"
+    assert result.matrix.overall_status == "UNVERIFIED"
     assert result.matrix.completion_matrix[0]["overall"] == "UNVERIFIED"
 
 
@@ -59,5 +59,5 @@ def test_verifier_pipeline_edge_multiple_requirements() -> None:
         live_flow_results={"R1": "PASS", "R2": "UNVERIFIED"},
         receipts_results={"R1": "PASS", "R2": "PASS"},
     )
-    assert result.matrix.overall_status == "FAIL"
+    assert result.matrix.overall_status == "UNVERIFIED"
     assert any(row["id"] == "R2" and row["overall"] == "UNVERIFIED" for row in result.matrix.completion_matrix)
