@@ -372,6 +372,17 @@ def start_implementation(
             reason_code=BLOCKED_IMPLEMENT_START_INVALID,
             message="/implement requires persisted plan-record evidence.",
         )
+    contracts_present = bool(state.get("requirement_contracts_present"))
+    try:
+        contracts_count = int(str(state.get("requirement_contracts_count") or "0").strip())
+    except ValueError:
+        contracts_count = 0
+    if not contracts_present or contracts_count < 1:
+        return _payload(
+            "error",
+            reason_code=BLOCKED_IMPLEMENT_START_INVALID,
+            message="/implement requires compiled requirement contracts from /plan before execution can start.",
+        )
 
     event_id = uuid.uuid4().hex
     ts = _now_iso()
@@ -473,6 +484,20 @@ def start_implementation(
     state["implementation_work_queue"] = work_queue
     state["implementation_current_step"] = work_queue[0] if work_queue else "none"
     state["implementation_changed_files"] = changed_rel
+    state["execution_receipt"] = {
+        "receipt_type": "execution_receipt",
+        "requirement_scope": "R-IMPLEMENT-001",
+        "content_digest": hashlib.sha256("|".join(changed_rel).encode("utf-8")).hexdigest(),
+        "rendered_at": ts,
+        "render_event_id": event_id,
+        "gate": str(state.get("active_gate") or "Implementation Execution In Progress"),
+        "session_id": str(state.get("session_run_id") or "unknown-session"),
+        "state_revision": str(state.get("session_materialization_event_id") or event_id),
+        "source_command": "/implement",
+        "changed_files": changed_rel,
+        "checks_started": ["internal implementation self-review loop", "artifact integrity check"],
+        "blocked_reason_code": hard_reason_code if not quality_stable else "none",
+    }
     state["implementation_review_iterations"] = iteration
     state["implementation_max_review_iterations"] = max_iterations
     state["implementation_min_review_iterations"] = min_iterations

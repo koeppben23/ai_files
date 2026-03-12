@@ -1,0 +1,38 @@
+{
+  "id": "R-OUTPUT-001",
+  "title": "No YAML dump in normal mode presentation",
+  "criticality": "release_blocking",
+  "owner_test": "tests/test_contract_seed_requirements.py::test_r_output_001_owner",
+  "live_proof_key": "lp-no-yaml-normal-output",
+  "required_behavior": [
+    "Normal mode renders guided sections only"
+  ],
+  "forbidden_behavior": [
+    "Raw YAML-style field dump in normal output",
+    "Exposing internal state fields as primary output"
+  ],
+  "user_visible_expectation": [
+    "Normal output is readable without YAML knowledge"
+  ],
+  "state_expectation": [
+    "normal_mode_output_contract=guided_ui_v1"
+  ],
+  "code_hotspots": [
+    "governance/entrypoints/session_reader.py"
+  ],
+  "verification_methods": [
+    "static_verification",
+    "behavioral_verification",
+    "user_surface_verification",
+    "live_flow_verification",
+    "receipts_verification"
+  ],
+  "acceptance_tests": [
+    "tests/test_session_reader_guided_contract.py::test_guided_edge_materialize_normal_mode_has_no_yaml_dump"
+  ],
+  "done_rule": {
+    "require_all_verifications_pass": true,
+    "fail_closed_on_missing_evidence": true,
+    "fail_on_forbidden_observation": true
+  }
+}

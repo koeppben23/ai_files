@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "governance-completion-matrix.v1",
+  "title": "Governance Completion Matrix",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "completion_matrix",
+    "overall_status",
+    "release_blocking_requirements_failed",
+    "release_blocking_requirements_unverified"
+  ],
+  "properties": {
+    "completion_matrix": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "static_verification",
+          "behavioral_verification",
+          "user_surface_verification",
+          "live_flow_verification",
+          "receipts_verification",
+          "overall"
+        ],
+        "properties": {
+          "id": {"type": "string", "minLength": 1},
+          "static_verification": {"type": "string", "enum": ["PASS", "FAIL", "UNVERIFIED"]},
+          "behavioral_verification": {"type": "string", "enum": ["PASS", "FAIL", "UNVERIFIED"]},
+          "user_surface_verification": {"type": "string", "enum": ["PASS", "FAIL", "UNVERIFIED"]},
+          "live_flow_verification": {"type": "string", "enum": ["PASS", "FAIL", "UNVERIFIED"]},
+          "receipts_verification": {"type": "string", "enum": ["PASS", "FAIL", "UNVERIFIED"]},
+          "overall": {"type": "string", "enum": ["PASS", "FAIL", "UNVERIFIED"]}
+        }
+      }
+    },
+    "overall_status": {"type": "string", "enum": ["PASS", "FAIL", "UNVERIFIED"]},
+    "release_blocking_requirements_failed": {
+      "type": "array",
+      "items": {"type": "string"}
+    },
+    "release_blocking_requirements_unverified": {
+      "type": "array",
+      "items": {"type": "string"}
+    }
+  }
+}
