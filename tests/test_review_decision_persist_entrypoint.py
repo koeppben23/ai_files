@@ -5,6 +5,7 @@ import hashlib
 from pathlib import Path
 
 from governance.entrypoints import review_decision_persist as entrypoint
+from governance.contracts.enforcement import EnforcementResult, FAIL_CLOSED_MISSING_CONTRACT
 
 
 def _write_session(path: Path, *, phase: str = "6-PostFlight") -> None:
@@ -26,6 +27,7 @@ def _write_session(path: Path, *, phase: str = "6-PostFlight") -> None:
             "Phase": phase,
             "active_gate": "Evidence Presentation Gate",
             "session_materialization_event_id": "mat-abc",
+            "session_state_revision": 1,
             "session_materialized_at": "2026-03-12T00:00:00Z",
             "session_run_id": "sess-abc",
             "Gates": {
@@ -51,7 +53,7 @@ def _write_session(path: Path, *, phase: str = "6-PostFlight") -> None:
                 "render_event_id": "mat-abc",
                 "gate": "Evidence Presentation Gate",
                 "session_id": "sess-abc",
-                "state_revision": "mat-abc",
+                "state_revision": "1",
                 "source_command": "/continue",
                 "digest": hashlib.sha256(digest_source.encode("utf-8")).hexdigest(),
                 "presented_at": "2026-03-12T00:00:00Z",
@@ -148,6 +150,28 @@ def test_main_bad_stale_receipt_timestamp_blocks(monkeypatch, tmp_path: Path, ca
     assert rc == 2
     assert out["status"] == "error"
     assert "BLOCKED-RECEIPT-STALE-TIMESTAMP" in out["message"]
+
+
+def test_main_bad_fail_closed_when_required_contract_missing(monkeypatch, tmp_path: Path, capsys) -> None:
+    session_path = tmp_path / "SESSION_STATE.json"
+    events_path = tmp_path / "events.jsonl"
+    _write_session(session_path)
+
+    monkeypatch.setattr(entrypoint, "_resolve_active_session_path", lambda: (session_path, events_path))
+    monkeypatch.setattr(
+        entrypoint,
+        "require_complete_contracts",
+        lambda repo_root, required_ids: EnforcementResult(
+            ok=False,
+            reason=FAIL_CLOSED_MISSING_CONTRACT,
+            details=("missing_required_contract:R-REVIEW-DECISION-001",),
+        ),
+    )
+    rc = entrypoint.main(["--decision", "approve", "--quiet"])
+    out = json.loads(capsys.readouterr().out.strip())
+    assert rc == 2
+    assert out["status"] == "error"
+    assert FAIL_CLOSED_MISSING_CONTRACT in out["message"]
 
 
 def test_main_bad_missing_decision_argument_raises_system_exit() -> None:

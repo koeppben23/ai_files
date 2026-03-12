@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 from governance.entrypoints import implement_start as entrypoint
+from governance.contracts.enforcement import EnforcementResult, FAIL_CLOSED_MISSING_CONTRACT
 
 
 def _write_session(
@@ -184,3 +185,27 @@ def test_main_bad_missing_compiled_contracts_blocks(monkeypatch, tmp_path: Path,
     assert rc == 2
     assert out["status"] == "error"
     assert "compiled requirement contracts" in out["message"]
+
+
+def test_main_bad_fail_closed_when_required_contracts_missing(monkeypatch, tmp_path: Path, capsys) -> None:
+    session_path = tmp_path / "SESSION_STATE.json"
+    events_path = tmp_path / "events.jsonl"
+    _write_session(session_path)
+    _write_plan_record(tmp_path / "plan-record.json")
+
+    monkeypatch.setattr(entrypoint, "_resolve_active_session_path", lambda: (session_path, events_path))
+    monkeypatch.setattr(
+        entrypoint,
+        "require_complete_contracts",
+        lambda repo_root, required_ids: EnforcementResult(
+            ok=False,
+            reason=FAIL_CLOSED_MISSING_CONTRACT,
+            details=("missing_required_contract:R-IMPLEMENT-001",),
+        ),
+    )
+
+    rc = entrypoint.main(["--quiet"])
+    out = json.loads(capsys.readouterr().out.strip())
+    assert rc == 2
+    assert out["status"] == "error"
+    assert FAIL_CLOSED_MISSING_CONTRACT in out["message"]

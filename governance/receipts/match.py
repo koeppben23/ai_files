@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
+import re
 from typing import Mapping
 
 
@@ -31,6 +32,28 @@ class ReceiptMatchContext:
     expected_state_revision: str
     expected_scope: str
     last_relevant_state_change_at: str
+
+
+def _revision_number(token: str) -> int | None:
+    text = str(token or "").strip()
+    if not text:
+        return None
+    if text.isdigit():
+        return int(text)
+    match = re.search(r"(\d+)$", text)
+    if match:
+        return int(match.group(1))
+    return None
+
+
+def _revision_is_match_or_newer(*, receipt_revision: str, expected_revision: str) -> bool:
+    if receipt_revision == expected_revision:
+        return True
+    receipt_num = _revision_number(receipt_revision)
+    expected_num = _revision_number(expected_revision)
+    if receipt_num is None or expected_num is None:
+        return False
+    return receipt_num >= expected_num
 
 
 def validate_receipt_match(*, receipt: Mapping[str, object], context: ReceiptMatchContext) -> tuple[bool, str]:
@@ -65,7 +88,10 @@ def validate_receipt_match(*, receipt: Mapping[str, object], context: ReceiptMat
         return False, "BLOCKED-RECEIPT-DIGEST-MISMATCH"
     if session_id != context.expected_session_id:
         return False, "BLOCKED-RECEIPT-SESSION-MISMATCH"
-    if state_revision != context.expected_state_revision:
+    if not _revision_is_match_or_newer(
+        receipt_revision=state_revision,
+        expected_revision=context.expected_state_revision,
+    ):
         return False, "BLOCKED-RECEIPT-STATE-REVISION-MISMATCH"
     if scope != context.expected_scope:
         return False, "BLOCKED-RECEIPT-SCOPE-MISMATCH"

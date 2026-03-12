@@ -73,8 +73,10 @@ def build_completion_matrix(
         if criticality == "release_blocking" and overall == "UNVERIFIED":
             release_unverified.append(req_id)
 
-    if any(row["overall"] != "PASS" for row in rows):
+    if any(row["overall"] == "FAIL" for row in rows):
         overall_status = "FAIL"
+    elif any(row["overall"] == "UNVERIFIED" for row in rows):
+        overall_status = "UNVERIFIED"
     else:
         overall_status = "PASS"
 
