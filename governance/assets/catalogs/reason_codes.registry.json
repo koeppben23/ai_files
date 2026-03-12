@@ -566,22 +566,127 @@
       "code": "BLOCKED-CONTRACT-LAYOUT-DRIFT",
       "severity": "blocked",
       "payload_schema_ref": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
-      "description": "Installed file tree does not match install-layout-contract.v_current — missing artifacts, unexpected files, or wrong ownership.",
+      "description": "Installed file tree does not match install-layout-contract.v_current \u2014 missing artifacts, unexpected files, or wrong ownership.",
       "remediation_hint": "Re-run installer to regenerate missing artifacts and restore layout conformance."
     },
     {
       "code": "BLOCKED-CONTRACT-RUNTIME-DRIFT",
       "severity": "blocked",
       "payload_schema_ref": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
-      "description": "Runtime state invariants from runtime-state-contract.v1 are violated — pointer semantics, artifact classification, or backup/purge rules breached.",
+      "description": "Runtime state invariants from runtime-state-contract.v1 are violated \u2014 pointer semantics, artifact classification, or backup/purge rules breached.",
       "remediation_hint": "Verify SESSION_STATE.json pointer and workspace integrity, then re-run installer if needed."
     },
     {
       "code": "BLOCKED-CONTRACT-OPENCODE-DRIFT",
       "severity": "blocked",
       "payload_schema_ref": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
-      "description": "opencode.json integration invariants from opencode-integration-contract.v1 are violated — merge ownership, plugin lifecycle, or uninstall guarantees breached.",
+      "description": "opencode.json integration invariants from opencode-integration-contract.v1 are violated \u2014 merge ownership, plugin lifecycle, or uninstall guarantees breached.",
       "remediation_hint": "Re-run installer to regenerate opencode.json with correct merge ownership and plugin paths."
+    },
+    {
+      "code": "BLOCKED-RECEIPT-MISSING-TYPE",
+      "severity": "blocked",
+      "payload_schema_ref": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Decision receipt validation failed under strict match policy.",
+      "remediation_hint": "Re-render presentation in current gate and rerun decision with a fresh matching receipt."
+    },
+    {
+      "code": "BLOCKED-RECEIPT-MISSING-GATE",
+      "severity": "blocked",
+      "payload_schema_ref": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Decision receipt validation failed under strict match policy.",
+      "remediation_hint": "Re-render presentation in current gate and rerun decision with a fresh matching receipt."
+    },
+    {
+      "code": "BLOCKED-RECEIPT-MISSING-DIGEST",
+      "severity": "blocked",
+      "payload_schema_ref": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Decision receipt validation failed under strict match policy.",
+      "remediation_hint": "Re-render presentation in current gate and rerun decision with a fresh matching receipt."
+    },
+    {
+      "code": "BLOCKED-RECEIPT-MISSING-SESSION",
+      "severity": "blocked",
+      "payload_schema_ref": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Decision receipt validation failed under strict match policy.",
+      "remediation_hint": "Re-render presentation in current gate and rerun decision with a fresh matching receipt."
+    },
+    {
+      "code": "BLOCKED-RECEIPT-MISSING-STATE-REVISION",
+      "severity": "blocked",
+      "payload_schema_ref": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Decision receipt validation failed under strict match policy.",
+      "remediation_hint": "Re-render presentation in current gate and rerun decision with a fresh matching receipt."
+    },
+    {
+      "code": "BLOCKED-RECEIPT-MISSING-SCOPE",
+      "severity": "blocked",
+      "payload_schema_ref": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Decision receipt validation failed under strict match policy.",
+      "remediation_hint": "Re-render presentation in current gate and rerun decision with a fresh matching receipt."
+    },
+    {
+      "code": "BLOCKED-RECEIPT-MISSING-TIMESTAMP",
+      "severity": "blocked",
+      "payload_schema_ref": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Decision receipt validation failed under strict match policy.",
+      "remediation_hint": "Re-render presentation in current gate and rerun decision with a fresh matching receipt."
+    },
+    {
+      "code": "BLOCKED-RECEIPT-TYPE-MISMATCH",
+      "severity": "blocked",
+      "payload_schema_ref": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Decision receipt validation failed under strict match policy.",
+      "remediation_hint": "Re-render presentation in current gate and rerun decision with a fresh matching receipt."
+    },
+    {
+      "code": "BLOCKED-RECEIPT-GATE-MISMATCH",
+      "severity": "blocked",
+      "payload_schema_ref": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Decision receipt validation failed under strict match policy.",
+      "remediation_hint": "Re-render presentation in current gate and rerun decision with a fresh matching receipt."
+    },
+    {
+      "code": "BLOCKED-RECEIPT-DIGEST-MISMATCH",
+      "severity": "blocked",
+      "payload_schema_ref": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Decision receipt validation failed under strict match policy.",
+      "remediation_hint": "Re-render presentation in current gate and rerun decision with a fresh matching receipt."
+    },
+    {
+      "code": "BLOCKED-RECEIPT-SESSION-MISMATCH",
+      "severity": "blocked",
+      "payload_schema_ref": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Decision receipt validation failed under strict match policy.",
+      "remediation_hint": "Re-render presentation in current gate and rerun decision with a fresh matching receipt."
+    },
+    {
+      "code": "BLOCKED-RECEIPT-STATE-REVISION-MISMATCH",
+      "severity": "blocked",
+      "payload_schema_ref": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Decision receipt validation failed under strict match policy.",
+      "remediation_hint": "Re-render presentation in current gate and rerun decision with a fresh matching receipt."
+    },
+    {
+      "code": "BLOCKED-RECEIPT-SCOPE-MISMATCH",
+      "severity": "blocked",
+      "payload_schema_ref": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Decision receipt validation failed under strict match policy.",
+      "remediation_hint": "Re-render presentation in current gate and rerun decision with a fresh matching receipt."
+    },
+    {
+      "code": "BLOCKED-RECEIPT-INVALID-TIMESTAMP",
+      "severity": "blocked",
+      "payload_schema_ref": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Decision receipt validation failed under strict match policy.",
+      "remediation_hint": "Re-render presentation in current gate and rerun decision with a fresh matching receipt."
+    },
+    {
+      "code": "BLOCKED-RECEIPT-STALE-TIMESTAMP",
+      "severity": "blocked",
+      "payload_schema_ref": "governance/assets/schemas/reason_payload_blocked_core.v1.json",
+      "description": "Decision receipt validation failed under strict match policy.",
+      "remediation_hint": "Re-render presentation in current gate and rerun decision with a fresh matching receipt."
     }
   ],
   "audit_events": [
