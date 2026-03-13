@@ -14,6 +14,10 @@ REASON_RENDER_MISMATCH = "BUSINESS_RULES_RENDER_MISMATCH"
 REASON_MISSING_REQUIRED_RULES = "BUSINESS_RULES_MISSING_REQUIRED_RULES"
 REASON_COUNT_MISMATCH = "BUSINESS_RULES_COUNT_MISMATCH"
 REASON_EMPTY_INVENTORY = "BUSINESS_RULES_EMPTY_INVENTORY"
+REASON_CODE_CANDIDATE_REJECTED = "BUSINESS_RULES_CODE_CANDIDATE_REJECTED"
+
+ORIGIN_DOC = "doc"
+ORIGIN_CODE = "code"
 
 
 _DISALLOWED_DIR_TOKENS = {
@@ -79,6 +83,7 @@ class RuleCandidate:
     source_allowed: bool
     source_reason: str
     section_signal: bool
+    origin: str = ORIGIN_DOC
 
 
 @dataclass(frozen=True)
@@ -87,6 +92,7 @@ class ValidatedRule:
     text: str
     source_path: str
     line_no: int
+    origin: str = ORIGIN_DOC
 
 
 @dataclass(frozen=True)
@@ -336,6 +342,7 @@ def validate_candidates(
                     text=sanitized,
                     source_path=candidate.source_path,
                     line_no=candidate.line_no,
+                    origin=candidate.origin,
                 )
             )
 
@@ -536,3 +543,273 @@ def extract_validated_business_rules_from_repo(repo_root: Path) -> tuple[Validat
     if not ok:
         return validate_candidates(candidates=[]), False
     return validate_candidates(candidates=candidates, expected_rules=False), True
+
+
+# ---------------------------------------------------------------------------
+# Code-candidate merge (LLM-sourced BusinessRuleCandidates → RuleCandidate)
+# ---------------------------------------------------------------------------
+
+_CODE_CANDIDATE_ID_RE = re.compile(r"^BR-C\d{3,}$")
+
+_VALID_PATTERN_TYPES = frozenset({
+    "validation-guard",
+    "constraint-check",
+    "policy-enforcement",
+    "enum-invariant",
+    "schema-constraint",
+    "guard-clause",
+    "config-rule",
+})
+
+_VALID_CONFIDENCE = frozenset({"high", "medium"})
+
+_MAX_EVIDENCE_SNIPPET_LEN = 500
+
+
+@dataclass(frozen=True)
+class ProvenanceRecord:
+    """Tracks whether a validated rule was found in docs, code, or both."""
+
+    rule_text: str
+    found_in_docs: bool
+    found_in_code: bool
+    source_paths: tuple[str, ...]
+
+
+def _normalize_rule_body(rule_text: str) -> str:
+    """Extract and normalize the body of a rule for deduplication.
+
+    Given ``"BR-C001: Foo must bar"`` returns ``"foo must bar"``.
+    Given ``"BR-007: Foo must bar"`` returns ``"foo must bar"``.
+    """
+    match = _RULE_HEAD_RE.match(rule_text)
+    if match:
+        _, body = match.groups()
+        return re.sub(r"\s+", " ", body).strip().lower()
+    return re.sub(r"\s+", " ", rule_text).strip().lower()
+
+
+def merge_code_candidates(
+    code_candidates: list[dict[str, object]],
+    existing_doc_rules: list[ValidatedRule],
+) -> tuple[list[RuleCandidate], list[RejectedRule], list[ProvenanceRecord]]:
+    """Convert LLM-sourced BusinessRuleCandidates to RuleCandidates and merge with doc-extracted rules.
+
+    Parameters
+    ----------
+    code_candidates:
+        Raw dicts from ``SESSION_STATE.CodebaseContext.BusinessRuleCandidates``.
+    existing_doc_rules:
+        Already-validated rules from the deterministic doc extractor.
+
+    Returns
+    -------
+    (merged_candidates, rejected, provenance)
+        - ``merged_candidates``: All doc-extracted rules as RuleCandidates **plus**
+          validated code-sourced candidates (deduplicated against doc rules).
+        - ``rejected``: Code candidates that failed structural pre-validation.
+        - ``provenance``: One entry per final rule tracking origin(s).
+    """
+    rejected: list[RejectedRule] = []
+    provenance: list[ProvenanceRecord] = []
+
+    # --- Build body-index from existing doc rules for dedup ----------------
+    doc_body_index: dict[str, ValidatedRule] = {}
+    for rule in existing_doc_rules:
+        body = _normalize_rule_body(rule.text)
+        if body not in doc_body_index:
+            doc_body_index[body] = rule
+
+    # --- Provenance for doc-only rules (will be updated if code dups found)
+    doc_body_provenance: dict[str, list[str]] = {}
+    for rule in existing_doc_rules:
+        body = _normalize_rule_body(rule.text)
+        if body not in doc_body_provenance:
+            doc_body_provenance[body] = []
+        doc_body_provenance[body].append(f"{rule.source_path}:{rule.line_no}")
+
+    # --- Re-create doc rules as RuleCandidates (they pass through again) ---
+    merged: list[RuleCandidate] = []
+    for rule in existing_doc_rules:
+        merged.append(
+            RuleCandidate(
+                text=rule.text,
+                source_path=rule.source_path,
+                line_no=rule.line_no,
+                source_allowed=True,
+                source_reason="allowlisted-doc-extraction",
+                section_signal=True,
+                origin=ORIGIN_DOC,
+            )
+        )
+
+    # --- Process code candidates -------------------------------------------
+    seen_code_bodies: set[str] = set()
+
+    for idx, raw in enumerate(code_candidates):
+        if not isinstance(raw, dict):
+            rejected.append(
+                RejectedRule(
+                    text=repr(raw)[:200],
+                    source_path="code-candidate",
+                    line_no=idx,
+                    reason_code=REASON_CODE_CANDIDATE_REJECTED,
+                    reason="candidate is not a dict",
+                )
+            )
+            continue
+
+        cand_id = raw.get("id", "")
+        cand_text = raw.get("candidate_rule_text", "")
+        source_path = raw.get("source_path", "")
+        line_range = raw.get("line_range", "")
+        pattern_type = raw.get("pattern_type", "")
+        confidence = raw.get("confidence", "")
+        evidence_snippet = raw.get("evidence_snippet", "")
+
+        # --- Structural pre-validation (before entering deterministic pipeline) ---
+        if not isinstance(cand_id, str) or not _CODE_CANDIDATE_ID_RE.match(cand_id):
+            rejected.append(
+                RejectedRule(
+                    text=str(cand_text)[:200],
+                    source_path=str(source_path),
+                    line_no=0,
+                    reason_code=REASON_CODE_CANDIDATE_REJECTED,
+                    reason=f"invalid candidate id: {str(cand_id)[:50]}",
+                )
+            )
+            continue
+
+        if not isinstance(cand_text, str) or not cand_text.strip():
+            rejected.append(
+                RejectedRule(
+                    text=str(cand_id),
+                    source_path=str(source_path),
+                    line_no=0,
+                    reason_code=REASON_CODE_CANDIDATE_REJECTED,
+                    reason="empty or non-string candidate_rule_text",
+                )
+            )
+            continue
+
+        if not isinstance(source_path, str) or not source_path.strip():
+            rejected.append(
+                RejectedRule(
+                    text=str(cand_text)[:200],
+                    source_path="unknown",
+                    line_no=0,
+                    reason_code=REASON_CODE_CANDIDATE_REJECTED,
+                    reason="empty or non-string source_path",
+                )
+            )
+            continue
+
+        if not isinstance(pattern_type, str) or pattern_type not in _VALID_PATTERN_TYPES:
+            rejected.append(
+                RejectedRule(
+                    text=str(cand_text)[:200],
+                    source_path=str(source_path),
+                    line_no=0,
+                    reason_code=REASON_CODE_CANDIDATE_REJECTED,
+                    reason=f"invalid pattern_type: {str(pattern_type)[:50]}",
+                )
+            )
+            continue
+
+        if not isinstance(confidence, str) or confidence not in _VALID_CONFIDENCE:
+            rejected.append(
+                RejectedRule(
+                    text=str(cand_text)[:200],
+                    source_path=str(source_path),
+                    line_no=0,
+                    reason_code=REASON_CODE_CANDIDATE_REJECTED,
+                    reason=f"invalid confidence: {str(confidence)[:50]}",
+                )
+            )
+            continue
+
+        # Truncate evidence_snippet if too long (defensive)
+        if isinstance(evidence_snippet, str) and len(evidence_snippet) > _MAX_EVIDENCE_SNIPPET_LEN:
+            evidence_snippet = evidence_snippet[:_MAX_EVIDENCE_SNIPPET_LEN]
+
+        # Parse line_range for line_no (take the start of the range)
+        line_no = 0
+        if isinstance(line_range, str) and line_range:
+            parts = line_range.split("-", 1)
+            try:
+                line_no = int(parts[0])
+            except ValueError:
+                pass
+
+        # --- Body-based deduplication against doc rules --------------------
+        sanitized = sanitize_rule(str(cand_text))
+        body = _normalize_rule_body(sanitized)
+
+        if body in seen_code_bodies:
+            # Already seen this body from another code candidate
+            continue
+        seen_code_bodies.add(body)
+
+        if body in doc_body_index:
+            # Duplicate of a doc-extracted rule — record dual provenance
+            doc_rule = doc_body_index[body]
+            existing_paths = doc_body_provenance.get(body, [])
+            provenance.append(
+                ProvenanceRecord(
+                    rule_text=doc_rule.text,
+                    found_in_docs=True,
+                    found_in_code=True,
+                    source_paths=tuple(existing_paths + [f"{source_path}:{line_no}"]),
+                )
+            )
+            continue
+
+        # --- Not a duplicate: add as code-sourced candidate ----------------
+        merged.append(
+            RuleCandidate(
+                text=sanitized,
+                source_path=str(source_path),
+                line_no=line_no,
+                source_allowed=True,
+                source_reason="llm-code-extraction",
+                section_signal=True,
+                origin=ORIGIN_CODE,
+            )
+        )
+
+    # --- Build provenance for doc-only rules (no code duplicate) -----------
+    for rule in existing_doc_rules:
+        body = _normalize_rule_body(rule.text)
+        # Skip if already recorded as dual-provenance
+        if any(p.rule_text == rule.text and p.found_in_code for p in provenance):
+            continue
+        # Skip duplicates in doc_body_provenance (only record first occurrence)
+        if any(p.rule_text == rule.text for p in provenance):
+            continue
+        paths = doc_body_provenance.get(body, [f"{rule.source_path}:{rule.line_no}"])
+        provenance.append(
+            ProvenanceRecord(
+                rule_text=rule.text,
+                found_in_docs=True,
+                found_in_code=False,
+                source_paths=tuple(paths),
+            )
+        )
+
+    # --- Build provenance for code-only rules (new, not deduped) -----------
+    for candidate in merged:
+        if candidate.origin != ORIGIN_CODE:
+            continue
+        body = _normalize_rule_body(candidate.text)
+        if any(_normalize_rule_body(p.rule_text) == body for p in provenance):
+            continue
+        provenance.append(
+            ProvenanceRecord(
+                rule_text=candidate.text,
+                found_in_docs=False,
+                found_in_code=True,
+                source_paths=(f"{candidate.source_path}:{candidate.line_no}",),
+            )
+        )
+
+    return merged, rejected, provenance
