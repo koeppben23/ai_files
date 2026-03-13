@@ -39,6 +39,16 @@ def _parse_csv_reasons(token: str) -> list[str]:
     return out
 
 
+def _parse_int(token: str, default: int = 0) -> int:
+    probe = str(token or "").strip()
+    if not probe:
+        return default
+    try:
+        return int(probe)
+    except ValueError:
+        return default
+
+
 def hydrate_business_rules_state_from_artifacts(
     *,
     state: MutableMapping[str, object],
@@ -119,6 +129,19 @@ def hydrate_business_rules_state_from_artifacts(
         quality_reason_codes = _parse_csv_reasons(status_fields.get("reasoncodes", ""))
     if status_fields.get("validationresult") in {"passed", "failed"}:
         quality_gate = status_fields["validationresult"]
+    code_extraction_run = _parse_bool(status_fields.get("codeextractionrun", "true"))
+    code_coverage_sufficient = _parse_bool(status_fields.get("codecoveragesufficient", "true"))
+    code_candidate_count = _parse_int(status_fields.get("codecandidatecount", "0"), default=0)
+    code_surface_count = _parse_int(status_fields.get("codesurfacecount", "0"), default=0)
+    missing_code_surfaces = _parse_csv_reasons(status_fields.get("missingcodesurfaces", ""))
+
+    if validation_report:
+        validation_report["has_code_extraction"] = code_extraction_run
+        validation_report["code_extraction_sufficient"] = code_coverage_sufficient
+        validation_report["code_candidate_count"] = code_candidate_count
+        validation_report["code_surface_count"] = code_surface_count
+        validation_report["missing_code_surfaces"] = missing_code_surfaces
+        validation_report["has_code_coverage_gap"] = (not code_coverage_sufficient)
 
     report_is_compliant = bool(validation_report.get("is_compliant") is True)
     has_quality_failure = (
@@ -129,6 +152,8 @@ def hydrate_business_rules_state_from_artifacts(
         or count_consistency == "failed"
         or (quality_reason_codes and quality_reason_codes != ["none"])
         or (validation_report and not report_is_compliant)
+        or (not code_extraction_run)
+        or (not code_coverage_sufficient)
     )
 
     if outcome == "extracted" and (
@@ -164,6 +189,11 @@ def hydrate_business_rules_state_from_artifacts(
     business_rules["SourceViolationCount"] = source_violations
     business_rules["SegmentationFailureCount"] = segmentation_failures
     business_rules["ValidationReport"] = validation_report
+    business_rules["CodeExtractionRun"] = code_extraction_run
+    business_rules["CodeCoverageSufficient"] = code_coverage_sufficient
+    business_rules["CodeCandidateCount"] = code_candidate_count
+    business_rules["CodeSurfaceCount"] = code_surface_count
+    business_rules["MissingCodeSurfaces"] = missing_code_surfaces
     business_rules["QualityReportVersion"] = "br-quality-v2"
     if inventory_loaded:
         business_rules["InventoryFileStatus"] = "written"
