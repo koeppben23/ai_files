@@ -133,8 +133,6 @@ def source_allowlist_decision(relative_path: str) -> tuple[bool, str]:
 
 
 def _has_section_signal(lines: list[str], line_index: int) -> bool:
-    if line_index < len(lines) and _MODAL_VERB_RE.search(lines[line_index]):
-        return True
     start = max(0, line_index - 6)
     for idx in range(start, line_index + 1):
         probe = lines[idx].strip()
@@ -369,8 +367,10 @@ def validate_candidates(
         r.reason_code in {REASON_MISSING_REQUIRED_RULES, REASON_EMPTY_INVENTORY} for r in dropped
     )
 
+    has_minimum_rules = len(valid_rules) > 0 or not expected_rules
+
     is_compliant = (
-        len(valid_rules) > 0
+        has_minimum_rules
         and not has_invalid_rules
         and not has_source_violation
         and not has_segmentation_failure

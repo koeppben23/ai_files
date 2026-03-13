@@ -592,6 +592,12 @@ def _sync_conditional_p5_gate_states(*, state_doc: dict) -> None:
             "gap-detected",
         }:
             gates["P5.4-BusinessRules"] = p54_eval.status
+    if p54_eval.status not in {"compliant", "compliant-with-exceptions", "not-applicable"}:
+        if str(state.get("phase5_completed") or "").strip().lower() in {"true", "1"} or state.get("phase5_completed") is True:
+            state["phase5_completed"] = False
+            state["phase5_state"] = "phase5-in-progress"
+            state["Phase5State"] = "phase5-in-progress"
+            state["phase5_completion_status"] = "phase5-in-progress"
 
     p55_eval = evaluate_p55_technical_debt_gate(session_state=state)
     if str(gates.get("P5.5-TechnicalDebt", "")).strip().lower() == "pending":
@@ -627,8 +633,10 @@ def _normalize_phase6_p5_state(*, state_doc: dict, events_path: Path | None = No
     from governance.engine.gate_evaluator import (
         P5_GATE_PRIORITY_ORDER,
         P5_GATE_TERMINAL_VALUES,
+        evaluate_p54_business_rules_gate,
         reason_code_for_gate,
     )
+    from governance.kernel.phase_kernel import _phase_1_5_executed
 
     state_obj = state_doc.get("SESSION_STATE")
     state = state_obj if isinstance(state_obj, dict) else state_doc
@@ -654,6 +662,19 @@ def _normalize_phase6_p5_state(*, state_doc: dict, events_path: Path | None = No
             continue
         if current not in terminal_values:
             open_gates.append(gate_key)
+
+    # Fail-closed: even with stale terminal gate states, force-open P5.4 when
+    # the evaluator reports non-compliant business-rules validation.
+    if _phase_1_5_executed(state):
+        p54_eval = evaluate_p54_business_rules_gate(
+            session_state=state,
+            phase_1_5_executed=True,
+        )
+        if p54_eval.status not in {"compliant", "compliant-with-exceptions", "not-applicable"}:
+            if "P5.4-BusinessRules" not in open_gates:
+                open_gates.append("P5.4-BusinessRules")
+                _order = {gate: idx for idx, gate in enumerate(P5_GATE_PRIORITY_ORDER)}
+                open_gates.sort(key=lambda gate: _order.get(gate, 999))
 
     if not open_gates:
         return
@@ -684,6 +705,10 @@ def _normalize_phase6_p5_state(*, state_doc: dict, events_path: Path | None = No
     state["next"] = corrected_next
     state["phase6_state"] = "phase5_in_progress"
     state["implementation_review_complete"] = False
+    state["phase5_completed"] = False
+    state["phase5_state"] = "phase5-in-progress"
+    state["Phase5State"] = "phase5-in-progress"
+    state["phase5_completion_status"] = "phase5-in-progress"
     state.pop("workflow_complete", None)
     state.pop("WorkflowComplete", None)
     state["active_gate"] = corrected_gate
