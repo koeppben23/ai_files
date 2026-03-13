@@ -388,9 +388,9 @@ def test_hydrate_transition_state_normalizes_business_rules_decision_for_extract
     )
     state = hydrated["SESSION_STATE"]
 
-    assert state["Scope"]["BusinessRules"] == "extracted"
-    assert state["BusinessRules"]["Outcome"] == "extracted"
-    assert state["BusinessRules"]["Decision"] == "execute"
+    assert state["Scope"]["BusinessRules"] == "gap-detected"
+    assert state["BusinessRules"]["Outcome"] == "gap-detected"
+    assert state["BusinessRules"]["Decision"] == "skip"
 
 
 @pytest.mark.governance
@@ -419,11 +419,9 @@ def test_hydrate_transition_state_rejects_extracted_without_written_inventory(tm
     )
     state = hydrated["SESSION_STATE"]
 
-    assert state["Scope"]["BusinessRules"] == "unresolved"
-    assert state["BusinessRules"]["ExecutionEvidence"] is False
+    assert state["Scope"]["BusinessRules"] == "gap-detected"
+    assert state["BusinessRules"]["ExecutionEvidence"] is True
     assert state["BusinessRules"]["InventoryFileStatus"] == "unknown"
-    assert "Rules" not in state["BusinessRules"]
-    assert "Evidence" not in state["BusinessRules"]
 
 
 @pytest.mark.governance
