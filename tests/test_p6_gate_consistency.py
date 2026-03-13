@@ -1338,6 +1338,57 @@ class TestKernelSurfacesFirstOpenGate:
         assert result.status == "BLOCKED"
         assert "P5.5-TechnicalDebt" in result.next_gate_condition
 
+    def test_kernel_p6_block_includes_p54_code_coverage_diagnostics(self, tmp_path: Path) -> None:
+        ctx = _make_ctx(tmp_path)
+        state = _make_phase6_state(
+            gates={
+                "P5-Architecture": "approved",
+                "P5.3-TestQuality": "pass",
+                "P5.4-BusinessRules": "compliant",  # stale gate value
+                "P5.5-TechnicalDebt": "approved",
+            },
+            extra={
+                "BusinessRules": {
+                    "Outcome": "extracted",
+                    "ExecutionEvidence": True,
+                    "InventoryLoaded": True,
+                    "ExtractedCount": 2,
+                    "ValidationReasonCodes": ["BUSINESS_RULES_CODE_COVERAGE_INSUFFICIENT"],
+                    "CodeSurfaceCount": 6,
+                    "MissingCodeSurfaces": ["validator", "workflow"],
+                    "ValidationReport": {
+                        "is_compliant": False,
+                        "has_invalid_rules": False,
+                        "has_render_mismatch": False,
+                        "has_source_violation": False,
+                        "has_missing_required_rules": False,
+                        "has_segmentation_failure": False,
+                        "has_code_extraction": True,
+                        "code_extraction_sufficient": False,
+                        "has_code_coverage_gap": True,
+                        "has_code_doc_conflict": False,
+                        "code_surface_count": 6,
+                        "missing_code_surfaces": ["validator", "workflow"],
+                    },
+                }
+            },
+        )
+        result = execute(
+            current_token="6",
+            session_state_doc={"SESSION_STATE": state},
+            runtime_ctx=ctx,
+        )
+
+        assert result.status == "BLOCKED"
+        assert "P5.4-BusinessRules" in result.next_gate_condition
+        assert result.log_paths is not None
+        phase_flow = Path(result.log_paths["phase_flow"])
+        rows = [json.loads(line) for line in phase_flow.read_text(encoding="utf-8").splitlines()]
+        blocked = rows[-1]
+        detail = blocked.get("strict_exit_detail", {}).get("p6_prerequisites", {})
+        assert detail.get("p54_code_coverage_gap") is True
+        assert "BUSINESS_RULES_CODE_COVERAGE_INSUFFICIENT" in detail.get("p54_quality_reason_codes", [])
+
 
 # ===========================================================================
 # 12. REGRESSION: review_decision_persist approve writes terminal fields
@@ -1522,6 +1573,53 @@ class TestP54BusinessRulesGateWiring:
         )
         assert result.p54_compliant is True
         assert result.passed is True
+
+    def test_p6_prerequisites_exposes_p54_quality_diagnostics_when_blocked(self) -> None:
+        state = {
+            "Gates": {
+                "P5-Architecture": "approved",
+                "P5.3-TestQuality": "pass",
+                "P5.4-BusinessRules": "compliant",  # stale gate value
+                "P5.5-TechnicalDebt": "approved",
+            },
+            "BusinessRules": {
+                "Outcome": "extracted",
+                "ExecutionEvidence": True,
+                "InventoryLoaded": True,
+                "ExtractedCount": 2,
+                "ValidationReasonCodes": ["BUSINESS_RULES_CODE_COVERAGE_INSUFFICIENT"],
+                "ValidationReport": {
+                    "is_compliant": False,
+                    "has_invalid_rules": False,
+                    "has_render_mismatch": False,
+                    "has_source_violation": False,
+                    "has_missing_required_rules": False,
+                    "has_segmentation_failure": False,
+                    "has_code_extraction": True,
+                    "code_extraction_sufficient": False,
+                    "has_code_coverage_gap": True,
+                    "has_code_doc_conflict": False,
+                    "code_candidate_count": 0,
+                    "code_surface_count": 4,
+                    "missing_code_surfaces": ["validator", "workflow"],
+                },
+                "CodeSurfaceCount": 4,
+                "MissingCodeSurfaces": ["validator", "workflow"],
+            },
+        }
+
+        result = evaluate_p6_prerequisites(
+            session_state=state,
+            phase_1_5_executed=True,
+            rollback_safety_applies=False,
+        )
+
+        assert result.passed is False
+        assert result.first_open_gate == "P5.4-BusinessRules"
+        assert result.reason_code == "BLOCKED-P5-4-BUSINESS-RULES-GATE"
+        assert result.p54_code_coverage_gap is True
+        assert "BUSINESS_RULES_CODE_COVERAGE_INSUFFICIENT" in result.p54_quality_reason_codes
+        assert "validator" in result.p54_missing_code_surfaces
 
     def test_p56_specific_reason_code(self) -> None:
         state = {"Gates": {
