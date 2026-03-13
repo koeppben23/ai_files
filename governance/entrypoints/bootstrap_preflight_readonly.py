@@ -33,6 +33,10 @@ from governance.application.use_cases.phase_router import route_phase
 from governance.application.use_cases.session_state_helpers import with_kernel_result
 from governance.domain.phase_state_machine import normalize_phase_token, phase_rank
 from governance.engine.sanitization import apply_fresh_start_business_rules_neutralization
+from governance.engine.business_rules_hydration import (
+    canonicalize_business_rules_outcome,
+    has_br_signal,
+)
 from governance.kernel.phase_kernel import api_in_scope
 from governance.infrastructure.binding_evidence_resolver import BindingEvidenceResolver
 
@@ -93,7 +97,7 @@ HOOK_STATUS_FAILED = "failed"
 DEFAULT_ACTIVE_PROFILE_ID = "fallback-minimum"
 DEFAULT_ADDON_KEY = "riskTiering"
 DEFAULT_ADDON_RULEBOOK = "rules.risk-tiering.yml"
-_BUSINESS_RULES_RESOLVED_OUTCOMES = {"extracted", "not-applicable", "deferred", "skipped"}
+_BUSINESS_RULES_RESOLVED_OUTCOMES = {"extracted", "gap-detected", "unresolved"}
 SUPPORTED_PROFILE_IDS = {
     "backend-python",
     "backend-java",
@@ -1098,38 +1102,55 @@ def _normalize_business_rules_state(state: dict[str, object]) -> None:
     if not isinstance(business_rules, dict):
         business_rules = {}
 
-    outcome = str(business_rules.get("Outcome") or "").strip().lower()
-    decision = str(business_rules.get("Decision") or "").strip().lower()
-    inventory_status = str(business_rules.get("InventoryFileStatus") or "").strip().lower()
-    evidence = business_rules.get("ExecutionEvidence")
-    extracted_consistent = (
-        outcome == "extracted"
-        and decision == "execute"
-        and inventory_status == "written"
+    declared_outcome = str(business_rules.get("Outcome") or scope.get("BusinessRules") or "").strip().lower()
+    execution_evidence = bool(business_rules.get("ExecutionEvidence") is True)
+    inventory_loaded = bool(business_rules.get("InventoryLoaded") is True)
+    extracted_count = int(business_rules.get("ExtractedCount") or 0) if str(business_rules.get("ExtractedCount") or "0").isdigit() else 0
+    final_report_available = bool(
+        str(business_rules.get("ValidationResult") or "").strip()
+        or str(business_rules.get("ReportSha") or "").strip()
     )
-    if isinstance(evidence, bool) and evidence and outcome in _BUSINESS_RULES_RESOLVED_OUTCOMES and (
-        outcome != "extracted" or extracted_consistent
-    ):
-        scope["BusinessRules"] = outcome
+    signal = has_br_signal(
+        declared_outcome=declared_outcome,
+        report=business_rules.get("ValidationReport") if isinstance(business_rules.get("ValidationReport"), dict) else None,
+        persistence_result={
+            "execution_evidence": execution_evidence,
+            "inventory_loaded": inventory_loaded,
+            "extracted_count": extracted_count,
+            "validation_signal": bool(str(business_rules.get("ValidationResult") or "").strip()),
+            "report_sha_present": bool(str(business_rules.get("ReportSha") or "").strip()),
+            "source_phase": str(business_rules.get("SourcePhase") or ""),
+        },
+    )
+    extracted_allowed = (
+        declared_outcome == "extracted"
+        and execution_evidence
+        and inventory_loaded
+        and extracted_count > 0
+        and str(business_rules.get("ValidationResult") or "").strip().lower() == "passed"
+    )
+    normalized = canonicalize_business_rules_outcome(
+        declared_outcome=declared_outcome,
+        extracted_allowed=extracted_allowed,
+        final_report_available=final_report_available,
+        br_signal=signal,
+    )
 
-    current_scope = str(scope.get("BusinessRules") or "").strip().lower()
-    if current_scope == "extracted" and not extracted_consistent:
-        scope["BusinessRules"] = "unresolved"
-        current_scope = "unresolved"
-    if current_scope not in _BUSINESS_RULES_RESOLVED_OUTCOMES:
-        state["Scope"] = scope
-        state["BusinessRules"] = business_rules
-        apply_fresh_start_business_rules_neutralization(state)
-        return
+    scope["BusinessRules"] = normalized
+    business_rules["Outcome"] = normalized
+    business_rules["HasSignal"] = signal
+    business_rules.setdefault("ExecutionEvidence", False)
+    business_rules.setdefault("InventoryLoaded", False)
+    business_rules.setdefault("ExtractedCount", 0)
+    if normalized == "extracted":
+        business_rules["Decision"] = "execute"
+        business_rules.setdefault("InventoryFileStatus", "written")
+    elif normalized == "unresolved" and not signal:
+        business_rules["Decision"] = "pending"
+        business_rules.setdefault("InventoryFileStatus", "unknown")
     else:
-        normalized = str(scope.get("BusinessRules") or "").strip().lower()
-        business_rules["Outcome"] = normalized
-        if normalized == "extracted":
-            business_rules["Decision"] = "execute"
-            business_rules.setdefault("InventoryFileStatus", "unknown")
-        else:
-            business_rules["Decision"] = "skip"
-            business_rules.setdefault("InventoryFileStatus", "not-applicable")
+        business_rules["Decision"] = "skip"
+        business_rules.setdefault("InventoryFileStatus", "withheld")
 
     state["Scope"] = scope
     state["BusinessRules"] = business_rules
@@ -1257,17 +1278,26 @@ def _hydrate_transition_state(
             scope_outcome = str(scope.get("BusinessRules") or "").strip().lower()
             br_raw = state.get("BusinessRules")
             br_state: dict[str, object] = dict(br_raw) if isinstance(br_raw, dict) else {}
-            has_br_artifact_signal = bool(
-                br_state.get("SourcePhase") == "1.5-BusinessRules"
-                or br_state.get("ValidationResult")
-                or br_state.get("ReportSha")
-                or br_state.get("ExecutionEvidence") is True
+            br_report = br_state.get("ValidationReport")
+            has_br_artifact_signal = has_br_signal(
+                declared_outcome=scope_outcome,
+                report=cast(dict[str, object], br_report) if isinstance(br_report, dict) else None,
+                persistence_result={
+                    "execution_evidence": br_state.get("ExecutionEvidence") is True,
+                    "inventory_loaded": br_state.get("InventoryLoaded") is True,
+                    "extracted_count": br_state.get("ExtractedCount") or 0,
+                    "validation_signal": bool(str(br_state.get("ValidationResult") or "").strip()),
+                    "report_sha_present": bool(str(br_state.get("ReportSha") or "").strip()),
+                    "source_phase": str(br_state.get("SourcePhase") or ""),
+                },
             )
             if scope_outcome == "extracted":
                 gates["P5.4-BusinessRules"] = gates.get("P5.4-BusinessRules") or "pending"
             elif scope_outcome == "gap-detected":
                 gates["P5.4-BusinessRules"] = "gap-detected"
-            elif has_br_artifact_signal or scope_outcome == "unresolved":
+            elif has_br_artifact_signal:
+                gates["P5.4-BusinessRules"] = "gap-detected"
+            elif scope_outcome == "unresolved":
                 gates["P5.4-BusinessRules"] = "pending"
             else:
                 gates["P5.4-BusinessRules"] = "not-applicable"

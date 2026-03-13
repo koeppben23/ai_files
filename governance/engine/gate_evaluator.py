@@ -38,6 +38,7 @@ from governance.application.use_cases.validate_plan_compliance import (
     PlanComplianceReport,
     validate_plan_compliance,
 )
+from governance.engine.business_rules_hydration import has_br_signal
 
 GateStatus = Literal["blocked", "warn", "ok", "not_verified"]
 P53Status = Literal["pending", "pass", "pass-with-exceptions", "fail"]
@@ -319,7 +320,22 @@ def evaluate_p54_business_rules_gate(
         source_phase = str(business_rules.get("SourcePhase") or "").strip().lower()
     artifact_phase_signal = source_phase == "1.5-businessrules"
 
-    if not phase_1_5_executed and not hydrated_signal and not artifact_phase_signal:
+    br_signal = False
+    if isinstance(business_rules, Mapping):
+        br_signal = has_br_signal(
+            declared_outcome=str(business_rules.get("Outcome") or ""),
+            report=business_rules.get("ValidationReport") if isinstance(business_rules.get("ValidationReport"), Mapping) else None,
+            persistence_result={
+                "execution_evidence": business_rules.get("ExecutionEvidence") is True,
+                "inventory_loaded": business_rules.get("InventoryLoaded") is True,
+                "extracted_count": business_rules.get("ExtractedCount") or 0,
+                "validation_signal": bool(str(business_rules.get("ValidationResult") or "").strip()),
+                "report_sha_present": bool(str(business_rules.get("ReportSha") or "").strip()),
+                "source_phase": str(business_rules.get("SourcePhase") or ""),
+            },
+        )
+
+    if not phase_1_5_executed and not hydrated_signal and not artifact_phase_signal and not br_signal:
         return P54GateEvaluation(
             status="not-applicable",
             reason_code=REASON_CODE_NONE,
@@ -480,11 +496,7 @@ def evaluate_p54_business_rules_gate(
             )
 
         if outcome in {"not-applicable", "deferred", "skipped"}:
-            has_strict_artifact_signal = bool(
-                source_phase == "1.5-businessrules"
-                or str(business_rules.get("ValidationResult") or "").strip()
-                or str(business_rules.get("ReportSha") or "").strip()
-            )
+            has_strict_artifact_signal = bool(br_signal)
             if not has_strict_artifact_signal:
                 return P54GateEvaluation(
                     status="not-applicable",

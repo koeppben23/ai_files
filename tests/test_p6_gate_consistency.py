@@ -141,7 +141,23 @@ def _make_phase6_state(*, gates: dict | None = None, extra: dict | None = None) 
         "APIInventory.Status": "not-applicable",
         "BusinessRules": {
             "ExecutionEvidence": True,
-            "Outcome": "not-applicable",
+            "Outcome": "extracted",
+            "InventoryLoaded": True,
+            "ExtractedCount": 2,
+            "ValidationResult": "passed",
+            "ValidationReport": {
+                "is_compliant": True,
+                "has_invalid_rules": False,
+                "has_render_mismatch": False,
+                "has_source_violation": False,
+                "has_missing_required_rules": False,
+                "has_segmentation_failure": False,
+                "count_consistent": True,
+                "has_code_extraction": True,
+                "code_extraction_sufficient": True,
+                "has_code_coverage_gap": False,
+                "has_code_doc_conflict": False,
+            },
         },
         "ImplementationReview": {
             "iteration": 2,
@@ -1500,7 +1516,7 @@ class TestP54BusinessRulesGateWiring:
         assert result.status == "compliant"
         assert result.reason_code == "none"
 
-    def test_corner_not_applicable_with_evidence_passes(self) -> None:
+    def test_corner_not_applicable_with_evidence_maps_to_gap_detected(self) -> None:
         state = {
             "BusinessRules": {
                 "Outcome": "not-applicable",
@@ -1513,7 +1529,7 @@ class TestP54BusinessRulesGateWiring:
             session_state=state,
             phase_1_5_executed=True,
         )
-        assert result.status == "not-applicable"
+        assert result.status == "gap-detected"
 
     def test_edge_phase_1_5_not_executed_is_not_applicable(self) -> None:
         state = {"BusinessRules": {"Outcome": "extracted", "ExecutionEvidence": True, "InventoryLoaded": True, "ExtractedCount": 2}}
@@ -1521,7 +1537,7 @@ class TestP54BusinessRulesGateWiring:
             session_state=state,
             phase_1_5_executed=False,
         )
-        assert result.status == "not-applicable"
+        assert result.status == "pending"
 
     def test_bad_extracted_without_inventory_is_gap_detected(self) -> None:
         state = {

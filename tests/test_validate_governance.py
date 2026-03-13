@@ -1185,7 +1185,7 @@ def test_workspace_persistence_backfill_writes_business_rules_when_phase15_extra
 
 
 @pytest.mark.governance
-def test_workspace_persistence_backfill_writes_business_rules_status_for_not_applicable(tmp_path: Path):
+def test_workspace_persistence_backfill_writes_business_rules_status_for_gap_detected(tmp_path: Path):
     script = REPO_ROOT / "governance" / "entrypoints" / "persist_workspace_artifacts.py"
     cfg = tmp_path / "opencode-config"
     repo_root = tmp_path / "repo"
@@ -1239,7 +1239,7 @@ def test_workspace_persistence_backfill_writes_business_rules_status_for_not_app
     assert not (workspace / "business-rules.md").exists()
 
     status_text = (workspace / "business-rules-status.md").read_text(encoding="utf-8")
-    assert "Outcome: not-applicable" in status_text
+    assert "Outcome: gap-detected" in status_text
     assert "ExecutionEvidence: true" in status_text
     assert "business-rules.md (written: no)" in status_text
 
@@ -1685,7 +1685,7 @@ def test_backfill_decision_pack_includes_phase_15_prompt_decision():
     required_tokens = [
         "D-001: Record Business Rules bootstrap outcome",
         "Status: automatic",
-        "Action: Persist business-rules outcome as extracted|skipped|not-applicable|deferred.",
+        "Action: Persist business-rules outcome as extracted|gap-detected|unresolved.",
         "Policy: business-rules-status.md is always written; business-rules.md is written only when outcome=extracted with extractor evidence.",
     ]
     missing = [token for token in required_tokens if token not in text]

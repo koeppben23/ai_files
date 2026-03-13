@@ -7,7 +7,9 @@ from typing import Any, Mapping, MutableMapping
 
 from governance.engine.business_rules_validation import validate_inventory_markdown
 
-_RESOLVED_OUTCOMES = {"extracted", "gap-detected", "unresolved", "not-applicable", "deferred", "skipped"}
+_CANONICAL_OUTCOMES = {"extracted", "gap-detected", "unresolved"}
+_LEGACY_OUTCOMES = {"not-applicable", "deferred", "skipped"}
+_ACCEPTED_OUTCOMES = _CANONICAL_OUTCOMES | _LEGACY_OUTCOMES
 
 
 def _parse_bool(token: str) -> bool:
@@ -73,6 +75,78 @@ def _build_report_sha(report: Mapping[str, Any]) -> str:
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
+def has_br_signal(
+    *,
+    declared_outcome: str = "",
+    report: Mapping[str, Any] | None = None,
+    persistence_result: Mapping[str, Any] | None = None,
+) -> bool:
+    """Return True when any Business Rules processing/materialization signal exists."""
+
+    declared = str(declared_outcome or "").strip().lower()
+    if declared in {"extracted", "gap-detected"}:
+        return True
+
+    report_map = dict(report) if isinstance(report, Mapping) else {}
+    if report_map:
+        if any(
+            key in report_map
+            for key in (
+                "is_compliant",
+                "valid_rule_count",
+                "invalid_rule_count",
+                "dropped_candidate_count",
+                "reason_codes",
+                "has_code_extraction",
+                "code_extraction_sufficient",
+            )
+        ):
+            return True
+
+    persist = dict(persistence_result) if isinstance(persistence_result, Mapping) else {}
+    if _truthy(persist.get("execution_evidence"), default=False):
+        return True
+    if _truthy(persist.get("extraction_ran"), default=False):
+        return True
+    if _truthy(persist.get("inventory_loaded"), default=False):
+        return True
+    if _truthy(persist.get("status_file_present"), default=False):
+        return True
+    if _truthy(persist.get("inventory_exists"), default=False):
+        return True
+    if _truthy(persist.get("validation_signal"), default=False):
+        return True
+    if _truthy(persist.get("report_sha_present"), default=False):
+        return True
+    if str(persist.get("source_phase") or "").strip().lower() == "1.5-businessrules":
+        return True
+
+    extracted_count = _parse_int(str(persist.get("extracted_count", 0)), default=0)
+    if extracted_count > 0:
+        return True
+
+    return False
+
+
+def canonicalize_business_rules_outcome(
+    *,
+    declared_outcome: str,
+    extracted_allowed: bool,
+    final_report_available: bool,
+    br_signal: bool,
+) -> str:
+    """Resolve canonical business-rules outcome to exactly three states."""
+
+    if extracted_allowed:
+        return "extracted"
+    if final_report_available:
+        return "gap-detected"
+    if br_signal:
+        return "gap-detected"
+    _ = declared_outcome
+    return "unresolved"
+
+
 def build_business_rules_state_snapshot(
     *,
     report: Mapping[str, Any],
@@ -106,6 +180,19 @@ def build_business_rules_state_snapshot(
     reason_codes = sorted(set(_normalize_reason_codes(report_map.get("reason_codes"))))
     inventory_written = _truthy(persistence_result.get("inventory_written"), default=True)
     declared_outcome = str(persistence_result.get("declared_outcome") or "").strip().lower()
+    report_finalized = _truthy(
+        persistence_result.get("report_finalized"),
+        default=any(
+            key in report_map
+            for key in (
+                "is_compliant",
+                "valid_rule_count",
+                "invalid_rule_count",
+                "dropped_candidate_count",
+                "count_consistent",
+            )
+        ),
+    )
 
     extracted_allowed = (
         report_is_compliant
@@ -124,22 +211,30 @@ def build_business_rules_state_snapshot(
     )
 
     extraction_ran = _truthy(persistence_result.get("extraction_ran"), default=has_code_extraction)
-    compatibility_outcome_allowed = declared_outcome in {"not-applicable", "deferred", "skipped"}
-    if extracted_allowed:
-        outcome = "extracted"
-    elif compatibility_outcome_allowed:
-        outcome = declared_outcome
-    elif extraction_ran:
-        outcome = "gap-detected"
-    else:
-        outcome = "unresolved"
+    br_signal = has_br_signal(
+        declared_outcome=declared_outcome,
+        report=report_map,
+        persistence_result={
+            **dict(persistence_result),
+            "extraction_ran": extraction_ran,
+            "inventory_loaded": _truthy(persistence_result.get("inventory_loaded"), default=False),
+            "execution_evidence": _truthy(persistence_result.get("execution_evidence"), default=extraction_ran),
+            "extracted_count": valid_rule_count,
+        },
+    )
+    outcome = canonicalize_business_rules_outcome(
+        declared_outcome=declared_outcome,
+        extracted_allowed=extracted_allowed,
+        final_report_available=report_finalized,
+        br_signal=br_signal,
+    )
 
     inventory_file_status = str(persistence_result.get("inventory_file_status") or "unknown").strip() or "unknown"
     inventory_file_mode = str(persistence_result.get("inventory_file_mode") or "unknown").strip() or "unknown"
     inventory_sha256 = str(persistence_result.get("inventory_sha256") or "").strip() or ("0" * 64)
     inventory_loaded = bool(outcome == "extracted" and inventory_file_status == "written")
     extracted_count = valid_rule_count if outcome == "extracted" else 0
-    validation_result = "passed" if (extracted_allowed or compatibility_outcome_allowed) else "failed"
+    validation_result = "passed" if extracted_allowed else "failed"
 
     normalized_report: dict[str, Any] = {
         "is_compliant": report_is_compliant,
@@ -172,6 +267,7 @@ def build_business_rules_state_snapshot(
     return {
         "Outcome": outcome,
         "ValidationResult": validation_result,
+        "HasSignal": br_signal,
         "ExecutionEvidence": bool(extraction_ran),
         "InventoryLoaded": inventory_loaded,
         "ExtractedCount": extracted_count,
@@ -223,7 +319,7 @@ def hydrate_business_rules_state_from_artifacts(
     execution_evidence = _parse_bool(status_fields.get("executionevidence", "false"))
     if not outcome:
         return False
-    if outcome not in _RESOLVED_OUTCOMES:
+    if outcome not in _ACCEPTED_OUTCOMES:
         return False
 
     inventory_loaded = False
@@ -259,13 +355,17 @@ def hydrate_business_rules_state_from_artifacts(
         dropped_candidates = int(getattr(inventory_report, "dropped_candidate_count", 0) or 0)
     if status_fields.get("validationresult") is None and inventory_report is not None:
         validation_result = "passed" if bool(getattr(inventory_report, "is_compliant", False)) else "failed"
-    code_extraction_run = _parse_bool(status_fields.get("codeextractionrun", "false"))
-    code_coverage_sufficient = _parse_bool(status_fields.get("codecoveragesufficient", "false"))
+    code_extraction_run = _parse_bool(status_fields.get("codeextractionrun", "true"))
+    code_coverage_sufficient = _parse_bool(status_fields.get("codecoveragesufficient", "true"))
     code_candidate_count = _parse_int(status_fields.get("codecandidatecount", "0"), default=0)
     code_surface_count = _parse_int(status_fields.get("codesurfacecount", "0"), default=0)
     missing_code_surfaces = _parse_csv_reasons(status_fields.get("missingcodesurfaces", ""))
-    render_consistency = status_fields.get("renderconsistency", "failed").strip().lower()
-    count_consistency = status_fields.get("countconsistency", "failed").strip().lower()
+    render_consistency = status_fields.get("renderconsistency", "").strip().lower()
+    count_consistency = status_fields.get("countconsistency", "").strip().lower()
+    if not render_consistency and inventory_report is not None:
+        render_consistency = "passed" if not bool(getattr(inventory_report, "has_render_mismatch", False)) else "failed"
+    if not count_consistency and inventory_report is not None:
+        count_consistency = "passed" if bool(getattr(inventory_report, "count_consistent", True)) else "failed"
     if render_consistency not in {"passed", "failed"}:
         render_consistency = "failed"
     if count_consistency not in {"passed", "failed"}:
@@ -273,16 +373,16 @@ def hydrate_business_rules_state_from_artifacts(
 
     extracted_count = valid_rules if outcome == "extracted" else 0
     if outcome == "extracted" and len(inventory_rules) != extracted_count:
-        return False
+        count_consistency = "failed"
+        validation_result = "failed"
     if outcome == "extracted" and (not inventory_loaded or extracted_count <= 0):
-        return False
-    if outcome == "extracted" and validation_result != "passed":
-        return False
-
+        validation_result = "failed"
     if outcome == "extracted" and not execution_evidence:
-        return False
+        validation_result = "failed"
     if outcome == "extracted" and code_extraction_run and (not code_coverage_sufficient):
-        return False
+        validation_result = "failed"
+    if outcome == "extracted" and render_consistency == "failed":
+        validation_result = "failed"
 
     report_payload: dict[str, Any] = {
         "is_compliant": validation_result == "passed",
@@ -304,41 +404,44 @@ def hydrate_business_rules_state_from_artifacts(
         "missing_code_surfaces": missing_code_surfaces,
         "has_code_coverage_gap": not code_coverage_sufficient,
         "has_code_doc_conflict": "BUSINESS_RULES_CODE_DOC_CONFLICT" in quality_reason_codes,
+        "reason_codes": quality_reason_codes,
     }
+
+    snapshot = build_business_rules_state_snapshot(
+        report=report_payload,
+        persistence_result={
+            "declared_outcome": outcome,
+            "source_phase": status_fields.get("sourcephase", "1.5-BusinessRules"),
+            "extractor_version": status_fields.get("extractorversion", "unknown"),
+            "extraction_source": status_fields.get("extractionsource", "deterministic"),
+            "extraction_ran": code_extraction_run or execution_evidence,
+            "execution_evidence": execution_evidence,
+            "inventory_loaded": inventory_loaded,
+            "inventory_exists": inventory_path.exists() and inventory_path.is_file(),
+            "status_file_present": True,
+            "validation_signal": bool(status_fields.get("validationresult", "").strip()),
+            "report_sha_present": bool(status_fields.get("reportsha", "").strip()),
+            "inventory_written": inventory_loaded,
+            "inventory_file_status": "written" if inventory_loaded else "withheld",
+            "inventory_file_mode": "update" if inventory_loaded else "unknown",
+            "inventory_sha256": inventory_sha,
+            "report_finalized": bool(status_fields.get("validationresult", "").strip()) or inventory_report is not None,
+        },
+    )
 
     scope_obj = state.get("Scope")
     scope = dict(scope_obj) if isinstance(scope_obj, dict) else {}
-    canonical_outcome = outcome
+    canonical_outcome = str(snapshot.get("Outcome") or "unresolved")
     scope["BusinessRules"] = canonical_outcome
     state["Scope"] = scope
 
     business_obj = state.get("BusinessRules")
     business_rules: dict[str, Any] = dict(business_obj) if isinstance(business_obj, dict) else {}
-    business_rules["Outcome"] = canonical_outcome
-    business_rules["ValidationResult"] = validation_result
-    business_rules["QualityGate"] = "passed" if validation_result == "passed" else "failed"
-    business_rules["ExecutionEvidence"] = execution_evidence
-    business_rules["InventoryLoaded"] = bool(inventory_loaded)
-    business_rules["ExtractedCount"] = extracted_count
-    business_rules["ValidRuleCount"] = valid_rules
-    business_rules["Inventory"] = {
-        "sha256": inventory_sha,
-        "count": extracted_count,
-    }
-    business_rules["InvalidRuleCount"] = invalid_rules
-    business_rules["DroppedCandidateCount"] = dropped_candidates
-    business_rules["ValidationReasonCodes"] = quality_reason_codes
-    business_rules["RenderConsistency"] = render_consistency
-    business_rules["CountConsistency"] = count_consistency
-    business_rules["ValidationReport"] = report_payload
-    business_rules["CodeExtractionRun"] = code_extraction_run
-    business_rules["CodeCoverageSufficient"] = code_coverage_sufficient
-    business_rules["CodeCandidateCount"] = code_candidate_count
-    business_rules["CodeSurfaceCount"] = code_surface_count
-    business_rules["MissingCodeSurfaces"] = missing_code_surfaces
-    business_rules["ReportSha"] = _build_report_sha(report_payload)
+    business_rules.update(snapshot)
+    business_rules["ValidationResult"] = str(snapshot.get("ValidationResult") or validation_result)
+    business_rules["QualityGate"] = "passed" if business_rules.get("ValidationResult") == "passed" else "failed"
     business_rules["QualityReportVersion"] = "br-quality-v2"
-    if inventory_loaded:
+    if snapshot.get("Outcome") == "extracted" and inventory_loaded:
         business_rules["InventoryFileStatus"] = "written"
         business_rules["InventoryFileMode"] = "update"
         business_rules["Rules"] = list(inventory_rules)

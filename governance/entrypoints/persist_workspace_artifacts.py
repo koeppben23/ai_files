@@ -52,7 +52,7 @@ _PERSISTENCE_REQUIRED_TOKENS = (
     "_atomic_write_text(path, updated)",
     "D-001: Record Business Rules bootstrap outcome",
     "Status: automatic",
-    "Action: Persist business-rules outcome as extracted|skipped|not-applicable|deferred.",
+    "Action: Persist business-rules outcome as extracted|gap-detected|unresolved.",
     "Policy: business-rules-status.md is always written; business-rules.md is written only when outcome=extracted with extractor evidence.",
     "ERR-BUSINESS-RULES-PERSIST-WRITE-FAILED",
     'business_rules_action = "write-requested"',
