@@ -964,6 +964,89 @@ class TestNormalizePhase6P5StateFailClosed:
         _normalize_phase6_p5_state(state_doc=state_doc)
         assert "_p6_state_normalization" not in state_doc["SESSION_STATE"]
 
+    def test_fail_closed_uses_p54_evaluator_even_when_gate_is_stale_compliant(self) -> None:
+        state_doc = {"SESSION_STATE": {
+            "Phase": "6-PostFlight",
+            "Next": "6",
+            "BusinessRules": {
+                "Outcome": "extracted",
+                "ExecutionEvidence": True,
+                "InventoryLoaded": True,
+                "ExtractedCount": 2,
+                "InvalidRuleCount": 1,
+                "DroppedCandidateCount": 0,
+                "ValidationReasonCodes": ["BUSINESS_RULES_INVALID_CONTENT"],
+                "ValidationReport": {
+                    "is_compliant": False,
+                    "has_invalid_rules": True,
+                    "has_render_mismatch": False,
+                    "has_source_violation": False,
+                    "has_missing_required_rules": False,
+                    "has_segmentation_failure": False,
+                    "invalid_rule_count": 1,
+                    "dropped_candidate_count": 0,
+                    "count_consistent": True,
+                },
+            },
+            "Gates": {
+                "P5-Architecture": "approved",
+                "P5.3-TestQuality": "pass",
+                "P5.4-BusinessRules": "compliant",  # stale
+                "P5.5-TechnicalDebt": "approved",
+            },
+        }}
+
+        _normalize_phase6_p5_state(state_doc=state_doc)
+
+        ss = state_doc["SESSION_STATE"]
+        assert ss["Phase"] == "5.4-BusinessRules"
+        assert ss["Next"] == "5.4"
+        assert ss["active_gate"] == "Business Rules Validation"
+        assert ss["phase6_state"] == "phase5_in_progress"
+
+    def test_rework_state_does_not_bypass_p54_failure(self) -> None:
+        state_doc = {"SESSION_STATE": {
+            "Phase": "6-PostFlight",
+            "Next": "6",
+            "phase6_state": "phase6_changes_requested",
+            "BusinessRules": {
+                "Outcome": "extracted",
+                "ExecutionEvidence": True,
+                "InventoryLoaded": True,
+                "ExtractedCount": 2,
+                "InvalidRuleCount": 1,
+                "DroppedCandidateCount": 1,
+                "ValidationReasonCodes": [
+                    "BUSINESS_RULES_INVALID_CONTENT",
+                    "BUSINESS_RULES_RENDER_MISMATCH",
+                ],
+                "ValidationReport": {
+                    "is_compliant": False,
+                    "has_invalid_rules": True,
+                    "has_render_mismatch": True,
+                    "has_source_violation": False,
+                    "has_missing_required_rules": False,
+                    "has_segmentation_failure": False,
+                    "invalid_rule_count": 1,
+                    "dropped_candidate_count": 1,
+                    "count_consistent": False,
+                },
+            },
+            "Gates": {
+                "P5-Architecture": "approved",
+                "P5.3-TestQuality": "pass",
+                "P5.4-BusinessRules": "compliant",  # stale
+                "P5.5-TechnicalDebt": "approved",
+            },
+        }}
+
+        _normalize_phase6_p5_state(state_doc=state_doc)
+
+        ss = state_doc["SESSION_STATE"]
+        assert ss["Phase"] == "5.4-BusinessRules"
+        assert ss["phase6_state"] == "phase5_in_progress"
+        assert "BLOCKED-P5-4-BUSINESS-RULES-GATE" in ss["next_gate_condition"]
+
 
 class TestConditionalP5GateSync:
     def test_happy_sync_p54_pending_to_compliant(self) -> None:
@@ -1020,6 +1103,45 @@ class TestConditionalP5GateSync:
         }}
         _sync_conditional_p5_gate_states(state_doc=state_doc)
         assert state_doc["SESSION_STATE"]["Gates"]["P5.4-BusinessRules"] == "gap-detected"
+
+    def test_fail_closed_resets_phase5_completed_when_p54_fails(self) -> None:
+        state_doc = {"SESSION_STATE": {
+            "phase5_completed": True,
+            "phase5_state": "phase5_completed",
+            "Phase5State": "phase5_completed",
+            "BusinessRules": {
+                "Outcome": "extracted",
+                "ExecutionEvidence": True,
+                "InventoryLoaded": True,
+                "ExtractedCount": 2,
+                "InvalidRuleCount": 1,
+                "DroppedCandidateCount": 0,
+                "ValidationReasonCodes": ["BUSINESS_RULES_INVALID_CONTENT"],
+                "ValidationReport": {
+                    "is_compliant": False,
+                    "has_invalid_rules": True,
+                    "has_render_mismatch": False,
+                    "has_source_violation": False,
+                    "has_missing_required_rules": False,
+                    "has_segmentation_failure": False,
+                    "invalid_rule_count": 1,
+                    "dropped_candidate_count": 0,
+                    "count_consistent": True,
+                },
+            },
+            "Gates": {
+                "P5.4-BusinessRules": "pending",
+                "P5.5-TechnicalDebt": "pending",
+                "P5.6-RollbackSafety": "pending",
+            },
+        }}
+
+        _sync_conditional_p5_gate_states(state_doc=state_doc)
+
+        ss = state_doc["SESSION_STATE"]
+        assert ss["Gates"]["P5.4-BusinessRules"] == "gap-detected"
+        assert ss["phase5_completed"] is False
+        assert ss["phase5_state"] == "phase5-in-progress"
 
 
 class TestCanonicalizeLegacyP5xSurface:

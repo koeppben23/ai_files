@@ -122,6 +122,15 @@ class P54GateEvaluation:
     total_business_rules: int
     covered_business_rules: int
     uncovered_rules: tuple[str, ...]
+    validation_report_is_compliant: bool | None = None
+    has_invalid_rules: bool = False
+    has_render_mismatch: bool = False
+    has_source_violation: bool = False
+    has_missing_required_rules: bool = False
+    has_segmentation_failure: bool = False
+    invalid_rule_count: int = 0
+    dropped_candidate_count: int = 0
+    quality_reason_codes: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -290,6 +299,7 @@ def evaluate_p54_business_rules_gate(
             total_business_rules=0,
             covered_business_rules=0,
             uncovered_rules=(),
+            validation_report_is_compliant=True,
         )
 
     business_rules = session_state.get("BusinessRules")
@@ -313,6 +323,45 @@ def evaluate_p54_business_rules_gate(
         else:
             extracted_count = 0
 
+        quality_report = business_rules.get("ValidationReport")
+        quality_report_map = quality_report if isinstance(quality_report, Mapping) else {}
+        report_is_compliant = bool(quality_report_map.get("is_compliant") is True)
+        has_invalid_rules = bool(quality_report_map.get("has_invalid_rules") is True)
+        has_render_mismatch = bool(quality_report_map.get("has_render_mismatch") is True)
+        has_source_violation = bool(quality_report_map.get("has_source_violation") is True)
+        has_missing_required = bool(quality_report_map.get("has_missing_required_rules") is True)
+        has_segmentation_failure = bool(quality_report_map.get("has_segmentation_failure") is True)
+        raw_invalid_count = business_rules.get("InvalidRuleCount") or quality_report_map.get("invalid_rule_count") or 0
+        raw_dropped_count = business_rules.get("DroppedCandidateCount") or quality_report_map.get("dropped_candidate_count") or 0
+        try:
+            invalid_rule_count = int(raw_invalid_count)
+        except (TypeError, ValueError):
+            invalid_rule_count = 0
+        try:
+            dropped_candidate_count = int(raw_dropped_count)
+        except (TypeError, ValueError):
+            dropped_candidate_count = 0
+        reason_codes_value = business_rules.get("ValidationReasonCodes")
+        quality_reason_codes: tuple[str, ...] = ()
+        if isinstance(reason_codes_value, list):
+            quality_reason_codes = tuple(str(x).strip() for x in reason_codes_value if str(x).strip())
+        elif isinstance(reason_codes_value, str) and reason_codes_value.strip():
+            quality_reason_codes = tuple(x.strip() for x in reason_codes_value.split(",") if x.strip())
+
+        # Backward-compat path: legacy snapshots may not have ValidationReport.
+        if not quality_report_map:
+            report_is_compliant = (
+                execution_evidence and inventory_loaded and extracted_count > 0
+            )
+            has_invalid_rules = False
+            has_render_mismatch = False
+            has_source_violation = False
+            has_missing_required = False
+            has_segmentation_failure = False
+            invalid_rule_count = 0
+            dropped_candidate_count = 0
+            quality_reason_codes = ()
+
         if outcome in {"not-applicable", "deferred", "skipped"} and execution_evidence:
             return P54GateEvaluation(
                 status="not-applicable",
@@ -321,10 +370,23 @@ def evaluate_p54_business_rules_gate(
                 total_business_rules=0,
                 covered_business_rules=0,
                 uncovered_rules=(),
+                validation_report_is_compliant=True,
             )
 
         if outcome == "extracted":
-            if execution_evidence and inventory_loaded and extracted_count > 0:
+            if (
+                execution_evidence
+                and inventory_loaded
+                and extracted_count > 0
+                and report_is_compliant
+                and not has_invalid_rules
+                and not has_render_mismatch
+                and not has_source_violation
+                and not has_missing_required
+                and not has_segmentation_failure
+                and invalid_rule_count == 0
+                and dropped_candidate_count == 0
+            ):
                 return P54GateEvaluation(
                     status="compliant",
                     reason_code=REASON_CODE_NONE,
@@ -332,6 +394,15 @@ def evaluate_p54_business_rules_gate(
                     total_business_rules=extracted_count,
                     covered_business_rules=extracted_count,
                     uncovered_rules=(),
+                    validation_report_is_compliant=True,
+                    has_invalid_rules=False,
+                    has_render_mismatch=False,
+                    has_source_violation=False,
+                    has_missing_required_rules=False,
+                    has_segmentation_failure=False,
+                    invalid_rule_count=0,
+                    dropped_candidate_count=0,
+                    quality_reason_codes=quality_reason_codes,
                 )
             return P54GateEvaluation(
                 status="gap-detected",
@@ -340,6 +411,15 @@ def evaluate_p54_business_rules_gate(
                 total_business_rules=max(extracted_count, 0),
                 covered_business_rules=0,
                 uncovered_rules=("business-rules-hydration-incomplete",),
+                validation_report_is_compliant=report_is_compliant,
+                has_invalid_rules=has_invalid_rules,
+                has_render_mismatch=has_render_mismatch,
+                has_source_violation=has_source_violation,
+                has_missing_required_rules=has_missing_required,
+                has_segmentation_failure=has_segmentation_failure,
+                invalid_rule_count=max(invalid_rule_count, 0),
+                dropped_candidate_count=max(dropped_candidate_count, 0),
+                quality_reason_codes=quality_reason_codes,
             )
 
     # Legacy/fallback behavior for rule-list based states.

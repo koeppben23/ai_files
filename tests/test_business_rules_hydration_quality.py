@@ -62,3 +62,35 @@ def test_bad_hydration_requires_execution_evidence_for_extracted(tmp_path: Path)
     ok = hydrate_business_rules_state_from_artifacts(state=state, status_path=status, inventory_path=inv)
 
     assert ok is False
+
+
+def test_bad_hydration_rejects_known_artifact_patterns(tmp_path: Path) -> None:
+    status = tmp_path / "business-rules-status.md"
+    inv = tmp_path / "business-rules.md"
+    _write(status, "Outcome: extracted\nExecutionEvidence: true\n")
+    _write(
+        inv,
+        "- BR-001: Inventory scaffold\n"
+        '- BR-002: Access must be checked\\n- BR-003: Audit is mandatory\\n")\n',
+    )
+    state: dict[str, object] = {}
+
+    ok = hydrate_business_rules_state_from_artifacts(state=state, status_path=status, inventory_path=inv)
+
+    assert ok is False
+
+
+def test_corner_hydration_records_validation_report_fields(tmp_path: Path) -> None:
+    status = tmp_path / "business-rules-status.md"
+    inv = tmp_path / "business-rules.md"
+    _write(status, "Outcome: extracted\nExecutionEvidence: true\n")
+    _write(inv, "- BR-010: A release must require four eyes before production deploy\n")
+    state: dict[str, object] = {}
+
+    ok = hydrate_business_rules_state_from_artifacts(state=state, status_path=status, inventory_path=inv)
+
+    assert ok is True
+    business = state["BusinessRules"]
+    assert isinstance(business, dict)
+    assert business["QualityGate"] == "passed"
+    assert business["ValidationReport"]["is_compliant"] is True
