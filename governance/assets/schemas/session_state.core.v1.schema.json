@@ -249,7 +249,56 @@
             "ExistingAbstractions": { "type": "array" },
             "DependencyGraph": { "type": "array" },
             "PatternFingerprint": { "type": "object" },
-            "TechnicalDebtMarkers": { "type": "array" }
+            "TechnicalDebtMarkers": { "type": "array" },
+            "BusinessRuleCandidates": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["id", "candidate_rule_text", "source_path", "pattern_type", "confidence"],
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "pattern": "^BR-C\\d{3,}$",
+                    "description": "Code-sourced candidate ID with BR-C prefix"
+                  },
+                  "candidate_rule_text": {
+                    "type": "string",
+                    "description": "Candidate rule text in BR-C<NNN>: <body> format — not yet a validated rule"
+                  },
+                  "source_path": {
+                    "type": "string",
+                    "description": "Repo-relative path to the source file"
+                  },
+                  "line_range": {
+                    "type": "string",
+                    "description": "Line range in format <start>-<end>"
+                  },
+                  "pattern_type": {
+                    "type": "string",
+                    "enum": [
+                      "validation-guard",
+                      "constraint-check",
+                      "policy-enforcement",
+                      "enum-invariant",
+                      "schema-constraint",
+                      "guard-clause",
+                      "config-rule"
+                    ]
+                  },
+                  "confidence": {
+                    "type": "string",
+                    "enum": ["high", "medium"],
+                    "description": "Diagnostic only — does not bypass validation"
+                  },
+                  "evidence_snippet": {
+                    "type": "string",
+                    "maxLength": 500,
+                    "description": "Max 5 lines / 500 chars — audit/debug only, never in business-rules.md"
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
           },
           "additionalProperties": true
         },
