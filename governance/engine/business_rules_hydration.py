@@ -176,6 +176,8 @@ def build_business_rules_state_snapshot(
     has_render_mismatch = _truthy(report_map.get("has_render_mismatch"), default=False)
     count_consistent = _truthy(report_map.get("count_consistent"), default=False)
     render_consistent = not has_render_mismatch
+    has_source_violation = _truthy(report_map.get("has_source_violation"), default=False)
+    has_segmentation_failure = _truthy(report_map.get("has_segmentation_failure"), default=False)
     report_is_compliant = _truthy(report_map.get("is_compliant"), default=False)
     reason_codes = sorted(set(_normalize_reason_codes(report_map.get("reason_codes"))))
     inventory_written = _truthy(persistence_result.get("inventory_written"), default=True)
@@ -193,6 +195,21 @@ def build_business_rules_state_snapshot(
             )
         ),
     )
+
+    severe_quality_failure = (
+        has_render_mismatch
+        or has_source_violation
+        or has_segmentation_failure
+        or (not count_consistent)
+        or (not render_consistent)
+    )
+    if severe_quality_failure:
+        has_quality_insufficiency = True
+        code_extraction_sufficient = False
+        has_code_coverage_gap = True
+        if "BUSINESS_RULES_CODE_QUALITY_INSUFFICIENT" not in reason_codes:
+            reason_codes.append("BUSINESS_RULES_CODE_QUALITY_INSUFFICIENT")
+            reason_codes = sorted(set(reason_codes))
 
     extracted_allowed = (
         report_is_compliant
@@ -240,9 +257,9 @@ def build_business_rules_state_snapshot(
         "is_compliant": report_is_compliant,
         "has_invalid_rules": has_invalid_rules,
         "has_render_mismatch": has_render_mismatch,
-        "has_source_violation": _truthy(report_map.get("has_source_violation"), default=False),
+        "has_source_violation": has_source_violation,
         "has_missing_required_rules": _truthy(report_map.get("has_missing_required_rules"), default=False),
-        "has_segmentation_failure": _truthy(report_map.get("has_segmentation_failure"), default=False),
+        "has_segmentation_failure": has_segmentation_failure,
         "raw_candidate_count": raw_candidate_count,
         "segmented_candidate_count": max(_parse_int(str(report_map.get("segmented_candidate_count", 0))), 0),
         "valid_rule_count": valid_rule_count,
@@ -262,6 +279,10 @@ def build_business_rules_state_snapshot(
         "code_token_artifact_count": max(_parse_int(str(report_map.get("code_token_artifact_count", 0))), 0),
         "artifact_ratio_exceeded": artifact_ratio_exceeded,
         "artifact_ratio": float(report_map.get("artifact_ratio", 0.0) or 0.0),
+        "template_overfit_count": max(_parse_int(str(report_map.get("template_overfit_count", 0))), 0),
+        "surface_balance_score": float(report_map.get("surface_balance_score", 0.0) or 0.0),
+        "semantic_diversity_score": float(report_map.get("semantic_diversity_score", 0.0) or 0.0),
+        "quality_insufficiency_reasons": _normalize_reason_codes(report_map.get("quality_insufficiency_reasons")),
     }
 
     return {

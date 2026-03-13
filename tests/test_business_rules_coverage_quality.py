@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from governance.engine.business_rules_code_extraction import CodeSurface
 from governance.engine.business_rules_coverage import (
+    RC_CODE_TEMPLATE_OVERFIT,
+    RC_CODE_TOKEN_ARTIFACT_SPIKE,
     RC_CODE_QUALITY_INSUFFICIENT,
     evaluate_code_extraction_coverage,
 )
@@ -44,6 +46,34 @@ def test_high_artifact_ratio_is_insufficient() -> None:
     )
     assert coverage.is_sufficient is False
     assert coverage.artifact_ratio > 0.20
+    assert RC_CODE_TOKEN_ARTIFACT_SPIKE not in coverage.reason_codes
+
+
+def test_artifact_spike_emits_specific_reason() -> None:
+    coverage = evaluate_code_extraction_coverage(
+        scanned_surfaces=_surfaces(),
+        candidate_count=200,
+        extraction_ran=True,
+        validated_code_rule_count=30,
+        invalid_code_candidate_count=170,
+        code_token_artifact_count=90,
+    )
+    assert coverage.is_sufficient is False
+    assert RC_CODE_TOKEN_ARTIFACT_SPIKE in coverage.reason_codes
+
+
+def test_template_overfit_is_insufficient() -> None:
+    coverage = evaluate_code_extraction_coverage(
+        scanned_surfaces=_surfaces(),
+        candidate_count=20,
+        extraction_ran=True,
+        validated_code_rule_count=2,
+        invalid_code_candidate_count=18,
+        code_token_artifact_count=0,
+        template_overfit_count=2,
+    )
+    assert coverage.is_sufficient is False
+    assert RC_CODE_TEMPLATE_OVERFIT in coverage.reason_codes
 
 
 def test_few_high_quality_rules_can_be_sufficient() -> None:
