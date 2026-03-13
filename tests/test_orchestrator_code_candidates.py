@@ -107,7 +107,7 @@ class TestOrchestratorCodeCandidatesHappy:
         content = module._render_business_rules_status(
             date="2026-03-13",
             repo_name="test-repo",
-            outcome="not-applicable",
+            outcome="unresolved",
             source="extractor",
             source_phase="1.5-BusinessRules",
             execution_evidence=True,
@@ -142,7 +142,7 @@ class TestOrchestratorCodeCandidatesBad:
         content = module._render_business_rules_status(
             date="2026-03-13",
             repo_name="test-repo",
-            outcome="not-applicable",
+            outcome="unresolved",
             source="extractor",
             source_phase="1.5-BusinessRules",
             execution_evidence=True,
@@ -250,13 +250,13 @@ class TestOrchestratorCodeCandidatesCorner:
         )
         assert "business-rules.md (written: yes)" in content
 
-    def test_inventory_written_no_when_not_applicable(self) -> None:
-        """business-rules.md written: no when outcome=not-applicable."""
+    def test_inventory_written_no_when_unresolved(self) -> None:
+        """business-rules.md written: no when outcome=unresolved."""
         module = _load_orchestrator_module()
         content = module._render_business_rules_status(
             date="2026-03-13",
             repo_name="test-repo",
-            outcome="not-applicable",
+            outcome="unresolved",
             source="extractor",
             source_phase="1.5-BusinessRules",
             execution_evidence=True,
@@ -301,7 +301,7 @@ class TestOrchestratorCodeCandidatesEdge:
         content = module._render_business_rules_status(
             date="2026-03-13",
             repo_name="",
-            outcome="not-applicable",
+            outcome="unresolved",
             source="extractor",
             source_phase="1.5-BusinessRules",
             execution_evidence=False,

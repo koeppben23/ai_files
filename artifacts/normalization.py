@@ -20,7 +20,7 @@ def normalize_legacy_placeholder_phrasing(text: str) -> Tuple[str, bool]:
         "Evidence: Backfill initialization only; no fresh Phase 2 domain extraction attached": "Evidence: Bootstrap seed only; no fresh Phase 2 domain extraction attached",
         "D-001: Run Phase 1.5 (Business Rules Discovery) now?": "D-001: Record Business Rules bootstrap outcome",
         "A) Yes": "Status: automatic",
-        "B) No": "Action: Persist business-rules outcome as extracted|skipped|not-applicable|deferred.",
+        "B) No": "Action: Persist business-rules outcome as extracted|gap-detected|unresolved.",
         "Recommendation: A (run lightweight Phase 1.5 to establish initial domain evidence)": "Policy: business-rules-status.md is always written; business-rules.md is written only when outcome=extracted with extractor evidence.",
         "What would change it: keep B only when operator explicitly defers business-rules discovery": "What would change it: scope evidence or Phase 1.5 extraction state.",
     }
@@ -30,7 +30,7 @@ def normalize_legacy_placeholder_phrasing(text: str) -> Tuple[str, bool]:
     updated = re.sub(r"(?im)^\s*A\)\s*Yes\s*$", "Status: automatic", updated)
     updated = re.sub(
         r"(?im)^\s*B\)\s*No\s*$",
-        "Action: Persist business-rules outcome as extracted|skipped|not-applicable|deferred.",
+        "Action: Persist business-rules outcome as extracted|gap-detected|unresolved.",
         updated,
     )
     return updated, updated != text

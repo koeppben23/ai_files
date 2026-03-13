@@ -65,6 +65,8 @@ if str(SCRIPT_DIR.parent) not in sys.path:
 from governance.entrypoints.write_policy import EFFECTIVE_MODE, is_write_allowed, writes_allowed
 from governance.engine.business_rules_hydration import (
     build_business_rules_state_snapshot,
+    canonicalize_business_rules_outcome,
+    has_br_signal,
     hydrate_business_rules_state_from_artifacts,
 )
 from governance.engine.business_rules_validation import (
@@ -265,7 +267,7 @@ except ImportError:
                 "D-001: Record Business Rules bootstrap outcome",
                 f"ID: DP-{date_compact}-001",
                 "Status: automatic",
-                "Action: Persist business-rules outcome as extracted|skipped|not-applicable|deferred.",
+                "Action: Persist business-rules outcome as extracted|gap-detected|unresolved.",
                 "Policy: business-rules-status.md is always written; business-rules.md is written only when outcome=extracted with extractor evidence.",
                 "What would change it: scope evidence or Phase 1.5 extraction state.",
                 "",
@@ -305,7 +307,7 @@ except ImportError:
 _PERSISTENCE_DECISION_PACK_BASELINE = (
     "D-001: Record Business Rules bootstrap outcome",
     "Status: automatic",
-    "Action: Persist business-rules outcome as extracted|skipped|not-applicable|deferred.",
+    "Action: Persist business-rules outcome as extracted|gap-detected|unresolved.",
     "Policy: business-rules-status.md is always written; business-rules.md is written only when outcome=extracted with extractor evidence.",
 )
 
@@ -1026,15 +1028,28 @@ def _resolve_business_rules_outcome(
         if isinstance(raw, str):
             business_rules_scope = raw.strip().lower()
 
-    if business_rules_scope in {"extracted", "skipped", "not-applicable", "deferred", "unresolved"}:
-        return business_rules_scope, "scope"
-    if extractor_ran and extracted_rule_count > 0 and extraction_evidence:
-        return "extracted", "extractor"
-    if extractor_ran and extracted_rule_count == 0:
-        return "not-applicable", "extractor"
-    if business_rules_inventory_action in {"write-requested", "blocked-read-only"}:
-        return "deferred", "persistence-helper"
-    return "unresolved", "persistence-helper"
+    extracted_allowed = extractor_ran and extracted_rule_count > 0 and extraction_evidence
+    signal = has_br_signal(
+        declared_outcome=business_rules_scope,
+        report=None,
+        persistence_result={
+            "extraction_ran": extractor_ran,
+            "execution_evidence": extraction_evidence,
+            "inventory_loaded": business_rules_inventory_action in {"created", "overwritten", "appended", "kept", "normalized"},
+            "status_file_present": False,
+            "validation_signal": False,
+            "source_phase": "1.5-BusinessRules" if extractor_ran else "",
+            "extracted_count": extracted_rule_count,
+        },
+    )
+    outcome = canonicalize_business_rules_outcome(
+        declared_outcome=business_rules_scope,
+        extracted_allowed=extracted_allowed,
+        final_report_available=False,
+        br_signal=signal,
+    )
+    source = "scope" if business_rules_scope else ("extractor" if extractor_ran else "persistence-helper")
+    return outcome, source
 
 
 def _render_business_rules_status(
@@ -1066,6 +1081,7 @@ def _render_business_rules_status(
     missing_code_surfaces: list[str] | None = None,
     raw_candidate_count: int = 0,
     report_sha: str = "",
+    has_signal: bool = False,
 ) -> str:
     inventory_written = "yes" if outcome == "extracted" and execution_evidence else "no"
     hash_token = rules_hash if rules_hash else "none"
@@ -1100,6 +1116,7 @@ def _render_business_rules_status(
         f"MissingCodeSurfaces: {missing_surfaces_token}",
         f"RawCandidateCount: {raw_candidate_count}",
         f"ReportSha: {report_sha or ('0' * 64)}",
+        f"HasSignal: {'true' if has_signal else 'false'}",
     ]
     if extraction_source == "hybrid":
         lines.extend([
@@ -1923,11 +1940,18 @@ def main() -> int:
             "extractor_version": _BUSINESS_RULES_EXTRACTOR_VERSION,
             "extraction_source": extraction_source,
             "extraction_ran": extractor_ran,
+            "execution_evidence": extraction_evidence,
             "inventory_written": True,
+            "inventory_loaded": True,
+            "inventory_exists": True,
+            "status_file_present": True,
+            "validation_signal": True,
+            "report_sha_present": True,
             "inventory_file_status": "written",
             "inventory_file_mode": "update",
             "inventory_sha256": "0" * 64,
             "declared_outcome": str(scope.get("BusinessRules") or ""),
+            "report_finalized": True,
         },
     )
     should_write_business_rules = pre_snapshot.get("Outcome") == "extracted"
@@ -2056,11 +2080,18 @@ def main() -> int:
             "extractor_version": _BUSINESS_RULES_EXTRACTOR_VERSION,
             "extraction_source": extraction_source,
             "extraction_ran": extractor_ran,
+            "execution_evidence": extraction_evidence,
             "inventory_written": _inventory_written_action(business_rules_action),
+            "inventory_loaded": _inventory_written_action(business_rules_action),
+            "inventory_exists": business_rules_path.exists(),
+            "status_file_present": True,
+            "validation_signal": True,
+            "report_sha_present": True,
             "inventory_file_status": "written" if _inventory_written_action(business_rules_action) else "withheld",
             "inventory_file_mode": inventory_mode,
             "inventory_sha256": business_rules_sha256 or ("0" * 64),
             "declared_outcome": str(scope.get("BusinessRules") or ""),
+            "report_finalized": True,
         },
     )
 
@@ -2097,6 +2128,7 @@ def main() -> int:
             missing_code_surfaces=list(final_snapshot.get("MissingCodeSurfaces") or extraction_report.missing_code_surfaces),
             raw_candidate_count=int((final_snapshot.get("ValidationReport") or {}).get("raw_candidate_count", 0) if isinstance(final_snapshot.get("ValidationReport"), dict) else 0),
             report_sha=str(final_snapshot.get("ReportSha") or ""),
+            has_signal=bool(final_snapshot.get("HasSignal") is True),
         ),
         append_content=None,
         force=args.force,
