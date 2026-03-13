@@ -34,6 +34,7 @@ from governance.entrypoints.session_reader import (
     _coerce_int,
     _should_emit_continue_next_action,
     _resolve_next_action_line,
+    _render_blocker,
 )
 
 
@@ -3077,3 +3078,23 @@ class TestPhase6NextActionLine:
         assert _resolve_next_action_line(snapshot) == (
             "Next action: resolve the reported blocker evidence, then run /continue."
         )
+
+
+class TestP54BlockerSurface:
+    def test_blocker_surface_includes_business_rules_diagnostics(self) -> None:
+        snapshot = {
+            "status": "BLOCKED",
+            "phase": "5.4-BusinessRules",
+            "next_gate_condition": "PHASE_BLOCKED: BLOCKED-P5-4-BUSINESS-RULES-GATE",
+            "p54_evaluated_status": "gap-detected",
+            "p54_reason_code": "BLOCKED-P5-4-BUSINESS-RULES-GATE",
+            "p54_invalid_rules": 2,
+            "p54_dropped_candidates": 1,
+            "p54_quality_reason_codes": ["BUSINESS_RULES_INVALID_CONTENT"],
+        }
+
+        lines = _render_blocker(snapshot)
+
+        assert any("Business Rules Validation: FAILED" in line for line in lines)
+        assert any("Invalid rules detected: 2" in line for line in lines)
+        assert any("Reason code: BLOCKED-P5-4-BUSINESS-RULES-GATE" in line for line in lines)
