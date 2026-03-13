@@ -65,9 +65,14 @@ if str(SCRIPT_DIR.parent) not in sys.path:
 from governance.entrypoints.write_policy import EFFECTIVE_MODE, is_write_allowed, writes_allowed
 from governance.engine.business_rules_hydration import hydrate_business_rules_state_from_artifacts
 from governance.engine.business_rules_validation import (
+    ORIGIN_CODE,
+    ORIGIN_DOC,
+    ProvenanceRecord,
     extract_validated_business_rules_from_repo,
+    merge_code_candidates,
     render_business_rules_scaffold,
     render_inventory_rules,
+    validate_candidates,
     validate_inventory_markdown,
 )
 try:
@@ -1047,6 +1052,10 @@ def _render_business_rules_status(
     source_diagnostics: list[str] | None = None,
     render_consistency: str = "unknown",
     count_consistency: str = "unknown",
+    extraction_source: str = "deterministic",
+    doc_only_count: int = 0,
+    code_only_count: int = 0,
+    doc_and_code_count: int = 0,
 ) -> str:
     inventory_written = "yes" if outcome == "extracted" and execution_evidence else "no"
     hash_token = rules_hash if rules_hash else "none"
@@ -1054,33 +1063,41 @@ def _render_business_rules_status(
     source_diagnostics = source_diagnostics or []
     reason_token = ", ".join(reason_codes) if reason_codes else "none"
     source_token = ", ".join(source_diagnostics) if source_diagnostics else "none"
-    return "\n".join(
-        [
-            f"# Business Rules Status - {repo_name}",
-            "",
-            f"Outcome: {outcome}",
-            f"OutcomeSource: {source}",
-            f"SourcePhase: {source_phase}",
-            f"ExecutionEvidence: {'true' if execution_evidence else 'false'}",
-            f"ExtractorVersion: {extractor_version}",
-            f"RulesHash: {hash_token}",
-            f"ValidationResult: {validation_result}",
-            f"ValidRules: {valid_rules}",
-            f"InvalidRules: {invalid_rules}",
-            f"DroppedCandidates: {dropped_candidates}",
-            f"ReasonCodes: {reason_token}",
-            f"SourceDiagnostics: {source_token}",
-            f"RenderConsistency: {render_consistency}",
-            f"CountConsistency: {count_consistency}",
-            "InventoryPolicy: business-rules-status.md is always written; business-rules.md is written only when outcome=extracted with extractor evidence.",
-            f"Last Updated: {date}",
-            "",
-            "ExpectedArtifacts:",
-            "- business-rules-status.md (always)",
-            f"- business-rules.md (written: {inventory_written})",
-            "",
-        ]
-    )
+    lines = [
+        f"# Business Rules Status - {repo_name}",
+        "",
+        f"Outcome: {outcome}",
+        f"OutcomeSource: {source}",
+        f"SourcePhase: {source_phase}",
+        f"ExecutionEvidence: {'true' if execution_evidence else 'false'}",
+        f"ExtractorVersion: {extractor_version}",
+        f"ExtractionSource: {extraction_source}",
+        f"RulesHash: {hash_token}",
+        f"ValidationResult: {validation_result}",
+        f"ValidRules: {valid_rules}",
+        f"InvalidRules: {invalid_rules}",
+        f"DroppedCandidates: {dropped_candidates}",
+        f"ReasonCodes: {reason_token}",
+        f"SourceDiagnostics: {source_token}",
+        f"RenderConsistency: {render_consistency}",
+        f"CountConsistency: {count_consistency}",
+    ]
+    if extraction_source == "hybrid":
+        lines.extend([
+            f"DocOnlyRules: {doc_only_count}",
+            f"CodeOnlyRules: {code_only_count}",
+            f"DocAndCodeRules: {doc_and_code_count}",
+        ])
+    lines.extend([
+        "InventoryPolicy: business-rules-status.md is always written; business-rules.md is written only when outcome=extracted with extractor evidence.",
+        f"Last Updated: {date}",
+        "",
+        "ExpectedArtifacts:",
+        "- business-rules-status.md (always)",
+        f"- business-rules.md (written: {inventory_written})",
+        "",
+    ])
+    return "\n".join(lines)
 
 
 def _parse_business_rules_lines(content: str) -> list[str]:
@@ -1099,7 +1116,7 @@ def _parse_business_rules_lines(content: str) -> list[str]:
     return rules
 
 
-_BUSINESS_RULES_EXTRACTOR_VERSION = "deterministic-br-v2"
+_BUSINESS_RULES_EXTRACTOR_VERSION = "hybrid-br-v1"
 
 
 def _extract_business_rules_from_repo(repo_root: Path) -> tuple[list[str], list[str], bool]:
@@ -1785,6 +1802,37 @@ def main() -> int:
         date=today, repo_name=repo_name, repo_fingerprint=repo_fingerprint
     )
     extraction_report, extractor_ran = extract_validated_business_rules_from_repo(repo_root)
+
+    # --- Hybrid merge: incorporate LLM code candidates from session ---------
+    codebase_context = session.get("CodebaseContext", {}) if isinstance(session, dict) else {}
+    code_candidates_raw: list[dict[str, object]] = []
+    if isinstance(codebase_context, dict):
+        raw = codebase_context.get("BusinessRuleCandidates")
+        if isinstance(raw, list):
+            code_candidates_raw = raw  # type: ignore[assignment]
+
+    hybrid_active = len(code_candidates_raw) > 0
+    extraction_source = "hybrid" if hybrid_active else "deterministic"
+    provenance_records: list[ProvenanceRecord] = []
+    merge_rejected_count = 0
+
+    if hybrid_active:
+        merged_candidates, merge_rejected, provenance_records = merge_code_candidates(
+            code_candidates=code_candidates_raw,
+            existing_doc_rules=list(extraction_report.valid_rules),
+        )
+        merge_rejected_count = len(merge_rejected)
+        # Re-validate the merged candidate set through the deterministic pipeline
+        extraction_report = validate_candidates(
+            candidates=merged_candidates,
+            expected_rules=True,
+        )
+        extractor_ran = True
+
+    doc_only_count = sum(1 for p in provenance_records if p.found_in_docs and not p.found_in_code)
+    code_only_count = sum(1 for p in provenance_records if p.found_in_code and not p.found_in_docs)
+    doc_and_code_count = sum(1 for p in provenance_records if p.found_in_docs and p.found_in_code)
+
     extracted_rules = [row.text for row in extraction_report.valid_rules]
     extracted_evidence_paths = [f"{row.source_path}:{row.line_no}" for row in extraction_report.valid_rules]
     extraction_evidence = extractor_ran
@@ -1843,7 +1891,11 @@ def main() -> int:
                         "repo_fingerprint": repo_fingerprint,
                         "status": "extracted",
                         "extractor_version": _BUSINESS_RULES_EXTRACTOR_VERSION,
+                        "extraction_source": extraction_source,
                         "rule_count": extracted_rule_count,
+                        "doc_only_count": doc_only_count,
+                        "code_only_count": code_only_count,
+                        "doc_and_code_count": doc_and_code_count,
                         "target": str(business_rules_path),
                     },
                     dry_run=args.dry_run,
@@ -1908,11 +1960,15 @@ def main() -> int:
             validation_result=status_validation_result,
             valid_rules=extraction_report.valid_rule_count,
             invalid_rules=extraction_report.invalid_rule_count,
-            dropped_candidates=extraction_report.dropped_candidate_count,
+            dropped_candidates=extraction_report.dropped_candidate_count + merge_rejected_count,
             reason_codes=status_reason_codes,
             source_diagnostics=status_source_diagnostics,
             render_consistency="passed" if not render_report.has_render_mismatch else "failed",
             count_consistency="passed" if render_report.count_consistent else "failed",
+            extraction_source=extraction_source,
+            doc_only_count=doc_only_count,
+            code_only_count=code_only_count,
+            doc_and_code_count=doc_and_code_count,
         ),
         append_content=None,
         force=args.force,
