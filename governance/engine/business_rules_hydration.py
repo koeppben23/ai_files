@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import hashlib
-import re
 from pathlib import Path
 from typing import Any, MutableMapping
+
+from governance.engine.business_rules_validation import validate_inventory_markdown
 
 _RESOLVED_OUTCOMES = {"extracted", "not-applicable", "deferred", "skipped"}
 
@@ -27,36 +28,15 @@ def _parse_status_fields(content: str) -> dict[str, str]:
     return fields
 
 
-def _parse_inventory_rules(content: str) -> list[str]:
-    rules: list[str] = []
-    for raw_line in content.splitlines():
-        line = raw_line.strip()
-        if line.startswith("- ") and len(line) > 2:
-            candidate = line[2:].strip()
-            if _is_valid_rule(candidate):
-                rules.append(candidate)
-            continue
-        if line.startswith("Rule:"):
-            value = line[len("Rule:") :].strip()
-            if _is_valid_rule(value):
-                rules.append(value)
-    return rules
-
-
-def _is_valid_rule(rule: str) -> bool:
-    token = " ".join(str(rule or "").strip().split())
+def _parse_csv_reasons(token: str) -> list[str]:
     if not token:
-        return False
-    if not re.match(r"^BR-[A-Za-z0-9._-]+:\s+\S", token):
-        return False
-    lower = token.lower()
-    if "tests/" in lower or "artifacts/" in lower:
-        return False
-    if re.search(r"\b[a-z0-9_/.-]+\.(py|js|ts|java|md):\d+", lower):
-        return False
-    if any(ch in token for ch in ("`", "[", "]")):
-        return False
-    return True
+        return []
+    out: list[str] = []
+    for part in token.split(","):
+        probe = part.strip()
+        if probe:
+            out.append(probe)
+    return out
 
 
 def hydrate_business_rules_state_from_artifacts(
@@ -85,12 +65,48 @@ def hydrate_business_rules_state_from_artifacts(
 
     inventory_loaded = False
     inventory_rules: list[str] = []
+    invalid_rules = 0
+    dropped_candidates = 0
+    quality_reason_codes: list[str] = []
+    quality_gate = "unknown"
+    render_consistency = "unknown"
+    count_consistency = "unknown"
+    source_violations = 0
+    segmentation_failures = 0
+    validation_report: dict[str, Any] = {}
     inventory_sha = "0" * 64
     if inventory_path.exists() and inventory_path.is_file():
         try:
             inventory_text = inventory_path.read_text(encoding="utf-8")
             inventory_loaded = True
-            inventory_rules = _parse_inventory_rules(inventory_text)
+            report = validate_inventory_markdown(inventory_text, expected_rules=outcome == "extracted")
+            inventory_rules = [rule.text for rule in report.valid_rules]
+            invalid_rules = report.invalid_rule_count
+            dropped_candidates = report.dropped_candidate_count
+            quality_reason_codes = list(report.reason_codes)
+            quality_gate = "passed" if report.is_compliant else "failed"
+            render_consistency = "passed" if not report.has_render_mismatch else "failed"
+            count_consistency = "passed" if report.count_consistent else "failed"
+            source_violations = sum(
+                1 for row in report.dropped_candidates if row.reason_code == "BUSINESS_RULES_SOURCE_VIOLATION"
+            )
+            segmentation_failures = sum(
+                1 for row in report.dropped_candidates if row.reason_code == "BUSINESS_RULES_SEGMENTATION_FAILED"
+            )
+            validation_report = {
+                "is_compliant": report.is_compliant,
+                "has_invalid_rules": report.has_invalid_rules,
+                "has_render_mismatch": report.has_render_mismatch,
+                "has_source_violation": report.has_source_violation,
+                "has_missing_required_rules": report.has_missing_required_rules,
+                "has_segmentation_failure": report.has_segmentation_failure,
+                "raw_candidate_count": report.raw_candidate_count,
+                "segmented_candidate_count": report.segmented_candidate_count,
+                "valid_rule_count": report.valid_rule_count,
+                "invalid_rule_count": report.invalid_rule_count,
+                "dropped_candidate_count": report.dropped_candidate_count,
+                "count_consistent": report.count_consistent,
+            }
             normalized = inventory_text if inventory_text.endswith("\n") else inventory_text + "\n"
             inventory_sha = hashlib.sha256(normalized.encode("utf-8")).hexdigest()
         except Exception:
@@ -99,7 +115,28 @@ def hydrate_business_rules_state_from_artifacts(
 
     extracted_count = len(inventory_rules)
 
-    if outcome == "extracted" and (not execution_evidence or not inventory_loaded or extracted_count <= 0):
+    if not quality_reason_codes and status_fields.get("reasoncodes"):
+        quality_reason_codes = _parse_csv_reasons(status_fields.get("reasoncodes", ""))
+    if status_fields.get("validationresult") in {"passed", "failed"}:
+        quality_gate = status_fields["validationresult"]
+
+    report_is_compliant = bool(validation_report.get("is_compliant") is True)
+    has_quality_failure = (
+        quality_gate == "failed"
+        or invalid_rules > 0
+        or dropped_candidates > 0
+        or render_consistency == "failed"
+        or count_consistency == "failed"
+        or (quality_reason_codes and quality_reason_codes != ["none"])
+        or (validation_report and not report_is_compliant)
+    )
+
+    if outcome == "extracted" and (
+        not execution_evidence
+        or not inventory_loaded
+        or extracted_count <= 0
+        or has_quality_failure
+    ):
         return False
 
     scope_obj = state.get("Scope")
@@ -118,6 +155,16 @@ def hydrate_business_rules_state_from_artifacts(
         "sha256": inventory_sha,
         "count": extracted_count,
     }
+    business_rules["QualityGate"] = quality_gate
+    business_rules["InvalidRuleCount"] = invalid_rules
+    business_rules["DroppedCandidateCount"] = dropped_candidates
+    business_rules["ValidationReasonCodes"] = quality_reason_codes
+    business_rules["RenderConsistency"] = render_consistency
+    business_rules["CountConsistency"] = count_consistency
+    business_rules["SourceViolationCount"] = source_violations
+    business_rules["SegmentationFailureCount"] = segmentation_failures
+    business_rules["ValidationReport"] = validation_report
+    business_rules["QualityReportVersion"] = "br-quality-v2"
     if inventory_loaded:
         business_rules["InventoryFileStatus"] = "written"
         business_rules["InventoryFileMode"] = "update"

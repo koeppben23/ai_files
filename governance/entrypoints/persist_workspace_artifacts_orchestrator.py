@@ -64,6 +64,11 @@ if str(SCRIPT_DIR.parent) not in sys.path:
 
 from governance.entrypoints.write_policy import EFFECTIVE_MODE, is_write_allowed, writes_allowed
 from governance.engine.business_rules_hydration import hydrate_business_rules_state_from_artifacts
+from governance.engine.business_rules_validation import (
+    extract_validated_business_rules_from_repo,
+    render_inventory_rules,
+    validate_inventory_markdown,
+)
 try:
     from artifacts.backfill import (
         ArtifactSpec as ArtifactSpec,  # type: ignore[no-redef]
@@ -1014,33 +1019,13 @@ def _render_business_rules_inventory_extracted(
     evidence_paths: list[str],
     extractor_version: str,
 ) -> str:
-    lines = [
-        f"# Business Rules Inventory - {repo_name}",
-        "",
-        "SchemaVersion: BRINV-1",
-        "Placeholder: false",
-        "Source: Phase 1.5 Business Rules Discovery",
-        f"ExtractorVersion: {extractor_version}",
-        f"Last Updated: {date}",
-        "Scope: global",
-        "",
-    ]
-    for index, rule in enumerate(rules, start=1):
-        identifier = f"BR-{index:03d}"
-        lines.extend(
-            [
-                f"## {identifier}",
-                "Status: EXTRACTED",
-                f"Rule: {rule}",
-                "",
-            ]
-        )
-    if evidence_paths:
-        lines.append("## Evidence")
-        for token in evidence_paths:
-            lines.append(f"- {token}")
-        lines.append("")
-    return "\n".join(lines)
+    return render_inventory_rules(
+        date=date,
+        repo_name=repo_name,
+        valid_rules=list(rules),
+        evidence_paths=list(evidence_paths),
+        extractor_version=extractor_version,
+    )
 
 
 def _resolve_business_rules_outcome(
@@ -1079,9 +1064,21 @@ def _render_business_rules_status(
     execution_evidence: bool,
     extractor_version: str,
     rules_hash: str,
+    validation_result: str = "unknown",
+    valid_rules: int = 0,
+    invalid_rules: int = 0,
+    dropped_candidates: int = 0,
+    reason_codes: list[str] | None = None,
+    source_diagnostics: list[str] | None = None,
+    render_consistency: str = "unknown",
+    count_consistency: str = "unknown",
 ) -> str:
     inventory_written = "yes" if outcome == "extracted" and execution_evidence else "no"
     hash_token = rules_hash if rules_hash else "none"
+    reason_codes = reason_codes or []
+    source_diagnostics = source_diagnostics or []
+    reason_token = ", ".join(reason_codes) if reason_codes else "none"
+    source_token = ", ".join(source_diagnostics) if source_diagnostics else "none"
     return "\n".join(
         [
             f"# Business Rules Status - {repo_name}",
@@ -1092,6 +1089,14 @@ def _render_business_rules_status(
             f"ExecutionEvidence: {'true' if execution_evidence else 'false'}",
             f"ExtractorVersion: {extractor_version}",
             f"RulesHash: {hash_token}",
+            f"ValidationResult: {validation_result}",
+            f"ValidRules: {valid_rules}",
+            f"InvalidRules: {invalid_rules}",
+            f"DroppedCandidates: {dropped_candidates}",
+            f"ReasonCodes: {reason_token}",
+            f"SourceDiagnostics: {source_token}",
+            f"RenderConsistency: {render_consistency}",
+            f"CountConsistency: {count_consistency}",
             "InventoryPolicy: business-rules-status.md is always written; business-rules.md is written only when outcome=extracted with extractor evidence.",
             f"Last Updated: {date}",
             "",
@@ -1108,7 +1113,9 @@ def _parse_business_rules_lines(content: str) -> list[str]:
     for line in content.splitlines():
         token = line.strip()
         if token.startswith("- ") and len(token) > 2:
-            rules.append(token[2:].strip())
+            candidate = token[2:].strip()
+            if candidate.startswith("BR-"):
+                rules.append(candidate)
             continue
         if token.startswith("Rule:"):
             rule = token[len("Rule:") :].strip()
@@ -1117,76 +1124,15 @@ def _parse_business_rules_lines(content: str) -> list[str]:
     return rules
 
 
-_BUSINESS_RULES_EXTRACTOR_VERSION = "deterministic-br-v1"
-_BUSINESS_RULES_INCLUDE_SUFFIXES = {
-    ".md",
-    ".txt",
-    ".rst",
-    ".py",
-    ".js",
-    ".ts",
-    ".tsx",
-    ".java",
-    ".cs",
-    ".go",
-    ".c",
-    ".cc",
-    ".cpp",
-    ".cxx",
-    ".h",
-    ".hpp",
-    ".yaml",
-    ".yml",
-}
-_BUSINESS_RULES_IGNORED_DIRS = {
-    ".git",
-    "node_modules",
-    ".venv",
-    "venv",
-    "dist",
-    "build",
-    "__pycache__",
-    ".mypy_cache",
-    ".pytest_cache",
-}
-_BUSINESS_RULE_ID_PATTERN = re.compile(r"\b(BR-[A-Za-z0-9_-]+)\b\s*[:\-]\s*(.+)\Z")
+_BUSINESS_RULES_EXTRACTOR_VERSION = "deterministic-br-v2"
 
 
 def _extract_business_rules_from_repo(repo_root: Path) -> tuple[list[str], list[str], bool]:
-    extracted: list[str] = []
-    evidence_paths: list[str] = []
-    seen = set()
-    try:
-        for current_root, dirs, files in os.walk(repo_root):
-            dirs[:] = [d for d in dirs if d not in _BUSINESS_RULES_IGNORED_DIRS]
-            root_path = Path(current_root)
-            for filename in files:
-                suffix = Path(filename).suffix.lower()
-                if suffix not in _BUSINESS_RULES_INCLUDE_SUFFIXES:
-                    continue
-                file_path = root_path / filename
-                try:
-                    text = file_path.read_text(encoding="utf-8")
-                except Exception:
-                    continue
-                relative = str(file_path.relative_to(repo_root))
-                for line_no, raw_line in enumerate(text.splitlines(), start=1):
-                    probe = raw_line.strip()
-                    if not probe:
-                        continue
-                    match = _BUSINESS_RULE_ID_PATTERN.search(probe)
-                    if not match:
-                        continue
-                    rule_id = match.group(1).strip()
-                    rule_body = match.group(2).strip()
-                    rule_value = f"{rule_id}: {rule_body}" if rule_body else rule_id
-                    if rule_value in seen:
-                        continue
-                    seen.add(rule_value)
-                    extracted.append(rule_value)
-                    evidence_paths.append(f"{relative}:{line_no}")
-    except Exception:
+    report, ok = extract_validated_business_rules_from_repo(repo_root)
+    if not ok:
         return [], [], False
+    extracted = [item.text for item in report.valid_rules]
+    evidence_paths = [f"{item.source_path}:{item.line_no}" for item in report.valid_rules]
     return extracted, evidence_paths, True
 
 
@@ -1863,7 +1809,9 @@ def main() -> int:
     memory_content = _render_workspace_memory(
         date=today, repo_name=repo_name, repo_fingerprint=repo_fingerprint
     )
-    extracted_rules, extracted_evidence_paths, extractor_ran = _extract_business_rules_from_repo(repo_root)
+    extraction_report, extractor_ran = extract_validated_business_rules_from_repo(repo_root)
+    extracted_rules = [row.text for row in extraction_report.valid_rules]
+    extracted_evidence_paths = [f"{row.source_path}:{row.line_no}" for row in extraction_report.valid_rules]
     extraction_evidence = extractor_ran
     extracted_rule_count = len(extracted_rules)
     business_rules_inventory_content = _render_business_rules_inventory(date=today, repo_name=repo_name)
@@ -1880,6 +1828,24 @@ def main() -> int:
             evidence_paths=extracted_evidence_paths,
             extractor_version=_BUSINESS_RULES_EXTRACTOR_VERSION,
         )
+    render_report = validate_inventory_markdown(
+        business_rules_inventory_content,
+        expected_rules=should_write_business_rules,
+    )
+    quality_failed = not extraction_report.is_compliant or not render_report.is_compliant
+    status_validation_result = "failed" if quality_failed else "passed"
+    status_reason_codes = sorted(
+        {
+            *extraction_report.reason_codes,
+            *render_report.reason_codes,
+        }
+    )
+    status_source_diagnostics = sorted(
+        {
+            *extraction_report.source_diagnostics,
+            *render_report.source_diagnostics,
+        }
+    )
     business_rules_action = "not-applicable"
     business_rules_bootstrap_event = "not-emitted"
     if should_write_business_rules:
@@ -1964,6 +1930,14 @@ def main() -> int:
             execution_evidence=extraction_evidence,
             extractor_version=_BUSINESS_RULES_EXTRACTOR_VERSION,
             rules_hash=business_rules_sha256,
+            validation_result=status_validation_result,
+            valid_rules=extraction_report.valid_rule_count,
+            invalid_rules=extraction_report.invalid_rule_count,
+            dropped_candidates=extraction_report.dropped_candidate_count,
+            reason_codes=status_reason_codes,
+            source_diagnostics=status_source_diagnostics,
+            render_consistency="passed" if not render_report.has_render_mismatch else "failed",
+            count_consistency="passed" if render_report.count_consistent else "failed",
         ),
         append_content=None,
         force=args.force,
