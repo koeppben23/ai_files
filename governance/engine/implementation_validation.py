@@ -4,6 +4,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
 
+from governance.infrastructure.fs_atomic import atomic_write_text
+
 
 RC_EXECUTOR_NOT_CONFIGURED = "IMPLEMENTATION_LLM_EXECUTOR_NOT_CONFIGURED"
 RC_EXECUTOR_FAILED = "IMPLEMENTATION_LLM_EXECUTOR_FAILED"
@@ -207,4 +209,4 @@ def report_to_human_lines(report: ImplementationValidationReport) -> list[str]:
 def write_validation_report(path: Path, report: ImplementationValidationReport) -> None:
     payload = to_report_payload(report)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(__import__("json").dumps(payload, ensure_ascii=True, indent=2) + "\n", encoding="utf-8")
+    atomic_write_text(path, __import__("json").dumps(payload, ensure_ascii=True, indent=2) + "\n")
