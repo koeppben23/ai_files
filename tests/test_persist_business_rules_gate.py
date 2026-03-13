@@ -38,16 +38,16 @@ def test_business_rules_inventory_writes_when_business_rules_gate_active():
 @pytest.mark.governance
 def test_business_rules_inventory_written_without_phase_or_gate_signal():
     module = _load_module()
-    assert module._should_write_business_rules_inventory(outcome="not-applicable", extraction_evidence=True) is False
+    assert module._should_write_business_rules_inventory(outcome="unresolved", extraction_evidence=True) is False
 
 
 @pytest.mark.governance
-def test_business_rules_outcome_is_persisted_when_inventory_not_applicable(tmp_path: Path):
+def test_business_rules_outcome_is_persisted_when_inventory_signal_is_present(tmp_path: Path):
     module = _load_orchestrator_module()
     session_path = tmp_path / "SESSION_STATE.json"
     payload = {
         "SESSION_STATE": {
-            "Scope": {"BusinessRules": "not-applicable"},
+            "Scope": {"BusinessRules": "unresolved"},
             "BusinessRules": {"Decision": "skip"},
         }
     }
@@ -59,7 +59,7 @@ def test_business_rules_outcome_is_persisted_when_inventory_not_applicable(tmp_p
         extractor_ran=True,
         extracted_rule_count=0,
         extraction_evidence=True,
-        business_rules_inventory_action="not-applicable",
+        business_rules_inventory_action="withheld",
         repo_cache_action="kept",
         repo_map_digest_action="kept",
         decision_pack_action="kept",
@@ -75,8 +75,8 @@ def test_business_rules_outcome_is_persisted_when_inventory_not_applicable(tmp_p
 
     updated = json.loads(session_path.read_text(encoding="utf-8"))
     rules = updated["SESSION_STATE"]["BusinessRules"]
-    assert rules["Outcome"] == "not-applicable"
-    assert rules["InventoryFileStatus"] == "unknown"
+    assert rules["Outcome"] == "gap-detected"
+    assert rules["InventoryFileStatus"] == "withheld"
     assert rules["OutcomeSource"] == "scope"
     assert rules["ExecutionEvidence"] is True
     assert rules["Inventory"]["sha256"] == "abc123"
@@ -84,15 +84,15 @@ def test_business_rules_outcome_is_persisted_when_inventory_not_applicable(tmp_p
 
 
 @pytest.mark.governance
-def test_business_rules_status_renderer_reports_visible_status_for_not_applicable():
+def test_business_rules_status_renderer_reports_visible_status_for_unresolved():
     module = _load_orchestrator_module()
 
     outcome, source = module._resolve_business_rules_outcome(
-        session={"Scope": {"BusinessRules": "not-applicable"}},
+        session={"Scope": {"BusinessRules": "unresolved"}},
         extractor_ran=False,
         extracted_rule_count=0,
         extraction_evidence=False,
-        business_rules_inventory_action="not-applicable",
+        business_rules_inventory_action="withheld",
     )
     content = module._render_business_rules_status(
         date="2026-03-03",
@@ -105,7 +105,7 @@ def test_business_rules_status_renderer_reports_visible_status_for_not_applicabl
         rules_hash="",
     )
 
-    assert "Outcome: not-applicable" in content
+    assert "Outcome: unresolved" in content
     assert "business-rules-status.md (always)" in content
     assert "business-rules.md (written: no)" in content
 
@@ -118,11 +118,11 @@ def test_business_rules_outcome_unresolved_without_extraction_evidence():
         extractor_ran=False,
         extracted_rule_count=0,
         extraction_evidence=False,
-        business_rules_inventory_action="not-applicable",
+        business_rules_inventory_action="withheld",
     )
 
     assert outcome == "unresolved"
-    assert source == "persistence-helper"
+    assert source == "scope"
 
 
 @pytest.mark.governance
@@ -204,7 +204,7 @@ def test_hydrate_business_rules_state_from_artifacts_corner_missing_inventory(tm
 
     assert applied is True
     rules = state["BusinessRules"]  # type: ignore[assignment]
-    assert rules["Outcome"] == "not-applicable"  # type: ignore[index]
+    assert rules["Outcome"] == "gap-detected"  # type: ignore[index]
     assert rules["InventoryLoaded"] is False  # type: ignore[index]
     assert rules["ExtractedCount"] == 0  # type: ignore[index]
 
@@ -226,9 +226,9 @@ def test_hydrate_business_rules_state_from_artifacts_bad_extracted_without_evide
         inventory_path=inventory,
     )
 
-    assert applied is False
+    assert applied is True
     rules = state["BusinessRules"]  # type: ignore[assignment]
-    assert rules["Outcome"] == "unresolved"  # type: ignore[index]
+    assert rules["Outcome"] == "gap-detected"  # type: ignore[index]
 
 
 @pytest.mark.governance

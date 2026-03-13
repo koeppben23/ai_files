@@ -119,8 +119,8 @@ class TestHydrationHybridHappy:
         assert "BR-002" in rule_ids
         assert "BR-C001" in rule_ids
 
-    def test_hydration_not_applicable_with_hybrid_version(self, tmp_path: Path) -> None:
-        """not-applicable outcome + hybrid version → hydration succeeds, no rules loaded."""
+    def test_hydration_not_applicable_with_hybrid_version_maps_to_gap_detected(self, tmp_path: Path) -> None:
+        """Legacy not-applicable with BR signal maps to canonical gap-detected."""
         status = tmp_path / "business-rules-status.md"
         _write(status, _status_hybrid(outcome="not-applicable"))
         inv = tmp_path / "business-rules.md"
@@ -134,7 +134,8 @@ class TestHydrationHybridHappy:
         assert ok is True
         business = state["BusinessRules"]
         assert isinstance(business, dict)
-        assert business["Outcome"] == "not-applicable"
+        assert business["Outcome"] == "gap-detected"
+        assert business["HasSignal"] is True
 
 
 # ===========================================================================
@@ -156,7 +157,8 @@ class TestHydrationHybridBad:
             state=state, status_path=status, inventory_path=inv
         )
 
-        assert ok is False
+        assert ok is True
+        assert state["BusinessRules"]["Outcome"] == "gap-detected"  # type: ignore[index]
 
     def test_hydration_extracted_without_inventory_file_fails(self, tmp_path: Path) -> None:
         """extracted outcome + missing inventory file → hydration rejects."""
@@ -170,7 +172,8 @@ class TestHydrationHybridBad:
             state=state, status_path=status, inventory_path=inv
         )
 
-        assert ok is False
+        assert ok is True
+        assert state["BusinessRules"]["Outcome"] == "gap-detected"  # type: ignore[index]
 
     def test_hydration_extracted_with_empty_inventory_fails(self, tmp_path: Path) -> None:
         """extracted outcome + empty inventory file → hydration rejects (0 rules)."""
@@ -184,7 +187,8 @@ class TestHydrationHybridBad:
             state=state, status_path=status, inventory_path=inv
         )
 
-        assert ok is False
+        assert ok is True
+        assert state["BusinessRules"]["Outcome"] == "gap-detected"  # type: ignore[index]
 
 
 # ===========================================================================
@@ -224,10 +228,11 @@ class TestHydrationHybridCorner:
             state=state, status_path=status, inventory_path=inv
         )
 
-        assert ok is False
+        assert ok is True
+        assert state["BusinessRules"]["Outcome"] == "gap-detected"  # type: ignore[index]
 
-    def test_hydration_skipped_outcome_with_hybrid_version(self, tmp_path: Path) -> None:
-        """skipped outcome → Scope.BusinessRules set to skipped, no inventory needed."""
+    def test_hydration_skipped_outcome_with_hybrid_version_maps_to_gap_detected(self, tmp_path: Path) -> None:
+        """Legacy skipped with BR signal maps to canonical gap-detected."""
         status = tmp_path / "business-rules-status.md"
         inv = tmp_path / "business-rules.md"
         _write(status, _status_hybrid(outcome="skipped"))
@@ -240,7 +245,7 @@ class TestHydrationHybridCorner:
         assert ok is True
         scope = state["Scope"]
         assert isinstance(scope, dict)
-        assert scope["BusinessRules"] == "skipped"
+        assert scope["BusinessRules"] == "gap-detected"
 
 
 # ===========================================================================
@@ -250,8 +255,8 @@ class TestHydrationHybridCorner:
 @pytest.mark.governance
 class TestHydrationHybridEdge:
 
-    def test_hydration_deferred_outcome_with_hybrid_version(self, tmp_path: Path) -> None:
-        """deferred outcome → hydration succeeds without inventory."""
+    def test_hydration_deferred_outcome_with_hybrid_version_maps_to_gap_detected(self, tmp_path: Path) -> None:
+        """Legacy deferred with BR signal maps to canonical gap-detected."""
         status = tmp_path / "business-rules-status.md"
         inv = tmp_path / "business-rules.md"
         _write(status, _status_hybrid(outcome="deferred"))
@@ -264,7 +269,7 @@ class TestHydrationHybridEdge:
         assert ok is True
         scope = state["Scope"]
         assert isinstance(scope, dict)
-        assert scope["BusinessRules"] == "deferred"
+        assert scope["BusinessRules"] == "gap-detected"
 
     def test_hydration_with_extra_status_fields_ignored(self, tmp_path: Path) -> None:
         """Unknown fields in status file (ExtractionSource, DocOnlyRules, etc.) are ignored."""

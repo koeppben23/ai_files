@@ -34,7 +34,8 @@ def test_corner_hydration_rejects_non_rule_fragments(tmp_path: Path) -> None:
 
     ok = hydrate_business_rules_state_from_artifacts(state=state, status_path=status, inventory_path=inv)
 
-    assert ok is False
+    assert ok is True
+    assert state["BusinessRules"]["Outcome"] == "gap-detected"  # type: ignore[index]
 
 
 def test_edge_hydration_accepts_rule_prefix_lines(tmp_path: Path) -> None:
@@ -61,7 +62,8 @@ def test_bad_hydration_requires_execution_evidence_for_extracted(tmp_path: Path)
 
     ok = hydrate_business_rules_state_from_artifacts(state=state, status_path=status, inventory_path=inv)
 
-    assert ok is False
+    assert ok is True
+    assert state["BusinessRules"]["Outcome"] == "gap-detected"  # type: ignore[index]
 
 
 def test_bad_hydration_rejects_known_artifact_patterns(tmp_path: Path) -> None:
@@ -77,7 +79,8 @@ def test_bad_hydration_rejects_known_artifact_patterns(tmp_path: Path) -> None:
 
     ok = hydrate_business_rules_state_from_artifacts(state=state, status_path=status, inventory_path=inv)
 
-    assert ok is False
+    assert ok is True
+    assert state["BusinessRules"]["Outcome"] == "gap-detected"  # type: ignore[index]
 
 
 def test_corner_hydration_records_validation_report_fields(tmp_path: Path) -> None:
@@ -114,7 +117,8 @@ def test_bad_hydration_blocks_when_code_coverage_is_insufficient(tmp_path: Path)
 
     ok = hydrate_business_rules_state_from_artifacts(state=state, status_path=status, inventory_path=inv)
 
-    assert ok is False
+    assert ok is True
+    assert state["BusinessRules"]["Outcome"] == "gap-detected"  # type: ignore[index]
 
 
 def test_edge_hydration_persists_code_coverage_fields(tmp_path: Path) -> None:

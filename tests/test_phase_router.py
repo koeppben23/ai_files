@@ -171,8 +171,8 @@ class TestPhase2And1Routing:
     def test_phase_2_1_always_routes_to_3a_after_business_rules_resolved(self):
         """After Phase 2.1 with business rules resolved, ALWAYS route to Phase 3A (per docs/phases.md)."""
         doc = _minimal_session_state(
-            Scope={"BusinessRules": "not-applicable"},
-            BusinessRules={"Outcome": "not-applicable", "ExecutionEvidence": True},
+            Scope={"BusinessRules": "gap-detected"},
+            BusinessRules={"Outcome": "gap-detected", "ExecutionEvidence": True},
         )
         result = route_phase(
             requested_phase="2.1",
@@ -187,8 +187,8 @@ class TestPhase2And1Routing:
 
     def test_phase_2_1_skips_phase_1_5_when_business_rules_outcome_has_execution_evidence(self):
         doc = _minimal_session_state(
-            Scope={"BusinessRules": "not-applicable"},
-            BusinessRules={"Outcome": "not-applicable", "ExecutionEvidence": True},
+            Scope={"BusinessRules": "gap-detected"},
+            BusinessRules={"Outcome": "gap-detected", "ExecutionEvidence": True},
         )
         result = route_phase(
             requested_phase="2.1",
@@ -231,8 +231,8 @@ class TestPhase2And1Routing:
     def test_phase_2_1_routes_to_3a_even_with_apis(self):
         """After Phase 2.1 with APIs detected, route to Phase 3A (same path, 3A decides next step)."""
         doc = _minimal_session_state(
-            Scope={"BusinessRules": "not-applicable"},
-            BusinessRules={"Outcome": "not-applicable", "ExecutionEvidence": True},
+            Scope={"BusinessRules": "gap-detected"},
+            BusinessRules={"Outcome": "gap-detected", "ExecutionEvidence": True},
             AddonsEvidence={"openapi": {"detected": True}},
         )
         result = route_phase(

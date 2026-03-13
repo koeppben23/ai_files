@@ -201,11 +201,11 @@ def _business_rules_discovery_resolved(state: Mapping[str, object]) -> bool:
         if isinstance(outcome_token, str):
             outcome = outcome_token.strip().lower()
 
-    if execution_evidence and outcome in {"extracted", "not-applicable", "deferred", "skipped"}:
+    if execution_evidence and outcome in {"extracted", "gap-detected"}:
         return True
 
     br_scope = _business_rules_scope(state)
-    if execution_evidence and br_scope in {"not-applicable", "extracted", "skipped", "deferred"}:
+    if execution_evidence and br_scope in {"extracted", "gap-detected"}:
         return True
     if br_scope == "unresolved":
         return False
