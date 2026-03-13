@@ -6,6 +6,17 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
 
+from governance.engine.business_rules_code_extraction import (
+    extract_code_rule_candidates,
+    discover_code_surfaces,
+)
+from governance.engine.business_rules_coverage import (
+    RC_CODE_COVERAGE_INSUFFICIENT,
+    RC_CODE_EXTRACTION_NOT_RUN,
+    coverage_to_payload,
+    evaluate_code_extraction_coverage,
+)
+
 
 REASON_INVALID_CONTENT = "BUSINESS_RULES_INVALID_CONTENT"
 REASON_SOURCE_VIOLATION = "BUSINESS_RULES_SOURCE_VIOLATION"
@@ -15,6 +26,7 @@ REASON_MISSING_REQUIRED_RULES = "BUSINESS_RULES_MISSING_REQUIRED_RULES"
 REASON_COUNT_MISMATCH = "BUSINESS_RULES_COUNT_MISMATCH"
 REASON_EMPTY_INVENTORY = "BUSINESS_RULES_EMPTY_INVENTORY"
 REASON_CODE_CANDIDATE_REJECTED = "BUSINESS_RULES_CODE_CANDIDATE_REJECTED"
+REASON_CODE_DOC_CONFLICT = "BUSINESS_RULES_CODE_DOC_CONFLICT"
 
 ORIGIN_DOC = "doc"
 ORIGIN_CODE = "code"
@@ -123,6 +135,14 @@ class ValidationReport:
     has_missing_required_rules: bool
     has_segmentation_failure: bool
     count_consistent: bool
+    has_code_extraction: bool = False
+    code_extraction_sufficient: bool = False
+    code_candidate_count: int = 0
+    code_valid_rule_count: int = 0
+    code_surface_count: int = 0
+    missing_code_surfaces: tuple[str, ...] = ()
+    has_code_coverage_gap: bool = False
+    has_code_doc_conflict: bool = False
 
 
 def source_allowlist_decision(relative_path: str) -> tuple[bool, str]:
@@ -279,6 +299,14 @@ def validate_candidates(
     required_rule_ids: set[str] | None = None,
     expected_rules: bool = False,
     rendered_rules: list[str] | None = None,
+    has_code_extraction: bool = True,
+    code_extraction_sufficient: bool = True,
+    code_candidate_count: int = 0,
+    code_surface_count: int = 0,
+    missing_code_surfaces: tuple[str, ...] = (),
+    has_code_doc_conflict: bool = False,
+    additional_reason_codes: tuple[str, ...] = (),
+    enforce_code_requirements: bool = False,
 ) -> ValidationReport:
     candidate_list = list(candidates)
     valid_rules: list[ValidatedRule] = []
@@ -401,7 +429,19 @@ def validate_candidates(
                 )
             )
 
-    reason_codes = tuple(sorted({r.reason_code for r in (*invalid_rules, *dropped)}))
+    code_valid_rule_count = sum(1 for rule in valid_rules if rule.origin == ORIGIN_CODE)
+    reason_codes_set = {r.reason_code for r in (*invalid_rules, *dropped)}
+    if enforce_code_requirements:
+        if has_code_extraction and not code_extraction_sufficient:
+            reason_codes_set.add(RC_CODE_COVERAGE_INSUFFICIENT)
+        if not has_code_extraction:
+            reason_codes_set.add(RC_CODE_EXTRACTION_NOT_RUN)
+        if has_code_doc_conflict:
+            reason_codes_set.add(REASON_CODE_DOC_CONFLICT)
+    for reason in additional_reason_codes:
+        if str(reason).strip():
+            reason_codes_set.add(str(reason).strip())
+    reason_codes = tuple(sorted(reason_codes_set))
     source_diagnostics = tuple(sorted({f"{r.source_path}:{r.reason_code}" for r in dropped if r.source_path}))
     has_source_violation = any(r.reason_code == REASON_SOURCE_VIOLATION for r in dropped)
     has_segmentation_failure = any(r.reason_code == REASON_SEGMENTATION_FAILED for r in dropped)
@@ -421,6 +461,13 @@ def validate_candidates(
         and not has_render_mismatch
         and count_consistent
     )
+    if enforce_code_requirements:
+        is_compliant = (
+            is_compliant
+            and has_code_extraction
+            and code_extraction_sufficient
+            and not has_code_doc_conflict
+        )
 
     return ValidationReport(
         valid_rules=tuple(valid_rules),
@@ -440,6 +487,14 @@ def validate_candidates(
         has_missing_required_rules=has_missing_required_rules,
         has_segmentation_failure=has_segmentation_failure,
         count_consistent=count_consistent,
+        has_code_extraction=has_code_extraction,
+        code_extraction_sufficient=code_extraction_sufficient,
+        code_candidate_count=max(code_candidate_count, 0),
+        code_valid_rule_count=max(code_valid_rule_count, 0),
+        code_surface_count=max(code_surface_count, 0),
+        missing_code_surfaces=tuple(missing_code_surfaces),
+        has_code_coverage_gap=(not code_extraction_sufficient),
+        has_code_doc_conflict=has_code_doc_conflict,
     )
 
 
@@ -538,11 +593,104 @@ def render_inventory_rules(date: str, repo_name: str, valid_rules: list[str], ev
     return "\n".join(lines)
 
 
+def _rules_conflict(doc_rule: str, code_rule: str) -> bool:
+    doc = doc_rule.lower()
+    code = code_rule.lower()
+    doc_optional = "optional" in doc
+    code_optional = "optional" in code
+    doc_strict = any(token in doc for token in ("must", "required", "mandatory", "must not", "forbidden"))
+    code_strict = any(token in code for token in ("must", "required", "mandatory", "must not", "forbidden"))
+    if (doc_optional and code_strict) or (code_optional and doc_strict):
+        shared = set(re.findall(r"[a-z]{4,}", doc)) & set(re.findall(r"[a-z]{4,}", code))
+        return len(shared) >= 1
+    if ("must not" in doc or "forbidden" in doc) and ("must" in code or "required" in code):
+        shared = set(re.findall(r"[a-z]{4,}", doc)) & set(re.findall(r"[a-z]{4,}", code))
+        return len(shared) >= 1
+    if ("must not" in code or "forbidden" in code) and ("must" in doc or "required" in doc):
+        shared = set(re.findall(r"[a-z]{4,}", doc)) & set(re.findall(r"[a-z]{4,}", code))
+        return len(shared) >= 1
+    return False
+
+
+def _has_code_doc_conflicts(valid_rules: list[ValidatedRule]) -> bool:
+    docs = [rule.text for rule in valid_rules if rule.origin == ORIGIN_DOC]
+    code = [rule.text for rule in valid_rules if rule.origin == ORIGIN_CODE]
+    for d_rule in docs:
+        for c_rule in code:
+            if _rules_conflict(d_rule, c_rule):
+                return True
+    return False
+
+
+def extract_validated_business_rules_with_diagnostics(
+    repo_root: Path,
+) -> tuple[ValidationReport, dict[str, object], bool]:
+    doc_candidates, docs_ok = extract_candidates_from_repo(repo_root)
+    scanned_surfaces = discover_code_surfaces(repo_root)
+    code_candidates, code_ok = extract_code_rule_candidates(repo_root)
+
+    has_provenance_gaps = any(not candidate.path or candidate.line_start <= 0 for candidate in code_candidates)
+    coverage = evaluate_code_extraction_coverage(
+        scanned_surfaces=scanned_surfaces,
+        candidate_count=len(code_candidates),
+        extraction_ran=code_ok,
+        has_provenance_gaps=has_provenance_gaps,
+    )
+
+    converted_code_candidates: list[RuleCandidate] = []
+    for candidate in code_candidates:
+        converted_code_candidates.append(
+            RuleCandidate(
+                text=sanitize_rule(candidate.text),
+                source_path=candidate.path,
+                line_no=candidate.line_start,
+                source_allowed=True,
+                source_reason="deterministic-code-extraction",
+                section_signal=True,
+                origin=ORIGIN_CODE,
+            )
+        )
+
+    combined_candidates = [*doc_candidates, *converted_code_candidates]
+    report = validate_candidates(
+        candidates=combined_candidates,
+        expected_rules=False,
+        has_code_extraction=code_ok,
+        code_extraction_sufficient=coverage.is_sufficient,
+        code_candidate_count=coverage.candidate_count,
+        code_surface_count=coverage.scanned_file_count,
+        missing_code_surfaces=coverage.missing_expected_surfaces,
+        additional_reason_codes=coverage.reason_codes,
+        enforce_code_requirements=True,
+    )
+
+    has_conflicts = _has_code_doc_conflicts(list(report.valid_rules))
+    if has_conflicts:
+        report = validate_candidates(
+            candidates=combined_candidates,
+            expected_rules=False,
+            has_code_extraction=code_ok,
+            code_extraction_sufficient=coverage.is_sufficient,
+            code_candidate_count=coverage.candidate_count,
+            code_surface_count=coverage.scanned_file_count,
+            missing_code_surfaces=coverage.missing_expected_surfaces,
+            has_code_doc_conflict=True,
+            additional_reason_codes=tuple((*coverage.reason_codes, REASON_CODE_DOC_CONFLICT)),
+            enforce_code_requirements=True,
+        )
+
+    diagnostics = {
+        "code_extraction": coverage_to_payload(coverage),
+        "code_candidate_count": coverage.candidate_count,
+        "docs_ok": docs_ok,
+        "code_extraction_ok": code_ok,
+    }
+    return report, diagnostics, bool(docs_ok and code_ok)
+
+
 def extract_validated_business_rules_from_repo(repo_root: Path) -> tuple[ValidationReport, bool]:
-    candidates, ok = extract_candidates_from_repo(repo_root)
-    if not ok:
-        return validate_candidates(candidates=[]), False
-    return validate_candidates(candidates=candidates, expected_rules=False), True
+    report, _, ok = extract_validated_business_rules_with_diagnostics(repo_root)
+    return report, ok
 
 
 # ---------------------------------------------------------------------------

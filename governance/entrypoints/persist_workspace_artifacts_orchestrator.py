@@ -68,7 +68,7 @@ from governance.engine.business_rules_validation import (
     ORIGIN_CODE,
     ORIGIN_DOC,
     ProvenanceRecord,
-    extract_validated_business_rules_from_repo,
+    extract_validated_business_rules_with_diagnostics,
     merge_code_candidates,
     render_business_rules_scaffold,
     render_inventory_rules,
@@ -1056,6 +1056,11 @@ def _render_business_rules_status(
     doc_only_count: int = 0,
     code_only_count: int = 0,
     doc_and_code_count: int = 0,
+    code_extraction_run: str = "unknown",
+    code_coverage_sufficient: str = "unknown",
+    code_candidate_count: int = 0,
+    code_surface_count: int = 0,
+    missing_code_surfaces: list[str] | None = None,
 ) -> str:
     inventory_written = "yes" if outcome == "extracted" and execution_evidence else "no"
     hash_token = rules_hash if rules_hash else "none"
@@ -1063,6 +1068,8 @@ def _render_business_rules_status(
     source_diagnostics = source_diagnostics or []
     reason_token = ", ".join(reason_codes) if reason_codes else "none"
     source_token = ", ".join(source_diagnostics) if source_diagnostics else "none"
+    missing_code_surfaces = missing_code_surfaces or []
+    missing_surfaces_token = ", ".join(missing_code_surfaces) if missing_code_surfaces else "none"
     lines = [
         f"# Business Rules Status - {repo_name}",
         "",
@@ -1081,6 +1088,11 @@ def _render_business_rules_status(
         f"SourceDiagnostics: {source_token}",
         f"RenderConsistency: {render_consistency}",
         f"CountConsistency: {count_consistency}",
+        f"CodeExtractionRun: {code_extraction_run}",
+        f"CodeCoverageSufficient: {code_coverage_sufficient}",
+        f"CodeCandidateCount: {code_candidate_count}",
+        f"CodeSurfaceCount: {code_surface_count}",
+        f"MissingCodeSurfaces: {missing_surfaces_token}",
     ]
     if extraction_source == "hybrid":
         lines.extend([
@@ -1117,15 +1129,6 @@ def _parse_business_rules_lines(content: str) -> list[str]:
 
 
 _BUSINESS_RULES_EXTRACTOR_VERSION = "hybrid-br-v1"
-
-
-def _extract_business_rules_from_repo(repo_root: Path) -> tuple[list[str], list[str], bool]:
-    report, ok = extract_validated_business_rules_from_repo(repo_root)
-    if not ok:
-        return [], [], False
-    extracted = [item.text for item in report.valid_rules]
-    evidence_paths = [f"{item.source_path}:{item.line_no}" for item in report.valid_rules]
-    return extracted, evidence_paths, True
 
 
 def _business_rules_inventory_evidence(
@@ -1801,7 +1804,7 @@ def main() -> int:
     memory_content = _render_workspace_memory(
         date=today, repo_name=repo_name, repo_fingerprint=repo_fingerprint
     )
-    extraction_report, extractor_ran = extract_validated_business_rules_from_repo(repo_root)
+    extraction_report, extraction_diagnostics, extractor_ran = extract_validated_business_rules_with_diagnostics(repo_root)
 
     # --- Hybrid merge: incorporate LLM code candidates from session ---------
     codebase_context = session.get("CodebaseContext", {}) if isinstance(session, dict) else {}
@@ -1826,6 +1829,13 @@ def main() -> int:
         extraction_report = validate_candidates(
             candidates=merged_candidates,
             expected_rules=True,
+            has_code_extraction=extraction_report.has_code_extraction,
+            code_extraction_sufficient=extraction_report.code_extraction_sufficient,
+            code_candidate_count=extraction_report.code_candidate_count,
+            code_surface_count=extraction_report.code_surface_count,
+            missing_code_surfaces=extraction_report.missing_code_surfaces,
+            additional_reason_codes=extraction_report.reason_codes,
+            enforce_code_requirements=True,
         )
         extractor_ran = True
 
@@ -1855,7 +1865,12 @@ def main() -> int:
         business_rules_inventory_content,
         expected_rules=should_write_business_rules,
     )
+    code_extraction_blocked = (
+        extraction_report.has_code_extraction and not extraction_report.code_extraction_sufficient
+    ) or (not extraction_report.has_code_extraction)
     quality_failed = not extraction_report.is_compliant or not render_report.is_compliant
+    if code_extraction_blocked:
+        quality_failed = True
     status_validation_result = "failed" if quality_failed else "passed"
     status_reason_codes = sorted(
         {
@@ -1869,6 +1884,19 @@ def main() -> int:
             *render_report.source_diagnostics,
         }
     )
+
+    code_extraction_payload = extraction_diagnostics.get("code_extraction") if isinstance(extraction_diagnostics, dict) else None
+    code_extraction_report_path = repo_home / ".governance" / "business_rules" / "code_extraction_report.json"
+    code_extraction_report_action = "not-applicable"
+    if isinstance(code_extraction_payload, dict):
+        code_extraction_report_action = _upsert_artifact(
+            path=code_extraction_report_path,
+            create_content=json.dumps(code_extraction_payload, ensure_ascii=True, indent=2) + "\n",
+            append_content=None,
+            force=True,
+            dry_run=args.dry_run,
+            read_only=read_only,
+        )
     business_rules_action = "not-applicable"
     business_rules_bootstrap_event = "not-emitted"
     if should_write_business_rules:
@@ -1969,6 +1997,11 @@ def main() -> int:
             doc_only_count=doc_only_count,
             code_only_count=code_only_count,
             doc_and_code_count=doc_and_code_count,
+            code_extraction_run="true" if extraction_report.has_code_extraction else "false",
+            code_coverage_sufficient="true" if extraction_report.code_extraction_sufficient else "false",
+            code_candidate_count=extraction_report.code_candidate_count,
+            code_surface_count=extraction_report.code_surface_count,
+            missing_code_surfaces=list(extraction_report.missing_code_surfaces),
         ),
         append_content=None,
         force=args.force,
@@ -2010,6 +2043,7 @@ def main() -> int:
     )
     actions["businessRulesInventory"] = business_rules_action
     actions["businessRulesStatus"] = business_rules_status_action
+    actions["businessRulesCodeExtractionReport"] = code_extraction_report_action
     actions["businessRulesBootstrapEvent"] = business_rules_bootstrap_event
 
     # -- Plan-record backfill -----------------------------------------------

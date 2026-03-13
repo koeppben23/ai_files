@@ -94,3 +94,51 @@ def test_corner_hydration_records_validation_report_fields(tmp_path: Path) -> No
     assert isinstance(business, dict)
     assert business["QualityGate"] == "passed"
     assert business["ValidationReport"]["is_compliant"] is True
+
+
+def test_bad_hydration_blocks_when_code_coverage_is_insufficient(tmp_path: Path) -> None:
+    status = tmp_path / "business-rules-status.md"
+    inv = tmp_path / "business-rules.md"
+    _write(
+        status,
+        "Outcome: extracted\n"
+        "ExecutionEvidence: true\n"
+        "CodeExtractionRun: true\n"
+        "CodeCoverageSufficient: false\n"
+        "CodeCandidateCount: 0\n"
+        "CodeSurfaceCount: 5\n"
+        "MissingCodeSurfaces: validator, permissions\n",
+    )
+    _write(inv, "- BR-010: A release must require four eyes before production deploy\n")
+    state: dict[str, object] = {}
+
+    ok = hydrate_business_rules_state_from_artifacts(state=state, status_path=status, inventory_path=inv)
+
+    assert ok is False
+
+
+def test_edge_hydration_persists_code_coverage_fields(tmp_path: Path) -> None:
+    status = tmp_path / "business-rules-status.md"
+    inv = tmp_path / "business-rules.md"
+    _write(
+        status,
+        "Outcome: extracted\n"
+        "ExecutionEvidence: true\n"
+        "CodeExtractionRun: true\n"
+        "CodeCoverageSufficient: true\n"
+        "CodeCandidateCount: 3\n"
+        "CodeSurfaceCount: 7\n"
+        "MissingCodeSurfaces: none\n",
+    )
+    _write(inv, "- BR-011: Audit entries must remain immutable\n")
+    state: dict[str, object] = {}
+
+    ok = hydrate_business_rules_state_from_artifacts(state=state, status_path=status, inventory_path=inv)
+
+    assert ok is True
+    business = state["BusinessRules"]
+    assert isinstance(business, dict)
+    assert business["CodeExtractionRun"] is True
+    assert business["CodeCoverageSufficient"] is True
+    assert business["CodeCandidateCount"] == 3
+    assert business["CodeSurfaceCount"] == 7
