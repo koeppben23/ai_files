@@ -24,6 +24,24 @@ For backend-python behavior, this profile governs stack-specific rules and activ
 - Phase 4: apply backend-python planning/execution constraints.
 - Phase 5/6: verify architecture, test quality, and rollback safety via concrete evidence.
 
+### Phase 1.5: Business Rules Discovery
+
+When this profile is active, the following Python-specific code patterns are candidates for business rule extraction into `CodebaseContext.BusinessRuleCandidates`:
+- Pydantic validators (`@validator`, `@field_validator`, `@model_validator`) and constrained fields (`Field(ge=0, le=100)`, `conint`, `constr`)
+- Django model constraints (`models.CheckConstraint`, `models.UniqueConstraint`) and `clean()` / `full_clean()` validation methods
+- Django REST Framework validators (custom validator classes, `UniqueTogetherValidator`, field-level `validators=[...]`)
+- FastAPI parameter validation (`Query(ge=0)`, `Path(regex=...)`) and dependency-injection validators
+- SQLAlchemy check constraints (`CheckConstraint`), `@validates` decorator, and hybrid property validations
+- Dataclass `__post_init__` validation logic enforcing domain invariants
+- Domain exception classes indicating business rejection (`raise BusinessRuleViolation(...)`, `raise ValidationError(...)` with domain semantics)
+- Guard clauses with domain semantics (`if amount > MAX_DAILY_LIMIT: raise ...`)
+- Enum types governing valid state transitions (state machines with transition validation)
+
+Exclusions (do NOT extract):
+- Generic Python exceptions (`ValueError`, `TypeError` without domain context)
+- Pure infrastructure decorators (`@app.route`, `@celery_task`, `@retry` without business semantics)
+- TODO/FIXME comments (excluded by global policy in `SESSION_STATE_SCHEMA.md` §7.5.1)
+
 ## Evidence contract (binding)
 
 - No claim without evidence.

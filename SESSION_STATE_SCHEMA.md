@@ -854,6 +854,14 @@ SESSION_STATE:
       FileOrganization: "<package/folder strategy>"
     TechnicalDebtMarkers:          # observed TODO/FIXME/debt items that constrain implementation
       - "<description (evidence: path:line)>"
+    BusinessRuleCandidates:        # code-sourced business rule candidates (§7.5.1)
+      - id: "BR-C001"
+        candidate_rule_text: "BR-C001: <modal-verb rule text>"
+        source_path: "<repo-relative path>"
+        line_range: "<start>-<end>"
+        pattern_type: "validation-guard | constraint-check | policy-enforcement | enum-invariant | schema-constraint | guard-clause | config-rule"
+        confidence: "high | medium"
+        evidence_snippet: "<max 5 lines, max 500 chars — audit/debug only>"
 ```
 
 Binding:
@@ -861,6 +869,41 @@ Binding:
 - `ExistingAbstractions` SHOULD list at least the top 3–5 reusable abstractions.
 - `PatternFingerprint.ExemplarImplementation` MUST point to a real path in the repo.
 - Phase 4 planning cross-references `CodebaseContext` for reuse and constraint awareness (kernel-enforced).
+- During Phase 2 step 3a, the LLM SHOULD scan allowed source files for business-rule patterns (see §7.5.1) and populate `BusinessRuleCandidates`. If the scan is executed and no candidates are found, `BusinessRuleCandidates` MUST be an empty array.
+- Each candidate `id` MUST use the `BR-C<NNN>` prefix to distinguish code-sourced candidates from doc-extracted rules (`BR-<NNN>`).
+- Each `candidate_rule_text` MUST follow the format `BR-C<NNN>: <body>` where body contains a modal verb (must/shall/required/forbidden) or declarative verb (is/are/remain).
+- `BusinessRuleCandidates` MUST NOT duplicate rules already present in documentation files (markdown, RST, AsciiDoc, text) — those are handled by the deterministic extractor.
+- `confidence` is diagnostic metadata only and MUST NOT bypass downstream validation. All code-sourced candidates are passed through the same deterministic validation pipeline as doc-extracted rules.
+- `evidence_snippet` is limited to 5 lines / 500 characters and is used for audit/debug only. It MUST NOT appear in the final `business-rules.md` inventory.
+
+#### 7.5.1 Business Rule Pattern Catalog (Code Extraction)
+
+This subsection defines the pattern types the LLM SHOULD recognise when scanning source files for business-rule candidates during Phase 2 step 3a. Stack-specific recognition heuristics (e.g. Java annotations, Pydantic validators) are defined in the active profile — this section covers **global, language-agnostic** patterns only.
+
+**Recognised pattern types** (closed enum — used in `pattern_type`):
+
+| Pattern Type | Signal | Typical Code Shape |
+|---|---|---|
+| `validation-guard` | Method beginning with `validate*`, `check*`, `assert*` that throws/rejects on business condition violation | `if (amount > MAX_WITHDRAWAL) throw new PolicyException(...)` |
+| `constraint-check` | Explicit boundary, range, or format check with business semantics | `if (!IBAN_PATTERN.matcher(iban).matches()) ...` |
+| `policy-enforcement` | Conditional logic enforcing an organisational or domain policy | `if (user.role != ADMIN && order.total > LIMIT) deny()` |
+| `enum-invariant` | Enum or constant set defining a closed domain vocabulary | `enum OrderStatus { PENDING, APPROVED, REJECTED, CANCELLED }` |
+| `schema-constraint` | DB migration or ORM annotation enforcing NOT NULL, UNIQUE, CHECK | `@Column(nullable = false, unique = true)` |
+| `guard-clause` | Early-return or throw protecting a business invariant | `if (account.isFrozen()) return Result.denied(...)` |
+| `config-rule` | Externalised business threshold or limit with business semantics | `max.retry.count=3` (only when business-relevant) |
+
+**Exclusion list — the following MUST NOT be extracted as candidates:**
+
+- Pure technical plumbing (logging, serialisation, framework boilerplate)
+- Infrastructure concerns (connection pooling, caching, retry mechanics without business semantics)
+- Test assertions — these are *evidence* for rules, not rules themselves
+- `TODO` / `FIXME` / `HACK` comments — these are technical debt markers (already captured in `TechnicalDebtMarkers`)
+- Generic CRUD operations without business constraints
+- Generic code comments without business semantics
+
+**Comment differentiation:** Normative domain comments (e.g. `// POLICY: ...`, `// INVARIANT: ...`) that contain a modal or declarative verb MAY be extracted as candidates. Generic or informal comments MUST NOT.
+
+**Output format:** Each candidate MUST be emitted using the `BusinessRuleCandidates` shape defined in §7.5 above. The `candidate_rule_text` field is explicitly a *candidate* — it becomes a validated business rule only after passing the deterministic merge-and-validation pipeline during workspace persistence.
 
 ### 7.6 FeatureComplexity (Phase 4 step 1a)
 
