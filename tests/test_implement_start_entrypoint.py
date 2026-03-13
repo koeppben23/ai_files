@@ -14,6 +14,8 @@ from governance.engine.implementation_validation import (
     RC_TARGETED_CHECKS_MISSING,
 )
 
+_ORIGINAL_RUN_LLM_EDIT_STEP = entrypoint._run_llm_edit_step
+
 
 @pytest.fixture(autouse=True)
 def _default_executor(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -281,6 +283,7 @@ def test_security_local_writes_are_governance_or_state_only(
     _wire_active_paths(monkeypatch, session_path, events_path)
 
     writes: list[Path] = []
+    text_writes: list[Path] = []
     json_writes: list[Path] = []
     event_writes: list[Path] = []
 
@@ -295,22 +298,38 @@ def test_security_local_writes_are_governance_or_state_only(
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text("{}\n", encoding="utf-8")
 
+    real_write_text_atomic = entrypoint._write_text_atomic
+
+    def _spy_write_text_atomic(path: Path, text: str) -> None:
+        text_writes.append(path)
+        real_write_text_atomic(path, text)
+
     def _spy_append_event(path: Path, event: dict[str, object]) -> bool:
         event_writes.append(path)
         return True
 
     monkeypatch.setattr(entrypoint, "_write_json_atomic", _spy_write_json_atomic)
+    monkeypatch.setattr(entrypoint, "_write_text_atomic", _spy_write_text_atomic)
     monkeypatch.setattr(entrypoint, "write_validation_report", _spy_write_validation_report)
     monkeypatch.setattr(entrypoint, "_append_event", _spy_append_event)
+
+    # Use the real executor-step implementation for this test so _write_text_atomic
+    # coverage includes context/stdout/stderr local diagnostic writes.
+    monkeypatch.setattr(entrypoint, "_run_llm_edit_step", _ORIGINAL_RUN_LLM_EDIT_STEP)
+    monkeypatch.delenv("OPENCODE_IMPLEMENT_LLM_CMD", raising=False)
 
     rc = entrypoint.main(["--quiet"])
     out = json.loads(capsys.readouterr().out.strip())
 
-    assert rc == 0
-    assert out["status"] == "ok"
+    assert rc == 2
+    assert out["status"] == "blocked"
     assert json_writes == [session_path]
     assert event_writes == [events_path]
     assert len(writes) == 1
     report_path = writes[0]
     rel = report_path.relative_to(tmp_path).as_posix()
     assert rel.startswith(".governance/implementation/")
+    assert len(text_writes) >= 3
+    for path in text_writes:
+        rel_text = path.relative_to(tmp_path).as_posix()
+        assert rel_text.startswith(".governance/implementation/")

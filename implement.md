@@ -5,14 +5,14 @@
 ## Purpose
 
 `/implement` starts execution of the approved implementation plan after approved Phase 6 governance review.
-The command is mutating - it writes execution, internal review-loop, and implementation-package evidence.
+The command is mutating. It orchestrates an external code executor and writes governance diagnostics/state.
 
-`/implement` runs a deterministic implementation loop:
-- load approved plan
-- start repository changes
-- run internal implementation self-review
-- apply targeted revisions when needed
-- verify and either present implementation package or fail closed with blockers
+`/implement` follows a controller/executor split:
+- load approved plan, hotspots, constraints, and required checks
+- write executor input context (`.governance/implementation/llm_edit_context.json`)
+- invoke configured external LLM executor (the only actor allowed to change domain files)
+- collect git diff evidence and validate plan-coverage plus targeted checks
+- persist validation/audit evidence and fail closed when requirements are not met
 
 ## Commands by platform
 
@@ -33,8 +33,10 @@ If no snapshot is available, proceed using only the context visible in the curre
 ## Interpretation scope
 
 - Valid only after final review decision `approve` (Workflow Complete).
-- Starts implementation execution and internal review/revision/verification loop.
-- Ends in `Implementation Presentation Gate` (decision-ready) or `Implementation Blocked`.
+- `/implement` is a controller + validator; it must not locally edit domain/source files.
+- Local writes are restricted to governance diagnostics/state (for example `.governance/implementation/*`, session state, and audit events).
+- Domain/source edits must come exclusively from the configured external executor.
+- Ends in `Implementation Review Complete` (ready to continue) or `Implementation Blocked`.
 
 ## Response shape
 
