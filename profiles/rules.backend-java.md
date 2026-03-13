@@ -24,6 +24,23 @@ For backend-java behavior, this profile governs stack-specific rules and activat
 - Phase 4: apply profile + required templates/addons for implementation planning/execution.
 - Phase 5/6: verify evidence-backed architecture/test/business/rollback quality gates.
 
+### Phase 1.5: Business Rules Discovery
+
+When this profile is active, the following Java-specific code patterns are candidates for business rule extraction into `CodebaseContext.BusinessRuleCandidates`:
+- Bean Validation annotations (`@NotNull`, `@NotBlank`, `@Min`, `@Max`, `@Size`, `@Pattern`, `@Valid`, `@Positive`, `@Future`)
+- Custom `ConstraintValidator` implementations and `@Validated` class-level usage
+- Spring Validator interface implementations (`org.springframework.validation.Validator`)
+- JPA/Hibernate column constraints (`@Column(nullable=false)`, `@UniqueConstraint`, `@Check`)
+- Enum types governing valid state transitions (state machines, status enums with transition methods)
+- Domain exception classes indicating business rejection (`throw new BusinessRuleViolationException(...)`, `throw new IllegalStateException(...)` with domain semantics)
+- Guard clauses with domain semantics (`if (amount.compareTo(MAX_DAILY_LIMIT) > 0) throw ...`)
+- Spring Security method-level access rules (`@PreAuthorize`, `@Secured`) when they encode domain authorization logic
+
+Exclusions (do NOT extract):
+- Generic framework exceptions (`NullPointerException`, `IllegalArgumentException` without domain context)
+- Pure infrastructure annotations (`@Autowired`, `@Component`, `@Transactional` without business semantics)
+- TODO/FIXME comments (excluded by global policy in `SESSION_STATE_SCHEMA.md` §7.5.1)
+
 ## Evidence contract (binding)
 
 - Every non-trivial quality claim MUST map to BuildEvidence.
