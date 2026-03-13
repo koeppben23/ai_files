@@ -301,7 +301,25 @@ def evaluate_p54_business_rules_gate(
     Returns:
         P54GateEvaluation with status and coverage details.
     """
-    if not phase_1_5_executed:
+    business_rules = session_state.get("BusinessRules")
+    hydrated_signal = False
+    if phase_1_5_executed and isinstance(business_rules, Mapping):
+        hydrated_signal = True
+    elif isinstance(business_rules, Mapping):
+        hydrated_signal = any(
+            key in business_rules
+            for key in (
+                "SourcePhase",
+                "ValidationResult",
+                "ReportSha",
+            )
+        )
+    source_phase = ""
+    if isinstance(business_rules, Mapping):
+        source_phase = str(business_rules.get("SourcePhase") or "").strip().lower()
+    artifact_phase_signal = source_phase == "1.5-businessrules"
+
+    if not phase_1_5_executed and not hydrated_signal and not artifact_phase_signal:
         return P54GateEvaluation(
             status="not-applicable",
             reason_code=REASON_CODE_NONE,
@@ -311,12 +329,6 @@ def evaluate_p54_business_rules_gate(
             uncovered_rules=(),
             validation_report_is_compliant=True,
         )
-
-    business_rules = session_state.get("BusinessRules")
-    hydrated_signal = isinstance(business_rules, Mapping) and any(
-        key in business_rules
-        for key in ("Outcome", "ExecutionEvidence", "InventoryLoaded", "ExtractedCount")
-    )
 
     if hydrated_signal and isinstance(business_rules, Mapping):
         outcome = str(business_rules.get("Outcome") or "").strip().lower()
@@ -400,17 +412,6 @@ def evaluate_p54_business_rules_gate(
             missing_code_surfaces = ()
             quality_reason_codes = ("BUSINESS_RULES_CODE_EXTRACTION_NOT_RUN",)
 
-        if outcome in {"not-applicable", "deferred", "skipped"} and execution_evidence:
-            return P54GateEvaluation(
-                status="not-applicable",
-                reason_code=REASON_CODE_NONE,
-                phase_1_5_executed=True,
-                total_business_rules=0,
-                covered_business_rules=0,
-                uncovered_rules=(),
-                validation_report_is_compliant=True,
-            )
-
         if outcome == "extracted":
             if (
                 execution_evidence
@@ -460,6 +461,73 @@ def evaluate_p54_business_rules_gate(
                 total_business_rules=max(extracted_count, 0),
                 covered_business_rules=0,
                 uncovered_rules=("business-rules-hydration-incomplete",),
+                validation_report_is_compliant=report_is_compliant,
+                has_invalid_rules=has_invalid_rules,
+                has_render_mismatch=has_render_mismatch,
+                has_source_violation=has_source_violation,
+                has_missing_required_rules=has_missing_required,
+                has_segmentation_failure=has_segmentation_failure,
+                invalid_rule_count=max(invalid_rule_count, 0),
+                dropped_candidate_count=max(dropped_candidate_count, 0),
+                quality_reason_codes=quality_reason_codes,
+                has_code_extraction=has_code_extraction,
+                code_extraction_sufficient=code_extraction_sufficient,
+                code_candidate_count=max(code_candidate_count, 0),
+                code_surface_count=max(code_surface_count, 0),
+                missing_code_surfaces=missing_code_surfaces,
+                has_code_coverage_gap=has_code_coverage_gap,
+                has_code_doc_conflict=has_code_doc_conflict,
+            )
+
+        if outcome in {"not-applicable", "deferred", "skipped"}:
+            has_strict_artifact_signal = bool(
+                source_phase == "1.5-businessrules"
+                or str(business_rules.get("ValidationResult") or "").strip()
+                or str(business_rules.get("ReportSha") or "").strip()
+            )
+            if not has_strict_artifact_signal:
+                return P54GateEvaluation(
+                    status="not-applicable",
+                    reason_code=REASON_CODE_NONE,
+                    phase_1_5_executed=True,
+                    total_business_rules=0,
+                    covered_business_rules=0,
+                    uncovered_rules=(),
+                    validation_report_is_compliant=True,
+                )
+            return P54GateEvaluation(
+                status="gap-detected",
+                reason_code=BLOCKED_P5_4_BUSINESS_RULES_GATE,
+                phase_1_5_executed=True,
+                total_business_rules=0,
+                covered_business_rules=0,
+                uncovered_rules=("business-rules-applicability-inconsistent",),
+                validation_report_is_compliant=False,
+                has_invalid_rules=has_invalid_rules,
+                has_render_mismatch=has_render_mismatch,
+                has_source_violation=has_source_violation,
+                has_missing_required_rules=has_missing_required,
+                has_segmentation_failure=has_segmentation_failure,
+                invalid_rule_count=max(invalid_rule_count, 0),
+                dropped_candidate_count=max(dropped_candidate_count, 0),
+                quality_reason_codes=quality_reason_codes,
+                has_code_extraction=has_code_extraction,
+                code_extraction_sufficient=code_extraction_sufficient,
+                code_candidate_count=max(code_candidate_count, 0),
+                code_surface_count=max(code_surface_count, 0),
+                missing_code_surfaces=missing_code_surfaces,
+                has_code_coverage_gap=has_code_coverage_gap,
+                has_code_doc_conflict=has_code_doc_conflict,
+            )
+
+        if outcome in {"gap-detected", "unresolved"}:
+            return P54GateEvaluation(
+                status="gap-detected",
+                reason_code=BLOCKED_P5_4_BUSINESS_RULES_GATE,
+                phase_1_5_executed=True,
+                total_business_rules=max(extracted_count, 0),
+                covered_business_rules=0,
+                uncovered_rules=("business-rules-validation-failed",),
                 validation_report_is_compliant=report_is_compliant,
                 has_invalid_rules=has_invalid_rules,
                 has_render_mismatch=has_render_mismatch,

@@ -213,7 +213,7 @@ class TestHydrationHybridCorner:
         assert scope["BusinessRules"] == "extracted"
 
     def test_hydration_doc_only_inventory_with_hybrid_status(self, tmp_path: Path) -> None:
-        """Hybrid status file but doc-only inventory → still hydrates correctly."""
+        """Hybrid status + count mismatch fails closed."""
         status = tmp_path / "business-rules-status.md"
         inv = tmp_path / "business-rules.md"
         _write(status, _status_hybrid())
@@ -224,10 +224,7 @@ class TestHydrationHybridCorner:
             state=state, status_path=status, inventory_path=inv
         )
 
-        assert ok is True
-        business = state["BusinessRules"]
-        assert isinstance(business, dict)
-        assert business["ExtractedCount"] == 2
+        assert ok is False
 
     def test_hydration_skipped_outcome_with_hybrid_version(self, tmp_path: Path) -> None:
         """skipped outcome → Scope.BusinessRules set to skipped, no inventory needed."""
