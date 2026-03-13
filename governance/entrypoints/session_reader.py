@@ -1447,6 +1447,19 @@ def read_session_snapshot(commands_home: Path | None = None, *, materialize: boo
             "External implementation decision is not yet available until the Implementation Presentation Gate is materialized."
         )
 
+    if phase_str.startswith("6"):
+        validation_report = state_view.get("implementation_validation_report")
+        if isinstance(validation_report, dict):
+            snapshot["implementation_validation_report"] = validation_report
+            snapshot["implementation_reason_codes"] = validation_report.get("reason_codes") or []
+            snapshot["implementation_executor_invoked"] = bool(validation_report.get("executor_invoked"))
+            changed = validation_report.get("changed_files")
+            domain_changed = validation_report.get("domain_changed_files")
+            snapshot["implementation_changed_files"] = changed if isinstance(changed, list) else []
+            snapshot["implementation_domain_changed_files"] = (
+                domain_changed if isinstance(domain_changed, list) else []
+            )
+
     return snapshot
 
 
@@ -1628,6 +1641,19 @@ def _render_blocker(snapshot: dict) -> list[str]:
         quality_codes = snapshot.get("p54_quality_reason_codes")
         if isinstance(quality_codes, list) and quality_codes:
             lines.append(f"- Quality diagnostics: {', '.join(str(c) for c in quality_codes)}")
+    implementation_reasons = snapshot.get("implementation_reason_codes")
+    if isinstance(implementation_reasons, list) and implementation_reasons:
+        lines.append(
+            f"- Implementation Validation: {'FAILED' if str(snapshot.get('active_gate')).strip().lower() == 'implementation blocked' else 'PASSED'}"
+        )
+        lines.append(f"- Executor invoked: {'true' if bool(snapshot.get('implementation_executor_invoked')) else 'false'}")
+        lines.append(
+            f"- Changed files: {len(snapshot.get('implementation_changed_files') or [])}"
+        )
+        lines.append(
+            f"- Domain files changed: {len(snapshot.get('implementation_domain_changed_files') or [])}"
+        )
+        lines.append(f"- Reason codes: {', '.join(str(r) for r in implementation_reasons)}")
     gates_blocked = snapshot.get("gates_blocked")
     if isinstance(gates_blocked, list) and gates_blocked:
         lines.append(f"- Blocked gates: {', '.join(str(g) for g in gates_blocked)}")
