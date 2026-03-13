@@ -11,6 +11,7 @@ The command is mutating. It orchestrates an external code executor and writes go
 - load approved plan, hotspots, constraints, and required checks
 - write executor input context (`.governance/implementation/llm_edit_context.json`)
 - invoke configured external LLM executor (the only actor allowed to change domain files)
+- run internal implementation self-review (validation-only; no local domain edits)
 - collect git diff evidence and validate plan-coverage plus targeted checks
 - persist validation/audit evidence and fail closed when requirements are not met
 
