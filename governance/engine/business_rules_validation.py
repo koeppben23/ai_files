@@ -63,6 +63,7 @@ _MODAL_VERB_RE = re.compile(
     r"\b(must|shall|required|mandatory|must\s+not|may\s+not|do\s+not|forbidden|prohibited|muss|darf\s+nicht|soll|verboten)\b",
     re.IGNORECASE,
 )
+_DECLARATIVE_RULE_RE = re.compile(r"\b(is|are|remain|remains)\b", re.IGNORECASE)
 _PATH_FRAGMENT_RE = re.compile(r"\b[a-z0-9_./-]+\.(py|ts|tsx|js|java|go|md|yaml|yml):\d+\b", re.IGNORECASE)
 _ARTIFACT_RE = re.compile(
     r"(encoding=\"utf-8\"\)|\\n\"\)|written\s+only\s+when|inventory\s+scaffold|file\]\)|file\]\s*\||\}\)|\],\s*\}\)|artifacts/|tests/)",
@@ -226,7 +227,7 @@ def _validate_rule_text(rule_text: str) -> tuple[bool, str, str]:
     words = [w for w in body.split() if w.strip()]
     if len(words) < 2:
         return False, REASON_INVALID_CONTENT, "rule is too short or fragmentary"
-    if not _MODAL_VERB_RE.search(body):
+    if not (_MODAL_VERB_RE.search(body) or _DECLARATIVE_RULE_RE.search(body)):
         return False, REASON_INVALID_CONTENT, "missing standalone business-rule semantics"
     return True, "none", ""
 
