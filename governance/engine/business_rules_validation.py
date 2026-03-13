@@ -133,13 +133,48 @@ def source_allowlist_decision(relative_path: str) -> tuple[bool, str]:
     return True, "allowed"
 
 
+_RST_UNDERLINE_RE = re.compile(r"^[=\-~^\"'+`#*]{3,}\s*$")
+_ADOC_HEADING_RE = re.compile(r"^={1,6}\s+\S")
+_HTML_HEADING_RE = re.compile(r"<h[1-6]\b[^>]*>", re.IGNORECASE)
+_BOLD_HEADING_RE = re.compile(r"^(\*{2}|_{2}).+\1\s*$")
+
+
+def _is_heading_line(line: str, lines: list[str], idx: int) -> bool:
+    """Return True if *line* is a heading in Markdown, RST, AsciiDoc, or HTML."""
+    stripped = line.strip()
+    if not stripped:
+        return False
+    # Markdown ATX heading
+    if stripped.startswith("#"):
+        return True
+    # AsciiDoc heading (= Title, == Section, etc.)
+    if _ADOC_HEADING_RE.match(stripped):
+        return True
+    # HTML heading tag
+    if _HTML_HEADING_RE.search(stripped):
+        return True
+    # Bold/emphasized pseudo-heading (**Business Rules** or __Business Rules__)
+    if _BOLD_HEADING_RE.match(stripped):
+        return True
+    # RST underline-style heading: the line ABOVE the underline is the title
+    if _RST_UNDERLINE_RE.match(stripped) and idx > 0:
+        prev = lines[idx - 1].strip()
+        if prev and not _RST_UNDERLINE_RE.match(prev):
+            return True
+    # RST overline+title+underline: if current line is text and the next line
+    # is an underline, this line is a heading
+    if idx + 1 < len(lines) and _RST_UNDERLINE_RE.match(lines[idx + 1].strip()):
+        return True
+    return False
+
+
 def _has_section_signal(lines: list[str], line_index: int) -> bool:
     start = max(0, line_index - 6)
     for idx in range(start, line_index + 1):
         probe = lines[idx].strip()
         if not probe:
             continue
-        if probe.startswith("#") and _SECTION_SIGNAL_RE.search(probe):
+        if _is_heading_line(probe, lines, idx) and _SECTION_SIGNAL_RE.search(probe):
             return True
     return False
 
