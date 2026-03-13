@@ -43,13 +43,13 @@
     },
     "R-IMPLEMENT-001": {
       "behavioral_verification": [
-        "tests/test_implement_start_entrypoint.py::test_main_blocked_when_forced_blocker_marker"
+        "tests/test_implement_start_entrypoint.py::test_bad_executor_no_changes_blocks"
       ],
       "user_surface_verification": [
         "tests/test_session_reader_guided_contract.py::test_guided_corner_implementation_presentation_renders_result_blocks"
       ],
       "live_flow_verification": [
-        "tests/test_implement_start_entrypoint.py::test_main_happy_implement_start"
+        "tests/test_implement_start_entrypoint.py::test_happy_executor_diff_plus_checks_passes"
       ]
     },
     "R-COMPLETION-001": {
