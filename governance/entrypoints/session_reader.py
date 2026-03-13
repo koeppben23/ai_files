@@ -1148,6 +1148,11 @@ def read_session_snapshot(commands_home: Path | None = None, *, materialize: boo
     p54_invalid_rules = 0
     p54_dropped_candidates = 0
     p54_quality_reason_codes: list[str] = []
+    p54_has_code_extraction = False
+    p54_code_coverage_sufficient = False
+    p54_code_candidate_count = 0
+    p54_code_surface_count = 0
+    p54_missing_code_surfaces: list[str] = []
     p55_evaluated_status = "unknown"
     p56_evaluated_status = "unknown"
     try:
@@ -1173,6 +1178,13 @@ def read_session_snapshot(commands_home: Path | None = None, *, materialize: boo
         _reason_codes = getattr(p54_eval, "quality_reason_codes", ())
         if isinstance(_reason_codes, tuple):
             p54_quality_reason_codes = [str(item) for item in _reason_codes if str(item).strip()]
+        p54_has_code_extraction = bool(getattr(p54_eval, "has_code_extraction", False))
+        p54_code_coverage_sufficient = bool(getattr(p54_eval, "code_extraction_sufficient", False))
+        p54_code_candidate_count = int(getattr(p54_eval, "code_candidate_count", 0) or 0)
+        p54_code_surface_count = int(getattr(p54_eval, "code_surface_count", 0) or 0)
+        _missing_surfaces = getattr(p54_eval, "missing_code_surfaces", ())
+        if isinstance(_missing_surfaces, tuple):
+            p54_missing_code_surfaces = [str(item) for item in _missing_surfaces if str(item).strip()]
         p55_evaluated_status = str(p55_eval.status)
         p56_evaluated_status = str(p56_eval.status)
     except Exception:
@@ -1264,6 +1276,11 @@ def read_session_snapshot(commands_home: Path | None = None, *, materialize: boo
         "p54_invalid_rules": p54_invalid_rules,
         "p54_dropped_candidates": p54_dropped_candidates,
         "p54_quality_reason_codes": p54_quality_reason_codes,
+        "p54_has_code_extraction": p54_has_code_extraction,
+        "p54_code_coverage_sufficient": p54_code_coverage_sufficient,
+        "p54_code_candidate_count": p54_code_candidate_count,
+        "p54_code_surface_count": p54_code_surface_count,
+        "p54_missing_code_surfaces": p54_missing_code_surfaces,
         "p55_evaluated_status": p55_evaluated_status,
         "p56_evaluated_status": p56_evaluated_status,
         "rework_clarification_input": _safe_str(
@@ -1641,6 +1658,15 @@ def _render_blocker(snapshot: dict) -> list[str]:
         quality_codes = snapshot.get("p54_quality_reason_codes")
         if isinstance(quality_codes, list) and quality_codes:
             lines.append(f"- Quality diagnostics: {', '.join(str(c) for c in quality_codes)}")
+        lines.append(f"- Code extraction run: {'true' if bool(snapshot.get('p54_has_code_extraction')) else 'false'}")
+        lines.append(
+            f"- Code coverage sufficient: {'true' if bool(snapshot.get('p54_code_coverage_sufficient')) else 'false'}"
+        )
+        lines.append(f"- Code candidates: {int(snapshot.get('p54_code_candidate_count') or 0)}")
+        lines.append(f"- Code surfaces scanned: {int(snapshot.get('p54_code_surface_count') or 0)}")
+        missing_surfaces = snapshot.get("p54_missing_code_surfaces")
+        if isinstance(missing_surfaces, list) and missing_surfaces:
+            lines.append(f"- Missing code surfaces: {', '.join(str(s) for s in missing_surfaces)}")
     implementation_reasons = snapshot.get("implementation_reason_codes")
     if isinstance(implementation_reasons, list) and implementation_reasons:
         lines.append(
