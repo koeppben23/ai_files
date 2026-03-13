@@ -380,24 +380,22 @@ def evaluate_p54_business_rules_gate(
 
         # Backward-compat path: legacy snapshots may not have ValidationReport.
         if not quality_report_map:
-            report_is_compliant = (
-                execution_evidence and inventory_loaded and extracted_count > 0
-            )
+            report_is_compliant = False
             has_invalid_rules = False
             has_render_mismatch = False
-            has_source_violation = False
-            has_missing_required = False
+            has_source_violation = True
+            has_missing_required = True
             has_segmentation_failure = False
-            has_code_extraction = True
-            code_extraction_sufficient = True
-            has_code_coverage_gap = False
+            has_code_extraction = False
+            code_extraction_sufficient = False
+            has_code_coverage_gap = True
             has_code_doc_conflict = False
             invalid_rule_count = 0
             dropped_candidate_count = 0
             code_candidate_count = 0
             code_surface_count = 0
             missing_code_surfaces = ()
-            quality_reason_codes = ()
+            quality_reason_codes = ("BUSINESS_RULES_CODE_EXTRACTION_NOT_RUN",)
 
         if outcome in {"not-applicable", "deferred", "skipped"} and execution_evidence:
             return P54GateEvaluation(

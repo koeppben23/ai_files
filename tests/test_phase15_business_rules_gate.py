@@ -4,18 +4,24 @@ from governance.engine.gate_evaluator import evaluate_p54_business_rules_gate
 
 
 def _state_with_report(report: dict[str, object]) -> dict[str, object]:
+    def _as_int(value: object) -> int:
+        try:
+            return int(str(value))
+        except (TypeError, ValueError):
+            return 0
+
     return {
         "BusinessRules": {
             "Outcome": "extracted",
             "ExecutionEvidence": True,
             "InventoryLoaded": True,
             "ExtractedCount": 2,
-            "InvalidRuleCount": int(report.get("invalid_rule_count") or 0),
-            "DroppedCandidateCount": int(report.get("dropped_candidate_count") or 0),
+            "InvalidRuleCount": _as_int(report.get("invalid_rule_count") or 0),
+            "DroppedCandidateCount": _as_int(report.get("dropped_candidate_count") or 0),
             "ValidationReasonCodes": report.get("reason_codes") or [],
             "ValidationReport": report,
-            "CodeCandidateCount": int(report.get("code_candidate_count") or 0),
-            "CodeSurfaceCount": int(report.get("code_surface_count") or 0),
+            "CodeCandidateCount": _as_int(report.get("code_candidate_count") or 0),
+            "CodeSurfaceCount": _as_int(report.get("code_surface_count") or 0),
             "MissingCodeSurfaces": report.get("missing_code_surfaces") or [],
         }
     }
@@ -133,3 +139,23 @@ def test_edge_gate_blocks_on_doc_code_conflict() -> None:
 
     assert result.status == "gap-detected"
     assert result.has_code_doc_conflict is True
+
+
+def test_bad_legacy_snapshot_without_validation_report_is_fail_closed() -> None:
+    state = {
+        "BusinessRules": {
+            "Outcome": "extracted",
+            "ExecutionEvidence": True,
+            "InventoryLoaded": True,
+            "ExtractedCount": 2,
+            "InvalidRuleCount": 0,
+            "DroppedCandidateCount": 0,
+        }
+    }
+
+    result = evaluate_p54_business_rules_gate(session_state=state, phase_1_5_executed=True)
+
+    assert result.status == "gap-detected"
+    assert result.has_code_extraction is False
+    assert result.code_extraction_sufficient is False
+    assert "BUSINESS_RULES_CODE_EXTRACTION_NOT_RUN" in result.quality_reason_codes

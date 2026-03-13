@@ -37,12 +37,24 @@ def evaluate_code_extraction_coverage(
     if scanned_file_count > 0 and candidate_count <= 0:
         reasons.append(RC_CODE_COVERAGE_INSUFFICIENT)
 
-    # Lightweight expectation model: if strong domain-oriented surface types
-    # exist in repo and have zero presence, mark as missing diagnostics.
+    # Expectation model: track strong domain-oriented surfaces.
     present_types = {surface.surface_type for surface in scanned_surfaces}
+    expected_types = {"validator", "permissions", "workflow"}
     for expected in ("validator", "permissions", "workflow"):
         if expected not in present_types and scanned_file_count > 0:
             missing_expected_surfaces.append(expected)
+
+    # Fail-closed in sensible coverage scenarios:
+    # - If repo is non-trivial (>= 8 scanned code/config files), missing strong
+    #   surfaces is a blocker.
+    # - If at least one strong surface exists but others are missing, treat as
+    #   partial-coverage gap and block.
+    present_expected = len(present_types & expected_types)
+    if missing_expected_surfaces and (
+        scanned_file_count >= 8
+        or present_expected >= 1
+    ):
+        reasons.append(RC_CODE_COVERAGE_INSUFFICIENT)
 
     if has_provenance_gaps:
         reasons.append(RC_CODE_PROVENANCE_MISSING)

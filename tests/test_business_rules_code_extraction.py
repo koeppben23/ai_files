@@ -24,8 +24,21 @@ def test_happy_extracts_code_rules_from_python_and_has_provenance(tmp_path: Path
         "    if not user.has_permission('read'):\n"
         "        raise PermissionError('forbidden')\n",
     )
+    _write(
+        tmp_path / "src" / "validator.py",
+        "def validate_payload(payload):\n"
+        "    if not payload:\n"
+        "        raise ValueError('required')\n",
+    )
+    _write(
+        tmp_path / "src" / "workflow.py",
+        "def transition(status):\n"
+        "    if status == 'archived':\n"
+        "        raise RuntimeError('invalid transition')\n",
+    )
 
     report, diagnostics, ok = extract_validated_business_rules_with_diagnostics(tmp_path)
+    code_diag = diagnostics.get("code_extraction")
 
     assert ok is True
     assert report.has_code_extraction is True
@@ -33,7 +46,8 @@ def test_happy_extracts_code_rules_from_python_and_has_provenance(tmp_path: Path
     assert report.code_valid_rule_count >= 1
     assert report.code_extraction_sufficient is True
     assert report.is_compliant is True
-    assert diagnostics["code_extraction"]["is_sufficient"] is True
+    assert isinstance(code_diag, dict)
+    assert code_diag["is_sufficient"] is True
 
 
 def test_happy_extracts_code_rules_from_go_and_typescript(tmp_path: Path) -> None:
@@ -68,6 +82,7 @@ def test_bad_code_repo_without_detectable_rules_fails_coverage(tmp_path: Path) -
     )
 
     report, diagnostics, ok = extract_validated_business_rules_with_diagnostics(tmp_path)
+    code_diag = diagnostics.get("code_extraction")
 
     assert ok is True
     assert report.has_code_extraction is True
@@ -76,7 +91,8 @@ def test_bad_code_repo_without_detectable_rules_fails_coverage(tmp_path: Path) -
     assert report.has_code_coverage_gap is True
     assert report.is_compliant is False
     assert "BUSINESS_RULES_CODE_COVERAGE_INSUFFICIENT" in report.reason_codes
-    assert diagnostics["code_extraction"]["is_sufficient"] is False
+    assert isinstance(code_diag, dict)
+    assert code_diag["is_sufficient"] is False
 
 
 def test_corner_doc_vs_code_conflict_blocks(tmp_path: Path) -> None:
@@ -107,8 +123,10 @@ def test_edge_ignores_test_sources_for_code_extraction(tmp_path: Path) -> None:
     )
 
     report, diagnostics, ok = extract_validated_business_rules_with_diagnostics(tmp_path)
+    code_diag = diagnostics.get("code_extraction")
 
     assert ok is True
     assert report.code_surface_count == 0
     assert report.code_candidate_count == 0
-    assert diagnostics["code_extraction"]["scanned_file_count"] == 0
+    assert isinstance(code_diag, dict)
+    assert code_diag["scanned_file_count"] == 0
