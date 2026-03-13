@@ -27,6 +27,8 @@ REASON_COUNT_MISMATCH = "BUSINESS_RULES_COUNT_MISMATCH"
 REASON_EMPTY_INVENTORY = "BUSINESS_RULES_EMPTY_INVENTORY"
 REASON_CODE_CANDIDATE_REJECTED = "BUSINESS_RULES_CODE_CANDIDATE_REJECTED"
 REASON_CODE_DOC_CONFLICT = "BUSINESS_RULES_CODE_DOC_CONFLICT"
+REASON_CODE_TOKEN_ARTIFACT = "BUSINESS_RULES_CODE_TOKEN_ARTIFACT"
+REASON_CODE_QUALITY_INSUFFICIENT = "BUSINESS_RULES_CODE_QUALITY_INSUFFICIENT"
 
 ORIGIN_DOC = "doc"
 ORIGIN_CODE = "code"
@@ -85,6 +87,10 @@ _ARTIFACT_RE = re.compile(
     r"(encoding=\"utf-8\"\)|\\n\"\)|written\s+only\s+when|inventory\s+scaffold|file\]\)|file\]\s*\||\}\)|\],\s*\}\)|artifacts/|tests/)",
     re.IGNORECASE,
 )
+_CODE_TOKEN_HINT_RE = re.compile(
+    r"(\bimport\b|\bdataclass\b|\bexists\b|\bresolve\b|__pycache__|_backup|\.py\b|\.ts\b|\w+_\w+_\w+)",
+    re.IGNORECASE,
+)
 
 
 @dataclass(frozen=True)
@@ -96,6 +102,7 @@ class RuleCandidate:
     source_reason: str
     section_signal: bool
     origin: str = ORIGIN_DOC
+    enforcement_anchor_type: str = ""
 
 
 @dataclass(frozen=True)
@@ -114,6 +121,7 @@ class RejectedRule:
     line_no: int
     reason_code: str
     reason: str
+    origin: str = ORIGIN_DOC
 
 
 @dataclass(frozen=True)
@@ -143,6 +151,12 @@ class ValidationReport:
     missing_code_surfaces: tuple[str, ...] = ()
     has_code_coverage_gap: bool = False
     has_code_doc_conflict: bool = False
+    has_code_token_artifacts: bool = False
+    has_quality_insufficiency: bool = False
+    invalid_code_candidate_count: int = 0
+    code_token_artifact_count: int = 0
+    artifact_ratio_exceeded: bool = False
+    artifact_ratio: float = 0.0
 
 
 def source_allowlist_decision(relative_path: str) -> tuple[bool, str]:
@@ -285,6 +299,8 @@ def _validate_rule_text(rule_text: str) -> tuple[bool, str, str]:
         return False, REASON_INVALID_CONTENT, "contains code/writer/file-reference artifacts"
     if _PATH_FRAGMENT_RE.search(rule_text):
         return False, REASON_INVALID_CONTENT, "contains file path/location artifact"
+    if _CODE_TOKEN_HINT_RE.search(body):
+        return False, REASON_CODE_TOKEN_ARTIFACT, "contains code-token artifact instead of business semantics"
     words = [w for w in body.split() if w.strip()]
     if len(words) < 2:
         return False, REASON_INVALID_CONTENT, "rule is too short or fragmentary"
@@ -328,6 +344,20 @@ def validate_candidates(
                         if not candidate.source_allowed
                         else "missing business-rule section signal"
                     ),
+                    origin=candidate.origin,
+                )
+            )
+            continue
+
+        if candidate.origin == ORIGIN_CODE and not str(candidate.enforcement_anchor_type or "").strip():
+            dropped.append(
+                RejectedRule(
+                    text=candidate.text,
+                    source_path=candidate.source_path,
+                    line_no=candidate.line_no,
+                    reason_code=REASON_CODE_CANDIDATE_REJECTED,
+                    reason="missing enforcement anchor for code candidate",
+                    origin=candidate.origin,
                 )
             )
             continue
@@ -341,6 +371,7 @@ def validate_candidates(
                     line_no=candidate.line_no,
                     reason_code=REASON_SEGMENTATION_FAILED,
                     reason="candidate could not be segmented into deterministic rules",
+                    origin=candidate.origin,
                 )
             )
             continue
@@ -357,6 +388,7 @@ def validate_candidates(
                         line_no=candidate.line_no,
                         reason_code=reason_code,
                         reason=reason,
+                        origin=candidate.origin,
                     )
                 )
                 continue
@@ -386,6 +418,7 @@ def validate_candidates(
                     line_no=0,
                     reason_code=REASON_MISSING_REQUIRED_RULES,
                     reason="required business rules are missing",
+                    origin=ORIGIN_DOC,
                 )
             )
 
@@ -398,6 +431,7 @@ def validate_candidates(
                 line_no=0,
                 reason_code=REASON_EMPTY_INVENTORY,
                 reason="no validated business rules extracted",
+                origin=ORIGIN_DOC,
             )
         )
 
@@ -416,6 +450,7 @@ def validate_candidates(
                     line_no=0,
                     reason_code=REASON_RENDER_MISMATCH,
                     reason="rendered output is not 1:1 with validated rules",
+                    origin=ORIGIN_DOC,
                 )
             )
         if not count_consistent:
@@ -426,10 +461,19 @@ def validate_candidates(
                     line_no=0,
                     reason_code=REASON_COUNT_MISMATCH,
                     reason="validated and rendered business-rule counts differ",
+                    origin=ORIGIN_DOC,
                 )
             )
 
     code_valid_rule_count = sum(1 for rule in valid_rules if rule.origin == ORIGIN_CODE)
+    invalid_code_candidate_count = sum(1 for row in (*invalid_rules, *dropped) if row.origin == ORIGIN_CODE)
+    code_token_artifact_count = sum(1 for row in invalid_rules if row.reason_code == REASON_CODE_TOKEN_ARTIFACT)
+    artifact_ratio = (code_token_artifact_count / code_candidate_count) if code_candidate_count > 0 else 0.0
+    artifact_ratio_exceeded = artifact_ratio > 0.20
+    has_quality_insufficiency = (
+        (has_code_extraction and code_candidate_count > 0 and code_valid_rule_count <= 0)
+        or artifact_ratio_exceeded
+    )
     reason_codes_set = {r.reason_code for r in (*invalid_rules, *dropped)}
     if enforce_code_requirements:
         if has_code_extraction and not code_extraction_sufficient:
@@ -438,6 +482,8 @@ def validate_candidates(
             reason_codes_set.add(RC_CODE_EXTRACTION_NOT_RUN)
         if has_code_doc_conflict:
             reason_codes_set.add(REASON_CODE_DOC_CONFLICT)
+        if has_quality_insufficiency:
+            reason_codes_set.add(REASON_CODE_QUALITY_INSUFFICIENT)
     for reason in additional_reason_codes:
         if str(reason).strip():
             reason_codes_set.add(str(reason).strip())
@@ -467,6 +513,8 @@ def validate_candidates(
             and has_code_extraction
             and code_extraction_sufficient
             and not has_code_doc_conflict
+            and not has_quality_insufficiency
+            and not artifact_ratio_exceeded
         )
 
     return ValidationReport(
@@ -495,6 +543,12 @@ def validate_candidates(
         missing_code_surfaces=tuple(missing_code_surfaces),
         has_code_coverage_gap=(not code_extraction_sufficient),
         has_code_doc_conflict=has_code_doc_conflict,
+        has_code_token_artifacts=code_token_artifact_count > 0,
+        has_quality_insufficiency=has_quality_insufficiency,
+        invalid_code_candidate_count=max(invalid_code_candidate_count, 0),
+        code_token_artifact_count=max(code_token_artifact_count, 0),
+        artifact_ratio_exceeded=artifact_ratio_exceeded,
+        artifact_ratio=max(artifact_ratio, 0.0),
     )
 
 
@@ -628,6 +682,9 @@ def extract_validated_business_rules_with_diagnostics(
     doc_candidates, docs_ok = extract_candidates_from_repo(repo_root)
     scanned_surfaces = discover_code_surfaces(repo_root)
     code_candidates, code_ok = extract_code_rule_candidates(repo_root)
+    semantic_type_distribution: dict[str, int] = {}
+    for candidate in code_candidates:
+        semantic_type_distribution[candidate.semantic_type] = semantic_type_distribution.get(candidate.semantic_type, 0) + 1
 
     has_provenance_gaps = any(not candidate.path or candidate.line_start <= 0 for candidate in code_candidates)
     coverage = evaluate_code_extraction_coverage(
@@ -635,6 +692,7 @@ def extract_validated_business_rules_with_diagnostics(
         candidate_count=len(code_candidates),
         extraction_ran=code_ok,
         has_provenance_gaps=has_provenance_gaps,
+        semantic_type_distribution=semantic_type_distribution,
     )
 
     converted_code_candidates: list[RuleCandidate] = []
@@ -648,6 +706,7 @@ def extract_validated_business_rules_with_diagnostics(
                 source_reason="deterministic-code-extraction",
                 section_signal=True,
                 origin=ORIGIN_CODE,
+                enforcement_anchor_type=str(getattr(candidate, "enforcement_anchor_type", "") or ""),
             )
         )
 
@@ -678,6 +737,29 @@ def extract_validated_business_rules_with_diagnostics(
             additional_reason_codes=tuple((*coverage.reason_codes, REASON_CODE_DOC_CONFLICT)),
             enforce_code_requirements=True,
         )
+
+    coverage = evaluate_code_extraction_coverage(
+        scanned_surfaces=scanned_surfaces,
+        candidate_count=len(code_candidates),
+        extraction_ran=code_ok,
+        has_provenance_gaps=has_provenance_gaps,
+        validated_code_rule_count=report.code_valid_rule_count,
+        invalid_code_candidate_count=report.invalid_code_candidate_count,
+        code_token_artifact_count=report.code_token_artifact_count,
+        semantic_type_distribution=semantic_type_distribution,
+    )
+    report = validate_candidates(
+        candidates=combined_candidates,
+        expected_rules=False,
+        has_code_extraction=code_ok,
+        code_extraction_sufficient=coverage.is_sufficient,
+        code_candidate_count=coverage.candidate_count,
+        code_surface_count=coverage.scanned_file_count,
+        missing_code_surfaces=coverage.missing_expected_surfaces,
+        has_code_doc_conflict=has_conflicts,
+        additional_reason_codes=tuple((*coverage.reason_codes, *( (REASON_CODE_DOC_CONFLICT,) if has_conflicts else ()) )),
+        enforce_code_requirements=True,
+    )
 
     diagnostics = {
         "code_extraction": coverage_to_payload(coverage),
@@ -803,6 +885,7 @@ def merge_code_candidates(
                     line_no=idx,
                     reason_code=REASON_CODE_CANDIDATE_REJECTED,
                     reason="candidate is not a dict",
+                    origin=ORIGIN_CODE,
                 )
             )
             continue
@@ -824,6 +907,7 @@ def merge_code_candidates(
                     line_no=0,
                     reason_code=REASON_CODE_CANDIDATE_REJECTED,
                     reason=f"invalid candidate id: {str(cand_id)[:50]}",
+                    origin=ORIGIN_CODE,
                 )
             )
             continue
@@ -836,6 +920,7 @@ def merge_code_candidates(
                     line_no=0,
                     reason_code=REASON_CODE_CANDIDATE_REJECTED,
                     reason="empty or non-string candidate_rule_text",
+                    origin=ORIGIN_CODE,
                 )
             )
             continue
@@ -848,6 +933,7 @@ def merge_code_candidates(
                     line_no=0,
                     reason_code=REASON_CODE_CANDIDATE_REJECTED,
                     reason="empty or non-string source_path",
+                    origin=ORIGIN_CODE,
                 )
             )
             continue
@@ -860,6 +946,7 @@ def merge_code_candidates(
                     line_no=0,
                     reason_code=REASON_CODE_CANDIDATE_REJECTED,
                     reason=f"invalid pattern_type: {str(pattern_type)[:50]}",
+                    origin=ORIGIN_CODE,
                 )
             )
             continue
@@ -872,6 +959,7 @@ def merge_code_candidates(
                     line_no=0,
                     reason_code=REASON_CODE_CANDIDATE_REJECTED,
                     reason=f"invalid confidence: {str(confidence)[:50]}",
+                    origin=ORIGIN_CODE,
                 )
             )
             continue
@@ -922,6 +1010,7 @@ def merge_code_candidates(
                 source_reason="llm-code-extraction",
                 section_signal=True,
                 origin=ORIGIN_CODE,
+                enforcement_anchor_type="validator",
             )
         )
 

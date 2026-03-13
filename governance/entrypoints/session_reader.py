@@ -1620,6 +1620,17 @@ def _render_execution_progress(snapshot: dict) -> list[str]:
         lines.append(f"- Decision availability: {snapshot.get('phase6_decision_availability') or 'not yet available'}")
         return lines
 
+    if gate == "business rules validation":
+        lines.append(f"- Business Rules Validation: {str(snapshot.get('p54_evaluated_status') or 'unknown').upper()}")
+        lines.append(f"- Invalid rules detected: {int(snapshot.get('p54_invalid_rules') or 0)}")
+        lines.append(f"- Dropped candidates: {int(snapshot.get('p54_dropped_candidates') or 0)}")
+        lines.append(f"- Code candidates: {int(snapshot.get('p54_code_candidate_count') or 0)}")
+        lines.append(f"- Code surfaces scanned: {int(snapshot.get('p54_code_surface_count') or 0)}")
+        quality_codes = snapshot.get("p54_quality_reason_codes")
+        if isinstance(quality_codes, list) and quality_codes:
+            lines.append(f"- Reason codes: {', '.join(str(code) for code in quality_codes)}")
+        return lines
+
     changed_files = snapshot.get("implementation_changed_files")
     if isinstance(changed_files, list) and changed_files:
         _append_list(lines, "Changed files", changed_files)
