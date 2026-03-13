@@ -592,6 +592,12 @@ def _sync_conditional_p5_gate_states(*, state_doc: dict) -> None:
             "gap-detected",
         }:
             gates["P5.4-BusinessRules"] = p54_eval.status
+    if p54_eval.status not in {"compliant", "compliant-with-exceptions", "not-applicable"}:
+        if str(state.get("phase5_completed") or "").strip().lower() in {"true", "1"} or state.get("phase5_completed") is True:
+            state["phase5_completed"] = False
+            state["phase5_state"] = "phase5-in-progress"
+            state["Phase5State"] = "phase5-in-progress"
+            state["phase5_completion_status"] = "phase5-in-progress"
 
     p55_eval = evaluate_p55_technical_debt_gate(session_state=state)
     if str(gates.get("P5.5-TechnicalDebt", "")).strip().lower() == "pending":
@@ -627,8 +633,10 @@ def _normalize_phase6_p5_state(*, state_doc: dict, events_path: Path | None = No
     from governance.engine.gate_evaluator import (
         P5_GATE_PRIORITY_ORDER,
         P5_GATE_TERMINAL_VALUES,
+        evaluate_p54_business_rules_gate,
         reason_code_for_gate,
     )
+    from governance.kernel.phase_kernel import _phase_1_5_executed
 
     state_obj = state_doc.get("SESSION_STATE")
     state = state_obj if isinstance(state_obj, dict) else state_doc
@@ -654,6 +662,19 @@ def _normalize_phase6_p5_state(*, state_doc: dict, events_path: Path | None = No
             continue
         if current not in terminal_values:
             open_gates.append(gate_key)
+
+    # Fail-closed: even with stale terminal gate states, force-open P5.4 when
+    # the evaluator reports non-compliant business-rules validation.
+    if _phase_1_5_executed(state):
+        p54_eval = evaluate_p54_business_rules_gate(
+            session_state=state,
+            phase_1_5_executed=True,
+        )
+        if p54_eval.status not in {"compliant", "compliant-with-exceptions", "not-applicable"}:
+            if "P5.4-BusinessRules" not in open_gates:
+                open_gates.append("P5.4-BusinessRules")
+                _order = {gate: idx for idx, gate in enumerate(P5_GATE_PRIORITY_ORDER)}
+                open_gates.sort(key=lambda gate: _order.get(gate, 999))
 
     if not open_gates:
         return
@@ -684,6 +705,10 @@ def _normalize_phase6_p5_state(*, state_doc: dict, events_path: Path | None = No
     state["next"] = corrected_next
     state["phase6_state"] = "phase5_in_progress"
     state["implementation_review_complete"] = False
+    state["phase5_completed"] = False
+    state["phase5_state"] = "phase5-in-progress"
+    state["Phase5State"] = "phase5-in-progress"
+    state["phase5_completion_status"] = "phase5-in-progress"
     state.pop("workflow_complete", None)
     state.pop("WorkflowComplete", None)
     state["active_gate"] = corrected_gate
@@ -1119,6 +1144,10 @@ def read_session_snapshot(commands_home: Path | None = None, *, materialize: boo
     gates_blocked = [k for k, v in gates.items() if str(v).lower() == "blocked"] if isinstance(gates, dict) else []
 
     p54_evaluated_status = "unknown"
+    p54_reason_code = "none"
+    p54_invalid_rules = 0
+    p54_dropped_candidates = 0
+    p54_quality_reason_codes: list[str] = []
     p55_evaluated_status = "unknown"
     p56_evaluated_status = "unknown"
     try:
@@ -1138,6 +1167,12 @@ def read_session_snapshot(commands_home: Path | None = None, *, materialize: boo
         p55_eval = evaluate_p55_technical_debt_gate(session_state=_state_for_eval)
         p56_eval = evaluate_p56_rollback_safety_gate(session_state=_state_for_eval)
         p54_evaluated_status = str(p54_eval.status)
+        p54_reason_code = str(p54_eval.reason_code)
+        p54_invalid_rules = int(getattr(p54_eval, "invalid_rule_count", 0) or 0)
+        p54_dropped_candidates = int(getattr(p54_eval, "dropped_candidate_count", 0) or 0)
+        _reason_codes = getattr(p54_eval, "quality_reason_codes", ())
+        if isinstance(_reason_codes, tuple):
+            p54_quality_reason_codes = [str(item) for item in _reason_codes if str(item).strip()]
         p55_evaluated_status = str(p55_eval.status)
         p56_evaluated_status = str(p56_eval.status)
     except Exception:
@@ -1225,6 +1260,10 @@ def read_session_snapshot(commands_home: Path | None = None, *, materialize: boo
         "operating_mode_resolution": operating_mode_resolution,
         "commands_home": str(commands_home),
         "p54_evaluated_status": p54_evaluated_status,
+        "p54_reason_code": p54_reason_code,
+        "p54_invalid_rules": p54_invalid_rules,
+        "p54_dropped_candidates": p54_dropped_candidates,
+        "p54_quality_reason_codes": p54_quality_reason_codes,
         "p55_evaluated_status": p55_evaluated_status,
         "p56_evaluated_status": p56_evaluated_status,
         "rework_clarification_input": _safe_str(
@@ -1577,6 +1616,18 @@ def _render_blocker(snapshot: dict) -> list[str]:
     lines = ["Blocker"]
     lines.append(f"- Status: {snapshot.get('status') or 'unknown'}")
     lines.append(f"- Evidence: {snapshot.get('next_gate_condition') or 'No blocker detail provided.'}")
+    phase = str(snapshot.get("phase") or "").strip().lower()
+    if phase.startswith("5.4"):
+        lines.append(
+            f"- Business Rules Validation: {'FAILED' if str(snapshot.get('p54_evaluated_status')).strip().lower() != 'compliant' else 'PASSED'}"
+        )
+        lines.append(f"- Invalid rules detected: {int(snapshot.get('p54_invalid_rules') or 0)}")
+        lines.append(f"- Dropped candidates: {int(snapshot.get('p54_dropped_candidates') or 0)}")
+        reason = str(snapshot.get("p54_reason_code") or "none")
+        lines.append(f"- Reason code: {reason}")
+        quality_codes = snapshot.get("p54_quality_reason_codes")
+        if isinstance(quality_codes, list) and quality_codes:
+            lines.append(f"- Quality diagnostics: {', '.join(str(c) for c in quality_codes)}")
     gates_blocked = snapshot.get("gates_blocked")
     if isinstance(gates_blocked, list) and gates_blocked:
         lines.append(f"- Blocked gates: {', '.join(str(g) for g in gates_blocked)}")
