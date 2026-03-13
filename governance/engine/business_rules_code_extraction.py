@@ -45,6 +45,8 @@ _ANCHOR_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("return-error", re.compile(r"\breturn\b[^\n]*(error|err\b|fail|invalid|forbidden|unauthorized)", re.IGNORECASE)),
     ("validator", re.compile(r"\b(validate|validator|required|required\s*field|schema|constraint)\b", re.IGNORECASE)),
     ("transition-guard", re.compile(r"\b(transition|state\s*machine|status\s*transition|lifecycle)\b", re.IGNORECASE)),
+    ("retention-enforcement", re.compile(r"\b(retention|archive|purge|ttl|soft_delete)\b", re.IGNORECASE)),
+    ("audit-enforcement", re.compile(r"\b(audit|log_event|append_log|journal|audit_log)\b", re.IGNORECASE)),
 )
 
 _SEMANTIC_PATTERNS: tuple[tuple[str, str, re.Pattern[str]], ...] = (
@@ -59,6 +61,23 @@ _SEMANTIC_PATTERNS: tuple[tuple[str, str, re.Pattern[str]], ...] = (
 
 _NON_NORMATIVE_LINE_RE = re.compile(
     r"^(from\s+\S+\s+import\s+\S+|import\s+\S+|@\w+|class\s+\w+\(|def\s+\w+\(|dataclass\b)",
+    re.IGNORECASE,
+)
+
+_COMMENT_PREFIX_RE = re.compile(r"^\s*(#|//|/\*|\*)\s*")
+_NORMATIVE_COMMENT_RE = re.compile(
+    r"\b(must|shall|required|mandatory|must\s+not|forbidden|prohibited|deny|reject)\b",
+    re.IGNORECASE,
+)
+_TECHNICAL_ARTIFACT_RE = re.compile(
+    r"(from\s+\S+\s+import\s+\S+|^import\s+\S+|\b@dataclass\b|__pycache__|node_modules|\.git|\.pytest_cache|artifacts?/|fixtures?/|cache|backup|metadata)",
+    re.IGNORECASE,
+)
+_PATH_FRAGMENT_RE = re.compile(r"\b\S+\.(py|ts|tsx|js|jsx|go|java|kt|yaml|yml|json)(:\d+)?\b", re.IGNORECASE)
+_IDENTIFIER_CHAIN_RE = re.compile(r"\b[a-z]+(?:_[a-z0-9]+){2,}\b")
+_WEAK_TECHNICAL_ONLY_RE = re.compile(r"\b(exists|resolve|helper|state)\b", re.IGNORECASE)
+_SEMANTIC_KEYWORD_RE = re.compile(
+    r"\b(permission|unauthorized|forbidden|required|missing|validate|constraint|transition|state|status|lifecycle|unique|duplicate|audit|retention|archive|purge|ttl|invariant)\b",
     re.IGNORECASE,
 )
 
@@ -149,6 +168,21 @@ def _line_is_non_normative(line: str) -> bool:
     return bool(_NON_NORMATIVE_LINE_RE.search(line.strip()))
 
 
+def _line_is_technical_artifact(line: str) -> bool:
+    probe = line.strip()
+    if not probe:
+        return True
+    if _TECHNICAL_ARTIFACT_RE.search(probe):
+        return True
+    if _PATH_FRAGMENT_RE.search(probe):
+        return True
+    if _IDENTIFIER_CHAIN_RE.search(probe) and not _SEMANTIC_KEYWORD_RE.search(probe):
+        return True
+    if _WEAK_TECHNICAL_ONLY_RE.search(probe) and not _NORMATIVE_COMMENT_RE.search(probe) and not _SEMANTIC_KEYWORD_RE.search(probe):
+        return True
+    return False
+
+
 def _detect_anchor(line: str) -> str:
     for anchor, pattern in _ANCHOR_PATTERNS:
         if pattern.search(line):
@@ -156,6 +190,32 @@ def _detect_anchor(line: str) -> str:
     if re.search(r"\b(log_event|audit|journal|append_log)\b", line, re.IGNORECASE):
         return "validator"
     return ""
+
+
+def _looks_like_normative_comment(line: str) -> bool:
+    if not _COMMENT_PREFIX_RE.match(line):
+        return False
+    return bool(_NORMATIVE_COMMENT_RE.search(line))
+
+
+def _anchor_from_context(lines: list[str], index: int) -> tuple[str, str]:
+    current = lines[index].strip()
+    anchor = _detect_anchor(current)
+    if anchor:
+        return anchor, current
+
+    if not _looks_like_normative_comment(current):
+        return "", ""
+
+    for offset in (-2, -1, 1, 2):
+        probe_idx = index + offset
+        if probe_idx < 0 or probe_idx >= len(lines):
+            continue
+        nearby = lines[probe_idx].strip()
+        nearby_anchor = _detect_anchor(nearby)
+        if nearby_anchor:
+            return nearby_anchor, nearby
+    return "", ""
 
 
 def extract_code_rule_candidates(repo_root: Path) -> tuple[list[CodeRuleCandidate], bool]:
@@ -169,23 +229,30 @@ def extract_code_rule_candidates(repo_root: Path) -> tuple[list[CodeRuleCandidat
             text = path.read_text(encoding="utf-8")
         except Exception:
             continue
-        for line_no, raw_line in enumerate(text.splitlines(), start=1):
+        split_lines = text.splitlines()
+        for line_no, raw_line in enumerate(split_lines, start=1):
             line = raw_line.strip()
             if not line:
                 continue
             if _line_is_non_normative(line):
                 continue
-            anchor = _detect_anchor(line)
+            if _line_is_technical_artifact(line):
+                continue
+            anchor, evidence_line = _anchor_from_context(split_lines, line_no - 1)
             if not anchor:
                 continue
+            semantic_probe = f"{line} {evidence_line}".strip()
+            if _line_is_technical_artifact(semantic_probe) and not _SEMANTIC_KEYWORD_RE.search(semantic_probe):
+                continue
             for semantic_type, sentence, pattern in _SEMANTIC_PATTERNS:
-                if not pattern.search(line):
+                if not pattern.search(semantic_probe):
                     continue
                 path_family = "/".join(surface.path.split("/")[:2]) if "/" in surface.path else surface.path
                 cluster_key = (semantic_type, sentence.lower(), path_family)
                 if cluster_key in seen_clusters:
                     continue
                 seen_clusters.add(cluster_key)
+                snippet = evidence_line if evidence_line else line
                 candidates.append(
                     CodeRuleCandidate(
                         text=_candidate_text(idx, sentence),
@@ -196,7 +263,7 @@ def extract_code_rule_candidates(repo_root: Path) -> tuple[list[CodeRuleCandidat
                         extractor_kind="pattern-deterministic",
                         confidence="medium",
                         semantic_type=semantic_type,
-                        evidence_snippet=line[:220],
+                        evidence_snippet=snippet[:220],
                         enforcement_anchor_type=anchor,
                     )
                 )

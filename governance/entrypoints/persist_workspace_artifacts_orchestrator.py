@@ -1903,6 +1903,18 @@ def main() -> int:
 
     combined_reason_codes = sorted({*extraction_report.reason_codes, *render_report.reason_codes})
     combined_source_diagnostics = sorted({*extraction_report.source_diagnostics, *render_report.source_diagnostics})
+    code_extraction_payload = extraction_diagnostics.get("code_extraction") if isinstance(extraction_diagnostics, dict) else None
+    severe_validation_failure = bool(
+        render_report.has_render_mismatch
+        or extraction_report.has_source_violation
+        or extraction_report.has_segmentation_failure
+        or (not render_report.count_consistent)
+    )
+    effective_code_coverage_sufficient = bool(extraction_report.code_extraction_sufficient) and not severe_validation_failure
+    effective_quality_insufficiency = bool(extraction_report.has_quality_insufficiency) or severe_validation_failure
+    if severe_validation_failure and "BUSINESS_RULES_CODE_QUALITY_INSUFFICIENT" not in combined_reason_codes:
+        combined_reason_codes.append("BUSINESS_RULES_CODE_QUALITY_INSUFFICIENT")
+        combined_reason_codes = sorted(set(combined_reason_codes))
     report_input: dict[str, object] = {
         "is_compliant": bool(extraction_report.is_compliant and render_report.is_compliant),
         "has_invalid_rules": extraction_report.has_invalid_rules,
@@ -1917,21 +1929,28 @@ def main() -> int:
         "dropped_candidate_count": extraction_report.dropped_candidate_count + merge_rejected_count,
         "count_consistent": render_report.count_consistent,
         "has_code_extraction": extraction_report.has_code_extraction,
-        "code_extraction_sufficient": extraction_report.code_extraction_sufficient,
+        "code_extraction_sufficient": effective_code_coverage_sufficient,
         "code_candidate_count": extraction_report.code_candidate_count,
         "code_surface_count": extraction_report.code_surface_count,
         "missing_code_surfaces": list(extraction_report.missing_code_surfaces),
-        "has_code_coverage_gap": extraction_report.has_code_coverage_gap,
+        "has_code_coverage_gap": (not effective_code_coverage_sufficient),
         "has_code_doc_conflict": extraction_report.has_code_doc_conflict,
         "has_code_token_artifacts": extraction_report.has_code_token_artifacts,
-        "has_quality_insufficiency": extraction_report.has_quality_insufficiency,
+        "has_quality_insufficiency": effective_quality_insufficiency,
         "invalid_code_candidate_count": extraction_report.invalid_code_candidate_count,
         "code_token_artifact_count": extraction_report.code_token_artifact_count,
         "artifact_ratio_exceeded": extraction_report.artifact_ratio_exceeded,
         "artifact_ratio": extraction_report.artifact_ratio,
+        "template_overfit_count": extraction_report.template_overfit_count,
         "reason_codes": combined_reason_codes,
         "source_diagnostics": combined_source_diagnostics,
     }
+    if isinstance(code_extraction_payload, dict):
+        report_input["surface_balance_score"] = float(code_extraction_payload.get("surface_balance_score", 0.0) or 0.0)
+        report_input["semantic_diversity_score"] = float(code_extraction_payload.get("semantic_diversity_score", 0.0) or 0.0)
+        quality_reasons = code_extraction_payload.get("quality_insufficiency_reasons", [])
+        if isinstance(quality_reasons, list):
+            report_input["quality_insufficiency_reasons"] = [str(item) for item in quality_reasons if str(item).strip()]
 
     pre_snapshot = build_business_rules_state_snapshot(
         report=report_input,
@@ -1976,7 +1995,6 @@ def main() -> int:
         }
     )
 
-    code_extraction_payload = extraction_diagnostics.get("code_extraction") if isinstance(extraction_diagnostics, dict) else None
     code_extraction_report_path = repo_home / ".governance" / "business_rules" / "code_extraction_report.json"
     code_extraction_report_action = "not-applicable"
     if isinstance(code_extraction_payload, dict):

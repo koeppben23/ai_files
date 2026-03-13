@@ -13,6 +13,8 @@ from governance.engine.business_rules_code_extraction import (
 from governance.engine.business_rules_coverage import (
     RC_CODE_COVERAGE_INSUFFICIENT,
     RC_CODE_EXTRACTION_NOT_RUN,
+    RC_CODE_TEMPLATE_OVERFIT,
+    RC_CODE_TOKEN_ARTIFACT_SPIKE,
     coverage_to_payload,
     evaluate_code_extraction_coverage,
 )
@@ -29,6 +31,7 @@ REASON_CODE_CANDIDATE_REJECTED = "BUSINESS_RULES_CODE_CANDIDATE_REJECTED"
 REASON_CODE_DOC_CONFLICT = "BUSINESS_RULES_CODE_DOC_CONFLICT"
 REASON_CODE_TOKEN_ARTIFACT = "BUSINESS_RULES_CODE_TOKEN_ARTIFACT"
 REASON_CODE_QUALITY_INSUFFICIENT = "BUSINESS_RULES_CODE_QUALITY_INSUFFICIENT"
+REASON_CODE_TEMPLATE_OVERFIT = "BUSINESS_RULES_CODE_TEMPLATE_OVERFIT"
 
 ORIGIN_DOC = "doc"
 ORIGIN_CODE = "code"
@@ -91,6 +94,27 @@ _CODE_TOKEN_HINT_RE = re.compile(
     r"(\bimport\b|\bdataclass\b|\bexists\b|\bresolve\b|__pycache__|_backup|\.py\b|\.ts\b|\w+_\w+_\w+)",
     re.IGNORECASE,
 )
+_TEMPLATE_OVERFIT_RE = re.compile(
+    r"\b(required\s+field\s+checks|permission\s+checks|invariants?|schema\s+checks?)\s+must\s+be\s+enforced\s+for\s+(.+)$",
+    re.IGNORECASE,
+)
+_TECHNICAL_TAIL_RE = re.compile(
+    r"(\bfrom\b\s+\S+\s+\bimport\b|\bimport\b\s+\S+|\bdataclass\b|\b__pycache__\b|\bnode_modules\b|\bhelper\b|\bresolve\b|\bexists\b|\bmetadata\b|\bcache\b|\bfixture\b|\barchived_files\b|\brollback_plan\b|\bnot_applicable\b|[A-Za-z0-9_/.-]+\.(py|ts|tsx|js|go|java|kt|yaml|yml|json)\b|[a-z]+(?:_[a-z0-9]+){2,})",
+    re.IGNORECASE,
+)
+_DOMAIN_WORD_RE = re.compile(
+    r"\b(customer|invoice|payment|order|account|access|permission|audit|approval|transition|status|retention|policy|record|request|user|release|deploy|data)\b",
+    re.IGNORECASE,
+)
+_VALID_CODE_SEMANTIC_TYPES = frozenset({
+    "permission",
+    "required-field",
+    "transition",
+    "uniqueness",
+    "audit",
+    "retention",
+    "invariant",
+})
 
 
 @dataclass(frozen=True)
@@ -103,6 +127,7 @@ class RuleCandidate:
     section_signal: bool
     origin: str = ORIGIN_DOC
     enforcement_anchor_type: str = ""
+    semantic_type: str = ""
 
 
 @dataclass(frozen=True)
@@ -157,6 +182,7 @@ class ValidationReport:
     code_token_artifact_count: int = 0
     artifact_ratio_exceeded: bool = False
     artifact_ratio: float = 0.0
+    template_overfit_count: int = 0
 
 
 def source_allowlist_decision(relative_path: str) -> tuple[bool, str]:
@@ -288,7 +314,30 @@ def sanitize_rule(raw_rule: str) -> str:
     return f"{rule_id}: {body}"
 
 
-def _validate_rule_text(rule_text: str) -> tuple[bool, str, str]:
+def _technical_token_ratio(text: str) -> float:
+    tokens = [tok for tok in re.findall(r"[A-Za-z0-9_./-]+", text) if tok]
+    if not tokens:
+        return 0.0
+    technical = 0
+    for tok in tokens:
+        if _TECHNICAL_TAIL_RE.search(tok):
+            technical += 1
+    return technical / len(tokens)
+
+
+def _is_template_overfit(body: str) -> bool:
+    match = _TEMPLATE_OVERFIT_RE.search(body)
+    if not match:
+        return False
+    tail = (match.group(2) or "").strip()
+    if not tail:
+        return True
+    if _TECHNICAL_TAIL_RE.search(tail) and not _DOMAIN_WORD_RE.search(tail):
+        return True
+    return False
+
+
+def _validate_rule_text(rule_text: str, *, origin: str = ORIGIN_DOC, semantic_type: str = "") -> tuple[bool, str, str]:
     match = _RULE_HEAD_RE.match(rule_text)
     if not match:
         return False, REASON_INVALID_CONTENT, "missing deterministic BR-<id>: <rule> shape"
@@ -299,13 +348,23 @@ def _validate_rule_text(rule_text: str) -> tuple[bool, str, str]:
         return False, REASON_INVALID_CONTENT, "contains code/writer/file-reference artifacts"
     if _PATH_FRAGMENT_RE.search(rule_text):
         return False, REASON_INVALID_CONTENT, "contains file path/location artifact"
+    if _is_template_overfit(body):
+        return False, REASON_CODE_TEMPLATE_OVERFIT, "generic template over technical residue"
     if _CODE_TOKEN_HINT_RE.search(body):
         return False, REASON_CODE_TOKEN_ARTIFACT, "contains code-token artifact instead of business semantics"
+    if _technical_token_ratio(body) > 0.45:
+        return False, REASON_CODE_TOKEN_ARTIFACT, "dominated by technical tokens instead of business semantics"
     words = [w for w in body.split() if w.strip()]
     if len(words) < 2:
         return False, REASON_INVALID_CONTENT, "rule is too short or fragmentary"
     if not (_MODAL_VERB_RE.search(body) or _DECLARATIVE_RULE_RE.search(body)):
         return False, REASON_INVALID_CONTENT, "missing standalone business-rule semantics"
+    if origin == ORIGIN_CODE:
+        semantic = str(semantic_type or "").strip().lower()
+        if semantic not in _VALID_CODE_SEMANTIC_TYPES:
+            return False, REASON_CODE_CANDIDATE_REJECTED, "missing or invalid semantic type for code rule"
+        if not re.search(r"\b(must|shall|required|mandatory|must\s+not|is|are)\b", body, re.IGNORECASE):
+            return False, REASON_INVALID_CONTENT, "code rule lacks standalone sentence semantics"
     return True, "none", ""
 
 
@@ -361,6 +420,18 @@ def validate_candidates(
                 )
             )
             continue
+        if candidate.origin == ORIGIN_CODE and not str(candidate.semantic_type or "").strip():
+            dropped.append(
+                RejectedRule(
+                    text=candidate.text,
+                    source_path=candidate.source_path,
+                    line_no=candidate.line_no,
+                    reason_code=REASON_CODE_CANDIDATE_REJECTED,
+                    reason="missing semantic type for code candidate",
+                    origin=candidate.origin,
+                )
+            )
+            continue
 
         segments, seg_failed = _segment_candidate_text(candidate.text)
         if seg_failed:
@@ -379,7 +450,11 @@ def validate_candidates(
         segmented_count += len(segments)
         for segment in segments:
             sanitized = sanitize_rule(segment)
-            ok, reason_code, reason = _validate_rule_text(sanitized)
+            ok, reason_code, reason = _validate_rule_text(
+                sanitized,
+                origin=candidate.origin,
+                semantic_type=candidate.semantic_type,
+            )
             if not ok:
                 invalid_rules.append(
                     RejectedRule(
@@ -468,15 +543,27 @@ def validate_candidates(
     code_valid_rule_count = sum(1 for rule in valid_rules if rule.origin == ORIGIN_CODE)
     invalid_code_candidate_count = sum(1 for row in (*invalid_rules, *dropped) if row.origin == ORIGIN_CODE)
     code_token_artifact_count = sum(1 for row in invalid_rules if row.reason_code == REASON_CODE_TOKEN_ARTIFACT)
+    template_overfit_count = sum(1 for row in invalid_rules if row.reason_code == REASON_CODE_TEMPLATE_OVERFIT)
+    has_source_violation = any(r.reason_code == REASON_SOURCE_VIOLATION for r in dropped)
+    has_segmentation_failure = any(r.reason_code == REASON_SEGMENTATION_FAILED for r in dropped)
     artifact_ratio = (code_token_artifact_count / code_candidate_count) if code_candidate_count > 0 else 0.0
     artifact_ratio_exceeded = artifact_ratio > 0.20
+    severe_validation_signal = (
+        has_render_mismatch
+        or has_source_violation
+        or has_segmentation_failure
+        or (not count_consistent)
+    )
+    effective_code_extraction_sufficient = bool(code_extraction_sufficient) and not severe_validation_signal
     has_quality_insufficiency = (
         (has_code_extraction and code_candidate_count > 0 and code_valid_rule_count <= 0)
         or artifact_ratio_exceeded
+        or template_overfit_count > 0
+        or severe_validation_signal
     )
     reason_codes_set = {r.reason_code for r in (*invalid_rules, *dropped)}
     if enforce_code_requirements:
-        if has_code_extraction and not code_extraction_sufficient:
+        if has_code_extraction and not effective_code_extraction_sufficient:
             reason_codes_set.add(RC_CODE_COVERAGE_INSUFFICIENT)
         if not has_code_extraction:
             reason_codes_set.add(RC_CODE_EXTRACTION_NOT_RUN)
@@ -484,13 +571,15 @@ def validate_candidates(
             reason_codes_set.add(REASON_CODE_DOC_CONFLICT)
         if has_quality_insufficiency:
             reason_codes_set.add(REASON_CODE_QUALITY_INSUFFICIENT)
+        if artifact_ratio_exceeded:
+            reason_codes_set.add(RC_CODE_TOKEN_ARTIFACT_SPIKE)
+        if template_overfit_count > 0:
+            reason_codes_set.add(RC_CODE_TEMPLATE_OVERFIT)
     for reason in additional_reason_codes:
         if str(reason).strip():
             reason_codes_set.add(str(reason).strip())
     reason_codes = tuple(sorted(reason_codes_set))
     source_diagnostics = tuple(sorted({f"{r.source_path}:{r.reason_code}" for r in dropped if r.source_path}))
-    has_source_violation = any(r.reason_code == REASON_SOURCE_VIOLATION for r in dropped)
-    has_segmentation_failure = any(r.reason_code == REASON_SEGMENTATION_FAILED for r in dropped)
     has_invalid_rules = len(invalid_rules) > 0
     has_missing_required_rules = required_missing or any(
         r.reason_code in {REASON_MISSING_REQUIRED_RULES, REASON_EMPTY_INVENTORY} for r in dropped
@@ -511,7 +600,7 @@ def validate_candidates(
         is_compliant = (
             is_compliant
             and has_code_extraction
-            and code_extraction_sufficient
+            and effective_code_extraction_sufficient
             and not has_code_doc_conflict
             and not has_quality_insufficiency
             and not artifact_ratio_exceeded
@@ -536,19 +625,20 @@ def validate_candidates(
         has_segmentation_failure=has_segmentation_failure,
         count_consistent=count_consistent,
         has_code_extraction=has_code_extraction,
-        code_extraction_sufficient=code_extraction_sufficient,
+        code_extraction_sufficient=effective_code_extraction_sufficient,
         code_candidate_count=max(code_candidate_count, 0),
         code_valid_rule_count=max(code_valid_rule_count, 0),
         code_surface_count=max(code_surface_count, 0),
         missing_code_surfaces=tuple(missing_code_surfaces),
-        has_code_coverage_gap=(not code_extraction_sufficient),
+        has_code_coverage_gap=(not effective_code_extraction_sufficient),
         has_code_doc_conflict=has_code_doc_conflict,
-        has_code_token_artifacts=code_token_artifact_count > 0,
+        has_code_token_artifacts=(code_token_artifact_count > 0 or template_overfit_count > 0),
         has_quality_insufficiency=has_quality_insufficiency,
         invalid_code_candidate_count=max(invalid_code_candidate_count, 0),
         code_token_artifact_count=max(code_token_artifact_count, 0),
         artifact_ratio_exceeded=artifact_ratio_exceeded,
         artifact_ratio=max(artifact_ratio, 0.0),
+        template_overfit_count=max(template_overfit_count, 0),
     )
 
 
@@ -707,6 +797,7 @@ def extract_validated_business_rules_with_diagnostics(
                 section_signal=True,
                 origin=ORIGIN_CODE,
                 enforcement_anchor_type=str(getattr(candidate, "enforcement_anchor_type", "") or ""),
+                semantic_type=str(getattr(candidate, "semantic_type", "") or ""),
             )
         )
 
@@ -747,6 +838,7 @@ def extract_validated_business_rules_with_diagnostics(
         invalid_code_candidate_count=report.invalid_code_candidate_count,
         code_token_artifact_count=report.code_token_artifact_count,
         semantic_type_distribution=semantic_type_distribution,
+        template_overfit_count=report.template_overfit_count,
     )
     report = validate_candidates(
         candidates=combined_candidates,
@@ -794,6 +886,16 @@ _VALID_PATTERN_TYPES = frozenset({
 _VALID_CONFIDENCE = frozenset({"high", "medium"})
 
 _MAX_EVIDENCE_SNIPPET_LEN = 500
+
+_PATTERN_TO_SEMANTIC = {
+    "validation-guard": "required-field",
+    "constraint-check": "invariant",
+    "policy-enforcement": "permission",
+    "enum-invariant": "transition",
+    "schema-constraint": "uniqueness",
+    "guard-clause": "invariant",
+    "config-rule": "retention",
+}
 
 
 @dataclass(frozen=True)
@@ -1011,6 +1113,7 @@ def merge_code_candidates(
                 section_signal=True,
                 origin=ORIGIN_CODE,
                 enforcement_anchor_type="validator",
+                semantic_type=_PATTERN_TO_SEMANTIC.get(str(pattern_type), ""),
             )
         )
 
