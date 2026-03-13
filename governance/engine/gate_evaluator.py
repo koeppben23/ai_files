@@ -131,6 +131,13 @@ class P54GateEvaluation:
     invalid_rule_count: int = 0
     dropped_candidate_count: int = 0
     quality_reason_codes: tuple[str, ...] = ()
+    has_code_extraction: bool = False
+    code_extraction_sufficient: bool = False
+    code_candidate_count: int = 0
+    code_surface_count: int = 0
+    missing_code_surfaces: tuple[str, ...] = ()
+    has_code_coverage_gap: bool = False
+    has_code_doc_conflict: bool = False
 
 
 @dataclass(frozen=True)
@@ -331,8 +338,15 @@ def evaluate_p54_business_rules_gate(
         has_source_violation = bool(quality_report_map.get("has_source_violation") is True)
         has_missing_required = bool(quality_report_map.get("has_missing_required_rules") is True)
         has_segmentation_failure = bool(quality_report_map.get("has_segmentation_failure") is True)
+        has_code_extraction = bool(quality_report_map.get("has_code_extraction", True) is True)
+        code_extraction_sufficient = bool(quality_report_map.get("code_extraction_sufficient", True) is True)
+        has_code_coverage_gap = bool(quality_report_map.get("has_code_coverage_gap", False) is True)
+        has_code_doc_conflict = bool(quality_report_map.get("has_code_doc_conflict", False) is True)
         raw_invalid_count = business_rules.get("InvalidRuleCount") or quality_report_map.get("invalid_rule_count") or 0
         raw_dropped_count = business_rules.get("DroppedCandidateCount") or quality_report_map.get("dropped_candidate_count") or 0
+        raw_code_candidate_count = business_rules.get("CodeCandidateCount") or quality_report_map.get("code_candidate_count") or 0
+        raw_code_surface_count = business_rules.get("CodeSurfaceCount") or quality_report_map.get("code_surface_count") or 0
+        missing_code_surfaces_value = business_rules.get("MissingCodeSurfaces") or quality_report_map.get("missing_code_surfaces") or ()
         try:
             invalid_rule_count = int(raw_invalid_count)
         except (TypeError, ValueError):
@@ -341,6 +355,22 @@ def evaluate_p54_business_rules_gate(
             dropped_candidate_count = int(raw_dropped_count)
         except (TypeError, ValueError):
             dropped_candidate_count = 0
+        try:
+            code_candidate_count = int(raw_code_candidate_count)
+        except (TypeError, ValueError):
+            code_candidate_count = 0
+        try:
+            code_surface_count = int(raw_code_surface_count)
+        except (TypeError, ValueError):
+            code_surface_count = 0
+        if isinstance(missing_code_surfaces_value, list):
+            missing_code_surfaces = tuple(str(x).strip() for x in missing_code_surfaces_value if str(x).strip())
+        elif isinstance(missing_code_surfaces_value, str) and missing_code_surfaces_value.strip():
+            missing_code_surfaces = tuple(
+                x.strip() for x in missing_code_surfaces_value.split(",") if x.strip()
+            )
+        else:
+            missing_code_surfaces = ()
         reason_codes_value = business_rules.get("ValidationReasonCodes")
         quality_reason_codes: tuple[str, ...] = ()
         if isinstance(reason_codes_value, list):
@@ -350,17 +380,22 @@ def evaluate_p54_business_rules_gate(
 
         # Backward-compat path: legacy snapshots may not have ValidationReport.
         if not quality_report_map:
-            report_is_compliant = (
-                execution_evidence and inventory_loaded and extracted_count > 0
-            )
+            report_is_compliant = False
             has_invalid_rules = False
             has_render_mismatch = False
-            has_source_violation = False
-            has_missing_required = False
+            has_source_violation = True
+            has_missing_required = True
             has_segmentation_failure = False
+            has_code_extraction = False
+            code_extraction_sufficient = False
+            has_code_coverage_gap = True
+            has_code_doc_conflict = False
             invalid_rule_count = 0
             dropped_candidate_count = 0
-            quality_reason_codes = ()
+            code_candidate_count = 0
+            code_surface_count = 0
+            missing_code_surfaces = ()
+            quality_reason_codes = ("BUSINESS_RULES_CODE_EXTRACTION_NOT_RUN",)
 
         if outcome in {"not-applicable", "deferred", "skipped"} and execution_evidence:
             return P54GateEvaluation(
@@ -384,6 +419,10 @@ def evaluate_p54_business_rules_gate(
                 and not has_source_violation
                 and not has_missing_required
                 and not has_segmentation_failure
+                and has_code_extraction
+                and code_extraction_sufficient
+                and not has_code_coverage_gap
+                and not has_code_doc_conflict
                 and invalid_rule_count == 0
                 and dropped_candidate_count == 0
             ):
@@ -403,6 +442,13 @@ def evaluate_p54_business_rules_gate(
                     invalid_rule_count=0,
                     dropped_candidate_count=0,
                     quality_reason_codes=quality_reason_codes,
+                    has_code_extraction=has_code_extraction,
+                    code_extraction_sufficient=code_extraction_sufficient,
+                    code_candidate_count=max(code_candidate_count, 0),
+                    code_surface_count=max(code_surface_count, 0),
+                    missing_code_surfaces=missing_code_surfaces,
+                    has_code_coverage_gap=has_code_coverage_gap,
+                    has_code_doc_conflict=has_code_doc_conflict,
                 )
             return P54GateEvaluation(
                 status="gap-detected",
@@ -420,6 +466,13 @@ def evaluate_p54_business_rules_gate(
                 invalid_rule_count=max(invalid_rule_count, 0),
                 dropped_candidate_count=max(dropped_candidate_count, 0),
                 quality_reason_codes=quality_reason_codes,
+                has_code_extraction=has_code_extraction,
+                code_extraction_sufficient=code_extraction_sufficient,
+                code_candidate_count=max(code_candidate_count, 0),
+                code_surface_count=max(code_surface_count, 0),
+                missing_code_surfaces=missing_code_surfaces,
+                has_code_coverage_gap=has_code_coverage_gap,
+                has_code_doc_conflict=has_code_doc_conflict,
             )
 
     # Legacy/fallback behavior for rule-list based states.
