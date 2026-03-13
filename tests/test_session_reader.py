@@ -3098,3 +3098,27 @@ class TestP54BlockerSurface:
         assert any("Business Rules Validation: FAILED" in line for line in lines)
         assert any("Invalid rules detected: 2" in line for line in lines)
         assert any("Reason code: BLOCKED-P5-4-BUSINESS-RULES-GATE" in line for line in lines)
+
+
+class TestImplementationBlockerSurface:
+    def test_blocker_surface_includes_implementation_validation_diagnostics(self) -> None:
+        snapshot = {
+            "status": "BLOCKED",
+            "phase": "6-PostFlight",
+            "active_gate": "Implementation Blocked",
+            "next_gate_condition": "Implementation validation failed.",
+            "implementation_reason_codes": [
+                "IMPLEMENTATION_GOVERNANCE_ONLY_CHANGES",
+                "IMPLEMENTATION_PLAN_COVERAGE_MISSING",
+            ],
+            "implementation_executor_invoked": True,
+            "implementation_changed_files": [".governance/implementation/llm_edit_context.json"],
+            "implementation_domain_changed_files": [],
+        }
+
+        lines = _render_blocker(snapshot)
+
+        assert any("Implementation Validation: FAILED" in line for line in lines)
+        assert any("Executor invoked: true" in line for line in lines)
+        assert any("Changed files: 1" in line for line in lines)
+        assert any("Domain files changed: 0" in line for line in lines)
