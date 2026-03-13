@@ -130,3 +130,35 @@ def test_edge_ignores_test_sources_for_code_extraction(tmp_path: Path) -> None:
     assert report.code_candidate_count == 0
     assert isinstance(code_diag, dict)
     assert code_diag["scanned_file_count"] == 0
+
+
+def test_bad_discovery_rejects_import_and_decorator_artifacts(tmp_path: Path) -> None:
+    _write(
+        tmp_path / "src" / "artifacty.py",
+        "from dataclasses import dataclass\n"
+        "@dataclass\n"
+        "class Item:\n"
+        "    archived_files: list[str]\n"
+        "def helper_state_resolve_cache():\n"
+        "    return True\n",
+    )
+
+    candidates, ok = extract_code_rule_candidates(tmp_path)
+
+    assert ok is True
+    assert candidates == []
+
+
+def test_corner_normative_comment_requires_enforcement_anchor_context(tmp_path: Path) -> None:
+    _write(
+        tmp_path / "src" / "policy.py",
+        "# Required field checks must be enforced for customer profile\n"
+        "if not payload.get('customer_id'):\n"
+        "    raise ValueError('required field missing')\n",
+    )
+
+    candidates, ok = extract_code_rule_candidates(tmp_path)
+
+    assert ok is True
+    assert len(candidates) >= 1
+    assert all(candidate.enforcement_anchor_type for candidate in candidates)

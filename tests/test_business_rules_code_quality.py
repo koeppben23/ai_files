@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from governance.engine.business_rules_validation import (
     ORIGIN_CODE,
+    REASON_CODE_TEMPLATE_OVERFIT,
     REASON_CODE_TOKEN_ARTIFACT,
     RuleCandidate,
     validate_candidates,
@@ -18,6 +19,7 @@ def _candidate(text: str) -> RuleCandidate:
         section_signal=True,
         origin=ORIGIN_CODE,
         enforcement_anchor_type="validator",
+        semantic_type="permission",
     )
 
 
@@ -28,6 +30,8 @@ def test_code_token_artifacts_rejected() -> None:
             _candidate("BR-C002: Required field checks must be enforced for not helper exists"),
             _candidate("BR-C003: Invariants must be enforced for dataclass frozen true"),
             _candidate("BR-C004: Metadata segments must avoid __macosx __pycache__ _backup"),
+            _candidate("BR-C005: Permission checks must be enforced for src/policy.py"),
+            _candidate("BR-C006: Required field checks must be enforced for archived_files"),
         ],
         expected_rules=False,
         has_code_extraction=True,
@@ -40,3 +44,4 @@ def test_code_token_artifacts_rejected() -> None:
     assert report.has_code_token_artifacts is True
     assert report.code_token_artifact_count >= 1
     assert REASON_CODE_TOKEN_ARTIFACT in report.reason_codes
+    assert REASON_CODE_TEMPLATE_OVERFIT in report.reason_codes
