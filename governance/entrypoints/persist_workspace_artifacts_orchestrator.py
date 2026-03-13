@@ -1780,7 +1780,8 @@ def main() -> int:
 
     session = _read_repo_session(session_path)
 
-    scope = session.get("Scope", {}) if isinstance(session, dict) else {}
+    scope_obj = session.get("Scope") if isinstance(session, dict) else {}
+    scope: dict[str, object] = dict(scope_obj) if isinstance(scope_obj, dict) else {}
     active_profile = session.get("ActiveProfile", "") if isinstance(session, dict) else ""
     profile_evidence = session.get("ProfileEvidence", "") if isinstance(session, dict) else ""
     repository_from_state = scope.get("Repository", "") if isinstance(scope, dict) else ""
@@ -1926,7 +1927,7 @@ def main() -> int:
             "inventory_file_status": "written",
             "inventory_file_mode": "update",
             "inventory_sha256": "0" * 64,
-            "declared_outcome": str(((session.get("Scope") if isinstance(session.get("Scope"), dict) else {}) or {}).get("BusinessRules") or ""),
+            "declared_outcome": str(scope.get("BusinessRules") or ""),
         },
     )
     should_write_business_rules = pre_snapshot.get("Outcome") == "extracted"
@@ -2059,7 +2060,7 @@ def main() -> int:
             "inventory_file_status": "written" if _inventory_written_action(business_rules_action) else "withheld",
             "inventory_file_mode": inventory_mode,
             "inventory_sha256": business_rules_sha256 or ("0" * 64),
-            "declared_outcome": str(((session.get("Scope") if isinstance(session.get("Scope"), dict) else {}) or {}).get("BusinessRules") or ""),
+            "declared_outcome": str(scope.get("BusinessRules") or ""),
         },
     )
 
