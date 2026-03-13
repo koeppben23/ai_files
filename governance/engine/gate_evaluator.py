@@ -173,6 +173,9 @@ class P6PrerequisiteEvaluation:
     p55_approved: bool | None   # None never used — always checked (not-applicable is terminal)
     p56_approved: bool | None    # None if rollback safety not applicable
     first_open_gate: str | None = None  # deterministic first-open-gate in priority order
+    p54_quality_reason_codes: tuple[str, ...] = ()
+    p54_code_coverage_gap: bool = False
+    p54_missing_code_surfaces: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -748,6 +751,9 @@ def evaluate_p6_prerequisites(
             p54_compliant=None,
             p55_approved=False,
             p56_approved=None,
+            p54_quality_reason_codes=(),
+            p54_code_coverage_gap=False,
+            p54_missing_code_surfaces=(),
         )
 
     # P5-Architecture must be approved
@@ -760,12 +766,18 @@ def evaluate_p6_prerequisites(
 
     # P5.4-BusinessRules (only if Phase 1.5 executed)
     p54_compliant: bool | None = None
+    p54_quality_reason_codes: tuple[str, ...] = ()
+    p54_code_coverage_gap = False
+    p54_missing_code_surfaces: tuple[str, ...] = ()
     if phase_1_5_executed:
         p54_eval = evaluate_p54_business_rules_gate(
             session_state=session_state,
             phase_1_5_executed=True,
         )
         p54_compliant = p54_eval.status in ("compliant", "compliant-with-exceptions", "not-applicable")
+        p54_quality_reason_codes = tuple(getattr(p54_eval, "quality_reason_codes", ()) or ())
+        p54_code_coverage_gap = bool(getattr(p54_eval, "has_code_coverage_gap", False))
+        p54_missing_code_surfaces = tuple(getattr(p54_eval, "missing_code_surfaces", ()) or ())
 
     # P5.5-TechnicalDebt (always checked — "approved" or "not-applicable" pass)
     p55 = gates.get("P5.5-TechnicalDebt")
@@ -813,6 +825,9 @@ def evaluate_p6_prerequisites(
             p55_approved=p55_approved,
             p56_approved=p56_approved,
             first_open_gate=first_open,
+            p54_quality_reason_codes=p54_quality_reason_codes,
+            p54_code_coverage_gap=p54_code_coverage_gap,
+            p54_missing_code_surfaces=p54_missing_code_surfaces,
         )
 
     return P6PrerequisiteEvaluation(
@@ -823,6 +838,9 @@ def evaluate_p6_prerequisites(
         p54_compliant=p54_compliant,
         p55_approved=p55_approved,
         p56_approved=p56_approved,
+        p54_quality_reason_codes=p54_quality_reason_codes,
+        p54_code_coverage_gap=p54_code_coverage_gap,
+        p54_missing_code_surfaces=p54_missing_code_surfaces,
     )
 
 
