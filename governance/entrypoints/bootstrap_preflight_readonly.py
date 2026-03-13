@@ -1254,8 +1254,21 @@ def _hydrate_transition_state(
 
         gates = state.get("Gates")
         if isinstance(gates, dict):
-            if str(scope.get("BusinessRules") or "") == "extracted":
+            scope_outcome = str(scope.get("BusinessRules") or "").strip().lower()
+            br_raw = state.get("BusinessRules")
+            br_state: dict[str, object] = dict(br_raw) if isinstance(br_raw, dict) else {}
+            has_br_artifact_signal = bool(
+                br_state.get("SourcePhase") == "1.5-BusinessRules"
+                or br_state.get("ValidationResult")
+                or br_state.get("ReportSha")
+                or br_state.get("ExecutionEvidence") is True
+            )
+            if scope_outcome == "extracted":
                 gates["P5.4-BusinessRules"] = gates.get("P5.4-BusinessRules") or "pending"
+            elif scope_outcome == "gap-detected":
+                gates["P5.4-BusinessRules"] = "gap-detected"
+            elif has_br_artifact_signal or scope_outcome == "unresolved":
+                gates["P5.4-BusinessRules"] = "pending"
             else:
                 gates["P5.4-BusinessRules"] = "not-applicable"
 

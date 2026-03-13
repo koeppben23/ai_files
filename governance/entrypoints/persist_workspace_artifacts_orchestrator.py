@@ -63,7 +63,10 @@ if str(SCRIPT_DIR.parent) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR.parent))
 
 from governance.entrypoints.write_policy import EFFECTIVE_MODE, is_write_allowed, writes_allowed
-from governance.engine.business_rules_hydration import hydrate_business_rules_state_from_artifacts
+from governance.engine.business_rules_hydration import (
+    build_business_rules_state_snapshot,
+    hydrate_business_rules_state_from_artifacts,
+)
 from governance.engine.business_rules_validation import (
     ORIGIN_CODE,
     ORIGIN_DOC,
@@ -1061,6 +1064,8 @@ def _render_business_rules_status(
     code_candidate_count: int = 0,
     code_surface_count: int = 0,
     missing_code_surfaces: list[str] | None = None,
+    raw_candidate_count: int = 0,
+    report_sha: str = "",
 ) -> str:
     inventory_written = "yes" if outcome == "extracted" and execution_evidence else "no"
     hash_token = rules_hash if rules_hash else "none"
@@ -1093,6 +1098,8 @@ def _render_business_rules_status(
         f"CodeCandidateCount: {code_candidate_count}",
         f"CodeSurfaceCount: {code_surface_count}",
         f"MissingCodeSurfaces: {missing_surfaces_token}",
+        f"RawCandidateCount: {raw_candidate_count}",
+        f"ReportSha: {report_sha or ('0' * 64)}",
     ]
     if extraction_source == "hybrid":
         lines.extend([
@@ -1254,6 +1261,7 @@ def _update_session_state(
     business_rules_extractor_version: str,
     business_rules_evidence_paths: list[str],
     read_only: bool,
+    business_rules_snapshot: dict[str, object] | None = None,
 ) -> str:
     data = _load_json(session_path)
     if not data:
@@ -1269,6 +1277,8 @@ def _update_session_state(
             return "normalized"
         if action == "kept":
             return "unchanged"
+        if action in {"withheld", "withheld-invalid"}:
+            return "withheld"
         if action == "write-requested":
             return "write-requested"
         if action == "blocked-read-only":
@@ -1295,13 +1305,18 @@ def _update_session_state(
         ss["WorkspaceMemoryFile"]["TargetPath"] = "${WORKSPACE_MEMORY_FILE}"
         ss["WorkspaceMemoryFile"]["FileStatus"] = _action_to_status(workspace_memory_action)
 
-    outcome, outcome_source = _resolve_business_rules_outcome(
-        session=ss,
-        extractor_ran=extractor_ran,
-        extracted_rule_count=extracted_rule_count,
-        extraction_evidence=extraction_evidence,
-        business_rules_inventory_action=business_rules_inventory_action,
-    )
+    outcome = "unresolved"
+    outcome_source = "snapshot"
+    if isinstance(business_rules_snapshot, dict):
+        outcome = str(business_rules_snapshot.get("Outcome") or "unresolved").strip().lower() or "unresolved"
+    else:
+        outcome, outcome_source = _resolve_business_rules_outcome(
+            session=ss,
+            extractor_ran=extractor_ran,
+            extracted_rule_count=extracted_rule_count,
+            extraction_evidence=extraction_evidence,
+            business_rules_inventory_action=business_rules_inventory_action,
+        )
 
     scope = ss.get("Scope")
     if isinstance(scope, dict):
@@ -1310,31 +1325,40 @@ def _update_session_state(
     ss.setdefault("BusinessRules", {})
     if isinstance(ss["BusinessRules"], dict):
         inventory = ss["BusinessRules"]
-        inventory["Outcome"] = outcome
-        inventory["OutcomeSource"] = outcome_source
-        inventory["SourcePhase"] = business_rules_source_phase
-        inventory["ExecutionEvidence"] = bool(extraction_evidence)
-        inventory["ExtractorVersion"] = business_rules_extractor_version
-        inventory["InventoryFileStatus"] = _action_to_status(business_rules_inventory_action)
-        inventory["InventoryFilePath"] = "${REPO_BUSINESS_RULES_FILE}"
-        if business_rules_inventory_action == "created":
-            inventory["InventoryFileMode"] = "create"
-        elif business_rules_inventory_action in {"overwritten", "kept"}:
-            inventory["InventoryFileMode"] = "update"
+        if isinstance(business_rules_snapshot, dict):
+            inventory.update(dict(business_rules_snapshot))
+            inventory["OutcomeSource"] = "snapshot"
+            inventory["InventoryFilePath"] = "${REPO_BUSINESS_RULES_FILE}"
+            inventory["Evidence"] = list(business_rules_evidence_paths)
+            if outcome == "extracted":
+                inventory["Rules"] = list(business_rules_rules)
         else:
-            inventory.setdefault("InventoryFileMode", "unknown")
-        inventory["Rules"] = list(business_rules_rules)
-        inventory["Inventory"] = {
-            "sha256": business_rules_inventory_sha256,
-            "count": len(business_rules_rules),
-        }
-        inventory["Evidence"] = list(business_rules_evidence_paths)
+            inventory["Outcome"] = outcome
+            inventory["OutcomeSource"] = outcome_source
+            inventory["SourcePhase"] = business_rules_source_phase
+            inventory["ExecutionEvidence"] = bool(extraction_evidence)
+            inventory["ExtractorVersion"] = business_rules_extractor_version
+            inventory["InventoryFileStatus"] = _action_to_status(business_rules_inventory_action)
+            inventory["InventoryFilePath"] = "${REPO_BUSINESS_RULES_FILE}"
+            if business_rules_inventory_action == "created":
+                inventory["InventoryFileMode"] = "create"
+            elif business_rules_inventory_action in {"overwritten", "kept"}:
+                inventory["InventoryFileMode"] = "update"
+            else:
+                inventory.setdefault("InventoryFileMode", "unknown")
+            inventory["Rules"] = list(business_rules_rules)
+            inventory["Inventory"] = {
+                "sha256": business_rules_inventory_sha256,
+                "count": len(business_rules_rules),
+            }
+            inventory["Evidence"] = list(business_rules_evidence_paths)
 
-    hydrate_business_rules_state_from_artifacts(
-        state=ss,
-        status_path=session_path.parent / "business-rules-status.md",
-        inventory_path=session_path.parent / "business-rules.md",
-    )
+    if business_rules_snapshot is None:
+        hydrate_business_rules_state_from_artifacts(
+            state=ss,
+            status_path=session_path.parent / "business-rules-status.md",
+            inventory_path=session_path.parent / "business-rules.md",
+        )
 
     if dry_run:
         return "updated-dry-run"
@@ -1847,24 +1871,66 @@ def main() -> int:
     extracted_evidence_paths = [f"{row.source_path}:{row.line_no}" for row in extraction_report.valid_rules]
     extraction_evidence = extractor_ran
     extracted_rule_count = len(extracted_rules)
-    business_rules_inventory_content = _render_business_rules_inventory(date=today, repo_name=repo_name)
-    business_rules_outcome_hint = "extracted" if extracted_rule_count > 0 else "not-applicable"
-    should_write_business_rules = _should_write_business_rules_inventory(
-        outcome=business_rules_outcome_hint,
-        extraction_evidence=extraction_evidence,
+    business_rules_inventory_content = _render_business_rules_inventory_extracted(
+        date=today,
+        repo_name=repo_name,
+        rules=extracted_rules,
+        evidence_paths=extracted_evidence_paths,
+        extractor_version=_BUSINESS_RULES_EXTRACTOR_VERSION,
     )
-    if should_write_business_rules:
-        business_rules_inventory_content = _render_business_rules_inventory_extracted(
-            date=today,
-            repo_name=repo_name,
-            rules=extracted_rules,
-            evidence_paths=extracted_evidence_paths,
-            extractor_version=_BUSINESS_RULES_EXTRACTOR_VERSION,
-        )
     render_report = validate_inventory_markdown(
         business_rules_inventory_content,
-        expected_rules=should_write_business_rules,
+        expected_rules=True,
     )
+
+    combined_reason_codes = sorted({*extraction_report.reason_codes, *render_report.reason_codes})
+    combined_source_diagnostics = sorted({*extraction_report.source_diagnostics, *render_report.source_diagnostics})
+    report_input: dict[str, object] = {
+        "is_compliant": bool(extraction_report.is_compliant and render_report.is_compliant),
+        "has_invalid_rules": extraction_report.has_invalid_rules,
+        "has_render_mismatch": render_report.has_render_mismatch,
+        "has_source_violation": extraction_report.has_source_violation,
+        "has_missing_required_rules": extraction_report.has_missing_required_rules,
+        "has_segmentation_failure": extraction_report.has_segmentation_failure,
+        "raw_candidate_count": extraction_report.raw_candidate_count,
+        "segmented_candidate_count": extraction_report.segmented_candidate_count,
+        "valid_rule_count": extraction_report.valid_rule_count,
+        "invalid_rule_count": extraction_report.invalid_rule_count,
+        "dropped_candidate_count": extraction_report.dropped_candidate_count + merge_rejected_count,
+        "count_consistent": render_report.count_consistent,
+        "has_code_extraction": extraction_report.has_code_extraction,
+        "code_extraction_sufficient": extraction_report.code_extraction_sufficient,
+        "code_candidate_count": extraction_report.code_candidate_count,
+        "code_surface_count": extraction_report.code_surface_count,
+        "missing_code_surfaces": list(extraction_report.missing_code_surfaces),
+        "has_code_coverage_gap": extraction_report.has_code_coverage_gap,
+        "has_code_doc_conflict": extraction_report.has_code_doc_conflict,
+        "has_code_token_artifacts": extraction_report.has_code_token_artifacts,
+        "has_quality_insufficiency": extraction_report.has_quality_insufficiency,
+        "invalid_code_candidate_count": extraction_report.invalid_code_candidate_count,
+        "code_token_artifact_count": extraction_report.code_token_artifact_count,
+        "artifact_ratio_exceeded": extraction_report.artifact_ratio_exceeded,
+        "artifact_ratio": extraction_report.artifact_ratio,
+        "reason_codes": combined_reason_codes,
+        "source_diagnostics": combined_source_diagnostics,
+    }
+
+    pre_snapshot = build_business_rules_state_snapshot(
+        report=report_input,
+        persistence_result={
+            "source_phase": "1.5-BusinessRules" if extractor_ran else "2.1-DecisionPack",
+            "extractor_version": _BUSINESS_RULES_EXTRACTOR_VERSION,
+            "extraction_source": extraction_source,
+            "extraction_ran": extractor_ran,
+            "inventory_written": True,
+            "inventory_file_status": "written",
+            "inventory_file_mode": "update",
+            "inventory_sha256": "0" * 64,
+            "declared_outcome": str(((session.get("Scope") if isinstance(session.get("Scope"), dict) else {}) or {}).get("BusinessRules") or ""),
+        },
+    )
+    should_write_business_rules = pre_snapshot.get("Outcome") == "extracted"
+
     code_extraction_blocked = (
         extraction_report.has_code_extraction and not extraction_report.code_extraction_sufficient
     ) or (not extraction_report.has_code_extraction)
@@ -1954,6 +2020,20 @@ def main() -> int:
                 remediation="Persist the same content manually to ${REPO_BUSINESS_RULES_FILE} and rerun helper.",
             )
 
+    def _inventory_written_action(action: str) -> bool:
+        return action in {"created", "overwritten", "appended", "kept", "normalized"}
+
+    if should_write_business_rules and _inventory_written_action(business_rules_action):
+        try:
+            persisted_text = business_rules_path.read_text(encoding="utf-8")
+            persisted_rules = _parse_business_rules_lines(persisted_text)
+            if persisted_rules != extracted_rules:
+                if not args.dry_run and not read_only:
+                    business_rules_path.unlink(missing_ok=True)
+                business_rules_action = "withheld-invalid"
+        except Exception:
+            business_rules_action = "withheld-invalid"
+
     business_rules_sha256 = ""
     business_rules_rules: list[str] = []
     if should_write_business_rules:
@@ -1962,46 +2042,60 @@ def main() -> int:
             fallback_content=business_rules_inventory_content,
             dry_run=args.dry_run,
         )
-    elif extractor_ran:
-        canonical_extraction = json.dumps(extracted_rules, ensure_ascii=True, sort_keys=True, separators=(",", ":"))
-        business_rules_sha256 = hashlib.sha256(canonical_extraction.encode("utf-8")).hexdigest()
-        business_rules_rules = list(extracted_rules)
+    elif (repo_home / "business-rules.md").exists() and not args.dry_run and not read_only:
+        (repo_home / "business-rules.md").unlink(missing_ok=True)
 
-    business_rules_outcome, business_rules_outcome_source = _resolve_business_rules_outcome(
-        session=session,
-        extractor_ran=extractor_ran,
-        extracted_rule_count=extracted_rule_count,
-        extraction_evidence=extraction_evidence,
-        business_rules_inventory_action=business_rules_action,
+    inventory_mode = "update" if business_rules_action in {"overwritten", "kept", "normalized"} else "create"
+    if business_rules_action not in {"created", "overwritten", "appended", "kept", "normalized"}:
+        inventory_mode = "unknown"
+    final_snapshot = build_business_rules_state_snapshot(
+        report=report_input,
+        persistence_result={
+            "source_phase": "1.5-BusinessRules" if extractor_ran else "2.1-DecisionPack",
+            "extractor_version": _BUSINESS_RULES_EXTRACTOR_VERSION,
+            "extraction_source": extraction_source,
+            "extraction_ran": extractor_ran,
+            "inventory_written": _inventory_written_action(business_rules_action),
+            "inventory_file_status": "written" if _inventory_written_action(business_rules_action) else "withheld",
+            "inventory_file_mode": inventory_mode,
+            "inventory_sha256": business_rules_sha256 or ("0" * 64),
+            "declared_outcome": str(((session.get("Scope") if isinstance(session.get("Scope"), dict) else {}) or {}).get("BusinessRules") or ""),
+        },
     )
+
+    if final_snapshot.get("Outcome") != "extracted":
+        business_rules_rules = []
+
     business_rules_status_action = _upsert_artifact(
         path=business_rules_status_path,
         create_content=_render_business_rules_status(
             date=today,
             repo_name=repo_name,
-            outcome=business_rules_outcome,
-            source=business_rules_outcome_source,
-            source_phase="1.5-BusinessRules" if extractor_ran else "2.1-DecisionPack",
-            execution_evidence=extraction_evidence,
-            extractor_version=_BUSINESS_RULES_EXTRACTOR_VERSION,
-            rules_hash=business_rules_sha256,
-            validation_result=status_validation_result,
-            valid_rules=extraction_report.valid_rule_count,
-            invalid_rules=extraction_report.invalid_rule_count,
-            dropped_candidates=extraction_report.dropped_candidate_count + merge_rejected_count,
-            reason_codes=status_reason_codes,
-            source_diagnostics=status_source_diagnostics,
-            render_consistency="passed" if not render_report.has_render_mismatch else "failed",
-            count_consistency="passed" if render_report.count_consistent else "failed",
+            outcome=str(final_snapshot.get("Outcome") or "unresolved"),
+            source="ssot-snapshot",
+            source_phase=str(final_snapshot.get("SourcePhase") or "1.5-BusinessRules"),
+            execution_evidence=bool(final_snapshot.get("ExecutionEvidence") is True),
+            extractor_version=str(final_snapshot.get("ExtractorVersion") or _BUSINESS_RULES_EXTRACTOR_VERSION),
+            rules_hash=str((final_snapshot.get("Inventory") or {}).get("sha256") if isinstance(final_snapshot.get("Inventory"), dict) else ""),
+            validation_result=str(final_snapshot.get("ValidationResult") or status_validation_result),
+            valid_rules=int(final_snapshot.get("ValidRuleCount") or extraction_report.valid_rule_count),
+            invalid_rules=int(final_snapshot.get("InvalidRuleCount") or extraction_report.invalid_rule_count),
+            dropped_candidates=int(final_snapshot.get("DroppedCandidateCount") or (extraction_report.dropped_candidate_count + merge_rejected_count)),
+            reason_codes=list(final_snapshot.get("ValidationReasonCodes") or status_reason_codes),
+            source_diagnostics=combined_source_diagnostics,
+            render_consistency=str(final_snapshot.get("RenderConsistency") or ("passed" if not render_report.has_render_mismatch else "failed")),
+            count_consistency=str(final_snapshot.get("CountConsistency") or ("passed" if render_report.count_consistent else "failed")),
             extraction_source=extraction_source,
             doc_only_count=doc_only_count,
             code_only_count=code_only_count,
             doc_and_code_count=doc_and_code_count,
-            code_extraction_run="true" if extraction_report.has_code_extraction else "false",
-            code_coverage_sufficient="true" if extraction_report.code_extraction_sufficient else "false",
-            code_candidate_count=extraction_report.code_candidate_count,
-            code_surface_count=extraction_report.code_surface_count,
-            missing_code_surfaces=list(extraction_report.missing_code_surfaces),
+            code_extraction_run="true" if bool(final_snapshot.get("CodeExtractionRun") is True) else "false",
+            code_coverage_sufficient="true" if bool(final_snapshot.get("CodeCoverageSufficient") is True) else "false",
+            code_candidate_count=int(final_snapshot.get("CodeCandidateCount") or extraction_report.code_candidate_count),
+            code_surface_count=int(final_snapshot.get("CodeSurfaceCount") or extraction_report.code_surface_count),
+            missing_code_surfaces=list(final_snapshot.get("MissingCodeSurfaces") or extraction_report.missing_code_surfaces),
+            raw_candidate_count=int((final_snapshot.get("ValidationReport") or {}).get("raw_candidate_count", 0) if isinstance(final_snapshot.get("ValidationReport"), dict) else 0),
+            report_sha=str(final_snapshot.get("ReportSha") or ""),
         ),
         append_content=None,
         force=args.force,
@@ -2173,6 +2267,7 @@ def main() -> int:
             business_rules_extractor_version=_BUSINESS_RULES_EXTRACTOR_VERSION,
             business_rules_evidence_paths=extracted_evidence_paths,
             read_only=read_only,
+            business_rules_snapshot=final_snapshot,
         )
         if session_update == "invalid-session-shape":
             emit_gate_failure(

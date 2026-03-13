@@ -91,7 +91,7 @@ def test_corner_p54_blocks_on_render_mismatch() -> None:
 
 def test_edge_p54_not_applicable_without_phase_15() -> None:
     result = evaluate_p54_business_rules_gate(
-        session_state=_state_with_validation_report(),
+        session_state={},
         phase_1_5_executed=False,
     )
 

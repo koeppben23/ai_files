@@ -38,14 +38,28 @@ _SKIP_DIRS = {
     "artifacts",
 }
 
-_PATTERNS: tuple[tuple[str, str, re.Pattern[str]], ...] = (
-    ("permission", "permission checks", re.compile(r"(permission|authorize|authz|acl|requires?_role)", re.IGNORECASE)),
-    ("invariant", "invariants", re.compile(r"(\bassert\b|invariant|must_not|forbid|immutable)", re.IGNORECASE)),
-    ("transition", "state transitions", re.compile(r"(\bstatus\b.*(==|!=|\bin\b)|transition|state_machine)", re.IGNORECASE)),
-    ("required-field", "required field checks", re.compile(r"(if\s+not\s+\w+|required\s*=\s*true|required:)" , re.IGNORECASE)),
-    ("uniqueness", "uniqueness checks", re.compile(r"(unique|duplicate|already\s+exists|conflict)", re.IGNORECASE)),
-    ("audit", "audit requirements", re.compile(r"(audit|log_event|append_log|journal)", re.IGNORECASE)),
-    ("retention", "retention constraints", re.compile(r"(retention|archive|soft_delete|purge)", re.IGNORECASE)),
+_ANCHOR_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
+    ("raise", re.compile(r"\b(raise|throw)\b", re.IGNORECASE)),
+    ("assert", re.compile(r"\bassert\b", re.IGNORECASE)),
+    ("deny", re.compile(r"\b(forbidden|unauthorized|permission\s*denied|deny|denied)\b", re.IGNORECASE)),
+    ("return-error", re.compile(r"\breturn\b[^\n]*(error|err\b|fail|invalid|forbidden|unauthorized)", re.IGNORECASE)),
+    ("validator", re.compile(r"\b(validate|validator|required|required\s*field|schema|constraint)\b", re.IGNORECASE)),
+    ("transition-guard", re.compile(r"\b(transition|state\s*machine|status\s*transition|lifecycle)\b", re.IGNORECASE)),
+)
+
+_SEMANTIC_PATTERNS: tuple[tuple[str, str, re.Pattern[str]], ...] = (
+    ("permission", "Access control must deny unauthorized operations.", re.compile(r"(permission|authorize|authz|acl|requires?_role|forbidden|unauthorized)", re.IGNORECASE)),
+    ("required-field", "Required fields must be validated before processing.", re.compile(r"(required|missing|if\s+not\s+\w+|not\s+\w+|validate|required\s*=\s*true)" , re.IGNORECASE)),
+    ("transition", "Disallowed lifecycle transitions must be blocked.", re.compile(r"(status|state|transition|state_machine|lifecycle)", re.IGNORECASE)),
+    ("uniqueness", "Uniqueness constraints must reject duplicates.", re.compile(r"(unique|duplicate|already\s+exists|conflict)", re.IGNORECASE)),
+    ("audit", "Audit events must be recorded for protected actions.", re.compile(r"(audit|log_event|append_log|journal|audit_log)", re.IGNORECASE)),
+    ("retention", "Retention policies must enforce archival or purge constraints.", re.compile(r"(retention|archive|soft_delete|purge|ttl)", re.IGNORECASE)),
+    ("invariant", "Domain invariants must be enforced before state mutation.", re.compile(r"(assert|invariant|must_not|forbid|immutable|constraint)", re.IGNORECASE)),
+)
+
+_NON_NORMATIVE_LINE_RE = re.compile(
+    r"^(from\s+\S+\s+import\s+\S+|import\s+\S+|@\w+|class\s+\w+\(|def\s+\w+\(|dataclass\b)",
+    re.IGNORECASE,
 )
 
 
@@ -66,6 +80,8 @@ class CodeRuleCandidate:
     extractor_kind: str
     confidence: str
     semantic_type: str
+    evidence_snippet: str
+    enforcement_anchor_type: str
 
 
 def _language_for_suffix(suffix: str) -> str:
@@ -125,17 +141,28 @@ def discover_code_surfaces(repo_root: Path) -> list[CodeSurface]:
     return surfaces
 
 
-def _candidate_text(index: int, semantic_label: str, line: str) -> str:
-    hint_words = re.findall(r"[A-Za-z_]{3,}", line)
-    hint = " ".join(hint_words[:6]).lower()
-    tail = hint if hint else semantic_label
-    return f"BR-C{index:03d}: {semantic_label.capitalize()} must be enforced for {tail}"
+def _candidate_text(index: int, canonical_sentence: str) -> str:
+    return f"BR-C{index:03d}: {canonical_sentence}"
+
+
+def _line_is_non_normative(line: str) -> bool:
+    return bool(_NON_NORMATIVE_LINE_RE.search(line.strip()))
+
+
+def _detect_anchor(line: str) -> str:
+    for anchor, pattern in _ANCHOR_PATTERNS:
+        if pattern.search(line):
+            return anchor
+    if re.search(r"\b(log_event|audit|journal|append_log)\b", line, re.IGNORECASE):
+        return "validator"
+    return ""
 
 
 def extract_code_rule_candidates(repo_root: Path) -> tuple[list[CodeRuleCandidate], bool]:
     surfaces = discover_code_surfaces(repo_root)
     candidates: list[CodeRuleCandidate] = []
     idx = 1
+    seen_clusters: set[tuple[str, str, str]] = set()
     for surface in surfaces:
         path = repo_root / surface.path
         try:
@@ -146,12 +173,22 @@ def extract_code_rule_candidates(repo_root: Path) -> tuple[list[CodeRuleCandidat
             line = raw_line.strip()
             if not line:
                 continue
-            for semantic_type, label, pattern in _PATTERNS:
+            if _line_is_non_normative(line):
+                continue
+            anchor = _detect_anchor(line)
+            if not anchor:
+                continue
+            for semantic_type, sentence, pattern in _SEMANTIC_PATTERNS:
                 if not pattern.search(line):
                     continue
+                path_family = "/".join(surface.path.split("/")[:2]) if "/" in surface.path else surface.path
+                cluster_key = (semantic_type, sentence.lower(), path_family)
+                if cluster_key in seen_clusters:
+                    continue
+                seen_clusters.add(cluster_key)
                 candidates.append(
                     CodeRuleCandidate(
-                        text=_candidate_text(idx, label, line),
+                        text=_candidate_text(idx, sentence),
                         path=surface.path,
                         language=surface.language,
                         line_start=line_no,
@@ -159,6 +196,8 @@ def extract_code_rule_candidates(repo_root: Path) -> tuple[list[CodeRuleCandidat
                         extractor_kind="pattern-deterministic",
                         confidence="medium",
                         semantic_type=semantic_type,
+                        evidence_snippet=line[:220],
+                        enforcement_anchor_type=anchor,
                     )
                 )
                 idx += 1
