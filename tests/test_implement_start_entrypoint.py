@@ -266,3 +266,51 @@ def test_security_no_internal_domain_patch_helpers_exist() -> None:
     assert not hasattr(entrypoint, "_apply_target_file_patch")
     assert not hasattr(entrypoint, "_extract_literal_replacements")
     assert not hasattr(entrypoint, "_write_execution_code_artifact")
+
+
+def test_security_local_writes_are_governance_or_state_only(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys,
+) -> None:
+    session_path = tmp_path / "SESSION_STATE.json"
+    events_path = tmp_path / "events.jsonl"
+    _write_session(session_path)
+    _write_plan(tmp_path / "plan-record.json")
+    _write_contracts(tmp_path / ".governance" / "contracts" / "compiled_requirements.json")
+    _wire_active_paths(monkeypatch, session_path, events_path)
+
+    writes: list[Path] = []
+    json_writes: list[Path] = []
+    event_writes: list[Path] = []
+
+    real_write_json_atomic = entrypoint._write_json_atomic
+
+    def _spy_write_json_atomic(path: Path, payload: dict[str, object]) -> None:
+        json_writes.append(path)
+        real_write_json_atomic(path, payload)
+
+    def _spy_write_validation_report(path: Path, report) -> None:  # type: ignore[no-untyped-def]
+        writes.append(path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("{}\n", encoding="utf-8")
+
+    def _spy_append_event(path: Path, event: dict[str, object]) -> bool:
+        event_writes.append(path)
+        return True
+
+    monkeypatch.setattr(entrypoint, "_write_json_atomic", _spy_write_json_atomic)
+    monkeypatch.setattr(entrypoint, "write_validation_report", _spy_write_validation_report)
+    monkeypatch.setattr(entrypoint, "_append_event", _spy_append_event)
+
+    rc = entrypoint.main(["--quiet"])
+    out = json.loads(capsys.readouterr().out.strip())
+
+    assert rc == 0
+    assert out["status"] == "ok"
+    assert json_writes == [session_path]
+    assert event_writes == [events_path]
+    assert len(writes) == 1
+    report_path = writes[0]
+    rel = report_path.relative_to(tmp_path).as_posix()
+    assert rel.startswith(".governance/implementation/")

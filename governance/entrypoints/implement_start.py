@@ -3,6 +3,10 @@
 
 This entrypoint is an executor orchestrator plus validator. It does not edit
 domain files directly.
+
+Allowed local writes from this entrypoint are limited to governance/session
+diagnostics (for example ``.governance/implementation/*``, session state, and
+events). Domain/source changes must come from the external LLM executor.
 """
 
 from __future__ import annotations
