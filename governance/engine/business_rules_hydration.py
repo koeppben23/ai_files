@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 import hashlib
 import json
 from pathlib import Path
@@ -54,6 +55,16 @@ def _parse_int(token: str, default: int = 0) -> int:
         return default
 
 
+def _parse_float(token: object, default: float = 0.0) -> float:
+    probe = str(token or "").strip()
+    if not probe:
+        return default
+    try:
+        return float(probe)
+    except ValueError:
+        return default
+
+
 def _normalize_reason_codes(value: object) -> list[str]:
     if isinstance(value, str):
         return _parse_csv_reasons(value)
@@ -75,6 +86,155 @@ def _truthy(value: object, *, default: bool = False) -> bool:
 def _build_report_sha(report: Mapping[str, Any]) -> str:
     payload = json.dumps(report, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+@dataclass(frozen=True)
+class CodeExtractionCounters:
+    raw_candidate_count: int
+    dropped_candidate_count: int
+    candidate_count: int
+    validated_code_rule_count: int
+    invalid_code_candidate_count: int
+
+    def __post_init__(self) -> None:
+        if self.raw_candidate_count != self.dropped_candidate_count + self.candidate_count:
+            raise ValueError("raw_candidate_count must equal dropped_candidate_count + candidate_count")
+        if self.candidate_count != self.validated_code_rule_count + self.invalid_code_candidate_count:
+            raise ValueError(
+                "candidate_count must equal validated_code_rule_count + invalid_code_candidate_count"
+            )
+
+    def to_report_fields(self) -> dict[str, int]:
+        return {
+            "raw_candidate_count": self.raw_candidate_count,
+            "dropped_candidate_count": self.dropped_candidate_count,
+            "candidate_count": self.candidate_count,
+            "code_candidate_count": self.candidate_count,
+            "validated_code_rule_count": self.validated_code_rule_count,
+            "code_valid_rule_count": self.validated_code_rule_count,
+            "invalid_code_candidate_count": self.invalid_code_candidate_count,
+        }
+
+
+def _build_code_extraction_counters(report_map: Mapping[str, Any]) -> CodeExtractionCounters:
+    candidate_count_keys = ("candidate_count", "code_candidate_count")
+    validated_count_keys = ("validated_code_rule_count", "code_valid_rule_count")
+
+    candidate_count_provided = any(key in report_map for key in candidate_count_keys)
+    validated_code_rule_count_provided = any(key in report_map for key in validated_count_keys)
+    invalid_code_candidate_count_provided = "invalid_code_candidate_count" in report_map
+    dropped_candidate_count_provided = "dropped_candidate_count" in report_map
+    raw_candidate_count_provided = "raw_candidate_count" in report_map
+
+    candidate_count = max(
+        _parse_int(
+            str(report_map.get("candidate_count", report_map.get("code_candidate_count", 0))),
+            default=0,
+        ),
+        0,
+    )
+    validated_code_rule_count = max(
+        _parse_int(
+            str(
+                report_map.get(
+                    "validated_code_rule_count",
+                    report_map.get("code_valid_rule_count", 0),
+                )
+            ),
+            default=0,
+        ),
+        0,
+    )
+    invalid_code_candidate_count = max(
+        _parse_int(str(report_map.get("invalid_code_candidate_count", 0)), default=0),
+        0,
+    )
+
+    if candidate_count_provided and candidate_count > 0 and (validated_code_rule_count + invalid_code_candidate_count) == 0:
+        validated_code_rule_count = min(
+            candidate_count,
+            max(_parse_int(str(report_map.get("valid_rule_count", 0)), default=0), 0),
+        )
+        invalid_code_candidate_count = max(candidate_count - validated_code_rule_count, 0)
+    elif candidate_count_provided and not validated_code_rule_count_provided and not invalid_code_candidate_count_provided:
+        validated_code_rule_count = min(
+            candidate_count,
+            max(_parse_int(str(report_map.get("valid_rule_count", 0)), default=0), 0),
+        )
+        invalid_code_candidate_count = max(candidate_count - validated_code_rule_count, 0)
+    elif candidate_count_provided and validated_code_rule_count_provided and not invalid_code_candidate_count_provided:
+        invalid_code_candidate_count = max(candidate_count - validated_code_rule_count, 0)
+    elif candidate_count_provided and invalid_code_candidate_count_provided and not validated_code_rule_count_provided:
+        validated_code_rule_count = max(candidate_count - invalid_code_candidate_count, 0)
+    elif not candidate_count_provided:
+        candidate_count = validated_code_rule_count + invalid_code_candidate_count
+
+    if candidate_count != validated_code_rule_count + invalid_code_candidate_count:
+        candidate_count = validated_code_rule_count + invalid_code_candidate_count
+
+    dropped_candidate_count = max(_parse_int(str(report_map.get("dropped_candidate_count", 0))), 0)
+    raw_candidate_count = max(
+        _parse_int(str(report_map.get("raw_candidate_count", candidate_count + dropped_candidate_count))),
+        0,
+    )
+    if raw_candidate_count_provided and not dropped_candidate_count_provided:
+        dropped_candidate_count = max(raw_candidate_count - candidate_count, 0)
+    if raw_candidate_count != dropped_candidate_count + candidate_count:
+        raw_candidate_count = dropped_candidate_count + candidate_count
+
+    return CodeExtractionCounters(
+        raw_candidate_count=raw_candidate_count,
+        dropped_candidate_count=dropped_candidate_count,
+        candidate_count=candidate_count,
+        validated_code_rule_count=validated_code_rule_count,
+        invalid_code_candidate_count=invalid_code_candidate_count,
+    )
+
+
+def _build_code_extraction_report(
+    *,
+    report_map: Mapping[str, Any],
+    counters: CodeExtractionCounters,
+    report_sha: str,
+) -> dict[str, Any]:
+    valid_rule_ratio = _parse_float(report_map.get("valid_rule_ratio"), default=0.0)
+    if valid_rule_ratio <= 0.0 and counters.candidate_count > 0:
+        valid_rule_ratio = counters.validated_code_rule_count / counters.candidate_count
+
+    artifact_ratio = _parse_float(report_map.get("artifact_ratio"), default=0.0)
+    code_token_artifact_count = max(_parse_int(str(report_map.get("code_token_artifact_count", 0))), 0)
+    if artifact_ratio <= 0.0 and counters.candidate_count > 0:
+        artifact_ratio = code_token_artifact_count / counters.candidate_count
+
+    return {
+        "scanned_file_count": max(
+            _parse_int(
+                str(
+                    report_map.get(
+                        "scanned_file_count",
+                        report_map.get("code_surface_count", 0),
+                    )
+                )
+            ),
+            0,
+        ),
+        **counters.to_report_fields(),
+        "code_token_artifact_count": code_token_artifact_count,
+        "valid_rule_ratio": max(valid_rule_ratio, 0.0),
+        "artifact_ratio": max(artifact_ratio, 0.0),
+        "coverage_quality_grade": str(report_map.get("coverage_quality_grade", "unknown") or "unknown"),
+        "missing_expected_surfaces": list(_normalize_reason_codes(report_map.get("missing_code_surfaces"))),
+        "reason_codes": list(_normalize_reason_codes(report_map.get("reason_codes"))),
+        "is_sufficient": _truthy(report_map.get("code_extraction_sufficient"), default=False),
+        "semantic_type_distribution": dict(report_map.get("semantic_type_distribution") or {}),
+        "surface_type_distribution": dict(report_map.get("surface_type_distribution") or {}),
+        "surface_balance_score": _parse_float(report_map.get("surface_balance_score"), default=0.0),
+        "semantic_diversity_score": _parse_float(report_map.get("semantic_diversity_score"), default=0.0),
+        "quality_insufficiency_reasons": _normalize_reason_codes(report_map.get("quality_insufficiency_reasons")),
+        "template_overfit_count": max(_parse_int(str(report_map.get("template_overfit_count", 0))), 0),
+        "scanned_surfaces": list(report_map.get("scanned_surfaces") or []),
+        "report_sha": report_sha,
+    }
 
 
 def has_br_signal(
@@ -153,6 +313,8 @@ def build_business_rules_state_snapshot(
     *,
     report: Mapping[str, Any],
     persistence_result: Mapping[str, Any],
+    code_extraction_report: Mapping[str, Any] | None = None,
+    compute_report_sha: bool = True,
 ) -> dict[str, Any]:
     """Build the canonical BusinessRules state snapshot (SSOT).
 
@@ -161,12 +323,20 @@ def build_business_rules_state_snapshot(
     """
 
     report_map = dict(report)
+    if isinstance(code_extraction_report, Mapping):
+        for key, value in dict(code_extraction_report).items():
+            report_map.setdefault(str(key), value)
+
+    counters = _build_code_extraction_counters(report_map)
     valid_rule_count = max(_parse_int(str(report_map.get("valid_rule_count", 0))), 0)
     invalid_rule_count = max(_parse_int(str(report_map.get("invalid_rule_count", 0))), 0)
-    dropped_candidate_count = max(_parse_int(str(report_map.get("dropped_candidate_count", 0))), 0)
-    raw_candidate_count = max(_parse_int(str(report_map.get("raw_candidate_count", 0))), 0)
-    code_candidate_count = max(_parse_int(str(report_map.get("code_candidate_count", 0))), 0)
-    code_surface_count = max(_parse_int(str(report_map.get("code_surface_count", 0))), 0)
+    dropped_candidate_count = counters.dropped_candidate_count
+    raw_candidate_count = counters.raw_candidate_count
+    code_candidate_count = counters.candidate_count
+    code_surface_count = max(
+        _parse_int(str(report_map.get("code_surface_count", report_map.get("scanned_file_count", 0)))),
+        0,
+    )
     code_extraction_sufficient = _truthy(report_map.get("code_extraction_sufficient"), default=False)
     has_code_extraction = _truthy(report_map.get("has_code_extraction"), default=False)
     has_invalid_rules = _truthy(report_map.get("has_invalid_rules"), default=False)
@@ -254,6 +424,12 @@ def build_business_rules_state_snapshot(
     inventory_loaded = bool(outcome == "extracted" and inventory_file_status == "written")
     extracted_count = valid_rule_count if outcome == "extracted" else 0
     validation_result = "passed" if extracted_allowed else "failed"
+    coverage_quality_grade = str(report_map.get("coverage_quality_grade", "unknown") or "unknown")
+    surface_balance_score = _parse_float(report_map.get("surface_balance_score"), default=0.0)
+    semantic_diversity_score = _parse_float(report_map.get("semantic_diversity_score"), default=0.0)
+    quality_insufficiency_reasons = _normalize_reason_codes(report_map.get("quality_insufficiency_reasons"))
+    code_token_artifact_count = max(_parse_int(str(report_map.get("code_token_artifact_count", 0))), 0)
+    template_overfit_count = max(_parse_int(str(report_map.get("template_overfit_count", 0))), 0)
 
     normalized_report: dict[str, Any] = {
         "is_compliant": report_is_compliant,
@@ -262,30 +438,38 @@ def build_business_rules_state_snapshot(
         "has_source_violation": has_source_violation,
         "has_missing_required_rules": _truthy(report_map.get("has_missing_required_rules"), default=False),
         "has_segmentation_failure": has_segmentation_failure,
-        "raw_candidate_count": raw_candidate_count,
         "segmented_candidate_count": max(_parse_int(str(report_map.get("segmented_candidate_count", 0))), 0),
         "valid_rule_count": valid_rule_count,
         "invalid_rule_count": invalid_rule_count,
-        "dropped_candidate_count": dropped_candidate_count,
         "count_consistent": count_consistent,
         "has_code_extraction": has_code_extraction,
         "code_extraction_sufficient": code_extraction_sufficient,
-        "code_candidate_count": code_candidate_count,
         "code_surface_count": code_surface_count,
-        "missing_code_surfaces": list(_normalize_reason_codes(report_map.get("missing_code_surfaces"))),
+        "missing_code_surfaces": list(
+            _normalize_reason_codes(
+                report_map.get("missing_code_surfaces", report_map.get("missing_expected_surfaces"))
+            )
+        ),
         "has_code_coverage_gap": has_code_coverage_gap,
         "has_code_doc_conflict": has_code_doc_conflict,
         "has_code_token_artifacts": has_code_token_artifacts,
         "has_quality_insufficiency": has_quality_insufficiency,
-        "invalid_code_candidate_count": max(_parse_int(str(report_map.get("invalid_code_candidate_count", 0))), 0),
-        "code_token_artifact_count": max(_parse_int(str(report_map.get("code_token_artifact_count", 0))), 0),
+        **counters.to_report_fields(),
+        "code_token_artifact_count": code_token_artifact_count,
         "artifact_ratio_exceeded": artifact_ratio_exceeded,
-        "artifact_ratio": float(report_map.get("artifact_ratio", 0.0) or 0.0),
-        "template_overfit_count": max(_parse_int(str(report_map.get("template_overfit_count", 0))), 0),
-        "surface_balance_score": float(report_map.get("surface_balance_score", 0.0) or 0.0),
-        "semantic_diversity_score": float(report_map.get("semantic_diversity_score", 0.0) or 0.0),
-        "quality_insufficiency_reasons": _normalize_reason_codes(report_map.get("quality_insufficiency_reasons")),
+        "artifact_ratio": _parse_float(report_map.get("artifact_ratio"), default=0.0),
+        "template_overfit_count": template_overfit_count,
+        "surface_balance_score": surface_balance_score,
+        "semantic_diversity_score": semantic_diversity_score,
+        "quality_insufficiency_reasons": quality_insufficiency_reasons,
+        "coverage_quality_grade": coverage_quality_grade,
     }
+    report_sha = _build_report_sha(normalized_report) if compute_report_sha else str(persistence_result.get("report_sha") or "")
+    final_code_extraction_report = _build_code_extraction_report(
+        report_map=report_map,
+        counters=counters,
+        report_sha=report_sha,
+    )
 
     return {
         "Outcome": outcome,
@@ -297,14 +481,28 @@ def build_business_rules_state_snapshot(
         "ValidRuleCount": valid_rule_count,
         "InvalidRuleCount": invalid_rule_count,
         "DroppedCandidateCount": dropped_candidate_count,
+        "RawCandidateCount": raw_candidate_count,
+        "CandidateCount": counters.candidate_count,
         "ValidationReasonCodes": reason_codes,
         "RenderConsistency": "passed" if render_consistent else "failed",
         "CountConsistency": "passed" if count_consistent else "failed",
         "CodeExtractionRun": has_code_extraction,
         "CodeCoverageSufficient": code_extraction_sufficient,
         "CodeCandidateCount": code_candidate_count,
+        "ValidatedCodeRuleCount": counters.validated_code_rule_count,
+        "InvalidCodeCandidateCount": counters.invalid_code_candidate_count,
         "CodeSurfaceCount": code_surface_count,
-        "MissingCodeSurfaces": list(_normalize_reason_codes(report_map.get("missing_code_surfaces"))),
+        "MissingCodeSurfaces": list(
+            _normalize_reason_codes(
+                report_map.get("missing_code_surfaces", report_map.get("missing_expected_surfaces"))
+            )
+        ),
+        "CoverageQualityGrade": coverage_quality_grade,
+        "SurfaceBalanceScore": surface_balance_score,
+        "SemanticDiversityScore": semantic_diversity_score,
+        "QualityInsufficiencyReasons": quality_insufficiency_reasons,
+        "CodeTokenArtifactCount": code_token_artifact_count,
+        "TemplateOverfitCount": template_overfit_count,
         "InventoryFileStatus": inventory_file_status,
         "InventoryFileMode": inventory_file_mode,
         "Inventory": {
@@ -312,11 +510,27 @@ def build_business_rules_state_snapshot(
             "count": extracted_count,
         },
         "ValidationReport": normalized_report,
-        "ReportSha": _build_report_sha(normalized_report),
+        "CodeExtractionReport": final_code_extraction_report,
+        "ReportSha": report_sha,
         "SourcePhase": str(persistence_result.get("source_phase") or "1.5-BusinessRules"),
         "ExtractorVersion": str(persistence_result.get("extractor_version") or "unknown"),
         "ExtractionSource": str(persistence_result.get("extraction_source") or "deterministic"),
     }
+
+
+def build_business_rules_code_extraction_report(snapshot: Mapping[str, Any]) -> dict[str, Any]:
+    report = snapshot.get("CodeExtractionReport")
+    if isinstance(report, Mapping):
+        return dict(report)
+
+    validation_report = snapshot.get("ValidationReport")
+    report_map = dict(validation_report) if isinstance(validation_report, Mapping) else {}
+    counters = _build_code_extraction_counters(report_map)
+    return _build_code_extraction_report(
+        report_map=report_map,
+        counters=counters,
+        report_sha=str(snapshot.get("ReportSha") or ""),
+    )
 
 
 def hydrate_business_rules_state_from_artifacts(
@@ -383,9 +597,19 @@ def hydrate_business_rules_state_from_artifacts(
         validation_result = "passed" if bool(getattr(inventory_report, "is_compliant", False)) else "failed"
     code_extraction_run = _parse_bool(status_fields.get("codeextractionrun", "true"))
     code_coverage_sufficient = _parse_bool(status_fields.get("codecoveragesufficient", "true"))
+    raw_candidate_count = _parse_int(status_fields.get("rawcandidatecount", "0"), default=0)
     code_candidate_count = _parse_int(status_fields.get("codecandidatecount", "0"), default=0)
+    candidate_count = _parse_int(status_fields.get("candidatecount", str(code_candidate_count)), default=code_candidate_count)
+    validated_code_rule_count = _parse_int(status_fields.get("validatedcoderulecount", "0"), default=0)
+    invalid_code_candidate_count = _parse_int(status_fields.get("invalidcodecandidatecount", "0"), default=0)
+    code_token_artifact_count = _parse_int(status_fields.get("codetokenartifactcount", "0"), default=0)
+    template_overfit_count = _parse_int(status_fields.get("templateoverfitcount", "0"), default=0)
     code_surface_count = _parse_int(status_fields.get("codesurfacecount", "0"), default=0)
     missing_code_surfaces = _parse_csv_reasons(status_fields.get("missingcodesurfaces", ""))
+    coverage_quality_grade = status_fields.get("coveragequalitygrade", "unknown").strip() or "unknown"
+    surface_balance_score = _parse_float(status_fields.get("surfacebalancescore", "0.0"), default=0.0)
+    semantic_diversity_score = _parse_float(status_fields.get("semanticdiversityscore", "0.0"), default=0.0)
+    quality_insufficiency_reasons = _parse_csv_reasons(status_fields.get("qualityinsufficiencyreasons", ""))
     render_consistency = status_fields.get("renderconsistency", "").strip().lower()
     count_consistency = status_fields.get("countconsistency", "").strip().lower()
     if not render_consistency and inventory_report is not None:
@@ -417,7 +641,7 @@ def hydrate_business_rules_state_from_artifacts(
         "has_source_violation": "BUSINESS_RULES_SOURCE_VIOLATION" in quality_reason_codes,
         "has_missing_required_rules": "BUSINESS_RULES_MISSING_REQUIRED_RULES" in quality_reason_codes,
         "has_segmentation_failure": "BUSINESS_RULES_SEGMENTATION_FAILED" in quality_reason_codes,
-        "raw_candidate_count": _parse_int(status_fields.get("rawcandidatecount", "0"), default=0),
+        "raw_candidate_count": raw_candidate_count,
         "segmented_candidate_count": _parse_int(status_fields.get("segmentedcandidatecount", "0"), default=0),
         "valid_rule_count": valid_rules,
         "invalid_rule_count": invalid_rules,
@@ -425,11 +649,20 @@ def hydrate_business_rules_state_from_artifacts(
         "count_consistent": count_consistency == "passed",
         "has_code_extraction": code_extraction_run,
         "code_extraction_sufficient": code_coverage_sufficient,
+        "candidate_count": candidate_count,
         "code_candidate_count": code_candidate_count,
+        "validated_code_rule_count": validated_code_rule_count,
+        "invalid_code_candidate_count": invalid_code_candidate_count,
+        "code_token_artifact_count": code_token_artifact_count,
+        "template_overfit_count": template_overfit_count,
         "code_surface_count": code_surface_count,
         "missing_code_surfaces": missing_code_surfaces,
         "has_code_coverage_gap": not code_coverage_sufficient,
         "has_code_doc_conflict": "BUSINESS_RULES_CODE_DOC_CONFLICT" in quality_reason_codes,
+        "coverage_quality_grade": coverage_quality_grade,
+        "surface_balance_score": surface_balance_score,
+        "semantic_diversity_score": semantic_diversity_score,
+        "quality_insufficiency_reasons": quality_insufficiency_reasons,
         "reason_codes": quality_reason_codes,
     }
 
@@ -452,6 +685,7 @@ def hydrate_business_rules_state_from_artifacts(
             "inventory_file_mode": "update" if inventory_loaded else "unknown",
             "inventory_sha256": inventory_sha,
             "report_finalized": bool(status_fields.get("validationresult", "").strip()) or inventory_report is not None,
+            "report_sha": status_fields.get("reportsha", "").strip(),
         },
     )
 

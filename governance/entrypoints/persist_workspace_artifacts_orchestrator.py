@@ -65,6 +65,7 @@ if str(SCRIPT_DIR.parent) not in sys.path:
 from governance.entrypoints.write_policy import EFFECTIVE_MODE, is_write_allowed, writes_allowed
 from governance.engine.business_rules_hydration import (
     POINTER_AS_SESSION_STATE_ERROR,
+    build_business_rules_code_extraction_report,
     build_business_rules_state_snapshot,
     canonicalize_business_rules_outcome,
     has_br_signal,
@@ -1089,6 +1090,15 @@ def _render_business_rules_status(
     code_surface_count: int = 0,
     missing_code_surfaces: list[str] | None = None,
     raw_candidate_count: int = 0,
+    candidate_count: int = 0,
+    validated_code_rule_count: int = 0,
+    invalid_code_candidate_count: int = 0,
+    code_token_artifact_count: int = 0,
+    template_overfit_count: int = 0,
+    coverage_quality_grade: str = "unknown",
+    surface_balance_score: float = 0.0,
+    semantic_diversity_score: float = 0.0,
+    quality_insufficiency_reasons: list[str] | None = None,
     report_sha: str = "",
     has_signal: bool = False,
 ) -> str:
@@ -1100,6 +1110,8 @@ def _render_business_rules_status(
     source_token = ", ".join(source_diagnostics) if source_diagnostics else "none"
     missing_code_surfaces = missing_code_surfaces or []
     missing_surfaces_token = ", ".join(missing_code_surfaces) if missing_code_surfaces else "none"
+    quality_insufficiency_reasons = quality_insufficiency_reasons or []
+    quality_reason_token = ", ".join(quality_insufficiency_reasons) if quality_insufficiency_reasons else "none"
     lines = [
         f"# Business Rules Status - {repo_name}",
         "",
@@ -1124,6 +1136,15 @@ def _render_business_rules_status(
         f"CodeSurfaceCount: {code_surface_count}",
         f"MissingCodeSurfaces: {missing_surfaces_token}",
         f"RawCandidateCount: {raw_candidate_count}",
+        f"CandidateCount: {candidate_count}",
+        f"ValidatedCodeRuleCount: {validated_code_rule_count}",
+        f"InvalidCodeCandidateCount: {invalid_code_candidate_count}",
+        f"CodeTokenArtifactCount: {code_token_artifact_count}",
+        f"TemplateOverfitCount: {template_overfit_count}",
+        f"CoverageQualityGrade: {coverage_quality_grade}",
+        f"SurfaceBalanceScore: {surface_balance_score}",
+        f"SemanticDiversityScore: {semantic_diversity_score}",
+        f"QualityInsufficiencyReasons: {quality_reason_token}",
         f"ReportSha: {report_sha or ('0' * 64)}",
         f"HasSignal: {'true' if has_signal else 'false'}",
     ]
@@ -1915,6 +1936,12 @@ def main() -> int:
     combined_reason_codes = sorted({*extraction_report.reason_codes, *render_report.reason_codes})
     combined_source_diagnostics = sorted({*extraction_report.source_diagnostics, *render_report.source_diagnostics})
     code_extraction_payload = extraction_diagnostics.get("code_extraction") if isinstance(extraction_diagnostics, dict) else None
+    coverage_dropped_candidate_count = 0
+    if isinstance(code_extraction_payload, dict):
+        coverage_dropped_candidate_count = max(int(code_extraction_payload.get("dropped_candidate_count", 0) or 0), 0)
+    code_candidate_count = max(int(extraction_report.code_candidate_count or 0), 0)
+    dropped_candidate_count = coverage_dropped_candidate_count + merge_rejected_count
+    raw_candidate_count = code_candidate_count + dropped_candidate_count
     severe_validation_failure = bool(
         render_report.has_render_mismatch
         or extraction_report.has_source_violation
@@ -1933,15 +1960,17 @@ def main() -> int:
         "has_source_violation": extraction_report.has_source_violation,
         "has_missing_required_rules": extraction_report.has_missing_required_rules,
         "has_segmentation_failure": extraction_report.has_segmentation_failure,
-        "raw_candidate_count": extraction_report.raw_candidate_count,
+        "raw_candidate_count": raw_candidate_count,
         "segmented_candidate_count": extraction_report.segmented_candidate_count,
         "valid_rule_count": extraction_report.valid_rule_count,
         "invalid_rule_count": extraction_report.invalid_rule_count,
-        "dropped_candidate_count": extraction_report.dropped_candidate_count + merge_rejected_count,
+        "dropped_candidate_count": dropped_candidate_count,
         "count_consistent": render_report.count_consistent,
         "has_code_extraction": extraction_report.has_code_extraction,
         "code_extraction_sufficient": effective_code_coverage_sufficient,
-        "code_candidate_count": extraction_report.code_candidate_count,
+        "candidate_count": code_candidate_count,
+        "code_candidate_count": code_candidate_count,
+        "validated_code_rule_count": extraction_report.code_valid_rule_count,
         "code_surface_count": extraction_report.code_surface_count,
         "missing_code_surfaces": list(extraction_report.missing_code_surfaces),
         "has_code_coverage_gap": (not effective_code_coverage_sufficient),
@@ -1983,6 +2012,8 @@ def main() -> int:
             "declared_outcome": str(scope.get("BusinessRules") or ""),
             "report_finalized": True,
         },
+        code_extraction_report=code_extraction_payload if isinstance(code_extraction_payload, dict) else None,
+        compute_report_sha=False,
     )
     should_write_business_rules = pre_snapshot.get("Outcome") == "extracted"
 
@@ -2008,15 +2039,6 @@ def main() -> int:
 
     code_extraction_report_path = repo_home / ".governance" / "business_rules" / "code_extraction_report.json"
     code_extraction_report_action = "not-applicable"
-    if isinstance(code_extraction_payload, dict):
-        code_extraction_report_action = _upsert_artifact(
-            path=code_extraction_report_path,
-            create_content=json.dumps(code_extraction_payload, ensure_ascii=True, indent=2) + "\n",
-            append_content=None,
-            force=True,
-            dry_run=args.dry_run,
-            read_only=read_only,
-        )
     business_rules_action = "not-applicable"
     business_rules_bootstrap_event = "not-emitted"
     if should_write_business_rules:
@@ -2122,6 +2144,17 @@ def main() -> int:
             "declared_outcome": str(scope.get("BusinessRules") or ""),
             "report_finalized": True,
         },
+        code_extraction_report=code_extraction_payload if isinstance(code_extraction_payload, dict) else None,
+    )
+    final_code_extraction_report = build_business_rules_code_extraction_report(final_snapshot)
+
+    code_extraction_report_action = _upsert_artifact(
+        path=code_extraction_report_path,
+        create_content=json.dumps(final_code_extraction_report, ensure_ascii=True, indent=2) + "\n",
+        append_content=None,
+        force=True,
+        dry_run=args.dry_run,
+        read_only=read_only,
     )
 
     if final_snapshot.get("Outcome") != "extracted":
@@ -2155,7 +2188,16 @@ def main() -> int:
             code_candidate_count=int(final_snapshot.get("CodeCandidateCount") or extraction_report.code_candidate_count),
             code_surface_count=int(final_snapshot.get("CodeSurfaceCount") or extraction_report.code_surface_count),
             missing_code_surfaces=list(final_snapshot.get("MissingCodeSurfaces") or extraction_report.missing_code_surfaces),
-            raw_candidate_count=int((final_snapshot.get("ValidationReport") or {}).get("raw_candidate_count", 0) if isinstance(final_snapshot.get("ValidationReport"), dict) else 0),
+            raw_candidate_count=int(final_snapshot.get("RawCandidateCount") or 0),
+            candidate_count=int(final_snapshot.get("CandidateCount") or final_snapshot.get("CodeCandidateCount") or 0),
+            validated_code_rule_count=int(final_snapshot.get("ValidatedCodeRuleCount") or 0),
+            invalid_code_candidate_count=int(final_snapshot.get("InvalidCodeCandidateCount") or 0),
+            code_token_artifact_count=int(final_snapshot.get("CodeTokenArtifactCount") or 0),
+            template_overfit_count=int(final_snapshot.get("TemplateOverfitCount") or 0),
+            coverage_quality_grade=str(final_snapshot.get("CoverageQualityGrade") or "unknown"),
+            surface_balance_score=float(final_snapshot.get("SurfaceBalanceScore") or 0.0),
+            semantic_diversity_score=float(final_snapshot.get("SemanticDiversityScore") or 0.0),
+            quality_insufficiency_reasons=list(final_snapshot.get("QualityInsufficiencyReasons") or []),
             report_sha=str(final_snapshot.get("ReportSha") or ""),
             has_signal=bool(final_snapshot.get("HasSignal") is True),
         ),
