@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from governance.engine.business_rules_coverage import reconcile_code_extraction_payload
 from governance.engine.business_rules_validation import ORIGIN_CODE, RuleCandidate, validate_candidates
 
 
@@ -73,3 +74,48 @@ def test_segmentation_failure_forces_quality_insufficiency() -> None:
     assert report.has_segmentation_failure is True
     assert report.has_quality_insufficiency is True
     assert report.code_extraction_sufficient is False
+
+
+def test_count_mismatch_forces_quality_insufficiency() -> None:
+    report = validate_candidates(
+        candidates=[_code_candidate("BR-C004: Customer exports must deny unauthorized access.")],
+        expected_rules=False,
+        rendered_rules=[
+            "BR-C004: Customer exports must deny unauthorized access.",
+            "BR-C005: Audit entries must remain immutable.",
+        ],
+        has_code_extraction=True,
+        code_extraction_sufficient=True,
+        code_candidate_count=1,
+        enforce_code_requirements=True,
+    )
+
+    assert report.count_consistent is False
+    assert report.has_quality_insufficiency is True
+    assert report.code_extraction_sufficient is False
+
+
+def test_edge_payload_reconciliation_forces_poor_coverage() -> None:
+    payload = {
+        "candidate_count": 8,
+        "raw_candidate_count": 8,
+        "dropped_candidate_count": 0,
+        "reason_codes": [],
+        "quality_insufficiency_reasons": [],
+        "coverage_quality_grade": "high",
+        "is_sufficient": True,
+    }
+
+    reconciled = reconcile_code_extraction_payload(
+        payload,
+        validation_reason_codes=["BUSINESS_RULES_COUNT_MISMATCH"],
+    )
+    reason_codes = reconciled["reason_codes"]
+    quality_reasons = reconciled["quality_insufficiency_reasons"]
+
+    assert reconciled["is_sufficient"] is False
+    assert reconciled["coverage_quality_grade"] == "poor"
+    assert isinstance(reason_codes, list)
+    assert isinstance(quality_reasons, list)
+    assert "BUSINESS_RULES_CODE_COVERAGE_INSUFFICIENT" in reason_codes
+    assert "validation_count_mismatch" in quality_reasons
