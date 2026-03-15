@@ -56,7 +56,7 @@ _SEMANTIC_PATTERNS: tuple[tuple[str, str, re.Pattern[str]], ...] = (
     ("uniqueness", "Uniqueness constraints must reject duplicates.", re.compile(r"(unique|duplicate|already\s+exists|conflict)", re.IGNORECASE)),
     ("audit", "Audit events must be recorded for protected actions.", re.compile(r"(audit|log_event|append_log|journal|audit_log)", re.IGNORECASE)),
     ("retention", "Retention policies must enforce archival or purge constraints.", re.compile(r"(retention|archive|soft_delete|purge|ttl)", re.IGNORECASE)),
-    ("invariant", "Domain invariants must be enforced before state mutation.", re.compile(r"(assert|invariant|must_not|forbid|immutable|constraint)", re.IGNORECASE)),
+    ("invariant", "Domain invariants must be enforced before state mutation.", re.compile(r"(invariant|must_not|forbid|immutable|constraint)", re.IGNORECASE)),
 )
 
 _NON_NORMATIVE_LINE_RE = re.compile(
@@ -69,6 +69,10 @@ _NORMATIVE_COMMENT_RE = re.compile(
     r"\b(must|shall|required|mandatory|must\s+not|forbidden|prohibited|deny|reject)\b",
     re.IGNORECASE,
 )
+_DISCOVERY_TECHNICAL_ARTIFACT_RE = re.compile(
+    r"(from\s+\S+\s+import\s+\S+|^import\s+\S+|^@\w+|\bdataclass\b|\bfixture\b|\bcache\b|\bfrozen\s*=\s*(true|false)\b|\bslots\s*=\s*(true|false)\b|__pycache__|node_modules|\.git|artifacts?/|fixtures?/|metadata|[A-Za-z0-9_/.-]+\.(py|ts|tsx|js|jsx|go|java|kt|yaml|yml|json)(:\d+)?)",
+    re.IGNORECASE,
+)
 _TECHNICAL_ARTIFACT_RE = re.compile(
     r"(from\s+\S+\s+import\s+\S+|^import\s+\S+|\b@dataclass\b|__pycache__|node_modules|\.git|\.pytest_cache|artifacts?/|fixtures?/|cache|backup|metadata)",
     re.IGNORECASE,
@@ -76,10 +80,17 @@ _TECHNICAL_ARTIFACT_RE = re.compile(
 _PATH_FRAGMENT_RE = re.compile(r"\b\S+\.(py|ts|tsx|js|jsx|go|java|kt|yaml|yml|json)(:\d+)?\b", re.IGNORECASE)
 _IDENTIFIER_CHAIN_RE = re.compile(r"\b[a-z]+(?:_[a-z0-9]+){2,}\b")
 _WEAK_TECHNICAL_ONLY_RE = re.compile(r"\b(exists|resolve|helper|state)\b", re.IGNORECASE)
+_NAKED_IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+_DECLARATION_LINE_RE = re.compile(r"^\s*(def|class|func|function|interface|type)\b", re.IGNORECASE)
 _SEMANTIC_KEYWORD_RE = re.compile(
     r"\b(permission|unauthorized|forbidden|required|missing|validate|constraint|transition|state|status|lifecycle|unique|duplicate|audit|retention|archive|purge|ttl|invariant)\b",
     re.IGNORECASE,
 )
+
+DISCOVERY_ACCEPTED = "accepted_for_validation"
+DISCOVERY_DROPPED_TECHNICAL = "dropped_technical_artifact"
+DISCOVERY_DROPPED_MISSING_ANCHOR = "dropped_missing_enforcement_anchor"
+DISCOVERY_DROPPED_MISSING_SEMANTICS = "dropped_missing_business_semantics"
 
 
 @dataclass(frozen=True)
@@ -101,6 +112,36 @@ class CodeRuleCandidate:
     semantic_type: str
     evidence_snippet: str
     enforcement_anchor_type: str
+
+
+@dataclass(frozen=True)
+class CodeDiscoveryOutcome:
+    path: str
+    language: str
+    line_start: int
+    status: str
+    source_text: str
+    evidence_snippet: str
+    enforcement_anchor_type: str = ""
+    semantic_type: str = ""
+
+
+@dataclass(frozen=True)
+class CodeRuleExtractionResult:
+    candidates: tuple[CodeRuleCandidate, ...]
+    outcomes: tuple[CodeDiscoveryOutcome, ...]
+
+    @property
+    def raw_candidate_count(self) -> int:
+        return len(self.outcomes)
+
+    @property
+    def dropped_candidate_count(self) -> int:
+        return sum(1 for item in self.outcomes if item.status != DISCOVERY_ACCEPTED)
+
+    @property
+    def candidate_count(self) -> int:
+        return len(self.candidates)
 
 
 def _language_for_suffix(suffix: str) -> str:
@@ -200,14 +241,13 @@ def _looks_like_normative_comment(line: str) -> bool:
 
 def _anchor_from_context(lines: list[str], index: int) -> tuple[str, str]:
     current = lines[index].strip()
-    anchor = _detect_anchor(current)
-    if anchor:
-        return anchor, current
-
     if not _looks_like_normative_comment(current):
+        anchor = _detect_anchor(current)
+        if anchor:
+            return anchor, current
         return "", ""
 
-    for offset in (-2, -1, 1, 2):
+    for offset in (1, 2, -1, -2):
         probe_idx = index + offset
         if probe_idx < 0 or probe_idx >= len(lines):
             continue
@@ -218,11 +258,71 @@ def _anchor_from_context(lines: list[str], index: int) -> tuple[str, str]:
     return "", ""
 
 
-def extract_code_rule_candidates(repo_root: Path) -> tuple[list[CodeRuleCandidate], bool]:
+def _semantic_match(text: str) -> tuple[str, str]:
+    for semantic_type, sentence, pattern in _SEMANTIC_PATTERNS:
+        if pattern.search(text):
+            return semantic_type, sentence
+    return "", ""
+
+
+def _semantic_probe(lines: list[str], index: int, evidence_line: str) -> str:
+    probes = [lines[index].strip(), evidence_line]
+    for offset in (-2, -1, 1, 2):
+        probe_idx = index + offset
+        if probe_idx < 0 or probe_idx >= len(lines):
+            continue
+        probe = lines[probe_idx].strip()
+        if probe:
+            probes.append(probe)
+    return " ".join(part for part in probes if part)
+
+
+def _line_is_discovery_technical_artifact(line: str) -> bool:
+    probe = line.strip()
+    if not probe:
+        return False
+    if _DECLARATION_LINE_RE.match(probe):
+        return False
+    if _DISCOVERY_TECHNICAL_ARTIFACT_RE.search(probe):
+        return True
+    if _PATH_FRAGMENT_RE.search(probe):
+        return True
+    if _NAKED_IDENTIFIER_RE.fullmatch(probe):
+        return True
+    if _IDENTIFIER_CHAIN_RE.search(probe) and not _SEMANTIC_KEYWORD_RE.search(probe):
+        return True
+    if _WEAK_TECHNICAL_ONLY_RE.search(probe) and not _NORMATIVE_COMMENT_RE.search(probe) and not _SEMANTIC_KEYWORD_RE.search(probe):
+        return True
+    return False
+
+
+def _classify_discovery_line(lines: list[str], index: int) -> tuple[str, str, str, str]:
+    current = lines[index].strip()
+    if not current:
+        return "", "", "", ""
+
+    anchor, evidence_line = _anchor_from_context(lines, index)
+    semantic_type, sentence = _semantic_match(f"{current} {evidence_line}".strip())
+    if anchor and not semantic_type:
+        semantic_type, sentence = _semantic_match(_semantic_probe(lines, index, evidence_line))
+    current_semantic_type, _ = _semantic_match(current)
+
+    if not anchor and _line_is_discovery_technical_artifact(current):
+        return DISCOVERY_DROPPED_TECHNICAL, anchor, semantic_type, evidence_line or current
+    if anchor:
+        if semantic_type:
+            return DISCOVERY_ACCEPTED, anchor, semantic_type, evidence_line or current
+        return DISCOVERY_DROPPED_MISSING_SEMANTICS, anchor, "", evidence_line or current
+    if _looks_like_normative_comment(current):
+        return DISCOVERY_DROPPED_MISSING_ANCHOR, "", current_semantic_type, current
+    return "", "", "", ""
+
+
+def extract_code_rule_candidates_with_diagnostics(repo_root: Path) -> tuple[CodeRuleExtractionResult, bool]:
     surfaces = discover_code_surfaces(repo_root)
     candidates: list[CodeRuleCandidate] = []
+    outcomes: list[CodeDiscoveryOutcome] = []
     idx = 1
-    seen_clusters: set[tuple[str, str, str]] = set()
     for surface in surfaces:
         path = repo_root / surface.path
         try:
@@ -234,39 +334,46 @@ def extract_code_rule_candidates(repo_root: Path) -> tuple[list[CodeRuleCandidat
             line = raw_line.strip()
             if not line:
                 continue
-            if _line_is_non_normative(line):
+            status, anchor, semantic_type, evidence_line = _classify_discovery_line(split_lines, line_no - 1)
+            if not status:
                 continue
-            if _line_is_technical_artifact(line):
+
+            evidence_snippet = evidence_line or line
+            outcome = CodeDiscoveryOutcome(
+                path=surface.path,
+                language=surface.language,
+                line_start=line_no,
+                status=status,
+                source_text=line,
+                evidence_snippet=evidence_snippet[:220],
+                enforcement_anchor_type=anchor,
+                semantic_type=semantic_type,
+            )
+            outcomes.append(outcome)
+
+            if status != DISCOVERY_ACCEPTED:
                 continue
-            anchor, evidence_line = _anchor_from_context(split_lines, line_no - 1)
-            if not anchor:
-                continue
-            semantic_probe = f"{line} {evidence_line}".strip()
-            if _line_is_technical_artifact(semantic_probe) and not _SEMANTIC_KEYWORD_RE.search(semantic_probe):
-                continue
-            for semantic_type, sentence, pattern in _SEMANTIC_PATTERNS:
-                if not pattern.search(semantic_probe):
-                    continue
-                path_family = "/".join(surface.path.split("/")[:2]) if "/" in surface.path else surface.path
-                cluster_key = (semantic_type, sentence.lower(), path_family)
-                if cluster_key in seen_clusters:
-                    continue
-                seen_clusters.add(cluster_key)
-                snippet = evidence_line if evidence_line else line
-                candidates.append(
-                    CodeRuleCandidate(
-                        text=_candidate_text(idx, sentence),
-                        path=surface.path,
-                        language=surface.language,
-                        line_start=line_no,
-                        line_end=line_no,
-                        extractor_kind="pattern-deterministic",
-                        confidence="medium",
-                        semantic_type=semantic_type,
-                        evidence_snippet=snippet[:220],
-                        enforcement_anchor_type=anchor,
-                    )
+
+            _, sentence = _semantic_match(_semantic_probe(split_lines, line_no - 1, evidence_line))
+            candidates.append(
+                CodeRuleCandidate(
+                    text=_candidate_text(idx, sentence),
+                    path=surface.path,
+                    language=surface.language,
+                    line_start=line_no,
+                    line_end=line_no,
+                    extractor_kind="pattern-deterministic",
+                    confidence="medium",
+                    semantic_type=semantic_type,
+                    evidence_snippet=evidence_snippet[:220],
+                    enforcement_anchor_type=anchor,
                 )
-                idx += 1
-                break
-    return candidates, True
+            )
+            idx += 1
+
+    return CodeRuleExtractionResult(candidates=tuple(candidates), outcomes=tuple(outcomes)), True
+
+
+def extract_code_rule_candidates(repo_root: Path) -> tuple[list[CodeRuleCandidate], bool]:
+    result, ok = extract_code_rule_candidates_with_diagnostics(repo_root)
+    return list(result.candidates), ok
