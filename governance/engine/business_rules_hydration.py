@@ -233,6 +233,7 @@ def _build_code_extraction_report(
         "quality_insufficiency_reasons": _normalize_reason_codes(report_map.get("quality_insufficiency_reasons")),
         "template_overfit_count": max(_parse_int(str(report_map.get("template_overfit_count", 0))), 0),
         "scanned_surfaces": list(report_map.get("scanned_surfaces") or []),
+        "discovery_outcomes": list(report_map.get("discovery_outcomes") or []),
         "report_sha": report_sha,
     }
 

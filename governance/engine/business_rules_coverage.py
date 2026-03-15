@@ -33,6 +33,7 @@ class CodeExtractionCoverage:
     reason_codes: tuple[str, ...]
     is_sufficient: bool
     raw_candidate_count: int = 0
+    dropped_candidate_count: int = 0
     validated_code_rule_count: int = 0
     invalid_code_candidate_count: int = 0
     code_token_artifact_count: int = 0
@@ -52,6 +53,8 @@ def evaluate_code_extraction_coverage(
     scanned_surfaces: list[CodeSurface],
     candidate_count: int,
     extraction_ran: bool,
+    raw_candidate_count: int | None = None,
+    dropped_candidate_count: int = 0,
     has_provenance_gaps: bool = False,
     validated_code_rule_count: int = 0,
     invalid_code_candidate_count: int = 0,
@@ -92,14 +95,19 @@ def evaluate_code_extraction_coverage(
     if has_provenance_gaps:
         reasons.append(RC_CODE_PROVENANCE_MISSING)
 
-    raw_candidate_count = max(candidate_count, 0)
-    valid_rule_ratio = (validated_code_rule_count / raw_candidate_count) if raw_candidate_count > 0 else 0.0
-    artifact_ratio = (code_token_artifact_count / raw_candidate_count) if raw_candidate_count > 0 else 0.0
+    candidate_count = max(candidate_count, 0)
+    dropped_candidate_count = max(dropped_candidate_count, 0)
+    raw_candidate_count = max(candidate_count + dropped_candidate_count, 0) if raw_candidate_count is None else max(raw_candidate_count, 0)
+    if raw_candidate_count != candidate_count + dropped_candidate_count:
+        raw_candidate_count = candidate_count + dropped_candidate_count
+
+    valid_rule_ratio = (validated_code_rule_count / candidate_count) if candidate_count > 0 else 0.0
+    artifact_ratio = (code_token_artifact_count / candidate_count) if candidate_count > 0 else 0.0
 
     nontrivial_repo = scanned_file_count >= NONTRIVIAL_REPO_SURFACE_THRESHOLD
     if nontrivial_repo and validated_code_rule_count < MIN_VALIDATED_CODE_RULE_COUNT_NONTRIVIAL:
         quality_reasons.append("validated_code_rule_count_below_minimum")
-    if raw_candidate_count >= LARGE_REPO_CANDIDATE_THRESHOLD and valid_rule_ratio < MIN_VALID_RULE_RATIO_LARGE_REPO:
+    if candidate_count >= LARGE_REPO_CANDIDATE_THRESHOLD and valid_rule_ratio < MIN_VALID_RULE_RATIO_LARGE_REPO:
         quality_reasons.append("valid_rule_ratio_below_threshold")
     if artifact_ratio > MAX_ARTIFACT_RATIO:
         quality_reasons.append("artifact_ratio_above_maximum")
@@ -121,7 +129,7 @@ def evaluate_code_extraction_coverage(
     else:
         surface_balance_score = 0.0
 
-    if raw_candidate_count >= 20 and semantic_diversity_score < MIN_SEMANTIC_DIVERSITY_SCORE:
+    if candidate_count >= 20 and semantic_diversity_score < MIN_SEMANTIC_DIVERSITY_SCORE:
         quality_reasons.append("semantic_diversity_too_low")
     if nontrivial_repo and surface_balance_score < MIN_SURFACE_BALANCE_SCORE:
         quality_reasons.append("surface_balance_too_low")
@@ -148,11 +156,12 @@ def evaluate_code_extraction_coverage(
     return CodeExtractionCoverage(
         scanned_surfaces=tuple(scanned_surfaces),
         scanned_file_count=scanned_file_count,
-        candidate_count=raw_candidate_count,
+        candidate_count=candidate_count,
         missing_expected_surfaces=tuple(sorted(set(missing_expected_surfaces))),
         reason_codes=tuple(dict.fromkeys(reasons)),
         is_sufficient=(len(reasons) == 0),
         raw_candidate_count=raw_candidate_count,
+        dropped_candidate_count=dropped_candidate_count,
         validated_code_rule_count=max(validated_code_rule_count, 0),
         invalid_code_candidate_count=max(invalid_code_candidate_count, 0),
         code_token_artifact_count=max(code_token_artifact_count, 0),
@@ -173,6 +182,7 @@ def coverage_to_payload(coverage: CodeExtractionCoverage) -> dict[str, object]:
         "scanned_file_count": coverage.scanned_file_count,
         "candidate_count": coverage.candidate_count,
         "raw_candidate_count": coverage.raw_candidate_count,
+        "dropped_candidate_count": coverage.dropped_candidate_count,
         "validated_code_rule_count": coverage.validated_code_rule_count,
         "invalid_code_candidate_count": coverage.invalid_code_candidate_count,
         "code_token_artifact_count": coverage.code_token_artifact_count,

@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Iterable
 
 from governance.engine.business_rules_code_extraction import (
-    extract_code_rule_candidates,
+    extract_code_rule_candidates_with_diagnostics,
     discover_code_surfaces,
 )
 from governance.engine.business_rules_coverage import (
@@ -771,7 +771,8 @@ def extract_validated_business_rules_with_diagnostics(
 ) -> tuple[ValidationReport, dict[str, object], bool]:
     doc_candidates, docs_ok = extract_candidates_from_repo(repo_root)
     scanned_surfaces = discover_code_surfaces(repo_root)
-    code_candidates, code_ok = extract_code_rule_candidates(repo_root)
+    extraction_result, code_ok = extract_code_rule_candidates_with_diagnostics(repo_root)
+    code_candidates = list(extraction_result.candidates)
     semantic_type_distribution: dict[str, int] = {}
     for candidate in code_candidates:
         semantic_type_distribution[candidate.semantic_type] = semantic_type_distribution.get(candidate.semantic_type, 0) + 1
@@ -779,8 +780,10 @@ def extract_validated_business_rules_with_diagnostics(
     has_provenance_gaps = any(not candidate.path or candidate.line_start <= 0 for candidate in code_candidates)
     coverage = evaluate_code_extraction_coverage(
         scanned_surfaces=scanned_surfaces,
-        candidate_count=len(code_candidates),
+        candidate_count=extraction_result.candidate_count,
         extraction_ran=code_ok,
+        raw_candidate_count=extraction_result.raw_candidate_count,
+        dropped_candidate_count=extraction_result.dropped_candidate_count,
         has_provenance_gaps=has_provenance_gaps,
         semantic_type_distribution=semantic_type_distribution,
     )
@@ -831,8 +834,10 @@ def extract_validated_business_rules_with_diagnostics(
 
     coverage = evaluate_code_extraction_coverage(
         scanned_surfaces=scanned_surfaces,
-        candidate_count=len(code_candidates),
+        candidate_count=extraction_result.candidate_count,
         extraction_ran=code_ok,
+        raw_candidate_count=extraction_result.raw_candidate_count,
+        dropped_candidate_count=extraction_result.dropped_candidate_count,
         has_provenance_gaps=has_provenance_gaps,
         validated_code_rule_count=report.code_valid_rule_count,
         invalid_code_candidate_count=report.invalid_code_candidate_count,
@@ -853,9 +858,25 @@ def extract_validated_business_rules_with_diagnostics(
         enforce_code_requirements=True,
     )
 
+    code_extraction_payload = coverage_to_payload(coverage)
+    code_extraction_payload["discovery_outcomes"] = [
+        {
+            "path": item.path,
+            "language": item.language,
+            "line_start": item.line_start,
+            "status": item.status,
+            "source_text": item.source_text,
+            "evidence_snippet": item.evidence_snippet,
+            "enforcement_anchor_type": item.enforcement_anchor_type,
+            "semantic_type": item.semantic_type,
+        }
+        for item in extraction_result.outcomes
+    ]
     diagnostics = {
-        "code_extraction": coverage_to_payload(coverage),
+        "code_extraction": code_extraction_payload,
         "code_candidate_count": coverage.candidate_count,
+        "raw_code_candidate_count": extraction_result.raw_candidate_count,
+        "dropped_code_candidate_count": extraction_result.dropped_candidate_count,
         "docs_ok": docs_ok,
         "code_extraction_ok": code_ok,
     }
