@@ -11,13 +11,8 @@ from typing import Any, Dict, Mapping, Optional, Tuple
 from governance.domain.audit_readout_contract import validate_audit_readout_v1
 from governance.domain.canonical_json import canonical_json_hash
 from governance.domain.operating_profile import derive_mode_evidence
-from governance.infrastructure.session_pointer import (
-    CANONICAL_POINTER_SCHEMA,
-    parse_session_pointer_document,
-    resolve_active_session_state_path,
-)
 
-POINTER_SCHEMA = CANONICAL_POINTER_SCHEMA
+POINTER_SCHEMA = "opencode-session-pointer.v1"
 
 
 def _verify_repository_manifest_proxy(runs_dir: Path, *, expected_repo_fingerprint: str) -> Tuple[bool, Optional[str]]:
@@ -28,6 +23,16 @@ def _verify_repository_manifest_proxy(runs_dir: Path, *, expected_repo_fingerpri
 def _verify_run_archive_proxy(run_dir: Path) -> Tuple[bool, Dict[str, bool], Optional[str]]:
     module = importlib.import_module("governance.infrastructure.io_verify")
     return module.verify_run_archive(run_dir)
+
+
+def _parse_session_pointer_document_proxy(payload: object) -> dict[str, str]:
+    module = importlib.import_module("governance.infrastructure.session_pointer")
+    return module.parse_session_pointer_document(payload)
+
+
+def _resolve_active_session_state_path_proxy(pointer: Mapping[str, object], *, config_root: Path) -> Path:
+    module = importlib.import_module("governance.infrastructure.session_pointer")
+    return module.resolve_active_session_state_path(pointer, config_root=config_root)
 
 
 def _read_json(path: Path) -> dict[str, object]:
@@ -442,8 +447,8 @@ def build_audit_readout(
     if not pointer_path.exists():
         raise FileNotFoundError(f"No session pointer at {pointer_path}")
 
-    pointer = parse_session_pointer_document(_read_json(pointer_path))
-    session_path = resolve_active_session_state_path(pointer, config_root=config_root)
+    pointer = _parse_session_pointer_document_proxy(_read_json(pointer_path))
+    session_path = _resolve_active_session_state_path_proxy(pointer, config_root=config_root)
     state_document = _read_json(session_path)
     state = _extract_state_view(state_document)
     active_effective_mode, active_resolved_mode, active_verify_policy_version = _extract_mode_fields(state)
