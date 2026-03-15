@@ -98,6 +98,10 @@ _TEMPLATE_OVERFIT_RE = re.compile(
     r"\b(required\s+field\s+checks|permission\s+checks|invariants?|schema\s+checks?)\s+must\s+be\s+enforced\s+for\s+(.+)$",
     re.IGNORECASE,
 )
+_GENERIC_CODE_SENTENCE_RE = re.compile(
+    r"^(access\s+control\s+must\s+deny\s+unauthorized\s+operations|required\s+fields\s+must\s+be\s+validated\s+before\s+processing|disallowed\s+lifecycle\s+transitions\s+must\s+be\s+blocked|uniqueness\s+constraints\s+must\s+reject\s+duplicates|audit\s+events\s+must\s+be\s+recorded\s+for\s+protected\s+actions|retention\s+policies\s+must\s+enforce\s+archival\s+or\s+purge\s+constraints|domain\s+invariants\s+must\s+be\s+enforced\s+before\s+state\s+mutation)\.?$",
+    re.IGNORECASE,
+)
 _TECHNICAL_TAIL_RE = re.compile(
     r"(\bfrom\b\s+\S+\s+\bimport\b|\bimport\b\s+\S+|\bdataclass\b|\b__pycache__\b|\bnode_modules\b|\bhelper\b|\bresolve\b|\bexists\b|\bmetadata\b|\bcache\b|\bfixture\b|\barchived_files\b|\brollback_plan\b|\bnot_applicable\b|[A-Za-z0-9_/.-]+\.(py|ts|tsx|js|go|java|kt|yaml|yml|json)\b|[a-z]+(?:_[a-z0-9]+){2,})",
     re.IGNORECASE,
@@ -327,14 +331,7 @@ def _technical_token_ratio(text: str) -> float:
 
 def _is_template_overfit(body: str) -> bool:
     match = _TEMPLATE_OVERFIT_RE.search(body)
-    if not match:
-        return False
-    tail = (match.group(2) or "").strip()
-    if not tail:
-        return True
-    if _TECHNICAL_TAIL_RE.search(tail) and not _DOMAIN_WORD_RE.search(tail):
-        return True
-    return False
+    return bool(match)
 
 
 def _validate_rule_text(rule_text: str, *, origin: str = ORIGIN_DOC, semantic_type: str = "") -> tuple[bool, str, str]:
@@ -350,6 +347,8 @@ def _validate_rule_text(rule_text: str, *, origin: str = ORIGIN_DOC, semantic_ty
         return False, REASON_INVALID_CONTENT, "contains file path/location artifact"
     if _is_template_overfit(body):
         return False, REASON_CODE_TEMPLATE_OVERFIT, "generic template over technical residue"
+    if origin == ORIGIN_CODE and _GENERIC_CODE_SENTENCE_RE.fullmatch(body.strip()):
+        return False, REASON_CODE_TEMPLATE_OVERFIT, "generic code template lacks concrete business entity"
     if _CODE_TOKEN_HINT_RE.search(body):
         return False, REASON_CODE_TOKEN_ARTIFACT, "contains code-token artifact instead of business semantics"
     if _technical_token_ratio(body) > 0.45:
