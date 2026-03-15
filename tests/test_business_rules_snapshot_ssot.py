@@ -1,0 +1,165 @@
+from __future__ import annotations
+
+import importlib.util
+from pathlib import Path
+
+from governance.engine.business_rules_hydration import (
+    build_business_rules_code_extraction_report,
+    build_business_rules_state_snapshot,
+    hydrate_business_rules_state_from_artifacts,
+)
+
+from .util import REPO_ROOT
+
+
+def _load_orchestrator_module():
+    script = REPO_ROOT / "governance" / "entrypoints" / "persist_workspace_artifacts_orchestrator.py"
+    spec = importlib.util.spec_from_file_location("persist_workspace_artifacts_orchestrator", script)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _write(path: Path, text: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding="utf-8")
+
+
+def test_happy_snapshot_drives_status_and_code_report_from_one_truth() -> None:
+    module = _load_orchestrator_module()
+    snapshot = build_business_rules_state_snapshot(
+        report={
+            "is_compliant": True,
+            "has_invalid_rules": False,
+            "has_render_mismatch": False,
+            "has_source_violation": False,
+            "has_missing_required_rules": False,
+            "has_segmentation_failure": False,
+            "raw_candidate_count": 5,
+            "dropped_candidate_count": 1,
+            "candidate_count": 4,
+            "validated_code_rule_count": 2,
+            "invalid_code_candidate_count": 2,
+            "valid_rule_count": 2,
+            "invalid_rule_count": 0,
+            "count_consistent": True,
+            "has_code_extraction": True,
+            "code_extraction_sufficient": True,
+            "code_surface_count": 6,
+            "missing_code_surfaces": ["workflow"],
+            "has_code_coverage_gap": False,
+            "has_code_doc_conflict": False,
+            "coverage_quality_grade": "moderate",
+            "surface_balance_score": 0.5,
+            "semantic_diversity_score": 0.75,
+            "quality_insufficiency_reasons": ["workflow_surface_missing"],
+            "reason_codes": [],
+        },
+        persistence_result={
+            "source_phase": "1.5-BusinessRules",
+            "extractor_version": "hybrid-br-v1",
+            "extraction_source": "deterministic",
+            "extraction_ran": True,
+            "execution_evidence": True,
+            "inventory_written": True,
+            "inventory_loaded": True,
+            "inventory_exists": True,
+            "inventory_file_status": "written",
+            "inventory_file_mode": "update",
+            "inventory_sha256": "a" * 64,
+            "report_finalized": True,
+        },
+        code_extraction_report={
+            "scanned_file_count": 6,
+            "valid_rule_ratio": 0.5,
+            "artifact_ratio": 0.0,
+            "scanned_surfaces": [{"path": "src/policy.py", "language": "python", "surface_type": "permissions"}],
+        },
+    )
+
+    code_report = build_business_rules_code_extraction_report(snapshot)
+    status = module._render_business_rules_status(
+        date="2026-03-15",
+        repo_name="demo",
+        outcome=str(snapshot["Outcome"]),
+        source="ssot-snapshot",
+        source_phase=str(snapshot["SourcePhase"]),
+        execution_evidence=bool(snapshot["ExecutionEvidence"]),
+        extractor_version=str(snapshot["ExtractorVersion"]),
+        rules_hash=str(snapshot["Inventory"]["sha256"]),
+        validation_result=str(snapshot["ValidationResult"]),
+        valid_rules=int(snapshot["ValidRuleCount"]),
+        invalid_rules=int(snapshot["InvalidRuleCount"]),
+        dropped_candidates=int(snapshot["DroppedCandidateCount"]),
+        reason_codes=list(snapshot["ValidationReasonCodes"]),
+        render_consistency=str(snapshot["RenderConsistency"]),
+        count_consistency=str(snapshot["CountConsistency"]),
+        code_extraction_run="true" if bool(snapshot["CodeExtractionRun"]) else "false",
+        code_coverage_sufficient="true" if bool(snapshot["CodeCoverageSufficient"]) else "false",
+        code_candidate_count=int(snapshot["CodeCandidateCount"]),
+        code_surface_count=int(snapshot["CodeSurfaceCount"]),
+        missing_code_surfaces=list(snapshot["MissingCodeSurfaces"]),
+        raw_candidate_count=int(snapshot["RawCandidateCount"]),
+        candidate_count=int(snapshot["CandidateCount"]),
+        validated_code_rule_count=int(snapshot["ValidatedCodeRuleCount"]),
+        invalid_code_candidate_count=int(snapshot["InvalidCodeCandidateCount"]),
+        code_token_artifact_count=int(snapshot["CodeTokenArtifactCount"]),
+        template_overfit_count=int(snapshot["TemplateOverfitCount"]),
+        coverage_quality_grade=str(snapshot["CoverageQualityGrade"]),
+        surface_balance_score=float(snapshot["SurfaceBalanceScore"]),
+        semantic_diversity_score=float(snapshot["SemanticDiversityScore"]),
+        quality_insufficiency_reasons=list(snapshot["QualityInsufficiencyReasons"]),
+        report_sha=str(snapshot["ReportSha"]),
+        has_signal=bool(snapshot["HasSignal"]),
+    )
+
+    assert snapshot["ValidationReport"]["candidate_count"] == 4
+    assert code_report["candidate_count"] == 4
+    assert code_report["coverage_quality_grade"] == snapshot["CoverageQualityGrade"]
+    assert code_report["surface_balance_score"] == snapshot["SurfaceBalanceScore"]
+    assert f"ReportSha: {snapshot['ReportSha']}" in status
+    assert "CandidateCount: 4" in status
+    assert "CoverageQualityGrade: moderate" in status
+
+
+def test_corner_hydration_roundtrips_quality_metrics_from_status(tmp_path: Path) -> None:
+    status = tmp_path / "business-rules-status.md"
+    inventory = tmp_path / "business-rules.md"
+    _write(
+        status,
+        "\n".join(
+            [
+                "Outcome: gap-detected",
+                "ExecutionEvidence: true",
+                "CodeExtractionRun: true",
+                "CodeCoverageSufficient: false",
+                "RawCandidateCount: 5",
+                "DroppedCandidates: 1",
+                "CodeCandidateCount: 4",
+                "CandidateCount: 4",
+                "ValidatedCodeRuleCount: 1",
+                "InvalidCodeCandidateCount: 3",
+                "CoverageQualityGrade: poor",
+                "SurfaceBalanceScore: 0.2",
+                "SemanticDiversityScore: 0.1",
+                "QualityInsufficiencyReasons: artifact_ratio_above_maximum, semantic_diversity_too_low",
+                "ReportSha: 1234abcd",
+            ]
+        ) + "\n",
+    )
+    _write(inventory, "- BR-001: Access must be checked\n")
+    state: dict[str, object] = {}
+
+    ok = hydrate_business_rules_state_from_artifacts(state=state, status_path=status, inventory_path=inventory)
+
+    assert ok is True
+    business = state["BusinessRules"]
+    assert isinstance(business, dict)
+    assert business["CoverageQualityGrade"] == "poor"
+    assert business["SurfaceBalanceScore"] == 0.2
+    assert business["SemanticDiversityScore"] == 0.1
+    assert business["QualityInsufficiencyReasons"] == [
+        "artifact_ratio_above_maximum",
+        "semantic_diversity_too_low",
+    ]
