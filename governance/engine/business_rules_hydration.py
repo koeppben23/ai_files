@@ -6,10 +6,12 @@ from pathlib import Path
 from typing import Any, Mapping, MutableMapping
 
 from governance.engine.business_rules_validation import validate_inventory_markdown
+from governance.infrastructure.session_pointer import is_session_pointer_document
 
 _CANONICAL_OUTCOMES = {"extracted", "gap-detected", "unresolved"}
 _LEGACY_OUTCOMES = {"not-applicable", "deferred", "skipped"}
 _ACCEPTED_OUTCOMES = _CANONICAL_OUTCOMES | _LEGACY_OUTCOMES
+POINTER_AS_SESSION_STATE_ERROR = "SESSION_STATE_POINTER_PASSED_AS_SESSION_STATE"
 
 
 def _parse_bool(token: str) -> bool:
@@ -327,6 +329,9 @@ def hydrate_business_rules_state_from_artifacts(
 
     Returns True when artifact state was applied, otherwise False.
     """
+
+    if is_session_pointer_document(state):
+        raise ValueError(POINTER_AS_SESSION_STATE_ERROR)
 
     if not status_path.exists() or not status_path.is_file():
         return False
