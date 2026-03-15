@@ -10,6 +10,10 @@ from pathlib import Path
 
 from governance.infrastructure.binding_evidence_resolver import BindingEvidenceResolver
 from governance.infrastructure.fs_atomic import atomic_write_text
+from governance.infrastructure.session_pointer import (
+    parse_session_pointer_document,
+    resolve_active_session_state_path,
+)
 from governance.verification.runner import run_contract_verification
 
 
@@ -34,11 +38,8 @@ def _resolve_active_session_path() -> tuple[Path, Path]:
     if evidence.config_root is None:
         raise RuntimeError("binding unavailable")
     pointer_path = evidence.config_root / "SESSION_STATE.json"
-    pointer = _load_json(pointer_path)
-    active = str(pointer.get("activeSessionStateFile") or "").strip()
-    if not active:
-        raise RuntimeError("activeSessionStateFile missing")
-    session_path = Path(active)
+    pointer = parse_session_pointer_document(_load_json(pointer_path))
+    session_path = resolve_active_session_state_path(pointer, config_root=evidence.config_root)
     if not session_path.exists():
         raise RuntimeError("active session missing")
     events_path = session_path.parent / "events.jsonl"

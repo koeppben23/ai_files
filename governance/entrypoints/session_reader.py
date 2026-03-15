@@ -28,13 +28,19 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from governance.engine.next_action_resolver import resolve_next_action
+from governance.infrastructure.session_pointer import (
+    CANONICAL_POINTER_SCHEMA,
+    is_session_pointer_document,
+    parse_session_pointer_document,
+    resolve_active_session_state_path,
+)
 from governance.receipts.store import build_presentation_receipt
 
 # ---------------------------------------------------------------------------
 # Schema / version constants
 # ---------------------------------------------------------------------------
 SNAPSHOT_SCHEMA = "governance-session-snapshot.v1"
-POINTER_SCHEMA = "opencode-session-pointer.v1"
+POINTER_SCHEMA = CANONICAL_POINTER_SCHEMA
 
 
 def _derive_commands_home() -> Path:
@@ -773,21 +779,20 @@ def _resolve_session_document(commands_home: Path) -> tuple[Path, dict, Path, di
         raise RuntimeError(f"No session pointer at {pointer_path}")
 
     try:
-        pointer = _read_json(pointer_path)
+        raw_pointer = _read_json(pointer_path)
     except Exception as exc:
         raise RuntimeError(f"Invalid session pointer JSON: {exc}") from exc
-    if pointer.get("schema") not in (POINTER_SCHEMA, "active-session-pointer.v1"):
-        raise RuntimeError(f"Unknown pointer schema: {pointer.get('schema')}")
 
-    session_file_raw = pointer.get("activeSessionStateFile")
-    if not session_file_raw:
-        rel = pointer.get("activeSessionStateRelativePath")
-        if rel:
-            session_file_raw = str(config_root / rel)
-    if not session_file_raw:
-        raise RuntimeError("Pointer contains no session state file path")
+    try:
+        if not is_session_pointer_document(raw_pointer):
+            if "schema" in raw_pointer:
+                parse_session_pointer_document(raw_pointer)
+            raise ValueError("Document is not a session pointer")
+        pointer = parse_session_pointer_document(raw_pointer)
+        session_path = resolve_active_session_state_path(pointer, config_root=config_root)
+    except ValueError as exc:
+        raise RuntimeError(str(exc)) from exc
 
-    session_path = Path(session_file_raw)
     if not session_path.exists():
         raise RuntimeError(f"Workspace session state missing: {session_path}")
 

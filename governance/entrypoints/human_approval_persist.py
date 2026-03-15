@@ -17,6 +17,10 @@ from governance.domain.access_control import Action, AccessDecision, Role, evalu
 from governance.infrastructure.adapters.logging.event_sink import write_jsonl_event
 from governance.infrastructure.binding_evidence_resolver import BindingEvidenceResolver
 from governance.infrastructure.fs_atomic import atomic_write_text
+from governance.infrastructure.session_pointer import (
+    parse_session_pointer_document,
+    resolve_active_session_state_path,
+)
 
 VALID_DECISIONS = frozenset({"approve", "reject", "reset"})
 
@@ -59,18 +63,11 @@ def _resolve_active_session_path() -> tuple[Path, Path]:
         raise RuntimeError("binding unavailable")
 
     pointer_path = evidence.config_root / "SESSION_STATE.json"
-    pointer = _load_json(pointer_path)
+    pointer = parse_session_pointer_document(_load_json(pointer_path))
+    session_path = resolve_active_session_state_path(pointer, config_root=evidence.config_root)
     fingerprint = str(pointer.get("activeRepoFingerprint") or "").strip()
     if not fingerprint:
         raise RuntimeError("activeRepoFingerprint missing")
-
-    active_state = str(pointer.get("activeSessionStateFile") or "").strip()
-    if active_state:
-        session_path = Path(active_state)
-    else:
-        session_path = evidence.workspaces_home / fingerprint / "SESSION_STATE.json"
-    if not session_path.is_absolute():
-        raise RuntimeError("activeSessionStateFile must be absolute")
     if not session_path.exists():
         raise RuntimeError("active session missing")
 

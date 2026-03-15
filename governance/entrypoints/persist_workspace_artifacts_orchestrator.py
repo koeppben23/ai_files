@@ -64,6 +64,7 @@ if str(SCRIPT_DIR.parent) not in sys.path:
 
 from governance.entrypoints.write_policy import EFFECTIVE_MODE, is_write_allowed, writes_allowed
 from governance.engine.business_rules_hydration import (
+    POINTER_AS_SESSION_STATE_ERROR,
     build_business_rules_state_snapshot,
     canonicalize_business_rules_outcome,
     has_br_signal,
@@ -79,6 +80,10 @@ from governance.engine.business_rules_validation import (
     render_inventory_rules,
     validate_candidates,
     validate_inventory_markdown,
+)
+from governance.infrastructure.session_pointer import (
+    is_session_pointer_document,
+    parse_session_pointer_document,
 )
 try:
     from artifacts.backfill import (
@@ -911,8 +916,12 @@ def _resolve_repo_fingerprint(
 
     pointer_path = config_root / "SESSION_STATE.json"
     pointer = _load_json(pointer_path)
-    if pointer and pointer.get("schema") == "opencode-session-pointer.v1":
-        fp = pointer.get("activeRepoFingerprint")
+    if pointer and is_session_pointer_document(pointer):
+        try:
+            parsed_pointer = parse_session_pointer_document(pointer)
+        except ValueError:
+            parsed_pointer = {}
+        fp = parsed_pointer.get("activeRepoFingerprint")
         if isinstance(fp, str) and fp.strip():
             validated = _validate_repo_fingerprint(fp)
             if not _is_canonical_fingerprint(validated):
@@ -1283,6 +1292,8 @@ def _update_session_state(
     data = _load_json(session_path)
     if not data:
         return "no-session-file"
+    if is_session_pointer_document(data):
+        raise ValueError(POINTER_AS_SESSION_STATE_ERROR)
     ss = data.get("SESSION_STATE")
     if not isinstance(ss, dict):
         return "invalid-session-shape"
