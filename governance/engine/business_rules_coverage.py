@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+from typing import Iterable, Mapping
 
 from governance.engine.business_rules_code_extraction import CodeSurface
 
@@ -14,14 +15,30 @@ RC_CODE_TEMPLATE_OVERFIT = "BUSINESS_RULES_CODE_TEMPLATE_OVERFIT"
 
 
 # PR5 fixed quality defaults; configurable thresholds are out of scope here.
-NONTRIVIAL_REPO_SURFACE_THRESHOLD = 8
-LARGE_REPO_CANDIDATE_THRESHOLD = 100
+NONTRIVIAL_REPO_FILE_THRESHOLD = 20
+LARGE_REPO_FILE_THRESHOLD = 50
 MIN_VALIDATED_CODE_RULE_COUNT_NONTRIVIAL = 1
 MIN_VALID_RULE_RATIO_LARGE_REPO = 0.10
 MAX_ARTIFACT_RATIO = 0.20
-TOKEN_ARTIFACT_SPIKE_THRESHOLD = 0.35
+TOKEN_ARTIFACT_SPIKE_THRESHOLD = 0.15
 MIN_SEMANTIC_DIVERSITY_SCORE = 0.30
 MIN_SURFACE_BALANCE_SCORE = 0.25
+
+VALIDATION_DOMINATES_COVERAGE_REASON_CODES = frozenset(
+    {
+        "BUSINESS_RULES_RENDER_MISMATCH",
+        "BUSINESS_RULES_COUNT_MISMATCH",
+        "BUSINESS_RULES_SEGMENTATION_FAILED",
+        "BUSINESS_RULES_SOURCE_VIOLATION",
+    }
+)
+
+_VALIDATION_TO_QUALITY_REASON = {
+    "BUSINESS_RULES_RENDER_MISMATCH": "validation_render_mismatch",
+    "BUSINESS_RULES_COUNT_MISMATCH": "validation_count_mismatch",
+    "BUSINESS_RULES_SEGMENTATION_FAILED": "validation_segmentation_failed",
+    "BUSINESS_RULES_SOURCE_VIOLATION": "validation_source_violation",
+}
 
 
 @dataclass(frozen=True)
@@ -104,10 +121,11 @@ def evaluate_code_extraction_coverage(
     valid_rule_ratio = (validated_code_rule_count / candidate_count) if candidate_count > 0 else 0.0
     artifact_ratio = (code_token_artifact_count / candidate_count) if candidate_count > 0 else 0.0
 
-    nontrivial_repo = scanned_file_count >= NONTRIVIAL_REPO_SURFACE_THRESHOLD
+    nontrivial_repo = scanned_file_count >= NONTRIVIAL_REPO_FILE_THRESHOLD
+    large_repo = scanned_file_count >= LARGE_REPO_FILE_THRESHOLD
     if nontrivial_repo and validated_code_rule_count < MIN_VALIDATED_CODE_RULE_COUNT_NONTRIVIAL:
         quality_reasons.append("validated_code_rule_count_below_minimum")
-    if candidate_count >= LARGE_REPO_CANDIDATE_THRESHOLD and valid_rule_ratio < MIN_VALID_RULE_RATIO_LARGE_REPO:
+    if large_repo and valid_rule_ratio < MIN_VALID_RULE_RATIO_LARGE_REPO:
         quality_reasons.append("valid_rule_ratio_below_threshold")
     if artifact_ratio > MAX_ARTIFACT_RATIO:
         quality_reasons.append("artifact_ratio_above_maximum")
@@ -137,9 +155,12 @@ def evaluate_code_extraction_coverage(
     if artifact_ratio > TOKEN_ARTIFACT_SPIKE_THRESHOLD:
         reasons.append(RC_CODE_TOKEN_ARTIFACT_SPIKE)
         quality_reasons.append("token_artifact_spike")
-    if template_overfit_count > 0 and template_overfit_count >= max(validated_code_rule_count, 1):
+    template_overfit_ratio = (template_overfit_count / candidate_count) if candidate_count > 0 else 0.0
+    if template_overfit_count > 0 and (
+        template_overfit_ratio >= 0.10 or template_overfit_count >= max(validated_code_rule_count, 1)
+    ):
         reasons.append(RC_CODE_TEMPLATE_OVERFIT)
-        quality_reasons.append("template_overfit")
+        quality_reasons.append("template_overfit_spike")
 
     if quality_reasons and RC_CODE_QUALITY_INSUFFICIENT not in reasons:
         reasons.append(RC_CODE_QUALITY_INSUFFICIENT)
@@ -175,6 +196,75 @@ def evaluate_code_extraction_coverage(
         quality_insufficiency_reasons=tuple(quality_reasons),
         template_overfit_count=max(template_overfit_count, 0),
     )
+
+
+def reconcile_code_extraction_coverage(
+    coverage: CodeExtractionCoverage,
+    *,
+    validation_reason_codes: Iterable[str] = (),
+) -> CodeExtractionCoverage:
+    severe_codes = [
+        code
+        for code in validation_reason_codes
+        if str(code).strip() in VALIDATION_DOMINATES_COVERAGE_REASON_CODES
+    ]
+    if not severe_codes:
+        return coverage
+
+    reason_codes = list(coverage.reason_codes)
+    quality_reasons = list(coverage.quality_insufficiency_reasons)
+
+    if RC_CODE_COVERAGE_INSUFFICIENT not in reason_codes:
+        reason_codes.append(RC_CODE_COVERAGE_INSUFFICIENT)
+    if RC_CODE_QUALITY_INSUFFICIENT not in reason_codes:
+        reason_codes.append(RC_CODE_QUALITY_INSUFFICIENT)
+
+    for code in severe_codes:
+        quality_reason = _VALIDATION_TO_QUALITY_REASON.get(str(code).strip(), "validation_failure")
+        if quality_reason not in quality_reasons:
+            quality_reasons.append(quality_reason)
+
+    return replace(
+        coverage,
+        reason_codes=tuple(dict.fromkeys(reason_codes)),
+        is_sufficient=False,
+        coverage_quality_grade="poor",
+        quality_insufficiency_reasons=tuple(dict.fromkeys(quality_reasons)),
+    )
+
+
+def reconcile_code_extraction_payload(
+    payload: Mapping[str, object],
+    *,
+    validation_reason_codes: Iterable[str] = (),
+) -> dict[str, object]:
+    severe_codes = [
+        code
+        for code in validation_reason_codes
+        if str(code).strip() in VALIDATION_DOMINATES_COVERAGE_REASON_CODES
+    ]
+    result = dict(payload)
+    if not severe_codes:
+        return result
+
+    reason_codes = [str(item).strip() for item in result.get("reason_codes", []) if str(item).strip()]
+    quality_reasons = [
+        str(item).strip() for item in result.get("quality_insufficiency_reasons", []) if str(item).strip()
+    ]
+    if RC_CODE_COVERAGE_INSUFFICIENT not in reason_codes:
+        reason_codes.append(RC_CODE_COVERAGE_INSUFFICIENT)
+    if RC_CODE_QUALITY_INSUFFICIENT not in reason_codes:
+        reason_codes.append(RC_CODE_QUALITY_INSUFFICIENT)
+    for code in severe_codes:
+        quality_reason = _VALIDATION_TO_QUALITY_REASON.get(str(code).strip(), "validation_failure")
+        if quality_reason not in quality_reasons:
+            quality_reasons.append(quality_reason)
+
+    result["reason_codes"] = list(dict.fromkeys(reason_codes))
+    result["quality_insufficiency_reasons"] = list(dict.fromkeys(quality_reasons))
+    result["is_sufficient"] = False
+    result["coverage_quality_grade"] = "poor"
+    return result
 
 
 def coverage_to_payload(coverage: CodeExtractionCoverage) -> dict[str, object]:

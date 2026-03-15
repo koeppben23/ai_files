@@ -17,6 +17,7 @@ from governance.engine.business_rules_coverage import (
     RC_CODE_TOKEN_ARTIFACT_SPIKE,
     coverage_to_payload,
     evaluate_code_extraction_coverage,
+    reconcile_code_extraction_coverage,
 )
 
 
@@ -843,6 +844,10 @@ def extract_validated_business_rules_with_diagnostics(
         code_token_artifact_count=report.code_token_artifact_count,
         semantic_type_distribution=semantic_type_distribution,
         template_overfit_count=report.template_overfit_count,
+    )
+    coverage = reconcile_code_extraction_coverage(
+        coverage,
+        validation_reason_codes=report.reason_codes,
     )
     report = validate_candidates(
         candidates=combined_candidates,
