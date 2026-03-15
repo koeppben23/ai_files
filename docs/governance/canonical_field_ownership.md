@@ -29,3 +29,4 @@ Default rewrite role:
 
 - `docs/governance/kernel_vs_docs_matrix.csv`
 - `governance/assets/catalogs/SSOT_GUARD_RULES.json`
+- `docs/governance/business-rules-runtime-semantics.md` (runtime-facing explanation of BR reason-code layers, counter semantics, and pointer/session-state boundaries)

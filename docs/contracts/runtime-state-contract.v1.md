@@ -77,9 +77,10 @@ All artifacts in `workspace_paths.py` are assigned exactly one class.
 
 1. **Global pointer = activation/routing.** Never read the global pointer as if it were session state.
 2. **Workspace state = canonical truth.** All session state reads must target the workspace `SESSION_STATE.json`.
-3. **Pointer and state must not be confused.** Code that reads the global pointer must use `session_pointer.py:parse_pointer_payload`; code that reads session state must use the session state schema.
+3. **Pointer and state must not be confused.** Code that reads the global pointer must route through `governance/infrastructure/session_pointer.py` (`parse_session_pointer_document(...)` + `resolve_active_session_state_path(...)` for read paths, `parse_pointer_payload(...)` for strict write/validation paths). Code that reads session state must use the session state schema.
 4. **Session state is NEVER at repo root.** `bootstrap_persistence.py` explicitly blocks `config_root` inside `repo_root`.
 5. **Future rename only with migration.** The global pointer may only be renamed through a formal migration (see `install-layout-migration.v1.md`, M2). No ad-hoc renaming.
+6. **Business-rules hydration is workspace-state only.** Pointer-shaped documents are rejected before business-rules hydration or persistence can treat them as `SESSION_STATE`.
 
 ### 2.4 Run Pointer
 
