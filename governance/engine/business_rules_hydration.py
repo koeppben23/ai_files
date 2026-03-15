@@ -688,6 +688,7 @@ def hydrate_business_rules_state_from_artifacts(
             "report_finalized": bool(status_fields.get("validationresult", "").strip()) or inventory_report is not None,
             "report_sha": status_fields.get("reportsha", "").strip(),
         },
+        compute_report_sha=not bool(status_fields.get("reportsha", "").strip()),
     )
 
     scope_obj = state.get("Scope")
