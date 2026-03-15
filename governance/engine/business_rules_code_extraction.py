@@ -86,6 +86,42 @@ _SEMANTIC_KEYWORD_RE = re.compile(
     r"\b(permission|unauthorized|forbidden|required|missing|validate|constraint|transition|state|status|lifecycle|unique|duplicate|audit|retention|archive|purge|ttl|invariant)\b",
     re.IGNORECASE,
 )
+_COMMENT_FOR_TAIL_RE = re.compile(r"\bfor\s+(.+)$", re.IGNORECASE)
+_FIELD_TOKEN_RE = re.compile(r"(?:get\(|\[)(?:['\"])([A-Za-z0-9_]+)(?:['\"])")
+_NEGATED_IDENTIFIER_RE = re.compile(r"\bif\s+not\s+([A-Za-z_][A-Za-z0-9_]*)\b", re.IGNORECASE)
+_CAN_ACTION_RE = re.compile(r"\bcan_([a-z][a-z0-9_]*)\b", re.IGNORECASE)
+_PERMISSION_LITERAL_RE = re.compile(r"\b(?:has_permission|permission|scope)\s*\(\s*['\"]([a-z][a-z0-9_-]*)['\"]", re.IGNORECASE)
+_STATUS_LITERAL_RE = re.compile(r"\b(?:status|state)\s*==\s*['\"]([a-z][a-z0-9_-]*)['\"]", re.IGNORECASE)
+_STRING_LITERAL_RE = re.compile(r"['\"]([A-Za-z][A-Za-z0-9_-]*)['\"]")
+_PATH_TOKEN_SPLIT_RE = re.compile(r"[_\-/]+")
+
+_GENERIC_PATH_TOKENS = frozenset(
+    {
+        "src",
+        "app",
+        "core",
+        "service",
+        "services",
+        "policy",
+        "policies",
+        "validator",
+        "validation",
+        "workflow",
+        "state",
+        "transition",
+        "model",
+        "models",
+        "schema",
+        "schemas",
+        "config",
+        "settings",
+        "helpers",
+        "helper",
+        "utils",
+        "common",
+        "module",
+    }
+)
 
 DISCOVERY_ACCEPTED = "accepted_for_validation"
 DISCOVERY_DROPPED_TECHNICAL = "dropped_technical_artifact"
@@ -225,6 +261,8 @@ def _line_is_technical_artifact(line: str) -> bool:
 
 
 def _detect_anchor(line: str) -> str:
+    if _DECLARATION_LINE_RE.match(line.strip()):
+        return ""
     for anchor, pattern in _ANCHOR_PATTERNS:
         if pattern.search(line):
             return anchor
@@ -275,6 +313,117 @@ def _semantic_probe(lines: list[str], index: int, evidence_line: str) -> str:
         if probe:
             probes.append(probe)
     return " ".join(part for part in probes if part)
+
+
+def _humanize_token(token: str) -> str:
+    cleaned = token.strip().strip("`'\"")
+    if not cleaned:
+        return ""
+    words = [part for part in _PATH_TOKEN_SPLIT_RE.split(cleaned) if part]
+    if not words:
+        return ""
+    normalized: list[str] = []
+    for word in words:
+        lowered = word.lower()
+        if lowered == "id":
+            normalized.append("ID")
+        elif len(word) <= 2:
+            normalized.append(word.upper())
+        else:
+            normalized.append(lowered)
+    phrase = " ".join(normalized).strip()
+    if not phrase:
+        return ""
+    return phrase[0].upper() + phrase[1:]
+
+
+def _clean_context_tail(value: str, *, allow_identifier: bool = False) -> str:
+    probe = str(value or "").strip().strip("`'\".,:;()[]{}")
+    if not probe:
+        return ""
+    if _PATH_FRAGMENT_RE.search(probe):
+        return ""
+    if _DISCOVERY_TECHNICAL_ARTIFACT_RE.search(probe):
+        return ""
+    if not allow_identifier and _line_is_discovery_technical_artifact(probe):
+        return ""
+    return _humanize_token(probe)
+
+
+def _path_context(path: str) -> str:
+    path_without_suffix = str(Path(path).with_suffix(""))
+    for token in reversed(_PATH_TOKEN_SPLIT_RE.split(path_without_suffix)):
+        lowered = token.lower()
+        if not lowered or lowered in _GENERIC_PATH_TOKENS:
+            continue
+        return _humanize_token(token)
+    return ""
+
+
+def _extract_context_tail(semantic_type: str, probe: str, path: str) -> str:
+    text = str(probe or "")
+    comment_tail = _COMMENT_FOR_TAIL_RE.search(text)
+    if comment_tail:
+        cleaned_tail = _clean_context_tail(comment_tail.group(1))
+        if cleaned_tail:
+            return cleaned_tail
+
+    if semantic_type == "required-field":
+        field_match = _FIELD_TOKEN_RE.search(text)
+        if field_match:
+            cleaned_tail = _clean_context_tail(field_match.group(1), allow_identifier=True)
+            if cleaned_tail:
+                return cleaned_tail
+        negated_identifier = _NEGATED_IDENTIFIER_RE.search(text)
+        if negated_identifier:
+            cleaned_tail = _clean_context_tail(negated_identifier.group(1), allow_identifier=True)
+            if cleaned_tail:
+                return cleaned_tail
+
+    if semantic_type == "permission":
+        action_match = _CAN_ACTION_RE.search(text) or _PERMISSION_LITERAL_RE.search(text)
+        if action_match:
+            cleaned_tail = _clean_context_tail(action_match.group(1), allow_identifier=True)
+            if cleaned_tail:
+                return f"{cleaned_tail} operations"
+
+    if semantic_type == "transition":
+        status_match = _STATUS_LITERAL_RE.search(text)
+        if status_match:
+            cleaned_tail = _clean_context_tail(status_match.group(1), allow_identifier=True)
+            if cleaned_tail:
+                return f"{cleaned_tail} status"
+
+    if semantic_type in {"audit", "retention", "uniqueness", "invariant"}:
+        for literal in _STRING_LITERAL_RE.findall(text):
+            lowered = literal.lower()
+            if lowered in {"unauthorized", "forbidden", "required", "invalid", "audit", "error"}:
+                continue
+            cleaned_tail = _clean_context_tail(literal, allow_identifier=True)
+            if cleaned_tail:
+                return cleaned_tail
+
+    return _path_context(path)
+
+
+def _render_contextual_sentence(semantic_type: str, probe: str, path: str) -> str:
+    tail = _extract_context_tail(semantic_type, probe, path)
+    if semantic_type == "permission":
+        return f"{tail} must deny unauthorized access." if tail else "Access control must deny unauthorized operations."
+    if semantic_type == "required-field":
+        return f"{tail} must be present before processing." if tail else "Required fields must be validated before processing."
+    if semantic_type == "transition":
+        return f"{tail} transitions must be blocked when invalid." if tail else "Disallowed lifecycle transitions must be blocked."
+    if semantic_type == "uniqueness":
+        return f"{tail} records must reject duplicates." if tail else "Uniqueness constraints must reject duplicates."
+    if semantic_type == "audit":
+        return f"{tail} must record audit events." if tail else "Audit events must be recorded for protected actions."
+    if semantic_type == "retention":
+        return f"{tail} must enforce retention or purge constraints." if tail else "Retention policies must enforce archival or purge constraints."
+    if semantic_type == "invariant":
+        return f"{tail} must remain valid before state changes." if tail else "Domain invariants must be enforced before state mutation."
+    _, default_sentence = _semantic_match(probe)
+    return default_sentence
 
 
 def _line_is_discovery_technical_artifact(line: str) -> bool:
@@ -354,7 +503,8 @@ def extract_code_rule_candidates_with_diagnostics(repo_root: Path) -> tuple[Code
             if status != DISCOVERY_ACCEPTED:
                 continue
 
-            _, sentence = _semantic_match(_semantic_probe(split_lines, line_no - 1, evidence_line))
+            semantic_probe = _semantic_probe(split_lines, line_no - 1, evidence_line)
+            sentence = _render_contextual_sentence(semantic_type, semantic_probe, surface.path)
             candidates.append(
                 CodeRuleCandidate(
                     text=_candidate_text(idx, sentence),
