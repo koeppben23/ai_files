@@ -25,11 +25,112 @@ from __future__ import annotations
 import os
 import re
 from pathlib import Path
+from typing import Any, Mapping
 
 CANONICAL_POINTER_SCHEMA = "opencode-session-pointer.v1"
 LEGACY_POINTER_SCHEMAS = {"active-session-pointer.v1"}
 
 FINGERPRINT_PATTERN = re.compile(r"^[0-9a-f]{24}$")
+_POINTER_KEYS = frozenset(
+    {
+        "activeRepoFingerprint",
+        "repo_fingerprint",
+        "activeSessionStateFile",
+        "active_session_state_file",
+        "activeSessionStateRelativePath",
+        "active_session_state_relative_path",
+    }
+)
+
+
+def is_session_pointer_document(payload: object) -> bool:
+    """Return True when *payload* is pointer-shaped, not session-state-shaped."""
+
+    if not isinstance(payload, Mapping):
+        return False
+    if isinstance(payload.get("SESSION_STATE"), Mapping):
+        return False
+
+    schema = payload.get("schema")
+    if isinstance(schema, str) and schema in {CANONICAL_POINTER_SCHEMA} | LEGACY_POINTER_SCHEMAS:
+        return True
+
+    return any(key in payload for key in _POINTER_KEYS)
+
+
+def parse_session_pointer_document(payload: object) -> dict[str, str]:
+    """Parse a pointer document for read paths.
+
+    This parser is intentionally more tolerant than ``parse_pointer_payload``:
+    it accepts legacy schemas/keys and allows resolving from either the
+    absolute session-state path or the relative workspace path. Writer and
+    validation paths must continue to use ``parse_pointer_payload``.
+    """
+
+    if not isinstance(payload, Mapping):
+        raise ValueError("Session pointer document must be a JSON object")
+    if isinstance(payload.get("SESSION_STATE"), Mapping):
+        raise ValueError("Document is a materialized session state, not a session pointer")
+
+    schema = payload.get("schema")
+    if isinstance(schema, str) and schema not in {CANONICAL_POINTER_SCHEMA} | LEGACY_POINTER_SCHEMAS:
+        raise ValueError(f"Unknown pointer schema: {schema}")
+    if schema is None and not any(key in payload for key in _POINTER_KEYS):
+        raise ValueError("Document is not a session pointer")
+
+    result: dict[str, str] = {"schema": CANONICAL_POINTER_SCHEMA}
+
+    fingerprint = _normalize_read_fingerprint(_extract_fingerprint(payload))
+    session_file = _extract_session_state_file(payload)
+    relative_path = _extract_relative_path(payload)
+
+    if session_file:
+        session_file_text = str(session_file).strip()
+        if not os.path.isabs(session_file_text):
+            raise ValueError("Pointer field 'activeSessionStateFile' must be absolute")
+        result["activeSessionStateFile"] = Path(session_file_text).resolve(strict=False).as_posix()
+
+    if relative_path:
+        result["activeSessionStateRelativePath"] = _normalize_relative_path(relative_path)
+
+    if "activeSessionStateFile" not in result and "activeSessionStateRelativePath" not in result:
+        raise ValueError("Pointer contains no session state file path")
+
+    if fingerprint:
+        result["activeRepoFingerprint"] = fingerprint
+
+    updated_at = _extract_updated_at(payload)
+    if updated_at:
+        result["updatedAt"] = updated_at.strip()
+
+    return result
+
+
+def resolve_active_session_state_path(pointer: Mapping[str, Any], *, config_root: Path) -> Path:
+    """Resolve the active workspace session-state path from a parsed pointer."""
+
+    parsed = parse_session_pointer_document(pointer)
+
+    absolute_path = parsed.get("activeSessionStateFile", "").strip()
+    relative_path = parsed.get("activeSessionStateRelativePath", "").strip()
+
+    resolved_relative: Path | None = None
+    if relative_path:
+        resolved_relative = (config_root / Path(relative_path)).resolve(strict=False)
+
+    resolved_absolute: Path | None = None
+    if absolute_path:
+        if not os.path.isabs(absolute_path):
+            raise ValueError("Pointer field 'activeSessionStateFile' must be absolute")
+        resolved_absolute = Path(absolute_path).resolve(strict=False)
+
+    if resolved_absolute is not None and resolved_relative is not None and resolved_absolute != resolved_relative:
+        raise ValueError("Pointer absolute and relative session-state paths disagree")
+    if resolved_absolute is not None:
+        return resolved_absolute
+    if resolved_relative is not None:
+        return resolved_relative
+    raise ValueError("Pointer contains no session state file path")
 
 
 def validate_fingerprint(fp: str) -> str:
@@ -101,16 +202,10 @@ def build_pointer_payload(
 
 
 def parse_pointer_payload(payload: dict) -> dict:
-    """Parse and optionally migrate a pointer payload to canonical format.
-    
-    Supports both canonical and legacy key formats. Legacy formats are
-    normalized to canonical keys on read.
-    
-    Args:
-        payload: The raw pointer payload dict.
-    
-    Returns:
-        A canonical pointer payload dict, or empty dict if invalid.
+    """Parse and validate a pointer payload for write/validation paths.
+
+    This parser is intentionally strict: canonical 24-hex fingerprints,
+    canonical relative path, and an absolute session-state path are required.
     """
     if not isinstance(payload, dict):
         return {}
@@ -162,7 +257,7 @@ def parse_pointer_payload(payload: dict) -> dict:
     return result
 
 
-def _extract_fingerprint(payload: dict) -> str | None:
+def _extract_fingerprint(payload: Mapping[str, Any]) -> str | None:
     """Extract fingerprint from canonical or legacy keys."""
     for key in ("activeRepoFingerprint", "repo_fingerprint"):
         if key in payload:
@@ -170,7 +265,7 @@ def _extract_fingerprint(payload: dict) -> str | None:
     return None
 
 
-def _extract_session_state_file(payload: dict) -> str | None:
+def _extract_session_state_file(payload: Mapping[str, Any]) -> str | None:
     """Extract session state file from canonical or legacy keys."""
     for key in ("activeSessionStateFile", "active_session_state_file"):
         if key in payload:
@@ -178,7 +273,7 @@ def _extract_session_state_file(payload: dict) -> str | None:
     return None
 
 
-def _extract_relative_path(payload: dict) -> str | None:
+def _extract_relative_path(payload: Mapping[str, Any]) -> str | None:
     """Extract relative path from canonical or legacy keys."""
     for key in ("activeSessionStateRelativePath", "active_session_state_relative_path"):
         if key in payload:
@@ -186,7 +281,7 @@ def _extract_relative_path(payload: dict) -> str | None:
     return None
 
 
-def _extract_updated_at(payload: dict) -> str | None:
+def _extract_updated_at(payload: Mapping[str, Any]) -> str | None:
     """Extract updated_at timestamp from canonical or legacy keys."""
     for key in ("updatedAt", "updated_at"):
         if key in payload:
@@ -231,3 +326,27 @@ def is_valid_pointer(payload: dict) -> bool:
         return False
 
     return str(session_file_path).replace("\\", "/").endswith(expected_rel)
+
+
+def _normalize_read_fingerprint(value: str | None) -> str:
+    probe = str(value or "").strip()
+    if not probe:
+        return ""
+    normalized = probe.lower()
+    if FINGERPRINT_PATTERN.fullmatch(normalized):
+        return normalized
+    return probe
+
+
+def _normalize_relative_path(value: str) -> str:
+    normalized = str(value).strip().replace("\\", "/")
+    if not normalized:
+        raise ValueError("Pointer contains no session state file path")
+    if os.path.isabs(normalized):
+        raise ValueError("Pointer field 'activeSessionStateRelativePath' must be relative")
+
+    parts = [part for part in normalized.split("/") if part and part != "."]
+    if not parts or any(part == ".." for part in parts):
+        raise ValueError("Pointer field 'activeSessionStateRelativePath' must stay inside config root")
+    return "/".join(parts)
+

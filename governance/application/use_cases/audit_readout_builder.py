@@ -11,9 +11,13 @@ from typing import Any, Dict, Mapping, Optional, Tuple
 from governance.domain.audit_readout_contract import validate_audit_readout_v1
 from governance.domain.canonical_json import canonical_json_hash
 from governance.domain.operating_profile import derive_mode_evidence
+from governance.infrastructure.session_pointer import (
+    CANONICAL_POINTER_SCHEMA,
+    parse_session_pointer_document,
+    resolve_active_session_state_path,
+)
 
-POINTER_SCHEMA = "opencode-session-pointer.v1"
-_LEGACY_POINTER_SCHEMA = "active-session-pointer.v1"
+POINTER_SCHEMA = CANONICAL_POINTER_SCHEMA
 
 
 def _verify_repository_manifest_proxy(runs_dir: Path, *, expected_repo_fingerprint: str) -> Tuple[bool, Optional[str]]:
@@ -438,20 +442,8 @@ def build_audit_readout(
     if not pointer_path.exists():
         raise FileNotFoundError(f"No session pointer at {pointer_path}")
 
-    pointer = _read_json(pointer_path)
-    schema = str(pointer.get("schema") or "")
-    if schema not in {POINTER_SCHEMA, _LEGACY_POINTER_SCHEMA}:
-        raise ValueError(f"Unknown pointer schema: {schema}")
-
-    session_file_raw = pointer.get("activeSessionStateFile")
-    if not session_file_raw:
-        rel = pointer.get("activeSessionStateRelativePath")
-        if isinstance(rel, str) and rel:
-            session_file_raw = str(config_root / rel)
-    if not isinstance(session_file_raw, str) or not session_file_raw:
-        raise ValueError("Pointer contains no session state file path")
-
-    session_path = Path(session_file_raw)
+    pointer = parse_session_pointer_document(_read_json(pointer_path))
+    session_path = resolve_active_session_state_path(pointer, config_root=config_root)
     state_document = _read_json(session_path)
     state = _extract_state_view(state_document)
     active_effective_mode, active_resolved_mode, active_verify_policy_version = _extract_mode_fields(state)
