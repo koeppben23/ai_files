@@ -952,12 +952,17 @@ def _materialize_authoritative_state(*, commands_home: Path, config_root: Path, 
     # Fix 2.1: Also grant for stay-strategy phases that advertise a forward
     # next_token (e.g. Phase 5 stay → 5.3).  Without this, stay-strategy
     # phases can never transition because the evidence is never set.
+    # Fix 2.2: Normalise result.phase to a token before comparing so that
+    # stay-strategy self-loops (e.g. token "6" / phase "6-PostFlight") are
+    # correctly detected as *non*-forward and do not set evidence spuriously.
+    from governance.domain.phase_state_machine import normalize_phase_token as _npt
+    _phase_as_token = _npt(str(result.phase or ""))
     _has_forward_transition = (
         result.route_strategy == "next"
         or (
             result.route_strategy == "stay"
             and result.next_token
-            and str(result.next_token).strip() != str(result.phase or "").strip()
+            and str(result.next_token).strip() != _phase_as_token
         )
     )
     if result.status == "OK" and _has_forward_transition:

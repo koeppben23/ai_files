@@ -1352,42 +1352,54 @@ def execute(
         and not (persisted_token == "1.2" and workspace_ready)
     ):
         entry = spec.entries[persisted_token]
-        monotonic_next_token, _, monotonic_gate, monotonic_condition = _select_transition(
+        monotonic_next_token, monotonic_source, monotonic_gate, monotonic_condition = _select_transition(
             entry,
             state,
             plan_record_versions=plan_record_signal.versions,
         )
-        persisted_gate = monotonic_gate or entry.active_gate or runtime_ctx.requested_active_gate
-        persisted_condition = monotonic_condition or entry.next_gate_condition or runtime_ctx.requested_next_gate_condition
-        if entry.route_strategy == "next" and monotonic_next_token and monotonic_next_token in spec.entries and monotonic_gate is None:
-            next_entry = spec.entries[monotonic_next_token]
-            persisted_gate = next_entry.active_gate or persisted_gate
-        if entry.token == "5":
-            persisted_condition = _phase5_gate_condition(
-                entry=entry,
-                state=state,
-                plan_record_versions=plan_record_signal.versions,
+
+        # Spec-declared backward transition: the persisted phase's own
+        # transition table produced a next_token that matches the
+        # requested backward target (e.g. Phase 6 review_rejected → "4").
+        # Honour the spec rather than blocking the move.
+        if (
+            monotonic_next_token
+            and monotonic_next_token == requested_token
+            and _transition_has_evidence(state)
+        ):
+            chosen_token = requested_token
+        else:
+            persisted_gate = monotonic_gate or entry.active_gate or runtime_ctx.requested_active_gate
+            persisted_condition = monotonic_condition or entry.next_gate_condition or runtime_ctx.requested_next_gate_condition
+            if entry.route_strategy == "next" and monotonic_next_token and monotonic_next_token in spec.entries and monotonic_gate is None:
+                next_entry = spec.entries[monotonic_next_token]
+                persisted_gate = next_entry.active_gate or persisted_gate
+            if entry.token == "5":
+                persisted_condition = _phase5_gate_condition(
+                    entry=entry,
+                    state=state,
+                    plan_record_versions=plan_record_signal.versions,
+                    active_gate=persisted_gate,
+                    fallback=persisted_condition,
+                )
+            return KernelResult(
+                phase=entry.phase,
+                next_token=monotonic_next_token or persisted_token,
                 active_gate=persisted_gate,
-                fallback=persisted_condition,
+                next_gate_condition=_sanitize_ticket_progression(phase=entry.phase, next_gate_condition=persisted_condition),
+                workspace_ready=workspace_ready,
+                source="monotonic-session-phase",
+                status="OK",
+                spec_hash=spec.stable_hash,
+                spec_path=str(spec.path),
+                spec_loaded_at=spec.loaded_at,
+                log_paths={},
+                event_id=event_id,
+                route_strategy=entry.route_strategy,
+                plan_record_status=plan_record_signal.status,
+                plan_record_versions=plan_record_signal.versions,
+                transition_evidence_met=_transition_has_evidence(state),
             )
-        return KernelResult(
-            phase=entry.phase,
-            next_token=monotonic_next_token or persisted_token,
-            active_gate=persisted_gate,
-            next_gate_condition=_sanitize_ticket_progression(phase=entry.phase, next_gate_condition=persisted_condition),
-            workspace_ready=workspace_ready,
-            source="monotonic-session-phase",
-            status="OK",
-            spec_hash=spec.stable_hash,
-            spec_path=str(spec.path),
-            spec_loaded_at=spec.loaded_at,
-            log_paths={},
-            event_id=event_id,
-            route_strategy=entry.route_strategy,
-            plan_record_status=plan_record_signal.status,
-            plan_record_versions=plan_record_signal.versions,
-            transition_evidence_met=_transition_has_evidence(state),
-        )
 
     if requested_token and persisted_token and requested_token != persisted_token:
         allowed_next_tokens = {persisted_token}
