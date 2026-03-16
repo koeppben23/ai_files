@@ -808,6 +808,80 @@ class TestEndToEndPhaseFlow:
         assert result.source == "phase-exit-evidence-missing"
 
 
+@pytest.mark.governance
+class TestEndToEndBranchPaths:
+    """Few high-value E2E paths that cover branch semantics, not only single hops."""
+
+    def test_standard_path_without_business_rules_branch(self, tmp_path: Path) -> None:
+        """2.1 uses default -> 3A when business-rules discovery is already resolved."""
+        r21 = _exec(
+            tmp_path,
+            token="2.1",
+            Phase="2.1-DecisionPack",
+            BusinessRules={"ExecutionEvidence": True, "Outcome": "extracted"},
+        )
+        assert r21.phase == "3A-API-Inventory"
+        assert r21.source == "phase-2.1-to-3a"
+
+    def test_business_rules_branch_path_routes_via_phase15(self, tmp_path: Path) -> None:
+        """2.1 -> 1.5 when unresolved, then 1.5 default -> 3A."""
+        r21 = _exec(tmp_path, token="2.1", Phase="2.1-DecisionPack")
+        assert r21.phase == "1.5-BusinessRules"
+        assert r21.source == "phase-1.5-routing-required"
+
+        r15 = _exec(
+            tmp_path,
+            token="1.5",
+            Phase="1.5-BusinessRules",
+            BusinessRules={"Inventory": {"sha256": "abc"}},
+        )
+        assert r15.phase == "3A-API-Inventory"
+        assert r15.source == "phase-1.5-to-3a"
+
+    def test_api_inventory_path_without_apis_skips_to_phase4(self, tmp_path: Path) -> None:
+        """3A no_apis specific transition sends flow directly to Phase 4."""
+        r3a = _exec(
+            tmp_path,
+            token="3A",
+            Phase="3A-API-Inventory",
+            APIInventory={"Status": "not-applicable"},
+        )
+        assert r3a.phase == "4"
+        assert r3a.source == "phase-3a-not-applicable-to-phase4"
+
+    def test_api_inventory_path_with_apis_continues_to_3b_chain(self, tmp_path: Path) -> None:
+        """3A default transition sends flow to 3B-1 when APIs are in scope."""
+        r3a = _exec(
+            tmp_path,
+            token="3A",
+            Phase="3A-API-Inventory",
+            AddonsEvidence={"openapi": {"detected": True}},
+            APIInventory={"Status": "completed"},
+        )
+        assert r3a.phase == "3B-1"
+        assert r3a.source == "phase-3a-to-3b1"
+
+    def test_review_rejected_back_edge_routes_from_phase6_to_phase4(self, tmp_path: Path) -> None:
+        """Reject decision emits the explicit 6->4 back-edge from canonical matrix."""
+        r6 = _exec(
+            tmp_path,
+            token="6",
+            Phase="6-PostFlight",
+            active_gate="Evidence Presentation Gate",
+            ActiveGate="Evidence Presentation Gate",
+            UserReviewDecision={"decision": "reject"},
+            phase_transition_evidence=True,
+            Gates={
+                "P5-Architecture": "approved",
+                "P5.3-TestQuality": "pass",
+                "P5.5-TechnicalDebt": "approved",
+            },
+        )
+        assert r6.status == "OK"
+        assert r6.next_token == "4"
+        assert r6.source == "phase-6-rejected-to-phase4"
+
+
 # ────────────────────────────────────────────────────────────────────
 # 2 — Run-Lifecycle Reset (new_work_session entrypoint)
 # ────────────────────────────────────────────────────────────────────
