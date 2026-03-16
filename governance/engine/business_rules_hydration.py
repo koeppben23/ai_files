@@ -100,6 +100,7 @@ class CodeExtractionCounters:
     dropped_schema_only_count: int = 0
     dropped_non_executable_normative_text_count: int = 0
     accepted_business_enforcement_count: int = 0
+    rejected_non_business_subject_count: int = 0
 
     def __post_init__(self) -> None:
         if self.raw_candidate_count != self.dropped_candidate_count + self.candidate_count:
@@ -123,6 +124,7 @@ class CodeExtractionCounters:
             "dropped_schema_only_count": self.dropped_schema_only_count,
             "dropped_non_executable_normative_text_count": self.dropped_non_executable_normative_text_count,
             "accepted_business_enforcement_count": self.accepted_business_enforcement_count,
+            "rejected_non_business_subject_count": self.rejected_non_business_subject_count,
         }
 
 
@@ -197,6 +199,7 @@ def _build_code_extraction_counters(report_map: Mapping[str, Any]) -> CodeExtrac
     dropped_schema_only_count = max(_parse_int(str(report_map.get("dropped_schema_only_count", 0))), 0)
     dropped_non_executable_normative_text_count = max(_parse_int(str(report_map.get("dropped_non_executable_normative_text_count", 0))), 0)
     accepted_business_enforcement_count = max(_parse_int(str(report_map.get("accepted_business_enforcement_count", 0))), 0)
+    rejected_non_business_subject_count = max(_parse_int(str(report_map.get("rejected_non_business_subject_count", 0))), 0)
 
     return CodeExtractionCounters(
         raw_candidate_count=raw_candidate_count,
@@ -208,6 +211,7 @@ def _build_code_extraction_counters(report_map: Mapping[str, Any]) -> CodeExtrac
         dropped_schema_only_count=dropped_schema_only_count,
         dropped_non_executable_normative_text_count=dropped_non_executable_normative_text_count,
         accepted_business_enforcement_count=accepted_business_enforcement_count,
+        rejected_non_business_subject_count=rejected_non_business_subject_count,
     )
 
 

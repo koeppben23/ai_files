@@ -663,9 +663,14 @@ def extract_code_rule_candidates_with_diagnostics(repo_root: Path) -> tuple[Code
             has_business_context = _has_real_business_domain_context(line, anchor, semantic_type)
             is_executable_evidence = _is_executable_enforcement_evidence(surface_kind, line)
             
+            # Check for schema-only content
+            is_schema_only = surface_kind == SURFACE_KIND_SCHEMA_CONFIG
+            
             # Determine final status based on all criteria
             final_status = status  # Keep original if not overridden by our checks
-            if not is_business_domain:
+            if is_schema_only and not has_business_context:
+                final_status = DISCOVERY_DROPPED_SCHEMA_ONLY
+            elif not is_business_domain:
                 final_status = DISCOVERY_DROPPED_NON_BUSINESS_SURFACE
             elif not has_real_enforcement:
                 final_status = DISCOVERY_DROPPED_MISSING_ANCHOR
