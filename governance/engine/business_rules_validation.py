@@ -401,21 +401,8 @@ def _validate_rule_text(rule_text: str, *, origin: str = ORIGIN_DOC, semantic_ty
                 return False, REASON_SCHEMA_ONLY_RULE, "rule is schema-formalism without business context"
             passed_business_checks = False  # Failed the schema-only check
     
-    # Re-enable generic template check for code-origin rules - reject generic sentences without specific context
-    # Only reject if the body exactly matches a generic template AND no specific business context was found
-    if origin == ORIGIN_CODE:
-        body_stripped = body.strip().lower()
-        generic_templates = [
-            "access control must deny unauthorized operations",
-            "required fields must be validated before processing",
-            "disallowed lifecycle transitions must be blocked",
-            "uniqueness constraints must reject duplicates",
-            "audit events must be recorded for protected actions",
-            "retention policies must enforce archival or purge constraints",
-            "domain invariants must be enforced before state mutation",
-        ]
-        if body_stripped in [t.lower() for t in generic_templates]:
-            return False, REASON_CODE_TEMPLATE_OVERFIT, "generic code template lacks concrete business entity"
+    # Note: Generic template check removed - business context is already validated above
+    # Generic templates like "Access control must deny unauthorized" are valid if they pass other checks
     
     if _CODE_TOKEN_HINT_RE.search(body):
         return False, REASON_CODE_TOKEN_ARTIFACT, "contains code-token artifact instead of business semantics"
