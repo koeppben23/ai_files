@@ -679,24 +679,6 @@ def extract_code_rule_candidates_with_diagnostics(repo_root: Path) -> tuple[Code
             elif not is_executable_evidence:
                 final_status = DISCOVERY_DROPPED_NON_EXECUTABLE_NORMATIVE_TEXT
             
-            outcome = CodeDiscoveryOutcome(
-                path=surface.path,
-                language=surface.language,
-                line_start=line_no,
-                status=final_status,
-                source_text=line,
-                evidence_snippet=evidence_snippet[:220],
-                enforcement_anchor_type=anchor,
-                semantic_type=semantic_type,
-                evidence_kind="executable_code" if (is_business_domain and has_real_enforcement and has_business_context and is_executable_evidence) else "other"
-            )
-            outcomes.append(outcome)
-
-            if final_status != DISCOVERY_ACCEPTED:
-                continue
-
-            semantic_probe = _semantic_probe(split_lines, line_no - 1, evidence_line)
-            sentence = _render_contextual_sentence(semantic_type, semantic_probe, surface.path)
             # Determine evidence_kind with finer categories
             if is_business_domain and has_real_enforcement and has_business_context and is_executable_evidence:
                 evidence_kind_val = "executable_code"
@@ -712,6 +694,25 @@ def extract_code_rule_candidates_with_diagnostics(repo_root: Path) -> tuple[Code
                 evidence_kind_val = "meta"
             else:
                 evidence_kind_val = "other"
+            
+            outcome = CodeDiscoveryOutcome(
+                path=surface.path,
+                language=surface.language,
+                line_start=line_no,
+                status=final_status,
+                source_text=line,
+                evidence_snippet=evidence_snippet[:220],
+                enforcement_anchor_type=anchor,
+                semantic_type=semantic_type,
+                evidence_kind=evidence_kind_val
+            )
+            outcomes.append(outcome)
+
+            if final_status != DISCOVERY_ACCEPTED:
+                continue
+
+            semantic_probe = _semantic_probe(split_lines, line_no - 1, evidence_line)
+            sentence = _render_contextual_sentence(semantic_type, semantic_probe, surface.path)
             candidates.append(
                 CodeRuleCandidate(
                     text=_candidate_text(idx, sentence),
