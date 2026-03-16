@@ -14,6 +14,16 @@ _LEGACY_OUTCOMES = {"not-applicable", "deferred", "skipped"}
 _ACCEPTED_OUTCOMES = _CANONICAL_OUTCOMES | _LEGACY_OUTCOMES
 POINTER_AS_SESSION_STATE_ERROR = "SESSION_STATE_POINTER_PASSED_AS_SESSION_STATE"
 
+_DISCOVERY_OUTCOME_STATUSES = {
+    "accepted_for_validation",
+    "dropped_technical_artifact",
+    "dropped_missing_enforcement_anchor",
+    "dropped_missing_business_semantics",
+    "dropped_non_business_surface",
+    "dropped_schema_only",
+    "dropped_non_executable_normative_text",
+}
+
 
 def _parse_bool(token: str) -> bool:
     value = token.strip().lower()
@@ -83,6 +93,65 @@ def _truthy(value: object, *, default: bool = False) -> bool:
     return _parse_bool(str(value))
 
 
+def _aggregate_discovery_outcome_counts(
+    discovery_outcomes: list[dict[str, Any]] | tuple[dict[str, Any], ...] | None,
+) -> dict[str, int]:
+    """Aggregate outcome counts from discovery_outcomes list.
+    
+    This is the SSOT for deriving diagnostic counts from raw discovery outcomes.
+    Returns a dict with aggregated counts for each outcome category.
+    """
+    if not discovery_outcomes:
+        return {
+            "raw_candidate_count": 0,
+            "dropped_candidate_count": 0,
+            "dropped_non_business_surface_count": 0,
+            "dropped_schema_only_count": 0,
+            "dropped_non_executable_normative_text_count": 0,
+            "dropped_technical_artifact_count": 0,
+            "dropped_missing_enforcement_anchor_count": 0,
+            "dropped_missing_business_semantics_count": 0,
+            "accepted_for_validation_count": 0,
+        }
+    
+    counts: dict[str, int] = {
+        "raw_candidate_count": 0,
+        "dropped_candidate_count": 0,
+        "dropped_non_business_surface_count": 0,
+        "dropped_schema_only_count": 0,
+        "dropped_non_executable_normative_text_count": 0,
+        "dropped_technical_artifact_count": 0,
+        "dropped_missing_enforcement_anchor_count": 0,
+        "dropped_missing_business_semantics_count": 0,
+        "accepted_for_validation_count": 0,
+    }
+    
+    status_mapping = {
+        "dropped_non_business_surface": "dropped_non_business_surface_count",
+        "dropped_schema_only": "dropped_schema_only_count",
+        "dropped_non_executable_normative_text": "dropped_non_executable_normative_text_count",
+        "dropped_technical_artifact": "dropped_technical_artifact_count",
+        "dropped_missing_enforcement_anchor": "dropped_missing_enforcement_anchor_count",
+        "dropped_missing_business_semantics": "dropped_missing_business_semantics_count",
+        "accepted_for_validation": "accepted_for_validation_count",
+    }
+    
+    for outcome in discovery_outcomes:
+        if not isinstance(outcome, dict):
+            continue
+        status = str(outcome.get("status", "")).strip()
+        counts["raw_candidate_count"] += 1
+        
+        if status != "accepted_for_validation":
+            counts["dropped_candidate_count"] += 1
+        
+        count_key = status_mapping.get(status)
+        if count_key:
+            counts[count_key] += 1
+    
+    return counts
+
+
 def _build_report_sha(report: Mapping[str, Any]) -> str:
     payload = json.dumps(report, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
@@ -103,11 +172,19 @@ class CodeExtractionCounters:
     rejected_non_business_subject_count: int = 0
 
     def __post_init__(self) -> None:
-        if self.raw_candidate_count != self.dropped_candidate_count + self.candidate_count:
-            raise ValueError("raw_candidate_count must equal dropped_candidate_count + candidate_count")
-        if self.candidate_count != self.validated_code_rule_count + self.invalid_code_candidate_count:
+        # Hard invariant: dropped + candidate must equal raw
+        computed_dropped = self.raw_candidate_count - self.candidate_count
+        if self.dropped_candidate_count != computed_dropped:
             raise ValueError(
-                "candidate_count must equal validated_code_rule_count + invalid_code_candidate_count"
+                f"dropped_candidate_count ({self.dropped_candidate_count}) must equal "
+                f"raw_candidate_count ({self.raw_candidate_count}) - candidate_count ({self.candidate_count}) = {computed_dropped}"
+            )
+        # Hard invariant: validated + invalid must equal candidate
+        computed_validated = self.candidate_count - self.invalid_code_candidate_count
+        if self.validated_code_rule_count != computed_validated:
+            raise ValueError(
+                f"validated_code_rule_count ({self.validated_code_rule_count}) must equal "
+                f"candidate_count ({self.candidate_count}) - invalid_code_candidate_count ({self.invalid_code_candidate_count}) = {computed_validated}"
             )
 
     def to_report_fields(self) -> dict[str, int]:
@@ -131,6 +208,10 @@ class CodeExtractionCounters:
 def _build_code_extraction_counters(report_map: Mapping[str, Any]) -> CodeExtractionCounters:
     candidate_count_keys = ("candidate_count", "code_candidate_count")
     validated_count_keys = ("validated_code_rule_count", "code_valid_rule_count")
+
+    outcome_counts = _aggregate_discovery_outcome_counts(
+        report_map.get("discovery_outcomes") or []
+    )
 
     candidate_count_provided = any(key in report_map for key in candidate_count_keys)
     validated_code_rule_count_provided = any(key in report_map for key in validated_count_keys)
@@ -184,22 +265,74 @@ def _build_code_extraction_counters(report_map: Mapping[str, Any]) -> CodeExtrac
     if candidate_count != validated_code_rule_count + invalid_code_candidate_count:
         candidate_count = validated_code_rule_count + invalid_code_candidate_count
 
-    dropped_candidate_count = max(_parse_int(str(report_map.get("dropped_candidate_count", 0))), 0)
+    # Use aggregated outcome counts as primary source when discovery_outcomes is present
+    # Explicit report_map values take precedence for backward compatibility
+    has_discovery_outcomes = bool(report_map.get("discovery_outcomes"))
+    
+    dropped_candidate_count = max(
+        _parse_int(str(report_map.get("dropped_candidate_count", outcome_counts.get("dropped_candidate_count", 0)))), 0
+    )
     raw_candidate_count = max(
-        _parse_int(str(report_map.get("raw_candidate_count", candidate_count + dropped_candidate_count))),
+        _parse_int(str(report_map.get("raw_candidate_count", outcome_counts.get("raw_candidate_count", 0)))),
         0,
     )
-    if raw_candidate_count_provided and not dropped_candidate_count_provided:
-        dropped_candidate_count = max(raw_candidate_count - candidate_count, 0)
-    if raw_candidate_count != dropped_candidate_count + candidate_count:
-        raw_candidate_count = dropped_candidate_count + candidate_count
+    
+    # When discovery_outcomes is provided, use aggregated counts as SSOT
+    if has_discovery_outcomes and outcome_counts.get("raw_candidate_count", 0) > 0:
+        raw_candidate_count = outcome_counts.get("raw_candidate_count", raw_candidate_count)
+        dropped_candidate_count = outcome_counts.get("dropped_candidate_count", dropped_candidate_count)
+        # candidate_count is derived from accepted_for_validation
+        if outcome_counts.get("accepted_for_validation_count", 0) > 0:
+            candidate_count = outcome_counts.get("accepted_for_validation_count", candidate_count)
+    elif not has_discovery_outcomes:
+        # Backward compatibility: reconcile inconsistent counts when no discovery_outcomes
+        if raw_candidate_count != dropped_candidate_count + candidate_count:
+            raw_candidate_count = dropped_candidate_count + candidate_count
     
     # Diagnostic fields for tightened business rule extraction
-    dropped_non_business_surface_count = max(_parse_int(str(report_map.get("dropped_non_business_surface_count", 0))), 0)
-    dropped_schema_only_count = max(_parse_int(str(report_map.get("dropped_schema_only_count", 0))), 0)
-    dropped_non_executable_normative_text_count = max(_parse_int(str(report_map.get("dropped_non_executable_normative_text_count", 0))), 0)
-    accepted_business_enforcement_count = max(_parse_int(str(report_map.get("accepted_business_enforcement_count", 0))), 0)
+    # When discovery_outcomes is present, use aggregated counts as SSOT (hard precedence)
+    # report_map values only used as fallback when no discovery_outcomes
+    if has_discovery_outcomes and outcome_counts.get("raw_candidate_count", 0) > 0:
+        # SSOT: aggregated outcome counts take hard precedence
+        dropped_non_business_surface_count = outcome_counts.get("dropped_non_business_surface_count", 0)
+        dropped_schema_only_count = outcome_counts.get("dropped_schema_only_count", 0)
+        dropped_non_executable_normative_text_count = outcome_counts.get("dropped_non_executable_normative_text_count", 0)
+        accepted_business_enforcement_count = outcome_counts.get("accepted_for_validation_count", 0)
+    else:
+        # Fallback to report_map values when no discovery_outcomes
+        dropped_non_business_surface_count = max(
+            _parse_int(str(report_map.get("dropped_non_business_surface_count", 0))), 0
+        )
+        dropped_schema_only_count = max(
+            _parse_int(str(report_map.get("dropped_schema_only_count", 0))), 0
+        )
+        dropped_non_executable_normative_text_count = max(
+            _parse_int(str(report_map.get("dropped_non_executable_normative_text_count", 0))), 0
+        )
+        accepted_business_enforcement_count = max(
+            _parse_int(str(report_map.get("accepted_business_enforcement_count", 0))), 0
+        )
+    
+    # rejected_non_business_subject_count comes from validation, not discovery
+    # It tracks code candidates rejected during validation phase
     rejected_non_business_subject_count = max(_parse_int(str(report_map.get("rejected_non_business_subject_count", 0))), 0)
+
+    # SSOT invariant validation: when discovery_outcomes present, reconcile all counts
+    if has_discovery_outcomes and outcome_counts.get("raw_candidate_count", 0) > 0:
+        # The aggregated counts take precedence - reconcile all related values
+        raw_candidate_count = outcome_counts.get("raw_candidate_count", raw_candidate_count)
+        dropped_candidate_count = outcome_counts.get("dropped_candidate_count", dropped_candidate_count)
+        candidate_count = outcome_counts.get("accepted_for_validation_count", candidate_count)
+        
+        # When using aggregated outcomes, assume all candidates are initially valid
+        # (validation phase determines actual validity later)
+        if validated_code_rule_count_provided:
+            # Keep explicit validated count if provided
+            pass
+        else:
+            # Default: all discovered candidates are valid until validation proves otherwise
+            validated_code_rule_count = candidate_count
+            invalid_code_candidate_count = 0
 
     return CodeExtractionCounters(
         raw_candidate_count=raw_candidate_count,
