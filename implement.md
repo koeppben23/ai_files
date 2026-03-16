@@ -5,13 +5,13 @@
 ## Purpose
 
 `/implement` starts execution of the approved implementation plan after approved Phase 6 governance review.
-The command is mutating. It orchestrates the authorized implementation executor and writes governance diagnostics/state.
+The command is mutating. It orchestrates the resolved implementation executor (default: active OpenCode Desktop LLM binding; optional explicit override) and writes governance diagnostics/state.
 
-`/implement` follows a controller/executor split:
+`/implement` follows a controller/executor split (default executor: active OpenCode Desktop LLM binding):
 - load approved plan, hotspots, constraints, and required checks
 - write executor input context (`.governance/implementation/llm_edit_context.json`)
 - resolve executor in priority order: explicit override first, otherwise active OpenCode Desktop LLM binding
-- invoke the resolved authorized executor (the only actor allowed to change domain files)
+- invoke the resolved implementation executor (the only actor allowed to change domain files)
 - run internal implementation self-review (validation-only; no local domain edits)
 - collect git diff evidence and validate plan-coverage plus targeted checks
 - persist validation/audit evidence and fail closed when requirements are not met
