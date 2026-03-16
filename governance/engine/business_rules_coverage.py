@@ -24,6 +24,14 @@ TOKEN_ARTIFACT_SPIKE_THRESHOLD = 0.15
 MIN_SEMANTIC_DIVERSITY_SCORE = 0.30
 MIN_SURFACE_BALANCE_SCORE = 0.25
 
+# Block D: Missing surface reason constants
+MISSING_SURFACE_REASONS = {
+    "missing": "no evidence exists for expected surface",
+    "filtered_non_business": "evidence existed but filtered as non-business/meta",
+    "unsupported_surface": "surface type not supported by extraction",
+    "insufficient_business_context": "evidence exists but lacks business context",
+}
+
 VALIDATION_DOMINATES_COVERAGE_REASON_CODES = frozenset(
     {
         "BUSINESS_RULES_RENDER_MISMATCH",
@@ -69,6 +77,8 @@ class CodeExtractionCoverage:
     dropped_non_executable_normative_text_count: int = 0
     accepted_business_enforcement_count: int = 0
     rejected_non_business_subject_count: int = 0
+    # Block D: Causal reasoning for missing surfaces
+    missing_surface_reasons: tuple[str, ...] = ()
 
 
 def evaluate_code_extraction_coverage(
@@ -107,6 +117,11 @@ def evaluate_code_extraction_coverage(
     expected_types = {"validator", "permissions", "workflow"}
     for expected in ("validator", "permissions", "workflow"):
         if expected not in present_types and scanned_file_count > 0:
+            missing_expected_surfaces.append(expected)
+    
+    # Also track missing when extraction ran but found no surfaces
+    if scanned_file_count == 0 and extraction_ran:
+        for expected in ("validator", "permissions", "workflow"):
             missing_expected_surfaces.append(expected)
 
     # Fail-closed in sensible coverage scenarios:
@@ -177,6 +192,37 @@ def evaluate_code_extraction_coverage(
     if quality_reasons and RC_CODE_QUALITY_INSUFFICIENT not in reasons:
         reasons.append(RC_CODE_QUALITY_INSUFFICIENT)
 
+    # Block D: Compute causal reasons for missing surfaces
+    missing_surface_reasons: list[str] = []
+    if missing_expected_surfaces:
+        # Determine cause based on what was scanned vs what's missing
+        if scanned_file_count == 0:
+            # No surfaces scanned at all - everything is missing
+            for surface in missing_expected_surfaces:
+                missing_surface_reasons.append(f"{surface}: missing")
+        else:
+            # Some surfaces exist - determine why others are missing
+            for surface in missing_expected_surfaces:
+                # Check if we have any surfaces that could be business-related
+                business_related_surfaces = {
+                    s for s in scanned_surfaces 
+                    if s.surface_type in {"validator", "permissions", "workflow", "validation"}
+                }
+                
+                # Check diagnostic counts for filtering reasons
+                if dropped_non_business_surface_count > 0 or dropped_schema_only_count > 0:
+                    # Evidence existed but was filtered
+                    missing_surface_reasons.append(f"{surface}: filtered_non_business")
+                elif rejected_non_business_subject_count > 0:
+                    # Evidence existed but rejected due to non-business context
+                    missing_surface_reasons.append(f"{surface}: insufficient_business_context")
+                elif len(business_related_surfaces) == 0:
+                    # No business-related surfaces found at all
+                    missing_surface_reasons.append(f"{surface}: missing")
+                else:
+                    # Surface type not found but other business surfaces exist
+                    missing_surface_reasons.append(f"{surface}: unsupported_surface")
+
     if not extraction_ran:
         quality_grade = "fail"
     elif RC_CODE_QUALITY_INSUFFICIENT in reasons or RC_CODE_COVERAGE_INSUFFICIENT in reasons:
@@ -213,6 +259,8 @@ def evaluate_code_extraction_coverage(
         dropped_non_executable_normative_text_count=dropped_non_executable_normative_text_count,
         accepted_business_enforcement_count=accepted_business_enforcement_count,
         rejected_non_business_subject_count=rejected_non_business_subject_count,
+        # Block D: Causal reasoning for missing surfaces
+        missing_surface_reasons=tuple(missing_surface_reasons),
     )
 
 
