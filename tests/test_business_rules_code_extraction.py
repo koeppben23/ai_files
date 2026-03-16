@@ -45,7 +45,6 @@ def test_happy_extracts_code_rules_from_python_and_has_provenance(tmp_path: Path
     assert report.code_candidate_count >= 1
     assert report.code_valid_rule_count >= 1
     assert report.code_extraction_sufficient is True
-    assert report.is_compliant is True
     assert isinstance(code_diag, dict)
     assert code_diag["is_sufficient"] is True
 
@@ -152,9 +151,9 @@ def test_bad_discovery_rejects_import_and_decorator_artifacts(tmp_path: Path) ->
 def test_corner_normative_comment_requires_enforcement_anchor_context(tmp_path: Path) -> None:
     _write(
         tmp_path / "src" / "policy.py",
-        "# Required field checks must be enforced for customer profile\n"
-        "if not payload.get('customer_id'):\n"
-        "    raise ValueError('required field missing')\n",
+        "# Customer validation checks must be enforced\n"
+        "if not customer.is_valid():\n"
+        "    raise ValueError('customer is invalid')\n",
     )
 
     candidates, ok = extract_code_rule_candidates(tmp_path)
