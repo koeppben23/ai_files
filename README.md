@@ -108,7 +108,7 @@ opencode-governance-bootstrap --set-operating-mode solo --repo-root /path/to/rep
 4. At Phase 6 Evidence Presentation Gate, run `/review-decision <approve|changes_requested|reject>` (for example `/review-decision approve`).
 5. If you choose `changes_requested`, the workflow enters `Rework Clarification Gate`; clarify requested changes in chat first, then run exactly one directed rail (`/ticket`, `/plan`, or `/continue`).
 6. If you choose `reject`, the workflow returns to Phase 4 Ticket Input Gate; primary next action is `/ticket` with updated scope (alternative: `/review` for read-only feedback).
-7. If you choose `approve`, run `/implement` to persist the governance-to-implementation handoff before starting repository changes.
+7. If you choose `approve`, run `/implement` to start authorized implementation execution (default executor: active OpenCode Desktop LLM; optional override executor supported).
 
 ## Docs and troubleshooting
 

@@ -21,7 +21,7 @@ For backend-java behavior, this profile governs stack-specific rules and activat
 ## Phase integration (binding)
 
 - Phase 2: discover stack/tooling conventions and addon requirements.
-- Phase 4: apply profile + required templates/addons for implementation planning/execution.
+- Phase 4: apply profile + required templates/addons for ticket intake and planning artifacts.
 - Phase 5/6: verify evidence-backed architecture/test/business/rollback quality gates.
 
 ### Phase 1.5: Business Rules Discovery

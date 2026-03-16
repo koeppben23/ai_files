@@ -168,7 +168,7 @@ Data sources merged below:
 | Code | Description | Remediation |
 |------|-------------|-------------|
 | `BLOCKED-MISSING-CORE-RULES` | Core rules file (`rules.md`) could not be loaded. | Restore `rules.md` at the expected governance path. Run installer repair if needed. |
-| `BLOCKED-RULEBOOK-LOAD-FAILED` | Core rulebook load failed at Phase 4 entry. | Verify `rules.md` exists and is readable. Run `/continue` to retry. |
+| `BLOCKED-RULEBOOK-LOAD-FAILED` | Core rulebook load failed in the Rulebook-Load pre-planning activation path (Phase 1.3). | Verify `rules.md` exists and is readable. Run `/continue` to retry. |
 | `BLOCKED-MISSING-RULEBOOK` | Unresolved top-tier rulebook file blocks activation. | Install or restore the missing rulebook at `${COMMANDS_HOME}/` or `${PROFILES_HOME}/`. |
 | `BLOCKED-MISSING-PROFILE` | Required active profile is missing and cannot be resolved. | Select a valid profile or provide profile evidence. Run `/continue`. |
 | `BLOCKED-AMBIGUOUS-PROFILE` | Profile resolution is non-deterministic due to ambiguity. | Select a profile from the ranked shortlist explicitly. |
