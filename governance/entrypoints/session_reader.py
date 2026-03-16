@@ -598,7 +598,7 @@ def _sync_conditional_p5_gate_states(*, state_doc: dict) -> None:
             "gap-detected",
         }:
             gates["P5.4-BusinessRules"] = p54_eval.status
-    if p54_eval.status not in {"compliant", "compliant-with-exceptions", "not-applicable"}:
+    if p54_eval.status not in {"compliant", "compliant-with-exceptions", "not-applicable", "gap-detected"}:
         if str(state.get("phase5_completed") or "").strip().lower() in {"true", "1"} or state.get("phase5_completed") is True:
             state["phase5_completed"] = False
             state["phase5_state"] = "phase5-in-progress"
@@ -676,7 +676,7 @@ def _normalize_phase6_p5_state(*, state_doc: dict, events_path: Path | None = No
             session_state=state,
             phase_1_5_executed=True,
         )
-        if p54_eval.status not in {"compliant", "compliant-with-exceptions", "not-applicable"}:
+    if p54_eval.status not in {"compliant", "compliant-with-exceptions", "not-applicable", "gap-detected"}:
             if "P5.4-BusinessRules" not in open_gates:
                 open_gates.append("P5.4-BusinessRules")
                 _order = {gate: idx for idx, gate in enumerate(P5_GATE_PRIORITY_ORDER)}
@@ -940,7 +940,18 @@ def _materialize_authoritative_state(*, commands_home: Path, config_root: Path, 
     # evaluates a forward transition (Fix 2.0 / Ergänzung C).
     # This prevents /continue self-loops where evidence stays False
     # because only bootstrap_preflight used to set it.
-    if result.status == "OK" and result.route_strategy == "next":
+    # Fix 2.1: Also grant for stay-strategy phases that advertise a forward
+    # next_token (e.g. Phase 5 stay → 5.3).  Without this, stay-strategy
+    # phases can never transition because the evidence is never set.
+    _has_forward_transition = (
+        result.route_strategy == "next"
+        or (
+            result.route_strategy == "stay"
+            and result.next_token
+            and str(result.next_token).strip() != str(result.phase or "").strip()
+        )
+    )
+    if result.status == "OK" and _has_forward_transition:
         ss = materialized.get("SESSION_STATE")
         if isinstance(ss, dict):
             ss["phase_transition_evidence"] = True
