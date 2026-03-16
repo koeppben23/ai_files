@@ -196,6 +196,23 @@ def _parse_changed_files_from_git_status(repo_root: Path) -> list[str]:
     return sorted(set(changed_files))
 
 
+def _has_active_desktop_llm_binding() -> bool:
+    if str(os.environ.get("OPENCODE") or "").strip() == "1":
+        return True
+    binding_tokens = (
+        "OPENCODE_MODEL",
+        "OPENCODE_MODEL_ID",
+        "OPENCODE_MODEL_PROVIDER",
+        "OPENCODE_MODEL_CONTEXT_LIMIT",
+        "OPENCODE_CLIENT_MODEL",
+        "OPENCODE_CLIENT_PROVIDER",
+    )
+    for key in binding_tokens:
+        if str(os.environ.get(key) or "").strip():
+            return True
+    return False
+
+
 def _run_llm_edit_step(
     *,
     repo_root: Path,
@@ -235,8 +252,7 @@ def _run_llm_edit_step(
     _write_text_atomic(context_file, json.dumps(context, ensure_ascii=True, indent=2) + "\n")
 
     if not executor_cmd:
-        in_opencode_session = str(os.environ.get("OPENCODE") or "").strip() == "1"
-        if in_opencode_session:
+        if _has_active_desktop_llm_binding():
             changed_files = _parse_changed_files_from_git_status(repo_root)
             _write_text_atomic(stdout_file, "Using current OpenCode LLM session as implementation executor.\n")
             _write_text_atomic(stderr_file, "")
@@ -255,7 +271,7 @@ def _run_llm_edit_step(
             "executor_invoked": False,
             "exit_code": 2,
             "reason_code": RC_EXECUTOR_NOT_CONFIGURED,
-            "message": "Set OPENCODE_IMPLEMENT_LLM_CMD to execute LLM-based repository edits.",
+            "message": "No implementation executor binding available. Set OPENCODE_IMPLEMENT_LLM_CMD or run with an active OpenCode Desktop LLM binding.",
             "stdout_path": str(stdout_file),
             "stderr_path": str(stderr_file),
             "changed_files": [],
