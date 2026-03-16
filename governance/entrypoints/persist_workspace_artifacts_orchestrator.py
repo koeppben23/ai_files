@@ -1096,10 +1096,18 @@ def _render_business_rules_status(
     invalid_code_candidate_count: int = 0,
     code_token_artifact_count: int = 0,
     template_overfit_count: int = 0,
+    dropped_non_business_surface_count: int = 0,
+    dropped_schema_only_count: int = 0,
+    dropped_non_executable_normative_text_count: int = 0,
+    accepted_business_enforcement_count: int = 0,
+    rejected_non_business_subject_count: int = 0,
     coverage_quality_grade: str = "unknown",
     surface_balance_score: float = 0.0,
     semantic_diversity_score: float = 0.0,
+    post_drop_valid_ratio: float = 0.0,
+    executable_business_rule_ratio: float = 0.0,
     quality_insufficiency_reasons: list[str] | None = None,
+    missing_surface_reasons: list[str] | None = None,
     report_sha: str = "",
     has_signal: bool = False,
 ) -> str:
@@ -1113,6 +1121,8 @@ def _render_business_rules_status(
     missing_surfaces_token = ", ".join(missing_code_surfaces) if missing_code_surfaces else "none"
     quality_insufficiency_reasons = quality_insufficiency_reasons or []
     quality_reason_token = ", ".join(quality_insufficiency_reasons) if quality_insufficiency_reasons else "none"
+    missing_surface_reasons = missing_surface_reasons or []
+    missing_surface_token = ", ".join(missing_surface_reasons) if missing_surface_reasons else "none"
     lines = [
         f"# Business Rules Status - {repo_name}",
         "",
@@ -1142,10 +1152,18 @@ def _render_business_rules_status(
         f"InvalidCodeCandidateCount: {invalid_code_candidate_count}",
         f"CodeTokenArtifactCount: {code_token_artifact_count}",
         f"TemplateOverfitCount: {template_overfit_count}",
+        f"DroppedNonBusinessSurfaceCount: {dropped_non_business_surface_count}",
+        f"DroppedSchemaOnlyCount: {dropped_schema_only_count}",
+        f"DroppedNonExecutableNormativeTextCount: {dropped_non_executable_normative_text_count}",
+        f"AcceptedBusinessEnforcementCount: {accepted_business_enforcement_count}",
+        f"RejectedNonBusinessSubjectCount: {rejected_non_business_subject_count}",
         f"CoverageQualityGrade: {coverage_quality_grade}",
         f"SurfaceBalanceScore: {surface_balance_score}",
         f"SemanticDiversityScore: {semantic_diversity_score}",
+        f"PostDropValidRatio: {post_drop_valid_ratio}",
+        f"ExecutableBusinessRuleRatio: {executable_business_rule_ratio}",
         f"QualityInsufficiencyReasons: {quality_reason_token}",
+        f"MissingSurfaceReasons: {missing_surface_token}",
         f"ReportSha: {report_sha or ('0' * 64)}",
         f"HasSignal: {'true' if has_signal else 'false'}",
     ]
@@ -1974,6 +1992,10 @@ def main() -> int:
         payload_quality_reasons = code_extraction_payload.get("quality_insufficiency_reasons", [])
         if isinstance(payload_quality_reasons, list) and payload_quality_reasons:
             effective_quality_insufficiency = True
+    # Do not fail extraction on advisory-only quality signals when validation is
+    # otherwise clean and no blocking reason codes remain.
+    if not severe_validation_failure and not combined_reason_codes:
+        effective_quality_insufficiency = False
     report_input: dict[str, object] = {
         "is_compliant": bool(extraction_report.is_compliant and render_report.is_compliant),
         "has_invalid_rules": extraction_report.has_invalid_rules,
@@ -2010,6 +2032,31 @@ def main() -> int:
         report_input["surface_balance_score"] = float(str(code_extraction_payload.get("surface_balance_score", 0.0) or 0.0))
         report_input["semantic_diversity_score"] = float(str(code_extraction_payload.get("semantic_diversity_score", 0.0) or 0.0))
         report_input["coverage_quality_grade"] = str(code_extraction_payload.get("coverage_quality_grade", "unknown") or "unknown")
+        report_input["dropped_non_business_surface_count"] = int(str(code_extraction_payload.get("dropped_non_business_surface_count", 0) or 0))
+        report_input["dropped_schema_only_count"] = int(str(code_extraction_payload.get("dropped_schema_only_count", 0) or 0))
+        report_input["dropped_non_executable_normative_text_count"] = int(
+            str(code_extraction_payload.get("dropped_non_executable_normative_text_count", 0) or 0)
+        )
+        report_input["accepted_business_enforcement_count"] = int(
+            str(code_extraction_payload.get("accepted_business_enforcement_count", 0) or 0)
+        )
+        report_input["rejected_non_business_subject_count"] = int(
+            str(code_extraction_payload.get("rejected_non_business_subject_count", 0) or 0)
+        )
+        report_input["post_drop_valid_ratio"] = float(
+            str(code_extraction_payload.get("post_drop_valid_ratio", 0.0) or 0.0)
+        )
+        report_input["executable_business_rule_ratio"] = float(
+            str(code_extraction_payload.get("executable_business_rule_ratio", 0.0) or 0.0)
+        )
+        missing_surface_reasons_payload = code_extraction_payload.get("missing_surface_reasons")
+        report_input["missing_surface_reasons"] = (
+            list(missing_surface_reasons_payload) if isinstance(missing_surface_reasons_payload, list) else []
+        )
+        discovery_outcomes_payload = code_extraction_payload.get("discovery_outcomes")
+        report_input["discovery_outcomes"] = (
+            list(discovery_outcomes_payload) if isinstance(discovery_outcomes_payload, list) else []
+        )
         quality_reasons = code_extraction_payload.get("quality_insufficiency_reasons", [])
         if isinstance(quality_reasons, list):
             report_input["quality_insufficiency_reasons"] = [str(item) for item in quality_reasons if str(item).strip()]
@@ -2216,10 +2263,50 @@ def main() -> int:
             invalid_code_candidate_count=int(final_snapshot.get("InvalidCodeCandidateCount") or 0),
             code_token_artifact_count=int(final_snapshot.get("CodeTokenArtifactCount") or 0),
             template_overfit_count=int(final_snapshot.get("TemplateOverfitCount") or 0),
+            dropped_non_business_surface_count=int(
+                (final_snapshot.get("ValidationReport") or {}).get("dropped_non_business_surface_count", 0)
+                if isinstance(final_snapshot.get("ValidationReport"), dict)
+                else 0
+            ),
+            dropped_schema_only_count=int(
+                (final_snapshot.get("ValidationReport") or {}).get("dropped_schema_only_count", 0)
+                if isinstance(final_snapshot.get("ValidationReport"), dict)
+                else 0
+            ),
+            dropped_non_executable_normative_text_count=int(
+                (final_snapshot.get("ValidationReport") or {}).get("dropped_non_executable_normative_text_count", 0)
+                if isinstance(final_snapshot.get("ValidationReport"), dict)
+                else 0
+            ),
+            accepted_business_enforcement_count=int(
+                (final_snapshot.get("ValidationReport") or {}).get("accepted_business_enforcement_count", 0)
+                if isinstance(final_snapshot.get("ValidationReport"), dict)
+                else 0
+            ),
+            rejected_non_business_subject_count=int(
+                (final_snapshot.get("ValidationReport") or {}).get("rejected_non_business_subject_count", 0)
+                if isinstance(final_snapshot.get("ValidationReport"), dict)
+                else 0
+            ),
             coverage_quality_grade=str(final_snapshot.get("CoverageQualityGrade") or "unknown"),
             surface_balance_score=float(final_snapshot.get("SurfaceBalanceScore") or 0.0),
             semantic_diversity_score=float(final_snapshot.get("SemanticDiversityScore") or 0.0),
+            post_drop_valid_ratio=float(
+                (final_snapshot.get("ValidationReport") or {}).get("post_drop_valid_ratio", 0.0)
+                if isinstance(final_snapshot.get("ValidationReport"), dict)
+                else 0.0
+            ),
+            executable_business_rule_ratio=float(
+                (final_snapshot.get("ValidationReport") or {}).get("executable_business_rule_ratio", 0.0)
+                if isinstance(final_snapshot.get("ValidationReport"), dict)
+                else 0.0
+            ),
             quality_insufficiency_reasons=list(final_snapshot.get("QualityInsufficiencyReasons") or []),
+            missing_surface_reasons=list(
+                ((final_snapshot.get("ValidationReport") or {}).get("missing_surface_reasons") or [])
+                if isinstance(final_snapshot.get("ValidationReport"), dict)
+                else []
+            ),
             report_sha=str(final_snapshot.get("ReportSha") or ""),
             has_signal=bool(final_snapshot.get("HasSignal") is True),
         ),

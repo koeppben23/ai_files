@@ -14,6 +14,16 @@ _LEGACY_OUTCOMES = {"not-applicable", "deferred", "skipped"}
 _ACCEPTED_OUTCOMES = _CANONICAL_OUTCOMES | _LEGACY_OUTCOMES
 POINTER_AS_SESSION_STATE_ERROR = "SESSION_STATE_POINTER_PASSED_AS_SESSION_STATE"
 
+_DISCOVERY_OUTCOME_STATUSES = {
+    "accepted_for_validation",
+    "dropped_technical_artifact",
+    "dropped_missing_enforcement_anchor",
+    "dropped_missing_business_semantics",
+    "dropped_non_business_surface",
+    "dropped_schema_only",
+    "dropped_non_executable_normative_text",
+}
+
 
 def _parse_bool(token: str) -> bool:
     value = token.strip().lower()
@@ -83,6 +93,65 @@ def _truthy(value: object, *, default: bool = False) -> bool:
     return _parse_bool(str(value))
 
 
+def _aggregate_discovery_outcome_counts(
+    discovery_outcomes: list[dict[str, Any]] | tuple[dict[str, Any], ...] | None,
+) -> dict[str, int]:
+    """Aggregate outcome counts from discovery_outcomes list.
+    
+    This is the SSOT for deriving diagnostic counts from raw discovery outcomes.
+    Returns a dict with aggregated counts for each outcome category.
+    """
+    if not discovery_outcomes:
+        return {
+            "raw_candidate_count": 0,
+            "dropped_candidate_count": 0,
+            "dropped_non_business_surface_count": 0,
+            "dropped_schema_only_count": 0,
+            "dropped_non_executable_normative_text_count": 0,
+            "dropped_technical_artifact_count": 0,
+            "dropped_missing_enforcement_anchor_count": 0,
+            "dropped_missing_business_semantics_count": 0,
+            "accepted_for_validation_count": 0,
+        }
+    
+    counts: dict[str, int] = {
+        "raw_candidate_count": 0,
+        "dropped_candidate_count": 0,
+        "dropped_non_business_surface_count": 0,
+        "dropped_schema_only_count": 0,
+        "dropped_non_executable_normative_text_count": 0,
+        "dropped_technical_artifact_count": 0,
+        "dropped_missing_enforcement_anchor_count": 0,
+        "dropped_missing_business_semantics_count": 0,
+        "accepted_for_validation_count": 0,
+    }
+    
+    status_mapping = {
+        "dropped_non_business_surface": "dropped_non_business_surface_count",
+        "dropped_schema_only": "dropped_schema_only_count",
+        "dropped_non_executable_normative_text": "dropped_non_executable_normative_text_count",
+        "dropped_technical_artifact": "dropped_technical_artifact_count",
+        "dropped_missing_enforcement_anchor": "dropped_missing_enforcement_anchor_count",
+        "dropped_missing_business_semantics": "dropped_missing_business_semantics_count",
+        "accepted_for_validation": "accepted_for_validation_count",
+    }
+    
+    for outcome in discovery_outcomes:
+        if not isinstance(outcome, dict):
+            continue
+        status = str(outcome.get("status", "")).strip()
+        counts["raw_candidate_count"] += 1
+        
+        if status != "accepted_for_validation":
+            counts["dropped_candidate_count"] += 1
+        
+        count_key = status_mapping.get(status)
+        if count_key:
+            counts[count_key] += 1
+    
+    return counts
+
+
 def _build_report_sha(report: Mapping[str, Any]) -> str:
     payload = json.dumps(report, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
@@ -103,11 +172,19 @@ class CodeExtractionCounters:
     rejected_non_business_subject_count: int = 0
 
     def __post_init__(self) -> None:
-        if self.raw_candidate_count != self.dropped_candidate_count + self.candidate_count:
-            raise ValueError("raw_candidate_count must equal dropped_candidate_count + candidate_count")
-        if self.candidate_count != self.validated_code_rule_count + self.invalid_code_candidate_count:
+        # Hard invariant: dropped + candidate must equal raw
+        computed_dropped = self.raw_candidate_count - self.candidate_count
+        if self.dropped_candidate_count != computed_dropped:
             raise ValueError(
-                "candidate_count must equal validated_code_rule_count + invalid_code_candidate_count"
+                f"dropped_candidate_count ({self.dropped_candidate_count}) must equal "
+                f"raw_candidate_count ({self.raw_candidate_count}) - candidate_count ({self.candidate_count}) = {computed_dropped}"
+            )
+        # Hard invariant: validated + invalid must equal candidate
+        computed_validated = self.candidate_count - self.invalid_code_candidate_count
+        if self.validated_code_rule_count != computed_validated:
+            raise ValueError(
+                f"validated_code_rule_count ({self.validated_code_rule_count}) must equal "
+                f"candidate_count ({self.candidate_count}) - invalid_code_candidate_count ({self.invalid_code_candidate_count}) = {computed_validated}"
             )
 
     def to_report_fields(self) -> dict[str, int]:
@@ -131,6 +208,10 @@ class CodeExtractionCounters:
 def _build_code_extraction_counters(report_map: Mapping[str, Any]) -> CodeExtractionCounters:
     candidate_count_keys = ("candidate_count", "code_candidate_count")
     validated_count_keys = ("validated_code_rule_count", "code_valid_rule_count")
+
+    outcome_counts = _aggregate_discovery_outcome_counts(
+        report_map.get("discovery_outcomes") or []
+    )
 
     candidate_count_provided = any(key in report_map for key in candidate_count_keys)
     validated_code_rule_count_provided = any(key in report_map for key in validated_count_keys)
@@ -184,22 +265,72 @@ def _build_code_extraction_counters(report_map: Mapping[str, Any]) -> CodeExtrac
     if candidate_count != validated_code_rule_count + invalid_code_candidate_count:
         candidate_count = validated_code_rule_count + invalid_code_candidate_count
 
-    dropped_candidate_count = max(_parse_int(str(report_map.get("dropped_candidate_count", 0))), 0)
+    # Use aggregated outcome counts as primary source when discovery_outcomes is present
+    # Explicit report_map values take precedence for backward compatibility
+    has_discovery_outcomes = bool(report_map.get("discovery_outcomes"))
+    
+    dropped_candidate_count = max(
+        _parse_int(str(report_map.get("dropped_candidate_count", outcome_counts.get("dropped_candidate_count", 0)))), 0
+    )
     raw_candidate_count = max(
-        _parse_int(str(report_map.get("raw_candidate_count", candidate_count + dropped_candidate_count))),
+        _parse_int(str(report_map.get("raw_candidate_count", outcome_counts.get("raw_candidate_count", 0)))),
         0,
     )
-    if raw_candidate_count_provided and not dropped_candidate_count_provided:
-        dropped_candidate_count = max(raw_candidate_count - candidate_count, 0)
-    if raw_candidate_count != dropped_candidate_count + candidate_count:
-        raw_candidate_count = dropped_candidate_count + candidate_count
+    
+    # When discovery_outcomes is provided, use aggregated counts as SSOT
+    if has_discovery_outcomes and outcome_counts.get("raw_candidate_count", 0) > 0:
+        raw_candidate_count = outcome_counts.get("raw_candidate_count", raw_candidate_count)
+        dropped_candidate_count = outcome_counts.get("dropped_candidate_count", dropped_candidate_count)
+        # candidate_count is derived from accepted_for_validation
+        if outcome_counts.get("accepted_for_validation_count", 0) > 0:
+            candidate_count = outcome_counts.get("accepted_for_validation_count", candidate_count)
+    elif not has_discovery_outcomes:
+        # Backward compatibility: reconcile inconsistent counts when no discovery_outcomes
+        if raw_candidate_count != dropped_candidate_count + candidate_count:
+            raw_candidate_count = dropped_candidate_count + candidate_count
     
     # Diagnostic fields for tightened business rule extraction
-    dropped_non_business_surface_count = max(_parse_int(str(report_map.get("dropped_non_business_surface_count", 0))), 0)
-    dropped_schema_only_count = max(_parse_int(str(report_map.get("dropped_schema_only_count", 0))), 0)
-    dropped_non_executable_normative_text_count = max(_parse_int(str(report_map.get("dropped_non_executable_normative_text_count", 0))), 0)
-    accepted_business_enforcement_count = max(_parse_int(str(report_map.get("accepted_business_enforcement_count", 0))), 0)
+    # When discovery_outcomes is present, use aggregated counts as SSOT (hard precedence)
+    # report_map values only used as fallback when no discovery_outcomes
+    if has_discovery_outcomes and outcome_counts.get("raw_candidate_count", 0) > 0:
+        # SSOT: aggregated outcome counts take hard precedence
+        dropped_non_business_surface_count = outcome_counts.get("dropped_non_business_surface_count", 0)
+        dropped_schema_only_count = outcome_counts.get("dropped_schema_only_count", 0)
+        dropped_non_executable_normative_text_count = outcome_counts.get("dropped_non_executable_normative_text_count", 0)
+        # Note: This is a pre-validation discovery count - actual enforcement validity
+        # is determined later in the validation pipeline
+        accepted_business_enforcement_count = outcome_counts.get("accepted_for_validation_count", 0)
+    else:
+        # Fallback to report_map values when no discovery_outcomes
+        dropped_non_business_surface_count = max(
+            _parse_int(str(report_map.get("dropped_non_business_surface_count", 0))), 0
+        )
+        dropped_schema_only_count = max(
+            _parse_int(str(report_map.get("dropped_schema_only_count", 0))), 0
+        )
+        dropped_non_executable_normative_text_count = max(
+            _parse_int(str(report_map.get("dropped_non_executable_normative_text_count", 0))), 0
+        )
+        accepted_business_enforcement_count = max(
+            _parse_int(str(report_map.get("accepted_business_enforcement_count", 0))), 0
+        )
+    
+    # rejected_non_business_subject_count comes from validation, not discovery
+    # It tracks code candidates rejected during validation phase
     rejected_non_business_subject_count = max(_parse_int(str(report_map.get("rejected_non_business_subject_count", 0))), 0)
+
+    # SSOT invariant validation: when discovery_outcomes present, reconcile all counts
+    if has_discovery_outcomes and outcome_counts.get("raw_candidate_count", 0) > 0:
+        # The aggregated counts take precedence - reconcile all related values
+        raw_candidate_count = outcome_counts.get("raw_candidate_count", raw_candidate_count)
+        dropped_candidate_count = outcome_counts.get("dropped_candidate_count", dropped_candidate_count)
+        candidate_count = outcome_counts.get("accepted_for_validation_count", candidate_count)
+
+        # Reconcile validation counters to preserve hard invariants.
+        if not validated_code_rule_count_provided:
+            validated_code_rule_count = candidate_count
+        validated_code_rule_count = max(min(validated_code_rule_count, candidate_count), 0)
+        invalid_code_candidate_count = max(candidate_count - validated_code_rule_count, 0)
 
     return CodeExtractionCounters(
         raw_candidate_count=raw_candidate_count,
@@ -215,7 +346,7 @@ def _build_code_extraction_counters(report_map: Mapping[str, Any]) -> CodeExtrac
     )
 
 
-def _build_code_extraction_report(
+def hydrate_code_extraction_report_for_session_state(
     *,
     report_map: Mapping[str, Any],
     counters: CodeExtractionCounters,
@@ -229,6 +360,17 @@ def _build_code_extraction_report(
     code_token_artifact_count = max(_parse_int(str(report_map.get("code_token_artifact_count", 0))), 0)
     if artifact_ratio <= 0.0 and counters.candidate_count > 0:
         artifact_ratio = code_token_artifact_count / counters.candidate_count
+
+    discovery_outcomes_raw = report_map.get("discovery_outcomes")
+    discovery_outcomes = list(discovery_outcomes_raw) if isinstance(discovery_outcomes_raw, list) else []
+
+    # Anti-drop safeguard: prefer full materialization; if unavailable, keep
+    # explicit metadata to avoid silent loss and make fallback observable.
+    outcomes_missing_with_signal = (
+        counters.raw_candidate_count > 0
+        and counters.accepted_business_enforcement_count > 0
+        and not discovery_outcomes
+    )
 
     return {
         "scanned_file_count": max(
@@ -255,9 +397,18 @@ def _build_code_extraction_report(
         "surface_balance_score": _parse_float(report_map.get("surface_balance_score"), default=0.0),
         "semantic_diversity_score": _parse_float(report_map.get("semantic_diversity_score"), default=0.0),
         "quality_insufficiency_reasons": _normalize_reason_codes(report_map.get("quality_insufficiency_reasons")),
+        "missing_surface_reasons": _normalize_reason_codes(report_map.get("missing_surface_reasons")),
+        "post_drop_valid_ratio": _parse_float(report_map.get("post_drop_valid_ratio"), default=0.0),
+        "executable_business_rule_ratio": _parse_float(
+            report_map.get("executable_business_rule_ratio"), default=0.0
+        ),
         "template_overfit_count": max(_parse_int(str(report_map.get("template_overfit_count", 0))), 0),
         "scanned_surfaces": list(report_map.get("scanned_surfaces") or []),
-        "discovery_outcomes": list(report_map.get("discovery_outcomes") or []),
+        # Keep full discovery outcomes materialized for replay/diagnostics.
+        # Counters remain the SSOT for aggregation decisions.
+        "discovery_outcomes": discovery_outcomes,
+        "discovery_outcomes_count": len(discovery_outcomes) if discovery_outcomes else counters.raw_candidate_count,
+        "discovery_outcomes_truncated": outcomes_missing_with_signal,
         "report_sha": report_sha,
     }
 
@@ -349,8 +500,39 @@ def build_business_rules_state_snapshot(
 
     report_map = dict(report)
     if isinstance(code_extraction_report, Mapping):
-        for key, value in dict(code_extraction_report).items():
-            report_map.setdefault(str(key), value)
+        merged = dict(code_extraction_report)
+        # SSOT override: extraction diagnostics from code_extraction_report
+        # must override stale/legacy zeros from report payload.
+        force_override_keys = {
+            "raw_candidate_count",
+            "dropped_candidate_count",
+            "candidate_count",
+            "code_candidate_count",
+            "validated_code_rule_count",
+            "invalid_code_candidate_count",
+            "dropped_non_business_surface_count",
+            "dropped_schema_only_count",
+            "dropped_non_executable_normative_text_count",
+            "accepted_business_enforcement_count",
+            "rejected_non_business_subject_count",
+            "discovery_outcomes",
+            "scanned_surfaces",
+            "valid_rule_ratio",
+            "artifact_ratio",
+            "coverage_quality_grade",
+            "surface_balance_score",
+            "semantic_diversity_score",
+            "quality_insufficiency_reasons",
+            "missing_surface_reasons",
+            "post_drop_valid_ratio",
+            "executable_business_rule_ratio",
+        }
+        for key, value in merged.items():
+            k = str(key)
+            if k in force_override_keys:
+                report_map[k] = value
+            else:
+                report_map.setdefault(k, value)
 
     counters = _build_code_extraction_counters(report_map)
     valid_rule_count = max(_parse_int(str(report_map.get("valid_rule_count", 0))), 0)
@@ -453,6 +635,11 @@ def build_business_rules_state_snapshot(
     surface_balance_score = _parse_float(report_map.get("surface_balance_score"), default=0.0)
     semantic_diversity_score = _parse_float(report_map.get("semantic_diversity_score"), default=0.0)
     quality_insufficiency_reasons = _normalize_reason_codes(report_map.get("quality_insufficiency_reasons"))
+    missing_surface_reasons = _normalize_reason_codes(report_map.get("missing_surface_reasons"))
+    post_drop_valid_ratio = _parse_float(report_map.get("post_drop_valid_ratio"), default=0.0)
+    executable_business_rule_ratio = _parse_float(
+        report_map.get("executable_business_rule_ratio"), default=0.0
+    )
     code_token_artifact_count = max(_parse_int(str(report_map.get("code_token_artifact_count", 0))), 0)
     template_overfit_count = max(_parse_int(str(report_map.get("template_overfit_count", 0))), 0)
 
@@ -487,10 +674,13 @@ def build_business_rules_state_snapshot(
         "surface_balance_score": surface_balance_score,
         "semantic_diversity_score": semantic_diversity_score,
         "quality_insufficiency_reasons": quality_insufficiency_reasons,
+        "missing_surface_reasons": missing_surface_reasons,
+        "post_drop_valid_ratio": post_drop_valid_ratio,
+        "executable_business_rule_ratio": executable_business_rule_ratio,
         "coverage_quality_grade": coverage_quality_grade,
     }
     report_sha = _build_report_sha(normalized_report) if compute_report_sha else str(persistence_result.get("report_sha") or "")
-    final_code_extraction_report = _build_code_extraction_report(
+    final_code_extraction_report = hydrate_code_extraction_report_for_session_state(
         report_map=report_map,
         counters=counters,
         report_sha=report_sha,
@@ -551,7 +741,7 @@ def build_business_rules_code_extraction_report(snapshot: Mapping[str, Any]) -> 
     validation_report = snapshot.get("ValidationReport")
     report_map = dict(validation_report) if isinstance(validation_report, Mapping) else {}
     counters = _build_code_extraction_counters(report_map)
-    return _build_code_extraction_report(
+    return hydrate_code_extraction_report_for_session_state(
         report_map=report_map,
         counters=counters,
         report_sha=str(snapshot.get("ReportSha") or ""),
@@ -631,9 +821,25 @@ def hydrate_business_rules_state_from_artifacts(
     template_overfit_count = _parse_int(status_fields.get("templateoverfitcount", "0"), default=0)
     code_surface_count = _parse_int(status_fields.get("codesurfacecount", "0"), default=0)
     missing_code_surfaces = _parse_csv_reasons(status_fields.get("missingcodesurfaces", ""))
+    missing_surface_reasons = _parse_csv_reasons(status_fields.get("missingsurfacereasons", ""))
     coverage_quality_grade = status_fields.get("coveragequalitygrade", "unknown").strip() or "unknown"
     surface_balance_score = _parse_float(status_fields.get("surfacebalancescore", "0.0"), default=0.0)
     semantic_diversity_score = _parse_float(status_fields.get("semanticdiversityscore", "0.0"), default=0.0)
+    post_drop_valid_ratio = _parse_float(status_fields.get("postdropvalidratio", "0.0"), default=0.0)
+    executable_business_rule_ratio = _parse_float(status_fields.get("executablebusinessruleratio", "0.0"), default=0.0)
+    dropped_non_business_surface_count = _parse_int(
+        status_fields.get("droppednonbusinesssurfacecount", "0"), default=0
+    )
+    dropped_schema_only_count = _parse_int(status_fields.get("droppedschemaonlycount", "0"), default=0)
+    dropped_non_executable_normative_text_count = _parse_int(
+        status_fields.get("droppednonexecutablenormativetextcount", "0"), default=0
+    )
+    accepted_business_enforcement_count = _parse_int(
+        status_fields.get("acceptedbusinessenforcementcount", "0"), default=0
+    )
+    rejected_non_business_subject_count = _parse_int(
+        status_fields.get("rejectednonbusinesssubjectcount", "0"), default=0
+    )
     quality_insufficiency_reasons = _parse_csv_reasons(status_fields.get("qualityinsufficiencyreasons", ""))
     render_consistency = status_fields.get("renderconsistency", "").strip().lower()
     count_consistency = status_fields.get("countconsistency", "").strip().lower()
@@ -688,6 +894,14 @@ def hydrate_business_rules_state_from_artifacts(
         "surface_balance_score": surface_balance_score,
         "semantic_diversity_score": semantic_diversity_score,
         "quality_insufficiency_reasons": quality_insufficiency_reasons,
+        "missing_surface_reasons": missing_surface_reasons,
+        "post_drop_valid_ratio": post_drop_valid_ratio,
+        "executable_business_rule_ratio": executable_business_rule_ratio,
+        "dropped_non_business_surface_count": dropped_non_business_surface_count,
+        "dropped_schema_only_count": dropped_schema_only_count,
+        "dropped_non_executable_normative_text_count": dropped_non_executable_normative_text_count,
+        "accepted_business_enforcement_count": accepted_business_enforcement_count,
+        "rejected_non_business_subject_count": rejected_non_business_subject_count,
         "reason_codes": quality_reason_codes,
     }
 
